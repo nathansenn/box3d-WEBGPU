@@ -1,0 +1,318 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Box3D WebGPU Maximum Lab</title>
+    <style>
+      :root {
+        color-scheme: dark;
+        font-family: Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+        background: #05070d;
+        color: #f8fafc;
+      }
+
+      * { box-sizing: border-box; }
+
+      body {
+        margin: 0;
+        min-height: 100vh;
+        overflow: hidden;
+        background:
+          radial-gradient(circle at 18% 0%, rgba(13, 142, 167, 0.28), transparent 34%),
+          radial-gradient(circle at 90% 15%, rgba(229, 41, 68, 0.16), transparent 30%),
+          linear-gradient(180deg, #07111f, #03050a);
+      }
+
+      #app { position: fixed; inset: 0; }
+
+      canvas {
+        width: 100vw;
+        height: 100vh;
+        display: block;
+        background: radial-gradient(circle at top, #17203a, #05070d 65%);
+      }
+
+      .hud {
+        position: fixed;
+        left: 16px;
+        top: 16px;
+        width: min(540px, calc(100vw - 32px));
+        max-height: calc(100vh - 32px);
+        overflow: auto;
+        padding: 16px;
+        border: 1px solid rgba(148, 163, 184, 0.24);
+        background: rgba(7, 9, 18, 0.74);
+        box-shadow: 0 18px 90px rgba(0, 0, 0, 0.48);
+        backdrop-filter: blur(18px);
+        border-radius: 22px;
+      }
+
+      .eyebrow {
+        margin: 0 0 7px;
+        color: #67e8f9;
+        font-size: 11px;
+        font-weight: 900;
+        letter-spacing: 0.18em;
+        text-transform: uppercase;
+      }
+
+      h1 {
+        margin: 0;
+        font-size: clamp(23px, 4vw, 34px);
+        line-height: 1.02;
+        letter-spacing: -0.045em;
+      }
+
+      h2 { margin: 0 0 6px; font-size: 17px; }
+
+      p {
+        margin: 0;
+        color: #cbd5e1;
+        line-height: 1.42;
+        font-size: 13px;
+      }
+
+      .hero-copy { margin-top: 9px; }
+
+      .panel {
+        margin-top: 14px;
+        padding: 12px;
+        border: 1px solid rgba(148, 163, 184, 0.16);
+        background: rgba(15, 23, 42, 0.68);
+        border-radius: 16px;
+      }
+
+      .scene-tools {
+        display: grid;
+        grid-template-columns: 1fr 0.8fr;
+        gap: 8px;
+      }
+
+      .scene-grid {
+        display: grid;
+        grid-template-columns: 1fr 1fr;
+        gap: 8px;
+        max-height: 248px;
+        overflow: auto;
+        padding-right: 2px;
+      }
+
+      input, select {
+        width: 100%;
+        border: 1px solid rgba(148, 163, 184, 0.24);
+        color: #f8fafc;
+        background: rgba(2, 6, 23, 0.78);
+        border-radius: 12px;
+        padding: 9px 10px;
+        outline: none;
+      }
+
+      select { cursor: pointer; }
+
+      button {
+        border: 0;
+        color: white;
+        font-weight: 850;
+        border-radius: 999px;
+        background: linear-gradient(135deg, #2563eb, #0891b2);
+        padding: 9px 12px;
+        cursor: pointer;
+        transition: transform 120ms ease, border-color 120ms ease, opacity 120ms ease;
+      }
+
+      button:hover { transform: translateY(-1px); }
+      button:active { transform: translateY(1px); }
+
+      button.secondary, button.scene {
+        background: rgba(30, 41, 59, 0.96);
+        color: #e2e8f0;
+        border: 1px solid rgba(148, 163, 184, 0.2);
+      }
+
+      button.scene {
+        border-radius: 13px;
+        text-align: left;
+        font-size: 12px;
+        line-height: 1.18;
+        min-height: 44px;
+      }
+
+      button.scene.active {
+        border-color: rgba(103, 232, 249, 0.75);
+        background: linear-gradient(135deg, rgba(13, 142, 167, 0.8), rgba(31, 57, 86, 0.95));
+      }
+
+      .buttons { display: flex; flex-wrap: wrap; gap: 8px; }
+      .scene-nav { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 8px; }
+
+      .stats {
+        display: grid;
+        grid-template-columns: repeat(3, minmax(0, 1fr));
+        gap: 8px;
+      }
+
+      .stat {
+        padding: 10px;
+        border-radius: 14px;
+        background: rgba(2, 6, 23, 0.62);
+        border: 1px solid rgba(148, 163, 184, 0.14);
+      }
+
+      .stat strong {
+        display: block;
+        font-size: 15px;
+        overflow: hidden;
+        text-overflow: ellipsis;
+        white-space: nowrap;
+      }
+
+      .stat span {
+        display: block;
+        margin-top: 2px;
+        color: #94a3b8;
+        font-size: 10px;
+        text-transform: uppercase;
+        letter-spacing: 0.08em;
+      }
+
+      .range-row {
+        display: grid;
+        grid-template-columns: auto 1fr auto;
+        gap: 10px;
+        align-items: center;
+      }
+
+      input[type="range"] { width: 100%; accent-color: #22d3ee; }
+
+      .warning {
+        margin-top: 10px;
+        padding: 9px 10px;
+        color: #fde68a;
+        background: rgba(120, 53, 15, 0.26);
+        border: 1px solid rgba(251, 191, 36, 0.2);
+        border-radius: 13px;
+        font-size: 12px;
+        line-height: 1.35;
+      }
+
+      .test-log {
+        min-height: 52px;
+        max-height: 150px;
+        overflow: auto;
+        white-space: pre-wrap;
+        font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+        color: #dbeafe;
+        font-size: 11px;
+        line-height: 1.45;
+      }
+
+      .count-pill {
+        display: inline-flex;
+        align-items: center;
+        gap: 6px;
+        margin-top: 8px;
+        color: #a7f3d0;
+        font-size: 12px;
+        font-weight: 800;
+      }
+
+      kbd {
+        border: 1px solid rgba(148, 163, 184, 0.25);
+        border-bottom-width: 2px;
+        padding: 1px 6px;
+        border-radius: 6px;
+        background: rgba(15, 23, 42, 0.9);
+        color: #e2e8f0;
+      }
+
+      .fatal {
+        position: fixed;
+        inset: 20px;
+        display: grid;
+        place-items: center;
+        text-align: center;
+        color: #fecaca;
+        line-height: 1.5;
+      }
+
+      @media (max-width: 760px) {
+        .hud { left: 10px; top: 10px; width: calc(100vw - 20px); padding: 13px; }
+        .scene-grid, .scene-tools { grid-template-columns: 1fr; }
+        .scene-nav { grid-template-columns: 1fr 1fr; }
+        .stats { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+      }
+    </style>
+  </head>
+  <body>
+    <div id="app">
+      <canvas id="gpu-canvas"></canvas>
+      <section class="hud">
+        <p class="eyebrow">Box3D → WASM → WebGPU</p>
+        <h1>Maximum Physics Capability Lab</h1>
+        <p class="hero-copy">
+          600 procedural examples, automated smoke tests, replay hashes, debug wireframes, stress scaling,
+          and WebGPU instancing. Drag to orbit, scroll to zoom, press <kbd>Space</kbd> to kick,
+          <kbd>E</kbd> to explode, <kbd>F</kbd> to fire, <kbd>T</kbd> for Max Tour.
+        </p>
+
+        <div id="warning" class="warning">Loading backend...</div>
+
+        <div class="panel">
+          <h2 id="scene-title">Scene</h2>
+          <p id="scene-subtitle"></p>
+          <p id="scene-details" style="margin-top:6px"></p>
+        </div>
+
+        <div class="panel">
+          <div class="scene-tools">
+            <input id="scene-search" type="search" placeholder="Search 600 scenes: tower, bridge, material, warehouse..." />
+            <select id="category-filter" aria-label="Scene category"></select>
+          </div>
+          <div style="margin-top:8px">
+            <select id="scene-select" aria-label="Scene selector"></select>
+            <span id="scene-count" class="count-pill">0/0 scenes</span>
+          </div>
+          <div class="scene-nav" style="margin-top:10px">
+            <button id="prev-scene" class="secondary">Prev</button>
+            <button id="next-scene" class="secondary">Next</button>
+            <button id="random-scene" class="secondary">Random</button>
+            <button id="max-tour">Max Tour</button>
+          </div>
+          <div id="scene-buttons" class="scene-grid" style="margin-top:10px"></div>
+        </div>
+
+        <div class="panel range-row">
+          <strong>Stress</strong>
+          <input id="stress" type="range" min="1" max="5" value="3" step="1" />
+          <strong id="stress-value">3</strong>
+        </div>
+
+        <div class="panel stats">
+          <div class="stat"><strong id="body-count">0</strong><span>bodies</span></div>
+          <div class="stat"><strong id="dynamic-count">0</strong><span>dynamic</span></div>
+          <div class="stat"><strong id="fps">0</strong><span>fps</span></div>
+          <div class="stat"><strong id="sim-ms">0 ms</strong><span>sim frame</span></div>
+          <div class="stat"><strong id="upload">0 MB</strong><span>gpu upload</span></div>
+          <div class="stat"><strong id="backend">...</strong><span>backend</span></div>
+          <div class="stat" style="grid-column: span 3"><strong id="hash">0x00000000</strong><span>replay hash</span></div>
+        </div>
+
+        <div class="panel buttons">
+          <button id="pause">Pause</button>
+          <button id="step" class="secondary">Step</button>
+          <button id="reset" class="secondary">Reset</button>
+          <button id="kick">Impulse</button>
+          <button id="explode">Explosion</button>
+          <button id="projectile">Projectile</button>
+          <button id="rain" class="secondary">Rain</button>
+          <button id="debug" class="secondary">Debug: On</button>
+          <button id="run-tests" class="secondary">Run Browser Tests</button>
+        </div>
+
+        <div class="panel test-log" id="test-log">Ready.</div>
+      </section>
+    </div>
+    <script type="module" src="/src/main.ts"></script>
+  </body>
+</html>

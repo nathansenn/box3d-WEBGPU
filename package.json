@@ -1,0 +1,21 @@
+{
+  "name": "box3d-webgpu",
+  "version": "0.3.0",
+  "private": true,
+  "type": "module",
+  "description": "A maximum-value WebGPU physics lab for Box3D: 600 procedural examples, WASM bridge, fallback physics, diagnostics, tour mode, and tests.",
+  "scripts": {
+    "dev": "vite --host 0.0.0.0",
+    "build": "vite build",
+    "build:pages": "VITE_BASE_PATH=./ vite build",
+    "preview": "vite preview --host 0.0.0.0",
+    "build:wasm": "bash ./scripts/build-wasm.sh",
+    "doctor": "bash ./scripts/doctor.sh",
+    "typecheck": "tsc --noEmit",
+    "test": "npm run typecheck && rm -rf .test-build && tsc -p tsconfig.test.json && node -e \"require('fs').mkdirSync('.test-build', {recursive:true}); require('fs').writeFileSync('.test-build/package.json', '{\\\"type\\\":\\\"commonjs\\\"}')\" && node .test-build/tests/unit.test.js && node scripts/self-test.mjs"
+  },
+  "devDependencies": {
+    "typescript": "^5.5.4",
+    "vite": "^8.1.3"
+  }
+}

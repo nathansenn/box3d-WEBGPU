@@ -1,0 +1,17 @@
+{
+  "extends": "./tsconfig.json",
+  "compilerOptions": {
+    "module": "CommonJS",
+    "moduleResolution": "Node",
+    "noEmit": false,
+    "outDir": ".test-build",
+    "rootDir": "."
+  },
+  "include": [
+    "src/math.ts",
+    "src/types.ts",
+    "src/scenes.ts",
+    "src/physics/fallback.ts",
+    "tests/**/*.ts"
+  ]
+}

@@ -1,1 +1,13 @@
-Pull requests for Box3D code are not accepted. Please consider filing an issue instead.
+## Summary
+
+- 
+
+## Validation
+
+- [ ] `npm test`
+- [ ] `npm run build`
+- [ ] Browser smoke test button passes
+
+## Screenshots / video
+
+Add before/after captures for visual changes.
