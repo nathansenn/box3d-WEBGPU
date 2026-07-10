@@ -1,5 +1,7 @@
-// Box3D WebGPU Epic Lab bridge
+// Box3D WebGPU AAA Physics Lab bridge
 // Keeps upstream Box3D intact and exposes a compact C ABI for browser/WebGPU demos.
+// The browser renderer supplies HDR lighting, shadows, post processing, and effects;
+// this bridge supplies Box3D-native rigid-body simulation and deterministic transforms.
 
 #include <box3d/box3d.h>
 
@@ -35,6 +37,10 @@ static float g_matrices[B3W_MAX_BODIES * 16];
 static float g_colors[B3W_MAX_BODIES * 4];
 static uint32_t g_rng = 0xC0FFEEu;
 static uint32_t g_hash = 0u;
+
+// Forward declarations used by scene recipes. C17 does not permit implicit declarations.
+B3W_EXPORT void b3w_explode(float cx, float cy, float cz, float strength, float radius);
+B3W_EXPORT int b3w_launch_projectile(float x, float y, float z, float vx, float vy, float vz, float size);
 
 static float b3w_rand01(void)
 {
@@ -108,7 +114,7 @@ static int b3w_add_box_ex(b3BodyType type, float x, float y, float z, float hx, 
 
     b3BodyDef bodyDef = b3DefaultBodyDef();
     bodyDef.type = type;
-    bodyDef.position = (b3Vec3){ x, y, z };
+    bodyDef.position = (b3Pos){ x, y, z };
 
     if (type == b3_dynamicBody)
     {
@@ -138,13 +144,8 @@ static int b3w_add_box_ex(b3BodyType type, float x, float y, float z, float hx, 
     }
 
     b3w_unpack_rgb(color, g_colors + index * 4);
-    b3w_write_model_matrix(index, (b3Vec3){ x, y, z }, b3Quat_identity, hx, hy, hz);
+    b3w_write_model_matrix(index, (b3Pos){ x, y, z }, b3Quat_identity, hx, hy, hz);
     return index;
-}
-
-static int b3w_add_box(b3BodyType type, float x, float y, float z, float hx, float hy, float hz, uint32_t color, float density)
-{
-    return b3w_add_box_ex(type, x, y, z, hx, hy, hz, color, density, 0.68f, 0.04f);
 }
 
 static void b3w_destroy_world(void)
@@ -289,6 +290,161 @@ static void b3w_scene_material(int stress)
     }
 }
 
+
+static void b3w_add_aaa_set_dressing(int family, int stress, int variant)
+{
+    // Arena beacons and floor edge markers give every native scene a readable scale.
+    const float arena = 24.0f;
+    const uint32_t beaconColors[4] = { 0x59D8FFu, 0xFFC96Bu, 0xB796FFu, 0x68F1B3u };
+    for (int i = 0; i < 4; ++i)
+    {
+        float x = (i & 1) ? arena : -arena;
+        float z = (i & 2) ? arena : -arena;
+        b3w_add_box_ex(b3_staticBody, x, 2.2f, z, 0.16f, 2.2f, 0.16f, 0x40516Au, 0.0f, 0.82f, 0.01f);
+        b3w_add_box_ex(b3_staticBody, x, 4.55f, z, 0.34f, 0.12f, 0.34f, beaconColors[i], 0.0f, 0.82f, 0.01f);
+    }
+
+    switch (family)
+    {
+        case 0: // foundry gantries around stack tests
+            for (int x = -15; x <= 15; x += 6)
+            {
+                b3w_add_box_ex(b3_staticBody, (float)x, 4.5f + stress * 0.25f, -10.0f, 0.16f, 4.5f + stress * 0.25f, 0.16f, 0x64748Bu, 0.0f, 0.8f, 0.01f);
+                b3w_add_box_ex(b3_staticBody, (float)x, 4.5f + stress * 0.25f, 10.0f, 0.16f, 4.5f + stress * 0.25f, 0.16f, 0x64748Bu, 0.0f, 0.8f, 0.01f);
+                b3w_add_box_ex(b3_staticBody, (float)x, 9.0f + stress * 0.5f, 0.0f, 0.14f, 0.14f, 10.0f, 0x0D8EA7u, 0.0f, 0.8f, 0.01f);
+            }
+            break;
+
+        case 1: // radial stage and illuminated perimeter
+            b3w_add_box_ex(b3_staticBody, 0.0f, 0.12f, 0.0f, 10.5f, 0.12f, 10.5f, 0x111C31u, 0.0f, 0.9f, 0.01f);
+            for (int i = 0; i < 16; ++i)
+            {
+                float t = ((float)i / 16.0f) * 6.28318530718f;
+                float r = 17.5f;
+                float x = cosf(t) * r;
+                float z = sinf(t) * r;
+                b3w_add_box_ex(b3_staticBody, x, 2.4f, z, 0.22f, 2.4f, 0.22f, 0x45566Fu, 0.0f, 0.82f, 0.01f);
+                b3w_add_box_ex(b3_staticBody, x, 4.95f, z, 0.42f, 0.11f, 0.42f, i % 2 ? 0x59D8FFu : 0xFFC96Bu, 0.0f, 0.82f, 0.01f);
+            }
+            break;
+
+        case 2: // tower podium, skyline massing, rooftop spire
+            b3w_add_box_ex(b3_staticBody, 0.0f, 0.25f, 0.0f, 8.5f, 0.25f, 8.5f, 0x18253Bu, 0.0f, 0.88f, 0.01f);
+            for (int i = 0; i < 14; ++i)
+            {
+                float x = -24.0f + (float)i * 3.7f;
+                float h = 2.0f + (float)((i * 7 + variant * 3) % 8) * 0.75f;
+                float z = (i & 1) ? 17.0f : -17.0f;
+                b3w_add_box_ex(b3_staticBody, x, h, z, 1.15f, h, 1.15f, i % 3 ? 0x1B2A43u : 0x263B59u, 0.0f, 0.82f, 0.01f);
+            }
+            b3w_add_box_ex(b3_staticBody, 0.0f, 19.0f + stress, 0.0f, 0.12f, 5.0f, 0.12f, 0xFFC96Bu, 0.0f, 0.82f, 0.01f);
+            break;
+
+        case 3: // bridge pylons and visual cable bands
+            for (int side = -1; side <= 1; side += 2)
+            {
+                float x = (float)side * 8.3f;
+                b3w_add_box_ex(b3_staticBody, x, 5.0f, -2.25f, 0.2f, 5.0f, 0.2f, 0x64748Bu, 0.0f, 0.85f, 0.01f);
+                b3w_add_box_ex(b3_staticBody, x, 5.0f, 2.25f, 0.2f, 5.0f, 0.2f, 0x64748Bu, 0.0f, 0.85f, 0.01f);
+                b3w_add_box_ex(b3_staticBody, x, 9.7f, 0.0f, 0.22f, 0.14f, 2.4f, 0x59D8FFu, 0.0f, 0.85f, 0.01f);
+            }
+            for (int x = -18; x <= 18; x += 3)
+            {
+                b3w_add_box_ex(b3_staticBody, (float)x, 2.65f, -2.05f, 0.045f, 0.6f + 0.035f * (float)(18 - abs(x)), 0.045f, 0xFFC96Bu, 0.0f, 0.8f, 0.01f);
+                b3w_add_box_ex(b3_staticBody, (float)x, 2.65f, 2.05f, 0.045f, 0.6f + 0.035f * (float)(18 - abs(x)), 0.045f, 0xFFC96Bu, 0.0f, 0.8f, 0.01f);
+            }
+            break;
+
+        case 4: // synchronized material lane markers
+            for (int lane = -2; lane <= 2; ++lane)
+            {
+                float z = (float)lane * 3.2f;
+                b3w_add_box_ex(b3_staticBody, 0.0f, 0.025f, z - 1.22f, 14.0f, 0.025f, 0.035f, lane % 2 ? 0xFFC96Bu : 0x59D8FFu, 0.0f, 0.9f, 0.01f);
+                b3w_add_box_ex(b3_staticBody, 0.0f, 0.025f, z + 1.22f, 14.0f, 0.025f, 0.035f, lane % 2 ? 0xFFC96Bu : 0x59D8FFu, 0.0f, 0.9f, 0.01f);
+            }
+            break;
+
+        case 5: // storm containment towers
+            for (int x = -18; x <= 18; x += 6)
+            {
+                b3w_add_box_ex(b3_staticBody, (float)x, 5.0f, -18.0f, 0.13f, 5.0f, 0.13f, 0x40516Au, 0.0f, 0.82f, 0.01f);
+                b3w_add_box_ex(b3_staticBody, (float)x, 5.0f, 18.0f, 0.13f, 5.0f, 0.13f, 0x40516Au, 0.0f, 0.82f, 0.01f);
+                b3w_add_box_ex(b3_staticBody, (float)x, 10.0f, 0.0f, 0.1f, 0.1f, 18.0f, 0x59D8FFu, 0.0f, 0.82f, 0.01f);
+            }
+            break;
+
+        case 6: // demolition safety perimeter
+            for (int i = -8; i <= 8; ++i)
+            {
+                uint32_t c = (i & 1) ? 0xF97316u : 0xFDE68Au;
+                b3w_add_box_ex(b3_staticBody, (float)i * 2.1f, 0.65f, -13.0f, 0.8f, 0.65f, 0.18f, c, 0.0f, 0.8f, 0.01f);
+                b3w_add_box_ex(b3_staticBody, (float)i * 2.1f, 0.65f, 13.0f, 0.8f, 0.65f, 0.18f, c, 0.0f, 0.8f, 0.01f);
+            }
+            break;
+
+        case 7: // vehicle lanes and overhead timing gantry
+            for (int lane = -2; lane <= 2; ++lane)
+            {
+                float z = (float)lane * 3.9f;
+                for (int x = -20; x <= 20; x += 4)
+                {
+                    b3w_add_box_ex(b3_staticBody, (float)x, 0.035f, z, 1.3f, 0.035f, 0.035f, 0xFFF2A8u, 0.0f, 0.9f, 0.01f);
+                }
+            }
+            b3w_add_box_ex(b3_staticBody, 8.0f, 3.0f, -11.0f, 0.15f, 3.0f, 0.15f, 0x64748Bu, 0.0f, 0.82f, 0.01f);
+            b3w_add_box_ex(b3_staticBody, 8.0f, 3.0f, 11.0f, 0.15f, 3.0f, 0.15f, 0x64748Bu, 0.0f, 0.82f, 0.01f);
+            b3w_add_box_ex(b3_staticBody, 8.0f, 6.0f, 0.0f, 0.15f, 0.15f, 11.0f, 0x0D8EA7u, 0.0f, 0.82f, 0.01f);
+            break;
+
+        case 8: // marble arena frames and collection bins
+            for (int x = -15; x <= 15; x += 6)
+            {
+                b3w_add_box_ex(b3_staticBody, (float)x, 4.2f, -9.0f, 0.12f, 4.2f, 0.12f, 0x475569u, 0.0f, 0.82f, 0.01f);
+                b3w_add_box_ex(b3_staticBody, (float)x, 4.2f, 9.0f, 0.12f, 4.2f, 0.12f, 0x475569u, 0.0f, 0.82f, 0.01f);
+                b3w_add_box_ex(b3_staticBody, (float)x, 8.4f, 0.0f, 0.1f, 0.1f, 9.0f, 0x59D8FFu, 0.0f, 0.82f, 0.01f);
+            }
+            for (int bin = -3; bin <= 3; ++bin)
+            {
+                b3w_add_box_ex(b3_staticBody, 14.0f, 0.45f, (float)bin * 2.5f, 1.4f, 0.45f, 1.0f, bin & 1 ? 0x7C3AEDu : 0x0D8EA7u, 0.0f, 0.74f, 0.18f);
+            }
+            break;
+
+        case 9: // construction crane silhouette and suspended load
+            for (int y = 0; y < 13; ++y)
+            {
+                b3w_add_box_ex(b3_staticBody, -14.0f, 0.5f + (float)y, -8.0f, 0.18f, 0.5f, 0.18f, y & 1 ? 0xF97316u : 0xFFD166u, 0.0f, 0.82f, 0.01f);
+            }
+            b3w_add_box_ex(b3_staticBody, -2.5f, 13.2f, -8.0f, 11.5f, 0.16f, 0.16f, 0xF97316u, 0.0f, 0.82f, 0.01f);
+            b3w_add_box_ex(b3_staticBody, 5.0f, 10.2f, -8.0f, 0.055f, 3.0f, 0.055f, 0xD8DEE9u, 0.0f, 0.82f, 0.01f);
+            b3w_add_box_ex(b3_dynamicBody, 5.0f, 6.6f, -8.0f, 1.4f, 0.4f, 0.8f, 0xFFD166u, 4.5f, 0.7f, 0.02f);
+            break;
+
+        case 10: // warehouse dock wall and overhead rails
+            b3w_add_box_ex(b3_staticBody, 18.0f, 2.5f, 0.0f, 0.45f, 2.5f, 18.0f, 0x172235u, 0.0f, 0.84f, 0.01f);
+            for (int dock = -4; dock <= 4; ++dock)
+            {
+                float z = (float)dock * 3.7f;
+                b3w_add_box_ex(b3_staticBody, 17.45f, 1.0f, z, 0.58f, 1.0f, 1.45f, dock & 1 ? 0x263B59u : 0x334155u, 0.0f, 0.82f, 0.01f);
+                b3w_add_box_ex(b3_staticBody, 16.85f, 2.3f, z, 0.1f, 0.1f, 0.82f, dock & 1 ? 0xFFC96Bu : 0x59D8FFu, 0.0f, 0.82f, 0.01f);
+            }
+            b3w_add_box_ex(b3_staticBody, -1.5f, 7.5f, -10.0f, 16.5f, 0.1f, 0.1f, 0x30AEBFu, 0.0f, 0.82f, 0.01f);
+            b3w_add_box_ex(b3_staticBody, -1.5f, 7.5f, 10.0f, 16.5f, 0.1f, 0.1f, 0x30AEBFu, 0.0f, 0.82f, 0.01f);
+            break;
+
+        case 11: // architectural colonnade and central presentation plinth
+            b3w_add_box_ex(b3_staticBody, 0.0f, 0.14f, 0.0f, 9.0f, 0.14f, 9.0f, 0x17243Au, 0.0f, 0.88f, 0.01f);
+            for (int i = 0; i < 18; ++i)
+            {
+                float t = ((float)i / 18.0f) * 6.28318530718f;
+                float x = cosf(t) * 17.5f;
+                float z = sinf(t) * 17.5f;
+                b3w_add_box_ex(b3_staticBody, x, 2.8f, z, 0.32f, 2.8f, 0.32f, i & 1 ? 0xD8DEE9u : 0xB8C2D3u, 0.0f, 0.84f, 0.01f);
+                b3w_add_box_ex(b3_staticBody, x, 5.8f, z, 0.58f, 0.18f, 0.58f, i % 3 ? 0xFFC96Bu : 0x59D8FFu, 0.0f, 0.84f, 0.01f);
+            }
+            break;
+    }
+}
+
 B3W_EXPORT int b3w_spawn_rain(int count, float spread, float height)
 {
     if (B3_IS_NULL(g_world)) return 0;
@@ -318,6 +474,7 @@ B3W_EXPORT int b3w_create_scene(int sceneId, int stressScale, uint32_t seed)
 {
     int stress = b3w_clamp_int(stressScale, 1, 5);
     int family = sceneId / 50;
+    int mode = (sceneId % 50) / 10;
     int variant = sceneId % 10;
     b3w_create_world(seed);
 
@@ -363,6 +520,14 @@ B3W_EXPORT int b3w_create_scene(int sceneId, int stressScale, uint32_t seed)
             b3w_scene_skyscraper(stress);
             if (variant % 3 == 0) b3w_launch_projectile(-23.0f, 5.5f, 0.0f, 24.0f, 1.0f, 0.0f, 1.0f);
             break;
+    }
+
+    // Cinematic and Maximum catalog modes receive authored native set dressing.
+    // It is intentionally made from ordinary Box3D bodies so the same transform
+    // stream is rendered by the WebGPU instancing path without special cases.
+    if (mode >= 3)
+    {
+        b3w_add_aaa_set_dressing(family, stress, variant);
     }
 
     return g_bodyCount;

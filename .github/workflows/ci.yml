@@ -27,8 +27,8 @@ jobs:
       - name: Install
         run: npm ci
 
-      - name: Test
-        run: npm test
+      - name: Validate source and production build
+        run: npm run validate
 
-      - name: Build
+      - name: Build GitHub Pages variant
         run: npm run build:pages

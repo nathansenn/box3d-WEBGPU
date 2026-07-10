@@ -1,13 +1,25 @@
 ## Summary
 
-- 
+Describe the simulation, renderer, content, tooling, or documentation change.
 
 ## Validation
 
-- [ ] `npm test`
-- [ ] `npm run build`
-- [ ] Browser smoke test button passes
+- [ ] `npm run validate`
+- [ ] **Run 600 + 24 Browser Tests** passes in a WebGPU browser
+- [ ] Preview-backend warning/label is correct
+- [ ] Native Box3D WASM tested, or the reason it was not tested is stated
+- [ ] No new WGSL compilation warnings/errors
+- [ ] Performance and Ultra profiles were both checked for visual changes
 
-## Screenshots / video
+## Determinism and performance
 
-Add before/after captures for visual changes.
+- Replay hash impact:
+- Largest tested body count:
+- Browser / OS / GPU:
+- Physics CPU ms:
+- Render submit CPU ms:
+- GPU timestamp result, when instrumented:
+
+## Screenshots / capture
+
+Include before/after frames or video for visual changes. Include the quality profile and scene/hero name.

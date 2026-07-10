@@ -11,6 +11,8 @@
     "src/math.ts",
     "src/types.ts",
     "src/scenes.ts",
+    "src/showcases.ts",
+    "src/effects.ts",
     "src/physics/fallback.ts",
     "tests/**/*.ts"
   ]

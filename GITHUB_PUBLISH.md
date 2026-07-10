@@ -1,66 +1,104 @@
-# GitHub Publish Guide
+# Publish the AAA Edition to GitHub
 
-Target repo:
+Target:
 
 ```text
 nathansenn/box3d-WEBGPU
 ```
 
-That repository already exists and is currently a fork of `erincatto/box3d`, so the safest path is to clone that repo, replace the working tree with this WebGPU lab, commit, and push. This preserves normal Git history and avoids a force push.
+The destination already contains upstream Box3D history. The included replacement script preserves that Git history, changes the working tree in a normal commit, runs the complete validation gate, and pushes without force-pushing.
 
-## Push to the existing repo
+## One-command safe publish
 
-From this project root:
+Run from the root of this AAA package—the directory containing `package.json`:
 
 ```bash
 bash scripts/push-existing-box3d-webgpu.sh
 ```
 
-The script will:
+Default behavior:
 
-1. Clone `nathansenn/box3d-WEBGPU` into `~/box3d-WEBGPU` if needed.
-2. Check out `main`.
-3. Remove the old upstream Box3D root files while preserving `.git`.
-4. Copy this WebGPU lab into the repo.
-5. Run `npm install`, `npm test`, and `npm run build`.
-6. Commit and push to `main`.
+1. Clone `git@github.com:nathansenn/box3d-WEBGPU.git` into `~/box3d-WEBGPU`.
+2. Fall back to HTTPS clone if SSH clone is unavailable.
+3. Refuse to overwrite a target checkout with uncommitted changes.
+4. Check out or create `main` from `origin/main`.
+5. Remove the old working-tree files while preserving `.git`.
+6. Copy the AAA project without `node_modules`, temporary builds, or generated WASM binaries.
+7. Run `npm install` and `npm run validate`.
+8. Commit as `Upgrade Box3D WebGPU to the AAA Physics Showcase`.
+9. Push normally to `origin/main`.
 
-## Requirements
+## Recommended Mac sequence
 
 ```bash
-git --version
-npm --version
+cd ~/Downloads
+unzip -o box3d-WEBGPU-AAA-edition.zip
+cd box3d-WEBGPU-AAA
+
+npm run doctor
+npm run validate
+bash scripts/push-existing-box3d-webgpu.sh
 ```
 
-For SSH push, your GitHub SSH key must be configured. If SSH fails, the script falls back to HTTPS clone, but pushing over HTTPS may ask for GitHub authentication.
+Do not paste terminal prompts or prior error output into zsh. Paste only command lines from code blocks.
 
-## Manual fallback
+## Authentication
+
+Test SSH:
+
+```bash
+ssh -T git@github.com
+```
+
+Or authenticate GitHub CLI and allow HTTPS credentials:
+
+```bash
+brew install gh
+gh auth login
+```
+
+Use a different clean checkout location when necessary:
+
+```bash
+TARGET_DIR="$HOME/box3d-WEBGPU-aaa-publish" \
+  bash scripts/push-existing-box3d-webgpu.sh
+```
+
+Override the commit message:
+
+```bash
+COMMIT_MESSAGE="Ship Box3D WebGPU AAA Edition" \
+  bash scripts/push-existing-box3d-webgpu.sh
+```
+
+## Manual equivalent
 
 ```bash
 cd ~
+rm -rf box3d-WEBGPU
 git clone git@github.com:nathansenn/box3d-WEBGPU.git
 cd box3d-WEBGPU
-
 git checkout main
+
 find . -mindepth 1 -maxdepth 1 ! -name .git -exec rm -rf {} +
 
-# From another terminal, copy the WebGPU lab package contents into this folder.
-# Then:
+# Copy the AAA package contents into this folder, then:
 npm install
-npm test
-npm run build
+npm run validate
 
 git add -A
-git commit -m "Replace upstream fork files with Box3D WebGPU Maximum Lab"
+git commit -m "Upgrade Box3D WebGPU to the AAA Physics Showcase"
 git push origin main
 ```
 
 ## GitHub Pages
 
-The included workflow `.github/workflows/pages.yml` deploys the static build from `dist/` to GitHub Pages. It uses relative asset paths, so the WebGPU app works correctly from:
+The Pages workflow runs tests, produces a relative-path Vite build, uploads `dist`, and deploys through GitHub Actions. In repository settings, select **Pages → Source → GitHub Actions** when GitHub has not enabled it automatically.
+
+Expected public demo address:
 
 ```text
 https://nathansenn.github.io/box3d-WEBGPU/
 ```
 
-The first deploy may require enabling Pages with **Source: GitHub Actions** in the repository settings.
+WebGPU requires a compatible browser and a secure context; GitHub Pages and localhost satisfy the serving requirement.

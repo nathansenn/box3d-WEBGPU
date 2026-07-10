@@ -68,7 +68,7 @@ const FAMILIES: readonly FamilyDefinition[] = [
     tags: ['contacts', 'stacking', 'solver', 'rigid-bodies'],
     defaultStress: 3,
     recommendedMaxBodies: 1900,
-    camera: { yaw: -0.78, pitch: -0.42, distance: 30, target: [0, 7, 0] },
+    camera: { yaw: -0.78, pitch: 0.42, distance: 30, target: [0, 7, 0] },
   },
   {
     family: 'domino',
@@ -84,7 +84,7 @@ const FAMILIES: readonly FamilyDefinition[] = [
     tags: ['domino', 'chain-reaction', 'thin-bodies', 'impulses'],
     defaultStress: 2,
     recommendedMaxBodies: 950,
-    camera: { yaw: -1.2, pitch: -0.34, distance: 44, target: [0, 3, 0] },
+    camera: { yaw: -1.2, pitch: 0.34, distance: 44, target: [0, 3, 0] },
   },
   {
     family: 'skyscraper',
@@ -100,7 +100,7 @@ const FAMILIES: readonly FamilyDefinition[] = [
     tags: ['building', 'tower', 'impact', 'collapse'],
     defaultStress: 3,
     recommendedMaxBodies: 1800,
-    camera: { yaw: -0.65, pitch: -0.35, distance: 48, target: [0, 12, 0] },
+    camera: { yaw: -0.65, pitch: 0.35, distance: 48, target: [0, 12, 0] },
   },
   {
     family: 'bridge',
@@ -116,7 +116,7 @@ const FAMILIES: readonly FamilyDefinition[] = [
     tags: ['bridge', 'infrastructure', 'load', 'planks'],
     defaultStress: 2,
     recommendedMaxBodies: 1300,
-    camera: { yaw: -0.35, pitch: -0.38, distance: 40, target: [0, 4, 0] },
+    camera: { yaw: -0.35, pitch: 0.38, distance: 40, target: [0, 4, 0] },
   },
   {
     family: 'material',
@@ -132,7 +132,7 @@ const FAMILIES: readonly FamilyDefinition[] = [
     tags: ['materials', 'friction', 'restitution', 'ramps'],
     defaultStress: 2,
     recommendedMaxBodies: 1050,
-    camera: { yaw: -0.9, pitch: -0.48, distance: 38, target: [0, 3, 0] },
+    camera: { yaw: -0.9, pitch: 0.48, distance: 38, target: [0, 3, 0] },
   },
   {
     family: 'rain',
@@ -148,7 +148,7 @@ const FAMILIES: readonly FamilyDefinition[] = [
     tags: ['stress', 'rain', 'gpu-upload', 'throughput'],
     defaultStress: 4,
     recommendedMaxBodies: 4096,
-    camera: { yaw: -0.72, pitch: -0.56, distance: 56, target: [0, 14, 0] },
+    camera: { yaw: -0.72, pitch: 0.56, distance: 56, target: [0, 14, 0] },
   },
   {
     family: 'demolition',
@@ -164,7 +164,7 @@ const FAMILIES: readonly FamilyDefinition[] = [
     tags: ['destruction', 'blast', 'impact', 'rubble'],
     defaultStress: 3,
     recommendedMaxBodies: 1700,
-    camera: { yaw: -0.82, pitch: -0.4, distance: 42, target: [0, 6, 0] },
+    camera: { yaw: -0.82, pitch: 0.4, distance: 42, target: [0, 6, 0] },
   },
   {
     family: 'vehicle',
@@ -180,7 +180,7 @@ const FAMILIES: readonly FamilyDefinition[] = [
     tags: ['vehicles', 'machines', 'cargo', 'obstacles'],
     defaultStress: 2,
     recommendedMaxBodies: 1300,
-    camera: { yaw: -0.92, pitch: -0.38, distance: 46, target: [0, 3.5, 0] },
+    camera: { yaw: -0.92, pitch: 0.38, distance: 46, target: [0, 3.5, 0] },
   },
   {
     family: 'marble',
@@ -196,7 +196,7 @@ const FAMILIES: readonly FamilyDefinition[] = [
     tags: ['marble-run', 'ramps', 'small-bodies', 'toy-physics'],
     defaultStress: 2,
     recommendedMaxBodies: 1200,
-    camera: { yaw: -1.0, pitch: -0.5, distance: 42, target: [0, 5, 0] },
+    camera: { yaw: -1.0, pitch: 0.5, distance: 42, target: [0, 5, 0] },
   },
   {
     family: 'construction',
@@ -212,7 +212,7 @@ const FAMILIES: readonly FamilyDefinition[] = [
     tags: ['construction', 'building', 'assembly', 'jobsite'],
     defaultStress: 3,
     recommendedMaxBodies: 1800,
-    camera: { yaw: -0.7, pitch: -0.42, distance: 46, target: [0, 6, 0] },
+    camera: { yaw: -0.7, pitch: 0.42, distance: 46, target: [0, 6, 0] },
   },
   {
     family: 'warehouse',
@@ -228,7 +228,7 @@ const FAMILIES: readonly FamilyDefinition[] = [
     tags: ['warehouse', 'logistics', 'pallets', 'sorter'],
     defaultStress: 3,
     recommendedMaxBodies: 1900,
-    camera: { yaw: -0.86, pitch: -0.43, distance: 44, target: [0, 5, 0] },
+    camera: { yaw: -0.86, pitch: 0.43, distance: 44, target: [0, 5, 0] },
   },
   {
     family: 'architecture',
@@ -244,7 +244,7 @@ const FAMILIES: readonly FamilyDefinition[] = [
     tags: ['architecture', 'columns', 'facade', 'showcase'],
     defaultStress: 3,
     recommendedMaxBodies: 1700,
-    camera: { yaw: -0.68, pitch: -0.4, distance: 50, target: [0, 7, 0] },
+    camera: { yaw: -0.68, pitch: 0.4, distance: 50, target: [0, 7, 0] },
   },
 ] as const;
 

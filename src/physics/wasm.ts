@@ -30,15 +30,18 @@ class WasmPhysicsBackend implements PhysicsBackend {
   readonly name = 'Box3D WASM';
   readonly isWasm = true;
   readonly maxBodies: number;
-  readonly HEAPF32: Float32Array;
 
   constructor(private readonly mod: EmscriptenModuleBase) {
     if (!mod._b3w_body_count || !mod._b3w_matrices_ptr || !mod._b3w_colors_ptr || !mod._b3w_max_bodies || !mod._b3w_step) {
       throw new Error('Box3D WASM module is missing required b3w_* exports. Rebuild with npm run build:wasm.');
     }
-    this.HEAPF32 = mod.HEAPF32;
     this.maxBodies = mod._b3w_max_bodies();
   }
+
+
+  // Emscripten replaces heap views when ALLOW_MEMORY_GROWTH expands memory.
+  // A getter prevents the renderer from retaining a detached/stale Float32Array.
+  get HEAPF32(): Float32Array { return this.mod.HEAPF32; }
 
   _b3w_matrices_ptr(): number | bigint { return this.mod._b3w_matrices_ptr?.() ?? 0; }
   _b3w_colors_ptr(): number | bigint { return this.mod._b3w_colors_ptr?.() ?? 0; }

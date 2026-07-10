@@ -1,61 +1,140 @@
-# Test Plan — Box3D WebGPU Maximum Lab
+# Test Plan — Box3D WebGPU AAA Physics Lab
 
-## Goals
-
-Validate the full browser physics stack:
+## Quality gates
 
 ```text
-scene catalog → physics backend → transform/color buffers → WebGPU renderer → diagnostics
+source integrity
+  → strict TypeScript
+  → deterministic Node suites
+  → repository contract checks
+  → production bundling
+  → browser/WebGPU smoke test
+  → native Emscripten build (when SDK is available)
 ```
 
-## Automated Node tests
+## Automated local gate
 
 Run:
 
 ```bash
-npm test
+npm run validate
 ```
 
-Coverage:
+Expected stages:
 
-- TypeScript strict mode.
-- 600-scene catalog integrity.
-- Category coverage.
-- Fallback backend can create every scene.
-- Featured scenes can step without invalid matrices.
-- Replay determinism for identical seeds.
-- Runtime actions: kick, explosion, projectile, rain.
-- Repository bridge self-test for C export names and build-script alignment.
+1. `tsc --noEmit`
+2. test-only CommonJS compilation
+3. nine Node suites
+4. repository self-test
+5. Vite production build
 
-## Browser smoke tests
+## Node suites
 
-Inside the app, click **Run Browser Tests**.
-
-The browser test:
-
-1. Loads all 600 scenes.
-2. Steps each scene briefly.
-3. Checks body count.
-4. Checks matrix buffer finite values.
-5. Reports family-level pass counts and replay hashes.
-6. Restores the previously loaded scene.
-
-## Manual stress tests
-
-Recommended matrix:
-
-| Area | Manual check |
+| Suite | Purpose |
 |---|---|
-| Scene browser | Search, filter, select, featured buttons, prev/next/random |
-| Max Tour | Enable tour, verify auto scene changes and auto actions |
-| Stress slider | Try levels 1 through 5 on stack, tower, rain, warehouse |
-| Camera | Orbit/zoom while bodies move |
-| Renderer | Toggle debug lines; ensure cubes and wires stay aligned |
-| Actions | Kick, explosion, projectile, rain on several families |
-| Runtime health | Watch FPS, sim frame time, upload MB, replay hash |
+| `testMath` | matrix identity/multiplication, finite perspective and orthographic projections |
+| `testSceneCatalog` | exactly 600 unique recipes, all categories, valid metadata |
+| `testHeroShowcaseCatalog` | exactly 24 unique demos, sorted beats/keys, valid scenes, finite camera sampling |
+| `testFallbackCanCreateEveryScene` | every recipe creates bodies, finite transforms, nonzero replay hash |
+| `testAAACinematicSetDressing` | cinematic mode adds authored environment bodies; all hero scenes step safely |
+| `testFeaturedScenesStep` | featured scenes survive multiple fixed steps with finite transforms |
+| `testDeterminism` | identical scene/seed/step sequence produces identical replay hash |
+| `testCinematicEffects` | explosion/muzzle/dust/rain particles, shockwave lines, emissive tags, budgets, finite shake |
+| `testActions` | impulse, explosion, projectile, rain, body growth, stepping |
 
-## Expected limitations
+## Repository self-test
 
-- JS fallback physics is a preview backend, not full Box3D fidelity.
-- C/WASM bridge maps all 12 families, but some of the 600 variants share native recipes until deeper parity is implemented.
-- The renderer currently displays cube instances only; mesh-specific colliders are a future upgrade.
+The self-test checks:
+
+- required source/docs/build/workflow files;
+- bridge exports match the build target;
+- exactly 24 hero definitions are present;
+- all required HTML IDs exist exactly once;
+- renderer contains HDR, MSAA, PCF, ACES, WGSL validation, and resolution-profile markers;
+- native bridge contains C17 forward declarations and cinematic set dressing;
+- CMake uses Box3D as a subproject and exports an ES module;
+- package scripts include fetch, native build, validation, and production build.
+
+## Live browser validation
+
+Click **Run 600 + 24 Browser Tests**.
+
+The app:
+
+1. stops cinematic playback;
+2. creates and steps all 600 scenes against the active backend;
+3. checks body counts, transform finiteness, and replay hash;
+4. samples every hero camera at five points;
+5. validates beat ordering and minimum beat count;
+6. creates and advances an explosion effect frame;
+7. restores the previous scene and UI state;
+8. prints the pass summary in the validation console.
+
+## Manual rendering matrix
+
+| Area | Checks |
+|---|---|
+| Startup | WebGPU adapter/device, context configuration, readable failure message |
+| WGSL | no compilation errors; warnings reviewed |
+| Resize | desktop, narrow tablet, high DPR, browser zoom |
+| Shadow | stable PCF, no severe acne/peter-panning, performance mode skips pass |
+| HDR/post | no NaNs, no fully clipped highlights, exposure changes visible |
+| Effects | effect count honors profile budget; emissive sparks glow; shockwaves align |
+| Camera | orbit, zoom, cinematic/manual handoff, shake decay |
+| Scene UI | search, family filter, select, previous/next/random, hero shortcuts |
+| Director | play, pause, restart, next, slow-motion beat, final telemetry lock, max tour |
+| Physics actions | impulse, explosion, projectile, rain on at least four families |
+| Diagnostics | grid, axes, bounds, line budget, alignment during motion |
+| Backend | preview warning correct; native label correct after WASM build |
+
+## Performance matrix
+
+Measure at stress levels 1, 3, and 5 for:
+
+- Titan Foundry Stackfall;
+- Aegis Tower: Kinetic Breach;
+- Atlas Suspension Convoy;
+- Orbital Cargo Storm;
+- High-Bay Cascade;
+- Mega Atrium Collapse.
+
+Record:
+
+```text
+browser / OS / GPU
+backend
+quality profile
+viewport and DPR
+body count
+FX count
+FPS
+physics CPU ms
+render-encode/submit CPU ms
+upload MB/frame
+replay hash
+```
+
+Do not call render-submit CPU time “GPU time.” Timestamp-query instrumentation is a future gate.
+
+## Native build gate
+
+With Emscripten active:
+
+```bash
+npm run fetch:box3d
+npm run build:wasm
+npm run dev
+```
+
+Verify:
+
+- `public/box3d/box3d.js` exists and is non-empty;
+- `public/box3d/box3d.wasm` exists and is non-empty;
+- app reports `Box3D WASM`;
+- all live browser tests pass;
+- projectiles and large stacks use native collision behavior;
+- memory growth does not detach the renderer’s heap view.
+
+## Current unexecuted gate in constrained environments
+
+When Emscripten is unavailable, the C bridge and CMake topology can be source-checked but not honestly marked as compiled. The validation report must state this explicitly.

@@ -38,11 +38,15 @@ const DEFAULT_MAX_BODIES = 4096;
 const PALETTE = [0x30aebf, 0xdc3132, 0x8cc924, 0xffee8c, 0x7c3aed, 0xf97316, 0x06b6d4, 0x22c55e, 0xd8dee9, 0x214160] as const;
 
 function rgb(hex: number): [number, number, number, number] {
+  return rgba(hex, 1);
+}
+
+function rgba(hex: number, materialTag: number): [number, number, number, number] {
   return [
     ((hex >> 16) & 0xff) / 255,
     ((hex >> 8) & 0xff) / 255,
     (hex & 0xff) / 255,
-    1,
+    materialTag,
   ];
 }
 
@@ -122,6 +126,11 @@ export class FallbackPhysicsBackend implements PhysicsBackend {
       case 'architecture': this.createArchitectureLab(stress, variant); break;
       default: this.createStackLab(stress, variant); break;
     }
+
+    // Impact and Cinematic modes add authored set dressing without changing the
+    // deterministic family recipe. This gives the fallback path presentation
+    // parity with the AAA WebGPU renderer while real Box3D/WASM owns full physics.
+    if (scene.mode >= 3) this.addCinematicSetDressing(scene.family, stress, variant);
 
     this.syncTransforms();
     return this.bodyCount();
@@ -504,6 +513,191 @@ export class FallbackPhysicsBackend implements PhysicsBackend {
     }
     if (variant === 7) this.spawnRain(30 + stress * 18, 6, 13);
     if (variant === 9) this.launchProjectile(-24, 6, 0, 23, 1, 0, 1.1);
+  }
+
+  private addCinematicSetDressing(family: ScenePreset['family'], stress: number, variant: number): void {
+    // Shared arena lighting and scale markers. The alpha/material channel is
+    // intentionally > 1 for emissive accents in the WebGPU PBR shader.
+    for (let i = 0; i < 16; i++) {
+      const t = (i / 16) * Math.PI * 2;
+      const radius = 31 + (i % 2) * 2.5;
+      const x = Math.cos(t) * radius;
+      const z = Math.sin(t) * radius;
+      this.addBox({ dynamic: false, pos: [x, 1.35, z], half: [0.09, 1.35, 0.09], color: rgb(0x263244), density: 0, friction: 0.8, restitution: 0.01 });
+      this.addBox({ dynamic: false, pos: [x, 2.8, z], half: [0.18, 0.08, 0.18], color: rgba(i % 3 === 0 ? 0xffd166 : 0x50d8ff, 4.2), density: 0, friction: 0.8, restitution: 0.01 });
+    }
+
+    switch (family) {
+      case 'stack': {
+        for (const side of [-1, 1]) {
+          const x = side * (12 + variant * 0.15);
+          this.addBeamBetween([x, 0.2, -9], [x, 8 + stress, -9], 0.14, 0x64748b, false);
+          this.addBeamBetween([x, 0.2, 9], [x, 8 + stress, 9], 0.14, 0x64748b, false);
+          this.addBeamBetween([x, 8 + stress, -9], [x, 8 + stress, 9], 0.12, 0x0d8ea7, false);
+        }
+        for (let i = -4; i <= 4; i++) {
+          this.addBox({ dynamic: false, pos: [i * 2.2, 0.12, -12], half: [0.8, 0.12, 0.6], color: rgba(i % 2 ? 0x30aebf : 0xffd166, 2.8), density: 0, friction: 0.85, restitution: 0.01 });
+        }
+        break;
+      }
+      case 'domino': {
+        this.addBox({ dynamic: false, pos: [0, 0.16, 0], half: [4.8, 0.16, 4.8], color: rgb(0x18253a), density: 0, friction: 0.78, restitution: 0.02 });
+        for (let ring = 0; ring < 2; ring++) {
+          const radius = 13 + ring * 6;
+          for (let i = 0; i < 12; i++) {
+            const t = (i / 12) * Math.PI * 2;
+            const x = Math.cos(t) * radius;
+            const z = Math.sin(t) * radius;
+            this.addBox({ dynamic: false, pos: [x, 1.6, z], half: [0.18, 1.6, 0.18], color: rgb(0x3d4d66), density: 0, friction: 0.75, restitution: 0.02 });
+            this.addBox({ dynamic: false, pos: [x, 3.35, z], half: [0.3, 0.08, 0.3], color: rgba(ring ? 0x8b5cf6 : 0x50d8ff, 3.4), density: 0, friction: 0.75, restitution: 0.02 });
+          }
+        }
+        break;
+      }
+      case 'skyscraper': {
+        this.addBox({ dynamic: false, pos: [0, 0.3, 0], half: [8.5, 0.3, 8.5], color: rgb(0x101827), density: 0, friction: 0.88, restitution: 0.01 });
+        for (let block = 0; block < 10; block++) {
+          const side = block % 2 ? -1 : 1;
+          const x = side * (13 + (block % 3) * 3.2);
+          const z = -12 + Math.floor(block / 2) * 5.8;
+          const height = 1.8 + (block % 4) * 1.1;
+          this.addBox({ dynamic: false, pos: [x, height, z], half: [1.8, height, 1.8], color: rgb(block % 2 ? 0x152238 : 0x1d2e49), density: 0, friction: 0.8, restitution: 0.01 });
+          this.addBox({ dynamic: false, pos: [x, height * 1.45, z - 1.82], half: [0.9, 0.05, 0.05], color: rgba(0x55dfff, 2.6), density: 0, friction: 0.8, restitution: 0.01 });
+        }
+        this.addBeamBetween([0, 8, 0], [0, 18 + stress * 1.4, 0], 0.09, 0xffd166, false, 3.2);
+        break;
+      }
+      case 'bridge': {
+        const span = 21 + variant * 0.8;
+        for (const side of [-1, 1]) {
+          const x = side * span * 0.42;
+          this.addBeamBetween([x, 0.4, -2.2], [x, 9 + stress * 0.4, -2.2], 0.17, 0x64748b, false);
+          this.addBeamBetween([x, 0.4, 2.2], [x, 9 + stress * 0.4, 2.2], 0.17, 0x64748b, false);
+          this.addBeamBetween([x, 8.8, -2.2], [x, 8.8, 2.2], 0.12, 0x30aebf, false, 2.1);
+        }
+        for (let i = 0; i < 12; i++) {
+          const x0 = -span * 0.42 + (i / 12) * span * 0.84;
+          const x1 = -span * 0.42 + ((i + 1) / 12) * span * 0.84;
+          const high = 8.4 - Math.abs((i + 0.5) / 12 - 0.5) * 7;
+          this.addBeamBetween([x0, 2.8, -2.05], [x1, high, -2.05], 0.055, 0xffd166, false, 1.9);
+          this.addBeamBetween([x0, 2.8, 2.05], [x1, high, 2.05], 0.055, 0xffd166, false, 1.9);
+        }
+        break;
+      }
+      case 'material': {
+        for (let lane = -3; lane <= 3; lane++) {
+          const z = lane * 2.8;
+          this.addBox({ dynamic: false, pos: [9.5, 0.16, z], half: [0.12, 0.16, 1.08], color: rgba(PALETTE[(lane + 13) % PALETTE.length], 2.6), density: 0, friction: 0.8, restitution: 0.02 });
+          this.addBeamBetween([-15, 0.15, z - 1.18], [11, 0.15, z - 1.18], 0.035, 0x334155, false);
+          this.addBeamBetween([-15, 0.15, z + 1.18], [11, 0.15, z + 1.18], 0.035, 0x334155, false);
+        }
+        break;
+      }
+      case 'rain': {
+        for (const x of [-16, 16]) {
+          for (const z of [-16, 16]) {
+            this.addBox({ dynamic: false, pos: [x, 4.2, z], half: [0.38, 4.2, 0.38], color: rgb(0x27364c), density: 0, friction: 0.8, restitution: 0.02 });
+            this.addBox({ dynamic: false, pos: [x, 8.7, z], half: [0.75, 0.12, 0.75], color: rgba(0x50d8ff, 4.8), density: 0, friction: 0.8, restitution: 0.02 });
+          }
+        }
+        for (let i = -3; i <= 3; i++) {
+          this.addBox({ dynamic: false, pos: [i * 4.4, 0.22, 18], half: [1.75, 0.22, 1.3], color: rgb(i % 2 ? 0x17243a : 0x20304a), density: 0, friction: 0.85, restitution: 0.02 });
+        }
+        break;
+      }
+      case 'demolition': {
+        for (const x of [-11, 11]) {
+          for (const z of [-5.2, 5.2]) {
+            this.addTower(x, z, 8 + stress, 0x475569, 0.46);
+            this.addBox({ dynamic: true, pos: [x, 5.2 + stress * 0.4, z], half: [0.8, 0.16, 0.8], color: rgb(0x64748b), density: 1.9, friction: 0.72, restitution: 0.02 });
+          }
+        }
+        for (let i = -5; i <= 5; i++) {
+          this.addBox({ dynamic: true, pos: [i * 1.75, 0.55, -7.2], half: [0.7, 0.55, 0.42], color: rgb(i % 2 ? 0x7c3aed : 0x334155), density: 2.2, friction: 0.74, restitution: 0.02 });
+        }
+        break;
+      }
+      case 'vehicle': {
+        for (let lane = -2; lane <= 2; lane++) {
+          const z = lane * 3.9;
+          for (let x = -20; x <= 20; x += 4) {
+            this.addBox({ dynamic: false, pos: [x, 0.06, z - 1.65], half: [1.4, 0.025, 0.035], color: rgba(0xfff2a8, 2.4), density: 0, friction: 0.8, restitution: 0.01 });
+          }
+        }
+        this.addBeamBetween([8, 0.2, -11], [8, 5.8, -11], 0.12, 0x64748b, false);
+        this.addBeamBetween([8, 0.2, 11], [8, 5.8, 11], 0.12, 0x64748b, false);
+        this.addBeamBetween([8, 5.8, -11], [8, 5.8, 11], 0.12, 0x0d8ea7, false, 2.3);
+        break;
+      }
+      case 'marble': {
+        for (let x = -15; x <= 15; x += 6) {
+          this.addBeamBetween([x, 0.2, -9], [x, 8.2, -9], 0.1, 0x475569, false);
+          this.addBeamBetween([x, 0.2, 9], [x, 8.2, 9], 0.1, 0x475569, false);
+          this.addBeamBetween([x, 8.2, -9], [x, 8.2, 9], 0.08, 0x30aebf, false, 2.0);
+        }
+        for (let bin = -3; bin <= 3; bin++) {
+          this.addBox({ dynamic: false, pos: [14, 0.4, bin * 2.5], half: [1.4, 0.4, 1.0], color: rgb(PALETTE[(bin + 13) % PALETTE.length]), density: 0, friction: 0.7, restitution: 0.2 });
+        }
+        break;
+      }
+      case 'construction': {
+        const craneX = -14;
+        for (let y = 0; y < 13; y++) {
+          this.addBox({ dynamic: false, pos: [craneX, 0.5 + y, -8], half: [0.15, 0.5, 0.15], color: rgb(y % 2 ? 0xf97316 : 0xffd166), density: 0, friction: 0.8, restitution: 0.01 });
+          if (y % 2 === 0) this.addBeamBetween([craneX - 0.55, y + 0.3, -8], [craneX + 0.55, y + 1.1, -8], 0.055, 0xffd166, false);
+        }
+        this.addBeamBetween([craneX, 13.2, -8], [9, 13.2, -8], 0.14, 0xf97316, false, 1.4);
+        this.addBeamBetween([5, 13.1, -8], [5, 7.2, -8], 0.045, 0xd8dee9, false);
+        this.addBox({ dynamic: true, pos: [5, 6.2, -8], half: [1.4, 0.4, 0.8], color: rgb(0xffd166), density: 4.5, friction: 0.7, restitution: 0.02 });
+        break;
+      }
+      case 'warehouse': {
+        this.addBox({ dynamic: false, pos: [18, 2.4, 0], half: [0.4, 2.4, 18], color: rgb(0x172235), density: 0, friction: 0.82, restitution: 0.02 });
+        for (let dock = -4; dock <= 4; dock++) {
+          const z = dock * 3.7;
+          this.addBox({ dynamic: false, pos: [17.5, 1.0, z], half: [0.55, 1.0, 1.45], color: rgb(dock % 2 ? 0x263b59 : 0x334155), density: 0, friction: 0.8, restitution: 0.02 });
+          this.addBox({ dynamic: false, pos: [17.0, 2.25, z], half: [0.08, 0.08, 0.8], color: rgba(dock % 2 ? 0xffd166 : 0x50d8ff, 3.0), density: 0, friction: 0.8, restitution: 0.02 });
+        }
+        this.addBeamBetween([-18, 7.5, -10], [15, 7.5, -10], 0.08, 0x30aebf, false, 2.0);
+        this.addBeamBetween([-18, 7.5, 10], [15, 7.5, 10], 0.08, 0x30aebf, false, 2.0);
+        break;
+      }
+      case 'architecture': {
+        for (let i = 0; i < 18; i++) {
+          const t = (i / 18) * Math.PI * 2;
+          const radius = 17.5;
+          const x = Math.cos(t) * radius;
+          const z = Math.sin(t) * radius;
+          this.addBox({ dynamic: false, pos: [x, 2.8, z], half: [0.32, 2.8, 0.32], color: rgb(i % 2 ? 0xd8dee9 : 0xb8c2d3), density: 0, friction: 0.82, restitution: 0.01 });
+          this.addBox({ dynamic: false, pos: [x, 5.8, z], half: [0.58, 0.18, 0.58], color: rgba(i % 3 ? 0xffd166 : 0x50d8ff, 2.5), density: 0, friction: 0.82, restitution: 0.01 });
+        }
+        this.addBox({ dynamic: false, pos: [0, 0.13, 0], half: [9, 0.13, 9], color: rgb(0x17243a), density: 0, friction: 0.84, restitution: 0.01 });
+        break;
+      }
+    }
+  }
+
+  private addBeamBetween(a: Vec3, b: Vec3, thickness: number, colorHex: number, dynamic: boolean, materialTag = 1): void {
+    const dx = b[0] - a[0];
+    const dy = b[1] - a[1];
+    const dz = b[2] - a[2];
+    const length = Math.hypot(dx, dy, dz);
+    if (length < 0.001) return;
+    const nx = dx / length;
+    const ny = dy / length;
+    const nz = dz / length;
+    const yaw = -Math.asin(clamp(nz, -1, 1));
+    const roll = Math.atan2(ny, nx);
+    this.addBox({
+      dynamic,
+      pos: [(a[0] + b[0]) * 0.5, (a[1] + b[1]) * 0.5, (a[2] + b[2]) * 0.5],
+      half: [length * 0.5, thickness, thickness],
+      rot: [0, yaw, roll],
+      color: rgba(colorHex, materialTag),
+      density: dynamic ? 1.6 : 0,
+      friction: 0.72,
+      restitution: 0.02,
+    });
   }
 
   private addBrickWall(origin: Vec3, width: number, height: number, block: number, color: [number, number, number, number]): void {

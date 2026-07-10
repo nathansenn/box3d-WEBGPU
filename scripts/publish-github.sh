@@ -43,16 +43,16 @@ git add .
 if git diff --cached --quiet; then
   echo "No staged changes to commit. Continuing."
 else
-  git commit -m "Add Box3D WebGPU Maximum Lab"
+  git commit -m "Publish Box3D WebGPU AAA Physics Showcase"
 fi
 
 if gh repo view "${OWNER}/${REPO}" >/dev/null 2>&1; then
   echo "GitHub repo ${OWNER}/${REPO} already exists. Reusing it."
 else
   case "$VISIBILITY" in
-    public) gh repo create "${OWNER}/${REPO}" --public --description "Box3D physics in a WebGPU browser capability lab with 600 procedural examples." ;;
-    private) gh repo create "${OWNER}/${REPO}" --private --description "Box3D physics in a WebGPU browser capability lab with 600 procedural examples." ;;
-    internal) gh repo create "${OWNER}/${REPO}" --internal --description "Box3D physics in a WebGPU browser capability lab with 600 procedural examples." ;;
+    public) gh repo create "${OWNER}/${REPO}" --public --description "AAA Box3D + WebGPU physics showcase with 600 deterministic recipes and 24 cinematic hero demos." ;;
+    private) gh repo create "${OWNER}/${REPO}" --private --description "AAA Box3D + WebGPU physics showcase with 600 deterministic recipes and 24 cinematic hero demos." ;;
+    internal) gh repo create "${OWNER}/${REPO}" --internal --description "AAA Box3D + WebGPU physics showcase with 600 deterministic recipes and 24 cinematic hero demos." ;;
   esac
 fi
 

@@ -5,7 +5,7 @@ OWNER="${GITHUB_OWNER:-nathansenn}"
 REPO="${GITHUB_REPO:-box3d-WEBGPU}"
 BRANCH="${GITHUB_BRANCH:-main}"
 TARGET_DIR="${TARGET_DIR:-$HOME/box3d-WEBGPU}"
-COMMIT_MESSAGE="${COMMIT_MESSAGE:-Replace upstream fork files with Box3D WebGPU Maximum Lab}"
+COMMIT_MESSAGE="${COMMIT_MESSAGE:-Upgrade Box3D WebGPU to the AAA Physics Showcase}"
 REMOTE_SSH="git@github.com:${OWNER}/${REPO}.git"
 REMOTE_HTTPS="https://github.com/${OWNER}/${REPO}.git"
 
@@ -54,8 +54,7 @@ rsync -a \
   "$PROJECT_ROOT/" "$TARGET_DIR/"
 
 npm install
-npm test
-npm run build
+npm run validate
 
 git add -A
 if git diff --cached --quiet; then

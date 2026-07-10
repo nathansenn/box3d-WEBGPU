@@ -14,6 +14,10 @@ declare global {
   type GPUVertexStepMode = 'vertex' | 'instance';
   type GPUVertexFormat = 'float32' | 'float32x2' | 'float32x3' | 'float32x4';
   type GPUBufferBindingType = 'uniform' | 'storage' | 'read-only-storage';
+  type GPUTextureSampleType = 'float' | 'unfilterable-float' | 'depth' | 'sint' | 'uint';
+  type GPUSamplerBindingType = 'filtering' | 'non-filtering' | 'comparison';
+  type GPUTextureViewDimension = '1d' | '2d' | '2d-array' | 'cube' | 'cube-array' | '3d';
+  type GPUTextureDimension = '1d' | '2d' | '3d';
   type GPUTextureUsageFlags = number;
   type GPUBufferUsageFlags = number;
   type GPUShaderStageFlags = number;
@@ -21,6 +25,13 @@ declare global {
   type GPUStoreOp = 'store' | 'discard';
   type GPUCanvasAlphaMode = 'opaque' | 'premultiplied';
   type GPUPowerPreference = 'low-power' | 'high-performance';
+  type GPUFilterMode = 'nearest' | 'linear';
+  type GPUAddressMode = 'clamp-to-edge' | 'repeat' | 'mirror-repeat';
+  type GPUBlendFactor =
+    | 'zero' | 'one' | 'src' | 'one-minus-src' | 'src-alpha' | 'one-minus-src-alpha'
+    | 'dst' | 'one-minus-dst' | 'dst-alpha' | 'one-minus-dst-alpha'
+    | 'src-alpha-saturated' | 'constant' | 'one-minus-constant';
+  type GPUBlendOperation = 'add' | 'subtract' | 'reverse-subtract' | 'min' | 'max';
 
   const GPUBufferUsage: {
     MAP_READ: number;
@@ -76,6 +87,7 @@ declare global {
     createRenderPipeline(descriptor: GPURenderPipelineDescriptor): GPURenderPipeline;
     createCommandEncoder(descriptor?: GPUCommandEncoderDescriptor): GPUCommandEncoder;
     createTexture(descriptor: GPUTextureDescriptor): GPUTexture;
+    createSampler(descriptor?: GPUSamplerDescriptor): GPUSampler;
   }
 
   interface GPUQueue {
@@ -86,7 +98,19 @@ declare global {
   interface GPUBuffer { readonly label?: string; destroy(): void; }
   interface GPUTexture { createView(descriptor?: GPUTextureViewDescriptor): GPUTextureView; destroy(): void; }
   interface GPUTextureView {}
-  interface GPUShaderModule {}
+  interface GPUSampler {}
+  interface GPUShaderModule {
+    getCompilationInfo?(): Promise<GPUCompilationInfo>;
+  }
+  interface GPUCompilationInfo { messages: readonly GPUCompilationMessage[]; }
+  interface GPUCompilationMessage {
+    message: string;
+    type: 'error' | 'warning' | 'info';
+    lineNum: number;
+    linePos: number;
+    offset: number;
+    length: number;
+  }
   interface GPURenderPipeline {}
   interface GPUBindGroup {}
   interface GPUBindGroupLayout {}
@@ -137,6 +161,18 @@ declare global {
     binding: number;
     visibility: GPUShaderStageFlags;
     buffer?: { type?: GPUBufferBindingType };
+    texture?: GPUTextureBindingLayout;
+    sampler?: GPUSamplerBindingLayout;
+  }
+
+  interface GPUTextureBindingLayout {
+    sampleType?: GPUTextureSampleType;
+    viewDimension?: GPUTextureViewDimension;
+    multisampled?: boolean;
+  }
+
+  interface GPUSamplerBindingLayout {
+    type?: GPUSamplerBindingType;
   }
 
   interface GPUBindGroupDescriptor {
@@ -145,9 +181,11 @@ declare global {
     entries: GPUBindGroupEntry[];
   }
 
+  interface GPUBufferBinding { buffer: GPUBuffer; offset?: number; size?: number; }
+
   interface GPUBindGroupEntry {
     binding: number;
-    resource: { buffer: GPUBuffer; offset?: number; size?: number };
+    resource: GPUBufferBinding | GPUTextureView | GPUSampler;
   }
 
   interface GPUShaderModuleDescriptor { label?: string; code: string; }
@@ -161,6 +199,7 @@ declare global {
     fragment?: GPUFragmentState;
     primitive?: GPUPrimitiveState;
     depthStencil?: GPUDepthStencilState;
+    multisample?: GPUMultisampleState;
   }
 
   interface GPUVertexState {
@@ -175,7 +214,22 @@ declare global {
     targets: GPUColorTargetState[];
   }
 
-  interface GPUColorTargetState { format: GPUTextureFormat; }
+  interface GPUColorTargetState {
+    format: GPUTextureFormat;
+    blend?: GPUBlendState;
+    writeMask?: number;
+  }
+
+  interface GPUBlendState {
+    color: GPUBlendComponent;
+    alpha: GPUBlendComponent;
+  }
+
+  interface GPUBlendComponent {
+    operation?: GPUBlendOperation;
+    srcFactor?: GPUBlendFactor;
+    dstFactor?: GPUBlendFactor;
+  }
 
   interface GPUPrimitiveState {
     topology?: GPUPrimitiveTopology;
@@ -188,6 +242,12 @@ declare global {
     format: GPUTextureFormat;
     depthWriteEnabled?: boolean;
     depthCompare?: GPUCompareFunction;
+  }
+
+  interface GPUMultisampleState {
+    count?: number;
+    mask?: number;
+    alphaToCoverageEnabled?: boolean;
   }
 
   interface GPUVertexBufferLayout {
@@ -204,12 +264,27 @@ declare global {
 
   interface GPUTextureDescriptor {
     label?: string;
-    size: [number, number] | { width: number; height: number; depthOrArrayLayers?: number };
+    size: [number, number] | [number, number, number] | { width: number; height: number; depthOrArrayLayers?: number };
+    mipLevelCount?: number;
+    sampleCount?: number;
+    dimension?: GPUTextureDimension;
     format: GPUTextureFormat;
     usage: GPUTextureUsageFlags;
   }
 
   interface GPUTextureViewDescriptor { label?: string; }
+
+  interface GPUSamplerDescriptor {
+    label?: string;
+    addressModeU?: GPUAddressMode;
+    addressModeV?: GPUAddressMode;
+    addressModeW?: GPUAddressMode;
+    magFilter?: GPUFilterMode;
+    minFilter?: GPUFilterMode;
+    mipmapFilter?: GPUFilterMode;
+    compare?: GPUCompareFunction;
+    maxAnisotropy?: number;
+  }
 
   interface GPURenderPassDescriptor {
     label?: string;
@@ -219,6 +294,7 @@ declare global {
 
   interface GPURenderPassColorAttachment {
     view: GPUTextureView;
+    resolveTarget?: GPUTextureView;
     clearValue?: { r: number; g: number; b: number; a: number };
     loadOp: GPULoadOp;
     storeOp: GPUStoreOp;

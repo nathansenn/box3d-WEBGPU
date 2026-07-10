@@ -1,21 +1,46 @@
 {
   "name": "box3d-webgpu",
-  "version": "0.3.0",
+  "version": "1.0.0",
   "private": true,
   "type": "module",
-  "description": "A maximum-value WebGPU physics lab for Box3D: 600 procedural examples, WASM bridge, fallback physics, diagnostics, tour mode, and tests.",
+  "description": "Box3D WebGPU AAA Physics Lab: 600 deterministic recipes, 24 cinematic hero demos, native WASM integration, HDR rendering, diagnostics, and automated validation.",
   "scripts": {
     "dev": "vite --host 0.0.0.0",
     "build": "vite build",
     "build:pages": "VITE_BASE_PATH=./ vite build",
     "preview": "vite preview --host 0.0.0.0",
+    "fetch:box3d": "bash ./scripts/fetch-box3d.sh",
     "build:wasm": "bash ./scripts/build-wasm.sh",
     "doctor": "bash ./scripts/doctor.sh",
+    "verify:source": "bash ./scripts/verify-source-manifest.sh",
     "typecheck": "tsc --noEmit",
-    "test": "npm run typecheck && rm -rf .test-build && tsc -p tsconfig.test.json && node -e \"require('fs').mkdirSync('.test-build', {recursive:true}); require('fs').writeFileSync('.test-build/package.json', '{\\\"type\\\":\\\"commonjs\\\"}')\" && node .test-build/tests/unit.test.js && node scripts/self-test.mjs"
+    "test": "npm run typecheck && rm -rf .test-build && tsc -p tsconfig.test.json && node -e \"require('fs').mkdirSync('.test-build', {recursive:true}); require('fs').writeFileSync('.test-build/package.json', '{\\\"type\\\":\\\"commonjs\\\"}')\" && node .test-build/tests/unit.test.js && node scripts/self-test.mjs",
+    "validate": "npm test && npm run build",
+    "clean": "rm -rf dist .test-build build/box3d-wasm"
   },
   "devDependencies": {
     "typescript": "^5.5.4",
     "vite": "^8.1.3"
-  }
+  },
+  "license": "MIT",
+  "homepage": "https://nathansenn.github.io/box3d-WEBGPU/",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/nathansenn/box3d-WEBGPU.git"
+  },
+  "bugs": {
+    "url": "https://github.com/nathansenn/box3d-WEBGPU/issues"
+  },
+  "keywords": [
+    "box3d",
+    "webgpu",
+    "webassembly",
+    "wasm",
+    "physics",
+    "3d",
+    "typescript",
+    "emscripten",
+    "game-engine",
+    "simulation"
+  ]
 }

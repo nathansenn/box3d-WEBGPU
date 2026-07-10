@@ -4,36 +4,90 @@ set -euo pipefail
 ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 cd "$ROOT_DIR"
 
-echo "Box3D WebGPU Maximum Lab doctor"
-echo "Project root: $ROOT_DIR"
+printf '\nBox3D WebGPU AAA Physics Lab — environment doctor\n'
+printf 'Project root: %s\n\n' "$ROOT_DIR"
 
-if [[ ! -f package.json ]]; then
-  echo "ERROR: package.json not found. You are not in the WebGPU lab project root." >&2
-  echo "Run this from the folder that contains package.json, not inside third_party/box3d." >&2
-  exit 1
-fi
+failures=0
+warnings=0
+pass() { printf '  [OK]   %s\n' "$1"; }
+warn() { printf '  [WARN] %s\n' "$1"; warnings=$((warnings + 1)); }
+fail() { printf '  [FAIL] %s\n' "$1" >&2; failures=$((failures + 1)); }
 
-if [[ "$(basename "$PWD")" == "box3d" ]]; then
-  echo "ERROR: You appear to be inside the upstream Box3D source folder." >&2
-  echo "Go back to the WebGPU lab folder, then run npm commands there." >&2
-  exit 1
-fi
-
-node -v || { echo "ERROR: Node.js is required." >&2; exit 1; }
-npm -v || { echo "ERROR: npm is required." >&2; exit 1; }
-
-if command -v emcmake >/dev/null 2>&1; then
-  echo "Emscripten: found"
+if [[ -f package.json && -f src/main.ts && -f wasm/CMakeLists.txt ]]; then
+  pass "WebGPU project root detected"
 else
-  echo "Emscripten: not active. The app will still run with the JS fallback backend."
-  echo "To build real Box3D WASM, install emsdk and source emsdk_env.sh."
+  fail "Run this command from the AAA package root containing package.json, src/, and wasm/"
+fi
+
+if [[ "$ROOT_DIR" == */third_party/box3d || "$(basename "$ROOT_DIR")" == "box3d" && ! -f src/main.ts ]]; then
+  fail "This is the upstream C engine folder, not the WebGPU application root"
+fi
+
+if command -v node >/dev/null 2>&1; then
+  NODE_MAJOR="$(node -p 'Number(process.versions.node.split(".")[0])')"
+  if (( NODE_MAJOR >= 20 )); then
+    pass "Node.js $(node -v)"
+  else
+    warn "Node.js $(node -v) found; Node 20+ is recommended (CI uses Node 22)"
+  fi
+else
+  fail "Node.js is missing"
+fi
+
+if command -v npm >/dev/null 2>&1; then
+  pass "npm $(npm -v)"
+else
+  fail "npm is missing"
+fi
+
+if command -v git >/dev/null 2>&1; then
+  pass "git $(git --version | awk '{print $3}')"
+else
+  fail "git is missing; it is required to fetch Box3D and publish the repo"
+fi
+
+if command -v cmake >/dev/null 2>&1; then
+  pass "CMake $(cmake --version | head -1 | awk '{print $3}')"
+else
+  warn "CMake is missing; JavaScript preview still works, native WASM build does not"
+fi
+
+if command -v emcmake >/dev/null 2>&1 && command -v emcc >/dev/null 2>&1; then
+  pass "Emscripten $(emcc --version | head -1)"
+else
+  warn "Emscripten is not active; the app will use the deterministic JavaScript preview backend"
 fi
 
 if [[ -f third_party/box3d/CMakeLists.txt ]]; then
-  echo "Box3D source: found at third_party/box3d"
+  pass "Box3D source found at third_party/box3d"
 else
-  echo "Box3D source: not found yet. Clone it with:"
-  echo "  mkdir -p third_party && git clone https://github.com/erincatto/box3d.git third_party/box3d"
+  warn "Box3D source is absent; run: npm run fetch:box3d"
 fi
 
-echo "Doctor complete. Run: npm install && npm run dev"
+if [[ -s public/box3d/box3d.js && -s public/box3d/box3d.wasm ]]; then
+  pass "Native Box3D browser artifacts are present"
+else
+  warn "Native browser artifacts are absent; run npm run build:wasm after activating emsdk"
+fi
+
+if [[ -d node_modules ]]; then
+  pass "npm dependencies are installed"
+else
+  warn "Dependencies are absent; run: npm install"
+fi
+
+cat <<'INFO'
+
+Browser requirement:
+  WebGPU must be available. Use current Chrome/Edge on desktop, or a compatible browser.
+  Serve through localhost/HTTPS; opening index.html directly is not supported.
+INFO
+
+if (( failures > 0 )); then
+  printf '\nDoctor result: %d failure(s), %d warning(s).\n' "$failures" "$warnings" >&2
+  exit 1
+fi
+
+printf '\nDoctor result: ready, with %d optional warning(s).\n' "$warnings"
+printf 'Recommended gate: npm install && npm run validate\n'
+printf 'Launch: npm run dev\n\n'

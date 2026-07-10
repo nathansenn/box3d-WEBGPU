@@ -1,4 +1,4 @@
-import type { Mat4 } from './math';
+import type { Mat4, Vec3 } from './math';
 import type { ScenePreset } from './scenes';
 
 export type InstanceBufferSource = {
@@ -43,19 +43,49 @@ export type CameraRig = {
   yaw: number;
   pitch: number;
   distance: number;
-  target: [number, number, number];
+  target: Vec3;
 };
 
 export type FrameMetrics = {
   fps: number;
   simMs: number;
+  renderSubmitMs: number;
   uploadMb: number;
   steps: number;
   hash: number;
 };
 
-export type RendererOptions = {
+export type RenderQualityId = 'performance' | 'balanced' | 'cinematic' | 'ultra';
+
+export type RenderQuality = {
+  id: RenderQualityId;
+  label: string;
+  exposure: number;
+  bloomStrength: number;
+  fogDensity: number;
+  shadowStrength: number;
+  effectBudget: number;
+  resolutionScale: number;
+};
+
+export type SceneUniformState = {
   viewProjection: Mat4;
+  lightViewProjection: Mat4;
+  cameraPosition: Vec3;
+  timeSeconds: number;
+  lightDirection: Vec3;
+  quality: RenderQuality;
+  fogColor: Vec3;
+};
+
+export type EffectFrame = {
+  matrices: Float32Array;
+  colors: Float32Array;
+  count: number;
   debugLines: readonly DebugLine[];
-  instanceCount: number;
+};
+
+export type RendererFrameResult = {
+  uploadedBytes: number;
+  renderSubmitMs: number;
 };

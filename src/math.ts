@@ -8,8 +8,31 @@ export function clamp(value: number, min: number, max: number): number {
   return Math.max(min, Math.min(max, value));
 }
 
+export function saturate(value: number): number {
+  return clamp(value, 0, 1);
+}
+
 export function lerp(a: number, b: number, t: number): number {
   return a + (b - a) * t;
+}
+
+export function smoothstep(edge0: number, edge1: number, value: number): number {
+  if (Math.abs(edge1 - edge0) < EPSILON) return value < edge0 ? 0 : 1;
+  const t = saturate((value - edge0) / (edge1 - edge0));
+  return t * t * (3 - 2 * t);
+}
+
+export function easeInOutCubic(t: number): number {
+  const x = saturate(t);
+  return x < 0.5 ? 4 * x * x * x : 1 - Math.pow(-2 * x + 2, 3) / 2;
+}
+
+export function lerpAngle(a: number, b: number, t: number): number {
+  const tau = Math.PI * 2;
+  let delta = (b - a) % tau;
+  if (delta > Math.PI) delta -= tau;
+  if (delta < -Math.PI) delta += tau;
+  return a + delta * t;
 }
 
 export function vec3(x = 0, y = 0, z = 0): Vec3 {
@@ -26,6 +49,10 @@ export function vec3Sub(a: Vec3, b: Vec3): Vec3 {
 
 export function vec3Scale(a: Vec3, s: number): Vec3 {
   return [a[0] * s, a[1] * s, a[2] * s];
+}
+
+export function vec3Lerp(a: Vec3, b: Vec3, t: number): Vec3 {
+  return [lerp(a[0], b[0], t), lerp(a[1], b[1], t), lerp(a[2], b[2], t)];
 }
 
 export function vec3Dot(a: Vec3, b: Vec3): number {
@@ -59,15 +86,32 @@ export function mat4Identity(): Mat4 {
   return out;
 }
 
+/** Right-handed perspective matrix with WebGPU/D3D zero-to-one clip depth. */
 export function mat4Perspective(fovyRadians: number, aspect: number, near: number, far: number): Mat4 {
   const f = 1.0 / Math.tan(fovyRadians * 0.5);
   const nf = 1 / (near - far);
   const out = new Float32Array(16);
-  out[0] = f / aspect;
+  out[0] = f / Math.max(aspect, EPSILON);
   out[5] = f;
-  out[10] = (far + near) * nf;
+  out[10] = far * nf;
   out[11] = -1;
-  out[14] = 2 * far * near * nf;
+  out[14] = far * near * nf;
+  return out;
+}
+
+/** Right-handed orthographic matrix with WebGPU/D3D zero-to-one clip depth. */
+export function mat4Orthographic(left: number, right: number, bottom: number, top: number, near: number, far: number): Mat4 {
+  const lr = 1 / Math.max(EPSILON, right - left);
+  const bt = 1 / Math.max(EPSILON, top - bottom);
+  const nf = 1 / Math.max(EPSILON, near - far);
+  const out = new Float32Array(16);
+  out[0] = 2 * lr;
+  out[5] = 2 * bt;
+  out[10] = nf;
+  out[12] = -(right + left) * lr;
+  out[13] = -(top + bottom) * bt;
+  out[14] = near * nf;
+  out[15] = 1;
   return out;
 }
 

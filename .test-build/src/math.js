@@ -2,17 +2,23 @@
 Object.defineProperty(exports, "__esModule", { value: true });
 exports.LcgRng = exports.EPSILON = void 0;
 exports.clamp = clamp;
+exports.saturate = saturate;
 exports.lerp = lerp;
+exports.smoothstep = smoothstep;
+exports.easeInOutCubic = easeInOutCubic;
+exports.lerpAngle = lerpAngle;
 exports.vec3 = vec3;
 exports.vec3Add = vec3Add;
 exports.vec3Sub = vec3Sub;
 exports.vec3Scale = vec3Scale;
+exports.vec3Lerp = vec3Lerp;
 exports.vec3Dot = vec3Dot;
 exports.vec3Cross = vec3Cross;
 exports.vec3Length = vec3Length;
 exports.vec3Normalize = vec3Normalize;
 exports.mat4Identity = mat4Identity;
 exports.mat4Perspective = mat4Perspective;
+exports.mat4Orthographic = mat4Orthographic;
 exports.mat4LookAt = mat4LookAt;
 exports.mat4Multiply = mat4Multiply;
 exports.writeModelMatrixFromEuler = writeModelMatrixFromEuler;
@@ -22,8 +28,30 @@ exports.EPSILON = 1e-6;
 function clamp(value, min, max) {
     return Math.max(min, Math.min(max, value));
 }
+function saturate(value) {
+    return clamp(value, 0, 1);
+}
 function lerp(a, b, t) {
     return a + (b - a) * t;
+}
+function smoothstep(edge0, edge1, value) {
+    if (Math.abs(edge1 - edge0) < exports.EPSILON)
+        return value < edge0 ? 0 : 1;
+    const t = saturate((value - edge0) / (edge1 - edge0));
+    return t * t * (3 - 2 * t);
+}
+function easeInOutCubic(t) {
+    const x = saturate(t);
+    return x < 0.5 ? 4 * x * x * x : 1 - Math.pow(-2 * x + 2, 3) / 2;
+}
+function lerpAngle(a, b, t) {
+    const tau = Math.PI * 2;
+    let delta = (b - a) % tau;
+    if (delta > Math.PI)
+        delta -= tau;
+    if (delta < -Math.PI)
+        delta += tau;
+    return a + delta * t;
 }
 function vec3(x = 0, y = 0, z = 0) {
     return [x, y, z];
@@ -36,6 +64,9 @@ function vec3Sub(a, b) {
 }
 function vec3Scale(a, s) {
     return [a[0] * s, a[1] * s, a[2] * s];
+}
+function vec3Lerp(a, b, t) {
+    return [lerp(a[0], b[0], t), lerp(a[1], b[1], t), lerp(a[2], b[2], t)];
 }
 function vec3Dot(a, b) {
     return a[0] * b[0] + a[1] * b[1] + a[2] * b[2];
@@ -64,15 +95,31 @@ function mat4Identity() {
     out[15] = 1;
     return out;
 }
+/** Right-handed perspective matrix with WebGPU/D3D zero-to-one clip depth. */
 function mat4Perspective(fovyRadians, aspect, near, far) {
     const f = 1.0 / Math.tan(fovyRadians * 0.5);
     const nf = 1 / (near - far);
     const out = new Float32Array(16);
-    out[0] = f / aspect;
+    out[0] = f / Math.max(aspect, exports.EPSILON);
     out[5] = f;
-    out[10] = (far + near) * nf;
+    out[10] = far * nf;
     out[11] = -1;
-    out[14] = 2 * far * near * nf;
+    out[14] = far * near * nf;
+    return out;
+}
+/** Right-handed orthographic matrix with WebGPU/D3D zero-to-one clip depth. */
+function mat4Orthographic(left, right, bottom, top, near, far) {
+    const lr = 1 / Math.max(exports.EPSILON, right - left);
+    const bt = 1 / Math.max(exports.EPSILON, top - bottom);
+    const nf = 1 / Math.max(exports.EPSILON, near - far);
+    const out = new Float32Array(16);
+    out[0] = 2 * lr;
+    out[5] = 2 * bt;
+    out[10] = nf;
+    out[12] = -(right + left) * lr;
+    out[13] = -(top + bottom) * bt;
+    out[14] = near * nf;
+    out[15] = 1;
     return out;
 }
 function mat4LookAt(eye, target, up) {
