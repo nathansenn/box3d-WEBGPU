@@ -1,6 +1,6 @@
 cmake_minimum_required(VERSION 3.22)
 
-project(box3d_webgpu_wasm VERSION 1.0.0 LANGUAGES C)
+project(box3d_webgpu_wasm VERSION 1.0.2 LANGUAGES C)
 
 if(NOT EMSCRIPTEN)
   message(FATAL_ERROR "This target must be configured through emcmake / the Emscripten toolchain.")
@@ -53,7 +53,7 @@ if(NOT BOX3D_DISABLE_SIMD)
 endif()
 
 set(B3W_EXPORTED_FUNCTIONS
-  "['_malloc','_free','_b3w_create_demo','_b3w_create_scene','_b3w_destroy','_b3w_body_count','_b3w_dynamic_count','_b3w_matrices_ptr','_b3w_colors_ptr','_b3w_max_bodies','_b3w_sync_transforms','_b3w_step','_b3w_apply_impulse','_b3w_kick_stack','_b3w_explode','_b3w_launch_projectile','_b3w_spawn_rain','_b3w_replay_hash']"
+  "['_malloc','_free','_b3w_create_demo','_b3w_create_scene','_b3w_destroy','_b3w_body_count','_b3w_dynamic_count','_b3w_matrices_ptr','_b3w_colors_ptr','_b3w_max_bodies','_b3w_transform_version','_b3w_color_version','_b3w_awake_count','_b3w_sync_transforms','_b3w_step','_b3w_apply_impulse','_b3w_kick_stack','_b3w_explode','_b3w_launch_projectile','_b3w_spawn_rain','_b3w_replay_hash']"
 )
 
 # The generated ES module exports an async default factory consumed by

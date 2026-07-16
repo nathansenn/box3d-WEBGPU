@@ -1,0 +1,169 @@
+{
+  "generatedAt": "2026-07-14T10:52:34.748Z",
+  "decision": "disabled_for_same_thread_rendering_enabled_for_opt_in_bandwidth_limited_transport",
+  "recommendedCodec": "TurboQuant structured 4-bit delta",
+  "workloads": [
+    {
+      "id": "cloth",
+      "scene": "Tensioned Membrane Drum — Cinematic",
+      "rawBytes": 20400,
+      "packetBytes": 2880,
+      "compressionRatio": 7.083333333333333,
+      "codecMsPerFrame": 0.3194597166666654,
+      "predictiveRelativeL2": 0.012582871873937593,
+      "breakEvenMegabytesPerSecond": 54.842595438350486,
+      "modeledLinks": {
+        "5": {
+          "rawLatencyMs": 4.08,
+          "turboLatencyMs": 0.8954597166666655,
+          "speedup": 4.556318865116272
+        },
+        "10": {
+          "rawLatencyMs": 2.04,
+          "turboLatencyMs": 0.6074597166666654,
+          "speedup": 3.358247376787653
+        },
+        "25": {
+          "rawLatencyMs": 0.816,
+          "turboLatencyMs": 0.43465971666666536,
+          "speedup": 1.877330630631638
+        },
+        "50": {
+          "rawLatencyMs": 0.408,
+          "turboLatencyMs": 0.3770597166666654,
+          "speedup": 1.0820567193092305
+        },
+        "100": {
+          "rawLatencyMs": 0.204,
+          "turboLatencyMs": 0.3482597166666654,
+          "speedup": 0.5857697294208084
+        },
+        "250": {
+          "rawLatencyMs": 0.0816,
+          "turboLatencyMs": 0.33097971666666537,
+          "speedup": 0.24654078751955846
+        }
+      }
+    },
+    {
+      "id": "rope",
+      "scene": "Rope Net Resonance — Cinematic",
+      "rawBytes": 4116,
+      "packetBytes": 612,
+      "compressionRatio": 6.7254901960784315,
+      "codecMsPerFrame": 0.0666013833333333,
+      "predictiveRelativeL2": 0.010897070495085995,
+      "breakEvenMegabytesPerSecond": 52.61151983079433,
+      "modeledLinks": {
+        "5": {
+          "rawLatencyMs": 0.8231999999999999,
+          "turboLatencyMs": 0.1890013833333333,
+          "speedup": 4.355523676502192
+        },
+        "10": {
+          "rawLatencyMs": 0.41159999999999997,
+          "turboLatencyMs": 0.1278013833333333,
+          "speedup": 3.220622416319699
+        },
+        "25": {
+          "rawLatencyMs": 0.16464,
+          "turboLatencyMs": 0.09108138333333331,
+          "speedup": 1.8076141794801468
+        },
+        "50": {
+          "rawLatencyMs": 0.08232,
+          "turboLatencyMs": 0.0788413833333333,
+          "speedup": 1.04412171019323
+        },
+        "100": {
+          "rawLatencyMs": 0.04116,
+          "turboLatencyMs": 0.0727213833333333,
+          "speedup": 0.565995833870964
+        },
+        "250": {
+          "rawLatencyMs": 0.016464,
+          "turboLatencyMs": 0.06904938333333331,
+          "speedup": 0.23843804542787378
+        }
+      }
+    },
+    {
+      "id": "water",
+      "scene": "Leviathan Impact Pool — Cinematic",
+      "rawBytes": 77280,
+      "packetBytes": 10872,
+      "compressionRatio": 7.108167770419426,
+      "codecMsPerFrame": 1.1109013833333392,
+      "predictiveRelativeL2": 0.01919463828318039,
+      "breakEvenMegabytesPerSecond": 59.778483487650405,
+      "modeledLinks": {
+        "5": {
+          "rawLatencyMs": 15.456,
+          "turboLatencyMs": 3.285301383333339,
+          "speedup": 4.704591206885866
+        },
+        "10": {
+          "rawLatencyMs": 7.728,
+          "turboLatencyMs": 2.198101383333339,
+          "speedup": 3.5157614014512717
+        },
+        "25": {
+          "rawLatencyMs": 3.0912,
+          "turboLatencyMs": 1.5457813833333391,
+          "speedup": 1.9997653182587205
+        },
+        "50": {
+          "rawLatencyMs": 1.5456,
+          "turboLatencyMs": 1.3283413833333393,
+          "speedup": 1.16355631119575
+        },
+        "100": {
+          "rawLatencyMs": 0.7728,
+          "turboLatencyMs": 1.2196213833333391,
+          "speedup": 0.6336392675306048
+        },
+        "250": {
+          "rawLatencyMs": 0.30912,
+          "turboLatencyMs": 1.1543893833333392,
+          "speedup": 0.26777793044787485
+        }
+      }
+    }
+  ],
+  "worker": {
+    "generatedAt": "2026-07-14T10:52:34.678Z",
+    "node": "v26.0.0",
+    "scene": "Leviathan Impact Pool — Cinematic",
+    "frames": 48,
+    "vectorLength": 19320,
+    "options": {
+      "bits": 4,
+      "blockSize": 64,
+      "rotation": "structured",
+      "centered": false,
+      "seed": 7427351
+    },
+    "rawBytes": 3709440,
+    "compressedBytes": 521856,
+    "compressionRatio": 7.108167770419426,
+    "rawSamplesMs": [
+      1.6553750000000065,
+      1.2860830000000192,
+      1.039749999999998,
+      0.9000829999999951,
+      0.8897919999999999
+    ],
+    "compressedSamplesMs": [
+      57.18950000000001,
+      55.476584,
+      55.345833,
+      55.17750000000001,
+      55.45404099999996
+    ],
+    "rawMedianMs": 1.039749999999998,
+    "compressedMedianMs": 55.45404099999996,
+    "endToEndSpeedup": 0.018749760725282377,
+    "rawMsPerFrame": 0.02166145833333329,
+    "compressedMsPerFrame": 1.1552925208333324
+  }
+}

@@ -1,0 +1,259 @@
+{
+  "schema": 1,
+  "generatedAt": "2026-07-13T14:31:30Z",
+  "baseline": "/var/folders/yc/xss6tbzs62v8xnln2kjvhy2w0000gn/T/box3d-webgpu-source-audit-9mdxm0hn",
+  "optimized": "/Users/commander/Documents/WebPhysics",
+  "summary": {
+    "changedFiles": 27,
+    "sourceFiles": 11,
+    "wasmFiles": 1,
+    "scripts": 12,
+    "linesAdded": 5379,
+    "linesDeleted": 622
+  },
+  "files": [
+    {
+      "path": "package-lock.json",
+      "baselineExists": true,
+      "optimizedExists": true,
+      "baselineSha256": "29ff6f6455b48d2a3196d8d5c888a0ddbe41789e8eb3f1c764bac8ce619067b0",
+      "optimizedSha256": "79364d84389b3f5239427e079220de122830c10efc12afd58123d041fbbd8753",
+      "linesAdded": 6,
+      "linesDeleted": 6
+    },
+    {
+      "path": "package.json",
+      "baselineExists": true,
+      "optimizedExists": true,
+      "baselineSha256": "3261297839687cc947487a2ff124fda96dfced5e2fac7fcde3c5bbb96398c9a3",
+      "optimizedSha256": "6e8672b75a4f8d2c8d948bf9ee803c2498e6c14c598bff2f63efca581973746e",
+      "linesAdded": 23,
+      "linesDeleted": 6
+    },
+    {
+      "path": "scripts/build-soft-kernels.sh",
+      "baselineExists": false,
+      "optimizedExists": true,
+      "baselineSha256": null,
+      "optimizedSha256": "ee4118a1ef3d7d6d3fbeb8e242701243d26d7ffaf3320a25309aad10914afd83",
+      "linesAdded": 93,
+      "linesDeleted": 0
+    },
+    {
+      "path": "scripts/compile-turboquant-benchmarks.mjs",
+      "baselineExists": false,
+      "optimizedExists": true,
+      "baselineSha256": null,
+      "optimizedSha256": "3234985a330815695260dccd8c0ecf438d24ed6a958abd8798b69fc3fb029735",
+      "linesAdded": 12,
+      "linesDeleted": 0
+    },
+    {
+      "path": "scripts/generate-source-manifest.sh",
+      "baselineExists": false,
+      "optimizedExists": true,
+      "baselineSha256": null,
+      "optimizedSha256": "250d1d70284c972d288f2578c440687f16c9c92281b15d4fd444af776a1e9f04",
+      "linesAdded": 54,
+      "linesDeleted": 0
+    },
+    {
+      "path": "scripts/publish-github.sh",
+      "baselineExists": true,
+      "optimizedExists": true,
+      "baselineSha256": "f9b645e854b4b27f5d3a2bc8536bed81114fa390e1bc81bc90b2577f579f4f9e",
+      "optimizedSha256": "3f8f9d32f4072fe4178c2373db9fd7e2de94d8066237890260ef3cd2a78e85f1",
+      "linesAdded": 7,
+      "linesDeleted": 2
+    },
+    {
+      "path": "scripts/push-existing-box3d-webgpu.sh",
+      "baselineExists": true,
+      "optimizedExists": true,
+      "baselineSha256": "1e14bbcccfc2c43bd05d5166efdc1a5ae6bb32c6e02acdce85b9bcff3b77bc51",
+      "optimizedSha256": "85a1048b355c50dca1a802fe7c742c8a3b5d1d2140a14595011c481f3261ab04",
+      "linesAdded": 4,
+      "linesDeleted": 5
+    },
+    {
+      "path": "scripts/self-test.mjs",
+      "baselineExists": true,
+      "optimizedExists": true,
+      "baselineSha256": "79d50d19cb86b31efc23bfdfcc68a744bcb9cc98a1ddd737ac5bc4ceef31e989",
+      "optimizedSha256": "b27cef9d6352b882fc98f2f7c37e8dc3d1637f0908270119f781b7d15bdc6b55",
+      "linesAdded": 85,
+      "linesDeleted": 6
+    },
+    {
+      "path": "scripts/soft-kernel-integration-test.cjs",
+      "baselineExists": false,
+      "optimizedExists": true,
+      "baselineSha256": null,
+      "optimizedSha256": "1a081322d0bda9586f8220b49ccdf4d3197a45bd7589dd736f2bd3092ab9aec2",
+      "linesAdded": 81,
+      "linesDeleted": 0
+    },
+    {
+      "path": "scripts/soft-kernel-test.mjs",
+      "baselineExists": false,
+      "optimizedExists": true,
+      "baselineSha256": null,
+      "optimizedSha256": "0ae8835a78f6ae1e0c3797349c543fcbed4784631fc236d7f37cd3c347aae938",
+      "linesAdded": 308,
+      "linesDeleted": 0
+    },
+    {
+      "path": "scripts/soft-simulation-soak.cjs",
+      "baselineExists": true,
+      "optimizedExists": true,
+      "baselineSha256": "f3e6985cfa080b1409d8a999df2f4f37bab21e7bd3f2f0da16c60774e1002ce6",
+      "optimizedSha256": "10775263127fa7b531f5e4866335ad18f7c05d8c38d352725155dfbb639f9d41",
+      "linesAdded": 44,
+      "linesDeleted": 10
+    },
+    {
+      "path": "scripts/verify-source-manifest.sh",
+      "baselineExists": true,
+      "optimizedExists": true,
+      "baselineSha256": "2c86a9347bddc7cc0d2b8f78b56ef02a152a79d1db4288a3568e2fa1c76069c5",
+      "optimizedSha256": "34694350d0ba8f9d9dcffa1f5762a4f72cfa33f2cf7f5f76153048a657c0d65f",
+      "linesAdded": 45,
+      "linesDeleted": 0
+    },
+    {
+      "path": "scripts/webgpu-pipeline-test.mjs",
+      "baselineExists": true,
+      "optimizedExists": true,
+      "baselineSha256": "5bdfafb9783e96cb585044a5bccc1d7bf0edaf4b3897b2c49a79d95856df17c5",
+      "optimizedSha256": "c8e5b8fadb4ffddf045cc3e777621379952056f2b016ff00ab9f2df186e02402",
+      "linesAdded": 154,
+      "linesDeleted": 18
+    },
+    {
+      "path": "scripts/webgpu-renderer-runtime-test.mjs",
+      "baselineExists": true,
+      "optimizedExists": true,
+      "baselineSha256": "36e8bee20b3cb240a0911d7c8d41bcfb759d75f237279be5fd2a044f7e866b4d",
+      "optimizedSha256": "2967a6e4aa15e9e5e86646ce318aa0c323ee3d9bf3c88d04b35d28d72d1fd77a",
+      "linesAdded": 153,
+      "linesDeleted": 12
+    },
+    {
+      "path": "src/assets/ktx2.ts",
+      "baselineExists": false,
+      "optimizedExists": true,
+      "baselineSha256": null,
+      "optimizedSha256": "8d9074f9414a508459644205f288b8d1fc7840d76017eb87096555efbcc32ca6",
+      "linesAdded": 174,
+      "linesDeleted": 0
+    },
+    {
+      "path": "src/compression/turboquant.ts",
+      "baselineExists": false,
+      "optimizedExists": true,
+      "baselineSha256": null,
+      "optimizedSha256": "161d2d02298f822c19c19d2be8a689b8e29b4342e4847c16d12fa92febb53721",
+      "linesAdded": 638,
+      "linesDeleted": 0
+    },
+    {
+      "path": "src/main.ts",
+      "baselineExists": true,
+      "optimizedExists": true,
+      "baselineSha256": "eda0e3989d455d175001e838413867e4eca8b1b80cf30890e329f3a045443be0",
+      "optimizedSha256": "f37da85be548235c25686ee7c8997d144d4c3bf632a003f391844d7db39d58ec",
+      "linesAdded": 179,
+      "linesDeleted": 11
+    },
+    {
+      "path": "src/physics/fallback.ts",
+      "baselineExists": true,
+      "optimizedExists": true,
+      "baselineSha256": "c40b4663634e026e28a6de6eb41af30e247ec48fec721cde30af5da0fdd298fe",
+      "optimizedSha256": "6ada1d700c66ac0238e64a91068ae50a4e1c82ff322e38f01097aae96204c940",
+      "linesAdded": 92,
+      "linesDeleted": 3
+    },
+    {
+      "path": "src/physics/wasm.ts",
+      "baselineExists": true,
+      "optimizedExists": true,
+      "baselineSha256": "eabdf745feeb8ac94bb42bc213ceab8238dda909922d5e149b13b097b298cd78",
+      "optimizedSha256": "acf105aa93be5bc76de1abd87eb4ab0aa3c0632bc984d15ccd4700cf0c8324e8",
+      "linesAdded": 4,
+      "linesDeleted": 1
+    },
+    {
+      "path": "src/soft/kernels.ts",
+      "baselineExists": false,
+      "optimizedExists": true,
+      "baselineSha256": null,
+      "optimizedSha256": "60cbbb95ba896183c54af6ca6064c517a42afa00dc9dcc6cf86bf24a402f70cb",
+      "linesAdded": 421,
+      "linesDeleted": 0
+    },
+    {
+      "path": "src/soft/packed-surface.ts",
+      "baselineExists": false,
+      "optimizedExists": true,
+      "baselineSha256": null,
+      "optimizedSha256": "d2e293c01e920345bab6ae43447bfc0c4e55d8ae2798c6fc6f44c14c86e4930b",
+      "linesAdded": 38,
+      "linesDeleted": 0
+    },
+    {
+      "path": "src/soft/simulations.ts",
+      "baselineExists": true,
+      "optimizedExists": true,
+      "baselineSha256": "0be4b7018463658e46dece486c686cd2c739510b067ca845eae6dfabccfb7092",
+      "optimizedSha256": "3aae5efc30d10faae284a93cfadf5182d94d80111cd536898bd2173009563981",
+      "linesAdded": 1337,
+      "linesDeleted": 439
+    },
+    {
+      "path": "src/types.ts",
+      "baselineExists": true,
+      "optimizedExists": true,
+      "baselineSha256": "7468dc8b7ad8c4937bac13f68f2aac7ac1ccc83e99072a8f41be079013bbdf34",
+      "optimizedSha256": "a20204174ef21385f6e1fc91d24c43c469892f1c0defe9b53716f0a0543518c7",
+      "linesAdded": 46,
+      "linesDeleted": 4
+    },
+    {
+      "path": "src/webgpu-minimal.d.ts",
+      "baselineExists": true,
+      "optimizedExists": true,
+      "baselineSha256": "6a033fddf95d4a7d85f76c38168f44b7bfabac410446cef2dfa4b121fff4b71d",
+      "optimizedSha256": "95dc6bd1fee841f211f779f25dfe770941fdcbd5743adf672e7039ef43a079ce",
+      "linesAdded": 9,
+      "linesDeleted": 1
+    },
+    {
+      "path": "src/webgpu/renderer.ts",
+      "baselineExists": true,
+      "optimizedExists": true,
+      "baselineSha256": "4f9d4542d5acf9819287e26110527fcf2b0476841ab17b21f8861f476d2b2c1f",
+      "optimizedSha256": "c09e908769ff68b9153a893470876ade92a7a55df85303d2d4b0b9910ab50411",
+      "linesAdded": 874,
+      "linesDeleted": 98
+    },
+    {
+      "path": "tsconfig.benchmark.json",
+      "baselineExists": false,
+      "optimizedExists": true,
+      "baselineSha256": null,
+      "optimizedSha256": "c8dc31ee581e991a71a10d8a69336224a54d758c767dabe4ad57c60606e4b738",
+      "linesAdded": 18,
+      "linesDeleted": 0
+    },
+    {
+      "path": "wasm/soft_kernels.c",
+      "baselineExists": false,
+      "optimizedExists": true,
+      "baselineSha256": null,
+      "optimizedSha256": "19dc12cb1c6429b0178bd6d7c26d094030b3d2fa7cff905ad07394c963c34da4",
+      "linesAdded": 480,
+      "linesDeleted": 0
+    }
+  ]
+}

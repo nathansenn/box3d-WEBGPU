@@ -1,0 +1,1184 @@
+{
+  "schemaVersion": 1,
+  "generatedAt": "2026-07-15T10:04:37.323Z",
+  "baseline": {
+    "archive": "benchmarks/baselines/box3d-webgpu-v1.10.0-source.tar.gz",
+    "sha256": "dea18ff88e86568e5449c9dece5610d0dfadf38d901eef1c1e39155c64e8c3f5"
+  },
+  "currentSourceFingerprint": "8e2ca3c2172f767f6751a856b482095380ccecaaa3826f6ec2c19bc907cf3aaa",
+  "currentSourceFingerprintAtEnd": "8e2ca3c2172f767f6751a856b482095380ccecaaa3826f6ec2c19bc907cf3aaa",
+  "sourceStableDuringRun": true,
+  "configuration": {
+    "sceneIds": [
+      609,
+      619,
+      629,
+      639,
+      649,
+      655,
+      665,
+      675
+    ],
+    "frames": 360,
+    "dt": 0.016666666666666666,
+    "subSteps": 4,
+    "stress": 5,
+    "checkpointCadence": 12,
+    "dynamicGuard": "qualifiedFastPath && projectiles.length === 0",
+    "prearmedInteractionGuard": "qualifiedFastPath && !interactionArmed"
+  },
+  "summary": {
+    "total": 8,
+    "actualPassed": 8,
+    "actualFailed": 0,
+    "actualFailedSceneIds": [],
+    "dynamicGuardPassed": 8,
+    "dynamicGuardFailed": 0,
+    "dynamicGuardFailedSceneIds": [],
+    "prearmedGuardPassed": 8,
+    "prearmedGuardFailed": 0,
+    "prearmedGuardFailedSceneIds": [],
+    "actionsExact": true,
+    "actualDeterministic": true,
+    "dynamicGuardDeterministic": true,
+    "actualFinite": true,
+    "dynamicGuardFinite": true,
+    "prearmedGuardDeterministic": true,
+    "prearmedGuardFinite": true,
+    "maxActualStateRelativeL2": 0.00033617934642929853,
+    "maxActualStateSceneId": 649,
+    "maxActualRenderRelativeL2": 0.00022898733760257103,
+    "maxActualRenderSceneId": 649,
+    "maxGuardStateRelativeL2": 0.00033617934642929853,
+    "maxGuardStateSceneId": 649,
+    "maxGuardRenderRelativeL2": 0.00022898733760257103,
+    "maxGuardRenderSceneId": 649,
+    "maxPrearmedStateRelativeL2": 0,
+    "maxPrearmedStateSceneId": 609,
+    "maxPrearmedRenderRelativeL2": 0,
+    "maxPrearmedRenderSceneId": 609,
+    "recommendation": "No additional dynamic fallback is required by this interaction schedule."
+  },
+  "records": [
+    {
+      "sceneId": 609,
+      "title": "Tensioned Membrane Drum — Baseline",
+      "domain": "cloth",
+      "variant": 9,
+      "mode": 0,
+      "stress": 5,
+      "seed": 1178721,
+      "originalFastFlag": true,
+      "baselineBatchProjectionFlag": null,
+      "frames": 360,
+      "checkpointCount": 34,
+      "guardedFrames": 289,
+      "actionsExact": true,
+      "actionOutcomes": [
+        {
+          "frame": 36,
+          "action": "kick",
+          "strength": 14
+        },
+        {
+          "frame": 72,
+          "action": "projectile",
+          "position": [
+            0,
+            18,
+            0
+          ],
+          "velocity": [
+            0,
+            -28,
+            0
+          ],
+          "size": 0.9,
+          "result": 0
+        },
+        {
+          "frame": 120,
+          "action": "rain",
+          "requested": 64,
+          "spread": 12,
+          "height": 20,
+          "result": 64
+        },
+        {
+          "frame": 180,
+          "action": "explode",
+          "center": [
+            0,
+            6,
+            0
+          ],
+          "strength": 20,
+          "radius": 10
+        },
+        {
+          "frame": 225,
+          "action": "projectile",
+          "position": [
+            -16,
+            6,
+            0
+          ],
+          "velocity": [
+            34,
+            0,
+            0
+          ],
+          "size": 0.75,
+          "result": -1
+        },
+        {
+          "frame": 270,
+          "action": "rain",
+          "requested": 48,
+          "spread": 12,
+          "height": 20,
+          "result": 48
+        },
+        {
+          "frame": 330,
+          "action": "kick",
+          "strength": 10
+        }
+      ],
+      "baselineDeterministic": true,
+      "baselineFinite": true,
+      "threshold": 0.002,
+      "actual": {
+        "maxStateRelativeL2": 0.00010865192703765812,
+        "maxStateFrame": 60,
+        "maxStateAbs": 0.004658699035644531,
+        "maxRenderRelativeL2": 0.00007596474195615379,
+        "maxRenderFrame": 60,
+        "maxRenderAbs": 0.004513263702392578,
+        "finalStateRelativeL2": 0.00001474505431813665,
+        "finalRenderRelativeL2": 0.000010163638002134809,
+        "deterministic": true,
+        "finite": true,
+        "metadataExact": true,
+        "topologyExact": true,
+        "mismatches": [],
+        "validationOk": true,
+        "pass": true
+      },
+      "dynamicGuard": {
+        "maxStateRelativeL2": 0.00010865192703765812,
+        "maxStateFrame": 60,
+        "maxStateAbs": 0.004658699035644531,
+        "maxRenderRelativeL2": 0.00007596474195615379,
+        "maxRenderFrame": 60,
+        "maxRenderAbs": 0.004513263702392578,
+        "finalStateRelativeL2": 0.000004078832417853941,
+        "finalRenderRelativeL2": 0.000002778399838318071,
+        "deterministic": true,
+        "finite": true,
+        "metadataExact": true,
+        "topologyExact": true,
+        "mismatches": [],
+        "validationOk": true,
+        "pass": true
+      },
+      "prearmedInteractionGuard": {
+        "maxStateRelativeL2": 0,
+        "maxStateFrame": 0,
+        "maxStateAbs": 0,
+        "maxRenderRelativeL2": 0,
+        "maxRenderFrame": 0,
+        "maxRenderAbs": 0,
+        "finalStateRelativeL2": 0,
+        "finalRenderRelativeL2": 0,
+        "deterministic": true,
+        "finite": true,
+        "metadataExact": true,
+        "topologyExact": true,
+        "mismatches": [],
+        "validationOk": true,
+        "pass": true
+      }
+    },
+    {
+      "sceneId": 619,
+      "title": "Tensioned Membrane Drum — High Stress",
+      "domain": "cloth",
+      "variant": 9,
+      "mode": 1,
+      "stress": 5,
+      "seed": 1178731,
+      "originalFastFlag": true,
+      "baselineBatchProjectionFlag": null,
+      "frames": 360,
+      "checkpointCount": 34,
+      "guardedFrames": 289,
+      "actionsExact": true,
+      "actionOutcomes": [
+        {
+          "frame": 36,
+          "action": "kick",
+          "strength": 14
+        },
+        {
+          "frame": 72,
+          "action": "projectile",
+          "position": [
+            0,
+            18,
+            0
+          ],
+          "velocity": [
+            0,
+            -28,
+            0
+          ],
+          "size": 0.9,
+          "result": 0
+        },
+        {
+          "frame": 120,
+          "action": "rain",
+          "requested": 64,
+          "spread": 12,
+          "height": 20,
+          "result": 64
+        },
+        {
+          "frame": 180,
+          "action": "explode",
+          "center": [
+            0,
+            6,
+            0
+          ],
+          "strength": 20,
+          "radius": 10
+        },
+        {
+          "frame": 225,
+          "action": "projectile",
+          "position": [
+            -16,
+            6,
+            0
+          ],
+          "velocity": [
+            34,
+            0,
+            0
+          ],
+          "size": 0.75,
+          "result": -1
+        },
+        {
+          "frame": 270,
+          "action": "rain",
+          "requested": 48,
+          "spread": 12,
+          "height": 20,
+          "result": 48
+        },
+        {
+          "frame": 330,
+          "action": "kick",
+          "strength": 10
+        }
+      ],
+      "baselineDeterministic": true,
+      "baselineFinite": true,
+      "threshold": 0.002,
+      "actual": {
+        "maxStateRelativeL2": 0.000246210269698494,
+        "maxStateFrame": 60,
+        "maxStateAbs": 0.015184402465820312,
+        "maxRenderRelativeL2": 0.0001709148137937754,
+        "maxRenderFrame": 60,
+        "maxRenderAbs": 0.01497030258178711,
+        "finalStateRelativeL2": 0.000020296791311872406,
+        "finalRenderRelativeL2": 0.000013825589105186401,
+        "deterministic": true,
+        "finite": true,
+        "metadataExact": true,
+        "topologyExact": true,
+        "mismatches": [],
+        "validationOk": true,
+        "pass": true
+      },
+      "dynamicGuard": {
+        "maxStateRelativeL2": 0.000246210269698494,
+        "maxStateFrame": 60,
+        "maxStateAbs": 0.015184402465820312,
+        "maxRenderRelativeL2": 0.0001709148137937754,
+        "maxRenderFrame": 60,
+        "maxRenderAbs": 0.01497030258178711,
+        "finalStateRelativeL2": 0.0000056474821569471275,
+        "finalRenderRelativeL2": 0.000003828769069676966,
+        "deterministic": true,
+        "finite": true,
+        "metadataExact": true,
+        "topologyExact": true,
+        "mismatches": [],
+        "validationOk": true,
+        "pass": true
+      },
+      "prearmedInteractionGuard": {
+        "maxStateRelativeL2": 0,
+        "maxStateFrame": 0,
+        "maxStateAbs": 0,
+        "maxRenderRelativeL2": 0,
+        "maxRenderFrame": 0,
+        "maxRenderAbs": 0,
+        "finalStateRelativeL2": 0,
+        "finalRenderRelativeL2": 0,
+        "deterministic": true,
+        "finite": true,
+        "metadataExact": true,
+        "topologyExact": true,
+        "mismatches": [],
+        "validationOk": true,
+        "pass": true
+      }
+    },
+    {
+      "sceneId": 629,
+      "title": "Tensioned Membrane Drum — Precision",
+      "domain": "cloth",
+      "variant": 9,
+      "mode": 2,
+      "stress": 5,
+      "seed": 1178741,
+      "originalFastFlag": true,
+      "baselineBatchProjectionFlag": null,
+      "frames": 360,
+      "checkpointCount": 34,
+      "guardedFrames": 289,
+      "actionsExact": true,
+      "actionOutcomes": [
+        {
+          "frame": 36,
+          "action": "kick",
+          "strength": 14
+        },
+        {
+          "frame": 72,
+          "action": "projectile",
+          "position": [
+            0,
+            18,
+            0
+          ],
+          "velocity": [
+            0,
+            -28,
+            0
+          ],
+          "size": 0.9,
+          "result": 0
+        },
+        {
+          "frame": 120,
+          "action": "rain",
+          "requested": 64,
+          "spread": 12,
+          "height": 20,
+          "result": 64
+        },
+        {
+          "frame": 180,
+          "action": "explode",
+          "center": [
+            0,
+            6,
+            0
+          ],
+          "strength": 20,
+          "radius": 10
+        },
+        {
+          "frame": 225,
+          "action": "projectile",
+          "position": [
+            -16,
+            6,
+            0
+          ],
+          "velocity": [
+            34,
+            0,
+            0
+          ],
+          "size": 0.75,
+          "result": -1
+        },
+        {
+          "frame": 270,
+          "action": "rain",
+          "requested": 48,
+          "spread": 12,
+          "height": 20,
+          "result": 48
+        },
+        {
+          "frame": 330,
+          "action": "kick",
+          "strength": 10
+        }
+      ],
+      "baselineDeterministic": true,
+      "baselineFinite": true,
+      "threshold": 0.002,
+      "actual": {
+        "maxStateRelativeL2": 0.00018868280954880938,
+        "maxStateFrame": 60,
+        "maxStateAbs": 0.010976791381835938,
+        "maxRenderRelativeL2": 0.00013131833213676696,
+        "maxRenderFrame": 60,
+        "maxRenderAbs": 0.008817672729492188,
+        "finalStateRelativeL2": 0.000032686109069936403,
+        "finalRenderRelativeL2": 0.000022287118834356413,
+        "deterministic": true,
+        "finite": true,
+        "metadataExact": true,
+        "topologyExact": true,
+        "mismatches": [],
+        "validationOk": true,
+        "pass": true
+      },
+      "dynamicGuard": {
+        "maxStateRelativeL2": 0.00018868280954880938,
+        "maxStateFrame": 60,
+        "maxStateAbs": 0.010976791381835938,
+        "maxRenderRelativeL2": 0.00013131833213676696,
+        "maxRenderFrame": 60,
+        "maxRenderAbs": 0.008817672729492188,
+        "finalStateRelativeL2": 0.000003420512460313708,
+        "finalRenderRelativeL2": 0.0000023029348468411655,
+        "deterministic": true,
+        "finite": true,
+        "metadataExact": true,
+        "topologyExact": true,
+        "mismatches": [],
+        "validationOk": true,
+        "pass": true
+      },
+      "prearmedInteractionGuard": {
+        "maxStateRelativeL2": 0,
+        "maxStateFrame": 0,
+        "maxStateAbs": 0,
+        "maxRenderRelativeL2": 0,
+        "maxRenderFrame": 0,
+        "maxRenderAbs": 0,
+        "finalStateRelativeL2": 0,
+        "finalRenderRelativeL2": 0,
+        "deterministic": true,
+        "finite": true,
+        "metadataExact": true,
+        "topologyExact": true,
+        "mismatches": [],
+        "validationOk": true,
+        "pass": true
+      }
+    },
+    {
+      "sceneId": 639,
+      "title": "Tensioned Membrane Drum — Impact Demo",
+      "domain": "cloth",
+      "variant": 9,
+      "mode": 3,
+      "stress": 5,
+      "seed": 1178751,
+      "originalFastFlag": true,
+      "baselineBatchProjectionFlag": null,
+      "frames": 360,
+      "checkpointCount": 34,
+      "guardedFrames": 289,
+      "actionsExact": true,
+      "actionOutcomes": [
+        {
+          "frame": 36,
+          "action": "kick",
+          "strength": 14
+        },
+        {
+          "frame": 72,
+          "action": "projectile",
+          "position": [
+            0,
+            18,
+            0
+          ],
+          "velocity": [
+            0,
+            -28,
+            0
+          ],
+          "size": 0.9,
+          "result": 0
+        },
+        {
+          "frame": 120,
+          "action": "rain",
+          "requested": 64,
+          "spread": 12,
+          "height": 20,
+          "result": 64
+        },
+        {
+          "frame": 180,
+          "action": "explode",
+          "center": [
+            0,
+            6,
+            0
+          ],
+          "strength": 20,
+          "radius": 10
+        },
+        {
+          "frame": 225,
+          "action": "projectile",
+          "position": [
+            -16,
+            6,
+            0
+          ],
+          "velocity": [
+            34,
+            0,
+            0
+          ],
+          "size": 0.75,
+          "result": -1
+        },
+        {
+          "frame": 270,
+          "action": "rain",
+          "requested": 48,
+          "spread": 12,
+          "height": 20,
+          "result": 48
+        },
+        {
+          "frame": 330,
+          "action": "kick",
+          "strength": 10
+        }
+      ],
+      "baselineDeterministic": true,
+      "baselineFinite": true,
+      "threshold": 0.002,
+      "actual": {
+        "maxStateRelativeL2": 0.00024064196223517488,
+        "maxStateFrame": 60,
+        "maxStateAbs": 0.022398948669433594,
+        "maxRenderRelativeL2": 0.00016629555789560163,
+        "maxRenderFrame": 348,
+        "maxRenderAbs": 0.022398948669433594,
+        "finalStateRelativeL2": 0.000023967963621088952,
+        "finalRenderRelativeL2": 0.000016127729901593803,
+        "deterministic": true,
+        "finite": true,
+        "metadataExact": true,
+        "topologyExact": true,
+        "mismatches": [],
+        "validationOk": true,
+        "pass": true
+      },
+      "dynamicGuard": {
+        "maxStateRelativeL2": 0.00024064196223517488,
+        "maxStateFrame": 60,
+        "maxStateAbs": 0.014386653900146484,
+        "maxRenderRelativeL2": 0.00016397278751167414,
+        "maxRenderFrame": 60,
+        "maxRenderAbs": 0.011028289794921875,
+        "finalStateRelativeL2": 0.000012288991591096553,
+        "finalRenderRelativeL2": 0.000008335825756901009,
+        "deterministic": true,
+        "finite": true,
+        "metadataExact": true,
+        "topologyExact": true,
+        "mismatches": [],
+        "validationOk": true,
+        "pass": true
+      },
+      "prearmedInteractionGuard": {
+        "maxStateRelativeL2": 0,
+        "maxStateFrame": 0,
+        "maxStateAbs": 0,
+        "maxRenderRelativeL2": 0,
+        "maxRenderFrame": 0,
+        "maxRenderAbs": 0,
+        "finalStateRelativeL2": 0,
+        "finalRenderRelativeL2": 0,
+        "deterministic": true,
+        "finite": true,
+        "metadataExact": true,
+        "topologyExact": true,
+        "mismatches": [],
+        "validationOk": true,
+        "pass": true
+      }
+    },
+    {
+      "sceneId": 649,
+      "title": "Tensioned Membrane Drum — Cinematic",
+      "domain": "cloth",
+      "variant": 9,
+      "mode": 4,
+      "stress": 5,
+      "seed": 1178761,
+      "originalFastFlag": true,
+      "baselineBatchProjectionFlag": null,
+      "frames": 360,
+      "checkpointCount": 34,
+      "guardedFrames": 289,
+      "actionsExact": true,
+      "actionOutcomes": [
+        {
+          "frame": 36,
+          "action": "kick",
+          "strength": 14
+        },
+        {
+          "frame": 72,
+          "action": "projectile",
+          "position": [
+            0,
+            18,
+            0
+          ],
+          "velocity": [
+            0,
+            -28,
+            0
+          ],
+          "size": 0.9,
+          "result": 0
+        },
+        {
+          "frame": 120,
+          "action": "rain",
+          "requested": 64,
+          "spread": 12,
+          "height": 20,
+          "result": 64
+        },
+        {
+          "frame": 180,
+          "action": "explode",
+          "center": [
+            0,
+            6,
+            0
+          ],
+          "strength": 20,
+          "radius": 10
+        },
+        {
+          "frame": 225,
+          "action": "projectile",
+          "position": [
+            -16,
+            6,
+            0
+          ],
+          "velocity": [
+            34,
+            0,
+            0
+          ],
+          "size": 0.75,
+          "result": -1
+        },
+        {
+          "frame": 270,
+          "action": "rain",
+          "requested": 48,
+          "spread": 12,
+          "height": 20,
+          "result": 48
+        },
+        {
+          "frame": 330,
+          "action": "kick",
+          "strength": 10
+        }
+      ],
+      "baselineDeterministic": true,
+      "baselineFinite": true,
+      "threshold": 0.002,
+      "actual": {
+        "maxStateRelativeL2": 0.00033617934642929853,
+        "maxStateFrame": 60,
+        "maxStateAbs": 0.02907276153564453,
+        "maxRenderRelativeL2": 0.00022898733760257103,
+        "maxRenderFrame": 60,
+        "maxRenderAbs": 0.02907276153564453,
+        "finalStateRelativeL2": 0.00005827214655862356,
+        "finalRenderRelativeL2": 0.0000388427478078718,
+        "deterministic": true,
+        "finite": true,
+        "metadataExact": true,
+        "topologyExact": true,
+        "mismatches": [],
+        "validationOk": true,
+        "pass": true
+      },
+      "dynamicGuard": {
+        "maxStateRelativeL2": 0.00033617934642929853,
+        "maxStateFrame": 60,
+        "maxStateAbs": 0.015345096588134766,
+        "maxRenderRelativeL2": 0.00022898733760257103,
+        "maxRenderFrame": 60,
+        "maxRenderAbs": 0.015161991119384766,
+        "finalStateRelativeL2": 0.000021826017111858985,
+        "finalRenderRelativeL2": 0.00001463388834164716,
+        "deterministic": true,
+        "finite": true,
+        "metadataExact": true,
+        "topologyExact": true,
+        "mismatches": [],
+        "validationOk": true,
+        "pass": true
+      },
+      "prearmedInteractionGuard": {
+        "maxStateRelativeL2": 0,
+        "maxStateFrame": 0,
+        "maxStateAbs": 0,
+        "maxRenderRelativeL2": 0,
+        "maxRenderFrame": 0,
+        "maxRenderAbs": 0,
+        "finalStateRelativeL2": 0,
+        "finalRenderRelativeL2": 0,
+        "deterministic": true,
+        "finite": true,
+        "metadataExact": true,
+        "topologyExact": true,
+        "mismatches": [],
+        "validationOk": true,
+        "pass": true
+      }
+    },
+    {
+      "sceneId": 655,
+      "title": "Cable Curtain Failure — Baseline",
+      "domain": "rope",
+      "variant": 5,
+      "mode": 0,
+      "stress": 5,
+      "seed": 1178767,
+      "originalFastFlag": false,
+      "baselineBatchProjectionFlag": true,
+      "frames": 360,
+      "checkpointCount": 34,
+      "guardedFrames": 261,
+      "actionsExact": true,
+      "actionOutcomes": [
+        {
+          "frame": 36,
+          "action": "kick",
+          "strength": 14
+        },
+        {
+          "frame": 72,
+          "action": "projectile",
+          "position": [
+            -18,
+            9,
+            0
+          ],
+          "velocity": [
+            38,
+            0,
+            0
+          ],
+          "size": 0.9,
+          "result": 0
+        },
+        {
+          "frame": 120,
+          "action": "rain",
+          "requested": 48,
+          "spread": 12,
+          "height": 22,
+          "result": 48
+        },
+        {
+          "frame": 180,
+          "action": "explode",
+          "center": [
+            0,
+            8,
+            0
+          ],
+          "strength": 20,
+          "radius": 10
+        },
+        {
+          "frame": 225,
+          "action": "projectile",
+          "position": [
+            18,
+            11,
+            0
+          ],
+          "velocity": [
+            -40,
+            -1,
+            0
+          ],
+          "size": 0.8,
+          "result": -1
+        },
+        {
+          "frame": 270,
+          "action": "rain",
+          "requested": 32,
+          "spread": 12,
+          "height": 22,
+          "result": 32
+        },
+        {
+          "frame": 330,
+          "action": "kick",
+          "strength": 10
+        }
+      ],
+      "baselineDeterministic": true,
+      "baselineFinite": true,
+      "threshold": 0.0005,
+      "actual": {
+        "maxStateRelativeL2": 0,
+        "maxStateFrame": 0,
+        "maxStateAbs": 0,
+        "maxRenderRelativeL2": 0,
+        "maxRenderFrame": 0,
+        "maxRenderAbs": 0,
+        "finalStateRelativeL2": 0,
+        "finalRenderRelativeL2": 0,
+        "deterministic": true,
+        "finite": true,
+        "metadataExact": true,
+        "topologyExact": true,
+        "mismatches": [],
+        "validationOk": true,
+        "pass": true
+      },
+      "dynamicGuard": {
+        "maxStateRelativeL2": 0,
+        "maxStateFrame": 0,
+        "maxStateAbs": 0,
+        "maxRenderRelativeL2": 0,
+        "maxRenderFrame": 0,
+        "maxRenderAbs": 0,
+        "finalStateRelativeL2": 0,
+        "finalRenderRelativeL2": 0,
+        "deterministic": true,
+        "finite": true,
+        "metadataExact": true,
+        "topologyExact": true,
+        "mismatches": [],
+        "validationOk": true,
+        "pass": true
+      },
+      "prearmedInteractionGuard": {
+        "maxStateRelativeL2": 0,
+        "maxStateFrame": 0,
+        "maxStateAbs": 0,
+        "maxRenderRelativeL2": 0,
+        "maxRenderFrame": 0,
+        "maxRenderAbs": 0,
+        "finalStateRelativeL2": 0,
+        "finalRenderRelativeL2": 0,
+        "deterministic": true,
+        "finite": true,
+        "metadataExact": true,
+        "topologyExact": true,
+        "mismatches": [],
+        "validationOk": true,
+        "pass": true
+      }
+    },
+    {
+      "sceneId": 665,
+      "title": "Cable Curtain Failure — High Stress",
+      "domain": "rope",
+      "variant": 5,
+      "mode": 1,
+      "stress": 5,
+      "seed": 1178777,
+      "originalFastFlag": false,
+      "baselineBatchProjectionFlag": true,
+      "frames": 360,
+      "checkpointCount": 34,
+      "guardedFrames": 289,
+      "actionsExact": true,
+      "actionOutcomes": [
+        {
+          "frame": 36,
+          "action": "kick",
+          "strength": 14
+        },
+        {
+          "frame": 72,
+          "action": "projectile",
+          "position": [
+            -18,
+            9,
+            0
+          ],
+          "velocity": [
+            38,
+            0,
+            0
+          ],
+          "size": 0.9,
+          "result": 0
+        },
+        {
+          "frame": 120,
+          "action": "rain",
+          "requested": 48,
+          "spread": 12,
+          "height": 22,
+          "result": 48
+        },
+        {
+          "frame": 180,
+          "action": "explode",
+          "center": [
+            0,
+            8,
+            0
+          ],
+          "strength": 20,
+          "radius": 10
+        },
+        {
+          "frame": 225,
+          "action": "projectile",
+          "position": [
+            18,
+            11,
+            0
+          ],
+          "velocity": [
+            -40,
+            -1,
+            0
+          ],
+          "size": 0.8,
+          "result": 14
+        },
+        {
+          "frame": 270,
+          "action": "rain",
+          "requested": 32,
+          "spread": 12,
+          "height": 22,
+          "result": 32
+        },
+        {
+          "frame": 330,
+          "action": "kick",
+          "strength": 10
+        }
+      ],
+      "baselineDeterministic": true,
+      "baselineFinite": true,
+      "threshold": 0.0005,
+      "actual": {
+        "maxStateRelativeL2": 0,
+        "maxStateFrame": 0,
+        "maxStateAbs": 0,
+        "maxRenderRelativeL2": 0,
+        "maxRenderFrame": 0,
+        "maxRenderAbs": 0,
+        "finalStateRelativeL2": 0,
+        "finalRenderRelativeL2": 0,
+        "deterministic": true,
+        "finite": true,
+        "metadataExact": true,
+        "topologyExact": true,
+        "mismatches": [],
+        "validationOk": true,
+        "pass": true
+      },
+      "dynamicGuard": {
+        "maxStateRelativeL2": 0,
+        "maxStateFrame": 0,
+        "maxStateAbs": 0,
+        "maxRenderRelativeL2": 0,
+        "maxRenderFrame": 0,
+        "maxRenderAbs": 0,
+        "finalStateRelativeL2": 0,
+        "finalRenderRelativeL2": 0,
+        "deterministic": true,
+        "finite": true,
+        "metadataExact": true,
+        "topologyExact": true,
+        "mismatches": [],
+        "validationOk": true,
+        "pass": true
+      },
+      "prearmedInteractionGuard": {
+        "maxStateRelativeL2": 0,
+        "maxStateFrame": 0,
+        "maxStateAbs": 0,
+        "maxRenderRelativeL2": 0,
+        "maxRenderFrame": 0,
+        "maxRenderAbs": 0,
+        "finalStateRelativeL2": 0,
+        "finalRenderRelativeL2": 0,
+        "deterministic": true,
+        "finite": true,
+        "metadataExact": true,
+        "topologyExact": true,
+        "mismatches": [],
+        "validationOk": true,
+        "pass": true
+      }
+    },
+    {
+      "sceneId": 675,
+      "title": "Cable Curtain Failure — Precision",
+      "domain": "rope",
+      "variant": 5,
+      "mode": 2,
+      "stress": 5,
+      "seed": 1178787,
+      "originalFastFlag": false,
+      "baselineBatchProjectionFlag": true,
+      "frames": 360,
+      "checkpointCount": 34,
+      "guardedFrames": 259,
+      "actionsExact": true,
+      "actionOutcomes": [
+        {
+          "frame": 36,
+          "action": "kick",
+          "strength": 14
+        },
+        {
+          "frame": 72,
+          "action": "projectile",
+          "position": [
+            -18,
+            9,
+            0
+          ],
+          "velocity": [
+            38,
+            0,
+            0
+          ],
+          "size": 0.9,
+          "result": 0
+        },
+        {
+          "frame": 120,
+          "action": "rain",
+          "requested": 48,
+          "spread": 12,
+          "height": 22,
+          "result": 48
+        },
+        {
+          "frame": 180,
+          "action": "explode",
+          "center": [
+            0,
+            8,
+            0
+          ],
+          "strength": 20,
+          "radius": 10
+        },
+        {
+          "frame": 225,
+          "action": "projectile",
+          "position": [
+            18,
+            11,
+            0
+          ],
+          "velocity": [
+            -40,
+            -1,
+            0
+          ],
+          "size": 0.8,
+          "result": -1
+        },
+        {
+          "frame": 270,
+          "action": "rain",
+          "requested": 32,
+          "spread": 12,
+          "height": 22,
+          "result": 32
+        },
+        {
+          "frame": 330,
+          "action": "kick",
+          "strength": 10
+        }
+      ],
+      "baselineDeterministic": true,
+      "baselineFinite": true,
+      "threshold": 0.0005,
+      "actual": {
+        "maxStateRelativeL2": 0,
+        "maxStateFrame": 0,
+        "maxStateAbs": 0,
+        "maxRenderRelativeL2": 0,
+        "maxRenderFrame": 0,
+        "maxRenderAbs": 0,
+        "finalStateRelativeL2": 0,
+        "finalRenderRelativeL2": 0,
+        "deterministic": true,
+        "finite": true,
+        "metadataExact": true,
+        "topologyExact": true,
+        "mismatches": [],
+        "validationOk": true,
+        "pass": true
+      },
+      "dynamicGuard": {
+        "maxStateRelativeL2": 0,
+        "maxStateFrame": 0,
+        "maxStateAbs": 0,
+        "maxRenderRelativeL2": 0,
+        "maxRenderFrame": 0,
+        "maxRenderAbs": 0,
+        "finalStateRelativeL2": 0,
+        "finalRenderRelativeL2": 0,
+        "deterministic": true,
+        "finite": true,
+        "metadataExact": true,
+        "topologyExact": true,
+        "mismatches": [],
+        "validationOk": true,
+        "pass": true
+      },
+      "prearmedInteractionGuard": {
+        "maxStateRelativeL2": 0,
+        "maxStateFrame": 0,
+        "maxStateAbs": 0,
+        "maxRenderRelativeL2": 0,
+        "maxRenderFrame": 0,
+        "maxRenderAbs": 0,
+        "finalStateRelativeL2": 0,
+        "finalRenderRelativeL2": 0,
+        "deterministic": true,
+        "finite": true,
+        "metadataExact": true,
+        "topologyExact": true,
+        "mismatches": [],
+        "validationOk": true,
+        "pass": true
+      }
+    }
+  ]
+}

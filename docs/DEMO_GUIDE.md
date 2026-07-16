@@ -1,143 +1,116 @@
 # Demo Guide — AAA Physics Capability Lab
 
-## The 8-minute presentation
+## A focused 10-minute presentation
 
-### 0:00–0:45 — Establish the architecture
+### 0:00–0:45 — Explain the hybrid engine
 
-Open the app at the default **Cinematic** profile and explain the visible pipeline:
+Show the pipeline:
 
 ```text
-Box3D/WASM physics → contiguous transforms → WebGPU instancing → shadow/HDR/post → telemetry
+Box3D/WASM rigid physics + deterministic cloth/rope/water
+        → streamed transforms and indexed surfaces
+        → WebGPU shadows, HDR, MSAA, materials, effects, post
 ```
 
-Point out the backend badge. A preview-backend warning means the WASM artifact has not been built; a native state confirms Box3D is active.
+Point out the backend badge. **Deterministic Preview** means native Box3D WASM has not been built; cloth, rope, and water are still live because they run in the TypeScript soft-simulation layer.
 
 ### 0:45–2:00 — Titan Foundry Stackfall
 
-1. Select **Titan Foundry Stackfall**.
-2. Press **Play**.
-3. Let the automatic impulse, slow motion, shockwave, and settling sequence complete.
-4. Call out body count, simulation time, upload volume, and replay hash.
+Play **Titan Foundry Stackfall** and call out stacked contacts, camera direction, shadow/HDR quality, body count, upload bandwidth, and replay hash.
 
-What this proves:
+### 2:00–3:15 — Aegis Tower: Kinetic Breach
 
-- dense stacked contacts;
-- deterministic scene construction;
-- camera choreography;
-- HDR material separation and shadows;
-- effects that do not become physics bodies;
-- fixed-step simulation independent of render cadence.
+Play the tower sequence, pause after impact, enable diagnostics, and advance several fixed frames. This demonstrates projectiles, time dilation, progressive collapse, aligned transforms, and deterministic stepping.
 
-### 2:00–3:20 — Aegis Tower: Kinetic Breach
+### 3:15–4:30 — Tempest Standard Protocol
 
-1. Select **Aegis Tower: Kinetic Breach**.
-2. Use **Ultra** quality on a strong desktop GPU.
-3. Play the sequence.
-4. Pause immediately after the primary breach and turn on diagnostics.
-5. Step two or three fixed frames with **Step Frame**.
+1. Select the cloth hero.
+2. Keep the surface telemetry visible.
+3. Watch the wind front and folds.
+4. Observe the projectile/pressure event and any controlled tear.
+5. Enable diagnostics briefly to show pins and particle samples.
 
-What this proves:
+Call out structural, shear, and bend constraints; two-sided woven rendering; dynamic normals; strain colors; and real topology openings after broken links.
 
-- high-speed projectile creation;
-- continuous native physics path when WASM is loaded;
-- progressive floor/column interaction;
-- time-scale control;
-- aligned instance transforms and debug bounds.
+### 4:30–5:45 — Sky Crane Cable Failure
 
-### 3:20–4:20 — Atlas Suspension Convoy
+Show the payload and cable before impact, then let the projectile/blast sequence run. Call out tension coloring, anchored endpoints, payload inertia, line severing, and residual oscillation.
 
-Use the wide camera to show:
+### 5:45–7:00 — Tsunami Research Array
 
-- segmented deck bodies;
-- concentrated cargo load;
-- support and pylon set dressing;
-- failure propagation over a long span;
-- shadow stability across a broad scene.
+Use a wide camera. Watch the wave front cross the basin, reflect, interfere, and form foam. Turn on diagnostics to expose current vectors. Explain that this is an interactive 2.5D shallow-water solver rather than a volumetric fluid simulation.
 
-### 4:20–5:15 — Hypermaterial Gauntlet
+### 7:00–8:00 — Leviathan Impact Basin
 
-Show friction/restitution lanes. Trigger **Structural Impulse** once and compare slide/bounce/settling behavior. Explain that the material lab is for visible comparative response, not a benchmark score.
+This is the strongest fluid finale: rain, traveling waves, ballistic entry, floaters, splash displacement, foam, HDR highlights, and post-processing.
 
-### 5:15–6:15 — Orbital Cargo Storm
+### 8:00–9:00 — Orbital Cargo Storm
 
-1. Start at stress 4.
-2. Play the hero sequence.
-3. Watch the body and upload counters through both rain waves.
-4. Switch from Cinematic to Performance during motion.
+Demonstrate body creation and transform streaming. Switch from Cinematic to Performance during motion to show real quality-budget changes.
 
-What this proves:
+### 9:00–10:00 — Engineering confidence
 
-- runtime spawn growth;
-- quality-profile resolution scaling;
-- shadow-pass bypass in Performance mode;
-- effect-budget control;
-- high-volume matrix streaming.
+Open **Automated Validation**, run **750 + 30 State Tests**, and finish with the validation summary. This checks scene state, generated surface contracts, and hero data; complete the visual rendering checklist separately.
 
-### 6:15–7:15 — Construction and logistics
+State the boundaries clearly:
 
-Play either:
-
-- **Sky Crane Load Failure**, or
-- **High-Bay Cascade**.
-
-These are valuable because they demonstrate scenes that resemble practical industrial simulation rather than abstract piles.
-
-### 7:15–8:00 — Engineering confidence
-
-Open **Automated Validation**, run **600 + 24 Browser Tests**, and finish on the validation summary.
-
-Explain the boundary honestly:
-
-- the native backend is Box3D/WASM;
-- the preview backend is a deterministic approximation;
-- 600 entries are parameterized recipes;
-- 24 demos are manually choreographed hero sequences;
-- GPU timings are not yet timestamp-query timings.
-
----
+- Box3D/WASM is the native rigid backend;
+- the preview rigid backend is deterministic but approximate;
+- cloth, rope, and water numerical kernels prefer SIMD WebAssembly, fall back to scalar WebAssembly, then to deterministic JavaScript;
+- water is a CPU/WASM shallow-water heightfield;
+- WebGPU reconstructs intact cloth and water presentation from solver state but does not yet run the numerical solver as compute;
+- topology-changing cloth deliberately uses the packed CPU presentation path;
+- 750 entries are deterministic parameterized scenes;
+- 30 hero demonstrations are manually directed.
 
 ## Maximum AAA Tour
 
-Press `T` or select **Start Maximum AAA Tour**. The tour:
+Press `T` or select **Maximum AAA Tour**. It loads each hero at its recommended stress, resets the deterministic state, plays camera/action beats, captures telemetry, and advances to the next sequence.
 
-1. loads a hero scene at its recommended stress;
-2. resets deterministic seed/effects;
-3. plays camera keys and timed action beats;
-4. captures final telemetry state;
-5. advances to the next hero sequence.
+For the strongest short capture order:
 
-Use this for unattended expo loops or a long screen capture.
+1. Titan Foundry Stackfall
+2. Aegis Tower: Kinetic Breach
+3. Tempest Standard Protocol
+4. Sky Crane Cable Failure
+5. Tsunami Research Array
+6. Leviathan Impact Basin
+7. Mega Atrium Collapse
 
----
+## Soft-system interaction controls
+
+| Action | Cloth | Rope | Water |
+|---|---|---|---|
+| Structural impulse | wind-like broad disturbance | line excitation | broad displacement/current impulse |
+| Projectile | local momentum and possible tear | segment hit and possible sever | ballistic floater/impact |
+| Explosion | radial fabric impulse | radial cable/payload impulse | radial surface disturbance and droplets |
+| Rain | falling impact particles | falling cable impacts | real droplets injecting ripples |
+| Diagnostics | pins and sampled nodes | anchors/nodes and segment state | sampled current vectors |
 
 ## Capture settings
 
-### Desktop cinematic capture
+### Desktop
 
 - Browser zoom: 100%.
 - Quality: Cinematic or Ultra.
-- Stress: the hero-recommended value.
-- Diagnostics: off except when explaining alignment.
-- Close heavy GPU tabs.
-- Record at 60 FPS when possible.
-- Use 0.25× or 0.5× manual time scale for detailed impacts.
+- Use hero-recommended stress.
+- Turn diagnostics off for beauty shots and on for engineering explanation.
+- Use 0.25× or 0.5× for tearing, line failure, and impact inspection.
 
-### Mobile/tablet demonstration
+### Integrated GPU or tablet
 
 - Quality: Performance or Balanced.
-- Keep the left command deck collapsed to the needed section.
-- Use touch drag to orbit and two-finger/browser gesture for zoom where supported.
-- Avoid the maximum storm sequences until native performance on the device is known.
+- Reduce stress before maximum cloth/water scenes.
+- Avoid running the complete catalog gate during a live presentation.
 
----
-
-## Troubleshooting during a demo
+## Troubleshooting
 
 | Symptom | Action |
 |---|---|
-| “Preview backend active” | Run `npm run fetch:box3d`, activate Emscripten, then `npm run build:wasm` |
-| WebGPU unavailable | Serve from localhost/HTTPS and use a WebGPU-capable browser |
-| Low FPS | Select Performance, lower stress, stop diagnostics |
-| Scene seems static | Resume, restart hero sequence, or apply impulse/projectile |
-| npm ENOENT for package.json | Return to the project root; do not run npm inside `third_party/box3d` |
-| Shader startup fault | Read the line/column error shown by runtime WGSL validation |
+| Preview backend active | Build the native WASM artifact; soft/fluid systems still work meanwhile |
+| WebGPU unavailable | Use localhost/HTTPS and a WebGPU-capable browser |
+| Low FPS in cloth | Lower stress or quality; close GPU-heavy tabs |
+| Water looks opaque/incorrect | Check browser console for blend/depth shader errors, then run `npm run test:webgpu` against the current v1.9 tree |
+| Cloth surface disappears | Run `npm test`; surface stride/index validation should identify corruption |
+| npm ENOENT | Return to project root; do not run npm in `third_party/box3d` |
+| Shader startup fault | Use the line/column from runtime WGSL compilation diagnostics |

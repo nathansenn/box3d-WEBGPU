@@ -1,0 +1,42 @@
+{
+  "box3d": {
+    "ref": "v0.1.0",
+    "commit": "8441b4a06d6d09dcfb0b0f704df4d847d1437b92",
+    "license": "MIT"
+  },
+  "toolchain": {
+    "emscripten": "4.0.23",
+    "cmake": "4.4.0",
+    "generator": "Unix Makefiles",
+    "make": "GNU Make 3.81"
+  },
+  "bridge": {
+    "source": "wasm/box3d_web.c",
+    "sha256": "640d65fb3e264cbb0f7f3f487dba22205b981516f35a37707daae03e9a405ce2",
+    "lazyReplayHash": true,
+    "sleepingWorldTransformCache": true,
+    "independentColorRevision": true,
+    "sparseMoveEventTransformSync": false,
+    "conservativeExplosionMissRejection": true,
+    "cachedBoxHullConstruction": true,
+    "boxHullCacheEntries": 8,
+    "deterministicDoubleBuild": true
+  },
+  "artifacts": {
+    "box3d.js": {
+      "bytes": 14209,
+      "sha256": "8ec00439683b8da258916ebe90f0cea6a6d0672641fda571936b6012fd3cec3b"
+    },
+    "box3d.wasm": {
+      "bytes": 396272,
+      "sha256": "de1fe4c659bb6c99879555b7b987d53455bcf4768cbfffcb35eac3ee75835a1c"
+    }
+  },
+  "validation": {
+    "catalogScenes": 750,
+    "deterministicPasses": 2,
+    "invalidTimestepGuard": true,
+    "finalSleepTransformCapture": true,
+    "settledTransformRevisionStable": true
+  }
+}

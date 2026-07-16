@@ -1,0 +1,36 @@
+{
+  "generatedAt": "2026-07-14T10:52:34.678Z",
+  "node": "v26.0.0",
+  "scene": "Leviathan Impact Pool — Cinematic",
+  "frames": 48,
+  "vectorLength": 19320,
+  "options": {
+    "bits": 4,
+    "blockSize": 64,
+    "rotation": "structured",
+    "centered": false,
+    "seed": 7427351
+  },
+  "rawBytes": 3709440,
+  "compressedBytes": 521856,
+  "compressionRatio": 7.108167770419426,
+  "rawSamplesMs": [
+    1.6553750000000065,
+    1.2860830000000192,
+    1.039749999999998,
+    0.9000829999999951,
+    0.8897919999999999
+  ],
+  "compressedSamplesMs": [
+    57.18950000000001,
+    55.476584,
+    55.345833,
+    55.17750000000001,
+    55.45404099999996
+  ],
+  "rawMedianMs": 1.039749999999998,
+  "compressedMedianMs": 55.45404099999996,
+  "endToEndSpeedup": 0.018749760725282377,
+  "rawMsPerFrame": 0.02166145833333329,
+  "compressedMsPerFrame": 1.1552925208333324
+}

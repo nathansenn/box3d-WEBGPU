@@ -1,18 +1,14 @@
 import {
   clamp,
   isFiniteArray,
-  mat4LookAt,
-  mat4Multiply,
-  mat4Orthographic,
-  mat4Perspective,
   matrixColumnLength,
-  vec3Add,
   vec3Normalize,
   vec3Scale,
   vec3Sub,
-  type Mat4,
   type Vec3,
 } from './math';
+import { CameraMatrixCache } from './camera';
+import { FrameLineStager } from './frame-lines';
 import {
   FEATURED_SCENE_IDS,
   SCENES,
@@ -30,34 +26,49 @@ import {
   getShowcaseById,
   getShowcaseByOrdinal,
   sampleShowcaseCamera,
+  sampleShowcaseCameraInto,
   type AAAShowcase,
   type ShowcaseBeat,
 } from './showcases';
 import { CinematicEffects } from './effects';
 import { loadBestPhysicsBackend } from './physics/wasm';
 import { WebGPURenderer } from './webgpu/renderer';
-import type { CameraRig, DebugLine, PhysicsBackend, RenderQuality, RenderQualityId } from './types';
+import { SOFT_INSTANCE_BUDGET, SoftSimulationSuite, type SoftSimulationFrame } from './soft/simulations';
+import { initializeSoftKernelRuntime } from './soft/kernels';
+import type { CameraRig, DebugLine, DynamicSurfaceFrame, PhysicsBackend, RenderQuality, RenderQualityId } from './types';
 
 const MAX_EFFECT_INSTANCES = 1536;
 const LIGHT_DIRECTION: Vec3 = vec3Normalize([0.42, -0.84, 0.34]);
 const FOG_COLOR: Vec3 = [0.055, 0.085, 0.14];
+const rigidDebugLines: DebugLine[] = [];
+const rigidDebugLinePool: DebugLine[] = [];
+const frameLineStager = new FrameLineStager();
+const BOX_CORNER_SIGNS = [
+  [-1, -1, -1], [1, -1, -1], [1, 1, -1], [-1, 1, -1],
+  [-1, -1, 1], [1, -1, 1], [1, 1, 1], [-1, 1, 1],
+] as const;
+const BOX_EDGES = [[0, 1], [1, 2], [2, 3], [3, 0], [4, 5], [5, 6], [6, 7], [7, 4], [0, 4], [1, 5], [2, 6], [3, 7]] as const;
 
 const QUALITY_PROFILES: Record<RenderQualityId, RenderQuality> = {
   performance: {
     id: 'performance', label: 'Performance', exposure: 1.0, bloomStrength: 0.08,
     fogDensity: 0.0035, shadowStrength: 0, effectBudget: 256, resolutionScale: 0.70,
+    sampleCount: 1, shadowMapSize: 1024, shadowTapCount: 1,
   },
   balanced: {
     id: 'balanced', label: 'Balanced', exposure: 1.05, bloomStrength: 0.28,
     fogDensity: 0.0055, shadowStrength: 0.68, effectBudget: 512, resolutionScale: 0.85,
+    sampleCount: 1, shadowMapSize: 1024, shadowTapCount: 1,
   },
   cinematic: {
     id: 'cinematic', label: 'Cinematic', exposure: 1.12, bloomStrength: 0.62,
     fogDensity: 0.0075, shadowStrength: 1, effectBudget: 1024, resolutionScale: 1.0,
+    sampleCount: 4, shadowMapSize: 2048, shadowTapCount: 9,
   },
   ultra: {
     id: 'ultra', label: 'Ultra', exposure: 1.18, bloomStrength: 0.9,
     fogDensity: 0.009, shadowStrength: 1, effectBudget: 1536, resolutionScale: 1.15,
+    sampleCount: 4, shadowMapSize: 2048, shadowTapCount: 9,
   },
 };
 
@@ -89,6 +100,11 @@ type Ui = {
   bodyCount: HTMLElement;
   dynamicCount: HTMLElement;
   effectCount: HTMLElement;
+  softSystem: HTMLElement;
+  softNodes: HTMLElement;
+  softConstraints: HTMLElement;
+  softBreaks: HTMLElement;
+  softEnergy: HTMLElement;
   fps: HTMLElement;
   simMs: HTMLElement;
   renderMs: HTMLElement;
@@ -111,10 +127,13 @@ type Ui = {
   rain: HTMLButtonElement;
   debug: HTMLButtonElement;
   runTests: HTMLButtonElement;
+  runTurboQuant: HTMLButtonElement;
 };
 
 const ui = getUi();
 const effects = new CinematicEffects();
+const cameraMatrixCache = new CameraMatrixCache();
+let soft: SoftSimulationSuite;
 let backend: PhysicsBackend;
 let renderer: WebGPURenderer;
 let currentScene: ScenePreset = SCENES[0];
@@ -170,6 +189,11 @@ function getUi(): Ui {
     bodyCount: byId('body-count'),
     dynamicCount: byId('dynamic-count'),
     effectCount: byId('effect-count'),
+    softSystem: byId('soft-system'),
+    softNodes: byId('soft-nodes'),
+    softConstraints: byId('soft-constraints'),
+    softBreaks: byId('soft-breaks'),
+    softEnergy: byId('soft-energy'),
     fps: byId('fps'),
     simMs: byId('sim-ms'),
     renderMs: byId('render-ms'),
@@ -192,6 +216,7 @@ function getUi(): Ui {
     rain: byId<HTMLButtonElement>('rain'),
     debug: byId<HTMLButtonElement>('debug'),
     runTests: byId<HTMLButtonElement>('run-tests'),
+    runTurboQuant: byId<HTMLButtonElement>('run-turboquant'),
   };
 }
 
@@ -221,39 +246,6 @@ function appendLog(message: string): void {
   const next = `${ui.log.textContent}\n${message}`.trim().split('\n').slice(-36).join('\n');
   ui.log.textContent = next;
   ui.log.scrollTop = ui.log.scrollHeight;
-}
-
-function cameraMatrices(rig: CameraRig): { viewProjection: Mat4; lightViewProjection: Mat4; eye: Vec3 } {
-  const aspect = ui.canvas.width / Math.max(1, ui.canvas.height);
-  const cp = Math.cos(rig.pitch);
-  const eye: Vec3 = [
-    rig.target[0] + Math.cos(rig.yaw) * cp * rig.distance,
-    rig.target[1] + Math.sin(rig.pitch) * rig.distance,
-    rig.target[2] + Math.sin(rig.yaw) * cp * rig.distance,
-  ];
-  const projection = mat4Perspective((58 * Math.PI) / 180, aspect, 0.08, 360);
-  const view = mat4LookAt(eye, rig.target, [0, 1, 0]);
-
-  const shadowExtent = clamp(rig.distance * 1.35, 34, 86);
-  const lightEye = vec3Sub(rig.target, vec3Scale(LIGHT_DIRECTION, 92));
-  const lightView = mat4LookAt(lightEye, rig.target, [0, 1, 0]);
-  const lightProjection = mat4Orthographic(-shadowExtent, shadowExtent, -shadowExtent, shadowExtent, 0.1, 190);
-
-  return {
-    viewProjection: mat4Multiply(projection, view),
-    lightViewProjection: mat4Multiply(lightProjection, lightView),
-    eye,
-  };
-}
-
-function cameraWithShake(): CameraRig {
-  const shake = effects.cameraShake();
-  return {
-    yaw: camera.yaw + shake.yaw,
-    pitch: clamp(camera.pitch + shake.pitch, 0.08, 1.3),
-    distance: camera.distance,
-    target: vec3Add(camera.target, shake.targetOffset),
-  };
 }
 
 function visibleScenes(): ScenePreset[] {
@@ -347,19 +339,30 @@ function loadScene(scene: ScenePreset, stressOverride?: number, keepCinematic = 
   seed = (0xc0ffee + scene.id * 0x9e3779b9 + scene.variant * 0x45d9f3b) >>> 0;
   effects.clear(seed ^ 0xa11ce);
   const count = backend.createScene(scene, stress, seed);
+  soft.createScene(scene, stress, seed);
+  renderer.invalidateDynamicCaches();
   renderer.uploadInstances(backend, count);
+  const softFrame = soft.buildFrame(false);
+  renderer.uploadRopeGrid(softFrame.ropeGrid, count);
+  renderer.uploadSurface(softFrame.surface);
   if (!keepCinematic) stopCinematic(false);
   renderSceneBrowser();
   updateSceneText();
-  updateStats(0, 0, 0, 0, 0);
+  updateStats(0, 0, 0, 0, 0, softFrame);
   setLog(`Loaded ${sceneLabel(scene)} · ${scene.category} · ${scene.family}/${scene.variant} · seed 0x${seed.toString(16)}.`);
 }
 
 function reloadSceneWithCurrentStress(): void {
   seed = (seed + 0x10001) >>> 0;
   effects.clear(seed ^ 0xa11ce);
-  const count = backend.createScene(currentScene, clampStress(Number(ui.stress.value)), seed);
+  const stress = clampStress(Number(ui.stress.value));
+  const count = backend.createScene(currentScene, stress, seed);
+  soft.createScene(currentScene, stress, seed);
+  renderer.invalidateDynamicCaches();
   renderer.uploadInstances(backend, count);
+  const softFrame = soft.buildFrame(false);
+  renderer.uploadRopeGrid(softFrame.ropeGrid, count);
+  renderer.uploadSurface(softFrame.surface);
   stopCinematic(false);
   updateSceneText();
   setLog(`Reloaded ${sceneLabel(currentScene)} at stress ${ui.stress.value}, seed 0x${seed.toString(16)}.`);
@@ -422,7 +425,7 @@ function toggleMaxTour(): void {
   ui.maxTour.classList.toggle('armed', maxTourEnabled);
   if (maxTourEnabled) {
     startShowcase(activeShowcase);
-    appendLog('🚀 AAA Director Tour enabled: all 24 hero sequences will play automatically.');
+    appendLog(`🚀 AAA Director Tour enabled: all ${AAA_SHOWCASES.length} hero sequences will play automatically.`);
   }
 }
 
@@ -441,6 +444,7 @@ function executeBeat(beat: ShowcaseBeat): void {
     case 'kick': {
       const strength = beat.strength ?? 9;
       backend.kick(strength);
+      soft.kick(strength);
       effects.spawnImpulseDust([0, 0.15, 0], strength, effectBudget);
       break;
     }
@@ -448,6 +452,7 @@ function executeBeat(beat: ShowcaseBeat): void {
       const strength = beat.strength ?? 18;
       const radius = beat.radius ?? 9;
       backend.explode(center[0], center[1], center[2], strength, radius);
+      soft.explode(center, strength, radius);
       effects.spawnExplosion(center, strength, effectBudget);
       break;
     }
@@ -457,8 +462,9 @@ function executeBeat(beat: ShowcaseBeat): void {
     case 'rain': {
       const count = beat.count ?? 420;
       const added = backend.spawnRain(count, 19, 26);
+      const softAdded = soft.spawnRain(count, 19, 26);
       effects.spawnRainFlash([0, 16, 0], effectBudget);
-      appendLog(`Storm beat added ${added}/${count} physics bodies.`);
+      appendLog(`Storm beat added ${added}/${count} rigid bodies and ${softAdded} soft/fluid impacts.`);
       break;
     }
     case 'slowmo':
@@ -476,7 +482,7 @@ function executeBeat(beat: ShowcaseBeat): void {
 function updateCinematic(deltaSeconds: number): void {
   if (!cinematicPlaying) return;
   cinematicTime += deltaSeconds;
-  camera = sampleShowcaseCamera(activeShowcase, cinematicTime);
+  sampleShowcaseCameraInto(activeShowcase, cinematicTime, camera);
 
   while (cinematicNextBeat < activeShowcase.beats.length && activeShowcase.beats[cinematicNextBeat].at <= cinematicTime) {
     executeBeat(activeShowcase.beats[cinematicNextBeat]);
@@ -563,7 +569,8 @@ function bindControls(): void {
   ui.projectile.addEventListener('click', fireProjectile);
   ui.rain.addEventListener('click', applyRain);
   ui.debug.addEventListener('click', toggleDebug);
-  ui.runTests.addEventListener('click', runBrowserSmokeTests);
+  ui.runTests.addEventListener('click', runStateTests);
+  ui.runTurboQuant.addEventListener('click', runTurboQuantBrowserProbe);
 
   window.addEventListener('keydown', (event) => {
     const key = event.key.toLowerCase();
@@ -582,7 +589,7 @@ function bindControls(): void {
     if (Number.isInteger(number) && number >= 1 && number <= 9) loadScene(getSceneById(number - 1));
   });
 
-  window.addEventListener('pagehide', () => backend.destroy());
+  window.addEventListener('pagehide', () => { backend.destroy(); soft.destroy(); });
 }
 
 function togglePause(): void {
@@ -593,12 +600,14 @@ function togglePause(): void {
 function stepOnce(): void {
   const start = performance.now();
   backend.step(1 / 60, 4);
+  soft.step(1 / 60, 4);
   effects.update(1 / 60);
-  updateStats(0, performance.now() - start, 0, renderer.uploadedMegabytes(), 1);
+  updateStats(0, performance.now() - start, 0, renderer.uploadedMegabytes(), 1, soft.buildFrame(debugEnabled));
 }
 
 function applyImpulse(): void {
   backend.kick(10);
+  soft.kick(10);
   effects.spawnImpulseDust([0, 0.15, 0], 10, quality.effectBudget);
   appendLog('Applied a broad structural impulse and cinematic dust pulse.');
 }
@@ -606,6 +615,7 @@ function applyImpulse(): void {
 function applyExplosion(): void {
   const center: Vec3 = [camera.target[0], Math.max(2.8, camera.target[1] * 0.72), camera.target[2]];
   backend.explode(center[0], center[1], center[2], 22, 18);
+  soft.explode(center, 22, 18);
   effects.spawnExplosion(center, 22, quality.effectBudget);
   appendLog('Applied a controlled radial blast with shockwave, sparks, smoke, and camera shake.');
 }
@@ -622,15 +632,19 @@ function fireProjectile(): void {
   const velocity = vec3Scale(direction, speed);
   velocity[1] += 1.8;
   const index = backend.launchProjectile(start[0], start[1], start[2], velocity[0], velocity[1], velocity[2], 0.88);
+  const softIndex = soft.launchProjectile(start, velocity, 0.88);
   effects.spawnProjectileMuzzle(start, velocity, quality.effectBudget);
-  appendLog(index >= 0 ? `Projectile launched as body #${index}.` : 'Projectile failed: body capacity reached or WASM export unavailable.');
+  appendLog(index >= 0 || softIndex >= 0
+    ? `Projectile launched · rigid #${index >= 0 ? index : 'n/a'} · ${soft.kind()} interaction ${softIndex >= 0 ? `#${softIndex}` : 'inactive'}.`
+    : 'Projectile failed: body capacity reached or no interactive simulation is active.');
 }
 
 function applyRain(): void {
   const requested = 180 * clampStress(Number(ui.stress.value));
   const added = backend.spawnRain(requested, 20, 27);
+  const softAdded = soft.spawnRain(requested, 20, 27);
   effects.spawnRainFlash([0, 16, 0], quality.effectBudget);
-  appendLog(`Spawned ${added}/${requested} stress-rain bodies.`);
+  appendLog(`Spawned ${added}/${requested} rigid stress bodies plus ${softAdded} cloth/rope/water impact particles.`);
 }
 
 function toggleDebug(): void {
@@ -639,33 +653,47 @@ function toggleDebug(): void {
   ui.debug.classList.toggle('armed', debugEnabled);
 }
 
-function updateStats(fps: number, simMs: number, renderMs: number, uploadMb: number, steps: number): void {
+function updateStats(
+  fps: number,
+  simMs: number,
+  renderMs: number,
+  uploadMb: number,
+  steps: number,
+  softFrame: SoftSimulationFrame,
+): void {
   ui.bodyCount.textContent = String(backend.bodyCount());
   ui.dynamicCount.textContent = String(backend.dynamicCount());
   ui.effectCount.textContent = String(effects.particleCount());
+  ui.softSystem.textContent = softFrame.kind === 'none' ? 'Rigid only' : softFrame.kind.toUpperCase();
+  ui.softNodes.textContent = softFrame.nodeCount.toLocaleString();
+  ui.softConstraints.textContent = softFrame.constraintCount.toLocaleString();
+  ui.softBreaks.textContent = softFrame.brokenCount.toLocaleString();
+  ui.softEnergy.textContent = softFrame.energy.toFixed(2);
   if (fps > 0) ui.fps.textContent = String(Math.round(fps));
   ui.simMs.textContent = `${simMs.toFixed(2)} ms`;
   ui.renderMs.textContent = `${renderMs.toFixed(2)} ms`;
   ui.upload.textContent = `${uploadMb.toFixed(2)} MB`;
-  ui.backend.textContent = backend.name;
-  ui.hash.textContent = `0x${backend.replayHash().toString(16).padStart(8, '0')}`;
+  ui.backend.textContent = softFrame.kind === 'none' ? backend.name : `${backend.name} + ${softFrame.label}`;
+  const combinedHash = (backend.replayHash() ^ Math.imul(softFrame.hash >>> 0, 0x9e3779b1)) >>> 0;
+  ui.hash.textContent = `0x${combinedHash.toString(16).padStart(8, '0')}`;
   ui.qualityStat.textContent = quality.label;
   if (steps > 0) ui.simMs.title = `${steps} fixed simulation step(s) this frame`;
 }
 
 function buildDebugLines(): DebugLine[] {
-  if (!debugEnabled) return [];
-  const lines: DebugLine[] = [];
+  const lines = rigidDebugLines;
+  lines.length = 0;
+  if (!debugEnabled) return lines;
   const gridExtent = 44;
   for (let i = -gridExtent; i <= gridExtent; i += 2) {
     const major = i % 10 === 0;
     const alpha = major ? 0.42 : 0.17;
-    lines.push({ ax: -gridExtent, ay: 0.018, az: i, bx: gridExtent, by: 0.018, bz: i, r: 0.22, g: 0.48, b: 0.68, a: alpha });
-    lines.push({ ax: i, ay: 0.018, az: -gridExtent, bx: i, by: 0.018, bz: gridExtent, r: 0.22, g: 0.48, b: 0.68, a: alpha });
+    appendRigidDebugLine(lines, -gridExtent, 0.018, i, gridExtent, 0.018, i, 0.22, 0.48, 0.68, alpha);
+    appendRigidDebugLine(lines, i, 0.018, -gridExtent, i, 0.018, gridExtent, 0.22, 0.48, 0.68, alpha);
   }
-  lines.push({ ax: -10, ay: 0.05, az: 0, bx: 10, by: 0.05, bz: 0, r: 1, g: 0.12, b: 0.14, a: 0.95 });
-  lines.push({ ax: 0, ay: 0.05, az: -10, bx: 0, by: 0.05, bz: 10, r: 0.1, g: 0.72, b: 1, a: 0.95 });
-  lines.push({ ax: 0, ay: 0.05, az: 0, bx: 0, by: 10, bz: 0, r: 0.25, g: 1, b: 0.35, a: 0.95 });
+  appendRigidDebugLine(lines, -10, 0.05, 0, 10, 0.05, 0, 1, 0.12, 0.14, 0.95);
+  appendRigidDebugLine(lines, 0, 0.05, -10, 0, 0.05, 10, 0.1, 0.72, 1, 0.95);
+  appendRigidDebugLine(lines, 0, 0.05, 0, 0, 10, 0, 0.25, 1, 0.35, 0.95);
 
   const count = Math.min(backend.bodyCount(), 280);
   const heap = backend.HEAPF32;
@@ -685,36 +713,214 @@ function buildDebugLines(): DebugLine[] {
   return lines;
 }
 
+function appendRigidDebugLine(
+  lines: DebugLine[], ax: number, ay: number, az: number, bx: number, by: number, bz: number,
+  r: number, g: number, b: number, a: number,
+): void {
+  const index = lines.length;
+  let line = rigidDebugLinePool[index];
+  if (!line) {
+    line = { ax, ay, az, bx, by, bz, r, g, b, a };
+    rigidDebugLinePool[index] = line;
+  } else {
+    line.ax = ax; line.ay = ay; line.az = az;
+    line.bx = bx; line.by = by; line.bz = bz;
+    line.r = r; line.g = g; line.b = b; line.a = a;
+  }
+  lines[index] = line;
+}
+
 function addBoxWire(lines: DebugLine[], cx: number, cy: number, cz: number, hx: number, hy: number, hz: number): void {
-  const points = [
-    [cx - hx, cy - hy, cz - hz], [cx + hx, cy - hy, cz - hz], [cx + hx, cy + hy, cz - hz], [cx - hx, cy + hy, cz - hz],
-    [cx - hx, cy - hy, cz + hz], [cx + hx, cy - hy, cz + hz], [cx + hx, cy + hy, cz + hz], [cx - hx, cy + hy, cz + hz],
-  ] as const;
-  const edges = [[0, 1], [1, 2], [2, 3], [3, 0], [4, 5], [5, 6], [6, 7], [7, 4], [0, 4], [1, 5], [2, 6], [3, 7]] as const;
-  for (const [a, b] of edges) {
-    const p = points[a];
-    const q = points[b];
-    lines.push({ ax: p[0], ay: p[1], az: p[2], bx: q[0], by: q[1], bz: q[2], r: 0.42, g: 0.82, b: 1, a: 0.25 });
+  for (const [a, b] of BOX_EDGES) {
+    const p = BOX_CORNER_SIGNS[a];
+    const q = BOX_CORNER_SIGNS[b];
+    appendRigidDebugLine(
+      lines,
+      cx + p[0] * hx, cy + p[1] * hy, cz + p[2] * hz,
+      cx + q[0] * hx, cy + q[1] * hy, cz + q[2] * hz,
+      0.42, 0.82, 1, 0.25,
+    );
   }
 }
 
-async function runBrowserSmokeTests(): Promise<void> {
+
+function extractSurfaceState(surface: DynamicSurfaceFrame): Float32Array {
+  if (surface.path === 'gpu-cloth') return surface.positions.slice(0, surface.vertexCount * 3);
+  if (surface.path === 'gpu-water') {
+    const output = new Float32Array(surface.vertexCount * 3);
+    output.set(surface.eta.subarray(0, surface.vertexCount), 0);
+    output.set(surface.u.subarray(0, surface.vertexCount), surface.vertexCount);
+    output.set(surface.v.subarray(0, surface.vertexCount), surface.vertexCount * 2);
+    return output;
+  }
+  const output = new Float32Array(surface.vertexCount * 3);
+  const view = new DataView(surface.vertices.buffer, surface.vertices.byteOffset, surface.vertices.byteLength);
+  for (let i = 0; i < surface.vertexCount; i++) {
+    const source = i * surface.vertexStride;
+    const target = i * 3;
+    output[target] = view.getFloat32(source, true);
+    output[target + 1] = view.getFloat32(source + 4, true);
+    output[target + 2] = view.getFloat32(source + 8, true);
+  }
+  return output;
+}
+
+function surfaceStateIsFinite(surface: DynamicSurfaceFrame): boolean {
+  if (surface.path === 'gpu-cloth') return isFiniteArray(surface.positions) && isFiniteArray(surface.restPositions);
+  if (surface.path === 'gpu-water') return isFiniteArray(surface.eta) && isFiniteArray(surface.u) && isFiniteArray(surface.v);
+  return isFiniteArray(surface.vertices);
+}
+
+function medianSample(values: readonly number[]): number {
+  const sorted = [...values].sort((a, b) => a - b);
+  const middle = sorted.length >> 1;
+  return sorted.length & 1 ? sorted[middle] : (sorted[middle - 1] + sorted[middle]) * 0.5;
+}
+
+async function runTurboQuantBrowserProbe(): Promise<void> {
+  ui.runTurboQuant.disabled = true;
+  const originalText = ui.runTurboQuant.textContent;
+  ui.runTurboQuant.textContent = 'Measuring…';
+  setLog('TurboQuant target-device probe: collecting a deterministic simulation stream…');
+  await new Promise((resolve) => setTimeout(resolve, 0));
+
+  try {
+    const { TurboQuantDeltaStream, turboQuantError, turboQuantPacketBytes } = await import('./compression/turboquant');
+    const probe = new SoftSimulationSuite();
+    const probeSeed = (seed ^ 0x715517) >>> 0;
+    const created = probe.createScene(currentScene, Number(ui.stress.value), probeSeed);
+    const frames: Float32Array[] = [];
+    let sourceLabel = 'deterministic synthetic state';
+
+    if (created) {
+      for (let frameIndex = 0; frameIndex < 48; frameIndex++) {
+        if (frameIndex === 12) probe.kick(11);
+        if (frameIndex === 24) probe.launchProjectile([-10, 8, 0], [22, -1.5, 1], 0.5);
+        if (frameIndex === 36) probe.explode([0, 4, 0], 15, 8);
+        probe.step(1 / 60, 4);
+        const frame = probe.buildFrame(false);
+        const vector = frame.surface
+          ? extractSurfaceState(frame.surface)
+          : frame.matrices.slice(0, frame.instanceCount * 16);
+        if (vector.length > 0 && (frames.length === 0 || vector.length === frames[0].length)) frames.push(vector);
+        if ((frameIndex & 15) === 15) await new Promise((resolve) => setTimeout(resolve, 0));
+      }
+      sourceLabel = `${currentScene.title} ${probe.buildFrame(false).kind} state`;
+      probe.destroy();
+    }
+
+    if (frames.length < 8) {
+      probe.destroy();
+      const length = 19_320;
+      for (let frameIndex = 0; frameIndex < 48; frameIndex++) {
+        const vector = new Float32Array(length);
+        for (let i = 0; i < length; i++) {
+          vector[i] = Math.sin(i * 0.007 + frameIndex * 0.031) * 3 + Math.cos(i * 0.0017 - frameIndex * 0.013);
+        }
+        frames.push(vector);
+      }
+    }
+
+    const length = frames[0].length;
+    const options = { bits: 4 as const, blockSize: 64, rotation: 'structured' as const, centered: false, seed: 0x715517 };
+    const sampleCount = 5;
+    const rawSamples: number[] = [];
+    const turboSamples: number[] = [];
+    const rawTarget = new Float32Array(length);
+
+    const runRaw = (): void => {
+      for (const frame of frames) rawTarget.set(frame);
+    };
+    const runTurbo = (): void => {
+      const encoder = new TurboQuantDeltaStream(length, options);
+      const decoder = new TurboQuantDeltaStream(length, options);
+      for (const frame of frames) decoder.decodeFrame(encoder.encodeFrame(frame));
+    };
+
+    runRaw();
+    runTurbo();
+    for (let sample = 0; sample < sampleCount; sample++) {
+      let start = performance.now();
+      runRaw();
+      rawSamples.push(performance.now() - start);
+      start = performance.now();
+      runTurbo();
+      turboSamples.push(performance.now() - start);
+      await new Promise((resolve) => setTimeout(resolve, 0));
+    }
+
+    const encoder = new TurboQuantDeltaStream(length, options);
+    const decoder = new TurboQuantDeltaStream(length, options);
+    let error2 = 0;
+    let reference2 = 0;
+    let packetBytes = 0;
+    for (const frame of frames) {
+      const packet = encoder.encodeFrame(frame);
+      const reconstructed = decoder.decodeFrame(packet);
+      packetBytes = turboQuantPacketBytes(packet);
+      const error = turboQuantError(frame, reconstructed);
+      error2 += error.mse * frame.length;
+      for (let i = 0; i < frame.length; i++) reference2 += frame[i] * frame[i];
+    }
+    const relativeL2 = Math.sqrt(error2 / Math.max(1e-30, reference2));
+    const rawBytes = length * 4;
+    const rawMsPerFrame = medianSample(rawSamples) / frames.length;
+    const turboMsPerFrame = medianSample(turboSamples) / frames.length;
+    const localSpeedup = rawMsPerFrame / turboMsPerFrame;
+    const bytesSaved = rawBytes - packetBytes;
+    const breakEvenMbPerSecond = bytesSaved > 0 ? (bytesSaved / (turboMsPerFrame / 1000)) / 1_000_000 : 0;
+    const decision = localSpeedup >= 1
+      ? 'This device measured a local win; verify visually before enabling a lossy path.'
+      : 'Raw local transfer wins. Keep TurboQuant for slower network/storage boundaries.';
+
+    setLog([
+      'TurboQuant predictive 4-bit target-device probe',
+      `Source: ${sourceLabel}`,
+      `Vector: ${length.toLocaleString()} floats · ${frames.length} frames`,
+      `Payload: ${(rawBytes / 1024).toFixed(2)} KiB → ${(packetBytes / 1024).toFixed(2)} KiB (${(rawBytes / packetBytes).toFixed(2)}× smaller)`,
+      `Raw copy: ${rawMsPerFrame.toFixed(4)} ms/frame`,
+      `TurboQuant encode + decode: ${turboMsPerFrame.toFixed(4)} ms/frame`,
+      `Local end-to-end speed: ${localSpeedup.toFixed(4)}×`,
+      `Predictive relative L2 error: ${(relativeL2 * 100).toFixed(3)}%`,
+      `Modeled link break-even: ${breakEvenMbPerSecond.toFixed(1)} MB/s`,
+      `Decision: ${decision}`,
+    ].join('\n'));
+  } catch (error) {
+    setLog(`TurboQuant probe failed: ${error instanceof Error ? error.message : String(error)}`);
+  } finally {
+    ui.runTurboQuant.disabled = false;
+    ui.runTurboQuant.textContent = originalText;
+  }
+}
+
+async function runStateTests(): Promise<void> {
   const restoreScene = currentScene;
   const restoreStress = Number(ui.stress.value);
   const restoreShowcase = activeShowcase;
   stopCinematic(false);
-  setLog(`AAA browser validation starting across ${SCENES.length} physics recipes and ${AAA_SHOWCASES.length} hero sequences...`);
+  setLog(`AAA state validation starting across ${SCENES.length} physics recipes and ${AAA_SHOWCASES.length} hero sequences...`);
   let scenePassed = 0;
   let showcasePassed = 0;
 
   for (const scene of SCENES) {
-    backend.createScene(scene, 1, (0xabc000 + scene.id) >>> 0);
-    for (let i = 0; i < 3; i++) backend.step(1 / 60, 1);
+    const testSeed = (0xabc000 + scene.id) >>> 0;
+    backend.createScene(scene, 1, testSeed);
+    soft.createScene(scene, 1, testSeed);
+    for (let i = 0; i < 3; i++) { backend.step(1 / 60, 1); soft.step(1 / 60, 1); }
     const count = backend.bodyCount();
     const matrixStart = Number(backend._b3w_matrices_ptr()) / 4;
     const matrices = backend.HEAPF32.subarray(matrixStart, matrixStart + Math.min(count, 32) * 16);
-    if (count > 0 && isFiniteArray(matrices) && backend.replayHash() !== 0) scenePassed++;
-    else appendLog(`❌ ${sceneLabel(scene)} produced invalid body/matrix/hash state.`);
+    const softFrame = soft.buildFrame(false);
+    const softValidation = soft.validate();
+    const surfaceFinite = !softFrame.surface || (surfaceStateIsFinite(softFrame.surface) && softFrame.surface.indexCount > 0);
+    const ropeFinite = !softFrame.ropeGrid || (
+      softFrame.ropeGrid.nodeCount > 0 &&
+      softFrame.ropeGrid.segmentCount > 0 &&
+      isFiniteArray(softFrame.ropeGrid.positions) &&
+      isFiniteArray(softFrame.ropeGrid.segments)
+    );
+    if (count > 0 && isFiniteArray(matrices) && backend.replayHash() !== 0 && softValidation.ok && surfaceFinite && ropeFinite) scenePassed++;
+    else appendLog(`❌ ${sceneLabel(scene)} invalid: rigid=${count > 0 && isFiniteArray(matrices)}, soft=${softValidation.message}.`);
     if (scene.id % 25 === 24) {
       appendLog(`Physics recipes: ${scenePassed}/${scene.id + 1} passed.`);
       await new Promise((resolve) => setTimeout(resolve, 0));
@@ -739,21 +945,33 @@ async function runBrowserSmokeTests(): Promise<void> {
   const effectsFinite = effectFrame.count > 0 && isFiniteArray(effectFrame.matrices) && isFiniteArray(effectFrame.colors);
 
   backend.createScene(restoreScene, restoreStress, seed);
+  soft.createScene(restoreScene, restoreStress, seed);
+  renderer.invalidateDynamicCaches();
   currentScene = restoreScene;
   selectShowcase(restoreShowcase, false);
   camera = cloneRig(restoreScene.camera);
   effects.clear(seed ^ 0xa11ce);
   updateSceneText();
-  appendLog(`✅ Validation complete: ${scenePassed}/${SCENES.length} scenes, ${showcasePassed}/${AAA_SHOWCASES.length} hero sequences, effects ${effectsFinite ? 'passed' : 'failed'}.`);
+  appendLog(`✅ State validation complete: ${scenePassed}/${SCENES.length} scenes, ${showcasePassed}/${AAA_SHOWCASES.length} hero sequences, effects ${effectsFinite ? 'passed' : 'failed'}.`);
 }
 
 async function main(): Promise<void> {
-  const loaded = await loadBestPhysicsBackend();
+  const physicsPromise = loadBestPhysicsBackend();
+  const softRuntimePromise = initializeSoftKernelRuntime();
+  const rendererPromise = physicsPromise.then(({ backend: selectedBackend }) =>
+    WebGPURenderer.create(ui.canvas, selectedBackend.maxBodies + SOFT_INSTANCE_BUDGET + MAX_EFFECT_INSTANCES));
+  const [loaded, softRuntime, loadedRenderer] = await Promise.all([
+    physicsPromise,
+    softRuntimePromise,
+    rendererPromise,
+  ]);
   backend = loaded.backend;
-  renderer = await WebGPURenderer.create(ui.canvas, backend.maxBodies + MAX_EFFECT_INSTANCES);
+  soft = new SoftSimulationSuite(softRuntime.module);
+  renderer = loadedRenderer;
+  const softBackend = softRuntime.available ? `${softRuntime.variant.toUpperCase()} soft kernels` : 'JavaScript soft fallback';
   ui.warning.textContent = loaded.warning
-    ? `Preview backend active: ${loaded.warning} Build WASM for native Box3D collision and solver fidelity.`
-    : 'Native Box3D WASM backend loaded. Full solver fidelity is active.';
+    ? `Preview backend active: ${loaded.warning} ${softBackend}; GPU-resident intact cloth and water plus compute-expanded rope rendering are active. Build Box3D WASM for native rigid-body fidelity.`
+    : `Native Box3D WASM rigid-body backend loaded with ${softBackend}, GPU cloth, GPU water, and compute-expanded rope rendering.`;
   ui.warning.classList.toggle('native', !loaded.warning);
 
   buildSceneBrowser();
@@ -770,6 +988,12 @@ async function main(): Promise<void> {
   let fpsFrames = 0;
   let fpsLast = last;
   let fps = 0;
+  let statsLast = 0;
+  let statsFrames = 0;
+  let statsSteps = 0;
+  let statsSimMs = 0;
+  let statsRenderMs = 0;
+  let statsUploadedBytes = 0;
 
   function frame(now: number): void {
     const deltaSeconds = Math.min(0.1, (now - last) / 1000);
@@ -784,17 +1008,20 @@ async function main(): Promise<void> {
       accumulator += deltaSeconds * effectiveSpeed;
       while (accumulator >= fixedStep && steps < 8) {
         backend.step(fixedStep, subSteps);
+        soft.step(fixedStep, subSteps);
         accumulator -= fixedStep;
         steps++;
       }
       effects.update(deltaSeconds * effectiveSpeed);
-    } else {
-      backend.syncTransforms();
     }
     const simMs = performance.now() - simStart;
 
-    const frameRig = cameraWithShake();
-    const matrices = cameraMatrices(frameRig);
+    const matrices = cameraMatrixCache.resolve(
+      camera,
+      effects.cameraShake(),
+      ui.canvas.width / Math.max(1, ui.canvas.height),
+      LIGHT_DIRECTION,
+    );
     renderer.writeSceneUniforms({
       viewProjection: matrices.viewProjection,
       lightViewProjection: matrices.lightViewProjection,
@@ -805,11 +1032,48 @@ async function main(): Promise<void> {
       fogColor: FOG_COLOR,
     });
 
-    let uploadedBytes = renderer.uploadInstances(backend, backend.bodyCount());
+    const rigidCount = backend.bodyCount();
+    let uploadedBytes = renderer.uploadInstances(backend, rigidCount);
+    const softFrame = soft.buildFrame(debugEnabled);
+    const ropeCount = softFrame.ropeGrid?.segmentCount ?? 0;
+    uploadedBytes += renderer.uploadRopeGrid(softFrame.ropeGrid, rigidCount);
+    const softCpuBase = rigidCount + ropeCount;
+    uploadedBytes += renderer.uploadSoftInstances(
+      softFrame.matrices,
+      softFrame.colors,
+      softCpuBase,
+      softFrame.instanceCount,
+      softFrame.frameVersion,
+    );
     const effectFrame = effects.buildFrame(quality.effectBudget);
-    uploadedBytes += renderer.uploadEffects(effectFrame.matrices, effectFrame.colors, backend.bodyCount(), effectFrame.count);
-    const lines = [...buildDebugLines(), ...effectFrame.debugLines];
-    const renderMs = renderer.render(backend.bodyCount() + effectFrame.count, lines);
+    const effectBase = softCpuBase + softFrame.instanceCount;
+    uploadedBytes += renderer.uploadEffects(
+      effectFrame.matrices,
+      effectFrame.colors,
+      effectBase,
+      effectFrame.count,
+      effectFrame.frameVersion,
+    );
+    uploadedBytes += renderer.uploadSurface(softFrame.surface);
+    const backendFrameVersion = backend.frameVersion();
+    const combinedFrameLines = frameLineStager.resolve(
+      debugEnabled,
+      backendFrameVersion,
+      softFrame.frameVersion,
+      effectFrame.frameVersion,
+      buildDebugLines,
+      softFrame.debugLines,
+      effectFrame.debugLines,
+    );
+    const lineFrameVersion = debugEnabled
+      ? (Math.imul(backendFrameVersion, 0x9e3779b1) ^ Math.imul(softFrame.frameVersion, 0x85ebca6b) ^ effectFrame.frameVersion ^ 0x80000000) >>> 0
+      : effectFrame.frameVersion;
+    const renderMs = renderer.render(effectBase + effectFrame.count, combinedFrameLines, lineFrameVersion);
+    statsFrames++;
+    statsSteps += steps;
+    statsSimMs += simMs;
+    statsRenderMs += renderMs;
+    statsUploadedBytes += uploadedBytes;
 
     fpsFrames++;
     if (now - fpsLast >= 500) {
@@ -817,7 +1081,23 @@ async function main(): Promise<void> {
       fpsFrames = 0;
       fpsLast = now;
     }
-    updateStats(fps, simMs, renderMs, uploadedBytes / (1024 * 1024), steps);
+    if (now - statsLast >= 200) {
+      const divisor = Math.max(1, statsFrames);
+      updateStats(
+        fps,
+        statsSimMs / divisor,
+        statsRenderMs / divisor,
+        statsUploadedBytes / divisor / (1024 * 1024),
+        statsSteps,
+        softFrame,
+      );
+      statsFrames = 0;
+      statsSteps = 0;
+      statsSimMs = 0;
+      statsRenderMs = 0;
+      statsUploadedBytes = 0;
+      statsLast = now;
+    }
     requestAnimationFrame(frame);
   }
 

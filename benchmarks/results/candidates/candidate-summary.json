@@ -1,0 +1,82 @@
+{
+  "schemaVersion": 1,
+  "measurementNote": "Each entry records a real before/after run in this environment. Values below acceptance thresholds are retained as rejected or borderline rather than claimed as wins.",
+  "candidates": [
+    {
+      "id": "constraint-reciprocal",
+      "idea": "Replace (distance-rest)/distance with 1-rest/distance in the common cloth projection loop",
+      "status": "rejected-regression",
+      "metric": "cloth total frame path",
+      "speedup": 0.9544749819287848,
+      "evidence": "constraint-reciprocal.json"
+    },
+    {
+      "id": "cloth-record-strain-specialization",
+      "idea": "Split the final non-tearing strain pass from the general tear-aware path",
+      "status": "rejected-below-noise-floor",
+      "metric": "cloth total frame path",
+      "speedup": 1.0045097864001684,
+      "evidence": "cloth-record-strain-specialization.json"
+    },
+    {
+      "id": "rope-delta-reuse",
+      "idea": "Pass precomputed segment deltas/length into rope matrix construction",
+      "status": "rejected-regression",
+      "metric": "rope frame construction",
+      "speedup": 0.8119846350284952,
+      "evidence": "rope-delta-reuse.json"
+    },
+    {
+      "id": "cloth-energy-cadence",
+      "idea": "Sample cloth energy at telemetry cadence instead of every frame",
+      "status": "rejected-no-win",
+      "metric": "cloth total frame path",
+      "speedup": 0.9954327110837204,
+      "evidence": "cloth-energy-cadence.json"
+    },
+    {
+      "id": "rope-energy-cadence",
+      "idea": "Sample rope energy at telemetry cadence instead of every frame",
+      "status": "rejected-no-win",
+      "metric": "rope total frame path",
+      "speedup": 0.996377625838883,
+      "evidence": "rope-energy-cadence.json"
+    },
+    {
+      "id": "water-energy-cadence",
+      "idea": "Sample O(N) water energy together with the 12-frame telemetry/hash cadence",
+      "status": "accepted-step-hot-path",
+      "metric": "water solver step",
+      "speedup": 1.0492392295980304,
+      "totalPathSpeedup": 1.0167884659415198,
+      "evidence": "water-energy-cadence.json"
+    },
+    {
+      "id": "async-pipeline-creation",
+      "idea": "Validate shader modules in parallel and create eight render pipelines asynchronously",
+      "status": "retained-architectural-borderline",
+      "metric": "complete renderer creation on Dawn null backend",
+      "speedup": 1.0249390689082538,
+      "evidence": "async-pipeline-creation.json",
+      "note": "Median improved, but the difference overlaps local run noise; retained primarily to avoid first-use compilation stalls on real browsers."
+    },
+    {
+      "id": "texture-pipeline-overlap",
+      "idea": "Overlap KTX2 fetch/upload with buffer, shader, and pipeline setup",
+      "status": "retained-latency-hiding-neutral-local",
+      "metric": "complete renderer creation with local in-memory fetch",
+      "speedup": 1.0008206751780055,
+      "evidence": "texture-pipeline-overlap.json",
+      "note": "Local null-backend result was neutral; networked browsers can hide independent fetch latency."
+    },
+    {
+      "id": "effects-allocation-reuse",
+      "idea": "Reuse effect frame arrays and shockwave line objects; compact particles in place",
+      "status": "accepted",
+      "metric": "effects frame construction",
+      "speedup": 1.3663613869126439,
+      "updateSpeedup": 1.0255983782391673,
+      "evidence": "effects-allocation-reuse.json"
+    }
+  ]
+}

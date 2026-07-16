@@ -14,12 +14,15 @@ emcmake was not found.
 Install and activate Emscripten, then return to this project root:
   git clone https://github.com/emscripten-core/emsdk.git ~/emsdk
   cd ~/emsdk
-  ./emsdk install latest
-  ./emsdk activate latest
+  ./emsdk install 4.0.23
+  ./emsdk activate 4.0.23
   source ./emsdk_env.sh
 MSG
   exit 1
 fi
+
+printf 'Building with %s\n' "$(emcc --version | head -1)"
+printf 'Reproducible release toolchain: Emscripten 4.0.23\n'
 
 if [[ ! -f "$BOX3D_ROOT/CMakeLists.txt" ]]; then
   cat >&2 <<MSG

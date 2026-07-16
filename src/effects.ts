@@ -53,6 +53,18 @@ export class CinematicEffects {
   private particles: Particle[] = [];
   private shockwaves: Shockwave[] = [];
   private rng = new LcgRng(0xa11ce);
+  private effectMatrices = new Float32Array(256);
+  private effectColors = new Float32Array(64);
+  private readonly shockwaveLines: DebugLine[] = [];
+  private frameVersionValue = 0;
+  private builtFrameVersion = -1;
+  private readonly cachedFrame: EffectFrame = {
+    matrices: this.effectMatrices,
+    colors: this.effectColors,
+    count: 0,
+    frameVersion: -1,
+    debugLines: this.shockwaveLines,
+  };
   private shakeEnergy = 0;
   private elapsed = 0;
 
@@ -62,6 +74,7 @@ export class CinematicEffects {
     this.rng = new LcgRng(seed >>> 0);
     this.shakeEnergy = 0;
     this.elapsed = 0;
+    this.markFrameChanged();
   }
 
   particleCount(): number {
@@ -102,6 +115,7 @@ export class CinematicEffects {
       color: [1, 0.72, 0.26, 0.86],
     });
     this.addCameraShake(clamp(intensity * 0.055, 0.2, 1.4));
+    this.markFrameChanged();
   }
 
   spawnProjectileMuzzle(position: Vec3, velocity: Vec3, budget: number): void {
@@ -127,6 +141,7 @@ export class CinematicEffects {
       });
     }
     this.addCameraShake(0.16);
+    this.markFrameChanged();
   }
 
   spawnImpulseDust(center: Vec3, strength: number, budget: number): void {
@@ -152,6 +167,7 @@ export class CinematicEffects {
       });
     }
     this.addCameraShake(clamp(strength * 0.025, 0.08, 0.6));
+    this.markFrameChanged();
   }
 
   spawnRainFlash(center: Vec3, budget: number): void {
@@ -173,6 +189,7 @@ export class CinematicEffects {
         growth: -0.02,
       });
     }
+    this.markFrameChanged();
   }
 
   addCameraShake(amount: number): void {
@@ -183,11 +200,28 @@ export class CinematicEffects {
     const step = clamp(dt, 0, 0.05);
     this.elapsed += step;
     const dragScale = step * 60;
+    // Every built-in effect uses one of these five drag coefficients. Compute
+    // their identical exponential factors once per update instead of once per
+    // particle; retain the legacy calculation for any future custom value.
+    const hasParticles = this.particles.length > 0;
+    const explosionHotDrag = hasParticles ? Math.pow(0.94, dragScale) : 1;
+    const explosionSmokeDrag = hasParticles ? Math.pow(0.975, dragScale) : 1;
+    const projectileDrag = hasParticles ? Math.pow(0.92, dragScale) : 1;
+    const impulseDustDrag = hasParticles ? Math.pow(0.965, dragScale) : 1;
+    const rainDrag = hasParticles ? Math.pow(0.998, dragScale) : 1;
 
-    for (const particle of this.particles) {
+    const hadRenderableEffects = this.particles.length > 0 || this.shockwaves.length > 0;
+    let particleWrite = 0;
+    for (let read = 0; read < this.particles.length; read++) {
+      const particle = this.particles[read];
       particle.life -= step;
       particle.vel[1] -= particle.gravity * step;
-      const drag = Math.pow(particle.drag, dragScale);
+      const drag = particle.drag === 0.94 ? explosionHotDrag
+        : particle.drag === 0.975 ? explosionSmokeDrag
+        : particle.drag === 0.92 ? projectileDrag
+        : particle.drag === 0.965 ? impulseDustDrag
+        : particle.drag === 0.998 ? rainDrag
+        : Math.pow(particle.drag, dragScale);
       particle.vel[0] *= drag;
       particle.vel[1] *= drag;
       particle.vel[2] *= drag;
@@ -201,16 +235,21 @@ export class CinematicEffects {
       particle.half[0] = Math.max(0.006, particle.half[0] * growth);
       particle.half[1] = Math.max(0.006, particle.half[1] * growth);
       particle.half[2] = Math.max(0.006, particle.half[2] * growth);
+      if (particle.life > 0 && particle.pos[1] > -4) this.particles[particleWrite++] = particle;
     }
-    this.particles = this.particles.filter((particle) => particle.life > 0 && particle.pos[1] > -4);
+    this.particles.length = particleWrite;
 
-    for (const wave of this.shockwaves) {
+    let waveWrite = 0;
+    for (let read = 0; read < this.shockwaves.length; read++) {
+      const wave = this.shockwaves[read];
       wave.life -= step;
       wave.radius += wave.speed * step;
+      if (wave.life > 0) this.shockwaves[waveWrite++] = wave;
     }
-    this.shockwaves = this.shockwaves.filter((wave) => wave.life > 0);
+    this.shockwaves.length = waveWrite;
     this.shakeEnergy *= Math.pow(0.88, dragScale);
     if (this.shakeEnergy < 0.002) this.shakeEnergy = 0;
+    if (hadRenderableEffects) this.markFrameChanged();
   }
 
   cameraShake(): CameraShakeSample {
@@ -229,20 +268,52 @@ export class CinematicEffects {
 
   buildFrame(maxInstances: number): EffectFrame {
     const count = Math.min(maxInstances, this.particles.length);
-    const matrices = new Float32Array(count * 16);
-    const colors = new Float32Array(count * 4);
+    if (this.builtFrameVersion === this.frameVersionValue && this.cachedFrame.count === count) {
+      return this.cachedFrame;
+    }
+    this.ensureFrameCapacity(count);
+    const matrices = this.effectMatrices;
+    const colors = this.effectColors;
 
     for (let i = 0; i < count; i++) {
       const particle = this.particles[i];
       const lifeRatio = saturate(particle.life / Math.max(0.001, particle.maxLife));
       writeModelMatrixFromEuler(matrices, i * 16, particle.pos, particle.rot, particle.half);
-      colors[i * 4 + 0] = particle.color[0] * (0.72 + lifeRatio * 0.28);
-      colors[i * 4 + 1] = particle.color[1] * (0.72 + lifeRatio * 0.28);
-      colors[i * 4 + 2] = particle.color[2] * (0.72 + lifeRatio * 0.28);
-      colors[i * 4 + 3] = 1 + Math.max(0, particle.color[3] - 1) * lifeRatio;
+      const colorScale = 0.72 + lifeRatio * 0.28;
+      const colorOffset = i * 4;
+      colors[colorOffset] = particle.color[0] * colorScale;
+      colors[colorOffset + 1] = particle.color[1] * colorScale;
+      colors[colorOffset + 2] = particle.color[2] * colorScale;
+      colors[colorOffset + 3] = 1 + Math.max(0, particle.color[3] - 1) * lifeRatio;
     }
 
-    return { matrices, colors, count, debugLines: this.buildShockwaveLines() };
+    this.cachedFrame.matrices = matrices;
+    this.cachedFrame.colors = colors;
+    this.cachedFrame.count = count;
+    this.cachedFrame.frameVersion = this.frameVersionValue;
+    this.cachedFrame.debugLines = this.buildShockwaveLines();
+    this.builtFrameVersion = this.frameVersionValue;
+    return this.cachedFrame;
+  }
+
+  private markFrameChanged(): void {
+    this.frameVersionValue = (this.frameVersionValue + 1) >>> 0;
+    this.builtFrameVersion = -1;
+  }
+
+  private ensureFrameCapacity(count: number): void {
+    const matrixFloats = count * 16;
+    if (this.effectMatrices.length < matrixFloats) {
+      let capacity = Math.max(256, this.effectMatrices.length);
+      while (capacity < matrixFloats) capacity *= 2;
+      this.effectMatrices = new Float32Array(capacity);
+    }
+    const colorFloats = count * 4;
+    if (this.effectColors.length < colorFloats) {
+      let capacity = Math.max(64, this.effectColors.length);
+      while (capacity < colorFloats) capacity *= 2;
+      this.effectColors = new Float32Array(capacity);
+    }
   }
 
   private randomDirection(verticalBias: number): Vec3 {
@@ -252,27 +323,43 @@ export class CinematicEffects {
   }
 
   private buildShockwaveLines(): DebugLine[] {
-    const lines: DebugLine[] = [];
+    const lines = this.shockwaveLines;
+    let lineIndex = 0;
+    const segments = 72;
+    const angleStep = Math.PI * 2 / segments;
+    const rotationCosine = Math.cos(angleStep);
+    const rotationSine = Math.sin(angleStep);
     for (const wave of this.shockwaves) {
       const alpha = saturate(wave.life / wave.maxLife) * wave.color[3];
-      const segments = 72;
+      let x = wave.radius;
+      let z = 0;
       for (let i = 0; i < segments; i++) {
-        const a = (i / segments) * Math.PI * 2;
-        const b = ((i + 1) / segments) * Math.PI * 2;
-        lines.push({
-          ax: wave.center[0] + Math.cos(a) * wave.radius,
-          ay: wave.center[1] + 0.05,
-          az: wave.center[2] + Math.sin(a) * wave.radius,
-          bx: wave.center[0] + Math.cos(b) * wave.radius,
-          by: wave.center[1] + 0.05,
-          bz: wave.center[2] + Math.sin(b) * wave.radius,
-          r: wave.color[0],
-          g: wave.color[1],
-          b: wave.color[2],
-          a: alpha,
-        });
+        const nextX = x * rotationCosine - z * rotationSine;
+        const nextZ = x * rotationSine + z * rotationCosine;
+        let line = lines[lineIndex];
+        if (!line) {
+          line = {
+            ax: 0, ay: 0, az: 0, bx: 0, by: 0, bz: 0,
+            r: 0, g: 0, b: 0, a: 0,
+          };
+          lines[lineIndex] = line;
+        }
+        line.ax = wave.center[0] + x;
+        line.ay = wave.center[1] + 0.05;
+        line.az = wave.center[2] + z;
+        line.bx = wave.center[0] + nextX;
+        line.by = wave.center[1] + 0.05;
+        line.bz = wave.center[2] + nextZ;
+        line.r = wave.color[0];
+        line.g = wave.color[1];
+        line.b = wave.color[2];
+        line.a = alpha;
+        lineIndex++;
+        x = nextX;
+        z = nextZ;
       }
     }
+    lines.length = lineIndex;
     return lines;
   }
 }

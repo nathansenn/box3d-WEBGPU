@@ -1,0 +1,12 @@
+Box3D WebGPU AAA v1.3.0 KTX2 Performance Pass
+
+cloth: 3.642x total (3.535-3.766x paired 95% CI)
+rope: 3.266x total (3.196-3.336x paired 95% CI)
+water: 2.570x total (2.535-2.660x paired 95% CI)
+effects build: 1.405x
+effects update: 1.248x
+KTX2 BC4 file reduction: 49.73%
+KTX2 BC4 resident reduction: 50.00%
+source files changed: 8
+
+Hardware-GPU timing is intentionally not inferred from Dawn null-backend validation.

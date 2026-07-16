@@ -1,0 +1,307 @@
+{
+  "title": "Native Box3D rigid-stream benchmark",
+  "generatedAt": "2026-07-16T14:04:23.532Z",
+  "platform": {
+    "platform": "darwin",
+    "arch": "arm64",
+    "node": "v26.0.0"
+  },
+  "artifacts": {
+    "baseline": {
+      "directory": "/Users/commander/Documents/WebPhysics/benchmarks/baselines/native-v1.10-rigid-stream",
+      "files": {
+        "box3d.js": {
+          "bytes": 13951,
+          "sha256": "116e03dfee941b27fc9801dc598a21c4af1f1c2e32571f9777493bd8c7a81dff"
+        },
+        "box3d.wasm": {
+          "bytes": 396706,
+          "sha256": "451c570fa960ea66bd7ee5f3bd98d6166d2945da1b8930e446c8ac5a8a0a7db6"
+        }
+      }
+    },
+    "optimized": {
+      "directory": "/Users/commander/Documents/WebPhysics/public/box3d",
+      "files": {
+        "box3d.js": {
+          "bytes": 14209,
+          "sha256": "8ec00439683b8da258916ebe90f0cea6a6d0672641fda571936b6012fd3cec3b"
+        },
+        "box3d.wasm": {
+          "bytes": 395417,
+          "sha256": "42e521bea3b573d564a62654c47b9b101fb0a361f00350bacc5f5345a52fe767"
+        }
+      }
+    }
+  },
+  "methodology": {
+    "samples": 21,
+    "alternatingOrder": true,
+    "statistic": "median milliseconds per native b3w_step; MAD reported",
+    "correctness": "bit-exact Float32 matrix/color streams and replay hashes through active, final-sleep, and settled frames"
+  },
+  "correctness": {
+    "scene": {
+      "sceneId": 700,
+      "stress": 1,
+      "seed": 335593
+    },
+    "bodyCount": 9,
+    "finalSleepFrame": 89,
+    "finalSleepVersionBefore": 99,
+    "finalSleepVersionAfter": 100,
+    "settledFramesVerified": 240
+  },
+  "measurements": {
+    "denseActive": {
+      "bodyCount": 2310,
+      "iterationsPerSample": 12,
+      "baseline": {
+        "samples": [
+          2.112600666666667,
+          1.4985173333333321,
+          1.4834166666666657,
+          1.4639132499999998,
+          1.4263229166666633,
+          1.3741041666666642,
+          1.4926701666666702,
+          1.4817950833333338,
+          1.483871583333335,
+          1.4083472499999914,
+          1.6173054999999958,
+          1.4081597500000005,
+          1.4300451666666636,
+          1.4638471666666628,
+          1.3831945000000019,
+          1.4335625000000032,
+          1.3463020833333321,
+          1.3427708333333424,
+          1.4700798333333296,
+          1.502593749999998,
+          1.451274250000002
+        ],
+        "medianMs": 1.4638471666666628,
+        "madMs": 0.03467016666666933
+      },
+      "optimized": {
+        "samples": [
+          1.6335347500000015,
+          1.4180347500000015,
+          1.4709756666666653,
+          1.4332916666666666,
+          1.6122604166666672,
+          1.5890868333333354,
+          1.463902749999998,
+          1.4991007500000013,
+          1.4632950833333307,
+          1.4871562499999982,
+          1.4984687500000007,
+          1.4140486666666636,
+          1.438482666666668,
+          1.500687499999998,
+          1.4913125000000018,
+          1.4312465833333288,
+          1.3767639166666659,
+          1.4457743333333326,
+          1.499184083333328,
+          1.5724409999999978,
+          1.5403784166666696
+        ],
+        "medianMs": 1.4871562499999982,
+        "madMs": 0.04867358333333027
+      },
+      "speedup": 0.9843264059621607,
+      "pairedBootstrap95": {
+        "iterations": 10000,
+        "low95": 0.9543376641432548,
+        "high95": 1.012546353091661
+      },
+      "timeReductionPercent": -1.5923167297862584
+    },
+    "sparseActive": {
+      "bodyCount": 25,
+      "iterationsPerSample": 30,
+      "baseline": {
+        "samples": [
+          0.00658333333333303,
+          0.00644443333333129,
+          0.006523633333335966,
+          0.006456933333333836,
+          0.00627916666666503,
+          0.006609733333334589,
+          0.006370833333327634,
+          0.006305533333329549,
+          0.006166666666672427,
+          0.00642083333333782,
+          0.006819433333331896,
+          0.006329166666667637,
+          0.006331933333331108,
+          0.006337500000002668,
+          0.006327800000000631,
+          0.00781526666666347,
+          0.007347233333333255,
+          0.006290266666663532,
+          0.00971113333333354,
+          0.006509733333329374,
+          0.00641806666666677
+        ],
+        "medianMs": 0.00642083333333782,
+        "madMs": 0.0001027999999981457
+      },
+      "optimized": {
+        "samples": [
+          0.0063555666666691955,
+          0.006323633333333116,
+          0.0061500000000023645,
+          0.00611109999999826,
+          0.006283333333332545,
+          0.00854583333333115,
+          0.0062000000000049715,
+          0.0061374999999998184,
+          0.0060208333333397,
+          0.006072200000001734,
+          0.006254166666667516,
+          0.006118066666666285,
+          0.006093033333331732,
+          0.006066666666667212,
+          0.006243066666669014,
+          0.006231933333333472,
+          0.006166666666664848,
+          0.006070833333334728,
+          0.006297233333331557,
+          0.006337499999995088,
+          0.006172233333336408
+        ],
+        "medianMs": 0.006172233333336408,
+        "madMs": 0.00008193333333110769
+      },
+      "speedup": 1.040277155216851,
+      "pairedBootstrap95": {
+        "iterations": 10000,
+        "low95": 1.0212795698912953,
+        "high95": 1.0563869960097267
+      },
+      "timeReductionPercent": 3.8717715769174044
+    },
+    "settled": {
+      "bodyCount": 24,
+      "iterationsPerSample": 25000,
+      "baseline": {
+        "samples": [
+          0.0008553683199999978,
+          0.0008636616800000047,
+          0.0008571316800000023,
+          0.0008474049999999989,
+          0.0008484349999999995,
+          0.0008172083600000041,
+          0.0008530633600000055,
+          0.0008418433200000072,
+          0.0008565250000000014,
+          0.0008582800000000043,
+          0.0008549883199999931,
+          0.0008444866399999956,
+          0.0008423300000000017,
+          0.0008546399999999994,
+          0.0008406483200000003,
+          0.0008408733200000006,
+          0.0008499449999999979,
+          0.0008378649999999925,
+          0.0008406366400000024,
+          0.0008413000000000011,
+          0.0008388883200000054
+        ],
+        "medianMs": 0.0008474049999999989,
+        "madMs": 0.000006768359999996488
+      },
+      "optimized": {
+        "samples": [
+          0.000007263320000001841,
+          0.000007001640000007683,
+          0.000010305000000007568,
+          0.00000747164000000339,
+          0.000010153360000003885,
+          0.000007371679999996559,
+          0.00000758668000000398,
+          0.000007674999999999272,
+          0.000010296680000001289,
+          0.0000075750000000061845,
+          0.000007653319999999439,
+          0.000007243319999997766,
+          0.000009929999999994835,
+          0.000007205000000003566,
+          0.000006775000000006912,
+          0.000006633320000000822,
+          0.000007186680000004344,
+          0.000007548319999996238,
+          0.000007709999999997307,
+          0.000007460000000000946,
+          0.000006556680000003325
+        ],
+        "medianMs": 0.00000747164000000339,
+        "madMs": 2.3835999999391732e-7
+      },
+      "speedup": 113.41619778249681,
+      "pairedBootstrap95": {
+        "iterations": 10000,
+        "low95": 110.5452768729746,
+        "high95": 117.34190951114407
+      },
+      "timeReductionPercent": 99.11829172591578
+    }
+  },
+  "classifications": {
+    "denseActiveStep": "parity; confidence interval crosses 1.0, so no active-step speedup is claimed",
+    "sparseActiveStep": "parity; confidence interval crosses 1.0, so no active-step speedup is claimed",
+    "settledStep": "accepted measured win",
+    "rigidUploadVolume": "accepted exact work reduction"
+  },
+  "rejectedCandidates": [
+    {
+      "name": "Box3D move-event transform stream",
+      "measuredDenseActiveSpeedup": 0.979,
+      "pairedBootstrap95": [
+        0.957,
+        1.014
+      ],
+      "decision": "rejected and reverted: interval crossed parity and exposed downside under dense load"
+    }
+  ],
+  "uploadVolume": {
+    "bodyCount": 4096,
+    "initialBytes": 327680,
+    "legacyActiveBytesPerFrame": 327680,
+    "optimizedActiveBytesPerFrame": 262144,
+    "optimizedColorOnlyBytes": 65536,
+    "optimizedSettledBytesPerFrame": 0,
+    "activeReductionBytes": 65536,
+    "activeReductionPercent": 19.999999999999996
+  },
+  "metalUploadValidation": {
+    "result": "passed",
+    "dawnBackend": "metal",
+    "bodyCount": 4096,
+    "actualGpuQueueUploadBytes": {
+      "initial": 327680,
+      "transformOnly": 262144,
+      "colorOnly": 65536,
+      "settledUnchanged": 0
+    },
+    "activeReductionPercent": 19.999999999999996,
+    "uncapturedWebGpuErrors": 0
+  },
+  "gates": {
+    "exactActiveAndFinalSleepTransforms": true,
+    "exactColors": true,
+    "exactReplayHashes": true,
+    "finalSleepRevisionCaptured": true,
+    "settledRevisionStable": true,
+    "immutableColorRevisionStable": true,
+    "denseActiveNoMaterialRegression": true,
+    "sparseActiveNoMaterialRegression": true,
+    "settledSpeedupProven": true,
+    "activeUploadReductionExact": true,
+    "settledUploadEliminated": true,
+    "actualMetalUploadValidation": true
+  },
+  "passed": true
+}

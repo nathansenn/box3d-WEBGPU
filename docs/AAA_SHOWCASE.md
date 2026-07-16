@@ -1,6 +1,6 @@
 # AAA Showcase Runbook
 
-The AAA director layers 24 hand-authored camera and event timelines over selected entries from the 600-recipe physics catalog. Each sequence has five camera keyframes, at least seven timed beats, a stated engineering objective, and a final telemetry lock.
+The AAA director layers 30 hand-authored camera and event timelines over selected entries from the 750-scene physics catalog. Each sequence has five camera keyframes, at least seven timed beats, a stated engineering objective, and a final telemetry lock.
 
 ## Complete sequence catalog
 
@@ -30,6 +30,12 @@ The AAA director layers 24 hand-authored camera and event timelines over selecte
 | 22 | **Automated Sorter Blackout** | Logistics | 541 | 4× | 15s | Cascade |
 | 23 | **Colonnade Resonance** | Architecture | 591 | 4× | 16s | Cascade |
 | 24 | **Mega Atrium Collapse** | Architecture | 600 | 5× | 18s | Impact |
+| 25 | **Tempest Standard Protocol** | Soft-Body Cloth | 641 | 4× | 16s | Cascade |
+| 26 | **Parachute Canopy Failure** | Soft-Body Cloth | 647 | 5× | 17s | Impact |
+| 27 | **Sky Crane Cable Failure** | Rope and Rigging | 691 | 5× | 17s | Collapse |
+| 28 | **Suspension Cable Resonance** | Rope and Rigging | 692 | 4× | 17s | Cascade |
+| 29 | **Tsunami Research Array** | Interactive Water | 742 | 5× | 18s | Cascade |
+| 30 | **Leviathan Impact Basin** | Interactive Water | 750 | 5× | 19s | Impact |
 
 ## Detailed sequence cards
 
@@ -273,13 +279,73 @@ The AAA director layers 24 hand-authored camera and event timelines over selecte
 
 **Default dramatic arc:** establishing shot → systems armed → primary event → time dilation → secondary disruption → real-time recovery → telemetry lock.
 
+### 25. Tempest Standard Protocol
+
+**Catalog scene:** `641` · **Discipline:** Soft-Body Cloth · **Recommended stress:** 4× · **Duration:** 16s · **Event pattern:** cascade
+
+> A monumental fabric standard enters a staged wind front, ballistic puncture, and pressure-wave recovery sequence.
+
+**Engineering objective:** Demonstrate pinned-edge cloth, structural/shear/bend constraints, turbulent forcing, topology separation, dynamic normals, and two-sided WebGPU shading.
+
+**Default dramatic arc:** establishing wind tunnel → cloth system armed → escalating wind impulse → projectile puncture → slow-motion strain inspection → radial pressure event → recovery and telemetry lock.
+
+### 26. Parachute Canopy Failure
+
+**Catalog scene:** `647` · **Discipline:** Soft-Body Cloth · **Recommended stress:** 5× · **Duration:** 17s · **Event pattern:** impact
+
+> A tensioned canopy catches air, deforms around an impact body, and opens a progressive constraint failure under load.
+
+**Engineering objective:** Show four-corner loading, curved membrane response, collision coupling, strain visualization, tearing, and deterministic recovery.
+
+**Default dramatic arc:** canopy reveal → lift and load → impact body entry → slow-motion deformation → controlled tear → settling canopy → telemetry lock.
+
+### 27. Sky Crane Cable Failure
+
+**Catalog scene:** `691` · **Discipline:** Rope and Rigging · **Recommended stress:** 5× · **Duration:** 17s · **Event pattern:** collapse
+
+> A long crane cable carries a heavy industrial payload through swing, impact, line failure, and residual oscillation.
+
+**Engineering objective:** Demonstrate cable tension, bend constraints, concentrated mass, projectile severing, payload inertia, and anchor stability.
+
+**Default dramatic arc:** crane-wide establishing shot → payload swing excitation → high-tension close-up → line strike → payload release → cable oscillation → telemetry lock.
+
+### 28. Suspension Cable Resonance
+
+**Catalog scene:** `692` · **Discipline:** Rope and Rigging · **Recommended stress:** 4× · **Duration:** 17s · **Event pattern:** cascade
+
+> Twin catenary cables and cross-planks carry a traveling oscillation before a localized cable strike changes the load path.
+
+**Engineering objective:** Show coupled ropes, catenary geometry, cross constraints, resonance propagation, line tension coloring, and partial failure.
+
+**Default dramatic arc:** span reveal → traveling excitation → resonance build → slow-motion tension pass → localized severing → redistributed motion → telemetry lock.
+
+### 29. Tsunami Research Array
+
+**Catalog scene:** `742` · **Discipline:** Interactive Water · **Recommended stress:** 5× · **Duration:** 18s · **Event pattern:** cascade
+
+> A large wave front crosses a cinematic research basin, reflects from its boundaries, and collides with secondary forcing.
+
+**Engineering objective:** Demonstrate linear shallow-water propagation, boundary reflection, interference, foam, current telemetry, and HDR water shading.
+
+**Default dramatic arc:** still-basin reveal → wave-front launch → cross-basin tracking → reflected-wave inspection → secondary displacement → interference field → telemetry lock.
+
+### 30. Leviathan Impact Basin
+
+**Catalog scene:** `750` · **Discipline:** Interactive Water · **Recommended stress:** 5× · **Duration:** 19s · **Event pattern:** impact
+
+> Rain, traveling waves, a ballistic entry body, and a massive splash crown converge in the lab’s fluid finale.
+
+**Engineering objective:** Show wave interference, droplet coupling, buoyancy proxies, impact displacement, splash particles, current vectors, and post-processed water highlights.
+
+**Default dramatic arc:** atmospheric basin reveal → storm rain → traveling waves → ballistic entry → slow-motion splash crown → secondary blast/displacement → float recovery and telemetry lock.
+
 ## Director behavior
 
 - Starting a hero sequence rebuilds its referenced scene with the recommended stress value and a deterministic seed.
 - Camera motion is interpolated between keyframes with eased position/distance/pitch and shortest-path yaw interpolation.
 - Timed beats can trigger captions, structural impulse, projectile launch, body rain, radial blast, slow motion, or return to normal speed.
 - Manual camera input leaves cinematic playback so the operator always retains control.
-- Maximum AAA Tour advances to the next sequence after the current telemetry lock.
+- Maximum AAA Tour advances through all 30 sequences after the current telemetry lock.
 
 ## Capture order for the strongest presentation
 
@@ -287,6 +353,8 @@ The AAA director layers 24 hand-authored camera and event timelines over selecte
 2. **Aegis Tower: Kinetic Breach** — impact, slow motion, camera shake, debris, and shadows.
 3. **Atlas Suspension Convoy** — wide-frame infrastructure and concentrated loading.
 4. **Orbital Cargo Storm** — body count, transform bandwidth, and effect budget.
-5. **Sky Crane Load Failure** — construction staging and suspended-load drama.
-6. **High-Bay Cascade** — logistics, racks, cascading inventory, and settling.
-7. **Mega Atrium Collapse** — architectural finale and longest hero timeline.
+5. **Tempest Standard Protocol** — cloth folds, strain, tearing, and two-sided surface shading.
+6. **Sky Crane Cable Failure** — cable tension, payload inertia, and controlled line failure.
+7. **Tsunami Research Array** — wave propagation, reflections, foam, and current diagnostics.
+8. **Leviathan Impact Basin** — rain, impact displacement, floaters, and HDR water finale.
+9. **Mega Atrium Collapse** — architectural rigid-body finale.

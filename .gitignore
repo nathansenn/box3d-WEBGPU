@@ -1,7 +1,23 @@
 node_modules/
 dist/
 build/
-public/box3d/box3d.js
-public/box3d/box3d.wasm
+.test-build/
+.bench-build/
+benchmarks/results/logs/
+benchmarks/results/diagnostics/v113-failed-control-run/
+benchmarks/results/diagnostics/v113-smoke-shard-*.json
+benchmarks/results/diagnostics/v113-smoke-shard-*.md
+benchmarks/results/v113-native-build-flags.json
+docs/project-architect/
+.DS_Store
 public/box3d/box3d.worker.js
 third_party/
+/SOURCE_MANIFEST 2.sha256
+/VALIDATION_REPORT 2.md
+/VALIDATION_REPORT 3.md
+/VALIDATION_REPORT 4.md
+/benchmarks/build-report 2.mjs
+/docs/RENDERING_PIPELINE 2.md
+/docs/SOFT_BODY_AND_WATER 2.md
+/public/soft-kernels-scalar 2.wasm
+/public/soft-kernels-simd 2.wasm

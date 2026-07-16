@@ -1,0 +1,73 @@
+{
+  "schemaVersion": 1,
+  "capturedAt": "2026-07-15T05:50:04-05:00",
+  "environment": {
+    "platform": "macOS",
+    "browserHarness": "Codex in-app Browser",
+    "url": "http://127.0.0.1:4173/",
+    "buildMode": "Vite preview of relative-base GitHub Pages build",
+    "pageTitle": "Box3D WebGPU — AAA Physics Lab",
+    "displayedVersion": "v1.11.0"
+  },
+  "source": {
+    "wasmLoaderSha256": "485a370b9dea8ea71a3cb76f6efd633aaabb3cb13e16e5a37f338f7dd1dbc621",
+    "distIndexSha256": "d519fb874ab35de52632338abaa2771a2459ca4a8b4fce4bba41e4f49e2aeb62",
+    "distMainJavaScriptSha256": "be80e5d265dad877da8e06fc89208d09cdd7642803e301035e532275e6142847"
+  },
+  "backend": {
+    "rigid": "Box3D WASM",
+    "softKernel": "SIMD",
+    "nativeArtifactLoaded": true
+  },
+  "interactiveChecks": [
+    {
+      "domain": "rigid",
+      "passed": true,
+      "notes": "Native Box3D WASM backend loaded and rendered without falling back to the preview solver."
+    },
+    {
+      "domain": "cloth",
+      "scene": "650 · Tensioned Membrane Drum — Cinematic",
+      "passed": true,
+      "nodes": 1426,
+      "constraints": 7873,
+      "action": "projectile"
+    },
+    {
+      "domain": "rope",
+      "scene": "700 · Rope Net Resonance — Cinematic",
+      "passed": true,
+      "nodes": 308,
+      "constraints": 655,
+      "action": "pause, verify stable replay hash, resume"
+    },
+    {
+      "domain": "water",
+      "scene": "750 · Leviathan Impact Pool — Cinematic",
+      "passed": true,
+      "nodesAfterProjectile": 5378,
+      "constraints": 15252,
+      "gpuUploadMb": 0.03,
+      "action": "projectile"
+    },
+    {
+      "domain": "render profiles and diagnostics",
+      "passed": true,
+      "profiles": ["Performance", "Cinematic"],
+      "diagnosticsToggled": true
+    }
+  ],
+  "stateValidation": {
+    "scenesPassed": 750,
+    "scenesTotal": 750,
+    "heroSequencesPassed": 30,
+    "heroSequencesTotal": 30,
+    "effectsPassed": true
+  },
+  "regressionFoundAndFixed": {
+    "symptom": "The relative-base Pages build resolved the native Box3D module under assets/ and silently selected the preview backend.",
+    "fix": "Resolve public Box3D assets against document.baseURI before dynamic import.",
+    "regressionAssertionAdded": true
+  },
+  "passed": true
+}

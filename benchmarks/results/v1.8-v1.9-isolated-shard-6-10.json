@@ -1,0 +1,321 @@
+{
+  "schema": 1,
+  "generatedAt": "2026-07-13T15:07:19.320Z",
+  "environment": {
+    "node": "v22.16.0",
+    "platform": "linux",
+    "arch": "x64",
+    "cpu": "unknown"
+  },
+  "method": {
+    "samples": 7,
+    "bootstrapIterations": 10000,
+    "freshProcessPerMeasurement": true,
+    "alternatingOrder": true,
+    "processStartupExcluded": true
+  },
+  "summary": {
+    "changedGeometricMeanSpeedup": 1.1662311337570144,
+    "dynamicGeometricMeanSpeedup": 1.1662311337570144,
+    "medianSpeedup": 1.000360645772791,
+    "correctnessFailures": 0,
+    "elapsedMs": 30897.523241000003
+  },
+  "results": [
+    {
+      "id": "rope-maximum-storm",
+      "label": "Maximum rope · 96-impact storm",
+      "category": "dynamic-breakthrough",
+      "baselineSamplesMs": [
+        1.1481196,
+        1.1347918875,
+        1.1435759625000002,
+        1.1006780375000003,
+        1.1604078125,
+        1.1745495125,
+        1.1681538125
+      ],
+      "optimizedSamplesMs": [
+        1.1502033875,
+        1.1506407875,
+        1.1449210750000003,
+        1.17637575,
+        1.1774279,
+        1.1760552875,
+        1.2209770375000002
+      ],
+      "baselineMedianMs": 1.1481196,
+      "optimizedMedianMs": 1.1760552875,
+      "baselineMadMs": 0.013327712499999977,
+      "optimizedMadMs": 0.025414500000000118,
+      "speedup": 0.9762462804283765,
+      "pairedBootstrap95": [
+        0.9646508672930396,
+        0.9981883312789323
+      ],
+      "baselineDeterministic": true,
+      "optimizedDeterministic": true,
+      "crossVersionHashMatch": true,
+      "stateError": 0,
+      "matrixError": 5.228477956477364e-10,
+      "colorError": 1.674313507162817e-7,
+      "maxStateAbs": 0,
+      "correctness": true,
+      "payload": {
+        "baselineDynamicBytes": 37040,
+        "optimizedDynamicBytes": 11396,
+        "byteReduction": 0.6923326133909287
+      },
+      "metadata": {
+        "baseline": {
+          "hash": 1671174604,
+          "nodes": 343,
+          "constraints": 731,
+          "instances": 463
+        },
+        "optimized": {
+          "hash": 1671174604,
+          "nodes": 343,
+          "constraints": 731,
+          "instances": 463
+        }
+      }
+    },
+    {
+      "id": "mixed-maximum",
+      "label": "Maximum cloth + rope + water",
+      "category": "mixed",
+      "baselineSamplesMs": [
+        2.713513663157895,
+        2.6501162210526314,
+        2.648690821052632,
+        2.6039914105263158,
+        2.709212631578947,
+        2.6184592,
+        2.6732870842105267
+      ],
+      "optimizedSamplesMs": [
+        1.9413448947368421,
+        1.9079698421052629,
+        1.9094089894736839,
+        1.8142129368421056,
+        1.9021950631578948,
+        1.8178300842105264,
+        1.8741150947368423
+      ],
+      "baselineMedianMs": 2.6501162210526314,
+      "optimizedMedianMs": 1.9021950631578948,
+      "baselineMadMs": 0.03165702105263124,
+      "optimizedMadMs": 0.028079968421052426,
+      "speedup": 1.3931884654632047,
+      "pairedBootstrap95": [
+        1.3871783550064496,
+        1.4404312167257276
+      ],
+      "baselineDeterministic": true,
+      "optimizedDeterministic": true,
+      "crossVersionHashMatch": false,
+      "stateError": 0.0011917493930133011,
+      "matrixError": 5.625364619746328e-10,
+      "colorError": 2.2823411610478867e-7,
+      "maxStateAbs": 0.028139114379882812,
+      "correctness": true,
+      "payload": {
+        "baselineDynamicBytes": 136640,
+        "optimizedDynamicBytes": 101796,
+        "byteReduction": 0.25500585480093674
+      },
+      "metadata": {
+        "baseline": {
+          "hash": 803506706,
+          "nodes": 8484,
+          "constraints": 28545,
+          "instances": 403
+        },
+        "optimized": {
+          "hash": 4195624751,
+          "nodes": 8484,
+          "constraints": 28545,
+          "instances": 403
+        }
+      }
+    },
+    {
+      "id": "cloth-tearing-control",
+      "label": "Tearing cloth · topology control",
+      "category": "control",
+      "baselineSamplesMs": [
+        7.454824635294118,
+        7.49836405882353,
+        7.4265474352941165,
+        7.2306112,
+        7.150058894117647,
+        7.247961341176471,
+        7.367745247058823
+      ],
+      "optimizedSamplesMs": [
+        7.528229164705883,
+        7.430543035294118,
+        7.115305564705881,
+        7.281682894117647,
+        7.373869623529411,
+        7.281681788235294,
+        7.365089058823529
+      ],
+      "baselineMedianMs": 7.367745247058823,
+      "optimizedMedianMs": 7.365089058823529,
+      "baselineMadMs": 0.11978390588235222,
+      "optimizedMadMs": 0.0834061647058828,
+      "speedup": 1.000360645772791,
+      "pairedBootstrap95": [
+        0.9805721512796639,
+        1.0198945314107073
+      ],
+      "baselineDeterministic": true,
+      "optimizedDeterministic": true,
+      "crossVersionHashMatch": true,
+      "stateError": 0,
+      "matrixError": 0,
+      "colorError": 0,
+      "maxStateAbs": 0,
+      "correctness": true,
+      "payload": {
+        "baselineDynamicBytes": 39168,
+        "optimizedDynamicBytes": 39168,
+        "byteReduction": 0
+      },
+      "metadata": {
+        "baseline": {
+          "hash": 1182978847,
+          "nodes": 1632,
+          "constraints": 9383,
+          "instances": 0
+        },
+        "optimized": {
+          "hash": 1182978847,
+          "nodes": 1632,
+          "constraints": 9383,
+          "instances": 0
+        }
+      }
+    },
+    {
+      "id": "water-maximum-control",
+      "label": "Maximum water · unchanged control",
+      "category": "control",
+      "baselineSamplesMs": [
+        0.13723051785714283,
+        0.13667456071428577,
+        0.13985439642857145,
+        0.13599068571428571,
+        0.13727451071428567,
+        0.15999076071428572,
+        0.15047565000000007
+      ],
+      "optimizedSamplesMs": [
+        0.14225634999999995,
+        0.13414856785714285,
+        0.15932918928571427,
+        0.1498870892857143,
+        0.13757321071428566,
+        0.13903326785714287,
+        0.13567810357142857
+      ],
+      "baselineMedianMs": 0.13727451071428567,
+      "optimizedMedianMs": 0.13903326785714287,
+      "baselineMadMs": 0.0012838249999999607,
+      "optimizedMadMs": 0.003355164285714307,
+      "speedup": 0.9873500985054575,
+      "pairedBootstrap95": [
+        0.9118501224195311,
+        1.1090636295692418
+      ],
+      "baselineDeterministic": true,
+      "optimizedDeterministic": true,
+      "crossVersionHashMatch": true,
+      "stateError": 0,
+      "matrixError": 0,
+      "colorError": 0,
+      "maxStateAbs": 0,
+      "correctness": true,
+      "payload": {
+        "baselineDynamicBytes": 77280,
+        "optimizedDynamicBytes": 77280,
+        "byteReduction": 0
+      },
+      "metadata": {
+        "baseline": {
+          "hash": 3414875560,
+          "nodes": 6441,
+          "constraints": 18360,
+          "instances": 1
+        },
+        "optimized": {
+          "hash": 3414875560,
+          "nodes": 6441,
+          "constraints": 18360,
+          "instances": 1
+        }
+      }
+    },
+    {
+      "id": "cloth-regular-control",
+      "label": "Regular cloth · non-adaptive control",
+      "category": "control",
+      "baselineSamplesMs": [
+        1.38045736,
+        1.3872364240000001,
+        1.4165670399999999,
+        1.379386256,
+        1.403561016,
+        1.4381096239999998,
+        1.3875057359999998
+      ],
+      "optimizedSamplesMs": [
+        1.31271128,
+        1.3456302960000002,
+        1.327908872,
+        1.3135659360000003,
+        1.3784410320000002,
+        1.3070401360000001,
+        1.31006812
+      ],
+      "baselineMedianMs": 1.3875057359999998,
+      "optimizedMedianMs": 1.3135659360000003,
+      "baselineMadMs": 0.008119479999999735,
+      "optimizedMadMs": 0.006525800000000137,
+      "speedup": 1.0562893707682135,
+      "pairedBootstrap95": [
+        1.0309194346498274,
+        1.0812926582779527
+      ],
+      "baselineDeterministic": true,
+      "optimizedDeterministic": true,
+      "crossVersionHashMatch": true,
+      "stateError": 0,
+      "matrixError": 0,
+      "colorError": 0,
+      "maxStateAbs": 0,
+      "correctness": true,
+      "payload": {
+        "baselineDynamicBytes": 21824,
+        "optimizedDynamicBytes": 16368,
+        "byteReduction": 0.25
+      },
+      "metadata": {
+        "baseline": {
+          "hash": 3265236976,
+          "nodes": 1364,
+          "constraints": 7726,
+          "instances": 0
+        },
+        "optimized": {
+          "hash": 3265236976,
+          "nodes": 1364,
+          "constraints": 7726,
+          "instances": 0
+        }
+      }
+    }
+  ]
+}

@@ -8,7 +8,6 @@
 #include <math.h>
 #include <stdint.h>
 #include <stdlib.h>
-#include <string.h>
 
 #ifdef __EMSCRIPTEN__
 #include <emscripten/emscripten.h>
@@ -31,12 +30,39 @@ typedef struct B3WBody
 
 static b3WorldId g_world = { 0 };
 static B3WBody g_bodies[B3W_MAX_BODIES];
+// Dynamic bodies are appended in the same order as the public body stream.
+// Keeping their indices separately lets dynamic-only work skip static scene
+// dressing without changing transform slots, impulse order, or the ABI.
+static int g_dynamicIndices[B3W_MAX_BODIES];
 static int g_bodyCount = 0;
 static int g_dynamicCount = 0;
 static float g_matrices[B3W_MAX_BODIES * 16];
 static float g_colors[B3W_MAX_BODIES * 4];
 static uint32_t g_rng = 0xC0FFEEu;
 static uint32_t g_hash = 0u;
+static int g_hashDirty = 1;
+// Independent monotonically increasing stream revisions let the renderer skip
+// immutable material uploads while still observing every transform change.
+// They intentionally survive world recreation so a new scene can never alias
+// the cache key of a prior scene.
+static uint32_t g_transformVersion = 1u;
+static uint32_t g_colorVersion = 1u;
+
+#define B3W_HULL_CACHE_CAPACITY 8
+
+typedef struct B3WHullCacheEntry
+{
+    b3BoxHull hull;
+    float hx;
+    float hy;
+    float hz;
+    uint32_t stamp;
+    int valid;
+} B3WHullCacheEntry;
+
+static B3WHullCacheEntry g_hullCache[B3W_HULL_CACHE_CAPACITY];
+static int g_cachedHullLast = -1;
+static uint32_t g_hullCacheStamp = 0u;
 
 // Forward declarations used by scene recipes. C17 does not permit implicit declarations.
 B3W_EXPORT void b3w_explode(float cx, float cy, float cz, float strength, float radius);
@@ -105,6 +131,82 @@ static void b3w_write_model_matrix(int index, b3Pos p, b3Quat q, float hx, float
     m[15] = 1.0f;
 }
 
+// Newly created bodies always use the identity rotation. Writing that exact
+// affine matrix directly avoids the general quaternion expansion during scene
+// construction while retaining the same float32 stream bits (including +0).
+static void b3w_write_axis_aligned_matrix(int index, float x, float y, float z, float hx, float hy, float hz)
+{
+    float* m = g_matrices + index * 16;
+    m[0] = hx;
+    m[1] = 0.0f;
+    m[2] = 0.0f;
+    m[3] = 0.0f;
+    m[4] = 0.0f;
+    m[5] = hy;
+    m[6] = 0.0f;
+    m[7] = 0.0f;
+    m[8] = 0.0f;
+    m[9] = 0.0f;
+    m[10] = hz;
+    m[11] = 0.0f;
+    m[12] = x;
+    m[13] = y;
+    m[14] = z;
+    m[15] = 1.0f;
+}
+
+// Box3D clones each supplied hull into its world database. Keep the most recent
+// exact half-extents on the first branch for long identical runs, then probe a
+// small exact LRU for recurring stage, tower, and arena dimensions. This avoids
+// rebuilding vertices, edges, faces, and planes without changing shape bits.
+static const b3BoxHull* b3w_get_box_hull(float hx, float hy, float hz)
+{
+    g_hullCacheStamp += 1u;
+    if (g_cachedHullLast >= 0)
+    {
+        B3WHullCacheEntry* last = g_hullCache + g_cachedHullLast;
+        if (last->hx == hx && last->hy == hy && last->hz == hz)
+        {
+            last->stamp = g_hullCacheStamp;
+            return &last->hull;
+        }
+    }
+
+    int replacement = 0;
+    uint32_t oldestStamp = UINT32_MAX;
+    for (int i = 0; i < B3W_HULL_CACHE_CAPACITY; ++i)
+    {
+        B3WHullCacheEntry* entry = g_hullCache + i;
+        if (i != g_cachedHullLast && entry->valid != 0 && entry->hx == hx && entry->hy == hy && entry->hz == hz)
+        {
+            entry->stamp = g_hullCacheStamp;
+            g_cachedHullLast = i;
+            return &entry->hull;
+        }
+        if (entry->valid == 0)
+        {
+            replacement = i;
+            oldestStamp = 0u;
+            break;
+        }
+        if (entry->stamp < oldestStamp)
+        {
+            replacement = i;
+            oldestStamp = entry->stamp;
+        }
+    }
+
+    B3WHullCacheEntry* entry = g_hullCache + replacement;
+    entry->hull = b3MakeBoxHull(hx, hy, hz);
+    entry->hx = hx;
+    entry->hy = hy;
+    entry->hz = hz;
+    entry->stamp = g_hullCacheStamp;
+    entry->valid = 1;
+    g_cachedHullLast = replacement;
+    return &entry->hull;
+}
+
 static int b3w_add_box_ex(b3BodyType type, float x, float y, float z, float hx, float hy, float hz, uint32_t color, float density, float friction, float restitution)
 {
     if (g_bodyCount >= B3W_MAX_BODIES)
@@ -115,7 +217,6 @@ static int b3w_add_box_ex(b3BodyType type, float x, float y, float z, float hx, 
     b3BodyDef bodyDef = b3DefaultBodyDef();
     bodyDef.type = type;
     bodyDef.position = (b3Pos){ x, y, z };
-
     if (type == b3_dynamicBody)
     {
         bodyDef.angularVelocity = (b3Vec3){ b3w_rand_range(-0.20f, 0.20f), b3w_rand_range(-0.15f, 0.15f), b3w_rand_range(-0.20f, 0.20f) };
@@ -123,13 +224,13 @@ static int b3w_add_box_ex(b3BodyType type, float x, float y, float z, float hx, 
 
     b3BodyId body = b3CreateBody(g_world, &bodyDef);
 
-    b3BoxHull hull = b3MakeBoxHull(hx, hy, hz);
+    const b3BoxHull* hull = b3w_get_box_hull(hx, hy, hz);
     b3ShapeDef shapeDef = b3DefaultShapeDef();
     shapeDef.density = density;
     shapeDef.baseMaterial.friction = friction;
     shapeDef.baseMaterial.restitution = restitution;
     shapeDef.baseMaterial.customColor = color;
-    b3CreateHullShape(body, &shapeDef, &hull.base);
+    b3CreateHullShape(body, &shapeDef, &hull->base);
 
     int index = g_bodyCount++;
     g_bodies[index].id = body;
@@ -140,16 +241,21 @@ static int b3w_add_box_ex(b3BodyType type, float x, float y, float z, float hx, 
     g_bodies[index].dynamic = type == b3_dynamicBody ? 1 : 0;
     if (g_bodies[index].dynamic)
     {
+        g_dynamicIndices[g_dynamicCount] = index;
         g_dynamicCount += 1;
     }
 
     b3w_unpack_rgb(color, g_colors + index * 4);
-    b3w_write_model_matrix(index, (b3Pos){ x, y, z }, b3Quat_identity, hx, hy, hz);
+    b3w_write_axis_aligned_matrix(index, x, y, z, hx, hy, hz);
+    g_transformVersion += 1u;
+    g_colorVersion += 1u;
+    g_hashDirty = 1;
     return index;
 }
 
 static void b3w_destroy_world(void)
 {
+    const int hadBodies = g_bodyCount != 0;
     if (B3_IS_NON_NULL(g_world))
     {
         b3DestroyWorld(g_world);
@@ -159,8 +265,15 @@ static void b3w_destroy_world(void)
     g_bodyCount = 0;
     g_dynamicCount = 0;
     g_hash = 0u;
-    memset(g_matrices, 0, sizeof(g_matrices));
-    memset(g_colors, 0, sizeof(g_colors));
+    g_hashDirty = 1;
+    // The active stream length is zero now, and every slot in a subsequent
+    // scene is overwritten by b3w_add_box_ex before it becomes visible. Do not
+    // clear the unused 320 KiB capacity on every scene switch.
+    if (hadBodies)
+    {
+        g_transformVersion += 1u;
+        g_colorVersion += 1u;
+    }
 }
 
 static void b3w_create_world(uint32_t seed)
@@ -290,6 +403,91 @@ static void b3w_scene_material(int stress)
     }
 }
 
+
+
+static void b3w_scene_cloth_stage(int stress, int variant)
+{
+    float span = 11.0f + (float)(variant % 3) * 1.4f;
+    float top = 10.5f + (float)stress * 0.8f + (variant == 2 ? 4.5f : 0.0f);
+    uint32_t postColor = (variant & 1) ? 0x334155u : 0x475569u;
+    uint32_t railColor = (variant & 1) ? 0xFFD166u : 0x30AEBFu;
+    b3w_add_box_ex(b3_staticBody, -span, top * 0.5f, 0.0f, 0.22f, top * 0.5f, 0.22f, postColor, 0.0f, 0.82f, 0.01f);
+    b3w_add_box_ex(b3_staticBody, span, top * 0.5f, 0.0f, 0.22f, top * 0.5f, 0.22f, postColor, 0.0f, 0.82f, 0.01f);
+    b3w_add_box_ex(b3_staticBody, 0.0f, top, 0.0f, span, 0.20f, 0.20f, railColor, 0.0f, 0.82f, 0.01f);
+    b3w_add_box_ex(b3_staticBody, 0.0f, 0.12f, 0.0f, span + 2.5f, 0.12f, 7.0f, 0x132033u, 0.0f, 0.88f, 0.01f);
+    if (variant == 3 || variant == 7)
+    {
+        float radius = variant == 7 ? 3.1f : 1.7f;
+        b3w_add_box_ex(b3_staticBody, 0.0f, 4.4f, 0.0f, radius, radius, radius, 0x15243Bu, 0.0f, 0.45f, 0.05f);
+    }
+    if (variant == 2)
+    {
+        b3w_add_box_ex(b3_staticBody, 0.0f, top + 2.1f, 0.0f, 1.6f, 0.42f, 1.6f, 0xFFD166u, 0.0f, 0.70f, 0.02f);
+    }
+}
+
+static void b3w_scene_rope_stage(int stress, int variant)
+{
+    float towerHeight = 12.5f + (float)stress * 0.75f;
+    float span = (variant == 1 || variant == 6 || variant == 9) ? 16.0f : 9.0f;
+    uint32_t towerColor = (variant & 1) ? 0xF97316u : 0x30AEBFu;
+    for (int sideIndex = 0; sideIndex < 2; ++sideIndex)
+    {
+        float side = sideIndex == 0 ? -1.0f : 1.0f;
+        b3w_add_box_ex(b3_staticBody, side * span, towerHeight * 0.5f, -2.2f, 0.28f, towerHeight * 0.5f, 0.28f, towerColor, 0.0f, 0.85f, 0.01f);
+        b3w_add_box_ex(b3_staticBody, side * span, towerHeight * 0.5f, 2.2f, 0.28f, towerHeight * 0.5f, 0.28f, towerColor, 0.0f, 0.85f, 0.01f);
+        b3w_add_box_ex(b3_staticBody, side * span, towerHeight, 0.0f, 0.24f, 0.24f, 2.2f, towerColor, 0.0f, 0.85f, 0.01f);
+    }
+    b3w_add_box_ex(b3_staticBody, 0.0f, 0.16f, 0.0f, span + 3.0f, 0.16f, 7.5f, 0x111D30u, 0.0f, 0.88f, 0.01f);
+    if (variant == 1 || variant == 6)
+    {
+        const int segments = 11;
+        float segmentHalf = span / (float)segments * 0.52f;
+        for (int i = 0; i < segments; ++i)
+        {
+            float x = -span + ((float)i + 0.5f) * (span * 2.0f / (float)segments);
+            b3w_add_box_ex(b3_staticBody, x, 3.4f, 0.0f, segmentHalf, 0.14f, 1.7f, (i & 1) ? 0x243A55u : 0x2F4D69u, 0.0f, 0.82f, 0.01f);
+        }
+    }
+    else if (variant == 0 || variant == 2 || variant == 8)
+    {
+        b3w_add_box_ex(b3_staticBody, 0.0f, towerHeight - 0.3f, 0.0f, span, 0.17f, 0.17f, 0x64748Bu, 0.0f, 0.82f, 0.01f);
+        b3w_add_box_ex(b3_staticBody, 0.0f, 2.0f, 0.0f, 3.5f, 0.18f, 3.0f, 0x18263Bu, 0.0f, 0.85f, 0.01f);
+    }
+}
+
+static void b3w_scene_water_stage(int stress, int variant)
+{
+    float halfWidth = 16.0f + (float)(variant % 3) * 1.5f;
+    float halfDepth = 10.0f + (float)(variant % 2) * 1.5f;
+    float wallHeight = (variant == 1 || variant == 5) ? 4.2f : 2.4f;
+    b3w_add_box_ex(b3_staticBody, 0.0f, -0.15f, 0.0f, halfWidth, 0.15f, halfDepth, 0x0B1F33u, 0.0f, 0.92f, 0.01f);
+    b3w_add_box_ex(b3_staticBody, -halfWidth - 0.25f, wallHeight * 0.5f, 0.0f, 0.25f, wallHeight * 0.5f, halfDepth + 0.5f, 0x20344Cu, 0.0f, 0.80f, 0.01f);
+    b3w_add_box_ex(b3_staticBody, halfWidth + 0.25f, wallHeight * 0.5f, 0.0f, 0.25f, wallHeight * 0.5f, halfDepth + 0.5f, 0x20344Cu, 0.0f, 0.80f, 0.01f);
+    b3w_add_box_ex(b3_staticBody, 0.0f, wallHeight * 0.5f, -halfDepth - 0.25f, halfWidth + 0.5f, wallHeight * 0.5f, 0.25f, 0x20344Cu, 0.0f, 0.80f, 0.01f);
+    b3w_add_box_ex(b3_staticBody, 0.0f, wallHeight * 0.5f, halfDepth + 0.25f, halfWidth + 0.5f, wallHeight * 0.5f, 0.25f, 0x20344Cu, 0.0f, 0.80f, 0.01f);
+    if (variant == 1 || variant == 5)
+    {
+        b3w_add_box_ex(b3_staticBody, -halfWidth + 2.1f, 2.3f, 0.0f, 0.5f, 2.3f, halfDepth * 0.82f, 0x314861u, 0.0f, 0.80f, 0.01f);
+    }
+    const uint32_t colors[] = { 0x30AEBFu, 0xF97316u, 0xFFD166u, 0x8B5CF6u, 0x22C55Eu };
+    for (int i = 0; i < 2 + stress; ++i)
+    {
+        float size = 0.45f + (float)(i % 3) * 0.16f;
+        b3w_add_box_ex(
+            b3_dynamicBody,
+            -5.0f + (float)i * 2.4f,
+            2.4f + (float)i * 0.3f,
+            b3w_rand_range(-3.5f, 3.5f),
+            size * 1.4f,
+            size * 0.55f,
+            size,
+            colors[(variant + i + 2) % 5],
+            0.45f,
+            0.40f,
+            0.08f);
+    }
+}
 
 static void b3w_add_aaa_set_dressing(int family, int stress, int variant)
 {
@@ -442,6 +640,34 @@ static void b3w_add_aaa_set_dressing(int family, int stress, int variant)
                 b3w_add_box_ex(b3_staticBody, x, 5.8f, z, 0.58f, 0.18f, 0.58f, i % 3 ? 0xFFC96Bu : 0x59D8FFu, 0.0f, 0.84f, 0.01f);
             }
             break;
+
+        case 12: // cloth wind-tunnel rails and observation markers
+            b3w_add_box_ex(b3_staticBody, -16.0f, 7.5f, 0.0f, 0.10f, 0.10f, 8.0f, 0x30AEBFu, 0.0f, 0.82f, 0.01f);
+            b3w_add_box_ex(b3_staticBody, 16.0f, 7.5f, 0.0f, 0.10f, 0.10f, 8.0f, 0xFFD166u, 0.0f, 0.82f, 0.01f);
+            for (int i = -4; i <= 4; ++i)
+            {
+                b3w_add_box_ex(b3_staticBody, (float)i * 3.6f, 0.12f, 9.5f, 1.2f, 0.12f, 0.22f, (i & 1) ? 0x8B5CF6u : 0x50D8FFu, 0.0f, 0.84f, 0.01f);
+            }
+            break;
+
+        case 13: // rope/cable load-test towers
+            for (int sideIndex = 0; sideIndex < 2; ++sideIndex)
+            {
+                float side = sideIndex == 0 ? -1.0f : 1.0f;
+                b3w_add_box_ex(b3_staticBody, side * 19.0f, 5.0f, -7.0f, 0.12f, 5.0f, 0.12f, 0xF97316u, 0.0f, 0.82f, 0.01f);
+                b3w_add_box_ex(b3_staticBody, side * 19.0f, 5.0f, 7.0f, 0.12f, 5.0f, 0.12f, 0xF97316u, 0.0f, 0.82f, 0.01f);
+                b3w_add_box_ex(b3_staticBody, side * 19.0f, 10.0f, 0.0f, 0.10f, 0.10f, 7.0f, 0xFFD166u, 0.0f, 0.82f, 0.01f);
+            }
+            break;
+
+        case 14: // hydrodynamics observation wall and luminous datum rail
+            for (int i = -5; i <= 5; ++i)
+            {
+                b3w_add_box_ex(b3_staticBody, (float)i * 3.2f, 0.42f, -14.0f, 1.1f, 0.42f, 0.26f, (i & 1) ? 0x1D4E6Du : 0x2C6F8Fu, 0.0f, 0.85f, 0.01f);
+                b3w_add_box_ex(b3_staticBody, (float)i * 3.2f, 0.42f, 14.0f, 1.1f, 0.42f, 0.26f, (i & 1) ? 0x1D4E6Du : 0x2C6F8Fu, 0.0f, 0.85f, 0.01f);
+            }
+            b3w_add_box_ex(b3_staticBody, 0.0f, 6.5f, -13.0f, 18.0f, 0.08f, 0.08f, 0x50D8FFu, 0.0f, 0.82f, 0.01f);
+            break;
     }
 }
 
@@ -478,7 +704,7 @@ B3W_EXPORT int b3w_create_scene(int sceneId, int stressScale, uint32_t seed)
     int variant = sceneId % 10;
     b3w_create_world(seed);
 
-    // The browser catalog has 600 scenes: 12 families x 5 modes x 10 variants.
+    // The browser catalog has 750 scenes: 15 families x 5 modes x 10 variants.
     // This C bridge maps each family to a Box3D-native recipe and layers
     // lightweight variant actions on top until the full native catalog is expanded.
     switch (family)
@@ -519,6 +745,15 @@ B3W_EXPORT int b3w_create_scene(int sceneId, int stressScale, uint32_t seed)
         case 11:
             b3w_scene_skyscraper(stress);
             if (variant % 3 == 0) b3w_launch_projectile(-23.0f, 5.5f, 0.0f, 24.0f, 1.0f, 0.0f, 1.0f);
+            break;
+        case 12:
+            b3w_scene_cloth_stage(stress, variant);
+            break;
+        case 13:
+            b3w_scene_rope_stage(stress, variant);
+            break;
+        case 14:
+            b3w_scene_water_stage(stress, variant);
             break;
     }
 
@@ -571,40 +806,77 @@ B3W_EXPORT int b3w_max_bodies(void)
     return B3W_MAX_BODIES;
 }
 
+B3W_EXPORT uint32_t b3w_transform_version(void)
+{
+    return g_transformVersion;
+}
+
+B3W_EXPORT uint32_t b3w_color_version(void)
+{
+    return g_colorVersion;
+}
+
+B3W_EXPORT int b3w_awake_count(void)
+{
+    return B3_IS_NON_NULL(g_world) ? b3World_GetAwakeBodyCount(g_world) : 0;
+}
+
 B3W_EXPORT void b3w_sync_transforms(void)
 {
-    uint32_t hash = 2166136261u;
-    for (int i = 0; i < g_bodyCount; ++i)
+    // The compact index wins when static dressing dominates, but its extra
+    // load/indirection is measurable when almost every body is dynamic. Use a
+    // sequential scan for dense-dynamic worlds and retain the compact stream
+    // for the static-heavy case it was designed to accelerate.
+    if (g_dynamicCount * 4 >= g_bodyCount * 3)
     {
-        b3WorldTransform xf = b3Body_GetTransform(g_bodies[i].id);
-        b3w_write_model_matrix(i, xf.p, xf.q, g_bodies[i].hx, g_bodies[i].hy, g_bodies[i].hz);
-        const float* m = g_matrices + i * 16;
-        for (int k = 0; k < 16; ++k)
+        for (int i = 0; i < g_bodyCount; ++i)
         {
-            int32_t q = (int32_t)(m[k] * 1000.0f);
-            hash ^= (uint32_t)(q & 0xff);
-            hash *= 16777619u;
-            hash ^= (uint32_t)((q >> 8) & 0xff);
-            hash *= 16777619u;
-            hash ^= (uint32_t)((q >> 16) & 0xff);
-            hash *= 16777619u;
-            hash ^= (uint32_t)((q >> 24) & 0xff);
-            hash *= 16777619u;
+            if (g_bodies[i].dynamic == 0) continue;
+            b3WorldTransform xf = b3Body_GetTransform(g_bodies[i].id);
+            b3w_write_model_matrix(i, xf.p, xf.q, g_bodies[i].hx, g_bodies[i].hy, g_bodies[i].hz);
         }
     }
-    g_hash = hash;
+    else
+    {
+        for (int dynamicIndex = 0; dynamicIndex < g_dynamicCount; ++dynamicIndex)
+        {
+            const int i = g_dynamicIndices[dynamicIndex];
+            b3WorldTransform xf = b3Body_GetTransform(g_bodies[i].id);
+            b3w_write_model_matrix(i, xf.p, xf.q, g_bodies[i].hx, g_bodies[i].hy, g_bodies[i].hz);
+        }
+    }
+    g_hashDirty = 1;
+    g_transformVersion += 1u;
 }
 
 B3W_EXPORT void b3w_step(float dt, int subSteps)
 {
-    if (B3_IS_NULL(g_world) || dt <= 0.0f)
+    if (B3_IS_NULL(g_world) || !isfinite(dt) || dt <= 0.0f)
     {
         return;
     }
 
     subSteps = b3w_clamp_int(subSteps, 1, 16);
+    const int awakeBefore = b3World_GetAwakeBodyCount(g_world);
+    // This bridge creates no kinematic bodies and every exported mutation uses
+    // wake=true. With zero awake bodies, Box3D has no state that can advance;
+    // skip the solver as well as the transform scan. A later impulse or newly
+    // created dynamic body wakes the world before the next call reaches here.
+    if (awakeBefore == 0)
+    {
+        return;
+    }
     b3World_Step(g_world, dt, subSteps);
-    b3w_sync_transforms();
+
+    // If the step began awake, perform the same full synchronization used by
+    // the baseline. This deliberately includes the step where the last bodies
+    // fall asleep, so their terminal pose is captured exactly. Once a step
+    // begins with zero awake bodies, no transform can change and both the scan
+    // and transform revision are safely skipped.
+    if (awakeBefore != 0)
+    {
+        b3w_sync_transforms();
+    }
 }
 
 B3W_EXPORT void b3w_apply_impulse(int index, float ix, float iy, float iz)
@@ -623,8 +895,10 @@ B3W_EXPORT void b3w_kick_stack(float strength)
     for (int i = 0; i < g_bodyCount; ++i)
     {
         if (g_bodies[i].dynamic == 0) continue;
-        b3Pos p = b3Body_GetPosition(g_bodies[i].id);
-        float side = p.x >= 0.0f ? 1.0f : -1.0f;
+        // The synchronized stream already contains the authoritative body
+        // translation. Kick needs only the X sign, so avoid one native body
+        // lookup per dynamic body without changing RNG or impulse order.
+        float side = g_matrices[i * 16 + 12] >= 0.0f ? 1.0f : -1.0f;
         float lift = 0.35f + 0.7f * b3w_rand01();
         float spin = b3w_rand_range(-1.0f, 1.0f);
         b3Body_ApplyLinearImpulseToCenter(g_bodies[i].id, (b3Vec3){ side * strength * (0.25f + 0.75f * b3w_rand01()), strength * lift, spin * strength * 0.22f }, true);
@@ -634,9 +908,20 @@ B3W_EXPORT void b3w_kick_stack(float strength)
 B3W_EXPORT void b3w_explode(float cx, float cy, float cz, float strength, float radius)
 {
     if (radius <= 0.1f) radius = 8.0f;
+    const float radiusSquared = radius * radius;
     for (int i = 0; i < g_bodyCount; ++i)
     {
         if (g_bodies[i].dynamic == 0) continue;
+        // The transform stream is synchronized after every step and body
+        // creation. Use its translation for a conservative exact miss test so
+        // distant bodies avoid both a Box3D API lookup and sqrtf. Near the
+        // boundary, retain the original native position and distance path.
+        const float* m = g_matrices + i * 16;
+        const float cachedDx = m[12] - cx;
+        const float cachedDy = m[13] - cy;
+        const float cachedDz = m[14] - cz;
+        const float cachedDistanceSquared = cachedDx * cachedDx + cachedDy * cachedDy + cachedDz * cachedDz;
+        if (cachedDistanceSquared > radiusSquared * 1.000001f) continue;
         b3Pos p = b3Body_GetPosition(g_bodies[i].id);
         float dx = (float)p.x - cx;
         float dy = (float)p.y - cy;
@@ -664,5 +949,27 @@ B3W_EXPORT int b3w_launch_projectile(float x, float y, float z, float vx, float 
 
 B3W_EXPORT uint32_t b3w_replay_hash(void)
 {
+    if (g_hashDirty != 0)
+    {
+        uint32_t hash = 2166136261u;
+        for (int i = 0; i < g_bodyCount; ++i)
+        {
+            const float* m = g_matrices + i * 16;
+            for (int k = 0; k < 16; ++k)
+            {
+                int32_t q = (int32_t)(m[k] * 1000.0f);
+                hash ^= (uint32_t)(q & 0xff);
+                hash *= 16777619u;
+                hash ^= (uint32_t)((q >> 8) & 0xff);
+                hash *= 16777619u;
+                hash ^= (uint32_t)((q >> 16) & 0xff);
+                hash *= 16777619u;
+                hash ^= (uint32_t)((q >> 24) & 0xff);
+                hash *= 16777619u;
+            }
+        }
+        g_hash = hash;
+        g_hashDirty = 0;
+    }
     return g_hash;
 }

@@ -1,0 +1,91 @@
+{
+  "dimensions": [
+    256,
+    256
+  ],
+  "sourceMipLevels": 9,
+  "residentBc4MipLevels": 7,
+  "r8FileBytes": 87840,
+  "bc4FileBytes": 44160,
+  "fileReductionPercent": 49.73,
+  "residentR8Bytes": 87381,
+  "residentBc4Bytes": 43688,
+  "residentReductionPercent": 50,
+  "baseMipPsnrDb": 30.862,
+  "baseMipRmse": 7.302,
+  "baseMipMaxError": 17,
+  "qualityByLevel": [
+    {
+      "level": 0,
+      "width": 256,
+      "height": 256,
+      "psnrDb": 30.862,
+      "rmse": 7.302,
+      "maxError": 17
+    },
+    {
+      "level": 1,
+      "width": 128,
+      "height": 128,
+      "psnrDb": 35.691,
+      "rmse": 4.188,
+      "maxError": 12
+    },
+    {
+      "level": 2,
+      "width": 64,
+      "height": 64,
+      "psnrDb": 41.693,
+      "rmse": 2.098,
+      "maxError": 6
+    },
+    {
+      "level": 3,
+      "width": 32,
+      "height": 32,
+      "psnrDb": 47.908,
+      "rmse": 1.026,
+      "maxError": 3
+    },
+    {
+      "level": 4,
+      "width": 16,
+      "height": 16,
+      "psnrDb": 53.075,
+      "rmse": 0.566,
+      "maxError": 1
+    },
+    {
+      "level": 5,
+      "width": 8,
+      "height": 8,
+      "psnrDb": 60.172,
+      "rmse": 0.25,
+      "maxError": 1
+    },
+    {
+      "level": 6,
+      "width": 4,
+      "height": 4,
+      "psnrDb": null,
+      "rmse": 0,
+      "maxError": 0
+    },
+    {
+      "level": 7,
+      "width": 2,
+      "height": 2,
+      "psnrDb": null,
+      "rmse": 0,
+      "maxError": 0
+    },
+    {
+      "level": 8,
+      "width": 1,
+      "height": 1,
+      "psnrDb": null,
+      "rmse": 0,
+      "maxError": 0
+    }
+  ]
+}

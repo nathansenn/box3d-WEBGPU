@@ -1,0 +1,73 @@
+{
+  "passed": true,
+  "comparison": "current renderer plus archived dead packed-water path vs current renderer",
+  "backend": "Dawn Metal",
+  "freshProcessSamplesPerVariant": 9,
+  "pipelineReduction": {
+    "shaderModules": 1,
+    "renderPipelines": 2,
+    "computePipelines": 0
+  },
+  "baselineStartupMedianMs": 31.538874999999962,
+  "optimizedStartupMedianMs": 30.021708000000046,
+  "startupSpeedup": 1.0505356657256113,
+  "startupReductionPercent": 4.810466448153006,
+  "startup": {
+    "controlWithDeadPackedWater": {
+      "samplesMs": [
+        32.056625,
+        31.538874999999962,
+        31.913667000000032,
+        36.51520800000003,
+        31.048541,
+        32.444458,
+        28.781542,
+        30.419959000000006,
+        29.368750000000034
+      ],
+      "medianMs": 31.538874999999962,
+      "madMs": 0.9055830000000356
+    },
+    "optimizedWithoutDeadPackedWater": {
+      "samplesMs": [
+        30.978875000000016,
+        29.613166999999976,
+        30.021708000000046,
+        30.965874999999983,
+        28.772042,
+        30.581500000000005,
+        31.76174999999995,
+        29.240875000000017,
+        27.755999999999972
+      ],
+      "medianMs": 30.021708000000046,
+      "madMs": 0.9441669999999363
+    }
+  },
+  "resourceCounts": {
+    "control": {
+      "shaderModules": 12,
+      "renderPipelines": 18,
+      "computePipelines": 1
+    },
+    "optimized": {
+      "shaderModules": 11,
+      "renderPipelines": 16,
+      "computePipelines": 1
+    }
+  },
+  "exactRuntimeValidation": {
+    "samplesPerVariant": 9,
+    "packedClothUploadBytes": 108,
+    "gpuWaterUploadBytes": 48,
+    "packedClothPixelHash": 1137399572,
+    "gpuWaterPixelHash": 2035076563,
+    "controlAndOptimizedPixelHashesExact": true,
+    "uncapturedWebGpuErrors": 0
+  },
+  "retentionGate": {
+    "startupMeasurablyFaster": false,
+    "resourceAndPipelineWorkStrictlyEliminated": true,
+    "retainedBecause": "one WGSL module and two render pipelines are strictly eliminated with exact rendered-frame hashes"
+  }
+}

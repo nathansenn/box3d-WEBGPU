@@ -1,0 +1,199 @@
+{
+  "schemaVersion": 1,
+  "generatedAt": "2026-07-15T10:21:19.809Z",
+  "candidate": "version-keyed main-loop debug/effect line staging cache",
+  "decision": "accepted",
+  "exactness": {
+    "framesCompared": 4096,
+    "floatFieldsComparedPerLine": 10,
+    "mismatches": 0,
+    "aggregateHash": "0x53a4bcb6",
+    "unchangedIdentityChecks": 1812
+  },
+  "benchmark": {
+    "samples": 11,
+    "alternatingOrder": true,
+    "bootstrapResamples": 20000,
+    "timings": "nanoseconds per complete main-loop line-staging frame",
+    "scenarios": [
+      {
+        "name": "paused-diagnostics",
+        "framesPerSample": 12000,
+        "samples": 11,
+        "baselineMedianNsPerFrame": 16218.996583333334,
+        "optimizedMedianNsPerFrame": 21.552083333333332,
+        "speedup": 752.548898985017,
+        "paired95": [
+          559.3354933429291,
+          800.1923231215103
+        ],
+        "baselineMadNsPerFrame": 102.83324999999968,
+        "optimizedMadNsPerFrame": 2.46875,
+        "baselineSamples": [
+          16290.048583333333,
+          16180.100666666667,
+          16110.350666666667,
+          16218.996583333334,
+          16321.829833333333,
+          16537.697916666668,
+          16872.767333333333,
+          16191.59725,
+          16270.104166666666,
+          16100.378416666666,
+          16078.375
+        ],
+        "optimizedSamples": [
+          37.77425,
+          41.57983333333333,
+          22.7535,
+          20.65275,
+          21.534666666666666,
+          19.083333333333332,
+          20.357666666666667,
+          28.947916666666668,
+          21.552083333333332,
+          17.9375,
+          25.961833333333335
+        ]
+      },
+      {
+        "name": "paused-effects",
+        "framesPerSample": 12000,
+        "samples": 11,
+        "baselineMedianNsPerFrame": 384.809,
+        "optimizedMedianNsPerFrame": 13.4305,
+        "speedup": 28.651874464837498,
+        "paired95": [
+          28.250119296700074,
+          29.224393135725432
+        ],
+        "baselineMadNsPerFrame": 3.902750000000026,
+        "optimizedMadNsPerFrame": 0.10408333333333353,
+        "baselineSamples": [
+          426.8229166666667,
+          382.9583333333333,
+          376.39933333333335,
+          377.84725,
+          390.2674166666667,
+          386.00691666666665,
+          384.809,
+          392.0034166666667,
+          383.0104166666667,
+          380.90625,
+          388.19441666666665
+        ],
+        "optimizedSamples": [
+          14.979166666666666,
+          16.541666666666668,
+          13.4305,
+          13.326416666666667,
+          13.253416666666666,
+          13.055583333333333,
+          13.6215,
+          13.354166666666666,
+          13.326416666666667,
+          13.47225,
+          13.46875
+        ]
+      },
+      {
+        "name": "mixed-60hz",
+        "framesPerSample": 12000,
+        "samples": 11,
+        "baselineMedianNsPerFrame": 8115.638916666667,
+        "optimizedMedianNsPerFrame": 3803.618,
+        "speedup": 2.1336629800013216,
+        "paired95": [
+          2.1108500881426275,
+          2.1483147359314945
+        ],
+        "baselineMadNsPerFrame": 39.8715000000002,
+        "optimizedMadNsPerFrame": 28.329833333333227,
+        "baselineSamples": [
+          8382.28475,
+          8155.510416666667,
+          8100.90625,
+          8073.284666666666,
+          8115.638916666667,
+          8174.427083333333,
+          8179.53125,
+          8122.104166666667,
+          8096.989583333333,
+          8097.888916666667,
+          8068.15975
+        ],
+        "optimizedSamples": [
+          3968.441,
+          3784.4791666666665,
+          3797.1666666666665,
+          3775.2881666666667,
+          3844.2083333333335,
+          3848.7986666666666,
+          3805.0416666666665,
+          3847.78825,
+          3773.5208333333335,
+          3803.618,
+          3782.0903333333335
+        ]
+      },
+      {
+        "name": "active-diagnostics",
+        "framesPerSample": 3000,
+        "samples": 11,
+        "baselineMedianNsPerFrame": 15885.583333333334,
+        "optimizedMedianNsPerFrame": 12495.833333333334,
+        "speedup": 1.2712704234744914,
+        "paired95": [
+          1.2555699695252953,
+          1.2766290084813547
+        ],
+        "baselineMadNsPerFrame": 69.61100000000079,
+        "optimizedMadNsPerFrame": 110.25,
+        "baselineSamples": [
+          16021.666666666666,
+          15819.805666666667,
+          15827.472333333333,
+          16073.333333333334,
+          15815.972333333333,
+          15902,
+          15885.583333333334,
+          15683.25,
+          16093.291666666666,
+          16183.625,
+          15827.819666666666
+        ],
+        "optimizedSamples": [
+          12553.388666666666,
+          12485.319333333333,
+          12444.180666666667,
+          12703.375,
+          12404.903,
+          12495.833333333334,
+          12384.472333333333,
+          12339.014,
+          12606.083333333334,
+          12622.264,
+          12828.833333333334
+        ]
+      }
+    ]
+  },
+  "source": {
+    "baselineArchive": "benchmarks/baselines/box3d-webgpu-v1.10.0-source.tar.gz",
+    "baselineArchiveSha256": "dea18ff88e86568e5449c9dece5610d0dfadf38d901eef1c1e39155c64e8c3f5",
+    "optimizedHelper": "src/frame-lines.ts",
+    "integration": "src/main.ts"
+  },
+  "acceptance": {
+    "unchangedLower95Minimum": 1.03,
+    "mixedLower95Minimum": 1.03,
+    "activeLower95Minimum": 0.97,
+    "passed": true
+  },
+  "notes": [
+    "The measured region includes rigid grid/body wireframe reconstruction plus soft/effect list staging; it is not a timer-floor cache lookup microbenchmark.",
+    "The active diagnostics control changes every source version every frame and therefore forces the optimized path to rebuild exactly as the original does.",
+    "The renderer line-packing/upload cache remains independent; this optimization removes redundant work before that renderer cache is reached."
+  ],
+  "sink": 586645275.2383994
+}

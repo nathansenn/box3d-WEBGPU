@@ -1,0 +1,2041 @@
+{
+  "generatedAt": "2026-07-14T10:52:34.269Z",
+  "node": "v26.0.0",
+  "platform": "darwin/arm64",
+  "framesPerWorkload": 60,
+  "samples": 5,
+  "warmups": 2,
+  "fanouts": [
+    1,
+    4,
+    16
+  ],
+  "methodology": "Median wall-clock timing after warmup on real maximum-detail cloth, rope, and water streams. Dense mode is a blockwise TurboQuant-MSE adaptation; structured mode uses randomized Walsh-Hadamard rotations inspired by Fast-TurboQuant. Both use Gaussian Lloyd-Max scalar codebooks.",
+  "results": [
+    {
+      "id": "cloth",
+      "sceneId": 649,
+      "scene": "Tensioned Membrane Drum — Cinematic",
+      "kind": "surface",
+      "frameCount": 60,
+      "vectorLength": 5100,
+      "codecs": [
+        {
+          "name": "TurboQuant blockwise dense 4-bit",
+          "options": {
+            "bits": 4,
+            "blockSize": 32,
+            "rotation": "dense",
+            "centered": true,
+            "seed": 7427351
+          },
+          "vectorLength": 5100,
+          "rawBytes": 20400,
+          "packetBytes": 3840,
+          "compressionRatio": 5.3125,
+          "absoluteEncodeDecode": {
+            "samplesMs": [
+              21.527165999999994,
+              21.175667000000004,
+              21.552707999999996,
+              21.614708000000007,
+              21.433374999999955
+            ],
+            "medianMs": 21.527165999999994,
+            "madMs": 0.08754200000001333
+          },
+          "predictiveEncodeDecode": {
+            "samplesMs": [
+              36.97162500000002,
+              37.02125000000001,
+              35.58212500000002,
+              36.69820800000002,
+              36.56629200000009
+            ],
+            "medianMs": 36.69820800000002,
+            "madMs": 0.2734169999999949
+          },
+          "rawCopy": {
+            "samplesMs": [
+              0.024042000000008557,
+              0.023832999999967797,
+              0.024292000000059488,
+              0.023333999999977095,
+              0.0244590000000926
+            ],
+            "medianMs": 0.024042000000008557,
+            "madMs": 0.0002500000000509317
+          },
+          "compressedCopy": {
+            "samplesMs": [
+              0.00987499999996544,
+              0.008791999999971267,
+              0.008249999999975444,
+              0.008458000000018728,
+              0.008417000000008557
+            ],
+            "medianMs": 0.008458000000018728,
+            "madMs": 0.00020800000004328467
+          },
+          "copyOnlySpeedup": 2.8425159612148643,
+          "absoluteError": {
+            "mse": 0.13281890012599878,
+            "rmse": 0.3644432742224759,
+            "relativeL2": 0.07819277461604497,
+            "maxAbs": 1.9682869911193848,
+            "p95Abs": 0.6970338821411133,
+            "p99Abs": 1.0198898315429688
+          },
+          "predictiveError": {
+            "mse": 0.0022420454915954824,
+            "rmse": 0.0473502427828568,
+            "relativeL2": 0.010159185595711549,
+            "maxAbs": 1.6702089309692383,
+            "p95Abs": 0.01616048812866211,
+            "p99Abs": 0.12742632627487183
+          },
+          "fanout": {
+            "1": {
+              "rawCopyMedianMs": 0.0005840000000034706,
+              "compressedCopyMedianMs": 0.0006250000000136424,
+              "copyOnlySpeedup": 0.934399999985157
+            },
+            "4": {
+              "rawCopyMedianMs": 0.0013330000000451037,
+              "compressedCopyMedianMs": 0.0009169999999585343,
+              "copyOnlySpeedup": 1.4536532171269143
+            },
+            "16": {
+              "rawCopyMedianMs": 0.004333999999971638,
+              "compressedCopyMedianMs": 0.0026669999999739957,
+              "copyOnlySpeedup": 1.6250468691465678
+            }
+          },
+          "transportModel": {
+            "codecMsPerFrame": 0.6116368000000004,
+            "rawCopyMsPerFrame": 0.0004007000000001426,
+            "compressedCopyMsPerFrame": 0.0001409666666669788,
+            "localEndToEndSpeedup": 0.0006551273566275645,
+            "bytesSavedPerFrame": 16560,
+            "breakEvenBytesPerSecond": 27074891.504239097,
+            "breakEvenMegabytesPerSecond": 27.074891504239098,
+            "modeledLinks": {
+              "5": {
+                "rawLatencyMs": 4.08,
+                "turboLatencyMs": 1.3796368000000006,
+                "speedup": 2.9573000662203257
+              },
+              "10": {
+                "rawLatencyMs": 2.04,
+                "turboLatencyMs": 0.9956368000000004,
+                "speedup": 2.048939934723183
+              },
+              "25": {
+                "rawLatencyMs": 0.816,
+                "turboLatencyMs": 0.7652368000000004,
+                "speedup": 1.066336590190121
+              },
+              "50": {
+                "rawLatencyMs": 0.408,
+                "turboLatencyMs": 0.6884368000000004,
+                "speedup": 0.5926469938852771
+              },
+              "100": {
+                "rawLatencyMs": 0.204,
+                "turboLatencyMs": 0.6500368000000004,
+                "speedup": 0.31382838633135823
+              },
+              "250": {
+                "rawLatencyMs": 0.0816,
+                "turboLatencyMs": 0.6269968000000005,
+                "speedup": 0.13014420488270426
+              }
+            }
+          }
+        },
+        {
+          "name": "TurboQuant structured 4-bit",
+          "options": {
+            "bits": 4,
+            "blockSize": 64,
+            "rotation": "structured",
+            "centered": true,
+            "seed": 7427351
+          },
+          "vectorLength": 5100,
+          "rawBytes": 20400,
+          "packetBytes": 3200,
+          "compressionRatio": 6.375,
+          "absoluteEncodeDecode": {
+            "samplesMs": [
+              12.461583000000019,
+              9.88333399999999,
+              11.684415999999942,
+              10.669209000000023,
+              10.312124999999924
+            ],
+            "medianMs": 10.669209000000023,
+            "madMs": 0.7858750000000327
+          },
+          "predictiveEncodeDecode": {
+            "samplesMs": [
+              22.3014169999999,
+              18.767832999999996,
+              19.512499999999932,
+              19.45358299999998,
+              19.269333999999958
+            ],
+            "medianMs": 19.45358299999998,
+            "madMs": 0.18424900000002253
+          },
+          "rawCopy": {
+            "samplesMs": [
+              0.017040999999949236,
+              0.016875000000027285,
+              0.016833000000019638,
+              0.018790999999964697,
+              0.01675000000000182
+            ],
+            "medianMs": 0.016875000000027285,
+            "madMs": 0.00012500000002546585
+          },
+          "compressedCopy": {
+            "samplesMs": [
+              0.017875000000003638,
+              0.005249999999932697,
+              0.005291000000056556,
+              0.005291000000056556,
+              0.00520799999992505
+            ],
+            "medianMs": 0.005291000000056556,
+            "madMs": 0.000041000000123858626
+          },
+          "copyOnlySpeedup": 3.1893781893492545,
+          "absoluteError": {
+            "mse": 0.14433735586851262,
+            "rmse": 0.3799175645696216,
+            "relativeL2": 0.08151284603193004,
+            "maxAbs": 3.1821274757385254,
+            "p95Abs": 0.7767279148101807,
+            "p99Abs": 1.0443158149719238
+          },
+          "predictiveError": {
+            "mse": 0.0025597429762935367,
+            "rmse": 0.0505939025604226,
+            "relativeL2": 0.010855125885622081,
+            "maxAbs": 2.938202381134033,
+            "p95Abs": 0.01826763153076172,
+            "p99Abs": 0.18767499923706055
+          },
+          "fanout": {
+            "1": {
+              "rawCopyMedianMs": 0.00033400000006622577,
+              "compressedCopyMedianMs": 0.00016700000003311288,
+              "copyOnlySpeedup": 2
+            },
+            "4": {
+              "rawCopyMedianMs": 0.001125000000001819,
+              "compressedCopyMedianMs": 0.0004999999999881766,
+              "copyOnlySpeedup": 2.2500000000568434
+            },
+            "16": {
+              "rawCopyMedianMs": 0.003375000000005457,
+              "compressedCopyMedianMs": 0.0017920000000231084,
+              "copyOnlySpeedup": 1.8833705356930441
+            }
+          },
+          "transportModel": {
+            "codecMsPerFrame": 0.32422638333333303,
+            "rawCopyMsPerFrame": 0.00028125000000045475,
+            "compressedCopyMsPerFrame": 0.00008818333333427593,
+            "localEndToEndSpeedup": 0.0008674494564845613,
+            "bytesSavedPerFrame": 17200,
+            "breakEvenBytesPerSecond": 53049353.427592285,
+            "breakEvenMegabytesPerSecond": 53.04935342759229,
+            "modeledLinks": {
+              "5": {
+                "rawLatencyMs": 4.08,
+                "turboLatencyMs": 0.9642263833333331,
+                "speedup": 4.231371460605994
+              },
+              "10": {
+                "rawLatencyMs": 2.04,
+                "turboLatencyMs": 0.644226383333333,
+                "speedup": 3.1665887221890934
+              },
+              "25": {
+                "rawLatencyMs": 0.816,
+                "turboLatencyMs": 0.45222638333333304,
+                "speedup": 1.8044060012273362
+              },
+              "50": {
+                "rawLatencyMs": 0.408,
+                "turboLatencyMs": 0.38822638333333304,
+                "speedup": 1.0509332119494033
+              },
+              "100": {
+                "rawLatencyMs": 0.204,
+                "turboLatencyMs": 0.356226383333333,
+                "speedup": 0.5726695425844142
+              },
+              "250": {
+                "rawLatencyMs": 0.0816,
+                "turboLatencyMs": 0.337026383333333,
+                "speedup": 0.24211754341883152
+              }
+            }
+          }
+        },
+        {
+          "name": "TurboQuant structured 3-bit",
+          "options": {
+            "bits": 3,
+            "blockSize": 64,
+            "rotation": "structured",
+            "centered": true,
+            "seed": 7427351
+          },
+          "vectorLength": 5100,
+          "rawBytes": 20400,
+          "packetBytes": 2560,
+          "compressionRatio": 7.96875,
+          "absoluteEncodeDecode": {
+            "samplesMs": [
+              9.394499999999994,
+              8.864000000000033,
+              9.010291999999936,
+              8.527207999999973,
+              8.677708999999822
+            ],
+            "medianMs": 8.864000000000033,
+            "madMs": 0.18629100000021026
+          },
+          "predictiveEncodeDecode": {
+            "samplesMs": [
+              17.06224999999995,
+              17.25254199999995,
+              17.364082999999937,
+              17.368875000000116,
+              16.651832999999897
+            ],
+            "medianMs": 17.25254199999995,
+            "madMs": 0.11633300000016789
+          },
+          "rawCopy": {
+            "samplesMs": [
+              0.017166999999972177,
+              0.01679100000001199,
+              0.016624999999976353,
+              0.016707999999880485,
+              0.016624999999976353
+            ],
+            "medianMs": 0.016707999999880485,
+            "madMs": 0.00008299999990413198
+          },
+          "compressedCopy": {
+            "samplesMs": [
+              0.0027499999998781277,
+              0.0027079999999841675,
+              0.002708999999867956,
+              0.0027090000000953296,
+              0.0027079999999841675
+            ],
+            "medianMs": 0.002708999999867956,
+            "madMs": 9.99999883788405e-7
+          },
+          "copyOnlySpeedup": 6.1675895166832335,
+          "absoluteError": {
+            "mse": 0.5186294520845537,
+            "rmse": 0.7201593240974901,
+            "relativeL2": 0.1545130880434986,
+            "maxAbs": 5.067680835723877,
+            "p95Abs": 1.4612020254135132,
+            "p99Abs": 1.9673070907592773
+          },
+          "predictiveError": {
+            "mse": 0.009585728565574523,
+            "rmse": 0.0979067340154625,
+            "relativeL2": 0.021006284730036563,
+            "maxAbs": 5.058775901794434,
+            "p95Abs": 0.047606468200683594,
+            "p99Abs": 0.39264678955078125
+          },
+          "fanout": {
+            "1": {
+              "rawCopyMedianMs": 0.0003329999999550637,
+              "compressedCopyMedianMs": 0.00016600000003563764,
+              "copyOnlySpeedup": 2.006024095684179
+            },
+            "4": {
+              "rawCopyMedianMs": 0.001125000000001819,
+              "compressedCopyMedianMs": 0.00045899999986431794,
+              "copyOnlySpeedup": 2.450980392885344
+            },
+            "16": {
+              "rawCopyMedianMs": 0.0037079999999605207,
+              "compressedCopyMedianMs": 0.0017080000000078144,
+              "copyOnlySpeedup": 2.170960187320583
+            }
+          },
+          "transportModel": {
+            "codecMsPerFrame": 0.2875423666666658,
+            "rawCopyMsPerFrame": 0.00027846666666467474,
+            "compressedCopyMsPerFrame": 0.000045149999997799266,
+            "localEndToEndSpeedup": 0.0009684369990161759,
+            "bytesSavedPerFrame": 17840,
+            "breakEvenBytesPerSecond": 62043031.108111665,
+            "breakEvenMegabytesPerSecond": 62.04303110811166,
+            "modeledLinks": {
+              "5": {
+                "rawLatencyMs": 4.08,
+                "turboLatencyMs": 0.7995423666666659,
+                "speedup": 5.10291908233673
+              },
+              "10": {
+                "rawLatencyMs": 2.04,
+                "turboLatencyMs": 0.5435423666666659,
+                "speedup": 3.7531572975820215
+              },
+              "25": {
+                "rawLatencyMs": 0.816,
+                "turboLatencyMs": 0.3899423666666658,
+                "speedup": 2.09261693458803
+              },
+              "50": {
+                "rawLatencyMs": 0.408,
+                "turboLatencyMs": 0.3387423666666658,
+                "speedup": 1.2044551852632184
+              },
+              "100": {
+                "rawLatencyMs": 0.204,
+                "turboLatencyMs": 0.31314236666666584,
+                "speedup": 0.6514608743988773
+              },
+              "250": {
+                "rawLatencyMs": 0.0816,
+                "turboLatencyMs": 0.29778236666666585,
+                "speedup": 0.2740256278886456
+              }
+            }
+          }
+        },
+        {
+          "name": "TurboQuant structured 4-bit delta",
+          "options": {
+            "bits": 4,
+            "blockSize": 64,
+            "rotation": "structured",
+            "centered": false,
+            "seed": 7427351
+          },
+          "vectorLength": 5100,
+          "rawBytes": 20400,
+          "packetBytes": 2880,
+          "compressionRatio": 7.083333333333333,
+          "absoluteEncodeDecode": {
+            "samplesMs": [
+              9.323333999999932,
+              10.192749999999933,
+              10.212500000000091,
+              10.525000000000091,
+              9.458750000000009
+            ],
+            "medianMs": 10.192749999999933,
+            "madMs": 0.33225000000015825
+          },
+          "predictiveEncodeDecode": {
+            "samplesMs": [
+              19.188875000000053,
+              19.329124999999976,
+              19.167582999999922,
+              18.163749999999936,
+              18.94770799999992
+            ],
+            "medianMs": 19.167582999999922,
+            "madMs": 0.16154200000005403
+          },
+          "rawCopy": {
+            "samplesMs": [
+              0.022459000000026208,
+              0.019207999999935055,
+              0.02041600000006838,
+              0.02070800000001327,
+              0.019916999999850304
+            ],
+            "medianMs": 0.02041600000006838,
+            "madMs": 0.000499000000218075
+          },
+          "compressedCopy": {
+            "samplesMs": [
+              0.00454200000012861,
+              0.004415999999991982,
+              0.004415999999991982,
+              0.004417000000103144,
+              0.00441699999987577
+            ],
+            "medianMs": 0.00441699999987577,
+            "madMs": 9.99999883788405e-7
+          },
+          "copyOnlySpeedup": 4.622141725298299,
+          "absoluteError": {
+            "mse": 0.1993901796631055,
+            "rmse": 0.4465312751231491,
+            "relativeL2": 0.09580508634494718,
+            "maxAbs": 3.894310474395752,
+            "p95Abs": 0.8742727041244507,
+            "p99Abs": 1.2010765075683594
+          },
+          "predictiveError": {
+            "mse": 0.0034394276652915147,
+            "rmse": 0.0586466338786082,
+            "relativeL2": 0.012582871873937593,
+            "maxAbs": 3.4943857192993164,
+            "p95Abs": 0.02198934555053711,
+            "p99Abs": 0.23920857906341553
+          },
+          "fanout": {
+            "1": {
+              "rawCopyMedianMs": 0.0003339999998388521,
+              "compressedCopyMedianMs": 0.00012500000002546585,
+              "copyOnlySpeedup": 2.671999998166459
+            },
+            "4": {
+              "rawCopyMedianMs": 0.001125000000001819,
+              "compressedCopyMedianMs": 0.00041699999997035775,
+              "copyOnlySpeedup": 2.697841726814842
+            },
+            "16": {
+              "rawCopyMedianMs": 0.004415999999991982,
+              "compressedCopyMedianMs": 0.0014579999999568827,
+              "copyOnlySpeedup": 3.0288065844462113
+            }
+          },
+          "transportModel": {
+            "codecMsPerFrame": 0.3194597166666654,
+            "rawCopyMsPerFrame": 0.00034026666666780634,
+            "compressedCopyMsPerFrame": 0.00007361666666459618,
+            "localEndToEndSpeedup": 0.0010651316861426119,
+            "bytesSavedPerFrame": 17520,
+            "breakEvenBytesPerSecond": 54842595.438350484,
+            "breakEvenMegabytesPerSecond": 54.842595438350486,
+            "modeledLinks": {
+              "5": {
+                "rawLatencyMs": 4.08,
+                "turboLatencyMs": 0.8954597166666655,
+                "speedup": 4.556318865116272
+              },
+              "10": {
+                "rawLatencyMs": 2.04,
+                "turboLatencyMs": 0.6074597166666654,
+                "speedup": 3.358247376787653
+              },
+              "25": {
+                "rawLatencyMs": 0.816,
+                "turboLatencyMs": 0.43465971666666536,
+                "speedup": 1.877330630631638
+              },
+              "50": {
+                "rawLatencyMs": 0.408,
+                "turboLatencyMs": 0.3770597166666654,
+                "speedup": 1.0820567193092305
+              },
+              "100": {
+                "rawLatencyMs": 0.204,
+                "turboLatencyMs": 0.3482597166666654,
+                "speedup": 0.5857697294208084
+              },
+              "250": {
+                "rawLatencyMs": 0.0816,
+                "turboLatencyMs": 0.33097971666666537,
+                "speedup": 0.24654078751955846
+              }
+            }
+          }
+        },
+        {
+          "name": "TurboQuant structured 3-bit delta",
+          "options": {
+            "bits": 3,
+            "blockSize": 64,
+            "rotation": "structured",
+            "centered": false,
+            "seed": 7427351
+          },
+          "vectorLength": 5100,
+          "rawBytes": 20400,
+          "packetBytes": 2240,
+          "compressionRatio": 9.107142857142858,
+          "absoluteEncodeDecode": {
+            "samplesMs": [
+              8.81916699999988,
+              12.5612500000002,
+              9.95920799999999,
+              8.986249999999927,
+              8.888625000000047
+            ],
+            "medianMs": 8.986249999999927,
+            "madMs": 0.16708300000004783
+          },
+          "predictiveEncodeDecode": {
+            "samplesMs": [
+              16.539833000000044,
+              16.308958000000075,
+              16.39887500000009,
+              16.686709000000064,
+              16.89258400000017
+            ],
+            "medianMs": 16.539833000000044,
+            "madMs": 0.1468760000000202
+          },
+          "rawCopy": {
+            "samplesMs": [
+              0.018625000000156433,
+              0.019416999999975815,
+              0.01866599999993923,
+              0.0184159999998883,
+              0.01883300000008603
+            ],
+            "medianMs": 0.01866599999993923,
+            "madMs": 0.00016700000014679972
+          },
+          "compressedCopy": {
+            "samplesMs": [
+              0.004083000000036918,
+              0.004041999999799373,
+              0.004042000000026746,
+              0.004124999999930878,
+              0.004000000000132786
+            ],
+            "medianMs": 0.004042000000026746,
+            "madMs": 0.00004100000001017179
+          },
+          "copyOnlySpeedup": 4.618010885654556,
+          "absoluteError": {
+            "mse": 0.7436555718191734,
+            "rmse": 0.8623546670710222,
+            "relativeL2": 0.18502167248178125,
+            "maxAbs": 4.7354676723480225,
+            "p95Abs": 1.680345058441162,
+            "p99Abs": 2.164128541946411
+          },
+          "predictiveError": {
+            "mse": 0.013758704903306834,
+            "rmse": 0.11729750595518573,
+            "relativeL2": 0.02516665307034602,
+            "maxAbs": 4.372101306915283,
+            "p95Abs": 0.06259822845458984,
+            "p99Abs": 0.4767594337463379
+          },
+          "fanout": {
+            "1": {
+              "rawCopyMedianMs": 0.0003329999999550637,
+              "compressedCopyMedianMs": 0.00012500000002546585,
+              "copyOnlySpeedup": 2.6639999990977814
+            },
+            "4": {
+              "rawCopyMedianMs": 0.001042000000097687,
+              "compressedCopyMedianMs": 0.00037500000007639755,
+              "copyOnlySpeedup": 2.7786666663610764
+            },
+            "16": {
+              "rawCopyMedianMs": 0.0035420000001522567,
+              "compressedCopyMedianMs": 0.0012920000001486187,
+              "copyOnlySpeedup": 2.741486067913948
+            }
+          },
+          "transportModel": {
+            "codecMsPerFrame": 0.2756638833333341,
+            "rawCopyMsPerFrame": 0.00031109999999898717,
+            "compressedCopyMsPerFrame": 0.00006736666666711244,
+            "localEndToEndSpeedup": 0.0011285482749396067,
+            "bytesSavedPerFrame": 18160,
+            "breakEvenBytesPerSecond": 65877327.78196714,
+            "breakEvenMegabytesPerSecond": 65.87732778196714,
+            "modeledLinks": {
+              "5": {
+                "rawLatencyMs": 4.08,
+                "turboLatencyMs": 0.7236638833333341,
+                "speedup": 5.637976544036909
+              },
+              "10": {
+                "rawLatencyMs": 2.04,
+                "turboLatencyMs": 0.4996638833333341,
+                "speedup": 4.082744556982683
+              },
+              "25": {
+                "rawLatencyMs": 0.816,
+                "turboLatencyMs": 0.3652638833333341,
+                "speedup": 2.234001326803316
+              },
+              "50": {
+                "rawLatencyMs": 0.408,
+                "turboLatencyMs": 0.3204638833333341,
+                "speedup": 1.2731543903049263
+              },
+              "100": {
+                "rawLatencyMs": 0.204,
+                "turboLatencyMs": 0.29806388333333406,
+                "speedup": 0.684417037443817
+              },
+              "250": {
+                "rawLatencyMs": 0.0816,
+                "turboLatencyMs": 0.2846238833333341,
+                "speedup": 0.28669414191231124
+              }
+            }
+          }
+        }
+      ]
+    },
+    {
+      "id": "rope",
+      "sceneId": 699,
+      "scene": "Rope Net Resonance — Cinematic",
+      "kind": "rope-positions",
+      "frameCount": 60,
+      "vectorLength": 1029,
+      "codecs": [
+        {
+          "name": "TurboQuant blockwise dense 4-bit",
+          "options": {
+            "bits": 4,
+            "blockSize": 32,
+            "rotation": "dense",
+            "centered": true,
+            "seed": 7427351
+          },
+          "vectorLength": 1029,
+          "rawBytes": 4116,
+          "packetBytes": 792,
+          "compressionRatio": 5.196969696969697,
+          "absoluteEncodeDecode": {
+            "samplesMs": [
+              4.442375000000084,
+              4.526333999999906,
+              4.547874999999976,
+              4.5054589999999735,
+              4.587083000000121
+            ],
+            "medianMs": 4.526333999999906,
+            "madMs": 0.0215410000000702
+          },
+          "predictiveEncodeDecode": {
+            "samplesMs": [
+              7.866458000000193,
+              7.870874999999842,
+              7.920125000000098,
+              7.779457999999977,
+              8.242665999999872
+            ],
+            "medianMs": 7.870874999999842,
+            "madMs": 0.04925000000025648
+          },
+          "rawCopy": {
+            "samplesMs": [
+              0.005290999999942869,
+              0.005499999999983629,
+              0.006458000000066022,
+              0.006333000000040556,
+              0.005125000000134605
+            ],
+            "medianMs": 0.005499999999983629,
+            "madMs": 0.0003749999998490239
+          },
+          "compressedCopy": {
+            "samplesMs": [
+              0.004208000000062384,
+              0.004040999999915584,
+              0.004083999999920707,
+              0.004042000000026746,
+              0.00408400000014808
+            ],
+            "medianMs": 0.004083999999920707,
+            "madMs": 0.000041999999893960194
+          },
+          "copyOnlySpeedup": 1.3467189030583777,
+          "absoluteError": {
+            "mse": 0.3473601326317477,
+            "rmse": 0.5893726602343781,
+            "relativeL2": 0.07349533307810184,
+            "maxAbs": 2.9272193908691406,
+            "p95Abs": 1.1376876831054688,
+            "p99Abs": 1.6217460632324219
+          },
+          "predictiveError": {
+            "mse": 0.00499415098693374,
+            "rmse": 0.07066930724815222,
+            "relativeL2": 0.008812530042598514,
+            "maxAbs": 1.9219293594360352,
+            "p95Abs": 0.038039207458496094,
+            "p99Abs": 0.20932388305664062
+          },
+          "fanout": {
+            "1": {
+              "rawCopyMedianMs": 0.00012500000002546585,
+              "compressedCopyMedianMs": 0.00012500000002546585,
+              "copyOnlySpeedup": 1
+            },
+            "4": {
+              "rawCopyMedianMs": 0.0003329999999550637,
+              "compressedCopyMedianMs": 0.00041699999997035775,
+              "copyOnlySpeedup": 0.7985611510281411
+            },
+            "16": {
+              "rawCopyMedianMs": 0.0012080000001333246,
+              "compressedCopyMedianMs": 0.0013330000001587905,
+              "copyOnlySpeedup": 0.9062265566312262
+            }
+          },
+          "transportModel": {
+            "codecMsPerFrame": 0.13118124999999736,
+            "rawCopyMsPerFrame": 0.00009166666666639381,
+            "compressedCopyMsPerFrame": 0.00006806666666534512,
+            "localEndToEndSpeedup": 0.0006987787253620137,
+            "bytesSavedPerFrame": 3324,
+            "breakEvenBytesPerSecond": 25338987.088475425,
+            "breakEvenMegabytesPerSecond": 25.338987088475424,
+            "modeledLinks": {
+              "5": {
+                "rawLatencyMs": 0.8231999999999999,
+                "turboLatencyMs": 0.28958124999999735,
+                "speedup": 2.842725487233747
+              },
+              "10": {
+                "rawLatencyMs": 0.41159999999999997,
+                "turboLatencyMs": 0.21038124999999736,
+                "speedup": 1.9564481150292867
+              },
+              "25": {
+                "rawLatencyMs": 0.16464,
+                "turboLatencyMs": 0.16286124999999735,
+                "speedup": 1.0109218736808339
+              },
+              "50": {
+                "rawLatencyMs": 0.08232,
+                "turboLatencyMs": 0.14702124999999736,
+                "speedup": 0.5599190593196662
+              },
+              "100": {
+                "rawLatencyMs": 0.04116,
+                "turboLatencyMs": 0.13910124999999737,
+                "speedup": 0.2958995695581512
+              },
+              "250": {
+                "rawLatencyMs": 0.016464,
+                "turboLatencyMs": 0.13434924999999737,
+                "speedup": 0.1225462739836681
+              }
+            }
+          }
+        },
+        {
+          "name": "TurboQuant structured 4-bit",
+          "options": {
+            "bits": 4,
+            "blockSize": 64,
+            "rotation": "structured",
+            "centered": true,
+            "seed": 7427351
+          },
+          "vectorLength": 1029,
+          "rawBytes": 4116,
+          "packetBytes": 680,
+          "compressionRatio": 6.052941176470588,
+          "absoluteEncodeDecode": {
+            "samplesMs": [
+              2.183082999999897,
+              2.069582999999966,
+              2.0496659999998883,
+              2.025707999999895,
+              2.1555000000000746
+            ],
+            "medianMs": 2.069582999999966,
+            "madMs": 0.04387500000007094
+          },
+          "predictiveEncodeDecode": {
+            "samplesMs": [
+              4.051124999999956,
+              4.251416000000063,
+              4.222582999999986,
+              4.329707999999982,
+              4.39104199999997
+            ],
+            "medianMs": 4.251416000000063,
+            "madMs": 0.07829199999991943
+          },
+          "rawCopy": {
+            "samplesMs": [
+              0.006374999999934516,
+              0.006333000000040556,
+              0.007832999999891399,
+              0.005290999999942869,
+              0.0051249999999072315
+            ],
+            "medianMs": 0.006333000000040556,
+            "madMs": 0.001042000000097687
+          },
+          "compressedCopy": {
+            "samplesMs": [
+              0.0039159999998901185,
+              0.004040999999915584,
+              0.004041000000142958,
+              0.00437499999998181,
+              0.004083999999920707
+            ],
+            "medianMs": 0.004041000000142958,
+            "madMs": 0.0000429999997777486
+          },
+          "copyOnlySpeedup": 1.567186339969442,
+          "absoluteError": {
+            "mse": 0.3859043275747625,
+            "rmse": 0.6212119828003663,
+            "relativeL2": 0.07746572698140548,
+            "maxAbs": 2.746233582496643,
+            "p95Abs": 1.2687768936157227,
+            "p99Abs": 1.7231130599975586
+          },
+          "predictiveError": {
+            "mse": 0.005479553056678638,
+            "rmse": 0.07402400324677556,
+            "relativeL2": 0.009230863834492679,
+            "maxAbs": 2.7254457473754883,
+            "p95Abs": 0.04828834533691406,
+            "p99Abs": 0.3138236999511719
+          },
+          "fanout": {
+            "1": {
+              "rawCopyMedianMs": 0.00012500000002546585,
+              "compressedCopyMedianMs": 0.00012500000002546585,
+              "copyOnlySpeedup": 1
+            },
+            "4": {
+              "rawCopyMedianMs": 0.0003329999999550637,
+              "compressedCopyMedianMs": 0.00037500000007639755,
+              "copyOnlySpeedup": 0.8879999996992605
+            },
+            "16": {
+              "rawCopyMedianMs": 0.0012500000000272848,
+              "compressedCopyMedianMs": 0.0013329999999314168,
+              "copyOnlySpeedup": 0.9377344336771175
+            }
+          },
+          "transportModel": {
+            "codecMsPerFrame": 0.07085693333333438,
+            "rawCopyMsPerFrame": 0.00010555000000067594,
+            "compressedCopyMsPerFrame": 0.00006735000000238264,
+            "localEndToEndSpeedup": 0.0014896213402876741,
+            "bytesSavedPerFrame": 3436,
+            "breakEvenBytesPerSecond": 48492078.87442607,
+            "breakEvenMegabytesPerSecond": 48.49207887442606,
+            "modeledLinks": {
+              "5": {
+                "rawLatencyMs": 0.8231999999999999,
+                "turboLatencyMs": 0.20685693333333438,
+                "speedup": 3.97956204191365
+              },
+              "10": {
+                "rawLatencyMs": 0.41159999999999997,
+                "turboLatencyMs": 0.13885693333333438,
+                "speedup": 2.964202003596965
+              },
+              "25": {
+                "rawLatencyMs": 0.16464,
+                "turboLatencyMs": 0.09805693333333439,
+                "speedup": 1.6790245666802917
+              },
+              "50": {
+                "rawLatencyMs": 0.08232,
+                "turboLatencyMs": 0.08445693333333439,
+                "speedup": 0.9746979525659505
+              },
+              "100": {
+                "rawLatencyMs": 0.04116,
+                "turboLatencyMs": 0.07765693333333439,
+                "speedup": 0.5300235050916181
+              },
+              "250": {
+                "rawLatencyMs": 0.016464,
+                "turboLatencyMs": 0.07357693333333439,
+                "speedup": 0.22376578166707725
+              }
+            }
+          }
+        },
+        {
+          "name": "TurboQuant structured 3-bit",
+          "options": {
+            "bits": 3,
+            "blockSize": 64,
+            "rotation": "structured",
+            "centered": true,
+            "seed": 7427351
+          },
+          "vectorLength": 1029,
+          "rawBytes": 4116,
+          "packetBytes": 544,
+          "compressionRatio": 7.5661764705882355,
+          "absoluteEncodeDecode": {
+            "samplesMs": [
+              1.902417000000014,
+              1.9336249999998927,
+              1.8350829999999405,
+              1.859625000000051,
+              1.8554999999998927
+            ],
+            "medianMs": 1.859625000000051,
+            "madMs": 0.02454200000011042
+          },
+          "predictiveEncodeDecode": {
+            "samplesMs": [
+              3.5833749999999327,
+              3.5172909999998865,
+              3.4954999999999927,
+              3.469666999999845,
+              3.4636669999999867
+            ],
+            "medianMs": 3.4954999999999927,
+            "madMs": 0.025833000000147877
+          },
+          "rawCopy": {
+            "samplesMs": [
+              0.005292000000054031,
+              0.005041000000119311,
+              0.005083000000013271,
+              0.005083000000013271,
+              0.005125000000134605
+            ],
+            "medianMs": 0.005083000000013271,
+            "madMs": 0.000041999999893960194
+          },
+          "compressedCopy": {
+            "samplesMs": [
+              0.0038329999999859865,
+              0.003917000000001281,
+              0.003958000000011452,
+              0.0038749999998799467,
+              0.0037500000000818545
+            ],
+            "medianMs": 0.0038749999998799467,
+            "madMs": 0.00004200000012133387
+          },
+          "copyOnlySpeedup": 1.3117419355279356,
+          "absoluteError": {
+            "mse": 1.4534207046815286,
+            "rmse": 1.205578991473196,
+            "relativeL2": 0.15033685053366572,
+            "maxAbs": 5.973425388336182,
+            "p95Abs": 2.4427566528320312,
+            "p99Abs": 3.2581300735473633
+          },
+          "predictiveError": {
+            "mse": 0.023199104502090645,
+            "rmse": 0.15231252247300825,
+            "relativeL2": 0.018993516880589523,
+            "maxAbs": 4.134722709655762,
+            "p95Abs": 0.12364494800567627,
+            "p99Abs": 0.49904751777648926
+          },
+          "fanout": {
+            "1": {
+              "rawCopyMedianMs": 0.00012500000002546585,
+              "compressedCopyMedianMs": 0.00012500000002546585,
+              "copyOnlySpeedup": 1
+            },
+            "4": {
+              "rawCopyMedianMs": 0.00033300000018243736,
+              "compressedCopyMedianMs": 0.00037500000007639755,
+              "copyOnlySpeedup": 0.8880000003055902
+            },
+            "16": {
+              "rawCopyMedianMs": 0.001207999999905951,
+              "compressedCopyMedianMs": 0.0012500000000272848,
+              "copyOnlySpeedup": 0.9663999999036663
+            }
+          },
+          "transportModel": {
+            "codecMsPerFrame": 0.05825833333333321,
+            "rawCopyMsPerFrame": 0.00008471666666688785,
+            "compressedCopyMsPerFrame": 0.00006458333333133244,
+            "localEndToEndSpeedup": 0.0014541553425871212,
+            "bytesSavedPerFrame": 3572,
+            "breakEvenBytesPerSecond": 61313116.86454026,
+            "breakEvenMegabytesPerSecond": 61.313116864540255,
+            "modeledLinks": {
+              "5": {
+                "rawLatencyMs": 0.8231999999999999,
+                "turboLatencyMs": 0.16705833333333323,
+                "speedup": 4.927620092781965
+              },
+              "10": {
+                "rawLatencyMs": 0.41159999999999997,
+                "turboLatencyMs": 0.11265833333333322,
+                "speedup": 3.653524668984396
+              },
+              "25": {
+                "rawLatencyMs": 0.16464,
+                "turboLatencyMs": 0.0800183333333332,
+                "speedup": 2.05752848305597
+              },
+              "50": {
+                "rawLatencyMs": 0.08232,
+                "turboLatencyMs": 0.0691383333333332,
+                "speedup": 1.1906564134705806
+              },
+              "100": {
+                "rawLatencyMs": 0.04116,
+                "turboLatencyMs": 0.0636983333333332,
+                "speedup": 0.6461707527669497
+              },
+              "250": {
+                "rawLatencyMs": 0.016464,
+                "turboLatencyMs": 0.06043433333333321,
+                "speedup": 0.2724279245241397
+              }
+            }
+          }
+        },
+        {
+          "name": "TurboQuant structured 4-bit delta",
+          "options": {
+            "bits": 4,
+            "blockSize": 64,
+            "rotation": "structured",
+            "centered": false,
+            "seed": 7427351
+          },
+          "vectorLength": 1029,
+          "rawBytes": 4116,
+          "packetBytes": 612,
+          "compressionRatio": 6.7254901960784315,
+          "absoluteEncodeDecode": {
+            "samplesMs": [
+              2.1487080000001697,
+              1.9852499999999509,
+              1.9890829999999369,
+              2.108207999999877,
+              2.1952499999999873
+            ],
+            "medianMs": 2.108207999999877,
+            "madMs": 0.08704200000011042
+          },
+          "predictiveEncodeDecode": {
+            "samplesMs": [
+              4.036249999999882,
+              3.925375000000031,
+              3.7282920000000104,
+              4.120208999999932,
+              3.9960829999999987
+            ],
+            "medianMs": 3.9960829999999987,
+            "madMs": 0.0707079999999678
+          },
+          "rawCopy": {
+            "samplesMs": [
+              0.004583000000138782,
+              0.004583000000138782,
+              0.004583000000138782,
+              0.004583000000138782,
+              0.004500000000007276
+            ],
+            "medianMs": 0.004583000000138782,
+            "madMs": 0
+          },
+          "compressedCopy": {
+            "samplesMs": [
+              0.003083000000060565,
+              0.0027079999999841675,
+              0.002708000000211541,
+              0.0028330000000096334,
+              0.002708000000211541
+            ],
+            "medianMs": 0.002708000000211541,
+            "madMs": 2.2737367544323206e-13
+          },
+          "copyOnlySpeedup": 1.6923929098156465,
+          "absoluteError": {
+            "mse": 0.556823446080114,
+            "rmse": 0.746206034604461,
+            "relativeL2": 0.09305260450380402,
+            "maxAbs": 3.3816213607788086,
+            "p95Abs": 1.4443269968032837,
+            "p99Abs": 1.9107475280761719
+          },
+          "predictiveError": {
+            "mse": 0.007636247006813363,
+            "rmse": 0.08738562242619413,
+            "relativeL2": 0.010897070495085995,
+            "maxAbs": 2.238912582397461,
+            "p95Abs": 0.051085472106933594,
+            "p99Abs": 0.2775154113769531
+          },
+          "fanout": {
+            "1": {
+              "rawCopyMedianMs": 0.00012500000002546585,
+              "compressedCopyMedianMs": 0.00008399999978792039,
+              "copyOnlySpeedup": 1.4880952421554823
+            },
+            "4": {
+              "rawCopyMedianMs": 0.0002919999999448919,
+              "compressedCopyMedianMs": 0.0002500000000509317,
+              "copyOnlySpeedup": 1.1679999995416146
+            },
+            "16": {
+              "rawCopyMedianMs": 0.0015409999998610147,
+              "compressedCopyMedianMs": 0.0010839999999916472,
+              "copyOnlySpeedup": 1.4215867157498976
+            }
+          },
+          "transportModel": {
+            "codecMsPerFrame": 0.0666013833333333,
+            "rawCopyMsPerFrame": 0.00007638333333564636,
+            "compressedCopyMsPerFrame": 0.00004513333333685902,
+            "localEndToEndSpeedup": 0.0011468730754938732,
+            "bytesSavedPerFrame": 3504,
+            "breakEvenBytesPerSecond": 52611519.83079433,
+            "breakEvenMegabytesPerSecond": 52.61151983079433,
+            "modeledLinks": {
+              "5": {
+                "rawLatencyMs": 0.8231999999999999,
+                "turboLatencyMs": 0.1890013833333333,
+                "speedup": 4.355523676502192
+              },
+              "10": {
+                "rawLatencyMs": 0.41159999999999997,
+                "turboLatencyMs": 0.1278013833333333,
+                "speedup": 3.220622416319699
+              },
+              "25": {
+                "rawLatencyMs": 0.16464,
+                "turboLatencyMs": 0.09108138333333331,
+                "speedup": 1.8076141794801468
+              },
+              "50": {
+                "rawLatencyMs": 0.08232,
+                "turboLatencyMs": 0.0788413833333333,
+                "speedup": 1.04412171019323
+              },
+              "100": {
+                "rawLatencyMs": 0.04116,
+                "turboLatencyMs": 0.0727213833333333,
+                "speedup": 0.565995833870964
+              },
+              "250": {
+                "rawLatencyMs": 0.016464,
+                "turboLatencyMs": 0.06904938333333331,
+                "speedup": 0.23843804542787378
+              }
+            }
+          }
+        },
+        {
+          "name": "TurboQuant structured 3-bit delta",
+          "options": {
+            "bits": 3,
+            "blockSize": 64,
+            "rotation": "structured",
+            "centered": false,
+            "seed": 7427351
+          },
+          "vectorLength": 1029,
+          "rawBytes": 4116,
+          "packetBytes": 476,
+          "compressionRatio": 8.647058823529411,
+          "absoluteEncodeDecode": {
+            "samplesMs": [
+              1.8922079999999823,
+              1.9361659999999574,
+              1.8684579999999187,
+              1.821957999999995,
+              1.8194589999998243
+            ],
+            "medianMs": 1.8684579999999187,
+            "madMs": 0.0464999999999236
+          },
+          "predictiveEncodeDecode": {
+            "samplesMs": [
+              3.35412499999984,
+              3.2964999999999236,
+              3.5236250000002656,
+              3.46679099999983,
+              3.407749999999851
+            ],
+            "medianMs": 3.407749999999851,
+            "madMs": 0.05904099999997925
+          },
+          "rawCopy": {
+            "samplesMs": [
+              0.0054579999996349216,
+              0.008209000000078959,
+              0.005124999999679858,
+              0.0050409999998919375,
+              0.005125000000134605
+            ],
+            "medianMs": 0.005125000000134605,
+            "madMs": 0.00008400000024266774
+          },
+          "compressedCopy": {
+            "samplesMs": [
+              0.0030419999998230196,
+              0.003042000000277767,
+              0.003083000000060565,
+              0.0030419999998230196,
+              0.003042000000277767
+            ],
+            "medianMs": 0.003042000000277767,
+            "madMs": 4.547473508864641e-13
+          },
+          "copyOnlySpeedup": 1.684746876944983,
+          "absoluteError": {
+            "mse": 2.12260268415676,
+            "rmse": 1.4569154691184933,
+            "relativeL2": 0.18167874910743426,
+            "maxAbs": 6.0599565505981445,
+            "p95Abs": 2.6975421011447906,
+            "p99Abs": 3.733584403991699
+          },
+          "predictiveError": {
+            "mse": 0.032120834901089634,
+            "rmse": 0.17922286377884278,
+            "relativeL2": 0.022349262117790036,
+            "maxAbs": 3.9041032791137695,
+            "p95Abs": 0.1527998447418213,
+            "p99Abs": 0.6924451291561127
+          },
+          "fanout": {
+            "1": {
+              "rawCopyMedianMs": 0.00012500000002546585,
+              "compressedCopyMedianMs": 0.00012500000002546585,
+              "copyOnlySpeedup": 1
+            },
+            "4": {
+              "rawCopyMedianMs": 0.0003329999999550637,
+              "compressedCopyMedianMs": 0.00029200000017226557,
+              "copyOnlySpeedup": 1.140410958077432
+            },
+            "16": {
+              "rawCopyMedianMs": 0.0012500000002546585,
+              "compressedCopyMedianMs": 0.0010000000002037268,
+              "copyOnlySpeedup": 1.25
+            }
+          },
+          "transportModel": {
+            "codecMsPerFrame": 0.056795833333330846,
+            "rawCopyMsPerFrame": 0.00008541666666891008,
+            "compressedCopyMsPerFrame": 0.00005070000000462945,
+            "localEndToEndSpeedup": 0.0015039248771578986,
+            "bytesSavedPerFrame": 3640,
+            "breakEvenBytesPerSecond": 64089208.42198212,
+            "breakEvenMegabytesPerSecond": 64.08920842198212,
+            "modeledLinks": {
+              "5": {
+                "rawLatencyMs": 0.8231999999999999,
+                "turboLatencyMs": 0.15199583333333083,
+                "speedup": 5.415937936895289
+              },
+              "10": {
+                "rawLatencyMs": 0.41159999999999997,
+                "turboLatencyMs": 0.10439583333333084,
+                "speedup": 3.9426860906007724
+              },
+              "25": {
+                "rawLatencyMs": 0.16464,
+                "turboLatencyMs": 0.07583583333333085,
+                "speedup": 2.1710053514720005
+              },
+              "50": {
+                "rawLatencyMs": 0.08232,
+                "turboLatencyMs": 0.06631583333333085,
+                "speedup": 1.2413325123462684
+              },
+              "100": {
+                "rawLatencyMs": 0.04116,
+                "turboLatencyMs": 0.061555833333330846,
+                "speedup": 0.6686612425034454
+              },
+              "250": {
+                "rawLatencyMs": 0.016464,
+                "turboLatencyMs": 0.05869983333333085,
+                "speedup": 0.28047779806303874
+              }
+            }
+          }
+        }
+      ]
+    },
+    {
+      "id": "water",
+      "sceneId": 749,
+      "scene": "Leviathan Impact Pool — Cinematic",
+      "kind": "surface",
+      "frameCount": 60,
+      "vectorLength": 19320,
+      "codecs": [
+        {
+          "name": "TurboQuant blockwise dense 4-bit",
+          "options": {
+            "bits": 4,
+            "blockSize": 32,
+            "rotation": "dense",
+            "centered": true,
+            "seed": 7427351
+          },
+          "vectorLength": 19320,
+          "rawBytes": 77280,
+          "packetBytes": 14496,
+          "compressionRatio": 5.33112582781457,
+          "absoluteEncodeDecode": {
+            "samplesMs": [
+              80.64350000000013,
+              82.94612499999994,
+              82.39887499999986,
+              81.64674999999988,
+              80.2189999999996
+            ],
+            "medianMs": 81.64674999999988,
+            "madMs": 1.0032499999997526
+          },
+          "predictiveEncodeDecode": {
+            "samplesMs": [
+              134.90983400000005,
+              133.65087500000027,
+              133.21770799999967,
+              132.42325000000028,
+              134.131167
+            ],
+            "medianMs": 133.65087500000027,
+            "madMs": 0.4802919999997357
+          },
+          "rawCopy": {
+            "samplesMs": [
+              0.07387500000004366,
+              0.07566700000006676,
+              0.07366699999965931,
+              0.07720900000003894,
+              0.07637500000009823
+            ],
+            "medianMs": 0.07566700000006676,
+            "madMs": 0.0015419999999721767
+          },
+          "compressedCopy": {
+            "samplesMs": [
+              0.012917000000015832,
+              0.012459000000035303,
+              0.012416999999913969,
+              0.012959000000137166,
+              0.012917000000015832
+            ],
+            "medianMs": 0.012917000000015832,
+            "madMs": 0.00004200000012133387
+          },
+          "copyOnlySpeedup": 5.857939149955409,
+          "absoluteError": {
+            "mse": 0.0002223275815826461,
+            "rmse": 0.014910653291611542,
+            "relativeL2": 0.08359922889475994,
+            "maxAbs": 0.300240159034729,
+            "p95Abs": 0.03220968693494797,
+            "p99Abs": 0.06318878382444382
+          },
+          "predictiveError": {
+            "mse": 0.000007009216575343956,
+            "rmse": 0.0026474925071365086,
+            "relativeL2": 0.014843637483394645,
+            "maxAbs": 0.300240159034729,
+            "p95Abs": 0.0034029164567073167,
+            "p99Abs": 0.007023163139820099
+          },
+          "fanout": {
+            "1": {
+              "rawCopyMedianMs": 0.0008749999997235136,
+              "compressedCopyMedianMs": 0.00029100000028847717,
+              "copyOnlySpeedup": 3.006872848302747
+            },
+            "4": {
+              "rawCopyMedianMs": 0.0031249999997271516,
+              "compressedCopyMedianMs": 0.0010419999998703133,
+              "copyOnlySpeedup": 2.9990403072131353
+            },
+            "16": {
+              "rawCopyMedianMs": 0.012208999999984371,
+              "compressedCopyMedianMs": 0.004209000000173546,
+              "copyOnlySpeedup": 2.900688999639099
+            }
+          },
+          "transportModel": {
+            "codecMsPerFrame": 2.227514583333338,
+            "rawCopyMsPerFrame": 0.0012611166666677794,
+            "compressedCopyMsPerFrame": 0.00021528333333359722,
+            "localEndToEndSpeedup": 0.0005661541684636678,
+            "bytesSavedPerFrame": 62784,
+            "breakEvenBytesPerSecond": 28185674.055631828,
+            "breakEvenMegabytesPerSecond": 28.18567405563183,
+            "modeledLinks": {
+              "5": {
+                "rawLatencyMs": 15.456,
+                "turboLatencyMs": 5.126714583333338,
+                "speedup": 3.0147962693781687
+              },
+              "10": {
+                "rawLatencyMs": 7.728,
+                "turboLatencyMs": 3.6771145833333376,
+                "speedup": 2.1016478613496177
+              },
+              "25": {
+                "rawLatencyMs": 3.0912,
+                "turboLatencyMs": 2.8073545833333378,
+                "speedup": 1.1011077896435997
+              },
+              "50": {
+                "rawLatencyMs": 1.5456,
+                "turboLatencyMs": 2.517434583333338,
+                "speedup": 0.6139583567464421
+              },
+              "100": {
+                "rawLatencyMs": 0.7728,
+                "turboLatencyMs": 2.372474583333338,
+                "speedup": 0.3257358394601692
+              },
+              "250": {
+                "rawLatencyMs": 0.30912,
+                "turboLatencyMs": 2.2854985833333377,
+                "speedup": 0.13525276377513953
+              }
+            }
+          }
+        },
+        {
+          "name": "TurboQuant structured 4-bit",
+          "options": {
+            "bits": 4,
+            "blockSize": 64,
+            "rotation": "structured",
+            "centered": true,
+            "seed": 7427351
+          },
+          "vectorLength": 19320,
+          "rawBytes": 77280,
+          "packetBytes": 12080,
+          "compressionRatio": 6.397350993377484,
+          "absoluteEncodeDecode": {
+            "samplesMs": [
+              44.99579199999971,
+              44.495666999999685,
+              44.854208000000654,
+              45.869290999999976,
+              45.05870799999957
+            ],
+            "medianMs": 44.99579199999971,
+            "madMs": 0.1415839999990567
+          },
+          "predictiveEncodeDecode": {
+            "samplesMs": [
+              67.92762500000026,
+              66.53979199999958,
+              67.98654200000055,
+              68.37975000000006,
+              67.21041700000023
+            ],
+            "medianMs": 67.92762500000026,
+            "madMs": 0.4521249999997963
+          },
+          "rawCopy": {
+            "samplesMs": [
+              0.07774999999946886,
+              0.07437500000014552,
+              0.07312499999989086,
+              0.07441600000038306,
+              0.07237500000064756
+            ],
+            "medianMs": 0.07437500000014552,
+            "madMs": 0.0012500000002546585
+          },
+          "compressedCopy": {
+            "samplesMs": [
+              0.011416999999710242,
+              0.01170899999942776,
+              0.011792000000241387,
+              0.011666999999761174,
+              0.011499999999614374
+            ],
+            "medianMs": 0.011666999999761174,
+            "madMs": 0.0001250000004802132
+          },
+          "copyOnlySpeedup": 6.374817862489757,
+          "absoluteError": {
+            "mse": 0.0002577996117427057,
+            "rmse": 0.016056139378527633,
+            "relativeL2": 0.09002160031625459,
+            "maxAbs": 0.25763779878616333,
+            "p95Abs": 0.03489696927291952,
+            "p99Abs": 0.06514540687203407
+          },
+          "predictiveError": {
+            "mse": 0.000009663181376494247,
+            "rmse": 0.0031085658070071874,
+            "relativeL2": 0.017428726921081196,
+            "maxAbs": 0.1676959991455078,
+            "p95Abs": 0.004259058811157956,
+            "p99Abs": 0.010974228382110596
+          },
+          "fanout": {
+            "1": {
+              "rawCopyMedianMs": 0.0007920000007288763,
+              "compressedCopyMedianMs": 0.0002500000000509317,
+              "copyOnlySpeedup": 3.168000002270099
+            },
+            "4": {
+              "rawCopyMedianMs": 0.0029589999994641403,
+              "compressedCopyMedianMs": 0.0009579999996276456,
+              "copyOnlySpeedup": 3.0887265142111078
+            },
+            "16": {
+              "rawCopyMedianMs": 0.011792000000241387,
+              "compressedCopyMedianMs": 0.0036250000002837623,
+              "copyOnlySpeedup": 3.252965517053329
+            }
+          },
+          "transportModel": {
+            "codecMsPerFrame": 1.1321270833333377,
+            "rawCopyMsPerFrame": 0.0012395833333357586,
+            "compressedCopyMsPerFrame": 0.00019444999999601958,
+            "localEndToEndSpeedup": 0.0010949153602844972,
+            "bytesSavedPerFrame": 65200,
+            "breakEvenBytesPerSecond": 57590707.75696905,
+            "breakEvenMegabytesPerSecond": 57.59070775696905,
+            "modeledLinks": {
+              "5": {
+                "rawLatencyMs": 15.456,
+                "turboLatencyMs": 3.548127083333338,
+                "speedup": 4.356101018084066
+              },
+              "10": {
+                "rawLatencyMs": 7.728,
+                "turboLatencyMs": 2.340127083333338,
+                "speedup": 3.3023847529647985
+              },
+              "25": {
+                "rawLatencyMs": 3.0912,
+                "turboLatencyMs": 1.6153270833333377,
+                "speedup": 1.9136681554432293
+              },
+              "50": {
+                "rawLatencyMs": 1.5456,
+                "turboLatencyMs": 1.3737270833333377,
+                "speedup": 1.1251143103691412
+              },
+              "100": {
+                "rawLatencyMs": 0.7728,
+                "turboLatencyMs": 1.2529270833333377,
+                "speedup": 0.6167956701390889
+              },
+              "250": {
+                "rawLatencyMs": 0.30912,
+                "turboLatencyMs": 1.1804470833333376,
+                "speedup": 0.26186688447491374
+              }
+            }
+          }
+        },
+        {
+          "name": "TurboQuant structured 3-bit",
+          "options": {
+            "bits": 3,
+            "blockSize": 64,
+            "rotation": "structured",
+            "centered": true,
+            "seed": 7427351
+          },
+          "vectorLength": 19320,
+          "rawBytes": 77280,
+          "packetBytes": 9664,
+          "compressionRatio": 7.996688741721854,
+          "absoluteEncodeDecode": {
+            "samplesMs": [
+              38.25504100000035,
+              37.57404200000019,
+              37.75891700000011,
+              38.25854200000049,
+              37.80945900000006
+            ],
+            "medianMs": 37.80945900000006,
+            "madMs": 0.2354169999998703
+          },
+          "predictiveEncodeDecode": {
+            "samplesMs": [
+              60.92108300000018,
+              60.597999999999956,
+              59.43737499999952,
+              59.48858300000029,
+              60.000334000000294
+            ],
+            "medianMs": 60.000334000000294,
+            "madMs": 0.5629590000007738
+          },
+          "rawCopy": {
+            "samplesMs": [
+              0.06975000000056752,
+              0.06366700000035053,
+              0.06350000000020373,
+              0.06283299999995506,
+              0.06495799999993324
+            ],
+            "medianMs": 0.06366700000035053,
+            "madMs": 0.0008340000003954628
+          },
+          "compressedCopy": {
+            "samplesMs": [
+              0.010125000000698492,
+              0.009874999999738066,
+              0.010666999999557447,
+              0.011083999999755179,
+              0.010000000000218279
+            ],
+            "medianMs": 0.010125000000698492,
+            "madMs": 0.0002500000009604264
+          },
+          "copyOnlySpeedup": 6.288098765032922,
+          "absoluteError": {
+            "mse": 0.0009500164033223398,
+            "rmse": 0.030822336110722364,
+            "relativeL2": 0.17281090782528763,
+            "maxAbs": 0.4527662396430969,
+            "p95Abs": 0.06615366786718034,
+            "p99Abs": 0.12698042392730713
+          },
+          "predictiveError": {
+            "mse": 0.00004638584554939228,
+            "rmse": 0.006810715494673983,
+            "relativeL2": 0.03818548741232256,
+            "maxAbs": 0.3200157582759857,
+            "p95Abs": 0.01141594722867012,
+            "p99Abs": 0.02532254159450531
+          },
+          "fanout": {
+            "1": {
+              "rawCopyMedianMs": 0.0007909999994808459,
+              "compressedCopyMedianMs": 0.00020800000038434519,
+              "copyOnlySpeedup": 3.802884605861661
+            },
+            "4": {
+              "rawCopyMedianMs": 0.0026670000006561168,
+              "compressedCopyMedianMs": 0.0007500000001527951,
+              "copyOnlySpeedup": 3.55600000015037
+            },
+            "16": {
+              "rawCopyMedianMs": 0.010667000000466942,
+              "compressedCopyMedianMs": 0.003749999999854481,
+              "copyOnlySpeedup": 2.8445333335682337
+            }
+          },
+          "transportModel": {
+            "codecMsPerFrame": 1.0000055666666716,
+            "rawCopyMsPerFrame": 0.0010611166666725088,
+            "compressedCopyMsPerFrame": 0.00016875000001164152,
+            "localEndToEndSpeedup": 0.0010611107598226073,
+            "bytesSavedPerFrame": 67616,
+            "breakEvenBytesPerSecond": 67615623.60636158,
+            "breakEvenMegabytesPerSecond": 67.61562360636158,
+            "modeledLinks": {
+              "5": {
+                "rawLatencyMs": 15.456,
+                "turboLatencyMs": 2.9328055666666715,
+                "speedup": 5.270039096920691
+              },
+              "10": {
+                "rawLatencyMs": 7.728,
+                "turboLatencyMs": 1.9664055666666715,
+                "speedup": 3.9300132846450517
+              },
+              "25": {
+                "rawLatencyMs": 3.0912,
+                "turboLatencyMs": 1.3865655666666716,
+                "speedup": 2.2293933112959814
+              },
+              "50": {
+                "rawLatencyMs": 1.5456,
+                "turboLatencyMs": 1.1932855666666715,
+                "speedup": 1.295247376801418
+              },
+              "100": {
+                "rawLatencyMs": 0.7728,
+                "turboLatencyMs": 1.0966455666666717,
+                "speedup": 0.7046944094699419
+              },
+              "250": {
+                "rawLatencyMs": 0.30912,
+                "turboLatencyMs": 1.0386615666666716,
+                "speedup": 0.29761378481736306
+              }
+            }
+          }
+        },
+        {
+          "name": "TurboQuant structured 4-bit delta",
+          "options": {
+            "bits": 4,
+            "blockSize": 64,
+            "rotation": "structured",
+            "centered": false,
+            "seed": 7427351
+          },
+          "vectorLength": 19320,
+          "rawBytes": 77280,
+          "packetBytes": 10872,
+          "compressionRatio": 7.108167770419426,
+          "absoluteEncodeDecode": {
+            "samplesMs": [
+              42.794042000000445,
+              43.38366700000006,
+              45.43937499999993,
+              45.37766699999975,
+              44.576750000000175
+            ],
+            "medianMs": 44.576750000000175,
+            "madMs": 0.8626249999997526
+          },
+          "predictiveEncodeDecode": {
+            "samplesMs": [
+              65.52358399999957,
+              66.65408300000036,
+              66.53499999999985,
+              67.28404099999989,
+              68.23108299999967
+            ],
+            "medianMs": 66.65408300000036,
+            "madMs": 0.6299579999995331
+          },
+          "rawCopy": {
+            "samplesMs": [
+              0.06533399999989342,
+              0.06391700000040146,
+              0.06270800000038435,
+              0.06237500000042928,
+              0.061916000000564964
+            ],
+            "medianMs": 0.06270800000038435,
+            "madMs": 0.0007919999998193816
+          },
+          "compressedCopy": {
+            "samplesMs": [
+              0.009500000000116415,
+              0.008958999999777006,
+              0.009041999999681138,
+              0.009082999999918684,
+              0.009041999999681138
+            ],
+            "medianMs": 0.009041999999681138,
+            "madMs": 0.000041000000237545464
+          },
+          "copyOnlySpeedup": 6.935191329638986,
+          "absoluteError": {
+            "mse": 0.00030994050112774675,
+            "rmse": 0.017605127126145575,
+            "relativeL2": 0.09870627554380763,
+            "maxAbs": 0.2712000608444214,
+            "p95Abs": 0.03819718956947327,
+            "p99Abs": 0.07282926887273788
+          },
+          "predictiveError": {
+            "mse": 0.000011720568177323386,
+            "rmse": 0.003423531535903151,
+            "relativeL2": 0.01919463828318039,
+            "maxAbs": 0.2018508017063141,
+            "p95Abs": 0.004618904548511438,
+            "p99Abs": 0.012090501375496387
+          },
+          "fanout": {
+            "1": {
+              "rawCopyMedianMs": 0.0007919999998193816,
+              "compressedCopyMedianMs": 0.00020800000038434519,
+              "copyOnlySpeedup": 3.8076922997880454
+            },
+            "4": {
+              "rawCopyMedianMs": 0.0027920000002268353,
+              "compressedCopyMedianMs": 0.0007080000004862086,
+              "copyOnlySpeedup": 3.9435028224710034
+            },
+            "16": {
+              "rawCopyMedianMs": 0.01116699999965931,
+              "compressedCopyMedianMs": 0.0029169999997975538,
+              "copyOnlySpeedup": 3.8282482003545852
+            }
+          },
+          "transportModel": {
+            "codecMsPerFrame": 1.1109013833333392,
+            "rawCopyMsPerFrame": 0.001045133333339739,
+            "compressedCopyMsPerFrame": 0.00015069999999468565,
+            "localEndToEndSpeedup": 0.0009407975802530208,
+            "bytesSavedPerFrame": 66408,
+            "breakEvenBytesPerSecond": 59778483.4876504,
+            "breakEvenMegabytesPerSecond": 59.778483487650405,
+            "modeledLinks": {
+              "5": {
+                "rawLatencyMs": 15.456,
+                "turboLatencyMs": 3.285301383333339,
+                "speedup": 4.704591206885866
+              },
+              "10": {
+                "rawLatencyMs": 7.728,
+                "turboLatencyMs": 2.198101383333339,
+                "speedup": 3.5157614014512717
+              },
+              "25": {
+                "rawLatencyMs": 3.0912,
+                "turboLatencyMs": 1.5457813833333391,
+                "speedup": 1.9997653182587205
+              },
+              "50": {
+                "rawLatencyMs": 1.5456,
+                "turboLatencyMs": 1.3283413833333393,
+                "speedup": 1.16355631119575
+              },
+              "100": {
+                "rawLatencyMs": 0.7728,
+                "turboLatencyMs": 1.2196213833333391,
+                "speedup": 0.6336392675306048
+              },
+              "250": {
+                "rawLatencyMs": 0.30912,
+                "turboLatencyMs": 1.1543893833333392,
+                "speedup": 0.26777793044787485
+              }
+            }
+          }
+        },
+        {
+          "name": "TurboQuant structured 3-bit delta",
+          "options": {
+            "bits": 3,
+            "blockSize": 64,
+            "rotation": "structured",
+            "centered": false,
+            "seed": 7427351
+          },
+          "vectorLength": 19320,
+          "rawBytes": 77280,
+          "packetBytes": 8456,
+          "compressionRatio": 9.139072847682119,
+          "absoluteEncodeDecode": {
+            "samplesMs": [
+              36.17170900000019,
+              35.99095799999941,
+              35.13345799999934,
+              36.471832999999606,
+              36.2026249999999
+            ],
+            "medianMs": 36.17170900000019,
+            "madMs": 0.18075100000078237
+          },
+          "predictiveEncodeDecode": {
+            "samplesMs": [
+              58.426665999999386,
+              57.46045799999956,
+              57.508458000000246,
+              58.99879199999941,
+              57.82645800000046
+            ],
+            "medianMs": 57.82645800000046,
+            "madMs": 0.36600000000089494
+          },
+          "rawCopy": {
+            "samplesMs": [
+              0.07758300000023155,
+              0.07799999999951979,
+              0.07650000000012369,
+              0.07566700000006676,
+              0.07266600000002654
+            ],
+            "medianMs": 0.07650000000012369,
+            "madMs": 0.0010830000001078588
+          },
+          "compressedCopy": {
+            "samplesMs": [
+              0.009458000000449829,
+              0.009417000000212283,
+              0.009374999999636202,
+              0.009417000000212283,
+              0.009375000000545697
+            ],
+            "medianMs": 0.009417000000212283,
+            "madMs": 0.000041000000237545464
+          },
+          "copyOnlySpeedup": 8.123606243856768,
+          "absoluteError": {
+            "mse": 0.0011521844579559792,
+            "rmse": 0.03394384271051201,
+            "relativeL2": 0.19031218960206445,
+            "maxAbs": 0.4616304039955139,
+            "p95Abs": 0.07279445230960846,
+            "p99Abs": 0.14048612117767334
+          },
+          "predictiveError": {
+            "mse": 0.00005429334166480372,
+            "rmse": 0.0073684015678302794,
+            "relativeL2": 0.041312253541841634,
+            "maxAbs": 0.38125818967819214,
+            "p95Abs": 0.012332269921898842,
+            "p99Abs": 0.02749790996313095
+          },
+          "fanout": {
+            "1": {
+              "rawCopyMedianMs": 0.0015830000002097222,
+              "compressedCopyMedianMs": 0.00020799999947485048,
+              "copyOnlySpeedup": 7.610576943300063
+            },
+            "4": {
+              "rawCopyMedianMs": 0.0032090000004245667,
+              "compressedCopyMedianMs": 0.0007500000001527951,
+              "copyOnlySpeedup": 4.278666666361077
+            },
+            "16": {
+              "rawCopyMedianMs": 0.012749999999869033,
+              "compressedCopyMedianMs": 0.003499999999803549,
+              "copyOnlySpeedup": 3.6428571430241927
+            }
+          },
+          "transportModel": {
+            "codecMsPerFrame": 0.9637743000000076,
+            "rawCopyMsPerFrame": 0.0012750000000020616,
+            "compressedCopyMsPerFrame": 0.00015695000000353804,
+            "localEndToEndSpeedup": 0.0013229238422336552,
+            "bytesSavedPerFrame": 68824,
+            "breakEvenBytesPerSecond": 71410910.20999362,
+            "breakEvenMegabytesPerSecond": 71.41091020999362,
+            "modeledLinks": {
+              "5": {
+                "rawLatencyMs": 15.456,
+                "turboLatencyMs": 2.6549743000000072,
+                "speedup": 5.821525278041282
+              },
+              "10": {
+                "rawLatencyMs": 7.728,
+                "turboLatencyMs": 1.8093743000000075,
+                "speedup": 4.271089735274767
+              },
+              "25": {
+                "rawLatencyMs": 3.0912,
+                "turboLatencyMs": 1.3020143000000077,
+                "speedup": 2.3741674726613846
+              },
+              "50": {
+                "rawLatencyMs": 1.5456,
+                "turboLatencyMs": 1.1328943000000076,
+                "speedup": 1.3642932089957462
+              },
+              "100": {
+                "rawLatencyMs": 0.7728,
+                "turboLatencyMs": 1.0483343000000076,
+                "speedup": 0.737169431544875
+              },
+              "250": {
+                "rawLatencyMs": 0.30912,
+                "turboLatencyMs": 0.9975983000000076,
+                "speedup": 0.30986420085118194
+              }
+            }
+          }
+        }
+      ]
+    }
+  ]
+}

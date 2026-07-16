@@ -1,0 +1,186 @@
+{
+  "schemaVersion": 1,
+  "generatedAt": "2026-07-15T10:04:12.591Z",
+  "baseline": {
+    "label": "exact archived v1.10 source",
+    "archive": "benchmarks/baselines/box3d-webgpu-v1.10.0-source.tar.gz",
+    "archiveSha256": "dea18ff88e86568e5449c9dece5610d0dfadf38d901eef1c1e39155c64e8c3f5",
+    "mainSha256": "2e5f9153a00f137b1db64983e8be9bacb4a1dddc15681cd05882e5737d5d7120",
+    "mathSha256": "09c490915252660f50746c6ef95b167723c17f01f172cc896bfca901363d6da9",
+    "sourceContracts": [
+      "function cameraMatrices(rig: CameraRig)",
+      "const projection = mat4Perspective((58 * Math.PI) / 180, aspect, 0.08, 360)",
+      "const lightEye = vec3Sub(rig.target, vec3Scale(LIGHT_DIRECTION, 92))",
+      "function cameraWithShake()"
+    ]
+  },
+  "optimized": {
+    "cameraSha256": "ab6446f83d7dc4750f640ae217ea20a700b5ba166e108ecd9f91134e2805f1a4",
+    "mathSha256": "3e325cf13a762b8a725b6d88a314d65a3779f38168ba34155d25c0f38050a8b0",
+    "sourceLevelHeapAllocationsPerResolve": 0,
+    "baselineSourceLevelHeapAllocationsPerResolveAtLeast": 22
+  },
+  "environment": {
+    "node": "v26.0.0",
+    "platform": "darwin",
+    "arch": "arm64",
+    "samples": 9,
+    "warmups": 3,
+    "scale": 1
+  },
+  "fidelity": {
+    "cases": 4096,
+    "ceiling": 0.000001,
+    "maximumViewDifference": 0,
+    "maximumLightDifference": 0,
+    "maximumEyeDifference": 0,
+    "viewBitMismatches": 0,
+    "lightBitMismatches": 0,
+    "eyeValueMismatches": 0
+  },
+  "identity": {
+    "optimizedFrameReused": true,
+    "optimizedViewProjectionReused": true,
+    "optimizedLightViewProjectionReused": true,
+    "optimizedEyeReused": true,
+    "baselineFrameReused": false,
+    "baselineViewProjectionReused": false
+  },
+  "workloads": [
+    {
+      "name": "static-camera",
+      "iterations": 180000,
+      "samples": 9,
+      "baselineMedianNs": 350.01064444444444,
+      "optimizedMedianNs": 18.090972222222224,
+      "speedup": 19.347254539173157,
+      "baselineMadNs": 2.0689833333333354,
+      "optimizedMadNs": 0.30625000000000213,
+      "baselineSamples": [
+        352.0796277777778,
+        346.81041666666664,
+        344.6020833333333,
+        351.725,
+        351.1430555555556,
+        350.01064444444444,
+        351.32708333333335,
+        344.89722222222224,
+        347.1486111111111
+      ],
+      "optimizedSamples": [
+        18.07801111111111,
+        18.426616666666668,
+        17.78472222222222,
+        17.640044444444445,
+        18.417822222222224,
+        18.211111111111112,
+        18.310883333333333,
+        18.090972222222224,
+        17.67152777777778
+      ]
+    },
+    {
+      "name": "continuous-orbit",
+      "iterations": 100000,
+      "samples": 9,
+      "baselineMedianNs": 363.95792,
+      "optimizedMedianNs": 128.41375,
+      "speedup": 2.834259726859468,
+      "baselineMadNs": 1.8024899999999775,
+      "optimizedMadNs": 1.3770799999999923,
+      "baselineSamples": [
+        361.94667,
+        364.83875,
+        365.76041,
+        364.20208,
+        363.95792,
+        360.28291,
+        359.02458,
+        361.80875,
+        365.35208
+      ],
+      "optimizedSamples": [
+        128.00375,
+        126.40666,
+        131.11666,
+        129.98583,
+        129.52292,
+        128.4925,
+        126.84417,
+        128.41375,
+        127.03667
+      ]
+    },
+    {
+      "name": "fully-changing-cinematic-shake",
+      "iterations": 80000,
+      "samples": 9,
+      "baselineMedianNs": 361.2947875,
+      "optimizedMedianNs": 244.850525,
+      "speedup": 1.4755728520492246,
+      "baselineMadNs": 3.1359500000000367,
+      "optimizedMadNs": 1.773949999999985,
+      "baselineSamples": [
+        368.7197875,
+        361.2947875,
+        364.4307375,
+        360.5828125,
+        360.418225,
+        356.2130125,
+        360.8005125,
+        395.9823,
+        384.5578125
+      ],
+      "optimizedSamples": [
+        246.624475,
+        244.850525,
+        247.2953125,
+        247.230725,
+        242.519275,
+        240.26615,
+        246.5474,
+        244.8276,
+        243.1354125
+      ]
+    },
+    {
+      "name": "mixed-30-frame-keyframes",
+      "iterations": 140000,
+      "samples": 9,
+      "baselineMedianNs": 347.6997,
+      "optimizedMedianNs": 29.79762142857143,
+      "speedup": 11.668706538657089,
+      "baselineMadNs": 6.60654285714287,
+      "optimizedMadNs": 0.34911428571428615,
+      "baselineSamples": [
+        344.5208285714286,
+        341.09315714285714,
+        347.25149285714286,
+        347.6997,
+        344.8071428571429,
+        359.4770857142857,
+        367.8330357142857,
+        374.4669642857143,
+        365.4044642857143
+      ],
+      "optimizedSamples": [
+        29.17887142857143,
+        29.448507142857142,
+        29.79762142857143,
+        29.872614285714285,
+        30.686907142857144,
+        32.707742857142854,
+        30.52262142857143,
+        29.79672857142857,
+        29.517257142857144
+      ]
+    }
+  ],
+  "gates": {
+    "fidelity": true,
+    "staticSpeedup": true,
+    "changingPathNoMaterialRegression": true
+  },
+  "passed": true,
+  "sink": -55533192766211.9
+}
