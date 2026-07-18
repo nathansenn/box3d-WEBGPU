@@ -253,6 +253,7 @@ const ropeSegments = new Float32Array([
   1, 2, 1 / Math.hypot(1.2, -0.9, -0.2), 0.08, 0.36, 0.24, 0.16, 1,
 ]);
 const ropeGrid = {
+  presentation: 'rope',
   positions: ropePositions,
   segments: ropeSegments,
   nodeCount: 3,
@@ -277,6 +278,11 @@ renderer.render(3, []);
 await renderer.device.queue.onSubmittedWorkDone();
 assert.equal(renderer.uploadRopeGrid(ropeGrid, 2), 16, 'moving the GPU-rope instance range must update only compute uniforms');
 renderer.render(4, []);
+await renderer.device.queue.onSubmittedWorkDone();
+ropeGrid.presentation = 'material';
+assert.equal(renderer.uploadRopeGrid(ropeGrid, 2), 16, 'switching to signed material-strain presentation must update only compute uniforms');
+const gpuMaterialRenderMs = renderer.render(4, []);
+assert.ok(Number.isFinite(gpuMaterialRenderMs) && gpuMaterialRenderMs >= 0, 'actual renderer must submit a GPU-computed material lattice frame');
 await renderer.device.queue.onSubmittedWorkDone();
 renderer.uploadRopeGrid(null, 0);
 

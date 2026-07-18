@@ -4,9 +4,11 @@ Describe the simulation, renderer, content, tooling, or documentation change.
 
 ## Validation
 
-- [ ] `npm run validate:v1.13`
-- [ ] **Run 750 + 30 State Tests** passes in a WebGPU browser
-- [ ] Manual GPU cloth, tearing cloth, rope, and water rendering checks pass
+- [ ] `npm run validate:v1.14`
+- [ ] **Run 800 + 32 State Tests** passes in a WebGPU browser
+- [ ] Manual GPU cloth, tearing cloth, rope, water, and material-member rendering checks pass
+- [ ] All ten normalized material presets and load/release/cycle controls were checked
+- [ ] Material thresholds are described as comparative—not FEA, design allowables, fatigue life, or safety calculations
 - [ ] Preview-backend warning/label is correct
 - [ ] Native Box3D WASM tested, or the reason it was not tested is stated
 - [ ] No new WGSL compilation warnings/errors

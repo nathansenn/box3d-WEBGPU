@@ -15,7 +15,8 @@ export type SceneFamily =
   | 'architecture'
   | 'cloth'
   | 'rope'
-  | 'water';
+  | 'water'
+  | 'fracture';
 
 export type SceneCategory =
   | 'Core Physics'
@@ -300,6 +301,24 @@ const FAMILIES: readonly FamilyDefinition[] = [
     recommendedMaxBodies: 700,
     camera: { yaw: -0.72, pitch: 0.5, distance: 43, target: [0, 2, 0] },
   },
+  {
+    // Keep fracture last: family order is part of the deterministic scene-ID
+    // contract and all previously published recipes must retain IDs 0–749.
+    family: 'fracture',
+    category: 'Materials',
+    titles: [
+      'Structural Steel Three-Point Bend', 'Aluminum Alloy Yield Rail', 'Copper Ductility Coupon', 'Oak Grain Beam', 'Cross-Laminated Timber Panel',
+      'Reinforced Concrete Span', 'Soda-Lime Glass Fracture Plate', 'Acrylic Impact Strip', 'Elastomer Flex Bar', 'Carbon-Fiber Laminate',
+    ],
+    focus: [
+      'elastic response, plastic-hinge formation, and ductile rupture', 'lower-modulus bending, early yield, and permanent set', 'large plastic deformation and high-ductility failure', 'grain-aligned stiffness, cross-grain weakness, and progressive splitting', 'alternating layer anisotropy and interface separation',
+      'compression-dominant capacity, tension cracking, and reinforcing load transfer', 'high stiffness, low fracture strain, and sudden brittle failure', 'rate-sensitive flexure, localized damage, and crack initiation', 'large reversible strain, damping, and high-deformation recovery', 'fiber-direction stiffness, transverse weakness, and brittle laminate failure',
+    ],
+    tags: ['materials', 'fracture', 'bending', 'yield', 'fatigue', 'beam-lattice'],
+    defaultStress: 3,
+    recommendedMaxBodies: 760,
+    camera: { yaw: -0.74, pitch: 0.37, distance: 34, target: [0, 4.5, 0] },
+  },
 ] as const;
 
 const MODES = [
@@ -336,7 +355,7 @@ function makeScene(def: FamilyDefinition, variant: number, mode: number, id: num
     category: def.category,
     title,
     subtitle: `${def.category} · ${focus}.`,
-    details: `${title} is a procedural test recipe for ${focus}. ${['cloth', 'rope', 'water'].includes(def.family) ? 'It layers deterministic position-based dynamics or a linear shallow-water solver over the Box3D rigid-body stage, then streams dynamic surfaces and instances through dedicated WebGPU pipelines.' : 'It stresses Box3D/WASM simulation, JS fallback determinism, WebGPU transform streaming, one-draw-call instancing, debug wireframes, replay hashes, and browser smoke-test coverage.'}`,
+    details: `${title} is a procedural test recipe for ${focus}. ${['cloth', 'rope', 'water', 'fracture'].includes(def.family) ? 'It layers deterministic position-based dynamics, material-failure constraints, or a linear shallow-water solver over the Box3D rigid-body stage, then streams dynamic surfaces and instances through dedicated WebGPU paths.' : 'It stresses Box3D/WASM simulation, JS fallback determinism, WebGPU transform streaming, one-draw-call instancing, debug wireframes, replay hashes, and browser smoke-test coverage.'}`,
     defaultStress: stress,
     recommendedMaxBodies: recommended,
     camera: cameraFor(def, variant),

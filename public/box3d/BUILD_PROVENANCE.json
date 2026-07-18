@@ -12,7 +12,7 @@
   },
   "bridge": {
     "source": "wasm/box3d_web.c",
-    "sha256": "640d65fb3e264cbb0f7f3f487dba22205b981516f35a37707daae03e9a405ce2",
+    "sha256": "79f4dc7e91a53676f2bda682b05a6da87ab32ab09c301e275c55ec368ae1b7f3",
     "lazyReplayHash": true,
     "sleepingWorldTransformCache": true,
     "independentColorRevision": true,
@@ -28,12 +28,12 @@
       "sha256": "8ec00439683b8da258916ebe90f0cea6a6d0672641fda571936b6012fd3cec3b"
     },
     "box3d.wasm": {
-      "bytes": 396272,
-      "sha256": "de1fe4c659bb6c99879555b7b987d53455bcf4768cbfffcb35eac3ee75835a1c"
+      "bytes": 397198,
+      "sha256": "576ef76fb9de028bc7b25677d666cb3acc313dc7e5249cd1a0138b8688c71805"
     }
   },
   "validation": {
-    "catalogScenes": 750,
+    "catalogScenes": 800,
     "deterministicPasses": 2,
     "invalidTimestepGuard": true,
     "finalSleepTransformCapture": true,

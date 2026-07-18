@@ -12,9 +12,11 @@ import type {
   DynamicSurfaceFrame,
   GpuClothSurfaceFrame,
   GpuWaterSurfaceFrame,
+  MaterialFailureTelemetry,
   PackedSurfaceFrame,
   RopeGridFrame,
 } from '../types';
+import { MaterialSimulation } from './material-simulation';
 import { PACKED_SURFACE_VERTEX_BYTES, PackedSurfaceBuffer, packedSurfacePositionsAreFinite } from './packed-surface';
 import type {
   ClothStepPointers,
@@ -25,7 +27,7 @@ import type {
   WaterKernelPointers,
 } from './kernels';
 
-export type SoftSimulationKind = 'none' | 'cloth' | 'rope' | 'water';
+export type SoftSimulationKind = 'none' | 'cloth' | 'rope' | 'water' | 'fracture';
 
 export type SoftSimulationFrame = {
   kind: SoftSimulationKind;
@@ -42,9 +44,10 @@ export type SoftSimulationFrame = {
   energy: number;
   hash: number;
   frameVersion: number;
+  material?: MaterialFailureTelemetry | null;
 };
 
-interface SoftSimulation {
+export interface SoftSimulation {
   readonly kind: Exclude<SoftSimulationKind, 'none'>;
   readonly label: string;
   step(dt: number, subSteps: number): void;
@@ -55,6 +58,9 @@ interface SoftSimulation {
   buildFrame(debug: boolean): SoftSimulationFrame;
   currentHash(): number;
   destroy(): void;
+  setLoadTarget?(target: number): void;
+  releaseLoad?(): void;
+  cycleLoad?(): void;
 }
 
 const EMPTY_FLOAT32: Float32Array<ArrayBufferLike> = new Float32Array(0);
@@ -69,8 +75,8 @@ const WATER_INSTANCE_CAP = MAX_WATER_DROPLETS + MAX_WATER_FLOATERS;
 const TELEMETRY_INTERVAL_STEPS = 12;
 const SURFACE_VERTEX_BYTES = PACKED_SURFACE_VERTEX_BYTES;
 
-function softFamily(family: ScenePreset['family']): family is 'cloth' | 'rope' | 'water' {
-  return family === 'cloth' || family === 'rope' || family === 'water';
+function softFamily(family: ScenePreset['family']): family is 'cloth' | 'rope' | 'water' | 'fracture' {
+  return family === 'cloth' || family === 'rope' || family === 'water' || family === 'fracture';
 }
 
 function quantizedHash(values: ArrayLike<number>, count = values.length): number {
@@ -1466,6 +1472,7 @@ class RopeSimulation implements SoftSimulation {
     this.hashValue = quantizedHash(this.positions, Math.min(this.positions.length, 4096));
     this.ropeSegmentData = new Float32Array(Math.max(1, this.ropeConstraintCount) * 8);
     this.ropeGridResult = {
+      presentation: 'rope',
       positions: this.positions,
       segments: this.ropeSegmentData,
       nodeCount: this.invMass.length,
@@ -2657,6 +2664,7 @@ const EMPTY_FRAME: SoftSimulationFrame = {
   energy: 0,
   hash: 0,
   frameVersion: 0,
+  material: null,
 };
 
 export class SoftSimulationSuite {
@@ -2676,7 +2684,8 @@ export class SoftSimulationSuite {
     if (!softFamily(scene.family)) return false;
     if (scene.family === 'cloth') this.active = new ClothSimulation(scene, this.lastStress, this.lastSeed, this.kernelModule);
     else if (scene.family === 'rope') this.active = new RopeSimulation(scene, this.lastStress, this.lastSeed, this.kernelModule);
-    else this.active = new WaterSimulation(scene, this.lastStress, this.lastSeed, this.kernelModule);
+    else if (scene.family === 'water') this.active = new WaterSimulation(scene, this.lastStress, this.lastSeed, this.kernelModule);
+    else this.active = new MaterialSimulation(scene, this.lastStress, this.lastSeed);
     return true;
   }
 
@@ -2693,6 +2702,9 @@ export class SoftSimulationSuite {
   explode(center: Vec3, strength: number, radius: number): void { this.active?.explode(center, strength, radius); }
   launchProjectile(position: Vec3, velocity: Vec3, size: number): number { return this.active?.launchProjectile(position, velocity, size) ?? -1; }
   spawnRain(count: number, spread: number, height: number): number { return this.active?.spawnRain(count, spread, height) ?? 0; }
+  setLoadTarget(target: number): void { this.active?.setLoadTarget?.(target); }
+  releaseLoad(): void { this.active?.releaseLoad?.(); }
+  cycleLoad(): void { this.active?.cycleLoad?.(); }
   buildFrame(debug = false): SoftSimulationFrame { return this.active?.buildFrame(debug) ?? EMPTY_FRAME; }
   hash(): number { return this.active?.currentHash() ?? 0; }
 
@@ -2762,6 +2774,7 @@ export class SoftSimulationSuite {
     if (frame.ropeGrid) {
       const rope = frame.ropeGrid;
       if (
+        (rope.presentation !== 'rope' && rope.presentation !== 'material') ||
         rope.nodeCount <= 0 ||
         rope.segmentCount < 0 ||
         rope.positions.length < rope.nodeCount * 3 ||
@@ -2778,6 +2791,22 @@ export class SoftSimulationSuite {
         if (!Number.isInteger(a) || !Number.isInteger(b) || a < 0 || b < 0 || a >= rope.nodeCount || b >= rope.nodeCount) {
           return { ok: false, message: `${frame.kind} GPU-rope segment ${i} references an invalid node.` };
         }
+      }
+    }
+    if (frame.kind === 'fracture') {
+      const material = frame.material;
+      if (!material || material.label.length < 3 || material.testMode.length < 3) {
+        return { ok: false, message: 'fracture material telemetry did not initialize.' };
+      }
+      if (
+        !Number.isFinite(material.loadTarget) || !Number.isFinite(material.loadProgress) ||
+        !Number.isFinite(material.maxStrain) || !Number.isFinite(material.yieldStrain) ||
+        !Number.isFinite(material.breakStrain) || !Number.isFinite(material.peakDamage) ||
+        material.loadTarget < 0 || material.loadProgress < 0 || material.peakDamage < 0 || material.peakDamage > 1 ||
+        material.yieldStrain <= 0 || material.breakStrain <= material.yieldStrain ||
+        material.yieldedCount < 0 || material.damagedCount < 0
+      ) {
+        return { ok: false, message: 'fracture material telemetry contains invalid normalized values.' };
       }
     }
     if (frame.nodeCount <= 0 || frame.hash === 0) return { ok: false, message: `${frame.kind} telemetry did not initialize.` };

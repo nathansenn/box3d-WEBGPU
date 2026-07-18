@@ -1,5 +1,31 @@
 # Changelog
 
+## 1.14.0 — 2026-07-18 — Material Bending and Fracture Lab
+
+### Added
+
+- Added 50 deterministic material-test scenes and two directed heroes, bringing the catalog to **800 scenes** and **32 hero sequences**.
+- Added ten normalized comparative presets: structural steel, aluminum, copper, oak, cross-laminated timber, reinforced concrete, soda-lime glass, acrylic, elastomer, and carbon-fiber laminate.
+- Added a reduced-order beam lattice with tension/compression yield and break envelopes, plastic set, cumulative damage, fatigue, anisotropy, cohesive crack fronts, and bounded impact/rain/blast coupling.
+- Added a 0–200% material load rig with apply, release, cycle, keyboard controls, live thresholds, damage, failure phase, energy, break count, and replay telemetry.
+- Added an exact current-source **100-case** material campaign plus material preset, deterministic action, three-backend soak, GPU presentation, and native catalog contracts.
+
+### Changed
+
+- Generalized the compact GPU rope segment path so material members reuse its compute-expanded main/shadow presentation while keeping fracture decisions CPU-authoritative.
+- Extended the native/fallback fixture stages, catalog, state sweep, release workflows, and documentation to the sixteenth material-fracture family.
+- Rebuilt the pinned native Box3D artifact for the 800-scene stage map while retaining the v1.13 1,000-case result as source-frozen historical evidence.
+
+### Validation
+
+- All 24 deterministic Node suites, 11 Dawn WGSL modules, KTX2 paths, native bridge contract, SIMD/scalar kernels, production build, Pages build, and zero-vulnerability audit pass.
+- JavaScript, SIMD-WASM, and scalar-WASM each pass 200 scenes, 4,800 catalog frames, and 2,400 deterministic replay frames.
+- The 100-case material matrix is **100/100 finite, deterministic, and monotonic**; 83 cases reach yield/damage and 69 fracture. The representative full release-gate median/p95 case time is 0.398/0.844 ms per frame for the measured solver-plus-frame scope.
+- The native Box3D artifact passes two deterministic 800-scene traversals, 1,145,838 body-frames per pass, and the 4,096-body ceiling.
+- Visible browser acceptance passes **800/800 scenes**, **32/32 heroes**, representative steel/glass/elastomer/composite interactions, and a zero-warning/error console.
+
+The material coefficients are dimensionless demonstration profiles, not calibrated FEA, real design allowables, or safety certification.
+
 ## 1.13.0 — 2026-07-16 — Thousand-Case Optimization Audit
 
 ### Added

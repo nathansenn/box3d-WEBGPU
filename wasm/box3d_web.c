@@ -409,11 +409,17 @@ static void b3w_scene_cloth_stage(int stress, int variant)
 {
     float span = 11.0f + (float)(variant % 3) * 1.4f;
     float top = 10.5f + (float)stress * 0.8f + (variant == 2 ? 4.5f : 0.0f);
+    // Flag and sail layouts pin their left edge at -0.94 times cloth width.
+    // Place the display post just outside that boundary instead of through it.
+    float clothWidth = 14.0f + (float)variant * 0.16f;
+    float leftPost = (variant == 0 || variant == 5) ? -clothWidth * 0.94f - 0.35f : -span;
+    float railCenter = (leftPost + span) * 0.5f;
+    float railHalfWidth = (span - leftPost) * 0.5f;
     uint32_t postColor = (variant & 1) ? 0x334155u : 0x475569u;
     uint32_t railColor = (variant & 1) ? 0xFFD166u : 0x30AEBFu;
-    b3w_add_box_ex(b3_staticBody, -span, top * 0.5f, 0.0f, 0.22f, top * 0.5f, 0.22f, postColor, 0.0f, 0.82f, 0.01f);
+    b3w_add_box_ex(b3_staticBody, leftPost, top * 0.5f, 0.0f, 0.22f, top * 0.5f, 0.22f, postColor, 0.0f, 0.82f, 0.01f);
     b3w_add_box_ex(b3_staticBody, span, top * 0.5f, 0.0f, 0.22f, top * 0.5f, 0.22f, postColor, 0.0f, 0.82f, 0.01f);
-    b3w_add_box_ex(b3_staticBody, 0.0f, top, 0.0f, span, 0.20f, 0.20f, railColor, 0.0f, 0.82f, 0.01f);
+    b3w_add_box_ex(b3_staticBody, railCenter, top, 0.0f, railHalfWidth, 0.20f, 0.20f, railColor, 0.0f, 0.82f, 0.01f);
     b3w_add_box_ex(b3_staticBody, 0.0f, 0.12f, 0.0f, span + 2.5f, 0.12f, 7.0f, 0x132033u, 0.0f, 0.88f, 0.01f);
     if (variant == 3 || variant == 7)
     {
@@ -487,6 +493,30 @@ static void b3w_scene_water_stage(int stress, int variant)
             0.40f,
             0.08f);
     }
+}
+
+static void b3w_scene_fracture_stage(int stress, int variant)
+{
+    // Box3D owns only the immutable test fixture. The browser soft-material
+    // solver remains authoritative for bending, yield, damage, and fracture.
+    float support_span = 8.5f + (float)(variant % 3) * 0.65f;
+    float frame_top = 9.4f + (float)stress * 0.28f;
+    uint32_t accent = (variant & 1) ? 0xFFD166u : 0x30AEBFu;
+    b3w_add_box_ex(b3_staticBody, 0.0f, 0.14f, 0.0f, support_span + 5.0f, 0.14f, 6.5f, 0x111D30u, 0.0f, 0.90f, 0.01f);
+    for (int side = -1; side <= 1; side += 2)
+    {
+        float x = (float)side * support_span;
+        b3w_add_box_ex(b3_staticBody, x, 0.9f, 0.0f, 0.62f, 0.9f, 2.35f, 0x334155u, 0.0f, 0.88f, 0.01f);
+        b3w_add_box_ex(b3_staticBody, x, 1.9f, 0.0f, 0.9f, 0.10f, 2.55f, accent, 0.0f, 0.82f, 0.01f);
+    }
+    for (int side = -1; side <= 1; side += 2)
+    {
+        float z = (float)side * 5.2f;
+        b3w_add_box_ex(b3_staticBody, 0.0f, frame_top * 0.5f, z, 0.30f, frame_top * 0.5f, 0.30f, 0x475569u, 0.0f, 0.85f, 0.01f);
+    }
+    b3w_add_box_ex(b3_staticBody, 0.0f, frame_top, 0.0f, 0.28f, 0.28f, 5.2f, accent, 0.0f, 0.82f, 0.01f);
+    b3w_add_box_ex(b3_staticBody, 0.0f, frame_top - 1.75f, 0.0f, 0.34f, 1.75f, 0.34f, 0x64748Bu, 0.0f, 0.82f, 0.01f);
+    b3w_add_box_ex(b3_staticBody, 0.0f, frame_top - 3.55f, 0.0f, 0.72f, 0.12f, 1.15f, 0xF97316u, 0.0f, 0.82f, 0.01f);
 }
 
 static void b3w_add_aaa_set_dressing(int family, int stress, int variant)
@@ -668,6 +698,17 @@ static void b3w_add_aaa_set_dressing(int family, int stress, int variant)
             }
             b3w_add_box_ex(b3_staticBody, 0.0f, 6.5f, -13.0f, 18.0f, 0.08f, 0.08f, 0x50D8FFu, 0.0f, 0.82f, 0.01f);
             break;
+
+        case 15: // material fracture observation rails
+            for (int i = -5; i <= 5; ++i)
+            {
+                float x = (float)i * 3.2f;
+                b3w_add_box_ex(b3_staticBody, x, 0.08f, -6.1f, 1.25f, 0.08f, 0.08f, (i & 1) ? 0xFFD166u : 0x50D8FFu, 0.0f, 0.86f, 0.01f);
+                b3w_add_box_ex(b3_staticBody, x, 0.08f, 6.1f, 1.25f, 0.08f, 0.08f, (i & 1) ? 0x50D8FFu : 0xFFD166u, 0.0f, 0.86f, 0.01f);
+            }
+            b3w_add_box_ex(b3_staticBody, 0.0f, 6.8f, -5.8f, 13.0f, 0.07f, 0.07f, 0x30AEBFu, 0.0f, 0.82f, 0.01f);
+            b3w_add_box_ex(b3_staticBody, 0.0f, 6.8f, 5.8f, 13.0f, 0.07f, 0.07f, 0xFFD166u, 0.0f, 0.82f, 0.01f);
+            break;
     }
 }
 
@@ -704,7 +745,7 @@ B3W_EXPORT int b3w_create_scene(int sceneId, int stressScale, uint32_t seed)
     int variant = sceneId % 10;
     b3w_create_world(seed);
 
-    // The browser catalog has 750 scenes: 15 families x 5 modes x 10 variants.
+    // The browser catalog has 800 scenes: 16 families x 5 modes x 10 variants.
     // This C bridge maps each family to a Box3D-native recipe and layers
     // lightweight variant actions on top until the full native catalog is expanded.
     switch (family)
@@ -754,6 +795,9 @@ B3W_EXPORT int b3w_create_scene(int sceneId, int stressScale, uint32_t seed)
             break;
         case 14:
             b3w_scene_water_stage(stress, variant);
+            break;
+        case 15:
+            b3w_scene_fracture_stage(stress, variant);
             break;
     }
 

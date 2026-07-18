@@ -105,6 +105,19 @@ type Ui = {
   softConstraints: HTMLElement;
   softBreaks: HTMLElement;
   softEnergy: HTMLElement;
+  materialRig: HTMLDetailsElement;
+  materialName: HTMLElement;
+  materialTest: HTMLElement;
+  materialLoadTarget: HTMLInputElement;
+  materialLoadValue: HTMLElement;
+  materialApply: HTMLButtonElement;
+  materialRelease: HTMLButtonElement;
+  materialCycle: HTMLButtonElement;
+  materialLoad: HTMLElement;
+  materialStrain: HTMLElement;
+  materialThresholds: HTMLElement;
+  materialDamage: HTMLElement;
+  materialFailure: HTMLElement;
   fps: HTMLElement;
   simMs: HTMLElement;
   renderMs: HTMLElement;
@@ -194,6 +207,19 @@ function getUi(): Ui {
     softConstraints: byId('soft-constraints'),
     softBreaks: byId('soft-breaks'),
     softEnergy: byId('soft-energy'),
+    materialRig: byId<HTMLDetailsElement>('material-rig'),
+    materialName: byId('material-name'),
+    materialTest: byId('material-test'),
+    materialLoadTarget: byId<HTMLInputElement>('material-load-target'),
+    materialLoadValue: byId('material-load-value'),
+    materialApply: byId<HTMLButtonElement>('material-apply'),
+    materialRelease: byId<HTMLButtonElement>('material-release'),
+    materialCycle: byId<HTMLButtonElement>('material-cycle'),
+    materialLoad: byId('material-load'),
+    materialStrain: byId('material-strain'),
+    materialThresholds: byId('material-thresholds'),
+    materialDamage: byId('material-damage'),
+    materialFailure: byId('material-failure'),
     fps: byId('fps'),
     simMs: byId('sim-ms'),
     renderMs: byId('render-ms'),
@@ -467,6 +493,18 @@ function executeBeat(beat: ShowcaseBeat): void {
       appendLog(`Storm beat added ${added}/${count} rigid bodies and ${softAdded} soft/fluid impacts.`);
       break;
     }
+    case 'set-load': {
+      const target = clamp(beat.strength ?? 1, 0, 2);
+      soft.setLoadTarget(target);
+      ui.materialLoadTarget.value = String(target);
+      ui.materialLoadValue.textContent = `${Math.round(target * 100)}%`;
+      break;
+    }
+    case 'release-load':
+      soft.releaseLoad();
+      ui.materialLoadTarget.value = '0';
+      ui.materialLoadValue.textContent = '0%';
+      break;
     case 'slowmo':
       cinematicSpeed = 0.22;
       effects.addCameraShake(0.08);
@@ -568,6 +606,13 @@ function bindControls(): void {
   ui.explode.addEventListener('click', applyExplosion);
   ui.projectile.addEventListener('click', fireProjectile);
   ui.rain.addEventListener('click', applyRain);
+  ui.materialLoadTarget.addEventListener('input', () => {
+    ui.materialLoadValue.textContent = `${Math.round(Number(ui.materialLoadTarget.value) * 100)}%`;
+  });
+  ui.materialLoadTarget.addEventListener('change', applyMaterialLoad);
+  ui.materialApply.addEventListener('click', applyMaterialLoad);
+  ui.materialRelease.addEventListener('click', releaseMaterialLoad);
+  ui.materialCycle.addEventListener('click', cycleMaterialLoad);
   ui.debug.addEventListener('click', toggleDebug);
   ui.runTests.addEventListener('click', runStateTests);
   ui.runTurboQuant.addEventListener('click', runTurboQuantBrowserProbe);
@@ -583,6 +628,8 @@ function bindControls(): void {
     if (key === 't') toggleMaxTour();
     if (key === 'c') toggleShowcasePlayback();
     if (key === 'd') toggleDebug();
+    if (key === 'l') applyMaterialLoad();
+    if (key === 'u') releaseMaterialLoad();
     if (event.key === 'ArrowLeft') loadRelativeScene(-1);
     if (event.key === 'ArrowRight') loadRelativeScene(1);
     const number = Number.parseInt(event.key, 10);
@@ -644,7 +691,35 @@ function applyRain(): void {
   const added = backend.spawnRain(requested, 20, 27);
   const softAdded = soft.spawnRain(requested, 20, 27);
   effects.spawnRainFlash([0, 16, 0], quality.effectBudget);
-  appendLog(`Spawned ${added}/${requested} rigid stress bodies plus ${softAdded} cloth/rope/water impact particles.`);
+  appendLog(`Spawned ${added}/${requested} rigid stress bodies plus ${softAdded} soft/material/fluid impact particles.`);
+}
+
+function applyMaterialLoad(): void {
+  if (soft.kind() !== 'fracture') {
+    appendLog('Material load rig is available in the Material Failure scene family.');
+    return;
+  }
+  const target = clamp(Number(ui.materialLoadTarget.value), 0, 2);
+  soft.setLoadTarget(target);
+  ui.materialLoadValue.textContent = `${Math.round(target * 100)}%`;
+  appendLog(`Material actuator target set to ${Math.round(target * 100)}%.`);
+}
+
+function releaseMaterialLoad(): void {
+  if (soft.kind() !== 'fracture') return;
+  soft.releaseLoad();
+  ui.materialLoadTarget.value = '0';
+  ui.materialLoadValue.textContent = '0%';
+  appendLog('Material actuator released for elastic recovery and permanent-set inspection.');
+}
+
+function cycleMaterialLoad(): void {
+  if (soft.kind() !== 'fracture') {
+    appendLog('Material load cycling is available in the Material Failure scene family.');
+    return;
+  }
+  soft.cycleLoad();
+  appendLog('Material fatigue cycle armed: the actuator will load, unload, and repeat deterministically.');
 }
 
 function toggleDebug(): void {
@@ -669,6 +744,7 @@ function updateStats(
   ui.softConstraints.textContent = softFrame.constraintCount.toLocaleString();
   ui.softBreaks.textContent = softFrame.brokenCount.toLocaleString();
   ui.softEnergy.textContent = softFrame.energy.toFixed(2);
+  updateMaterialRig(softFrame);
   if (fps > 0) ui.fps.textContent = String(Math.round(fps));
   ui.simMs.textContent = `${simMs.toFixed(2)} ms`;
   ui.renderMs.textContent = `${renderMs.toFixed(2)} ms`;
@@ -678,6 +754,34 @@ function updateStats(
   ui.hash.textContent = `0x${combinedHash.toString(16).padStart(8, '0')}`;
   ui.qualityStat.textContent = quality.label;
   if (steps > 0) ui.simMs.title = `${steps} fixed simulation step(s) this frame`;
+}
+
+function updateMaterialRig(softFrame: SoftSimulationFrame): void {
+  const material = softFrame.material;
+  ui.materialRig.hidden = !material;
+  if (!material) {
+    ui.materialName.textContent = 'Inactive';
+    ui.materialTest.textContent = 'Select a Material Failure scene';
+    ui.materialLoad.textContent = '0%';
+    ui.materialStrain.textContent = '0.00%';
+    ui.materialThresholds.textContent = '—';
+    ui.materialDamage.textContent = '0%';
+    ui.materialFailure.textContent = 'inactive';
+    return;
+  }
+
+  ui.materialName.textContent = material.label;
+  ui.materialTest.textContent = material.testMode;
+  ui.materialLoad.textContent = `${Math.round(material.loadProgress * 100)}% / ${Math.round(material.loadTarget * 100)}%`;
+  ui.materialStrain.textContent = `${(material.maxStrain * 100).toFixed(2)}%`;
+  ui.materialThresholds.textContent = `${(material.yieldStrain * 100).toFixed(2)}% / ${(material.breakStrain * 100).toFixed(2)}%`;
+  ui.materialDamage.textContent = `${Math.round(material.peakDamage * 100)}% · ${material.yieldedCount} yielded · ${material.damagedCount} damaged`;
+  ui.materialFailure.textContent = material.failurePhase;
+
+  if (document.activeElement !== ui.materialLoadTarget) {
+    ui.materialLoadTarget.value = String(clamp(material.loadTarget, 0, 2));
+    ui.materialLoadValue.textContent = `${Math.round(material.loadTarget * 100)}%`;
+  }
 }
 
 function buildDebugLines(): DebugLine[] {
@@ -970,8 +1074,8 @@ async function main(): Promise<void> {
   renderer = loadedRenderer;
   const softBackend = softRuntime.available ? `${softRuntime.variant.toUpperCase()} soft kernels` : 'JavaScript soft fallback';
   ui.warning.textContent = loaded.warning
-    ? `Preview backend active: ${loaded.warning} ${softBackend}; GPU-resident intact cloth and water plus compute-expanded rope rendering are active. Build Box3D WASM for native rigid-body fidelity.`
-    : `Native Box3D WASM rigid-body backend loaded with ${softBackend}, GPU cloth, GPU water, and compute-expanded rope rendering.`;
+    ? `Preview backend active: ${loaded.warning} ${softBackend}; GPU-resident intact cloth and water, compute-expanded rope rendering, and deterministic material fracture are active. Build Box3D WASM for native rigid-body fidelity.`
+    : `Native Box3D WASM rigid-body backend loaded with ${softBackend}, GPU cloth, GPU water, compute-expanded rope rendering, and deterministic material fracture.`;
   ui.warning.classList.toggle('native', !loaded.warning);
 
   buildSceneBrowser();

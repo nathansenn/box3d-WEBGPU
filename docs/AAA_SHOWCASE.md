@@ -12,7 +12,7 @@ The AAA director layers 30 hand-authored camera and event timelines over selecte
 | 4 | **Helix Relay Protocol** | Chain Reactions | 093 | 4× | 15s | Cascade |
 | 5 | **Aegis Tower: Kinetic Breach** | High-Rise Destruction | 141 | 4× | 16s | Impact |
 | 6 | **Twin Spire Progressive Collapse** | High-Rise Destruction | 148 | 5× | 17s | Impact |
-| 7 | **Atlas Suspension Convoy** | Infrastructure | 191 | 4× | 15s | Collapse |
+| 7 | **Truss Span Failure** | Infrastructure | 193 | 5× | 16s | Impact |
 | 8 | **Viaduct Shockwave** | Infrastructure | 200 | 5× | 16s | Cascade |
 | 9 | **Hypermaterial Gauntlet** | Materials | 241 | 3× | 14s | Cascade |
 | 10 | **Restitution Reactor** | Materials | 244 | 4× | 14s | Cascade |
@@ -99,13 +99,13 @@ The AAA director layers 30 hand-authored camera and event timelines over selecte
 
 **Default dramatic arc:** establishing shot → systems armed → primary event → time dilation → secondary disruption → real-time recovery → telemetry lock.
 
-### 07. Atlas Suspension Convoy
+### 07. Truss Span Failure
 
-**Catalog scene:** `191` · **Discipline:** Infrastructure · **Recommended stress:** 4× · **Duration:** 15s · **Event pattern:** collapse
+**Catalog scene:** `193` · **Discipline:** Infrastructure · **Recommended stress:** 5× · **Duration:** 16s · **Event pattern:** impact
 
-> A segmented bridge carries concentrated cargo until a controlled mid-span disruption initiates deck failure.
+> A triangular truss corridor carries a concentrated load until a lateral strike breaks its repeating support path.
 
-**Engineering objective:** Visualize segmented deck contacts, moving load concentration, support response, and debris settling across a wide frame.
+**Engineering objective:** Visualize truss contact transfer, brace loss, mid-span impact, progressive deck failure, and debris settling across a wide frame.
 
 **Default dramatic arc:** establishing shot → systems armed → primary event → time dilation → secondary disruption → real-time recovery → telemetry lock.
 
@@ -345,13 +345,13 @@ The AAA director layers 30 hand-authored camera and event timelines over selecte
 - Camera motion is interpolated between keyframes with eased position/distance/pitch and shortest-path yaw interpolation.
 - Timed beats can trigger captions, structural impulse, projectile launch, body rain, radial blast, slow motion, or return to normal speed.
 - Manual camera input leaves cinematic playback so the operator always retains control.
-- Maximum AAA Tour advances through all 30 sequences after the current telemetry lock.
+- Maximum AAA Tour advances through all 32 sequences after the current telemetry lock.
 
 ## Capture order for the strongest presentation
 
 1. **Titan Foundry Stackfall** — clear introduction to stacked-body stability and presentation quality.
 2. **Aegis Tower: Kinetic Breach** — impact, slow motion, camera shake, debris, and shadows.
-3. **Atlas Suspension Convoy** — wide-frame infrastructure and concentrated loading.
+3. **Truss Span Failure** — wide-frame truss transfer, brace loss, and progressive deck collapse.
 4. **Orbital Cargo Storm** — body count, transform bandwidth, and effect budget.
 5. **Tempest Standard Protocol** — cloth folds, strain, tearing, and two-sided surface shading.
 6. **Sky Crane Cable Failure** — cable tension, payload inertia, and controlled line failure.

@@ -1,8 +1,8 @@
 # Box3D WebGPU — AAA Physics Lab
 
-A browser-native 3D physics showcase combining **Box3D rigid bodies**, deterministic **cloth and rope**, interactive **shallow water**, and an HDR **WebGPU** renderer.
+A browser-native 3D physics showcase combining **Box3D rigid bodies**, deterministic **cloth and rope**, interactive **shallow water**, comparative **material bending and fracture**, and an HDR **WebGPU** renderer.
 
-Version **1.13.0** ships 750 deterministic capability scenes, 30 directed hero demonstrations, native Box3D WebAssembly artifacts, SIMD/scalar soft-system kernels, and an exact 1,000-case optimization audit.
+Version **1.14.0** ships 800 deterministic capability scenes, 32 directed hero demonstrations, native Box3D WebAssembly artifacts, SIMD/scalar soft-system kernels, a new normalized material-failure lab, and the retained exact v1.13 1,000-case optimization audit.
 
 > This is an AAA-style capability lab and engine foundation. It is not a claim that the numerical Box3D solver runs on WebGPU or that every subsystem of a commercial game engine is complete.
 
@@ -10,22 +10,60 @@ Version **1.13.0** ships 750 deterministic capability scenes, 30 directed hero d
 
 - Native Box3D C17 physics compiled to WebAssembly with Emscripten.
 - Deterministic PBD cloth and rope plus a 2.5D shallow-water solver.
+- Deterministic elastic, plastic, fatigue, and fracture comparisons across ten normalized material presets.
 - SIMD WebAssembly, scalar WebAssembly, and JavaScript fallback paths.
 - GPU-resident presentation for intact cloth and water.
 - WebGPU compute expansion of compact rope data.
 - HDR rendering, real quality profiles, shadows, PBR-inspired materials, atmospheric effects, and post-processing.
-- 750 searchable scenes across 15 simulation families.
-- 30 hand-directed cinematic demonstrations.
+- 800 searchable scenes across 16 simulation families.
+- 32 hand-directed cinematic demonstrations.
 - Deterministic replay hashes, runtime telemetry, and in-app state tests.
 - KTX2 BC4 textures with R8 fallback.
 - Optional TurboQuant transport for remote snapshots and replay storage.
 - Exact source manifest and reproducible benchmark/validation commands.
 
+## Demo gallery
+
+The live recording below captures the v1.14 Maximum AAA Tour running through a real Chrome/WebGPU compositor with native Box3D WebAssembly and SIMD soft-system kernels. The two-minute cut plays at 2× speed from four minutes of live application capture and concentrates on the five highest-value simulation domains: cloth, water, tower destruction, bridge infrastructure, and rope rigging. The static images that follow are retained v1.12 hardware-browser acceptance captures showing the command deck, deterministic validation, and a high-stress water/rigid-body scene.
+
+### Demo video
+
+[![Animated preview of the Box3D WebGPU AAA Physics Lab](docs/media/box3d-webgpu-demo-preview.gif)](docs/media/box3d-webgpu-demo.mp4)
+
+Click the animated preview to open the [two-minute H.264 demo recording](docs/media/box3d-webgpu-demo.mp4) at 1280×720 and 30 fps. It is a silent 2× presentation of four minutes of live WebGPU output—not a slideshow or generated substitute—with scene state, body counts, frame timing, camera direction, effects, and timeline telemetry changing in real time. Each of the ten directed showcases appears exactly once; the edit does not restart or replay a demo.
+
+| Chapter | Time | Directed hero demonstrations |
+|---|---:|---|
+| **Cloth** | 0:00–0:24 | Tempest Standard Protocol · Parachute Canopy Failure |
+| **Interactive water** | 0:24–0:48 | Tsunami Research Array · Leviathan Impact Basin |
+| **Tower destruction** | 0:48–1:12 | Aegis Tower: Kinetic Breach · Twin Spire Progressive Collapse |
+| **Bridge infrastructure** | 1:12–1:36 | Truss Span Failure · Viaduct Shockwave |
+| **Rope and rigging** | 1:36–2:00 | Sky Crane Cable Failure · Suspension Cable Resonance |
+
+<table>
+  <tr>
+    <td width="50%">
+      <img src="benchmarks/results/v112-browser-water-acceptance.png" alt="Interactive WebGPU water basin under a high-volume rigid-body stress test">
+      <br><strong>Water + rigid-body stress</strong><br>
+      GPU-resident shallow water, hundreds of active bodies, cinematic rendering, and live frame telemetry.
+    </td>
+    <td width="50%">
+      <img src="benchmarks/results/v112-browser-state-tests.png" alt="Box3D WebGPU deterministic browser state tests passing across the scene catalog">
+      <br><strong>Deterministic state validation</strong><br>
+      The in-app browser suite exercises the complete recipe catalog while reporting backend, timing, upload, and replay state.
+    </td>
+  </tr>
+</table>
+
+![Box3D WebGPU AAA Physics Lab command deck and live water telemetry](benchmarks/results/v112-browser-final.png)
+
+The capture and acceptance workflow is documented in [LOCAL_BROWSER_VALIDATION.md](docs/LOCAL_BROWSER_VALIDATION.md), with the directed presentation order in [DEMO_GUIDE.md](docs/DEMO_GUIDE.md).
+
 ## Architecture
 
 ```text
 Box3D C17 / WebAssembly            Soft-system coordinator
-rigid bodies and collisions        cloth PBD · rope PBD · shallow water
+rigid bodies and collisions        cloth PBD · rope PBD · shallow water · fracture lattice
              │                     SIMD WASM · scalar WASM · JS fallback
              └──────────────┬───────────────────────────────┘
                             │ fixed 60 Hz coordination
@@ -33,13 +71,13 @@ rigid bodies and collisions        cloth PBD · rope PBD · shallow water
               solver-native state + compact streams
                             │
                             ▼
- WebGPU cloth/water reconstruction · rope compute expansion · rigid instancing
+ WebGPU cloth/water reconstruction · rope/material compute expansion · rigid instancing
                             │
                             ▼
           shadows · HDR/MSAA · atmosphere · effects · post-processing
 ```
 
-Box3D remains authoritative for rigid bodies. Cloth, rope, and water numerical solvers run on the CPU through JavaScript or WebAssembly. WebGPU handles rendering, intact-surface reconstruction, rope presentation expansion, and GPU resource work.
+Box3D remains authoritative for rigid bodies. Cloth, rope, and water numerical solvers run on the CPU through JavaScript or WebAssembly. The comparative material-failure lattice is deterministic TypeScript. WebGPU handles rendering, intact-surface reconstruction, rope/material presentation expansion, and GPU resource work.
 
 ## Quick start
 
@@ -59,6 +97,37 @@ npm run dev
 Open the local URL printed by Vite. The release includes the native Box3D browser artifacts in `public/box3d/`; if they cannot load, the app falls back to the deterministic JavaScript preview backend.
 
 Run commands from the repository root—the directory containing `package.json`. Do not run them from `third_party/box3d`, which is the upstream C/CMake dependency.
+
+## Recommended first run
+
+The fastest way to see every major simulation domain is this focused tour:
+
+| Stop | Showcase | What to watch | Useful controls |
+|---:|---|---|---|
+| 1 | **Titan Foundry Stackfall** | dense contacts, settling, shadows, rigid transform streaming | `Space`, `E`, `P`, `N` |
+| 2 | **Tempest Standard Protocol** | cloth folds, strain color, wind response, and topology-aware tearing | `F`, `D`, 0.5× time |
+| 3 | **Sky Crane Cable Failure** | cable tension, payload inertia, severing, and residual oscillation | `F`, `E`, `D` |
+| 4 | **Tsunami Research Array** | traveling waves, reflection, interference, foam, and current vectors | `Space`, `D` |
+| 5 | **Steel Yield-to-Rupture** | elastic response, plastic set, progressive damage, and member failure | `L`, `U`, `N` |
+| 6 | **Glass Catastrophic Fracture** | brittle crack-front propagation under normalized loading | `L`, `F`, 0.25× time |
+| 7 | **Leviathan Impact Basin** | ballistic entry, rain, floaters, splash displacement, and HDR water | `F`, `E`, stress 5 |
+
+Press `T` for the automatic Maximum AAA Tour, or select the stops manually from the hero selector. Use **Cinematic** quality for normal presentation and **Ultra** only when the GPU has headroom. Finish by opening **Automated Validation** and running the **800 + 32 State Tests**.
+
+### Runtime path and fallback behavior
+
+The application degrades by capability instead of refusing to start:
+
+| Layer | Preferred path | Fallback | Visible signal |
+|---|---|---|---|
+| Rigid physics | native Box3D C17 WebAssembly | deterministic TypeScript preview | backend badge |
+| Cloth, rope, water kernels | SIMD WebAssembly | scalar WebAssembly, then JavaScript | soft-kernel telemetry |
+| Material failure | deterministic TypeScript beam lattice | same deterministic path | material telemetry panel |
+| Rendering | WebGPU HDR frame graph | no non-WebGPU renderer | startup diagnostics |
+| Material-noise texture | KTX2 BC4 | KTX2 R8, then procedural R8 | renderer diagnostics |
+| Remote state | raw full-precision streams | optional TurboQuant transport | TurboQuant probe |
+
+`Deterministic Preview` means only the rigid-body backend has fallen back. Cloth, rope, water, and material specimens remain active. A WebGPU initialization failure is terminal because this project intentionally exercises WebGPU rather than hiding errors behind a WebGL renderer.
 
 ## What you can simulate
 
@@ -100,6 +169,18 @@ Run commands from the repository root—the directory containing `package.json`.
 - WebGPU reconstructs geometry, normals, curvature, foam, and translucent material response.
 - Unchanged water frames avoid additional dynamic uploads.
 
+### Material bending and fracture
+
+- Ten comparative presets: structural steel, aluminum alloy, copper, oak, cross-laminated timber, reinforced concrete, soda-lime glass, acrylic, elastomer, and carbon-fiber laminate.
+- Reduced-order beam lattices with axial, shear, diagonal, and bending constraints.
+- Distinct tension/compression yield and break envelopes, plastic set, progressive damage, cyclic fatigue, anisotropy, and cohesive crack fronts.
+- Three-point bend, cyclic overload, displacement-ramp, impact, and cinematic yield-to-fracture modes.
+- A dedicated 0–200% normalized load rig with apply, release, and fatigue-cycle controls.
+- Live load, strain, threshold, yield/damage count, peak-damage, failure-phase, energy, break-count, and replay-hash telemetry.
+- Compact node/member state reconstructed into heat-colored main/shadow segment instances through WebGPU compute.
+
+These presets are dimensionless and tuned for visible, deterministic comparisons. They are **not** calibrated material data, FEA, structural design, safety calculations, or certification. See [MATERIAL_FRACTURE.md](docs/MATERIAL_FRACTURE.md).
+
 ## WebGPU presentation
 
 The renderer uses a real multi-pass frame graph:
@@ -122,6 +203,7 @@ Key features:
 
 - Shared instanced rigid and effect geometry.
 - GPU-compute rope presentation expansion.
+- GPU-compute material-member presentation expansion.
 - Storage-buffer reconstruction for intact cloth and water.
 - Packed indexed fallback for tearing cloth.
 - Upload-once `uint16` topology and version-keyed upload caches.
@@ -148,7 +230,7 @@ The four render profiles change actual GPU work:
 The catalog is generated deterministically:
 
 ```text
-15 families × 5 presentation modes × 10 variants = 750 scenes
+16 families × 5 presentation modes × 10 variants = 800 scenes
 ```
 
 | Domain | Scenes | Examples |
@@ -157,8 +239,9 @@ The catalog is generated deterministically:
 | Cloth and fabric | 50 | banners, canopies, hammocks, sails, curtains, membranes |
 | Rope and rigging | 50 | crane loads, suspension cables, pendulums, ladders, moorings, nets |
 | Interactive water | 50 | ripple basins, flumes, storms, wakes, fountains, reservoirs, vortices |
+| Material bending and fracture | 50 | steel yielding, timber splitting, concrete cracking, glass fracture, elastomer flexure, composite failure |
 
-Thirty hero demonstrations layer authored cameras, timed impacts, slow motion, effects, telemetry locks, and final inspection beats over selected scenes. Press `T` to start the Maximum AAA Tour.
+Thirty-two hero demonstrations layer authored cameras, timed impacts, slow motion, effects, telemetry locks, and final inspection beats over selected scenes. The two material heroes are **Steel Yield-to-Rupture** and **Glass Catastrophic Fracture**. Press `T` to start the Maximum AAA Tour.
 
 See [AAA_SHOWCASE.md](docs/AAA_SHOWCASE.md) for the complete hero list and [DEMO_GUIDE.md](docs/DEMO_GUIDE.md) for the recommended presentation flow.
 
@@ -175,6 +258,8 @@ See [AAA_SHOWCASE.md](docs/AAA_SHOWCASE.md) for the complete hero list and [DEMO
 | `P` | pause or resume simulation |
 | `N` | advance one fixed simulation frame |
 | `D` | toggle diagnostics |
+| `L` | apply the selected normalized material load |
+| `U` | release the material load |
 | `←` / `→` | previous or next scene |
 | Mouse drag | leave cinematic mode and orbit |
 | Mouse wheel | zoom |
@@ -183,9 +268,9 @@ The command deck also provides scene search, category filters, stress levels, ti
 
 ## Performance
 
-### Version 1.13: exact 1,000-case audit
+### Version 1.13: retained exact 1,000-case audit
 
-The current optimization campaign replayed retained historical work, reviewed missed candidates, and measured exactly **1,000 unique deterministic cases** on an Apple M3 Ultra with Node.js 26.
+The source-frozen v1.13 optimization campaign replayed retained historical work, reviewed missed candidates, and measured exactly **1,000 unique deterministic cases** on an Apple M3 Ultra with Node.js 26. Version 1.14 preserves that evidence as historical proof; the new material solver is validated separately and is not folded into or used to inflate the v1.13 aggregate.
 
 | Classification | Cases |
 |---|---:|
@@ -229,7 +314,7 @@ The audit also rejected plausible changes that did not hold up:
 - SIMD `-O2` and scalar `-Os` both lost to the retained `-O3` soft-kernel builds.
 - A hybrid renderer scratch/string cache regressed unchanged cloth and water work versus the numeric cache.
 
-Run the exact campaign and evidence gate:
+Run the exact historical campaign and evidence gate from its frozen v1.13 source identity:
 
 ```bash
 npm run bench:v1.13:1000
@@ -237,6 +322,21 @@ npm run bench:v1.13:gate
 ```
 
 Read the [benchmark methodology and matrix](docs/V1.13_1000_BENCHMARK_MATRIX.md), [history-gap audit](benchmarks/results/v113-history-gap-audit.md), and [merged raw result](benchmarks/results/v113-production-1000.json).
+
+### Version 1.14: material-fracture baseline
+
+The new material solver has its own current-source campaign rather than being mixed into the frozen v1.13 speedup population:
+
+```text
+10 presets × 5 load modes × 2 stress levels = 100 cases
+180 fixed frames × 3 timing samples = 54,000 timed frames
+```
+
+All **100 / 100** cases were finite, deterministic, and monotonic. Eighty-three reached yield and accumulated damage; 69 reached fracture. In the representative full release-gate run on this development machine, the solver-plus-cached-frame scope measured **0.398 ms/frame median**, **0.844 ms/frame p95**, and **1.131 ms/frame maximum** across the case medians. This is a current-performance baseline, not a before/after speedup or a browser-FPS claim. Reproduce it with:
+
+```bash
+MATERIAL_FRACTURE_OUTPUT=/tmp/material-fracture-v1.14.json npm run test:material:100
+```
 
 ### Cumulative soft-system progress
 
@@ -282,28 +382,29 @@ See [TURBOQUANT.md](docs/TURBOQUANT.md).
 
 ## Validation
 
-Run the full release gate:
+Run the full current release gate:
 
 ```bash
-npm run validate:v1.13
+npm run validate:v1.14
 ```
 
-The validated v1.13 release passed:
+The v1.14 gate covers:
 
 - Source-manifest verification.
 - Clean dependency installation and zero moderate-or-higher npm vulnerabilities.
-- Strict TypeScript and 22 deterministic unit suites.
-- 750 scene constructors and 30 hero definitions.
+- Strict TypeScript and 24 deterministic unit suites.
+- 800 scene constructors and 32 hero definitions.
 - JavaScript, SIMD-WASM, and scalar-WASM soft-system soaks.
-- 150 scenes, 3,600 catalog frames, and 1,800 replay frames per soft backend.
+- 200 cloth/rope/water/material scenes, 4,800 catalog frames, and 2,400 replay frames per soft backend.
+- Ten normalized material presets, all 50 fracture scenes, deterministic load/release/cycle schedules, monotonic damage/break state, and bounded finite topology.
 - 250 rope batching combinations, including 38 qualified paths and 212 controls.
-- Native Box3D soak across all 750 scenes, repeated twice.
-- 1,142,268 rigid body-frames per native pass, up to 4,096 bodies.
+- Native Box3D staging soak across all 800 scenes, repeated twice.
+- 1,145,838 rigid body-frames per native pass, up to 4,096 bodies.
 - Eleven WGSL modules and the real renderer runtime through Dawn with zero uncaptured WebGPU errors.
 - KTX2 BC4/R8 upload paths.
 - Production and GitHub Pages builds.
-- A machine-readable v1.12 visible-browser sweep covering 750 scenes and 30 heroes.
-- A manual v1.13 final-path browser recheck with Box3D WASM, cloth, rope, and water active and no console warnings or errors.
+- A live browser sweep covering 800 scenes and 32 heroes.
+- Manual final-path browser checks with Box3D WASM, cloth, rope, water, and material fracture active and no console warnings or errors.
 
 Safe Apple GPU renderer/KTX2 smoke gate:
 
@@ -316,6 +417,21 @@ npm run test:webgpu:metal
 The retained post-campaign Metal evidence is under [`benchmarks/results/post1000-hardware/`](benchmarks/results/post1000-hardware/). Frozen benchmark-gate snapshots remain bound to the exact campaigns that produced them.
 
 For the full record, see [VALIDATION_REPORT.md](VALIDATION_REPORT.md), [TEST_PLAN.md](docs/TEST_PLAN.md), and [LOCAL_BROWSER_VALIDATION.md](docs/LOCAL_BROWSER_VALIDATION.md).
+
+## Troubleshooting
+
+| Symptom | Fix |
+|---|---|
+| `npm ERR! ENOENT ... package.json` | Return to the repository root. Do not run npm commands inside `third_party/box3d`. |
+| Browser reports WebGPU unavailable | Use a current desktop browser and serve from `localhost` or HTTPS; direct `file://` loading is unsupported. |
+| Backend badge says `Deterministic Preview` | The app is usable, but native rigid physics did not load. Rebuild Box3D WASM and inspect the browser console/network response. |
+| Shader or pipeline validation error | Run `npm run test:webgpu`; runtime WGSL diagnostics report the failing module and line. |
+| Cloth, water, or fracture scene is too slow | Switch to Balanced/Performance, lower stress, close GPU-heavy tabs, and avoid Ultra supersampling. |
+| Water appears opaque or sorts incorrectly | Run the WebGPU test gate and check transparent-pass depth/blend diagnostics. |
+| State tests disagree after an edit | Reset the scene, rerun `npm test`, then compare replay hashes before changing tolerances. |
+| Source verification fails | Run `npm run manifest:generate` only after reviewing the intended file changes, then rerun `npm run verify:source`. |
+
+For the complete visual checklist and browser acceptance matrix, use [LOCAL_BROWSER_VALIDATION.md](docs/LOCAL_BROWSER_VALIDATION.md).
 
 ## Rebuild native Box3D WebAssembly
 
@@ -338,19 +454,40 @@ npm run verify:soft-kernels
 npm run test:soft-kernels
 ```
 
-The default release check compares packaged modules byte-for-byte with the current compiler output. The Ubuntu CI and Pages workflows execute the packaged SIMD/scalar runtime and integration tests, then run the remaining v1.13 soaks, native checks, evidence gates, builds, and audit. They deliberately leave byte-identical recompilation to the recorded release toolchain because different Clang/LLD versions are not expected to emit identical binaries.
+The default release check compares packaged modules byte-for-byte with the current compiler output. The Ubuntu CI and Pages workflows execute the packaged SIMD/scalar runtime and integration tests, then run the current v1.14 soaks, material contracts, native checks, retained evidence gates, builds, and audit. They deliberately leave byte-identical recompilation to the recorded release toolchain because different Clang/LLD versions are not expected to emit identical binaries.
+
+## Production build and deployment
+
+Build a normal production bundle:
+
+```bash
+npm run build
+npm run preview
+```
+
+Build the relative-path bundle used by GitHub Pages:
+
+```bash
+npm run build:pages
+```
+
+Both commands write to `dist/`. Deploy the complete directory so the hashed JavaScript chunks, Box3D WASM, SIMD/scalar soft kernels, and KTX2 textures remain beside the generated HTML. Serve `.wasm` as `application/wasm` and `.ktx2` as `image/ktx2`. WebGPU still requires HTTPS outside localhost.
+
+The checked-in Pages workflow runs the current validation gates before publishing. Repository publishing and existing-repo update helpers live in `scripts/publish-github.sh` and `scripts/push-existing-box3d-webgpu.sh`; review their target owner/repository settings before running either script.
 
 ## Project map
 
 ```text
 src/main.ts                     application loop, UI, fixed-step coordination
-src/scenes.ts                   deterministic 750-scene catalog
-src/showcases.ts                30 cinematic hero timelines
+src/scenes.ts                   deterministic 800-scene catalog
+src/showcases.ts                32 cinematic hero timelines
 src/physics/wasm.ts             native Box3D WebAssembly wrapper
 src/physics/fallback.ts         deterministic rigid preview backend
-src/soft/simulations.ts         cloth, rope, water, interactions, frame contracts
+src/soft/simulations.ts         cloth, rope, water, material coordination, frame contracts
+src/soft/material-presets.ts    ten normalized comparative material profiles
+src/soft/material-simulation.ts deterministic bending, plasticity, damage, and fracture lattice
 src/soft/kernels.ts             SIMD → scalar → JavaScript kernel selection
-src/webgpu/renderer.ts          frame graph, GPU surfaces, rope compute, HDR/post
+src/webgpu/renderer.ts          frame graph, GPU surfaces, rope/material compute, HDR/post
 src/assets/ktx2.ts              BC4/R8 KTX2 loading and fallback
 src/compression/turboquant.ts   optional remote-state codec
 wasm/box3d_web.c                native Box3D application bridge
@@ -365,7 +502,8 @@ docs/                           architecture, rendering, demo, and test guides
 - Box3D is authoritative for rigid bodies; WebGPU is not replacing the Box3D constraint solver.
 - Soft numerical kernels remain CPU JavaScript/WebAssembly work. WebGPU reconstructs presentation data and expands rope render streams.
 - Water is a 2.5D heightfield, not a volumetric SPH, FLIP, or general Navier–Stokes solver.
-- Cloth, rope, water, and rigid scenes exchange actions and staging, but arbitrary two-way coupling across every Box3D collision shape is not complete.
+- Material presets are normalized comparative beam-lattice behaviors, not calibrated constitutive models, FEA, fatigue-life prediction, code checks, or safety calculations.
+- Cloth, rope, water, material, and rigid scenes exchange actions and staging, but arbitrary two-way coupling across every Box3D collision shape is not complete.
 - The renderer supports one active cloth or water surface per scene plus instanced ropes, payloads, droplets, rigid bodies, and effects.
 - Tearing cloth intentionally retains a topology-aware CPU presentation path.
 - Performance measurements describe the tested paths and hardware; they do not prove a universal FPS multiplier.
@@ -374,6 +512,7 @@ docs/                           architecture, rendering, demo, and test guides
 
 - [Box3D port architecture](docs/BOX3D_PORT.md)
 - [Soft-body and water systems](docs/SOFT_BODY_AND_WATER.md)
+- [Material bending and fracture model](docs/MATERIAL_FRACTURE.md)
 - [WebGPU rendering pipeline](docs/RENDERING_PIPELINE.md)
 - [AAA showcase guide](docs/AAA_SHOWCASE.md)
 - [Demo runbook](docs/DEMO_GUIDE.md)

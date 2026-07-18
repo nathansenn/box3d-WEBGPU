@@ -2,13 +2,13 @@
 
 ## Authority boundaries
 
-Box3D remains authoritative for rigid-body simulation. The new soft-simulation layer is authoritative for cloth, rope, and water. WebGPU consumes both domains but owns neither solver state.
+Box3D remains authoritative for rigid-body simulation. The soft-simulation layer is authoritative for cloth, rope, water, and the normalized material-failure lattice. WebGPU consumes both domains but owns neither solver state.
 
 ```text
-Box3D world / WASM                         TypeScript soft suite
-bodies · hulls · contacts · solver         particles · constraints · water field
+Box3D world / WASM                         TypeScript soft/material suite
+bodies · hulls · contacts · solver         particles · constraints · water field · fracture lattice
               │                                      │
-              ├── matrices/colors                    ├── rope matrices/colors
+              ├── matrices/colors                    ├── compact rope/material members
               │                                      ├── cloth indexed surface
               │                                      └── water indexed surface
               └──────────── fixed-step coordinator ─────────────┐
@@ -16,7 +16,7 @@ bodies · hulls · contacts · solver         particles · constraints · water 
                                                           WebGPU renderer
 ```
 
-This separation keeps the native port stable while allowing deformable/fluid systems to evolve independently or later move to a Worker/WebGPU-compute implementation.
+This separation keeps the native port stable while allowing deformable/fluid/material systems to evolve independently or later move to a Worker/WebGPU-compute implementation.
 
 ## Browser C ABI
 
@@ -59,7 +59,7 @@ This topology:
 
 ## Catalog parity
 
-The TypeScript catalog now contains **750 scenes across 15 families**. The native bridge provides rigid staging for all 15 families, including cloth, rope, and water environments. The actual cloth, rope, and water state is simulated by `SoftSimulationSuite` regardless of whether the rigid backend is Box3D WASM or the deterministic preview backend.
+The TypeScript catalog now contains **800 scenes across 16 families**. The native bridge provides rigid staging for every family, including cloth, rope, water, and material-failure environments. The actual cloth, rope, water, and normalized material state is simulated by `SoftSimulationSuite` regardless of whether the rigid backend is Box3D WASM or the deterministic preview backend.
 
 The native bridge varies stress and scene actions and adds cinematic set dressing, but it does not yet claim one-to-one Box3D construction parity for every parameterized recipe.
 
@@ -68,10 +68,11 @@ The native bridge varies stress and scene actions and adds cinematic set dressin
 The coordinator sends user/director actions to both active domains:
 
 ```text
-kick        → rigid broad impulse + cloth/rope disturbance + water displacement
-explosion   → Box3D radial impulse + soft radial impulse + water splash
-projectile  → Box3D body + cloth puncture / rope severing / water impact floater
-rain        → rigid falling bodies + soft impact particles / water droplets
+kick        → rigid broad impulse + cloth/rope/material disturbance + water displacement
+explosion   → Box3D radial impulse + soft/material radial impulse + water splash
+projectile  → Box3D body + cloth puncture / rope severing / material damage / water impact floater
+rain        → rigid falling bodies + soft/material impact particles / water droplets
+load rig    → material-only normalized target, release, or deterministic fatigue cycle
 ```
 
 This produces synchronized demonstrations without pretending that arbitrary Box3D contacts are already fully bidirectionally coupled into the soft solvers.
@@ -82,8 +83,11 @@ Recommended next steps:
 
 - shape queries for cloth/rope collision against Box3D hulls;
 - force/impulse feedback from floaters and payloads into Box3D bodies;
+- Box3D contact queries and reaction-force feedback for material specimens;
 - joints, motors, sensors, contact events, and shape casts;
 - sphere, capsule, mesh, convex-hull, and height-field visual parity;
 - worker-based simulation and double-buffered/shared transform streams;
 - record/replay files with backend and solver revision metadata;
-- WebGPU-compute cloth/rope/water experiments behind the same runtime contract.
+- WebGPU-compute cloth/rope/water/material-solver experiments behind the same runtime contract.
+
+The current material family is a reduced-order, normalized comparative beam lattice. Its preset thresholds are not physical design allowables or finite-element results. See [`MATERIAL_FRACTURE.md`](MATERIAL_FRACTURE.md) for ownership, controls, telemetry, and limitations.

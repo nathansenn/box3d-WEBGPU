@@ -46,6 +46,7 @@ import {
   SoftSimulationSuite,
   WATER_INSTANCE_BUDGET,
 } from '../src/soft/simulations';
+import { MATERIAL_BEHAVIOR_PRESETS, materialPresetForVariant } from '../src/soft/material-presets';
 import { PACKED_SURFACE_VERTEX_BYTES } from '../src/soft/packed-surface';
 import { TurboQuantCodec, TurboQuantDeltaStream, turboQuantCompressionRatio, turboQuantError } from '../src/compression/turboquant';
 import type { CameraRig, DebugLine, DynamicSurfaceFrame } from '../src/types';
@@ -182,12 +183,12 @@ function testAllocationFreeCameraMatrices(): void {
 }
 
 function testSceneCatalog(): void {
-  equal(SCENES.length, 750);
-  equal(FEATURED_SCENE_IDS.length, 30);
+  equal(SCENES.length, 800);
+  equal(FEATURED_SCENE_IDS.length, 32);
   const ids = new Set(SCENES.map((scene) => scene.id));
   equal(ids.size, SCENES.length);
   deepEqual([...ids].slice(0, 5), [0, 1, 2, 3, 4]);
-  deepEqual([...ids].slice(-5), [745, 746, 747, 748, 749]);
+  deepEqual([...ids].slice(-5), [795, 796, 797, 798, 799]);
   for (const category of SCENE_CATEGORIES) {
     ok(SCENES.some((scene) => scene.category === category), `${category} should have scenes`);
   }
@@ -204,7 +205,7 @@ function testSceneCatalog(): void {
 }
 
 function testHeroShowcaseCatalog(): void {
-  equal(AAA_SHOWCASES.length, 30);
+  equal(AAA_SHOWCASES.length, 32);
   const ids = new Set(AAA_SHOWCASES.map((showcase) => showcase.id));
   equal(ids.size, AAA_SHOWCASES.length, 'showcase IDs must be unique');
 
@@ -504,9 +505,9 @@ function testFallbackCachedCountsStaticStepsAndSceneReset(): void {
 
 function testSoftSimulationCatalog(): void {
   const suite = new SoftSimulationSuite();
-  const counts = { cloth: 0, rope: 0, water: 0 };
+  const counts = { cloth: 0, rope: 0, water: 0, fracture: 0 };
   for (const scene of SCENES) {
-    if (scene.family !== 'cloth' && scene.family !== 'rope' && scene.family !== 'water') continue;
+    if (scene.family !== 'cloth' && scene.family !== 'rope' && scene.family !== 'water' && scene.family !== 'fracture') continue;
     counts[scene.family]++;
     ok(suite.createScene(scene, Math.min(3, scene.defaultStress), 0x810000 + scene.id), `${scene.title} should activate a soft/fluid solver`);
     for (let i = 0; i < 4; i++) suite.step(1 / 60, 2);
@@ -557,24 +558,149 @@ function testSoftSimulationCatalog(): void {
       ok(maxIndex < frame.surface!.vertexCount, `${scene.title} surface index ${maxIndex} is out of range`);
       equal(frame.ropeGrid, null, `${scene.title} should not expose a rope grid`);
     } else {
-      equal(frame.surface, null, `${scene.title} rope is rendered as tension-colored GPU-computed segments`);
-      ok(frame.ropeGrid, `${scene.title} must expose a GPU rope grid`);
-      ok(frame.ropeGrid!.segmentCount > 0, `${scene.title} must render rope segments`);
-      ok(frame.ropeGrid!.segmentCount <= SOFT_INSTANCE_BUDGET, `${scene.title} exceeded the GPU rope segment budget`);
-      ok(isFiniteArray(frame.ropeGrid!.positions), `${scene.title} rope positions must remain finite`);
-      ok(isFiniteArray(frame.ropeGrid!.segments), `${scene.title} rope segment metadata must remain finite`);
+      const presentation = scene.family === 'fracture' ? 'material' : 'rope';
+      equal(frame.surface, null, `${scene.title} is rendered as GPU-computed beam segments`);
+      ok(frame.ropeGrid, `${scene.title} must expose a GPU segment grid`);
+      equal(frame.ropeGrid!.presentation, presentation, `${scene.title} exposed the wrong segment presentation`);
+      ok(frame.ropeGrid!.segmentCount > 0, `${scene.title} must render active segments`);
+      ok(frame.ropeGrid!.segmentCount <= SOFT_INSTANCE_BUDGET, `${scene.title} exceeded the GPU segment budget`);
+      ok(isFiniteArray(frame.ropeGrid!.positions), `${scene.title} node positions must remain finite`);
+      ok(isFiniteArray(frame.ropeGrid!.segments), `${scene.title} segment metadata must remain finite`);
       equal(frame.ropeGrid!.positions.length, frame.ropeGrid!.nodeCount * 3);
       ok(frame.ropeGrid!.segments.length >= frame.ropeGrid!.segmentCount * 8);
       ok(frame.instanceCount >= 0, `${scene.title} CPU payload instance count must remain valid`);
+      if (scene.family === 'fracture') {
+        ok(frame.material, `${scene.title} must expose normalized material telemetry`);
+        equal(frame.material!.label, materialPresetForVariant(scene.variant).label);
+        ok(frame.material!.yieldStrain > 0 && frame.material!.breakStrain > frame.material!.yieldStrain);
+        ok(frame.material!.peakDamage >= 0 && frame.material!.peakDamage <= 1);
+      }
     }
   }
-  deepEqual(counts, { cloth: 50, rope: 50, water: 50 });
+  deepEqual(counts, { cloth: 50, rope: 50, water: 50, fracture: 50 });
   suite.destroy();
+}
+
+function testMaterialPresetOrderingAndInvariants(): void {
+  const expectedOrder = [
+    'structural-steel',
+    'aluminum-alloy',
+    'copper',
+    'oak-timber',
+    'cross-laminated-timber',
+    'reinforced-concrete',
+    'soda-lime-glass',
+    'acrylic',
+    'elastomer',
+    'carbon-fiber',
+  ];
+  equal(MATERIAL_BEHAVIOR_PRESETS.length, 10, 'material matrix requires exactly ten ordered presets');
+  deepEqual(MATERIAL_BEHAVIOR_PRESETS.map((preset) => preset.id), expectedOrder);
+  equal(new Set(expectedOrder).size, expectedOrder.length, 'material preset IDs must be unique');
+
+  for (let index = 0; index < MATERIAL_BEHAVIOR_PRESETS.length; index++) {
+    const preset = MATERIAL_BEHAVIOR_PRESETS[index];
+    equal(materialPresetForVariant(index), preset, `${preset.id} variant mapping changed`);
+    equal(materialPresetForVariant(index + MATERIAL_BEHAVIOR_PRESETS.length), preset, `${preset.id} positive wrap changed`);
+    equal(materialPresetForVariant(index - MATERIAL_BEHAVIOR_PRESETS.length), preset, `${preset.id} negative wrap changed`);
+    ok(preset.label.length >= 3, `${preset.id} label is incomplete`);
+    ok(['ductile', 'brittle', 'progressive', 'fiber', 'hyperelastic'].includes(preset.failureMode));
+    ok(Number.isFinite(preset.densityScale) && preset.densityScale > 0 && preset.densityScale <= 1.2, `${preset.id} density is invalid`);
+    for (const [name, value] of [
+      ['axial', preset.axialStiffness],
+      ['shear', preset.shearStiffness],
+      ['bend', preset.bendStiffness],
+      ['damping', preset.damping],
+      ['anisotropy', preset.anisotropy],
+    ] as const) {
+      ok(Number.isFinite(value) && value > 0 && value <= 1, `${preset.id} ${name} coefficient is outside (0, 1]`);
+    }
+    ok(preset.tensileYieldStrain > 0 && preset.tensileBreakStrain > preset.tensileYieldStrain, `${preset.id} tensile envelope is invalid`);
+    ok(preset.compressionYieldStrain > 0 && preset.compressionBreakStrain > preset.compressionYieldStrain, `${preset.id} compression envelope is invalid`);
+    ok(preset.plasticCreep >= 0 && preset.damageRate > 0 && preset.fatigueRate >= 0, `${preset.id} damage coefficients are invalid`);
+    ok(isFiniteArray(preset.baseColor) && preset.baseColor.every((value) => value >= 0), `${preset.id} base color is invalid`);
+    if (preset.failureMode === 'brittle') {
+      ok(preset.plasticCreep <= 0.035, `${preset.id} brittle preset accumulated excessive plastic creep`);
+    } else if (preset.failureMode === 'fiber') {
+      ok(preset.plasticCreep <= 0.10, `${preset.id} fiber preset accumulated excessive plastic creep`);
+    }
+  }
+}
+
+function testMaterialFractureLoadAndActionDeterminism(): void {
+  const phaseOrder = { elastic: 0, yielding: 1, fracturing: 2, failed: 3 } as const;
+  let aggregateYielded = 0;
+  let aggregateDamaged = 0;
+  let aggregateBreaks = 0;
+
+  for (let variant = 0; variant < MATERIAL_BEHAVIOR_PRESETS.length; variant++) {
+    const scene = SCENES[750 + variant];
+    const seed = (0xf4ac0000 ^ Math.imul(variant + 1, 0x9e3779b1)) >>> 0;
+    const a = new SoftSimulationSuite();
+    const b = new SoftSimulationSuite();
+    ok(a.createScene(scene, 5, seed));
+    ok(b.createScene(scene, 5, seed));
+    let lastYielded = 0;
+    let lastDamaged = 0;
+    let lastBroken = 0;
+    let lastPeakDamage = 0;
+    let lastMaxStrain = 0;
+    let lastPhase = 0;
+
+    for (let frameIndex = 0; frameIndex < 180; frameIndex++) {
+      if (frameIndex === 0) { a.setLoadTarget(0.42); b.setLoadTarget(0.42); }
+      if (frameIndex === 24) { a.setLoadTarget(0.96); b.setLoadTarget(0.96); }
+      if (frameIndex === 48) { a.setLoadTarget(1.38); b.setLoadTarget(1.38); }
+      if (frameIndex === 72) { a.cycleLoad(); b.cycleLoad(); }
+      if (frameIndex === 96) { a.setLoadTarget(2); b.setLoadTarget(2); }
+      if (frameIndex === 108) { a.kick(18); b.kick(18); }
+      if (frameIndex === 120) {
+        equal(a.launchProjectile([-16, 9, 0], [34, -1, 0], 0.8), b.launchProjectile([-16, 9, 0], [34, -1, 0], 0.8));
+        equal(a.spawnRain(18, 9, 16), b.spawnRain(18, 9, 16));
+      }
+      if (frameIndex === 136) { a.explode([0, 6, 0], 30, 12); b.explode([0, 6, 0], 30, 12); }
+      if (frameIndex === 160) { a.releaseLoad(); b.releaseLoad(); }
+      a.step(1 / 60, 4);
+      b.step(1 / 60, 4);
+      equal(a.hash(), b.hash(), `${scene.title} replay hash diverged at frame ${frameIndex}`);
+
+      const frameA = a.buildFrame(false);
+      const frameB = b.buildFrame(false);
+      equal(frameA.brokenCount, frameB.brokenCount, `${scene.title} break count diverged at frame ${frameIndex}`);
+      equal(frameA.ropeGrid?.segmentCount, frameB.ropeGrid?.segmentCount, `${scene.title} active topology diverged at frame ${frameIndex}`);
+      deepEqual(frameA.material, frameB.material, `${scene.title} material telemetry diverged at frame ${frameIndex}`);
+      const material = frameA.material!;
+      ok(material.yieldedCount >= lastYielded, `${scene.title} yielded count regressed`);
+      ok(material.damagedCount >= lastDamaged, `${scene.title} damaged count regressed`);
+      ok(frameA.brokenCount >= lastBroken, `${scene.title} broken count regressed`);
+      ok(material.peakDamage + 1e-8 >= lastPeakDamage, `${scene.title} peak damage regressed`);
+      ok(material.maxStrain + 1e-8 >= lastMaxStrain, `${scene.title} maximum strain regressed`);
+      ok(phaseOrder[material.failurePhase] >= lastPhase, `${scene.title} failure phase regressed`);
+      ok(isFiniteArray(frameA.ropeGrid!.positions) && isFiniteArray(frameA.ropeGrid!.segments), `${scene.title} produced a non-finite lattice`);
+      lastYielded = material.yieldedCount;
+      lastDamaged = material.damagedCount;
+      lastBroken = frameA.brokenCount;
+      lastPeakDamage = material.peakDamage;
+      lastMaxStrain = material.maxStrain;
+      lastPhase = phaseOrder[material.failurePhase];
+    }
+
+    ok(a.validate().ok && b.validate().ok, `${scene.title} deterministic fracture run failed validation`);
+    aggregateYielded += lastYielded;
+    aggregateDamaged += lastDamaged;
+    aggregateBreaks += lastBroken;
+    a.destroy();
+    b.destroy();
+  }
+
+  ok(aggregateYielded > 0, 'material matrix never crossed a yield threshold');
+  ok(aggregateDamaged > 0, 'material matrix never accumulated damage');
+  ok(aggregateBreaks > 0, 'material matrix never crossed a fracture threshold');
 }
 
 function testSoftFrameMemoization(): void {
   const suite = new SoftSimulationSuite();
-  for (const sceneId of [600, 650, 700]) {
+  for (const sceneId of [600, 650, 700, 750]) {
     const scene = SCENES[sceneId];
     ok(suite.createScene(scene, 3, 0xf18e000 + sceneId));
     const first = suite.buildFrame(false);
@@ -894,6 +1020,8 @@ const tests = [
   testFallbackContactResolutionReusesBodyVectors,
   testFallbackCachedCountsStaticStepsAndSceneReset,
   testSoftSimulationCatalog,
+  testMaterialPresetOrderingAndInvariants,
+  testMaterialFractureLoadAndActionDeterminism,
   testSoftRetainedStateAndExactInstanceCaps,
   testSoftSimulationActionsAndDeterminism,
   testFarProjectileBroadRejection,

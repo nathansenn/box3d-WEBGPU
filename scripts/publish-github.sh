@@ -5,7 +5,7 @@ OWNER="${GITHUB_OWNER:-nathansenn}"
 REPO="${GITHUB_REPO:-box3d-WEBGPU}"
 VISIBILITY="${GITHUB_VISIBILITY:-public}"
 BRANCH="${GITHUB_BRANCH:-main}"
-COMMIT_MESSAGE="${COMMIT_MESSAGE:-Optimize Box3D WebGPU v1.13 production paths}"
+COMMIT_MESSAGE="${COMMIT_MESSAGE:-Add material bending and fracture lab}"
 REMOTE_URL="git@github.com:${OWNER}/${REPO}.git"
 HTTPS_REMOTE="https://github.com/${OWNER}/${REPO}.git"
 PAGES_URL="https://${OWNER}.github.io/${REPO}/"
@@ -41,7 +41,7 @@ fi
 git checkout -B "$BRANCH"
 
 npm ci
-npm run validate:v1.13
+npm run validate:v1.14
 
 git add -A -- . ':(exclude)SOURCE_MANIFEST 2.sha256'
 git rm --cached --ignore-unmatch -- 'SOURCE_MANIFEST 2.sha256' >/dev/null
@@ -55,9 +55,9 @@ if gh repo view "${OWNER}/${REPO}" >/dev/null 2>&1; then
   echo "GitHub repo ${OWNER}/${REPO} already exists. Reusing it."
 else
   case "$VISIBILITY" in
-    public) gh repo create "${OWNER}/${REPO}" --public --description "AAA Box3D + WebGPU physics lab with 750 scenes, 30 cinematic heroes, PBD cloth/rope, and interactive water." ;;
-    private) gh repo create "${OWNER}/${REPO}" --private --description "AAA Box3D + WebGPU physics lab with 750 scenes, 30 cinematic heroes, PBD cloth/rope, and interactive water." ;;
-    internal) gh repo create "${OWNER}/${REPO}" --internal --description "AAA Box3D + WebGPU physics lab with 750 scenes, 30 cinematic heroes, PBD cloth/rope, and interactive water." ;;
+    public) gh repo create "${OWNER}/${REPO}" --public --description "AAA Box3D + WebGPU physics lab with 800 scenes, 32 cinematic heroes, material bending/fracture, PBD cloth/rope, and interactive water." ;;
+    private) gh repo create "${OWNER}/${REPO}" --private --description "AAA Box3D + WebGPU physics lab with 800 scenes, 32 cinematic heroes, material bending/fracture, PBD cloth/rope, and interactive water." ;;
+    internal) gh repo create "${OWNER}/${REPO}" --internal --description "AAA Box3D + WebGPU physics lab with 800 scenes, 32 cinematic heroes, material bending/fracture, PBD cloth/rope, and interactive water." ;;
   esac
 fi
 

@@ -69,11 +69,11 @@ function assertFiniteStreams(count, sceneId) {
 }
 
 function catalogPass() {
-  const hashes = new Uint32Array(750);
+  const hashes = new Uint32Array(800);
   let bodyFrames = 0;
   let maxBodies = 0;
   let maxScene = -1;
-  for (let sceneId = 0; sceneId < 750; sceneId++) {
+  for (let sceneId = 0; sceneId < 800; sceneId++) {
     const stress = 1 + (sceneId % 5);
     const count = mod._b3w_create_scene(sceneId, stress, (0xc0ffee + sceneId) >>> 0);
     const dynamic = mod._b3w_dynamic_count();
@@ -145,8 +145,8 @@ console.log(JSON.stringify({
   result: 'passed',
   artifactDir,
   wasmBytes: wasmBinary.byteLength,
-  scenes: 750,
-  deterministicReplays: 750,
+  scenes: 800,
+  deterministicReplays: 800,
   bodyFramesPerPass: first.bodyFrames,
   maxBodies: first.maxBodies,
   maxScene: first.maxScene,

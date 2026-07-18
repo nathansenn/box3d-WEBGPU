@@ -679,7 +679,7 @@ struct RopeUniforms {
   baseInstance : u32,
   segmentCount : u32,
   nodeCount : u32,
-  _padding : u32,
+  presentation : u32,
 };
 
 @group(0) @binding(0)
@@ -745,8 +745,14 @@ fn csMain(@builtin(global_invocation_id) id : vec3<u32>) {
   xAxis = xAxis / xLength;
   let zAxis = cross(yAxis, xAxis);
 
-  let tension = clamp((rawLength * inverseRestLength - 1.0) * 4.2, 0.0, 1.0);
-  let radius = baseRadius * (1.0 - tension * 0.2);
+  let signedStrain = rawLength * inverseRestLength - 1.0;
+  let materialMode = rope.presentation == 1u;
+  let strainScale = select(4.2, 24.0, materialMode);
+  let demand = clamp(abs(signedStrain) * strainScale, 0.0, 1.0);
+  let tension = clamp(signedStrain * strainScale, 0.0, 1.0);
+  let heat = select(tension, demand, materialMode);
+  let compression = select(0.0, clamp(-signedStrain * strainScale, 0.0, 1.0), materialMode);
+  let radius = baseRadius * (1.0 - tension * 0.2 + compression * 0.08);
   let outputIndex = rope.baseInstance + segmentIndex;
   modelMatrices[outputIndex] = mat4x4<f32>(
     vec4<f32>(xAxis * radius, 0.0),
@@ -755,10 +761,10 @@ fn csMain(@builtin(global_invocation_id) id : vec3<u32>) {
     vec4<f32>((a + b) * 0.5, 1.0)
   );
   instanceColors[outputIndex] = vec4<f32>(
-    mix(baseColor.r, 1.0, tension),
-    mix(baseColor.g, 0.06, tension),
-    mix(baseColor.b, 0.02, tension),
-    mix(baseColor.a, 2.2, tension)
+    mix(mix(baseColor.r, 0.05, compression), 1.0, heat - compression * heat),
+    mix(mix(baseColor.g, 0.34, compression), 0.06, heat - compression * heat),
+    mix(mix(baseColor.b, 1.0, compression), 0.02, heat - compression * heat),
+    mix(baseColor.a, 2.2, heat)
   );
 }
 `;
@@ -1170,6 +1176,7 @@ export class WebGPURenderer {
   private ropeGridDispatchPending = false;
   private ropeGridFrameVersion = -1;
   private ropeGridTopologyVersion = -1;
+  private ropeGridPresentation = -1;
   private ropeGridPositionIdentity: ArrayBufferLike | null = null;
   private ropeGridPositionByteOffset = -1;
   private ropeGridSegmentIdentity: ArrayBufferLike | null = null;
@@ -2042,6 +2049,7 @@ export class WebGPURenderer {
     this.ropeGridDispatchPending = false;
     this.ropeGridFrameVersion = -1;
     this.ropeGridTopologyVersion = -1;
+    this.ropeGridPresentation = -1;
     this.ropeGridPositionIdentity = null;
     this.ropeGridPositionByteOffset = -1;
     this.ropeGridSegmentIdentity = null;
@@ -2134,13 +2142,14 @@ export class WebGPURenderer {
     const uniformChanged =
       this.ropeGridBaseInstance !== safeBaseInstance ||
       this.ropeGridSegmentCount !== clampedSegmentCount ||
-      this.ropeGridNodeCount !== safeNodeCount;
+      this.ropeGridNodeCount !== safeNodeCount ||
+      this.ropeGridPresentation !== (grid.presentation === 'material' ? 1 : 0);
     if (uniformChanged) {
       const view = new DataView(this.ropeGridUniformScratch);
       view.setUint32(0, safeBaseInstance >>> 0, true);
       view.setUint32(4, clampedSegmentCount >>> 0, true);
       view.setUint32(8, safeNodeCount >>> 0, true);
-      view.setUint32(12, 0, true);
+      view.setUint32(12, grid.presentation === 'material' ? 1 : 0, true);
       this.device.queue.writeBuffer(this.ropeUniformBuffer, 0, this.ropeGridUniformScratch);
       bytes += ROPE_GRID_UNIFORM_BYTES;
     }
@@ -2149,6 +2158,7 @@ export class WebGPURenderer {
     this.ropeGridBaseInstance = safeBaseInstance;
     this.ropeGridSegmentCount = clampedSegmentCount;
     this.ropeGridNodeCount = safeNodeCount;
+    this.ropeGridPresentation = grid.presentation === 'material' ? 1 : 0;
     this.ropeGridDispatchPending = positionChanged || topologyChanged || uniformChanged;
     this.lastUploadedBytes += bytes;
     return bytes;

@@ -5,29 +5,29 @@
 ```text
 Box3D C17 → stable C ABI → Emscripten ES module/WASM
                     ┐
-TypeScript cloth/rope PBD + shallow-water solver
+TypeScript cloth/rope PBD + shallow-water solver + material-failure lattice
                     └→ fixed-step coordinator
                        → instanced + indexed WebGPU streams
                        → HDR/MSAA/shadows/materials/post
                        → cinematic director / diagnostics / validation
 ```
 
-The current edition supplies **750 deterministic scenes, 30 hero sequences, 150 soft/fluid demonstrations, HDR rendering, native build tooling, deep tests, and a deployable browser shell**. The roadmap now concerns fidelity, coupling, scale, authoring, and hardening—not an empty prototype.
+The current edition supplies **800 deterministic scenes, 32 hero sequences, 200 soft/fluid/material demonstrations, HDR rendering, native build tooling, deep tests, and a deployable browser shell**. The material domain includes ten normalized comparative presets, controlled load/release/cycle input, and deterministic elastic/plastic/damage/fracture telemetry. The roadmap now concerns calibration, coupling, scale, authoring, and hardening—not an empty prototype.
 
 ## Phase 1 — Native parity and solver observability
 
-- Implement one-to-one native rigid staging for all 750 scene recipes.
+- Implement one-to-one native rigid staging for all 800 scene recipes.
 - Add spheres, capsules, convex hulls, meshes, and height fields to the visual stream.
 - Expose joints, motors, limits, sensors, contact events, overlap queries, ray casts, and shape casts.
 - Stream contact points, normals, impulses, AABBs, islands, and sleep state.
 - Add persistent recording/replay files with backend, seed, and solver revisions.
-- Add numerical baselines for representative rigid/cloth/rope/water scenes.
+- Add numerical baselines for representative rigid/cloth/rope/water/material scenes.
 
 Acceptance:
 
 ```text
-all 750 browser scenes pass on Box3D WASM
-all 30 hero sequences retain valid native staging
+all 800 browser scenes pass on Box3D WASM
+all 32 hero sequences retain valid native staging
 no stale heap views after memory growth
 replay baselines are versioned and reproducible
 ```
@@ -40,6 +40,7 @@ replay baselines are versioned and reproducible
 - Add rope pulleys, winches, motors, and moving anchors.
 - Add shallow-water obstacle/depth maps and shoreline masks.
 - Support multiple active cloth/water surfaces.
+- Query Box3D contacts for material-specimen impact and return bounded reaction forces.
 
 Acceptance:
 
@@ -47,6 +48,7 @@ Acceptance:
 cloth drapes over arbitrary rigid colliders
 rope anchors can attach to moving Box3D bodies
 floaters transfer measurable forces to/from the water field
+material specimens exchange measured impact/reaction impulses with rigid bodies
 coupling remains stable and deterministic at fixed step
 ```
 
@@ -65,6 +67,7 @@ coupling remains stable and deterministic at fixed step
 - Add graph coloring or Jacobi-style constraint batches.
 - Compute cloth normals and strain on GPU.
 - Port the shallow-water field update to compute ping-pong textures/buffers.
+- Evaluate beam-lattice strain, damage, and constraint projection on WebGPU compute behind the same deterministic reference contract.
 - Add GPU particle spray and foam advection.
 - Keep deterministic CPU reference solvers for regression comparison.
 
@@ -85,6 +88,8 @@ no solver migration leaks into UI/director architecture
 - Add GPU frustum/occlusion culling and indirect draw compaction.
 - Add LOD and meshlet experiments for architectural scenes.
 - Add cloth weave/normal maps and physically tuned water environments.
+- Separate visual material assets from mechanical presets and support authored fracture-surface/debris geometry.
+- Add calibrated constitutive-law plugins only with specimen data, units, convergence tests, and explicit confidence labels.
 
 ## Phase 6 — Lighting and post-production
 
@@ -104,6 +109,7 @@ no solver migration leaks into UI/director architecture
 - Character mover and moving-platform tests.
 - Vehicle/machinery controls.
 - Destruction weak-point metadata.
+- Runtime material preset, support, notch, load-path, and actuator authoring.
 - Data-driven scenario scripting.
 - Save/load/share scene configurations.
 
@@ -119,3 +125,5 @@ no solver migration leaks into UI/director architecture
 ## Non-goal clarification
 
 A WebGPU physics application does not require every solver to run on the GPU. The current architecture intentionally uses verified CPU/WASM authority and WebGPU presentation. Compute migration should happen only where profiling proves value and must preserve tested fallbacks and clear solver ownership.
+
+The delivered material presets are normalized comparative beam-lattice behaviors. They are not calibrated finite-element models, design allowables, fatigue-life predictions, building-code checks, or safety certification. Production engineering use requires measured data, units, geometry/boundary calibration, convergence and uncertainty studies, and independent professional review.

@@ -153,6 +153,7 @@ export class FallbackPhysicsBackend implements PhysicsBackend {
       case 'cloth': this.createClothStage(stress, variant); break;
       case 'rope': this.createRopeStage(stress, variant); break;
       case 'water': this.createWaterStage(stress, variant); break;
+      case 'fracture': this.createFractureStage(stress, variant); break;
       default: this.createStackLab(stress, variant); break;
     }
 
@@ -584,9 +585,14 @@ export class FallbackPhysicsBackend implements PhysicsBackend {
     const width = 11 + (variant % 3) * 1.4;
     const top = 10.5 + stress * 0.8 + (variant === 2 ? 4.5 : 0);
     const postColor = variant % 2 ? 0x334155 : 0x475569;
-    this.addBox({ dynamic: false, pos: [-width, top * 0.5, 0], half: [0.22, top * 0.5, 0.22], color: rgb(postColor), density: 0, friction: 0.82, restitution: 0.01 });
+    // Flag and sail layouts pin their left edge at -0.94 × cloth width. Keep
+    // the presentation post just outside that edge so the fabric meets the
+    // support instead of being initialized through its solid volume.
+    const clothWidth = 14 + variant * 0.16;
+    const leftPost = variant === 0 || variant === 5 ? -clothWidth * 0.94 - 0.35 : -width;
+    this.addBox({ dynamic: false, pos: [leftPost, top * 0.5, 0], half: [0.22, top * 0.5, 0.22], color: rgb(postColor), density: 0, friction: 0.82, restitution: 0.01 });
     this.addBox({ dynamic: false, pos: [width, top * 0.5, 0], half: [0.22, top * 0.5, 0.22], color: rgb(postColor), density: 0, friction: 0.82, restitution: 0.01 });
-    this.addBeamBetween([-width, top, 0], [width, top, 0], 0.20, variant % 2 ? 0xffd166 : 0x30aebf, false, 2.5);
+    this.addBeamBetween([leftPost, top, 0], [width, top, 0], 0.20, variant % 2 ? 0xffd166 : 0x30aebf, false, 2.5);
     this.addBox({ dynamic: false, pos: [0, 0.12, 0], half: [width + 2.5, 0.12, 7.0], color: rgb(0x132033), density: 0, friction: 0.88, restitution: 0.01 });
     if (variant === 3 || variant === 7) {
       const radius = variant === 7 ? 3.1 : 1.7;
@@ -648,6 +654,25 @@ export class FallbackPhysicsBackend implements PhysicsBackend {
       const size = 0.45 + (i % 3) * 0.16;
       this.addBox({ dynamic: true, pos: [-5 + i * 2.4, 2.4 + i * 0.3, this.rng.signed(3.5)], half: [size * 1.4, size * 0.55, size], color: rgb(PALETTE[(variant + i + 2) % PALETTE.length]), density: 0.45, friction: 0.4, restitution: 0.08 });
     }
+  }
+
+  private createFractureStage(stress: number, variant: number): void {
+    // Box3D owns only the immutable test fixture. Bending, plastic yield,
+    // damage, and bond fracture remain authoritative in MaterialSimulation.
+    const supportSpan = 8.5 + (variant % 3) * 0.65;
+    const frameTop = 9.4 + stress * 0.28;
+    const accent = variant % 2 ? 0xffd166 : 0x30aebf;
+    this.addBox({ dynamic: false, pos: [0, 0.14, 0], half: [supportSpan + 5.0, 0.14, 6.5], color: rgb(0x111d30), density: 0, friction: 0.9, restitution: 0.01 });
+    for (const side of [-1, 1]) {
+      this.addBox({ dynamic: false, pos: [side * supportSpan, 0.9, 0], half: [0.62, 0.9, 2.35], color: rgb(0x334155), density: 0, friction: 0.88, restitution: 0.01 });
+      this.addBox({ dynamic: false, pos: [side * supportSpan, 1.9, 0], half: [0.9, 0.10, 2.55], color: rgba(accent, 1.8), density: 0, friction: 0.82, restitution: 0.01 });
+    }
+    for (const z of [-5.2, 5.2]) {
+      this.addBox({ dynamic: false, pos: [0, frameTop * 0.5, z], half: [0.30, frameTop * 0.5, 0.30], color: rgb(0x475569), density: 0, friction: 0.85, restitution: 0.01 });
+    }
+    this.addBeamBetween([0, frameTop, -5.2], [0, frameTop, 5.2], 0.28, accent, false, 1.7);
+    this.addBox({ dynamic: false, pos: [0, frameTop - 1.75, 0], half: [0.34, 1.75, 0.34], color: rgb(0x64748b), density: 0, friction: 0.82, restitution: 0.01 });
+    this.addBox({ dynamic: false, pos: [0, frameTop - 3.55, 0], half: [0.72, 0.12, 1.15], color: rgba(0xf97316, 2.2), density: 0, friction: 0.82, restitution: 0.01 });
   }
 
   private addCinematicSetDressing(family: ScenePreset['family'], stress: number, variant: number): void {
@@ -831,6 +856,18 @@ export class FallbackPhysicsBackend implements PhysicsBackend {
           this.addBox({ dynamic: false, pos: [i * 3.2, 0.42, 14], half: [1.1, 0.42, 0.26], color: rgb(i % 2 ? 0x1d4e6d : 0x2c6f8f), density: 0, friction: 0.85, restitution: 0.01 });
         }
         this.addBeamBetween([-18, 6.5, -13], [18, 6.5, -13], 0.08, 0x50d8ff, false, 2.8);
+        break;
+      }
+      case 'fracture': {
+        // Static observation hardware only; the soft material lattice owns
+        // deformation and every fracture decision.
+        for (let i = -5; i <= 5; i++) {
+          const x = i * 3.2;
+          this.addBox({ dynamic: false, pos: [x, 0.08, -6.1], half: [1.25, 0.08, 0.08], color: rgba(i % 2 ? 0xffd166 : 0x50d8ff, 2.1), density: 0, friction: 0.86, restitution: 0.01 });
+          this.addBox({ dynamic: false, pos: [x, 0.08, 6.1], half: [1.25, 0.08, 0.08], color: rgba(i % 2 ? 0x50d8ff : 0xffd166, 2.1), density: 0, friction: 0.86, restitution: 0.01 });
+        }
+        this.addBeamBetween([-13, 6.8, -5.8], [13, 6.8, -5.8], 0.07, 0x30aebf, false, 2.4);
+        this.addBeamBetween([-13, 6.8, 5.8], [13, 6.8, 5.8], 0.07, 0xffd166, false, 2.4);
         break;
       }
     }

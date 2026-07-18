@@ -19,6 +19,8 @@ const requiredFiles = [
   'src/effects.ts',
   'src/types.ts',
   'src/soft/simulations.ts',
+  'src/soft/material-presets.ts',
+  'src/soft/material-simulation.ts',
   'src/soft/kernels.ts',
   'src/soft/packed-surface.ts',
   'src/compression/turboquant.ts',
@@ -85,6 +87,7 @@ const requiredFiles = [
   'benchmarks/v113-production-1000.cjs',
   'benchmarks/v113-production-1000-registry.cjs',
   'scripts/check-v1.13-results.mjs',
+  'scripts/material-fracture-100.cjs',
   'docs/V1.13_1000_BENCHMARK_MATRIX.md',
   'public/textures/material-noise-bc4.ktx2',
   'public/textures/material-noise-r8.ktx2',
@@ -98,10 +101,15 @@ for (const file of requiredFiles) {
 
 const packageJson = JSON.parse(read('package.json'));
 assert.equal(packageJson.name, 'box3d-webgpu');
-assert.equal(packageJson.version, '1.13.0');
+assert.equal(packageJson.version, '1.14.0');
 assert.equal(packageJson.license, 'MIT');
-for (const script of ['dev', 'build', 'build:pages', 'fetch:box3d', 'build:wasm', 'build:soft-kernels', 'verify:soft-kernels', 'doctor', 'manifest:generate', 'verify:source', 'typecheck', 'test', 'test:ktx2', 'test:webgpu', 'test:webgpu:metal', 'test:soft-kernels', 'test:cbridge', 'test:native-wasm', 'bench:native:rigid-stream', 'test:rope-batching', 'test:soft-soak', 'test:soft-soak:wasm', 'test:soft-soak:scalar', 'test:soft-soak:all', 'bench:turboquant', 'bench:turboquant:worker', 'bench:turboquant:all', 'validate:turboquant', 'bench:fifth:100', 'bench:v1.8-v1.9', 'bench:fifth:gate', 'bench:original', 'bench:v1.10:integration', 'bench:v1.10:integration:ci', 'bench:v1.11:soft-gains', 'bench:v1.11:fallback', 'bench:v1.11:100', 'bench:v1.11:gate', 'bench:v1.12:100', 'bench:v1.12:gate', 'bench:v1.12:runtime', 'bench:v1.12:effects', 'bench:v1.12:ui', 'bench:v1.12:native', 'bench:v1.13:1000', 'bench:v1.13:gate', 'validate:hardware', 'validate:v1.8', 'validate:v1.9', 'validate:v1.10', 'validate:v1.11', 'validate:v1.12', 'validate:v1.13', 'validate']) {
+for (const script of ['dev', 'build', 'build:pages', 'fetch:box3d', 'build:wasm', 'build:soft-kernels', 'verify:soft-kernels', 'doctor', 'manifest:generate', 'verify:source', 'typecheck', 'test', 'test:ktx2', 'test:webgpu', 'test:webgpu:metal', 'test:soft-kernels', 'test:cbridge', 'test:native-wasm', 'bench:native:rigid-stream', 'test:rope-batching', 'test:material:100', 'test:soft-soak', 'test:soft-soak:wasm', 'test:soft-soak:scalar', 'test:soft-soak:all', 'bench:turboquant', 'bench:turboquant:worker', 'bench:turboquant:all', 'validate:turboquant', 'bench:fifth:100', 'bench:v1.8-v1.9', 'bench:fifth:gate', 'bench:original', 'bench:v1.10:integration', 'bench:v1.10:integration:ci', 'bench:v1.11:soft-gains', 'bench:v1.11:fallback', 'bench:v1.11:100', 'bench:v1.11:gate', 'bench:v1.12:100', 'bench:v1.12:gate', 'bench:v1.12:runtime', 'bench:v1.12:effects', 'bench:v1.12:ui', 'bench:v1.12:native', 'bench:v1.13:1000', 'bench:v1.13:gate', 'validate:hardware', 'validate:v1.8', 'validate:v1.9', 'validate:v1.10', 'validate:v1.11', 'validate:v1.12', 'validate:v1.13', 'validate:v1.14', 'validate']) {
   assert.equal(typeof packageJson.scripts?.[script], 'string', `package.json missing script ${script}`);
+}
+assert.match(packageJson.scripts['bench:v1.13:gate'], /check-v1\.13-results\.mjs/, 'frozen v1.13 evidence gate must remain reproducible from the historical source');
+assert.ok(!packageJson.scripts['validate:v1.14'].includes('bench:v1.13:gate'), 'v1.14 must not falsely bind changed source to frozen v1.13 evidence');
+for (const gate of ['npm test', 'test:soft-soak:all', 'test:native-wasm', 'test:material:100', 'npm run build', 'npm run build:pages', 'npm audit']) {
+  assert.ok(packageJson.scripts['validate:v1.14'].includes(gate), `validate:v1.14 missing current gate ${gate}`);
 }
 
 const cBridge = read('wasm/box3d_web.c');
@@ -140,6 +148,8 @@ assert.match(cmake, /EXPORT_ES6=1/, 'WASM output must be an ES module');
 assert.match(cmake, /ALLOW_MEMORY_GROWTH=1/, 'WASM build must allow heap growth');
 assert.match(cmake, /-msimd128/, 'WASM build must support SIMD');
 assert.match(cBridge, /b3w_add_aaa_set_dressing/, 'native bridge missing AAA set dressing');
+assert.match(cBridge, /b3w_scene_fracture_stage/, 'native bridge missing the material-fracture fixture stage');
+assert.match(cBridge, /case 15:[\s\S]*?b3w_scene_fracture_stage/, 'native bridge must map the sixteenth family to material fracture');
 assert.match(cBridge, /mode\s*>=\s*3/, 'native bridge missing cinematic scene mode');
 assert.match(cBridge, /b3World_GetAwakeBodyCount/, 'native bridge must gate settled transform work with Box3D awake counts');
 assert.match(cBridge, /if \(awakeBefore == 0\)[\s\S]*?return;/, 'native bridge must skip solver and stream work for a fully settled world');
@@ -159,7 +169,10 @@ const requiredIds = [
   'quality', 'speed', 'stress', 'stress-value', 'pause', 'step', 'reset', 'debug',
   'kick', 'projectile', 'explode', 'rain', 'run-tests', 'run-turboquant', 'test-log', 'body-count',
   'dynamic-count', 'effect-count', 'soft-system', 'soft-nodes', 'soft-constraints', 'soft-breaks', 'soft-energy', 'fps', 'sim-ms', 'render-ms', 'upload', 'backend',
-  'hash', 'quality-stat',
+  'hash', 'quality-stat', 'material-rig', 'material-name', 'material-test',
+  'material-load-target', 'material-load-value', 'material-apply', 'material-release',
+  'material-cycle', 'material-load', 'material-strain', 'material-thresholds',
+  'material-damage', 'material-failure',
 ];
 for (const id of requiredIds) {
   const matches = html.match(new RegExp(`id=["']${id}["']`, 'g')) ?? [];
@@ -167,11 +180,13 @@ for (const id of requiredIds) {
 }
 const allIds = [...html.matchAll(/id=["']([^"']+)["']/g)].map((match) => match[1]);
 assert.equal(new Set(allIds).size, allIds.length, 'index.html contains duplicate ids');
-assert.match(html, /AAA Physics Capability Lab · v1\.13\.0/, 'UI release badge must match package v1.13.0');
+assert.match(html, /AAA Physics Capability Lab · v1\.14\.0/, 'UI release badge must match package v1.14.0');
+assert.match(html, /800 deterministic recipes/, 'UI must advertise the complete 800-scene catalog');
+assert.match(html, /Run 800 \+ 32 State Tests/, 'UI state-test label must match the 800-scene and 32-showcase matrix');
 
 const showcases = read('src/showcases.ts');
 const showcaseDefinitions = [...showcases.matchAll(/\bid:\s*'[^']+'\s*,\s*sceneId:/g)];
-assert.equal(showcaseDefinitions.length, 30, 'expected exactly 30 authored hero showcases');
+assert.equal(showcaseDefinitions.length, 32, 'expected exactly 32 authored hero showcases');
 assert.match(showcases, /cameraTrack:/, 'showcases need authored camera tracks');
 assert.match(showcases, /beats:/, 'showcases need timed physics beats');
 assert.match(showcases, /sampleShowcaseCamera/, 'showcases need camera interpolation');
@@ -182,6 +197,7 @@ assert.match(scenes, /familyIndex \* 50 \+ mode \* 10 \+ variant/, 'catalog must
 assert.match(scenes, /family:\s*'cloth'/, 'catalog must include cloth recipes');
 assert.match(scenes, /family:\s*'rope'/, 'catalog must include rope recipes');
 assert.match(scenes, /family:\s*'water'/, 'catalog must include water recipes');
+assert.match(scenes, /family:\s*'fracture'/, 'catalog must include normalized material-fracture recipes');
 
 const fallback = read('src/physics/fallback.ts');
 for (const marker of ['broadphaseOrder', 'broadphaseBounds', 'broadphaseAxisIndex', 'broadphaseCandidateCountValue']) {
@@ -198,6 +214,16 @@ assert.match(soft, /breakThreshold/, 'cloth/rope constraints need controlled bre
 assert.match(soft, /solveShallowWater/, 'water system must advance the shallow-water field');
 assert.match(soft, /DynamicSurfaceFrame/, 'cloth/water must publish dynamic indexed surfaces');
 assert.match(soft, /computeParticleBounds/, 'cloth/rope projectile paths need whole-system broad rejection');
+
+const materialPresets = read('src/soft/material-presets.ts');
+const materialSimulation = read('src/soft/material-simulation.ts');
+for (const marker of ['MaterialBehaviorPreset', 'MATERIAL_BEHAVIOR_PRESETS', 'tensileYieldStrain', 'tensileBreakStrain', 'compressionYieldStrain', 'compressionBreakStrain']) {
+  assert.ok(materialPresets.includes(marker), `material preset system missing ${marker}`);
+}
+for (const marker of ['MaterialSimulation', "readonly kind = 'fracture'", 'setLoadTarget', 'releaseLoad', 'cycleLoad', 'MaterialFailureTelemetry']) {
+  assert.ok(materialSimulation.includes(marker), `material fracture simulation missing ${marker}`);
+}
+assert.match(materialPresets, /not Young's modulus|not certified engineering data/i, 'material presets must state their normalized, non-certified boundary');
 
 const softKernels = read('src/soft/kernels.ts');
 const softKernelC = read('wasm/soft_kernels.c');
@@ -293,7 +319,7 @@ assert.match(manifestVerifier, /generate-source-manifest\.sh --list/, 'manifest 
 
 for (const publisher of ['scripts/push-existing-box3d-webgpu.sh', 'scripts/publish-github.sh']) {
   const source = read(publisher);
-  assert.match(source, /validate:v1\.13/, `${publisher} must run the complete v1.13 validation gate`);
+  assert.match(source, /validate:v1\.14/, `${publisher} must run the complete v1.14 validation gate`);
   assert.match(source, /SOURCE_MANIFEST 2\.sha256/, `${publisher} must exclude the user-owned secondary manifest`);
 }
 
@@ -309,7 +335,7 @@ for (const marker of ['AAA_SHOWCASES', 'CinematicEffects', 'SoftSimulationSuite'
 
 const validationReport = read('VALIDATION_REPORT.md');
 assert.match(validationReport, /Visible browser acceptance/, 'validation report must document visible browser acceptance');
-assert.match(validationReport, /750 \/ 750 scenes/, 'validation report must record the complete visible scene sweep');
+assert.match(validationReport, /750 \/ 750 scenes/, 'historical v1.13 validation report must retain its completed visible scene sweep without claiming an unrun v1.14 browser pass');
 assert.match(validationReport, /v112-visible-browser-acceptance\.json/, 'validation report must link current machine-readable browser evidence');
 assert.match(read('THIRD_PARTY_NOTICES.md'), /Box3D/, 'third-party notice must identify Box3D');
 
@@ -318,11 +344,13 @@ for (const workflow of workflows) {
   assert.ok(fs.existsSync(path.join(root, workflow)), `missing ${workflow}`);
 }
 assert.match(read('.github/workflows/ci.yml'), /npm (run validate|test)/, 'CI must run validation/tests');
-assert.match(read('.github/workflows/ci.yml'), /validate:v1\.13/, 'CI must run the complete v1.13 gate');
+assert.match(read('.github/workflows/ci.yml'), /validate:v1\.14/, 'CI must run the complete v1.14 gate');
+assert.match(read('.github/workflows/ci.yml'), /test:material:100/, 'CI must run the 100-case material fracture gate');
 assert.match(read('.github/workflows/pages.yml'), /npm run build:pages/, 'Pages workflow must build the subpath-safe bundle');
 assert.match(read('.github/workflows/pages.yml'), /test:native-wasm/, 'Pages must validate the tracked native Box3D artifact before deployment');
+assert.match(read('.github/workflows/pages.yml'), /test:material:100/, 'Pages must run the 100-case material fracture gate before deployment');
 for (const workflow of workflows) {
   assert.match(read(workflow), /npm run verify:source/, `${workflow} must verify source integrity`);
 }
 
-console.log('✅ repository self-test passed: v1.13 source-frozen 1,000-case optimization campaign, exact production paths, native Box3D WASM, qualified soft kernels, GPU cloth/water, compute-expanded rope, upload caches, 30 hero sequences, 750-scene catalog, workflows, and UI contracts');
+console.log('✅ repository self-test passed: v1.14 material bending/fracture lab, preserved historical v1.13 evidence, exact production paths, native Box3D WASM, qualified soft kernels, GPU cloth/water, compute-expanded rope/material lattices, upload caches, 32 hero sequences, 800-scene catalog, workflows, and UI contracts');

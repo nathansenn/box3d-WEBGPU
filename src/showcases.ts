@@ -8,6 +8,8 @@ export type ShowcaseActionKind =
   | 'explode'
   | 'projectile'
   | 'rain'
+  | 'set-load'
+  | 'release-load'
   | 'slowmo'
   | 'normal-speed';
 
@@ -43,7 +45,7 @@ export type AAAShowcase = {
 type ShowcaseDefinition = Omit<AAAShowcase, 'cameraTrack' | 'beats'> & {
   action: 'collapse' | 'impact' | 'storm' | 'cascade';
   focalHeight?: number;
-  softSystem?: 'cloth' | 'rope' | 'water';
+  softSystem?: 'cloth' | 'rope' | 'water' | 'fracture';
 };
 
 function sceneId(familyIndex: number, variant: number): number {
@@ -81,11 +83,22 @@ function buildBeats(def: ShowcaseDefinition): readonly ShowcaseBeat[] {
   const common: ShowcaseBeat[] = [
     { at: 0.2, label: 'Establishing shot', detail: def.tagline, action: 'caption' },
     { at: 2.6, label: 'Systems armed', detail: def.softSystem
-      ? `${def.softSystem === 'water' ? 'Shallow-water' : 'Position-based'} constraints, Box3D stage bodies, dynamic WebGPU surfaces, HDR lighting, and replay telemetry are live.`
+      ? `${def.softSystem === 'water' ? 'Shallow-water' : def.softSystem === 'fracture' ? 'Material-failure beam-lattice' : 'Position-based'} constraints, Box3D stage bodies, WebGPU presentation, HDR lighting, and replay telemetry are live.`
       : 'Solver, continuous collision, WebGPU shadow pass, HDR lighting, and replay telemetry are live.', action: 'caption' },
   ];
 
-  if (def.softSystem === 'cloth') {
+  if (def.softSystem === 'fracture') {
+    common.push(
+      { at: 3.4, label: 'Elastic preload', detail: 'The displacement-controlled rig begins below the material yield point.', action: 'set-load', strength: 0.42 },
+      { at: 5.0, label: 'Yield inspection', detail: 'Time dilation exposes elastic bending, strain concentration, and the first permanent set.', action: 'slowmo' },
+      { at: 5.6, label: 'Yield threshold', detail: 'The actuator crosses the tuned yield envelope while the lattice redistributes load.', action: 'set-load', strength: 0.96 },
+      { at: 7.5, label: 'Plastic hinge', detail: 'Continued displacement accumulates damage and reveals the difference between ductile and brittle response.', action: 'set-load', strength: 1.38 },
+      { at: 9.2, label: 'Controlled flaw', detail: 'A ballistic strike introduces a localized defect at peak bending demand.', action: 'projectile' },
+      { at: 10.8, label: 'Ultimate load', detail: 'The rig advances to the configured fracture envelope and captures the final break pattern.', action: 'set-load', strength: 2.0 },
+      { at: 13.2, label: 'Unload and inspect', detail: 'The actuator releases so elastic recovery, permanent set, damage, and separated members remain visible.', action: 'release-load' },
+      { at: 14.0, label: 'Failure review', detail: 'Full-rate simulation resumes for the final material telemetry lock.', action: 'normal-speed' },
+    );
+  } else if (def.softSystem === 'cloth') {
     common.push(
       { at: 3.6, label: 'Wind front', detail: 'A directional pressure pulse travels across pinned fabric and exposes the constraint network.', action: 'kick', strength: 11 },
       { at: 5.0, label: 'Fiber inspection', detail: 'Time dilation reveals structural, shear, and bend constraints redistributing strain.', action: 'slowmo' },
@@ -182,10 +195,10 @@ const DEFINITIONS: readonly ShowcaseDefinition[] = [
     duration: 17, recommendedStress: 5, action: 'impact', focalHeight: 16,
   },
   {
-    id: 'atlas-suspension-convoy', sceneId: sceneId(3, 0), title: 'Atlas Suspension Convoy', category: 'Infrastructure',
-    tagline: 'A segmented bridge carries concentrated cargo until a controlled mid-span disruption initiates deck failure.',
-    objective: 'Visualize segmented deck contacts, moving load concentration, support response, and debris settling across a wide frame.',
-    duration: 15, recommendedStress: 4, action: 'collapse', focalHeight: 5,
+    id: 'truss-span-failure', sceneId: sceneId(3, 2), title: 'Truss Span Failure', category: 'Infrastructure',
+    tagline: 'A triangular truss corridor carries a concentrated load until a lateral strike breaks its repeating support path.',
+    objective: 'Visualize truss contact transfer, brace loss, mid-span impact, progressive deck failure, and debris settling across a wide frame.',
+    duration: 16, recommendedStress: 5, action: 'impact', focalHeight: 5,
   },
   {
     id: 'viaduct-shockwave', sceneId: sceneId(3, 9), title: 'Viaduct Shockwave', category: 'Infrastructure',
@@ -325,6 +338,18 @@ const DEFINITIONS: readonly ShowcaseDefinition[] = [
     tagline: 'Rain, traveling waves, a ballistic entry body, and a massive splash crown converge in the lab’s fluid finale.',
     objective: 'Show wave interference, droplet coupling, buoyancy proxies, impact displacement, splash particles, current vectors, and post-processed water highlights.',
     duration: 19, recommendedStress: 5, action: 'impact', focalHeight: 2, softSystem: 'water',
+  },
+  {
+    id: 'steel-yield-to-rupture', sceneId: sceneId(15, 0), title: 'Steel Yield-to-Rupture', category: 'Material Failure',
+    tagline: 'A structural-steel specimen progresses from elastic bend through plastic-hinge formation and final ductile rupture.',
+    objective: 'Show displacement-controlled loading, yield onset, permanent set, damage accumulation, fracture separation, and exact breakpoint telemetry.',
+    duration: 17, recommendedStress: 4, action: 'collapse', focalHeight: 4.5, softSystem: 'fracture',
+  },
+  {
+    id: 'glass-catastrophic-fracture', sceneId: sceneId(15, 6), title: 'Glass Catastrophic Fracture', category: 'Material Failure',
+    tagline: 'A soda-lime glass plate carries a precise preload before a localized flaw triggers a sudden brittle fracture front.',
+    objective: 'Contrast a narrow elastic envelope with negligible plastic set, rapid damage localization, abrupt member loss, and deterministic crack progression.',
+    duration: 17, recommendedStress: 5, action: 'impact', focalHeight: 4.5, softSystem: 'fracture',
   },
 ] as const;
 

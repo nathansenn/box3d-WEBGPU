@@ -65,10 +65,11 @@ export type GpuClothSurfaceFrame = {
   baseColorB: readonly [number, number, number, number];
 };
 
-/** GPU-resident rope/cable render stream. Dynamic node positions are paired
+/** GPU-resident line-member render stream. Dynamic node positions are paired
  * with compact segment metadata; a renderer can expand this into shared
- * instance matrices and materials without rebuilding every segment on CPU. */
-export type RopeGridFrame = {
+ * instance matrices and materials without rebuilding every member on CPU. */
+export type GpuSegmentGridFrame = {
+  presentation: 'rope' | 'material';
   positions: Float32Array;
   /** Eight float32 words per active render segment:
    * [nodeA, nodeB, inverseRestLength, radius, colorR, colorG, colorB, colorA]. */
@@ -77,6 +78,25 @@ export type RopeGridFrame = {
   segmentCount: number;
   topologyVersion: number;
   frameVersion: number;
+};
+
+/** Backward-compatible name retained for the original cable path. */
+export type RopeGridFrame = GpuSegmentGridFrame;
+
+/** Comparative, normalized material-failure telemetry. These values describe
+ * the deterministic lattice model; they are not certified engineering data. */
+export type MaterialFailureTelemetry = {
+  label: string;
+  testMode: string;
+  loadTarget: number;
+  loadProgress: number;
+  maxStrain: number;
+  yieldStrain: number;
+  breakStrain: number;
+  yieldedCount: number;
+  damagedCount: number;
+  peakDamage: number;
+  failurePhase: 'elastic' | 'yielding' | 'fracturing' | 'failed';
 };
 
 /** Shallow-water state stays as eta/u/v fields; WebGPU reconstructs geometry and foam. */
