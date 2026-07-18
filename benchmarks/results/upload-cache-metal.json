@@ -1,0 +1,10 @@
+{
+  "rendererSha256": "7c6553969ec5586b5721c5d524d4be74f46608c06adff232aaa2d902bf2a5a9e",
+  "uploadCacheBenchmark": {
+    "dawnBackend": "metal",
+    "cachedNsPerCall": 29.637920000000122,
+    "changedNsPerCall": 1004.14600000002,
+    "callSpeedup": 33.88044775071988,
+    "cachedUploadedBytes": 0
+  }
+}

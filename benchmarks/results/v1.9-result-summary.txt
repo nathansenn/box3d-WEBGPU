@@ -1,0 +1,12 @@
+Box3D WebGPU AAA v1.9.0 — Fifth Breakthrough Summary
+=====================================================
+100 experiments: 69 accepted, 15 borderline, 6 no-win, 10 controls, 0 correctness failures
+Adaptive cloth long-horizon geometric mean: 1.5551x
+Adaptive cloth storm geometric mean: 1.4351x
+Rope CPU handoff geometric mean: 5.9687x
+Rope mean dynamic-byte reduction: 84.89%
+Fresh-process mixed maximum speedup: 1.3932x
+Fresh-process dynamic/mixed geometric mean: 1.3257x
+Maximum state error: 0.000842723
+Maximum rope matrix error: 1.118e-09
+Maximum rope color error: 2.708e-07

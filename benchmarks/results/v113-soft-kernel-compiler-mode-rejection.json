@@ -1,0 +1,46 @@
+{
+  "schema": 1,
+  "generatedAt": "2026-07-16T20:45:00.834Z",
+  "decision": "rejected-no-win",
+  "productionMode": {
+    "simd": "O3",
+    "scalar": "O3"
+  },
+  "method": {
+    "samples": 12,
+    "balancedOrder": true,
+    "minimumTimedBatchMs": 25,
+    "bootstrapResamples": 20000,
+    "activeWorkloads": 12,
+    "controls": 2,
+    "fidelityFrames": 240,
+    "bitExactComparisons": 28
+  },
+  "artifacts": {
+    "simd-o3": { "sha256": "8744df67b629cca4f15e9ff375723d9b6b2d5411df664c42642ec461c2e10c31", "bytes": 6216 },
+    "simd-o2": { "sha256": "438a7964e6409f7e547a13a36af6748cf67945e266d01a890e1b372ad5e23b3b", "bytes": 5973 },
+    "scalar-o3": { "sha256": "99893fdaf3c94214ef952cd1e0d592242f2b06618480741c00630495854286b6", "bytes": 3926 },
+    "scalar-os": { "sha256": "93690dfdd2d4f7dcadcfa9993beab1ab91829cf7a2430cc419e4d08d6775f907", "bytes": 3695 }
+  },
+  "comparisons": {
+    "simd-o2-over-o3": {
+      "activeGeometricMean": 0.9948045187651717,
+      "activeMedian": 0.9990949574693462,
+      "clothGeometricMean": 0.9842317375048983,
+      "ropeGeometricMean": 1.0010825730178292,
+      "waterGeometricMean": 0.999185174722012,
+      "controlGeometricMean": 1.0055550625658831,
+      "worst": { "workload": "maximum-tensioned-membrane", "speedup": 0.9464650538945487, "lower95": 0.9274037200381701, "upper95": 0.9727717713228676 }
+    },
+    "scalar-os-over-o3": {
+      "activeGeometricMean": 0.99476,
+      "activeMedian": 0.99992,
+      "clothGeometricMean": 0.97989,
+      "ropeGeometricMean": 1.00141,
+      "waterGeometricMean": 1.00315,
+      "controlGeometricMean": 0.99391,
+      "worst": { "workload": "maximum-tensioned-membrane", "speedup": 0.94105, "lower95": 0.91965, "upper95": 0.97210 }
+    }
+  },
+  "fullRawEvidenceSha256": "25eab62b3c38e63512027927f233ac91ffa18b8f6f701a9a5f86ef151fd5b674"
+}

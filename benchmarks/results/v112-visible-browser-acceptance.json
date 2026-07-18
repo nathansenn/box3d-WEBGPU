@@ -1,0 +1,92 @@
+{
+  "schemaVersion": 1,
+  "generatedAt": "2026-07-16T15:17:31Z",
+  "release": "1.12.0",
+  "environment": {
+    "os": "macOS",
+    "browser": "Codex in-app Browser",
+    "servedBuild": "relative-base Vite production preview",
+    "url": "http://127.0.0.1:4174/",
+    "pageTitle": "Box3D WebGPU — AAA Physics Lab"
+  },
+  "build": {
+    "indexSha256": "a70e30e4612bf36845da8fd643466936db02d40fd2160f2b56c60cb77003aac5",
+    "mainJavaScript": "dist/assets/index-CDhfhiu4.js",
+    "mainJavaScriptSha256": "ad0889900ff3ec09ad8050dd27f1ec2bdd1bd9ee33818a7895d96a238e3a675b",
+    "nativeWasmSha256": "03cf2a4a24e2c4aab33d51411c6bd3ff21440f068a3c8830ece34ad0ed9f168a"
+  },
+  "startup": {
+    "versionBadge": "v1.12.0",
+    "backend": "Box3D WASM",
+    "softKernel": "SIMD",
+    "catalogRecipes": 750,
+    "heroSequences": 30,
+    "passed": true
+  },
+  "interactions": [
+    {
+      "domain": "native rigid body",
+      "scene": "Mega Stack Collapse — Baseline",
+      "checks": ["native backend loaded", "finite live telemetry", "stable replay hash"],
+      "passed": true
+    },
+    {
+      "domain": "cloth",
+      "scene": "Drape Over Collider — Impact Demo",
+      "checks": ["CLOTH active", "1,288 nodes", "projectile accepted", "diagnostics enabled", "replay hash advanced"],
+      "passed": true
+    },
+    {
+      "domain": "rope",
+      "scene": "Rope Net Resonance — Cinematic",
+      "checks": ["ROPE active", "308 nodes", "655 constraints", "pause/resume", "single-step control", "projectile accepted", "replay hash advanced"],
+      "passed": true
+    },
+    {
+      "domain": "water",
+      "scene": "Rain Impact Reservoir — Cinematic",
+      "checks": ["WATER active", "15,252 cells/constraints", "720/720 rigid rain bodies", "568 soft impact particles", "radial blast", "finite energy and replay hash"],
+      "passed": true
+    },
+    {
+      "domain": "quality profiles",
+      "checks": ["Performance selected", "Ultra selected", "Cinematic restored"],
+      "passed": true
+    },
+    {
+      "domain": "cinematic director",
+      "hero": "Tsunami Research Array",
+      "checks": ["PLAYING state", "pause accepted"],
+      "passed": true
+    }
+  ],
+  "stateValidation": {
+    "scenesPassed": 750,
+    "scenesTotal": 750,
+    "heroesPassed": 30,
+    "heroesTotal": 30,
+    "effectsPassed": true,
+    "message": "State validation complete: 750/750 scenes, 30/30 hero sequences, effects passed.",
+    "passed": true
+  },
+  "console": {
+    "errors": 0,
+    "warnings": 0
+  },
+  "screenshots": [
+    {
+      "path": "benchmarks/results/v112-browser-water-acceptance.png",
+      "sha256": "8ab5f0e07558bb295751c3ee8a4e419edf5aafe51a1cf10d0436560f120943cb"
+    },
+    {
+      "path": "benchmarks/results/v112-browser-state-tests.png",
+      "sha256": "72d76ec07d274b4d68599288e814c6ba1c5fb1bece204e64eb8722c1700b74bc"
+    },
+    {
+      "path": "benchmarks/results/v112-browser-final.png",
+      "sha256": "88698e97098c3a405b3b6993eac43eec84b2617cafcaa25a76a8bcf3f50865d3"
+    }
+  ],
+  "passed": true,
+  "boundary": "Visible acceptance proves this production build in one macOS in-app browser session. It is not a universal FPS result or a complete browser, GPU, and driver matrix."
+}

@@ -4,7 +4,7 @@
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
   <meta name="theme-color" content="#050914" />
-  <meta name="description" content="Box3D WebGPU AAA Physics Lab — 600 deterministic simulations, 24 cinematic hero demos, native WASM physics, HDR lighting, shadows, effects, and diagnostics." />
+  <meta name="description" content="Box3D WebGPU AAA Physics Lab v1.13.0 — 750 deterministic simulations, GPU-resident cloth and water, SIMD/scalar WebAssembly soft kernels, native Box3D physics, HDR lighting, shadows, effects, and diagnostics." />
   <title>Box3D WebGPU — AAA Physics Lab</title>
   <style>
     :root {
@@ -448,23 +448,23 @@
         <div class="brand-mark" aria-hidden="true"></div>
         <div class="brand-copy">
           <strong>BOX3D × WEBGPU</strong>
-          <span>AAA Physics Capability Lab</span>
+          <span>AAA Physics Capability Lab · v1.13.0</span>
         </div>
       </div>
       <div class="top-status" aria-label="Capability summary">
-        <span class="chip">600 deterministic recipes</span>
-        <span class="chip">24 cinematic hero demos</span>
-        <span class="chip">HDR · PCF shadows · MSAA</span>
+        <span class="chip">750 deterministic recipes</span>
+        <span class="chip">30 cinematic hero demos</span>
+        <span class="chip">GPU Cloth · WASM Rope · GPU Water</span>
       </div>
     </header>
 
     <aside class="deck deck-left" aria-label="Physics command deck">
-      <p id="warning" class="warning">Initializing physics and WebGPU pipelines…</p>
+      <p id="warning" class="warning">Initializing rigid physics, soft kernels, and WebGPU pipelines…</p>
 
       <section class="section">
         <div class="section-heading">
           <p class="eyebrow">Cinematic Director</p>
-          <span class="counter">24 authored sequences</span>
+          <span class="counter">30 authored sequences</span>
         </div>
         <h2 id="showcase-title">Titan Foundry Stackfall</h2>
         <p id="showcase-tagline" class="tagline">A controlled industrial collapse staged for solver stress and spectacle.</p>
@@ -489,7 +489,7 @@
 
           <div class="field-row">
             <div class="field">
-              <label for="scene-search">Search 600 scenes</label>
+              <label for="scene-search">Search 750 scenes</label>
               <input id="scene-search" type="search" placeholder="bridge, tower, domino…" autocomplete="off" />
             </div>
             <div class="field">
@@ -564,8 +564,9 @@
       <details>
         <summary>Automated Validation</summary>
         <div class="details-body">
-          <button id="run-tests" class="primary" style="width:100%;margin-bottom:8px">Run 600 + 24 Browser Tests</button>
-          <pre id="test-log">Ready. Native Box3D WASM is used when built; otherwise the deterministic preview backend keeps the complete UI and showcase system testable.</pre>
+          <button id="run-tests" class="primary" style="width:100%;margin-bottom:8px">Run 750 + 30 State Tests</button>
+          <button id="run-turboquant" style="width:100%;margin-bottom:8px">Run TurboQuant Probe</button>
+          <pre id="test-log">Ready. Native Box3D WASM is used when built. SIMD/scalar soft-kernel WASM accelerates cloth, rope, and shallow water when supported, with a deterministic JavaScript fallback. Intact cloth and water use GPU-resident rendering paths. TurboQuant remains opt-in transport compression outside the local render loop.</pre>
         </div>
       </details>
     </aside>
@@ -580,6 +581,11 @@
           <div class="metric"><span>Bodies</span><strong id="body-count">0</strong></div>
           <div class="metric"><span>Dynamic</span><strong id="dynamic-count">0</strong></div>
           <div class="metric"><span>FX instances</span><strong id="effect-count">0</strong></div>
+          <div class="metric"><span>Soft system</span><strong id="soft-system">Rigid only</strong></div>
+          <div class="metric"><span>Soft nodes</span><strong id="soft-nodes">0</strong></div>
+          <div class="metric"><span>Constraints</span><strong id="soft-constraints">0</strong></div>
+          <div class="metric"><span>Breaks</span><strong id="soft-breaks">0</strong></div>
+          <div class="metric"><span>Soft energy</span><strong id="soft-energy">0.00</strong></div>
           <div class="metric"><span>Frame rate</span><strong id="fps">0</strong></div>
           <div class="metric"><span>Physics</span><strong id="sim-ms">0.00 ms</strong></div>
           <div class="metric"><span>Render CPU</span><strong id="render-ms">0.00 ms</strong></div>
@@ -593,10 +599,10 @@
       <section class="section">
         <div class="section-heading"><p class="eyebrow">AAA Render Graph</p></div>
         <div class="pipeline">
-          <div class="pipeline-step"><b>01</b><span>Box3D / WASM solve</span><em>CPU</em></div>
-          <div class="pipeline-step"><b>02</b><span>Instanced transform upload</span><em>GPU</em></div>
+          <div class="pipeline-step"><b>01</b><span>Box3D + soft-kernel solve</span><em>CPU/WASM</em></div>
+          <div class="pipeline-step"><b>02</b><span>Rigid + cloth/water state upload</span><em>GPU</em></div>
           <div class="pipeline-step"><b>03</b><span>2048² shadow depth</span><em>PCF</em></div>
-          <div class="pipeline-step"><b>04</b><span>HDR PBR-ish lighting</span><em>16F</em></div>
+          <div class="pipeline-step"><b>04</b><span>PBR solids + cloth + water</span><em>16F</em></div>
           <div class="pipeline-step"><b>05</b><span>4× multisample resolve</span><em>MSAA</em></div>
           <div class="pipeline-step"><b>06</b><span>ACES + bloom + vignette</span><em>POST</em></div>
         </div>
@@ -604,7 +610,7 @@
 
       <section class="section">
         <div class="section-heading"><p class="eyebrow">Capability Envelope</p></div>
-        <p class="small muted">Rigid bodies · stacked contacts · chain reactions · construction loads · projectile impacts · material response · stress spawning · deterministic replay · cinematic camera direction.</p>
+        <p class="small muted">Rigid bodies · GPU-resident intact cloth · topology-aware tearing · WASM-generated rope streams · GPU-resident shallow water · rain impacts · buoyant props · projectile coupling · deterministic replay · cinematic direction.</p>
       </section>
     </aside>
 

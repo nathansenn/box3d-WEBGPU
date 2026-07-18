@@ -3,111 +3,119 @@
 ## Delivered baseline
 
 ```text
-Box3D C17
-  → stable C ABI
-  → Emscripten ES-module/WASM
-  → refreshed heap views
-  → fixed-step TypeScript coordinator
-  → WebGPU instanced renderer
-  → cinematic director / diagnostics / validation
+Box3D C17 → stable C ABI → Emscripten ES module/WASM
+                    ┐
+TypeScript cloth/rope PBD + shallow-water solver
+                    └→ fixed-step coordinator
+                       → instanced + indexed WebGPU streams
+                       → HDR/MSAA/shadows/materials/post
+                       → cinematic director / diagnostics / validation
 ```
 
-The current edition already supplies 600 deterministic recipes, 24 hand-authored hero sequences, HDR/MSAA/shadows/post processing, effects, native build tooling, and a preview backend. The remaining roadmap is about fidelity, scale, production assets, and runtime architecture—not filling an empty shell.
+The current edition supplies **750 deterministic scenes, 30 hero sequences, 150 soft/fluid demonstrations, HDR rendering, native build tooling, deep tests, and a deployable browser shell**. The roadmap now concerns fidelity, coupling, scale, authoring, and hardening—not an empty prototype.
 
 ## Phase 1 — Native parity and solver observability
 
-- Implement one-to-one native recipe generation for all 600 catalog variants.
+- Implement one-to-one native rigid staging for all 750 scene recipes.
 - Add spheres, capsules, convex hulls, meshes, and height fields to the visual stream.
 - Expose joints, motors, limits, sensors, contact events, overlap queries, ray casts, and shape casts.
-- Stream contact points, normals, impulses, AABBs, islands, and sleep state into dedicated debug buffers.
-- Add deterministic recording/replay files with backend version and seed metadata.
-- Add numerical regression baselines for key scenes.
+- Stream contact points, normals, impulses, AABBs, islands, and sleep state.
+- Add persistent recording/replay files with backend, seed, and solver revisions.
+- Add numerical baselines for representative rigid/cloth/rope/water scenes.
 
-Acceptance gate:
+Acceptance:
 
 ```text
-all 600 browser tests pass on Box3D WASM
-hero replay hashes are stable for a pinned Box3D revision
+all 750 browser scenes pass on Box3D WASM
+all 30 hero sequences retain valid native staging
 no stale heap views after memory growth
-no preview-only geometry in native hero demos
+replay baselines are versioned and reproducible
 ```
 
-## Phase 2 — Worker isolation and frame pacing
+## Phase 2 — Bidirectional rigid/soft coupling
 
-- Move native stepping into a dedicated Worker.
+- Query Box3D shapes for cloth and rope collision.
+- Apply soft payload, cable, and buoyancy forces back to Box3D bodies.
+- Add frictional cloth contact and continuous projectile collision.
+- Add rope pulleys, winches, motors, and moving anchors.
+- Add shallow-water obstacle/depth maps and shoreline masks.
+- Support multiple active cloth/water surfaces.
+
+Acceptance:
+
+```text
+cloth drapes over arbitrary rigid colliders
+rope anchors can attach to moving Box3D bodies
+floaters transfer measurable forces to/from the water field
+coupling remains stable and deterministic at fixed step
+```
+
+## Phase 3 — Worker isolation and frame pacing
+
+- Move native and soft stepping into one or more Workers.
 - Use double-buffered transferable arrays as the compatibility path.
-- Add SharedArrayBuffer ring buffers under COOP/COEP deployment headers.
-- Interpolate render transforms between fixed physics snapshots.
+- Add SharedArrayBuffer rings under COOP/COEP.
+- Interpolate render state between fixed snapshots.
 - Add frame-budget control, catch-up limits, and overload reporting.
-- Separate simulation CPU timing from render encoding and GPU timestamp data.
+- Separate simulation CPU, encoding CPU, and GPU timestamp telemetry.
 
-Acceptance gate:
+## Phase 4 — GPU-compute deformables and fluids
+
+- Port PBD projection to WebGPU compute behind the existing `SoftSimulationFrame` contract.
+- Add graph coloring or Jacobi-style constraint batches.
+- Compute cloth normals and strain on GPU.
+- Port the shallow-water field update to compute ping-pong textures/buffers.
+- Add GPU particle spray and foam advection.
+- Keep deterministic CPU reference solvers for regression comparison.
+
+Acceptance:
 
 ```text
-render loop remains responsive during maximum stress
-physics never runs with an unbounded accumulator
-worker disconnect/restart is recoverable
-input-to-simulation latency is measured and displayed
+compute and CPU reference scenes match bounded error metrics
+GPU path scales materially beyond CPU node limits
+fallback remains available on constrained devices
+no solver migration leaks into UI/director architecture
 ```
 
-## Phase 3 — Production geometry and materials
+## Phase 5 — Production geometry and materials
 
-- Replace cube-only rendering with cached primitive and imported-mesh geometry pools.
-- Add bindless-style material indexing within WebGPU limits.
-- Add physically based texture sets: base color, normal, roughness, metalness, AO, emissive.
-- Add KTX2/Basis texture transcoding and mip generation.
+- Replace cube-only rigid visuals with primitive/imported-mesh pools.
+- Add material indexing and texture sets: base color, normal, roughness, metalness, AO, emissive.
+- Add KTX2/Basis transcoding and mip generation.
 - Add GPU frustum/occlusion culling and indirect draw compaction.
-- Add LOD policy and meshlet experiments for large architectural scenes.
+- Add LOD and meshlet experiments for architectural scenes.
+- Add cloth weave/normal maps and physically tuned water environments.
 
-Acceptance gate:
+## Phase 6 — Lighting and post-production
 
-```text
-visual shape matches collision shape
-materials remain deterministic by scene seed
-asset budgets and fallbacks are documented
-maximum demo has no per-body draw-call scaling
-```
-
-## Phase 4 — Lighting and post-production
-
-- Cascaded directional shadows with stabilized splits.
+- Cascaded stabilized shadows.
 - Image-based lighting and prefiltered environment maps.
-- GTAO/SSAO or equivalent ambient occlusion.
+- GTAO/SSAO.
 - Velocity buffer and temporal anti-aliasing.
-- Separable/mip-chain bloom and exposure adaptation.
+- Mip-chain bloom and exposure adaptation.
 - Screen-space/contact shadows where valuable.
-- GPU particles, trails, debris impostors, and volumetric dust.
-- Color-grade LUTs and capture-safe cinematic profiles.
+- GPU volumetric dust, spray, mist, and debris.
+- Capture-safe color-grade LUTs.
 
-Acceptance gate:
-
-```text
-quality tiers have explicit GPU budgets
-no temporal artifacts during camera cuts
-post effects degrade gracefully on integrated GPUs
-shader compilation and pipeline creation remain validated
-```
-
-## Phase 5 — Interaction and gameplay systems
+## Phase 7 — Authoring and gameplay
 
 - Object picking and transform gizmos.
-- Runtime collider authoring and validation.
-- Character mover demo and moving-platform tests.
-- Vehicle constraints and machinery controls.
-- Destruction authoring tools and weak-point metadata.
-- Scenario scripting through data, not hard-coded UI branches.
+- Runtime collider, cloth-pin, rope-anchor, and water-obstacle authoring.
+- Character mover and moving-platform tests.
+- Vehicle/machinery controls.
+- Destruction weak-point metadata.
+- Data-driven scenario scripting.
 - Save/load/share scene configurations.
 
-## Phase 6 — Platform hardening
+## Phase 8 — Platform hardening
 
-- Browser/GPU compatibility matrix and automated screenshot tests.
-- Device-loss recovery and adapter fallback strategy.
-- Memory and resource lifetime audits.
-- WebGPU error scopes around allocations and pipeline creation.
-- Content Security Policy and cross-origin isolation deployment presets.
-- Accessibility, touch controls, reduced-motion mode, and keyboard navigation.
-- Progressive loading and offline/PWA packaging.
+- Browser/GPU compatibility matrix and automated screenshots.
+- Device-loss recovery and adapter fallback.
+- Memory/resource lifetime audits and scoped WebGPU errors.
+- CSP and cross-origin isolation deployment presets.
+- Accessibility, touch controls, reduced motion, keyboard navigation.
+- Progressive loading, offline/PWA packaging, and telemetry privacy review.
 
 ## Non-goal clarification
 
-A full GPU rigid-body solver is not required to call this a WebGPU physics application. The deliberately chosen production pattern is CPU/WASM rigid-body authority plus GPU rendering/effects. GPU compute experiments should be added where they provide measurable value—particles, culling, broadphase visualization, deformables, or specialized solvers—without replacing a verified rigid-body engine merely for novelty.
+A WebGPU physics application does not require every solver to run on the GPU. The current architecture intentionally uses verified CPU/WASM authority and WebGPU presentation. Compute migration should happen only where profiling proves value and must preserve tested fallbacks and clear solver ownership.

@@ -1,25 +1,26 @@
 # Box3D → Browser/WebGPU Port Architecture
 
-## Boundary decision
+## Authority boundaries
 
-Box3D remains authoritative for simulation. WebGPU consumes transform and material streams but does not own rigid-body state.
+Box3D remains authoritative for rigid-body simulation. The new soft-simulation layer is authoritative for cloth, rope, and water. WebGPU consumes both domains but owns neither solver state.
 
 ```text
-Box3D world
-  bodies / hulls / contacts / solver
-           ↓ b3w_sync_transforms()
-contiguous float arrays in WASM memory
-  modelMatrix[bodyCount × 16]
-  color[bodyCount × 4]
-           ↓ queue.writeBuffer()
-WebGPU instance buffers
+Box3D world / WASM                         TypeScript soft suite
+bodies · hulls · contacts · solver         particles · constraints · water field
+              │                                      │
+              ├── matrices/colors                    ├── rope matrices/colors
+              │                                      ├── cloth indexed surface
+              │                                      └── water indexed surface
+              └──────────── fixed-step coordinator ─────────────┐
+                                                                ↓
+                                                          WebGPU renderer
 ```
 
-This separation minimizes port risk and makes future renderer or worker changes independent of the solver.
+This separation keeps the native port stable while allowing deformable/fluid systems to evolve independently or later move to a Worker/WebGPU-compute implementation.
 
 ## Browser C ABI
 
-The bridge exposes only stable scalar calls and pointers:
+The native bridge exposes scalar calls and contiguous streams:
 
 ```text
 b3w_create_scene
@@ -38,37 +39,51 @@ b3w_spawn_rain
 b3w_replay_hash
 ```
 
-No Box3D internal structure is mirrored in TypeScript.
+No internal Box3D structures are mirrored in TypeScript.
 
-## Memory growth safety
+## Memory-growth safety
 
-Emscripten may replace typed-array views after WebAssembly memory grows. The WASM wrapper therefore exposes `HEAPF32` through a getter rather than retaining the array created at module startup.
+Emscripten may replace typed-array views after WebAssembly memory growth. The wrapper exposes `HEAPF32` through a getter, so each synchronization reads the current heap view rather than retaining a detached array.
 
 ## Build topology
 
-The browser bridge is the top-level CMake project. Upstream Box3D is included with `add_subdirectory`.
+The browser bridge is the top-level CMake project and includes upstream Box3D with `add_subdirectory`.
 
-Why:
+This topology:
 
-- avoids accidental top-level Emscripten pthread requirements;
-- keeps the bridge and library in one dependency graph;
-- preserves the official `box3d::box3d` target;
-- permits WebAssembly SIMD without requiring SharedArrayBuffer deployment headers;
-- generates the final ES module directly.
+- avoids inheriting unsuitable top-level Emscripten/pthread policy;
+- builds Box3D and the bridge in one graph;
+- links the official `box3d::box3d` target;
+- enables WebAssembly SIMD without requiring SharedArrayBuffer deployment;
+- emits an ES-module factory consumed by `src/physics/wasm.ts`.
 
-## Scene parity
+## Catalog parity
 
-The TypeScript catalog contains 600 recipes. The native bridge currently maps each of 12 families to a native recipe and varies stress/variant actions. Cinematic and Maximum modes also receive native set dressing. Full one-to-one native parity remains an extensible milestone rather than being falsely claimed complete.
+The TypeScript catalog now contains **750 scenes across 15 families**. The native bridge provides rigid staging for all 15 families, including cloth, rope, and water environments. The actual cloth, rope, and water state is simulated by `SoftSimulationSuite` regardless of whether the rigid backend is Box3D WASM or the deterministic preview backend.
 
-## Future native API coverage
+The native bridge varies stress and scene actions and adds cinematic set dressing, but it does not yet claim one-to-one Box3D construction parity for every parameterized recipe.
 
-Recommended additions:
+## Interaction routing
 
-- sphere, capsule, convex hull, mesh, and height-field visual parity;
-- joints and motors;
-- sensors and contact events;
-- ray casts, shape casts, overlap queries;
-- character mover;
-- recording/replay export;
-- debug draw callbacks and shape-lifetime GPU resources;
-- worker-based simulation and shared/double-buffered transforms.
+The coordinator sends user/director actions to both active domains:
+
+```text
+kick        → rigid broad impulse + cloth/rope disturbance + water displacement
+explosion   → Box3D radial impulse + soft radial impulse + water splash
+projectile  → Box3D body + cloth puncture / rope severing / water impact floater
+rain        → rigid falling bodies + soft impact particles / water droplets
+```
+
+This produces synchronized demonstrations without pretending that arbitrary Box3D contacts are already fully bidirectionally coupled into the soft solvers.
+
+## Future native/soft coupling
+
+Recommended next steps:
+
+- shape queries for cloth/rope collision against Box3D hulls;
+- force/impulse feedback from floaters and payloads into Box3D bodies;
+- joints, motors, sensors, contact events, and shape casts;
+- sphere, capsule, mesh, convex-hull, and height-field visual parity;
+- worker-based simulation and double-buffered/shared transform streams;
+- record/replay files with backend and solver revision metadata;
+- WebGPU-compute cloth/rope/water experiments behind the same runtime contract.

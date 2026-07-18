@@ -88,9 +88,14 @@ export function mat4Identity(): Mat4 {
 
 /** Right-handed perspective matrix with WebGPU/D3D zero-to-one clip depth. */
 export function mat4Perspective(fovyRadians: number, aspect: number, near: number, far: number): Mat4 {
+  return mat4PerspectiveInto(new Float32Array(16), fovyRadians, aspect, near, far);
+}
+
+/** Allocation-free variant of {@link mat4Perspective}. */
+export function mat4PerspectiveInto(out: Mat4, fovyRadians: number, aspect: number, near: number, far: number): Mat4 {
   const f = 1.0 / Math.tan(fovyRadians * 0.5);
   const nf = 1 / (near - far);
-  const out = new Float32Array(16);
+  out.fill(0);
   out[0] = f / Math.max(aspect, EPSILON);
   out[5] = f;
   out[10] = far * nf;
@@ -101,10 +106,23 @@ export function mat4Perspective(fovyRadians: number, aspect: number, near: numbe
 
 /** Right-handed orthographic matrix with WebGPU/D3D zero-to-one clip depth. */
 export function mat4Orthographic(left: number, right: number, bottom: number, top: number, near: number, far: number): Mat4 {
+  return mat4OrthographicInto(new Float32Array(16), left, right, bottom, top, near, far);
+}
+
+/** Allocation-free variant of {@link mat4Orthographic}. */
+export function mat4OrthographicInto(
+  out: Mat4,
+  left: number,
+  right: number,
+  bottom: number,
+  top: number,
+  near: number,
+  far: number,
+): Mat4 {
   const lr = 1 / Math.max(EPSILON, right - left);
   const bt = 1 / Math.max(EPSILON, top - bottom);
   const nf = 1 / Math.max(EPSILON, near - far);
-  const out = new Float32Array(16);
+  out.fill(0);
   out[0] = 2 * lr;
   out[5] = 2 * bt;
   out[10] = nf;
@@ -116,32 +134,68 @@ export function mat4Orthographic(left: number, right: number, bottom: number, to
 }
 
 export function mat4LookAt(eye: Vec3, target: Vec3, up: Vec3): Mat4 {
-  const z = vec3Normalize(vec3Sub(eye, target));
-  const x = vec3Normalize(vec3Cross(up, z));
-  const y = vec3Cross(z, x);
+  return mat4LookAtInto(new Float32Array(16), eye, target, up);
+}
 
-  const out = new Float32Array(16);
-  out[0] = x[0];
-  out[1] = y[0];
-  out[2] = z[0];
+/** Allocation-free variant of {@link mat4LookAt}. */
+export function mat4LookAtInto(out: Mat4, eye: Vec3, target: Vec3, up: Vec3): Mat4 {
+  let zx = eye[0] - target[0];
+  let zy = eye[1] - target[1];
+  let zz = eye[2] - target[2];
+  const zLength = Math.hypot(zx, zy, zz);
+  if (zLength < EPSILON) {
+    zx = 0;
+    zy = 0;
+    zz = 0;
+  } else {
+    zx /= zLength;
+    zy /= zLength;
+    zz /= zLength;
+  }
+
+  let xx = up[1] * zz - up[2] * zy;
+  let xy = up[2] * zx - up[0] * zz;
+  let xz = up[0] * zy - up[1] * zx;
+  const xLength = Math.hypot(xx, xy, xz);
+  if (xLength < EPSILON) {
+    xx = 0;
+    xy = 0;
+    xz = 0;
+  } else {
+    xx /= xLength;
+    xy /= xLength;
+    xz /= xLength;
+  }
+
+  const yx = zy * xz - zz * xy;
+  const yy = zz * xx - zx * xz;
+  const yz = zx * xy - zy * xx;
+
+  out[0] = xx;
+  out[1] = yx;
+  out[2] = zx;
   out[3] = 0;
-  out[4] = x[1];
-  out[5] = y[1];
-  out[6] = z[1];
+  out[4] = xy;
+  out[5] = yy;
+  out[6] = zy;
   out[7] = 0;
-  out[8] = x[2];
-  out[9] = y[2];
-  out[10] = z[2];
+  out[8] = xz;
+  out[9] = yz;
+  out[10] = zz;
   out[11] = 0;
-  out[12] = -vec3Dot(x, eye);
-  out[13] = -vec3Dot(y, eye);
-  out[14] = -vec3Dot(z, eye);
+  out[12] = -(xx * eye[0] + xy * eye[1] + xz * eye[2]);
+  out[13] = -(yx * eye[0] + yy * eye[1] + yz * eye[2]);
+  out[14] = -(zx * eye[0] + zy * eye[1] + zz * eye[2]);
   out[15] = 1;
   return out;
 }
 
 export function mat4Multiply(a: Mat4, b: Mat4): Mat4 {
-  const out = new Float32Array(16);
+  return mat4MultiplyInto(new Float32Array(16), a, b);
+}
+
+/** Allocation-free variant of {@link mat4Multiply}. `out` must not alias either input. */
+export function mat4MultiplyInto(out: Mat4, a: Mat4, b: Mat4): Mat4 {
   for (let col = 0; col < 4; col++) {
     for (let row = 0; row < 4; row++) {
       out[col * 4 + row] =
@@ -197,6 +251,36 @@ export function writeModelMatrixFromEuler(
   out[offset + 10] = r22 * halfExtents[2];
   out[offset + 11] = 0;
 
+  out[offset + 12] = position[0];
+  out[offset + 13] = position[1];
+  out[offset + 14] = position[2];
+  out[offset + 15] = 1;
+}
+
+/** Bit-compatible specialization of {@link writeModelMatrixFromEuler} for zero rotation. */
+export function writeAxisAlignedModelMatrix(
+  out: Float32Array,
+  offset: number,
+  position: Vec3,
+  halfX: number,
+  halfY: number,
+  halfZ: number,
+): void {
+  out[offset + 0] = halfX;
+  out[offset + 1] = 0;
+  // Math.sin(0) followed by the generic Euler writer produces negative zero
+  // for R20. Preserve that bit so deterministic frame fingerprints remain
+  // identical to the general path.
+  out[offset + 2] = -0;
+  out[offset + 3] = 0;
+  out[offset + 4] = 0;
+  out[offset + 5] = halfY;
+  out[offset + 6] = 0;
+  out[offset + 7] = 0;
+  out[offset + 8] = 0;
+  out[offset + 9] = 0;
+  out[offset + 10] = halfZ;
+  out[offset + 11] = 0;
   out[offset + 12] = position[0];
   out[offset + 13] = position[1];
   out[offset + 14] = position[2];

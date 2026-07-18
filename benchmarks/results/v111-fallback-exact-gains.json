@@ -1,0 +1,291 @@
+{
+  "generatedAt": "2026-07-15T10:10:08.355Z",
+  "baselineArchive": "box3d-webgpu-v1.10.0-source.tar.gz",
+  "baselineSha256": "dea18ff88e86568e5449c9dece5610d0dfadf38d901eef1c1e39155c64e8c3f5",
+  "sourceFingerprintAtStart": "1915b4ec8eb3784882f6b1ffcef9a8d93b4bb69cc36f4fb7e58c4d7ce3cb6daf",
+  "sourceFingerprintAtEnd": "1915b4ec8eb3784882f6b1ffcef9a8d93b4bb69cc36f4fb7e58c4d7ce3cb6daf",
+  "sourceStableDuringRun": true,
+  "samples": 9,
+  "sceneCount": 15,
+  "pairedOutputComparisons": 270,
+  "exactComparisons": 273,
+  "groups": [
+    {
+      "label": "One-time static transform and material streams",
+      "cases": 15,
+      "geometricMean": 1.382709221644658,
+      "minimumSpeedup": 0.9906156893392309,
+      "maximumSpeedup": 2.5782795625688824,
+      "records": [
+        {
+          "sceneId": 49,
+          "title": "Cross-Laminated Block Grid — Cinematic",
+          "beforeMedianMs": 0.14675374999999993,
+          "afterMedianMs": 0.14678652666666683,
+          "speedup": 0.9997767052098635,
+          "exact": true
+        },
+        {
+          "sceneId": 99,
+          "title": "Thin-Body Stability Trial — Cinematic",
+          "beforeMedianMs": 0.01347916666666606,
+          "afterMedianMs": 0.010506041666666684,
+          "speedup": 1.2829919292470002,
+          "exact": true
+        },
+        {
+          "sceneId": 149,
+          "title": "Needle Spire Shake Test — Cinematic",
+          "beforeMedianMs": 0.023112015000000003,
+          "afterMedianMs": 0.02092506999999993,
+          "speedup": 1.1045131509715418,
+          "exact": true
+        },
+        {
+          "sceneId": 199,
+          "title": "Multi-Pier Viaduct — Cinematic",
+          "beforeMedianMs": 0.010664653333333263,
+          "afterMedianMs": 0.00777319499999976,
+          "speedup": 1.3719781033839487,
+          "exact": true
+        },
+        {
+          "sceneId": 249,
+          "title": "Energy Loss Arena — Cinematic",
+          "beforeMedianMs": 0.007606804999999592,
+          "afterMedianMs": 0.004851596666666561,
+          "speedup": 1.5678972352056795,
+          "exact": true
+        },
+        {
+          "sceneId": 299,
+          "title": "Dense Core Rain Column — Cinematic",
+          "beforeMedianMs": 0.17905756999999994,
+          "afterMedianMs": 0.18075382000000068,
+          "speedup": 0.9906156893392309,
+          "exact": true
+        },
+        {
+          "sceneId": 349,
+          "title": "Progressive Collapse Theater — Cinematic",
+          "beforeMedianMs": 0.02003881999999976,
+          "afterMedianMs": 0.018575139999999615,
+          "speedup": 1.0787977910260798,
+          "exact": true
+        },
+        {
+          "sceneId": 399,
+          "title": "Heavy Hauler Load Shift — Cinematic",
+          "beforeMedianMs": 0.006183750000000146,
+          "afterMedianMs": 0.002398401666667572,
+          "speedup": 2.5782795625688824,
+          "exact": true
+        },
+        {
+          "sceneId": 449,
+          "title": "Physics Toy Museum — Cinematic",
+          "beforeMedianMs": 0.01108715166666722,
+          "afterMedianMs": 0.0058411116666669234,
+          "speedup": 1.898123559242587,
+          "exact": true
+        },
+        {
+          "sceneId": 499,
+          "title": "Foundation Block Layout — Cinematic",
+          "beforeMedianMs": 0.007684859999999389,
+          "afterMedianMs": 0.004815069999999651,
+          "speedup": 1.5960017196011578,
+          "exact": true
+        },
+        {
+          "sceneId": 549,
+          "title": "Inventory Earthquake Proxy — Cinematic",
+          "beforeMedianMs": 0.026099653333333965,
+          "afterMedianMs": 0.02338485999999951,
+          "speedup": 1.116091921582362,
+          "exact": true
+        },
+        {
+          "sceneId": 599,
+          "title": "Mega Structure Showcase — Cinematic",
+          "beforeMedianMs": 0.010148541666665855,
+          "afterMedianMs": 0.007662985000000238,
+          "speedup": 1.3243588062178824,
+          "exact": true
+        },
+        {
+          "sceneId": 190,
+          "title": "Bridge Load Test — Cinematic",
+          "beforeMedianMs": 0.006324791666667503,
+          "afterMedianMs": 0.003069026666667014,
+          "speedup": 2.0608461097329838,
+          "exact": true
+        },
+        {
+          "sceneId": 240,
+          "title": "Material Bounce Lab — Cinematic",
+          "beforeMedianMs": 0.00681305666666655,
+          "afterMedianMs": 0.0041336816666671435,
+          "speedup": 1.6481812621434155,
+          "exact": true
+        },
+        {
+          "sceneId": 290,
+          "title": "Object Rain Stress Test — Cinematic",
+          "beforeMedianMs": 0.15295388833333315,
+          "afterMedianMs": 0.15130367999999939,
+          "speedup": 1.0109065974689695,
+          "exact": true
+        }
+      ]
+    },
+    {
+      "label": "Allocation-free broad-rejected explosions",
+      "cases": 15,
+      "geometricMean": 3.5535911413884986,
+      "minimumSpeedup": 0.8339358791840763,
+      "maximumSpeedup": 7.6182214527421,
+      "records": [
+        {
+          "sceneId": 49,
+          "title": "Cross-Laminated Block Grid — Cinematic",
+          "beforeMedianMs": 0.09482773437499645,
+          "afterMedianMs": 0.03553059687500308,
+          "speedup": 2.6689035005125628,
+          "exact": true
+        },
+        {
+          "sceneId": 99,
+          "title": "Thin-Body Stability Trial — Cinematic",
+          "beforeMedianMs": 0.004510415624997677,
+          "afterMedianMs": 0.0005920562500023152,
+          "speedup": 7.6182214527421,
+          "exact": true
+        },
+        {
+          "sceneId": 149,
+          "title": "Needle Spire Shake Test — Cinematic",
+          "beforeMedianMs": 0.010662240624998275,
+          "afterMedianMs": 0.0026449218750030923,
+          "speedup": 4.031211933239355,
+          "exact": true
+        },
+        {
+          "sceneId": 199,
+          "title": "Multi-Pier Viaduct — Cinematic",
+          "beforeMedianMs": 0.003447265624998863,
+          "afterMedianMs": 0.0009763000000020839,
+          "speedup": 3.5309491191145193,
+          "exact": true
+        },
+        {
+          "sceneId": 249,
+          "title": "Energy Loss Arena — Cinematic",
+          "beforeMedianMs": 0.002245571874999541,
+          "afterMedianMs": 0.0006615874999965854,
+          "speedup": 3.3942175071492904,
+          "exact": true
+        },
+        {
+          "sceneId": 299,
+          "title": "Dense Core Rain Column — Cinematic",
+          "beforeMedianMs": 0.04561236874999963,
+          "afterMedianMs": 0.009628906249997727,
+          "speedup": 4.73702490872319,
+          "exact": true
+        },
+        {
+          "sceneId": 349,
+          "title": "Progressive Collapse Theater — Cinematic",
+          "beforeMedianMs": 0.009881640624996635,
+          "afterMedianMs": 0.002848956249999901,
+          "speedup": 3.4685125912330097,
+          "exact": true
+        },
+        {
+          "sceneId": 399,
+          "title": "Heavy Hauler Load Shift — Cinematic",
+          "beforeMedianMs": 0.0010488281249990904,
+          "afterMedianMs": 0.0012576843749968702,
+          "speedup": 0.8339358791840763,
+          "exact": true
+        },
+        {
+          "sceneId": 449,
+          "title": "Physics Toy Museum — Cinematic",
+          "beforeMedianMs": 0.002469403125002145,
+          "afterMedianMs": 0.0006514343750041007,
+          "speedup": 3.79071663970235,
+          "exact": true
+        },
+        {
+          "sceneId": 499,
+          "title": "Foundation Block Layout — Cinematic",
+          "beforeMedianMs": 0.0022436218749987804,
+          "afterMedianMs": 0.000566274999999905,
+          "speedup": 3.9620712109825735,
+          "exact": true
+        },
+        {
+          "sceneId": 549,
+          "title": "Inventory Earthquake Proxy — Cinematic",
+          "beforeMedianMs": 0.013037890625003,
+          "afterMedianMs": 0.0034597656250014096,
+          "speedup": 3.7684317488985077,
+          "exact": true
+        },
+        {
+          "sceneId": 599,
+          "title": "Mega Structure Showcase — Cinematic",
+          "beforeMedianMs": 0.0035023437500001364,
+          "afterMedianMs": 0.0009085937500003638,
+          "speedup": 3.8546861564904384,
+          "exact": true
+        },
+        {
+          "sceneId": 190,
+          "title": "Bridge Load Test — Cinematic",
+          "beforeMedianMs": 0.0015157531249997192,
+          "afterMedianMs": 0.00044622500000173203,
+          "speedup": 3.3968359571826676,
+          "exact": true
+        },
+        {
+          "sceneId": 240,
+          "title": "Material Bounce Lab — Cinematic",
+          "beforeMedianMs": 0.001971356249998735,
+          "afterMedianMs": 0.0006126281249976273,
+          "speedup": 3.2178676909525987,
+          "exact": true
+        },
+        {
+          "sceneId": 290,
+          "title": "Object Rain Stress Test — Cinematic",
+          "beforeMedianMs": 0.046583984375001816,
+          "afterMedianMs": 0.008216665624996723,
+          "speedup": 5.669451149780772,
+          "exact": true
+        }
+      ]
+    }
+  ],
+  "boundaryCases": [
+    {
+      "name": "zero-axis-diagonal-and-adjacent-boundary",
+      "points": 8,
+      "exact": true
+    },
+    {
+      "name": "minimum-radius-clamp",
+      "points": 3,
+      "exact": true
+    },
+    {
+      "name": "large-finite-radius",
+      "points": 4,
+      "exact": true
+    }
+  ],
+  "capturesDetached": true,
+  "passed": true
+}

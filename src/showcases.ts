@@ -1,4 +1,4 @@
-import { clamp, easeInOutCubic, lerp, lerpAngle, vec3Lerp, type Vec3 } from './math';
+import { clamp, easeInOutCubic, lerp, lerpAngle, type Vec3 } from './math';
 import { getSceneById } from './scenes';
 import type { CameraRig } from './types';
 
@@ -43,6 +43,7 @@ export type AAAShowcase = {
 type ShowcaseDefinition = Omit<AAAShowcase, 'cameraTrack' | 'beats'> & {
   action: 'collapse' | 'impact' | 'storm' | 'cascade';
   focalHeight?: number;
+  softSystem?: 'cloth' | 'rope' | 'water';
 };
 
 function sceneId(familyIndex: number, variant: number): number {
@@ -79,10 +80,37 @@ function buildBeats(def: ShowcaseDefinition): readonly ShowcaseBeat[] {
   const center: Vec3 = [0, Math.max(2.5, def.focalHeight ?? 4), 0];
   const common: ShowcaseBeat[] = [
     { at: 0.2, label: 'Establishing shot', detail: def.tagline, action: 'caption' },
-    { at: 2.6, label: 'Systems armed', detail: 'Solver, continuous collision, WebGPU shadow pass, HDR lighting, and replay telemetry are live.', action: 'caption' },
+    { at: 2.6, label: 'Systems armed', detail: def.softSystem
+      ? `${def.softSystem === 'water' ? 'Shallow-water' : 'Position-based'} constraints, Box3D stage bodies, dynamic WebGPU surfaces, HDR lighting, and replay telemetry are live.`
+      : 'Solver, continuous collision, WebGPU shadow pass, HDR lighting, and replay telemetry are live.', action: 'caption' },
   ];
 
-  if (def.action === 'impact') {
+  if (def.softSystem === 'cloth') {
+    common.push(
+      { at: 3.6, label: 'Wind front', detail: 'A directional pressure pulse travels across pinned fabric and exposes the constraint network.', action: 'kick', strength: 11 },
+      { at: 5.0, label: 'Fiber inspection', detail: 'Time dilation reveals structural, shear, and bend constraints redistributing strain.', action: 'slowmo' },
+      { at: 6.4, label: 'Ballistic puncture', detail: 'A high-speed body drives local deformation and can open topology in break-enabled fabric.', action: 'projectile' },
+      { at: 8.2, label: 'Pressure shock', detail: 'A radial air-blast creates a second moving deformation front.', action: 'explode', center, strength: 18, radius: 10 },
+      { at: 10.1, label: 'Recovery', detail: 'The fabric returns to real time for damping, draping, and final tension telemetry.', action: 'normal-speed' },
+    );
+  } else if (def.softSystem === 'rope') {
+    common.push(
+      { at: 3.8, label: 'Load swing', detail: 'A broad impulse excites the cable system and transfers energy through every tension member.', action: 'kick', strength: 10 },
+      { at: 5.2, label: 'Tension slow motion', detail: 'Time dilation exposes catenary motion, payload inertia, and anchor reaction.', action: 'slowmo' },
+      { at: 6.8, label: 'Cable strike', detail: 'A projectile intersects the line field and may sever the closest overloaded segment.', action: 'projectile' },
+      { at: 8.5, label: 'Secondary load pulse', detail: 'A radial impulse challenges load sharing after the initial cable event.', action: 'explode', center, strength: 17, radius: 11 },
+      { at: 10.4, label: 'Residual oscillation', detail: 'Full-rate simulation resumes for damping, broken-line count, and payload settling.', action: 'normal-speed' },
+    );
+  } else if (def.softSystem === 'water') {
+    common.push(
+      { at: 3.5, label: 'Surface forcing', detail: 'A directional wave enters the basin and begins reflecting from the containment boundary.', action: 'kick', strength: 10 },
+      { at: 5.0, label: 'Rain field', detail: 'Hundreds of droplets inject localized momentum and high-frequency ripples.', action: 'rain', count: 360 },
+      { at: 6.2, label: 'Hydrodynamic inspection', detail: 'Time dilation reveals interference, current vectors, foam generation, and buoyancy response.', action: 'slowmo' },
+      { at: 7.6, label: 'Leviathan entry', detail: 'A ballistic body enters the surface and couples into the floating-object solver.', action: 'projectile' },
+      { at: 9.0, label: 'Impact crown', detail: 'A controlled radial disturbance produces a large splash crown and reflected wave train.', action: 'explode', center: [0, 1.5, 0], strength: 21, radius: 12 },
+      { at: 11.0, label: 'Basin recovery', detail: 'The surface returns to real time for boundary reflections, damping, and energy telemetry.', action: 'normal-speed' },
+    );
+  } else if (def.action === 'impact') {
     common.push(
       { at: 4.1, label: 'Kinetic launch', detail: 'A high-density projectile enters the structure at camera-relative velocity.', action: 'projectile' },
       { at: 5.3, label: 'Impact time dilation', detail: 'Simulation speed drops to expose contact propagation and secondary failures.', action: 'slowmo' },
@@ -112,7 +140,7 @@ function buildBeats(def: ShowcaseDefinition): readonly ShowcaseBeat[] {
     );
   }
 
-  common.push({ at: def.duration - 1.4, label: 'Telemetry lock', detail: 'Final body count, frame cost, transform bandwidth, and replay hash are captured.', action: 'caption' });
+  common.push({ at: def.duration - 1.4, label: 'Telemetry lock', detail: 'Final body/node count, constraint state, frame cost, transform bandwidth, and replay hash are captured.', action: 'caption' });
   return common.sort((a, b) => a.at - b.at);
 }
 
@@ -261,6 +289,43 @@ const DEFINITIONS: readonly ShowcaseDefinition[] = [
     objective: 'Deliver the final all-systems showcase: impact, architecture, debris, shadows, bloom, fog, effects, and telemetry.',
     duration: 18, recommendedStress: 5, action: 'impact', focalHeight: 11,
   },
+
+  {
+    id: 'tempest-standard-protocol', sceneId: sceneId(12, 0), title: 'Tempest Standard Protocol', category: 'Soft-Body Cloth',
+    tagline: 'A monumental fabric standard enters a staged wind front, ballistic puncture, and pressure-wave recovery sequence.',
+    objective: 'Demonstrate pinned-edge cloth, structural/shear/bend constraints, turbulent forcing, topology separation, dynamic normals, and two-sided WebGPU shading.',
+    duration: 16, recommendedStress: 4, action: 'cascade', focalHeight: 7, softSystem: 'cloth',
+  },
+  {
+    id: 'parachute-canopy-failure', sceneId: sceneId(12, 6), title: 'Parachute Canopy Failure', category: 'Soft-Body Cloth',
+    tagline: 'A tensioned canopy catches air, deforms around an impact body, and opens a progressive constraint failure under load.',
+    objective: 'Show four-corner loading, curved membrane response, collision coupling, strain visualization, tearing, and deterministic recovery.',
+    duration: 17, recommendedStress: 5, action: 'impact', focalHeight: 10, softSystem: 'cloth',
+  },
+  {
+    id: 'sky-crane-cable-failure', sceneId: sceneId(13, 0), title: 'Sky Crane Cable Failure', category: 'Rope and Rigging',
+    tagline: 'A long crane cable carries a heavy industrial payload through swing, impact, line failure, and residual oscillation.',
+    objective: 'Demonstrate cable tension, bend constraints, concentrated mass, projectile severing, payload inertia, and anchor stability.',
+    duration: 17, recommendedStress: 5, action: 'collapse', focalHeight: 9, softSystem: 'rope',
+  },
+  {
+    id: 'suspension-cable-resonance', sceneId: sceneId(13, 1), title: 'Suspension Cable Resonance', category: 'Rope and Rigging',
+    tagline: 'Twin catenary cables and cross-planks carry a traveling oscillation before a localized cable strike changes the load path.',
+    objective: 'Show coupled ropes, catenary geometry, cross constraints, resonance propagation, line tension coloring, and partial failure.',
+    duration: 17, recommendedStress: 4, action: 'cascade', focalHeight: 7, softSystem: 'rope',
+  },
+  {
+    id: 'tsunami-research-array', sceneId: sceneId(14, 1), title: 'Tsunami Research Array', category: 'Interactive Water',
+    tagline: 'A large wave front crosses a cinematic research basin, reflects from its boundaries, and collides with secondary forcing.',
+    objective: 'Demonstrate linear shallow-water propagation, boundary reflection, interference, foam, current telemetry, and HDR water shading.',
+    duration: 18, recommendedStress: 5, action: 'cascade', focalHeight: 2, softSystem: 'water',
+  },
+  {
+    id: 'leviathan-impact-basin', sceneId: sceneId(14, 9), title: 'Leviathan Impact Basin', category: 'Interactive Water',
+    tagline: 'Rain, traveling waves, a ballistic entry body, and a massive splash crown converge in the lab’s fluid finale.',
+    objective: 'Show wave interference, droplet coupling, buoyancy proxies, impact displacement, splash particles, current vectors, and post-processed water highlights.',
+    duration: 19, recommendedStress: 5, action: 'impact', focalHeight: 2, softSystem: 'water',
+  },
 ] as const;
 
 export const AAA_SHOWCASES: readonly AAAShowcase[] = DEFINITIONS.map((def) => ({
@@ -286,27 +351,59 @@ export function getShowcaseByOrdinal(index: number): AAAShowcase {
 }
 
 export function sampleShowcaseCamera(showcase: AAAShowcase, timeSeconds: number): CameraRig {
+  if (showcase.cameraTrack.length === 0) return getSceneById(showcase.sceneId).camera;
+  return sampleShowcaseCameraInto(showcase, timeSeconds, { yaw: 0, pitch: 0, distance: 0, target: [0, 0, 0] });
+}
+
+/** Allocation-free camera-track sampling for the per-frame director path. */
+export function sampleShowcaseCameraInto(showcase: AAAShowcase, timeSeconds: number, out: CameraRig): CameraRig {
   const track = showcase.cameraTrack;
-  if (track.length === 0) return getSceneById(showcase.sceneId).camera;
-  if (timeSeconds <= track[0].at) return cloneRig(track[0].rig);
-  if (timeSeconds >= track[track.length - 1].at) return cloneRig(track[track.length - 1].rig);
+  if (track.length === 0) return cloneRigInto(out, getSceneById(showcase.sceneId).camera);
+  if (timeSeconds <= track[0].at) return cloneRigInto(out, track[0].rig);
+  if (timeSeconds >= track[track.length - 1].at) return cloneRigInto(out, track[track.length - 1].rig);
+
+  // Every built-in director track has five keys. Select its segment directly
+  // while retaining the generic path for external/custom showcase data.
+  if (track.length === 5) {
+    const index = timeSeconds <= track[1].at ? 0
+      : timeSeconds <= track[2].at ? 1
+      : timeSeconds <= track[3].at ? 2
+      : 3;
+    const a = track[index];
+    const b = track[index + 1];
+    const t = easeInOutCubic((timeSeconds - a.at) / Math.max(0.001, b.at - a.at));
+    out.yaw = lerpAngle(a.rig.yaw, b.rig.yaw, t);
+    out.pitch = lerp(a.rig.pitch, b.rig.pitch, t);
+    out.distance = lerp(a.rig.distance, b.rig.distance, t);
+    out.target[0] = lerp(a.rig.target[0], b.rig.target[0], t);
+    out.target[1] = lerp(a.rig.target[1], b.rig.target[1], t);
+    out.target[2] = lerp(a.rig.target[2], b.rig.target[2], t);
+    return out;
+  }
 
   for (let i = 0; i < track.length - 1; i++) {
     const a = track[i];
     const b = track[i + 1];
     if (timeSeconds < a.at || timeSeconds > b.at) continue;
     const t = easeInOutCubic((timeSeconds - a.at) / Math.max(0.001, b.at - a.at));
-    return {
-      yaw: lerpAngle(a.rig.yaw, b.rig.yaw, t),
-      pitch: lerp(a.rig.pitch, b.rig.pitch, t),
-      distance: lerp(a.rig.distance, b.rig.distance, t),
-      target: vec3Lerp(a.rig.target, b.rig.target, t),
-    };
+    out.yaw = lerpAngle(a.rig.yaw, b.rig.yaw, t);
+    out.pitch = lerp(a.rig.pitch, b.rig.pitch, t);
+    out.distance = lerp(a.rig.distance, b.rig.distance, t);
+    out.target[0] = lerp(a.rig.target[0], b.rig.target[0], t);
+    out.target[1] = lerp(a.rig.target[1], b.rig.target[1], t);
+    out.target[2] = lerp(a.rig.target[2], b.rig.target[2], t);
+    return out;
   }
 
-  return cloneRig(track[track.length - 1].rig);
+  return cloneRigInto(out, track[track.length - 1].rig);
 }
 
-function cloneRig(value: CameraRig): CameraRig {
-  return { yaw: value.yaw, pitch: value.pitch, distance: value.distance, target: [...value.target] as Vec3 };
+function cloneRigInto(out: CameraRig, value: CameraRig): CameraRig {
+  out.yaw = value.yaw;
+  out.pitch = value.pitch;
+  out.distance = value.distance;
+  out.target[0] = value.target[0];
+  out.target[1] = value.target[1];
+  out.target[2] = value.target[2];
+  return out;
 }

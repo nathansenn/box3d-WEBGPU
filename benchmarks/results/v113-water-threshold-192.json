@@ -1,0 +1,2879 @@
+{
+  "schemaVersion": 1,
+  "generatedAt": "2026-07-16T15:56:28.033Z",
+  "configuration": {
+    "samples": 6,
+    "bootstraps": 5000,
+    "dropletCounts": [
+      0,
+      1,
+      16,
+      64,
+      128,
+      144,
+      256,
+      512,
+      768
+    ],
+    "threshold": 192,
+    "generatedFromBaseline": true,
+    "timedPath": "step(1/60, 4) + buildFrame(false)"
+  },
+  "provenance": {
+    "baselineArchive": "benchmarks/baselines/box3d-webgpu-v1.12.0-source.tar.gz",
+    "baselineArchiveSha256": "33d7fc828fdea54e087f25815bcdabd8f9608fcda6912e1e5c7dd57139534c67",
+    "baselineSourceSha256": "68b5822307675405d494cfa1a7e0ee2dc459eeb05102114f746d7fbebdb5c42a",
+    "candidateSourceSha256": "327f22fbee2054e40dadf5333a3c6575dd83b7c71a8b7cb26e857f193176b53b",
+    "candidateEndSourceSha256": "327f22fbee2054e40dadf5333a3c6575dd83b7c71a8b7cb26e857f193176b53b",
+    "workspaceStartSourceSha256": "274c5bd3c16662df7c21e2bcecda36b696ec612492a92756b135773a33d93aa4",
+    "workspaceEndSourceSha256": "274c5bd3c16662df7c21e2bcecda36b696ec612492a92756b135773a33d93aa4",
+    "simdKernelSha256": "7d11d1d58187501e13f6c8a4fff3d03292089a2a30047ae1a6da1968e8b04c24",
+    "scalarKernelSha256": "0a1b56343886cd59804c325996837f4bfb1b944fd789e1353779e1d1128e79c7",
+    "commonKernelForBothSides": true
+  },
+  "exact": {
+    "totalCases": 69,
+    "totalFrames": 2934,
+    "passed": true,
+    "scratchVelocityFieldsExcluded": true,
+    "cases": [
+      {
+        "name": "active-simd-0",
+        "frames": 38,
+        "digest": "6b7954d46832c31cc96a80360adf743463bf6d8f42798aebaa19b5b734c06d1d"
+      },
+      {
+        "name": "active-simd-1",
+        "frames": 38,
+        "digest": "5cfeecfaa66adc20402e387184b8fbbc8e689d71b7f637cf7b5d50009a4cccc8"
+      },
+      {
+        "name": "active-simd-16",
+        "frames": 38,
+        "digest": "3ea379f17f1763fb7306522a60ff1428175e2e4d724dd2b7fbc1724b48b87e79"
+      },
+      {
+        "name": "active-simd-64",
+        "frames": 38,
+        "digest": "286518b8929601075f12d06c86e3899f5c7896667c89c424f6c545faa5f51576"
+      },
+      {
+        "name": "active-simd-128",
+        "frames": 38,
+        "digest": "960f980ec9542e7d767230435cbb458f23c15822252e4c1f1514469720bfe892"
+      },
+      {
+        "name": "active-simd-144",
+        "frames": 38,
+        "digest": "8cabcb5b3fc9e104e8e2c47ef5dbd762cc4f4bee056ff7ef822b40e5a2220d1a"
+      },
+      {
+        "name": "active-simd-256",
+        "frames": 38,
+        "digest": "4c3cc7213532be4d9deeb1ca5464005b60dc1106a21c378e904eb89e15b75afa"
+      },
+      {
+        "name": "active-simd-512",
+        "frames": 38,
+        "digest": "6f8a466906414ada04c78f078c2d4134227ff2cea05bfbe77773314257c1269c"
+      },
+      {
+        "name": "active-simd-768",
+        "frames": 38,
+        "digest": "984f6f9cd9de08a79cd1387e3399a7ba8d1fb80ba71af302d1df8752d39abfea"
+      },
+      {
+        "name": "expiring-simd-0",
+        "frames": 14,
+        "digest": "e8647ee877436569ba8dbf988ceef71e80916c454d1a3ebcdae8d04b20ca4ffe"
+      },
+      {
+        "name": "expiring-simd-1",
+        "frames": 14,
+        "digest": "641c84f330b7ec403b50f1d6e57059132ab2ba96293cda31f2d0a328560cb42f"
+      },
+      {
+        "name": "expiring-simd-16",
+        "frames": 14,
+        "digest": "9948820080587e98195af9cfb66c9502d1ef8a67fc6bddaccdc111ee32e5fcf7"
+      },
+      {
+        "name": "expiring-simd-64",
+        "frames": 14,
+        "digest": "0c196c1d347024321b3f2a723b7deeecbabd2f7e50882b4c6b04704be2b5edad"
+      },
+      {
+        "name": "expiring-simd-128",
+        "frames": 14,
+        "digest": "e8b32ab4ee9547739c3b0272cfc970a8e6a954c730ca364c2d08b8df44febcd2"
+      },
+      {
+        "name": "expiring-simd-144",
+        "frames": 14,
+        "digest": "784a25c30110fd07fd25bdbf32beab75ca1602c1fce160e876ef751071cc6c97"
+      },
+      {
+        "name": "expiring-simd-256",
+        "frames": 14,
+        "digest": "7058914d09fa15480fe6735aeacbd822accf618fda6c3fcb34cca2fe2856c820"
+      },
+      {
+        "name": "expiring-simd-512",
+        "frames": 14,
+        "digest": "37fecd2106c221ddf47a3efc8c96952a49af4ffef521dc1d9d88fd4ee2ca24c3"
+      },
+      {
+        "name": "expiring-simd-768",
+        "frames": 14,
+        "digest": "a4135c4abb1c832dde8b7033e3557ca4741b0705c4885aea71546d6673fd1f03"
+      },
+      {
+        "name": "steady-simd-700",
+        "frames": 102,
+        "digest": "82ffcd317a8d7c2c3c2ec08a512262460ca7a2bcd8605a26ee1370280a3615f5"
+      },
+      {
+        "name": "steady-simd-701",
+        "frames": 102,
+        "digest": "5c81e15f3168099f8f27fab2b31fc2a8c4453cdfc67beacb377f908aa20b8db0"
+      },
+      {
+        "name": "steady-simd-703",
+        "frames": 102,
+        "digest": "a8c6d701c5ccf7ad61fbffed8d315d7d4c1d4f7ed499b63d4a4bf197b3c71050"
+      },
+      {
+        "name": "steady-simd-706",
+        "frames": 102,
+        "digest": "c7413db218386ecf22370b6263a9bacf1e0529a9afe0388f7b134d8cfa7bb402"
+      },
+      {
+        "name": "steady-simd-708",
+        "frames": 102,
+        "digest": "8facac8854ac4e9fb4fb61a3b76fa42dd211e5ea9c83fd4ac031e93a02331cad"
+      },
+      {
+        "name": "active-scalar-0",
+        "frames": 38,
+        "digest": "8725f09605e19cd120a6864b5e51f2e440b74e5f2915aa32fdebeef94912bdf6"
+      },
+      {
+        "name": "active-scalar-1",
+        "frames": 38,
+        "digest": "0ed12474595e671fd2cdb81c707d3f64179fcc3ef4e85f1922ae3d4259c886c0"
+      },
+      {
+        "name": "active-scalar-16",
+        "frames": 38,
+        "digest": "5624f051d0e21153c2bb969fb0417c063bb3d41800d724a3e996c0dd43732183"
+      },
+      {
+        "name": "active-scalar-64",
+        "frames": 38,
+        "digest": "44dceeaf4c2be2e6c7d908a2a7a77112e7edc82d6f134516b3e7bc5b7c1579c1"
+      },
+      {
+        "name": "active-scalar-128",
+        "frames": 38,
+        "digest": "15da23d5cdfd0195071021ecd1d270547609b5b6db55993e1d0b176c8608fc89"
+      },
+      {
+        "name": "active-scalar-144",
+        "frames": 38,
+        "digest": "266af624a711e9743ff8a19deade1d7aae4171b3f44ce7c60a688ecc11037346"
+      },
+      {
+        "name": "active-scalar-256",
+        "frames": 38,
+        "digest": "1c93259862375ba435d937de2067a9c6c9d5ebcca2910721ae40c5f62c9a7ce5"
+      },
+      {
+        "name": "active-scalar-512",
+        "frames": 38,
+        "digest": "f793879cb0de2aa37772d03f5d73430f6f20d1bbbc859bdf38101f5526344717"
+      },
+      {
+        "name": "active-scalar-768",
+        "frames": 38,
+        "digest": "87bf5f98962c583e5df5af05ce56fe95094a2392dd5b5ac3cfedef4f1a41dde0"
+      },
+      {
+        "name": "expiring-scalar-0",
+        "frames": 14,
+        "digest": "82f4c2cdaa415db8ad1a95639ace899a8a37b64318ba1e18f21fcb326805aa4f"
+      },
+      {
+        "name": "expiring-scalar-1",
+        "frames": 14,
+        "digest": "6f6f5d0204d1592ead58d175baccb842d3856395b11b04806b12b09ba6a400b7"
+      },
+      {
+        "name": "expiring-scalar-16",
+        "frames": 14,
+        "digest": "02a57c8a3adb267a8f59027b964ad3d28dcc3b58a488e1d5d2d99c4c9dcfadbb"
+      },
+      {
+        "name": "expiring-scalar-64",
+        "frames": 14,
+        "digest": "a1b55c43e17630d5a9790c3f921ab341f1ee09ad4316af9ff97404b0beca495d"
+      },
+      {
+        "name": "expiring-scalar-128",
+        "frames": 14,
+        "digest": "15387b958e4a37967e4fb190a4ae4af6dcfc7903a74ca615adccf285bfefe524"
+      },
+      {
+        "name": "expiring-scalar-144",
+        "frames": 14,
+        "digest": "9d354b1f5abf12aac629ea11199110a8ec01255d0bd7543115d536d99c4695d4"
+      },
+      {
+        "name": "expiring-scalar-256",
+        "frames": 14,
+        "digest": "914c875364c36550222f684a1c5b7a10ba1cb663790bc769255a80f7455d1b61"
+      },
+      {
+        "name": "expiring-scalar-512",
+        "frames": 14,
+        "digest": "abc57696db33b41eb17042a279c60d4ef77fa20fb9f3e3d544577f401bff98a5"
+      },
+      {
+        "name": "expiring-scalar-768",
+        "frames": 14,
+        "digest": "702f8b5dfe231e6ba28ee2f6d32ca9039859edd0ef812d178e03ed538b207d15"
+      },
+      {
+        "name": "steady-scalar-700",
+        "frames": 102,
+        "digest": "69a3f6563de1001cbf13a2c2927e2b2aed8167a700e6aef049c0ed6ba96dfca7"
+      },
+      {
+        "name": "steady-scalar-701",
+        "frames": 102,
+        "digest": "36fab9ebd95d687dbb3dfe7d8e231dd26738f64dee9384cca0dd7dcd535ffa1a"
+      },
+      {
+        "name": "steady-scalar-703",
+        "frames": 102,
+        "digest": "c26f7e6b7a74b351ac86c314a9516aeb0dc54aaa9e3dbef718834e77a3d8ee47"
+      },
+      {
+        "name": "steady-scalar-706",
+        "frames": 102,
+        "digest": "405e37df5c3d7c06afc9a0e1e41a27309a3856d36cd8e4bb24d91e2b652e82c4"
+      },
+      {
+        "name": "steady-scalar-708",
+        "frames": 102,
+        "digest": "80328a30c74fc3781ce3b1706a3095fc6436bb0496d697af398b77fd0705a81c"
+      },
+      {
+        "name": "active-javascript-0",
+        "frames": 38,
+        "digest": "b8cd2cd574374aa5501d1d208fad7286ff2b63338a0d49e25ab7544ea2a9b37e"
+      },
+      {
+        "name": "active-javascript-1",
+        "frames": 38,
+        "digest": "e61dcabfc43e0fe8d47bccf22faf2740c34bc6e282d418317549c1dee9417c1e"
+      },
+      {
+        "name": "active-javascript-16",
+        "frames": 38,
+        "digest": "545d63a0e7f7e5014a0bb2928d2a16003ae4ad5dc2c16c127434a921e664cd0a"
+      },
+      {
+        "name": "active-javascript-64",
+        "frames": 38,
+        "digest": "a5c24be26b2e5e9f25f94a0026bdc785b6ead7664b6519bcf68c249bc6ea3c01"
+      },
+      {
+        "name": "active-javascript-128",
+        "frames": 38,
+        "digest": "2c77c4fe8c5a7301e8b319253296d5828d4e4f685308ac139a892fa5dd2744dd"
+      },
+      {
+        "name": "active-javascript-144",
+        "frames": 38,
+        "digest": "552cbc2194ddc1d063c267f8544d86ceba7a5822a066124708491960b2c312ca"
+      },
+      {
+        "name": "active-javascript-256",
+        "frames": 38,
+        "digest": "e43f1d2eafbf0f97e4738623da13f0845192d45f4fa31a9623812a5904ec4753"
+      },
+      {
+        "name": "active-javascript-512",
+        "frames": 38,
+        "digest": "0ed1a6349c2b51472d533a77c3413f7694da51b17c8adc6ce0353584186ba4ea"
+      },
+      {
+        "name": "active-javascript-768",
+        "frames": 38,
+        "digest": "7a0496afa8fcac12062db08d31fabe1cf5343c2eec69e2952f85e496bd89462e"
+      },
+      {
+        "name": "expiring-javascript-0",
+        "frames": 14,
+        "digest": "e4670a1dd8008c0b1958593a9f0ee505b4beb4dd7ccfe80edb95fa089cbb3645"
+      },
+      {
+        "name": "expiring-javascript-1",
+        "frames": 14,
+        "digest": "b558525768c8c9c68365ddd6e9b1cfebc095d886dbfec2b548c7d8f216c3f9d9"
+      },
+      {
+        "name": "expiring-javascript-16",
+        "frames": 14,
+        "digest": "91a660dcff545e89808c41394318db0115476aa7d04661e7ab6bd01686f95b7e"
+      },
+      {
+        "name": "expiring-javascript-64",
+        "frames": 14,
+        "digest": "a1917899d733ac8bcb16f6f800dcf665e93801879e2e047bb284a2cdba315099"
+      },
+      {
+        "name": "expiring-javascript-128",
+        "frames": 14,
+        "digest": "7f51a3d2fd009fb11dfbc2c8359f6783f4eddb4a6ef8971de3ad8137b7d1a1a1"
+      },
+      {
+        "name": "expiring-javascript-144",
+        "frames": 14,
+        "digest": "e75c4e0803b2b51cdea85b770dcc10b51b125adc4c80c2a00a7ebcb1afd1398b"
+      },
+      {
+        "name": "expiring-javascript-256",
+        "frames": 14,
+        "digest": "a279a3dc44bd4e860611b879ffeb5403ba100f066bd9e91fab9b13fabd64e68e"
+      },
+      {
+        "name": "expiring-javascript-512",
+        "frames": 14,
+        "digest": "efc8c59514e0a7c3375e8be6695e82a67ce56702ce23bbac6653400831987505"
+      },
+      {
+        "name": "expiring-javascript-768",
+        "frames": 14,
+        "digest": "f8587d1510671067936ad9cb73b35e0efc699106903fe95c911f5e5e9a2d4bd2"
+      },
+      {
+        "name": "steady-javascript-700",
+        "frames": 102,
+        "digest": "d08bb229371b7e4ef0228da86cc4817ba95d2c58dbcec8fa3dd691c6071d5542"
+      },
+      {
+        "name": "steady-javascript-701",
+        "frames": 102,
+        "digest": "aa08467c265d64b11ff72dfe9c3a3ebf8c5fe884325d5fc79239504e889d7f65"
+      },
+      {
+        "name": "steady-javascript-703",
+        "frames": 102,
+        "digest": "905dfc11735765ed15fb422b27433713543879ec91f7a074d797053326504392"
+      },
+      {
+        "name": "steady-javascript-706",
+        "frames": 102,
+        "digest": "80993088455f7f93fa269c3b7fb09db3222cd55c3fdeeab234cb71cf768f536f"
+      },
+      {
+        "name": "steady-javascript-708",
+        "frames": 102,
+        "digest": "65edcbeec77bb921cc987a21bb2c76d5a45c726be1fdea5294b262ce2df59a93"
+      }
+    ]
+  },
+  "categorySummary": {
+    "active-droplets": {
+      "count": 27,
+      "geometricMean": 1.0820860561836039,
+      "minimum": 0.9637125860224226,
+      "maximum": 1.5033146833747162
+    },
+    "expiring-droplets": {
+      "count": 27,
+      "geometricMean": 1.0840158269725537,
+      "minimum": 0.9715118729802638,
+      "maximum": 1.7572341356852261
+    },
+    "steady-controls": {
+      "count": 15,
+      "geometricMean": 0.9958916020084505,
+      "minimum": 0.9628290661473557,
+      "maximum": 1.0440433721170124
+    }
+  },
+  "recommendations": {
+    "pointerSwaps": {
+      "decision": "revert",
+      "evidence": {
+        "cases": 15,
+        "geometricMean": 0.9958916020084505,
+        "minimum": 0.9628290661473557,
+        "worstLower": 0.9423612505869028
+      },
+      "reason": "Excluded from the threshold candidate after the earlier broad source-frozen run failed its steady-control gate."
+    },
+    "heightSampler": {
+      "decision": "retain conditionally",
+      "evidence": {
+        "cases": 9,
+        "geometricMean": 1.2742331572028056,
+        "minimum": 1.1115206441412744,
+        "worstLower": 1.0849504052327859
+      },
+      "reason": "1.2742× geometric mean across 192–768 active-droplet complete frames; exact continuation after a later full velocity sample."
+    },
+    "earlyExpiry": {
+      "decision": "retain conditionally",
+      "evidence": {
+        "cases": 9,
+        "geometricMean": 1.2613443440147467,
+        "minimum": 1.0276062618745359,
+        "worstLower": 1.007780472565275
+      },
+      "reason": "1.2613× geometric mean across 192–768 expiration-heavy complete frames; removed droplets cannot affect authoritative state."
+    },
+    "conditionalPolicy": {
+      "decision": "retain",
+      "threshold": 192,
+      "changedEvidence": {
+        "cases": 18,
+        "geometricMean": 1.267772371442844,
+        "minimum": 1.0276062618745359,
+        "maximum": 1.7572341356852261,
+        "worstLower": 1.007780472565275,
+        "worstUpper": 1.071708683377196,
+        "statisticallySlowerCases": []
+      },
+      "controlEvidence": {
+        "cases": 51,
+        "geometricMean": 0.9995246247742288,
+        "minimum": 0.9628290661473557,
+        "maximum": 1.0440433721170124,
+        "worstLower": 0.9144562932302037,
+        "worstUpper": 1.0001796204973126,
+        "statisticallySlowerCases": []
+      },
+      "reason": "1.2678× changed-path geometric mean; 0.9995× control geometric mean, 0.9628× worst control."
+    }
+  },
+  "results": [
+    {
+      "id": 1,
+      "name": "active-simd-0",
+      "category": "active-droplets",
+      "kind": "active",
+      "backend": "simd",
+      "sceneId": 700,
+      "count": 0,
+      "operations": 120,
+      "baselineSamplesMs": [
+        0.014954858333332292,
+        0.01512361666666493,
+        0.015378816666668627,
+        0.014281950000001114,
+        0.014348608333333839,
+        0.015027083333332787
+      ],
+      "candidateSamplesMs": [
+        0.015334724999998646,
+        0.015114233333334445,
+        0.014142708333334515,
+        0.014239233333334293,
+        0.014400341666665402,
+        0.015692008333333736
+      ],
+      "baselineMedianMs": 0.01499097083333254,
+      "candidateMedianMs": 0.014757287499999924,
+      "baselineMadMs": 0.0002602458333342385,
+      "candidateMadMs": 0.0005477458333321764,
+      "speedup": 1.0158351142330606,
+      "interval95": [
+        0.9686539135068413,
+        1.0713114823891525
+      ]
+    },
+    {
+      "id": 2,
+      "name": "active-simd-1",
+      "category": "active-droplets",
+      "kind": "active",
+      "backend": "simd",
+      "sceneId": 700,
+      "count": 1,
+      "operations": 120,
+      "baselineSamplesMs": [
+        0.016213891666666314,
+        0.014564583333333303,
+        0.01457708333333206,
+        0.014782983333331383,
+        0.015318058333336163,
+        0.015316666666668274
+      ],
+      "candidateSamplesMs": [
+        0.014681599999998221,
+        0.014611808333332496,
+        0.015867708333333515,
+        0.015557291666664242,
+        0.014908333333331332,
+        0.015117358333331292
+      ],
+      "baselineMedianMs": 0.01504982499999983,
+      "candidateMedianMs": 0.015012845833331312,
+      "baselineMadMs": 0.000370487500002052,
+      "candidateMadMs": 0.00036614166666595373,
+      "speedup": 1.0024631683478968,
+      "interval95": [
+        0.9342901087244403,
+        1.0738120618099665
+      ]
+    },
+    {
+      "id": 3,
+      "name": "active-simd-16",
+      "category": "active-droplets",
+      "kind": "active",
+      "backend": "simd",
+      "sceneId": 700,
+      "count": 16,
+      "operations": 120,
+      "baselineSamplesMs": [
+        0.01685138333333498,
+        0.017004516666668225,
+        0.017014583333332212,
+        0.0172215250000022,
+        0.017039233333332505,
+        0.01641805833333289
+      ],
+      "candidateSamplesMs": [
+        0.016274299999997764,
+        0.017412149999999352,
+        0.016617358333333717,
+        0.01705138333333404,
+        0.01706249999999727,
+        0.016228124999997817
+      ],
+      "baselineMedianMs": 0.01700955000000022,
+      "candidateMedianMs": 0.01683437083333388,
+      "baselineMadMs": 0.00009392499999876305,
+      "candidateMadMs": 0.00039409999999975333,
+      "speedup": 1.0104060418058196,
+      "interval95": [
+        0.9864939407170132,
+        1.0354597944819313
+      ]
+    },
+    {
+      "id": 4,
+      "name": "active-simd-64",
+      "category": "active-droplets",
+      "kind": "active",
+      "backend": "simd",
+      "sceneId": 700,
+      "count": 64,
+      "operations": 100,
+      "baselineSamplesMs": [
+        0.022038330000000314,
+        0.020090409999997973,
+        0.022235420000001796,
+        0.022411250000000108,
+        0.02118750000000091,
+        0.02305499999999938
+      ],
+      "candidateSamplesMs": [
+        0.020619999999998983,
+        0.020072089999998752,
+        0.021578749999998762,
+        0.021241250000002765,
+        0.021499579999999695,
+        0.021437080000000604
+      ],
+      "baselineMedianMs": 0.022136875000001055,
+      "candidateMedianMs": 0.021339165000001686,
+      "baselineMadMs": 0.0005962499999986898,
+      "candidateMadMs": 0.00019999999999754242,
+      "speedup": 1.037382437410241,
+      "interval95": [
+        0.9869188707272881,
+        1.0687841901067605
+      ]
+    },
+    {
+      "id": 5,
+      "name": "active-simd-128",
+      "category": "active-droplets",
+      "kind": "active",
+      "backend": "simd",
+      "sceneId": 700,
+      "count": 128,
+      "operations": 80,
+      "baselineSamplesMs": [
+        0.02852603750000071,
+        0.026385412500002304,
+        0.026084374999999226,
+        0.027541150000001836,
+        0.02746927499999856,
+        0.028920312500002866
+      ],
+      "candidateSamplesMs": [
+        0.028392712499999105,
+        0.026555212499999925,
+        0.02868906250000123,
+        0.02877864999999815,
+        0.027838550000001305,
+        0.029286462499999288
+      ],
+      "baselineMedianMs": 0.0275052125000002,
+      "candidateMedianMs": 0.028540887500000167,
+      "baselineMadMs": 0.0010703124999992038,
+      "candidateMadMs": 0.00047004999999842277,
+      "speedup": 0.9637125860224226,
+      "interval95": [
+        0.9144562932302037,
+        1.004695747192228
+      ]
+    },
+    {
+      "id": 6,
+      "name": "active-simd-144",
+      "category": "active-droplets",
+      "kind": "active",
+      "backend": "simd",
+      "sceneId": 700,
+      "count": 144,
+      "operations": 80,
+      "baselineSamplesMs": [
+        0.02926980000000299,
+        0.027783337500000015,
+        0.03218177500000365,
+        0.02865520000000288,
+        0.03151613750000024,
+        0.029797387500002513
+      ],
+      "candidateSamplesMs": [
+        0.028489587499996104,
+        0.028247399999997924,
+        0.02977134999999862,
+        0.030284374999996543,
+        0.029454162500002212,
+        0.029776037499999575
+      ],
+      "baselineMedianMs": 0.02953359375000275,
+      "candidateMedianMs": 0.029612756250000417,
+      "baselineMadMs": 0.0013143250000013044,
+      "candidateMadMs": 0.0004174499999976423,
+      "speedup": 0.9973267432680244,
+      "interval95": [
+        0.9542870392458067,
+        1.0700062342630816
+      ]
+    },
+    {
+      "id": 7,
+      "name": "active-simd-256",
+      "category": "active-droplets",
+      "kind": "active",
+      "backend": "simd",
+      "sceneId": 700,
+      "count": 256,
+      "operations": 70,
+      "baselineSamplesMs": [
+        0.04026964285714192,
+        0.03962975714285416,
+        0.03928272857143124,
+        0.03953987142856801,
+        0.04134464285714655,
+        0.03905832857142611
+      ],
+      "candidateSamplesMs": [
+        0.03306071428571938,
+        0.030443457142856848,
+        0.029606557142856867,
+        0.029075000000005145,
+        0.029695228571426924,
+        0.02875058571428651
+      ],
+      "baselineMedianMs": 0.03958481428571109,
+      "candidateMedianMs": 0.029650892857141897,
+      "baselineMadMs": 0.0004142857142824148,
+      "candidateMadMs": 0.0006842285714258513,
+      "speedup": 1.3350294197355492,
+      "interval95": [
+        1.2682518943636194,
+        1.3741986447078343
+      ]
+    },
+    {
+      "id": 8,
+      "name": "active-simd-512",
+      "category": "active-droplets",
+      "kind": "active",
+      "backend": "simd",
+      "sceneId": 700,
+      "count": 512,
+      "operations": 60,
+      "baselineSamplesMs": [
+        0.06160348333332877,
+        0.06360486666666626,
+        0.06321945000000445,
+        0.06715973333333143,
+        0.06362361666666251,
+        0.06348471666666076
+      ],
+      "candidateSamplesMs": [
+        0.046473616666670145,
+        0.04279999999999594,
+        0.04486943333333026,
+        0.04884304999999737,
+        0.04304514999999658,
+        0.045391666666667635
+      ],
+      "baselineMedianMs": 0.06354479166666352,
+      "candidateMedianMs": 0.04513054999999895,
+      "baselineMadMs": 0.00020208333332902978,
+      "candidateMadMs": 0.0017142333333367808,
+      "speedup": 1.408021654215714,
+      "interval95": [
+        1.3457979921939243,
+        1.4818511393287053
+      ]
+    },
+    {
+      "id": 9,
+      "name": "active-simd-768",
+      "category": "active-droplets",
+      "kind": "active",
+      "backend": "simd",
+      "sceneId": 700,
+      "count": 768,
+      "operations": 50,
+      "baselineSamplesMs": [
+        0.08612833999999565,
+        0.08641333999999916,
+        0.08879583999999341,
+        0.08565333999999894,
+        0.08795750000000226,
+        0.08551250000000436
+      ],
+      "candidateSamplesMs": [
+        0.05557834000000184,
+        0.056790000000000875,
+        0.05571249999999964,
+        0.057984159999996336,
+        0.058761680000006894,
+        0.060049180000005434
+      ],
+      "baselineMedianMs": 0.0862708399999974,
+      "candidateMedianMs": 0.057387079999998605,
+      "baselineMadMs": 0.000687919999995755,
+      "candidateMadMs": 0.0015245900000036283,
+      "speedup": 1.5033146833747162,
+      "interval95": [
+        1.4446561534861562,
+        1.571105886535809
+      ]
+    },
+    {
+      "id": 10,
+      "name": "expiring-simd-0",
+      "category": "expiring-droplets",
+      "kind": "expiring",
+      "backend": "simd",
+      "sceneId": 700,
+      "count": 0,
+      "operations": 120,
+      "baselineSamplesMs": [
+        0.014393750000003062,
+        0.014374999999999243,
+        0.014304166666666637,
+        0.01557153333333569,
+        0.015129858333333837,
+        0.014415624999999939
+      ],
+      "candidateSamplesMs": [
+        0.015042008333333948,
+        0.015073608333333747,
+        0.01453159999999798,
+        0.014612158333333507,
+        0.014482991666667052,
+        0.015666316666666565
+      ],
+      "baselineMedianMs": 0.014404687500001501,
+      "candidateMedianMs": 0.014827083333333727,
+      "baselineMadMs": 0.00006510416666856162,
+      "candidateMadMs": 0.0002710041666678835,
+      "speedup": 0.9715118729802638,
+      "interval95": [
+        0.9379089246313901,
+        1.0505426702307552
+      ]
+    },
+    {
+      "id": 11,
+      "name": "expiring-simd-1",
+      "category": "expiring-droplets",
+      "kind": "expiring",
+      "backend": "simd",
+      "sceneId": 700,
+      "count": 1,
+      "operations": 120,
+      "baselineSamplesMs": [
+        0.015654141666667936,
+        0.015337191666681823,
+        0.01584099166669451,
+        0.014937858333325948,
+        0.015230208333298379,
+        0.014839233333369369
+      ],
+      "candidateSamplesMs": [
+        0.01570169166670136,
+        0.015289899999993395,
+        0.014992066666661686,
+        0.01504240833333294,
+        0.016064241666678452,
+        0.014900650000004134
+      ],
+      "baselineMedianMs": 0.0152836999999901,
+      "candidateMedianMs": 0.015166154166663167,
+      "baselineMadMs": 0.00035814166667099377,
+      "candidateMadMs": 0.0002197958333302573,
+      "speedup": 1.0077505366248558,
+      "interval95": [
+        0.9622698530271048,
+        1.0486327240069313
+      ]
+    },
+    {
+      "id": 12,
+      "name": "expiring-simd-16",
+      "category": "expiring-droplets",
+      "kind": "expiring",
+      "backend": "simd",
+      "sceneId": 700,
+      "count": 16,
+      "operations": 120,
+      "baselineSamplesMs": [
+        0.015633666666640997,
+        0.015906558333328272,
+        0.01592185833331238,
+        0.015825016666694107,
+        0.015833983333334346,
+        0.015993441666660148
+      ],
+      "candidateSamplesMs": [
+        0.015971166666687017,
+        0.015605799999987843,
+        0.014914974999995442,
+        0.016073924999981653,
+        0.015726008333308526,
+        0.01527502500001674
+      ],
+      "baselineMedianMs": 0.01587027083333131,
+      "candidateMedianMs": 0.015665904166648183,
+      "baselineMadMs": 0.00004842083330913738,
+      "candidateMadMs": 0.00034807083333513855,
+      "speedup": 1.013045315770424,
+      "interval95": [
+        0.9848586515270754,
+        1.0547769680891659
+      ]
+    },
+    {
+      "id": 13,
+      "name": "expiring-simd-64",
+      "category": "expiring-droplets",
+      "kind": "expiring",
+      "backend": "simd",
+      "sceneId": 700,
+      "count": 64,
+      "operations": 100,
+      "baselineSamplesMs": [
+        0.018340809999967858,
+        0.01782709999999497,
+        0.016889199999995982,
+        0.016504160000013143,
+        0.017212539999977707,
+        0.016597470000006068
+      ],
+      "candidateSamplesMs": [
+        0.01656335000001036,
+        0.01638210000000072,
+        0.016833350000010797,
+        0.017392949999980374,
+        0.01651212999998279,
+        0.017101210000046194
+      ],
+      "baselineMedianMs": 0.017050869999986847,
+      "candidateMedianMs": 0.01669835000001058,
+      "baselineMadMs": 0.0005000549999772414,
+      "candidateMadMs": 0.0002512350000188242,
+      "speedup": 1.0211110678585635,
+      "interval95": [
+        0.9596299779439104,
+        1.0918054016832406
+      ]
+    },
+    {
+      "id": 14,
+      "name": "expiring-simd-128",
+      "category": "expiring-droplets",
+      "kind": "expiring",
+      "backend": "simd",
+      "sceneId": 700,
+      "count": 128,
+      "operations": 80,
+      "baselineSamplesMs": [
+        0.01811247500000377,
+        0.017399975000012093,
+        0.017248400000016772,
+        0.018185362499991697,
+        0.01851512499998762,
+        0.017497912500016356
+      ],
+      "candidateSamplesMs": [
+        0.017371325000004843,
+        0.01725774999999885,
+        0.01727341249998062,
+        0.01836303750001207,
+        0.018878125000031786,
+        0.017136462499991012
+      ],
+      "baselineMedianMs": 0.017805193750010065,
+      "candidateMedianMs": 0.017322368749992732,
+      "baselineMadMs": 0.0003926937499898024,
+      "candidateMadMs": 0.0001252624999978011,
+      "speedup": 1.0278729200945762,
+      "interval95": [
+        0.9854817904767634,
+        1.0426651392452055
+      ]
+    },
+    {
+      "id": 15,
+      "name": "expiring-simd-144",
+      "category": "expiring-droplets",
+      "kind": "expiring",
+      "backend": "simd",
+      "sceneId": 700,
+      "count": 144,
+      "operations": 80,
+      "baselineSamplesMs": [
+        0.01839996250000695,
+        0.017674512499991125,
+        0.01757919999998876,
+        0.018919224999979178,
+        0.0181067250000126,
+        0.01818958749999524
+      ],
+      "candidateSamplesMs": [
+        0.017842150000018365,
+        0.017736312499982886,
+        0.01865093750002984,
+        0.01814010000000508,
+        0.017641137499981595,
+        0.019841112499977952
+      ],
+      "baselineMedianMs": 0.01814815625000392,
+      "candidateMedianMs": 0.017991125000011723,
+      "baselineMadMs": 0.0003627250000079133,
+      "candidateMadMs": 0.0003024000000294829,
+      "speedup": 1.00872826185089,
+      "interval95": [
+        0.9450922373184587,
+        1.0312637490430252
+      ]
+    },
+    {
+      "id": 16,
+      "name": "expiring-simd-256",
+      "category": "expiring-droplets",
+      "kind": "expiring",
+      "backend": "simd",
+      "sceneId": 700,
+      "count": 256,
+      "operations": 70,
+      "baselineSamplesMs": [
+        0.02068811428569331,
+        0.02018275714288263,
+        0.019994100000030813,
+        0.019746385714292308,
+        0.01964525714285758,
+        0.01986844285714012
+      ],
+      "candidateSamplesMs": [
+        0.015119085714338456,
+        0.015256014285725022,
+        0.01523394285717846,
+        0.015548785714307607,
+        0.015560214285707323,
+        0.015492885714287955
+      ],
+      "baselineMedianMs": 0.019931271428585466,
+      "candidateMedianMs": 0.01537445000000649,
+      "baselineMadMs": 0.00021818571429516043,
+      "candidateMadMs": 0.0001574214285645732,
+      "speedup": 1.2963892320425807,
+      "interval95": [
+        1.2662458728062933,
+        1.3455386625390708
+      ]
+    },
+    {
+      "id": 17,
+      "name": "expiring-simd-512",
+      "category": "expiring-droplets",
+      "kind": "expiring",
+      "backend": "simd",
+      "sceneId": 700,
+      "count": 512,
+      "operations": 60,
+      "baselineSamplesMs": [
+        0.025882666666681566,
+        0.02539928333331621,
+        0.026354166666669697,
+        0.026357616666655304,
+        0.026476283333272475,
+        0.02763473333332058
+      ],
+      "candidateSamplesMs": [
+        0.017563816666650685,
+        0.017651366666639964,
+        0.01767218333334313,
+        0.016975733333341243,
+        0.016283350000010917,
+        0.01648606666666031
+      ],
+      "baselineMedianMs": 0.026355891666662502,
+      "candidateMedianMs": 0.017269774999995963,
+      "baselineMadMs": 0.00029680833329545457,
+      "candidateMadMs": 0.0003919999999955834,
+      "speedup": 1.5261282597294212,
+      "interval95": [
+        1.456245435800938,
+        1.6411136070443502
+      ]
+    },
+    {
+      "id": 18,
+      "name": "expiring-simd-768",
+      "category": "expiring-droplets",
+      "kind": "expiring",
+      "backend": "simd",
+      "sceneId": 700,
+      "count": 768,
+      "operations": 50,
+      "baselineSamplesMs": [
+        0.03207997999999861,
+        0.030059220000021016,
+        0.029784919999983686,
+        0.03177667999998448,
+        0.0328642399999535,
+        0.03036663999998382
+      ],
+      "candidateSamplesMs": [
+        0.017653319999999438,
+        0.017750880000003234,
+        0.017695880000001125,
+        0.018900000000003275,
+        0.017668400000020484,
+        0.017621660000031625
+      ],
+      "baselineMedianMs": 0.03107165999998415,
+      "candidateMedianMs": 0.017682140000010803,
+      "baselineMadMs": 0.0010103799999887988,
+      "candidateMadMs": 0.00004464999999527139,
+      "speedup": 1.7572341356852261,
+      "interval95": [
+        1.6882823705184153,
+        1.8378636435635605
+      ]
+    },
+    {
+      "id": 19,
+      "name": "steady-simd-700",
+      "category": "steady-controls",
+      "kind": "control",
+      "backend": "simd",
+      "sceneId": 700,
+      "count": 0,
+      "operations": 120,
+      "baselineSamplesMs": [
+        0.01544479166666406,
+        0.015423616666665415,
+        0.01476805833333401,
+        0.015072225000002012,
+        0.015439583333333454,
+        0.014181250000001455
+      ],
+      "candidateSamplesMs": [
+        0.014868058333331647,
+        0.014886116666665809,
+        0.014693749999999757,
+        0.01522604166666876,
+        0.014159033333335931,
+        0.014016325000000052
+      ],
+      "baselineMedianMs": 0.015247920833333713,
+      "candidateMedianMs": 0.014780904166665703,
+      "baselineMadMs": 0.00019426666666504458,
+      "candidateMadMs": 0.0002751750000015811,
+      "speedup": 1.031595947135713,
+      "interval95": [
+        1.001072379678401,
+        1.0898766629546228
+      ]
+    },
+    {
+      "id": 20,
+      "name": "steady-simd-701",
+      "category": "steady-controls",
+      "kind": "control",
+      "backend": "simd",
+      "sceneId": 701,
+      "count": 0,
+      "operations": 120,
+      "baselineSamplesMs": [
+        0.014347916666664181,
+        0.014069791666668153,
+        0.014187158333334083,
+        0.013932291666666667,
+        0.014064233333332747,
+        0.014056249999998726
+      ],
+      "candidateSamplesMs": [
+        0.01442395833333497,
+        0.01411145833333573,
+        0.014071174999999887,
+        0.014368400000000748,
+        0.014585416666667092,
+        0.014056599999999737
+      ],
+      "baselineMedianMs": 0.014067012500000451,
+      "candidateMedianMs": 0.014239929166668238,
+      "baselineMadMs": 0.0000654541666676783,
+      "candidateMadMs": 0.00017604166666842624,
+      "speedup": 0.9878569152526027,
+      "interval95": [
+        0.9696336672769922,
+        1.0068014699359489
+      ]
+    },
+    {
+      "id": 21,
+      "name": "steady-simd-703",
+      "category": "steady-controls",
+      "kind": "control",
+      "backend": "simd",
+      "sceneId": 703,
+      "count": 0,
+      "operations": 120,
+      "baselineSamplesMs": [
+        0.03318194166666899,
+        0.03179027499999923,
+        0.032431591666666766,
+        0.033076391666664526,
+        0.03377326666666628,
+        0.03439722499999789
+      ],
+      "candidateSamplesMs": [
+        0.03126666666666627,
+        0.031780908333333475,
+        0.03168229166666379,
+        0.03145035000000007,
+        0.033264233333333476,
+        0.0328635416666657
+      ],
+      "baselineMedianMs": 0.03312916666666676,
+      "candidateMedianMs": 0.03173159999999863,
+      "baselineMadMs": 0.0006708374999997574,
+      "candidateMadMs": 0.0003730916666654614,
+      "speedup": 1.0440433721170124,
+      "interval95": [
+        1.0103843790913103,
+        1.058147961438509
+      ]
+    },
+    {
+      "id": 22,
+      "name": "steady-simd-706",
+      "category": "steady-controls",
+      "kind": "control",
+      "backend": "simd",
+      "sceneId": 706,
+      "count": 0,
+      "operations": 120,
+      "baselineSamplesMs": [
+        0.014183333333335213,
+        0.013883683333335738,
+        0.0147128500000008,
+        0.015186116666666295,
+        0.014609025000000504,
+        0.014605550000002647
+      ],
+      "candidateSamplesMs": [
+        0.01431700833333404,
+        0.013876041666666577,
+        0.014919100000001132,
+        0.014848266666664738,
+        0.015064583333332849,
+        0.014749649999998837
+      ],
+      "baselineMedianMs": 0.014607287500001575,
+      "candidateMedianMs": 0.014798958333331787,
+      "baselineMadMs": 0.00026475833333279315,
+      "candidateMadMs": 0.00019288333333520365,
+      "speedup": 0.9870483564442161,
+      "interval95": [
+        0.974465000686497,
+        1.0068167328174438
+      ]
+    },
+    {
+      "id": 23,
+      "name": "steady-simd-708",
+      "category": "steady-controls",
+      "kind": "control",
+      "backend": "simd",
+      "sceneId": 708,
+      "count": 0,
+      "operations": 120,
+      "baselineSamplesMs": [
+        0.025371524999998958,
+        0.023525691666668534,
+        0.02404687500000288,
+        0.02384791666666691,
+        0.023837841666666765,
+        0.024244791666668184
+      ],
+      "candidateSamplesMs": [
+        0.02458090000000084,
+        0.025072916666666365,
+        0.024145833333333637,
+        0.024794441666665536,
+        0.024970833333334972,
+        0.02453472500000089
+      ],
+      "baselineMedianMs": 0.023947395833334894,
+      "candidateMedianMs": 0.02468767083333319,
+      "baselineMadMs": 0.00020347500000070934,
+      "candidateMadMs": 0.0002180541666670418,
+      "speedup": 0.9700143847106557,
+      "interval95": [
+        0.946442529453409,
+        1.009245321909805
+      ]
+    },
+    {
+      "id": 24,
+      "name": "active-scalar-0",
+      "category": "active-droplets",
+      "kind": "active",
+      "backend": "scalar",
+      "sceneId": 700,
+      "count": 0,
+      "operations": 120,
+      "baselineSamplesMs": [
+        0.03719999999999952,
+        0.03906701666666853,
+        0.03814235833333442,
+        0.04003055833333444,
+        0.040011108333332386,
+        0.03924131666666805
+      ],
+      "candidateSamplesMs": [
+        0.037957641666666105,
+        0.03923368333333504,
+        0.038278824999997595,
+        0.03884514166666501,
+        0.03846249999999903,
+        0.03891874999999724
+      ],
+      "baselineMedianMs": 0.039154166666668294,
+      "candidateMedianMs": 0.03865382083333202,
+      "baselineMadMs": 0.0008666666666651175,
+      "candidateMadMs": 0.0003199624999998228,
+      "speedup": 1.0129442787944216,
+      "interval95": [
+        0.9882719074948849,
+        1.0402628100964157
+      ]
+    },
+    {
+      "id": 25,
+      "name": "active-scalar-1",
+      "category": "active-droplets",
+      "kind": "active",
+      "backend": "scalar",
+      "sceneId": 700,
+      "count": 1,
+      "operations": 120,
+      "baselineSamplesMs": [
+        0.03861736666666502,
+        0.04071007500000026,
+        0.04021562499999997,
+        0.03931528333333366,
+        0.03910208333333382,
+        0.03832604166666442
+      ],
+      "candidateSamplesMs": [
+        0.03755277499999844,
+        0.040066316666665595,
+        0.03973368333333459,
+        0.04032360833333541,
+        0.03947500000000067,
+        0.0393454833333332
+      ],
+      "baselineMedianMs": 0.039208683333333744,
+      "candidateMedianMs": 0.039604341666667625,
+      "baselineMadMs": 0.000736979166669021,
+      "candidateMadMs": 0.00036041666666619676,
+      "speedup": 0.9900097232605465,
+      "interval95": [
+        0.9777921353954184,
+        1.0141065162907277
+      ]
+    },
+    {
+      "id": 26,
+      "name": "active-scalar-16",
+      "category": "active-droplets",
+      "kind": "active",
+      "backend": "scalar",
+      "sceneId": 700,
+      "count": 16,
+      "operations": 120,
+      "baselineSamplesMs": [
+        0.03990972499999922,
+        0.04064375000000003,
+        0.04126041666666727,
+        0.04151284999999992,
+        0.042352433333333765,
+        0.042749649999999896
+      ],
+      "candidateSamplesMs": [
+        0.039858683333333526,
+        0.04191180833333495,
+        0.04132673333333135,
+        0.04213888333333292,
+        0.042466666666666694,
+        0.042620133333336224
+      ],
+      "baselineMedianMs": 0.041386633333333596,
+      "candidateMedianMs": 0.042025345833333935,
+      "baselineMadMs": 0.0008543416666668691,
+      "candidateMadMs": 0.000518054166667524,
+      "speedup": 0.984801731256814,
+      "interval95": [
+        0.9697446045932988,
+        1.0001796204973126
+      ]
+    },
+    {
+      "id": 27,
+      "name": "active-scalar-64",
+      "category": "active-droplets",
+      "kind": "active",
+      "backend": "scalar",
+      "sceneId": 700,
+      "count": 64,
+      "operations": 100,
+      "baselineSamplesMs": [
+        0.046050829999999224,
+        0.0480133399999977,
+        0.047639170000002194,
+        0.046057909999999536,
+        0.04696124999999938,
+        0.04703875000000153
+      ],
+      "candidateSamplesMs": [
+        0.04617209000000003,
+        0.046996670000003175,
+        0.04630750000000262,
+        0.047214160000003176,
+        0.047411250000000106,
+        0.0468429100000003
+      ],
+      "baselineMedianMs": 0.04700000000000046,
+      "candidateMedianMs": 0.04691979000000174,
+      "baselineMadMs": 0.0007906300000013293,
+      "candidateMadMs": 0.0003929149999999035,
+      "speedup": 1.0017095131925935,
+      "interval95": [
+        0.9777625353687348,
+        1.0228440218352384
+      ]
+    },
+    {
+      "id": 28,
+      "name": "active-scalar-128",
+      "category": "active-droplets",
+      "kind": "active",
+      "backend": "scalar",
+      "sceneId": 700,
+      "count": 128,
+      "operations": 80,
+      "baselineSamplesMs": [
+        0.05512187500000323,
+        0.05523750000000405,
+        0.05192968749999523,
+        0.05195365000000152,
+        0.057070312500002274,
+        0.05224167499999908
+      ],
+      "candidateSamplesMs": [
+        0.05666718749999973,
+        0.05564896249999833,
+        0.050581775000000564,
+        0.05224322500000085,
+        0.053458862500002625,
+        0.05251511249999794
+      ],
+      "baselineMedianMs": 0.05368177500000115,
+      "candidateMedianMs": 0.052986987500000284,
+      "baselineMadMs": 0.0016419250000012653,
+      "candidateMadMs": 0.0015744874999995759,
+      "speedup": 1.0131124174591142,
+      "interval95": [
+        0.9815485128363851,
+        1.0504134136786094
+      ]
+    },
+    {
+      "id": 29,
+      "name": "active-scalar-144",
+      "category": "active-droplets",
+      "kind": "active",
+      "backend": "scalar",
+      "sceneId": 700,
+      "count": 144,
+      "operations": 80,
+      "baselineSamplesMs": [
+        0.05239166249999698,
+        0.052397912499998256,
+        0.05274010000000544,
+        0.05262968750000141,
+        0.052403650000002244,
+        0.05307708749999733
+      ],
+      "candidateSamplesMs": [
+        0.05329009999999812,
+        0.05468333750000056,
+        0.05268281250000086,
+        0.05421146250000106,
+        0.05273073750000208,
+        0.05207500000000209
+      ],
+      "baselineMedianMs": 0.05251666875000183,
+      "candidateMedianMs": 0.0530104187500001,
+      "baselineMadMs": 0.00012188125000420907,
+      "candidateMadMs": 0.0006315124999986231,
+      "speedup": 0.9906857932527033,
+      "interval95": [
+        0.9624110839084964,
+        1.0101126109329535
+      ]
+    },
+    {
+      "id": 30,
+      "name": "active-scalar-256",
+      "category": "active-droplets",
+      "kind": "active",
+      "backend": "scalar",
+      "sceneId": 700,
+      "count": 256,
+      "operations": 70,
+      "baselineSamplesMs": [
+        0.06386308571428084,
+        0.06496131428571061,
+        0.06276369999999848,
+        0.06301844285714131,
+        0.06294762857143203,
+        0.06599642857143279
+      ],
+      "candidateSamplesMs": [
+        0.053817271428566266,
+        0.05632618571428663,
+        0.053323814285710924,
+        0.054270828571433026,
+        0.05449522857142516,
+        0.05514464285713854
+      ],
+      "baselineMedianMs": 0.06344076428571108,
+      "candidateMedianMs": 0.05438302857142909,
+      "baselineMadMs": 0.0005850999999958209,
+      "candidateMadMs": 0.0006636857142861378,
+      "speedup": 1.1665544555391054,
+      "interval95": [
+        1.1551034874352089,
+        1.187402221430751
+      ]
+    },
+    {
+      "id": 31,
+      "name": "active-scalar-512",
+      "category": "active-droplets",
+      "kind": "active",
+      "backend": "scalar",
+      "sceneId": 700,
+      "count": 512,
+      "operations": 60,
+      "baselineSamplesMs": [
+        0.08781666666667055,
+        0.08488889999999477,
+        0.08965554999999767,
+        0.08797221666666247,
+        0.09090139999999944,
+        0.08810416666666848
+      ],
+      "candidateSamplesMs": [
+        0.06646805000000314,
+        0.06725903333333463,
+        0.07089304999999513,
+        0.06942708333333485,
+        0.07109861666666954,
+        0.06529721666666623
+      ],
+      "baselineMedianMs": 0.08803819166666547,
+      "candidateMedianMs": 0.06834305833333473,
+      "baselineMadMs": 0.0009194416666635577,
+      "candidateMadMs": 0.0022124999999959954,
+      "speedup": 1.288180450416342,
+      "interval95": [
+        1.264659229642452,
+        1.3372896954634985
+      ]
+    },
+    {
+      "id": 32,
+      "name": "active-scalar-768",
+      "category": "active-droplets",
+      "kind": "active",
+      "backend": "scalar",
+      "sceneId": 700,
+      "count": 768,
+      "operations": 50,
+      "baselineSamplesMs": [
+        0.1079383400000006,
+        0.10843834000000242,
+        0.10948750000000473,
+        0.1079491600000074,
+        0.10835165999999845,
+        0.1110674999999992
+      ],
+      "candidateSamplesMs": [
+        0.08103916000000026,
+        0.0788208399999985,
+        0.0814783400000033,
+        0.08001083999999536,
+        0.08356834000000163,
+        0.08375166000000718
+      ],
+      "baselineMedianMs": 0.10839500000000044,
+      "candidateMedianMs": 0.08125875000000178,
+      "baselineMadMs": 0.00045124999999643367,
+      "candidateMadMs": 0.001778750000003132,
+      "speedup": 1.333948651683641,
+      "interval95": [
+        1.2965635071846149,
+        1.3654497641781111
+      ]
+    },
+    {
+      "id": 33,
+      "name": "expiring-scalar-0",
+      "category": "expiring-droplets",
+      "kind": "expiring",
+      "backend": "scalar",
+      "sceneId": 700,
+      "count": 0,
+      "operations": 120,
+      "baselineSamplesMs": [
+        0.039151733333335416,
+        0.03916423333333417,
+        0.03946666666666564,
+        0.038809375000001485,
+        0.04001493333333504,
+        0.039207291666665846
+      ],
+      "candidateSamplesMs": [
+        0.03804757499999975,
+        0.03818471666666786,
+        0.03918715833333408,
+        0.037991316666667295,
+        0.0397940999999984,
+        0.03992778333333338
+      ],
+      "baselineMedianMs": 0.03918576250000001,
+      "candidateMedianMs": 0.038685937500000975,
+      "baselineMadMs": 0.00015746666666511047,
+      "candidateMadMs": 0.0006664916666674521,
+      "speedup": 1.0129200694696625,
+      "interval95": [
+        0.9836017421398083,
+        1.0290204653867079
+      ]
+    },
+    {
+      "id": 34,
+      "name": "expiring-scalar-1",
+      "category": "expiring-droplets",
+      "kind": "expiring",
+      "backend": "scalar",
+      "sceneId": 700,
+      "count": 1,
+      "operations": 120,
+      "baselineSamplesMs": [
+        0.03772851666667899,
+        0.039639500000017355,
+        0.03968640000001642,
+        0.04050688333332649,
+        0.03892188333334919,
+        0.039351099999995164
+      ],
+      "candidateSamplesMs": [
+        0.03769170833334101,
+        0.03942750000000312,
+        0.040040608333326115,
+        0.04053682500000377,
+        0.0398635499999879,
+        0.04037809999997156
+      ],
+      "baselineMedianMs": 0.039495300000006256,
+      "candidateMedianMs": 0.03995207916665701,
+      "baselineMadMs": 0.0003822583333336141,
+      "candidateMadMs": 0.0004752999999842189,
+      "speedup": 0.9885668236502703,
+      "interval95": [
+        0.9745654203645759,
+        1.0053769577075446
+      ]
+    },
+    {
+      "id": 35,
+      "name": "expiring-scalar-16",
+      "category": "expiring-droplets",
+      "kind": "expiring",
+      "backend": "scalar",
+      "sceneId": 700,
+      "count": 16,
+      "operations": 120,
+      "baselineSamplesMs": [
+        0.04031006666665083,
+        0.040145166666650314,
+        0.04005066666664637,
+        0.039425999999991745,
+        0.03986112500001203,
+        0.037879149999980655
+      ],
+      "candidateSamplesMs": [
+        0.03861456666667588,
+        0.03871556666668994,
+        0.03997920000000098,
+        0.039679816666678865,
+        0.0390312750000021,
+        0.03823367500000359
+      ],
+      "baselineMedianMs": 0.0399558958333292,
+      "candidateMedianMs": 0.03887342083334602,
+      "baselineMadMs": 0.00027172083332136984,
+      "candidateMadMs": 0.0004493000000062898,
+      "speedup": 1.027846147233192,
+      "interval95": [
+        0.9936033810634951,
+        1.0404124481004475
+      ]
+    },
+    {
+      "id": 36,
+      "name": "expiring-scalar-64",
+      "category": "expiring-droplets",
+      "kind": "expiring",
+      "backend": "scalar",
+      "sceneId": 700,
+      "count": 64,
+      "operations": 100,
+      "baselineSamplesMs": [
+        0.04108802000000651,
+        0.041107060000003914,
+        0.04104374999998981,
+        0.03956959999999071,
+        0.040362530000020345,
+        0.040792099999962375
+      ],
+      "candidateSamplesMs": [
+        0.04112449000001561,
+        0.041169629999999416,
+        0.04063125999998192,
+        0.03968369999999595,
+        0.04083707999999206,
+        0.04165544999999838
+      ],
+      "baselineMedianMs": 0.040917924999976096,
+      "candidateMedianMs": 0.040980785000003836,
+      "baselineMadMs": 0.00017961500002911662,
+      "candidateMadMs": 0.0002691850000087481,
+      "speedup": 0.9984661103971597,
+      "interval95": [
+        0.9850180645756927,
+        1.0101520356495977
+      ]
+    },
+    {
+      "id": 37,
+      "name": "expiring-scalar-128",
+      "category": "expiring-droplets",
+      "kind": "expiring",
+      "backend": "scalar",
+      "sceneId": 700,
+      "count": 128,
+      "operations": 80,
+      "baselineSamplesMs": [
+        0.04036568750005358,
+        0.04249109999999519,
+        0.04257496250002646,
+        0.04238182499998402,
+        0.042769850000001955,
+        0.04071925000001784
+      ],
+      "candidateSamplesMs": [
+        0.04082652499995447,
+        0.04198748749999481,
+        0.042511450000034756,
+        0.04179955000001882,
+        0.04354897499997037,
+        0.04130569999996965
+      ],
+      "baselineMedianMs": 0.0424364624999896,
+      "candidateMedianMs": 0.04189351875000682,
+      "baselineMadMs": 0.00023594375002460727,
+      "candidateMadMs": 0.0006028750000325531,
+      "speedup": 1.0129600894406297,
+      "interval95": [
+        0.9858022016343448,
+        1.0139301738885929
+      ]
+    },
+    {
+      "id": 38,
+      "name": "expiring-scalar-144",
+      "category": "expiring-droplets",
+      "kind": "expiring",
+      "backend": "scalar",
+      "sceneId": 700,
+      "count": 144,
+      "operations": 80,
+      "baselineSamplesMs": [
+        0.040716174999960233,
+        0.04164265000001137,
+        0.04164896250000538,
+        0.04284632500001066,
+        0.04295317499999669,
+        0.04125832499997841
+      ],
+      "candidateSamplesMs": [
+        0.04158125000000155,
+        0.04226979999998548,
+        0.0430864624999856,
+        0.042579187500018635,
+        0.04352712499999143,
+        0.041166237500016224
+      ],
+      "baselineMedianMs": 0.041645806250008376,
+      "candidateMedianMs": 0.042424493750002054,
+      "baselineMadMs": 0.0006585562500390531,
+      "candidateMadMs": 0.0007526062499920265,
+      "speedup": 0.9816453319494557,
+      "interval95": [
+        0.9666368525849459,
+        1.006273898486013
+      ]
+    },
+    {
+      "id": 39,
+      "name": "expiring-scalar-256",
+      "category": "expiring-droplets",
+      "kind": "expiring",
+      "backend": "scalar",
+      "sceneId": 700,
+      "count": 256,
+      "operations": 70,
+      "baselineSamplesMs": [
+        0.045621442857132675,
+        0.044196442857180177,
+        0.043175028571457524,
+        0.0443308571428588,
+        0.04330834285712756,
+        0.04336012857141733
+      ],
+      "candidateSamplesMs": [
+        0.039368471428555755,
+        0.0395672428571288,
+        0.039063085714276115,
+        0.039940485714272916,
+        0.03996488571430226,
+        0.04058335714285022
+      ],
+      "baselineMedianMs": 0.04377828571429875,
+      "candidateMedianMs": 0.03975386428570086,
+      "baselineMadMs": 0.0005112571428656197,
+      "candidateMadMs": 0.00029820714287325314,
+      "speedup": 1.1012334649953877,
+      "interval95": [
+        1.0766250642689732,
+        1.1407337198411496
+      ]
+    },
+    {
+      "id": 40,
+      "name": "expiring-scalar-512",
+      "category": "expiring-droplets",
+      "kind": "expiring",
+      "backend": "scalar",
+      "sceneId": 700,
+      "count": 512,
+      "operations": 60,
+      "baselineSamplesMs": [
+        0.048970116666661546,
+        0.048994466666696705,
+        0.0483673333333248,
+        0.0497318666666312,
+        0.05229779999999664,
+        0.05088404999999815
+      ],
+      "candidateSamplesMs": [
+        0.039052033333299124,
+        0.04076746666667835,
+        0.040901416666679326,
+        0.0394375166666426,
+        0.04105771666664471,
+        0.04195901666662394
+      ],
+      "baselineMedianMs": 0.04936316666666395,
+      "candidateMedianMs": 0.040834441666678836,
+      "baselineMadMs": 0.0006944416666707816,
+      "candidateMadMs": 0.0006739249999554893,
+      "speedup": 1.2088610656073844,
+      "interval95": [
+        1.189903161462902,
+        1.2610293667069525
+      ]
+    },
+    {
+      "id": 41,
+      "name": "expiring-scalar-768",
+      "category": "expiring-droplets",
+      "kind": "expiring",
+      "backend": "scalar",
+      "sceneId": 700,
+      "count": 768,
+      "operations": 50,
+      "baselineSamplesMs": [
+        0.0541108599999825,
+        0.056791639999974,
+        0.05612826000001405,
+        0.05577825999999732,
+        0.05619080000000395,
+        0.05548173999999562
+      ],
+      "candidateSamplesMs": [
+        0.04218841999999313,
+        0.043429039999973613,
+        0.04230503999996472,
+        0.04130498000000443,
+        0.04252739999998994,
+        0.04271425999996609
+      ],
+      "baselineMedianMs": 0.05595326000000568,
+      "candidateMedianMs": 0.04241621999997733,
+      "baselineMadMs": 0.00035453000000416207,
+      "candidateMadMs": 0.0002629199999864794,
+      "speedup": 1.3191477222636903,
+      "interval95": [
+        1.2970542335469846,
+        1.3361118363846471
+      ]
+    },
+    {
+      "id": 42,
+      "name": "steady-scalar-700",
+      "category": "steady-controls",
+      "kind": "control",
+      "backend": "scalar",
+      "sceneId": 700,
+      "count": 0,
+      "operations": 120,
+      "baselineSamplesMs": [
+        0.03788403333333387,
+        0.039894441666664684,
+        0.037372916666667304,
+        0.03953715000000102,
+        0.038539233333331896,
+        0.038797916666665815
+      ],
+      "candidateSamplesMs": [
+        0.03945903333333263,
+        0.040071875000001,
+        0.03957708333333206,
+        0.03946944166666526,
+        0.03928645833333348,
+        0.040419441666665536
+      ],
+      "baselineMedianMs": 0.03866857499999886,
+      "candidateMedianMs": 0.03952326249999866,
+      "baselineMadMs": 0.0008265583333335741,
+      "candidateMadMs": 0.00015051666666560104,
+      "speedup": 0.9783750772092809,
+      "interval95": [
+        0.9507642259304555,
+        1.0017154621518993
+      ]
+    },
+    {
+      "id": 43,
+      "name": "steady-scalar-701",
+      "category": "steady-controls",
+      "kind": "control",
+      "backend": "scalar",
+      "sceneId": 701,
+      "count": 0,
+      "operations": 120,
+      "baselineSamplesMs": [
+        0.03738992499999843,
+        0.037993058333332407,
+        0.039687158333333625,
+        0.03801319166666417,
+        0.03902152500000208,
+        0.03955139166666489
+      ],
+      "candidateSamplesMs": [
+        0.0383201333333318,
+        0.037947575000002114,
+        0.039878124999999424,
+        0.03819583333333109,
+        0.03878680833333116,
+        0.039753475000001495
+      ],
+      "baselineMedianMs": 0.038517358333333127,
+      "candidateMedianMs": 0.03855347083333148,
+      "baselineMadMs": 0.0007791666666662408,
+      "candidateMadMs": 0.0004817666666648776,
+      "speedup": 0.9990633139061729,
+      "interval95": [
+        0.9835950031489172,
+        1.0060514560686145
+      ]
+    },
+    {
+      "id": 44,
+      "name": "steady-scalar-703",
+      "category": "steady-controls",
+      "kind": "control",
+      "backend": "scalar",
+      "sceneId": 703,
+      "count": 0,
+      "operations": 120,
+      "baselineSamplesMs": [
+        0.05818854166666749,
+        0.05766875000000103,
+        0.05620381666666769,
+        0.058643749999998815,
+        0.05591319166666532,
+        0.05794652499999984
+      ],
+      "candidateSamplesMs": [
+        0.05845104166666791,
+        0.05859375,
+        0.057313541666667335,
+        0.05743888333333492,
+        0.056800349999999375,
+        0.056148258333333464
+      ],
+      "baselineMedianMs": 0.05780763750000044,
+      "candidateMedianMs": 0.05737621250000113,
+      "baselineMadMs": 0.0006085083333327128,
+      "candidateMadMs": 0.0008253458333342678,
+      "speedup": 1.007519231075061,
+      "interval95": [
+        0.9806376474437097,
+        1.0260688618488971
+      ]
+    },
+    {
+      "id": 45,
+      "name": "steady-scalar-706",
+      "category": "steady-controls",
+      "kind": "control",
+      "backend": "scalar",
+      "sceneId": 706,
+      "count": 0,
+      "operations": 120,
+      "baselineSamplesMs": [
+        0.040236799999998615,
+        0.03791840833333329,
+        0.03763055833333055,
+        0.03953750000000582,
+        0.037582641666661705,
+        0.03935173333333448
+      ],
+      "candidateSamplesMs": [
+        0.04020416666666809,
+        0.03999166666666649,
+        0.0398579833333315,
+        0.038206941666665745,
+        0.03900867499999852,
+        0.03936179999999846
+      ],
+      "baselineMedianMs": 0.03863507083333388,
+      "candidateMedianMs": 0.03960989166666498,
+      "baselineMadMs": 0.0009534708333376329,
+      "candidateMadMs": 0.00048802500000230675,
+      "speedup": 0.9753894597456955,
+      "interval95": [
+        0.9441159633849752,
+        1.019418367514846
+      ]
+    },
+    {
+      "id": 46,
+      "name": "steady-scalar-708",
+      "category": "steady-controls",
+      "kind": "control",
+      "backend": "scalar",
+      "sceneId": 708,
+      "count": 0,
+      "operations": 120,
+      "baselineSamplesMs": [
+        0.04784618333333128,
+        0.04708819999999984,
+        0.048105549999998706,
+        0.048220483333329865,
+        0.05081805833333419,
+        0.04899965833333984
+      ],
+      "candidateSamplesMs": [
+        0.05032291666666424,
+        0.050418049999999916,
+        0.05011840000000423,
+        0.04992639166666777,
+        0.04956979166666618,
+        0.049596533333336384
+      ],
+      "baselineMedianMs": 0.04816301666666428,
+      "candidateMedianMs": 0.050022395833336,
+      "baselineMadMs": 0.0005767375000042818,
+      "candidateMadMs": 0.0003480874999960762,
+      "speedup": 0.9628290661473557,
+      "interval95": [
+        0.9423612505869028,
+        1.0065686780938132
+      ]
+    },
+    {
+      "id": 47,
+      "name": "active-javascript-0",
+      "category": "active-droplets",
+      "kind": "active",
+      "backend": "javascript",
+      "sceneId": 700,
+      "count": 0,
+      "operations": 120,
+      "baselineSamplesMs": [
+        0.08097083333332951,
+        0.08413402500000303,
+        0.08174895833333266,
+        0.0808083333333343,
+        0.08291805833333304,
+        0.0815420083333341
+      ],
+      "candidateSamplesMs": [
+        0.08192570000000311,
+        0.08425729166666922,
+        0.08446944166666981,
+        0.08105416666666466,
+        0.07948264166666377,
+        0.08156319999999748
+      ],
+      "baselineMedianMs": 0.08164548333333338,
+      "candidateMedianMs": 0.0817444500000003,
+      "baselineMadMs": 0.0007559000000014748,
+      "candidateMadMs": 0.001476045833336083,
+      "speedup": 0.9987893163796818,
+      "interval95": [
+        0.9690101469792366,
+        1.029744791609832
+      ]
+    },
+    {
+      "id": 48,
+      "name": "active-javascript-1",
+      "category": "active-droplets",
+      "kind": "active",
+      "backend": "javascript",
+      "sceneId": 700,
+      "count": 1,
+      "operations": 120,
+      "baselineSamplesMs": [
+        0.07953020833333539,
+        0.08434687499999806,
+        0.08058854166667212,
+        0.08476493333333414,
+        0.0834170166666657,
+        0.08262708333333345
+      ],
+      "candidateSamplesMs": [
+        0.08514999999999873,
+        0.0864947916666703,
+        0.08254305833333243,
+        0.08370660000000499,
+        0.08430590000000393,
+        0.08421145833333413
+      ],
+      "baselineMedianMs": 0.08302204999999957,
+      "candidateMedianMs": 0.08425867916666903,
+      "baselineMadMs": 0.001533854166666529,
+      "candidateMadMs": 0.0007216999999968693,
+      "speedup": 0.9853234209353873,
+      "interval95": [
+        0.9448992333698916,
+        1.0071091222221218
+      ]
+    },
+    {
+      "id": 49,
+      "name": "active-javascript-16",
+      "category": "active-droplets",
+      "kind": "active",
+      "backend": "javascript",
+      "sceneId": 700,
+      "count": 16,
+      "operations": 120,
+      "baselineSamplesMs": [
+        0.08363958333332751,
+        0.08382395833333096,
+        0.08276597499999903,
+        0.083105900000002,
+        0.0838059000000006,
+        0.08361562500000067
+      ],
+      "candidateSamplesMs": [
+        0.08510590000000016,
+        0.0844847166666644,
+        0.08338611666667171,
+        0.0849527749999955,
+        0.08230104166666478,
+        0.0845284750000019
+      ],
+      "baselineMedianMs": 0.0836276041666641,
+      "candidateMedianMs": 0.08450659583333314,
+      "baselineMadMs": 0.00018732500000168822,
+      "candidateMadMs": 0.0005227416666646889,
+      "speedup": 0.9895985436639452,
+      "interval95": [
+        0.9807090754877401,
+        1.0106123191300929
+      ]
+    },
+    {
+      "id": 50,
+      "name": "active-javascript-64",
+      "category": "active-droplets",
+      "kind": "active",
+      "backend": "javascript",
+      "sceneId": 700,
+      "count": 64,
+      "operations": 100,
+      "baselineSamplesMs": [
+        0.08864708000000064,
+        0.09161833000000115,
+        0.08826750000000175,
+        0.08823916000000281,
+        0.09108291999999892,
+        0.08990666999999121
+      ],
+      "candidateSamplesMs": [
+        0.08795750000000226,
+        0.09103583000000072,
+        0.08645916999999827,
+        0.08835082999999941,
+        0.08629290999999284,
+        0.08935500000000501
+      ],
+      "baselineMedianMs": 0.08927687499999593,
+      "candidateMedianMs": 0.08815416500000084,
+      "baselineMadMs": 0.0010235449999936447,
+      "candidateMadMs": 0.0014479150000033733,
+      "speedup": 1.0127357567279445,
+      "interval95": [
+        0.9990568283286342,
+        1.0476839989422961
+      ]
+    },
+    {
+      "id": 51,
+      "name": "active-javascript-128",
+      "category": "active-droplets",
+      "kind": "active",
+      "backend": "javascript",
+      "sceneId": 700,
+      "count": 128,
+      "operations": 80,
+      "baselineSamplesMs": [
+        0.09252552500000774,
+        0.09558541250000871,
+        0.09360103750000234,
+        0.09234374999999773,
+        0.09274478749999844,
+        0.09291406250000592
+      ],
+      "candidateSamplesMs": [
+        0.09709062499999846,
+        0.09402031250000391,
+        0.09817812499999264,
+        0.09859792499999002,
+        0.09379999999999881,
+        0.09385051250000061
+      ],
+      "baselineMedianMs": 0.09282942500000219,
+      "candidateMedianMs": 0.09555546875000118,
+      "baselineMadMs": 0.0003947874999994522,
+      "candidateMadMs": 0.0017302125000014656,
+      "speedup": 0.9714716092583768,
+      "interval95": [
+        0.9414652469140424,
+        1.0060934970834265
+      ]
+    },
+    {
+      "id": 52,
+      "name": "active-javascript-144",
+      "category": "active-droplets",
+      "kind": "active",
+      "backend": "javascript",
+      "sceneId": 700,
+      "count": 144,
+      "operations": 80,
+      "baselineSamplesMs": [
+        0.09460781250000991,
+        0.09983593750000637,
+        0.09964009999999916,
+        0.09497187499999882,
+        0.09388958749999574,
+        0.09631197500000326
+      ],
+      "candidateSamplesMs": [
+        0.09726510000000417,
+        0.09576614999999719,
+        0.0994213625000043,
+        0.09994948749999821,
+        0.09751250000000482,
+        0.09896302500000047
+      ],
+      "baselineMedianMs": 0.09564192500000104,
+      "candidateMedianMs": 0.09823776250000264,
+      "baselineMadMs": 0.0013932249999982216,
+      "candidateMadMs": 0.0010781312500000653,
+      "speedup": 0.9735759708492798,
+      "interval95": [
+        0.9527157555881175,
+        1.032064521870385
+      ]
+    },
+    {
+      "id": 53,
+      "name": "active-javascript-256",
+      "category": "active-droplets",
+      "kind": "active",
+      "backend": "javascript",
+      "sceneId": 700,
+      "count": 256,
+      "operations": 70,
+      "baselineSamplesMs": [
+        0.10382379999999622,
+        0.10756071428570846,
+        0.11096131428570775,
+        0.10756964285714535,
+        0.11052440000000519,
+        0.10837499999999116
+      ],
+      "candidateSamplesMs": [
+        0.09741667142856646,
+        0.09614167142856656,
+        0.09686190000000872,
+        0.09811607142857091,
+        0.10024940000000372,
+        0.09499107142857091
+      ],
+      "baselineMedianMs": 0.10797232142856825,
+      "candidateMedianMs": 0.0971392857142876,
+      "baselineMadMs": 0.0014818428571483633,
+      "candidateMadMs": 0.0009872000000021794,
+      "speedup": 1.1115206441412744,
+      "interval95": [
+        1.0849504052327859,
+        1.1433066783002037
+      ]
+    },
+    {
+      "id": 54,
+      "name": "active-javascript-512",
+      "category": "active-droplets",
+      "kind": "active",
+      "backend": "javascript",
+      "sceneId": 700,
+      "count": 512,
+      "operations": 60,
+      "baselineSamplesMs": [
+        0.13263403333333676,
+        0.12707986666667542,
+        0.12955833333332217,
+        0.12806109999999837,
+        0.1317409666666663,
+        0.13390694999999747
+      ],
+      "candidateSamplesMs": [
+        0.10806526666666892,
+        0.11575138333334205,
+        0.11119791666666666,
+        0.11127499999999296,
+        0.1112881833333328,
+        0.11412430000000313
+      ],
+      "baselineMedianMs": 0.13064964999999423,
+      "candidateMedianMs": 0.11128159166666288,
+      "baselineMadMs": 0.002286466666669193,
+      "candidateMadMs": 0.001463191666668237,
+      "speedup": 1.1740454826647986,
+      "interval95": [
+        1.1164216948855952,
+        1.2093906454021481
+      ]
+    },
+    {
+      "id": 55,
+      "name": "active-javascript-768",
+      "category": "active-droplets",
+      "kind": "active",
+      "backend": "javascript",
+      "sceneId": 700,
+      "count": 768,
+      "operations": 50,
+      "baselineSamplesMs": [
+        0.15725083999999698,
+        0.1515691599999991,
+        0.1496049999999923,
+        0.14594167999999627,
+        0.15311417999999322,
+        0.15425249999998414
+      ],
+      "candidateSamplesMs": [
+        0.12737750000000234,
+        0.12242000000000189,
+        0.12917999999999666,
+        0.126943339999998,
+        0.12925999999999477,
+        0.12490499999999884
+      ],
+      "baselineMedianMs": 0.15234166999999615,
+      "candidateMedianMs": 0.12716042000000016,
+      "baselineMadMs": 0.0023237499999959194,
+      "candidateMadMs": 0.0020595799999955505,
+      "speedup": 1.1980274207964707,
+      "interval95": [
+        1.1581127109459373,
+        1.2349585685119537
+      ]
+    },
+    {
+      "id": 56,
+      "name": "expiring-javascript-0",
+      "category": "expiring-droplets",
+      "kind": "expiring",
+      "backend": "javascript",
+      "sceneId": 700,
+      "count": 0,
+      "operations": 120,
+      "baselineSamplesMs": [
+        0.08468333333333551,
+        0.08362429999999677,
+        0.08315416666666806,
+        0.0824961749999981,
+        0.08190972499999892,
+        0.08395972499999971
+      ],
+      "candidateSamplesMs": [
+        0.0839423583333352,
+        0.08123472499999783,
+        0.08290764166666426,
+        0.08108437500000036,
+        0.08361840000000029,
+        0.08414132499999596
+      ],
+      "baselineMedianMs": 0.08338923333333241,
+      "candidateMedianMs": 0.08326302083333227,
+      "baselineMadMs": 0.0007317750000008019,
+      "candidateMadMs": 0.0007788208333333116,
+      "speedup": 1.0015158289807042,
+      "interval95": [
+        0.9865792098389567,
+        1.0294156839947326
+      ]
+    },
+    {
+      "id": 57,
+      "name": "expiring-javascript-1",
+      "category": "expiring-droplets",
+      "kind": "expiring",
+      "backend": "javascript",
+      "sceneId": 700,
+      "count": 1,
+      "operations": 120,
+      "baselineSamplesMs": [
+        0.08265449999995932,
+        0.08561251666661368,
+        0.08229549166665037,
+        0.08562744999997753,
+        0.08423677500002213,
+        0.08484618333329005
+      ],
+      "candidateSamplesMs": [
+        0.08239266666666936,
+        0.08584650833330822,
+        0.0833451083333557,
+        0.08383228333329953,
+        0.08397953333335409,
+        0.08739272499997999
+      ],
+      "baselineMedianMs": 0.0845414791666561,
+      "candidateMedianMs": 0.08390590833332681,
+      "baselineMadMs": 0.0010785041666395087,
+      "candidateMadMs": 0.0010370208333142783,
+      "speedup": 1.0075748042772434,
+      "interval95": [
+        0.9795261927771036,
+        1.0213247203692226
+      ]
+    },
+    {
+      "id": 58,
+      "name": "expiring-javascript-16",
+      "category": "expiring-droplets",
+      "kind": "expiring",
+      "backend": "javascript",
+      "sceneId": 700,
+      "count": 16,
+      "operations": 120,
+      "baselineSamplesMs": [
+        0.08471910000000663,
+        0.082578116666726,
+        0.08514545833331795,
+        0.08486626666666931,
+        0.08141873333326353,
+        0.0850541333333543
+      ],
+      "candidateSamplesMs": [
+        0.08491105000004305,
+        0.08400041666665553,
+        0.0833187750000434,
+        0.08517920833339,
+        0.0857517000000371,
+        0.08645871666665243
+      ],
+      "baselineMedianMs": 0.08479268333333798,
+      "candidateMedianMs": 0.08504512916671653,
+      "baselineMadMs": 0.00030711249999815227,
+      "candidateMadMs": 0.0008756416666907824,
+      "speedup": 0.9970316250224787,
+      "interval95": [
+        0.9594335606061858,
+        1.0152126402313493
+      ]
+    },
+    {
+      "id": 59,
+      "name": "expiring-javascript-64",
+      "category": "expiring-droplets",
+      "kind": "expiring",
+      "backend": "javascript",
+      "sceneId": 700,
+      "count": 64,
+      "operations": 100,
+      "baselineSamplesMs": [
+        0.08745955000002141,
+        0.08718574000004083,
+        0.08543498,
+        0.08685464000000138,
+        0.08621375000000625,
+        0.0876861600000484
+      ],
+      "candidateSamplesMs": [
+        0.0855495300000439,
+        0.08690333000001374,
+        0.0848812500000804,
+        0.08604370999994898,
+        0.08465836000003037,
+        0.0836578900000768
+      ],
+      "baselineMedianMs": 0.0870201900000211,
+      "candidateMedianMs": 0.08521539000006215,
+      "baselineMadMs": 0.0005526650000138023,
+      "candidateMadMs": 0.0006926749999593071,
+      "speedup": 1.0211792728984477,
+      "interval95": [
+        1.006523584418456,
+        1.0391990252229035
+      ]
+    },
+    {
+      "id": 60,
+      "name": "expiring-javascript-128",
+      "category": "expiring-droplets",
+      "kind": "expiring",
+      "backend": "javascript",
+      "sceneId": 700,
+      "count": 128,
+      "operations": 80,
+      "baselineSamplesMs": [
+        0.08412179999996852,
+        0.08804683750004187,
+        0.08833177499994918,
+        0.08336724999996932,
+        0.0834989375000191,
+        0.08344218749999754
+      ],
+      "candidateSamplesMs": [
+        0.0867463499999758,
+        0.08920728749995988,
+        0.08623957500002462,
+        0.08446823750003887,
+        0.08329008749999503,
+        0.08390627500003803
+      ],
+      "baselineMedianMs": 0.08381036874999381,
+      "candidateMedianMs": 0.08535390625003175,
+      "baselineMadMs": 0.00040565000001038104,
+      "candidateMadMs": 0.0014200374999688847,
+      "speedup": 0.9819160297653352,
+      "interval95": [
+        0.9697445483296069,
+        1.0226083123666871
+      ]
+    },
+    {
+      "id": 61,
+      "name": "expiring-javascript-144",
+      "category": "expiring-droplets",
+      "kind": "expiring",
+      "backend": "javascript",
+      "sceneId": 700,
+      "count": 144,
+      "operations": 80,
+      "baselineSamplesMs": [
+        0.08733852499997283,
+        0.08657864999993307,
+        0.08856353749989694,
+        0.08523067500001388,
+        0.0836338249999244,
+        0.08726398750000045
+      ],
+      "candidateSamplesMs": [
+        0.08385569999991276,
+        0.08427076250000028,
+        0.08733696250002368,
+        0.08537451250001596,
+        0.08751778749998493,
+        0.08686153749998766
+      ],
+      "baselineMedianMs": 0.08692131874996675,
+      "candidateMedianMs": 0.08611802500000182,
+      "baselineMadMs": 0.0010297124999681315,
+      "candidateMadMs": 0.001309350000002485,
+      "speedup": 1.0093278236462682,
+      "interval95": [
+        0.9683745478425543,
+        1.0385189214342958
+      ]
+    },
+    {
+      "id": 62,
+      "name": "expiring-javascript-256",
+      "category": "expiring-droplets",
+      "kind": "expiring",
+      "backend": "javascript",
+      "sceneId": 700,
+      "count": 256,
+      "operations": 70,
+      "baselineSamplesMs": [
+        0.08678392857140611,
+        0.0865953285714048,
+        0.08874761428571998,
+        0.0879381285713602,
+        0.09382021428572053,
+        0.08697268571425282
+      ],
+      "candidateSamplesMs": [
+        0.08609587142853863,
+        0.08380181428578258,
+        0.08280945714282748,
+        0.08459880000005536,
+        0.08561309999999399,
+        0.08650657142861747
+      ],
+      "baselineMedianMs": 0.0874554071428065,
+      "candidateMedianMs": 0.08510595000002467,
+      "baselineMadMs": 0.0007657785714010462,
+      "candidateMadMs": 0.0011470285713780226,
+      "speedup": 1.0276062618745359,
+      "interval95": [
+        1.007780472565275,
+        1.071708683377196
+      ]
+    },
+    {
+      "id": 63,
+      "name": "expiring-javascript-512",
+      "category": "expiring-droplets",
+      "kind": "expiring",
+      "backend": "javascript",
+      "sceneId": 700,
+      "count": 512,
+      "operations": 60,
+      "baselineSamplesMs": [
+        0.09529513333332033,
+        0.09521943333338641,
+        0.09064931666665264,
+        0.09837291666667625,
+        0.0944507499999266,
+        0.09509026666669343
+      ],
+      "candidateSamplesMs": [
+        0.08430479999998776,
+        0.0871222666666957,
+        0.08341246666661088,
+        0.08677988333336846,
+        0.08280775000002905,
+        0.08577564999997472
+      ],
+      "baselineMedianMs": 0.09515485000003993,
+      "candidateMedianMs": 0.08504022499998123,
+      "baselineMadMs": 0.0004221916666968667,
+      "candidateMadMs": 0.0016837083333787889,
+      "speedup": 1.1189393019604654,
+      "interval95": [
+        1.095092077163523,
+        1.1364532172323016
+      ]
+    },
+    {
+      "id": 64,
+      "name": "expiring-javascript-768",
+      "category": "expiring-droplets",
+      "kind": "expiring",
+      "backend": "javascript",
+      "sceneId": 700,
+      "count": 768,
+      "operations": 50,
+      "baselineSamplesMs": [
+        0.09852171999993516,
+        0.09434591999994155,
+        0.09653250000006665,
+        0.09998996000005718,
+        0.09996825999993235,
+        0.09956083999999464
+      ],
+      "candidateSamplesMs": [
+        0.0873533000000316,
+        0.08458416000006765,
+        0.08774161999994248,
+        0.08652659999997922,
+        0.08553415999993376,
+        0.08238745999993626
+      ],
+      "baselineMedianMs": 0.0990412799999649,
+      "candidateMedianMs": 0.0860303799999565,
+      "baselineMadMs": 0.0009378300000298656,
+      "candidateMadMs": 0.0013845699999819744,
+      "speedup": 1.1512361098488113,
+      "interval95": [
+        1.1050813191949445,
+        1.1925480509800686
+      ]
+    },
+    {
+      "id": 65,
+      "name": "steady-javascript-700",
+      "category": "steady-controls",
+      "kind": "control",
+      "backend": "javascript",
+      "sceneId": 700,
+      "count": 0,
+      "operations": 120,
+      "baselineSamplesMs": [
+        0.08449549166666656,
+        0.08341007499999857,
+        0.08364235833333472,
+        0.0845875000000054,
+        0.08506493333332704,
+        0.08329756666666223
+      ],
+      "candidateSamplesMs": [
+        0.0797527749999972,
+        0.08537465833333044,
+        0.08521319999999832,
+        0.08610000000000279,
+        0.08150485833333884,
+        0.08183541666666466
+      ],
+      "baselineMedianMs": 0.08406892500000064,
+      "candidateMedianMs": 0.08352430833333149,
+      "baselineMadMs": 0.0005887125000034119,
+      "candidateMadMs": 0.0019348999999957983,
+      "speedup": 1.006520457068566,
+      "interval95": [
+        0.9779133851017139,
+        1.0479564895015634
+      ]
+    },
+    {
+      "id": 66,
+      "name": "steady-javascript-701",
+      "category": "steady-controls",
+      "kind": "control",
+      "backend": "javascript",
+      "sceneId": 701,
+      "count": 0,
+      "operations": 120,
+      "baselineSamplesMs": [
+        0.08444618333332983,
+        0.07972916666666757,
+        0.08451874999999896,
+        0.08321805833333352,
+        0.08086874999999812,
+        0.08040277500000077
+      ],
+      "candidateSamplesMs": [
+        0.08056145833333327,
+        0.08381736666666863,
+        0.08590520833333054,
+        0.08343854166666158,
+        0.08343054999999519,
+        0.08357604166666685
+      ],
+      "baselineMedianMs": 0.08204340416666582,
+      "candidateMedianMs": 0.08350729166666421,
+      "baselineMadMs": 0.0019774333333316477,
+      "candidateMadMs": 0.00019340833333671842,
+      "speedup": 0.9824699439919357,
+      "interval95": [
+        0.9566203547740232,
+        1.0298315040650303
+      ]
+    },
+    {
+      "id": 67,
+      "name": "steady-javascript-703",
+      "category": "steady-controls",
+      "kind": "control",
+      "backend": "javascript",
+      "sceneId": 703,
+      "count": 0,
+      "operations": 120,
+      "baselineSamplesMs": [
+        0.1007180500000004,
+        0.1017357666666688,
+        0.09992187500000303,
+        0.09944235833333247,
+        0.1018753416666641,
+        0.10319479166666952
+      ],
+      "candidateSamplesMs": [
+        0.10022569166666623,
+        0.10054965000000114,
+        0.10184479166666734,
+        0.1011482666666628,
+        0.09971076666666552,
+        0.1036940999999994
+      ],
+      "baselineMedianMs": 0.1012269083333346,
+      "candidateMedianMs": 0.10084895833333196,
+      "baselineMadMs": 0.0009767333333305303,
+      "candidateMadMs": 0.0008095500000005543,
+      "speedup": 1.0037476837267214,
+      "interval95": [
+        0.9831345767006349,
+        1.0183790891898006
+      ]
+    },
+    {
+      "id": 68,
+      "name": "steady-javascript-706",
+      "category": "steady-controls",
+      "kind": "control",
+      "backend": "javascript",
+      "sceneId": 706,
+      "count": 0,
+      "operations": 120,
+      "baselineSamplesMs": [
+        0.08261735833333053,
+        0.08015868333333552,
+        0.08008471666666234,
+        0.08411389166666747,
+        0.08435451666666723,
+        0.08246770833332752
+      ],
+      "candidateSamplesMs": [
+        0.08479270833333885,
+        0.08175243333333432,
+        0.08374409999999746,
+        0.0856281250000014,
+        0.08412222499999492,
+        0.08240069166666521
+      ],
+      "baselineMedianMs": 0.08254253333332903,
+      "candidateMedianMs": 0.08393316249999619,
+      "baselineMadMs": 0.0016916708333383143,
+      "candidateMadMs": 0.0011960083333368218,
+      "speedup": 0.9834317077392715,
+      "interval95": [
+        0.9567444154274912,
+        1.0013311484173468
+      ]
+    },
+    {
+      "id": 69,
+      "name": "steady-javascript-708",
+      "category": "steady-controls",
+      "kind": "control",
+      "backend": "javascript",
+      "sceneId": 708,
+      "count": 0,
+      "operations": 120,
+      "baselineSamplesMs": [
+        0.09548715000000053,
+        0.09440625000000485,
+        0.09446666666666109,
+        0.09241284999999759,
+        0.09275937499999903,
+        0.09497014166666608
+      ],
+      "candidateSamplesMs": [
+        0.09548437499999333,
+        0.09223367499999616,
+        0.09195764166666626,
+        0.09138090000000526,
+        0.0952472250000028,
+        0.09253020833333116
+      ],
+      "baselineMedianMs": 0.09443645833333297,
+      "candidateMedianMs": 0.09238194166666366,
+      "baselineMadMs": 0.0007921875000003326,
+      "candidateMadMs": 0.0007126708333279053,
+      "speedup": 1.022239375245895,
+      "interval95": [
+        0.9825253439142106,
+        1.0272845731417266
+      ]
+    }
+  ]
+}

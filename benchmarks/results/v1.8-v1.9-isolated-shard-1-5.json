@@ -1,0 +1,321 @@
+{
+  "schema": 1,
+  "generatedAt": "2026-07-13T15:06:38.307Z",
+  "environment": {
+    "node": "v22.16.0",
+    "platform": "linux",
+    "arch": "x64",
+    "cpu": "unknown"
+  },
+  "method": {
+    "samples": 7,
+    "bootstrapIterations": 10000,
+    "freshProcessPerMeasurement": true,
+    "alternatingOrder": true,
+    "processStartupExcluded": true
+  },
+  "summary": {
+    "changedGeometricMeanSpeedup": 2.268031494205754,
+    "dynamicGeometricMeanSpeedup": 1.4133831913428938,
+    "medianSpeedup": 1.582283421881977,
+    "correctnessFailures": 0,
+    "elapsedMs": 23784.816076000003
+  },
+  "results": [
+    {
+      "id": "cloth-cargo-full",
+      "label": "Cargo net · adaptive solver + handoff",
+      "category": "dynamic-breakthrough",
+      "baselineSamplesMs": [
+        1.90506604,
+        1.830784493333333,
+        1.90103292,
+        1.8036541333333336,
+        1.83185692,
+        1.9022466333333334,
+        1.8048130733333332
+      ],
+      "optimizedSamplesMs": [
+        1.3941123333333332,
+        1.4409424,
+        1.3984080533333332,
+        1.37873704,
+        1.4406475133333334,
+        1.40636528,
+        1.3996638666666668
+      ],
+      "baselineMedianMs": 1.83185692,
+      "optimizedMedianMs": 1.3996638666666668,
+      "baselineMadMs": 0.028202786666666535,
+      "optimizedMadMs": 0.006701413333333184,
+      "speedup": 1.3087834612481721,
+      "pairedBootstrap95": [
+        1.2708066868468821,
+        1.3644859082374283
+      ],
+      "baselineDeterministic": true,
+      "optimizedDeterministic": true,
+      "crossVersionHashMatch": false,
+      "stateError": 0.0010170726618961548,
+      "matrixError": 0,
+      "colorError": 0,
+      "maxStateAbs": 0.019081592559814453,
+      "correctness": true,
+      "payload": {
+        "baselineDynamicBytes": 27200,
+        "optimizedDynamicBytes": 20400,
+        "byteReduction": 0.25
+      },
+      "metadata": {
+        "baseline": {
+          "hash": 1673692468,
+          "nodes": 1700,
+          "constraints": 9782,
+          "instances": 1
+        },
+        "optimized": {
+          "hash": 2151139146,
+          "nodes": 1700,
+          "constraints": 9782,
+          "instances": 1
+        }
+      }
+    },
+    {
+      "id": "cloth-membrane-full",
+      "label": "Maximum membrane · adaptive solver + handoff",
+      "category": "dynamic-breakthrough",
+      "baselineSamplesMs": [
+        1.6832317555555556,
+        1.685638459259259,
+        1.723008348148148,
+        1.739062288888889,
+        1.7014869925925926,
+        1.7848031407407408,
+        1.783142362962963
+      ],
+      "optimizedSamplesMs": [
+        0.9378823037037037,
+        0.9179964666666668,
+        0.9004597925925926,
+        0.9112977185185187,
+        0.9004195407407405,
+        0.8732096222222224,
+        0.9358936666666666
+      ],
+      "baselineMedianMs": 1.723008348148148,
+      "optimizedMedianMs": 0.9112977185185187,
+      "baselineMadMs": 0.037369888888888925,
+      "optimizedMadMs": 0.01087817777777822,
+      "speedup": 1.8907194796330813,
+      "pairedBootstrap95": [
+        1.818034519511931,
+        1.9803461411955148
+      ],
+      "baselineDeterministic": true,
+      "optimizedDeterministic": true,
+      "crossVersionHashMatch": false,
+      "stateError": 0.00045974723595029743,
+      "matrixError": 0,
+      "colorError": 0,
+      "maxStateAbs": 0.00690460205078125,
+      "correctness": true,
+      "payload": {
+        "baselineDynamicBytes": 27200,
+        "optimizedDynamicBytes": 20400,
+        "byteReduction": 0.25
+      },
+      "metadata": {
+        "baseline": {
+          "hash": 2682181593,
+          "nodes": 1700,
+          "constraints": 9454,
+          "instances": 0
+        },
+        "optimized": {
+          "hash": 2037615681,
+          "nodes": 1700,
+          "constraints": 9454,
+          "instances": 0
+        }
+      }
+    },
+    {
+      "id": "cloth-membrane-storm",
+      "label": "Maximum membrane · 72-projectile storm",
+      "category": "dynamic-breakthrough",
+      "baselineSamplesMs": [
+        3.445579173333333,
+        3.37839292,
+        3.345167546666667,
+        3.34489056,
+        3.750971720000001,
+        3.4950932399999997,
+        3.3813435333333333
+      ],
+      "optimizedSamplesMs": [
+        2.2088921466666664,
+        2.0811826399999998,
+        2.2143617333333334,
+        2.108279333333333,
+        2.1370024399999994,
+        2.0660374666666668,
+        2.2105245466666665
+      ],
+      "baselineMedianMs": 3.3813435333333333,
+      "optimizedMedianMs": 2.1370024399999994,
+      "baselineMadMs": 0.036452973333333194,
+      "optimizedMadMs": 0.07096497333333263,
+      "speedup": 1.582283421881977,
+      "pairedBootstrap95": [
+        1.5132912917483643,
+        1.6793784326396266
+      ],
+      "baselineDeterministic": true,
+      "optimizedDeterministic": true,
+      "crossVersionHashMatch": false,
+      "stateError": 0.0005991461027806904,
+      "matrixError": 0,
+      "colorError": 0,
+      "maxStateAbs": 0.04730939865112305,
+      "correctness": true,
+      "payload": {
+        "baselineDynamicBytes": 27200,
+        "optimizedDynamicBytes": 20400,
+        "byteReduction": 0.25
+      },
+      "metadata": {
+        "baseline": {
+          "hash": 1888353268,
+          "nodes": 1700,
+          "constraints": 9454,
+          "instances": 72
+        },
+        "optimized": {
+          "hash": 3540658111,
+          "nodes": 1700,
+          "constraints": 9454,
+          "instances": 72
+        }
+      }
+    },
+    {
+      "id": "rope-maximum-frame",
+      "label": "Maximum rope · CPU render handoff",
+      "category": "frame-breakthrough",
+      "baselineSamplesMs": [
+        0.0134823362,
+        0.014073795000000002,
+        0.014134709600000002,
+        0.013643718799999996,
+        0.0130003568,
+        0.013656321999999997,
+        0.014032080599999998
+      ],
+      "optimizedSamplesMs": [
+        0.000911514200000002,
+        0.0008995287999999988,
+        0.0012414138000000007,
+        0.0008363592000000011,
+        0.0008659950000000009,
+        0.0009080882000000002,
+        0.0009085228000000001
+      ],
+      "baselineMedianMs": 0.013656321999999997,
+      "optimizedMedianMs": 0.0009080882000000002,
+      "baselineMadMs": 0.0003757586000000014,
+      "optimizedMadMs": 0.000008559400000001435,
+      "speedup": 15.038541410404841,
+      "pairedBootstrap95": [
+        14.791142255381178,
+        15.75496255752052
+      ],
+      "baselineDeterministic": true,
+      "optimizedDeterministic": true,
+      "crossVersionHashMatch": true,
+      "stateError": 0,
+      "matrixError": 5.005009310758902e-10,
+      "colorError": 1.5836182098277936e-7,
+      "maxStateAbs": 0,
+      "correctness": true,
+      "payload": {
+        "baselineDynamicBytes": 32160,
+        "optimizedDynamicBytes": 4116,
+        "byteReduction": 0.8720149253731343
+      },
+      "metadata": {
+        "baseline": {
+          "hash": 46960147,
+          "nodes": 343,
+          "constraints": 731,
+          "instances": 402
+        },
+        "optimized": {
+          "hash": 46960147,
+          "nodes": 343,
+          "constraints": 731,
+          "instances": 402
+        }
+      }
+    },
+    {
+      "id": "rope-maximum-full",
+      "label": "Maximum rope · solver + handoff",
+      "category": "dynamic-breakthrough",
+      "baselineSamplesMs": [
+        0.6888050133333332,
+        0.7073139199999999,
+        0.6934536933333334,
+        0.7195054133333332,
+        0.7012102666666666,
+        0.6966643066666668,
+        0.7276532733333333
+      ],
+      "optimizedSamplesMs": [
+        0.6862120466666666,
+        0.7073335000000001,
+        0.6879989133333333,
+        0.6861261200000001,
+        0.7034260466666666,
+        0.6841299399999999,
+        0.7015889666666666
+      ],
+      "baselineMedianMs": 0.7012102666666666,
+      "optimizedMedianMs": 0.6879989133333333,
+      "baselineMadMs": 0.007756573333333239,
+      "optimizedMadMs": 0.0038689733333333587,
+      "speedup": 1.019202578779267,
+      "pairedBootstrap95": [
+        0.9968500171261785,
+        1.0486489179763818
+      ],
+      "baselineDeterministic": true,
+      "optimizedDeterministic": true,
+      "crossVersionHashMatch": true,
+      "stateError": 0,
+      "matrixError": 5.796371306582552e-10,
+      "colorError": 2.2484345999941856e-7,
+      "maxStateAbs": 0,
+      "correctness": true,
+      "payload": {
+        "baselineDynamicBytes": 32160,
+        "optimizedDynamicBytes": 4116,
+        "byteReduction": 0.8720149253731343
+      },
+      "metadata": {
+        "baseline": {
+          "hash": 126908879,
+          "nodes": 343,
+          "constraints": 731,
+          "instances": 402
+        },
+        "optimized": {
+          "hash": 126908879,
+          "nodes": 343,
+          "constraints": 731,
+          "instances": 402
+        }
+      }
+    }
+  ]
+}

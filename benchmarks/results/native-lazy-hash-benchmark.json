@@ -1,0 +1,308 @@
+{
+  "schemaVersion": 1,
+  "benchmark": "native-box3d-lazy-replay-hash",
+  "generatedAt": "2026-07-15T09:21:47.120Z",
+  "host": {
+    "platform": "darwin",
+    "arch": "arm64",
+    "node": "v26.0.0",
+    "cpu": "Apple M3 Ultra"
+  },
+  "artifacts": {
+    "baseline": {
+      "directory": "/Users/commander/Documents/WebPhysics/benchmarks/baselines/native-v1.10-lazy-hash",
+      "files": {
+        "box3d.js": {
+          "path": "/Users/commander/Documents/WebPhysics/benchmarks/baselines/native-v1.10-lazy-hash/box3d.js",
+          "bytes": 13951,
+          "sha256": "116e03dfee941b27fc9801dc598a21c4af1f1c2e32571f9777493bd8c7a81dff"
+        },
+        "box3d.wasm": {
+          "path": "/Users/commander/Documents/WebPhysics/benchmarks/baselines/native-v1.10-lazy-hash/box3d.wasm",
+          "bytes": 396622,
+          "sha256": "e9ae9984286b3549719443294fe1a18e9067391da2afc93a2cd783aa56117c3c"
+        }
+      },
+      "provenance": {
+        "box3d": {
+          "ref": "v0.1.0",
+          "commit": "8441b4a06d6d09dcfb0b0f704df4d847d1437b92",
+          "license": "MIT"
+        },
+        "toolchain": {
+          "emscripten": "4.0.23",
+          "cmake": "4.4.0",
+          "ninja": "1.13.0"
+        },
+        "artifacts": {
+          "box3d.js": {
+            "bytes": 13951,
+            "sha256": "116e03dfee941b27fc9801dc598a21c4af1f1c2e32571f9777493bd8c7a81dff"
+          },
+          "box3d.wasm": {
+            "bytes": 396622,
+            "sha256": "e9ae9984286b3549719443294fe1a18e9067391da2afc93a2cd783aa56117c3c"
+          }
+        },
+        "validation": {
+          "catalogScenes": 750,
+          "deterministicPasses": 2,
+          "invalidTimestepGuard": true
+        }
+      }
+    },
+    "optimized": {
+      "directory": "/Users/commander/Documents/WebPhysics/public/box3d",
+      "files": {
+        "box3d.js": {
+          "path": "/Users/commander/Documents/WebPhysics/public/box3d/box3d.js",
+          "bytes": 13951,
+          "sha256": "116e03dfee941b27fc9801dc598a21c4af1f1c2e32571f9777493bd8c7a81dff"
+        },
+        "box3d.wasm": {
+          "path": "/Users/commander/Documents/WebPhysics/public/box3d/box3d.wasm",
+          "bytes": 396706,
+          "sha256": "451c570fa960ea66bd7ee5f3bd98d6166d2945da1b8930e446c8ac5a8a0a7db6"
+        }
+      },
+      "provenance": {
+        "box3d": {
+          "ref": "v0.1.0",
+          "commit": "8441b4a06d6d09dcfb0b0f704df4d847d1437b92",
+          "license": "MIT"
+        },
+        "toolchain": {
+          "emscripten": "4.0.23",
+          "cmake": "4.0.3",
+          "ninja": "1.11.1.git.kitware.jobserver-1"
+        },
+        "bridge": {
+          "source": "wasm/box3d_web.c",
+          "sha256": "bdb90ae491dba502f6f48a9b5a6ed8919e11b1d04e22fe81c8dd59b34378fb6c",
+          "lazyReplayHash": true
+        },
+        "artifacts": {
+          "box3d.js": {
+            "bytes": 13951,
+            "sha256": "116e03dfee941b27fc9801dc598a21c4af1f1c2e32571f9777493bd8c7a81dff"
+          },
+          "box3d.wasm": {
+            "bytes": 396706,
+            "sha256": "451c570fa960ea66bd7ee5f3bd98d6166d2945da1b8930e446c8ac5a8a0a7db6"
+          }
+        },
+        "validation": {
+          "catalogScenes": 750,
+          "deterministicPasses": 2,
+          "invalidTimestepGuard": true
+        }
+      }
+    },
+    "baselineBundledInRepository": true,
+    "expectedBaselineSha256": {
+      "box3d.js": "116e03dfee941b27fc9801dc598a21c4af1f1c2e32571f9777493bd8c7a81dff",
+      "box3d.wasm": "e9ae9984286b3549719443294fe1a18e9067391da2afc93a2cd783aa56117c3c"
+    }
+  },
+  "method": {
+    "sceneId": 3,
+    "stress": 5,
+    "seed": 5329233,
+    "bodyCount": 4096,
+    "samplesPerArtifact": 15,
+    "warmupIterations": 48,
+    "alternatingOrder": true,
+    "measurementOrder": [
+      "baseline-first",
+      "optimized-first",
+      "baseline-first",
+      "optimized-first",
+      "baseline-first",
+      "optimized-first",
+      "baseline-first",
+      "optimized-first",
+      "baseline-first",
+      "optimized-first",
+      "baseline-first",
+      "optimized-first",
+      "baseline-first",
+      "optimized-first",
+      "baseline-first"
+    ]
+  },
+  "correctness": {
+    "bodyCount": 4096,
+    "matrixFloats": 65536,
+    "exactMatrixBits": true,
+    "replayHash": 3378806748,
+    "exactReplayHash": true
+  },
+  "results": [
+    {
+      "id": "sync-only",
+      "label": "Sync only",
+      "iterationsPerSample": 250,
+      "hashPeriod": 0,
+      "baseline": {
+        "medianMsPerSync": 0.30491750000000045,
+        "madMsPerSync": 0.0034943359999995427,
+        "minMsPerSync": 0.2992800000000002,
+        "maxMsPerSync": 0.31365216800000006,
+        "rawMsPerSync": [
+          0.30391900000000005,
+          0.309218168,
+          0.31365216800000006,
+          0.308411836,
+          0.30483733200000007,
+          0.3075216680000001,
+          0.31115783599999985,
+          0.3014114999999997,
+          0.2992800000000002,
+          0.3015840000000003,
+          0.309741168,
+          0.30491750000000045,
+          0.3046063320000003,
+          0.3085573320000003,
+          0.3034903320000003
+        ]
+      },
+      "optimized": {
+        "medianMsPerSync": 0.02427116400000068,
+        "madMsPerSync": 0.0006858280000005823,
+        "minMsPerSync": 0.022208667999999307,
+        "maxMsPerSync": 0.02596600000000012,
+        "rawMsPerSync": [
+          0.02499033600000007,
+          0.024070831999999997,
+          0.02596600000000012,
+          0.02539033200000017,
+          0.025666336,
+          0.023991336000000047,
+          0.025148999999999887,
+          0.024081164000000172,
+          0.02434433200000012,
+          0.0235853360000001,
+          0.023428667999999563,
+          0.023841499999999995,
+          0.024689163999999438,
+          0.022208667999999307,
+          0.02427116400000068
+        ]
+      },
+      "speedup": 12.562953305411801,
+      "optimizedTimeReductionPercent": 92.04008822058405
+    },
+    {
+      "id": "hash-every-12-syncs",
+      "label": "Hash every 12 syncs",
+      "iterationsPerSample": 240,
+      "hashPeriod": 12,
+      "baseline": {
+        "medianMsPerSync": 0.3094468749999995,
+        "madMsPerSync": 0.004146704166666404,
+        "minMsPerSync": 0.30312135416666686,
+        "maxMsPerSync": 0.678171179166668,
+        "rawMsPerSync": [
+          0.3057102416666671,
+          0.3035286458333341,
+          0.3063484375000002,
+          0.3053001708333331,
+          0.3094468749999995,
+          0.30312135416666686,
+          0.31447083333333314,
+          0.31983854166666675,
+          0.3075522583333329,
+          0.3067482624999987,
+          0.313852779166668,
+          0.36787742916666655,
+          0.31254357500000085,
+          0.3125,
+          0.678171179166668
+        ]
+      },
+      "optimized": {
+        "medianMsPerSync": 0.05104878333333337,
+        "madMsPerSync": 0.000812499999999737,
+        "minMsPerSync": 0.048602950000001026,
+        "maxMsPerSync": 0.057769791666666494,
+        "rawMsPerSync": [
+          0.050705208333333945,
+          0.05104878333333337,
+          0.049976387500000406,
+          0.051007291666666295,
+          0.057769791666666494,
+          0.052552083333333145,
+          0.05320364583333325,
+          0.0548979166666669,
+          0.050710416666667396,
+          0.048602950000001026,
+          0.05126215416666658,
+          0.05006979166666762,
+          0.05153107916666689,
+          0.05023628333333363,
+          0.05169739583333429
+        ]
+      },
+      "speedup": 6.061787466694426,
+      "optimizedTimeReductionPercent": 83.50321575122275
+    },
+    {
+      "id": "hash-every-sync",
+      "label": "Hash every sync",
+      "iterationsPerSample": 120,
+      "hashPeriod": 1,
+      "baseline": {
+        "medianMsPerSync": 0.31199305000000094,
+        "madMsPerSync": 0.0014933916666677871,
+        "minMsPerSync": 0.3060868083333351,
+        "maxMsPerSync": 0.3154805583333314,
+        "rawMsPerSync": [
+          0.3132142333333339,
+          0.31315590000000004,
+          0.31334340833333274,
+          0.3154805583333314,
+          0.31199305000000094,
+          0.3060868083333351,
+          0.3126961750000002,
+          0.3123243000000002,
+          0.3104885416666662,
+          0.3085493083333328,
+          0.30931493333333343,
+          0.31265416666666773,
+          0.3089541666666643,
+          0.31049965833333315,
+          0.30990312499999767
+        ]
+      },
+      "optimized": {
+        "medianMsPerSync": 0.338874658333331,
+        "madMsPerSync": 0.002803133333331209,
+        "minMsPerSync": 0.3332628500000017,
+        "maxMsPerSync": 0.345037158333336,
+        "rawMsPerSync": [
+          0.34237187499999966,
+          0.338874658333331,
+          0.33414757500000103,
+          0.345037158333336,
+          0.3335510416666693,
+          0.34379999999999883,
+          0.3389486083333319,
+          0.3360715249999998,
+          0.33718750000000075,
+          0.33509791666666616,
+          0.33984860833333336,
+          0.33923333333333405,
+          0.33893784999999826,
+          0.3383166666666663,
+          0.3332628500000017
+        ]
+      },
+      "speedup": 0.9206738902650896,
+      "optimizedTimeReductionPercent": -8.616092035809775
+    }
+  ],
+  "interpretation": {
+    "scope": "Exported native b3w_sync_transforms bridge path only; not total physics or frame time.",
+    "cadenceBoundary": "Lazy hashing is beneficial only when replay hashes are requested less often than transform synchronization."
+  }
+}

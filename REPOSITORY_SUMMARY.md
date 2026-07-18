@@ -1,51 +1,72 @@
-# Repository Summary — Box3D WebGPU AAA Physics Lab
+# Repository Summary
 
-## Destination
+## Box3D WebGPU AAA Physics Lab v1.13.0
 
-```text
-https://github.com/nathansenn/box3d-WEBGPU
-```
+Version 1.13 is the current source-frozen production-optimization release. It
+preserves the full hybrid simulation architecture, reconciles the v1.2–v1.12
+benchmark history against the production tree, and retains only candidates that
+survived current-source correctness, timing, and control gates.
 
-## Mission
-
-Prove a production-oriented browser architecture in which Box3D remains the authoritative rigid-body solver while WebGPU delivers a high-density, cinematic visualization and diagnostics layer.
-
-## Delivered capability
-
-| Layer | Included |
+| Area | Delivered |
 |---|---|
-| Simulation | Fixed-step backend boundary, native Box3D C/WASM bridge, deterministic preview backend |
-| Catalog | 600 repeatable recipes across 12 capability families |
-| Hero content | 24 authored AAA-style demonstrations with camera tracks and timed physics beats |
-| Rendering | HDR target, 4× MSAA, 2K PCF shadows, PBR-inspired lighting, sky/fog, bloom/tone map/vignette/grain |
-| Effects | Sparks, smoke, dust, shockwaves, muzzle flashes, rain flashes, camera shake |
-| Diagnostics | Body/FX/FPS/simulation/render/upload/backend/hash telemetry, grid/axes/bounds |
-| Verification | Strict TypeScript, nine deterministic suites, repository contract checks, production build, live browser test runner |
-| Delivery | GitHub CI, Pages workflow, environment doctor, safe existing-repo replacement script |
+| Rigid physics | Box3D C17 → Emscripten/WASM bridge plus deterministic preview backend |
+| Cloth | PBD particles and constraints; adaptive intact schedules; persistent SIMD/scalar WASM; 12-byte current positions plus immutable rest pose; packed tearing fallback |
+| Rope | PBD cables, anchors, payloads, breakage, persistent WASM projection, compact node/segment frames, and WebGPU presentation expansion |
+| Water | Deterministic 2.5D shallow-water solver with persistent WASM stepping and GPU-resident surface reconstruction |
+| Catalog | 750 deterministic scenes across 15 families |
+| Direction | 30 cinematic hero demonstrations and Maximum AAA Tour |
+| Rendering | WebGPU instancing, GPU-resident cloth/water, compute-expanded rope, KTX2 BC4/R8, HDR, 1×/4× MSAA, measured shadows, fog, and post-processing |
+| Diagnostics | Rigid/soft counts, constraints/cells, breaks, energy, CPU timings, uploads, replay hashes, in-app 750+30 state gate |
+| Validation | `validate:v1.13`: 22 Node suites, three soft soaks, exact rope qualification, two-pass native 750-scene soak, Dawn/Metal pipelines and runtime, 1,000-case evidence gate, production and Pages builds |
+| Transport | Predictive TurboQuant for remote/network/replay state only; disabled on the local frame path |
+| Deployment | Vite production/Pages builds, CI, safe publish scripts, canonical SHA-256 source manifest |
 
-## Honest boundary
+### New in v1.13
 
-This repository is a detailed AAA-style engineering showcase—not a claim of a finished commercial engine. Box3D owns physics; WebGPU owns rendering. The preview backend exists to verify the app before native artifacts are compiled. Full native one-to-one parity for every generated variant, skeletal characters, texture authoring, audio, and production asset streaming remain roadmap work.
+- Exact eight-entry MRU native box-hull cache with byte-identical linked WASM.
+- Cached preview dynamic-body counts, an exact all-static early return, and
+  reset storage reuse.
+- Qualified high-count water work, stable native-wrapper stream pointers, and
+  numeric renderer configuration caching.
+- Current-source requalification of historical compiler modes and a hybrid
+  renderer scratch cache; both directions were rejected after failing the
+  complete active-path gate.
+- A ten-shard registry containing 1,000 unique semantic workloads and 1,000
+  unique execution traces, with frozen source, harness, artifact, and renderer
+  identities.
 
-## Primary commands
+The final tournament completed exactly 1,000 cases: **165 accepted wins, 353
+borderline changed paths, 360 controls, 85 changed timer-floor cases, 37 no-win
+rejections, and 0 correctness failures**. Another 118 controls were below the
+22.5 ms timing floor, so 203 total cases are excluded from geometric means. On
+Apple M3 Ultra with Node 26, the remaining 555 changed CPU paths measured a
+**1.0544× unweighted case-level geometric mean**; 242 controls measured
+**1.0041×**. No eligible control met both the `<0.94×` and global BH
+`q <= 0.05` material-regression screens. This is not a whole-engine or browser
+FPS claim. See
+[`docs/V1.13_1000_BENCHMARK_MATRIX.md`](docs/V1.13_1000_BENCHMARK_MATRIX.md).
 
-```bash
-npm install
-npm run doctor
-npm run validate
-npm run dev
-```
+### Retained performance foundation
 
-Native Box3D browser backend:
+- Persistent SIMD and scalar WebAssembly soft kernels with JavaScript fallback.
+- GPU-resident intact cloth and shallow water with cached static topology and zero-byte unchanged frames.
+- WebGPU compute expansion of compact rope presentation data.
+- Coherent longest-axis sweep-and-prune for the preview rigid backend.
+- Whole-system cloth/rope projectile rejection before particle contact checks.
+- Exact frame/upload caches for rigid, effects, lines, cloth, rope, and water.
+- Packed 24-byte tearing surfaces, `uint16` topology, and direct KTX2 BC4/R8 loading.
+- Quality profiles that change real MSAA, shadow-map, and PCF work.
 
-```bash
-npm run fetch:box3d
-npm run build:wasm
-npm run dev
-```
+The reproducible v1.2-to-v1.10 maximum-detail comparison remains useful
+historical context: **7.342× cloth**, **2.746× rope**, and **13.342× water**, or
+**6.455× geometric mean**, with zero correctness failures. It does not replace
+the current v1.13 matrix, and incremental subsystem ratios are not multiplied
+together because their workload sets differ.
 
-Publish into the existing profile repository:
+### Architectural boundary
 
-```bash
-bash scripts/push-existing-box3d-webgpu.sh
-```
+Box3D owns rigid-body simulation. Cloth, rope, and water numerical solvers run on CPU JavaScript or CPU WebAssembly. WebGPU reconstructs intact cloth/water presentation and expands compact rope render data; it does not yet run the authoritative soft solvers. Tearing cloth remains on the topology-aware packed path. Water is a heightfield, not a volumetric SPH/FLIP solver.
+
+### Evidence boundary
+
+CPU benchmark ratios are scoped to the named operations and the measured Apple M3 Ultra environment. Dawn/Metal evidence proves shader, pipeline, storage, compute, timestamp-query, upload-cache, and submission behavior on that device. Visible browser acceptance proves interactive operation, not a universal FPS multiplier or a complete browser/driver matrix.

@@ -1,0 +1,5978 @@
+{
+  "schemaVersion": 2,
+  "generatedAt": "2026-07-15T09:20:32.664Z",
+  "baseline": "v1.10.0 exact source archive",
+  "candidate": "working tree",
+  "node": "v26.0.0",
+  "platform": "darwin/arm64",
+  "baselineArchive": "benchmarks/baselines/box3d-webgpu-v1.10.0-source.tar.gz",
+  "caseCount": 100,
+  "samples": 3,
+  "workloadScale": 0.03,
+  "elapsedSeconds": 4.569517332999999,
+  "observableSink": 4141152,
+  "methodology": {
+    "order": "alternating baseline/candidate by case and sample",
+    "statistic": "median and median absolute deviation",
+    "timing": "production operations after warmup; setup, capture, and process startup excluded",
+    "determinism": "SHA-256 fingerprint of authoritative numeric streams and structural metadata across every sample"
+  },
+  "summary": {
+    "accepted": 67,
+    "borderline": 6,
+    "rejectedNoWin": 7,
+    "rejectedCorrectness": 0,
+    "controls": 20,
+    "changedGeometricMean": 1.2483781674528147,
+    "changedMedian": 1.3008625344141143,
+    "deterministicGroups": 200,
+    "unchangedExactGroups": 10,
+    "unchangedGroupCount": 10
+  },
+  "categories": [
+    {
+      "category": "cloth-wasm",
+      "cases": 30,
+      "geometricMean": 1.3054107885415174,
+      "correctnessFailures": 0
+    },
+    {
+      "category": "rope-wasm",
+      "cases": 25,
+      "geometricMean": 1.443157782941192,
+      "correctnessFailures": 0
+    },
+    {
+      "category": "fallback",
+      "cases": 15,
+      "geometricMean": 1.0162306386480922,
+      "correctnessFailures": 0
+    },
+    {
+      "category": "effects",
+      "cases": 10,
+      "geometricMean": 1.0345577997969866,
+      "correctnessFailures": 0
+    },
+    {
+      "category": "water-control",
+      "cases": 10,
+      "geometricMean": 0.8479946069295599,
+      "correctnessFailures": 0
+    },
+    {
+      "category": "js-control",
+      "cases": 5,
+      "geometricMean": 1.044140168227989,
+      "correctnessFailures": 0
+    },
+    {
+      "category": "unchanged-control",
+      "cases": 5,
+      "geometricMean": 0.9913064972669816,
+      "correctnessFailures": 0
+    }
+  ],
+  "records": [
+    {
+      "id": 1,
+      "category": "cloth-wasm",
+      "sceneId": 600,
+      "engine": "soft",
+      "wasm": true,
+      "warmup": 12,
+      "iterations": 72,
+      "rain": 0,
+      "fidelityLimit": 0.002,
+      "sceneTitle": "Tempest Standard — Baseline",
+      "baselineSamplesMs": [
+        1.515895999999998,
+        1.9782914999999548,
+        1.474666500000012
+      ],
+      "candidateSamplesMs": [
+        1.4144169999999576,
+        1.518895499999985,
+        1.5698125000000118
+      ],
+      "baselineMedianMs": 1.515895999999998,
+      "candidateMedianMs": 1.518895499999985,
+      "baselineMadMs": 0.04122949999998582,
+      "candidateMadMs": 0.050917000000026746,
+      "speedup": 0.9980252097659206,
+      "baselineDeterministic": true,
+      "candidateDeterministic": true,
+      "baselineWithinRunExactSamples": [
+        null,
+        null,
+        null
+      ],
+      "candidateWithinRunExactSamples": [
+        null,
+        null,
+        null
+      ],
+      "baselineWithinRunExact": null,
+      "candidateWithinRunExact": null,
+      "withinRunExact": null,
+      "baselineFingerprint": "a70a36931c0cd0971219c75f47243ebf3994ab1aab40e8fc611c4c7283ed3064",
+      "candidateFingerprint": "7c2f502f2c8dfa0f0dfcea0e25ca330a6956f552fcb20f6e136a09cef03e1a41",
+      "baselineBrokenCount": 0,
+      "candidateBrokenCount": 0,
+      "correctness": {
+        "correct": true,
+        "stateError": 1.1775571590411168e-7,
+        "matrixError": 0,
+        "colorError": 0,
+        "lineError": 0,
+        "sameBreakCount": true,
+        "sameCounts": true,
+        "fidelityLimit": 0.002,
+        "renderLimit": 0.0005,
+        "withinRunExact": null
+      },
+      "decision": "borderline"
+    },
+    {
+      "id": 2,
+      "category": "cloth-wasm",
+      "sceneId": 601,
+      "engine": "soft",
+      "wasm": true,
+      "warmup": 12,
+      "iterations": 72,
+      "rain": 0,
+      "fidelityLimit": 0.002,
+      "sceneTitle": "Royal Banner Wind Tunnel — Baseline",
+      "baselineSamplesMs": [
+        2.102041500000041,
+        1.863145500000087,
+        1.8276875000000246
+      ],
+      "candidateSamplesMs": [
+        1.6350210000000516,
+        1.63118750000001,
+        1.5952295000000731
+      ],
+      "baselineMedianMs": 1.863145500000087,
+      "candidateMedianMs": 1.63118750000001,
+      "baselineMadMs": 0.035458000000062384,
+      "candidateMadMs": 0.0038335000000415675,
+      "speedup": 1.142201923445389,
+      "baselineDeterministic": true,
+      "candidateDeterministic": true,
+      "baselineWithinRunExactSamples": [
+        null,
+        null,
+        null
+      ],
+      "candidateWithinRunExactSamples": [
+        null,
+        null,
+        null
+      ],
+      "baselineWithinRunExact": null,
+      "candidateWithinRunExact": null,
+      "withinRunExact": null,
+      "baselineFingerprint": "298f17bb839e7cdffb0479348ae6a96138141bb1c705f5fee73c06d7b530a5fb",
+      "candidateFingerprint": "e1c7fd8ca883f2c6215917f6f08522b09166c07b53feaa59125afaefa26666e0",
+      "baselineBrokenCount": 0,
+      "candidateBrokenCount": 0,
+      "correctness": {
+        "correct": true,
+        "stateError": 8.931823600661795e-8,
+        "matrixError": 0,
+        "colorError": 0,
+        "lineError": 0,
+        "sameBreakCount": true,
+        "sameCounts": true,
+        "fidelityLimit": 0.002,
+        "renderLimit": 0.0005,
+        "withinRunExact": null
+      },
+      "decision": "accepted"
+    },
+    {
+      "id": 3,
+      "category": "cloth-wasm",
+      "sceneId": 602,
+      "engine": "soft",
+      "wasm": true,
+      "warmup": 12,
+      "iterations": 72,
+      "rain": 0,
+      "fidelityLimit": 0.002,
+      "sceneTitle": "Parachute Canopy Deployment — Baseline",
+      "baselineSamplesMs": [
+        1.7170209999999315,
+        2.421687499999962,
+        2.033770499999946
+      ],
+      "candidateSamplesMs": [
+        1.6313125000000355,
+        1.5212914999999612,
+        1.47006250000004
+      ],
+      "baselineMedianMs": 2.033770499999946,
+      "candidateMedianMs": 1.5212914999999612,
+      "baselineMadMs": 0.31674950000001445,
+      "candidateMadMs": 0.05122899999992114,
+      "speedup": 1.3368710072987313,
+      "baselineDeterministic": true,
+      "candidateDeterministic": true,
+      "baselineWithinRunExactSamples": [
+        null,
+        null,
+        null
+      ],
+      "candidateWithinRunExactSamples": [
+        null,
+        null,
+        null
+      ],
+      "baselineWithinRunExact": null,
+      "candidateWithinRunExact": null,
+      "withinRunExact": null,
+      "baselineFingerprint": "e683489444566abd07b796bc81a7d6d7c608649802543f7edd5d36c78e38418b",
+      "candidateFingerprint": "178a4b0edd20d2e88934c970244af73229266be9614790acb4d16cd493b10b5a",
+      "baselineBrokenCount": 0,
+      "candidateBrokenCount": 0,
+      "correctness": {
+        "correct": true,
+        "stateError": 7.257561840252301e-7,
+        "matrixError": 0,
+        "colorError": 0,
+        "lineError": 0,
+        "sameBreakCount": true,
+        "sameCounts": true,
+        "fidelityLimit": 0.002,
+        "renderLimit": 0.0005,
+        "withinRunExact": null
+      },
+      "decision": "accepted"
+    },
+    {
+      "id": 4,
+      "category": "cloth-wasm",
+      "sceneId": 603,
+      "engine": "soft",
+      "wasm": true,
+      "warmup": 12,
+      "iterations": 72,
+      "rain": 0,
+      "fidelityLimit": 0.002,
+      "sceneTitle": "Cargo Net Load Catch — Baseline",
+      "baselineSamplesMs": [
+        2.2937709999998788,
+        1.7779795000001286,
+        2.313270999999986
+      ],
+      "candidateSamplesMs": [
+        1.290333500000088,
+        1.3871460000000297,
+        1.2317500000001473
+      ],
+      "baselineMedianMs": 2.2937709999998788,
+      "candidateMedianMs": 1.290333500000088,
+      "baselineMadMs": 0.01950000000010732,
+      "candidateMadMs": 0.058583499999940614,
+      "speedup": 1.777657481573347,
+      "baselineDeterministic": true,
+      "candidateDeterministic": true,
+      "baselineWithinRunExactSamples": [
+        null,
+        null,
+        null
+      ],
+      "candidateWithinRunExactSamples": [
+        null,
+        null,
+        null
+      ],
+      "baselineWithinRunExact": null,
+      "candidateWithinRunExact": null,
+      "withinRunExact": null,
+      "baselineFingerprint": "fa1d93d4deab081832f8560974844e85b698d5426a7acc11500b6920f0b767b4",
+      "candidateFingerprint": "35726a407866031f5be296356da239ae2086b0c2161fa94c40c4b4c9367ac6b0",
+      "baselineBrokenCount": 0,
+      "candidateBrokenCount": 0,
+      "correctness": {
+        "correct": true,
+        "stateError": 7.09208527235133e-7,
+        "matrixError": 0,
+        "colorError": 0,
+        "lineError": 0,
+        "sameBreakCount": true,
+        "sameCounts": true,
+        "fidelityLimit": 0.002,
+        "renderLimit": 0.0005,
+        "withinRunExact": null
+      },
+      "decision": "accepted"
+    },
+    {
+      "id": 5,
+      "category": "cloth-wasm",
+      "sceneId": 604,
+      "engine": "soft",
+      "wasm": true,
+      "warmup": 12,
+      "iterations": 72,
+      "rain": 0,
+      "fidelityLimit": 0.002,
+      "sceneTitle": "Suspended Hammock Dynamics — Baseline",
+      "baselineSamplesMs": [
+        1.9791665000000194,
+        1.7764999999999418,
+        1.658437499999991
+      ],
+      "candidateSamplesMs": [
+        1.3389789999998811,
+        1.5238544999999704,
+        1.5736875000000055
+      ],
+      "baselineMedianMs": 1.7764999999999418,
+      "candidateMedianMs": 1.5238544999999704,
+      "baselineMadMs": 0.11806249999995089,
+      "candidateMadMs": 0.0498330000000351,
+      "speedup": 1.1657937158698395,
+      "baselineDeterministic": true,
+      "candidateDeterministic": true,
+      "baselineWithinRunExactSamples": [
+        null,
+        null,
+        null
+      ],
+      "candidateWithinRunExactSamples": [
+        null,
+        null,
+        null
+      ],
+      "baselineWithinRunExact": null,
+      "candidateWithinRunExact": null,
+      "withinRunExact": null,
+      "baselineFingerprint": "a47a5690b004dd92ce13efc72bede3ad66210a08d1a62b9f8d28629cc4444a94",
+      "candidateFingerprint": "ad24fb80e55d708c8416e6db173cc1b845d108d72e7fd299b60633ebd556886a",
+      "baselineBrokenCount": 0,
+      "candidateBrokenCount": 0,
+      "correctness": {
+        "correct": true,
+        "stateError": 8.220680919113971e-7,
+        "matrixError": 0,
+        "colorError": 0,
+        "lineError": 0,
+        "sameBreakCount": true,
+        "sameCounts": true,
+        "fidelityLimit": 0.002,
+        "renderLimit": 0.0005,
+        "withinRunExact": null
+      },
+      "decision": "accepted"
+    },
+    {
+      "id": 6,
+      "category": "cloth-wasm",
+      "sceneId": 605,
+      "engine": "soft",
+      "wasm": true,
+      "warmup": 12,
+      "iterations": 72,
+      "rain": 0,
+      "fidelityLimit": 0.002,
+      "sceneTitle": "Racing Sail Aerodynamics — Baseline",
+      "baselineSamplesMs": [
+        2.327541999999994,
+        1.66731249999998,
+        2.2432710000000498
+      ],
+      "candidateSamplesMs": [
+        1.706083000000035,
+        1.6902079999999842,
+        1.678124999999909
+      ],
+      "baselineMedianMs": 2.2432710000000498,
+      "candidateMedianMs": 1.6902079999999842,
+      "baselineMadMs": 0.08427099999994425,
+      "candidateMadMs": 0.012083000000075117,
+      "speedup": 1.3272159402866812,
+      "baselineDeterministic": true,
+      "candidateDeterministic": true,
+      "baselineWithinRunExactSamples": [
+        null,
+        null,
+        null
+      ],
+      "candidateWithinRunExactSamples": [
+        null,
+        null,
+        null
+      ],
+      "baselineWithinRunExact": null,
+      "candidateWithinRunExact": null,
+      "withinRunExact": null,
+      "baselineFingerprint": "b2e7d6792a4dc3f58151d6b61087b631b9949fafdd41768ee0dce22123345da9",
+      "candidateFingerprint": "e316508e11c1ea3c3dff760f17b848273ccbfa36a04da5c71a17a7851c82c640",
+      "baselineBrokenCount": 0,
+      "candidateBrokenCount": 0,
+      "correctness": {
+        "correct": true,
+        "stateError": 1.259146834431874e-7,
+        "matrixError": 0,
+        "colorError": 0,
+        "lineError": 0,
+        "sameBreakCount": true,
+        "sameCounts": true,
+        "fidelityLimit": 0.002,
+        "renderLimit": 0.0005,
+        "withinRunExact": null
+      },
+      "decision": "accepted"
+    },
+    {
+      "id": 7,
+      "category": "cloth-wasm",
+      "sceneId": 607,
+      "engine": "soft",
+      "wasm": true,
+      "warmup": 12,
+      "iterations": 72,
+      "rain": 0,
+      "fidelityLimit": 0.002,
+      "sceneTitle": "Drape Over Collider — Baseline",
+      "baselineSamplesMs": [
+        1.9750625000001492,
+        2.6367914999998447,
+        2.391021000000137
+      ],
+      "candidateSamplesMs": [
+        1.8262080000001788,
+        1.6841875000000073,
+        1.8692499999999654
+      ],
+      "baselineMedianMs": 2.391021000000137,
+      "candidateMedianMs": 1.8262080000001788,
+      "baselineMadMs": 0.24577049999970768,
+      "candidateMadMs": 0.04304199999978664,
+      "speedup": 1.3092818561740518,
+      "baselineDeterministic": true,
+      "candidateDeterministic": true,
+      "baselineWithinRunExactSamples": [
+        null,
+        null,
+        null
+      ],
+      "candidateWithinRunExactSamples": [
+        null,
+        null,
+        null
+      ],
+      "baselineWithinRunExact": null,
+      "candidateWithinRunExact": null,
+      "withinRunExact": null,
+      "baselineFingerprint": "68e4ae32580b79aaee777a21a2f83f78db8e12e5b17f736efb50db09dfee170a",
+      "candidateFingerprint": "cf8408fe97e66a99215decaaf50402a4daa69c5b1d9d8e10d0bea12dff48c745",
+      "baselineBrokenCount": 0,
+      "candidateBrokenCount": 0,
+      "correctness": {
+        "correct": true,
+        "stateError": 3.806448408768469e-7,
+        "matrixError": 0,
+        "colorError": 0,
+        "lineError": 0,
+        "sameBreakCount": true,
+        "sameCounts": true,
+        "fidelityLimit": 0.002,
+        "renderLimit": 0.0005,
+        "withinRunExact": null
+      },
+      "decision": "accepted"
+    },
+    {
+      "id": 8,
+      "category": "cloth-wasm",
+      "sceneId": 608,
+      "engine": "soft",
+      "wasm": true,
+      "warmup": 12,
+      "iterations": 72,
+      "rain": 0,
+      "fidelityLimit": 0.002,
+      "sceneTitle": "Grand Theater Curtain — Baseline",
+      "baselineSamplesMs": [
+        2.428854000000001,
+        2.284833499999877,
+        1.664978999999903
+      ],
+      "candidateSamplesMs": [
+        1.590874999999869,
+        1.5320419999998194,
+        1.438270999999986
+      ],
+      "baselineMedianMs": 2.284833499999877,
+      "candidateMedianMs": 1.5320419999998194,
+      "baselineMadMs": 0.14402050000012423,
+      "candidateMadMs": 0.05883300000004965,
+      "speedup": 1.4913647928713092,
+      "baselineDeterministic": true,
+      "candidateDeterministic": true,
+      "baselineWithinRunExactSamples": [
+        null,
+        null,
+        null
+      ],
+      "candidateWithinRunExactSamples": [
+        null,
+        null,
+        null
+      ],
+      "baselineWithinRunExact": null,
+      "candidateWithinRunExact": null,
+      "withinRunExact": null,
+      "baselineFingerprint": "85cf995c20ccbb32bd2d0e0aa5d34491a67cce44dc44c105207beaee5d70ced9",
+      "candidateFingerprint": "4371cda7abe5a2e2026d99e227fb67669509826576068390245de7e79c7cdbad",
+      "baselineBrokenCount": 0,
+      "candidateBrokenCount": 0,
+      "correctness": {
+        "correct": true,
+        "stateError": 8.650263733820249e-8,
+        "matrixError": 0,
+        "colorError": 0,
+        "lineError": 0,
+        "sameBreakCount": true,
+        "sameCounts": true,
+        "fidelityLimit": 0.002,
+        "renderLimit": 0.0005,
+        "withinRunExact": null
+      },
+      "decision": "accepted"
+    },
+    {
+      "id": 9,
+      "category": "cloth-wasm",
+      "sceneId": 609,
+      "engine": "soft",
+      "wasm": true,
+      "warmup": 12,
+      "iterations": 72,
+      "rain": 0,
+      "fidelityLimit": 0.002,
+      "sceneTitle": "Tensioned Membrane Drum — Baseline",
+      "baselineSamplesMs": [
+        0.7424375000000509,
+        1.5160829999999805,
+        1.1489375000001019
+      ],
+      "candidateSamplesMs": [
+        0.7714999999998327,
+        0.8694794999998976,
+        0.8213124999999764
+      ],
+      "baselineMedianMs": 1.1489375000001019,
+      "candidateMedianMs": 0.8213124999999764,
+      "baselineMadMs": 0.36714549999987867,
+      "candidateMadMs": 0.048166999999921245,
+      "speedup": 1.3989041929839554,
+      "baselineDeterministic": true,
+      "candidateDeterministic": true,
+      "baselineWithinRunExactSamples": [
+        null,
+        null,
+        null
+      ],
+      "candidateWithinRunExactSamples": [
+        null,
+        null,
+        null
+      ],
+      "baselineWithinRunExact": null,
+      "candidateWithinRunExact": null,
+      "withinRunExact": null,
+      "baselineFingerprint": "7dd574d7a9a72e23c9d0cbdc83b43d2dc0a6a0aff1eaf3adfaf741ff91e786f8",
+      "candidateFingerprint": "9ffc64278425aeb0ee727881c3b846fba62f4e68ba9481f7b34a092c9db4cdf3",
+      "baselineBrokenCount": 0,
+      "candidateBrokenCount": 0,
+      "correctness": {
+        "correct": true,
+        "stateError": 7.386077619636977e-7,
+        "matrixError": 0,
+        "colorError": 0,
+        "lineError": 0,
+        "sameBreakCount": true,
+        "sameCounts": true,
+        "fidelityLimit": 0.002,
+        "renderLimit": 0.0005,
+        "withinRunExact": null
+      },
+      "decision": "accepted"
+    },
+    {
+      "id": 10,
+      "category": "cloth-wasm",
+      "sceneId": 610,
+      "engine": "soft",
+      "wasm": true,
+      "warmup": 12,
+      "iterations": 72,
+      "rain": 72,
+      "fidelityLimit": 0.002,
+      "sceneTitle": "Tempest Standard — High Stress",
+      "baselineSamplesMs": [
+        2.7054584999998497,
+        2.3689999999999145,
+        2.6923334999999042
+      ],
+      "candidateSamplesMs": [
+        1.9467500000000655,
+        2.393687499999942,
+        1.9147290000000794
+      ],
+      "baselineMedianMs": 2.6923334999999042,
+      "candidateMedianMs": 1.9467500000000655,
+      "baselineMadMs": 0.01312499999994543,
+      "candidateMadMs": 0.03202099999998609,
+      "speedup": 1.3829888275329723,
+      "baselineDeterministic": true,
+      "candidateDeterministic": true,
+      "baselineWithinRunExactSamples": [
+        null,
+        null,
+        null
+      ],
+      "candidateWithinRunExactSamples": [
+        null,
+        null,
+        null
+      ],
+      "baselineWithinRunExact": null,
+      "candidateWithinRunExact": null,
+      "withinRunExact": null,
+      "baselineFingerprint": "2da39c2974fab7f629c6b14dd9ef6e984af7a862b615a4616b4c40fcb3ffbf8d",
+      "candidateFingerprint": "69da75e931d1f0896eb00e8b2cddeef69d08099bc8f17bd616c857f828a88d94",
+      "baselineBrokenCount": 0,
+      "candidateBrokenCount": 0,
+      "correctness": {
+        "correct": true,
+        "stateError": 1.3047424364908745e-7,
+        "matrixError": 0,
+        "colorError": 0,
+        "lineError": 0,
+        "sameBreakCount": true,
+        "sameCounts": true,
+        "fidelityLimit": 0.002,
+        "renderLimit": 0.0005,
+        "withinRunExact": null
+      },
+      "decision": "accepted"
+    },
+    {
+      "id": 11,
+      "category": "cloth-wasm",
+      "sceneId": 611,
+      "engine": "soft",
+      "wasm": true,
+      "warmup": 12,
+      "iterations": 72,
+      "rain": 0,
+      "fidelityLimit": 0.002,
+      "sceneTitle": "Royal Banner Wind Tunnel — High Stress",
+      "baselineSamplesMs": [
+        2.2041249999999764,
+        1.8631250000000819,
+        1.8344170000000304
+      ],
+      "candidateSamplesMs": [
+        1.5340830000000096,
+        1.5125625000000582,
+        1.5407915000000685
+      ],
+      "baselineMedianMs": 1.8631250000000819,
+      "candidateMedianMs": 1.5340830000000096,
+      "baselineMadMs": 0.02870800000005147,
+      "candidateMadMs": 0.006708500000058848,
+      "speedup": 1.214487742840557,
+      "baselineDeterministic": true,
+      "candidateDeterministic": true,
+      "baselineWithinRunExactSamples": [
+        null,
+        null,
+        null
+      ],
+      "candidateWithinRunExactSamples": [
+        null,
+        null,
+        null
+      ],
+      "baselineWithinRunExact": null,
+      "candidateWithinRunExact": null,
+      "withinRunExact": null,
+      "baselineFingerprint": "8c692d5716430afc5d0c45c56c7ac8bd41df157f5a51ac52aa04e6fed5f96adf",
+      "candidateFingerprint": "c4f567125e47d9a9e8ef558c5e4ad9594f1ae69e652fab99ab6da49eec5f110e",
+      "baselineBrokenCount": 0,
+      "candidateBrokenCount": 0,
+      "correctness": {
+        "correct": true,
+        "stateError": 9.532849073022959e-8,
+        "matrixError": 0,
+        "colorError": 0,
+        "lineError": 0,
+        "sameBreakCount": true,
+        "sameCounts": true,
+        "fidelityLimit": 0.002,
+        "renderLimit": 0.0005,
+        "withinRunExact": null
+      },
+      "decision": "accepted"
+    },
+    {
+      "id": 12,
+      "category": "cloth-wasm",
+      "sceneId": 612,
+      "engine": "soft",
+      "wasm": true,
+      "warmup": 12,
+      "iterations": 72,
+      "rain": 0,
+      "fidelityLimit": 0.002,
+      "sceneTitle": "Parachute Canopy Deployment — High Stress",
+      "baselineSamplesMs": [
+        2.036250000000109,
+        1.4914790000000266,
+        2.4138335000000097
+      ],
+      "candidateSamplesMs": [
+        1.4671665000000758,
+        1.5638750000000528,
+        1.5592704999999114
+      ],
+      "baselineMedianMs": 2.036250000000109,
+      "candidateMedianMs": 1.5592704999999114,
+      "baselineMadMs": 0.3775834999999006,
+      "candidateMadMs": 0.004604500000141343,
+      "speedup": 1.3058991368080297,
+      "baselineDeterministic": true,
+      "candidateDeterministic": true,
+      "baselineWithinRunExactSamples": [
+        null,
+        null,
+        null
+      ],
+      "candidateWithinRunExactSamples": [
+        null,
+        null,
+        null
+      ],
+      "baselineWithinRunExact": null,
+      "candidateWithinRunExact": null,
+      "withinRunExact": null,
+      "baselineFingerprint": "793d34c8d7daf8b602c9cfceabb08a50a2bac8630e5f6dfc4d7e253c4f6d2b64",
+      "candidateFingerprint": "3d7c3a69278f5ac02638a63800145b1dc9902bc836fb08711c592deba8b8d481",
+      "baselineBrokenCount": 0,
+      "candidateBrokenCount": 0,
+      "correctness": {
+        "correct": true,
+        "stateError": 6.835400794310435e-7,
+        "matrixError": 0,
+        "colorError": 0,
+        "lineError": 0,
+        "sameBreakCount": true,
+        "sameCounts": true,
+        "fidelityLimit": 0.002,
+        "renderLimit": 0.0005,
+        "withinRunExact": null
+      },
+      "decision": "accepted"
+    },
+    {
+      "id": 13,
+      "category": "cloth-wasm",
+      "sceneId": 613,
+      "engine": "soft",
+      "wasm": true,
+      "warmup": 12,
+      "iterations": 72,
+      "rain": 0,
+      "fidelityLimit": 0.002,
+      "sceneTitle": "Cargo Net Load Catch — High Stress",
+      "baselineSamplesMs": [
+        1.6606669999998758,
+        2.0549999999998363,
+        1.5730835000001662
+      ],
+      "candidateSamplesMs": [
+        1.3921040000000175,
+        1.375958499999797,
+        1.4076665000000048
+      ],
+      "baselineMedianMs": 1.6606669999998758,
+      "candidateMedianMs": 1.3921040000000175,
+      "baselineMadMs": 0.0875834999997096,
+      "candidateMadMs": 0.015562499999987267,
+      "speedup": 1.1929187761832842,
+      "baselineDeterministic": true,
+      "candidateDeterministic": true,
+      "baselineWithinRunExactSamples": [
+        null,
+        null,
+        null
+      ],
+      "candidateWithinRunExactSamples": [
+        null,
+        null,
+        null
+      ],
+      "baselineWithinRunExact": null,
+      "candidateWithinRunExact": null,
+      "withinRunExact": null,
+      "baselineFingerprint": "917762cf52a19ffcc43cc83870cdf9ac10916873a142582226941969602d5855",
+      "candidateFingerprint": "7a840bb75eccbcb1be9229f9818fc60d50e92a19abdc2d4aafffb632e595814e",
+      "baselineBrokenCount": 0,
+      "candidateBrokenCount": 0,
+      "correctness": {
+        "correct": true,
+        "stateError": 6.923315410538271e-7,
+        "matrixError": 0,
+        "colorError": 0,
+        "lineError": 0,
+        "sameBreakCount": true,
+        "sameCounts": true,
+        "fidelityLimit": 0.002,
+        "renderLimit": 0.0005,
+        "withinRunExact": null
+      },
+      "decision": "accepted"
+    },
+    {
+      "id": 14,
+      "category": "cloth-wasm",
+      "sceneId": 614,
+      "engine": "soft",
+      "wasm": true,
+      "warmup": 12,
+      "iterations": 72,
+      "rain": 0,
+      "fidelityLimit": 0.002,
+      "sceneTitle": "Suspended Hammock Dynamics — High Stress",
+      "baselineSamplesMs": [
+        2.249229499999956,
+        2.174979500000063,
+        1.6677080000001752
+      ],
+      "candidateSamplesMs": [
+        1.5141455000000406,
+        1.4984375000001364,
+        1.5092915000000175
+      ],
+      "baselineMedianMs": 2.174979500000063,
+      "candidateMedianMs": 1.5092915000000175,
+      "baselineMadMs": 0.07424999999989268,
+      "candidateMadMs": 0.004854000000023007,
+      "speedup": 1.4410599277873346,
+      "baselineDeterministic": true,
+      "candidateDeterministic": true,
+      "baselineWithinRunExactSamples": [
+        null,
+        null,
+        null
+      ],
+      "candidateWithinRunExactSamples": [
+        null,
+        null,
+        null
+      ],
+      "baselineWithinRunExact": null,
+      "candidateWithinRunExact": null,
+      "withinRunExact": null,
+      "baselineFingerprint": "ed7ff710ffaf07695ff371239371397754ca017e59747063af454b0dce8032de",
+      "candidateFingerprint": "67cb91251e64c80a9d5746c2f7ab8087e39a23af9a7f33e0f50562da3a93baec",
+      "baselineBrokenCount": 0,
+      "candidateBrokenCount": 0,
+      "correctness": {
+        "correct": true,
+        "stateError": 8.540168319055627e-7,
+        "matrixError": 0,
+        "colorError": 0,
+        "lineError": 0,
+        "sameBreakCount": true,
+        "sameCounts": true,
+        "fidelityLimit": 0.002,
+        "renderLimit": 0.0005,
+        "withinRunExact": null
+      },
+      "decision": "accepted"
+    },
+    {
+      "id": 15,
+      "category": "cloth-wasm",
+      "sceneId": 615,
+      "engine": "soft",
+      "wasm": true,
+      "warmup": 12,
+      "iterations": 72,
+      "rain": 0,
+      "fidelityLimit": 0.002,
+      "sceneTitle": "Racing Sail Aerodynamics — High Stress",
+      "baselineSamplesMs": [
+        1.6630835000000843,
+        2.1662704999998823,
+        1.7498335000000225
+      ],
+      "candidateSamplesMs": [
+        1.5899795000000267,
+        1.4938544999999976,
+        1.6857290000000376
+      ],
+      "baselineMedianMs": 1.7498335000000225,
+      "candidateMedianMs": 1.5899795000000267,
+      "baselineMadMs": 0.08674999999993815,
+      "candidateMadMs": 0.09574950000001081,
+      "speedup": 1.1005384031680867,
+      "baselineDeterministic": true,
+      "candidateDeterministic": true,
+      "baselineWithinRunExactSamples": [
+        null,
+        null,
+        null
+      ],
+      "candidateWithinRunExactSamples": [
+        null,
+        null,
+        null
+      ],
+      "baselineWithinRunExact": null,
+      "candidateWithinRunExact": null,
+      "withinRunExact": null,
+      "baselineFingerprint": "1750d01231bc51c820ab70b3e3e81c2500f2f7f15ff2d442870a13945536f5f9",
+      "candidateFingerprint": "2433d48b43f21d9104640d3c4e6d25475b67ea40bde54af6fc7347aeac4f210a",
+      "baselineBrokenCount": 0,
+      "candidateBrokenCount": 0,
+      "correctness": {
+        "correct": true,
+        "stateError": 1.2195181731440053e-7,
+        "matrixError": 0,
+        "colorError": 0,
+        "lineError": 0,
+        "sameBreakCount": true,
+        "sameCounts": true,
+        "fidelityLimit": 0.002,
+        "renderLimit": 0.0005,
+        "withinRunExact": null
+      },
+      "decision": "accepted"
+    },
+    {
+      "id": 16,
+      "category": "cloth-wasm",
+      "sceneId": 617,
+      "engine": "soft",
+      "wasm": true,
+      "warmup": 12,
+      "iterations": 72,
+      "rain": 0,
+      "fidelityLimit": 0.002,
+      "sceneTitle": "Drape Over Collider — High Stress",
+      "baselineSamplesMs": [
+        2.8166455000000497,
+        2.040562499999851,
+        2.7358125000000655
+      ],
+      "candidateSamplesMs": [
+        1.8241665000000467,
+        1.775124999999889,
+        1.7374790000001212
+      ],
+      "baselineMedianMs": 2.7358125000000655,
+      "candidateMedianMs": 1.775124999999889,
+      "baselineMadMs": 0.08083299999998417,
+      "candidateMadMs": 0.03764599999976781,
+      "speedup": 1.5411942820929436,
+      "baselineDeterministic": true,
+      "candidateDeterministic": true,
+      "baselineWithinRunExactSamples": [
+        null,
+        null,
+        null
+      ],
+      "candidateWithinRunExactSamples": [
+        null,
+        null,
+        null
+      ],
+      "baselineWithinRunExact": null,
+      "candidateWithinRunExact": null,
+      "withinRunExact": null,
+      "baselineFingerprint": "93114bd22ef1e7d9ee0e5fb6e7835e571680f43ac1711b0de177e0e2ad95521f",
+      "candidateFingerprint": "5c5b975ac138f146d81eb912bfaada546aac368ac50642379ec3ce438951f3ef",
+      "baselineBrokenCount": 0,
+      "candidateBrokenCount": 0,
+      "correctness": {
+        "correct": true,
+        "stateError": 3.905447299386275e-7,
+        "matrixError": 0,
+        "colorError": 0,
+        "lineError": 0,
+        "sameBreakCount": true,
+        "sameCounts": true,
+        "fidelityLimit": 0.002,
+        "renderLimit": 0.0005,
+        "withinRunExact": null
+      },
+      "decision": "accepted"
+    },
+    {
+      "id": 17,
+      "category": "cloth-wasm",
+      "sceneId": 618,
+      "engine": "soft",
+      "wasm": true,
+      "warmup": 12,
+      "iterations": 72,
+      "rain": 0,
+      "fidelityLimit": 0.002,
+      "sceneTitle": "Grand Theater Curtain — High Stress",
+      "baselineSamplesMs": [
+        1.7829580000000078,
+        2.2803539999999884,
+        2.251145999999835
+      ],
+      "candidateSamplesMs": [
+        1.5249794999999722,
+        1.566229499999963,
+        1.5547085000000607
+      ],
+      "baselineMedianMs": 2.251145999999835,
+      "candidateMedianMs": 1.5547085000000607,
+      "baselineMadMs": 0.029208000000153334,
+      "candidateMadMs": 0.011520999999902415,
+      "speedup": 1.4479537482426752,
+      "baselineDeterministic": true,
+      "candidateDeterministic": true,
+      "baselineWithinRunExactSamples": [
+        null,
+        null,
+        null
+      ],
+      "candidateWithinRunExactSamples": [
+        null,
+        null,
+        null
+      ],
+      "baselineWithinRunExact": null,
+      "candidateWithinRunExact": null,
+      "withinRunExact": null,
+      "baselineFingerprint": "f8e5a4418e2317431e404956cbad043987c244f0fd4787a136df59e4ab7e989f",
+      "candidateFingerprint": "698710502f339ea8b851f57f74634a6797fc1cc5e8ad6a8b186d0ffa6dca6522",
+      "baselineBrokenCount": 0,
+      "candidateBrokenCount": 0,
+      "correctness": {
+        "correct": true,
+        "stateError": 8.523234114127453e-8,
+        "matrixError": 0,
+        "colorError": 0,
+        "lineError": 0,
+        "sameBreakCount": true,
+        "sameCounts": true,
+        "fidelityLimit": 0.002,
+        "renderLimit": 0.0005,
+        "withinRunExact": null
+      },
+      "decision": "accepted"
+    },
+    {
+      "id": 18,
+      "category": "cloth-wasm",
+      "sceneId": 619,
+      "engine": "soft",
+      "wasm": true,
+      "warmup": 12,
+      "iterations": 72,
+      "rain": 0,
+      "fidelityLimit": 0.002,
+      "sceneTitle": "Tensioned Membrane Drum — High Stress",
+      "baselineSamplesMs": [
+        0.7817704999999933,
+        0.8004794999999376,
+        1.3912290000000667
+      ],
+      "candidateSamplesMs": [
+        0.7722499999999854,
+        0.8178749999999582,
+        0.8579170000000431
+      ],
+      "baselineMedianMs": 0.8004794999999376,
+      "candidateMedianMs": 0.8178749999999582,
+      "baselineMadMs": 0.018708999999944353,
+      "candidateMadMs": 0.040042000000084954,
+      "speedup": 0.9787308574048339,
+      "baselineDeterministic": true,
+      "candidateDeterministic": true,
+      "baselineWithinRunExactSamples": [
+        null,
+        null,
+        null
+      ],
+      "candidateWithinRunExactSamples": [
+        null,
+        null,
+        null
+      ],
+      "baselineWithinRunExact": null,
+      "candidateWithinRunExact": null,
+      "withinRunExact": null,
+      "baselineFingerprint": "6a64b48628b717c1b81dee80730fe66c2a2c1a4dd309604710544ca5ac584623",
+      "candidateFingerprint": "867b76addbe53c2ab3c13d9507dc6bb47812549026cf07918cfcd17689789fc8",
+      "baselineBrokenCount": 0,
+      "candidateBrokenCount": 0,
+      "correctness": {
+        "correct": true,
+        "stateError": 7.316161883311904e-7,
+        "matrixError": 0,
+        "colorError": 0,
+        "lineError": 0,
+        "sameBreakCount": true,
+        "sameCounts": true,
+        "fidelityLimit": 0.002,
+        "renderLimit": 0.0005,
+        "withinRunExact": null
+      },
+      "decision": "rejected-no-win"
+    },
+    {
+      "id": 19,
+      "category": "cloth-wasm",
+      "sceneId": 620,
+      "engine": "soft",
+      "wasm": true,
+      "warmup": 12,
+      "iterations": 72,
+      "rain": 0,
+      "fidelityLimit": 0.002,
+      "sceneTitle": "Tempest Standard — Precision",
+      "baselineSamplesMs": [
+        1.7374790000001212,
+        2.2887914999998884,
+        1.4945414999999684
+      ],
+      "candidateSamplesMs": [
+        1.5928539999999884,
+        1.516832999999906,
+        1.4329579999998714
+      ],
+      "baselineMedianMs": 1.7374790000001212,
+      "candidateMedianMs": 1.516832999999906,
+      "baselineMadMs": 0.2429375000001528,
+      "candidateMadMs": 0.0760210000000825,
+      "speedup": 1.1454649259346474,
+      "baselineDeterministic": true,
+      "candidateDeterministic": true,
+      "baselineWithinRunExactSamples": [
+        null,
+        null,
+        null
+      ],
+      "candidateWithinRunExactSamples": [
+        null,
+        null,
+        null
+      ],
+      "baselineWithinRunExact": null,
+      "candidateWithinRunExact": null,
+      "withinRunExact": null,
+      "baselineFingerprint": "57655e63dac99c68c57873f9a4c69f1e303ef35a17502470656ff0ddfd1416c8",
+      "candidateFingerprint": "0b2b4e36f8fea8111cbdb571bcd6f62be8362c101f639b7902dfee1d4070cfff",
+      "baselineBrokenCount": 0,
+      "candidateBrokenCount": 0,
+      "correctness": {
+        "correct": true,
+        "stateError": 1.1118398601366727e-7,
+        "matrixError": 0,
+        "colorError": 0,
+        "lineError": 0,
+        "sameBreakCount": true,
+        "sameCounts": true,
+        "fidelityLimit": 0.002,
+        "renderLimit": 0.0005,
+        "withinRunExact": null
+      },
+      "decision": "accepted"
+    },
+    {
+      "id": 20,
+      "category": "cloth-wasm",
+      "sceneId": 621,
+      "engine": "soft",
+      "wasm": true,
+      "warmup": 12,
+      "iterations": 72,
+      "rain": 72,
+      "fidelityLimit": 0.002,
+      "sceneTitle": "Royal Banner Wind Tunnel — Precision",
+      "baselineSamplesMs": [
+        2.6198750000000928,
+        2.196729000000005,
+        2.7210210000000643
+      ],
+      "candidateSamplesMs": [
+        2.000979500000085,
+        1.911875000000009,
+        2.0319794999998066
+      ],
+      "baselineMedianMs": 2.6198750000000928,
+      "candidateMedianMs": 2.000979500000085,
+      "baselineMadMs": 0.10114599999997154,
+      "candidateMadMs": 0.030999999999721695,
+      "speedup": 1.3092962721507049,
+      "baselineDeterministic": true,
+      "candidateDeterministic": true,
+      "baselineWithinRunExactSamples": [
+        null,
+        null,
+        null
+      ],
+      "candidateWithinRunExactSamples": [
+        null,
+        null,
+        null
+      ],
+      "baselineWithinRunExact": null,
+      "candidateWithinRunExact": null,
+      "withinRunExact": null,
+      "baselineFingerprint": "e4637a2a715f212e0ca724599a6d632c99f46c83424cc77428e6c82eb57d8a6c",
+      "candidateFingerprint": "5d3c993cb4e36674bbd04cc9c8e6bb292c1b08576af6b7bc6db6956a0c37bc0b",
+      "baselineBrokenCount": 0,
+      "candidateBrokenCount": 0,
+      "correctness": {
+        "correct": true,
+        "stateError": 8.466533052210235e-8,
+        "matrixError": 0,
+        "colorError": 0,
+        "lineError": 0,
+        "sameBreakCount": true,
+        "sameCounts": true,
+        "fidelityLimit": 0.002,
+        "renderLimit": 0.0005,
+        "withinRunExact": null
+      },
+      "decision": "accepted"
+    },
+    {
+      "id": 21,
+      "category": "cloth-wasm",
+      "sceneId": 622,
+      "engine": "soft",
+      "wasm": true,
+      "warmup": 12,
+      "iterations": 72,
+      "rain": 0,
+      "fidelityLimit": 0.002,
+      "sceneTitle": "Parachute Canopy Deployment — Precision",
+      "baselineSamplesMs": [
+        2.2447500000000673,
+        2.2070624999998927,
+        2.2643960000000334
+      ],
+      "candidateSamplesMs": [
+        1.5286045000000286,
+        1.3812914999998611,
+        1.59506250000004
+      ],
+      "baselineMedianMs": 2.2447500000000673,
+      "candidateMedianMs": 1.5286045000000286,
+      "baselineMadMs": 0.01964599999996608,
+      "candidateMadMs": 0.06645800000001145,
+      "speedup": 1.468496265711651,
+      "baselineDeterministic": true,
+      "candidateDeterministic": true,
+      "baselineWithinRunExactSamples": [
+        null,
+        null,
+        null
+      ],
+      "candidateWithinRunExactSamples": [
+        null,
+        null,
+        null
+      ],
+      "baselineWithinRunExact": null,
+      "candidateWithinRunExact": null,
+      "withinRunExact": null,
+      "baselineFingerprint": "8bbb4aa2a159bece44e011682fc55fe9b54087d984ba5dc52148685e3e4ab4f5",
+      "candidateFingerprint": "934ab5f93d5dd286730f5672b645b46eeba0100c0cd26190e8d01d9539475519",
+      "baselineBrokenCount": 0,
+      "candidateBrokenCount": 0,
+      "correctness": {
+        "correct": true,
+        "stateError": 6.92181643619208e-7,
+        "matrixError": 0,
+        "colorError": 0,
+        "lineError": 0,
+        "sameBreakCount": true,
+        "sameCounts": true,
+        "fidelityLimit": 0.002,
+        "renderLimit": 0.0005,
+        "withinRunExact": null
+      },
+      "decision": "accepted"
+    },
+    {
+      "id": 22,
+      "category": "cloth-wasm",
+      "sceneId": 623,
+      "engine": "soft",
+      "wasm": true,
+      "warmup": 12,
+      "iterations": 72,
+      "rain": 0,
+      "fidelityLimit": 0.002,
+      "sceneTitle": "Cargo Net Load Catch — Precision",
+      "baselineSamplesMs": [
+        1.5900625000001583,
+        1.6664164999999684,
+        2.188083000000006
+      ],
+      "candidateSamplesMs": [
+        1.4358960000001844,
+        1.391896000000088,
+        1.2361460000001898
+      ],
+      "baselineMedianMs": 1.6664164999999684,
+      "candidateMedianMs": 1.391896000000088,
+      "baselineMadMs": 0.07635399999981018,
+      "candidateMadMs": 0.044000000000096406,
+      "speedup": 1.1972277382791985,
+      "baselineDeterministic": true,
+      "candidateDeterministic": true,
+      "baselineWithinRunExactSamples": [
+        null,
+        null,
+        null
+      ],
+      "candidateWithinRunExactSamples": [
+        null,
+        null,
+        null
+      ],
+      "baselineWithinRunExact": null,
+      "candidateWithinRunExact": null,
+      "withinRunExact": null,
+      "baselineFingerprint": "e016a62a3554bcda58d07b7d6ca92ae12b08281aaaa5c6f7bb744d347f2fd81c",
+      "candidateFingerprint": "2cbd1e628e95027b66fb2071634892ab065b54721183cbc5ed643e88a0e00b3e",
+      "baselineBrokenCount": 0,
+      "candidateBrokenCount": 0,
+      "correctness": {
+        "correct": true,
+        "stateError": 6.936451525945764e-7,
+        "matrixError": 0,
+        "colorError": 0,
+        "lineError": 0,
+        "sameBreakCount": true,
+        "sameCounts": true,
+        "fidelityLimit": 0.002,
+        "renderLimit": 0.0005,
+        "withinRunExact": null
+      },
+      "decision": "accepted"
+    },
+    {
+      "id": 23,
+      "category": "cloth-wasm",
+      "sceneId": 624,
+      "engine": "soft",
+      "wasm": true,
+      "warmup": 12,
+      "iterations": 72,
+      "rain": 0,
+      "fidelityLimit": 0.002,
+      "sceneTitle": "Suspended Hammock Dynamics — Precision",
+      "baselineSamplesMs": [
+        1.441041499999983,
+        2.203708499999948,
+        1.755042000000003
+      ],
+      "candidateSamplesMs": [
+        1.4086045000001377,
+        1.6028955000001588,
+        1.4405205000000478
+      ],
+      "baselineMedianMs": 1.755042000000003,
+      "candidateMedianMs": 1.4405205000000478,
+      "baselineMadMs": 0.3140005000000201,
+      "candidateMadMs": 0.03191599999991013,
+      "speedup": 1.2183387879588974,
+      "baselineDeterministic": true,
+      "candidateDeterministic": true,
+      "baselineWithinRunExactSamples": [
+        null,
+        null,
+        null
+      ],
+      "candidateWithinRunExactSamples": [
+        null,
+        null,
+        null
+      ],
+      "baselineWithinRunExact": null,
+      "candidateWithinRunExact": null,
+      "withinRunExact": null,
+      "baselineFingerprint": "71cb72df04392d7f1bb58452cebbc83b7d4d7b2db8c33b351ff2b7e0d19096c1",
+      "candidateFingerprint": "3a1714c4180deb07cf050b2f178d3fff8a8432b839c1cc5edf61e7b3c0e52d2d",
+      "baselineBrokenCount": 0,
+      "candidateBrokenCount": 0,
+      "correctness": {
+        "correct": true,
+        "stateError": 8.577727460808764e-7,
+        "matrixError": 0,
+        "colorError": 0,
+        "lineError": 0,
+        "sameBreakCount": true,
+        "sameCounts": true,
+        "fidelityLimit": 0.002,
+        "renderLimit": 0.0005,
+        "withinRunExact": null
+      },
+      "decision": "accepted"
+    },
+    {
+      "id": 24,
+      "category": "cloth-wasm",
+      "sceneId": 625,
+      "engine": "soft",
+      "wasm": true,
+      "warmup": 12,
+      "iterations": 72,
+      "rain": 0,
+      "fidelityLimit": 0.002,
+      "sceneTitle": "Racing Sail Aerodynamics — Precision",
+      "baselineSamplesMs": [
+        2.2242295000000922,
+        1.809541999999965,
+        2.338375000000042
+      ],
+      "candidateSamplesMs": [
+        1.5724789999999302,
+        1.4695834999999988,
+        1.5400624999999764
+      ],
+      "baselineMedianMs": 2.2242295000000922,
+      "candidateMedianMs": 1.5400624999999764,
+      "baselineMadMs": 0.1141454999999496,
+      "candidateMadMs": 0.032416499999953885,
+      "speedup": 1.4442462562396827,
+      "baselineDeterministic": true,
+      "candidateDeterministic": true,
+      "baselineWithinRunExactSamples": [
+        null,
+        null,
+        null
+      ],
+      "candidateWithinRunExactSamples": [
+        null,
+        null,
+        null
+      ],
+      "baselineWithinRunExact": null,
+      "candidateWithinRunExact": null,
+      "withinRunExact": null,
+      "baselineFingerprint": "5a2ff7be14d1235ee48ce967eab7c3d6023a94da6511e4521775b2b12d8fb74b",
+      "candidateFingerprint": "92620366e463c4c162deb75dcb3a09a9f4fed362e60480dd31fe75e135d89b18",
+      "baselineBrokenCount": 0,
+      "candidateBrokenCount": 0,
+      "correctness": {
+        "correct": true,
+        "stateError": 1.3630477110312498e-7,
+        "matrixError": 0,
+        "colorError": 0,
+        "lineError": 0,
+        "sameBreakCount": true,
+        "sameCounts": true,
+        "fidelityLimit": 0.002,
+        "renderLimit": 0.0005,
+        "withinRunExact": null
+      },
+      "decision": "accepted"
+    },
+    {
+      "id": 25,
+      "category": "cloth-wasm",
+      "sceneId": 627,
+      "engine": "soft",
+      "wasm": true,
+      "warmup": 12,
+      "iterations": 72,
+      "rain": 0,
+      "fidelityLimit": 0.002,
+      "sceneTitle": "Drape Over Collider — Precision",
+      "baselineSamplesMs": [
+        2.6637084999999843,
+        2.109749999999849,
+        2.0249579999999696
+      ],
+      "candidateSamplesMs": [
+        1.9029164999999466,
+        1.7514579999999569,
+        1.6412290000000667
+      ],
+      "baselineMedianMs": 2.109749999999849,
+      "candidateMedianMs": 1.7514579999999569,
+      "baselineMadMs": 0.08479199999987941,
+      "candidateMadMs": 0.11022899999989022,
+      "speedup": 1.2045678514699758,
+      "baselineDeterministic": true,
+      "candidateDeterministic": true,
+      "baselineWithinRunExactSamples": [
+        null,
+        null,
+        null
+      ],
+      "candidateWithinRunExactSamples": [
+        null,
+        null,
+        null
+      ],
+      "baselineWithinRunExact": null,
+      "candidateWithinRunExact": null,
+      "withinRunExact": null,
+      "baselineFingerprint": "b74172fac09d1be8de328da48f18747d93c7194370c76b8f918f9a09b45b1558",
+      "candidateFingerprint": "6b43f88a0696ada69c4c89cbbe10b304e7e19ab26db8dc3762a7225802f3c581",
+      "baselineBrokenCount": 0,
+      "candidateBrokenCount": 0,
+      "correctness": {
+        "correct": true,
+        "stateError": 3.9762356542098326e-7,
+        "matrixError": 0,
+        "colorError": 0,
+        "lineError": 0,
+        "sameBreakCount": true,
+        "sameCounts": true,
+        "fidelityLimit": 0.002,
+        "renderLimit": 0.0005,
+        "withinRunExact": null
+      },
+      "decision": "accepted"
+    },
+    {
+      "id": 26,
+      "category": "cloth-wasm",
+      "sceneId": 628,
+      "engine": "soft",
+      "wasm": true,
+      "warmup": 12,
+      "iterations": 72,
+      "rain": 0,
+      "fidelityLimit": 0.002,
+      "sceneTitle": "Grand Theater Curtain — Precision",
+      "baselineSamplesMs": [
+        2.1621044999999413,
+        1.4962500000001455,
+        2.3769999999999527
+      ],
+      "candidateSamplesMs": [
+        1.6151875000000473,
+        1.3757084999999734,
+        1.3588749999998981
+      ],
+      "baselineMedianMs": 2.1621044999999413,
+      "candidateMedianMs": 1.3757084999999734,
+      "baselineMadMs": 0.21489550000001145,
+      "candidateMadMs": 0.01683350000007522,
+      "speedup": 1.571629818380844,
+      "baselineDeterministic": true,
+      "candidateDeterministic": true,
+      "baselineWithinRunExactSamples": [
+        null,
+        null,
+        null
+      ],
+      "candidateWithinRunExactSamples": [
+        null,
+        null,
+        null
+      ],
+      "baselineWithinRunExact": null,
+      "candidateWithinRunExact": null,
+      "withinRunExact": null,
+      "baselineFingerprint": "6726991e5c3e8a17bb395369b305aba6547980b09590c320b617e2064cb993c2",
+      "candidateFingerprint": "07a70ef8e2173941bdec45ae02909e3a11488890218b7a978c676b617ca385ae",
+      "baselineBrokenCount": 0,
+      "candidateBrokenCount": 0,
+      "correctness": {
+        "correct": true,
+        "stateError": 8.82201061830387e-8,
+        "matrixError": 0,
+        "colorError": 0,
+        "lineError": 0,
+        "sameBreakCount": true,
+        "sameCounts": true,
+        "fidelityLimit": 0.002,
+        "renderLimit": 0.0005,
+        "withinRunExact": null
+      },
+      "decision": "accepted"
+    },
+    {
+      "id": 27,
+      "category": "cloth-wasm",
+      "sceneId": 629,
+      "engine": "soft",
+      "wasm": true,
+      "warmup": 12,
+      "iterations": 72,
+      "rain": 0,
+      "fidelityLimit": 0.002,
+      "sceneTitle": "Tensioned Membrane Drum — Precision",
+      "baselineSamplesMs": [
+        0.8522705000000315,
+        1.4823125000000346,
+        0.9721045000001141
+      ],
+      "candidateSamplesMs": [
+        0.7345419999999194,
+        0.7776455000000624,
+        0.8527295000001232
+      ],
+      "baselineMedianMs": 0.9721045000001141,
+      "candidateMedianMs": 0.7776455000000624,
+      "baselineMadMs": 0.1198340000000826,
+      "candidateMadMs": 0.04310350000014296,
+      "speedup": 1.250061242558513,
+      "baselineDeterministic": true,
+      "candidateDeterministic": true,
+      "baselineWithinRunExactSamples": [
+        null,
+        null,
+        null
+      ],
+      "candidateWithinRunExactSamples": [
+        null,
+        null,
+        null
+      ],
+      "baselineWithinRunExact": null,
+      "candidateWithinRunExact": null,
+      "withinRunExact": null,
+      "baselineFingerprint": "f24518b72af903e6110d6254e7e9d5f71211a4fda85c97f877fc096ce48f2a5e",
+      "candidateFingerprint": "bb52ad93673766fc6669fcc0cb8015610dd4948efd69281f8afc1eaedfa40b43",
+      "baselineBrokenCount": 0,
+      "candidateBrokenCount": 0,
+      "correctness": {
+        "correct": true,
+        "stateError": 7.296934922980212e-7,
+        "matrixError": 0,
+        "colorError": 0,
+        "lineError": 0,
+        "sameBreakCount": true,
+        "sameCounts": true,
+        "fidelityLimit": 0.002,
+        "renderLimit": 0.0005,
+        "withinRunExact": null
+      },
+      "decision": "accepted"
+    },
+    {
+      "id": 28,
+      "category": "cloth-wasm",
+      "sceneId": 630,
+      "engine": "soft",
+      "wasm": true,
+      "warmup": 12,
+      "iterations": 72,
+      "rain": 0,
+      "fidelityLimit": 0.002,
+      "sceneTitle": "Tempest Standard — Impact Demo",
+      "baselineSamplesMs": [
+        2.342604000000165,
+        1.8859374999999545,
+        2.279395999999906
+      ],
+      "candidateSamplesMs": [
+        1.6178330000000187,
+        1.5895210000001043,
+        1.6492295000000468
+      ],
+      "baselineMedianMs": 2.279395999999906,
+      "candidateMedianMs": 1.6178330000000187,
+      "baselineMadMs": 0.06320800000025883,
+      "candidateMadMs": 0.028311999999914406,
+      "speedup": 1.4089192147767289,
+      "baselineDeterministic": true,
+      "candidateDeterministic": true,
+      "baselineWithinRunExactSamples": [
+        null,
+        null,
+        null
+      ],
+      "candidateWithinRunExactSamples": [
+        null,
+        null,
+        null
+      ],
+      "baselineWithinRunExact": null,
+      "candidateWithinRunExact": null,
+      "withinRunExact": null,
+      "baselineFingerprint": "b3fa3022fe46f3ca28046a0acf44ab2c1055c12e2a05f48169434c8e0484355b",
+      "candidateFingerprint": "8c38926d35f612a2a1efb0aafe1d339dc08f73ad8be04e986eff86bd3a50f479",
+      "baselineBrokenCount": 0,
+      "candidateBrokenCount": 0,
+      "correctness": {
+        "correct": true,
+        "stateError": 1.2773261861592137e-7,
+        "matrixError": 0,
+        "colorError": 0,
+        "lineError": 0,
+        "sameBreakCount": true,
+        "sameCounts": true,
+        "fidelityLimit": 0.002,
+        "renderLimit": 0.0005,
+        "withinRunExact": null
+      },
+      "decision": "accepted"
+    },
+    {
+      "id": 29,
+      "category": "cloth-wasm",
+      "sceneId": 631,
+      "engine": "soft",
+      "wasm": true,
+      "warmup": 12,
+      "iterations": 72,
+      "rain": 0,
+      "fidelityLimit": 0.002,
+      "sceneTitle": "Royal Banner Wind Tunnel — Impact Demo",
+      "baselineSamplesMs": [
+        2.271250000000009,
+        2.5553330000000187,
+        2.447354500000074
+      ],
+      "candidateSamplesMs": [
+        1.7118124999999509,
+        1.5940625000000637,
+        1.7795624999998836
+      ],
+      "baselineMedianMs": 2.447354500000074,
+      "candidateMedianMs": 1.7118124999999509,
+      "baselineMadMs": 0.10797849999994469,
+      "candidateMadMs": 0.0677499999999327,
+      "speedup": 1.4296860783527077,
+      "baselineDeterministic": true,
+      "candidateDeterministic": true,
+      "baselineWithinRunExactSamples": [
+        null,
+        null,
+        null
+      ],
+      "candidateWithinRunExactSamples": [
+        null,
+        null,
+        null
+      ],
+      "baselineWithinRunExact": null,
+      "candidateWithinRunExact": null,
+      "withinRunExact": null,
+      "baselineFingerprint": "32b96612e8f42f03da75849d45979ea014e51253e409d93d63adea45162cbfc8",
+      "candidateFingerprint": "b0ce30eb5b1f587da0ef6969dad5fc3638d8fdc598721033bfb406c849659284",
+      "baselineBrokenCount": 0,
+      "candidateBrokenCount": 0,
+      "correctness": {
+        "correct": true,
+        "stateError": 8.306630144045663e-8,
+        "matrixError": 0,
+        "colorError": 0,
+        "lineError": 0,
+        "sameBreakCount": true,
+        "sameCounts": true,
+        "fidelityLimit": 0.002,
+        "renderLimit": 0.0005,
+        "withinRunExact": null
+      },
+      "decision": "accepted"
+    },
+    {
+      "id": 30,
+      "category": "cloth-wasm",
+      "sceneId": 632,
+      "engine": "soft",
+      "wasm": true,
+      "warmup": 12,
+      "iterations": 72,
+      "rain": 72,
+      "fidelityLimit": 0.002,
+      "sceneTitle": "Parachute Canopy Deployment — Impact Demo",
+      "baselineSamplesMs": [
+        3.0944375000003674,
+        2.6181665000003704,
+        2.4931455000000824
+      ],
+      "candidateSamplesMs": [
+        1.9915829999999914,
+        2.4098329999997077,
+        2.02481250000028
+      ],
+      "baselineMedianMs": 2.6181665000003704,
+      "candidateMedianMs": 2.02481250000028,
+      "baselineMadMs": 0.12502100000028804,
+      "candidateMadMs": 0.03322950000028868,
+      "speedup": 1.2930414544556634,
+      "baselineDeterministic": true,
+      "candidateDeterministic": true,
+      "baselineWithinRunExactSamples": [
+        null,
+        null,
+        null
+      ],
+      "candidateWithinRunExactSamples": [
+        null,
+        null,
+        null
+      ],
+      "baselineWithinRunExact": null,
+      "candidateWithinRunExact": null,
+      "withinRunExact": null,
+      "baselineFingerprint": "c4155750cdcbe23458b968f65a23ef221d0193656a921e16d301f59eaee62ce6",
+      "candidateFingerprint": "3b3a75fa6195b48acc94e9533da520cb7c932e4a511c372972652282dac9f5a6",
+      "baselineBrokenCount": 0,
+      "candidateBrokenCount": 0,
+      "correctness": {
+        "correct": true,
+        "stateError": 7.157408264754017e-7,
+        "matrixError": 0,
+        "colorError": 0,
+        "lineError": 0,
+        "sameBreakCount": true,
+        "sameCounts": true,
+        "fidelityLimit": 0.002,
+        "renderLimit": 0.0005,
+        "withinRunExact": null
+      },
+      "decision": "accepted"
+    },
+    {
+      "id": 31,
+      "category": "rope-wasm",
+      "sceneId": 650,
+      "engine": "soft",
+      "wasm": true,
+      "warmup": 12,
+      "iterations": 84,
+      "rain": 0,
+      "fidelityLimit": 0.0005,
+      "sceneTitle": "Sky Crane Cable Load — Baseline",
+      "baselineSamplesMs": [
+        0.12015266666670261,
+        0.2528333333333042,
+        0.10468066666665739
+      ],
+      "candidateSamplesMs": [
+        0.09886099999979099,
+        0.08024999999997817,
+        0.0768473333334138
+      ],
+      "baselineMedianMs": 0.12015266666670261,
+      "candidateMedianMs": 0.08024999999997817,
+      "baselineMadMs": 0.015472000000045227,
+      "candidateMadMs": 0.0034026666665643718,
+      "speedup": 1.4972294911742716,
+      "baselineDeterministic": true,
+      "candidateDeterministic": true,
+      "baselineWithinRunExactSamples": [
+        null,
+        null,
+        null
+      ],
+      "candidateWithinRunExactSamples": [
+        null,
+        null,
+        null
+      ],
+      "baselineWithinRunExact": null,
+      "candidateWithinRunExact": null,
+      "withinRunExact": null,
+      "baselineFingerprint": "11f931f21c88e06c431a1a2233e5624e95e9af7d9ed21866ab0dc2a6de5dbe3c",
+      "candidateFingerprint": "1df19b7111392af1a4ce399563952755631dc7957324b56eedcc912b564e6f68",
+      "baselineBrokenCount": 0,
+      "candidateBrokenCount": 0,
+      "correctness": {
+        "correct": true,
+        "stateError": 0.000003673918621555596,
+        "matrixError": 5.085000532582278e-7,
+        "colorError": 0,
+        "lineError": 0,
+        "sameBreakCount": true,
+        "sameCounts": true,
+        "fidelityLimit": 0.0005,
+        "renderLimit": 0.0005,
+        "withinRunExact": null
+      },
+      "decision": "accepted"
+    },
+    {
+      "id": 32,
+      "category": "rope-wasm",
+      "sceneId": 651,
+      "engine": "soft",
+      "wasm": true,
+      "warmup": 12,
+      "iterations": 84,
+      "rain": 0,
+      "fidelityLimit": 0.0005,
+      "sceneTitle": "Suspension Cable Bridge — Baseline",
+      "baselineSamplesMs": [
+        0.21552800000002512,
+        0.21020833333356373,
+        0.2124583333334158
+      ],
+      "candidateSamplesMs": [
+        0.14773633333334146,
+        0.15927799999978257,
+        0.15441666666659634
+      ],
+      "baselineMedianMs": 0.2124583333334158,
+      "candidateMedianMs": 0.15441666666659634,
+      "baselineMadMs": 0.0022499999998520648,
+      "candidateMadMs": 0.004861333333186224,
+      "speedup": 1.3758769562882627,
+      "baselineDeterministic": true,
+      "candidateDeterministic": true,
+      "baselineWithinRunExactSamples": [
+        null,
+        null,
+        null
+      ],
+      "candidateWithinRunExactSamples": [
+        null,
+        null,
+        null
+      ],
+      "baselineWithinRunExact": null,
+      "candidateWithinRunExact": null,
+      "withinRunExact": null,
+      "baselineFingerprint": "95d3d68002a7f643790c87270a1b275dae0fd79d07e17ad21c01fd2a8dbaf4d6",
+      "candidateFingerprint": "a75a344cb552ca1663a1877d1079a7dd90f28316e94f145e991c8f5169313ed3",
+      "baselineBrokenCount": 0,
+      "candidateBrokenCount": 0,
+      "correctness": {
+        "correct": true,
+        "stateError": 0.0000025934039574153853,
+        "matrixError": 0,
+        "colorError": 0,
+        "lineError": 0,
+        "sameBreakCount": true,
+        "sameCounts": true,
+        "fidelityLimit": 0.0005,
+        "renderLimit": 0.0005,
+        "withinRunExact": null
+      },
+      "decision": "accepted"
+    },
+    {
+      "id": 33,
+      "category": "rope-wasm",
+      "sceneId": 652,
+      "engine": "soft",
+      "wasm": true,
+      "warmup": 12,
+      "iterations": 84,
+      "rain": 0,
+      "fidelityLimit": 0.0005,
+      "sceneTitle": "Heavy Pendulum Strike — Baseline",
+      "baselineSamplesMs": [
+        0.11199999999977688,
+        0.11083333333347885,
+        0.12106933333325287
+      ],
+      "candidateSamplesMs": [
+        0.08205566666674713,
+        0.0818056666666962,
+        0.08465299999988929
+      ],
+      "baselineMedianMs": 0.11199999999977688,
+      "candidateMedianMs": 0.08205566666674713,
+      "baselineMadMs": 0.0011666666662980274,
+      "candidateMadMs": 0.0002500000000509317,
+      "speedup": 1.3649270617060822,
+      "baselineDeterministic": true,
+      "candidateDeterministic": true,
+      "baselineWithinRunExactSamples": [
+        null,
+        null,
+        null
+      ],
+      "candidateWithinRunExactSamples": [
+        null,
+        null,
+        null
+      ],
+      "baselineWithinRunExact": null,
+      "candidateWithinRunExact": null,
+      "withinRunExact": null,
+      "baselineFingerprint": "7149e5307c0b6657bd2b6d03f358da48084e31b7aaf14076e26eea464db9c615",
+      "candidateFingerprint": "da08422ccbc60fac0d4072243023cd5938e77bd05e0dc18699f36044bccb6be9",
+      "baselineBrokenCount": 0,
+      "candidateBrokenCount": 0,
+      "correctness": {
+        "correct": true,
+        "stateError": 0.00000428328159204928,
+        "matrixError": 0.0000010754230884007095,
+        "colorError": 0,
+        "lineError": 0,
+        "sameBreakCount": true,
+        "sameCounts": true,
+        "fidelityLimit": 0.0005,
+        "renderLimit": 0.0005,
+        "withinRunExact": null
+      },
+      "decision": "accepted"
+    },
+    {
+      "id": 34,
+      "category": "rope-wasm",
+      "sceneId": 653,
+      "engine": "soft",
+      "wasm": true,
+      "warmup": 12,
+      "iterations": 84,
+      "rain": 0,
+      "fidelityLimit": 0.0005,
+      "sceneTitle": "Industrial Rope Ladder — Baseline",
+      "baselineSamplesMs": [
+        0.21545833333342065,
+        0.18795833333327513,
+        0.21291666666669093
+      ],
+      "candidateSamplesMs": [
+        0.16129166666693587,
+        0.15649999999974776,
+        0.1510693333333014
+      ],
+      "baselineMedianMs": 0.21291666666669093,
+      "candidateMedianMs": 0.15649999999974776,
+      "baselineMadMs": 0.002541666666729725,
+      "candidateMadMs": 0.00479166666718811,
+      "speedup": 1.360489882856448,
+      "baselineDeterministic": true,
+      "candidateDeterministic": true,
+      "baselineWithinRunExactSamples": [
+        null,
+        null,
+        null
+      ],
+      "candidateWithinRunExactSamples": [
+        null,
+        null,
+        null
+      ],
+      "baselineWithinRunExact": null,
+      "candidateWithinRunExact": null,
+      "withinRunExact": null,
+      "baselineFingerprint": "6780a46d7fca7de9df9c9ee01e673c670c16118436fdde4ab8de97089dd1d1dd",
+      "candidateFingerprint": "eb7994742f8cbed29879840ff939a907efb77f9fc33baac0beca9b9992fd9cc7",
+      "baselineBrokenCount": 0,
+      "candidateBrokenCount": 0,
+      "correctness": {
+        "correct": true,
+        "stateError": 0.0000031626087523927603,
+        "matrixError": 0,
+        "colorError": 0,
+        "lineError": 0,
+        "sameBreakCount": true,
+        "sameCounts": true,
+        "fidelityLimit": 0.0005,
+        "renderLimit": 0.0005,
+        "withinRunExact": null
+      },
+      "decision": "accepted"
+    },
+    {
+      "id": 35,
+      "category": "rope-wasm",
+      "sceneId": 654,
+      "engine": "soft",
+      "wasm": true,
+      "warmup": 12,
+      "iterations": 84,
+      "rain": 0,
+      "fidelityLimit": 0.0005,
+      "sceneTitle": "Four-Point Mooring Array — Baseline",
+      "baselineSamplesMs": [
+        0.3316389999999956,
+        0.2920416666665915,
+        0.1559863333335064
+      ],
+      "candidateSamplesMs": [
+        0.15202766666667836,
+        0.15056933333350267,
+        0.14644433333311704
+      ],
+      "baselineMedianMs": 0.2920416666665915,
+      "candidateMedianMs": 0.15056933333350267,
+      "baselineMadMs": 0.039597333333404094,
+      "candidateMadMs": 0.0014583333331756876,
+      "speedup": 1.9395826507362923,
+      "baselineDeterministic": true,
+      "candidateDeterministic": true,
+      "baselineWithinRunExactSamples": [
+        null,
+        null,
+        null
+      ],
+      "candidateWithinRunExactSamples": [
+        null,
+        null,
+        null
+      ],
+      "baselineWithinRunExact": null,
+      "candidateWithinRunExact": null,
+      "withinRunExact": null,
+      "baselineFingerprint": "995dd910606df74216f830197e947dcf6f7ddce2676bd977934c91dae6909b16",
+      "candidateFingerprint": "bca84bcc447f932e7c47415ace98502b88eee74b9d40f4850984d7a5ce521e87",
+      "baselineBrokenCount": 4,
+      "candidateBrokenCount": 4,
+      "correctness": {
+        "correct": true,
+        "stateError": 0.0000029703281614289702,
+        "matrixError": 4.838595439905247e-7,
+        "colorError": 0,
+        "lineError": 0,
+        "sameBreakCount": true,
+        "sameCounts": true,
+        "fidelityLimit": 0.0005,
+        "renderLimit": 0.0005,
+        "withinRunExact": null
+      },
+      "decision": "accepted"
+    },
+    {
+      "id": 36,
+      "category": "rope-wasm",
+      "sceneId": 655,
+      "engine": "soft",
+      "wasm": true,
+      "warmup": 12,
+      "iterations": 84,
+      "rain": 0,
+      "fidelityLimit": 0.0005,
+      "sceneTitle": "Cable Curtain Failure — Baseline",
+      "baselineSamplesMs": [
+        0.5874166666665891,
+        0.5950276666665862,
+        0.5681666666666084
+      ],
+      "candidateSamplesMs": [
+        0.3728473333333871,
+        0.4269860000000942,
+        0.3888470000001689
+      ],
+      "baselineMedianMs": 0.5874166666665891,
+      "candidateMedianMs": 0.3888470000001689,
+      "baselineMadMs": 0.007610999999997148,
+      "candidateMadMs": 0.01599966666678182,
+      "speedup": 1.5106627199549796,
+      "baselineDeterministic": true,
+      "candidateDeterministic": true,
+      "baselineWithinRunExactSamples": [
+        null,
+        null,
+        null
+      ],
+      "candidateWithinRunExactSamples": [
+        null,
+        null,
+        null
+      ],
+      "baselineWithinRunExact": null,
+      "candidateWithinRunExact": null,
+      "withinRunExact": null,
+      "baselineFingerprint": "282320d54da84e739f27ad78631878e8cfde629797db603fd60e09bcf77236bc",
+      "candidateFingerprint": "057871746f1c7940f853a4d0d91afd05c8b913b2a8804e1c9c0757f748ebaea7",
+      "baselineBrokenCount": 0,
+      "candidateBrokenCount": 0,
+      "correctness": {
+        "correct": true,
+        "stateError": 0.0000019185510125696147,
+        "matrixError": 0,
+        "colorError": 0,
+        "lineError": 0,
+        "sameBreakCount": true,
+        "sameCounts": true,
+        "fidelityLimit": 0.0005,
+        "renderLimit": 0.0005,
+        "withinRunExact": null
+      },
+      "decision": "accepted"
+    },
+    {
+      "id": 37,
+      "category": "rope-wasm",
+      "sceneId": 656,
+      "engine": "soft",
+      "wasm": true,
+      "warmup": 12,
+      "iterations": 84,
+      "rain": 0,
+      "fidelityLimit": 0.0005,
+      "sceneTitle": "High-Speed Zipline — Baseline",
+      "baselineSamplesMs": [
+        0.10193066666670347,
+        0.11936100000002625,
+        0.09991666666640715
+      ],
+      "candidateSamplesMs": [
+        0.07686100000015965,
+        0.08023633333323232,
+        0.07962500000000243
+      ],
+      "baselineMedianMs": 0.10193066666670347,
+      "candidateMedianMs": 0.07962500000000243,
+      "baselineMadMs": 0.0020140000002963204,
+      "candidateMadMs": 0.0006113333332298937,
+      "speedup": 1.2801339612772415,
+      "baselineDeterministic": true,
+      "candidateDeterministic": true,
+      "baselineWithinRunExactSamples": [
+        null,
+        null,
+        null
+      ],
+      "candidateWithinRunExactSamples": [
+        null,
+        null,
+        null
+      ],
+      "baselineWithinRunExact": null,
+      "candidateWithinRunExact": null,
+      "withinRunExact": null,
+      "baselineFingerprint": "76e58ff8a642e856f2ad4debfdc7616db48123cb13789bd10b0bd559cceb9f91",
+      "candidateFingerprint": "f7396fb36537af5c33965c6ae90101f1d685564cfa8443f89e4fe03633e6f887",
+      "baselineBrokenCount": 0,
+      "candidateBrokenCount": 0,
+      "correctness": {
+        "correct": true,
+        "stateError": 0.0000033504936877778503,
+        "matrixError": 0.000006816407272595078,
+        "colorError": 0,
+        "lineError": 0,
+        "sameBreakCount": true,
+        "sameCounts": true,
+        "fidelityLimit": 0.0005,
+        "renderLimit": 0.0005,
+        "withinRunExact": null
+      },
+      "decision": "accepted"
+    },
+    {
+      "id": 38,
+      "category": "rope-wasm",
+      "sceneId": 657,
+      "engine": "soft",
+      "wasm": true,
+      "warmup": 12,
+      "iterations": 84,
+      "rain": 96,
+      "fidelityLimit": 0.0005,
+      "sceneTitle": "Grappling Line Tension — Baseline",
+      "baselineSamplesMs": [
+        0.2008749999998448,
+        0.14194433333341294,
+        0.18319433333332805
+      ],
+      "candidateSamplesMs": [
+        0.15704166666667638,
+        0.15305566666665982,
+        0.14365266666663956
+      ],
+      "baselineMedianMs": 0.18319433333332805,
+      "candidateMedianMs": 0.15305566666665982,
+      "baselineMadMs": 0.017680666666516742,
+      "candidateMadMs": 0.00398600000001656,
+      "speedup": 1.1969131056892346,
+      "baselineDeterministic": true,
+      "candidateDeterministic": true,
+      "baselineWithinRunExactSamples": [
+        null,
+        null,
+        null
+      ],
+      "candidateWithinRunExactSamples": [
+        null,
+        null,
+        null
+      ],
+      "baselineWithinRunExact": null,
+      "candidateWithinRunExact": null,
+      "withinRunExact": null,
+      "baselineFingerprint": "8c437cbb9e4693868977ae689b7a3a6f90f33567fe44a3f706caad60cd96bbd2",
+      "candidateFingerprint": "165b39785ceb4b25257e9796c7bac5399ff576afc6c614810868b453759a443d",
+      "baselineBrokenCount": 0,
+      "candidateBrokenCount": 0,
+      "correctness": {
+        "correct": true,
+        "stateError": 0.000002962394886104566,
+        "matrixError": 3.11353720171208e-8,
+        "colorError": 0,
+        "lineError": 0,
+        "sameBreakCount": true,
+        "sameCounts": true,
+        "fidelityLimit": 0.0005,
+        "renderLimit": 0.0005,
+        "withinRunExact": null
+      },
+      "decision": "accepted"
+    },
+    {
+      "id": 39,
+      "category": "rope-wasm",
+      "sceneId": 658,
+      "engine": "soft",
+      "wasm": true,
+      "warmup": 12,
+      "iterations": 84,
+      "rain": 0,
+      "fidelityLimit": 0.0005,
+      "sceneTitle": "Multi-Sling Rigging Test — Baseline",
+      "baselineSamplesMs": [
+        0.5294026666667074,
+        0.5229723333332004,
+        0.22687499999998786
+      ],
+      "candidateSamplesMs": [
+        0.1562223333333653,
+        0.15023633333324446,
+        0.1471386666668574
+      ],
+      "baselineMedianMs": 0.5229723333332004,
+      "candidateMedianMs": 0.15023633333324446,
+      "baselineMadMs": 0.006430333333507066,
+      "candidateMadMs": 0.0030976666663870556,
+      "speedup": 3.4809977169316104,
+      "baselineDeterministic": true,
+      "candidateDeterministic": true,
+      "baselineWithinRunExactSamples": [
+        null,
+        null,
+        null
+      ],
+      "candidateWithinRunExactSamples": [
+        null,
+        null,
+        null
+      ],
+      "baselineWithinRunExact": null,
+      "candidateWithinRunExact": null,
+      "withinRunExact": null,
+      "baselineFingerprint": "2fb23436a662ab72ae37610c0593aca6030cd70f9eda8b3d96713c79416dbd0f",
+      "candidateFingerprint": "10486aa08228dc69c553c1ef52363226d4c5e5801148f6effcd5672cb764da67",
+      "baselineBrokenCount": 4,
+      "candidateBrokenCount": 4,
+      "correctness": {
+        "correct": true,
+        "stateError": 0.000003901554808369113,
+        "matrixError": 4.624394711897114e-7,
+        "colorError": 0,
+        "lineError": 0,
+        "sameBreakCount": true,
+        "sameCounts": true,
+        "fidelityLimit": 0.0005,
+        "renderLimit": 0.0005,
+        "withinRunExact": null
+      },
+      "decision": "accepted"
+    },
+    {
+      "id": 40,
+      "category": "rope-wasm",
+      "sceneId": 659,
+      "engine": "soft",
+      "wasm": true,
+      "warmup": 12,
+      "iterations": 84,
+      "rain": 0,
+      "fidelityLimit": 0.0005,
+      "sceneTitle": "Rope Net Resonance — Baseline",
+      "baselineSamplesMs": [
+        0.5233889999999519,
+        0.46716666666664725,
+        0.4527500000000752
+      ],
+      "candidateSamplesMs": [
+        0.3824166666666618,
+        0.36690266666664684,
+        0.3928333333333285
+      ],
+      "baselineMedianMs": 0.46716666666664725,
+      "candidateMedianMs": 0.3824166666666618,
+      "baselineMadMs": 0.014416666666572042,
+      "candidateMadMs": 0.010416666666666685,
+      "speedup": 1.221616910002144,
+      "baselineDeterministic": true,
+      "candidateDeterministic": true,
+      "baselineWithinRunExactSamples": [
+        null,
+        null,
+        null
+      ],
+      "candidateWithinRunExactSamples": [
+        null,
+        null,
+        null
+      ],
+      "baselineWithinRunExact": null,
+      "candidateWithinRunExact": null,
+      "withinRunExact": null,
+      "baselineFingerprint": "7d748723e46702074a26b6e4dcd2e9d348a8b78c1df3a4c8518b3021b32f1f57",
+      "candidateFingerprint": "e6152468ef59eccfb8964e1dc18fce3f5271111389b1d4723b059ddcb12f89af",
+      "baselineBrokenCount": 0,
+      "candidateBrokenCount": 0,
+      "correctness": {
+        "correct": true,
+        "stateError": 0.000004317277711005057,
+        "matrixError": 0,
+        "colorError": 0,
+        "lineError": 0,
+        "sameBreakCount": true,
+        "sameCounts": true,
+        "fidelityLimit": 0.0005,
+        "renderLimit": 0.0005,
+        "withinRunExact": null
+      },
+      "decision": "accepted"
+    },
+    {
+      "id": 41,
+      "category": "rope-wasm",
+      "sceneId": 660,
+      "engine": "soft",
+      "wasm": true,
+      "warmup": 12,
+      "iterations": 84,
+      "rain": 0,
+      "fidelityLimit": 0.0005,
+      "sceneTitle": "Sky Crane Cable Load — High Stress",
+      "baselineSamplesMs": [
+        0.08481966666658991,
+        0.10998600000008689,
+        0.10619466666685184
+      ],
+      "candidateSamplesMs": [
+        0.0875973333334817,
+        0.07472199999998945,
+        0.07970833333335274
+      ],
+      "baselineMedianMs": 0.10619466666685184,
+      "candidateMedianMs": 0.07970833333335274,
+      "baselineMadMs": 0.0037913333332350446,
+      "candidateMadMs": 0.004986333333363291,
+      "speedup": 1.3322906429711572,
+      "baselineDeterministic": true,
+      "candidateDeterministic": true,
+      "baselineWithinRunExactSamples": [
+        null,
+        null,
+        null
+      ],
+      "candidateWithinRunExactSamples": [
+        null,
+        null,
+        null
+      ],
+      "baselineWithinRunExact": null,
+      "candidateWithinRunExact": null,
+      "withinRunExact": null,
+      "baselineFingerprint": "11f931f21c88e06c431a1a2233e5624e95e9af7d9ed21866ab0dc2a6de5dbe3c",
+      "candidateFingerprint": "1df19b7111392af1a4ce399563952755631dc7957324b56eedcc912b564e6f68",
+      "baselineBrokenCount": 0,
+      "candidateBrokenCount": 0,
+      "correctness": {
+        "correct": true,
+        "stateError": 0.000003673918621555596,
+        "matrixError": 5.085000532582278e-7,
+        "colorError": 0,
+        "lineError": 0,
+        "sameBreakCount": true,
+        "sameCounts": true,
+        "fidelityLimit": 0.0005,
+        "renderLimit": 0.0005,
+        "withinRunExact": null
+      },
+      "decision": "accepted"
+    },
+    {
+      "id": 42,
+      "category": "rope-wasm",
+      "sceneId": 661,
+      "engine": "soft",
+      "wasm": true,
+      "warmup": 12,
+      "iterations": 84,
+      "rain": 0,
+      "fidelityLimit": 0.0005,
+      "sceneTitle": "Suspension Cable Bridge — High Stress",
+      "baselineSamplesMs": [
+        0.20366666666662545,
+        0.20472200000009858,
+        0.20443033333322091
+      ],
+      "candidateSamplesMs": [
+        0.15869433333349056,
+        0.15251400000003437,
+        0.1491249999999127
+      ],
+      "baselineMedianMs": 0.20443033333322091,
+      "candidateMedianMs": 0.15251400000003437,
+      "baselineMadMs": 0.0002916666668776602,
+      "candidateMadMs": 0.0033890000001216836,
+      "speedup": 1.3404037224987533,
+      "baselineDeterministic": true,
+      "candidateDeterministic": true,
+      "baselineWithinRunExactSamples": [
+        null,
+        null,
+        null
+      ],
+      "candidateWithinRunExactSamples": [
+        null,
+        null,
+        null
+      ],
+      "baselineWithinRunExact": null,
+      "candidateWithinRunExact": null,
+      "withinRunExact": null,
+      "baselineFingerprint": "95d3d68002a7f643790c87270a1b275dae0fd79d07e17ad21c01fd2a8dbaf4d6",
+      "candidateFingerprint": "a75a344cb552ca1663a1877d1079a7dd90f28316e94f145e991c8f5169313ed3",
+      "baselineBrokenCount": 0,
+      "candidateBrokenCount": 0,
+      "correctness": {
+        "correct": true,
+        "stateError": 0.0000025934039574153853,
+        "matrixError": 0,
+        "colorError": 0,
+        "lineError": 0,
+        "sameBreakCount": true,
+        "sameCounts": true,
+        "fidelityLimit": 0.0005,
+        "renderLimit": 0.0005,
+        "withinRunExact": null
+      },
+      "decision": "accepted"
+    },
+    {
+      "id": 43,
+      "category": "rope-wasm",
+      "sceneId": 662,
+      "engine": "soft",
+      "wasm": true,
+      "warmup": 12,
+      "iterations": 84,
+      "rain": 0,
+      "fidelityLimit": 0.0005,
+      "sceneTitle": "Heavy Pendulum Strike — High Stress",
+      "baselineSamplesMs": [
+        0.10686100000020815,
+        0.10954166666670062,
+        0.11376366666657607
+      ],
+      "candidateSamplesMs": [
+        0.08518066666662587,
+        0.08619466666671845,
+        0.07904166666685342
+      ],
+      "baselineMedianMs": 0.10954166666670062,
+      "candidateMedianMs": 0.08518066666662587,
+      "baselineMadMs": 0.0026806666664924705,
+      "candidateMadMs": 0.0010140000000925797,
+      "speedup": 1.2859921265399006,
+      "baselineDeterministic": true,
+      "candidateDeterministic": true,
+      "baselineWithinRunExactSamples": [
+        null,
+        null,
+        null
+      ],
+      "candidateWithinRunExactSamples": [
+        null,
+        null,
+        null
+      ],
+      "baselineWithinRunExact": null,
+      "candidateWithinRunExact": null,
+      "withinRunExact": null,
+      "baselineFingerprint": "7149e5307c0b6657bd2b6d03f358da48084e31b7aaf14076e26eea464db9c615",
+      "candidateFingerprint": "da08422ccbc60fac0d4072243023cd5938e77bd05e0dc18699f36044bccb6be9",
+      "baselineBrokenCount": 0,
+      "candidateBrokenCount": 0,
+      "correctness": {
+        "correct": true,
+        "stateError": 0.00000428328159204928,
+        "matrixError": 0.0000010754230884007095,
+        "colorError": 0,
+        "lineError": 0,
+        "sameBreakCount": true,
+        "sameCounts": true,
+        "fidelityLimit": 0.0005,
+        "renderLimit": 0.0005,
+        "withinRunExact": null
+      },
+      "decision": "accepted"
+    },
+    {
+      "id": 44,
+      "category": "rope-wasm",
+      "sceneId": 663,
+      "engine": "soft",
+      "wasm": true,
+      "warmup": 12,
+      "iterations": 84,
+      "rain": 0,
+      "fidelityLimit": 0.0005,
+      "sceneTitle": "Industrial Rope Ladder — High Stress",
+      "baselineSamplesMs": [
+        0.23380566666673985,
+        0.18920833333322662,
+        0.2204583333335298
+      ],
+      "candidateSamplesMs": [
+        0.15988866666672644,
+        0.15780566666671803,
+        0.15899999999995393
+      ],
+      "baselineMedianMs": 0.2204583333335298,
+      "candidateMedianMs": 0.15899999999995393,
+      "baselineMadMs": 0.01334733333321006,
+      "candidateMadMs": 0.0008886666667725085,
+      "speedup": 1.3865303983244885,
+      "baselineDeterministic": true,
+      "candidateDeterministic": true,
+      "baselineWithinRunExactSamples": [
+        null,
+        null,
+        null
+      ],
+      "candidateWithinRunExactSamples": [
+        null,
+        null,
+        null
+      ],
+      "baselineWithinRunExact": null,
+      "candidateWithinRunExact": null,
+      "withinRunExact": null,
+      "baselineFingerprint": "6780a46d7fca7de9df9c9ee01e673c670c16118436fdde4ab8de97089dd1d1dd",
+      "candidateFingerprint": "eb7994742f8cbed29879840ff939a907efb77f9fc33baac0beca9b9992fd9cc7",
+      "baselineBrokenCount": 0,
+      "candidateBrokenCount": 0,
+      "correctness": {
+        "correct": true,
+        "stateError": 0.0000031626087523927603,
+        "matrixError": 0,
+        "colorError": 0,
+        "lineError": 0,
+        "sameBreakCount": true,
+        "sameCounts": true,
+        "fidelityLimit": 0.0005,
+        "renderLimit": 0.0005,
+        "withinRunExact": null
+      },
+      "decision": "accepted"
+    },
+    {
+      "id": 45,
+      "category": "rope-wasm",
+      "sceneId": 664,
+      "engine": "soft",
+      "wasm": true,
+      "warmup": 12,
+      "iterations": 84,
+      "rain": 0,
+      "fidelityLimit": 0.0005,
+      "sceneTitle": "Four-Point Mooring Array — High Stress",
+      "baselineSamplesMs": [
+        0.22319433333329167,
+        0.46529166666672,
+        0.1481113333332663
+      ],
+      "candidateSamplesMs": [
+        0.14538899999994706,
+        0.14012499999989814,
+        0.1427219999998973
+      ],
+      "baselineMedianMs": 0.22319433333329167,
+      "candidateMedianMs": 0.1427219999998973,
+      "baselineMadMs": 0.07508300000002538,
+      "candidateMadMs": 0.0025969999999991555,
+      "speedup": 1.563839725714692,
+      "baselineDeterministic": true,
+      "candidateDeterministic": true,
+      "baselineWithinRunExactSamples": [
+        null,
+        null,
+        null
+      ],
+      "candidateWithinRunExactSamples": [
+        null,
+        null,
+        null
+      ],
+      "baselineWithinRunExact": null,
+      "candidateWithinRunExact": null,
+      "withinRunExact": null,
+      "baselineFingerprint": "995dd910606df74216f830197e947dcf6f7ddce2676bd977934c91dae6909b16",
+      "candidateFingerprint": "bca84bcc447f932e7c47415ace98502b88eee74b9d40f4850984d7a5ce521e87",
+      "baselineBrokenCount": 4,
+      "candidateBrokenCount": 4,
+      "correctness": {
+        "correct": true,
+        "stateError": 0.0000029703281614289702,
+        "matrixError": 4.838595439905247e-7,
+        "colorError": 0,
+        "lineError": 0,
+        "sameBreakCount": true,
+        "sameCounts": true,
+        "fidelityLimit": 0.0005,
+        "renderLimit": 0.0005,
+        "withinRunExact": null
+      },
+      "decision": "accepted"
+    },
+    {
+      "id": 46,
+      "category": "rope-wasm",
+      "sceneId": 665,
+      "engine": "soft",
+      "wasm": true,
+      "warmup": 12,
+      "iterations": 84,
+      "rain": 96,
+      "fidelityLimit": 0.0005,
+      "sceneTitle": "Cable Curtain Failure — High Stress",
+      "baselineSamplesMs": [
+        0.634180666666604,
+        0.5931389999999132,
+        0.6740140000001702
+      ],
+      "candidateSamplesMs": [
+        0.4149166666666133,
+        0.4944306666666307,
+        0.48940266666674387
+      ],
+      "baselineMedianMs": 0.634180666666604,
+      "candidateMedianMs": 0.48940266666674387,
+      "baselineMadMs": 0.0398333333335662,
+      "candidateMadMs": 0.005027999999886845,
+      "speedup": 1.2958259320201986,
+      "baselineDeterministic": true,
+      "candidateDeterministic": true,
+      "baselineWithinRunExactSamples": [
+        null,
+        null,
+        null
+      ],
+      "candidateWithinRunExactSamples": [
+        null,
+        null,
+        null
+      ],
+      "baselineWithinRunExact": null,
+      "candidateWithinRunExact": null,
+      "withinRunExact": null,
+      "baselineFingerprint": "e87eaa8a9df269dc7eefa63ce4406b9c1c83f727f53111e1d591e55e82dfe657",
+      "candidateFingerprint": "5434949fd66f36230a1b68146c9e68387df69265e228affe39010383ea4ce2b0",
+      "baselineBrokenCount": 0,
+      "candidateBrokenCount": 0,
+      "correctness": {
+        "correct": true,
+        "stateError": 0.0000018994916848498067,
+        "matrixError": 0,
+        "colorError": 0,
+        "lineError": 0,
+        "sameBreakCount": true,
+        "sameCounts": true,
+        "fidelityLimit": 0.0005,
+        "renderLimit": 0.0005,
+        "withinRunExact": null
+      },
+      "decision": "accepted"
+    },
+    {
+      "id": 47,
+      "category": "rope-wasm",
+      "sceneId": 666,
+      "engine": "soft",
+      "wasm": true,
+      "warmup": 12,
+      "iterations": 84,
+      "rain": 0,
+      "fidelityLimit": 0.0005,
+      "sceneTitle": "High-Speed Zipline — High Stress",
+      "baselineSamplesMs": [
+        0.11284733333316883,
+        0.11184733333357144,
+        0.08609733333347928
+      ],
+      "candidateSamplesMs": [
+        0.07805566666653856,
+        0.08316666666663271,
+        0.07923633333333176
+      ],
+      "baselineMedianMs": 0.11184733333357144,
+      "candidateMedianMs": 0.07923633333333176,
+      "baselineMadMs": 0.0009999999995973924,
+      "candidateMadMs": 0.0011806666667932009,
+      "speedup": 1.4115662427620368,
+      "baselineDeterministic": true,
+      "candidateDeterministic": true,
+      "baselineWithinRunExactSamples": [
+        null,
+        null,
+        null
+      ],
+      "candidateWithinRunExactSamples": [
+        null,
+        null,
+        null
+      ],
+      "baselineWithinRunExact": null,
+      "candidateWithinRunExact": null,
+      "withinRunExact": null,
+      "baselineFingerprint": "76e58ff8a642e856f2ad4debfdc7616db48123cb13789bd10b0bd559cceb9f91",
+      "candidateFingerprint": "f7396fb36537af5c33965c6ae90101f1d685564cfa8443f89e4fe03633e6f887",
+      "baselineBrokenCount": 0,
+      "candidateBrokenCount": 0,
+      "correctness": {
+        "correct": true,
+        "stateError": 0.0000033504936877778503,
+        "matrixError": 0.000006816407272595078,
+        "colorError": 0,
+        "lineError": 0,
+        "sameBreakCount": true,
+        "sameCounts": true,
+        "fidelityLimit": 0.0005,
+        "renderLimit": 0.0005,
+        "withinRunExact": null
+      },
+      "decision": "accepted"
+    },
+    {
+      "id": 48,
+      "category": "rope-wasm",
+      "sceneId": 667,
+      "engine": "soft",
+      "wasm": true,
+      "warmup": 12,
+      "iterations": 84,
+      "rain": 0,
+      "fidelityLimit": 0.0005,
+      "sceneTitle": "Grappling Line Tension — High Stress",
+      "baselineSamplesMs": [
+        0.10930566666653856,
+        0.10895833333355161,
+        0.1121666666664775
+      ],
+      "candidateSamplesMs": [
+        0.07758333333337457,
+        0.07777766666670989,
+        0.07737500000015037
+      ],
+      "baselineMedianMs": 0.10930566666653856,
+      "candidateMedianMs": 0.07758333333337457,
+      "baselineMadMs": 0.0003473333329869488,
+      "candidateMadMs": 0.00019433333333532254,
+      "speedup": 1.4088807733595763,
+      "baselineDeterministic": true,
+      "candidateDeterministic": true,
+      "baselineWithinRunExactSamples": [
+        null,
+        null,
+        null
+      ],
+      "candidateWithinRunExactSamples": [
+        null,
+        null,
+        null
+      ],
+      "baselineWithinRunExact": null,
+      "candidateWithinRunExact": null,
+      "withinRunExact": null,
+      "baselineFingerprint": "368c31c27ec35a2ce8572f1e7da2990348d8bb25c283196faf0df09a96854767",
+      "candidateFingerprint": "914afa73ec773cfe18dc5a3cff4dddf14e273e2e467261dd80bbed38863082fa",
+      "baselineBrokenCount": 0,
+      "candidateBrokenCount": 0,
+      "correctness": {
+        "correct": true,
+        "stateError": 0.000002962394886104566,
+        "matrixError": 0.0000011435057353938135,
+        "colorError": 0,
+        "lineError": 0,
+        "sameBreakCount": true,
+        "sameCounts": true,
+        "fidelityLimit": 0.0005,
+        "renderLimit": 0.0005,
+        "withinRunExact": null
+      },
+      "decision": "accepted"
+    },
+    {
+      "id": 49,
+      "category": "rope-wasm",
+      "sceneId": 668,
+      "engine": "soft",
+      "wasm": true,
+      "warmup": 12,
+      "iterations": 84,
+      "rain": 0,
+      "fidelityLimit": 0.0005,
+      "sceneTitle": "Multi-Sling Rigging Test — High Stress",
+      "baselineSamplesMs": [
+        0.23388866666664399,
+        0.3003053333331991,
+        0.23720833333330424
+      ],
+      "candidateSamplesMs": [
+        0.15412500000002183,
+        0.15140266666670263,
+        0.15320833333347159
+      ],
+      "baselineMedianMs": 0.23720833333330424,
+      "candidateMedianMs": 0.15320833333347159,
+      "baselineMadMs": 0.0033196666666602537,
+      "candidateMadMs": 0.0009166666665502421,
+      "speedup": 1.548273048679403,
+      "baselineDeterministic": true,
+      "candidateDeterministic": true,
+      "baselineWithinRunExactSamples": [
+        null,
+        null,
+        null
+      ],
+      "candidateWithinRunExactSamples": [
+        null,
+        null,
+        null
+      ],
+      "baselineWithinRunExact": null,
+      "candidateWithinRunExact": null,
+      "withinRunExact": null,
+      "baselineFingerprint": "2fb23436a662ab72ae37610c0593aca6030cd70f9eda8b3d96713c79416dbd0f",
+      "candidateFingerprint": "10486aa08228dc69c553c1ef52363226d4c5e5801148f6effcd5672cb764da67",
+      "baselineBrokenCount": 4,
+      "candidateBrokenCount": 4,
+      "correctness": {
+        "correct": true,
+        "stateError": 0.000003901554808369113,
+        "matrixError": 4.624394711897114e-7,
+        "colorError": 0,
+        "lineError": 0,
+        "sameBreakCount": true,
+        "sameCounts": true,
+        "fidelityLimit": 0.0005,
+        "renderLimit": 0.0005,
+        "withinRunExact": null
+      },
+      "decision": "accepted"
+    },
+    {
+      "id": 50,
+      "category": "rope-wasm",
+      "sceneId": 669,
+      "engine": "soft",
+      "wasm": true,
+      "warmup": 12,
+      "iterations": 84,
+      "rain": 0,
+      "fidelityLimit": 0.0005,
+      "sceneTitle": "Rope Net Resonance — High Stress",
+      "baselineSamplesMs": [
+        0.505833333333309,
+        0.5017223333331154,
+        0.4135416666664848
+      ],
+      "candidateSamplesMs": [
+        0.37981966666666267,
+        0.38501400000010716,
+        0.3715276666668312
+      ],
+      "baselineMedianMs": 0.5017223333331154,
+      "candidateMedianMs": 0.37981966666666267,
+      "baselineMadMs": 0.004111000000193599,
+      "candidateMadMs": 0.00519433333344449,
+      "speedup": 1.3209488011410346,
+      "baselineDeterministic": true,
+      "candidateDeterministic": true,
+      "baselineWithinRunExactSamples": [
+        null,
+        null,
+        null
+      ],
+      "candidateWithinRunExactSamples": [
+        null,
+        null,
+        null
+      ],
+      "baselineWithinRunExact": null,
+      "candidateWithinRunExact": null,
+      "withinRunExact": null,
+      "baselineFingerprint": "7d748723e46702074a26b6e4dcd2e9d348a8b78c1df3a4c8518b3021b32f1f57",
+      "candidateFingerprint": "e6152468ef59eccfb8964e1dc18fce3f5271111389b1d4723b059ddcb12f89af",
+      "baselineBrokenCount": 0,
+      "candidateBrokenCount": 0,
+      "correctness": {
+        "correct": true,
+        "stateError": 0.000004317277711005057,
+        "matrixError": 0,
+        "colorError": 0,
+        "lineError": 0,
+        "sameBreakCount": true,
+        "sameCounts": true,
+        "fidelityLimit": 0.0005,
+        "renderLimit": 0.0005,
+        "withinRunExact": null
+      },
+      "decision": "accepted"
+    },
+    {
+      "id": 51,
+      "category": "rope-wasm",
+      "sceneId": 670,
+      "engine": "soft",
+      "wasm": true,
+      "warmup": 12,
+      "iterations": 84,
+      "rain": 0,
+      "fidelityLimit": 0.0005,
+      "sceneTitle": "Sky Crane Cable Load — Precision",
+      "baselineSamplesMs": [
+        0.08033333333332848,
+        0.10795833333334788,
+        0.11716666666658664
+      ],
+      "candidateSamplesMs": [
+        0.08044433333331351,
+        0.08551399999972394,
+        0.07944433333310978
+      ],
+      "baselineMedianMs": 0.10795833333334788,
+      "candidateMedianMs": 0.08044433333331351,
+      "baselineMadMs": 0.009208333333238755,
+      "candidateMadMs": 0.0010000000002037268,
+      "speedup": 1.3420253342896473,
+      "baselineDeterministic": true,
+      "candidateDeterministic": true,
+      "baselineWithinRunExactSamples": [
+        null,
+        null,
+        null
+      ],
+      "candidateWithinRunExactSamples": [
+        null,
+        null,
+        null
+      ],
+      "baselineWithinRunExact": null,
+      "candidateWithinRunExact": null,
+      "withinRunExact": null,
+      "baselineFingerprint": "11f931f21c88e06c431a1a2233e5624e95e9af7d9ed21866ab0dc2a6de5dbe3c",
+      "candidateFingerprint": "1df19b7111392af1a4ce399563952755631dc7957324b56eedcc912b564e6f68",
+      "baselineBrokenCount": 0,
+      "candidateBrokenCount": 0,
+      "correctness": {
+        "correct": true,
+        "stateError": 0.000003673918621555596,
+        "matrixError": 5.085000532582278e-7,
+        "colorError": 0,
+        "lineError": 0,
+        "sameBreakCount": true,
+        "sameCounts": true,
+        "fidelityLimit": 0.0005,
+        "renderLimit": 0.0005,
+        "withinRunExact": null
+      },
+      "decision": "accepted"
+    },
+    {
+      "id": 52,
+      "category": "rope-wasm",
+      "sceneId": 671,
+      "engine": "soft",
+      "wasm": true,
+      "warmup": 12,
+      "iterations": 84,
+      "rain": 0,
+      "fidelityLimit": 0.0005,
+      "sceneTitle": "Suspension Cable Bridge — Precision",
+      "baselineSamplesMs": [
+        0.22604166666648476,
+        0.18843066666674227,
+        0.2273056666666283
+      ],
+      "candidateSamplesMs": [
+        0.15722233333356903,
+        0.152208333333571,
+        0.15287500000007034
+      ],
+      "baselineMedianMs": 0.22604166666648476,
+      "candidateMedianMs": 0.15287500000007034,
+      "baselineMadMs": 0.0012640000001435392,
+      "candidateMadMs": 0.0006666666664993381,
+      "speedup": 1.4786045243916974,
+      "baselineDeterministic": true,
+      "candidateDeterministic": true,
+      "baselineWithinRunExactSamples": [
+        null,
+        null,
+        null
+      ],
+      "candidateWithinRunExactSamples": [
+        null,
+        null,
+        null
+      ],
+      "baselineWithinRunExact": null,
+      "candidateWithinRunExact": null,
+      "withinRunExact": null,
+      "baselineFingerprint": "95d3d68002a7f643790c87270a1b275dae0fd79d07e17ad21c01fd2a8dbaf4d6",
+      "candidateFingerprint": "a75a344cb552ca1663a1877d1079a7dd90f28316e94f145e991c8f5169313ed3",
+      "baselineBrokenCount": 0,
+      "candidateBrokenCount": 0,
+      "correctness": {
+        "correct": true,
+        "stateError": 0.0000025934039574153853,
+        "matrixError": 0,
+        "colorError": 0,
+        "lineError": 0,
+        "sameBreakCount": true,
+        "sameCounts": true,
+        "fidelityLimit": 0.0005,
+        "renderLimit": 0.0005,
+        "withinRunExact": null
+      },
+      "decision": "accepted"
+    },
+    {
+      "id": 53,
+      "category": "rope-wasm",
+      "sceneId": 672,
+      "engine": "soft",
+      "wasm": true,
+      "warmup": 12,
+      "iterations": 84,
+      "rain": 0,
+      "fidelityLimit": 0.0005,
+      "sceneTitle": "Heavy Pendulum Strike — Precision",
+      "baselineSamplesMs": [
+        0.09643033333334945,
+        0.10870833333350068,
+        0.09333333333324845
+      ],
+      "candidateSamplesMs": [
+        0.07956933333328682,
+        0.07773599999988316,
+        0.07369466666690035
+      ],
+      "baselineMedianMs": 0.09643033333334945,
+      "candidateMedianMs": 0.07773599999988316,
+      "baselineMadMs": 0.003097000000101005,
+      "candidateMadMs": 0.0018333333334036583,
+      "speedup": 1.2404848890281772,
+      "baselineDeterministic": true,
+      "candidateDeterministic": true,
+      "baselineWithinRunExactSamples": [
+        null,
+        null,
+        null
+      ],
+      "candidateWithinRunExactSamples": [
+        null,
+        null,
+        null
+      ],
+      "baselineWithinRunExact": null,
+      "candidateWithinRunExact": null,
+      "withinRunExact": null,
+      "baselineFingerprint": "7149e5307c0b6657bd2b6d03f358da48084e31b7aaf14076e26eea464db9c615",
+      "candidateFingerprint": "da08422ccbc60fac0d4072243023cd5938e77bd05e0dc18699f36044bccb6be9",
+      "baselineBrokenCount": 0,
+      "candidateBrokenCount": 0,
+      "correctness": {
+        "correct": true,
+        "stateError": 0.00000428328159204928,
+        "matrixError": 0.0000010754230884007095,
+        "colorError": 0,
+        "lineError": 0,
+        "sameBreakCount": true,
+        "sameCounts": true,
+        "fidelityLimit": 0.0005,
+        "renderLimit": 0.0005,
+        "withinRunExact": null
+      },
+      "decision": "accepted"
+    },
+    {
+      "id": 54,
+      "category": "rope-wasm",
+      "sceneId": 673,
+      "engine": "soft",
+      "wasm": true,
+      "warmup": 12,
+      "iterations": 84,
+      "rain": 96,
+      "fidelityLimit": 0.0005,
+      "sceneTitle": "Industrial Rope Ladder — Precision",
+      "baselineSamplesMs": [
+        0.29137500000009214,
+        0.25243066666644154,
+        0.2996110000000651
+      ],
+      "candidateSamplesMs": [
+        0.21722199999991668,
+        0.2156806666665337,
+        0.20401399999991554
+      ],
+      "baselineMedianMs": 0.29137500000009214,
+      "candidateMedianMs": 0.2156806666665337,
+      "baselineMadMs": 0.008235999999972932,
+      "candidateMadMs": 0.001541333333382966,
+      "speedup": 1.3509555793917787,
+      "baselineDeterministic": true,
+      "candidateDeterministic": true,
+      "baselineWithinRunExactSamples": [
+        null,
+        null,
+        null
+      ],
+      "candidateWithinRunExactSamples": [
+        null,
+        null,
+        null
+      ],
+      "baselineWithinRunExact": null,
+      "candidateWithinRunExact": null,
+      "withinRunExact": null,
+      "baselineFingerprint": "9dec3f8fd1adfc0bf83f800a93f63015ba29fafb0634e1604cb2854ffa822733",
+      "candidateFingerprint": "41b3756cf21b5d575266f6c86bb6abe0bbda734b802b8941cf0bd8bc8cd89950",
+      "baselineBrokenCount": 0,
+      "candidateBrokenCount": 0,
+      "correctness": {
+        "correct": true,
+        "stateError": 0.0000031626087523927603,
+        "matrixError": 0,
+        "colorError": 0,
+        "lineError": 0,
+        "sameBreakCount": true,
+        "sameCounts": true,
+        "fidelityLimit": 0.0005,
+        "renderLimit": 0.0005,
+        "withinRunExact": null
+      },
+      "decision": "accepted"
+    },
+    {
+      "id": 55,
+      "category": "rope-wasm",
+      "sceneId": 674,
+      "engine": "soft",
+      "wasm": true,
+      "warmup": 12,
+      "iterations": 84,
+      "rain": 0,
+      "fidelityLimit": 0.0005,
+      "sceneTitle": "Four-Point Mooring Array — Precision",
+      "baselineSamplesMs": [
+        0.21975000000020373,
+        0.31091666666664725,
+        0.15343066666658464
+      ],
+      "candidateSamplesMs": [
+        0.14804166666666183,
+        0.14570833333345945,
+        0.13994433333330866
+      ],
+      "baselineMedianMs": 0.21975000000020373,
+      "candidateMedianMs": 0.14570833333345945,
+      "baselineMadMs": 0.06631933333361908,
+      "candidateMadMs": 0.0023333333332023753,
+      "speedup": 1.5081498427224262,
+      "baselineDeterministic": true,
+      "candidateDeterministic": true,
+      "baselineWithinRunExactSamples": [
+        null,
+        null,
+        null
+      ],
+      "candidateWithinRunExactSamples": [
+        null,
+        null,
+        null
+      ],
+      "baselineWithinRunExact": null,
+      "candidateWithinRunExact": null,
+      "withinRunExact": null,
+      "baselineFingerprint": "995dd910606df74216f830197e947dcf6f7ddce2676bd977934c91dae6909b16",
+      "candidateFingerprint": "bca84bcc447f932e7c47415ace98502b88eee74b9d40f4850984d7a5ce521e87",
+      "baselineBrokenCount": 4,
+      "candidateBrokenCount": 4,
+      "correctness": {
+        "correct": true,
+        "stateError": 0.0000029703281614289702,
+        "matrixError": 4.838595439905247e-7,
+        "colorError": 0,
+        "lineError": 0,
+        "sameBreakCount": true,
+        "sameCounts": true,
+        "fidelityLimit": 0.0005,
+        "renderLimit": 0.0005,
+        "withinRunExact": null
+      },
+      "decision": "accepted"
+    },
+    {
+      "id": 56,
+      "category": "fallback",
+      "sceneId": 49,
+      "engine": "fallback",
+      "warmup": 6,
+      "iterations": 24,
+      "rain": 0,
+      "explode": false,
+      "fidelityLimit": 0.005,
+      "sceneTitle": "Cross-Laminated Block Grid — Cinematic",
+      "baselineSamplesMs": [
+        1.3665835000001607,
+        0.9461875000001783,
+        1.80724999999984
+      ],
+      "candidateSamplesMs": [
+        0.8562710000001061,
+        0.6300624999998945,
+        0.8674170000003869
+      ],
+      "baselineMedianMs": 1.3665835000001607,
+      "candidateMedianMs": 0.8562710000001061,
+      "baselineMadMs": 0.42039599999998245,
+      "candidateMadMs": 0.011146000000280765,
+      "speedup": 1.5959707849500815,
+      "baselineDeterministic": true,
+      "candidateDeterministic": true,
+      "baselineWithinRunExactSamples": [
+        null,
+        null,
+        null
+      ],
+      "candidateWithinRunExactSamples": [
+        null,
+        null,
+        null
+      ],
+      "baselineWithinRunExact": null,
+      "candidateWithinRunExact": null,
+      "withinRunExact": null,
+      "baselineFingerprint": "705df7d4dbd46451408dcbe1e18796cc3a025aa1dc88f27f040d0128d8a325b1",
+      "candidateFingerprint": "705df7d4dbd46451408dcbe1e18796cc3a025aa1dc88f27f040d0128d8a325b1",
+      "baselineBrokenCount": 0,
+      "candidateBrokenCount": 0,
+      "correctness": {
+        "correct": true,
+        "stateError": 0,
+        "matrixError": 0,
+        "colorError": 0,
+        "lineError": 0,
+        "sameBreakCount": true,
+        "sameCounts": true,
+        "fidelityLimit": 0.005,
+        "renderLimit": 0.005,
+        "withinRunExact": null
+      },
+      "decision": "accepted"
+    },
+    {
+      "id": 57,
+      "category": "fallback",
+      "sceneId": 99,
+      "engine": "fallback",
+      "warmup": 6,
+      "iterations": 24,
+      "rain": 0,
+      "explode": false,
+      "fidelityLimit": 0.005,
+      "sceneTitle": "Thin-Body Stability Trial — Cinematic",
+      "baselineSamplesMs": [
+        0.3241040000002613,
+        0.5352920000000267,
+        0.4900414999997338
+      ],
+      "candidateSamplesMs": [
+        0.5698334999997314,
+        0.3046039999999266,
+        0.5772704999999405
+      ],
+      "baselineMedianMs": 0.4900414999997338,
+      "candidateMedianMs": 0.5698334999997314,
+      "baselineMadMs": 0.04525050000029296,
+      "candidateMadMs": 0.007437000000209082,
+      "speedup": 0.8599731325026779,
+      "baselineDeterministic": true,
+      "candidateDeterministic": true,
+      "baselineWithinRunExactSamples": [
+        null,
+        null,
+        null
+      ],
+      "candidateWithinRunExactSamples": [
+        null,
+        null,
+        null
+      ],
+      "baselineWithinRunExact": null,
+      "candidateWithinRunExact": null,
+      "withinRunExact": null,
+      "baselineFingerprint": "74a4930623f662d4cb56f45f00e1a5c40ec37ed330966206b1fe09acefbfd31e",
+      "candidateFingerprint": "74a4930623f662d4cb56f45f00e1a5c40ec37ed330966206b1fe09acefbfd31e",
+      "baselineBrokenCount": 0,
+      "candidateBrokenCount": 0,
+      "correctness": {
+        "correct": true,
+        "stateError": 0,
+        "matrixError": 0,
+        "colorError": 0,
+        "lineError": 0,
+        "sameBreakCount": true,
+        "sameCounts": true,
+        "fidelityLimit": 0.005,
+        "renderLimit": 0.005,
+        "withinRunExact": null
+      },
+      "decision": "rejected-no-win"
+    },
+    {
+      "id": 58,
+      "category": "fallback",
+      "sceneId": 149,
+      "engine": "fallback",
+      "warmup": 6,
+      "iterations": 24,
+      "rain": 0,
+      "explode": false,
+      "fidelityLimit": 0.005,
+      "sceneTitle": "Needle Spire Shake Test — Cinematic",
+      "baselineSamplesMs": [
+        0.9852289999998902,
+        0.9215625000001637,
+        2.104396000000179
+      ],
+      "candidateSamplesMs": [
+        1.2671249999998508,
+        2.2910415000001194,
+        0.7158750000003238
+      ],
+      "baselineMedianMs": 0.9852289999998902,
+      "candidateMedianMs": 1.2671249999998508,
+      "baselineMadMs": 0.06366649999972651,
+      "candidateMadMs": 0.5512499999995271,
+      "speedup": 0.7775310249580792,
+      "baselineDeterministic": true,
+      "candidateDeterministic": true,
+      "baselineWithinRunExactSamples": [
+        null,
+        null,
+        null
+      ],
+      "candidateWithinRunExactSamples": [
+        null,
+        null,
+        null
+      ],
+      "baselineWithinRunExact": null,
+      "candidateWithinRunExact": null,
+      "withinRunExact": null,
+      "baselineFingerprint": "aed58bc11ec7cd44df33209bd4f0864ae1ce267fa219126c47addabff5ab93ef",
+      "candidateFingerprint": "aed58bc11ec7cd44df33209bd4f0864ae1ce267fa219126c47addabff5ab93ef",
+      "baselineBrokenCount": 0,
+      "candidateBrokenCount": 0,
+      "correctness": {
+        "correct": true,
+        "stateError": 0,
+        "matrixError": 0,
+        "colorError": 0,
+        "lineError": 0,
+        "sameBreakCount": true,
+        "sameCounts": true,
+        "fidelityLimit": 0.005,
+        "renderLimit": 0.005,
+        "withinRunExact": null
+      },
+      "decision": "rejected-no-win"
+    },
+    {
+      "id": 59,
+      "category": "fallback",
+      "sceneId": 199,
+      "engine": "fallback",
+      "warmup": 6,
+      "iterations": 24,
+      "rain": 0,
+      "explode": false,
+      "fidelityLimit": 0.005,
+      "sceneTitle": "Multi-Pier Viaduct — Cinematic",
+      "baselineSamplesMs": [
+        0.2365210000002662,
+        0.7179999999998472,
+        0.6553954999999405
+      ],
+      "candidateSamplesMs": [
+        0.7191459999999097,
+        0.67706249999992,
+        0.4967914999997447
+      ],
+      "baselineMedianMs": 0.6553954999999405,
+      "candidateMedianMs": 0.67706249999992,
+      "baselineMadMs": 0.0626044999999067,
+      "candidateMadMs": 0.042083499999989726,
+      "speedup": 0.9679985230315045,
+      "baselineDeterministic": true,
+      "candidateDeterministic": true,
+      "baselineWithinRunExactSamples": [
+        null,
+        null,
+        null
+      ],
+      "candidateWithinRunExactSamples": [
+        null,
+        null,
+        null
+      ],
+      "baselineWithinRunExact": null,
+      "candidateWithinRunExact": null,
+      "withinRunExact": null,
+      "baselineFingerprint": "fd400f50316d2c7b4a7d554507fdfaa8b0ce3b8d30fad6b47ba017e22048fc2f",
+      "candidateFingerprint": "fd400f50316d2c7b4a7d554507fdfaa8b0ce3b8d30fad6b47ba017e22048fc2f",
+      "baselineBrokenCount": 0,
+      "candidateBrokenCount": 0,
+      "correctness": {
+        "correct": true,
+        "stateError": 0,
+        "matrixError": 0,
+        "colorError": 0,
+        "lineError": 0,
+        "sameBreakCount": true,
+        "sameCounts": true,
+        "fidelityLimit": 0.005,
+        "renderLimit": 0.005,
+        "withinRunExact": null
+      },
+      "decision": "rejected-no-win"
+    },
+    {
+      "id": 60,
+      "category": "fallback",
+      "sceneId": 249,
+      "engine": "fallback",
+      "warmup": 6,
+      "iterations": 24,
+      "rain": 0,
+      "explode": true,
+      "fidelityLimit": 0.005,
+      "sceneTitle": "Energy Loss Arena — Cinematic",
+      "baselineSamplesMs": [
+        0.6515205000000606,
+        0.5854789999998502,
+        0.3009165000003122
+      ],
+      "candidateSamplesMs": [
+        0.3183125000000473,
+        0.5770415000001776,
+        0.6079585000002226
+      ],
+      "baselineMedianMs": 0.5854789999998502,
+      "candidateMedianMs": 0.5770415000001776,
+      "baselineMadMs": 0.06604150000021036,
+      "candidateMadMs": 0.030917000000044936,
+      "speedup": 1.0146219985905174,
+      "baselineDeterministic": true,
+      "candidateDeterministic": true,
+      "baselineWithinRunExactSamples": [
+        null,
+        null,
+        null
+      ],
+      "candidateWithinRunExactSamples": [
+        null,
+        null,
+        null
+      ],
+      "baselineWithinRunExact": null,
+      "candidateWithinRunExact": null,
+      "withinRunExact": null,
+      "baselineFingerprint": "bb43be9cc7054210740cba583899d71cb43ef18491d8e44537e690b32ec2a8a5",
+      "candidateFingerprint": "bb43be9cc7054210740cba583899d71cb43ef18491d8e44537e690b32ec2a8a5",
+      "baselineBrokenCount": 0,
+      "candidateBrokenCount": 0,
+      "correctness": {
+        "correct": true,
+        "stateError": 0,
+        "matrixError": 0,
+        "colorError": 0,
+        "lineError": 0,
+        "sameBreakCount": true,
+        "sameCounts": true,
+        "fidelityLimit": 0.005,
+        "renderLimit": 0.005,
+        "withinRunExact": null
+      },
+      "decision": "borderline"
+    },
+    {
+      "id": 61,
+      "category": "fallback",
+      "sceneId": 299,
+      "engine": "fallback",
+      "warmup": 6,
+      "iterations": 24,
+      "rain": 180,
+      "explode": false,
+      "fidelityLimit": 0.005,
+      "sceneTitle": "Dense Core Rain Column — Cinematic",
+      "baselineSamplesMs": [
+        0.9453539999999521,
+        1.7830414999998538,
+        0.5369375000000218
+      ],
+      "candidateSamplesMs": [
+        1.2483750000001237,
+        0.6563335000000734,
+        0.8803750000001855
+      ],
+      "baselineMedianMs": 0.9453539999999521,
+      "candidateMedianMs": 0.8803750000001855,
+      "baselineMadMs": 0.40841649999993024,
+      "candidateMadMs": 0.22404150000011214,
+      "speedup": 1.0738083203177655,
+      "baselineDeterministic": true,
+      "candidateDeterministic": true,
+      "baselineWithinRunExactSamples": [
+        null,
+        null,
+        null
+      ],
+      "candidateWithinRunExactSamples": [
+        null,
+        null,
+        null
+      ],
+      "baselineWithinRunExact": null,
+      "candidateWithinRunExact": null,
+      "withinRunExact": null,
+      "baselineFingerprint": "92c209b01fe45839ee07101c086f64a9ef1f94fe498b2e7f6ee6fd658bdffcc0",
+      "candidateFingerprint": "92c209b01fe45839ee07101c086f64a9ef1f94fe498b2e7f6ee6fd658bdffcc0",
+      "baselineBrokenCount": 0,
+      "candidateBrokenCount": 0,
+      "correctness": {
+        "correct": true,
+        "stateError": 0,
+        "matrixError": 0,
+        "colorError": 0,
+        "lineError": 0,
+        "sameBreakCount": true,
+        "sameCounts": true,
+        "fidelityLimit": 0.005,
+        "renderLimit": 0.005,
+        "withinRunExact": null
+      },
+      "decision": "accepted"
+    },
+    {
+      "id": 62,
+      "category": "fallback",
+      "sceneId": 349,
+      "engine": "fallback",
+      "warmup": 6,
+      "iterations": 24,
+      "rain": 0,
+      "explode": false,
+      "fidelityLimit": 0.005,
+      "sceneTitle": "Progressive Collapse Theater — Cinematic",
+      "baselineSamplesMs": [
+        1.0690830000003189,
+        0.4419585000000552,
+        1.67706249999992
+      ],
+      "candidateSamplesMs": [
+        0.3570209999998042,
+        1.1649164999998902,
+        0.6635625000003529
+      ],
+      "baselineMedianMs": 1.0690830000003189,
+      "candidateMedianMs": 0.6635625000003529,
+      "baselineMadMs": 0.6079794999996011,
+      "candidateMadMs": 0.3065415000005487,
+      "speedup": 1.6111263068659702,
+      "baselineDeterministic": true,
+      "candidateDeterministic": true,
+      "baselineWithinRunExactSamples": [
+        null,
+        null,
+        null
+      ],
+      "candidateWithinRunExactSamples": [
+        null,
+        null,
+        null
+      ],
+      "baselineWithinRunExact": null,
+      "candidateWithinRunExact": null,
+      "withinRunExact": null,
+      "baselineFingerprint": "0aec932820be84fd43cfdda726daa5379190a5e62f97a4298422e917b1a135b8",
+      "candidateFingerprint": "0aec932820be84fd43cfdda726daa5379190a5e62f97a4298422e917b1a135b8",
+      "baselineBrokenCount": 0,
+      "candidateBrokenCount": 0,
+      "correctness": {
+        "correct": true,
+        "stateError": 0,
+        "matrixError": 0,
+        "colorError": 0,
+        "lineError": 0,
+        "sameBreakCount": true,
+        "sameCounts": true,
+        "fidelityLimit": 0.005,
+        "renderLimit": 0.005,
+        "withinRunExact": null
+      },
+      "decision": "accepted"
+    },
+    {
+      "id": 63,
+      "category": "fallback",
+      "sceneId": 399,
+      "engine": "fallback",
+      "warmup": 6,
+      "iterations": 24,
+      "rain": 0,
+      "explode": false,
+      "fidelityLimit": 0.005,
+      "sceneTitle": "Heavy Hauler Load Shift — Cinematic",
+      "baselineSamplesMs": [
+        0.10345849999976053,
+        0.3009584999999788,
+        0.3061250000000655
+      ],
+      "candidateSamplesMs": [
+        0.29287499999963984,
+        0.28958300000022064,
+        0.29729150000002846
+      ],
+      "baselineMedianMs": 0.3009584999999788,
+      "candidateMedianMs": 0.29287499999963984,
+      "baselineMadMs": 0.005166500000086671,
+      "candidateMadMs": 0.003291999999419204,
+      "speedup": 1.0276005121650837,
+      "baselineDeterministic": true,
+      "candidateDeterministic": true,
+      "baselineWithinRunExactSamples": [
+        null,
+        null,
+        null
+      ],
+      "candidateWithinRunExactSamples": [
+        null,
+        null,
+        null
+      ],
+      "baselineWithinRunExact": null,
+      "candidateWithinRunExact": null,
+      "withinRunExact": null,
+      "baselineFingerprint": "df7cb99466dfcf5417032d6161b51e61686d621a40e0dacec1944d572234ae24",
+      "candidateFingerprint": "df7cb99466dfcf5417032d6161b51e61686d621a40e0dacec1944d572234ae24",
+      "baselineBrokenCount": 0,
+      "candidateBrokenCount": 0,
+      "correctness": {
+        "correct": true,
+        "stateError": 0,
+        "matrixError": 0,
+        "colorError": 0,
+        "lineError": 0,
+        "sameBreakCount": true,
+        "sameCounts": true,
+        "fidelityLimit": 0.005,
+        "renderLimit": 0.005,
+        "withinRunExact": null
+      },
+      "decision": "borderline"
+    },
+    {
+      "id": 64,
+      "category": "fallback",
+      "sceneId": 449,
+      "engine": "fallback",
+      "warmup": 6,
+      "iterations": 24,
+      "rain": 0,
+      "explode": false,
+      "fidelityLimit": 0.005,
+      "sceneTitle": "Physics Toy Museum — Cinematic",
+      "baselineSamplesMs": [
+        0.5972704999999223,
+        0.3337295000001177,
+        0.605333000000428
+      ],
+      "candidateSamplesMs": [
+        0.31570849999980055,
+        0.5651459999999133,
+        0.5594164999997702
+      ],
+      "baselineMedianMs": 0.5972704999999223,
+      "candidateMedianMs": 0.5594164999997702,
+      "baselineMadMs": 0.008062500000505679,
+      "candidateMadMs": 0.005729500000143162,
+      "speedup": 1.0676669351014274,
+      "baselineDeterministic": true,
+      "candidateDeterministic": true,
+      "baselineWithinRunExactSamples": [
+        null,
+        null,
+        null
+      ],
+      "candidateWithinRunExactSamples": [
+        null,
+        null,
+        null
+      ],
+      "baselineWithinRunExact": null,
+      "candidateWithinRunExact": null,
+      "withinRunExact": null,
+      "baselineFingerprint": "32078231a69076c883d601a2a4ccfde260d4a7cb5fd744b2142afb0ccf4c7413",
+      "candidateFingerprint": "32078231a69076c883d601a2a4ccfde260d4a7cb5fd744b2142afb0ccf4c7413",
+      "baselineBrokenCount": 0,
+      "candidateBrokenCount": 0,
+      "correctness": {
+        "correct": true,
+        "stateError": 0,
+        "matrixError": 0,
+        "colorError": 0,
+        "lineError": 0,
+        "sameBreakCount": true,
+        "sameCounts": true,
+        "fidelityLimit": 0.005,
+        "renderLimit": 0.005,
+        "withinRunExact": null
+      },
+      "decision": "accepted"
+    },
+    {
+      "id": 65,
+      "category": "fallback",
+      "sceneId": 499,
+      "engine": "fallback",
+      "warmup": 6,
+      "iterations": 24,
+      "rain": 0,
+      "explode": true,
+      "fidelityLimit": 0.005,
+      "sceneTitle": "Foundation Block Layout — Cinematic",
+      "baselineSamplesMs": [
+        0.6338329999998678,
+        0.4348330000002534,
+        0.2050624999997126
+      ],
+      "candidateSamplesMs": [
+        0.2840000000001055,
+        0.22014549999994415,
+        0.5676455000002534
+      ],
+      "baselineMedianMs": 0.4348330000002534,
+      "candidateMedianMs": 0.2840000000001055,
+      "baselineMadMs": 0.19899999999961437,
+      "candidateMadMs": 0.06385450000016135,
+      "speedup": 1.5311021126763797,
+      "baselineDeterministic": true,
+      "candidateDeterministic": true,
+      "baselineWithinRunExactSamples": [
+        null,
+        null,
+        null
+      ],
+      "candidateWithinRunExactSamples": [
+        null,
+        null,
+        null
+      ],
+      "baselineWithinRunExact": null,
+      "candidateWithinRunExact": null,
+      "withinRunExact": null,
+      "baselineFingerprint": "07f74808db09d27d190b7e23a57f43f85ed8867de6bb0c8173df73cd20a47eaa",
+      "candidateFingerprint": "07f74808db09d27d190b7e23a57f43f85ed8867de6bb0c8173df73cd20a47eaa",
+      "baselineBrokenCount": 0,
+      "candidateBrokenCount": 0,
+      "correctness": {
+        "correct": true,
+        "stateError": 0,
+        "matrixError": 0,
+        "colorError": 0,
+        "lineError": 0,
+        "sameBreakCount": true,
+        "sameCounts": true,
+        "fidelityLimit": 0.005,
+        "renderLimit": 0.005,
+        "withinRunExact": null
+      },
+      "decision": "accepted"
+    },
+    {
+      "id": 66,
+      "category": "fallback",
+      "sceneId": 549,
+      "engine": "fallback",
+      "warmup": 6,
+      "iterations": 24,
+      "rain": 0,
+      "explode": false,
+      "fidelityLimit": 0.005,
+      "sceneTitle": "Inventory Earthquake Proxy — Cinematic",
+      "baselineSamplesMs": [
+        0.8653540000000248,
+        0.8394164999999703,
+        1.3962914999997338
+      ],
+      "candidateSamplesMs": [
+        0.6621454999999514,
+        0.7997919999997976,
+        0.647874999999658
+      ],
+      "baselineMedianMs": 0.8653540000000248,
+      "candidateMedianMs": 0.6621454999999514,
+      "baselineMadMs": 0.02593750000005457,
+      "candidateMadMs": 0.014270500000293396,
+      "speedup": 1.3068940285784443,
+      "baselineDeterministic": true,
+      "candidateDeterministic": true,
+      "baselineWithinRunExactSamples": [
+        null,
+        null,
+        null
+      ],
+      "candidateWithinRunExactSamples": [
+        null,
+        null,
+        null
+      ],
+      "baselineWithinRunExact": null,
+      "candidateWithinRunExact": null,
+      "withinRunExact": null,
+      "baselineFingerprint": "b3ad0015002caba98368d5648b4df5b3fde13ebe01434b874af2e6370313be10",
+      "candidateFingerprint": "b3ad0015002caba98368d5648b4df5b3fde13ebe01434b874af2e6370313be10",
+      "baselineBrokenCount": 0,
+      "candidateBrokenCount": 0,
+      "correctness": {
+        "correct": true,
+        "stateError": 0,
+        "matrixError": 0,
+        "colorError": 0,
+        "lineError": 0,
+        "sameBreakCount": true,
+        "sameCounts": true,
+        "fidelityLimit": 0.005,
+        "renderLimit": 0.005,
+        "withinRunExact": null
+      },
+      "decision": "accepted"
+    },
+    {
+      "id": 67,
+      "category": "fallback",
+      "sceneId": 599,
+      "engine": "fallback",
+      "warmup": 6,
+      "iterations": 24,
+      "rain": 0,
+      "explode": false,
+      "fidelityLimit": 0.005,
+      "sceneTitle": "Mega Structure Showcase — Cinematic",
+      "baselineSamplesMs": [
+        0.24414549999983137,
+        0.555145999999695,
+        0.19733350000024075
+      ],
+      "candidateSamplesMs": [
+        0.7116040000000794,
+        0.7651875000001382,
+        0.47375000000010914
+      ],
+      "baselineMedianMs": 0.24414549999983137,
+      "candidateMedianMs": 0.7116040000000794,
+      "baselineMadMs": 0.046811999999590626,
+      "candidateMadMs": 0.05358350000005885,
+      "speedup": 0.34309180386816845,
+      "baselineDeterministic": true,
+      "candidateDeterministic": true,
+      "baselineWithinRunExactSamples": [
+        null,
+        null,
+        null
+      ],
+      "candidateWithinRunExactSamples": [
+        null,
+        null,
+        null
+      ],
+      "baselineWithinRunExact": null,
+      "candidateWithinRunExact": null,
+      "withinRunExact": null,
+      "baselineFingerprint": "312296dfb4cb794e2799b232b5478a70f3c0cc6ad92a99b8acbfb1f9dbeaa865",
+      "candidateFingerprint": "312296dfb4cb794e2799b232b5478a70f3c0cc6ad92a99b8acbfb1f9dbeaa865",
+      "baselineBrokenCount": 0,
+      "candidateBrokenCount": 0,
+      "correctness": {
+        "correct": true,
+        "stateError": 0,
+        "matrixError": 0,
+        "colorError": 0,
+        "lineError": 0,
+        "sameBreakCount": true,
+        "sameCounts": true,
+        "fidelityLimit": 0.005,
+        "renderLimit": 0.005,
+        "withinRunExact": null
+      },
+      "decision": "rejected-no-win"
+    },
+    {
+      "id": 68,
+      "category": "fallback",
+      "sceneId": 190,
+      "engine": "fallback",
+      "warmup": 6,
+      "iterations": 24,
+      "rain": 0,
+      "explode": false,
+      "fidelityLimit": 0.005,
+      "sceneTitle": "Bridge Load Test — Cinematic",
+      "baselineSamplesMs": [
+        0.40168750000020736,
+        0.37283350000006976,
+        0.4003539999998793
+      ],
+      "candidateSamplesMs": [
+        0.16395850000026257,
+        0.3800419999997757,
+        0.36197900000024674
+      ],
+      "baselineMedianMs": 0.4003539999998793,
+      "candidateMedianMs": 0.36197900000024674,
+      "baselineMadMs": 0.0013335000003280584,
+      "candidateMadMs": 0.018062999999528984,
+      "speedup": 1.106014437300524,
+      "baselineDeterministic": true,
+      "candidateDeterministic": true,
+      "baselineWithinRunExactSamples": [
+        null,
+        null,
+        null
+      ],
+      "candidateWithinRunExactSamples": [
+        null,
+        null,
+        null
+      ],
+      "baselineWithinRunExact": null,
+      "candidateWithinRunExact": null,
+      "withinRunExact": null,
+      "baselineFingerprint": "a7363602df87d2204b29f55b98c99b25804df6c5c45099eb606cd3e3f5703b36",
+      "candidateFingerprint": "a7363602df87d2204b29f55b98c99b25804df6c5c45099eb606cd3e3f5703b36",
+      "baselineBrokenCount": 0,
+      "candidateBrokenCount": 0,
+      "correctness": {
+        "correct": true,
+        "stateError": 0,
+        "matrixError": 0,
+        "colorError": 0,
+        "lineError": 0,
+        "sameBreakCount": true,
+        "sameCounts": true,
+        "fidelityLimit": 0.005,
+        "renderLimit": 0.005,
+        "withinRunExact": null
+      },
+      "decision": "accepted"
+    },
+    {
+      "id": 69,
+      "category": "fallback",
+      "sceneId": 240,
+      "engine": "fallback",
+      "warmup": 6,
+      "iterations": 24,
+      "rain": 0,
+      "explode": false,
+      "fidelityLimit": 0.005,
+      "sceneTitle": "Material Bounce Lab — Cinematic",
+      "baselineSamplesMs": [
+        0.16629150000017034,
+        0.47195800000008603,
+        0.5138539999998102
+      ],
+      "candidateSamplesMs": [
+        0.4664794999998776,
+        0.19510399999990113,
+        0.5139170000002196
+      ],
+      "baselineMedianMs": 0.47195800000008603,
+      "candidateMedianMs": 0.4664794999998776,
+      "baselineMadMs": 0.041895999999724154,
+      "candidateMadMs": 0.04743750000034197,
+      "speedup": 1.011744353182101,
+      "baselineDeterministic": true,
+      "candidateDeterministic": true,
+      "baselineWithinRunExactSamples": [
+        null,
+        null,
+        null
+      ],
+      "candidateWithinRunExactSamples": [
+        null,
+        null,
+        null
+      ],
+      "baselineWithinRunExact": null,
+      "candidateWithinRunExact": null,
+      "withinRunExact": null,
+      "baselineFingerprint": "9250e14ca5b309a4fbdedab998a27211e78ac724168c15f67db5bbfe73601695",
+      "candidateFingerprint": "9250e14ca5b309a4fbdedab998a27211e78ac724168c15f67db5bbfe73601695",
+      "baselineBrokenCount": 0,
+      "candidateBrokenCount": 0,
+      "correctness": {
+        "correct": true,
+        "stateError": 0,
+        "matrixError": 0,
+        "colorError": 0,
+        "lineError": 0,
+        "sameBreakCount": true,
+        "sameCounts": true,
+        "fidelityLimit": 0.005,
+        "renderLimit": 0.005,
+        "withinRunExact": null
+      },
+      "decision": "borderline"
+    },
+    {
+      "id": 70,
+      "category": "fallback",
+      "sceneId": 290,
+      "engine": "fallback",
+      "warmup": 6,
+      "iterations": 24,
+      "rain": 180,
+      "explode": true,
+      "fidelityLimit": 0.005,
+      "sceneTitle": "Object Rain Stress Test — Cinematic",
+      "baselineSamplesMs": [
+        1.3197085000001607,
+        0.4182290000003377,
+        1.1319164999999884
+      ],
+      "candidateSamplesMs": [
+        1.9397500000000036,
+        1.3587499999998727,
+        0.5637915000002067
+      ],
+      "baselineMedianMs": 1.1319164999999884,
+      "candidateMedianMs": 1.3587499999998727,
+      "baselineMadMs": 0.18779200000017227,
+      "candidateMadMs": 0.581000000000131,
+      "speedup": 0.8330572217112011,
+      "baselineDeterministic": true,
+      "candidateDeterministic": true,
+      "baselineWithinRunExactSamples": [
+        null,
+        null,
+        null
+      ],
+      "candidateWithinRunExactSamples": [
+        null,
+        null,
+        null
+      ],
+      "baselineWithinRunExact": null,
+      "candidateWithinRunExact": null,
+      "withinRunExact": null,
+      "baselineFingerprint": "9040690a20f185d66ab4d814d796abbc90fe8d759ccfd26f722c14bc6a96b50d",
+      "candidateFingerprint": "9040690a20f185d66ab4d814d796abbc90fe8d759ccfd26f722c14bc6a96b50d",
+      "baselineBrokenCount": 0,
+      "candidateBrokenCount": 0,
+      "correctness": {
+        "correct": true,
+        "stateError": 0,
+        "matrixError": 0,
+        "colorError": 0,
+        "lineError": 0,
+        "sameBreakCount": true,
+        "sameCounts": true,
+        "fidelityLimit": 0.005,
+        "renderLimit": 0.005,
+        "withinRunExact": null
+      },
+      "decision": "rejected-no-win"
+    },
+    {
+      "id": 71,
+      "category": "effects",
+      "sceneId": -1,
+      "engine": "effects",
+      "effectVariant": 0,
+      "warmup": 16,
+      "iterations": 120,
+      "fidelityLimit": 0.000001,
+      "sceneTitle": "Cinematic effects variant 1",
+      "baselineSamplesMs": [
+        0.039520750000065163,
+        0.04747924999992392,
+        0.033875000000080036
+      ],
+      "candidateSamplesMs": [
+        0.03752075000011246,
+        0.03570850000005521,
+        0.038760500000080356
+      ],
+      "baselineMedianMs": 0.039520750000065163,
+      "candidateMedianMs": 0.03752075000011246,
+      "baselineMadMs": 0.005645749999985128,
+      "candidateMadMs": 0.0012397499999678985,
+      "speedup": 1.0533038385412528,
+      "baselineDeterministic": true,
+      "candidateDeterministic": true,
+      "baselineWithinRunExactSamples": [
+        null,
+        null,
+        null
+      ],
+      "candidateWithinRunExactSamples": [
+        null,
+        null,
+        null
+      ],
+      "baselineWithinRunExact": null,
+      "candidateWithinRunExact": null,
+      "withinRunExact": null,
+      "baselineFingerprint": "9d7e78770ed30cf6c529e01bf5747f29f91cd83b784543d12c6748d46868aac8",
+      "candidateFingerprint": "9d7e78770ed30cf6c529e01bf5747f29f91cd83b784543d12c6748d46868aac8",
+      "baselineBrokenCount": 0,
+      "candidateBrokenCount": 0,
+      "correctness": {
+        "correct": true,
+        "stateError": 0,
+        "matrixError": 0,
+        "colorError": 0,
+        "lineError": 0,
+        "sameBreakCount": true,
+        "sameCounts": true,
+        "fidelityLimit": 0.000001,
+        "renderLimit": 0.000001,
+        "withinRunExact": null
+      },
+      "decision": "accepted"
+    },
+    {
+      "id": 72,
+      "category": "effects",
+      "sceneId": -1,
+      "engine": "effects",
+      "effectVariant": 1,
+      "warmup": 16,
+      "iterations": 120,
+      "fidelityLimit": 0.000001,
+      "sceneTitle": "Cinematic effects variant 2",
+      "baselineSamplesMs": [
+        0.1230937499999527,
+        0.0430105000000367,
+        0.11808350000001155
+      ],
+      "candidateSamplesMs": [
+        0.12340625000001637,
+        0.11690625000005639,
+        0.11463550000007672
+      ],
+      "baselineMedianMs": 0.11808350000001155,
+      "candidateMedianMs": 0.11690625000005639,
+      "baselineMadMs": 0.005010249999941152,
+      "candidateMadMs": 0.002270749999979671,
+      "speedup": 1.0100700347496785,
+      "baselineDeterministic": true,
+      "candidateDeterministic": true,
+      "baselineWithinRunExactSamples": [
+        null,
+        null,
+        null
+      ],
+      "candidateWithinRunExactSamples": [
+        null,
+        null,
+        null
+      ],
+      "baselineWithinRunExact": null,
+      "candidateWithinRunExact": null,
+      "withinRunExact": null,
+      "baselineFingerprint": "bb5815483d45f8b5de632b29ed3668089150a72f5524ecc6aa8ba5b8a4976d45",
+      "candidateFingerprint": "bb5815483d45f8b5de632b29ed3668089150a72f5524ecc6aa8ba5b8a4976d45",
+      "baselineBrokenCount": 0,
+      "candidateBrokenCount": 0,
+      "correctness": {
+        "correct": true,
+        "stateError": 0,
+        "matrixError": 0,
+        "colorError": 0,
+        "lineError": 0,
+        "sameBreakCount": true,
+        "sameCounts": true,
+        "fidelityLimit": 0.000001,
+        "renderLimit": 0.000001,
+        "withinRunExact": null
+      },
+      "decision": "borderline"
+    },
+    {
+      "id": 73,
+      "category": "effects",
+      "sceneId": -1,
+      "engine": "effects",
+      "effectVariant": 2,
+      "warmup": 16,
+      "iterations": 120,
+      "fidelityLimit": 0.000001,
+      "sceneTitle": "Cinematic effects variant 3",
+      "baselineSamplesMs": [
+        0.1285210000000916,
+        0.1294270000000779,
+        0.12820825000017066
+      ],
+      "candidateSamplesMs": [
+        0.12408325000001241,
+        0.1264792499998748,
+        0.12498950000008335
+      ],
+      "baselineMedianMs": 0.1285210000000916,
+      "candidateMedianMs": 0.12498950000008335,
+      "baselineMadMs": 0.0003127499999209249,
+      "candidateMadMs": 0.0009062500000709406,
+      "speedup": 1.0282543733674099,
+      "baselineDeterministic": true,
+      "candidateDeterministic": true,
+      "baselineWithinRunExactSamples": [
+        null,
+        null,
+        null
+      ],
+      "candidateWithinRunExactSamples": [
+        null,
+        null,
+        null
+      ],
+      "baselineWithinRunExact": null,
+      "candidateWithinRunExact": null,
+      "withinRunExact": null,
+      "baselineFingerprint": "baaf2c7d512ebb2ad435677210fb3c62e96135d9c2a50ae00c82164a578c3577",
+      "candidateFingerprint": "baaf2c7d512ebb2ad435677210fb3c62e96135d9c2a50ae00c82164a578c3577",
+      "baselineBrokenCount": 0,
+      "candidateBrokenCount": 0,
+      "correctness": {
+        "correct": true,
+        "stateError": 0,
+        "matrixError": 0,
+        "colorError": 0,
+        "lineError": 0,
+        "sameBreakCount": true,
+        "sameCounts": true,
+        "fidelityLimit": 0.000001,
+        "renderLimit": 0.000001,
+        "withinRunExact": null
+      },
+      "decision": "borderline"
+    },
+    {
+      "id": 74,
+      "category": "effects",
+      "sceneId": -1,
+      "engine": "effects",
+      "effectVariant": 3,
+      "warmup": 16,
+      "iterations": 120,
+      "fidelityLimit": 0.000001,
+      "sceneTitle": "Cinematic effects variant 4",
+      "baselineSamplesMs": [
+        0.1932499999998072,
+        0.19471874999999272,
+        0.19008350000012797
+      ],
+      "candidateSamplesMs": [
+        0.1761562500000764,
+        0.18661450000013247,
+        0.19876025000007758
+      ],
+      "baselineMedianMs": 0.1932499999998072,
+      "candidateMedianMs": 0.18661450000013247,
+      "baselineMadMs": 0.001468750000185537,
+      "candidateMadMs": 0.010458250000056069,
+      "speedup": 1.0355572584106274,
+      "baselineDeterministic": true,
+      "candidateDeterministic": true,
+      "baselineWithinRunExactSamples": [
+        null,
+        null,
+        null
+      ],
+      "candidateWithinRunExactSamples": [
+        null,
+        null,
+        null
+      ],
+      "baselineWithinRunExact": null,
+      "candidateWithinRunExact": null,
+      "withinRunExact": null,
+      "baselineFingerprint": "f28249f65be813f7930c3b45a680f2b79150451b9aab1c538ef0dab600ef0e85",
+      "candidateFingerprint": "f28249f65be813f7930c3b45a680f2b79150451b9aab1c538ef0dab600ef0e85",
+      "baselineBrokenCount": 0,
+      "candidateBrokenCount": 0,
+      "correctness": {
+        "correct": true,
+        "stateError": 0,
+        "matrixError": 0,
+        "colorError": 0,
+        "lineError": 0,
+        "sameBreakCount": true,
+        "sameCounts": true,
+        "fidelityLimit": 0.000001,
+        "renderLimit": 0.000001,
+        "withinRunExact": null
+      },
+      "decision": "accepted"
+    },
+    {
+      "id": 75,
+      "category": "effects",
+      "sceneId": -1,
+      "engine": "effects",
+      "effectVariant": 4,
+      "warmup": 16,
+      "iterations": 120,
+      "fidelityLimit": 0.000001,
+      "sceneTitle": "Cinematic effects variant 5",
+      "baselineSamplesMs": [
+        0.06355200000007244,
+        0.06536449999998695,
+        0.0631354999998166
+      ],
+      "candidateSamplesMs": [
+        0.06099999999992178,
+        0.061010500000065804,
+        0.059406249999938154
+      ],
+      "baselineMedianMs": 0.06355200000007244,
+      "candidateMedianMs": 0.06099999999992178,
+      "baselineMadMs": 0.0004165000002558372,
+      "candidateMadMs": 0.000010500000144020305,
+      "speedup": 1.041836065576294,
+      "baselineDeterministic": true,
+      "candidateDeterministic": true,
+      "baselineWithinRunExactSamples": [
+        null,
+        null,
+        null
+      ],
+      "candidateWithinRunExactSamples": [
+        null,
+        null,
+        null
+      ],
+      "baselineWithinRunExact": null,
+      "candidateWithinRunExact": null,
+      "withinRunExact": null,
+      "baselineFingerprint": "b4f5b69b345be7c6e5d58fb1225eeed02d52474d1558d93d3a519d0a5210e9b2",
+      "candidateFingerprint": "b4f5b69b345be7c6e5d58fb1225eeed02d52474d1558d93d3a519d0a5210e9b2",
+      "baselineBrokenCount": 0,
+      "candidateBrokenCount": 0,
+      "correctness": {
+        "correct": true,
+        "stateError": 0,
+        "matrixError": 0,
+        "colorError": 0,
+        "lineError": 0,
+        "sameBreakCount": true,
+        "sameCounts": true,
+        "fidelityLimit": 0.000001,
+        "renderLimit": 0.000001,
+        "withinRunExact": null
+      },
+      "decision": "accepted"
+    },
+    {
+      "id": 76,
+      "category": "effects",
+      "sceneId": -1,
+      "engine": "effects",
+      "effectVariant": 5,
+      "warmup": 16,
+      "iterations": 120,
+      "fidelityLimit": 0.000001,
+      "sceneTitle": "Cinematic effects variant 6",
+      "baselineSamplesMs": [
+        0.19317700000010518,
+        0.1976875000000291,
+        0.19222899999999754
+      ],
+      "candidateSamplesMs": [
+        0.1812187499999709,
+        0.18697900000006484,
+        0.18250000000011823
+      ],
+      "baselineMedianMs": 0.19317700000010518,
+      "candidateMedianMs": 0.18250000000011823,
+      "baselineMadMs": 0.0009480000001076405,
+      "candidateMadMs": 0.0012812500001473381,
+      "speedup": 1.0585041095889316,
+      "baselineDeterministic": true,
+      "candidateDeterministic": true,
+      "baselineWithinRunExactSamples": [
+        null,
+        null,
+        null
+      ],
+      "candidateWithinRunExactSamples": [
+        null,
+        null,
+        null
+      ],
+      "baselineWithinRunExact": null,
+      "candidateWithinRunExact": null,
+      "withinRunExact": null,
+      "baselineFingerprint": "23065b66c9f505e20e3c8592dd667b9d50e89837fb405370022fba654f58ff89",
+      "candidateFingerprint": "23065b66c9f505e20e3c8592dd667b9d50e89837fb405370022fba654f58ff89",
+      "baselineBrokenCount": 0,
+      "candidateBrokenCount": 0,
+      "correctness": {
+        "correct": true,
+        "stateError": 0,
+        "matrixError": 0,
+        "colorError": 0,
+        "lineError": 0,
+        "sameBreakCount": true,
+        "sameCounts": true,
+        "fidelityLimit": 0.000001,
+        "renderLimit": 0.000001,
+        "withinRunExact": null
+      },
+      "decision": "accepted"
+    },
+    {
+      "id": 77,
+      "category": "effects",
+      "sceneId": -1,
+      "engine": "effects",
+      "effectVariant": 6,
+      "warmup": 16,
+      "iterations": 120,
+      "fidelityLimit": 0.000001,
+      "sceneTitle": "Cinematic effects variant 7",
+      "baselineSamplesMs": [
+        0.18609375000005457,
+        0.19091675000004216,
+        0.1883749999999509
+      ],
+      "candidateSamplesMs": [
+        0.1804895000000215,
+        0.1778229999999894,
+        0.18640624999989086
+      ],
+      "baselineMedianMs": 0.1883749999999509,
+      "candidateMedianMs": 0.1804895000000215,
+      "baselineMadMs": 0.0022812499998963176,
+      "candidateMadMs": 0.0026665000000321015,
+      "speedup": 1.0436895221047675,
+      "baselineDeterministic": true,
+      "candidateDeterministic": true,
+      "baselineWithinRunExactSamples": [
+        null,
+        null,
+        null
+      ],
+      "candidateWithinRunExactSamples": [
+        null,
+        null,
+        null
+      ],
+      "baselineWithinRunExact": null,
+      "candidateWithinRunExact": null,
+      "withinRunExact": null,
+      "baselineFingerprint": "eef26e8f320f5b436e3f5503da992cca0292677621cceeb125647347fdbe0c00",
+      "candidateFingerprint": "eef26e8f320f5b436e3f5503da992cca0292677621cceeb125647347fdbe0c00",
+      "baselineBrokenCount": 0,
+      "candidateBrokenCount": 0,
+      "correctness": {
+        "correct": true,
+        "stateError": 0,
+        "matrixError": 0,
+        "colorError": 0,
+        "lineError": 0,
+        "sameBreakCount": true,
+        "sameCounts": true,
+        "fidelityLimit": 0.000001,
+        "renderLimit": 0.000001,
+        "withinRunExact": null
+      },
+      "decision": "accepted"
+    },
+    {
+      "id": 78,
+      "category": "effects",
+      "sceneId": -1,
+      "engine": "effects",
+      "effectVariant": 7,
+      "warmup": 16,
+      "iterations": 120,
+      "fidelityLimit": 0.000001,
+      "sceneTitle": "Cinematic effects variant 8",
+      "baselineSamplesMs": [
+        0.3139062500001728,
+        0.25155199999994693,
+        0.3112292499999967
+      ],
+      "candidateSamplesMs": [
+        0.16021875000001273,
+        0.33241674999999304,
+        0.3237917500000549
+      ],
+      "baselineMedianMs": 0.3112292499999967,
+      "candidateMedianMs": 0.3237917500000549,
+      "baselineMadMs": 0.002677000000176122,
+      "candidateMadMs": 0.008624999999938154,
+      "speedup": 0.9612019145019721,
+      "baselineDeterministic": true,
+      "candidateDeterministic": true,
+      "baselineWithinRunExactSamples": [
+        null,
+        null,
+        null
+      ],
+      "candidateWithinRunExactSamples": [
+        null,
+        null,
+        null
+      ],
+      "baselineWithinRunExact": null,
+      "candidateWithinRunExact": null,
+      "withinRunExact": null,
+      "baselineFingerprint": "876696f35a0628b7578cfecef890946d7f72585f6a99b12aed816a93eba15658",
+      "candidateFingerprint": "876696f35a0628b7578cfecef890946d7f72585f6a99b12aed816a93eba15658",
+      "baselineBrokenCount": 0,
+      "candidateBrokenCount": 0,
+      "correctness": {
+        "correct": true,
+        "stateError": 0,
+        "matrixError": 0,
+        "colorError": 0,
+        "lineError": 0,
+        "sameBreakCount": true,
+        "sameCounts": true,
+        "fidelityLimit": 0.000001,
+        "renderLimit": 0.000001,
+        "withinRunExact": null
+      },
+      "decision": "rejected-no-win"
+    },
+    {
+      "id": 79,
+      "category": "effects",
+      "sceneId": -1,
+      "engine": "effects",
+      "effectVariant": 8,
+      "warmup": 16,
+      "iterations": 120,
+      "fidelityLimit": 0.000001,
+      "sceneTitle": "Cinematic effects variant 9",
+      "baselineSamplesMs": [
+        0.12205199999993965,
+        0.13158324999994875,
+        0.09881250000012187
+      ],
+      "candidateSamplesMs": [
+        0.11607299999991483,
+        0.11841649999996662,
+        0.12003125000001091
+      ],
+      "baselineMedianMs": 0.12205199999993965,
+      "candidateMedianMs": 0.11841649999996662,
+      "baselineMadMs": 0.009531250000009095,
+      "candidateMadMs": 0.001614750000044296,
+      "speedup": 1.030700958058835,
+      "baselineDeterministic": true,
+      "candidateDeterministic": true,
+      "baselineWithinRunExactSamples": [
+        null,
+        null,
+        null
+      ],
+      "candidateWithinRunExactSamples": [
+        null,
+        null,
+        null
+      ],
+      "baselineWithinRunExact": null,
+      "candidateWithinRunExact": null,
+      "withinRunExact": null,
+      "baselineFingerprint": "e4c0942138368e6cef493c027ade47e67dc8d8b1e878a1e97795818318b2374d",
+      "candidateFingerprint": "e4c0942138368e6cef493c027ade47e67dc8d8b1e878a1e97795818318b2374d",
+      "baselineBrokenCount": 0,
+      "candidateBrokenCount": 0,
+      "correctness": {
+        "correct": true,
+        "stateError": 0,
+        "matrixError": 0,
+        "colorError": 0,
+        "lineError": 0,
+        "sameBreakCount": true,
+        "sameCounts": true,
+        "fidelityLimit": 0.000001,
+        "renderLimit": 0.000001,
+        "withinRunExact": null
+      },
+      "decision": "accepted"
+    },
+    {
+      "id": 80,
+      "category": "effects",
+      "sceneId": -1,
+      "engine": "effects",
+      "effectVariant": 9,
+      "warmup": 16,
+      "iterations": 120,
+      "fidelityLimit": 0.000001,
+      "sceneTitle": "Cinematic effects variant 10",
+      "baselineSamplesMs": [
+        0.18875000000002728,
+        0.19534375000012005,
+        0.1964895000000979
+      ],
+      "candidateSamplesMs": [
+        0.1791147500000534,
+        0.17965625000010732,
+        0.18039599999997336
+      ],
+      "baselineMedianMs": 0.19534375000012005,
+      "candidateMedianMs": 0.17965625000010732,
+      "baselineMadMs": 0.001145749999977852,
+      "candidateMadMs": 0.0005415000000539294,
+      "speedup": 1.0873195338319894,
+      "baselineDeterministic": true,
+      "candidateDeterministic": true,
+      "baselineWithinRunExactSamples": [
+        null,
+        null,
+        null
+      ],
+      "candidateWithinRunExactSamples": [
+        null,
+        null,
+        null
+      ],
+      "baselineWithinRunExact": null,
+      "candidateWithinRunExact": null,
+      "withinRunExact": null,
+      "baselineFingerprint": "e3fcf112420345afe2158d35a1efb512366ddb72a201fbc1e26fb57519681aeb",
+      "candidateFingerprint": "e3fcf112420345afe2158d35a1efb512366ddb72a201fbc1e26fb57519681aeb",
+      "baselineBrokenCount": 0,
+      "candidateBrokenCount": 0,
+      "correctness": {
+        "correct": true,
+        "stateError": 0,
+        "matrixError": 0,
+        "colorError": 0,
+        "lineError": 0,
+        "sameBreakCount": true,
+        "sameCounts": true,
+        "fidelityLimit": 0.000001,
+        "renderLimit": 0.000001,
+        "withinRunExact": null
+      },
+      "decision": "accepted"
+    },
+    {
+      "id": 81,
+      "category": "water-control",
+      "sceneId": 740,
+      "engine": "soft",
+      "wasm": true,
+      "warmup": 15,
+      "iterations": 120,
+      "control": true,
+      "fidelityLimit": 1e-7,
+      "sceneTitle": "Interactive Ripple Basin — Cinematic",
+      "baselineSamplesMs": [
+        0.0738854999999603,
+        0.02542700000003606,
+        0.026666499999919324
+      ],
+      "candidateSamplesMs": [
+        0.06877075000011246,
+        0.030145749999974214,
+        0.023114499999792315
+      ],
+      "baselineMedianMs": 0.026666499999919324,
+      "candidateMedianMs": 0.030145749999974214,
+      "baselineMadMs": 0.0012394999998832645,
+      "candidateMadMs": 0.007031250000181899,
+      "speedup": 0.8845857210367012,
+      "baselineDeterministic": true,
+      "candidateDeterministic": true,
+      "baselineWithinRunExactSamples": [
+        null,
+        null,
+        null
+      ],
+      "candidateWithinRunExactSamples": [
+        null,
+        null,
+        null
+      ],
+      "baselineWithinRunExact": null,
+      "candidateWithinRunExact": null,
+      "withinRunExact": null,
+      "baselineFingerprint": "9e643c0dd9a19528df05db71a23e5698b5216b647ebc3427b80ca64e5f294715",
+      "candidateFingerprint": "9e643c0dd9a19528df05db71a23e5698b5216b647ebc3427b80ca64e5f294715",
+      "baselineBrokenCount": 0,
+      "candidateBrokenCount": 0,
+      "correctness": {
+        "correct": true,
+        "stateError": 0,
+        "matrixError": 0,
+        "colorError": 0,
+        "lineError": 0,
+        "sameBreakCount": true,
+        "sameCounts": true,
+        "fidelityLimit": 1e-7,
+        "renderLimit": 0.0005,
+        "withinRunExact": null
+      },
+      "decision": "control"
+    },
+    {
+      "id": 82,
+      "category": "water-control",
+      "sceneId": 741,
+      "engine": "soft",
+      "wasm": true,
+      "warmup": 15,
+      "iterations": 120,
+      "control": true,
+      "fidelityLimit": 1e-7,
+      "sceneTitle": "Tsunami Research Flume — Cinematic",
+      "baselineSamplesMs": [
+        0.023291750000225875,
+        0.025041500000043015,
+        0.023843749999969077
+      ],
+      "candidateSamplesMs": [
+        0.02469799999994393,
+        0.021927000000005137,
+        0.02390624999998181
+      ],
+      "baselineMedianMs": 0.023843749999969077,
+      "candidateMedianMs": 0.02390624999998181,
+      "baselineMadMs": 0.0005519999997432024,
+      "candidateMadMs": 0.0007917499999621214,
+      "speedup": 0.9973856209144981,
+      "baselineDeterministic": true,
+      "candidateDeterministic": true,
+      "baselineWithinRunExactSamples": [
+        null,
+        null,
+        null
+      ],
+      "candidateWithinRunExactSamples": [
+        null,
+        null,
+        null
+      ],
+      "baselineWithinRunExact": null,
+      "candidateWithinRunExact": null,
+      "withinRunExact": null,
+      "baselineFingerprint": "57d6e8b6ab330c21ef2896a5f1cc636c099c34e0311b8c0e33817fc3bd82eb49",
+      "candidateFingerprint": "57d6e8b6ab330c21ef2896a5f1cc636c099c34e0311b8c0e33817fc3bd82eb49",
+      "baselineBrokenCount": 0,
+      "candidateBrokenCount": 0,
+      "correctness": {
+        "correct": true,
+        "stateError": 0,
+        "matrixError": 0,
+        "colorError": 0,
+        "lineError": 0,
+        "sameBreakCount": true,
+        "sameCounts": true,
+        "fidelityLimit": 1e-7,
+        "renderLimit": 0.0005,
+        "withinRunExact": null
+      },
+      "decision": "control"
+    },
+    {
+      "id": 83,
+      "category": "water-control",
+      "sceneId": 742,
+      "engine": "soft",
+      "wasm": true,
+      "warmup": 15,
+      "iterations": 120,
+      "control": true,
+      "fidelityLimit": 1e-7,
+      "sceneTitle": "Storm Ocean Surface — Cinematic",
+      "baselineSamplesMs": [
+        0.05801049999990937,
+        0.05419799999981478,
+        0.05916675000003124
+      ],
+      "candidateSamplesMs": [
+        0.05852075000007062,
+        0.03067700000019613,
+        0.05307300000004034
+      ],
+      "baselineMedianMs": 0.05801049999990937,
+      "candidateMedianMs": 0.05307300000004034,
+      "baselineMadMs": 0.0011562500001218723,
+      "candidateMadMs": 0.0054477500000302825,
+      "speedup": 1.0930322386121998,
+      "baselineDeterministic": true,
+      "candidateDeterministic": true,
+      "baselineWithinRunExactSamples": [
+        null,
+        null,
+        null
+      ],
+      "candidateWithinRunExactSamples": [
+        null,
+        null,
+        null
+      ],
+      "baselineWithinRunExact": null,
+      "candidateWithinRunExact": null,
+      "withinRunExact": null,
+      "baselineFingerprint": "769681976b1efa5a3b850a98ac96f2497e2928ebaa57c5a33a507d38917c3709",
+      "candidateFingerprint": "769681976b1efa5a3b850a98ac96f2497e2928ebaa57c5a33a507d38917c3709",
+      "baselineBrokenCount": 0,
+      "candidateBrokenCount": 0,
+      "correctness": {
+        "correct": true,
+        "stateError": 0,
+        "matrixError": 0,
+        "colorError": 0,
+        "lineError": 0,
+        "sameBreakCount": true,
+        "sameCounts": true,
+        "fidelityLimit": 1e-7,
+        "renderLimit": 0.0005,
+        "withinRunExact": null
+      },
+      "decision": "control"
+    },
+    {
+      "id": 84,
+      "category": "water-control",
+      "sceneId": 743,
+      "engine": "soft",
+      "wasm": true,
+      "warmup": 15,
+      "iterations": 120,
+      "control": true,
+      "fidelityLimit": 1e-7,
+      "sceneTitle": "Hydrodynamic Boat Wake — Cinematic",
+      "baselineSamplesMs": [
+        0.20778124999992542,
+        0.20179174999998395,
+        0.191771000000017
+      ],
+      "candidateSamplesMs": [
+        0.1917812500000764,
+        0.20217700000011973,
+        0.05490624999993088
+      ],
+      "baselineMedianMs": 0.20179174999998395,
+      "candidateMedianMs": 0.1917812500000764,
+      "baselineMadMs": 0.005989499999941472,
+      "candidateMadMs": 0.010395750000043336,
+      "speedup": 1.0521974906300984,
+      "baselineDeterministic": true,
+      "candidateDeterministic": true,
+      "baselineWithinRunExactSamples": [
+        null,
+        null,
+        null
+      ],
+      "candidateWithinRunExactSamples": [
+        null,
+        null,
+        null
+      ],
+      "baselineWithinRunExact": null,
+      "candidateWithinRunExact": null,
+      "withinRunExact": null,
+      "baselineFingerprint": "d2f1a5af795d94fb1e581bb9c4321f18d33b3e92ee690e9f2f1fe18785a99038",
+      "candidateFingerprint": "d2f1a5af795d94fb1e581bb9c4321f18d33b3e92ee690e9f2f1fe18785a99038",
+      "baselineBrokenCount": 0,
+      "candidateBrokenCount": 0,
+      "correctness": {
+        "correct": true,
+        "stateError": 0,
+        "matrixError": 0,
+        "colorError": 0,
+        "lineError": 0,
+        "sameBreakCount": true,
+        "sameCounts": true,
+        "fidelityLimit": 1e-7,
+        "renderLimit": 0.0005,
+        "withinRunExact": null
+      },
+      "decision": "control"
+    },
+    {
+      "id": 85,
+      "category": "water-control",
+      "sceneId": 744,
+      "engine": "soft",
+      "wasm": true,
+      "warmup": 15,
+      "iterations": 120,
+      "control": true,
+      "fidelityLimit": 1e-7,
+      "sceneTitle": "Oscillating Fountain Pool — Cinematic",
+      "baselineSamplesMs": [
+        0.04798950000008517,
+        0.046885250000059386,
+        0.056052249999993364
+      ],
+      "candidateSamplesMs": [
+        0.0546039999999266,
+        0.03912500000001273,
+        0.046573000000080356
+      ],
+      "baselineMedianMs": 0.04798950000008517,
+      "candidateMedianMs": 0.046573000000080356,
+      "baselineMadMs": 0.001104250000025786,
+      "candidateMadMs": 0.007448000000067623,
+      "speedup": 1.0304146179117164,
+      "baselineDeterministic": true,
+      "candidateDeterministic": true,
+      "baselineWithinRunExactSamples": [
+        null,
+        null,
+        null
+      ],
+      "candidateWithinRunExactSamples": [
+        null,
+        null,
+        null
+      ],
+      "baselineWithinRunExact": null,
+      "candidateWithinRunExact": null,
+      "withinRunExact": null,
+      "baselineFingerprint": "747f6b1eb4a0a39256d2b4fc8b463923cf9af7f8829214602aa462440c947006",
+      "candidateFingerprint": "747f6b1eb4a0a39256d2b4fc8b463923cf9af7f8829214602aa462440c947006",
+      "baselineBrokenCount": 0,
+      "candidateBrokenCount": 0,
+      "correctness": {
+        "correct": true,
+        "stateError": 0,
+        "matrixError": 0,
+        "colorError": 0,
+        "lineError": 0,
+        "sameBreakCount": true,
+        "sameCounts": true,
+        "fidelityLimit": 1e-7,
+        "renderLimit": 0.0005,
+        "withinRunExact": null
+      },
+      "decision": "control"
+    },
+    {
+      "id": 86,
+      "category": "water-control",
+      "sceneId": 745,
+      "engine": "soft",
+      "wasm": true,
+      "warmup": 15,
+      "iterations": 120,
+      "control": true,
+      "fidelityLimit": 1e-7,
+      "sceneTitle": "Rain Impact Reservoir — Cinematic",
+      "baselineSamplesMs": [
+        0.09377074999997603,
+        0.0804582499999924,
+        0.3931249999998272
+      ],
+      "candidateSamplesMs": [
+        0.09362500000020191,
+        0.38358324999990145,
+        0.39366674999996576
+      ],
+      "baselineMedianMs": 0.09377074999997603,
+      "candidateMedianMs": 0.38358324999990145,
+      "baselineMadMs": 0.013312499999983629,
+      "candidateMadMs": 0.010083500000064305,
+      "speedup": 0.24445997055398044,
+      "baselineDeterministic": true,
+      "candidateDeterministic": true,
+      "baselineWithinRunExactSamples": [
+        null,
+        null,
+        null
+      ],
+      "candidateWithinRunExactSamples": [
+        null,
+        null,
+        null
+      ],
+      "baselineWithinRunExact": null,
+      "candidateWithinRunExact": null,
+      "withinRunExact": null,
+      "baselineFingerprint": "d3e824dc0a582c69518853fcd69ff17f19794e08bfae760985b85b078ac3244e",
+      "candidateFingerprint": "d3e824dc0a582c69518853fcd69ff17f19794e08bfae760985b85b078ac3244e",
+      "baselineBrokenCount": 0,
+      "candidateBrokenCount": 0,
+      "correctness": {
+        "correct": true,
+        "stateError": 0,
+        "matrixError": 0,
+        "colorError": 0,
+        "lineError": 0,
+        "sameBreakCount": true,
+        "sameCounts": true,
+        "fidelityLimit": 1e-7,
+        "renderLimit": 0.0005,
+        "withinRunExact": null
+      },
+      "decision": "control"
+    },
+    {
+      "id": 87,
+      "category": "water-control",
+      "sceneId": 746,
+      "engine": "soft",
+      "wasm": true,
+      "warmup": 15,
+      "iterations": 120,
+      "control": true,
+      "fidelityLimit": 1e-7,
+      "sceneTitle": "Dam-Breach Wave Front — Cinematic",
+      "baselineSamplesMs": [
+        0.023750000000063665,
+        0.024364500000046974,
+        0.025322749999986627
+      ],
+      "candidateSamplesMs": [
+        0.03003125000009277,
+        0.022468749999916326,
+        0.02477099999987331
+      ],
+      "baselineMedianMs": 0.024364500000046974,
+      "candidateMedianMs": 0.02477099999987331,
+      "baselineMadMs": 0.000614499999983309,
+      "candidateMadMs": 0.0023022499999569845,
+      "speedup": 0.9835896814893054,
+      "baselineDeterministic": true,
+      "candidateDeterministic": true,
+      "baselineWithinRunExactSamples": [
+        null,
+        null,
+        null
+      ],
+      "candidateWithinRunExactSamples": [
+        null,
+        null,
+        null
+      ],
+      "baselineWithinRunExact": null,
+      "candidateWithinRunExact": null,
+      "withinRunExact": null,
+      "baselineFingerprint": "669aeeb8e7f3c51749af4578bca918e52e854296357e6e970d8baf0a26ff585a",
+      "candidateFingerprint": "669aeeb8e7f3c51749af4578bca918e52e854296357e6e970d8baf0a26ff585a",
+      "baselineBrokenCount": 0,
+      "candidateBrokenCount": 0,
+      "correctness": {
+        "correct": true,
+        "stateError": 0,
+        "matrixError": 0,
+        "colorError": 0,
+        "lineError": 0,
+        "sameBreakCount": true,
+        "sameCounts": true,
+        "fidelityLimit": 1e-7,
+        "renderLimit": 0.0005,
+        "withinRunExact": null
+      },
+      "decision": "control"
+    },
+    {
+      "id": 88,
+      "category": "water-control",
+      "sceneId": 747,
+      "engine": "soft",
+      "wasm": true,
+      "warmup": 15,
+      "iterations": 120,
+      "control": true,
+      "fidelityLimit": 1e-7,
+      "sceneTitle": "Vortex Current Chamber — Cinematic",
+      "baselineSamplesMs": [
+        0.04644800000005489,
+        0.054051999999956024,
+        0.048270750000028784
+      ],
+      "candidateSamplesMs": [
+        0.052218750000065484,
+        0.048531250000223736,
+        0.05244799999991301
+      ],
+      "baselineMedianMs": 0.048270750000028784,
+      "candidateMedianMs": 0.052218750000065484,
+      "baselineMadMs": 0.0018227499999738939,
+      "candidateMadMs": 0.00022924999984752503,
+      "speedup": 0.92439497306941,
+      "baselineDeterministic": true,
+      "candidateDeterministic": true,
+      "baselineWithinRunExactSamples": [
+        null,
+        null,
+        null
+      ],
+      "candidateWithinRunExactSamples": [
+        null,
+        null,
+        null
+      ],
+      "baselineWithinRunExact": null,
+      "candidateWithinRunExact": null,
+      "withinRunExact": null,
+      "baselineFingerprint": "69b21bd7c871c7169654f163c9737b21bd6ebb8820f8b470d56c6978578b8983",
+      "candidateFingerprint": "69b21bd7c871c7169654f163c9737b21bd6ebb8820f8b470d56c6978578b8983",
+      "baselineBrokenCount": 0,
+      "candidateBrokenCount": 0,
+      "correctness": {
+        "correct": true,
+        "stateError": 0,
+        "matrixError": 0,
+        "colorError": 0,
+        "lineError": 0,
+        "sameBreakCount": true,
+        "sameCounts": true,
+        "fidelityLimit": 1e-7,
+        "renderLimit": 0.0005,
+        "withinRunExact": null
+      },
+      "decision": "control"
+    },
+    {
+      "id": 89,
+      "category": "water-control",
+      "sceneId": 748,
+      "engine": "soft",
+      "wasm": true,
+      "warmup": 15,
+      "iterations": 120,
+      "control": true,
+      "fidelityLimit": 1e-7,
+      "sceneTitle": "Harbor Buoyancy Lab — Cinematic",
+      "baselineSamplesMs": [
+        0.09380199999986871,
+        0.13888550000001487,
+        0.11470825000014884
+      ],
+      "candidateSamplesMs": [
+        0.13850000000002183,
+        0.04630200000019613,
+        0.12612500000000182
+      ],
+      "baselineMedianMs": 0.11470825000014884,
+      "candidateMedianMs": 0.12612500000000182,
+      "baselineMadMs": 0.020906250000280124,
+      "candidateMadMs": 0.012375000000020009,
+      "speedup": 0.9094806739357557,
+      "baselineDeterministic": true,
+      "candidateDeterministic": true,
+      "baselineWithinRunExactSamples": [
+        null,
+        null,
+        null
+      ],
+      "candidateWithinRunExactSamples": [
+        null,
+        null,
+        null
+      ],
+      "baselineWithinRunExact": null,
+      "candidateWithinRunExact": null,
+      "withinRunExact": null,
+      "baselineFingerprint": "33fd75f3859f1a3f9a3474e3c87a0d744ca5f13cdb7a4262c612338da548a53c",
+      "candidateFingerprint": "33fd75f3859f1a3f9a3474e3c87a0d744ca5f13cdb7a4262c612338da548a53c",
+      "baselineBrokenCount": 0,
+      "candidateBrokenCount": 0,
+      "correctness": {
+        "correct": true,
+        "stateError": 0,
+        "matrixError": 0,
+        "colorError": 0,
+        "lineError": 0,
+        "sameBreakCount": true,
+        "sameCounts": true,
+        "fidelityLimit": 1e-7,
+        "renderLimit": 0.0005,
+        "withinRunExact": null
+      },
+      "decision": "control"
+    },
+    {
+      "id": 90,
+      "category": "water-control",
+      "sceneId": 749,
+      "engine": "soft",
+      "wasm": true,
+      "warmup": 15,
+      "iterations": 120,
+      "control": true,
+      "fidelityLimit": 1e-7,
+      "sceneTitle": "Leviathan Impact Pool — Cinematic",
+      "baselineSamplesMs": [
+        0.09989574999985962,
+        0.08989575000009609,
+        0.09290625000016917
+      ],
+      "candidateSamplesMs": [
+        0.1021250000001146,
+        0.0951145000001361,
+        0.1058437500000764
+      ],
+      "baselineMedianMs": 0.09290625000016917,
+      "candidateMedianMs": 0.1021250000001146,
+      "baselineMadMs": 0.0030105000000730797,
+      "candidateMadMs": 0.0037187499999618012,
+      "speedup": 0.9097307221548584,
+      "baselineDeterministic": true,
+      "candidateDeterministic": true,
+      "baselineWithinRunExactSamples": [
+        null,
+        null,
+        null
+      ],
+      "candidateWithinRunExactSamples": [
+        null,
+        null,
+        null
+      ],
+      "baselineWithinRunExact": null,
+      "candidateWithinRunExact": null,
+      "withinRunExact": null,
+      "baselineFingerprint": "637dc0abfbc85e6e0a1579ad63c30583fb8a44639244b6749ddf08ec1ed0c771",
+      "candidateFingerprint": "637dc0abfbc85e6e0a1579ad63c30583fb8a44639244b6749ddf08ec1ed0c771",
+      "baselineBrokenCount": 0,
+      "candidateBrokenCount": 0,
+      "correctness": {
+        "correct": true,
+        "stateError": 0,
+        "matrixError": 0,
+        "colorError": 0,
+        "lineError": 0,
+        "sameBreakCount": true,
+        "sameCounts": true,
+        "fidelityLimit": 1e-7,
+        "renderLimit": 0.0005,
+        "withinRunExact": null
+      },
+      "decision": "control"
+    },
+    {
+      "id": 91,
+      "category": "js-control",
+      "sceneId": 600,
+      "engine": "soft",
+      "wasm": false,
+      "warmup": 12,
+      "iterations": 72,
+      "control": true,
+      "fidelityLimit": 1e-7,
+      "sceneTitle": "Tempest Standard — Baseline",
+      "baselineSamplesMs": [
+        2.707583500000055,
+        2.496166500000072,
+        1.855458500000168
+      ],
+      "candidateSamplesMs": [
+        2.159916499999781,
+        1.7296249999999418,
+        2.746333500000219
+      ],
+      "baselineMedianMs": 2.496166500000072,
+      "candidateMedianMs": 2.159916499999781,
+      "baselineMadMs": 0.2114169999999831,
+      "candidateMadMs": 0.4302914999998393,
+      "speedup": 1.1556773143778127,
+      "baselineDeterministic": true,
+      "candidateDeterministic": true,
+      "baselineWithinRunExactSamples": [
+        null,
+        null,
+        null
+      ],
+      "candidateWithinRunExactSamples": [
+        null,
+        null,
+        null
+      ],
+      "baselineWithinRunExact": null,
+      "candidateWithinRunExact": null,
+      "withinRunExact": null,
+      "baselineFingerprint": "0643cc23f0cd40fdade3912eb92de5e081374506a2c6d6594b67198206b8f09a",
+      "candidateFingerprint": "0643cc23f0cd40fdade3912eb92de5e081374506a2c6d6594b67198206b8f09a",
+      "baselineBrokenCount": 0,
+      "candidateBrokenCount": 0,
+      "correctness": {
+        "correct": true,
+        "stateError": 0,
+        "matrixError": 0,
+        "colorError": 0,
+        "lineError": 0,
+        "sameBreakCount": true,
+        "sameCounts": true,
+        "fidelityLimit": 1e-7,
+        "renderLimit": 0.0005,
+        "withinRunExact": null
+      },
+      "decision": "control"
+    },
+    {
+      "id": 92,
+      "category": "js-control",
+      "sceneId": 643,
+      "engine": "soft",
+      "wasm": false,
+      "warmup": 12,
+      "iterations": 72,
+      "control": true,
+      "fidelityLimit": 1e-7,
+      "sceneTitle": "Cargo Net Load Catch — Cinematic",
+      "baselineSamplesMs": [
+        2.8399790000003122,
+        2.0676665000000867,
+        3.1289584999999533
+      ],
+      "candidateSamplesMs": [
+        2.36581249999972,
+        2.8038540000002286,
+        2.1519585000000916
+      ],
+      "baselineMedianMs": 2.8399790000003122,
+      "candidateMedianMs": 2.36581249999972,
+      "baselineMadMs": 0.2889794999996411,
+      "candidateMadMs": 0.21385399999962829,
+      "speedup": 1.2004243785171684,
+      "baselineDeterministic": true,
+      "candidateDeterministic": true,
+      "baselineWithinRunExactSamples": [
+        null,
+        null,
+        null
+      ],
+      "candidateWithinRunExactSamples": [
+        null,
+        null,
+        null
+      ],
+      "baselineWithinRunExact": null,
+      "candidateWithinRunExact": null,
+      "withinRunExact": null,
+      "baselineFingerprint": "b523daa7dd3b6c7c9488209af9e86d6d90e4d18cdd3d17dd287384bdaf9dfe33",
+      "candidateFingerprint": "b523daa7dd3b6c7c9488209af9e86d6d90e4d18cdd3d17dd287384bdaf9dfe33",
+      "baselineBrokenCount": 0,
+      "candidateBrokenCount": 0,
+      "correctness": {
+        "correct": true,
+        "stateError": 0,
+        "matrixError": 0,
+        "colorError": 0,
+        "lineError": 0,
+        "sameBreakCount": true,
+        "sameCounts": true,
+        "fidelityLimit": 1e-7,
+        "renderLimit": 0.0005,
+        "withinRunExact": null
+      },
+      "decision": "control"
+    },
+    {
+      "id": 93,
+      "category": "js-control",
+      "sceneId": 650,
+      "engine": "soft",
+      "wasm": false,
+      "warmup": 12,
+      "iterations": 72,
+      "control": true,
+      "fidelityLimit": 1e-7,
+      "sceneTitle": "Sky Crane Cable Load — Baseline",
+      "baselineSamplesMs": [
+        0.24454199999991033,
+        0.4944585000002917,
+        0.11554149999983565
+      ],
+      "candidateSamplesMs": [
+        0.2635835000000952,
+        0.24445849999983693,
+        0.9751664999998866
+      ],
+      "baselineMedianMs": 0.24454199999991033,
+      "candidateMedianMs": 0.2635835000000952,
+      "baselineMadMs": 0.12900050000007468,
+      "candidateMadMs": 0.019125000000258296,
+      "speedup": 0.9277591351500454,
+      "baselineDeterministic": true,
+      "candidateDeterministic": true,
+      "baselineWithinRunExactSamples": [
+        null,
+        null,
+        null
+      ],
+      "candidateWithinRunExactSamples": [
+        null,
+        null,
+        null
+      ],
+      "baselineWithinRunExact": null,
+      "candidateWithinRunExact": null,
+      "withinRunExact": null,
+      "baselineFingerprint": "70313aaca5f523dd81bb63000ab34904e9ae33b31cf5739e430aac65a1ad85e8",
+      "candidateFingerprint": "70313aaca5f523dd81bb63000ab34904e9ae33b31cf5739e430aac65a1ad85e8",
+      "baselineBrokenCount": 0,
+      "candidateBrokenCount": 0,
+      "correctness": {
+        "correct": true,
+        "stateError": 0,
+        "matrixError": 0,
+        "colorError": 0,
+        "lineError": 0,
+        "sameBreakCount": true,
+        "sameCounts": true,
+        "fidelityLimit": 1e-7,
+        "renderLimit": 0.0005,
+        "withinRunExact": null
+      },
+      "decision": "control"
+    },
+    {
+      "id": 94,
+      "category": "js-control",
+      "sceneId": 699,
+      "engine": "soft",
+      "wasm": false,
+      "warmup": 12,
+      "iterations": 72,
+      "control": true,
+      "fidelityLimit": 1e-7,
+      "sceneTitle": "Rope Net Resonance — Cinematic",
+      "baselineSamplesMs": [
+        1.142250000000331,
+        0.6889999999998508,
+        0.7164999999999964
+      ],
+      "candidateSamplesMs": [
+        0.6960414999998648,
+        0.6843545000001541,
+        0.6833539999997811
+      ],
+      "baselineMedianMs": 0.7164999999999964,
+      "candidateMedianMs": 0.6843545000001541,
+      "baselineMadMs": 0.02750000000014552,
+      "candidateMadMs": 0.0010005000003729947,
+      "speedup": 1.0469720006222434,
+      "baselineDeterministic": true,
+      "candidateDeterministic": true,
+      "baselineWithinRunExactSamples": [
+        null,
+        null,
+        null
+      ],
+      "candidateWithinRunExactSamples": [
+        null,
+        null,
+        null
+      ],
+      "baselineWithinRunExact": null,
+      "candidateWithinRunExact": null,
+      "withinRunExact": null,
+      "baselineFingerprint": "cabb06ebc0a24d63ed7dc18a8d8306abf3a50490ef252202c6f2a803b3d1d31d",
+      "candidateFingerprint": "cabb06ebc0a24d63ed7dc18a8d8306abf3a50490ef252202c6f2a803b3d1d31d",
+      "baselineBrokenCount": 0,
+      "candidateBrokenCount": 0,
+      "correctness": {
+        "correct": true,
+        "stateError": 0,
+        "matrixError": 0,
+        "colorError": 0,
+        "lineError": 0,
+        "sameBreakCount": true,
+        "sameCounts": true,
+        "fidelityLimit": 1e-7,
+        "renderLimit": 0.0005,
+        "withinRunExact": null
+      },
+      "decision": "control"
+    },
+    {
+      "id": 95,
+      "category": "js-control",
+      "sceneId": 749,
+      "engine": "soft",
+      "wasm": false,
+      "warmup": 12,
+      "iterations": 72,
+      "control": true,
+      "fidelityLimit": 1e-7,
+      "sceneTitle": "Leviathan Impact Pool — Cinematic",
+      "baselineSamplesMs": [
+        0.23918750000029831,
+        0.8647084999997787,
+        0.23279150000007576
+      ],
+      "candidateSamplesMs": [
+        0.22941650000029767,
+        0.2597085000002153,
+        2.601521000000048
+      ],
+      "baselineMedianMs": 0.23918750000029831,
+      "candidateMedianMs": 0.2597085000002153,
+      "baselineMadMs": 0.006396000000222557,
+      "candidateMadMs": 0.030291999999917607,
+      "speedup": 0.9209844883787017,
+      "baselineDeterministic": true,
+      "candidateDeterministic": true,
+      "baselineWithinRunExactSamples": [
+        null,
+        null,
+        null
+      ],
+      "candidateWithinRunExactSamples": [
+        null,
+        null,
+        null
+      ],
+      "baselineWithinRunExact": null,
+      "candidateWithinRunExact": null,
+      "withinRunExact": null,
+      "baselineFingerprint": "b4433b7b312a324cb931bc1f604610b1474511d65a85f83bb7e001e107163735",
+      "candidateFingerprint": "b4433b7b312a324cb931bc1f604610b1474511d65a85f83bb7e001e107163735",
+      "baselineBrokenCount": 0,
+      "candidateBrokenCount": 0,
+      "correctness": {
+        "correct": true,
+        "stateError": 0,
+        "matrixError": 0,
+        "colorError": 0,
+        "lineError": 0,
+        "sameBreakCount": true,
+        "sameCounts": true,
+        "fidelityLimit": 1e-7,
+        "renderLimit": 0.0005,
+        "withinRunExact": null
+      },
+      "decision": "control"
+    },
+    {
+      "id": 96,
+      "category": "unchanged-control",
+      "sceneId": 600,
+      "engine": "soft",
+      "wasm": true,
+      "operation": "unchanged-frame",
+      "warmup": 24,
+      "iterations": 6000,
+      "control": true,
+      "fidelityLimit": 0.002,
+      "renderFidelityLimit": 0.002,
+      "sceneTitle": "Tempest Standard — Baseline",
+      "baselineSamplesMs": [
+        0.00007731111111045012,
+        0.000059488888887749956,
+        0.0000706000000011247
+      ],
+      "candidateSamplesMs": [
+        0.0000759277777787146,
+        0.00014467222222265265,
+        0.00006527777777591837
+      ],
+      "baselineMedianMs": 0.0000706000000011247,
+      "candidateMedianMs": 0.0000759277777787146,
+      "baselineMadMs": 0.000006711111109325419,
+      "candidateMadMs": 0.000010650000002796227,
+      "speedup": 0.929830979735542,
+      "baselineDeterministic": true,
+      "candidateDeterministic": true,
+      "baselineWithinRunExactSamples": [
+        true,
+        true,
+        true
+      ],
+      "candidateWithinRunExactSamples": [
+        true,
+        true,
+        true
+      ],
+      "baselineWithinRunExact": true,
+      "candidateWithinRunExact": true,
+      "withinRunExact": true,
+      "baselineFingerprint": "630f491e62a7f4e7e0547ee692f77361f7421ccb781935377a63a2fce9293ea8",
+      "candidateFingerprint": "31bf9694e356e95ccff015f6ca0b114963d5c074d66c8c613cab696dc29d4aa5",
+      "baselineBrokenCount": 0,
+      "candidateBrokenCount": 0,
+      "correctness": {
+        "correct": true,
+        "stateError": 2.4531530656997905e-7,
+        "matrixError": 0,
+        "colorError": 0,
+        "lineError": 0,
+        "sameBreakCount": true,
+        "sameCounts": true,
+        "fidelityLimit": 0.002,
+        "renderLimit": 0.002,
+        "withinRunExact": true
+      },
+      "decision": "control"
+    },
+    {
+      "id": 97,
+      "category": "unchanged-control",
+      "sceneId": 649,
+      "engine": "soft",
+      "wasm": true,
+      "operation": "unchanged-frame",
+      "warmup": 24,
+      "iterations": 6000,
+      "control": true,
+      "fidelityLimit": 0.002,
+      "renderFidelityLimit": 0.002,
+      "sceneTitle": "Tensioned Membrane Drum — Cinematic",
+      "baselineSamplesMs": [
+        0.00006388888889179927,
+        0.00006828333333335953,
+        0.00007222222222177757
+      ],
+      "candidateSamplesMs": [
+        0.00006897777778047182,
+        0.00005741111110890213,
+        0.00006666666666509021
+      ],
+      "baselineMedianMs": 0.00006828333333335953,
+      "candidateMedianMs": 0.00006666666666509021,
+      "baselineMadMs": 0.000003938888888418046,
+      "candidateMadMs": 0.0000023111111153816108,
+      "speedup": 1.024250000024613,
+      "baselineDeterministic": true,
+      "candidateDeterministic": true,
+      "baselineWithinRunExactSamples": [
+        true,
+        true,
+        true
+      ],
+      "candidateWithinRunExactSamples": [
+        true,
+        true,
+        true
+      ],
+      "baselineWithinRunExact": true,
+      "candidateWithinRunExact": true,
+      "withinRunExact": true,
+      "baselineFingerprint": "c319e31903b0f6ac80539e8dcd580f2997df570aab44958844b364b26405c4f9",
+      "candidateFingerprint": "e03994babe8f3f1c02e0792b6145e7b2fff39d55c0f0a84766326d8f88f7a104",
+      "baselineBrokenCount": 0,
+      "candidateBrokenCount": 0,
+      "correctness": {
+        "correct": true,
+        "stateError": 0.000004500647317725871,
+        "matrixError": 0,
+        "colorError": 0,
+        "lineError": 0,
+        "sameBreakCount": true,
+        "sameCounts": true,
+        "fidelityLimit": 0.002,
+        "renderLimit": 0.002,
+        "withinRunExact": true
+      },
+      "decision": "control"
+    },
+    {
+      "id": 98,
+      "category": "unchanged-control",
+      "sceneId": 650,
+      "engine": "soft",
+      "wasm": true,
+      "operation": "unchanged-frame",
+      "warmup": 24,
+      "iterations": 6000,
+      "control": true,
+      "fidelityLimit": 0.0005,
+      "renderFidelityLimit": 0.0005,
+      "sceneTitle": "Sky Crane Cable Load — Baseline",
+      "baselineSamplesMs": [
+        0.0000662055555545117,
+        0.00006458333333385882,
+        0.00006736111111220251
+      ],
+      "candidateSamplesMs": [
+        0.00007430555555806171,
+        0.00006851666666484057,
+        0.00007916666666258404
+      ],
+      "baselineMedianMs": 0.0000662055555545117,
+      "candidateMedianMs": 0.00007430555555806171,
+      "baselineMadMs": 0.0000011555555576908054,
+      "candidateMadMs": 0.000004861111104522331,
+      "speedup": 0.8909906541615082,
+      "baselineDeterministic": true,
+      "candidateDeterministic": true,
+      "baselineWithinRunExactSamples": [
+        true,
+        true,
+        true
+      ],
+      "candidateWithinRunExactSamples": [
+        true,
+        true,
+        true
+      ],
+      "baselineWithinRunExact": true,
+      "candidateWithinRunExact": true,
+      "withinRunExact": true,
+      "baselineFingerprint": "8db6804d8ba2d5a89f519e1b4fed6b77c05897aa82d5762b8a1aab2962c026f3",
+      "candidateFingerprint": "e30aabc169b1b96d9f299e0bf77681c32f46b2a7f93aebb6fc9b2b3a72ad5a1d",
+      "baselineBrokenCount": 0,
+      "candidateBrokenCount": 0,
+      "correctness": {
+        "correct": true,
+        "stateError": 0.000008048590097570434,
+        "matrixError": 0.00002162453162336877,
+        "colorError": 0,
+        "lineError": 0,
+        "sameBreakCount": true,
+        "sameCounts": true,
+        "fidelityLimit": 0.0005,
+        "renderLimit": 0.0005,
+        "withinRunExact": true
+      },
+      "decision": "control"
+    },
+    {
+      "id": 99,
+      "category": "unchanged-control",
+      "sceneId": 699,
+      "engine": "soft",
+      "wasm": true,
+      "operation": "unchanged-frame",
+      "warmup": 24,
+      "iterations": 6000,
+      "control": true,
+      "fidelityLimit": 0.0005,
+      "renderFidelityLimit": 0.0005,
+      "sceneTitle": "Rope Net Resonance — Cinematic",
+      "baselineSamplesMs": [
+        0.00007152777777971804,
+        0.00007291666666383712,
+        0.00006967777777996767
+      ],
+      "candidateSamplesMs": [
+        0.00007176111111119906,
+        0.0000576388888879996,
+        0.00006666666666509021
+      ],
+      "baselineMedianMs": 0.00007152777777971804,
+      "candidateMedianMs": 0.00006666666666509021,
+      "baselineMadMs": 0.000001388888884119082,
+      "candidateMadMs": 0.000005094444446108852,
+      "speedup": 1.0729166667211416,
+      "baselineDeterministic": true,
+      "candidateDeterministic": true,
+      "baselineWithinRunExactSamples": [
+        true,
+        true,
+        true
+      ],
+      "candidateWithinRunExactSamples": [
+        true,
+        true,
+        true
+      ],
+      "baselineWithinRunExact": true,
+      "candidateWithinRunExact": true,
+      "withinRunExact": true,
+      "baselineFingerprint": "91064602e37f9970b0d46a16e4b108527dbeff9e4792ad7a49c7209a0ee786f3",
+      "candidateFingerprint": "725ff37ab00d7a14b24e122a026b2cb7aaf896913f6f69e9e7b111658fb40cae",
+      "baselineBrokenCount": 0,
+      "candidateBrokenCount": 0,
+      "correctness": {
+        "correct": true,
+        "stateError": 0.000018295723226947748,
+        "matrixError": 0,
+        "colorError": 0,
+        "lineError": 0,
+        "sameBreakCount": true,
+        "sameCounts": true,
+        "fidelityLimit": 0.0005,
+        "renderLimit": 0.0005,
+        "withinRunExact": true
+      },
+      "decision": "control"
+    },
+    {
+      "id": 100,
+      "category": "unchanged-control",
+      "sceneId": 749,
+      "engine": "soft",
+      "wasm": true,
+      "operation": "unchanged-frame",
+      "warmup": 24,
+      "iterations": 6000,
+      "control": true,
+      "fidelityLimit": 1e-7,
+      "renderFidelityLimit": 1e-7,
+      "sceneTitle": "Leviathan Impact Pool — Cinematic",
+      "baselineSamplesMs": [
+        0.00007106666666408677,
+        0.00006944444444848665,
+        0.00007338333333185195
+      ],
+      "candidateSamplesMs": [
+        0.00006758888888624723,
+        0.000066900000001624,
+        0.00006782222222278102
+      ],
+      "baselineMedianMs": 0.00007106666666408677,
+      "candidateMedianMs": 0.00006758888888624723,
+      "baselineMadMs": 0.0000016222222156001204,
+      "candidateMadMs": 2.3333333653378636e-7,
+      "speedup": 1.051454874242609,
+      "baselineDeterministic": true,
+      "candidateDeterministic": true,
+      "baselineWithinRunExactSamples": [
+        true,
+        true,
+        true
+      ],
+      "candidateWithinRunExactSamples": [
+        true,
+        true,
+        true
+      ],
+      "baselineWithinRunExact": true,
+      "candidateWithinRunExact": true,
+      "withinRunExact": true,
+      "baselineFingerprint": "eced1d5372d9b59417a7f4878fd3a528e50e7271561a887c7318916a9303c2cd",
+      "candidateFingerprint": "eced1d5372d9b59417a7f4878fd3a528e50e7271561a887c7318916a9303c2cd",
+      "baselineBrokenCount": 0,
+      "candidateBrokenCount": 0,
+      "correctness": {
+        "correct": true,
+        "stateError": 0,
+        "matrixError": 0,
+        "colorError": 0,
+        "lineError": 0,
+        "sameBreakCount": true,
+        "sameCounts": true,
+        "fidelityLimit": 1e-7,
+        "renderLimit": 1e-7,
+        "withinRunExact": true
+      },
+      "decision": "control"
+    }
+  ]
+}

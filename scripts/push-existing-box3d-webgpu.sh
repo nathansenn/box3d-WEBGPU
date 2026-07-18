@@ -5,7 +5,7 @@ OWNER="${GITHUB_OWNER:-nathansenn}"
 REPO="${GITHUB_REPO:-box3d-WEBGPU}"
 BRANCH="${GITHUB_BRANCH:-main}"
 TARGET_DIR="${TARGET_DIR:-$HOME/box3d-WEBGPU}"
-COMMIT_MESSAGE="${COMMIT_MESSAGE:-Upgrade Box3D WebGPU to the AAA Physics Showcase}"
+COMMIT_MESSAGE="${COMMIT_MESSAGE:-Optimize Box3D WebGPU v1.13 production paths}"
 REMOTE_SSH="git@github.com:${OWNER}/${REPO}.git"
 REMOTE_HTTPS="https://github.com/${OWNER}/${REPO}.git"
 
@@ -48,13 +48,12 @@ rsync -a \
   --exclude='node_modules' \
   --exclude='dist' \
   --exclude='.test-build' \
+  --exclude='SOURCE_MANIFEST 2.sha256' \
   --exclude='third_party/box3d' \
-  --exclude='public/box3d/*.wasm' \
-  --exclude='public/box3d/*.js' \
   "$PROJECT_ROOT/" "$TARGET_DIR/"
 
-npm install
-npm run validate
+npm ci
+npm run validate:v1.13
 
 git add -A
 if git diff --cached --quiet; then

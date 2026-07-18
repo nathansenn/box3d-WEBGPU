@@ -1,0 +1,597 @@
+{
+  "schemaVersion": 1,
+  "generatedAt": "2026-07-16T14:24:01.684Z",
+  "baseline": "v1.11.0 exact bundled source archive",
+  "candidate": "v1.12 working tree",
+  "baselineArchiveSha256": "7583322b353b6aca546fb36223737adbabf9511678c235a9ec7177546ac06537",
+  "relevantCandidateSourceSha256": {
+    "src/math.ts": "0ac09cdb4d0aa1d8e7b5114ac2f538d1875fa08be46a3b1f35314ee78b5b4aee",
+    "src/physics/fallback.ts": "fdf334173365f552b0f3b8bdb461c5266850df2a2e04a975e0e3937e1a65dbc3",
+    "src/soft/simulations.ts": "68b5822307675405d494cfa1a7e0ee2dc459eeb05102114f746d7fbebdb5c42a"
+  },
+  "environment": {
+    "node": "v26.0.0",
+    "platform": "darwin",
+    "arch": "arm64"
+  },
+  "sampleCount": 16,
+  "warmupRounds": 3,
+  "bootstrapResamples": 20000,
+  "targetFastBatchMs": 60,
+  "maximumSlowBatchMs": 280,
+  "exactCases": 7,
+  "summary": {
+    "trueWins": 5,
+    "parityOrNoise": 2,
+    "regressions": 0
+  },
+  "interpretation": [
+    "Fallback cached dynamicCount: true-win at 67.502x.",
+    "Fallback dynamic-index sync path: true-win at 1.039x; complete fallback frame: parity/noise at 0.982x.",
+    "Axis-aligned matrix specialization: cloth sphere true-win at 1.782x; full 768-droplet water frame true-win at 4.324x.",
+    "Rope tuple removal: payload-only parity/noise at 1.020x; 149-node debug frame true-win at 1.411x."
+  ],
+  "records": [
+    {
+      "id": "fallback-dynamic-count",
+      "family": "fallback dynamic index/cache",
+      "sceneId": 390,
+      "description": "cached dynamicCount on a 135-body / 38-dynamic static-heavy scene",
+      "iterations": 1454451,
+      "preTimedIterations": 10000,
+      "calibration": {
+        "baselineNsPerOperation": 192.512499999998,
+        "candidateNsPerOperation": 14.366649999999481,
+        "expectedBaselineBatchMs": 279.9999981374971,
+        "expectedCandidateBatchMs": 20.895588459149245
+      },
+      "exact": {
+        "passed": true,
+        "fingerprint": "d3fc5a2a01f297234fba9a121771b04af920ec0d2a256baf77eabdfa3fa34370",
+        "deterministicBaselineSamples": 16,
+        "deterministicCandidateSamples": 16
+      },
+      "baseline": {
+        "nsPerOperation": 186.06924812179992,
+        "normalizedMad": 0.16631549043500257,
+        "samples": [
+          192.02927221336446,
+          124.86865009546538,
+          195.6816235129268,
+          129.23169429564828,
+          193.1367347542131,
+          190.78693610166297,
+          133.78922700042813,
+          127.56772142891042,
+          185.8689003617172,
+          616.1070115115598,
+          186.26959588188262,
+          128.8337489540728,
+          193.4187133151956,
+          128.1756539065253,
+          188.4042790028672,
+          127.03951525352184
+        ]
+      },
+      "candidate": {
+        "nsPerOperation": 2.186864665774061,
+        "normalizedMad": 0.23554923267373926,
+        "samples": [
+          1.1083790378637604,
+          1.5282398650761735,
+          2.6489094510573246,
+          2.2863726588245434,
+          2.6591937438937325,
+          2.761064484125202,
+          2.2092528383560457,
+          1.9243226482018516,
+          1.3080255024059992,
+          1.3022955053142413,
+          2.7036833829392743,
+          1.5170095108051012,
+          2.7002745365776346,
+          2.1644764931920766,
+          2.7367996584277523,
+          2.11821023877737
+        ]
+      },
+      "speedup": 67.50212617093753,
+      "confidence95": {
+        "lower": 64.13765669766025,
+        "median": 70.58160911922292,
+        "upper": 99.2312902997774
+      },
+      "orderStrata": {
+        "baselineFirstRatio": 71.67033820632784,
+        "candidateFirstRatio": 63.57632950579362,
+        "samplesPerOrder": 8
+      },
+      "classification": {
+        "decision": "true-win",
+        "noise": "high",
+        "maximumNormalizedMad": 0.23554923267373926
+      }
+    },
+    {
+      "id": "fallback-sync-transforms",
+      "family": "fallback dynamic index/cache",
+      "sceneId": 390,
+      "description": "complete syncTransforms on a 135-body / 38-dynamic static-heavy scene",
+      "iterations": 33568,
+      "preTimedIterations": 100,
+      "calibration": {
+        "baselineNsPerOperation": 1887.2500000006767,
+        "candidateNsPerOperation": 1787.4169999995502,
+        "expectedBaselineBatchMs": 63.351208000022716,
+        "expectedCandidateBatchMs": 60.000013855984896
+      },
+      "exact": {
+        "passed": true,
+        "fingerprint": "b85792e1dffb47acd790ca2f97eb2704d39c63e5619197a05800cbe627121bec",
+        "deterministicBaselineSamples": 16,
+        "deterministicCandidateSamples": 16
+      },
+      "baseline": {
+        "nsPerOperation": 1620.110670877039,
+        "normalizedMad": 0.017580266209415357,
+        "samples": [
+          1646.7828884652026,
+          1577.8245948522342,
+          1650.402407054341,
+          1620.2062678741645,
+          1600.2033186368187,
+          1666.0361058150434,
+          1604.6060831744662,
+          1559.1150798379097,
+          1620.0150738799134,
+          1601.2956387035038,
+          1614.855189466137,
+          1662.0616062917245,
+          1700.7355815061653,
+          1672.3032352240211,
+          1669.7214311248476,
+          1604.8940359866663
+        ]
+      },
+      "candidate": {
+        "nsPerOperation": 1542.3921889895387,
+        "normalizedMad": 0.018896670268868633,
+        "samples": [
+          1534.4288608198312,
+          1632.9813214966605,
+          1526.3432733555546,
+          1622.5174868922568,
+          1510.8262631077218,
+          1591.0577037654919,
+          1530.79197449952,
+          1601.2236356053243,
+          1528.1257447568796,
+          1585.6520197807167,
+          1494.2355815061828,
+          1604.5216873212587,
+          1550.3555171592461,
+          1515.6659616301279,
+          1520.1953348427028,
+          1564.8956446615807
+        ]
+      },
+      "speedup": 1.0394756236107552,
+      "confidence95": {
+        "lower": 1.0239225231083202,
+        "median": 1.0418720566835873,
+        "upper": 1.0645024124348923
+      },
+      "orderStrata": {
+        "baselineFirstRatio": 1.0102807243475862,
+        "candidateFirstRatio": 1.0695141914924036,
+        "samplesPerOrder": 8
+      },
+      "classification": {
+        "decision": "true-win",
+        "noise": "low",
+        "maximumNormalizedMad": 0.018896670268868633
+      }
+    },
+    {
+      "id": "fallback-complete-step",
+      "family": "fallback dynamic index/cache",
+      "sceneId": 390,
+      "description": "complete two-substep fallback frame on the same static-heavy production scene",
+      "iterations": 1374,
+      "preTimedIterations": 20,
+      "calibration": {
+        "baselineNsPerOperation": 51781.25000005215,
+        "candidateNsPerOperation": 43691.000000004955,
+        "expectedBaselineBatchMs": 71.14743750007165,
+        "expectedCandidateBatchMs": 60.03143400000681
+      },
+      "exact": {
+        "passed": true,
+        "fingerprint": "0618ef9d8aec2e87279e7a302e4fb442260439ac4e7a08b8c64b8ea091ac7353",
+        "deterministicBaselineSamples": 16,
+        "deterministicCandidateSamples": 16
+      },
+      "baseline": {
+        "nsPerOperation": 23072.47707423595,
+        "normalizedMad": 0.10654764295924546,
+        "samples": [
+          25437.62081513785,
+          19837.48835516822,
+          24368.783114992395,
+          21882.399563318777,
+          15388.04002911221,
+          25017.55822416323,
+          18095.098981077805,
+          25485.62590975312,
+          18051.219068412884,
+          24262.554585153124,
+          18146.53056768489,
+          25255.216157204628,
+          18530.324599709504,
+          24553.644832605798,
+          18147.80422125204,
+          25575.96433770092
+        ]
+      },
+      "candidate": {
+        "nsPerOperation": 22188.470160116085,
+        "normalizedMad": 0.1697159979031157,
+        "samples": [
+          20541.57569141108,
+          24389.586608441943,
+          23835.364628821095,
+          15951.783114991778,
+          26194.50509461363,
+          17817.47307132405,
+          25628.881368267055,
+          18156.841339155908,
+          25591.58151382847,
+          18225.406113537592,
+          25862.475982532404,
+          18021.076419214773,
+          25928.34133915666,
+          18396.864628821448,
+          25878.062590975933,
+          18087.669577874374
+        ]
+      },
+      "speedup": 0.9818516130947185,
+      "confidence95": {
+        "lower": 0.9291284020725492,
+        "median": 0.9849531111934147,
+        "upper": 1.1535255513563596
+      },
+      "orderStrata": {
+        "baselineFirstRatio": 0.7048626537784097,
+        "candidateFirstRatio": 1.36768856311086,
+        "samplesPerOrder": 8
+      },
+      "classification": {
+        "decision": "parity/noise",
+        "noise": "high",
+        "maximumNormalizedMad": 0.1697159979031157
+      }
+    },
+    {
+      "id": "cloth-sphere-frame",
+      "family": "axis-aligned matrix writer",
+      "sceneId": 607,
+      "description": "forced cloth collider-sphere buildFrame (one exact zero-rotation matrix)",
+      "iterations": 876607,
+      "preTimedIterations": 1000,
+      "calibration": {
+        "baselineNsPerOperation": 99.6208000000479,
+        "candidateNsPerOperation": 68.44579999997222,
+        "expectedBaselineBatchMs": 87.32829062564198,
+        "expectedCandidateBatchMs": 60.00006740057565
+      },
+      "exact": {
+        "passed": true,
+        "fingerprint": "cc533fc979ec749fedc8f049e0a512f7cbde7529978d97d114c600121282e3bc",
+        "deterministicBaselineSamples": 16,
+        "deterministicCandidateSamples": 16
+      },
+      "baseline": {
+        "nsPerOperation": 74.19563898075296,
+        "normalizedMad": 0.02270062338852263,
+        "samples": [
+          71.69565837370774,
+          71.31107896697245,
+          74.84401904160082,
+          72.70247670849065,
+          75.77616423323124,
+          70.77967435806538,
+          77.58541398825221,
+          73.1690004756976,
+          78.84818966766193,
+          74.6058381920307,
+          75.9836882434204,
+          73.7854397694752,
+          75.16267266859549,
+          71.97010747119296,
+          73.44592160454985,
+          109.65370799001249
+        ]
+      },
+      "candidate": {
+        "nsPerOperation": 41.96200520871996,
+        "normalizedMad": 0.020344448276840968,
+        "samples": [
+          42.139037219643384,
+          40.811617977039745,
+          39.974963695247034,
+          42.31875515481939,
+          40.19760280262545,
+          42.53412190411412,
+          40.68366211996888,
+          41.97101209550035,
+          41.95299832193956,
+          42.95163967433666,
+          40.86105175979525,
+          42.88324186322901,
+          41.17585417410634,
+          42.495097575082454,
+          40.51316610522126,
+          42.58341195085224
+        ]
+      },
+      "speedup": 1.7819835356744178,
+      "confidence95": {
+        "lower": 1.7495454784403723,
+        "median": 1.7822832262130155,
+        "upper": 1.8091551016520355
+      },
+      "orderStrata": {
+        "baselineFirstRatio": 1.7155452922848184,
+        "candidateFirstRatio": 1.850994745341589,
+        "samplesPerOrder": 8
+      },
+      "classification": {
+        "decision": "true-win",
+        "noise": "low",
+        "maximumNormalizedMad": 0.02270062338852263
+      }
+    },
+    {
+      "id": "water-768-droplet-frame",
+      "family": "axis-aligned matrix writer",
+      "sceneId": 745,
+      "description": "forced water buildFrame with the full 768-droplet budget",
+      "iterations": 3760,
+      "preTimedIterations": 20,
+      "calibration": {
+        "baselineNsPerOperation": 33743.22499998925,
+        "candidateNsPerOperation": 15958.337500001106,
+        "expectedBaselineBatchMs": 126.87452599995959,
+        "expectedCandidateBatchMs": 60.00334900000416
+      },
+      "exact": {
+        "passed": true,
+        "fingerprint": "205fbe36135d50e7eac67a840f2c24856a82111e45fc4fa953baf6a701cbc13f",
+        "deterministicBaselineSamples": 16,
+        "deterministicCandidateSamples": 16
+      },
+      "baseline": {
+        "nsPerOperation": 31354.53244680843,
+        "normalizedMad": 0.03930433824923608,
+        "samples": [
+          32927.0723404258,
+          29981.427393616945,
+          30819.27101063829,
+          32580.994946808092,
+          30399.855851063912,
+          31826.595744680762,
+          29648.836436170197,
+          32681.64893617016,
+          30116.25664893608,
+          31952.69281914902,
+          30083.97606382953,
+          31878.036436170234,
+          30859.72952127664,
+          33591.95478723392,
+          30882.4691489361,
+          33636.280851063486
+        ]
+      },
+      "candidate": {
+        "nsPerOperation": 6631.322074468079,
+        "normalizedMad": 0.04587488992340648,
+        "samples": [
+          6371.752925531624,
+          6337.710372340456,
+          8515.447606383203,
+          6699.645478723122,
+          8321.298936170158,
+          6316.511436169945,
+          8129.676595744774,
+          6424.734042553474,
+          8266.600265957346,
+          6401.70638297885,
+          8197.861436170531,
+          6410.671542553149,
+          8160.815425531701,
+          6562.998670213036,
+          8286.247872340336,
+          6515.824468085079
+        ]
+      },
+      "speedup": 4.323726762906402,
+      "confidence95": {
+        "lower": 4.26402100413257,
+        "median": 4.315231133291998,
+        "upper": 4.386657343560611
+      },
+      "orderStrata": {
+        "baselineFirstRatio": 3.718258633004091,
+        "candidateFirstRatio": 5.027787188964083,
+        "samplesPerOrder": 8
+      },
+      "classification": {
+        "decision": "true-win",
+        "noise": "moderate",
+        "maximumNormalizedMad": 0.04587488992340648
+      }
+    },
+    {
+      "id": "rope-payload-frame",
+      "family": "rope tuple removal",
+      "sceneId": 658,
+      "description": "forced rope buildFrame with one payload and debug disabled",
+      "iterations": 505087,
+      "preTimedIterations": 1000,
+      "calibration": {
+        "baselineNsPerOperation": 118.79165000000285,
+        "candidateNsPerOperation": 136.06455000008282,
+        "expectedBaselineBatchMs": 60.00011812355144,
+        "expectedCandidateBatchMs": 68.72443536589184
+      },
+      "exact": {
+        "passed": true,
+        "fingerprint": "d1aa57b828ea9311a77d09440ed1c4a3cefa4185ad42e2eece6284fcc3659403",
+        "deterministicBaselineSamples": 16,
+        "deterministicCandidateSamples": 16
+      },
+      "baseline": {
+        "nsPerOperation": 81.53624128120519,
+        "normalizedMad": 0.034983686370453855,
+        "samples": [
+          80.36643390148605,
+          78.74476674315427,
+          86.85137411970669,
+          81.10079649644531,
+          84.44964332876894,
+          81.75794467091727,
+          78.34046411805996,
+          77.61575332565889,
+          85.62394597365868,
+          82.4042867862358,
+          85.71452442846898,
+          85.000702849212,
+          83.71659931853578,
+          81.31453789149312,
+          79.82288199854881,
+          78.41561552762067
+        ]
+      },
+      "candidate": {
+        "nsPerOperation": 79.36405015373987,
+        "normalizedMad": 0.0451744946770142,
+        "samples": [
+          76.0340970961451,
+          83.48660725775889,
+          78.57326163611349,
+          74.76789543187219,
+          76.98995420590747,
+          83.25158240065512,
+          78.98960971080471,
+          81.60739436968151,
+          83.52232783658566,
+          75.3648203180856,
+          79.51113768519713,
+          84.21725762096416,
+          79.21696262228261,
+          85.41193497357492,
+          77.39046144525717,
+          83.20455881857792
+        ]
+      },
+      "speedup": 1.0204836974470302,
+      "confidence95": {
+        "lower": 0.9898024031347527,
+        "median": 1.019415610761354,
+        "upper": 1.0634239393212415
+      },
+      "orderStrata": {
+        "baselineFirstRatio": 0.9757244953433551,
+        "candidateFirstRatio": 1.0672961289023495,
+        "samplesPerOrder": 8
+      },
+      "classification": {
+        "decision": "parity/noise",
+        "noise": "moderate",
+        "maximumNormalizedMad": 0.0451744946770142
+      }
+    },
+    {
+      "id": "rope-debug-frame",
+      "family": "rope tuple removal",
+      "sceneId": 658,
+      "description": "forced rope debug buildFrame across 149 sampled nodes",
+      "iterations": 10556,
+      "preTimedIterations": 20,
+      "calibration": {
+        "baselineNsPerOperation": 5944.583333330229,
+        "candidateNsPerOperation": 5684.443333339004,
+        "expectedBaselineBatchMs": 62.751021666633896,
+        "expectedCandidateBatchMs": 60.00498382672652
+      },
+      "exact": {
+        "passed": true,
+        "fingerprint": "09a180425398e0e271fd6a002c7ab4d2ef74578f4757a4dd5f3067bd58d4e138",
+        "deterministicBaselineSamples": 16,
+        "deterministicCandidateSamples": 16
+      },
+      "baseline": {
+        "nsPerOperation": 3453.081612353193,
+        "normalizedMad": 0.16251390798639698,
+        "samples": [
+          3641.33355437659,
+          2331.5057787040932,
+          2354.7390109890443,
+          3026.963338385915,
+          2895.5570291777767,
+          3145.7464948844477,
+          2888.258620689637,
+          4187.515820386225,
+          3422.721674877035,
+          4438.447328533527,
+          3458.5109890111116,
+          4239.800492610617,
+          3489.4372868511596,
+          4466.543482379966,
+          3447.652235695274,
+          4296.438802576776
+        ]
+      },
+      "candidate": {
+        "nsPerOperation": 2652.2199223190046,
+        "normalizedMad": 0.1268454520043677,
+        "samples": [
+          2766.7480106101416,
+          2530.432929139853,
+          3070.054945055055,
+          2316.0051155743654,
+          3123.436907919796,
+          2537.691834027867,
+          3141.759852216745,
+          2315.5906593405575,
+          3090.1264683590753,
+          2383.0641341416654,
+          3085.5279461918894,
+          2321.728590375138,
+          3145.939844638118,
+          2355.990242515822,
+          3157.4618226601056,
+          2323.6232474422504
+        ]
+      },
+      "speedup": 1.411105472273008,
+      "confidence95": {
+        "lower": 1.1090656389888087,
+        "median": 1.3582019962736738,
+        "upper": 1.4403974792143506
+      },
+      "orderStrata": {
+        "baselineFirstRatio": 1.1057059362749726,
+        "candidateFirstRatio": 1.8008573424025127,
+        "samplesPerOrder": 8
+      },
+      "classification": {
+        "decision": "true-win",
+        "noise": "high",
+        "maximumNormalizedMad": 0.16251390798639698
+      }
+    }
+  ],
+  "observableSink": 2296710676
+}

@@ -1,0 +1,171 @@
+{
+  "schemaVersion": 1,
+  "generatedAt": "2026-07-15T10:15:48.291Z",
+  "archive": "benchmarks/baselines/box3d-webgpu-v1.10.0-source.tar.gz",
+  "archiveSha256": "dea18ff88e86568e5449c9dece5610d0dfadf38d901eef1c1e39155c64e8c3f5",
+  "sourceFingerprint": "a08416021fca58bb10c49b383260490e4158bb98ca720cc95dd587b14cf29dd3",
+  "sourceFingerprintAtEnd": "a08416021fca58bb10c49b383260490e4158bb98ca720cc95dd587b14cf29dd3",
+  "sourceStableDuringRun": true,
+  "samples": 21,
+  "warmupFrames": 4,
+  "timedFrames": 72,
+  "bootstraps": 50000,
+  "exactComparisons": 504,
+  "benchmark": {
+    "records": [
+      {
+        "sceneId": 49,
+        "title": "Cross-Laminated Block Grid — Cinematic",
+        "bodyCount": 3462,
+        "candidateCount": 402,
+        "archiveMedianMs": 0.76538947222222,
+        "controlMedianMs": 0.7473634305555569,
+        "candidateMedianMs": 0.6795538194444425,
+        "speedupVsControl": 1.099785490377423,
+        "speedupVsArchive": 1.126311780350158,
+        "exact": true
+      },
+      {
+        "sceneId": 99,
+        "title": "Thin-Body Stability Trial — Cinematic",
+        "bodyCount": 271,
+        "candidateCount": 0,
+        "archiveMedianMs": 0.08938772222222724,
+        "controlMedianMs": 0.0660833333333307,
+        "candidateMedianMs": 0.06493923611110909,
+        "speedupVsControl": 1.0176179655126232,
+        "speedupVsArchive": 1.3764825023393796,
+        "exact": true
+      },
+      {
+        "sceneId": 149,
+        "title": "Needle Spire Shake Test — Cinematic",
+        "bodyCount": 587,
+        "candidateCount": 1170,
+        "archiveMedianMs": 0.7975758194444451,
+        "controlMedianMs": 0.7472939861111172,
+        "candidateMedianMs": 0.6546383194444287,
+        "speedupVsControl": 1.1415371876570293,
+        "speedupVsArchive": 1.2183457578855497,
+        "exact": true
+      },
+      {
+        "sceneId": 199,
+        "title": "Multi-Pier Viaduct — Cinematic",
+        "bodyCount": 254,
+        "candidateCount": 89,
+        "archiveMedianMs": 0.13069444444444242,
+        "controlMedianMs": 0.10729513888888202,
+        "candidateMedianMs": 0.10207697222222123,
+        "speedupVsControl": 1.051119920125578,
+        "speedupVsArchive": 1.2803518913151248,
+        "exact": true
+      },
+      {
+        "sceneId": 249,
+        "title": "Energy Loss Arena — Cinematic",
+        "bodyCount": 188,
+        "candidateCount": 3,
+        "archiveMedianMs": 0.09807465277779354,
+        "controlMedianMs": 0.08130787499999315,
+        "candidateMedianMs": 0.08295601388888624,
+        "speedupVsControl": 0.9801323760432769,
+        "speedupVsArchive": 1.182248859126207,
+        "exact": true
+      },
+      {
+        "sceneId": 299,
+        "title": "Dense Core Rain Column — Cinematic",
+        "bodyCount": 2227,
+        "candidateCount": 0,
+        "archiveMedianMs": 0.6077042777777832,
+        "controlMedianMs": 0.5925208333333356,
+        "candidateMedianMs": 0.5833987222222277,
+        "speedupVsControl": 1.0156361520237152,
+        "speedupVsArchive": 1.041661996555243,
+        "exact": true
+      },
+      {
+        "sceneId": 349,
+        "title": "Progressive Collapse Theater — Cinematic",
+        "bodyCount": 510,
+        "candidateCount": 545,
+        "archiveMedianMs": 0.5167679305555642,
+        "controlMedianMs": 0.47162615277779374,
+        "candidateMedianMs": 0.40059779166666787,
+        "speedupVsControl": 1.1773059227701077,
+        "speedupVsArchive": 1.2899919602791021,
+        "exact": true
+      },
+      {
+        "sceneId": 399,
+        "title": "Heavy Hauler Load Shift — Cinematic",
+        "bodyCount": 153,
+        "candidateCount": 2,
+        "archiveMedianMs": 0.04798033333332165,
+        "controlMedianMs": 0.03158450000000812,
+        "candidateMedianMs": 0.031098374999980177,
+        "speedupVsControl": 1.0156318457163196,
+        "speedupVsArchive": 1.542856606924067,
+        "exact": true
+      },
+      {
+        "sceneId": 449,
+        "title": "Physics Toy Museum — Cinematic",
+        "bodyCount": 263,
+        "candidateCount": 4,
+        "archiveMedianMs": 0.1020682916666576,
+        "controlMedianMs": 0.07802604166666545,
+        "candidateMedianMs": 0.07705497222221108,
+        "speedupVsControl": 1.0126022943938517,
+        "speedupVsArchive": 1.324616552612765,
+        "exact": true
+      },
+      {
+        "sceneId": 499,
+        "title": "Foundation Block Layout — Cinematic",
+        "bodyCount": 181,
+        "candidateCount": 72,
+        "archiveMedianMs": 0.13369618055553978,
+        "controlMedianMs": 0.11534548611113375,
+        "candidateMedianMs": 0.1023946666666436,
+        "speedupVsControl": 1.126479433608128,
+        "speedupVsArchive": 1.3056947681738298,
+        "exact": true
+      },
+      {
+        "sceneId": 549,
+        "title": "Inventory Earthquake Proxy — Cinematic",
+        "bodyCount": 654,
+        "candidateCount": 325,
+        "archiveMedianMs": 0.6271203749999787,
+        "controlMedianMs": 0.6186863472222386,
+        "candidateMedianMs": 0.6021394583333151,
+        "speedupVsControl": 1.0274801603846462,
+        "speedupVsArchive": 1.0414869285195316,
+        "exact": true
+      },
+      {
+        "sceneId": 599,
+        "title": "Mega Structure Showcase — Cinematic",
+        "bodyCount": 262,
+        "candidateCount": 266,
+        "archiveMedianMs": 0.16957638888885007,
+        "controlMedianMs": 0.14168923611113213,
+        "candidateMedianMs": 0.12803876388887955,
+        "speedupVsControl": 1.106612027542685,
+        "speedupVsArchive": 1.3244144487057028,
+        "exact": true
+      }
+    ],
+    "geometricMeanVsControl": 1.0626360640689456,
+    "geometricMeanVsArchive": 1.2470214512914366,
+    "minimumSpeedupVsControl": 0.9801323760432769,
+    "pairedBootstrap95": {
+      "lower": 1.0543605102504372,
+      "upper": 1.072283704918451
+    },
+    "accepted": true
+  },
+  "passed": true
+}

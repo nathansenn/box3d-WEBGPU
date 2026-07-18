@@ -1,0 +1,447 @@
+{
+  "schemaVersion": 1,
+  "generatedAt": "2026-07-16T19:04:14.061Z",
+  "elapsedSeconds": 1.3614114160000002,
+  "environment": {
+    "backend": "metal",
+    "platform": "darwin",
+    "arch": "arm64",
+    "node": "v26.0.0",
+    "width": 1280,
+    "height": 720,
+    "sampleCount": 4,
+    "shadowMapSize": 2048,
+    "rigidInstances": 4096,
+    "waterRigidInstances": 1024,
+    "warmupFrames": 30,
+    "batches": 9,
+    "framesPerBatch": 30,
+    "measuredFramesPerVariantPerExperiment": 270,
+    "bootstrapSamples": 20000,
+    "outputBasename": "v113-bindgroup-hoist-metal",
+    "selectedCandidates": [
+      "workspace-current"
+    ],
+    "synchronization": "GPUQueue.onSubmittedWorkDone after every warm-up/timed batch",
+    "sharedGpuDeviceAcrossVariants": true,
+    "materialTextureInfo": {
+      "compressed": true,
+      "sourceBytes": 43704,
+      "source": "ktx2-bc4"
+    },
+    "runtimeErrors": []
+  },
+  "sourceIntegrity": {
+    "archivePath": "../../../../tmp/webphysics-renderer-pre-bindgroup-v113.tar.gz",
+    "archiveSha256": "cab12a41a2bba928c4eeceb34fceb400753e5e38032269a40a07e8f548f6c492",
+    "baselineRendererSha256": "7c6553969ec5586b5721c5d524d4be74f46608c06adff232aaa2d902bf2a5a9e",
+    "workspaceRendererSha256": "54268ea35988123e714f16978e382c7a02f3490a48bf706d213194cb1778fd54",
+    "workspaceRendererVariant": "other-workspace-state",
+    "ktx2Sha256": "8d9074f9414a508459644205f288b8d1fc7840d76017eb87096555efbcc32ca6",
+    "currentEqualsMechanicalPcfVariant": false,
+    "isolatedEdits": {
+      "pcfCenterSampleMoves": 4,
+      "squaredDistanceFogRewrites": 5,
+      "hdrDepthStoreChanges": 1
+    },
+    "variantSha256": {
+      "workspace-current": "54268ea35988123e714f16978e382c7a02f3490a48bf706d213194cb1778fd54"
+    }
+  },
+  "gates": {
+    "practicalSpeedupFloor": 1.003,
+    "stableSpeedupRequiresLowerCiAbove": 1,
+    "controlRegressionUpperCiBelow": 0.995,
+    "maximumPixelChannelError": 2,
+    "maximumPixelRmse": 0.1,
+    "maximumDifferingPixelRatio": 0.01
+  },
+  "candidateSummaries": [
+    {
+      "candidate": "workspace-current",
+      "changedExperimentCount": 2,
+      "controlExperimentCount": 4,
+      "changedAggregate": {
+        "geometricMean": 1.0017744798119543,
+        "ratioOfMedians": 1.021480384653889,
+        "ci95": [
+          0.9273111118048041,
+          1.0867981470671246
+        ]
+      },
+      "controlAggregate": {
+        "geometricMean": 1.014279637709076,
+        "ratioOfMedians": 0.9951219220678155,
+        "ci95": [
+          0.9770981165436343,
+          1.0597773808212263
+        ]
+      },
+      "fidelityPassed": true,
+      "decision": "revert-no-stable-benefit",
+      "reason": "The measured effect did not clear the predeclared stable-benefit gate."
+    }
+  ],
+  "experiments": [
+    {
+      "candidate": "workspace-current",
+      "role": "changed",
+      "scene": "rigid",
+      "shadowTapCount": 1,
+      "instanceCount": 4096,
+      "baselineMsPerFrame": [
+        0.28353056666666704,
+        0.3312569333333329,
+        0.3419638999999999,
+        0.2918666666666695,
+        0.274238866666667,
+        0.28075973333333193,
+        0.374822233333335,
+        0.3197708333333329,
+        0.5659222333333332
+      ],
+      "variantMsPerFrame": [
+        0.34380280000000124,
+        0.3263264000000011,
+        0.2816402999999999,
+        0.42066113333333227,
+        0.32080276666666807,
+        0.3297735999999986,
+        0.30604166666666593,
+        0.3444500000000024,
+        0.36011946666666667
+      ],
+      "baselineStats": {
+        "median": 0.3197708333333329,
+        "mad": 0.036240266666665855,
+        "min": 0.274238866666667,
+        "max": 0.5659222333333332
+      },
+      "variantStats": {
+        "median": 0.3297735999999986,
+        "mad": 0.014676400000003809,
+        "min": 0.2816402999999999,
+        "max": 0.42066113333333227
+      },
+      "speedup": {
+        "geometricMean": 0.9904310586008068,
+        "ratioOfMedians": 0.9696677761146867,
+        "ci95": [
+          0.8529157737259643,
+          1.1628986505968248
+        ]
+      },
+      "fidelity": {
+        "baselineSha256": "5d4f7ff581ba4fe2930adee26d5b16254f52273a5b7c997aa80075e0815a97a6",
+        "variantSha256": "5d4f7ff581ba4fe2930adee26d5b16254f52273a5b7c997aa80075e0815a97a6",
+        "exact": true,
+        "differingBytes": 0,
+        "differingPixels": 0,
+        "differingPixelRatio": 0,
+        "maximumChannelError": 0,
+        "rmse": 0
+      },
+      "fidelityPassed": true
+    },
+    {
+      "candidate": "workspace-current",
+      "role": "control",
+      "scene": "cloth",
+      "shadowTapCount": 1,
+      "instanceCount": 0,
+      "baselineMsPerFrame": [
+        0.25472083333333256,
+        0.28807780000000016,
+        0.23607640000000174,
+        0.24795833333333045,
+        0.23031109999999824,
+        0.4366722333333314,
+        0.23952639999999975,
+        0.25998473333333627,
+        0.25660139999999954
+      ],
+      "variantMsPerFrame": [
+        0.2549777666666652,
+        0.2234124999999987,
+        0.28422916666666725,
+        0.30705416666666757,
+        0.23105000000000095,
+        0.2573485999999965,
+        0.23753886666666707,
+        0.23190556666666756,
+        0.2985347333333342
+      ],
+      "baselineStats": {
+        "median": 0.25472083333333256,
+        "mad": 0.015194433333332813,
+        "min": 0.23031109999999824,
+        "max": 0.4366722333333314
+      },
+      "variantStats": {
+        "median": 0.2549777666666652,
+        "mad": 0.02392776666666427,
+        "min": 0.2234124999999987,
+        "max": 0.30705416666666757
+      },
+      "speedup": {
+        "geometricMean": 1.039727112629831,
+        "ratioOfMedians": 0.9989923304424085,
+        "ci95": [
+          0.9105642406051323,
+          1.2174212941860811
+        ]
+      },
+      "fidelity": {
+        "baselineSha256": "b364991df0de1eb6c2bc8558fd9adbddce63086379d5a28fc4ac33931912d066",
+        "variantSha256": "b364991df0de1eb6c2bc8558fd9adbddce63086379d5a28fc4ac33931912d066",
+        "exact": true,
+        "differingBytes": 0,
+        "differingPixels": 0,
+        "differingPixelRatio": 0,
+        "maximumChannelError": 0,
+        "rmse": 0
+      },
+      "fidelityPassed": true
+    },
+    {
+      "candidate": "workspace-current",
+      "role": "control",
+      "scene": "water",
+      "shadowTapCount": 1,
+      "instanceCount": 1024,
+      "baselineMsPerFrame": [
+        0.2444291666666648,
+        0.30567219999999984,
+        0.24139859999999846,
+        0.22751666666666778,
+        0.22768610000000156,
+        0.2227736000000012,
+        0.22746113333333445,
+        0.27457776666666406,
+        0.22707083333333458
+      ],
+      "variantMsPerFrame": [
+        0.23876943333333428,
+        0.3159639000000008,
+        0.22506803333333208,
+        0.22868196666666638,
+        0.2224444333333357,
+        0.21661666666666785,
+        0.2454402666666662,
+        0.23011529999999994,
+        0.23656389999999874
+      ],
+      "baselineStats": {
+        "median": 0.22768610000000156,
+        "mad": 0.004912500000000347,
+        "min": 0.2227736000000012,
+        "max": 0.30567219999999984
+      },
+      "variantStats": {
+        "median": 0.23011529999999994,
+        "mad": 0.00767086666666425,
+        "min": 0.21661666666666785,
+        "max": 0.3159639000000008
+      },
+      "speedup": {
+        "geometricMean": 1.0186372480257941,
+        "ratioOfMedians": 0.9894435528624199,
+        "ci95": [
+          0.977438217799016,
+          1.069317894410639
+        ]
+      },
+      "fidelity": {
+        "baselineSha256": "16165bcd73fcfe53d4cfaa77cf60b287d77fd2b2bd13b24889518c22f053560f",
+        "variantSha256": "16165bcd73fcfe53d4cfaa77cf60b287d77fd2b2bd13b24889518c22f053560f",
+        "exact": true,
+        "differingBytes": 0,
+        "differingPixels": 0,
+        "differingPixelRatio": 0,
+        "maximumChannelError": 0,
+        "rmse": 0
+      },
+      "fidelityPassed": true
+    },
+    {
+      "candidate": "workspace-current",
+      "role": "changed",
+      "scene": "rigid",
+      "shadowTapCount": 9,
+      "instanceCount": 4096,
+      "baselineMsPerFrame": [
+        0.237768066666672,
+        0.22709030000000135,
+        0.2560527666666682,
+        0.2282110999999986,
+        0.2301277999999987,
+        0.23595556666666653,
+        0.23300693333333128,
+        0.23146249999999782,
+        0.2314875000000029
+      ],
+      "variantMsPerFrame": [
+        0.23035696666666658,
+        0.2375,
+        0.22700139999999464,
+        0.2248069333333357,
+        0.23552499999999935,
+        0.2315652666666665,
+        0.2274138999999953,
+        0.2341027666666605,
+        0.23437776666667104
+      ],
+      "baselineStats": {
+        "median": 0.2314875000000029,
+        "mad": 0.003276400000004287,
+        "min": 0.22709030000000135,
+        "max": 0.2560527666666682
+      },
+      "variantStats": {
+        "median": 0.2315652666666665,
+        "mad": 0.003959733333332854,
+        "min": 0.2248069333333357,
+        "max": 0.2375
+      },
+      "speedup": {
+        "geometricMean": 1.0132478173899768,
+        "ratioOfMedians": 0.9996641695545146,
+        "ci95": [
+          0.9871908179835447,
+          1.0464477693847556
+        ]
+      },
+      "fidelity": {
+        "baselineSha256": "501c9fb152412cba12b187a271bf2e709ba805b580fd4c08e7b85ff9d878ae72",
+        "variantSha256": "501c9fb152412cba12b187a271bf2e709ba805b580fd4c08e7b85ff9d878ae72",
+        "exact": true,
+        "differingBytes": 0,
+        "differingPixels": 0,
+        "differingPixelRatio": 0,
+        "maximumChannelError": 0,
+        "rmse": 0
+      },
+      "fidelityPassed": true
+    },
+    {
+      "candidate": "workspace-current",
+      "role": "control",
+      "scene": "cloth",
+      "shadowTapCount": 9,
+      "instanceCount": 0,
+      "baselineMsPerFrame": [
+        0.2257958333333363,
+        0.22874723333333502,
+        0.22626666666666703,
+        0.23062363333333452,
+        0.22716250000000096,
+        0.22634723333333112,
+        0.23336806666666993,
+        0.22253889999999502,
+        0.22769583333332927
+      ],
+      "variantMsPerFrame": [
+        0.22424583333333128,
+        0.2344985999999987,
+        0.2345666666666678,
+        0.2339791666666694,
+        0.22506250000000516,
+        0.23819719999999808,
+        0.22803609999999327,
+        0.22371530000000348,
+        0.22249166666667103
+      ],
+      "baselineStats": {
+        "median": 0.22716250000000096,
+        "mad": 0.0013666666666646565,
+        "min": 0.22253889999999502,
+        "max": 0.23336806666666993
+      },
+      "variantStats": {
+        "median": 0.22803609999999327,
+        "mad": 0.005544433333322246,
+        "min": 0.22249166666667103,
+        "max": 0.23819719999999808
+      },
+      "speedup": {
+        "geometricMean": 0.9923412715993196,
+        "ratioOfMedians": 0.9961690276232915,
+        "ci95": [
+          0.9762571546633694,
+          1.0077898750405023
+        ]
+      },
+      "fidelity": {
+        "baselineSha256": "5c36798a680243089ca6db908e513bb759ebd8e324040548dfaf070c3a627863",
+        "variantSha256": "5c36798a680243089ca6db908e513bb759ebd8e324040548dfaf070c3a627863",
+        "exact": true,
+        "differingBytes": 0,
+        "differingPixels": 0,
+        "differingPixelRatio": 0,
+        "maximumChannelError": 0,
+        "rmse": 0
+      },
+      "fidelityPassed": true
+    },
+    {
+      "candidate": "workspace-current",
+      "role": "control",
+      "scene": "water",
+      "shadowTapCount": 9,
+      "instanceCount": 1024,
+      "baselineMsPerFrame": [
+        0.2651152666666652,
+        0.2303861333333316,
+        0.22371806666666696,
+        0.2318680666666675,
+        0.22668473333333167,
+        0.22598193333333255,
+        0.2260708333333317,
+        0.23398193333333286,
+        0.22205556666666174
+      ],
+      "variantMsPerFrame": [
+        0.21996943333333546,
+        0.25321526666666616,
+        0.23018886666666277,
+        0.22598890000000058,
+        0.22002776666666554,
+        0.2333722000000004,
+        0.2413041666666686,
+        0.22201666666666522,
+        0.2246152666666679
+      ],
+      "baselineStats": {
+        "median": 0.22668473333333167,
+        "mad": 0.003701399999999938,
+        "min": 0.22205556666666174,
+        "max": 0.2651152666666652
+      },
+      "variantStats": {
+        "median": 0.22598890000000058,
+        "mad": 0.005961133333335034,
+        "min": 0.21996943333333546,
+        "max": 0.25321526666666616
+      },
+      "speedup": {
+        "geometricMean": 1.0070032018440336,
+        "ratioOfMedians": 1.0030790597827197,
+        "ci95": [
+          0.9629571192451988,
+          1.0652538351565997
+        ]
+      },
+      "fidelity": {
+        "baselineSha256": "fa9db519bfae41786ee19d3c6087eaf9e4cda00d389b2e8e21b58bffa0205575",
+        "variantSha256": "fa9db519bfae41786ee19d3c6087eaf9e4cda00d389b2e8e21b58bffa0205575",
+        "exact": true,
+        "differingBytes": 0,
+        "differingPixels": 0,
+        "differingPixelRatio": 0,
+        "maximumChannelError": 0,
+        "rmse": 0
+      },
+      "fidelityPassed": true
+    }
+  ]
+}

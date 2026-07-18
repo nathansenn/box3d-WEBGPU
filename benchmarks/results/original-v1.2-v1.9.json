@@ -1,0 +1,556 @@
+{
+  "schema": 1,
+  "generatedAt": "2026-07-14T10:55:28.839Z",
+  "sources": {
+    "baselineVersion": "1.2.0",
+    "currentVersion": "1.10.0",
+    "baselineArchive": "benchmarks/baselines/box3d-webgpu-v1.2.0-source.tar.gz",
+    "baselineArchiveSha256": "cfe8124c0a8b4f5e0945e3f83113833efd57dd7b6ebf44941271e3633db509d0",
+    "currentSoftPathSha256": "e921d69bcc2024e644d55fd0551fb7473bf8de91459ce7f7909885b429b056f9",
+    "currentSimdWasmSha256": "a4a3c3f30856d40a7cf87e22400aa318edb00c9b6c4fdc37b2b24149152fe230",
+    "currentGitHead": "93700333cd3fded326e287a63582e0424529b010",
+    "currentWorkingTreeIncluded": true
+  },
+  "environment": {
+    "node": "v26.0.0",
+    "platform": "darwin",
+    "arch": "arm64",
+    "cpu": "Apple M3 Ultra"
+  },
+  "method": {
+    "samples": 7,
+    "bootstrapIterations": 10000,
+    "freshProcessPerMeasurement": true,
+    "rotatingVariantOrder": true,
+    "processStartupExcluded": true,
+    "timer": "performance.now()",
+    "statistic": "median",
+    "dispersion": "median absolute deviation",
+    "timestepSeconds": 0.016666666666666666,
+    "substeps": 4,
+    "timedWork": "soft simulation step plus CPU frame/render-handoff construction"
+  },
+  "summary": {
+    "javascriptGeometricMeanSpeedup": 3.692000860066253,
+    "simdGeometricMeanSpeedup": 6.455403781207712,
+    "javascriptMedianSpeedup": 3.8485700488244428,
+    "simdMedianSpeedup": 7.341985247827935,
+    "correctnessFailures": 0,
+    "elapsedMs": 18133.162292
+  },
+  "workloads": [
+    {
+      "id": "cloth-649",
+      "sceneId": 649,
+      "family": "cloth",
+      "label": "Tensioned Membrane Drum — Cinematic",
+      "iterations": 60,
+      "warmup": 12,
+      "variants": {
+        "v1.2-js": {
+          "samplesMs": [
+            6.709938199999999,
+            6.574334716666666,
+            6.57770765,
+            6.530297916666668,
+            6.651785416666668,
+            6.582875,
+            6.669533333333332
+          ],
+          "medianMs": 6.582875,
+          "madMs": 0.052577083333331665,
+          "normalizedMadPercent": 0.7986948458436727,
+          "deterministic": true,
+          "hashes": [
+            3049290600,
+            3049290600,
+            3049290600,
+            3049290600,
+            3049290600,
+            3049290600,
+            3049290600
+          ],
+          "allValid": true,
+          "validationMessages": [
+            "cloth validated: 1700 nodes, 9782 constraints."
+          ],
+          "structural": {
+            "kind": "cloth",
+            "nodeCount": 1700,
+            "constraintCount": 9782,
+            "brokenCount": 0,
+            "stateLength": 5100,
+            "surfaceVertexCount": 1700,
+            "surfaceIndexCount": 9702,
+            "renderedPrimitiveCount": 0
+          },
+          "handoff": {
+            "dynamicBytes": 81600,
+            "staticBytes": 38808,
+            "renderedPrimitives": 0
+          }
+        },
+        "v1.9-js": {
+          "samplesMs": [
+            1.0687215166666666,
+            1.0896833333333333,
+            1.056725,
+            1.05099305,
+            1.0975291666666667,
+            1.0613861166666667,
+            1.05994305
+          ],
+          "medianMs": 1.0613861166666667,
+          "madMs": 0.007335399999999881,
+          "normalizedMadPercent": 0.6911151262310695,
+          "deterministic": true,
+          "hashes": [
+            1970605756,
+            1970605756,
+            1970605756,
+            1970605756,
+            1970605756,
+            1970605756,
+            1970605756
+          ],
+          "allValid": true,
+          "validationMessages": [
+            "cloth validated: 1700 nodes, 9454 constraints."
+          ],
+          "structural": {
+            "kind": "cloth",
+            "nodeCount": 1700,
+            "constraintCount": 9454,
+            "brokenCount": 0,
+            "stateLength": 5100,
+            "surfaceVertexCount": 1700,
+            "surfaceIndexCount": 9702,
+            "renderedPrimitiveCount": 0
+          },
+          "handoff": {
+            "dynamicBytes": 20400,
+            "staticBytes": 39804,
+            "renderedPrimitives": 0
+          }
+        },
+        "v1.9-simd": {
+          "samplesMs": [
+            0.9010458333333333,
+            0.9041041666666666,
+            0.87770625,
+            0.8838152666666665,
+            0.89660695,
+            0.8941743,
+            0.9172777833333333
+          ],
+          "medianMs": 0.89660695,
+          "madMs": 0.007497216666666584,
+          "normalizedMadPercent": 0.8361765059557685,
+          "deterministic": true,
+          "hashes": [
+            3040249416,
+            3040249416,
+            3040249416,
+            3040249416,
+            3040249416,
+            3040249416,
+            3040249416
+          ],
+          "allValid": true,
+          "validationMessages": [
+            "cloth validated: 1700 nodes, 9454 constraints."
+          ],
+          "structural": {
+            "kind": "cloth",
+            "nodeCount": 1700,
+            "constraintCount": 9454,
+            "brokenCount": 0,
+            "stateLength": 5100,
+            "surfaceVertexCount": 1700,
+            "surfaceIndexCount": 9702,
+            "renderedPrimitiveCount": 0
+          },
+          "handoff": {
+            "dynamicBytes": 20400,
+            "staticBytes": 39804,
+            "renderedPrimitives": 0
+          }
+        }
+      },
+      "comparisons": {
+        "javascript": {
+          "speedup": 6.202149148769563,
+          "timeReductionPercent": 83.87655672230345,
+          "pairedBootstrap95": [
+            6.036347853351891,
+            6.292350644058973
+          ],
+          "stateRelativeL2": 0.0009770199131001098,
+          "stateMaximumAbsoluteDifference": 0.02514934539794922,
+          "crossVersionHashMatch": false
+        },
+        "simd": {
+          "speedup": 7.341985247827935,
+          "timeReductionPercent": 86.3797056757116,
+          "pairedBootstrap95": [
+            7.271656252736364,
+            7.442401028902798
+          ],
+          "stateRelativeL2": 0.0009769705772092344,
+          "stateMaximumAbsoluteDifference": 0.025110721588134766,
+          "crossVersionHashMatch": false
+        }
+      },
+      "correctness": {
+        "sameCatalogRecipe": true,
+        "sameStateShape": true,
+        "boundedStateAgreement": true,
+        "allVariantsValid": true,
+        "allVariantsDeterministic": true,
+        "pass": true
+      }
+    },
+    {
+      "id": "rope-699",
+      "sceneId": 699,
+      "family": "rope",
+      "label": "Rope Net Resonance — Cinematic",
+      "iterations": 400,
+      "warmup": 20,
+      "variants": {
+        "v1.2-js": {
+          "samplesMs": [
+            0.9486554175,
+            0.9456132274999999,
+            0.9573285425,
+            0.9704923974999999,
+            0.9447368749999999,
+            0.984604375,
+            0.95828552
+          ],
+          "medianMs": 0.9573285425,
+          "madMs": 0.011715315000000115,
+          "normalizedMadPercent": 1.2237507271439276,
+          "deterministic": true,
+          "hashes": [
+            1853456107,
+            1853456107,
+            1853456107,
+            1853456107,
+            1853456107,
+            1853456107,
+            1853456107
+          ],
+          "allValid": true,
+          "validationMessages": [
+            "rope validated: 343 nodes, 743 constraints."
+          ],
+          "structural": {
+            "kind": "rope",
+            "nodeCount": 343,
+            "constraintCount": 743,
+            "brokenCount": 0,
+            "stateLength": 1029,
+            "surfaceVertexCount": 0,
+            "surfaceIndexCount": 0,
+            "renderedPrimitiveCount": 414
+          },
+          "handoff": {
+            "dynamicBytes": 33120,
+            "staticBytes": 0,
+            "renderedPrimitives": 414
+          }
+        },
+        "v1.9-js": {
+          "samplesMs": [
+            0.4540641650000001,
+            0.45044385500000006,
+            0.453459165,
+            0.448680625,
+            0.46433770750000003,
+            0.4603054175,
+            0.4751130225
+          ],
+          "medianMs": 0.4540641650000001,
+          "madMs": 0.0053835400000000755,
+          "normalizedMadPercent": 1.185634193352403,
+          "deterministic": true,
+          "hashes": [
+            2411234622,
+            2411234622,
+            2411234622,
+            2411234622,
+            2411234622,
+            2411234622,
+            2411234622
+          ],
+          "allValid": true,
+          "validationMessages": [
+            "rope validated: 343 nodes, 731 constraints."
+          ],
+          "structural": {
+            "kind": "rope",
+            "nodeCount": 343,
+            "constraintCount": 731,
+            "brokenCount": 0,
+            "stateLength": 1029,
+            "surfaceVertexCount": 0,
+            "surfaceIndexCount": 0,
+            "renderedPrimitiveCount": 402
+          },
+          "handoff": {
+            "dynamicBytes": 4116,
+            "staticBytes": 12864,
+            "renderedPrimitives": 402
+          }
+        },
+        "v1.9-simd": {
+          "samplesMs": [
+            0.351143335,
+            0.34854093750000004,
+            0.34859302,
+            0.3626109375,
+            0.34946,
+            0.34836374999999997,
+            0.34770823000000006
+          ],
+          "medianMs": 0.34859302,
+          "madMs": 0.0008669800000000172,
+          "normalizedMadPercent": 0.24870836484334,
+          "deterministic": true,
+          "hashes": [
+            2152547518,
+            2152547518,
+            2152547518,
+            2152547518,
+            2152547518,
+            2152547518,
+            2152547518
+          ],
+          "allValid": true,
+          "validationMessages": [
+            "rope validated: 343 nodes, 731 constraints."
+          ],
+          "structural": {
+            "kind": "rope",
+            "nodeCount": 343,
+            "constraintCount": 731,
+            "brokenCount": 0,
+            "stateLength": 1029,
+            "surfaceVertexCount": 0,
+            "surfaceIndexCount": 0,
+            "renderedPrimitiveCount": 402
+          },
+          "handoff": {
+            "dynamicBytes": 4116,
+            "staticBytes": 12864,
+            "renderedPrimitives": 402
+          }
+        }
+      },
+      "comparisons": {
+        "javascript": {
+          "speedup": 2.108355197992777,
+          "timeReductionPercent": 52.56966184103927,
+          "pairedBootstrap95": [
+            2.0364773573767962,
+            2.1545246687847475
+          ],
+          "stateRelativeL2": 0.0006741048266729809,
+          "stateMaximumAbsoluteDifference": 0.0153866708278656,
+          "crossVersionHashMatch": false
+        },
+        "simd": {
+          "speedup": 2.7462642324278326,
+          "timeReductionPercent": 63.58689785957154,
+          "pairedBootstrap95": [
+            2.701618749221027,
+            2.7858593137202137
+          ],
+          "stateRelativeL2": 0.0006751268977956891,
+          "stateMaximumAbsoluteDifference": 0.015314936637878418,
+          "crossVersionHashMatch": false
+        }
+      },
+      "correctness": {
+        "sameCatalogRecipe": true,
+        "sameStateShape": true,
+        "boundedStateAgreement": true,
+        "allVariantsValid": true,
+        "allVariantsDeterministic": true,
+        "pass": true
+      }
+    },
+    {
+      "id": "water-749",
+      "sceneId": 749,
+      "family": "water",
+      "label": "Leviathan Impact Pool — Cinematic",
+      "iterations": 600,
+      "warmup": 20,
+      "variants": {
+        "v1.2-js": {
+          "samplesMs": [
+            0.4240701383333334,
+            0.43599888833333333,
+            0.444679305,
+            0.4204441666666667,
+            0.4427845133333333,
+            0.4304199999999999,
+            0.44475493
+          ],
+          "medianMs": 0.43599888833333333,
+          "madMs": 0.00868041666666669,
+          "normalizedMadPercent": 1.990926330075931,
+          "deterministic": true,
+          "hashes": [
+            3524619001,
+            3524619001,
+            3524619001,
+            3524619001,
+            3524619001,
+            3524619001,
+            3524619001
+          ],
+          "allValid": true,
+          "validationMessages": [
+            "water validated: 6441 nodes, 18360 constraints."
+          ],
+          "structural": {
+            "kind": "water",
+            "nodeCount": 6441,
+            "constraintCount": 18360,
+            "brokenCount": 0,
+            "stateLength": 6440,
+            "surfaceVertexCount": 6440,
+            "surfaceIndexCount": 37674,
+            "renderedPrimitiveCount": 1
+          },
+          "handoff": {
+            "dynamicBytes": 309200,
+            "staticBytes": 150696,
+            "renderedPrimitives": 1
+          }
+        },
+        "v1.9-js": {
+          "samplesMs": [
+            0.11609673666666666,
+            0.12151520833333332,
+            0.11148208333333334,
+            0.11097791666666666,
+            0.11328854166666669,
+            0.11311958333333334,
+            0.11406409666666668
+          ],
+          "medianMs": 0.11328854166666669,
+          "madMs": 0.001806458333333344,
+          "normalizedMadPercent": 1.5945640280625708,
+          "deterministic": true,
+          "hashes": [
+            2694548719,
+            2694548719,
+            2694548719,
+            2694548719,
+            2694548719,
+            2694548719,
+            2694548719
+          ],
+          "allValid": true,
+          "validationMessages": [
+            "water validated: 6441 nodes, 18360 constraints."
+          ],
+          "structural": {
+            "kind": "water",
+            "nodeCount": 6441,
+            "constraintCount": 18360,
+            "brokenCount": 0,
+            "stateLength": 6440,
+            "surfaceVertexCount": 6440,
+            "surfaceIndexCount": 37674,
+            "renderedPrimitiveCount": 1
+          },
+          "handoff": {
+            "dynamicBytes": 77360,
+            "staticBytes": 75348,
+            "renderedPrimitives": 1
+          }
+        },
+        "v1.9-simd": {
+          "samplesMs": [
+            0.031214304999999987,
+            0.03193972333333332,
+            0.033127778333333344,
+            0.033997846666666665,
+            0.034891945,
+            0.032679166666666655,
+            0.03163604166666667
+          ],
+          "medianMs": 0.032679166666666655,
+          "madMs": 0.001043124999999985,
+          "normalizedMadPercent": 3.192018360321261,
+          "deterministic": true,
+          "hashes": [
+            2694548719,
+            2694548719,
+            2694548719,
+            2694548719,
+            2694548719,
+            2694548719,
+            2694548719
+          ],
+          "allValid": true,
+          "validationMessages": [
+            "water validated: 6441 nodes, 18360 constraints."
+          ],
+          "structural": {
+            "kind": "water",
+            "nodeCount": 6441,
+            "constraintCount": 18360,
+            "brokenCount": 0,
+            "stateLength": 6440,
+            "surfaceVertexCount": 6440,
+            "surfaceIndexCount": 37674,
+            "renderedPrimitiveCount": 1
+          },
+          "handoff": {
+            "dynamicBytes": 77360,
+            "staticBytes": 75348,
+            "renderedPrimitives": 1
+          }
+        }
+      },
+      "comparisons": {
+        "javascript": {
+          "speedup": 3.8485700488244428,
+          "timeReductionPercent": 74.0163232755643,
+          "pairedBootstrap95": [
+            3.6527309079402497,
+            3.9717997735062056
+          ],
+          "stateRelativeL2": 0.0022886452985234917,
+          "stateMaximumAbsoluteDifference": 0.0001702532172203064,
+          "crossVersionHashMatch": false
+        },
+        "simd": {
+          "speedup": 13.341799464490633,
+          "timeReductionPercent": 92.5047591768898,
+          "pairedBootstrap95": [
+            12.473441112054747,
+            14.056098094868062
+          ],
+          "stateRelativeL2": 0.0022863891740948577,
+          "stateMaximumAbsoluteDifference": 0.00017012283205986023,
+          "crossVersionHashMatch": false
+        }
+      },
+      "correctness": {
+        "sameCatalogRecipe": true,
+        "sameStateShape": true,
+        "boundedStateAgreement": true,
+        "allVariantsValid": true,
+        "allVariantsDeterministic": true,
+        "pass": true
+      }
+    }
+  ]
+}

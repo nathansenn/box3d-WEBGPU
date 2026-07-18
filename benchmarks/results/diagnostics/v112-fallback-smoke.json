@@ -1,0 +1,2448 @@
+{
+  "schemaVersion": 4,
+  "generatedAt": "2026-07-16T14:24:41.828Z",
+  "baseline": "v1.11.0 exact source archive",
+  "candidate": "v1.12 working tree",
+  "node": "v26.0.0",
+  "platform": "darwin/arm64",
+  "cpu": {
+    "model": "Apple M3 Ultra",
+    "logicalCores": 32
+  },
+  "baselineArchive": "benchmarks/baselines/box3d-webgpu-v1.11.0-source.tar.gz",
+  "baselineArchiveSha256": "7583322b353b6aca546fb36223737adbabf9511678c235a9ec7177546ac06537",
+  "baselineSourceDigest": {
+    "sha256": "406b6b840bc5559fad4fe39317c053afc7754178a76ddac70b0317bb614a3d4c",
+    "fileCount": 48
+  },
+  "candidateSourceDigest": {
+    "sha256": "126034929d08747a1496c2c92f3a7b50797a151208489801e0912402b4d6812a",
+    "fileCount": 49
+  },
+  "candidateSourceDigestAtEnd": {
+    "sha256": "126034929d08747a1496c2c92f3a7b50797a151208489801e0912402b4d6812a",
+    "fileCount": 49
+  },
+  "harnessSha256": "d2261ef2ec80ffa0d246f50021aebe488174c26a0f5898e0a31a667d4bbac087",
+  "harnessSha256AtEnd": "d2261ef2ec80ffa0d246f50021aebe488174c26a0f5898e0a31a667d4bbac087",
+  "sourceStableDuringRun": true,
+  "harnessStableDuringRun": true,
+  "auditedRuntimeSourceFiles": [
+    {
+      "path": "src/math.ts",
+      "baselineSha256": "3e325cf13a762b8a725b6d88a314d65a3779f38168ba34155d25c0f38050a8b0",
+      "candidateSha256": "0ac09cdb4d0aa1d8e7b5114ac2f538d1875fa08be46a3b1f35314ee78b5b4aee",
+      "changed": true
+    },
+    {
+      "path": "src/effects.ts",
+      "baselineSha256": "96a9b8a5ac66281c89d502a07d158574fd61c8206973fab6d2ad42d9e4cdde72",
+      "candidateSha256": "416b0a694216dd87b7af84564c8dd38ced2629b832ad7e13398d85beb9542572",
+      "changed": true
+    },
+    {
+      "path": "src/physics/fallback.ts",
+      "baselineSha256": "b7bd47e4ea763ef73a9a9ddf866664467af89b9e4a7919bf5d5033ce3b151e1a",
+      "candidateSha256": "fdf334173365f552b0f3b8bdb461c5266850df2a2e04a975e0e3937e1a65dbc3",
+      "changed": true
+    },
+    {
+      "path": "src/soft/simulations.ts",
+      "baselineSha256": "fc2d2c20a84ac3428f1a885df20bad3cbfadbff44bc94017a85676d100a41ac6",
+      "candidateSha256": "68b5822307675405d494cfa1a7e0ee2dc459eeb05102114f746d7fbebdb5c42a",
+      "changed": true
+    },
+    {
+      "path": "wasm/box3d_web.c",
+      "baselineSha256": "df439fef40fdb832b355999391bc2d912aa2520e4a78874b1400d646db161f1d",
+      "candidateSha256": "426035710ecc61c7d9a5b45e739984385637dc558c887fb296a6a56277802c85",
+      "changed": true
+    }
+  ],
+  "smokeMode": true,
+  "caseCount": 15,
+  "samples": 8,
+  "workloadScale": 0.25,
+  "targetBatchMs": 25,
+  "bootstrapCount": 20000,
+  "elapsedSeconds": 18.404758625,
+  "observableSink": 51562050,
+  "methodology": {
+    "order": "equal baseline-first and candidate-first samples for every case",
+    "statistic": "median and median absolute deviation",
+    "speedup": "geometric mean of the two order-stratified median ratios",
+    "confidence": "deterministic 95% stratified bootstrap over the two execution-order strata",
+    "timing": "production operations after warmup; independent deterministic batches calibrated toward >=25 ms; setup, capture, and process startup excluded",
+    "determinism": "SHA-256 fingerprint of authoritative numeric streams and structural metadata across every sample",
+    "changedPathMap": {
+      "cloth": "variant 5 batched WASM solve; variants 3/7 axis-aligned sphere stream",
+      "rope": "unchanged control; allocation-free tuple candidates were benchmarked separately and reverted after failing the confidence gate",
+      "fallback": "cached dynamic count and dynamic-only transform sync; solver/action scans retain the v1.11 contiguous path after full-frame rejection",
+      "effects": "in-place compaction, reusable streams, cached frame, shockwave recurrence",
+      "water": "rain/drop cases exercise axis-aligned droplet stream; dry cases are controls",
+      "native": "source changed but excluded from this TS/WASM-soft tournament; require dedicated rebuilt upstream Box3D benchmark"
+    }
+  },
+  "summary": {
+    "accepted": 3,
+    "borderline": 10,
+    "rejectedNoWin": 2,
+    "rejectedCorrectness": 0,
+    "controls": 0,
+    "batchTargetMetCases": 14,
+    "batchRepeatCapCases": 0,
+    "minimumTimedBatchMs": 19.370875000000524,
+    "changedGeometricMean": 1.009395855147646,
+    "changedMedian": 0.99604670898464,
+    "deterministicGroups": 30,
+    "unchangedExactGroups": 0,
+    "unchangedGroupCount": 0
+  },
+  "categories": [
+    {
+      "category": "fallback",
+      "cases": 15,
+      "geometricMean": 1.009395855147646,
+      "correctnessFailures": 0
+    }
+  ],
+  "records": [
+    {
+      "id": 56,
+      "category": "fallback",
+      "sceneId": 49,
+      "engine": "fallback",
+      "warmup": 24,
+      "iterations": 96,
+      "rain": 0,
+      "explode": false,
+      "control": false,
+      "fidelityLimit": 0.005,
+      "sceneTitle": "Cross-Laminated Block Grid — Cinematic",
+      "baselineSamplesMs": [
+        0.5231018472222217,
+        0.49577720833333516,
+        0.4163015138888871,
+        0.461309041666665,
+        0.41026677777777976,
+        0.4764392361111113,
+        0.3803738472222322,
+        0.46862676388887947
+      ],
+      "candidateSamplesMs": [
+        0.6568778888888889,
+        0.49637094444444885,
+        0.48485995833333895,
+        0.41884837500000077,
+        0.48719676388889055,
+        0.40244327777776967,
+        0.4840705833333345,
+        0.42493229166666424
+      ],
+      "baselineBatchElapsedMs": [
+        37.663332999999966,
+        35.69595900000013,
+        29.97370899999987,
+        33.21425099999988,
+        29.539208000000144,
+        34.30362500000001,
+        27.38691700000072,
+        33.741126999999324
+      ],
+      "candidateBatchElapsedMs": [
+        47.295208,
+        35.738708000000315,
+        34.909917000000405,
+        30.157083000000057,
+        35.07816700000012,
+        28.975915999999415,
+        34.853082000000086,
+        30.595124999999825
+      ],
+      "minimumTimedBatchMs": 27.38691700000072,
+      "baselineMedianMs": 0.4649679027777722,
+      "candidateMedianMs": 0.48446527083333674,
+      "baselineMadMs": 0.03973784722222404,
+      "candidateMadMs": 0.0357193263888923,
+      "calibration": {
+        "repetitions": 3,
+        "baselinePilotElapsedMs": 13.674665999999888,
+        "candidatePilotElapsedMs": 13.088582999999744,
+        "estimatedBaselineBatchMs": 41.023997999999665,
+        "estimatedCandidateBatchMs": 39.26574899999923,
+        "adaptiveTrials": [
+          {
+            "repetitions": 3,
+            "baselineElapsedMs": 35.262291000000005,
+            "candidateElapsedMs": 33.53062499999987,
+            "fastestElapsedMs": 33.53062499999987
+          }
+        ]
+      },
+      "pooledSpeedup": 0.9597548694831587,
+      "orderBalanced": {
+        "speedup": 0.9759101861211319,
+        "baselineFirstRatio": 0.850329278909815,
+        "candidateFirstRatio": 1.1200375136982588,
+        "baselineFirstMedianMs": 0.4132841458333334,
+        "baselineSecondMedianMs": 0.4725329999999954,
+        "candidateFirstMedianMs": 0.4218903333333325,
+        "candidateSecondMedianMs": 0.48602836111111475
+      },
+      "confidence": {
+        "confidence": 0.95,
+        "resamples": 20000,
+        "lower": 0.906491899816403,
+        "median": 0.9587350289085829,
+        "upper": 0.9984639724146359
+      },
+      "speedup": 0.9759101861211319,
+      "baselineDeterministic": true,
+      "candidateDeterministic": true,
+      "baselineWithinRunExactSamples": [
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null
+      ],
+      "candidateWithinRunExactSamples": [
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null
+      ],
+      "baselineRepeatedSetupDeterministicSamples": [
+        true,
+        true,
+        true,
+        true,
+        true,
+        true,
+        true,
+        true
+      ],
+      "candidateRepeatedSetupDeterministicSamples": [
+        true,
+        true,
+        true,
+        true,
+        true,
+        true,
+        true,
+        true
+      ],
+      "baselineWithinRunExact": null,
+      "candidateWithinRunExact": null,
+      "withinRunExact": null,
+      "baselineFingerprint": "9a00aed3a011308851813bd66525180def568d49d4d5dc9fea1a5bc31c220da5",
+      "candidateFingerprint": "9a00aed3a011308851813bd66525180def568d49d4d5dc9fea1a5bc31c220da5",
+      "baselineBrokenCount": 0,
+      "candidateBrokenCount": 0,
+      "correctness": {
+        "correct": true,
+        "stateError": 0,
+        "matrixError": 0,
+        "colorError": 0,
+        "lineError": 0,
+        "sameBreakCount": true,
+        "sameCounts": true,
+        "fidelityLimit": 0.005,
+        "renderLimit": 0.005,
+        "withinRunExact": null
+      },
+      "decision": "rejected-no-win"
+    },
+    {
+      "id": 57,
+      "category": "fallback",
+      "sceneId": 99,
+      "engine": "fallback",
+      "warmup": 24,
+      "iterations": 96,
+      "rain": 0,
+      "explode": false,
+      "control": false,
+      "fidelityLimit": 0.005,
+      "sceneTitle": "Thin-Body Stability Trial — Cinematic",
+      "baselineSamplesMs": [
+        0.059529833333333865,
+        0.06019721296296383,
+        0.060277070987654266,
+        0.061705186728392425,
+        0.06237583796296012,
+        0.061807677469141425,
+        0.0637768148148151,
+        0.06378022222221952
+      ],
+      "candidateSamplesMs": [
+        0.06071978086419766,
+        0.06214783179012433,
+        0.06201124845678881,
+        0.0629017469135842,
+        0.06268627932098454,
+        0.06409381018518218,
+        0.06431719907406917,
+        0.06514904783949971
+      ],
+      "baselineBatchElapsedMs": [
+        38.575332000000344,
+        39.00779400000056,
+        39.059541999999965,
+        39.98496099999829,
+        40.41954299999816,
+        40.051375000003645,
+        41.327376000000186,
+        41.32958399999825
+      ],
+      "candidateBatchElapsedMs": [
+        39.346418000000085,
+        40.271795000000566,
+        40.18328899999915,
+        40.76033200000256,
+        40.62070899999799,
+        41.53278899999805,
+        41.677544999996826,
+        42.21658299999581
+      ],
+      "minimumTimedBatchMs": 38.575332000000344,
+      "baselineMedianMs": 0.061756432098766925,
+      "candidateMedianMs": 0.06279401311728437,
+      "baselineMadMs": 0.0015192901234578789,
+      "candidateMadMs": 0.0010412808641966816,
+      "calibration": {
+        "repetitions": 27,
+        "baselinePilotElapsedMs": 1.8877909999996518,
+        "candidatePilotElapsedMs": 8.778917000000092,
+        "estimatedBaselineBatchMs": 50.9703569999906,
+        "estimatedCandidateBatchMs": 237.0307590000025,
+        "adaptiveTrials": [
+          {
+            "repetitions": 18,
+            "baselineElapsedMs": 24.930123000001913,
+            "candidateElapsedMs": 21.459374000000935,
+            "fastestElapsedMs": 21.459374000000935
+          },
+          {
+            "repetitions": 27,
+            "baselineElapsedMs": 39.114499000000706,
+            "candidateElapsedMs": 38.092583000000104,
+            "fastestElapsedMs": 38.092583000000104
+          }
+        ]
+      },
+      "pooledSpeedup": 0.9834764340259717,
+      "orderBalanced": {
+        "speedup": 0.9780742772723684,
+        "baselineFirstRatio": 0.9725762618725002,
+        "candidateFirstRatio": 0.9836033731895413,
+        "baselineFirstMedianMs": 0.061756432098766925,
+        "baselineSecondMedianMs": 0.06132645447530719,
+        "candidateFirstMedianMs": 0.062348763888886674,
+        "candidateSecondMedianMs": 0.06349777854938318
+      },
+      "confidence": {
+        "confidence": 0.95,
+        "resamples": 20000,
+        "lower": 0.9692328723700296,
+        "median": 0.9785729732734229,
+        "upper": 0.9874779932379898
+      },
+      "speedup": 0.9780742772723684,
+      "baselineDeterministic": true,
+      "candidateDeterministic": true,
+      "baselineWithinRunExactSamples": [
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null
+      ],
+      "candidateWithinRunExactSamples": [
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null
+      ],
+      "baselineRepeatedSetupDeterministicSamples": [
+        true,
+        true,
+        true,
+        true,
+        true,
+        true,
+        true,
+        true
+      ],
+      "candidateRepeatedSetupDeterministicSamples": [
+        true,
+        true,
+        true,
+        true,
+        true,
+        true,
+        true,
+        true
+      ],
+      "baselineWithinRunExact": null,
+      "candidateWithinRunExact": null,
+      "withinRunExact": null,
+      "baselineFingerprint": "f9b343e4af35e13ec8ce6aa84a2357dfc253d15bf078bede52c6dcff4aa081cd",
+      "candidateFingerprint": "f9b343e4af35e13ec8ce6aa84a2357dfc253d15bf078bede52c6dcff4aa081cd",
+      "baselineBrokenCount": 0,
+      "candidateBrokenCount": 0,
+      "correctness": {
+        "correct": true,
+        "stateError": 0,
+        "matrixError": 0,
+        "colorError": 0,
+        "lineError": 0,
+        "sameBreakCount": true,
+        "sameCounts": true,
+        "fidelityLimit": 0.005,
+        "renderLimit": 0.005,
+        "withinRunExact": null
+      },
+      "decision": "rejected-no-win"
+    },
+    {
+      "id": 58,
+      "category": "fallback",
+      "sceneId": 149,
+      "engine": "fallback",
+      "warmup": 24,
+      "iterations": 96,
+      "rain": 0,
+      "explode": false,
+      "control": false,
+      "fidelityLimit": 0.005,
+      "sceneTitle": "Needle Spire Shake Test — Cinematic",
+      "baselineSamplesMs": [
+        0.43812905555555265,
+        0.45012963888890073,
+        0.4408194444444386,
+        0.44519327777776296,
+        0.4429108750000018,
+        0.44654166666666445,
+        0.44607000000000124,
+        0.4488871527777797
+      ],
+      "candidateSamplesMs": [
+        0.4515190972222298,
+        0.4491782361111139,
+        0.44573148611112223,
+        0.44949304166667997,
+        0.4462141111111022,
+        0.44805033333333694,
+        0.43931654166666095,
+        0.44062500000000504
+      ],
+      "baselineBatchElapsedMs": [
+        31.54529199999979,
+        32.409334000000854,
+        31.738999999999578,
+        32.053915999998935,
+        31.88958300000013,
+        32.15099999999984,
+        32.11704000000009,
+        32.31987500000014
+      ],
+      "candidateBatchElapsedMs": [
+        32.509375000000546,
+        32.3408330000002,
+        32.0926670000008,
+        32.36349900000096,
+        32.12741599999936,
+        32.25962400000026,
+        31.63079099999959,
+        31.725000000000364
+      ],
+      "minimumTimedBatchMs": 31.54529199999979,
+      "baselineMedianMs": 0.44563163888888213,
+      "candidateMedianMs": 0.4471322222222196,
+      "baselineMadMs": 0.002988138888888936,
+      "candidateMadMs": 0.002203416666677338,
+      "calibration": {
+        "repetitions": 3,
+        "baselinePilotElapsedMs": 17.860874999999396,
+        "candidatePilotElapsedMs": 17.93279099999927,
+        "estimatedBaselineBatchMs": 53.58262499999819,
+        "estimatedCandidateBatchMs": 53.79837299999781,
+        "adaptiveTrials": [
+          {
+            "repetitions": 2,
+            "baselineElapsedMs": 21.038500000000568,
+            "candidateElapsedMs": 21.438334000000395,
+            "fastestElapsedMs": 21.038500000000568
+          },
+          {
+            "repetitions": 3,
+            "baselineElapsedMs": 32.20887599999969,
+            "candidateElapsedMs": 32.38212500000009,
+            "fastestElapsedMs": 32.20887599999969
+          }
+        ]
+      },
+      "pooledSpeedup": 0.9966439830127213,
+      "orderBalanced": {
+        "speedup": 0.9943852683083065,
+        "baselineFirstRatio": 0.9907894855881695,
+        "candidateFirstRatio": 0.9979941008776381,
+        "baselineFirstMedianMs": 0.4418651597222202,
+        "baselineSecondMedianMs": 0.4477144097222221,
+        "candidateFirstMedianMs": 0.4486142847222254,
+        "candidateSecondMedianMs": 0.4459727986111122
+      },
+      "confidence": {
+        "confidence": 0.95,
+        "resamples": 20000,
+        "lower": 0.9841363005521714,
+        "median": 0.9950108772638196,
+        "upper": 1.0086606648815282
+      },
+      "speedup": 0.9943852683083065,
+      "baselineDeterministic": true,
+      "candidateDeterministic": true,
+      "baselineWithinRunExactSamples": [
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null
+      ],
+      "candidateWithinRunExactSamples": [
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null
+      ],
+      "baselineRepeatedSetupDeterministicSamples": [
+        true,
+        true,
+        true,
+        true,
+        true,
+        true,
+        true,
+        true
+      ],
+      "candidateRepeatedSetupDeterministicSamples": [
+        true,
+        true,
+        true,
+        true,
+        true,
+        true,
+        true,
+        true
+      ],
+      "baselineWithinRunExact": null,
+      "candidateWithinRunExact": null,
+      "withinRunExact": null,
+      "baselineFingerprint": "adc8ad9d81f581f9ea79a0285f6ee2b20c2af55b7afe33b8a5a5e4275a1d3a1f",
+      "candidateFingerprint": "adc8ad9d81f581f9ea79a0285f6ee2b20c2af55b7afe33b8a5a5e4275a1d3a1f",
+      "baselineBrokenCount": 0,
+      "candidateBrokenCount": 0,
+      "correctness": {
+        "correct": true,
+        "stateError": 0,
+        "matrixError": 0,
+        "colorError": 0,
+        "lineError": 0,
+        "sameBreakCount": true,
+        "sameCounts": true,
+        "fidelityLimit": 0.005,
+        "renderLimit": 0.005,
+        "withinRunExact": null
+      },
+      "decision": "borderline"
+    },
+    {
+      "id": 59,
+      "category": "fallback",
+      "sceneId": 199,
+      "engine": "fallback",
+      "warmup": 24,
+      "iterations": 96,
+      "rain": 0,
+      "explode": false,
+      "control": false,
+      "fidelityLimit": 0.005,
+      "sceneTitle": "Multi-Pier Viaduct — Cinematic",
+      "baselineSamplesMs": [
+        0.07122000431034514,
+        0.06762871695402292,
+        0.07069791522988861,
+        0.06598431752874326,
+        0.06995648132183907,
+        0.06732513649425287,
+        0.07323407758620556,
+        0.07133686206896334
+      ],
+      "candidateSamplesMs": [
+        0.06512212068965427,
+        0.06657848275861544,
+        0.06415625431034395,
+        0.06800203591953881,
+        0.06324287356321799,
+        0.06986601293103649,
+        0.06813535775862896,
+        0.0663652485632208
+      ],
+      "baselineBatchElapsedMs": [
+        49.56912300000022,
+        47.069586999999956,
+        49.20574900000247,
+        45.92508500000531,
+        48.68971099999999,
+        46.858295,
+        50.970917999999074,
+        49.650455999998485
+      ],
+      "candidateBatchElapsedMs": [
+        45.32499599999937,
+        46.338623999996344,
+        44.65275299999939,
+        47.32941699999901,
+        44.017039999999724,
+        48.62674500000139,
+        47.42220900000575,
+        46.19021300000168
+      ],
+      "minimumTimedBatchMs": 44.017039999999724,
+      "baselineMedianMs": 0.07032719827586384,
+      "candidateMedianMs": 0.06647186566091812,
+      "baselineMadMs": 0.0018540725574702072,
+      "candidateMadMs": 0.0015968311781657668,
+      "calibration": {
+        "repetitions": 29,
+        "baselinePilotElapsedMs": 1.1623749999998836,
+        "candidatePilotElapsedMs": 8.21112500000072,
+        "estimatedBaselineBatchMs": 33.708874999996624,
+        "estimatedCandidateBatchMs": 238.1226250000209,
+        "adaptiveTrials": [
+          {
+            "repetitions": 29,
+            "baselineElapsedMs": 50.304002000001674,
+            "candidateElapsedMs": 45.85057799999777,
+            "fastestElapsedMs": 45.85057799999777
+          }
+        ]
+      },
+      "pooledSpeedup": 1.057999464534549,
+      "orderBalanced": {
+        "speedup": 1.0491974388331125,
+        "baselineFirstRatio": 1.0027740625001926,
+        "candidateFirstRatio": 1.0977699831099803,
+        "baselineFirstMedianMs": 0.0674769267241379,
+        "baselineSecondMedianMs": 0.07095895977011688,
+        "candidateFirstMedianMs": 0.06463918749999911,
+        "candidateSecondMedianMs": 0.06729025933907712
+      },
+      "confidence": {
+        "confidence": 0.95,
+        "resamples": 20000,
+        "lower": 1.02482834325044,
+        "median": 1.0472208405329422,
+        "upper": 1.086281326661687
+      },
+      "speedup": 1.0491974388331125,
+      "baselineDeterministic": true,
+      "candidateDeterministic": true,
+      "baselineWithinRunExactSamples": [
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null
+      ],
+      "candidateWithinRunExactSamples": [
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null
+      ],
+      "baselineRepeatedSetupDeterministicSamples": [
+        true,
+        true,
+        true,
+        true,
+        true,
+        true,
+        true,
+        true
+      ],
+      "candidateRepeatedSetupDeterministicSamples": [
+        true,
+        true,
+        true,
+        true,
+        true,
+        true,
+        true,
+        true
+      ],
+      "baselineWithinRunExact": null,
+      "candidateWithinRunExact": null,
+      "withinRunExact": null,
+      "baselineFingerprint": "f605f16030748787471f5b9d09ded9cc9faaa9dbd80a59322d7b9ac157916fbb",
+      "candidateFingerprint": "f605f16030748787471f5b9d09ded9cc9faaa9dbd80a59322d7b9ac157916fbb",
+      "baselineBrokenCount": 0,
+      "candidateBrokenCount": 0,
+      "correctness": {
+        "correct": true,
+        "stateError": 0,
+        "matrixError": 0,
+        "colorError": 0,
+        "lineError": 0,
+        "sameBreakCount": true,
+        "sameCounts": true,
+        "fidelityLimit": 0.005,
+        "renderLimit": 0.005,
+        "withinRunExact": null
+      },
+      "decision": "accepted"
+    },
+    {
+      "id": 60,
+      "category": "fallback",
+      "sceneId": 249,
+      "engine": "fallback",
+      "warmup": 24,
+      "iterations": 96,
+      "rain": 0,
+      "explode": true,
+      "control": false,
+      "fidelityLimit": 0.005,
+      "sceneTitle": "Energy Loss Arena — Cinematic",
+      "baselineSamplesMs": [
+        0.07450944270833304,
+        0.09431564062499831,
+        0.09044466406250488,
+        0.07982573958333461,
+        0.07394325520834381,
+        0.09704610937500036,
+        0.08786773697918211,
+        0.07829198177082712
+      ],
+      "candidateSamplesMs": [
+        0.07453895312499743,
+        0.05044498697916803,
+        0.09604014583333982,
+        0.08960980729167052,
+        0.07939018749999842,
+        0.07464540364583883,
+        0.09835742708333821,
+        0.08782074218749376
+      ],
+      "baselineBatchElapsedMs": [
+        28.611625999999887,
+        36.21720599999935,
+        34.730751000001874,
+        30.65308400000049,
+        28.394210000004023,
+        37.26570600000014,
+        33.74121100000593,
+        30.064120999997613
+      ],
+      "candidateBatchElapsedMs": [
+        28.622957999999016,
+        19.370875000000524,
+        36.87941600000249,
+        34.41016600000148,
+        30.48583199999939,
+        28.66383500000211,
+        37.76925200000187,
+        33.72316499999761
+      ],
+      "minimumTimedBatchMs": 19.370875000000524,
+      "baselineMedianMs": 0.08384673828125835,
+      "candidateMedianMs": 0.08360546484374609,
+      "baselineMadMs": 0.007967610677085922,
+      "candidateMadMs": 0.009013286458327961,
+      "calibration": {
+        "repetitions": 16,
+        "baselinePilotElapsedMs": 4.765332999999373,
+        "candidatePilotElapsedMs": 3.8334169999998267,
+        "estimatedBaselineBatchMs": 76.24532799998997,
+        "estimatedCandidateBatchMs": 61.33467199999723,
+        "adaptiveTrials": [
+          {
+            "repetitions": 9,
+            "baselineElapsedMs": 25.39979399999993,
+            "candidateElapsedMs": 24.46083400000225,
+            "fastestElapsedMs": 24.46083400000225
+          },
+          {
+            "repetitions": 12,
+            "baselineElapsedMs": 23.73728900000151,
+            "candidateElapsedMs": 23.854833000000326,
+            "fastestElapsedMs": 23.73728900000151
+          }
+        ]
+      },
+      "pooledSpeedup": 1.0028858572578143,
+      "orderBalanced": {
+        "speedup": 0.99604670898464,
+        "baselineFirstRatio": 0.925593519673587,
+        "candidateFirstRatio": 1.0718625675220823,
+        "baselineFirstMedianMs": 0.08118858984375757,
+        "baselineSecondMedianMs": 0.08707069010416646,
+        "candidateFirstMedianMs": 0.08123307291666629,
+        "candidateSecondMedianMs": 0.08771516666666912
+      },
+      "confidence": {
+        "confidence": 0.95,
+        "resamples": 20000,
+        "lower": 0.8977272144136884,
+        "median": 1.0046958810277018,
+        "upper": 1.3174441794918483
+      },
+      "speedup": 0.99604670898464,
+      "baselineDeterministic": true,
+      "candidateDeterministic": true,
+      "baselineWithinRunExactSamples": [
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null
+      ],
+      "candidateWithinRunExactSamples": [
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null
+      ],
+      "baselineRepeatedSetupDeterministicSamples": [
+        true,
+        true,
+        true,
+        true,
+        true,
+        true,
+        true,
+        true
+      ],
+      "candidateRepeatedSetupDeterministicSamples": [
+        true,
+        true,
+        true,
+        true,
+        true,
+        true,
+        true,
+        true
+      ],
+      "baselineWithinRunExact": null,
+      "candidateWithinRunExact": null,
+      "withinRunExact": null,
+      "baselineFingerprint": "47ee073015a6d8d18a7d6f9038c5359ab0baae27b09cb439db1e9226fb0aa879",
+      "candidateFingerprint": "47ee073015a6d8d18a7d6f9038c5359ab0baae27b09cb439db1e9226fb0aa879",
+      "baselineBrokenCount": 0,
+      "candidateBrokenCount": 0,
+      "correctness": {
+        "correct": true,
+        "stateError": 0,
+        "matrixError": 0,
+        "colorError": 0,
+        "lineError": 0,
+        "sameBreakCount": true,
+        "sameCounts": true,
+        "fidelityLimit": 0.005,
+        "renderLimit": 0.005,
+        "withinRunExact": null
+      },
+      "decision": "borderline"
+    },
+    {
+      "id": 61,
+      "category": "fallback",
+      "sceneId": 299,
+      "engine": "fallback",
+      "warmup": 24,
+      "iterations": 96,
+      "rain": 180,
+      "explode": false,
+      "control": false,
+      "fidelityLimit": 0.005,
+      "sceneTitle": "Dense Core Rain Column — Cinematic",
+      "baselineSamplesMs": [
+        0.45405686458332184,
+        0.44963281249998016,
+        0.4553116250000168,
+        0.44340668750000606,
+        0.4540069374999689,
+        0.4476849062500037,
+        0.47507380208334854,
+        0.4631436770833375
+      ],
+      "candidateSamplesMs": [
+        0.4452452291666494,
+        0.43509332291665714,
+        0.4528767395833218,
+        0.44605554166669964,
+        0.44691406250001364,
+        0.46271614583334514,
+        0.45383636458332904,
+        0.44706466666667666
+      ],
+      "baselineBatchElapsedMs": [
+        43.5894589999989,
+        43.164749999998094,
+        43.70991600000161,
+        42.56704200000058,
+        43.584665999997014,
+        42.97775100000035,
+        45.60708500000146,
+        44.4617930000004
+      ],
+      "candidateBatchElapsedMs": [
+        42.74354199999834,
+        41.768958999999086,
+        43.476166999998895,
+        42.82133200000317,
+        42.90375000000131,
+        44.420750000001135,
+        43.56829099999959,
+        42.91820800000096
+      ],
+      "minimumTimedBatchMs": 41.768958999999086,
+      "baselineMedianMs": 0.45403190104164537,
+      "candidateMedianMs": 0.44698936458334515,
+      "baselineMadMs": 0.00537304166665345,
+      "candidateMadMs": 0.0038157552083362134,
+      "calibration": {
+        "repetitions": 4,
+        "baselinePilotElapsedMs": 9.684291999999914,
+        "candidatePilotElapsedMs": 10.429457999998704,
+        "estimatedBaselineBatchMs": 38.737167999999656,
+        "estimatedCandidateBatchMs": 41.717831999994814,
+        "adaptiveTrials": [
+          {
+            "repetitions": 4,
+            "baselineElapsedMs": 42.20850000000064,
+            "candidateElapsedMs": 43.04545800000051,
+            "fastestElapsedMs": 42.20850000000064
+          }
+        ]
+      },
+      "pooledSpeedup": 1.0157554899876977,
+      "orderBalanced": {
+        "speedup": 1.0076677045213058,
+        "baselineFirstRatio": 1.0046998269409226,
+        "candidateFirstRatio": 1.010644349195199,
+        "baselineFirstMedianMs": 0.44865885937499195,
+        "baselineSecondMedianMs": 0.45468424479166936,
+        "candidateFirstMedianMs": 0.4498954010416677,
+        "candidateSecondMedianMs": 0.4465601041666881
+      },
+      "confidence": {
+        "confidence": 0.95,
+        "resamples": 20000,
+        "lower": 0.991425473027611,
+        "median": 1.0128384651256206,
+        "upper": 1.0326402508636008
+      },
+      "speedup": 1.0076677045213058,
+      "baselineDeterministic": true,
+      "candidateDeterministic": true,
+      "baselineWithinRunExactSamples": [
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null
+      ],
+      "candidateWithinRunExactSamples": [
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null
+      ],
+      "baselineRepeatedSetupDeterministicSamples": [
+        true,
+        true,
+        true,
+        true,
+        true,
+        true,
+        true,
+        true
+      ],
+      "candidateRepeatedSetupDeterministicSamples": [
+        true,
+        true,
+        true,
+        true,
+        true,
+        true,
+        true,
+        true
+      ],
+      "baselineWithinRunExact": null,
+      "candidateWithinRunExact": null,
+      "withinRunExact": null,
+      "baselineFingerprint": "6f322e132aa1409534bc96889476e234ce5d4c8c6d4070d821d6a8f20372e12e",
+      "candidateFingerprint": "6f322e132aa1409534bc96889476e234ce5d4c8c6d4070d821d6a8f20372e12e",
+      "baselineBrokenCount": 0,
+      "candidateBrokenCount": 0,
+      "correctness": {
+        "correct": true,
+        "stateError": 0,
+        "matrixError": 0,
+        "colorError": 0,
+        "lineError": 0,
+        "sameBreakCount": true,
+        "sameCounts": true,
+        "fidelityLimit": 0.005,
+        "renderLimit": 0.005,
+        "withinRunExact": null
+      },
+      "decision": "borderline"
+    },
+    {
+      "id": 62,
+      "category": "fallback",
+      "sceneId": 349,
+      "engine": "fallback",
+      "warmup": 24,
+      "iterations": 96,
+      "rain": 0,
+      "explode": false,
+      "control": false,
+      "fidelityLimit": 0.005,
+      "sceneTitle": "Progressive Collapse Theater — Cinematic",
+      "baselineSamplesMs": [
+        0.3681284791666523,
+        0.3654921875000052,
+        0.36671918749999577,
+        0.3749791770833326,
+        0.3781158854166809,
+        0.36965494791667197,
+        0.3734709062500201,
+        0.3673797708333571
+      ],
+      "candidateSamplesMs": [
+        0.3682782187499735,
+        0.370851562499998,
+        0.3759943541666833,
+        0.3746176145833526,
+        0.3697630416666584,
+        0.3738949687500129,
+        0.37767404166669394,
+        0.3771076249999699
+      ],
+      "baselineBatchElapsedMs": [
+        35.34033399999862,
+        35.087250000000495,
+        35.205041999999594,
+        35.99800099999993,
+        36.29912500000137,
+        35.48687500000051,
+        35.85320700000193,
+        35.26845800000228
+      ],
+      "candidateBatchElapsedMs": [
+        35.354708999997456,
+        35.60174999999981,
+        36.0954580000016,
+        35.963291000001846,
+        35.49725199999921,
+        35.89391700000124,
+        36.25670800000262,
+        36.202331999997114
+      ],
+      "minimumTimedBatchMs": 35.087250000000495,
+      "baselineMedianMs": 0.36889171354166217,
+      "candidateMedianMs": 0.3742562916666827,
+      "baselineMadMs": 0.002786026041661699,
+      "candidateMadMs": 0.003128031249985952,
+      "calibration": {
+        "repetitions": 4,
+        "baselinePilotElapsedMs": 13.747416999998677,
+        "candidatePilotElapsedMs": 17.15100000000166,
+        "estimatedBaselineBatchMs": 54.98966799999471,
+        "estimatedCandidateBatchMs": 68.60400000000664,
+        "adaptiveTrials": [
+          {
+            "repetitions": 3,
+            "baselineElapsedMs": 23.7818750000024,
+            "candidateElapsedMs": 27.99725000000035,
+            "fastestElapsedMs": 23.7818750000024
+          },
+          {
+            "repetitions": 4,
+            "baselineElapsedMs": 34.75054199999977,
+            "candidateElapsedMs": 34.80783299999712,
+            "fastestElapsedMs": 34.75054199999977
+          }
+        ]
+      },
+      "pooledSpeedup": 0.985666030887202,
+      "orderBalanced": {
+        "speedup": 0.9895330780135732,
+        "baselineFirstRatio": 0.9944244462878938,
+        "candidateFirstRatio": 0.9846657693686032,
+        "baselineFirstMedianMs": 0.37079969270833624,
+        "baselineSecondMedianMs": 0.3685173593750145,
+        "candidateFirstMedianMs": 0.3742562916666827,
+        "candidateSecondMedianMs": 0.37287869791667083
+      },
+      "confidence": {
+        "confidence": 0.95,
+        "resamples": 20000,
+        "lower": 0.9790829577349831,
+        "median": 0.9907607339095869,
+        "upper": 1.0050211334394974
+      },
+      "speedup": 0.9895330780135732,
+      "baselineDeterministic": true,
+      "candidateDeterministic": true,
+      "baselineWithinRunExactSamples": [
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null
+      ],
+      "candidateWithinRunExactSamples": [
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null
+      ],
+      "baselineRepeatedSetupDeterministicSamples": [
+        true,
+        true,
+        true,
+        true,
+        true,
+        true,
+        true,
+        true
+      ],
+      "candidateRepeatedSetupDeterministicSamples": [
+        true,
+        true,
+        true,
+        true,
+        true,
+        true,
+        true,
+        true
+      ],
+      "baselineWithinRunExact": null,
+      "candidateWithinRunExact": null,
+      "withinRunExact": null,
+      "baselineFingerprint": "3706323a4d48679d048010880c3371fd815d68126535cc388fa0ca8e30d36471",
+      "candidateFingerprint": "3706323a4d48679d048010880c3371fd815d68126535cc388fa0ca8e30d36471",
+      "baselineBrokenCount": 0,
+      "candidateBrokenCount": 0,
+      "correctness": {
+        "correct": true,
+        "stateError": 0,
+        "matrixError": 0,
+        "colorError": 0,
+        "lineError": 0,
+        "sameBreakCount": true,
+        "sameCounts": true,
+        "fidelityLimit": 0.005,
+        "renderLimit": 0.005,
+        "withinRunExact": null
+      },
+      "decision": "borderline"
+    },
+    {
+      "id": 63,
+      "category": "fallback",
+      "sceneId": 399,
+      "engine": "fallback",
+      "warmup": 24,
+      "iterations": 96,
+      "rain": 0,
+      "explode": false,
+      "control": false,
+      "fidelityLimit": 0.005,
+      "sceneTitle": "Heavy Hauler Load Shift — Cinematic",
+      "baselineSamplesMs": [
+        0.03760554963235795,
+        0.03483044730391643,
+        0.037421390318624,
+        0.03489110968137217,
+        0.03754965808823561,
+        0.03472400551469843,
+        0.03750237622549927,
+        0.03433596323529231
+      ],
+      "candidateSamplesMs": [
+        0.03291321936273905,
+        0.034165802083332794,
+        0.032907168504903876,
+        0.034827283088235635,
+        0.032901854779412605,
+        0.034412350490191444,
+        0.032875791666664975,
+        0.03417136887254829
+      ],
+      "baselineBatchElapsedMs": [
+        61.372257000008176,
+        56.84328999999161,
+        61.07170899999437,
+        56.942290999999386,
+        61.281042000000525,
+        56.66957699998784,
+        61.20387800001481,
+        56.03629199999705
+      ],
+      "candidateBatchElapsedMs": [
+        53.71437399999013,
+        55.75858899999912,
+        53.704499000003125,
+        56.83812600000056,
+        53.69582700000137,
+        56.16095599999244,
+        53.653291999997236,
+        55.767673999998806
+      ],
+      "minimumTimedBatchMs": 53.653291999997236,
+      "baselineMedianMs": 0.036156249999998086,
+      "candidateMedianMs": 0.03353951072303592,
+      "baselineMadMs": 0.0013697671568693552,
+      "candidateMadMs": 0.0006349990808776768,
+      "calibration": {
+        "repetitions": 68,
+        "baselinePilotElapsedMs": 0.49283400000058464,
+        "candidatePilotElapsedMs": 6.032250000000204,
+        "estimatedBaselineBatchMs": 33.512712000039755,
+        "estimatedCandidateBatchMs": 410.19300000001385,
+        "adaptiveTrials": [
+          {
+            "repetitions": 68,
+            "baselineElapsedMs": 55.503126999989036,
+            "candidateElapsedMs": 49.48258399999759,
+            "fastestElapsedMs": 49.48258399999759
+          }
+        ]
+      },
+      "pooledSpeedup": 1.0780196019724555,
+      "orderBalanced": {
+        "speedup": 1.0754505945815354,
+        "baselineFirstRatio": 1.0141539925932115,
+        "candidateFirstRatio": 1.1404520317751197,
+        "baselineFirstMedianMs": 0.03477722640930743,
+        "baselineSecondMedianMs": 0.037526017156867444,
+        "candidateFirstMedianMs": 0.03290451164215824,
+        "candidateSecondMedianMs": 0.03429185968136987
+      },
+      "confidence": {
+        "confidence": 0.95,
+        "resamples": 20000,
+        "lower": 1.0689407630879264,
+        "median": 1.073639017537128,
+        "upper": 1.0785964441546525
+      },
+      "speedup": 1.0754505945815354,
+      "baselineDeterministic": true,
+      "candidateDeterministic": true,
+      "baselineWithinRunExactSamples": [
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null
+      ],
+      "candidateWithinRunExactSamples": [
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null
+      ],
+      "baselineRepeatedSetupDeterministicSamples": [
+        true,
+        true,
+        true,
+        true,
+        true,
+        true,
+        true,
+        true
+      ],
+      "candidateRepeatedSetupDeterministicSamples": [
+        true,
+        true,
+        true,
+        true,
+        true,
+        true,
+        true,
+        true
+      ],
+      "baselineWithinRunExact": null,
+      "candidateWithinRunExact": null,
+      "withinRunExact": null,
+      "baselineFingerprint": "f1f3d593a09cd392d07fc325eaf7d087b2442dd41fe9dfc28b48a89a459d84e8",
+      "candidateFingerprint": "f1f3d593a09cd392d07fc325eaf7d087b2442dd41fe9dfc28b48a89a459d84e8",
+      "baselineBrokenCount": 0,
+      "candidateBrokenCount": 0,
+      "correctness": {
+        "correct": true,
+        "stateError": 0,
+        "matrixError": 0,
+        "colorError": 0,
+        "lineError": 0,
+        "sameBreakCount": true,
+        "sameCounts": true,
+        "fidelityLimit": 0.005,
+        "renderLimit": 0.005,
+        "withinRunExact": null
+      },
+      "decision": "accepted"
+    },
+    {
+      "id": 64,
+      "category": "fallback",
+      "sceneId": 449,
+      "engine": "fallback",
+      "warmup": 24,
+      "iterations": 96,
+      "rain": 0,
+      "explode": false,
+      "control": false,
+      "fidelityLimit": 0.005,
+      "sceneTitle": "Physics Toy Museum — Cinematic",
+      "baselineSamplesMs": [
+        0.059900962301594876,
+        0.06017683333332224,
+        0.06177711309523407,
+        0.06044758928569969,
+        0.06060176388890189,
+        0.05942922817460399,
+        0.05878720436507253,
+        0.059811343253978334
+      ],
+      "candidateSamplesMs": [
+        0.06198660912699389,
+        0.05984722222221954,
+        0.061900214285717285,
+        0.06055753968253373,
+        0.059786458333335415,
+        0.059717672619038396,
+        0.06098503968255067,
+        0.060093251984116004
+      ],
+      "baselineBatchElapsedMs": [
+        30.19008500000382,
+        30.329123999994408,
+        31.13566499999797,
+        30.465584999992643,
+        30.543289000006553,
+        29.952331000000413,
+        29.628750999996555,
+        30.14491700000508
+      ],
+      "candidateBatchElapsedMs": [
+        31.241251000004922,
+        30.162999999998647,
+        31.197708000001512,
+        30.520999999997002,
+        30.132375000001048,
+        30.097706999995353,
+        30.736460000005536,
+        30.286998999994466
+      ],
+      "minimumTimedBatchMs": 29.628750999996555,
+      "baselineMedianMs": 0.06003889781745855,
+      "candidateMedianMs": 0.06032539583332487,
+      "baselineMadMs": 0.0004857787698422378,
+      "candidateMadMs": 0.0005733303571379654,
+      "calibration": {
+        "repetitions": 21,
+        "baselinePilotElapsedMs": 6.135167000000365,
+        "candidatePilotElapsedMs": 5.57720800000061,
+        "estimatedBaselineBatchMs": 128.83850700000767,
+        "estimatedCandidateBatchMs": 117.12136800001281,
+        "adaptiveTrials": [
+          {
+            "repetitions": 6,
+            "baselineElapsedMs": 14.036290000001827,
+            "candidateElapsedMs": 11.430374999998094,
+            "fastestElapsedMs": 11.430374999998094
+          },
+          {
+            "repetitions": 17,
+            "baselineElapsedMs": 26.4472489999971,
+            "candidateElapsedMs": 26.25416600000426,
+            "fastestElapsedMs": 26.25416600000426
+          }
+        ]
+      },
+      "pooledSpeedup": 0.9952507892918284,
+      "orderBalanced": {
+        "speedup": 0.9904553368959572,
+        "baselineFirstRatio": 0.9806117682892496,
+        "candidateFirstRatio": 1.0003977171282727,
+        "baselineFirstMedianMs": 0.06025136309524838,
+        "baselineSecondMedianMs": 0.059994088293650286,
+        "candidateFirstMedianMs": 0.059970237103167776,
+        "candidateSecondMedianMs": 0.061442626984133976
+      },
+      "confidence": {
+        "confidence": 0.95,
+        "resamples": 20000,
+        "lower": 0.9804323655004267,
+        "median": 0.9904553368959572,
+        "upper": 1.005982385088082
+      },
+      "speedup": 0.9904553368959572,
+      "baselineDeterministic": true,
+      "candidateDeterministic": true,
+      "baselineWithinRunExactSamples": [
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null
+      ],
+      "candidateWithinRunExactSamples": [
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null
+      ],
+      "baselineRepeatedSetupDeterministicSamples": [
+        true,
+        true,
+        true,
+        true,
+        true,
+        true,
+        true,
+        true
+      ],
+      "candidateRepeatedSetupDeterministicSamples": [
+        true,
+        true,
+        true,
+        true,
+        true,
+        true,
+        true,
+        true
+      ],
+      "baselineWithinRunExact": null,
+      "candidateWithinRunExact": null,
+      "withinRunExact": null,
+      "baselineFingerprint": "cb5bf059867adcaa3b8e20d42809d08b68178fd6266cada036fd3945e682572a",
+      "candidateFingerprint": "cb5bf059867adcaa3b8e20d42809d08b68178fd6266cada036fd3945e682572a",
+      "baselineBrokenCount": 0,
+      "candidateBrokenCount": 0,
+      "correctness": {
+        "correct": true,
+        "stateError": 0,
+        "matrixError": 0,
+        "colorError": 0,
+        "lineError": 0,
+        "sameBreakCount": true,
+        "sameCounts": true,
+        "fidelityLimit": 0.005,
+        "renderLimit": 0.005,
+        "withinRunExact": null
+      },
+      "decision": "borderline"
+    },
+    {
+      "id": 65,
+      "category": "fallback",
+      "sceneId": 499,
+      "engine": "fallback",
+      "warmup": 24,
+      "iterations": 96,
+      "rain": 0,
+      "explode": true,
+      "control": false,
+      "fidelityLimit": 0.005,
+      "sceneTitle": "Foundation Block Layout — Cinematic",
+      "baselineSamplesMs": [
+        0.08433713888889037,
+        0.08355530753967633,
+        0.086898807539672,
+        0.0865693650793695,
+        0.08760027777777525,
+        0.07897577579365855,
+        0.08283052182539341,
+        0.08217939880952173
+      ],
+      "candidateSamplesMs": [
+        0.0843559841269845,
+        0.08620296230158182,
+        0.08615707142857829,
+        0.0887106488095332,
+        0.08738988690476386,
+        0.07944741865079892,
+        0.08107705158730434,
+        0.08414600198412223
+      ],
+      "baselineBatchElapsedMs": [
+        42.50591800000075,
+        42.11187499999687,
+        43.796998999994685,
+        43.63096000000223,
+        44.15053999999873,
+        39.80379100000391,
+        41.74658299999828,
+        41.41841699999895
+      ],
+      "candidateBatchElapsedMs": [
+        42.51541600000019,
+        43.44629299999724,
+        43.42316400000345,
+        44.71016700000473,
+        44.04450300000099,
+        40.04149900000266,
+        40.862834000001385,
+        42.409584999997605
+      ],
+      "minimumTimedBatchMs": 39.80379100000391,
+      "baselineMedianMs": 0.08394622321428336,
+      "candidateMedianMs": 0.0852565277777814,
+      "baselineMadMs": 0.002194983134923889,
+      "candidateMadMs": 0.0016219424603208174,
+      "calibration": {
+        "repetitions": 21,
+        "baselinePilotElapsedMs": 1.6456249999991996,
+        "candidatePilotElapsedMs": 7.045165999999881,
+        "estimatedBaselineBatchMs": 34.55812499998319,
+        "estimatedCandidateBatchMs": 147.9484859999975,
+        "adaptiveTrials": [
+          {
+            "repetitions": 21,
+            "baselineElapsedMs": 42.53320699999858,
+            "candidateElapsedMs": 40.623624000001655,
+            "fastestElapsedMs": 40.623624000001655
+          }
+        ]
+      },
+      "pooledSpeedup": 0.9846310353277193,
+      "orderBalanced": {
+        "speedup": 0.9884521118714218,
+        "baselineFirstRatio": 0.9729129087702165,
+        "candidateFirstRatio": 1.0042395045390764,
+        "baselineFirstMedianMs": 0.08286735317459903,
+        "baselineSecondMedianMs": 0.08561797321428119,
+        "candidateFirstMedianMs": 0.0852565277777814,
+        "candidateSecondMedianMs": 0.08517448214285203
+      },
+      "confidence": {
+        "confidence": 0.95,
+        "resamples": 20000,
+        "lower": 0.9850719939161204,
+        "median": 0.9906002360213964,
+        "upper": 1.0013098747947922
+      },
+      "speedup": 0.9884521118714218,
+      "baselineDeterministic": true,
+      "candidateDeterministic": true,
+      "baselineWithinRunExactSamples": [
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null
+      ],
+      "candidateWithinRunExactSamples": [
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null
+      ],
+      "baselineRepeatedSetupDeterministicSamples": [
+        true,
+        true,
+        true,
+        true,
+        true,
+        true,
+        true,
+        true
+      ],
+      "candidateRepeatedSetupDeterministicSamples": [
+        true,
+        true,
+        true,
+        true,
+        true,
+        true,
+        true,
+        true
+      ],
+      "baselineWithinRunExact": null,
+      "candidateWithinRunExact": null,
+      "withinRunExact": null,
+      "baselineFingerprint": "b13345d3ea3c4f05a8ff60232482445684f38dab80a83b34c6675828843648b7",
+      "candidateFingerprint": "b13345d3ea3c4f05a8ff60232482445684f38dab80a83b34c6675828843648b7",
+      "baselineBrokenCount": 0,
+      "candidateBrokenCount": 0,
+      "correctness": {
+        "correct": true,
+        "stateError": 0,
+        "matrixError": 0,
+        "colorError": 0,
+        "lineError": 0,
+        "sameBreakCount": true,
+        "sameCounts": true,
+        "fidelityLimit": 0.005,
+        "renderLimit": 0.005,
+        "withinRunExact": null
+      },
+      "decision": "borderline"
+    },
+    {
+      "id": 66,
+      "category": "fallback",
+      "sceneId": 549,
+      "engine": "fallback",
+      "warmup": 24,
+      "iterations": 96,
+      "rain": 0,
+      "explode": false,
+      "control": false,
+      "fidelityLimit": 0.005,
+      "sceneTitle": "Inventory Earthquake Proxy — Cinematic",
+      "baselineSamplesMs": [
+        0.339248616666661,
+        0.35892569166665755,
+        0.34294479166668074,
+        0.3478670166666537,
+        0.33834686666665825,
+        0.349983683333312,
+        0.34095415833332177,
+        0.32560278333333675
+      ],
+      "candidateSamplesMs": [
+        0.33855312499999857,
+        0.35323575833334264,
+        0.34701491666666395,
+        0.3467111000000083,
+        0.3381836833333333,
+        0.345255908333335,
+        0.3521947916666856,
+        0.33670519999999066
+      ],
+      "baselineBatchElapsedMs": [
+        40.70983399999932,
+        43.07108299999891,
+        41.15337500000169,
+        41.744041999998444,
+        40.60162399999899,
+        41.99804199999744,
+        40.914498999998614,
+        39.07233400000041
+      ],
+      "candidateBatchElapsedMs": [
+        40.626374999999825,
+        42.38829100000112,
+        41.64178999999967,
+        41.605332000001,
+        40.582042,
+        41.430709000000206,
+        42.26337500000227,
+        40.404623999998876
+      ],
+      "minimumTimedBatchMs": 39.07233400000041,
+      "baselineMedianMs": 0.3419494750000013,
+      "candidateMedianMs": 0.3459835041666717,
+      "baselineMadMs": 0.0047600749999977265,
+      "candidateMadMs": 0.006731770833342449,
+      "calibration": {
+        "repetitions": 5,
+        "baselinePilotElapsedMs": 12.944165999999313,
+        "candidatePilotElapsedMs": 12.935082999998485,
+        "estimatedBaselineBatchMs": 64.72082999999657,
+        "estimatedCandidateBatchMs": 64.67541499999243,
+        "adaptiveTrials": [
+          {
+            "repetitions": 3,
+            "baselineElapsedMs": 25.574126000001343,
+            "candidateElapsedMs": 23.33112500000061,
+            "fastestElapsedMs": 23.33112500000061
+          },
+          {
+            "repetitions": 5,
+            "baselineElapsedMs": 38.52145799999926,
+            "candidateElapsedMs": 39.154334000002564,
+            "fastestElapsedMs": 38.52145799999926
+          }
+        ]
+      },
+      "pooledSpeedup": 0.9883404002847284,
+      "orderBalanced": {
+        "speedup": 1.0003050985803688,
+        "baselineFirstRatio": 0.9921739837031546,
+        "candidateFirstRatio": 1.0085028499852813,
+        "baselineFirstMedianMs": 0.3401013874999914,
+        "baselineSecondMedianMs": 0.3489253499999828,
+        "candidateFirstMedianMs": 0.3459835041666717,
+        "candidateSecondMedianMs": 0.34278402083333126
+      },
+      "confidence": {
+        "confidence": 0.95,
+        "resamples": 20000,
+        "lower": 0.9791338027613947,
+        "median": 0.9983356939003452,
+        "upper": 1.0082699853023647
+      },
+      "speedup": 1.0003050985803688,
+      "baselineDeterministic": true,
+      "candidateDeterministic": true,
+      "baselineWithinRunExactSamples": [
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null
+      ],
+      "candidateWithinRunExactSamples": [
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null
+      ],
+      "baselineRepeatedSetupDeterministicSamples": [
+        true,
+        true,
+        true,
+        true,
+        true,
+        true,
+        true,
+        true
+      ],
+      "candidateRepeatedSetupDeterministicSamples": [
+        true,
+        true,
+        true,
+        true,
+        true,
+        true,
+        true,
+        true
+      ],
+      "baselineWithinRunExact": null,
+      "candidateWithinRunExact": null,
+      "withinRunExact": null,
+      "baselineFingerprint": "9d1897d49b7f3bb13209b3d939888e72cd9c9bb4597d6bd93de217a9b393cc69",
+      "candidateFingerprint": "9d1897d49b7f3bb13209b3d939888e72cd9c9bb4597d6bd93de217a9b393cc69",
+      "baselineBrokenCount": 0,
+      "candidateBrokenCount": 0,
+      "correctness": {
+        "correct": true,
+        "stateError": 0,
+        "matrixError": 0,
+        "colorError": 0,
+        "lineError": 0,
+        "sameBreakCount": true,
+        "sameCounts": true,
+        "fidelityLimit": 0.005,
+        "renderLimit": 0.005,
+        "withinRunExact": null
+      },
+      "decision": "borderline"
+    },
+    {
+      "id": 67,
+      "category": "fallback",
+      "sceneId": 599,
+      "engine": "fallback",
+      "warmup": 24,
+      "iterations": 96,
+      "rain": 0,
+      "explode": false,
+      "control": false,
+      "fidelityLimit": 0.005,
+      "sceneTitle": "Mega Structure Showcase — Cinematic",
+      "baselineSamplesMs": [
+        0.10693942543860414,
+        0.1045323399122712,
+        0.10707181578947168,
+        0.1041157763157938,
+        0.10604458991228807,
+        0.10705436403507344,
+        0.10280061842105856,
+        0.10528271271927256
+      ],
+      "candidateSamplesMs": [
+        0.09906760964911068,
+        0.09818594517542933,
+        0.09727074561403258,
+        0.09657703508771208,
+        0.09662564035088987,
+        0.10014272149121832,
+        0.09874095175440775,
+        0.09556076535089456
+      ],
+      "baselineBatchElapsedMs": [
+        48.76437800000349,
+        47.66674699999567,
+        48.82474799999909,
+        47.47679400000197,
+        48.35633300000336,
+        48.81678999999349,
+        46.8770820000027,
+        48.00891699998829
+      ],
+      "candidateBatchElapsedMs": [
+        45.17482999999447,
+        44.77279099999578,
+        44.35545999999886,
+        44.03912799999671,
+        44.06129200000578,
+        45.66508099999555,
+        45.025874000009935,
+        43.57570900000792
+      ],
+      "minimumTimedBatchMs": 43.57570900000792,
+      "baselineMedianMs": 0.10566365131578032,
+      "candidateMedianMs": 0.09772834539473096,
+      "baselineMadMs": 0.0013332434210584776,
+      "candidateMadMs": 0.001127007675429989,
+      "calibration": {
+        "repetitions": 19,
+        "baselinePilotElapsedMs": 1.8306250000005093,
+        "candidatePilotElapsedMs": 10.148666999999477,
+        "estimatedBaselineBatchMs": 34.78187500000968,
+        "estimatedCandidateBatchMs": 192.82467299999007,
+        "adaptiveTrials": [
+          {
+            "repetitions": 19,
+            "baselineElapsedMs": 37.41283100000328,
+            "candidateElapsedMs": 40.32758100000501,
+            "fastestElapsedMs": 37.41283100000328
+          }
+        ]
+      },
+      "pooledSpeedup": 1.0811975879566789,
+      "orderBalanced": {
+        "speedup": 1.0819261702627017,
+        "baselineFirstRatio": 1.0772840523803122,
+        "candidateFirstRatio": 1.086588291465837,
+        "baselineFirstMedianMs": 0.10490752631577188,
+        "baselineSecondMedianMs": 0.10649200767544612,
+        "candidateFirstMedianMs": 0.09800584868422016,
+        "candidateSecondMedianMs": 0.09738149013157071
+      },
+      "confidence": {
+        "confidence": 0.95,
+        "resamples": 20000,
+        "lower": 1.059044781418065,
+        "median": 1.081351513030472,
+        "upper": 1.0967711593261087
+      },
+      "speedup": 1.0819261702627017,
+      "baselineDeterministic": true,
+      "candidateDeterministic": true,
+      "baselineWithinRunExactSamples": [
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null
+      ],
+      "candidateWithinRunExactSamples": [
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null
+      ],
+      "baselineRepeatedSetupDeterministicSamples": [
+        true,
+        true,
+        true,
+        true,
+        true,
+        true,
+        true,
+        true
+      ],
+      "candidateRepeatedSetupDeterministicSamples": [
+        true,
+        true,
+        true,
+        true,
+        true,
+        true,
+        true,
+        true
+      ],
+      "baselineWithinRunExact": null,
+      "candidateWithinRunExact": null,
+      "withinRunExact": null,
+      "baselineFingerprint": "69a0bbd42d4d444ace265c69b895c6123137a53d7f8f6ea2ca45316acf4bac89",
+      "candidateFingerprint": "69a0bbd42d4d444ace265c69b895c6123137a53d7f8f6ea2ca45316acf4bac89",
+      "baselineBrokenCount": 0,
+      "candidateBrokenCount": 0,
+      "correctness": {
+        "correct": true,
+        "stateError": 0,
+        "matrixError": 0,
+        "colorError": 0,
+        "lineError": 0,
+        "sameBreakCount": true,
+        "sameCounts": true,
+        "fidelityLimit": 0.005,
+        "renderLimit": 0.005,
+        "withinRunExact": null
+      },
+      "decision": "accepted"
+    },
+    {
+      "id": 68,
+      "category": "fallback",
+      "sceneId": 190,
+      "engine": "fallback",
+      "warmup": 24,
+      "iterations": 96,
+      "rain": 0,
+      "explode": false,
+      "control": false,
+      "fidelityLimit": 0.005,
+      "sceneTitle": "Bridge Load Test — Cinematic",
+      "baselineSamplesMs": [
+        0.04141426282051096,
+        0.04862433333332424,
+        0.04136832051280274,
+        0.04898584294869579,
+        0.04210370192307868,
+        0.04876576602564688,
+        0.0420405993589926,
+        0.04847943429486944
+      ],
+      "candidateSamplesMs": [
+        0.04211084134617639,
+        0.04865925320510565,
+        0.04279674198718544,
+        0.048445174679482776,
+        0.042135413461536673,
+        0.04966453205129722,
+        0.0418908910256295,
+        0.04842314102565163
+      ],
+      "baselineBatchElapsedMs": [
+        25.842499999998836,
+        30.341583999994327,
+        25.813831999988906,
+        30.567165999986173,
+        26.272710000001098,
+        30.429838000003656,
+        26.233334000011382,
+        30.25116699999853
+      ],
+      "candidateBatchElapsedMs": [
+        26.277165000014065,
+        30.363373999985924,
+        26.705167000003712,
+        30.229788999997254,
+        26.292497999998886,
+        30.990668000009464,
+        26.13991599999281,
+        30.216040000006615
+      ],
+      "minimumTimedBatchMs": 25.813831999988906,
+      "baselineMedianMs": 0.04529156810897406,
+      "candidateMedianMs": 0.04560994150641853,
+      "baselineMadMs": 0.003403481570511499,
+      "candidateMadMs": 0.003261919871784487,
+      "calibration": {
+        "repetitions": 26,
+        "baselinePilotElapsedMs": 6.498959000000468,
+        "candidatePilotElapsedMs": 5.355167000001529,
+        "estimatedBaselineBatchMs": 168.97293400001217,
+        "estimatedCandidateBatchMs": 139.23434200003976,
+        "adaptiveTrials": [
+          {
+            "repetitions": 7,
+            "baselineElapsedMs": 12.846666000004916,
+            "candidateElapsedMs": 14.025709999998071,
+            "fastestElapsedMs": 12.846666000004916
+          },
+          {
+            "repetitions": 18,
+            "baselineElapsedMs": 21.933334999997896,
+            "candidateElapsedMs": 22.06808200001251,
+            "fastestElapsedMs": 21.933334999997896
+          }
+        ]
+      },
+      "pooledSpeedup": 0.9930196490736638,
+      "orderBalanced": {
+        "speedup": 0.9967549659012713,
+        "baselineFirstRatio": 0.9906061981032177,
+        "candidateFirstRatio": 1.002941899567363,
+        "baselineFirstMedianMs": 0.04172743108975178,
+        "baselineSecondMedianMs": 0.04869504967948556,
+        "candidateFirstMedianMs": 0.04855221394229421,
+        "candidateSecondMedianMs": 0.04212312740385653
+      },
+      "confidence": {
+        "confidence": 0.95,
+        "resamples": 20000,
+        "lower": 0.982565529657369,
+        "median": 0.9953717163798738,
+        "upper": 1.0048095550933773
+      },
+      "speedup": 0.9967549659012713,
+      "baselineDeterministic": true,
+      "candidateDeterministic": true,
+      "baselineWithinRunExactSamples": [
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null
+      ],
+      "candidateWithinRunExactSamples": [
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null
+      ],
+      "baselineRepeatedSetupDeterministicSamples": [
+        true,
+        true,
+        true,
+        true,
+        true,
+        true,
+        true,
+        true
+      ],
+      "candidateRepeatedSetupDeterministicSamples": [
+        true,
+        true,
+        true,
+        true,
+        true,
+        true,
+        true,
+        true
+      ],
+      "baselineWithinRunExact": null,
+      "candidateWithinRunExact": null,
+      "withinRunExact": null,
+      "baselineFingerprint": "ec4aa3929a29b01f367bd1ded1c255c64f21ed7b332bad6e737910727024eea4",
+      "candidateFingerprint": "ec4aa3929a29b01f367bd1ded1c255c64f21ed7b332bad6e737910727024eea4",
+      "baselineBrokenCount": 0,
+      "candidateBrokenCount": 0,
+      "correctness": {
+        "correct": true,
+        "stateError": 0,
+        "matrixError": 0,
+        "colorError": 0,
+        "lineError": 0,
+        "sameBreakCount": true,
+        "sameCounts": true,
+        "fidelityLimit": 0.005,
+        "renderLimit": 0.005,
+        "withinRunExact": null
+      },
+      "decision": "borderline"
+    },
+    {
+      "id": 69,
+      "category": "fallback",
+      "sceneId": 240,
+      "engine": "fallback",
+      "warmup": 24,
+      "iterations": 96,
+      "rain": 0,
+      "explode": false,
+      "control": false,
+      "fidelityLimit": 0.005,
+      "sceneTitle": "Material Bounce Lab — Cinematic",
+      "baselineSamplesMs": [
+        0.05141748793858313,
+        0.041507220394745865,
+        0.05139139802632168,
+        0.03875206030701313,
+        0.05238847807018238,
+        0.041794228070162524,
+        0.05227978947369481,
+        0.04161320942980159
+      ],
+      "candidateSamplesMs": [
+        0.03931926425438529,
+        0.048655796052647325,
+        0.039263844298235644,
+        0.04696975328947941,
+        0.04144713596492852,
+        0.050587764254391675,
+        0.040789517543883276,
+        0.05050145723685331
+      ],
+      "baselineBatchElapsedMs": [
+        46.892748999987816,
+        37.85458500000823,
+        46.86895500000537,
+        35.34187899999597,
+        47.77829200000633,
+        38.11633599998822,
+        47.67916800000967,
+        37.95124699997905
+      ],
+      "candidateBatchElapsedMs": [
+        35.85916899999938,
+        44.37408600001436,
+        35.80862599999091,
+        42.83641500000522,
+        37.799788000014814,
+        46.13604100000521,
+        37.200040000021545,
+        46.05732900001021
+      ],
+      "minimumTimedBatchMs": 35.34187899999597,
+      "baselineMedianMs": 0.0465928130482421,
+      "candidateMedianMs": 0.04420844462720397,
+      "baselineMadMs": 0.005032598135968375,
+      "candidateMadMs": 0.0046682658991310175,
+      "calibration": {
+        "repetitions": 38,
+        "baselinePilotElapsedMs": 0.898417000000336,
+        "candidatePilotElapsedMs": 5.6365420000001905,
+        "estimatedBaselineBatchMs": 34.13984600001277,
+        "estimatedCandidateBatchMs": 214.18859600000724,
+        "adaptiveTrials": [
+          {
+            "repetitions": 38,
+            "baselineElapsedMs": 47.668710000005376,
+            "candidateElapsedMs": 40.85603800000172,
+            "fastestElapsedMs": 40.85603800000172
+          }
+        ]
+      },
+      "pooledSpeedup": 1.0539346824151985,
+      "orderBalanced": {
+        "speedup": 1.0416822390744411,
+        "baselineFirstRatio": 0.8382687808209865,
+        "candidateFirstRatio": 1.2944558022790855,
+        "baselineFirstMedianMs": 0.04156021491227373,
+        "baselineSecondMedianMs": 0.05184863870613897,
+        "candidateFirstMedianMs": 0.04005439089913428,
+        "candidateSecondMedianMs": 0.049578626644750316
+      },
+      "confidence": {
+        "confidence": 0.95,
+        "resamples": 20000,
+        "lower": 1.0240907759805256,
+        "median": 1.0383619361872831,
+        "upper": 1.0562026928529717
+      },
+      "speedup": 1.0416822390744411,
+      "baselineDeterministic": true,
+      "candidateDeterministic": true,
+      "baselineWithinRunExactSamples": [
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null
+      ],
+      "candidateWithinRunExactSamples": [
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null
+      ],
+      "baselineRepeatedSetupDeterministicSamples": [
+        true,
+        true,
+        true,
+        true,
+        true,
+        true,
+        true,
+        true
+      ],
+      "candidateRepeatedSetupDeterministicSamples": [
+        true,
+        true,
+        true,
+        true,
+        true,
+        true,
+        true,
+        true
+      ],
+      "baselineWithinRunExact": null,
+      "candidateWithinRunExact": null,
+      "withinRunExact": null,
+      "baselineFingerprint": "15682a1d3428d71a66a211997ed9460d95cbdc315844c739d15370031ccbbf65",
+      "candidateFingerprint": "15682a1d3428d71a66a211997ed9460d95cbdc315844c739d15370031ccbbf65",
+      "baselineBrokenCount": 0,
+      "candidateBrokenCount": 0,
+      "correctness": {
+        "correct": true,
+        "stateError": 0,
+        "matrixError": 0,
+        "colorError": 0,
+        "lineError": 0,
+        "sameBreakCount": true,
+        "sameCounts": true,
+        "fidelityLimit": 0.005,
+        "renderLimit": 0.005,
+        "withinRunExact": null
+      },
+      "decision": "borderline"
+    },
+    {
+      "id": 70,
+      "category": "fallback",
+      "sceneId": 290,
+      "engine": "fallback",
+      "warmup": 24,
+      "iterations": 96,
+      "rain": 180,
+      "explode": true,
+      "control": false,
+      "fidelityLimit": 0.005,
+      "sceneTitle": "Object Rain Stress Test — Cinematic",
+      "baselineSamplesMs": [
+        0.3399101562500088,
+        0.3413901874999965,
+        0.3299344687500252,
+        0.3437005208333706,
+        0.3259995729166576,
+        0.33912022916664836,
+        0.3361723125000253,
+        0.3369440208332814
+      ],
+      "candidateSamplesMs": [
+        0.34372611458335695,
+        0.3397647395833398,
+        0.3502604166666667,
+        0.3375790000000052,
+        0.3400238750000047,
+        0.3319982812499423,
+        0.3484800208332975,
+        0.35011415624997727
+      ],
+      "baselineBatchElapsedMs": [
+        32.631375000000844,
+        32.773457999999664,
+        31.673709000002418,
+        32.99525000000358,
+        31.29595899999913,
+        32.55554199999824,
+        32.27254200000243,
+        32.34662599999501
+      ],
+      "candidateBatchElapsedMs": [
+        32.997707000002265,
+        32.61741500000062,
+        33.625,
+        32.4075840000005,
+        32.64229200000045,
+        31.871834999994462,
+        33.45408199999656,
+        33.61095899999782
+      ],
+      "minimumTimedBatchMs": 31.29595899999913,
+      "baselineMedianMs": 0.3380321249999649,
+      "candidateMedianMs": 0.3418749947916808,
+      "baselineMadMs": 0.0026180468750377772,
+      "candidateMadMs": 0.005450510416646154,
+      "calibration": {
+        "repetitions": 4,
+        "baselinePilotElapsedMs": 9.597540999999183,
+        "candidatePilotElapsedMs": 8.89770800000042,
+        "estimatedBaselineBatchMs": 38.39016399999673,
+        "estimatedCandidateBatchMs": 35.59083200000168,
+        "adaptiveTrials": [
+          {
+            "repetitions": 4,
+            "baselineElapsedMs": 32.92912599999909,
+            "candidateElapsedMs": 32.22150000000693,
+            "fastestElapsedMs": 32.22150000000693
+          }
+        ]
+      },
+      "pooledSpeedup": 0.9887594300540828,
+      "orderBalanced": {
+        "speedup": 0.9832569694496878,
+        "baselineFirstRatio": 0.9622954018590226,
+        "candidateFirstRatio": 1.00467514040249,
+        "baselineFirstMedianMs": 0.33305339062502526,
+        "baselineSecondMedianMs": 0.34025520833332246,
+        "candidateFirstMedianMs": 0.3386718697916725,
+        "candidateSecondMedianMs": 0.3461030677083272
+      },
+      "confidence": {
+        "confidence": 0.95,
+        "resamples": 20000,
+        "lower": 0.9620075037100713,
+        "median": 0.9833102567453413,
+        "upper": 0.9997596594370574
+      },
+      "speedup": 0.9832569694496878,
+      "baselineDeterministic": true,
+      "candidateDeterministic": true,
+      "baselineWithinRunExactSamples": [
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null
+      ],
+      "candidateWithinRunExactSamples": [
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null
+      ],
+      "baselineRepeatedSetupDeterministicSamples": [
+        true,
+        true,
+        true,
+        true,
+        true,
+        true,
+        true,
+        true
+      ],
+      "candidateRepeatedSetupDeterministicSamples": [
+        true,
+        true,
+        true,
+        true,
+        true,
+        true,
+        true,
+        true
+      ],
+      "baselineWithinRunExact": null,
+      "candidateWithinRunExact": null,
+      "withinRunExact": null,
+      "baselineFingerprint": "f5d921a3568c343d47780157e9dee3058382300bedd421644c70828921e08992",
+      "candidateFingerprint": "f5d921a3568c343d47780157e9dee3058382300bedd421644c70828921e08992",
+      "baselineBrokenCount": 0,
+      "candidateBrokenCount": 0,
+      "correctness": {
+        "correct": true,
+        "stateError": 0,
+        "matrixError": 0,
+        "colorError": 0,
+        "lineError": 0,
+        "sameBreakCount": true,
+        "sameCounts": true,
+        "fidelityLimit": 0.005,
+        "renderLimit": 0.005,
+        "withinRunExact": null
+      },
+      "decision": "borderline"
+    }
+  ]
+}

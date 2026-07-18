@@ -1,0 +1,282 @@
+{
+  "schemaVersion": 1,
+  "generatedAt": "2026-07-16",
+  "scope": "Audit retained and rejected v1.2-v1.12 performance evidence against the current v1.13 source, identify missed high-value candidates, and map every current candidate to the canonical 1,000-case tournament.",
+  "baseline": {
+    "archive": "benchmarks/baselines/box3d-webgpu-v1.12.0-source.tar.gz",
+    "sha256": "33d7fc828fdea54e087f25815bcdabd8f9608fcda6912e1e5c7dd57139534c67"
+  },
+  "currentSourceSha256": {
+    "wasm/box3d_web.c": "11c61aac9f2ad524b9da7a83f04d0668f988a932b34296bf724814663321aad2",
+    "src/physics/fallback.ts": "0b73e5a2f1c0470cf91957730dcbaa6bd839ac5cb0fb007d267ed84b7f85f5aa",
+    "src/physics/wasm.ts": "abbd46cc034fae39ac6eb40ed55dc5c8059c4316fb25ae21035c1fe25850e327",
+    "src/soft/simulations.ts": "c05966d6cbea30c4b42d70645b7000714bbc7a582800e05acf04c22e0a094dd9",
+    "wasm/soft_kernels.c": "af5b1bcaea9d4781379a436cb73147297ec3ec29f0482a8511c38709bb2a69f1",
+    "src/webgpu/renderer.ts": "fc0a19b335e17f469a99dbe7a5adac0273d98dd3518f81530c4b38f62cf2604b"
+  },
+  "currentNativeArtifact": {
+    "bridgeSourceSha256": "11c61aac9f2ad524b9da7a83f04d0668f988a932b34296bf724814663321aad2",
+    "box3dJsSha256": "8ec00439683b8da258916ebe90f0cea6a6d0672641fda571936b6012fd3cec3b",
+    "box3dWasmSha256": "6f00de660aa18b19ebf6db51e0739eded76452ebbaa7d894f5d8a13b2d425051",
+    "sparseMoveEventTransformSync": false,
+    "provenanceMatchesCurrentBridge": true,
+    "authority": "The exact source-frozen 1,000-case tournament is authoritative; pre-revert focused native evidence is discovery-only."
+  },
+  "criticalFindings": [
+    {
+      "id": "registry-doc-mismatch",
+      "severity": "release-blocking-documentation",
+      "finding": "docs/V1.13_1000_BENCHMARK_MATRIX.md describes the superseded six-native-shard layout, while the canonical registry now contains native-create, native-actions, fallback, cloth, rope, water, mixed, frame-prep/WASM-wrapper, renderer, and controls shards.",
+      "recommendation": "Regenerate the matrix table from benchmarks/v113-production-1000-registry.cjs before release."
+    },
+    {
+      "id": "native-focused-stale-after-revert",
+      "severity": "provenance",
+      "finding": "v113-native-focused.md measured candidate WASM c333505cf758..., which included the later-reverted sparse move-event path. Current bridge source is 11c61aac9f2....",
+      "recommendation": "Use focused native evidence only for discovery; make final claims from a current-source rebuild in the 1,000-case tournament."
+    },
+    {
+      "id": "no-uncovered-high-value-family",
+      "severity": "informational",
+      "finding": "After the registry rewrite, every current production edit and every major retained historical optimization family has an owning shard or control. No additional previously accepted high-value source change was found missing from the current tree.",
+      "recommendation": "Finish the source-frozen 1,000-case run; do not add new candidates after freeze."
+    }
+  ],
+  "moveEventAblation": {
+    "candidate": "Remove sparse Box3D move-event synchronization and unconditionally use the v1.12 hybrid full/dynamic-index synchronization after active steps.",
+    "method": "Current and ablation WebAssembly modules, 8 balanced AB/BA samples, 10,000 paired bootstrap resamples, at least 20 ms per timed batch, five focused sync/step paths, and 100 semantically varied create/action/step mixes.",
+    "preRevertMoveEventWasmSha256": "c333505cf758a137c9d6a5826967248a2552701aace4fad598a61de24ca66983",
+    "ablationWasmSha256": "f868c6e2ce129a071aab93414686f147d7c34b7611fe80e30f4bd3191ea97e96",
+    "allExact": true,
+    "allTimerFloor": true,
+    "focusedGeometricMeanWithoutEvents": 1.003070373781695,
+    "mixGeometricMeanWithoutEvents": 0.9989940155344678,
+    "mixMedianWithoutEvents": 0.9987723619819694,
+    "mixClassifications": {
+      "withoutEventsWins": 1,
+      "withEventsWins": 2,
+      "parity": 97
+    },
+    "focused": [
+      { "id": "explicit-sync-static", "speedupWithoutEvents": 0.9980492839925934, "confidence95": [0.9811028843808468, 1.0096040138090656] },
+      { "id": "explicit-sync-dense", "speedupWithoutEvents": 1.0031380102763388, "confidence95": [0.9823947056077837, 1.0139706592577822] },
+      { "id": "step-static-partial", "speedupWithoutEvents": 1.0060735403964256, "confidence95": [0.9825347448237598, 1.01778761013367] },
+      { "id": "step-dense-partial", "speedupWithoutEvents": 0.993289005133485, "confidence95": [0.9858475337223253, 1.0037100685215627] },
+      { "id": "step-dense-active", "speedupWithoutEvents": 1.0149367722918536, "confidence95": [0.9955127069554812, 1.024054819793102] }
+    ],
+    "recommendation": "revert",
+    "reason": "The move-event path is exact but is overall parity, clears neither the 1.03x win gate nor a broad lower-bound-above-1.0 gate, duplicates a historically rejected direction, and increases synchronization complexity. The current source has been restored to the simpler v1.12 hybrid."
+  },
+  "entries": [
+    {
+      "candidate": "Persistent SIMD/scalar WebAssembly soft kernels with JavaScript fallback",
+      "historicalEvidence": "Fresh v1.2-to-v1.10 comparison: cloth 7.342x, rope 2.746x, water 13.342x; 6.455x geometric mean and zero correctness failures.",
+      "sourcePresence": "present: wasm/soft_kernels.c, src/soft/kernels.ts, src/soft/simulations.ts, public/soft-kernels-{simd,scalar}.wasm",
+      "recommendation": "retain; rebuild both binaries byte-identically and cover SIMD/scalar/JS controls"
+    },
+    {
+      "candidate": "GPU-resident intact-cloth reconstruction",
+      "historicalEvidence": "Maximum-cloth logical handoff fell 81,600 to 20,400 bytes (75.00%); v1.8 removed nearly all CPU mesh handoff while preserving tearing on the topology-aware CPU path.",
+      "sourcePresence": "present in src/soft/simulations.ts and src/webgpu/renderer.ts",
+      "recommendation": "retain; cloth and renderer shards own changed/unchanged correctness"
+    },
+    {
+      "candidate": "GPU-resident shallow-water reconstruction",
+      "historicalEvidence": "Logical changed-frame handoff fell 309,200 to 77,360 bytes (74.98%); v1.7 complete water workloads measured about 2.9x versus v1.6.",
+      "sourcePresence": "present in src/soft/simulations.ts and src/webgpu/renderer.ts",
+      "recommendation": "retain; do not describe as a general 3D fluid or physical-GPU FPS result"
+    },
+    {
+      "candidate": "GPU-compute rope presentation expansion",
+      "historicalEvidence": "v1.9 CPU handoff geometric mean 5.969x and 84.9% mean dynamic-byte reduction; solver+handoff 1.026x and 96-impact storm 0.976x showed solver convergence.",
+      "sourcePresence": "present in src/soft/simulations.ts and src/webgpu/renderer.ts",
+      "recommendation": "retain presentation path; do not claim rope-solver speedup"
+    },
+    {
+      "candidate": "Qualified adaptive cloth projection",
+      "historicalEvidence": "Adaptive-long 1.555x and projectile-storm 1.435x geometric means with 0.08427% maximum recorded state error; broader schedules failed fidelity.",
+      "sourcePresence": "present only for qualified layouts in src/soft/simulations.ts",
+      "recommendation": "retain qualification matrix only; reject broadening without a new long-horizon fidelity proof"
+    },
+    {
+      "candidate": "Qualified maximum-stress rope WASM projection batching",
+      "historicalEvidence": "38 of 250 scene/stress combinations qualified over 720 frames; fresh v1.10 five-scene geometric mean 1.0964x.",
+      "sourcePresence": "present in src/soft/simulations.ts and soft-kernel bridge",
+      "recommendation": "retain only the 38 qualified combinations"
+    },
+    {
+      "candidate": "Exact frame, topology, and WebGPU upload caches",
+      "historicalEvidence": "Unchanged streams produce zero logical upload; Metal cached-call probe measured 20.24 ns versus 1,933.46 ns changed (95.52x microcall, not FPS).",
+      "sourcePresence": "present across src/main.ts, src/effects.ts, src/soft/simulations.ts, src/physics/*, and src/webgpu/renderer.ts",
+      "recommendation": "retain; mixed-unchanged and renderer shards must prove invalidation boundaries"
+    },
+    {
+      "candidate": "24-byte packed tearing/water surfaces and uint16 topology",
+      "historicalEvidence": "v1.3 reduced steady cloth/water upload traffic by 66.12%/66.39%; maximum full workloads measured cloth 3.64x, rope 3.27x, water 2.57x for the combined v1.3 pass.",
+      "sourcePresence": "present in soft-surface generation and renderer upload paths",
+      "recommendation": "retain; avoid attributing the whole v1.3 gain to packing alone"
+    },
+    {
+      "candidate": "KTX2 BC4 with R8 KTX2/procedural fallback",
+      "historicalEvidence": "49.73% file reduction and 50.00% resident-payload reduction; 30.862 dB base-mip PSNR. Fetch overlap was neutral locally.",
+      "sourcePresence": "present in src/assets/ktx2.ts, renderer startup, and public/textures",
+      "recommendation": "retain asset path; do not claim local CPU speed from fetch overlap"
+    },
+    {
+      "candidate": "Exact camera matrix reuse and allocation-free cinematic sampling",
+      "historicalEvidence": "v1.11 matrix resolve: static 19.35x, orbit 2.83x, changing 1.48x, mixed 11.67x; v1.12 camera sampler geometric mean 1.140x.",
+      "sourcePresence": "present; src/camera.ts, src/showcases.ts, and src/main.ts are unchanged from frozen v1.12",
+      "recommendation": "retain; frame-prep shard owns active and unchanged controls"
+    },
+    {
+      "candidate": "Main-frame diagnostic/effect line staging",
+      "historicalEvidence": "v1.11 paused diagnostics 752.55x, paused effects 28.65x, mixed 2.134x, forced-active 1.271x.",
+      "sourcePresence": "present; src/frame-lines.ts and consumers are unchanged from frozen v1.12",
+      "recommendation": "retain; distinguish exact work elimination from frame/FPS speedup"
+    },
+    {
+      "candidate": "Reusable effects frames, in-place compaction, shockwave recurrence, and exact drag-factor caching",
+      "historicalEvidence": "v1.10 effects changed-frame construction 1.4767x/update 1.3794x; v1.12 drag update 1.314x and update+build 1.093x.",
+      "sourcePresence": "present; src/effects.ts is bit-identical to frozen v1.12",
+      "recommendation": "retain; recent flat-SoA replacement was correctly rejected"
+    },
+    {
+      "candidate": "Fallback static streams, broad-rejected explosions, scalar AABB contacts, and lazy replay hashing",
+      "historicalEvidence": "v1.11 isolated results: stream sync 1.383x, explosion 3.554x, contact 1.063x, sync/lazy hash 1.590x and 1.502x at 12-sync cadence.",
+      "sourcePresence": "historical paths remain in src/physics/fallback.ts",
+      "recommendation": "retain baseline paths; retest the newly edited fallback as one coherent complete path"
+    },
+    {
+      "candidate": "Native settled-step/version/lazy-hash work elimination",
+      "historicalEvidence": "v1.11 settled step 127.51x, active upload 20% smaller, unchanged upload 0 bytes; transform sync 12.56x and hash-at-12 cadence 6.06x.",
+      "sourcePresence": "present in wasm/box3d_web.c and src/physics/wasm.ts",
+      "recommendation": "retain; settled and explicit-sync controls remain mandatory"
+    },
+    {
+      "candidate": "Full-batched Racing Sail projection",
+      "historicalEvidence": "v1.12 five modes measured 1.0451x-1.0504x with all lower confidence bounds above 1.0.",
+      "sourcePresence": "present in qualified cloth scheduling",
+      "recommendation": "retain only Racing Sail qualification"
+    },
+    {
+      "candidate": "Axis-aligned soft-instance matrix writer",
+      "historicalEvidence": "v1.12 cloth sphere stream 1.748x and 768-droplet water frame 4.135x, bit-exact.",
+      "sourcePresence": "present in src/math.ts and src/soft/simulations.ts",
+      "recommendation": "retain"
+    },
+    {
+      "candidate": "Hybrid native transform synchronization using dense full scan or sparse dynamic-index list",
+      "historicalEvidence": "v1.12 static-heavy explicit sync 1.678x, dense path 0.997x parity, mixed frame preparation 1.157x; indexed-only predecessor regressed dense paths.",
+      "sourcePresence": "present in wasm/box3d_web.c; sparse move-event experiment has been removed",
+      "recommendation": "retain v1.12 hybrid"
+    },
+    {
+      "candidate": "TurboQuant predictive codec for remote/network/replay boundaries",
+      "historicalEvidence": "About 6.73x-7.11x smaller payloads but local Worker transport was 53.3x slower in current-line evidence.",
+      "sourcePresence": "present as lazy/opt-in src/compression/turboquant.ts; absent from local authoritative/render path",
+      "recommendation": "retain remote-only scope; reject local physics-to-render integration"
+    },
+    {
+      "candidate": "v1.13 native construction: last-hull cache, exact axis-aligned initial matrices, and no inactive-capacity memset",
+      "historicalEvidence": "Pre-revert focused artifact measured repeated-size create 1.230x, varied create 1.298x, reset churn 1.246x, destroy/recreate 1.660x; outputs exact.",
+      "sourcePresence": "present in current wasm/box3d_web.c",
+      "recommendation": "retest-and-retain only if current-source native-create shard clears gates"
+    },
+    {
+      "candidate": "v1.13 native actions: cached-stream kick sign and conservative explosion miss rejection",
+      "historicalEvidence": "Pre-revert focused artifact measured kicks 1.127x-1.164x and explosions 1.116x-3.538x; outputs exact.",
+      "sourcePresence": "present in current wasm/box3d_web.c",
+      "recommendation": "retest-and-retain only if current-source native-actions shard clears gates"
+    },
+    {
+      "candidate": "Cache stable native matrix/color byte pointers in WasmPhysicsBackend",
+      "historicalEvidence": "No source-matched release result existed before v1.13; bridge globals have stable offsets while HEAPF32 itself remains a live getter after memory growth.",
+      "sourcePresence": "present in src/physics/wasm.ts",
+      "recommendation": "retest in wrapper-pointers/counts/step/mixed cases; retain only with memory-growth correctness"
+    },
+    {
+      "candidate": "v1.13 fallback exact hot paths: axis matrix, cached static AABBs/friction factor, unrolled X/Z bounds",
+      "historicalEvidence": "These are newly recovered candidates, not previously accepted historical wins; all are intended to be bit-exact.",
+      "sourcePresence": "present in src/physics/fallback.ts",
+      "recommendation": "retest across create, active, mixed actions, invalid-step, static-heavy, and dense scenes"
+    },
+    {
+      "candidate": "Branch-free intact-cloth native projection via null broken stream",
+      "historicalEvidence": "Historical broad fused schedules failed fidelity; current source restricts this exact loop specialization to an explicit layout/mode qualification matrix.",
+      "sourcePresence": "present in src/soft/simulations.ts and wasm/soft_kernels.c",
+      "recommendation": "retest every selected and adjacent control layout; retain only selected exact/qualified wins"
+    },
+    {
+      "candidate": "High-count water droplet height-only sampling and early expiry",
+      "historicalEvidence": "Source-matched focused result: changed-path geometric mean 1.2092x, active 128-768 droplets 1.2260x, expiration-heavy 1.1925x, controls 0.9995x; all 69 cases exact.",
+      "sourcePresence": "present at a 128-droplet threshold in src/soft/simulations.ts",
+      "recommendation": "conditionally retain if final water shard repeats gains and zero/low-count controls remain non-regressing"
+    },
+    {
+      "candidate": "Numeric renderer surface-config cache instead of interpolated string/join keys",
+      "historicalEvidence": "New v1.13 candidate; previous renderer cache work proved large unchanged-call savings, but this exact edit lacks final source-frozen evidence.",
+      "sourcePresence": "present in src/webgpu/renderer.ts",
+      "recommendation": "retest in cloth/water active and unchanged mock-WebGPU paths plus Dawn/Metal correctness"
+    },
+    {
+      "candidate": "Sparse Box3D move-event transform synchronization",
+      "historicalEvidence": "v1.11 rejected dense-active 0.979x. New exact 100-mix ablation found event versus no-event overall parity: removing events 0.998994x geometric mean, 97/100 parity.",
+      "sourcePresence": "absent; reverted from current wasm/box3d_web.c",
+      "recommendation": "reject/revert"
+    },
+    {
+      "candidate": "Emscripten -sMALLOC=emmalloc",
+      "historicalEvidence": "New exact 100-workload build-flag tournament: allocator-sensitive geometric mean 1.0049x, controls 1.0062x, worst 0.9756x, startup 0.9777x; binary 6,561 bytes smaller.",
+      "sourcePresence": "absent from production build",
+      "recommendation": "reject for performance; size-only benefit does not meet the speed gate"
+    },
+    {
+      "candidate": "Exact shadow-map reuse across unchanged frames",
+      "historicalEvidence": "Paused paths improved, but active rigid lower confidence bound 0.97938 missed the predeclared 0.98 non-regression floor.",
+      "sourcePresence": "absent",
+      "recommendation": "keep rejected"
+    },
+    {
+      "candidate": "Shader PCF/fog/HDR-discard combinations and indexed cube geometry",
+      "historicalEvidence": "Metal tests were parity or regressive; no stable complete-frame gain. Indexed cube was previously rejected in v1.12 review.",
+      "sourcePresence": "absent",
+      "recommendation": "keep rejected unless a new physical-GPU profile identifies a changed bottleneck"
+    },
+    {
+      "candidate": "Broad cloth cadence/specialization beyond qualified matrices",
+      "historicalEvidence": "19 of 100 aggressive fused-schedule cases and 10 additional guard cases failed long-horizon or interaction fidelity.",
+      "sourcePresence": "absent outside explicit qualified paths",
+      "recommendation": "keep rejected"
+    },
+    {
+      "candidate": "Effect particle flat-SoA rewrite and reusable mutable camera-shake sample",
+      "historicalEvidence": "Current-pass pilots: effects update 0.7867x and update+build 0.9639x; camera combined path 0.9847x. Both exact but slower/parity.",
+      "sourcePresence": "absent; src/effects.ts and camera sources restored to v1.12",
+      "recommendation": "keep rejected"
+    },
+    {
+      "candidate": "Fallback cached dynamic counts/traversal, rope tuple/delta reuse, reciprocal cloth algebra, and cloth/rope telemetry cadence",
+      "historicalEvidence": "Prior passes measured no win or regressions: reciprocal cloth 0.95x, rope delta reuse 0.81x, cloth/rope telemetry about 1.00x; v1.12 rejected cached fallback count/traversal and rope tuple removal.",
+      "sourcePresence": "absent",
+      "recommendation": "keep rejected; do not recycle without a materially different architecture"
+    },
+    {
+      "candidate": "Scalar water pointer/buffer swap rewrite",
+      "historicalEvidence": "Focused v1.13 zero-droplet control geometric mean 0.9976x and no clear changed-path advantage independent of the high-count droplet specialization.",
+      "sourcePresence": "absent/reverted; legacy destructuring swap remains",
+      "recommendation": "keep rejected"
+    }
+  ],
+  "coverageMap": [
+    { "shard": 1, "group": "native-create-active", "owns": ["native hull cache", "axis initial matrix", "reset without capacity clear", "native construction and active stepping"] },
+    { "shard": 2, "group": "native-actions-sync", "owns": ["kick sign cache", "explosion conservative miss", "hybrid sync", "settled/version controls"] },
+    { "shard": 3, "group": "fallback-create-actions", "owns": ["fallback axis matrices", "static AABB cache", "ground friction cache", "bounds unroll", "historical fallback paths"] },
+    { "shard": 4, "group": "cloth", "owns": ["qualified branch-free projection", "adaptive schedules", "GPU cloth handoff", "tearing adjacency controls"] },
+    { "shard": 5, "group": "rope", "owns": ["qualified WASM batching", "GPU rope expansion", "storm and steady controls"] },
+    { "shard": 6, "group": "water", "owns": ["high-count droplet specialization", "GPU water handoff", "low-count and solver controls"] },
+    { "shard": 7, "group": "mixed-unchanged", "owns": ["frame-version caches", "zero-upload behavior", "mixed active frame preparation"] },
+    { "shard": 8, "group": "frame-prep-wasm-wrapper", "owns": ["camera", "frame lines", "effects", "native pointer cache and memory-growth-safe wrapper"] },
+    { "shard": 9, "group": "renderer-cpu-webgpu", "owns": ["numeric surface config cache", "rigid/cloth/water/rope/effect uploads", "uniform/resize correctness"] },
+    { "shard": 10, "group": "controls", "owns": ["settled native", "tearing cloth", "invalid fallback steps", "forced-active camera", "forced renderer resize"] }
+  ]
+}

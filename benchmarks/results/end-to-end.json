@@ -1,0 +1,209 @@
+{
+  "schema": 1,
+  "generatedAt": "2026-07-14T05:19:13Z",
+  "environment": {
+    "python": "3.9.6 (default, May 22 2026, 11:13:45) \n[Clang 21.0.0 (clang-2100.1.1.101)]",
+    "platform": "macOS-27.0-arm64-arm-64bit",
+    "machine": "arm64",
+    "node": "v26.0.0"
+  },
+  "method": {
+    "baselineVersion": "1.2.0",
+    "optimizedVersion": "1.9.0",
+    "baseline": "/private/var/folders/yc/xss6tbzs62v8xnln2kjvhy2w0000gn/T/box3d-webgpu-v1.2-baseline-dkulv_kj",
+    "optimized": "/Users/commander/Documents/WebPhysics",
+    "timer": "perf_counter wall clock",
+    "warmups": "1-2 by workload",
+    "samples": "3-7 by workload",
+    "summaryStatistic": "median",
+    "dispersion": "median absolute deviation",
+    "acceptance": "at least 2% speedup and <=15% normalized MAD"
+  },
+  "results": [
+    {
+      "script": "test:soft-soak",
+      "available": true,
+      "baseline": {
+        "available": true,
+        "passed": true,
+        "samples": [
+          15.103551708999998,
+          15.087455750000004,
+          15.067873458000001,
+          15.035920624999989,
+          15.252431292000011,
+          15.417417541999995,
+          17.081757832999998
+        ],
+        "medianSeconds": 15.103551708999998,
+        "madSeconds": 0.06763108400000917,
+        "outputHashes": [
+          "cb72bde71cbd31216ee42ed51d54fabbc23563d8d5f15faa2d5adff0b4fc66aa",
+          "fda1380824cbfb23ab4968e0f8ce9b9c681f0d4695d1fb277372bd91bfd4f481",
+          "b6cf8933bbe7b761a0176e161e6504994bf4e19f1ef7f41010cfb3907c9e1191",
+          "dce7f7de07d541a7738254e124acfb41426e35d37fcfc5f73168fd59c3972b13",
+          "0ad41a12200044f1dfc12736130392c312d3171fccf8bc4aaa9f6d299ab9fc33",
+          "07190f4b6660868c12add12098e51426a81e4d22831e77cc097eb8a5fca724af",
+          "26b13f06e42b1f4f85b475a8f1cee7787bff14a45fb3d44f3d6f64b0720ba42f"
+        ]
+      },
+      "optimized": {
+        "available": true,
+        "passed": true,
+        "samples": [
+          4.690977292000014,
+          4.656704290999983,
+          4.63520945800002,
+          4.630319249999985,
+          4.653061624999992,
+          4.667713208999999,
+          4.688426333999985
+        ],
+        "medianSeconds": 4.656704290999983,
+        "madSeconds": 0.02149483299996291,
+        "outputHashes": [
+          "5ed5ad22f6dac60e66d0c13b6d2e0609e937d9164d6fe80b46518feebd6d216b",
+          "bc4439d6463e70b9c431f2b8a9e60832dadc70ae218cb40f47422b96b6d2664f",
+          "87a748408b8146d80423f7e7ba3599343df1d88245fe0a3eb77564c5a9b0d935",
+          "dab0343668c4b702379b64d7306061c8b91c4c270d7b3997d70b1c936fc76207",
+          "33e389a29214ee161b889ea989277d40839f108a20c133b7ac538461894cc746",
+          "fd483153dcdef6f564f89e7dbb4f0b29d3e8b2d2be172eef84371e1949fbe3cd",
+          "23ac03ded37e169d7636badb062e365f4cb249ca42de88321213e753b4beb518"
+        ]
+      },
+      "speedup": 3.243399358252283,
+      "timeReductionPercent": 69.16815077194647,
+      "noiseCeilingPercent": 0.4615889619941295,
+      "accepted": true
+    },
+    {
+      "script": "test:webgpu",
+      "available": true,
+      "baseline": {
+        "available": true,
+        "passed": true,
+        "samples": [
+          0.4428157919999762,
+          0.45984245900001497,
+          0.44830087500000104,
+          0.4610936670000001,
+          0.4658177500000136
+        ],
+        "medianSeconds": 0.45984245900001497,
+        "madSeconds": 0.005975290999998606,
+        "outputHashes": [
+          "9a870275812cde4534a744234cb24fea747b4183e089cfe0a2576de0fab8a824",
+          "9a870275812cde4534a744234cb24fea747b4183e089cfe0a2576de0fab8a824",
+          "9a870275812cde4534a744234cb24fea747b4183e089cfe0a2576de0fab8a824",
+          "9a870275812cde4534a744234cb24fea747b4183e089cfe0a2576de0fab8a824",
+          "9a870275812cde4534a744234cb24fea747b4183e089cfe0a2576de0fab8a824"
+        ]
+      },
+      "optimized": {
+        "available": true,
+        "passed": true,
+        "samples": [
+          0.4943796659999862,
+          0.5024903749999794,
+          0.49373629199999414,
+          0.4947178749999921,
+          0.5004111669999816
+        ],
+        "medianSeconds": 0.4947178749999921,
+        "madSeconds": 0.0009815829999979542,
+        "outputHashes": [
+          "9f6cc32e9fe6d73e8ba30221620ce80e5b3140844526418706cf7e0f0c6aaf62",
+          "eedbc3d7f954ebc772f2ebe7eabb977482d6910d7ade8d5dda15c7e1e0b46db1",
+          "c9130e9b6807367d9856a920d164ef7b24b1332c5629da5011d233686187519b",
+          "f2ea2ba39c460a9a340ea2fff82d8c4fe43299570ccec8ae82341f5c80b6cab2",
+          "ff8578c960954e925706c98a9f5ccac7c5a773909952edb6b5188b924727437f"
+        ]
+      },
+      "speedup": 0.9295044352299223,
+      "timeReductionPercent": -7.584209617315052,
+      "noiseCeilingPercent": 1.2994213307297948,
+      "accepted": false
+    },
+    {
+      "script": "build",
+      "available": true,
+      "baseline": {
+        "available": true,
+        "passed": true,
+        "samples": [
+          0.343528292000002,
+          0.3364040000000159,
+          0.33824350000000436,
+          0.3400142079999853,
+          0.3429328329999919
+        ],
+        "medianSeconds": 0.3400142079999853,
+        "madSeconds": 0.002918625000006614,
+        "outputHashes": [
+          "81f7dbe93bfeec511466dd8ab4207e4337d71ae2001b873aaebb804982752c5c",
+          "4364f95fd2ae0c29b92feb79431712c2c7682f825e888e16219fbd2cb58baa1e",
+          "81f7dbe93bfeec511466dd8ab4207e4337d71ae2001b873aaebb804982752c5c",
+          "4880371972b957c00d8da13627f90e0d0bc3312c3b05f9af05b8bb7d0e6dfc77",
+          "0f5c25fe8774ade832ca588a9573118c698558ba8673c4f03854567675acd579"
+        ]
+      },
+      "optimized": {
+        "available": true,
+        "passed": true,
+        "samples": [
+          0.357083375000002,
+          0.36792312500000435,
+          0.3551103340000168,
+          0.3565103329999886,
+          0.3535008340000161
+        ],
+        "medianSeconds": 0.3565103329999886,
+        "madSeconds": 0.0013999989999717855,
+        "outputHashes": [
+          "8fe37be91e663e22a31fef2aaa1cfcd054e583ea0f90ca23cd632f95bafa8b2f",
+          "0fffed153388fbb4f9822c18dc7f76ebf2d7608196b8eb07fad88229ba32dee1",
+          "db0f9f620d11f9a2166d4ce809106a7424dc1237ca3b1745c15cb85778447a30",
+          "0cddf859593e4e6c2da7c3e5b3542284115bb1201c2ac9314f7ea32bcc1b9714",
+          "af5e36e1a256cbf8e84de56e5a46bf218bfca18106c02bca8a3957d56378065d"
+        ]
+      },
+      "speedup": 0.9537289007553006,
+      "timeReductionPercent": -4.85159873084009,
+      "noiseCeilingPercent": 0.8583832473279294,
+      "accepted": false
+    },
+    {
+      "script": "test",
+      "available": true,
+      "baseline": {
+        "available": true,
+        "passed": false,
+        "error": "warmup exit 1",
+        "samples": []
+      },
+      "optimized": {
+        "available": true,
+        "passed": true,
+        "samples": [
+          4.660232250000007,
+          4.549289291999997,
+          4.600371625000008
+        ],
+        "medianSeconds": 4.600371625000008,
+        "madSeconds": 0.05108233300001075,
+        "outputHashes": [
+          "4e9a2ee7bcbc49ba8cedb33f4c543282954807aa71d0648d5c185195594a195d",
+          "b1014846a2495bec760b0c16fe9b2124cecf682206e896617b3611a5a0307b22",
+          "14084982becbe5dee1671d7761f682c29239b32d2d3538cb7bbb5f74e75d24a0"
+        ]
+      },
+      "accepted": false
+    }
+  ],
+  "bundle": {
+    "baselineBytes": 188658,
+    "optimizedBytes": 404710,
+    "deltaBytes": 216052,
+    "deltaPercent": 114.52045500323335
+  }
+}

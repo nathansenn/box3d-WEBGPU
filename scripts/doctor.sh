@@ -89,5 +89,9 @@ if (( failures > 0 )); then
 fi
 
 printf '\nDoctor result: ready, with %d optional warning(s).\n' "$warnings"
-printf 'Recommended gate: npm install && npm run validate\n'
+printf 'Recommended gate: npm ci && npm run validate:v1.13\n'
+if [[ -s public/box3d/box3d.js && -s public/box3d/box3d.wasm ]]; then
+  printf 'Native gate: npm run test:native-wasm\n'
+fi
+printf 'Apple GPU gate: npm run test:webgpu:metal\n'
 printf 'Launch: npm run dev\n\n'

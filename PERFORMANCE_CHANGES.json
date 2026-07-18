@@ -1,0 +1,168 @@
+{
+  "schemaVersion": 2,
+  "version": "1.13.0",
+  "generatedBy": "v1.13 source-frozen performance audit",
+  "authoritativeEvidence": {
+    "result": "benchmarks/results/v113-production-1000.json",
+    "methodology": "docs/V1.13_1000_BENCHMARK_MATRIX.md",
+    "historicalAudit": "benchmarks/results/v113-history-gap-audit.md",
+    "totalCases": 1000,
+    "correctnessFailures": 0,
+    "timingFloorMs": 22.5,
+    "casesBelowTimingFloor": 203,
+    "eligibleChangedCases": 555,
+    "changedCaseGeometricMean": 1.0544254732,
+    "eligibleControlCases": 242,
+    "controlGeometricMean": 1.0041104525,
+    "environment": "Apple M3 Ultra / Node.js 26"
+  },
+  "currentSourceGains": [
+    {
+      "path": "native scene creation",
+      "eligibleCases": 50,
+      "geometricMeanSpeedup": 1.2443,
+      "scope": "complete create path"
+    },
+    {
+      "path": "native scene creation plus stepping",
+      "eligibleCases": 30,
+      "geometricMeanSpeedup": 1.0762,
+      "scope": "complete create-and-step path"
+    },
+    {
+      "path": "deterministic water interactions",
+      "eligibleCases": 41,
+      "geometricMeanSpeedup": 1.0986,
+      "scope": "complete CPU simulation and handoff path"
+    },
+    {
+      "path": "stable native wrapper",
+      "eligibleCases": 25,
+      "geometricMeanSpeedup": 1.2291,
+      "scope": "wrapper subsystem"
+    },
+    {
+      "path": "numeric renderer configuration",
+      "eligibleCases": 20,
+      "geometricMeanSpeedup": 1.3162,
+      "scope": "renderer CPU and upload subsystem"
+    }
+  ],
+  "retainedHistoricalGains": [
+    {
+      "path": "maximum cloth CPU simulation plus handoff",
+      "speedup": 7.342,
+      "comparison": "v1.2 to corresponding v1.10 workload"
+    },
+    {
+      "path": "maximum rope CPU simulation plus handoff",
+      "speedup": 2.746,
+      "comparison": "v1.2 to corresponding v1.10 workload"
+    },
+    {
+      "path": "maximum water CPU simulation plus handoff",
+      "speedup": 13.342,
+      "comparison": "v1.2 to corresponding v1.10 workload"
+    },
+    {
+      "path": "intact cloth logical handoff",
+      "beforeBytes": 81600,
+      "afterBytes": 20400,
+      "reductionPercent": 75.0
+    },
+    {
+      "path": "rope logical handoff",
+      "beforeBytes": 33120,
+      "afterBytes": 4116,
+      "reductionPercent": 87.57
+    },
+    {
+      "path": "water logical handoff",
+      "beforeBytes": 309200,
+      "afterBytes": 77360,
+      "reductionPercent": 74.98
+    },
+    {
+      "path": "soft retained typed memory",
+      "reductionPercent": 38.74,
+      "scope": "v1.11 audit across 150 soft scenes"
+    },
+    {
+      "path": "active 4096-body rigid upload",
+      "beforeBytes": 327680,
+      "afterBytes": 262144,
+      "reductionPercent": 20.0
+    },
+    {
+      "path": "KTX2 BC4 material texture",
+      "fileReductionPercent": 49.73,
+      "residentReductionPercent": 50.0
+    },
+    {
+      "path": "v1.11 changed CPU paths",
+      "geometricMeanSpeedup": 1.067
+    },
+    {
+      "path": "v1.12 changed CPU paths",
+      "geometricMeanSpeedup": 1.064
+    },
+    {
+      "path": "cloth sphere staging",
+      "speedup": 1.748,
+      "scope": "exact subsystem path"
+    },
+    {
+      "path": "768-droplet staging",
+      "speedup": 4.135,
+      "scope": "exact subsystem path"
+    },
+    {
+      "path": "camera sampling",
+      "geometricMeanSpeedup": 1.14,
+      "scope": "camera subsystem"
+    },
+    {
+      "path": "static-heavy native synchronization",
+      "speedup": 1.678,
+      "scope": "dense native path remained parity"
+    },
+    {
+      "path": "mixed native frame preparation",
+      "speedup": 1.157
+    }
+  ],
+  "exactWorkElimination": [
+    "unchanged soft surface uploads produce zero additional bytes",
+    "settled native rigid uploads produce zero additional bytes",
+    "version-keyed topology and material streams are uploaded only when changed"
+  ],
+  "retainedTechniques": [
+    "exact eight-entry native hull LRU with MRU-first lookup",
+    "cached fallback dynamic-body count",
+    "exact all-static fallback early return",
+    "fallback reset-storage reuse",
+    "qualified high-count water staging",
+    "memory-growth-safe stable native transform and material pointers",
+    "numeric renderer configuration cache",
+    "GPU-resident intact-cloth and shallow-water presentation",
+    "WebGPU-compute rope presentation expansion",
+    "SIMD and scalar WebAssembly soft kernels with JavaScript fallback",
+    "KTX2 BC4 with R8 and procedural fallbacks",
+    "remote-only predictive TurboQuant"
+  ],
+  "rejectedCandidates": [
+    "SIMD -O2 and scalar -Os compiler modes",
+    "hybrid renderer scratch/string cache",
+    "sparse native move events",
+    "local TurboQuant transport",
+    "bind-group hoist",
+    "partial uniform writes"
+  ],
+  "claimBoundaries": [
+    "Ratios with different workloads or denominators are not multiplied.",
+    "The v1.13 aggregate covers CPU production paths, not whole-engine or browser FPS.",
+    "WebGPU reconstructs soft-system presentation; numerical soft solving remains CPU JavaScript or WebAssembly.",
+    "Timer-floor cache ratios describe exact work elimination, not active-frame speed.",
+    "TurboQuant is retained only for bandwidth-constrained remote and replay boundaries."
+  ]
+}

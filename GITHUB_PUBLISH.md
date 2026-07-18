@@ -6,7 +6,7 @@ Target:
 nathansenn/box3d-WEBGPU
 ```
 
-The destination already contains upstream Box3D history. The included replacement script preserves that Git history, changes the working tree in a normal commit, runs the complete validation gate, and pushes without force-pushing.
+The destination already contains upstream Box3D history. The included replacement script preserves that Git history, changes the working tree in a normal commit, runs the manifest-sealed v1.13 validation gate, and pushes without force-pushing.
 
 ## One-command safe publish
 
@@ -23,9 +23,9 @@ Default behavior:
 3. Refuse to overwrite a target checkout with uncommitted changes.
 4. Check out or create `main` from `origin/main`.
 5. Remove the old working-tree files while preserving `.git`.
-6. Copy the AAA project without `node_modules`, temporary builds, or generated WASM binaries.
-7. Run `npm install` and `npm run validate`.
-8. Commit as `Upgrade Box3D WebGPU to the AAA Physics Showcase`.
+6. Copy the AAA project without `node_modules`, temporary builds, generated native Box3D artifacts, or the user-owned `SOURCE_MANIFEST 2.sha256` file. Packaged SIMD/scalar soft-kernel WASM remains included.
+7. Run `npm ci` and the complete `npm run validate:v1.13` gate, including JavaScript/SIMD/scalar soft soaks, exact rope qualification, native Box3D soak, retained evidence compatibility, the source-frozen v1.13 1,000-case evidence gate, and production/Pages builds.
+8. Commit as `Optimize Box3D WebGPU v1.13 production paths`.
 9. Push normally to `origin/main`.
 
 ## Recommended Mac sequence
@@ -36,7 +36,8 @@ unzip -o box3d-WEBGPU-AAA-edition.zip
 cd box3d-WEBGPU-AAA
 
 npm run doctor
-npm run validate
+npm run verify:source
+npm run validate:v1.13
 bash scripts/push-existing-box3d-webgpu.sh
 ```
 
@@ -67,7 +68,7 @@ TARGET_DIR="$HOME/box3d-WEBGPU-aaa-publish" \
 Override the commit message:
 
 ```bash
-COMMIT_MESSAGE="Ship Box3D WebGPU AAA Edition" \
+COMMIT_MESSAGE="Optimize Box3D WebGPU v1.13 production paths" \
   bash scripts/push-existing-box3d-webgpu.sh
 ```
 
@@ -83,11 +84,11 @@ git checkout main
 find . -mindepth 1 -maxdepth 1 ! -name .git -exec rm -rf {} +
 
 # Copy the AAA package contents into this folder, then:
-npm install
-npm run validate
+npm ci
+npm run validate:v1.13
 
-git add -A
-git commit -m "Upgrade Box3D WebGPU to the AAA Physics Showcase"
+git add -A -- . ':(exclude)SOURCE_MANIFEST 2.sha256'
+git commit -m "Optimize Box3D WebGPU v1.13 production paths"
 git push origin main
 ```
 

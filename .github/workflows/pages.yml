@@ -31,11 +31,40 @@ jobs:
       - name: Install
         run: npm ci
 
-      - name: Test
-        run: npm test
+      - name: Verify source manifest
+        run: npm run verify:source
 
-      - name: Build
-        run: npm run build:pages
+      - name: Test application and packaged WebAssembly runtimes
+        run: |
+          # Portable expansion of npm run validate:v1.13; packaged runtime tests replace the release-toolchain byte rebuild.
+          npm run typecheck
+          rm -rf .test-build
+          npx tsc -p tsconfig.test.json
+          node -e "require('fs').mkdirSync('.test-build', {recursive:true}); require('fs').writeFileSync('.test-build/package.json', '{\"type\":\"commonjs\"}')"
+          node .test-build/tests/unit.test.js
+          node scripts/self-test.mjs
+          npm run test:cbridge
+          node scripts/soft-kernel-test.mjs
+          rm -rf .test-build
+          npx tsc -p tsconfig.test.json
+          node -e "require('fs').mkdirSync('.test-build', {recursive:true}); require('fs').writeFileSync('.test-build/package.json', '{\"type\":\"commonjs\"}')"
+          node scripts/soft-kernel-integration-test.cjs
+          npm run test:webgpu
+
+      - name: Validate v1.13 soaks, native backend, evidence, and production builds
+        run: |
+          npm run test:soft-soak:all
+          npm run test:rope-batching
+          npm run test:native-wasm
+          npm run bench:fifth:gate
+          npm run bench:v1.10:integration:ci
+          npm run bench:v1.13:gate
+          npm run build
+          npm run build:pages
+          npm audit --audit-level=moderate
+
+      - name: Confirm tests did not mutate tracked artifacts
+        run: npm run verify:source
 
       - name: Add nojekyll marker
         run: touch dist/.nojekyll

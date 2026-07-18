@@ -1,0 +1,32 @@
+{
+  "box3d": {
+    "ref": "v0.1.0",
+    "commit": "8441b4a06d6d09dcfb0b0f704df4d847d1437b92",
+    "license": "MIT"
+  },
+  "toolchain": {
+    "emscripten": "4.0.23",
+    "cmake": "4.0.3",
+    "ninja": "1.11.1.git.kitware.jobserver-1"
+  },
+  "bridge": {
+    "source": "wasm/box3d_web.c",
+    "sha256": "bdb90ae491dba502f6f48a9b5a6ed8919e11b1d04e22fe81c8dd59b34378fb6c",
+    "lazyReplayHash": true
+  },
+  "artifacts": {
+    "box3d.js": {
+      "bytes": 13951,
+      "sha256": "116e03dfee941b27fc9801dc598a21c4af1f1c2e32571f9777493bd8c7a81dff"
+    },
+    "box3d.wasm": {
+      "bytes": 396706,
+      "sha256": "451c570fa960ea66bd7ee5f3bd98d6166d2945da1b8930e446c8ac5a8a0a7db6"
+    }
+  },
+  "validation": {
+    "catalogScenes": 750,
+    "deterministicPasses": 2,
+    "invalidTimestepGuard": true
+  }
+}

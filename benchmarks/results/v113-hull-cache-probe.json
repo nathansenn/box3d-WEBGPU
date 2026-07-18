@@ -1,0 +1,2186 @@
+{
+  "generatedAt": "2026-07-16T19:06:22.326Z",
+  "platform": {
+    "platform": "darwin",
+    "arch": "arm64",
+    "node": "v26.0.0",
+    "cpu": "Apple M3 Ultra"
+  },
+  "methodology": {
+    "baseline": "current production one-entry most-recent exact b3BoxHull cache",
+    "candidates": "MRU-first exact fully-associative LRU caches with 2, 4, and 8 entries",
+    "samples": 12,
+    "balancedOrder": "6 AB + 6 BA samples per case",
+    "targetMs": 55,
+    "bootstrapIterations": 20000,
+    "acceptance": "95% lower bound >1.03x on a recurring-size opportunity and no unique-size control with 95% upper bound <0.97x",
+    "exactness": "counts, complete active matrix/color bits, replay hash, and three evolved frames"
+  },
+  "results": [
+    {
+      "capacity": 2,
+      "artifacts": {
+        "baseline": {
+          "js": "8ec00439683b8da258916ebe90f0cea6a6d0672641fda571936b6012fd3cec3b",
+          "wasm": "6f00de660aa18b19ebf6db51e0739eded76452ebbaa7d894f5d8a13b2d425051"
+        },
+        "candidate": {
+          "js": "8ec00439683b8da258916ebe90f0cea6a6d0672641fda571936b6012fd3cec3b",
+          "wasm": "d5dabdc7aa54a1f3e04a781451d88750170c8a84585f9707caf51b749e561054"
+        }
+      },
+      "cases": [
+        {
+          "id": "stack-run",
+          "scene": 3,
+          "stress": 5,
+          "seed": 3146003,
+          "pattern": "long single-size runs",
+          "kind": "control",
+          "bodies": 4096,
+          "repeats": 26,
+          "samples": 12,
+          "order": [
+            "baseline->candidate",
+            "candidate->baseline",
+            "baseline->candidate",
+            "candidate->baseline",
+            "baseline->candidate",
+            "candidate->baseline",
+            "baseline->candidate",
+            "candidate->baseline",
+            "baseline->candidate",
+            "candidate->baseline",
+            "baseline->candidate",
+            "candidate->baseline"
+          ],
+          "timerFloor": 56.32408299999997,
+          "baseline": {
+            "rawMsPerCreate": [
+              2.164177884615384,
+              2.19042146153846,
+              2.1638317307692296,
+              2.1740063846153816,
+              2.1997451923076947,
+              2.1880160384615386,
+              2.167661846153849,
+              2.1901939230769254,
+              2.132256423076919,
+              2.2053798076923123,
+              2.15980607692308,
+              2.1480448846153877
+            ],
+            "medianMsPerCreate": 2.1708341153846153,
+            "madMsPerCreate": 0.01827086538461664
+          },
+          "candidate": {
+            "rawMsPerCreate": [
+              2.1412868461538475,
+              2.1763958076923084,
+              2.16117946153846,
+              2.1554134615384615,
+              2.1444743846153815,
+              2.1877211538461507,
+              2.1296939230769216,
+              2.183916653846154,
+              2.2167548076923036,
+              2.153339730769228,
+              2.171442307692307,
+              2.18418430769231
+            ],
+            "medianMsPerCreate": 2.166310884615384,
+            "madMsPerCreate": 0.017739596153848236
+          },
+          "speedup": 1.0020879878328426,
+          "interval": {
+            "low95": 0.9909010362494695,
+            "median": 1.0035321393432308,
+            "high95": 1.016609199880981
+          },
+          "classification": "parity / no proven difference",
+          "exact": true
+        },
+        {
+          "id": "skyscraper-alternating",
+          "scene": 104,
+          "stress": 5,
+          "seed": 17039635,
+          "pattern": "alternating floor/pillar sizes",
+          "kind": "opportunity",
+          "bodies": 461,
+          "repeats": 254,
+          "samples": 12,
+          "order": [
+            "baseline->candidate",
+            "candidate->baseline",
+            "baseline->candidate",
+            "candidate->baseline",
+            "baseline->candidate",
+            "candidate->baseline",
+            "baseline->candidate",
+            "candidate->baseline",
+            "baseline->candidate",
+            "candidate->baseline",
+            "baseline->candidate",
+            "candidate->baseline"
+          ],
+          "timerFloor": 55.838395999999875,
+          "baseline": {
+            "rawMsPerCreate": [
+              0.23010957874015728,
+              0.2301281181102353,
+              0.2293267716535425,
+              0.22806889763779603,
+              0.22861171259842375,
+              0.2288713897637786,
+              0.2292539370078745,
+              0.22821702755905382,
+              0.2265521653543304,
+              0.2238763110236222,
+              0.22755593700787366,
+              0.2279388110236227
+            ],
+            "medianMsPerCreate": 0.22841437007873877,
+            "madMsPerCreate": 0.0008490000000004189
+          },
+          "candidate": {
+            "rawMsPerCreate": [
+              0.21537565748031456,
+              0.22305922047244023,
+              0.21534432283464605,
+              0.22067470472440948,
+              0.22048835039369957,
+              0.21983546850393704,
+              0.21937565748031576,
+              0.22075328346456774,
+              0.2175497047244084,
+              0.215307578740158,
+              0.21983694094488088,
+              0.22116814173228333
+            ],
+            "medianMsPerCreate": 0.21983620472440896,
+            "madMsPerCreate": 0.0011245078740165781
+          },
+          "speedup": 1.0390207125577136,
+          "interval": {
+            "low95": 1.0344216321818676,
+            "median": 1.0390207125577136,
+            "high95": 1.0541350628080755
+          },
+          "classification": "accepted measured win",
+          "exact": true
+        },
+        {
+          "id": "bridge-multisize",
+          "scene": 154,
+          "stress": 5,
+          "seed": 22282515,
+          "pattern": "deck/cargo/pylon recurring sizes",
+          "kind": "opportunity",
+          "bodies": 152,
+          "repeats": 1024,
+          "samples": 12,
+          "order": [
+            "baseline->candidate",
+            "candidate->baseline",
+            "baseline->candidate",
+            "candidate->baseline",
+            "baseline->candidate",
+            "candidate->baseline",
+            "baseline->candidate",
+            "candidate->baseline",
+            "baseline->candidate",
+            "candidate->baseline",
+            "baseline->candidate",
+            "candidate->baseline"
+          ],
+          "timerFloor": 67.66216699999995,
+          "baseline": {
+            "rawMsPerCreate": [
+              0.06596138574218768,
+              0.06626139355468785,
+              0.06680265234374971,
+              0.06629402636718762,
+              0.06591463281249954,
+              0.06609208203124961,
+              0.06672542285156258,
+              0.06605330468750026,
+              0.06665531347656284,
+              0.06580615234375031,
+              0.06739449023437416,
+              0.06628104687499992
+            ],
+            "medianMsPerCreate": 0.06627122021484388,
+            "madMsPerCreate": 0.0003332109375002723
+          },
+          "candidate": {
+            "rawMsPerCreate": [
+              0.06541259765625007,
+              0.06622615624999995,
+              0.06649784375000012,
+              0.06564607714843751,
+              0.06592651367187496,
+              0.06691121386718724,
+              0.06503084277343696,
+              0.06649255371093776,
+              0.06587874316406239,
+              0.06554479980468741,
+              0.06662593554687479,
+              0.06681184960937436
+            ],
+            "medianMsPerCreate": 0.06607633496093746,
+            "madMsPerCreate": 0.000480896484374993
+          },
+          "speedup": 1.0029493956349371,
+          "interval": {
+            "low95": 0.9939376570501982,
+            "median": 1.0017377345129457,
+            "high95": 1.0098703417918633
+          },
+          "classification": "parity / no proven difference",
+          "exact": true
+        },
+        {
+          "id": "material-lanes",
+          "scene": 204,
+          "stress": 5,
+          "seed": 33816851,
+          "pattern": "lane ramp/cube recurring sizes",
+          "kind": "opportunity",
+          "bodies": 116,
+          "repeats": 1024,
+          "samples": 12,
+          "order": [
+            "baseline->candidate",
+            "candidate->baseline",
+            "baseline->candidate",
+            "candidate->baseline",
+            "baseline->candidate",
+            "candidate->baseline",
+            "baseline->candidate",
+            "candidate->baseline",
+            "baseline->candidate",
+            "candidate->baseline",
+            "baseline->candidate",
+            "candidate->baseline"
+          ],
+          "timerFloor": 48.103125000000546,
+          "baseline": {
+            "rawMsPerCreate": [
+              0.04785738085937474,
+              0.04766979980468822,
+              0.04766394042968791,
+              0.047311523437500114,
+              0.04756099414062476,
+              0.04844116210937521,
+              0.049961262695312314,
+              0.04978466796875036,
+              0.04862093066406192,
+              0.048100179687499356,
+              0.04843819140624994,
+              0.04926094531249969
+            ],
+            "medianMsPerCreate": 0.04826918554687465,
+            "madMsPerCreate": 0.000602315429686584
+          },
+          "candidate": {
+            "rawMsPerCreate": [
+              0.04667740820312538,
+              0.04665437890625057,
+              0.04684855078124972,
+              0.04640173339843745,
+              0.046944458007812884,
+              0.04619767187499946,
+              0.04871166992187437,
+              0.04723050878906232,
+              0.04739033984375052,
+              0.04700695800781318,
+              0.047099405273437256,
+              0.04747961425781266
+            ],
+            "medianMsPerCreate": 0.04697570800781303,
+            "madMsPerCreate": 0.00030981445312505684
+          },
+          "speedup": 1.027535030208517,
+          "interval": {
+            "low95": 1.0164894040641352,
+            "median": 1.0268519298536967,
+            "high95": 1.0362144987016229
+          },
+          "classification": "small gain below 1.03 threshold",
+          "exact": true
+        },
+        {
+          "id": "rain-unique",
+          "scene": 254,
+          "stress": 5,
+          "seed": 39059731,
+          "pattern": "random per-body unique sizes",
+          "kind": "unique-control",
+          "bodies": 2281,
+          "repeats": 32,
+          "samples": 12,
+          "order": [
+            "baseline->candidate",
+            "candidate->baseline",
+            "baseline->candidate",
+            "candidate->baseline",
+            "baseline->candidate",
+            "candidate->baseline",
+            "baseline->candidate",
+            "candidate->baseline",
+            "baseline->candidate",
+            "candidate->baseline",
+            "baseline->candidate",
+            "candidate->baseline"
+          ],
+          "timerFloor": 57.293249999999716,
+          "baseline": {
+            "rawMsPerCreate": [
+              1.7853424374999918,
+              1.752313812500006,
+              1.7715612187500085,
+              1.8642421874999968,
+              1.828899750000005,
+              1.9233046874999786,
+              1.7954856874999905,
+              1.8530651250000005,
+              1.775598937500007,
+              1.7595403750000003,
+              1.8797317812500012,
+              1.773190124999985
+            ],
+            "medianMsPerCreate": 1.7904140624999911,
+            "madMsPerCreate": 0.03448696874998802
+          },
+          "candidate": {
+            "rawMsPerCreate": [
+              1.7766966249999996,
+              1.7571406250000052,
+              1.8844270624999808,
+              1.814851562499996,
+              1.9274023437500034,
+              1.8980351562500175,
+              1.8203333437500078,
+              1.8465338750000058,
+              1.7495364687500228,
+              1.734733093750009,
+              1.7240963437500056,
+              1.8336588437500154
+            ],
+            "medianMsPerCreate": 1.8175924531250018,
+            "madMsPerCreate": 0.0636432187499878
+          },
+          "speedup": 0.9850470381419758,
+          "interval": {
+            "low95": 0.9642943545916638,
+            "median": 0.9918974238365069,
+            "high95": 1.0324614730064283
+          },
+          "classification": "parity / no proven difference",
+          "exact": true
+        },
+        {
+          "id": "construction-mixed",
+          "scene": 454,
+          "stress": 5,
+          "seed": 72614163,
+          "pattern": "tower/rain/crane mixed and unique sizes",
+          "kind": "unique-control",
+          "bodies": 671,
+          "repeats": 149,
+          "samples": 12,
+          "order": [
+            "baseline->candidate",
+            "candidate->baseline",
+            "baseline->candidate",
+            "candidate->baseline",
+            "baseline->candidate",
+            "candidate->baseline",
+            "baseline->candidate",
+            "candidate->baseline",
+            "baseline->candidate",
+            "candidate->baseline",
+            "baseline->candidate",
+            "candidate->baseline"
+          ],
+          "timerFloor": 54.08331249999992,
+          "baseline": {
+            "rawMsPerCreate": [
+              0.3710167785234842,
+              0.3700640335570501,
+              0.3758654899328814,
+              0.37848349664429237,
+              0.3678109664429549,
+              0.3782855167785191,
+              0.3749079999999973,
+              0.3860816577181207,
+              0.3829119127516874,
+              0.3755861275167751,
+              0.36559172483221547,
+              0.36879922147651184
+            ],
+            "medianMsPerCreate": 0.37524706375838623,
+            "madMsPerCreate": 0.004706657718119095
+          },
+          "candidate": {
+            "rawMsPerCreate": [
+              0.3647662214765135,
+              0.37036857046978977,
+              0.36263842281879144,
+              0.3627583892617415,
+              0.3618207516778447,
+              0.3631921140939622,
+              0.36669406711409114,
+              0.36534983221476763,
+              0.3572838389261826,
+              0.3675847315436181,
+              0.3611923892617505,
+              0.35662332214765197
+            ],
+            "medianMsPerCreate": 0.36297525167785183,
+            "madMsPerCreate": 0.0020827751677887363
+          },
+          "speedup": 1.0338089498493575,
+          "interval": {
+            "low95": 1.0171357891135573,
+            "median": 1.0309575299095053,
+            "high95": 1.0430758265341993
+          },
+          "classification": "small gain below 1.03 threshold",
+          "exact": true
+        },
+        {
+          "id": "warehouse-mixed",
+          "scene": 504,
+          "stress": 5,
+          "seed": 84148499,
+          "pattern": "bridge/rain/dock mixed sizes",
+          "kind": "unique-control",
+          "bodies": 367,
+          "repeats": 281,
+          "samples": 12,
+          "order": [
+            "baseline->candidate",
+            "candidate->baseline",
+            "baseline->candidate",
+            "candidate->baseline",
+            "baseline->candidate",
+            "candidate->baseline",
+            "baseline->candidate",
+            "candidate->baseline",
+            "baseline->candidate",
+            "candidate->baseline",
+            "baseline->candidate",
+            "candidate->baseline"
+          ],
+          "timerFloor": 55.689228999999614,
+          "baseline": {
+            "rawMsPerCreate": [
+              0.19621930604982638,
+              0.19653781138789833,
+              0.19548057651245537,
+              0.20650281850534047,
+              0.19931702135231538,
+              0.2014353487544517,
+              0.2021786761565814,
+              0.20270403202846612,
+              0.1981178825622738,
+              0.19952535587188425,
+              0.19924035943059928,
+              0.20033525978647454
+            ],
+            "medianMsPerCreate": 0.19942118861209981,
+            "madMsPerCreate": 0.0023858238434167345
+          },
+          "candidate": {
+            "rawMsPerCreate": [
+              0.1959718256227762,
+              0.19801186120996292,
+              0.1987734270462681,
+              0.19576512455516093,
+              0.1983527580071162,
+              0.1957332419928809,
+              0.20015124555160246,
+              0.2036522811387866,
+              0.20435245907473315,
+              0.1991242562277594,
+              0.19444869750889882,
+              0.19592111387900335
+            ],
+            "medianMsPerCreate": 0.19818230960853955,
+            "madMsPerCreate": 0.002235839857649774
+          },
+          "speedup": 1.006251208828918,
+          "interval": {
+            "low95": 0.9951981532101404,
+            "median": 1.0069238096793862,
+            "high95": 1.023689505419754
+          },
+          "classification": "parity / no proven difference",
+          "exact": true
+        },
+        {
+          "id": "architecture-alternating",
+          "scene": 554,
+          "stress": 5,
+          "seed": 89391379,
+          "pattern": "tower plus alternating colonnade sizes",
+          "kind": "opportunity",
+          "bodies": 461,
+          "repeats": 255,
+          "samples": 12,
+          "order": [
+            "baseline->candidate",
+            "candidate->baseline",
+            "baseline->candidate",
+            "candidate->baseline",
+            "baseline->candidate",
+            "candidate->baseline",
+            "baseline->candidate",
+            "candidate->baseline",
+            "baseline->candidate",
+            "candidate->baseline",
+            "baseline->candidate",
+            "candidate->baseline"
+          ],
+          "timerFloor": 56.18993749999936,
+          "baseline": {
+            "rawMsPerCreate": [
+              0.23363284313725707,
+              0.23714721960784707,
+              0.2319624156862761,
+              0.22501552156863194,
+              0.2273704274509809,
+              0.22297450980391553,
+              0.23419918039215581,
+              0.22590457254902468,
+              0.22623611372549146,
+              0.22652908627450433,
+              0.2216401960784281,
+              0.22496797254901976
+            ],
+            "medianMsPerCreate": 0.22638259999999788,
+            "madMsPerCreate": 0.0024113588235302325
+          },
+          "candidate": {
+            "rawMsPerCreate": [
+              0.21961634117646564,
+              0.21902843137254868,
+              0.22108905098039208,
+              0.22330572156862735,
+              0.21949869411764666,
+              0.22321862745098484,
+              0.22619444705882166,
+              0.22760702745097874,
+              0.22300735294117532,
+              0.21635522745097713,
+              0.21717189411764254,
+              0.21358202352941374
+            ],
+            "medianMsPerCreate": 0.22035269607842886,
+            "madMsPerCreate": 0.0029094784313772326
+          },
+          "speedup": 1.0273647839526447,
+          "interval": {
+            "low95": 1.0107840023190064,
+            "median": 1.0279739567190882,
+            "high95": 1.0564773363558404
+          },
+          "classification": "small gain below 1.03 threshold",
+          "exact": true
+        },
+        {
+          "id": "cloth-stage-varied",
+          "scene": 604,
+          "stress": 5,
+          "seed": 100925715,
+          "pattern": "small varied stage geometry",
+          "kind": "unique-control",
+          "bodies": 5,
+          "repeats": 1024,
+          "samples": 12,
+          "order": [
+            "baseline->candidate",
+            "candidate->baseline",
+            "baseline->candidate",
+            "candidate->baseline",
+            "baseline->candidate",
+            "candidate->baseline",
+            "baseline->candidate",
+            "candidate->baseline",
+            "baseline->candidate",
+            "candidate->baseline",
+            "baseline->candidate",
+            "candidate->baseline"
+          ],
+          "timerFloor": 3.2517709999992803,
+          "baseline": {
+            "rawMsPerCreate": [
+              0.0031707363281245904,
+              0.0032494296875000828,
+              0.003041951171873336,
+              0.0032396240234362494,
+              0.0032103271484373863,
+              0.0031096191406252416,
+              0.003180378906249004,
+              0.003122680664063182,
+              0.003052734375000199,
+              0.003328694335937854,
+              0.0033670244140626693,
+              0.0030307617187510516
+            ],
+            "medianMsPerCreate": 0.003175557617186797,
+            "madMsPerCreate": 0.00006990527343742059
+          },
+          "candidate": {
+            "rawMsPerCreate": [
+              0.0032215986328125723,
+              0.00324670410156358,
+              0.003189494140624305,
+              0.0032746982421869575,
+              0.0031993408203128126,
+              0.002978474609374615,
+              0.0033263750000003256,
+              0.00323315429687554,
+              0.0032462978515628294,
+              0.0030350742187508217,
+              0.0030386142578127107,
+              0.003175455078125111
+            ],
+            "medianMsPerCreate": 0.0032104697265626925,
+            "madMsPerCreate": 0.000036031250000512216
+          },
+          "speedup": 0.9891255447490938,
+          "interval": {
+            "low95": 0.9600341588386092,
+            "median": 0.986585445012906,
+            "high95": 1.0332447144968608
+          },
+          "classification": "parity / no proven difference",
+          "exact": true
+        },
+        {
+          "id": "water-stage-varied",
+          "scene": 704,
+          "stress": 5,
+          "seed": 117702931,
+          "pattern": "walls plus unique floater sizes",
+          "kind": "unique-control",
+          "bodies": 13,
+          "repeats": 1024,
+          "samples": 12,
+          "order": [
+            "baseline->candidate",
+            "candidate->baseline",
+            "baseline->candidate",
+            "candidate->baseline",
+            "baseline->candidate",
+            "candidate->baseline",
+            "baseline->candidate",
+            "candidate->baseline",
+            "baseline->candidate",
+            "candidate->baseline",
+            "baseline->candidate",
+            "candidate->baseline"
+          ],
+          "timerFloor": 6.583332999999584,
+          "baseline": {
+            "rawMsPerCreate": [
+              0.006541178710937956,
+              0.006122639648438621,
+              0.006186564453125598,
+              0.006337077148437231,
+              0.006524821289062288,
+              0.0062644453125013655,
+              0.006556396484375782,
+              0.006693481445312344,
+              0.006550903320313495,
+              0.006304077148438836,
+              0.0063912353515629405,
+              0.0066258134765622145
+            ],
+            "medianMsPerCreate": 0.006458028320312614,
+            "madMsPerCreate": 0.00013745117187458078
+          },
+          "candidate": {
+            "rawMsPerCreate": [
+              0.006115762695312554,
+              0.006105672851562716,
+              0.006847819335936478,
+              0.0060442705078127545,
+              0.0066742753906243735,
+              0.006461750976562541,
+              0.006418334960937244,
+              0.006934285156249942,
+              0.006892211914061974,
+              0.0063184814453123295,
+              0.006313842773439049,
+              0.006439737304686943
+            ],
+            "medianMsPerCreate": 0.006429036132812094,
+            "madMsPerCreate": 0.00027925634765590956
+          },
+          "speedup": 1.004509569848667,
+          "interval": {
+            "low95": 0.956327830361812,
+            "median": 1.004509569848667,
+            "high95": 1.039136493358263
+          },
+          "classification": "parity / no proven difference",
+          "exact": true
+        }
+      ],
+      "summary": {
+        "acceptedOpportunities": 1,
+        "uniqueRegressions": 0,
+        "clearsRequirement": true
+      }
+    },
+    {
+      "capacity": 4,
+      "artifacts": {
+        "baseline": {
+          "js": "8ec00439683b8da258916ebe90f0cea6a6d0672641fda571936b6012fd3cec3b",
+          "wasm": "6f00de660aa18b19ebf6db51e0739eded76452ebbaa7d894f5d8a13b2d425051"
+        },
+        "candidate": {
+          "js": "8ec00439683b8da258916ebe90f0cea6a6d0672641fda571936b6012fd3cec3b",
+          "wasm": "f04e860260c64521e6a4ae35ddfb76735de24627354e5587deda8512cbfd0a95"
+        }
+      },
+      "cases": [
+        {
+          "id": "stack-run",
+          "scene": 3,
+          "stress": 5,
+          "seed": 3146003,
+          "pattern": "long single-size runs",
+          "kind": "control",
+          "bodies": 4096,
+          "repeats": 26,
+          "samples": 12,
+          "order": [
+            "baseline->candidate",
+            "candidate->baseline",
+            "baseline->candidate",
+            "candidate->baseline",
+            "baseline->candidate",
+            "candidate->baseline",
+            "baseline->candidate",
+            "candidate->baseline",
+            "baseline->candidate",
+            "candidate->baseline",
+            "baseline->candidate",
+            "candidate->baseline"
+          ],
+          "timerFloor": 56.07968699999947,
+          "baseline": {
+            "rawMsPerCreate": [
+              2.1917451923077,
+              2.2017692307691994,
+              2.1775240384615526,
+              2.1550705384615165,
+              2.173623384615404,
+              2.2112339999999815,
+              2.2002579999999887,
+              2.1581474230768856,
+              2.2038573846153806,
+              2.155099346153852,
+              2.2739631538461955,
+              2.2639567307692583
+            ],
+            "medianMsPerCreate": 2.1960015961538444,
+            "madMsPerCreate": 0.020427884615366043
+          },
+          "candidate": {
+            "rawMsPerCreate": [
+              2.172939076923075,
+              2.1333493846153804,
+              2.1298156923076723,
+              2.136192307692279,
+              2.139072115384596,
+              2.1635945384615787,
+              2.2735432692308257,
+              2.153520846153907,
+              2.2076698846153353,
+              2.1590736923076643,
+              2.173828499999987,
+              2.1547483846153717
+            ],
+            "medianMsPerCreate": 2.156911038461518,
+            "madMsPerCreate": 0.01737819230769544
+          },
+          "speedup": 1.0181233982279625,
+          "interval": {
+            "low95": 1.0076421751094464,
+            "median": 1.0170642195236692,
+            "high95": 1.0260388424212454
+          },
+          "classification": "small gain below 1.03 threshold",
+          "exact": true
+        },
+        {
+          "id": "skyscraper-alternating",
+          "scene": 104,
+          "stress": 5,
+          "seed": 17039635,
+          "pattern": "alternating floor/pillar sizes",
+          "kind": "opportunity",
+          "bodies": 461,
+          "repeats": 244,
+          "samples": 12,
+          "order": [
+            "baseline->candidate",
+            "candidate->baseline",
+            "baseline->candidate",
+            "candidate->baseline",
+            "baseline->candidate",
+            "candidate->baseline",
+            "baseline->candidate",
+            "candidate->baseline",
+            "baseline->candidate",
+            "candidate->baseline",
+            "baseline->candidate",
+            "candidate->baseline"
+          ],
+          "timerFloor": 53.88885400000072,
+          "baseline": {
+            "rawMsPerCreate": [
+              0.23758896721311862,
+              0.22945594262295135,
+              0.22686202459016253,
+              0.22805840163935082,
+              0.22889993032786748,
+              0.22766888524590478,
+              0.2334197418032821,
+              0.23011031147540859,
+              0.22780345081967382,
+              0.22914378278688136,
+              0.2298876352459002,
+              0.22743681557376924
+            ],
+            "medianMsPerCreate": 0.22902185655737442,
+            "madMsPerCreate": 0.001153430327867383
+          },
+          "candidate": {
+            "rawMsPerCreate": [
+              0.2238669713114714,
+              0.22289600409836477,
+              0.2165367131147519,
+              0.2161975737704913,
+              0.22329661885245902,
+              0.22473855737705173,
+              0.22292229918032525,
+              0.21886509426229944,
+              0.2154195696721292,
+              0.2184523565573742,
+              0.21955481557377604,
+              0.22215710245901674
+            ],
+            "medianMsPerCreate": 0.22085595901639637,
+            "madMsPerCreate": 0.0024221311475424168
+          },
+          "speedup": 1.0369738610510926,
+          "interval": {
+            "low95": 1.0239375752341509,
+            "median": 1.0369738610510926,
+            "high95": 1.0497256457237376
+          },
+          "classification": "small gain below 1.03 threshold",
+          "exact": true
+        },
+        {
+          "id": "bridge-multisize",
+          "scene": 154,
+          "stress": 5,
+          "seed": 22282515,
+          "pattern": "deck/cargo/pylon recurring sizes",
+          "kind": "opportunity",
+          "bodies": 152,
+          "repeats": 1024,
+          "samples": 12,
+          "order": [
+            "baseline->candidate",
+            "candidate->baseline",
+            "baseline->candidate",
+            "candidate->baseline",
+            "baseline->candidate",
+            "candidate->baseline",
+            "baseline->candidate",
+            "candidate->baseline",
+            "baseline->candidate",
+            "candidate->baseline",
+            "baseline->candidate",
+            "candidate->baseline"
+          ],
+          "timerFloor": 68.0536874999998,
+          "baseline": {
+            "rawMsPerCreate": [
+              0.06762837695312385,
+              0.06765283203124994,
+              0.06826981640625007,
+              0.06773697949218871,
+              0.06688793945312455,
+              0.06770003222656129,
+              0.06990515136718756,
+              0.06716402148437695,
+              0.06724312402343813,
+              0.06765991210937372,
+              0.06723441601562286,
+              0.06958077050781242
+            ],
+            "medianMsPerCreate": 0.06765637207031183,
+            "madMsPerCreate": 0.0004176020507813405
+          },
+          "candidate": {
+            "rawMsPerCreate": [
+              0.0668010253906246,
+              0.06636083984374963,
+              0.06655651855468747,
+              0.06577718066406035,
+              0.06668652343750026,
+              0.0663456220703118,
+              0.06747574804687773,
+              0.06480655957031445,
+              0.0663086347656261,
+              0.06669388769531182,
+              0.06525573730468892,
+              0.0666342773437485
+            ],
+            "medianMsPerCreate": 0.06645867919921855,
+            "madMsPerCreate": 0.00023152636718748454
+          },
+          "speedup": 1.0180216171239733,
+          "interval": {
+            "low95": 1.013295253371806,
+            "median": 1.0177280724298257,
+            "high95": 1.0250843072943354
+          },
+          "classification": "small gain below 1.03 threshold",
+          "exact": true
+        },
+        {
+          "id": "material-lanes",
+          "scene": 204,
+          "stress": 5,
+          "seed": 33816851,
+          "pattern": "lane ramp/cube recurring sizes",
+          "kind": "opportunity",
+          "bodies": 116,
+          "repeats": 1024,
+          "samples": 12,
+          "order": [
+            "baseline->candidate",
+            "candidate->baseline",
+            "baseline->candidate",
+            "candidate->baseline",
+            "baseline->candidate",
+            "candidate->baseline",
+            "baseline->candidate",
+            "candidate->baseline",
+            "baseline->candidate",
+            "candidate->baseline",
+            "baseline->candidate",
+            "candidate->baseline"
+          ],
+          "timerFloor": 47.41862499999843,
+          "baseline": {
+            "rawMsPerCreate": [
+              0.04845886230468821,
+              0.048587971679687314,
+              0.04802237988281277,
+              0.04845861816406227,
+              0.04829736328125023,
+              0.04833125781249947,
+              0.0482473144531248,
+              0.04830521679687649,
+              0.04848274707031308,
+              0.0482124833984372,
+              0.04870739746093733,
+              0.048292033203125584
+            ],
+            "medianMsPerCreate": 0.04831823730468798,
+            "madMsPerCreate": 0.00012306738281253615
+          },
+          "candidate": {
+            "rawMsPerCreate": [
+              0.046091714843750964,
+              0.04677990722656489,
+              0.04538509082031439,
+              0.0464000244140621,
+              0.04621618652343784,
+              0.04643859863281463,
+              0.04609993554687364,
+              0.04625146484374909,
+              0.04637646484374969,
+              0.04697408105468526,
+              0.04612780761718582,
+              0.04636303710937284
+            ],
+            "medianMsPerCreate": 0.046307250976560965,
+            "madMsPerCreate": 0.00015539550781440425
+          },
+          "speedup": 1.0434270289364598,
+          "interval": {
+            "low95": 1.041512995543143,
+            "median": 1.044404041257192,
+            "high95": 1.0478576189313886
+          },
+          "classification": "accepted measured win",
+          "exact": true
+        },
+        {
+          "id": "rain-unique",
+          "scene": 254,
+          "stress": 5,
+          "seed": 39059731,
+          "pattern": "random per-body unique sizes",
+          "kind": "unique-control",
+          "bodies": 2281,
+          "repeats": 31,
+          "samples": 12,
+          "order": [
+            "baseline->candidate",
+            "candidate->baseline",
+            "baseline->candidate",
+            "candidate->baseline",
+            "baseline->candidate",
+            "candidate->baseline",
+            "baseline->candidate",
+            "candidate->baseline",
+            "baseline->candidate",
+            "candidate->baseline",
+            "baseline->candidate",
+            "candidate->baseline"
+          ],
+          "timerFloor": 56.413979000000836,
+          "baseline": {
+            "rawMsPerCreate": [
+              1.8272405806452414,
+              1.823466419354865,
+              1.7695510967741646,
+              1.8190174838708761,
+              1.7859193548386927,
+              1.8194489032258947,
+              1.7967769032258085,
+              1.8124946451613553,
+              1.8574919354839714,
+              1.820162645161256,
+              1.8988924838710275,
+              1.8589986451613274
+            ],
+            "medianMsPerCreate": 1.8198057741935754,
+            "madMsPerCreate": 0.01523183870971645
+          },
+          "candidate": {
+            "rawMsPerCreate": [
+              1.821965064516154,
+              1.822875000000016,
+              1.769634387096777,
+              1.8251478387096394,
+              1.8147137096774155,
+              1.8019637096773706,
+              1.8399287741935217,
+              1.8108991935483985,
+              1.8802553870967043,
+              1.8454489032257932,
+              1.8358010645161782,
+              1.8730027096774597
+            ],
+            "medianMsPerCreate": 1.8240114193548278,
+            "madMsPerCreate": 0.014514790322561644
+          },
+          "speedup": 0.9976942879213223,
+          "interval": {
+            "low95": 0.9886347283569108,
+            "median": 0.9977061162234253,
+            "high95": 1.003878544095457
+          },
+          "classification": "parity / no proven difference",
+          "exact": true
+        },
+        {
+          "id": "construction-mixed",
+          "scene": 454,
+          "stress": 5,
+          "seed": 72614163,
+          "pattern": "tower/rain/crane mixed and unique sizes",
+          "kind": "unique-control",
+          "bodies": 671,
+          "repeats": 145,
+          "samples": 12,
+          "order": [
+            "baseline->candidate",
+            "candidate->baseline",
+            "baseline->candidate",
+            "candidate->baseline",
+            "baseline->candidate",
+            "candidate->baseline",
+            "baseline->candidate",
+            "candidate->baseline",
+            "baseline->candidate",
+            "candidate->baseline",
+            "baseline->candidate",
+            "candidate->baseline"
+          ],
+          "timerFloor": 53.83912500000042,
+          "baseline": {
+            "rawMsPerCreate": [
+              0.37011752413793525,
+              0.3818393655172509,
+              0.3730410896551771,
+              0.3742928137930997,
+              0.38804453793102234,
+              0.37741264137931185,
+              0.3721597724137798,
+              0.3823686758620546,
+              0.3812818965517338,
+              0.37526091724136895,
+              0.38168735862069797,
+              0.38813591724139207
+            ],
+            "medianMsPerCreate": 0.37934726896552284,
+            "madMsPerCreate": 0.004570403448288518
+          },
+          "candidate": {
+            "rawMsPerCreate": [
+              0.3711951172413858,
+              0.36361695172414205,
+              0.36832586206896695,
+              0.36675258620688794,
+              0.37781350344827436,
+              0.37849339310344254,
+              0.3784589103448148,
+              0.38695028275861065,
+              0.3689620689655291,
+              0.3714135034482752,
+              0.37276924827586705,
+              0.3659563241379209
+            ],
+            "medianMsPerCreate": 0.37130431034483047,
+            "madMsPerCreate": 0.004949855172426049
+          },
+          "speedup": 1.021661366153339,
+          "interval": {
+            "low95": 0.9989389948604169,
+            "median": 1.019309842052586,
+            "high95": 1.035725879913328
+          },
+          "classification": "parity / no proven difference",
+          "exact": true
+        },
+        {
+          "id": "warehouse-mixed",
+          "scene": 504,
+          "stress": 5,
+          "seed": 84148499,
+          "pattern": "bridge/rain/dock mixed sizes",
+          "kind": "unique-control",
+          "bodies": 367,
+          "repeats": 281,
+          "samples": 12,
+          "order": [
+            "baseline->candidate",
+            "candidate->baseline",
+            "baseline->candidate",
+            "candidate->baseline",
+            "baseline->candidate",
+            "candidate->baseline",
+            "baseline->candidate",
+            "candidate->baseline",
+            "baseline->candidate",
+            "candidate->baseline",
+            "baseline->candidate",
+            "candidate->baseline"
+          ],
+          "timerFloor": 55.966958000000886,
+          "baseline": {
+            "rawMsPerCreate": [
+              0.20227906049823036,
+              0.19994676512455742,
+              0.1992906298932393,
+              0.20834682918149766,
+              0.200176306049827,
+              0.20057873665479692,
+              0.20108585409252555,
+              0.2004488434163816,
+              0.19592185765124467,
+              0.1946828291814934,
+              0.19360379715301948,
+              0.19913686120996715
+            ],
+            "medianMsPerCreate": 0.2000615355871922,
+            "madMsPerCreate": 0.000974496441279199
+          },
+          "candidate": {
+            "rawMsPerCreate": [
+              0.19481583629894367,
+              0.19721025978647713,
+              0.2016795693950154,
+              0.20274851601424032,
+              0.20490169039146178,
+              0.19698443060498055,
+              0.20001927402135478,
+              0.195287516014231,
+              0.19952698576513073,
+              0.19330308540924424,
+              0.1988143523131674,
+              0.20261980782917974
+            ],
+            "medianMsPerCreate": 0.19917066903914907,
+            "madMsPerCreate": 0.0029790195729485075
+          },
+          "speedup": 1.0044728802305123,
+          "interval": {
+            "low95": 0.9877735565837978,
+            "median": 1.0038359776494945,
+            "high95": 1.0212944181173012
+          },
+          "classification": "parity / no proven difference",
+          "exact": true
+        },
+        {
+          "id": "architecture-alternating",
+          "scene": 554,
+          "stress": 5,
+          "seed": 89391379,
+          "pattern": "tower plus alternating colonnade sizes",
+          "kind": "opportunity",
+          "bodies": 461,
+          "repeats": 260,
+          "samples": 12,
+          "order": [
+            "baseline->candidate",
+            "candidate->baseline",
+            "baseline->candidate",
+            "candidate->baseline",
+            "baseline->candidate",
+            "candidate->baseline",
+            "baseline->candidate",
+            "candidate->baseline",
+            "baseline->candidate",
+            "candidate->baseline",
+            "baseline->candidate",
+            "candidate->baseline"
+          ],
+          "timerFloor": 56.519915999999284,
+          "baseline": {
+            "rawMsPerCreate": [
+              0.23023189230769694,
+              0.22948044999999323,
+              0.22952500000000536,
+              0.22982548076923615,
+              0.23270929615384656,
+              0.23696458461538267,
+              0.22655465000000102,
+              0.23035064230768443,
+              0.22183862307692134,
+              0.22734599615385098,
+              0.2210908653846183,
+              0.23237836538460566
+            ],
+            "medianMsPerCreate": 0.22967524038462075,
+            "madMsPerCreate": 0.002516184615377337
+          },
+          "candidate": {
+            "rawMsPerCreate": [
+              0.2253358961538442,
+              0.2134461538461647,
+              0.21634983846154052,
+              0.21684102307692507,
+              0.21360000000000023,
+              0.21281474230769304,
+              0.21809487307692996,
+              0.21792756153845402,
+              0.22139727307693158,
+              0.21444246923077187,
+              0.21869391153846104,
+              0.22271009615384313
+            ],
+            "medianMsPerCreate": 0.21738429230768955,
+            "madMsPerCreate": 0.003363057692303495
+          },
+          "speedup": 1.0565401848792937,
+          "interval": {
+            "low95": 1.0409882495221927,
+            "median": 1.0567330982917231,
+            "high95": 1.0747355221521908
+          },
+          "classification": "accepted measured win",
+          "exact": true
+        },
+        {
+          "id": "cloth-stage-varied",
+          "scene": 604,
+          "stress": 5,
+          "seed": 100925715,
+          "pattern": "small varied stage geometry",
+          "kind": "unique-control",
+          "bodies": 5,
+          "repeats": 1024,
+          "samples": 12,
+          "order": [
+            "baseline->candidate",
+            "candidate->baseline",
+            "baseline->candidate",
+            "candidate->baseline",
+            "baseline->candidate",
+            "candidate->baseline",
+            "baseline->candidate",
+            "candidate->baseline",
+            "baseline->candidate",
+            "candidate->baseline",
+            "baseline->candidate",
+            "candidate->baseline"
+          ],
+          "timerFloor": 2.8151040000011562,
+          "baseline": {
+            "rawMsPerCreate": [
+              0.0032089033203135386,
+              0.003261230468751819,
+              0.0031324863281270154,
+              0.0032552490234394327,
+              0.0032458496093745737,
+              0.003240478515625256,
+              0.0033809814453142906,
+              0.0033011474609345726,
+              0.002996663085937712,
+              0.0034697265624998863,
+              0.0034935712890629134,
+              0.0035396728515628695
+            ],
+            "medianMsPerCreate": 0.003258239746095626,
+            "madMsPerCreate": 0.00008603906250037596
+          },
+          "candidate": {
+            "rawMsPerCreate": [
+              0.0027880449218748993,
+              0.002710205078127359,
+              0.0026544599609401587,
+              0.0025598955078116603,
+              0.002661946289062911,
+              0.0025728359374994625,
+              0.002793334960937699,
+              0.002818969726561704,
+              0.0028193759765606785,
+              0.0028343105468771057,
+              0.0024962158203116758,
+              0.0028629560546846733
+            ],
+            "medianMsPerCreate": 0.002749125000001129,
+            "madMsPerCreate": 0.00008618212890709742
+          },
+          "speedup": 1.1851915595305007,
+          "interval": {
+            "low95": 1.1567400133650498,
+            "median": 1.1962319165640147,
+            "high95": 1.2631689102011752
+          },
+          "classification": "accepted measured win",
+          "exact": true
+        },
+        {
+          "id": "water-stage-varied",
+          "scene": 704,
+          "stress": 5,
+          "seed": 117702931,
+          "pattern": "walls plus unique floater sizes",
+          "kind": "unique-control",
+          "bodies": 13,
+          "repeats": 1024,
+          "samples": 12,
+          "order": [
+            "baseline->candidate",
+            "candidate->baseline",
+            "baseline->candidate",
+            "candidate->baseline",
+            "baseline->candidate",
+            "candidate->baseline",
+            "baseline->candidate",
+            "candidate->baseline",
+            "baseline->candidate",
+            "candidate->baseline",
+            "baseline->candidate",
+            "candidate->baseline"
+          ],
+          "timerFloor": 6.032937500000116,
+          "baseline": {
+            "rawMsPerCreate": [
+              0.00629532910156172,
+              0.006095092773438893,
+              0.006631713867189859,
+              0.006350789062498308,
+              0.006090942382812159,
+              0.0061649169921871305,
+              0.006924356445313862,
+              0.006030314453127517,
+              0.006108357421872768,
+              0.006672525390623463,
+              0.006507853515625328,
+              0.006520874023440371
+            ],
+            "medianMsPerCreate": 0.006323059082030014,
+            "madMsPerCreate": 0.0002213339843741835
+          },
+          "candidate": {
+            "rawMsPerCreate": [
+              0.00562796972656443,
+              0.005649210937502147,
+              0.006279582031247344,
+              0.005882568359375284,
+              0.006274291992188097,
+              0.005451049804687358,
+              0.005864054687499731,
+              0.00562931250000176,
+              0.006162272460937146,
+              0.006169271484374406,
+              0.005900512695312443,
+              0.006244058593750879
+            ],
+            "medianMsPerCreate": 0.005891540527343864,
+            "madMsPerCreate": 0.0002671513671863579
+          },
+          "speedup": 1.0732437556329084,
+          "interval": {
+            "low95": 0.995839967468219,
+            "median": 1.0709241309953925,
+            "high95": 1.1143731702015822
+          },
+          "classification": "parity / no proven difference",
+          "exact": true
+        }
+      ],
+      "summary": {
+        "acceptedOpportunities": 2,
+        "uniqueRegressions": 0,
+        "clearsRequirement": true
+      }
+    },
+    {
+      "capacity": 8,
+      "artifacts": {
+        "baseline": {
+          "js": "8ec00439683b8da258916ebe90f0cea6a6d0672641fda571936b6012fd3cec3b",
+          "wasm": "6f00de660aa18b19ebf6db51e0739eded76452ebbaa7d894f5d8a13b2d425051"
+        },
+        "candidate": {
+          "js": "8ec00439683b8da258916ebe90f0cea6a6d0672641fda571936b6012fd3cec3b",
+          "wasm": "de1fe4c659bb6c99879555b7b987d53455bcf4768cbfffcb35eac3ee75835a1c"
+        }
+      },
+      "cases": [
+        {
+          "id": "stack-run",
+          "scene": 3,
+          "stress": 5,
+          "seed": 3146003,
+          "pattern": "long single-size runs",
+          "kind": "control",
+          "bodies": 4096,
+          "repeats": 25,
+          "samples": 12,
+          "order": [
+            "baseline->candidate",
+            "candidate->baseline",
+            "baseline->candidate",
+            "candidate->baseline",
+            "baseline->candidate",
+            "candidate->baseline",
+            "baseline->candidate",
+            "candidate->baseline",
+            "baseline->candidate",
+            "candidate->baseline",
+            "baseline->candidate",
+            "candidate->baseline"
+          ],
+          "timerFloor": 54.94441650000044,
+          "baseline": {
+            "rawMsPerCreate": [
+              2.2567866800000775,
+              2.2932816799999274,
+              2.257631640000036,
+              2.238695000000007,
+              2.25752999999997,
+              2.233926680000004,
+              2.28182163999998,
+              2.215491639999964,
+              2.2460383599999476,
+              2.2688333599999897,
+              2.174488360000105,
+              2.224846639999887
+            ],
+            "medianMsPerCreate": 2.2514125200000126,
+            "madMsPerCreate": 0.017453339999992767
+          },
+          "candidate": {
+            "rawMsPerCreate": [
+              2.125789999999979,
+              2.1469633199999225,
+              2.151808319999982,
+              2.275774999999994,
+              2.243278360000113,
+              2.158064999999915,
+              2.281839999999938,
+              2.2341883199999573,
+              2.201371680000011,
+              2.167615000000078,
+              2.1941816400000245,
+              2.23031667999996
+            ],
+            "medianMsPerCreate": 2.1977766600000175,
+            "madMsPerCreate": 0.04260668000009904
+          },
+          "speedup": 1.0244045998741267,
+          "interval": {
+            "low95": 1.0009500183941737,
+            "median": 1.0219593286607793,
+            "high95": 1.0476085176443302
+          },
+          "classification": "small gain below 1.03 threshold",
+          "exact": true
+        },
+        {
+          "id": "skyscraper-alternating",
+          "scene": 104,
+          "stress": 5,
+          "seed": 17039635,
+          "pattern": "alternating floor/pillar sizes",
+          "kind": "opportunity",
+          "bodies": 461,
+          "repeats": 260,
+          "samples": 12,
+          "order": [
+            "baseline->candidate",
+            "candidate->baseline",
+            "baseline->candidate",
+            "candidate->baseline",
+            "baseline->candidate",
+            "candidate->baseline",
+            "baseline->candidate",
+            "candidate->baseline",
+            "baseline->candidate",
+            "candidate->baseline",
+            "baseline->candidate",
+            "candidate->baseline"
+          ],
+          "timerFloor": 55.914395499999955,
+          "baseline": {
+            "rawMsPerCreate": [
+              0.22638557692308287,
+              0.2270943923076909,
+              0.2252189115384681,
+              0.23645448846154277,
+              0.23207499999999318,
+              0.2232325307692288,
+              0.2244312499999908,
+              0.22368749999999496,
+              0.22122884615385444,
+              0.23461859230770082,
+              0.236741346153856,
+              0.22452852692307576
+            ],
+            "medianMsPerCreate": 0.2258022442307755,
+            "madMsPerCreate": 0.002342228846163613
+          },
+          "candidate": {
+            "rawMsPerCreate": [
+              0.21662852307692027,
+              0.21505753076923542,
+              0.2084934269230731,
+              0.21179022307692671,
+              0.21282083461539095,
+              0.21563269230769389,
+              0.228272919230767,
+              0.2158844576923002,
+              0.21059054615384062,
+              0.21260031923075776,
+              0.21581939230769562,
+              0.21505320384614887
+            ],
+            "medianMsPerCreate": 0.21505536730769215,
+            "madMsPerCreate": 0.0019038442307646591
+          },
+          "speedup": 1.0499726049976106,
+          "interval": {
+            "low95": 1.0397463446295094,
+            "median": 1.0516631202420001,
+            "high95": 1.0910364842079379
+          },
+          "classification": "accepted measured win",
+          "exact": true
+        },
+        {
+          "id": "bridge-multisize",
+          "scene": 154,
+          "stress": 5,
+          "seed": 22282515,
+          "pattern": "deck/cargo/pylon recurring sizes",
+          "kind": "opportunity",
+          "bodies": 152,
+          "repeats": 1024,
+          "samples": 12,
+          "order": [
+            "baseline->candidate",
+            "candidate->baseline",
+            "baseline->candidate",
+            "candidate->baseline",
+            "baseline->candidate",
+            "candidate->baseline",
+            "baseline->candidate",
+            "candidate->baseline",
+            "baseline->candidate",
+            "candidate->baseline",
+            "baseline->candidate",
+            "candidate->baseline"
+          ],
+          "timerFloor": 67.02152099999876,
+          "baseline": {
+            "rawMsPerCreate": [
+              0.06642403125000129,
+              0.06605647753906396,
+              0.065996988281249,
+              0.06692207812499973,
+              0.06693778417968943,
+              0.06679732324218435,
+              0.06642944335937528,
+              0.06676273632812624,
+              0.06494356249999811,
+              0.06658585644531456,
+              0.06601412011718821,
+              0.06723010253906025
+            ],
+            "medianMsPerCreate": 0.06650764990234492,
+            "madMsPerCreate": 0.00042228124999965644
+          },
+          "candidate": {
+            "rawMsPerCreate": [
+              0.06872033691406187,
+              0.06736771679687692,
+              0.06618741894531155,
+              0.06551965332031173,
+              0.06672538183593701,
+              0.0652054843749994,
+              0.06538175488281084,
+              0.06488399316406301,
+              0.06487304687500028,
+              0.06567073535156354,
+              0.06497717285156313,
+              0.06403161621093645
+            ],
+            "medianMsPerCreate": 0.06545070410156129,
+            "madMsPerCreate": 0.0005721840820296364
+          },
+          "speedup": 1.0161487307935382,
+          "interval": {
+            "low95": 0.999512926664208,
+            "median": 1.0163029461976418,
+            "high95": 1.0261187654168067
+          },
+          "classification": "parity / no proven difference",
+          "exact": true
+        },
+        {
+          "id": "material-lanes",
+          "scene": 204,
+          "stress": 5,
+          "seed": 33816851,
+          "pattern": "lane ramp/cube recurring sizes",
+          "kind": "opportunity",
+          "bodies": 116,
+          "repeats": 1024,
+          "samples": 12,
+          "order": [
+            "baseline->candidate",
+            "candidate->baseline",
+            "baseline->candidate",
+            "candidate->baseline",
+            "baseline->candidate",
+            "candidate->baseline",
+            "baseline->candidate",
+            "candidate->baseline",
+            "baseline->candidate",
+            "candidate->baseline",
+            "baseline->candidate",
+            "candidate->baseline"
+          ],
+          "timerFloor": 47.87543750000077,
+          "baseline": {
+            "rawMsPerCreate": [
+              0.047911213867187996,
+              0.05035612011718982,
+              0.047449584960936875,
+              0.04923624707031138,
+              0.0490845947265619,
+              0.04787577343750016,
+              0.04741650390624841,
+              0.04836238671875037,
+              0.04832088183593797,
+              0.047978799804688776,
+              0.04808223535156486,
+              0.04894425488281229
+            ],
+            "medianMsPerCreate": 0.048201558593751415,
+            "madMsPerCreate": 0.0005342407226560653
+          },
+          "candidate": {
+            "rawMsPerCreate": [
+              0.04575520898437446,
+              0.048691731445313025,
+              0.047377766601563565,
+              0.05020678710937432,
+              0.04728686523437631,
+              0.04762764453125001,
+              0.04596638964843436,
+              0.04598693847656321,
+              0.0462198486328127,
+              0.04749035644531219,
+              0.04609651757812827,
+              0.04596354199218666
+            ],
+            "medianMsPerCreate": 0.0467533569335945,
+            "madMsPerCreate": 0.0007766928710957188
+          },
+          "speedup": 1.0309753514001967,
+          "interval": {
+            "low95": 1.010885423433267,
+            "median": 1.0328857909773426,
+            "high95": 1.0536066432305344
+          },
+          "classification": "small gain below 1.03 threshold",
+          "exact": true
+        },
+        {
+          "id": "rain-unique",
+          "scene": 254,
+          "stress": 5,
+          "seed": 39059731,
+          "pattern": "random per-body unique sizes",
+          "kind": "unique-control",
+          "bodies": 2281,
+          "repeats": 32,
+          "samples": 12,
+          "order": [
+            "baseline->candidate",
+            "candidate->baseline",
+            "baseline->candidate",
+            "candidate->baseline",
+            "baseline->candidate",
+            "candidate->baseline",
+            "baseline->candidate",
+            "candidate->baseline",
+            "baseline->candidate",
+            "candidate->baseline",
+            "baseline->candidate",
+            "candidate->baseline"
+          ],
+          "timerFloor": 58.005958500001725,
+          "baseline": {
+            "rawMsPerCreate": [
+              1.8105638125000496,
+              1.8148085937500582,
+              1.852792968750009,
+              1.9226406249999854,
+              1.8030234375000873,
+              1.836019531250031,
+              1.7866992187498454,
+              1.80679296874996,
+              1.7398398437499054,
+              1.8682877812500465,
+              1.8034270937500878,
+              1.8374908749999577
+            ],
+            "medianMsPerCreate": 1.812686203125054,
+            "madMsPerCreate": 0.024068999999940388
+          },
+          "candidate": {
+            "rawMsPerCreate": [
+              1.8333046875000036,
+              1.7691159062501356,
+              1.800264312500076,
+              1.8678164062500855,
+              1.7621549375000995,
+              1.8323398437498781,
+              1.8146992187500928,
+              1.8537187499998709,
+              1.8636783750000632,
+              1.832158843749994,
+              1.8290937499998563,
+              1.7942096562499046
+            ],
+            "medianMsPerCreate": 1.8306262968749252,
+            "madMsPerCreate": 0.026727218749897474
+          },
+          "speedup": 0.990200024013368,
+          "interval": {
+            "low95": 0.9803868537651577,
+            "median": 0.9948000447568488,
+            "high95": 1.0169584192296381
+          },
+          "classification": "parity / no proven difference",
+          "exact": true
+        },
+        {
+          "id": "construction-mixed",
+          "scene": 454,
+          "stress": 5,
+          "seed": 72614163,
+          "pattern": "tower/rain/crane mixed and unique sizes",
+          "kind": "unique-control",
+          "bodies": 671,
+          "repeats": 150,
+          "samples": 12,
+          "order": [
+            "baseline->candidate",
+            "candidate->baseline",
+            "baseline->candidate",
+            "candidate->baseline",
+            "baseline->candidate",
+            "candidate->baseline",
+            "baseline->candidate",
+            "candidate->baseline",
+            "baseline->candidate",
+            "candidate->baseline",
+            "baseline->candidate",
+            "candidate->baseline"
+          ],
+          "timerFloor": 55.0123124999991,
+          "baseline": {
+            "rawMsPerCreate": [
+              0.3849933333333562,
+              0.37547083333333525,
+              0.36553694000001996,
+              0.37378527999996247,
+              0.37331277999997836,
+              0.38045639333329745,
+              0.37537333333331235,
+              0.37351499999999455,
+              0.3692963866666347,
+              0.3702352799999547,
+              0.37432583333332636,
+              0.37918388666667546
+            ],
+            "medianMsPerCreate": 0.3740555566666444,
+            "madMsPerCreate": 0.0026177766666902746
+          },
+          "candidate": {
+            "rawMsPerCreate": [
+              0.3680313866666984,
+              0.3583944466666435,
+              0.3619369466666831,
+              0.3666427800000141,
+              0.36681472000001425,
+              0.36390139333336263,
+              0.3672675000000163,
+              0.36668277999997373,
+              0.36457471999999447,
+              0.3701019400000223,
+              0.37308528000003816,
+              0.3694641666666333
+            ],
+            "medianMsPerCreate": 0.36674874999999396,
+            "madMsPerCreate": 0.0024447233333194096
+          },
+          "speedup": 1.0199231944666494,
+          "interval": {
+            "low95": 1.0131586960396075,
+            "median": 1.0199231944666494,
+            "high95": 1.0305714256454646
+          },
+          "classification": "small gain below 1.03 threshold",
+          "exact": true
+        },
+        {
+          "id": "warehouse-mixed",
+          "scene": 504,
+          "stress": 5,
+          "seed": 84148499,
+          "pattern": "bridge/rain/dock mixed sizes",
+          "kind": "unique-control",
+          "bodies": 367,
+          "repeats": 271,
+          "samples": 12,
+          "order": [
+            "baseline->candidate",
+            "candidate->baseline",
+            "baseline->candidate",
+            "candidate->baseline",
+            "baseline->candidate",
+            "candidate->baseline",
+            "baseline->candidate",
+            "candidate->baseline",
+            "baseline->candidate",
+            "candidate->baseline",
+            "baseline->candidate",
+            "candidate->baseline"
+          ],
+          "timerFloor": 54.026708500001405,
+          "baseline": {
+            "rawMsPerCreate": [
+              0.20602244649444235,
+              0.19828290036899132,
+              0.19465083025828775,
+              0.19850861254611377,
+              0.20050138376382667,
+              0.2028148856088491,
+              0.2002174022140448,
+              0.20128013284132593,
+              0.1997349335793453,
+              0.19635639483395,
+              0.19898616236162447,
+              0.19682195571956687
+            ],
+            "medianMsPerCreate": 0.19936054797048489,
+            "madMsPerCreate": 0.001530210332091414
+          },
+          "candidate": {
+            "rawMsPerCreate": [
+              0.20717742804429176,
+              0.19846478966789663,
+              0.20355073800738457,
+              0.2018751512915276,
+              0.19967896678968572,
+              0.2014263542435324,
+              0.19871448339481806,
+              0.19842988929889127,
+              0.1943639298892961,
+              0.1996783505535027,
+              0.20058533210332383,
+              0.19636116236162834
+            ],
+            "medianMsPerCreate": 0.1996786586715942,
+            "madMsPerCreate": 0.0014982324723205598
+          },
+          "speedup": 0.99840688682894,
+          "interval": {
+            "low95": 0.9845292428138497,
+            "median": 0.99840688682894,
+            "high95": 1.008277753921185
+          },
+          "classification": "parity / no proven difference",
+          "exact": true
+        },
+        {
+          "id": "architecture-alternating",
+          "scene": 554,
+          "stress": 5,
+          "seed": 89391379,
+          "pattern": "tower plus alternating colonnade sizes",
+          "kind": "opportunity",
+          "bodies": 461,
+          "repeats": 250,
+          "samples": 12,
+          "order": [
+            "baseline->candidate",
+            "candidate->baseline",
+            "baseline->candidate",
+            "candidate->baseline",
+            "baseline->candidate",
+            "candidate->baseline",
+            "baseline->candidate",
+            "candidate->baseline",
+            "baseline->candidate",
+            "candidate->baseline",
+            "baseline->candidate",
+            "candidate->baseline"
+          ],
+          "timerFloor": 53.94018750000032,
+          "baseline": {
+            "rawMsPerCreate": [
+              0.2235641679999826,
+              0.22758033200001226,
+              0.23064000000001397,
+              0.22283449999999722,
+              0.22684366399998543,
+              0.23268633200001204,
+              0.2379769999999844,
+              0.2220590000000084,
+              0.22328266799999982,
+              0.22156816799999796,
+              0.22153733600000852,
+              0.22254066800000147
+            ],
+            "medianMsPerCreate": 0.22342341799999121,
+            "madMsPerCreate": 0.001870665999987975
+          },
+          "candidate": {
+            "rawMsPerCreate": [
+              0.21823849999997766,
+              0.21925733200000833,
+              0.21634500000000118,
+              0.2151765000000014,
+              0.2187600000000093,
+              0.2171858320000174,
+              0.21438649999999324,
+              0.21229666799999541,
+              0.21787433599997894,
+              0.21294366399999126,
+              0.2123066679999756,
+              0.21133316800001195
+            ],
+            "medianMsPerCreate": 0.21576075000000128,
+            "madMsPerCreate": 0.0026474179999931985
+          },
+          "speedup": 1.0355146522246974,
+          "interval": {
+            "low95": 1.0261152006448535,
+            "median": 1.0391925468440844,
+            "high95": 1.0604930477129433
+          },
+          "classification": "small gain below 1.03 threshold",
+          "exact": true
+        },
+        {
+          "id": "cloth-stage-varied",
+          "scene": 604,
+          "stress": 5,
+          "seed": 100925715,
+          "pattern": "small varied stage geometry",
+          "kind": "unique-control",
+          "bodies": 5,
+          "repeats": 1024,
+          "samples": 12,
+          "order": [
+            "baseline->candidate",
+            "candidate->baseline",
+            "baseline->candidate",
+            "candidate->baseline",
+            "baseline->candidate",
+            "candidate->baseline",
+            "baseline->candidate",
+            "candidate->baseline",
+            "baseline->candidate",
+            "candidate->baseline",
+            "baseline->candidate",
+            "candidate->baseline"
+          ],
+          "timerFloor": 2.6749999999992724,
+          "baseline": {
+            "rawMsPerCreate": [
+              0.00337561035156142,
+              0.0032379150390582367,
+              0.003306355468751576,
+              0.0031252041015648047,
+              0.003048095703128695,
+              0.003299560546871305,
+              0.0030089921875031678,
+              0.003215902343754351,
+              0.0030035400390673317,
+              0.0030868330078135386,
+              0.0032019042968798317,
+              0.003058959960938523
+            ],
+            "medianMsPerCreate": 0.003163554199222318,
+            "madMsPerCreate": 0.00011002636718870917
+          },
+          "candidate": {
+            "rawMsPerCreate": [
+              0.0025714111328127842,
+              0.002734619140618122,
+              0.0026630449218743024,
+              0.0026148681640663085,
+              0.0026061201171856396,
+              0.002510742187496362,
+              0.0026151943359380425,
+              0.00264713574218689,
+              0.002588663085937526,
+              0.002634236328127315,
+              0.002554158203125212,
+              0.0026097412109322704
+            ],
+            "medianMsPerCreate": 0.0026123046874992895,
+            "madMsPerCreate": 0.00002923632812468213
+          },
+          "speedup": 1.211020373833471,
+          "interval": {
+            "low95": 1.1718132404650177,
+            "median": 1.211020373833471,
+            "high95": 1.2553310934597834
+          },
+          "classification": "accepted measured win",
+          "exact": true
+        },
+        {
+          "id": "water-stage-varied",
+          "scene": 704,
+          "stress": 5,
+          "seed": 117702931,
+          "pattern": "walls plus unique floater sizes",
+          "kind": "unique-control",
+          "bodies": 13,
+          "repeats": 1024,
+          "samples": 12,
+          "order": [
+            "baseline->candidate",
+            "candidate->baseline",
+            "baseline->candidate",
+            "candidate->baseline",
+            "baseline->candidate",
+            "candidate->baseline",
+            "baseline->candidate",
+            "candidate->baseline",
+            "baseline->candidate",
+            "candidate->baseline",
+            "baseline->candidate",
+            "candidate->baseline"
+          ],
+          "timerFloor": 4.822520499998063,
+          "baseline": {
+            "rawMsPerCreate": [
+              0.00649735546875263,
+              0.006191609375001406,
+              0.006225463867181702,
+              0.006191528320307782,
+              0.006493449218744729,
+              0.006501790039067146,
+              0.006340983398438027,
+              0.006395548828123765,
+              0.006145467773436053,
+              0.0061710615234389365,
+              0.006431193359375698,
+              0.006235513671875026
+            ],
+            "medianMsPerCreate": 0.0062882485351565265,
+            "madMsPerCreate": 0.00011224365234241418
+          },
+          "candidate": {
+            "rawMsPerCreate": [
+              0.004864013671870282,
+              0.004671752929688466,
+              0.004642211914060113,
+              0.004695108398436787,
+              0.004782796874998496,
+              0.004942545898437345,
+              0.004757080078128695,
+              0.0047238769531219305,
+              0.004633992187493163,
+              0.004663614257815141,
+              0.0045690097656247985,
+              0.004861816406254604
+            ],
+            "medianMsPerCreate": 0.004709492675779359,
+            "madMsPerCreate": 0.00007029248046919179
+          },
+          "speedup": 1.3352284350067292,
+          "interval": {
+            "low95": 1.3096494521507314,
+            "median": 1.334161461833057,
+            "high95": 1.365181722511909
+          },
+          "classification": "accepted measured win",
+          "exact": true
+        }
+      ],
+      "summary": {
+        "acceptedOpportunities": 1,
+        "uniqueRegressions": 0,
+        "clearsRequirement": true
+      }
+    }
+  ],
+  "conclusion": [
+    2,
+    4,
+    8
+  ]
+}

@@ -1,0 +1,38 @@
+{
+  "rendererSha256": "7c6553969ec5586b5721c5d524d4be74f46608c06adff232aaa2d902bf2a5a9e",
+  "environment": {
+    "backend": "Metal",
+    "samples": 5,
+    "canvas": [
+      1280,
+      720
+    ],
+    "maxInstances": 4096,
+    "freshProcesses": true
+  },
+  "baseline": {
+    "source": "benchmarks/baselines/box3d-webgpu-v1.9.0-integration-source.tar.gz",
+    "samplesMs": [
+      27.784208999999976,
+      56.932792000000006,
+      28.698083999999994,
+      26.63995799999998,
+      28.497332999999998
+    ],
+    "medianMs": 28.497332999999998,
+    "madMs": 0.7131240000000219
+  },
+  "optimized": {
+    "root": "/Users/commander/Documents/WebPhysics",
+    "samplesMs": [
+      26.512790999999993,
+      61.65808400000003,
+      26.27570800000001,
+      25.548583000000008,
+      26.39379200000002
+    ],
+    "medianMs": 26.39379200000002,
+    "madMs": 0.11899899999997388
+  },
+  "optimizedOverBaseline": 0.9261846362956148
+}

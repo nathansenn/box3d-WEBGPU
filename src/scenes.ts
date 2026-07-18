@@ -12,7 +12,10 @@ export type SceneFamily =
   | 'marble'
   | 'construction'
   | 'warehouse'
-  | 'architecture';
+  | 'architecture'
+  | 'cloth'
+  | 'rope'
+  | 'water';
 
 export type SceneCategory =
   | 'Core Physics'
@@ -23,7 +26,9 @@ export type SceneCategory =
   | 'Destruction'
   | 'Machines'
   | 'Logistics'
-  | 'Architecture';
+  | 'Architecture'
+  | 'Soft Bodies'
+  | 'Fluids';
 
 export type ScenePreset = {
   id: number;
@@ -246,6 +251,55 @@ const FAMILIES: readonly FamilyDefinition[] = [
     recommendedMaxBodies: 1700,
     camera: { yaw: -0.68, pitch: 0.4, distance: 50, target: [0, 7, 0] },
   },
+
+  {
+    family: 'cloth',
+    category: 'Soft Bodies',
+    titles: [
+      'Tempest Standard', 'Royal Banner Wind Tunnel', 'Parachute Canopy Deployment', 'Cargo Net Load Catch', 'Suspended Hammock Dynamics',
+      'Racing Sail Aerodynamics', 'Progressive Fabric Tear Lab', 'Drape Over Collider', 'Grand Theater Curtain', 'Tensioned Membrane Drum',
+    ],
+    focus: [
+      'flag-like flutter, pinned-edge constraints, and turbulent gust response', 'top-rail pinning and broad fabric waves', 'curved canopy inflation and four-corner loading', 'horizontal net sag and concentrated impacts', 'two-ended support with moving distributed load',
+      'asymmetric edge anchoring and directional wind pressure', 'constraint strain, localized failure, and visible topology separation', 'cloth-to-sphere collision and frictional draping', 'dense vertical folds under a rigid curtain rail', 'fully pinned perimeter response and membrane resonance',
+    ],
+    tags: ['cloth', 'pbd', 'soft-body', 'constraints', 'wind'],
+    defaultStress: 3,
+    recommendedMaxBodies: 900,
+    camera: { yaw: -0.82, pitch: 0.32, distance: 31, target: [0, 7, 0] },
+  },
+  {
+    family: 'rope',
+    category: 'Soft Bodies',
+    titles: [
+      'Sky Crane Cable Load', 'Suspension Cable Bridge', 'Heavy Pendulum Strike', 'Industrial Rope Ladder', 'Four-Point Mooring Array',
+      'Cable Curtain Failure', 'High-Speed Zipline', 'Grappling Line Tension', 'Multi-Sling Rigging Test', 'Rope Net Resonance',
+    ],
+    focus: [
+      'long cable tension with a concentrated suspended payload', 'dual catenary cables, cross planks, and coupled oscillation', 'high-mass pendulum arcs and anchor reaction', 'parallel chains with repeated rung constraints', 'four converging lines stabilizing a floating platform',
+      'many thin ropes, progressive snapping, and falling strands', 'diagonal cable loading with a moving rider mass', 'long-span line tension and off-axis loading', 'multi-cable load sharing and single-line failure', 'interconnected line fields and traveling resonance',
+    ],
+    tags: ['rope', 'cable', 'pbd', 'constraints', 'tension'],
+    defaultStress: 3,
+    recommendedMaxBodies: 850,
+    camera: { yaw: -0.66, pitch: 0.38, distance: 38, target: [0, 8, 0] },
+  },
+  {
+    family: 'water',
+    category: 'Fluids',
+    titles: [
+      'Interactive Ripple Basin', 'Tsunami Research Flume', 'Storm Ocean Surface', 'Hydrodynamic Boat Wake', 'Oscillating Fountain Pool',
+      'Rain Impact Reservoir', 'Dam-Breach Wave Front', 'Vortex Current Chamber', 'Harbor Buoyancy Lab', 'Leviathan Impact Pool',
+    ],
+    focus: [
+      'concentric ripples and multi-source wave interference', 'large traveling wave fronts and reflected boundary energy', 'superposed wave fields, directional currents, and foam response', 'moving wake generation and floating-body coupling', 'periodic central forcing and radial wave trains',
+      'hundreds of droplet impacts and high-frequency surface detail', 'height discontinuity release and basin-wide propagation', 'rotating currents, central depression, and surface shear', 'floating rigid proxies following height and velocity samples', 'high-energy projectile entry, splash particles, and reflected waves',
+    ],
+    tags: ['water', 'shallow-water', 'fluid', 'waves', 'buoyancy'],
+    defaultStress: 3,
+    recommendedMaxBodies: 700,
+    camera: { yaw: -0.72, pitch: 0.5, distance: 43, target: [0, 2, 0] },
+  },
 ] as const;
 
 const MODES = [
@@ -282,7 +336,7 @@ function makeScene(def: FamilyDefinition, variant: number, mode: number, id: num
     category: def.category,
     title,
     subtitle: `${def.category} · ${focus}.`,
-    details: `${title} is a procedural test recipe for ${focus}. It stresses Box3D/WASM simulation, JS fallback determinism, WebGPU transform streaming, one-draw-call instancing, debug wireframes, replay hashes, and browser smoke-test coverage.`,
+    details: `${title} is a procedural test recipe for ${focus}. ${['cloth', 'rope', 'water'].includes(def.family) ? 'It layers deterministic position-based dynamics or a linear shallow-water solver over the Box3D rigid-body stage, then streams dynamic surfaces and instances through dedicated WebGPU pipelines.' : 'It stresses Box3D/WASM simulation, JS fallback determinism, WebGPU transform streaming, one-draw-call instancing, debug wireframes, replay hashes, and browser smoke-test coverage.'}`,
     defaultStress: stress,
     recommendedMaxBodies: recommended,
     camera: cameraFor(def, variant),
@@ -298,7 +352,7 @@ export const SCENES: readonly ScenePreset[] = FAMILIES.flatMap((def, familyIndex
 ) as readonly ScenePreset[];
 
 export const SCENE_CATEGORIES: readonly SceneCategory[] = [
-  'Core Physics', 'Buildings', 'Infrastructure', 'Materials', 'Stress Tests', 'Destruction', 'Machines', 'Logistics', 'Architecture',
+  'Core Physics', 'Buildings', 'Infrastructure', 'Materials', 'Stress Tests', 'Destruction', 'Machines', 'Logistics', 'Architecture', 'Soft Bodies', 'Fluids',
 ] as const;
 
 export const FEATURED_SCENE_IDS: readonly number[] = FAMILIES.flatMap((_, familyIndex) => {

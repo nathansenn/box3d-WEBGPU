@@ -12,7 +12,7 @@ declare global {
   type GPUFrontFace = 'ccw' | 'cw';
   type GPUCompareFunction = 'never' | 'less' | 'equal' | 'less-equal' | 'greater' | 'not-equal' | 'greater-equal' | 'always';
   type GPUVertexStepMode = 'vertex' | 'instance';
-  type GPUVertexFormat = 'float32' | 'float32x2' | 'float32x3' | 'float32x4';
+  type GPUVertexFormat = 'float32' | 'float32x2' | 'float32x3' | 'float32x4' | 'snorm16x2' | 'unorm8x4' | 'unorm16x2';
   type GPUBufferBindingType = 'uniform' | 'storage' | 'read-only-storage';
   type GPUTextureSampleType = 'float' | 'unfilterable-float' | 'depth' | 'sint' | 'uint';
   type GPUSamplerBindingType = 'filtering' | 'non-filtering' | 'comparison';
@@ -85,6 +85,9 @@ declare global {
     createShaderModule(descriptor: GPUShaderModuleDescriptor): GPUShaderModule;
     createPipelineLayout(descriptor: GPUPipelineLayoutDescriptor): GPUPipelineLayout;
     createRenderPipeline(descriptor: GPURenderPipelineDescriptor): GPURenderPipeline;
+    createRenderPipelineAsync?(descriptor: GPURenderPipelineDescriptor): Promise<GPURenderPipeline>;
+    createComputePipeline(descriptor: GPUComputePipelineDescriptor): GPUComputePipeline;
+    createComputePipelineAsync?(descriptor: GPUComputePipelineDescriptor): Promise<GPUComputePipeline>;
     createCommandEncoder(descriptor?: GPUCommandEncoderDescriptor): GPUCommandEncoder;
     createTexture(descriptor: GPUTextureDescriptor): GPUTexture;
     createSampler(descriptor?: GPUSamplerDescriptor): GPUSampler;
@@ -92,8 +95,15 @@ declare global {
 
   interface GPUQueue {
     writeBuffer(buffer: GPUBuffer, bufferOffset: number, data: BufferSource, dataOffset?: number, size?: number): void;
+    writeTexture(destination: GPUImageCopyTexture, data: BufferSource, dataLayout: GPUImageDataLayout, size: GPUExtent3D): void;
     submit(commandBuffers: GPUCommandBuffer[]): void;
   }
+
+
+  interface GPUImageCopyTexture { texture: GPUTexture; mipLevel?: number; origin?: GPUOrigin3D; aspect?: string; }
+  interface GPUImageDataLayout { offset?: number; bytesPerRow?: number; rowsPerImage?: number; }
+  type GPUExtent3D = { width: number; height?: number; depthOrArrayLayers?: number } | readonly [number, number?, number?];
+  type GPUOrigin3D = { x?: number; y?: number; z?: number } | readonly [number?, number?, number?];
 
   interface GPUBuffer { readonly label?: string; destroy(): void; }
   interface GPUTexture { createView(descriptor?: GPUTextureViewDescriptor): GPUTextureView; destroy(): void; }
@@ -112,6 +122,7 @@ declare global {
     length: number;
   }
   interface GPURenderPipeline {}
+  interface GPUComputePipeline {}
   interface GPUBindGroup {}
   interface GPUBindGroupLayout {}
   interface GPUPipelineLayout {}
@@ -119,6 +130,7 @@ declare global {
 
   interface GPUCommandEncoder {
     beginRenderPass(descriptor: GPURenderPassDescriptor): GPURenderPassEncoder;
+    beginComputePass(descriptor?: GPUComputePassDescriptor): GPUComputePassEncoder;
     finish(): GPUCommandBuffer;
   }
 
@@ -126,7 +138,17 @@ declare global {
     setPipeline(pipeline: GPURenderPipeline): void;
     setBindGroup(index: number, bindGroup: GPUBindGroup): void;
     setVertexBuffer(slot: number, buffer: GPUBuffer, offset?: number, size?: number): void;
+    setIndexBuffer(buffer: GPUBuffer, indexFormat: GPUIndexFormat, offset?: number, size?: number): void;
     draw(vertexCount: number, instanceCount?: number, firstVertex?: number, firstInstance?: number): void;
+    drawIndexed(indexCount: number, instanceCount?: number, firstIndex?: number, baseVertex?: number, firstInstance?: number): void;
+    end(): void;
+  }
+
+  interface GPUComputePassDescriptor { label?: string; }
+  interface GPUComputePassEncoder {
+    setPipeline(pipeline: GPUComputePipeline): void;
+    setBindGroup(index: number, bindGroup: GPUBindGroup): void;
+    dispatchWorkgroups(workgroupCountX: number, workgroupCountY?: number, workgroupCountZ?: number): void;
     end(): void;
   }
 
@@ -200,6 +222,17 @@ declare global {
     primitive?: GPUPrimitiveState;
     depthStencil?: GPUDepthStencilState;
     multisample?: GPUMultisampleState;
+  }
+
+  interface GPUComputePipelineDescriptor {
+    label?: string;
+    layout: GPUPipelineLayout;
+    compute: GPUProgrammableStage;
+  }
+
+  interface GPUProgrammableStage {
+    module: GPUShaderModule;
+    entryPoint: string;
   }
 
   interface GPUVertexState {

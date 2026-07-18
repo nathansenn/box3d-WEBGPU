@@ -1,0 +1,523 @@
+{
+  "environment": {
+    "backend": "Metal",
+    "width": 1920,
+    "height": 1080,
+    "instanceCount": 4096,
+    "warmupFrames": 48,
+    "measuredFramesPerCase": 312,
+    "asynchronousReadbackBatches": 13,
+    "timestampQuery": true,
+    "isolatedPassMeasurement": true,
+    "uncapturedErrors": [],
+    "unsupportedCases": [
+      {
+        "shadowSize": 0,
+        "pcfTaps": 0,
+        "label": "shadow-off",
+        "sampleCount": 2,
+        "reason": "WebGPU/Dawn Metal does not support sampleCount=2 render pipelines"
+      },
+      {
+        "shadowSize": 1024,
+        "pcfTaps": 1,
+        "label": "shadow-1024-pcf1",
+        "sampleCount": 2,
+        "reason": "WebGPU/Dawn Metal does not support sampleCount=2 render pipelines"
+      },
+      {
+        "shadowSize": 1024,
+        "pcfTaps": 9,
+        "label": "shadow-1024-pcf9",
+        "sampleCount": 2,
+        "reason": "WebGPU/Dawn Metal does not support sampleCount=2 render pipelines"
+      },
+      {
+        "shadowSize": 2048,
+        "pcfTaps": 9,
+        "label": "shadow-2048-pcf9",
+        "sampleCount": 2,
+        "reason": "WebGPU/Dawn Metal does not support sampleCount=2 render pipelines"
+      }
+    ]
+  },
+  "results": [
+    {
+      "label": "1x/shadow-off",
+      "sampleCount": 1,
+      "shadowSize": 0,
+      "pcfTaps": 0,
+      "frames": 312,
+      "gpuMs": {
+        "shadow": {
+          "median": 0,
+          "mad": 0,
+          "min": 0,
+          "max": 0
+        },
+        "scene": {
+          "median": 0.0605,
+          "mad": 0.002696166666666666,
+          "min": 0.052458333333333336,
+          "max": 0.07479166666666667
+        },
+        "post": {
+          "median": 0.06826666666666667,
+          "mad": 0.002730666666666659,
+          "min": 0.057344,
+          "max": 0.07099733333333333
+        },
+        "passSum": {
+          "median": 0.12876666666666667,
+          "mad": 0.005426833333333325,
+          "min": 0.10980233333333334,
+          "max": 0.145789
+        },
+        "frameSpan": {
+          "median": 0.13818920833333334,
+          "mad": 0.008017416666666666,
+          "min": 0.10423958333333333,
+          "max": 0.15681075
+        }
+      },
+      "cpuMs": {
+        "encodePerFrame": {
+          "median": 0.015586791666666619,
+          "mad": 0.0007239999999999452,
+          "min": 0.014289916666667088,
+          "max": 0.021392333333333607
+        },
+        "submitPerFrame": {
+          "median": 0.032812500000000355,
+          "mad": 0.00567012499999997,
+          "min": 0.015803791666666456,
+          "max": 0.038826416666666454
+        }
+      },
+      "pixelEvidence": {
+        "maximumRgb": 242,
+        "uniqueColors": 9,
+        "alphaMinimum": 255
+      },
+      "relativeTo1xNoShadow": 1
+    },
+    {
+      "label": "4x/shadow-off",
+      "sampleCount": 4,
+      "shadowSize": 0,
+      "pcfTaps": 0,
+      "frames": 312,
+      "gpuMs": {
+        "shadow": {
+          "median": 0,
+          "mad": 0,
+          "min": 0,
+          "max": 0
+        },
+        "scene": {
+          "median": 0.07099733333333333,
+          "mad": 0.002730666666666673,
+          "min": 0.060074666666666665,
+          "max": 0.07645866666666666
+        },
+        "post": {
+          "median": 0.065536,
+          "mad": 0.002730666666666673,
+          "min": 0.05461333333333333,
+          "max": 0.073728
+        },
+        "passSum": {
+          "median": 0.13653333333333334,
+          "mad": 0.005461333333333346,
+          "min": 0.114688,
+          "max": 0.15018666666666666
+        },
+        "frameSpan": {
+          "median": 0.13653333333333334,
+          "mad": 0.005461333333333318,
+          "min": 0.12834133333333334,
+          "max": 0.15018666666666666
+        }
+      },
+      "cpuMs": {
+        "encodePerFrame": {
+          "median": 0.016866333333333944,
+          "mad": 0.0008923750000005733,
+          "min": 0.015798624999999806,
+          "max": 0.0194965000000001
+        },
+        "submitPerFrame": {
+          "median": 0.01404516666666685,
+          "mad": 0.0012830416666661897,
+          "min": 0.012487875000000296,
+          "max": 0.027019083333333544
+        }
+      },
+      "pixelEvidence": {
+        "maximumRgb": 242,
+        "uniqueColors": 19,
+        "alphaMinimum": 255
+      },
+      "relativeTo1xNoShadow": 0.9880173349281676
+    },
+    {
+      "label": "1x/shadow-1024-pcf1",
+      "sampleCount": 1,
+      "shadowSize": 1024,
+      "pcfTaps": 1,
+      "frames": 312,
+      "gpuMs": {
+        "shadow": {
+          "median": 0.06280533333333334,
+          "mad": 0.002730666666666659,
+          "min": 0.057344,
+          "max": 0.06826666666666667
+        },
+        "scene": {
+          "median": 0.07099733333333333,
+          "mad": 0.005461333333333332,
+          "min": 0.060074666666666665,
+          "max": 0.08465066666666667
+        },
+        "post": {
+          "median": 0.065536,
+          "mad": 0.002730666666666673,
+          "min": 0.05461333333333333,
+          "max": 0.07918933333333333
+        },
+        "passSum": {
+          "median": 0.19933866666666666,
+          "mad": 0.010922666666666664,
+          "min": 0.17203200000000002,
+          "max": 0.23210666666666668
+        },
+        "frameSpan": {
+          "median": 0.20753066666666667,
+          "mad": 0.008192000000000005,
+          "min": 0.18295466666666665,
+          "max": 0.23483733333333334
+        }
+      },
+      "cpuMs": {
+        "encodePerFrame": {
+          "median": 0.02248437500000004,
+          "mad": 0.0005902916666684632,
+          "min": 0.02167537500000094,
+          "max": 0.02748091666666852
+        },
+        "submitPerFrame": {
+          "median": 0.01917187500000021,
+          "mad": 0.0011944583333326868,
+          "min": 0.017977416666667523,
+          "max": 0.046706583333334585
+        }
+      },
+      "pixelEvidence": {
+        "maximumRgb": 242,
+        "uniqueColors": 13,
+        "alphaMinimum": 255
+      },
+      "relativeTo1xNoShadow": 1.5017863490908148
+    },
+    {
+      "label": "4x/shadow-1024-pcf1",
+      "sampleCount": 4,
+      "shadowSize": 1024,
+      "pcfTaps": 1,
+      "frames": 312,
+      "gpuMs": {
+        "shadow": {
+          "median": 0.065536,
+          "mad": 0.005461333333333332,
+          "min": 0.05461333333333333,
+          "max": 0.073728
+        },
+        "scene": {
+          "median": 0.065536,
+          "mad": 0.002730666666666659,
+          "min": 0.06280533333333334,
+          "max": 0.073728
+        },
+        "post": {
+          "median": 0.060074666666666665,
+          "mad": 0.002730666666666666,
+          "min": 0.057344,
+          "max": 0.07918933333333333
+        },
+        "passSum": {
+          "median": 0.19114666666666666,
+          "mad": 0.010922666666666657,
+          "min": 0.17476266666666668,
+          "max": 0.22664533333333334
+        },
+        "frameSpan": {
+          "median": 0.21845333333333333,
+          "mad": 0.01638400000000001,
+          "min": 0.18295466666666665,
+          "max": 0.25668266666666667
+        }
+      },
+      "cpuMs": {
+        "encodePerFrame": {
+          "median": 0.023772541666663944,
+          "mad": 0.0014808749999986048,
+          "min": 0.020986083333336108,
+          "max": 0.03883162500000026
+        },
+        "submitPerFrame": {
+          "median": 0.021064208333333074,
+          "mad": 0.0017221666666671354,
+          "min": 0.01848091666666581,
+          "max": 0.03262500000000065
+        }
+      },
+      "pixelEvidence": {
+        "maximumRgb": 242,
+        "uniqueColors": 23,
+        "alphaMinimum": 255
+      },
+      "relativeTo1xNoShadow": 1.5808277358850682
+    },
+    {
+      "label": "1x/shadow-1024-pcf9",
+      "sampleCount": 1,
+      "shadowSize": 1024,
+      "pcfTaps": 9,
+      "frames": 312,
+      "gpuMs": {
+        "shadow": {
+          "median": 0.065536,
+          "mad": 0.008191999999999998,
+          "min": 0.05461333333333333,
+          "max": 0.08465066666666667
+        },
+        "scene": {
+          "median": 0.07099733333333333,
+          "mad": 0.005461333333333332,
+          "min": 0.060074666666666665,
+          "max": 0.08738133333333334
+        },
+        "post": {
+          "median": 0.065536,
+          "mad": 0.005461333333333332,
+          "min": 0.057344,
+          "max": 0.07918933333333333
+        },
+        "passSum": {
+          "median": 0.20206933333333332,
+          "mad": 0.019114666666666662,
+          "min": 0.172032,
+          "max": 0.25122133333333335
+        },
+        "frameSpan": {
+          "median": 0.212992,
+          "mad": 0.008191999999999977,
+          "min": 0.196608,
+          "max": 0.23210666666666666
+        }
+      },
+      "cpuMs": {
+        "encodePerFrame": {
+          "median": 0.021567708333331364,
+          "mad": 0.0009964999999994006,
+          "min": 0.020571208333331963,
+          "max": 0.027944416666665955
+        },
+        "submitPerFrame": {
+          "median": 0.017307291666668334,
+          "mad": 0.0005260416666696237,
+          "min": 0.01644445833332971,
+          "max": 0.02077604166666447
+        }
+      },
+      "pixelEvidence": {
+        "maximumRgb": 242,
+        "uniqueColors": 22,
+        "alphaMinimum": 255
+      },
+      "relativeTo1xNoShadow": 1.5413070424879414
+    },
+    {
+      "label": "4x/shadow-1024-pcf9",
+      "sampleCount": 4,
+      "shadowSize": 1024,
+      "pcfTaps": 9,
+      "frames": 312,
+      "gpuMs": {
+        "shadow": {
+          "median": 0.060074666666666665,
+          "mad": 0.002730666666666666,
+          "min": 0.05461333333333333,
+          "max": 0.08192
+        },
+        "scene": {
+          "median": 0.06826666666666667,
+          "mad": 0.002730666666666673,
+          "min": 0.06280533333333334,
+          "max": 0.08192
+        },
+        "post": {
+          "median": 0.057344,
+          "mad": 0.002730666666666666,
+          "min": 0.05461333333333333,
+          "max": 0.07918933333333333
+        },
+        "passSum": {
+          "median": 0.18568533333333334,
+          "mad": 0.008192000000000005,
+          "min": 0.17203200000000002,
+          "max": 0.24302933333333335
+        },
+        "frameSpan": {
+          "median": 0.221184,
+          "mad": 0.01638400000000001,
+          "min": 0.20206933333333332,
+          "max": 0.253952
+        }
+      },
+      "cpuMs": {
+        "encodePerFrame": {
+          "median": 0.022564249999997326,
+          "mad": 0.0005382083333339942,
+          "min": 0.020902750000000008,
+          "max": 0.027467041666668024
+        },
+        "submitPerFrame": {
+          "median": 0.018847250000002685,
+          "mad": 0.0006302500000003874,
+          "min": 0.01709204166666704,
+          "max": 0.02104687500000087
+        }
+      },
+      "pixelEvidence": {
+        "maximumRgb": 242,
+        "uniqueColors": 36,
+        "alphaMinimum": 255
+      },
+      "relativeTo1xNoShadow": 1.6005880825836314
+    },
+    {
+      "label": "1x/shadow-2048-pcf9",
+      "sampleCount": 1,
+      "shadowSize": 2048,
+      "pcfTaps": 9,
+      "frames": 312,
+      "gpuMs": {
+        "shadow": {
+          "median": 0.06280533333333334,
+          "mad": 0.005461333333333332,
+          "min": 0.05461333333333333,
+          "max": 0.07918933333333333
+        },
+        "scene": {
+          "median": 0.07099733333333333,
+          "mad": 0.008191999999999991,
+          "min": 0.060074666666666665,
+          "max": 0.098304
+        },
+        "post": {
+          "median": 0.065536,
+          "mad": 0.008191999999999998,
+          "min": 0.05461333333333333,
+          "max": 0.08192
+        },
+        "passSum": {
+          "median": 0.19933866666666666,
+          "mad": 0.02184533333333332,
+          "min": 0.16930133333333333,
+          "max": 0.25941333333333333
+        },
+        "frameSpan": {
+          "median": 0.212992,
+          "mad": 0.01638400000000001,
+          "min": 0.188416,
+          "max": 0.237568
+        }
+      },
+      "cpuMs": {
+        "encodePerFrame": {
+          "median": 0.02172916666666917,
+          "mad": 0.0004288333333306582,
+          "min": 0.021144083333325625,
+          "max": 0.026857666666671776
+        },
+        "submitPerFrame": {
+          "median": 0.018472250000002077,
+          "mad": 0.0005017500000027049,
+          "min": 0.017680541666663885,
+          "max": 0.02832637500000601
+        }
+      },
+      "pixelEvidence": {
+        "maximumRgb": 242,
+        "uniqueColors": 11,
+        "alphaMinimum": 255
+      },
+      "relativeTo1xNoShadow": 1.5413070424879414
+    },
+    {
+      "label": "4x/shadow-2048-pcf9",
+      "sampleCount": 4,
+      "shadowSize": 2048,
+      "pcfTaps": 9,
+      "frames": 312,
+      "gpuMs": {
+        "shadow": {
+          "median": 0.07099733333333333,
+          "mad": 0.008191999999999991,
+          "min": 0.057344,
+          "max": 0.08738133333333334
+        },
+        "scene": {
+          "median": 0.08738133333333334,
+          "mad": 0.005461333333333332,
+          "min": 0.065536,
+          "max": 0.106496
+        },
+        "post": {
+          "median": 0.065536,
+          "mad": 0.002730666666666673,
+          "min": 0.057344,
+          "max": 0.08192
+        },
+        "passSum": {
+          "median": 0.22391466666666665,
+          "mad": 0.016383999999999996,
+          "min": 0.180224,
+          "max": 0.27579733333333334
+        },
+        "frameSpan": {
+          "median": 0.22664533333333334,
+          "mad": 0.005461333333333318,
+          "min": 0.18295466666666665,
+          "max": 0.253952
+        }
+      },
+      "cpuMs": {
+        "encodePerFrame": {
+          "median": 0.021743041666667295,
+          "mad": 0.0005121666666620221,
+          "min": 0.02078300000000392,
+          "max": 0.026786458333333485
+        },
+        "submitPerFrame": {
+          "median": 0.017809041666661567,
+          "mad": 0.0002604166666628771,
+          "min": 0.017151041666664923,
+          "max": 0.019730916666674148
+        }
+      },
+      "pixelEvidence": {
+        "maximumRgb": 242,
+        "uniqueColors": 21,
+        "alphaMinimum": 255
+      },
+      "relativeTo1xNoShadow": 1.6401087759807582
+    }
+  ],
+  "recommendations": {
+    "performance": "1x MSAA, shadows off",
+    "balanced": "1x MSAA, 1024 shadow, 1-tap comparison (2x is unsupported by core WebGPU/Dawn Metal)",
+    "cinematic": "4x MSAA, 2048 shadow, 9-tap PCF"
+  }
+}
