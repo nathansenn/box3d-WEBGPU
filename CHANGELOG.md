@@ -1,5 +1,152 @@
 # Changelog
 
+## 1.20.0 — 2026-07-19 — AAA Material Programs Expansion
+
+### Material demonstrations
+
+- Added **30 authored material programs**: ten metal-forming and impact demonstrations, ten architectural and safety-glass fracture demonstrations, and ten reinforced-concrete failure demonstrations.
+- Added **Apex Materials Proving Ground**, a combined AAA sequence that runs the metal, glass, and concrete rigs together in one coordinated high-bay stage.
+- Kept the proven 800 deterministic physics-recipe and native scene-ID contract intact; the new presentation registry derives material-specialized presets lazily instead of renumbering the native catalog.
+- Added per-program fixtures, boundary conditions, load patterns, strike locations, crack styles, camera direction, and Poliigon-derived concrete, metal, glass, and stone stage materials.
+
+### Direction and scale
+
+- Expanded the cinematic director from 34 to **65 hero sequences** while retaining the ten signature scenes and their exactly 100 v1.19 production improvements.
+- Added target-aware combined-sequence beats so metal loading and denting, glass impact and shattering, and concrete loading, spall, and fracture can be directed independently before the final synchronized failure pass.
+- Preserved the existing 800-scene browser, benchmark baselines, source-frozen performance evidence, native Box3D provenance, and the exact 100-case comparative material campaign.
+
+### Validation and release tooling
+
+- Added deterministic registry contracts for exactly ten metal, ten glass, ten concrete, and one combined program, including unique IDs, finite stage transforms, bounded streams, repeatable replay state, and all 65 hero timelines.
+- Promoted `validate:v1.20` through the package, CI, Pages, pull-request, and publishing workflows while retaining all v1.19 soft-system, native-WASM, WebGPU, material, production-build, audit, and manifest gates.
+
+## 1.19.0 — 2026-07-18 — 100-Item AAA Signature Production Pass
+
+### Presentation
+
+- Added exactly 100 numbered runtime improvements across the ten signature scenes, with ten authored architecture, lighting, engineering-forensics, safety, and story-cue upgrades per stage.
+- Added backend-neutral static stage primitives to the cached effect instance stream so native Box3D WASM and deterministic preview scenes share identical presentation without changing solver state or replay hashes.
+- Reserved authored stage identity ahead of transient particle allocation, keeping signature architecture visible during explosion-, rain-, and fracture-heavy beats.
+- Corrected concrete crater aggregate from the woven-fabric material tag to the mineral/stone atlas path.
+
+### Controls and direction
+
+- Global shortcuts now ignore editable controls, key repeats, and browser/OS modifier combinations.
+- Pausing simulation now freezes the cinematic clock as well as physics, preventing director events from executing against a frozen world.
+
+### Validation
+
+- Added an executable registry contract for exactly 100 unique ordinals, ten-per-scene ownership, finite transforms and colors, positive scales, category coverage, and runtime stage-frame construction.
+- Added release/self-test/CI/publisher checks for the v1.19 gate while preserving all source-frozen performance evidence and native/WebGPU/material gates.
+
+## 1.18.0 — 2026-07-18 — Material Impact Spectacle Pass
+
+### Presentation
+
+- Added dedicated material strike effects: hot metal scale/sparks, concrete dust/aggregate/rebar sparks, and glass micro-shard glints with a vertical fracture-wave ring.
+- Added persistent yielded-metal strain bands, concrete crater aggregate, and luminous glass crack-edge geometry so failure remains readable after transient particles clear.
+- Added distinct five-key camera tracks for overhead metal-forming inspection, low/side concrete rebar transfer, and grazing-angle glass fracture coverage.
+
+### Validation
+
+- Extended metal, concrete, glass, and cinematic-effect contracts to require the new persistent accent material tags, finite effect streams, and vertical glass wave geometry.
+- Retained authoritative lattice state, replay hashes, fracture counts, and the frozen v1.13 performance evidence; VFX remain presentation-only and do not alter solver forces.
+
+## 1.17.0 — 2026-07-18 — AAA Materials Destruction Pass
+
+### Metal
+
+- Added damage-aware galvanized sheet tiles over the compact lattice so bending, springback, permanent set, and opened tears read as a deforming surface.
+- Retained the deterministic perimeter-clamped dent rig and added the material-wide `I` strike action.
+- Re-directed Steel Yield-to-Rupture around proof load, plastic hinge formation, unloading, notch damage, ultimate displacement, and final permanent-set review.
+
+### Concrete
+
+- Added persistent ductile reinforcement constraints with independent yield, rupture, and metal presentation parameters.
+- Concrete cohesive-cell separation now removes local cover tiles and emits deterministic Poliigon-atlas spall bodies.
+- Re-authored the hero around service preload, flexural cracking, two physical spall events, rebar load transfer, unloading, and residual bridging.
+
+### Glass
+
+- Replaced the generic horizontal coupon presentation with a framed vertical reflective pane.
+- Added a center-punch trigger, eight bounded radial crack fronts, damage-aware pane tiles, and up to 192 thin rotating shards retained through final inspection.
+- Removed the duplicate unbreakable central glass dressing so the visible pane now follows the authoritative fracture state.
+
+### Validation
+
+- Added a deterministic dual-run concrete/glass contract covering localized cell failure, fragment retention, rebar persistence, bounded crack propagation, remaining topology, and finite streams.
+- Expanded material telemetry with fractured-cell, live-fragment, and surviving-reinforcement counts.
+- The suite now contains 26 deterministic unit tests; source-frozen v1.13 performance evidence remains unchanged.
+
+## 1.16.0 — 2026-07-18 — Metal Bend & Dent Lab
+
+### Added
+
+- Added **Titan Metal Bend & Dent**, an 18-second directed hero built on the Structural Steel Impact Demo recipe.
+- Added a dense 528-node perimeter-clamped metal pressure panel, a readable galvanized press frame, radial actuator loading, and deterministic centered dent strikes for steel, aluminum, and copper Impact Demo scenes.
+- Added current/peak center deflection and unloaded residual-set telemetry, a **Dent Strike** command-deck control, and the `I` shortcut.
+- Added a deterministic bend → unload → dent → springback contract that runs two independent simulations and verifies identical hashes, visible yield, retained set, finite GPU-expanded topology, and no rupture during the controlled strike.
+
+### Changed
+
+- Increased the directed hero catalog from 33 to **34** while retaining all 800 deterministic scenes and the ten-scene v1.15 signature set.
+- Specialized metal Impact Demo loading from a uniform three-point band to a combined global-bend and radial-indenter field; other material recipes preserve their existing comparison path.
+- Expanded material documentation and the live rig so transient indentation, springback, and permanent deformation are independently legible.
+
+### Validation
+
+- All 25 deterministic unit suites pass, including the dedicated 2,875-constraint bend/dent scenario and the complete 34-hero director contract.
+- The v1.13 source-frozen performance evidence remains unchanged; v1.16 is a new simulation/presentation feature and does not claim an unmeasured speedup.
+
+## 1.15.0 — 2026-07-18 — Signature AAA Materials
+
+### Added
+
+- Promoted ten hero scenes into a starred signature set with additional authored architecture, observation equipment, facade systems, debris, and stage dressing.
+- Added Poliigon-derived weathered concrete, galvanized metal, woven fabric, and honed-stone atlases in directly uploadable ASTC 6×6 KTX2 with RGBA8 and deterministic procedural fallbacks.
+- Added reflective architectural-glass shading, a new **Concrete Spall & Rebar Exposure** hero, physical concrete cover fragments, and exposed reinforcement dressing.
+- Added a reproducible local material-atlas build script and a dedicated signature-scene guide.
+
+### Changed
+
+- Extended the existing rigid instance material word so concrete, metal, stone, and glass share the established instanced PBR pipeline without per-material draw-call proliferation.
+- Textured both packed tearing cloth and GPU-resident intact cloth with the woven-fabric atlas tile.
+- Rebuilt the native Box3D WebAssembly artifact with renderer material tags and signature-stage parity.
+- Increased the directed hero catalog from 32 to **33** while retaining 800 deterministic scenes.
+
+### Validation
+
+- All 24 deterministic unit suites, 11 WGSL modules, actual renderer runtime, C17 bridge syntax, SIMD/scalar soft kernels, RGBA8 and block-aligned ASTC atlas uploads, native 800-scene double replay, and production/Pages build gates pass.
+- The hardware ASTC gate caught and corrected invalid 1024px/63px ASTC 6×6 copy extents; derived atlases are now 1008×1008 and retain only the fully block-aligned compressed mip prefix on the GPU.
+- Native Box3D validation covers 1,146,621 body-frames per pass and the 4,096-body ceiling with finite material-tagged streams.
+- The 100-case material campaign remains deterministic and finite; concrete and glass use their existing progressive and brittle solver profiles rather than cosmetic-only break animation.
+
+## 1.14.0 — 2026-07-18 — Material Bending and Fracture Lab
+
+### Added
+
+- Added 50 deterministic material-test scenes and two directed heroes, bringing the catalog to **800 scenes** and **32 hero sequences**.
+- Added ten normalized comparative presets: structural steel, aluminum, copper, oak, cross-laminated timber, reinforced concrete, soda-lime glass, acrylic, elastomer, and carbon-fiber laminate.
+- Added a reduced-order beam lattice with tension/compression yield and break envelopes, plastic set, cumulative damage, fatigue, anisotropy, cohesive crack fronts, and bounded impact/rain/blast coupling.
+- Added a 0–200% material load rig with apply, release, cycle, keyboard controls, live thresholds, damage, failure phase, energy, break count, and replay telemetry.
+- Added an exact current-source **100-case** material campaign plus material preset, deterministic action, three-backend soak, GPU presentation, and native catalog contracts.
+
+### Changed
+
+- Generalized the compact GPU rope segment path so material members reuse its compute-expanded main/shadow presentation while keeping fracture decisions CPU-authoritative.
+- Extended the native/fallback fixture stages, catalog, state sweep, release workflows, and documentation to the sixteenth material-fracture family.
+- Rebuilt the pinned native Box3D artifact for the 800-scene stage map while retaining the v1.13 1,000-case result as source-frozen historical evidence.
+
+### Validation
+
+- All 24 deterministic Node suites, 11 Dawn WGSL modules, KTX2 paths, native bridge contract, SIMD/scalar kernels, production build, Pages build, and zero-vulnerability audit pass.
+- JavaScript, SIMD-WASM, and scalar-WASM each pass 200 scenes, 4,800 catalog frames, and 2,400 deterministic replay frames.
+- The 100-case material matrix is **100/100 finite, deterministic, and monotonic**; 83 cases reach yield/damage and 69 fracture. The representative full release-gate median/p95 case time is 0.398/0.844 ms per frame for the measured solver-plus-frame scope.
+- The native Box3D artifact passes two deterministic 800-scene traversals, 1,145,838 body-frames per pass, and the 4,096-body ceiling.
+- Visible browser acceptance passes **800/800 scenes**, **32/32 heroes**, representative steel/glass/elastomer/composite interactions, and a zero-warning/error console.
+
+The material coefficients are dimensionless demonstration profiles, not calibrated FEA, real design allowables, or safety certification.
+
 ## 1.13.0 — 2026-07-16 — Thousand-Case Optimization Audit
 
 ### Added

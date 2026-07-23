@@ -12,7 +12,7 @@
   },
   "bridge": {
     "source": "wasm/box3d_web.c",
-    "sha256": "640d65fb3e264cbb0f7f3f487dba22205b981516f35a37707daae03e9a405ce2",
+    "sha256": "943a3b406e1a5dffe1c2f7eae2c6fb5dd082347cc6ebb913e36e5fa101e18e29",
     "lazyReplayHash": true,
     "sleepingWorldTransformCache": true,
     "independentColorRevision": true,
@@ -20,7 +20,12 @@
     "conservativeExplosionMissRejection": true,
     "cachedBoxHullConstruction": true,
     "boxHullCacheEntries": 8,
-    "deterministicDoubleBuild": true
+    "deterministicDoubleBuild": true,
+    "rendererMaterialTags": true,
+    "signatureSetDressing": 10,
+    "materialFailurePresentation": true,
+    "concreteReinforcementRig": true,
+    "glassFractureStage": true
   },
   "artifacts": {
     "box3d.js": {
@@ -28,12 +33,12 @@
       "sha256": "8ec00439683b8da258916ebe90f0cea6a6d0672641fda571936b6012fd3cec3b"
     },
     "box3d.wasm": {
-      "bytes": 396272,
-      "sha256": "de1fe4c659bb6c99879555b7b987d53455bcf4768cbfffcb35eac3ee75835a1c"
+      "bytes": 400546,
+      "sha256": "089ba180666b2fcd3a7ca0b92f4d715fd0a25e91974e35c198b5b7e83620e552"
     }
   },
   "validation": {
-    "catalogScenes": 750,
+    "catalogScenes": 800,
     "deterministicPasses": 2,
     "invalidTimestepGuard": true,
     "finalSleepTransformCapture": true,

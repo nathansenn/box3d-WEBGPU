@@ -5,7 +5,7 @@ OWNER="${GITHUB_OWNER:-nathansenn}"
 REPO="${GITHUB_REPO:-box3d-WEBGPU}"
 VISIBILITY="${GITHUB_VISIBILITY:-public}"
 BRANCH="${GITHUB_BRANCH:-main}"
-COMMIT_MESSAGE="${COMMIT_MESSAGE:-Optimize Box3D WebGPU v1.13 production paths}"
+COMMIT_MESSAGE="${COMMIT_MESSAGE:-Add 31 AAA material demonstrations}"
 REMOTE_URL="git@github.com:${OWNER}/${REPO}.git"
 HTTPS_REMOTE="https://github.com/${OWNER}/${REPO}.git"
 PAGES_URL="https://${OWNER}.github.io/${REPO}/"
@@ -41,10 +41,11 @@ fi
 git checkout -B "$BRANCH"
 
 npm ci
-npm run validate:v1.13
+npm run validate:v1.20
 
-git add -A -- . ':(exclude)SOURCE_MANIFEST 2.sha256'
+git add -A -- . ':(exclude)SOURCE_MANIFEST 2.sha256' ':(exclude)src/assets/ktx2 2.ts'
 git rm --cached --ignore-unmatch -- 'SOURCE_MANIFEST 2.sha256' >/dev/null
+git rm --cached --ignore-unmatch -- 'src/assets/ktx2 2.ts' >/dev/null
 if git diff --cached --quiet; then
   echo "No staged changes to commit. Continuing."
 else
@@ -55,9 +56,9 @@ if gh repo view "${OWNER}/${REPO}" >/dev/null 2>&1; then
   echo "GitHub repo ${OWNER}/${REPO} already exists. Reusing it."
 else
   case "$VISIBILITY" in
-    public) gh repo create "${OWNER}/${REPO}" --public --description "AAA Box3D + WebGPU physics lab with 750 scenes, 30 cinematic heroes, PBD cloth/rope, and interactive water." ;;
-    private) gh repo create "${OWNER}/${REPO}" --private --description "AAA Box3D + WebGPU physics lab with 750 scenes, 30 cinematic heroes, PBD cloth/rope, and interactive water." ;;
-    internal) gh repo create "${OWNER}/${REPO}" --internal --description "AAA Box3D + WebGPU physics lab with 750 scenes, 30 cinematic heroes, PBD cloth/rope, and interactive water." ;;
+    public) gh repo create "${OWNER}/${REPO}" --public --description "AAA Box3D + WebGPU physics lab with 800 scenes, 65 cinematic heroes, 31 material programs, PBD cloth/rope, and interactive water." ;;
+    private) gh repo create "${OWNER}/${REPO}" --private --description "AAA Box3D + WebGPU physics lab with 800 scenes, 65 cinematic heroes, 31 material programs, PBD cloth/rope, and interactive water." ;;
+    internal) gh repo create "${OWNER}/${REPO}" --internal --description "AAA Box3D + WebGPU physics lab with 800 scenes, 65 cinematic heroes, 31 material programs, PBD cloth/rope, and interactive water." ;;
   esac
 fi
 

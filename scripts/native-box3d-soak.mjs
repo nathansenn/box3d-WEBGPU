@@ -62,18 +62,20 @@ function assertFiniteStreams(count, sceneId) {
   }
   for (let i = 0; i < count * 4; i++) {
     const value = heap[colorStart + i];
-    if (!Number.isFinite(value) || value < 0 || value > 1) {
+    const alphaMaterialChannel = i % 4 === 3;
+    const valid = alphaMaterialChannel ? value >= -5 && value <= 8 : value >= 0 && value <= 1;
+    if (!Number.isFinite(value) || !valid) {
       throw new Error(`scene ${sceneId}: color ${i} is invalid (${value})`);
     }
   }
 }
 
 function catalogPass() {
-  const hashes = new Uint32Array(750);
+  const hashes = new Uint32Array(800);
   let bodyFrames = 0;
   let maxBodies = 0;
   let maxScene = -1;
-  for (let sceneId = 0; sceneId < 750; sceneId++) {
+  for (let sceneId = 0; sceneId < 800; sceneId++) {
     const stress = 1 + (sceneId % 5);
     const count = mod._b3w_create_scene(sceneId, stress, (0xc0ffee + sceneId) >>> 0);
     const dynamic = mod._b3w_dynamic_count();
@@ -145,8 +147,8 @@ console.log(JSON.stringify({
   result: 'passed',
   artifactDir,
   wasmBytes: wasmBinary.byteLength,
-  scenes: 750,
-  deterministicReplays: 750,
+  scenes: 800,
+  deterministicReplays: 800,
   bodyFramesPerPass: first.bodyFrames,
   maxBodies: first.maxBodies,
   maxScene: first.maxScene,

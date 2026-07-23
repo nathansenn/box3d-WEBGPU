@@ -1,0 +1,52 @@
+{
+  "schemaVersion": 1,
+  "release": "1.14.0",
+  "date": "2026-07-18",
+  "environment": {
+    "browserSurface": "Codex in-app browser on macOS",
+    "url": "http://localhost:5173/",
+    "viewport": "1280x720",
+    "rigidBackend": "Box3D WASM",
+    "softKernel": "SIMD WebAssembly",
+    "quality": "Cinematic"
+  },
+  "stateSweep": {
+    "scenes": { "passed": 800, "total": 800 },
+    "heroSequences": { "passed": 32, "total": 32 },
+    "effects": "passed"
+  },
+  "materialInspection": [
+    {
+      "scene": 790,
+      "material": "Carbon-Fiber Laminate",
+      "interaction": "projectile impact",
+      "observed": "failed phase, separated member topology, finite breakpoint telemetry"
+    },
+    {
+      "scene": 791,
+      "material": "Structural Steel",
+      "interaction": "200% apply then release",
+      "observed": "yielding phase and retained yielded/damaged state after unloading"
+    },
+    {
+      "scene": 797,
+      "material": "Soda-Lime Glass",
+      "interaction": "cinematic load",
+      "observed": "rapid brittle fracture and visible cohesive separation"
+    },
+    {
+      "scene": 799,
+      "material": "Elastomer",
+      "interaction": "cyclic load",
+      "observed": "large elastic flexure below the normalized yield threshold"
+    }
+  ],
+  "console": {
+    "warnings": 0,
+    "errors": 0
+  },
+  "limitations": [
+    "This is visible functional acceptance, not calibrated physical-material validation.",
+    "No universal browser-FPS or engineering-safety claim is implied."
+  ]
+}

@@ -14,7 +14,13 @@ const textureDir = path.join(root, 'public', 'textures');
 const tempDir = fs.mkdtempSync(path.join(os.tmpdir(), 'box3d-ktx2-runtime-'));
 const modulePath = path.join(tempDir, 'ktx2.mjs');
 const VK_FORMAT_R8_UNORM = 9;
+const VK_FORMAT_R8G8B8A8_UNORM = 37;
+const VK_FORMAT_R8G8B8A8_SRGB = 43;
 const VK_FORMAT_BC4_UNORM_BLOCK = 139;
+const VK_FORMAT_ASTC_6X6_UNORM_BLOCK = 165;
+const VK_FORMAT_ASTC_6X6_SRGB_BLOCK = 166;
+const POLIIGON_ATLAS_SIZE = 1008;
+const POLIIGON_ATLAS_MIPS = 10;
 const dawnBackend = process.env.KTX2_DAWN_BACKEND ?? 'null';
 const expectedIdentifier = Buffer.from([0xab, 0x4b, 0x54, 0x58, 0x20, 0x32, 0x30, 0xbb, 0x0d, 0x0a, 0x1a, 0x0a]);
 
@@ -24,7 +30,7 @@ fs.writeFileSync(modulePath, ts.transpileModule(loaderSource, {
   fileName: 'ktx2.ts',
 }).outputText);
 
-const { loadMaterialNoiseTexture, parseKtx2 } = await import(`${pathToFileURL(modulePath).href}?v=${Date.now()}`);
+const { loadMaterialAtlasTexture, loadMaterialNoiseTexture, parseKtx2 } = await import(`${pathToFileURL(modulePath).href}?v=${Date.now()}`);
 
 function levelPayloadBytes(format, width, height) {
   if (format === VK_FORMAT_R8_UNORM) return width * height;
@@ -77,6 +83,17 @@ function validateAssetStructure(fileName, expectedFormat) {
   padded.set(bytes, 17);
   const parsedFromView = parseKtx2(padded.subarray(17, 17 + bytes.byteLength));
   assert.equal(parsedFromView.levels[0].data.byteLength, parsed.levels[0].data.byteLength, `${fileName} parser must respect Uint8Array byte offsets`);
+  return { fileName, fileBytes: bytes.byteLength, parsed };
+}
+
+function validateAtlasStructure(fileName, expectedFormat) {
+  const bytes = fs.readFileSync(path.join(textureDir, fileName));
+  const parsed = parseKtx2(bytes);
+  assert.equal(parsed.vkFormat, expectedFormat, `${fileName} VkFormat`);
+  assert.equal(parsed.width, POLIIGON_ATLAS_SIZE, `${fileName} width`);
+  assert.equal(parsed.height, POLIIGON_ATLAS_SIZE, `${fileName} height`);
+  assert.equal(parsed.levelCount, POLIIGON_ATLAS_MIPS, `${fileName} full mip chain`);
+  assert.equal(new DataView(bytes.buffer, bytes.byteOffset, bytes.byteLength).getUint32(44, true), 0, `${fileName} must be directly uploadable`);
   return { fileName, fileBytes: bytes.byteLength, parsed };
 }
 
@@ -158,6 +175,7 @@ async function loadWithValidationScope(device, supportsBc) {
 let vite;
 const devices = [];
 const materials = [];
+const atlasTextures = [];
 const nativeFetch = globalThis.fetch;
 const originalDocument = globalThis.document;
 const originalWarn = console.warn;
@@ -165,6 +183,12 @@ const originalWarn = console.warn;
 try {
   const r8 = validateAssetStructure('material-noise-r8.ktx2', VK_FORMAT_R8_UNORM);
   const bc4 = validateAssetStructure('material-noise-bc4.ktx2', VK_FORMAT_BC4_UNORM_BLOCK);
+  const atlasAssets = [
+    validateAtlasStructure('poliigon-materials-albedo-rgba8.ktx2', VK_FORMAT_R8G8B8A8_SRGB),
+    validateAtlasStructure('poliigon-materials-surface-rgba8.ktx2', VK_FORMAT_R8G8B8A8_UNORM),
+    validateAtlasStructure('poliigon-materials-albedo-astc.ktx2', VK_FORMAT_ASTC_6X6_SRGB_BLOCK),
+    validateAtlasStructure('poliigon-materials-surface-astc.ktx2', VK_FORMAT_ASTC_6X6_UNORM_BLOCK),
+  ];
   validateParserRejections(fs.readFileSync(path.join(textureDir, 'material-noise-r8.ktx2')));
 
   vite = await createServer({
@@ -178,7 +202,7 @@ try {
   const baseUrl = `http://127.0.0.1:${address.port}/`;
   Object.defineProperty(globalThis, 'document', { configurable: true, value: { baseURI: baseUrl } });
 
-  for (const asset of [r8, bc4]) {
+  for (const asset of [r8, bc4, ...atlasAssets]) {
     const response = await nativeFetch(new URL(`textures/${asset.fileName}`, baseUrl));
     assert.equal(response.status, 200, `${asset.fileName} must be served`);
     assert.equal(response.headers.get('content-type')?.split(';')[0], 'image/ktx2', `${asset.fileName} MIME type`);
@@ -205,6 +229,18 @@ try {
   const r8Sample = await sampleTexture(r8Device, r8Material);
   assert.deepEqual(r8Errors, [], `R8 path uncaptured errors: ${r8Errors.join('; ')}`);
 
+  r8Device.pushErrorScope('validation');
+  const rgbaAtlas = await loadMaterialAtlasTexture(r8Device, false);
+  await r8Device.queue.onSubmittedWorkDone();
+  const atlasError = await r8Device.popErrorScope();
+  assert.equal(atlasError, null, atlasError?.message ?? 'RGBA8 atlas upload must have no WebGPU validation error');
+  assert.equal(rgbaAtlas.source, 'poliigon-rgba8');
+  assert.equal(rgbaAtlas.compressed, false);
+  assert.equal(rgbaAtlas.albedoTexture.width, POLIIGON_ATLAS_SIZE);
+  assert.equal(rgbaAtlas.albedoTexture.height, POLIIGON_ATLAS_SIZE);
+  atlasTextures.push(rgbaAtlas.albedoTexture, rgbaAtlas.surfaceTexture);
+  const atlasSample = await sampleTexture(r8Device, { view: rgbaAtlas.albedoView, sampler: rgbaAtlas.sampler, source: rgbaAtlas.source });
+
   const supportsBc = adapter.features.has('texture-compression-bc');
   let bc4Result = { supported: false };
   if (supportsBc) {
@@ -229,6 +265,39 @@ try {
     }
     assert.deepEqual(bc4Errors, [], `BC4 path uncaptured errors: ${bc4Errors.join('; ')}`);
     bc4Result = { supported: true, sample: bc4Sample, residentMipLevels: bc4Material.texture.mipLevelCount };
+  }
+
+  const supportsAstc = adapter.features.has('texture-compression-astc');
+  let astcAtlasResult = { supported: false };
+  if (supportsAstc) {
+    const astcGpu = create([`backend=${dawnBackend}`]);
+    const astcAdapter = await astcGpu.requestAdapter();
+    assert.ok(astcAdapter?.features.has('texture-compression-astc'), 'Dawn ASTC adapter must expose texture-compression-astc');
+    const astcDevice = await astcAdapter.requestDevice({ requiredFeatures: ['texture-compression-astc'] });
+    devices.push(astcDevice);
+    const astcErrors = [];
+    astcDevice.addEventListener?.('uncapturederror', (event) => astcErrors.push(event.error?.message ?? String(event.error)));
+    astcDevice.pushErrorScope('validation');
+    const astcAtlas = await loadMaterialAtlasTexture(astcDevice, true);
+    await astcDevice.queue.onSubmittedWorkDone();
+    const astcError = await astcDevice.popErrorScope();
+    assert.equal(astcError, null, astcError?.message ?? 'ASTC atlas upload must have no WebGPU validation error');
+    assert.equal(astcAtlas.source, 'poliigon-astc');
+    assert.equal(astcAtlas.compressed, true);
+    assert.equal(astcAtlas.albedoTexture.width, POLIIGON_ATLAS_SIZE);
+    assert.equal(astcAtlas.albedoTexture.height, POLIIGON_ATLAS_SIZE);
+    atlasTextures.push(astcAtlas.albedoTexture, astcAtlas.surfaceTexture);
+    const astcSample = await sampleTexture(astcDevice, { view: astcAtlas.albedoView, sampler: astcAtlas.sampler, source: astcAtlas.source });
+    if (dawnBackend !== 'null') {
+      assert.ok(Math.abs(astcSample - atlasSample) < 0.2, 'ASTC and RGBA8 atlas samples must remain perceptually close');
+    }
+    assert.deepEqual(astcErrors, [], `ASTC path uncaptured errors: ${astcErrors.join('; ')}`);
+    astcAtlasResult = {
+      supported: true,
+      sample: astcSample,
+      dimensions: [astcAtlas.albedoTexture.width, astcAtlas.albedoTexture.height],
+      residentMipLevels: astcAtlas.albedoTexture.mipLevelCount,
+    };
   }
 
   const warnings = [];
@@ -261,6 +330,8 @@ try {
       r8: { sample: r8Sample, residentMipLevels: r8Material.texture.mipLevelCount },
       bc4: bc4Result,
       proceduralFallback: { sample: fallbackSample, residentMipLevels: fallbackMaterial.texture.mipLevelCount },
+      poliigonRgba8Atlas: { sample: atlasSample, dimensions: [POLIIGON_ATLAS_SIZE, POLIIGON_ATLAS_SIZE], tiles: 4 },
+      poliigonAstcAtlas: astcAtlasResult,
       uncapturedErrors: 0,
     },
     parserRejections: 5,
@@ -271,6 +342,7 @@ try {
   if (originalDocument === undefined) delete globalThis.document;
   else Object.defineProperty(globalThis, 'document', { configurable: true, value: originalDocument });
   for (const material of materials) material.texture.destroy();
+  for (const texture of atlasTextures) texture.destroy();
   for (const device of devices) device.destroy?.();
   await vite?.close();
   fs.rmSync(tempDir, { recursive: true, force: true });

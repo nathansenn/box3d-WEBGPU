@@ -1,6 +1,6 @@
 # AAA Showcase Runbook
 
-The AAA director layers 30 hand-authored camera and event timelines over selected entries from the 750-scene physics catalog. Each sequence has five camera keyframes, at least seven timed beats, a stated engineering objective, and a final telemetry lock.
+The AAA director contains **65 sequences** over the stable 800-scene physics catalog: 34 established hand-authored timelines plus 31 recipe-driven material programs. The new registry contributes exactly ten metal, ten glass, ten concrete, and one combined high-bay proving-ground sequence. A material recipe derives a runtime preset from an existing native-safe base scene, so the expansion does not create scene IDs 801–831 or invalidate the established 800-scene/native staging contract. Ten starred signature scenes continue to receive the separate Poliigon-derived material pass and exactly 100 runtime-authored stage improvements distributed ten per signature scene. See [AAA_100_IMPROVEMENTS.md](AAA_100_IMPROVEMENTS.md).
 
 ## Complete sequence catalog
 
@@ -12,7 +12,7 @@ The AAA director layers 30 hand-authored camera and event timelines over selecte
 | 4 | **Helix Relay Protocol** | Chain Reactions | 093 | 4× | 15s | Cascade |
 | 5 | **Aegis Tower: Kinetic Breach** | High-Rise Destruction | 141 | 4× | 16s | Impact |
 | 6 | **Twin Spire Progressive Collapse** | High-Rise Destruction | 148 | 5× | 17s | Impact |
-| 7 | **Atlas Suspension Convoy** | Infrastructure | 191 | 4× | 15s | Collapse |
+| 7 | **Truss Span Failure** | Infrastructure | 193 | 5× | 16s | Impact |
 | 8 | **Viaduct Shockwave** | Infrastructure | 200 | 5× | 16s | Cascade |
 | 9 | **Hypermaterial Gauntlet** | Materials | 241 | 3× | 14s | Cascade |
 | 10 | **Restitution Reactor** | Materials | 244 | 4× | 14s | Cascade |
@@ -36,6 +36,57 @@ The AAA director layers 30 hand-authored camera and event timelines over selecte
 | 28 | **Suspension Cable Resonance** | Rope and Rigging | 692 | 4× | 17s | Cascade |
 | 29 | **Tsunami Research Array** | Interactive Water | 742 | 5× | 18s | Cascade |
 | 30 | **Leviathan Impact Basin** | Interactive Water | 750 | 5× | 19s | Impact |
+| 31 | **Steel Yield-to-Rupture** | Material Failure | 791 | 4× | 17s | Collapse |
+| 32 | **Titan Metal Bend & Dent** | Material Failure | 781 | 5× | 18s | Impact |
+| 33 | **Concrete Spall & Rebar Exposure** | Material Failure | 796 | 5× | 18s | Collapse |
+| 34 | **Glass Catastrophic Fracture** | Material Failure | 797 | 5× | 17s | Impact |
+
+### Recipe-driven material sequences
+
+The **Base scene (UI)** column uses the one-based label shown in the command deck and identifies the stable catalog/native staging recipe from which the directed material preset is derived. It is not a new catalog ID.
+
+| # | Metal sequence | Base scene (UI) | Stress | Duration | Primary event |
+|---:|---|---:|---:|---:|---|
+| 35 | **Square-Punch Steel Forming** | 781 | 5× | 18s | Hydraulic forming |
+| 36 | **Aluminum Hailstorm Panel** | 782 | 4× | 17s | Multi-impact denting |
+| 37 | **Copper Deep-Draw Dome** | 783 | 5× | 19s | Distributed deep draw |
+| 38 | **Automotive Door-Skin Oblique Dent** | 781 | 5× | 18s | Offset ram impact |
+| 39 | **Press-Brake V-Bend** | 781 | 5× | 18s | Line-load folding |
+| 40 | **Four-Point Bumper Beam** | 781 | 5× | 18s | Dual-load bending |
+| 41 | **Cantilever Bracket Overbend** | 782 | 4× | 17s | Tip overbend |
+| 42 | **Tension-Field Shear Panel** | 781 | 5× | 19s | Opposed-corner shear |
+| 43 | **Notched Low-Cycle Fatigue** | 781 | 5× | 20s | Reversing fatigue |
+| 44 | **Blast-Bulge Armor Plate** | 781 | 5× | 19s | Distributed pressure pulse |
+
+| # | Glass sequence | Base scene (UI) | Stress | Duration | Primary event |
+|---:|---|---:|---:|---:|---|
+| 45 | **Annealed Pendulum Impact** | 797 | 5× | 17s | Soft-body pendulum strike |
+| 46 | **Tempered Safety-Glass Punch** | 797 | 5× | 17s | Dense safety breakup |
+| 47 | **Laminated Windshield Stone Strike** | 797 | 4× | 18s | Retained spiderweb crack |
+| 48 | **Edge-Chip Runaway Crack** | 797 | 5× | 17s | Edge-flaw propagation |
+| 49 | **Four-Bolt Point-Supported Facade** | 797 | 5× | 18s | Point-support fracture |
+| 50 | **Curtain-Wall Wind Failure** | 797 | 5× | 19s | Distributed facade pressure |
+| 51 | **Ballistic Off-Center Penetration** | 797 | 5× | 17s | Local penetration |
+| 52 | **Blast Overpressure Release** | 797 | 5× | 18s | Whole-pane pressure pulse |
+| 53 | **Hailstone Multi-Hit Pattern** | 797 | 5× | 18s | Intersecting crack origins |
+| 54 | **Thermal Corner Fracture** | 797 | 4× | 18s | Diagonal corner crack |
+
+| # | Concrete sequence | Base scene (UI) | Stress | Duration | Primary event |
+|---:|---|---:|---:|---:|---|
+| 55 | **RC Three-Point Beam** | 796 | 5× | 18s | Center flexure |
+| 56 | **RC Four-Point Constant-Moment Beam** | 796 | 5× | 19s | Dual-load flexure |
+| 57 | **Flat-Slab Punching Shear** | 796 | 5× | 19s | Punching cone |
+| 58 | **One-Way Slab Drop Weight** | 796 | 5× | 18s | Crater and back-face spall |
+| 59 | **Bridge-Deck Wheel Patch** | 796 | 5× | 19s | Twin wheel patches |
+| 60 | **Cantilever Corbel Shear** | 796 | 5× | 18s | Diagonal shear |
+| 61 | **Highway Barrier Impact Strip** | 796 | 5× | 18s | Eccentric barrier impact |
+| 62 | **Blast-Wall Back-Face Spall** | 796 | 5× | 19s | Distributed blast impulse |
+| 63 | **Anchor Pull-Out Cone** | 796 | 5× | 18s | Positive pull-out demand |
+| 64 | **Cyclic Deck Fatigue Strip** | 796 | 5× | 20s | Service cycles and overload |
+
+| # | Combined sequence | Base scene (UI) | Stress | Duration | Primary event |
+|---:|---|---:|---:|---:|---|
+| 65 | **Apex Materials Proving Ground** | 797 | 5× | 28s | Coordinated metal, glass, and concrete failure |
 
 ## Detailed sequence cards
 
@@ -99,13 +150,13 @@ The AAA director layers 30 hand-authored camera and event timelines over selecte
 
 **Default dramatic arc:** establishing shot → systems armed → primary event → time dilation → secondary disruption → real-time recovery → telemetry lock.
 
-### 07. Atlas Suspension Convoy
+### 07. Truss Span Failure
 
-**Catalog scene:** `191` · **Discipline:** Infrastructure · **Recommended stress:** 4× · **Duration:** 15s · **Event pattern:** collapse
+**Catalog scene:** `193` · **Discipline:** Infrastructure · **Recommended stress:** 5× · **Duration:** 16s · **Event pattern:** impact
 
-> A segmented bridge carries concentrated cargo until a controlled mid-span disruption initiates deck failure.
+> A triangular truss corridor carries a concentrated load until a lateral strike breaks its repeating support path.
 
-**Engineering objective:** Visualize segmented deck contacts, moving load concentration, support response, and debris settling across a wide frame.
+**Engineering objective:** Visualize truss contact transfer, brace loss, mid-span impact, progressive deck failure, and debris settling across a wide frame.
 
 **Default dramatic arc:** establishing shot → systems armed → primary event → time dilation → secondary disruption → real-time recovery → telemetry lock.
 
@@ -339,22 +390,90 @@ The AAA director layers 30 hand-authored camera and event timelines over selecte
 
 **Default dramatic arc:** atmospheric basin reveal → storm rain → traveling waves → ballistic entry → slow-motion splash crown → secondary blast/displacement → float recovery and telemetry lock.
 
+### 31. Steel Yield-to-Rupture
+
+**Catalog scene:** `791` · **Discipline:** Material Failure · **Recommended stress:** 4× · **Duration:** 17s · **Event pattern:** collapse
+
+> A structural-steel lattice progresses through elastic deflection, plastic yielding, stress heating, and final member separation.
+
+**Engineering objective:** Make unloading, permanent set, damage localization, and deterministic break order legible in one controlled structural sequence.
+
+**Default dramatic arc:** lattice reveal → proof load → unloading inspection → overload → slow-motion yield front → first rupture → residual structure and telemetry lock.
+
+### 32. Titan Metal Bend & Dent
+
+**Catalog scene:** `781` · **Discipline:** Material Failure · **Recommended stress:** 5× · **Duration:** 18s · **Event pattern:** impact
+
+> A perimeter-clamped galvanized steel panel bends under a square press, unloads for springback, and receives two controlled forming strikes.
+
+**Engineering objective:** Show two-axis panel bending, a concentrated indentation bowl, normalized ductile yield, springback, residual set, damage localization, and deterministic center/peak/residual telemetry.
+
+**Default dramatic arc:** press-frame reveal → low preload → controlled bend → first unload → instrumented dent strike → real-time recovery → secondary overload → residual-set inspection → severe final strike → telemetry lock.
+
+### 33. Concrete Spall & Rebar Exposure
+
+**Catalog scene:** `796` · **Discipline:** Material Failure · **Recommended stress:** 5× · **Duration:** 18s · **Event pattern:** collapse
+
+> A reinforced-concrete lattice sheds brittle cover fragments while the exposed galvanized reinforcement continues bridging the damaged bays.
+
+**Engineering objective:** Combine progressive concrete damage, dynamic spall, visible reinforcement, weathered-concrete material response, and a cinematic residual-capacity inspection.
+
+**Default dramatic arc:** clean service preload → first flexural crack in slow motion → cover distress → localized strike and spall burst → continued load carried through exposed rebar → severe punch → unload → residual bridge close-up and telemetry lock.
+
+### 34. Glass Catastrophic Fracture
+
+**Catalog scene:** `797` · **Discipline:** Material Failure · **Recommended stress:** 5× · **Duration:** 17s · **Event pattern:** impact
+
+> A reflective architectural-glass lattice stores elastic energy and then loses members abruptly under a localized ballistic strike.
+
+**Engineering objective:** Present low-roughness Fresnel glass, brittle damage localization, abrupt topology loss, debris readability, and deterministic crack-front timing.
+
+**Default dramatic arc:** optical chamber reveal → clean transverse preload → grazing-angle Fresnel inspection → center-punch flaw → time-dilated eight-ray crack race → unloading hold → second strike → persistent shard-field forensic lock.
+
+## Material-program direction
+
+The 30 focused programs use the same deterministic lattice authority but do not merely rename one center-loaded coupon. Their recipes vary:
+
+- **material profile and geometry** — structural steel, aluminum, copper, reinforced concrete, or soda-lime-glass behavior with per-program span, depth, station, and lane counts;
+- **orientation and boundary** — horizontal or vertical specimens with perimeter, simple-span, cantilever, four-corner, or end-clamped supports;
+- **demand** — center, offset, dual, line, distributed, torsional, edge, or pulse loading with explicit footprint and sign;
+- **failure presentation** — local, radial, dense, retained, edge-biased, cone, or diagonal crack styling;
+- **hardware** — press, rollers, ram, blast frame, drop tower, fatigue rig, facade frame, or reaction frame;
+- **direction** — recipe-specific strike origin, normalized preload/ultimate targets, two strike strengths, stress, duration, and camera.
+
+Each sequence follows a material-appropriate dramatic arc rather than a generic explosion template. Metal programs establish the fixture, apply a proof load, inspect springback, form or cycle the specimen, then hold on residual set. Glass programs establish optical reflection/transmission, preload the pane, seed the declared flaw, slow the crack front, and finish on retained perimeter/shards. Concrete programs establish supports and reinforcement, load into first cracking, trigger localized cover failure, inspect spall/dust/rebar transfer, unload, and lock residual telemetry.
+
+### 65. Apex Materials Proving Ground
+
+**Derived base scene (UI):** `797` · **Discipline:** Combined Material Failure · **Recommended stress:** 5× · **Duration:** 28s · **Event pattern:** coordinated sequence
+
+> A high-bay test hall stages a galvanized forming press at left, a backlit ballistic-glass tunnel at center, and a reinforced-concrete reaction frame at right.
+
+**Engineering objective:** Show three genuinely active deterministic rigs in one coherent AAA environment while retaining their different mechanics and visual languages: ductile metal springback and permanent set; brittle transparent crack propagation and shards; and concrete cover loss, dust, mineral spall, and residual steel bridging.
+
+**Default dramatic arc:** proving-hall reveal → metal proof load and forming strike → glass preload and ballistic seed → concrete service load and spall event → three-rig slow-motion inspection → coordinated ultimate loads → material-specific final strikes → unload/springback/bridging hold → combined telemetry lock.
+
+The combined simulation translates and merges each rig's finite matrices, colors, debug streams, compact nodes, and concrete reinforcement segments into one bounded frame. Timed beats may target `metal`, `glass`, `concrete`, or `all`; they do not convert the three reduced-order solvers into a coupled continuum model.
+
 ## Director behavior
 
 - Starting a hero sequence rebuilds its referenced scene with the recommended stress value and a deterministic seed.
 - Camera motion is interpolated between keyframes with eased position/distance/pitch and shortest-path yaw interpolation.
-- Timed beats can trigger captions, structural impulse, projectile launch, body rain, radial blast, slow motion, or return to normal speed.
+- Timed beats can trigger captions, structural impulse, projectile launch, a material-specific strike, body rain, radial blast, load/unload, slow motion, or return to normal speed.
 - Manual camera input leaves cinematic playback so the operator always retains control.
-- Maximum AAA Tour advances through all 30 sequences after the current telemetry lock.
+- Maximum AAA Tour advances through all 65 sequences after the current telemetry lock.
 
 ## Capture order for the strongest presentation
 
 1. **Titan Foundry Stackfall** — clear introduction to stacked-body stability and presentation quality.
 2. **Aegis Tower: Kinetic Breach** — impact, slow motion, camera shake, debris, and shadows.
-3. **Atlas Suspension Convoy** — wide-frame infrastructure and concentrated loading.
+3. **Truss Span Failure** — wide-frame truss transfer, brace loss, and progressive deck collapse.
 4. **Orbital Cargo Storm** — body count, transform bandwidth, and effect budget.
 5. **Tempest Standard Protocol** — cloth folds, strain, tearing, and two-sided surface shading.
 6. **Sky Crane Cable Failure** — cable tension, payload inertia, and controlled line failure.
 7. **Tsunami Research Array** — wave propagation, reflections, foam, and current diagnostics.
 8. **Leviathan Impact Basin** — rain, impact displacement, floaters, and HDR water finale.
 9. **Mega Atrium Collapse** — architectural rigid-body finale.
+10. **Concrete Spall & Rebar Exposure** — signature concrete, cover spall, and residual reinforcement.
+11. **Glass Catastrophic Fracture** — reflective glass presentation and brittle member loss.
+12. **Apex Materials Proving Ground** — the strongest combined metal, glass, and concrete finale.

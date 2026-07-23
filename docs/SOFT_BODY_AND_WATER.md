@@ -1,12 +1,12 @@
-# Cloth, Rope, and Water Architecture
+# Cloth, Rope, Water, and Material Architecture
 
 ## Runtime overview
 
-Version 1.9 keeps Box3D as rigid-body authority and semantically adds the supplied adaptive-cloth and compact-rope rendering changes to the reconstructed v1.8.1 runtime:
+The current runtime keeps Box3D as rigid-body authority and retains the supplied adaptive-cloth and compact-rope rendering changes from the reconstructed v1.8.1/v1.9 lineage. It also coordinates the deterministic material-failure lattice, 31 authored material presentation programs, and the true three-bay combined materials proving ground:
 
 ```text
 Box3D WASM / rigid preview                  SoftSimulationSuite
-rigid-body authority                       scene and action authority
+rigid-body authority                       scene, material-program, and action authority
         │                                           │
         │                                  SIMD WebAssembly
         │                                      ↓ fallback
@@ -18,7 +18,7 @@ rigid-body authority                       scene and action authority
                                   │
              solver-native states + compact render streams
                                   ↓
-       WebGPU cloth/water reconstruction + rope expansion
+ WebGPU cloth/water reconstruction + rope/material expansion
 ```
 
 The v1.8.1 implementation was reconstructed from the architecture described in the prior project conversation using the verified v1.4.1 source present in this workspace. The later supplied v1.9 archive verifies as SHA-256 `09fa0eec3db1858d57cdc58a9fe8f021b76cd6c19c5b8913eb9d55e1667a1fbb`, but it descends from a different original-v1.8.0 source line. Its behavior was manually ported rather than used to replace the repository. See [`INTEGRATION_V1.9.md`](INTEGRATION_V1.9.md). The current optimized target is v1.13 and is covered by [`V1.13_1000_BENCHMARK_MATRIX.md`](V1.13_1000_BENCHMARK_MATRIX.md); the v1.12/v1.11 audits and v1.10 integration map remain historical attribution evidence.
@@ -60,7 +60,7 @@ Every active system publishes a `SoftSimulationFrame`:
 | `kind` / `label` | active solver and human-readable configuration |
 | `matrices` / `colors` | payloads, projectiles, droplets, floaters, and other shared instances |
 | `surface` | `gpu-cloth`, `gpu-water`, packed tearing cloth, or `null` |
-| `ropeGrid` | compact rope node positions and active segment metadata, or `null` |
+| `ropeGrid` | compact rope/material node positions and active segment metadata, or `null` |
 | `debugLines` | pins, constraints, sample nodes, and current vectors |
 | `nodeCount` | particles/cells plus transient objects |
 | `constraintCount` | PBD links or water relationships |
@@ -68,11 +68,12 @@ Every active system publishes a `SoftSimulationFrame`:
 | `energy` | normalized diagnostic |
 | `hash` | quantized deterministic replay signature |
 | `frameVersion` | monotonic version used to skip repeated frame work and uploads |
+| `material` | normalized yield/damage/fracture telemetry for material frames, or `null` |
 
 Hard budgets remain explicit:
 
 ```text
-soft instances                 2,048
+soft CPU-proxy instances       3,072
 water droplets                   768
 surface vertices              16,384
 surface indices               98,304
@@ -160,6 +161,25 @@ The render frame publishes `eta/u/v` directly at 12 bytes per cell. The GPU reco
 
 This remains a heightfield for basins, wakes, ripples, impacts, and currents—not volumetric SPH, FLIP, or arbitrary-topology water.
 
+## Material bending and fracture programs
+
+The material solver is a deterministic comparative beam lattice. Its mechanical presets remain normalized behaviors rather than calibrated constitutive laws or FEA. A stable set of 50 material-family scene recipes remains inside the 800-scene catalog, while a separate authored registry derives **31 presentation programs** without changing native scene IDs:
+
+```text
+10 metal bending and denting programs
+10 glass impact and fracture programs
+10 concrete loading and fracture programs
+ 1 combined AAA materials proving ground
+-----------------------------------------
+31 authored material programs
+```
+
+Each individual recipe selects its specimen profile, boundary condition, fixture, load pattern and center, strike point, mesh dimensions, camera, and primary/ultimate action schedule. Metal programs emphasize plastic set and denting; glass programs emphasize stiff low-plasticity crack propagation and bounded shard emission; concrete programs preserve reinforcement while cover members damage and spall.
+
+The combined proving ground is a real `CombinedMaterialSimulation`, not one specimen with renamed beats. It owns metal, glass, and concrete child simulations in three translated bays, steps them under one fixed-step coordinator, merges their CPU-proxy instances and compact member grids, rebases segment indices, aggregates telemetry/hash/version state, and routes load/strike/release actions to `metal`, `glass`, `concrete`, or `all`. Its merged frame must remain within the **3,072 soft CPU-proxy capacity** and must keep bay-local coordinates, topology, and targeted actions isolated.
+
+The 31 programs are also 31 of the 65 hero definitions. Consequently, the live state gate counts **800 stable scenes + 65 heroes = 865 definitions**; it does not describe an 831-scene native catalog.
+
 ## Caching and state changes
 
 Actions and numerical steps increment `frameVersion`; a read-only request does not. This enables exact work elimination for:
@@ -167,6 +187,7 @@ Actions and numerical steps increment `frameVersion`; a read-only request does n
 - repeated `buildFrame()` calls;
 - unchanged cloth/water storage uploads;
 - unchanged rope node uploads and segment-topology uploads;
+- unchanged material node uploads and member-topology uploads;
 - unchanged soft instance uploads;
 - unchanged topology uploads.
 
@@ -174,7 +195,7 @@ The cache is an optimization only. A changed version still validates counts, str
 
 ## Determinism
 
-Every system is seeded by scene identity and a caller-provided seed. Replay hashes quantize a bounded subset of simulation state before FNV-style accumulation. Tests create the same SIMD-backed scene twice, apply the same action schedule, and require the same hash.
+Every system is seeded by scene identity and a caller-provided seed; a derived material program deterministically applies its immutable recipe configuration to that state. Replay hashes quantize a bounded subset of simulation state before FNV-style accumulation. Tests create matching scenes/programs twice, apply the same action schedule, and require the same hash; the combined program additionally checks deterministic bay-targeted actions.
 
 Hashes are regression signals, not cryptographic digests or promises of cross-version bit identity.
 
@@ -194,21 +215,21 @@ They cover:
 - deterministic SIMD/scalar rebuilds and ABI markers;
 - SIMD preference, scalar fallback, and JavaScript fallback;
 - cloth, rope, and water numerical kernels plus compact rope render expansion;
-- real cloth/rope/water scene integration and deterministic replay;
-- all 150 soft/fluid scene constructors and action schedules;
+- real cloth/rope/water/material scene integration and deterministic replay;
+- all 150 cloth/rope/water constructors, all 50 stable material constructors, and all 31 derived material programs;
 - finite solver-native and packed surface streams;
-- `gpu-cloth`/`gpu-water`/`ropeGrid` contracts and topology bounds;
-- WGSL cloth/water reconstruction, GPU rope compute, and complete Dawn frame submission;
+- `gpu-cloth`/`gpu-water`/`ropeGrid` contracts, material telemetry, 3,072-instance capacity, and topology bounds;
+- WGSL cloth/water reconstruction, GPU rope/material compute expansion, and complete Dawn frame submission;
 - 12-byte changed-frame cloth and 12-byte water upload accounting;
 - zero additional upload bytes for repeated unchanged surface, rope-grid, and soft-instance frames.
 
 The complete gate is:
 
 ```bash
-npm run validate:v1.13
+npm run validate:v1.20
 ```
 
-This is the current cross-platform integration gate. Metal-only timestamp and KTX2 sampling checks run separately with `npm run validate:hardware`; neither gate establishes universal browser FPS.
+This is the current cross-platform integration gate. The source-frozen v1.13 benchmark commands remain historical performance evidence and are not renamed by this contract update. Metal-only timestamp and KTX2 sampling checks run separately with `npm run validate:hardware`; neither gate establishes universal browser FPS or a visible-browser capture of the expanded 31-program material layer.
 
 ## Remaining engineering frontiers
 

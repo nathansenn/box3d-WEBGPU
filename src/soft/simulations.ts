@@ -6,15 +6,22 @@ import {
   writeModelMatrixFromEuler,
   type Vec3,
 } from '../math';
+import { getMaterialDemoRecipe } from '../material-demos';
 import type { ScenePreset } from '../scenes';
 import type {
   DebugLine,
   DynamicSurfaceFrame,
   GpuClothSurfaceFrame,
   GpuWaterSurfaceFrame,
+  MaterialFailureTelemetry,
   PackedSurfaceFrame,
   RopeGridFrame,
 } from '../types';
+import { MATERIAL_RENDER_INSTANCE_BUDGET, MaterialSimulation } from './material-simulation';
+import {
+  CombinedMaterialSimulation,
+  type CombinedMaterialTarget,
+} from './combined-material-simulation';
 import { PACKED_SURFACE_VERTEX_BYTES, PackedSurfaceBuffer, packedSurfacePositionsAreFinite } from './packed-surface';
 import type {
   ClothStepPointers,
@@ -25,7 +32,7 @@ import type {
   WaterKernelPointers,
 } from './kernels';
 
-export type SoftSimulationKind = 'none' | 'cloth' | 'rope' | 'water';
+export type SoftSimulationKind = 'none' | 'cloth' | 'rope' | 'water' | 'fracture';
 
 export type SoftSimulationFrame = {
   kind: SoftSimulationKind;
@@ -42,9 +49,10 @@ export type SoftSimulationFrame = {
   energy: number;
   hash: number;
   frameVersion: number;
+  material?: MaterialFailureTelemetry | null;
 };
 
-interface SoftSimulation {
+export interface SoftSimulation {
   readonly kind: Exclude<SoftSimulationKind, 'none'>;
   readonly label: string;
   step(dt: number, subSteps: number): void;
@@ -55,12 +63,20 @@ interface SoftSimulation {
   buildFrame(debug: boolean): SoftSimulationFrame;
   currentHash(): number;
   destroy(): void;
+  setLoadTarget?(target: number): void;
+  releaseLoad?(): void;
+  cycleLoad?(): void;
+  dentStrike?(strength: number): number;
+  materialStrike?(strength: number): number;
+  setMaterialLoadTarget?(target: CombinedMaterialTarget, value: number): void;
+  releaseMaterialLoad?(target: CombinedMaterialTarget): void;
+  materialStrikeTarget?(target: CombinedMaterialTarget, strength: number): number;
 }
 
 const EMPTY_FLOAT32: Float32Array<ArrayBufferLike> = new Float32Array(0);
 const EMPTY_UINT16: Uint16Array<ArrayBufferLike> = new Uint16Array(0);
 const EMPTY_UINT8: Uint8Array<ArrayBufferLike> = new Uint8Array(0);
-const MAX_SOFT_INSTANCES = 2048;
+const MAX_SOFT_INSTANCES = 3072;
 const MAX_WATER_DROPLETS = 768;
 const MAX_WATER_FLOATERS = 20;
 const CLOTH_INSTANCE_CAP = 161; // 160 rain/projectiles + one collider proxy
@@ -69,8 +85,8 @@ const WATER_INSTANCE_CAP = MAX_WATER_DROPLETS + MAX_WATER_FLOATERS;
 const TELEMETRY_INTERVAL_STEPS = 12;
 const SURFACE_VERTEX_BYTES = PACKED_SURFACE_VERTEX_BYTES;
 
-function softFamily(family: ScenePreset['family']): family is 'cloth' | 'rope' | 'water' {
-  return family === 'cloth' || family === 'rope' || family === 'water';
+function softFamily(family: ScenePreset['family']): family is 'cloth' | 'rope' | 'water' | 'fracture' {
+  return family === 'cloth' || family === 'rope' || family === 'water' || family === 'fracture';
 }
 
 function quantizedHash(values: ArrayLike<number>, count = values.length): number {
@@ -1466,6 +1482,7 @@ class RopeSimulation implements SoftSimulation {
     this.hashValue = quantizedHash(this.positions, Math.min(this.positions.length, 4096));
     this.ropeSegmentData = new Float32Array(Math.max(1, this.ropeConstraintCount) * 8);
     this.ropeGridResult = {
+      presentation: 'rope',
       positions: this.positions,
       segments: this.ropeSegmentData,
       nodeCount: this.invMass.length,
@@ -2657,6 +2674,7 @@ const EMPTY_FRAME: SoftSimulationFrame = {
   energy: 0,
   hash: 0,
   frameVersion: 0,
+  material: null,
 };
 
 export class SoftSimulationSuite {
@@ -2676,7 +2694,10 @@ export class SoftSimulationSuite {
     if (!softFamily(scene.family)) return false;
     if (scene.family === 'cloth') this.active = new ClothSimulation(scene, this.lastStress, this.lastSeed, this.kernelModule);
     else if (scene.family === 'rope') this.active = new RopeSimulation(scene, this.lastStress, this.lastSeed, this.kernelModule);
-    else this.active = new WaterSimulation(scene, this.lastStress, this.lastSeed, this.kernelModule);
+    else if (scene.family === 'water') this.active = new WaterSimulation(scene, this.lastStress, this.lastSeed, this.kernelModule);
+    else if (getMaterialDemoRecipe(scene.materialDemoId)?.kind === 'combined') {
+      this.active = new CombinedMaterialSimulation(scene, this.lastStress, this.lastSeed);
+    } else this.active = new MaterialSimulation(scene, this.lastStress, this.lastSeed);
     return true;
   }
 
@@ -2693,6 +2714,27 @@ export class SoftSimulationSuite {
   explode(center: Vec3, strength: number, radius: number): void { this.active?.explode(center, strength, radius); }
   launchProjectile(position: Vec3, velocity: Vec3, size: number): number { return this.active?.launchProjectile(position, velocity, size) ?? -1; }
   spawnRain(count: number, spread: number, height: number): number { return this.active?.spawnRain(count, spread, height) ?? 0; }
+  setLoadTarget(target: number): void { this.active?.setLoadTarget?.(target); }
+  releaseLoad(): void { this.active?.releaseLoad?.(); }
+  cycleLoad(): void { this.active?.cycleLoad?.(); }
+  dentStrike(strength = 1): number { return this.active?.dentStrike?.(strength) ?? -1; }
+  materialStrike(strength = 1): number { return this.active?.materialStrike?.(strength) ?? -1; }
+  setMaterialLoadTarget(target: CombinedMaterialTarget, value: number): void {
+    if (this.active?.setMaterialLoadTarget) this.active.setMaterialLoadTarget(target, value);
+    else this.active?.setLoadTarget?.(value);
+  }
+  releaseMaterialLoad(target: CombinedMaterialTarget): void {
+    if (this.active?.releaseMaterialLoad) this.active.releaseMaterialLoad(target);
+    else this.active?.releaseLoad?.();
+  }
+  materialStrikeTarget(target: CombinedMaterialTarget, strength = 1): number {
+    if (this.active?.materialStrikeTarget) return this.active.materialStrikeTarget(target, strength);
+    return this.active?.materialStrike?.(strength) ?? -1;
+  }
+  dentStrikeTarget(target: CombinedMaterialTarget, strength = 1): number {
+    if (this.active?.materialStrikeTarget) return this.active.materialStrikeTarget(target, strength);
+    return this.active?.dentStrike?.(strength) ?? -1;
+  }
   buildFrame(debug = false): SoftSimulationFrame { return this.active?.buildFrame(debug) ?? EMPTY_FRAME; }
   hash(): number { return this.active?.currentHash() ?? 0; }
 
@@ -2762,6 +2804,7 @@ export class SoftSimulationSuite {
     if (frame.ropeGrid) {
       const rope = frame.ropeGrid;
       if (
+        (rope.presentation !== 'rope' && rope.presentation !== 'material') ||
         rope.nodeCount <= 0 ||
         rope.segmentCount < 0 ||
         rope.positions.length < rope.nodeCount * 3 ||
@@ -2780,12 +2823,39 @@ export class SoftSimulationSuite {
         }
       }
     }
+    if (frame.kind === 'fracture') {
+      const material = frame.material;
+      if (!material || material.label.length < 3 || material.testMode.length < 3) {
+        return { ok: false, message: 'fracture material telemetry did not initialize.' };
+      }
+      if (
+        !Number.isFinite(material.loadTarget) || !Number.isFinite(material.loadProgress) ||
+        !Number.isFinite(material.maxStrain) || !Number.isFinite(material.yieldStrain) ||
+        !Number.isFinite(material.breakStrain) || !Number.isFinite(material.peakDamage) ||
+        !Number.isFinite(material.centerDeflection) || !Number.isFinite(material.peakDeflection) ||
+        !Number.isFinite(material.residualDent) ||
+        !Number.isFinite(material.fracturedCellCount) || !Number.isFinite(material.fragmentCount) ||
+        !Number.isFinite(material.reinforcementCount) ||
+        material.loadTarget < 0 || material.loadProgress < 0 || material.peakDamage < 0 || material.peakDamage > 1 ||
+        material.centerDeflection < 0 || material.peakDeflection < material.centerDeflection ||
+        material.residualDent < 0 || material.residualDent > material.peakDeflection + 1e-6 ||
+        material.yieldStrain <= 0 || material.breakStrain <= material.yieldStrain ||
+        material.yieldedCount < 0 || material.damagedCount < 0
+        || material.fracturedCellCount < 0 || material.fragmentCount < 0 || material.reinforcementCount < 0
+      ) {
+        return { ok: false, message: 'fracture material telemetry contains invalid normalized values.' };
+      }
+    }
     if (frame.nodeCount <= 0 || frame.hash === 0) return { ok: false, message: `${frame.kind} telemetry did not initialize.` };
     return { ok: true, message: `${frame.kind} validated: ${frame.nodeCount} nodes, ${frame.constraintCount} constraints.` };
   }
 }
 
 export const SOFT_INSTANCE_BUDGET = MAX_SOFT_INSTANCES;
+// The renderer stages GPU-expanded rope/material segments and CPU proxy
+// instances in the same instanced buffer. Reserve the true combined material
+// ceiling so a full rigid world still retains the complete Ultra VFX budget.
+export const SOFT_RENDER_INSTANCE_BUDGET = Math.max(MAX_SOFT_INSTANCES, MATERIAL_RENDER_INSTANCE_BUDGET);
 export const CLOTH_INSTANCE_BUDGET = CLOTH_INSTANCE_CAP;
 export const ROPE_INSTANCE_BUDGET = ROPE_INSTANCE_CAP;
 export const WATER_INSTANCE_BUDGET = WATER_INSTANCE_CAP;

@@ -1,9 +1,9 @@
 {
   "name": "box3d-webgpu",
-  "version": "1.13.0",
+  "version": "1.20.0",
   "private": true,
   "type": "module",
-  "description": "Box3D WebGPU AAA Physics Lab with native Box3D WASM, adaptive GPU-resident cloth, compute-reconstructed rope, GPU-resident water, measured quality profiles, 750 deterministic recipes, and 30 cinematic demos.",
+  "description": "Box3D WebGPU AAA Physics Lab with native Box3D WASM, Poliigon-derived KTX2 materials, GPU cloth/rope/water, 800 deterministic recipes, 65 cinematic demos, and 31 authored metal, glass, concrete, and combined material programs.",
   "scripts": {
     "dev": "vite --host 0.0.0.0",
     "build": "vite build",
@@ -12,6 +12,7 @@
     "fetch:box3d": "bash ./scripts/fetch-box3d.sh",
     "build:wasm": "bash ./scripts/build-wasm.sh",
     "build:soft-kernels": "bash ./scripts/build-soft-kernels.sh",
+    "build:poliigon-materials": "bash ./scripts/build-poliigon-material-atlas.sh",
     "verify:soft-kernels": "bash ./scripts/build-soft-kernels.sh --verify",
     "doctor": "bash ./scripts/doctor.sh",
     "manifest:generate": "bash ./scripts/generate-source-manifest.sh",
@@ -44,6 +45,7 @@
     "bench:v1.12:native": "node --expose-gc benchmarks/v112-native-candidates.mjs",
     "bench:v1.13:1000": "for shard in 1 2 3 4 5 6 7 8 9 10; do V113_SHARD=$shard node --expose-gc benchmarks/v113-production-1000.cjs || exit 1; done && node scripts/check-v1.13-results.mjs --merge",
     "bench:v1.13:gate": "node scripts/check-v1.13-results.mjs --verify",
+    "test:material:100": "npm run bench:breakthrough:compile && node scripts/material-fracture-100.cjs",
     "test:rope-batching": "node scripts/rope-batching-qualification.mjs",
     "validate:hardware": "npm run test:webgpu:metal && WEBGPU_DAWN_BACKEND=metal WEBGPU_RIGID_STREAM_EVIDENCE=1 node scripts/webgpu-renderer-runtime-test.mjs && npm run bench:gpu:quality && npm run bench:renderer:startup && npm run bench:upload-cache",
     "test:soft-kernels": "npm run verify:soft-kernels && node scripts/soft-kernel-test.mjs && rm -rf .test-build && tsc -p tsconfig.test.json && node -e \"require('fs').mkdirSync('.test-build', {recursive:true}); require('fs').writeFileSync('.test-build/package.json', '{\\\"type\\\":\\\"commonjs\\\"}')\" && node scripts/soft-kernel-integration-test.cjs",
@@ -77,7 +79,14 @@
     "validate:v1.10": "npm run verify:source && npm test && npm run test:soft-soak:all && npm run test:rope-batching && npm run test:native-wasm && npm run bench:fifth:gate && npm run bench:v1.10:integration:ci && npm run build && npm run build:pages && npm run verify:source",
     "validate:v1.11": "npm run verify:source && npm test && npm run test:soft-soak:all && npm run test:rope-batching && npm run test:native-wasm && npm run bench:fifth:gate && npm run bench:v1.10:integration:ci && npm run bench:v1.11:gate && npm run build && npm run build:pages && npm run verify:source",
     "validate:v1.12": "npm run verify:source && npm test && npm run test:soft-soak:all && npm run test:rope-batching && npm run test:native-wasm && npm run bench:fifth:gate && npm run bench:v1.10:integration:ci && npm run bench:v1.11:gate && npm run bench:v1.12:gate && npm run build && npm run build:pages && npm run verify:source",
-    "validate:v1.13": "npm run verify:source && npm test && npm run test:soft-soak:all && npm run test:rope-batching && npm run test:native-wasm && npm run bench:fifth:gate && npm run bench:v1.10:integration:ci && npm run bench:v1.13:gate && npm run build && npm run build:pages && npm audit --audit-level=moderate && npm run verify:source"
+    "validate:v1.13": "npm run verify:source && npm test && npm run test:soft-soak:all && npm run test:rope-batching && npm run test:native-wasm && npm run bench:fifth:gate && npm run bench:v1.10:integration:ci && npm run bench:v1.13:gate && npm run build && npm run build:pages && npm audit --audit-level=moderate && npm run verify:source",
+    "validate:v1.14": "npm run verify:source && npm test && npm run test:soft-soak:all && npm run test:rope-batching && npm run test:native-wasm && npm run test:material:100 && npm run build && npm run build:pages && npm audit --audit-level=moderate && npm run verify:source",
+    "validate:v1.15": "npm run verify:source && npm test && npm run test:soft-soak:all && npm run test:rope-batching && npm run test:native-wasm && npm run test:material:100 && npm run build && npm run build:pages && npm audit --audit-level=moderate && npm run verify:source",
+    "validate:v1.16": "npm run verify:source && npm test && npm run test:soft-soak:all && npm run test:rope-batching && npm run test:native-wasm && npm run test:material:100 && npm run build && npm run build:pages && npm audit --audit-level=moderate && npm run verify:source",
+    "validate:v1.17": "npm run verify:source && npm test && npm run test:soft-soak:all && npm run test:rope-batching && npm run test:native-wasm && npm run test:material:100 && npm run build && npm run build:pages && npm audit --audit-level=moderate && npm run verify:source",
+    "validate:v1.18": "npm run verify:source && npm test && npm run test:soft-soak:all && npm run test:rope-batching && npm run test:native-wasm && npm run test:material:100 && npm run build && npm run build:pages && npm audit --audit-level=moderate && npm run verify:source",
+    "validate:v1.19": "npm run verify:source && npm test && npm run test:soft-soak:all && npm run test:rope-batching && npm run test:native-wasm && npm run test:material:100 && npm run build && npm run build:pages && npm audit --audit-level=moderate && npm run verify:source",
+    "validate:v1.20": "npm run verify:source && npm test && npm run test:soft-soak:all && npm run test:rope-batching && npm run test:native-wasm && npm run test:material:100 && npm run build && npm run build:pages && npm audit --audit-level=moderate && npm run verify:source"
   },
   "devDependencies": {
     "typescript": "^5.5.4",
@@ -107,6 +116,8 @@
     "cloth-simulation",
     "rope-simulation",
     "water-simulation",
+    "material-fracture",
+    "material-failure",
     "position-based-dynamics",
     "shallow-water",
     "turboquant",

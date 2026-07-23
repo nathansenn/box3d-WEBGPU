@@ -38,6 +38,27 @@ The package uses development tools including TypeScript and Vite. Those tools
 and their transitive dependencies remain subject to the licenses distributed
 with their respective packages. Run `npm install` to obtain them through npm.
 
+## Poliigon-derived material atlases
+
+The runtime includes derived KTX2 atlases built from material maps in the
+user-supplied local Poliigon library. The curated source sets are:
+
+- Weathered Concrete Wall Texture 10729
+- Clean Galvanized Zinc Metal Texture 7184
+- Woven Upholstery Fabric, Slate Blue 8447
+- Large-Format Honed Stone Sidewalk Texture, Grey 11223
+
+The full-resolution source packages are not copied into this repository. The
+checked-in runtime derivatives combine resized albedo, normal, and roughness
+maps into ASTC and RGBA8 KTX2 atlases. `scripts/build-poliigon-material-atlas.sh`
+rebuilds those derivatives from a locally licensed asset library.
+
+Poliigon assets remain subject to the license associated with the account that
+downloaded them. Before redistributing a public fork, release archive, hosted
+demo, or derivative texture, the distributor must confirm that their Poliigon
+license permits that use. This notice does not grant additional rights to the
+source assets or derived atlases.
+
 ## Browser platform APIs
 
 WebGPU, WebAssembly, and browser APIs are platform interfaces and are not

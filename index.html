@@ -4,7 +4,7 @@
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
   <meta name="theme-color" content="#050914" />
-  <meta name="description" content="Box3D WebGPU AAA Physics Lab v1.13.0 — 750 deterministic simulations, GPU-resident cloth and water, SIMD/scalar WebAssembly soft kernels, native Box3D physics, HDR lighting, shadows, effects, and diagnostics." />
+  <meta name="description" content="Box3D WebGPU AAA Physics Lab v1.20.0 — 800 deterministic simulations, 65 cinematic demos, and 31 authored material programs: ten metal-deformation labs, ten glass-fracture labs, ten concrete-failure labs, and one combined AAA proving ground." />
   <title>Box3D WebGPU — AAA Physics Lab</title>
   <style>
     :root {
@@ -448,13 +448,13 @@
         <div class="brand-mark" aria-hidden="true"></div>
         <div class="brand-copy">
           <strong>BOX3D × WEBGPU</strong>
-          <span>AAA Physics Capability Lab · v1.13.0</span>
+        <span>AAA Physics Capability Lab · v1.20.0</span>
         </div>
       </div>
       <div class="top-status" aria-label="Capability summary">
-        <span class="chip">750 deterministic recipes</span>
-        <span class="chip">30 cinematic hero demos</span>
-        <span class="chip">GPU Cloth · WASM Rope · GPU Water</span>
+        <span class="chip">800 deterministic recipes</span>
+        <span class="chip">65 cinematic heroes · 31 material programs</span>
+        <span class="chip">GPU Cloth · WASM Rope · GPU Water · Material Fracture</span>
       </div>
     </header>
 
@@ -464,7 +464,7 @@
       <section class="section">
         <div class="section-heading">
           <p class="eyebrow">Cinematic Director</p>
-          <span class="counter">30 authored sequences</span>
+          <span class="counter">65 authored sequences</span>
         </div>
         <h2 id="showcase-title">Titan Foundry Stackfall</h2>
         <p id="showcase-tagline" class="tagline">A controlled industrial collapse staged for solver stress and spectacle.</p>
@@ -489,8 +489,8 @@
 
           <div class="field-row">
             <div class="field">
-              <label for="scene-search">Search 750 scenes</label>
-              <input id="scene-search" type="search" placeholder="bridge, tower, domino…" autocomplete="off" />
+              <label for="scene-search">Search 800 scenes</label>
+              <input id="scene-search" type="search" placeholder="bridge, steel, glass, fracture…" autocomplete="off" />
             </div>
             <div class="field">
               <label for="category-filter">Family</label>
@@ -510,6 +510,33 @@
           </div>
           <button id="max-tour" class="gold" style="width:100%;margin-top:7px">Start Maximum AAA Tour</button>
           <div id="scene-buttons" class="quick-scenes" aria-label="Featured scene shortcuts"></div>
+        </div>
+      </details>
+
+      <details id="material-rig" open hidden>
+        <summary>Material Test Rig</summary>
+        <div class="details-body">
+          <div class="field-row">
+            <div class="field">
+              <label>Material</label>
+              <strong id="material-name" class="small">Inactive</strong>
+            </div>
+            <div class="field">
+              <label>Load case</label>
+              <strong id="material-test" class="small">Select a Material Failure scene</strong>
+            </div>
+          </div>
+          <div class="field">
+            <label for="material-load-target">Actuator target · <span id="material-load-value">80%</span></label>
+            <input id="material-load-target" type="range" min="0" max="2" value="0.8" step="0.05" />
+          </div>
+          <div class="button-row">
+            <button id="material-apply" class="primary">Apply / Hold</button>
+            <button id="material-release">Release</button>
+            <button id="material-cycle">Cycle Load</button>
+            <button id="material-dent" class="gold">Material Strike · I</button>
+          </div>
+          <p class="small muted" style="margin-top:8px">Yield and break thresholds are deterministic simulation profiles—not certified material properties or structural-safety calculations.</p>
         </div>
       </details>
 
@@ -564,9 +591,9 @@
       <details>
         <summary>Automated Validation</summary>
         <div class="details-body">
-          <button id="run-tests" class="primary" style="width:100%;margin-bottom:8px">Run 750 + 30 State Tests</button>
+          <button id="run-tests" class="primary" style="width:100%;margin-bottom:8px">Run 800 + 65 State Tests</button>
           <button id="run-turboquant" style="width:100%;margin-bottom:8px">Run TurboQuant Probe</button>
-          <pre id="test-log">Ready. Native Box3D WASM is used when built. SIMD/scalar soft-kernel WASM accelerates cloth, rope, and shallow water when supported, with a deterministic JavaScript fallback. Intact cloth and water use GPU-resident rendering paths. TurboQuant remains opt-in transport compression outside the local render loop.</pre>
+          <pre id="test-log">Ready. Native Box3D WASM is used when built. SIMD/scalar soft-kernel WASM accelerates cloth, rope, and shallow water when supported, with deterministic JavaScript fallback paths. Material-failure scenes add tuned elastic, plastic, fatigue, and fracture constraints. Intact cloth and water use GPU-resident rendering paths. TurboQuant remains opt-in transport compression outside the local render loop.</pre>
         </div>
       </details>
     </aside>
@@ -586,6 +613,14 @@
           <div class="metric"><span>Constraints</span><strong id="soft-constraints">0</strong></div>
           <div class="metric"><span>Breaks</span><strong id="soft-breaks">0</strong></div>
           <div class="metric"><span>Soft energy</span><strong id="soft-energy">0.00</strong></div>
+          <div class="metric"><span>Material load</span><strong id="material-load">0%</strong></div>
+          <div class="metric"><span>Peak strain</span><strong id="material-strain">0.00%</strong></div>
+          <div class="metric wide"><span>Yield / break</span><strong id="material-thresholds">—</strong></div>
+          <div class="metric wide"><span>Damage</span><strong id="material-damage">0%</strong></div>
+          <div class="metric wide"><span>Center / peak deflection</span><strong id="material-dent-depth">0.00 / 0.00 m</strong></div>
+          <div class="metric wide"><span>Residual deformation</span><strong id="material-residual-dent">0.00 m</strong></div>
+          <div class="metric wide"><span>Fracture field</span><strong id="material-fragments">0 cells · 0 fragments · 0 rebar</strong></div>
+          <div class="metric wide"><span>Failure phase</span><strong id="material-failure">inactive</strong></div>
           <div class="metric"><span>Frame rate</span><strong id="fps">0</strong></div>
           <div class="metric"><span>Physics</span><strong id="sim-ms">0.00 ms</strong></div>
           <div class="metric"><span>Render CPU</span><strong id="render-ms">0.00 ms</strong></div>
@@ -599,10 +634,10 @@
       <section class="section">
         <div class="section-heading"><p class="eyebrow">AAA Render Graph</p></div>
         <div class="pipeline">
-          <div class="pipeline-step"><b>01</b><span>Box3D + soft-kernel solve</span><em>CPU/WASM</em></div>
-          <div class="pipeline-step"><b>02</b><span>Rigid + cloth/water state upload</span><em>GPU</em></div>
+          <div class="pipeline-step"><b>01</b><span>Box3D + soft/material solve</span><em>CPU/WASM</em></div>
+          <div class="pipeline-step"><b>02</b><span>Rigid + deformable state upload</span><em>GPU</em></div>
           <div class="pipeline-step"><b>03</b><span>2048² shadow depth</span><em>PCF</em></div>
-          <div class="pipeline-step"><b>04</b><span>PBR solids + cloth + water</span><em>16F</em></div>
+          <div class="pipeline-step"><b>04</b><span>PBR solids + cloth + water + fracture</span><em>16F</em></div>
           <div class="pipeline-step"><b>05</b><span>4× multisample resolve</span><em>MSAA</em></div>
           <div class="pipeline-step"><b>06</b><span>ACES + bloom + vignette</span><em>POST</em></div>
         </div>
@@ -610,7 +645,7 @@
 
       <section class="section">
         <div class="section-heading"><p class="eyebrow">Capability Envelope</p></div>
-        <p class="small muted">Rigid bodies · GPU-resident intact cloth · topology-aware tearing · WASM-generated rope streams · GPU-resident shallow water · rain impacts · buoyant props · projectile coupling · deterministic replay · cinematic direction.</p>
+        <p class="small muted">Rigid bodies · GPU-resident intact cloth · topology-aware tearing · WASM-generated rope streams · GPU-resident shallow water · elastic/plastic bending · fatigue and fracture · rain impacts · projectile coupling · deterministic replay · cinematic direction.</p>
       </section>
     </aside>
 
@@ -623,7 +658,7 @@
         <strong>Select a hero sequence</strong>
         <span>Play a choreographed physics demonstration or take manual control.</span>
       </div>
-      <div class="shortcut-hint">Mouse drag: orbit · Wheel: zoom<br/>Space: impulse · E: blast · F: projectile</div>
+      <div class="shortcut-hint">Mouse drag: orbit · Wheel: zoom<br/>Space: impulse · E: blast · F: projectile · L/U: load/release</div>
       <div class="timeline"><span id="cinematic-progress-bar"></span></div>
     </section>
   </div>

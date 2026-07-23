@@ -1,4 +1,5 @@
 import { LcgRng, clamp, saturate, vec3Length, vec3Normalize, writeModelMatrixFromEuler, type Vec3 } from './math';
+import type { AAAStagePrimitive } from './aaa-improvements';
 import type { DebugLine, EffectFrame } from './types';
 
 type Particle = {
@@ -22,6 +23,7 @@ type Shockwave = {
   life: number;
   maxLife: number;
   color: [number, number, number, number];
+  plane?: 'horizontal' | 'vertical';
 };
 
 export type CameraShakeSample = {
@@ -31,6 +33,8 @@ export type CameraShakeSample = {
 };
 
 const EMPTY_SHAKE: CameraShakeSample = { yaw: 0, pitch: 0, targetOffset: [0, 0, 0] };
+const ABSOLUTE_TRANSIENT_PARTICLE_LIMIT = 3072;
+const ABSOLUTE_SHOCKWAVE_LIMIT = 32;
 
 function add(a: Vec3, b: Vec3): Vec3 {
   return [a[0] + b[0], a[1] + b[1], a[2] + b[2]];
@@ -52,6 +56,7 @@ function hexColor(hex: number, emissive = 1): [number, number, number, number] {
 export class CinematicEffects {
   private particles: Particle[] = [];
   private shockwaves: Shockwave[] = [];
+  private stageProps: readonly AAAStagePrimitive[] = [];
   private rng = new LcgRng(0xa11ce);
   private effectMatrices = new Float32Array(256);
   private effectColors = new Float32Array(64);
@@ -71,6 +76,7 @@ export class CinematicEffects {
   clear(seed = 0xa11ce): void {
     this.particles.length = 0;
     this.shockwaves.length = 0;
+    this.stageProps = [];
     this.rng = new LcgRng(seed >>> 0);
     this.shakeEnergy = 0;
     this.elapsed = 0;
@@ -79,6 +85,16 @@ export class CinematicEffects {
 
   particleCount(): number {
     return this.particles.length;
+  }
+
+  stagePropCount(): number {
+    return this.stageProps.length;
+  }
+
+  setStageProps(props: readonly AAAStagePrimitive[]): void {
+    if (this.stageProps === props) return;
+    this.stageProps = props;
+    this.markFrameChanged();
   }
 
   spawnExplosion(center: Vec3, intensity: number, budget: number): void {
@@ -115,7 +131,7 @@ export class CinematicEffects {
       color: [1, 0.72, 0.26, 0.86],
     });
     this.addCameraShake(clamp(intensity * 0.055, 0.2, 1.4));
-    this.markFrameChanged();
+    this.finalizeSpawn(budget);
   }
 
   spawnProjectileMuzzle(position: Vec3, velocity: Vec3, budget: number): void {
@@ -141,7 +157,135 @@ export class CinematicEffects {
       });
     }
     this.addCameraShake(0.16);
-    this.markFrameChanged();
+    this.finalizeSpawn(budget);
+  }
+
+  spawnMetalStrike(center: Vec3, direction: Vec3, intensity: number, budget: number): void {
+    const normal = vec3Normalize(direction);
+    const safeIntensity = clamp(intensity, 0.25, 2);
+    // Cold-forming produces mostly tiny coating/oxide flakes and only a brief
+    // contact flash. A welding-scale spark shower made the press read as an
+    // arcade effect rather than a mechanical test.
+    const count = Math.min(52, Math.max(18, Math.round(budget * 0.09)));
+    const flashCount = Math.max(3, Math.round(count * 0.18));
+    for (let i = 0; i < count; i++) {
+      const flash = i < flashCount;
+      const scatter = this.randomDirection(0.18);
+      const speed = this.rng.range(flash ? 4 : 1.2, flash ? 10 : 4.5) * (0.72 + safeIntensity * 0.34);
+      const size = this.rng.range(flash ? 0.010 : 0.018, flash ? 0.028 : 0.052);
+      const life = this.rng.range(flash ? 0.12 : 0.32, flash ? 0.42 : 1.05);
+      this.particles.push({
+        pos: add(center, scale(scatter, this.rng.range(0.02, 0.28))),
+        vel: add(scale(scatter, speed), scale(normal, this.rng.range(-2.5, 1.2))),
+        rot: [this.rng.signed(Math.PI), this.rng.signed(Math.PI), this.rng.signed(Math.PI)],
+        angularVelocity: [this.rng.signed(12), this.rng.signed(12), this.rng.signed(12)],
+        half: [size, size * this.rng.range(flash ? 2.5 : 0.6, flash ? 6 : 2.2), size],
+        color: flash
+          ? hexColor(i % 2 ? 0xffd27a : 0xff8b35, this.rng.range(2.4, 4.8))
+          : [0.40, 0.44, 0.48, -2],
+        life,
+        maxLife: life,
+        gravity: 12,
+        drag: 0.94,
+        growth: flash ? -0.18 : -0.04,
+      });
+    }
+    this.shockwaves.push({
+      center: [...center] as Vec3,
+      radius: 0.18,
+      speed: 7 + safeIntensity * 4,
+      life: 0.42,
+      maxLife: 0.42,
+      color: [1, 0.62, 0.18, 0.92],
+    });
+    this.addCameraShake(0.18 + safeIntensity * 0.14);
+    this.finalizeSpawn(budget);
+  }
+
+  spawnConcreteSpall(center: Vec3, intensity: number, budget: number): void {
+    const safeIntensity = clamp(intensity, 0.25, 2);
+    const count = Math.min(144, Math.max(36, Math.round(budget * 0.26)));
+    const sparkCount = Math.max(4, Math.round(count * 0.07));
+    const dustCount = Math.round(count * 0.58);
+    for (let i = 0; i < count; i++) {
+      const spark = i < sparkCount;
+      const dust = !spark && i < sparkCount + dustCount;
+      const direction = this.randomDirection(spark ? 0.1 : dust ? 0.62 : 0.35);
+      const size = spark ? this.rng.range(0.012, 0.032) : dust ? this.rng.range(0.10, 0.30) : this.rng.range(0.06, 0.19);
+      const life = spark ? this.rng.range(0.18, 0.54) : dust ? this.rng.range(1.4, 3.8) : this.rng.range(1.0, 2.8);
+      this.particles.push({
+        pos: add(center, [this.rng.signed(0.55), this.rng.signed(0.16), this.rng.signed(0.48)]),
+        vel: scale(direction, spark
+          ? this.rng.range(5, 11) * safeIntensity
+          : this.rng.range(1.2, 5.4) * (0.75 + safeIntensity * 0.28)),
+        rot: [this.rng.signed(Math.PI), this.rng.signed(Math.PI), this.rng.signed(Math.PI)],
+        angularVelocity: [this.rng.signed(5), this.rng.signed(5), this.rng.signed(5)],
+        half: spark
+          ? [size, size * this.rng.range(3, 6), size]
+          : dust
+            ? [size * this.rng.range(0.8, 1.5), size * this.rng.range(0.45, 1.0), size * this.rng.range(0.8, 1.5)]
+            : [size, size * this.rng.range(0.45, 1.1), size],
+        color: spark
+          ? hexColor(i % 2 ? 0xffc35a : 0xff6b24, this.rng.range(3.5, 7))
+          : dust
+            ? [0.53, 0.49, 0.42, -6]
+            : i % 3 === 0
+              ? [0.45, 0.43, 0.39, -1]
+              : [0.22, 0.20, 0.17, -5],
+        life,
+        maxLife: life,
+        gravity: spark ? 11 : dust ? 1.2 : 7.8,
+        drag: spark ? 0.94 : dust ? 0.975 : 0.965,
+        growth: spark ? -0.16 : dust ? this.rng.range(0.08, 0.20) : -0.03,
+      });
+    }
+    this.shockwaves.push({
+      center: [...center] as Vec3,
+      radius: 0.35,
+      speed: 5.5 + safeIntensity * 3,
+      life: 0.72,
+      maxLife: 0.72,
+      color: [0.78, 0.70, 0.58, 0.58],
+    });
+    this.addCameraShake(0.22 + safeIntensity * 0.18);
+    this.finalizeSpawn(budget);
+  }
+
+  spawnGlassFracture(center: Vec3, intensity: number, budget: number): void {
+    const safeIntensity = clamp(intensity, 0.25, 2);
+    const count = Math.min(160, Math.max(42, Math.round(budget * 0.28)));
+    for (let i = 0; i < count; i++) {
+      const glint = i % 6 === 0;
+      const direction = this.randomDirection(-0.05);
+      const size = this.rng.range(0.018, 0.065);
+      const life = this.rng.range(0.45, 1.8);
+      this.particles.push({
+        pos: add(center, [this.rng.signed(0.46), this.rng.signed(0.46), this.rng.signed(0.10)]),
+        vel: add(scale(direction, this.rng.range(3.5, 10.5) * (0.76 + safeIntensity * 0.24)), [0, this.rng.range(-0.8, 2.8), 0]),
+        rot: [this.rng.signed(Math.PI), this.rng.signed(Math.PI), this.rng.signed(Math.PI)],
+        angularVelocity: [this.rng.signed(11), this.rng.signed(11), this.rng.signed(11)],
+        half: [size * this.rng.range(2.2, 5.4), size * this.rng.range(0.12, 0.38), size * 0.16],
+        color: glint
+          ? hexColor(i % 2 ? 0xffffff : 0xb9f3ff, this.rng.range(1.8, 3.6))
+          : [0.40, 0.80, 0.92, -4],
+        life,
+        maxLife: life,
+        gravity: 8.5,
+        drag: 0.975,
+        growth: -0.08,
+      });
+    }
+    this.shockwaves.push({
+      center: [...center] as Vec3,
+      radius: 0.22,
+      speed: 9 + safeIntensity * 4,
+      life: 0.54,
+      maxLife: 0.54,
+      color: [0.52, 0.90, 1, 0.9],
+      plane: 'vertical',
+    });
+    this.addCameraShake(0.16 + safeIntensity * 0.12);
+    this.finalizeSpawn(budget);
   }
 
   spawnImpulseDust(center: Vec3, strength: number, budget: number): void {
@@ -167,7 +311,7 @@ export class CinematicEffects {
       });
     }
     this.addCameraShake(clamp(strength * 0.025, 0.08, 0.6));
-    this.markFrameChanged();
+    this.finalizeSpawn(budget);
   }
 
   spawnRainFlash(center: Vec3, budget: number): void {
@@ -189,7 +333,7 @@ export class CinematicEffects {
         growth: -0.02,
       });
     }
-    this.markFrameChanged();
+    this.finalizeSpawn(budget);
   }
 
   addCameraShake(amount: number): void {
@@ -267,7 +411,9 @@ export class CinematicEffects {
   }
 
   buildFrame(maxInstances: number): EffectFrame {
-    const count = Math.min(maxInstances, this.particles.length);
+    const stageCount = Math.min(maxInstances, this.stageProps.length);
+    const particleCount = Math.min(Math.max(0, maxInstances - stageCount), this.particles.length);
+    const count = stageCount + particleCount;
     if (this.builtFrameVersion === this.frameVersionValue && this.cachedFrame.count === count) {
       return this.cachedFrame;
     }
@@ -275,8 +421,15 @@ export class CinematicEffects {
     const matrices = this.effectMatrices;
     const colors = this.effectColors;
 
-    for (let i = 0; i < count; i++) {
-      const particle = this.particles[i];
+    for (let i = 0; i < stageCount; i++) {
+      const prop = this.stageProps[i];
+      writeModelMatrixFromEuler(matrices, i * 16, prop.pos, prop.rot, prop.half);
+      colors.set(prop.color, i * 4);
+    }
+
+    for (let particleIndex = 0; particleIndex < particleCount; particleIndex++) {
+      const i = stageCount + particleIndex;
+      const particle = this.particles[particleIndex];
       const lifeRatio = saturate(particle.life / Math.max(0.001, particle.maxLife));
       writeModelMatrixFromEuler(matrices, i * 16, particle.pos, particle.rot, particle.half);
       const colorScale = 0.72 + lifeRatio * 0.28;
@@ -284,7 +437,12 @@ export class CinematicEffects {
       colors[colorOffset] = particle.color[0] * colorScale;
       colors[colorOffset + 1] = particle.color[1] * colorScale;
       colors[colorOffset + 2] = particle.color[2] * colorScale;
-      colors[colorOffset + 3] = 1 + Math.max(0, particle.color[3] - 1) * lifeRatio;
+      // Negative alpha values are renderer material IDs. Preserve transparent
+      // glass, concrete dust, stone, and metal tags through the life fade;
+      // only positive-alpha particles use the emissive decay convention.
+      colors[colorOffset + 3] = particle.color[3] < 0
+        ? particle.color[3]
+        : 1 + Math.max(0, particle.color[3] - 1) * lifeRatio;
     }
 
     this.cachedFrame.matrices = matrices;
@@ -299,6 +457,34 @@ export class CinematicEffects {
   private markFrameChanged(): void {
     this.frameVersionValue = (this.frameVersionValue + 1) >>> 0;
     this.builtFrameVersion = -1;
+  }
+
+  private finalizeSpawn(budget: number): void {
+    // Rendering already applies a per-frame instance budget, but the backing
+    // simulation lists must be bounded too. Otherwise repeated actions while
+    // paused can accumulate invisible particles that every future update still
+    // integrates. Keep the newest deterministic effects and discard oldest
+    // transients once twice the active render budget is resident.
+    const particleLimit = Math.max(64, Math.min(
+      ABSOLUTE_TRANSIENT_PARTICLE_LIMIT,
+      Math.floor(Math.max(1, budget) * 2),
+    ));
+    if (this.particles.length > particleLimit) {
+      const sourceStart = this.particles.length - particleLimit;
+      for (let i = 0; i < particleLimit; i++) this.particles[i] = this.particles[sourceStart + i];
+      this.particles.length = particleLimit;
+    }
+
+    const shockwaveLimit = Math.max(4, Math.min(
+      ABSOLUTE_SHOCKWAVE_LIMIT,
+      Math.ceil(Math.max(1, budget) / 48),
+    ));
+    if (this.shockwaves.length > shockwaveLimit) {
+      const sourceStart = this.shockwaves.length - shockwaveLimit;
+      for (let i = 0; i < shockwaveLimit; i++) this.shockwaves[i] = this.shockwaves[sourceStart + i];
+      this.shockwaves.length = shockwaveLimit;
+    }
+    this.markFrameChanged();
   }
 
   private ensureFrameCapacity(count: number): void {
@@ -344,12 +530,21 @@ export class CinematicEffects {
           };
           lines[lineIndex] = line;
         }
-        line.ax = wave.center[0] + x;
-        line.ay = wave.center[1] + 0.05;
-        line.az = wave.center[2] + z;
-        line.bx = wave.center[0] + nextX;
-        line.by = wave.center[1] + 0.05;
-        line.bz = wave.center[2] + nextZ;
+        if (wave.plane === 'vertical') {
+          line.ax = wave.center[0] + x;
+          line.ay = wave.center[1] + z;
+          line.az = wave.center[2] + 0.05;
+          line.bx = wave.center[0] + nextX;
+          line.by = wave.center[1] + nextZ;
+          line.bz = wave.center[2] + 0.05;
+        } else {
+          line.ax = wave.center[0] + x;
+          line.ay = wave.center[1] + 0.05;
+          line.az = wave.center[2] + z;
+          line.bx = wave.center[0] + nextX;
+          line.by = wave.center[1] + 0.05;
+          line.bz = wave.center[2] + nextZ;
+        }
         line.r = wave.color[0];
         line.g = wave.color[1];
         line.b = wave.color[2];
