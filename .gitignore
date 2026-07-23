@@ -21,3 +21,4 @@ third_party/
 /docs/SOFT_BODY_AND_WATER 2.md
 /public/soft-kernels-scalar 2.wasm
 /public/soft-kernels-simd 2.wasm
+/src/assets/ktx2 2.ts
