@@ -8,6 +8,12 @@ labels: enhancement, scene
 
 ## Physics capability being demonstrated
 
+## Presentation domain
+
+Rigid body, cloth, rope, water, metal, glass, concrete, or combined material stage.
+
 ## Objects / layout
 
 ## Acceptance test
+
+Include the deterministic replay, performance budget, and visible failure/readability criteria.

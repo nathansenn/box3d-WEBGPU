@@ -62,7 +62,9 @@ function assertFiniteStreams(count, sceneId) {
   }
   for (let i = 0; i < count * 4; i++) {
     const value = heap[colorStart + i];
-    if (!Number.isFinite(value) || value < 0 || value > 1) {
+    const alphaMaterialChannel = i % 4 === 3;
+    const valid = alphaMaterialChannel ? value >= -5 && value <= 8 : value >= 0 && value <= 1;
+    if (!Number.isFinite(value) || !valid) {
       throw new Error(`scene ${sceneId}: color ${i} is invalid (${value})`);
     }
   }

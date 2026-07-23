@@ -35,7 +35,7 @@ export const MATERIAL_BEHAVIOR_PRESETS: readonly MaterialBehaviorPreset[] = [
     tensileYieldStrain: 0.018, tensileBreakStrain: 0.135,
     compressionYieldStrain: 0.020, compressionBreakStrain: 0.15,
     plasticCreep: 0.18, damageRate: 0.72, fatigueRate: 0.12, anisotropy: 1,
-    baseColor: [0.40, 0.53, 0.64, 1],
+    baseColor: [0.40, 0.53, 0.64, -2],
   },
   {
     id: 'aluminum-alloy', label: 'Aluminum Alloy', failureMode: 'ductile',
@@ -43,7 +43,7 @@ export const MATERIAL_BEHAVIOR_PRESETS: readonly MaterialBehaviorPreset[] = [
     tensileYieldStrain: 0.024, tensileBreakStrain: 0.115,
     compressionYieldStrain: 0.027, compressionBreakStrain: 0.13,
     plasticCreep: 0.24, damageRate: 0.84, fatigueRate: 0.16, anisotropy: 1,
-    baseColor: [0.63, 0.71, 0.78, 1],
+    baseColor: [0.63, 0.71, 0.78, -2],
   },
   {
     id: 'copper', label: 'Copper', failureMode: 'ductile',
@@ -51,7 +51,7 @@ export const MATERIAL_BEHAVIOR_PRESETS: readonly MaterialBehaviorPreset[] = [
     tensileYieldStrain: 0.030, tensileBreakStrain: 0.19,
     compressionYieldStrain: 0.033, compressionBreakStrain: 0.21,
     plasticCreep: 0.34, damageRate: 0.60, fatigueRate: 0.13, anisotropy: 1,
-    baseColor: [0.78, 0.31, 0.12, 1],
+    baseColor: [0.78, 0.31, 0.12, -2],
   },
   {
     id: 'oak-timber', label: 'Oak Timber', failureMode: 'fiber',
@@ -75,7 +75,7 @@ export const MATERIAL_BEHAVIOR_PRESETS: readonly MaterialBehaviorPreset[] = [
     tensileYieldStrain: 0.009, tensileBreakStrain: 0.022,
     compressionYieldStrain: 0.035, compressionBreakStrain: 0.095,
     plasticCreep: 0.025, damageRate: 1.45, fatigueRate: 0.24, anisotropy: 0.82,
-    baseColor: [0.43, 0.43, 0.41, 1],
+    baseColor: [0.43, 0.43, 0.41, -1],
   },
   {
     id: 'soda-lime-glass', label: 'Soda-Lime Glass', failureMode: 'brittle',
@@ -83,7 +83,7 @@ export const MATERIAL_BEHAVIOR_PRESETS: readonly MaterialBehaviorPreset[] = [
     tensileYieldStrain: 0.007, tensileBreakStrain: 0.012,
     compressionYieldStrain: 0.030, compressionBreakStrain: 0.070,
     plasticCreep: 0, damageRate: 3.4, fatigueRate: 0.08, anisotropy: 1,
-    baseColor: [0.30, 0.72, 0.83, 0.86],
+    baseColor: [0.30, 0.72, 0.83, -4],
   },
   {
     id: 'acrylic', label: 'Acrylic', failureMode: 'brittle',
@@ -91,7 +91,7 @@ export const MATERIAL_BEHAVIOR_PRESETS: readonly MaterialBehaviorPreset[] = [
     tensileYieldStrain: 0.035, tensileBreakStrain: 0.075,
     compressionYieldStrain: 0.050, compressionBreakStrain: 0.11,
     plasticCreep: 0.035, damageRate: 1.65, fatigueRate: 0.25, anisotropy: 1,
-    baseColor: [0.32, 0.48, 0.92, 0.90],
+    baseColor: [0.32, 0.48, 0.92, -4],
   },
   {
     id: 'elastomer', label: 'Elastomer', failureMode: 'hyperelastic',
@@ -107,7 +107,7 @@ export const MATERIAL_BEHAVIOR_PRESETS: readonly MaterialBehaviorPreset[] = [
     tensileYieldStrain: 0.010, tensileBreakStrain: 0.019,
     compressionYieldStrain: 0.016, compressionBreakStrain: 0.033,
     plasticCreep: 0, damageRate: 2.4, fatigueRate: 0.18, anisotropy: 0.34,
-    baseColor: [0.08, 0.09, 0.11, 1],
+    baseColor: [0.08, 0.09, 0.11, -2],
   },
 ] as const;
 

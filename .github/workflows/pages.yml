@@ -36,7 +36,7 @@ jobs:
 
       - name: Test application and packaged WebAssembly runtimes
         run: |
-          # Portable expansion of npm run validate:v1.14; packaged runtime tests replace the release-toolchain byte rebuild.
+          # Portable expansion of npm run validate:v1.20; packaged runtime tests replace the release-toolchain byte rebuild.
           npm run typecheck
           rm -rf .test-build
           npx tsc -p tsconfig.test.json
@@ -51,7 +51,7 @@ jobs:
           node scripts/soft-kernel-integration-test.cjs
           npm run test:webgpu
 
-      - name: Validate v1.14 material, soft, native, and production gates
+      - name: Validate v1.20 AAA programs, material, soft, native, and production gates
         run: |
           npm run test:soft-soak:all
           npm run test:rope-batching

@@ -1,6 +1,11 @@
 import type { Mat4 } from '../math';
 import type { DebugLine, DynamicSurfaceFrame, InstanceBufferSource, RopeGridFrame, SceneUniformState } from '../types';
-import { loadMaterialNoiseTexture, type MaterialNoiseTexture } from '../assets/ktx2.js';
+import {
+  loadMaterialAtlasTexture,
+  loadMaterialNoiseTexture,
+  type MaterialAtlasTexture,
+  type MaterialNoiseTexture,
+} from '../assets/ktx2.js';
 
 const CUBE_VERTEX_COUNT = 36;
 const MAX_DEBUG_LINE_VERTICES = 131072;
@@ -40,6 +45,24 @@ fn decodeOctNormal(encoded : vec2<f32>) -> vec3<f32> {
     normal.y = (1.0 - abs(original.x)) * select(-1.0, 1.0, original.y >= 0.0);
   }
   return normalize(normal);
+}
+`;
+
+// The browser package ships a 2x2 Poliigon-derived material atlas. Tile order:
+// weathered concrete, galvanized metal, woven fabric, and honed stone. The
+// second texture stores tangent-space normal RGB and roughness in alpha.
+const materialAtlasSampling = /* wgsl */ `
+fn materialTileUv(tile : u32, uv : vec2<f32>) -> vec2<f32> {
+  let cell = vec2<f32>(f32(tile & 1u), f32(tile >> 1u));
+  let insetUv = vec2<f32>(0.015) + fract(uv) * 0.97;
+  return (cell + insetUv) * 0.5;
+}
+
+fn dominantProjectionUv(worldPos : vec3<f32>, normal : vec3<f32>) -> vec2<f32> {
+  let axis = abs(normal);
+  if (axis.y >= axis.x && axis.y >= axis.z) { return worldPos.xz; }
+  if (axis.x >= axis.z) { return worldPos.zy; }
+  return worldPos.xy;
 }
 `;
 
@@ -91,6 +114,7 @@ fn sampleGpuSurfaceShadow(shadowPosition : vec4<f32>, normal : vec3<f32>, lightD
 
 const solidShader = /* wgsl */ `
 ${sceneUniformStruct}
+${materialAtlasSampling}
 
 @group(0) @binding(0)
 var<uniform> scene : SceneUniforms;
@@ -106,6 +130,15 @@ var materialNoise : texture_2d<f32>;
 
 @group(0) @binding(4)
 var materialNoiseSampler : sampler;
+
+@group(0) @binding(5)
+var materialAlbedoAtlas : texture_2d<f32>;
+
+@group(0) @binding(6)
+var materialSurfaceAtlas : texture_2d<f32>;
+
+@group(0) @binding(7)
+var materialAtlasSampler : sampler;
 
 struct VertexIn {
   @location(0) position : vec3<f32>,
@@ -207,29 +240,65 @@ fn sampleShadow(shadowPosition : vec4<f32>, normal : vec3<f32>, lightDirection :
 
 @fragment
 fn fsMain(input : VertexOut) -> @location(0) vec4<f32> {
-  let normal = normalize(input.worldNormal);
+  var normal = normalize(input.worldNormal);
   let viewDirection = normalize(scene.cameraPosTime.xyz - input.worldPos);
   let lightDirection = normalize(scene.lightDirExposure.xyz);
   let toLight = -lightDirection;
   let halfVector = normalize(viewDirection + toLight);
 
+  let materialId = u32(round(max(-input.color.a, 0.0)));
+  let usesAtlas = materialId == 1u || materialId == 2u || materialId == 3u || materialId == 5u;
+  var materialTile = 0u;
+  if (materialId == 2u) { materialTile = 1u; }
+  if (materialId == 3u) { materialTile = 2u; }
+  if (materialId == 5u) { materialTile = 3u; }
+
+  let projectedUv = dominantProjectionUv(input.worldPos, normal) * 0.22;
+  let atlasUv = materialTileUv(materialTile, projectedUv);
+  let atlasAlbedo = textureSample(materialAlbedoAtlas, materialAtlasSampler, atlasUv).rgb;
+  let atlasSurface = textureSample(materialSurfaceAtlas, materialAtlasSampler, atlasUv);
+  // Preserve the stable geometric normal while adding inexpensive, small-scale
+  // normal response from the curated atlas. This avoids tangent generation for
+  // thousands of instanced boxes and still breaks up large planar highlights.
+  let detailNormal = atlasSurface.rgb * 2.0 - vec3<f32>(1.0);
+  let detailVector = normalize(normal + vec3<f32>(detailNormal.x, detailNormal.z * 0.35, detailNormal.y) * 0.16);
+  normal = select(normal, detailVector, usesAtlas);
+
   let encodedColor = clamp(input.color.rgb, vec3<f32>(0.0), vec3<f32>(1.0));
-  let baseColor = pow(encodedColor, vec3<f32>(2.2));
+  let authoredColor = pow(encodedColor, vec3<f32>(2.2));
+  var baseColor = select(authoredColor, atlasAlbedo * mix(vec3<f32>(0.76), authoredColor * 1.45, 0.36), usesAtlas);
+  if (materialId == 4u) {
+    baseColor = mix(vec3<f32>(0.025, 0.075, 0.11), authoredColor * 0.42, 0.35);
+  }
   let maxChannel = max(baseColor.r, max(baseColor.g, baseColor.b));
   let minChannel = min(baseColor.r, min(baseColor.g, baseColor.b));
   let saturation = (maxChannel - minChannel) / max(maxChannel, 0.001);
   let luminance = dot(baseColor, vec3<f32>(0.2126, 0.7152, 0.0722));
-  let metallic = clamp((1.0 - saturation) * 0.48 + smoothstep(0.45, 0.9, luminance) * 0.12, 0.03, 0.62);
+  var metallic = clamp((1.0 - saturation) * 0.48 + smoothstep(0.45, 0.9, luminance) * 0.12, 0.03, 0.62);
   let noiseUv = input.worldPos.xz * 0.075 + vec2<f32>(input.worldPos.y * 0.021, -input.worldPos.y * 0.017);
   let microVariation = textureSample(materialNoise, materialNoiseSampler, noiseUv).r;
-  let roughness = clamp(0.28 + (1.0 - saturation) * 0.28 + microVariation * 0.08, 0.2, 0.78);
+  // Transparent materials are rendered in a later blended pass. Sampling
+  // derivative-dependent textures before discard keeps WGSL uniformity valid.
+  if (materialId == 4u || materialId == 6u) {
+    discard;
+  }
+  var roughness = clamp(0.28 + (1.0 - saturation) * 0.28 + microVariation * 0.08, 0.2, 0.78);
+  if (usesAtlas) {
+    roughness = clamp(atlasSurface.a * 0.9 + microVariation * 0.06, 0.18, 0.94);
+    metallic = select(0.015, 0.88, materialId == 2u);
+  }
+  if (materialId == 4u) {
+    metallic = 0.0;
+    roughness = 0.075 + microVariation * 0.035;
+  }
 
   let nDotL = max(dot(normal, toLight), 0.0);
   let nDotV = max(dot(normal, viewDirection), 0.0);
   let nDotH = max(dot(normal, halfVector), 0.0);
   let vDotH = max(dot(viewDirection, halfVector), 0.0);
 
-  let f0 = mix(vec3<f32>(0.04), baseColor, metallic);
+  let dielectricF0 = select(vec3<f32>(0.04), vec3<f32>(0.095, 0.115, 0.13), materialId == 4u);
+  let f0 = mix(dielectricF0, baseColor, metallic);
   let fresnel = fresnelSchlick(vDotH, f0);
   let distribution = distributionGGX(nDotH, roughness);
   let geometry = geometrySchlickGGX(nDotV, roughness) * geometrySchlickGGX(nDotL, roughness);
@@ -245,15 +314,67 @@ fn fsMain(input : VertexOut) -> @location(0) vec4<f32> {
   let ambientOcclusionProxy = 0.58 + 0.42 * smoothstep(-0.5, 4.0, input.worldPos.y);
   let ambient = (skyAmbient + groundAmbient + vec3<f32>(0.035)) * baseColor * ambientOcclusionProxy;
 
-  let rim = pow(1.0 - nDotV, 3.5) * vec3<f32>(0.08, 0.18, 0.34);
+  let glassFresnel = pow(1.0 - nDotV, 4.0) * select(0.0, 1.0, materialId == 4u);
+  let rim = pow(1.0 - nDotV, 3.5) * vec3<f32>(0.08, 0.18, 0.34)
+    + glassFresnel * vec3<f32>(0.30, 0.72, 1.15);
   let emissiveStrength = max(input.color.a - 1.0, 0.0);
   let emissive = baseColor * emissiveStrength * 2.2;
-  var color = ambient + direct + rim + emissive;
+  // Cheap procedural image-based lighting: bent metal now reflects the same
+  // sky/ground palette as the atmosphere instead of turning black away from
+  // the key light. Roughness attenuates the reflection without a cubemap.
+  let reflected = reflect(-viewDirection, normal);
+  let environment = mix(
+    vec3<f32>(0.075, 0.060, 0.052),
+    vec3<f32>(0.20, 0.38, 0.68),
+    clamp(reflected.y * 0.5 + 0.5, 0.0, 1.0)
+  );
+  let environmentSpecular = environment * fresnel * (0.18 + metallic * 0.92) * (1.0 - roughness * 0.72);
+  var color = ambient + direct + rim + emissive + environmentSpecular;
 
   let distanceToCamera = length(scene.cameraPosTime.xyz - input.worldPos);
   let fogAmount = 1.0 - exp(-scene.fogColorDensity.w * distanceToCamera * distanceToCamera * 0.018);
   color = mix(color, scene.fogColorDensity.xyz, clamp(fogAmount, 0.0, 0.92));
   return vec4<f32>(color, 1.0);
+}
+
+@fragment
+fn fsTransparent(input : VertexOut) -> @location(0) vec4<f32> {
+  let materialId = u32(round(max(-input.color.a, 0.0)));
+  let normal = normalize(input.worldNormal);
+  let viewDirection = normalize(scene.cameraPosTime.xyz - input.worldPos);
+  let noiseUv = input.worldPos.xz * 0.075 + vec2<f32>(input.worldPos.y * 0.021, -input.worldPos.y * 0.017);
+  // Sample before the material-dependent discard for derivative uniformity.
+  let variation = textureSample(materialNoise, materialNoiseSampler, noiseUv).r;
+  if (materialId != 4u && materialId != 6u) {
+    discard;
+  }
+
+  let distanceToCamera = length(scene.cameraPosTime.xyz - input.worldPos);
+  let fogAmount = clamp(1.0 - exp(-scene.fogColorDensity.w * distanceToCamera * distanceToCamera * 0.018), 0.0, 0.88);
+  if (materialId == 4u) {
+    let facing = abs(dot(normal, viewDirection));
+    let fresnel = 0.04 + 0.96 * pow(1.0 - facing, 5.0);
+    let reflected = reflect(-viewDirection, normal);
+    let environment = mix(
+      vec3<f32>(0.055, 0.048, 0.044),
+      vec3<f32>(0.22, 0.48, 0.82),
+      clamp(reflected.y * 0.5 + 0.5, 0.0, 1.0)
+    );
+    let tint = pow(clamp(input.color.rgb, vec3<f32>(0.0), vec3<f32>(1.0)), vec3<f32>(2.2));
+    var color = tint * (0.11 + variation * 0.035) + environment * (0.22 + fresnel * 0.78);
+    color = mix(color, scene.fogColorDensity.xyz, fogAmount);
+    return vec4<f32>(color, clamp(0.10 + fresnel * 0.48 + variation * 0.025, 0.10, 0.62));
+  }
+
+  // Concrete dust is a low-opacity participating-media proxy. It reads depth
+  // but does not write it, so expanding clouds soften the fracture without
+  // hiding the rebar and aggregate behind opaque glowing cubes.
+  let lightDirection = normalize(scene.lightDirExposure.xyz);
+  let diffuse = 0.38 + max(dot(normal, -lightDirection), 0.0) * 0.28;
+  let dustBase = pow(clamp(input.color.rgb, vec3<f32>(0.0), vec3<f32>(1.0)), vec3<f32>(2.2));
+  var dustColor = dustBase * (diffuse + variation * 0.16);
+  dustColor = mix(dustColor, scene.fogColorDensity.xyz, fogAmount);
+  return vec4<f32>(dustColor, clamp(0.10 + variation * 0.16, 0.10, 0.30));
 }
 `;
 
@@ -273,10 +394,26 @@ struct VertexIn {
   @location(6) color : vec4<f32>,
 };
 
+struct ShadowVertexOut {
+  @builtin(position) clipPosition : vec4<f32>,
+  @location(0) color : vec4<f32>,
+};
+
 @vertex
-fn vsMain(input : VertexIn) -> @builtin(position) vec4<f32> {
+fn vsMain(input : VertexIn) -> ShadowVertexOut {
   let model = mat4x4<f32>(input.m0, input.m1, input.m2, input.m3);
-  return scene.lightViewProj * model * vec4<f32>(input.position, 1.0);
+  var out : ShadowVertexOut;
+  out.clipPosition = scene.lightViewProj * model * vec4<f32>(input.position, 1.0);
+  out.color = input.color;
+  return out;
+}
+
+@fragment
+fn fsMain(input : ShadowVertexOut) {
+  let materialId = u32(round(max(-input.color.a, 0.0)));
+  // Thin glass and low-density dust receive soft lighting in the blended pass;
+  // they must not stamp an opaque binary silhouette into the shadow map.
+  if (materialId == 4u || materialId == 6u) { discard; }
 }
 `;
 
@@ -302,6 +439,7 @@ fn vsMain(input : VertexIn) -> @builtin(position) vec4<f32> {
 const clothShader = /* wgsl */ `
 ${sceneUniformStruct}
 ${packedSurfaceDecode}
+${materialAtlasSampling}
 
 @group(0) @binding(0)
 var<uniform> scene : SceneUniforms;
@@ -311,6 +449,12 @@ var shadowMap : texture_depth_2d;
 
 @group(0) @binding(2)
 var shadowSampler : sampler_comparison;
+
+@group(0) @binding(5)
+var materialAlbedoAtlas : texture_2d<f32>;
+
+@group(0) @binding(7)
+var materialAtlasSampler : sampler;
 
 struct VertexIn {
   @location(0) position : vec3<f32>,
@@ -385,7 +529,9 @@ fn fsMain(input : VertexOut, @builtin(front_facing) frontFacing : bool) -> @loca
   let weft = 0.5 + 0.5 * sin(input.uv.y * 942.478 + input.uv.x * 5.0);
   let weave = mix(0.82, 1.12, warp * weft);
   let stress = clamp(input.color.a, 0.0, 1.0);
-  let baseColor = pow(clamp(input.color.rgb * weave, vec3<f32>(0.0), vec3<f32>(1.0)), vec3<f32>(2.2));
+  let textile = textureSample(materialAlbedoAtlas, materialAtlasSampler, materialTileUv(2u, input.uv * vec2<f32>(5.0, 4.0))).rgb;
+  let tint = pow(clamp(input.color.rgb * weave, vec3<f32>(0.0), vec3<f32>(1.0)), vec3<f32>(2.2));
+  let baseColor = tint * mix(vec3<f32>(1.0), textile * 1.55, 0.48);
   let nDotL = max(dot(normal, toLight), 0.0);
   let nDotV = max(dot(normal, viewDirection), 0.0);
   let nDotH = max(dot(normal, halfVector), 0.0);
@@ -441,6 +587,7 @@ const gpuClothShader = /* wgsl */ `
 ${sceneUniformStruct}
 ${gpuSurfaceVertexOut}
 ${gpuSurfaceShadowSampling}
+${materialAtlasSampling}
 
 @group(0) @binding(0)
 var<uniform> scene : SceneUniforms;
@@ -450,6 +597,12 @@ var shadowMap : texture_depth_2d;
 
 @group(0) @binding(2)
 var shadowSampler : sampler_comparison;
+
+@group(0) @binding(5)
+var materialAlbedoAtlas : texture_2d<f32>;
+
+@group(0) @binding(7)
+var materialAtlasSampler : sampler;
 
 struct ClothParams {
   grid : vec4<u32>,
@@ -554,7 +707,9 @@ fn fsMain(input : GpuSurfaceVertexOut, @builtin(front_facing) frontFacing : bool
   let weft = 0.5 + 0.5 * sin(input.uv.y * 942.478 + input.uv.x * 5.0);
   let weave = mix(0.82, 1.12, warp * weft);
   let stress = clamp(input.color.a, 0.0, 1.0);
-  let baseColor = pow(clamp(input.color.rgb * weave, vec3<f32>(0.0), vec3<f32>(1.0)), vec3<f32>(2.2));
+  let textile = textureSample(materialAlbedoAtlas, materialAtlasSampler, materialTileUv(2u, input.uv * vec2<f32>(5.0, 4.0))).rgb;
+  let tint = pow(clamp(input.color.rgb * weave, vec3<f32>(0.0), vec3<f32>(1.0)), vec3<f32>(2.2));
+  let baseColor = tint * mix(vec3<f32>(1.0), textile * 1.55, 0.48);
   let nDotL = max(dot(normal, toLight), 0.0);
   let nDotV = max(dot(normal, viewDirection), 0.0);
   let nDotH = max(dot(normal, halfVector), 0.0);
@@ -760,11 +915,12 @@ fn csMain(@builtin(global_invocation_id) id : vec3<u32>) {
     vec4<f32>(zAxis * radius, 0.0),
     vec4<f32>((a + b) * 0.5, 1.0)
   );
+  let outputAlpha = select(mix(baseColor.a, 2.2, heat), baseColor.a, materialMode && baseColor.a < 0.0);
   instanceColors[outputIndex] = vec4<f32>(
     mix(mix(baseColor.r, 0.05, compression), 1.0, heat - compression * heat),
     mix(mix(baseColor.g, 0.34, compression), 0.06, heat - compression * heat),
     mix(mix(baseColor.b, 1.0, compression), 0.02, heat - compression * heat),
-    mix(baseColor.a, 2.2, heat)
+    outputAlpha
   );
 }
 `;
@@ -957,6 +1113,14 @@ function ptrToNumber(ptr: number | bigint): number {
   return typeof ptr === 'bigint' ? Number(ptr) : ptr;
 }
 
+function containsTransparentMaterial(values: ArrayLike<number>, start: number, count: number): boolean {
+  for (let i = 0; i < count; i++) {
+    const materialId = Math.round(Math.max(-values[start + i * 4 + 3], 0));
+    if (materialId === 4 || materialId === 6) return true;
+  }
+  return false;
+}
+
 function writeFloatBuffer(
   queue: GPUQueue,
   buffer: GPUBuffer,
@@ -1072,6 +1236,7 @@ ${errors.map((message) => `${message.lineNum}:${message.linePos} ${message.messa
 type MainPipelineSet = Readonly<{
   sky: GPURenderPipeline;
   solid: GPURenderPipeline;
+  transparentSolid: GPURenderPipeline;
   cloth: GPURenderPipeline;
   gpuCloth: GPURenderPipeline;
   gpuWater: GPURenderPipeline;
@@ -1125,6 +1290,7 @@ export class WebGPURenderer {
   private rigidCount = -1;
   private rigidFrameVersion = -1;
   private rigidColorVersion = -1;
+  private rigidHasTransparentMaterial = false;
   private effectMatrixIdentity: ArrayBufferLike | null = null;
   private effectColorIdentity: ArrayBufferLike | null = null;
   private effectMatrixByteOffset = -1;
@@ -1132,6 +1298,7 @@ export class WebGPURenderer {
   private effectBase = -1;
   private effectCount = -1;
   private effectFrameVersion = -1;
+  private effectHasTransparentMaterial = false;
   private lineSourceIdentity: readonly DebugLine[] | null = null;
   private lineSourceCount = -1;
   private lineFrameVersion = -1;
@@ -1169,6 +1336,7 @@ export class WebGPURenderer {
   private softInstanceBase = -1;
   private softInstanceCount = -1;
   private softInstanceFrameVersion = -1;
+  private softHasTransparentMaterial = false;
   private ropeGridSegmentCount = 0;
   private ropeGridNodeCount = 0;
   private ropeGridBaseInstance = 0;
@@ -1181,6 +1349,7 @@ export class WebGPURenderer {
   private ropeGridPositionByteOffset = -1;
   private ropeGridSegmentIdentity: ArrayBufferLike | null = null;
   private ropeGridSegmentByteOffset = -1;
+  private ropeGridHasTransparentMaterial = false;
   private surfaceIndexBufferIdentity: ArrayBufferLike | null = null;
   private surfaceIndexByteOffset = -1;
   private surfaceIndexByteLength = -1;
@@ -1195,6 +1364,12 @@ export class WebGPURenderer {
   private materialNoiseView: GPUTextureView;
   private materialNoiseSampler: GPUSampler;
   private materialNoiseInfo: Pick<MaterialNoiseTexture, 'compressed' | 'sourceBytes' | 'source'>;
+  private materialAtlasAlbedoTexture: GPUTexture;
+  private materialAtlasAlbedoView: GPUTextureView;
+  private materialAtlasSurfaceTexture: GPUTexture;
+  private materialAtlasSurfaceView: GPUTextureView;
+  private materialAtlasSampler: GPUSampler;
+  private materialAtlasInfo: Pick<MaterialAtlasTexture, 'compressed' | 'sourceBytes' | 'source'>;
   private depthTexture: GPUTexture | null = null;
   private depthView: GPUTextureView | null = null;
   private msaaTexture: GPUTexture | null = null;
@@ -1256,6 +1431,7 @@ export class WebGPURenderer {
     shadowSampler: GPUSampler;
     linearSampler: GPUSampler;
     materialNoise: MaterialNoiseTexture;
+    materialAtlas: MaterialAtlasTexture;
   }) {
     this.canvas = args.canvas;
     this.device = args.device;
@@ -1302,6 +1478,12 @@ export class WebGPURenderer {
     this.materialNoiseView = args.materialNoise.view;
     this.materialNoiseSampler = args.materialNoise.sampler;
     this.materialNoiseInfo = { compressed: args.materialNoise.compressed, sourceBytes: args.materialNoise.sourceBytes, source: args.materialNoise.source };
+    this.materialAtlasAlbedoTexture = args.materialAtlas.albedoTexture;
+    this.materialAtlasAlbedoView = args.materialAtlas.albedoView;
+    this.materialAtlasSurfaceTexture = args.materialAtlas.surfaceTexture;
+    this.materialAtlasSurfaceView = args.materialAtlas.surfaceView;
+    this.materialAtlasSampler = args.materialAtlas.sampler;
+    this.materialAtlasInfo = { compressed: args.materialAtlas.compressed, sourceBytes: args.materialAtlas.sourceBytes, source: args.materialAtlas.source };
   }
 
   static async create(canvas: HTMLCanvasElement, maxInstances: number): Promise<WebGPURenderer> {
@@ -1312,10 +1494,16 @@ export class WebGPURenderer {
     const adapter = await navigator.gpu.requestAdapter({ powerPreference: 'high-performance' });
     if (!adapter) throw new Error('No WebGPU adapter was returned by the browser.');
     const supportsBc = adapter.features?.has('texture-compression-bc') ?? false;
-    const device = await adapter.requestDevice({ requiredFeatures: supportsBc ? ['texture-compression-bc'] : [] });
+    const supportsAstc = adapter.features?.has('texture-compression-astc') ?? false;
+    const requiredFeatures = [
+      ...(supportsBc ? ['texture-compression-bc'] : []),
+      ...(supportsAstc ? ['texture-compression-astc'] : []),
+    ];
+    const device = await adapter.requestDevice({ requiredFeatures });
     // Texture fetch/decode/upload is independent of buffer and shader setup.
     // Keep it in flight while the renderer builds its layouts and pipelines.
     const materialNoisePromise = loadMaterialNoiseTexture(device, supportsBc);
+    const materialAtlasPromise = loadMaterialAtlasTexture(device, supportsAstc);
     const context = canvas.getContext('webgpu');
     if (!context) throw new Error('Could not create a webgpu canvas context.');
 
@@ -1442,6 +1630,9 @@ export class WebGPURenderer {
         { binding: 2, visibility: GPUShaderStage.FRAGMENT, sampler: { type: 'comparison' } },
         { binding: 3, visibility: GPUShaderStage.FRAGMENT, texture: { sampleType: 'float', viewDimension: '2d' } },
         { binding: 4, visibility: GPUShaderStage.FRAGMENT, sampler: { type: 'filtering' } },
+        { binding: 5, visibility: GPUShaderStage.FRAGMENT, texture: { sampleType: 'float', viewDimension: '2d' } },
+        { binding: 6, visibility: GPUShaderStage.FRAGMENT, texture: { sampleType: 'float', viewDimension: '2d' } },
+        { binding: 7, visibility: GPUShaderStage.FRAGMENT, sampler: { type: 'filtering' } },
       ],
     });
     const sceneLayout = device.createPipelineLayout({ label: 'AAA scene pipeline layout', bindGroupLayouts: [sceneBindGroupLayout] });
@@ -1554,6 +1745,7 @@ export class WebGPURenderer {
       label: 'AAA shadow map pipeline',
       layout: shadowLayout,
       vertex: { module: shadowModule, entryPoint: 'vsMain', buffers: instanceVertexBuffers() },
+      fragment: { module: shadowModule, entryPoint: 'fsMain', targets: [] },
       primitive: { topology: 'triangle-list', cullMode: 'front' },
       depthStencil: { format: 'depth32float', depthWriteEnabled: true, depthCompare: 'less' },
     };
@@ -1629,6 +1821,25 @@ export class WebGPURenderer {
       depthStencil: { format: 'depth24plus', depthWriteEnabled: true, depthCompare: 'less' },
       multisample: { count: DEFAULT_SAMPLE_COUNT },
     };
+    const transparentSolidDescriptor: GPURenderPipelineDescriptor = {
+      label: 'AAA translucent glass and material-particle pipeline',
+      layout: sceneLayout,
+      vertex: { module: solidModule, entryPoint: 'vsMain', buffers: instanceVertexBuffers() },
+      fragment: {
+        module: solidModule,
+        entryPoint: 'fsTransparent',
+        targets: [{
+          format: HDR_FORMAT,
+          blend: {
+            color: { srcFactor: 'src-alpha', dstFactor: 'one-minus-src-alpha', operation: 'add' },
+            alpha: { srcFactor: 'one', dstFactor: 'one-minus-src-alpha', operation: 'add' },
+          },
+        }],
+      },
+      primitive: { topology: 'triangle-list', cullMode: 'none' },
+      depthStencil: { format: 'depth24plus', depthWriteEnabled: false, depthCompare: 'less-equal' },
+      multisample: { count: DEFAULT_SAMPLE_COUNT },
+    };
     const lineDescriptor: GPURenderPipelineDescriptor = {
       label: 'AAA diagnostic/effect line pipeline',
       layout: sceneLayout,
@@ -1682,6 +1893,7 @@ export class WebGPURenderer {
     const mainDescriptors = [
       skyDescriptor,
       solidDescriptor,
+      transparentSolidDescriptor,
       clothDescriptor,
       gpuClothDescriptor,
       gpuWaterDescriptor,
@@ -1701,7 +1913,7 @@ export class WebGPURenderer {
       createPipeline(postDescriptor),
       createComputePipeline(ropeComputeDescriptor),
     ]);
-    const [materialNoise, pipelines] = await Promise.all([materialNoisePromise, pipelinePromise]);
+    const [materialNoise, materialAtlas, pipelines] = await Promise.all([materialNoisePromise, materialAtlasPromise, pipelinePromise]);
     const [
       shadowPipeline,
       surfaceShadowPipeline,
@@ -1714,10 +1926,11 @@ export class WebGPURenderer {
     const toMainPipelineSet = (pipelinesForSampleCount: readonly GPURenderPipeline[]): MainPipelineSet => ({
       sky: pipelinesForSampleCount[0]!,
       solid: pipelinesForSampleCount[1]!,
-      cloth: pipelinesForSampleCount[2]!,
-      gpuCloth: pipelinesForSampleCount[3]!,
-      gpuWater: pipelinesForSampleCount[4]!,
-      line: pipelinesForSampleCount[5]!,
+      transparentSolid: pipelinesForSampleCount[2]!,
+      cloth: pipelinesForSampleCount[3]!,
+      gpuCloth: pipelinesForSampleCount[4]!,
+      gpuWater: pipelinesForSampleCount[5]!,
+      line: pipelinesForSampleCount[6]!,
     });
     const mainPipelines1x = toMainPipelineSet(main1x);
     const mainPipelines4x = toMainPipelineSet(main4x);
@@ -1730,6 +1943,9 @@ export class WebGPURenderer {
         { binding: 2, resource: shadowSampler },
         { binding: 3, resource: materialNoise.view },
         { binding: 4, resource: materialNoise.sampler },
+        { binding: 5, resource: materialAtlas.albedoView },
+        { binding: 6, resource: materialAtlas.surfaceView },
+        { binding: 7, resource: materialAtlas.sampler },
       ],
     });
 
@@ -1787,6 +2003,7 @@ export class WebGPURenderer {
       shadowSampler,
       linearSampler,
       materialNoise,
+      materialAtlas,
     });
     renderer.resize();
     return renderer;
@@ -1819,6 +2036,9 @@ export class WebGPURenderer {
           { binding: 2, resource: this.shadowSampler },
           { binding: 3, resource: this.materialNoiseView },
           { binding: 4, resource: this.materialNoiseSampler },
+          { binding: 5, resource: this.materialAtlasAlbedoView },
+          { binding: 6, resource: this.materialAtlasSurfaceView },
+          { binding: 7, resource: this.materialAtlasSampler },
         ],
       });
       const previousTexture = this.shadowTexture;
@@ -1943,6 +2163,7 @@ export class WebGPURenderer {
     const colorFloats = safeCount * 4;
     if (matricesChanged) writeFloatBuffer(this.device.queue, this.matrixBuffer, 0, source.HEAPF32, matrixFloats, matrixStart);
     if (colorsChanged) writeFloatBuffer(this.device.queue, this.colorBuffer, 0, source.HEAPF32, colorFloats, colorStart);
+    if (colorsChanged) this.rigidHasTransparentMaterial = containsTransparentMaterial(source.HEAPF32, colorStart, safeCount);
     this.rigidSourceIdentity = source;
     this.rigidHeapIdentity = heapIdentity;
     this.rigidMatrixByteOffset = matrixPtr;
@@ -1973,6 +2194,7 @@ export class WebGPURenderer {
     const colorFloats = Math.min(safeCount * 4, colors.length);
     writeFloatBuffer(this.device.queue, this.matrixBuffer, safeBase * 16 * 4, matrices, matrixFloats);
     writeFloatBuffer(this.device.queue, this.colorBuffer, safeBase * 4 * 4, colors, colorFloats);
+    this.effectHasTransparentMaterial = containsTransparentMaterial(colors, 0, Math.min(safeCount, Math.floor(colorFloats / 4)));
     this.effectMatrixIdentity = matrices.buffer;
     this.effectColorIdentity = colors.buffer;
     this.effectMatrixByteOffset = matrices.byteOffset;
@@ -1999,6 +2221,7 @@ export class WebGPURenderer {
     this.rigidCount = -1;
     this.rigidFrameVersion = -1;
     this.rigidColorVersion = -1;
+    this.rigidHasTransparentMaterial = false;
     this.effectMatrixIdentity = null;
     this.effectColorIdentity = null;
     this.effectMatrixByteOffset = -1;
@@ -2006,6 +2229,7 @@ export class WebGPURenderer {
     this.effectBase = -1;
     this.effectCount = -1;
     this.effectFrameVersion = -1;
+    this.effectHasTransparentMaterial = false;
     this.lineSourceIdentity = null;
     this.lineSourceCount = -1;
     this.lineFrameVersion = -1;
@@ -2042,6 +2266,7 @@ export class WebGPURenderer {
     this.softInstanceBase = -1;
     this.softInstanceCount = -1;
     this.softInstanceFrameVersion = -1;
+    this.softHasTransparentMaterial = false;
     this.ropeGridSegmentCount = 0;
     this.ropeGridNodeCount = 0;
     this.ropeGridBaseInstance = 0;
@@ -2054,6 +2279,7 @@ export class WebGPURenderer {
     this.ropeGridPositionByteOffset = -1;
     this.ropeGridSegmentIdentity = null;
     this.ropeGridSegmentByteOffset = -1;
+    this.ropeGridHasTransparentMaterial = false;
   }
 
   uploadSoftInstances(
@@ -2081,6 +2307,7 @@ export class WebGPURenderer {
 
     writeFloatBuffer(this.device.queue, this.matrixBuffer, safeBase * 16 * 4, matrices, matrixFloats);
     writeFloatBuffer(this.device.queue, this.colorBuffer, safeBase * 4 * 4, colors, colorFloats);
+    this.softHasTransparentMaterial = containsTransparentMaterial(colors, 0, Math.min(safeCount, Math.floor(colorFloats / 4)));
     const bytes = (matrixFloats + colorFloats) * Float32Array.BYTES_PER_ELEMENT;
     this.softInstanceMatrixIdentity = matrices.buffer;
     this.softInstanceColorIdentity = colors.buffer;
@@ -2099,6 +2326,7 @@ export class WebGPURenderer {
     this.ropeGridActive = false;
     if (!grid || grid.nodeCount <= 0 || grid.segmentCount <= 0) {
       this.ropeGridDispatchPending = false;
+      this.ropeGridHasTransparentMaterial = false;
       return 0;
     }
 
@@ -2133,6 +2361,14 @@ export class WebGPURenderer {
       this.ropeGridSegmentCount !== clampedSegmentCount;
     if (topologyChanged) {
       writeFloatBuffer(this.device.queue, this.ropeSegmentBuffer, 0, grid.segments, clampedSegmentCount * 8);
+      this.ropeGridHasTransparentMaterial = false;
+      for (let i = 0; i < clampedSegmentCount; i++) {
+        const materialId = Math.round(Math.max(-grid.segments[i * 8 + 7], 0));
+        if (materialId === 4 || materialId === 6) {
+          this.ropeGridHasTransparentMaterial = true;
+          break;
+        }
+      }
       bytes += clampedSegmentCount * 8 * Float32Array.BYTES_PER_ELEMENT;
       this.ropeGridSegmentIdentity = grid.segments.buffer;
       this.ropeGridSegmentByteOffset = grid.segments.byteOffset;
@@ -2508,6 +2744,19 @@ export class WebGPURenderer {
       mainPass.drawIndexed(this.surfaceIndexCount, 1);
     }
 
+    if (
+      safeCount > 0 &&
+      (this.rigidHasTransparentMaterial || this.softHasTransparentMaterial ||
+        this.effectHasTransparentMaterial || this.ropeGridHasTransparentMaterial)
+    ) {
+      mainPass.setPipeline(this.mainPipelines.transparentSolid);
+      mainPass.setBindGroup(0, this.sceneBindGroup);
+      mainPass.setVertexBuffer(0, this.vertexBuffer);
+      mainPass.setVertexBuffer(1, this.matrixBuffer);
+      mainPass.setVertexBuffer(2, this.colorBuffer);
+      mainPass.draw(CUBE_VERTEX_COUNT, safeCount);
+    }
+
     if (lineFloatCount > 0) {
       mainPass.setPipeline(this.mainPipelines.line);
       mainPass.setBindGroup(0, this.sceneBindGroup);
@@ -2544,6 +2793,10 @@ export class WebGPURenderer {
 
   materialTextureInfo(): Readonly<Pick<MaterialNoiseTexture, 'compressed' | 'sourceBytes' | 'source'>> {
     return this.materialNoiseInfo;
+  }
+
+  materialAtlasTextureInfo(): Readonly<Pick<MaterialAtlasTexture, 'compressed' | 'sourceBytes' | 'source'>> {
+    return this.materialAtlasInfo;
   }
 
   qualityConfiguration(): Readonly<{ sampleCount: 1 | 4; shadowMapSize: 1024 | 2048; shadowTapCount: 1 | 9 }> {

@@ -116,7 +116,7 @@ assert.deepEqual(
 );
 const heap = new Float32Array(maxRigidBodies * 20);
 heap.set(identity, 0);
-heap.set([0.8, 0.4, 0.2, 1], maxRigidBodies * 16);
+heap.set([0.38, 0.78, 0.90, -4], maxRigidBodies * 16);
 let rigidFrameVersion = 1;
 let rigidColorVersion = 1;
 const source = {
@@ -163,11 +163,11 @@ assert.equal(rigidSettledBytes4096, 0, 'a settled 4,096-body frame must upload z
 assert.equal(renderer.uploadInstances(source, 1), 20 * Float32Array.BYTES_PER_ELEMENT);
 
 const effectMatrices = new Float32Array(identity);
-const effectColors = new Float32Array([1, 0.4, 0.1, 4]);
+const effectColors = new Float32Array([0.53, 0.49, 0.42, -6]);
 assert.equal(renderer.uploadEffects(effectMatrices, effectColors, 1, 1, 1), 20 * Float32Array.BYTES_PER_ELEMENT);
 assert.equal(renderer.uploadEffects(effectMatrices, effectColors, 1, 1, 1), 0, 'an unchanged effect frame must not perform queue writes');
 assert.equal(renderer.uploadEffects(effectMatrices, effectColors, 1, 1, 2), 20 * Float32Array.BYTES_PER_ELEMENT, 'a changed effect frame must upload');
-const firstRenderMs = renderer.render(1, [{
+const firstRenderMs = renderer.render(2, [{
   ax: -1, ay: 0, az: 0,
   bx: 1, by: 0, bz: 0,
   r: 1, g: 0.5, b: 0.2, a: 0.8,

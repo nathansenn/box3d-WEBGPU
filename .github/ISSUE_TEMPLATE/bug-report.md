@@ -8,7 +8,7 @@ labels: bug
 
 ## Browser / OS / GPU
 
-## Scene ID and stress level
+## Scene ID, hero/material-program ID, and stress level
 
 ## Steps to reproduce
 

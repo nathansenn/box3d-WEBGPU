@@ -5,7 +5,7 @@ OWNER="${GITHUB_OWNER:-nathansenn}"
 REPO="${GITHUB_REPO:-box3d-WEBGPU}"
 BRANCH="${GITHUB_BRANCH:-main}"
 TARGET_DIR="${TARGET_DIR:-$HOME/box3d-WEBGPU}"
-COMMIT_MESSAGE="${COMMIT_MESSAGE:-Add material bending and fracture lab}"
+COMMIT_MESSAGE="${COMMIT_MESSAGE:-Add 31 AAA material demonstrations}"
 REMOTE_SSH="git@github.com:${OWNER}/${REPO}.git"
 REMOTE_HTTPS="https://github.com/${OWNER}/${REPO}.git"
 
@@ -49,11 +49,12 @@ rsync -a \
   --exclude='dist' \
   --exclude='.test-build' \
   --exclude='SOURCE_MANIFEST 2.sha256' \
+  --exclude='src/assets/ktx2 2.ts' \
   --exclude='third_party/box3d' \
   "$PROJECT_ROOT/" "$TARGET_DIR/"
 
 npm ci
-npm run validate:v1.14
+npm run validate:v1.20
 
 git add -A
 if git diff --cached --quiet; then

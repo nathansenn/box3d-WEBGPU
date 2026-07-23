@@ -1,14 +1,14 @@
 # Test Plan — Box3D WebGPU AAA Physics Lab
 
-This plan covers the current v1.14 material-bending/fracture release target while preserving the source-frozen v1.13 thousand-case optimization evidence. The supplied v1.9 archive follows a different original-v1.8.0 lineage; see [`INTEGRATION_V1.9.md`](INTEGRATION_V1.9.md). Historical evidence remains in [`V1.13_1000_BENCHMARK_MATRIX.md`](V1.13_1000_BENCHMARK_MATRIX.md) and the [`history-gap audit`](../benchmarks/results/v113-history-gap-audit.md); the new material contracts are documented in [`MATERIAL_FRACTURE.md`](MATERIAL_FRACTURE.md).
+This plan covers the current v1.19-derived exact-100 AAA signature-stage tree, its expanded 31-program material presentation layer, and the combined materials proving ground while preserving the source-frozen v1.13 thousand-case optimization evidence. Historical evidence remains in [`V1.13_1000_BENCHMARK_MATRIX.md`](V1.13_1000_BENCHMARK_MATRIX.md) and the [`history-gap audit`](../benchmarks/results/v113-history-gap-audit.md); current stage and material contracts are documented in [`AAA_100_IMPROVEMENTS.md`](AAA_100_IMPROVEMENTS.md) and [`MATERIAL_FRACTURE.md`](MATERIAL_FRACTURE.md).
 
 ## Quality-gate sequence
 
 ```text
 source integrity
   → strict TypeScript
-  → 24 deterministic Node suites
-  → 800 scene constructors / 32 hero definitions
+  → 31 deterministic Node suites
+  → 800 scene constructors / 65 hero definitions / 31 material programs / 10 signature scenes
   → repository and UI contracts
   → strict C17 bridge syntax
   → deterministic SIMD/scalar soft-kernel rebuild and integration
@@ -22,7 +22,7 @@ source integrity
 ## Standard automated gate
 
 ```bash
-npm run validate:v1.14
+npm run validate:v1.20
 ```
 
 This command must be run successfully against the manually integrated tree before it is described as validated.
@@ -31,15 +31,15 @@ Stages:
 
 1. `tsc --noEmit`;
 2. test-only CommonJS compilation;
-3. 24 deterministic Node suites;
+3. 31 deterministic Node suites, including the exact 100-improvement registry, 31-program material registry, and 3,072-instance soft CPU-proxy capacity;
 4. repository self-test;
 5. strict C17 bridge syntax/API-contract test;
 6. SIMD/scalar soft-kernel rebuild, numerical tests, and scene integration;
 7. Dawn WebGPU pipeline/full-frame test;
 8. actual renderer runtime and cache test;
 9. all JavaScript/SIMD/scalar soft-system soaks;
-10. retained v1.9/v1.10/v1.11 benchmark-evidence consistency gates;
-11. the retained source-frozen v1.13 1,000-case evidence gate plus current material contracts;
+10. native Box3D staging, rope batching, and the exact 100-case material campaign;
+11. current AAA registry, material presentation, renderer, and UI contracts; source-frozen performance gates remain separate historical commands;
 12. Vite production and relative-base Pages builds;
 13. moderate-or-higher npm audit;
 14. final source-integrity verification.
@@ -51,7 +51,8 @@ Stages:
 | `testMath` | matrix identity/multiplication and finite projections |
 | `testAllocationFreeCameraMatrices` | retained camera writers match allocation-based reference matrices |
 | `testSceneCatalog` | exactly 800 unique scenes, 16 families, valid metadata |
-| `testHeroShowcaseCatalog` | exactly 32 unique heroes, sorted keys/beats, finite camera sampling |
+| `testHeroShowcaseCatalog` | exactly 65 unique heroes, including the 31 material-program heroes, with sorted keys/beats and finite camera sampling |
+| `testAAA100ImprovementRegistry` | exactly 100 unique ordinals, ten improvements per signature scene, finite positive-scale runtime primitives, and category coverage |
 | `testFallbackCanCreateEveryScene` | every scene creates valid rigid staging, finite transforms, nonzero hash |
 | `testFallbackStaticBodiesRemainImmutable` | static preview transforms remain exact across stepping |
 | `testAAACinematicSetDressing` | cinematic modes and hero scenes receive and step authored staging |
@@ -61,8 +62,11 @@ Stages:
 | `testFallbackContactResolutionReusesBodyVectors` | allocation-free contact resolution remains equivalent and finite |
 | `testFallbackCachedCountsStaticStepsAndSceneReset` | cached counts, all-static early return, and reset bookkeeping stay exact |
 | `testSoftSimulationCatalog` | all 200 cloth/rope/water/material scenes construct, step, and publish valid surface or compact member topology |
+| `testMaximumSoftRenderCapacity` | every maximum-stress soft/material scene, including the three-bay combined program, fits the 3,072 soft CPU-proxy budget plus GPU-segment reservation without stealing the Ultra effects budget |
 | `testMaterialPresetOrderingAndInvariants` | ten unique normalized profiles have finite coefficients and ordered tension/compression yield/break envelopes |
 | `testMaterialFractureLoadAndActionDeterminism` | load, release, cycle, projectile, blast, rain, damage, fracture, and telemetry remain finite and deterministic |
+| `testMetalBendingAndDentingDemo` | perimeter-clamped metal forming, strike, unload, springback, and residual-set behavior |
+| `testConcreteSpallAndGlassShardDemos` | localized concrete spall/rebar persistence and bounded radial glass fracture/shard retention |
 | `testSoftFrameMemoization` | unchanged frames retain identity/version; intact cloth/water and compact rope/material grids use GPU contracts |
 | `testSoftRetainedStateAndExactInstanceCaps` | retained memory and cloth/rope/water/material instance ceilings remain bounded |
 | `testSoftSimulationActionsAndDeterminism` | soft kick/projectile/explosion/rain actions and paired replay hashes |
@@ -80,10 +84,10 @@ Checks include:
 - required source, docs, workflows, and test scripts;
 - package version and all build/test commands;
 - C bridge exports and CMake/WASM flags;
-- 32 authored hero definitions;
+- 65 authored hero definitions, the exact 31-program material registry split 10 metal / 10 glass / 10 concrete / 1 combined, and the exact 100-item signature-stage registry/ledger parity;
 - required HTML IDs exactly once;
 - 800-scene family generation including cloth/rope/water/material failure;
-- soft/material classes, budgets, constraints, water integration, fracture telemetry, and dynamic presentation contracts;
+- soft/material classes, the explicit 3,072 CPU-proxy budget, constraints, water integration, fracture telemetry, targeted combined-bay actions, and dynamic presentation contracts;
 - SIMD/scalar soft-kernel source, packaged binaries, ABI loader, and JavaScript fallback;
 - GPU cloth/water paths, explicit 12-byte/12-byte changed-frame traffic, immutable cloth-rest caching, and frame-version caches;
 - compact rope/material node/member publication and WebGPU compute expansion;
@@ -111,7 +115,7 @@ This does not replace an Emscripten link against real upstream Box3D; it catches
 npm run test:soft-kernels
 ```
 
-The gate rebuilds SIMD and scalar WASM twice and requires byte-deterministic output, checks ABI/version/variant markers, exercises the cloth/rope/water kernels and the retained v1.8.1 rope-instance ABI, and verifies SIMD → scalar → JavaScript selection. The 200-scene soak runs cloth/rope/water under each backend selection and the deterministic TypeScript material lattice beside them. Rope/material presentation paths are covered separately by WebGPU tests.
+The gate rebuilds SIMD and scalar WASM twice and requires byte-deterministic output, checks ABI/version/variant markers, exercises the cloth/rope/water kernels and the retained v1.8.1 rope-instance ABI, and verifies SIMD → scalar → JavaScript selection. The 200-scene stable-catalog soak runs cloth/rope/water under each backend selection and the deterministic TypeScript material lattice beside them. The 31 derived material programs are an additional presentation registry over those stable scene recipes; their 10/10/10/1 count, targeted actions, finite frames, and combined-program replay are checked without changing the 800-scene native ID contract. Rope/material presentation paths are covered separately by WebGPU tests.
 
 ## Dawn WebGPU gate
 
@@ -148,7 +152,10 @@ Default coverage:
 
 ```text
 200 scenes × 24 frames = 4,800 catalog frames
+31 derived material programs × 24 frames = 744 presentation frames
 4 maximum scenes × 2 paired solvers × 300 frames = 2,400 replay frames
+1 combined material program × 2 paired solvers × 300 frames = 600 targeted replay frames
+Total paired replay coverage per backend = 3,000 frames
 ```
 
 The action schedule injects kick, projectile, explosion, and rain events. Every inspected frame must satisfy:
@@ -163,6 +170,8 @@ The action schedule injects kick, projectile, explosion, and rain events. Every 
 - a valid packed, `gpu-cloth`, or `gpu-water` surface contract;
 - valid compact-grid node indices, finite eight-float segment metadata, and monotonic topology/frame versions when rope or material is active;
 - material telemetry with ordered thresholds, bounded damage, monotonic break state, and a valid elastic/yielding/fracturing/failed phase;
+- exactly 10 metal, 10 glass, 10 concrete, and one combined material program, with bay-targeted load/strike/release actions and no cross-bay coordinate corruption;
+- no soft frame exceeds the 3,072 CPU-proxy capacity;
 - matching frame and topology versions;
 - every surface index in range;
 - paired deterministic hash equality.
@@ -175,7 +184,7 @@ SOFT_SOAK_FRAMES=120 SOFT_DEEP_FRAMES=1200 npm run test:soft-soak:all
 
 ## Live browser validation
 
-Click **Run 800 + 32 State Tests**.
+Click **Run 800 + 65 State Tests**.
 
 The state/catalog gate:
 
@@ -183,7 +192,7 @@ The state/catalog gate:
 2. creates and steps all 800 scenes against the active rigid backend;
 3. builds and validates the active cloth/rope/water/material frame when present;
 4. checks body counts, matrices, colors, indexed surfaces, compact members, material telemetry, and hashes;
-5. samples every hero camera and validates beat ordering;
+5. constructs all 31 material programs, samples all 65 hero cameras, and validates beat ordering and targeted combined-bay actions;
 6. creates/advances an explosion effect frame;
 7. restores the previous scene and UI state;
 8. prints the pass summary.
@@ -287,7 +296,7 @@ npm run build:wasm
 npm run dev
 ```
 
-Verify artifacts exist and are non-empty, backend reports **Box3D WASM**, memory growth does not detach heap views, rigid projectiles/large stacks use native collision behavior, and the live 800-scene + 32-hero state gate passes. This native rigid-body build is separate from the packaged soft-kernel WASM modules.
+Verify artifacts exist and are non-empty, backend reports **Box3D WASM**, memory growth does not detach heap views, rigid projectiles/large stacks use native collision behavior, and the live 800-scene + 65-hero = 865-definition state gate passes—including all 31 material programs, all ten signature-stage prop sets, and zero signature props on ordinary scenes. This native rigid-body build is separate from the packaged soft-kernel WASM modules.
 
 ## Honesty boundary
 

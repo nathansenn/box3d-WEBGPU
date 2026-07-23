@@ -161,6 +161,7 @@ export class FallbackPhysicsBackend implements PhysicsBackend {
     // deterministic family recipe. This gives the fallback path presentation
     // parity with the AAA WebGPU renderer while real Box3D/WASM owns full physics.
     if (scene.mode >= 3) this.addCinematicSetDressing(scene.family, stress, variant);
+    if (scene.mode === 4) this.addSignatureSetDressing(scene.family, stress, variant);
 
     this.syncTransforms();
     return this.bodyCount();
@@ -659,7 +660,14 @@ export class FallbackPhysicsBackend implements PhysicsBackend {
   private createFractureStage(stress: number, variant: number): void {
     // Box3D owns only the immutable test fixture. Bending, plastic yield,
     // damage, and bond fracture remain authoritative in MaterialSimulation.
-    const supportSpan = 8.5 + (variant % 3) * 0.65;
+    if (variant === 6) {
+      this.addBox({ dynamic: false, pos: [0, 0.14, 0], half: [15.5, 0.14, 6.5], color: rgb(0x080f1d), density: 0, friction: 0.9, restitution: 0.01 });
+      for (const x of [-12.3, 12.3]) this.addBox({ dynamic: false, pos: [x, 7.2, 0], half: [0.34, 5.0, 0.34], color: rgba(0x9aa7b5, -2), density: 0, friction: 0.8, restitution: 0.01 });
+      for (const y of [2.7, 11.7]) this.addBox({ dynamic: false, pos: [0, y, 0], half: [12.3, 0.22, 0.34], color: rgba(0x9aa7b5, -2), density: 0, friction: 0.8, restitution: 0.01 });
+      for (const x of [-7.5, 0, 7.5]) this.addBox({ dynamic: false, pos: [x, 4.8, -3.0], half: [1.5, 0.05, 0.08], color: rgba(0x50d8ff, 3.5), density: 0, friction: 0.8, restitution: 0.01 });
+      return;
+    }
+    const supportSpan = variant === 5 ? 12.0 : 8.5 + (variant % 3) * 0.65;
     const frameTop = 9.4 + stress * 0.28;
     const accent = variant % 2 ? 0xffd166 : 0x30aebf;
     this.addBox({ dynamic: false, pos: [0, 0.14, 0], half: [supportSpan + 5.0, 0.14, 6.5], color: rgb(0x111d30), density: 0, friction: 0.9, restitution: 0.01 });
@@ -869,6 +877,136 @@ export class FallbackPhysicsBackend implements PhysicsBackend {
         this.addBeamBetween([-13, 6.8, -5.8], [13, 6.8, -5.8], 0.07, 0x30aebf, false, 2.4);
         this.addBeamBetween([-13, 6.8, 5.8], [13, 6.8, 5.8], 0.07, 0xffd166, false, 2.4);
         break;
+      }
+    }
+  }
+
+  /**
+   * Extra authored detail for the ten signature AAA scenes. Negative material
+   * tags select the Poliigon-derived atlas tiles in the WebGPU PBR shader:
+   * -1 concrete, -2 galvanized metal, -4 glass, -5 honed stone.
+   */
+  private addSignatureSetDressing(family: ScenePreset['family'], stress: number, variant: number): void {
+    const concrete = (pos: Vec3, half: Vec3, dynamic = false) => this.addBox({
+      dynamic, pos, half, color: rgba(0x8b8d88, -1), density: dynamic ? 2.35 : 0,
+      friction: 0.82, restitution: 0.015,
+      angVel: dynamic ? [this.rng.signed(1.1), this.rng.signed(1.1), this.rng.signed(1.1)] : undefined,
+    });
+    const metal = (pos: Vec3, half: Vec3, materialTag = -2) => this.addBox({
+      dynamic: false, pos, half, color: rgba(0x9aa7b5, materialTag), density: 0, friction: 0.74, restitution: 0.02,
+    });
+    const glass = (pos: Vec3, half: Vec3, rot?: Vec3) => this.addBox({
+      dynamic: false, pos, half, rot, color: rgba(0x8eddf2, -4), density: 0, friction: 0.22, restitution: 0.06,
+    });
+    const stone = (pos: Vec3, half: Vec3) => this.addBox({
+      dynamic: false, pos, half, color: rgba(0xa0a09a, -5), density: 0, friction: 0.88, restitution: 0.01,
+    });
+
+    if (family === 'skyscraper' && (variant === 0 || variant === 7)) {
+      concrete([0, 0.42, 0], [9.4, 0.42, 9.4]);
+      for (let floor = 0; floor < 9; floor++) {
+        const y = 2.2 + floor * 1.75;
+        const width = variant === 7 ? 7.8 : 5.7;
+        for (const side of [-1, 1]) {
+          glass([side * width, y, 0], [0.055, 0.67, width * 0.88]);
+          glass([0, y, side * width], [width * 0.88, 0.67, 0.055]);
+        }
+      }
+      for (const side of [-1, 1]) {
+        this.addBeamBetween([side * 6.2, 0.5, -6.2], [side * 6.2, 18, -6.2], 0.065, 0x9aa7b5, false, -2);
+        this.addBeamBetween([side * 6.2, 0.5, 6.2], [side * 6.2, 18, 6.2], 0.065, 0x9aa7b5, false, -2);
+      }
+      return;
+    }
+
+    if (family === 'bridge' && variant === 2) {
+      for (const x of [-17, -8.5, 8.5, 17]) concrete([x, 1.15, 0], [1.15, 1.15, 3.7]);
+      stone([0, 0.18, 0], [22.5, 0.18, 3.15]);
+      for (let i = -8; i <= 8; i++) {
+        const x = i * 2.35;
+        this.addBeamBetween([x, 2.75, -2.05], [x + 2.1, 5.2 + (i & 1) * 1.1, -2.05], 0.075, 0xa8b5c3, false, -2);
+        this.addBeamBetween([x, 2.75, 2.05], [x + 2.1, 5.2 + (i & 1) * 1.1, 2.05], 0.075, 0xa8b5c3, false, -2);
+      }
+      return;
+    }
+
+    if (family === 'demolition' && variant === 0) {
+      for (let i = 0; i < 28 + stress * 3; i++) {
+        const angle = this.rng.range(-0.62, 0.62);
+        concrete([
+          this.rng.range(-6.5, 6.5),
+          0.3 + this.rng.range(0, 2.8),
+          -4.7 + this.rng.range(-0.55, 0.55),
+        ], [0.22 + this.rng.range(0, 0.34), 0.13 + this.rng.range(0, 0.26), 0.16 + this.rng.range(0, 0.3)], true);
+        const body = this.bodies[this.bodies.length - 1];
+        if (body) body.rot = [angle * 0.3, angle, angle * 0.7];
+      }
+      for (const z of [-4.35, -5.05]) this.addBeamBetween([-8, 2.2, z], [8, 2.2, z], 0.065, 0xb7c0c7, false, -2);
+      return;
+    }
+
+    if (family === 'architecture' && variant === 9) {
+      stone([0, 0.18, 0], [11.5, 0.18, 11.5]);
+      for (let i = 0; i < 20; i++) {
+        const t = i / 20 * Math.PI * 2;
+        const x = Math.cos(t) * 12.8;
+        const z = Math.sin(t) * 12.8;
+        glass([x, 4.8, z], [0.72, 3.25, 0.055], [0, -t + Math.PI * 0.5, 0]);
+        metal([x, 8.25, z], [0.09, 0.09, 0.72]);
+      }
+      concrete([0, 8.9, 0], [9.2, 0.18, 9.2]);
+      return;
+    }
+
+    if (family === 'cloth' && variant === 0) {
+      stone([0, 0.18, 3.2], [15.5, 0.18, 4.5]);
+      for (const x of [-15.2, 15.2]) {
+        this.addBeamBetween([x, 0.3, -5.5], [x, 10.8, -5.5], 0.12, 0xaab4bf, false, -2);
+        metal([x, 10.8, -5.5], [0.45, 0.12, 0.45]);
+      }
+      return;
+    }
+
+    if (family === 'rope' && variant === 0) {
+      concrete([-9, 0.55, 0], [1.35, 0.55, 3.0]);
+      concrete([9, 0.55, 0], [1.35, 0.55, 3.0]);
+      stone([0, 0.2, 0], [7.6, 0.2, 4.1]);
+      this.addBeamBetween([-9, 1.2, -2.8], [-9, 13.5, -2.8], 0.14, 0x9aa7b5, false, -2);
+      this.addBeamBetween([-9, 13.5, -2.8], [9, 13.5, -2.8], 0.14, 0x9aa7b5, false, -2);
+      this.addBeamBetween([9, 13.5, -2.8], [9, 1.2, -2.8], 0.14, 0x9aa7b5, false, -2);
+      return;
+    }
+
+    if (family === 'water' && variant === 1) {
+      concrete([0, 0.15, -11.7], [18.5, 0.15, 0.55]);
+      concrete([0, 0.15, 11.7], [18.5, 0.15, 0.55]);
+      for (let i = -5; i <= 5; i++) {
+        const x = i * 3.1;
+        glass([x, 2.45, 11.42], [1.37, 1.75, 0.04]);
+        metal([x + 1.48, 2.45, 11.38], [0.045, 1.85, 0.065]);
+      }
+      this.addBeamBetween([-17, 4.5, 11.3], [17, 4.5, 11.3], 0.07, 0xaab4bf, false, -2);
+      return;
+    }
+
+    if (family === 'fracture' && variant === 5) {
+      // Begin with a clean specimen. MaterialSimulation owns all cover loss,
+      // exposed reinforcement, and newly generated spall debris so there is no
+      // duplicate rigid rubble or straight rebar floating through the fracture.
+      stone([0, 0.20, 0], [11.8, 0.20, 2.5]);
+      concrete([0, 0.62, 2.35], [11.8, 0.42, 0.12]);
+      return;
+    }
+
+    if (family === 'fracture' && variant === 6) {
+      // The breakable pane is owned by MaterialSimulation. Side fins, a dark
+      // catch floor, and backlights provide depth without leaving an intact
+      // duplicate pane behind after the simulated glass has shattered.
+      stone([0, 0.18, 0], [10.8, 0.18, 4.2]);
+      for (const x of [-10.2, 10.2]) glass([x, 4.6, 0], [0.035, 3.4, 2.7]);
+      for (const x of [-7.5, 0, 7.5]) {
+        metal([x, 0.38, -2.8], [1.9, 0.10, 0.12]);
+        this.addBox({ dynamic: false, pos: [x, 0.55, -2.8], half: [0.22, 0.05, 0.22], color: rgba(0x50d8ff, 3.4), density: 0, friction: 0.74, restitution: 0.02 });
       }
     }
   }

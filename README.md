@@ -2,7 +2,7 @@
 
 A browser-native 3D physics showcase combining **Box3D rigid bodies**, deterministic **cloth and rope**, interactive **shallow water**, comparative **material bending and fracture**, and an HDR **WebGPU** renderer.
 
-Version **1.14.0** ships 800 deterministic capability scenes, 32 directed hero demonstrations, native Box3D WebAssembly artifacts, SIMD/scalar soft-system kernels, a new normalized material-failure lab, and the retained exact v1.13 1,000-case optimization audit.
+The current tree preserves the **800 deterministic capability-scene catalog** and expands the director from 34 to **65 hero demonstrations**. Thirty-one new recipe-driven material programs add ten metal-forming tests, ten architectural-glass fracture tests, ten reinforced-concrete failure tests, and the combined **Apex Materials Proving Ground**. The ten-scene signature set and its exactly **100 runtime-authored AAA improvements** remain unchanged. The material-realism pass keeps the authoritative simulations intact while replacing exposed solver grids with curvature-following skins, giving cold-formed metal restrained coating flakes and procedural environment reflections, separating glass into a two-sided blended Fresnel pass, and rendering concrete dust as translucent media around physical aggregate, spall, and persistent reinforcement. Native Box3D WebAssembly artifacts, SIMD/scalar soft-system kernels, Poliigon-derived GPU material atlases, and the source-frozen v1.13 1,000-case optimization audit remain included.
 
 > This is an AAA-style capability lab and engine foundation. It is not a claim that the numerical Box3D solver runs on WebGPU or that every subsystem of a commercial game engine is complete.
 
@@ -11,20 +11,30 @@ Version **1.14.0** ships 800 deterministic capability scenes, 32 directed hero d
 - Native Box3D C17 physics compiled to WebAssembly with Emscripten.
 - Deterministic PBD cloth and rope plus a 2.5D shallow-water solver.
 - Deterministic elastic, plastic, fatigue, and fracture comparisons across ten normalized material presets.
+- Perimeter-clamped metal pressure panels with an actuator that engages and retracts, two-axis bending, localized dent strikes, springback, and residual-set telemetry.
+- Material-specific impact effects: restrained cold-forming flash/coating flakes, translucent concrete dust with aggregate and rebar contact, and a vertical glass fracture wave with sparse edge glints.
+- Dense damage-aware sheet/cover tiles whose orthonormal bases follow metal, concrete, and glass curvature while failed regions open locally.
+- Concrete cover fragments emitted by cohesive-cell failure, with ductile rebar constraints continuing to bridge the damaged slab.
+- Framed vertical glass with a dedicated blended Fresnel pass, deterministic radial crack fronts, restrained branch glints, and thin tumbling transparent shards.
 - SIMD WebAssembly, scalar WebAssembly, and JavaScript fallback paths.
 - GPU-resident presentation for intact cloth and water.
 - WebGPU compute expansion of compact rope data.
 - HDR rendering, real quality profiles, shadows, PBR-inspired materials, atmospheric effects, and post-processing.
+- Poliigon-derived concrete, galvanized metal, woven fabric, and honed-stone materials in directly uploadable KTX2 atlases.
+- Reflective architectural glass plus progressive concrete fracture, physical spall, and exposed reinforcement dressing.
 - 800 searchable scenes across 16 simulation families.
-- 32 hand-directed cinematic demonstrations.
+- 65 directed cinematic demonstrations: 34 established heroes plus 31 recipe-driven material programs.
+- Exactly ten new metal, ten new glass, ten new concrete, and one combined proving-ground sequence.
+- Ten starred signature scenes remain the curated cross-domain set.
+- Exactly 100 numbered, runtime-validated AAA stage improvements—ten for every signature scene.
 - Deterministic replay hashes, runtime telemetry, and in-app state tests.
-- KTX2 BC4 textures with R8 fallback.
+- KTX2 ASTC material atlases with RGBA8 fallback, plus BC4 micro-noise with R8 fallback.
 - Optional TurboQuant transport for remote snapshots and replay storage.
 - Exact source manifest and reproducible benchmark/validation commands.
 
 ## Demo gallery
 
-The live recording below captures the v1.14 Maximum AAA Tour running through a real Chrome/WebGPU compositor with native Box3D WebAssembly and SIMD soft-system kernels. The two-minute cut plays at 2× speed from four minutes of live application capture and concentrates on the five highest-value simulation domains: cloth, water, tower destruction, bridge infrastructure, and rope rigging. The static images that follow are retained v1.12 hardware-browser acceptance captures showing the command deck, deterministic validation, and a high-stress water/rigid-body scene.
+The retained recording below captures the v1.14 Maximum AAA Tour running through a real Chrome/WebGPU compositor with native Box3D WebAssembly and SIMD soft-system kernels. Versions 1.15–1.19 retain that live proof while adding the material-atlas pass, instrumented metal forming, concrete spall/rebar transfer, glass shattering, material-specific strike VFX, dedicated inspection cameras, and the 100-item signature-stage production pass. The new 31-program material expansion is not represented as though it were present in that historical recording. The two-minute cut plays at 2× speed from four minutes of live application capture and concentrates on the five highest-value simulation domains: cloth, water, tower destruction, bridge infrastructure, and rope rigging. The static images that follow are retained v1.12 hardware-browser acceptance captures.
 
 ### Demo video
 
@@ -98,21 +108,39 @@ Open the local URL printed by Vite. The release includes the native Box3D browse
 
 Run commands from the repository root—the directory containing `package.json`. Do not run them from `third_party/box3d`, which is the upstream C/CMake dependency.
 
-## Recommended first run
+## Ten signature AAA scenes
 
-The fastest way to see every major simulation domain is this focused tour:
+Starred entries in the hero selector are the curated signature set. Version 1.19 adds exactly ten runtime-authored upgrades to each of these ten stages; ordinary catalog scenes receive none of this extra instance work and keep the established performance envelope.
 
-| Stop | Showcase | What to watch | Useful controls |
+| Stop | Showcase | New authored detail | Physics focus |
 |---:|---|---|---|
-| 1 | **Titan Foundry Stackfall** | dense contacts, settling, shadows, rigid transform streaming | `Space`, `E`, `P`, `N` |
-| 2 | **Tempest Standard Protocol** | cloth folds, strain color, wind response, and topology-aware tearing | `F`, `D`, 0.5× time |
-| 3 | **Sky Crane Cable Failure** | cable tension, payload inertia, severing, and residual oscillation | `F`, `E`, `D` |
-| 4 | **Tsunami Research Array** | traveling waves, reflection, interference, foam, and current vectors | `Space`, `D` |
-| 5 | **Steel Yield-to-Rupture** | elastic response, plastic set, progressive damage, and member failure | `L`, `U`, `N` |
-| 6 | **Glass Catastrophic Fracture** | brittle crack-front propagation under normalized loading | `L`, `F`, 0.25× time |
-| 7 | **Leviathan Impact Basin** | ballistic entry, rain, floaters, splash displacement, and HDR water | `F`, `E`, stress 5 |
+| 1 | **Aegis Tower: Kinetic Breach** | concrete podium, reflective curtain wall, galvanized mullions | high-rise impact and progressive load-path loss |
+| 2 | **Twin Spire Progressive Collapse** | twin glazed facades and metal framing around the skybridge | coupled tower collapse |
+| 3 | **Truss Span Failure** | honed-stone deck, concrete piers, repeated galvanized braces | concentrated bridge load and brace loss |
+| 4 | **Citadel Siege** | physical concrete spall, exposed rebar bands, impact rubble | breach, blast, and progressive wall failure |
+| 5 | **Mega Atrium Collapse** | curved glass facade, metal caps, stone floor, concrete roof | architectural destruction at wide scale |
+| 6 | **Tempest Standard Protocol** | Poliigon-derived woven-fabric response and detailed metal stage | cloth wind, impact, and tearing |
+| 7 | **Sky Crane Cable Failure** | concrete footings, honed-stone deck, galvanized gantry | cable tension, payload inertia, and severing |
+| 8 | **Tsunami Research Array** | concrete flume and glass/metal observation wall | waves, reflection, foam, and currents |
+| 9 | **Concrete Spall & Rebar Exposure** | curvature-following cover, persistent ductile rebar cage, physical spall, exposed aggregate, translucent dust, and restrained contact sparks | localized cracking, cover loss, load transfer, and residual bridging |
+| 10 | **Glass Catastrophic Fracture** | blended two-sided pane, fine disappearing crack tiles, radial branch glints, vertical fracture wave, and transparent persistent shards | flaw nucleation, bounded brittle propagation, and forensic fracture inspection |
 
-Press `T` for the automatic Maximum AAA Tour, or select the stops manually from the hero selector. Use **Cinematic** quality for normal presentation and **Ultra** only when the GPU has headroom. Finish by opening **Automated Validation** and running the **800 + 32 State Tests**.
+Use **Cinematic** quality for normal presentation and **Ultra** only when the GPU has headroom. `F`, `E`, `Space`, `I`, slow motion, and material load controls expose the authored failure beats. Finish by opening **Automated Validation** and running the **800 + 65 State Tests**. See [AAA_SIGNATURE_SCENES.md](docs/AAA_SIGNATURE_SCENES.md) for the unchanged ten-scene signature contract and [AAA_SHOWCASE.md](docs/AAA_SHOWCASE.md) for all 65 director entries.
+
+### The v1.19 100-improvement production pass
+
+Every signature stage receives a distinct ten-item kit instead of a generic prop scatter. Tower scenes gain structural podiums, buttresses, crowns, warning systems, breach targets, and containment hardware. The bridge gains bearings, approach slabs, portals, redundancy chords, expansion joints, inspection lamps, and lane guidance. Cloth, rope, and water stages gain measurement equipment and operating infrastructure. Concrete and glass labs gain load hardware, shields, catch trays, forensic scales, datum rails, and controlled lighting.
+
+The release contract is executable:
+
+- `AAA_IMPROVEMENTS` must contain exactly 100 unique numbered records.
+- Each of the ten signature scene IDs must own exactly ten records.
+- Every record must produce at least one finite, positive-scale runtime primitive.
+- Props are staged only for the active signature scene and use the existing cached instanced render/shadow stream.
+- Native Box3D WASM and deterministic preview backends see the same presentation layer; the additions never create contacts, forces, or replay-hash changes.
+- Static stage identity is reserved ahead of transient particles, so explosions cannot evict the authored environment from the quality budget.
+
+The complete numbered ledger is [AAA_100_IMPROVEMENTS.md](docs/AAA_100_IMPROVEMENTS.md).
 
 ### Runtime path and fallback behavior
 
@@ -125,6 +153,7 @@ The application degrades by capability instead of refusing to start:
 | Material failure | deterministic TypeScript beam lattice | same deterministic path | material telemetry panel |
 | Rendering | WebGPU HDR frame graph | no non-WebGPU renderer | startup diagnostics |
 | Material-noise texture | KTX2 BC4 | KTX2 R8, then procedural R8 | renderer diagnostics |
+| AAA material atlas | KTX2 ASTC 6×6 | KTX2 RGBA8, then deterministic procedural atlas | renderer diagnostics |
 | Remote state | raw full-precision streams | optional TurboQuant transport | TurboQuant probe |
 
 `Deterministic Preview` means only the rigid-body backend has fallen back. Cloth, rope, water, and material specimens remain active. A WebGPU initialization failure is terminal because this project intentionally exercises WebGPU rather than hiding errors behind a WebGL renderer.
@@ -175,9 +204,38 @@ The application degrades by capability instead of refusing to start:
 - Reduced-order beam lattices with axial, shear, diagonal, and bending constraints.
 - Distinct tension/compression yield and break envelopes, plastic set, progressive damage, cyclic fatigue, anisotropy, and cohesive crack fronts.
 - Three-point bend, cyclic overload, displacement-ramp, impact, and cinematic yield-to-fracture modes.
-- A dedicated 0–200% normalized load rig with apply, release, and fatigue-cycle controls.
-- Live load, strain, threshold, yield/damage count, peak-damage, failure-phase, energy, break-count, and replay-hash telemetry.
+- Metal Impact Demo recipes become dense perimeter-clamped pressure panels with a radial press footprint and explicit springback inspection.
+- A dedicated 0–200% normalized load rig with apply, release, fatigue-cycle, and material-specific **Material Strike** controls.
+- Live load, strain, center/peak deflection, residual deformation, fractured-cell, fragment, reinforcement, threshold, yield/damage, failure-phase, energy, break-count, and replay-hash telemetry.
 - Compact node/member state reconstructed into heat-colored main/shadow segment instances through WebGPU compute.
+- Reinforced concrete uses an oriented damage-aware cover skin; local cohesive failure opens shallow fissures, ejects graded concrete/mineral fragments onto the catch tray, and reveals only the stronger ductile reinforcement members that continue carrying load.
+- Soda-lime glass is a framed vertical pane with a dedicated blended Fresnel material, center-punch crack nucleation, deterministic radial branches, disappearing fine tiles, and retained transparent tumbling shards.
+
+#### Thirty-one recipe-driven material programs
+
+The new material registry is deliberately separate from the stable 800-scene/native-ID catalog. Each recipe derives a runtime `ScenePreset` from a proven base scene, then supplies its own material profile, specimen dimensions, orientation, support boundary, load pattern and footprint, strike origin, fixture style, crack style, load schedule, camera, stress, and duration. This preserves native staging and the historical 50-scene/100-case material contracts while making each directed test mechanically and visually distinct.
+
+| Domain | Ten new programs | Primary variation |
+|---|---|---|
+| **Metal** | Square-Punch Steel Forming; Aluminum Hailstorm Panel; Copper Deep-Draw Dome; Automotive Door-Skin Oblique Dent; Press-Brake V-Bend; Four-Point Bumper Beam; Cantilever Bracket Overbend; Tension-Field Shear Panel; Notched Low-Cycle Fatigue; Blast-Bulge Armor Plate | perimeter/simple-span/cantilever/four-corner support, center/offset/dual/line/torsion/pulse demand, ductile springback and permanent set |
+| **Glass** | Annealed Pendulum Impact; Tempered Safety-Glass Punch; Laminated Windshield Stone Strike; Edge-Chip Runaway Crack; Four-Bolt Point-Supported Facade; Curtain-Wall Wind Failure; Ballistic Off-Center Penetration; Blast Overpressure Release; Hailstone Multi-Hit Pattern; Thermal Corner Fracture | annealed/tempered/retained breakup presentation, edge and corner flaws, dense/radial/diagonal propagation, transparent shard behavior |
+| **Concrete** | RC Three-Point Beam; RC Four-Point Constant-Moment Beam; Flat-Slab Punching Shear; One-Way Slab Drop Weight; Bridge-Deck Wheel Patch; Cantilever Corbel Shear; Highway Barrier Impact Strip; Blast-Wall Back-Face Spall; Anchor Pull-Out Cone; Cyclic Deck Fatigue Strip | one- and two-way support, flexure/shear/punching/pull-out/impact/fatigue demand, cover loss, aggregate, dust, and surviving reinforcement |
+
+The 31st program, **Apex Materials Proving Ground**, runs three independent deterministic rigs in one high-bay scene: a galvanized forming cell at stage left, a backlit glass impact tunnel at center, and a reinforced-concrete reaction frame at stage right. Its director addresses metal, glass, concrete, or all three explicitly, merges their finite presentation streams within a fixed instance budget, and reports combined telemetry without pretending that one material model drives another.
+
+#### Titan Metal Bend & Dent
+
+Select **Titan Metal Bend & Dent** from the hero director, or open **Structural Steel · Impact Demo** in the Material Failure catalog. The authored 18-second sequence runs a low preload, controlled two-axis bend, first unload, localized dent, recovery, secondary overload, second unload, and a severe final strike. At 5× stress the forming panel has 528 nodes and roughly 2,875 constraints; its perimeter is clamped to a galvanized press frame while WebGPU compute expands the compact member stream.
+
+Use **Material Strike** or press `I` for the active rig's localized event. On metal it is a centered forming impulse; on concrete it opens a physical spall crater; on glass it nucleates a radial crack front. The center/peak readout shows transient deflection while **Residual deformation** updates after unloading, making elastic springback distinct from retained plastic deformation. The normalized panel is a deterministic visualization model, not a calibrated sheet-metal forming or crashworthiness solver.
+
+#### Concrete Spall & Rebar Exposure
+
+The upgraded concrete hero begins clean under service preload, opens flexural cover damage, ejects fracture-driven concrete chunks during two instrumented impacts, and finishes unloaded with missing cover tiles and more than 80 intact rebar members bridging the localized failure region. Spall is created when concrete cohesive cells fail—not pre-scripted independently of the solver.
+
+#### Glass Catastrophic Fracture
+
+The glass hero uses a framed vertical pane instead of the generic horizontal coupon. A center punch starts timed radial crack rays with restrained secondary branches; transparent skin tiles disappear only where cells have separated, and a bounded field of thin shards rotates, falls, bounces on the authored catch tray, and remains available for the final forensic hold. Alternating backlight bars make transmission and grazing-angle Fresnel response legible while the two-cell perimeter stays captured by the metal frame.
 
 These presets are dimensionless and tuned for visible, deterministic comparisons. They are **not** calibrated material data, FEA, structural design, safety calculations, or certification. See [MATERIAL_FRACTURE.md](docs/MATERIAL_FRACTURE.md).
 
@@ -211,9 +269,11 @@ Key features:
 - One-sample or four-sample MSAA based on quality profile.
 - Quality-dependent 1,024² or 2,048² directional shadows with up to 3×3 PCF.
 - PBR-inspired GGX solid shading.
+- One opaque material-tagged instanced pass for concrete, metal, and stone plus one conditionally submitted blended pass for glass and concrete dust; unchanged scenes do not pay the transparent draw.
+- Poliigon-derived 2×2 albedo and normal/roughness atlases; ASTC 6×6 on supported GPUs and RGBA8 otherwise.
 - Two-sided woven cloth and transparent Fresnel water.
 - Atmospheric sky, stars, sun glow, horizon haze, and distance fog.
-- Deterministic sparks, smoke, dust, shockwaves, flashes, and camera shake.
+- Deterministic sparks, coating flakes, translucent dust, transparent shards, shockwaves, flashes, and camera shake.
 - Runtime WGSL diagnostics and Dawn-backed pipeline tests.
 
 The four render profiles change actual GPU work:
@@ -241,7 +301,7 @@ The catalog is generated deterministically:
 | Interactive water | 50 | ripple basins, flumes, storms, wakes, fountains, reservoirs, vortices |
 | Material bending and fracture | 50 | steel yielding, timber splitting, concrete cracking, glass fracture, elastomer flexure, composite failure |
 
-Thirty-two hero demonstrations layer authored cameras, timed impacts, slow motion, effects, telemetry locks, and final inspection beats over selected scenes. The two material heroes are **Steel Yield-to-Rupture** and **Glass Catastrophic Fracture**. Press `T` to start the Maximum AAA Tour.
+Sixty-five hero demonstrations layer authored cameras, timed impacts, slow motion, effects, telemetry locks, and final inspection beats over selected scenes. The original 34 remain intact, including **Steel Yield-to-Rupture**, **Titan Metal Bend & Dent**, **Concrete Spall & Rebar Exposure**, and **Glass Catastrophic Fracture**. The material registry contributes 30 focused tests plus **Apex Materials Proving Ground**; these are derived presentations rather than 31 new native scene IDs. Ten starred signature scenes still receive the separate v1.15–v1.19 material/environment production pass. Press `T` to start the Maximum AAA Tour.
 
 See [AAA_SHOWCASE.md](docs/AAA_SHOWCASE.md) for the complete hero list and [DEMO_GUIDE.md](docs/DEMO_GUIDE.md) for the recommended presentation flow.
 
@@ -260,6 +320,7 @@ See [AAA_SHOWCASE.md](docs/AAA_SHOWCASE.md) for the complete hero list and [DEMO
 | `D` | toggle diagnostics |
 | `L` | apply the selected normalized material load |
 | `U` | release the material load |
+| `I` | trigger the active recipe's authored metal dent, glass fracture seed, or concrete spall strike |
 | `←` / `→` | previous or next scene |
 | Mouse drag | leave cinematic mode and orbit |
 | Mouse wheel | zoom |
@@ -338,6 +399,14 @@ All **100 / 100** cases were finite, deterministic, and monotonic. Eighty-three 
 MATERIAL_FRACTURE_OUTPUT=/tmp/material-fracture-v1.14.json npm run test:material:100
 ```
 
+### Version 1.15: material presentation without a scene-wide CPU tax
+
+The v1.15 material pass is an asset and presentation upgrade, not a fabricated solver speedup. It preserves the existing compact rigid instance stream and selects material behavior through the fourth color word. Concrete, metal, stone, and glass therefore share the existing instanced cube pipeline. Static signature dressing uploads once; unchanged frames retain the zero-additional-upload cache. ASTC-capable GPUs load about 1.2 MB for both material atlases combined, while the RGBA8 pair is the compatibility fallback. Rebuild the derived atlases from the configured local Poliigon library with:
+
+```bash
+npm run build:poliigon-materials
+```
+
 ### Cumulative soft-system progress
 
 The earliest directly comparable full cloth/rope/water baseline is v1.2. Against corresponding maximum-detail v1.10 production workloads, fresh isolated-process measurements found:
@@ -385,26 +454,27 @@ See [TURBOQUANT.md](docs/TURBOQUANT.md).
 Run the full current release gate:
 
 ```bash
-npm run validate:v1.14
+npm run validate:v1.20
 ```
 
-The v1.14 gate covers:
+The v1.20 gate covers:
 
 - Source-manifest verification.
 - Clean dependency installation and zero moderate-or-higher npm vulnerabilities.
-- Strict TypeScript and 24 deterministic unit suites.
-- 800 scene constructors and 32 hero definitions.
+- Strict TypeScript and 31 deterministic unit suites.
+- The exact 100-item AAA registry, unique IDs and ordinals, ten-per-signature ownership, finite transforms/colors, positive scales, and backend-neutral effect-stream staging.
+- 800 scene constructors, 65 hero definitions, 31 unique material-demo recipes, and ten unchanged signature-scene contracts.
 - JavaScript, SIMD-WASM, and scalar-WASM soft-system soaks.
-- 200 cloth/rope/water/material scenes, 4,800 catalog frames, and 2,400 replay frames per soft backend.
-- Ten normalized material presets, all 50 fracture scenes, deterministic load/release/cycle schedules, monotonic damage/break state, and bounded finite topology.
+- 200 cloth/rope/water/material scenes, 4,800 stable-catalog frames, 744 derived-material frames, and 3,000 replay frames per soft backend.
+- Ten normalized material presets, all 50 fracture scenes, deterministic load/release/cycle/strike schedules, springback and residual-set contracts, localized concrete spall/rebar persistence, radial glass fracture/shard retention, monotonic damage/break state, and bounded finite topology.
 - 250 rope batching combinations, including 38 qualified paths and 212 controls.
 - Native Box3D staging soak across all 800 scenes, repeated twice.
-- 1,145,838 rigid body-frames per native pass, up to 4,096 bodies.
+- 1,146,480 rigid body-frames per native pass, up to 4,096 bodies.
 - Eleven WGSL modules and the real renderer runtime through Dawn with zero uncaptured WebGPU errors.
-- KTX2 BC4/R8 upload paths.
+- KTX2 ASTC/RGBA8 Poliigon atlas upload paths plus BC4/R8 noise paths.
 - Production and GitHub Pages builds.
-- A live browser sweep covering 800 scenes and 32 heroes.
-- Manual final-path browser checks with Box3D WASM, cloth, rope, water, and material fracture active and no console warnings or errors.
+- Retained v1.19 live-browser sweep evidence covering 800 scenes and the then-current 34 heroes; the 31 new material programs have deterministic state/Dawn coverage but require a new visible-browser capture before a corresponding live-pixel claim is made.
+- Current v1.19 pixel-level inspection remains a separate manual acceptance gate; automated state, Dawn submission, and native execution do not substitute for it.
 
 Safe Apple GPU renderer/KTX2 smoke gate:
 
@@ -454,7 +524,7 @@ npm run verify:soft-kernels
 npm run test:soft-kernels
 ```
 
-The default release check compares packaged modules byte-for-byte with the current compiler output. The Ubuntu CI and Pages workflows execute the packaged SIMD/scalar runtime and integration tests, then run the current v1.14 soaks, material contracts, native checks, retained evidence gates, builds, and audit. They deliberately leave byte-identical recompilation to the recorded release toolchain because different Clang/LLD versions are not expected to emit identical binaries.
+The default release check compares packaged modules byte-for-byte with the current compiler output. The Ubuntu CI and Pages workflows execute the packaged SIMD/scalar runtime and integration tests, then run the current v1.19 AAA-registry, soft-system, metal/concrete/glass, native, build, audit, and manifest gates. They deliberately leave byte-identical recompilation to the recorded release toolchain because different Clang/LLD versions are not expected to emit identical binaries.
 
 ## Production build and deployment
 
@@ -480,15 +550,17 @@ The checked-in Pages workflow runs the current validation gates before publishin
 ```text
 src/main.ts                     application loop, UI, fixed-step coordination
 src/scenes.ts                   deterministic 800-scene catalog
-src/showcases.ts                32 cinematic hero timelines
+src/showcases.ts                65 cinematic hero timelines and ten-scene signature set
+src/material-demos.ts           30 focused material recipes plus the Apex combined program
 src/physics/wasm.ts             native Box3D WebAssembly wrapper
 src/physics/fallback.ts         deterministic rigid preview backend
 src/soft/simulations.ts         cloth, rope, water, material coordination, frame contracts
 src/soft/material-presets.ts    ten normalized comparative material profiles
 src/soft/material-simulation.ts deterministic bending, plasticity, damage, and fracture lattice
+src/soft/combined-material-simulation.ts bounded three-rig Apex material composition
 src/soft/kernels.ts             SIMD → scalar → JavaScript kernel selection
 src/webgpu/renderer.ts          frame graph, GPU surfaces, rope/material compute, HDR/post
-src/assets/ktx2.ts              BC4/R8 KTX2 loading and fallback
+src/assets/ktx2.ts              ASTC/RGBA8 material atlases, BC4/R8 noise, fallbacks
 src/compression/turboquant.ts   optional remote-state codec
 wasm/box3d_web.c                native Box3D application bridge
 wasm/soft_kernels.c             standalone cloth/rope/water numerical kernels
@@ -504,6 +576,7 @@ docs/                           architecture, rendering, demo, and test guides
 - Water is a 2.5D heightfield, not a volumetric SPH, FLIP, or general Navier–Stokes solver.
 - Material presets are normalized comparative beam-lattice behaviors, not calibrated constitutive models, FEA, fatigue-life prediction, code checks, or safety calculations.
 - Cloth, rope, water, material, and rigid scenes exchange actions and staging, but arbitrary two-way coupling across every Box3D collision shape is not complete.
+- Apex coordinates three material rigs and their presentation streams in one scene; it does not claim continuum contact coupling between the metal, glass, and concrete solvers.
 - The renderer supports one active cloth or water surface per scene plus instanced ropes, payloads, droplets, rigid bodies, and effects.
 - Tearing cloth intentionally retains a topology-aware CPU presentation path.
 - Performance measurements describe the tested paths and hardware; they do not prove a universal FPS multiplier.

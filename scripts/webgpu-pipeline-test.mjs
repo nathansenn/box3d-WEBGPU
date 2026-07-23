@@ -94,6 +94,9 @@ const sceneBindGroupLayout = device.createBindGroupLayout({
     { binding: 2, visibility: GPUShaderStage.FRAGMENT, sampler: { type: 'comparison' } },
     { binding: 3, visibility: GPUShaderStage.FRAGMENT, texture: { sampleType: 'float', viewDimension: '2d' } },
     { binding: 4, visibility: GPUShaderStage.FRAGMENT, sampler: { type: 'filtering' } },
+    { binding: 5, visibility: GPUShaderStage.FRAGMENT, texture: { sampleType: 'float', viewDimension: '2d' } },
+    { binding: 6, visibility: GPUShaderStage.FRAGMENT, texture: { sampleType: 'float', viewDimension: '2d' } },
+    { binding: 7, visibility: GPUShaderStage.FRAGMENT, sampler: { type: 'filtering' } },
   ],
 });
 const sceneLayout = device.createPipelineLayout({ bindGroupLayouts: [sceneBindGroupLayout] });
@@ -176,6 +179,7 @@ const shadowPipeline = await checked('shadow render pipeline', () => device.crea
   label: 'AAA shadow map pipeline test',
   layout: shadowLayout,
   vertex: { module: modules.shadowShader, entryPoint: 'vsMain', buffers: instanceVertexBuffers },
+  fragment: { module: modules.shadowShader, entryPoint: 'fsMain', targets: [] },
   primitive: { topology: 'triangle-list', cullMode: 'front' },
   depthStencil: { format: 'depth32float', depthWriteEnabled: true, depthCompare: 'less' },
 }));
@@ -209,6 +213,25 @@ const solidPipeline = await checked('PBR solid render pipeline', () => device.cr
   fragment: { module: modules.solidShader, entryPoint: 'fsMain', targets: [{ format: 'rgba16float' }] },
   primitive: { topology: 'triangle-list', cullMode: 'back' },
   depthStencil: { format: 'depth24plus', depthWriteEnabled: true, depthCompare: 'less' },
+  multisample: { count: 4 },
+}));
+const transparentSolidPipeline = await checked('translucent glass/material-particle render pipeline', () => device.createRenderPipelineAsync({
+  label: 'AAA transparent solid pipeline test',
+  layout: sceneLayout,
+  vertex: { module: modules.solidShader, entryPoint: 'vsMain', buffers: instanceVertexBuffers },
+  fragment: {
+    module: modules.solidShader,
+    entryPoint: 'fsTransparent',
+    targets: [{
+      format: 'rgba16float',
+      blend: {
+        color: { srcFactor: 'src-alpha', dstFactor: 'one-minus-src-alpha', operation: 'add' },
+        alpha: { srcFactor: 'one', dstFactor: 'one-minus-src-alpha', operation: 'add' },
+      },
+    }],
+  },
+  primitive: { topology: 'triangle-list', cullMode: 'none' },
+  depthStencil: { format: 'depth24plus', depthWriteEnabled: false, depthCompare: 'less-equal' },
   multisample: { count: 4 },
 }));
 const clothPipeline = await checked('dynamic cloth render pipeline', () => device.createRenderPipelineAsync({
@@ -318,7 +341,7 @@ const ropePositionBuffer = device.createBuffer({ size: 3 * 3 * 4, usage: GPUBuff
 const ropeSegmentBuffer = device.createBuffer({ size: 2 * 8 * 4, usage: GPUBufferUsage.STORAGE | GPUBufferUsage.COPY_DST });
 
 device.queue.writeBuffer(matrixBuffer, 0, new Float32Array([1, 0, 0, 0, 0, 1, 0, 0, 0, 0, 1, 0, 0, 0, 0, 1]));
-device.queue.writeBuffer(colorBuffer, 0, new Float32Array([0.8, 0.4, 0.2, 1]));
+device.queue.writeBuffer(colorBuffer, 0, new Float32Array([0.38, 0.78, 0.90, -4]));
 device.queue.writeBuffer(ropeUniformBuffer, 0, new Uint32Array([1, 2, 3, 0]));
 device.queue.writeBuffer(ropePositionBuffer, 0, new Float32Array([
   -1.2, 4.0, 0.0,
@@ -395,6 +418,17 @@ device.queue.writeTexture(
   [4, 4, 1],
 );
 const materialSampler = device.createSampler({ magFilter: 'linear', minFilter: 'linear' });
+const atlasAlbedoTexture = device.createTexture({
+  size: [4, 4], format: 'rgba8unorm-srgb', usage: GPUTextureUsage.TEXTURE_BINDING | GPUTextureUsage.COPY_DST,
+});
+const atlasSurfaceTexture = device.createTexture({
+  size: [4, 4], format: 'rgba8unorm', usage: GPUTextureUsage.TEXTURE_BINDING | GPUTextureUsage.COPY_DST,
+});
+const atlasPixels = new Uint8Array(4 * 4 * 4).fill(160);
+for (let i = 3; i < atlasPixels.length; i += 4) atlasPixels[i] = 210;
+device.queue.writeTexture({ texture: atlasAlbedoTexture }, atlasPixels, { bytesPerRow: 16, rowsPerImage: 4 }, [4, 4, 1]);
+device.queue.writeTexture({ texture: atlasSurfaceTexture }, atlasPixels, { bytesPerRow: 16, rowsPerImage: 4 }, [4, 4, 1]);
+const atlasSampler = device.createSampler({ magFilter: 'linear', minFilter: 'linear' });
 const shadowBindGroup = device.createBindGroup({
   layout: shadowBindGroupLayout,
   entries: [{ binding: 0, resource: { buffer: uniformBuffer } }],
@@ -407,6 +441,9 @@ const sceneBindGroup = device.createBindGroup({
     { binding: 2, resource: shadowSampler },
     { binding: 3, resource: materialTexture.createView() },
     { binding: 4, resource: materialSampler },
+    { binding: 5, resource: atlasAlbedoTexture.createView() },
+    { binding: 6, resource: atlasSurfaceTexture.createView() },
+    { binding: 7, resource: atlasSampler },
   ],
 });
 const gpuClothBindGroup = device.createBindGroup({
@@ -531,6 +568,12 @@ await checked('complete offscreen rigid + cloth + rope + water frame', async () 
   mainPass.setPipeline(gpuWaterPipeline);
   mainPass.setBindGroup(1, gpuWaterBindGroup);
   mainPass.drawIndexed(6, 1);
+  mainPass.setPipeline(transparentSolidPipeline);
+  mainPass.setBindGroup(0, sceneBindGroup);
+  mainPass.setVertexBuffer(0, vertexBuffer);
+  mainPass.setVertexBuffer(1, matrixBuffer);
+  mainPass.setVertexBuffer(2, colorBuffer);
+  mainPass.draw(36, 3);
   mainPass.setPipeline(linePipeline);
   mainPass.setVertexBuffer(0, lineBuffer);
   mainPass.draw(2, 1);
@@ -554,7 +597,7 @@ await checked('complete offscreen rigid + cloth + rope + water frame', async () 
 });
 
 assert.deepEqual(uncapturedErrors, [], 'Dawn emitted no uncaptured WebGPU errors');
-console.log('✅ Dawn WebGPU pipeline test passed: 11 shaders, GPU-rope compute, packed/GPU cloth and GPU-water pipelines, storage-buffer reconstruction, shadow isolation, HDR/MSAA, and complete offscreen frame');
+console.log('✅ Dawn WebGPU pipeline test passed: 11 shaders, blended glass/dust, GPU-rope compute, packed/GPU cloth and GPU-water pipelines, storage-buffer reconstruction, shadow isolation, HDR/MSAA, and complete offscreen frame');
 
 device.destroy();
 gpu = null;

@@ -46,6 +46,10 @@ export type ScenePreset = {
   camera: CameraRig;
   tags: readonly string[];
   tourSeconds: number;
+  /** Optional runtime-authored material presentation. These recipes reuse the
+   * stable 0–799 native stage IDs while selecting a distinct soft-material
+   * specimen, boundary condition, load path, and cinematic stage. */
+  materialDemoId?: string;
 };
 
 type FamilyDefinition = {

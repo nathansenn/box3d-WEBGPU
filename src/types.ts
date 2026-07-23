@@ -96,6 +96,18 @@ export type MaterialFailureTelemetry = {
   yieldedCount: number;
   damagedCount: number;
   peakDamage: number;
+  /** Current centerline displacement below the undeformed specimen plane. */
+  centerDeflection: number;
+  /** Largest centerline displacement observed during this run. */
+  peakDeflection: number;
+  /** Current unloaded centerline displacement retained after springback. */
+  residualDent: number;
+  /** Cohesive surface cells that have separated during this run. */
+  fracturedCellCount: number;
+  /** Live concrete-spall or glass-shard presentation bodies. */
+  fragmentCount: number;
+  /** Intact reinforcement members still bridging a concrete failure zone. */
+  reinforcementCount: number;
   failurePhase: 'elastic' | 'yielding' | 'fracturing' | 'failed';
 };
 

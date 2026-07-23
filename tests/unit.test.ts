@@ -36,16 +36,37 @@ import {
 import { CameraMatrixCache, type CameraShakeInput } from '../src/camera';
 import { FrameLineStager } from '../src/frame-lines';
 import { CinematicEffects } from '../src/effects';
+import { AAA_IMPROVEMENTS, getAAAImprovementsForScene, getAAAStagePrimitives } from '../src/aaa-improvements';
+import {
+  MATERIAL_DEMO_RECIPES,
+  getMaterialDemoRecipe,
+  getMaterialDemoStagePrimitives,
+  materialDemoCounts,
+  sceneForMaterialDemo,
+} from '../src/material-demos';
 import { FallbackPhysicsBackend } from '../src/physics/fallback';
 import { FEATURED_SCENE_IDS, SCENES, SCENE_CATEGORIES, sceneLabel } from '../src/scenes';
-import { AAA_SHOWCASES, getShowcaseById, getShowcaseByOrdinal, sampleShowcaseCamera } from '../src/showcases';
+import {
+  AAA_SHOWCASES,
+  AAA_SIGNATURE_SHOWCASES,
+  getShowcaseById,
+  getShowcaseByOrdinal,
+  getShowcaseScene,
+  sampleShowcaseCamera,
+} from '../src/showcases';
 import {
   CLOTH_INSTANCE_BUDGET,
   ROPE_INSTANCE_BUDGET,
   SOFT_INSTANCE_BUDGET,
+  SOFT_RENDER_INSTANCE_BUDGET,
   SoftSimulationSuite,
   WATER_INSTANCE_BUDGET,
+  type SoftSimulationFrame,
 } from '../src/soft/simulations';
+import {
+  COMBINED_MATERIAL_CPU_INSTANCE_BUDGET,
+  COMBINED_MATERIAL_SEGMENT_BUDGET,
+} from '../src/soft/combined-material-simulation';
 import { MATERIAL_BEHAVIOR_PRESETS, materialPresetForVariant } from '../src/soft/material-presets';
 import { PACKED_SURFACE_VERTEX_BYTES } from '../src/soft/packed-surface';
 import { TurboQuantCodec, TurboQuantDeltaStream, turboQuantCompressionRatio, turboQuantError } from '../src/compression/turboquant';
@@ -61,6 +82,32 @@ function surfaceStateFinite(surface: DynamicSurfaceFrame): boolean {
   }
   if (surface.path === 'gpu-water') return isFiniteArray(surface.eta) && isFiniteArray(surface.u) && isFiniteArray(surface.v);
   return isFiniteArray(surface.vertices);
+}
+
+function hasTiltedTaggedPanel(
+  frame: { matrices: Float32Array; colors: Float32Array; instanceCount: number },
+  materialTag: number,
+  thinAxis: 1 | 2,
+  thinMaximum: number,
+): boolean {
+  for (let instance = 0; instance < frame.instanceCount; instance++) {
+    if (frame.colors[instance * 4 + 3] !== materialTag) continue;
+    const matrixOffset = instance * 16;
+    const lengths = [0, 0, 0];
+    for (let column = 0; column < 3; column++) {
+      const offset = matrixOffset + column * 4;
+      lengths[column] = Math.hypot(frame.matrices[offset], frame.matrices[offset + 1], frame.matrices[offset + 2]);
+    }
+    if (lengths[thinAxis] >= thinMaximum) continue;
+    const broadAxes = [0, 1, 2].filter((axis) => axis !== thinAxis);
+    if (lengths[broadAxes[0]] <= 0.08 || lengths[broadAxes[1]] <= 0.08) continue;
+    const thinOffset = matrixOffset + thinAxis * 4;
+    const offAxis = thinAxis === 1
+      ? Math.abs(frame.matrices[thinOffset]) + Math.abs(frame.matrices[thinOffset + 2])
+      : Math.abs(frame.matrices[thinOffset]) + Math.abs(frame.matrices[thinOffset + 1]);
+    if (offAxis / Math.max(lengths[thinAxis], 1e-8) > 1e-3) return true;
+  }
+  return false;
 }
 
 function testMath(): void {
@@ -205,13 +252,24 @@ function testSceneCatalog(): void {
 }
 
 function testHeroShowcaseCatalog(): void {
-  equal(AAA_SHOWCASES.length, 32);
+  equal(AAA_SHOWCASES.length, 65);
+  equal(AAA_SIGNATURE_SHOWCASES.length, 10);
   const ids = new Set(AAA_SHOWCASES.map((showcase) => showcase.id));
   equal(ids.size, AAA_SHOWCASES.length, 'showcase IDs must be unique');
+  equal(AAA_SHOWCASES.filter((showcase) => showcase.materialDemoId !== undefined).length, 31, 'every material recipe must own one cinematic showcase');
 
   for (let i = 0; i < AAA_SHOWCASES.length; i++) {
     const showcase = AAA_SHOWCASES[i];
-    ok(SCENES.some((scene) => scene.id === showcase.sceneId), `${showcase.title} must reference a valid scene`);
+    const scene = getShowcaseScene(showcase);
+    ok(SCENES.some((candidate) => candidate.id === showcase.sceneId), `${showcase.title} must retain a valid native/fallback scene ID`);
+    equal(scene.id, showcase.sceneId, `${showcase.title} derived scene must retain the stable base ID`);
+    equal(scene.materialDemoId, showcase.materialDemoId, `${showcase.title} material recipe was not preserved by scene resolution`);
+    if (showcase.materialDemoId) {
+      const recipe = getMaterialDemoRecipe(showcase.materialDemoId);
+      ok(recipe, `${showcase.title} must reference a registered material recipe`);
+      equal(scene.title, recipe!.title, `${showcase.title} must resolve the recipe-authored scene title`);
+      equal(scene.family, 'fracture', `${showcase.title} must resolve through the fracture simulation family`);
+    }
     ok(showcase.title.length > 8);
     ok(showcase.tagline.length > 24);
     ok(showcase.objective.length > 32);
@@ -233,6 +291,90 @@ function testHeroShowcaseCatalog(): void {
     equal(getShowcaseById(showcase.id).id, showcase.id);
     equal(getShowcaseByOrdinal(i + AAA_SHOWCASES.length).id, showcase.id);
   }
+
+  const dentHero = getShowcaseById('titan-metal-bend-and-dent');
+  equal(dentHero.sceneId, 780, 'metal dent hero must use the Structural Steel Impact Demo recipe');
+  ok(dentHero.beats.filter((beat) => beat.action === 'dent-strike').length >= 2, 'metal dent hero requires two instrumented strike beats');
+  ok(dentHero.beats.some((beat) => beat.action === 'release-load'), 'metal dent hero must unload for springback inspection');
+}
+
+function testMaterialDemoRegistryContracts(): void {
+  equal(MATERIAL_DEMO_RECIPES.length, 31, 'material presentation registry must contain exactly thirty laboratories plus one combined finale');
+  deepEqual(materialDemoCounts(), { metal: 10, glass: 10, concrete: 10, combined: 1 });
+  equal(new Set(MATERIAL_DEMO_RECIPES.map((recipe) => recipe.id)).size, 31, 'material demo IDs must be unique');
+  equal(new Set(MATERIAL_DEMO_RECIPES.map((recipe) => recipe.title)).size, 31, 'material demo titles must be unique');
+
+  const materialShowcases = AAA_SHOWCASES.filter((showcase) => showcase.materialDemoId !== undefined);
+  deepEqual(
+    [...materialShowcases.map((showcase) => showcase.materialDemoId!)].sort(),
+    [...MATERIAL_DEMO_RECIPES.map((recipe) => recipe.id)].sort(),
+    'every material demo recipe must map one-to-one to a cinematic showcase',
+  );
+
+  for (const recipe of MATERIAL_DEMO_RECIPES) {
+    equal(getMaterialDemoRecipe(recipe.id), recipe, `${recipe.id} registry lookup must retain object identity`);
+    const scene = sceneForMaterialDemo(recipe.id);
+    equal(scene.id, recipe.baseSceneId, `${recipe.id} must preserve its stable native/fallback ID`);
+    equal(scene.family, 'fracture', `${recipe.id} must use the material fracture simulation family`);
+    equal(scene.variant, recipe.profileVariant, `${recipe.id} must select its authored material profile`);
+    equal(scene.materialDemoId, recipe.id, `${recipe.id} must survive preset derivation`);
+    equal(scene.title, recipe.title, `${recipe.id} must retain its authored presentation title`);
+    equal(scene.defaultStress, recipe.recommendedStress, `${recipe.id} stress recommendation changed`);
+    ok(scene.tags.includes('material-demo') && scene.tags.includes(recipe.kind), `${recipe.id} must remain searchable by presentation kind`);
+    ok(recipe.primaryLoad < recipe.ultimateLoad, `${recipe.id} ultimate load must exceed service load`);
+    ok(recipe.primaryStrike < recipe.ultimateStrike, `${recipe.id} ultimate strike must exceed the first strike`);
+    ok(recipe.loadCenter.every((value) => value >= 0 && value <= 1), `${recipe.id} load center must be normalized`);
+    ok(recipe.strikeCenter.every((value) => value >= 0 && value <= 1), `${recipe.id} strike center must be normalized`);
+    ok(recipe.stations <= 48 && recipe.lanes <= 15, `${recipe.id} exceeds the proven material-grid ceiling`);
+
+    const stage = getMaterialDemoStagePrimitives(recipe.id);
+    ok(stage.length >= 8, `${recipe.id} must contribute a materially dressed AAA stage`);
+    for (const primitive of stage) {
+      ok(isFiniteArray(primitive.pos) && isFiniteArray(primitive.half) && isFiniteArray(primitive.rot) && isFiniteArray(primitive.color), `${recipe.id} stage geometry must remain finite`);
+      ok(primitive.half.every((value) => value > 0), `${recipe.id} stage geometry must have positive half extents`);
+    }
+  }
+
+  equal(getMaterialDemoRecipe(undefined), null);
+  equal(getMaterialDemoRecipe('not-a-material-demo'), null);
+}
+
+function testAAA100ImprovementRegistry(): void {
+  equal(AAA_IMPROVEMENTS.length, 100, 'the AAA production pass must ship exactly 100 numbered improvements');
+  equal(new Set(AAA_IMPROVEMENTS.map((entry) => entry.id)).size, 100, 'AAA improvement IDs must be unique');
+  deepEqual(AAA_IMPROVEMENTS.map((entry) => entry.ordinal), Array.from({ length: 100 }, (_, index) => index + 1));
+  deepEqual(
+    [...new Set(AAA_IMPROVEMENTS.map((entry) => entry.sceneId))].sort((a, b) => a - b),
+    AAA_SIGNATURE_SHOWCASES.map((showcase) => showcase.sceneId).sort((a, b) => a - b),
+    'the improvement registry must target exactly the ten signature scene IDs',
+  );
+
+  for (const entry of AAA_IMPROVEMENTS) {
+    ok(entry.id.trim().length > 0 && entry.label.trim().length > 0, `AAA improvement ${entry.ordinal} must have a stable ID and label`);
+    ok(entry.primitives.length > 0, `AAA improvement ${entry.ordinal} must contribute visible runtime geometry`);
+    for (const primitive of entry.primitives) {
+      ok(isFiniteArray(primitive.pos) && isFiniteArray(primitive.half) && isFiniteArray(primitive.rot) && isFiniteArray(primitive.color), `AAA improvement ${entry.ordinal} stage primitive must be finite`);
+      ok(primitive.half[0] > 0 && primitive.half[1] > 0 && primitive.half[2] > 0, `AAA improvement ${entry.ordinal} stage primitive must have positive scale`);
+    }
+  }
+
+  for (const showcase of AAA_SIGNATURE_SHOWCASES) {
+    const improvements = getAAAImprovementsForScene(showcase.sceneId);
+    equal(improvements.length, 10, `${showcase.title} must receive exactly ten named improvements`);
+    ok(improvements.every((entry) => entry.showcaseId === showcase.id), `${showcase.title} improvement ownership must be exact`);
+    const primitives = getAAAStagePrimitives(showcase.sceneId);
+    ok(primitives.length >= 10, `${showcase.title} must stage at least one primitive per improvement`);
+  }
+
+  equal(AAA_IMPROVEMENTS.filter((entry) => entry.category === 'architecture').length >= 25, true, 'AAA pass must materially deepen stage architecture');
+  equal(AAA_IMPROVEMENTS.filter((entry) => entry.category === 'forensics').length >= 15, true, 'AAA pass must add readable engineering evidence');
+  equal(AAA_IMPROVEMENTS.filter((entry) => entry.category === 'lighting').length >= 15, true, 'AAA pass must add authored lighting cues');
+  equal(AAA_IMPROVEMENTS.filter((entry) => entry.category === 'safety').length >= 15, true, 'AAA pass must add safety and scale cues');
+
+  const plazaLights = AAA_IMPROVEMENTS.find((entry) => entry.id.endsWith('-plaza-light-wells'))!;
+  ok(plazaLights.primitives.every((primitive) => primitive.pos[1] - primitive.half[1] > 0.85), 'Twin Spire plaza lights must clear the opaque podium depth surface');
+  const skylightRing = AAA_IMPROVEMENTS.find((entry) => entry.id.endsWith('-skylight-ring'))!;
+  ok(skylightRing.primitives.every((primitive) => primitive.pos[1] - primitive.half[1] > 9.10), 'Mega Atrium skylight ring must clear the opaque roof depth surface');
 }
 
 function testFallbackCanCreateEveryScene(): void {
@@ -341,12 +483,24 @@ function testAAACinematicSetDressing(): void {
   ok(cinematicCount > baselineCount, `AAA scene should add authored set dressing (${cinematicCount} > ${baselineCount})`);
 
   for (const showcase of AAA_SHOWCASES) {
-    const scene = SCENES[showcase.sceneId];
+    const scene = getShowcaseScene(showcase);
     const count = cinematic.createScene(scene, showcase.recommendedStress, 0x7000 + scene.id);
     ok(count > 10, `${showcase.title} should create a substantial hero scene`);
     cinematic.step(1 / 60, 2);
     const start = Number(cinematic._b3w_matrices_ptr()) / 4;
     ok(isFiniteArray(cinematic.HEAPF32.subarray(start, start + Math.min(48, count) * 16)), `${showcase.title} matrices must remain finite`);
+  }
+
+  for (const showcase of AAA_SIGNATURE_SHOWCASES) {
+    const scene = getShowcaseScene(showcase);
+    const count = cinematic.createScene(scene, showcase.recommendedStress, 0xa000 + scene.id);
+    const colorStart = Number(cinematic._b3w_colors_ptr()) / 4;
+    let texturedBodies = 0;
+    for (let index = 0; index < count; index++) {
+      const materialTag = cinematic.HEAPF32[colorStart + index * 4 + 3];
+      if (materialTag <= -1 && materialTag >= -5) texturedBodies++;
+    }
+    ok(texturedBodies >= 2, `${showcase.title} should contain authored atlas/glass materials`);
   }
 }
 
@@ -562,7 +716,13 @@ function testSoftSimulationCatalog(): void {
       equal(frame.surface, null, `${scene.title} is rendered as GPU-computed beam segments`);
       ok(frame.ropeGrid, `${scene.title} must expose a GPU segment grid`);
       equal(frame.ropeGrid!.presentation, presentation, `${scene.title} exposed the wrong segment presentation`);
-      ok(frame.ropeGrid!.segmentCount > 0, `${scene.title} must render active segments`);
+      const skinOnlyRig =
+        scene.family === 'fracture' && (
+          (scene.mode === 3 && scene.variant <= 2) ||
+          (scene.mode === 4 && (scene.variant <= 2 || scene.variant === 6))
+        );
+      if (skinOnlyRig) equal(frame.ropeGrid!.segmentCount, 0, `${scene.title} must hide its internal solver lattice`);
+      else ok(frame.ropeGrid!.segmentCount > 0, `${scene.title} must render active segments`);
       ok(frame.ropeGrid!.segmentCount <= SOFT_INSTANCE_BUDGET, `${scene.title} exceeded the GPU segment budget`);
       ok(isFiniteArray(frame.ropeGrid!.positions), `${scene.title} node positions must remain finite`);
       ok(isFiniteArray(frame.ropeGrid!.segments), `${scene.title} segment metadata must remain finite`);
@@ -578,6 +738,25 @@ function testSoftSimulationCatalog(): void {
     }
   }
   deepEqual(counts, { cloth: 50, rope: 50, water: 50, fracture: 50 });
+  suite.destroy();
+}
+
+function testMaximumSoftRenderCapacity(): void {
+  const suite = new SoftSimulationSuite();
+  let maximumCombined = 0;
+  let maximumScene = '';
+  for (const scene of SCENES) {
+    if (scene.family !== 'cloth' && scene.family !== 'rope' && scene.family !== 'water' && scene.family !== 'fracture') continue;
+    ok(suite.createScene(scene, 5, 0x910000 + scene.id), `${scene.title} should activate at maximum stress`);
+    const frame = suite.buildFrame(false);
+    const combined = frame.instanceCount + (frame.ropeGrid?.segmentCount ?? 0);
+    if (combined > maximumCombined) {
+      maximumCombined = combined;
+      maximumScene = scene.title;
+    }
+    ok(combined <= SOFT_RENDER_INSTANCE_BUDGET, `${scene.title} requires ${combined} render instances, above the ${SOFT_RENDER_INSTANCE_BUDGET} reserved capacity`);
+  }
+  ok(maximumCombined > 900, `${maximumScene} should exercise a substantial combined GPU-segment plus CPU-instance stream`);
   suite.destroy();
 }
 
@@ -618,7 +797,9 @@ function testMaterialPresetOrderingAndInvariants(): void {
     ok(preset.tensileYieldStrain > 0 && preset.tensileBreakStrain > preset.tensileYieldStrain, `${preset.id} tensile envelope is invalid`);
     ok(preset.compressionYieldStrain > 0 && preset.compressionBreakStrain > preset.compressionYieldStrain, `${preset.id} compression envelope is invalid`);
     ok(preset.plasticCreep >= 0 && preset.damageRate > 0 && preset.fatigueRate >= 0, `${preset.id} damage coefficients are invalid`);
-    ok(isFiniteArray(preset.baseColor) && preset.baseColor.every((value) => value >= 0), `${preset.id} base color is invalid`);
+    ok(isFiniteArray(preset.baseColor), `${preset.id} base color is invalid`);
+    ok(preset.baseColor.slice(0, 3).every((value) => value >= 0 && value <= 1), `${preset.id} base RGB is invalid`);
+    ok(preset.baseColor[3] >= -5 && preset.baseColor[3] <= 4, `${preset.id} material channel is invalid`);
     if (preset.failureMode === 'brittle') {
       ok(preset.plasticCreep <= 0.035, `${preset.id} brittle preset accumulated excessive plastic creep`);
     } else if (preset.failureMode === 'fiber') {
@@ -696,6 +877,268 @@ function testMaterialFractureLoadAndActionDeterminism(): void {
   ok(aggregateYielded > 0, 'material matrix never crossed a yield threshold');
   ok(aggregateDamaged > 0, 'material matrix never accumulated damage');
   ok(aggregateBreaks > 0, 'material matrix never crossed a fracture threshold');
+}
+
+function testMetalBendingAndDentingDemo(): void {
+  const scene = SCENES[780];
+  equal(scene.family, 'fracture');
+  equal(scene.mode, 3);
+  equal(scene.variant, 0);
+  const a = new SoftSimulationSuite();
+  const b = new SoftSimulationSuite();
+  ok(a.createScene(scene, 5, 0xd37a110));
+  ok(b.createScene(scene, 5, 0xd37a110));
+
+  for (const suite of [a, b]) suite.setLoadTarget(0.84);
+  for (let frame = 0; frame < 120; frame++) {
+    a.step(1 / 60, 4);
+    b.step(1 / 60, 4);
+  }
+  for (const suite of [a, b]) suite.releaseLoad();
+  for (let frame = 0; frame < 120; frame++) {
+    a.step(1 / 60, 4);
+    b.step(1 / 60, 4);
+  }
+  equal(a.dentStrike(1), b.dentStrike(1), 'instrumented dent targets must be deterministic');
+  for (let frame = 0; frame < 180; frame++) {
+    a.step(1 / 60, 4);
+    b.step(1 / 60, 4);
+    equal(a.hash(), b.hash(), `metal dent replay diverged at frame ${frame}`);
+  }
+
+  const frameA = a.buildFrame(false);
+  const frameB = b.buildFrame(false);
+  deepEqual(frameA.material, frameB.material, 'metal dent telemetry must be deterministic');
+  const material = frameA.material!;
+  ok(material.testMode.includes('dent'), 'pressure-panel demo must identify its dent load case');
+  ok(material.peakDeflection > 0.50, 'instrumented strike must create a readable peak dent');
+  ok(material.residualDent > 0.08, 'unloaded panel must retain a measurable permanent set');
+  ok(material.residualDent < material.peakDeflection, 'springback must reduce the peak dent before residual inspection');
+  ok(material.yieldedCount > 0, 'metal dent must cross the normalized ductile yield envelope');
+  equal(frameA.brokenCount, 0, 'controlled dent should yield without rupturing the steel panel');
+  equal(frameA.ropeGrid?.segmentCount, 0, 'cinematic metal must hide the internal solver lattice');
+  ok(frameA.instanceCount >= 200, 'metal dent presentation must retain a dense continuous skin, press fixtures, and witness bands');
+  ok(hasTiltedTaggedPanel(frameA, -2, 1, 0.04), 'metal skin must rotate with the simulated dent curvature');
+  ok(!frameA.colors.slice(0, frameA.instanceCount * 4).some((value, index) => index % 4 === 3 && value > 1), 'cold-formed metal must not glow');
+  ok(a.validate().ok && b.validate().ok, 'metal dent demo must remain finite and valid');
+  a.destroy();
+  b.destroy();
+}
+
+function testConcreteSpallAndGlassShardDemos(): void {
+  const cases = [
+    { sceneId: 795, firstLoad: 0.78, firstStrike: 0.92, secondLoad: 1.34, secondStrike: 1.48, material: 'Concrete' },
+    { sceneId: 796, firstLoad: 0.18, firstStrike: 0.82, secondLoad: 0, secondStrike: 1.35, material: 'Glass' },
+  ] as const;
+  for (const config of cases) {
+    const scene = SCENES[config.sceneId];
+    const a = new SoftSimulationSuite();
+    const b = new SoftSimulationSuite();
+    ok(a.createScene(scene, 5, 0xa11a000 + config.sceneId));
+    ok(b.createScene(scene, 5, 0xa11a000 + config.sceneId));
+    for (const suite of [a, b]) suite.setLoadTarget(config.firstLoad);
+    for (let frame = 0; frame < 120; frame++) { a.step(1 / 60, 4); b.step(1 / 60, 4); }
+    const preStrikeFrame = a.buildFrame(false);
+    if (config.material === 'Concrete') {
+      ok(hasTiltedTaggedPanel(preStrikeFrame, -1, 1, 0.13), 'concrete cover must follow the loaded slab curvature');
+    } else {
+      ok(hasTiltedTaggedPanel(preStrikeFrame, -4, 2, 0.03), 'glass pane must follow the pre-impact elastic curvature');
+    }
+    equal(a.materialStrike(config.firstStrike), b.materialStrike(config.firstStrike), `${config.material} first strike target diverged`);
+    for (let frame = 0; frame < 180; frame++) {
+      a.step(1 / 60, 4); b.step(1 / 60, 4);
+      equal(a.hash(), b.hash(), `${config.material} first fracture phase diverged at frame ${frame}`);
+    }
+    for (const suite of [a, b]) config.secondLoad > 0 ? suite.setLoadTarget(config.secondLoad) : suite.releaseLoad();
+    for (let frame = 0; frame < 90; frame++) { a.step(1 / 60, 4); b.step(1 / 60, 4); }
+    equal(a.materialStrike(config.secondStrike), b.materialStrike(config.secondStrike), `${config.material} second strike target diverged`);
+    for (let frame = 0; frame < 240; frame++) {
+      a.step(1 / 60, 4); b.step(1 / 60, 4);
+      equal(a.hash(), b.hash(), `${config.material} final fracture phase diverged at frame ${frame}`);
+    }
+    const frameA = a.buildFrame(false);
+    const frameB = b.buildFrame(false);
+    deepEqual(frameA.material, frameB.material, `${config.material} telemetry must be deterministic`);
+    const material = frameA.material!;
+    ok(material.fracturedCellCount >= 20, `${config.material} must open a readable fracture field`);
+    ok(material.fragmentCount >= 20, `${config.material} must retain physical fragments through final inspection`);
+    ok(frameA.instanceCount >= 40, `${config.material} must render cover/pane tiles plus debris`);
+    if (config.material === 'Concrete') {
+      ok(material.reinforcementCount >= 80, 'concrete failure must retain substantial reinforcement bridging');
+      equal(frameA.ropeGrid?.segmentCount, material.reinforcementCount, 'concrete must expose reinforcement without its solver lattice');
+      for (let i = 0; i < frameA.ropeGrid!.segmentCount; i++) {
+        equal(frameA.ropeGrid!.segments[i * 8 + 7], -2, 'visible concrete segments must be reinforcement steel');
+      }
+      ok(material.fracturedCellCount < 100, 'concrete spall must remain localized rather than deleting the full slab');
+      ok(frameA.colors.slice(0, frameA.instanceCount * 4).some((value, index) => index % 4 === 3 && value === -5), 'concrete crater must use the mineral aggregate atlas tile, never woven fabric');
+    } else {
+      equal(material.reinforcementCount, 0, 'glass pane must not report reinforcement');
+      equal(frameA.ropeGrid?.segmentCount, 0, 'glass must hide its internal solver lattice');
+      ok(material.fracturedCellCount < 140, 'glass crack front must form rays rather than flood-filling the pane');
+      ok(material.peakDeflection <= 4.31, 'glass opening displacement telemetry must stay within the framed display range');
+      ok(frameA.colors.slice(0, frameA.instanceCount * 4).some((value, index) => index % 4 === 3 && value > 1 && value < 2), 'glass fracture must retain restrained crack-edge glints');
+      ok(frameA.colors.slice(0, frameA.instanceCount * 4).some((value, index) => index % 4 === 3 && value === -4), 'glass shards must retain their transparent material tag');
+    }
+    ok(a.validate().ok && b.validate().ok, `${config.material} AAA demo must remain finite and valid`);
+    a.destroy(); b.destroy();
+  }
+}
+
+function frameHasMaterialTag(frame: SoftSimulationFrame, tag: number, minX = -Infinity, maxX = Infinity): boolean {
+  for (let instance = 0; instance < frame.instanceCount; instance++) {
+    if (frame.colors[instance * 4 + 3] !== tag) continue;
+    const x = frame.matrices[instance * 16 + 12];
+    if (x >= minX && x <= maxX) return true;
+  }
+  return false;
+}
+
+function testMaterialDemoSimulationContracts(): void {
+  const suite = new SoftSimulationSuite();
+  const individualRecipes = MATERIAL_DEMO_RECIPES.filter((recipe) => recipe.kind !== 'combined');
+  equal(individualRecipes.length, 30);
+
+  for (let index = 0; index < individualRecipes.length; index++) {
+    const recipe = individualRecipes[index];
+    const scene = sceneForMaterialDemo(recipe.id);
+    ok(suite.createScene(scene, recipe.recommendedStress, (0x31d3a000 ^ Math.imul(index + 1, 0x9e3779b1)) >>> 0), `${recipe.title} must activate`);
+    suite.setLoadTarget(recipe.primaryLoad);
+    for (let frameIndex = 0; frameIndex < 4; frameIndex++) suite.step(1 / 60, 3);
+    const strike = recipe.kind === 'metal'
+      ? suite.dentStrike(recipe.primaryStrike)
+      : suite.materialStrike(recipe.primaryStrike);
+    ok(strike >= 0, `${recipe.title} must expose its authored strike target`);
+    for (let frameIndex = 0; frameIndex < 8; frameIndex++) suite.step(1 / 60, 3);
+
+    const frame = suite.buildFrame(true);
+    equal(frame.kind, 'fracture', `${recipe.title} must remain on the fracture simulation path`);
+    ok(frame.label.includes(recipe.title), `${recipe.title} frame label lost the presentation identity`);
+    equal(frame.surface, null, `${recipe.title} must use the material member/skin stream`);
+    ok(frame.material, `${recipe.title} must publish forensic material telemetry`);
+    equal(frame.material!.label, recipe.title, `${recipe.title} telemetry label changed`);
+    ok(frame.material!.testMode.includes(recipe.fixtureStyle) && frame.material!.testMode.includes(recipe.loadPattern), `${recipe.title} telemetry must identify its authored rig and load case`);
+    ok(frame.ropeGrid, `${recipe.title} must publish its material member grid`);
+    equal(frame.ropeGrid!.presentation, 'material', `${recipe.title} must use the material GPU presentation`);
+    ok(frame.nodeCount > 0 && frame.constraintCount > 0, `${recipe.title} must retain physical solver state`);
+    ok(frame.instanceCount > 0 && frame.instanceCount <= SOFT_INSTANCE_BUDGET, `${recipe.title} exceeded the proven CPU proxy cap`);
+    ok(isFiniteArray(frame.matrices) && isFiniteArray(frame.colors), `${recipe.title} proxy streams must remain finite`);
+    ok(isFiniteArray(frame.ropeGrid!.positions) && isFiniteArray(frame.ropeGrid!.segments), `${recipe.title} material member streams must remain finite`);
+    ok(frame.ropeGrid!.positions.length >= frame.ropeGrid!.nodeCount * 3, `${recipe.title} node stream is truncated`);
+    ok(frame.ropeGrid!.segments.length >= frame.ropeGrid!.segmentCount * 8, `${recipe.title} segment stream is truncated`);
+
+    if (recipe.kind === 'metal') {
+      ok(frameHasMaterialTag(frame, -2), `${recipe.title} must retain the Poliigon metal material tag`);
+      equal(frame.ropeGrid!.segmentCount, 0, `${recipe.title} must hide its internal sheet-solver lattice`);
+    } else if (recipe.kind === 'glass') {
+      ok(frameHasMaterialTag(frame, -4), `${recipe.title} must retain transparent glass tiles or shards`);
+      equal(frame.ropeGrid!.segmentCount, 0, `${recipe.title} must hide its internal cohesive lattice`);
+      equal(frame.material!.reinforcementCount, 0, `${recipe.title} must never synthesize reinforcement`);
+    } else {
+      ok(frameHasMaterialTag(frame, -1), `${recipe.title} must retain the Poliigon concrete skin tag`);
+      ok(frameHasMaterialTag(frame, -5), `${recipe.title} strike must expose aggregate-rich fracture material`);
+      ok(frame.ropeGrid!.segmentCount > 0, `${recipe.title} must expose surviving reinforcement`);
+      equal(frame.ropeGrid!.segmentCount, frame.material!.reinforcementCount, `${recipe.title} visible member count must match reinforcement telemetry`);
+      for (let segment = 0; segment < frame.ropeGrid!.segmentCount; segment++) {
+        equal(frame.ropeGrid!.segments[segment * 8 + 7], -2, `${recipe.title} reinforcement must retain the steel material tag`);
+      }
+    }
+    const validation = suite.validate();
+    ok(validation.ok, `${recipe.title}: ${validation.message}`);
+  }
+  suite.destroy();
+}
+
+function testCombinedMaterialDemoTargetingAndDeterminism(): void {
+  const recipe = MATERIAL_DEMO_RECIPES.find((candidate) => candidate.kind === 'combined');
+  ok(recipe, 'combined AAA material recipe is missing');
+  const scene = sceneForMaterialDemo(recipe!.id);
+  const a = new SoftSimulationSuite();
+  const b = new SoftSimulationSuite();
+  const seed = 0xa9e3f17;
+  ok(a.createScene(scene, 5, seed), 'combined material proving ground must activate');
+  ok(b.createScene(scene, 5, seed), 'combined deterministic peer must activate');
+
+  const advance = (frames: number, phase: string): void => {
+    for (let frameIndex = 0; frameIndex < frames; frameIndex++) {
+      a.step(1 / 60, 4);
+      b.step(1 / 60, 4);
+      equal(a.hash(), b.hash(), `combined material replay diverged during ${phase} at frame ${frameIndex}`);
+    }
+  };
+
+  a.setMaterialLoadTarget('metal', 0.82);
+  b.setMaterialLoadTarget('metal', 0.82);
+  advance(12, 'metal service forming');
+  equal(a.dentStrikeTarget('metal', 0.92), b.dentStrikeTarget('metal', 0.92), 'metal bay strike target diverged');
+  advance(16, 'metal dent formation');
+  a.releaseMaterialLoad('metal');
+  b.releaseMaterialLoad('metal');
+  advance(8, 'metal springback');
+
+  a.setMaterialLoadTarget('glass', 0.18);
+  b.setMaterialLoadTarget('glass', 0.18);
+  advance(8, 'glass preload');
+  equal(a.materialStrikeTarget('glass', 1.04), b.materialStrikeTarget('glass', 1.04), 'glass bay strike target diverged');
+  advance(20, 'glass fracture propagation');
+
+  a.setMaterialLoadTarget('concrete', 0.78);
+  b.setMaterialLoadTarget('concrete', 0.78);
+  advance(10, 'concrete service loading');
+  equal(a.materialStrikeTarget('concrete', 0.96), b.materialStrikeTarget('concrete', 0.96), 'concrete bay strike target diverged');
+  advance(18, 'concrete spall propagation');
+  a.setMaterialLoadTarget('concrete', 1.34);
+  b.setMaterialLoadTarget('concrete', 1.34);
+  advance(10, 'concrete ultimate loading');
+  equal(a.materialStrikeTarget('concrete', 1.48), b.materialStrikeTarget('concrete', 1.48), 'concrete bay ultimate strike diverged');
+  advance(18, 'combined final inspection');
+  a.releaseMaterialLoad('all');
+  b.releaseMaterialLoad('all');
+  advance(6, 'combined unload');
+
+  const frameA = a.buildFrame(true);
+  const frameB = b.buildFrame(true);
+  equal(frameA.hash, frameB.hash, 'combined material frame hashes must remain deterministic');
+  deepEqual(frameA.material, frameB.material, 'combined material telemetry must remain deterministic');
+  equal(frameA.kind, 'fracture');
+  ok(frameA.label.includes('Apex Materials Proving Ground'));
+  equal(frameA.surface, null, 'combined material finale must merge real child streams rather than replace them with a cosmetic surface');
+  ok(frameA.material, 'combined material finale must publish aggregate forensic telemetry');
+  ok(frameA.material!.testMode.includes('focus concrete'), 'last targeted bay must remain identifiable in aggregate telemetry');
+  ok(frameA.material!.fracturedCellCount > 0, 'combined glass/concrete strikes must produce physical fracture cells');
+  ok(frameA.material!.fragmentCount > 0, 'combined glass/concrete strikes must retain physical fragments');
+  ok(frameA.material!.reinforcementCount > 0, 'combined concrete bay must retain steel reinforcement');
+
+  ok(frameA.instanceCount > 0 && frameA.instanceCount <= COMBINED_MATERIAL_CPU_INSTANCE_BUDGET, 'combined CPU proxy stream exceeded its fair-allocation cap');
+  ok(frameA.matrices.length >= frameA.instanceCount * 16 && frameA.colors.length >= frameA.instanceCount * 4, 'combined CPU proxy streams are truncated');
+  ok(isFiniteArray(frameA.matrices) && isFiniteArray(frameA.colors), 'combined CPU proxy streams contain non-finite values');
+  ok(frameHasMaterialTag(frameA, -2, -45, -12), 'left metal bay must retain the Poliigon metal tag and world-space offset');
+  ok(frameHasMaterialTag(frameA, -4, -13, 13), 'center glass bay must retain transparent shards and pane tiles');
+  ok(frameHasMaterialTag(frameA, -1, 12, 45), 'right concrete bay must retain the Poliigon concrete tag and world-space offset');
+  ok(frameHasMaterialTag(frameA, -5, 12, 45), 'right concrete bay must expose aggregate-rich fracture debris');
+
+  ok(frameA.ropeGrid, 'combined material finale must publish its merged material member grid');
+  equal(frameA.ropeGrid!.presentation, 'material');
+  ok(frameA.ropeGrid!.nodeCount > 0 && frameA.ropeGrid!.segmentCount > 0, 'combined material member grid must retain concrete reinforcement');
+  ok(frameA.ropeGrid!.segmentCount <= COMBINED_MATERIAL_SEGMENT_BUDGET, 'combined material members exceeded the reserved segment cap');
+  ok(frameA.instanceCount + frameA.ropeGrid!.segmentCount <= SOFT_RENDER_INSTANCE_BUDGET, 'combined material presentation exceeded the shared renderer cap');
+  ok(frameA.ropeGrid!.positions.length >= frameA.ropeGrid!.nodeCount * 3, 'combined node stream is truncated');
+  ok(frameA.ropeGrid!.segments.length >= frameA.ropeGrid!.segmentCount * 8, 'combined segment stream is truncated');
+  ok(isFiniteArray(frameA.ropeGrid!.positions) && isFiniteArray(frameA.ropeGrid!.segments), 'combined member streams contain non-finite values');
+  for (let segment = 0; segment < frameA.ropeGrid!.segmentCount; segment++) {
+    const offset = segment * 8;
+    const nodeA = frameA.ropeGrid!.segments[offset];
+    const nodeB = frameA.ropeGrid!.segments[offset + 1];
+    ok(Number.isInteger(nodeA) && nodeA >= 0 && nodeA < frameA.ropeGrid!.nodeCount, `combined segment ${segment} has an invalid first node`);
+    ok(Number.isInteger(nodeB) && nodeB >= 0 && nodeB < frameA.ropeGrid!.nodeCount, `combined segment ${segment} has an invalid second node`);
+    equal(frameA.ropeGrid!.segments[offset + 7], -2, `combined segment ${segment} must represent steel reinforcement`);
+  }
+
+  const validationA = a.validate();
+  const validationB = b.validate();
+  ok(validationA.ok, validationA.message);
+  ok(validationB.ok, validationB.message);
+  a.destroy();
+  b.destroy();
 }
 
 function testSoftFrameMemoization(): void {
@@ -926,17 +1369,24 @@ function testBreakthroughStormDeterminism(): void {
 function testCinematicEffects(): void {
   const effects = new CinematicEffects();
   effects.clear(0x515151);
+  const stageProps = getAAAStagePrimitives(140);
+  effects.setStageProps(stageProps);
+  equal(effects.stagePropCount(), stageProps.length, 'signature presentation props must be backend-neutral effect instances');
   effects.spawnExplosion([0, 3, 0], 18, 512);
   effects.spawnProjectileMuzzle([-12, 6, 0], [24, 2, 0], 512);
   effects.spawnImpulseDust([0, 0.2, 0], 10, 512);
   effects.spawnRainFlash([0, 16, 0], 512);
+  effects.spawnMetalStrike([0, 7, 0], [0, -24, 0], 1.2, 512);
+  effects.spawnConcreteSpall([0, 7, 0], 1.1, 512);
+  effects.spawnGlassFracture([0, 7.2, 0], 1.0, 512);
   ok(effects.particleCount() >= 100, 'cinematic events should create a meaningful effect field');
 
   const before = effects.buildFrame(512);
-  ok(before.count > 0);
+  ok(before.count >= stageProps.length);
   ok(isFiniteArray(before.matrices));
   ok(isFiniteArray(before.colors));
-  ok(before.debugLines.length >= 72, 'explosion should create a shockwave ring');
+  ok(before.debugLines.length >= 288, 'explosion and three material strikes should create persistent shockwave rings');
+  ok(before.debugLines.some((line) => Math.abs(line.az - line.bz) < 1e-6 && Math.abs(line.ay - line.by) > 1e-4), 'glass strike must create a vertical fracture wave');
   ok(before.colors.some((value, index) => index % 4 === 3 && value > 1), 'effects should carry emissive material tags');
   const beforeVersion = before.frameVersion;
   const repeated = effects.buildFrame(512);
@@ -951,6 +1401,25 @@ function testCinematicEffects(): void {
   ok(isFiniteArray(after.matrices));
   const shake = effects.cameraShake();
   ok(Number.isFinite(shake.yaw + shake.pitch + shake.targetOffset[0] + shake.targetOffset[1] + shake.targetOffset[2]));
+
+  for (let i = 0; i < 100; i++) effects.spawnExplosion([0, 3, 0], 18, 1536);
+  ok(effects.particleCount() <= 3072, 'paused repeated bursts must retain a bounded transient particle pool');
+  const saturated = effects.buildFrame(1536);
+  ok(saturated.count <= 1536, 'saturated transient effects must retain the Ultra render budget');
+  ok(saturated.debugLines.length <= 32 * 72, 'repeated bursts must retain a bounded shockwave pool');
+  ok(isFiniteArray(saturated.matrices) && isFiniteArray(saturated.colors), 'bounded saturated effects must remain finite');
+
+  const materialEffects = new CinematicEffects();
+  materialEffects.clear(0x6a55123);
+  materialEffects.spawnConcreteSpall([0, 7, 0], 1.1, 512);
+  materialEffects.spawnGlassFracture([0, 7.2, 0], 1.0, 512);
+  const materialBefore = materialEffects.buildFrame(512);
+  ok(materialBefore.colors.some((value, index) => index % 4 === 3 && value === -6), 'concrete spall must include translucent dust material');
+  ok(materialBefore.colors.some((value, index) => index % 4 === 3 && value === -4), 'glass fracture must include transparent shards');
+  materialEffects.update(1 / 60);
+  const materialAfter = materialEffects.buildFrame(512);
+  ok(materialAfter.colors.some((value, index) => index % 4 === 3 && value === -6), 'dust material tags must survive effect fading');
+  ok(materialAfter.colors.some((value, index) => index % 4 === 3 && value === -4), 'glass material tags must survive effect fading');
 }
 
 function testFrameLineStager(): void {
@@ -1011,6 +1480,8 @@ const tests = [
   testAllocationFreeCameraMatrices,
   testSceneCatalog,
   testHeroShowcaseCatalog,
+  testMaterialDemoRegistryContracts,
+  testAAA100ImprovementRegistry,
   testFallbackCanCreateEveryScene,
   testFallbackStaticBodiesRemainImmutable,
   testAAACinematicSetDressing,
@@ -1020,8 +1491,13 @@ const tests = [
   testFallbackContactResolutionReusesBodyVectors,
   testFallbackCachedCountsStaticStepsAndSceneReset,
   testSoftSimulationCatalog,
+  testMaximumSoftRenderCapacity,
   testMaterialPresetOrderingAndInvariants,
   testMaterialFractureLoadAndActionDeterminism,
+  testMetalBendingAndDentingDemo,
+  testConcreteSpallAndGlassShardDemos,
+  testMaterialDemoSimulationContracts,
+  testCombinedMaterialDemoTargetingAndDeterminism,
   testSoftRetainedStateAndExactInstanceCaps,
   testSoftSimulationActionsAndDeterminism,
   testFarProjectileBroadRejection,

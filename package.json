@@ -1,9 +1,9 @@
 {
   "name": "box3d-webgpu",
-  "version": "1.14.0",
+  "version": "1.20.0",
   "private": true,
   "type": "module",
-  "description": "Box3D WebGPU AAA Physics Lab with native Box3D WASM, deterministic material bending and fracture, adaptive GPU-resident cloth, compute-reconstructed rope, GPU-resident water, 800 deterministic recipes, and 32 cinematic demos.",
+  "description": "Box3D WebGPU AAA Physics Lab with native Box3D WASM, Poliigon-derived KTX2 materials, GPU cloth/rope/water, 800 deterministic recipes, 65 cinematic demos, and 31 authored metal, glass, concrete, and combined material programs.",
   "scripts": {
     "dev": "vite --host 0.0.0.0",
     "build": "vite build",
@@ -12,6 +12,7 @@
     "fetch:box3d": "bash ./scripts/fetch-box3d.sh",
     "build:wasm": "bash ./scripts/build-wasm.sh",
     "build:soft-kernels": "bash ./scripts/build-soft-kernels.sh",
+    "build:poliigon-materials": "bash ./scripts/build-poliigon-material-atlas.sh",
     "verify:soft-kernels": "bash ./scripts/build-soft-kernels.sh --verify",
     "doctor": "bash ./scripts/doctor.sh",
     "manifest:generate": "bash ./scripts/generate-source-manifest.sh",
@@ -79,7 +80,13 @@
     "validate:v1.11": "npm run verify:source && npm test && npm run test:soft-soak:all && npm run test:rope-batching && npm run test:native-wasm && npm run bench:fifth:gate && npm run bench:v1.10:integration:ci && npm run bench:v1.11:gate && npm run build && npm run build:pages && npm run verify:source",
     "validate:v1.12": "npm run verify:source && npm test && npm run test:soft-soak:all && npm run test:rope-batching && npm run test:native-wasm && npm run bench:fifth:gate && npm run bench:v1.10:integration:ci && npm run bench:v1.11:gate && npm run bench:v1.12:gate && npm run build && npm run build:pages && npm run verify:source",
     "validate:v1.13": "npm run verify:source && npm test && npm run test:soft-soak:all && npm run test:rope-batching && npm run test:native-wasm && npm run bench:fifth:gate && npm run bench:v1.10:integration:ci && npm run bench:v1.13:gate && npm run build && npm run build:pages && npm audit --audit-level=moderate && npm run verify:source",
-    "validate:v1.14": "npm run verify:source && npm test && npm run test:soft-soak:all && npm run test:rope-batching && npm run test:native-wasm && npm run test:material:100 && npm run build && npm run build:pages && npm audit --audit-level=moderate && npm run verify:source"
+    "validate:v1.14": "npm run verify:source && npm test && npm run test:soft-soak:all && npm run test:rope-batching && npm run test:native-wasm && npm run test:material:100 && npm run build && npm run build:pages && npm audit --audit-level=moderate && npm run verify:source",
+    "validate:v1.15": "npm run verify:source && npm test && npm run test:soft-soak:all && npm run test:rope-batching && npm run test:native-wasm && npm run test:material:100 && npm run build && npm run build:pages && npm audit --audit-level=moderate && npm run verify:source",
+    "validate:v1.16": "npm run verify:source && npm test && npm run test:soft-soak:all && npm run test:rope-batching && npm run test:native-wasm && npm run test:material:100 && npm run build && npm run build:pages && npm audit --audit-level=moderate && npm run verify:source",
+    "validate:v1.17": "npm run verify:source && npm test && npm run test:soft-soak:all && npm run test:rope-batching && npm run test:native-wasm && npm run test:material:100 && npm run build && npm run build:pages && npm audit --audit-level=moderate && npm run verify:source",
+    "validate:v1.18": "npm run verify:source && npm test && npm run test:soft-soak:all && npm run test:rope-batching && npm run test:native-wasm && npm run test:material:100 && npm run build && npm run build:pages && npm audit --audit-level=moderate && npm run verify:source",
+    "validate:v1.19": "npm run verify:source && npm test && npm run test:soft-soak:all && npm run test:rope-batching && npm run test:native-wasm && npm run test:material:100 && npm run build && npm run build:pages && npm audit --audit-level=moderate && npm run verify:source",
+    "validate:v1.20": "npm run verify:source && npm test && npm run test:soft-soak:all && npm run test:rope-batching && npm run test:native-wasm && npm run test:material:100 && npm run build && npm run build:pages && npm audit --audit-level=moderate && npm run verify:source"
   },
   "devDependencies": {
     "typescript": "^5.5.4",

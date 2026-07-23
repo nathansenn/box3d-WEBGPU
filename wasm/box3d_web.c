@@ -84,12 +84,20 @@ static int b3w_clamp_int(int v, int lo, int hi)
     return v < lo ? lo : (v > hi ? hi : v);
 }
 
+// The top byte is renderer-only material metadata; Box3D retains the value as
+// customColor while collision and mass properties remain unaffected.
+static uint32_t b3w_material_color(uint32_t rgb, uint32_t materialTag)
+{
+    return ((materialTag & 0xFFu) << 24) | (rgb & 0x00FFFFFFu);
+}
+
 static void b3w_unpack_rgb(uint32_t rgb, float* out4)
 {
     out4[0] = (float)((rgb >> 16) & 0xFFu) / 255.0f;
     out4[1] = (float)((rgb >> 8) & 0xFFu) / 255.0f;
     out4[2] = (float)(rgb & 0xFFu) / 255.0f;
-    out4[3] = 1.0f;
+    uint32_t materialTag = (rgb >> 24) & 0xFFu;
+    out4[3] = materialTag == 0u ? 1.0f : -(float)materialTag;
 }
 
 static void b3w_write_model_matrix(int index, b3Pos p, b3Quat q, float hx, float hy, float hz)
@@ -499,7 +507,19 @@ static void b3w_scene_fracture_stage(int stress, int variant)
 {
     // Box3D owns only the immutable test fixture. The browser soft-material
     // solver remains authoritative for bending, yield, damage, and fracture.
-    float support_span = 8.5f + (float)(variant % 3) * 0.65f;
+    if (variant == 6)
+    {
+        const uint32_t metal = b3w_material_color(0x9AA7B5u, 2u);
+        b3w_add_box_ex(b3_staticBody, 0.0f, 0.14f, 0.0f, 15.5f, 0.14f, 6.5f, 0x080F1Du, 0.0f, 0.90f, 0.01f);
+        b3w_add_box_ex(b3_staticBody, -12.3f, 7.2f, 0.0f, 0.34f, 5.0f, 0.34f, metal, 0.0f, 0.80f, 0.01f);
+        b3w_add_box_ex(b3_staticBody, 12.3f, 7.2f, 0.0f, 0.34f, 5.0f, 0.34f, metal, 0.0f, 0.80f, 0.01f);
+        b3w_add_box_ex(b3_staticBody, 0.0f, 2.7f, 0.0f, 12.3f, 0.22f, 0.34f, metal, 0.0f, 0.80f, 0.01f);
+        b3w_add_box_ex(b3_staticBody, 0.0f, 11.7f, 0.0f, 12.3f, 0.22f, 0.34f, metal, 0.0f, 0.80f, 0.01f);
+        const float light_x[3] = { -7.5f, 0.0f, 7.5f };
+        for (int i = 0; i < 3; ++i) b3w_add_box_ex(b3_staticBody, light_x[i], 4.8f, -3.0f, 1.5f, 0.05f, 0.08f, 0x50D8FFu, 0.0f, 0.80f, 0.01f);
+        return;
+    }
+    float support_span = variant == 5 ? 12.0f : 8.5f + (float)(variant % 3) * 0.65f;
     float frame_top = 9.4f + (float)stress * 0.28f;
     uint32_t accent = (variant & 1) ? 0xFFD166u : 0x30AEBFu;
     b3w_add_box_ex(b3_staticBody, 0.0f, 0.14f, 0.0f, support_span + 5.0f, 0.14f, 6.5f, 0x111D30u, 0.0f, 0.90f, 0.01f);
@@ -712,6 +732,125 @@ static void b3w_add_aaa_set_dressing(int family, int stress, int variant)
     }
 }
 
+static void b3w_add_signature_set_dressing(int family, int stress, int variant)
+{
+    const uint32_t concrete = b3w_material_color(0x8B8D88u, 1u);
+    const uint32_t metal = b3w_material_color(0x9AA7B5u, 2u);
+    const uint32_t glass = b3w_material_color(0x8EDDF2u, 4u);
+    const uint32_t stone = b3w_material_color(0xA0A09Au, 5u);
+
+    if (family == 2 && (variant == 0 || variant == 7))
+    {
+        b3w_add_box_ex(b3_staticBody, 0.0f, 0.42f, 0.0f, 9.4f, 0.42f, 9.4f, concrete, 0.0f, 0.82f, 0.015f);
+        for (int floor = 0; floor < 9; ++floor)
+        {
+            float y = 2.2f + (float)floor * 1.75f;
+            float width = variant == 7 ? 7.8f : 5.7f;
+            b3w_add_box_ex(b3_staticBody, -width, y, 0.0f, 0.055f, 0.67f, width * 0.88f, glass, 0.0f, 0.22f, 0.06f);
+            b3w_add_box_ex(b3_staticBody, width, y, 0.0f, 0.055f, 0.67f, width * 0.88f, glass, 0.0f, 0.22f, 0.06f);
+            b3w_add_box_ex(b3_staticBody, 0.0f, y, -width, width * 0.88f, 0.67f, 0.055f, glass, 0.0f, 0.22f, 0.06f);
+            b3w_add_box_ex(b3_staticBody, 0.0f, y, width, width * 0.88f, 0.67f, 0.055f, glass, 0.0f, 0.22f, 0.06f);
+        }
+        return;
+    }
+
+    if (family == 3 && variant == 2)
+    {
+        const float supports[4] = { -17.0f, -8.5f, 8.5f, 17.0f };
+        for (int i = 0; i < 4; ++i) b3w_add_box_ex(b3_staticBody, supports[i], 1.15f, 0.0f, 1.15f, 1.15f, 3.7f, concrete, 0.0f, 0.82f, 0.015f);
+        b3w_add_box_ex(b3_staticBody, 0.0f, 0.18f, 0.0f, 22.5f, 0.18f, 3.15f, stone, 0.0f, 0.88f, 0.01f);
+        for (int x = -18; x <= 18; x += 3)
+        {
+            b3w_add_box_ex(b3_staticBody, (float)x, 4.2f + (float)(x & 1) * 0.6f, -2.05f, 0.07f, 1.8f, 0.07f, metal, 0.0f, 0.74f, 0.02f);
+            b3w_add_box_ex(b3_staticBody, (float)x, 4.2f + (float)(x & 1) * 0.6f, 2.05f, 0.07f, 1.8f, 0.07f, metal, 0.0f, 0.74f, 0.02f);
+        }
+        return;
+    }
+
+    if (family == 6 && variant == 0)
+    {
+        for (int i = 0; i < 28 + stress * 3; ++i)
+        {
+            float size = b3w_rand_range(0.14f, 0.42f);
+            b3w_add_box_ex(b3_dynamicBody, b3w_rand_range(-6.5f, 6.5f), b3w_rand_range(0.35f, 3.2f), b3w_rand_range(-5.2f, -4.2f), size, size * 0.7f, size * 0.85f, concrete, 2.35f, 0.82f, 0.015f);
+        }
+        b3w_add_box_ex(b3_staticBody, 0.0f, 2.2f, -4.35f, 8.0f, 0.065f, 0.065f, metal, 0.0f, 0.74f, 0.02f);
+        b3w_add_box_ex(b3_staticBody, 0.0f, 2.2f, -5.05f, 8.0f, 0.065f, 0.065f, metal, 0.0f, 0.74f, 0.02f);
+        return;
+    }
+
+    if (family == 11 && variant == 9)
+    {
+        b3w_add_box_ex(b3_staticBody, 0.0f, 0.18f, 0.0f, 11.5f, 0.18f, 11.5f, stone, 0.0f, 0.88f, 0.01f);
+        for (int i = 0; i < 20; ++i)
+        {
+            float t = ((float)i / 20.0f) * 6.28318530718f;
+            float x = cosf(t) * 12.8f;
+            float z = sinf(t) * 12.8f;
+            b3w_add_box_ex(b3_staticBody, x, 4.8f, z, 0.72f, 3.25f, 0.055f, glass, 0.0f, 0.22f, 0.06f);
+            b3w_add_box_ex(b3_staticBody, x, 8.25f, z, 0.09f, 0.09f, 0.72f, metal, 0.0f, 0.74f, 0.02f);
+        }
+        b3w_add_box_ex(b3_staticBody, 0.0f, 8.9f, 0.0f, 9.2f, 0.18f, 9.2f, concrete, 0.0f, 0.82f, 0.015f);
+        return;
+    }
+
+    if (family == 12 && variant == 0)
+    {
+        b3w_add_box_ex(b3_staticBody, 0.0f, 0.18f, 3.2f, 15.5f, 0.18f, 4.5f, stone, 0.0f, 0.88f, 0.01f);
+        b3w_add_box_ex(b3_staticBody, -15.2f, 5.55f, -5.5f, 0.12f, 5.25f, 0.12f, metal, 0.0f, 0.74f, 0.02f);
+        b3w_add_box_ex(b3_staticBody, 15.2f, 5.55f, -5.5f, 0.12f, 5.25f, 0.12f, metal, 0.0f, 0.74f, 0.02f);
+        return;
+    }
+
+    if (family == 13 && variant == 0)
+    {
+        b3w_add_box_ex(b3_staticBody, -9.0f, 0.55f, 0.0f, 1.35f, 0.55f, 3.0f, concrete, 0.0f, 0.82f, 0.015f);
+        b3w_add_box_ex(b3_staticBody, 9.0f, 0.55f, 0.0f, 1.35f, 0.55f, 3.0f, concrete, 0.0f, 0.82f, 0.015f);
+        b3w_add_box_ex(b3_staticBody, 0.0f, 0.2f, 0.0f, 7.6f, 0.2f, 4.1f, stone, 0.0f, 0.88f, 0.01f);
+        b3w_add_box_ex(b3_staticBody, -9.0f, 7.35f, -2.8f, 0.14f, 6.15f, 0.14f, metal, 0.0f, 0.74f, 0.02f);
+        b3w_add_box_ex(b3_staticBody, 9.0f, 7.35f, -2.8f, 0.14f, 6.15f, 0.14f, metal, 0.0f, 0.74f, 0.02f);
+        b3w_add_box_ex(b3_staticBody, 0.0f, 13.5f, -2.8f, 9.0f, 0.14f, 0.14f, metal, 0.0f, 0.74f, 0.02f);
+        return;
+    }
+
+    if (family == 14 && variant == 1)
+    {
+        b3w_add_box_ex(b3_staticBody, 0.0f, 0.15f, -11.7f, 18.5f, 0.15f, 0.55f, concrete, 0.0f, 0.82f, 0.015f);
+        b3w_add_box_ex(b3_staticBody, 0.0f, 0.15f, 11.7f, 18.5f, 0.15f, 0.55f, concrete, 0.0f, 0.82f, 0.015f);
+        for (int i = -5; i <= 5; ++i)
+        {
+            float x = (float)i * 3.1f;
+            b3w_add_box_ex(b3_staticBody, x, 2.45f, 11.42f, 1.37f, 1.75f, 0.04f, glass, 0.0f, 0.22f, 0.06f);
+            b3w_add_box_ex(b3_staticBody, x + 1.48f, 2.45f, 11.38f, 0.045f, 1.85f, 0.065f, metal, 0.0f, 0.74f, 0.02f);
+        }
+        return;
+    }
+
+    if (family == 15 && variant == 5)
+    {
+        // MaterialSimulation is authoritative for reinforcement exposure and
+        // generated spall. Keep the native opening state clean and duplicate-free.
+        b3w_add_box_ex(b3_staticBody, 0.0f, 0.20f, 0.0f, 11.8f, 0.20f, 2.5f, stone, 0.0f, 0.88f, 0.01f);
+        b3w_add_box_ex(b3_staticBody, 0.0f, 0.62f, 2.35f, 11.8f, 0.42f, 0.12f, concrete, 0.0f, 0.82f, 0.015f);
+        return;
+    }
+
+    if (family == 15 && variant == 6)
+    {
+        b3w_add_box_ex(b3_staticBody, 0.0f, 0.18f, 0.0f, 10.8f, 0.18f, 4.2f, stone, 0.0f, 0.88f, 0.01f);
+        for (int side = -1; side <= 1; side += 2)
+        {
+            b3w_add_box_ex(b3_staticBody, (float)side * 10.2f, 4.6f, 0.0f, 0.035f, 3.4f, 2.7f, glass, 0.0f, 0.22f, 0.06f);
+        }
+        const float light_x[3] = { -7.5f, 0.0f, 7.5f };
+        for (int i = 0; i < 3; ++i)
+        {
+            b3w_add_box_ex(b3_staticBody, light_x[i], 0.38f, -2.8f, 1.9f, 0.10f, 0.12f, metal, 0.0f, 0.74f, 0.02f);
+            b3w_add_box_ex(b3_staticBody, light_x[i], 0.55f, -2.8f, 0.22f, 0.05f, 0.22f, 0x50D8FFu, 0.0f, 0.74f, 0.02f);
+        }
+    }
+}
+
 B3W_EXPORT int b3w_spawn_rain(int count, float spread, float height)
 {
     if (B3_IS_NULL(g_world)) return 0;
@@ -807,6 +946,10 @@ B3W_EXPORT int b3w_create_scene(int sceneId, int stressScale, uint32_t seed)
     if (mode >= 3)
     {
         b3w_add_aaa_set_dressing(family, stress, variant);
+    }
+    if (mode == 4)
+    {
+        b3w_add_signature_set_dressing(family, stress, variant);
     }
 
     return g_bodyCount;

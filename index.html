@@ -4,7 +4,7 @@
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
   <meta name="theme-color" content="#050914" />
-  <meta name="description" content="Box3D WebGPU AAA Physics Lab v1.14.0 — 800 deterministic simulations with material bending and fracture, GPU-resident cloth and water, WebAssembly soft kernels, native Box3D physics, HDR lighting, shadows, effects, and diagnostics." />
+  <meta name="description" content="Box3D WebGPU AAA Physics Lab v1.20.0 — 800 deterministic simulations, 65 cinematic demos, and 31 authored material programs: ten metal-deformation labs, ten glass-fracture labs, ten concrete-failure labs, and one combined AAA proving ground." />
   <title>Box3D WebGPU — AAA Physics Lab</title>
   <style>
     :root {
@@ -448,12 +448,12 @@
         <div class="brand-mark" aria-hidden="true"></div>
         <div class="brand-copy">
           <strong>BOX3D × WEBGPU</strong>
-        <span>AAA Physics Capability Lab · v1.14.0</span>
+        <span>AAA Physics Capability Lab · v1.20.0</span>
         </div>
       </div>
       <div class="top-status" aria-label="Capability summary">
         <span class="chip">800 deterministic recipes</span>
-        <span class="chip">32 cinematic hero demos</span>
+        <span class="chip">65 cinematic heroes · 31 material programs</span>
         <span class="chip">GPU Cloth · WASM Rope · GPU Water · Material Fracture</span>
       </div>
     </header>
@@ -464,7 +464,7 @@
       <section class="section">
         <div class="section-heading">
           <p class="eyebrow">Cinematic Director</p>
-          <span class="counter">32 authored sequences</span>
+          <span class="counter">65 authored sequences</span>
         </div>
         <h2 id="showcase-title">Titan Foundry Stackfall</h2>
         <p id="showcase-tagline" class="tagline">A controlled industrial collapse staged for solver stress and spectacle.</p>
@@ -534,6 +534,7 @@
             <button id="material-apply" class="primary">Apply / Hold</button>
             <button id="material-release">Release</button>
             <button id="material-cycle">Cycle Load</button>
+            <button id="material-dent" class="gold">Material Strike · I</button>
           </div>
           <p class="small muted" style="margin-top:8px">Yield and break thresholds are deterministic simulation profiles—not certified material properties or structural-safety calculations.</p>
         </div>
@@ -590,7 +591,7 @@
       <details>
         <summary>Automated Validation</summary>
         <div class="details-body">
-          <button id="run-tests" class="primary" style="width:100%;margin-bottom:8px">Run 800 + 32 State Tests</button>
+          <button id="run-tests" class="primary" style="width:100%;margin-bottom:8px">Run 800 + 65 State Tests</button>
           <button id="run-turboquant" style="width:100%;margin-bottom:8px">Run TurboQuant Probe</button>
           <pre id="test-log">Ready. Native Box3D WASM is used when built. SIMD/scalar soft-kernel WASM accelerates cloth, rope, and shallow water when supported, with deterministic JavaScript fallback paths. Material-failure scenes add tuned elastic, plastic, fatigue, and fracture constraints. Intact cloth and water use GPU-resident rendering paths. TurboQuant remains opt-in transport compression outside the local render loop.</pre>
         </div>
@@ -616,6 +617,9 @@
           <div class="metric"><span>Peak strain</span><strong id="material-strain">0.00%</strong></div>
           <div class="metric wide"><span>Yield / break</span><strong id="material-thresholds">—</strong></div>
           <div class="metric wide"><span>Damage</span><strong id="material-damage">0%</strong></div>
+          <div class="metric wide"><span>Center / peak deflection</span><strong id="material-dent-depth">0.00 / 0.00 m</strong></div>
+          <div class="metric wide"><span>Residual deformation</span><strong id="material-residual-dent">0.00 m</strong></div>
+          <div class="metric wide"><span>Fracture field</span><strong id="material-fragments">0 cells · 0 fragments · 0 rebar</strong></div>
           <div class="metric wide"><span>Failure phase</span><strong id="material-failure">inactive</strong></div>
           <div class="metric"><span>Frame rate</span><strong id="fps">0</strong></div>
           <div class="metric"><span>Physics</span><strong id="sim-ms">0.00 ms</strong></div>

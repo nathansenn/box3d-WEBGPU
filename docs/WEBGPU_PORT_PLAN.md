@@ -12,7 +12,7 @@ TypeScript cloth/rope PBD + shallow-water solver + material-failure lattice
                        → cinematic director / diagnostics / validation
 ```
 
-The current edition supplies **800 deterministic scenes, 32 hero sequences, 200 soft/fluid/material demonstrations, HDR rendering, native build tooling, deep tests, and a deployable browser shell**. The material domain includes ten normalized comparative presets, controlled load/release/cycle input, and deterministic elastic/plastic/damage/fracture telemetry. The roadmap now concerns calibration, coupling, scale, authoring, and hardening—not an empty prototype.
+The current edition supplies **800 deterministic scenes, 65 hero sequences, ten signature AAA stages, 200 stable-catalog soft/fluid/material demonstrations, 31 authored material programs, HDR rendering, native build tooling, deep tests, and a deployable browser shell**. Its live catalog/director check therefore covers **865 definitions (800 scenes + 65 heroes)**. The material-program registry is split into **10 metal, 10 glass, 10 concrete, and one combined AAA proving ground**. It overlays the stable 800-scene/native-ID contract rather than inventing new native scene IDs. The material domain includes ten normalized comparative presets, material-specific and bay-targeted load/release/cycle/strike input, deterministic elastic/plastic/damage/fracture telemetry, distinct fixture/boundary/load recipes, a perimeter-clamped metal panel, persistent reinforced-concrete rebar beneath damage-aware cover, a framed radial-fracture glass pane, and a Poliigon-derived material presentation layer. The combined three-bay program remains bounded by the explicit **3,072 soft CPU-proxy capacity**. The roadmap now concerns calibration, coupling, scale, authoring, and hardening—not an empty prototype.
 
 ## Phase 1 — Native parity and solver observability
 
@@ -27,7 +27,8 @@ Acceptance:
 
 ```text
 all 800 browser scenes pass on Box3D WASM
-all 32 hero sequences retain valid native staging
+all 65 hero sequences retain valid native staging
+all 31 material programs retain their 10/10/10/1 registry split and targeted action routing
 no stale heap views after memory growth
 replay baselines are versioned and reproducible
 ```

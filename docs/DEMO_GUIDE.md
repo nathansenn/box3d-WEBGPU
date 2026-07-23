@@ -46,9 +46,13 @@ Open the **Material Load Rig**. Follow the authored preload, yield, plastic-hing
 
 State the confidence boundary while the telemetry is visible: this is a normalized comparative beam lattice, not calibrated FEA, material certification, or a structural safety calculation.
 
-### 8:15–9:00 — Glass Catastrophic Fracture
+### 8:15–8:40 — Concrete Spall & Rebar Exposure
 
-Contrast the steel sequence with soda-lime glass. Use slow motion around the first separation and show how a stiff, low-plasticity preset progresses rapidly from elastic response to a cohesive crack front. Trigger one projectile after the authored preload to demonstrate localized damage.
+Start from the clean service preload, then let the authored strike expose the first local cover bay. Keep the fractured-cell, fragment, and rebar counters visible while dust expands, aggregate remains in the crater, brief sparks pick out the steel, and continued load transfers across the surviving cage. Unload before the low side close-up so loose spall and the residual bridge are easy to distinguish.
+
+### 8:40–9:00 — Glass Catastrophic Fracture
+
+Contrast the ductile steel and reinforced concrete sequences with the framed soda-lime pane. Use slow motion around the center punch, follow the vertical fracture wave and eight luminous radial rays instead of a whole-pane flood fill, unload for a clean fracture hold, then trigger the second strike. Finish on the micro-shard glints, persistent rotating shard field, and captured perimeter.
 
 ### 9:00–9:30 — Leviathan Impact Basin
 
@@ -60,7 +64,7 @@ Demonstrate body creation and transform streaming. Switch from Cinematic to Perf
 
 ### 9:45–10:00 — Engineering confidence
 
-Open **Automated Validation**, run **800 + 32 State Tests**, and finish with the validation summary. This checks scene state, generated surface/member contracts, material telemetry, and hero data; complete the visual rendering checklist separately.
+Open **Automated Validation**, run **800 + 65 State Tests**, and finish with the validation summary. This checks the stable scene catalog, generated surface/member contracts, all 31 material-demo recipes, metal deformation, concrete spall/rebar persistence, glass fracture/shards, the Apex three-rig composition, and hero data; complete the visual rendering checklist separately.
 
 State the boundaries clearly:
 
@@ -73,11 +77,13 @@ State the boundaries clearly:
 - topology-changing cloth deliberately uses the packed CPU presentation path;
 - material preset thresholds are illustrative and must not be used as real design allowables, FEA, fatigue life, or safety calculations;
 - 800 entries are deterministic parameterized scenes;
-- 32 hero demonstrations are manually directed.
+- 65 hero demonstrations are directed: 34 established timelines plus 31 recipe-driven material programs;
+- the ten starred signature scenes and their 100-item production-stage contract are separate and unchanged;
+- Apex coordinates three active material rigs but is not a coupled continuum or contact solver.
 
 ## Maximum AAA Tour
 
-Press `T` or select **Maximum AAA Tour**. It loads each hero at its recommended stress, resets the deterministic state, plays camera/action beats, captures telemetry, and advances to the next sequence.
+Press `T` or select **Maximum AAA Tour**. It loads each of the 65 heroes at its recommended stress, resets the deterministic state, plays camera/action beats, captures telemetry, and advances to the next sequence.
 
 For the strongest short capture order:
 
@@ -88,8 +94,27 @@ For the strongest short capture order:
 5. Tsunami Research Array
 6. Leviathan Impact Basin
 7. Steel Yield-to-Rupture
-8. Glass Catastrophic Fracture
-9. Mega Atrium Collapse
+8. Concrete Spall & Rebar Exposure
+9. Glass Catastrophic Fracture
+10. Mega Atrium Collapse
+11. Apex Materials Proving Ground
+
+## Focused material-program presentation
+
+The recipe registry is large enough that a live operator should not attempt all 31 programs in a short meeting. Use this ten-stop progression to make the range legible before finishing on the combined scene:
+
+1. **Square-Punch Steel Forming** — establish press tooling, proof load, springback, and permanent set.
+2. **Automotive Door-Skin Oblique Dent** — show that strike origin, panel orientation, and asymmetric crease direction are recipe-specific.
+3. **Press-Brake V-Bend** — contrast a narrow line-load plastic hinge with the square-punch bowl.
+4. **Blast-Bulge Armor Plate** — switch to distributed impulse and broad membrane action.
+5. **Tempered Safety-Glass Punch** — show dense transparent breakup and bounded small fragments.
+6. **Laminated Windshield Stone Strike** — contrast retained islands and a localized spiderweb with tempered breakup.
+7. **Ballistic Off-Center Penetration** — use slow motion for directional crack and shard motion.
+8. **Flat-Slab Punching Shear** — orbit above then below to reveal the cone, mineral spall, and radial reinforcement.
+9. **Blast-Wall Back-Face Spall** — frame the front bow and rear scab/dust/rebar response in the same shot.
+10. **Apex Materials Proving Ground** — finish wide, then let the targeted metal → glass → concrete → all-rigs beats play without manual intervention.
+
+For the individual programs, keep the recipe title, boundary/load description, target/current normalized load, deflection/residual, fractured-cell/fragment, reinforcement, and replay hash visible. Use 0.25× around the first glass crack or concrete spall and 0.5× for metal springback. In Apex, begin with the wide establishing camera so all three cells are identifiable before using closer inspection keys.
 
 ## Soft-system interaction controls
 
@@ -100,7 +125,8 @@ For the strongest short capture order:
 | Explosion | radial fabric impulse | radial cable/payload impulse | radial surface disturbance and droplets | radial impulse and damage |
 | Rain | falling impact particles | falling cable impacts | real droplets injecting ripples | bounded repeated impacts |
 | Diagnostics | pins and sampled nodes | anchors/nodes and segment state | sampled current vectors | supports, nodes, member demand, and breaks |
-| Material load rig | — | — | — | apply/release 0–200% target or deterministic cycle |
+| Material load rig | — | — | — | apply/release 0–200% target or deterministic cycle; Apex beats may target one rig or all three |
+| Material Strike / `I` | — | — | — | recipe-local dent, crack seed, or spall event at the authored strike center |
 
 ## Capture settings
 
@@ -129,6 +155,7 @@ For the strongest short capture order:
 | Cloth surface disappears | Run `npm test`; surface stride/index validation should identify corruption |
 | Material rig is hidden | Select a scene in the **Material Failure** family |
 | Material fractures too early/late | Reset, confirm stress and normalized load target, then compare the preset/mode label; do not reinterpret the value as a physical load |
+| Apex shows only one rig | Reset the **Apex Materials Proving Ground** hero rather than opening its base catalog scene; the combined coordinator is selected by the derived material-demo ID |
 | npm ENOENT | Return to project root; do not run npm in `third_party/box3d` |
 | Shader startup fault | Use the line/column from runtime WGSL compilation diagnostics |
 

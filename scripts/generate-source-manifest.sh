@@ -25,6 +25,7 @@ list_source_files() {
     ! -path './docs/SOFT_BODY_AND_WATER 2.md' \
     ! -path './public/soft-kernels-scalar 2.wasm' \
     ! -path './public/soft-kernels-simd 2.wasm' \
+    ! -path './src/assets/ktx2 2.ts' \
     ! -name '.DS_Store' \
     ! -name 'SOURCE_MANIFEST.sha256' \
     ! -name 'SOURCE_MANIFEST 2.sha256' \

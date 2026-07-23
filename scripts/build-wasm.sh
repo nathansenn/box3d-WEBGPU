@@ -56,6 +56,8 @@ if [[ ! -s "$OUT_DIR/box3d.js" || ! -s "$OUT_DIR/box3d.wasm" ]]; then
   exit 1
 fi
 
+node "$ROOT_DIR/scripts/update-build-provenance.mjs" "$ROOT_DIR" "$OUT_DIR"
+
 printf '\nBuilt native Box3D browser backend:\n  %s\n  %s\n' \
   "$OUT_DIR/box3d.js" "$OUT_DIR/box3d.wasm"
 printf 'SIMD disabled: %s\n' "$SIMD"
