@@ -9,6 +9,30 @@ export type AAAStagePrimitive = {
   readonly color: readonly [number, number, number, number];
 };
 
+export type EngineeringStageGroupRole =
+  | 'facility'
+  | 'reaction-frame'
+  | 'load-train'
+  | 'instrumentation'
+  | 'safety';
+
+export type EngineeringStageOwnership = 'presentation-only' | 'solver-render-witness';
+
+/**
+ * Stable assembly metadata for inspector, isolation, and schedule views.
+ * `primitives` is always a frozen slice containing the exact primitive object
+ * references used by the existing flattened stage arrays.
+ */
+export type EngineeringStageGroup = Readonly<{
+  id: string;
+  label: string;
+  role: EngineeringStageGroupRole;
+  ownership: EngineeringStageOwnership;
+  primitives: readonly AAAStagePrimitive[];
+}>;
+
+const EMPTY_ENGINEERING_STAGE_GROUPS: readonly EngineeringStageGroup[] = Object.freeze([]);
+
 export type AAAImprovement = {
   readonly id: string;
   readonly sceneId: number;
@@ -44,6 +68,11 @@ const AMBER = rgb(0xffc857, 4.4);
 const RED = rgb(0xff4d4d, 4.6);
 const GREEN = rgb(0x65f5a5, 3.8);
 const WHITE = rgb(0xeaf7ff, 3.6);
+// Painted machine housings are coated dielectrics; the posts, wear surfaces,
+// and load-cell stack retain the explicit galvanized-metal material ID.
+const PRESS_BLACK = rgb(0x2f3a34, 1);
+const PRESS_STEEL = rgb(0x596167, -2);
+const POLISHED_STEEL = rgb(0xc4c9ca, -2);
 
 const box = (
   pos: Vec3,
@@ -51,6 +80,28 @@ const box = (
   color: readonly [number, number, number, number],
   rot: Vec3 = [0, 0, 0],
 ): AAAStagePrimitive => ({ pos, half, rot, color });
+
+const verticalCylinder = (
+  center: Vec3,
+  radius: number,
+  halfHeight: number,
+  color: readonly [number, number, number, number],
+  sides = 10,
+): AAAStagePrimitive[] => {
+  const panels: AAAStagePrimitive[] = [];
+  const tangentHalf = radius * Math.tan(Math.PI / sides) * 1.03;
+  const shellHalf = Math.max(0.025, radius * 0.055);
+  for (let index = 0; index < sides; index++) {
+    const angle = index * Math.PI * 2 / sides;
+    panels.push(box(
+      [center[0] + Math.cos(angle) * radius, center[1], center[2] + Math.sin(angle) * radius],
+      [tangentHalf, halfHeight, shellHalf],
+      color,
+      [0, Math.PI * 0.5 - angle, 0],
+    ));
+  }
+  return panels;
+};
 
 const pairX = (x: number, y: number, z: number, half: Vec3, color: readonly [number, number, number, number]): AAAStagePrimitive[] => [
   box([-x, y, z], half, color), box([x, y, z], half, color),
@@ -238,4 +289,259 @@ export function getAAAImprovementsForScene(sceneId: number): readonly AAAImprove
 
 export function getAAAStagePrimitives(sceneId: number): readonly AAAStagePrimitive[] {
   return primitivesByScene.get(sceneId) ?? [];
+}
+
+/**
+ * Backend-neutral specimen fixtures. These presentation-only cube instances
+ * intentionally live outside the exact-count AAA improvement registry: they
+ * complete the visible load path without changing native bodies or replay
+ * hashes.
+ */
+export const TITAN_BEND_DENT_RIG: readonly AAAStagePrimitive[] = [
+  // Grounded foundation mass keeps the press silhouette continuous down to
+  // the test-cell floor, matching a real reaction frame rather than a table.
+  box([0, 2.55, 0], [13.0, 1.20, 6.0], PRESS_BLACK),
+  // A deep, layered bolster replaces the former table-like frame. Its broad
+  // front mass and inset die surface match the visual load path of a real
+  // servo-hydraulic forming press without adding solver bodies.
+  box([0, 4.45, 0], [14.40, 0.68, 5.75], PRESS_BLACK),
+  box([0, 5.25, 0], [13.90, 0.22, 5.40], POLISHED_STEEL),
+  box([0, 5.58, 0], [13.35, 0.30, 5.08], PRESS_BLACK),
+  box([0, 5.92, -4.75], [12.80, 0.22, 0.42], PRESS_STEEL),
+  box([0, 6.02, 0], [12.55, 0.18, 4.62], PRESS_STEEL),
+
+  // Twin polished reaction posts sit behind the specimen, with massive feet
+  // and dark collars carrying the upper crosshead into the bed.
+  ...verticalCylinder([-11.0, 9.00, 3.85], 0.48, 4.25, POLISHED_STEEL, 8),
+  ...verticalCylinder([11.0, 9.00, 3.85], 0.48, 4.25, POLISHED_STEEL, 8),
+  box([-11.0, 5.72, 3.85], [0.76, 0.42, 0.76], PRESS_BLACK),
+  box([11.0, 5.72, 3.85], [0.76, 0.42, 0.76], PRESS_BLACK),
+  box([-11.0, 6.46, 3.85], [0.62, 0.18, 0.62], PRESS_STEEL),
+  box([11.0, 6.46, 3.85], [0.62, 0.18, 0.62], PRESS_STEEL),
+
+  // Full-width crosshead, load-cell stack, and fixed barrel. The deformable
+  // solver still owns the moving platen and telescoping sleeve below y=9.50.
+  box([0, 13.25, 2.55], [12.20, 1.00, 2.30], PRESS_BLACK),
+  box([0, 11.46, 1.15], [6.10, 0.18, 1.88], PRESS_STEEL),
+  box([0, 11.02, 0], [2.45, 0.50, 1.82], PRESS_BLACK),
+  box([0, 10.42, 0], [1.72, 0.18, 1.34], POLISHED_STEEL),
+  ...verticalCylinder([0, 10.02, 0], 1.18, 0.52, PRESS_BLACK, 12),
+
+  // Four heavy corner shoes visibly restrain the square blank. The two front
+  // jaws receive bright wear caps so their contact surfaces remain legible.
+  box([-10.1, 7.34, -3.82], [1.15, 0.34, 0.78], PRESS_BLACK),
+  box([10.1, 7.34, -3.82], [1.15, 0.34, 0.78], PRESS_BLACK),
+  box([-10.1, 7.34, 3.82], [1.15, 0.34, 0.78], PRESS_BLACK),
+  box([10.1, 7.34, 3.82], [1.15, 0.34, 0.78], PRESS_BLACK),
+  box([-10.1, 7.70, -3.68], [0.78, 0.08, 0.42], POLISHED_STEEL),
+  box([10.1, 7.70, -3.68], [0.78, 0.08, 0.42], POLISHED_STEEL),
+
+  // Compact displacement transducers flank the front edge without the former
+  // oversized cyan glow, which read as a game prop rather than lab hardware.
+  box([-8.35, 8.02, -4.82], [0.06, 0.70, 0.06], POLISHED_STEEL),
+  box([8.35, 8.02, -4.82], [0.06, 0.70, 0.06], POLISHED_STEEL),
+  box([-8.35, 8.78, -4.82], [0.17, 0.10, 0.17], PRESS_BLACK),
+  box([8.35, 8.78, -4.82], [0.17, 0.10, 0.17], PRESS_BLACK),
+
+  // Honed guide rods sit outside the blank so they register the ram without
+  // piercing the sheet lattice. Glands and a bed stripe read as shop iron.
+  ...verticalCylinder([-12.7, 9.15, -5.15], 0.16, 3.50, POLISHED_STEEL, 8),
+  ...verticalCylinder([12.7, 9.15, -5.15], 0.16, 3.50, POLISHED_STEEL, 8),
+  ...verticalCylinder([-12.7, 9.15, 5.15], 0.16, 3.50, POLISHED_STEEL, 8),
+  ...verticalCylinder([12.7, 9.15, 5.15], 0.16, 3.50, POLISHED_STEEL, 8),
+  box([-12.7, 6.00, -5.15], [0.28, 0.12, 0.28], PRESS_BLACK),
+  box([12.7, 6.00, -5.15], [0.28, 0.12, 0.28], PRESS_BLACK),
+  box([-12.7, 6.00, 5.15], [0.28, 0.12, 0.28], PRESS_BLACK),
+  box([12.7, 6.00, 5.15], [0.28, 0.12, 0.28], PRESS_BLACK),
+  ...[-8, -4, 0, 4, 8].map((x) => box([x, 5.95, -4.55], [0.09, 0.07, 0.09], POLISHED_STEEL)),
+  box([0, 4.95, -5.55], [12.6, 0.04, 0.06], rgb(0xd99b18, 1)),
+  box([0, 9.72, 0], [1.45, 0.14, 1.45], PRESS_BLACK),
+  ...verticalCylinder([0, 9.22, 0], 0.42, 0.38, POLISHED_STEEL, 8),
+];
+
+export const MEMBRANE_FIELD_RIG: readonly AAAStagePrimitive[] = [
+  // Four grounded reaction corners and a braced lower rectangle.
+  box([-8.3, 0.34, -5.85], [0.62, 0.34, 0.62], STONE),
+  box([-8.3, 0.34, 5.85], [0.62, 0.34, 0.62], STONE),
+  box([8.3, 0.34, -5.85], [0.62, 0.34, 0.62], STONE),
+  box([8.3, 0.34, 5.85], [0.62, 0.34, 0.62], STONE),
+  box([-8, 3.05, -5.55], [0.26, 2.35, 0.26], DARK),
+  box([-8, 3.05, 5.55], [0.26, 2.35, 0.26], DARK),
+  box([8, 3.05, -5.55], [0.26, 2.35, 0.26], DARK),
+  box([8, 3.05, 5.55], [0.26, 2.35, 0.26], DARK),
+  box([0, 0.75, -5.55], [8, 0.18, 0.22], METAL),
+  box([0, 0.75, 5.55], [8, 0.18, 0.22], METAL),
+  box([-8, 0.75, 0], [0.22, 0.18, 5.55], METAL),
+  box([8, 0.75, 0], [0.22, 0.18, 5.55], METAL),
+
+  // The inner faces meet the 15.44 x 10.5 solver membrane perimeter.
+  box([0, 5.47, -5.50], [8, 0.20, 0.30], METAL),
+  box([0, 5.47, 5.50], [8, 0.20, 0.30], METAL),
+  box([-7.97, 5.47, 0], [0.30, 0.20, 5.25], METAL),
+  box([7.97, 5.47, 0], [0.30, 0.20, 5.25], METAL),
+  box([0, 5.78, -5.32], [7.76, 0.08, 0.10], METAL),
+  box([0, 5.78, 5.32], [7.76, 0.08, 0.10], METAL),
+  box([-7.80, 5.78, 0], [0.10, 0.08, 5.23], METAL),
+  box([7.80, 5.78, 0], [0.10, 0.08, 5.23], METAL),
+  box([-7.65, 5.90, -5.15], [0.36, 0.08, 0.30], METAL),
+  box([-7.65, 5.90, 5.15], [0.36, 0.08, 0.30], METAL),
+  box([7.65, 5.90, -5.15], [0.36, 0.08, 0.30], METAL),
+  box([7.65, 5.90, 5.15], [0.36, 0.08, 0.30], METAL),
+];
+
+/**
+ * Presentation-only environment for the reduced-order composite cantilever.
+ * The clamp faces and five node-following response taps remain solver-owned;
+ * this cell adds only the physical lab context around them.
+ */
+export const CANTILEVER_FIELD_RIG: readonly AAAStagePrimitive[] = [
+  // Sealed concrete pad, flush rear wall, and acoustic wall bays.
+  box([0, 0.18, 0], [18.5, 0.18, 11.5], rgb(0x24282a, -5)),
+  box([0, 7.2, -8.4], [19.0, 7.2, 0.34], rgb(0x444a4d, 1)),
+  box([-12.0, 7.2, -8.02], [0.09, 6.75, 0.06], rgb(0x111518, -2)),
+  box([0, 7.2, -8.02], [0.09, 6.75, 0.06], rgb(0x111518, -2)),
+  box([12.0, 7.2, -8.02], [0.09, 6.75, 0.06], rgb(0x111518, -2)),
+  box([0, 3.0, -8.0], [18.0, 0.08, 0.07], rgb(0x111518, -2)),
+  box([0, 11.2, -8.0], [18.0, 0.08, 0.07], rgb(0x111518, -2)),
+
+  // A grouted machine plinth extends the solver-owned clamp base into the
+  // floor, with visible tie-down rails and eight compact anchor heads.
+  box([-11.8, 0.48, 0], [4.4, 0.12, 3.4], STONE),
+  box([-11.8, 0.66, -2.72], [3.7, 0.08, 0.18], PRESS_STEEL),
+  box([-11.8, 0.66, 2.72], [3.7, 0.08, 0.18], PRESS_STEEL),
+  ...[-14.5, -12.6, -10.7, -8.8].flatMap((x) => [
+    box([x, 0.82, -2.72], [0.16, 0.08, 0.22], POLISHED_STEEL),
+    box([x, 0.82, 2.72], [0.16, 0.08, 0.22], POLISHED_STEEL),
+  ]),
+
+  // Cable tray and short service drops sit behind the response taps, giving
+  // the derived marker blocks a believable acquisition context without
+  // misrepresenting them as hardware DAQ channels.
+  box([0, 1.05, -7.50], [15.8, 0.10, 0.18], PRESS_BLACK),
+  box([-8.7, 2.55, -7.48], [0.08, 1.40, 0.16], PRESS_STEEL),
+  box([0, 2.55, -7.48], [0.08, 1.40, 0.16], PRESS_STEEL),
+  box([8.7, 2.55, -7.48], [0.08, 1.40, 0.16], PRESS_STEEL),
+
+  // Neutral-white inspection fixtures illuminate the carbon surface. Thin
+  // amber perimeter lines define a safe hammering envelope at floor level.
+  box([-7.2, 13.80, 0.3], [3.5, 0.035, 0.14], rgb(0xf0f4e6, 3.4)),
+  box([7.2, 13.80, 0.3], [3.5, 0.035, 0.14], rgb(0xf0f4e6, 3.4)),
+  box([-7.2, 13.80, -5.5], [3.5, 0.035, 0.14], rgb(0xf0f4e6, 3.4)),
+  box([7.2, 13.80, -5.5], [3.5, 0.035, 0.14], rgb(0xf0f4e6, 3.4)),
+  box([0, 0.39, -5.8], [15.6, 0.018, 0.07], rgb(0xd99b18, 1)),
+  box([-15.6, 0.39, -1.7], [0.07, 0.018, 4.1], rgb(0xd99b18, 1)),
+  box([15.6, 0.39, -1.7], [0.07, 0.018, 4.1], rgb(0xd99b18, 1)),
+
+  // Low observation rail is outside the working envelope and supplies the
+  // final human-scale cue without crossing the primary beam silhouette.
+  box([0, 1.08, -6.55], [15.8, 0.09, 0.09], PRESS_STEEL),
+  ...[-15.8, -10.5, -5.25, 0, 5.25, 10.5, 15.8].flatMap((x) => [
+    box([x, 0.74, -6.55], [0.07, 0.65, 0.07], PRESS_STEEL),
+  ]),
+];
+
+type EngineeringStageGroupDefinition = readonly [
+  id: string,
+  label: string,
+  role: EngineeringStageGroupRole,
+  start: number,
+  end: number,
+  ownership?: EngineeringStageOwnership,
+];
+
+function defineEngineeringStageGroups(
+  source: readonly AAAStagePrimitive[],
+  definitions: readonly EngineeringStageGroupDefinition[],
+): readonly EngineeringStageGroup[] {
+  return Object.freeze(definitions.map(([id, label, role, start, end, ownership = 'presentation-only']) => Object.freeze({
+    id,
+    label,
+    role,
+    ownership,
+    primitives: Object.freeze(source.slice(start, end)),
+  })));
+}
+
+function assertEngineeringStageProjection(
+  source: readonly AAAStagePrimitive[],
+  groups: readonly EngineeringStageGroup[],
+  label: string,
+): void {
+  const ids = new Set<string>();
+  let primitiveIndex = 0;
+  for (const group of groups) {
+    if (ids.has(group.id)) throw new Error(`${label} contains duplicate engineering stage group '${group.id}'.`);
+    ids.add(group.id);
+    if (!Object.isFrozen(group) || !Object.isFrozen(group.primitives)) {
+      throw new Error(`${label} engineering stage group '${group.id}' must be immutable.`);
+    }
+    for (const primitive of group.primitives) {
+      if (primitive !== source[primitiveIndex]) {
+        throw new Error(`${label} engineering stage groups do not preserve flattened primitive order at index ${primitiveIndex}.`);
+      }
+      primitiveIndex++;
+    }
+  }
+  if (primitiveIndex !== source.length) {
+    throw new Error(`${label} engineering stage groups cover ${primitiveIndex} of ${source.length} primitives.`);
+  }
+}
+
+export const TITAN_BEND_DENT_RIG_GROUPS: readonly EngineeringStageGroup[] = defineEngineeringStageGroups(
+  TITAN_BEND_DENT_RIG,
+  [
+    ['titan-rig-foundation-bed', 'Foundation bed and bolster', 'reaction-frame', 0, 6],
+    ['titan-rig-reaction-columns', 'Twin reaction columns and collars', 'reaction-frame', 6, 26],
+    ['titan-rig-fixed-load-train', 'Crosshead, load-cell stack, and fixed barrel', 'load-train', 26, 42],
+    ['titan-rig-blank-restraints', 'Blank restraint shoes and wear caps', 'reaction-frame', 42, 48],
+    ['titan-rig-displacement-sensing', 'Displacement transducer housings', 'instrumentation', 48, 52],
+    ['titan-rig-guide-rods', 'Honed guide rods and glands', 'reaction-frame', 52, 88],
+    ['titan-rig-bed-hardware', 'Bed bolts, safety stripe, and piston rod', 'load-train', 88, 103],
+  ],
+);
+
+export const MEMBRANE_FIELD_RIG_GROUPS: readonly EngineeringStageGroup[] = defineEngineeringStageGroups(
+  MEMBRANE_FIELD_RIG,
+  [
+    ['membrane-rig-foundations', 'Reaction-corner foundations', 'reaction-frame', 0, 4],
+    ['membrane-rig-lower-frame', 'Lower reaction frame', 'reaction-frame', 4, 12],
+    ['membrane-rig-boundary-fixtures', 'Perimeter boundary fixtures', 'load-train', 12, 24],
+  ],
+);
+
+export const CANTILEVER_FIELD_RIG_GROUPS: readonly EngineeringStageGroup[] = defineEngineeringStageGroups(
+  CANTILEVER_FIELD_RIG,
+  [
+    ['cantilever-cell-facility', 'Sealed floor and acoustic wall', 'facility', 0, 7],
+    ['cantilever-cell-reaction-base', 'Grouted clamp plinth and tie-downs', 'reaction-frame', 7, 18],
+    ['cantilever-cell-instrumentation-services', 'Acquisition services and inspection lighting', 'instrumentation', 18, 26],
+    ['cantilever-cell-safety-envelope', 'Working envelope and observation rail', "safety", 26, 37],
+  ],
+);
+
+if (TITAN_BEND_DENT_RIG.length !== 103) throw new Error(`Expected 103 Titan rig primitives, received ${TITAN_BEND_DENT_RIG.length}`);
+if (MEMBRANE_FIELD_RIG.length !== 24) throw new Error(`Expected 24 membrane rig primitives, received ${MEMBRANE_FIELD_RIG.length}`);
+if (CANTILEVER_FIELD_RIG.length !== 37) throw new Error(`Expected 37 cantilever field primitives, received ${CANTILEVER_FIELD_RIG.length}`);
+assertEngineeringStageProjection(TITAN_BEND_DENT_RIG, TITAN_BEND_DENT_RIG_GROUPS, 'Titan bend/dent rig');
+assertEngineeringStageProjection(MEMBRANE_FIELD_RIG, MEMBRANE_FIELD_RIG_GROUPS, 'Membrane field rig');
+assertEngineeringStageProjection(CANTILEVER_FIELD_RIG, CANTILEVER_FIELD_RIG_GROUPS, 'Cantilever field rig');
+
+export function getEngineeringStagePrimitives(
+  sceneId: number,
+  materialDemoId?: string,
+): readonly AAAStagePrimitive[] {
+  if (materialDemoId === 'metal-square-punch-forming') return TITAN_BEND_DENT_RIG;
+  if (sceneId === 649) return MEMBRANE_FIELD_RIG;
+  if (sceneId === 799) return CANTILEVER_FIELD_RIG;
+  return [];
+}
+
+export function getEngineeringStageGroups(
+  sceneId: number,
+  materialDemoId?: string,
+): readonly EngineeringStageGroup[] {
+  if (materialDemoId === 'metal-square-punch-forming') return TITAN_BEND_DENT_RIG_GROUPS;
+  if (sceneId === 649) return MEMBRANE_FIELD_RIG_GROUPS;
+  if (sceneId === 799) return CANTILEVER_FIELD_RIG_GROUPS;
+  return EMPTY_ENGINEERING_STAGE_GROUPS;
 }

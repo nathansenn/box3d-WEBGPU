@@ -14,6 +14,12 @@ const SCENE_UNIFORM_BYTES = SCENE_UNIFORM_FLOATS * Float32Array.BYTES_PER_ELEMEN
 const DEFAULT_SHADOW_MAP_SIZE: 1024 | 2048 = 2048;
 const DEFAULT_SAMPLE_COUNT: 1 | 4 = 4;
 const HDR_FORMAT: GPUTextureFormat = 'rgba16float';
+// At 4x MSAA the resolved HDR color, multisampled HDR color, and depth target
+// consume roughly 56 bytes per rendered pixel. Cap Ultra at a 1440p-class
+// framebuffer so high-DPI/5K displays cannot allocate hundreds of MiB per
+// attachment set. The 1x profile can retain a native 4K-class target.
+const MAX_FRAMEBUFFER_PIXELS_4X = 2560 * 1440;
+const MAX_FRAMEBUFFER_PIXELS_1X = 3840 * 2160;
 const MAX_DYNAMIC_SURFACE_VERTICES = 16384;
 const MAX_DYNAMIC_SURFACE_INDICES = 98304;
 const SURFACE_VERTEX_BYTES = 24;
@@ -23,6 +29,19 @@ const SURFACE_PARAMS_BYTES = 64;
 const ROPE_GRID_UNIFORM_BYTES = 16;
 const MAX_ROPE_NODES = 4096;
 const MAX_ROPE_SEGMENTS = 4096;
+
+// The checked-in ambient WebGPU declarations predate depth-bias fields even
+// though current browsers and Dawn implement them. Keep the compatibility cast
+// narrow and local to shadow depth state.
+type BiasedDepthStencilState = GPUDepthStencilState & {
+  depthBias: number;
+  depthBiasSlopeScale: number;
+  depthBiasClamp: number;
+};
+
+function assertNever(value: never, message: string): never {
+  throw new Error(message);
+}
 
 const sceneUniformStruct = /* wgsl */ `
 struct SceneUniforms {
@@ -58,11 +77,64 @@ fn materialTileUv(tile : u32, uv : vec2<f32>) -> vec2<f32> {
   return (cell + insetUv) * 0.5;
 }
 
-fn dominantProjectionUv(worldPos : vec3<f32>, normal : vec3<f32>) -> vec2<f32> {
+fn dominantProjectionUv(metricPosition : vec3<f32>, normal : vec3<f32>) -> vec2<f32> {
   let axis = abs(normal);
-  if (axis.y >= axis.x && axis.y >= axis.z) { return worldPos.xz; }
-  if (axis.x >= axis.z) { return worldPos.zy; }
-  return worldPos.xy;
+  if (axis.y >= axis.x && axis.y >= axis.z) { return metricPosition.xz; }
+  if (axis.x >= axis.z) { return metricPosition.zy; }
+  return metricPosition.xy;
+}
+
+// Compact analytic warehouse IBL for the engineering workspaces. High-bay
+// LED/sodium luminaires and warm concrete bounce, with no blue/purple studio
+// wash. Fixed directions keep paused captures deterministic.
+fn studioEnvironment(direction : vec3<f32>) -> vec3<f32> {
+  let ray = normalize(direction);
+  let vertical = clamp(ray.y * 0.5 + 0.5, 0.0, 1.0);
+  var radiance = mix(vec3<f32>(0.048, 0.042, 0.036), vec3<f32>(0.20, 0.185, 0.155), vertical);
+  let overhead = pow(max(ray.y, 0.0), 8.0);
+  let bayA = pow(max(dot(ray, normalize(vec3<f32>(-0.22, 0.96, 0.12))), 0.0), 48.0);
+  let bayB = pow(max(dot(ray, normalize(vec3<f32>(0.28, 0.94, -0.18))), 0.0), 52.0);
+  let bayC = pow(max(dot(ray, normalize(vec3<f32>(-0.08, 0.97, -0.32))), 0.0), 44.0);
+  let key = pow(max(dot(ray, normalize(vec3<f32>(-0.55, 0.72, 0.38))), 0.0), 22.0);
+  let fill = pow(max(dot(ray, normalize(vec3<f32>(0.62, 0.42, 0.48))), 0.0), 28.0);
+  let wall = pow(max(dot(ray, normalize(vec3<f32>(0.08, 0.12, 0.99))), 0.0), 6.0);
+  radiance = radiance
+    + vec3<f32>(1.15, 1.05, 0.88) * overhead
+    + vec3<f32>(1.55, 1.38, 1.08) * (bayA + bayB * 0.85 + bayC * 0.70)
+    + vec3<f32>(1.28, 1.12, 0.92) * key
+    + vec3<f32>(0.42, 0.38, 0.32) * fill
+    + vec3<f32>(0.16, 0.15, 0.13) * wall;
+  return radiance;
+}
+
+// UV.x is the rolling / mill direction. Reconstruct TBN from screen-space
+// derivatives so brushed metal can stretch GGX along the sheet instead of
+// using the galvanized atlas's isotropic zinc-spangle normals.
+fn surfaceTangentFrame(geometricNormal : vec3<f32>, worldPosition : vec3<f32>, uv : vec2<f32>) -> mat3x3<f32> {
+  let positionDx = dpdx(worldPosition);
+  let positionDy = dpdy(worldPosition);
+  let uvDx = dpdx(uv);
+  let uvDy = dpdy(uv);
+  let determinant = uvDx.x * uvDy.y - uvDx.y * uvDy.x;
+  let inverseDeterminant = select(-1.0, 1.0, determinant >= 0.0) / max(abs(determinant), 0.00001);
+  let tangentCandidate = (positionDx * uvDy.y - positionDy * uvDx.y) * inverseDeterminant;
+  var tangent = tangentCandidate - geometricNormal * dot(geometricNormal, tangentCandidate);
+  tangent = tangent / max(length(tangent), 0.00001);
+  let bitangent = normalize(cross(geometricNormal, tangent));
+  return mat3x3<f32>(tangent, bitangent, geometricNormal);
+}
+
+fn distributionGGXAniso(nDotH : f32, tDotH : f32, bDotH : f32, ax : f32, ay : f32) -> f32 {
+  let a2 = ax * ay;
+  let denom = (tDotH * tDotH) / max(ax * ax, 0.000001)
+    + (bDotH * bDotH) / max(ay * ay, 0.000001)
+    + nDotH * nDotH;
+  return 1.0 / max(3.14159265 * a2 * denom * denom, 0.0001);
+}
+
+fn geometrySmithAniso(nDotW : f32, tDotW : f32, bDotW : f32, ax : f32, ay : f32) -> f32 {
+  let stretched = (ax * ax * tDotW * tDotW + ay * ay * bDotW * bDotW) / max(nDotW * nDotW, 0.000001);
+  return 2.0 / max(1.0 + sqrt(1.0 + stretched), 0.0001);
 }
 `;
 
@@ -92,7 +164,7 @@ fn sampleGpuSurfaceShadow(shadowPosition : vec4<f32>, normal : vec3<f32>, lightD
   let uv = clamp(uvUnclamped, vec2<f32>(0.0015), vec2<f32>(0.9985));
   let texel = vec2<f32>(1.0) / vec2<f32>(textureDimensions(shadowMap));
   let nDotL = max(dot(normal, -lightDirection), 0.0);
-  let referenceDepth = clamp(projected.z - max(0.00018, 0.00145 * (1.0 - nDotL)), 0.0, 1.0);
+  let referenceDepth = clamp(projected.z - max(0.00005, 0.00036 * (1.0 - nDotL)), 0.0, 1.0);
   let centerVisibility = textureSampleCompareLevel(shadowMap, shadowSampler, uv, referenceDepth);
   if (scene.qualityModes.x < 1.5) {
     return mix(1.0, centerVisibility, inBounds);
@@ -100,15 +172,17 @@ fn sampleGpuSurfaceShadow(shadowPosition : vec4<f32>, normal : vec3<f32>, lightD
   var visibility = 0.0;
   for (var x : i32 = -1; x <= 1; x = x + 1) {
     for (var y : i32 = -1; y <= 1; y = y + 1) {
-      visibility = visibility + textureSampleCompareLevel(
+      let weightX = select(1.0, 2.0, x == 0);
+      let weightY = select(1.0, 2.0, y == 0);
+      visibility = visibility + weightX * weightY * textureSampleCompareLevel(
         shadowMap,
         shadowSampler,
-        uv + vec2<f32>(f32(x), f32(y)) * texel * 1.2,
+        uv + vec2<f32>(f32(x), f32(y)) * texel * 1.05,
         referenceDepth
       );
     }
   }
-  return mix(1.0, visibility / 9.0, inBounds);
+  return mix(1.0, visibility / 16.0, inBounds);
 }
 `;
 
@@ -156,6 +230,7 @@ struct VertexOut {
   @location(1) color : vec4<f32>,
   @location(2) worldPos : vec3<f32>,
   @location(3) shadowPosition : vec4<f32>,
+  @location(4) materialUv : vec2<f32>,
 };
 
 @vertex
@@ -177,6 +252,15 @@ fn vsMain(input : VertexIn) -> VertexOut {
   out.color = input.color;
   out.worldPos = world.xyz;
   out.shadowPosition = scene.lightViewProj * world;
+  // Project in object space, but restore the model's physical half-extents.
+  // The texture therefore follows a moving/rotating body without stretching
+  // every differently-sized box to the same texel density.
+  let metricPosition = input.position * vec3<f32>(
+    length(input.m0.xyz),
+    length(input.m1.xyz),
+    length(input.m2.xyz)
+  );
+  out.materialUv = dominantProjectionUv(metricPosition, input.normal) * 0.22;
   return out;
 }
 
@@ -195,6 +279,34 @@ fn geometrySchlickGGX(nDotV : f32, roughness : f32) -> f32 {
 
 fn fresnelSchlick(cosTheta : f32, f0 : vec3<f32>) -> vec3<f32> {
   return f0 + (vec3<f32>(1.0) - f0) * pow(1.0 - cosTheta, 5.0);
+}
+
+fn fresnelSchlickRoughness(nDotV : f32, f0 : vec3<f32>, roughness : f32) -> vec3<f32> {
+  let grazingReflectance = max(vec3<f32>(1.0 - roughness), f0);
+  return f0 + (grazingReflectance - f0) * pow(1.0 - nDotV, 5.0);
+}
+
+fn perturbNormal(
+  geometricNormal : vec3<f32>,
+  worldPosition : vec3<f32>,
+  materialUv : vec2<f32>,
+  tangentNormal : vec3<f32>,
+  strength : f32
+) -> vec3<f32> {
+  let positionDx = dpdx(worldPosition);
+  let positionDy = dpdy(worldPosition);
+  let uvDx = dpdx(materialUv);
+  let uvDy = dpdy(materialUv);
+  let determinant = uvDx.x * uvDy.y - uvDx.y * uvDy.x;
+  let inverseDeterminant = select(-1.0, 1.0, determinant >= 0.0) / max(abs(determinant), 0.00001);
+  let tangentCandidate = (positionDx * uvDy.y - positionDy * uvDx.y) * inverseDeterminant;
+  let bitangentCandidate = (-positionDx * uvDy.x + positionDy * uvDx.x) * inverseDeterminant;
+  var tangent = tangentCandidate - geometricNormal * dot(geometricNormal, tangentCandidate);
+  tangent = tangent / max(length(tangent), 0.00001);
+  let handedness = select(-1.0, 1.0, dot(cross(tangentCandidate, bitangentCandidate), geometricNormal) >= 0.0);
+  let bitangent = normalize(cross(geometricNormal, tangent)) * handedness;
+  let mapped = normalize(vec3<f32>(tangentNormal.xy * strength, max(tangentNormal.z, 0.08)));
+  return normalize(tangent * mapped.x + bitangent * mapped.y + geometricNormal * mapped.z);
 }
 
 fn sampleShadow(shadowPosition : vec4<f32>, normal : vec3<f32>, lightDirection : vec3<f32>) -> f32 {
@@ -219,7 +331,7 @@ fn sampleShadow(shadowPosition : vec4<f32>, normal : vec3<f32>, lightDirection :
   let dimensions = vec2<f32>(textureDimensions(shadowMap));
   let texel = vec2<f32>(1.0) / dimensions;
   let nDotL = max(dot(normal, -lightDirection), 0.0);
-  let bias = max(0.00016, 0.0012 * (1.0 - nDotL));
+  let bias = max(0.00004, 0.00028 * (1.0 - nDotL));
   let referenceDepth = clamp(projected.z - bias, 0.0, 1.0);
   let centerVisibility = textureSampleCompareLevel(shadowMap, shadowSampler, uv, referenceDepth);
   if (scene.qualityModes.x < 1.5) {
@@ -229,12 +341,15 @@ fn sampleShadow(shadowPosition : vec4<f32>, normal : vec3<f32>, lightDirection :
 
   for (var x : i32 = -1; x <= 1; x = x + 1) {
     for (var y : i32 = -1; y <= 1; y = y + 1) {
-      let offset = vec2<f32>(f32(x), f32(y)) * texel * 1.25;
-      visibility = visibility + textureSampleCompareLevel(shadowMap, shadowSampler, uv + offset, referenceDepth);
+      let weightX = select(1.0, 2.0, x == 0);
+      let weightY = select(1.0, 2.0, y == 0);
+      let offset = vec2<f32>(f32(x), f32(y)) * texel;
+      visibility = visibility + weightX * weightY
+        * textureSampleCompareLevel(shadowMap, shadowSampler, uv + offset, referenceDepth);
     }
   }
 
-  let sampledVisibility = visibility / 9.0;
+  let sampledVisibility = visibility / 16.0;
   return mix(1.0, sampledVisibility, inBounds);
 }
 
@@ -253,83 +368,148 @@ fn fsMain(input : VertexOut) -> @location(0) vec4<f32> {
   if (materialId == 3u) { materialTile = 2u; }
   if (materialId == 5u) { materialTile = 3u; }
 
-  let projectedUv = dominantProjectionUv(input.worldPos, normal) * 0.22;
-  let atlasUv = materialTileUv(materialTile, projectedUv);
-  let atlasAlbedo = textureSample(materialAlbedoAtlas, materialAtlasSampler, atlasUv).rgb;
-  let atlasSurface = textureSample(materialSurfaceAtlas, materialAtlasSampler, atlasUv);
-  // Preserve the stable geometric normal while adding inexpensive, small-scale
-  // normal response from the curated atlas. This avoids tangent generation for
-  // thousands of instanced boxes and still breaks up large planar highlights.
+  // Fract() keeps each atlas tile repeating, while explicit gradients prevent
+  // tile seams from forcing the texture sampler toward the coarsest mip.
+  let atlasUv = materialTileUv(materialTile, input.materialUv);
+  let atlasGradientX = dpdx(input.materialUv) * 0.485;
+  let atlasGradientY = dpdy(input.materialUv) * 0.485;
+  let atlasAlbedo = textureSampleGrad(
+    materialAlbedoAtlas,
+    materialAtlasSampler,
+    atlasUv,
+    atlasGradientX,
+    atlasGradientY
+  ).rgb;
+  let atlasSurface = textureSampleGrad(
+    materialSurfaceAtlas,
+    materialAtlasSampler,
+    atlasUv,
+    atlasGradientX,
+    atlasGradientY
+  );
   let detailNormal = atlasSurface.rgb * 2.0 - vec3<f32>(1.0);
-  let detailVector = normalize(normal + vec3<f32>(detailNormal.x, detailNormal.z * 0.35, detailNormal.y) * 0.16);
-  normal = select(normal, detailVector, usesAtlas);
 
   let encodedColor = clamp(input.color.rgb, vec3<f32>(0.0), vec3<f32>(1.0));
   let authoredColor = pow(encodedColor, vec3<f32>(2.2));
   var baseColor = select(authoredColor, atlasAlbedo * mix(vec3<f32>(0.76), authoredColor * 1.45, 0.36), usesAtlas);
-  if (materialId == 4u) {
-    baseColor = mix(vec3<f32>(0.025, 0.075, 0.11), authoredColor * 0.42, 0.35);
+  // For conductors the atlas texel represents colored specular reflectance,
+  // not a diffuse layer to be multiplied down by the authored swatch.
+  if (materialId == 2u) {
+    // Flatten zinc-spangle albedo so fixtures read as mill steel, not a tiled liquid.
+    baseColor = clamp(mix(atlasAlbedo, authoredColor, 0.58) * vec3<f32>(1.0, 0.99, 0.95), vec3<f32>(0.08), vec3<f32>(0.78));
   }
-  let maxChannel = max(baseColor.r, max(baseColor.g, baseColor.b));
-  let minChannel = min(baseColor.r, min(baseColor.g, baseColor.b));
-  let saturation = (maxChannel - minChannel) / max(maxChannel, 0.001);
-  let luminance = dot(baseColor, vec3<f32>(0.2126, 0.7152, 0.0722));
-  var metallic = clamp((1.0 - saturation) * 0.48 + smoothstep(0.45, 0.9, luminance) * 0.12, 0.03, 0.62);
-  let noiseUv = input.worldPos.xz * 0.075 + vec2<f32>(input.worldPos.y * 0.021, -input.worldPos.y * 0.017);
+  let noiseUv = input.materialUv * 0.34 + vec2<f32>(f32(materialId) * 0.173, -f32(materialId) * 0.117);
+  let millUv = input.materialUv * vec2<f32>(0.62, 22.0) + vec2<f32>(f32(materialId) * 0.173, -f32(materialId) * 0.117);
   let microVariation = textureSample(materialNoise, materialNoiseSampler, noiseUv).r;
+  let millGrain = textureSample(materialNoise, materialNoiseSampler, millUv).r;
   // Transparent materials are rendered in a later blended pass. Sampling
   // derivative-dependent textures before discard keeps WGSL uniformity valid.
   if (materialId == 4u || materialId == 6u) {
     discard;
   }
-  var roughness = clamp(0.28 + (1.0 - saturation) * 0.28 + microVariation * 0.08, 0.2, 0.78);
-  if (usesAtlas) {
-    roughness = clamp(atlasSurface.a * 0.9 + microVariation * 0.06, 0.18, 0.94);
-    metallic = select(0.015, 0.88, materialId == 2u);
+
+  // Material response is semantic, never inferred from hue or luminance.
+  // IDs: 0 authored dielectric, 1 concrete, 2 galvanized metal, 3 fabric,
+  // 5 stone, 7 carbon composite, 8 solver diagnostic overlay. IDs 4 and 6
+  // are handled by the transparent pass above.
+  var metallic = 0.0;
+  var roughness = clamp(0.46 + (microVariation - 0.5) * 0.14, 0.34, 0.62);
+  var normalStrength = 0.0;
+  if (materialId == 1u) {
+    roughness = clamp(atlasSurface.a * 0.55 + 0.40 + (microVariation - 0.5) * 0.06, 0.68, 0.94);
+    normalStrength = 0.32;
   }
-  if (materialId == 4u) {
+  if (materialId == 2u) {
+    metallic = 0.92;
+    // Satin mill roughness from 1D grain only. Atlas roughness follows zinc
+    // spangles and reads as standing water once it hits a conductor lobe.
+    roughness = clamp(0.32 + (millGrain - 0.5) * 0.04, 0.28, 0.42);
+    normalStrength = 0.0;
+  }
+  if (materialId == 3u) {
+    roughness = clamp(0.72 + atlasSurface.a * 0.24 + (microVariation - 0.5) * 0.04, 0.80, 0.98);
+    normalStrength = 0.38;
+  }
+  if (materialId == 5u) {
+    roughness = clamp(0.38 + atlasSurface.a * 0.48 + (microVariation - 0.5) * 0.05, 0.50, 0.90);
+    normalStrength = 0.26;
+  }
+  if (materialId == 7u) {
     metallic = 0.0;
-    roughness = 0.075 + microVariation * 0.035;
+    roughness = clamp(0.32 + (microVariation - 0.5) * 0.08, 0.24, 0.42);
   }
+  if (materialId == 8u) {
+    metallic = 0.24;
+    roughness = clamp(0.40 + (microVariation - 0.5) * 0.04, 0.34, 0.46);
+  }
+  let detailVector = perturbNormal(normal, input.worldPos, input.materialUv, detailNormal, normalStrength);
+  // Keep atlas normals on dielectrics. Galvanized metal uses mill anisotropy
+  // instead of the ocean-like zinc-spangle normal tile.
+  normal = select(normal, detailVector, usesAtlas && materialId != 2u);
+  let metalFrame = surfaceTangentFrame(normal, input.worldPos, input.materialUv);
+  let millBump = select(0.0, (millGrain - 0.5) * 0.035, materialId == 2u);
+  normal = normalize(normal + metalFrame[1] * millBump);
 
   let nDotL = max(dot(normal, toLight), 0.0);
   let nDotV = max(dot(normal, viewDirection), 0.0);
   let nDotH = max(dot(normal, halfVector), 0.0);
   let vDotH = max(dot(viewDirection, halfVector), 0.0);
 
-  let dielectricF0 = select(vec3<f32>(0.04), vec3<f32>(0.095, 0.115, 0.13), materialId == 4u);
-  let f0 = mix(dielectricF0, baseColor, metallic);
+  let f0 = mix(vec3<f32>(0.04), baseColor, metallic);
   let fresnel = fresnelSchlick(vDotH, f0);
-  let distribution = distributionGGX(nDotH, roughness);
-  let geometry = geometrySchlickGGX(nDotV, roughness) * geometrySchlickGGX(nDotL, roughness);
+  var distribution = distributionGGX(nDotH, roughness);
+  var geometry = geometrySchlickGGX(nDotV, roughness) * geometrySchlickGGX(nDotL, roughness);
+  var envDirection = reflect(-viewDirection, normal);
+  if (materialId == 2u) {
+    let tangent = normalize(metalFrame[0] - normal * dot(metalFrame[0], normal));
+    let bitangent = normalize(cross(normal, tangent));
+    let ax = max(roughness * roughness * 0.36, 0.0004);
+    let ay = max(roughness * roughness * 2.35, 0.0016);
+    distribution = distributionGGXAniso(nDotH, dot(tangent, halfVector), dot(bitangent, halfVector), ax, ay);
+    geometry = geometrySmithAniso(nDotV, dot(tangent, viewDirection), dot(bitangent, viewDirection), ax, ay)
+      * geometrySmithAniso(nDotL, dot(tangent, toLight), dot(bitangent, toLight), ax, ay);
+    envDirection = normalize(envDirection + tangent * dot(envDirection, tangent) * 0.58);
+  }
   let specular = (distribution * geometry * fresnel) / max(4.0 * nDotV * nDotL, 0.001);
   let kD = (vec3<f32>(1.0) - fresnel) * (1.0 - metallic);
 
   let shadowVisibility = mix(1.0, sampleShadow(input.shadowPosition, normal, lightDirection), scene.viewportBloomShadow.w);
-  let sunRadiance = vec3<f32>(5.8, 5.15, 4.55);
+  let studioMix = select(0.0, 1.0, scene.qualityModes.w > 0.5);
+  let sunRadiance = mix(vec3<f32>(5.8, 5.15, 4.55), vec3<f32>(4.55, 4.15, 3.45), studioMix);
   let direct = (kD * baseColor / 3.14159265 + specular) * sunRadiance * nDotL * shadowVisibility;
 
-  let skyAmbient = vec3<f32>(0.22, 0.34, 0.58) * (normal.y * 0.5 + 0.5);
-  let groundAmbient = vec3<f32>(0.08, 0.065, 0.055) * (1.0 - max(normal.y, 0.0));
-  let ambientOcclusionProxy = 0.58 + 0.42 * smoothstep(-0.5, 4.0, input.worldPos.y);
-  let ambient = (skyAmbient + groundAmbient + vec3<f32>(0.035)) * baseColor * ambientOcclusionProxy;
-
-  let glassFresnel = pow(1.0 - nDotV, 4.0) * select(0.0, 1.0, materialId == 4u);
-  let rim = pow(1.0 - nDotV, 3.5) * vec3<f32>(0.08, 0.18, 0.34)
-    + glassFresnel * vec3<f32>(0.30, 0.72, 1.15);
   let emissiveStrength = max(input.color.a - 1.0, 0.0);
   let emissive = baseColor * emissiveStrength * 2.2;
-  // Cheap procedural image-based lighting: bent metal now reflects the same
-  // sky/ground palette as the atmosphere instead of turning black away from
-  // the key light. Roughness attenuates the reflection without a cubemap.
-  let reflected = reflect(-viewDirection, normal);
-  let environment = mix(
-    vec3<f32>(0.075, 0.060, 0.052),
+
+  // Analytic hemispheric IBL uses NdotV for ambient Fresnel. Reusing the
+  // direct-light VdotH term made reflections change with the sun direction and
+  // gave dielectrics a metallic-looking rim.
+  let environmentFresnel = fresnelSchlickRoughness(nDotV, f0, roughness);
+  let environmentBottom = mix(vec3<f32>(0.075, 0.060, 0.052), vec3<f32>(0.042, 0.038, 0.032), studioMix);
+  let environmentTop = mix(vec3<f32>(0.20, 0.34, 0.56), vec3<f32>(0.24, 0.22, 0.18), studioMix);
+  var diffuseIrradiance = mix(
+    environmentBottom,
+    environmentTop,
+    clamp(normal.y * 0.5 + 0.5, 0.0, 1.0)
+  ) + mix(vec3<f32>(0.025), vec3<f32>(0.048), studioMix);
+  let studioKeyWrap = max(dot(normal, normalize(vec3<f32>(-0.55, 0.72, 0.38))), 0.0);
+  diffuseIrradiance = diffuseIrradiance + studioMix * vec3<f32>(0.14, 0.12, 0.09) * studioKeyWrap;
+  // Shadowed ambient is reduced, not removed. This inexpensive coupling is
+  // what visually seats clamps, rails, and coupons on their support surfaces.
+  let ambientVisibility = mix(1.0, 0.66 + 0.34 * shadowVisibility, studioMix);
+  let ambientDiffuse = diffuseIrradiance * baseColor
+    * (vec3<f32>(1.0) - environmentFresnel) * (1.0 - metallic) * ambientVisibility;
+  let outdoorEnvironment = mix(
+    environmentBottom,
     vec3<f32>(0.20, 0.38, 0.68),
-    clamp(reflected.y * 0.5 + 0.5, 0.0, 1.0)
+    clamp(envDirection.y * 0.5 + 0.5, 0.0, 1.0)
   );
-  let environmentSpecular = environment * fresnel * (0.18 + metallic * 0.92) * (1.0 - roughness * 0.72);
-  var color = ambient + direct + rim + emissive + environmentSpecular;
+  let roughStudioEnvironment = mix(studioEnvironment(envDirection), vec3<f32>(0.22, 0.205, 0.175), roughness * roughness * 0.82);
+  let environment = mix(outdoorEnvironment, roughStudioEnvironment, studioMix);
+  let environmentSpecular = environment * environmentFresnel
+    * mix(0.24, 1.0, metallic) * (1.0 - roughness * 0.52)
+    * mix(1.0, 0.82 + 0.18 * shadowVisibility, studioMix);
+  var color = ambientDiffuse + direct + emissive + environmentSpecular;
 
   let distanceToCamera = length(scene.cameraPosTime.xyz - input.worldPos);
   let fogAmount = 1.0 - exp(-scene.fogColorDensity.w * distanceToCamera * distanceToCamera * 0.018);
@@ -342,7 +522,7 @@ fn fsTransparent(input : VertexOut) -> @location(0) vec4<f32> {
   let materialId = u32(round(max(-input.color.a, 0.0)));
   let normal = normalize(input.worldNormal);
   let viewDirection = normalize(scene.cameraPosTime.xyz - input.worldPos);
-  let noiseUv = input.worldPos.xz * 0.075 + vec2<f32>(input.worldPos.y * 0.021, -input.worldPos.y * 0.017);
+  let noiseUv = input.materialUv * 0.34 + vec2<f32>(f32(materialId) * 0.173, -f32(materialId) * 0.117);
   // Sample before the material-dependent discard for derivative uniformity.
   let variation = textureSample(materialNoise, materialNoiseSampler, noiseUv).r;
   if (materialId != 4u && materialId != 6u) {
@@ -355,11 +535,13 @@ fn fsTransparent(input : VertexOut) -> @location(0) vec4<f32> {
     let facing = abs(dot(normal, viewDirection));
     let fresnel = 0.04 + 0.96 * pow(1.0 - facing, 5.0);
     let reflected = reflect(-viewDirection, normal);
-    let environment = mix(
+    let studioMix = select(0.0, 1.0, scene.qualityModes.w > 0.5);
+    let outdoorEnvironment = mix(
       vec3<f32>(0.055, 0.048, 0.044),
       vec3<f32>(0.22, 0.48, 0.82),
       clamp(reflected.y * 0.5 + 0.5, 0.0, 1.0)
     );
+    let environment = mix(outdoorEnvironment, studioEnvironment(reflected), studioMix);
     let tint = pow(clamp(input.color.rgb, vec3<f32>(0.0), vec3<f32>(1.0)), vec3<f32>(2.2));
     var color = tint * (0.11 + variation * 0.035) + environment * (0.22 + fresnel * 0.78);
     color = mix(color, scene.fogColorDensity.xyz, fogAmount);
@@ -414,6 +596,9 @@ fn fsMain(input : ShadowVertexOut) {
   // Thin glass and low-density dust receive soft lighting in the blended pass;
   // they must not stamp an opaque binary silhouette into the shadow map.
   if (materialId == 4u || materialId == 6u) { discard; }
+  // Positive alpha above one is the renderer's emissive-energy convention.
+  // Sparks, muzzle flashes, and light strips are emitters rather than occluders.
+  if (input.color.a > 1.001) { discard; }
 }
 `;
 
@@ -500,7 +685,7 @@ fn sampleSurfaceShadow(shadowPosition : vec4<f32>, normal : vec3<f32>, lightDire
   let dimensions = vec2<f32>(textureDimensions(shadowMap));
   let texel = vec2<f32>(1.0) / dimensions;
   let nDotL = max(dot(normal, -lightDirection), 0.0);
-  let bias = max(0.00018, 0.00145 * (1.0 - nDotL));
+  let bias = max(0.00005, 0.00036 * (1.0 - nDotL));
   let referenceDepth = clamp(projected.z - bias, 0.0, 1.0);
   let centerVisibility = textureSampleCompareLevel(shadowMap, shadowSampler, uv, referenceDepth);
   if (scene.qualityModes.x < 1.5) {
@@ -509,11 +694,14 @@ fn sampleSurfaceShadow(shadowPosition : vec4<f32>, normal : vec3<f32>, lightDire
   var visibility = 0.0;
   for (var x : i32 = -1; x <= 1; x = x + 1) {
     for (var y : i32 = -1; y <= 1; y = y + 1) {
-      let offset = vec2<f32>(f32(x), f32(y)) * texel * 1.2;
-      visibility = visibility + textureSampleCompareLevel(shadowMap, shadowSampler, uv + offset, referenceDepth);
+      let weightX = select(1.0, 2.0, x == 0);
+      let weightY = select(1.0, 2.0, y == 0);
+      let offset = vec2<f32>(f32(x), f32(y)) * texel * 1.05;
+      visibility = visibility + weightX * weightY
+        * textureSampleCompareLevel(shadowMap, shadowSampler, uv + offset, referenceDepth);
     }
   }
-  return mix(1.0, visibility / 9.0, inBounds);
+  return mix(1.0, visibility / 16.0, inBounds);
 }
 
 @fragment
@@ -536,17 +724,169 @@ fn fsMain(input : VertexOut, @builtin(front_facing) frontFacing : bool) -> @loca
   let nDotV = max(dot(normal, viewDirection), 0.0);
   let nDotH = max(dot(normal, halfVector), 0.0);
   let visibility = mix(1.0, sampleSurfaceShadow(input.shadowPosition, normal, lightDirection), scene.viewportBloomShadow.w);
+  let studioMix = select(0.0, 1.0, scene.qualityModes.w > 0.5);
 
-  let diffuse = baseColor * (vec3<f32>(0.16, 0.22, 0.34) + vec3<f32>(3.7, 3.35, 3.0) * nDotL * visibility);
+  let studioAmbient = studioEnvironment(normal) * 0.34 * (0.70 + visibility * 0.30);
+  let diffuseAmbient = mix(vec3<f32>(0.16, 0.22, 0.34), studioAmbient, studioMix);
+  let diffuse = baseColor * (diffuseAmbient + vec3<f32>(3.7, 3.35, 3.0) * nDotL * visibility);
   let fiberSpecular = pow(nDotH, mix(42.0, 115.0, warp)) * (0.16 + stress * 0.24) * visibility;
-  let backLight = pow(max(dot(-normal, toLight), 0.0), 1.7) * baseColor * vec3<f32>(0.95, 0.38, 0.18) * 0.42;
-  let rim = pow(1.0 - nDotV, 3.0) * mix(vec3<f32>(0.08, 0.22, 0.46), vec3<f32>(1.0, 0.12, 0.03), stress) * 0.65;
-  let stressGlow = vec3<f32>(1.4, 0.05, 0.01) * pow(stress, 3.0) * 1.4;
+  let backLight = pow(max(dot(-normal, toLight), 0.0), 1.7) * baseColor
+    * mix(vec3<f32>(0.95, 0.38, 0.18), vec3<f32>(0.62, 0.64, 0.66), studioMix) * 0.42;
+  let rim = pow(1.0 - nDotV, 3.0)
+    * mix(mix(vec3<f32>(0.08, 0.22, 0.46), vec3<f32>(1.0, 0.12, 0.03), stress), vec3<f32>(0.16), studioMix)
+    * mix(0.65, 0.28, studioMix);
+  let stressGlow = vec3<f32>(1.4, 0.05, 0.01) * pow(stress, 3.0) * mix(1.4, 0.34, studioMix);
   var color = diffuse + vec3<f32>(fiberSpecular) + backLight + rim + stressGlow;
 
   let distanceToCamera = length(scene.cameraPosTime.xyz - input.worldPos);
   let fogAmount = 1.0 - exp(-scene.fogColorDensity.w * distanceToCamera * distanceToCamera * 0.018);
   color = mix(color, scene.fogColorDensity.xyz, clamp(fogAmount, 0.0, 0.90));
+  return vec4<f32>(color, 1.0);
+}
+`;
+
+const sheetShader = /* wgsl */ `
+${sceneUniformStruct}
+${packedSurfaceDecode}
+${materialAtlasSampling}
+${gpuSurfaceShadowSampling}
+
+@group(0) @binding(0)
+var<uniform> scene : SceneUniforms;
+
+@group(0) @binding(1)
+var shadowMap : texture_depth_2d;
+
+@group(0) @binding(2)
+var shadowSampler : sampler_comparison;
+
+@group(0) @binding(3)
+var materialNoise : texture_2d<f32>;
+
+@group(0) @binding(4)
+var materialNoiseSampler : sampler;
+
+@group(0) @binding(5)
+var materialAlbedoAtlas : texture_2d<f32>;
+
+@group(0) @binding(7)
+var materialAtlasSampler : sampler;
+
+struct VertexIn {
+  @location(0) position : vec3<f32>,
+  @location(1) normal : vec2<f32>,
+  @location(2) color : vec4<f32>,
+  @location(3) uv : vec2<f32>,
+};
+
+struct VertexOut {
+  @builtin(position) clipPosition : vec4<f32>,
+  @location(0) worldNormal : vec3<f32>,
+  @location(1) color : vec4<f32>,
+  @location(2) worldPos : vec3<f32>,
+  @location(3) shadowPosition : vec4<f32>,
+  @location(4) uv : vec2<f32>,
+};
+
+fn fresnelSchlick(cosTheta : f32, f0 : vec3<f32>) -> vec3<f32> {
+  return f0 + (vec3<f32>(1.0) - f0) * pow(1.0 - cosTheta, 5.0);
+}
+
+fn fresnelSchlickRoughness(nDotV : f32, f0 : vec3<f32>, roughness : f32) -> vec3<f32> {
+  let grazingReflectance = max(vec3<f32>(1.0 - roughness), f0);
+  return f0 + (grazingReflectance - f0) * pow(1.0 - nDotV, 5.0);
+}
+
+@vertex
+fn vsMain(input : VertexIn) -> VertexOut {
+  var out : VertexOut;
+  let world = vec4<f32>(input.position, 1.0);
+  out.clipPosition = scene.viewProj * world;
+  out.worldNormal = decodeOctNormal(input.normal);
+  out.color = input.color;
+  out.worldPos = input.position;
+  out.shadowPosition = scene.lightViewProj * world;
+  out.uv = input.uv;
+  return out;
+}
+
+@fragment
+fn fsMain(input : VertexOut, @builtin(front_facing) frontFacing : bool) -> @location(0) vec4<f32> {
+  let geometricNormal = normalize(input.worldNormal);
+  var normal = select(-geometricNormal, geometricNormal, frontFacing);
+  let viewDirection = normalize(scene.cameraPosTime.xyz - input.worldPos);
+  let lightDirection = normalize(scene.lightDirExposure.xyz);
+  let toLight = -lightDirection;
+  let halfVector = normalize(viewDirection + toLight);
+
+  // Stretch the galvanized albedo into mill lines along U. Equal 16×7 tiling
+  // turned zinc spangles into a standing-wave field; the surface atlas normal
+  // is never applied on this path.
+  let millAlbedoUv = vec2<f32>(input.uv.x * 2.0, input.uv.y * 18.0);
+  let atlasUv = materialTileUv(1u, millAlbedoUv);
+  let atlasGradientX = dpdx(millAlbedoUv) * 0.485;
+  let atlasGradientY = dpdy(millAlbedoUv) * 0.485;
+  let atlasAlbedo = textureSampleGrad(
+    materialAlbedoAtlas,
+    materialAtlasSampler,
+    atlasUv,
+    atlasGradientX,
+    atlasGradientY
+  ).rgb;
+  let millUv = vec2<f32>(input.uv.x * 2.4, input.uv.y * 56.0);
+  let millGrain = textureSample(materialNoise, materialNoiseSampler, millUv).r;
+  let authoredColor = pow(clamp(input.color.rgb, vec3<f32>(0.0), vec3<f32>(1.0)), vec3<f32>(2.2));
+  let zinc = mix(vec3<f32>(0.52, 0.55, 0.58), mix(atlasAlbedo, authoredColor, 0.46), 0.42);
+  var baseColor = clamp(zinc * mix(0.96, 1.03, millGrain), vec3<f32>(0.08), vec3<f32>(0.72));
+  let overlay = clamp(input.color.a, 0.0, 1.0);
+  baseColor = mix(baseColor, authoredColor, overlay * 0.48);
+  let metallic = mix(0.92, 0.24, overlay);
+  let roughness = clamp(0.33 + (millGrain - 0.5) * 0.05, 0.28, 0.44);
+
+  let metalFrame = surfaceTangentFrame(normal, input.worldPos, input.uv);
+  let millBump = (millGrain - 0.5) * mix(0.04, 0.0, overlay);
+  normal = normalize(normal + metalFrame[1] * millBump);
+  let tangent = normalize(metalFrame[0] - normal * dot(metalFrame[0], normal));
+  let bitangent = normalize(cross(normal, tangent));
+  let nDotL = max(dot(normal, toLight), 0.0);
+  let nDotV = max(dot(normal, viewDirection), 0.0);
+  let nDotH = max(dot(normal, halfVector), 0.0);
+  let vDotH = max(dot(viewDirection, halfVector), 0.0);
+  let f0 = mix(vec3<f32>(0.04), baseColor, metallic);
+  let fresnel = fresnelSchlick(vDotH, f0);
+  let ax = max(roughness * roughness * mix(0.34, 1.0, overlay), 0.0004);
+  let ay = max(roughness * roughness * mix(2.45, 1.0, overlay), 0.0016);
+  let distribution = distributionGGXAniso(nDotH, dot(tangent, halfVector), dot(bitangent, halfVector), ax, ay);
+  let geometry = geometrySmithAniso(nDotV, dot(tangent, viewDirection), dot(bitangent, viewDirection), ax, ay)
+    * geometrySmithAniso(nDotL, dot(tangent, toLight), dot(bitangent, toLight), ax, ay);
+  let specular = (distribution * geometry * fresnel) / max(4.0 * nDotV * nDotL, 0.001);
+  let kD = (vec3<f32>(1.0) - fresnel) * (1.0 - metallic);
+  let visibility = mix(1.0, sampleGpuSurfaceShadow(input.shadowPosition, normal, lightDirection), scene.viewportBloomShadow.w);
+  let studioMix = select(0.0, 1.0, scene.qualityModes.w > 0.5);
+  let sunRadiance = mix(vec3<f32>(5.8, 5.15, 4.55), vec3<f32>(4.55, 4.15, 3.45), studioMix);
+  let direct = (kD * baseColor / 3.14159265 + specular) * sunRadiance * nDotL * visibility;
+  let environmentFresnel = fresnelSchlickRoughness(nDotV, f0, roughness);
+  let environmentBottom = mix(vec3<f32>(0.075, 0.060, 0.052), vec3<f32>(0.042, 0.038, 0.032), studioMix);
+  let environmentTop = mix(vec3<f32>(0.20, 0.34, 0.56), vec3<f32>(0.24, 0.22, 0.18), studioMix);
+  var diffuseIrradiance = mix(environmentBottom, environmentTop, clamp(normal.y * 0.5 + 0.5, 0.0, 1.0))
+    + mix(vec3<f32>(0.025), vec3<f32>(0.048), studioMix);
+  let studioKeyWrap = max(dot(normal, normalize(vec3<f32>(-0.55, 0.72, 0.38))), 0.0);
+  diffuseIrradiance = diffuseIrradiance + studioMix * vec3<f32>(0.14, 0.12, 0.09) * studioKeyWrap;
+  let ambientVisibility = mix(1.0, 0.66 + 0.34 * visibility, studioMix);
+  let ambientDiffuse = diffuseIrradiance * baseColor
+    * (vec3<f32>(1.0) - environmentFresnel) * (1.0 - metallic) * ambientVisibility;
+  var envDirection = reflect(-viewDirection, normal);
+  envDirection = normalize(envDirection + tangent * dot(envDirection, tangent) * mix(0.58, 0.0, overlay));
+  let outdoorEnvironment = mix(environmentBottom, vec3<f32>(0.20, 0.38, 0.68), clamp(envDirection.y * 0.5 + 0.5, 0.0, 1.0));
+  let roughStudioEnvironment = mix(studioEnvironment(envDirection), vec3<f32>(0.22, 0.205, 0.175), roughness * roughness * 0.82);
+  let environment = mix(outdoorEnvironment, roughStudioEnvironment, studioMix);
+  let environmentSpecular = environment * environmentFresnel
+    * mix(0.24, 1.0, metallic) * (1.0 - roughness * 0.52)
+    * mix(1.0, 0.82 + 0.18 * visibility, studioMix);
+  var color = ambientDiffuse + direct + environmentSpecular;
+  let distanceToCamera = length(scene.cameraPosTime.xyz - input.worldPos);
+  let fogAmount = 1.0 - exp(-scene.fogColorDensity.w * distanceToCamera * distanceToCamera * 0.018);
+  color = mix(color, scene.fogColorDensity.xyz, clamp(fogAmount, 0.0, 0.92));
   return vec4<f32>(color, 1.0);
 }
 `;
@@ -714,11 +1054,17 @@ fn fsMain(input : GpuSurfaceVertexOut, @builtin(front_facing) frontFacing : bool
   let nDotV = max(dot(normal, viewDirection), 0.0);
   let nDotH = max(dot(normal, halfVector), 0.0);
   let visibility = mix(1.0, sampleGpuSurfaceShadow(input.shadowPosition, normal, lightDirection), scene.viewportBloomShadow.w);
-  let diffuse = baseColor * (vec3<f32>(0.16, 0.22, 0.34) + vec3<f32>(3.7, 3.35, 3.0) * nDotL * visibility);
+  let studioMix = select(0.0, 1.0, scene.qualityModes.w > 0.5);
+  let studioAmbient = studioEnvironment(normal) * 0.34 * (0.70 + visibility * 0.30);
+  let diffuseAmbient = mix(vec3<f32>(0.16, 0.22, 0.34), studioAmbient, studioMix);
+  let diffuse = baseColor * (diffuseAmbient + vec3<f32>(3.7, 3.35, 3.0) * nDotL * visibility);
   let fiberSpecular = pow(nDotH, mix(42.0, 115.0, warp)) * (0.16 + stress * 0.24) * visibility;
-  let backLight = pow(max(dot(-normal, toLight), 0.0), 1.7) * baseColor * vec3<f32>(0.95, 0.38, 0.18) * 0.42;
-  let rim = pow(1.0 - nDotV, 3.0) * mix(vec3<f32>(0.08, 0.22, 0.46), vec3<f32>(1.0, 0.12, 0.03), stress) * 0.65;
-  let stressGlow = vec3<f32>(1.4, 0.05, 0.01) * pow(stress, 3.0) * 1.4;
+  let backLight = pow(max(dot(-normal, toLight), 0.0), 1.7) * baseColor
+    * mix(vec3<f32>(0.95, 0.38, 0.18), vec3<f32>(0.62, 0.64, 0.66), studioMix) * 0.42;
+  let rim = pow(1.0 - nDotV, 3.0)
+    * mix(mix(vec3<f32>(0.08, 0.22, 0.46), vec3<f32>(1.0, 0.12, 0.03), stress), vec3<f32>(0.16), studioMix)
+    * mix(0.65, 0.28, studioMix);
+  let stressGlow = vec3<f32>(1.4, 0.05, 0.01) * pow(stress, 3.0) * mix(1.4, 0.34, studioMix);
   var color = diffuse + vec3<f32>(fiberSpecular) + backLight + rim + stressGlow;
   let distanceToCamera = length(scene.cameraPosTime.xyz - input.worldPos);
   let fogAmount = 1.0 - exp(-scene.fogColorDensity.w * distanceToCamera * distanceToCamera * 0.018);
@@ -957,9 +1303,10 @@ fn hash21(p : vec2<f32>) -> f32 {
 @fragment
 fn fsMain(input : VertexOut) -> @location(0) vec4<f32> {
   let uv = input.uv;
-  let top = vec3<f32>(0.006, 0.014, 0.035);
-  let middle = vec3<f32>(0.035, 0.10, 0.19);
-  let horizonColor = vec3<f32>(0.19, 0.25, 0.31);
+  let studioMix = select(0.0, 1.0, scene.qualityModes.w > 0.5);
+  let top = mix(vec3<f32>(0.006, 0.014, 0.035), vec3<f32>(0.24, 0.21, 0.16), studioMix);
+  let middle = mix(vec3<f32>(0.035, 0.10, 0.19), vec3<f32>(0.20, 0.175, 0.14), studioMix);
+  let horizonColor = mix(vec3<f32>(0.19, 0.25, 0.31), vec3<f32>(0.15, 0.13, 0.105), studioMix);
   let vertical = clamp(uv.y, 0.0, 1.0);
   var color = mix(horizonColor, middle, smoothstep(0.0, 0.44, vertical));
   color = mix(color, top, smoothstep(0.42, 1.0, vertical));
@@ -969,14 +1316,24 @@ fn fsMain(input : VertexOut) -> @location(0) vec4<f32> {
   let sunDistance = distance(uv, sunPosition);
   let sunCore = exp(-sunDistance * sunDistance * 1400.0);
   let sunGlow = exp(-sunDistance * sunDistance * 42.0);
-  color = color + vec3<f32>(8.0, 5.2, 2.6) * sunCore + vec3<f32>(0.55, 0.28, 0.12) * sunGlow;
+  color = color + (1.0 - studioMix) * (vec3<f32>(8.0, 5.2, 2.6) * sunCore + vec3<f32>(0.55, 0.28, 0.12) * sunGlow);
 
   let starCell = floor(uv * vec2<f32>(1100.0, 620.0));
   let star = step(0.9978, hash21(starCell)) * smoothstep(0.5, 0.9, vertical);
-  color = color + vec3<f32>(star * 1.8);
+  color = color + vec3<f32>(star * 1.8 * (1.0 - studioMix));
 
   let haze = pow(max(0.0, 1.0 - abs(vertical - 0.31) * 3.2), 4.0);
-  color = color + vec3<f32>(0.12, 0.11, 0.09) * haze;
+  color = color + mix(vec3<f32>(0.12, 0.11, 0.09), vec3<f32>(0.04, 0.034, 0.026), studioMix) * haze;
+  // Warehouse cyclorama: warm CMU bounce and high-bay discs. Keep this brighter
+  // than a night sky so loading-bay leaks still read as shop ceiling, not dusk.
+  let floorFalloff = 1.0 - smoothstep(0.0, 0.30, vertical);
+  let wallWash = exp(-pow((uv.x - 0.50) * 1.45, 2.0) - pow((uv.y - 0.43) * 2.4, 2.0));
+  color = color + vec3<f32>(0.045, 0.038, 0.028) * wallWash * studioMix;
+  let bayA = exp(-pow((uv.x - 0.28) * 7.5, 2.0) - pow((uv.y - 0.84) * 11.0, 2.0));
+  let bayB = exp(-pow((uv.x - 0.50) * 7.5, 2.0) - pow((uv.y - 0.86) * 11.0, 2.0));
+  let bayC = exp(-pow((uv.x - 0.72) * 7.5, 2.0) - pow((uv.y - 0.83) * 11.0, 2.0));
+  color = color + vec3<f32>(0.28, 0.24, 0.16) * (bayA + bayB + bayC) * studioMix;
+  color = mix(color, color * vec3<f32>(0.72, 0.66, 0.55), floorFalloff * studioMix);
   return vec4<f32>(color, 1.0);
 }
 `;
@@ -1051,10 +1408,6 @@ fn acesFilm(x : vec3<f32>) -> vec3<f32> {
   return clamp((x * (a * x + vec3<f32>(b))) / (x * (c * x + vec3<f32>(d)) + vec3<f32>(e)), vec3<f32>(0.0), vec3<f32>(1.0));
 }
 
-fn hash21(p : vec2<f32>) -> f32 {
-  return fract(sin(dot(p, vec2<f32>(127.1, 311.7))) * 43758.5453123);
-}
-
 @fragment
 fn fsMain(input : VertexOut) -> @location(0) vec4<f32> {
   // WebGPU render targets use a top-left texture origin while fullscreen
@@ -1071,23 +1424,33 @@ fn fsMain(input : VertexOut) -> @location(0) vec4<f32> {
     vec2<f32>(0.707, -0.707), vec2<f32>(-0.707, -0.707)
   );
 
-  var bloom = vec3<f32>(0.0);
-  for (var i : i32 = 0; i < 8; i = i + 1) {
-    let sampleColor = textureSample(hdrTexture, hdrSampler, uv + directions[i] * texel * 4.0).rgb;
-    bloom = bloom + max(sampleColor - vec3<f32>(1.0), vec3<f32>(0.0));
+  // A uniform branch avoids full-resolution HDR reads when bloom is
+  // disabled. Luminance gating preserves highlight hue instead of clipping
+  // individual RGB channels into colored halos.
+  if (scene.viewportBloomShadow.z > 0.001) {
+    var bloom = vec3<f32>(0.0);
+    let directionCount : i32 = select(4, 8, scene.qualityModes.y > 1.5);
+    for (var i : i32 = 0; i < directionCount; i = i + 1) {
+      let sampleColor = textureSample(hdrTexture, hdrSampler, uv + directions[i] * texel * 3.0).rgb;
+      let peak = max(sampleColor.r, max(sampleColor.g, sampleColor.b));
+      let bloomMask = smoothstep(0.95, 1.90, peak) * max(peak - 0.80, 0.0) / max(peak, 0.001);
+      bloom = bloom + sampleColor * bloomMask;
+    }
+    let studioBloomScale = select(1.0, 0.28, scene.qualityModes.w > 0.5);
+    color = color + bloom * (scene.viewportBloomShadow.z * studioBloomScale * (0.38 / f32(directionCount)));
   }
-  bloom = bloom / 8.0;
-  color = color + bloom * scene.viewportBloomShadow.z;
-  color = color * scene.lightDirExposure.w;
+  let studioExposure = select(1.0, 1.07, scene.qualityModes.w > 0.5);
+  color = color * scene.lightDirExposure.w * studioExposure;
   color = acesFilm(color);
 
   let centered = uv - vec2<f32>(0.5);
-  let vignette = 1.0 - smoothstep(0.32, 0.78, length(centered)) * 0.34;
+  let vignetteStrength = select(0.13, 0.075, scene.qualityModes.w > 0.5);
+  let vignette = 1.0 - smoothstep(0.38, 0.76, length(centered)) * vignetteStrength;
   color = color * vignette;
 
-  let grain = (hash21(uv * scene.viewportBloomShadow.xy + scene.cameraPosTime.ww) - 0.5) * 0.018;
-  color = clamp(color + vec3<f32>(grain), vec3<f32>(0.0), vec3<f32>(1.0));
-  color = pow(color, vec3<f32>(1.0 / 2.2));
+  // No time-driven film grain: paused simulations and deterministic captures
+  // must resolve to identical pixels.
+  color = pow(clamp(color, vec3<f32>(0.0), vec3<f32>(1.0)), vec3<f32>(1.0 / 2.2));
   return vec4<f32>(color, 1.0);
 }
 `;
@@ -1238,6 +1601,7 @@ type MainPipelineSet = Readonly<{
   solid: GPURenderPipeline;
   transparentSolid: GPURenderPipeline;
   cloth: GPURenderPipeline;
+  sheet: GPURenderPipeline;
   gpuCloth: GPURenderPipeline;
   gpuWater: GPURenderPipeline;
   line: GPURenderPipeline;
@@ -1588,7 +1952,7 @@ export class WebGPURenderer {
     const shadowView = shadowTexture.createView();
     const shadowSampler = device.createSampler({
       label: 'AAA comparison sampler',
-      compare: 'less',
+      compare: 'less-equal',
       magFilter: 'linear',
       minFilter: 'linear',
       addressModeU: 'clamp-to-edge',
@@ -1716,6 +2080,7 @@ export class WebGPURenderer {
     const surfaceShadowModule = device.createShaderModule({ label: 'AAA dynamic surface shadow shader', code: surfaceShadowShader });
     const gpuClothShadowModule = device.createShaderModule({ label: 'AAA GPU cloth shadow shader', code: gpuClothShadowShader });
     const clothModule = device.createShaderModule({ label: 'AAA woven cloth shader', code: clothShader });
+    const sheetModule = device.createShaderModule({ label: 'AAA interpolated sheet shader', code: sheetShader });
     const gpuClothModule = device.createShaderModule({ label: 'AAA GPU-resident cloth shader', code: gpuClothShader });
     const gpuWaterModule = device.createShaderModule({ label: 'AAA GPU-resident water shader', code: gpuWaterShader });
     const skyModule = device.createShaderModule({ label: 'AAA atmospheric sky shader', code: skyShader });
@@ -1732,6 +2097,7 @@ export class WebGPURenderer {
       validateShaderModule(surfaceShadowModule, 'Dynamic surface shadow shader'),
       validateShaderModule(gpuClothShadowModule, 'GPU cloth shadow shader'),
       validateShaderModule(clothModule, 'Woven cloth shader'),
+      validateShaderModule(sheetModule, 'Interpolated sheet shader'),
       validateShaderModule(gpuClothModule, 'GPU-resident cloth shader'),
       validateShaderModule(gpuWaterModule, 'GPU-resident water shader'),
       validateShaderModule(skyModule, 'Atmospheric sky shader'),
@@ -1746,28 +2112,58 @@ export class WebGPURenderer {
       layout: shadowLayout,
       vertex: { module: shadowModule, entryPoint: 'vsMain', buffers: instanceVertexBuffers() },
       fragment: { module: shadowModule, entryPoint: 'fsMain', targets: [] },
-      primitive: { topology: 'triangle-list', cullMode: 'front' },
-      depthStencil: { format: 'depth32float', depthWriteEnabled: true, depthCompare: 'less' },
+      primitive: { topology: 'triangle-list', cullMode: 'back' },
+      depthStencil: {
+        format: 'depth32float',
+        depthWriteEnabled: true,
+        depthCompare: 'less',
+        depthBias: 1,
+        depthBiasSlopeScale: 1.1,
+        depthBiasClamp: 0.00035,
+      } as BiasedDepthStencilState,
     };
     const surfaceShadowDescriptor: GPURenderPipelineDescriptor = {
       label: 'AAA cloth surface shadow pipeline',
       layout: shadowLayout,
       vertex: { module: surfaceShadowModule, entryPoint: 'vsMain', buffers: surfaceVertexBuffers() },
       primitive: { topology: 'triangle-list', cullMode: 'none' },
-      depthStencil: { format: 'depth32float', depthWriteEnabled: true, depthCompare: 'less' },
+      depthStencil: {
+        format: 'depth32float',
+        depthWriteEnabled: true,
+        depthCompare: 'less',
+        depthBias: 1,
+        depthBiasSlopeScale: 1.1,
+        depthBiasClamp: 0.00035,
+      } as BiasedDepthStencilState,
     };
     const gpuClothShadowDescriptor: GPURenderPipelineDescriptor = {
       label: 'AAA GPU cloth shadow pipeline',
       layout: gpuClothShadowLayout,
       vertex: { module: gpuClothShadowModule, entryPoint: 'vsMain' },
       primitive: { topology: 'triangle-list', cullMode: 'none' },
-      depthStencil: { format: 'depth32float', depthWriteEnabled: true, depthCompare: 'less' },
+      depthStencil: {
+        format: 'depth32float',
+        depthWriteEnabled: true,
+        depthCompare: 'less',
+        depthBias: 1,
+        depthBiasSlopeScale: 1.1,
+        depthBiasClamp: 0.00035,
+      } as BiasedDepthStencilState,
     };
     const clothDescriptor: GPURenderPipelineDescriptor = {
       label: 'AAA dynamic woven cloth pipeline',
       layout: sceneLayout,
       vertex: { module: clothModule, entryPoint: 'vsMain', buffers: surfaceVertexBuffers() },
       fragment: { module: clothModule, entryPoint: 'fsMain', targets: [{ format: HDR_FORMAT }] },
+      primitive: { topology: 'triangle-list', cullMode: 'none' },
+      depthStencil: { format: 'depth24plus', depthWriteEnabled: true, depthCompare: 'less-equal' },
+      multisample: { count: DEFAULT_SAMPLE_COUNT },
+    };
+    const sheetDescriptor: GPURenderPipelineDescriptor = {
+      label: 'AAA interpolated metal sheet pipeline',
+      layout: sceneLayout,
+      vertex: { module: sheetModule, entryPoint: 'vsMain', buffers: surfaceVertexBuffers() },
+      fragment: { module: sheetModule, entryPoint: 'fsMain', targets: [{ format: HDR_FORMAT }] },
       primitive: { topology: 'triangle-list', cullMode: 'none' },
       depthStencil: { format: 'depth24plus', depthWriteEnabled: true, depthCompare: 'less-equal' },
       multisample: { count: DEFAULT_SAMPLE_COUNT },
@@ -1895,6 +2291,7 @@ export class WebGPURenderer {
       solidDescriptor,
       transparentSolidDescriptor,
       clothDescriptor,
+      sheetDescriptor,
       gpuClothDescriptor,
       gpuWaterDescriptor,
       lineDescriptor,
@@ -1928,9 +2325,10 @@ export class WebGPURenderer {
       solid: pipelinesForSampleCount[1]!,
       transparentSolid: pipelinesForSampleCount[2]!,
       cloth: pipelinesForSampleCount[3]!,
-      gpuCloth: pipelinesForSampleCount[4]!,
-      gpuWater: pipelinesForSampleCount[5]!,
-      line: pipelinesForSampleCount[6]!,
+      sheet: pipelinesForSampleCount[4]!,
+      gpuCloth: pipelinesForSampleCount[5]!,
+      gpuWater: pipelinesForSampleCount[6]!,
+      line: pipelinesForSampleCount[7]!,
     });
     const mainPipelines1x = toMainPipelineSet(main1x);
     const mainPipelines4x = toMainPipelineSet(main4x);
@@ -2052,8 +2450,23 @@ export class WebGPURenderer {
 
   resize(): void {
     const dpr = Math.min(2, (window.devicePixelRatio || 1) * this.resolutionScale);
-    const width = Math.max(1, Math.floor(this.canvas.clientWidth * dpr));
-    const height = Math.max(1, Math.floor(this.canvas.clientHeight * dpr));
+    const requestedWidth = Math.max(1, Math.floor(this.canvas.clientWidth * dpr));
+    const requestedHeight = Math.max(1, Math.floor(this.canvas.clientHeight * dpr));
+    const maxFramebufferPixels = this.sampleCount === 4
+      ? MAX_FRAMEBUFFER_PIXELS_4X
+      : MAX_FRAMEBUFFER_PIXELS_1X;
+    const deviceLimits = (this.device as GPUDevice & {
+      limits?: { maxTextureDimension2D?: number };
+    }).limits;
+    const maxTextureDimension = Math.max(1, deviceLimits?.maxTextureDimension2D ?? 8192);
+    const fitScale = Math.min(
+      1,
+      Math.sqrt(maxFramebufferPixels / (requestedWidth * requestedHeight)),
+      maxTextureDimension / requestedWidth,
+      maxTextureDimension / requestedHeight,
+    );
+    const width = Math.max(1, Math.floor(requestedWidth * fitScale));
+    const height = Math.max(1, Math.floor(requestedHeight * fitScale));
     if (width === this.width && height === this.height) return;
 
     this.width = width;
@@ -2134,7 +2547,7 @@ export class WebGPURenderer {
     data[48] = state.quality.shadowTapCount;
     data[49] = state.quality.sampleCount;
     data[50] = state.quality.shadowMapSize;
-    data[51] = 0;
+    data[51] = state.studioMode ? 1 : 0;
     writeFloatBuffer(this.device.queue, this.uniformBuffer, 0, data);
   }
 
@@ -2664,8 +3077,10 @@ export class WebGPURenderer {
       this.ropeGridDispatchPending = false;
     }
 
-    const clothCastsShadow = this.surfaceMaterial === 'cloth' && this.surfaceIndexCount > 0;
-    if (this.uniformScratch[47] > 0.001 && (safeCount > 0 || clothCastsShadow)) {
+    const surfaceCastsShadow = (
+      this.surfaceMaterial === 'cloth' || this.surfaceMaterial === 'sheet'
+    ) && this.surfaceIndexCount > 0;
+    if (this.uniformScratch[47] > 0.001 && (safeCount > 0 || surfaceCastsShadow)) {
       const shadowPass = encoder.beginRenderPass({
         label: 'AAA shadow pass',
         colorAttachments: [],
@@ -2684,7 +3099,7 @@ export class WebGPURenderer {
         shadowPass.setVertexBuffer(2, this.colorBuffer);
         shadowPass.draw(CUBE_VERTEX_COUNT, safeCount);
       }
-      if (clothCastsShadow) {
+      if (surfaceCastsShadow) {
         if (this.surfacePath === 'gpu-cloth') {
           shadowPass.setPipeline(this.gpuClothShadowPipeline);
           shadowPass.setBindGroup(1, this.gpuClothBindGroup);
@@ -2729,16 +3144,37 @@ export class WebGPURenderer {
     }
 
     if (this.surfaceMaterial && this.surfaceIndexCount > 0) {
+      const surfaceMaterial = this.surfaceMaterial;
       mainPass.setBindGroup(0, this.sceneBindGroup);
-      if (this.surfacePath === 'gpu-cloth') {
-        mainPass.setPipeline(this.mainPipelines.gpuCloth);
-        mainPass.setBindGroup(1, this.gpuClothBindGroup);
-      } else if (this.surfacePath === 'gpu-water') {
-        mainPass.setPipeline(this.mainPipelines.gpuWater);
-        mainPass.setBindGroup(1, this.gpuWaterBindGroup);
-      } else {
-        mainPass.setPipeline(this.mainPipelines.cloth);
-        mainPass.setVertexBuffer(0, this.surfaceVertexBuffer);
+      const path = this.surfacePath;
+      switch (path) {
+        case 'gpu-cloth':
+          mainPass.setPipeline(this.mainPipelines.gpuCloth);
+          mainPass.setBindGroup(1, this.gpuClothBindGroup);
+          break;
+        case 'gpu-water':
+          mainPass.setPipeline(this.mainPipelines.gpuWater);
+          mainPass.setBindGroup(1, this.gpuWaterBindGroup);
+          break;
+        case 'packed': {
+          switch (surfaceMaterial) {
+            case 'sheet':
+              mainPass.setPipeline(this.mainPipelines.sheet);
+              break;
+            case 'cloth':
+            case 'water':
+              mainPass.setPipeline(this.mainPipelines.cloth);
+              break;
+            default:
+              assertNever(surfaceMaterial, 'Unhandled packed surface material');
+          }
+          mainPass.setVertexBuffer(0, this.surfaceVertexBuffer);
+          break;
+        }
+        case null:
+          break;
+        default:
+          assertNever(path, 'Unhandled dynamic surface path');
       }
       mainPass.setIndexBuffer(this.surfaceIndexBuffer, 'uint16');
       mainPass.drawIndexed(this.surfaceIndexCount, 1);

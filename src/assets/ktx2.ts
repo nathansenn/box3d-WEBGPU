@@ -179,6 +179,7 @@ function createNoiseTextureFromParsed(device: GPUDevice, parsed: ParsedKtx2): Ma
     magFilter: 'linear',
     minFilter: 'linear',
     mipmapFilter: 'linear',
+    maxAnisotropy: 4,
   });
   return {
     ...gpu,
@@ -252,6 +253,7 @@ function proceduralAtlasFallback(device: GPUDevice): MaterialAtlasTexture {
     label: 'AAA material atlas trilinear sampler',
     addressModeU: 'repeat', addressModeV: 'repeat',
     magFilter: 'linear', minFilter: 'linear', mipmapFilter: 'linear',
+    maxAnisotropy: 8,
   });
   return {
     albedoTexture: albedoGpu.texture,
@@ -303,6 +305,7 @@ export async function loadMaterialAtlasTexture(device: GPUDevice, supportsAstc: 
       label: 'Poliigon material atlas trilinear sampler',
       addressModeU: 'repeat', addressModeV: 'repeat',
       magFilter: 'linear', minFilter: 'linear', mipmapFilter: 'linear',
+      maxAnisotropy: 8,
     });
     return {
       albedoTexture: albedoGpu.texture,

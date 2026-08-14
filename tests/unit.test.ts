@@ -36,10 +36,17 @@ import {
 import { CameraMatrixCache, type CameraShakeInput } from '../src/camera';
 import { FrameLineStager } from '../src/frame-lines';
 import { CinematicEffects } from '../src/effects';
-import { AAA_IMPROVEMENTS, getAAAImprovementsForScene, getAAAStagePrimitives } from '../src/aaa-improvements';
+import {
+  AAA_IMPROVEMENTS,
+  getAAAImprovementsForScene,
+  getAAAStagePrimitives,
+  getEngineeringStageGroups,
+  getEngineeringStagePrimitives,
+} from '../src/aaa-improvements';
 import {
   MATERIAL_DEMO_RECIPES,
   getMaterialDemoRecipe,
+  getMaterialDemoStageGroups,
   getMaterialDemoStagePrimitives,
   materialDemoCounts,
   sceneForMaterialDemo,
@@ -67,21 +74,71 @@ import {
   COMBINED_MATERIAL_CPU_INSTANCE_BUDGET,
   COMBINED_MATERIAL_SEGMENT_BUDGET,
 } from '../src/soft/combined-material-simulation';
-import { MATERIAL_BEHAVIOR_PRESETS, materialPresetForVariant } from '../src/soft/material-presets';
+import {
+  MATERIAL_BEHAVIOR_PRESETS,
+  MATERIAL_LAB_PRESETS,
+  materialPresetForVariant,
+} from '../src/soft/material-presets';
+import { areaWeightedMass, polylineBendAngle } from '../src/soft/material-shell';
 import { PACKED_SURFACE_VERTEX_BYTES } from '../src/soft/packed-surface';
 import { TurboQuantCodec, TurboQuantDeltaStream, turboQuantCompressionRatio, turboQuantError } from '../src/compression/turboquant';
+import {
+  WORKBENCH_GROUPS,
+  WORKBENCH_LABS,
+  filterWorkbenchLabs,
+  getMaterialDemoConceptBinding,
+  getWorkbenchLab,
+} from '../src/workbench/registry';
+import {
+  ENGINEERING_MODEL_COMPONENT_CAP,
+  ENGINEERING_MODELS,
+  getEngineeringModelForLab,
+  validateEngineeringModelRegistry,
+} from '../src/workbench/engineering-model';
 import type { CameraRig, DebugLine, DynamicSurfaceFrame } from '../src/types';
+import { runAutoplayTests } from './autoplay.test';
+import { runConceptMappingTests } from './concept-mapping.test';
+import { runDemoOrientationTests } from './demo-orientation.test';
+import { runEngineeringWorkspaceContractTests } from './engineering-workspaces.test';
 
 function approx(a: number, b: number, eps = 1e-5): void {
   ok(Math.abs(a - b) <= eps, `expected ${a} ≈ ${b}`);
 }
 
 function surfaceStateFinite(surface: DynamicSurfaceFrame): boolean {
-  if (surface.path === 'gpu-cloth') {
-    return isFiniteArray(surface.positions) && isFiniteArray(surface.restPositions);
+  switch (surface.path) {
+    case 'gpu-cloth':
+      return isFiniteArray(surface.positions) && isFiniteArray(surface.restPositions);
+    case 'gpu-water':
+      return isFiniteArray(surface.eta) && isFiniteArray(surface.u) && isFiniteArray(surface.v);
+    case 'packed':
+      return isFiniteArray(surface.vertices);
+    default: {
+      const _exhaustive: never = surface;
+      return _exhaustive;
+    }
   }
-  if (surface.path === 'gpu-water') return isFiniteArray(surface.eta) && isFiniteArray(surface.u) && isFiniteArray(surface.v);
-  return isFiniteArray(surface.vertices);
+}
+
+function packedSheetHasCurvature(surface: DynamicSurfaceFrame, minRange = 0.08): boolean {
+  if (surface.path !== 'packed' || surface.material !== 'sheet') return false;
+  const f32 = new Float32Array(surface.vertices.buffer, surface.vertices.byteOffset, Math.floor(surface.vertices.byteLength / 4));
+  let minY = Infinity;
+  let maxY = -Infinity;
+  for (let i = 0; i < surface.vertexCount; i++) {
+    const y = f32[i * 6 + 1];
+    if (y < minY) minY = y;
+    if (y > maxY) maxY = y;
+  }
+  return maxY - minY > minRange;
+}
+
+function packedSheetIsWelded(surface: DynamicSurfaceFrame): boolean {
+  if (surface.path !== 'packed' || surface.material !== 'sheet') return false;
+  if (surface.vertexCount < 8 || surface.indexCount < 24) return false;
+  const used = new Set<number>();
+  for (let i = 0; i < surface.indexCount; i++) used.add(surface.indices[i]);
+  return used.size < surface.indexCount * 0.55;
 }
 
 function hasTiltedTaggedPanel(
@@ -252,11 +309,11 @@ function testSceneCatalog(): void {
 }
 
 function testHeroShowcaseCatalog(): void {
-  equal(AAA_SHOWCASES.length, 65);
+  equal(AAA_SHOWCASES.length, 68);
   equal(AAA_SIGNATURE_SHOWCASES.length, 10);
   const ids = new Set(AAA_SHOWCASES.map((showcase) => showcase.id));
   equal(ids.size, AAA_SHOWCASES.length, 'showcase IDs must be unique');
-  equal(AAA_SHOWCASES.filter((showcase) => showcase.materialDemoId !== undefined).length, 31, 'every material recipe must own one cinematic showcase');
+  equal(AAA_SHOWCASES.filter((showcase) => showcase.materialDemoId !== undefined).length, 34, 'every material recipe must own one cinematic showcase');
 
   for (let i = 0; i < AAA_SHOWCASES.length; i++) {
     const showcase = AAA_SHOWCASES[i];
@@ -299,10 +356,10 @@ function testHeroShowcaseCatalog(): void {
 }
 
 function testMaterialDemoRegistryContracts(): void {
-  equal(MATERIAL_DEMO_RECIPES.length, 31, 'material presentation registry must contain exactly thirty laboratories plus one combined finale');
-  deepEqual(materialDemoCounts(), { metal: 10, glass: 10, concrete: 10, combined: 1 });
-  equal(new Set(MATERIAL_DEMO_RECIPES.map((recipe) => recipe.id)).size, 31, 'material demo IDs must be unique');
-  equal(new Set(MATERIAL_DEMO_RECIPES.map((recipe) => recipe.title)).size, 31, 'material demo titles must be unique');
+  equal(MATERIAL_DEMO_RECIPES.length, 34, 'material presentation registry must contain thirty-three laboratories plus one combined finale');
+  deepEqual(materialDemoCounts(), { metal: 13, glass: 10, concrete: 10, combined: 1 });
+  equal(new Set(MATERIAL_DEMO_RECIPES.map((recipe) => recipe.id)).size, 34, 'material demo IDs must be unique');
+  equal(new Set(MATERIAL_DEMO_RECIPES.map((recipe) => recipe.title)).size, 34, 'material demo titles must be unique');
 
   const materialShowcases = AAA_SHOWCASES.filter((showcase) => showcase.materialDemoId !== undefined);
   deepEqual(
@@ -712,8 +769,21 @@ function testSoftSimulationCatalog(): void {
       ok(maxIndex < frame.surface!.vertexCount, `${scene.title} surface index ${maxIndex} is out of range`);
       equal(frame.ropeGrid, null, `${scene.title} should not expose a rope grid`);
     } else {
+      const usesSheetSkin = scene.family === 'fracture' && (
+        (scene.mode === 3 && scene.variant <= 2) ||
+        (scene.mode === 4 && scene.variant <= 2)
+      );
+      if (usesSheetSkin) {
+        ok(frame.surface, `${scene.title} must publish an interpolated sheet skin`);
+        equal(frame.surface!.path, 'packed', `${scene.title} sheet skin must use the packed surface path`);
+        equal(frame.surface!.material, 'sheet', `${scene.title} sheet skin must use the metal sheet material`);
+        ok(frame.surface!.vertexCount > frame.nodeCount, `${scene.title} sheet skin must tessellate denser than the solver lattice`);
+        ok(packedSheetIsWelded(frame.surface!), `${scene.title} sheet skin must share vertices across cells`);
+        ok(surfaceStateFinite(frame.surface!), `${scene.title} sheet skin must remain finite`);
+      } else {
+        equal(frame.surface, null, `${scene.title} is rendered as GPU-computed beam segments`);
+      }
       const presentation = scene.family === 'fracture' ? 'material' : 'rope';
-      equal(frame.surface, null, `${scene.title} is rendered as GPU-computed beam segments`);
       ok(frame.ropeGrid, `${scene.title} must expose a GPU segment grid`);
       equal(frame.ropeGrid!.presentation, presentation, `${scene.title} exposed the wrong segment presentation`);
       const skinOnlyRig =
@@ -799,12 +869,52 @@ function testMaterialPresetOrderingAndInvariants(): void {
     ok(preset.plasticCreep >= 0 && preset.damageRate > 0 && preset.fatigueRate >= 0, `${preset.id} damage coefficients are invalid`);
     ok(isFiniteArray(preset.baseColor), `${preset.id} base color is invalid`);
     ok(preset.baseColor.slice(0, 3).every((value) => value >= 0 && value <= 1), `${preset.id} base RGB is invalid`);
-    ok(preset.baseColor[3] >= -5 && preset.baseColor[3] <= 4, `${preset.id} material channel is invalid`);
+    ok(preset.baseColor[3] >= -8 && preset.baseColor[3] <= 4, `${preset.id} material channel is invalid`);
     if (preset.failureMode === 'brittle') {
       ok(preset.plasticCreep <= 0.035, `${preset.id} brittle preset accumulated excessive plastic creep`);
     } else if (preset.failureMode === 'fiber') {
       ok(preset.plasticCreep <= 0.10, `${preset.id} fiber preset accumulated excessive plastic creep`);
     }
+  }
+}
+
+function testMetalPresetsStifferThanWater(): void {
+  const water = MATERIAL_LAB_PRESETS.find((preset) => preset.id === 'water');
+  if (!water) return;
+
+  const metalIds = ['structural-steel', 'aluminum-alloy', 'copper'] as const;
+  for (const id of metalIds) {
+    const metal = MATERIAL_LAB_PRESETS.find((preset) => preset.id === id);
+    if (!metal) continue;
+    ok(metal.axialStiffness > water.axialStiffness, `${id} axial stiffness must exceed water`);
+    ok(metal.shearStiffness > water.shearStiffness, `${id} shear stiffness must exceed water`);
+    ok(metal.bendStiffness > water.bendStiffness, `${id} bend stiffness must exceed water`);
+    ok(metal.lab.yieldStrengthMPa > water.lab.yieldStrengthMPa, `${id} yield must exceed water`);
+    ok(metal.lab.hardening >= water.lab.hardening, `${id} hardening must not fall to water`);
+  }
+
+  const foam = MATERIAL_LAB_PRESETS.find((preset) => preset.id === 'polymer-foam');
+  const cloth = MATERIAL_LAB_PRESETS.find((preset) => preset.id === 'ballistic-fabric');
+  const steel = MATERIAL_LAB_PRESETS.find((preset) => preset.id === 'structural-steel');
+  if (steel && foam) {
+    ok(steel.bendStiffness > foam.bendStiffness, 'structural steel must bend stiffer than polymer foam');
+    ok(steel.axialStiffness > foam.axialStiffness, 'structural steel must be axially stiffer than polymer foam');
+  }
+  if (steel && cloth) {
+    ok(steel.bendStiffness > cloth.bendStiffness, 'structural steel must bend stiffer than ballistic fabric');
+  }
+
+  const metalModel = getEngineeringModelForLab('titan-bend-dent');
+  const waterModel = getEngineeringModelForLab('tsunami-flume');
+  if (metalModel && waterModel && metalModel.materials[0] && waterModel.materials[0]) {
+    ok(
+      metalModel.materials[0].bendStiffness > waterModel.materials[0].bendStiffness,
+      'metal flagship material card must be stiffer than the shallow-water proxy card',
+    );
+    ok(
+      metalModel.materials[0].axialStiffness > waterModel.materials[0].axialStiffness,
+      'metal flagship axial stiffness must exceed the water lab card',
+    );
   }
 }
 
@@ -917,12 +1027,131 @@ function testMetalBendingAndDentingDemo(): void {
   ok(material.yieldedCount > 0, 'metal dent must cross the normalized ductile yield envelope');
   equal(frameA.brokenCount, 0, 'controlled dent should yield without rupturing the steel panel');
   equal(frameA.ropeGrid?.segmentCount, 0, 'cinematic metal must hide the internal solver lattice');
-  ok(frameA.instanceCount >= 200, 'metal dent presentation must retain a dense continuous skin, press fixtures, and witness bands');
-  ok(hasTiltedTaggedPanel(frameA, -2, 1, 0.04), 'metal skin must rotate with the simulated dent curvature');
+  ok(frameA.surface, 'metal dent presentation must publish a continuous interpolated sheet');
+  equal(frameA.surface!.path, 'packed');
+  equal(frameA.surface!.material, 'sheet');
+  ok(frameA.surface!.vertexCount > frameA.nodeCount, 'metal dent skin must tessellate denser than the solver lattice');
+  ok(packedSheetIsWelded(frameA.surface!), 'metal dent skin must weld adjacent cells instead of emitting separate tiles');
+  ok(packedSheetHasCurvature(frameA.surface!, 0.08), 'metal dent skin must follow the simulated dent curvature');
+  ok(frameA.instanceCount >= 8, 'metal dent presentation must retain press fixtures after the skin moves off instance tiles');
   ok(!frameA.colors.slice(0, frameA.instanceCount * 4).some((value, index) => index % 4 === 3 && value > 1), 'cold-formed metal must not glow');
   ok(a.validate().ok && b.validate().ok, 'metal dent demo must remain finite and valid');
   a.destroy();
   b.destroy();
+}
+
+function testShellPlasticityThicknessAndEnergy(): void {
+  approx(polylineBendAngle(0, 0, 0, 1, 0, 0, 2, 0, 0), Math.PI, 1e-5);
+  ok(areaWeightedMass(1, 2, 1) > areaWeightedMass(1, 1, 1) * 1.5, 'area-weighted mass must scale with thickness');
+
+  const runMetal = (id: string, seed: number, loadFrames: number, strike: number, afterFrames: number): SoftSimulationFrame => {
+    const recipe = getMaterialDemoRecipe(id)!;
+    const suite = new SoftSimulationSuite();
+    ok(suite.createScene(sceneForMaterialDemo(id), recipe.recommendedStress, seed), `${id} must activate`);
+    suite.setLoadTarget(recipe.primaryLoad);
+    for (let frame = 0; frame < loadFrames; frame++) suite.step(1 / 60, 4);
+    suite.dentStrike(strike);
+    for (let frame = 0; frame < afterFrames; frame++) suite.step(1 / 60, 4);
+    suite.releaseLoad();
+    for (let frame = 0; frame < 48; frame++) suite.step(1 / 60, 4);
+    const built = suite.buildFrame(false);
+    suite.destroy();
+    return built;
+  };
+
+  const thin = runMetal('metal-square-punch-forming', 0xc0ffee01, 48, 1, 72);
+  const thick = runMetal('metal-thick-plate-dent', 0xc0ffee01, 48, 1, 72);
+  const thinMaterial = thin.material!;
+  const thickMaterial = thick.material!;
+  ok(thinMaterial.peakDeflection > thickMaterial.peakDeflection * 1.08, 'thicker plate must dent less than the 3 mm ballistic panel');
+  ok(thinMaterial.residualDent > 0.04, 'ballistic dent must retain a plastic set after the strike pulse');
+  ok(thinMaterial.residualDent < thinMaterial.peakDeflection, 'unload / hinge recovery must leave residual below the peak dent');
+  ok(thin.brokenCount < 24, 'ballistic dent must remain a dent, not a ruptured panel');
+  ok(thin.energy > 0.05, 'ballistic dent must publish a readable normalized energy proxy, not 0.000');
+  ok(
+    (thinMaterial.elasticEnergy ?? 0) + (thinMaterial.plasticWork ?? 0) + (thinMaterial.dampingWork ?? 0) > 0.05,
+    'energy partitions must sum to a visible mechanical proxy',
+  );
+  ok((thinMaterial.dampingWork ?? 0) >= 0 && (thinMaterial.contactWork ?? 0) >= 0, 'dissipated work proxies must be non-negative');
+  ok(thin.energy >= 0 && thin.energy < 40, 'normalized energy must stay finite and bounded');
+  ok(Number.isFinite(thin.energy) && Number.isFinite(thick.energy), 'energy must remain finite');
+
+  const fold = runMetal('metal-press-brake-v-bend', 0xc0ffee02, 64, 0.7, 48);
+  const tear = runMetal('metal-notch-tear', 0xc0ffee03, 64, 0.95, 80);
+  ok(fold.material!.testMode.includes('line'), 'metal fold must remain a line-load press-brake');
+  ok(fold.material!.peakDeflection > 0.12, 'press-brake line punch must produce a readable V');
+  ok(tear.material!.yieldedCount > thinMaterial.yieldedCount * 0.4, 'notch tear must concentrate plasticity');
+  ok(
+    tear.brokenCount > thin.brokenCount || tear.material!.maxStrain > thinMaterial.maxStrain * 1.05,
+    'notch tear must open a seam or out-strain the un-notched dent panel',
+  );
+  ok(fold.surface?.material === 'sheet' && tear.surface?.material === 'sheet', 'new metal demos must keep the welded sheet skin');
+
+  const idleTear = new SoftSimulationSuite();
+  ok(idleTear.createScene(sceneForMaterialDemo('metal-notch-tear'), 5, 0xc0ffee13));
+  const idleTearFrame = idleTear.buildFrame(false);
+  ok(idleTearFrame.brokenCount > 0, 'notch tear must seed a broken seam before load');
+  ok(idleTearFrame.surface?.path === 'packed' && idleTearFrame.surface.indexCount > 0, 'notch tear must keep a welded skin around the seeded slit');
+  const idleDent = new SoftSimulationSuite();
+  ok(idleDent.createScene(sceneForMaterialDemo('metal-square-punch-forming'), 5, 0xc0ffee14));
+  const idleDentFrame = idleDent.buildFrame(false);
+  ok(
+    idleTearFrame.surface?.path === 'packed'
+    && idleDentFrame.surface?.path === 'packed'
+    && idleTearFrame.surface.indexCount < idleDentFrame.surface.indexCount,
+    'seeded notch must omit seam triangles instead of rendering a solid bar',
+  );
+  idleTear.destroy();
+  idleDent.destroy();
+
+  const spring = new SoftSimulationSuite();
+  ok(spring.createScene(sceneForMaterialDemo('metal-springback-fold'), 5, 0xc0ffee15));
+  for (let frame = 0; frame < 48; frame++) spring.step(1 / 60, 4);
+  const springLoaded = spring.buildFrame(false);
+  ok((springLoaded.material?.loadProgress ?? 0) > 0.4, 'springback punch must descend onto the blank');
+  const springPeak = springLoaded.material!.peakDeflection;
+  for (let frame = 0; frame < 120; frame++) spring.step(1 / 60, 4);
+  const springUnloaded = spring.buildFrame(false);
+  ok((springUnloaded.material?.loadProgress ?? 1) < 0.15, 'springback punch must unload after the hold beat');
+  ok((springUnloaded.material?.peakDeflection ?? 0) > springPeak, 'hold must finish forming the V before unload');
+  ok(
+    (springUnloaded.material?.residualDent ?? 0) < (springUnloaded.material?.peakDeflection ?? 1) * 0.98,
+    'unload must reveal extra elastic recovery versus the loaded V',
+  );
+  ok((springUnloaded.material?.residualDent ?? 0) > 0.02, 'thin aluminum must retain a plastic fold after unload');
+  spring.destroy();
+
+  const glassRecipe = getMaterialDemoRecipe('glass-annealed-pendulum-impact')!;
+  const glass = new SoftSimulationSuite();
+  ok(glass.createScene(sceneForMaterialDemo(glassRecipe.id), 5, 0xc0ffee04));
+  glass.setLoadTarget(glassRecipe.primaryLoad);
+  for (let frame = 0; frame < 24; frame++) glass.step(1 / 60, 4);
+  glass.materialStrike(glassRecipe.primaryStrike);
+  for (let frame = 0; frame < 90; frame++) glass.step(1 / 60, 4);
+  const glassFrame = glass.buildFrame(false);
+  ok((glassFrame.material?.fracturedCellCount ?? 0) >= 16, 'glass must propagate a brittle crack field');
+  equal(thin.material!.fracturedCellCount, 0, 'aluminum dent must remain ductile without cohesive cell deletion');
+  ok((glassFrame.material?.fracturedCellCount ?? 0) > thin.brokenCount, 'glass must fail more brittle than the aluminum dent');
+  glass.destroy();
+
+  const hail = runMetal('metal-aluminum-hailstorm', 0xc0ffee06, 40, 0.72, 56);
+  ok(hail.material!.testMode.includes('pulse'), 'hailstorm must stay a pulse field, not a single center punch');
+  ok(thinMaterial.testMode.includes('center'), 'ballistic dent must stay a compact center punch');
+  ok((hail.material!.peakDeflection ?? 0) > 0.04, 'hailstorm must leave readable overlapping dimples');
+
+  const laminatedRecipe = getMaterialDemoRecipe('glass-laminated-stone-strike')!;
+  const laminated = new SoftSimulationSuite();
+  ok(laminated.createScene(sceneForMaterialDemo(laminatedRecipe.id), 5, 0xc0ffee07));
+  laminated.setLoadTarget(laminatedRecipe.primaryLoad);
+  for (let frame = 0; frame < 24; frame++) laminated.step(1 / 60, 4);
+  laminated.materialStrike(laminatedRecipe.primaryStrike);
+  for (let frame = 0; frame < 90; frame++) laminated.step(1 / 60, 4);
+  const laminatedFrame = laminated.buildFrame(false);
+  ok(laminatedFrame.material!.testMode.includes('retained'), 'laminated glass must retain broken islands');
+  ok(laminatedFrame.material!.testMode.includes('offset'), 'glass impact must stay an off-center stone strike');
+  ok((laminatedFrame.material?.fracturedCellCount ?? 0) >= 4, 'glass impact must open a spiderweb');
+  ok(glassFrame.material!.testMode.includes('radial'), 'annealed pendulum glass must run long radial cracks');
+  laminated.destroy();
 }
 
 function testConcreteSpallAndGlassShardDemos(): void {
@@ -996,7 +1225,7 @@ function frameHasMaterialTag(frame: SoftSimulationFrame, tag: number, minX = -In
 function testMaterialDemoSimulationContracts(): void {
   const suite = new SoftSimulationSuite();
   const individualRecipes = MATERIAL_DEMO_RECIPES.filter((recipe) => recipe.kind !== 'combined');
-  equal(individualRecipes.length, 30);
+  equal(individualRecipes.length, 33);
 
   for (let index = 0; index < individualRecipes.length; index++) {
     const recipe = individualRecipes[index];
@@ -1013,10 +1242,18 @@ function testMaterialDemoSimulationContracts(): void {
     const frame = suite.buildFrame(true);
     equal(frame.kind, 'fracture', `${recipe.title} must remain on the fracture simulation path`);
     ok(frame.label.includes(recipe.title), `${recipe.title} frame label lost the presentation identity`);
-    equal(frame.surface, null, `${recipe.title} must use the material member/skin stream`);
+    if (recipe.kind === 'metal') {
+      ok(frame.surface, `${recipe.title} must publish an interpolated sheet skin`);
+      equal(frame.surface!.path, 'packed', `${recipe.title} sheet skin must use the packed surface path`);
+      equal(frame.surface!.material, 'sheet', `${recipe.title} sheet skin must use the metal sheet material`);
+      ok(frame.surface!.vertexCount > frame.nodeCount, `${recipe.title} sheet skin must tessellate denser than the solver lattice`);
+      ok(packedSheetIsWelded(frame.surface!), `${recipe.title} sheet skin must share vertices across cells`);
+    } else {
+      equal(frame.surface, null, `${recipe.title} must use the material member/skin stream`);
+    }
     ok(frame.material, `${recipe.title} must publish forensic material telemetry`);
     equal(frame.material!.label, recipe.title, `${recipe.title} telemetry label changed`);
-    ok(frame.material!.testMode.includes(recipe.fixtureStyle) && frame.material!.testMode.includes(recipe.loadPattern), `${recipe.title} telemetry must identify its authored rig and load case`);
+    ok(frame.material!.testMode.includes(recipe.fixtureStyle) && frame.material!.testMode.includes(recipe.loadPattern) && frame.material!.testMode.includes(recipe.crackStyle), `${recipe.title} telemetry must identify its authored rig, load case, and crack style`);
     ok(frame.ropeGrid, `${recipe.title} must publish its material member grid`);
     equal(frame.ropeGrid!.presentation, 'material', `${recipe.title} must use the material GPU presentation`);
     ok(frame.nodeCount > 0 && frame.constraintCount > 0, `${recipe.title} must retain physical solver state`);
@@ -1046,6 +1283,444 @@ function testMaterialDemoSimulationContracts(): void {
     ok(validation.ok, `${recipe.title}: ${validation.message}`);
   }
   suite.destroy();
+}
+
+function expectedMaterialStrikeNode(
+  recipe: { stations: number; lanes: number },
+  u: number,
+  v: number,
+): number {
+  const station = clamp(Math.round(clamp(u, 0, 1) * (recipe.stations - 1)), 1, recipe.stations - 2);
+  const lane = clamp(Math.round(clamp(v, 0, 1) * (recipe.lanes - 1)), 1, recipe.lanes - 2);
+  return station * recipe.lanes + lane;
+}
+
+function testMaterialPointStrikeTargetingAndDeterminism(): void {
+  const recipes = [
+    getMaterialDemoRecipe('metal-square-punch-forming'),
+    getMaterialDemoRecipe('glass-ballistic-off-center'),
+    getMaterialDemoRecipe('concrete-flat-slab-punching'),
+  ];
+  ok(recipes.every((recipe) => recipe), 'focused material point-strike recipes are missing');
+
+  for (let recipeIndex = 0; recipeIndex < recipes.length; recipeIndex++) {
+    const recipe = recipes[recipeIndex]!;
+    const scene = sceneForMaterialDemo(recipe.id);
+    const seed = (0x5711ce00 ^ Math.imul(recipeIndex + 1, 0x9e3779b1)) >>> 0;
+
+    // Radius scale one at the authored point is the exact legacy action. This
+    // guards the existing cinematic/replay contract while the workbench gains
+    // explicit normalized targeting.
+    const legacy = new SoftSimulationSuite();
+    const authoredPoint = new SoftSimulationSuite();
+    ok(legacy.createScene(scene, recipe.recommendedStress, seed));
+    ok(authoredPoint.createScene(scene, recipe.recommendedStress, seed));
+    equal(
+      legacy.materialStrike(recipe.primaryStrike),
+      authoredPoint.materialStrikeAt(recipe.strikeCenter[0], recipe.strikeCenter[1], recipe.primaryStrike, 1),
+      `${recipe.title} authored point must preserve the legacy strike node`,
+    );
+    equal(legacy.hash(), authoredPoint.hash(), `${recipe.title} authored point changed the legacy strike state`);
+    for (let frameIndex = 0; frameIndex < 8; frameIndex++) {
+      legacy.step(1 / 60, 4);
+      authoredPoint.step(1 / 60, 4);
+      equal(legacy.hash(), authoredPoint.hash(), `${recipe.title} legacy point replay diverged at frame ${frameIndex}`);
+    }
+    legacy.destroy();
+    authoredPoint.destroy();
+
+    const u = 0.24 + recipeIndex * 0.11;
+    const v = 0.72 - recipeIndex * 0.13;
+    const a = new SoftSimulationSuite();
+    const b = new SoftSimulationSuite();
+    ok(a.createScene(scene, recipe.recommendedStress, seed));
+    ok(b.createScene(scene, recipe.recommendedStress, seed));
+    const expectedNode = expectedMaterialStrikeNode(recipe, u, v);
+    equal(a.materialStrikeAt(u, v, recipe.primaryStrike, 1.8), expectedNode, `${recipe.title} normalized target mapped to the wrong node`);
+    equal(b.materialStrikeAt(u, v, recipe.primaryStrike, 1.8), expectedNode, `${recipe.title} deterministic peer mapped to the wrong node`);
+    for (let frameIndex = 0; frameIndex < 12; frameIndex++) {
+      a.step(1 / 60, 4);
+      b.step(1 / 60, 4);
+      equal(a.hash(), b.hash(), `${recipe.title} point-strike replay diverged at frame ${frameIndex}`);
+    }
+    ok(a.validate().ok && b.validate().ok, `${recipe.title} point strike must remain finite and valid`);
+    a.destroy();
+    b.destroy();
+
+    const narrow = new SoftSimulationSuite();
+    const wide = new SoftSimulationSuite();
+    ok(narrow.createScene(scene, recipe.recommendedStress, seed));
+    ok(wide.createScene(scene, recipe.recommendedStress, seed));
+    narrow.materialStrikeAt(u, v, recipe.primaryStrike, 0.5);
+    wide.materialStrikeAt(u, v, recipe.primaryStrike, 2.5);
+    for (let frameIndex = 0; frameIndex < 3; frameIndex++) {
+      narrow.step(1 / 60, 4);
+      wide.step(1 / 60, 4);
+    }
+    ok(narrow.hash() !== wide.hash(), `${recipe.title} radius scale must alter the normalized strike footprint`);
+    narrow.destroy();
+    wide.destroy();
+  }
+
+  const hailRecipe = getMaterialDemoRecipe('glass-hail-multi-hit')!;
+  const hail = new SoftSimulationSuite();
+  ok(hail.createScene(sceneForMaterialDemo(hailRecipe.id), 5, 0x4a115eed));
+  equal(
+    hail.materialStrike(hailRecipe.primaryStrike),
+    expectedMaterialStrikeNode(hailRecipe, hailRecipe.strikeCenter[0], hailRecipe.strikeCenter[1]),
+    'legacy hail strike must retain its authored first target',
+  );
+  equal(
+    hail.materialStrike(hailRecipe.primaryStrike),
+    expectedMaterialStrikeNode(hailRecipe, 1 - hailRecipe.strikeCenter[0], 1 - hailRecipe.strikeCenter[1]),
+    'legacy hail strike must retain its mirrored second target',
+  );
+  hail.destroy();
+
+  const combinedRecipe = getMaterialDemoRecipe('apex-materials-proving-ground')!;
+  const glassRecipe = getMaterialDemoRecipe('glass-ballistic-off-center')!;
+  const concreteRecipe = getMaterialDemoRecipe('concrete-flat-slab-punching')!;
+  const combinedScene = sceneForMaterialDemo(combinedRecipe.id);
+  const combinedA = new SoftSimulationSuite();
+  const combinedB = new SoftSimulationSuite();
+  const combinedSeed = 0x5e1ec7ed;
+  ok(combinedA.createScene(combinedScene, 5, combinedSeed));
+  ok(combinedB.createScene(combinedScene, 5, combinedSeed));
+  combinedA.setMaterialLoadTarget('glass', 0.2);
+  combinedB.setMaterialLoadTarget('glass', 0.2);
+  const glassU = 0.31;
+  const glassV = 0.67;
+  equal(
+    combinedA.materialStrikeAt(glassU, glassV, 1.08, 1.6),
+    expectedMaterialStrikeNode(glassRecipe, glassU, glassV),
+    'combined point strike must route to the last focused glass bay',
+  );
+  equal(
+    combinedB.materialStrikeAt(glassU, glassV, 1.08, 1.6),
+    expectedMaterialStrikeNode(glassRecipe, glassU, glassV),
+    'combined focused-bay peer mapped to the wrong glass node',
+  );
+  const concreteU = 0.63;
+  const concreteV = 0.38;
+  equal(
+    combinedA.materialStrikeAtTarget('concrete', concreteU, concreteV, 1.24, 1.7),
+    expectedMaterialStrikeNode(concreteRecipe, concreteU, concreteV),
+    'combined explicit point strike must route to the concrete bay',
+  );
+  equal(
+    combinedB.materialStrikeAtTarget('concrete', concreteU, concreteV, 1.24, 1.7),
+    expectedMaterialStrikeNode(concreteRecipe, concreteU, concreteV),
+    'combined explicit-bay peer mapped to the wrong concrete node',
+  );
+  for (let frameIndex = 0; frameIndex < 16; frameIndex++) {
+    combinedA.step(1 / 60, 4);
+    combinedB.step(1 / 60, 4);
+    equal(combinedA.hash(), combinedB.hash(), `combined point-strike replay diverged at frame ${frameIndex}`);
+  }
+  const combinedFrame = combinedA.buildFrame(false);
+  ok(combinedFrame.material?.testMode.includes('focus concrete'), 'explicit point strike must update the combined focused bay');
+  ok(combinedA.validate().ok && combinedB.validate().ok, 'combined point strikes must remain finite and valid');
+  combinedA.destroy();
+  combinedB.destroy();
+
+  const nonMaterial = new SoftSimulationSuite();
+  ok(nonMaterial.createScene(SCENES[600], 3, 0x600));
+  equal(nonMaterial.materialStrikeAt(0.5, 0.5, 1, 1), -1, 'non-material simulations must reject point strikes safely');
+  nonMaterial.destroy();
+}
+
+function testElapsedTimeScaledSoftDamping(): void {
+  type VerletProbe = {
+    positions: Float32Array;
+    previous: Float32Array;
+    invMass: Float32Array;
+  };
+  const movingParticle = (probe: VerletProbe): number => {
+    const index = probe.invMass.findIndex((inverseMass) => inverseMass > 0);
+    ok(index >= 0, 'damping probe requires a free particle');
+    return index;
+  };
+  const seedHorizontalVelocity = (probe: VerletProbe, particle: number, velocity = 0.25): void => {
+    const offset = particle * 3;
+    probe.previous[offset] = probe.positions[offset] - velocity;
+  };
+  const horizontalVelocity = (probe: VerletProbe, particle: number): number => {
+    const offset = particle * 3;
+    return probe.positions[offset] - probe.previous[offset];
+  };
+
+  type ClothDampingProbe = VerletProbe & {
+    edgeFactors: Float32Array;
+    windSinA: Float32Array;
+    windCosA: Float32Array;
+    windSinB: Float32Array;
+    windCosB: Float32Array;
+    windSinZ: Float32Array;
+    windCosZ: Float32Array;
+    integrateParticles(dt: number): void;
+  };
+  const clothOne = new SoftSimulationSuite();
+  const clothFour = new SoftSimulationSuite();
+  ok(clothOne.createScene(SCENES[600], 3, 0xd4a90001));
+  ok(clothFour.createScene(SCENES[600], 3, 0xd4a90001));
+  const clothA = (clothOne as unknown as { active: ClothDampingProbe }).active;
+  const clothB = (clothFour as unknown as { active: ClothDampingProbe }).active;
+  for (const cloth of [clothA, clothB]) {
+    cloth.edgeFactors.fill(0);
+    cloth.windSinA.fill(0);
+    cloth.windCosA.fill(0);
+    cloth.windSinB.fill(0);
+    cloth.windCosB.fill(0);
+    cloth.windSinZ.fill(0);
+    cloth.windCosZ.fill(0);
+  }
+  const clothParticle = movingParticle(clothA);
+  seedHorizontalVelocity(clothA, clothParticle);
+  seedHorizontalVelocity(clothB, clothParticle);
+  clothA.integrateParticles(1 / 60);
+  for (let subStep = 0; subStep < 4; subStep++) clothB.integrateParticles(1 / 240);
+  approx(horizontalVelocity(clothA, clothParticle), horizontalVelocity(clothB, clothParticle), 2e-6);
+  approx(horizontalVelocity(clothA, clothParticle), 0.25 * (0.992 - 3 * 0.0004), 2e-6);
+  clothOne.destroy();
+  clothFour.destroy();
+
+  type RopeDampingProbe = VerletProbe & {
+    windSinA: Float32Array;
+    windCosA: Float32Array;
+    windSinZ: Float32Array;
+    windCosZ: Float32Array;
+    integrate(dt: number): void;
+  };
+  const ropeOne = new SoftSimulationSuite();
+  const ropeFour = new SoftSimulationSuite();
+  ok(ropeOne.createScene(SCENES[650], 3, 0xd4a90002));
+  ok(ropeFour.createScene(SCENES[650], 3, 0xd4a90002));
+  const ropeA = (ropeOne as unknown as { active: RopeDampingProbe }).active;
+  const ropeB = (ropeFour as unknown as { active: RopeDampingProbe }).active;
+  for (const rope of [ropeA, ropeB]) {
+    rope.windSinA.fill(0);
+    rope.windCosA.fill(0);
+    rope.windSinZ.fill(0);
+    rope.windCosZ.fill(0);
+  }
+  const ropeParticle = movingParticle(ropeA);
+  seedHorizontalVelocity(ropeA, ropeParticle);
+  seedHorizontalVelocity(ropeB, ropeParticle);
+  ropeA.integrate(1 / 60);
+  for (let subStep = 0; subStep < 4; subStep++) ropeB.integrate(1 / 240);
+  approx(horizontalVelocity(ropeA, ropeParticle), horizontalVelocity(ropeB, ropeParticle), 2e-6);
+  approx(horizontalVelocity(ropeA, ropeParticle), 0.25 * 0.994, 2e-6);
+  ropeOne.destroy();
+  ropeFour.destroy();
+
+  type FloaterProbe = {
+    eta: Float32Array;
+    u: Float32Array;
+    v: Float32Array;
+    floaters: Array<{
+      position: [number, number, number];
+      velocity: [number, number, number];
+      half: [number, number, number];
+    }>;
+    updateFloaters(dt: number): void;
+  };
+  const floaterOne = new SoftSimulationSuite();
+  const floaterFour = new SoftSimulationSuite();
+  ok(floaterOne.createScene(SCENES[703], 3, 0xd4a90003));
+  ok(floaterFour.createScene(SCENES[703], 3, 0xd4a90003));
+  const floaterA = (floaterOne as unknown as { active: FloaterProbe }).active;
+  const floaterB = (floaterFour as unknown as { active: FloaterProbe }).active;
+  ok(floaterA.floaters.length > 0 && floaterB.floaters.length > 0, 'floater damping probe requires a buoyant body');
+  for (const water of [floaterA, floaterB]) {
+    water.eta.fill(0);
+    water.u.fill(0);
+    water.v.fill(0);
+    water.floaters[0].position = [0, 100, 0];
+    water.floaters[0].velocity = [1, 0, 0];
+  }
+  floaterA.updateFloaters(1 / 60);
+  for (let subStep = 0; subStep < 4; subStep++) floaterB.updateFloaters(1 / 240);
+  approx(floaterA.floaters[0].velocity[0], floaterB.floaters[0].velocity[0], 2e-6);
+  approx(floaterA.floaters[0].velocity[0], 0.998, 2e-6);
+  floaterOne.destroy();
+  floaterFour.destroy();
+}
+
+function testMaterialSubstepScaledResponse(): void {
+  type MaterialResponseProbe = {
+    positions: Float32Array;
+    previous: Float32Array;
+    pinned: Uint8Array;
+    broken: Uint8Array;
+    stiffness: Float32Array;
+    solveStiffness: Float32Array;
+    stress: number;
+    profile: { damping: number };
+  };
+  const recipe = getMaterialDemoRecipe('metal-square-punch-forming')!;
+  const scene = sceneForMaterialDemo(recipe.id);
+  const one = new SoftSimulationSuite();
+  const four = new SoftSimulationSuite();
+  ok(one.createScene(scene, recipe.recommendedStress, 0x5b57e001));
+  ok(four.createScene(scene, recipe.recommendedStress, 0x5b57e001));
+  const materialA = (one as unknown as { active: MaterialResponseProbe }).active;
+  const materialB = (four as unknown as { active: MaterialResponseProbe }).active;
+  const particle = materialA.pinned.findIndex((pinned) => pinned === 0);
+  ok(particle >= 0, 'material response probe requires a free lattice node');
+  const offset = particle * 3;
+  materialA.broken.fill(1);
+  materialB.broken.fill(1);
+  materialA.previous[offset] = materialA.positions[offset] - 0.25;
+  materialB.previous[offset] = materialB.positions[offset] - 0.25;
+  one.step(1 / 60, 1);
+  four.step(1 / 60, 4);
+  const velocityA = materialA.positions[offset] - materialA.previous[offset];
+  const velocityB = materialB.positions[offset] - materialB.previous[offset];
+  approx(velocityA, velocityB, 2e-6);
+  approx(velocityA, 0.25 * materialA.profile.damping, 2e-6);
+
+  const iterations = 5 + materialA.stress;
+  const oneStepRetention = Math.pow(1 - materialA.solveStiffness[0], iterations * 4);
+  const fourStepRetention = Math.pow(1 - materialB.solveStiffness[0], iterations * 4);
+  approx(oneStepRetention, fourStepRetention, 2e-6);
+  approx(oneStepRetention, Math.pow(1 - materialA.stiffness[0], 4), 2e-6);
+  one.destroy();
+  four.destroy();
+
+  const loadedOne = new SoftSimulationSuite();
+  const loadedFour = new SoftSimulationSuite();
+  ok(loadedOne.createScene(scene, recipe.recommendedStress, 0x5b57e002));
+  ok(loadedFour.createScene(scene, recipe.recommendedStress, 0x5b57e002));
+  loadedOne.setLoadTarget(recipe.primaryLoad);
+  loadedFour.setLoadTarget(recipe.primaryLoad);
+  for (let frame = 0; frame < 24; frame++) {
+    loadedOne.step(1 / 60, 1);
+    loadedFour.step(1 / 60, 4);
+    equal(loadedOne.hash(), loadedFour.hash(), `material stability floor diverged at frame ${frame}`);
+  }
+  deepEqual(
+    loadedOne.buildFrame(false).material,
+    loadedFour.buildFrame(false).material,
+    'material response below the four-slice stability floor must be substep-consistent',
+  );
+  loadedOne.destroy();
+  loadedFour.destroy();
+}
+
+function testMaterialStrikeFootprintNormalization(): void {
+  type StrikeProbe = {
+    positions: Float32Array;
+    previous: Float32Array;
+    verticalRig: boolean;
+  };
+  const cases = [
+    'metal-square-punch-forming',
+    'glass-ballistic-off-center',
+    'concrete-flat-slab-punching',
+  ] as const;
+  for (let caseIndex = 0; caseIndex < cases.length; caseIndex++) {
+    const recipe = getMaterialDemoRecipe(cases[caseIndex])!;
+    const scene = sceneForMaterialDemo(recipe.id);
+    const measure = (radiusScale: number): { total: number; peak: number } => {
+      const suite = new SoftSimulationSuite();
+      ok(suite.createScene(scene, recipe.recommendedStress, 0x57a1e000 + caseIndex));
+      const material = (suite as unknown as { active: StrikeProbe }).active;
+      const before = material.previous.slice();
+      suite.materialStrikeAt(0.5, 0.5, recipe.primaryStrike, radiusScale);
+      const axis = material.verticalRig ? 2 : 1;
+      let total = 0;
+      let peak = 0;
+      for (let node = 0; node < material.positions.length / 3; node++) {
+        const impulse = Math.abs(material.previous[node * 3 + axis] - before[node * 3 + axis]);
+        total += impulse;
+        peak = Math.max(peak, impulse);
+      }
+      suite.destroy();
+      return { total, peak };
+    };
+    const narrow = measure(0.5);
+    const wide = measure(2.5);
+    approx(narrow.total, wide.total, Math.max(2e-6, narrow.total * 2e-5));
+    ok(narrow.peak > wide.peak, `${recipe.title} wider strike must distribute the same impulse over more nodes`);
+  }
+}
+
+function testConcreteTelemetryMatchesConstraintEnvelope(): void {
+  type ConcreteThresholdProbe = {
+    tensileYield: Float32Array;
+    tensileBreak: Float32Array;
+    reinforcement: Uint8Array;
+  };
+  const recipe = getMaterialDemoRecipe('concrete-flat-slab-punching')!;
+  const preset = materialPresetForVariant(recipe.profileVariant);
+  const suite = new SoftSimulationSuite();
+  ok(suite.createScene(sceneForMaterialDemo(recipe.id), recipe.recommendedStress, 0xc0c7e7e));
+  const material = suite.buildFrame(false).material!;
+  const concrete = (suite as unknown as { active: ConcreteThresholdProbe }).active;
+  const matrixConstraint = concrete.reinforcement.findIndex((reinforcement) => reinforcement === 0);
+  ok(matrixConstraint >= 0, 'concrete telemetry probe requires a matrix constraint');
+  approx(material.yieldStrain, preset.tensileYieldStrain * 1.8, 1e-7);
+  approx(material.breakStrain, preset.tensileBreakStrain * 3.2, 1e-7);
+  approx(material.yieldStrain, concrete.tensileYield[matrixConstraint], 1e-7);
+  approx(material.breakStrain, concrete.tensileBreak[matrixConstraint], 1e-7);
+  suite.setLoadTarget(recipe.primaryLoad);
+  for (let frame = 0; frame < 36; frame++) suite.step(1 / 60, 4);
+  suite.materialStrike(recipe.primaryStrike);
+  for (let frame = 0; frame < 24; frame++) suite.step(1 / 60, 4);
+  const punched = suite.buildFrame(false);
+  ok((punched.material?.fragmentCount ?? 0) <= 12, 'punching shear must stay a localized cone, not a flying-chunk explosion');
+  ok((punched.material?.fracturedCellCount ?? 0) > 0, 'punching shear must still open cover cells under the platen');
+  ok((punched.material?.fracturedCellCount ?? 0) < 48, 'punching shear must not shatter the whole slab');
+  suite.destroy();
+}
+
+function testWaterAutomaticForcingCadence(): void {
+  type DisturbArguments = [number, number, number, number, number];
+  type WaterForcingProbe = {
+    disturb(x: number, z: number, amplitude: number, radius: number, radialVelocity: number): void;
+  };
+  const capture = (suite: SoftSimulationSuite): DisturbArguments[] => {
+    const water = (suite as unknown as { active: WaterForcingProbe }).active;
+    const calls: DisturbArguments[] = [];
+    const disturb = water.disturb.bind(water);
+    water.disturb = (...args: DisturbArguments): void => {
+      calls.push(args);
+      disturb(...args);
+    };
+    return calls;
+  };
+
+  const pulseOne = new SoftSimulationSuite();
+  const pulseFour = new SoftSimulationSuite();
+  ok(pulseOne.createScene(SCENES[700], 3, 0x7a7e0001));
+  ok(pulseFour.createScene(SCENES[700], 3, 0x7a7e0001));
+  const pulseCallsOne = capture(pulseOne);
+  const pulseCallsFour = capture(pulseFour);
+  for (let frame = 0; frame < 60; frame++) {
+    pulseOne.step(1 / 60, 1);
+    pulseFour.step(1 / 60, 4);
+  }
+  equal(pulseCallsOne.length, 2, 'one second must cross exactly two seeded water pulse ticks');
+  deepEqual(pulseCallsOne, pulseCallsFour, 'discrete water pulse sequence must not depend on substep count');
+  pulseOne.destroy();
+  pulseFour.destroy();
+
+  const continuousOne = new SoftSimulationSuite();
+  const continuousFour = new SoftSimulationSuite();
+  ok(continuousOne.createScene(SCENES[704], 3, 0x7a7e0002));
+  ok(continuousFour.createScene(SCENES[704], 3, 0x7a7e0002));
+  const continuousCallsOne = capture(continuousOne);
+  const continuousCallsFour = capture(continuousFour);
+  for (let frame = 0; frame < 60; frame++) {
+    continuousOne.step(1 / 60, 1);
+    continuousFour.step(1 / 60, 4);
+  }
+  const totalRadialVelocity = (calls: DisturbArguments[]): number =>
+    calls.reduce((total, call) => total + call[4], 0);
+  approx(totalRadialVelocity(continuousCallsOne), totalRadialVelocity(continuousCallsFour), 1e-5);
+  approx(totalRadialVelocity(continuousCallsOne), 60 * 0.16, 1e-5);
+  continuousOne.destroy();
+  continuousFour.destroy();
 }
 
 function testCombinedMaterialDemoTargetingAndDeterminism(): void {
@@ -1101,7 +1776,11 @@ function testCombinedMaterialDemoTargetingAndDeterminism(): void {
   deepEqual(frameA.material, frameB.material, 'combined material telemetry must remain deterministic');
   equal(frameA.kind, 'fracture');
   ok(frameA.label.includes('Apex Materials Proving Ground'));
-  equal(frameA.surface, null, 'combined material finale must merge real child streams rather than replace them with a cosmetic surface');
+  ok(frameA.surface, 'combined metal bay must publish its interpolated sheet skin');
+  equal(frameA.surface!.path, 'packed');
+  equal(frameA.surface!.material, 'sheet');
+  ok(packedSheetIsWelded(frameA.surface!), 'combined metal sheet must remain a welded skin');
+  ok(surfaceStateFinite(frameA.surface!), 'combined metal sheet must remain finite');
   ok(frameA.material, 'combined material finale must publish aggregate forensic telemetry');
   ok(frameA.material!.testMode.includes('focus concrete'), 'last targeted bay must remain identifiable in aggregate telemetry');
   ok(frameA.material!.fracturedCellCount > 0, 'combined glass/concrete strikes must produce physical fracture cells');
@@ -1458,6 +2137,17 @@ function testFrameLineStager(): void {
   const effectsRepeated = stager.resolve(false, 99, 100, 7, buildRigid, [line(90)], effects);
   equal(effectsRepeated, effectsOnly, 'disabled diagnostics should ignore rigid and soft version churn');
   equal(rigidBuilds, 2);
+
+  const inspection = [line(60), line(61)];
+  const inspected = stager.resolve(false, 99, 100, 7, buildRigid, soft, effects, inspection, 1);
+  equal(inspected.length, 3, 'inspection witnesses should render without enabling solver diagnostics');
+  equal(inspected[1], inspection[0]);
+  equal(inspected[2], inspection[1]);
+  equal(rigidBuilds, 2, 'inspection witnesses must not force rigid diagnostic reconstruction');
+  inspection[0] = line(62);
+  const refreshedInspection = stager.resolve(false, 99, 100, 7, buildRigid, soft, effects, inspection, 2);
+  equal(refreshedInspection, inspected, 'inspection updates should refill the stable combined array');
+  equal(refreshedInspection[1], inspection[0], 'inspection version changes must refresh witness lines');
 }
 
 function testActions(): void {
@@ -1473,6 +2163,215 @@ function testActions(): void {
   equal(backend.bodyCount(), before + 21);
   backend.step(1 / 60, 2);
   ok(backend.replayHash() !== 0);
+}
+
+function testWorkbenchRegistry(): void {
+  equal(WORKBENCH_LABS.length, 35, 'curated workbench must expose exactly 35 laboratories');
+  equal(new Set(WORKBENCH_LABS.map((lab) => lab.id)).size, 35, 'workbench ids must be unique');
+  deepEqual(
+    WORKBENCH_GROUPS.map((group) => filterWorkbenchLabs({ group }).length),
+    [13, 5, 5, 5, 6, 1],
+    'workbench groups must retain the authored 13/5/5/5/6/1 distribution',
+  );
+  equal(filterWorkbenchLabs({ query: 'metal bend' })[0]?.id, 'titan-bend-dent');
+  equal(getMaterialDemoRecipe('metal-square-punch-forming')?.title, 'Ballistic Dent');
+  equal(getMaterialDemoRecipe('metal-square-punch-forming')?.specimen, 'Aluminum Panel');
+  equal(getMaterialDemoRecipe('metal-press-brake-v-bend')?.title, 'Metal Fold');
+  equal(getMaterialDemoRecipe('metal-press-brake-v-bend')?.holdThenUnloadSeconds, 1.2);
+  equal(getWorkbenchLab('metal-press-brake-v-bend')?.shortName, 'Metal Fold');
+  equal(getMaterialDemoRecipe('metal-springback-fold')?.title, 'Springback Fold');
+  equal(getMaterialDemoRecipe('metal-springback-fold')?.holdThenUnloadSeconds, 1.35);
+  equal(getMaterialDemoRecipe('metal-thick-plate-dent')?.thicknessMm, 8);
+  equal(getMaterialDemoRecipe('metal-notch-tear')?.notch?.[0], 0.5);
+  equal(getWorkbenchLab('ballistic-glass')?.shortName, 'Glass Impact');
+  equal(getMaterialDemoConceptBinding('glass-laminated-stone-strike')?.labId, 'ballistic-glass');
+  equal(getMaterialDemoRecipe('glass-laminated-stone-strike')?.title, 'Glass Impact');
+  equal(filterWorkbenchLabs({ forceMode: 'impact-rain' }).length > 0, true);
+  equal(getWorkbenchLab('apex-proving-ground')?.solver, 'combined-material');
+  equal(getWorkbenchLab('missing-lab'), null);
+
+  const materialStrikeLabs = WORKBENCH_LABS.filter((lab) =>
+    (lab.forceModes as readonly string[]).includes('material-strike'),
+  );
+  ok(materialStrikeLabs.length >= 10, 'material point-strike mode must cover every material workbench rig');
+  for (const lab of materialStrikeLabs) {
+    const strength = lab.liveParameters.find((parameter) => parameter.id === 'material-strike-strength');
+    const radius = lab.liveParameters.find((parameter) => parameter.id === 'material-strike-radius');
+    equal(strength?.availability, 'wired', `${lab.id} must expose wired strike strength metadata`);
+    equal(radius?.availability, 'wired', `${lab.id} must expose wired strike footprint metadata`);
+    ok((strength?.min ?? 1) <= (strength?.defaultValue ?? 0) && (strength?.defaultValue ?? 1) <= (strength?.max ?? 0));
+    ok((radius?.min ?? 1) <= (radius?.defaultValue ?? 0) && (radius?.defaultValue ?? 1) <= (radius?.max ?? 0));
+  }
+}
+
+function testEngineeringModelRegistry(): void {
+  validateEngineeringModelRegistry();
+  equal(ENGINEERING_MODELS.length, WORKBENCH_LABS.length, 'every curated lab must have one engineering model');
+  equal(new Set(ENGINEERING_MODELS.map((model) => model.labId)).size, WORKBENCH_LABS.length, 'engineering model lab IDs must be unique');
+  const componentTotal = ENGINEERING_MODELS.reduce((sum, model) => sum + model.components.length, 0);
+  ok(componentTotal <= ENGINEERING_MODEL_COMPONENT_CAP, 'engineering components must remain within the combined inspector budget');
+
+  for (const lab of WORKBENCH_LABS) {
+    const model = getEngineeringModelForLab(lab.id);
+    ok(model, `${lab.id} must resolve an engineering model`);
+    equal(model!.solver, lab.solver, `${lab.id} engineering solver must match the workbench registry`);
+    equal(model!.coordinateFrame.units, 'normalized simulation units');
+    ok(model!.components.some((component) => component.evidenceRole === 'numerical-state'), `${lab.id} must declare its numerical scope`);
+    ok(model!.components.some((component) => component.evidenceRole === 'presentation-only'), `${lab.id} must disclose presentation geometry`);
+    ok(model!.limits.some((limit) => limit.status === 'not-modeled' || limit.status === 'reduced-order'), `${lab.id} must disclose a model limit`);
+  }
+
+  for (const id of ['titan-bend-dent', 'crash-rail-axial-fold', 'composite-coupon', 'apex-proving-ground']) {
+    const model = getEngineeringModelForLab(id)!;
+    equal(model.detailLevel, 'flagship', `${id} must expose a detailed flagship assembly`);
+    ok(model.focusBounds, `${id} must expose a finite selection/framing scope`);
+    ok(model.dimensions.length >= 4, `${id} must expose authored reference dimensions`);
+    ok(model.components.some((component) => component.bounds), `${id} must expose at least one selectable world-space scope`);
+  }
+  equal(getEngineeringModelForLab('missing-lab'), null);
+
+  let rejectedIncompleteRegistry = false;
+  try {
+    validateEngineeringModelRegistry(ENGINEERING_MODELS.slice(0, -1));
+  } catch {
+    rejectedIncompleteRegistry = true;
+  }
+  ok(rejectedIncompleteRegistry, 'engineering registry validation must reject missing lab coverage');
+
+  for (const recipe of MATERIAL_DEMO_RECIPES) {
+    const flat = getMaterialDemoStagePrimitives(recipe.id);
+    const grouped = getMaterialDemoStageGroups(recipe.id).flatMap((group) => group.primitives);
+    equal(grouped.length, flat.length, `${recipe.id} stage groups must cover every presentation primitive`);
+    for (let index = 0; index < flat.length; index++) {
+      equal(grouped[index], flat[index], `${recipe.id} stage groups must preserve primitive identity and order`);
+    }
+  }
+  for (const [sceneId, materialDemoId] of [[780, 'metal-square-punch-forming'], [649, undefined], [799, undefined]] as const) {
+    const flat = getEngineeringStagePrimitives(sceneId, materialDemoId);
+    const grouped = getEngineeringStageGroups(sceneId, materialDemoId).flatMap((group) => group.primitives);
+    equal(grouped.length, flat.length, `engineering rig ${sceneId}/${materialDemoId ?? 'scene'} must retain full group coverage`);
+    for (let index = 0; index < flat.length; index++) equal(grouped[index], flat[index]);
+  }
+}
+
+function testConceptMappingContract(): void {
+  runConceptMappingTests();
+}
+
+function testDemoOrientationContract(): void {
+  runDemoOrientationTests();
+}
+
+function testAutoplayMetadataContract(): void {
+  runAutoplayTests();
+}
+
+function testEngineeringWorkspaceContract(): void {
+  runEngineeringWorkspaceContractTests();
+}
+
+function testWorkbenchExampleRuntimeMatrix(): void {
+  const expectedSoftKind = new Map([
+    ['material-lattice', 'fracture'],
+    ['combined-material', 'fracture'],
+    ['pbd-cloth', 'cloth'],
+    ['pbd-rope', 'rope'],
+    ['shallow-water', 'water'],
+    ['box3d-rigid', 'none'],
+  ] as const);
+
+  for (let labIndex = 0; labIndex < WORKBENCH_LABS.length; labIndex++) {
+    const lab = WORKBENCH_LABS[labIndex];
+    const scene = 'materialDemoId' in lab
+      ? sceneForMaterialDemo(lab.materialDemoId)
+      : SCENES.find((candidate) => candidate.id === lab.sceneId);
+    ok(scene, `${lab.id} must resolve to a runnable scene`);
+
+    const seed = (0x6d2b79f5 ^ Math.imul(labIndex + 1, 0x9e3779b1)) >>> 0;
+    const backendA = new FallbackPhysicsBackend(4096);
+    const backendB = new FallbackPhysicsBackend(4096);
+    const softA = new SoftSimulationSuite();
+    const softB = new SoftSimulationSuite();
+    backendA.createScene(scene!, 3, seed);
+    backendB.createScene(scene!, 3, seed);
+    const activeA = softA.createScene(scene!, 3, seed);
+    const activeB = softB.createScene(scene!, 3, seed);
+    equal(activeA, activeB, `${lab.id} soft activation must be deterministic`);
+    equal(softA.kind(), expectedSoftKind.get(lab.solver), `${lab.id} must use its declared solver family`);
+    equal(softB.kind(), softA.kind(), `${lab.id} duplicate must use the same solver family`);
+
+    const modes = lab.forceModes as readonly string[];
+    const applyScheduledActions = (
+      frame: number,
+      backend: FallbackPhysicsBackend,
+      soft: SoftSimulationSuite,
+    ): readonly [number, number] => {
+      let projectileResult = -2;
+      let rainResult = -2;
+      if (frame === 4 && modes.includes('actuator-load')) soft.setLoadTarget(0.72);
+      if (frame === 12 && modes.includes('material-strike')) {
+        const strikeResult = soft.materialStrikeAt(0.62, 0.44, 0.72, 1.35);
+        ok(strikeResult >= 0, `${lab.id} advertises a material strike but rejected it`);
+      }
+      if (frame === 20 && modes.includes('broad-impulse')) {
+        backend.kick(7);
+        soft.kick(7);
+      }
+      if (frame === 28 && modes.includes('radial-blast')) {
+        backend.explode(0, Math.max(2, scene!.camera.target[1]), 0, 12, 8);
+        soft.explode([0, Math.max(2, scene!.camera.target[1]), 0], 12, 8);
+      }
+      if (frame === 36 && modes.includes('projectile')) {
+        projectileResult = soft.launchProjectile([-12, 7, 0], [18, 0, 0], 0.42);
+        backend.launchProjectile(-12, 7, 0, 18, 0, 0, 0.42);
+      }
+      if (frame === 44 && modes.includes('impact-rain')) {
+        rainResult = soft.spawnRain(12, 8, 14);
+        backend.spawnRain(12, 8, 14);
+      }
+      if (frame === 52 && modes.includes('cycle-load')) soft.cycleLoad();
+      if (frame === 68 && modes.includes('release-load')) soft.releaseLoad();
+      return [projectileResult, rainResult];
+    };
+
+    for (let frameIndex = 0; frameIndex < 96; frameIndex++) {
+      const actionA = applyScheduledActions(frameIndex, backendA, softA);
+      const actionB = applyScheduledActions(frameIndex, backendB, softB);
+      deepEqual(actionA, actionB, `${lab.id} action adapters must return deterministic results`);
+      backendA.step(1 / 60, 3);
+      backendB.step(1 / 60, 3);
+      softA.step(1 / 60, 3);
+      softB.step(1 / 60, 3);
+
+      if (frameIndex % 24 === 0 || frameIndex === 95) {
+        const frameA = softA.buildFrame(false);
+        const frameB = softB.buildFrame(false);
+        equal(frameA.kind, frameB.kind, `${lab.id} duplicate render paths must match`);
+        equal(frameA.instanceCount, frameB.instanceCount, `${lab.id} duplicate instance counts must match`);
+        equal(frameA.hash, frameB.hash, `${lab.id} duplicate soft hashes must match`);
+        ok(isFiniteArray(frameA.matrices), `${lab.id} instance matrices must remain finite`);
+        ok(isFiniteArray(frameA.colors), `${lab.id} instance colors must remain finite`);
+        if (frameA.surface) ok(surfaceStateFinite(frameA.surface), `${lab.id} surface stream must remain finite`);
+        if (frameA.ropeGrid) {
+          ok(isFiniteArray(frameA.ropeGrid.positions), `${lab.id} segment positions must remain finite`);
+          ok(isFiniteArray(frameA.ropeGrid.segments), `${lab.id} segment metadata must remain finite`);
+        }
+      }
+    }
+
+    const validationA = softA.validate();
+    const validationB = softB.validate();
+    ok(validationA.ok, `${lab.id} failed example validation: ${validationA.message}`);
+    ok(validationB.ok, `${lab.id} duplicate failed example validation: ${validationB.message}`);
+    equal(softA.hash(), softB.hash(), `${lab.id} soft replay hashes must match`);
+    equal(backendA.replayHash(), backendB.replayHash(), `${lab.id} rigid replay hashes must match`);
+    ok(backendA.bodyCount() <= backendA.maxBodies, `${lab.id} exceeded the rigid-body cap`);
+    ok(backendB.bodyCount() <= backendB.maxBodies, `${lab.id} duplicate exceeded the rigid-body cap`);
+    softA.destroy();
+    softB.destroy();
+    backendA.destroy();
+    backendB.destroy();
+  }
 }
 
 const tests = [
@@ -1493,10 +2392,18 @@ const tests = [
   testSoftSimulationCatalog,
   testMaximumSoftRenderCapacity,
   testMaterialPresetOrderingAndInvariants,
+  testMetalPresetsStifferThanWater,
   testMaterialFractureLoadAndActionDeterminism,
   testMetalBendingAndDentingDemo,
+  testShellPlasticityThicknessAndEnergy,
   testConcreteSpallAndGlassShardDemos,
   testMaterialDemoSimulationContracts,
+  testMaterialPointStrikeTargetingAndDeterminism,
+  testElapsedTimeScaledSoftDamping,
+  testMaterialSubstepScaledResponse,
+  testMaterialStrikeFootprintNormalization,
+  testConcreteTelemetryMatchesConstraintEnvelope,
+  testWaterAutomaticForcingCadence,
   testCombinedMaterialDemoTargetingAndDeterminism,
   testSoftRetainedStateAndExactInstanceCaps,
   testSoftSimulationActionsAndDeterminism,
@@ -1507,6 +2414,13 @@ const tests = [
   testCinematicEffects,
   testFrameLineStager,
   testActions,
+  testWorkbenchRegistry,
+  testEngineeringModelRegistry,
+  testConceptMappingContract,
+  testDemoOrientationContract,
+  testAutoplayMetadataContract,
+  testEngineeringWorkspaceContract,
+  testWorkbenchExampleRuntimeMatrix,
 ];
 
 for (const test of tests) {

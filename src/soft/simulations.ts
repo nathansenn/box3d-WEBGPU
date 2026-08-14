@@ -6,9 +6,10 @@ import {
   writeModelMatrixFromEuler,
   type Vec3,
 } from '../math';
-import { getMaterialDemoRecipe } from '../material-demos';
+import { getMaterialDemoRecipe, materialDemoSpecimenPose } from '../material-demos';
 import type { ScenePreset } from '../scenes';
 import type {
+  CameraRig,
   DebugLine,
   DynamicSurfaceFrame,
   GpuClothSurfaceFrame,
@@ -16,6 +17,7 @@ import type {
   MaterialFailureTelemetry,
   PackedSurfaceFrame,
   RopeGridFrame,
+  ConceptWorkspaceId,
 } from '../types';
 import { MATERIAL_RENDER_INSTANCE_BUDGET, MaterialSimulation } from './material-simulation';
 import {
@@ -34,9 +36,92 @@ import type {
 
 export type SoftSimulationKind = 'none' | 'cloth' | 'rope' | 'water' | 'fracture';
 
+/** Concept mockup a curated demo is presented against. */
+export const CONCEPT_SCREENS = ['structural', 'correlation', 'field-modal', 'material-lab'] as const;
+export type ConceptScreen = (typeof CONCEPT_SCREENS)[number];
+
+/** Soft-sim screen tokens alias the product `ConceptWorkspaceId` kebab ids. */
+export const CONCEPT_SCREEN_TO_WORKSPACE = {
+  structural: 'structural-test',
+  correlation: 'correlation-review',
+  'field-modal': 'field-modal',
+  'material-lab': 'material-lab',
+} as const satisfies Record<ConceptScreen, ConceptWorkspaceId>;
+
+export function conceptWorkspaceIdFromScreen(screen: ConceptScreen): ConceptWorkspaceId {
+  switch (screen) {
+    case 'structural':
+    case 'correlation':
+    case 'field-modal':
+    case 'material-lab':
+      return CONCEPT_SCREEN_TO_WORKSPACE[screen];
+    default: {
+      const exhaustive: never = screen;
+      return exhaustive;
+    }
+  }
+}
+
+/** Rest pose of a workbench specimen in the Y-up, right-handed hall. */
+export const SPECIMEN_POSES = [
+  'horizontal-sheet',
+  'vertical-pane',
+  'axial-rail',
+  'cantilever',
+  'hanging-cloth',
+  'suspended-net',
+  'horizontal-membrane',
+  'catenary',
+  'basin',
+  'upright',
+] as const;
+export type SpecimenPose = (typeof SPECIMEN_POSES)[number];
+
+/** World gravity for every curated lab. Down is −Y; never invert for “looks”. */
+export const WORLD_GRAVITY: Vec3 = [0, -9.81, 0];
+
+export type SimulationLabPose = {
+  readonly camera: CameraRig;
+  readonly gravity: Vec3;
+  readonly specimenPose: SpecimenPose;
+  /** Extra yaw about world Y, radians. 0 keeps span along +X. */
+  readonly specimenYaw: number;
+  /**
+   * Extra pitch from the constructed rest plane, radians.
+   * Negative tilts a horizontal sheet to face a −Z inspection camera.
+   */
+  readonly specimenPitch: number;
+};
+
+export type SimulationConceptBinding = {
+  readonly id: string;
+  readonly conceptScreen: ConceptScreen;
+  readonly title: string;
+  readonly shortName: string;
+  readonly specimen: string;
+  readonly camera: CameraRig;
+  readonly gravity: Vec3;
+  readonly specimenPose: SpecimenPose;
+  readonly specimenYaw: number;
+  readonly specimenPitch: number;
+  readonly sceneId?: number;
+  readonly materialDemoId?: string;
+};
+
+export type SimulationConceptQuery = {
+  readonly labId?: string;
+  readonly sceneId?: number;
+  readonly materialDemoId?: string;
+};
+
 export type SoftSimulationFrame = {
   kind: SoftSimulationKind;
   label: string;
+  /** Present only for curated workbench / material-lab demos. */
+  conceptScreen?: ConceptScreen;
+  camera?: CameraRig;
+  gravity?: Vec3;
+  specimenPose?: SpecimenPose;
   matrices: Float32Array;
   colors: Float32Array;
   instanceCount: number;
@@ -68,9 +153,18 @@ export interface SoftSimulation {
   cycleLoad?(): void;
   dentStrike?(strength: number): number;
   materialStrike?(strength: number): number;
+  /** Apply a normalized material strike at specimen coordinates in [0, 1]. */
+  materialStrikeAt?(u: number, v: number, strength: number, radiusScale?: number): number;
   setMaterialLoadTarget?(target: CombinedMaterialTarget, value: number): void;
   releaseMaterialLoad?(target: CombinedMaterialTarget): void;
   materialStrikeTarget?(target: CombinedMaterialTarget, strength: number): number;
+  materialStrikeAtTarget?(
+    target: CombinedMaterialTarget,
+    u: number,
+    v: number,
+    strength: number,
+    radiusScale?: number,
+  ): number;
 }
 
 const EMPTY_FLOAT32: Float32Array<ArrayBufferLike> = new Float32Array(0);
@@ -84,6 +178,294 @@ const ROPE_INSTANCE_CAP = 97; // 96 rain/projectiles + one payload proxy
 const WATER_INSTANCE_CAP = MAX_WATER_DROPLETS + MAX_WATER_FLOATERS;
 const TELEMETRY_INTERVAL_STEPS = 12;
 const SURFACE_VERTEX_BYTES = PACKED_SURFACE_VERTEX_BYTES;
+const SOFT_REFERENCE_HZ = 60;
+
+const labCamera = (
+  yaw: number,
+  pitch: number,
+  distance: number,
+  target: readonly [number, number, number],
+): CameraRig => Object.freeze({
+  yaw,
+  pitch,
+  distance,
+  target: Object.freeze([target[0], target[1], target[2]]) as Vec3,
+});
+
+const labPose = (
+  specimenPose: SpecimenPose,
+  camera: CameraRig,
+  extras?: { readonly yaw?: number; readonly pitch?: number },
+): Pick<SimulationConceptBinding, 'camera' | 'gravity' | 'specimenPose' | 'specimenYaw' | 'specimenPitch'> => Object.freeze({
+  camera,
+  gravity: WORLD_GRAVITY,
+  specimenPose,
+  specimenYaw: extras?.yaw ?? 0,
+  specimenPitch: extras?.pitch ?? 0,
+});
+
+const bindConcept = (
+  id: string,
+  conceptScreen: ConceptScreen,
+  title: string,
+  shortName: string,
+  specimen: string,
+  target: { readonly sceneId: number } | { readonly materialDemoId: string },
+  pose: Pick<SimulationConceptBinding, 'camera' | 'gravity' | 'specimenPose' | 'specimenYaw' | 'specimenPitch'>,
+): SimulationConceptBinding => Object.freeze({
+  id, conceptScreen, title, shortName, specimen, ...target, ...pose,
+});
+
+/**
+ * Curated demo identity for the four concept screens. Physics workbench
+ * flagships bind to Structural / Correlation / Field Modal; remaining labs
+ * and authored material recipes bind to Material Lab. Scene ids are only
+ * recorded when they uniquely identify a lab (never shared fracture bases).
+ *
+ * Cameras are Y-up inspection rigs: high pitch for sheets/basins so they are
+ * not edge-on, +Z azimuth so clamp/bulkhead/pole stay screen-left, face-on
+ * yaw for hanging panes. Gravity is always −Y.
+ */
+export const SIMULATION_CONCEPT_BINDINGS: readonly SimulationConceptBinding[] = Object.freeze([
+  bindConcept('titan-bend-dent', 'structural', 'Ballistic Dent', 'Arm Test', 'Aluminum Panel', { materialDemoId: 'metal-square-punch-forming' },
+    labPose('horizontal-sheet', labCamera(-1.08, 0.64, 19, [0, 5.85, 0]))),
+  bindConcept('crash-rail-axial-fold', 'correlation', 'Aluminum Crash Box', 'Crash Box', 'Sled Impact', { materialDemoId: 'metal-four-point-bumper-beam' },
+    labPose('axial-rail', labCamera(1.48, 0.36, 23, [0, 7.0, 0]))),
+  bindConcept('composite-coupon', 'field-modal', 'CANT-BEAM-01', 'Cantilever', 'IMPACT-001', { sceneId: 799 },
+    labPose('cantilever', labCamera(1.42, 0.28, 19, [-1, 6.2, 0]))),
+  bindConcept('notched-low-cycle-fatigue', 'material-lab', 'Fatigue Notch', 'Fatigue Notch', 'Notched Coupon', { materialDemoId: 'metal-notched-fatigue' },
+    labPose('horizontal-sheet', labCamera(-1.05, 0.58, 24, [0, 6.9, 0]))),
+  bindConcept('ballistic-glass', 'material-lab', 'Glass Impact', 'Glass Impact', 'Laminated Glass', { materialDemoId: 'glass-laminated-stone-strike' },
+    labPose('vertical-pane', labCamera(0.15, 0.26, 30, [0, 7.2, 0]))),
+  bindConcept('curtain-wall-wind', 'material-lab', 'Curtain Wall', 'Curtain Wall', 'Facade Lite', { materialDemoId: 'glass-curtain-wall-wind' },
+    labPose('vertical-pane', labCamera(0.18, 0.28, 32, [0, 7.4, 0]))),
+  bindConcept('rc-punching-shear', 'material-lab', 'Concrete Shear', 'Concrete Shear', 'Reinforced Slab', { materialDemoId: 'concrete-flat-slab-punching' },
+    labPose('horizontal-sheet', labCamera(-1.12, 0.68, 32, [0, 6.9, 0]))),
+  bindConcept('blast-wall-spall', 'material-lab', 'Blast Spall', 'Blast Spall', 'Reinforced Panel', { materialDemoId: 'concrete-blast-wall-spall' },
+    labPose('vertical-pane', labCamera(0.22, 0.30, 34, [0, 7.0, 0]))),
+  bindConcept('elastomer-recovery', 'material-lab', 'Soft-Body Crush', 'Foam Crush', 'Foam Block', { sceneId: 798 },
+    labPose('horizontal-sheet', labCamera(-1.02, 0.52, 28, [0, 6.8, 0]))),
+  bindConcept('tempest-flag', 'material-lab', 'Tempest Flag', 'Tempest Flag', 'Wind Tunnel', { sceneId: 640 },
+    labPose('hanging-cloth', labCamera(1.36, 0.22, 26, [-4.2, 6.4, 0]))),
+  bindConcept('canopy-load-capture', 'material-lab', 'Canopy', 'Canopy', 'Load Capture', { sceneId: 642 },
+    labPose('suspended-net', labCamera(-1.05, 0.52, 28, [0, 9.2, 0]), { pitch: -0.38 })),
+  bindConcept('cargo-net-catch', 'material-lab', 'Cargo Net', 'Cargo Net', 'Payload Catch', { sceneId: 643 },
+    labPose('suspended-net', labCamera(-1.08, 0.50, 26, [0, 8.6, 0]), { pitch: -0.34 })),
+  bindConcept('progressive-fabric-tear', 'material-lab', 'Cloth Tear', 'Cloth Tear', 'Ballistic Fabric', { sceneId: 646 },
+    labPose('hanging-cloth', labCamera(1.32, 0.24, 24, [0, 6.2, 0]))),
+  bindConcept('membrane-shock', 'material-lab', 'Membrane Shock', 'Membrane', 'Tensioned Sheet', { sceneId: 649 },
+    labPose('horizontal-membrane', labCamera(-1.10, 0.62, 22, [0, 5.7, 0]), { pitch: -0.22 })),
+  bindConcept('sky-crane-cable', 'material-lab', 'Sky Crane', 'Sky Crane', 'Cable Load', { sceneId: 690 },
+    labPose('catenary', labCamera(1.05, 0.28, 32, [0, 11.0, 0]))),
+  bindConcept('suspension-cable-resonance', 'material-lab', 'Cable Bridge', 'Cable Bridge', 'Suspension', { sceneId: 691 },
+    labPose('catenary', labCamera(-0.15, 0.32, 42, [0, 8.2, 0]))),
+  bindConcept('heavy-pendulum', 'material-lab', 'Pendulum', 'Pendulum', 'Heavy Impact', { sceneId: 692 },
+    labPose('catenary', labCamera(1.12, 0.22, 30, [3, 10.0, 0]))),
+  bindConcept('four-point-mooring', 'material-lab', 'Mooring', 'Mooring', 'Four-Point Array', { sceneId: 694 },
+    labPose('catenary', labCamera(-0.85, 0.48, 36, [0, 7.2, 0]))),
+  bindConcept('rope-net-resonance', 'material-lab', 'Rope Net', 'Rope Net', 'Resonance', { sceneId: 699 },
+    labPose('catenary', labCamera(-0.92, 0.42, 34, [0, 9.5, 0]))),
+  bindConcept('tsunami-flume', 'material-lab', 'Tsunami', 'Tsunami', 'Research Flume', { sceneId: 741 },
+    labPose('basin', labCamera(-0.55, 0.62, 38, [0, 2.2, 0]))),
+  bindConcept('dam-breach-front', 'material-lab', 'Fluid Dam-Break', 'Dam-Break', 'Water', { sceneId: 746 },
+    labPose('basin', labCamera(-0.48, 0.64, 36, [-2, 2.1, 0]))),
+  bindConcept('boat-wake', 'material-lab', 'Boat Wake', 'Boat Wake', 'Hydrodynamic', { sceneId: 743 },
+    labPose('basin', labCamera(-0.72, 0.58, 34, [0, 2.4, 0]))),
+  bindConcept('vortex-chamber', 'material-lab', 'Vortex', 'Vortex', 'Current Chamber', { sceneId: 747 },
+    labPose('basin', labCamera(-0.80, 0.72, 32, [0, 2.0, 0]))),
+  bindConcept('leviathan-impact', 'material-lab', 'Impact Basin', 'Impact Basin', 'Leviathan', { sceneId: 749 },
+    labPose('basin', labCamera(-0.68, 0.55, 36, [0, 2.6, 0]))),
+  bindConcept('aegis-tower-breach', 'structural', 'Tower Breach', 'Tower Breach', 'Kinetic', { sceneId: 140 },
+    labPose('upright', labCamera(-0.62, 0.32, 52, [0, 14, 0]))),
+  bindConcept('truss-span-overload', 'structural', 'Truss Span', 'Truss Span', 'Overload', { sceneId: 192 },
+    labPose('upright', labCamera(-0.22, 0.36, 44, [0, 5, 0]))),
+  bindConcept('citadel-siege', 'structural', 'Citadel', 'Citadel', 'Siege', { sceneId: 340 },
+    labPose('upright', labCamera(-0.82, 0.34, 46, [0, 8, 0]))),
+  bindConcept('titan-hauler-crash', 'structural', 'Hauler Crash', 'Hauler Crash', 'Crash Range', { sceneId: 390 },
+    labPose('upright', labCamera(-0.95, 0.32, 48, [0, 4, 0]))),
+  bindConcept('high-bay-rack', 'structural', 'Rack Cascade', 'Rack Cascade', 'High-Bay', { sceneId: 541 },
+    labPose('upright', labCamera(-0.88, 0.38, 46, [0, 8, 0]))),
+  bindConcept('mega-atrium', 'structural', 'Mega Atrium', 'Mega Atrium', 'Progressive Collapse', { sceneId: 599 },
+    labPose('upright', labCamera(-0.70, 0.36, 54, [0, 10, 0]))),
+  bindConcept('apex-proving-ground', 'material-lab', 'Apex', 'Apex', 'Materials Proving Ground', { materialDemoId: 'apex-materials-proving-ground' },
+    labPose('horizontal-sheet', labCamera(-0.78, 0.48, 96, [0, 7.0, 0]))),
+  bindConcept('metal-press-brake-v-bend', 'material-lab', 'Metal Fold', 'Metal Fold', 'Sheet Metal', { materialDemoId: 'metal-press-brake-v-bend' },
+    labPose('horizontal-sheet', labCamera(-1.12, 0.58, 28, [0, 6.8, 0]))),
+  bindConcept('metal-springback-fold', 'material-lab', 'Springback Fold', 'Springback Fold', 'Thin Aluminum', { materialDemoId: 'metal-springback-fold' },
+    labPose('horizontal-sheet', labCamera(-1.10, 0.58, 28, [0, 6.8, 0]))),
+  bindConcept('metal-thick-plate-dent', 'material-lab', 'Thick Plate Dent', 'Thick Plate', 'Thick Aluminum', { materialDemoId: 'metal-thick-plate-dent' },
+    labPose('horizontal-sheet', labCamera(-1.08, 0.64, 19, [0, 5.85, 0]))),
+  bindConcept('metal-notch-tear', 'material-lab', 'Notch Tear', 'Notch Tear', 'Notched Sheet', { materialDemoId: 'metal-notch-tear' },
+    labPose('horizontal-sheet', labCamera(-1.05, 0.62, 24, [0, 6.8, 0]))),
+]);
+
+const conceptById = new Map<string, SimulationConceptBinding>();
+const conceptBySceneId = new Map<number, SimulationConceptBinding>();
+const conceptByMaterialDemoId = new Map<string, SimulationConceptBinding>();
+
+for (const binding of SIMULATION_CONCEPT_BINDINGS) {
+  if (conceptById.has(binding.id)) throw new Error(`Duplicate simulation concept id '${binding.id}'.`);
+  conceptById.set(binding.id, binding);
+  if (binding.sceneId !== undefined) {
+    if (conceptBySceneId.has(binding.sceneId)) {
+      throw new Error(`Duplicate simulation concept scene ${binding.sceneId}.`);
+    }
+    conceptBySceneId.set(binding.sceneId, binding);
+  }
+  if (binding.materialDemoId !== undefined) {
+    if (conceptByMaterialDemoId.has(binding.materialDemoId)) {
+      throw new Error(`Duplicate simulation concept material demo '${binding.materialDemoId}'.`);
+    }
+    conceptByMaterialDemoId.set(binding.materialDemoId, binding);
+  }
+}
+
+function poseFromMaterialRecipe(materialDemoId: string): Pick<SimulationConceptBinding, 'camera' | 'gravity' | 'specimenPose' | 'specimenYaw' | 'specimenPitch'> | null {
+  const recipe = getMaterialDemoRecipe(materialDemoId);
+  if (!recipe) return null;
+  const resolved = materialDemoSpecimenPose(recipe);
+  const vertical = resolved.orientation === 'vertical';
+  const lookDown = !vertical && recipe.camera.pitch < 0.48;
+  return labPose(
+    vertical ? 'vertical-pane' : 'horizontal-sheet',
+    labCamera(
+      recipe.camera.yaw,
+      lookDown ? Math.max(recipe.camera.pitch, 0.58) : recipe.camera.pitch,
+      recipe.camera.distance,
+      recipe.camera.target,
+    ),
+    { yaw: resolved.yaw },
+  );
+}
+
+function materialLabFallback(materialDemoId: string): SimulationConceptBinding | null {
+  const recipe = getMaterialDemoRecipe(materialDemoId);
+  const pose = poseFromMaterialRecipe(materialDemoId);
+  if (!recipe || !pose) return null;
+  const specimen = recipe.specimen;
+  return bindConcept(recipe.id, 'material-lab', recipe.title, recipe.title, specimen, { materialDemoId: recipe.id }, pose);
+}
+
+export function getSimulationConceptBinding(query: SimulationConceptQuery): SimulationConceptBinding | null {
+  if (query.labId) {
+    const byLab = conceptById.get(query.labId);
+    if (byLab) return byLab;
+  }
+  if (query.materialDemoId) {
+    const byMaterial = conceptByMaterialDemoId.get(query.materialDemoId) ?? materialLabFallback(query.materialDemoId);
+    if (byMaterial) return byMaterial;
+  }
+  if (query.sceneId !== undefined) return conceptBySceneId.get(query.sceneId) ?? null;
+  return null;
+}
+
+export function cloneSimulationLabCamera(query: SimulationConceptQuery): CameraRig | null {
+  const binding = getSimulationConceptBinding(query);
+  if (!binding) return null;
+  return {
+    yaw: binding.camera.yaw,
+    pitch: binding.camera.pitch,
+    distance: binding.camera.distance,
+    target: [binding.camera.target[0], binding.camera.target[1], binding.camera.target[2]],
+  };
+}
+
+export function conceptScreenAsset(screen: ConceptScreen): 'physics-workbench-structural-v2' | 'physics-workbench-correlation-v2' | 'physics-workbench-field-modal-v2' | 'material-lab-desktop' {
+  switch (screen) {
+    case 'structural': return 'physics-workbench-structural-v2';
+    case 'correlation': return 'physics-workbench-correlation-v2';
+    case 'field-modal': return 'physics-workbench-field-modal-v2';
+    case 'material-lab': return 'material-lab-desktop';
+    default: {
+      const exhaustive: never = screen;
+      throw new Error(`Unhandled concept screen: ${String(exhaustive)}`);
+    }
+  }
+}
+
+function conceptPresentation(scene: ScenePreset): {
+  title: string;
+  conceptScreen: ConceptScreen | undefined;
+  binding: SimulationConceptBinding | null;
+} {
+  const binding = getSimulationConceptBinding({
+    sceneId: scene.id,
+    materialDemoId: scene.materialDemoId,
+  });
+  if (!binding) return { title: scene.title.replace(/\s+—.*$/, ''), conceptScreen: undefined, binding: null };
+  return {
+    title: `${binding.title} · ${binding.specimen}`,
+    conceptScreen: binding.conceptScreen,
+    binding,
+  };
+}
+
+function rotatePositionsYawPitch(
+  positions: Float32Array,
+  count: number,
+  yaw: number,
+  pitch: number,
+  origin?: Vec3,
+): void {
+  if (yaw === 0 && pitch === 0) return;
+  let cx = 0;
+  let cy = 0;
+  let cz = 0;
+  if (origin) {
+    cx = origin[0];
+    cy = origin[1];
+    cz = origin[2];
+  } else {
+    for (let i = 0; i < count; i++) {
+      const o = i * 3;
+      cx += positions[o];
+      cy += positions[o + 1];
+      cz += positions[o + 2];
+    }
+    const inv = 1 / Math.max(1, count);
+    cx *= inv;
+    cy *= inv;
+    cz *= inv;
+  }
+  const cosYaw = Math.cos(yaw);
+  const sinYaw = Math.sin(yaw);
+  const cosPitch = Math.cos(pitch);
+  const sinPitch = Math.sin(pitch);
+  for (let i = 0; i < count; i++) {
+    const o = i * 3;
+    const x0 = positions[o] - cx;
+    const y0 = positions[o + 1] - cy;
+    const z0 = positions[o + 2] - cz;
+    const y1 = y0 * cosPitch - z0 * sinPitch;
+    const z1 = y0 * sinPitch + z0 * cosPitch;
+    positions[o] = x0 * cosYaw - z1 * sinYaw + cx;
+    positions[o + 1] = y1 + cy;
+    positions[o + 2] = x0 * sinYaw + z1 * cosYaw + cz;
+  }
+}
+
+function hangingClothLayout(pose: SpecimenPose | undefined, variant: number): boolean {
+  switch (pose) {
+    case 'hanging-cloth':
+    case 'vertical-pane':
+      return true;
+    case 'suspended-net':
+    case 'horizontal-membrane':
+    case 'horizontal-sheet':
+    case 'axial-rail':
+    case 'cantilever':
+    case 'catenary':
+    case 'basin':
+    case 'upright':
+      return false;
+    case undefined:
+      return [0, 1, 5, 6, 8].includes(variant);
+    default: {
+      const exhaustive: never = pose;
+      return exhaustive;
+    }
+  }
+}
 
 function softFamily(family: ScenePreset['family']): family is 'cloth' | 'rope' | 'water' | 'fracture' {
   return family === 'cloth' || family === 'rope' || family === 'water' || family === 'fracture';
@@ -256,6 +638,7 @@ class ClothSimulation implements SoftSimulation {
   private readonly sphereCenter: Vec3;
   private readonly sphereRadius: number;
   private readonly verticalLayout: boolean;
+  private readonly gravityY: number;
   private readonly tearingEnabled: boolean;
   private readonly fusedKernelStep: boolean;
   private readonly batchedKernelSolve: boolean;
@@ -314,8 +697,10 @@ class ClothSimulation implements SoftSimulation {
     this.windStrength = 3.5 + stress * 1.35 + scene.mode * 0.45;
     this.rng = new LcgRng(seed ^ 0xc10f7a);
     this.kernelModule = this.tearingEnabled ? null : kernelModule;
-    this.label = `${scene.title.replace(/\s+—.*$/, '')} · PBD cloth ${this.cols}×${this.rows}`;
-    this.verticalLayout = [0, 1, 5, 6, 8].includes(this.variant);
+    const clothPresentation = conceptPresentation(scene);
+    this.label = `${clothPresentation.title} · PBD cloth ${this.cols}×${this.rows}`;
+    this.gravityY = clothPresentation.binding?.gravity[1] ?? WORLD_GRAVITY[1];
+    this.verticalLayout = hangingClothLayout(clothPresentation.binding?.specimenPose, this.variant);
     // A 360-frame, action-heavy comparison against the exact v1.10 baseline
     // qualifies only the perimeter-pinned membrane layout for the fused
     // float32 integration/solve path. Other layouts retain the legacy cadence:
@@ -340,6 +725,14 @@ class ClothSimulation implements SoftSimulation {
     [this.baseColorA, this.baseColorB] = palettes[this.variant % palettes.length];
 
     this.initializeParticles();
+    if (clothPresentation.binding) {
+      rotatePositionsYawPitch(
+        this.positions,
+        this.count,
+        clothPresentation.binding.specimenYaw,
+        clothPresentation.binding.specimenPitch,
+      );
+    }
     this.restPositions.set(this.positions);
     this.initializeRenderCaches();
     this.initializeConstraints();
@@ -360,7 +753,10 @@ class ClothSimulation implements SoftSimulation {
       cols: this.cols, rows: this.rows, baseColorA: this.baseColorA, baseColorB: this.baseColorB,
     };
     this.frameResult = {
-      kind: this.kind, label: this.label, matrices: this.instanceMatrices,
+      kind: this.kind, label: this.label, conceptScreen: clothPresentation.conceptScreen,
+      camera: clothPresentation.binding?.camera, gravity: clothPresentation.binding?.gravity,
+      specimenPose: clothPresentation.binding?.specimenPose,
+      matrices: this.instanceMatrices,
       colors: this.instanceColors, instanceCount: 0,
       surface: this.tearingEnabled ? this.packedSurfaceResult : this.gpuSurfaceResult,
       ropeGrid: null,
@@ -709,7 +1105,8 @@ class ClothSimulation implements SoftSimulation {
 
   private integrateParticles(dt: number): void {
     const dt2 = dt * dt;
-    const drag = 0.992 - this.stress * 0.0004;
+    const referenceRetention = 0.992 - this.stress * 0.0004;
+    const drag = Math.pow(referenceRetention, dt * SOFT_REFERENCE_HZ);
     const gust = this.windStrength * (0.72 + 0.28 * Math.sin(this.time * 1.7));
     const vertical = this.verticalLayout;
 
@@ -769,7 +1166,7 @@ class ClothSimulation implements SoftSimulation {
       const lift = vertical ? turbulence * 0.25 : Math.max(0, turbulence) * 0.55 + (this.variant === 2 ? 1.2 : 0);
 
       this.positions[o] = x + vx + windX * dt2;
-      this.positions[o + 1] = y + vy + (-9.81 + lift) * dt2;
+      this.positions[o + 1] = y + vy + (this.gravityY + lift) * dt2;
       this.positions[o + 2] = z + vz + windZ * dt2;
     }
   }
@@ -894,7 +1291,7 @@ class ClothSimulation implements SoftSimulation {
   private integrateProjectiles(dt: number): void {
     for (const projectile of this.projectiles) {
       projectile.life -= dt;
-      projectile.velocity[1] -= 9.81 * dt;
+      projectile.velocity[1] += this.gravityY * dt;
       projectile.position[0] += projectile.velocity[0] * dt;
       projectile.position[1] += projectile.velocity[1] * dt;
       projectile.position[2] += projectile.velocity[2] * dt;
@@ -956,7 +1353,7 @@ class ClothSimulation implements SoftSimulation {
       const vz = (this.positions[o + 2] - this.previous[o + 2]) * invDt;
       energy += vx * vx + vy * vy + vz * vz;
     }
-    this.energyValue = energy / Math.max(1, this.count);
+    this.energyValue = energy;
   }
 
   kick(strength: number): void {
@@ -1291,6 +1688,7 @@ class RopeSimulation implements SoftSimulation {
   private readonly rng: LcgRng;
   private readonly stress: number;
   private readonly variant: number;
+  private readonly gravityY: number;
   private readonly mode: number;
   private readonly iterations: number;
   private readonly batchKernelProjection: boolean;
@@ -1323,7 +1721,9 @@ class RopeSimulation implements SoftSimulation {
       !(this.variant === 0 && (this.mode === 0 || this.mode === 3));
     this.rng = new LcgRng(seed ^ 0x70e5a11);
     this.kernelModule = kernelModule;
-    this.label = `${scene.title.replace(/\s+—.*$/, '')} · PBD rope/cable solver`;
+    const ropePresentation = conceptPresentation(scene);
+    this.label = `${ropePresentation.title} · PBD rope/cable solver`;
+    this.gravityY = ropePresentation.binding?.gravity[1] ?? WORLD_GRAVITY[1];
 
     const positions: number[] = [];
     const invMass: number[] = [];
@@ -1461,7 +1861,15 @@ class RopeSimulation implements SoftSimulation {
     }
 
     this.positions = new Float32Array(positions);
-    this.previous = new Float32Array(positions);
+    if (ropePresentation.binding) {
+      rotatePositionsYawPitch(
+        this.positions,
+        invMass.length,
+        ropePresentation.binding.specimenYaw,
+        ropePresentation.binding.specimenPitch,
+      );
+    }
+    this.previous = new Float32Array(this.positions);
     this.invMass = new Float32Array(invMass);
     const particleCount = this.invMass.length;
     this.windSinA = new Float32Array(particleCount);
@@ -1492,7 +1900,10 @@ class RopeSimulation implements SoftSimulation {
     };
     this.rebuildRopeGridSegments();
     this.frameResult = {
-      kind: this.kind, label: this.label, matrices: this.instanceMatrices,
+      kind: this.kind, label: this.label, conceptScreen: ropePresentation.conceptScreen,
+      camera: ropePresentation.binding?.camera, gravity: ropePresentation.binding?.gravity,
+      specimenPose: ropePresentation.binding?.specimenPose,
+      matrices: this.instanceMatrices,
       colors: this.instanceColors, instanceCount: 0, surface: null,
       ropeGrid: this.ropeGridResult,
       debugLines: this.debugLines, nodeCount: this.invMass.length,
@@ -1666,22 +2077,23 @@ class RopeSimulation implements SoftSimulation {
     const sinZ = Math.sin(timeZ);
     const cosZ = Math.cos(timeZ);
     const windScale = 0.8 + this.stress * 0.2;
+    const drag = Math.pow(0.994, dt * SOFT_REFERENCE_HZ);
     for (let i = 0; i < this.invMass.length; i++) {
       if (this.invMass[i] === 0) continue;
       const o = i * 3;
       const x = this.positions[o];
       const y = this.positions[o + 1];
       const z = this.positions[o + 2];
-      const vx = (x - this.previous[o]) * 0.994;
-      const vy = (y - this.previous[o + 1]) * 0.994;
-      const vz = (z - this.previous[o + 2]) * 0.994;
+      const vx = (x - this.previous[o]) * drag;
+      const vy = (y - this.previous[o + 1]) * drag;
+      const vz = (z - this.previous[o + 2]) * drag;
       this.previous[o] = x;
       this.previous[o + 1] = y;
       this.previous[o + 2] = z;
       const wind = (sinA * this.windCosA[i] + cosA * this.windSinA[i]) * windScale;
       const crossWind = (cosZ * this.windCosZ[i] - sinZ * this.windSinZ[i]) * 0.38;
       this.positions[o] = x + vx + wind * dt2;
-      this.positions[o + 1] = y + vy - 9.81 * dt2;
+      this.positions[o + 1] = y + vy + this.gravityY * dt2;
       this.positions[o + 2] = z + vz + crossWind * dt2;
     }
   }
@@ -1746,7 +2158,7 @@ class RopeSimulation implements SoftSimulation {
   private integrateProjectiles(dt: number): void {
     for (const projectile of this.projectiles) {
       projectile.life -= dt;
-      projectile.velocity[1] -= 9.81 * dt;
+      projectile.velocity[1] += this.gravityY * dt;
       projectile.position[0] += projectile.velocity[0] * dt;
       projectile.position[1] += projectile.velocity[1] * dt;
       projectile.position[2] += projectile.velocity[2] * dt;
@@ -1823,7 +2235,7 @@ class RopeSimulation implements SoftSimulation {
       const vz = (this.positions[o + 2] - this.previous[o + 2]) * invDt;
       energy += vx * vx + vy * vy + vz * vz;
     }
-    this.energyValue = energy / Math.max(1, this.invMass.length);
+    this.energyValue = energy;
   }
 
   kick(strength: number): void {
@@ -2033,6 +2445,8 @@ class WaterSimulation implements SoftSimulation {
   private readonly rng: LcgRng;
   private readonly stress: number;
   private readonly variant: number;
+  private readonly gravityY: number;
+  private readonly gravityMagnitude: number;
   private readonly mode: number;
   private time = 0;
   private energyValue = 0;
@@ -2070,7 +2484,10 @@ class WaterSimulation implements SoftSimulation {
     this.invTwoDz = 1 / (2 * this.dz);
     this.rng = new LcgRng(seed ^ 0x57a7e12);
     this.kernelModule = kernelModule;
-    this.label = `${scene.title.replace(/\s+—.*$/, '')} · linear shallow-water ${this.cols}×${this.rows}`;
+    const waterPresentation = conceptPresentation(scene);
+    this.label = `${waterPresentation.title} · linear shallow-water ${this.cols}×${this.rows}`;
+    this.gravityY = waterPresentation.binding?.gravity[1] ?? WORLD_GRAVITY[1];
+    this.gravityMagnitude = Math.abs(this.gravityY);
     this.initializeSurface();
     this.initializeGridCache();
     this.initializeVariants();
@@ -2083,7 +2500,10 @@ class WaterSimulation implements SoftSimulation {
       cols: this.cols, rows: this.rows, width: this.width, depth: this.depth, baseY: this.baseY,
     };
     this.frameResult = {
-      kind: this.kind, label: this.label, matrices: this.instanceMatrices,
+      kind: this.kind, label: this.label, conceptScreen: waterPresentation.conceptScreen,
+      camera: waterPresentation.binding?.camera, gravity: waterPresentation.binding?.gravity,
+      specimenPose: waterPresentation.binding?.specimenPose,
+      matrices: this.instanceMatrices,
       colors: this.instanceColors, instanceCount: 0, surface: this.gpuSurfaceResult,
       ropeGrid: null,
       debugLines: this.debugLines, nodeCount: this.count,
@@ -2222,8 +2642,9 @@ class WaterSimulation implements SoftSimulation {
     const steps = clamp(Math.round(subSteps), 1, 8);
     const subDt = Math.min(dt, 1 / 30) / steps;
     for (let sub = 0; sub < steps; sub++) {
+      const previousTime = this.time;
       this.time += subDt;
-      this.applyAutomaticForcing();
+      this.applyAutomaticForcing(previousTime, subDt);
       this.solveShallowWater(subDt);
       this.updateDroplets(subDt);
       this.updateFloaters(subDt);
@@ -2236,28 +2657,40 @@ class WaterSimulation implements SoftSimulation {
     this.frameVersion++;
   }
 
-  private applyAutomaticForcing(): void {
-    if (this.variant === 0 && Math.floor(this.time * 2.2) !== Math.floor((this.time - 1 / 60) * 2.2)) {
-      this.disturb(this.rng.signed(11), this.rng.signed(7), this.rng.range(0.2, 0.55), this.rng.range(0.7, 1.5), 0.7);
-    } else if (this.variant === 2) {
+  private applyAutomaticForcing(previousTime: number, dt: number): void {
+    if (this.variant === 0) {
+      // Tick crossings, rather than a fixed 1/60 look-back window, guarantee
+      // exactly one seeded event regardless of the requested substep count.
+      const previousTick = Math.floor(previousTime * 2.2);
+      const currentTick = Math.floor(this.time * 2.2);
+      for (let tick = previousTick + 1; tick <= currentTick; tick++) {
+        this.disturb(this.rng.signed(11), this.rng.signed(7), this.rng.range(0.2, 0.55), this.rng.range(0.7, 1.5), 0.7);
+      }
+      return;
+    }
+    // The remaining sources are continuous rates authored at 60 Hz. Scale
+    // their height and velocity injection by elapsed time so extra substeps
+    // refine the forcing rather than multiplying it.
+    const forcingScale = dt * SOFT_REFERENCE_HZ;
+    if (this.variant === 2) {
       const z = Math.sin(this.time * 0.45) * 8;
-      this.disturb(-16, z, Math.sin(this.time * 2.4) * 0.035, 1.4, 0.12);
+      this.disturb(-16, z, Math.sin(this.time * 2.4) * 0.035 * forcingScale, 1.4, 0.12 * forcingScale);
     } else if (this.variant === 3) {
       const x = -14 + (this.time * 3.1) % 28;
       const z = Math.sin(this.time * 0.9) * 3.8;
-      this.disturb(x, z, -0.055, 0.8, 0.35);
-      this.disturb(x - 1.2, z + 0.8, 0.045, 0.7, 0.24);
-      this.disturb(x - 1.2, z - 0.8, 0.045, 0.7, 0.24);
+      this.disturb(x, z, -0.055 * forcingScale, 0.8, 0.35 * forcingScale);
+      this.disturb(x - 1.2, z + 0.8, 0.045 * forcingScale, 0.7, 0.24 * forcingScale);
+      this.disturb(x - 1.2, z - 0.8, 0.045 * forcingScale, 0.7, 0.24 * forcingScale);
     } else if (this.variant === 4) {
-      this.disturb(0, 0, Math.sin(this.time * 5.2) * 0.045, 1.0, 0.16);
+      this.disturb(0, 0, Math.sin(this.time * 5.2) * 0.045 * forcingScale, 1.0, 0.16 * forcingScale);
     } else if (this.variant === 7) {
       const angle = this.time * 1.4;
-      this.disturb(Math.cos(angle) * 4, Math.sin(angle) * 4, -0.035, 1.1, 0.28);
+      this.disturb(Math.cos(angle) * 4, Math.sin(angle) * 4, -0.035 * forcingScale, 1.1, 0.28 * forcingScale);
     }
   }
 
   private solveShallowWater(dt: number): void {
-    const gravity = 9.81;
+    const gravity = this.gravityMagnitude;
     const meanDepth = 1.35 + this.stress * 0.05;
     const drag = 0.28 + this.mode * 0.025;
     if (this.kernelModule && this.kernelPointers && this.kernelModule.stepWater(
@@ -2442,7 +2875,7 @@ class WaterSimulation implements SoftSimulation {
     }
     for (const droplet of this.droplets) {
       droplet.life -= dt;
-      droplet.velocity[1] -= 9.81 * dt;
+      droplet.velocity[1] += this.gravityY * dt;
       droplet.position[0] += droplet.velocity[0] * dt;
       droplet.position[1] += droplet.velocity[1] * dt;
       droplet.position[2] += droplet.velocity[2] * dt;
@@ -2465,7 +2898,7 @@ class WaterSimulation implements SoftSimulation {
     for (const droplet of this.droplets) {
       droplet.life -= dt;
       if (droplet.life <= 0) continue;
-      droplet.velocity[1] -= 9.81 * dt;
+      droplet.velocity[1] += this.gravityY * dt;
       droplet.position[0] += droplet.velocity[0] * dt;
       droplet.position[1] += droplet.velocity[1] * dt;
       droplet.position[2] += droplet.velocity[2] * dt;
@@ -2485,17 +2918,19 @@ class WaterSimulation implements SoftSimulation {
   }
 
   private updateFloaters(dt: number): void {
+    const planarRetention = Math.pow(0.998, dt * SOFT_REFERENCE_HZ);
+    const verticalRetention = Math.pow(0.995, dt * SOFT_REFERENCE_HZ);
     for (const floater of this.floaters) {
       this.sampleIntoScratch(floater.position[0], floater.position[2]);
       const bottom = floater.position[1] - floater.half[1];
       const submergence = clamp((this.sampleHeight - bottom) / Math.max(0.1, floater.half[1] * 2), 0, 1.4);
       const buoyancy = 15.5 * submergence / Math.max(0.5, floater.mass * 0.35);
-      floater.velocity[1] += (-9.81 + buoyancy) * dt;
+      floater.velocity[1] += (this.gravityY + buoyancy) * dt;
       floater.velocity[0] += (this.sampleVelocityX - floater.velocity[0]) * submergence * dt * 1.8;
       floater.velocity[2] += (this.sampleVelocityZ - floater.velocity[2]) * submergence * dt * 1.8;
-      floater.velocity[0] *= 0.998;
-      floater.velocity[1] *= 0.995;
-      floater.velocity[2] *= 0.998;
+      floater.velocity[0] *= planarRetention;
+      floater.velocity[1] *= verticalRetention;
+      floater.velocity[2] *= planarRetention;
       floater.position[0] += floater.velocity[0] * dt;
       floater.position[1] += floater.velocity[1] * dt;
       floater.position[2] += floater.velocity[2] * dt;
@@ -2505,16 +2940,23 @@ class WaterSimulation implements SoftSimulation {
       }
       if (Math.abs(floater.position[0]) > this.width * 0.47) floater.velocity[0] *= -0.55;
       if (Math.abs(floater.position[2]) > this.depth * 0.47) floater.velocity[2] *= -0.55;
-      this.disturb(floater.position[0], floater.position[2], -submergence * 0.006, Math.max(floater.half[0], floater.half[2]) * 1.6, submergence * 0.015);
+      const couplingScale = dt * SOFT_REFERENCE_HZ;
+      this.disturb(
+        floater.position[0],
+        floater.position[2],
+        -submergence * 0.006 * couplingScale,
+        Math.max(floater.half[0], floater.half[2]) * 1.6,
+        submergence * 0.015 * couplingScale,
+      );
     }
   }
 
   private computeEnergy(): void {
     let energy = 0;
     for (let i = 0; i < this.count; i++) {
-      energy += this.eta[i] * this.eta[i] * 9.81 + this.u[i] * this.u[i] + this.v[i] * this.v[i];
+      energy += this.eta[i] * this.eta[i] * this.gravityMagnitude + this.u[i] * this.u[i] + this.v[i] * this.v[i];
     }
-    this.energyValue = energy / Math.max(1, this.count);
+    this.energyValue = energy;
   }
 
   kick(strength: number): void {
@@ -2719,6 +3161,9 @@ export class SoftSimulationSuite {
   cycleLoad(): void { this.active?.cycleLoad?.(); }
   dentStrike(strength = 1): number { return this.active?.dentStrike?.(strength) ?? -1; }
   materialStrike(strength = 1): number { return this.active?.materialStrike?.(strength) ?? -1; }
+  materialStrikeAt(u: number, v: number, strength = 1, radiusScale = 1): number {
+    return this.active?.materialStrikeAt?.(u, v, strength, radiusScale) ?? -1;
+  }
   setMaterialLoadTarget(target: CombinedMaterialTarget, value: number): void {
     if (this.active?.setMaterialLoadTarget) this.active.setMaterialLoadTarget(target, value);
     else this.active?.setLoadTarget?.(value);
@@ -2731,11 +3176,33 @@ export class SoftSimulationSuite {
     if (this.active?.materialStrikeTarget) return this.active.materialStrikeTarget(target, strength);
     return this.active?.materialStrike?.(strength) ?? -1;
   }
+  materialStrikeAtTarget(
+    target: CombinedMaterialTarget,
+    u: number,
+    v: number,
+    strength = 1,
+    radiusScale = 1,
+  ): number {
+    if (this.active?.materialStrikeAtTarget) {
+      return this.active.materialStrikeAtTarget(target, u, v, strength, radiusScale);
+    }
+    return this.active?.materialStrikeAt?.(u, v, strength, radiusScale) ?? -1;
+  }
   dentStrikeTarget(target: CombinedMaterialTarget, strength = 1): number {
     if (this.active?.materialStrikeTarget) return this.active.materialStrikeTarget(target, strength);
     return this.active?.dentStrike?.(strength) ?? -1;
   }
-  buildFrame(debug = false): SoftSimulationFrame { return this.active?.buildFrame(debug) ?? EMPTY_FRAME; }
+  buildFrame(debug = false): SoftSimulationFrame {
+    const frame = this.active?.buildFrame(debug) ?? EMPTY_FRAME;
+    if (frame.kind === 'none' || !this.lastScene) return frame;
+    const presentation = conceptPresentation(this.lastScene);
+    if (!presentation.binding) return frame;
+    if (!frame.conceptScreen) frame.conceptScreen = presentation.conceptScreen;
+    if (!frame.camera) frame.camera = presentation.binding.camera;
+    if (!frame.gravity) frame.gravity = presentation.binding.gravity;
+    if (!frame.specimenPose) frame.specimenPose = presentation.binding.specimenPose;
+    return frame;
+  }
   hash(): number { return this.active?.currentHash() ?? 0; }
 
   destroy(): void {
@@ -2765,32 +3232,43 @@ export class SoftSimulationSuite {
       if (frame.surface.vertexCount <= 0 || frame.surface.indexCount <= 0) {
         return { ok: false, message: `${frame.kind} surface topology is empty.` };
       }
-      if (frame.surface.path === 'packed') {
-        if (
-          frame.surface.vertexStride !== PACKED_SURFACE_VERTEX_BYTES ||
-          frame.surface.vertices.byteLength !== frame.surface.vertexCount * frame.surface.vertexStride
-        ) {
-          return { ok: false, message: `${frame.kind} packed surface vertex stride/count is inconsistent.` };
+      switch (frame.surface.path) {
+        case 'packed':
+          if (
+            (frame.surface.material !== 'cloth' && frame.surface.material !== 'sheet') ||
+            frame.surface.vertexStride !== PACKED_SURFACE_VERTEX_BYTES ||
+            frame.surface.vertices.byteLength !== frame.surface.vertexCount * frame.surface.vertexStride
+          ) {
+            return { ok: false, message: `${frame.kind} packed surface vertex stride/count is inconsistent.` };
+          }
+          if (!packedSurfacePositionsAreFinite(frame.surface.vertices, frame.surface.vertexCount)) {
+            return { ok: false, message: `${frame.kind} packed surface stream is invalid.` };
+          }
+          break;
+        case 'gpu-cloth':
+          if (
+            frame.surface.positions.length < frame.surface.vertexCount * 3 ||
+            frame.surface.restPositions.length < frame.surface.vertexCount * 3 ||
+            !isFiniteArray(frame.surface.positions) ||
+            !isFiniteArray(frame.surface.restPositions)
+          ) {
+            return { ok: false, message: `${frame.kind} GPU-cloth state stream is invalid.` };
+          }
+          break;
+        case 'gpu-water':
+          if (
+            frame.surface.eta.length < frame.surface.vertexCount ||
+            frame.surface.u.length < frame.surface.vertexCount ||
+            frame.surface.v.length < frame.surface.vertexCount ||
+            !isFiniteArray(frame.surface.eta) || !isFiniteArray(frame.surface.u) || !isFiniteArray(frame.surface.v)
+          ) {
+            return { ok: false, message: `${frame.kind} GPU-water state stream is invalid.` };
+          }
+          break;
+        default: {
+          const _exhaustive: never = frame.surface;
+          return { ok: false, message: `Unhandled surface path: ${String(_exhaustive)}` };
         }
-        if (!packedSurfacePositionsAreFinite(frame.surface.vertices, frame.surface.vertexCount)) {
-          return { ok: false, message: `${frame.kind} packed surface stream is invalid.` };
-        }
-      } else if (frame.surface.path === 'gpu-cloth') {
-        if (
-          frame.surface.positions.length < frame.surface.vertexCount * 3 ||
-          frame.surface.restPositions.length < frame.surface.vertexCount * 3 ||
-          !isFiniteArray(frame.surface.positions) ||
-          !isFiniteArray(frame.surface.restPositions)
-        ) {
-          return { ok: false, message: `${frame.kind} GPU-cloth state stream is invalid.` };
-        }
-      } else if (
-        frame.surface.eta.length < frame.surface.vertexCount ||
-        frame.surface.u.length < frame.surface.vertexCount ||
-        frame.surface.v.length < frame.surface.vertexCount ||
-        !isFiniteArray(frame.surface.eta) || !isFiniteArray(frame.surface.u) || !isFiniteArray(frame.surface.v)
-      ) {
-        return { ok: false, message: `${frame.kind} GPU-water state stream is invalid.` };
       }
       if (frame.surface.indices.length < frame.surface.indexCount) {
         return { ok: false, message: `${frame.kind} surface index stream is truncated.` };

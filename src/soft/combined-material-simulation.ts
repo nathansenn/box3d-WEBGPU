@@ -1,13 +1,15 @@
 import { clamp, type Vec3 } from '../math';
 import {
   COMBINED_MATERIAL_OFFSETS,
+  getMaterialDemoRecipe,
   sceneForMaterialDemo,
   type MaterialDemoKind,
 } from '../material-demos';
 import type { ScenePreset } from '../scenes';
-import type { DebugLine, MaterialFailureTelemetry, RopeGridFrame } from '../types';
+import type { DebugLine, MaterialFailureTelemetry, PackedSurfaceFrame, RopeGridFrame } from '../types';
 import { MATERIAL_RENDER_INSTANCE_BUDGET, MaterialSimulation } from './material-simulation';
 import type { SoftSimulation, SoftSimulationFrame } from './simulations';
+import { PACKED_SURFACE_VERTEX_BYTES, PackedSurfaceBuffer, translatePackedSurfacePositions } from './packed-surface';
 
 export type CombinedMaterialTarget = Exclude<MaterialDemoKind, 'combined'> | 'all';
 
@@ -33,11 +35,90 @@ type ChildSimulation = {
   readonly simulation: MaterialSimulation;
 };
 
+/** Individual-lab copies. Metal stays the horizontal packed-sheet dent cell;
+ * glass and concrete keep their brittle tiled covers. */
 const CHILD_RECIPES: Readonly<Record<MaterialBay, string>> = {
   metal: 'metal-square-punch-forming',
   glass: 'glass-ballistic-off-center',
   concrete: 'concrete-flat-slab-punching',
 };
+
+const BAY_ORDER: readonly MaterialBay[] = ['metal', 'glass', 'concrete'];
+
+function bayOrientation(kind: MaterialBay): 'horizontal' | 'vertical' {
+  switch (kind) {
+    case 'metal':
+    case 'concrete':
+      return 'horizontal';
+    case 'glass':
+      return 'vertical';
+    default: {
+      const exhaustive: never = kind;
+      throw new Error(`Unhandled material bay: ${exhaustive}`);
+    }
+  }
+}
+
+function bayUsesPackedMetalPunch(kind: MaterialBay): boolean {
+  switch (kind) {
+    case 'metal':
+      return true;
+    case 'glass':
+    case 'concrete':
+      return false;
+    default: {
+      const exhaustive: never = kind;
+      throw new Error(`Unhandled material bay: ${exhaustive}`);
+    }
+  }
+}
+
+/** UI kicks are ~1; soak/broad impulses can be 7–40. Keep the packed sheet
+ * inside the authored dent envelope instead of a membrane slap. */
+function metalPunchStrength(strength: number): number {
+  const finite = Number.isFinite(strength) ? strength : 1;
+  return clamp(finite > 2 ? finite / 8 : finite, 0.35, 1.6);
+}
+
+/** Horizontal metal sheet: span along X, depth along Z, punch along −Y. */
+function metalSpecimenUv(localPoint: Vec3): readonly [number, number] {
+  const recipe = getMaterialDemoRecipe(CHILD_RECIPES.metal);
+  const span = recipe?.span ?? 24;
+  const depth = recipe?.depth ?? 8.6;
+  return [
+    clamp(localPoint[0] / span + 0.5, 0, 1),
+    clamp(localPoint[2] / depth + 0.5, 0, 1),
+  ];
+}
+
+function childSceneFor(kind: MaterialBay): ScenePreset {
+  const recipeId = CHILD_RECIPES[kind];
+  const recipe = getMaterialDemoRecipe(recipeId);
+  if (!recipe || recipe.kind !== kind) {
+    throw new Error(`Combined bay '${kind}' must copy a ${kind} recipe; received '${recipeId}'.`);
+  }
+  const scene = sceneForMaterialDemo(recipeId);
+  const orientation = bayOrientation(kind);
+  const tags = scene.tags.filter((tag) => (
+    tag !== 'vertical'
+    && tag !== 'horizontal'
+    && tag !== 'upward'
+    && tag !== 'downward'
+    && tag !== 'water'
+    && tag !== 'cloth'
+  ));
+  return {
+    ...scene,
+    variant: recipe.profileVariant,
+    materialDemoId: recipeId,
+    tags: [
+      ...tags,
+      orientation,
+      bayUsesPackedMetalPunch(kind) ? 'packed-sheet' : 'tiled-cover',
+      'load-sign-down',
+    ],
+  };
+}
 
 const HASH_SEEDS: Readonly<Record<MaterialBay, number>> = {
   metal: 0x6d657461,
@@ -99,10 +180,12 @@ function allocateFairCounts(requested: readonly number[], budget: number): numbe
 /**
  * Three-bay material proving ground.
  *
- * Each bay owns a real MaterialSimulation with independent solver state. This
- * class only translates and merges presentation streams; it never aliases or
- * rewrites authoritative child positions, constraints, damage, or telemetry.
- * World contract remains Y-up, right-handed, one unit = one metre.
+ * Each bay owns a real MaterialSimulation copied from its individual lab
+ * recipe — never the combined hall's glass variant. Metal is a horizontal
+ * packed sheet with downward punch; glass and concrete stay brittle/tiled.
+ * This class only translates and merges presentation streams; it never
+ * aliases or rewrites authoritative child positions, constraints, damage,
+ * or telemetry. World contract remains Y-up, right-handed, one unit = one metre.
  */
 export class CombinedMaterialSimulation implements SoftSimulation {
   readonly kind = 'fracture' as const;
@@ -117,6 +200,9 @@ export class CombinedMaterialSimulation implements SoftSimulation {
   private readonly debugLines: DebugLine[] = [];
   private readonly telemetry: MaterialFailureTelemetry;
   private readonly frame: SoftSimulationFrame;
+  private readonly sheetVertices: PackedSurfaceBuffer;
+  private readonly sheetIndices: Uint16Array;
+  private readonly packedSheetResult: PackedSurfaceFrame;
   private frameVersion = 1;
   private builtFrameVersion = -1;
   private builtFrameDebug = false;
@@ -128,11 +214,11 @@ export class CombinedMaterialSimulation implements SoftSimulation {
   constructor(_scene: ScenePreset, stress: number, seed: number) {
     const safeStress = clamp(Math.round(stress), 1, 5);
     const baseSeed = seed >>> 0;
-    this.children = (Object.keys(CHILD_RECIPES) as MaterialBay[]).map((kind) => ({
+    this.children = BAY_ORDER.map((kind) => ({
       kind,
       offset: [...COMBINED_MATERIAL_OFFSETS[kind]] as Vec3,
       simulation: new MaterialSimulation(
-        sceneForMaterialDemo(CHILD_RECIPES[kind]),
+        childSceneFor(kind),
         safeStress,
         (baseSeed ^ HASH_SEEDS[kind]) >>> 0,
       ),
@@ -149,6 +235,28 @@ export class CombinedMaterialSimulation implements SoftSimulation {
       segmentCount: 0,
       topologyVersion: this.ropeTopologyVersion,
       frameVersion: this.frameVersion,
+    };
+    const metalIndex = this.children.findIndex((child) => child.kind === 'metal');
+    const metalSurface = metalIndex >= 0 ? initialFrames[metalIndex]?.surface : undefined;
+    const packedMetal = metalSurface && metalSurface.path === 'packed' && metalSurface.material === 'sheet'
+      ? metalSurface
+      : null;
+    const vertexCapacity = packedMetal
+      ? Math.max(1, Math.floor(packedMetal.vertices.byteLength / PACKED_SURFACE_VERTEX_BYTES))
+      : 1;
+    const indexCapacity = packedMetal ? Math.max(1, packedMetal.indices.length) : 1;
+    this.sheetVertices = new PackedSurfaceBuffer(vertexCapacity);
+    this.sheetIndices = new Uint16Array(indexCapacity);
+    this.packedSheetResult = {
+      path: 'packed',
+      material: 'sheet',
+      vertices: this.sheetVertices.data,
+      indices: this.sheetIndices,
+      vertexStride: PACKED_SURFACE_VERTEX_BYTES,
+      vertexCount: 0,
+      indexCount: 0,
+      topologyVersion: 1,
+      frameVersion: 1,
     };
 
     this.telemetry = {
@@ -168,6 +276,10 @@ export class CombinedMaterialSimulation implements SoftSimulation {
       fracturedCellCount: 0,
       fragmentCount: 0,
       reinforcementCount: 0,
+      elasticEnergy: 0,
+      plasticWork: 0,
+      dampingWork: 0,
+      contactWork: 0,
       failurePhase: 'elastic',
     };
     this.frame = {
@@ -212,14 +324,23 @@ export class CombinedMaterialSimulation implements SoftSimulation {
 
   kick(strength: number): void {
     if (this.destroyed) return;
-    for (const child of this.children) child.simulation.kick(strength);
+    for (const child of this.children) {
+      if (bayUsesPackedMetalPunch(child.kind)) child.simulation.dentStrike(metalPunchStrength(strength));
+      else child.simulation.kick(strength);
+    }
     this.changed();
   }
 
   explode(center: Vec3, strength: number, radius: number): void {
     if (this.destroyed) return;
     for (const child of this.children) {
-      child.simulation.explode(translatedPoint(center, child.offset), strength, radius);
+      const local = translatedPoint(center, child.offset);
+      if (bayUsesPackedMetalPunch(child.kind)) {
+        const [u, v] = metalSpecimenUv(local);
+        child.simulation.materialStrikeAt(u, v, metalPunchStrength(strength));
+      } else {
+        child.simulation.explode(local, strength, radius);
+      }
     }
     this.changed();
   }
@@ -241,7 +362,15 @@ export class CombinedMaterialSimulation implements SoftSimulation {
     if (this.destroyed) return -1;
     const child = this.nearestBay(position[0]);
     this.lastFocusedBay = child.kind;
-    const result = child.simulation.launchProjectile(translatedPoint(position, child.offset), velocity, size);
+    const local = translatedPoint(position, child.offset);
+    let result: number;
+    if (bayUsesPackedMetalPunch(child.kind)) {
+      const [u, v] = metalSpecimenUv(local);
+      const speed = Math.hypot(velocity[0], velocity[1], velocity[2]);
+      result = child.simulation.materialStrikeAt(u, v, metalPunchStrength(speed / 12));
+    } else {
+      result = child.simulation.launchProjectile(local, velocity, size);
+    }
     if (result >= 0) this.changed();
     return result;
   }
@@ -249,9 +378,11 @@ export class CombinedMaterialSimulation implements SoftSimulation {
   spawnRain(count: number, spread: number, height: number): number {
     if (this.destroyed) return 0;
     const requested = Math.max(0, Math.round(count));
-    const shares = allocateFairCounts(this.children.map(() => requested), requested);
+    const eligible = this.children.map((child) => (bayUsesPackedMetalPunch(child.kind) ? 0 : requested));
+    const shares = allocateFairCounts(eligible, requested);
     let spawned = 0;
     for (let i = 0; i < this.children.length; i++) {
+      if (shares[i] <= 0) continue;
       spawned += this.children[i].simulation.spawnRain(shares[i], Math.min(spread, 12), height);
     }
     if (spawned > 0) this.changed();
@@ -280,6 +411,10 @@ export class CombinedMaterialSimulation implements SoftSimulation {
     return this.materialStrikeTarget('all', strength);
   }
 
+  materialStrikeAt(u: number, v: number, strength: number, radiusScale = 1): number {
+    return this.materialStrikeAtTarget(this.lastFocusedBay, u, v, strength, radiusScale);
+  }
+
   setMaterialLoadTarget(target: CombinedMaterialTarget, value: number): void {
     if (this.destroyed) return;
     const safeValue = clamp(Number.isFinite(value) ? value : 0, 0, 2);
@@ -302,6 +437,24 @@ export class CombinedMaterialSimulation implements SoftSimulation {
       const result = child.kind === 'metal'
         ? child.simulation.dentStrike(strength)
         : child.simulation.materialStrike(strength);
+      if (firstResult < 0 && result >= 0) firstResult = result;
+      this.lastFocusedBay = child.kind;
+    }
+    if (firstResult >= 0) this.changed();
+    return firstResult;
+  }
+
+  materialStrikeAtTarget(
+    target: CombinedMaterialTarget,
+    u: number,
+    v: number,
+    strength: number,
+    radiusScale = 1,
+  ): number {
+    if (this.destroyed) return -1;
+    let firstResult = -1;
+    for (const child of this.targets(target)) {
+      const result = child.simulation.materialStrikeAt(u, v, strength, radiusScale);
       if (firstResult < 0 && result >= 0) firstResult = result;
       this.lastFocusedBay = child.kind;
     }
@@ -379,6 +532,29 @@ export class CombinedMaterialSimulation implements SoftSimulation {
     this.ropeGrid.frameVersion = this.frameVersion;
   }
 
+  private mergeSheetSurface(childFrames: readonly SoftSimulationFrame[]): PackedSurfaceFrame | null {
+    for (let childIndex = 0; childIndex < childFrames.length; childIndex++) {
+      if (!bayUsesPackedMetalPunch(this.children[childIndex].kind)) continue;
+      const source = childFrames[childIndex].surface;
+      if (!source || source.path !== 'packed' || source.material !== 'sheet') continue;
+      const offset = this.children[childIndex].offset;
+      const vertexCount = Math.min(source.vertexCount, Math.floor(this.sheetVertices.data.byteLength / PACKED_SURFACE_VERTEX_BYTES));
+      const indexCount = Math.min(source.indexCount, this.sheetIndices.length);
+      if (vertexCount <= 0 || indexCount <= 0) continue;
+      this.sheetVertices.data.set(source.vertices.subarray(0, vertexCount * PACKED_SURFACE_VERTEX_BYTES));
+      this.sheetIndices.set(source.indices.subarray(0, indexCount));
+      translatePackedSurfacePositions(this.sheetVertices.data, vertexCount, offset[0], offset[1], offset[2]);
+      this.packedSheetResult.vertexCount = vertexCount;
+      this.packedSheetResult.indexCount = indexCount;
+      this.packedSheetResult.topologyVersion = source.topologyVersion;
+      this.packedSheetResult.frameVersion = this.frameVersion;
+      return this.packedSheetResult;
+    }
+    this.packedSheetResult.vertexCount = 0;
+    this.packedSheetResult.indexCount = 0;
+    return null;
+  }
+
   private mergeDebugLines(childFrames: readonly SoftSimulationFrame[], debug: boolean): void {
     this.debugLines.length = 0;
     if (!debug) return;
@@ -414,6 +590,10 @@ export class CombinedMaterialSimulation implements SoftSimulation {
     let fracturedCellCount = 0;
     let fragmentCount = 0;
     let reinforcementCount = 0;
+    let elasticEnergy = 0;
+    let plasticWork = 0;
+    let dampingWork = 0;
+    let contactWork = 0;
     let failureRank = 0;
     for (const material of materials) {
       loadTarget += material.loadTarget;
@@ -430,6 +610,10 @@ export class CombinedMaterialSimulation implements SoftSimulation {
       fracturedCellCount += material.fracturedCellCount;
       fragmentCount += material.fragmentCount;
       reinforcementCount += material.reinforcementCount;
+      elasticEnergy += material.elasticEnergy ?? 0;
+      plasticWork += material.plasticWork ?? 0;
+      dampingWork += material.dampingWork ?? 0;
+      contactWork += material.contactWork ?? 0;
       failureRank = Math.max(failureRank, phaseRank(material.failurePhase));
     }
     const inverseCount = 1 / materials.length;
@@ -447,6 +631,10 @@ export class CombinedMaterialSimulation implements SoftSimulation {
     this.telemetry.fracturedCellCount = fracturedCellCount;
     this.telemetry.fragmentCount = fragmentCount;
     this.telemetry.reinforcementCount = reinforcementCount;
+    this.telemetry.elasticEnergy = elasticEnergy;
+    this.telemetry.plasticWork = plasticWork;
+    this.telemetry.dampingWork = dampingWork;
+    this.telemetry.contactWork = contactWork;
     this.telemetry.failurePhase = phaseForRank(failureRank);
     this.telemetry.testMode = `coordinated three-bay failure · focus ${this.lastFocusedBay} · ${phaseForRank(failureRank)}`;
   }
@@ -458,6 +646,7 @@ export class CombinedMaterialSimulation implements SoftSimulation {
     this.frame.instanceCount = this.mergeInstances(childFrames);
     this.mergeRopeGrids(childFrames);
     this.mergeDebugLines(childFrames, debug);
+    this.frame.surface = this.mergeSheetSurface(childFrames);
     this.updateTelemetry(childFrames);
     this.frame.nodeCount = childFrames.reduce((sum, childFrame) => sum + childFrame.nodeCount, 0);
     this.frame.constraintCount = childFrames.reduce((sum, childFrame) => sum + childFrame.constraintCount, 0);

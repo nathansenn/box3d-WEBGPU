@@ -113,7 +113,9 @@ export class CinematicEffects {
         half: [size, size * this.rng.range(0.5, 2.4), size],
         color: i < hotCount
           ? hexColor(i % 3 === 0 ? 0xfff1a8 : i % 3 === 1 ? 0xff8a2a : 0xff3b1f, this.rng.range(4, 9))
-          : hexColor(i % 2 ? 0x536174 : 0x2c3442, this.rng.range(1.05, 1.35)),
+          // Material ID 6 routes smoke through the depth-reading translucent
+          // particle pass instead of treating it as an opaque emissive cube.
+          : hexColor(i % 2 ? 0x536174 : 0x2c3442, -6),
         life,
         maxLife: life,
         gravity: i < hotCount ? 10.5 : 1.6,
@@ -196,7 +198,9 @@ export class CinematicEffects {
       speed: 7 + safeIntensity * 4,
       life: 0.42,
       maxLife: 0.42,
-      color: [1, 0.62, 0.18, 0.92],
+      // Retain the deterministic impulse marker used by diagnostics, but keep
+      // it subordinate to the physical flakes and contact flash.
+      color: [0.72, 0.76, 0.80, 0.14],
     });
     this.addCameraShake(0.18 + safeIntensity * 0.14);
     this.finalizeSpawn(budget);
@@ -245,7 +249,7 @@ export class CinematicEffects {
       speed: 5.5 + safeIntensity * 3,
       life: 0.72,
       maxLife: 0.72,
-      color: [0.78, 0.70, 0.58, 0.58],
+      color: [0.58, 0.55, 0.50, 0.12],
     });
     this.addCameraShake(0.22 + safeIntensity * 0.18);
     this.finalizeSpawn(budget);
@@ -281,7 +285,7 @@ export class CinematicEffects {
       speed: 9 + safeIntensity * 4,
       life: 0.54,
       maxLife: 0.54,
-      color: [0.52, 0.90, 1, 0.9],
+      color: [0.70, 0.84, 0.88, 0.16],
       plane: 'vertical',
     });
     this.addCameraShake(0.16 + safeIntensity * 0.12);
@@ -302,7 +306,8 @@ export class CinematicEffects {
         rot: [this.rng.signed(Math.PI), this.rng.signed(Math.PI), this.rng.signed(Math.PI)],
         angularVelocity: [this.rng.signed(2), this.rng.signed(2), this.rng.signed(2)],
         half: [size, size * this.rng.range(0.5, 1.3), size],
-        color: hexColor(i % 3 === 0 ? 0xcbbfa6 : 0x667085, 1.08),
+        // Impact dust is participating media, not a glowing solid body.
+        color: hexColor(i % 3 === 0 ? 0xcbbfa6 : 0x667085, -6),
         life,
         maxLife: life,
         gravity: 2.8,

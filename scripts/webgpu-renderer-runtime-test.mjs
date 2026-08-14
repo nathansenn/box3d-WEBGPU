@@ -211,6 +211,22 @@ const clothRenderMs = renderer.render(1, []);
 assert.ok(Number.isFinite(clothRenderMs) && clothRenderMs >= 0, 'actual renderer must submit a cloth shadow/surface frame');
 await renderer.device.queue.onSubmittedWorkDone();
 
+const sheetBytes = renderer.uploadSurface({
+  path: 'packed',
+  material: 'sheet',
+  vertices: surfaceVertices,
+  indices: surfaceIndices,
+  vertexStride: 24,
+  vertexCount: 4,
+  indexCount: 6,
+  topologyVersion: 2,
+  frameVersion: 2,
+});
+assert.equal(sheetBytes, surfaceVertices.byteLength + surfaceIndices.byteLength, 'sheet skin must upload packed vertices and topology');
+const sheetRenderMs = renderer.render(1, []);
+assert.ok(Number.isFinite(sheetRenderMs) && sheetRenderMs >= 0, 'actual renderer must submit an interpolated sheet frame');
+await renderer.device.queue.onSubmittedWorkDone();
+
 const gpuClothPositions = new Float32Array(surfacePositions.flat());
 const gpuClothRestPositions = new Float32Array(surfacePositions.flat());
 const gpuClothFrame = {

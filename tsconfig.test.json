@@ -8,6 +8,7 @@
     "rootDir": "."
   },
   "include": [
+    "src/vite-env.d.ts",
     "src/math.ts",
     "src/types.ts",
     "src/scenes.ts",

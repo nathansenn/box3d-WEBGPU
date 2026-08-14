@@ -197,7 +197,7 @@ const allIds = [...html.matchAll(/id=["']([^"']+)["']/g)].map((match) => match[1
 assert.equal(new Set(allIds).size, allIds.length, 'index.html contains duplicate ids');
 assert.ok(html.includes(`AAA Physics Capability Lab · v${currentVersion}`), `UI release badge must match package v${currentVersion}`);
 assert.match(html, /800 deterministic recipes/, 'UI must advertise the complete 800-scene catalog');
-assert.match(html, /Run 800 \+ 65 State Tests/, 'UI state-test label must match the stable 800-scene and expanded 65-showcase matrix');
+assert.match(html, /Run 800 \+ 68 State Tests/, 'UI state-test label must match the stable 800-scene and expanded 68-showcase matrix');
 
 const showcases = read('src/showcases.ts');
 const legacyShowcaseDefinitions = [...showcases.matchAll(/\bid:\s*'[^']+'\s*,\s*sceneId:/g)];
@@ -205,12 +205,12 @@ assert.equal(legacyShowcaseDefinitions.length, 34, 'expected exactly 34 literal 
 assert.match(
   showcases,
   /const\s+MATERIAL_DEMO_DEFINITIONS[^=]*=\s*MATERIAL_DEMO_RECIPES\.map\s*\(/s,
-  'the 31 material demos must be mapped programmatically into hero definitions',
+  'the 34 material demos must be mapped programmatically into hero definitions',
 );
 assert.match(
   showcases,
   /const\s+DEFINITIONS[^=]*=\s*\[[\s\S]*?\.\.\.CORE_DEFINITIONS[\s\S]*?\.\.\.MATERIAL_DEMO_DEFINITIONS[\s\S]*?\]/,
-  'the public hero registry must combine the 34 legacy and 31 material definitions',
+  'the public hero registry must combine the 34 legacy and 34 material definitions',
 );
 assert.match(showcases, /titan-metal-bend-and-dent/, 'showcases need the dedicated metal bend-and-dent hero');
 assert.match(showcases, /action: 'dent-strike'/, 'metal dent hero needs an instrumented strike beat');
@@ -227,16 +227,16 @@ const materialDemoEntries = [...materialDemos.matchAll(/\bid:\s*'([^']+)'\s*,\s*
 const materialDemoIds = materialDemoEntries.map((match) => match[1]);
 const materialDemoKinds = materialDemoEntries.map((match) => match[2]);
 const countMaterialKind = (kind) => materialDemoKinds.filter((candidate) => candidate === kind).length;
-assert.equal(materialDemoEntries.length, 31, 'material demo registry must expose exactly 31 recipes');
-assert.equal(new Set(materialDemoIds).size, 31, 'material demo recipe IDs must be unique');
-assert.equal(countMaterialKind('metal'), 10, 'material demo registry must expose exactly 10 metal presentations');
+assert.equal(materialDemoEntries.length, 34, 'material demo registry must expose exactly 34 recipes');
+assert.equal(new Set(materialDemoIds).size, 34, 'material demo recipe IDs must be unique');
+assert.equal(countMaterialKind('metal'), 13, 'material demo registry must expose exactly 13 metal presentations');
 assert.equal(countMaterialKind('glass'), 10, 'material demo registry must expose exactly 10 glass presentations');
 assert.equal(countMaterialKind('concrete'), 10, 'material demo registry must expose exactly 10 concrete presentations');
 assert.equal(countMaterialKind('combined'), 1, 'material demo registry must expose exactly one combined AAA presentation');
 assert.match(
   materialDemos,
   /MATERIAL_DEMO_RECIPES[^=]*=\s*\[[\s\S]*?\.\.\.METAL_DEMOS[\s\S]*?\.\.\.GLASS_DEMOS[\s\S]*?\.\.\.CONCRETE_DEMOS[\s\S]*?COMBINED_DEMO[\s\S]*?\]/,
-  'material demo registry must preserve the 10/10/10/1 source collections',
+  'material demo registry must preserve the metal/glass/concrete/combined source collections',
 );
 assert.match(
   materialDemos,
@@ -319,6 +319,7 @@ for (const marker of [
   'shadowTapCount',
   'surfaceShadowPipeline',
   'clothDescriptor',
+  'sheetDescriptor',
   'gpuClothShadowPipeline',
   'gpuClothDescriptor',
   'gpuWaterDescriptor',
@@ -471,4 +472,4 @@ for (const releaseDocument of [
 assert.ok(read('VALIDATION_REPORT.md').includes(`v${currentVersion}`), 'validation report title must match package version');
 assert.ok(html.includes(`v${currentVersion}`), 'application release badge must match package version');
 
-console.log(`✅ repository self-test passed: v${currentVersion} exact 100-improvement signature-stage registry, safe controls, synchronized pause/director behavior, 10 metal + 10 glass + 10 concrete presentations, one combined AAA materials proving ground, preserved performance evidence, native Box3D WASM, qualified soft kernels, GPU cloth/water, compute-expanded rope/material lattices, upload caches, 65 hero sequences over the stable 800-scene catalog, workflows, and UI contracts`);
+console.log(`✅ repository self-test passed: v${currentVersion} exact 100-improvement signature-stage registry, safe controls, synchronized pause/director behavior, 13 metal + 10 glass + 10 concrete presentations, one combined AAA materials proving ground, preserved performance evidence, native Box3D WASM, qualified soft kernels, GPU cloth/water, compute-expanded rope/material lattices, upload caches, 68 hero sequences over the stable 800-scene catalog, workflows, and UI contracts`);

@@ -3,7 +3,7 @@
   "version": "1.20.0",
   "private": true,
   "type": "module",
-  "description": "Box3D WebGPU AAA Physics Lab with native Box3D WASM, Poliigon-derived KTX2 materials, GPU cloth/rope/water, 800 deterministic recipes, 65 cinematic demos, and 31 authored metal, glass, concrete, and combined material programs.",
+  "description": "Box3D WebGPU AAA Physics Lab with native Box3D WASM, Poliigon-derived KTX2 materials, GPU cloth/rope/water, 800 deterministic recipes, 68 cinematic demos, and 34 authored metal, glass, concrete, and combined material programs.",
   "scripts": {
     "dev": "vite --host 0.0.0.0",
     "build": "vite build",
@@ -19,7 +19,7 @@
     "manifest:source": "bash ./scripts/generate-source-manifest.sh",
     "verify:source": "bash ./scripts/verify-source-manifest.sh",
     "typecheck": "tsc --noEmit",
-    "test": "npm run typecheck && rm -rf .test-build && tsc -p tsconfig.test.json && node -e \"require('fs').mkdirSync('.test-build', {recursive:true}); require('fs').writeFileSync('.test-build/package.json', '{\\\"type\\\":\\\"commonjs\\\"}')\" && node .test-build/tests/unit.test.js && node scripts/self-test.mjs && npm run test:cbridge && npm run test:soft-kernels && npm run test:webgpu",
+    "test": "npm run typecheck && rm -rf .test-build && tsc -p tsconfig.test.json && node -e \"require('fs').mkdirSync('.test-build', {recursive:true}); require('fs').writeFileSync('.test-build/package.json', '{\\\"type\\\":\\\"commonjs\\\"}')\" && node .test-build/tests/unit.test.js && node .test-build/tests/engineering-evidence.test.js && node scripts/self-test.mjs && npm run test:cbridge && npm run test:soft-kernels && npm run test:webgpu",
     "validate": "npm test && npm run build",
     "clean": "rm -rf dist .test-build .bench-build build/box3d-wasm",
     "test:ktx2": "node scripts/ktx2-runtime-test.mjs",
@@ -124,5 +124,11 @@
     "vector-quantization",
     "state-compression",
     "ktx2"
-  ]
+  ],
+  "dependencies": {
+    "@fontsource/barlow-condensed": "^5.3.0",
+    "@fontsource/ibm-plex-mono": "^5.3.0",
+    "@fontsource/inter": "^5.3.0",
+    "@phosphor-icons/web": "^2.1.2"
+  }
 }
