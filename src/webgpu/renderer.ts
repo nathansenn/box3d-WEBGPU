@@ -92,9 +92,11 @@ fn fresnelSchlick(cosTheta : f32, f0 : vec3<f32>) -> vec3<f32> {
 fn sampleShadow(shadowPosition : vec4<f32>, normal : vec3<f32>, lightDirection : vec3<f32>) -> f32 {
   let projected = shadowPosition.xyz / max(shadowPosition.w, 0.0001);
   let uv = vec2<f32>(projected.x * 0.5 + 0.5, 0.5 - projected.y * 0.5);
-  if (uv.x <= 0.0 || uv.x >= 1.0 || uv.y <= 0.0 || uv.y >= 1.0 || projected.z <= 0.0 || projected.z >= 1.0) {
-    return 1.0;
-  }
+  // textureSampleCompare requires uniform control flow, so no early return
+  // here: sample with clamped coordinates and select the out-of-bounds value.
+  let inBounds = uv.x > 0.0 && uv.x < 1.0 && uv.y > 0.0 && uv.y < 1.0 && projected.z > 0.0 && projected.z < 1.0;
+  let clampedUv = clamp(uv, vec2<f32>(0.0), vec2<f32>(1.0));
+  let clampedDepth = clamp(projected.z, 0.0, 1.0);
 
   let dimensions = vec2<f32>(textureDimensions(shadowMap));
   let texel = vec2<f32>(1.0) / dimensions;
@@ -105,10 +107,10 @@ fn sampleShadow(shadowPosition : vec4<f32>, normal : vec3<f32>, lightDirection :
   for (var x : i32 = -1; x <= 1; x = x + 1) {
     for (var y : i32 = -1; y <= 1; y = y + 1) {
       let offset = vec2<f32>(f32(x), f32(y)) * texel * 1.25;
-      visibility = visibility + textureSampleCompare(shadowMap, shadowSampler, uv + offset, projected.z - bias);
+      visibility = visibility + textureSampleCompare(shadowMap, shadowSampler, clampedUv + offset, clampedDepth - bias);
     }
   }
-  return visibility / 9.0;
+  return select(1.0, visibility / 9.0, inBounds);
 }
 
 @fragment
