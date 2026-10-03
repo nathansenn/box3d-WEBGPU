@@ -55,7 +55,7 @@ export class RiverWater extends Mesh<PlaneGeometry, NodeMaterial> {
           const slope=cos(behind.mul(13.96)).mul(env).mul(e.w).mul(1.4);
           gx.addAssign(d.x.div(r).mul(slope));gz.addAssign(d.y.div(r).mul(slope));
           const patch=exp(r.div(age.mul(.55).add(.4)).pow(2).negate()).mul(exp(age.mul(-.3)));
-          const crest=exp(behind.div(.13).pow(2).negate()).mul(exp(age.mul(-.8)));
+          const crest=exp(behind.div(.08).pow(2).negate()).mul(exp(age.mul(-1.1))).mul(.8);
           froth.addAssign(patch.add(crest).mul(e.w));
         });
       });
@@ -63,7 +63,7 @@ export class RiverWater extends Mesh<PlaneGeometry, NodeMaterial> {
         const c=this.contacts.element(i);
         If(c.z.greaterThan(0),()=>{
           const d=p.sub(c.xy),r=length(d).max(.001);
-          const slope=cos(r.mul(16).sub(this.impactClock.mul(7))).mul(exp(r.mul(-2.2))).mul(c.z).mul(.12);
+          const slope=cos(r.mul(16).sub(this.impactClock.mul(7))).mul(exp(r.mul(-1.6))).mul(c.z).mul(.06);
           gx.addAssign(d.x.div(r).mul(slope));gz.addAssign(d.y.div(r).mul(slope));
           froth.addAssign(exp(r.div(.5).pow(2).negate()).mul(c.z).mul(.55));
         });

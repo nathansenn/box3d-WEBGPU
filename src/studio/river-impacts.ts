@@ -57,7 +57,7 @@ export class RiverSplash extends T.InstancedMesh {
    * 'mist': soft aerated puffs that billow from the impact and drift with the current. */
   constructor(readonly kind: SplashKind = 'drops') {
     const mist = kind === 'mist';
-    const material = new T.MeshStandardNodeMaterial({ color: mist ? '#f2f6f4' : '#dfe9e8', roughness: mist ? 1 : .55, metalness: 0, transparent: true, opacity: mist ? .14 : .5, depthWrite: false });
+    const material = new T.MeshStandardNodeMaterial({ color: mist ? '#f2f6f4' : '#dfe9e8', roughness: mist ? 1 : .55, metalness: 0, transparent: true, opacity: mist ? .1 : .38, depthWrite: false });
     super(new T.IcosahedronGeometry(1, 2), material, MAX_SPLASHES * (mist ? MIST_PER_SPLASH : DROPS_PER_SPLASH));
     this.frustumCulled = false; this.castShadow = false; this.receiveShadow = false; this.count = 0; this.visible = false;
   }
