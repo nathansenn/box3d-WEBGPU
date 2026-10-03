@@ -1,0 +1,14 @@
+{
+  "16-live-fracture.jpg": {
+    "sha256": "33f4b20480139af9631b5305cefa59e172ebb2cab99aa228c4724377b0156644",
+    "bytes": 124281
+  },
+  "17-live-replay-start.jpg": {
+    "sha256": "badcdf5148285f6989e86c5335a1ff55cefebc0f00fb9baa168282011a1d429c",
+    "bytes": 122740
+  },
+  "18-stable-preview.jpg": {
+    "sha256": "fb9564f462a07da83409c21205690b2283007a2faca86bb9994b99bcfbaef22c",
+    "bytes": 121443
+  }
+}

@@ -1,0 +1,1548 @@
+{
+  "schema": "box3d.engine-roadmap-status/1",
+  "objective": "Implement and qualify all 100 roadmap enhancements. Do not treat partial implementations or scaffolding as completed acceptance.",
+  "baseline": "benchmarks/results/engine-100x/baseline-manifest.json",
+  "items": [
+    {
+      "id": 1,
+      "priority": "P0",
+      "enhancement": "Establish a current baseline that includes both the default Studio and workbench, with source, WASM, assets, browser, quality, and seed identities. Preserve the old frozen tournament as historical evidence.",
+      "acceptance": "Reproduce each baseline from its manifest; distinguish cold/warm, active/settled, and current/historical results.",
+      "status": "partial",
+      "evidence": [
+        "benchmarks/results/engine-100x/baseline-manifest.json",
+        "scripts/engine-baseline.mjs",
+        "benchmarks/results/engine-100x/runs/water-render-crossover-20260910-01/manifest.json",
+        "benchmarks/results/engine-100x/verification-studio-storage-20260910/",
+        "docs/NATIVE_WORLDS.md",
+        "benchmarks/results/engine-100x/verification-native-worlds-20260910/",
+        "benchmarks/results/engine-100x/runs/closed-water-render-crossover-20260910-01/integrity-review.json",
+        "benchmarks/results/engine-100x/runs/closed-water-render-crossover-20260910-02/integrity-review.json",
+        "benchmarks/results/engine-100x/verification-closed-water-frames-20260910/"
+      ],
+      "remaining": [
+        "Frozen CPU and GPU-water inputs are identified; a complete cold/warm baseline for the new eight-study entry and all active/settled browser states remains."
+      ]
+    },
+    {
+      "id": 2,
+      "priority": "P0",
+      "enhancement": "Instrument CPU stepping, snapshots, geometry staging, command encoding, and feature-gated GPU pass timestamps. Use a nonblocking ring of query/readback buffers.",
+      "acceptance": "Attribute p50/p95/p99 costs by stage; unsupported timestamps display unavailable; no per-frame GPU wait.",
+      "status": "partial",
+      "evidence": [
+        "src/perf/frame-clock.ts",
+        "src/webgpu/gpu-timing.ts",
+        "tests/engine/gpu-timing.test.mjs",
+        "src/webgpu/water-telemetry.ts"
+      ],
+      "remaining": [
+        "Raw WebGPU stages and CPU runtime stages are instrumented; Three.js GPU pass timing and cross-device distributions remain."
+      ]
+    },
+    {
+      "id": 3,
+      "priority": "P0",
+      "enhancement": "Build capacity sweeps for active rigids, cloth nodes, water cells, contacts, material constraints, transparent instances, and recording duration.",
+      "acceptance": "Record the largest passing workload at fixed quality/error and 16.67 ms p95 / 25 ms p99 interactive targets; derive `N0` from evidence.",
+      "status": "partial",
+      "evidence": [
+        "scripts/engine-benchmark.mjs",
+        "scripts/gpu-water-benchmark.mjs",
+        "benchmarks/results/engine-100x/runs/water-render-crossover-20260910-01/result.json",
+        "docs/NATIVE_CAPACITY.md",
+        "benchmarks/results/engine-100x/runs/closed-water-render-crossover-20260910-01/integrity-review.json",
+        "benchmarks/results/engine-100x/runs/closed-water-render-crossover-20260910-02/integrity-review.json",
+        "benchmarks/results/engine-100x/verification-closed-water-frames-20260910/"
+      ],
+      "remaining": [
+        "Water through 1048576 cells and dense native contact-pair scenes through 65536 bodies are measured with fixed quality. Rigid browser/cloth/contact interactive capacity frontiers and the maximum sustained passing workload remain."
+      ]
+    },
+    {
+      "id": 4,
+      "priority": "P0",
+      "enhancement": "Extend the benchmark gate to current Studio and complete frame workloads using isolated runs, balanced baseline/candidate order, and an unchanged control population.",
+      "acceptance": "Reject material regressions using predeclared thresholds and confidence intervals; preserve raw samples and source identities.",
+      "status": "partial",
+      "evidence": [
+        "scripts/engine-check.mjs",
+        "tests/engine/harness.test.mjs",
+        "benchmarks/results/engine-100x/runs/studio-cpu-foundation-20260910-01/gate.json",
+        "scripts/gpu-water-benchmark.mjs",
+        "tests/engine/water-benchmark.test.mjs",
+        "benchmarks/results/engine-100x/runs/water-render-crossover-20260910-01/integrity-review.json",
+        "benchmarks/results/engine-100x/runs/studio-cpu-optimized-20260910-03/gate-clock-resolution-review.json",
+        "benchmarks/results/engine-100x/runs/closed-water-render-crossover-20260910-01/integrity-review.json",
+        "benchmarks/results/engine-100x/runs/closed-water-render-crossover-20260910-02/integrity-review.json",
+        "benchmarks/results/engine-100x/verification-closed-water-frames-20260910/",
+        "src/engine/frame-element.ts",
+        "src/engine/frame-runtime.ts",
+        "src/engine/frame-probe.ts",
+        "tests/engine/frame.test.mjs",
+        "tests/qualification/frame-evidence.test.mjs",
+        "scripts/frame-qualify.mjs",
+        "docs/FRAME_MECHANICS.md",
+        "benchmarks/results/engine-100x/runs/frame-accuracy-20260911-04/integrity-review.json",
+        "benchmarks/results/engine-100x/verification-frame-20260911/"
+      ],
+      "remaining": [
+        "The inherited absorbing water comparison retains its historical declared gains. Both closed C-grid comparisons pass full-field/physical-source audits but fail unchanged GPU timing controls. Studio CPU controls and complete browser-frame qualification remain open; new timing attempts require changed, verified quieter conditions."
+      ]
+    },
+    {
+      "id": 5,
+      "priority": "P0",
+      "enhancement": "Add numerical acceptance suites beyond finite-state/hash tests: constraint residuals, penetration, momentum, mass, strain, energy/work, and failure sequence. First reconcile the plate plasticity assertion that failed after the concurrent press changes.",
+      "acceptance": "Each solver has a declared error envelope and long-horizon/action stress cases; exact optimizations retain exact reference output; intended press behavior and tests agree.",
+      "status": "partial",
+      "evidence": [
+        "tests/studio/press-lab.test.mjs",
+        "tests/engine/studio-state.test.mjs",
+        "tests/engine/solver-exact.test.mjs",
+        "scripts/gpu-water-qualify.mjs",
+        "benchmarks/results/engine-100x/gpu-water-metal-20260910-03.json",
+        "benchmarks/results/engine-100x/gpu-water-metal-20260910-04.json",
+        "src/engine/closed-water.ts",
+        "tests/engine/closed-water.test.mjs",
+        "scripts/closed-water-check.mjs",
+        "docs/CLOSED_WATER.md",
+        "benchmarks/results/engine-100x/runs/closed-water-accuracy-20260910-03/integrity-review.json",
+        "benchmarks/results/engine-100x/runs/closed-water-render-crossover-20260910-01/integrity-review.json",
+        "benchmarks/results/engine-100x/runs/closed-water-render-crossover-20260910-02/integrity-review.json",
+        "benchmarks/results/engine-100x/verification-closed-water-frames-20260910/",
+        "src/engine/compliant-cable.ts",
+        "tests/engine/compliant-cable.test.mjs",
+        "scripts/cable-qualify.mjs",
+        "scripts/cable-check.mjs",
+        "docs/COMPLIANT_CABLE.md",
+        "benchmarks/results/engine-100x/runs/compliant-cable-accuracy-20260910-04/integrity-review.json",
+        "benchmarks/results/engine-100x/verification-compliant-cable-20260910/",
+        "docs/NONLINEAR_CABLE.md",
+        "benchmarks/results/engine-100x/runs/proximal-cable-accuracy-20260911-02/integrity-review.json",
+        "benchmarks/results/engine-100x/verification-proximal-cable-20260911/"
+      ],
+      "remaining": [
+        "Closed water, axial XPBD and nonlinear elastic/hard cable solves have independent physical-reference suites. Other solvers, bending/contact/coupling, nonlinear fluid effects and empirical calibration remain."
+      ]
+    },
+    {
+      "id": 6,
+      "priority": "P0",
+      "enhancement": "Introduce a shared engine/model adapter for Studio and workbench, covering commands, stepping, topology versions, state, and telemetry. Preserve each model's identity during migration.",
+      "acceptance": "Run one model headlessly and in both shells with identical fixed-step commands and outputs; no UI-dependent physics behavior.",
+      "status": "partial",
+      "evidence": [
+        "src/engine/contracts.ts",
+        "src/engine/studio-runtime.ts",
+        "src/engine/workbench-runtime.ts",
+        "src/studio/main.ts",
+        "src/main.ts",
+        "src/engine/linear-water.ts",
+        "src/webgpu/linear-water.ts",
+        "docs/GPU_WATER_API.md",
+        "src/engine/compliant-cable.ts",
+        "tests/engine/compliant-cable.test.mjs",
+        "scripts/cable-qualify.mjs",
+        "scripts/cable-check.mjs",
+        "docs/COMPLIANT_CABLE.md",
+        "benchmarks/results/engine-100x/runs/compliant-cable-accuracy-20260910-04/integrity-review.json",
+        "benchmarks/results/engine-100x/verification-compliant-cable-20260910/",
+        "docs/NONLINEAR_CABLE.md",
+        "benchmarks/results/engine-100x/runs/proximal-cable-accuracy-20260911-02/integrity-review.json",
+        "benchmarks/results/engine-100x/verification-proximal-cable-20260911/",
+        "src/engine/frame-element.ts",
+        "src/engine/frame-runtime.ts",
+        "src/engine/frame-probe.ts",
+        "tests/engine/frame.test.mjs",
+        "tests/qualification/frame-evidence.test.mjs",
+        "scripts/frame-qualify.mjs",
+        "docs/FRAME_MECHANICS.md",
+        "benchmarks/results/engine-100x/runs/frame-accuracy-20260911-04/integrity-review.json",
+        "benchmarks/results/engine-100x/verification-frame-20260911/"
+      ],
+      "remaining": [
+        "Studio, workbench and GPU-water model identities remain distinct. The five new material labs and all legacy command/evidence paths are not yet migrated to one adapter contract."
+      ]
+    },
+    {
+      "id": 7,
+      "priority": "P0",
+      "enhancement": "Replace scattered backend assumptions with one capability registry: model/solver ID, JS/scalar/SIMD/threaded/GPU mode, render backend, limits, and guarantees. Extend existing badges and diagnostics.",
+      "acceptance": "Every run/export records the actual selected capabilities; unsupported combinations fail or select an explicitly identified fallback.",
+      "status": "partial",
+      "evidence": [
+        "src/engine/contracts.ts",
+        "src/engine/workbench-runtime.ts",
+        "src/studio/main.ts",
+        "src/webgpu/linear-water.ts",
+        "src/webgpu/resident-water-surface.ts"
+      ],
+      "remaining": [
+        "GPU water declares model identity, fixed timestep, buffer ownership and limits. A complete registry across all eight studies and renderer fallbacks remains."
+      ]
+    },
+    {
+      "id": 8,
+      "priority": "P1",
+      "enhancement": "Expose a headless `create → command → step → inspect → destroy` runtime API instead of relying on DOM-driven orchestration for experiments.",
+      "acceptance": "The same command file runs in a Node/browser worker harness and interactive shell; every instance releases owned resources.",
+      "status": "implemented",
+      "evidence": [
+        "src/engine/studio-runtime.ts",
+        "src/engine/workbench-runtime.ts",
+        "tests/engine/runtime.test.mjs",
+        "tests/engine/worker.test.mjs"
+      ],
+      "remaining": [
+        "Additional command-file examples and native-backed headless qualification remain."
+      ]
+    },
+    {
+      "id": 9,
+      "priority": "P1",
+      "enhancement": "Compile native and preview scenes from a common versioned recipe representation instead of maintaining parallel procedural family staging.",
+      "acceptance": "Compare shapes, transforms, materials, and actions for all 800 recipes and 65 hero definitions; record intentional backend differences.",
+      "status": "not_started",
+      "evidence": [],
+      "remaining": []
+    },
+    {
+      "id": 10,
+      "priority": "P0",
+      "enhancement": "Give engineering recording a telemetry-only path. `recordEngineeringFixedStep()` currently calls `soft.buildFrame(false)` and native hashing on every recorded tick.",
+      "acceptance": "Record the required 60 Hz channels without building render geometry per tick; at most one presentation build per displayed state; preserve evidence semantics.",
+      "status": "implemented",
+      "evidence": [
+        "src/soft/simulations.ts",
+        "src/soft/material-simulation.ts",
+        "src/soft/combined-material-simulation.ts",
+        "src/main.ts",
+        "tests/engine/soft-telemetry.test.mjs"
+      ],
+      "remaining": [
+        "Full recording-path performance qualification remains; combined material preserves existing full-state hashing."
+      ]
+    },
+    {
+      "id": 11,
+      "priority": "P1",
+      "enhancement": "Move fixed-step native/soft/Studio stepping into a dedicated worker behind the shared contract. Keep command order and model time authoritative there.",
+      "acceptance": "UI remains responsive during a deliberately overloaded simulation; command-to-visible-state latency is measured; same-backend replay still passes.",
+      "status": "partial",
+      "evidence": [
+        "src/engine/studio-worker.ts",
+        "src/engine/studio-client.ts",
+        "src/studio/main.ts",
+        "tests/engine/worker.test.mjs"
+      ],
+      "remaining": [
+        "Native, legacy soft, and the five newly authored material-lab solvers still need worker migration and command-to-visible latency qualification."
+      ]
+    },
+    {
+      "id": 12,
+      "priority": "P1",
+      "enhancement": "Add a reusable transferable snapshot pool with ownership states and backpressure for deployments without shared memory.",
+      "acceptance": "No detached-buffer reuse or unbounded message queue; measure transport overhead against the current direct path.",
+      "status": "implemented",
+      "evidence": [
+        "src/engine/studio-dispatcher.ts",
+        "src/engine/studio-client.ts",
+        "tests/engine/worker.test.mjs"
+      ],
+      "remaining": [
+        "Cross-device transport timing qualification remains."
+      ]
+    },
+    {
+      "id": 13,
+      "priority": "P1",
+      "enhancement": "Add an optional SharedArrayBuffer snapshot ring with atomic publication and scene generations, gated by cross-origin isolation.",
+      "acceptance": "No torn snapshot reads under stress; compatibility path still works; transfer cost falls without blocking the browser thread.",
+      "status": "implemented",
+      "evidence": [
+        "src/engine/studio-shared.ts",
+        "src/engine/studio-client.ts",
+        "src/engine/studio-dispatcher.ts",
+        "src/engine/studio-protocol.ts",
+        "tests/engine/shared-snapshot.test.mjs",
+        "docs/STUDIO_SHARED_SNAPSHOTS.md",
+        "benchmarks/results/engine-100x/runs/studio-shared-stress-20260910-01/",
+        "benchmarks/results/engine-100x/runs/studio-shared-transport-20260910-01/"
+      ],
+      "remaining": [
+        "Three-slot shared publication, browser isolation gating, exact worker output, bounded storage, backpressure, stale-generation and concurrent torn-read stress are implemented and checked. Transfer remains the default.",
+        "The six-pair comparison passed its unchanged-control envelope but established no qualified speedup. Lower total transport cost and broader browser/device timing remain unproven."
+      ]
+    },
+    {
+      "id": 14,
+      "priority": "P1",
+      "enhancement": "Interpolate presentation between timestamped physics snapshots, including quaternion rotation and discontinuity handling.",
+      "acceptance": "Smooth 60/120/144 Hz display against fixed stepping; reset, teleport, and fracture never interpolate across incompatible topology.",
+      "status": "partial",
+      "evidence": [
+        "src/studio/presentation-state.ts",
+        "tests/engine/frame-clock.test.mjs",
+        "src/studio/main.ts"
+      ],
+      "remaining": [
+        "Rigid quaternion interpolation and full high-refresh visual qualification remain."
+      ]
+    },
+    {
+      "id": 15,
+      "priority": "P0",
+      "enhancement": "Formalize accumulator overload behavior and wire the existing governor into presentation decisions. Current loops cap per-frame step count but retain backlog.",
+      "acceptance": "Overload and dropped wall time are visible; no growing catch-up spiral; scientific recording pauses or reports lag instead of silently skipping simulation ticks.",
+      "status": "implemented",
+      "evidence": [
+        "src/perf/frame-clock.ts",
+        "tests/engine/frame-clock.test.mjs",
+        "src/studio/main.ts",
+        "src/main.ts"
+      ],
+      "remaining": [
+        "Long overload runs and adaptive presentation budget qualification remain."
+      ]
+    },
+    {
+      "id": 16,
+      "priority": "P1",
+      "enhancement": "Convert the Studio's object-per-particle/link solver to stable typed arrays, using the legacy soft kernels' data layout experience. Preserve traversal and arithmetic order first.",
+      "acceptance": "Lower stepping CPU time and allocation rate for all three studies; exact same-version service/failure regression outputs before numerical redesign.",
+      "status": "partial",
+      "evidence": [
+        "src/studio/physics.ts",
+        "src/studio/packed-physics.ts",
+        "src/studio/solver-storage.ts",
+        "tests/engine/solver-exact.test.mjs",
+        "tests/engine/solver-storage.test.mjs",
+        "docs/STUDIO_SOLVER_STORAGE.md",
+        "benchmarks/results/engine-100x/runs/studio-typed-arrays-20260910-01/gate.json",
+        "benchmarks/results/engine-100x/runs/studio-typed-arrays-20260910-02/gate.json",
+        "benchmarks/results/engine-100x/runs/studio-typed-memory-20260910-01/result.json",
+        "benchmarks/results/engine-100x/runs/studio-index-memory-20260910-01/result.json"
+      ],
+      "remaining": [
+        "Packed Float64 state and live compatibility views preserve the original model exactly, but both CPU timing runs failed qualification. PackedFailureSimulation is experimental and is not selected by the default runtime or worker.",
+        "The default solver clears its construction-only edge index; the separate retained Node memory experiment observed 10.9-12.0 percent lower memory. Lower stepping time and allocation rate remain unqualified.",
+        "Packed state retained less memory without public views and more with all views; qualify both production-worker and compatibility-consumer costs before adoption."
+      ]
+    },
+    {
+      "id": 17,
+      "priority": "P0",
+      "enhancement": "Add `snapshotInto()` or equivalent reusable live snapshot storage; allocate immutable copies only at recording/checkpoint boundaries.",
+      "acceptance": "Zero new large typed buffers per live frame after warmup; saved frames remain immutable; compare against the 19–21 KB canopy/plate snapshot allocations.",
+      "status": "verified",
+      "evidence": [
+        "src/studio/physics.ts",
+        "src/studio/main.ts",
+        "tests/engine/studio-state.test.mjs",
+        "benchmarks/results/engine-100x/studio-snapshot-20260910.json"
+      ],
+      "remaining": []
+    },
+    {
+      "id": 18,
+      "priority": "P0",
+      "enhancement": "Rebuild and upload Studio surface index buffers only when topology changes. Reuse precomputed border connectivity and explicit replay topology identities.",
+      "acceptance": "No index upload on intact motion; torn faces remain absent; backward scrubbing reconstructs the correct topology.",
+      "status": "verified",
+      "evidence": [
+        "src/studio/surface-topology.ts",
+        "src/studio/world.ts",
+        "src/studio/press-tooling.ts",
+        "tests/engine/surface-topology.test.mjs"
+      ],
+      "remaining": []
+    },
+    {
+      "id": 19,
+      "priority": "P1",
+      "enhancement": "Remove per-node temporary position arrays, temporary color objects, and repeated perimeter-pair construction from `StudioWorld.update()`.",
+      "acceptance": "Allocation profiling shows stable hot-path storage; visual transforms/colors and severed-link visibility match the reference.",
+      "status": "implemented",
+      "evidence": [
+        "src/studio/world.ts",
+        "src/studio/bridge-deck.ts",
+        "tests/engine/surface-topology.test.mjs"
+      ],
+      "remaining": [
+        "Full-browser allocation profile and all fracture-view comparisons remain."
+      ]
+    },
+    {
+      "id": 20,
+      "priority": "P1",
+      "enhancement": "Replace snapshot-history splicing with a bounded ring plus asynchronously persisted chunks, retaining compact chart samples separately from full geometry snapshots.",
+      "acceptance": "Long recordings remain within a configured memory budget; sample timestamps stay ordered; timeline seeking works across persisted chunk boundaries.",
+      "status": "partial",
+      "evidence": [
+        "src/perf/recording-ring.ts",
+        "src/studio/main.ts",
+        "tests/engine/frame-clock.test.mjs"
+      ],
+      "remaining": [
+        "Asynchronous persisted history chunks and seeking older evicted frames remain."
+      ]
+    },
+    {
+      "id": 21,
+      "priority": "P1",
+      "enhancement": "Connect Box3D's task scheduling to a bounded Emscripten pthread pool instead of `workerCount = 1`; implement task callbacks and a separately selected threaded artifact.",
+      "acceptance": "Benchmark 1/2/4/8 workers on contact-heavy scenes, including startup/transport; prove deterministic guarantees per supported mode and retain single-thread deployment.",
+      "status": "implemented",
+      "evidence": [
+        "docs/THREADED_ENGINE.md",
+        "wasm/box3d_threads.c",
+        "scripts/build-wasm-threaded.sh",
+        "scripts/update-threaded-provenance.mjs",
+        "public/box3d/box3d-mt.js",
+        "public/box3d/box3d-mt.wasm",
+        "public/box3d/BUILD_PROVENANCE.json",
+        "src/physics/threading.ts",
+        "src/physics/wasm.ts",
+        "scripts/threaded-determinism-test.mjs",
+        "scripts/threaded-benchmark.mjs",
+        "scripts/supervise-child.mjs",
+        "tests/engine/threaded-contract.test.mjs",
+        "tests/engine/threaded-provenance.test.mjs",
+        "tests/engine/threading-plan.test.mjs",
+        "tests/engine/child-supervisor.test.mjs",
+        "benchmarks/results/engine-100x/runs/threaded-engine-20261001-01/"
+      ],
+      "remaining": [
+        "Quiet-machine benchmark: every recorded timing was taken at load average 39–121 on 32 CPUs (24–29 for the native reference windows), so the shipped artifact's quiet-machine speedup is UNKNOWN; under that load 4–8 workers gained about 1.4–2.8× at 4,096–16,384 awake bodies and lost at small counts.",
+        "Browser qualification: bit-identical state was proven only in Node v26.0.0 against the single-threaded artifact (800 scenes, workers 1/2/4/8); no browser run, other CPU or operating system, or snapshot-transport measurement is recorded.",
+        "Deployment: no deployed host sends COOP/COEP (the Railway Caddyfile has none and GitHub Pages cannot), so pages run single-threaded there and threads are live only under Vite dev/preview.",
+        "`loadNativeWorldPool` still loads the single-threaded artifact, and the working-tree entry (`src/entry.ts`, Engineering Studio) does not use Box3D rigid bodies; the threaded loader serves the legacy `src/main.ts` lab.",
+        "Two unattributed Node 26.0.0 events: one SIGILL and one exit hang after a printed result in 116 threaded runs, none in 109 single-threaded runs; not proven to depend on the artifact and not cleared.",
+        "The default threshold of 384 awake bodies is LIKELY, tuned at load 39–47; 1,024-awake worlds still run threaded and lose under heavy load, and a load-aware governor remains."
+      ]
+    },
+    {
+      "id": 22,
+      "priority": "P1",
+      "enhancement": "Replace the native bridge's fixed 4,096-body arrays and renderer cap with bounded, growable capacity tiers and explicit allocation-failure reporting.",
+      "acceptance": "Exercise 4K/16K/64K active-body staging without truncation or stale heap views; publish actual contact-heavy frame times and memory use.",
+      "status": "verified",
+      "evidence": [
+        "wasm/box3d_web.c",
+        "src/engine/native-world.ts",
+        "src/webgpu/renderer.ts",
+        "src/webgpu/instance-partition.ts",
+        "tests/engine/native-capacity.test.mjs",
+        "tests/engine/gpu-timing.test.mjs",
+        "docs/NATIVE_CAPACITY.md",
+        "benchmarks/results/engine-100x/verification-native-capacity-20260910/",
+        "docs/NATIVE_BODY_LIFECYCLE.md",
+        "benchmarks/results/engine-100x/verification-native-recycling-20260910/"
+      ],
+      "remaining": [],
+      "verifiedScope": "Explicit native worlds grow through 4096/16384/65536 bodies, with transactional bridge allocation failures, checked GPU growth, full exact native/GPU streams, dense contact-pair frame timings, memory accounting and desktop browser checks. The compatibility world stays 4096. No 64K interactive frame-rate or engine-wide speedup claim."
+    },
+    {
+      "id": 23,
+      "priority": "P1",
+      "enhancement": "Add body destruction, slot reuse, and generation-checked handles for projectiles, debris, and streamed scenes.",
+      "acceptance": "A million spawn/despawn operations maintain bounded live storage; stale IDs never mutate newly recycled bodies.",
+      "status": "verified",
+      "evidence": [
+        "wasm/box3d_web.c",
+        "src/engine/native-world.ts",
+        "tests/engine/native-recycling.test.mjs",
+        "tests/qualification/native-recycling-sleep.test.mjs",
+        "scripts/native-recycling-check.mjs",
+        "docs/NATIVE_BODY_LIFECYCLE.md",
+        "benchmarks/results/engine-100x/runs/native-body-recycling-20260910-04/",
+        "benchmarks/results/engine-100x/verification-native-recycling-20260910/"
+      ],
+      "remaining": [],
+      "verifiedScope": "Explicit native worlds: O(1) bridge bookkeeping for body deletion and dense stream repair, reused slots with 47-bit generations, world-owned BigInt references, stale-action rejection across reset/growth/reuse, generation retirement, GC-safe stale references, and 1048576 spawn/despawn pairs with bounded native storage. Legacy numeric indices are not stable after compaction; full native checkpoints and cross-worker references remain separate."
+    },
+    {
+      "id": 24,
+      "priority": "P1",
+      "enhancement": "Export position, quaternion, and scale instead of full 4×4 rigid matrices; reconstruct transforms in shaders. Prototype a 40-byte float32 record before considering lossy packing.",
+      "acceptance": "Reduce dynamic transform payload from 64 to 40 bytes/body; validate reconstructed positions/normals and benchmark total CPU/upload/GPU cost.",
+      "status": "not_started",
+      "evidence": [],
+      "remaining": []
+    },
+    {
+      "id": 25,
+      "priority": "P2",
+      "enhancement": "Evaluate coarse block dirty ranges for mixed sleeping/awake transform uploads, with a dense-upload threshold. This differs from the previously rejected sparse move-event synchronization.",
+      "acceptance": "Win on defined large mixed-activity workloads without regressing dense scenes; include range detection and write-call overhead in timing.",
+      "status": "not_started",
+      "evidence": [],
+      "remaining": []
+    },
+    {
+      "id": 26,
+      "priority": "P1",
+      "enhancement": "Replace native global world state with explicit world contexts and per-world buffers, seeds, handles, and lifetimes.",
+      "acceptance": "Multiple independent simulations can run/reset without cross-contamination; destruction and replay remain isolated.",
+      "status": "verified",
+      "evidence": [
+        "wasm/box3d_web.c",
+        "src/engine/native-world.ts",
+        "src/physics/wasm.ts",
+        "tests/engine/native-world.test.mjs",
+        "docs/NATIVE_WORLDS.md",
+        "public/box3d/BUILD_PROVENANCE.json",
+        "benchmarks/results/engine-100x/runs/native-worlds-20260910-02/result.json",
+        "benchmarks/results/engine-100x/runs/native-worlds-20260910-02/integrity-review.json",
+        "benchmarks/results/engine-100x/native-world-renderer-metal-20260910-02.json",
+        "benchmarks/results/engine-100x/verification-native-worlds-20260910/",
+        "benchmarks/results/engine-100x/runs/native-capacity-worlds-20260910-01/",
+        "benchmarks/results/engine-100x/runs/native-recycling-worlds-20260910-02/"
+      ],
+      "remaining": [],
+      "verifiedScope": "16 independent single-threaded native contexts plus the compatibility world; exact old-artifact streams for 800 recipes, isolated interleaved replay/reset/destruction, stale-handle rejection, bounded lifecycle reuse, heap growth and Metal renderer interoperability. This isolation experiment uses 4096-body contexts; larger capacity is separately qualified in item 22. Body-generation handles are separately qualified in item 23; pthreads and native full checkpoints remain separate items."
+    },
+    {
+      "id": 27,
+      "priority": "P1",
+      "enhancement": "Expose sphere, capsule, convex, mesh, compound, and heightfield geometry through the bridge and render the matching shape instead of only cube-hull instances.",
+      "acceptance": "Query, collision, inertia, and visible geometry agree on a shape-parity suite; qualify support against the pinned upstream version.",
+      "status": "not_started",
+      "evidence": [],
+      "remaining": []
+    },
+    {
+      "id": 28,
+      "priority": "P1",
+      "enhancement": "Expose supported native joints, limits, motors, and kinematic targets through typed commands and diagnostics.",
+      "acceptance": "Pendulum, slider, actuator, and driven mechanism tests meet declared limit/constraint errors; revise sleeping early-outs for kinematic/motor activity.",
+      "status": "not_started",
+      "evidence": [],
+      "remaining": []
+    },
+    {
+      "id": 29,
+      "priority": "P1",
+      "enhancement": "Add batched ray/shape casts, overlaps, contact events, and contact-impulse streams to the C ABI, with stable body/shape IDs.",
+      "acceptance": "Contact/query results support picking and coupling without per-contact JS/WASM calls; report overflow and retain deterministically ordered events.",
+      "status": "partial",
+      "evidence": [
+        "src/engine/native-world.ts",
+        "wasm/box3d_web.c",
+        "docs/NATIVE_SPATIAL_QUERIES.md",
+        "tests/engine/native-queries.test.mjs",
+        "benchmarks/results/engine-100x/runs/native-queries-geometry-20260910-04/",
+        "benchmarks/results/engine-100x/runs/native-queries-worlds-20260910-02/",
+        "benchmarks/results/engine-100x/verification-native-queries-20260910/"
+      ],
+      "remaining": [
+        "Spatial-query slice passes: 128-input ray/sphere/box batches, deterministic nearest-K results, explicit overflow, stable body references and bounded arenas through 64K bodies. Contact events, impulse streams, independently managed shape IDs and additional collider types remain. Query performance is not qualified."
+      ]
+    },
+    {
+      "id": 30,
+      "priority": "P2",
+      "enhancement": "Qualify collision layers and per-body continuous-collision policies for authored scene classes. Sleep and CCD already exist; tune eligibility rather than adding them again.",
+      "acceptance": "Reduce unnecessary pair/CCD work while thin-wall, high-speed, sensor, and wake-up regression cases remain correct.",
+      "status": "not_started",
+      "evidence": [],
+      "remaining": []
+    },
+    {
+      "id": 31,
+      "priority": "P1",
+      "enhancement": "Introduce compliant XPBD constraints where cloth/rope/Studio still rely on iteration-dependent PBD stiffness. Reuse the material shell's existing compliance concepts where appropriate.",
+      "acceptance": "Calibrated extension/bending response stays within a declared tolerance across timestep and iteration sweeps; record constraint-force estimates.",
+      "status": "partial",
+      "evidence": [
+        "src/engine/compliant-cable.ts",
+        "tests/engine/compliant-cable.test.mjs",
+        "scripts/cable-qualify.mjs",
+        "scripts/cable-check.mjs",
+        "docs/COMPLIANT_CABLE.md",
+        "benchmarks/results/engine-100x/runs/compliant-cable-accuracy-20260910-04/integrity-review.json",
+        "benchmarks/results/engine-100x/verification-compliant-cable-20260910/",
+        "docs/NONLINEAR_CABLE.md",
+        "benchmarks/results/engine-100x/runs/proximal-cable-accuracy-20260911-02/integrity-review.json",
+        "benchmarks/results/engine-100x/verification-proximal-cable-20260911/",
+        "src/engine/frame-element.ts",
+        "src/engine/frame-runtime.ts",
+        "src/engine/frame-probe.ts",
+        "tests/engine/frame.test.mjs",
+        "tests/qualification/frame-evidence.test.mjs",
+        "scripts/frame-qualify.mjs",
+        "docs/FRAME_MECHANICS.md",
+        "benchmarks/results/engine-100x/runs/frame-accuracy-20260911-04/integrity-review.json",
+        "benchmarks/results/engine-100x/verification-frame-20260911/"
+      ],
+      "remaining": [
+        "The distinct axial XPBD and nonlinear vector-proximal cable backends have independent trajectory, curved equilibrium, force/energy, spatial refinement and full-checkpoint evidence. Existing cloth/rope/Studio migration, bending, contact/coupling and empirical calibration remain open.",
+        "A separate linear Euler-Bernoulli frame now has analytical bending/torsion, gravity end-action, continuum refinement and full-state evidence. It is not yet coupled to cables or adopted by Studio/cloth/rope, and is not empirically calibrated."
+      ]
+    },
+    {
+      "id": 32,
+      "priority": "P1",
+      "enhancement": "Extend existing qualified adaptive schedules with residual-based convergence and explicit contact/damage escalation rules.",
+      "acceptance": "Lower solver work at the same residual/error target; preserve conservative tearing/contact modes and long-horizon qualification.",
+      "status": "partial",
+      "evidence": [
+        "src/engine/compliant-cable.ts",
+        "tests/engine/compliant-cable.test.mjs",
+        "scripts/cable-qualify.mjs",
+        "scripts/cable-check.mjs",
+        "docs/COMPLIANT_CABLE.md",
+        "benchmarks/results/engine-100x/runs/compliant-cable-accuracy-20260910-04/integrity-review.json",
+        "benchmarks/results/engine-100x/verification-compliant-cable-20260910/",
+        "docs/NONLINEAR_CABLE.md",
+        "benchmarks/results/engine-100x/runs/proximal-cable-accuracy-20260911-02/integrity-review.json",
+        "benchmarks/results/engine-100x/verification-proximal-cable-20260911/",
+        "src/engine/frame-element.ts",
+        "src/engine/frame-runtime.ts",
+        "src/engine/frame-probe.ts",
+        "tests/engine/frame.test.mjs",
+        "tests/qualification/frame-evidence.test.mjs",
+        "scripts/frame-qualify.mjs",
+        "docs/FRAME_MECHANICS.md",
+        "benchmarks/results/engine-100x/runs/frame-accuracy-20260911-04/integrity-review.json",
+        "benchmarks/results/engine-100x/verification-frame-20260911/"
+      ],
+      "remaining": [
+        "The new nonlinear cable checks vector constitutive, implicit-force and equivalent constraint-force residuals, counts warm-start/iteration work and exposes caps. Contact/damage escalation in existing adaptive systems and qualified whole-workload performance remain open."
+      ]
+    },
+    {
+      "id": 33,
+      "priority": "P2",
+      "enhancement": "Add a hierarchical constraint solve for large membranes, using coarse-to-fine corrections to address long-range stretch.",
+      "acceptance": "At equal strain/shape error, outperform the flat solver on increasing grid sizes; measure topology-change maintenance cost.",
+      "status": "not_started",
+      "evidence": [],
+      "remaining": []
+    },
+    {
+      "id": 34,
+      "priority": "P1",
+      "enhancement": "Add cloth self-collision using a spatial hash or BVH over nonadjacent surface elements and a thickness-aware narrow phase.",
+      "acceptance": "Folded and layered cloth avoids persistent interpenetration; neighbor-search cost scales acceptably on dense and adversarial folds.",
+      "status": "partial",
+      "evidence": [
+        "docs/CANOPY_CONTACT.md",
+        "src/engine/surface-contact.ts",
+        "src/studio/canopy-contact.ts",
+        "src/studio/canopy-rig.ts",
+        "tests/engine/surface-contact.test.mjs",
+        "tests/studio/canopy-contact.test.mjs",
+        "benchmarks/experiments/canopy-contact-20260911-03/",
+        "benchmarks/experiments/canopy-contact-optimization-20260912-01/"
+      ],
+      "remaining": [
+        "Continuous self-contact is integrated and qualified for the classic canopy only. Other cloth/soft-body engines, larger folded meshes, material calibration and interactive performance remain."
+      ]
+    },
+    {
+      "id": 35,
+      "priority": "P1",
+      "enhancement": "Replace isolated ground/sphere collision assumptions with frictional cloth/rope contact against shared rigid collider geometry.",
+      "acceptance": "Drape/slide/stack tests work on moving convex and mesh fixtures; contact thickness and friction are measurable.",
+      "status": "partial",
+      "evidence": [
+        "docs/CANOPY_CONTACT.md",
+        "src/engine/surface-contact.ts",
+        "src/studio/canopy-contact.ts",
+        "src/studio/canopy-rig.ts",
+        "tests/engine/surface-contact.test.mjs",
+        "tests/studio/canopy-contact.test.mjs",
+        "benchmarks/experiments/canopy-contact-20260911-03/",
+        "benchmarks/experiments/canopy-contact-optimization-20260912-01/"
+      ],
+      "remaining": [
+        "The canopy shares primary static rig geometry and adds bounded floor friction. Fabric/support contacts are frictionless; moving rigid-body coupling, decorative hardware and other cloth/rope engines remain."
+      ]
+    },
+    {
+      "id": 36,
+      "priority": "P1",
+      "enhancement": "Extend swept collision to fast soft vertices/edges and moving rigid shapes, beyond the existing projectile-specific interactions.",
+      "acceptance": "High-speed thin-surface tests pass over a declared velocity range; time-of-impact/subdivision cost is included in budgets.",
+      "status": "partial",
+      "evidence": [
+        "docs/CANOPY_CONTACT.md",
+        "src/engine/surface-contact.ts",
+        "src/studio/canopy-contact.ts",
+        "src/studio/canopy-rig.ts",
+        "tests/engine/surface-contact.test.mjs",
+        "tests/studio/canopy-contact.test.mjs",
+        "benchmarks/experiments/canopy-contact-20260911-03/",
+        "benchmarks/experiments/canopy-contact-optimization-20260912-01/"
+      ],
+      "remaining": [
+        "The canopy now sweeps vertices against faces and edges against edges, with explicit uncertainty and whole-tick rollback. Coupling to moving rigid shapes and other soft-body backends remains."
+      ]
+    },
+    {
+      "id": 37,
+      "priority": "P2",
+      "enhancement": "Add a physically parameterized cloth shell model with separate membrane stretch, shear, and bending, including directional fabric response.",
+      "acceptance": "Warp/weft/bias and cantilever tests converge with resolution; old normalized cloth recipes keep their original model version.",
+      "status": "not_started",
+      "evidence": [],
+      "remaining": []
+    },
+    {
+      "id": 38,
+      "priority": "P2",
+      "enhancement": "Add orientation degrees of freedom and twist/bend constraints to cables using a Cosserat-rod model.",
+      "acceptance": "Torsion, buckling, and clamped-twist examples match reference behavior; simple rope mode remains available for cheaper scenes.",
+      "status": "not_started",
+      "evidence": [],
+      "remaining": [
+        "The linear frame model provides bending/torsion groundwork only. Cosserat cable orientation, finite rotations, buckling and integrated cable examples are not implemented."
+      ]
+    },
+    {
+      "id": 39,
+      "priority": "P1",
+      "enhancement": "Maintain compact active-constraint lists for torn Studio/soft systems, with stable external IDs and deterministic compaction at topology boundaries.",
+      "acceptance": "Fully broken members incur no recurring projection work; failure order and diagnostics remain reproducible after compaction.",
+      "status": "partial",
+      "evidence": [
+        "src/studio/physics.ts",
+        "tests/engine/active-constraints.test.mjs",
+        "tests/engine/solver-exact.test.mjs"
+      ],
+      "remaining": [
+        "Studio uses stable IDs and compacts active constraints only at iteration boundaries; the remaining soft systems are not all migrated."
+      ]
+    },
+    {
+      "id": 40,
+      "priority": "P2",
+      "enhancement": "Add optional adaptive simulation resolution near strain, contact, and crack fronts, with conservative state transfer and a separately identified solver mode.",
+      "acceptance": "Refinement/coarsening preserves mass, momentum, anchors, and accepted response; cost falls on localized-load cases without changing render-only LOD semantics.",
+      "status": "not_started",
+      "evidence": [],
+      "remaining": []
+    },
+    {
+      "id": 41,
+      "priority": "P1",
+      "enhancement": "Port the existing water field update to WebGPU compute ping-pong buffers, starting with the same equations and boundary conditions.",
+      "acceptance": "Beat CPU plus upload at the measured crossover size; report mass/wave/phase error and complete render-inclusive time.",
+      "status": "implemented",
+      "evidence": [
+        "src/engine/linear-water.ts",
+        "src/webgpu/linear-water.ts",
+        "scripts/gpu-water-qualify.mjs",
+        "scripts/gpu-water-benchmark.mjs",
+        "benchmarks/results/engine-100x/runs/water-render-crossover-20260910-01/integrity-review.json",
+        "benchmarks/results/engine-100x/gpu-water-metal-20260910-04.json",
+        "src/webgpu/closed-water-shader.ts",
+        "docs/CLOSED_WATER.md",
+        "benchmarks/results/engine-100x/runs/closed-water-accuracy-20260910-03/integrity-review.json",
+        "benchmarks/results/engine-100x/closed-water-renderer-metal-20260910-01.json",
+        "benchmarks/results/engine-100x/runs/closed-water-render-crossover-20260910-01/integrity-review.json",
+        "benchmarks/results/engine-100x/runs/closed-water-render-crossover-20260910-02/integrity-review.json",
+        "benchmarks/results/engine-100x/verification-closed-water-frames-20260910/"
+      ],
+      "remaining": [
+        "The inherited absorbing model retains its historical completed-frame crossover result. The closed C-grid model passes long-run physical acceptance and both completed-frame field audits, but neither timing run qualifies because its unchanged GPU control fails. A fresh controlled comparison and application liquid-study integration remain open."
+      ]
+    },
+    {
+      "id": 42,
+      "priority": "P1",
+      "enhancement": "Port cloth integration and projection to compute using graph-colored Gauss-Seidel or qualified Jacobi batches.",
+      "acceptance": "No concurrent writes to a shared position within a color pass; compare equal residual quality, dispatch overhead, collisions, and long-run drift.",
+      "status": "not_started",
+      "evidence": [],
+      "remaining": []
+    },
+    {
+      "id": 43,
+      "priority": "P1",
+      "enhancement": "Move rope constraint solving to compute, extending the existing rope presentation path rather than confusing expansion with numerical simulation.",
+      "acceptance": "Large rope nets run from GPU state without CPU matrix staging or per-step readback; break/collision/load tests pass.",
+      "status": "not_started",
+      "evidence": [],
+      "remaining": []
+    },
+    {
+      "id": 44,
+      "priority": "P2",
+      "enhancement": "Prototype GPU material projection and damage evaluation after the CPU material reference and tolerance suite are stable.",
+      "acceptance": "Match declared plastic-response and failure-event envelopes; record reduction-order/numerical differences; show whole-workload gain on large lattices.",
+      "status": "not_started",
+      "evidence": [],
+      "remaining": []
+    },
+    {
+      "id": 45,
+      "priority": "P0",
+      "enhancement": "Extend frame contracts with GPU buffer ownership, offsets, counts, versions, and backend lifetimes, so GPU solvers feed rendering directly.",
+      "acceptance": "No mandatory full-state CPU readback in an ordinary GPU simulation frame; CPU and GPU producers remain explicitly distinguishable.",
+      "status": "partial",
+      "evidence": [
+        "src/webgpu/linear-water.ts",
+        "src/webgpu/resident-water-surface.ts",
+        "src/webgpu/renderer.ts",
+        "tests/engine/resident-water.test.mjs",
+        "benchmarks/results/engine-100x/resident-water-metal-20260910-02.json"
+      ],
+      "remaining": [
+        "Direct GPU-owned water fields are wired to raw WebGPU with explicit lifetimes and no ordinary CPU readback. Other GPU producers and multi-surface/Three.js adapters remain."
+      ]
+    },
+    {
+      "id": 46,
+      "priority": "P2",
+      "enhancement": "Keep tearing topology on GPU using stable face/edge IDs, active masks, scans, and generated index counts.",
+      "acceptance": "Holes and detached regions remain correct without falling back to full CPU surface packing; deterministic-reference comparison accounts for event ordering.",
+      "status": "not_started",
+      "evidence": [],
+      "remaining": []
+    },
+    {
+      "id": 47,
+      "priority": "P1",
+      "enhancement": "Compute deformation normals, strain colors, and bounds once per changed state for shared presentation, including the Studio's CPU-normal path.",
+      "acceptance": "Remove repeated CPU normal reconstruction; benchmark compute versus current vertex reconstruction at several mesh sizes; unchanged states do no work.",
+      "status": "not_started",
+      "evidence": [],
+      "remaining": []
+    },
+    {
+      "id": 48,
+      "priority": "P1",
+      "enhancement": "Move secondary spray, foam particles, dust, and visual debris to GPU spawn/update/compaction passes with bounded pools.",
+      "acceptance": "Sustain a declared active-particle target without CPU object growth; presentation randomness cannot change authoritative physics replay.",
+      "status": "not_started",
+      "evidence": [],
+      "remaining": []
+    },
+    {
+      "id": 49,
+      "priority": "P2",
+      "enhancement": "Tune workgroup sizes, shared-memory tiles, and optional subgroup reductions by adapter class. Evaluate f16 only for qualified presentation/auxiliary data first.",
+      "acceptance": "Record per-adapter winners and fallback paths; include small workloads; reject numerical or whole-frame regressions despite microkernel wins.",
+      "status": "not_started",
+      "evidence": [],
+      "remaining": []
+    },
+    {
+      "id": 50,
+      "priority": "P1",
+      "enhancement": "Reduce GPU telemetry to requested scalars/events and read it back through a bounded asynchronous staging ring, with timestamps and age tracking.",
+      "acceptance": "Display and recording never block each frame on `mapAsync`/queue completion; delayed channels retain correct simulation timestamps and declared latency.",
+      "status": "implemented",
+      "evidence": [
+        "src/webgpu/water-telemetry.ts",
+        "src/webgpu/linear-water.ts",
+        "scripts/gpu-water-qualify.mjs",
+        "src/engine/probe.ts",
+        "benchmarks/results/engine-100x/gpu-water-metal-20260910-04.json",
+        "docs/CLOSED_WATER.md"
+      ],
+      "remaining": [
+        "Both water models return 32-byte telemetry with sample age; the closed model averages face velocities and records their half-time separately. Recording integration and other GPU channels remain."
+      ]
+    },
+    {
+      "id": 51,
+      "priority": "P1",
+      "enhancement": "Introduce a shared collider/interaction registry with stable IDs and one owner per projectile, fixture, or payload. Replace duplicated cross-domain action proxies incrementally.",
+      "acceptance": "One physical projectile produces one contact history across rigid/soft domains; no duplicated mass or double-applied impulse.",
+      "status": "not_started",
+      "evidence": [],
+      "remaining": []
+    },
+    {
+      "id": 52,
+      "priority": "P1",
+      "enhancement": "Add a staged coupling solve that exchanges soft contact and attachment reactions with Box3D instead of only broadcasting actions to both systems.",
+      "acceptance": "Equal/opposite impulse accounting and bounded energy error in two-body/contact tests; strong-coupling cases remain stable under timestep refinement.",
+      "status": "not_started",
+      "evidence": [],
+      "remaining": []
+    },
+    {
+      "id": 53,
+      "priority": "P1",
+      "enhancement": "Support moving rigid attachments, pulleys, and winch length control for ropes through the shared joint/coupling interface.",
+      "acceptance": "A crane payload loads the hoist and support body; winch work, tension, and motor limits are observable rather than visual-only motion.",
+      "status": "not_started",
+      "evidence": [],
+      "remaining": []
+    },
+    {
+      "id": 54,
+      "priority": "P1",
+      "enhancement": "Couple water buoyancy and drag to actual rigid hulls and return displaced volume/momentum to the field. Extend existing floater proxies.",
+      "acceptance": "A floating body changes the water and vice versa; static float height and drag tests meet declared tolerances with stable force feedback.",
+      "status": "not_started",
+      "evidence": [],
+      "remaining": []
+    },
+    {
+      "id": 55,
+      "priority": "P1",
+      "enhancement": "Add water bathymetry and obstacle masks to replace a uniform basin assumption, with boundary conditions derived from terrain and moving obstacles.",
+      "acceptance": "A variable-depth lake-at-rest remains still within tolerance; channels, piers, and shore boundaries redirect flow correctly.",
+      "status": "not_started",
+      "evidence": [],
+      "remaining": []
+    },
+    {
+      "id": 56,
+      "priority": "P2",
+      "enhancement": "Add a separate nonlinear shallow-water mode with a well-balanced, positivity-preserving wetting/drying treatment. Preserve the current linear model for its intended cases.",
+      "acceptance": "Pass dry-front, dam-break, still-lake, and mass-balance cases; enforce a declared CFL policy; report resolution/time convergence.",
+      "status": "not_started",
+      "evidence": [],
+      "remaining": []
+    },
+    {
+      "id": 57,
+      "priority": "P2",
+      "enhancement": "Tile large water/deformable domains with halo exchange and scalable topology indexing; use chunk-local indices or uint32 instead of assuming every surface fits uint16.",
+      "acceptance": "A million-cell target domain crosses tile boundaries without seams, lost flux, or index overflow; capacity and transfer costs are reported.",
+      "status": "partial",
+      "evidence": [
+        "src/webgpu/resident-water-surface.ts",
+        "tests/engine/resident-water.test.mjs",
+        "benchmarks/results/engine-100x/runs/water-render-crossover-20260910-01/result.json",
+        "benchmarks/results/engine-100x/resident-water-metal-20260910-02.json"
+      ],
+      "remaining": [
+        "A 1048576-cell field uses uint32 source indices and explicit display decimation. Multi-tile halo exchange, flux/seam qualification and deformable tiling remain."
+      ]
+    },
+    {
+      "id": 58,
+      "priority": "P1",
+      "enhancement": "Generalize the single active surface/frame into a collection of independently versioned cloth, water, and sheet surfaces with per-surface resource lifetimes.",
+      "acceptance": "Render and step multiple flags, basins, and material specimens simultaneously; mutations on one surface do not force unrelated uploads.",
+      "status": "not_started",
+      "evidence": [],
+      "remaining": []
+    },
+    {
+      "id": 59,
+      "priority": "P2",
+      "enhancement": "Prototype an optional volumetric particle-fluid mode for overturning splashes and free surfaces that the heightfield cannot represent. Start with a bounded PBF/SPH research scene.",
+      "acceptance": "Demonstrate a genuinely volumetric case with measured density/mass error and collision quality; publish the much higher compute/memory cost.",
+      "status": "not_started",
+      "evidence": [],
+      "remaining": []
+    },
+    {
+      "id": 60,
+      "priority": "P1",
+      "enhancement": "Drive Studio river displacement, flow, and foam from the actual water solver through a renderer adapter, while retaining the existing visual river as an explicit mode.",
+      "acceptance": "A changed obstacle or physical disturbance alters both measured water state and the visible river; visual presets do not fabricate physical currents.",
+      "status": "not_started",
+      "evidence": [],
+      "remaining": []
+    },
+    {
+      "id": 61,
+      "priority": "P1",
+      "enhancement": "Add explicitly unit-bearing material parameters and a calibration workflow with measured source datasets, specimen geometry, and parameter validity ranges. Retain normalized presets separately.",
+      "acceptance": "Fit and validate against distinct datasets; exports distinguish normalized and calibrated model versions and retain units/uncertainty/provenance.",
+      "status": "not_started",
+      "evidence": [],
+      "remaining": []
+    },
+    {
+      "id": 62,
+      "priority": "P1",
+      "enhancement": "Build a material convergence matrix over specimen mesh, timestep, solve slices, and loading rate, extending the existing deterministic 100-case material campaign.",
+      "acceptance": "Load-deflection curves, residual dent, and failure onset converge within declared envelopes; altered solver resolution cannot silently change conclusions.",
+      "status": "not_started",
+      "evidence": [],
+      "remaining": []
+    },
+    {
+      "id": 63,
+      "priority": "P1",
+      "enhancement": "Port the TypeScript material projection/damage hot loops to scalar and SIMD WASM, keeping the TypeScript implementation as the reference.",
+      "acceptance": "Demonstrate speedup on actual material workloads including state handoff; all 100 existing material cases and new load/strike cases pass.",
+      "status": "not_started",
+      "evidence": [],
+      "remaining": []
+    },
+    {
+      "id": 64,
+      "priority": "P2",
+      "enhancement": "Extend the material solver's existing active-distance-member filtering with connected-island scheduling and conservative inactivity detection for undamaged idle regions.",
+      "acceptance": "Skip only regions with no changing load/contact/damage driver; wake neighboring regions correctly; fatigue/loading histories match the reference.",
+      "status": "not_started",
+      "evidence": [],
+      "remaining": []
+    },
+    {
+      "id": 65,
+      "priority": "P2",
+      "enhancement": "Add a physically parameterized elastoplastic material option with hardening and directional response, beyond normalized rest-length creep and threshold tuning.",
+      "acceptance": "Uniaxial load/unload, cyclic hardening, and directional coupon results match declared constitutive references; new state is checkpointed.",
+      "status": "not_started",
+      "evidence": [],
+      "remaining": []
+    },
+    {
+      "id": 66,
+      "priority": "P2",
+      "enhancement": "Add fatigue accumulation tied to measured stress/strain cycles and material data, including cycle counting and model applicability ranges.",
+      "acceptance": "Predict held-out cyclic tests within a reported uncertainty interval; distinguish accumulated normalized damage from a calibrated fatigue prediction.",
+      "status": "not_started",
+      "evidence": [],
+      "remaining": []
+    },
+    {
+      "id": 67,
+      "priority": "P2",
+      "enhancement": "Make cohesive fracture mesh-objective by relating energy release and damage evolution to element size and material fracture energy. Extend existing cohesive cells/crack fronts.",
+      "acceptance": "Refined meshes do not arbitrarily change total fracture work or failure load; compare crack paths and energy balance across resolutions.",
+      "status": "not_started",
+      "evidence": [],
+      "remaining": []
+    },
+    {
+      "id": 68,
+      "priority": "P1",
+      "enhancement": "Promote detached material fragments from local ballistic/ground-contact proxies into native rigid bodies, using bounded hull generation and conserved launch state.",
+      "acceptance": "Fragments collide with external bodies and each other; transferred mass, momentum, and body budgets are accounted for; stable IDs survive promotion.",
+      "status": "not_started",
+      "evidence": [],
+      "remaining": []
+    },
+    {
+      "id": 69,
+      "priority": "P2",
+      "enhancement": "Add material-surface self-contact and persistent contact against punches, fixtures, and detached regions, extending the current local contacts.",
+      "acceptance": "Folded sheets and crushing fragments do not pass through each other; contact convergence and frictional work are measured.",
+      "status": "partial",
+      "evidence": [
+        "src/engine/convex-contact.ts",
+        "src/studio/material-labs/glass-rig.ts",
+        "src/studio/material-labs/glass-worker.ts",
+        "tests/engine/convex-contact.test.mjs",
+        "tests/studio/material-collision.test.mjs",
+        "tests/studio/glass-worker.test.mjs",
+        "tests/qualification/glass-reference.test.mjs",
+        "docs/GLASS_CONTACT.md",
+        "benchmarks/results/engine-100x/verification-glass-contact-20260911/",
+        "src/studio/material-labs/glass-pendulum.ts",
+        "tests/studio/glass-pendulum.test.mjs",
+        "benchmarks/results/engine-100x/runs/glass-collision-20260911-03/integrity-review.json",
+        "scripts/glass-collision-check.mjs",
+        "benchmarks/results/engine-100x/runs/glass-collision-20260911-04/integrity-review.json",
+        "benchmarks/results/engine-100x/runs/glass-collision-20260911-04/equivalence-review.json",
+        "benchmarks/results/engine-100x/verification-glass-contact-optimization-20260911/",
+        "benchmarks/results/engine-100x/runs/glass-collision-20260911-05/integrity-review.json",
+        "benchmarks/results/engine-100x/runs/glass-collision-20260911-05/equivalence-review.json",
+        "benchmarks/experiments/glass-contact-hotpath-20260911/projection-measured-02/result.json",
+        "benchmarks/results/engine-100x/verification-glass-contact-hotpath-20260911/",
+        "src/studio/material-labs/glass-presentation.ts",
+        "tests/studio/glass-presentation.test.mjs",
+        "benchmarks/results/engine-100x/verification-glass-release-20260911/",
+        "tests/engine/contact-cache.test.mjs",
+        "benchmarks/experiments/glass-contact-cache-20260911-03/integrity-review.json",
+        "benchmarks/results/engine-100x/runs/glass-cache-20260911-03/",
+        "benchmarks/results/engine-100x/verification-glass-cache-20260911/",
+        "benchmarks/results/engine-100x/verification-glass-sat-study-20260911/",
+        "tests/engine/friction-covariance.test.mjs",
+        "tests/engine/contact-projection.test.mjs",
+        "tests/studio/glass-contact-support.test.mjs",
+        "tests/fixtures/glass-contact/free-slider.mjs",
+        "benchmarks/results/engine-100x/runs/glass-friction-20260911-03/",
+        "benchmarks/results/engine-100x/verification-glass-friction-20260911/",
+        "benchmarks/results/engine-100x/verification-glass-sat-scalar-20260911/",
+        "benchmarks/results/engine-100x/verification-glass-convergence-20260911/",
+        "benchmarks/results/engine-100x/verification-glass-global-solve-20260911/",
+        "benchmarks/experiments/glass-packed-velocity-20260911-05/candidate/src/engine/packed-contact-velocity.ts",
+        "benchmarks/results/engine-100x/verification-glass-packed-velocity-20260911/",
+        "benchmarks/results/engine-100x/verification-glass-residual-history-20260911/",
+        "benchmarks/results/engine-100x/verification-glass-force-staging-20260911/README.md",
+        "docs/CANOPY_CONTACT.md",
+        "benchmarks/experiments/glass-force-staging-20260912-01/",
+        "benchmarks/experiments/glass-ccd-witness-20260912-01/",
+        "benchmarks/experiments/glass-ccd-timing-20260912-01/",
+        "benchmarks/experiments/glass-ccd-witness-20260912-02/",
+        "benchmarks/experiments/glass-native-preview-20260912-01/",
+        "benchmarks/experiments/glass-runtime-equivalence-20260912-01/",
+        "benchmarks/experiments/glass-pendulum-query-20260912-01/",
+        "benchmarks/experiments/glass-sat-axis-20260912-01/",
+        "benchmarks/experiments/glass-sat-native-20260912-02/",
+        "benchmarks/experiments/material-export-final-frame-20260912-01/",
+        "tests/engine/contact-force-staging.test.mjs"
+      ],
+      "remaining": [
+        "Historical version-1 qualification: Glass uses a coupled fixed-pivot pendulum and rotating-prism solve, shared fixtures, friction, adaptive swept contacts and worker isolation. Packed correction and trial-cache cleanup preserve 192 sampled physical states, independent geometry samples and per-case physical summaries exactly. All eight 12-second presets, 29 focused tests, TypeScript and then-current WebGPU desktop checks pass. Maximum accepted overlap is 0.207 mm with no unresolved sweeps. Three captured dense correction inputs show 1.212–1.218x isolated kernel speedups with passing controls; sparse cases meet the declared absolute overhead limits. Whole-solver and renderer-inclusive performance remain unqualified. Earlier accepted and failed attempts are preserved.",
+        "Preceding release pass (before the version-2 kernel change): Glass presentation now interpolates received poses, requests one to four fixed ticks according to response cost, and skips hidden fragment geometry. The final source passes 37 focused tests and TypeScript; a loaded-contact fixture releases without cached-friction attraction. Collision/model/material/pendulum/fixture source match the pre-investigation baseline. Two exact CPU candidates failed timing qualification and were not selected. No new solver CPU or FPS gain is claimed.",
+        "Version 2 removes coincident manifold supports, matches previous local anchors one to one, and invalidates support on dynamic/static transitions. The integrated source passes 45 focused tests and TypeScript; all eight presets pass over 11,520 ticks and 192 independent sample times with maximum accepted overlap 0.311 mm, independent overlap 0.199 mm and zero unresolved sweeps. The 0.5 mm gate is unchanged; trajectories differ and peak overlap is not improved over version 1. A constrained slider shows first-order stopping-distance convergence and no kinetic-energy gain. Free-rotation/pile frictional work, general contact convergence, calibration and controlled whole-solver performance remain open.",
+        "Folded sheets, other crushing material studies, contact/frictional-work convergence, physical calibration and interactive performance acceptance remain. The JavaScript glass implementation does not complete native fragment promotion.",
+        "The subsequent SAT and pair-order study preserves five experimental candidates without changing the live solver. Float64 pair storage matches all eight v2 physical presets (11,520 ticks, 192 samples). Bitmap pair ordering passes 51 focused tests and 32 complete-state witnesses plus 12 restored ticks, but its own full preset matrix remains pending. An unchanged-source calibration exposes a same-process timing confound. Independent-process dense local gates pass, while the complete intact-panel, p95 and unchanged/sham gates do not; no new production CPU or FPS gain is selected. Retained measurements and corrected calibration remain available for further work.",
+        "Version 3 corrects basis-dependent Coulomb friction, retains nearby supporting planes and uses consistent final external position correction. The source passes 51 focused tests and all eight 12-second presets over 11,520 ticks and 192 independent samples; accepted overlap is at most 0.200 mm, independent overlap 0.1725 mm, with no unresolved sweeps. All 24 final-source free-slider cases preserve the corrected numerical records and show directional invariance plus time/iteration refinement. Both captured collision failures pass after correction. Four redundant mass evaluations per constructed contact are removed; the captured late laminated input needs no subdivision retries. Default settling residuals, general coupled/pile frictional work, other material contacts, physical calibration and controlled CPU/FPS qualification remain open. Failed candidates and their complete inputs are retained.",
+        "The version-3 scalar SAT allocation study preserves 16,384 exact query comparisons, 19 complete-state witnesses and restored tails, and passes 51 focused tests plus strict kernel TypeScript. Sixty fixed-path, single-workload timing processes reproduce expected states. Dense throughput remains unqualified at 0.9966x (95% interval 0.9702-1.0237x); tail, intact overhead and unchanged/sham gates do not all pass. The candidate is not selected, the live source is unchanged, and no new full-preset or browser run is claimed. Raw profiling and failed comparisons remain available; controlled whole-solver and FPS gains remain open.",
+        "A fresh 1440-tick radial census matches all 24 stored v3 physical samples. A 338-body contact group and measured residual vertex motion limit immediate sleeping opportunities. Scalar time/iteration refinement reduces normal residual, while an experimental local normal-patch solver passes 35 corrected-source checks and an analytical support regression but does not justify fewer global iterations in the dense pile. It remains unselected; complete corrected-source suite, full-preset, browser and controlled matched-accuracy runtime acceptance are not claimed. Global contact convergence and physical calibration remain open.",
+        "The revised packed-velocity experiment passes 55 focused tests, strict module TypeScript, 1128 complete-tick deep comparisons and all eight physical presets over 11520 ticks with 192 v3 sampled-state matches. Both dense candidate mean/p95 gates and the intact absolute-overhead gates pass across 360 fresh serial processes, but both dense sham intervals and all intact unchanged-control/sham intervals fail calibration. Point estimates 1.1306x and 1.1749x remain unqualified; no packed code was installed. Earlier failed timing and signed-zero harness records are preserved. A new performance campaign needs stable unchanged controls under verified quieter conditions. Concurrent liquid-study/shared-app changes are preserved; current-app integration, settling convergence, broad controls/seeds and physical calibration remain open.",
+        "Residual-history study: 67 captured-system cases and 19 half-second full-model cases retain all failed variants. The final eight-iteration candidate reduces normal residual 53.66 percent and median actual vertex motion 29.86 percent against scalar eight, passing the fixed mathematical screen. Every tested four-or-fewer-iteration candidate fails motion/energy limits. Twelve final-source focused tests and strict module TypeScript pass; 1140 observed/unobserved and 600 disabled-candidate/v3 complete-tick comparisons hold. No candidate is installed; full preset/current-app checks, controlled matched-accuracy runtime, four-iteration settling and physical calibration remain open. The live twelve-file checkpoint matches the preceding packed-study checkpoint, preserving concurrent liquid/shared-app work.",
+        "Force-staging/local-discovery glass candidate: the September 12 follow-up passes all eight full presets (11,520 ticks / 192 independent samples), default friction/refinement, longer matched settling and numerical integration into the current app model. The subsequent separating-axis cache passes 2,160 complete model comparisons, 288 instrumented comparisons, 64 focused tests and strict model TypeScript, reducing measured SAT/sweep vertex projections 43.72 percent in a radial pile and 50.09 percent in a tempered pile. Its new full qualification passes 11,520 ticks and all 192 preceding geometry/state samples exactly, with zero unresolved CCD. The 32-process unchanged-source pilot fails one fixed control interval; an independent audit confirms the result and no larger candidate timing campaign was launched. A fresh exact-state profile identifies remaining SAT/range and allocation work. Controlled matched-accuracy CPU/FPS, current-app/native selection, broad seed/control coverage and physical calibration remain pending; live glass stays v3. The canopy integration is separate and does not complete other material-surface contact work.",
+        "The scalar/current-position witness revision eb5990fe reduces vertex projections a further 15.40 percent radial and 15.89 percent tempered, including proof overhead. The combined reduction from original experimental v4 is 52.39 / 58.02 percent, not a production-v3 or CPU/FPS comparison. It passes 2,040 final-candidate complete model comparisons, 120 final-stage dense comparisons, 288 instrumented comparisons, 1,020 current-model integration comparisons preserving liquid code, 64 focused tests, strict candidate/integrated model TypeScript, all 24 preceding analytical slider outputs and query/static-proof checks. The other 240 stage comparisons apply to intermediate variants. Its full 11,520-tick qualification passes all 192 prior geometry/state samples exactly with zero unresolved sweeps. The 124-file app snapshot typechecks and the WebGL preview passes radial/thick-panel completion, views, pause, replay/Live and active reset. The browser radial endpoint differs from Node in contact count (2,455 / 2,648) and out-of-plane motion, so browser numerical acceptance remains open; intact-pane counters agree. Export and native WebGPU remain unverified. The owned server and tab are closed. A long diagnostic tool delay and the subsequent 46.16 GiB capacity reading are retained; no new heavy work was started after that reading. Live glass remains v3; controlled timing, native selection, other material-surface coverage and physical calibration remain open.",
+        "A small setup-only audit verifies equal normalized URL settings, complete initial model states and transferred worker reset frames for radial and thick-panel presets, with unchanged frozen and current source hashes. It executes zero physics ticks in Node. The browser trajectory discrepancy and independent browser geometry audit remain open; the latest 43.106 GiB storage reading admits no new heavy work.",
+        "Radial runtime follow-up now reproduces the original browser endpoint and identifies a one-ULP pendulum atan2 difference at tick one for equal quaternion inputs. The observed Node worker preserves 576 complete model/transfer comparisons and 24 qualified hashes. Its final live-drift assertion failed after those checks; frozen-source reconciliation passes with the original result retained. The isolated browser worker passes all 33 independent geometry samples and 1,441 per-tick checks: maximum independent overlap 0.176565 mm, solver overlap 0.199915 mm, zero unresolved sweeps. All owned runtime resources are closed. Cross-runtime exact trajectory equality, full app/all browser presets, native WebGPU, current integration, calibrated fracture and controlled CPU/FPS remain unqualified; production glass remains v3.",
+        "The scalar SAT construction candidate 12f79b8a avoids 97.43-97.66 percent of temporary vector constructions in three measured fractured-glass windows. It preserves 36,049 exact separation queries, 1,152 complete model comparisons, all 64 focused tests, strict candidate/integrated TypeScript, all 24 analytical friction cases and 1,020 current-model comparisons preserving liquid changes. The full eight-preset qualification passes 11,520 unique ticks and all 192 prior geometry/state samples exactly: maximum solver overlap 0.199942 mm, independent overlap 0.197429 mm, zero unresolved sweeps. An interrupted partial matrix and its original files remain retained; three complete presets are reused and five remaining cases complete through validated full checkpoints. The repeated 1,200-tick tempered prefix matches all 20 samples and is excluded from unique accepted ticks. Four checkpoint round trips and eight dense complete comparisons pass. Construction counts are not CPU/FPS improvement. Current-app/native selection, controlled performance and physical calibration remain open; live glass stays v3.",
+        "Version 4 is now installed after all eight numerical presets (11,520 ticks, 192 samples), visible native WebGPU radial/thick runs, pause/replay/Live/reset, actual export readback, five exact browser-trace sample comparisons, 76 production tests, full TypeScript and production bundling. Median residual vertex motion improves 81.62 percent in the matched three-second pile case. Current-app export now retains the latest received endpoint. Broader material contact, much longer settling, calibrated fracture mechanics and controlled whole-engine/FPS performance remain open. Historical unselected/failed candidates above retain their original results; this promotion makes no new speed multiplier claim."
+      ],
+      "notes": " Global-solve study: 23 fixed relaxation/warm-start/support-order cases yield no passing candidate at four or fewer iterations; eight-iteration screens are not speed qualification. Three energy accounts close within 1e-10 J and match original trajectories. Captured 2739-contact prepared-Jacobian algebra agrees within rounding, with no active pendulum contacts. This supplied the captured input for the packed-velocity experiment. The latter is implemented and physically checked but remains unselected because timing calibration fails; the live contact kernel and pendulum remain v3."
+    },
+    {
+      "id": 70,
+      "priority": "P2",
+      "enhancement": "Extend reinforced concrete from persistent bridging constraints to bond-slip and pullout behavior with measured reinforcement/concrete interface parameters.",
+      "acceptance": "Rebar transfers load after cover loss with testable slip, anchorage, and pullout behavior; strain and interface work remain distinct channels.",
+      "status": "not_started",
+      "evidence": [],
+      "remaining": []
+    },
+    {
+      "id": 71,
+      "priority": "P1",
+      "enhancement": "Add spatial bounds and view-frustum culling to the legacy all-instance draw stream; use independent light-frustum eligibility for shadows.",
+      "acceptance": "Offscreen instances stop consuming main-pass vertex work; camera-edge and offscreen-shadow-caster tests retain correct visibility.",
+      "status": "not_started",
+      "evidence": [],
+      "remaining": []
+    },
+    {
+      "id": 72,
+      "priority": "P2",
+      "enhancement": "Add conservative hierarchical-depth occlusion culling for sufficiently large opaque scenes after frustum culling.",
+      "acceptance": "Urban/warehouse scenes reduce GPU work; camera cuts, moving occluders, and disocclusion show no visible popping; small scenes can bypass it.",
+      "status": "not_started",
+      "evidence": [],
+      "remaining": []
+    },
+    {
+      "id": 73,
+      "priority": "P1",
+      "enhancement": "Generate visible instance lists and indirect draw arguments on GPU, grouped by geometry/material class, with a direct-draw fallback.",
+      "acceptance": "Rendering scales with visible batches without CPU count readback; no reliance on nonportable multi-draw or unsupported nonzero first-instance behavior.",
+      "status": "partial",
+      "evidence": [
+        "src/webgpu/instance-partition.ts",
+        "tests/engine/instance-partition.test.mjs"
+      ],
+      "remaining": [
+        "GPU stable material lists and indirect arguments are implemented without count readback. Frustum/occlusion visibility filtering and general geometry batches remain."
+      ]
+    },
+    {
+      "id": 74,
+      "priority": "P0",
+      "enhancement": "Partition opaque and transparent instance ranges. The legacy transparent pass currently redraws `safeCount` whenever any stream contains transparency.",
+      "acceptance": "The transparent draw visits only transparent instances; preserve depth/blending behavior and measure vertex/fragment reduction on mixed scenes.",
+      "status": "implemented",
+      "evidence": [
+        "src/webgpu/instance-partition.ts",
+        "src/webgpu/renderer.ts",
+        "benchmarks/results/engine-100x/partition-metal-20260910-comparison.json",
+        "benchmarks/results/engine-100x/partition-metal-20260910-comparison-02.json"
+      ],
+      "remaining": [
+        "Direct and partitioned output matches exactly for 18 tested count/MSAA combinations. The path remains opt-in pending a controlled complete-frame crossover across target adapters."
+      ]
+    },
+    {
+      "id": 75,
+      "priority": "P1",
+      "enhancement": "Cache static shadow contributions and update dynamic casters separately; fit shadow coverage to the active experiment and invalidate on relevant light/scene changes.",
+      "acceptance": "Static frames avoid redundant shadow rendering; moving geometry, camera-dependent bounds, and low sun remain correct across both renderers.",
+      "status": "partial",
+      "evidence": [
+        "src/webgpu/shadow-cache.ts",
+        "src/webgpu/renderer.ts",
+        "tests/engine/shadow-cache.test.mjs"
+      ],
+      "remaining": [
+        "Unchanged whole-caster passes are cached in raw WebGPU. Separate static/dynamic maps, scene-fit coverage and the Studio renderer remain."
+      ]
+    },
+    {
+      "id": 76,
+      "priority": "P1",
+      "enhancement": "Add screen-error-based rendering LOD for general rigid geometry, distant rope thickness, debris, and decorative stage details. Keep the physics mesh independent.",
+      "acceptance": "Increase visible scene capacity at a predeclared image-error limit; inspection views retain needed detail; physical results remain unchanged.",
+      "status": "not_started",
+      "evidence": [],
+      "remaining": []
+    },
+    {
+      "id": 77,
+      "priority": "P1",
+      "enhancement": "Use measured GPU/frame cost to adjust render resolution and selected effects with hysteresis. Extend the existing quality presets and unused governor.",
+      "acceptance": "Meet the selected p95 budget without oscillation; exports/benchmark comparisons lock quality; simulation dt and material parameters remain unchanged.",
+      "status": "partial",
+      "evidence": [
+        "src/main.ts",
+        "src/perf/runtime.ts"
+      ],
+      "remaining": [
+        "Opt-in adaptive resolution requires browser GPU budget qualification; benchmark and scientific run quality remain locked."
+      ]
+    },
+    {
+      "id": 78,
+      "priority": "P2",
+      "enhancement": "A/B test a depth prepass and opaque front-to-back ordering for expensive, overdraw-heavy scenes. Enable only above a measured crossover.",
+      "acceptance": "GPU savings exceed added geometry/encoding cost; test both sparse scenes and heavy material overlap.",
+      "status": "not_started",
+      "evidence": [],
+      "remaining": []
+    },
+    {
+      "id": 79,
+      "priority": "P2",
+      "enhancement": "Add tiled or clustered local-light assignment if many dynamic lights become a product requirement. Preserve the existing cheaper directional/environment-light path.",
+      "acceptance": "Bound per-fragment light work in a 100-local-light stress scene; verify light-list overflow, specular response, and GPU cost.",
+      "status": "not_started",
+      "evidence": [],
+      "remaining": []
+    },
+    {
+      "id": 80,
+      "priority": "P2",
+      "enhancement": "Build a measurable post-processing resource graph with pooled transient targets and selectively downsampled bloom/AO, extending the existing HDR and Studio AO passes.",
+      "acceptance": "Lower render-target bandwidth/peak bytes at accepted image quality; resizing and quality transitions recreate dependent bindings safely.",
+      "status": "not_started",
+      "evidence": [],
+      "remaining": []
+    },
+    {
+      "id": 81,
+      "priority": "P1",
+      "enhancement": "Generalize the Studio's existing GLTF scenery loading into an asset pipeline that cooks render meshes, collision geometry, material bindings, units, and bounds for authored simulations.",
+      "acceptance": "Import one asset consistently into both shells; visual geometry and collider scale agree; unsupported assets produce actionable diagnostics.",
+      "status": "not_started",
+      "evidence": [],
+      "remaining": []
+    },
+    {
+      "id": 82,
+      "priority": "P1",
+      "enhancement": "Apply offline meshoptimizer/gltfpack-style indexing, cache/fetch optimization, and simplification to imported static assets, beyond runtime mesh merging already present.",
+      "acceptance": "Smaller/faster assets pass silhouette, UV, normal, and material checks; measure parse/upload/render costs as well as download bytes.",
+      "status": "not_started",
+      "evidence": [],
+      "remaining": []
+    },
+    {
+      "id": 83,
+      "priority": "P1",
+      "enhancement": "Extend compressed texture delivery to the Studio's PNG/WebP material library using KTX2/Basis and capability-aware targets, preserving the legacy direct ASTC/BC path.",
+      "acceptance": "Compare transfer bytes, resident texture payload, transcode startup, and normal-map quality across supported devices; retain appropriate fallback formats.",
+      "status": "not_started",
+      "evidence": [],
+      "remaining": []
+    },
+    {
+      "id": 84,
+      "priority": "P1",
+      "enhancement": "Stream texture/mesh detail by demand with cancellation and residency budgets, instead of letting every visited finish/asset remain permanently resident.",
+      "acceptance": "Rapid scene changes cancel obsolete work; memory stays within a configured budget; required visible assets recover without broken bindings.",
+      "status": "partial",
+      "evidence": [
+        "src/studio/materials.ts",
+        "tests/engine/studio-materials.test.mjs",
+        "src/assets/ktx2.ts",
+        "src/webgpu/startup-budget.ts"
+      ],
+      "remaining": [
+        "Per-study materials and aborted renderer texture loads release obsolete work; full mesh/texture detail streaming with a measured residency budget remains."
+      ]
+    },
+    {
+      "id": 85,
+      "priority": "P1",
+      "enhancement": "Make Studio vegetation spatially clustered with camera-dependent density/LOD and conservative bounds. Extend current instanced/tiered woodland rather than adding generic instancing.",
+      "acceptance": "Wide bridge views reduce hidden/distant vegetation work; nearby trees retain silhouette/shadow quality; no asset identity changes in evidence captures.",
+      "status": "not_started",
+      "evidence": [],
+      "remaining": []
+    },
+    {
+      "id": 86,
+      "priority": "P0",
+      "enhancement": "Load and compile the active study's necessary assets first. Defer unrelated study finishes and optional environments; preserve existing asynchronous pipeline creation.",
+      "acceptance": "Measure time to first interactive specimen under cold cache and slow transfer; no blank materials or shader stalls when deferred content becomes visible.",
+      "status": "implemented",
+      "evidence": [
+        "src/studio/materials.ts",
+        "src/studio/world.ts",
+        "tests/engine/studio-materials.test.mjs",
+        "src/webgpu/startup-budget.ts",
+        "src/webgpu/renderer.ts",
+        "tests/engine/gpu-startup.test.mjs"
+      ],
+      "remaining": [
+        "Necessary study materials load lazily and GPU startup now has bounded cancellation/deadlines. Cold-cache and slow-transfer first-interactive qualification across all studies remains."
+      ]
+    },
+    {
+      "id": 87,
+      "priority": "P0",
+      "enhancement": "Add complete resource-owner lifecycles for both renderers: device buffers, targets, materials, textures, controls, observers, workers, and async tasks. Extend existing partial disposal.",
+      "acceptance": "Repeated create/switch/destroy cycles plateau in owned resource counts and allocated bytes; no callbacks touch disposed objects.",
+      "status": "partial",
+      "evidence": [
+        "src/webgpu/renderer.ts",
+        "src/studio/materials.ts",
+        "src/studio/world.ts",
+        "src/engine/studio-client.ts",
+        "tests/engine/gpu-timing.test.mjs",
+        "tests/engine/studio-materials.test.mjs",
+        "src/webgpu/resident-water-surface.ts",
+        "src/webgpu/startup-budget.ts",
+        "tests/engine/gpu-startup.test.mjs"
+      ],
+      "remaining": [
+        "Owned GPU/worker/material resources have explicit teardown, including late startup devices and cancelled textures. Long repeated-switch memory plateaus across every current study remain."
+      ]
+    },
+    {
+      "id": 88,
+      "priority": "P0",
+      "enhancement": "Add explicit mid-session GPU device-loss recovery: preserve CPU state or the latest GPU checkpoint, reselect capabilities, recreate resources, and report recovery status.",
+      "acceptance": "Deliberately lose the device during running, paused, recording, and resize states; recover a valid scene or a clear recoverable error.",
+      "status": "partial",
+      "evidence": [
+        "src/webgpu/renderer.ts",
+        "src/main.ts",
+        "tests/engine/gpu-timing.test.mjs",
+        "src/engine/probe.ts",
+        "src/webgpu/startup-budget.ts"
+      ],
+      "remaining": [
+        "CPU-backed recovery paths and GPU-water recoverable errors are implemented. Deliberate live device-loss testing during every running/paused/recording/resize state remains."
+      ]
+    },
+    {
+      "id": 89,
+      "priority": "P2",
+      "enhancement": "Add regional coordinates/floating origins and explicit world-to-local transforms for large engineering sites, including collider, camera, and recorder coordinates.",
+      "acceptance": "Move scenes through large world coordinates while local contact/strain accuracy stays within tolerance; exports retain consistent world positions.",
+      "status": "not_started",
+      "evidence": [],
+      "remaining": []
+    },
+    {
+      "id": 90,
+      "priority": "P2",
+      "enhancement": "Add a versioned, integrity-checked persistent asset cache and offline package manifest for repeat lab use; coordinate invalidation with native/shader revisions.",
+      "acceptance": "Repeat/offline startup uses the correct cached release; mixed-version assets cannot silently load; cache quotas and recovery are tested.",
+      "status": "not_started",
+      "evidence": [],
+      "remaining": []
+    },
+    {
+      "id": 91,
+      "priority": "P1",
+      "enhancement": "Define renderer adapters over shared engine state and explicit quality/capability semantics for raw WebGPU, Three.js WebGPU, and the Studio's existing WebGL fallback.",
+      "acceptance": "Renderer selection cannot silently change the physics model; missing render features are declared; the workbench's intentional WebGPU requirement stays explicit.",
+      "status": "partial",
+      "evidence": [
+        "src/engine/contracts.ts",
+        "src/engine/studio-runtime.ts",
+        "src/engine/workbench-runtime.ts",
+        "src/webgpu/resident-water-surface.ts",
+        "docs/GPU_WATER_API.md"
+      ],
+      "remaining": [
+        "Raw GPU water preserves the selected numerical model and ownership. Three.js GPU-buffer interop and unified capability semantics across all current studies remain."
+      ]
+    },
+    {
+      "id": 92,
+      "priority": "P1",
+      "enhancement": "Split inline WGSL and the large renderer/coordinator modules into owned shader/pass/runtime modules, with interface layout checks and shader compilation coverage.",
+      "acceptance": "Existing hardware shader validation still passes; WGSL/CPU layouts are checked together; no bundle/startup/per-frame regression from modularization.",
+      "status": "partial",
+      "evidence": [
+        "src/webgpu/gpu-timing.ts",
+        "src/engine/",
+        "src/studio/surface-topology.ts",
+        "src/webgpu/instance-partition.ts",
+        "src/webgpu/linear-water.ts",
+        "src/webgpu/water-telemetry.ts",
+        "src/webgpu/startup-budget.ts"
+      ],
+      "remaining": [
+        "Timing, partitioning, shadow caching, numerical water and startup ownership are separated into modules; the full renderer/shader/pass split remains."
+      ]
+    },
+    {
+      "id": 93,
+      "priority": "P1",
+      "enhancement": "Add authoring for parameterized fixtures, collider attachments, load programs, and model settings using the shared scene schema and reversible commands. Extend the existing presets/scene desk.",
+      "acceptance": "An authored experiment round-trips with stable IDs and reproduces the same results; undo edits topology/settings without corrupting saved runs.",
+      "status": "not_started",
+      "evidence": [],
+      "remaining": []
+    },
+    {
+      "id": 94,
+      "priority": "P1",
+      "enhancement": "Extend existing run/evidence export into resumable checkpoints containing velocities/previous positions, damage, plastic rest state, RNG, constraints, and solver revision.",
+      "acceptance": "Resume mid-failure and reproduce a continuous run under the same backend; reject incomplete or incompatible state rather than treating visual snapshots as full checkpoints.",
+      "status": "partial",
+      "evidence": [
+        "src/studio/physics.ts",
+        "src/engine/studio-client.ts",
+        "src/studio/main.ts",
+        "tests/engine/studio-state.test.mjs",
+        "tests/engine/runtime.test.mjs",
+        "src/studio/checkpoint-file.ts",
+        "tests/engine/checkpoint-file.test.mjs",
+        "src/webgpu/linear-water.ts",
+        "scripts/gpu-water-qualify.mjs",
+        "docs/GPU_WATER_API.md",
+        "benchmarks/results/engine-100x/gpu-water-metal-20260910-04.json"
+      ],
+      "remaining": [
+        "Studio JSON import and typed GPU-water continuation are implemented and tested. Native/legacy-soft/new-material-lab checkpoints and a common persistence envelope remain."
+      ]
+    },
+    {
+      "id": 95,
+      "priority": "P1",
+      "enhancement": "Build cancellable parameter-sweep/batch execution on the headless runtime, with bounded concurrency and separate result artifacts.",
+      "acceptance": "Sweep hundreds of cases without blocking the UI or overwriting benchmark evidence; report throughput, failures, cancellation, and per-case provenance.",
+      "status": "verified",
+      "evidence": [
+        "src/engine/studio-sweep.ts",
+        "scripts/studio-sweep.mjs",
+        "tests/engine/sweep.test.mjs",
+        "benchmarks/results/engine-100x/runs/studio-strength-20260910-01/summary.json",
+        "benchmarks/results/engine-100x/runs/studio-campaign-256-20260910-01/summary.json",
+        "docs/ENGINE_SWEEPS.md"
+      ],
+      "remaining": [],
+      "verifiedScope": "Studio canopy/plate/bridge headless runtime; 256 distinct bridge cases, 9 cross-study cases, streamed full checkpoints, bounded concurrency, cancellation/failure tests. Other numerical models are not claimed."
+    },
+    {
+      "id": 96,
+      "priority": "P2",
+      "enhancement": "Turn the existing remote TurboQuant experiment into an optional spectator/replay transport with sequence numbers, keyframes, error budgets, and loss recovery. Keep local transport uncompressed by default.",
+      "acceptance": "Bandwidth savings survive encode/decode and loss/reorder tests; drift and end-to-end latency are measured; authoritative solver state is never overwritten by lossy presentation data.",
+      "status": "not_started",
+      "evidence": [],
+      "remaining": []
+    },
+    {
+      "id": 97,
+      "priority": "P1",
+      "enhancement": "Extend recorded/synthetic single-channel analysis into explicitly bound multi-channel solver/test measurements: synchronization, units, uncertainty, sensor locations, and provenance.",
+      "acceptance": "Correlation/modal tools can distinguish measured inputs, solver outputs, and proxies; mismatched units or unknown channels cannot produce an unlabeled physical conclusion.",
+      "status": "not_started",
+      "evidence": [],
+      "remaining": []
+    },
+    {
+      "id": 98,
+      "priority": "P2",
+      "enhancement": "Add sensitivity analysis and bounded parameter fitting over batch experiments, including identifiability checks and held-out validation.",
+      "acceptance": "Recover parameters in known synthetic cases and report uncertainty/held-out fit on measured cases; expose non-identifiable or model-mismatch results.",
+      "status": "not_started",
+      "evidence": [],
+      "remaining": []
+    },
+    {
+      "id": 99,
+      "priority": "P0",
+      "enhancement": "Expand current validation into a release matrix across both entry routes, target desktop/mobile GPUs, fallback modes, active/paused/replay states, and long thermal/memory runs.",
+      "acceptance": "Store numerical, GPU-error, frame-time, and visual evidence separately; include interaction and second-camera checks; do not infer universal performance from a Node/Dawn pass.",
+      "status": "partial",
+      "evidence": [
+        "tests/engine/",
+        "tests/studio/press-lab.test.mjs",
+        "src/engine/probe.ts",
+        "benchmarks/results/engine-100x/runs/water-render-crossover-20260910-01/result.json",
+        "benchmarks/results/engine-100x/verification-studio-storage-20260910/",
+        "src/engine/compliant-cable.ts",
+        "tests/engine/compliant-cable.test.mjs",
+        "scripts/cable-qualify.mjs",
+        "scripts/cable-check.mjs",
+        "docs/COMPLIANT_CABLE.md",
+        "benchmarks/results/engine-100x/runs/compliant-cable-accuracy-20260910-04/integrity-review.json",
+        "benchmarks/results/engine-100x/verification-compliant-cable-20260910/",
+        "docs/NONLINEAR_CABLE.md",
+        "benchmarks/results/engine-100x/runs/proximal-cable-accuracy-20260911-02/integrity-review.json",
+        "benchmarks/results/engine-100x/verification-proximal-cable-20260911/"
+      ],
+      "remaining": [
+        "Local Metal and desktop/mobile-viewport GPU-water interactions are checked, including a second camera and checkpoint restore. Cross-device, fallback and long thermal/memory coverage across the eight-study entry remain."
+      ]
+    },
+    {
+      "id": 100,
+      "priority": "P0",
+      "enhancement": "Extend source/build provenance to current Studio, shaders, textures, and new native variants, with unique run directories and non-destructive default benchmark commands.",
+      "acceptance": "Reproduce packaged artifacts and trace a report to exact inputs; ordinary validation cannot overwrite frozen evidence or consume another run's temporary build output.",
+      "status": "partial",
+      "evidence": [
+        "scripts/engine-baseline.mjs",
+        "scripts/engine-benchmark.mjs",
+        "scripts/engine-check.mjs",
+        "docs/ENGINE_BENCHMARKS.md",
+        "scripts/gpu-water-benchmark.mjs",
+        "tests/engine/water-benchmark.test.mjs",
+        "docs/GPU_WATER_API.md",
+        "docs/NATIVE_WORLDS.md",
+        "benchmarks/results/engine-100x/verification-native-worlds-20260910/",
+        "scripts/update-build-provenance.mjs",
+        "benchmarks/results/engine-100x/runs/closed-water-render-crossover-20260910-01/integrity-review.json",
+        "benchmarks/results/engine-100x/runs/closed-water-render-crossover-20260910-02/integrity-review.json",
+        "benchmarks/results/engine-100x/verification-closed-water-frames-20260910/",
+        "src/engine/compliant-cable.ts",
+        "tests/engine/compliant-cable.test.mjs",
+        "scripts/cable-qualify.mjs",
+        "scripts/cable-check.mjs",
+        "docs/COMPLIANT_CABLE.md",
+        "benchmarks/results/engine-100x/runs/compliant-cable-accuracy-20260910-04/integrity-review.json",
+        "benchmarks/results/engine-100x/verification-compliant-cable-20260910/",
+        "docs/NONLINEAR_CABLE.md",
+        "benchmarks/results/engine-100x/runs/proximal-cable-accuracy-20260911-02/integrity-review.json",
+        "benchmarks/results/engine-100x/verification-proximal-cable-20260911/",
+        "src/engine/frame-element.ts",
+        "src/engine/frame-runtime.ts",
+        "src/engine/frame-probe.ts",
+        "tests/engine/frame.test.mjs",
+        "tests/qualification/frame-evidence.test.mjs",
+        "scripts/frame-qualify.mjs",
+        "docs/FRAME_MECHANICS.md",
+        "benchmarks/results/engine-100x/runs/frame-accuracy-20260911-04/integrity-review.json",
+        "benchmarks/results/engine-100x/verification-frame-20260911/"
+      ],
+      "remaining": [
+        "CPU, both GPU-water models and native inputs retain frozen source, raw results and integrity checks. Closed-water timings additionally require the exact independently audited solver and complete retained fields. Full release packaging, every new lab asset and future native variants still need unified release provenance."
+      ]
+    }
+  ],
+  "updatedAt": "2026-10-01T02:49:32.178342+08:00",
+  "claim": "Implementation in progress. The inherited absorbing million-cell linear-water benchmark retains its historical 4.510745x result on one Metal adapter. Both conservative closed-water frame comparisons pass numerical audits but remain timing-inconclusive; no new closed-model or engine-wide 100x speedup is established.",
+  "statusDefinitions": {
+    "not_started": "No implementation yet.",
+    "partial": "Only part of the specified enhancement is implemented.",
+    "implemented": "Code path implemented; listed qualification still required.",
+    "verified": "Specified bounded acceptance verified for this change."
+  },
+  "counts": {
+    "partial": 32,
+    "implemented": 11,
+    "not_started": 51,
+    "verified": 6
+  }
+}

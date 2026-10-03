@@ -1,0 +1,15 @@
+# Liquid Lab V3 review
+
+The new built-in imagegen mockup established a continuous supply/river/collection path, floodable low banks, a crowned wet road, thick-liquid spreading, and separate natural/depth/speed views. Its original is preserved at `/Users/commander/.codex/generated_images/01a07e7b-23c9-72e1-a62e-b780ac76623f/exec-67e7fc30-32bd-4926-bc6a-c9ae3d44c11c.png`. Workspace copies are `mockup.png` here and `public/studio/references/material-labs/liquid-v3.png`; the exact prompt is `PROMPT.md`.
+
+Implemented from that reference: shared river and surface terrain, open-bore bolted flanges, six-port and diffuser attachments, low-bank overtopping, shaped runoff, rain impact rings, translucent thin water films, recorded field coloring with fixed scales, and a more compact preset inspector. Wet fronts are clipped within triangles at the same 0.05 mm threshold used to report coverage. The apparatus remains an interactive reconstruction; the photographic environment detail and volumetric flow in the generated target are not claimed as exact render fidelity.
+
+The numerical review completed all 60 preset programs. Separate tests verify six stationary lakes including dry shorelines, bank-height effects, pooling in hollows, crowned runoff, pump-head and valve response, timed source integrals, zero-film dry starts, source/visible outlet agreement, rim overflow, and cutoff/replay. Test receipts remain local alongside this review. The maximum full-preset volume-budget residual was about 2.10e-12 m³.
+
+Native browser review used the private compiled preview on 127.0.0.1:5186. In the live 18-second flood-surge comparison, 0.09 m banks produced 2.44898 m² of wetted floodplain; changing only bank height to 0.4 m produced zero. Both completed runs were saved in the local QA origin, and the comparison showed exactly the bank-height difference. Existing V2 saved runs remained available. Replay returned to time zero with zero flooded area and the earlier recorded supply.
+
+The six-port bench delivered 40 L/s at 6 m head. Closing its valve produced zero delivery; reducing head to 1 m limited delivery to 19.32 L/s. Bell-diffuser and pulsed-supply controls rebuilt the apparatus and ran. Rain on a crowned road completed at 250 mm/h, with 1.56 mm mean film; the material pass made this thin film transparent. The oil-in-a-hollow run completed at 18 seconds with 45.15% wet coverage and a closed volume budget.
+
+Responsive checks covered 1280×720, 1440×900 and 390×844. Phone controls reached all 24 fluids, a 4× viscosity setting, a guttered surface and a 0.5 mm film. Width and scroll width were both 390 px. Native WebGPU and fallback WebGL were observed; the last render pass used WebGPU. Screenshots are in the tool transcript, not represented as saved files.
+
+Limits are documented in MODEL.md. This remains a comparative depth-averaged model, with authored material/pipe coefficients and decorative fine-scale droplets; no calibrated CFD, slip-safety rating or deployment is claimed.

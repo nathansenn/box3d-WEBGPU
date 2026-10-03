@@ -1,0 +1,34 @@
+{
+  "url": "http://127.0.0.1:5174/?studio=plate&theme=atelier&finish=plate-machined&light=softbox&recipe=plate-fracture&camera=connection&quality=ultra&surroundings=hall-concrete",
+  "broken": "0",
+  "clock": "0.00 s",
+  "controls": {
+    "camera-preset": "connection",
+    "load": "4",
+    "speed": "1",
+    "strength": "1",
+    "surroundings": "hall-concrete"
+  },
+  "deflection": "0.000",
+  "scrollWidth": 1026,
+  "state": {
+    "camera": "connection",
+    "drawCalls": "36",
+    "finish": "plate-machined",
+    "fps": "7",
+    "lighting": "softbox",
+    "phase": "ready",
+    "quality": "ultra",
+    "recipe": "plate-fracture",
+    "renderFrames": "4472",
+    "renderReady": "true",
+    "running": "false",
+    "sceneObjects": "138",
+    "setup": "custom",
+    "study": "plate",
+    "surroundings": "hall-concrete",
+    "theme": "atelier",
+    "triangles": "58999"
+  },
+  "width": 1026
+}

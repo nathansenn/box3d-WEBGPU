@@ -1065,7 +1065,9 @@ export class FallbackPhysicsBackend implements PhysicsBackend {
   }
 
   private integrate(dt: number): void {
-    for (const body of this.bodies) {
+    const bodies = this.bodies;
+    for (let bi = 0; bi < bodies.length; bi++) {
+      const body = bodies[bi]!;
       if (!body.dynamic) continue;
       body.vel[1] -= 9.82 * dt;
       body.vel[0] *= 0.999;
@@ -1083,7 +1085,9 @@ export class FallbackPhysicsBackend implements PhysicsBackend {
   }
 
   private solveBounds(): void {
-    for (const body of this.bodies) {
+    const bodies = this.bodies;
+    for (let bi = 0; bi < bodies.length; bi++) {
+      const body = bodies[bi]!;
       if (!body.dynamic) continue;
       if (body.pos[1] - body.half[1] < 0) {
         body.pos[1] = body.half[1];
@@ -1094,7 +1098,7 @@ export class FallbackPhysicsBackend implements PhysicsBackend {
         body.angVel[2] *= 0.96;
         body.heat = Math.max(body.heat, 0.45);
       }
-      for (const axis of [0, 2] as const) {
+      for (let axis = 0; axis < 3; axis += 2) {
         const min = -43 + body.half[axis];
         const max = 43 - body.half[axis];
         if (body.pos[axis] < min) {

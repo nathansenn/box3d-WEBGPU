@@ -1,0 +1,19 @@
+{
+  "cases": 9,
+  "live": "Ready to simulate0.00 s",
+  "message": "Saved scan restored with its fixed settings. Export before replacing it.",
+  "outcomes": [
+    "No rupture observed",
+    "No rupture observed",
+    "No rupture observed",
+    "No rupture observed",
+    "Partial · No rupture observed",
+    "Not run",
+    "Not run",
+    "Not run",
+    "Not run"
+  ],
+  "setup": "Load scan · 9 cases · 120 s · next scan",
+  "status": "Cancelled · partial results retained.",
+  "url": "http://127.0.0.1:5186/?studio=bridge&theme=observatory&finish=bridge-weathered&light=woodland-daylight&recipe=bridge-collapse&camera=river-hero&quality=ultra&surroundings=valley-stream&layout=reference&water=academy&flow=1&wave=1&foam=1&flowMotion=1&analysis=experiments&panel=analyze&custom=1&target=5&strength=1.6&wind=2&speed=1"
+}

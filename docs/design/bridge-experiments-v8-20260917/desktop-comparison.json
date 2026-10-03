@@ -1,0 +1,11 @@
+{
+  "comparison": "Compare with\nChoose a reference\nLoad 0.20\nLoad 0.80\nLoad 1.80\nLoad 3.20\nLoad 5.00\nPin this case\nLoad 5.00 vs Load 0.80\nBoth cases at 7.7 s\nMeasurement\tSelected\tReference\tDifference\nDeck drop\t0.307\t0.210\t+0.097\nSideways\t0.218\t0.020\t+0.199\nLost links\t1\t0\t+1\n\nSelected − reference, calculated before rounding. Displacement in model units; lost links in connections.",
+  "documentWidth": 1280,
+  "probe": "7.7",
+  "reference": "1",
+  "selected": "CASE 05\nLoad 5.00",
+  "viewport": {
+    "height": 720,
+    "width": 1280
+  }
+}

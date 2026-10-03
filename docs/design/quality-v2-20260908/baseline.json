@@ -1,0 +1,12 @@
+{
+  "physicsSha256": "fbc8326cb7f2f734351b2fc4d68a112340756311d28db92b794133acb934e0f0",
+  "referenceManifest": "../realism-20260908/reference-manifest.json",
+  "temporaryBudgetMiB": 100,
+  "cleanupOwner": "current Codex task",
+  "scope": [
+    "canopy",
+    "plate",
+    "bridge"
+  ],
+  "humanVisualAcceptance": "not-accepted"
+}

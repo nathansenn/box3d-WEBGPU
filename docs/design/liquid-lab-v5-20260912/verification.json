@@ -1,0 +1,135 @@
+{
+  "date": "2026-09-12T14:12:27.419158+00:00",
+  "scope": "Liquid Lab V5 notebook and analysis workflow",
+  "source": {
+    "src/studio/material-labs/liquid-report.ts": "318e1cda03a665d0f923263e35f2e5e23c8c853d566797f277b49200c4ce0be9",
+    "src/studio/material-labs/liquid-notebook-view.ts": "87061d4873aecd03d06a376b4d135e922d6ea5fcf6039d8dc2e67a323402bae9",
+    "src/studio/material-labs/liquid-notebook.css": "baa25e32e804299b1f8f37e55f858a71040480158d1fa756c61469b47df5a832",
+    "src/studio/material-labs/liquid-analysis-view.ts": "43c6be67ceb7c480b1dde1b3d718ff1c38233b182b13be29398e3a055f97784b",
+    "src/studio/material-labs/main.ts": "1371929f25817392ca30012d1fd8d394e05cd7bbf5aa46966f613bcd558181f8",
+    "tests/studio/liquid-lab-v5.test.mjs": "78ed4465dd7d7cf4e452df656185e13c265c5d54c257a0ed834e2253e7fa3887"
+  },
+  "imagegen": {
+    "mode": "built-in imagegen",
+    "mockup_sha256": "ef905a45eead585d4e4660d398748323042ea82e5ee989aba780a4fbf8038cbe",
+    "prompt": "PROMPT.md"
+  },
+  "checks": {
+    "tests": 98,
+    "passed": 98,
+    "all_liquid_presets": 60,
+    "typecheck": "pass",
+    "build": "pass",
+    "focused_rig_round_trips": 5,
+    "focused_html_escape_check": "pass",
+    "production_renderer": "WebGPU",
+    "development_renderer": "WebGL fallback",
+    "production_console_errors_or_warnings": [],
+    "production_live_run_seconds": 12,
+    "native_compiled_comparison_cases": 3,
+    "phone_viewport": [
+      390,
+      844
+    ],
+    "desktop_viewport": [
+      1280,
+      720
+    ],
+    "phone_horizontal_overflow": false,
+    "phone_budget_overflow": false,
+    "v4_report_import": "pass",
+    "v5_report_import": "pass",
+    "malformed_import_preserves_current_report": "pass",
+    "notes_and_review_persist_across_reload": "pass",
+    "case_loading_preserves_edits": "pass",
+    "zero_baseline_percent": "unavailable",
+    "invalid_limit_prevents_save": "pass",
+    "changed_limit_metric_clears_invalidity": "pass",
+    "range_final_sample_reachable": "pass"
+  },
+  "downloads": {
+    "JSON": {
+      "filename": "box3d-liquid-notebook.json",
+      "bytes": 638049,
+      "format": "box3d-liquid-comparison-v2",
+      "cases": 3,
+      "samples": 363
+    },
+    "CSV": {
+      "filename": "box3d-liquid-notebook.csv",
+      "rows": 363
+    },
+    "HTML": {
+      "filename": "box3d-liquid-report.html",
+      "bytes": 20136,
+      "scripts": false,
+      "remote_assets": false,
+      "colored_legend": true
+    }
+  },
+  "browser_scope": "One task-owned disposable IAB tab; localhost/native GPU/local file import exception; no remote transfer; viewport reset",
+  "limits": [
+    "Comparative depth-averaged model, not calibrated",
+    "Imported reports checked for structure and consistency, not independently simulated",
+    "12 notebook entries / 2.5 million characters / browser storage quota",
+    "Existing Vite shared rendering chunk warning remains"
+  ],
+  "artifacts": {
+    "readable-report-desktop.png": {
+      "bytes": 50965,
+      "sha256": "5f5d4d72700d19a1cd725cd8c3d3f8d754acf6bf63e884fed9871ab05915f840"
+    },
+    "phone-notebook.png": {
+      "bytes": 38494,
+      "sha256": "0986b66530ab0dd76c4e38ff6df17ad68eb370f9cbbb5c216a8cf3ddea199a43"
+    },
+    "mockup.png": {
+      "bytes": 2319468,
+      "sha256": "ef905a45eead585d4e4660d398748323042ea82e5ee989aba780a4fbf8038cbe"
+    },
+    "production-live-run.png": {
+      "bytes": 135320,
+      "sha256": "34507f86bc53f4d5b54c209e3ccb24af3c510128bbbaed3eb3dc731a37fbaee7"
+    },
+    "production-notebook.png": {
+      "bytes": 103395,
+      "sha256": "6ef6e690d14fce9378b81e0b490a7ac6772ae8c02942b7f80178f814b390bd3f"
+    },
+    "box3d-liquid-notebook.json": {
+      "bytes": 638049,
+      "sha256": "198b33ce6ed241994939eb2b1c3b7623f906ca5f8b294c194c6afe49cde91c60"
+    },
+    "invalid-report.json": {
+      "bytes": 46,
+      "sha256": "07492d7a109083455e88daaebe55be1248343f0f22607d568258b8d0b4e0a2f6"
+    },
+    "box3d-liquid-report.html": {
+      "bytes": 20136,
+      "sha256": "43300cfb289c32fa7cb7738abf5f94abf9433d1baf5adfe7dcea751019153d7b"
+    },
+    "desktop-notebook.png": {
+      "bytes": 103342,
+      "sha256": "7d4f4425569a2e8b2b263112dd38201f055b5603361a27568dd176b8f70f9882"
+    },
+    "phone-limits.png": {
+      "bytes": 42086,
+      "sha256": "547112cc5b1e9ec3e94329c1656844afa0382cc248365f0a221d62070e00080f"
+    },
+    "report-qa.json": {
+      "bytes": 379,
+      "sha256": "75c0b8929133fa9ba2c7d72c09c876f0a38b7fa972d4abdeb4954964c9996e36"
+    },
+    "box3d-liquid-notebook.csv": {
+      "bytes": 378999,
+      "sha256": "49912334afc0f7f00b4cd8dc743da147e389aaa3202fa493f269eb47e14eb3a3"
+    }
+  },
+  "cleanup": {
+    "owned_iab_tab_closed": true,
+    "viewport_reset": true,
+    "production_preview_stopped": true,
+    "development_listener": "COMMAND   PID      USER   FD   TYPE             DEVICE SIZE/OFF NODE NAME\nnode    50281 commander   14u  IPv4 0x3fe04746a8d2c646      0t0  TCP 127.0.0.1:5173 (LISTEN)",
+    "development_route_native_ready": "WebGL renderer; Analyze controls enabled; River channel supply ready",
+    "user_tabs_untouched": true
+  }
+}

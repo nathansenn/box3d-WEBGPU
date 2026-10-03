@@ -1,0 +1,29 @@
+{
+  "name": "current-bridge-replay-live",
+  "at": "2026-09-08T08:33:44.325Z",
+  "broken": "27",
+  "camera": "hero",
+  "canvas": {
+    "height": 967,
+    "width": 1487
+  },
+  "deflection": "6.200",
+  "draws": "64",
+  "events": "11",
+  "finish": "bridge-weathered",
+  "fps": "124",
+  "frames": "80474",
+  "height": 1058,
+  "history": "LIVE HISTORY",
+  "horizontalOverflow": false,
+  "lighting": "daylight",
+  "objects": "24030",
+  "productionEntry": "index-DipR682Y.js",
+  "quality": "ultra",
+  "ready": "true",
+  "study": "bridge",
+  "time": "30.01 s",
+  "triangles": "958165",
+  "url": "http://127.0.0.1:5174/?studio=bridge&theme=observatory&finish=bridge-weathered&light=daylight&recipe=bridge-collapse&camera=hero&quality=ultra",
+  "width": 1487
+}

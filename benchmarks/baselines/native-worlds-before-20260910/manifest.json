@@ -1,0 +1,55 @@
+{
+  "files": [
+    {
+      "path": "wasm/box3d_web.c",
+      "bytes": 49108,
+      "sha256": "943a3b406e1a5dffe1c2f7eae2c6fb5dd082347cc6ebb913e36e5fa101e18e29"
+    },
+    {
+      "path": "wasm/CMakeLists.txt",
+      "bytes": 3002,
+      "sha256": "c70a9f6e10e66e6cba4855fe219ae6c64c615aa418fb2f186acd12e8380e2ba9"
+    },
+    {
+      "path": "src/physics/wasm.ts",
+      "bytes": 7063,
+      "sha256": "abbd46cc034fae39ac6eb40ed55dc5c8059c4316fb25ae21035c1fe25850e327"
+    },
+    {
+      "path": "src/types.ts",
+      "bytes": 14192,
+      "sha256": "b52de1dfe79b02cb139e6d2fe7504cfbd634b039f535c808a7320cc29b59dc2b"
+    },
+    {
+      "path": "public/box3d/box3d.js",
+      "bytes": 14209,
+      "sha256": "8ec00439683b8da258916ebe90f0cea6a6d0672641fda571936b6012fd3cec3b"
+    },
+    {
+      "path": "public/box3d/box3d.wasm",
+      "bytes": 400546,
+      "sha256": "089ba180666b2fcd3a7ca0b92f4d715fd0a25e91974e35c198b5b7e83620e552"
+    },
+    {
+      "path": "public/box3d/BUILD_PROVENANCE.json",
+      "bytes": 1352,
+      "sha256": "417097416d7712ff6c4f1943cb02214fadd831baef184b09ef3d47de55dedf5a"
+    },
+    {
+      "path": "public/box3d/BOX3D_LICENSE.txt",
+      "bytes": 1067,
+      "sha256": "da5e31a26bf3cfd5ba5c96d6823e480128c81e76c107ef9d3ee5d94789184b90"
+    }
+  ],
+  "upstream": {
+    "ref": "v0.1.0",
+    "commit": "8441b4a06d6d09dcfb0b0f704df4d847d1437b92",
+    "license": "MIT"
+  },
+  "toolchain": {
+    "emscripten": "4.0.23",
+    "cmake": "4.4.0",
+    "generator": "Unix Makefiles",
+    "make": "GNU Make 3.81"
+  }
+}

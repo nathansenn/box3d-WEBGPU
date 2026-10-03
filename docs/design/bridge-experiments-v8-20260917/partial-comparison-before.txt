@@ -1,0 +1,12 @@
+Compare with
+Choose a reference
+Strength 0.40×
+Strength 0.70× · partial
+Strength 1.00×
+Strength 1.40×
+Strength 2.00×
+Pin this case
+
+Different recording lengths: 10.0 s selected, 60.0 s reference. Compare at a shared time.
+
+Compare at 10.0 s · last shared sample

@@ -1,0 +1,86 @@
+{
+  "at": "2026-09-12T13:22:50.999866+00:00",
+  "task": "01a07e7b-23c9-72e1-a62e-b780ac76623f",
+  "scope": "Liquid Lab V4, comparative model",
+  "tests": {
+    "liquid_and_library": 104,
+    "regression": 27,
+    "total": 131,
+    "failed": 0,
+    "typecheck": "passed",
+    "build": "passed",
+    "build_warning": "Existing large chunk warning"
+  },
+  "presets": 60,
+  "max_preset_balance_error_m3": 2.101964435841097e-12,
+  "native": {
+    "provider": "Codex IAB",
+    "reason": "localhost/native WebGPU/module worker; prior remote-transfer rejection respected",
+    "origins": [
+      "http://127.0.0.1:5173",
+      "http://127.0.0.1:5186"
+    ],
+    "backend": "WebGPU",
+    "viewports": [
+      [
+        1280,
+        720
+      ],
+      [
+        1440,
+        900
+      ],
+      [
+        390,
+        844
+      ]
+    ],
+    "phone_overflow": false,
+    "console_errors": 0,
+    "comparison_complete": true,
+    "cancel_restart": "passed",
+    "duplicate_input": "rejected",
+    "duration_cutoff_commits": "passed",
+    "saved_library": "new case plus three old results verified",
+    "replay": "time zero and active supply restored",
+    "downloads": {
+      "comparison_csv_rows": 363,
+      "live_section_csv_rows": 182,
+      "json_cases": 3,
+      "live_worker_final_metric_tolerance": 1e-10
+    },
+    "backends_observed": [
+      "WebGPU",
+      "WebGL"
+    ],
+    "final_dev_reload_backend": "WebGL fallback; ready and compare control enabled"
+  },
+  "comparison": [
+    {
+      "bank_height_m": 0.04,
+      "max_depth_m": 0.31907673366234285,
+      "final_coverage_percent": 100,
+      "collected_m3": 0.02241583590869707
+    },
+    {
+      "bank_height_m": 0.09,
+      "max_depth_m": 0.330937489650637,
+      "final_coverage_percent": 65.15151515151395,
+      "collected_m3": 0.01637465348520245
+    },
+    {
+      "bank_height_m": 0.17,
+      "max_depth_m": 0.35239698624718135,
+      "final_coverage_percent": 58.78787878787792,
+      "collected_m3": 0.015355930342825402
+    }
+  ],
+  "cleanup": {
+    "viewport": "reset",
+    "owned_tab": "closed; zero IAB task tabs remain",
+    "temporary_preview_pid": 86637,
+    "temporary_preview": "stopped and listener absence verified",
+    "development_server_pid": 77657,
+    "development_server": "127.0.0.1:5173 retained; listener verified"
+  }
+}

@@ -1,0 +1,41 @@
+{
+  "data": {
+    "camera": "bank",
+    "cameraPose": "{\"position\":[18,1.4000000000000008,28],\"target\":[13.800000000000002,-1.35,21],\"fov\":44}",
+    "deskBusy": "false",
+    "deskPanel": "environment",
+    "drawCalls": "70",
+    "finish": "bridge-weathered",
+    "fps": "29",
+    "lighting": "reference-daylight",
+    "phase": "ready",
+    "quality": "ultra",
+    "recipe": "bridge-service",
+    "renderFrames": "5119",
+    "renderReady": "true",
+    "riverAnimate": "false",
+    "riverFlow": "1",
+    "riverFoam": "1",
+    "riverTime": "74.137",
+    "riverWave": "1",
+    "running": "false",
+    "sceneObjects": "41722",
+    "setup": "custom",
+    "study": "bridge",
+    "surroundings": "valley-stream",
+    "theme": "observatory",
+    "triangles": "3091667"
+  },
+  "scripts": [
+    "http://127.0.0.1:5174/assets/index-CwAJzzTQ.js"
+  ],
+  "title": "BOX3D — Engineering Studio",
+  "ui": "BOX3D\nEngineering Studio\n01\nCanopy\n02\nPlate press\n03\nSuspension bridge\nReference\nPresets\nLabs\nScene\nTest\nCompare\nSuspension cable study\nSTUDY 03\nReference view\nCable connections\nLoad & failure\nMaterial\nResponse\nReady to simulate\n0.00 s\nExperiment desk\nSet up\nSurface\nWorld\nTest\nLighting & atmosphere\nAll lights\nNeutral evaluation\nNorth light\nRaking inspection\nAmber workshop\nMorning mist\nGolden hour\nSurroundings\nWoodland stream\nQuiet wetland\nAutumn river\nAlpine river\nCamera\nReference composition\nHero view\nReverse angle\nSpecimen detail\nPlan inspection\nLow elevation\nConnection close-up\nOblique inspection\nContext view\nRiver corridor\nRiverbank detail\nQuality\nUltra · full resolution\nBalanced\nLessons Bridge water\n\nFlow profiles adapted from the Material Forge river.\n\nRiver corridor\nBank detail\nBridge calm\nA slow current with quiet banks.\nLessons Bridge\nLayered ripples and broken reflections.\nBridge rapids\nFaster current and stronger surface breakup.\nLessons Bridge · Frozen for inspection\nFlow speed\n1.00×\nWave energy\n1.00×\nFoam amount\n1.00×\nAnimate flow\n\nVisual current only. Water does not apply forces to the bridge.\n\nOrbit automatically\nWorkspace treatment\nPrecision Studio\nResearch Atelier\nField Observatory\nInspection view applied.\nDeflection\n0.000\nConnections lost\n0\nUndo look\nRun simulation\n0.00 s\n0 s\nLIVE HISTORY\n0.0 s recorded\nLive\n0.25×\n0.5×\n1.0×\n2.0×\nResponse history\nDeflection\nApplied load\nFailure events\n0\nRun a study to trace how failure develops.\nEvery event comes from the solver.\nWebGPU renderer · 29 fps · 70 draws\nComparative model · not calibrated\nExport evidence",
+  "url": "http://127.0.0.1:5174/?studio=bridge&theme=observatory&finish=bridge-weathered&light=reference-daylight&recipe=bridge-service&camera=bank&quality=ultra&surroundings=valley-stream&layout=reference&water=academy&flow=1&wave=1&foam=1&flowMotion=0",
+  "viewport": {
+    "height": 1058,
+    "width": 1487
+  },
+  "logs": [],
+  "capturedAt": "2026-09-08T21:27:01.222Z"
+}

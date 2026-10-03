@@ -1,0 +1,199 @@
+{
+  "auditDate": "2026-09-10",
+  "scope": "Source-grounded improvement discovery for the current working tree; no engine implementation changes. Proposal targets are unmeasured.",
+  "checks": [
+    {
+      "command": "npm run typecheck",
+      "result": "passed",
+      "exitCode": 0
+    },
+    {
+      "command": "node scripts/native-box3d-soak.mjs",
+      "result": "passed",
+      "exitCode": 0,
+      "scenes": 800,
+      "deterministicReplays": 800,
+      "bodyFramesPerPass": 1146480,
+      "maxBodies": 4096
+    },
+    {
+      "command": "node tests/studio/failure.test.mjs",
+      "result": "passed",
+      "exitCode": 0,
+      "passed": 26,
+      "total": 26
+    }
+  ],
+  "studioCpuProbe": {
+    "scope": "Node CPU Studio service-load probe only; no renderer, browser, or GPU. Five fresh simulations per study; 120 warmup steps then 360 timed steps; 120 snapshot calls at terminal state. Single-process exploratory measurements, not a controlled speedup benchmark.",
+    "node": "v26.0.0",
+    "platform": "darwin",
+    "arch": "arm64",
+    "sourceSha256": "fbc8326cb7f2f734351b2fc4d68a112340756311d28db92b794133acb934e0f0",
+    "sourceUnchanged": true,
+    "studies": [
+      {
+        "id": "canopy",
+        "nodes": 891,
+        "links": 5048,
+        "triangles": 1664,
+        "snapshotTypedBytes": 19304,
+        "medianStepMs": 2.191041783333334,
+        "medianSnapshotMs": 0.10191632499999817,
+        "samples": [
+          {
+            "stepMs": 2.1769716416666665,
+            "snapshotMs": 0.10191632499999817
+          },
+          {
+            "stepMs": 2.0900192111111107,
+            "snapshotMs": 0.09448611666666692
+          },
+          {
+            "stepMs": 2.276728936111111,
+            "snapshotMs": 0.09262153333333269
+          },
+          {
+            "stepMs": 2.191041783333334,
+            "snapshotMs": 0.13419548333332992
+          },
+          {
+            "stepMs": 2.2424153944444445,
+            "snapshotMs": 0.10280174166666711
+          }
+        ]
+      },
+      {
+        "id": "plate",
+        "nodes": 957,
+        "links": 5434,
+        "triangles": 1792,
+        "snapshotTypedBytes": 20746,
+        "medianStepMs": 2.451003472222222,
+        "medianSnapshotMs": 0.11013715000000654,
+        "samples": [
+          {
+            "stepMs": 2.636110880555556,
+            "snapshotMs": 0.11653437499999958
+          },
+          {
+            "stepMs": 2.4864913194444447,
+            "snapshotMs": 0.11129097500000475
+          },
+          {
+            "stepMs": 2.357531019444443,
+            "snapshotMs": 0.10421458333333551
+          },
+          {
+            "stepMs": 2.360863774999997,
+            "snapshotMs": 0.10073437500000182
+          },
+          {
+            "stepMs": 2.451003472222222,
+            "snapshotMs": 0.11013715000000654
+          }
+        ]
+      },
+      {
+        "id": "bridge",
+        "nodes": 148,
+        "links": 327,
+        "triangles": 0,
+        "snapshotTypedBytes": 2695,
+        "medianStepMs": 0.1699755777777783,
+        "medianSnapshotMs": 0.01431284999998752,
+        "samples": [
+          {
+            "stepMs": 0.17672893333333378,
+            "snapshotMs": 0.017135416666663635
+          },
+          {
+            "stepMs": 0.17332719722222564,
+            "snapshotMs": 0.01431284999998752
+          },
+          {
+            "stepMs": 0.16684374999999818,
+            "snapshotMs": 0.01588888333332458
+          },
+          {
+            "stepMs": 0.16951863333333173,
+            "snapshotMs": 0.011956941666661199
+          },
+          {
+            "stepMs": 0.1699755777777783,
+            "snapshotMs": 0.011990275000001323
+          }
+        ]
+      }
+    ]
+  },
+  "limitations": [
+    "No fresh browser frame-time, GPU timestamp, mobile, or thermal measurements were performed.",
+    "The Node probe is exploratory, single-process, service-load only, and is not a before/after comparison.",
+    "Hardware model was unavailable to the sandbox; no historical hardware identity is assumed.",
+    "Existing uncommitted Studio work is included in the inspected source state."
+  ],
+  "gitHead": "dfedd9fe9983200f492d686488d27b6a4b11c650",
+  "gitBranch": "main",
+  "sourceIdentityScope": "SHA-256 of inspected files, not a frozen archive of the entire working tree.",
+  "sourceSha256": {
+    "src/entry.ts": "2861237cf73ccdfdddacc94d6bb0d9277541db3e0d8b9214818c584a5ceb3b74",
+    "src/main.ts": "7faa5bc9f585fa511408016e1ee2e6a6952108a8c48ce4826cb80ed2df2ddc5d",
+    "src/types.ts": "b52de1dfe79b02cb139e6d2fe7504cfbd634b039f535c808a7320cc29b59dc2b",
+    "src/physics/wasm.ts": "abbd46cc034fae39ac6eb40ed55dc5c8059c4316fb25ae21035c1fe25850e327",
+    "src/physics/fallback.ts": "abdd32c4444a73f6583cab948f38d95787d6b6fe926ffa1df7238b485a4c9ccd",
+    "src/soft/simulations.ts": "ee4e19b51206f3e70a81959b25a0b1777a755509f41214de0beafca7393ac41f",
+    "src/soft/material-simulation.ts": "c872e65ede8c1d01056b2485cd59d82cf1f49f89b9342d528f1231b4b4f1db39",
+    "src/soft/material-shell.ts": "07a74846b7c7a1814b9933ab2f8143612ebeb98985d432412c794205dd457cfc",
+    "src/soft/kernels.ts": "ed0b8f33daef06f73743d87c86c70396e25a57d284abcd21b5cf2a564df03029",
+    "src/soft/combined-material-simulation.ts": "2457760e6fe0200ba3171243da1ee8b9e0a4b62e00b48bbb81308a9f827248fa",
+    "src/webgpu/renderer.ts": "af5b3beac1f02f4e6d75e383270151c7679a473fac196b576ff59085c6e3b03f",
+    "src/perf/runtime.ts": "52384ddf462e817463e82524f74e16a7b2250c667c9f3b0901c8e838b06d7907",
+    "src/studio/main.ts": "1a1f67de58df51f43dedcbf0bf5132a8c464b69268836a2d0eeafc9e91d9ac07",
+    "src/studio/physics.ts": "fbc8326cb7f2f734351b2fc4d68a112340756311d28db92b794133acb934e0f0",
+    "src/studio/world.ts": "b5bf8739df3fec90f26d726ddcce06d845f164580f05d387aca11498ef2d7895",
+    "src/studio/river-water.ts": "2e9eb7ace892bef791075b0f2c43039fa4a7266fc618c0c318277ac41e73bd88",
+    "src/studio/materials.ts": "a989e1debebff52d4e44e0f1da166fc44896fbf1bb9e86819868e633ebb0089a",
+    "src/workbench/engineering-evidence.ts": "0b46020c02e733a501f62642a3ac9b3cd8aa39414831a8fc74110715a766340c",
+    "src/workbench/engineering-analysis.ts": "8081f81e04bce6c757b07783dc7b6cdef5065c9c18b837b3f1905a2aaa3add6a",
+    "src/workbench/engineering-session.ts": "8eca3815ab5eee82b0be1edc73cc03a65e962b043b4f51d4cfe4da4c70aa686b",
+    "wasm/box3d_web.c": "943a3b406e1a5dffe1c2f7eae2c6fb5dd082347cc6ebb913e36e5fa101e18e29",
+    "wasm/soft_kernels.c": "af5b1bcaea9d4781379a436cb73147297ec3ec29f0482a8511c38709bb2a69f1",
+    "wasm/CMakeLists.txt": "c70a9f6e10e66e6cba4855fe219ae6c64c615aa418fb2f186acd12e8380e2ba9",
+    "package.json": "2e329f2bc7d1a023d9439896231d97725dc2a586e628db9a934610af700fba93",
+    "vite.config.ts": "450fbeb8429907bc719c6983b546489c284bee167debc3ee5ff4d0b1938f6d42",
+    "PERFORMANCE.md": "ea7e563ef8a1d523079b04444a5c8efebf4808716f4038873238ed92f7dd89d2"
+  },
+  "postAuditRecheck": {
+    "context": "Concurrent Studio press changes occurred after the initial CPU probe and tests. Hot-path findings were reread and remain applicable. Initial timing data is not a measurement of this later revision.",
+    "changedFilesSinceInitialIdentity": [
+      "src/studio/main.ts",
+      "src/studio/physics.ts",
+      "src/studio/world.ts"
+    ],
+    "checks": [
+      {
+        "command": "npm run typecheck",
+        "result": "passed",
+        "exitCode": 0
+      },
+      {
+        "command": "node tests/studio/failure.test.mjs",
+        "result": "failed",
+        "exitCode": 1,
+        "test": "plate: plastic strain and permanent dent remain after unloading",
+        "assertion": "assert.ok(plastic>.02)",
+        "location": "tests/studio/failure.test.mjs:46",
+        "interpretation": "Reconcile intended behavior and test contract after press edits; failure does not by itself establish physical correctness."
+      }
+    ],
+    "sourceSha256": {
+      "src/studio/main.ts": "cc1e601b0c0a816ce438accd30fae73be2ea88b30af7e8426fe04f2c1813c78d",
+      "src/studio/physics.ts": "8f2f2a2b2272d9a9487414ceac557ffcfe3548e5da5b53f3b9818bb49b821d4d",
+      "src/studio/world.ts": "2b6540252a9b14f8a15aac2ec92a1c5097e0fad059c29a337fe0f28da3dba836",
+      "src/studio/press-settings.ts": "94955bd5a755c999543e267a78e01c7c9f2c1987aea40f6c65e855d44d0ab58f",
+      "tests/studio/failure.test.mjs": "f93dc5e9b5655baeb7b48547866c5f793adcc0fde1faabd5b600273e5d680db9",
+      "tsconfig.json": "3bbceb5a34361c0cf3249e03d1dfc1b84031a86930939cbb0b15a9d4971fb194"
+    }
+  }
+}

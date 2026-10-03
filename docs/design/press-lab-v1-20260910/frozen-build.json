@@ -1,0 +1,47 @@
+{
+  "build": "production Vite build",
+  "source": {
+    "src/studio/physics.ts": "dbb24beddc9c8bfda9594cadad2516f3ed25a82d41b3ef1b8ee46cd256d08eac",
+    "src/studio/press-settings.ts": "89fe3d5344019e3cd4ea55674a7b4e2df074ad660b1756456e559bff550a11f6",
+    "src/studio/press-tooling.ts": "7b491951a8a0bba91f60a452bc7e640e41a57b7d65636de03f2b301a10e49559",
+    "src/studio/press-workbench.ts": "73623a7b41a37ed113ca16189e4398e8b2b19b77e6fde8c81d2c1639687fb506",
+    "src/studio/press-workbench.css": "d009a8cc762c36b3dffced9e07f27714bb04c042d6cfc3ec6d959e7e923eebc3",
+    "src/studio/world.ts": "8b88d4693c6cf08e38051a1cea90d3dfec1b5f301502195948a51e5b90e21a4e",
+    "src/studio/main.ts": "b867e895e69577ff3b44e87ffcd863678f71ec2db252a00ecb82f46c182008ef",
+    "src/studio/presets.ts": "f93d92b13e217146f5aa51f178f2d7c898762892ba3cc7751d11166ef754fe28",
+    "src/studio/preset-browser.ts": "4cc7baec0ce101f0b450bec387b5981c7776f121aa46ac7b3ac723f89cfa3174",
+    "src/studio/scene-desk.ts": "ae6aa20a537a0f447d67ff546b6e55fe97d6ac8dc5a4cdb5d9aced1d68569d97",
+    "tsconfig.json": "dc900931a1087d6a1f4618aea5fe0eddd50c4a81022139bf793028a62b974a51"
+  },
+  "buildFiles": {
+    "index.html": "35317112c90db2c1fe2efbceb9d77621c8a0f886a4783b8c502d2b244adf1926",
+    "box3d/box3d.js": "8ec00439683b8da258916ebe90f0cea6a6d0672641fda571936b6012fd3cec3b",
+    "assets/index-smGtkBrm.js": "2dc82fdb37532d2fb43866d7b69f31b73a4c2e5a2a38bafa351fe00232531808",
+    "assets/style-DzWAs8Pe.css": "36bd4309ef888306fa05d1d75f43744c2a2ba469615068fbbb8605327ecb204a",
+    "assets/index-BTdmrPIR.js": "698caee731b04b36111e2872fec1e4fe902a28c3ba78b6c94c4719df920c6920",
+    "assets/main-DSGzkq10.js": "b2e831e2f7e191525c2938197e7fae13ef1e680e151f5e30fdfb2b7c3b6c1336",
+    "assets/index-B8stM6Ch.js": "0ce2eb5dc42ebd97a574523baf37196e172664995989cb6586e22ed12281ef21",
+    "assets/main-B9yHCvHP.js": "f5633dd3a249460eb383de6e68bc332bd09a6f0f10c05af508d70c5c71cb173e",
+    "assets/main-4xOw2BBo.js": "ad12b1ef3db39f144fca264813860123d115df61eec96a740888dd8964dc76e6",
+    "assets/main-_WFayK96.js": "1faecd5ac180539ee879e4ebcaf926bf896662c6bf96043a659028f3384a71dc",
+    "assets/index-B-hnpRUR.css": "a8901f37eaa5c11e9b547016328ed43cb66f7ed466d5d3507f0b70560e6586b3",
+    "assets/main-CmZzGum1.js": "5bde9a47ca463796eee4e7aa78172673fa621de56bfabf3bb827e605ec9493a8",
+    "assets/main-BXEIgrb_.css": "82369fde5065f03ee548061301f3f15fce26245ecfc72ee634623363441a0956",
+    "assets/main-BGEQ0qVU.js": "2deb783e33266c92bdcb8a84f3625716481d2017220dd22203732548e5fa4ffb",
+    "assets/main-RDRtUweY.js": "7615314625a56b3cda0fbf14ce26a1a92e178aaf2be92900af85b2c980e0ff15",
+    "assets/turboquant-DEooNtgG.js": "be4423a33e469ea9e905b65aedb2c8c10ff2cdb8a717527c48e7f145a7529c66",
+    "assets/main-Bwqo8j-g.css": "9d072801725a784666eb3f44ff1c97108f70cd470fd77518de1098588ff87858",
+    "assets/index-BxySqcFd.js": "6e04bff748a2a5333e8d2bd45403db8e75eb3ae467214b3bfcc492413d516312",
+    "assets/main-xxEaVMvP.js": "3c18dc841081ab373eb316134ace8c24ba84ac249e8e798bf0b92177de3f1f0e"
+  },
+  "buildBytes": 130911020,
+  "limitations": "Authored comparative coefficients; not calibrated pressure or alloy material test data.",
+  "checks": {
+    "press": 14,
+    "failure": 26,
+    "presets": 44,
+    "bridgeAndRiver": 27,
+    "total": 111
+  },
+  "validationNote": "13 press tests passed; after a camera-only correction, the geometry, shell and new full-framing test passed. Remaining suites: 26 + 44 + 27."
+}

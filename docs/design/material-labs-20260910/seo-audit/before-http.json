@@ -1,0 +1,112 @@
+{
+  "at": "2026-09-10T01:31:06.443374+00:00",
+  "canonicalDomain": "https://box3d.apxlabs.parts",
+  "checks": [
+    {
+      "path": "/",
+      "status": 200,
+      "type": "text/html; charset=utf-8",
+      "robots": null,
+      "finalUrl": "https://box3d.apxlabs.parts/"
+    },
+    {
+      "path": "/?studio=liquid",
+      "status": 200,
+      "type": "text/html; charset=utf-8",
+      "robots": null,
+      "finalUrl": "https://box3d.apxlabs.parts/?studio=liquid"
+    },
+    {
+      "path": "/?studio=glass",
+      "status": 200,
+      "type": "text/html; charset=utf-8",
+      "robots": null,
+      "finalUrl": "https://box3d.apxlabs.parts/?studio=glass"
+    },
+    {
+      "path": "/?studio=concrete",
+      "status": 200,
+      "type": "text/html; charset=utf-8",
+      "robots": null,
+      "finalUrl": "https://box3d.apxlabs.parts/?studio=concrete"
+    },
+    {
+      "path": "/?studio=rubber",
+      "status": 200,
+      "type": "text/html; charset=utf-8",
+      "robots": null,
+      "finalUrl": "https://box3d.apxlabs.parts/?studio=rubber"
+    },
+    {
+      "path": "/?studio=granular",
+      "status": 200,
+      "type": "text/html; charset=utf-8",
+      "robots": null,
+      "finalUrl": "https://box3d.apxlabs.parts/?studio=granular"
+    },
+    {
+      "path": "/?studio=plate",
+      "status": 200,
+      "type": "text/html; charset=utf-8",
+      "robots": null,
+      "finalUrl": "https://box3d.apxlabs.parts/?studio=plate"
+    },
+    {
+      "path": "/?studio=canopy",
+      "status": 200,
+      "type": "text/html; charset=utf-8",
+      "robots": null,
+      "finalUrl": "https://box3d.apxlabs.parts/?studio=canopy"
+    },
+    {
+      "path": "/?studio=bridge",
+      "status": 200,
+      "type": "text/html; charset=utf-8",
+      "robots": null,
+      "finalUrl": "https://box3d.apxlabs.parts/?studio=bridge"
+    },
+    {
+      "path": "/index.html",
+      "status": 200,
+      "type": "text/html; charset=utf-8",
+      "robots": null,
+      "finalUrl": "https://box3d.apxlabs.parts/index.html"
+    },
+    {
+      "path": "/robots.txt",
+      "status": 404,
+      "type": null
+    },
+    {
+      "path": "/sitemap.xml",
+      "status": 404,
+      "type": null
+    },
+    {
+      "path": "/health",
+      "status": 200,
+      "type": "application/json",
+      "robots": null,
+      "finalUrl": "https://box3d.apxlabs.parts/health"
+    },
+    {
+      "path": "/release-info.json",
+      "status": 200,
+      "type": "application/json",
+      "robots": null,
+      "finalUrl": "https://box3d.apxlabs.parts/release-info.json"
+    },
+    {
+      "path": "/missing-page",
+      "status": 404,
+      "type": null
+    },
+    {
+      "path": "/studio/references/material-labs/liquid.png",
+      "status": 200,
+      "type": "image/png",
+      "robots": null,
+      "finalUrl": "https://box3d.apxlabs.parts/studio/references/material-labs/liquid.png"
+    }
+  ]
+}

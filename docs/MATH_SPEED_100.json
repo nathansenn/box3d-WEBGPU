@@ -1,0 +1,1442 @@
+{
+  "schema": "box3d.math-speed-roadmap/1",
+  "at": "2026-09-11T02:37:52.118Z",
+  "scope": "Metal press and its shared Studio runtime; extends the original 100-item engine roadmap without replacing it.",
+  "auditSourceHash": "d6884c8458ab7677de6355eb540b8082038a326242d9cebaaf679f33bcef27b0",
+  "count": 100,
+  "counts": {
+    "exact": 21,
+    "numerical": 58,
+    "qualification": 12,
+    "presentation": 9
+  },
+  "implementationUpdate": {
+    "schema": "box3d.math-speed-outcomes/1",
+    "at": "2026-09-11T02:37:36.356959+00:00",
+    "auditSourceHash": "d6884c8458ab7677de6355eb540b8082038a326242d9cebaaf679f33bcef27b0",
+    "summary": "M009 is implemented and enabled for fresh Studio UI runs. Its compensated three-component norm preserves 1,884 sampled physical checkpoints across 38 Node scenarios plus mass/load edits, and 240 browser checkpoint samples. Controlled CPU throughput is 1.387× for the default press, 1.397× for the aluminum-draw preset, 1.469× for canopy and 1.359× for bridge; all controls and legacy performance gates pass. These are physics-step measurements, not browser FPS. Forty-two production tests, TypeScript and native WebGPU run/replay/pause/reset checks pass. M001 and the combined M003/M004/M020 trial were rejected and retained; M018, M064 and M097 now have a qualified analytical working-tool query and normal-response foundation: 4,800 mesh distance samples and 3,680 complete sweeps pass, with full Studio integration still open. Controlled query throughput is 1.363 times the preceding analytical candidate across 2,395 common-resolved oblique cases, with all tool, unchanged-control and p95 gates passing; this is a standalone query measurement. The other 92 entries remain proposals. The original engine roadmap status is unchanged.",
+    "items": {
+      "M001": {
+        "status": "candidate rejected; original strain arithmetic retained",
+        "evidence": [
+          "benchmarks/experiments/math-speed-audit-20260911/restoration.json",
+          "benchmarks/experiments/math-speed-audit-20260911/strain-timing/result.json"
+        ]
+      },
+      "M009": {
+        "status": "implemented; bounded CPU, numerical and browser checks passed",
+        "evidence": [
+          "docs/STUDIO_NORM3.md",
+          "benchmarks/experiments/studio-norm3-integration-20260911-03/timing/review.json",
+          "benchmarks/experiments/studio-norm3-integration-20260911-03/application-review.json"
+        ]
+      },
+      "M003": {
+        "status": "combined contact-reuse trial rejected; individual proposal remains open",
+        "evidence": [
+          "benchmarks/experiments/studio-contact-weights-20260911/review.json"
+        ]
+      },
+      "M004": {
+        "status": "combined contact-reuse trial rejected; individual proposal remains open",
+        "evidence": [
+          "benchmarks/experiments/studio-contact-weights-20260911/review.json"
+        ]
+      },
+      "M020": {
+        "status": "combined contact-reuse trial rejected; individual proposal remains open",
+        "evidence": [
+          "benchmarks/experiments/studio-contact-weights-20260911/review.json"
+        ]
+      },
+      "M018": {
+        "status": "partial; all-tool continuous sphere queries qualified; Studio integration open",
+        "evidence": [
+          "docs/PRESS_CONTACT.md",
+          "benchmarks/experiments/press-contact-20260911-07/mesh-result.json",
+          "benchmarks/experiments/press-contact-20260911-07/result.json",
+          "benchmarks/experiments/press-contact-20260911-07/timing/review.json"
+        ],
+        "source": {
+          "path": "src/engine/press-contact.ts",
+          "anchor": "  sweep("
+        }
+      },
+      "M064": {
+        "status": "partial; analytical normals and guided-ram correction tested; Studio integration open",
+        "evidence": [
+          "docs/PRESS_CONTACT.md",
+          "tests/engine/press-contact.test.mjs"
+        ],
+        "source": {
+          "path": "src/engine/press-contact.ts",
+          "anchor": "export function pressNormalCorrection("
+        }
+      },
+      "M097": {
+        "status": "partial; independent press geometry and sphere-cast oracle qualified; full simulation audit open",
+        "evidence": [
+          "benchmarks/experiments/press-contact-20260911-07/geometry-decision.json",
+          "docs/PRESS_CONTACT.md"
+        ],
+        "source": {
+          "path": "tests/engine/press-contact.test.mjs",
+          "anchor": "test('normal correction includes"
+        }
+      }
+    }
+  },
+  "firstReviewOrder": [
+    "M009",
+    "M003",
+    "M011",
+    "M087",
+    "M008",
+    "M021",
+    "M022",
+    "M031",
+    "M064",
+    "M093"
+  ],
+  "profile": {
+    "nodes": 957,
+    "links": 5434,
+    "ticks": 1200,
+    "elapsedMs": 3195.894375,
+    "performanceQualified": false
+  },
+  "items": [
+    {
+      "id": "M001",
+      "group": "Remove repeated work in the current solver",
+      "priority": "P0",
+      "kind": "exact",
+      "proposal": "Compute elastic and total strain only in the first projection pass, where they are consumed.",
+      "acceptance": "Full checkpoints and failure events match the frozen solver for every press preset, canopy and bridge.",
+      "source": {
+        "path": "src/studio/physics.ts",
+        "line": 378
+      },
+      "status": "candidate rejected; original strain arithmetic retained",
+      "evidence": [
+        "benchmarks/experiments/math-speed-audit-20260911/restoration.json",
+        "benchmarks/experiments/math-speed-audit-20260911/strain-timing/result.json"
+      ]
+    },
+    {
+      "id": "M002",
+      "group": "Remove repeated work in the current solver",
+      "priority": "P1",
+      "kind": "exact",
+      "proposal": "Split forward and reverse constraint traversal to remove the per-link parity branch without changing visit order.",
+      "acceptance": "Identical active-ID order, checkpoints and dependent-break events; controlled step-time improvement.",
+      "source": {
+        "path": "src/studio/physics.ts",
+        "line": 330
+      },
+      "status": "proposed"
+    },
+    {
+      "id": "M003",
+      "group": "Remove repeated work in the current solver",
+      "priority": "P0",
+      "kind": "exact",
+      "proposal": "Hoist the pressure-dependent ram inverse-weight calculation out of the particle loop.",
+      "acceptance": "Exact contact counts, ram motion and particle coordinates across changing loads.",
+      "source": {
+        "path": "src/studio/physics.ts",
+        "line": 527
+      },
+      "status": "combined contact-reuse trial rejected; individual proposal remains open",
+      "evidence": [
+        "benchmarks/experiments/studio-contact-weights-20260911/review.json"
+      ]
+    },
+    {
+      "id": "M004",
+      "group": "Remove repeated work in the current solver",
+      "priority": "P1",
+      "kind": "exact",
+      "proposal": "Precompute the plate floor height and half-thickness once per contact pass.",
+      "acceptance": "Exact ground contact and thickness behavior for all supported thicknesses.",
+      "source": {
+        "path": "src/studio/physics.ts",
+        "line": 527
+      },
+      "status": "combined contact-reuse trial rejected; individual proposal remains open",
+      "evidence": [
+        "benchmarks/experiments/studio-contact-weights-20260911/review.json"
+      ]
+    },
+    {
+      "id": "M005",
+      "group": "Remove repeated work in the current solver",
+      "priority": "P1",
+      "kind": "exact",
+      "proposal": "Maintain stable fixed and movable particle lists so contact work skips pinned particles after restoring supports.",
+      "acceptance": "Public mass edits and checkpoint restore rebuild membership; supports and sequential ram response match exactly.",
+      "source": {
+        "path": "src/studio/physics.ts",
+        "line": 527
+      },
+      "status": "proposed"
+    },
+    {
+      "id": "M006",
+      "group": "Remove repeated work in the current solver",
+      "priority": "P1",
+      "kind": "exact",
+      "proposal": "Build reverse dependency adjacency and mark invalid constraints when supporting links break, preserving deferred visit order.",
+      "acceptance": "No dependency scan on unaffected links; identical break order and cascades.",
+      "source": {
+        "path": "src/studio/physics.ts",
+        "line": 330
+      },
+      "status": "proposed"
+    },
+    {
+      "id": "M007",
+      "group": "Remove repeated work in the current solver",
+      "priority": "P1",
+      "kind": "exact",
+      "proposal": "Cache endpoint inverse-mass sums with explicit invalidation for mass edits and checkpoint restores.",
+      "acceptance": "Exact scalar arithmetic and edited-mass trajectories; cache cost included in timings.",
+      "source": {
+        "path": "src/studio/physics.ts",
+        "line": 330
+      },
+      "status": "proposed"
+    },
+    {
+      "id": "M008",
+      "group": "Remove repeated work in the current solver",
+      "priority": "P1",
+      "kind": "exact",
+      "proposal": "Separate the first damage/plasticity pass from the eleven projection-only passes to reduce hot-loop branches.",
+      "acceptance": "Identical traversal, strain sampling, plastic updates and events for all studies.",
+      "source": {
+        "path": "src/studio/physics.ts",
+        "line": 330
+      },
+      "status": "proposed"
+    },
+    {
+      "id": "M009",
+      "group": "Remove repeated work in the current solver",
+      "priority": "P1",
+      "kind": "numerical",
+      "proposal": "Benchmark a bounded three-component norm kernel with a scaled or hypotenuse fallback outside safe magnitude ranges.",
+      "acceptance": "Measure rounding, overflow, underflow and physical trajectory error before adopting a separately qualified numeric mode.",
+      "source": {
+        "path": "src/studio/norm3.ts",
+        "line": 6
+      },
+      "status": "implemented; bounded CPU, numerical and browser checks passed",
+      "evidence": [
+        "docs/STUDIO_NORM3.md",
+        "benchmarks/experiments/studio-norm3-integration-20260911-03/timing/review.json",
+        "benchmarks/experiments/studio-norm3-integration-20260911-03/application-review.json"
+      ]
+    },
+    {
+      "id": "M010",
+      "group": "Remove repeated work in the current solver",
+      "priority": "P2",
+      "kind": "exact",
+      "proposal": "Share response reductions within one immutable runtime result instead of rescanning deflection and damage for each consumer.",
+      "acceptance": "No reuse across external edits; identical response, snapshots and recording samples.",
+      "source": {
+        "path": "src/engine/studio-runtime.ts",
+        "line": 160
+      },
+      "status": "proposed"
+    },
+    {
+      "id": "M011",
+      "group": "Accelerate and improve punch queries",
+      "priority": "P0",
+      "kind": "exact",
+      "proposal": "Compute radial distance only for tools that use it; rectangular, wedge, bead and cross tools currently discard that norm.",
+      "acceptance": "Exact tool heights at random points and analytical edges for all ten tools.",
+      "source": {
+        "path": "src/studio/press-settings.ts",
+        "line": 62
+      },
+      "status": "proposed"
+    },
+    {
+      "id": "M012",
+      "group": "Accelerate and improve punch queries",
+      "priority": "P1",
+      "kind": "exact",
+      "proposal": "Compile a tool-specific contact evaluator when settings change instead of switching on the tool at every point.",
+      "acceptance": "All rotations, scales, settings changes and restored checkpoints reproduce the existing evaluator.",
+      "source": {
+        "path": "src/studio/press-settings.ts",
+        "line": 62
+      },
+      "status": "proposed"
+    },
+    {
+      "id": "M013",
+      "group": "Accelerate and improve punch queries",
+      "priority": "P2",
+      "kind": "exact",
+      "proposal": "Cache the tool rotation and material lookup by settings identity across ticks, extending the existing within-tick reuse.",
+      "acceptance": "No stale evaluation after any control or checkpoint change; cold-cache cost measured.",
+      "source": {
+        "path": "src/studio/press-settings.ts",
+        "line": 62
+      },
+      "status": "proposed"
+    },
+    {
+      "id": "M014",
+      "group": "Accelerate and improve punch queries",
+      "priority": "P1",
+      "kind": "exact",
+      "proposal": "Reject points outside a conservative tool footprint before evaluating curved-surface square roots.",
+      "acceptance": "Exhaustive edge fixtures and random points show zero false-negative contacts.",
+      "source": {
+        "path": "src/studio/press-settings.ts",
+        "line": 62
+      },
+      "status": "proposed"
+    },
+    {
+      "id": "M015",
+      "group": "Accelerate and improve punch queries",
+      "priority": "P1",
+      "kind": "exact",
+      "proposal": "Use squared-radius filters for flat circular tools, with an uncertainty band falling back to the existing hypotenuse test.",
+      "acceptance": "Boundary classifications match bit for bit, including adjacent floating-point values.",
+      "source": {
+        "path": "src/studio/press-settings.ts",
+        "line": 62
+      },
+      "status": "proposed"
+    },
+    {
+      "id": "M016",
+      "group": "Accelerate and improve punch queries",
+      "priority": "P2",
+      "kind": "exact",
+      "proposal": "Prepare immutable tool constants and footprint bounds once per settings change.",
+      "acceptance": "Prepared and direct tool evaluations match exactly; eliminate only work the compiler actually leaves.",
+      "source": {
+        "path": "src/studio/press-settings.ts",
+        "line": 62
+      },
+      "status": "proposed"
+    },
+    {
+      "id": "M017",
+      "group": "Accelerate and improve punch queries",
+      "priority": "P1",
+      "kind": "exact",
+      "proposal": "Build a conservative spatial candidate list for punch contacts and refresh it after constraint motion.",
+      "acceptance": "All-particle reference finds no omitted contact; cost includes updates during every projection pass.",
+      "source": {
+        "path": "src/studio/physics.ts",
+        "line": 527
+      },
+      "status": "proposed"
+    },
+    {
+      "id": "M018",
+      "group": "Accelerate and improve punch queries",
+      "priority": "P0",
+      "kind": "numerical",
+      "proposal": "Sweep the moving punch against moving sheet features between accepted states to prevent missed high-speed contact.",
+      "acceptance": "Thin sheets at maximum strike speed cannot cross the tool unnoticed; report uncertain sweeps.",
+      "source": {
+        "path": "src/engine/press-contact.ts",
+        "line": 200
+      },
+      "status": "partial; all-tool continuous sphere queries qualified; Studio integration open",
+      "evidence": [
+        "docs/PRESS_CONTACT.md",
+        "benchmarks/experiments/press-contact-20260911-07/mesh-result.json",
+        "benchmarks/experiments/press-contact-20260911-07/result.json",
+        "benchmarks/experiments/press-contact-20260911-07/timing/review.json"
+      ]
+    },
+    {
+      "id": "M019",
+      "group": "Accelerate and improve punch queries",
+      "priority": "P1",
+      "kind": "exact",
+      "proposal": "Cache tool height for nodes whose in-plane coordinates and tool settings have not changed.",
+      "acceptance": "Invalidate on every affected coordinate write; preserve sequential ram updates and contact counts.",
+      "source": {
+        "path": "src/studio/physics.ts",
+        "line": 527
+      },
+      "status": "proposed"
+    },
+    {
+      "id": "M020",
+      "group": "Accelerate and improve punch queries",
+      "priority": "P1",
+      "kind": "exact",
+      "proposal": "Precompute each node's ram displacement share for the current load and inverse mass.",
+      "acceptance": "Exact division order and results across all thirteen contact passes; invalidate on mass/load edits.",
+      "source": {
+        "path": "src/studio/physics.ts",
+        "line": 527
+      },
+      "status": "combined contact-reuse trial rejected; individual proposal remains open",
+      "evidence": [
+        "benchmarks/experiments/studio-contact-weights-20260911/review.json"
+      ]
+    },
+    {
+      "id": "M021",
+      "group": "Make units and time integration consistent",
+      "priority": "P0",
+      "kind": "numerical",
+      "proposal": "Introduce an explicit SI conversion boundary for geometry, time, mass, forces and exported results.",
+      "acceptance": "Unit-rescaling tests recover the same physical solution and preserve the displayed millimetre controls.",
+      "source": {
+        "path": "src/studio/physics.ts",
+        "line": 265
+      },
+      "status": "proposed"
+    },
+    {
+      "id": "M022",
+      "group": "Make units and time integration consistent",
+      "priority": "P0",
+      "kind": "numerical",
+      "proposal": "Derive nodal masses from material density, thickness and triangle tributary area.",
+      "acceptance": "Total mass equals density times physical volume and remains stable under mesh refinement.",
+      "source": {
+        "path": "src/studio/physics.ts",
+        "line": 265
+      },
+      "status": "proposed"
+    },
+    {
+      "id": "M023",
+      "group": "Make units and time integration consistent",
+      "priority": "P0",
+      "kind": "numerical",
+      "proposal": "Replace normalized material stiffness/yield coefficients with versioned physical parameter sets and provenance.",
+      "acceptance": "Fit elastic and yield responses to declared data; retain the comparative mode as a separate identity.",
+      "source": {
+        "path": "src/studio/press-settings.ts",
+        "line": 4
+      },
+      "status": "proposed"
+    },
+    {
+      "id": "M024",
+      "group": "Make units and time integration consistent",
+      "priority": "P0",
+      "kind": "numerical",
+      "proposal": "Express damping as a time-based decay or physical damping law instead of a fixed factor per tick.",
+      "acceptance": "Equal elapsed time at different time steps gives matching decay and measured dissipated energy.",
+      "source": {
+        "path": "src/studio/physics.ts",
+        "line": 330
+      },
+      "status": "proposed"
+    },
+    {
+      "id": "M025",
+      "group": "Make units and time integration consistent",
+      "priority": "P0",
+      "kind": "numerical",
+      "proposal": "Replace the fixed displacement-per-step velocity clamp with an explicit physical speed policy.",
+      "acceptance": "Halving the time step does not double the speed limit; clipped work is observable.",
+      "source": {
+        "path": "src/studio/physics.ts",
+        "line": 330
+      },
+      "status": "proposed"
+    },
+    {
+      "id": "M026",
+      "group": "Make units and time integration consistent",
+      "priority": "P0",
+      "kind": "numerical",
+      "proposal": "Use physical gravity and body-force units consistently with the new mass and length scale.",
+      "acceptance": "Free-fall and static-weight reference tests pass independently of mesh density.",
+      "source": {
+        "path": "src/studio/physics.ts",
+        "line": 330
+      },
+      "status": "proposed"
+    },
+    {
+      "id": "M027",
+      "group": "Make units and time integration consistent",
+      "priority": "P1",
+      "kind": "numerical",
+      "proposal": "Model drive force from a declared actuator law, with separate pressure, piston area and stroke-speed limits.",
+      "acceptance": "Reaction-force and actuator-work curves agree with the chosen law; percent controls are not labelled physical pressure.",
+      "source": {
+        "path": "src/studio/physics.ts",
+        "line": 510
+      },
+      "status": "proposed"
+    },
+    {
+      "id": "M028",
+      "group": "Make units and time integration consistent",
+      "priority": "P1",
+      "kind": "numerical",
+      "proposal": "Give the ram a physical effective mass and exchange equal/opposite contact impulses with the sheet.",
+      "acceptance": "Closed ram-sheet momentum tests pass; prescribed actuator work accounts for open-system changes.",
+      "source": {
+        "path": "src/studio/physics.ts",
+        "line": 510
+      },
+      "status": "proposed"
+    },
+    {
+      "id": "M029",
+      "group": "Make units and time integration consistent",
+      "priority": "P0",
+      "kind": "numerical",
+      "proposal": "Track explicit velocity or the previous time step so Verlet history remains valid when step size changes.",
+      "acceptance": "Alternating-step and checkpoint-resume trajectories converge to a fine-step reference.",
+      "source": {
+        "path": "src/studio/physics.ts",
+        "line": 330
+      },
+      "status": "proposed"
+    },
+    {
+      "id": "M030",
+      "group": "Make units and time integration consistent",
+      "priority": "P0",
+      "kind": "qualification",
+      "proposal": "Expose separate kinetic, elastic, plastic, contact and damping-work diagnostics in physical units.",
+      "acceptance": "A closed or prescribed-work fixture has a declared energy residual, not merely finite positions.",
+      "source": {
+        "path": "src/studio/physics.ts",
+        "line": 330
+      },
+      "status": "proposed"
+    },
+    {
+      "id": "M031",
+      "group": "Improve convergence and solver structure",
+      "priority": "P1",
+      "kind": "numerical",
+      "proposal": "Add an XPBD backend with accumulated multipliers and compliance scaled by the square of the substep.",
+      "acceptance": "Constraint stiffness converges consistently across time-step and iteration sweeps.",
+      "source": {
+        "path": "src/studio/physics.ts",
+        "line": 330
+      },
+      "status": "proposed"
+    },
+    {
+      "id": "M032",
+      "group": "Improve convergence and solver structure",
+      "priority": "P1",
+      "kind": "numerical",
+      "proposal": "Stop a compliant solve using normalized residuals with a minimum/maximum work budget.",
+      "acceptance": "Match the fixed-work reference error envelope while reducing work on easy states; never hide nonconvergence.",
+      "source": {
+        "path": "src/studio/physics.ts",
+        "line": 330
+      },
+      "status": "proposed"
+    },
+    {
+      "id": "M033",
+      "group": "Improve convergence and solver structure",
+      "priority": "P1",
+      "kind": "numerical",
+      "proposal": "Compare more small substeps against repeated projections at the same total constraint-work budget.",
+      "acceptance": "Measure motion error, damping, contact error and elapsed time together for forming and impact.",
+      "source": {
+        "path": "src/studio/physics.ts",
+        "line": 330
+      },
+      "status": "proposed"
+    },
+    {
+      "id": "M034",
+      "group": "Improve convergence and solver structure",
+      "priority": "P2",
+      "kind": "numerical",
+      "proposal": "Safeguard nonlinear correction steps with residual or energy descent checks and bounded retries.",
+      "acceptance": "Difficult contact/plasticity cases reduce the declared merit function or return an explicit failure.",
+      "source": {
+        "path": "src/studio/physics.ts",
+        "line": 330
+      },
+      "status": "proposed"
+    },
+    {
+      "id": "M035",
+      "group": "Improve convergence and solver structure",
+      "priority": "P1",
+      "kind": "numerical",
+      "proposal": "Nondimensionalize internal state and residuals using specimen, stiffness and load scales.",
+      "acceptance": "Tolerance meaning and conditioning remain comparable across thicknesses and material families.",
+      "source": {
+        "path": "src/studio/physics.ts",
+        "line": 330
+      },
+      "status": "proposed"
+    },
+    {
+      "id": "M036",
+      "group": "Improve convergence and solver structure",
+      "priority": "P1",
+      "kind": "numerical",
+      "proposal": "Solve coupled node-star or element blocks near the punch instead of only scalar link constraints.",
+      "acceptance": "Lower residual per unit time without introducing force or traversal-order artifacts.",
+      "source": {
+        "path": "src/studio/physics.ts",
+        "line": 330
+      },
+      "status": "proposed"
+    },
+    {
+      "id": "M037",
+      "group": "Improve convergence and solver structure",
+      "priority": "P2",
+      "kind": "numerical",
+      "proposal": "Add coarse-grid correction for slowly converging long-wavelength plate deformation.",
+      "acceptance": "Refinement does not cause uncontrolled iteration growth; torn topology updates the coarse operator.",
+      "source": {
+        "path": "src/studio/physics.ts",
+        "line": 330
+      },
+      "status": "proposed"
+    },
+    {
+      "id": "M038",
+      "group": "Improve convergence and solver structure",
+      "priority": "P2",
+      "kind": "numerical",
+      "proposal": "Prototype projective dynamics with factorization reuse during intervals of unchanged topology and coefficients.",
+      "acceptance": "Include refactorization cost after fracture; compare equal physical error and total elapsed time.",
+      "source": {
+        "path": "src/studio/physics.ts",
+        "line": 330
+      },
+      "status": "proposed"
+    },
+    {
+      "id": "M039",
+      "group": "Improve convergence and solver structure",
+      "priority": "P2",
+      "kind": "numerical",
+      "proposal": "Use a matrix-free tangent solve with an appropriate preconditioner for a continuum backend.",
+      "acceptance": "Verify operator symmetry/definiteness before selecting CG; report true residual and breakdown.",
+      "source": {
+        "path": "src/studio/physics.ts",
+        "line": 330
+      },
+      "status": "proposed"
+    },
+    {
+      "id": "M040",
+      "group": "Improve convergence and solver structure",
+      "priority": "P1",
+      "kind": "numerical",
+      "proposal": "Warm-start compliant constraints across steps with topology-aware multiplier transfer and resets.",
+      "acceptance": "Changing time step, tool, plastic state or topology cannot inject unaccounted energy.",
+      "source": {
+        "path": "src/studio/physics.ts",
+        "line": 330
+      },
+      "status": "proposed"
+    },
+    {
+      "id": "M041",
+      "group": "Represent sheet and shell mechanics",
+      "priority": "P1",
+      "kind": "numerical",
+      "proposal": "Compute triangle deformation gradients from rest geometry instead of inferring material state from independent link extensions.",
+      "acceptance": "Rigid translations and rotations produce zero material strain.",
+      "source": {
+        "path": "src/studio/physics.ts",
+        "line": 265
+      },
+      "status": "proposed"
+    },
+    {
+      "id": "M042",
+      "group": "Represent sheet and shell mechanics",
+      "priority": "P1",
+      "kind": "numerical",
+      "proposal": "Use a plane-stress membrane constitutive tensor with explicit Young's modulus and Poisson coupling.",
+      "acceptance": "Uniaxial and pure-shear patch tests recover the intended moduli and lateral contraction.",
+      "source": {
+        "path": "src/studio/physics.ts",
+        "line": 265
+      },
+      "status": "proposed"
+    },
+    {
+      "id": "M043",
+      "group": "Represent sheet and shell mechanics",
+      "priority": "P1",
+      "kind": "numerical",
+      "proposal": "Replace two-hop distance bending proxies with rest-curvature or dihedral shell bending energy.",
+      "acceptance": "Rigid motion costs no bending energy; a bent strip matches a separate shell reference.",
+      "source": {
+        "path": "src/studio/physics.ts",
+        "line": 265
+      },
+      "status": "proposed"
+    },
+    {
+      "id": "M044",
+      "group": "Represent sheet and shell mechanics",
+      "priority": "P1",
+      "kind": "numerical",
+      "proposal": "Derive bending rigidity from physical thickness and elastic constants instead of clamped authored stiffness multipliers.",
+      "acceptance": "Thickness sweeps recover the intended cubic bending scaling within the model's validity range.",
+      "source": {
+        "path": "src/studio/physics.ts",
+        "line": 265
+      },
+      "status": "proposed"
+    },
+    {
+      "id": "M045",
+      "group": "Represent sheet and shell mechanics",
+      "priority": "P2",
+      "kind": "numerical",
+      "proposal": "Provide a shear-deformable shell option for cases outside the thin-shell approximation.",
+      "acceptance": "Thin and thick limit tests converge without artificial shear locking.",
+      "source": {
+        "path": "src/studio/physics.ts",
+        "line": 265
+      },
+      "status": "proposed"
+    },
+    {
+      "id": "M046",
+      "group": "Represent sheet and shell mechanics",
+      "priority": "P1",
+      "kind": "numerical",
+      "proposal": "Use an objective finite-strain measure for large rotations and stretching.",
+      "acceptance": "A rotated specimen retains its stress state; large-strain loading matches an independent formulation.",
+      "source": {
+        "path": "src/studio/physics.ts",
+        "line": 330
+      },
+      "status": "proposed"
+    },
+    {
+      "id": "M047",
+      "group": "Represent sheet and shell mechanics",
+      "priority": "P2",
+      "kind": "numerical",
+      "proposal": "Add a compression/buckling validation path with controlled geometric imperfections.",
+      "acceptance": "Critical-load and post-buckling behavior converge with mesh and step refinement.",
+      "source": {
+        "path": "src/studio/physics.ts",
+        "line": 330
+      },
+      "status": "proposed"
+    },
+    {
+      "id": "M048",
+      "group": "Represent sheet and shell mechanics",
+      "priority": "P1",
+      "kind": "numerical",
+      "proposal": "Represent clamp compliance and slip through physical boundary constraints instead of fixing the entire perimeter perfectly.",
+      "acceptance": "Support reactions, slip onset and retained constraint work match isolated clamp fixtures.",
+      "source": {
+        "path": "src/studio/physics.ts",
+        "line": 527
+      },
+      "status": "proposed"
+    },
+    {
+      "id": "M049",
+      "group": "Represent sheet and shell mechanics",
+      "priority": "P2",
+      "kind": "qualification",
+      "proposal": "Detect spurious zero-energy and locking modes in the proposed shell discretization.",
+      "acceptance": "Patch, bending and near-incompressible tests identify unstable or over-stiff modes before adoption.",
+      "source": {
+        "path": "src/studio/physics.ts",
+        "line": 265
+      },
+      "status": "proposed"
+    },
+    {
+      "id": "M050",
+      "group": "Represent sheet and shell mechanics",
+      "priority": "P1",
+      "kind": "numerical",
+      "proposal": "Recover tensor strain/stress fields with area-weighted reconstruction instead of displaying only maximum tensile link strain.",
+      "acceptance": "Uniform fields remain uniform and reported peaks are checked against mesh refinement.",
+      "source": {
+        "path": "src/studio/world.ts",
+        "line": 727
+      },
+      "status": "proposed"
+    },
+    {
+      "id": "M051",
+      "group": "Improve plasticity and fracture",
+      "priority": "P1",
+      "kind": "numerical",
+      "proposal": "Use a return-mapping plasticity update that handles both tension and compression.",
+      "acceptance": "Single-element loading returns stress to the declared yield surface with bounded local residual.",
+      "source": {
+        "path": "src/studio/physics.ts",
+        "line": 378
+      },
+      "status": "proposed"
+    },
+    {
+      "id": "M052",
+      "group": "Improve plasticity and fracture",
+      "priority": "P1",
+      "kind": "numerical",
+      "proposal": "Add measured isotropic hardening rather than relying on an ever-growing scalar rest length alone.",
+      "acceptance": "Monotonic coupon stress versus plastic strain follows the declared hardening curve.",
+      "source": {
+        "path": "src/studio/press-settings.ts",
+        "line": 4
+      },
+      "status": "proposed"
+    },
+    {
+      "id": "M053",
+      "group": "Improve plasticity and fracture",
+      "priority": "P2",
+      "kind": "numerical",
+      "proposal": "Add kinematic hardening for repeated bending and reverse loading.",
+      "acceptance": "Load-reversal hysteresis and accumulated plastic work match a calibrated cyclic fixture.",
+      "source": {
+        "path": "src/studio/press-settings.ts",
+        "line": 4
+      },
+      "status": "proposed"
+    },
+    {
+      "id": "M054",
+      "group": "Improve plasticity and fracture",
+      "priority": "P1",
+      "kind": "numerical",
+      "proposal": "Track plastic deformation in a material-frame tensor for a continuum shell backend.",
+      "acceptance": "Rotating a plastically deformed sheet changes its orientation without changing its material history.",
+      "source": {
+        "path": "src/studio/physics.ts",
+        "line": 378
+      },
+      "status": "proposed"
+    },
+    {
+      "id": "M055",
+      "group": "Improve plasticity and fracture",
+      "priority": "P0",
+      "kind": "numerical",
+      "proposal": "Replace the fixed per-tick plastic-extension cap with a declared rate-independent or rate-dependent update.",
+      "acceptance": "Plastic set and yield timing converge as the time step changes.",
+      "source": {
+        "path": "src/studio/physics.ts",
+        "line": 378
+      },
+      "status": "proposed"
+    },
+    {
+      "id": "M056",
+      "group": "Improve plasticity and fracture",
+      "priority": "P1",
+      "kind": "numerical",
+      "proposal": "Couple plastic incompressibility to sheet thinning and the contact thickness field.",
+      "acceptance": "Volume, local thickness and tool clearance remain consistent during large drawing deformation.",
+      "source": {
+        "path": "src/studio/physics.ts",
+        "line": 378
+      },
+      "status": "proposed"
+    },
+    {
+      "id": "M057",
+      "group": "Improve plasticity and fracture",
+      "priority": "P2",
+      "kind": "numerical",
+      "proposal": "Support orientation-dependent yielding for rolled sheets using measured directional parameters.",
+      "acceptance": "0/45/90-degree coupon cases reproduce the fitted anisotropy without rotating the tool geometry.",
+      "source": {
+        "path": "src/studio/press-settings.ts",
+        "line": 4
+      },
+      "status": "proposed"
+    },
+    {
+      "id": "M058",
+      "group": "Improve plasticity and fracture",
+      "priority": "P1",
+      "kind": "numerical",
+      "proposal": "Regularize fracture using energy and element length so mesh density does not set the breaking work.",
+      "acceptance": "Refined specimens dissipate consistent fracture energy and produce converging failure loads.",
+      "source": {
+        "path": "src/studio/physics.ts",
+        "line": 378
+      },
+      "status": "proposed"
+    },
+    {
+      "id": "M059",
+      "group": "Improve plasticity and fracture",
+      "priority": "P2",
+      "kind": "numerical",
+      "proposal": "Use a cohesive separation law and explicit crack surfaces for progressive tearing.",
+      "acceptance": "Traction-separation work matches the declared fracture energy and detached faces stop transmitting load.",
+      "source": {
+        "path": "src/studio/physics.ts",
+        "line": 378
+      },
+      "status": "proposed"
+    },
+    {
+      "id": "M060",
+      "group": "Improve plasticity and fracture",
+      "priority": "P1",
+      "kind": "numerical",
+      "proposal": "Promote suitable detached connected fragments to rigid clusters with conserved mass and launch momentum.",
+      "acceptance": "Linear/angular momentum and geometry match at transfer; flexible fragments remain deformable when needed.",
+      "source": {
+        "path": "src/studio/physics.ts",
+        "line": 330
+      },
+      "status": "proposed"
+    },
+    {
+      "id": "M061",
+      "group": "Prevent missed and nonphysical contact",
+      "priority": "P0",
+      "kind": "numerical",
+      "proposal": "Add sheet vertex-face self-contact so folds cannot pass through the opposite surface.",
+      "acceptance": "Folded-sheet and crushing fixtures pass independent penetration audits.",
+      "source": {
+        "path": "src/studio/physics.ts",
+        "line": 527
+      },
+      "status": "proposed"
+    },
+    {
+      "id": "M062",
+      "group": "Prevent missed and nonphysical contact",
+      "priority": "P0",
+      "kind": "numerical",
+      "proposal": "Add edge-edge self-contact for crossings that vertex-face queries can miss.",
+      "acceptance": "Skew-edge and near-parallel crossing tests remain separated through motion.",
+      "source": {
+        "path": "src/studio/physics.ts",
+        "line": 527
+      },
+      "status": "proposed"
+    },
+    {
+      "id": "M063",
+      "group": "Prevent missed and nonphysical contact",
+      "priority": "P1",
+      "kind": "numerical",
+      "proposal": "Use finite-thickness sheet collision geometry consistently with rendering and local thinning.",
+      "acceptance": "Two sheets maintain the declared combined clearance for all orientations.",
+      "source": {
+        "path": "src/studio/physics.ts",
+        "line": 527
+      },
+      "status": "proposed"
+    },
+    {
+      "id": "M064",
+      "group": "Prevent missed and nonphysical contact",
+      "priority": "P0",
+      "kind": "numerical",
+      "proposal": "Resolve tool contact along the analytical surface normal instead of always moving the sheet vertically.",
+      "acceptance": "Ball, cone and wedge fixtures satisfy normal separation and correct lateral reaction directions.",
+      "source": {
+        "path": "src/engine/press-contact.ts",
+        "line": 99
+      },
+      "status": "partial; analytical normals and guided-ram correction tested; Studio integration open",
+      "evidence": [
+        "docs/PRESS_CONTACT.md",
+        "tests/engine/press-contact.test.mjs"
+      ]
+    },
+    {
+      "id": "M065",
+      "group": "Prevent missed and nonphysical contact",
+      "priority": "P1",
+      "kind": "numerical",
+      "proposal": "Add tangential friction at the punch with stick/slip state and a declared coefficient law.",
+      "acceptance": "Inclined-tool and sliding tests match Coulomb bounds and measured frictional work.",
+      "source": {
+        "path": "src/studio/physics.ts",
+        "line": 527
+      },
+      "status": "proposed"
+    },
+    {
+      "id": "M066",
+      "group": "Prevent missed and nonphysical contact",
+      "priority": "P1",
+      "kind": "numerical",
+      "proposal": "Compute contact response from relative velocity with controlled restitution and actuator work accounting.",
+      "acceptance": "Stationary contact cannot create energy; moving-tool work explains any energy increase.",
+      "source": {
+        "path": "src/studio/physics.ts",
+        "line": 527
+      },
+      "status": "proposed"
+    },
+    {
+      "id": "M067",
+      "group": "Prevent missed and nonphysical contact",
+      "priority": "P0",
+      "kind": "numerical",
+      "proposal": "Use swept deforming-triangle and edge bounds for continuous self-collision detection.",
+      "acceptance": "Disjoint endpoint meshes cannot hide intermediate intersections; exhausted queries remain explicit.",
+      "source": {
+        "path": "src/studio/physics.ts",
+        "line": 527
+      },
+      "status": "proposed"
+    },
+    {
+      "id": "M068",
+      "group": "Prevent missed and nonphysical contact",
+      "priority": "P2",
+      "kind": "numerical",
+      "proposal": "Prototype an IPC-style barrier/contact reference backend for difficult folding and crushing cases.",
+      "acceptance": "Collision-free initial states retain feasible separation within the backend's assumptions and solver tolerances.",
+      "source": {
+        "path": "src/studio/physics.ts",
+        "line": 527
+      },
+      "status": "proposed"
+    },
+    {
+      "id": "M069",
+      "group": "Prevent missed and nonphysical contact",
+      "priority": "P1",
+      "kind": "numerical",
+      "proposal": "Maintain persistent contact manifolds and remove only provably redundant constraints.",
+      "acceptance": "Reduced manifolds preserve support forces, penetration limits and frictional response.",
+      "source": {
+        "path": "src/studio/physics.ts",
+        "line": 527
+      },
+      "status": "proposed"
+    },
+    {
+      "id": "M070",
+      "group": "Prevent missed and nonphysical contact",
+      "priority": "P1",
+      "kind": "numerical",
+      "proposal": "Sleep only settled connected regions whose motion and residuals are below declared thresholds.",
+      "acceptance": "Punch motion, loads, nearby contact and topology changes wake all affected regions correctly.",
+      "source": {
+        "path": "src/studio/physics.ts",
+        "line": 330
+      },
+      "status": "proposed"
+    },
+    {
+      "id": "M071",
+      "group": "Scale numerical computation",
+      "priority": "P2",
+      "kind": "numerical",
+      "proposal": "Benchmark tiled array-of-structures-of-arrays layouts and direct numeric kernels against the retained failed packed experiment.",
+      "acceptance": "Include preparation and compatibility costs; preserve the object default unless full workload gates pass.",
+      "source": {
+        "path": "src/studio/packed-physics.ts",
+        "line": 1
+      },
+      "status": "proposed"
+    },
+    {
+      "id": "M072",
+      "group": "Scale numerical computation",
+      "priority": "P2",
+      "kind": "numerical",
+      "proposal": "Implement a WASM SIMD constraint backend over conflict-free batches.",
+      "acceptance": "Publish numerical identity, deterministic guarantees and total call/packing costs at equal error.",
+      "source": {
+        "path": "src/studio/physics.ts",
+        "line": 330
+      },
+      "status": "proposed"
+    },
+    {
+      "id": "M073",
+      "group": "Scale numerical computation",
+      "priority": "P2",
+      "kind": "numerical",
+      "proposal": "Keep large deformable state resident on the GPU and solve constraints in compute passes.",
+      "acceptance": "Include dispatch, synchronization and required readback; show a measured workload crossover.",
+      "source": {
+        "path": "src/studio/physics.ts",
+        "line": 330
+      },
+      "status": "proposed"
+    },
+    {
+      "id": "M074",
+      "group": "Scale numerical computation",
+      "priority": "P1",
+      "kind": "numerical",
+      "proposal": "Partition independent constraint/contact islands for parallel workers while keeping ram-coupled regions together.",
+      "acceptance": "No shared degree of freedom is solved independently; serial and parallel error envelopes agree.",
+      "source": {
+        "path": "src/studio/physics.ts",
+        "line": 330
+      },
+      "status": "proposed"
+    },
+    {
+      "id": "M075",
+      "group": "Scale numerical computation",
+      "priority": "P1",
+      "kind": "numerical",
+      "proposal": "Build and incrementally maintain a conflict-free graph coloring after fracture.",
+      "acceptance": "No simultaneous write conflicts; topology updates and changed solve ordering are qualified.",
+      "source": {
+        "path": "src/studio/physics.ts",
+        "line": 330
+      },
+      "status": "proposed"
+    },
+    {
+      "id": "M076",
+      "group": "Scale numerical computation",
+      "priority": "P2",
+      "kind": "numerical",
+      "proposal": "Reduce residuals and physical diagnostics hierarchically on the GPU with bounded asynchronous readback.",
+      "acceptance": "Reported convergence matches a CPU reduction and cannot accept an unchecked step.",
+      "source": {
+        "path": "src/studio/physics.ts",
+        "line": 330
+      },
+      "status": "proposed"
+    },
+    {
+      "id": "M077",
+      "group": "Scale numerical computation",
+      "priority": "P2",
+      "kind": "numerical",
+      "proposal": "Use mixed precision only under explicit scale and error limits, with a double-precision reference path.",
+      "acceptance": "Large/thin geometry, plastic work and contact errors stay within the declared tolerance budget.",
+      "source": {
+        "path": "src/studio/physics.ts",
+        "line": 330
+      },
+      "status": "proposed"
+    },
+    {
+      "id": "M078",
+      "group": "Scale numerical computation",
+      "priority": "P2",
+      "kind": "presentation",
+      "proposal": "Prototype bounded delta or quantized presentation snapshots with periodic complete frames.",
+      "acceptance": "Measure transfer savings and reconstruction error; checkpoints retain complete physical precision.",
+      "source": {
+        "path": "src/engine/studio-client.ts",
+        "line": 1
+      },
+      "status": "proposed"
+    },
+    {
+      "id": "M079",
+      "group": "Scale numerical computation",
+      "priority": "P2",
+      "kind": "numerical",
+      "proposal": "Adapt mesh density using curvature, plastic gradients and contact error indicators.",
+      "acceptance": "Remeshing conserves mass/momentum and transfers history; accuracy matches a uniformly refined reference.",
+      "source": {
+        "path": "src/studio/physics.ts",
+        "line": 265
+      },
+      "status": "proposed"
+    },
+    {
+      "id": "M080",
+      "group": "Scale numerical computation",
+      "priority": "P1",
+      "kind": "exact",
+      "proposal": "Tune worker batch size to measured latency while keeping fixed simulation ticks and command order.",
+      "acceptance": "Lower command-to-visible-state latency without dropped physics time or unbounded backlog.",
+      "source": {
+        "path": "src/studio/main.ts",
+        "line": 420
+      },
+      "status": "proposed"
+    },
+    {
+      "id": "M081",
+      "group": "Reduce geometry and presentation math",
+      "priority": "P1",
+      "kind": "presentation",
+      "proposal": "Share already-computed surface normals with compatible shell rendering work instead of recomputing equivalent geometry data.",
+      "acceptance": "Top, bottom and fracture-wall shading remain correct; measure actual saved work before adoption.",
+      "source": {
+        "path": "src/studio/world.ts",
+        "line": 727
+      },
+      "status": "proposed"
+    },
+    {
+      "id": "M082",
+      "group": "Reduce geometry and presentation math",
+      "priority": "P1",
+      "kind": "presentation",
+      "proposal": "Move sheet-thickness extrusion to a vertex/compute stage with a declared extrusion convention.",
+      "acceptance": "Rendered thickness and fracture walls match a CPU reference under deformation.",
+      "source": {
+        "path": "src/studio/press-tooling.ts",
+        "line": 35
+      },
+      "status": "proposed"
+    },
+    {
+      "id": "M083",
+      "group": "Reduce geometry and presentation math",
+      "priority": "P2",
+      "kind": "presentation",
+      "proposal": "Update normals through dirty vertex-to-face adjacency when only a small region moves.",
+      "acceptance": "Normals match full recomputation; use the full path when dirty-region maintenance costs more.",
+      "source": {
+        "path": "src/studio/surface-topology.ts",
+        "line": 50
+      },
+      "status": "proposed"
+    },
+    {
+      "id": "M084",
+      "group": "Reduce geometry and presentation math",
+      "priority": "P1",
+      "kind": "exact",
+      "proposal": "Replace repeated string edge maps on fracture with precomputed numeric adjacency and active-face counts.",
+      "acceptance": "Boundary orientation, holes and backward replay reproduce the current topology exactly.",
+      "source": {
+        "path": "src/studio/surface-topology.ts",
+        "line": 17
+      },
+      "status": "proposed"
+    },
+    {
+      "id": "M085",
+      "group": "Reduce geometry and presentation math",
+      "priority": "P2",
+      "kind": "presentation",
+      "proposal": "Upload only changed attribute ranges when sparse motion makes partial transfers cheaper.",
+      "acceptance": "No stale vertex, normal or color data; timings include dirty tracking and upload overhead.",
+      "source": {
+        "path": "src/studio/world.ts",
+        "line": 727
+      },
+      "status": "proposed"
+    },
+    {
+      "id": "M086",
+      "group": "Reduce geometry and presentation math",
+      "priority": "P1",
+      "kind": "presentation",
+      "proposal": "Evaluate strain color mapping in the shader using the same color-space conversion.",
+      "acceptance": "Pixel comparisons match the reference palette while reducing CPU color updates.",
+      "source": {
+        "path": "src/studio/world.ts",
+        "line": 727
+      },
+      "status": "proposed"
+    },
+    {
+      "id": "M087",
+      "group": "Reduce geometry and presentation math",
+      "priority": "P0",
+      "kind": "exact",
+      "proposal": "Skip geometry rebuilding after interpolation reaches an unchanged live snapshot while a worker batch is pending.",
+      "acceptance": "Rendering and camera controls stay live; frame, reset and topology changes invalidate the cache.",
+      "source": {
+        "path": "src/studio/main.ts",
+        "line": 420
+      },
+      "status": "proposed"
+    },
+    {
+      "id": "M088",
+      "group": "Reduce geometry and presentation math",
+      "priority": "P2",
+      "kind": "presentation",
+      "proposal": "Compute deforming bounds and inspection targets from shared reductions instead of repeated geometry scans.",
+      "acceptance": "Bounds conservatively contain all geometry and camera framing remains stable.",
+      "source": {
+        "path": "src/studio/world.ts",
+        "line": 727
+      },
+      "status": "proposed"
+    },
+    {
+      "id": "M089",
+      "group": "Reduce geometry and presentation math",
+      "priority": "P2",
+      "kind": "presentation",
+      "proposal": "Render promoted rigid fragments through shared rigid transforms instead of repeating per-vertex deformation work.",
+      "acceptance": "Geometry and shading match the fragment representation accepted by the physics transfer.",
+      "source": {
+        "path": "src/studio/world.ts",
+        "line": 727
+      },
+      "status": "proposed"
+    },
+    {
+      "id": "M090",
+      "group": "Reduce geometry and presentation math",
+      "priority": "P2",
+      "kind": "presentation",
+      "proposal": "Compare worker-side geometry/normal staging with main-thread staging for large sheets.",
+      "acceptance": "Include transport and visible-state latency; retain the simpler path below the measured crossover.",
+      "source": {
+        "path": "src/engine/studio-runtime.ts",
+        "line": 160
+      },
+      "status": "proposed"
+    },
+    {
+      "id": "M091",
+      "group": "Prove accuracy and speed together",
+      "priority": "P0",
+      "kind": "qualification",
+      "proposal": "Build phase-specific CPU baselines for approach, forming, tearing, hold and retraction across the press catalogue.",
+      "acceptance": "Freeze source/settings and report actual work counts and distributions for each phase.",
+      "source": {
+        "path": "tests/studio/press-lab.test.mjs",
+        "line": 13
+      },
+      "status": "proposed"
+    },
+    {
+      "id": "M092",
+      "group": "Prove accuracy and speed together",
+      "priority": "P0",
+      "kind": "qualification",
+      "proposal": "Run balanced baseline/candidate/unchanged-control timing comparisons for each proposed math optimization.",
+      "acceptance": "Predeclared confidence and p95 gates pass at identical workloads; retain unsuccessful attempts.",
+      "source": {
+        "path": "tests/studio/press-lab.test.mjs",
+        "line": 13
+      },
+      "status": "proposed"
+    },
+    {
+      "id": "M093",
+      "group": "Prove accuracy and speed together",
+      "priority": "P0",
+      "kind": "qualification",
+      "proposal": "Measure time-step and iteration convergence for displacement, reaction, plasticity and contact.",
+      "acceptance": "Publish error versus cost; a faster configuration must meet the same physical envelope.",
+      "source": {
+        "path": "tests/studio/press-lab.test.mjs",
+        "line": 13
+      },
+      "status": "proposed"
+    },
+    {
+      "id": "M094",
+      "group": "Prove accuracy and speed together",
+      "priority": "P0",
+      "kind": "qualification",
+      "proposal": "Add mesh-refinement studies with fixed specimen dimensions, total mass and material parameters.",
+      "acceptance": "Displacement, force and fracture-work trends expose resolution-dependent coefficients.",
+      "source": {
+        "path": "src/studio/physics.ts",
+        "line": 265
+      },
+      "status": "proposed"
+    },
+    {
+      "id": "M095",
+      "group": "Prove accuracy and speed together",
+      "priority": "P0",
+      "kind": "qualification",
+      "proposal": "Add independent rigid-motion, uniaxial, shear and bending patch tests for every new constitutive backend.",
+      "acceptance": "Analytical or separately implemented references validate forces and gradients.",
+      "source": {
+        "path": "tests/studio/press-lab.test.mjs",
+        "line": 13
+      },
+      "status": "proposed"
+    },
+    {
+      "id": "M096",
+      "group": "Prove accuracy and speed together",
+      "priority": "P0",
+      "kind": "qualification",
+      "proposal": "Fit and cross-validate elastic/plastic parameters on separate loading and unloading data.",
+      "acceptance": "Holdout error and parameter uncertainty are reported; UI material names do not imply certification.",
+      "source": {
+        "path": "src/studio/press-settings.ts",
+        "line": 4
+      },
+      "status": "proposed"
+    },
+    {
+      "id": "M097",
+      "group": "Prove accuracy and speed together",
+      "priority": "P0",
+      "kind": "qualification",
+      "proposal": "Add independent analytical tool-contact, sliding, force-balance and self-crossing fixtures.",
+      "acceptance": "Check penetration, normals, impulses and frictional work instead of relying on visual plausibility.",
+      "source": {
+        "path": "tests/engine/press-contact.test.mjs",
+        "line": 60
+      },
+      "status": "partial; independent press geometry and sphere-cast oracle qualified; full simulation audit open",
+      "evidence": [
+        "benchmarks/experiments/press-contact-20260911-07/geometry-decision.json",
+        "docs/PRESS_CONTACT.md"
+      ]
+    },
+    {
+      "id": "M098",
+      "group": "Prove accuracy and speed together",
+      "priority": "P0",
+      "kind": "qualification",
+      "proposal": "Check complete work-energy balance including actuator input, damping, plasticity and fracture.",
+      "acceptance": "Residual decreases under refinement in closed or fully accounted prescribed-work experiments.",
+      "source": {
+        "path": "src/studio/physics.ts",
+        "line": 330
+      },
+      "status": "proposed"
+    },
+    {
+      "id": "M099",
+      "group": "Prove accuracy and speed together",
+      "priority": "P1",
+      "kind": "qualification",
+      "proposal": "Extend long-horizon checkpoints to all new multipliers, plastic tensors, contact history and topology state.",
+      "acceptance": "Resume active contact and unloading exactly within the backend's declared replay guarantees.",
+      "source": {
+        "path": "src/engine/studio-runtime.ts",
+        "line": 160
+      },
+      "status": "proposed"
+    },
+    {
+      "id": "M100",
+      "group": "Prove accuracy and speed together",
+      "priority": "P2",
+      "kind": "qualification",
+      "proposal": "Select solver settings from a measured speed-versus-error frontier rather than a single fastest timing.",
+      "acceptance": "Use held-out materials/scenes, fixed acceptance limits and reproducible pre-run selection; never silently weaken accuracy.",
+      "source": {
+        "path": "tests/studio/press-lab.test.mjs",
+        "line": 13
+      },
+      "status": "proposed"
+    }
+  ]
+}

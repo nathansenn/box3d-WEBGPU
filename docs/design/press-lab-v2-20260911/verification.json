@@ -1,0 +1,93 @@
+{
+  "task": "01a07e7b-23c9-72e1-a62e-b780ac76623f",
+  "date": "2026-09-11",
+  "catalog": {
+    "metals": 24,
+    "thicknessShortcuts": 16,
+    "thicknessMm": [
+      0.5,
+      20
+    ],
+    "contactShapes": 10,
+    "attachmentConfigurations": 30,
+    "experiments": 48
+  },
+  "checks": {
+    "typecheck": "passed",
+    "pressTests": {
+      "passed": 14,
+      "failed": 0
+    },
+    "inspectionTests": {
+      "passed": 7,
+      "failed": 0
+    },
+    "productionBuild": "not run - shared disk below 50 GiB reserve"
+  },
+  "browser": {
+    "provider": "local Codex IAB",
+    "reason": "Private localhost application and native GPU; prior private transfer rejection remains binding",
+    "renderer": "WebGPU",
+    "solver": "worker",
+    "desktop": [
+      1280,
+      720
+    ],
+    "phone": [
+      390,
+      844
+    ],
+    "phoneDocumentWidth": 390,
+    "finalSteelRunErrors": [],
+    "temporaryViewportReset": true,
+    "remoteSessionUsed": false,
+    "ownedTabId": "2",
+    "cleanup": "Owned QA tab 2 closed; browser inventory confirmed pre-existing user tab 1 remains. Temporary viewport override reset."
+  },
+  "observations": {
+    "steelBending": {
+      "time": 2,
+      "deflectionMm": 54.99682355843669,
+      "maxPlasticStretchPercent": 13.800000000000058,
+      "broken": 0,
+      "sectionGaps": 0
+    },
+    "steelFracture": {
+      "time": 8.083333333333515,
+      "deflectionMm": 153,
+      "maxPlasticStretchPercent": 44.399999999999594,
+      "broken": 584,
+      "xSectionGaps": 8,
+      "zSectionGaps": 14
+    },
+    "copperAfterRetraction": {
+      "time": 3.883333333333322,
+      "deflectionMm": 13.76638206973424,
+      "maxPlasticStretchPercent": 10.799999999999898,
+      "broken": 0,
+      "sectionGaps": 0
+    },
+    "replayReleaseEnabled": false,
+    "liveReleaseAppliedPressure": 0,
+    "customThicknessMm": 7.3,
+    "customMaterial": "copper-hard",
+    "customTool": "square",
+    "customAngle": 45,
+    "copperCompareFilterMatches": 6,
+    "steelCrackInitiation": {
+      "time": 3,
+      "deflectionMm": 85.72643529336136,
+      "broken": 7,
+      "xSectionGaps": 0
+    },
+    "steelTopCutaway": {
+      "time": 3.5,
+      "deflectionMm": 107.78696139126068,
+      "broken": 58,
+      "xSectionGaps": 1
+    }
+  },
+  "model": "Authored comparative PBD; not calibrated hydraulic pressure, force or constitutive material certification",
+  "release": "Local development preview only; no deployment, commit or push",
+  "finalFreeGiB": 18.845
+}

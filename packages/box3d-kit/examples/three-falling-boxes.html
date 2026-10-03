@@ -1,0 +1,74 @@
+<!doctype html>
+<!--
+  Minimal three.js integration. From packages/box3d-kit run `npm run build`, then serve
+  the package root on localhost only, e.g. `python3 -m http.server 8080 --bind 127.0.0.1`,
+  and open http://127.0.0.1:8080/examples/three-falling-boxes.html.
+  Click a crate to push it (physics raycast picking); click empty space to throw a box.
+  Thrown boxes recycle through a BodyRing, so the scene never exceeds 60 projectiles.
+-->
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>box3d-kit · three.js</title>
+  <style>html, body { margin: 0; height: 100%; background: #0b1020; overflow: hidden }</style>
+  <script type="importmap">{ "imports": { "three": "https://cdn.jsdelivr.net/npm/three@0.185.1/build/three.module.js" } }</script>
+</head>
+<body>
+<script type="module">
+  import * as THREE from 'three';
+  import {createWorld, BodyRing, pauseOnHidden} from '../dist/index.js';
+  import {createBodyMesh, syncInstancedMesh} from '../dist/three.js';
+
+  const world = await createWorld({seed: 42});
+  pauseOnHidden(world);
+  const projectiles = new BodyRing(world, 60);
+  for (let i = 0; i < 60; i++) {
+    const crate = world.spawnBox({position: [(i % 6) - 2.5, 0.5 + Math.floor(i / 6) * 1.05, (i % 3) * 0.02], halfSize: 0.48});
+    world.setUserData(crate, {kind: 'crate', id: i});
+  }
+
+  const renderer = new THREE.WebGLRenderer({antialias: true});
+  renderer.setSize(innerWidth, innerHeight);
+  renderer.setPixelRatio(devicePixelRatio);
+  document.body.append(renderer.domElement);
+  const scene = new THREE.Scene();
+  const camera = new THREE.PerspectiveCamera(55, innerWidth / innerHeight, 0.1, 500);
+  camera.position.set(9, 7, 14);
+  camera.lookAt(0, 3, 0);
+  scene.add(new THREE.HemisphereLight(0xdde8ff, 0x202030, 1.2));
+  const sun = new THREE.DirectionalLight(0xffffff, 2);
+  sun.position.set(5, 12, 8);
+  scene.add(sun);
+  scene.add(createBodyMesh(THREE, world));
+  const mesh = scene.children.at(-1);
+
+  addEventListener('pointerdown', event => {
+    if (!innerWidth || !innerHeight) return; // minimized or zero-size viewport: no meaningful ray
+    const ray = new THREE.Raycaster();
+    ray.setFromCamera(new THREE.Vector2(event.clientX / innerWidth * 2 - 1, -(event.clientY / innerHeight) * 2 + 1), camera);
+    const direction = ray.ray.direction;
+    // Pick with the physics world itself: the hit's body maps back to game data.
+    const hit = world.raycast(camera.position, direction.clone().multiplyScalar(100), {filter: {bodies: 'dynamic'}});
+    if (hit && world.getUserData(hit.body)?.kind === 'crate') {
+      world.applyImpulse(hit.body, direction.clone().multiplyScalar(25));
+    } else {
+      projectiles.spawn({position: camera.position, halfSize: 0.35, impulse: direction.clone().multiplyScalar(60)});
+    }
+  });
+  addEventListener('resize', () => {
+    camera.aspect = innerWidth / innerHeight;
+    camera.updateProjectionMatrix();
+    renderer.setSize(innerWidth, innerHeight);
+  });
+
+  let last = performance.now();
+  renderer.setAnimationLoop(now => {
+    const {alpha} = world.update((now - last) / 1000);
+    last = now;
+    syncInstancedMesh(world, mesh, {alpha});
+    renderer.render(scene, camera);
+  });
+</script>
+</body>
+</html>

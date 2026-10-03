@@ -1,0 +1,43 @@
+✔ closed flat tools distinguish their bottom, side, bevel and top (1.275875ms)
+✔ sphere, cone, wedge and cylinder return their analytical outward normals (0.225375ms)
+✔ ring bore, disjoint tips and cross reentrant corners retain their empty space (0.7845ms)
+✔ all twelve closed shapes obey rotation, scaling, translation and distance identities (22.789041ms)
+✔ continuous casts find crossings with two clear endpoints and moving ram contact (0.291708ms)
+✔ casts preserve holes, finite tool height and explicit exhaustion (0.222417ms)
+✔ normal correction includes the guided ram effective mass and lateral sheet motion (0.236666ms)
+✔ invalid geometry and query requests fail without changing a caller-owned result (1.001667ms)
+✔ compound tools resolve retained oblique and moving-ram exhaustion cases (0.284333ms)
+✔ all 24 profiles are represented and every complete preset stays within independent control bounds (2.316125ms)
+✔ all 36 cartridges preserve visible and analytical contact at their configured scale and angle (47.673ms)
+✔ both section axes recover actual rest dimensions and show connected zero deflection before loading (10.601167ms)
+✔ every cartridge is seated continuously against its backing and ram shaft (15.61175ms)
+✔ a removed surface creates real section gaps and replay restores the original continuity without using live link state (12.596292ms)
+✔ yield and rupture coloring follow the selected alloy and strength factor, not the generic steel limit (0.199083ms)
+✔ actual loaded and unloaded snapshots retain plastic stretch and report cracks, not an animation stage (2180.788459ms)
+✔ fracture highlighting excludes only true exterior rims, including corner-adjacent diagonals (0.133584ms)
+✔ canopy and bridge retain exact pre-change positions, failures and responses (4506.725625ms)
+✔ complete press catalogue covers all tools and metal families with unique identities (0.154041ms)
+✔ URL round trip retains every independent control and rejects nonfinite or unknown input (0.384125ms)
+✔ pressure changes response while thickness, tool and strike speed stay fixed (6994.102333ms)
+✔ thicker plate resists the same pressure and thin sheet fractures (6975.928917ms)
+✔ strike speed changes approach time without changing pressure or playback (752.183041ms)
+✔ metal profiles change yield and deformation under the same stroke (6996.755208ms)
+✔ all 54 experiments remain finite with pinned fixtures and irreversible topology (159502.603042ms)
+✔ unloading retracts the tool while retaining plastic set and replay is immutable (4834.167875ms)
+✔ a completed short stroke holds, retracts and is exactly deterministic (7123.422917ms)
+✔ tool footprint honors the bore, four tips, rotation and contact scaling (0.146875ms)
+✔ all attachment geometry is finite, scaled and contacts its analytical lower face (17.105917ms)
+✔ solid shell supplies underside and fracture walls at actual selected thickness (0.357875ms)
+✔ complete machine corners fit desktop and phone inspection bounds from both sides (1.446292ms)
+✔ replay reads requested pressure at that time rather than the last pressure or ramped drive level (1.728333ms)
+✔ hex and capsule retain empty corners and match their rotated working envelopes (1.09425ms)
+✔ movable sections find off-center damage without inventing a center tear or altering replay (14.952708ms)
+✔ pressure commands preserve the same damaged specimen, tick clock and retained recordings (1187.090958ms)
+ℹ tests 35
+ℹ suites 0
+ℹ pass 35
+ℹ fail 0
+ℹ cancelled 0
+ℹ skipped 0
+ℹ todo 0
+ℹ duration_ms 197954.530583

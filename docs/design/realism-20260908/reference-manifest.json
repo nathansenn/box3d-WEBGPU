@@ -1,0 +1,29 @@
+[
+  {
+    "scene": "canopy",
+    "path": "option-1-precision-studio.png",
+    "sha256": "ef890f70db3b32767b8eef563b07b4ed3f7591ded98abd83393345584997d586",
+    "width": 1487,
+    "height": 1058,
+    "role": "Visual reference only; not a physics specification",
+    "humanVisualAcceptance": "not-accepted"
+  },
+  {
+    "scene": "plate",
+    "path": "option-2-research-atelier.png",
+    "sha256": "63547d1a27495a234707472793faf9d3cf192b9203d09ec51f7d6576f4e2b3e6",
+    "width": 1487,
+    "height": 1058,
+    "role": "Visual reference only; not a physics specification",
+    "humanVisualAcceptance": "not-accepted"
+  },
+  {
+    "scene": "bridge",
+    "path": "option-3-field-observatory.png",
+    "sha256": "c0b9eb4c8bc5cfd4866ee928a70a7ec86644a063ac9ec4235e02b2b8f52099b8",
+    "width": 1487,
+    "height": 1058,
+    "role": "Visual reference only; not a physics specification",
+    "humanVisualAcceptance": "not-accepted"
+  }
+]
