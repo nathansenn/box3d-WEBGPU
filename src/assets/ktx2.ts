@@ -108,10 +108,6 @@ export function parseKtx2(input: ArrayBuffer | Uint8Array): ParsedKtx2 {
   return { vkFormat, width, height, levelCount, levels };
 }
 
-function align256(value: number): number {
-  return (value + 255) & ~255;
-}
-
 function uploadLevel(
   device: GPUDevice,
   texture: GPUTexture,
@@ -121,18 +117,15 @@ function uploadLevel(
 ): void {
   const blockCols = Math.max(1, Math.ceil(level.width / info.blockWidth));
   const blockRows = Math.max(1, Math.ceil(level.height / info.blockHeight));
-  const tightBytesPerRow = blockCols * info.bytesPerBlock;
-  const bytesPerRow = align256(tightBytesPerRow);
-  let upload = level.data;
-  if (bytesPerRow !== tightBytesPerRow) {
-    upload = new Uint8Array(bytesPerRow * blockRows);
-    for (let row = 0; row < blockRows; row++) {
-      upload.set(level.data.subarray(row * tightBytesPerRow, (row + 1) * tightBytesPerRow), row * bytesPerRow);
-    }
+  // queue.writeTexture has no 256-byte row alignment rule (that applies to
+  // copyBufferToTexture), so upload the tightly packed level without a repack.
+  const bytesPerRow = blockCols * info.bytesPerBlock;
+  if (level.data.byteLength < bytesPerRow * blockRows) {
+    throw new Error(`KTX2 mip ${mipLevel} holds ${level.data.byteLength} bytes; ${bytesPerRow * blockRows} required.`);
   }
   device.queue.writeTexture(
     { texture, mipLevel, origin: [0, 0, 0] },
-    upload as unknown as BufferSource,
+    level.data as unknown as BufferSource,
     { offset: 0, bytesPerRow, rowsPerImage: blockRows },
     { width: level.width, height: level.height, depthOrArrayLayers: 1 },
   );
