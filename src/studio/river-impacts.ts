@@ -8,7 +8,7 @@ export interface SplashEvent { time: number; x: number; z: number; speed: number
 export interface WaterContact { x: number; z: number; strength: number }
 
 const MERGE_RADIUS = 1.5, MERGE_TIME = .15, RECROSS_TIME = .2;
-export const MAX_SPLASHES = 24, MAX_CONTACTS = 24, DROPS_PER_SPLASH = 120;
+export const MAX_SPLASHES = 24, MAX_CONTACTS = 24, DROPS_PER_SPLASH = 220, MIST_PER_SPLASH = 40;
 /** Real-world droplet gravity; the structure's tuned 2.2 is a load model, not free flight. */
 const DROP_GRAVITY = 9.81;
 
@@ -50,18 +50,37 @@ export function waterContacts(sim: FailureSimulation): WaterContact[] {
  * so any frame renders identically regardless of step history. Launch speed scales with
  * impact speed (slap jets reach 0.6-1.7x the impact speed), droplet count with momentum,
  * droplets move with the current and end when they fall back to the surface. */
+export type SplashKind = 'drops' | 'mist';
 export class RiverSplash extends T.InstancedMesh {
-  private readonly m4 = new T.Matrix4(); private readonly q = new T.Quaternion(); private readonly s = new T.Vector3(); private readonly v = new T.Vector3();
-  constructor() {
-    const material = new T.MeshStandardNodeMaterial({ color: '#e4eeec', roughness: .35, metalness: 0, transparent: true, opacity: .78, depthWrite: false });
-    super(new T.IcosahedronGeometry(1, 2), material, MAX_SPLASHES * DROPS_PER_SPLASH);
-    this.frustumCulled = false; this.castShadow = false; this.receiveShadow = false; this.count = 0;
+  private readonly m4 = new T.Matrix4(); private readonly q = new T.Quaternion(); private readonly s = new T.Vector3(); private readonly v = new T.Vector3(); private readonly p = new T.Vector3();
+  /** 'drops': ballistic droplets, stretched along velocity (1/30 s exposure).
+   * 'mist': soft aerated puffs that billow from the impact and drift with the current. */
+  constructor(readonly kind: SplashKind = 'drops') {
+    const mist = kind === 'mist';
+    const material = new T.MeshStandardNodeMaterial({ color: mist ? '#f2f6f4' : '#dfe9e8', roughness: mist ? 1 : .55, metalness: 0, transparent: true, opacity: mist ? .14 : .5, depthWrite: false });
+    super(new T.IcosahedronGeometry(1, 2), material, MAX_SPLASHES * (mist ? MIST_PER_SPLASH : DROPS_PER_SPLASH));
+    this.frustumCulled = false; this.castShadow = false; this.receiveShadow = false; this.count = 0; this.visible = false;
   }
   update(time: number, events: readonly SplashEvent[]): void {
     let k = 0;
+    const put = () => { this.m4.compose(this.p, this.q, this.s); this.setMatrixAt(k++, this.m4); return k >= this.instanceMatrix.count; };
     for (const e of events) {
-      const age = time - e.time; if (age < 0 || age > 2.2) continue;
-      const n = Math.min(DROPS_PER_SPLASH, Math.round(24 + 14 * e.momentum));
+      const age = time - e.time; if (age < 0 || age > 2.4) continue;
+      if (this.kind === 'mist') {
+        const n = Math.min(MIST_PER_SPLASH, Math.round(8 + 5 * e.momentum));
+        for (let j = 0; j < n; j++) {
+          const h = (o: number) => hash(e.seed * 5.3 + j * 7.7 + o);
+          const ta = age - h(1) * .12, life = 1.1 + h(2) * .7; if (ta <= 0 || ta >= life) continue;
+          const theta = h(3) * Math.PI * 2, reach = (.2 + .5 * h(4)) * (.5 + .12 * e.speed), grow = 1 - Math.exp(-ta * 3.2);
+          const rise = (.12 + .05 * e.speed) * (.4 + h(5)) * grow;
+          this.p.set(e.x + Math.cos(theta) * reach * grow, RIVER_SURFACE_Y + rise, e.z + Math.sin(theta) * reach * grow + RIVER_CURRENT * ta);
+          const size = (.12 + .06 * e.speed) * (.6 + h(6) * .7) * (.45 + grow) * (1 - Math.pow(ta / life, 2));
+          this.q.identity(); this.s.set(size, size * .7, size);
+          if (put()) break;
+        }
+        continue;
+      }
+      const n = Math.min(DROPS_PER_SPLASH, Math.round(40 + 30 * e.momentum));
       for (let j = 0; j < n; j++) {
         const h = (o: number) => hash(e.seed * 13.7 + j * 3.1 + o);
         const crown = j % 3 !== 0; // two thirds crown sheet, one third central jet
@@ -70,17 +89,16 @@ export class RiverSplash extends T.InstancedMesh {
         const uy = u * Math.sin(elev), ur = u * Math.cos(elev), life = 2 * uy / DROP_GRAVITY;
         const ta = age - h(4) * .05; if (ta <= 0 || ta >= life) continue;
         const r0 = crown ? .3 + .35 * h(5) : .12 * h(5);
-        const y = RIVER_SURFACE_Y + uy * ta - .5 * DROP_GRAVITY * ta * ta;
         const rr = r0 + ur * ta;
-        const x = e.x + Math.cos(theta) * rr, z = e.z + Math.sin(theta) * rr + RIVER_CURRENT * ta;
-        const size = (crown ? .065 : .095) * (.6 + h(6) * .8) * Math.min(1, Math.sqrt(e.mass)) * (1 - .55 * ta / life);
-        const vy = uy - DROP_GRAVITY * ta; this.v.set(Math.cos(theta) * ur, vy, Math.sin(theta) * ur).normalize();
+        this.p.set(e.x + Math.cos(theta) * rr, RIVER_SURFACE_Y + uy * ta - .5 * DROP_GRAVITY * ta * ta, e.z + Math.sin(theta) * rr + RIVER_CURRENT * ta);
+        const size = (crown ? .03 : .042) * (.5 + h(6)) * Math.min(1, Math.sqrt(e.mass)) * (1 - .5 * ta / life);
+        const vy = uy - DROP_GRAVITY * ta, speed = Math.hypot(ur, vy); this.v.set(Math.cos(theta) * ur, vy, Math.sin(theta) * ur).normalize();
         this.q.setFromUnitVectors(UP, this.v);
-        // Droplets stretch along their velocity like short-exposure spray.
-        this.s.set(size, size * (1.4 + Math.min(2.2, Math.hypot(ur, vy) * .35)), size);
-        this.m4.compose(new T.Vector3(x, y, z), this.q, this.s); this.setMatrixAt(k++, this.m4);
-        if (k >= this.instanceMatrix.count) break;
+        // Streak length = distance travelled in a 1/60 s half-shutter, at least 2x the drop.
+        this.s.set(size, Math.max(size * 2, speed / 60 * .5 + size), size);
+        if (put()) break;
       }
+      if (k >= this.instanceMatrix.count) break;
     }
     this.count = k; this.visible = k > 0; this.instanceMatrix.needsUpdate = true;
   }

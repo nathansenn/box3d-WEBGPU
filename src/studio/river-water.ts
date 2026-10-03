@@ -51,11 +51,11 @@ export class RiverWater extends Mesh<PlaneGeometry, NodeMaterial> {
         If(e.w.greaterThan(0).and(age.greaterThan(0)),()=>{
           const d=p.sub(vec2(e.x,e.y.add(age.mul(RIVER_CURRENT)))),r=length(d).max(.001);
           const behind=age.mul(1.7).add(.15).sub(r);
-          const env=smoothstep(-.12,.06,behind).mul(exp(behind.max(0).mul(-1.4))).mul(exp(age.mul(-.7))).div(sqrt(r.add(.35)));
-          const slope=cos(behind.mul(13.96)).mul(env).mul(e.w).mul(.85);
+          const env=smoothstep(-.12,.06,behind).mul(exp(behind.max(0).mul(-1.4))).mul(exp(age.mul(-.45))).div(sqrt(r.add(.35)));
+          const slope=cos(behind.mul(13.96)).mul(env).mul(e.w).mul(1.4);
           gx.addAssign(d.x.div(r).mul(slope));gz.addAssign(d.y.div(r).mul(slope));
-          const patch=exp(r.div(age.mul(.55).add(.4)).pow(2).negate()).mul(exp(age.mul(-.42)));
-          const crest=exp(behind.div(.13).pow(2).negate()).mul(exp(age.mul(-1.25))).mul(.75);
+          const patch=exp(r.div(age.mul(.55).add(.4)).pow(2).negate()).mul(exp(age.mul(-.3)));
+          const crest=exp(behind.div(.13).pow(2).negate()).mul(exp(age.mul(-.8)));
           froth.addAssign(patch.add(crest).mul(e.w));
         });
       });
