@@ -1,0 +1,19 @@
+{
+  "file": "/Users/commander/Downloads/box3d-liquid-run.json",
+  "modified": "2026-09-09T22:47:33.607760+00:00",
+  "bytes": 26293,
+  "format": "box3d-material-study-v1",
+  "study": "liquid",
+  "settings": {
+    "material": "honey",
+    "mode": "release",
+    "load": 100,
+    "rate": 0.8,
+    "size": 0.8,
+    "damping": 1,
+    "fill": 10,
+    "seed": 42
+  },
+  "frames": 1,
+  "sha256": "3fd7dd25d084c47c51820d44e9e610447b9910a4132a97505e39af2a0cfcdcd1"
+}

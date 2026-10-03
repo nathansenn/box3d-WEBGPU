@@ -1,0 +1,55 @@
+{
+  "recordedAt": "2026-09-09T23:30:10.040333+00:00",
+  "entrySha256": "2e1c609831033dabef3e386521911a62ec0888db6f1a6cdff02b5fb535b8b2e8",
+  "assetBase": "./ with relative module imports and studio texture/reference URLs",
+  "workerConstruction": [
+    {
+      "bundle": "main-DAz6IQYJ.js",
+      "code": "new Worker(new URL(``+new URL(`studio-worker-CiVNd5Bm.js`,import.meta.url).href,``+import.meta.url),{type:`module`,name:`box3d-studio-engine`}),n,i),await a.initialize(n),a}catch(e){if(await a?.destroy(),r===`worker`)throw e;retur"
+    }
+  ],
+  "compiledMarkers": {
+    "SharedArrayBuffer": [],
+    "Atomics.": [],
+    "crossOriginIsolated": [],
+    "WebAssembly": [],
+    "workbench-box3d-wasm-v1": []
+  },
+  "modelFiles": [
+    {
+      "name": "polyhaven-island-tree-02-woodland-lod.glb",
+      "extensionsUsed": [],
+      "extensionsRequired": [],
+      "externalUris": []
+    },
+    {
+      "name": "polyhaven-island-tree-02-mid-lod.glb",
+      "extensionsUsed": [],
+      "extensionsRequired": [],
+      "externalUris": []
+    },
+    {
+      "name": "polyhaven-island-tree-02-browser-lod.glb",
+      "extensionsUsed": [
+        "KHR_materials_specular",
+        "KHR_materials_ior",
+        "EXT_texture_webp",
+        "KHR_texture_transform"
+      ],
+      "extensionsRequired": [
+        "EXT_texture_webp",
+        "KHR_texture_transform"
+      ],
+      "externalUris": []
+    }
+  ],
+  "wasmFilesInPublishedCandidate": [],
+  "workerArtifact": [
+    "assets/studio-worker-CiVNd5Bm.js"
+  ],
+  "candidateBytes": 118673897,
+  "sourceInspection": "Classic Studio uses module Worker messages with transferable ArrayBuffers and has a sync fallback. No SharedArrayBuffer/Atomics/crossOriginIsolated requirement was found in the frozen studio/engine source. Workbench WASM runtime exists in the repository but is not part of the retired-entry candidate.",
+  "requiredHeaders": "HTTPS for WebGPU outside localhost; standard JavaScript MIME for module entry and module worker. No demonstrated need for custom COOP/COEP in this candidate.",
+  "publicRuntimeVerification": "Pending deployment; static inspection does not establish live MIME, HTTPS, worker startup, exports or remote WebGPU behavior.",
+  "scientificLimits": "Comparative, authored, uncalibrated material models; no certified engineering or physical-device/store claims."
+}

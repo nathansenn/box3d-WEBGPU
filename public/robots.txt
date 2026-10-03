@@ -1,0 +1,6 @@
+User-agent: *
+Allow: /
+
+# Scene and control URLs remain crawlable so their root canonical can be read.
+# Internal diagnostics use response-header noindex, not robots.txt blocking.
+Sitemap: https://box3d.apxlabs.parts/sitemap.xml

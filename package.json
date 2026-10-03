@@ -5,12 +5,13 @@
   "type": "module",
   "description": "Box3D WebGPU AAA Physics Lab with native Box3D WASM, Poliigon-derived KTX2 materials, GPU cloth/rope/water, 800 deterministic recipes, 68 cinematic demos, and 34 authored metal, glass, concrete, and combined material programs.",
   "scripts": {
-    "dev": "vite --host 0.0.0.0",
+    "dev": "vite --host 127.0.0.1",
     "build": "vite build",
     "build:pages": "VITE_BASE_PATH=./ vite build",
-    "preview": "vite preview --host 0.0.0.0",
+    "preview": "vite preview --host 127.0.0.1",
     "fetch:box3d": "bash ./scripts/fetch-box3d.sh",
     "build:wasm": "bash ./scripts/build-wasm.sh",
+    "build:wasm:mt": "bash ./scripts/build-wasm-threaded.sh",
     "build:soft-kernels": "bash ./scripts/build-soft-kernels.sh",
     "build:poliigon-materials": "bash ./scripts/build-poliigon-material-atlas.sh",
     "verify:soft-kernels": "bash ./scripts/build-soft-kernels.sh --verify",
@@ -19,11 +20,10 @@
     "manifest:source": "bash ./scripts/generate-source-manifest.sh",
     "verify:source": "bash ./scripts/verify-source-manifest.sh",
     "typecheck": "tsc --noEmit",
-    "test": "npm run typecheck && rm -rf .test-build && tsc -p tsconfig.test.json && node -e \"require('fs').mkdirSync('.test-build', {recursive:true}); require('fs').writeFileSync('.test-build/package.json', '{\\\"type\\\":\\\"commonjs\\\"}')\" && node .test-build/tests/unit.test.js && node .test-build/tests/engineering-evidence.test.js && node scripts/self-test.mjs && npm run test:cbridge && npm run test:soft-kernels && npm run test:webgpu",
+    "test": "npm run typecheck && rm -rf .test-build && tsc -p tsconfig.test.json && node -e \"require('fs').mkdirSync('.test-build', {recursive:true}); require('fs').writeFileSync('.test-build/package.json', '{\\\"type\\\":\\\"commonjs\\\"}')\" && node .test-build/tests/unit.test.js && node .test-build/tests/engineering-evidence.test.js && node scripts/self-test.mjs && npm run test:cbridge && npm run test:soft-kernels && npm run test:webgpu && npm run test:collision",
     "validate": "npm test && npm run build",
-    "clean": "rm -rf dist .test-build .bench-build build/box3d-wasm",
+    "clean": "rm -rf dist .test-build .bench-build build/box3d-wasm build/box3d-wasm-mt",
     "test:ktx2": "node scripts/ktx2-runtime-test.mjs",
-    "test:assets": "node --test tests/assets/*.test.mjs tests/physics/*.test.mjs",
     "test:webgpu": "node scripts/webgpu-pipeline-test.mjs && node scripts/webgpu-renderer-runtime-test.mjs && npm run test:ktx2",
     "test:webgpu:metal": "WEBGPU_DAWN_BACKEND=metal node scripts/webgpu-renderer-runtime-test.mjs && KTX2_DAWN_BACKEND=metal node scripts/ktx2-runtime-test.mjs",
     "bench:gpu:quality": "node scripts/webgpu-quality-benchmark.mjs",
@@ -52,6 +52,8 @@
     "test:soft-kernels": "npm run verify:soft-kernels && node scripts/soft-kernel-test.mjs && rm -rf .test-build && tsc -p tsconfig.test.json && node -e \"require('fs').mkdirSync('.test-build', {recursive:true}); require('fs').writeFileSync('.test-build/package.json', '{\\\"type\\\":\\\"commonjs\\\"}')\" && node scripts/soft-kernel-integration-test.cjs",
     "test:cbridge": "bash ./scripts/c-bridge-syntax-test.sh",
     "test:native-wasm": "node scripts/native-box3d-soak.mjs",
+    "test:threaded": "node scripts/threaded-determinism-test.mjs",
+    "bench:threaded": "node scripts/threaded-benchmark.mjs",
     "bench:native:rigid-stream": "node benchmarks/native-rigid-stream.mjs",
     "test:soft-soak": "rm -rf .test-build && tsc -p tsconfig.test.json && node -e \"require('fs').mkdirSync('.test-build', {recursive:true}); require('fs').writeFileSync('.test-build/package.json', '{\\\"type\\\":\\\"commonjs\\\"}')\" && node scripts/soft-simulation-soak.cjs",
     "test:soft-soak:wasm": "rm -rf .test-build && tsc -p tsconfig.test.json && node -e \"require('fs').mkdirSync('.test-build', {recursive:true}); require('fs').writeFileSync('.test-build/package.json', '{\\\"type\\\":\\\"commonjs\\\"}')\" && SOFT_SOAK_KERNEL=simd node scripts/soft-simulation-soak.cjs",
@@ -87,9 +89,24 @@
     "validate:v1.17": "npm run verify:source && npm test && npm run test:soft-soak:all && npm run test:rope-batching && npm run test:native-wasm && npm run test:material:100 && npm run build && npm run build:pages && npm audit --audit-level=moderate && npm run verify:source",
     "validate:v1.18": "npm run verify:source && npm test && npm run test:soft-soak:all && npm run test:rope-batching && npm run test:native-wasm && npm run test:material:100 && npm run build && npm run build:pages && npm audit --audit-level=moderate && npm run verify:source",
     "validate:v1.19": "npm run verify:source && npm test && npm run test:soft-soak:all && npm run test:rope-batching && npm run test:native-wasm && npm run test:material:100 && npm run build && npm run build:pages && npm audit --audit-level=moderate && npm run verify:source",
-    "validate:v1.20": "npm run verify:source && npm test && npm run test:soft-soak:all && npm run test:rope-batching && npm run test:native-wasm && npm run test:material:100 && npm run build && npm run build:pages && npm audit --audit-level=moderate && npm run verify:source"
+    "validate:v1.20": "npm run verify:source && npm test && npm run test:soft-soak:all && npm run test:rope-batching && npm run test:native-wasm && npm run test:material:100 && npm run build && npm run build:pages && npm audit --audit-level=moderate && npm run verify:source",
+    "test:studio": "node tests/studio/failure.test.mjs",
+    "test:studio:presets": "node tests/studio/presets.test.mjs",
+    "test:studio:river": "node tests/studio/river-workflow.test.mjs",
+    "test:studio:reference": "node tests/studio/reference-geometry.test.mjs",
+    "test:studio:press": "node --test tests/studio/press-lab.test.mjs",
+    "test:assets": "node --test tests/assets/*.test.mjs tests/physics/*.test.mjs",
+    "test:engine": "node --test --test-concurrency=1 tests/engine/*.test.mjs",
+    "bench:engine": "node scripts/engine-benchmark.mjs",
+    "bench:engine:check": "node scripts/engine-check.mjs",
+    "baseline:engine": "node scripts/engine-baseline.mjs",
+    "sweep:studio": "node scripts/studio-sweep.mjs",
+    "test:gpu-water": "node scripts/gpu-water-qualify.mjs",
+    "bench:water:frames": "node scripts/gpu-water-benchmark.mjs",
+    "test:collision": "node scripts/test-collision.mjs"
   },
   "devDependencies": {
+    "@types/three": "0.185.4",
     "typescript": "^5.5.4",
     "vite": "^8.1.3",
     "webgpu": "^0.4.0"
@@ -130,6 +147,7 @@
     "@fontsource/barlow-condensed": "^5.3.0",
     "@fontsource/ibm-plex-mono": "^5.3.0",
     "@fontsource/inter": "^5.3.0",
-    "@phosphor-icons/web": "^2.1.2"
+    "@phosphor-icons/web": "^2.1.2",
+    "three": "0.185.1"
   }
 }

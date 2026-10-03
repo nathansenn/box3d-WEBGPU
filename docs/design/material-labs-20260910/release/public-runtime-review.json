@@ -1,0 +1,85 @@
+{
+  "at": "2026-09-09T23:50:23.584Z",
+  "provider": "Browserless",
+  "owner": "01a07e7b-23c9-72e1-a62e-b780ac76623f",
+  "base": "https://box3d-web-production.up.railway.app/",
+  "publicDeploymentOnly": true,
+  "localBuildTransport": false,
+  "studies": [
+    {
+      "title": "BOX3D — Liquid dynamics",
+      "url": "https://box3d-web-production.up.railway.app/?studio=liquid&material=water&mode=release&seed=42&size=0.65&load=100&rate=0.8&damping=1&fill=10&experiment=water-release",
+      "id": "liquid",
+      "ready": "true",
+      "phase": "Paused · Flowing",
+      "time": "0.90 s",
+      "renderer": "WebGL renderer · fixed-step model",
+      "studies": 8,
+      "experiments": 8,
+      "canvas": [
+        {
+          "width": 886,
+          "height": 642
+        }
+      ],
+      "metrics": [
+        "0.60",
+        "1.49",
+        "3.04"
+      ],
+      "overflow": false,
+      "legacyLinks": 0
+    },
+    {
+      "title": "BOX3D — Glass impact",
+      "url": "https://box3d-web-production.up.railway.app/?studio=glass&material=annealed&mode=release&seed=42&size=8&load=50&rate=1.1&damping=1&fill=0&experiment=radial-impact",
+      "id": "glass",
+      "ready": "true",
+      "phase": "Ready",
+      "time": "0.00 s",
+      "renderer": "WebGL renderer · fixed-step model",
+      "studies": 8,
+      "experiments": 8,
+      "canvas": [
+        {
+          "width": 886,
+          "height": 642
+        }
+      ],
+      "metrics": [
+        "539.55",
+        "0.00",
+        "0.00"
+      ],
+      "overflow": false,
+      "legacyLinks": 0
+    }
+  ],
+  "errors": [],
+  "failedRequests": [],
+  "httpFailures": [],
+  "workers": [],
+  "export": {
+    "filename": "box3d-liquid-run.json",
+    "bytes": 636397,
+    "sha256": "dea268cd90913d884eccf9e24476a24a9cf02aef2bdb0b7f6f2ce49b8b5d162c",
+    "format": "box3d-material-study-v1",
+    "study": "liquid",
+    "calibrated": false,
+    "frames": 15,
+    "lastTime": 0.8749999999999993,
+    "settings": {
+      "material": "water",
+      "mode": "release",
+      "load": 100,
+      "rate": 0.8,
+      "size": 0.65,
+      "damping": 1,
+      "fill": 10,
+      "seed": 42
+    },
+    "finitePositions": true
+  },
+  "pass": false,
+  "error": "locator.selectOption: Target page, context or browser has been closed"
+}

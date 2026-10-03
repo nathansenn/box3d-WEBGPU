@@ -1,0 +1,29 @@
+{
+  "name": "current-canopy-mobile",
+  "at": "2026-09-08T08:23:22.564Z",
+  "broken": "0",
+  "camera": "hero",
+  "canvas": {
+    "height": 479,
+    "width": 390
+  },
+  "deflection": "0.000",
+  "draws": "32",
+  "events": "0",
+  "finish": "canopy-linen",
+  "fps": "127",
+  "frames": "9164",
+  "height": 844,
+  "history": "LIVE HISTORY",
+  "horizontalOverflow": false,
+  "lighting": "daylight",
+  "objects": "554",
+  "productionEntry": "index-DipR682Y.js",
+  "quality": "ultra",
+  "ready": "true",
+  "study": "canopy",
+  "time": "0.00 s",
+  "triangles": "75943",
+  "url": "http://127.0.0.1:5174/?studio=canopy&theme=precision&finish=canopy-linen&light=daylight&recipe=canopy-tear&camera=hero&quality=ultra",
+  "width": 390
+}

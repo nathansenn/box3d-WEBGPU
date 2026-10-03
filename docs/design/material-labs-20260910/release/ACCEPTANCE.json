@@ -1,0 +1,62 @@
+{
+  "at": "2026-09-10T00:06:57.188769+00:00",
+  "status": "complete",
+  "url": "https://box3d.apxlabs.parts/?studio=liquid",
+  "deploymentId": "c47f3f70-f0b8-4539-9329-c51755958b5d",
+  "frozenAppCommit": "954040819bb9b68c1be59912e7652c61266ce1a9",
+  "railwayWrapperCommit": "1917fb9f5efcdf543c6a3c9520c0b623d7c7f0d0",
+  "modelTestsPassed": 56,
+  "publicNewLabsVerified": [
+    "liquid",
+    "glass",
+    "concrete",
+    "rubber",
+    "granular"
+  ],
+  "classicPressWorkerUiPassed": true,
+  "eightStudyNavigation": true,
+  "oldWorkbenchLinksRemoved": true,
+  "publicWorkerTicks": 120,
+  "publicExport": {
+    "filename": "box3d-liquid-run.json",
+    "bytes": 636397,
+    "sha256": "dea268cd90913d884eccf9e24476a24a9cf02aef2bdb0b7f6f2ce49b8b5d162c",
+    "format": "box3d-material-study-v1",
+    "study": "liquid",
+    "calibrated": false,
+    "frames": 15,
+    "lastTime": 0.8749999999999993,
+    "settings": {
+      "material": "water",
+      "mode": "release",
+      "load": 100,
+      "rate": 0.8,
+      "size": 0.65,
+      "damping": 1,
+      "fill": 10,
+      "seed": 42
+    },
+    "finitePositions": true
+  },
+  "mobileViewport": {
+    "width": 390,
+    "height": 844,
+    "scrollWidth": 390,
+    "overflow": false
+  },
+  "customHostTlsHashesUiWorkerVerified": true,
+  "domainOwnerReceipt": "/Users/commander/Documents/ChatGPT/domains/changes/2026-09-10-box3d-connection-verified.json",
+  "partialAttemptsRetained": [
+    "public-runtime-review.json contains bounded-session interruption after liquid/glass",
+    "public-plate-check-startup-race.json contains renderer-ready/navigation timing observation"
+  ],
+  "subsequentChecksResolved": true,
+  "browserCleanup": "Successful single-study and domain-owner sessions closed through the shared helper; no local browser or fixture transport created.",
+  "nativeAndStoreAcceptance": false,
+  "calibratedEngineeringModel": false,
+  "evidenceBytes": 639247,
+  "remainingAllocationGiB": 0,
+  "freeGiB": 49.2096,
+  "githubMutations": [],
+  "sourceHead": "dfedd9fe9983200f492d686488d27b6a4b11c650"
+}

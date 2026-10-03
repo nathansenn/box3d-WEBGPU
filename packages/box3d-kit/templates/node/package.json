@@ -1,0 +1,7 @@
+{
+  "name": "{{NAME}}",
+  "private": true,
+  "type": "module",
+  "scripts": { "start": "node game.mjs" },
+  "dependencies": { "box3d-webgpu-kit": "^{{VERSION}}" }
+}

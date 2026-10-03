@@ -1,0 +1,22 @@
+✔ canopy and bridge retain exact pre-change positions, failures and responses (4175.018875ms)
+✔ complete press catalogue covers all tools and metal families with unique identities (0.126625ms)
+✔ URL round trip retains every independent control and rejects nonfinite or unknown input (0.4125ms)
+✔ pressure changes response while thickness, tool and strike speed stay fixed (6580.520625ms)
+✔ thicker plate resists the same pressure and thin sheet fractures (6622.3265ms)
+✔ strike speed changes approach time without changing pressure or playback (582.879541ms)
+✔ metal profiles change yield and deformation under the same stroke (6742.290875ms)
+✔ all 48 experiments remain finite with pinned fixtures and irreversible topology (136111.693042ms)
+✔ unloading retracts the tool while retaining plastic set and replay is immutable (4648.64975ms)
+✔ a completed short stroke holds, retracts and is exactly deterministic (6881.91475ms)
+✔ tool footprint honors the bore, four tips, rotation and contact scaling (0.135667ms)
+✔ all attachment geometry is finite, scaled and contacts its analytical lower face (13.35575ms)
+✔ solid shell supplies underside and fracture walls at actual selected thickness (0.524917ms)
+✔ complete machine corners fit desktop and phone inspection bounds from both sides (1.444709ms)
+ℹ tests 14
+ℹ suites 0
+ℹ pass 14
+ℹ fail 0
+ℹ cancelled 0
+ℹ skipped 0
+ℹ todo 0
+ℹ duration_ms 172565.705417

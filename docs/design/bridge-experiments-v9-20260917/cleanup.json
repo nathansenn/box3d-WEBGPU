@@ -1,0 +1,27 @@
+{
+  "at": "2026-09-16T20:44:54.663089+00:00",
+  "owned_tab_closed": "4",
+  "existing_tabs_preserved": [
+    "1",
+    "2",
+    "3"
+  ],
+  "viewport_reset": true,
+  "qa_scans_cleared": true,
+  "inspect_baselines_unchanged": true,
+  "compiled_preview_stopped": true,
+  "development_preview": {
+    "host": "127.0.0.1",
+    "port": 5173,
+    "pid": 29361,
+    "http_status": 200
+  },
+  "build_path": "/private/tmp/box3d-bridge-experiments-v9-code-build-20260917",
+  "build_regular_bytes": 8320122,
+  "evidence_bytes": 1351056,
+  "source_and_test_bytes": 123650,
+  "free_bytes": 310595584,
+  "download_receipts": "Development JSON, sample CSV and summary CSV verified. Compiled IAB download receipt unconfirmed.",
+  "test_count": 55,
+  "build_and_evidence_bytes": 9671178
+}

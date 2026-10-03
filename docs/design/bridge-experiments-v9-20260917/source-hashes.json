@@ -1,0 +1,7 @@
+{
+  "src/studio/bridge-experiments.ts": "8dc5c6fa8832eb3029a0c33ced3e342f3a2c3be2d4c31468e7575dbe029c8220",
+  "src/studio/bridge-experiments-view.ts": "0954e88f67be59fb5ea7101b64996933697d33cc32bcaafcce367e4403282c5c",
+  "src/studio/bridge-experiments.css": "814b17ad785d6c4c6f0b1497e0fb496bc135bbc0c5500bfd461d8dd6ff111c35",
+  "src/studio/bridge-review.ts": "68e2b351e8389e381ee882c075680a4b55e2b43f979058030e9caec3ff752925",
+  "tests/studio/bridge-experiments.test.mjs": "ac7aacff9e6c05b1ef093a1ffff44d46e47fb28c8b31211edaa3c1e6d75b0091"
+}

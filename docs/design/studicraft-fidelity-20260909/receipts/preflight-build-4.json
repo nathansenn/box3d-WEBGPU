@@ -1,0 +1,35 @@
+{
+  "source": {
+    "src/studio/river-water.ts": "09ef663ad97eb925bb2def69762f7eb0dae31a9c436df2e0fe5770823ced9b3b",
+    "src/studio/main.ts": "1f6b9fccaf36ac7195e7ca908080013ce37e6e6ea200195fa7340956551e5ff1",
+    "src/studio/collection-state.ts": "0382a1fcb79c4237507dab8e9c47be626417587aabaa32fd190455ce320b7628",
+    "src/studio/studio.css": "fb029493cd1677018a3e4a21ce5c0fa6f3526887aee1a9777e35a2275670a01e",
+    "src/studio/scene-desk.css": "119a9d5bb3cbbf405168b6e864f9a189cacaae42f4efd6deecf7638246afdc17",
+    "src/studio/river-settings.ts": "7d355be8bbe8d11acc893ae8b180e7644dba2ca2afe7ad86464ef78c804c7a1b",
+    "src/studio/physics.ts": "fbc8326cb7f2f734351b2fc4d68a112340756311d28db92b794133acb934e0f0",
+    "src/studio/collection.css": "0ddcba7edf01a2263f32a9c414c06156fcdf32c462c1772a8adbb859b8440b7d",
+    "src/studio/lighting.ts": "78a3e3a6c18e50261f8893e2d3deeb6a93cbda381bf8de2dba2495b8e9118324",
+    "src/studio/materials.ts": "fd945f4aab8f9322c7adb50ffb4fb781c9f738bfc7c2ef482442dc4b0a82bd9f",
+    "src/studio/scene-desk.ts": "70e16ab1d9701d5d90273f7dcaef881b294f8c4fd4d407fd5015693e237ecb1c",
+    "src/studio/presets.ts": "95ce1c43ad386bd73daa8336baca0b4622604a9f04ae2a075fdeeaf8c03f6a87",
+    "src/studio/reference-scene.ts": "2166f44edfaeca74822e39beeb4c100dfa8a9f7ace935c9298a61c8a619cdba9",
+    "src/studio/preset-browser.ts": "18e14effd7143a5ed74974dda9d19734114b8951651af47c802b7b54c10eb3bc",
+    "src/studio/world.ts": "926de28918475099dd5d87db60a65f3793e8cb3157277205327b0235516de72f",
+    "src/studio/reference-workspace.css": "e8246c8f16381da72d16c19ea8c9dcdbdd0d31a1758c2bedbd8fb4c67e01460a",
+    "src/entry.ts": "2861237cf73ccdfdddacc94d6bb0d9277541db3e0d8b9214818c584a5ceb3b74",
+    "index.html": "39561d8d714bb23feb0dd5c7b0204612b3ea8338438270b46383d9b375c5688b"
+  },
+  "compiledAssets": {
+    "assets/style-DzWAs8Pe.css": "36bd4309ef888306fa05d1d75f43744c2a2ba469615068fbbb8605327ecb204a",
+    "assets/main-D7YD_hRR.css": "486025f3f620ed79fc1d223fb523d8a4ced09cf98b6e8215b51cb702a59ba139",
+    "assets/main-BD9Yk21S.js": "cde49600274074f7a896923f369d02b8a1b240e7a0d370d421be8321e9f323d9",
+    "assets/index-B-hnpRUR.css": "a8901f37eaa5c11e9b547016328ed43cb66f7ed466d5d3507f0b70560e6586b3",
+    "assets/main-D7uMZgNy.js": "2295f3b60a88bbb0a7c7f7d0eea48e1db103954480c89fa3cc55a7dd984b3036",
+    "assets/index-_w507m2T.js": "563c888401607ce28a54149dca85a9b13e9c33dc146dafd96bc95bb7679c2de9",
+    "assets/turboquant-DEooNtgG.js": "be4423a33e469ea9e905b65aedb2c8c10ff2cdb8a717527c48e7f145a7529c66",
+    "assets/main-Bwqo8j-g.css": "9d072801725a784666eb3f44ff1c97108f70cd470fd77518de1098588ff87858"
+  },
+  "build": "npm run build -- --outDir /private/tmp/box3d-studicraft-fidelity-20260909/dist --emptyOutDir",
+  "result": "exit 0",
+  "warning": "existing chunks exceed 500 kB minified"
+}

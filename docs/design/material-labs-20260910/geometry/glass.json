@@ -1,0 +1,458 @@
+{
+  "meta": {
+    "source_image": "/Users/commander/box3d-WEBGPU/public/studio/references/material-labs/glass.png",
+    "image_width": 1180,
+    "image_height": 872,
+    "unit": "m",
+    "scale_anchor": {
+      "object_id": "bench",
+      "axis": "x",
+      "real_size": 3.4,
+      "confidence": "ASSUMED"
+    },
+    "scope": "Coarse at-rest apparatus support graph; viewport framing only. Fine fasteners and dynamic collision proxies are verified separately in source/runtime.",
+    "source_colour_samples": {
+      "300,700": "#373634",
+      "500,450": "#96afab",
+      "200,250": "#3d4745"
+    }
+  },
+  "camera": {
+    "position": [
+      3,
+      4.1,
+      12
+    ],
+    "target": [
+      0,
+      2.2,
+      0
+    ],
+    "up": [
+      0,
+      1,
+      0
+    ],
+    "fov_vertical_deg": 38,
+    "shot_type": "eye_level",
+    "confidence": "INFERRED"
+  },
+  "environment": {
+    "background": "#cecfc5",
+    "ground": {
+      "present": true,
+      "y": 0,
+      "size": 30,
+      "color": "#c6c3b6"
+    }
+  },
+  "objects": [
+    {
+      "id": "foot--1.55--0.71",
+      "label": "foot  1.55  0.71",
+      "primitives": [
+        {
+          "type": "cylinder",
+          "params": {
+            "rt": 0.05,
+            "rb": 0.05,
+            "h": 0.56,
+            "seg": 32
+          }
+        }
+      ],
+      "transform": {
+        "position": [
+          -1.55,
+          0.28,
+          -0.71
+        ]
+      },
+      "material": {
+        "color": "#a4aaa5",
+        "roughness": 0.5,
+        "metalness": 0.3
+      },
+      "support": {
+        "on": "ground"
+      },
+      "container": false,
+      "confidence": "ASSUMED"
+    },
+    {
+      "id": "foot--1.55-0.71",
+      "label": "foot  1.55 0.71",
+      "primitives": [
+        {
+          "type": "cylinder",
+          "params": {
+            "rt": 0.05,
+            "rb": 0.05,
+            "h": 0.56,
+            "seg": 32
+          }
+        }
+      ],
+      "transform": {
+        "position": [
+          -1.55,
+          0.28,
+          0.71
+        ]
+      },
+      "material": {
+        "color": "#a4aaa5",
+        "roughness": 0.5,
+        "metalness": 0.3
+      },
+      "support": {
+        "on": "ground"
+      },
+      "container": false,
+      "confidence": "ASSUMED"
+    },
+    {
+      "id": "foot-1.55--0.71",
+      "label": "foot 1.55  0.71",
+      "primitives": [
+        {
+          "type": "cylinder",
+          "params": {
+            "rt": 0.05,
+            "rb": 0.05,
+            "h": 0.56,
+            "seg": 32
+          }
+        }
+      ],
+      "transform": {
+        "position": [
+          1.55,
+          0.28,
+          -0.71
+        ]
+      },
+      "material": {
+        "color": "#a4aaa5",
+        "roughness": 0.5,
+        "metalness": 0.3
+      },
+      "support": {
+        "on": "ground"
+      },
+      "container": false,
+      "confidence": "ASSUMED"
+    },
+    {
+      "id": "foot-1.55-0.71",
+      "label": "foot 1.55 0.71",
+      "primitives": [
+        {
+          "type": "cylinder",
+          "params": {
+            "rt": 0.05,
+            "rb": 0.05,
+            "h": 0.56,
+            "seg": 32
+          }
+        }
+      ],
+      "transform": {
+        "position": [
+          1.55,
+          0.28,
+          0.71
+        ]
+      },
+      "material": {
+        "color": "#a4aaa5",
+        "roughness": 0.5,
+        "metalness": 0.3
+      },
+      "support": {
+        "on": "ground"
+      },
+      "container": false,
+      "confidence": "ASSUMED"
+    },
+    {
+      "id": "bench",
+      "label": "bench",
+      "primitives": [
+        {
+          "type": "box",
+          "params": {
+            "w": 3.4,
+            "h": 0.12,
+            "d": 1.62
+          }
+        }
+      ],
+      "transform": {
+        "position": [
+          0,
+          0.62,
+          0
+        ]
+      },
+      "material": {
+        "color": "#69716e",
+        "roughness": 0.5,
+        "metalness": 0.3
+      },
+      "support": {
+        "on": "foot--1.55--0.71"
+      },
+      "container": false,
+      "confidence": "ASSUMED"
+    },
+    {
+      "id": "column-base--1.52",
+      "label": "column base  1.52",
+      "primitives": [
+        {
+          "type": "box",
+          "params": {
+            "w": 0.4,
+            "h": 0.1,
+            "d": 0.44
+          }
+        }
+      ],
+      "transform": {
+        "position": [
+          -1.52,
+          0.73,
+          0
+        ]
+      },
+      "material": {
+        "color": "#69716e",
+        "roughness": 0.5,
+        "metalness": 0.3
+      },
+      "support": {
+        "on": "bench"
+      },
+      "container": false,
+      "confidence": "ASSUMED"
+    },
+    {
+      "id": "column--1.52",
+      "label": "column  1.52",
+      "primitives": [
+        {
+          "type": "box",
+          "params": {
+            "w": 0.17,
+            "h": 3.24,
+            "d": 0.18
+          }
+        }
+      ],
+      "transform": {
+        "position": [
+          -1.52,
+          2.4,
+          0
+        ]
+      },
+      "material": {
+        "color": "#69716e",
+        "roughness": 0.5,
+        "metalness": 0.3
+      },
+      "support": {
+        "on": "column-base--1.52"
+      },
+      "container": false,
+      "confidence": "ASSUMED"
+    },
+    {
+      "id": "column-base-1.52",
+      "label": "column base 1.52",
+      "primitives": [
+        {
+          "type": "box",
+          "params": {
+            "w": 0.4,
+            "h": 0.1,
+            "d": 0.44
+          }
+        }
+      ],
+      "transform": {
+        "position": [
+          1.52,
+          0.73,
+          0
+        ]
+      },
+      "material": {
+        "color": "#69716e",
+        "roughness": 0.5,
+        "metalness": 0.3
+      },
+      "support": {
+        "on": "bench"
+      },
+      "container": false,
+      "confidence": "ASSUMED"
+    },
+    {
+      "id": "column-1.52",
+      "label": "column 1.52",
+      "primitives": [
+        {
+          "type": "box",
+          "params": {
+            "w": 0.17,
+            "h": 3.24,
+            "d": 0.18
+          }
+        }
+      ],
+      "transform": {
+        "position": [
+          1.52,
+          2.4,
+          0
+        ]
+      },
+      "material": {
+        "color": "#69716e",
+        "roughness": 0.5,
+        "metalness": 0.3
+      },
+      "support": {
+        "on": "column-base-1.52"
+      },
+      "container": false,
+      "confidence": "ASSUMED"
+    },
+    {
+      "id": "crown",
+      "label": "crown",
+      "primitives": [
+        {
+          "type": "box",
+          "params": {
+            "w": 3.36,
+            "h": 0.3,
+            "d": 0.31
+          }
+        }
+      ],
+      "transform": {
+        "position": [
+          0,
+          4.17,
+          0
+        ]
+      },
+      "material": {
+        "color": "#d17b3a",
+        "roughness": 0.5,
+        "metalness": 0.3
+      },
+      "support": {
+        "on": "column--1.52"
+      },
+      "container": false,
+      "confidence": "ASSUMED"
+    },
+    {
+      "id": "pane",
+      "label": "pane",
+      "primitives": [
+        {
+          "type": "box",
+          "params": {
+            "w": 2.6,
+            "h": 2,
+            "d": 0.008
+          }
+        }
+      ],
+      "transform": {
+        "position": [
+          0,
+          2.45,
+          0
+        ]
+      },
+      "material": {
+        "color": "#a7c8c1",
+        "roughness": 0.5,
+        "metalness": 0.3
+      },
+      "support": {
+        "on": "none"
+      },
+      "container": false,
+      "confidence": "ASSUMED"
+    },
+    {
+      "id": "clamp--1.33",
+      "label": "clamp  1.33",
+      "primitives": [
+        {
+          "type": "box",
+          "params": {
+            "w": 0.06,
+            "h": 0.24,
+            "d": 0.12
+          }
+        }
+      ],
+      "transform": {
+        "position": [
+          -1.33,
+          2.45,
+          0
+        ]
+      },
+      "material": {
+        "color": "#69716e",
+        "roughness": 0.5,
+        "metalness": 0.3
+      },
+      "support": {
+        "on": "pane"
+      },
+      "container": false,
+      "confidence": "ASSUMED"
+    },
+    {
+      "id": "clamp-1.33",
+      "label": "clamp 1.33",
+      "primitives": [
+        {
+          "type": "box",
+          "params": {
+            "w": 0.06,
+            "h": 0.24,
+            "d": 0.12
+          }
+        }
+      ],
+      "transform": {
+        "position": [
+          1.33,
+          2.45,
+          0
+        ]
+      },
+      "material": {
+        "color": "#69716e",
+        "roughness": 0.5,
+        "metalness": 0.3
+      },
+      "support": {
+        "on": "pane"
+      },
+      "container": false,
+      "confidence": "ASSUMED"
+    }
+  ]
+}

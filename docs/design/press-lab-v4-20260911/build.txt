@@ -1,0 +1,43 @@
+
+> box3d-webgpu@1.20.0 build
+> vite build --outDir /private/tmp/box3d-press-v4-build-20260911 --emptyOutDir
+
+vite v8.1.3 building client environment for production...
+[2Ktransforming...✓ 84 modules transformed.
+rendering chunks...
+computing gzip size...
+../../../private/tmp/box3d-press-v4-build-20260911/index.html                                                7.06 kB │ gzip:   2.41 kB
+../../../private/tmp/box3d-press-v4-build-20260911/assets/ibm-plex-mono-latin-400-normal-CvHOgSBP.woff      13.14 kB
+../../../private/tmp/box3d-press-v4-build-20260911/assets/ibm-plex-mono-latin-400-normal-DMJ8VG8y.woff2     14.70 kB
+../../../private/tmp/box3d-press-v4-build-20260911/assets/inter-latin-400-normal-C38fXH4l.woff2             23.66 kB
+../../../private/tmp/box3d-press-v4-build-20260911/assets/inter-latin-500-normal-Cerq10X2.woff2             24.27 kB
+../../../private/tmp/box3d-press-v4-build-20260911/assets/inter-latin-700-normal-Yt3aPRUw.woff2             24.35 kB
+../../../private/tmp/box3d-press-v4-build-20260911/assets/inter-latin-600-normal-LgqL8muc.woff2             24.45 kB
+../../../private/tmp/box3d-press-v4-build-20260911/assets/inter-latin-400-normal-CyCys3Eg.woff              30.69 kB
+../../../private/tmp/box3d-press-v4-build-20260911/assets/inter-latin-600-normal-CiBQ2DWP.woff              31.26 kB
+../../../private/tmp/box3d-press-v4-build-20260911/assets/inter-latin-500-normal-BL9OpVg8.woff              31.28 kB
+../../../private/tmp/box3d-press-v4-build-20260911/assets/inter-latin-700-normal-BLAVimhd.woff              31.32 kB
+../../../private/tmp/box3d-press-v4-build-20260911/assets/glass-worker-8L1mmunT.js                          44.41 kB
+../../../private/tmp/box3d-press-v4-build-20260911/assets/studio-worker-CMcFBjSS.js                         57.09 kB
+../../../private/tmp/box3d-press-v4-build-20260911/assets/Phosphor-DtdjzkpE.woff2                          147.38 kB
+../../../private/tmp/box3d-press-v4-build-20260911/assets/Phosphor-CDxgqcPu.ttf                            488.63 kB
+../../../private/tmp/box3d-press-v4-build-20260911/assets/Phosphor-BdqudwT5.woff                           488.71 kB
+../../../private/tmp/box3d-press-v4-build-20260911/assets/mockup-Du1_4jAZ.png                            1,906.07 kB
+../../../private/tmp/box3d-press-v4-build-20260911/assets/Phosphor-BXRFlF4V.svg                          2,996.37 kB │ gzip: 832.83 kB
+../../../private/tmp/box3d-press-v4-build-20260911/assets/study-navigation-CGNjdIDP.css                      0.76 kB │ gzip:   0.41 kB
+../../../private/tmp/box3d-press-v4-build-20260911/assets/main-CuWDi604.css                                 25.61 kB │ gzip:   5.89 kB
+../../../private/tmp/box3d-press-v4-build-20260911/assets/RoundedBoxGeometry-BAh20NZY.css                   63.34 kB │ gzip:  12.09 kB
+../../../private/tmp/box3d-press-v4-build-20260911/assets/main-DYjfzepY.css                                106.48 kB │ gzip:  18.71 kB
+../../../private/tmp/box3d-press-v4-build-20260911/assets/study-navigation-yKpjwIwl.js                       1.37 kB │ gzip:   0.78 kB
+../../../private/tmp/box3d-press-v4-build-20260911/assets/glass-worker-client-DXKFsmZ_.js                    1.55 kB │ gzip:   0.71 kB
+../../../private/tmp/box3d-press-v4-build-20260911/assets/index-CAJI1aE3.js                                  3.64 kB │ gzip:   1.75 kB
+../../../private/tmp/box3d-press-v4-build-20260911/assets/main-Dl3QuYSy.js                                 116.38 kB │ gzip:  40.63 kB
+../../../private/tmp/box3d-press-v4-build-20260911/assets/main-Cu-C0Am-.js                                 310.83 kB │ gzip:  95.93 kB
+../../../private/tmp/box3d-press-v4-build-20260911/assets/RoundedBoxGeometry-ChrWRWX5.js                   968.08 kB │ gzip: 268.38 kB
+
+✓ built in 707ms
+[plugin builtin:vite-reporter] 
+(!) Some chunks are larger than 500 kB after minification. Consider:
+- Using dynamic import() to code-split the application
+- Use build.rolldownOptions.output.codeSplitting to improve chunking: https://rolldown.rs/reference/OutputOptions.codeSplitting
+- Adjust chunk size limit for this warning via build.chunkSizeWarningLimit.

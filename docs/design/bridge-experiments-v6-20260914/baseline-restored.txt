@@ -1,0 +1,184 @@
+- banner:
+  - link "BOX3D Engineering Studio":
+    - /url: "?studio=liquid"
+    - text: 
+    - strong: BOX3D
+  - navigation "Studies":
+    - generic: Study
+    - combobox "Study":
+      - option "Liquid dynamics"
+      - option "Glass impact"
+      - option "Concrete crush"
+      - option "Elastomer lab"
+      - option "Granular flow"
+      - option "Metal press"
+      - option "Canopy"
+      - option "Suspension bridge" [selected]
+    - generic: 
+  - button "Reference workspace" [pressed]:
+    - generic: 
+  - button "Open preset library":
+    - generic: 
+  - text:   
+  - button "Resume saved run":
+    - generic: 
+- main:
+  - text:                          
+  - region "Simulation viewport":
+    - img "Interactive 3D simulation. Drag to orbit, scroll to zoom."
+    - group "Surface display":
+      - button "Material" [pressed]
+      - button "Response"
+    - button "Focus on scene":
+      - generic: 
+    - text: 
+    - button "Fit camera":
+      - generic: 
+    - text: 
+    - text:  
+    - status:
+      - generic: Ready to simulate
+    - text: 
+    - generic: RIVER / STRUCTURAL STUDY
+    - strong: Suspension bridge
+    - generic: Weathered oak · Woodland daylight
+    - text: 
+    - group "Quick inspection views":
+      - button "Overview":
+        - generic: 
+      - button "Three quarter":
+        - generic: 
+      - button "Top":
+        - generic: 
+      - button "Connection":
+        - generic: 
+      - button "Results":
+        - generic: 
+        - generic: Results
+  - complementary "Experiment desk":
+    - text: LIVE PROVING GROUND
+    - heading "Experiment desk" [level=2]
+    - button "Hide experiment desk":
+      - generic: 
+    - tablist "Experiment workflow":
+      - tab "Set up":
+        - generic: 
+        - generic: Set up
+      - tab "Surface":
+        - generic: 
+        - generic: Surface
+      - tab "World":
+        - generic: 
+        - generic: World
+      - tab "Test":
+        - generic: 
+        - generic: Test
+      - tab "Analyze" [selected]:
+        - generic: 
+        - generic: Analyze
+    - text:                         
+    - tabpanel "Analyze":
+      - group "Analysis mode":
+        - button "Inspect" [active] [pressed]
+        - button "Experiments"
+      - text: BRIDGE / FAILURE REVIEW
+      - heading "Read the failure." [level=3]
+      - generic: PAUSED · 0.00 s
+      - paragraph: Follow the load path. Inspect a span, replay a rupture, then compare your next run.
+      - region "Connection inspection":
+        - heading "Connection map" [level=4]
+        - button "Whole bridge"
+        - img "Cable sides A and B at 0.00 seconds; dashed red lines are ruptured connections":
+          - generic: SIDE A
+          - generic: SIDE B
+        - generic: Intact
+        - generic: Ruptured
+        - generic: Initial shape
+        - group "Inspect a bridge span":
+          - button "Inspect West approach · 1":
+            - generic: "01"
+            - generic: "0"
+          - button "Inspect West span · 2":
+            - generic: "02"
+            - generic: "0"
+          - button "Inspect West midspan · 3":
+            - generic: "03"
+            - generic: "0"
+          - button "Inspect East midspan · 4":
+            - generic: "04"
+            - generic: "0"
+          - button "Inspect East span · 5":
+            - generic: "05"
+            - generic: "0"
+          - button "Inspect East approach · 6":
+            - generic: "06"
+            - generic: "0"
+        - generic: West approach
+        - generic: Midspan
+        - generic: East approach
+      - generic: Deck drop
+      - strong: "0.000"
+      - generic: model units
+      - generic: Lateral movement
+      - strong: "0.000"
+      - generic: model units
+      - generic: Connections lost
+      - strong: "0"
+      - generic: of 327 links
+      - generic "+ Connection breakdown Whole bridge":
+        - text: + Connection breakdown
+        - generic: Whole bridge
+      - heading "Failure milestones" [level=4]
+      - generic: RECORDED GEOMETRY
+      - paragraph: Run the bridge to record a failure timeline.
+      - checkbox "Pause on first rupture Stops at the end of the first batch with a break (≤ 0.10 s later)."
+      - text: Pause on first rupture
+      - generic: Stops at the end of the first batch with a break (≤ 0.10 s later).
+      - heading "Compare a baseline" [level=4]
+      - generic: DECK DROP
+      - img "Recorded deck drop compared with the saved baseline":
+        - generic: ● Current run
+        - generic: ● Saved baseline
+      - paragraph: "At 0.00 s: 0.000 drop · 0 lost links vs baseline."
+      - strong: Load 1.80 / 30.0 s
+      - generic: 30.00 s captured · target 1.80 · strength 1.60× · wind 2.00
+      - generic: History from start · saved locally
+      - text: Run label
+      - textbox "Baseline run name":
+        - /placeholder: e.g. Strong cables / crosswind
+      - button "Replace baseline" [disabled]
+      - button "Load starting setup"
+      - button "Export review" [disabled]
+      - button "Clear baseline"
+      - status: Baselines stay in this browser. Saving again replaces the previous one.
+      - paragraph: Authored comparative model · units and failure thresholds are not calibrated. Saved baselines contain response samples and load settings; full resumable runs are available from Export evidence.
+      - text:         
+    - button "Undo look" [disabled]:
+      - generic: 
+      - text: Undo look
+    - button "Run simulation":
+      - generic: 
+      - generic: Run simulation
+  - region "Simulation playback":
+    - button "Run simulation":
+      - generic: 
+    - button "Reset simulation":
+      - generic: 
+    - generic: 0.00 s
+    - slider "Replay recorded history": "0"
+    - generic: 0 s
+    - generic: 0.0 s recorded
+    - button "Live"
+    - combobox "Playback speed":
+      - option "0.25×"
+      - option "0.5×"
+      - option "1.0×" [selected]
+      - option "2.0×"
+    - text: 
+- contentinfo:
+  - generic: WebGL 2 renderer · worker
+  - generic: Comparative model · not calibrated
+  - button "Export evidence":
+    - text: Export evidence
+    - generic: 
+- text:                

@@ -1,0 +1,35 @@
+{
+  "url": "http://127.0.0.1:5185/?studio=plate&theme=atelier&finish=plate-machined&light=softbox&recipe=plate-fracture&camera=hero&quality=ultra&surroundings=hall-concrete&layout=reference&metal=mild-steel&thickness=0.5&tool=round&toolSize=1&toolAngle=0&pressure=80&strike=50&stroke=130&hold=2&custom=1&target=4&strength=1&wind=0&speed=1",
+  "viewport": "Material\nResponse\nReady to simulate\nOverview\nThree quarter\nTop\nContact\nResults\nRAM TRAVEL\n0.0 mm\nDRIVE\n0 %\nCYCLE\nReady",
+  "errors": [],
+  "entry": [
+    "http://127.0.0.1:5185/assets/index-C0KQgGr_.js"
+  ],
+  "priorDevelopmentErrors": [
+    {
+      "level": "error",
+      "message": "TypeError: Cannot read properties of undefined (reading 'array')\n    at StudioWorld.update (http://127.0.0.1:5173/src/studio/world.ts?t=1788986560834:1918:101)\n    at StudioWorld.build (http://127.0.0.1:5173/src/studio/world.ts?t=1788986560834:371:8)\n    at StudioWorld.init (http://127.0.0.1:5173/src/studio/world.ts?t=1788986560834:207:8)\n    at async bootStudio (http://127.0.0.1:5173/src/studio/main.ts?t=1788986560834:942:2)",
+      "timestamp": "2026-09-09T20:42:41.897Z",
+      "url": "http://127.0.0.1:5173/@vite/client"
+    },
+    {
+      "level": "error",
+      "message": "TypeError: Failed to fetch dynamically imported module: http://127.0.0.1:5173/src/studio/main.ts?t=1788986867657",
+      "timestamp": "2026-09-09T20:47:47.765Z",
+      "url": "http://127.0.0.1:5173/@vite/client"
+    },
+    {
+      "level": "error",
+      "message": "TypeError: Failed to fetch dynamically imported module: http://127.0.0.1:5173/src/studio/main.ts?t=1788986887074",
+      "timestamp": "2026-09-09T20:48:07.222Z",
+      "url": "http://127.0.0.1:5173/@vite/client"
+    },
+    {
+      "level": "error",
+      "message": "TypeError: Failed to fetch dynamically imported module: http://127.0.0.1:5173/src/studio/main.ts?t=1788986934944",
+      "timestamp": "2026-09-09T20:48:55.038Z",
+      "url": "http://127.0.0.1:5173/@vite/client"
+    }
+  ],
+  "errorScope": "The tab retains console history from port 5173; prior development errors are separated from the stable port 5185 preview."
+}

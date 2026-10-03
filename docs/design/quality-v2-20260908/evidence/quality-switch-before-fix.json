@@ -1,0 +1,50 @@
+[
+  {
+    "level": "error",
+    "message": "THREE.WebGPURenderer: Uncaptured WebGPU GPUValidationError: Destroyed texture [Texture \"ShadowDepthTexture\"] used in a submit.\n - While calling [Queue].Submit([[CommandBuffer from CommandEncoder \"renderContext_5\"]])\n",
+    "timestamp": "2026-09-08T08:18:15.540Z",
+    "url": "http://127.0.0.1:5174/assets/main-rr-W_BBt.js"
+  },
+  {
+    "level": "error",
+    "message": "THREE.WebGPURenderer: Uncaptured WebGPU GPUValidationError: Destroyed texture [Texture \"ShadowDepthTexture\"] used in a submit.\n - While calling [Queue].Submit([[CommandBuffer from CommandEncoder \"renderContext_5\"]])\n",
+    "timestamp": "2026-09-08T08:18:15.558Z",
+    "url": "http://127.0.0.1:5174/assets/main-rr-W_BBt.js"
+  },
+  {
+    "level": "error",
+    "message": "THREE.WebGPURenderer: Uncaptured WebGPU GPUValidationError: Destroyed texture [Texture \"ShadowDepthTexture\"] used in a submit.\n - While calling [Queue].Submit([[CommandBuffer from CommandEncoder \"renderContext_5\"]])\n",
+    "timestamp": "2026-09-08T08:18:15.568Z",
+    "url": "http://127.0.0.1:5174/assets/main-rr-W_BBt.js"
+  },
+  {
+    "level": "error",
+    "message": "THREE.WebGPURenderer: Uncaptured WebGPU GPUValidationError: Destroyed texture [Texture \"ShadowDepthTexture\"] used in a submit.\n - While calling [Queue].Submit([[CommandBuffer from CommandEncoder \"renderContext_5\"]])\n",
+    "timestamp": "2026-09-08T08:18:15.579Z",
+    "url": "http://127.0.0.1:5174/assets/main-rr-W_BBt.js"
+  },
+  {
+    "level": "error",
+    "message": "THREE.WebGPURenderer: Uncaptured WebGPU GPUValidationError: Destroyed texture [Texture \"ShadowDepthTexture\"] used in a submit.\n - While calling [Queue].Submit([[CommandBuffer from CommandEncoder \"renderContext_5\"]])\n",
+    "timestamp": "2026-09-08T08:18:15.606Z",
+    "url": "http://127.0.0.1:5174/assets/main-rr-W_BBt.js"
+  },
+  {
+    "level": "error",
+    "message": "THREE.WebGPURenderer: Uncaptured WebGPU GPUValidationError: Destroyed texture [Texture \"ShadowDepthTexture\"] used in a submit.\n - While calling [Queue].Submit([[CommandBuffer from CommandEncoder \"renderContext_5\"]])\n",
+    "timestamp": "2026-09-08T08:18:15.614Z",
+    "url": "http://127.0.0.1:5174/assets/main-rr-W_BBt.js"
+  },
+  {
+    "level": "error",
+    "message": "THREE.WebGPURenderer: Uncaptured WebGPU GPUValidationError: Destroyed texture [Texture \"ShadowDepthTexture\"] used in a submit.\n - While calling [Queue].Submit([[CommandBuffer from CommandEncoder \"renderContext_5\"]])\n",
+    "timestamp": "2026-09-08T08:18:15.637Z",
+    "url": "http://127.0.0.1:5174/assets/main-rr-W_BBt.js"
+  },
+  {
+    "level": "error",
+    "message": "THREE.WebGPURenderer: Uncaptured WebGPU GPUValidationError: Destroyed texture [Texture \"ShadowDepthTexture\"] used in a submit.\n - While calling [Queue].Submit([[CommandBuffer from CommandEncoder \"renderContext_5\"]])\n",
+    "timestamp": "2026-09-08T08:18:15.649Z",
+    "url": "http://127.0.0.1:5174/assets/main-rr-W_BBt.js"
+  }
+]

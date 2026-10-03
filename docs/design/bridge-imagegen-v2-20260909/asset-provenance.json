@@ -1,0 +1,23 @@
+{
+  "source": "StudiCraft and Material Forge existing local CC0 tree derivatives",
+  "assets": [
+    {
+      "source": "/Users/commander/material-forge/public/material-lab/assets/polyhaven-island-tree-02-browser-lod.glb",
+      "destination": "public/studio/models/polyhaven-island-tree-02-browser-lod.glb",
+      "sha256": "c44d3dab05838f0efaf2294d000d1c484b7b325c541935a0245e1dc536064fb6",
+      "bytes": 6726964
+    },
+    {
+      "source": "/Users/commander/material-forge/public/material-lab/assets/polyhaven-island-tree-02-mid-lod.glb",
+      "destination": "public/studio/models/polyhaven-island-tree-02-mid-lod.glb",
+      "sha256": "3b3ed3a356c79f04b0d272852da24e249dfcf99edf10ced7d0a3bca0fd2b0da0",
+      "bytes": 1603716
+    },
+    {
+      "source": "/Users/commander/material-forge/public/material-lab/assets/polyhaven-island-tree-02-woodland-lod.glb",
+      "destination": "public/studio/models/polyhaven-island-tree-02-woodland-lod.glb",
+      "sha256": "91b8ac5ce5fe0c53a8dd0503eaec0a803b7b7c3919b58031fde151edb6e80684",
+      "bytes": 321864
+    }
+  ]
+}

@@ -1,0 +1,35 @@
+{
+  "url": "http://127.0.0.1:5174/?studio=canopy&theme=precision&finish=canopy-linen&light=daylight&recipe=canopy-tear&camera=connection&quality=ultra&surroundings=hall-concrete",
+  "broken": "0",
+  "clock": "0.00 s",
+  "controls": {
+    "camera-preset": "connection",
+    "load": "4",
+    "speed": "1",
+    "strength": "1",
+    "surroundings": "hall-concrete",
+    "wind": "0.25"
+  },
+  "deflection": "0.000",
+  "scrollWidth": 1026,
+  "state": {
+    "camera": "connection",
+    "drawCalls": "32",
+    "finish": "canopy-linen",
+    "fps": "5",
+    "lighting": "daylight",
+    "phase": "ready",
+    "quality": "ultra",
+    "recipe": "canopy-tear",
+    "renderFrames": "4820",
+    "renderReady": "true",
+    "running": "false",
+    "sceneObjects": "554",
+    "setup": "custom",
+    "study": "canopy",
+    "surroundings": "hall-concrete",
+    "theme": "precision",
+    "triangles": "77863"
+  },
+  "width": 1026
+}

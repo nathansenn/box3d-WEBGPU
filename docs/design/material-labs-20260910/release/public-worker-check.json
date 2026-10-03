@@ -1,0 +1,33 @@
+{
+  "at": "2026-09-09T23:55:51.988Z",
+  "provider": "Browserless",
+  "owner": "01a07e7b-23c9-72e1-a62e-b780ac76623f",
+  "study": "worker",
+  "base": "https://box3d-web-production.up.railway.app/",
+  "publicDeploymentOnly": true,
+  "privateTransport": false,
+  "errors": [],
+  "workers": [
+    "https://box3d-web-production.up.railway.app/assets/studio-worker-CiVNd5Bm.js"
+  ],
+  "result": {
+    "readyType": "ready",
+    "model": {
+      "id": "studio-pbd-js-v1",
+      "name": "Studio reduced failure PBD",
+      "implementation": "javascript",
+      "calibration": "authored-comparative"
+    },
+    "tick": 120,
+    "completedTicks": 120,
+    "time": 0.9999999999999989,
+    "phase": "Elastic response",
+    "positions": 2871,
+    "typedArray": true,
+    "finite": true,
+    "checkpointType": "checkpoint",
+    "disposed": "disposed"
+  },
+  "cleanup": "Shared helper returned after closing the remote context and browser",
+  "pass": true
+}
