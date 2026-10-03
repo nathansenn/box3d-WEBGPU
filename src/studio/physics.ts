@@ -16,6 +16,14 @@ export interface Link {
   dependencies: number[];
 }
 export interface Face { nodes: [number, number, number]; links: number[] }
+/** A bridge particle crossing the river surface. Recorded once per crossing so the
+ * renderer can drive splashes, rings and foam from the actual impact point,
+ * vertical speed and particle mass (1/inverseMass). Not part of checkpoints. */
+export interface WaterImpact { time: number; x: number; z: number; speed: number; mass: number; node: number }
+/** Visual river surface in world units (RiverWater sits at this height). */
+export const RIVER_SURFACE_Y = -1.48;
+/** Downstream current carried by the river shader (+z, units/s). */
+export const RIVER_CURRENT = .72;
 export interface FailureEvent { time: number; type: 'yield' | 'break' | 'collapse'; message: string; connection: number }
 export interface Response { time: number; load: number; deflection: number; strain: number; broken: number; damage: number; plastic: number; phase: string }
 export interface PressTelemetry {settings:PressSettings;travel:number;velocity:number;pressure:number;contacts:number;cycle:string}
@@ -188,6 +196,8 @@ export class FailureSimulation {
   readonly supports: number[] = [];
   readonly config: typeof STUDIES[StudyId];
   time = 0;
+  /** Surface crossings of falling bridge pieces, oldest first (bridge only). */
+  readonly waterImpacts: WaterImpact[] = [];
   load = 0;
   targetLoad = .8;
   strength = 1;
@@ -409,6 +419,7 @@ export class FailureSimulation {
         n.prev[k]=old;
       }
     }
+    if(bridge)this.riverResponse(dt);
     // Contact is applied before and during projection so the punch participates in the load path.
     this.collide(toolCos,toolSin,thickness);
     for(let iteration=0;iteration<12;iteration++) {
@@ -499,6 +510,7 @@ export class FailureSimulation {
         n.prev[k]=old;
       }
     }
+    if(bridge)this.riverResponse(dt);
     // Contact is applied before and during projection so the punch participates in the load path.
     this.collide(toolCos,toolSin,thickness);
     for(let iteration=0;iteration<12;iteration++) {
@@ -575,6 +587,44 @@ export class FailureSimulation {
     this.pressCycle=this.punchY>this.config.supportY+sheetThickness(this.press)?'Approach':'Forming';
   }
 
+  /** Bridge pieces meet the river instead of a flat floor. Each step, after
+   * integration and before projection:
+   *  - a downward crossing of the surface is recorded as a WaterImpact;
+   *  - submerged particles get buoyancy proportional to immersion depth
+   *    (deck timber floats about 0.12 below the surface, steel cable sinks),
+   *    quadratic+linear water drag, and drag toward the downstream current.
+   * The velocity is changed through prev so Verlet keeps the response. */
+  private riverResponse(dt:number):void {
+    const W=RIVER_SURFACE_Y,g=2.2;
+    for(let i=0;i<this.nodes.length;i++){
+      const n=this.nodes[i];
+      if(n.inverseMass===0)continue;
+      const bed=terrainHeight(n.p[0],n.p[2]);
+      if(bed>=W)continue;
+      const prevY=n.prev[1],y=n.p[1];
+      if(prevY>=W&&y<W&&this.waterImpacts.length<4096){
+        const t=(prevY-W)/Math.max(1e-6,prevY-y);
+        this.waterImpacts.push({time:this.time-dt*(1-t),x:n.prev[0]+(n.p[0]-n.prev[0])*t,z:n.prev[2]+(n.p[2]-n.prev[2])*t,speed:(prevY-y)/dt,mass:1/n.inverseMass,node:i});
+      }
+      const depth=W-y;
+      if(depth<=0)continue;
+      const deck=i%4<2;
+      // Deck: neutral at 0.12 immersion, saturates at 0.3 (a fully wetted plank).
+      // Cable: steel, buoyancy a small fraction of weight.
+      const lift=deck?g*Math.min(depth,.3)/.12:g*.13*Math.min(1,depth/.05);
+      const v=[n.p[0]-n.prev[0],n.p[1]-n.prev[1],n.p[2]-n.prev[2]];
+      const wet=Math.min(1,depth/.15);
+      // Drag relative to the moving water; vertical drag is stronger (flat plank broadside).
+      const rel=[v[0],v[1],v[2]-RIVER_CURRENT*dt];
+      const speed=Math.hypot(rel[0],rel[1],rel[2])/dt;
+      const k=wet*dt*(deck?2.4:1.2)*(1+speed*.8);
+      const kv=Math.min(.9,k*(deck?1.6:1));
+      const kh=Math.min(.9,k);
+      v[0]-=rel[0]*kh;v[1]-=rel[1]*kv;v[2]-=rel[2]*kh;
+      v[1]+=lift*dt*dt;
+      n.prev[0]=n.p[0]-v[0];n.prev[1]=n.p[1]-v[1];n.prev[2]=n.p[2]-v[2];
+    }
+  }
   private collide(toolCos:number,toolSin:number,thickness:number): void {
     for(const n of this.nodes) {
       if(n.inverseMass===0) { n.p[0]=n.rest[0];n.p[1]=n.rest[1];n.p[2]=n.rest[2];continue; }
@@ -585,7 +635,7 @@ export class FailureSimulation {
           n.p[1]-=overlap*share;this.punchY+=overlap*(1-share);this.contactCount++;
         }
       }
-      const ground=this.id==='bridge'?Math.max(this.config.floor,terrainHeight(n.p[0],n.p[2])+.08):this.config.floor+(this.id==='plate'?thickness/2:0);
+      const ground=this.id==='bridge'?(terrainHeight(n.p[0],n.p[2])<RIVER_SURFACE_Y?terrainHeight(n.p[0],n.p[2])+.08:Math.max(this.config.floor,terrainHeight(n.p[0],n.p[2])+.08)):this.config.floor+(this.id==='plate'?thickness/2:0);
       if(n.p[1]<ground) {
         n.p[1]=ground;
         n.prev[0]+=(n.p[0]-n.prev[0])*.25;
@@ -714,6 +764,7 @@ export class FailureSimulation {
   }
 
   private applyCheckpoint(c: StudioCheckpoint): void {
+    this.waterImpacts.length=0;
     // Compatibility is checked in full before touching the receiver, including late link/face entries.
     checkpointAssert(c.backend===this.backend,'incompatible numerical backend');
     checkpointAssert(c.study===this.id&&c.scene.identity===this.sceneIdentity,'incompatible scene/parameters');

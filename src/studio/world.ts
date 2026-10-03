@@ -10,6 +10,7 @@ import { deckSupportGeometry, bridgeDeckFrames, bridgeRailPoint, DeckFrameStorag
 import {canopyRig} from './canopy-rig';
 import { SurfaceTopology, gridBorderPairs, updateSurfaceNormals } from './surface-topology';
 import { RiverWater } from './river-water';
+import { RiverSplash, clusterImpacts, waterContacts } from './river-impacts';
 import { DEFAULT_RIVER, normalizeRiver, type RiverSettings } from './river-settings';
 import { StudioMaterials } from './materials';
 import {pressAttachment,updatePlateShell,PRESS_FRAME_POINTS} from './press-tooling';
@@ -103,6 +104,7 @@ export class StudioWorld {
   private lastFpsTime=0;
   private fpsFrames=0;
   private sim: FailureSimulation;
+  private splash?: RiverSplash;
   private materials: Record<string,T.MeshStandardMaterial> = {};
   private cylinder = new T.CylinderGeometry(1,1,1,10);
   private dummy = new T.Object3D();
@@ -214,7 +216,7 @@ export class StudioWorld {
     this.ownedMaterials.forEach(m=>m.dispose());this.ownedMaterials.clear();
     this.analysisMaterial?.dispose();
     this.root.clear();this.sim=sim;this.surface=undefined;this.linksMesh=undefined;this.decks=undefined;this.deckSteel=undefined;
-    this.borderMesh=undefined;this.railPosts=undefined;this.rails=undefined;this.water=undefined;
+    this.borderMesh=undefined;this.railPosts=undefined;this.rails=undefined;this.water=undefined;this.splash=undefined;
     this.pineMaterial=undefined;this.grassMaterial=undefined;
     this.woodlandLeaves=[];
     this.stitches=undefined;this.panelSeams=undefined;this.plateEdges=undefined;this.pressSection=undefined;this.deckBolts=undefined;this.cableClamps=undefined;
@@ -523,6 +525,8 @@ export class StudioWorld {
     this.mesh(geometry,groundMat,[0,0,0]);
     this.water=new RiverWater(this.rippleNormals);this.water.configure(this.riverSettings);
     this.root.add(this.water);this.ownedMaterials.add(this.water.material);
+    // Spray from bridge pieces striking the river; driven by sim.waterImpacts each frame.
+    this.splash=new RiverSplash();this.root.add(this.splash);this.ownedMaterials.add(this.splash.material as T.Material);
     // Riverbank rocks: irregular faceted vertices, resting at sampled terrain height.
     const rockGeo=new T.IcosahedronGeometry(1,2);const rp=rockGeo.getAttribute('position');
     for(let i=0;i<rp.count;i++){const x=rp.getX(i),y=rp.getY(i),z=rp.getZ(i),f=.88+.1*Math.sin(x*13+y*9+z*7);rp.setXYZ(i,x*f,y*f*.65,z*f);}rockGeo.computeVertexNormals();
@@ -981,6 +985,10 @@ export class StudioWorld {
   render(time:number):void {
     if(this.disposed)return;
     this.water?.advance(time);
+    if(this.water&&this.sim.id==='bridge'){
+      const t=this.sim.time,events=clusterImpacts(this.sim.waterImpacts,t);
+      this.water.setImpacts(t,events,waterContacts(this.sim));this.splash?.update(t,events);
+    }
     this.frame++;
     this.fpsFrames++;
     if(time-this.lastFpsTime>1){this.fps=this.fpsFrames/Math.max(.001,time-this.lastFpsTime);this.fpsFrames=0;this.lastFpsTime=time;}
