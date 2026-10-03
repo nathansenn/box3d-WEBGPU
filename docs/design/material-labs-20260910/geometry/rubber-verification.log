@@ -1,0 +1,23 @@
+
+=== SCENE VERIFICATION: PASS ===
+[PASS] schema (structural)
+[PASS] overlap gate — 0 interpenetration(s)
+        foot--1.1--0.6749999999999999 ∩ bench: CONTACT (pen=0.0)
+        foot--1.1-0.6749999999999999 ∩ bench: CONTACT (pen=0.0)
+        foot-1.1--0.6749999999999999 ∩ bench: CONTACT (pen=0.0)
+        foot-1.1-0.6749999999999999 ∩ bench: CONTACT (pen=0.0)
+        bench ∩ column--1.01--0.1: CONTACT (pen=0.0)
+        bench ∩ column-1.01--0.1: CONTACT (pen=0.0)
+        bench ∩ lower-support: CONTACT (pen=0.0)
+        column--1.01--0.1 ∩ crown: CONTACT (pen=0.0)
+        column-1.01--0.1 ∩ crown: CONTACT (pen=0.0)
+        crown ∩ housing: CONTACT (pen=0.0)
+        lower-support ∩ lower-platen: CONTACT (pen=0.0)
+        lower-platen ∩ specimen: CONTACT (pen=0.0)
+        specimen ∩ upper-platen: CONTACT (pen=0.0)
+        upper-platen ∩ ram: CONTACT (pen=0.0)
+        ram ∩ housing: CONTACT (pen=0.0)
+[PASS] consistency
+[PASS] projection — coverage=0.0651, offscreen=[]
+        depth far→near: ['foot--1.1--0.6749999999999999', 'foot-1.1--0.6749999999999999', 'column--1.01--0.1', 'bench', 'lower-support', 'lower-platen', 'specimen', 'foot--1.1-0.6749999999999999', 'upper-platen', 'ram', 'column-1.01--0.1', 'housing', 'crown', 'foot-1.1-0.6749999999999999']
+        composite written: /Users/commander/box3d-WEBGPU/docs/design/material-labs-20260910/geometry/rubber-composite.png

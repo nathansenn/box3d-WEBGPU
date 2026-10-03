@@ -1,0 +1,19 @@
+{
+  "phase": "Material run library",
+  "started": "2026-09-10T20:14:21.912802+00:00",
+  "authorization": "Direct user continue after reboot; local material studio continuation",
+  "ceilingGiB": 0.25,
+  "scope": [
+    "New compact saved-run model, drawer UI and scoped tests",
+    "Integrate without changing current glass worker or physics",
+    "Local preview and visual verification"
+  ],
+  "baseline": {
+    "src/studio/material-labs/main.ts": "a9b8fdf64f5dc07ea01b0a87850a8640d9aa8f72c552e41f562a0a85cad09516",
+    "src/studio/material-labs/models.ts": "5af648763f590607f06aa638f947545e94d99f13ced72e1915dca88d7cf4380d",
+    "src/studio/material-labs/world.ts": "a9a0c07f4bb14f4692aeb403524ea12f823312eebd8cf3cfabb60d24732cd0c2",
+    "src/studio/material-labs/catalog.ts": "67894a5f320d9997e30d87e41cf145d70bf08b21e259d0759332192dd5ecb244",
+    "src/studio/material-labs/style.css": "204bfc05b38cdedab6b795b8b117153b0ef7b4f106470b509496c70aa5eebada"
+  },
+  "mockupSha256": "9a2ef22cbbffbc501402122a76c2178b6970d10e36ca81ee1ff941a3d3f076f7"
+}

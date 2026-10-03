@@ -1,0 +1,27 @@
+{
+  "tests": {
+    "failure": 26,
+    "presets": 44,
+    "river": 7,
+    "referenceGeometry": 6,
+    "total": 83,
+    "failed": 0
+  },
+  "presetCount": 157,
+  "counts": {
+    "setups": 27,
+    "finishes": 60,
+    "lights": 21,
+    "loads": 30,
+    "cameras": 11,
+    "surroundings": 8
+  },
+  "physicsSha256": "fbc8326cb7f2f734351b2fc4d68a112340756311d28db92b794133acb934e0f0",
+  "references": {
+    "bridge": "c0b9eb4c8bc5cfd4866ee928a70a7ec86644a063ac9ec4235e02b2b8f52099b8",
+    "canopy": "ef890f70db3b32767b8eef563b07b4ed3f7591ded98abd83393345584997d586",
+    "plate": "63547d1a27495a234707472793faf9d3cf192b9203d09ec51f7d6576f4e2b3e6"
+  },
+  "calibration": "comparative model, not calibrated",
+  "humanVisualMatch": "not-accepted"
+}

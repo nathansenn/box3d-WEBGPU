@@ -1,0 +1,14 @@
+{
+  "task": "01a07e7b-23c9-72e1-a62e-b780ac76623f",
+  "request": "Expand metal press materials, thickness, attachments, strike speed, pressure, bending and cracks",
+  "scope": ["24 comparative metal profiles", "30 attachment configurations using the ten existing contact shapes", "48 complete experiments", "precise thickness input", "live section and failure inspection", "material-relative strain rendering"],
+  "preservation": "Existing material coefficients, solver backend identities, contact shapes, checkpoints and unrelated dirty work remain intact.",
+  "resourceScope": "Small source, one mockup and compact QA receipts only. No dependency installs, asset copies or bulk build. Recheck capacity before final compilation.",
+  "browserException": {
+    "reason": "The private localhost application requires its local backend and native WebGPU renderer. Prior private build transfer rejection remains binding; no build or private assets will be sent to Browserless.",
+    "scope": "One task-owned local IAB tab on loopback for press interactions and desktop/mobile GPU screenshots, then close disposable QA surfaces. Preserve user tabs and shared browser processes.",
+    "remoteUse": false
+  },
+  "acceptance": ["All presets normalize and simulate finite positions with fixed supports", "Original non-press behavior retained", "Snapshots drive section and fracture readings, including replay", "Pressure, speed and thickness remain independent", "Desktop and phone visual inspection of the actual application"],
+  "modelBoundary": "Authored comparative PBD response, not calibrated force, hydraulic pressure or engineering material certification. 10X is the user's quality direction, not a measured performance claim."
+}

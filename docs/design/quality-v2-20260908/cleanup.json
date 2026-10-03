@@ -1,0 +1,15 @@
+{
+  "removed": [
+    "dist",
+    "temporary production preview on 127.0.0.1:5174",
+    "owned temporary verification scripts and logs after preserving receipts"
+  ],
+  "generatedBuildBytesRemoved": 96958616,
+  "retained": [
+    "source and runtime assets",
+    "source references",
+    "all visual evidence",
+    "build and test receipts",
+    "development server on 127.0.0.1:5173"
+  ]
+}

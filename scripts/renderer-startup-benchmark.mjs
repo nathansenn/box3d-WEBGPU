@@ -41,7 +41,19 @@ async function childMain(root) {
       fileName,
     }).outputText;
     const rendererPath = path.join(webgpuDir, 'renderer.mjs');
-    fs.writeFileSync(rendererPath, transpile(rendererSource, 'renderer.ts').replace('../assets/ktx2.js', '../assets/ktx2.mjs'));
+    fs.writeFileSync(rendererPath, transpile(rendererSource, 'renderer.ts').replace('../assets/ktx2.js', '../assets/ktx2.mjs').replace('./gpu-timing.js', './gpu-timing.mjs').replace('./shadow-cache.js', './shadow-cache.mjs').replace('./instance-partition.js','./instance-partition.mjs').replace('./resident-water-surface.js','./resident-water-surface.mjs').replace('./startup-budget.js','./startup-budget.mjs'));
+    const startupPath=path.join(root,'src/webgpu/startup-budget.ts');
+    if(fs.existsSync(startupPath))fs.writeFileSync(path.join(webgpuDir,'startup-budget.mjs'),transpile(fs.readFileSync(startupPath,'utf8'),'startup-budget.ts'));
+    const residentPath=path.join(root,'src/webgpu/resident-water-surface.ts');
+    if(fs.existsSync(residentPath))fs.writeFileSync(path.join(webgpuDir,'resident-water-surface.mjs'),transpile(fs.readFileSync(residentPath,'utf8'),'resident-water-surface.ts'));
+    const partitionPath=path.join(root,'src/webgpu/instance-partition.ts');
+    if(fs.existsSync(partitionPath))fs.writeFileSync(path.join(webgpuDir,'instance-partition.mjs'),transpile(fs.readFileSync(partitionPath,'utf8'),'instance-partition.ts'));
+    const shadowPath = path.join(root,'src/webgpu/shadow-cache.ts');
+    if(fs.existsSync(shadowPath))fs.writeFileSync(path.join(webgpuDir,'shadow-cache.mjs'),transpile(fs.readFileSync(shadowPath,'utf8'),'shadow-cache.ts'));
+    const timingPath = path.join(root, 'src/webgpu/gpu-timing.ts');
+    if (fs.existsSync(timingPath)) {
+      fs.writeFileSync(path.join(webgpuDir, 'gpu-timing.mjs'), transpile(fs.readFileSync(timingPath, 'utf8'), 'gpu-timing.ts'));
+    }
     fs.writeFileSync(path.join(assetsDir, 'ktx2.mjs'), transpile(ktx2Source, 'ktx2.ts'));
 
     Object.assign(globalThis, globals);
@@ -88,7 +100,8 @@ async function childMain(root) {
     const errors = [];
     renderer.device.addEventListener?.('uncapturederror', (event) => errors.push(event.error?.message ?? String(event.error)));
     assert.deepEqual(errors, []);
-    renderer.device.destroy();
+    if (renderer.dispose) renderer.dispose();
+    else renderer.device.destroy();
     process.stdout.write(`${JSON.stringify({ createMs })}\n`);
   } finally {
     fs.rmSync(tempDir, { recursive: true, force: true });

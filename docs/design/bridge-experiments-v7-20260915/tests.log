@@ -1,0 +1,50 @@
+Bridge experiments stopped: Synthetic reset failure
+✔ plans vary exactly one numerical control and freeze independent copies (2079.851875ms)
+✔ unsupported settings are rejected before any engine is allocated (0.620333ms)
+✔ five actual intact solver runs have exact durations, complete samples and measured outcomes (0.31375ms)
+✔ experiment response equals direct production runtime at the same fixed ticks (426.563541ms)
+✔ comparison metrics use their own actual response channels (0.201916ms)
+✔ time probe reads exact recorded samples and never interpolates or extends a partial run (0.105208ms)
+✔ overview counts observations, including partial ruptures, without counting unrun cases (0.711458ms)
+✔ isolated runs preserve the live model and release every borrowed snapshot (2054.459125ms)
+✔ cancelling mid-case keeps completed and partial results and destroys the client once (418.217209ms)
+✔ cancellation before initialization allocates no client (1.016708ms)
+✔ engine failure preserves prior completed cases and releases the client (363.682542ms)
+✔ saved results roundtrip and malformed, incompatible or fabricated completion is rejected (21.414875ms)
+✔ interrupted persisted batches never appear to still be running (0.936917ms)
+✔ baseline promotion uses the measured series and export includes model basis and partial status (1.339458ms)
+✔ milestone probes select retained samples and distinguish the rupture event from its recording (0.137334ms)
+✔ partial and unrun milestone probes cannot reach unrecorded future events (0.068334ms)
+✔ new generated references are immutable, full-size PNGs with recorded hashes (9.245209ms)
+✔ scanned source LODs retain their bytes and map by material name across reordered primitives (10.75175ms)
+✔ planted roots stay above the water and clear foundations, approaches and stone footprints (332.729209ms)
+✔ new sedges and fronds have grounded stems, finite normals and bounded leaf sizes (9.820083ms)
+✔ foam stays on wet terrain and forms tails downstream of real riffle stones (8.498834ms)
+✔ riffle stones actually break the surface at the coordinates used for foam (41.064959ms)
+✔ hero framing protects tower crowns and footing edges at desktop and phone breakpoints (1.308458ms)
+✔ connection groups and six span zones partition all 327 modeled links (11.826958ms)
+✔ inspection reads the snapshot mask, including backward replay, instead of stale main-thread flags (2.388167ms)
+✔ lateral movement and zone camera target follow current deck positions, excluding cables (1.185167ms)
+✔ first rupture resolves to a real sample after the event; pre-rupture is intact (0.523916ms)
+✔ milestone and baseline matching refuse an evicted initial-to-recent gap (0.242667ms)
+✔ comparison uses a nearby actual time and does not extrapolate past a saved run (0.10875ms)
+✔ imported damaged history does not claim it captured the first rupture (0.110042ms)
+✔ saved baseline roundtrips with its settings and complete response series (1.776625ms)
+✔ storage validation rejects corrupt, nonfinite, oversized and incompatible data (0.699084ms)
+✔ model compatibility stays stable across damage but detects changed topology or backend (1.68575ms)
+✔ first-rupture pause fires once when a returned worker batch first contains failures (114.188083ms)
+✔ road face interiors conform to terrain, face upward and meet both timber ends (561.568834ms)
+✔ roads turn into each bank, retain width, and clear anchor bodies and ground cover (27.120542ms)
+✔ new portal hardware leaves the complete declared route prism open (12.054083ms)
+✔ tilted deck stations keep every rail endpoint attached to its own post (1.51175ms)
+✔ deck steel supports the board underside and transforms with a failed station (18.782084ms)
+✔ corrected concept pair stays byte-identical and the structural solver is unchanged (8393.336875ms)
+✔ approach framing retains road-to-deck join and portal crowns beside desktop and phone controls (0.961375ms)
+ℹ tests 41
+ℹ suites 0
+ℹ pass 41
+ℹ fail 0
+ℹ cancelled 0
+ℹ skipped 0
+ℹ todo 0
+ℹ duration_ms 9330.774333

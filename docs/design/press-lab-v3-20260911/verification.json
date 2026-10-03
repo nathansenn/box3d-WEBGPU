@@ -1,0 +1,72 @@
+{
+  "verifiedAt": "2026-09-11T05:26:38.987784+00:00",
+  "catalogue": {
+    "metals": 24,
+    "thicknessShortcuts": 16,
+    "thicknessMm": [
+      0.5,
+      20
+    ],
+    "workingShapes": 12,
+    "attachmentConfigurations": 36,
+    "experiments": 54,
+    "strikeMmPerSecond": [
+      2,
+      250
+    ],
+    "drivePercent": [
+      0,
+      100
+    ],
+    "depthMm": [
+      5,
+      140
+    ],
+    "holdSeconds": [
+      0,
+      10
+    ]
+  },
+  "tests": {
+    "typecheck": "pass",
+    "pressLab": 14,
+    "contactInspectionAndV3": 21,
+    "total": 35,
+    "failed": 0
+  },
+  "runtime": {
+    "origin": "http://127.0.0.1:5173",
+    "renderer": "WebGPU",
+    "simulation": "worker",
+    "desktop": [
+      1280,
+      720
+    ],
+    "phone": [
+      390,
+      844
+    ],
+    "horizontalOverflow": false,
+    "finalHoldSliderBottomPx": 512.5,
+    "footerTopPx": 517.5,
+    "capturedErrors": [],
+    "privateLocalhostAndNativeGpuException": true,
+    "disposableTabsClosed": [
+      3,
+      4
+    ],
+    "userTabPreserved": 1,
+    "viewportOverrideReset": true
+  },
+  "image": {
+    "mode": "edit",
+    "reference": "docs/design/press-lab-v2-20260911/mockup.png",
+    "result": "docs/design/press-lab-v3-20260911/mockup.png",
+    "original": "/Users/commander/.codex/generated_images/01a07e7b-23c9-72e1-a62e-b780ac76623f/exec-cc510c2a-4ffa-498e-b762-9beb88b39370.png",
+    "bytes": 1920397,
+    "sha256": "3f51271502ca86e16cb7dde23dbc6e396b6d36824c6da2b15e34cd6ea6a1e238"
+  },
+  "productionBuild": "deferred: free disk below shared 50 GiB reserve",
+  "deployed": false,
+  "gitActions": []
+}

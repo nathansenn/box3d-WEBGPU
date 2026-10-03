@@ -11,6 +11,8 @@ import type { CameraRig } from './types';
 
 const CAMERA_FOV_RADIANS = (58 * Math.PI) / 180;
 const WORLD_UP: Vec3 = [0, 1, 0];
+// Coarsest shadow-map size in use (1024 or 2048): snapping to its texel grid also aligns the finer one.
+const SHADOW_MAP_SIZE = 1024;
 
 export type CameraShakeInput = {
   yaw: number;
@@ -52,6 +54,9 @@ export class CameraMatrixCache {
   private viewTargetY = Number.NaN;
   private viewTargetZ = Number.NaN;
   private lightDistance = Number.NaN;
+  private shadowExtent = 34;
+  private readonly snappedEye: Vec3 = [0, 0, 0];
+  private readonly snappedTarget: Vec3 = [0, 0, 0];
   private lightTargetX = Number.NaN;
   private lightTargetY = Number.NaN;
   private lightTargetZ = Number.NaN;
@@ -103,6 +108,7 @@ export class CameraMatrixCache {
     const lightProjectionChanged = distance !== this.lightDistance;
     if (lightProjectionChanged) {
       const shadowExtent = clamp(distance * 1.35, 34, 86);
+      this.shadowExtent = shadowExtent;
       mat4OrthographicInto(
         this.lightProjection,
         -shadowExtent,
@@ -116,6 +122,7 @@ export class CameraMatrixCache {
     }
 
     const lightViewChanged =
+      lightProjectionChanged ||
       targetX !== this.lightTargetX ||
       targetY !== this.lightTargetY ||
       targetZ !== this.lightTargetZ ||
@@ -130,6 +137,22 @@ export class CameraMatrixCache {
       this.lightEye[1] = targetY - lightDirection[1] * 92;
       this.lightEye[2] = targetZ - lightDirection[2] * 92;
       mat4LookAtInto(this.lightView, this.lightEye, this.target, WORLD_UP);
+      // Snap the light-space origin to whole shadow-map texels so panning the
+      // camera does not make shadow edges shimmer.
+      const v = this.lightView;
+      const texel = (2 * this.shadowExtent) / SHADOW_MAP_SIZE;
+      const lx = targetX * v[0]! + targetY * v[4]! + targetZ * v[8]!;
+      const ly = targetX * v[1]! + targetY * v[5]! + targetZ * v[9]!;
+      const dx = Math.round(lx / texel) * texel - lx;
+      const dy = Math.round(ly / texel) * texel - ly;
+      if (dx !== 0 || dy !== 0) {
+        for (let i = 0; i < 3; i++) {
+          const shift = dx * v[i * 4]! + dy * v[i * 4 + 1]!;
+          this.snappedTarget[i] = this.target[i]! + shift;
+          this.snappedEye[i] = this.lightEye[i]! + shift;
+        }
+        mat4LookAtInto(this.lightView, this.snappedEye, this.snappedTarget, WORLD_UP);
+      }
       this.lightTargetX = targetX;
       this.lightTargetY = targetY;
       this.lightTargetZ = targetZ;

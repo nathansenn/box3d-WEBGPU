@@ -1,0 +1,201 @@
+{
+  "at": "2026-09-10T02:01:06.049670+00:00",
+  "pass": true,
+  "htmlSha256": "e2beee4d8c93d0572482ddcbcebf24a8f3b6cbc2e42d72d306d96d116da73773",
+  "checks": [
+    {
+      "name": "identity",
+      "pass": true,
+      "detail": {
+        "title": "BOX3D Engineering Studio \u2014 Interactive Material Simulations",
+        "description": "Explore liquid flow, glass fracture, concrete compression and more in eight interactive studies. Compare presets, replay simulations and export run data."
+      }
+    },
+    {
+      "name": "one_absolute_canonical",
+      "pass": true,
+      "detail": "https://box3d.apxlabs.parts/"
+    },
+    {
+      "name": "document_basics",
+      "pass": true,
+      "detail": "English, UTF-8, responsive viewport"
+    },
+    {
+      "name": "crawlable_page",
+      "pass": true,
+      "detail": "follow, max-image-preview:large, max-snippet:-1, max-video-preview:-1"
+    },
+    {
+      "name": "open_graph",
+      "pass": true,
+      "detail": {
+        "type": "website",
+        "site_name": "BOX3D Engineering Studio",
+        "title": "BOX3D Engineering Studio \u2014 Interactive Material Simulations",
+        "description": "Explore eight material and structural studies, compare prepared experiments, replay simulations and export run data. Authored models for comparison.",
+        "url": "https://box3d.apxlabs.parts/",
+        "image": "https://box3d.apxlabs.parts/studio/references/material-labs/liquid.png",
+        "image:type": "image/png",
+        "image:width": "1586",
+        "image:height": "992",
+        "image:alt": "Generated design reference for BOX3D's liquid dynamics apparatus and experiment controls."
+      }
+    },
+    {
+      "name": "twitter",
+      "pass": true,
+      "detail": {
+        "card": "summary_large_image",
+        "title": "BOX3D Engineering Studio \u2014 Interactive Material Simulations",
+        "description": "Explore eight material and structural studies, compare prepared experiments, replay simulations and export run data. Authored models for comparison.",
+        "image": "https://box3d.apxlabs.parts/studio/references/material-labs/liquid.png",
+        "image:alt": "Generated design reference for BOX3D's liquid dynamics apparatus and experiment controls."
+      }
+    },
+    {
+      "name": "existing_share_image",
+      "pass": true,
+      "detail": {
+        "path": "/private/tmp/box3d-static-release-20260910/studio/references/material-labs/liquid.png",
+        "dimensions": [
+          1586,
+          992
+        ]
+      }
+    },
+    {
+      "name": "explicit_existing_browser_icon",
+      "pass": true,
+      "detail": "The browser icon reuses the approved studio image"
+    },
+    {
+      "name": "structured_data",
+      "pass": true,
+      "detail": [
+        "WebSite",
+        "WebApplication"
+      ]
+    },
+    {
+      "name": "truthful_schema",
+      "pass": true,
+      "detail": "Authored comparative application; no invented commercial or rating claims"
+    },
+    {
+      "name": "schema_image_parity",
+      "pass": true,
+      "detail": "HTML and ImageObject reuse the same approved image"
+    },
+    {
+      "name": "meaningful_initial_html",
+      "pass": true,
+      "detail": {
+        "h1": [
+          "BOX3D Engineering Studio"
+        ],
+        "visibleWords": 205,
+        "visibleCharacters": 1399
+      }
+    },
+    {
+      "name": "eight_descriptive_study_links",
+      "pass": true,
+      "detail": {
+        "/?studio=liquid": "Liquid flow and viscosity",
+        "/?studio=glass": "Glass impact and fracture",
+        "/?studio=concrete": "Concrete compression",
+        "/?studio=rubber": "Elastomer compression and recovery",
+        "/?studio=granular": "Granular flow and settling",
+        "/?studio=plate": "Metal press and tooling",
+        "/?studio=canopy": "Canopy loading",
+        "/?studio=bridge": "Suspension bridge loading"
+      }
+    },
+    {
+      "name": "project_and_license_links",
+      "pass": true,
+      "detail": "Public repository and shipped code license; no issue tracker or contact promise"
+    },
+    {
+      "name": "model_limits_visible",
+      "pass": true,
+      "detail": "Model limitations and feature counts appear in initial content"
+    },
+    {
+      "name": "image_accessibility",
+      "pass": true,
+      "detail": [
+        {
+          "src": "/studio/references/material-labs/liquid.png",
+          "width": "1586",
+          "height": "992",
+          "alt": "Generated design reference for the liquid flow apparatus, experiment controls and replay timeline.",
+          "loading": "lazy"
+        }
+      ]
+    },
+    {
+      "name": "entry_module",
+      "pass": true,
+      "detail": "/src/entry.ts"
+    },
+    {
+      "name": "canonical_sitemap",
+      "pass": true,
+      "detail": [
+        "https://box3d.apxlabs.parts/"
+      ]
+    },
+    {
+      "name": "robots_discovery",
+      "pass": true,
+      "detail": "User-agent: *\nAllow: /\n\n# Scene and control URLs remain crawlable so their root canonical can be read.\n# Internal diagnostics use response-header noindex, not robots.txt blocking.\nSitemap: https://box3d.apxlabs.parts/sitemap.xml\n"
+    },
+    {
+      "name": "feature_counts",
+      "pass": true,
+      "detail": [
+        {
+          "id": "liquid",
+          "profiles": 8,
+          "experiments": 8
+        },
+        {
+          "id": "glass",
+          "profiles": 8,
+          "experiments": 8
+        },
+        {
+          "id": "concrete",
+          "profiles": 8,
+          "experiments": 8
+        },
+        {
+          "id": "rubber",
+          "profiles": 8,
+          "experiments": 8
+        },
+        {
+          "id": "granular",
+          "profiles": 8,
+          "experiments": 8
+        }
+      ]
+    },
+    {
+      "name": "unchanged_owned_runtime_sources",
+      "pass": true,
+      "detail": {
+        "src/entry.ts": true,
+        "src/studio/study-navigation.ts": true,
+        "src/studio/study-navigation.css": true,
+        "src/studio/material-labs/main.ts": true,
+        "src/studio/material-labs/style.css": true,
+        "src/studio/material-labs/models.ts": true,
+        "src/studio/material-labs/world.ts": true,
+        "src/studio/material-labs/catalog.ts": true
+      }
+    }
+  ]
+}

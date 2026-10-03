@@ -1,0 +1,11 @@
+✔ all attachment geometry is finite, scaled and contacts its analytical lower face (17.097792ms)
+✔ solid shell supplies underside and fracture walls at actual selected thickness (0.395375ms)
+✔ complete machine corners fit desktop and phone inspection bounds from both sides (1.154458ms)
+ℹ tests 3
+ℹ suites 0
+ℹ pass 3
+ℹ fail 0
+ℹ cancelled 0
+ℹ skipped 0
+ℹ todo 0
+ℹ duration_ms 215.110041

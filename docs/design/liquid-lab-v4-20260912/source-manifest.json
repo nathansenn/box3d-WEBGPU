@@ -1,0 +1,21 @@
+{
+  "at": "2026-09-12T13:22:50.994075+00:00",
+  "files": {
+    "src/studio/material-labs/main.ts": "782ea6079703df1a6fde21042ad1d4d354b6000cf798caeace5ea695c368650d",
+    "src/studio/material-labs/models.ts": "3457094b2f58f7d29bea71ad9e8f4bcdfc830e4e0e5e9afbd8d7fa0c29242202",
+    "src/studio/material-labs/liquid-config.ts": "ab29dd7b37538889a2085f124df356e44a85134ea5dd5bf808470cbf02c65c76",
+    "src/studio/material-labs/liquid-terrain.ts": "212b58ed0aeb73386c75305346004e28b290394791a5acf3d755fe4d14ab2a62",
+    "src/studio/material-labs/liquid-panel.ts": "86042a9ec418c911c94ed9d5cbd7d75662854b6d749e5c31ed9d9292c5309a82",
+    "src/studio/material-labs/liquid-scene.ts": "c314f61d38244519d7622d9785fbfc16a7c9f850e7568a3f5448dd0749499e34",
+    "src/studio/material-labs/liquid-analysis.ts": "7ff34f9e49d1231ef83483580b4925b430e9e67f2aa14272c7fd2ebc66efaeef",
+    "src/studio/material-labs/liquid-study-worker.ts": "fa0ac82d0edaba251a0a0a0df42ceed790f9cbb42d4e65289017a9568bfe0a04",
+    "src/studio/material-labs/liquid-analysis-view.ts": "16d944fea7fee00595f3b1ebdc3ab2d10e50c2fbe820564abd13281a5ed22fe4",
+    "src/studio/material-labs/liquid-analysis.css": "bdc6c469c9acea95c5103f1fb8bbc467599a644f3e14d331e91bddfca7a17c94",
+    "src/studio/material-labs/world.ts": "1251f77ecd0532c72380fe107efc6794543c5531f41ae80be3680cf22fa1614c",
+    "src/studio/material-labs/catalog.ts": "22cf7fa1048db96c58ee5e33162a6884bd669b989d16dc9321a87687b2fec1ad",
+    "src/studio/material-labs/run-library.ts": "a7c5429e52e0c3a620acfa713595c36d8da4f1991c7067d4c897f17cba488097",
+    "src/studio/material-labs/run-library-view.ts": "82c2b6a218b13144f344492e8d7a6b6e85779bfac746f26693844750e2abe126",
+    "tests/studio/liquid-lab-v4.test.mjs": "2ab82ef514aeeb73ffc555595de2798dd4d8683a4c2a9d3ab43cb632b7998324",
+    "public/studio/references/material-labs/liquid-v4.png": "6884c846374bf4a00b090c4f513bbf47f6d15dda96e1d4821b5776ba66546dd2"
+  }
+}

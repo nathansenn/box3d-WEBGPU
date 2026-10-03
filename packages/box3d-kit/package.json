@@ -1,0 +1,97 @@
+{
+  "name": "box3d-webgpu-kit",
+  "version": "0.7.0",
+  "description": "Drop-in Box3D rigid-body physics for games and apps: prebuilt, integrity-checked WebAssembly, isolated worlds, fixed-step loop with interpolation, worker hosting, network snapshots, deterministic replay, spatial queries, debug draw, and three.js, Babylon.js and raw WebGPU adapters.",
+  "type": "module",
+  "license": "MIT",
+  "sideEffects": false,
+  "main": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "default": "./dist/index.js"
+    },
+    "./three": {
+      "types": "./dist/three.d.ts",
+      "default": "./dist/three.js"
+    },
+    "./babylon": {
+      "types": "./dist/babylon.d.ts",
+      "default": "./dist/babylon.js"
+    },
+    "./worker": {
+      "types": "./dist/worker.d.ts",
+      "default": "./dist/worker.js"
+    },
+    "./cable": {
+      "types": "./dist/cable.d.ts",
+      "default": "./dist/cable.js"
+    },
+    "./water": {
+      "types": "./dist/water.d.ts",
+      "default": "./dist/water.js"
+    },
+    "./frame": {
+      "types": "./dist/frame.d.ts",
+      "default": "./dist/frame.js"
+    },
+    "./gameplay": {
+      "types": "./dist/gameplay.d.ts",
+      "default": "./dist/gameplay.js"
+    },
+    "./single": {
+      "types": "./dist/index.d.ts",
+      "default": "./dist/single.js"
+    },
+    "./wasm/box3d.js": "./wasm/box3d.js",
+    "./wasm/box3d.wasm": "./wasm/box3d.wasm",
+    "./package.json": "./package.json"
+  },
+  "files": [
+    "dist",
+    "wasm",
+    "README.md",
+    "LICENSE",
+    "THIRD_PARTY_NOTICES.md",
+    "CHANGELOG.md",
+    "api/API.md",
+    "bin",
+    "templates"
+  ],
+  "engines": {
+    "node": ">=20"
+  },
+  "scripts": {
+    "sync": "node scripts/sync-core.mjs",
+    "build": "node scripts/sync-core.mjs && rm -rf dist && tsc -p tsconfig.json && node scripts/build-single.mjs",
+    "test": "npm run build && node --test test/*.test.mjs",
+    "test:pack": "npm run build && node scripts/pack-smoke.mjs",
+    "prepack": "npm run build",
+    "api": "node scripts/api-report.mjs && node scripts/api-docs.mjs",
+    "docs": "node scripts/api-docs.mjs",
+    "matrix": "node scripts/runtime-matrix.mjs",
+    "bench:handles": "node scripts/bench-handles.mjs"
+  },
+  "keywords": [
+    "babylonjs",
+    "box3d",
+    "deterministic",
+    "game",
+    "multiplayer",
+    "physics",
+    "rigid-body",
+    "threejs",
+    "wasm",
+    "webassembly",
+    "webgpu"
+  ],
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/nathansenn/box3d-WEBGPU.git",
+    "directory": "packages/box3d-kit"
+  },
+  "bin": {
+    "box3d-kit": "./bin/box3d-kit.mjs"
+  }
+}

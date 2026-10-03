@@ -1,0 +1,40 @@
+{
+  "data": {
+    "camera": "reference",
+    "cameraPose": "{\"position\":[11.699999999999996,11.5,13.399999999999997],\"target\":[0,3.05,0],\"fov\":43}",
+    "deskPanel": "test",
+    "drawCalls": "32",
+    "finish": "canopy-linen",
+    "fps": "26",
+    "lighting": "daylight",
+    "phase": "ready",
+    "quality": "ultra",
+    "recipe": "canopy-service",
+    "renderFrames": "1479",
+    "renderReady": "true",
+    "riverAnimate": "true",
+    "riverFlow": "1",
+    "riverFoam": "1",
+    "riverTime": "0.000",
+    "riverWave": "1",
+    "running": "false",
+    "sceneObjects": "554",
+    "setup": "setup-canopy-reference",
+    "study": "canopy",
+    "surroundings": "hall-concrete",
+    "theme": "precision",
+    "triangles": "77863"
+  },
+  "scripts": [
+    "http://127.0.0.1:5174/assets/index-pWue7VT3.js"
+  ],
+  "title": "BOX3D — Engineering Studio",
+  "ui": "BOX3D\nEngineering Studio\n01\nCanopy\n02\nPlate press\n03\nSuspension bridge\nReference\nPresets\nRun simulation\nLabs\nScene\nTest\nCompare\nCanopy load study\nSTUDY 01\nReference view\nSupport connections\nLoad & failure\nMaterial\nResponse\nReady to simulate\n0.00 s\nExperiment desk\nSet up\nSurface\nWorld\nTest\nLoad & failure\nRUN 1\nPrepared load case\nCustom load case\nService pressure\nCalm tension\nCrosswind study\nTear propagation\nWeakened connections\nReinforced comparison\nGentle deflection\nWind dominated\nSlow overload\nMaximum pressure\nLoad program\nRamp to failure\nService load\nTarget load\n0.80\nnormalized\n0.00\n5.00\nMATERIAL & FAILURE\nWoven membrane\nNatural linen\nConnection strength\n1.00×\nCrosswind\n0.10\nFailure mode\nTensile tearing\nIntegration\n120 Hz · 12 iterations\nCollision\nGround contact\nHow this study works\nRelease load\nThe scene stays live while you explore.\nDeflection\n0.000\nConnections lost\n0\nUndo look\nRun simulation\n0.00 s\n0 s\nLIVE HISTORY\n0.0 s recorded\nLive\n0.25×\n0.5×\n1.0×\n2.0×\nResponse history\nDeflection\nApplied load\nFailure events\n0\nRun a study to trace how failure develops.\nEvery event comes from the solver.\nWebGPU renderer · 26 fps · 32 draws\nComparative model · not calibrated\nExport evidence",
+  "url": "http://127.0.0.1:5174/?studio=canopy&theme=precision&finish=canopy-linen&light=daylight&recipe=canopy-service&camera=reference&quality=ultra&surroundings=hall-concrete&layout=reference&setup=setup-canopy-reference",
+  "viewport": {
+    "height": 1058,
+    "width": 1487
+  },
+  "logs": [],
+  "capturedAt": "2026-09-08T21:42:49.839Z"
+}

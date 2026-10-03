@@ -1,0 +1,8 @@
+{
+  "status": "PASS",
+  "freshBatch": true,
+  "cases": 5,
+  "samples": 1505,
+  "allCaseFieldsMatchDevExactly": true,
+  "CSVMatches": true
+}

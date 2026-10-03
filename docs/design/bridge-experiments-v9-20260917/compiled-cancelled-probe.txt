@@ -1,0 +1,130 @@
+Inspect
+Experiments
+Load scan · 9 cases · 120 s · next scan
+Edit
+Run 9 cases
+
+Cancelled · partial results retained.
+
+4 / 9
+Complete
+0 / 5
+With rupture
+—
+No rupture recorded
+Compare responses
+Table
+Chart
+Time probe
+Selected only
+
+Load scan · 120 s · Strength 1.60× · Wind 0.00
+
+Deck drop
+Sideways
+Lost links
+model units
+0.3
+0
+0
+60 model seconds
+120
+Compare at
+s
+120.0 s
+Show peaks
+Case / full-record outcome
+At 120.0 s
+01
+Load 0.00REF
+No rupture observed
+0.023
++
+02
+Load 0.125
+No rupture observed
+0.098
++
+03
+Load 0.25
+No rupture observed
+0.152
++
+04
+Load 0.375
+No rupture observed
+0.191
++
+05
+Load 0.50
+Partial · No rupture observed
+—
+No sample
+−
+06
+Load 0.625
+Not run
+—
+No sample
++
+07
+Load 0.75
+Not run
+—
+No sample
++
+08
+Load 0.875
+Not run
+—
+No sample
++
+09
+Load 1.00
+Not run
+—
+No sample
++
+CASE 05
+Load 0.50
+First rupture
+—
+Peak recorded drop
+0.233
+Lost links
+0 / 327
+
+70.0 s recorded · peak at 2.10 s
+Lateral peak 0.001 · Elastic response
+
+Load 0.50 · Strength 1.60× · Wind 0.00
+
+First rupture
+Peak drop
+Record end
+Compare with
+Choose a reference
+Load 0.00
+Load 0.125
+Load 0.25
+Load 0.375
+Load 0.50 · partial
+Load 0.625
+Load 0.75
+Load 0.875
+Load 1.00
+Pin this case
+
+Both cases need a recorded sample at this time.
+
+Compare at 70.0 s · last shared sample
+Load case
+Use as baseline
+Summary CSV
+Samples CSV
+JSON
+Clear scan
+
+Scan saved in this browser. Export before running another scan.
+
+How these experiments work

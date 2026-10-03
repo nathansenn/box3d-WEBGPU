@@ -8,7 +8,7 @@ import {
 import type { ScenePreset } from '../scenes';
 import type { DebugLine, MaterialFailureTelemetry, PackedSurfaceFrame, RopeGridFrame } from '../types';
 import { MATERIAL_RENDER_INSTANCE_BUDGET, MaterialSimulation } from './material-simulation';
-import type { SoftSimulation, SoftSimulationFrame } from './simulations';
+import type { SoftSimulation, SoftSimulationFrame, SoftSimulationTelemetry } from './simulations';
 import { PACKED_SURFACE_VERTEX_BYTES, PackedSurfaceBuffer, translatePackedSurfacePositions } from './packed-surface';
 
 export type CombinedMaterialTarget = Exclude<MaterialDemoKind, 'combined'> | 'all';
@@ -204,6 +204,7 @@ export class CombinedMaterialSimulation implements SoftSimulation {
   private readonly sheetIndices: Uint16Array;
   private readonly packedSheetResult: PackedSurfaceFrame;
   private frameVersion = 1;
+  private telemetryResult: SoftSimulationTelemetry | null = null;
   private builtFrameVersion = -1;
   private builtFrameDebug = false;
   private ropeTopologyVersion = 1;
@@ -571,10 +572,10 @@ export class CombinedMaterialSimulation implements SoftSimulation {
     }
   }
 
-  private updateTelemetry(childFrames: readonly SoftSimulationFrame[]): void {
-    const materials = childFrames
-      .map((childFrame) => childFrame.material)
-      .filter((material): material is MaterialFailureTelemetry => material !== null && material !== undefined);
+  private updateTelemetry(childTelemetry: readonly SoftSimulationTelemetry[]): void {
+    const materials = childTelemetry
+      .map((child) => child.material)
+      .filter((material): material is Readonly<MaterialFailureTelemetry> => material !== null && material !== undefined);
     if (materials.length === 0) return;
     let loadTarget = 0;
     let loadProgress = 0;
@@ -639,6 +640,26 @@ export class CombinedMaterialSimulation implements SoftSimulation {
     this.telemetry.testMode = `coordinated three-bay failure · focus ${this.lastFocusedBay} · ${phaseForRank(failureRank)}`;
   }
 
+  readTelemetry(): SoftSimulationTelemetry {
+    if (this.telemetryResult?.frameVersion === this.frameVersion) return this.telemetryResult;
+    const children = this.destroyed ? [] : this.children.map((child) => child.simulation.readTelemetry());
+    this.updateTelemetry(children);
+    return this.telemetryResult = Object.freeze({
+      kind: this.kind,
+      label: this.label,
+      nodeCount: children.reduce((sum, child) => sum + child.nodeCount, 0),
+      constraintCount: children.reduce((sum, child) => sum + child.constraintCount, 0),
+      brokenCount: children.reduce((sum, child) => sum + child.brokenCount, 0),
+      energy: children.reduce((sum, child) => sum + child.energy, 0),
+      // The combined frame has always used live child state hashes, unlike
+      // the sampled hashes of each individual material frame. Retain that
+      // contract, but compute it only once per requested solver version.
+      hash: this.currentHash(),
+      frameVersion: this.frameVersion,
+      material: Object.freeze({ ...this.telemetry }),
+    });
+  }
+
   buildFrame(debug: boolean): SoftSimulationFrame {
     if (this.destroyed) return this.frame;
     if (this.builtFrameVersion === this.frameVersion && this.builtFrameDebug === debug) return this.frame;
@@ -647,13 +668,13 @@ export class CombinedMaterialSimulation implements SoftSimulation {
     this.mergeRopeGrids(childFrames);
     this.mergeDebugLines(childFrames, debug);
     this.frame.surface = this.mergeSheetSurface(childFrames);
-    this.updateTelemetry(childFrames);
-    this.frame.nodeCount = childFrames.reduce((sum, childFrame) => sum + childFrame.nodeCount, 0);
-    this.frame.constraintCount = childFrames.reduce((sum, childFrame) => sum + childFrame.constraintCount, 0);
-    this.frame.brokenCount = childFrames.reduce((sum, childFrame) => sum + childFrame.brokenCount, 0);
-    this.frame.energy = childFrames.reduce((sum, childFrame) => sum + childFrame.energy, 0);
-    this.frame.hash = this.currentHash();
-    this.frame.frameVersion = this.frameVersion;
+    const telemetry = this.readTelemetry();
+    this.frame.nodeCount = telemetry.nodeCount;
+    this.frame.constraintCount = telemetry.constraintCount;
+    this.frame.brokenCount = telemetry.brokenCount;
+    this.frame.energy = telemetry.energy;
+    this.frame.hash = telemetry.hash;
+    this.frame.frameVersion = telemetry.frameVersion;
     this.frame.material = this.telemetry;
     this.builtFrameVersion = this.frameVersion;
     this.builtFrameDebug = debug;
@@ -675,6 +696,7 @@ export class CombinedMaterialSimulation implements SoftSimulation {
     for (const child of this.children) child.simulation.destroy();
     this.debugLines.length = 0;
     this.destroyed = true;
+    this.telemetryResult = null;
     this.frame.instanceCount = 0;
     this.frame.nodeCount = 0;
     this.frame.constraintCount = 0;

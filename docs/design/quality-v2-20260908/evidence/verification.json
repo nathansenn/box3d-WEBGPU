@@ -1,0 +1,469 @@
+{
+  "at": "2026-09-08T08:39:00.374216+00:00",
+  "productionEntry": "index-DipR682Y.js",
+  "head": "dfedd9fe9983200f492d686488d27b6a4b11c650",
+  "sourceManifest": "final-build.json",
+  "checks": {
+    "typecheck": "passed",
+    "productionBuild": "passed with large chunk warning",
+    "physics": {
+      "passed": 26,
+      "total": 26
+    },
+    "presets": {
+      "passed": 27,
+      "total": 27
+    },
+    "requiredVisualCaptures": 12,
+    "freshProductionWarningsAndErrors": 0,
+    "assetHashes": 19
+  },
+  "images": [
+    {
+      "path": "evidence/current-canopy-intact.jpg",
+      "sha256": "2594f40e203d21df816b1c1b505335365402454c8628627c60e5247c5f51a747",
+      "dimensions": [
+        1487,
+        1058
+      ],
+      "state": {
+        "name": "current-canopy-intact",
+        "at": "2026-09-08T08:23:01.222Z",
+        "broken": "0",
+        "camera": "hero",
+        "canvas": {
+          "height": 676,
+          "width": 1003
+        },
+        "deflection": "0.000",
+        "draws": "32",
+        "events": "0",
+        "finish": "canopy-linen",
+        "fps": "114",
+        "frames": "6824",
+        "height": 1058,
+        "history": "LIVE HISTORY",
+        "horizontalOverflow": false,
+        "lighting": "daylight",
+        "objects": "554",
+        "productionEntry": "index-DipR682Y.js",
+        "quality": "ultra",
+        "ready": "true",
+        "study": "canopy",
+        "time": "0.00 s",
+        "triangles": "75943",
+        "url": "http://127.0.0.1:5174/?studio=canopy&theme=precision&finish=canopy-linen&light=daylight&recipe=canopy-tear&camera=hero&quality=ultra",
+        "width": 1487
+      }
+    },
+    {
+      "path": "evidence/current-canopy-second.jpg",
+      "sha256": "e3f23b0d674e3581fe4aa1c828a3f17b3c21356e29eb042ebda2ce2aa601c339",
+      "dimensions": [
+        1487,
+        1058
+      ],
+      "state": {
+        "name": "current-canopy-second",
+        "at": "2026-09-08T08:23:04.410Z",
+        "broken": "0",
+        "camera": "reverse",
+        "canvas": {
+          "height": 676,
+          "width": 1003
+        },
+        "deflection": "0.000",
+        "draws": "32",
+        "events": "0",
+        "finish": "canopy-linen",
+        "fps": "120",
+        "frames": "7160",
+        "height": 1058,
+        "history": "LIVE HISTORY",
+        "horizontalOverflow": false,
+        "lighting": "daylight",
+        "objects": "554",
+        "productionEntry": "index-DipR682Y.js",
+        "quality": "ultra",
+        "ready": "true",
+        "study": "canopy",
+        "time": "0.00 s",
+        "triangles": "75943",
+        "url": "http://127.0.0.1:5174/?studio=canopy&theme=precision&finish=canopy-linen&light=daylight&recipe=canopy-tear&camera=reverse&quality=ultra",
+        "width": 1487
+      }
+    },
+    {
+      "path": "evidence/current-canopy-failed.jpg",
+      "sha256": "2f26d4989339d211c86e3305349fad318a78d5e3f5566a982141d7b99465df1f",
+      "dimensions": [
+        1487,
+        1058
+      ],
+      "state": {
+        "name": "current-canopy-failed",
+        "at": "2026-09-08T08:24:59.003Z",
+        "broken": "69",
+        "camera": "hero",
+        "canvas": {
+          "height": 676,
+          "width": 1003
+        },
+        "deflection": "5.172",
+        "draws": "32",
+        "events": "10",
+        "finish": "canopy-linen",
+        "fps": "91",
+        "frames": "17502",
+        "height": 1058,
+        "history": "LIVE HISTORY",
+        "horizontalOverflow": false,
+        "lighting": "daylight",
+        "objects": "554",
+        "productionEntry": "index-DipR682Y.js",
+        "quality": "ultra",
+        "ready": "true",
+        "study": "canopy",
+        "time": "30.01 s",
+        "triangles": "75881",
+        "url": "http://127.0.0.1:5174/?studio=canopy&theme=precision&finish=canopy-linen&light=daylight&recipe=canopy-tear&camera=hero&quality=ultra",
+        "width": 1487
+      }
+    },
+    {
+      "path": "evidence/current-canopy-mobile.jpg",
+      "sha256": "b0bc678693723b694e81f213af1730992750e7acf795383b95b8bf32ffa46c3b",
+      "dimensions": [
+        390,
+        844
+      ],
+      "state": {
+        "name": "current-canopy-mobile",
+        "at": "2026-09-08T08:23:22.564Z",
+        "broken": "0",
+        "camera": "hero",
+        "canvas": {
+          "height": 479,
+          "width": 390
+        },
+        "deflection": "0.000",
+        "draws": "32",
+        "events": "0",
+        "finish": "canopy-linen",
+        "fps": "127",
+        "frames": "9164",
+        "height": 844,
+        "history": "LIVE HISTORY",
+        "horizontalOverflow": false,
+        "lighting": "daylight",
+        "objects": "554",
+        "productionEntry": "index-DipR682Y.js",
+        "quality": "ultra",
+        "ready": "true",
+        "study": "canopy",
+        "time": "0.00 s",
+        "triangles": "75943",
+        "url": "http://127.0.0.1:5174/?studio=canopy&theme=precision&finish=canopy-linen&light=daylight&recipe=canopy-tear&camera=hero&quality=ultra",
+        "width": 390
+      }
+    },
+    {
+      "path": "evidence/current-plate-intact.jpg",
+      "sha256": "1cbd864a1a4c198fd21472d45447cb4200c4b5d38a4eedcf316ec74a6bb776f1",
+      "dimensions": [
+        1487,
+        1058
+      ],
+      "state": {
+        "name": "current-plate-intact",
+        "at": "2026-09-08T08:25:14.358Z",
+        "broken": "0",
+        "camera": "hero",
+        "canvas": {
+          "height": 668,
+          "width": 992
+        },
+        "deflection": "0.000",
+        "draws": "41",
+        "events": "0",
+        "finish": "plate-machined",
+        "fps": "86",
+        "frames": "18811",
+        "height": 1058,
+        "history": "LIVE HISTORY",
+        "horizontalOverflow": false,
+        "lighting": "softbox",
+        "objects": "138",
+        "productionEntry": "index-DipR682Y.js",
+        "quality": "ultra",
+        "ready": "true",
+        "study": "plate",
+        "time": "0.00 s",
+        "triangles": "60535",
+        "url": "http://127.0.0.1:5174/?studio=plate&theme=atelier&finish=plate-machined&light=softbox&recipe=plate-fracture&camera=hero&quality=ultra",
+        "width": 1487
+      }
+    },
+    {
+      "path": "evidence/current-plate-second.jpg",
+      "sha256": "c0ec0bffbf6195c362aff7d29a1ff2943ea7b74c4ad3acae51ef40d1cc340c77",
+      "dimensions": [
+        1487,
+        1058
+      ],
+      "state": {
+        "name": "current-plate-second",
+        "at": "2026-09-08T08:25:17.626Z",
+        "broken": "0",
+        "camera": "reverse",
+        "canvas": {
+          "height": 668,
+          "width": 992
+        },
+        "deflection": "0.000",
+        "draws": "41",
+        "events": "0",
+        "finish": "plate-machined",
+        "fps": "71",
+        "frames": "19063",
+        "height": 1058,
+        "history": "LIVE HISTORY",
+        "horizontalOverflow": false,
+        "lighting": "softbox",
+        "objects": "138",
+        "productionEntry": "index-DipR682Y.js",
+        "quality": "ultra",
+        "ready": "true",
+        "study": "plate",
+        "time": "0.00 s",
+        "triangles": "60535",
+        "url": "http://127.0.0.1:5174/?studio=plate&theme=atelier&finish=plate-machined&light=softbox&recipe=plate-fracture&camera=reverse&quality=ultra",
+        "width": 1487
+      }
+    },
+    {
+      "path": "evidence/current-plate-failed.jpg",
+      "sha256": "252ca129c4d49c61a725ec6234501865476b07a774fa5759eec825a61e91d6f1",
+      "dimensions": [
+        1487,
+        1058
+      ],
+      "state": {
+        "name": "current-plate-failed",
+        "at": "2026-09-08T08:28:28.186Z",
+        "broken": "895",
+        "camera": "hero",
+        "canvas": {
+          "height": 668,
+          "width": 992
+        },
+        "deflection": "1.530",
+        "draws": "41",
+        "events": "25",
+        "finish": "plate-machined",
+        "fps": "99",
+        "frames": "39150",
+        "height": 1058,
+        "history": "LIVE HISTORY",
+        "horizontalOverflow": false,
+        "lighting": "softbox",
+        "objects": "398",
+        "productionEntry": "index-DipR682Y.js",
+        "quality": "ultra",
+        "ready": "true",
+        "study": "plate",
+        "time": "37.83 s",
+        "triangles": "80455",
+        "url": "http://127.0.0.1:5174/?studio=plate&theme=atelier&finish=plate-machined&light=softbox&recipe=plate-fracture&camera=hero&quality=ultra",
+        "width": 1487
+      }
+    },
+    {
+      "path": "evidence/current-plate-mobile.jpg",
+      "sha256": "3601754e1a29781368c4651f683502269ad98bd979bac1421ef5cdcb34f992e0",
+      "dimensions": [
+        390,
+        844
+      ],
+      "state": {
+        "name": "current-plate-mobile",
+        "at": "2026-09-08T08:25:44.619Z",
+        "broken": "0",
+        "camera": "hero",
+        "canvas": {
+          "height": 471,
+          "width": 374
+        },
+        "deflection": "0.000",
+        "draws": "41",
+        "events": "0",
+        "finish": "plate-machined",
+        "fps": "93",
+        "frames": "21398",
+        "height": 844,
+        "history": "LIVE HISTORY",
+        "horizontalOverflow": false,
+        "lighting": "softbox",
+        "objects": "138",
+        "productionEntry": "index-DipR682Y.js",
+        "quality": "ultra",
+        "ready": "true",
+        "study": "plate",
+        "time": "0.00 s",
+        "triangles": "60535",
+        "url": "http://127.0.0.1:5174/?studio=plate&theme=atelier&finish=plate-machined&light=softbox&recipe=plate-fracture&camera=hero&quality=ultra",
+        "width": 390
+      }
+    },
+    {
+      "path": "evidence/current-bridge-intact.jpg",
+      "sha256": "6f2770b2a92ee33bb2a077c2aabcf3a391887c71272b68972b2f69e27846d3a7",
+      "dimensions": [
+        1487,
+        1058
+      ],
+      "state": {
+        "name": "current-bridge-intact",
+        "at": "2026-09-08T08:29:57.086Z",
+        "broken": "0",
+        "camera": "hero",
+        "canvas": {
+          "height": 967,
+          "width": 1487
+        },
+        "deflection": "0.000",
+        "draws": "64",
+        "events": "0",
+        "finish": "bridge-weathered",
+        "fps": "141",
+        "frames": "49164",
+        "height": 1058,
+        "history": "LIVE HISTORY",
+        "horizontalOverflow": false,
+        "lighting": "daylight",
+        "objects": "24030",
+        "productionEntry": "index-DipR682Y.js",
+        "quality": "ultra",
+        "ready": "true",
+        "study": "bridge",
+        "time": "0.00 s",
+        "triangles": "958165",
+        "url": "http://127.0.0.1:5174/?studio=bridge&theme=observatory&finish=bridge-weathered&light=daylight&recipe=bridge-collapse&camera=hero&quality=ultra",
+        "width": 1487
+      }
+    },
+    {
+      "path": "evidence/current-bridge-second.jpg",
+      "sha256": "c0accf4ff7a5f10de77c1212d0331fd372fab1299e3159bdd6de707df8a170da",
+      "dimensions": [
+        1487,
+        1058
+      ],
+      "state": {
+        "name": "current-bridge-second",
+        "at": "2026-09-08T08:35:08.629Z",
+        "broken": "0",
+        "camera": "reverse",
+        "canvas": {
+          "height": 967,
+          "width": 1487
+        },
+        "deflection": "0.000",
+        "draws": "64",
+        "events": "0",
+        "finish": "bridge-weathered",
+        "fps": "137",
+        "frames": "92210",
+        "height": 1058,
+        "history": "LIVE HISTORY",
+        "horizontalOverflow": false,
+        "lighting": "daylight",
+        "objects": "24030",
+        "productionEntry": "index-DipR682Y.js",
+        "quality": "ultra",
+        "ready": "true",
+        "study": "bridge",
+        "time": "0.00 s",
+        "triangles": "958165",
+        "url": "http://127.0.0.1:5174/?studio=bridge&theme=observatory&finish=bridge-weathered&light=daylight&recipe=bridge-collapse&camera=reverse&quality=ultra",
+        "width": 1487
+      }
+    },
+    {
+      "path": "evidence/current-bridge-failed.jpg",
+      "sha256": "2a6affd9e7af1d2e576c005a2151ffa8c5a5435e0a8b1c31010b595ca88d744a",
+      "dimensions": [
+        1487,
+        1058
+      ],
+      "state": {
+        "name": "current-bridge-failed",
+        "at": "2026-09-08T08:33:25.633Z",
+        "broken": "27",
+        "camera": "hero",
+        "canvas": {
+          "height": 967,
+          "width": 1487
+        },
+        "deflection": "6.200",
+        "draws": "64",
+        "events": "11",
+        "finish": "bridge-weathered",
+        "fps": "142",
+        "frames": "77908",
+        "height": 1058,
+        "history": "LIVE HISTORY",
+        "horizontalOverflow": false,
+        "lighting": "daylight",
+        "objects": "24030",
+        "productionEntry": "index-DipR682Y.js",
+        "quality": "ultra",
+        "ready": "true",
+        "study": "bridge",
+        "time": "30.01 s",
+        "triangles": "958165",
+        "url": "http://127.0.0.1:5174/?studio=bridge&theme=observatory&finish=bridge-weathered&light=daylight&recipe=bridge-collapse&camera=hero&quality=ultra",
+        "width": 1487
+      }
+    },
+    {
+      "path": "evidence/current-bridge-mobile.jpg",
+      "sha256": "078251ccf2745bf7212a4ef46799610fcac0854b192dac297ceb64d507acb046",
+      "dimensions": [
+        390,
+        844
+      ],
+      "state": {
+        "name": "current-bridge-mobile",
+        "at": "2026-09-08T08:30:35.728Z",
+        "broken": "0",
+        "camera": "hero",
+        "canvas": {
+          "height": 721,
+          "width": 390
+        },
+        "deflection": "0.000",
+        "draws": "64",
+        "events": "0",
+        "finish": "bridge-weathered",
+        "fps": "141",
+        "frames": "54595",
+        "height": 844,
+        "history": "LIVE HISTORY",
+        "horizontalOverflow": false,
+        "lighting": "daylight",
+        "objects": "24030",
+        "productionEntry": "index-DipR682Y.js",
+        "quality": "ultra",
+        "ready": "true",
+        "study": "bridge",
+        "time": "0.00 s",
+        "triangles": "958165",
+        "url": "http://127.0.0.1:5174/?studio=bridge&theme=observatory&finish=bridge-weathered&light=daylight&recipe=bridge-collapse&camera=hero&quality=ultra",
+        "width": 390
+      }
+    }
+  ],
+  "humanVisualAcceptance": "pending-user-review",
+  "limits": "Reduced, uncalibrated PBD model; viewport emulation on a desktop GPU, not a physical mobile benchmark."
+}

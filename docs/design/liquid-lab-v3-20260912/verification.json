@@ -1,0 +1,153 @@
+{
+  "at": "2026-09-11T18:45:22.025442+00:00",
+  "scope": "Liquid Lab V3; local source, compiled build and native GPU browser; no deployment",
+  "catalog": {
+    "rigs": 5,
+    "presets": 60,
+    "liquids": 24,
+    "surfaces": 8,
+    "pipeAttachments": 6,
+    "bedShapes": 6,
+    "supplyPrograms": 4,
+    "stormPrograms": 3,
+    "viscosityShortcuts": 8,
+    "filmShortcuts": 8
+  },
+  "verification": {
+    "presetPrograms": 60,
+    "programSeconds": 18,
+    "grid": [
+      84,
+      28
+    ],
+    "fixedStep": 0.008333333333333333,
+    "maxAbsoluteVolumeResidualM3": 2.101964435841097e-12,
+    "baseChecks": 68,
+    "terrainAndLibraryChecks": 24,
+    "sharedRegressionChecks": 27,
+    "totalChecks": 119,
+    "failed": 0,
+    "typecheck": "passed",
+    "productionBuild": "passed",
+    "buildAdvisory": "Existing large JS chunk warning",
+    "calibrated": false
+  },
+  "imageGeneration": {
+    "mode": "built-in",
+    "original": "/Users/commander/.codex/generated_images/01a07e7b-23c9-72e1-a62e-b780ac76623f/exec-67e7fc30-32bd-4926-bc6a-c9ae3d44c11c.png",
+    "workspaceMockup": "docs/design/liquid-lab-v3-20260912/mockup.png",
+    "prompt": "docs/design/liquid-lab-v3-20260912/PROMPT.md",
+    "referenceLoaded": true,
+    "referenceWidth": 1536
+  },
+  "browser": {
+    "provider": "Codex in-app browser",
+    "task": "01a07e7b-23c9-72e1-a62e-b780ac76623f",
+    "exception": "Private machine-local app and native WebGPU/WebGL dependency. Prior remote-transfer and tab-retention rejections preserved; no private build or credentials sent to a remote browser.",
+    "ownedTab": "9",
+    "userTabPreserved": "1",
+    "viewports": [
+      [
+        1280,
+        720
+      ],
+      [
+        1440,
+        900
+      ],
+      [
+        390,
+        844
+      ]
+    ],
+    "backendsObserved": [
+      "WebGPU",
+      "WebGL"
+    ],
+    "finalCompiledBackend": "WebGPU",
+    "consoleErrors": 0,
+    "consoleWarnings": 0,
+    "screenshots": "Native tool transcript; no filesystem screenshots claimed",
+    "checks": {
+      "floodRun": {
+        "seconds": 18,
+        "lowBankM": 0.09,
+        "highBankM": 0.4,
+        "lowBankFloodM2": 2.4489795918367356,
+        "highBankFloodM2": 0,
+        "savedCompared": true,
+        "setupDifferences": 1
+      },
+      "replay": {
+        "returnedToTimeZero": true,
+        "restoredFloodAreaM2": 0,
+        "restoredRecordedSupply": true,
+        "displayChangePreservedTime": true
+      },
+      "supply": {
+        "sixPortDemandLs": 40,
+        "headM": 6,
+        "deliveredLs": 40,
+        "closedValveLs": 0,
+        "head1mDeliveryLs": 19.32,
+        "bellAndPulseWorked": true
+      },
+      "dryPipe": {
+        "initialVolumeM3": 0,
+        "initialCoveragePercent": 0,
+        "coverageAt1_02sPercent": 13.628472222222134
+      },
+      "rain": {
+        "program": "rain-crown",
+        "seconds": 18,
+        "rateMmH": 250,
+        "meanFilmMm": 1.56
+      },
+      "surface": {
+        "program": "surface-puddle",
+        "seconds": 18,
+        "wetCoveragePercent": 45.15306122448961,
+        "residualM3": 1.790234627208065e-15
+      },
+      "phone": {
+        "width": 390,
+        "scrollWidth": 390,
+        "fluidChoices": 24,
+        "selectedFluid": "shampoo",
+        "viscosityMultiplier": 4,
+        "shape": "gutter",
+        "filmMm": 0.5
+      },
+      "rigsRendered": [
+        "flume",
+        "pipes",
+        "river",
+        "rain",
+        "surface"
+      ]
+    },
+    "cleanup": "Owned tab 9 closed; viewport override reset; original user bridge tab 1 preserved."
+  },
+  "preview": {
+    "development": {
+      "url": "http://127.0.0.1:5173/?studio=liquid&experiment=river-overbank",
+      "pid": 83490,
+      "binding": "127.0.0.1",
+      "running": true,
+      "renderReady": true,
+      "renderer": "WebGPU"
+    },
+    "compiled": {
+      "output": "/private/tmp/box3d-liquid-v3-build-20260912",
+      "port": 5186,
+      "pid": 98320,
+      "binding": "127.0.0.1",
+      "temporary": true,
+      "cleanup": "stopped"
+    }
+  },
+  "sourceManifestMatches": true,
+  "concurrentWorkPreserved": true,
+  "commitOrPush": false,
+  "remainingDiskGiB": 59
+}

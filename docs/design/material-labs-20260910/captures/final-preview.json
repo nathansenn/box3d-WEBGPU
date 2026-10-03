@@ -1,0 +1,27 @@
+{
+  "entry": "./assets/index-DaNDYoQL.js",
+  "legacyWorkspaceLinks": 0,
+  "overflow": false,
+  "phase": "Ready",
+  "ready": "true",
+  "renderer": "WebGL renderer · fixed-step model",
+  "study": "liquid",
+  "studyOptions": [
+    "Liquid dynamics",
+    "Glass impact",
+    "Concrete crush",
+    "Elastomer lab",
+    "Granular flow",
+    "Metal press",
+    "Canopy",
+    "Suspension bridge"
+  ],
+  "title": "BOX3D — Liquid dynamics",
+  "url": "http://127.0.0.1:5186/?studio=liquid&material=water&mode=release&seed=42&size=0.65&load=100&rate=0.8&damping=1&fill=10&experiment=water-release",
+  "viewport": [
+    1280,
+    720
+  ],
+  "checkedAt": "2026-09-09T23:10:39.031Z",
+  "newWarningsAndErrors": []
+}

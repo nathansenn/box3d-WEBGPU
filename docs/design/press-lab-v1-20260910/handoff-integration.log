@@ -1,0 +1,14 @@
+✔ canopy and bridge retain exact pre-change positions, failures and responses (4749.945709ms)
+✔ unloading retracts the tool while retaining plastic set and replay is immutable (5031.364584ms)
+✔ a completed short stroke holds, retracts and is exactly deterministic (7518.288084ms)
+✔ all attachment geometry is finite, scaled and contacts its analytical lower face (13.298625ms)
+✔ solid shell supplies underside and fracture walls at actual selected thickness (0.435792ms)
+✔ complete machine corners fit desktop and phone inspection bounds from both sides (1.331416ms)
+ℹ tests 6
+ℹ suites 0
+ℹ pass 6
+ℹ fail 0
+ℹ cancelled 0
+ℹ skipped 0
+ℹ todo 0
+ℹ duration_ms 17504.597625

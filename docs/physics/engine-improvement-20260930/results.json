@@ -1,0 +1,1316 @@
+{
+  "at": "2026-09-30T03:46:48.852230+00:00",
+  "scope": "Final readback and compact retention of the already completed paired sliding update and damping experiment; no new numerical solve.",
+  "sourceDirectory": "/Users/commander/box3d-WEBGPU/benchmarks/experiments/glass-tick117-paired-sliding-update-20260925-01",
+  "manifests": {
+    "manifest.json": {
+      "hashes": {
+        "/Users/commander/.agent-scratch/box3d-WEBGPU/01a08767-778e-7633-9012-95ababc992ac/latest/ast-review.json": "ddf0d246dde586faccbd25c876b251318ccbe88df128baf45f1bc3a82eba631a",
+        "/Users/commander/.agent-scratch/box3d-WEBGPU/01a08767-778e-7633-9012-95ababc992ac/latest/contract.json": "653a25cf8df8fe2dce3bc21588a2717847abd78714cff5065bd2763ae01bd57d",
+        "/Users/commander/.agent-scratch/box3d-WEBGPU/01a08767-778e-7633-9012-95ababc992ac/latest/control-plan.json": "cfc9e56128810cfa20e2b5a40c8e7b2ade3817b68eed4c2c735ddaafb7f7d19b",
+        "/Users/commander/.agent-scratch/box3d-WEBGPU/01a08767-778e-7633-9012-95ababc992ac/latest/disk-before.json": "aeb3e554b8de0116b7eac79d3e16190329e17d222f5e261dc2d8b60c39fcdf17",
+        "/Users/commander/.agent-scratch/box3d-WEBGPU/01a08767-778e-7633-9012-95ababc992ac/latest/history-readback.json": "5b8be2ef6cdb26d552c253da65dc7504265c4b4613f6c7a8c8b2873900b94d83",
+        "/Users/commander/.agent-scratch/box3d-WEBGPU/01a08767-778e-7633-9012-95ababc992ac/latest/working-tree-before.json": "36542f73827a0e10f66081775ac0b4a6cc3d2328c2e3e228bfabc93bed004933",
+        "/Users/commander/box3d-WEBGPU/benchmarks/experiments/glass-seeded-moving-integration-20260917-02/checkpoint.bin.gz": "fcc616bde59cd309eb65241071f35a9f4cf63d1bcf910785a007a32eea351635",
+        "/Users/commander/box3d-WEBGPU/benchmarks/experiments/glass-static-cone-reference-20260917-01/vendor/clarabel-0.11.1.dist-info/METADATA": "854e78e21aa7e31fdda61cba0e120446f3637ceccfe99ba4b23dfc4bd4fe9870",
+        "/Users/commander/box3d-WEBGPU/benchmarks/experiments/glass-static-cone-reference-20260917-01/vendor/clarabel-0.11.1.dist-info/RECORD": "173de5270ca43af5228bcb04f94d8b4be32270a1398bffe0d87b82918b3c0a5e",
+        "/Users/commander/box3d-WEBGPU/benchmarks/experiments/glass-static-cone-reference-20260917-01/vendor/clarabel-0.11.1.dist-info/WHEEL": "3750651438f11071d9794a9799936460ff1063433903a4069d8d5f59588d41dc",
+        "/Users/commander/box3d-WEBGPU/benchmarks/experiments/glass-static-cone-reference-20260917-01/vendor/clarabel-0.11.1.dist-info/licenses/LICENSE.md": "6e2f382771f8aab58e4868ddd0afe0c2fefe6b54f9681493a9c3d0f32906cfe1",
+        "/Users/commander/box3d-WEBGPU/benchmarks/experiments/glass-static-cone-reference-20260917-01/vendor/clarabel/__init__.py": "7c0c6f2ac3561bcc0fbca30ac34b979a559c021d77b6892c8a1210ba0d8a537b",
+        "/Users/commander/box3d-WEBGPU/benchmarks/experiments/glass-static-cone-reference-20260917-01/vendor/clarabel/clarabel.abi3.so": "2f1df54fdd8828c2acc4a55023a03d6a38d05c58ff398e541d68828c72e10f24",
+        "/Users/commander/box3d-WEBGPU/benchmarks/experiments/glass-tick117-best-friction-families-20260925-01/SOURCE_RELATIONSHIP.json": "ee3881003e740d15432c4d7f87bccec51f375ec1c76ebaadf8516e14cf709139",
+        "/Users/commander/box3d-WEBGPU/benchmarks/experiments/glass-tick117-impulse-projected-solve-20260925-01/candidate-vectors.npz": "3626d878db85a51c88df6ca8136b43df546750b6e96c7200424777e6712e8454",
+        "/Users/commander/box3d-WEBGPU/benchmarks/experiments/glass-tick117-new-best-anchor-20260925-01/candidate-certificate.json.gz": "f87083f71ef5418ae4a47a0a49822399fe6cce88ffd57ded41fcc52808449f71",
+        "/Users/commander/box3d-WEBGPU/benchmarks/experiments/glass-tick117-new-best-anchor-20260925-01/candidate-dual.npz": "b5fc10efa92d0aac94110d970be16000dc07bffcc0b3d161ce3d42968301cc45",
+        "/Users/commander/box3d-WEBGPU/benchmarks/experiments/glass-tick117-new-best-anchor-20260925-01/candidate-layout.json": "d45026004e1ae561ec3adc039c2d619858c539e8ffefa2ae9154a2f1d6aaf409",
+        "/Users/commander/box3d-WEBGPU/benchmarks/experiments/glass-tick117-new-best-anchor-20260925-01/candidate-matrix.npz": "29f95630033bee74c11ca2a7233693c41cf873d9c4b095a43235e277566a2bf6",
+        "/Users/commander/box3d-WEBGPU/benchmarks/experiments/glass-tick117-new-best-anchor-20260925-01/candidate-model.npz": "3e99ff007b7137bbbf9d63965fca303885265dc08a4521cd2ac6bd2ec7008608",
+        "/Users/commander/box3d-WEBGPU/benchmarks/experiments/glass-tick117-new-best-anchor-20260925-01/candidate-vectors.npz": "d18b67fd7f5ad99f227ae65d3c299ba102d86b9bf82200ba58dacaa38c4782fa",
+        "/Users/commander/box3d-WEBGPU/benchmarks/experiments/glass-tick117-new-best-anchor-20260925-01/oracle-result.json": "407f6ae0d9e32a6b33f3be228608122ef22fd27dd81682649870eada1094de89",
+        "/Users/commander/box3d-WEBGPU/benchmarks/experiments/glass-tick117-new-best-anchor-20260925-01/probe-result.json": "c47aca99bbd34472eebc5655c4c8dc95ac81fbca69efa7f61999e0fd391a7610",
+        "/Users/commander/box3d-WEBGPU/benchmarks/experiments/glass-tick117-no-sliding-trust-20260925-01/candidate-certificate.json.gz": "95926230a85b025686b7537a22dc9cfbd4a88eec0617fd696c521090d5df37b3",
+        "/Users/commander/box3d-WEBGPU/benchmarks/experiments/glass-tick117-no-sliding-trust-20260925-01/candidate-dual.npz": "d362d3847453994e728fb6e3005dba669ccb6b9f51b5cf54d046d3955f3510e5",
+        "/Users/commander/box3d-WEBGPU/benchmarks/experiments/glass-tick117-no-sliding-trust-20260925-01/candidate-layout.json": "b8195a52752dfa861d9fb4f463508d9dd6f5f0c410fd08aa4218aa2498c6f64b",
+        "/Users/commander/box3d-WEBGPU/benchmarks/experiments/glass-tick117-no-sliding-trust-20260925-01/candidate-matrix.npz": "762b9034be44f9933977a3c36710adb4e846e3d3c68c9cf6662b1ed60ba035f8",
+        "/Users/commander/box3d-WEBGPU/benchmarks/experiments/glass-tick117-no-sliding-trust-20260925-01/candidate-model.npz": "e042a022ce8d182397057c3bf958a54ba758aa6e683cb97207085957e6e3a89c",
+        "/Users/commander/box3d-WEBGPU/benchmarks/experiments/glass-tick117-no-sliding-trust-20260925-01/candidate-vectors.npz": "871a228860c94d8c581d2a0dc52ebc91ecfb5f9a854bd6cd2a53bd71d82e90ea",
+        "/Users/commander/box3d-WEBGPU/benchmarks/experiments/glass-tick117-no-sliding-trust-20260925-01/oracle-result.json": "bbeb79f15800c3defb0550ee208098fb5a3e7d110d780025d9112f037f9c0890",
+        "/Users/commander/box3d-WEBGPU/benchmarks/experiments/glass-tick117-no-sliding-trust-20260925-01/probe-result.json": "c069e9fc5327e0ac13b5133bb6fdd3ca19a5b0a3e1f9b059286e71761a0eaec9",
+        "/Users/commander/box3d-WEBGPU/benchmarks/experiments/glass-tick117-paired-sliding-update-20260925-01/PROOF.md": "98dd5560bf5edd25bfd1e5fed978f401a0e918a4d9cf148f2b1867aa502d7f50",
+        "/Users/commander/box3d-WEBGPU/benchmarks/experiments/glass-tick117-paired-sliding-update-20260925-01/artifacts.py": "73713cb0e5551e35810b0cfc50f74370b74e06d4ca1e609bbda2efe2768a08b5",
+        "/Users/commander/box3d-WEBGPU/benchmarks/experiments/glass-tick117-paired-sliding-update-20260925-01/audit.py": "8bdeac716d35036ab65b807d0541dfa20c347d8f2ae4119c0815da8e2c902462",
+        "/Users/commander/box3d-WEBGPU/benchmarks/experiments/glass-tick117-paired-sliding-update-20260925-01/baseline.py": "2b3a7ed13868ad13723ec0df7072a6de8ae10834c5fff549ed93381ad01c9105",
+        "/Users/commander/box3d-WEBGPU/benchmarks/experiments/glass-tick117-paired-sliding-update-20260925-01/check.py": "5c6cd5476e99a75fcef4a5ac2efd3f42eed98b0afec73d7c5115c57d8b3a1bdf",
+        "/Users/commander/box3d-WEBGPU/benchmarks/experiments/glass-tick117-paired-sliding-update-20260925-01/coordinates.py": "b339987b02138e28fab6f7316bcee9a85e936b7b7203481265175b9f29f6f1e6",
+        "/Users/commander/box3d-WEBGPU/benchmarks/experiments/glass-tick117-paired-sliding-update-20260925-01/coupled.py": "9b763ad179d29c1043720390a7b6c5a886bf1fc5959e4e1fa57cbf82f1d827f7",
+        "/Users/commander/box3d-WEBGPU/benchmarks/experiments/glass-tick117-paired-sliding-update-20260925-01/domain_check.py": "594b7b3358f1d52d5560263d61b614a6526b03c89db40afa3f70e9d1e70888d6",
+        "/Users/commander/box3d-WEBGPU/benchmarks/experiments/glass-tick117-paired-sliding-update-20260925-01/dual.py": "fe8f8b7187576e32363f54ed9b62485f6a6d9c37962defd9398b70c78fca919d",
+        "/Users/commander/box3d-WEBGPU/benchmarks/experiments/glass-tick117-paired-sliding-update-20260925-01/dual_check.py": "07c5c9c9d2db8510c4191e713fad131b5e6d0ebeff39e222fd92b64629e40423",
+        "/Users/commander/box3d-WEBGPU/benchmarks/experiments/glass-tick117-paired-sliding-update-20260925-01/energy.py": "5da06f3de805f5eb3d12e2233eaf6caf06a28b4a983064cdc18043f543ac19e7",
+        "/Users/commander/box3d-WEBGPU/benchmarks/experiments/glass-tick117-paired-sliding-update-20260925-01/foundation-origins.json": "170109f867314ed97842d50b5884c6f52a354fcd57ea44806c07850f69655232",
+        "/Users/commander/box3d-WEBGPU/benchmarks/experiments/glass-tick117-paired-sliding-update-20260925-01/freeze.py": "6e6710f74635461807cdbee978dadd0c486f90ebc67e52ca3387363b0deca1fe",
+        "/Users/commander/box3d-WEBGPU/benchmarks/experiments/glass-tick117-paired-sliding-update-20260925-01/kernel.py": "b1f105263e4fba206120637dd5cd36aa9883f63fadbd739b2c6ecfc640a19c59",
+        "/Users/commander/box3d-WEBGPU/benchmarks/experiments/glass-tick117-paired-sliding-update-20260925-01/linear_check.py": "69fc2c4b1569340509173a1d6c28755f6c113114c44ceae7167ad186c974b829",
+        "/Users/commander/box3d-WEBGPU/benchmarks/experiments/glass-tick117-paired-sliding-update-20260925-01/memory_guard.py": "34ce6139dc550ab6a546a5139b7660f5cf12a079a14e645c96d9bc1c826f5500",
+        "/Users/commander/box3d-WEBGPU/benchmarks/experiments/glass-tick117-paired-sliding-update-20260925-01/mode_cone.py": "85d5f6820f771083494fc3f5d0e8466729fc6593b252ffa5dc20905d63323243",
+        "/Users/commander/box3d-WEBGPU/benchmarks/experiments/glass-tick117-paired-sliding-update-20260925-01/normal_readback.py": "0c4387c85d430b2198bb28aff44a81e161bd8b0fe08628f95415f4c130f706a0",
+        "/Users/commander/box3d-WEBGPU/benchmarks/experiments/glass-tick117-paired-sliding-update-20260925-01/oracle.py": "baf3e9eac54feb093fc856e7855c76dfca85a20f0ea5aabeff5eb56d5816e1fc",
+        "/Users/commander/box3d-WEBGPU/benchmarks/experiments/glass-tick117-paired-sliding-update-20260925-01/pair_check.py": "d9774ca9a8907ac5abed3a2949be01efa90e309cc64aff370a7665cc53a2bb1b",
+        "/Users/commander/box3d-WEBGPU/benchmarks/experiments/glass-tick117-paired-sliding-update-20260925-01/paths.py": "629e8596d74a0113bcd024a18352a1370238cc514d5fdd6880ae8487d564711d",
+        "/Users/commander/box3d-WEBGPU/benchmarks/experiments/glass-tick117-paired-sliding-update-20260925-01/phase_check.py": "e8f30f035eeb420992ed73155561dd6ca6d516fbad1e95f8fe08fdc0e7dc062e",
+        "/Users/commander/box3d-WEBGPU/benchmarks/experiments/glass-tick117-paired-sliding-update-20260925-01/phase_numeric.py": "0a88028a2dfe123d8445112004d9310ba821b73a4f6e135cfc73e604d944380b",
+        "/Users/commander/box3d-WEBGPU/benchmarks/experiments/glass-tick117-paired-sliding-update-20260925-01/physical_oracle.py": "fe3c8f81d9c98bfcadebf8e333db0468eb920fbbb33a7a39238a0988c7a3e2cd",
+        "/Users/commander/box3d-WEBGPU/benchmarks/experiments/glass-tick117-paired-sliding-update-20260925-01/physics.py": "a1834f25f4a41868f42cfa3795d76f19c9ab47eac52dc710ef5231a76bb5b88a",
+        "/Users/commander/box3d-WEBGPU/benchmarks/experiments/glass-tick117-paired-sliding-update-20260925-01/probe.py": "0e30bba0391b5d3de65e29ba99c7b2c25f65ad52d95e09154d1cbbd79754bd10",
+        "/Users/commander/box3d-WEBGPU/benchmarks/experiments/glass-tick117-paired-sliding-update-20260925-01/rational.py": "0436dbf816a72aa13877531543bd0ab4f7455879da41b1b8d851bf17551ab798",
+        "/Users/commander/box3d-WEBGPU/benchmarks/experiments/glass-tick117-paired-sliding-update-20260925-01/remove_check.py": "ed23730cc39bffc83f96cd1fe62cc134c7dd2e8850e92a07326f565c4f34dd26",
+        "/Users/commander/box3d-WEBGPU/benchmarks/experiments/glass-tick117-paired-sliding-update-20260925-01/review-once.py": "74e357c7ad4af8281022bd7a93622cdb4ed82ed518c5cd4662305224a5277dda",
+        "/Users/commander/box3d-WEBGPU/benchmarks/experiments/glass-tick117-paired-sliding-update-20260925-01/review.py": "31a4e3c7bdb1587748803afdb538af77ea142765fc1458eaf8aa3645a3fd91e2",
+        "/Users/commander/box3d-WEBGPU/benchmarks/experiments/glass-tick117-paired-sliding-update-20260925-01/roles.py": "20f5c218b84bcd96380c1dc001ca4aaf4e2dab8250833c43e8e42559b84de6e3",
+        "/Users/commander/box3d-WEBGPU/benchmarks/experiments/glass-tick117-paired-sliding-update-20260925-01/run.py": "03e37632a71e960a3f67a6cbe77a1cdafb072994f3d8da740335b2d95cc67dc6",
+        "/Users/commander/box3d-WEBGPU/benchmarks/experiments/glass-tick117-paired-sliding-update-20260925-01/schema.py": "1bcf18fda9fb8d345882ba928d77be32cd025671858ede80042ca4a987ce9f0d",
+        "/Users/commander/box3d-WEBGPU/benchmarks/experiments/glass-tick117-paired-sliding-update-20260925-01/source.py": "2623c69266d888f579823c30316cd81e346c05e59e3b236fddcf454cd7c029f3",
+        "/Users/commander/box3d-WEBGPU/benchmarks/experiments/glass-tick117-paired-sliding-update-20260925-01/storage-adaptation.json": "11a1ee9bcf738f73935b62964fa95ff04383fdc30d2baf5aa7011ad7bf7bfaa3",
+        "/Users/commander/box3d-WEBGPU/benchmarks/experiments/glass-tick117-paired-sliding-update-20260925-01/stored_solve.py": "9114d5e1d9c24fdeeca8aea1e281b7713080ba0eb0c3a355342d0339ebc49b25",
+        "/Users/commander/box3d-WEBGPU/benchmarks/experiments/glass-tick117-paired-sliding-update-20260925-01/support_check.py": "e122d06a66216556ce83eb14ad0bfb089e29c8c6784cd06d72d77c328cb97472",
+        "/Users/commander/box3d-WEBGPU/benchmarks/experiments/glass-tick117-seed-comparison-20260917-01/input.json": "d8f4b0d816a0638297cb42900c9e76fa7f2e59a82e43a0b30b095cfd6ea28004",
+        "/Users/commander/box3d-WEBGPU/benchmarks/experiments/glass-tick117-sliding-staleness-20260925-01/closure-audit.json": "1e823203533574a80be39ac66228c95e9703bd1b87cce49419674fe01db074cf",
+        "/Users/commander/box3d-WEBGPU/benchmarks/experiments/glass-tick117-sliding-staleness-20260925-01/contract.json": "e2f08dba00af73019df2ecee8097234c9328a2c3afe62e68229ac196f9eab40a",
+        "/Users/commander/box3d-WEBGPU/benchmarks/experiments/glass-tick117-sliding-staleness-20260925-01/manifest.json": "9b8088659231db2a4dec192348077c3b9730c86782fc7a8e499e47f1feab49bf",
+        "/Users/commander/box3d-WEBGPU/benchmarks/experiments/glass-tick117-sliding-staleness-20260925-01/oracle-result.json": "2905aec5e80c5498a95b83227bd81725a6bf6a6ac387f44de13d69543225e55e",
+        "/Users/commander/box3d-WEBGPU/src/engine/convex-contact.ts": "cba07106461657599d9ecfb7d4bf040dc740ffab96b767774794415bb8c07501",
+        "/Users/commander/box3d-WEBGPU/src/studio/main.ts": "8e1bdb0c3dbc237364180df0953efd57518277de5164aa76ef7a1455a9669338",
+        "/Users/commander/box3d-WEBGPU/src/studio/material-labs/glass-pendulum.ts": "c82a337b1231069ae8c658a2b08d847d655fbd1c127d3ca8e606bfd95f885244",
+        "/Users/commander/box3d-WEBGPU/src/studio/material-labs/models.ts": "84dc9c35f52f3448b5e743e2b090e380c1e3b65c4c9560009750ff1b8820b845"
+      },
+      "sourceHash": "d9fd85af1b5ba8b8485a1f5d49f8a8f59a9145970e7c0060f64f32ada4f3c1ed",
+      "sourceDirectory": "/Users/commander/box3d-WEBGPU/benchmarks/experiments/glass-tick117-paired-sliding-update-20260925-01",
+      "requiredInputsValidatedAtFreeze": true,
+      "priorHistoryPresentPinsVerified": 9469,
+      "unavailableHistoricalReceiptCount": 1
+    },
+    "damping-manifest.json": {
+      "hashes": {
+        "/Users/commander/.agent-scratch/box3d-WEBGPU/01a08767-778e-7633-9012-95ababc992ac/latest/ast-review.json": "ddf0d246dde586faccbd25c876b251318ccbe88df128baf45f1bc3a82eba631a",
+        "/Users/commander/.agent-scratch/box3d-WEBGPU/01a08767-778e-7633-9012-95ababc992ac/latest/audit.json": "5e50e3024c4143ce01f201bebbbcc7c2ccd4ba2e04a33e789c583e80acafbb05",
+        "/Users/commander/.agent-scratch/box3d-WEBGPU/01a08767-778e-7633-9012-95ababc992ac/latest/candidate-vectors.npz": "48aa0be219c297c7458c5dfd1249de8fb2c99150b5ec0efbd422b35a03180248",
+        "/Users/commander/.agent-scratch/box3d-WEBGPU/01a08767-778e-7633-9012-95ababc992ac/latest/contract.json": "653a25cf8df8fe2dce3bc21588a2717847abd78714cff5065bd2763ae01bd57d",
+        "/Users/commander/.agent-scratch/box3d-WEBGPU/01a08767-778e-7633-9012-95ababc992ac/latest/control-plan.json": "cfc9e56128810cfa20e2b5a40c8e7b2ade3817b68eed4c2c735ddaafb7f7d19b",
+        "/Users/commander/.agent-scratch/box3d-WEBGPU/01a08767-778e-7633-9012-95ababc992ac/latest/damping-contract.json": "60ec83f2f5c016b81b569c8391cc5a9e9ca36ea37fb0e6993da02960f63d678f",
+        "/Users/commander/.agent-scratch/box3d-WEBGPU/01a08767-778e-7633-9012-95ababc992ac/latest/disk-before.json": "aeb3e554b8de0116b7eac79d3e16190329e17d222f5e261dc2d8b60c39fcdf17",
+        "/Users/commander/.agent-scratch/box3d-WEBGPU/01a08767-778e-7633-9012-95ababc992ac/latest/history-readback.json": "5b8be2ef6cdb26d552c253da65dc7504265c4b4613f6c7a8c8b2873900b94d83",
+        "/Users/commander/.agent-scratch/box3d-WEBGPU/01a08767-778e-7633-9012-95ababc992ac/latest/manifest.json": "416e4e7c4aa22df789c523f3068f81275c90c243236459058ce69c64d083f78d",
+        "/Users/commander/.agent-scratch/box3d-WEBGPU/01a08767-778e-7633-9012-95ababc992ac/latest/oracle-result.json": "b7912a4ba96a1a3ca316718ec2dc681fe1b0aff9579877d0c0253bf74c012d64",
+        "/Users/commander/.agent-scratch/box3d-WEBGPU/01a08767-778e-7633-9012-95ababc992ac/latest/probe-result.json": "74f90cbf820a6aa688b794284f8358d18b43403ab38ceabd89935936a05c2c66",
+        "/Users/commander/.agent-scratch/box3d-WEBGPU/01a08767-778e-7633-9012-95ababc992ac/latest/working-tree-before.json": "36542f73827a0e10f66081775ac0b4a6cc3d2328c2e3e228bfabc93bed004933",
+        "/Users/commander/box3d-WEBGPU/benchmarks/experiments/glass-seeded-moving-integration-20260917-02/checkpoint.bin.gz": "fcc616bde59cd309eb65241071f35a9f4cf63d1bcf910785a007a32eea351635",
+        "/Users/commander/box3d-WEBGPU/benchmarks/experiments/glass-static-cone-reference-20260917-01/vendor/clarabel-0.11.1.dist-info/METADATA": "854e78e21aa7e31fdda61cba0e120446f3637ceccfe99ba4b23dfc4bd4fe9870",
+        "/Users/commander/box3d-WEBGPU/benchmarks/experiments/glass-static-cone-reference-20260917-01/vendor/clarabel-0.11.1.dist-info/RECORD": "173de5270ca43af5228bcb04f94d8b4be32270a1398bffe0d87b82918b3c0a5e",
+        "/Users/commander/box3d-WEBGPU/benchmarks/experiments/glass-static-cone-reference-20260917-01/vendor/clarabel-0.11.1.dist-info/WHEEL": "3750651438f11071d9794a9799936460ff1063433903a4069d8d5f59588d41dc",
+        "/Users/commander/box3d-WEBGPU/benchmarks/experiments/glass-static-cone-reference-20260917-01/vendor/clarabel-0.11.1.dist-info/licenses/LICENSE.md": "6e2f382771f8aab58e4868ddd0afe0c2fefe6b54f9681493a9c3d0f32906cfe1",
+        "/Users/commander/box3d-WEBGPU/benchmarks/experiments/glass-static-cone-reference-20260917-01/vendor/clarabel/__init__.py": "7c0c6f2ac3561bcc0fbca30ac34b979a559c021d77b6892c8a1210ba0d8a537b",
+        "/Users/commander/box3d-WEBGPU/benchmarks/experiments/glass-static-cone-reference-20260917-01/vendor/clarabel/clarabel.abi3.so": "2f1df54fdd8828c2acc4a55023a03d6a38d05c58ff398e541d68828c72e10f24",
+        "/Users/commander/box3d-WEBGPU/benchmarks/experiments/glass-tick117-best-friction-families-20260925-01/SOURCE_RELATIONSHIP.json": "ee3881003e740d15432c4d7f87bccec51f375ec1c76ebaadf8516e14cf709139",
+        "/Users/commander/box3d-WEBGPU/benchmarks/experiments/glass-tick117-impulse-projected-solve-20260925-01/candidate-vectors.npz": "3626d878db85a51c88df6ca8136b43df546750b6e96c7200424777e6712e8454",
+        "/Users/commander/box3d-WEBGPU/benchmarks/experiments/glass-tick117-new-best-anchor-20260925-01/candidate-certificate.json.gz": "f87083f71ef5418ae4a47a0a49822399fe6cce88ffd57ded41fcc52808449f71",
+        "/Users/commander/box3d-WEBGPU/benchmarks/experiments/glass-tick117-new-best-anchor-20260925-01/candidate-dual.npz": "b5fc10efa92d0aac94110d970be16000dc07bffcc0b3d161ce3d42968301cc45",
+        "/Users/commander/box3d-WEBGPU/benchmarks/experiments/glass-tick117-new-best-anchor-20260925-01/candidate-layout.json": "d45026004e1ae561ec3adc039c2d619858c539e8ffefa2ae9154a2f1d6aaf409",
+        "/Users/commander/box3d-WEBGPU/benchmarks/experiments/glass-tick117-new-best-anchor-20260925-01/candidate-matrix.npz": "29f95630033bee74c11ca2a7233693c41cf873d9c4b095a43235e277566a2bf6",
+        "/Users/commander/box3d-WEBGPU/benchmarks/experiments/glass-tick117-new-best-anchor-20260925-01/candidate-model.npz": "3e99ff007b7137bbbf9d63965fca303885265dc08a4521cd2ac6bd2ec7008608",
+        "/Users/commander/box3d-WEBGPU/benchmarks/experiments/glass-tick117-new-best-anchor-20260925-01/candidate-vectors.npz": "d18b67fd7f5ad99f227ae65d3c299ba102d86b9bf82200ba58dacaa38c4782fa",
+        "/Users/commander/box3d-WEBGPU/benchmarks/experiments/glass-tick117-new-best-anchor-20260925-01/oracle-result.json": "407f6ae0d9e32a6b33f3be228608122ef22fd27dd81682649870eada1094de89",
+        "/Users/commander/box3d-WEBGPU/benchmarks/experiments/glass-tick117-new-best-anchor-20260925-01/probe-result.json": "c47aca99bbd34472eebc5655c4c8dc95ac81fbca69efa7f61999e0fd391a7610",
+        "/Users/commander/box3d-WEBGPU/benchmarks/experiments/glass-tick117-no-sliding-trust-20260925-01/candidate-certificate.json.gz": "95926230a85b025686b7537a22dc9cfbd4a88eec0617fd696c521090d5df37b3",
+        "/Users/commander/box3d-WEBGPU/benchmarks/experiments/glass-tick117-no-sliding-trust-20260925-01/candidate-dual.npz": "d362d3847453994e728fb6e3005dba669ccb6b9f51b5cf54d046d3955f3510e5",
+        "/Users/commander/box3d-WEBGPU/benchmarks/experiments/glass-tick117-no-sliding-trust-20260925-01/candidate-layout.json": "b8195a52752dfa861d9fb4f463508d9dd6f5f0c410fd08aa4218aa2498c6f64b",
+        "/Users/commander/box3d-WEBGPU/benchmarks/experiments/glass-tick117-no-sliding-trust-20260925-01/candidate-matrix.npz": "762b9034be44f9933977a3c36710adb4e846e3d3c68c9cf6662b1ed60ba035f8",
+        "/Users/commander/box3d-WEBGPU/benchmarks/experiments/glass-tick117-no-sliding-trust-20260925-01/candidate-model.npz": "e042a022ce8d182397057c3bf958a54ba758aa6e683cb97207085957e6e3a89c",
+        "/Users/commander/box3d-WEBGPU/benchmarks/experiments/glass-tick117-no-sliding-trust-20260925-01/candidate-vectors.npz": "871a228860c94d8c581d2a0dc52ebc91ecfb5f9a854bd6cd2a53bd71d82e90ea",
+        "/Users/commander/box3d-WEBGPU/benchmarks/experiments/glass-tick117-no-sliding-trust-20260925-01/oracle-result.json": "bbeb79f15800c3defb0550ee208098fb5a3e7d110d780025d9112f037f9c0890",
+        "/Users/commander/box3d-WEBGPU/benchmarks/experiments/glass-tick117-no-sliding-trust-20260925-01/probe-result.json": "c069e9fc5327e0ac13b5133bb6fdd3ca19a5b0a3e1f9b059286e71761a0eaec9",
+        "/Users/commander/box3d-WEBGPU/benchmarks/experiments/glass-tick117-paired-sliding-update-20260925-01/PROOF.md": "98dd5560bf5edd25bfd1e5fed978f401a0e918a4d9cf148f2b1867aa502d7f50",
+        "/Users/commander/box3d-WEBGPU/benchmarks/experiments/glass-tick117-paired-sliding-update-20260925-01/artifacts.py": "73713cb0e5551e35810b0cfc50f74370b74e06d4ca1e609bbda2efe2768a08b5",
+        "/Users/commander/box3d-WEBGPU/benchmarks/experiments/glass-tick117-paired-sliding-update-20260925-01/audit.py": "8bdeac716d35036ab65b807d0541dfa20c347d8f2ae4119c0815da8e2c902462",
+        "/Users/commander/box3d-WEBGPU/benchmarks/experiments/glass-tick117-paired-sliding-update-20260925-01/baseline.py": "2b3a7ed13868ad13723ec0df7072a6de8ae10834c5fff549ed93381ad01c9105",
+        "/Users/commander/box3d-WEBGPU/benchmarks/experiments/glass-tick117-paired-sliding-update-20260925-01/check.py": "5c6cd5476e99a75fcef4a5ac2efd3f42eed98b0afec73d7c5115c57d8b3a1bdf",
+        "/Users/commander/box3d-WEBGPU/benchmarks/experiments/glass-tick117-paired-sliding-update-20260925-01/coordinates.py": "b339987b02138e28fab6f7316bcee9a85e936b7b7203481265175b9f29f6f1e6",
+        "/Users/commander/box3d-WEBGPU/benchmarks/experiments/glass-tick117-paired-sliding-update-20260925-01/coupled.py": "9b763ad179d29c1043720390a7b6c5a886bf1fc5959e4e1fa57cbf82f1d827f7",
+        "/Users/commander/box3d-WEBGPU/benchmarks/experiments/glass-tick117-paired-sliding-update-20260925-01/damping_audit.py": "d99a6f41eed721199cd92303b2616df38d805bd47e55ab7556ac80178e8cd8dc",
+        "/Users/commander/box3d-WEBGPU/benchmarks/experiments/glass-tick117-paired-sliding-update-20260925-01/damping_freeze.py": "cb93b3589e400331d514d953d3106f1aff22a7be309df17f9aadd3124cbbb5b7",
+        "/Users/commander/box3d-WEBGPU/benchmarks/experiments/glass-tick117-paired-sliding-update-20260925-01/damping_kernel.py": "7a0c01824821cef4dc346cf72d90461acf02f409245f54c3dc5a1db92b363274",
+        "/Users/commander/box3d-WEBGPU/benchmarks/experiments/glass-tick117-paired-sliding-update-20260925-01/damping_oracle.py": "7f29924ccea6e00dfd9182be117b9c20da4217a10aab588dc29fed1ea665effe",
+        "/Users/commander/box3d-WEBGPU/benchmarks/experiments/glass-tick117-paired-sliding-update-20260925-01/damping_probe.py": "5965e792af623ddbfd1cd3ec12f66952ed15d3e6e4da40a454e68114d93ba4f4",
+        "/Users/commander/box3d-WEBGPU/benchmarks/experiments/glass-tick117-paired-sliding-update-20260925-01/damping_run.py": "be67fa335ad9b529b943df96fd28418d91753631907ccc9f076a51e45d224741",
+        "/Users/commander/box3d-WEBGPU/benchmarks/experiments/glass-tick117-paired-sliding-update-20260925-01/domain_check.py": "594b7b3358f1d52d5560263d61b614a6526b03c89db40afa3f70e9d1e70888d6",
+        "/Users/commander/box3d-WEBGPU/benchmarks/experiments/glass-tick117-paired-sliding-update-20260925-01/dual.py": "fe8f8b7187576e32363f54ed9b62485f6a6d9c37962defd9398b70c78fca919d",
+        "/Users/commander/box3d-WEBGPU/benchmarks/experiments/glass-tick117-paired-sliding-update-20260925-01/dual_check.py": "07c5c9c9d2db8510c4191e713fad131b5e6d0ebeff39e222fd92b64629e40423",
+        "/Users/commander/box3d-WEBGPU/benchmarks/experiments/glass-tick117-paired-sliding-update-20260925-01/energy.py": "5da06f3de805f5eb3d12e2233eaf6caf06a28b4a983064cdc18043f543ac19e7",
+        "/Users/commander/box3d-WEBGPU/benchmarks/experiments/glass-tick117-paired-sliding-update-20260925-01/foundation-origins.json": "170109f867314ed97842d50b5884c6f52a354fcd57ea44806c07850f69655232",
+        "/Users/commander/box3d-WEBGPU/benchmarks/experiments/glass-tick117-paired-sliding-update-20260925-01/freeze.py": "6e6710f74635461807cdbee978dadd0c486f90ebc67e52ca3387363b0deca1fe",
+        "/Users/commander/box3d-WEBGPU/benchmarks/experiments/glass-tick117-paired-sliding-update-20260925-01/kernel.py": "b1f105263e4fba206120637dd5cd36aa9883f63fadbd739b2c6ecfc640a19c59",
+        "/Users/commander/box3d-WEBGPU/benchmarks/experiments/glass-tick117-paired-sliding-update-20260925-01/linear_check.py": "69fc2c4b1569340509173a1d6c28755f6c113114c44ceae7167ad186c974b829",
+        "/Users/commander/box3d-WEBGPU/benchmarks/experiments/glass-tick117-paired-sliding-update-20260925-01/memory_guard.py": "34ce6139dc550ab6a546a5139b7660f5cf12a079a14e645c96d9bc1c826f5500",
+        "/Users/commander/box3d-WEBGPU/benchmarks/experiments/glass-tick117-paired-sliding-update-20260925-01/mode_cone.py": "85d5f6820f771083494fc3f5d0e8466729fc6593b252ffa5dc20905d63323243",
+        "/Users/commander/box3d-WEBGPU/benchmarks/experiments/glass-tick117-paired-sliding-update-20260925-01/normal_readback.py": "0c4387c85d430b2198bb28aff44a81e161bd8b0fe08628f95415f4c130f706a0",
+        "/Users/commander/box3d-WEBGPU/benchmarks/experiments/glass-tick117-paired-sliding-update-20260925-01/oracle.py": "baf3e9eac54feb093fc856e7855c76dfca85a20f0ea5aabeff5eb56d5816e1fc",
+        "/Users/commander/box3d-WEBGPU/benchmarks/experiments/glass-tick117-paired-sliding-update-20260925-01/pair_check.py": "d9774ca9a8907ac5abed3a2949be01efa90e309cc64aff370a7665cc53a2bb1b",
+        "/Users/commander/box3d-WEBGPU/benchmarks/experiments/glass-tick117-paired-sliding-update-20260925-01/paths.py": "629e8596d74a0113bcd024a18352a1370238cc514d5fdd6880ae8487d564711d",
+        "/Users/commander/box3d-WEBGPU/benchmarks/experiments/glass-tick117-paired-sliding-update-20260925-01/phase_check.py": "e8f30f035eeb420992ed73155561dd6ca6d516fbad1e95f8fe08fdc0e7dc062e",
+        "/Users/commander/box3d-WEBGPU/benchmarks/experiments/glass-tick117-paired-sliding-update-20260925-01/phase_numeric.py": "0a88028a2dfe123d8445112004d9310ba821b73a4f6e135cfc73e604d944380b",
+        "/Users/commander/box3d-WEBGPU/benchmarks/experiments/glass-tick117-paired-sliding-update-20260925-01/physical_oracle.py": "fe3c8f81d9c98bfcadebf8e333db0468eb920fbbb33a7a39238a0988c7a3e2cd",
+        "/Users/commander/box3d-WEBGPU/benchmarks/experiments/glass-tick117-paired-sliding-update-20260925-01/physics.py": "a1834f25f4a41868f42cfa3795d76f19c9ab47eac52dc710ef5231a76bb5b88a",
+        "/Users/commander/box3d-WEBGPU/benchmarks/experiments/glass-tick117-paired-sliding-update-20260925-01/probe.py": "0e30bba0391b5d3de65e29ba99c7b2c25f65ad52d95e09154d1cbbd79754bd10",
+        "/Users/commander/box3d-WEBGPU/benchmarks/experiments/glass-tick117-paired-sliding-update-20260925-01/rational.py": "0436dbf816a72aa13877531543bd0ab4f7455879da41b1b8d851bf17551ab798",
+        "/Users/commander/box3d-WEBGPU/benchmarks/experiments/glass-tick117-paired-sliding-update-20260925-01/remove_check.py": "ed23730cc39bffc83f96cd1fe62cc134c7dd2e8850e92a07326f565c4f34dd26",
+        "/Users/commander/box3d-WEBGPU/benchmarks/experiments/glass-tick117-paired-sliding-update-20260925-01/review-once.py": "74e357c7ad4af8281022bd7a93622cdb4ed82ed518c5cd4662305224a5277dda",
+        "/Users/commander/box3d-WEBGPU/benchmarks/experiments/glass-tick117-paired-sliding-update-20260925-01/review.py": "31a4e3c7bdb1587748803afdb538af77ea142765fc1458eaf8aa3645a3fd91e2",
+        "/Users/commander/box3d-WEBGPU/benchmarks/experiments/glass-tick117-paired-sliding-update-20260925-01/roles.py": "20f5c218b84bcd96380c1dc001ca4aaf4e2dab8250833c43e8e42559b84de6e3",
+        "/Users/commander/box3d-WEBGPU/benchmarks/experiments/glass-tick117-paired-sliding-update-20260925-01/run.py": "03e37632a71e960a3f67a6cbe77a1cdafb072994f3d8da740335b2d95cc67dc6",
+        "/Users/commander/box3d-WEBGPU/benchmarks/experiments/glass-tick117-paired-sliding-update-20260925-01/schema.py": "1bcf18fda9fb8d345882ba928d77be32cd025671858ede80042ca4a987ce9f0d",
+        "/Users/commander/box3d-WEBGPU/benchmarks/experiments/glass-tick117-paired-sliding-update-20260925-01/source.py": "2623c69266d888f579823c30316cd81e346c05e59e3b236fddcf454cd7c029f3",
+        "/Users/commander/box3d-WEBGPU/benchmarks/experiments/glass-tick117-paired-sliding-update-20260925-01/storage-adaptation.json": "11a1ee9bcf738f73935b62964fa95ff04383fdc30d2baf5aa7011ad7bf7bfaa3",
+        "/Users/commander/box3d-WEBGPU/benchmarks/experiments/glass-tick117-paired-sliding-update-20260925-01/stored_solve.py": "9114d5e1d9c24fdeeca8aea1e281b7713080ba0eb0c3a355342d0339ebc49b25",
+        "/Users/commander/box3d-WEBGPU/benchmarks/experiments/glass-tick117-paired-sliding-update-20260925-01/support_check.py": "e122d06a66216556ce83eb14ad0bfb089e29c8c6784cd06d72d77c328cb97472",
+        "/Users/commander/box3d-WEBGPU/benchmarks/experiments/glass-tick117-seed-comparison-20260917-01/input.json": "d8f4b0d816a0638297cb42900c9e76fa7f2e59a82e43a0b30b095cfd6ea28004",
+        "/Users/commander/box3d-WEBGPU/benchmarks/experiments/glass-tick117-sliding-staleness-20260925-01/closure-audit.json": "1e823203533574a80be39ac66228c95e9703bd1b87cce49419674fe01db074cf",
+        "/Users/commander/box3d-WEBGPU/benchmarks/experiments/glass-tick117-sliding-staleness-20260925-01/contract.json": "e2f08dba00af73019df2ecee8097234c9328a2c3afe62e68229ac196f9eab40a",
+        "/Users/commander/box3d-WEBGPU/benchmarks/experiments/glass-tick117-sliding-staleness-20260925-01/manifest.json": "9b8088659231db2a4dec192348077c3b9730c86782fc7a8e499e47f1feab49bf",
+        "/Users/commander/box3d-WEBGPU/benchmarks/experiments/glass-tick117-sliding-staleness-20260925-01/oracle-result.json": "2905aec5e80c5498a95b83227bd81725a6bf6a6ac387f44de13d69543225e55e",
+        "/Users/commander/box3d-WEBGPU/src/engine/convex-contact.ts": "cba07106461657599d9ecfb7d4bf040dc740ffab96b767774794415bb8c07501",
+        "/Users/commander/box3d-WEBGPU/src/studio/main.ts": "8e1bdb0c3dbc237364180df0953efd57518277de5164aa76ef7a1455a9669338",
+        "/Users/commander/box3d-WEBGPU/src/studio/material-labs/glass-pendulum.ts": "c82a337b1231069ae8c658a2b08d847d655fbd1c127d3ca8e606bfd95f885244",
+        "/Users/commander/box3d-WEBGPU/src/studio/material-labs/models.ts": "84dc9c35f52f3448b5e743e2b090e380c1e3b65c4c9560009750ff1b8820b845"
+      },
+      "sourceHash": "7102802d3ce94812680ea42ad09261d19eac0f5e10e5a18ecfd85403d8e1b57c"
+    }
+  },
+  "productionHashesVerifiedUnchanged": {
+    "src/engine/convex-contact.ts": "cba07106461657599d9ecfb7d4bf040dc740ffab96b767774794415bb8c07501",
+    "src/studio/material-labs/models.ts": "84dc9c35f52f3448b5e743e2b090e380c1e3b65c4c9560009750ff1b8820b845",
+    "src/studio/material-labs/glass-pendulum.ts": "c82a337b1231069ae8c658a2b08d847d655fbd1c127d3ca8e606bfd95f885244",
+    "src/studio/main.ts": "8e1bdb0c3dbc237364180df0953efd57518277de5164aa76ef7a1455a9669338"
+  },
+  "controls": {
+    "paired": 77,
+    "damping": 18
+  },
+  "parentVerdict": {
+    "accepted": false,
+    "measurement": {
+      "accepted": false,
+      "maximumResidualMps": 2.150615280273916e-06,
+      "normalResidualMps": 1.0702534896935287e-06,
+      "frictionResidualMps": 2.150615280273916e-06,
+      "maximumConeViolation": 7.064090132065512e-21,
+      "minimumNormalImpulse": 2.4359021342386386e-14,
+      "totalContactEnergyChangeJ": -0.030134419899984156,
+      "preciseMaximumResidualMps": "0.00000215061528027391572292817818616329370603208643159101705611793739584304346219693833158889405031993",
+      "preciseEnergyChangeJ": "-0.0301344198999841566628736217971842094345189523905857919494566095269719905819002950823321369206953"
+    },
+    "phase": {
+      "exactAggregationVerified": true,
+      "terms": 19888,
+      "lower": 0.05974925742541447,
+      "target": 0.009324091333603811,
+      "floorMps": 1.0540805149667285e-06,
+      "modelTargetExcluded": true
+    }
+  },
+  "dampingOracle": {
+    "sourceHash": "7102802d3ce94812680ea42ad09261d19eac0f5e10e5a18ecfd85403d8e1b57c",
+    "passed": true,
+    "physicalPrecision": 96,
+    "records": [
+      {
+        "alpha": 0.0,
+        "measurement": {
+          "accepted": false,
+          "maximumResidualMps": 1.0723882378867055e-06,
+          "normalResidualMps": 1.072121520237157e-06,
+          "frictionResidualMps": 1.0723882378867055e-06,
+          "maximumConeViolation": 5.999890150639705e-20,
+          "minimumNormalImpulse": 1.6030342188702294e-13,
+          "totalContactEnergyChangeJ": -0.03013440563807209,
+          "preciseMaximumResidualMps": "0.00000107238823788670562119576863022844129679096184792275632290606432401952232954698407687695118752232",
+          "preciseEnergyChangeJ": "-0.0301344056380720916109883605814261727655635699400877874823208112358914330395889737791596165228469"
+        },
+        "sideGatesAccepted": true,
+        "originalLawQualified": false,
+        "momentumMps": 0.0,
+        "physicalVelocityAgreementMps": 4.9705502760421686e-14
+      },
+      {
+        "alpha": 0.015625,
+        "measurement": {
+          "accepted": false,
+          "maximumResidualMps": 1.0723567556921708e-06,
+          "normalResidualMps": 1.072092332271903e-06,
+          "frictionResidualMps": 1.0723567556921708e-06,
+          "maximumConeViolation": 3.414828650466132e-20,
+          "minimumNormalImpulse": 1.58179290628513e-13,
+          "totalContactEnergyChangeJ": -0.030134405861171592,
+          "preciseMaximumResidualMps": "0.00000107235675569217086047176710985230286054847970706877186905024620033414881208902441814133878558614",
+          "preciseEnergyChangeJ": "-0.0301344058611715923681580108445548497266782309028225195779881986255961322276736565802031132161379"
+        },
+        "sideGatesAccepted": true,
+        "originalLawQualified": false,
+        "momentumMps": 3.215279062604447e-14,
+        "physicalVelocityAgreementMps": 4.521244777899074e-14
+      },
+      {
+        "alpha": 0.03125,
+        "measurement": {
+          "accepted": false,
+          "maximumResidualMps": 1.0723253107413933e-06,
+          "normalResidualMps": 1.0720631442720782e-06,
+          "frictionResidualMps": 1.0723253107413933e-06,
+          "maximumConeViolation": 0.0,
+          "minimumNormalImpulse": 1.5605515937000304e-13,
+          "totalContactEnergyChangeJ": -0.03013440608426293,
+          "preciseMaximumResidualMps": "0.00000107232531074139322714132195241707911936111065815635150789210679720763572561402186985451488718672",
+          "preciseEnergyChangeJ": "-0.0301344060842629304223256914050845435256614374750947172371822828187668683765570511379626989447685"
+        },
+        "sideGatesAccepted": true,
+        "originalLawQualified": false,
+        "momentumMps": 6.560221389330598e-14,
+        "physicalVelocityAgreementMps": 3.613168852157041e-14
+      },
+      {
+        "alpha": 0.0625,
+        "measurement": {
+          "accepted": false,
+          "maximumResidualMps": 1.0722625327824902e-06,
+          "normalResidualMps": 1.0720047683146848e-06,
+          "frictionResidualMps": 1.0722625327824902e-06,
+          "maximumConeViolation": 0.0,
+          "minimumNormalImpulse": 1.5180689685298314e-13,
+          "totalContactEnergyChangeJ": -0.03013440653042112,
+          "preciseMaximumResidualMps": "0.00000107226253278249030934245904470895247366595870330876690375531637724180636471682759705650713599714",
+          "preciseEnergyChangeJ": "-0.0301344065304211184578031809345217868448131354662106479934553029109912365452095507413398796518932"
+        },
+        "sideGatesAccepted": true,
+        "originalLawQualified": false,
+        "momentumMps": 5.732371071395993e-14,
+        "physicalVelocityAgreementMps": 3.565674058458034e-14
+      },
+      {
+        "alpha": 0.125,
+        "measurement": {
+          "accepted": false,
+          "maximumResidualMps": 1.0721374245142696e-06,
+          "normalResidualMps": 1.0718880164227965e-06,
+          "frictionResidualMps": 1.0721374245142696e-06,
+          "maximumConeViolation": 0.0,
+          "minimumNormalImpulse": 1.4331037181894338e-13,
+          "totalContactEnergyChangeJ": -0.030134407422639543,
+          "preciseMaximumResidualMps": "0.00000107213742451426966960286841150921300158947249561565288806126373370737150894677355933761443969161",
+          "preciseEnergyChangeJ": "-0.0301344074226395422887799326243053604822968033036475049214086836647200827306958067751988653501926"
+        },
+        "sideGatesAccepted": true,
+        "originalLawQualified": false,
+        "momentumMps": 1.0948592616183234e-13,
+        "physicalVelocityAgreementMps": 6.319102976918135e-14
+      },
+      {
+        "alpha": 0.25,
+        "measurement": {
+          "accepted": false,
+          "maximumResidualMps": 1.0718889991560684e-06,
+          "normalResidualMps": 1.0716545126150135e-06,
+          "frictionResidualMps": 1.0718889991560684e-06,
+          "maximumConeViolation": 0.0,
+          "minimumNormalImpulse": 1.2631732175086382e-13,
+          "totalContactEnergyChangeJ": -0.03013440920668458,
+          "preciseMaximumResidualMps": "0.00000107188899915606853161327931782363098954218971551710207470055686238778178462792218262708095599668",
+          "preciseEnergyChangeJ": "-0.0301344092066845808005992436971770039052536840091921614706842786339376103559469621188030721726143"
+        },
+        "sideGatesAccepted": true,
+        "originalLawQualified": false,
+        "momentumMps": 6.33349339848482e-14,
+        "physicalVelocityAgreementMps": 4.298520263018722e-14
+      },
+      {
+        "alpha": 0.5,
+        "measurement": {
+          "accepted": false,
+          "maximumResidualMps": 1.0715645295085603e-06,
+          "normalResidualMps": 1.071187504944369e-06,
+          "frictionResidualMps": 1.0715645295085603e-06,
+          "maximumConeViolation": 0.0,
+          "minimumNormalImpulse": 9.233122161470466e-14,
+          "totalContactEnergyChangeJ": -0.03013441277320742,
+          "preciseMaximumResidualMps": "0.00000107156452950856037373095701709131314749273795588959757875214965806470951177304753501324107295282",
+          "preciseEnergyChangeJ": "-0.0301344127732074213802506444852362767990789428041088202659088032202238230242859853560564832021929"
+        },
+        "sideGatesAccepted": true,
+        "originalLawQualified": false,
+        "momentumMps": 4.9744084626882765e-14,
+        "physicalVelocityAgreementMps": 3.77926711421915e-14
+      },
+      {
+        "alpha": 1.0,
+        "measurement": {
+          "accepted": false,
+          "maximumResidualMps": 2.150615280273916e-06,
+          "normalResidualMps": 1.0702534896935287e-06,
+          "frictionResidualMps": 2.150615280273916e-06,
+          "maximumConeViolation": 7.064090132065512e-21,
+          "minimumNormalImpulse": 2.4359021342386386e-14,
+          "totalContactEnergyChangeJ": -0.030134419899984156,
+          "preciseMaximumResidualMps": "0.00000215061528027391572292817818616329370603208643159101705611793739584304346219693833158889405031993",
+          "preciseEnergyChangeJ": "-0.0301344198999841566628736217971842094345189523905857919494566095269719905819002950823321369206953"
+        },
+        "sideGatesAccepted": true,
+        "originalLawQualified": false,
+        "momentumMps": 0.0,
+        "physicalVelocityAgreementMps": 3.877135849984687e-14
+      }
+    ],
+    "best": {
+      "alpha": 0.5,
+      "measurement": {
+        "accepted": false,
+        "maximumResidualMps": 1.0715645295085603e-06,
+        "normalResidualMps": 1.071187504944369e-06,
+        "frictionResidualMps": 1.0715645295085603e-06,
+        "maximumConeViolation": 0.0,
+        "minimumNormalImpulse": 9.233122161470466e-14,
+        "totalContactEnergyChangeJ": -0.03013441277320742,
+        "preciseMaximumResidualMps": "0.00000107156452950856037373095701709131314749273795588959757875214965806470951177304753501324107295282",
+        "preciseEnergyChangeJ": "-0.0301344127732074213802506444852362767990789428041088202659088032202238230242859853560564832021929"
+      },
+      "sideGatesAccepted": true,
+      "originalLawQualified": false,
+      "momentumMps": 4.9744084626882765e-14,
+      "physicalVelocityAgreementMps": 3.77926711421915e-14
+    },
+    "bestMeasuredImprovementVerified": true,
+    "maximumResidualReductionMps": 8.237083781452407e-10,
+    "endpointsReproduced": true,
+    "interpolationIndependentlyRebuilt": true,
+    "bestVectorPath": "damping-best-vectors.npz",
+    "bestVectorSha256": "d7b7d9f7dbdfc8076dbe19d0af0f277e0933bf06c44fe735b903ccda9b96e7a7",
+    "newQpSolves": 0,
+    "verifiedNewPhysicalCandidates": 6,
+    "physicalApplications": 0,
+    "referencePromotions": 0,
+    "acceptedReplayTick": 116,
+    "currentV5ReplayQualified": false,
+    "performanceQualified": false,
+    "overallGoalComplete": false
+  },
+  "dampingAudit": {
+    "at": "2026-09-30T03:33:39.379768+00:00",
+    "sourceHash": "7102802d3ce94812680ea42ad09261d19eac0f5e10e5a18ecfd85403d8e1b57c",
+    "passed": true,
+    "pinsVerified": 89,
+    "controls": 18,
+    "verifiedNewCandidates": 6,
+    "newQpSolves": 0,
+    "bestAlpha": 0.5,
+    "bestMeasurement": {
+      "accepted": false,
+      "maximumResidualMps": 1.0715645295085603e-06,
+      "normalResidualMps": 1.071187504944369e-06,
+      "frictionResidualMps": 1.0715645295085603e-06,
+      "maximumConeViolation": 0.0,
+      "minimumNormalImpulse": 9.233122161470466e-14,
+      "totalContactEnergyChangeJ": -0.03013441277320742,
+      "preciseMaximumResidualMps": "0.00000107156452950856037373095701709131314749273795588959757875214965806470951177304753501324107295282",
+      "preciseEnergyChangeJ": "-0.0301344127732074213802506444852362767990789428041088202659088032202238230242859853560564832021929"
+    },
+    "measuredBestUpdated": true,
+    "originalLawQualified": false,
+    "candidatePath": "/Users/commander/.agent-scratch/box3d-WEBGPU/01a08767-778e-7633-9012-95ababc992ac/latest/damping-best-vectors.npz",
+    "candidateSha256": "d7b7d9f7dbdfc8076dbe19d0af0f277e0933bf06c44fe735b903ccda9b96e7a7",
+    "physicalApplications": 0,
+    "referencePromotions": 0,
+    "acceptedReplayTick": 116,
+    "currentV5ReplayQualified": false,
+    "performanceQualified": false,
+    "overallGoalComplete": false
+  },
+  "relativeResidualReductionPercent": 0.07681065019591,
+  "remainingAboveTargetPercent": 7.156452950856029,
+  "bestVector": {
+    "path": "/Users/commander/.agent-scratch/box3d-WEBGPU/01a08767-778e-7633-9012-95ababc992ac/latest/damping-best-vectors.npz",
+    "sha256": "d7b7d9f7dbdfc8076dbe19d0af0f277e0933bf06c44fe735b903ccda9b96e7a7",
+    "bytes": 130592,
+    "array": "projected_impulse",
+    "shape": [
+      18069
+    ]
+  },
+  "execution": [
+    {
+      "name": "check",
+      "pid": 42225,
+      "command": [
+        "/Applications/Xcode.app/Contents/Developer/usr/bin/python3",
+        "-B",
+        "/Users/commander/box3d-WEBGPU/benchmarks/experiments/glass-tick117-paired-sliding-update-20260925-01/check.py"
+      ],
+      "startedAt": "2026-09-30T03:27:29.107421+00:00",
+      "sourceHash": "d9fd85af1b5ba8b8485a1f5d49f8a8f59a9145970e7c0060f64f32ada4f3c1ed",
+      "temporaryDirectory": "/Users/commander/.agent-scratch/box3d-WEBGPU/01a08767-778e-7633-9012-95ababc992ac/latest/check-o6ut64lf",
+      "terminal": true,
+      "exitCode": 0,
+      "seconds": 0.755216417,
+      "producedBytes": 1650,
+      "retainedBytes": 1650,
+      "processExitCode": 0,
+      "peakSelfReportedRssKiB": 49360.0
+    },
+    {
+      "name": "probe",
+      "pid": 42227,
+      "command": [
+        "/Applications/Xcode.app/Contents/Developer/usr/bin/python3",
+        "-B",
+        "/Users/commander/box3d-WEBGPU/benchmarks/experiments/glass-tick117-paired-sliding-update-20260925-01/probe.py"
+      ],
+      "startedAt": "2026-09-30T03:27:29.863351+00:00",
+      "sourceHash": "d9fd85af1b5ba8b8485a1f5d49f8a8f59a9145970e7c0060f64f32ada4f3c1ed",
+      "temporaryDirectory": "/Users/commander/.agent-scratch/box3d-WEBGPU/01a08767-778e-7633-9012-95ababc992ac/latest/probe-nytjwcqp",
+      "terminal": true,
+      "exitCode": 0,
+      "seconds": 26.845504167,
+      "producedBytes": 1472,
+      "retainedBytes": 1472,
+      "processExitCode": 0,
+      "peakSelfReportedRssKiB": 531312.0
+    },
+    {
+      "name": "oracle",
+      "pid": 42471,
+      "command": [
+        "/Applications/Xcode.app/Contents/Developer/usr/bin/python3",
+        "-B",
+        "/Users/commander/box3d-WEBGPU/benchmarks/experiments/glass-tick117-paired-sliding-update-20260925-01/oracle.py"
+      ],
+      "startedAt": "2026-09-30T03:27:56.709835+00:00",
+      "sourceHash": "d9fd85af1b5ba8b8485a1f5d49f8a8f59a9145970e7c0060f64f32ada4f3c1ed",
+      "temporaryDirectory": "/Users/commander/.agent-scratch/box3d-WEBGPU/01a08767-778e-7633-9012-95ababc992ac/latest/oracle-uxbngnpp",
+      "terminal": true,
+      "exitCode": 0,
+      "seconds": 16.515808832999998,
+      "producedBytes": 1020,
+      "retainedBytes": 1020,
+      "processExitCode": 0,
+      "peakSelfReportedRssKiB": 529648.0
+    },
+    {
+      "name": "review",
+      "pid": 43183,
+      "command": [
+        "/Applications/Xcode.app/Contents/Developer/usr/bin/python3",
+        "-B",
+        "/Users/commander/box3d-WEBGPU/benchmarks/experiments/glass-tick117-paired-sliding-update-20260925-01/review.py"
+      ],
+      "startedAt": "2026-09-30T03:28:28.959541+00:00",
+      "sourceHash": "d9fd85af1b5ba8b8485a1f5d49f8a8f59a9145970e7c0060f64f32ada4f3c1ed",
+      "temporaryDirectory": "/Users/commander/.agent-scratch/box3d-WEBGPU/01a08767-778e-7633-9012-95ababc992ac/latest/review-o7lcfaek",
+      "terminal": true,
+      "exitCode": 0,
+      "seconds": 0.06815554199999999,
+      "producedBytes": 944,
+      "retainedBytes": 944,
+      "processExitCode": 0,
+      "peakSelfReportedRssKiB": 48576.0
+    },
+    {
+      "name": "damping-probe",
+      "pid": 50755,
+      "command": [
+        "/Applications/Xcode.app/Contents/Developer/usr/bin/python3",
+        "-B",
+        "/Users/commander/box3d-WEBGPU/benchmarks/experiments/glass-tick117-paired-sliding-update-20260925-01/damping_probe.py"
+      ],
+      "sourceHash": "7102802d3ce94812680ea42ad09261d19eac0f5e10e5a18ecfd85403d8e1b57c",
+      "temporaryDirectory": "/Users/commander/.agent-scratch/box3d-WEBGPU/01a08767-778e-7633-9012-95ababc992ac/latest/damping-probe-cqr1aqho",
+      "startedAt": "2026-09-30T03:33:24.872575+00:00",
+      "terminal": true,
+      "exitCode": 0,
+      "processExitCode": 0,
+      "seconds": 7.255071208,
+      "producedBytes": 712,
+      "retainedBytes": 712,
+      "peakSelfReportedRssKiB": 219136.0
+    },
+    {
+      "name": "damping-oracle",
+      "pid": 50820,
+      "command": [
+        "/Applications/Xcode.app/Contents/Developer/usr/bin/python3",
+        "-B",
+        "/Users/commander/box3d-WEBGPU/benchmarks/experiments/glass-tick117-paired-sliding-update-20260925-01/damping_oracle.py"
+      ],
+      "sourceHash": "7102802d3ce94812680ea42ad09261d19eac0f5e10e5a18ecfd85403d8e1b57c",
+      "temporaryDirectory": "/Users/commander/.agent-scratch/box3d-WEBGPU/01a08767-778e-7633-9012-95ababc992ac/latest/damping-oracle-2aay0oaj",
+      "startedAt": "2026-09-30T03:33:32.128249+00:00",
+      "terminal": true,
+      "exitCode": 0,
+      "processExitCode": 0,
+      "seconds": 7.1892895,
+      "producedBytes": 116,
+      "retainedBytes": 116,
+      "peakSelfReportedRssKiB": 215904.0
+    },
+    {
+      "name": "damping-audit",
+      "pid": 50846,
+      "command": [
+        "/Applications/Xcode.app/Contents/Developer/usr/bin/python3",
+        "-B",
+        "/Users/commander/box3d-WEBGPU/benchmarks/experiments/glass-tick117-paired-sliding-update-20260925-01/damping_audit.py"
+      ],
+      "sourceHash": "7102802d3ce94812680ea42ad09261d19eac0f5e10e5a18ecfd85403d8e1b57c",
+      "temporaryDirectory": "/Users/commander/.agent-scratch/box3d-WEBGPU/01a08767-778e-7633-9012-95ababc992ac/latest/damping-audit-lz49d9bh",
+      "startedAt": "2026-09-30T03:33:39.318475+00:00",
+      "terminal": true,
+      "exitCode": 0,
+      "processExitCode": 0,
+      "seconds": 0.06865641700000147,
+      "producedBytes": 698,
+      "retainedBytes": 698,
+      "peakSelfReportedRssKiB": 52720.0
+    }
+  ],
+  "allSevenChildrenTerminalAndSamplersStopped": true,
+  "provenanceLimitation": {
+    "previousPins": 9470,
+    "verifiedPresentPins": 9469,
+    "missing": [
+      {
+        "path": "/private/var/folders/yc/xss6tbzs62v8xnln2kjvhy2w0000gn/T/box3d-review-startup-20260925-9olpq2cn/review.json",
+        "sha256": "f7763f7e47dee44d4af46a141261cca3fccb6b1538b46ba25420c5ad80ccc4cd",
+        "role": "expired browser/startup receipt; not a numerical input"
+      }
+    ],
+    "requiredNumericalInputsMissing": 0,
+    "initialFreezeAttempt": "Stopped before controls or numerical runs because an unrelated startup receipt had expired.",
+    "retryScope": "Validate every present predecessor pin, preserve missing receipt identity, and pin all required current numerical inputs directly."
+  },
+  "reproduction": {
+    "commands": [
+      "GLASS_OUTPUT_DIR=/Users/commander/.agent-scratch/box3d-WEBGPU/01a08767-778e-7633-9012-95ababc992ac/latest python3 -B /Users/commander/box3d-WEBGPU/benchmarks/experiments/glass-tick117-paired-sliding-update-20260925-01/freeze.py",
+      "GLASS_OUTPUT_DIR=/Users/commander/.agent-scratch/box3d-WEBGPU/01a08767-778e-7633-9012-95ababc992ac/latest python3 -B /Users/commander/box3d-WEBGPU/benchmarks/experiments/glass-tick117-paired-sliding-update-20260925-01/run.py",
+      "GLASS_OUTPUT_DIR=/Users/commander/.agent-scratch/box3d-WEBGPU/01a08767-778e-7633-9012-95ababc992ac/latest python3 -B /Users/commander/box3d-WEBGPU/benchmarks/experiments/glass-tick117-paired-sliding-update-20260925-01/review-once.py",
+      "GLASS_OUTPUT_DIR=/Users/commander/.agent-scratch/box3d-WEBGPU/01a08767-778e-7633-9012-95ababc992ac/latest python3 -B /Users/commander/box3d-WEBGPU/benchmarks/experiments/glass-tick117-paired-sliding-update-20260925-01/audit.py",
+      "GLASS_OUTPUT_DIR=/Users/commander/.agent-scratch/box3d-WEBGPU/01a08767-778e-7633-9012-95ababc992ac/latest python3 -B /Users/commander/box3d-WEBGPU/benchmarks/experiments/glass-tick117-paired-sliding-update-20260925-01/damping_freeze.py",
+      "GLASS_OUTPUT_DIR=/Users/commander/.agent-scratch/box3d-WEBGPU/01a08767-778e-7633-9012-95ababc992ac/latest python3 -B /Users/commander/box3d-WEBGPU/benchmarks/experiments/glass-tick117-paired-sliding-update-20260925-01/damping_run.py"
+    ],
+    "precondition": "First preserve the retained measured best elsewhere and start with an empty latest directory. Commands recreate the experiment from the pinned source and original inputs; do not rerun over a completed output directory.",
+    "currentSourceFileHashes": {
+      "PROOF.md": "98dd5560bf5edd25bfd1e5fed978f401a0e918a4d9cf148f2b1867aa502d7f50",
+      "artifacts.py": "73713cb0e5551e35810b0cfc50f74370b74e06d4ca1e609bbda2efe2768a08b5",
+      "audit.py": "8bdeac716d35036ab65b807d0541dfa20c347d8f2ae4119c0815da8e2c902462",
+      "baseline.py": "2b3a7ed13868ad13723ec0df7072a6de8ae10834c5fff549ed93381ad01c9105",
+      "check.py": "5c6cd5476e99a75fcef4a5ac2efd3f42eed98b0afec73d7c5115c57d8b3a1bdf",
+      "coordinates.py": "b339987b02138e28fab6f7316bcee9a85e936b7b7203481265175b9f29f6f1e6",
+      "coupled.py": "9b763ad179d29c1043720390a7b6c5a886bf1fc5959e4e1fa57cbf82f1d827f7",
+      "damping_audit.py": "d99a6f41eed721199cd92303b2616df38d805bd47e55ab7556ac80178e8cd8dc",
+      "damping_freeze.py": "cb93b3589e400331d514d953d3106f1aff22a7be309df17f9aadd3124cbbb5b7",
+      "damping_kernel.py": "7a0c01824821cef4dc346cf72d90461acf02f409245f54c3dc5a1db92b363274",
+      "damping_oracle.py": "7f29924ccea6e00dfd9182be117b9c20da4217a10aab588dc29fed1ea665effe",
+      "damping_probe.py": "5965e792af623ddbfd1cd3ec12f66952ed15d3e6e4da40a454e68114d93ba4f4",
+      "damping_run.py": "be67fa335ad9b529b943df96fd28418d91753631907ccc9f076a51e45d224741",
+      "domain_check.py": "594b7b3358f1d52d5560263d61b614a6526b03c89db40afa3f70e9d1e70888d6",
+      "dual.py": "fe8f8b7187576e32363f54ed9b62485f6a6d9c37962defd9398b70c78fca919d",
+      "dual_check.py": "07c5c9c9d2db8510c4191e713fad131b5e6d0ebeff39e222fd92b64629e40423",
+      "energy.py": "5da06f3de805f5eb3d12e2233eaf6caf06a28b4a983064cdc18043f543ac19e7",
+      "foundation-origins.json": "170109f867314ed97842d50b5884c6f52a354fcd57ea44806c07850f69655232",
+      "freeze.py": "6e6710f74635461807cdbee978dadd0c486f90ebc67e52ca3387363b0deca1fe",
+      "kernel.py": "b1f105263e4fba206120637dd5cd36aa9883f63fadbd739b2c6ecfc640a19c59",
+      "linear_check.py": "69fc2c4b1569340509173a1d6c28755f6c113114c44ceae7167ad186c974b829",
+      "memory_guard.py": "34ce6139dc550ab6a546a5139b7660f5cf12a079a14e645c96d9bc1c826f5500",
+      "mode_cone.py": "85d5f6820f771083494fc3f5d0e8466729fc6593b252ffa5dc20905d63323243",
+      "normal_readback.py": "0c4387c85d430b2198bb28aff44a81e161bd8b0fe08628f95415f4c130f706a0",
+      "oracle.py": "baf3e9eac54feb093fc856e7855c76dfca85a20f0ea5aabeff5eb56d5816e1fc",
+      "pair_check.py": "d9774ca9a8907ac5abed3a2949be01efa90e309cc64aff370a7665cc53a2bb1b",
+      "paths.py": "629e8596d74a0113bcd024a18352a1370238cc514d5fdd6880ae8487d564711d",
+      "phase_check.py": "e8f30f035eeb420992ed73155561dd6ca6d516fbad1e95f8fe08fdc0e7dc062e",
+      "phase_numeric.py": "0a88028a2dfe123d8445112004d9310ba821b73a4f6e135cfc73e604d944380b",
+      "physical_oracle.py": "fe3c8f81d9c98bfcadebf8e333db0468eb920fbbb33a7a39238a0988c7a3e2cd",
+      "physics.py": "a1834f25f4a41868f42cfa3795d76f19c9ab47eac52dc710ef5231a76bb5b88a",
+      "probe.py": "0e30bba0391b5d3de65e29ba99c7b2c25f65ad52d95e09154d1cbbd79754bd10",
+      "rational.py": "0436dbf816a72aa13877531543bd0ab4f7455879da41b1b8d851bf17551ab798",
+      "remove_check.py": "ed23730cc39bffc83f96cd1fe62cc134c7dd2e8850e92a07326f565c4f34dd26",
+      "review-once.py": "74e357c7ad4af8281022bd7a93622cdb4ed82ed518c5cd4662305224a5277dda",
+      "review.py": "31a4e3c7bdb1587748803afdb538af77ea142765fc1458eaf8aa3645a3fd91e2",
+      "roles.py": "20f5c218b84bcd96380c1dc001ca4aaf4e2dab8250833c43e8e42559b84de6e3",
+      "run.py": "03e37632a71e960a3f67a6cbe77a1cdafb072994f3d8da740335b2d95cc67dc6",
+      "schema.py": "1bcf18fda9fb8d345882ba928d77be32cd025671858ede80042ca4a987ce9f0d",
+      "source.py": "2623c69266d888f579823c30316cd81e346c05e59e3b236fddcf454cd7c029f3",
+      "storage-adaptation.json": "11a1ee9bcf738f73935b62964fa95ff04383fdc30d2baf5aa7011ad7bf7bfaa3",
+      "stored_solve.py": "9114d5e1d9c24fdeeca8aea1e281b7713080ba0eb0c3a355342d0339ebc49b25",
+      "support_check.py": "e122d06a66216556ce83eb14ad0bfb089e29c8c6784cd06d72d77c328cb97472"
+    },
+    "configs": {
+      "contract.json": {
+        "input": "../glass-tick117-seed-comparison-20260917-01/input.json",
+        "inputSha256": "d8f4b0d816a0638297cb42900c9e76fa7f2e59a82e43a0b30b095cfd6ea28004",
+        "inputSourceHash": "2d701bb34723b7cb1f6782dfd4361f92c6e16dbca6c37a9c3bb5b5e5a91cd2a7",
+        "acceptedCheckpointSha256": "fcc616bde59cd309eb65241071f35a9f4cf63d1bcf910785a007a32eea351635",
+        "targetMpsDecimal": "0.000001",
+        "maximumDualRepairUpwardSteps": 8,
+        "sourceRelationshipPath": "../glass-tick117-best-friction-families-20260925-01/SOURCE_RELATIONSHIP.json",
+        "sourceRelationshipSha256": "ee3881003e740d15432c4d7f87bccec51f375ec1c76ebaadf8516e14cf709139",
+        "productionHashes": {
+          "src/engine/convex-contact.ts": "cba07106461657599d9ecfb7d4bf040dc740ffab96b767774794415bb8c07501",
+          "src/studio/material-labs/models.ts": "84dc9c35f52f3448b5e743e2b090e380c1e3b65c4c9560009750ff1b8820b845",
+          "src/studio/material-labs/glass-pendulum.ts": "c82a337b1231069ae8c658a2b08d847d655fbd1c127d3ca8e606bfd95f885244",
+          "src/studio/main.ts": "8e1bdb0c3dbc237364180df0953efd57518277de5164aa76ef7a1455a9669338"
+        },
+        "referenceCandidatePath": "../glass-tick117-impulse-projected-solve-20260925-01/candidate-vectors.npz",
+        "referenceCandidateSha256": "3626d878db85a51c88df6ca8136b43df546750b6e96c7200424777e6712e8454",
+        "referenceMaximumResidualMps": 1.0724905668023452e-06,
+        "originalStage2Reference": {
+          "path": "../glass-tick117-sticking-release-20260924-01/stage-2-vectors.npz",
+          "sha256": "67dfb0edf1c5b1c79dd4bc5ae88b1ed0e7c6141d524f7c491f7c7f611308c215",
+          "maximumResidualMps": 1.0730064606260127e-06
+        },
+        "precedingPacket": "../glass-tick117-no-sliding-trust-20260925-01",
+        "precedingSourceHash": "c408f1e8017291f175bcca264373b5b98b61a65d2a819b2f1f351e1c34344404",
+        "originalModelPacket": "../glass-tick117-new-best-anchor-20260925-01",
+        "originalModelSourceHash": "529ba9cab15181d31f048c60b1af3ebb93941e98549ddce62dbacd7aeb20efb9",
+        "sourceCandidateSha256": "871a228860c94d8c581d2a0dc52ebc91ecfb5f9a854bd6cd2a53bd71d82e90ea",
+        "sourceCertificateSha256": "95926230a85b025686b7537a22dc9cfbd4a88eec0617fd696c521090d5df37b3",
+        "sourceDualSha256": "d362d3847453994e728fb6e3005dba669ccb6b9f51b5cf54d046d3955f3510e5",
+        "bestMeasuredCandidatePath": "../glass-tick117-no-sliding-trust-20260925-01/candidate-vectors.npz",
+        "bestMeasuredCandidateSha256": "871a228860c94d8c581d2a0dc52ebc91ecfb5f9a854bd6cd2a53bd71d82e90ea",
+        "bestMeasuredMaximumResidualMps": 1.0723882378867055e-06,
+        "baselineRemovedRows": [],
+        "excludedContacts": [],
+        "expectedRows": 97201,
+        "expectedColumns": 19888,
+        "expectedSparseEntries": 546460,
+        "expectedExecutionChildren": 3,
+        "expectedReviewChildren": 1,
+        "maximumChildRssKiB": 1048576,
+        "childTimeoutSeconds": 300,
+        "maximumConcurrentNumericalChildren": 1,
+        "maximumProducerLogBytes": 16384,
+        "at": "2026-09-30T03:27:09.774977+00:00",
+        "previousAuditPacket": "../glass-tick117-sliding-staleness-20260925-01",
+        "previousAuditSourceHash": "a916d047e0a743ef1a6336097fbd2ecc372b812429d6a91595c82903e169fa2a",
+        "precedingGoalTurn": "progress",
+        "precedingGoalTurnEvidence": "79 controls and 18 independent readbacks identify exactly 5955/5956 as materially stale, and classify the unchanged 5965 lower normal violation. Test the frozen proposed pair with the original-law gates.",
+        "byteIdenticalFoundationOrigins": {
+          "artifacts.py": "../glass-tick117-contact5956-relinearize-20260925-01/artifacts.py",
+          "schema.py": "../glass-tick117-contact5956-relinearize-20260925-01/schema.py",
+          "domain_check.py": "../glass-tick117-contact5956-relinearize-20260925-01/domain_check.py",
+          "dual_check.py": "../glass-tick117-contact5956-relinearize-20260925-01/dual_check.py",
+          "phase_numeric.py": "../glass-tick117-contact5956-relinearize-20260925-01/phase_numeric.py",
+          "phase_check.py": "../glass-tick117-contact5956-relinearize-20260925-01/phase_check.py",
+          "rational.py": "../glass-tick117-contact5956-relinearize-20260925-01/rational.py",
+          "support_check.py": "../glass-tick117-contact5956-relinearize-20260925-01/support_check.py",
+          "remove_check.py": "../glass-tick117-contact5956-relinearize-20260925-01/remove_check.py",
+          "roles.py": "../glass-tick117-contact5956-relinearize-20260925-01/roles.py",
+          "baseline.py": "../glass-tick117-contact5956-relinearize-20260925-01/baseline.py",
+          "physical_oracle.py": "../glass-tick117-contact5956-relinearize-20260925-01/physical_oracle.py",
+          "physics.py": "../glass-tick117-contact5956-relinearize-20260925-01/physics.py",
+          "coordinates.py": "../glass-tick117-contact5956-relinearize-20260925-01/coordinates.py",
+          "coupled.py": "../glass-tick117-contact5956-relinearize-20260925-01/coupled.py",
+          "mode_cone.py": "../glass-tick117-contact5956-relinearize-20260925-01/mode_cone.py",
+          "energy.py": "../glass-tick117-contact5956-relinearize-20260925-01/energy.py",
+          "stored_solve.py": "../glass-tick117-contact5956-relinearize-20260925-01/stored_solve.py",
+          "dual.py": "../glass-tick117-contact5956-relinearize-20260925-01/dual.py",
+          "normal_readback.py": "../glass-tick117-contact5956-relinearize-20260925-01/normal_readback.py",
+          "kernel.py": "../glass-tick117-contact5956-relinearize-20260925-01/kernel.py",
+          "linear_check.py": "../glass-tick117-contact5956-relinearize-20260925-01/linear_check.py"
+        },
+        "documentHashesBefore": {
+          "docs/GLASS_CONTACT.md": "07f0297a510ab3a41ac149fe637874a879ef38e56cd474277ab74c8845a485dc",
+          "docs/ENGINE_100X_PROGRESS.md": "bbbaf6f160115d33e6d506cea1a72d27ced68b8cebe7a98089fba61feaf632cb"
+        },
+        "selectedContacts": [
+          5955,
+          5956
+        ],
+        "tailRowsByContact": {
+          "5955": [
+            96853,
+            96854
+          ],
+          "5956": [
+            96859,
+            96860
+          ]
+        },
+        "selectedTailRows": [
+          96853,
+          96854,
+          96859,
+          96860
+        ],
+        "expectedControls": 77,
+        "expectedPairMutationGuards": 22,
+        "maximumNewQpSolves": 1,
+        "maximumSmallSolves": 0,
+        "maximumCapturedSolves": 1,
+        "maximumNewPhysicalCandidates": 1,
+        "plannedOutputMiB": 24,
+        "readbackProposalPath": "../glass-tick117-sliding-staleness-20260925-01/oracle-result.json",
+        "readbackProposalSha256": "2905aec5e80c5498a95b83227bd81725a6bf6a6ac387f44de13d69543225e55e",
+        "solverOptions": {
+          "clarabelVersion": "0.11.1",
+          "maximumContactCoordinates": 20000,
+          "maximumBodyCoordinates": 2000,
+          "maximumVariables": 30000,
+          "maximumSparseEntries": 3000000,
+          "maximumFactorEntries": 12000000,
+          "maximumConeIterations": 120,
+          "coneTimeoutSeconds": 45.0,
+          "coneTolerance": 1e-10,
+          "modelToleranceMps": 9.9e-07,
+          "normalToleranceMps": 1e-06,
+          "maximumEnergyRiseJ": 1e-08,
+          "witnessMargin": 0.0001,
+          "maximumWitnessViolation": 1e-07,
+          "normalizedStepBoxRadius": 32768.0,
+          "moveRegularization": 1e-12,
+          "normalizeToAnchorResidual": true,
+          "heldReleasedContacts": [],
+          "curvatureBalance": 0.015625,
+          "minimumMovementRadius": 32.0,
+          "releaseMovementMultiplier": 2.0,
+          "maximumMovementRadius": 65536.0,
+          "normalizeToBranchResidual": true,
+          "pruneRedundantBoxBounds": true,
+          "pruneDominatedNormalBounds": true,
+          "normalImpulseCapToleranceMps": 1e-12,
+          "forcedNormalImpulseContacts": [
+            5511,
+            5952
+          ]
+        },
+        "physicalOracleAgreementTolerance": 1e-15,
+        "normalReadbackAgreementDecimal": "1e-65",
+        "materialStalenessMps": 1e-08,
+        "anchorReadbackToleranceMps": 1e-12,
+        "representationToleranceMps": 1e-12,
+        "readbackAgreementMps": 1e-12,
+        "coefficientRelativeTolerance": 2e-11,
+        "offsetToleranceMps": 1e-12,
+        "witnessOrder": [
+          "source-witness",
+          "zero-step-at-existing-phase-cap",
+          "existing-best-at-existing-phase-cap"
+        ],
+        "witnessMeaning": "Numerical reference feasibility gate, not an exact primal certificate and not an optimizer warm start.",
+        "scope": "Joint replacement of only four sliding tail rows for 5955/5956, at existing best in original coordinates; one conditional solve with original-law verification.",
+        "rawFreeBytesAtFreeze": 43465768960,
+        "referencePromotions": 0,
+        "physicalApplications": 0,
+        "acceptedReplayTick": 116,
+        "productionEdited": false,
+        "currentV5ReplayQualified": false,
+        "performanceQualified": false,
+        "physicalNonexistenceProved": false,
+        "oldAnchorCertificatesReused": false,
+        "branchFamilyQualified": false,
+        "storagePolicy": "operator-2026-09-25",
+        "outputDirectory": "/Users/commander/.agent-scratch/box3d-WEBGPU/01a08767-778e-7633-9012-95ababc992ac/latest",
+        "sourceDirectory": "/Users/commander/box3d-WEBGPU/benchmarks/experiments/glass-tick117-paired-sliding-update-20260925-01",
+        "reportDirectory": "/Users/commander/box3d-WEBGPU/docs/physics/engine-improvement-20260930",
+        "rejectedArtifacts": "Record verdict, hashes and regeneration command; remove generated candidate files after independent audit.",
+        "keepScratchRounds": [
+          "latest",
+          "before"
+        ],
+        "repoEvidenceBudgetBytes": 50000000,
+        "repoEvidenceImageLimit": 20
+      },
+      "damping-contract.json": {
+        "at": "2026-09-30T03:33:14.731774+00:00",
+        "parentSourceHash": "d9fd85af1b5ba8b8485a1f5d49f8a8f59a9145970e7c0060f64f32ada4f3c1ed",
+        "parentAuditSha256": "5e50e3024c4143ce01f201bebbbcc7c2ccd4ba2e04a33e789c583e80acafbb05",
+        "alphas": [
+          0.0,
+          0.015625,
+          0.03125,
+          0.0625,
+          0.125,
+          0.25,
+          0.5,
+          1.0
+        ],
+        "maximumNewPhysicalCandidates": 6,
+        "maximumNewQpSolves": 0,
+        "referencePath": "/Users/commander/box3d-WEBGPU/benchmarks/experiments/glass-tick117-no-sliding-trust-20260925-01/candidate-vectors.npz",
+        "referenceSha256": "871a228860c94d8c581d2a0dc52ebc91ecfb5f9a854bd6cd2a53bd71d82e90ea",
+        "endpointPath": "/Users/commander/.agent-scratch/box3d-WEBGPU/01a08767-778e-7633-9012-95ababc992ac/latest/candidate-vectors.npz",
+        "endpointSha256": "48aa0be219c297c7458c5dfd1249de8fb2c99150b5ec0efbd422b35a03180248",
+        "selection": "Minimize the independently remeasured full original-law residual among side-gate-passing points; smallest alpha breaks exact ties.",
+        "targetMps": "0.000001",
+        "coneTolerance": 1e-12,
+        "momentumToleranceMps": 1e-09,
+        "maximumEnergyRiseJ": 1e-08,
+        "oracleAgreement": 1e-15,
+        "readbackContacts": [
+          5485,
+          5955,
+          5956,
+          5965
+        ],
+        "expectedControls": 18,
+        "expectedNumericalChildren": 2,
+        "expectedAuditChildren": 1,
+        "childTimeoutSeconds": 300,
+        "maximumChildRssKiB": 1048576,
+        "maximumProducerLogBytes": 16384,
+        "plannedIncrementalBytes": 2097152,
+        "rawFreeBytes": 42373050368,
+        "df": "Filesystem      Size    Used   Avail Capacity iused ifree %iused  Mounted on\n/dev/disk3s5   926Gi   854Gi    39Gi    96%    9.2M  414M    2%   /System/Volumes/Data\n",
+        "physicalApplications": 0,
+        "referencePromotions": 0,
+        "acceptedReplayTick": 116,
+        "currentV5ReplayQualified": false,
+        "performanceQualified": false,
+        "reason": "Full paired step reduces normal error but doubles physical friction error; test bounded damping before rejecting the direction."
+      },
+      "control-plan.json": {
+        "controls": [
+          "kernel-0-rotation-0",
+          "kernel-0-rotation-1",
+          "kernel-0-rotation-2",
+          "kernel-0-rotation-3",
+          "kernel-0-rotation-4",
+          "kernel-0-rotation-5",
+          "kernel-1-rotation-0",
+          "kernel-1-rotation-1",
+          "kernel-1-rotation-2",
+          "kernel-1-rotation-3",
+          "kernel-1-rotation-4",
+          "kernel-1-rotation-5",
+          "kernel-2-rotation-0",
+          "kernel-2-rotation-1",
+          "kernel-2-rotation-2",
+          "kernel-2-rotation-3",
+          "kernel-2-rotation-4",
+          "kernel-2-rotation-5",
+          "kernel-3-rotation-0",
+          "kernel-3-rotation-1",
+          "kernel-3-rotation-2",
+          "kernel-3-rotation-3",
+          "kernel-3-rotation-4",
+          "kernel-3-rotation-5",
+          "guard-zero-mu",
+          "guard-negative-mu",
+          "guard-zero-mobility",
+          "guard-negative-mobility",
+          "guard-zero-normal",
+          "guard-negative-normal",
+          "guard-inside-disk",
+          "guard-mode-boundary",
+          "guard-nonfinite",
+          "guard-wrong-shape",
+          "translated-origin",
+          "mutation-retained-matrix",
+          "mutation-retained-rhs",
+          "mutation-head-matrix",
+          "mutation-head-rhs",
+          "mutation-tail-derivative",
+          "mutation-tail-offset",
+          "mutation-tail-phase",
+          "mutation-linear",
+          "mutation-quadratic",
+          "mutation-slide",
+          "mutation-stick",
+          "mutation-slow",
+          "mutation-anchorStick",
+          "mutation-normalVelocityBranch",
+          "mutation-anchor",
+          "mutation-weights",
+          "mutation-epsilon",
+          "mutation-energyConstraint",
+          "mutation-layout",
+          "pair-translated-origin",
+          "pair-mutation-unsorted-contacts",
+          "pair-mutation-duplicate-contact",
+          "pair-mutation-missing-contact",
+          "pair-mutation-swapped-row-map",
+          "pair-mutation-duplicate-row-map",
+          "pair-mutation-swapped-tail-values",
+          "pair-mutation-wrong-first-offset",
+          "pair-mutation-wrong-second-offset",
+          "pair-mutation-missing-first-update",
+          "pair-mutation-missing-second-update",
+          "pair-mutation-phase-tail",
+          "pair-mutation-first-head",
+          "pair-mutation-second-head",
+          "pair-mutation-normal-row",
+          "pair-mutation-head-rhs",
+          "pair-mutation-normal-rhs",
+          "pair-mutation-objective",
+          "pair-mutation-energy",
+          "pair-mutation-weights",
+          "pair-mutation-anchor",
+          "pair-mutation-reanchored-vectors",
+          "pair-mutation-swapped-physical-point"
+        ]
+      },
+      "ast-review.json": {
+        "parsed": [
+          "artifacts.py",
+          "audit.py",
+          "baseline.py",
+          "check.py",
+          "coordinates.py",
+          "coupled.py",
+          "domain_check.py",
+          "dual.py",
+          "dual_check.py",
+          "energy.py",
+          "freeze.py",
+          "kernel.py",
+          "linear_check.py",
+          "memory_guard.py",
+          "mode_cone.py",
+          "normal_readback.py",
+          "oracle.py",
+          "pair_check.py",
+          "paths.py",
+          "phase_check.py",
+          "phase_numeric.py",
+          "physical_oracle.py",
+          "physics.py",
+          "probe.py",
+          "rational.py",
+          "remove_check.py",
+          "review-once.py",
+          "review.py",
+          "roles.py",
+          "run.py",
+          "schema.py",
+          "source.py",
+          "stored_solve.py",
+          "support_check.py"
+        ],
+        "parsedOnly": true,
+        "noNumericalRunBeforeFreeze": true,
+        "newOptimizerCallSites": 1,
+        "conditionalCapturedSolveLimit": 1,
+        "smallSolves": 0
+      }
+    }
+  },
+  "artifactInventoryBeforeCleanup": {
+    "active-child.json": {
+      "bytes": 701,
+      "sha256": "35f6588d0f4a966f714240e5ce5742b473848f01ddf90725c29ea9e09388c7b9",
+      "retained": false
+    },
+    "active-review.json": {
+      "bytes": 699,
+      "sha256": "86fc63f1110c0dc01f6e10cccdb04cb6f4b6a3afbb99c0791cad13510e509949",
+      "retained": false
+    },
+    "ast-review.json": {
+      "bytes": 834,
+      "sha256": "ddf0d246dde586faccbd25c876b251318ccbe88df128baf45f1bc3a82eba631a",
+      "retained": false
+    },
+    "audit.json": {
+      "bytes": 5609,
+      "sha256": "5e50e3024c4143ce01f201bebbbcc7c2ccd4ba2e04a33e789c583e80acafbb05",
+      "retained": false
+    },
+    "best-measured.json": {
+      "bytes": 630,
+      "sha256": "5d4c2dd394f479e4c125b07ef40e16ca9826ce8d297747369d26ffad09f2bed3",
+      "retained": false
+    },
+    "candidate-certificate.json.gz": {
+      "bytes": 1488976,
+      "sha256": "affae538d968fee75a77bb48c92422fb757b8d5375a63128e76cdb09f64e79f0",
+      "retained": false
+    },
+    "candidate-dual.npz": {
+      "bytes": 808677,
+      "sha256": "bdd3a5ca45f90eab1e38f93338c1b785189568d83d72627556388649c2bfc878",
+      "retained": false
+    },
+    "candidate-layout.json": {
+      "bytes": 619156,
+      "sha256": "b8195a52752dfa861d9fb4f463508d9dd6f5f0c410fd08aa4218aa2498c6f64b",
+      "retained": false
+    },
+    "candidate-matrix.npz": {
+      "bytes": 2908538,
+      "sha256": "3234d0a3da4df2763b2c0c5e82458948a607a38f8f6c247f65a491ae73d7ba1d",
+      "retained": false
+    },
+    "candidate-model.npz": {
+      "bytes": 354392,
+      "sha256": "8b1690ac0ffc917a5da7b1e76abc27fb8a7ce9e4f003bdc96806ad5859766835",
+      "retained": false
+    },
+    "candidate-normal-readback.json.gz": {
+      "bytes": 614572,
+      "sha256": "0e31d3f43c2d57262a781d5850104b9e5f69246e6ee6fad5e4fd92f851dc1eb1",
+      "retained": false
+    },
+    "candidate-vectors.npz": {
+      "bytes": 2370319,
+      "sha256": "48aa0be219c297c7458c5dfd1249de8fb2c99150b5ec0efbd422b35a03180248",
+      "retained": false
+    },
+    "check-result.json": {
+      "bytes": 5017,
+      "sha256": "16074c3f3cd023478283e5c06c924a121a43a44974f4f1f748a5deb822ab4380",
+      "retained": false
+    },
+    "check.log": {
+      "bytes": 1650,
+      "sha256": "7a3c3f9b510d555397e397d55fb9aec8310e69699e5ee533293999691e6bbdaa",
+      "retained": false
+    },
+    "contract.json": {
+      "bytes": 8925,
+      "sha256": "653a25cf8df8fe2dce3bc21588a2717847abd78714cff5065bd2763ae01bd57d",
+      "retained": false
+    },
+    "control-plan.json": {
+      "bytes": 2280,
+      "sha256": "cfc9e56128810cfa20e2b5a40c8e7b2ade3817b68eed4c2c735ddaafb7f7d19b",
+      "retained": false
+    },
+    "damping-active.json": {
+      "bytes": 720,
+      "sha256": "c9ee68ee730987a90315face3db374d74b4138955ba4f906462ad361c7f6232c",
+      "retained": false
+    },
+    "damping-audit.json": {
+      "bytes": 1346,
+      "sha256": "6af53a4ccbd460ec26940b096a33fc78d2bc04ca2e179acf7115293b477f4f02",
+      "retained": false
+    },
+    "damping-audit.log": {
+      "bytes": 698,
+      "sha256": "553370e13a17fe416eac172ff6ee0c478e594d6b8bf76d536959da583a795558",
+      "retained": false
+    },
+    "damping-best-vectors.npz": {
+      "bytes": 130592,
+      "sha256": "d7b7d9f7dbdfc8076dbe19d0af0f277e0933bf06c44fe735b903ccda9b96e7a7",
+      "retained": true
+    },
+    "damping-contract.json": {
+      "bytes": 1943,
+      "sha256": "60ec83f2f5c016b81b569c8391cc5a9e9ca36ea37fb0e6993da02960f63d678f",
+      "retained": false
+    },
+    "damping-execution.json": {
+      "bytes": 2267,
+      "sha256": "7586b06591781a5ed2703abaa7b66644d5ca365f3ce0d7714de043d10ead26c9",
+      "retained": false
+    },
+    "damping-manifest.json": {
+      "bytes": 16832,
+      "sha256": "742949c929d38542bbfb4eb2ec353cb4864ca6a757b6b63df26cb1f0e16a659a",
+      "retained": false
+    },
+    "damping-oracle.json": {
+      "bytes": 8440,
+      "sha256": "e3d8b7399749e0e8d844e8ff9e3bd7fe4e8a2f3eca734ca5e9ed60408b985fe3",
+      "retained": false
+    },
+    "damping-oracle.log": {
+      "bytes": 116,
+      "sha256": "46c99acade3e49b3242d454c91e16b3247ea441c5cc907053cbcbe3afd040d07",
+      "retained": false
+    },
+    "damping-probe.json": {
+      "bytes": 17627,
+      "sha256": "6963a9cd3a0d75943a7417c67fe575c9ce73447fadc6c341811de64871b7587b",
+      "retained": false
+    },
+    "damping-probe.log": {
+      "bytes": 712,
+      "sha256": "e3c1dc8dd197493fa404b0e4c8e83d2036fb5730bf08212d39f91da6580140af",
+      "retained": false
+    },
+    "diagnosis.json": {
+      "bytes": 8724,
+      "sha256": "519c6c96c3b6f3da2d96f3050333ffd3f031554d7f5248bebc56b63ff8da62d1",
+      "retained": false
+    },
+    "disk-before.json": {
+      "bytes": 247,
+      "sha256": "aeb3e554b8de0116b7eac79d3e16190329e17d222f5e261dc2d8b60c39fcdf17",
+      "retained": false
+    },
+    "execution.json": {
+      "bytes": 2203,
+      "sha256": "7e7cd113e07f11f2748bcdf0903b11a0185cd90d917ae87667dbee87a7ca06c2",
+      "retained": false
+    },
+    "history-readback.json": {
+      "bytes": 680,
+      "sha256": "5b8be2ef6cdb26d552c253da65dc7504265c4b4613f6c7a8c8b2873900b94d83",
+      "retained": false
+    },
+    "manifest.json": {
+      "bytes": 14836,
+      "sha256": "416e4e7c4aa22df789c523f3068f81275c90c243236459058ce69c64d083f78d",
+      "retained": false
+    },
+    "memory-check.json": {
+      "bytes": 75,
+      "sha256": "5a7d61903e6132c806ab6c02ddee338568183fcb015a5925c0de5c09e6c08d1e",
+      "retained": false
+    },
+    "memory-damping-audit.json": {
+      "bytes": 75,
+      "sha256": "7e32cf78141e1d9aedf70a1422644fa37b02c7e57eefc6fc95bc5cbd81964e70",
+      "retained": false
+    },
+    "memory-damping-oracle.json": {
+      "bytes": 76,
+      "sha256": "6e2f5ff48a8af666caedc46065c8c6b511f11e323c219e9e8af02c5bf8ceb5cd",
+      "retained": false
+    },
+    "memory-damping-probe.json": {
+      "bytes": 76,
+      "sha256": "8b60374ccbcf2ee1e195397867a521d6656c5d9ab08564afe934a7bdfa86afe4",
+      "retained": false
+    },
+    "memory-oracle.json": {
+      "bytes": 76,
+      "sha256": "02c4847c2085b7982919636410cdaa352b7468baa913e8e03bffe021c5c2abca",
+      "retained": false
+    },
+    "memory-probe.json": {
+      "bytes": 76,
+      "sha256": "1550395d917b70856576ea3c1c12614a433517789d074082f5c12938667d648d",
+      "retained": false
+    },
+    "memory-review.json": {
+      "bytes": 75,
+      "sha256": "1204a603df47598262dbced79c11f9c49a7998a7b319a62a0e0af86c307c16a4",
+      "retained": false
+    },
+    "oracle-result.json": {
+      "bytes": 11159,
+      "sha256": "b7912a4ba96a1a3ca316718ec2dc681fe1b0aff9579877d0c0253bf74c012d64",
+      "retained": false
+    },
+    "oracle.log": {
+      "bytes": 1020,
+      "sha256": "57db39ce344733251c6ea8feea180f296eb836dc6af53c6e08f35a628aec1dcd",
+      "retained": false
+    },
+    "probe-result.json": {
+      "bytes": 11258,
+      "sha256": "74f90cbf820a6aa688b794284f8358d18b43403ab38ceabd89935936a05c2c66",
+      "retained": false
+    },
+    "probe.log": {
+      "bytes": 1472,
+      "sha256": "7ba5217e76aee5954cfec191c1d43ccb3545b4a7e50b18c578445064576554d6",
+      "retained": false
+    },
+    "replacement-constants.npz": {
+      "bytes": 428,
+      "sha256": "0809420c359268a29bcd5584c70067329ba84c56b5092cc03410f0569445241c",
+      "retained": false
+    },
+    "replacement-rows.npz": {
+      "bytes": 1292,
+      "sha256": "0c3511e777c8df6d9962b0c05c8840ba023b93b1a2b717e4bc89963011fbae22",
+      "retained": false
+    },
+    "review-execution.json": {
+      "bytes": 741,
+      "sha256": "a6f760456c0f6089d60c921d9daf97d320f3cf1d5cc8f79a7d7e440f67e0ae54",
+      "retained": false
+    },
+    "review.json": {
+      "bytes": 2112,
+      "sha256": "87ff634fc29efae401ff2d91e266116814c5f9a11e7c1f5f5133cac8a1635271",
+      "retained": false
+    },
+    "review.log": {
+      "bytes": 944,
+      "sha256": "916f98c7332ca89f425d6638f64be04645e14bbaabd4b29c93e96faadf620115",
+      "retained": false
+    },
+    "working-tree-before.json": {
+      "bytes": 5030,
+      "sha256": "36542f73827a0e10f66081775ac0b4a6cc3d2328c2e3e228bfabc93bed004933",
+      "retained": false
+    }
+  },
+  "cleanup": {
+    "deletedFiles": [
+      "active-child.json",
+      "active-review.json",
+      "ast-review.json",
+      "audit.json",
+      "best-measured.json",
+      "candidate-certificate.json.gz",
+      "candidate-dual.npz",
+      "candidate-layout.json",
+      "candidate-matrix.npz",
+      "candidate-model.npz",
+      "candidate-normal-readback.json.gz",
+      "candidate-vectors.npz",
+      "check-result.json",
+      "check.log",
+      "contract.json",
+      "control-plan.json",
+      "damping-active.json",
+      "damping-audit.json",
+      "damping-audit.log",
+      "damping-contract.json",
+      "damping-execution.json",
+      "damping-manifest.json",
+      "damping-oracle.json",
+      "damping-oracle.log",
+      "damping-probe.json",
+      "damping-probe.log",
+      "diagnosis.json",
+      "disk-before.json",
+      "execution.json",
+      "history-readback.json",
+      "manifest.json",
+      "memory-check.json",
+      "memory-damping-audit.json",
+      "memory-damping-oracle.json",
+      "memory-damping-probe.json",
+      "memory-oracle.json",
+      "memory-probe.json",
+      "memory-review.json",
+      "oracle-result.json",
+      "oracle.log",
+      "probe-result.json",
+      "probe.log",
+      "replacement-constants.npz",
+      "replacement-rows.npz",
+      "review-execution.json",
+      "review.json",
+      "review.log",
+      "working-tree-before.json"
+    ],
+    "deletedEmptyDirectories": [
+      "probe-nytjwcqp",
+      "check-o6ut64lf",
+      "damping-audit-lz49d9bh",
+      "damping-probe-cqr1aqho",
+      "damping-oracle-2aay0oaj",
+      "oracle-uxbngnpp",
+      "review-o7lcfaek"
+    ],
+    "releasedBytes": 9304351,
+    "retainedReason": "The independently verified best physical impulse is required as an input to the next experiment; rejected candidate arrays and logs are regenerable."
+  },
+  "physicalApplications": 0,
+  "referencePromotions": 0,
+  "acceptedReplayTick": 116,
+  "currentV5ReplayQualified": false,
+  "performanceQualified": false,
+  "overallGoalComplete": false,
+  "next": "Inspect the original normal and friction residuals around contact 5965 at the saved half-step. Keep the original matrix origin, source candidate and new comparison best distinct. Rebuild any new approximation from immutable input; keep all original acceptance gates."
+}

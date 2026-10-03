@@ -1,0 +1,11 @@
+{
+  "src/studio/bridge-review.ts": "e7e4ba20eb1a16d47bcfd0c44377475ca6ac5c22daa6f3ae09a20b1773cb091c",
+  "src/studio/bridge-review-view.ts": "a31ae2f7b22bcacf408ee2b8577279a1098732c2e07b6441c2fea25e9bb4af1d",
+  "src/studio/bridge-review.css": "c3a0a52ad170a92e7bd0fd6318387cb4ff386bf84f01310a07ec90810eed90fa",
+  "src/studio/main.ts": "3ad5a68f6f6992fbd5955eef5dcf50d12a69ba8bbcb794f80bd10540d59219fc",
+  "src/studio/scene-desk.ts": "0e3b7f822f2deb0a4da39147a41f8cd247f835ec6a70a745a79bdf043aab7837",
+  "src/studio/world.ts": "2b4a39d5ab7ca70042d61acc8455bdd8ccee200d81f70601bca649407886f03b",
+  "tests/studio/bridge-review.test.mjs": "a915ba561318821248ea732ca176b15ec2b1ba150d3dc551d748976c65cc2a5a",
+  "docs/design/bridge-review-v4-20260913/mockup.png": "eee99c2d6f68965062ffbb8b60ec585b3bcceeca0fadb41a416d366455cdb0e0",
+  "public/studio/references/bridge-v4-review.png": "eee99c2d6f68965062ffbb8b60ec585b3bcceeca0fadb41a416d366455cdb0e0"
+}

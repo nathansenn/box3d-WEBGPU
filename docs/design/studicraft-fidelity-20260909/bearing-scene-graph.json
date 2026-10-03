@@ -1,0 +1,575 @@
+{
+  "meta": {
+    "source_image": "../../../public/studio/references/bridge.png",
+    "image_width": 1423,
+    "image_height": 972,
+    "unit": "authored model units",
+    "scale_anchor": {
+      "object_id": "near-pier",
+      "axis": "x",
+      "real_size": 4.1,
+      "confidence": "ASSUMED"
+    },
+    "scope": "Independent bounding-envelope check of the two piers and four tower bearing stacks only. Excludes cables, braces, bolts, terrain burial and vegetation. The generic verifier uses a centered lens; the actual UI view offset is checked separately using Three.js anchor projections."
+  },
+  "camera": {
+    "position": [
+      -31.75,
+      6.3,
+      13.6
+    ],
+    "target": [
+      -16,
+      8,
+      0
+    ],
+    "up": [
+      0,
+      1,
+      0
+    ],
+    "fov_vertical_deg": 57.3,
+    "shot_type": "low_angle",
+    "confidence": "INFERRED"
+  },
+  "environment": {
+    "background": "#89acc9",
+    "ground": {
+      "present": false
+    }
+  },
+  "objects": [
+    {
+      "id": "near-pier",
+      "label": "near pier",
+      "primitives": [
+        {
+          "type": "box",
+          "params": {
+            "w": 4.1,
+            "h": 4.8,
+            "d": 7.2
+          }
+        }
+      ],
+      "transform": {
+        "position": [
+          -21,
+          1.1,
+          0
+        ]
+      },
+      "material": {
+        "color": "#a2a399",
+        "roughness": 0.8,
+        "metalness": 0
+      },
+      "container": false,
+      "confidence": "ASSUMED"
+    },
+    {
+      "id": "near-left-grout",
+      "label": "near left grout",
+      "primitives": [
+        {
+          "type": "box",
+          "params": {
+            "w": 1.2,
+            "h": 0.01,
+            "d": 1.2
+          }
+        }
+      ],
+      "transform": {
+        "position": [
+          -21,
+          3.505,
+          -1.9
+        ]
+      },
+      "material": {
+        "color": "#a2a399",
+        "roughness": 0.8,
+        "metalness": 0
+      },
+      "container": false,
+      "confidence": "ASSUMED",
+      "support": {
+        "on": "near-pier"
+      }
+    },
+    {
+      "id": "near-left-bearing",
+      "label": "near left bearing",
+      "primitives": [
+        {
+          "type": "box",
+          "params": {
+            "w": 1.2,
+            "h": 0.22,
+            "d": 1.2
+          }
+        }
+      ],
+      "transform": {
+        "position": [
+          -21,
+          3.62,
+          -1.9
+        ]
+      },
+      "material": {
+        "color": "#85857e",
+        "roughness": 0.8,
+        "metalness": 0.4
+      },
+      "container": false,
+      "confidence": "ASSUMED",
+      "support": {
+        "on": "near-left-grout"
+      }
+    },
+    {
+      "id": "near-left-column",
+      "label": "near-left I column",
+      "primitives": [
+        {
+          "type": "box",
+          "params": {
+            "w": 0.055,
+            "h": 10.27,
+            "d": 0.42
+          },
+          "offset": [
+            -0.21,
+            0,
+            0
+          ]
+        },
+        {
+          "type": "box",
+          "params": {
+            "w": 0.055,
+            "h": 10.27,
+            "d": 0.42
+          },
+          "offset": [
+            0.21,
+            0,
+            0
+          ]
+        },
+        {
+          "type": "box",
+          "params": {
+            "w": 0.42,
+            "h": 10.27,
+            "d": 0.055
+          }
+        }
+      ],
+      "transform": {
+        "position": [
+          -21,
+          8.865,
+          -1.9
+        ]
+      },
+      "material": {
+        "color": "#85857e",
+        "roughness": 0.84,
+        "metalness": 0.42
+      },
+      "support": {
+        "on": "near-left-bearing"
+      },
+      "container": false,
+      "confidence": "ASSUMED"
+    },
+    {
+      "id": "near-right-grout",
+      "label": "near right grout",
+      "primitives": [
+        {
+          "type": "box",
+          "params": {
+            "w": 1.2,
+            "h": 0.01,
+            "d": 1.2
+          }
+        }
+      ],
+      "transform": {
+        "position": [
+          -21,
+          3.505,
+          1.9
+        ]
+      },
+      "material": {
+        "color": "#a2a399",
+        "roughness": 0.8,
+        "metalness": 0
+      },
+      "container": false,
+      "confidence": "ASSUMED",
+      "support": {
+        "on": "near-pier"
+      }
+    },
+    {
+      "id": "near-right-bearing",
+      "label": "near right bearing",
+      "primitives": [
+        {
+          "type": "box",
+          "params": {
+            "w": 1.2,
+            "h": 0.22,
+            "d": 1.2
+          }
+        }
+      ],
+      "transform": {
+        "position": [
+          -21,
+          3.62,
+          1.9
+        ]
+      },
+      "material": {
+        "color": "#85857e",
+        "roughness": 0.8,
+        "metalness": 0.4
+      },
+      "container": false,
+      "confidence": "ASSUMED",
+      "support": {
+        "on": "near-right-grout"
+      }
+    },
+    {
+      "id": "near-right-column",
+      "label": "near-right I column",
+      "primitives": [
+        {
+          "type": "box",
+          "params": {
+            "w": 0.055,
+            "h": 10.27,
+            "d": 0.42
+          },
+          "offset": [
+            -0.21,
+            0,
+            0
+          ]
+        },
+        {
+          "type": "box",
+          "params": {
+            "w": 0.055,
+            "h": 10.27,
+            "d": 0.42
+          },
+          "offset": [
+            0.21,
+            0,
+            0
+          ]
+        },
+        {
+          "type": "box",
+          "params": {
+            "w": 0.42,
+            "h": 10.27,
+            "d": 0.055
+          }
+        }
+      ],
+      "transform": {
+        "position": [
+          -21,
+          8.865,
+          1.9
+        ]
+      },
+      "material": {
+        "color": "#85857e",
+        "roughness": 0.84,
+        "metalness": 0.42
+      },
+      "support": {
+        "on": "near-right-bearing"
+      },
+      "container": false,
+      "confidence": "ASSUMED"
+    },
+    {
+      "id": "far-pier",
+      "label": "far pier",
+      "primitives": [
+        {
+          "type": "box",
+          "params": {
+            "w": 4.1,
+            "h": 4.8,
+            "d": 7.2
+          }
+        }
+      ],
+      "transform": {
+        "position": [
+          21,
+          1.1,
+          0
+        ]
+      },
+      "material": {
+        "color": "#a2a399",
+        "roughness": 0.8,
+        "metalness": 0
+      },
+      "container": false,
+      "confidence": "ASSUMED"
+    },
+    {
+      "id": "far-left-grout",
+      "label": "far left grout",
+      "primitives": [
+        {
+          "type": "box",
+          "params": {
+            "w": 1.2,
+            "h": 0.01,
+            "d": 1.2
+          }
+        }
+      ],
+      "transform": {
+        "position": [
+          21,
+          3.505,
+          -1.9
+        ]
+      },
+      "material": {
+        "color": "#a2a399",
+        "roughness": 0.8,
+        "metalness": 0
+      },
+      "container": false,
+      "confidence": "ASSUMED",
+      "support": {
+        "on": "far-pier"
+      }
+    },
+    {
+      "id": "far-left-bearing",
+      "label": "far left bearing",
+      "primitives": [
+        {
+          "type": "box",
+          "params": {
+            "w": 1.2,
+            "h": 0.22,
+            "d": 1.2
+          }
+        }
+      ],
+      "transform": {
+        "position": [
+          21,
+          3.62,
+          -1.9
+        ]
+      },
+      "material": {
+        "color": "#85857e",
+        "roughness": 0.8,
+        "metalness": 0.4
+      },
+      "container": false,
+      "confidence": "ASSUMED",
+      "support": {
+        "on": "far-left-grout"
+      }
+    },
+    {
+      "id": "far-left-column",
+      "label": "far-left I column",
+      "primitives": [
+        {
+          "type": "box",
+          "params": {
+            "w": 0.055,
+            "h": 10.27,
+            "d": 0.42
+          },
+          "offset": [
+            -0.21,
+            0,
+            0
+          ]
+        },
+        {
+          "type": "box",
+          "params": {
+            "w": 0.055,
+            "h": 10.27,
+            "d": 0.42
+          },
+          "offset": [
+            0.21,
+            0,
+            0
+          ]
+        },
+        {
+          "type": "box",
+          "params": {
+            "w": 0.42,
+            "h": 10.27,
+            "d": 0.055
+          }
+        }
+      ],
+      "transform": {
+        "position": [
+          21,
+          8.865,
+          -1.9
+        ]
+      },
+      "material": {
+        "color": "#85857e",
+        "roughness": 0.84,
+        "metalness": 0.42
+      },
+      "support": {
+        "on": "far-left-bearing"
+      },
+      "container": false,
+      "confidence": "ASSUMED"
+    },
+    {
+      "id": "far-right-grout",
+      "label": "far right grout",
+      "primitives": [
+        {
+          "type": "box",
+          "params": {
+            "w": 1.2,
+            "h": 0.01,
+            "d": 1.2
+          }
+        }
+      ],
+      "transform": {
+        "position": [
+          21,
+          3.505,
+          1.9
+        ]
+      },
+      "material": {
+        "color": "#a2a399",
+        "roughness": 0.8,
+        "metalness": 0
+      },
+      "container": false,
+      "confidence": "ASSUMED",
+      "support": {
+        "on": "far-pier"
+      }
+    },
+    {
+      "id": "far-right-bearing",
+      "label": "far right bearing",
+      "primitives": [
+        {
+          "type": "box",
+          "params": {
+            "w": 1.2,
+            "h": 0.22,
+            "d": 1.2
+          }
+        }
+      ],
+      "transform": {
+        "position": [
+          21,
+          3.62,
+          1.9
+        ]
+      },
+      "material": {
+        "color": "#85857e",
+        "roughness": 0.8,
+        "metalness": 0.4
+      },
+      "container": false,
+      "confidence": "ASSUMED",
+      "support": {
+        "on": "far-right-grout"
+      }
+    },
+    {
+      "id": "far-right-column",
+      "label": "far-right I column",
+      "primitives": [
+        {
+          "type": "box",
+          "params": {
+            "w": 0.055,
+            "h": 10.27,
+            "d": 0.42
+          },
+          "offset": [
+            -0.21,
+            0,
+            0
+          ]
+        },
+        {
+          "type": "box",
+          "params": {
+            "w": 0.055,
+            "h": 10.27,
+            "d": 0.42
+          },
+          "offset": [
+            0.21,
+            0,
+            0
+          ]
+        },
+        {
+          "type": "box",
+          "params": {
+            "w": 0.42,
+            "h": 10.27,
+            "d": 0.055
+          }
+        }
+      ],
+      "transform": {
+        "position": [
+          21,
+          8.865,
+          1.9
+        ]
+      },
+      "material": {
+        "color": "#85857e",
+        "roughness": 0.84,
+        "metalness": 0.42
+      },
+      "support": {
+        "on": "far-right-bearing"
+      },
+      "container": false,
+      "confidence": "ASSUMED"
+    }
+  ]
+}

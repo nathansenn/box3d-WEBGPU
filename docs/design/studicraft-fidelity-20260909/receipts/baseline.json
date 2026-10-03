@@ -1,0 +1,21 @@
+{
+  "temporaryBudgetBytes": 167772160,
+  "owner": "BOX3D reference fidelity task",
+  "freeBytes": 23142400000,
+  "source": {
+    "src/studio/main.ts": "e03050266a44c194c943a29ede53b7e48c9c33862fd179751320aef12795db5d",
+    "src/studio/world.ts": "e824a81685e07adbbaa8c6e3731e6397d16c7a91e82a76db43f62d1457e28000",
+    "src/studio/materials.ts": "da3d4259f914252109cf9806838e26f07b45cd9cf5cd25b2a3ea9cc5acdcf42e",
+    "src/studio/lighting.ts": "cb1b4b9bd603caf4daf4a8f56b9bc240400e459a6752366175567ad068ec13ff",
+    "src/studio/river-water.ts": "b873599ec95d44071b553069014ab1bb6d7e4d446695adaf0c4e5b3ec05ec0d4",
+    "src/studio/presets.ts": "630975b2c77da9a8ee896371b7ef00fbca03d13f630565ef9bb1759b2163731a",
+    "src/studio/scene-desk.ts": "70e16ab1d9701d5d90273f7dcaef881b294f8c4fd4d407fd5015693e237ecb1c",
+    "src/studio/scene-desk.css": "119a9d5bb3cbbf405168b6e864f9a189cacaae42f4efd6deecf7638246afdc17",
+    "src/studio/physics.ts": "fbc8326cb7f2f734351b2fc4d68a112340756311d28db92b794133acb934e0f0"
+  },
+  "references": {
+    "bridge": "c0b9eb4c8bc5cfd4866ee928a70a7ec86644a063ac9ec4235e02b2b8f52099b8",
+    "canopy": "ef890f70db3b32767b8eef563b07b4ed3f7591ded98abd83393345584997d586",
+    "plate": "63547d1a27495a234707472793faf9d3cf192b9203d09ec51f7d6576f4e2b3e6"
+  }
+}

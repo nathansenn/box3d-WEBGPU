@@ -1,0 +1,41 @@
+vite v8.1.3 building client environment for production...
+[2Ktransforming...✓ 105 modules transformed.
+rendering chunks...
+computing gzip size...
+../../../private/tmp/box3d-bridge-experiments-v8-code-build-20260917/index.html                                                7.06 kB │ gzip:   2.41 kB
+../../../private/tmp/box3d-bridge-experiments-v8-code-build-20260917/assets/ibm-plex-mono-latin-400-normal-CvHOgSBP.woff      13.14 kB
+../../../private/tmp/box3d-bridge-experiments-v8-code-build-20260917/assets/ibm-plex-mono-latin-400-normal-DMJ8VG8y.woff2     14.70 kB
+../../../private/tmp/box3d-bridge-experiments-v8-code-build-20260917/assets/inter-latin-400-normal-C38fXH4l.woff2             23.66 kB
+../../../private/tmp/box3d-bridge-experiments-v8-code-build-20260917/assets/inter-latin-500-normal-Cerq10X2.woff2             24.27 kB
+../../../private/tmp/box3d-bridge-experiments-v8-code-build-20260917/assets/inter-latin-700-normal-Yt3aPRUw.woff2             24.35 kB
+../../../private/tmp/box3d-bridge-experiments-v8-code-build-20260917/assets/inter-latin-600-normal-LgqL8muc.woff2             24.45 kB
+../../../private/tmp/box3d-bridge-experiments-v8-code-build-20260917/assets/inter-latin-400-normal-CyCys3Eg.woff              30.69 kB
+../../../private/tmp/box3d-bridge-experiments-v8-code-build-20260917/assets/inter-latin-600-normal-CiBQ2DWP.woff              31.26 kB
+../../../private/tmp/box3d-bridge-experiments-v8-code-build-20260917/assets/inter-latin-500-normal-BL9OpVg8.woff              31.28 kB
+../../../private/tmp/box3d-bridge-experiments-v8-code-build-20260917/assets/inter-latin-700-normal-BLAVimhd.woff              31.32 kB
+../../../private/tmp/box3d-bridge-experiments-v8-code-build-20260917/assets/liquid-study-worker-dlDSABVH.js                   38.93 kB
+../../../private/tmp/box3d-bridge-experiments-v8-code-build-20260917/assets/glass-worker-Dud9T_34.js                          64.27 kB
+../../../private/tmp/box3d-bridge-experiments-v8-code-build-20260917/assets/studio-worker-rhKbMxft.js                         76.87 kB
+../../../private/tmp/box3d-bridge-experiments-v8-code-build-20260917/assets/Phosphor-DtdjzkpE.woff2                          147.38 kB
+../../../private/tmp/box3d-bridge-experiments-v8-code-build-20260917/assets/Phosphor-CDxgqcPu.ttf                            488.63 kB
+../../../private/tmp/box3d-bridge-experiments-v8-code-build-20260917/assets/Phosphor-BdqudwT5.woff                           488.71 kB
+../../../private/tmp/box3d-bridge-experiments-v8-code-build-20260917/assets/mockup-Du1_4jAZ.png                            1,906.07 kB
+../../../private/tmp/box3d-bridge-experiments-v8-code-build-20260917/assets/Phosphor-BXRFlF4V.svg                          2,996.37 kB │ gzip: 832.83 kB
+../../../private/tmp/box3d-bridge-experiments-v8-code-build-20260917/assets/study-navigation-CGNjdIDP.css                      0.76 kB │ gzip:   0.41 kB
+../../../private/tmp/box3d-bridge-experiments-v8-code-build-20260917/assets/main-BNpgBzcG.css                                 48.53 kB │ gzip:  10.10 kB
+../../../private/tmp/box3d-bridge-experiments-v8-code-build-20260917/assets/RoundedBoxGeometry-BAh20NZY.css                   63.34 kB │ gzip:  12.09 kB
+../../../private/tmp/box3d-bridge-experiments-v8-code-build-20260917/assets/main-DteBhpzW.css                                137.28 kB │ gzip:  23.66 kB
+../../../private/tmp/box3d-bridge-experiments-v8-code-build-20260917/assets/study-navigation-yKpjwIwl.js                       1.37 kB │ gzip:   0.78 kB
+../../../private/tmp/box3d-bridge-experiments-v8-code-build-20260917/assets/glass-worker-client-DdZd2626.js                    1.55 kB │ gzip:   0.71 kB
+../../../private/tmp/box3d-bridge-experiments-v8-code-build-20260917/assets/index-CCEREQQr.js                                  3.64 kB │ gzip:   1.75 kB
+../../../private/tmp/box3d-bridge-experiments-v8-code-build-20260917/assets/main-MiXnyFdd.js                                 226.85 kB │ gzip:  75.40 kB
+../../../private/tmp/box3d-bridge-experiments-v8-code-build-20260917/assets/main-C9BrMNp_.js                                 386.54 kB │ gzip: 119.00 kB
+../../../private/tmp/box3d-bridge-experiments-v8-code-build-20260917/assets/RoundedBoxGeometry-i97naPaa.js                   970.79 kB │ gzip: 269.24 kB
+
+✓ built in 309ms
+[plugin builtin:vite-reporter] 
+(!) Some chunks are larger than 500 kB after minification. Consider:
+- Using dynamic import() to code-split the application
+- Use build.rolldownOptions.output.codeSplitting to improve chunking: https://rolldown.rs/reference/OutputOptions.codeSplitting
+- Adjust chunk size limit for this warning via build.chunkSizeWarningLimit.
+Existing public assets linked for local QA; no asset copies.
