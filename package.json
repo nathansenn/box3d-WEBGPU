@@ -23,6 +23,7 @@
     "validate": "npm test && npm run build",
     "clean": "rm -rf dist .test-build .bench-build build/box3d-wasm",
     "test:ktx2": "node scripts/ktx2-runtime-test.mjs",
+    "test:assets": "node --test tests/assets/*.test.mjs tests/physics/*.test.mjs",
     "test:webgpu": "node scripts/webgpu-pipeline-test.mjs && node scripts/webgpu-renderer-runtime-test.mjs && npm run test:ktx2",
     "test:webgpu:metal": "WEBGPU_DAWN_BACKEND=metal node scripts/webgpu-renderer-runtime-test.mjs && KTX2_DAWN_BACKEND=metal node scripts/ktx2-runtime-test.mjs",
     "bench:gpu:quality": "node scripts/webgpu-quality-benchmark.mjs",

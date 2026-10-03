@@ -1,6 +1,7 @@
 import type { ScenePreset } from '../scenes';
 import type { PhysicsBackend } from '../types';
 import { FallbackPhysicsBackend } from './fallback';
+import { MAX_WASM_STEP_DT, clampWasmSubSteps, finiteBounded } from './step-bounds';
 
 type EmscriptenModuleBase = {
   HEAPF32: Float32Array;
@@ -94,16 +95,17 @@ class WasmPhysicsBackend implements PhysicsBackend {
 
   step(dt: number, subSteps: number): void {
     if (!Number.isFinite(dt) || dt <= 0) return;
-    this.mod._b3w_step?.(dt, subSteps);
+    this.mod._b3w_step?.(Math.min(dt, MAX_WASM_STEP_DT), clampWasmSubSteps(subSteps));
     this.markTransformsChanged();
   }
   syncTransforms(): void {
     this.mod._b3w_sync_transforms?.();
     this.markTransformsChanged();
   }
-  kick(strength: number): void { this.mod._b3w_kick_stack?.(strength); }
-  explode(centerX: number, centerY: number, centerZ: number, strength: number, radius: number): void { this.mod._b3w_explode?.(centerX, centerY, centerZ, strength, radius); }
+  kick(strength: number): void { if (!finiteBounded(strength)) return; this.mod._b3w_kick_stack?.(strength); }
+  explode(centerX: number, centerY: number, centerZ: number, strength: number, radius: number): void { if (!finiteBounded(centerX, centerY, centerZ, strength, radius)) return; this.mod._b3w_explode?.(centerX, centerY, centerZ, strength, radius); }
   launchProjectile(x: number, y: number, z: number, vx: number, vy: number, vz: number, size: number): number {
+    if (!finiteBounded(x, y, z, vx, vy, vz, size)) return -1;
     const index = this.mod._b3w_launch_projectile?.(x, y, z, vx, vy, vz, size) ?? -1;
     if (index >= 0) this.markStreamsChanged();
     return index;

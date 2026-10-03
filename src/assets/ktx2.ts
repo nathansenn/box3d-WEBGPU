@@ -79,9 +79,15 @@ export function parseKtx2(input: ArrayBuffer | Uint8Array): ParsedKtx2 {
   const vkFormat = view.getUint32(12, true);
   const width = view.getUint32(20, true);
   const height = view.getUint32(24, true);
+  const pixelDepth = view.getUint32(28, true);
+  const layerCount = view.getUint32(32, true);
+  const faceCount = view.getUint32(36, true);
   const levelCount = view.getUint32(40, true);
   const supercompression = view.getUint32(44, true);
   if (width <= 0 || height <= 0 || levelCount <= 0) throw new Error('KTX2 dimensions or mip count are invalid.');
+  if (pixelDepth > 1 || layerCount > 1 || faceCount !== 1) {
+    throw new Error(`Unsupported KTX2 layout (depth ${pixelDepth}, layers ${layerCount}, faces ${faceCount}); only single 2D images are supported.`);
+  }
   if (supercompression !== 0) throw new Error(`Unsupported KTX2 supercompression scheme ${supercompression}.`);
   formatInfo(vkFormat);
 
@@ -132,6 +138,19 @@ function uploadLevel(
   );
 }
 
+export function alignedMipPrefix<T extends { width: number; height: number }>(
+  levels: readonly T[],
+  info: { blockWidth: number; blockHeight: number },
+): T[] {
+  const end = levels.findIndex((level) => !(
+    level.width >= info.blockWidth
+    && level.height >= info.blockHeight
+    && level.width % info.blockWidth === 0
+    && level.height % info.blockHeight === 0
+  ));
+  return end < 0 ? [...levels] : levels.slice(0, end);
+}
+
 function createGpuTextureFromParsed(device: GPUDevice, parsed: ParsedKtx2, label: string): {
   texture: GPUTexture;
   view: GPUTextureView;
@@ -143,14 +162,7 @@ function createGpuTextureFromParsed(device: GPUDevice, parsed: ParsedKtx2, label
   // complete block multiples. Keep the consecutive block-aligned prefix of
   // the source chain; trilinear sampling naturally clamps to its final
   // resident level (126x126 for ASTC 6x6, 4x4 for BC4).
-  const uploadedLevels = info.compressed
-    ? parsed.levels.filter((level) => (
-      level.width >= info.blockWidth
-      && level.height >= info.blockHeight
-      && level.width % info.blockWidth === 0
-      && level.height % info.blockHeight === 0
-    ))
-    : parsed.levels;
+  const uploadedLevels = info.compressed ? alignedMipPrefix(parsed.levels, info) : parsed.levels;
   if (uploadedLevels.length === 0) throw new Error('KTX2 texture has no uploadable mip levels.');
   const texture = device.createTexture({
     label,

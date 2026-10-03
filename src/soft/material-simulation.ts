@@ -7,6 +7,7 @@ import {
 } from '../math';
 import { getMaterialDemoRecipe, type MaterialDemoRecipe } from '../material-demos';
 import type { ScenePreset } from '../scenes';
+import { quantizedHash as sharedQuantizedHash } from './quantized-hash';
 import type { DebugLine, MaterialFailureTelemetry, PackedSurfaceFrame, RopeGridFrame } from '../types';
 import type { SoftSimulation, SoftSimulationFrame } from './simulations';
 import { materialPresetForVariant, type MaterialBehaviorPreset } from './material-presets';
@@ -121,15 +122,7 @@ type HingeSeed = {
 };
 
 function quantizedHash(values: ArrayLike<number>, seed = 2166136261): number {
-  let hash = seed >>> 0;
-  for (let i = 0; i < values.length; i++) {
-    const q = Math.trunc(values[i] * 100000) | 0;
-    hash ^= q & 0xff; hash = Math.imul(hash, 16777619) >>> 0;
-    hash ^= (q >>> 8) & 0xff; hash = Math.imul(hash, 16777619) >>> 0;
-    hash ^= (q >>> 16) & 0xff; hash = Math.imul(hash, 16777619) >>> 0;
-    hash ^= (q >>> 24) & 0xff; hash = Math.imul(hash, 16777619) >>> 0;
-  }
-  return hash >>> 0;
+  return sharedQuantizedHash(values, 100000, values.length, seed);
 }
 
 function setColor(out: Float32Array, index: number, color: readonly number[]): void {

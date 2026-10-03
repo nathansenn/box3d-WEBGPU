@@ -8,6 +8,7 @@ import {
 } from '../math';
 import { getMaterialDemoRecipe, materialDemoSpecimenPose } from '../material-demos';
 import type { ScenePreset } from '../scenes';
+import { quantizedHash as sharedQuantizedHash } from './quantized-hash';
 import type {
   CameraRig,
   DebugLine,
@@ -472,16 +473,7 @@ function softFamily(family: ScenePreset['family']): family is 'cloth' | 'rope' |
 }
 
 function quantizedHash(values: ArrayLike<number>, count = values.length): number {
-  let hash = 2166136261 >>> 0;
-  const safeCount = Math.min(count, values.length);
-  for (let i = 0; i < safeCount; i++) {
-    const q = Math.trunc(values[i] * 1000) | 0;
-    hash ^= q & 0xff; hash = Math.imul(hash, 16777619) >>> 0;
-    hash ^= (q >>> 8) & 0xff; hash = Math.imul(hash, 16777619) >>> 0;
-    hash ^= (q >>> 16) & 0xff; hash = Math.imul(hash, 16777619) >>> 0;
-    hash ^= (q >>> 24) & 0xff; hash = Math.imul(hash, 16777619) >>> 0;
-  }
-  return hash >>> 0;
+  return sharedQuantizedHash(values, 1000, count);
 }
 
 function mixColor(a: readonly number[], b: readonly number[], t: number): [number, number, number, number] {
