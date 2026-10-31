@@ -137,8 +137,8 @@ const summary = {
 };
 
 const materialCounts = materialDemoCounts();
-assert(MATERIAL_DEMO_RECIPES.length === 31, `material demo soak expected 31 recipes, received ${MATERIAL_DEMO_RECIPES.length}`);
-assert(materialCounts.metal === 10 && materialCounts.glass === 10 && materialCounts.concrete === 10 && materialCounts.combined === 1,
+assert(MATERIAL_DEMO_RECIPES.length === 34, `material demo soak expected 34 recipes, received ${MATERIAL_DEMO_RECIPES.length}`);
+assert(materialCounts.metal === 13 && materialCounts.glass === 10 && materialCounts.concrete === 10 && materialCounts.combined === 1,
   `material demo soak registry count mismatch: ${JSON.stringify(materialCounts)}`);
 
 function driveDerivedMaterialDemo(suite, recipe, frameIndex, frameCount) {
@@ -227,7 +227,7 @@ for (const scene of softScenes) {
   suite.destroy();
 }
 
-// The 31 presentation recipes intentionally live outside SCENES so the
+// The 34 presentation recipes intentionally live outside SCENES so the
 // historical 800-scene/native-ID contract and test:material:100 baseline stay
 // immutable. Exercise each derived recipe explicitly here instead.
 for (let recipeIndex = 0; recipeIndex < MATERIAL_DEMO_RECIPES.length; recipeIndex++) {
@@ -283,7 +283,7 @@ for (let recipeIndex = 0; recipeIndex < MATERIAL_DEMO_RECIPES.length; recipeInde
   suite.destroy();
 }
 
-assert(summary.derivedMaterialDemos === 31, `derived material soak skipped recipes: ${summary.derivedMaterialDemos}/31`);
+assert(summary.derivedMaterialDemos === 34, `derived material soak skipped recipes: ${summary.derivedMaterialDemos}/34`);
 assert(JSON.stringify(summary.materialDemoKinds) === JSON.stringify(materialCounts),
   `derived material soak kind coverage mismatch: ${JSON.stringify(summary.materialDemoKinds)}`);
 

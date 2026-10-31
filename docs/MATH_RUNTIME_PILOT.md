@@ -143,6 +143,24 @@ The KTX2 test now distinguishes Dawn's `null` backend from a backend that execut
 
 After these test-infrastructure updates, `npm run test:webgpu` passed in full on Node 24.22.1 with the locked dependencies: Dawn pipeline validation, the actual renderer runtime, and KTX2 validation. This local Dawn run uses the `null` backend; it does not add hardware or numerical texture-sampling qualification.
 
+### Additional release checks and the remaining archive gate
+
+The existing [soft-simulation soak](../scripts/soft-simulation-soak.cjs) still expected 31 material recipes, although the original v1.20 catalogue already contains 34 (13 metal, 10 glass, 10 concrete, and one combined). Its exact preflight/postflight counts and stale comment were corrected. Simulation, finiteness, topology, telemetry, damage monotonicity, deterministic replay, and coverage assertions were preserved.
+
+`npm run test:soft-soak:all` passed with JavaScript, WASM SIMD, and WASM scalar. Each backend covered 200 stable scenes (50 each of cloth, rope, water, and fracture), all 34 derived material demos, 4,800 catalogue frames, 816 derived frames, and 3,000 deterministic replay frames. The separate native-WASM gate passed 800 scenes and 800 deterministic replays, including stream revisions and invalid-time-step rejection. These qualify the tested existing application backends; the optional GPU solver's coupled forcing, floater, and droplet behavior remains outside this pilot.
+
+The unchanged [rope-batching archive gate](../scripts/rope-batching-qualification.mjs) failed its exact current-versus-v1.9 position comparison at stress 2, scene 650, frame 0. All ten source files in its runtime dependency closure and its five qualification inputs (gate script, archive, SIMD WASM, and both TypeScript configurations) are byte-identical to the original pinned main commit. The pilot adds no module to that runtime dependency closure. The comparison guard and archived workload remain intact. **The full release gate is therefore not qualified**, even though the new pilot's numerical, rendering, and integration checks pass.
+
+The separate 100-case material qualification passed its full 180-frame, three-sample settings, including finite-state, determinism, and monotonicity assertions. Both the production and Pages builds passed with Vite 8.1.3 before the dependency patch described below; the build reports a large-chunk advisory. These successful checks do not waive the failed rope archive comparison.
+
+### Build dependency patches
+
+The dependency audit found advisories affecting the original locked Vite 8.1.3 and source-map-js 1.2.1. The final lock updates only those two resolved versions: Vite is exact-pinned to **8.1.6**, and the existing transitive source-map-js dependency is **1.2.2**. These are compatible patched releases on the existing lines; see the [Vite release](https://github.com/vitejs/vite/releases/tag/v8.1.6), [Vite patch advisory](https://github.com/advisories/GHSA-rq7h-c2jc-7f22), and [source-map-js release](https://github.com/7rulnik/source-map-js/releases/tag/v1.2.2). No packages were added or removed. TypeScript remains 5.9.3.
+
+The exact updated `npm ci`, `npm audit --audit-level=moderate`, `npm run test:ktx2`, `npm run build`, and `npm run build:pages` all passed. The final audit reported **zero vulnerabilities at every severity**. KTX2 validation exercised the patched Vite localhost server, correct asset MIME types, all five parser-rejection checks, and a clean validation error stream. Both final builds used Vite 8.1.6 and reported the large-chunk advisory.
+
+The retained timings predate this build-tool update. Their CPU runner imports TypeScript directly, and their browser runner uses the standalone Node server with `stripTypeScriptTypes`; neither uses Vite to serve or compile measured modules. The four raw reports do not hash the package files or Vite. All **76 protected production-source, math-runtime harness/result, and WASM files** remained byte-identical, as did TypeScript's implementation and Vite's client/import-meta declarations. The benchmark timings were not rerun or rewritten. The dependency-audit blocker is resolved; the rope archive gate remains unqualified.
+
 ## Browser solver measurements
 
 The [software browser report](../benchmarks/math-runtime/results/browser-software.json) records **140/140 passing main comparisons** and **15/15 passing additional conformance comparisons**. Original scalar WASM, SIMD WASM, and WebGPU matched the elementary-`f32` reference exactly at every recorded checkpoint, including both retained banks. The largest absolute difference against JavaScript arithmetic was approximately `6.035e-7`. These are finite fixture results, not an all-input equivalence or stability proof.
