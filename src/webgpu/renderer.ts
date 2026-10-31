@@ -1,4 +1,5 @@
 import type { Mat4 } from '../math';
+import { WaterSurfacePlanner, type WaterSurfaceDescription, type WaterSurfacePlan } from './water-surface-plan';
 import type { DebugLine, DynamicSurfaceFrame, InstanceBufferSource, RopeGridFrame, SceneUniformState } from '../types';
 import {
   loadMaterialAtlasTexture,
@@ -1627,6 +1628,11 @@ export class WebGPURenderer {
   private sceneBindGroupLayout: GPUBindGroupLayout;
   private gpuClothBindGroup: GPUBindGroup;
   private gpuWaterBindGroup: GPUBindGroup;
+  private readonly cpuWaterBindGroup: GPUBindGroup;
+  private readonly gpuWaterBindGroupLayout: GPUBindGroupLayout;
+  private readonly waterSurfacePlanner = new WaterSurfacePlanner();
+  private residentWaterParams: Uint8Array | null = null;
+  private residentWaterBindings = new WeakMap<GPUBuffer, { u: GPUBuffer; v: GPUBuffer; byteLength: number; group: GPUBindGroup }>();
   private ropeComputeBindGroup: GPUBindGroup;
   private postBindGroup: GPUBindGroup | null = null;
   private postBindGroupLayout: GPUBindGroupLayout;
@@ -1750,7 +1756,6 @@ export class WebGPURenderer {
   private readonly lineScratch = new Float32Array(MAX_DEBUG_LINE_VERTICES * 7);
   private readonly surfaceIndexUploadScratch = new Uint8Array(MAX_DYNAMIC_SURFACE_INDICES * Uint16Array.BYTES_PER_ELEMENT + 4);
   private readonly clothParamsScratch = new ArrayBuffer(SURFACE_PARAMS_BYTES);
-  private readonly waterParamsScratch = new ArrayBuffer(SURFACE_PARAMS_BYTES);
   private readonly ropeGridUniformScratch = new ArrayBuffer(ROPE_GRID_UNIFORM_BYTES);
 
   private constructor(args: {
@@ -1771,6 +1776,7 @@ export class WebGPURenderer {
     sceneBindGroupLayout: GPUBindGroupLayout;
     gpuClothBindGroup: GPUBindGroup;
     gpuWaterBindGroup: GPUBindGroup;
+    gpuWaterBindGroupLayout: GPUBindGroupLayout;
     ropeComputeBindGroup: GPUBindGroup;
     postBindGroupLayout: GPUBindGroupLayout;
     uniformBuffer: GPUBuffer;
@@ -1815,6 +1821,8 @@ export class WebGPURenderer {
     this.sceneBindGroupLayout = args.sceneBindGroupLayout;
     this.gpuClothBindGroup = args.gpuClothBindGroup;
     this.gpuWaterBindGroup = args.gpuWaterBindGroup;
+    this.cpuWaterBindGroup = args.gpuWaterBindGroup;
+    this.gpuWaterBindGroupLayout = args.gpuWaterBindGroupLayout;
     this.ropeComputeBindGroup = args.ropeComputeBindGroup;
     this.postBindGroupLayout = args.postBindGroupLayout;
     this.uniformBuffer = args.uniformBuffer;
@@ -2377,6 +2385,7 @@ export class WebGPURenderer {
       sceneBindGroupLayout,
       gpuClothBindGroup,
       gpuWaterBindGroup,
+      gpuWaterBindGroupLayout,
       ropeComputeBindGroup,
       postBindGroupLayout,
       uniformBuffer,
@@ -2627,6 +2636,10 @@ export class WebGPURenderer {
    * switch cannot be mistaken for an unchanged frame.
    */
   invalidateDynamicCaches(): void {
+    this.waterSurfacePlanner.invalidate();
+    this.residentWaterParams = null;
+    this.residentWaterBindings = new WeakMap();
+    this.gpuWaterBindGroup = this.cpuWaterBindGroup;
     this.rigidSourceIdentity = null;
     this.rigidHeapIdentity = null;
     this.rigidMatrixByteOffset = -1;
@@ -2814,6 +2827,8 @@ export class WebGPURenderer {
   }
 
   uploadSurface(surface: DynamicSurfaceFrame | null): number {
+    this.gpuWaterBindGroup = this.cpuWaterBindGroup;
+    this.residentWaterParams = null;
     const previousSurfacePath = this.surfacePath;
     this.surfaceVertexCount = 0;
     this.surfaceIndexCount = 0;
@@ -2821,6 +2836,12 @@ export class WebGPURenderer {
     this.surfacePath = null;
     if (!surface || surface.vertexCount <= 0 || surface.indexCount <= 0) {
       return 0;
+    }
+
+    let waterPlan: WaterSurfacePlan | null = null;
+    if (surface.path === 'gpu-water') {
+      try { waterPlan = this.waterSurfacePlanner.resolve(surface); }
+      catch (error) { console.warn('[WebGPU] Ignoring invalid water surface.', error); return 0; }
     }
 
     let availableVertices = 0;
@@ -2847,6 +2868,11 @@ export class WebGPURenderer {
       }
     } else {
       availableVertices = Math.min(surface.eta.length, surface.u.length, surface.v.length);
+      if (!(surface.eta instanceof Float32Array) || !(surface.u instanceof Float32Array) ||
+          !(surface.v instanceof Float32Array) || availableVertices < surface.vertexCount) {
+        console.warn('[WebGPU] Ignoring GPU water surface with incomplete f32 state fields.');
+        return 0;
+      }
       stateViewCount = 3;
       stateView0 = surface.eta;
       stateView1 = surface.u;
@@ -2871,8 +2897,8 @@ export class WebGPURenderer {
       this.surfaceIndexByteLength !== surface.indices.byteLength ||
       this.surfaceTopologyVersion !== surface.topologyVersion ||
       this.surfaceCachedIndexCount !== safeIndexCount;
-    let maxIndex = this.surfaceCachedMaxIndex;
-    if (topologyChanged) {
+    let maxIndex = waterPlan?.maxIndex ?? this.surfaceCachedMaxIndex;
+    if (topologyChanged && !waterPlan) {
       maxIndex = 0;
       for (let i = 0; i < safeIndexCount; i++) {
         const index = surface.indices[i];
@@ -2984,16 +3010,7 @@ export class WebGPURenderer {
         config[4] !== surface.depth ||
         config[5] !== surface.baseY;
       if (configChanged) {
-        const uints = new Uint32Array(this.waterParamsScratch);
-        const floats = new Float32Array(this.waterParamsScratch);
-        uints.fill(0);
-        uints[0] = surface.cols;
-        uints[1] = surface.rows;
-        uints[2] = safeVertexCount;
-        floats[4] = surface.width;
-        floats[5] = surface.depth;
-        floats[6] = surface.baseY;
-        writeByteBuffer(this.device.queue, this.waterParamsBuffer, 0, new Uint8Array(this.waterParamsScratch));
+        writeByteBuffer(this.device.queue, this.waterParamsBuffer, 0, waterPlan!.params);
         config[0] = 2;
         config[1] = surface.cols;
         config[2] = surface.rows;
@@ -3045,7 +3062,84 @@ export class WebGPURenderer {
     return bytes;
   }
 
-  render(instanceCount: number, debugLines: readonly DebugLine[], lineFrameVersion?: number): number {
+  /** Bind owned GPU solver output directly. The caller must encode its compute before
+   * the draw, submit the encoder, and retain buffers until queued work completes.
+   * Rendering never assumes ownership of these external buffers. */
+  uploadResidentWater(surface: WaterSurfaceDescription,
+    buffers: { readonly device: GPUDevice; readonly eta: GPUBuffer; readonly u: GPUBuffer; readonly v: GPUBuffer }): number {
+    if (buffers.device !== this.device) throw new Error('Resident water belongs to a different GPU device.');
+    const plan = this.waterSurfacePlanner.resolve(surface);
+    const byteLength = surface.vertexCount * Float32Array.BYTES_PER_ELEMENT;
+    for (const buffer of [buffers.eta, buffers.u, buffers.v]) {
+      if (buffer.size < byteLength || (buffer.usage & GPUBufferUsage.STORAGE) === 0) {
+        throw new Error('Resident water requires sufficiently large storage buffers.');
+      }
+    }
+    let cached = this.residentWaterBindings.get(buffers.eta);
+    if (!cached || cached.u !== buffers.u || cached.v !== buffers.v || cached.byteLength !== byteLength) {
+      cached = {
+        u: buffers.u, v: buffers.v, byteLength,
+        group: this.device.createBindGroup({
+          label: 'Resident solver water render bindings',
+          layout: this.gpuWaterBindGroupLayout,
+          entries: [
+            { binding: 0, resource: { buffer: buffers.eta, size: byteLength } },
+            { binding: 1, resource: { buffer: buffers.u, size: byteLength } },
+            { binding: 2, resource: { buffer: buffers.v, size: byteLength } },
+            { binding: 3, resource: { buffer: this.waterParamsBuffer } },
+          ],
+        }),
+      };
+      this.residentWaterBindings.set(buffers.eta, cached);
+    }
+    let bytes = 0;
+    const topologyChanged = this.surfaceIndexBufferIdentity !== surface.indices.buffer ||
+      this.surfaceIndexByteOffset !== surface.indices.byteOffset ||
+      this.surfaceIndexByteLength !== surface.indices.byteLength ||
+      this.surfaceTopologyVersion !== surface.topologyVersion ||
+      this.surfaceCachedIndexCount !== plan.indexCount;
+    if (topologyChanged) {
+      const indexBytes = plan.indexCount * Uint16Array.BYTES_PER_ELEMENT;
+      const alignedBytes = (indexBytes + 3) & ~3;
+      const data = this.surfaceIndexUploadScratch;
+      data.set(new Uint8Array(surface.indices.buffer, surface.indices.byteOffset, indexBytes));
+      data.fill(0, indexBytes, alignedBytes);
+      writeByteBuffer(this.device.queue, this.surfaceIndexBuffer, 0, data, alignedBytes);
+      bytes += alignedBytes;
+      this.surfaceIndexBufferIdentity = surface.indices.buffer;
+      this.surfaceIndexByteOffset = surface.indices.byteOffset;
+      this.surfaceIndexByteLength = surface.indices.byteLength;
+      this.surfaceTopologyVersion = surface.topologyVersion;
+      this.surfaceCachedIndexCount = plan.indexCount;
+      this.surfaceCachedMaxIndex = plan.maxIndex;
+    }
+    if (this.residentWaterParams !== plan.params) {
+      writeByteBuffer(this.device.queue, this.waterParamsBuffer, 0, plan.params);
+      bytes += plan.params.byteLength;
+      this.residentWaterParams = plan.params;
+    }
+    this.gpuWaterBindGroup = cached.group;
+    this.surfaceVertexCount = surface.vertexCount;
+    this.surfaceIndexCount = plan.indexCount;
+    this.surfaceMaterial = 'water';
+    this.surfacePath = 'gpu-water';
+    this.surfaceFrameVersion = surface.frameVersion;
+    // A later CPU upload must refresh state and its shared uniform buffer.
+    this.surfaceStateViewCount = 0;
+    this.surfaceCachedVertexCount = surface.vertexCount;
+    this.surfaceConfig.fill(Number.NaN);
+    this.lastUploadedBytes += bytes;
+    return bytes;
+  }
+
+  /** Diagnostic counters describe metadata planning, not GPU completion. */
+  waterPlanningStats() { return this.waterSurfacePlanner.stats(); }
+
+
+  /** An optional output view supports offscreen rendering through the same passes.
+   * It must use this renderer's canvas format, viewport size, and sample count 1. */
+  render(instanceCount: number, debugLines: readonly DebugLine[], lineFrameVersion?: number,
+    encodeBeforeRender?: (encoder: GPUCommandEncoder) => void, outputView?: GPUTextureView): number {
     this.resize();
     if (!this.depthView || !this.msaaView || !this.hdrView || !this.postBindGroup) return 0;
 
@@ -3067,6 +3161,7 @@ export class WebGPURenderer {
 
     const start = performance.now();
     const encoder = this.device.createCommandEncoder({ label: 'AAA frame encoder' });
+    encodeBeforeRender?.(encoder);
 
     if (this.ropeGridActive && this.ropeGridDispatchPending && this.ropeGridSegmentCount > 0) {
       const computePass = encoder.beginComputePass({ label: 'AAA GPU rope instance expansion' });
@@ -3204,7 +3299,7 @@ export class WebGPURenderer {
     const postPass = encoder.beginRenderPass({
       label: 'AAA tone mapping and bloom pass',
       colorAttachments: [{
-        view: this.context.getCurrentTexture().createView(),
+        view: outputView ?? this.context.getCurrentTexture().createView(),
         clearValue: { r: 0, g: 0, b: 0, a: 1 },
         loadOp: 'clear',
         storeOp: 'store',

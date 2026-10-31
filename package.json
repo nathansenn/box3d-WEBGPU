@@ -19,7 +19,7 @@
     "manifest:source": "bash ./scripts/generate-source-manifest.sh",
     "verify:source": "bash ./scripts/verify-source-manifest.sh",
     "typecheck": "tsc --noEmit",
-    "test": "npm run typecheck && rm -rf .test-build && tsc -p tsconfig.test.json && node -e \"require('fs').mkdirSync('.test-build', {recursive:true}); require('fs').writeFileSync('.test-build/package.json', '{\\\"type\\\":\\\"commonjs\\\"}')\" && node .test-build/tests/unit.test.js && node .test-build/tests/engineering-evidence.test.js && node scripts/self-test.mjs && npm run test:cbridge && npm run test:soft-kernels && npm run test:webgpu",
+    "test": "npm run typecheck && rm -rf .test-build && tsc -p tsconfig.test.json && node -e \"require('fs').mkdirSync('.test-build', {recursive:true}); require('fs').writeFileSync('.test-build/package.json', '{\\\"type\\\":\\\"commonjs\\\"}')\" && node .test-build/tests/unit.test.js && node .test-build/tests/engineering-evidence.test.js && node .test-build/tests/execution-graph.test.js && node .test-build/tests/water-reference.test.js && node .test-build/tests/water-surface-plan.test.js && node scripts/self-test.mjs && npm run test:cbridge && npm run test:soft-kernels && npm run test:webgpu",
     "validate": "npm test && npm run build",
     "clean": "rm -rf dist .test-build .bench-build build/box3d-wasm",
     "test:ktx2": "node scripts/ktx2-runtime-test.mjs",
@@ -86,7 +86,12 @@
     "validate:v1.17": "npm run verify:source && npm test && npm run test:soft-soak:all && npm run test:rope-batching && npm run test:native-wasm && npm run test:material:100 && npm run build && npm run build:pages && npm audit --audit-level=moderate && npm run verify:source",
     "validate:v1.18": "npm run verify:source && npm test && npm run test:soft-soak:all && npm run test:rope-batching && npm run test:native-wasm && npm run test:material:100 && npm run build && npm run build:pages && npm audit --audit-level=moderate && npm run verify:source",
     "validate:v1.19": "npm run verify:source && npm test && npm run test:soft-soak:all && npm run test:rope-batching && npm run test:native-wasm && npm run test:material:100 && npm run build && npm run build:pages && npm audit --audit-level=moderate && npm run verify:source",
-    "validate:v1.20": "npm run verify:source && npm test && npm run test:soft-soak:all && npm run test:rope-batching && npm run test:native-wasm && npm run test:material:100 && npm run build && npm run build:pages && npm audit --audit-level=moderate && npm run verify:source"
+    "validate:v1.20": "npm run verify:source && npm test && npm run test:soft-soak:all && npm run test:rope-batching && npm run test:native-wasm && npm run test:material:100 && npm run build && npm run build:pages && npm audit --audit-level=moderate && npm run verify:source",
+    "test:math-runtime": "npm run bench:breakthrough:compile && node .test-build/tests/execution-graph.test.js && node .test-build/tests/water-reference.test.js && node .test-build/tests/water-surface-plan.test.js",
+    "bench:math-runtime": "node benchmarks/math-runtime/run.mjs",
+    "bench:math-runtime:serve": "node benchmarks/math-runtime/serve.mjs",
+    "bench:math-runtime:browser": "node benchmarks/math-runtime/playwright-run.mjs",
+    "bench:math-runtime:renderer": "node benchmarks/math-runtime/playwright-run.mjs --render-parity"
   },
   "devDependencies": {
     "typescript": "^5.5.4",

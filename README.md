@@ -32,6 +32,12 @@ The current tree preserves the **800 deterministic capability-scene catalog** an
 - Optional TurboQuant transport for remote snapshots and replay storage.
 - Exact source manifest and reproducible benchmark/validation commands.
 
+## Math runtime pilot
+
+The [math runtime pilot](docs/MATH_RUNTIME_PILOT.md) adds a typed incremental execution graph, validated water-surface planning in the renderer, and an optional four-pass WebGPU water solver. The renderer can consume the solver's buffers directly, with no per-step CPU field upload. The existing simulation backend remains the default; forcing, droplets, floaters, and rigid-body feedback continue to use the established simulation path.
+
+Run `npm run test:math-runtime` for the graph, reference-solver, and surface-contract tests. Run `npm run bench:math-runtime` for the CPU/WASM comparisons, or `npm run bench:math-runtime:serve` for the browser solver and renderer checks. The standalone benchmark server requires Node 24 or later. [Benchmark methods and raw evidence](benchmarks/math-runtime/README.md) distinguish hardware availability, software GPU conformance, numerical error, transfer cost, and synchronized wall time.
+
 ## Demo gallery
 
 The retained recording below captures the v1.14 Maximum AAA Tour running through a real Chrome/WebGPU compositor with native Box3D WebAssembly and SIMD soft-system kernels. Versions 1.15–1.19 retain that live proof while adding the material-atlas pass, instrumented metal forming, concrete spall/rebar transfer, glass shattering, material-specific strike VFX, dedicated inspection cameras, and the 100-item signature-stage production pass. The new 31-program material expansion is not represented as though it were present in that historical recording. The two-minute cut plays at 2× speed from four minutes of live application capture and concentrates on the five highest-value simulation domains: cloth, water, tower destruction, bridge infrastructure, and rope rigging. The static images that follow are retained v1.12 hardware-browser acceptance captures.

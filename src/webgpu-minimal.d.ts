@@ -20,6 +20,13 @@ declare global {
   type GPUTextureDimension = '1d' | '2d' | '3d';
   type GPUTextureUsageFlags = number;
   type GPUBufferUsageFlags = number;
+  type GPUMapModeFlags = number;
+  type GPUBufferMapState = 'unmapped' | 'pending' | 'mapped';
+  type GPUErrorFilter = 'validation' | 'out-of-memory' | 'internal';
+  type GPUDeviceLostReason = 'unknown' | 'destroyed';
+  type GPUQueryType = 'occlusion' | 'timestamp';
+  type GPUSupportedFeatures = ReadonlySet<string>;
+  type GPUSupportedLimits = Readonly<Record<string, number>>;
   type GPUShaderStageFlags = number;
   type GPULoadOp = 'load' | 'clear';
   type GPUStoreOp = 'store' | 'discard';
@@ -60,15 +67,42 @@ declare global {
     COMPUTE: number;
   };
 
+  const GPUMapMode: {
+    READ: number;
+    WRITE: number;
+  };
+
   interface GPU {
-    requestAdapter(options?: { powerPreference?: GPUPowerPreference }): Promise<GPUAdapter | null>;
+    requestAdapter(options?: { powerPreference?: GPUPowerPreference; forceFallbackAdapter?: boolean }): Promise<GPUAdapter | null>;
     getPreferredCanvasFormat(): GPUTextureFormat;
   }
 
   interface GPUAdapter {
     requestDevice(descriptor?: GPUDeviceDescriptor): Promise<GPUDevice>;
-    readonly features?: ReadonlySet<string>;
-    readonly limits?: Record<string, number>;
+    readonly features: GPUSupportedFeatures;
+    readonly limits: GPUSupportedLimits;
+    readonly info: GPUAdapterInfo;
+  }
+
+  interface GPUAdapterInfo {
+    readonly vendor: string;
+    readonly architecture: string;
+    readonly device: string;
+    readonly description: string;
+    readonly subgroupMinSize: number;
+    readonly subgroupMaxSize: number;
+    readonly isFallbackAdapter: boolean;
+  }
+
+  interface GPUDeviceLostInfo {
+    readonly reason: GPUDeviceLostReason;
+    readonly message: string;
+  }
+
+  interface GPUError { readonly message: string; }
+  interface GPUUncapturedErrorEvent extends Event { readonly error: GPUError; }
+  interface GPUDeviceEventMap {
+    uncapturederror: GPUUncapturedErrorEvent;
   }
 
   interface GPUDeviceDescriptor {
@@ -77,9 +111,22 @@ declare global {
     requiredLimits?: Record<string, number>;
   }
 
-  interface GPUDevice {
+  interface GPUDevice extends EventTarget {
     readonly queue: GPUQueue;
+    readonly features: GPUSupportedFeatures;
+    readonly limits: GPUSupportedLimits;
+    readonly adapterInfo: GPUAdapterInfo;
+    readonly lost: Promise<GPUDeviceLostInfo>;
+    onuncapturederror: ((this: GPUDevice, event: GPUUncapturedErrorEvent) => void) | null;
+    addEventListener<K extends keyof GPUDeviceEventMap>(type: K, listener: (this: GPUDevice, event: GPUDeviceEventMap[K]) => void, options?: boolean | AddEventListenerOptions): void;
+    addEventListener(type: string, listener: EventListenerOrEventListenerObject | null, options?: boolean | AddEventListenerOptions): void;
+    removeEventListener<K extends keyof GPUDeviceEventMap>(type: K, listener: (this: GPUDevice, event: GPUDeviceEventMap[K]) => void, options?: boolean | EventListenerOptions): void;
+    removeEventListener(type: string, listener: EventListenerOrEventListenerObject | null, options?: boolean | EventListenerOptions): void;
+    pushErrorScope(filter: GPUErrorFilter): void;
+    popErrorScope(): Promise<GPUError | null>;
+    destroy(): void;
     createBuffer(descriptor: GPUBufferDescriptor): GPUBuffer;
+    createQuerySet(descriptor: GPUQuerySetDescriptor): GPUQuerySet;
     createBindGroupLayout(descriptor: GPUBindGroupLayoutDescriptor): GPUBindGroupLayout;
     createBindGroup(descriptor: GPUBindGroupDescriptor): GPUBindGroup;
     createShaderModule(descriptor: GPUShaderModuleDescriptor): GPUShaderModule;
@@ -97,6 +144,7 @@ declare global {
     writeBuffer(buffer: GPUBuffer, bufferOffset: number, data: BufferSource, dataOffset?: number, size?: number): void;
     writeTexture(destination: GPUImageCopyTexture, data: BufferSource, dataLayout: GPUImageDataLayout, size: GPUExtent3D): void;
     submit(commandBuffers: GPUCommandBuffer[]): void;
+    onSubmittedWorkDone(): Promise<void>;
   }
 
 
@@ -105,7 +153,22 @@ declare global {
   type GPUExtent3D = { width: number; height?: number; depthOrArrayLayers?: number } | readonly [number, number?, number?];
   type GPUOrigin3D = { x?: number; y?: number; z?: number } | readonly [number?, number?, number?];
 
-  interface GPUBuffer { readonly label?: string; destroy(): void; }
+  interface GPUBuffer {
+    readonly label?: string;
+    readonly size: number;
+    readonly usage: GPUBufferUsageFlags;
+    readonly mapState: GPUBufferMapState;
+    mapAsync(mode: GPUMapModeFlags, offset?: number, size?: number): Promise<void>;
+    getMappedRange(offset?: number, size?: number): ArrayBuffer;
+    unmap(): void;
+    destroy(): void;
+  }
+  interface GPUQuerySet {
+    readonly type: GPUQueryType;
+    readonly count: number;
+    destroy(): void;
+  }
+  interface GPUQuerySetDescriptor { label?: string; type: GPUQueryType; count: number; }
   interface GPUTexture { createView(descriptor?: GPUTextureViewDescriptor): GPUTextureView; destroy(): void; }
   interface GPUTextureView {}
   interface GPUSampler {}
@@ -131,6 +194,8 @@ declare global {
   interface GPUCommandEncoder {
     beginRenderPass(descriptor: GPURenderPassDescriptor): GPURenderPassEncoder;
     beginComputePass(descriptor?: GPUComputePassDescriptor): GPUComputePassEncoder;
+    copyBufferToBuffer(source: GPUBuffer, sourceOffset: number, destination: GPUBuffer, destinationOffset: number, size: number): void;
+    resolveQuerySet(querySet: GPUQuerySet, firstQuery: number, queryCount: number, destination: GPUBuffer, destinationOffset: number): void;
     finish(): GPUCommandBuffer;
   }
 
@@ -144,7 +209,12 @@ declare global {
     end(): void;
   }
 
-  interface GPUComputePassDescriptor { label?: string; }
+  interface GPUComputePassTimestampWrites {
+    querySet: GPUQuerySet;
+    beginningOfPassWriteIndex?: number;
+    endOfPassWriteIndex?: number;
+  }
+  interface GPUComputePassDescriptor { label?: string; timestampWrites?: GPUComputePassTimestampWrites; }
   interface GPUComputePassEncoder {
     setPipeline(pipeline: GPUComputePipeline): void;
     setBindGroup(index: number, bindGroup: GPUBindGroup): void;
