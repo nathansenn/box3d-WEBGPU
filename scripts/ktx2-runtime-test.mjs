@@ -155,10 +155,13 @@ async function sampleTexture(device, material) {
   device.queue.submit([encoder.finish()]);
   await device.queue.onSubmittedWorkDone();
   await readback.mapAsync(GPUMapMode.READ);
-  const value = new Float32Array(readback.getMappedRange().slice(0))[0];
+  const mapped = readback.getMappedRange();
+  // Dawn null validates the command sequence without executing texture sampling.
+  const value = dawnBackend === 'null' ? null : new Float32Array(mapped.slice(0))[0];
   readback.unmap();
   output.destroy();
   readback.destroy();
+  if (dawnBackend === 'null') return null;
   assert.ok(Number.isFinite(value) && value >= 0 && value <= 1, `${material.source} sampled value must be normalized`);
   return value;
 }
@@ -327,6 +330,9 @@ try {
     serving: { baseUrl, mime: 'image/ktx2' },
     dawn: {
       backend: dawnBackend,
+      numericalSampling: dawnBackend === 'null'
+        ? { status: 'NOT_EXECUTED', reason: 'Dawn null is a validation-only backend.' }
+        : { status: 'PASSED' },
       r8: { sample: r8Sample, residentMipLevels: r8Material.texture.mipLevelCount },
       bc4: bc4Result,
       proceduralFallback: { sample: fallbackSample, residentMipLevels: fallbackMaterial.texture.mipLevelCount },

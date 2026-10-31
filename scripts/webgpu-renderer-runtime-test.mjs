@@ -3,35 +3,22 @@ import crypto from 'node:crypto';
 import fs from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath, pathToFileURL } from 'node:url';
-import ts from 'typescript';
 import { create, globals } from 'webgpu';
+import { emitTypeScriptModuleTree } from './emit-typescript-module-tree.mjs';
 
 Object.assign(globalThis, globals);
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 const rendererSource = fs.readFileSync(path.join(root, 'src/webgpu/renderer.ts'), 'utf8');
 const rendererSha256 = crypto.createHash('sha256').update(rendererSource).digest('hex');
 const runtimeDir = path.join(root, '.test-build');
-const runtimeWebgpuDir = path.join(runtimeDir, 'webgpu');
-const runtimeAssetsDir = path.join(runtimeDir, 'assets');
-fs.mkdirSync(runtimeWebgpuDir, { recursive: true });
-fs.mkdirSync(runtimeAssetsDir, { recursive: true });
-const runtimeModulePath = path.join(runtimeWebgpuDir, 'renderer-runtime.mjs');
-let transpiledRenderer = ts.transpileModule(rendererSource, {
-  compilerOptions: {
-    target: ts.ScriptTarget.ES2022,
-    module: ts.ModuleKind.ES2022,
-    importsNotUsedAsValues: ts.ImportsNotUsedAsValues.Remove,
-  },
-  fileName: 'renderer.ts',
-}).outputText;
-transpiledRenderer = transpiledRenderer.replace('../assets/ktx2.js', '../assets/ktx2.mjs');
-fs.writeFileSync(runtimeModulePath, transpiledRenderer);
-const ktx2Source = fs.readFileSync(path.join(root, 'src/assets/ktx2.ts'), 'utf8');
-const transpiledKtx2 = ts.transpileModule(ktx2Source, {
-  compilerOptions: { target: ts.ScriptTarget.ES2022, module: ts.ModuleKind.ES2022 },
-  fileName: 'ktx2.ts',
-}).outputText;
-fs.writeFileSync(path.join(runtimeAssetsDir, 'ktx2.mjs'), transpiledKtx2);
+// Node's ESM loader needs the complete runtime tree and explicit extensions;
+// emitting only renderer/ktx2 omits the planner and its execution graph.
+const { entryPath: runtimeModulePath } = emitTypeScriptModuleTree({
+  sourceRoot: path.join(root, 'src'),
+  outputRoot: runtimeDir,
+  entry: 'webgpu/renderer.ts',
+  sourceOverrides: { 'webgpu/renderer.ts': rendererSource },
+});
 
 const dawnBackend = process.env.WEBGPU_DAWN_BACKEND ?? 'null';
 let gpu = create([`backend=${dawnBackend}`]);
@@ -237,7 +224,8 @@ const gpuClothFrame = {
   indices: surfaceIndices,
   vertexCount: 4,
   indexCount: 6,
-  topologyVersion: 1,
+  // The sheet frame already published this unchanged index array at version 2.
+  topologyVersion: 2,
   frameVersion: 3,
   cols: 2,
   rows: 2,
@@ -311,7 +299,7 @@ const gpuWaterFrame = {
   indices: surfaceIndices,
   vertexCount: 4,
   indexCount: 6,
-  topologyVersion: 1,
+  topologyVersion: 2,
   frameVersion: 4,
   cols: 2,
   rows: 2,

@@ -6,8 +6,8 @@ import os from 'node:os';
 import path from 'node:path';
 import { performance } from 'node:perf_hooks';
 import { fileURLToPath, pathToFileURL } from 'node:url';
-import ts from 'typescript';
 import { create, globals } from 'webgpu';
+import { emitTypeScriptModuleTree } from './emit-typescript-module-tree.mjs';
 
 const scriptPath = fileURLToPath(import.meta.url);
 const currentRoot = path.resolve(path.dirname(scriptPath), '..');
@@ -26,23 +26,11 @@ function mad(values) {
 async function childMain(root) {
   const tempDir = fs.mkdtempSync(path.join(os.tmpdir(), 'webphysics-renderer-startup-'));
   try {
-    const webgpuDir = path.join(tempDir, 'webgpu');
-    const assetsDir = path.join(tempDir, 'assets');
-    fs.mkdirSync(webgpuDir, { recursive: true });
-    fs.mkdirSync(assetsDir, { recursive: true });
-    const rendererSource = fs.readFileSync(path.join(root, 'src/webgpu/renderer.ts'), 'utf8');
-    const ktx2Source = fs.readFileSync(path.join(root, 'src/assets/ktx2.ts'), 'utf8');
-    const transpile = (source, fileName) => ts.transpileModule(source, {
-      compilerOptions: {
-        target: ts.ScriptTarget.ES2022,
-        module: ts.ModuleKind.ES2022,
-        importsNotUsedAsValues: ts.ImportsNotUsedAsValues.Remove,
-      },
-      fileName,
-    }).outputText;
-    const rendererPath = path.join(webgpuDir, 'renderer.mjs');
-    fs.writeFileSync(rendererPath, transpile(rendererSource, 'renderer.ts').replace('../assets/ktx2.js', '../assets/ktx2.mjs'));
-    fs.writeFileSync(path.join(assetsDir, 'ktx2.mjs'), transpile(ktx2Source, 'ktx2.ts'));
+    const { entryPath: rendererPath } = emitTypeScriptModuleTree({
+      sourceRoot: path.join(root, 'src'),
+      outputRoot: tempDir,
+      entry: 'webgpu/renderer.ts',
+    });
 
     Object.assign(globalThis, globals);
     const gpu = create(['backend=metal']);

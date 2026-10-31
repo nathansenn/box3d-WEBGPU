@@ -135,6 +135,14 @@ The restored project passed the locked dependency installation, **79 reported te
 
 The source manifest was regenerated from the complete release file set and **passed verification against a clean export**. This also repairs the baseline manifest's missing entries and stale hashes. The new graph, reference, and planner tests are included in the existing test and deployment workflows.
 
+The isolated Node renderer test and historical benchmark loaders now emit the renderer's relative runtime dependency tree, including the water planner and execution graph. Their former two-file extraction did not cover these new imports. Archive comparisons retain their selected source root and source overrides. This test-packaging change leaves the runtime sources recorded in the four retained benchmark reports unchanged.
+
+The existing renderer test also had a cache fixture that changed topology version from 2 to 1 while expecting the index upload to remain cached. The original renderer reproduced the same failing byte-count assertion. Cloth and water now retain the already-published topology version 2; the exact upload-byte assertions are unchanged. Historical benchmark workload guards remain intact: module-import smoke checks do not requalify their old Metal timing results or repair unrelated archive-transform mismatches.
+
+The KTX2 test now distinguishes Dawn's `null` backend from a backend that executes shaders: it retains upload, pipeline, dispatch, copy, mapping, and validation checks, but reports numerical sampling as `NOT_EXECUTED` with `null` samples. All normalization and compressed/uncompressed sample-comparison assertions remain enabled for executing backends. This prevents validation-only output from being presented as texture-sampling evidence. The browser SwiftShader reports above separately contain executed numerical and pixel comparisons.
+
+After these test-infrastructure updates, `npm run test:webgpu` passed in full on Node 24.22.1 with the locked dependencies: Dawn pipeline validation, the actual renderer runtime, and KTX2 validation. This local Dawn run uses the `null` backend; it does not add hardware or numerical texture-sampling qualification.
+
 ## Browser solver measurements
 
 The [software browser report](../benchmarks/math-runtime/results/browser-software.json) records **140/140 passing main comparisons** and **15/15 passing additional conformance comparisons**. Original scalar WASM, SIMD WASM, and WebGPU matched the elementary-`f32` reference exactly at every recorded checkpoint, including both retained banks. The largest absolute difference against JavaScript arithmetic was approximately `6.035e-7`. These are finite fixture results, not an all-input equivalence or stability proof.

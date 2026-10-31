@@ -305,36 +305,53 @@ function ensureBaselineBaseTsconfig() {
   fs.writeFileSync(filePath, `${JSON.stringify(config, null, 2)}\n`);
 }
 
-function transpileBenchModule(projectRoot, buildRoot, relativePath, transform = (source) => source) {
+function transpileBenchModule(projectRoot, buildRoot, relativePath, transform = (source) => source, emitted = new Set()) {
   const ts = require(path.join(root, 'node_modules/typescript'));
   const inputPath = path.join(projectRoot, relativePath);
+  if (emitted.has(inputPath)) return;
+  emitted.add(inputPath);
   const outputPath = path.join(buildRoot, relativePath.replace(/\.ts$/, '.js'));
   const source = transform(fs.readFileSync(inputPath, 'utf8'));
+  const compilerOptions = {
+    target: ts.ScriptTarget.ES2022,
+    module: ts.ModuleKind.CommonJS,
+    moduleResolution: ts.ModuleResolutionKind.Node10,
+    esModuleInterop: true,
+  };
   const transpiled = ts.transpileModule(source, {
     fileName: inputPath,
-    compilerOptions: {
-      target: ts.ScriptTarget.ES2022,
-      module: ts.ModuleKind.CommonJS,
-      moduleResolution: ts.ModuleResolutionKind.Node10,
-      esModuleInterop: true,
-    },
+    compilerOptions,
     reportDiagnostics: true,
   });
   const errors = (transpiled.diagnostics || []).filter((diagnostic) => diagnostic.category === ts.DiagnosticCategory.Error);
   assert.equal(errors.length, 0, `failed to transpile ${relativePath}: ${errors.map((entry) => entry.messageText).join('; ')}`);
   fs.mkdirSync(path.dirname(outputPath), { recursive: true });
   fs.writeFileSync(outputPath, transpiled.outputText);
+
+  // Follow only dependencies that survived TypeScript erasure. Resolve from
+  // projectRoot so an archived baseline never borrows current implementation.
+  for (const dependency of ts.preProcessFile(transpiled.outputText, true, true).importedFiles) {
+    if (!dependency.fileName.startsWith('.')) continue;
+    const resolved = ts.resolveModuleName(dependency.fileName, inputPath, compilerOptions, ts.sys).resolvedModule;
+    assert.ok(resolved && !resolved.isExternalLibraryImport && !resolved.resolvedFileName.endsWith('.d.ts'),
+      `unable to resolve runtime dependency ${dependency.fileName} of ${relativePath}`);
+    const dependencyPath = path.relative(projectRoot, resolved.resolvedFileName);
+    assert.ok(!path.isAbsolute(dependencyPath) && dependencyPath !== '..' && !dependencyPath.startsWith(`..${path.sep}`),
+      `runtime dependency escaped projectRoot: ${dependency.fileName}`);
+    transpileBenchModule(projectRoot, buildRoot, dependencyPath, undefined, emitted);
+  }
 }
 
 function prepareBenchModules(projectRoot, buildRoot) {
+  const emitted = new Set();
   for (const relativePath of ['src/camera.ts', 'src/frame-lines.ts', 'src/assets/ktx2.ts', 'src/webgpu/renderer.ts']) {
-    transpileBenchModule(projectRoot, buildRoot, relativePath);
+    transpileBenchModule(projectRoot, buildRoot, relativePath, undefined, emitted);
   }
   transpileBenchModule(projectRoot, buildRoot, 'src/physics/wasm.ts', (source) => {
     const classEnd = source.indexOf('\nfunction publicAsset');
     assert.ok(classEnd > 0, 'unable to isolate WasmPhysicsBackend');
     return source.slice(0, classEnd).replace('class WasmPhysicsBackend', 'export class WasmPhysicsBackend');
-  });
+  }, emitted);
 }
 
 function prepareBaseline() {
