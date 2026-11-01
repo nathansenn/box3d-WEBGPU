@@ -4,50 +4,28 @@ import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
 import { fileURLToPath, pathToFileURL } from 'node:url';
-import ts from 'typescript';
 import { create, globals } from 'webgpu';
+import { emitTypeScriptModuleTree } from './emit-typescript-module-tree.mjs';
 
 Object.assign(globalThis, globals);
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 const rendererSource = fs.readFileSync(path.join(root, 'src/webgpu/renderer.ts'), 'utf8');
-const engineSourceIdentity=['src/webgpu/renderer.ts','src/webgpu/gpu-timing.ts','src/webgpu/shadow-cache.ts','src/webgpu/instance-partition.ts',
+const engineSourceIdentity=['src/webgpu/renderer.ts','src/webgpu/gpu-timing.ts','src/webgpu/instance-visibility.ts','src/webgpu/water-surface-plan.ts','src/runtime/execution-graph.ts','src/webgpu/instance-partition.ts',
   'src/webgpu/resident-water-surface.ts','src/webgpu/linear-water.ts','src/webgpu/water-telemetry.ts','src/webgpu/startup-budget.ts',
   'src/engine/linear-water.ts','src/engine/closed-water.ts','src/webgpu/closed-water-shader.ts','src/engine/contracts.ts','src/assets/ktx2.ts','scripts/webgpu-renderer-runtime-test.mjs']
   .map(file=>({file,sha256:crypto.createHash('sha256').update(fs.readFileSync(path.join(root,file))).digest('hex')}));
 const rendererSha256 = crypto.createHash('sha256').update(rendererSource).digest('hex');
 const runtimeDir = fs.mkdtempSync(path.join(os.tmpdir(), 'box3d-webgpu-runtime-'));
 process.once('exit', () => fs.rmSync(runtimeDir, { recursive: true, force: true }));
-const runtimeWebgpuDir = path.join(runtimeDir, 'webgpu');
-const runtimeAssetsDir = path.join(runtimeDir, 'assets');
-fs.mkdirSync(runtimeWebgpuDir, { recursive: true });
-fs.mkdirSync(runtimeAssetsDir, { recursive: true });
-const runtimeModulePath = path.join(runtimeWebgpuDir, 'renderer-runtime.mjs');
-let transpiledRenderer = ts.transpileModule(rendererSource, {
-  compilerOptions: {
-    target: ts.ScriptTarget.ES2022,
-    module: ts.ModuleKind.ES2022,
-    importsNotUsedAsValues: ts.ImportsNotUsedAsValues.Remove,
-  },
-  fileName: 'renderer.ts',
-}).outputText;
-transpiledRenderer = transpiledRenderer.replace('../assets/ktx2.js', '../assets/ktx2.mjs').replace('./gpu-timing.js', './gpu-timing.mjs').replace('./shadow-cache.js', './shadow-cache.mjs').replace('./instance-partition.js', './instance-partition.mjs').replace('./resident-water-surface.js','./resident-water-surface.mjs').replace('./startup-budget.js','./startup-budget.mjs');
-fs.writeFileSync(path.join(runtimeWebgpuDir, 'startup-budget.mjs'), ts.transpileModule(fs.readFileSync(path.join(root, 'src/webgpu/startup-budget.ts'), 'utf8'), {compilerOptions:{target:ts.ScriptTarget.ES2022,module:ts.ModuleKind.ES2022},fileName:'startup-budget.ts'}).outputText);
-fs.writeFileSync(path.join(runtimeWebgpuDir, 'resident-water-surface.mjs'), ts.transpileModule(fs.readFileSync(path.join(root, 'src/webgpu/resident-water-surface.ts'), 'utf8'), {compilerOptions:{target:ts.ScriptTarget.ES2022,module:ts.ModuleKind.ES2022},fileName:'resident-water-surface.ts'}).outputText);
-fs.writeFileSync(path.join(runtimeWebgpuDir, 'instance-partition.mjs'), ts.transpileModule(fs.readFileSync(path.join(root, 'src/webgpu/instance-partition.ts'), 'utf8'), {compilerOptions:{target:ts.ScriptTarget.ES2022,module:ts.ModuleKind.ES2022},fileName:'instance-partition.ts'}).outputText);
-fs.writeFileSync(path.join(runtimeWebgpuDir, 'shadow-cache.mjs'), ts.transpileModule(fs.readFileSync(path.join(root, 'src/webgpu/shadow-cache.ts'), 'utf8'), {compilerOptions:{target:ts.ScriptTarget.ES2022,module:ts.ModuleKind.ES2022},fileName:'shadow-cache.ts'}).outputText);
-fs.writeFileSync(runtimeModulePath, transpiledRenderer);
-fs.writeFileSync(path.join(runtimeWebgpuDir, 'gpu-timing.mjs'), ts.transpileModule(
-  fs.readFileSync(path.join(root, 'src/webgpu/gpu-timing.ts'), 'utf8'), {
-    compilerOptions: { target: ts.ScriptTarget.ES2022, module: ts.ModuleKind.ES2022 },
-    fileName: 'gpu-timing.ts',
-  },
-).outputText);
-const ktx2Source = fs.readFileSync(path.join(root, 'src/assets/ktx2.ts'), 'utf8');
-const transpiledKtx2 = ts.transpileModule(ktx2Source, {
-  compilerOptions: { target: ts.ScriptTarget.ES2022, module: ts.ModuleKind.ES2022 },
-  fileName: 'ktx2.ts',
-}).outputText;
-fs.writeFileSync(path.join(runtimeAssetsDir, 'ktx2.mjs'), transpiledKtx2);
+// Node's ESM loader needs the complete runtime tree and explicit extensions;
+// emitting only renderer/ktx2 would omit the planner, execution graph, partition,
+// timing, startup-budget and resident-water modules.
+const { entryPath: runtimeModulePath } = emitTypeScriptModuleTree({
+  sourceRoot: path.join(root, 'src'),
+  outputRoot: runtimeDir,
+  entry: 'webgpu/renderer.ts',
+  sourceOverrides: { 'webgpu/renderer.ts': rendererSource },
+});
 
 const dawnBackend = process.env.WEBGPU_DAWN_BACKEND ?? 'null';
 let gpu = create([`backend=${dawnBackend}`]);
@@ -291,14 +269,15 @@ const gpuClothFrame = {
   indices: surfaceIndices,
   vertexCount: 4,
   indexCount: 6,
-  topologyVersion: 1,
+  // The sheet frame already published this unchanged index array at version 2.
+  topologyVersion: 2,
   frameVersion: 3,
   cols: 2,
   rows: 2,
   baseColorA: [0.08, 0.28, 0.9, 1],
   baseColorB: [0.82, 0.06, 0.035, 1],
 };
-assert.equal(renderer.uploadSurface(gpuClothFrame), 4 * 24 + surfaceIndices.byteLength, 'first GPU cloth frame must upload current/rest positions and refresh topology after the sheet topology version changes');
+assert.equal(renderer.uploadSurface(gpuClothFrame), 4 * 24, 'first GPU cloth frame must upload current and immutable rest positions when topology is cached');
 const beforePausedCloth = renderer.uploadedMegabytes();
 assert.equal(renderer.uploadSurface(gpuClothFrame), 0, 'unchanged GPU cloth must skip every state and topology upload');
 assert.equal(renderer.uploadedMegabytes(), beforePausedCloth, 'unchanged GPU cloth must add zero accounted upload bytes');
@@ -375,7 +354,7 @@ const gpuWaterFrame = {
   indices: surfaceIndices,
   vertexCount: 4,
   indexCount: 6,
-  topologyVersion: 1,
+  topologyVersion: 2,
   frameVersion: 4,
   cols: 2,
   rows: 2,
@@ -517,6 +496,218 @@ assert.ok(Number.isFinite(secondRenderMs) && secondRenderMs >= 0, 'actual render
 await renderer.device.queue.onSubmittedWorkDone();
 assert.deepEqual(renderer.viewport(), [67, 44]);
 assert.deepEqual(runtimeErrors, [], 'actual WebGPURenderer emitted no uncaptured WebGPU errors');
+
+// Candidate resources stay opt-in. A failed pipeline must release the visibility
+// buffers allocated alongside it, and a later explicit retry must succeed.
+assert.deepEqual(renderer.renderingDiagnostics().optimizations, {
+  vertexMaterialRejection: true, shadowPcfFetch: true, shadowCache: true, computeVisibility: false,
+}, 'default rendering keeps compute compaction opt-in');
+const adaptiveOriginalAlpha = heap[maxRigidBodies * 16 + 3];
+heap[maxRigidBodies * 16 + 3] = -2;
+rigidColorVersion++; renderer.uploadInstances(source, 1);
+renderer.uploadEffects(effectMatrices, effectColors, 0, 0, 99);
+renderer.uploadSoftInstances(softMatrices, softColors, 0, 0, 99);
+renderer.uploadRopeGrid(null, 0);
+renderer.render(1, []);
+assert.equal(renderer.renderingDiagnostics().optimizations.vertexMaterialRejection, true,
+  'adaptive execution preserves the requested option');
+assert.equal(renderer.renderingDiagnostics().effectiveVertexMaterialRejection, false,
+  'opaque-only direct frames avoid the per-vertex classifier');
+const adaptiveWriteBuffer = renderer.device.queue.writeBuffer;
+let unchangedFrameWrites = 0;
+Object.defineProperty(renderer.device.queue, 'writeBuffer', { configurable: true, value(...args) {
+  unchangedFrameWrites++;
+  return adaptiveWriteBuffer.apply(this, args);
+} });
+try { renderer.render(1, []); }
+finally { Object.defineProperty(renderer.device.queue, 'writeBuffer', { configurable: true, value: adaptiveWriteBuffer }); }
+assert.equal(unchangedFrameWrites, 0, 'an unchanged effective flag must not add queue uploads');
+renderer.uploadEffects(effectMatrices, effectColors, 1, 1, 99);
+renderer.render(2, []);
+assert.equal(renderer.renderingDiagnostics().effectiveVertexMaterialRejection, true,
+  'mixed direct frames enable early material rejection');
+renderer.writeSceneUniforms({
+  viewProjection: identity, lightViewProjection: identity, cameraPosition: [0, 4, 8],
+  lightDirection: [0.42, -0.84, 0.34], fogColor: [0.055, 0.085, 0.14], timeSeconds: 3, quality,
+});
+assert.equal(renderer.renderingDiagnostics().effectiveVertexMaterialRejection, true,
+  'full scene-uniform writes preserve the last effective flag');
+heap[maxRigidBodies * 16 + 3] = adaptiveOriginalAlpha;
+rigidColorVersion++; renderer.uploadInstances(source, 1);
+const visibilityAllocations = [];
+const destroyedVisibilityBuffers = new Set();
+const originalCreateBuffer = renderer.device.createBuffer;
+const pipelineMethod = typeof renderer.device.createRenderPipelineAsync === 'function'
+  ? 'createRenderPipelineAsync' : 'createRenderPipeline';
+const originalCreatePipeline = renderer.device[pipelineMethod];
+let failVisiblePipeline = true;
+Object.defineProperty(renderer.device, 'createBuffer', { configurable: true, value(descriptor) {
+  const buffer = originalCreateBuffer.call(this, descriptor);
+  if (descriptor.label?.startsWith('Instance visibility ')) {
+    visibilityAllocations.push(buffer);
+    const destroy = buffer.destroy;
+    Object.defineProperty(buffer, 'destroy', { configurable: true, value() {
+      destroyedVisibilityBuffers.add(buffer);
+      return destroy.call(this);
+    } });
+  }
+  return buffer;
+} });
+Object.defineProperty(renderer.device, pipelineMethod, { configurable: true, value(descriptor) {
+  if (failVisiblePipeline && descriptor.label?.startsWith('Visible opaque')) {
+    failVisiblePipeline = false;
+    const error = new Error('Injected visible pipeline preparation failure');
+    if (pipelineMethod === 'createRenderPipelineAsync') return Promise.reject(error);
+    throw error;
+  }
+  return originalCreatePipeline.call(this, descriptor);
+} });
+try {
+  await assert.rejects(renderer.setRenderingOptimizations({ computeVisibility: true }),
+    /Injected visible pipeline preparation failure/);
+  assert.ok(visibilityAllocations.length > 0, 'failed preparation exercised real visibility allocation');
+  assert.ok(visibilityAllocations.every(buffer => destroyedVisibilityBuffers.has(buffer)),
+    'failed sibling render pipeline must release every successfully allocated visibility buffer');
+  assert.equal(renderer.renderingDiagnostics().optimizations.computeVisibility, false,
+    'failed preparation cannot activate an incomplete renderer');
+  await renderer.setRenderingOptimizations({ computeVisibility: true });
+  assert.equal(renderer.renderingDiagnostics().optimizations.computeVisibility, true,
+    'explicit retry after failed preparation must create usable resources');
+} finally {
+  Object.defineProperty(renderer.device, 'createBuffer', { configurable: true, value: originalCreateBuffer });
+  Object.defineProperty(renderer.device, pipelineMethod, { configurable: true, value: originalCreatePipeline });
+}
+
+const cacheQuality = { ...quality, sampleCount: 1, shadowMapSize: 1024, shadowStrength: 1 };
+const cacheState = {
+  viewProjection: identity, lightViewProjection: identity, cameraPosition: [0, 4, 8],
+  lightDirection: [0.42, -0.84, 0.34], fogColor: [0.055, 0.085, 0.14], timeSeconds: 4, quality: cacheQuality,
+};
+renderer.writeSceneUniforms(cacheState);
+renderer.uploadInstances(source, 1);
+renderer.uploadEffects(effectMatrices, effectColors, 1, 1, 100);
+renderer.uploadSurface(gpuClothFrame);
+renderer.render(2, []);
+assert.equal(renderer.renderingDiagnostics().lastSubmittedInstances.transparent, null,
+  'indirect draws must not invent CPU-visible instance counts');
+assert.equal(renderer.renderingDiagnostics().effectiveVertexMaterialRejection, false,
+  'GPU-classified indirect frames do not repeat vertex material classification');
+renderer.writeSceneUniforms({ ...cacheState, quality: { ...cacheQuality, sampleCount: 4 } });
+renderer.render(2, []);
+
+await renderer.setRenderingOptimizations({ computeVisibility: false, shadowCache: true });
+renderer.writeSceneUniforms(cacheState);
+renderer.invalidateDynamicCaches();
+renderer.uploadSurface(null);
+renderer.uploadRopeGrid(null, 0);
+renderer.uploadInstances(source, 1);
+renderer.resetRenderingDiagnostics();
+let shadowCacheChecks = 0;
+function checkShadow(fresh, label, count = 1, callback) {
+  const before = renderer.renderingDiagnostics();
+  renderer.render(count, [], undefined, callback);
+  const after = renderer.renderingDiagnostics();
+  assert.equal(after.shadowPasses - before.shadowPasses, fresh ? 1 : 0, `${label}: shadow refresh`);
+  assert.equal(after.shadowCacheHits - before.shadowCacheHits, fresh ? 0 : 1, `${label}: cache reuse`);
+  shadowCacheChecks++;
+}
+checkShadow(true, 'initial scene');
+checkShadow(false, 'unchanged scene');
+renderer.writeSceneUniforms({ ...cacheState, timeSeconds: 8, cameraPosition: [2, 5, 8] });
+checkShadow(false, 'camera shading and time only');
+const movedCamera = [...identity]; movedCamera[12] = 0.2;
+renderer.writeSceneUniforms({ ...cacheState, viewProjection: movedCamera });
+checkShadow(false, 'camera frustum only');
+rigidFrameVersion++; renderer.uploadInstances(source, 1);
+checkShadow(true, 'rigid transforms');
+rigidColorVersion++; renderer.uploadInstances(source, 1);
+checkShadow(true, 'rigid material');
+renderer.uploadEffects(effectMatrices, effectColors, 1, 1, 101);
+checkShadow(true, 'effect instance upload', 2);
+checkShadow(false, 'unchanged effects', 2);
+renderer.uploadSoftInstances(softMatrices, softColors, 1, 1, 101);
+checkShadow(true, 'soft instance upload', 2);
+renderer.uploadSurface(gpuClothFrame);
+checkShadow(true, 'cloth added', 2);
+renderer.uploadSurface(gpuClothFrame);
+checkShadow(false, 'unchanged cloth', 2);
+renderer.uploadSurface({ ...gpuClothFrame, frameVersion: gpuClothFrame.frameVersion + 1 });
+checkShadow(true, 'cloth positions', 2);
+renderer.uploadSurface({ ...gpuClothFrame, frameVersion: gpuClothFrame.frameVersion + 1, baseColorA: [0.2, 0.3, 0.4, 1] });
+checkShadow(true, 'cloth configuration', 2);
+renderer.uploadSurface(null);
+checkShadow(true, 'cloth removal', 2);
+renderer.uploadRopeGrid(ropeGrid, 2);
+checkShadow(true, 'GPU rope expansion', 2 + ropeGrid.segmentCount);
+checkShadow(false, 'unchanged GPU rope', 2 + ropeGrid.segmentCount);
+renderer.uploadRopeGrid({ ...ropeGrid, frameVersion: ropeGrid.frameVersion + 1 }, 2);
+checkShadow(true, 'GPU rope state', 2 + ropeGrid.segmentCount);
+const movedLight = [...identity]; movedLight[14] = 0.1;
+renderer.writeSceneUniforms({ ...cacheState, lightViewProjection: movedLight });
+checkShadow(true, 'light projection', 2 + ropeGrid.segmentCount);
+renderer.writeSceneUniforms({ ...cacheState, quality: { ...cacheQuality, shadowMapSize: 2048 } });
+checkShadow(true, 'shadow texture replacement', 2 + ropeGrid.segmentCount);
+checkShadow(true, 'unknown external encoder', 2 + ropeGrid.segmentCount, () => {});
+renderer.invalidateDynamicCaches();
+checkShadow(true, 'scene generation reset', 2 + ropeGrid.segmentCount);
+const beforeEmptyClears = renderer.renderingDiagnostics().shadowEmptyClears;
+checkShadow(true, 'populated to empty transition', 0);
+assert.equal(renderer.renderingDiagnostics().shadowEmptyClears, beforeEmptyClears + 1,
+  'an empty scene must clear previous caster depth');
+checkShadow(false, 'unchanged empty scene', 0);
+
+// Half-integer tags use WGSL ties-to-even, not JavaScript's Math.round. The
+// conservative CPU gate must keep the transparent pass available for both ties.
+const originalAlpha = heap[maxRigidBodies * 16 + 3];
+for (const alpha of [-4.5, -6.5]) {
+  heap[maxRigidBodies * 16 + 3] = alpha;
+  rigidColorVersion++; renderer.uploadInstances(source, 1);
+  renderer.render(1, []);
+  assert.equal(renderer.renderingDiagnostics().lastSubmittedInstances.transparent, 1,
+    `material tag ${alpha} must not be suppressed by the CPU transparency gate`);
+}
+heap[maxRigidBodies * 16 + 3] = originalAlpha;
+rigidColorVersion++; renderer.uploadInstances(source, 1);
+renderer.render(1, []);
+
+// A diagnostic rope can animate an opaque base tag through a transparent tag.
+// Changing presentation alone must refresh the CPU gate even with cached topology.
+renderer.uploadInstances(source, 0);
+renderer.uploadEffects(effectMatrices, effectColors, 0, 0, 102);
+renderer.uploadSoftInstances(softMatrices, softColors, 0, 0, 102);
+const opaqueRopeSegments = ropeSegments.slice();
+for (let i = 0; i < ropeGrid.segmentCount; i++) opaqueRopeSegments[i * 8 + 7] = -5;
+const opaqueRope = { ...ropeGrid, segments: opaqueRopeSegments,
+  topologyVersion: ropeGrid.topologyVersion + 1, presentation: 'material' };
+renderer.uploadRopeGrid(opaqueRope, 0);
+renderer.render(opaqueRope.segmentCount, []);
+assert.equal(renderer.renderingDiagnostics().lastSubmittedInstances.transparent, 0,
+  'immutable opaque rope material needs no transparent pass');
+renderer.uploadRopeGrid({ ...opaqueRope, presentation: 'rope' }, 0);
+renderer.render(opaqueRope.segmentCount, []);
+assert.equal(renderer.renderingDiagnostics().lastSubmittedInstances.transparent, opaqueRope.segmentCount,
+  'diagnostic rope alpha animation must keep a possible transparent pass available');
+renderer.uploadRopeGrid(null, 0);
+renderer.uploadInstances(source, 1);
+renderer.render(1, []);
+
+// An encoded but unsubmitted shadow pass must never become a reusable cache.
+const originalGetTexture = context.getCurrentTexture;
+rigidFrameVersion++; renderer.uploadInstances(source, 1);
+context.getCurrentTexture = () => { throw new Error('Injected post encoding failure'); };
+try { assert.throws(() => renderer.render(1, []), /Injected post encoding failure/); }
+finally { context.getCurrentTexture = originalGetTexture; }
+checkShadow(true, 'failed main/post encoding cannot publish depth');
+const originalSubmit = renderer.device.queue.submit;
+Object.defineProperty(renderer.device.queue, 'submit', { configurable: true, value() {
+  throw new Error('Injected submission failure');
+} });
+try { assert.throws(() => renderer.render(1, []), /Injected submission failure/); }
+finally { Object.defineProperty(renderer.device.queue, 'submit', { configurable: true, value: originalSubmit }); }
+checkShadow(true, 'failed submission invalidates depth');
+await renderer.device.queue.onSubmittedWorkDone();
+assert.deepEqual(runtimeErrors, [], 'optimization paths emitted no uncaptured WebGPU errors');
+assert.equal(shadowCacheChecks, 25, 'all shadow dependency and failed-frame transitions ran');
 
 if (process.env.WEBGPU_RIGID_STREAM_EVIDENCE === '1') {
   const evidence = {
@@ -762,7 +953,7 @@ if (initialTimingStatus === 'ready') {
   }
 }
 console.log(`GPU timing diagnostics: ${JSON.stringify(renderer.gpuTimingInfo())}`);
-console.log(`✅ Actual WebGPURenderer runtime test passed on Dawn ${dawnBackend}: rigid shadows, packed/GPU cloth and GPU water, GPU-compute rope reconstruction, exact paused-frame upload caches, debug lines, resize, empty frame, and clean Dawn error stream`);
+console.log(`✅ Actual WebGPURenderer command validation passed on Dawn ${dawnBackend}: rigid/cloth/water/rope paths, GPU-compute rope reconstruction, exact paused-frame upload caches, debug lines, resize, empty frame, lazy visibility retry/cleanup, 25 shadow-cache transitions, material boundary gates, failed-frame recovery, and clean error stream (null backend does not execute pixels)`);
 
 currentTexture?.destroy();
 renderer.dispose();

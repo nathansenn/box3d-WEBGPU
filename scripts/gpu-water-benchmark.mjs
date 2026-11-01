@@ -8,6 +8,7 @@ import {fileURLToPath,pathToFileURL} from 'node:url';
 import {execFile} from 'node:child_process';
 import {promisify} from 'node:util';
 import ts from 'typescript';
+import {emitTypeScriptModuleTree} from './emit-typescript-module-tree.mjs';
 import {reserveRunDirectory,inventory,hashFile,hashValue,writeJsonExclusive,parseArgs} from './engine-baseline.mjs';
 import {bootstrapRatio,mean,summary,readJsonBounded} from './engine-check.mjs';
 import {closedBenchmarkInitial,closedBenchmarkMetrics,retainBenchmarkState,qualifyBenchmarkCore,verifyClosedBenchmarkFields,createGpuControl,gpuControlExpected} from './closed-water-benchmark-support.mjs';
@@ -15,10 +16,9 @@ import {closedBenchmarkInitial,closedBenchmarkMetrics,retainBenchmarkState,quali
 const root=path.resolve(path.dirname(fileURLToPath(import.meta.url)),'..');
 const sources=['src/engine/linear-water.ts','src/engine/closed-water.ts','src/engine/contracts.ts','src/webgpu/linear-water.ts','src/webgpu/closed-water-shader.ts','src/webgpu/water-telemetry.ts',
   'src/webgpu/renderer.ts','src/webgpu/startup-budget.ts','src/webgpu/resident-water-surface.ts','src/webgpu/instance-partition.ts',
-  'src/webgpu/gpu-timing.ts','src/webgpu/shadow-cache.ts','src/assets/ktx2.ts','src/math.ts','src/camera.ts','src/types.ts',
+  'src/webgpu/gpu-timing.ts','src/webgpu/water-surface-plan.ts','src/webgpu/instance-visibility.ts','src/runtime/execution-graph.ts','src/assets/ktx2.ts','src/math.ts','src/camera.ts','src/types.ts',
   'scripts/gpu-water-benchmark.mjs','scripts/closed-water-benchmark-support.mjs','scripts/closed-water-oracle.mjs','scripts/closed-water-check.mjs','scripts/closed-water-protocol.mjs',
-  'scripts/engine-baseline.mjs','scripts/engine-check.mjs','package.json','package-lock.json'];
-const shaderModules=['webgpu/renderer','webgpu/startup-budget','webgpu/resident-water-surface','webgpu/instance-partition','webgpu/gpu-timing','webgpu/shadow-cache','assets/ktx2','math','camera'];
+  'scripts/engine-baseline.mjs','scripts/engine-check.mjs','scripts/emit-typescript-module-tree.mjs','package.json','package-lock.json'];
 const quality={id:'balanced',label:'Balanced',sampleCount:1,shadowMapSize:1024,shadowTapCount:1,shadowStrength:0,exposure:1.2,bloomStrength:.12,fogDensity:.004,effectBudget:0,resolutionScale:1};
 
 export function protocol(input={}) {
@@ -134,13 +134,11 @@ export async function verifyWaterRun(directory) {
 }
 
 async function compileRenderer(sourceRoot,output) {
-  for(const module of shaderModules) {
-    const input=await fs.readFile(path.join(sourceRoot,'src',module+'.ts'),'utf8');
-    let code=ts.transpileModule(input,{fileName:module+'.ts',compilerOptions:{target:ts.ScriptTarget.ES2022,module:ts.ModuleKind.ES2022}}).outputText;
-    code=code.replace(/(from\s+['"])(\.[^'"]+)(['"])/g,(_,before,spec,after)=>before+spec.replace(/\.(?:js|ts)$/,'').concat('.mjs')+after);
-    const target=path.join(output,module+'.mjs');await fs.mkdir(path.dirname(target),{recursive:true});await fs.writeFile(target,code,{flag:'wx'});
-  }
-  return await import(pathToFileURL(path.join(output,'webgpu/renderer.mjs')).href);
+  // Follow each tree's actual imports: an archived baseline and the candidate can
+  // contain different renderer modules.
+  const {entryPath}=emitTypeScriptModuleTree({sourceRoot:path.join(sourceRoot,'src'),outputRoot:output,entry:'webgpu/renderer.ts'});
+  emitTypeScriptModuleTree({sourceRoot:path.join(sourceRoot,'src'),outputRoot:output,entry:'camera.ts'});
+  return await import(pathToFileURL(entryPath).href);
 }
 function control() {
   let value=42;const start=performance.now();

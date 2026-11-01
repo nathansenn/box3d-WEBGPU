@@ -46,7 +46,8 @@ interface ReadbackBuffer extends GPUBuffer {
   getMappedRange(offset?: number, size?: number): ArrayBuffer;
   unmap(): void;
 }
-interface TimingDevice extends GPUDevice {
+// Test doubles and some adapters omit features, lost or query sets; read them defensively.
+interface TimingDevice extends Omit<GPUDevice, 'features' | 'lost' | 'createQuerySet'> {
   readonly features?: ReadonlySet<string>;
   readonly lost?: Promise<{ reason: string; message: string }>;
   createQuerySet?: (descriptor: { label: string; type: 'timestamp'; count: number }) => QuerySet;

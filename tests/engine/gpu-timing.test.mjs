@@ -1,23 +1,19 @@
 import assert from 'node:assert/strict';
 import fs from 'node:fs';
 import path from 'node:path';
-import { fileURLToPath } from 'node:url';
+import os from 'node:os';
+import { fileURLToPath, pathToFileURL } from 'node:url';
 import test from 'node:test';
-import ts from 'typescript';
+import { emitTypeScriptModuleTree } from '../../scripts/emit-typescript-module-tree.mjs';
 
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '../..');
-const moduleUrl = (source, fileName) => `data:text/javascript;base64,${Buffer.from(ts.transpileModule(source, {
-  fileName, compilerOptions: { target: ts.ScriptTarget.ES2022, module: ts.ModuleKind.ES2022 },
-}).outputText + `\n//# sourceURL=${fileName}\n`).toString('base64')}`;
-const timingUrl = moduleUrl(fs.readFileSync(path.join(root, 'src/webgpu/gpu-timing.ts'), 'utf8'), 'gpu-timing.ts');
-const { GpuPassTimer } = await import(timingUrl);
-const assetsUrl = moduleUrl(fs.readFileSync(path.join(root, 'src/assets/ktx2.ts'), 'utf8'), 'ktx2.ts');
-const rendererSource = fs.readFileSync(path.join(root, 'src/webgpu/renderer.ts'), 'utf8');
-const shadowUrl=moduleUrl(fs.readFileSync(path.join(root,'src/webgpu/shadow-cache.ts'),'utf8'),'shadow-cache.ts');
-const partitionUrl=moduleUrl(fs.readFileSync(path.join(root,'src/webgpu/instance-partition.ts'),'utf8'),'instance-partition.ts');
-const residentWaterUrl=moduleUrl(fs.readFileSync(path.join(root,'src/webgpu/resident-water-surface.ts'),'utf8'),'resident-water-surface.ts');
-const startupUrl=moduleUrl(fs.readFileSync(path.join(root,'src/webgpu/startup-budget.ts'),'utf8'),'startup-budget.ts');
-const { WebGPURenderer } = await import(moduleUrl(rendererSource.replace('./gpu-timing.js', timingUrl).replace('./shadow-cache.js',shadowUrl).replace('./instance-partition.js',partitionUrl).replace('./resident-water-surface.js',residentWaterUrl).replace('./startup-budget.js',startupUrl).replace('../assets/ktx2.js', assetsUrl), 'renderer.ts'));
+// Emit the renderer's real import graph with explicit .mjs paths. A fixed list of
+// rewritten specifiers misses nested imports such as the water planner's execution graph.
+const runtimeDir = fs.mkdtempSync(path.join(os.tmpdir(), 'box3d-gpu-timing-'));
+process.once('exit', () => fs.rmSync(runtimeDir, { recursive: true, force: true }));
+const { entryPath: rendererPath } = emitTypeScriptModuleTree({ sourceRoot: path.join(root, 'src'), outputRoot: runtimeDir, entry: 'webgpu/renderer.ts' });
+const { WebGPURenderer } = await import(pathToFileURL(rendererPath).href);
+const { GpuPassTimer } = await import(pathToFileURL(path.join(runtimeDir, 'webgpu/gpu-timing.mjs')).href);
 
 globalThis.GPUBufferUsage = { MAP_READ: 1, MAP_WRITE: 2, COPY_SRC: 4, COPY_DST: 8, INDEX: 16, VERTEX: 32, UNIFORM: 64, STORAGE: 128, INDIRECT: 256, QUERY_RESOLVE: 512 };
 globalThis.GPUTextureUsage = { COPY_SRC: 1, COPY_DST: 2, TEXTURE_BINDING: 4, STORAGE_BINDING: 8, RENDER_ATTACHMENT: 16 };

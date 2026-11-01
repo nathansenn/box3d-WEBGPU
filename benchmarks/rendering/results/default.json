@@ -1,0 +1,199 @@
+{
+  "schemaVersion": "box3d-production-rendering/1",
+  "createdAt": "2026-11-01T00:19:35.061Z",
+  "status": "BLOCKED",
+  "scope": "Pinned production renderer A/B; identical frozen geometry and rendering quality. Offscreen output, no canvas-presentation/FPS qualification.",
+  "settings": {
+    "width": 320,
+    "height": 240,
+    "devicePixelRatio": 1,
+    "warmup": 4,
+    "samples": 20,
+    "order": "Alternating baseline-first and candidate-first paired single frames; queues drained before each frame.",
+    "percentiles": "Linear interpolation over sorted samples.",
+    "timingIncludes": "Scene uniforms/uploads, command encoding, submission and queue completion. Optional GPU timestamps cover real passes; timestamp resolution/readback excluded from wall timer.",
+    "timingExcludes": "Simulation stepping, initial resource allocation/compilation, screenshot readback, browser presentation.",
+    "selection": {
+      "onlyScenario": null,
+      "onlyVariant": null,
+      "qualityOnly": false,
+      "parityOnly": true,
+      "quick": false
+    },
+    "inputStreamUploadAccounting": "inputStreamUploadedBytes excludes scene uniforms and visibility parameters; their CPU and queue-completed costs remain inside frame timing."
+  },
+  "provenance": {
+    "userAgent": "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) HeadlessChrome/141.0.0.0 Safari/537.36",
+    "secureContext": true,
+    "crossOriginIsolated": true,
+    "sources": {
+      "schemaVersion": 1,
+      "baselineCommit": "031724b8501b194d2da770eeb5f407a3520cb311",
+      "baselineGitBlobVerification": "PASSED",
+      "compiler": "TypeScript transpileModule ES2022; independent runtime dependency trees; no shader/source substitutions",
+      "baseline": {
+        "src/webgpu/renderer.ts": {
+          "sourceSha256": "a4ce5746d49ccc3f45202b9e7ca3464d85f87525b1a0667e6ce845db68a1e7fc",
+          "emittedSha256": "8a8ecdf7c3720983b83aab7ab97dd2af18b2f11138d510ad183554adb48172c6"
+        },
+        "src/webgpu/water-surface-plan.ts": {
+          "sourceSha256": "69115696a024110deb7c6589dbfba3cd06bd3c9916dbd4462f7794bbeede53c3",
+          "emittedSha256": "33709f01431f26c464010441fbd3dbb3674e762af6e795621463d418cb697c06"
+        },
+        "src/runtime/execution-graph.ts": {
+          "sourceSha256": "656849d46181021aed046a1b2ca25315488172065288022f5ab891eb5e222829",
+          "emittedSha256": "00136de555088f6decc513b9a835be215a63e61def5cd1bc31766a7c81aea289"
+        },
+        "src/assets/ktx2.ts": {
+          "sourceSha256": "01530c3fa2cb8e54a2efd77c07ac9d8016022c756c0fec43127193fd4eaec3fe",
+          "emittedSha256": "f242ae22112781832498b60301bea85b9bcfa2fbd1d717984f4b3776fc96359f"
+        },
+        "src/math.ts": {
+          "sourceSha256": "0ac09cdb4d0aa1d8e7b5114ac2f538d1875fa08be46a3b1f35314ee78b5b4aee",
+          "emittedSha256": "7d56e9a6a9295b6b0910f835367268dad994a3b54be672afe4c732fcb41d8d75"
+        },
+        "src/webgpu/water-compute.ts": {
+          "sourceSha256": "507b1c30a6d4b60a2d682f4d3fc525941ae134fd7c81d7881b511e819a5de7b4",
+          "emittedSha256": "a5981bbb457a0d9149c86124e3ba969c4f31f2dab10891e7784cebfca8f57113"
+        },
+        "src/soft/water-reference.ts": {
+          "sourceSha256": "ba7526294d6f45f5c4c6ee2a082a3d652043e7ab687627edfd2b26cc7236cf82",
+          "emittedSha256": "77d46c9cfb4af1210af1d33619c59f964931addb7a37e0839569fd509e0beb11"
+        }
+      },
+      "candidate": {
+        "src/webgpu/renderer.ts": {
+          "sourceSha256": "643718e8e549973b68dc4cc3758e28ab135f0525312808b535cd89ee27dfa3f7",
+          "emittedSha256": "1ff4b7b1280e5a6b8df973b8355d2eb0bb9b958cd6af5114bddc139512f27d8c"
+        },
+        "src/webgpu/water-surface-plan.ts": {
+          "sourceSha256": "69115696a024110deb7c6589dbfba3cd06bd3c9916dbd4462f7794bbeede53c3",
+          "emittedSha256": "33709f01431f26c464010441fbd3dbb3674e762af6e795621463d418cb697c06"
+        },
+        "src/runtime/execution-graph.ts": {
+          "sourceSha256": "656849d46181021aed046a1b2ca25315488172065288022f5ab891eb5e222829",
+          "emittedSha256": "00136de555088f6decc513b9a835be215a63e61def5cd1bc31766a7c81aea289"
+        },
+        "src/webgpu/instance-visibility.ts": {
+          "sourceSha256": "967f4782ccbc1a9d706ccdbf69c258d5fb0cfdc1e9ca6c02872d386ebe3d9981",
+          "emittedSha256": "978dbf177cf00128ad91288b03437eea33ae9db403bc0a3b74787a116ca140b3"
+        },
+        "src/assets/ktx2.ts": {
+          "sourceSha256": "01530c3fa2cb8e54a2efd77c07ac9d8016022c756c0fec43127193fd4eaec3fe",
+          "emittedSha256": "f242ae22112781832498b60301bea85b9bcfa2fbd1d717984f4b3776fc96359f"
+        },
+        "src/math.ts": {
+          "sourceSha256": "d1a3ee7187954e156b2c5db891c7e3a5c725cf7c70d356bd1d23d8509ba5a5ce",
+          "emittedSha256": "210742f3bb46dfacb112d1acb1b78050e273a05a6d54e9256cee84320410b001"
+        },
+        "src/webgpu/water-compute.ts": {
+          "sourceSha256": "507b1c30a6d4b60a2d682f4d3fc525941ae134fd7c81d7881b511e819a5de7b4",
+          "emittedSha256": "a5981bbb457a0d9149c86124e3ba969c4f31f2dab10891e7784cebfca8f57113"
+        },
+        "src/soft/water-reference.ts": {
+          "sourceSha256": "ba7526294d6f45f5c4c6ee2a082a3d652043e7ab687627edfd2b26cc7236cf82",
+          "emittedSha256": "77d46c9cfb4af1210af1d33619c59f964931addb7a37e0839569fd509e0beb11"
+        }
+      },
+      "harness": {
+        "baseline-sources.json": "2f2b8b30ac9eee27fb5acc4660cbb2910b11f0abfb7c7fb9e03a27a922d42bd6",
+        "browser.mjs": "02ff4f69b3fccc84bd217aec6fbdfed55e38109fd76a22415c8882ac03da3b6c",
+        "fixtures.mjs": "df01e75dfaced990798f8146aaf2350de3e697cdfdae1bf4717400a1e03a036a",
+        "index.html": "ddaf0626ad503a64fbd48b85c115c4880e6350810afcfa0dbe0c6f21d04b3bb1",
+        "prepare.mjs": "6ce737f6611acfbb7b60e2b1a2068c0919a180ff7b8b5d15a39b9affcba8a743",
+        "run.mjs": "6c25785b85de28f40254c57946284d5a99eabc1f8705ca94985e9e4ff2c28a00",
+        "serve.mjs": "199de1183ab9bdfea1debf25e2c76029aae07f613d343a4072d570e43299710d",
+        "timing.mjs": "43f7da0086e02e92217487ad6ba4960e6125d5f0ae91f884d9e8e43c13b00a35"
+      },
+      "assets": {
+        "material-noise-bc4.ktx2": "f68275433411c66ee6f1e3ccb6c63b2572d391871501a0c7243faf3d6f3de7f9",
+        "material-noise-r8.ktx2": "01f3c5d49333d2f0136f8611593298a4d0c3bd60f98e5f9ba4a71398b2a1abcc",
+        "poliigon-materials-albedo-astc.ktx2": "878b78308bde84e4c75f7533105bf2c46ab44183a071523c365ddd666a7659eb",
+        "poliigon-materials-albedo-rgba8.ktx2": "3a650143cf414921663681990140397a258deb3ba197f38dbe143619e0355e29",
+        "poliigon-materials-surface-astc.ktx2": "314ef866c168187cbf10e0cc8c7cac4751331aaab754a84ed73ff7d3aa74bb59",
+        "poliigon-materials-surface-rgba8.ktx2": "a317190aeb7f0b51b8399415082d6face200daa6344695db7f880634bdecceaf"
+      }
+    },
+    "browserVersion": "141.0.7390.37",
+    "browserExtraArguments": [],
+    "browserLaunchProfile": "Standard Playwright headless, no added GPU flags",
+    "browserExecutable": "/workspace/scratch/7ce173892f29/browser-cache/chromium-1194/chrome-linux/chrome",
+    "host": {
+      "platform": "linux",
+      "release": "6.18.57",
+      "arch": "x64",
+      "node": "v24.22.1",
+      "cpu": "INTEL(R) XEON(R) PLATINUM 8573C",
+      "logicalCpus": 9
+    },
+    "browserFullArguments": [
+      "/workspace/scratch/7ce173892f29/browser-cache/chromium-1194/chrome-linux/chrome",
+      "--disable-field-trial-config",
+      "--disable-background-networking",
+      "--disable-background-timer-throttling",
+      "--disable-backgrounding-occluded-windows",
+      "--disable-back-forward-cache",
+      "--disable-breakpad",
+      "--disable-client-side-phishing-detection",
+      "--disable-component-extensions-with-background-pages",
+      "--disable-component-update",
+      "--no-default-browser-check",
+      "--disable-default-apps",
+      "--disable-dev-shm-usage",
+      "--disable-extensions",
+      "--disable-features=AcceptCHFrame,AvoidUnnecessaryBeforeUnloadCheckSync,DestroyProfileOnBrowserClose,DialMediaRouteProvider,GlobalMediaControls,HttpsUpgrades,LensOverlay,MediaRouter,PaintHolding,ThirdPartyStoragePartitioning,Translate,AutoDeElevate,RenderDocument",
+      "--enable-features=CDPScreenshotNewSurface",
+      "--allow-pre-commit-input",
+      "--disable-hang-monitor",
+      "--disable-ipc-flooding-protection",
+      "--disable-popup-blocking",
+      "--disable-prompt-on-repost",
+      "--disable-renderer-backgrounding",
+      "--force-color-profile=srgb",
+      "--metrics-recording-only",
+      "--no-first-run",
+      "--password-store=basic",
+      "--use-mock-keychain",
+      "--no-service-autorun",
+      "--export-tagged-pdf",
+      "--disable-search-engine-choice-screen",
+      "--unsafely-disable-devtools-self-xss-warnings",
+      "--edge-skip-compat-layer-relaunch",
+      "--enable-automation",
+      "--headless",
+      "--hide-scrollbars",
+      "--mute-audio",
+      "--blink-settings=primaryHoverType=2,availableHoverTypes=2,primaryPointerType=4,availablePointerTypes=4",
+      "--no-sandbox",
+      "--user-data-dir=/tmp/playwright_chromiumdev_profile-wxeE5U",
+      "--remote-debugging-pipe",
+      "--no-startup-window",
+      "--noerrdialogs",
+      "--ozone-platform=headless",
+      "--ozone-override-screen-size=800,600",
+      "--use-angle=swiftshader-webgl",
+      "--flag-switches-begin",
+      "--flag-switches-end"
+    ],
+    "automation": {
+      "url": "http://127.0.0.1:4318/benchmarks/rendering/index.html",
+      "viewport": {
+        "width": 1440,
+        "height": 1100
+      },
+      "deviceScaleFactor": 1,
+      "pageErrors": [],
+      "consoleErrors": []
+    }
+  },
+  "gpu": {
+    "status": "BLOCKED"
+  },
+  "parity": [],
+  "visibility": [],
+  "qualityCorrections": [],
+  "cacheInvalidation": [],
+  "timings": [],
+  "gpuValidationErrors": [],
+  "reason": "requestAdapter returned null"
+}

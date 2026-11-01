@@ -227,7 +227,7 @@ for (const scene of softScenes) {
   suite.destroy();
 }
 
-// The 31 presentation recipes intentionally live outside SCENES so the
+// The 34 presentation recipes intentionally live outside SCENES so the
 // historical 800-scene/native-ID contract and test:material:100 baseline stay
 // immutable. Exercise each derived recipe explicitly here instead.
 for (let recipeIndex = 0; recipeIndex < MATERIAL_DEMO_RECIPES.length; recipeIndex++) {
