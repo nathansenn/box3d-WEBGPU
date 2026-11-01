@@ -1,0 +1,275 @@
+{
+  "base": {
+    "args": [
+      "--enable-unsafe-webgpu",
+      "--use-angle=vulkan",
+      "--enable-features=Vulkan",
+      "--disable-vulkan-surface",
+      "--ignore-gpu-blocklist"
+    ],
+    "probe": {
+      "secure": true,
+      "hasGpu": true,
+      "default": null,
+      "highPerformance": {
+        "vendor": "nvidia",
+        "architecture": "lovelace",
+        "device": "",
+        "description": "",
+        "isFallbackAdapter": false,
+        "featureLevel": null,
+        "timestampQuery": true
+      },
+      "compatibility": {
+        "vendor": "nvidia",
+        "architecture": "lovelace",
+        "device": "",
+        "description": "",
+        "isFallbackAdapter": false,
+        "featureLevel": null,
+        "timestampQuery": true
+      }
+    },
+    "dawnAdapters": [
+      "<Unknown GPU>  OpenGLES backend - ANGLE (NVIDIA, Vulkan 1.4.329 (NVIDIA NVIDIA L4 (0x000027B8)), NVIDIA-595.91.7.0) (Compatibility Mode)\n-----------------------",
+      "<CPU>  Vulkan backend - SwiftShader Device (Subzero)\n----------------------------------------------------\n\n[WebGPU Status]\n---------------*   Blocklisted - crbu",
+      "<Discrete GPU>  Vulkan backend - NVIDIA L4\n------------------------------------------\n\n[WebGPU Status]\n---------------*   Available\n\n[Adapter Supported Features"
+    ]
+  },
+  "base+developer-features": {
+    "args": [
+      "--enable-unsafe-webgpu",
+      "--use-angle=vulkan",
+      "--enable-features=Vulkan",
+      "--disable-vulkan-surface",
+      "--ignore-gpu-blocklist",
+      "--enable-webgpu-developer-features"
+    ],
+    "probe": {
+      "secure": true,
+      "hasGpu": true,
+      "default": null,
+      "highPerformance": {
+        "vendor": "nvidia",
+        "architecture": "lovelace",
+        "device": "0x27b8",
+        "description": "NVIDIA L4",
+        "isFallbackAdapter": false,
+        "featureLevel": null,
+        "timestampQuery": true
+      },
+      "compatibility": {
+        "vendor": "nvidia",
+        "architecture": "lovelace",
+        "device": "0x27b8",
+        "description": "NVIDIA L4",
+        "isFallbackAdapter": false,
+        "featureLevel": null,
+        "timestampQuery": true
+      }
+    },
+    "dawnAdapters": [
+      "<Unknown GPU>  OpenGLES backend - ANGLE (NVIDIA, Vulkan 1.4.329 (NVIDIA NVIDIA L4 (0x000027B8)), NVIDIA-595.91.7.0) (Compatibility Mode)\n-----------------------",
+      "<CPU>  Vulkan backend - SwiftShader Device (Subzero)\n----------------------------------------------------\n\n[WebGPU Status]\n---------------*   Blocklisted - crbu",
+      "<Discrete GPU>  Vulkan backend - NVIDIA L4\n------------------------------------------\n\n[WebGPU Status]\n---------------*   Available\n\n[Adapter Supported Features"
+    ]
+  },
+  "base+use-vulkan-native": {
+    "args": [
+      "--enable-unsafe-webgpu",
+      "--use-angle=vulkan",
+      "--enable-features=Vulkan",
+      "--disable-vulkan-surface",
+      "--ignore-gpu-blocklist",
+      "--use-vulkan=native"
+    ],
+    "probe": {
+      "secure": true,
+      "hasGpu": true,
+      "default": null,
+      "highPerformance": {
+        "vendor": "nvidia",
+        "architecture": "lovelace",
+        "device": "",
+        "description": "",
+        "isFallbackAdapter": false,
+        "featureLevel": null,
+        "timestampQuery": true
+      },
+      "compatibility": {
+        "vendor": "nvidia",
+        "architecture": "lovelace",
+        "device": "",
+        "description": "",
+        "isFallbackAdapter": false,
+        "featureLevel": null,
+        "timestampQuery": true
+      }
+    },
+    "dawnAdapters": [
+      "<Unknown GPU>  OpenGLES backend - ANGLE (NVIDIA, Vulkan 1.4.329 (NVIDIA NVIDIA L4 (0x000027B8)), NVIDIA-595.91.7.0) (Compatibility Mode)\n-----------------------",
+      "<CPU>  Vulkan backend - SwiftShader Device (Subzero)\n----------------------------------------------------\n\n[WebGPU Status]\n---------------*   Blocklisted - crbu",
+      "<Discrete GPU>  Vulkan backend - NVIDIA L4\n------------------------------------------\n\n[WebGPU Status]\n---------------*   Available\n\n[Adapter Supported Features"
+    ]
+  },
+  "base+no-quantization": {
+    "args": [
+      "--enable-unsafe-webgpu",
+      "--use-angle=vulkan",
+      "--enable-features=Vulkan",
+      "--disable-vulkan-surface",
+      "--ignore-gpu-blocklist",
+      "--disable-dawn-features=timestamp_quantization"
+    ],
+    "probe": {
+      "secure": true,
+      "hasGpu": true,
+      "default": null,
+      "highPerformance": {
+        "vendor": "nvidia",
+        "architecture": "lovelace",
+        "device": "",
+        "description": "",
+        "isFallbackAdapter": false,
+        "featureLevel": null,
+        "timestampQuery": true
+      },
+      "compatibility": {
+        "vendor": "nvidia",
+        "architecture": "lovelace",
+        "device": "",
+        "description": "",
+        "isFallbackAdapter": false,
+        "featureLevel": null,
+        "timestampQuery": true
+      }
+    },
+    "dawnAdapters": [
+      "<Unknown GPU>  OpenGLES backend - ANGLE (NVIDIA, Vulkan 1.4.329 (NVIDIA NVIDIA L4 (0x000027B8)), NVIDIA-595.91.7.0) (Compatibility Mode)\n-----------------------",
+      "<CPU>  Vulkan backend - SwiftShader Device (Subzero)\n----------------------------------------------------\n\n[WebGPU Status]\n---------------*   Blocklisted - crbu",
+      "<Discrete GPU>  Vulkan backend - NVIDIA L4\n------------------------------------------\n\n[WebGPU Status]\n---------------*   Available\n\n[Adapter Supported Features"
+    ]
+  },
+  "merged-feature-switch": {
+    "args": [
+      "--enable-unsafe-webgpu",
+      "--use-angle=vulkan",
+      "--enable-features=Vulkan,CDPScreenshotNewSurface",
+      "--disable-vulkan-surface",
+      "--ignore-gpu-blocklist"
+    ],
+    "probe": {
+      "secure": true,
+      "hasGpu": true,
+      "default": null,
+      "highPerformance": {
+        "vendor": "nvidia",
+        "architecture": "lovelace",
+        "device": "",
+        "description": "",
+        "isFallbackAdapter": false,
+        "featureLevel": null,
+        "timestampQuery": true
+      },
+      "compatibility": {
+        "vendor": "nvidia",
+        "architecture": "lovelace",
+        "device": "",
+        "description": "",
+        "isFallbackAdapter": false,
+        "featureLevel": null,
+        "timestampQuery": true
+      }
+    },
+    "dawnAdapters": [
+      "<Unknown GPU>  OpenGLES backend - ANGLE (NVIDIA, Vulkan 1.4.329 (NVIDIA NVIDIA L4 (0x000027B8)), NVIDIA-595.91.7.0) (Compatibility Mode)\n-----------------------",
+      "<CPU>  Vulkan backend - SwiftShader Device (Subzero)\n----------------------------------------------------\n\n[WebGPU Status]\n---------------*   Blocklisted - crbu",
+      "<Discrete GPU>  Vulkan backend - NVIDIA L4\n------------------------------------------\n\n[WebGPU Status]\n---------------*   Available\n\n[Adapter Supported Features"
+    ]
+  },
+  "no-angle-vulkan": {
+    "args": [
+      "--enable-unsafe-webgpu",
+      "--enable-features=Vulkan",
+      "--ignore-gpu-blocklist"
+    ],
+    "probe": {
+      "secure": true,
+      "hasGpu": true,
+      "default": {
+        "vendor": "google",
+        "architecture": "swiftshader",
+        "device": "",
+        "description": "",
+        "isFallbackAdapter": true,
+        "featureLevel": null,
+        "timestampQuery": true
+      },
+      "highPerformance": {
+        "vendor": "google",
+        "architecture": "swiftshader",
+        "device": "",
+        "description": "",
+        "isFallbackAdapter": true,
+        "featureLevel": null,
+        "timestampQuery": true
+      },
+      "compatibility": {
+        "vendor": "google",
+        "architecture": "swiftshader",
+        "device": "",
+        "description": "",
+        "isFallbackAdapter": true,
+        "featureLevel": null,
+        "timestampQuery": true
+      }
+    },
+    "dawnAdapters": [
+      "<CPU>  OpenGLES backend - ANGLE (Google, Vulkan 1.3.0 (SwiftShader Device (Subzero) (0x0000C0DE)), SwiftShader driver-5.0.0) (Compatibility Mode)\n--------------",
+      "<CPU>  Vulkan backend - SwiftShader Device (Subzero)\n----------------------------------------------------\n\n[WebGPU Status]\n---------------*   Blocklisted - crbu",
+      "<Discrete GPU>  Vulkan backend - NVIDIA L4\n------------------------------------------\n\n[WebGPU Status]\n---------------*   Available\n\n[Adapter Supported Features"
+    ]
+  },
+  "webgpu-only": {
+    "args": [
+      "--enable-unsafe-webgpu",
+      "--ignore-gpu-blocklist"
+    ],
+    "probe": {
+      "secure": true,
+      "hasGpu": true,
+      "default": {
+        "vendor": "google",
+        "architecture": "swiftshader",
+        "device": "",
+        "description": "",
+        "isFallbackAdapter": true,
+        "featureLevel": null,
+        "timestampQuery": true
+      },
+      "highPerformance": {
+        "vendor": "google",
+        "architecture": "swiftshader",
+        "device": "",
+        "description": "",
+        "isFallbackAdapter": true,
+        "featureLevel": null,
+        "timestampQuery": true
+      },
+      "compatibility": {
+        "vendor": "google",
+        "architecture": "swiftshader",
+        "device": "",
+        "description": "",
+        "isFallbackAdapter": true,
+        "featureLevel": null,
+        "timestampQuery": true
+      }
+    },
+    "dawnAdapters": [
+      "<CPU>  OpenGLES backend - ANGLE (Google, Vulkan 1.3.0 (SwiftShader Device (Subzero) (0x0000C0DE)), SwiftShader driver-5.0.0) (Compatibility Mode)\n--------------",
+      "<CPU>  Vulkan backend - SwiftShader Device (Subzero)\n----------------------------------------------------\n\n[WebGPU Status]\n---------------*   Blocklisted - crbu",
+      "<Discrete GPU>  Vulkan backend - NVIDIA L4\n------------------------------------------\n\n[WebGPU Status]\n---------------*   Available\n\n[Adapter Supported Features"
+    ]
+  }
+}

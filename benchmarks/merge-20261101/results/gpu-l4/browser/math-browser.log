@@ -1,0 +1,122 @@
+{
+  "output": "/work/out/run4/math-runtime/browser-hardware-vulkan.json",
+  "status": "COMPLETED",
+  "gpu": {
+    "status": "AVAILABLE",
+    "adapter": {
+      "vendor": "nvidia",
+      "architecture": "lovelace",
+      "device": "",
+      "description": "",
+      "isFallbackAdapter": false
+    },
+    "classification": "unclassified",
+    "features": [
+      "core-features-and-limits",
+      "timestamp-query"
+    ]
+  },
+  "coverage": {
+    "javascript": "RUNTIME_MEASURED",
+    "scalarWasm": "RUNTIME_MEASURED",
+    "simdWasm": "RUNTIME_MEASURED",
+    "webgpu": "RUNTIME_MEASURED"
+  },
+  "gpuQualification": "RUNTIME_MEASURED",
+  "pageErrors": [],
+  "consoleErrors": [],
+  "cases": [
+    {
+      "id": "48x40",
+      "status": "VALIDATED",
+      "timings": {
+        "javascript-reference": {
+          "status": "MEASURED",
+          "p50": 0.035624995827674866
+        },
+        "wasm-scalar": {
+          "status": "MEASURED",
+          "p50": 0.009999990463256836
+        },
+        "wasm-simd": {
+          "status": "MEASURED",
+          "p50": 0.005312502384185791
+        },
+        "webgpu-resident": {
+          "status": "MEASURED",
+          "p50": 0.20218750834465027,
+          "gpuP50": 0.006978
+        }
+      }
+    },
+    {
+      "id": "96x80",
+      "status": "VALIDATED",
+      "timings": {
+        "javascript-reference": {
+          "status": "MEASURED",
+          "p50": 0.08781249821186066
+        },
+        "wasm-scalar": {
+          "status": "MEASURED",
+          "p50": 0.026562511920928955
+        },
+        "wasm-simd": {
+          "status": "MEASURED",
+          "p50": 0.012187495827674866
+        },
+        "webgpu-resident": {
+          "status": "MEASURED",
+          "p50": 0.23375000059604645,
+          "gpuP50": 0.007432
+        }
+      }
+    },
+    {
+      "id": "256x256",
+      "status": "VALIDATED",
+      "timings": {
+        "javascript-reference": {
+          "status": "MEASURED",
+          "p50": 0.5224999785423279
+        },
+        "wasm-scalar": {
+          "status": "MEASURED",
+          "p50": 0.2287500500679016
+        },
+        "wasm-simd": {
+          "status": "MEASURED",
+          "p50": 0.09874999523162842
+        },
+        "webgpu-resident": {
+          "status": "MEASURED",
+          "p50": 0.7074999809265137,
+          "gpuP50": 0.010336
+        }
+      }
+    },
+    {
+      "id": "512x512",
+      "status": "VALIDATED",
+      "timings": {
+        "javascript-reference": {
+          "status": "MEASURED",
+          "p50": 2.1087499856948853
+        },
+        "wasm-scalar": {
+          "status": "MEASURED",
+          "p50": 0.9437500238418579
+        },
+        "wasm-simd": {
+          "status": "MEASURED",
+          "p50": 0.4037500023841858
+        },
+        "webgpu-resident": {
+          "status": "MEASURED",
+          "p50": 1.0437500476837158,
+          "gpuP50": 0.104392
+        }
+      }
+    }
+  ]
+}

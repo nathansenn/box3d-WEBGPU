@@ -1,0 +1,3 @@
+candidate: d9627d3c4724c27f903e630192f2a8d9ad4d492b 2026-11-01 11:24:37 +0000 Add merge benchmark harness and make the GPU harnesses run on Linux GPUs
+main: dfedd9fe9983200f492d686488d27b6a4b11c650 2026-08-14 09:09:35 -0700 Ship the engineering workbench so labs can inspect, correlate, and capture evidence instead of only playing cinematic demos.
+chrome: /ms-playwright/chromium-1243/chrome-linux64/chrome

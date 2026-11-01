@@ -1,0 +1,21 @@
+[build] round 0 baseline 1.81 s
+[build] round 0 candidate 2.27 s
+[build] round 1 candidate 1.77 s
+[build] round 1 baseline 0.71 s
+[build] round 2 baseline 0.79 s
+[build] round 2 candidate 2.50 s
+[build] round 3 candidate 1.63 s
+[build] round 3 baseline 1.31 s
+[build] round 4 baseline 1.00 s
+[build] round 4 candidate 2.95 s
+baseline: files 43, all 27.39 MB, js 1007 kB (br 219 kB), css 213 kB, wasm 411 kB
+   index.html: initial JS+CSS 1196 kB raw, 242 kB brotli (2 files)
+   route index.html (static): JS+CSS 1196 kB raw, 242 kB brotli (2 files)
+   route index.html → src/compression/turboquant.ts: JS+CSS 1206 kB raw, 245 kB brotli (3 files)
+candidate: files 114, all 157.83 MB, js 1847 kB (br 455 kB), css 254 kB, wasm 940 kB
+   index.html: initial JS+CSS 4 kB raw, 1 kB brotli (1 files)
+   route index.html (static): JS+CSS 4 kB raw, 1 kB brotli (1 files)
+   route index.html → src/studio/material-labs/main.ts: JS+CSS 1318 kB raw, 300 kB brotli (7 files)
+   route index.html → src/studio/main.ts: JS+CSS 1583 kB raw, 352 kB brotli (5 files)
+   route index.html → src/studio/study-navigation.ts: JS+CSS 6 kB raw, 2 kB brotli (3 files)
+wrote /home/user/box3d-WEBGPU/benchmarks/merge-20261101/results/build-size.json

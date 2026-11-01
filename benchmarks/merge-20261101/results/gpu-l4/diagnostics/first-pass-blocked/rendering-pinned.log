@@ -1,0 +1,22 @@
+[render-benchmark] BLOCKED
+{
+  "output": "/work/out/rendering/pinned/hardware-vulkan.json",
+  "status": "BLOCKED",
+  "reason": "requestAdapter returned null",
+  "gpu": {},
+  "parity": {
+    "total": 0,
+    "failed": []
+  },
+  "visibility": {
+    "total": 0,
+    "failed": []
+  },
+  "qualityCorrections": [],
+  "cacheInvalidation": {
+    "total": 0,
+    "failed": []
+  },
+  "timings": [],
+  "gpuValidationErrors": []
+}

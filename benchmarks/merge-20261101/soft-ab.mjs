@@ -5,7 +5,7 @@
 // from step() into the first telemetry read; timing step() alone would hide that cost.
 // usage: node benchmarks/merge-20261101/soft-ab.mjs --baseline <test-build dir> --candidate <test-build dir>
 //        [--scenes all|sample] [--rounds 5] [--warmup 30] [--frames 120] [--stress 5] [--kernel javascript|simd|scalar]
-//        [--cpu 3] [--out file.json]
+//        [--ids 652,653] [--limit N] [--cpu 3] [--out file.json]
 import fs from 'node:fs';
 import path from 'node:path';
 import { createRequire } from 'node:module';
@@ -115,7 +115,8 @@ for (const s of soft) {
 }
 // Sample: every rope scene (rope batching changed), and every fifth scene of the other families.
 const sampled = sceneMode === 'all' ? soft : soft.filter((s, i) => s.family === 'rope' || soft.filter((x) => x.family === s.family).indexOf(s) % 5 === 0);
-const selected = sampled.slice(0, Number(opt('--limit', sampled.length)));
+const ids = opt('--ids') ? new Set(opt('--ids').split(',').map(Number)) : null;
+const selected = (ids ? soft.filter((s) => ids.has(s.id)) : sampled).slice(0, Number(opt('--limit', sampled.length)));
 
 function runChild(dir, scene) {
   const r = spawnSync('taskset', ['-c', cpu, process.execPath, fileURLToPath(import.meta.url), '--child', '--build', dir,
@@ -159,7 +160,7 @@ for (const scene of selected) {
     baseline: b, candidate: c,
     speedRatioMeanFrame: ratio, verdict: verdict(ratio),
     mannWhitneyMeanFrame: mannWhitney(b.perRoundMeanFrameMs, c.perRoundMeanFrameMs),
-    trajectory: firstDifferentHash < 0 ? 'bit-identical hashes at every checkpoint' : `hashes differ from frame ${(firstDifferentHash + 1) * 30}`,
+    trajectory: firstDifferentHash < 0 ? `bit-identical hashes at every checkpoint through frame ${warmup + frames}` : `hashes differ from frame ${(firstDifferentHash + 1) * 30}`,
   };
   cases.push(entry);
   console.log(`[soft-ab] ${scene.id} ${scene.family.padEnd(8)} ${scene.title.slice(0, 40).padEnd(40)} base ${median(b.perRoundMeanFrameMs).toFixed(3)} ms cand ${median(c.perRoundMeanFrameMs).toFixed(3)} ms ratio ${ratio.point.toFixed(3)} [${ratio.low95.toFixed(3)}, ${ratio.high95.toFixed(3)}] ${entry.verdict}; ${entry.trajectory}`);

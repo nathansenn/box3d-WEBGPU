@@ -1,0 +1,404 @@
+{
+ "title": "Production build: main vs merged",
+ "method": {
+  "rounds": 5,
+  "order": "alternating",
+  "command": "vite build --outDir <scratch> --emptyOutDir",
+  "compression": "gzip level 9, brotli quality 11 (zlib)"
+ },
+ "environment": {
+  "capturedAt": "2026-11-01T12:13:50.802Z",
+  "node": "v22.23.4",
+  "v8": "12.4.254.21-node.57",
+  "platform": "linux-x64",
+  "kernel": "6.18.44-fc-v185",
+  "cpuModel": "Intel(R) Xeon(R) Processor @ 2.10GHz",
+  "logicalCpus": 4,
+  "totalMemoryGiB": 15.7,
+  "loadAverageAtCapture": [
+   1.44,
+   1.49,
+   1.53
+  ],
+  "affinity": "pid 25334's current affinity list: 0-3"
+ },
+ "trees": {
+  "baseline": {
+   "dir": "/tmp/claude-0/-home-user-box3d-WEBGPU/3496b4bd-b15e-564a-9b42-e3dfab8e515e/scratchpad/wt-main",
+   "git": {
+    "commit": "dfedd9fe9983200f492d686488d27b6a4b11c650",
+    "describe": "dfedd9f 2026-08-14 09:09:35 -0700 Ship the engineering workbench so labs can inspect, correlate, and capture evidence instead of only playing cinematic demos.",
+    "dirty": false
+   },
+   "vite": "8.1.6"
+  },
+  "candidate": {
+   "dir": "/home/user/box3d-WEBGPU",
+   "git": {
+    "commit": "c1c4676d1411cdcc5734fb4517c6774949e1ca03",
+    "describe": "c1c4676 2026-11-01 11:39:34 +0000 Retry the first WebGPU adapter request in the browser benchmark runners",
+    "dirty": true
+   },
+   "vite": "8.1.6"
+  }
+ },
+ "harness": {
+  "git": {
+   "commit": "c1c4676d1411cdcc5734fb4517c6774949e1ca03",
+   "describe": "c1c4676 2026-11-01 11:39:34 +0000 Retry the first WebGPU adapter request in the browser benchmark runners",
+   "dirty": true
+  },
+  "sha256": "05abc111fa5677579c6a9a903631747d3e20af4a7fbfa0bfd58fd19aad98ddd6"
+ },
+ "buildSeconds": {
+  "baseline": {
+   "n": 5,
+   "min": 0.7084397580000005,
+   "p05": 0.7254034598000004,
+   "p25": 0.7932582670000001,
+   "median": 1.0026374589999996,
+   "p75": 1.3091386510000012,
+   "p95": 1.7070067830000002,
+   "p99": 1.7865804094,
+   "max": 1.806473816,
+   "mean": 1.1239895902000003,
+   "sd": 0.44633398484621367,
+   "cv": 0.3970979702461425,
+   "mad": 0.2941977009999991,
+   "iqr": 0.515880384000001
+  },
+  "candidate": {
+   "n": 5,
+   "min": 1.6342884670000004,
+   "p05": 1.6613790174000005,
+   "p25": 1.7697412190000004,
+   "median": 2.2726696109999995,
+   "p75": 2.496366747,
+   "p95": 2.861922999000001,
+   "p99": 2.935034249400001,
+   "max": 2.953312062000001,
+   "mean": 2.2252756212,
+   "sd": 0.5391083044960754,
+   "cv": 0.2422658565797599,
+   "mad": 0.5029283919999992,
+   "iqr": 0.7266255279999998
+  },
+  "speedRatio": {
+   "point": 0.44117167499715376,
+   "low95": 0.31776511522327217,
+   "high95": 0.8010450281174265,
+   "iterations": 20000,
+   "paired": true
+  }
+ },
+ "sizes": {
+  "baseline": {
+   "routes": {
+    "index.html (static)": {
+     "modules": [
+      "index.html"
+     ],
+     "files": 2,
+     "raw": 1196486,
+     "gzip": 303845,
+     "brotli": 242280
+    },
+    "index.html → src/compression/turboquant.ts": {
+     "modules": [
+      "index.html",
+      "src/compression/turboquant.ts"
+     ],
+     "files": 3,
+     "raw": 1205742,
+     "gzip": 307007,
+     "brotli": 245083
+    }
+   },
+   "totals": {
+    "all": {
+     "files": 43,
+     "raw": 27389838,
+     "gzip": 23970137,
+     "brotli": 23354818
+    },
+    "javascript": {
+     "files": 3,
+     "raw": 1006569,
+     "gzip": 273004,
+     "brotli": 218579
+    },
+    "css": {
+     "files": 1,
+     "raw": 213382,
+     "gzip": 38778,
+     "brotli": 30819
+    },
+    "wasm": {
+     "files": 3,
+     "raw": 410688,
+     "gzip": 170311,
+     "brotli": 134322
+    },
+    "html": {
+     "files": 1,
+     "raw": 97796,
+     "gzip": 18814,
+     "brotli": 15938
+    },
+    "images": {
+     "files": 12,
+     "raw": 24182340,
+     "gzip": 21998295,
+     "brotli": 21484613
+    },
+    "models": {
+     "files": 0,
+     "raw": 0,
+     "gzip": 0,
+     "brotli": 0
+    },
+    "video": {
+     "files": 0,
+     "raw": 0,
+     "gzip": 0,
+     "brotli": 0
+    }
+   },
+   "entries": {
+    "index.html": {
+     "html": {
+      "raw": 97796,
+      "gzip": 18814,
+      "brotli": 15938
+     },
+     "initialFiles": [
+      "assets/index-CLOQxGk5.js",
+      "assets/index-BN34NiPX.css"
+     ],
+     "initialJsCss": {
+      "raw": 1196486,
+      "gzip": 303845,
+      "brotli": 242280
+     }
+    }
+   },
+   "javascriptFiles": [
+    {
+     "name": "assets/index-CLOQxGk5.js",
+     "ext": "js",
+     "raw": 983104,
+     "gzip": 265067,
+     "brotli": 211461
+    },
+    {
+     "name": "box3d/box3d.js",
+     "ext": "js",
+     "raw": 14209,
+     "gzip": 4775,
+     "brotli": 4315
+    },
+    {
+     "name": "assets/turboquant-DEooNtgG.js",
+     "ext": "js",
+     "raw": 9256,
+     "gzip": 3162,
+     "brotli": 2803
+    }
+   ],
+   "fileCount": 43
+  },
+  "candidate": {
+   "routes": {
+    "index.html (static)": {
+     "modules": [
+      "index.html"
+     ],
+     "files": 1,
+     "raw": 3585,
+     "gzip": 1721,
+     "brotli": 1489
+    },
+    "index.html → src/studio/material-labs/main.ts": {
+     "modules": [
+      "index.html",
+      "src/studio/material-labs/main.ts",
+      "_RoundedBoxGeometry-DJT2P2MK.js",
+      "src/studio/study-navigation.ts"
+     ],
+     "files": 7,
+     "raw": 1318222,
+     "gzip": 366169,
+     "brotli": 300325
+    },
+    "index.html → src/studio/main.ts": {
+     "modules": [
+      "index.html",
+      "src/studio/main.ts",
+      "_RoundedBoxGeometry-DJT2P2MK.js"
+     ],
+     "files": 5,
+     "raw": 1583268,
+     "gzip": 427179,
+     "brotli": 352117
+    },
+    "index.html → src/studio/study-navigation.ts": {
+     "modules": [
+      "index.html",
+      "src/studio/study-navigation.ts"
+     ],
+     "files": 3,
+     "raw": 5724,
+     "gzip": 2925,
+     "brotli": 2420
+    }
+   },
+   "totals": {
+    "all": {
+     "files": 114,
+     "raw": 157827948,
+     "gzip": 153566381,
+     "brotli": 152872095
+    },
+    "javascript": {
+     "files": 11,
+     "raw": 1847282,
+     "gzip": 544139,
+     "brotli": 454504
+    },
+    "css": {
+     "files": 4,
+     "raw": 253786,
+     "gzip": 45964,
+     "brotli": 39550
+    },
+    "wasm": {
+     "files": 4,
+     "raw": 940496,
+     "gzip": 388814,
+     "brotli": 305707
+    },
+    "html": {
+     "files": 1,
+     "raw": 7113,
+     "gzip": 2419,
+     "brotli": 1867
+    },
+    "images": {
+     "files": 70,
+     "raw": 144737382,
+     "gzip": 142553337,
+     "brotli": 142039655
+    },
+    "models": {
+     "files": 3,
+     "raw": 8652544,
+     "gzip": 8652544,
+     "brotli": 8652544
+    },
+    "video": {
+     "files": 0,
+     "raw": 0,
+     "gzip": 0,
+     "brotli": 0
+    }
+   },
+   "entries": {
+    "index.html": {
+     "html": {
+      "raw": 7113,
+      "gzip": 2419,
+      "brotli": 1867
+     },
+     "initialFiles": [
+      "assets/index-LQeGoiux.js"
+     ],
+     "initialJsCss": {
+      "raw": 3585,
+      "gzip": 1721,
+      "brotli": 1489
+     }
+    }
+   },
+   "javascriptFiles": [
+    {
+     "name": "assets/RoundedBoxGeometry-DJT2P2MK.js",
+     "ext": "js",
+     "raw": 970836,
+     "gzip": 266192,
+     "brotli": 214494
+    },
+    {
+     "name": "assets/main-CvUSPnUe.js",
+     "ext": "js",
+     "raw": 404353,
+     "gzip": 123646,
+     "brotli": 105667
+    },
+    {
+     "name": "assets/main-ld8Y7mym.js",
+     "ext": "js",
+     "raw": 229785,
+     "gzip": 75565,
+     "brotli": 64843
+    },
+    {
+     "name": "assets/studio-worker-DKesqMb2.js",
+     "ext": "js",
+     "raw": 77826,
+     "gzip": 23669,
+     "brotli": 20908
+    },
+    {
+     "name": "assets/glass-worker-CQDTxwwR.js",
+     "ext": "js",
+     "raw": 67179,
+     "gzip": 23071,
+     "brotli": 20269
+    },
+    {
+     "name": "assets/liquid-study-worker-dlDSABVH.js",
+     "ext": "js",
+     "raw": 38931,
+     "gzip": 13819,
+     "brotli": 12146
+    },
+    {
+     "name": "box3d/box3d-mt.js",
+     "ext": "js",
+     "raw": 33569,
+     "gzip": 9527,
+     "brotli": 8587
+    },
+    {
+     "name": "box3d/box3d.js",
+     "ext": "js",
+     "raw": 18281,
+     "gzip": 5427,
+     "brotli": 4847
+    },
+    {
+     "name": "assets/index-LQeGoiux.js",
+     "ext": "js",
+     "raw": 3585,
+     "gzip": 1721,
+     "brotli": 1489
+    },
+    {
+     "name": "assets/glass-worker-client-C68Q6mNS.js",
+     "ext": "js",
+     "raw": 1559,
+     "gzip": 715,
+     "brotli": 612
+    },
+    {
+     "name": "assets/study-navigation-yKpjwIwl.js",
+     "ext": "js",
+     "raw": 1378,
+     "gzip": 787,
+     "brotli": 642
+    }
+   ],
+   "fileCount": 114
+  }
+ }
+}

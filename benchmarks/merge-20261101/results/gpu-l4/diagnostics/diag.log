@@ -1,0 +1,7 @@
+base {"vendor":"nvidia","architecture":"lovelace","device":"","description":"","isFallbackAdapter":false,"featureLevel":null,"timestampQuery":true} 3
+base+developer-features {"vendor":"nvidia","architecture":"lovelace","device":"0x27b8","description":"NVIDIA L4","isFallbackAdapter":false,"featureLevel":null,"timestampQuery":true} 3
+base+use-vulkan-native {"vendor":"nvidia","architecture":"lovelace","device":"","description":"","isFallbackAdapter":false,"featureLevel":null,"timestampQuery":true} 3
+base+no-quantization {"vendor":"nvidia","architecture":"lovelace","device":"","description":"","isFallbackAdapter":false,"featureLevel":null,"timestampQuery":true} 3
+merged-feature-switch {"vendor":"nvidia","architecture":"lovelace","device":"","description":"","isFallbackAdapter":false,"featureLevel":null,"timestampQuery":true} 3
+no-angle-vulkan {"vendor":"google","architecture":"swiftshader","device":"","description":"","isFallbackAdapter":true,"featureLevel":null,"timestampQuery":true} 3
+webgpu-only {"vendor":"google","architecture":"swiftshader","device":"","description":"","isFallbackAdapter":true,"featureLevel":null,"timestampQuery":true} 3

@@ -1,0 +1,927 @@
+{
+  "schemaVersion": "box3d-resident-water-render-parity/1",
+  "createdAt": "2026-11-01T11:40:33.412Z",
+  "status": "PASSED",
+  "scope": "Actual renderer offscreen parity; no FPS or canvas-presentation claim.",
+  "outputTarget": "GPU texture matching viewport/format, sample count 1.",
+  "canvasPresentation": {
+    "status": "UNQUALIFIED",
+    "reason": "Offscreen output only."
+  },
+  "uploadAccountingCaveat": "Initial counters differ for uniform/index accounting; only steady dynamic bytes are comparable.",
+  "provenance": {
+    "userAgent": "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) HeadlessChrome/153.0.0.0 Safari/537.36",
+    "secureContext": true,
+    "crossOriginIsolated": true,
+    "sourceSha256": {
+      "src/webgpu/renderer.ts": "b441aa851c24dec5ce9276f5b00bd4cb6f5e7539d333289fc070e8b259e19a45",
+      "src/webgpu/water-compute.ts": "507b1c30a6d4b60a2d682f4d3fc525941ae134fd7c81d7881b511e819a5de7b4",
+      "src/soft/water-reference.ts": "ba7526294d6f45f5c4c6ee2a082a3d652043e7ab687627edfd2b26cc7236cf82",
+      "src/webgpu/water-surface-plan.ts": "69115696a024110deb7c6589dbfba3cd06bd3c9916dbd4462f7794bbeede53c3",
+      "src/runtime/execution-graph.ts": "656849d46181021aed046a1b2ca25315488172065288022f5ab891eb5e222829",
+      "src/math.ts": "d1a3ee7187954e156b2c5db891c7e3a5c725cf7c70d356bd1d23d8509ba5a5ce",
+      "src/assets/ktx2.ts": "d0c0ca07091d760ab78218480bee5978b798e29b412bf8b2fdde2d8a46a53853",
+      "benchmarks/math-runtime/render-parity.mjs": "a5fbe015db3831a043fa81c89fcb436936b8e32af7279e23d234be977022e705",
+      "benchmarks/math-runtime/common.mjs": "7cd29de8a84b9ed72536d10b2e37a736e9c74e9100ff77d057bb22ce966f5193",
+      "benchmarks/math-runtime/timing.mjs": "bf8e37f240229bdc6010e238605957368e467cc3642162eaf5cc78b3864c9284",
+      "benchmarks/math-runtime/upload-overhead.mjs": "f813e8a60acf2fcc630ed69322cdf932d2143473b328baa883b569424b80a293",
+      "benchmarks/math-runtime/baseline-renderer.mjs": "8f81d2d06dad6a0477b2473a8cc5fb092ea325cbc4df9e3645a6bcd2e729b0a5"
+    },
+    "recoveryNote": "Fresh run after workspace reset. Earlier raw sample files were lost; this rerun supersedes them.",
+    "adapterWarmup": {
+      "attempts": 1,
+      "obtained": true
+    },
+    "browserVersion": "153.0.8010.12",
+    "browserExtraArguments": [
+      "--enable-unsafe-webgpu",
+      "--use-angle=vulkan",
+      "--enable-features=Vulkan",
+      "--disable-vulkan-surface",
+      "--ignore-gpu-blocklist",
+      "--disable-dawn-features=timestamp_quantization"
+    ],
+    "browserLaunchProfile": "Explicit hardware Vulkan profile (headless Linux, unquantized timestamps)",
+    "browserExecutable": "/ms-playwright/chromium-1243/chrome-linux64/chrome",
+    "browserCommandLineUnavailable": "cdpSession.send: Protocol error (Browser.getBrowserCommandLine): Command line not returned because --enable-automation not set.",
+    "automation": {
+      "url": "http://127.0.0.1:4317/benchmarks/math-runtime/render-parity.html",
+      "viewport": {
+        "width": 1440,
+        "height": 1000
+      },
+      "deviceScaleFactor": 1,
+      "pageErrors": [],
+      "consoleErrors": []
+    }
+  },
+  "gpu": {
+    "status": "AVAILABLE",
+    "preflightAdapterInfo": {
+      "vendor": "nvidia",
+      "architecture": "lovelace",
+      "device": "",
+      "description": "",
+      "isFallbackAdapter": false
+    },
+    "classification": "unclassified",
+    "note": "Renderer requests its own device with same power preference.",
+    "deviceAdapterInfo": {
+      "vendor": "nvidia",
+      "architecture": "lovelace",
+      "device": "",
+      "description": ""
+    }
+  },
+  "cases": [
+    {
+      "steps": 0,
+      "status": "PASSED",
+      "residentUploadBytes": 90124,
+      "cpuUploadBytes": 92160,
+      "pixels": {
+        "pass": true,
+        "comparison": "Exact byte equality of identical fields on the same renderer/device.",
+        "pixels": 76800,
+        "differingPixels": 0,
+        "differingChannels": 0,
+        "maxAbsolute": 0,
+        "rmsChannelError": 0
+      },
+      "waterCoveragePixels": 15117,
+      "numerical": {
+        "pass": true,
+        "expectedSteps": 0,
+        "actualSteps": 0,
+        "tolerance": {
+          "absolute": 0.00002,
+          "relative": 0.0002
+        },
+        "fields": {
+          "current.eta": {
+            "pass": true,
+            "count": 7680,
+            "exactMatches": 7680,
+            "failures": 0,
+            "nonFinite": 0,
+            "maxAbsolute": 0,
+            "rmsAbsolute": 0,
+            "maxNormalized": 0,
+            "worstIndex": 0,
+            "expectedAtWorst": 0.025054918602108955,
+            "actualAtWorst": 0.025054918602108955
+          },
+          "current.u": {
+            "pass": true,
+            "count": 7680,
+            "exactMatches": 7680,
+            "failures": 0,
+            "nonFinite": 0,
+            "maxAbsolute": 0,
+            "rmsAbsolute": 0,
+            "maxNormalized": 0,
+            "worstIndex": 0,
+            "expectedAtWorst": 0.011492257006466389,
+            "actualAtWorst": 0.011492257006466389
+          },
+          "current.v": {
+            "pass": true,
+            "count": 7680,
+            "exactMatches": 7680,
+            "failures": 0,
+            "nonFinite": 0,
+            "maxAbsolute": 0,
+            "rmsAbsolute": 0,
+            "maxNormalized": 0,
+            "worstIndex": 0,
+            "expectedAtWorst": -0.013877613469958305,
+            "actualAtWorst": -0.013877613469958305
+          },
+          "destination.eta": {
+            "pass": true,
+            "count": 7680,
+            "exactMatches": 7680,
+            "failures": 0,
+            "nonFinite": 0,
+            "maxAbsolute": 0,
+            "rmsAbsolute": 0,
+            "maxNormalized": 0,
+            "worstIndex": 0,
+            "expectedAtWorst": -0.015839872881770134,
+            "actualAtWorst": -0.015839872881770134
+          },
+          "destination.u": {
+            "pass": true,
+            "count": 7680,
+            "exactMatches": 7680,
+            "failures": 0,
+            "nonFinite": 0,
+            "maxAbsolute": 0,
+            "rmsAbsolute": 0,
+            "maxNormalized": 0,
+            "worstIndex": 0,
+            "expectedAtWorst": -0.007132924627512693,
+            "actualAtWorst": -0.007132924627512693
+          },
+          "destination.v": {
+            "pass": true,
+            "count": 7680,
+            "exactMatches": 7680,
+            "failures": 0,
+            "nonFinite": 0,
+            "maxAbsolute": 0,
+            "rmsAbsolute": 0,
+            "maxNormalized": 0,
+            "worstIndex": 0,
+            "expectedAtWorst": -0.002329818205907941,
+            "actualAtWorst": -0.002329818205907941
+          }
+        }
+      },
+      "computeAndRenderInOneEncoder": true,
+      "residentPixelSha256": "2e4e51949ab119fa3544aa5ba4a1cb750cf478038e8ea12d15e2685477a16084",
+      "cpuPixelSha256": "2e4e51949ab119fa3544aa5ba4a1cb750cf478038e8ea12d15e2685477a16084"
+    },
+    {
+      "steps": 1,
+      "status": "PASSED",
+      "residentUploadBytes": 64,
+      "cpuUploadBytes": 92160,
+      "pixels": {
+        "pass": true,
+        "comparison": "Exact byte equality of identical fields on the same renderer/device.",
+        "pixels": 76800,
+        "differingPixels": 0,
+        "differingChannels": 0,
+        "maxAbsolute": 0,
+        "rmsChannelError": 0
+      },
+      "waterCoveragePixels": 15110,
+      "numerical": {
+        "pass": true,
+        "expectedSteps": 1,
+        "actualSteps": 1,
+        "tolerance": {
+          "absolute": 0.00002,
+          "relative": 0.0002
+        },
+        "fields": {
+          "current.eta": {
+            "pass": true,
+            "count": 7680,
+            "exactMatches": 5703,
+            "failures": 0,
+            "nonFinite": 0,
+            "maxAbsolute": 1.4901161193847656e-8,
+            "rmsAbsolute": 3.1540839846411635e-9,
+            "maxNormalized": 0.0003461449206739339,
+            "worstIndex": 11,
+            "expectedAtWorst": 0.1152445450425148,
+            "actualAtWorst": 0.115244559943676
+          },
+          "current.u": {
+            "pass": true,
+            "count": 7680,
+            "exactMatches": 5614,
+            "failures": 0,
+            "nonFinite": 0,
+            "maxAbsolute": 1.862645149230957e-9,
+            "rmsAbsolute": 5.235194759965415e-10,
+            "maxNormalized": 0.00008258361627897955,
+            "worstIndex": 7657,
+            "expectedAtWorst": -0.012773285619914532,
+            "actualAtWorst": -0.012773283757269382
+          },
+          "current.v": {
+            "pass": true,
+            "count": 7680,
+            "exactMatches": 5601,
+            "failures": 0,
+            "nonFinite": 0,
+            "maxAbsolute": 1.862645149230957e-9,
+            "rmsAbsolute": 5.096671970008986e-10,
+            "maxNormalized": 0.00008054335163586493,
+            "worstIndex": 878,
+            "expectedAtWorst": -0.015629975125193596,
+            "actualAtWorst": -0.015629973262548447
+          },
+          "destination.eta": {
+            "pass": true,
+            "count": 7680,
+            "exactMatches": 7680,
+            "failures": 0,
+            "nonFinite": 0,
+            "maxAbsolute": 0,
+            "rmsAbsolute": 0,
+            "maxNormalized": 0,
+            "worstIndex": 0,
+            "expectedAtWorst": 0.025054918602108955,
+            "actualAtWorst": 0.025054918602108955
+          },
+          "destination.u": {
+            "pass": true,
+            "count": 7680,
+            "exactMatches": 7680,
+            "failures": 0,
+            "nonFinite": 0,
+            "maxAbsolute": 0,
+            "rmsAbsolute": 0,
+            "maxNormalized": 0,
+            "worstIndex": 0,
+            "expectedAtWorst": 0.011492257006466389,
+            "actualAtWorst": 0.011492257006466389
+          },
+          "destination.v": {
+            "pass": true,
+            "count": 7680,
+            "exactMatches": 7680,
+            "failures": 0,
+            "nonFinite": 0,
+            "maxAbsolute": 0,
+            "rmsAbsolute": 0,
+            "maxNormalized": 0,
+            "worstIndex": 0,
+            "expectedAtWorst": -0.013877613469958305,
+            "actualAtWorst": -0.013877613469958305
+          }
+        }
+      },
+      "computeAndRenderInOneEncoder": true,
+      "residentPixelSha256": "8bfff6bbbc2849db237ecde13232ade7955e8416785d5b5c055ad80e07964467",
+      "cpuPixelSha256": "8bfff6bbbc2849db237ecde13232ade7955e8416785d5b5c055ad80e07964467"
+    },
+    {
+      "steps": 4,
+      "status": "PASSED",
+      "residentUploadBytes": 64,
+      "cpuUploadBytes": 92160,
+      "pixels": {
+        "pass": true,
+        "comparison": "Exact byte equality of identical fields on the same renderer/device.",
+        "pixels": 76800,
+        "differingPixels": 0,
+        "differingChannels": 0,
+        "maxAbsolute": 0,
+        "rmsChannelError": 0
+      },
+      "waterCoveragePixels": 15111,
+      "numerical": {
+        "pass": true,
+        "expectedSteps": 4,
+        "actualSteps": 4,
+        "tolerance": {
+          "absolute": 0.00002,
+          "relative": 0.0002
+        },
+        "fields": {
+          "current.eta": {
+            "pass": true,
+            "count": 7680,
+            "exactMatches": 3283,
+            "failures": 0,
+            "nonFinite": 0,
+            "maxAbsolute": 4.470348358154297e-8,
+            "rmsAbsolute": 6.085941445089836e-9,
+            "maxNormalized": 0.0009751349430739621,
+            "worstIndex": 315,
+            "expectedAtWorst": 0.12921690940856934,
+            "actualAtWorst": 0.12921695411205292
+          },
+          "current.u": {
+            "pass": true,
+            "count": 7680,
+            "exactMatches": 1938,
+            "failures": 0,
+            "nonFinite": 0,
+            "maxAbsolute": 1.6763806343078613e-8,
+            "rmsAbsolute": 2.134642827402968e-9,
+            "maxNormalized": 0.0007123784825971683,
+            "worstIndex": 4150,
+            "expectedAtWorst": 0.01766081340610981,
+            "actualAtWorst": 0.017660830169916153
+          },
+          "current.v": {
+            "pass": true,
+            "count": 7680,
+            "exactMatches": 1853,
+            "failures": 0,
+            "nonFinite": 0,
+            "maxAbsolute": 1.5934347175061703e-8,
+            "rmsAbsolute": 2.4004111931195013e-9,
+            "maxNormalized": 0.0007966312959507756,
+            "worstIndex": 119,
+            "expectedAtWorst": -0.00001080334186553955,
+            "actualAtWorst": -0.000010819276212714612
+          },
+          "destination.eta": {
+            "pass": true,
+            "count": 7680,
+            "exactMatches": 3699,
+            "failures": 0,
+            "nonFinite": 0,
+            "maxAbsolute": 4.470348358154297e-8,
+            "rmsAbsolute": 5.374757855775498e-9,
+            "maxNormalized": 0.0008954359771514346,
+            "worstIndex": 4386,
+            "expectedAtWorst": 0.14961853623390198,
+            "actualAtWorst": 0.14961858093738556
+          },
+          "destination.u": {
+            "pass": true,
+            "count": 7680,
+            "exactMatches": 2524,
+            "failures": 0,
+            "nonFinite": 0,
+            "maxAbsolute": 9.313225746154785e-9,
+            "rmsAbsolute": 1.4392844947778028e-9,
+            "maxNormalized": 0.00042514843763433435,
+            "worstIndex": 4824,
+            "expectedAtWorst": 0.0002875886275433004,
+            "actualAtWorst": 0.0002875971549656242
+          },
+          "destination.v": {
+            "pass": true,
+            "count": 7680,
+            "exactMatches": 2490,
+            "failures": 0,
+            "nonFinite": 0,
+            "maxAbsolute": 1.0244548320770264e-8,
+            "rmsAbsolute": 1.5682261044197355e-9,
+            "maxNormalized": 0.0004932535038648072,
+            "worstIndex": 119,
+            "expectedAtWorst": 0.0014865337871015072,
+            "actualAtWorst": 0.00148652377538383
+          }
+        }
+      },
+      "computeAndRenderInOneEncoder": true,
+      "residentPixelSha256": "79c6393fc58cea3697a49d8acf257cb5d218838e9700b0c4ba1dc90926bfea2d",
+      "cpuPixelSha256": "79c6393fc58cea3697a49d8acf257cb5d218838e9700b0c4ba1dc90926bfea2d"
+    }
+  ],
+  "gpuValidationErrors": [],
+  "fixture": {
+    "grid": {
+      "cols": 96,
+      "rows": 80
+    },
+    "canvas": [
+      320,
+      240
+    ],
+    "format": "rgba8unorm",
+    "scene": {
+      "viewProjection": {
+        "0": 1.2161180973052979,
+        "1": -0.6221752166748047,
+        "2": -0.5485166311264038,
+        "3": -0.5481509566307068,
+        "4": 0,
+        "5": 1.8220845460891724,
+        "6": -0.4799520671367645,
+        "7": -0.47963210940361023,
+        "8": -0.9728944897651672,
+        "9": -0.7777190208435059,
+        "10": -0.6856458187103271,
+        "11": -0.6851887106895447,
+        "12": 5.532964477615544e-15,
+        "13": 0,
+        "14": 43.71269989013672,
+        "15": 43.7835578918457
+      },
+      "lightViewProjection": {
+        "0": 1,
+        "1": 0,
+        "2": 0,
+        "3": 0,
+        "4": 0,
+        "5": 1,
+        "6": 0,
+        "7": 0,
+        "8": 0,
+        "9": 0,
+        "10": 1,
+        "11": 0,
+        "12": 0,
+        "13": 0,
+        "14": 0,
+        "15": 1
+      },
+      "cameraPosition": [
+        24,
+        21,
+        30
+      ],
+      "timeSeconds": 1.25,
+      "lightDirection": [
+        0.4,
+        0.8,
+        0.3
+      ],
+      "fogColor": [
+        0.05,
+        0.08,
+        0.12
+      ],
+      "studioMode": false,
+      "quality": {
+        "id": "performance",
+        "label": "Fixed parity fixture",
+        "exposure": 1,
+        "bloomStrength": 0,
+        "fogDensity": 0,
+        "shadowStrength": 0,
+        "effectBudget": 0,
+        "resolutionScale": 1,
+        "sampleCount": 1,
+        "shadowMapSize": 1024,
+        "shadowTapCount": 1
+      }
+    },
+    "initialStateSha256": "330fb91e7c0cc4b875fb08580ae4ac6e2e8a733438c8a2f05f8cdaaf7b78f4c9",
+    "params": {
+      "dt": 0.008333333333333333,
+      "gravity": 9.81,
+      "meanDepth": 1.55,
+      "drag": 0.33,
+      "invTwoDx": 1.3970588235294117,
+      "invTwoDz": 1.6458333333333333
+    }
+  },
+  "materials": {
+    "noise": {
+      "compressed": true,
+      "sourceBytes": 43704,
+      "source": "ktx2-bc4"
+    },
+    "atlas": {
+      "compressed": false,
+      "sourceBytes": 10837392,
+      "source": "poliigon-rgba8"
+    }
+  },
+  "settingsSha256": "cab372c3a72064556f4a8159deb2d7046ead901ffe7f9d9b9ea5d2f1be50eb91",
+  "stage": "complete",
+  "rejections": [
+    {
+      "id": "short-height-array",
+      "status": "PASSED",
+      "reportedBytes": 0,
+      "pixels": {
+        "pass": true,
+        "comparison": "Exact byte equality of identical fields on the same renderer/device.",
+        "pixels": 76800,
+        "differingPixels": 0,
+        "differingChannels": 0,
+        "maxAbsolute": 0,
+        "rmsChannelError": 0
+      }
+    },
+    {
+      "id": "wrong-velocity-array-type",
+      "status": "PASSED",
+      "reportedBytes": 0,
+      "pixels": {
+        "pass": true,
+        "comparison": "Exact byte equality of identical fields on the same renderer/device.",
+        "pixels": 76800,
+        "differingPixels": 0,
+        "differingChannels": 0,
+        "maxAbsolute": 0,
+        "rmsChannelError": 0
+      }
+    }
+  ],
+  "waterPlanningStats": {
+    "sourceUpdates": 4,
+    "invalidations": 4,
+    "generationChanges": 0,
+    "evaluations": 8,
+    "nodesAttempted": 7,
+    "nodesComputed": 7,
+    "cacheHits": 7,
+    "failures": 0
+  },
+  "uploadOverhead": {
+    "status": "PASSED",
+    "settings": {
+      "samples": 21,
+      "warmupBatches": 5,
+      "unchangedCallsPerBatch": 1024,
+      "advancingCallsPerBatch": 16
+    },
+    "settingsSha256": "691e72ea41c76979ad41bb5c954baacde2d41902143403492c4d6ab064f16fae",
+    "cases": [
+      {
+        "id": "unchanged-frame",
+        "status": "PASSED",
+        "callsPerBatch": 1024,
+        "expectedBytesPerCall": 0,
+        "byteCountParity": true,
+        "measuredBatchReportedBytes": {
+          "baseline": [
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0
+          ],
+          "current": [
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0
+          ]
+        },
+        "measuredBatchPlanningNodesComputed": {
+          "baseline": [
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0
+          ],
+          "current": [
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0
+          ]
+        },
+        "noRepeatedPlanning": true,
+        "baseline": {
+          "unit": "ms/uploadSurface call",
+          "samples": 21,
+          "zeroSamples": 0,
+          "resolutionCaveat": null,
+          "p50": 0.000527343712747097,
+          "p95": 0.0006054688710719347,
+          "p99": 0.0006210938561707736,
+          "min": 0.00027343747206032276,
+          "max": 0.0006250001024454832,
+          "mean": 0.00044526601032841774,
+          "raw": [
+            0.0005371093284338713,
+            0.0005761720240116119,
+            0.0005712888669222593,
+            0.0005761720240116119,
+            0.0005859376396983862,
+            0.0005419920198619366,
+            0.0006054688710719347,
+            0.0005810547154396772,
+            0.000527343712747097,
+            0.0005468749441206455,
+            0.0006250001024454832,
+            0.0003613282460719347,
+            0.0003076172433793545,
+            0.0003076172433793545,
+            0.00027343747206032276,
+            0.00031738285906612873,
+            0.0003076172433793545,
+            0.00027343747206032276,
+            0.00032226555049419403,
+            0.0003027343191206455,
+            0.0003027343191206455
+          ]
+        },
+        "current": {
+          "unit": "ms/uploadSurface call",
+          "samples": 21,
+          "zeroSamples": 0,
+          "resolutionCaveat": null,
+          "p50": 0.000732421875,
+          "p95": 0.0007958984933793545,
+          "p99": 0.0008115234784781933,
+          "min": 0.00045898440293967724,
+          "max": 0.000815429724752903,
+          "mean": 0.0007293991788866974,
+          "raw": [
+            0.000776367262005806,
+            0.0007958984933793545,
+            0.0007958984933793545,
+            0.0007910155691206455,
+            0.0007421874906867743,
+            0.000732421875,
+            0.000727538950741291,
+            0.000732421875,
+            0.000737304799258709,
+            0.0007226562593132257,
+            0.000815429724752903,
+            0.0007910155691206455,
+            0.0007519531063735485,
+            0.0007421874906867743,
+            0.0007031250279396772,
+            0.0006982421036809683,
+            0.0007031247951090336,
+            0.0006835937965661287,
+            0.0007128906436264515,
+            0.0007031250279396772,
+            0.00045898440293967724
+          ]
+        },
+        "observedMedianRatioCurrentToBaseline": 1.3888889870035375
+      },
+      {
+        "id": "advancing-frame",
+        "status": "PASSED",
+        "callsPerBatch": 16,
+        "expectedBytesPerCall": 92160,
+        "byteCountParity": true,
+        "measuredBatchReportedBytes": {
+          "baseline": [
+            1474560,
+            1474560,
+            1474560,
+            1474560,
+            1474560,
+            1474560,
+            1474560,
+            1474560,
+            1474560,
+            1474560,
+            1474560,
+            1474560,
+            1474560,
+            1474560,
+            1474560,
+            1474560,
+            1474560,
+            1474560,
+            1474560,
+            1474560,
+            1474560
+          ],
+          "current": [
+            1474560,
+            1474560,
+            1474560,
+            1474560,
+            1474560,
+            1474560,
+            1474560,
+            1474560,
+            1474560,
+            1474560,
+            1474560,
+            1474560,
+            1474560,
+            1474560,
+            1474560,
+            1474560,
+            1474560,
+            1474560,
+            1474560,
+            1474560,
+            1474560
+          ]
+        },
+        "measuredBatchPlanningNodesComputed": {
+          "baseline": [
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0
+          ],
+          "current": [
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0
+          ]
+        },
+        "noRepeatedPlanning": true,
+        "baseline": {
+          "unit": "ms/uploadSurface call",
+          "samples": 21,
+          "zeroSamples": 0,
+          "resolutionCaveat": null,
+          "p50": 0.3684374988079071,
+          "p95": 0.4009374976158142,
+          "p99": 0.4029375076293945,
+          "min": 0.05406250059604645,
+          "max": 0.4034375101327896,
+          "mean": 0.30452381003470647,
+          "raw": [
+            0.38374999165534973,
+            0.3893750011920929,
+            0.38593749701976776,
+            0.36156250536441803,
+            0.3946875035762787,
+            0.390625,
+            0.3684374988079071,
+            0.36374999582767487,
+            0.3831250071525574,
+            0.4009374976158142,
+            0.35999999940395355,
+            0.3684374988079071,
+            0.37062500417232513,
+            0.3696874976158142,
+            0.4034375101327896,
+            0.36499999463558197,
+            0.05531249940395355,
+            0.05500000715255737,
+            0.05406250059604645,
+            0.07625000178813934,
+            0.0949999988079071
+          ]
+        },
+        "current": {
+          "unit": "ms/uploadSurface call",
+          "samples": 21,
+          "zeroSamples": 0,
+          "resolutionCaveat": null,
+          "p50": 0.3712500035762787,
+          "p95": 0.40406249463558197,
+          "p99": 0.4078125089406967,
+          "min": 0.05375000834465027,
+          "max": 0.4087500125169754,
+          "mean": 0.30514881085781825,
+          "raw": [
+            0.38593749701976776,
+            0.3681250065565109,
+            0.2893749922513962,
+            0.3971875011920929,
+            0.3959375023841858,
+            0.3890625089406967,
+            0.39781250059604645,
+            0.4087500125169754,
+            0.3815625011920929,
+            0.38593749701976776,
+            0.3675000071525574,
+            0.3712500035762787,
+            0.36250001192092896,
+            0.3709374964237213,
+            0.40406249463558197,
+            0.39249999821186066,
+            0.05937500298023224,
+            0.05375000834465027,
+            0.08281248807907104,
+            0.05718749761581421,
+            0.08656249940395355
+          ]
+        },
+        "observedMedianRatioCurrentToBaseline": 1.0076336007531035
+      }
+    ],
+    "scope": "CPU time in actual pinned/current uploadSurface on the same initialized resources.",
+    "exclusions": [
+      "creation",
+      "cache seeding",
+      "queue drain",
+      "simulation",
+      "draw",
+      "GPU completion"
+    ],
+    "accounting": "Only steady-state dynamic bytes are comparable; initial uniform/index accounting differs.",
+    "baselineProvenance": {
+      "source": "https://github.com/nathansenn/box3d-WEBGPU/blob/dfedd9fe9983200f492d686488d27b6a4b11c650/src/webgpu/renderer.ts",
+      "gitBlob": "e75d39fa091f3b91665c967dcfe548a86d8a0352",
+      "sourceSha256": "af5b3beac1f02f4e6d75e383270151c7679a473fac196b576ff59085c6e3b03f",
+      "sourceBytes": 139414,
+      "removedOnlyToolAppendedFinalLF": false,
+      "transform": "node v24.22.1 stripTypeScriptTypes(mode=transform)",
+      "runtimeImportRelocation": "../assets/ktx2.js → ../../src/assets/ktx2.ts",
+      "fixtureSha256": "8f81d2d06dad6a0477b2473a8cc5fb092ea325cbc4df9e3645a6bcd2e729b0a5"
+    }
+  }
+}

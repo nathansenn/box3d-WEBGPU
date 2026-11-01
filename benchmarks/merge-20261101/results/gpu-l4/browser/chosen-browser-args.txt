@@ -1,0 +1,1 @@
+--enable-unsafe-webgpu --use-angle=vulkan --enable-features=Vulkan --disable-vulkan-surface --ignore-gpu-blocklist --disable-dawn-features=timestamp_quantization

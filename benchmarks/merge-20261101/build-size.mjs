@@ -23,7 +23,7 @@ const out = path.resolve(opt('--out', path.join(root, 'benchmarks/merge-20261101
 function build(which, r) {
   const outDir = path.join(work, `${which}-${r}`);
   const t0 = performance.now();
-  const res = spawnSync(path.join(trees[which], 'node_modules/.bin/vite'), ['build', '--outDir', outDir, '--emptyOutDir', '--logLevel', 'warn'],
+  const res = spawnSync(path.join(trees[which], 'node_modules/.bin/vite'), ['build', '--outDir', outDir, '--emptyOutDir', '--manifest', '--logLevel', 'warn'],
     { cwd: trees[which], encoding: 'utf8', maxBuffer: 64 * 1024 * 1024, env: { ...process.env, NODE_ENV: 'production' } });
   const ms = performance.now() - t0;
   if (res.status !== 0) throw new Error(`${which} build failed: ${res.stderr}`);
@@ -62,7 +62,32 @@ function measure(outDir) {
       initialJsCss: initial.reduce((a, f) => ({ raw: a.raw + f.raw, gzip: a.gzip + f.gzip, brotli: a.brotli + f.brotli }), { raw: 0, gzip: 0, brotli: 0 }),
     };
   }
+  // Route cost from Vite's manifest: an HTML entry's static import closure, plus, for each dynamic import it can take,
+  // that module's static closure. The merged index.html is a router that dynamically imports one Studio per route.
+  const manifestPath = path.join(outDir, '.vite/manifest.json');
+  const routes = {};
+  if (fs.existsSync(manifestPath)) {
+    const manifest = JSON.parse(fs.readFileSync(manifestPath, 'utf8'));
+    const closure = (key, seen = new Set()) => {
+      if (seen.has(key) || !manifest[key]) return seen;
+      seen.add(key);
+      for (const dep of manifest[key].imports ?? []) closure(dep, seen);
+      return seen;
+    };
+    const filesOf = (keys) => [...new Set([...keys].flatMap((k) => [manifest[k].file, ...(manifest[k].css ?? [])]))];
+    const sizeOf = (names) => names.map((n) => files.find((f) => f.name === n)).filter(Boolean)
+      .reduce((a, f) => ({ files: a.files + 1, raw: a.raw + f.raw, gzip: a.gzip + (f.gzip ?? f.raw), brotli: a.brotli + (f.brotli ?? f.raw) }), { files: 0, raw: 0, gzip: 0, brotli: 0 });
+    for (const [key, item] of Object.entries(manifest).filter(([, v]) => v.isEntry)) {
+      const initial = closure(key);
+      routes[`${key} (static)`] = { modules: [...initial], ...sizeOf(filesOf(initial)) };
+      for (const dynamic of item.dynamicImports ?? []) {
+        const keys = new Set([...initial, ...closure(dynamic)]);
+        routes[`${key} → ${dynamic}`] = { modules: [...keys], ...sizeOf(filesOf(keys)) };
+      }
+    }
+  }
   return {
+    routes,
     totals: {
       all: group(() => true),
       javascript: group((f) => f.ext === 'js' || f.ext === 'mjs'),
@@ -107,5 +132,6 @@ for (const which of ['baseline', 'candidate']) {
   const t = sizes[which].totals;
   console.log(`${which}: files ${sizes[which].fileCount}, all ${(t.all.raw / 1e6).toFixed(2)} MB, js ${(t.javascript.raw / 1e3).toFixed(0)} kB (br ${(t.javascript.brotli / 1e3).toFixed(0)} kB), css ${(t.css.raw / 1e3).toFixed(0)} kB, wasm ${(t.wasm.raw / 1e3).toFixed(0)} kB`);
   for (const [name, e] of Object.entries(sizes[which].entries)) console.log(`   ${name}: initial JS+CSS ${(e.initialJsCss.raw / 1e3).toFixed(0)} kB raw, ${(e.initialJsCss.brotli / 1e3).toFixed(0)} kB brotli (${e.initialFiles.length} files)`);
+  for (const [name, r] of Object.entries(sizes[which].routes)) console.log(`   route ${name}: JS+CSS ${(r.raw / 1e3).toFixed(0)} kB raw, ${(r.brotli / 1e3).toFixed(0)} kB brotli (${r.files} files)`);
 }
 console.log(`wrote ${out}`);

@@ -21,8 +21,23 @@
 - CI has failed since 2026-08-14. Rope batching is now qualified against the same source's legacy per-constraint cadence: the archived v1.9.0 reference became unreachable when rope drag was made time-step scaled. That exposed real divergence, so batching at maximum stress now excludes rope variants 2, 3 and 5; the 23 remaining batched combinations are bit-exact over 720 frames.
 - The self-test validates the studio shell. Projection-depth, studio floor and non-press trajectory tests reflect texel-snapped shadows, riverbed contact and cross-platform float noise.
 
+### Benchmarks
+
+- [`docs/BENCHMARKS_MERGE_20261101.md`](docs/BENCHMARKS_MERGE_20261101.md) compares this branch with `main` on a CPU host and an NVIDIA L4. Results:
+  - Renderer: every image check passes against a colour-matched control, and GPU time per frame is 33–45% lower in five of six scenes.
+  - Native engine: unchanged speed, and trajectories are bit-identical.
+  - Soft bodies: unchanged except 15 rope scenes, which are 13–20% slower on the exact cadence.
+  - GPU-resident water: up to 217× faster than CPU water plus upload.
+- `benchmarks/merge-20261101` holds the harness, raw results and the generated summary.
+- Harness changes:
+  - The renderer runtime test now also passes with instance partitioning on.
+  - The GPU harnesses gained a `--hardware-vulkan` browser profile and a colour-pipeline control baseline.
+  - Dawn scripts now read `WEBGPU_DAWN_BACKEND`.
+
 ### Known issues
 
+- The AAA Physics Lab (`src/main.ts`) is no longer a page of the production build; `index.html` opens the Engineering Studio.
+- Canopy contact costs 10.8 ms per step at service load, which is 0.77× real time on a 2.1 GHz cloud CPU.
 - Glass lab: after fracture (about 364 shards) a CPU step can take about 1 s. `ConvexContactWorld.stepInterval` rolls the whole world back and re-runs half-steps whenever one pair needs recovery, so `tests/studio/material-labs.test.mjs` does not finish in practical time. Unchanged here.
 - Twelve `tests/engine` evidence and provenance checks carried over from the Oct 3 snapshot fail. They are not part of CI.
 
