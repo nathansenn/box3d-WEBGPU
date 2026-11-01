@@ -1,0 +1,882 @@
+{
+  "at": "2026-09-10T02:03:51.386117+00:00",
+  "origin": "https://box3d.apxlabs.parts",
+  "expectedEntrySha256": "5d91a8b8dff607ec4fc9bd8381b1f6b9c889bc3b05b808e8b5ba5ba4cc98c321",
+  "pass": true,
+  "requests": 49,
+  "results": [
+    {
+      "url": "https://box3d.apxlabs.parts/",
+      "kind": "html",
+      "method": "GET",
+      "status": 200,
+      "headers": {
+        "content-type": "text/html; charset=utf-8",
+        "location": null,
+        "x-robots-tag": null,
+        "cache-control": "public, max-age=0, must-revalidate",
+        "x-content-type-options": "nosniff"
+      },
+      "bytesRead": 7056,
+      "htmlSha256": "5d91a8b8dff607ec4fc9bd8381b1f6b9c889bc3b05b808e8b5ba5ba4cc98c321",
+      "canonical": "https://box3d.apxlabs.parts/",
+      "htmlChecks": 17,
+      "failedHtmlChecks": [],
+      "pass": true,
+      "errors": []
+    },
+    {
+      "url": "https://box3d.apxlabs.parts/?studio=liquid",
+      "kind": "html",
+      "method": "GET",
+      "status": 200,
+      "headers": {
+        "content-type": "text/html; charset=utf-8",
+        "location": null,
+        "x-robots-tag": null,
+        "cache-control": "public, max-age=0, must-revalidate",
+        "x-content-type-options": "nosniff"
+      },
+      "bytesRead": 7056,
+      "htmlSha256": "5d91a8b8dff607ec4fc9bd8381b1f6b9c889bc3b05b808e8b5ba5ba4cc98c321",
+      "canonical": "https://box3d.apxlabs.parts/",
+      "htmlChecks": 17,
+      "failedHtmlChecks": [],
+      "pass": true,
+      "errors": []
+    },
+    {
+      "url": "https://box3d.apxlabs.parts/?studio=glass",
+      "kind": "html",
+      "method": "GET",
+      "status": 200,
+      "headers": {
+        "content-type": "text/html; charset=utf-8",
+        "location": null,
+        "x-robots-tag": null,
+        "cache-control": "public, max-age=0, must-revalidate",
+        "x-content-type-options": "nosniff"
+      },
+      "bytesRead": 7056,
+      "htmlSha256": "5d91a8b8dff607ec4fc9bd8381b1f6b9c889bc3b05b808e8b5ba5ba4cc98c321",
+      "canonical": "https://box3d.apxlabs.parts/",
+      "htmlChecks": 17,
+      "failedHtmlChecks": [],
+      "pass": true,
+      "errors": []
+    },
+    {
+      "url": "https://box3d.apxlabs.parts/?studio=concrete",
+      "kind": "html",
+      "method": "GET",
+      "status": 200,
+      "headers": {
+        "content-type": "text/html; charset=utf-8",
+        "location": null,
+        "x-robots-tag": null,
+        "cache-control": "public, max-age=0, must-revalidate",
+        "x-content-type-options": "nosniff"
+      },
+      "bytesRead": 7056,
+      "htmlSha256": "5d91a8b8dff607ec4fc9bd8381b1f6b9c889bc3b05b808e8b5ba5ba4cc98c321",
+      "canonical": "https://box3d.apxlabs.parts/",
+      "htmlChecks": 17,
+      "failedHtmlChecks": [],
+      "pass": true,
+      "errors": []
+    },
+    {
+      "url": "https://box3d.apxlabs.parts/?studio=rubber",
+      "kind": "html",
+      "method": "GET",
+      "status": 200,
+      "headers": {
+        "content-type": "text/html; charset=utf-8",
+        "location": null,
+        "x-robots-tag": null,
+        "cache-control": "public, max-age=0, must-revalidate",
+        "x-content-type-options": "nosniff"
+      },
+      "bytesRead": 7056,
+      "htmlSha256": "5d91a8b8dff607ec4fc9bd8381b1f6b9c889bc3b05b808e8b5ba5ba4cc98c321",
+      "canonical": "https://box3d.apxlabs.parts/",
+      "htmlChecks": 17,
+      "failedHtmlChecks": [],
+      "pass": true,
+      "errors": []
+    },
+    {
+      "url": "https://box3d.apxlabs.parts/?studio=granular",
+      "kind": "html",
+      "method": "GET",
+      "status": 200,
+      "headers": {
+        "content-type": "text/html; charset=utf-8",
+        "location": null,
+        "x-robots-tag": null,
+        "cache-control": "public, max-age=0, must-revalidate",
+        "x-content-type-options": "nosniff"
+      },
+      "bytesRead": 7056,
+      "htmlSha256": "5d91a8b8dff607ec4fc9bd8381b1f6b9c889bc3b05b808e8b5ba5ba4cc98c321",
+      "canonical": "https://box3d.apxlabs.parts/",
+      "htmlChecks": 17,
+      "failedHtmlChecks": [],
+      "pass": true,
+      "errors": []
+    },
+    {
+      "url": "https://box3d.apxlabs.parts/?studio=plate",
+      "kind": "html",
+      "method": "GET",
+      "status": 200,
+      "headers": {
+        "content-type": "text/html; charset=utf-8",
+        "location": null,
+        "x-robots-tag": null,
+        "cache-control": "public, max-age=0, must-revalidate",
+        "x-content-type-options": "nosniff"
+      },
+      "bytesRead": 7056,
+      "htmlSha256": "5d91a8b8dff607ec4fc9bd8381b1f6b9c889bc3b05b808e8b5ba5ba4cc98c321",
+      "canonical": "https://box3d.apxlabs.parts/",
+      "htmlChecks": 17,
+      "failedHtmlChecks": [],
+      "pass": true,
+      "errors": []
+    },
+    {
+      "url": "https://box3d.apxlabs.parts/?studio=canopy",
+      "kind": "html",
+      "method": "GET",
+      "status": 200,
+      "headers": {
+        "content-type": "text/html; charset=utf-8",
+        "location": null,
+        "x-robots-tag": null,
+        "cache-control": "public, max-age=0, must-revalidate",
+        "x-content-type-options": "nosniff"
+      },
+      "bytesRead": 7056,
+      "htmlSha256": "5d91a8b8dff607ec4fc9bd8381b1f6b9c889bc3b05b808e8b5ba5ba4cc98c321",
+      "canonical": "https://box3d.apxlabs.parts/",
+      "htmlChecks": 17,
+      "failedHtmlChecks": [],
+      "pass": true,
+      "errors": []
+    },
+    {
+      "url": "https://box3d.apxlabs.parts/?studio=bridge",
+      "kind": "html",
+      "method": "GET",
+      "status": 200,
+      "headers": {
+        "content-type": "text/html; charset=utf-8",
+        "location": null,
+        "x-robots-tag": null,
+        "cache-control": "public, max-age=0, must-revalidate",
+        "x-content-type-options": "nosniff"
+      },
+      "bytesRead": 7056,
+      "htmlSha256": "5d91a8b8dff607ec4fc9bd8381b1f6b9c889bc3b05b808e8b5ba5ba4cc98c321",
+      "canonical": "https://box3d.apxlabs.parts/",
+      "htmlChecks": 17,
+      "failedHtmlChecks": [],
+      "pass": true,
+      "errors": []
+    },
+    {
+      "url": "https://box3d.apxlabs.parts/?studio=liquid&material=honey&load=35&rate=0.2&camera=top",
+      "kind": "html",
+      "method": "GET",
+      "status": 200,
+      "headers": {
+        "content-type": "text/html; charset=utf-8",
+        "location": null,
+        "x-robots-tag": null,
+        "cache-control": "public, max-age=0, must-revalidate",
+        "x-content-type-options": "nosniff"
+      },
+      "bytesRead": 7056,
+      "htmlSha256": "5d91a8b8dff607ec4fc9bd8381b1f6b9c889bc3b05b808e8b5ba5ba4cc98c321",
+      "canonical": "https://box3d.apxlabs.parts/",
+      "htmlChecks": 17,
+      "failedHtmlChecks": [],
+      "pass": true,
+      "errors": []
+    },
+    {
+      "url": "https://box3d.apxlabs.parts/?studio=bridge&camera=river-hero&quality=ultra&custom=1&target=5",
+      "kind": "html",
+      "method": "GET",
+      "status": 200,
+      "headers": {
+        "content-type": "text/html; charset=utf-8",
+        "location": null,
+        "x-robots-tag": null,
+        "cache-control": "public, max-age=0, must-revalidate",
+        "x-content-type-options": "nosniff"
+      },
+      "bytesRead": 7056,
+      "htmlSha256": "5d91a8b8dff607ec4fc9bd8381b1f6b9c889bc3b05b808e8b5ba5ba4cc98c321",
+      "canonical": "https://box3d.apxlabs.parts/",
+      "htmlChecks": 17,
+      "failedHtmlChecks": [],
+      "pass": true,
+      "errors": []
+    },
+    {
+      "url": "https://box3d.apxlabs.parts/?studio=unknown",
+      "kind": "html",
+      "method": "GET",
+      "status": 200,
+      "headers": {
+        "content-type": "text/html; charset=utf-8",
+        "location": null,
+        "x-robots-tag": null,
+        "cache-control": "public, max-age=0, must-revalidate",
+        "x-content-type-options": "nosniff"
+      },
+      "bytesRead": 7056,
+      "htmlSha256": "5d91a8b8dff607ec4fc9bd8381b1f6b9c889bc3b05b808e8b5ba5ba4cc98c321",
+      "canonical": "https://box3d.apxlabs.parts/",
+      "htmlChecks": 17,
+      "failedHtmlChecks": [],
+      "pass": true,
+      "errors": []
+    },
+    {
+      "url": "https://box3d.apxlabs.parts/?lab=canopy-load-capture",
+      "kind": "html",
+      "method": "GET",
+      "status": 200,
+      "headers": {
+        "content-type": "text/html; charset=utf-8",
+        "location": null,
+        "x-robots-tag": null,
+        "cache-control": "public, max-age=0, must-revalidate",
+        "x-content-type-options": "nosniff"
+      },
+      "bytesRead": 7056,
+      "htmlSha256": "5d91a8b8dff607ec4fc9bd8381b1f6b9c889bc3b05b808e8b5ba5ba4cc98c321",
+      "canonical": "https://box3d.apxlabs.parts/",
+      "htmlChecks": 17,
+      "failedHtmlChecks": [],
+      "pass": true,
+      "errors": []
+    },
+    {
+      "url": "https://box3d.apxlabs.parts/?workbench=1",
+      "kind": "html",
+      "method": "GET",
+      "status": 200,
+      "headers": {
+        "content-type": "text/html; charset=utf-8",
+        "location": null,
+        "x-robots-tag": null,
+        "cache-control": "public, max-age=0, must-revalidate",
+        "x-content-type-options": "nosniff"
+      },
+      "bytesRead": 7056,
+      "htmlSha256": "5d91a8b8dff607ec4fc9bd8381b1f6b9c889bc3b05b808e8b5ba5ba4cc98c321",
+      "canonical": "https://box3d.apxlabs.parts/",
+      "htmlChecks": 17,
+      "failedHtmlChecks": [],
+      "pass": true,
+      "errors": []
+    },
+    {
+      "url": "https://box3d.apxlabs.parts/?workspace=contest",
+      "kind": "html",
+      "method": "GET",
+      "status": 200,
+      "headers": {
+        "content-type": "text/html; charset=utf-8",
+        "location": null,
+        "x-robots-tag": null,
+        "cache-control": "public, max-age=0, must-revalidate",
+        "x-content-type-options": "nosniff"
+      },
+      "bytesRead": 7056,
+      "htmlSha256": "5d91a8b8dff607ec4fc9bd8381b1f6b9c889bc3b05b808e8b5ba5ba4cc98c321",
+      "canonical": "https://box3d.apxlabs.parts/",
+      "htmlChecks": 17,
+      "failedHtmlChecks": [],
+      "pass": true,
+      "errors": []
+    },
+    {
+      "url": "https://box3d.apxlabs.parts/?workspace=test",
+      "kind": "internal",
+      "method": "GET",
+      "status": 200,
+      "headers": {
+        "content-type": "text/html; charset=utf-8",
+        "location": null,
+        "x-robots-tag": "noindex, follow",
+        "cache-control": "public, max-age=0, must-revalidate",
+        "x-content-type-options": "nosniff"
+      },
+      "bytesRead": 7056,
+      "htmlSha256": "5d91a8b8dff607ec4fc9bd8381b1f6b9c889bc3b05b808e8b5ba5ba4cc98c321",
+      "canonical": "https://box3d.apxlabs.parts/",
+      "htmlChecks": 17,
+      "failedHtmlChecks": [],
+      "pass": true,
+      "errors": []
+    },
+    {
+      "url": "https://box3d.apxlabs.parts/?view=structural-test&studio=bridge",
+      "kind": "internal",
+      "method": "GET",
+      "status": 200,
+      "headers": {
+        "content-type": "text/html; charset=utf-8",
+        "location": null,
+        "x-robots-tag": "noindex, follow",
+        "cache-control": "public, max-age=0, must-revalidate",
+        "x-content-type-options": "nosniff"
+      },
+      "bytesRead": 7056,
+      "htmlSha256": "5d91a8b8dff607ec4fc9bd8381b1f6b9c889bc3b05b808e8b5ba5ba4cc98c321",
+      "canonical": "https://box3d.apxlabs.parts/",
+      "htmlChecks": 17,
+      "failedHtmlChecks": [],
+      "pass": true,
+      "errors": []
+    },
+    {
+      "url": "https://box3d.apxlabs.parts/?workspace=test&view=structural-test&studio=liquid",
+      "kind": "internal",
+      "method": "GET",
+      "status": 200,
+      "headers": {
+        "content-type": "text/html; charset=utf-8",
+        "location": null,
+        "x-robots-tag": "noindex, follow",
+        "cache-control": "public, max-age=0, must-revalidate",
+        "x-content-type-options": "nosniff"
+      },
+      "bytesRead": 7056,
+      "htmlSha256": "5d91a8b8dff607ec4fc9bd8381b1f6b9c889bc3b05b808e8b5ba5ba4cc98c321",
+      "canonical": "https://box3d.apxlabs.parts/",
+      "htmlChecks": 17,
+      "failedHtmlChecks": [],
+      "pass": true,
+      "errors": []
+    },
+    {
+      "url": "https://box3d.apxlabs.parts/index.html",
+      "kind": "redirect",
+      "method": "GET",
+      "target": "https://box3d.apxlabs.parts/",
+      "status": 308,
+      "headers": {
+        "content-type": null,
+        "location": "https://box3d.apxlabs.parts/",
+        "x-robots-tag": null,
+        "cache-control": "public, max-age=0, must-revalidate",
+        "x-content-type-options": "nosniff"
+      },
+      "bytesRead": 0,
+      "pass": true,
+      "errors": []
+    },
+    {
+      "url": "https://box3d.apxlabs.parts/index.html?studio=glass&note=a%20b%2Fc",
+      "kind": "redirect",
+      "method": "GET",
+      "target": "https://box3d.apxlabs.parts/?studio=glass&note=a%20b%2Fc",
+      "status": 308,
+      "headers": {
+        "content-type": null,
+        "location": "https://box3d.apxlabs.parts/?studio=glass&note=a%20b%2Fc",
+        "x-robots-tag": null,
+        "cache-control": "public, max-age=0, must-revalidate",
+        "x-content-type-options": "nosniff"
+      },
+      "bytesRead": 0,
+      "pass": true,
+      "errors": []
+    },
+    {
+      "url": "https://box3d-web-production.up.railway.app/",
+      "kind": "redirect",
+      "method": "HEAD",
+      "target": "https://box3d.apxlabs.parts/",
+      "status": 308,
+      "headers": {
+        "content-type": null,
+        "location": "https://box3d.apxlabs.parts/",
+        "x-robots-tag": null,
+        "cache-control": "public, max-age=0, must-revalidate",
+        "x-content-type-options": "nosniff"
+      },
+      "bytesRead": 0,
+      "pass": true,
+      "errors": []
+    },
+    {
+      "url": "https://box3d-web-production.up.railway.app/?studio=bridge&camera=river-hero",
+      "kind": "redirect",
+      "method": "HEAD",
+      "target": "https://box3d.apxlabs.parts/?studio=bridge&camera=river-hero",
+      "status": 308,
+      "headers": {
+        "content-type": null,
+        "location": "https://box3d.apxlabs.parts/?studio=bridge&camera=river-hero",
+        "x-robots-tag": null,
+        "cache-control": "public, max-age=0, must-revalidate",
+        "x-content-type-options": "nosniff"
+      },
+      "bytesRead": 0,
+      "pass": true,
+      "errors": []
+    },
+    {
+      "url": "https://box3d-web-production.up.railway.app/index.html?studio=glass",
+      "kind": "redirect",
+      "method": "HEAD",
+      "target": "https://box3d.apxlabs.parts/index.html?studio=glass",
+      "status": 308,
+      "headers": {
+        "content-type": null,
+        "location": "https://box3d.apxlabs.parts/index.html?studio=glass",
+        "x-robots-tag": null,
+        "cache-control": "public, max-age=0, must-revalidate",
+        "x-content-type-options": "nosniff"
+      },
+      "bytesRead": 0,
+      "pass": true,
+      "errors": []
+    },
+    {
+      "url": "https://box3d-web-production.up.railway.app/studio/references/material-labs/liquid.png?reference=1",
+      "kind": "redirect",
+      "method": "HEAD",
+      "target": "https://box3d.apxlabs.parts/studio/references/material-labs/liquid.png?reference=1",
+      "status": 308,
+      "headers": {
+        "content-type": null,
+        "location": "https://box3d.apxlabs.parts/studio/references/material-labs/liquid.png?reference=1",
+        "x-robots-tag": null,
+        "cache-control": "public, max-age=0, must-revalidate",
+        "x-content-type-options": "nosniff"
+      },
+      "bytesRead": 0,
+      "pass": true,
+      "errors": []
+    },
+    {
+      "url": "https://box3d-web-production.up.railway.app/missing-page?scene=glass",
+      "kind": "redirect",
+      "method": "HEAD",
+      "target": "https://box3d.apxlabs.parts/missing-page?scene=glass",
+      "status": 308,
+      "headers": {
+        "content-type": null,
+        "location": "https://box3d.apxlabs.parts/missing-page?scene=glass",
+        "x-robots-tag": null,
+        "cache-control": "public, max-age=0, must-revalidate",
+        "x-content-type-options": "nosniff"
+      },
+      "bytesRead": 0,
+      "pass": true,
+      "errors": []
+    },
+    {
+      "url": "http://box3d.apxlabs.parts/",
+      "kind": "https-redirect",
+      "method": "HEAD",
+      "target": "https://box3d.apxlabs.parts/",
+      "status": 301,
+      "headers": {
+        "content-type": null,
+        "location": "https://box3d.apxlabs.parts/",
+        "x-robots-tag": null,
+        "cache-control": null,
+        "x-content-type-options": null
+      },
+      "bytesRead": 0,
+      "pass": true,
+      "errors": []
+    },
+    {
+      "url": "http://box3d.apxlabs.parts/?studio=glass&camera=detail",
+      "kind": "https-redirect",
+      "method": "HEAD",
+      "target": "https://box3d.apxlabs.parts/?studio=glass&camera=detail",
+      "status": 301,
+      "headers": {
+        "content-type": null,
+        "location": "https://box3d.apxlabs.parts/?studio=glass&camera=detail",
+        "x-robots-tag": null,
+        "cache-control": null,
+        "x-content-type-options": null
+      },
+      "bytesRead": 0,
+      "pass": true,
+      "errors": []
+    },
+    {
+      "url": "http://box3d.apxlabs.parts/missing-page?scene=glass",
+      "kind": "https-redirect",
+      "method": "HEAD",
+      "target": "https://box3d.apxlabs.parts/missing-page?scene=glass",
+      "status": 301,
+      "headers": {
+        "content-type": null,
+        "location": "https://box3d.apxlabs.parts/missing-page?scene=glass",
+        "x-robots-tag": null,
+        "cache-control": null,
+        "x-content-type-options": null
+      },
+      "bytesRead": 0,
+      "pass": true,
+      "errors": []
+    },
+    {
+      "url": "https://box3d.apxlabs.parts/health",
+      "kind": "health",
+      "method": "GET",
+      "status": 200,
+      "headers": {
+        "content-type": "application/json",
+        "location": null,
+        "x-robots-tag": "noindex",
+        "cache-control": "no-store",
+        "x-content-type-options": "nosniff"
+      },
+      "bytesRead": 898,
+      "release": "material-studies-20260910-seo-v2",
+      "pass": true,
+      "errors": []
+    },
+    {
+      "url": "https://box3d.apxlabs.parts/release-info.json",
+      "kind": "release",
+      "method": "GET",
+      "status": 200,
+      "headers": {
+        "content-type": "application/json",
+        "location": null,
+        "x-robots-tag": "noindex",
+        "cache-control": "public, max-age=0, must-revalidate",
+        "x-content-type-options": "nosniff"
+      },
+      "bytesRead": 898,
+      "release": "material-studies-20260910-seo-v2",
+      "pass": true,
+      "errors": []
+    },
+    {
+      "url": "https://box3d.apxlabs.parts/licenses/project.txt",
+      "kind": "notice",
+      "method": "HEAD",
+      "status": 200,
+      "headers": {
+        "content-type": "text/plain; charset=utf-8",
+        "location": null,
+        "x-robots-tag": "noindex",
+        "cache-control": "public, max-age=0, must-revalidate",
+        "x-content-type-options": "nosniff"
+      },
+      "bytesRead": 0,
+      "pass": true,
+      "errors": []
+    },
+    {
+      "url": "https://box3d.apxlabs.parts/studio/materials/provenance.json",
+      "kind": "notice",
+      "method": "HEAD",
+      "status": 200,
+      "headers": {
+        "content-type": "application/json",
+        "location": null,
+        "x-robots-tag": "noindex",
+        "cache-control": "public, max-age=0, must-revalidate",
+        "x-content-type-options": "nosniff"
+      },
+      "bytesRead": 0,
+      "pass": true,
+      "errors": []
+    },
+    {
+      "url": "https://box3d.apxlabs.parts/studio/models/polyhaven-island-tree-02.LICENSE.txt",
+      "kind": "notice",
+      "method": "HEAD",
+      "status": 200,
+      "headers": {
+        "content-type": "text/plain; charset=utf-8",
+        "location": null,
+        "x-robots-tag": "noindex",
+        "cache-control": "public, max-age=0, must-revalidate",
+        "x-content-type-options": "nosniff"
+      },
+      "bytesRead": 0,
+      "pass": true,
+      "errors": []
+    },
+    {
+      "url": "https://box3d.apxlabs.parts/assets/index-DaNDYoQL.js",
+      "kind": "script",
+      "method": "GET",
+      "expectedSha256": "9fe1468736b6dbab11fdfa98f5d4dbf38417e8dea7843d3da07497d411ff274d",
+      "status": 200,
+      "headers": {
+        "content-type": "text/javascript; charset=utf-8",
+        "location": null,
+        "x-robots-tag": null,
+        "cache-control": "public, max-age=31536000, immutable",
+        "x-content-type-options": "nosniff"
+      },
+      "bytesRead": 3630,
+      "sha256": "9fe1468736b6dbab11fdfa98f5d4dbf38417e8dea7843d3da07497d411ff274d",
+      "pass": true,
+      "errors": []
+    },
+    {
+      "url": "https://box3d.apxlabs.parts/assets/studio-worker-CiVNd5Bm.js",
+      "kind": "script",
+      "method": "GET",
+      "expectedSha256": "80fd3ffeef713fa62e350bcaf3fe1a22f1c71c5b0436f24c583f978d4e837b58",
+      "status": 200,
+      "headers": {
+        "content-type": "text/javascript; charset=utf-8",
+        "location": null,
+        "x-robots-tag": null,
+        "cache-control": "public, max-age=31536000, immutable",
+        "x-content-type-options": "nosniff"
+      },
+      "bytesRead": 38630,
+      "sha256": "80fd3ffeef713fa62e350bcaf3fe1a22f1c71c5b0436f24c583f978d4e837b58",
+      "pass": true,
+      "errors": []
+    },
+    {
+      "url": "https://box3d.apxlabs.parts/assets/RoundedBoxGeometry-BAh20NZY.css",
+      "kind": "css",
+      "method": "HEAD",
+      "status": 200,
+      "headers": {
+        "content-type": "text/css; charset=utf-8",
+        "location": null,
+        "x-robots-tag": null,
+        "cache-control": "public, max-age=31536000, immutable",
+        "x-content-type-options": "nosniff"
+      },
+      "bytesRead": 0,
+      "pass": true,
+      "errors": []
+    },
+    {
+      "url": "https://box3d.apxlabs.parts/studio/references/material-labs/liquid.png",
+      "kind": "share-image",
+      "method": "HEAD",
+      "status": 200,
+      "headers": {
+        "content-type": "image/png",
+        "location": null,
+        "x-robots-tag": null,
+        "cache-control": "public, max-age=0, must-revalidate",
+        "x-content-type-options": "nosniff"
+      },
+      "bytesRead": 0,
+      "pass": true,
+      "errors": []
+    },
+    {
+      "url": "https://box3d.apxlabs.parts/robots.txt",
+      "kind": "robots",
+      "method": "GET",
+      "status": 200,
+      "headers": {
+        "content-type": "text/plain; charset=utf-8",
+        "location": null,
+        "x-robots-tag": null,
+        "cache-control": "public, max-age=0, must-revalidate",
+        "x-content-type-options": "nosniff"
+      },
+      "bytesRead": 229,
+      "pass": true,
+      "errors": []
+    },
+    {
+      "url": "https://box3d.apxlabs.parts/sitemap.xml",
+      "kind": "sitemap",
+      "method": "GET",
+      "status": 200,
+      "headers": {
+        "content-type": "text/xml; charset=utf-8",
+        "location": null,
+        "x-robots-tag": null,
+        "cache-control": "public, max-age=0, must-revalidate",
+        "x-content-type-options": "nosniff"
+      },
+      "bytesRead": 171,
+      "pass": true,
+      "errors": []
+    },
+    {
+      "url": "https://box3d.apxlabs.parts/missing-page",
+      "kind": "missing",
+      "method": "HEAD",
+      "status": 404,
+      "headers": {
+        "content-type": null,
+        "location": null,
+        "x-robots-tag": null,
+        "cache-control": null,
+        "x-content-type-options": "nosniff"
+      },
+      "bytesRead": 0,
+      "pass": true,
+      "errors": []
+    },
+    {
+      "url": "https://box3d.apxlabs.parts/login",
+      "kind": "missing",
+      "method": "HEAD",
+      "status": 404,
+      "headers": {
+        "content-type": null,
+        "location": null,
+        "x-robots-tag": null,
+        "cache-control": null,
+        "x-content-type-options": "nosniff"
+      },
+      "bytesRead": 0,
+      "pass": true,
+      "errors": []
+    },
+    {
+      "url": "https://box3d.apxlabs.parts/account",
+      "kind": "missing",
+      "method": "HEAD",
+      "status": 404,
+      "headers": {
+        "content-type": null,
+        "location": null,
+        "x-robots-tag": null,
+        "cache-control": null,
+        "x-content-type-options": "nosniff"
+      },
+      "bytesRead": 0,
+      "pass": true,
+      "errors": []
+    },
+    {
+      "url": "https://box3d.apxlabs.parts/checkout",
+      "kind": "missing",
+      "method": "HEAD",
+      "status": 404,
+      "headers": {
+        "content-type": null,
+        "location": null,
+        "x-robots-tag": null,
+        "cache-control": null,
+        "x-content-type-options": "nosniff"
+      },
+      "bytesRead": 0,
+      "pass": true,
+      "errors": []
+    },
+    {
+      "url": "https://box3d.apxlabs.parts/drafts",
+      "kind": "missing",
+      "method": "HEAD",
+      "status": 404,
+      "headers": {
+        "content-type": null,
+        "location": null,
+        "x-robots-tag": null,
+        "cache-control": null,
+        "x-content-type-options": "nosniff"
+      },
+      "bytesRead": 0,
+      "pass": true,
+      "errors": []
+    },
+    {
+      "url": "https://box3d.apxlabs.parts/review",
+      "kind": "missing",
+      "method": "HEAD",
+      "status": 404,
+      "headers": {
+        "content-type": null,
+        "location": null,
+        "x-robots-tag": null,
+        "cache-control": null,
+        "x-content-type-options": "nosniff"
+      },
+      "bytesRead": 0,
+      "pass": true,
+      "errors": []
+    },
+    {
+      "url": "https://box3d.apxlabs.parts/src/entry.ts",
+      "kind": "missing",
+      "method": "HEAD",
+      "status": 404,
+      "headers": {
+        "content-type": null,
+        "location": null,
+        "x-robots-tag": null,
+        "cache-control": null,
+        "x-content-type-options": "nosniff"
+      },
+      "bytesRead": 0,
+      "pass": true,
+      "errors": []
+    },
+    {
+      "url": "https://box3d.apxlabs.parts/engine-probe.html",
+      "kind": "missing",
+      "method": "HEAD",
+      "status": 404,
+      "headers": {
+        "content-type": null,
+        "location": null,
+        "x-robots-tag": null,
+        "cache-control": null,
+        "x-content-type-options": "nosniff"
+      },
+      "bytesRead": 0,
+      "pass": true,
+      "errors": []
+    },
+    {
+      "url": "https://box3d.apxlabs.parts/.git/config",
+      "kind": "missing",
+      "method": "HEAD",
+      "status": 404,
+      "headers": {
+        "content-type": null,
+        "location": null,
+        "x-robots-tag": null,
+        "cache-control": null,
+        "x-content-type-options": "nosniff"
+      },
+      "bytesRead": 0,
+      "pass": true,
+      "errors": []
+    },
+    {
+      "url": "https://box3d.apxlabs.parts/studio/not-a-resource.png",
+      "kind": "missing",
+      "method": "HEAD",
+      "status": 404,
+      "headers": {
+        "content-type": null,
+        "location": null,
+        "x-robots-tag": null,
+        "cache-control": null,
+        "x-content-type-options": "nosniff"
+      },
+      "bytesRead": 0,
+      "pass": true,
+      "errors": []
+    }
+  ],
+  "scope": "Served HTML and HTTP contract only. No simulation suite or media capture."
+}

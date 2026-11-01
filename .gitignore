@@ -22,3 +22,20 @@ third_party/
 /public/soft-kernels-scalar 2.wasm
 /public/soft-kernels-simd 2.wasm
 /src/assets/ktx2 2.ts
+
+# repo-sync-20261003: secrets and large media stay out of git
+.env*
+!.env.example
+var/auth.token
+*.pem
+*.key
+*.p12
+.venv/
+*.glb
+*.mov
+*.webm
+*.ifc
+*.blend
+*.safetensors
+*.ckpt
+*.bundle

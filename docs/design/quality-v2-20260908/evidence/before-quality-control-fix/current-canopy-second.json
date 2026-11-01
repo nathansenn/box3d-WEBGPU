@@ -1,0 +1,23 @@
+{
+  "name": "current-canopy-second",
+  "at": "2026-09-08T07:53:49.617Z",
+  "broken": "0",
+  "camera": "reverse",
+  "deflection": "0.000",
+  "draws": "32",
+  "events": "0",
+  "finish": "canopy-linen",
+  "fps": "104",
+  "frames": "7776",
+  "height": 1058,
+  "horizontalOverflow": false,
+  "lighting": "daylight",
+  "objects": "554",
+  "productionEntry": "index--Zc_i5BF.js",
+  "ready": "true",
+  "study": "canopy",
+  "time": "0.00 s",
+  "triangles": "75943",
+  "url": "http://127.0.0.1:5174/?studio=canopy&theme=precision&finish=canopy-linen&light=daylight&recipe=canopy-tear&camera=reverse&quality=ultra",
+  "width": 1487
+}

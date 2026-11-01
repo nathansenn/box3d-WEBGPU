@@ -1,0 +1,9 @@
+{
+  "startedAt": "2026-09-09T23:08:36.663687+00:00",
+  "pid": 64614,
+  "cwd": "/private/tmp/box3d-material-stable-20260910",
+  "url": "http://127.0.0.1:5186/",
+  "binding": "127.0.0.1",
+  "detached": true,
+  "replacedOnlyOwnedPid": 98442
+}

@@ -1,0 +1,266 @@
+{
+  "at": "2026-09-30T03:49:28.352317+00:00",
+  "scope": {
+    "owner": "01a08767-778e-7633-9012-95ababc992ac",
+    "scope": "Review and start the local WebGPU collision studio",
+    "localBrowserException": {
+      "dependency": "User-requested 127.0.0.1 Vite preview, native WebGPU canvas, local worker module loading and live Run/Pause/Reset",
+      "why": "Remote Browserless cannot reach localhost or verify this Mac GPU and active dev-server worker execution.",
+      "ends": "After the bounded startup smoke test; user preview remains open."
+    },
+    "plannedOutput": {
+      "logsMaxBytes": 1048576,
+      "buildMaxBytes": 52428800,
+      "screenshots": 0
+    },
+    "server": {
+      "pid": 52599,
+      "host": "127.0.0.1",
+      "port": 4401,
+      "retainedForUser": true
+    }
+  },
+  "reviewer": "One independent code-review agent plus an owner reproduction; no specialized Bugbot service was available.",
+  "finding": {
+    "severity": "P1",
+    "path": "src/engine/convex-contact.ts",
+    "line": 428,
+    "additionalLine": 509,
+    "title": "Rediscover impulse-induced contacts without requiring an external-force callback",
+    "trigger": "Three-body impact chain with a thin wall, externalForces unset.",
+    "consequence": "The second body tunnels through the wall while penetration and unresolved-CCD counters report zero.",
+    "suggestedChange": "Run secondary contact discovery independently of external force staging; add a callback-free impact-chain regression when implementing the fix.",
+    "fixed": false
+  },
+  "reproduction": {
+    "exitCode": 0,
+    "command": "node --import ./scripts/register-typescript.mjs --input-type=module (reproduction supplied on stdin)",
+    "source": "import {ConvexBody,ConvexContactWorld,contactBox} from './src/engine/convex-contact.ts';\nfor (const staged of [false,true]) {\n  const w=new ConvexContactWorld();\n  const a=w.add(new ConvexBody(contactBox([.05,.05,.05]),[-.1,0,0]));\n  const b=w.add(new ConvexBody(contactBox([.05,.05,.05]),[0,0,0]));\n  const wall=w.add(new ConvexBody(contactBox([.002,1,1]),[.15,0,0],1,false));\n  for(const x of [a,b,wall]) { x.friction=0; x.restitution=1; }\n  a.velocity=[60,0,0];\n  if(staged) w.externalForces=()=>{};\n  w.step(1/120,32);\n  console.log(JSON.stringify({staged,bX:b.position[0],velocity:b.velocity,stats:w.stats}));\n}\n",
+    "results": [
+      {
+        "staged": false,
+        "bX": 0.41249999999999987,
+        "velocity": [
+          59.999999999999986,
+          -3.634915618052575e-15,
+          -1.1983808618539657e-15
+        ],
+        "stats": {
+          "candidatePairs": 2,
+          "narrowPhaseTests": 2,
+          "contacts": 8,
+          "sweptContacts": 2,
+          "ccdIterations": 2,
+          "ccdUnresolved": 0,
+          "maxPenetration": 0,
+          "refinements": 0
+        }
+      },
+      {
+        "staged": true,
+        "bX": -0.10199679293100813,
+        "velocity": [
+          -48.47909122020221,
+          -0.0014997278380070901,
+          -0.00797664414038702
+        ],
+        "stats": {
+          "candidatePairs": 3,
+          "narrowPhaseTests": 4,
+          "contacts": 12,
+          "sweptContacts": 3,
+          "ccdIterations": 4,
+          "ccdUnresolved": 0,
+          "maxPenetration": 5.001081493372084e-10,
+          "refinements": 0
+        }
+      }
+    ],
+    "stderr": "(node:62987) [DEP0205] DeprecationWarning: `module.register()` is deprecated. Use `module.registerHooks()` instead.\n(Use `node --trace-deprecation ...` to show where the warning was created)\n",
+    "sourceSha256": "cba07106461657599d9ecfb7d4bf040dc740ffab96b767774794415bb8c07501"
+  },
+  "checks": [
+    {
+      "label": "typecheck",
+      "command": [
+        "npm",
+        "run",
+        "typecheck"
+      ],
+      "exitCode": 0,
+      "elapsedSeconds": 2.998,
+      "logBytes": 49,
+      "logSha256": "a075eef8f689e39bfa84bb4af808751932a4a76a556369aef13c3e6020c2eca6",
+      "tail": [
+        "",
+        "> box3d-webgpu@1.20.0 typecheck",
+        "> tsc --noEmit",
+        ""
+      ]
+    },
+    {
+      "label": "collision",
+      "command": [
+        "npm",
+        "run",
+        "test:collision"
+      ],
+      "exitCode": 0,
+      "elapsedSeconds": 89.286,
+      "logBytes": 16138,
+      "logSha256": "34637f507dc0b4ea5b976726b97248d71776d115cea1912886c44228f339fd45",
+      "tail": [
+        "(node:58748) [DEP0205] DeprecationWarning: `module.register()` is deprecated. Use `module.registerHooks()` instead.",
+        "(Use `node --trace-deprecation ...` to show where the warning was created)",
+        "\u2714 glass thick panel catches every return swing and settles at the rendered sphere surface (5162.609458ms)",
+        "\u2714 glass contact surfaces share pane thickness, fixture dimensions and visible shard orientation (2013.839625ms)",
+        "\u2714 glass contact evolution is deterministic and visual recordings own their contact counters (4892.144208ms)",
+        "\u2714 released glass pieces collide and remain separate in the settled tray (34762.256041ms)",
+        "\u2139 tests 122",
+        "\u2139 suites 0",
+        "\u2139 pass 122",
+        "\u2139 fail 0",
+        "\u2139 cancelled 0",
+        "\u2139 skipped 0",
+        "\u2139 todo 0",
+        "\u2139 duration_ms 89019.117667"
+      ]
+    }
+  ],
+  "build": {
+    "exitCode": 0,
+    "elapsedSeconds": 0.671,
+    "dfBefore": "Filesystem      Size    Used   Avail Capacity iused ifree %iused  Mounted on\n/dev/disk3s5   926Gi   855Gi    38Gi    96%    9.2M  400M    2%   /System/Volumes/Data\n",
+    "publicAssetsRecopied": false,
+    "command": "Vite build via installed JS API with copyPublicDir:false; existing public assets served from public/",
+    "fileCount": 29,
+    "bytes": 8325704,
+    "buildHashes": {
+      "index.html": "be4eece2d8be3b08849dc474f3081d54714e35da3d3e0dd3641b7587586c5099",
+      "assets/Phosphor-BXRFlF4V.svg": "e874e712d3f1b7774b4cba7dafda1eecdb1f075cd5e2ec1109c0553421ecaed3",
+      "assets/glass-worker-client-BaKbumCt.js": "83e6aa001061da1ef5f9df44937a69c42f28776432915dfc6a372a01d248c80f",
+      "assets/inter-latin-700-normal-Yt3aPRUw.woff2": "6f56409fd3d64bb85f7d070bce20749db2d66b6d63cec586cc22d1c761be2491",
+      "assets/inter-latin-700-normal-BLAVimhd.woff": "7c5ed5655730de337704d3fc94628515cd7e3d8d32368871709bf56ac0397e7a",
+      "assets/main-BOgfBbIw.js": "db93307cf8cd68df640446625bfb84328dfebbe7b436873c4d64415836f52e41",
+      "assets/inter-latin-500-normal-BL9OpVg8.woff": "9b42c108da48b5ed55a3072e815ffee2d271562e6c0dd6998910e8f9c09e0a3d",
+      "assets/main-DGVZz_xl.css": "03017e325168773883b96297a129b9ce7c04647055258fabdfc43eebf51df428",
+      "assets/study-navigation-CGNjdIDP.css": "49055ca28c8b296e2a5ed6686f7850cae46775e9576e4528b4ecd3f35b432d88",
+      "assets/Phosphor-DtdjzkpE.woff2": "c2ea45ea05ff5c7df1936770c104725f2a68f43fd343f35f3da23a30b27de32a",
+      "assets/glass-worker-yS3EIsNM.js": "97abba0204e2265170fddc3e2ffcba26b6f4792c17953f6be3501ec5fc3c5647",
+      "assets/studio-worker-rhKbMxft.js": "faa0ba0cbdb518f5497a4bc6b58f2355186d5bf57159bfa35d0675a7ee80e974",
+      "assets/Phosphor-CDxgqcPu.ttf": "06b91e022b7ee899a63efced879392a74f0bacbda54e4467e9f663220d173a10",
+      "assets/ibm-plex-mono-latin-400-normal-CvHOgSBP.woff": "328d50b6ece9ca25c46eea3e885ba497f6237f2fb84ef7b92f88e14a1a25e381",
+      "assets/Phosphor-BdqudwT5.woff": "396c5eae7f2dfb4d1f5432edd87109eda2f92a451b2167e43a26165b82770f75",
+      "assets/main-BNpgBzcG.css": "227f9b4840c1dcaf4fa19e51d778ebac8b8404f56ac033f15871fca0d4176d23",
+      "assets/study-navigation-yKpjwIwl.js": "a9ce2f6e68b4410a709574de561c5316da6f137f9be8bb6f73c17ab21afb94e5",
+      "assets/mockup-Du1_4jAZ.png": "c18e8deb9edcc6c331a9e229aac3888a20bb7365f058e43f15cadee162438dd1",
+      "assets/RoundedBoxGeometry-i97naPaa.js": "58fa6a1a1265518b351b06df9002bc129b6409d2f4115d38d77610ed751f60e5",
+      "assets/index-B4edztq-.js": "db296e211851d713ca86a423a55c0ae56c7e9cf9ec9636399c2176efd4dc8b29",
+      "assets/liquid-study-worker-dlDSABVH.js": "3f7fcf430e1641baee1b0e2dd9816bd5a8e3dcb577355fe18f8cd6e79a2ba541",
+      "assets/ibm-plex-mono-latin-400-normal-DMJ8VG8y.woff2": "08949f728dc52d528e69b1667d15c89a5686a4ee9a296ff90983985f99c380f7",
+      "assets/inter-latin-600-normal-CiBQ2DWP.woff": "6a9cb3a509b4eeaf12b7dda6c4aacac3e85d07f4201bf4dd716e332e692b87bd",
+      "assets/inter-latin-600-normal-LgqL8muc.woff2": "f9a06e79cd3a2a20951c0f0e28f66dd0e6d3fda73911d640a2125c8fcb78f21a",
+      "assets/inter-latin-400-normal-CyCys3Eg.woff": "e20fa0b4fd2dd26e4d14b3ac3cc922509c3a63fa5e910e90c614544aa042dd45",
+      "assets/main-DHYXz_l_.js": "654d7f3d02a81d24a48f4f9ec5ddd3981ef57958163c8cd90ee202e837c97126",
+      "assets/inter-latin-400-normal-C38fXH4l.woff2": "8909904ab6c872eb994093482a88a28eca2cd95912d7b6fecd72103b0dc07edc",
+      "assets/inter-latin-500-normal-Cerq10X2.woff2": "f3779f1efccc4bdcdf9c0a02ab95bf6bd092ed09c48c08cedc725889edd1d19f",
+      "assets/RoundedBoxGeometry-BAh20NZY.css": "9eb3d0bd056448b859e31e39c5086f823fe5679b941174bbf1bed58318e455ba"
+    },
+    "logSha256": "5c86ff99ebfb780cf12b23819a8377b17cfc33d2455c42120ca526b05d25fb94",
+    "logBytes": 4656,
+    "tail": [
+      "../.agent-scratch/box3d-WEBGPU/review-startup-20260930/latest/build/assets/glass-worker-client-BaKbumCt.js                    1.55 kB \u2502 gzip:   0.72 kB",
+      "../.agent-scratch/box3d-WEBGPU/review-startup-20260930/latest/build/assets/index-B4edztq-.js                                  3.64 kB \u2502 gzip:   1.75 kB",
+      "../.agent-scratch/box3d-WEBGPU/review-startup-20260930/latest/build/assets/main-DHYXz_l_.js                                 229.54 kB \u2502 gzip:  76.21 kB",
+      "../.agent-scratch/box3d-WEBGPU/review-startup-20260930/latest/build/assets/main-BOgfBbIw.js                                 398.84 kB \u2502 gzip: 122.69 kB",
+      "../.agent-scratch/box3d-WEBGPU/review-startup-20260930/latest/build/assets/RoundedBoxGeometry-i97naPaa.js                   970.79 kB \u2502 gzip: 269.24 kB",
+      "",
+      "[plugin builtin:vite-reporter] ",
+      "(!) Some chunks are larger than 500 kB after minification. Consider:",
+      "- Using dynamic import() to code-split the application",
+      "- Use build.rolldownOptions.output.codeSplitting to improve chunking: https://rolldown.rs/reference/OutputOptions.codeSplitting",
+      "- Adjust chunk size limit for this warning via build.chunkSizeWarningLimit.",
+      "\u2713 built in 402ms"
+    ]
+  },
+  "browser": {
+    "url": "http://127.0.0.1:4401/?studio=canopy&theme=precision&finish=canopy-linen&light=daylight&recipe=canopy-tear&camera=hero&quality=ultra&surroundings=hall-concrete&layout=reference",
+    "provider": "Codex in-app browser",
+    "createdVisible": true,
+    "renderer": "WebGPU renderer \u00b7 worker",
+    "runPauseVerified": true,
+    "observedSimulationSeconds": 29.41,
+    "observedStatus": "Collapsed, then Paused \u00b7 Collapsed",
+    "resetVerified": true,
+    "finalStatus": "Ready to simulate",
+    "finalSimulationSeconds": 0,
+    "warningsAndErrorsCaptured": [],
+    "deliverableTabRetained": true,
+    "screenshot": "studio.jpg",
+    "screenshotSha256": "14e375a6dd04ec24ef6cb033b969862950ea0950456a1827d7dbe067a0bf4311"
+  },
+  "server": {
+    "command": "npm run dev -- --port 4401 --strictPort",
+    "listener": "COMMAND   PID      USER   FD   TYPE             DEVICE SIZE/OFF NODE NAME\nnode    52599 commander   22u  IPv4 0x1ecb5a57fc5a6e0a      0t0  TCP 127.0.0.1:4401 (LISTEN)\n",
+    "retainedForUser": true
+  },
+  "sourceHashes": {
+    "src/engine/convex-contact.ts": "cba07106461657599d9ecfb7d4bf040dc740ffab96b767774794415bb8c07501",
+    "src/engine/surface-contact.ts": "fc708480758a51568367ed94bbb32641fb5d67b0fd44db91a091f8785c0c5b46",
+    "src/studio/canopy-contact.ts": "5dd0e9c3ffaac7b0324c34dc3b0b83f7ccf143fb6f402d078b51d3c666a6b5fa",
+    "src/studio/material-labs/models.ts": "84dc9c35f52f3448b5e743e2b090e380c1e3b65c4c9560009750ff1b8820b845",
+    "src/studio/material-labs/glass-worker.ts": "f0fb6657bcf4d53f85707cd09b86b8b370bbc6af8d80aded394ff88e168a65df",
+    "src/studio/material-labs/glass-worker-client.ts": "f8d125c1136409404d520c6312dfb56f549abbe3c76981b06ebd1511b387c1ce",
+    "src/studio/material-labs/glass-pendulum.ts": "c82a337b1231069ae8c658a2b08d847d655fbd1c127d3ca8e606bfd95f885244",
+    "src/studio/main.ts": "8e1bdb0c3dbc237364180df0953efd57518277de5164aa76ef7a1455a9669338",
+    "scripts/test-collision.mjs": "8849199731b975ef2ec7ab4f1c63994eebd6b467acd2dfa5c06880dd01c1448e",
+    "scripts/typescript-loader.mjs": "7956f73af96c57b9c9aed3cde0d8c5462cd0d477ec74bcf96f062ba7d29a6ec9",
+    "vite.config.ts": "7edc875b35fa9b859bebbc0254b4e11cdc8a458cefa005d907730f8b0c8a6af7"
+  },
+  "productionEdited": false,
+  "limitations": [
+    "This is a focused collision/startup review, not a complete audit of all engine changes.",
+    "Browser smoke covers canopy Run/Pause/Reset, not fault injection, every study, or physics calibration.",
+    "The existing 122-test suite does not catch the demonstrated callback-free impact chain.",
+    "Bundle build skipped recopying existing public assets; the local preview served them in place.",
+    "Build emits its existing chunk-size warning; Node emits a module.register deprecation warning.",
+    "Offline glass best still exceeds its 1e-6 m/s target and is not applied to runtime."
+  ],
+  "cleanup": {
+    "scratchFiles": {
+      "reproduction.json": {
+        "bytes": 1986,
+        "sha256": "0f80d0f961f187b1d13c7afa3e9464daaacd07fedfa65e26face6d72e78484bc"
+      },
+      "scope.json": {
+        "bytes": 701,
+        "sha256": "d59428a50ca208cac8057b35924f4d91e112f774bff9b59d89fe233006fd2a74"
+      },
+      "typecheck.log": {
+        "bytes": 49,
+        "sha256": "a075eef8f689e39bfa84bb4af808751932a4a76a556369aef13c3e6020c2eca6"
+      },
+      "checks.json": {
+        "bytes": 1544,
+        "sha256": "454a08cfd8df98be774fbb8c2d3770145675d47ea6f2c43de86e5015a1ee5ada"
+      },
+      "collision.log": {
+        "bytes": 16138,
+        "sha256": "34637f507dc0b4ea5b976726b97248d71776d115cea1912886c44228f339fd45"
+      },
+      "build.json": {
+        "bytes": 5023,
+        "sha256": "218e37caa0b0cbdd5b0b88694dc644ae52269583de3572dd59c7c39631eb13cf"
+      },
+      "build.log": {
+        "bytes": 4656,
+        "sha256": "5c86ff99ebfb780cf12b23819a8377b17cfc33d2455c42120ca526b05d25fb94"
+      }
+    },
+    "temporaryBuildRemoved": true,
+    "temporaryLogsRemoved": true,
+    "ownClonesOrWorktreesCreated": false,
+    "serverRetainedByUserRequest": true,
+    "screenshotMovedToReport": true
+  }
+}

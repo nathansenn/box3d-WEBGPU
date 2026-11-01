@@ -1,0 +1,18 @@
+✔ all pressure programs remain bounded and hit their phase boundaries on the solver clock (6.22875ms)
+✔ soft-start: 17-tick and 64-tick batches produce identical deformation and checkpoints (3785.7285ms)
+✔ two-stage: 17-tick and 64-tick batches produce identical deformation and checkpoints (3706.795417ms)
+✔ pulse: 17-tick and 64-tick batches produce identical deformation and checkpoints (3665.477125ms)
+✔ saved schedule resumes across a pressure-stage boundary without changing solver state (1572.073833ms)
+✔ recorded pressure replays the active program and the later manual override (0.192291ms)
+✔ run metrics distinguish peak, retained bend, recovery and first recorded damage without retaining mutable inputs (0.248875ms)
+✔ saved run summaries are bounded, survive serialization and recompute untrusted summary values (0.79125ms)
+✔ malformed comparison stores are rejected without exposing partial or misleading runs (1.043417ms)
+✔ snapshot summaries use explicit millimeter and percentage scales, without borrowing mutable geometry (4.416125ms)
+ℹ tests 10
+ℹ suites 0
+ℹ pass 10
+ℹ fail 0
+ℹ cancelled 0
+ℹ skipped 0
+ℹ todo 0
+ℹ duration_ms 12922.229

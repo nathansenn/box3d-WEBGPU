@@ -4,6 +4,7 @@
     "module": "CommonJS",
     "moduleResolution": "Node",
     "noEmit": false,
+    "rewriteRelativeImportExtensions": true,
     "outDir": ".test-build",
     "rootDir": "."
   },

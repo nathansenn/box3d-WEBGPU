@@ -79,9 +79,15 @@ export function parseKtx2(input: ArrayBuffer | Uint8Array): ParsedKtx2 {
   const vkFormat = view.getUint32(12, true);
   const width = view.getUint32(20, true);
   const height = view.getUint32(24, true);
+  const pixelDepth = view.getUint32(28, true);
+  const layerCount = view.getUint32(32, true);
+  const faceCount = view.getUint32(36, true);
   const levelCount = view.getUint32(40, true);
   const supercompression = view.getUint32(44, true);
   if (width <= 0 || height <= 0 || levelCount <= 0) throw new Error('KTX2 dimensions or mip count are invalid.');
+  if (pixelDepth > 1 || layerCount > 1 || faceCount !== 1) {
+    throw new Error(`Unsupported KTX2 layout (depth ${pixelDepth}, layers ${layerCount}, faces ${faceCount}); only single 2D images are supported.`);
+  }
   if (supercompression !== 0) throw new Error(`Unsupported KTX2 supercompression scheme ${supercompression}.`);
   formatInfo(vkFormat);
 
@@ -102,10 +108,6 @@ export function parseKtx2(input: ArrayBuffer | Uint8Array): ParsedKtx2 {
   return { vkFormat, width, height, levelCount, levels };
 }
 
-function align256(value: number): number {
-  return (value + 255) & ~255;
-}
-
 function uploadLevel(
   device: GPUDevice,
   texture: GPUTexture,
@@ -115,21 +117,31 @@ function uploadLevel(
 ): void {
   const blockCols = Math.max(1, Math.ceil(level.width / info.blockWidth));
   const blockRows = Math.max(1, Math.ceil(level.height / info.blockHeight));
-  const tightBytesPerRow = blockCols * info.bytesPerBlock;
-  const bytesPerRow = align256(tightBytesPerRow);
-  let upload = level.data;
-  if (bytesPerRow !== tightBytesPerRow) {
-    upload = new Uint8Array(bytesPerRow * blockRows);
-    for (let row = 0; row < blockRows; row++) {
-      upload.set(level.data.subarray(row * tightBytesPerRow, (row + 1) * tightBytesPerRow), row * bytesPerRow);
-    }
+  // queue.writeTexture has no 256-byte row alignment rule (that applies to
+  // copyBufferToTexture), so upload the tightly packed level without a repack.
+  const bytesPerRow = blockCols * info.bytesPerBlock;
+  if (level.data.byteLength < bytesPerRow * blockRows) {
+    throw new Error(`KTX2 mip ${mipLevel} holds ${level.data.byteLength} bytes; ${bytesPerRow * blockRows} required.`);
   }
   device.queue.writeTexture(
     { texture, mipLevel, origin: [0, 0, 0] },
-    upload as unknown as BufferSource,
+    level.data as unknown as BufferSource,
     { offset: 0, bytesPerRow, rowsPerImage: blockRows },
     { width: level.width, height: level.height, depthOrArrayLayers: 1 },
   );
+}
+
+export function alignedMipPrefix<T extends { width: number; height: number }>(
+  levels: readonly T[],
+  info: { blockWidth: number; blockHeight: number },
+): T[] {
+  const end = levels.findIndex((level) => !(
+    level.width >= info.blockWidth
+    && level.height >= info.blockHeight
+    && level.width % info.blockWidth === 0
+    && level.height % info.blockHeight === 0
+  ));
+  return end < 0 ? [...levels] : levels.slice(0, end);
 }
 
 function createGpuTextureFromParsed(device: GPUDevice, parsed: ParsedKtx2, label: string): {
@@ -143,14 +155,7 @@ function createGpuTextureFromParsed(device: GPUDevice, parsed: ParsedKtx2, label
   // complete block multiples. Keep the consecutive block-aligned prefix of
   // the source chain; trilinear sampling naturally clamps to its final
   // resident level (126x126 for ASTC 6x6, 4x4 for BC4).
-  const uploadedLevels = info.compressed
-    ? parsed.levels.filter((level) => (
-      level.width >= info.blockWidth
-      && level.height >= info.blockHeight
-      && level.width % info.blockWidth === 0
-      && level.height % info.blockHeight === 0
-    ))
-    : parsed.levels;
+  const uploadedLevels = info.compressed ? alignedMipPrefix(parsed.levels, info) : parsed.levels;
   if (uploadedLevels.length === 0) throw new Error('KTX2 texture has no uploadable mip levels.');
   const texture = device.createTexture({
     label,
@@ -267,32 +272,36 @@ function proceduralAtlasFallback(device: GPUDevice): MaterialAtlasTexture {
   };
 }
 
-async function fetchKtx2(file: string): Promise<ParsedKtx2> {
+async function fetchKtx2(file: string, signal?: AbortSignal): Promise<ParsedKtx2> {
   const base = typeof document !== 'undefined' ? document.baseURI : 'http://localhost/';
-  const response = await fetch(new URL(`textures/${file}`, base));
+  signal?.throwIfAborted();
+  const response = await fetch(new URL(`textures/${file}`, base), { signal });
   if (!response.ok) throw new Error(`${file}: HTTP ${response.status}`);
-  return parseKtx2(new Uint8Array(await response.arrayBuffer()));
+  const bytes = await response.arrayBuffer();
+  signal?.throwIfAborted();
+  return parseKtx2(new Uint8Array(bytes));
 }
 
-export async function loadMaterialNoiseTexture(device: GPUDevice, supportsBc: boolean): Promise<MaterialNoiseTexture> {
+export async function loadMaterialNoiseTexture(device: GPUDevice, supportsBc: boolean, signal?: AbortSignal): Promise<MaterialNoiseTexture> {
   const file = supportsBc ? 'material-noise-bc4.ktx2' : 'material-noise-r8.ktx2';
   try {
-    const parsed = await fetchKtx2(file);
+    const parsed = await fetchKtx2(file, signal);
     if (supportsBc && parsed.vkFormat !== VK_FORMAT_BC4_UNORM_BLOCK) throw new Error('Expected BC4 KTX2 payload.');
     if (!supportsBc && parsed.vkFormat !== VK_FORMAT_R8_UNORM) throw new Error('Expected R8 KTX2 payload.');
     return createNoiseTextureFromParsed(device, parsed);
   } catch (error) {
+    signal?.throwIfAborted();
     console.warn(`[WebGPU] ${file} unavailable; using deterministic R8 fallback.`, error);
     return proceduralNoiseFallback(device);
   }
 }
 
-export async function loadMaterialAtlasTexture(device: GPUDevice, supportsAstc: boolean): Promise<MaterialAtlasTexture> {
+export async function loadMaterialAtlasTexture(device: GPUDevice, supportsAstc: boolean, signal?: AbortSignal): Promise<MaterialAtlasTexture> {
   const variant = supportsAstc ? 'astc' : 'rgba8';
   const albedoFile = `poliigon-materials-albedo-${variant}.ktx2`;
   const surfaceFile = `poliigon-materials-surface-${variant}.ktx2`;
   try {
-    const [albedo, surface] = await Promise.all([fetchKtx2(albedoFile), fetchKtx2(surfaceFile)]);
+    const [albedo, surface] = await Promise.all([fetchKtx2(albedoFile, signal), fetchKtx2(surfaceFile, signal)]);
     const expectedAlbedo = supportsAstc ? VK_FORMAT_ASTC_6X6_SRGB_BLOCK : VK_FORMAT_R8G8B8A8_SRGB;
     const expectedSurface = supportsAstc ? VK_FORMAT_ASTC_6X6_UNORM_BLOCK : VK_FORMAT_R8G8B8A8_UNORM;
     if (albedo.vkFormat !== expectedAlbedo || surface.vkFormat !== expectedSurface) {
@@ -318,6 +327,7 @@ export async function loadMaterialAtlasTexture(device: GPUDevice, supportsAstc: 
       source: supportsAstc ? 'poliigon-astc' : 'poliigon-rgba8',
     };
   } catch (error) {
+    signal?.throwIfAborted();
     console.warn(`[WebGPU] Poliigon ${variant} material atlases unavailable; using deterministic procedural materials.`, error);
     return proceduralAtlasFallback(device);
   }

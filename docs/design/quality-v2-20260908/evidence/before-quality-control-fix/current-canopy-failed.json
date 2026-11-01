@@ -1,0 +1,23 @@
+{
+  "name": "current-canopy-failed",
+  "at": "2026-09-08T07:56:11.390Z",
+  "broken": "69",
+  "camera": "hero",
+  "deflection": "5.172",
+  "draws": "32",
+  "events": "10",
+  "finish": "canopy-linen",
+  "fps": "140",
+  "frames": "19717",
+  "height": 1058,
+  "horizontalOverflow": false,
+  "lighting": "daylight",
+  "objects": "554",
+  "productionEntry": "index--Zc_i5BF.js",
+  "ready": "true",
+  "study": "canopy",
+  "time": "30.04 s",
+  "triangles": "75881",
+  "url": "http://127.0.0.1:5174/?studio=canopy&theme=precision&finish=canopy-linen&light=daylight&recipe=canopy-tear&camera=hero&quality=ultra",
+  "width": 1487
+}

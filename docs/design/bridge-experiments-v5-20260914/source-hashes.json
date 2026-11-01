@@ -1,0 +1,11 @@
+{
+  "src/studio/bridge-experiments.ts": "bd6ec642aed85522d5da73b26fd81d361fd82263fb10192e6963ed9544d7258d",
+  "src/studio/bridge-experiments-view.ts": "89e8377774ff1d23d189b869c6656b966d36f50d4620df9d9a4d7b270a7c6aef",
+  "src/studio/bridge-experiments.css": "ae52fbf9c19e024b9108bc16a232fc65f70f884d6490a3d60cb519a766220b3f",
+  "src/studio/bridge-review-view.ts": "c15a38feebeac494179b38516d89086d08187d72e0ba8e7b756535a13a8384a2",
+  "src/studio/main.ts": "19980f1ce961d3e4c3e6aa27f046ea78f6c399d74541f763150a23ff60e8c52f",
+  "src/studio/world.ts": "4e9cacafaa1516d6f4b791bc84f85f08e0c64fe9bf2a594c3a272314a84aedb5",
+  "tests/studio/bridge-experiments.test.mjs": "116d4fe6396cefa70f0333e86f9ef63221de0331215997531c4521585457a0c3",
+  "public/studio/references/bridge-v5-experiments.png": "70a55fa5a08691218b3106e825d09a7f66b001e50bc9ae5bba93a68f236e7bcf",
+  "docs/design/bridge-experiments-v5-20260914/mockup.png": "70a55fa5a08691218b3106e825d09a7f66b001e50bc9ae5bba93a68f236e7bcf"
+}

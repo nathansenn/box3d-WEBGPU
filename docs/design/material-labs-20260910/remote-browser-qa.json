@@ -1,0 +1,13 @@
+{
+  "provider": "Browserless",
+  "owner": "01a07e7b-23c9-72e1-a62e-b780ac76623f",
+  "status": "blocked-before-execution",
+  "timestamp": "2026-09-09T22:59:46.424323+00:00",
+  "payload": "36 deliberately selected compiled frontend files, maps and generated references; 26803859 bytes",
+  "reason": "Automatic approval review rejected sending a private compiled build and assets without specific user approval for this payload and destination.",
+  "transferOccurred": false,
+  "sessionCreated": false,
+  "cleanup": "No remote session created. The owned disposable transfer snapshot was removed locally; manifests and blocked receipt retained.",
+  "fallback": "Complete native/private GPU checks in existing healthy local CUA tab 4 only; no new local browser.",
+  "nativeGap": "Local in-app browser WebGL render acceptance and viewport emulation do not establish physical mobile or store readiness."
+}

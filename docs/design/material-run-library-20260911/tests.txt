@@ -1,0 +1,17 @@
+✔ all five lab setups survive persistence and URL loading without losing settings (2.728459ms)
+✔ saved measurements detach from mutable solver buffers, retain final snapshots and release events (0.118792ms)
+✔ long recordings stay bounded, preserve end time and extrema from unsampled measurements (1.420667ms)
+✔ empty, nonfinite and backwards recordings cannot create plausible looking results (0.233167ms)
+✔ a full library preserves existing results, and removal plus undo works (2.660709ms)
+✔ separate callers read the latest library before saving or removing (0.214458ms)
+✔ storage denial and unsupported versions report failure without overwriting data (0.244167ms)
+✔ corrupt records, duplicate identities and invalid measurements are rejected independently (0.189125ms)
+✔ comparison exports original time axes and refuses unlike studies or metric definitions (0.207291ms)
+ℹ tests 9
+ℹ suites 0
+ℹ pass 9
+ℹ fail 0
+ℹ cancelled 0
+ℹ skipped 0
+ℹ todo 0
+ℹ duration_ms 139.805292

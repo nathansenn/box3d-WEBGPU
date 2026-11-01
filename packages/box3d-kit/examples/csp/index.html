@@ -1,0 +1,12 @@
+<!doctype html>
+<!-- Strict Content-Security-Policy check: no inline script, no eval; only 'wasm-unsafe-eval'.
+     Serve the package root on 127.0.0.1 and open /examples/csp/. The title reports the result. -->
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' 'wasm-unsafe-eval'; worker-src 'self'; style-src 'self'">
+  <title>box3d-kit · CSP check</title>
+  <script type="module" src="./main.js"></script>
+</head>
+<body><pre id="out">running…</pre></body>
+</html>

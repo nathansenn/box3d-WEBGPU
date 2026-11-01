@@ -1,0 +1,160 @@
+- banner:
+  - link "BOX3D Engineering Studio":
+    - /url: "?studio=liquid"
+    - text: 
+    - strong: BOX3D
+  - navigation "Studies":
+    - generic: Study
+    - combobox "Study":
+      - option "Liquid dynamics"
+      - option "Glass impact"
+      - option "Concrete crush"
+      - option "Elastomer lab"
+      - option "Granular flow"
+      - option "Metal press"
+      - option "Canopy"
+      - option "Suspension bridge" [selected]
+    - generic: 
+  - button "Reference workspace" [pressed]:
+    - generic: 
+  - button "Open preset library":
+    - generic: 
+  - text:   
+  - button "Resume saved run":
+    - generic: 
+- main:
+  - text:                          
+  - region "Simulation viewport":
+    - img "Interactive 3D simulation. Drag to orbit, scroll to zoom."
+    - group "Surface display":
+      - button "Material" [pressed]
+      - button "Response"
+    - button "Focus on scene":
+      - generic: 
+    - text: 
+    - button "Fit camera":
+      - generic: 
+    - text: 
+    - text:  
+    - status:
+      - generic: Ready to simulate
+    - text: 
+    - generic: RIVER / STRUCTURAL STUDY
+    - strong: Suspension bridge
+    - generic: Weathered oak · Woodland daylight
+    - text: 
+    - group "Quick inspection views":
+      - button "Overview":
+        - generic: 
+      - button "Three quarter":
+        - generic: 
+      - button "Top":
+        - generic: 
+      - button "Connection":
+        - generic: 
+      - button "Results":
+        - generic: 
+        - generic: Results
+  - complementary "Experiment desk":
+    - text: LIVE PROVING GROUND
+    - heading "Experiment desk" [level=2]
+    - button "Hide experiment desk":
+      - generic: 
+    - tablist "Experiment workflow":
+      - tab "Set up":
+        - generic: 
+        - generic: Set up
+      - tab "Surface":
+        - generic: 
+        - generic: Surface
+      - tab "World":
+        - generic: 
+        - generic: World
+      - tab "Test":
+        - generic: 
+        - generic: Test
+      - tab "Analyze" [selected]:
+        - generic: 
+        - generic: Analyze
+    - text:                         
+    - tabpanel "Analyze":
+      - group "Analysis mode":
+        - button "Inspect"
+        - button "Experiments" [pressed]
+      - text: +
+      - text: CONTROLLED EXPERIMENTS
+      - heading "Find the turning point." [level=3]
+      - paragraph: One variable. Five controlled runs.
+      - generic "Scan setup Strength scan · 60 s Edit":
+        - generic: 
+        - generic: Scan setup
+        - generic: Strength scan · 60 s
+        - text: Edit
+        - generic: 
+      - group "Experiment scan":
+        - button "Load scan":  Load scan
+        - button "Strength scan" [pressed]:  Strength scan
+        - button "Crosswind scan":  Crosswind scan
+      - group "Duration / model seconds":
+        - generic: Duration / model seconds
+        - button "15 s"
+        - button "30 s"
+        - button "60 s" [pressed]
+      - paragraph:
+        - generic: 
+        - text: Load 1.80 · Wind 2.00
+        - generic: Held constant in the next scan
+      - paragraph: 0.40× / 0.70× / 1.00× / 1.40× / 2.00× · fresh bridge per case
+      - button "Run 5 experiments":
+        - generic: 
+        - generic: Run 5 experiments
+      - text: 
+      - region "Experiment results":
+        - heading "Compare responses" [level=4]
+        - button "Time probe" [disabled]
+        - button "Selected only" [disabled]
+        - paragraph: NO RUNS YET
+        - group "Response measurement":
+          - button "Deck drop" [pressed]
+          - button "Sideways"
+          - button "Lost links"
+        - img "Recorded deck drop over model time, in model units. No experiments have been recorded.":
+          - generic: model units
+          - generic: "0.1"
+          - generic: "0"
+          - generic: "0"
+          - generic: 30 model seconds
+          - generic: "60"
+          - generic: Run a scan to compare responses
+        - paragraph: Compare five intact bridges under controlled conditions. Every curve and measurement comes from its own simulation.
+      - button "Export CSV" [disabled]:
+        - generic: 
+        - text: Export CSV
+      - button "Export JSON" [disabled]
+      - button "Clear scan" [disabled]
+      - status: Scan cleared. Your baseline and live recording are unchanged.
+      - generic "How these experiments work"
+    - text:  
+  - region "Simulation playback":
+    - button "Run simulation":
+      - generic: 
+    - button "Reset simulation":
+      - generic: 
+    - generic: 0.00 s
+    - slider "Replay recorded history": "0"
+    - generic: 0 s
+    - generic: 0.0 s recorded
+    - button "Live"
+    - combobox "Playback speed":
+      - option "0.25×"
+      - option "0.5×"
+      - option "1.0×" [selected]
+      - option "2.0×"
+    - text: 
+- contentinfo:
+  - generic: WebGL 2 renderer · worker
+  - generic: Comparative model · not calibrated
+  - button "Export evidence":
+    - text: Export evidence
+    - generic: 
+- text:                

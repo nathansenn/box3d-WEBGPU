@@ -21,6 +21,9 @@ import {
   type Vec3,
 } from './math';
 import { CameraMatrixCache } from './camera';
+import { StageTimings } from './perf/frame-clock';
+import { FrameBudgetGovernor } from './perf/runtime';
+import { createWorkbenchRuntime, type WorkbenchRuntime } from './engine/workbench-runtime';
 import { FrameLineStager } from './frame-lines';
 import {
   SCENES,
@@ -352,6 +355,17 @@ const cameraMatrixCache = new CameraMatrixCache();
 let soft: SoftSimulationSuite;
 let backend: PhysicsBackend;
 let renderer: WebGPURenderer;
+let engineRuntime:WorkbenchRuntime;
+const engineTimings=new StageTimings(['step','staging','renderCpu','frame']);
+const renderGovernor=new FrameBudgetGovernor();
+const adaptiveRendering=new URLSearchParams(location.search).get('adaptive')==='1';
+let simulationLagSeconds=0;
+let rendererRecovering=false;
+let rendererFailed=false;
+let frameDisposed=false;
+let frameRequest=0;
+let lastGovernorSample=-1;
+let stopRendererLoss:()=>void=()=>{};
 let currentLab: WorkbenchLabDefinition = WORKBENCH_LABS[0];
 let currentScene: ScenePreset = resolveWorkbenchLabScene(currentLab);
 let camera: CameraRig = cloneRig(currentScene.camera);
@@ -2123,7 +2137,7 @@ function loadScene(scene: ScenePreset, stressOverride?: number, keepCinematic = 
   const matchingLab = findWorkbenchLabForScene(scene);
   if (matchingLab) currentLab = matchingLab;
   camera = cloneRig(scene.camera);
-  simulationAccumulator = 0;
+  simulationAccumulator = 0;simulationLagSeconds=0;engineTimings.reset();engineRuntime?.resetClock();
   resetTelemetryTraces();
   const stress = clampStress(stressOverride ?? scene.defaultStress);
   ui.stress.value = String(stress);
@@ -2152,7 +2166,7 @@ function loadScene(scene: ScenePreset, stressOverride?: number, keepCinematic = 
 }
 
 function reloadSceneWithCurrentStress(): void {
-  simulationAccumulator = 0;
+  simulationAccumulator = 0;simulationLagSeconds=0;engineTimings.reset();engineRuntime?.resetClock();
   resetTelemetryTraces();
   effects.clear(seed ^ 0xa11ce);
   effects.setStageProps(stagePrimitivesForScene(currentScene));
@@ -3261,7 +3275,7 @@ function togglePause(): void {
 
 function recordEngineeringInitialState(): void {
   if (!engineeringRun || engineeringRun.state !== 'running' || engineeringRun.samples.length > 0) return;
-  const softFrame = soft.buildFrame(false);
+  const softFrame = soft.readTelemetry();
   const material = softFrame.material;
   const combinedHash = (backend.replayHash() ^ Math.imul(softFrame.hash >>> 0, 0x9e3779b1)) >>> 0;
   engineeringRun.record({
@@ -3279,7 +3293,7 @@ function recordEngineeringInitialState(): void {
 function recordEngineeringFixedStep(allowPaused = false): void {
   if (!engineeringRun || (engineeringRun.state !== 'running' && !(allowPaused && engineeringRun.state === 'paused'))) return;
   engineeringSimStep++;
-  const softFrame = soft.buildFrame(false);
+  const softFrame = soft.readTelemetry();
   const material = softFrame.material;
   const combinedHash = (backend.replayHash() ^ Math.imul(softFrame.hash >>> 0, 0x9e3779b1)) >>> 0;
   engineeringRun.record({
@@ -3308,8 +3322,7 @@ function stepOnce(): void {
     return;
   }
   const start = performance.now();
-  backend.step(1 / 60, solverSubSteps);
-  soft.step(1 / 60, solverSubSteps);
+  engineRuntime.step({ticks:1,subSteps:solverSubSteps,captureTelemetry:false});
   recordEngineeringFixedStep(true);
   effects.update(1 / 60);
   updateStats(0, performance.now() - start, 0, renderer.uploadedMegabytes(), 1, soft.buildFrame(debugEnabled));
@@ -3496,12 +3509,19 @@ function updateStats(
   if (fps > 0) ui.fps.textContent = String(Math.round(fps));
   ui.simMs.textContent = `${simMs.toFixed(2)} ms`;
   ui.renderMs.textContent = `${renderMs.toFixed(2)} ms`;
+  const gpuTiming=renderer.gpuTimingInfo();
+  ui.renderMs.title=`CPU command encoding and submission. GPU: ${gpuTiming.latest?gpuTiming.latest.totalPassMs.toFixed(3)+' ms across measured passes':gpuTiming.status==='ready'?'waiting for sample':gpuTiming.status}.`;
+  ui.canvas.dataset.gpuTiming=JSON.stringify(gpuTiming);
+  ui.canvas.dataset.shadowCache=JSON.stringify(renderer.shadowCacheInfo());
+  ui.canvas.dataset.engineTimings=JSON.stringify(engineTimings.inspect());
+  ui.canvas.dataset.engineCapabilities=JSON.stringify(engineRuntime.capabilities);
+  ui.canvas.dataset.simulationLag=simulationLagSeconds.toFixed(3);
   ui.upload.textContent = `${uploadMb.toFixed(2)} MB`;
   ui.backend.textContent = softFrame.kind === 'none' ? backend.name : `${backend.name} + ${softFrame.label}`;
   const combinedHash = (backend.replayHash() ^ Math.imul(softFrame.hash >>> 0, 0x9e3779b1)) >>> 0;
   ui.hash.textContent = `0x${combinedHash.toString(16).padStart(8, '0')}`;
   ui.qualityStat.textContent = quality.label;
-  if (steps > 0) ui.simMs.title = `${steps} fixed simulation step(s) this frame`;
+  if (steps > 0) ui.simMs.title = `${steps} fixed simulation step(s) in this sample; ${simulationLagSeconds.toFixed(3)} s behind wall time. No solver ticks skipped.`;
 
   const material = softFrame.material;
   const forceSample = material ? Math.max(material.loadProgress * 100, lastForceSignal) : lastForceSignal;
@@ -3945,10 +3965,15 @@ async function runStateTests(): Promise<void> {
 }
 
 async function main(): Promise<void> {
+  const startupProgress = (stage: string): void => {
+    ui.canvas.dataset.startupStage = stage;
+    ui.warning.textContent = `${stage}…`;
+  };
+  startupProgress('Loading physics and soft kernels');
   const physicsPromise = loadBestPhysicsBackend();
   const softRuntimePromise = initializeSoftKernelRuntime();
   const rendererPromise = physicsPromise.then(({ backend: selectedBackend }) =>
-    WebGPURenderer.create(ui.canvas, selectedBackend.maxBodies + SOFT_RENDER_INSTANCE_BUDGET + MAX_EFFECT_INSTANCES));
+    WebGPURenderer.create(ui.canvas, selectedBackend.maxBodies + SOFT_RENDER_INSTANCE_BUDGET + MAX_EFFECT_INSTANCES, {onStartupProgress:startupProgress}));
   const [loaded, softRuntime, loadedRenderer] = await Promise.all([
     physicsPromise,
     softRuntimePromise,
@@ -3956,11 +3981,27 @@ async function main(): Promise<void> {
   ]);
   backend = loaded.backend;
   soft = new SoftSimulationSuite(softRuntime.module);
+  engineRuntime=createWorkbenchRuntime({backend,soft,softKernelVariant:softRuntime.available?softRuntime.variant:'javascript'});
   renderer = loadedRenderer;
+  function watchRendererLoss():void {
+    stopRendererLoss();stopRendererLoss=renderer.onDeviceLost(info=>{
+      if(rendererRecovering||frameDisposed)return;rendererRecovering=true;rendererFailed=false;
+      ui.warning.textContent=`Graphics device lost: ${info.message||info.reason}. Recreating graphics from the current CPU simulation state.`;
+      renderer.dispose();
+      void WebGPURenderer.create(ui.canvas,backend.maxBodies+SOFT_RENDER_INSTANCE_BUDGET+MAX_EFFECT_INSTANCES).then(replacement=>{
+        if(frameDisposed){replacement.dispose();return;}renderer=replacement;renderer.invalidateDynamicCaches();rendererRecovering=false;simulationAccumulator=0;watchRendererLoss();
+        ui.warning.textContent='Graphics recovered. Simulation state and recorded results were preserved.';
+      }).catch(error=>{rendererRecovering=false;rendererFailed=true;paused=true;ui.warning.textContent=`Graphics recovery failed: ${error instanceof Error?error.message:String(error)}. Reload to initialize a new graphics device.`;});
+    });
+  }
+  watchRendererLoss();
   const softBackend = softRuntime.available ? `${softRuntime.variant.toUpperCase()} soft kernels` : 'JavaScript soft fallback';
+  const rigidThreading = backend.threading;
+  ui.canvas.dataset.physicsThreads = String(rigidThreading?.workers ?? 1);
+  if (rigidThreading?.reason) ui.canvas.dataset.physicsThreadsReason = rigidThreading.reason;
   ui.warning.textContent = loaded.warning
-    ? `Preview backend active: ${loaded.warning} ${softBackend}; GPU-resident intact cloth and water, compute-expanded rope rendering, and deterministic material fracture are active. Build Box3D WASM for native rigid-body fidelity.`
-    : `Native Box3D WASM rigid-body backend loaded with ${softBackend}, GPU cloth, GPU water, compute-expanded rope rendering, and deterministic material fracture.`;
+    ? `Preview backend active: ${loaded.warning} ${softBackend}; GPU surface reconstruction, compute-expanded rope rendering, and deterministic material fracture are active. Build Box3D WASM for native rigid-body fidelity.`
+    : `Native Box3D WASM rigid-body backend loaded${rigidThreading?.mode === 'threads' ? ` on ${rigidThreading.workers} threads` : ''} with ${softBackend}, GPU surface reconstruction, compute-expanded rope rendering, and deterministic material fracture.`;
   ui.warning.classList.toggle('native', !loaded.warning);
 
   const boot = resolveBootConcept();
@@ -3994,7 +4035,11 @@ async function main(): Promise<void> {
   let statsUploadedBytes = 0;
 
   function frame(now: number): void {
-    const deltaSeconds = Math.min(0.1, (now - last) / 1000);
+    if(frameDisposed)return;
+    if(rendererRecovering||rendererFailed){last=now;frameRequest=requestAnimationFrame(frame);return;}
+    const frameStart=performance.now();
+    const wallDeltaSeconds=Math.max(0,(now-last)/1000);
+    const deltaSeconds = Math.min(0.1,wallDeltaSeconds);
     last = now;
     // Paused engineering frames must be visually reproducible as well as
     // numerically frozen; water normals and post dither use this clock.
@@ -4002,13 +4047,17 @@ async function main(): Promise<void> {
     if (!paused) updateCinematic(deltaSeconds);
 
     const effectiveSpeed = manualSpeed * cinematicSpeed;
+    if(!paused)simulationLagSeconds+=(wallDeltaSeconds-deltaSeconds)*effectiveSpeed;
     let steps = 0;
     const simStart = performance.now();
     if (!paused) {
       simulationAccumulator += deltaSeconds * effectiveSpeed;
+      if(simulationAccumulator>fixedStep*8){
+        const lost=simulationAccumulator-fixedStep*8;simulationLagSeconds+=lost;simulationAccumulator=fixedStep*8;
+        if(simulationLagSeconds-lost<.25&&simulationLagSeconds>=.25){appendLog('Simulation is behind wall time. Fixed ticks remain contiguous; catch-up work is bounded.');markEngineeringEvent('hold','Simulation fell behind wall time; fixed simulation ticks remain contiguous.');}
+      }
       while (simulationAccumulator >= fixedStep && steps < 8) {
-        backend.step(fixedStep, solverSubSteps);
-        soft.step(fixedStep, solverSubSteps);
+        engineRuntime.step({ticks:1,subSteps:solverSubSteps,captureTelemetry:false});
         recordEngineeringFixedStep();
         simulationAccumulator -= fixedStep;
         steps++;
@@ -4016,6 +4065,8 @@ async function main(): Promise<void> {
       effects.update(deltaSeconds * effectiveSpeed);
     }
     const simMs = performance.now() - simStart;
+    engineTimings.sample('step',simMs);
+    const stagingStart=performance.now();
 
     const matrices = cameraMatrixCache.resolve(
       camera,
@@ -4083,7 +4134,17 @@ async function main(): Promise<void> {
     const lineFrameVersion = debugEnabled
       ? (Math.imul(backendFrameVersion, 0x9e3779b1) ^ Math.imul(softFrame.frameVersion, 0x85ebca6b) ^ effectFrame.frameVersion ^ inspectionLineVersion ^ 0x80000000) >>> 0
       : (effectFrame.frameVersion ^ inspectionLineVersion) >>> 0;
+    engineTimings.sample('staging',performance.now()-stagingStart);
     const renderMs = renderer.render(effectBase + effectFrame.count, combinedFrameLines, lineFrameVersion);
+    engineTimings.sample('renderCpu',renderMs);engineTimings.sample('frame',performance.now()-frameStart);
+    if(adaptiveRendering&&engineeringRun?.state!=='running'){
+      const timing=renderer.gpuTimingInfo(),fresh=timing.latest?.frameId!==lastGovernorSample;
+      if(!timing.latest||fresh){
+        if(timing.latest)lastGovernorSample=timing.latest.frameId;
+        const direction=renderGovernor.sample(timing.latest?.totalPassMs??(performance.now()-frameStart));
+        if(direction){const scale=clamp(quality.resolutionScale+direction*.05,.5,QUALITY_PROFILES[quality.id].resolutionScale);if(scale!==quality.resolutionScale)quality={...quality,resolutionScale:scale};}
+      }
+    }
     statsFrames++;
     statsSteps += steps;
     statsSimMs += simMs;
@@ -4115,10 +4176,11 @@ async function main(): Promise<void> {
       statsUploadedBytes = 0;
       statsLast = now;
     }
-    requestAnimationFrame(frame);
+    frameRequest=requestAnimationFrame(frame);
   }
 
-  requestAnimationFrame(frame);
+  frameRequest=requestAnimationFrame(frame);
+  window.addEventListener('pagehide',event=>{if(event.persisted)return;frameDisposed=true;cancelAnimationFrame(frameRequest);stopRendererLoss();engineRuntime.destroy();renderer.dispose();soft.destroy();backend.destroy();},{once:true});
 }
 
 main().catch(showFatal);

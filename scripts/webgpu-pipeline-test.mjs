@@ -10,6 +10,7 @@ const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 const rendererSource = fs.readFileSync(path.join(root, 'src/webgpu/renderer.ts'), 'utf8');
 const shaderPattern = /const\s+(\w+)\s*=\s*\/\*\s*wgsl\s*\*\/\s*`([\s\S]*?)`;/g;
 const shaderSources = new Map([...rendererSource.matchAll(shaderPattern)].map((match) => [match[1], match[2]]));
+for(const match of fs.readFileSync(path.join(root,'src/webgpu/instance-partition.ts'),'utf8').matchAll(shaderPattern))shaderSources.set(match[1],match[2]);
 const uniformStruct = shaderSources.get('sceneUniformStruct');
 const packedSurfaceDecode = shaderSources.get('packedSurfaceDecode');
 assert.ok(uniformStruct, 'renderer must contain sceneUniformStruct WGSL');

@@ -1,0 +1,36 @@
+{
+  "at": "2026-09-10T00:02:57.477Z",
+  "provider": "Browserless",
+  "owner": "01a07e7b-23c9-72e1-a62e-b780ac76623f",
+  "study": "granular",
+  "base": "https://box3d.apxlabs.parts/",
+  "publicDeploymentOnly": true,
+  "privateTransport": false,
+  "errors": [],
+  "workers": [],
+  "result": {
+    "title": "BOX3D — Granular flow",
+    "url": "https://box3d.apxlabs.parts/?studio=granular&material=sand&mode=release&seed=42&size=10&load=100&rate=1.2&damping=1&fill=80&experiment=sand-avalanche",
+    "ready": "true",
+    "renderer": "WebGL renderer · fixed-step model",
+    "phase": "Ready",
+    "studies": 8,
+    "experiments": 8,
+    "canvas": [
+      {
+        "width": 786,
+        "height": 602
+      }
+    ],
+    "overflow": false,
+    "legacyLinks": 0
+  },
+  "mobile": {
+    "width": 390,
+    "height": 844,
+    "scrollWidth": 390,
+    "overflow": false
+  },
+  "cleanup": "Shared helper returned after closing the remote context and browser",
+  "pass": true
+}

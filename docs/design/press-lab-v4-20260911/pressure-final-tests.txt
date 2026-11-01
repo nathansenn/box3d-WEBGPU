@@ -1,0 +1,22 @@
+✔ replay reads requested pressure at that time rather than the last pressure or ramped drive level (2.335917ms)
+✔ hex and capsule retain empty corners and match their rotated working envelopes (0.809875ms)
+✔ movable sections find off-center damage without inventing a center tear or altering replay (18.314667ms)
+✔ pressure commands preserve the same damaged specimen, tick clock and retained recordings (1644.721458ms)
+✔ all pressure programs remain bounded and hit their phase boundaries on the solver clock (6.640125ms)
+✔ soft-start: 17-tick and 64-tick batches produce identical deformation and checkpoints (4830.584584ms)
+✔ two-stage: 17-tick and 64-tick batches produce identical deformation and checkpoints (4428.585791ms)
+✔ pulse: 17-tick and 64-tick batches produce identical deformation and checkpoints (4392.62475ms)
+✔ saved schedule resumes across a pressure-stage boundary without changing solver state (1713.167166ms)
+✔ recorded pressure replays the active program and the later manual override (0.214541ms)
+✔ run metrics distinguish peak, retained bend, recovery and first recorded damage without retaining mutable inputs (0.2265ms)
+✔ saved run summaries are bounded, survive serialization and recompute untrusted summary values (0.724208ms)
+✔ malformed comparison stores are rejected without exposing partial or misleading runs (0.607833ms)
+✔ snapshot summaries use explicit millimeter and percentage scales, without borrowing mutable geometry (3.26075ms)
+ℹ tests 14
+ℹ suites 0
+ℹ pass 14
+ℹ fail 0
+ℹ cancelled 0
+ℹ skipped 0
+ℹ todo 0
+ℹ duration_ms 15584.11825

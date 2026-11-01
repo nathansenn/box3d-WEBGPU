@@ -1,0 +1,21 @@
+{
+  "checkedAt": "2026-09-10T20:43:57.498928+00:00",
+  "origin": "http://127.0.0.1:5173",
+  "status": 200,
+  "entrySha256": "37a9d6a6017424d38d495e60591ce39483b1de8c381139e7d044cc19a2591b6c",
+  "assets": {
+    "assets/studio-worker-DWSgZYMD.js": "49dc845012a13ddc15d75dcf0c5ff2aa32dcce174da549373289d90aac2dc857",
+    "assets/RoundedBoxGeometry-DeGLauyl.js": "e57948e25f1b30191ff13d21cca4f418d6949f13f5d4ba9972cce111d77bfd61",
+    "assets/main-DWcaO1bc.js": "67891c0804da3731ff11bd5416288a0d2170aba8295a1ae074556211f9056078",
+    "assets/study-navigation-CGNjdIDP.css": "49055ca28c8b296e2a5ed6686f7850cae46775e9576e4528b4ecd3f35b432d88",
+    "assets/study-navigation-yKpjwIwl.js": "a9ce2f6e68b4410a709574de561c5316da6f137f9be8bb6f73c17ab21afb94e5",
+    "assets/main-p_gPE8X0.css": "82b9ee010590ed3322384886bd66126c8d0b212d58a6b5b00f30ad1261733fe4",
+    "assets/glass-worker-client-DygrbRvI.js": "95c895d0945103e0800e30506c50491117a119fcb8cd021d3da2bd359c8eab76",
+    "assets/glass-worker-BhRYtVfQ.js": "f463416da7139cfed5186f005ee2644e03718a1b34f2acb201f0ea91562ff9b8",
+    "assets/main-CuWDi604.css": "3d48765c8192ecb8738efdf9124b9c593779dad73726c118a167a498388edca0",
+    "assets/main-KtKT0xoS.js": "90146214fce5474a50ecb0fea75bade29d1e2e85187a50ba57a0c0231324e7fe",
+    "assets/index-BIGDNfaB.js": "b2d54010a02bd9df1e2757a84f264a58559eff842506eded47bbcef374729371",
+    "assets/RoundedBoxGeometry-BAh20NZY.css": "9eb3d0bd056448b859e31e39c5086f823fe5679b941174bbf1bed58318e455ba"
+  },
+  "phaseArtifactsMiB": 136.0
+}

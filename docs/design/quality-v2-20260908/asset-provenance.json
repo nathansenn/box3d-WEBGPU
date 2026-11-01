@@ -1,0 +1,138 @@
+{
+  "assets": [
+    {
+      "origin": "ImageGen",
+      "source": "/Users/commander/.codex/generated_images/01a07e7b-23c9-72e1-a62e-b780ac76623f/exec-9b3dc794-ff8b-4c1e-a570-2c9a02c966ac.png",
+      "destination": "public/studio/materials/weathered-oak.png",
+      "bytes": 3406903,
+      "sha256": "f02d72e7750d2539fd9daa8552f682dfb5ded9fc226668254fdc9540a4a3e657"
+    },
+    {
+      "origin": "ImageGen",
+      "source": "/Users/commander/.codex/generated_images/01a07e7b-23c9-72e1-a62e-b780ac76623f/exec-61fdff0e-7ac6-4071-b9c6-7319ecd1ad5b.png",
+      "destination": "public/studio/materials/riverbank-earth.png",
+      "bytes": 3721531,
+      "sha256": "a0ea7103c80e97f6cd3f4c4826a771ac105ebe556a28b2da34fbe53570d60e8a"
+    },
+    {
+      "origin": "ImageGen",
+      "source": "/Users/commander/.codex/generated_images/01a07e7b-23c9-72e1-a62e-b780ac76623f/exec-34c262db-f2e6-4a5f-ac01-5ee7d944237d.png",
+      "destination": "public/studio/materials/granite-rock.png",
+      "bytes": 3740427,
+      "sha256": "afc8b48c0d33a7df3fbf45dad99ea5da4d56450d38ac4098cd0d1ca164f76d01"
+    },
+    {
+      "origin": "Commander Academy",
+      "source": "/Users/commander/commander-academy/public/d3d-rebuilds/assets/018/woven-linen/basecolor.webp",
+      "destination": "public/studio/materials/linen-basecolor.webp",
+      "bytes": 902984,
+      "sha256": "c8942f54025f352e5b10859a4abbd3533aec6b14250fa5d0417e3ed7c476c01a"
+    },
+    {
+      "origin": "Commander Academy",
+      "source": "/Users/commander/commander-academy/public/d3d-rebuilds/assets/018/woven-linen/normal.webp",
+      "destination": "public/studio/materials/linen-normal.webp",
+      "bytes": 667400,
+      "sha256": "e00be78f358d9c8aa36e0a166b4d71ee8a557a92b6e62795f911d03b34f77831"
+    },
+    {
+      "origin": "Commander Academy",
+      "source": "/Users/commander/commander-academy/public/d3d-rebuilds/assets/018/woven-linen/roughness.webp",
+      "destination": "public/studio/materials/linen-roughness.webp",
+      "bytes": 74898,
+      "sha256": "1d24906788b3f4295c46322a3a0e824a410051159fd8efa0a0aa3560ac96e925"
+    },
+    {
+      "origin": "Commander Academy",
+      "source": "/Users/commander/commander-academy/public/d3d-rebuilds/assets/materials/worn-iron/basecolor.webp",
+      "destination": "public/studio/materials/iron-basecolor.webp",
+      "bytes": 1983804,
+      "sha256": "d39232b4b74c85d32776377c26cd34231b8d43a8da3c7aa3695ae2a031b0caa7"
+    },
+    {
+      "origin": "Commander Academy",
+      "source": "/Users/commander/commander-academy/public/d3d-rebuilds/assets/materials/worn-iron/normal.webp",
+      "destination": "public/studio/materials/iron-normal.webp",
+      "bytes": 846020,
+      "sha256": "8458c41e5edf38badf75673ecbe9445cc3b341b6563cbd4dba5c8495bbcc975c"
+    },
+    {
+      "origin": "Commander Academy",
+      "source": "/Users/commander/commander-academy/public/d3d-rebuilds/assets/materials/worn-iron/roughness.webp",
+      "destination": "public/studio/materials/iron-roughness.webp",
+      "bytes": 281674,
+      "sha256": "efe47e20396b06296045dcacac3d0c80f8fd190d3582a7dcd56f9ecc0b2e441e"
+    },
+    {
+      "origin": "Commander Academy",
+      "source": "/Users/commander/commander-academy/public/d3d-rebuilds/assets/materials/aged-wood-planks/basecolor.webp",
+      "destination": "public/studio/materials/timber-basecolor.webp",
+      "bytes": 1770394,
+      "sha256": "6fc0d65648338e0de0b42f0dcfc38ada2cdcf868249418727318cfb478496eda"
+    },
+    {
+      "origin": "Commander Academy",
+      "source": "/Users/commander/commander-academy/public/d3d-rebuilds/assets/materials/aged-wood-planks/normal.webp",
+      "destination": "public/studio/materials/timber-normal.webp",
+      "bytes": 806560,
+      "sha256": "47f2d13aca9a24c5c4bf38aa5e3fe991b41d859c85a2fd3ed484632fdac5b7f6"
+    },
+    {
+      "origin": "Commander Academy",
+      "source": "/Users/commander/commander-academy/public/d3d-rebuilds/assets/materials/aged-wood-planks/roughness.webp",
+      "destination": "public/studio/materials/timber-roughness.webp",
+      "bytes": 182244,
+      "sha256": "12e7d2c1fb6ff2660d464b05eb84db560adeb10113dd0a34b037556f4a822adf"
+    },
+    {
+      "origin": "Material Forge v7",
+      "source": "/Users/commander/material-forge/public/textures/material-forge-pbr-4k-v7/aged-copper-sheet/basecolor.jpg",
+      "destination": "public/studio/materials/copper-basecolor.jpg",
+      "bytes": 7796107,
+      "sha256": "b443ffe00d32795eeaeee12e4fc88193b0e2f3adf40d0d025dbf907755803b36"
+    },
+    {
+      "origin": "Material Forge v7",
+      "source": "/Users/commander/material-forge/public/textures/material-forge-pbr-4k-v7/aged-copper-sheet/roughness.jpg",
+      "destination": "public/studio/materials/copper-roughness.jpg",
+      "bytes": 5253769,
+      "sha256": "df54c54257bd1546f7e0e2216b37daf20fc3b23b7f77361066f5761ee6396c7e"
+    },
+    {
+      "origin": "Material Forge v7",
+      "source": "/Users/commander/material-forge/public/textures/material-forge-pbr-4k-v7/bronze-verdigris/basecolor.jpg",
+      "destination": "public/studio/materials/bronze-basecolor.jpg",
+      "bytes": 6014877,
+      "sha256": "a679352bd1fc44412030e6448383d53b22afefcc9db367b44731416aac9709a3"
+    },
+    {
+      "origin": "Material Forge v7",
+      "source": "/Users/commander/material-forge/public/textures/material-forge-pbr-4k-v7/bronze-verdigris/roughness.jpg",
+      "destination": "public/studio/materials/bronze-roughness.jpg",
+      "bytes": 4182864,
+      "sha256": "daf950d99070abb3e33ad680cc28c0fe50abf9233af6771006fe645379464f02"
+    },
+    {
+      "origin": "Material Forge v7",
+      "source": "/Users/commander/material-forge/public/textures/material-forge-pbr-4k-v7/navy-canvas/basecolor.jpg",
+      "destination": "public/studio/materials/navy-basecolor.jpg",
+      "bytes": 5146521,
+      "sha256": "b71966d9e6fb0d019142eacdd53e99a7d7cc56184e3b2eb1e5bda7ac33a2c87e"
+    },
+    {
+      "origin": "Material Forge v7",
+      "source": "/Users/commander/material-forge/public/textures/material-forge-pbr-4k-v7/navy-canvas/roughness.jpg",
+      "destination": "public/studio/materials/navy-roughness.jpg",
+      "bytes": 2232520,
+      "sha256": "b57e365fa7bdef6c9e67da09350d650bf01ea45f50f02e041e170f04d52f27b7"
+    },
+    {
+      "origin": "ImageGen",
+      "source": "/Users/commander/.codex/generated_images/01a07e7b-23c9-72e1-a62e-b780ac76623f/exec-046604b0-8eab-45f7-bd00-1d5fe044ef7d.png",
+      "destination": "public/studio/materials/forest-floor.png",
+      "bytes": 3907851,
+      "sha256": "f55ec4ace0736104dfe08319f922007f578e246326b3ff34ce8656dfe69e44f5"
+    }
+  ],
+  "note": "V8 catalog exists but selected V8 payloads are absent locally. Copied verified V7 base/roughness maps; use Academy normal maps for finish variants. No source files modified."
+}

@@ -1,0 +1,528 @@
+[
+  {
+    "label": "concrete-ready",
+    "entry": "./assets/index-apHhqNC_.js",
+    "metrics": [
+      "0.00",
+      "0.00",
+      "0.00"
+    ],
+    "overflow": false,
+    "phase": "Ready",
+    "ready": "true",
+    "renderer": "WebGPU renderer · fixed-step model",
+    "settings": "{\"material\":\"standard\",\"mode\":\"release\",\"load\":35,\"rate\":5,\"size\":1,\"damping\":1,\"fill\":0,\"seed\":42}",
+    "time": "0.00 s",
+    "title": "BOX3D — Concrete crush",
+    "url": "http://127.0.0.1:5186/?studio=concrete&material=standard&mode=release&seed=42&load=35&rate=5&size=1&damping=1&experiment=cube-crush",
+    "viewport": [
+      1280,
+      720
+    ]
+  },
+  {
+    "label": "final-concrete-failure",
+    "entry": "./assets/index-gDpYKS7Z.js",
+    "metrics": [
+      "35.00",
+      "42.58",
+      "8.39"
+    ],
+    "overflow": false,
+    "phase": "Paused · Crushing · spalling",
+    "ready": "true",
+    "renderer": "WebGL renderer · fixed-step model",
+    "settings": "{\"material\":\"standard\",\"mode\":\"release\",\"load\":35,\"rate\":5,\"size\":1,\"damping\":1,\"fill\":0,\"seed\":42}",
+    "time": "16.01 s",
+    "title": "BOX3D — Concrete crush",
+    "url": "http://127.0.0.1:5186/?studio=concrete&material=standard&mode=release&seed=42&load=35&rate=5&size=1&damping=1&experiment=cube-crush",
+    "viewport": [
+      1280,
+      720
+    ]
+  },
+  {
+    "label": "final-concrete-detail",
+    "entry": "./assets/index-gDpYKS7Z.js",
+    "metrics": [
+      "35.00",
+      "42.58",
+      "8.39"
+    ],
+    "overflow": false,
+    "phase": "Paused · Crushing · spalling",
+    "ready": "true",
+    "renderer": "WebGL renderer · fixed-step model",
+    "settings": "{\"material\":\"standard\",\"mode\":\"release\",\"load\":35,\"rate\":5,\"size\":1,\"damping\":1,\"fill\":0,\"seed\":42}",
+    "time": "16.01 s",
+    "title": "BOX3D — Concrete crush",
+    "url": "http://127.0.0.1:5186/?studio=concrete&material=standard&mode=release&seed=42&load=35&rate=5&size=1&damping=1&experiment=cube-crush",
+    "viewport": [
+      1280,
+      720
+    ]
+  },
+  {
+    "label": "final-rubber-ready",
+    "entry": "./assets/index-gDpYKS7Z.js",
+    "metrics": [
+      "0.00",
+      "100.00",
+      "0.00"
+    ],
+    "overflow": false,
+    "phase": "Ready",
+    "ready": "true",
+    "renderer": "WebGPU renderer · fixed-step model",
+    "settings": "{\"material\":\"silicone\",\"mode\":\"cycle\",\"load\":50,\"rate\":20,\"size\":1,\"damping\":2,\"fill\":75,\"seed\":42}",
+    "time": "0.00 s",
+    "title": "BOX3D — Elastomer lab",
+    "url": "http://127.0.0.1:5186/?studio=rubber&material=silicone&mode=cycle&seed=42&load=50&rate=20&size=1&damping=2&experiment=silicone-cycle",
+    "viewport": [
+      1280,
+      720
+    ]
+  },
+  {
+    "label": "rubber-compressed-replay",
+    "entry": "./assets/index-gDpYKS7Z.js",
+    "metrics": [
+      "50.01",
+      "99.15",
+      "0.00"
+    ],
+    "overflow": false,
+    "phase": "Paused · Holding · creep",
+    "ready": "true",
+    "renderer": "WebGPU renderer · fixed-step model",
+    "settings": "{\"material\":\"silicone\",\"mode\":\"cycle\",\"load\":50,\"rate\":20,\"size\":1,\"damping\":2,\"fill\":75,\"seed\":42}",
+    "time": "3.54 s",
+    "title": "BOX3D — Elastomer lab",
+    "url": "http://127.0.0.1:5186/?studio=rubber&material=silicone&mode=cycle&seed=42&load=50&rate=20&size=1&damping=2&experiment=silicone-cycle",
+    "viewport": [
+      1280,
+      720
+    ]
+  },
+  {
+    "label": "rubber-recovered",
+    "entry": "./assets/index-gDpYKS7Z.js",
+    "metrics": [
+      "0.00",
+      "100.00",
+      "0.00"
+    ],
+    "overflow": false,
+    "phase": "Paused · Recovered",
+    "ready": "true",
+    "renderer": "WebGPU renderer · fixed-step model",
+    "settings": "{\"material\":\"silicone\",\"mode\":\"cycle\",\"load\":50,\"rate\":20,\"size\":1,\"damping\":2,\"fill\":75,\"seed\":42}",
+    "time": "18.01 s",
+    "title": "BOX3D — Elastomer lab",
+    "url": "http://127.0.0.1:5186/?studio=rubber&material=silicone&mode=cycle&seed=42&load=50&rate=20&size=1&damping=2&experiment=silicone-cycle",
+    "viewport": [
+      1280,
+      720
+    ]
+  },
+  {
+    "label": "granular-desktop",
+    "entry": "./assets/index-l6DUX4I5.js",
+    "metrics": [
+      "2.51",
+      "0.27",
+      "1056"
+    ],
+    "overflow": false,
+    "phase": "Paused · Settled",
+    "ready": "true",
+    "renderer": "WebGL renderer · fixed-step model",
+    "settings": "{\"material\":\"sand\",\"mode\":\"release\",\"load\":100,\"rate\":1.2,\"size\":10,\"damping\":1,\"fill\":80,\"seed\":42}",
+    "time": "14.01 s",
+    "title": "BOX3D — Granular flow",
+    "url": "http://127.0.0.1:5186/?studio=granular&material=sand&mode=release&seed=42&size=10&load=100&rate=1.2&damping=1&fill=80&experiment=sand-avalanche",
+    "viewport": [
+      1280,
+      720
+    ]
+  },
+  {
+    "label": "granular-top",
+    "entry": "./assets/index-l6DUX4I5.js",
+    "metrics": [
+      "2.51",
+      "0.27",
+      "1056"
+    ],
+    "overflow": false,
+    "phase": "Paused · Settled",
+    "ready": "true",
+    "renderer": "WebGL renderer · fixed-step model",
+    "settings": "{\"material\":\"sand\",\"mode\":\"release\",\"load\":100,\"rate\":1.2,\"size\":10,\"damping\":1,\"fill\":80,\"seed\":42}",
+    "time": "14.01 s",
+    "title": "BOX3D — Granular flow",
+    "url": "http://127.0.0.1:5186/?studio=granular&material=sand&mode=release&seed=42&size=10&load=100&rate=1.2&damping=1&fill=80&experiment=sand-avalanche",
+    "viewport": [
+      1280,
+      720
+    ]
+  },
+  {
+    "label": "liquid-desktop",
+    "entry": "./assets/index-l6DUX4I5.js",
+    "metrics": [
+      "0.43",
+      "1.62",
+      "3.04"
+    ],
+    "overflow": false,
+    "phase": "Paused · Flowing",
+    "ready": "true",
+    "renderer": "WebGPU renderer · fixed-step model",
+    "settings": "{\"material\":\"water\",\"mode\":\"release\",\"load\":100,\"rate\":0.8,\"size\":0.65,\"damping\":1,\"fill\":10,\"seed\":42}",
+    "time": "1.74 s",
+    "title": "BOX3D — Liquid dynamics",
+    "url": "http://127.0.0.1:5186/?studio=liquid&material=water&mode=release&seed=42&size=0.65&load=100&rate=0.8&damping=1&fill=10&experiment=water-release",
+    "viewport": [
+      1280,
+      720
+    ]
+  },
+  {
+    "label": "liquid-phone-controls",
+    "entry": "./assets/index-l6DUX4I5.js",
+    "metrics": [
+      "0.80",
+      "0.00",
+      "3.62"
+    ],
+    "overflow": false,
+    "phase": "Ready",
+    "ready": "true",
+    "renderer": "WebGPU renderer · fixed-step model",
+    "settings": "{\"material\":\"water\",\"mode\":\"release\",\"load\":100,\"rate\":0.8,\"size\":0.8,\"damping\":1,\"fill\":10,\"seed\":42}",
+    "time": "0.00 s",
+    "title": "BOX3D — Liquid dynamics",
+    "url": "http://127.0.0.1:5186/?studio=liquid&material=water&mode=release&seed=42&size=0.8&load=100&rate=0.8&damping=1&fill=10",
+    "viewport": [
+      390,
+      844
+    ]
+  },
+  {
+    "label": "phone-materials",
+    "entry": "./assets/index-BPdQpras.js",
+    "metrics": [
+      "0.80",
+      "0.00",
+      "3.62"
+    ],
+    "overflow": false,
+    "phase": "Ready",
+    "ready": "true",
+    "renderer": "WebGPU renderer · fixed-step model",
+    "scroll": [
+      0,
+      513
+    ],
+    "settings": "{\"material\":\"honey\",\"mode\":\"release\",\"load\":100,\"rate\":0.8,\"size\":0.8,\"damping\":1,\"fill\":10,\"seed\":42}",
+    "time": "0.00 s",
+    "title": "BOX3D — Liquid dynamics",
+    "url": "http://127.0.0.1:5186/?studio=liquid&material=honey&mode=release&seed=42&size=0.8&load=100&rate=0.8&damping=1&fill=10",
+    "viewport": [
+      390,
+      844
+    ]
+  },
+  {
+    "label": "glass-phone",
+    "entry": "./assets/index-BPdQpras.js",
+    "metrics": [
+      "1177.20",
+      "100.00",
+      "0.00"
+    ],
+    "overflow": false,
+    "phase": "Paused · Fractured · retained",
+    "ready": "true",
+    "renderer": "WebGL renderer · fixed-step model",
+    "scroll": [
+      0,
+      930
+    ],
+    "settings": "{\"material\":\"laminated\",\"mode\":\"release\",\"load\":80,\"rate\":1.5,\"size\":8,\"damping\":1,\"fill\":0,\"seed\":42}",
+    "time": "12.01 s",
+    "title": "BOX3D — Glass impact",
+    "url": "http://127.0.0.1:5186/?studio=glass&material=laminated&mode=release&seed=42&size=8&load=80&rate=1.5&damping=1&fill=0&experiment=laminated-retention",
+    "viewport": [
+      390,
+      844
+    ]
+  },
+  {
+    "label": "glass-desktop",
+    "entry": "./assets/index-BPdQpras.js",
+    "metrics": [
+      "1177.20",
+      "100.00",
+      "0.00"
+    ],
+    "overflow": false,
+    "phase": "Paused · Fractured · retained",
+    "ready": "true",
+    "renderer": "WebGL renderer · fixed-step model",
+    "scroll": [
+      0,
+      0
+    ],
+    "settings": "{\"material\":\"laminated\",\"mode\":\"release\",\"load\":80,\"rate\":1.5,\"size\":8,\"damping\":1,\"fill\":0,\"seed\":42}",
+    "time": "12.01 s",
+    "title": "BOX3D — Glass impact",
+    "url": "http://127.0.0.1:5186/?studio=glass&material=laminated&mode=release&seed=42&size=8&load=80&rate=1.5&damping=1&fill=0&experiment=laminated-retention",
+    "viewport": [
+      1280,
+      720
+    ]
+  },
+  {
+    "label": "concrete-hall-failure",
+    "entry": "./assets/index-BPdQpras.js",
+    "metrics": [
+      "35.00",
+      "42.58",
+      "8.39"
+    ],
+    "overflow": false,
+    "phase": "Paused · Crushing · spalling",
+    "ready": "true",
+    "renderer": "WebGL renderer · fixed-step model",
+    "scroll": [
+      0,
+      0
+    ],
+    "settings": "{\"material\":\"standard\",\"mode\":\"release\",\"load\":35,\"rate\":5,\"size\":1,\"damping\":1,\"fill\":0,\"seed\":42}",
+    "time": "16.01 s",
+    "title": "BOX3D — Concrete crush",
+    "url": "http://127.0.0.1:5186/?studio=concrete&material=standard&mode=release&seed=42&load=35&rate=5&size=1&damping=1&experiment=cube-crush",
+    "viewport": [
+      1280,
+      720
+    ]
+  },
+  {
+    "label": "glass-retained-final",
+    "entry": "./assets/index-D55lRdiM.js",
+    "metrics": [
+      "1177.20",
+      "100.00",
+      "0.00"
+    ],
+    "overflow": false,
+    "phase": "Paused · Fractured · retained",
+    "ready": "true",
+    "renderer": "WebGL renderer · fixed-step model",
+    "scroll": [
+      0,
+      0
+    ],
+    "settings": "{\"material\":\"laminated\",\"mode\":\"release\",\"load\":80,\"rate\":1.5,\"size\":8,\"damping\":1,\"fill\":0,\"seed\":42}",
+    "time": "12.01 s",
+    "title": "BOX3D — Glass impact",
+    "url": "http://127.0.0.1:5186/?studio=glass&material=laminated&mode=release&seed=42&size=8&load=80&rate=1.5&damping=1&fill=0&experiment=laminated-retention",
+    "viewport": [
+      1280,
+      720
+    ]
+  },
+  {
+    "label": "rubber-hall-recovered",
+    "entry": "./assets/index-D55lRdiM.js",
+    "metrics": [
+      "0.00",
+      "100.00",
+      "0.00"
+    ],
+    "overflow": false,
+    "phase": "Paused · Recovered",
+    "ready": "true",
+    "renderer": "WebGL renderer · fixed-step model",
+    "scroll": [
+      0,
+      0
+    ],
+    "settings": "{\"material\":\"silicone\",\"mode\":\"cycle\",\"load\":50,\"rate\":20,\"size\":1,\"damping\":2,\"fill\":75,\"seed\":42}",
+    "time": "18.01 s",
+    "title": "BOX3D — Elastomer lab",
+    "url": "http://127.0.0.1:5186/?studio=rubber&material=silicone&mode=cycle&seed=42&load=50&rate=20&size=1&damping=2&experiment=silicone-cycle",
+    "viewport": [
+      1280,
+      720
+    ]
+  },
+  {
+    "label": "rubber-hall-compressed",
+    "entry": "./assets/index-D55lRdiM.js",
+    "metrics": [
+      "50.01",
+      "99.15",
+      "0.00"
+    ],
+    "overflow": false,
+    "phase": "Paused · Holding · creep",
+    "ready": "true",
+    "renderer": "WebGL renderer · fixed-step model",
+    "scroll": [
+      0,
+      0
+    ],
+    "settings": "{\"material\":\"silicone\",\"mode\":\"cycle\",\"load\":50,\"rate\":20,\"size\":1,\"damping\":2,\"fill\":75,\"seed\":42}",
+    "time": "3.54 s",
+    "title": "BOX3D — Elastomer lab",
+    "url": "http://127.0.0.1:5186/?studio=rubber&material=silicone&mode=cycle&seed=42&load=50&rate=20&size=1&damping=2&experiment=silicone-cycle",
+    "viewport": [
+      1280,
+      720
+    ]
+  },
+  {
+    "entry": "./assets/index-D55lRdiM.js",
+    "legacyLinks": 0,
+    "overflow": false,
+    "phase": "Paused · Perforated",
+    "ready": "true",
+    "renderer": "WebGPU renderer · worker",
+    "studies": [
+      "Liquid dynamics",
+      "Glass impact",
+      "Concrete crush",
+      "Elastomer lab",
+      "Granular flow",
+      "Metal press",
+      "Canopy",
+      "Suspension bridge"
+    ],
+    "study": "plate",
+    "time": "11.82 s",
+    "url": "http://127.0.0.1:5186/?studio=plate&theme=atelier&finish=plate-machined&light=softbox&recipe=plate-fracture&camera=hero&quality=ultra&surroundings=hall-concrete&layout=reference&metal=mild-steel&thickness=2&tool=round&toolSize=1&toolAngle=0&pressure=80&strike=50&stroke=130&hold=2",
+    "label": "classic-plate-run"
+  },
+  {
+    "entry": "./assets/index-D55lRdiM.js",
+    "legacyLinks": 0,
+    "overflow": false,
+    "phase": "Paused · Collapsed",
+    "ready": "true",
+    "renderer": "WebGPU renderer · worker",
+    "studies": [
+      "Liquid dynamics",
+      "Glass impact",
+      "Concrete crush",
+      "Elastomer lab",
+      "Granular flow",
+      "Metal press",
+      "Canopy",
+      "Suspension bridge"
+    ],
+    "study": "canopy",
+    "time": "30.01 s",
+    "url": "http://127.0.0.1:5186/?studio=canopy&theme=precision&finish=canopy-linen&light=daylight&recipe=canopy-tear&camera=hero&quality=ultra&surroundings=hall-concrete&layout=reference&custom=1&target=4&strength=1&wind=0.25&speed=2",
+    "label": "classic-canopy-run"
+  },
+  {
+    "entry": "./assets/index-D55lRdiM.js",
+    "legacyLinks": 0,
+    "overflow": false,
+    "phase": "Paused · Collapsed",
+    "ready": "true",
+    "renderer": "WebGPU renderer · worker",
+    "studies": [
+      "Liquid dynamics",
+      "Glass impact",
+      "Concrete crush",
+      "Elastomer lab",
+      "Granular flow",
+      "Metal press",
+      "Canopy",
+      "Suspension bridge"
+    ],
+    "study": "bridge",
+    "time": "30.01 s",
+    "url": "http://127.0.0.1:5186/?studio=bridge&theme=observatory&finish=bridge-weathered&light=daylight&recipe=bridge-collapse&camera=hero&quality=ultra&surroundings=valley-stream&layout=reference&water=academy&flow=1&wave=1&foam=1&flowMotion=1&custom=1&target=4&strength=1&wind=0.25&speed=2",
+    "label": "classic-bridge-run"
+  },
+  {
+    "label": "liquid-final-desktop",
+    "entry": "./assets/index-DaNDYoQL.js",
+    "metrics": [
+      "0.65",
+      "0.00",
+      "3.04"
+    ],
+    "overflow": false,
+    "phase": "Ready",
+    "ready": "true",
+    "renderer": "WebGL renderer · fixed-step model",
+    "scroll": [
+      0,
+      0
+    ],
+    "settings": "{\"material\":\"water\",\"mode\":\"release\",\"load\":100,\"rate\":0.8,\"size\":0.65,\"damping\":1,\"fill\":10,\"seed\":42}",
+    "time": "0.00 s",
+    "title": "BOX3D — Liquid dynamics",
+    "url": "http://127.0.0.1:5186/?studio=liquid&material=water&mode=release&seed=42&size=0.65&load=100&rate=0.8&damping=1&fill=10&experiment=water-release",
+    "viewport": [
+      1280,
+      720
+    ]
+  },
+  {
+    "label": "liquid-final-phone",
+    "entry": "./assets/index-DaNDYoQL.js",
+    "metrics": [
+      "0.65",
+      "0.00",
+      "3.04"
+    ],
+    "overflow": false,
+    "phase": "Ready",
+    "ready": "true",
+    "renderer": "WebGL renderer · fixed-step model",
+    "scroll": [
+      0,
+      0
+    ],
+    "settings": "{\"material\":\"water\",\"mode\":\"release\",\"load\":100,\"rate\":0.8,\"size\":0.65,\"damping\":1,\"fill\":10,\"seed\":42}",
+    "time": "0.00 s",
+    "title": "BOX3D — Liquid dynamics",
+    "url": "http://127.0.0.1:5186/?studio=liquid&material=water&mode=release&seed=42&size=0.65&load=100&rate=0.8&damping=1&fill=10&experiment=water-release",
+    "viewport": [
+      390,
+      844
+    ]
+  },
+  {
+    "label": "liquid-final-wave",
+    "entry": "./assets/index-DaNDYoQL.js",
+    "metrics": [
+      "0.43",
+      "1.62",
+      "3.04"
+    ],
+    "overflow": false,
+    "phase": "Paused · Flowing",
+    "ready": "true",
+    "renderer": "WebGL renderer · fixed-step model",
+    "scroll": [
+      0,
+      0
+    ],
+    "settings": "{\"material\":\"water\",\"mode\":\"release\",\"load\":100,\"rate\":0.8,\"size\":0.65,\"damping\":1,\"fill\":10,\"seed\":42}",
+    "time": "1.74 s",
+    "title": "BOX3D — Liquid dynamics",
+    "url": "http://127.0.0.1:5186/?studio=liquid&material=water&mode=release&seed=42&size=0.65&load=100&rate=0.8&damping=1&fill=10&experiment=water-release",
+    "viewport": [
+      1280,
+      720
+    ]
+  }
+]

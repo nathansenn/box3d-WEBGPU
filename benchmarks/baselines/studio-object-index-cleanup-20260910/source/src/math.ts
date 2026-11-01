@@ -1,0 +1,325 @@
+export type Vec3 = [number, number, number];
+export type Vec4 = [number, number, number, number];
+export type Mat4 = Float32Array;
+
+export const EPSILON = 1e-6;
+
+export function clamp(value: number, min: number, max: number): number {
+  return Math.max(min, Math.min(max, value));
+}
+
+export function saturate(value: number): number {
+  return clamp(value, 0, 1);
+}
+
+export function lerp(a: number, b: number, t: number): number {
+  return a + (b - a) * t;
+}
+
+export function smoothstep(edge0: number, edge1: number, value: number): number {
+  if (Math.abs(edge1 - edge0) < EPSILON) return value < edge0 ? 0 : 1;
+  const t = saturate((value - edge0) / (edge1 - edge0));
+  return t * t * (3 - 2 * t);
+}
+
+export function easeInOutCubic(t: number): number {
+  const x = saturate(t);
+  return x < 0.5 ? 4 * x * x * x : 1 - Math.pow(-2 * x + 2, 3) / 2;
+}
+
+export function lerpAngle(a: number, b: number, t: number): number {
+  const tau = Math.PI * 2;
+  let delta = (b - a) % tau;
+  if (delta > Math.PI) delta -= tau;
+  if (delta < -Math.PI) delta += tau;
+  return a + delta * t;
+}
+
+export function vec3(x = 0, y = 0, z = 0): Vec3 {
+  return [x, y, z];
+}
+
+export function vec3Add(a: Vec3, b: Vec3): Vec3 {
+  return [a[0] + b[0], a[1] + b[1], a[2] + b[2]];
+}
+
+export function vec3Sub(a: Vec3, b: Vec3): Vec3 {
+  return [a[0] - b[0], a[1] - b[1], a[2] - b[2]];
+}
+
+export function vec3Scale(a: Vec3, s: number): Vec3 {
+  return [a[0] * s, a[1] * s, a[2] * s];
+}
+
+export function vec3Lerp(a: Vec3, b: Vec3, t: number): Vec3 {
+  return [lerp(a[0], b[0], t), lerp(a[1], b[1], t), lerp(a[2], b[2], t)];
+}
+
+export function vec3Dot(a: Vec3, b: Vec3): number {
+  return a[0] * b[0] + a[1] * b[1] + a[2] * b[2];
+}
+
+export function vec3Cross(a: Vec3, b: Vec3): Vec3 {
+  return [
+    a[1] * b[2] - a[2] * b[1],
+    a[2] * b[0] - a[0] * b[2],
+    a[0] * b[1] - a[1] * b[0],
+  ];
+}
+
+export function vec3Length(a: Vec3): number {
+  return Math.hypot(a[0], a[1], a[2]);
+}
+
+export function vec3Normalize(a: Vec3): Vec3 {
+  const len = vec3Length(a);
+  if (len < EPSILON) return [0, 0, 0];
+  return [a[0] / len, a[1] / len, a[2] / len];
+}
+
+export function mat4Identity(): Mat4 {
+  const out = new Float32Array(16);
+  out[0] = 1;
+  out[5] = 1;
+  out[10] = 1;
+  out[15] = 1;
+  return out;
+}
+
+/** Right-handed perspective matrix with WebGPU/D3D zero-to-one clip depth. */
+export function mat4Perspective(fovyRadians: number, aspect: number, near: number, far: number): Mat4 {
+  return mat4PerspectiveInto(new Float32Array(16), fovyRadians, aspect, near, far);
+}
+
+/** Allocation-free variant of {@link mat4Perspective}. */
+export function mat4PerspectiveInto(out: Mat4, fovyRadians: number, aspect: number, near: number, far: number): Mat4 {
+  const f = 1.0 / Math.tan(fovyRadians * 0.5);
+  const nf = 1 / (near - far);
+  out.fill(0);
+  out[0] = f / Math.max(aspect, EPSILON);
+  out[5] = f;
+  out[10] = far * nf;
+  out[11] = -1;
+  out[14] = far * near * nf;
+  return out;
+}
+
+/** Right-handed orthographic matrix with WebGPU/D3D zero-to-one clip depth. */
+export function mat4Orthographic(left: number, right: number, bottom: number, top: number, near: number, far: number): Mat4 {
+  return mat4OrthographicInto(new Float32Array(16), left, right, bottom, top, near, far);
+}
+
+/** Allocation-free variant of {@link mat4Orthographic}. */
+export function mat4OrthographicInto(
+  out: Mat4,
+  left: number,
+  right: number,
+  bottom: number,
+  top: number,
+  near: number,
+  far: number,
+): Mat4 {
+  const lr = 1 / Math.max(EPSILON, right - left);
+  const bt = 1 / Math.max(EPSILON, top - bottom);
+  const nf = 1 / Math.max(EPSILON, near - far);
+  out.fill(0);
+  out[0] = 2 * lr;
+  out[5] = 2 * bt;
+  out[10] = nf;
+  out[12] = -(right + left) * lr;
+  out[13] = -(top + bottom) * bt;
+  out[14] = near * nf;
+  out[15] = 1;
+  return out;
+}
+
+export function mat4LookAt(eye: Vec3, target: Vec3, up: Vec3): Mat4 {
+  return mat4LookAtInto(new Float32Array(16), eye, target, up);
+}
+
+/** Allocation-free variant of {@link mat4LookAt}. */
+export function mat4LookAtInto(out: Mat4, eye: Vec3, target: Vec3, up: Vec3): Mat4 {
+  let zx = eye[0] - target[0];
+  let zy = eye[1] - target[1];
+  let zz = eye[2] - target[2];
+  const zLength = Math.hypot(zx, zy, zz);
+  if (zLength < EPSILON) {
+    zx = 0;
+    zy = 0;
+    zz = 0;
+  } else {
+    zx /= zLength;
+    zy /= zLength;
+    zz /= zLength;
+  }
+
+  let xx = up[1] * zz - up[2] * zy;
+  let xy = up[2] * zx - up[0] * zz;
+  let xz = up[0] * zy - up[1] * zx;
+  const xLength = Math.hypot(xx, xy, xz);
+  if (xLength < EPSILON) {
+    xx = 0;
+    xy = 0;
+    xz = 0;
+  } else {
+    xx /= xLength;
+    xy /= xLength;
+    xz /= xLength;
+  }
+
+  const yx = zy * xz - zz * xy;
+  const yy = zz * xx - zx * xz;
+  const yz = zx * xy - zy * xx;
+
+  out[0] = xx;
+  out[1] = yx;
+  out[2] = zx;
+  out[3] = 0;
+  out[4] = xy;
+  out[5] = yy;
+  out[6] = zy;
+  out[7] = 0;
+  out[8] = xz;
+  out[9] = yz;
+  out[10] = zz;
+  out[11] = 0;
+  out[12] = -(xx * eye[0] + xy * eye[1] + xz * eye[2]);
+  out[13] = -(yx * eye[0] + yy * eye[1] + yz * eye[2]);
+  out[14] = -(zx * eye[0] + zy * eye[1] + zz * eye[2]);
+  out[15] = 1;
+  return out;
+}
+
+export function mat4Multiply(a: Mat4, b: Mat4): Mat4 {
+  return mat4MultiplyInto(new Float32Array(16), a, b);
+}
+
+/** Allocation-free variant of {@link mat4Multiply}. `out` must not alias either input. */
+export function mat4MultiplyInto(out: Mat4, a: Mat4, b: Mat4): Mat4 {
+  for (let col = 0; col < 4; col++) {
+    for (let row = 0; row < 4; row++) {
+      out[col * 4 + row] =
+        a[0 * 4 + row] * b[col * 4 + 0] +
+        a[1 * 4 + row] * b[col * 4 + 1] +
+        a[2 * 4 + row] * b[col * 4 + 2] +
+        a[3 * 4 + row] * b[col * 4 + 3];
+    }
+  }
+  return out;
+}
+
+export function writeModelMatrixFromEuler(
+  out: Float32Array,
+  offset: number,
+  position: Vec3,
+  rotation: Vec3,
+  halfExtents: Vec3,
+): void {
+  const [rx, ry, rz] = rotation;
+  const sx = Math.sin(rx);
+  const cx = Math.cos(rx);
+  const sy = Math.sin(ry);
+  const cy = Math.cos(ry);
+  const sz = Math.sin(rz);
+  const cz = Math.cos(rz);
+
+  // R = Rz * Ry * Rx, column-major.
+  const r00 = cz * cy;
+  const r01 = cz * sy * sx - sz * cx;
+  const r02 = cz * sy * cx + sz * sx;
+
+  const r10 = sz * cy;
+  const r11 = sz * sy * sx + cz * cx;
+  const r12 = sz * sy * cx - cz * sx;
+
+  const r20 = -sy;
+  const r21 = cy * sx;
+  const r22 = cy * cx;
+
+  out[offset + 0] = r00 * halfExtents[0];
+  out[offset + 1] = r10 * halfExtents[0];
+  out[offset + 2] = r20 * halfExtents[0];
+  out[offset + 3] = 0;
+
+  out[offset + 4] = r01 * halfExtents[1];
+  out[offset + 5] = r11 * halfExtents[1];
+  out[offset + 6] = r21 * halfExtents[1];
+  out[offset + 7] = 0;
+
+  out[offset + 8] = r02 * halfExtents[2];
+  out[offset + 9] = r12 * halfExtents[2];
+  out[offset + 10] = r22 * halfExtents[2];
+  out[offset + 11] = 0;
+
+  out[offset + 12] = position[0];
+  out[offset + 13] = position[1];
+  out[offset + 14] = position[2];
+  out[offset + 15] = 1;
+}
+
+/** Bit-compatible specialization of {@link writeModelMatrixFromEuler} for zero rotation. */
+export function writeAxisAlignedModelMatrix(
+  out: Float32Array,
+  offset: number,
+  position: Vec3,
+  halfX: number,
+  halfY: number,
+  halfZ: number,
+): void {
+  out[offset + 0] = halfX;
+  out[offset + 1] = 0;
+  // Math.sin(0) followed by the generic Euler writer produces negative zero
+  // for R20. Preserve that bit so deterministic frame fingerprints remain
+  // identical to the general path.
+  out[offset + 2] = -0;
+  out[offset + 3] = 0;
+  out[offset + 4] = 0;
+  out[offset + 5] = halfY;
+  out[offset + 6] = 0;
+  out[offset + 7] = 0;
+  out[offset + 8] = 0;
+  out[offset + 9] = 0;
+  out[offset + 10] = halfZ;
+  out[offset + 11] = 0;
+  out[offset + 12] = position[0];
+  out[offset + 13] = position[1];
+  out[offset + 14] = position[2];
+  out[offset + 15] = 1;
+}
+
+export function matrixColumnLength(m: Float32Array, offset: number, col: number): number {
+  const i = offset + col * 4;
+  return Math.hypot(m[i + 0], m[i + 1], m[i + 2]);
+}
+
+export function isFiniteArray(values: ArrayLike<number>): boolean {
+  for (let i = 0; i < values.length; i++) {
+    if (!Number.isFinite(values[i])) return false;
+  }
+  return true;
+}
+
+export class LcgRng {
+  private state: number;
+
+  constructor(seed = 0xc0ffee) {
+    this.state = seed >>> 0;
+  }
+
+  nextUint(): number {
+    this.state = (Math.imul(1664525, this.state) + 1013904223) >>> 0;
+    return this.state;
+  }
+
+  next01(): number {
+    return ((this.nextUint() >>> 8) & 0x00ffffff) / 0x01000000;
+  }
+
+  range(min: number, max: number): number {
+    return min + (max - min) * this.next01();
+  }
+
+  signed(scale = 1): number {
+    return (this.next01() * 2 - 1) * scale;
+  }
+}

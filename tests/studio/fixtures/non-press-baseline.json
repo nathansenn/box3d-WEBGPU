@@ -1,0 +1,70 @@
+[
+  {
+    "id": "canopy",
+    "load": 0.8,
+    "steps": 960,
+    "positions": "ae3a359fc00bf68b448d85c40a9727a6f64e342eb0ed3a354f9198f8d1783fec",
+    "broken": "84022f76497088faf9594b1b6b45a7e95b6932e290443b908072410edc2d2403",
+    "response": {
+      "time": 8.000000000000187,
+      "load": 0.8,
+      "deflection": 0.5394922191947602,
+      "strain": 0.07980603404016096,
+      "broken": 0,
+      "damage": 0,
+      "plastic": 0,
+      "phase": "Elastic response"
+    }
+  },
+  {
+    "id": "canopy",
+    "load": 4,
+    "steps": 960,
+    "positions": "b58e4caff5a49a246f2631832376da66dce2ee450200d256fec1dcf21499e4ac",
+    "broken": "b2b5b97654290f14a50c36728f202895e2c588bf6a2b0c94195ec1c05c6c3a19",
+    "response": {
+      "time": 8.000000000000187,
+      "load": 4,
+      "deflection": 5.1720703125,
+      "strain": 0.008970410487641356,
+      "broken": 69,
+      "damage": 1,
+      "plastic": 0,
+      "phase": "Collapsed"
+    }
+  },
+  {
+    "id": "bridge",
+    "load": 0.8,
+    "steps": 960,
+    "positions": "14640ffb4c098f20f7b57553df13be5ec1ca4819645522df65437c48efbe3304",
+    "broken": "8166412c71a3a284a1786a39932e467da95d90d7fd14971eef0a1f55e16a97d4",
+    "response": {
+      "time": 8.000000000000187,
+      "load": 0.8,
+      "deflection": 0.2736308174376543,
+      "strain": 0.0014950919435929855,
+      "broken": 0,
+      "damage": 0,
+      "plastic": 0,
+      "phase": "Elastic response"
+    }
+  },
+  {
+    "id": "bridge",
+    "load": 4,
+    "steps": 960,
+    "positions": "ea6eb651c4914f28791c0f25f8f092bb9408044882c32f455dc98554ddb5e2e3",
+    "broken": "88a8937f01027e0de08c3133f6a2848738ef35a79be4c753cd4d83198c0bb946",
+    "response": {
+      "time": 8.000000000000187,
+      "load": 4,
+      "deflection": 6.199999999999999,
+      "strain": 0.004217017160369263,
+      "broken": 13,
+      "damage": 1,
+      "plastic": 0,
+      "phase": "Collapsed"
+    }
+  }
+]

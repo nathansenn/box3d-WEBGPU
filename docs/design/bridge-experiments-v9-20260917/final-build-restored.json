@@ -1,0 +1,17 @@
+{
+  "cases": 9,
+  "live": "Ready to simulate0.00 s",
+  "outcomes": [
+    "No rupture observed",
+    "No rupture observed",
+    "No rupture observed",
+    "No rupture observed",
+    "Partial · No rupture observed",
+    "Not run",
+    "Not run",
+    "Not run",
+    "Not run"
+  ],
+  "status": "Cancelled · partial results retained.",
+  "storage": "Saved scan restored with its fixed settings. Export before replacing it."
+}

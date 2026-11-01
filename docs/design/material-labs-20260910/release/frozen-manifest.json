@@ -1,0 +1,363 @@
+{
+  "observedAt": "2026-09-09T23:30:09.940731+00:00",
+  "notYetAllocatedOrPublished": false,
+  "files": {
+    ".nojekyll": {
+      "bytes": 0,
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    "assets/Phosphor-BXRFlF4V.svg": {
+      "bytes": 2996371,
+      "sha256": "e874e712d3f1b7774b4cba7dafda1eecdb1f075cd5e2ec1109c0553421ecaed3"
+    },
+    "assets/Phosphor-BdqudwT5.woff": {
+      "bytes": 488716,
+      "sha256": "396c5eae7f2dfb4d1f5432edd87109eda2f92a451b2167e43a26165b82770f75"
+    },
+    "assets/Phosphor-CDxgqcPu.ttf": {
+      "bytes": 488636,
+      "sha256": "06b91e022b7ee899a63efced879392a74f0bacbda54e4467e9f663220d173a10"
+    },
+    "assets/Phosphor-DtdjzkpE.woff2": {
+      "bytes": 147380,
+      "sha256": "c2ea45ea05ff5c7df1936770c104725f2a68f43fd343f35f3da23a30b27de32a"
+    },
+    "assets/RoundedBoxGeometry-BAh20NZY.css": {
+      "bytes": 63346,
+      "sha256": "9eb3d0bd056448b859e31e39c5086f823fe5679b941174bbf1bed58318e455ba"
+    },
+    "assets/RoundedBoxGeometry-DeGLauyl.js": {
+      "bytes": 967921,
+      "sha256": "e57948e25f1b30191ff13d21cca4f418d6949f13f5d4ba9972cce111d77bfd61"
+    },
+    "assets/ibm-plex-mono-latin-400-normal-CvHOgSBP.woff": {
+      "bytes": 13144,
+      "sha256": "328d50b6ece9ca25c46eea3e885ba497f6237f2fb84ef7b92f88e14a1a25e381"
+    },
+    "assets/ibm-plex-mono-latin-400-normal-DMJ8VG8y.woff2": {
+      "bytes": 14708,
+      "sha256": "08949f728dc52d528e69b1667d15c89a5686a4ee9a296ff90983985f99c380f7"
+    },
+    "assets/index-DaNDYoQL.js": {
+      "bytes": 3630,
+      "sha256": "9fe1468736b6dbab11fdfa98f5d4dbf38417e8dea7843d3da07497d411ff274d"
+    },
+    "assets/inter-latin-400-normal-C38fXH4l.woff2": {
+      "bytes": 23664,
+      "sha256": "8909904ab6c872eb994093482a88a28eca2cd95912d7b6fecd72103b0dc07edc"
+    },
+    "assets/inter-latin-400-normal-CyCys3Eg.woff": {
+      "bytes": 30696,
+      "sha256": "e20fa0b4fd2dd26e4d14b3ac3cc922509c3a63fa5e910e90c614544aa042dd45"
+    },
+    "assets/inter-latin-500-normal-BL9OpVg8.woff": {
+      "bytes": 31284,
+      "sha256": "9b42c108da48b5ed55a3072e815ffee2d271562e6c0dd6998910e8f9c09e0a3d"
+    },
+    "assets/inter-latin-500-normal-Cerq10X2.woff2": {
+      "bytes": 24272,
+      "sha256": "f3779f1efccc4bdcdf9c0a02ab95bf6bd092ed09c48c08cedc725889edd1d19f"
+    },
+    "assets/inter-latin-600-normal-CiBQ2DWP.woff": {
+      "bytes": 31260,
+      "sha256": "6a9cb3a509b4eeaf12b7dda6c4aacac3e85d07f4201bf4dd716e332e692b87bd"
+    },
+    "assets/inter-latin-600-normal-LgqL8muc.woff2": {
+      "bytes": 24452,
+      "sha256": "f9a06e79cd3a2a20951c0f0e28f66dd0e6d3fda73911d640a2125c8fcb78f21a"
+    },
+    "assets/inter-latin-700-normal-BLAVimhd.woff": {
+      "bytes": 31320,
+      "sha256": "7c5ed5655730de337704d3fc94628515cd7e3d8d32368871709bf56ac0397e7a"
+    },
+    "assets/inter-latin-700-normal-Yt3aPRUw.woff2": {
+      "bytes": 24356,
+      "sha256": "6f56409fd3d64bb85f7d070bce20749db2d66b6d63cec586cc22d1c761be2491"
+    },
+    "assets/main-CdO9fxmE.css": {
+      "bytes": 16963,
+      "sha256": "c5b24e2a8129e8090cc7422f74421cae91d1dfb4bf4c2a92fed88519c0e1bede"
+    },
+    "assets/main-DAz6IQYJ.js": {
+      "bytes": 255725,
+      "sha256": "f92599a2fade2ae8589e8eaa7d98e673fd07cab4b7a284a3a9669c3df261ebb9"
+    },
+    "assets/main-hCPXY_Js.js": {
+      "bytes": 69172,
+      "sha256": "63db8160a19cf1768cd63acdf545eb2314c417b73a097cb6758564b4f702aa6b"
+    },
+    "assets/main-p_gPE8X0.css": {
+      "bytes": 85884,
+      "sha256": "82b9ee010590ed3322384886bd66126c8d0b212d58a6b5b00f30ad1261733fe4"
+    },
+    "assets/studio-worker-CiVNd5Bm.js": {
+      "bytes": 38630,
+      "sha256": "80fd3ffeef713fa62e350bcaf3fe1a22f1c71c5b0436f24c583f978d4e837b58"
+    },
+    "assets/study-navigation-CGNjdIDP.css": {
+      "bytes": 761,
+      "sha256": "49055ca28c8b296e2a5ed6686f7850cae46775e9576e4528b4ecd3f35b432d88"
+    },
+    "assets/study-navigation-yKpjwIwl.js": {
+      "bytes": 1378,
+      "sha256": "a9ce2f6e68b4410a709574de561c5316da6f137f9be8bb6f73c17ab21afb94e5"
+    },
+    "index.html": {
+      "bytes": 671,
+      "sha256": "2e1c609831033dabef3e386521911a62ec0888db6f1a6cdff02b5fb535b8b2e8"
+    },
+    "licenses/ibm-plex-mono.txt": {
+      "bytes": 5299,
+      "sha256": "23b0a9d0c6d3f140a0b77e483c5cfa6bba574325ef5cb189ed9f2fec4884533f"
+    },
+    "licenses/inter.txt": {
+      "bytes": 4477,
+      "sha256": "3b0a5fca3d17942cde889069889dedbbbd075e9b599968c82a95f4d944e9b345"
+    },
+    "licenses/phosphor.txt": {
+      "bytes": 1076,
+      "sha256": "687fbe52d0eb5c2353eca27a4037e889145ee0b584d3b1abf67581c4a4a4e47c"
+    },
+    "licenses/project.txt": {
+      "bytes": 1068,
+      "sha256": "1cb32eda11ac9df0cfe92cc809fb450d0177600232eeca39f522c2ff5e83b6c1"
+    },
+    "licenses/three.txt": {
+      "bytes": 1081,
+      "sha256": "8b378ebe60e2fe500158cb0ac71cb5e8b7d92953c2abcc63a0eb90499653b5bc"
+    },
+    "release-info.json": {
+      "bytes": 599,
+      "sha256": "6741567b44c29232103b5cfa9b5a9489a83039d07b5e8701f02ff0555a54abf7"
+    },
+    "studio/materials/brass-basecolor.webp": {
+      "bytes": 509944,
+      "sha256": "09400d12cc3b6b5f1afa31c22791e1f52261891d4b2b5d8d636c9e5b0ea91179"
+    },
+    "studio/materials/brass-normal.webp": {
+      "bytes": 631850,
+      "sha256": "5806756ebba24d0925d0809f3e9909582b5243fc83cc76314c995ef2bda3d52f"
+    },
+    "studio/materials/brass-roughness.webp": {
+      "bytes": 227486,
+      "sha256": "4ec3c2e80fecb825d7e1a8c596ca895e46d8034864ef69ed6e7893645b1b5225"
+    },
+    "studio/materials/bronze-basecolor.jpg": {
+      "bytes": 6014877,
+      "sha256": "a679352bd1fc44412030e6448383d53b22afefcc9db367b44731416aac9709a3"
+    },
+    "studio/materials/bronze-roughness.jpg": {
+      "bytes": 4182864,
+      "sha256": "daf950d99070abb3e33ad680cc28c0fe50abf9233af6771006fe645379464f02"
+    },
+    "studio/materials/cast-concrete.png": {
+      "bytes": 3109547,
+      "sha256": "159cb60bb9d150528af34ddc159512b09ecf267e90e6723848b3a6a6a7cc9f7c"
+    },
+    "studio/materials/cloudrest-basecolor.webp": {
+      "bytes": 473664,
+      "sha256": "b8e12e23c519598c1dc3c386d40c1af854900226de1ee0c5de39586ad2f296b3"
+    },
+    "studio/materials/cloudrest-normal.webp": {
+      "bytes": 565460,
+      "sha256": "7c100edf3c5c5385bf9d55514c6b654b4cdbcd22459658372414fa4f35dff378"
+    },
+    "studio/materials/cloudrest-roughness.webp": {
+      "bytes": 183700,
+      "sha256": "a9898e34ec460dca708d19fd4bcbb9160d015012ce70d6f9592ead8f5beece07"
+    },
+    "studio/materials/copper-basecolor.jpg": {
+      "bytes": 7796107,
+      "sha256": "b443ffe00d32795eeaeee12e4fc88193b0e2f3adf40d0d025dbf907755803b36"
+    },
+    "studio/materials/copper-roughness.jpg": {
+      "bytes": 5253769,
+      "sha256": "df54c54257bd1546f7e0e2216b37daf20fc3b23b7f77361066f5761ee6396c7e"
+    },
+    "studio/materials/copper-sheet-basecolor.webp": {
+      "bytes": 1913564,
+      "sha256": "378f8c7bf7dcbf40fc621d6231f988c8d8b151d8995d4785598c40943b52793b"
+    },
+    "studio/materials/copper-sheet-normal.webp": {
+      "bytes": 679754,
+      "sha256": "4ec7648728cff250affd85a74651136d5e3e91d5d5daf1fa7d0569c49d62ac95"
+    },
+    "studio/materials/copper-sheet-roughness.webp": {
+      "bytes": 246494,
+      "sha256": "690a30df5713ea76046a512eced0044a5f4c2fa2627be85428d83f4d011e9daa"
+    },
+    "studio/materials/forest-floor.png": {
+      "bytes": 3907851,
+      "sha256": "f55ec4ace0736104dfe08319f922007f578e246326b3ff34ce8656dfe69e44f5"
+    },
+    "studio/materials/forged-basecolor.webp": {
+      "bytes": 261338,
+      "sha256": "f5b4260e3afac0aa188f9cc4ca5cba5cee936997387a9b89e45257546a7cbfd5"
+    },
+    "studio/materials/forged-normal.webp": {
+      "bytes": 456980,
+      "sha256": "e7193b30aadba8b8de2cbcfcecb3015678ee9280116eba6ef65f81410d0afe49"
+    },
+    "studio/materials/forged-roughness.webp": {
+      "bytes": 129428,
+      "sha256": "0f1946b0272a6d961ab110d2cab238b9130b6e47d4901d42dde191eafd89de19"
+    },
+    "studio/materials/granite-rock.png": {
+      "bytes": 3740427,
+      "sha256": "afc8b48c0d33a7df3fbf45dad99ea5da4d56450d38ac4098cd0d1ca164f76d01"
+    },
+    "studio/materials/iron-basecolor.webp": {
+      "bytes": 1983804,
+      "sha256": "d39232b4b74c85d32776377c26cd34231b8d43a8da3c7aa3695ae2a031b0caa7"
+    },
+    "studio/materials/iron-normal.webp": {
+      "bytes": 846020,
+      "sha256": "8458c41e5edf38badf75673ecbe9445cc3b341b6563cbd4dba5c8495bbcc975c"
+    },
+    "studio/materials/iron-roughness.webp": {
+      "bytes": 281674,
+      "sha256": "efe47e20396b06296045dcacac3d0c80f8fd190d3582a7dcd56f9ecc0b2e441e"
+    },
+    "studio/materials/ivory-weave.png": {
+      "bytes": 2965892,
+      "sha256": "9e37b3e2843830c9952a18f9620f9c02bcb0252a558054fb3c50e2e0916b7361"
+    },
+    "studio/materials/leather-basecolor.webp": {
+      "bytes": 1366786,
+      "sha256": "eaee7a1d6dfe713a83d2e560f2191b4646cdaf156bbaf06806a48324ad5038af"
+    },
+    "studio/materials/leather-normal.webp": {
+      "bytes": 666774,
+      "sha256": "3e273900c59de2a0814a12c737b38fedc451349d4de85cb45ab44e06d2b747ec"
+    },
+    "studio/materials/leather-roughness.webp": {
+      "bytes": 101906,
+      "sha256": "ee321b021f2f8e9ca2b48ef7e06576e1f2735775f675a2be894157ef2749afd3"
+    },
+    "studio/materials/linen-basecolor.webp": {
+      "bytes": 902984,
+      "sha256": "c8942f54025f352e5b10859a4abbd3533aec6b14250fa5d0417e3ed7c476c01a"
+    },
+    "studio/materials/linen-normal.webp": {
+      "bytes": 667400,
+      "sha256": "e00be78f358d9c8aa36e0a166b4d71ee8a557a92b6e62795f911d03b34f77831"
+    },
+    "studio/materials/linen-roughness.webp": {
+      "bytes": 74898,
+      "sha256": "1d24906788b3f4295c46322a3a0e824a410051159fd8efa0a0aa3560ac96e925"
+    },
+    "studio/materials/machined-metal.png": {
+      "bytes": 1959641,
+      "sha256": "fd88bd91f8dbe3144ed6164880cb2030cda5cd57a092dacd8908eaff74e33dc0"
+    },
+    "studio/materials/navy-basecolor.jpg": {
+      "bytes": 5146521,
+      "sha256": "b71966d9e6fb0d019142eacdd53e99a7d7cc56184e3b2eb1e5bda7ac33a2c87e"
+    },
+    "studio/materials/navy-roughness.jpg": {
+      "bytes": 2232520,
+      "sha256": "b57e365fa7bdef6c9e67da09350d650bf01ea45f50f02e041e170f04d52f27b7"
+    },
+    "studio/materials/oak-foliage.png": {
+      "bytes": 2173455,
+      "sha256": "8ce5d1a1692a671a6c3c6c8c8f3a3417711a0bf94b9d397a6c6d3dbfc13abc2c"
+    },
+    "studio/materials/provenance.json": {
+      "bytes": 1516,
+      "sha256": "01a931b4ba53f2415365e0b0afed0d16247abbe84ac17e9da063f4d1fd988359"
+    },
+    "studio/materials/riverbank-earth.png": {
+      "bytes": 3721531,
+      "sha256": "a0ea7103c80e97f6cd3f4c4826a771ac105ebe556a28b2da34fbe53570d60e8a"
+    },
+    "studio/materials/timber-basecolor.webp": {
+      "bytes": 1770394,
+      "sha256": "6fc0d65648338e0de0b42f0dcfc38ada2cdcf868249418727318cfb478496eda"
+    },
+    "studio/materials/timber-normal.webp": {
+      "bytes": 806560,
+      "sha256": "47f2d13aca9a24c5c4bf38aa5e3fe991b41d859c85a2fd3ed484632fdac5b7f6"
+    },
+    "studio/materials/timber-roughness.webp": {
+      "bytes": 182244,
+      "sha256": "12e7d2c1fb6ff2660d464b05eb84db560adeb10113dd0a34b037556f4a822adf"
+    },
+    "studio/materials/weathered-oak.png": {
+      "bytes": 3406903,
+      "sha256": "f02d72e7750d2539fd9daa8552f682dfb5ded9fc226668254fdc9540a4a3e657"
+    },
+    "studio/models/polyhaven-island-tree-02-browser-lod.glb": {
+      "bytes": 6726964,
+      "sha256": "c44d3dab05838f0efaf2294d000d1c484b7b325c541935a0245e1dc536064fb6"
+    },
+    "studio/models/polyhaven-island-tree-02-mid-lod.glb": {
+      "bytes": 1603716,
+      "sha256": "3b3ed3a356c79f04b0d272852da24e249dfcf99edf10ced7d0a3bca0fd2b0da0"
+    },
+    "studio/models/polyhaven-island-tree-02-woodland-lod.glb": {
+      "bytes": 321864,
+      "sha256": "91b8ac5ce5fe0c53a8dd0503eaec0a803b7b7c3919b58031fde151edb6e80684"
+    },
+    "studio/models/polyhaven-island-tree-02.LICENSE.txt": {
+      "bytes": 392,
+      "sha256": "63996b9f26e3999bef76bb39460940d992b7d011df1249e958c356db88f7ca5c"
+    },
+    "studio/references/bridge-v2-detail.png": {
+      "bytes": 3742039,
+      "sha256": "5be5b5dff1bb08b3474fe8c289a53e332dd423464f9344a09f1bcb96530f532f"
+    },
+    "studio/references/bridge-v2-hero.png": {
+      "bytes": 3590949,
+      "sha256": "c90503270f06bed40e97100e4450831a4de2ad49eaf3fb56087903ee3a025c86"
+    },
+    "studio/references/bridge-v3-approach.png": {
+      "bytes": 3480997,
+      "sha256": "a2e50c4feae5c28b1ec3828eab8e299a74539533f79df16ff6d450d1b1e4d20a"
+    },
+    "studio/references/bridge-v3-hero.png": {
+      "bytes": 3681458,
+      "sha256": "a7bab4cd6ae65362fa90f331b59272b6d9b9a8aa92745fdfc5f0fd3f6ab57cb3"
+    },
+    "studio/references/bridge.png": {
+      "bytes": 1967248,
+      "sha256": "c0b9eb4c8bc5cfd4866ee928a70a7ec86644a063ac9ec4235e02b2b8f52099b8"
+    },
+    "studio/references/canopy.png": {
+      "bytes": 1814642,
+      "sha256": "ef890f70db3b32767b8eef563b07b4ed3f7591ded98abd83393345584997d586"
+    },
+    "studio/references/material-labs/concrete.png": {
+      "bytes": 1980007,
+      "sha256": "9ceb15f6c644797c48608e025be4c0372461f995b011d09da09d2eac38baa8a1"
+    },
+    "studio/references/material-labs/glass.png": {
+      "bytes": 2031996,
+      "sha256": "5ebb368ce8a40fb03ac52b83050989b2c3a25868d0efd843fdc0b4164263dcef"
+    },
+    "studio/references/material-labs/granular.png": {
+      "bytes": 2218824,
+      "sha256": "075d4b5e0c925cc6e9a2454c8d615faf5ac0994559bd28b102a8ae66269f91c9"
+    },
+    "studio/references/material-labs/hall-panorama.png": {
+      "bytes": 2321245,
+      "sha256": "7caca63e58dc4a645d2848ad2d5d520f45f7d4cb8ca71ee43434ec6b68c1d30c"
+    },
+    "studio/references/material-labs/liquid.png": {
+      "bytes": 2339196,
+      "sha256": "c8c48f8237593837f445974c4448921a319317ec4ccff5bcbf450e4b751e73c8"
+    },
+    "studio/references/material-labs/rubber.png": {
+      "bytes": 1857825,
+      "sha256": "2db4714a44f5bede3df3a73ce16dcd9dc565e439614872020e61aa9506d3f559"
+    },
+    "studio/references/plate.png": {
+      "bytes": 1575668,
+      "sha256": "63547d1a27495a234707472793faf9d3cf192b9203d09ec51f7d6576f4e2b3e6"
+    }
+  },
+  "frozenAt": "2026-09-09T23:31:22.867360+00:00",
+  "directory": "/private/tmp/box3d-static-release-20260910",
+  "publicationStatus": "local candidate only",
+  "cloneMode": "APFS clone; no source hard links or symlinks",
+  "freeBeforeGiB": 53.0243
+}

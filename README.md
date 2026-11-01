@@ -451,6 +451,12 @@ See [TURBOQUANT.md](docs/TURBOQUANT.md).
 
 ## Validation
 
+`npm run test:collision` runs the focused contact, canopy, glass, worker-recovery,
+and startup regressions serially. It is included in `npm test`, `npm run validate`,
+and both CI workflows. The test loader transpiles TypeScript in memory using the
+installed compiler, so the same command works on the supported Node 20 and 22
+versions without relying on native TypeScript stripping.
+
 Run the full current release gate:
 
 ```bash

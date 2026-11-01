@@ -1,0 +1,59 @@
+#studio[data-study=bridge] .desk-tabs{grid-template-columns:repeat(5,minmax(0,1fr))}
+.bridge-review{font-size:11px;color:var(--text);--br-danger:#ed826e;--br-aqua:var(--teal)}
+.br-heading{display:flex;align-items:center;justify-content:space-between;gap:8px}.br-eyebrow{font:8px 'IBM Plex Mono',monospace;letter-spacing:1.4px;color:var(--muted)}
+#studio .br-heading h3{font-size:25px;line-height:1.25;letter-spacing:-.8px;font-weight:500;margin:6px 0;text-transform:none;color:var(--text)}
+.br-mode{font:8px 'IBM Plex Mono',monospace;white-space:nowrap;border:1px solid var(--line);border-radius:4px;padding:6px;color:var(--br-aqua)}
+.br-intro{color:var(--muted);font-size:11px;line-height:1.65;margin:3px 0 16px}
+.br-map-card{padding:12px;border:1px solid var(--line);border-radius:8px;background:var(--bg)}
+.br-section-heading{display:flex;align-items:center;justify-content:space-between;gap:8px;margin-bottom:7px}
+#studio .br-section-heading h4{font-size:11px;font-weight:500;margin:0}.br-section-heading>span{font:7px 'IBM Plex Mono',monospace;color:var(--muted);letter-spacing:.5px}
+#studio .br-section-heading button{padding:4px 6px;font-size:9px;color:var(--teal);background:transparent;border:0;min-height:25px}
+.br-map svg{display:block;width:100%;height:auto;max-height:170px;overflow:visible}
+.br-map path{fill:none;stroke-width:.8;stroke-linecap:round}.br-map text,.br-chart text{font:7px 'IBM Plex Mono',monospace;fill:var(--muted)}
+.br-path-rest{stroke:var(--muted);opacity:.25;stroke-dasharray:2 3}.br-path-intact{stroke:var(--teal);opacity:.85}.br-map .br-path-broken{stroke:var(--br-danger);stroke-dasharray:2 3;stroke-width:1.2}.br-map .br-path-selected{stroke:var(--accent);stroke-width:1.6}
+.br-map-legend{display:flex;gap:13px;font-size:8px;color:var(--muted);margin:4px 0 12px}.br-map-legend span{display:flex;align-items:center;gap:4px}.br-map-legend i{width:12px;height:2px;background:var(--teal)}.br-map-legend .broken{background:var(--br-danger)}.br-map-legend .rest{background:var(--muted);opacity:.5}
+.br-zones{display:grid;grid-template-columns:repeat(6,minmax(0,1fr));gap:4px}
+#studio .br-zones button{display:flex;flex-direction:column;gap:5px;justify-content:center;min-height:42px;padding:5px 0;border-color:var(--line);background:var(--panel);color:var(--muted);font:9px 'IBM Plex Mono',monospace}
+.br-zones b{color:var(--text);font-weight:500}.br-zones .has-break b,.br-groups .has-break{color:var(--br-danger)}
+#studio .br-zones [aria-pressed=true]{border-color:var(--accent);box-shadow:inset 0 -2px var(--accent)}
+.br-span-axis{display:flex;justify-content:space-between;font-size:7px;color:var(--muted);margin-top:6px}
+.br-metrics{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));padding:17px 0;gap:10px;border-bottom:1px solid var(--line)}.br-metrics>div{display:flex;flex-direction:column;gap:5px}.br-metrics span{font-size:8px;color:var(--muted)}.br-metrics strong{font:21px 'IBM Plex Mono',monospace;letter-spacing:-.8px;font-weight:400}.br-metrics small{font-size:8px;color:var(--muted)}
+.br-details summary{display:flex;justify-content:space-between;gap:8px;cursor:pointer;min-height:43px;align-items:center;font-size:10px}.br-details summary:before{content:'+';color:var(--teal);font-size:16px}.br-details[open] summary:before{content:'−'}.br-selection{margin-left:auto;font-size:8px;color:var(--muted)}.br-groups>div{display:flex;justify-content:space-between;padding:6px 0;font-size:10px;border-bottom:1px solid var(--line)}.br-groups b{font:10px 'IBM Plex Mono',monospace}.br-group-head,.br-details p{color:var(--muted);font-size:8px;line-height:1.6}
+.br-milestone-section,.br-baseline-section{border-top:1px solid var(--line);padding-top:15px;margin-top:5px}.br-baseline-section{margin-top:17px}
+.br-milestones{display:grid;gap:5px}
+#studio .br-milestones button{display:flex;align-items:center;text-align:left;gap:9px;min-height:43px;background:var(--bg);padding:8px 9px;border:1px solid var(--line);border-radius:5px;color:var(--text)}
+.br-milestones .ph{font-size:17px;color:var(--teal)}.br-milestones button:has(.ph-lightning) .ph{color:var(--br-danger)}.br-milestones span{flex:1;min-width:0}.br-milestones strong{display:block;font-size:10px;font-weight:500}.br-milestones small{display:block;font-size:8px;color:var(--muted);font-weight:400;line-height:1.5;margin-top:4px}.br-milestones time{font:9px 'IBM Plex Mono',monospace;color:var(--teal);white-space:nowrap}#studio .br-milestones [aria-current=true]{border-color:var(--teal);box-shadow:inset 2px 0 var(--teal)}
+.br-empty{font-size:10px;line-height:1.6;color:var(--muted);margin:3px 0 9px}
+.br-pause{display:flex;gap:9px;align-items:start;margin-top:14px;font-size:10px;cursor:pointer}.br-pause input{accent-color:var(--teal);height:16px;width:16px;margin:0;flex-shrink:0}.br-pause small{display:block;font-size:8px;color:var(--muted);line-height:1.6;margin-top:5px}
+.br-chart svg{width:100%;display:block;max-height:122px}.br-chart path{fill:none}.br-chart-grid{stroke:var(--line);stroke-width:.6}.br-chart-current{stroke:var(--teal);stroke-width:1.8}.br-chart-baseline{stroke:var(--accent);stroke-width:1.3;stroke-dasharray:4 3}.br-chart-cursor{stroke:var(--muted);stroke-width:.6;stroke-dasharray:2 3}.br-chart-legend{display:flex;gap:15px;font-size:8px;color:var(--teal)}.br-chart-legend span+span{color:var(--accent)}
+.br-comparison{color:var(--muted);font-size:10px;line-height:1.7;min-height:34px}.br-baseline-meta:empty{display:none}.br-baseline-meta{padding:10px;border:1px solid var(--line);border-radius:5px;display:grid;gap:5px;margin-bottom:13px;overflow-wrap:anywhere}.br-baseline-meta strong{font-size:11px;font-weight:500}.br-baseline-meta span{font-size:9px;color:var(--muted);line-height:1.6}
+.br-name{font-size:9px;display:grid;gap:6px;color:var(--muted)}#studio .br-name input{min-width:0;width:100%;min-height:35px;background:var(--bg);border:1px solid var(--line);border-radius:5px;padding:8px 10px;color:var(--text);font:10px Inter,sans-serif}
+.br-actions{display:grid;grid-template-columns:1fr 1fr;gap:7px;margin-top:9px}#studio .br-actions button{min-height:35px;padding:7px;font-size:9px;font-weight:500;border:1px solid var(--line);background:var(--bg);color:var(--text);border-radius:5px}#studio .br-actions [data-br-save]{border-color:var(--teal);color:var(--teal)}
+.br-storage{font-size:9px;color:var(--teal);line-height:1.6;margin:10px 0}.br-boundary{font-size:8px;line-height:1.75;color:var(--muted);border-top:1px solid var(--line);margin-top:16px;padding-top:12px}
+.bridge-review button:disabled{opacity:.45;cursor:not-allowed}.bridge-review :focus-visible{outline:2px solid var(--accent);outline-offset:3px}
+/* The fifth step trades the duplicate chart and outline for an uninterrupted view. */
+#studio.scene-workflow[data-study=bridge][data-desk-panel=review] .response-panel{display:none}
+@media(min-width:801px){
+  #studio.scene-workflow[data-study=bridge][data-desk-panel=review]{--desk-width:380px}
+  #studio.scene-workflow[data-study=bridge][data-desk-panel=review] .load-inspector{bottom:80px;top:18px}
+  #studio.scene-workflow[data-study=bridge][data-desk-panel=review] .reference-outline,
+  #studio.scene-workflow[data-study=bridge][data-desk-panel=review] .response-panel,
+  #studio.scene-workflow[data-study=bridge][data-desk-panel=review] .desk-feedback,
+  #studio.scene-workflow[data-study=bridge][data-desk-panel=review] .desk-footer .result-stats{display:none}
+  #studio.scene-workflow[data-study=bridge][data-desk-panel=review] .viewport-top{left:84px;right:calc(var(--desk-width) + 44px)}
+  #studio.scene-workflow[data-study=bridge][data-desk-panel=review] .live-status{left:84px}
+  #studio.scene-workflow[data-study=bridge][data-desk-panel=review] .desk-scroll{padding:16px}
+}
+@media(min-width:1400px){#studio.scene-workflow[data-study=bridge][data-desk-panel=review]{--desk-width:410px}}
+@media(min-width:801px) and (max-height:830px){
+  #studio .br-heading h3{font-size:22px;margin:4px 0}
+  .br-heading{min-height:34px;margin-bottom:8px}.br-intro,.br-eyebrow{display:none}
+  .br-map-card{padding:8px}.br-map svg{max-height:105px}
+  .br-map-legend{margin:3px 0 8px}.br-metrics{padding:11px 0;gap:7px}
+  .br-metrics strong{font-size:19px}.br-metrics>div{gap:3px}
+}
+@media(max-width:800px){
+  #studio.scene-workflow[data-study=bridge][data-desk-panel=review] .desk-footer .result-stats,
+  #studio.scene-workflow[data-study=bridge][data-desk-panel=review] .desk-feedback{display:none}
+  .br-metrics strong{font-size:19px}.br-heading .br-mode{font-size:7px}#studio .br-heading h3{font-size:23px}
+}
