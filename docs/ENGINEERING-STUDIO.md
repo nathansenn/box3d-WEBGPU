@@ -8,7 +8,7 @@ Three live studies implement the selected ImageGen directions:
 | Plate press / Research Atelier | `/?studio=plate` | A contacting punch plastically stretches the sheet, opens fractures, and leaves fragments on the bed. |
 | Suspension bridge / Field Observatory | `/?studio=bridge` | Cable, hanger, and deck connections rupture under load; unsupported deck sections fall. |
 
-`npm run dev` binds to **127.0.0.1**. The root URL opens the canopy. The previous workbench remains at `/?workbench=1`; other direct lab routes retain their existing implementation.
+`npm run dev` binds to **127.0.0.1**. The root URL opens the liquid lab; `?studio=<id>` selects any of the eight studies, and historical `?lab=` links resolve to the matching study (`src/entry.ts`). The earlier AAA showcase UI (`src/main.ts`) is no longer linked from `index.html`.
 
 Choose **Ramp to failure**, then **Run simulation**. The applied load ramps toward the target at 0.55 normalized units per model second. **Service load** selects 0.80; the default failure program selects 4.00. Changing strength or crosswind changes the solver input. **Release load** removes the applied load without healing damage. **Reset** restores the original topology. The timeline seeks stored positions and broken-link states; **Play history** plays them and **Live** restores the latest live state. Camera orbit, fit, second angle, strain display, viewport capture, and run JSON export are available.
 
@@ -34,7 +34,7 @@ See the [previous preset-pass gallery](design/quality-v3-20260908/review.html), 
 
 These are deterministic, reduced position-based particle/constraint models in authored model units. They are not calibrated finite-element analyses or certified engineering predictions. Failure is caused by connection strain and accumulated damage, not by timed mesh visibility changes. The metal study also updates rest lengths to retain plastic set. Broken links stop applying corrections; surface triangles crossing those links are removed. Free nodes keep integrating and collide with the modeled floor or press bed.
 
-Fixed test fixtures, bridge towers, terrain, and buildings are scenery/support boundaries. They do not themselves fail. Cloth self-collision, detached-fragment self-collision, volume-preserving sheet fracture, hydraulics, and water/structure interaction are not modeled. The water animation is visual context. The original native Box3D/WASM workbench remains separate; these three studies use the new CPU PBD failure core with the Three.js WebGPU renderer.
+Fixed test fixtures, bridge towers, terrain, and buildings are scenery/support boundaries. They do not themselves fail. Cloth self-collision, detached-fragment self-collision, volume-preserving sheet fracture and hydraulics are not modeled. Water/structure interaction is one-way: bridge pieces that fall into the river channel receive buoyancy (timber floats just below the surface, steel cable sinks), water drag and downstream drift, and rest on the riverbed; their impacts drive the splash, ring, foam and spray visuals. The river does not load the intact structure. The original native Box3D/WASM workbench remains separate; these three studies use the new CPU PBD failure core with the Three.js WebGPU renderer.
 
 ## Implementation and checks
 

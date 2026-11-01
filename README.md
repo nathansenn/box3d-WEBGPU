@@ -6,6 +6,10 @@ The current tree preserves the **800 deterministic capability-scene catalog** an
 
 > This is an AAA-style capability lab and engine foundation. It is not a claim that the numerical Box3D solver runs on WebGPU or that every subsystem of a commercial game engine is complete.
 
+## Engineering Studio (the shipped page)
+
+`index.html` opens the **BOX3D Engineering Studio**: a suspension bridge, canopy and metal press, plus liquid, glass, concrete, elastomer and granular labs (`/?studio=bridge`, `canopy`, `plate`, `liquid`, `glass`, `concrete`, `rubber`, `granular`). Studies use authored, uncalibrated models for comparison, not engineering predictions. See [docs/ENGINEERING-STUDIO.md](docs/ENGINEERING-STUDIO.md). The capability lab described below remains in the source (`src/main.ts`) and its tests, but `index.html` no longer links it.
+
 ## At a glance
 
 - Native Box3D C17 physics compiled to WebAssembly with Emscripten.
