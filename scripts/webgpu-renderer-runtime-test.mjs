@@ -79,6 +79,10 @@ const renderer = await WebGPURenderer.create(canvas, maxRigidBodies, {
   gpuTiming: process.env.WEBGPU_GPU_TIMING === '0' ? false : { sampleEveryFrames: 1 },
   instancePartitioning: process.env.WEBGPU_INSTANCE_PARTITION === '1',
 });
+// Partitioned frames (WEBGPU_INSTANCE_PARTITION=1) draw material lists with GPU-written indirect counts, so the CPU
+// counters report null instead of an instance count, and the per-vertex classifier stays off.
+const partitionedDraws = renderer.instancePartitionInfo().mode !== 'direct';
+const submittedCount = (direct) => (partitionedDraws ? null : direct);
 const initialTimingStatus = renderer.gpuTimingInfo().status;
 async function settleTiming() {
   for (let attempt = 0; attempt < 100 && renderer.gpuTimingInfo().pendingSamples > 0; attempt++) {
@@ -524,13 +528,13 @@ finally { Object.defineProperty(renderer.device.queue, 'writeBuffer', { configur
 assert.equal(unchangedFrameWrites, 0, 'an unchanged effective flag must not add queue uploads');
 renderer.uploadEffects(effectMatrices, effectColors, 1, 1, 99);
 renderer.render(2, []);
-assert.equal(renderer.renderingDiagnostics().effectiveVertexMaterialRejection, true,
-  'mixed direct frames enable early material rejection');
+assert.equal(renderer.renderingDiagnostics().effectiveVertexMaterialRejection, !partitionedDraws,
+  partitionedDraws ? 'partitioned frames leave material separation to the partition' : 'mixed direct frames enable early material rejection');
 renderer.writeSceneUniforms({
   viewProjection: identity, lightViewProjection: identity, cameraPosition: [0, 4, 8],
   lightDirection: [0.42, -0.84, 0.34], fogColor: [0.055, 0.085, 0.14], timeSeconds: 3, quality,
 });
-assert.equal(renderer.renderingDiagnostics().effectiveVertexMaterialRejection, true,
+assert.equal(renderer.renderingDiagnostics().effectiveVertexMaterialRejection, !partitionedDraws,
   'full scene-uniform writes preserve the last effective flag');
 heap[maxRigidBodies * 16 + 3] = adaptiveOriginalAlpha;
 rigidColorVersion++; renderer.uploadInstances(source, 1);
@@ -663,7 +667,7 @@ for (const alpha of [-4.5, -6.5]) {
   heap[maxRigidBodies * 16 + 3] = alpha;
   rigidColorVersion++; renderer.uploadInstances(source, 1);
   renderer.render(1, []);
-  assert.equal(renderer.renderingDiagnostics().lastSubmittedInstances.transparent, 1,
+  assert.equal(renderer.renderingDiagnostics().lastSubmittedInstances.transparent, submittedCount(1),
     `material tag ${alpha} must not be suppressed by the CPU transparency gate`);
 }
 heap[maxRigidBodies * 16 + 3] = originalAlpha;
@@ -681,11 +685,11 @@ const opaqueRope = { ...ropeGrid, segments: opaqueRopeSegments,
   topologyVersion: ropeGrid.topologyVersion + 1, presentation: 'material' };
 renderer.uploadRopeGrid(opaqueRope, 0);
 renderer.render(opaqueRope.segmentCount, []);
-assert.equal(renderer.renderingDiagnostics().lastSubmittedInstances.transparent, 0,
+assert.equal(renderer.renderingDiagnostics().lastSubmittedInstances.transparent, submittedCount(0),
   'immutable opaque rope material needs no transparent pass');
 renderer.uploadRopeGrid({ ...opaqueRope, presentation: 'rope' }, 0);
 renderer.render(opaqueRope.segmentCount, []);
-assert.equal(renderer.renderingDiagnostics().lastSubmittedInstances.transparent, opaqueRope.segmentCount,
+assert.equal(renderer.renderingDiagnostics().lastSubmittedInstances.transparent, submittedCount(opaqueRope.segmentCount),
   'diagnostic rope alpha animation must keep a possible transparent pass available');
 renderer.uploadRopeGrid(null, 0);
 renderer.uploadInstances(source, 1);

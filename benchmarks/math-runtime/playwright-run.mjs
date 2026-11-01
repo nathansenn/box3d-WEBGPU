@@ -13,7 +13,8 @@ if(value('--playwright-path'))playwright=await import(pathToFileURL(resolve(valu
 else try{playwright=await import('playwright');}catch(e){if(!process.env.CODEX_PRIMARY_RUNTIME_NODE_MODULES)throw e;playwright=await import(pathToFileURL(join(process.env.CODEX_PRIMARY_RUNTIME_NODE_MODULES,'playwright/index.mjs')).href);}
 const executablePath=value('--executable-path')??process.env.BOX3D_BROWSER_EXECUTABLE;
 // --hardware-vulkan: headless Linux with a physical GPU through Dawn's Vulkan backend; developer features remove timestamp quantization.
-const launchArgs=softwareVulkan?['--enable-unsafe-webgpu','--use-angle=vulkan','--use-vulkan=swiftshader','--enable-features=Vulkan','--disable-vulkan-surface']:software?['--enable-unsafe-webgpu','--use-angle=swiftshader']:hardwareVulkan?['--enable-unsafe-webgpu','--use-angle=vulkan','--enable-features=Vulkan','--disable-vulkan-surface','--ignore-gpu-blocklist','--enable-webgpu-developer-features']:[];
+// BOX3D_HARDWARE_ARGS (space-separated) replaces that flag list when a host needs different flags.
+const launchArgs=softwareVulkan?['--enable-unsafe-webgpu','--use-angle=vulkan','--use-vulkan=swiftshader','--enable-features=Vulkan','--disable-vulkan-surface']:software?['--enable-unsafe-webgpu','--use-angle=swiftshader']:hardwareVulkan?(process.env.BOX3D_HARDWARE_ARGS?process.env.BOX3D_HARDWARE_ARGS.split(/\s+/).filter(Boolean):['--enable-unsafe-webgpu','--use-angle=vulkan','--enable-features=Vulkan','--disable-vulkan-surface','--ignore-gpu-blocklist','--enable-webgpu-developer-features']):[];
 const browser=await playwright.chromium.launch({headless:true,args:launchArgs,...(executablePath?{executablePath}:{channel:'chromium'})});
 try{
  const page=await browser.newPage({viewport:{width:1440,height:1000},deviceScaleFactor:1}),pageErrors=[],consoleErrors=[];

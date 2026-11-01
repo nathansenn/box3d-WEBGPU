@@ -50,6 +50,16 @@ function perturb(suite, scene, frame, total) {
   }
 }
 
+// FNV-1a over the bits of the active instance matrices and colours: equal only when the presented state is identical.
+function exactHash(frame) {
+  let h = 0x811c9dc5;
+  for (const view of [frame.matrices.subarray(0, frame.instanceCount * 16), frame.colors.subarray(0, frame.instanceCount * 4)]) {
+    const words = new Uint32Array(view.buffer, view.byteOffset, view.length);
+    for (let i = 0; i < words.length; i++) h = Math.imul(h ^ words[i], 0x01000193) >>> 0;
+  }
+  return h >>> 0;
+}
+
 if (args.includes('--child')) {
   const build = loadBuild(path.resolve(opt('--build')));
   const sceneId = Number(opt('--scene'));
@@ -73,7 +83,7 @@ if (args.includes('--child')) {
     const frame = suite.buildFrame(false);
     const c = performance.now();
     if (f >= warmup) { stepMs[f - warmup] = b - a; buildMs[f - warmup] = c - b; }
-    if ((f + 1) % 30 === 0) hashes.push(suite.currentHash() >>> 0);
+    if ((f + 1) % 30 === 0) hashes.push(exactHash(frame));
     if (f === total - 1) {
       process.stdout.write(JSON.stringify({
         createMs, stepMs: Array.from(stepMs), buildMs: Array.from(buildMs), hashes,

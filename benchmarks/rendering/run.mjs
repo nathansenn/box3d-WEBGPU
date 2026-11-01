@@ -5,7 +5,10 @@ import { fileURLToPath, pathToFileURL } from 'node:url';
 import os from 'node:os';
 // Headless Linux with a physical GPU: WebGPU through Dawn's Vulkan backend. Developer features remove the 100 us
 // timestamp quantization so per-pass GPU spans keep their resolution. The adapter is still classified from its own info.
-const HARDWARE_VULKAN_ARGS = ['--enable-unsafe-webgpu', '--use-angle=vulkan', '--enable-features=Vulkan', '--disable-vulkan-surface', '--ignore-gpu-blocklist', '--enable-webgpu-developer-features'];
+// BOX3D_HARDWARE_ARGS (space-separated) replaces the list when a host needs different flags; the report records the
+// browser's full command line either way.
+const HARDWARE_VULKAN_ARGS = process.env.BOX3D_HARDWARE_ARGS ? process.env.BOX3D_HARDWARE_ARGS.split(/\s+/).filter(Boolean)
+    : ['--enable-unsafe-webgpu', '--use-angle=vulkan', '--enable-features=Vulkan', '--disable-vulkan-surface', '--ignore-gpu-blocklist', '--enable-webgpu-developer-features'];
 const root = resolve(dirname(fileURLToPath(import.meta.url)), '../..'), args = process.argv.slice(2), value = flag => { const i = args.indexOf(flag); return i < 0 ? undefined : args[i + 1]; };
 const booleanFlags = new Set(['--software-gpu', '--hardware-vulkan', '--quick', '--parity-only', '--quality-only']);
 const valueFlags = new Set(['--out', '--url', '--playwright-path', '--executable-path', '--screenshot', '--scenario', '--variant']);

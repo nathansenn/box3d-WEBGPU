@@ -129,7 +129,7 @@ if (process.argv[2] === '--child') {
       optimized: { root: currentRoot, samplesMs: measured.optimized, medianMs: optimizedMedian, madMs: mad(measured.optimized) },
       optimizedOverBaseline: optimizedMedian / baselineMedian,
     };
-    const outputPath = path.join(currentRoot, process.env.RENDERER_STARTUP_OUT ?? `benchmarks/results/renderer-startup-${dawnBackend}.json`);
+    const outputPath = path.resolve(currentRoot, process.env.RENDERER_STARTUP_OUT ?? `benchmarks/results/renderer-startup-${dawnBackend}.json`);
     fs.writeFileSync(outputPath, `${JSON.stringify(evidence, null, 2)}\n`);
     console.log(JSON.stringify(evidence, null, 2));
     console.log(`Wrote ${outputPath}`);
