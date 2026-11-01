@@ -3182,7 +3182,7 @@ export class WebGPURenderer {
         return safeCount * floatsPerRecord * Float32Array.BYTES_PER_ELEMENT;
       }
       const plan = planSparseRecordUpload(safeCount, floatsPerRecord * Float32Array.BYTES_PER_ELEMENT,
-        ranges, { gapRecords: dirty.gapRecords });
+        ranges, { gapRecords: dirty?.gapRecords });
       for (const span of plan.spans) {
         writeFloatBuffer(this.device.queue, buffer,
           span.start * floatsPerRecord * Float32Array.BYTES_PER_ELEMENT, source.HEAPF32,
