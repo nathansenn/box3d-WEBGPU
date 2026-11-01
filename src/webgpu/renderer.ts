@@ -2,6 +2,7 @@ import type { Mat4 } from '../math';
 import { WaterSurfacePlanner, type WaterSurfaceDescription, type WaterSurfacePlan } from './water-surface-plan';
 import { GpuInstanceVisibility, INSTANCE_MATERIAL_WGSL, classifyInstanceMaterialMask } from './instance-visibility';
 import type { DebugLine, DynamicSurfaceFrame, InstanceBufferSource, RopeGridFrame, SceneUniformState } from '../types';
+import { planSparseRecordUpload, type DirtyRecordSpan } from './sparse-upload';
 import { GpuPassTimer, type GpuPassTimestampWrites, type GpuTimingInfo, type GpuTimingOptions } from './gpu-timing.js';
 import { InstancePartition, partitionVertexBindings, partitionVertexEntry } from './instance-partition.js';
 import { ResidentWaterSurface, type ResidentWaterOptions } from './resident-water-surface.js';
@@ -57,6 +58,17 @@ export interface WebGPURendererOptions extends GpuStartupOptions {
   /** Opt-in until the complete-frame crossover is qualified on target adapters. */
   instancePartitioning?: boolean;
 }
+
+/** Exhaustive producer-owned record changes for one exact stream transition. */
+export type RigidInstanceDirtyEvidence = Readonly<{
+  previousFrameVersion: number;
+  previousColorVersion: number;
+  frameVersion: number;
+  colorVersion: number;
+  matrices?: readonly DirtyRecordSpan[];
+  colors?: readonly DirtyRecordSpan[];
+  gapRecords?: number;
+}>;
 
 export interface RenderingDiagnostics {
   frames: number;
@@ -3125,7 +3137,8 @@ export class WebGPURenderer {
     writeFloatBuffer(this.device.queue, this.uniformBuffer, 0, data);
   }
 
-  uploadInstances(source: InstanceBufferSource, count: number): number {
+  /** Optional source-proven dirty ranges; default remains the exact full stream. */
+  uploadInstances(source: InstanceBufferSource, count: number, dirty?: RigidInstanceDirtyEvidence): number {
     this.assertActive();
     if (this.deviceLoss) return 0;
     if(!Number.isSafeInteger(count)||count<0||count>this.maxInstances)throw new RangeError('Rigid instance count exceeds renderer capacity; reserve storage before uploading.');
@@ -3156,8 +3169,43 @@ export class WebGPURenderer {
     const colorStart = colorPtr / 4;
     const matrixFloats = safeCount * 16;
     const colorFloats = safeCount * 4;
-    if (matricesChanged) writeFloatBuffer(this.device.queue, this.matrixBuffer, 0, source.HEAPF32, matrixFloats, matrixStart);
-    if (colorsChanged) writeFloatBuffer(this.device.queue, this.colorBuffer, 0, source.HEAPF32, colorFloats, colorStart);
+    const provenDelta = dirty !== undefined && layoutMatches &&
+      dirty.previousFrameVersion === this.rigidFrameVersion &&
+      dirty.previousColorVersion === this.rigidColorVersion &&
+      dirty.frameVersion === frameVersion &&
+      dirty.colorVersion === colorVersion;
+    let matrixBytes = 0;
+    if (matricesChanged) {
+      const plan = provenDelta && dirty?.matrices !== undefined
+        ? planSparseRecordUpload(safeCount, 64, dirty.matrices, { gapRecords: dirty.gapRecords })
+        : null;
+      if (plan) {
+        for (const span of plan.spans) {
+          writeFloatBuffer(this.device.queue, this.matrixBuffer, span.start * 64,
+            source.HEAPF32, span.count * 16, matrixStart + span.start * 16);
+        }
+        matrixBytes = plan.writtenBytes;
+      } else {
+        writeFloatBuffer(this.device.queue, this.matrixBuffer, 0, source.HEAPF32, matrixFloats, matrixStart);
+        matrixBytes = matrixFloats * Float32Array.BYTES_PER_ELEMENT;
+      }
+    }
+    let colorBytes = 0;
+    if (colorsChanged) {
+      const plan = provenDelta && dirty?.colors !== undefined
+        ? planSparseRecordUpload(safeCount, 16, dirty.colors, { gapRecords: dirty.gapRecords })
+        : null;
+      if (plan) {
+        for (const span of plan.spans) {
+          writeFloatBuffer(this.device.queue, this.colorBuffer, span.start * 16,
+            source.HEAPF32, span.count * 4, colorStart + span.start * 4);
+        }
+        colorBytes = plan.writtenBytes;
+      } else {
+        writeFloatBuffer(this.device.queue, this.colorBuffer, 0, source.HEAPF32, colorFloats, colorStart);
+        colorBytes = colorFloats * Float32Array.BYTES_PER_ELEMENT;
+      }
+    }
     if (colorsChanged) {
       this.rigidHasTransparentMaterial = containsTransparentMaterial(source.HEAPF32, colorStart, safeCount);
       this.instancePartition?.invalidate();
@@ -3170,7 +3218,7 @@ export class WebGPURenderer {
     this.rigidCount = safeCount;
     this.rigidFrameVersion = frameVersion;
     this.rigidColorVersion = colorVersion;
-    const bytes = ((matricesChanged ? matrixFloats : 0) + (colorsChanged ? colorFloats : 0)) * Float32Array.BYTES_PER_ELEMENT;
+    const bytes = matrixBytes + colorBytes;
     if (bytes > 0) this.shadowContentGeneration++;
     this.lastUploadedBytes = bytes;
     return bytes;
