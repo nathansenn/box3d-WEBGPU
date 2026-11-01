@@ -23,8 +23,10 @@ try{
  await page.goto(url,{waitUntil:'networkidle',timeout:30000});
  const entry=renderParity?'runBox3dRenderParity':'runBox3dMathBenchmark';
  await page.waitForFunction(n=>typeof window[n]==='function',entry,{timeout:15000});
+ // Some headless Linux GPU hosts answer the first adapter request in a fresh browser with null; retry before measuring.
+ const adapterWarmup=await page.evaluate(async()=>{for(let attempt=1;attempt<=10;attempt++){if(await navigator.gpu?.requestAdapter({powerPreference:'high-performance'}))return {attempts:attempt,obtained:true};await new Promise(r=>setTimeout(r,250));}return {attempts:10,obtained:false};});
  const report=await page.evaluate(async({entry,quick})=>window[entry]({quick}),{entry,quick:args.includes('--quick')});
- report.provenance.browserVersion=browser.version();report.provenance.browserExtraArguments=launchArgs;
+ report.provenance.adapterWarmup=adapterWarmup;report.provenance.browserVersion=browser.version();report.provenance.browserExtraArguments=launchArgs;
  report.provenance.browserLaunchProfile=softwareVulkan?'Explicit SwiftShader Vulkan software profile':software?'Explicit software fallback profile':hardwareVulkan?'Explicit hardware Vulkan profile (headless Linux, unquantized timestamps)':'Playwright standard headless profile; no additional GPU flags';
  report.provenance.browserExecutable=executablePath??'Playwright Chromium channel';
  report.provenance.recoveryNote='Fresh run after workspace reset. Earlier raw sample files were lost; this rerun supersedes them.';

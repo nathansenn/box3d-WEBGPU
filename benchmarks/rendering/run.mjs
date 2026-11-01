@@ -48,8 +48,18 @@ try {
         console.log(e.text()); });
     await page.goto(url, { waitUntil: 'networkidle', timeout: 30000 });
     await page.waitForFunction(() => typeof window.runBox3dRenderingBenchmark === 'function', null, { timeout: 20000 });
+    // Some headless Linux GPU hosts answer the first adapter request in a fresh browser with null while Dawn is still
+    // enumerating its Vulkan adapters; later requests succeed. Retry before measuring and record what happened.
+    const adapterWarmup = await page.evaluate(async () => {
+        for (let attempt = 1; attempt <= 10; attempt++) {
+            if (await navigator.gpu?.requestAdapter({ powerPreference: 'high-performance' })) return { attempts: attempt, obtained: true };
+            await new Promise(resolve => setTimeout(resolve, 250));
+        }
+        return { attempts: 10, obtained: false };
+    });
     const report = await page.evaluate(options => window.runBox3dRenderingBenchmark(options), { quick: args.includes('--quick'), parityOnly: args.includes('--parity-only'), qualityOnly: args.includes('--quality-only'), onlyScenario: value('--scenario'), onlyVariant: value('--variant') });
     report.provenance.browserVersion = browser.version();
+    report.provenance.adapterWarmup = adapterWarmup;
     report.provenance.browserExtraArguments = launchArgs;
     report.provenance.browserLaunchProfile = software ? 'Explicit SwiftShader software fallback' : hardwareVulkan ? 'Explicit hardware Vulkan profile (headless Linux, unquantized timestamps)' : 'Standard Playwright headless, no added GPU flags';
     report.provenance.browserExecutable = executablePath ?? 'Playwright Chromium';
