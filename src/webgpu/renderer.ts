@@ -3174,24 +3174,38 @@ export class WebGPURenderer {
       dirty.previousColorVersion === this.rigidColorVersion &&
       dirty.frameVersion === frameVersion &&
       dirty.colorVersion === colorVersion;
-    const upload = (changed: boolean, buffer: GPUBuffer, floatsPerRecord: number,
-      firstFloat: number, ranges: readonly DirtyRecordSpan[] | undefined): number => {
-      if (!changed) return 0;
-      if (!provenDelta || ranges === undefined) {
-        writeFloatBuffer(this.device.queue, buffer, 0, source.HEAPF32, safeCount * floatsPerRecord, firstFloat);
-        return safeCount * floatsPerRecord * Float32Array.BYTES_PER_ELEMENT;
+    let matrixBytes = 0;
+    if (matricesChanged) {
+      const plan = provenDelta && dirty?.matrices !== undefined
+        ? planSparseRecordUpload(safeCount, 64, dirty.matrices, { gapRecords: dirty.gapRecords })
+        : null;
+      if (plan) {
+        for (const span of plan.spans) {
+          writeFloatBuffer(this.device.queue, this.matrixBuffer, span.start * 64,
+            source.HEAPF32, span.count * 16, matrixStart + span.start * 16);
+        }
+        matrixBytes = plan.writtenBytes;
+      } else {
+        writeFloatBuffer(this.device.queue, this.matrixBuffer, 0, source.HEAPF32, matrixFloats, matrixStart);
+        matrixBytes = matrixFloats * Float32Array.BYTES_PER_ELEMENT;
       }
-      const plan = planSparseRecordUpload(safeCount, floatsPerRecord * Float32Array.BYTES_PER_ELEMENT,
-        ranges, { gapRecords: dirty?.gapRecords });
-      for (const span of plan.spans) {
-        writeFloatBuffer(this.device.queue, buffer,
-          span.start * floatsPerRecord * Float32Array.BYTES_PER_ELEMENT, source.HEAPF32,
-          span.count * floatsPerRecord, firstFloat + span.start * floatsPerRecord);
+    }
+    let colorBytes = 0;
+    if (colorsChanged) {
+      const plan = provenDelta && dirty?.colors !== undefined
+        ? planSparseRecordUpload(safeCount, 16, dirty.colors, { gapRecords: dirty.gapRecords })
+        : null;
+      if (plan) {
+        for (const span of plan.spans) {
+          writeFloatBuffer(this.device.queue, this.colorBuffer, span.start * 16,
+            source.HEAPF32, span.count * 4, colorStart + span.start * 4);
+        }
+        colorBytes = plan.writtenBytes;
+      } else {
+        writeFloatBuffer(this.device.queue, this.colorBuffer, 0, source.HEAPF32, colorFloats, colorStart);
+        colorBytes = colorFloats * Float32Array.BYTES_PER_ELEMENT;
       }
-      return plan.writtenBytes;
-    };
-    const matrixBytes = upload(matricesChanged, this.matrixBuffer, 16, matrixStart, dirty?.matrices);
-    const colorBytes = upload(colorsChanged, this.colorBuffer, 4, colorStart, dirty?.colors);
+    }
     if (colorsChanged) {
       this.rigidHasTransparentMaterial = containsTransparentMaterial(source.HEAPF32, colorStart, safeCount);
       this.instancePartition?.invalidate();
