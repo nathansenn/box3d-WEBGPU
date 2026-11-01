@@ -1,0 +1,25 @@
+
+> box3d-webgpu@1.20.0 test:native-wasm
+> node scripts/native-box3d-soak.mjs
+
+{
+  "result": "passed",
+  "artifactDir": "/home/user/box3d-WEBGPU/public/box3d",
+  "wasmBytes": 460156,
+  "scenes": 800,
+  "deterministicReplays": 800,
+  "bodyFramesPerPass": 1146480,
+  "maxBodies": 4096,
+  "maxScene": 3,
+  "actionSmoke": {
+    "projectile": 1381,
+    "rain": 32
+  },
+  "streamRevisions": {
+    "transform": "passed",
+    "color": "passed",
+    "awakeCount": 0
+  },
+  "invalidTimestepGuard": "passed",
+  "elapsedMs": 9362.483276
+}

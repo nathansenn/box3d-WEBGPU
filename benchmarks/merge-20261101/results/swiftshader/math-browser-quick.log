@@ -1,0 +1,76 @@
+{
+  "output": "/tmp/claude-0/-home-user-box3d-WEBGPU/3496b4bd-b15e-564a-9b42-e3dfab8e515e/scratchpad/bench/sw/math-browser-quick.json",
+  "status": "COMPLETED",
+  "gpu": {
+    "status": "AVAILABLE",
+    "adapter": {
+      "vendor": "google",
+      "architecture": "swiftshader",
+      "device": "",
+      "description": "",
+      "isFallbackAdapter": true
+    },
+    "classification": "software",
+    "features": [
+      "core-features-and-limits",
+      "timestamp-query"
+    ]
+  },
+  "coverage": {
+    "javascript": "RUNTIME_MEASURED",
+    "scalarWasm": "RUNTIME_MEASURED",
+    "simdWasm": "RUNTIME_MEASURED",
+    "webgpu": "RUNTIME_MEASURED"
+  },
+  "gpuQualification": "RUNTIME_MEASURED",
+  "pageErrors": [],
+  "consoleErrors": [],
+  "cases": [
+    {
+      "id": "48x40",
+      "status": "VALIDATED",
+      "timings": {
+        "javascript-reference": {
+          "status": "MEASURED",
+          "p50": 0.020625000004656613
+        },
+        "wasm-scalar": {
+          "status": "MEASURED",
+          "p50": 0.007500000006984919
+        },
+        "wasm-simd": {
+          "status": "MEASURED",
+          "p50": 0.00406249999650754
+        },
+        "webgpu-resident": {
+          "status": "MEASURED",
+          "p50": 0.3487500000046566,
+          "gpuP50": 0.24344025
+        }
+      }
+    },
+    {
+      "id": "96x80",
+      "status": "VALIDATED",
+      "timings": {
+        "javascript-reference": {
+          "status": "MEASURED",
+          "p50": 0.06562499998835847
+        },
+        "wasm-scalar": {
+          "status": "MEASURED",
+          "p50": 0.02781250001862645
+        },
+        "wasm-simd": {
+          "status": "MEASURED",
+          "p50": 0.014062499976716936
+        },
+        "webgpu-resident": {
+          "status": "MEASURED",
+          "p50": 0.625,
+          "gpuP50": 0.535455375
+        }
+      }
+    }
+  ]
+}

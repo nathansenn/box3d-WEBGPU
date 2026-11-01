@@ -1,0 +1,154 @@
+
+> box3d-webgpu@1.20.0 test:material:100
+> npm run bench:breakthrough:compile && node scripts/material-fracture-100.cjs
+
+
+> box3d-webgpu@1.20.0 bench:breakthrough:compile
+> rm -rf .test-build && tsc -p tsconfig.test.json && node -e "require('fs').mkdirSync('.test-build', {recursive:true}); require('fs').writeFileSync('.test-build/package.json', '{\"type\":\"commonjs\"}')"
+
+material case 001/100 structural-steel|mode-0|stress-2 0.7517 ms/frame
+material case 002/100 structural-steel|mode-0|stress-5 0.9803 ms/frame
+material case 003/100 aluminum-alloy|mode-0|stress-2 0.8549 ms/frame
+material case 004/100 aluminum-alloy|mode-0|stress-5 1.3621 ms/frame
+material case 005/100 copper|mode-0|stress-2 1.1499 ms/frame
+material case 006/100 copper|mode-0|stress-5 1.8372 ms/frame
+material case 007/100 oak-timber|mode-0|stress-2 0.6224 ms/frame
+material case 008/100 oak-timber|mode-0|stress-5 0.9060 ms/frame
+material case 009/100 cross-laminated-timber|mode-0|stress-2 0.7116 ms/frame
+material case 010/100 cross-laminated-timber|mode-0|stress-5 1.2567 ms/frame
+material case 011/100 reinforced-concrete|mode-0|stress-2 1.0054 ms/frame
+material case 012/100 reinforced-concrete|mode-0|stress-5 1.7248 ms/frame
+material case 013/100 soda-lime-glass|mode-0|stress-2 0.5803 ms/frame
+material case 014/100 soda-lime-glass|mode-0|stress-5 0.8444 ms/frame
+material case 015/100 acrylic|mode-0|stress-2 1.0132 ms/frame
+material case 016/100 acrylic|mode-0|stress-5 2.0430 ms/frame
+material case 017/100 elastomer|mode-0|stress-2 1.4018 ms/frame
+material case 018/100 elastomer|mode-0|stress-5 1.5992 ms/frame
+material case 019/100 carbon-fiber|mode-0|stress-2 0.5174 ms/frame
+material case 020/100 carbon-fiber|mode-0|stress-5 0.8617 ms/frame
+material case 021/100 structural-steel|mode-1|stress-2 0.4684 ms/frame
+material case 022/100 structural-steel|mode-1|stress-5 0.8339 ms/frame
+material case 023/100 aluminum-alloy|mode-1|stress-2 0.6739 ms/frame
+material case 024/100 aluminum-alloy|mode-1|stress-5 1.2051 ms/frame
+material case 025/100 copper|mode-1|stress-2 0.8994 ms/frame
+material case 026/100 copper|mode-1|stress-5 1.6072 ms/frame
+material case 027/100 oak-timber|mode-1|stress-2 0.4250 ms/frame
+material case 028/100 oak-timber|mode-1|stress-5 0.7678 ms/frame
+material case 029/100 cross-laminated-timber|mode-1|stress-2 0.6552 ms/frame
+material case 030/100 cross-laminated-timber|mode-1|stress-5 1.3463 ms/frame
+material case 031/100 reinforced-concrete|mode-1|stress-2 0.8420 ms/frame
+material case 032/100 reinforced-concrete|mode-1|stress-5 1.6668 ms/frame
+material case 033/100 soda-lime-glass|mode-1|stress-2 0.4221 ms/frame
+material case 034/100 soda-lime-glass|mode-1|stress-5 0.7388 ms/frame
+material case 035/100 acrylic|mode-1|stress-2 0.6216 ms/frame
+material case 036/100 acrylic|mode-1|stress-5 1.2054 ms/frame
+material case 037/100 elastomer|mode-1|stress-2 0.8830 ms/frame
+material case 038/100 elastomer|mode-1|stress-5 1.5998 ms/frame
+material case 039/100 carbon-fiber|mode-1|stress-2 0.4901 ms/frame
+material case 040/100 carbon-fiber|mode-1|stress-5 0.9256 ms/frame
+material case 041/100 structural-steel|mode-2|stress-2 0.6529 ms/frame
+material case 042/100 structural-steel|mode-2|stress-5 1.0078 ms/frame
+material case 043/100 aluminum-alloy|mode-2|stress-2 0.7255 ms/frame
+material case 044/100 aluminum-alloy|mode-2|stress-5 1.2832 ms/frame
+material case 045/100 copper|mode-2|stress-2 0.9564 ms/frame
+material case 046/100 copper|mode-2|stress-5 1.8127 ms/frame
+material case 047/100 oak-timber|mode-2|stress-2 0.4783 ms/frame
+material case 048/100 oak-timber|mode-2|stress-5 1.0032 ms/frame
+material case 049/100 cross-laminated-timber|mode-2|stress-2 0.6681 ms/frame
+material case 050/100 cross-laminated-timber|mode-2|stress-5 1.3020 ms/frame
+material case 051/100 reinforced-concrete|mode-2|stress-2 0.9615 ms/frame
+material case 052/100 reinforced-concrete|mode-2|stress-5 1.8594 ms/frame
+material case 053/100 soda-lime-glass|mode-2|stress-2 0.4719 ms/frame
+material case 054/100 soda-lime-glass|mode-2|stress-5 0.7712 ms/frame
+material case 055/100 acrylic|mode-2|stress-2 0.6754 ms/frame
+material case 056/100 acrylic|mode-2|stress-5 1.4145 ms/frame
+material case 057/100 elastomer|mode-2|stress-2 0.9055 ms/frame
+material case 058/100 elastomer|mode-2|stress-5 1.6369 ms/frame
+material case 059/100 carbon-fiber|mode-2|stress-2 0.4970 ms/frame
+material case 060/100 carbon-fiber|mode-2|stress-5 0.9218 ms/frame
+material case 061/100 structural-steel|mode-3|stress-2 18.5976 ms/frame
+material case 062/100 structural-steel|mode-3|stress-5 27.8288 ms/frame
+material case 063/100 aluminum-alloy|mode-3|stress-2 18.5166 ms/frame
+material case 064/100 aluminum-alloy|mode-3|stress-5 30.9717 ms/frame
+material case 065/100 copper|mode-3|stress-2 18.5324 ms/frame
+material case 066/100 copper|mode-3|stress-5 28.5961 ms/frame
+material case 067/100 oak-timber|mode-3|stress-2 0.6217 ms/frame
+material case 068/100 oak-timber|mode-3|stress-5 1.0953 ms/frame
+material case 069/100 cross-laminated-timber|mode-3|stress-2 0.9471 ms/frame
+material case 070/100 cross-laminated-timber|mode-3|stress-5 1.5539 ms/frame
+material case 071/100 reinforced-concrete|mode-3|stress-2 1.2170 ms/frame
+material case 072/100 reinforced-concrete|mode-3|stress-5 2.1882 ms/frame
+material case 073/100 soda-lime-glass|mode-3|stress-2 0.6336 ms/frame
+material case 074/100 soda-lime-glass|mode-3|stress-5 1.1188 ms/frame
+material case 075/100 acrylic|mode-3|stress-2 0.9490 ms/frame
+material case 076/100 acrylic|mode-3|stress-5 1.4965 ms/frame
+material case 077/100 elastomer|mode-3|stress-2 1.3351 ms/frame
+material case 078/100 elastomer|mode-3|stress-5 2.0950 ms/frame
+material case 079/100 carbon-fiber|mode-3|stress-2 0.7342 ms/frame
+material case 080/100 carbon-fiber|mode-3|stress-5 0.9350 ms/frame
+material case 081/100 structural-steel|mode-4|stress-2 5.4225 ms/frame
+material case 082/100 structural-steel|mode-4|stress-5 8.5575 ms/frame
+material case 083/100 aluminum-alloy|mode-4|stress-2 6.8515 ms/frame
+material case 084/100 aluminum-alloy|mode-4|stress-5 9.9252 ms/frame
+material case 085/100 copper|mode-4|stress-2 7.6611 ms/frame
+material case 086/100 copper|mode-4|stress-5 13.3182 ms/frame
+material case 087/100 oak-timber|mode-4|stress-2 0.8200 ms/frame
+material case 088/100 oak-timber|mode-4|stress-5 1.4867 ms/frame
+material case 089/100 cross-laminated-timber|mode-4|stress-2 1.1199 ms/frame
+material case 090/100 cross-laminated-timber|mode-4|stress-5 1.7976 ms/frame
+material case 091/100 reinforced-concrete|mode-4|stress-2 2.5575 ms/frame
+material case 092/100 reinforced-concrete|mode-4|stress-5 3.7176 ms/frame
+material case 093/100 soda-lime-glass|mode-4|stress-2 2.3271 ms/frame
+material case 094/100 soda-lime-glass|mode-4|stress-5 5.1543 ms/frame
+material case 095/100 acrylic|mode-4|stress-2 1.3339 ms/frame
+material case 096/100 acrylic|mode-4|stress-5 1.6926 ms/frame
+material case 097/100 elastomer|mode-4|stress-2 1.3642 ms/frame
+material case 098/100 elastomer|mode-4|stress-5 2.3130 ms/frame
+material case 099/100 carbon-fiber|mode-4|stress-2 0.8562 ms/frame
+material case 100/100 carbon-fiber|mode-4|stress-5 1.4404 ms/frame
+{
+  "schemaVersion": 1,
+  "campaign": "webphysics-material-fracture-current-baseline-100",
+  "comparison": "none; current-source correctness and performance baseline only",
+  "methodology": {
+    "exactCases": 100,
+    "materialPresets": 10,
+    "modes": 5,
+    "stressLevels": [
+      2,
+      5
+    ],
+    "framesPerSample": 180,
+    "samplesPerCase": 3,
+    "fixedStepSeconds": 0.016666666666666666,
+    "substeps": 4,
+    "timedScope": "material solver step plus cached frame construction; validation and trajectory hashing excluded",
+    "presetOrder": [
+      "structural-steel",
+      "aluminum-alloy",
+      "copper",
+      "oak-timber",
+      "cross-laminated-timber",
+      "reinforced-concrete",
+      "soda-lime-glass",
+      "acrylic",
+      "elastomer",
+      "carbon-fiber"
+    ]
+  },
+  "summary": {
+    "cases": 100,
+    "finiteCases": 100,
+    "deterministicCases": 100,
+    "monotonicCases": 100,
+    "casesReachingYield": 79,
+    "casesAccumulatingDamage": 79,
+    "casesBreaking": 62,
+    "medianCaseMsPerFrame": 1.1193669305545983,
+    "p95CaseMsPerFrame": 18.517361902777896,
+    "minimumCaseMsPerFrame": 0.42208833333340107,
+    "maximumCaseMsPerFrame": 30.971676477777105
+  },
+  "registrySha256": "0518d58564ed20cefda563631d567f4cc2f23a812a25e54ca35da25509c33f44",
+  "evidenceFile": null
+}

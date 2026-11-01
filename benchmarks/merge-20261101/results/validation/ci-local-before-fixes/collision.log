@@ -1,0 +1,746 @@
+
+> box3d-webgpu@1.20.0 test:collision
+> node scripts/test-collision.mjs
+
+TAP version 13
+# Subtest: edge and vertex touching retain only their distinct support points
+ok 1 - edge and vertex touching retain only their distinct support points
+  ---
+  duration_ms: 5.463459
+  type: 'test'
+  ...
+# Subtest: distinct points within one millimetre retain separate cache records
+ok 2 - distinct points within one millimetre retain separate cache records
+  ---
+  duration_ms: 3.951603
+  type: 'test'
+  ...
+# Subtest: one old contact impulse cannot warm start two new contacts
+ok 3 - one old contact impulse cannot warm start two new contacts
+  ---
+  duration_ms: 1.797863
+  type: 'test'
+  ...
+# Subtest: cache matching follows local anchors when manifold order changes
+ok 4 - cache matching follows local anchors when manifold order changes
+  ---
+  duration_ms: 1.613443
+  type: 'test'
+  ...
+# Subtest: distant or differently oriented cached points are not warm started
+ok 5 - distant or differently oriented cached points are not warm started
+  ---
+  duration_ms: 1.275835
+  type: 'test'
+  ...
+# Subtest: duplicate generated points are removed without modifying provider data
+ok 6 - duplicate generated points are removed without modifying provider data
+  ---
+  duration_ms: 1.260252
+  type: 'test'
+  ...
+# Subtest: releasing a fixed participant invalidates the previous support impulse
+ok 7 - releasing a fixed participant invalidates the previous support impulse
+  ---
+  duration_ms: 1.423515
+  type: 'test'
+  ...
+# Subtest: fixing a formerly dynamic participant invalidates its old contact impulse
+ok 8 - fixing a formerly dynamic participant invalidates its old contact impulse
+  ---
+  duration_ms: 0.576052
+  type: 'test'
+  ...
+# Subtest: force prediction does not commit gravity twice
+ok 9 - force prediction does not commit gravity twice
+  ---
+  duration_ms: 4.39551
+  type: 'test'
+  ...
+# Subtest: gravity and drag converge to the independent closed-form trajectory
+ok 10 - gravity and drag converge to the independent closed-form trajectory
+  ---
+  duration_ms: 22.003256
+  type: 'test'
+  ...
+# Subtest: an unresolved query restores forces before retrying smaller intervals
+ok 11 - an unresolved query restores forces before retrying smaller intervals
+  ---
+  duration_ms: 2.474845
+  type: 'test'
+  ...
+# Subtest: late contact rejection restores the original velocity snapshot
+ok 12 - late contact rejection restores the original velocity snapshot
+  ---
+  duration_ms: 1.718067
+  type: 'test'
+  ...
+# Subtest: gravity-driven contact stays above a thin floor
+ok 13 - gravity-driven contact stays above a thin floor
+  ---
+  duration_ms: 25.771788
+  type: 'test'
+  ...
+# Subtest: rotation detects a thin transient contact on axis 0, direction -1
+ok 14 - rotation detects a thin transient contact on axis 0, direction -1
+  ---
+  duration_ms: 8.594789
+  type: 'test'
+  ...
+# Subtest: rotation detects a thin transient contact on axis 0, direction 1
+ok 15 - rotation detects a thin transient contact on axis 0, direction 1
+  ---
+  duration_ms: 4.798764
+  type: 'test'
+  ...
+# Subtest: rotation detects a thin transient contact on axis 1, direction -1
+ok 16 - rotation detects a thin transient contact on axis 1, direction -1
+  ---
+  duration_ms: 3.157906
+  type: 'test'
+  ...
+# Subtest: rotation detects a thin transient contact on axis 1, direction 1
+ok 17 - rotation detects a thin transient contact on axis 1, direction 1
+  ---
+  duration_ms: 3.339985
+  type: 'test'
+  ...
+# Subtest: rotation detects a thin transient contact on axis 2, direction -1
+ok 18 - rotation detects a thin transient contact on axis 2, direction -1
+  ---
+  duration_ms: 3.122045
+  type: 'test'
+  ...
+# Subtest: rotation detects a thin transient contact on axis 2, direction 1
+ok 19 - rotation detects a thin transient contact on axis 2, direction 1
+  ---
+  duration_ms: 3.344838
+  type: 'test'
+  ...
+# Subtest: a gravity reversal detects the ceiling crossed between accepted endpoints
+ok 20 - a gravity reversal detects the ceiling crossed between accepted endpoints
+  ---
+  duration_ms: 0.981977
+  type: 'test'
+  ...
+# Subtest: external split correction preserves free-body orientations and mass-weighted centre
+ok 21 - external split correction preserves free-body orientations and mass-weighted centre
+  ---
+  duration_ms: 3.164346
+  type: 'test'
+  ...
+# Subtest: split correction preserves the pendulum coordinate and its pivot Jacobian
+ok 22 - split correction preserves the pendulum coordinate and its pivot Jacobian
+  ---
+  duration_ms: 1.059441
+  type: 'test'
+  ...
+# Subtest: terminal sweep exhaustion restores the interval and can retry after the fault is removed
+ok 23 - terminal sweep exhaustion restores the interval and can retry after the fault is removed
+  ---
+  duration_ms: 13.130336
+  type: 'test'
+  ...
+# Subtest: failure in the second subdivision restores accepted first-half motion and warm starts
+ok 24 - failure in the second subdivision restores accepted first-half motion and warm starts
+  ---
+  duration_ms: 12.714695
+  type: 'test'
+  ...
+# Subtest: terminal contact discovery exhaustion cannot commit applied forces
+ok 25 - terminal contact discovery exhaustion cannot commit applied forces
+  ---
+  duration_ms: 8.456879
+  type: 'test'
+  ...
+# Subtest: an unresolved endpoint query rolls back motion instead of certifying the position projection
+ok 26 - an unresolved endpoint query rolls back motion instead of certifying the position projection
+  ---
+  duration_ms: 0.836093
+  type: 'test'
+  ...
+# Subtest: a callback exception restores the original error and accepted world state
+ok 27 - a callback exception restores the original error and accepted world state
+  ---
+  duration_ms: 0.583109
+  type: 'test'
+  ...
+# Subtest: a failed outer transaction restores body material, topology, callbacks and nested steps
+ok 28 - a failed outer transaction restores body material, topology, callbacks and nested steps
+  ---
+  duration_ms: 1.276235
+  type: 'test'
+  ...
+# Subtest: world retries an exhausted rotating query even when endpoint overlap is small
+ok 29 - world retries an exhausted rotating query even when endpoint overlap is small
+  ---
+  duration_ms: 23.19137
+  type: 'test'
+  ...
+# Subtest: triangular prism inertia agrees with independent degree-two triangle quadrature
+ok 30 - triangular prism inertia agrees with independent degree-two triangle quadrature
+  ---
+  duration_ms: 1.28198
+  type: 'test'
+  ...
+# Subtest: collider vertices and exported XYZ rotations match the Three.js renderer
+ok 31 - collider vertices and exported XYZ rotations match the Three.js renderer
+  ---
+  duration_ms: 2.706558
+  type: 'test'
+  ...
+# Subtest: SAT distinguishes overlapping bounding boxes from actual thin triangular shapes
+ok 32 - SAT distinguishes overlapping bounding boxes from actual thin triangular shapes
+  ---
+  duration_ms: 0.425614
+  type: 'test'
+  ...
+# Subtest: touching faces yield a supporting manifold and contained shapes have a finite exit
+ok 33 - touching faces yield a supporting manifold and contained shapes have a finite exit
+  ---
+  duration_ms: 1.406104
+  type: 'test'
+  ...
+# Subtest: swept SAT catches fast translation through 2 mm walls with disjoint endpoints
+ok 34 - swept SAT catches fast translation through 2 mm walls with disjoint endpoints
+  ---
+  duration_ms: 4.9371
+  type: 'test'
+  ...
+# Subtest: rotational sweep catches an intermediate contact when both endpoint poses miss
+ok 35 - rotational sweep catches an intermediate contact when both endpoint poses miss
+  ---
+  duration_ms: 2.2019
+  type: 'test'
+  ...
+# Subtest: near grazing motion stays separated; exhausted CCD explicitly reports uncertainty
+ok 36 - near grazing motion stays separated; exhausted CCD explicitly reports uncertainty
+  ---
+  duration_ms: 0.521264
+  type: 'test'
+  ...
+# Subtest: swept broad phase includes every sampled rotating overlap and emits each pair once
+ok 37 - swept broad phase includes every sampled rotating overlap and emits each pair once
+  ---
+  duration_ms: 36.001559
+  type: 'test'
+  ...
+# Subtest: broad phase matches all-pairs bounds through growth, disable, reorder and reuse
+ok 38 - broad phase matches all-pairs bounds through growth, disable, reorder and reuse
+  ---
+  duration_ms: 29.969142
+  type: 'test'
+  ...
+# Subtest: high-speed contact response keeps a thin projectile on the entry side of the wall
+ok 39 - high-speed contact response keeps a thin projectile on the entry side of the wall
+  ---
+  duration_ms: 4.685668
+  type: 'test'
+  ...
+# Subtest: two-body impulses preserve linear momentum and do not create kinetic energy
+ok 40 - two-body impulses preserve linear momentum and do not create kinetic energy
+  ---
+  duration_ms: 2.079191
+  type: 'test'
+  ...
+# Subtest: resting contact supports gravity with friction and no forced orientation
+ok 41 - resting contact supports gravity with friction and no forced orientation
+  ---
+  duration_ms: 57.016046
+  type: 'test'
+  ...
+# Subtest: removing a normal load releases cached friction without contact attraction
+ok 42 - removing a normal load releases cached friction without contact attraction
+  ---
+  duration_ms: 7.754753
+  type: 'test'
+  ...
+# Subtest: finite rim has no invisible collision wall above it
+ok 43 - finite rim has no invisible collision wall above it
+  ---
+  duration_ms: 0.416028
+  type: 'test'
+  ...
+# Subtest: contact position projection preserves mass-weighted centres, fixed supports and owned arrays
+ok 44 - contact position projection preserves mass-weighted centres, fixed supports and owned arrays
+  ---
+  duration_ms: 17.155592
+  type: 'test'
+  ...
+# Subtest: a freely sliding box keeps its path under a common global yaw
+ok 45 - a freely sliding box keeps its path under a common global yaw
+  ---
+  duration_ms: 782.766623
+  type: 'test'
+  ...
+# Subtest: free sliding converges to the Coulomb stopping distance and direction
+ok 46 - free sliding converges to the Coulomb stopping distance and direction
+  ---
+  duration_ms: 112.902086
+  type: 'test'
+  ...
+# Subtest: free-slider friction balances momentum, stays in the Coulomb disk and dissipates energy
+ok 47 - free-slider friction balances momentum, stays in the Coulomb disk and dissipates energy
+  ---
+  duration_ms: 0.273942
+  type: 'test'
+  ...
+# Subtest: startup timeouts reject promptly and release a late device exactly once
+ok 48 - startup timeouts reject promptly and release a late device exactly once
+  ---
+  duration_ms: 22.205341
+  type: 'test'
+  ...
+# Subtest: startup cancellation blocks new work, rejects pending work, and releases late ownership
+ok 49 - startup cancellation blocks new work, rejects pending work, and releases late ownership
+  ---
+  duration_ms: 0.946525
+  type: 'test'
+  ...
+# Subtest: successful startup hands ownership to the caller and ignores later aborts
+ok 50 - successful startup hands ownership to the caller and ignores later aborts
+  ---
+  duration_ms: 0.46916
+  type: 'test'
+  ...
+# Subtest: water initialization releases all seven owned buffers when shader validation stalls or is cancelled
+ok 51 - water initialization releases all seven owned buffers when shader validation stalls or is cancelled
+  ---
+  duration_ms: 41.862737
+  type: 'test'
+  ...
+# Subtest: a failed GPU submission does not publish a future water tick or ping-pong field
+ok 52 - a failed GPU submission does not publish a future water tick or ping-pong field
+  ---
+  duration_ms: 1.544733
+  type: 'test'
+  ...
+# Subtest: closed GPU model rejects wall flux before allocation and dispatches two ordered stages per tick
+ok 53 - closed GPU model rejects wall flux before allocation and dispatches two ordered stages per tick
+  ---
+  duration_ms: 2.250424
+  type: 'test'
+  ...
+# Subtest: cancelled texture loads never allocate fallback textures, including late successful fetches
+ok 54 - cancelled texture loads never allocate fallback textures, including late successful fetches
+  ---
+  duration_ms: 0.82751
+  type: 'test'
+  ...
+# Subtest: closed flat tools distinguish their bottom, side, bevel and top
+ok 55 - closed flat tools distinguish their bottom, side, bevel and top
+  ---
+  duration_ms: 2.118979
+  type: 'test'
+  ...
+# Subtest: sphere, cone, wedge and cylinder return their analytical outward normals
+ok 56 - sphere, cone, wedge and cylinder return their analytical outward normals
+  ---
+  duration_ms: 0.634397
+  type: 'test'
+  ...
+# Subtest: ring bore, disjoint tips and cross reentrant corners retain their empty space
+ok 57 - ring bore, disjoint tips and cross reentrant corners retain their empty space
+  ---
+  duration_ms: 0.569849
+  type: 'test'
+  ...
+# Subtest: all twelve closed shapes obey rotation, scaling, translation and distance identities
+ok 58 - all twelve closed shapes obey rotation, scaling, translation and distance identities
+  ---
+  duration_ms: 55.747233
+  type: 'test'
+  ...
+# Subtest: continuous casts find crossings with two clear endpoints and moving ram contact
+ok 59 - continuous casts find crossings with two clear endpoints and moving ram contact
+  ---
+  duration_ms: 0.590538
+  type: 'test'
+  ...
+# Subtest: casts preserve holes, finite tool height and explicit exhaustion
+ok 60 - casts preserve holes, finite tool height and explicit exhaustion
+  ---
+  duration_ms: 0.605807
+  type: 'test'
+  ...
+# Subtest: normal correction includes the guided ram effective mass and lateral sheet motion
+ok 61 - normal correction includes the guided ram effective mass and lateral sheet motion
+  ---
+  duration_ms: 0.508702
+  type: 'test'
+  ...
+# Subtest: invalid geometry and query requests fail without changing a caller-owned result
+ok 62 - invalid geometry and query requests fail without changing a caller-owned result
+  ---
+  duration_ms: 1.406229
+  type: 'test'
+  ...
+# Subtest: compound tools resolve retained oblique and moving-ram exhaustion cases
+ok 63 - compound tools resolve retained oblique and moving-ram exhaustion cases
+  ---
+  duration_ms: 2.433414
+  type: 'test'
+  ...
+# Subtest: surface triangle distances agree with independent Three.js geometry and barycentric reconstruction
+ok 64 - surface triangle distances agree with independent Three.js geometry and barycentric reconstruction
+  ---
+  duration_ms: 18.616207
+  type: 'test'
+  ...
+# Subtest: collapsed triangles and point edges retain finite closest features
+ok 65 - collapsed triangles and point edges retain finite closest features
+  ---
+  duration_ms: 1.498752
+  type: 'test'
+  ...
+# Subtest: point/triangle CCD catches a complete thin-surface transit with separated endpoints
+ok 66 - point/triangle CCD catches a complete thin-surface transit with separated endpoints
+  ---
+  duration_ms: 0.814939
+  type: 'test'
+  ...
+# Subtest: point/triangle CCD uses relative motion and is unchanged by a common translation
+ok 67 - point/triangle CCD uses relative motion and is unchanged by a common translation
+  ---
+  duration_ms: 0.562135
+  type: 'test'
+  ...
+# Subtest: edge/edge CCD catches crossing edges even when no endpoint reaches the other edge
+ok 68 - edge/edge CCD catches crossing edges even when no endpoint reaches the other edge
+  ---
+  duration_ms: 0.555033
+  type: 'test'
+  ...
+# Subtest: stationary separation and a path past a finite triangle are misses
+ok 69 - stationary separation and a path past a finite triangle are misses
+  ---
+  duration_ms: 0.390502
+  type: 'test'
+  ...
+# Subtest: a limited grazing query reports uncertainty rather than a missed collision
+ok 70 - a limited grazing query reports uncertainty rather than a missed collision
+  ---
+  duration_ms: 0.765351
+  type: 'test'
+  ...
+# Subtest: mass-weighted surface response separates a crossing without moving its centre of mass
+ok 71 - mass-weighted surface response separates a crossing without moving its centre of mass
+  ---
+  duration_ms: 0.546419
+  type: 'test'
+  ...
+# Subtest: surface response preserves fixed anchors and does not attract separated surfaces
+ok 72 - surface response preserves fixed anchors and does not attract separated surfaces
+  ---
+  duration_ms: 0.759459
+  type: 'test'
+  ...
+# Subtest: spatial hierarchy agrees with exhaustive continuous feature queries
+ok 73 - spatial hierarchy agrees with exhaustive continuous feature queries
+  ---
+  duration_ms: 46.235171
+  type: 'test'
+  ...
+# Subtest: deleted topology leaves no hidden face or edge barriers and invalid updates are atomic
+ok 74 - deleted topology leaves no hidden face or edge barriers and invalid updates are atomic
+  ---
+  duration_ms: 0.832497
+  type: 'test'
+  ...
+# Subtest: static surfaces do not create static/static contacts or duplicate edge tests
+ok 75 - static surfaces do not create static/static contacts or duplicate edge tests
+  ---
+  duration_ms: 0.523746
+  type: 'test'
+  ...
+# Subtest: large coordinates and long features are queried without cell overflow or dropped hits
+ok 76 - large coordinates and long features are queried without cell overflow or dropped hits
+  ---
+  duration_ms: 0.645397
+  type: 'test'
+  ...
+# Subtest: empty topology still validates query limits and particle dimensions
+ok 77 - empty topology still validates query limits and particle dimensions
+  ---
+  duration_ms: 0.336072
+  type: 'test'
+  ...
+# Subtest: separating-plane advancement certifies a near-tangential miss without exhausting the query
+ok 78 - separating-plane advancement certifies a near-tangential miss without exhausting the query
+  ---
+  duration_ms: 0.230567
+  type: 'test'
+  ...
+# Subtest: reused surface queries find incoming features, changing thickness and newly dynamic surfaces
+ok 79 - reused surface queries find incoming features, changing thickness and newly dynamic surfaces
+  ---
+  duration_ms: 2.560368
+  type: 'test'
+  ...
+# Subtest: slow folds, mass changes and topology edits preserve complete fresh-query reports
+ok 80 - slow folds, mass changes and topology edits preserve complete fresh-query reports
+  ---
+  duration_ms: 219.00338
+  type: 'test'
+  ...
+# Subtest: dense candidate envelopes fall back without losing exact contacts
+ok 81 - dense candidate envelopes fall back without losing exact contacts
+  ---
+  duration_ms: 132.996609
+  type: 'test'
+  ...
+# Subtest: intact motion does not rebuild topology; equal-count tears and backwards replay do
+ok 82 - intact motion does not rebuild topology; equal-count tears and backwards replay do
+  ---
+  duration_ms: 3.234558
+  type: 'test'
+  ...
+# Subtest: surviving normals exclude stale faces beyond draw range and match Three for intact mesh
+ok 83 - surviving normals exclude stale faces beyond draw range and match Three for intact mesh
+  ---
+  duration_ms: 1.833817
+  type: 'test'
+  ...
+# Subtest: cached shell boundary is identical to uncached geometry after fracture
+ok 84 - cached shell boundary is identical to uncached geometry after fracture
+  ---
+  duration_ms: 2.483521
+  type: 'test'
+  ...
+# Subtest: perimeter pairs have no duplicates and reusable deck frames preserve reference transforms
+ok 85 - perimeter pairs have no duplicates and reusable deck frames preserve reference transforms
+  ---
+  duration_ms: 1.547701
+  type: 'test'
+  ...
+# Subtest: real worker transfers recycled snapshots and reproduces all three direct solvers
+ok 86 - real worker transfers recycled snapshots and reproduces all three direct solvers
+  ---
+  duration_ms: 5785.509122
+  type: 'test'
+  ...
+# Subtest: worker backpressure, invalid command atomicity, stale reset and old loans are safe
+ok 87 - worker backpressure, invalid command atomicity, stale reset and old loans are safe
+  ---
+  duration_ms: 1863.878482
+  type: 'test'
+  ...
+# Subtest: startup fallback is explicit, mandatory-worker faults reject, and destroyed sync clients stay closed
+ok 88 - startup fallback is explicit, mandatory-worker faults reject, and destroyed sync clients stay closed
+  ---
+  duration_ms: 2.807274
+  type: 'test'
+  ...
+# Subtest: unresponsive workers time out and release their transport
+ok 89 - unresponsive workers time out and release their transport
+  ---
+  duration_ms: 10.962247
+  type: 'test'
+  ...
+# Subtest: surface response stops a complete fabric crossing and preserves fixed faces
+ok 90 - surface response stops a complete fabric crossing and preserves fixed faces
+  ---
+  duration_ms: 65.722061
+  type: 'test'
+  ...
+# Subtest: self-contact shares correction by mass and preserves free tangential displacement
+ok 91 - self-contact shares correction by mass and preserves free tangential displacement
+  ---
+  duration_ms: 25.368114
+  type: 'test'
+  ...
+# Subtest: fabric faces crossing the middle of a post are stopped by shared rig geometry
+ok 92 - fabric faces crossing the middle of a post are stopped by shared rig geometry
+  ---
+  duration_ms: 17.054204
+  type: 'test'
+  ...
+# Subtest: removing torn faces removes their self-contact barriers
+ok 93 - removing torn faces removes their self-contact barriers
+  ---
+  duration_ms: 25.417126
+  type: 'test'
+  ...
+# Subtest: floor friction is bounded by normal correction and does not damp every solver iteration
+ok 94 - floor friction is bounded by normal correction and does not damp every solver iteration
+  ---
+  duration_ms: 25.644301
+  type: 'test'
+  ...
+# Subtest: shared rig proxies enclose every box and have finite cylinder surfaces
+ok 95 - shared rig proxies enclose every box and have finite cylinder surfaces
+  ---
+  duration_ms: 1.309317
+  type: 'test'
+  ...
+# Subtest: new canopy backend has a distinct checkpoint and worker capability identity
+ok 96 - new canopy backend has a distinct checkpoint and worker capability identity
+  ---
+  duration_ms: 87.318882
+  type: 'test'
+  ...
+# Subtest: checkpoint resume exactly preserves the new canopy trajectory
+ok 97 - checkpoint resume exactly preserves the new canopy trajectory
+  ---
+  duration_ms: 923.105543
+  type: 'test'
+  ...
+# Subtest: a rejected contact tick restores the complete accepted state and can retry
+ok 98 - a rejected contact tick restores the complete accepted state and can retry
+  ---
+  duration_ms: 182.435778
+  type: 'test'
+  ...
+# Subtest: independent oracle finds crossings and coplanar overlap but permits a shared seam
+ok 99 - independent oracle finds crossings and coplanar overlap but permits a shared seam
+  ---
+  duration_ms: 3.155448
+  type: 'test'
+  ...
+# Subtest: the intersection oracle permits curved shared seams in the initial authored canopy
+ok 100 - the intersection oracle permits curved shared seams in the initial authored canopy
+  ---
+  duration_ms: 55.269567
+  type: 'test'
+  ...
+# Subtest: a folded contact checkpoint resumes exactly, including after restoring a different topology
+ok 101 - a folded contact checkpoint resumes exactly, including after restoring a different topology
+  ---
+  duration_ms: 496.822999
+  type: 'test'
+  ...
+# Subtest: canopy contact backend survives transfer worker commands and checkpoint restore
+ok 102 - canopy contact backend survives transfer worker commands and checkpoint restore
+  ---
+  duration_ms: 2222.1501
+  type: 'test'
+  ...
+# Subtest: canopy contact backend survives shared worker commands and checkpoint restore
+ok 103 - canopy contact backend survives shared worker commands and checkpoint restore
+  ---
+  duration_ms: 1789.713765
+  type: 'test'
+  ...
+# Subtest: radial breakup retains nearby supports through every accepted correction interval
+ok 104 - radial breakup retains nearby supports through every accepted correction interval
+  ---
+  duration_ms: 18550.039441
+  type: 'test'
+  ...
+# Subtest: pendulum impulses satisfy angular momentum about the fixed pivot
+ok 105 - pendulum impulses satisfy angular momentum about the fixed pivot
+  ---
+  duration_ms: 3.183352
+  type: 'test'
+  ...
+# Subtest: curved sphere sweep matches the analytic plane-contact angle
+ok 106 - curved sphere sweep matches the analytic plane-contact angle
+  ---
+  duration_ms: 29.053571
+  type: 'test'
+  ...
+# Subtest: retained fragments and the bob remain separated in the same contact solve
+ok 107 - retained fragments and the bob remain separated in the same contact solve
+  ---
+  duration_ms: 59051.222836
+  type: 'test'
+  ...
+# Subtest: glass restores fracture, time and pendulum state after a failed 1-interval step (staged forces true)
+ok 108 - glass restores fracture, time and pendulum state after a failed 1-interval step (staged forces true)
+  ---
+  duration_ms: 2257.630858
+  type: 'test'
+  ...
+# Subtest: glass restores fracture, time and pendulum state after a failed 3-interval step (staged forces true)
+ok 109 - glass restores fracture, time and pendulum state after a failed 3-interval step (staged forces true)
+  ---
+  duration_ms: 5116.457909
+  type: 'test'
+  ...
+# Subtest: glass restores fracture, time and pendulum state after a failed 1-interval step (staged forces false)
+ok 110 - glass restores fracture, time and pendulum state after a failed 1-interval step (staged forces false)
+  ---
+  duration_ms: 1766.128973
+  type: 'test'
+  ...
+# Subtest: glass restores fracture, time and pendulum state after a failed 3-interval step (staged forces false)
+ok 111 - glass restores fracture, time and pendulum state after a failed 3-interval step (staged forces false)
+  ---
+  duration_ms: 4866.500965
+  type: 'test'
+  ...
+# Subtest: the worker reports collision rejection without publishing a failed frame and resets cleanly
+ok 112 - the worker reports collision rejection without publishing a failed frame and resets cleanly
+  ---
+  duration_ms: 85.263692
+  type: 'test'
+  ...
+# Subtest: worker batches exactly reproduce the direct glass model and own transferred arrays
+ok 113 - worker batches exactly reproduce the direct glass model and own transferred arrays
+  ---
+  duration_ms: 497.450399
+  type: 'test'
+  ...
+# Subtest: worker rejects invalid batches before mutation and drops stale generations
+ok 114 - worker rejects invalid batches before mutation and drops stale generations
+  ---
+  duration_ms: 99.8787
+  type: 'test'
+  ...
+# Subtest: changing batch sizes preserves every fixed-step result
+ok 115 - changing batch sizes preserves every fixed-step result
+  ---
+  duration_ms: 211.98943
+  type: 'test'
+  ...
+# Subtest: client applies backpressure, ignores late frames and terminates its own worker
+ok 116 - client applies backpressure, ignores late frames and terminates its own worker
+  ---
+  duration_ms: 6.823701
+  type: 'test'
+  ...
+# Subtest: worker errors stop dispatch and provide an actionable failure
+ok 117 - worker errors stop dispatch and provide an actionable failure
+  ---
+  duration_ms: 10.379549
+  type: 'test'
+  ...
+# Subtest: dense work reduces batch delivery delay and recovers without changing fixed ticks
+ok 118 - dense work reduces batch delivery delay and recovers without changing fixed ticks
+  ---
+  duration_ms: 5.413278
+  type: 'test'
+  ...
+# Subtest: glass thick panel catches every return swing and settles at the rendered sphere surface
+ok 119 - glass thick panel catches every return swing and settles at the rendered sphere surface
+  ---
+  duration_ms: 11095.724954
+  type: 'test'
+  ...
+# Subtest: glass contact surfaces share pane thickness, fixture dimensions and visible shard orientation
+ok 120 - glass contact surfaces share pane thickness, fixture dimensions and visible shard orientation
+  ---
+  duration_ms: 7593.129427
+  type: 'test'
+  ...
+# Subtest: glass contact evolution is deterministic and visual recordings own their contact counters
+ok 121 - glass contact evolution is deterministic and visual recordings own their contact counters
+  ---
+  duration_ms: 15798.159609
+  type: 'test'
+  ...
+# Subtest: released glass pieces collide and remain separate in the settled tray
+ok 122 - released glass pieces collide and remain separate in the settled tray
+  ---
+  duration_ms: 110249.205273
+  type: 'test'
+  ...
+1..122
+# tests 122
+# suites 0
+# pass 122
+# fail 0
+# cancelled 0
+# skipped 0
+# todo 0
+# duration_ms 269142.42581

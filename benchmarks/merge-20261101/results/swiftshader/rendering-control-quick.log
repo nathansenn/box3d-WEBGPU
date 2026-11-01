@@ -1,0 +1,368 @@
+[render-benchmark] Creating independent production renderers
+[render-benchmark] Pixel parity: all-visible-opaque / candidate-default
+[render-benchmark] Pixel parity: all-visible-opaque / material-filter
+[render-benchmark] Pixel parity: all-visible-opaque / shadow-cache
+[render-benchmark] Pixel parity: all-visible-opaque / stable-visibility
+[render-benchmark] Timing: all-visible-opaque / candidate-default
+[render-benchmark] Timing: all-visible-opaque / material-filter
+[render-benchmark] Timing: all-visible-opaque / shadow-cache
+[render-benchmark] Timing: all-visible-opaque / stable-visibility
+[render-benchmark] Pixel parity: mostly-offscreen / candidate-default
+[render-benchmark] Pixel parity: mostly-offscreen / material-filter
+[render-benchmark] Pixel parity: mostly-offscreen / shadow-cache
+[render-benchmark] Pixel parity: mostly-offscreen / stable-visibility
+[render-benchmark] Timing: mostly-offscreen / candidate-default
+[render-benchmark] Timing: mostly-offscreen / material-filter
+[render-benchmark] Timing: mostly-offscreen / shadow-cache
+[render-benchmark] Timing: mostly-offscreen / stable-visibility
+[render-benchmark] Pixel parity: mixed-materials / candidate-default
+[render-benchmark] Pixel parity: mixed-materials / material-filter
+[render-benchmark] Pixel parity: mixed-materials / shadow-cache
+[render-benchmark] Pixel parity: mixed-materials / stable-visibility
+[render-benchmark] Timing: mixed-materials / candidate-default
+[render-benchmark] Timing: mixed-materials / material-filter
+[render-benchmark] Timing: mixed-materials / shadow-cache
+[render-benchmark] Timing: mixed-materials / stable-visibility
+[render-benchmark] Pixel parity: paused-orbit / candidate-default
+[render-benchmark] Pixel parity: paused-orbit / material-filter
+[render-benchmark] Pixel parity: paused-orbit / shadow-cache
+[render-benchmark] Pixel parity: paused-orbit / stable-visibility
+[render-benchmark] Timing: paused-orbit / candidate-default
+[render-benchmark] Timing: paused-orbit / material-filter
+[render-benchmark] Timing: paused-orbit / shadow-cache
+[render-benchmark] Timing: paused-orbit / stable-visibility
+[render-benchmark] Pixel parity: moving-rigids / candidate-default
+[render-benchmark] Pixel parity: moving-rigids / material-filter
+[render-benchmark] Pixel parity: moving-rigids / shadow-cache
+[render-benchmark] Pixel parity: moving-rigids / stable-visibility
+[render-benchmark] Timing: moving-rigids / candidate-default
+[render-benchmark] Timing: moving-rigids / material-filter
+[render-benchmark] Timing: moving-rigids / shadow-cache
+[render-benchmark] Timing: moving-rigids / stable-visibility
+[render-benchmark] Pixel parity: quality-4x-nine-taps / candidate-default
+[render-benchmark] Pixel parity: quality-4x-nine-taps / material-filter
+[render-benchmark] Pixel parity: quality-4x-nine-taps / shadow-cache
+[render-benchmark] Pixel parity: quality-4x-nine-taps / stable-visibility
+[render-benchmark] Timing: quality-4x-nine-taps / candidate-default
+[render-benchmark] Timing: quality-4x-nine-taps / material-filter
+[render-benchmark] Timing: quality-4x-nine-taps / shadow-cache
+[render-benchmark] Timing: quality-4x-nine-taps / stable-visibility
+[render-benchmark] Pixel parity: clip-boundaries / candidate-default
+[render-benchmark] Pixel parity: clip-boundaries / material-filter
+[render-benchmark] Pixel parity: clip-boundaries / shadow-cache
+[render-benchmark] Pixel parity: clip-boundaries / stable-visibility
+[render-benchmark] Pixel parity: offcamera-shadow / candidate-default
+[render-benchmark] Pixel parity: offcamera-shadow / material-filter
+[render-benchmark] Pixel parity: offcamera-shadow / shadow-cache
+[render-benchmark] Pixel parity: offcamera-shadow / stable-visibility
+[render-benchmark] Pixel parity: gpu-rope / candidate-default
+[render-benchmark] Pixel parity: gpu-rope / material-filter
+[render-benchmark] Pixel parity: gpu-rope / shadow-cache
+[render-benchmark] Pixel parity: gpu-rope / stable-visibility
+[render-benchmark] Pixel parity: gpu-cloth / candidate-default
+[render-benchmark] Pixel parity: gpu-cloth / material-filter
+[render-benchmark] Pixel parity: gpu-cloth / shadow-cache
+[render-benchmark] Pixel parity: gpu-cloth / stable-visibility
+[render-benchmark] Pixel parity: packed-sheet / candidate-default
+[render-benchmark] Pixel parity: packed-sheet / material-filter
+[render-benchmark] Pixel parity: packed-sheet / shadow-cache
+[render-benchmark] Pixel parity: packed-sheet / stable-visibility
+[render-benchmark] Pixel parity: cpu-water / candidate-default
+[render-benchmark] Pixel parity: cpu-water / material-filter
+[render-benchmark] Pixel parity: cpu-water / shadow-cache
+[render-benchmark] Pixel parity: cpu-water / stable-visibility
+[render-benchmark] Pixel parity: resident-water / candidate-default
+[render-benchmark] Pixel parity: resident-water / material-filter
+[render-benchmark] Pixel parity: resident-water / shadow-cache
+[render-benchmark] Pixel parity: resident-water / stable-visibility
+[render-benchmark] Pixel parity: zero-instances / candidate-default
+[render-benchmark] Pixel parity: zero-instances / material-filter
+[render-benchmark] Pixel parity: zero-instances / shadow-cache
+[render-benchmark] Pixel parity: zero-instances / stable-visibility
+[render-benchmark] Pixel parity: single-instance / candidate-default
+[render-benchmark] Pixel parity: single-instance / material-filter
+[render-benchmark] Pixel parity: single-instance / shadow-cache
+[render-benchmark] Pixel parity: single-instance / stable-visibility
+[render-benchmark] Pixel parity: partial-group-63 / candidate-default
+[render-benchmark] Pixel parity: partial-group-63 / material-filter
+[render-benchmark] Pixel parity: partial-group-63 / shadow-cache
+[render-benchmark] Pixel parity: partial-group-63 / stable-visibility
+[render-benchmark] Pixel parity: full-group-64 / candidate-default
+[render-benchmark] Pixel parity: full-group-64 / material-filter
+[render-benchmark] Pixel parity: full-group-64 / shadow-cache
+[render-benchmark] Pixel parity: full-group-64 / stable-visibility
+[render-benchmark] Pixel parity: partial-group-65 / candidate-default
+[render-benchmark] Pixel parity: partial-group-65 / material-filter
+[render-benchmark] Pixel parity: partial-group-65 / shadow-cache
+[render-benchmark] Pixel parity: partial-group-65 / stable-visibility
+[render-benchmark] Pixel parity: prefix-4097 / candidate-default
+[render-benchmark] Pixel parity: prefix-4097 / material-filter
+[render-benchmark] Pixel parity: prefix-4097 / shadow-cache
+[render-benchmark] Pixel parity: prefix-4097 / stable-visibility
+[render-benchmark] Pixel parity: prefix-8193 / candidate-default
+[render-benchmark] Pixel parity: prefix-8193 / material-filter
+[render-benchmark] Pixel parity: prefix-8193 / shadow-cache
+[render-benchmark] Pixel parity: prefix-8193 / stable-visibility
+[render-benchmark] Pixel parity: large-cancellation / candidate-default
+[render-benchmark] Pixel parity: large-cancellation / material-filter
+[render-benchmark] Pixel parity: large-cancellation / shadow-cache
+[render-benchmark] Pixel parity: large-cancellation / stable-visibility
+[render-benchmark] Checking shadow cache invalidation
+[render-benchmark] Verifying visual correctness fixes
+[render-benchmark] PASSED
+{
+  "output": "/tmp/claude-0/-home-user-box3d-WEBGPU/3496b4bd-b15e-564a-9b42-e3dfab8e515e/scratchpad/bench/sw/rendering-control-quick.json",
+  "status": "PASSED",
+  "gpu": {
+    "classification": "SOFTWARE_GPU",
+    "timestamps": "AVAILABLE"
+  },
+  "parity": {
+    "total": 84,
+    "failed": []
+  },
+  "visibility": {
+    "total": 21,
+    "failed": []
+  },
+  "qualityCorrections": [
+    {
+      "id": "empty-caster-shadow-clear",
+      "status": "PASSED",
+      "changedPixels": 2221
+    },
+    {
+      "id": "orthographic-signed-depth",
+      "status": "PASSED",
+      "changedPixels": 1431
+    },
+    {
+      "id": "material-rounding-boundary",
+      "status": "PASSED",
+      "changedPixels": 1092
+    }
+  ],
+  "cacheInvalidation": {
+    "total": 25,
+    "failed": []
+  },
+  "timings": [
+    {
+      "id": "all-visible-opaque",
+      "variant": "candidate-default",
+      "baselineWallP50": 52.24750000005588,
+      "candidateWallP50": 42.61999999987893,
+      "wallRatio": 1.2258916001924989,
+      "baselineGpuP50": 50.375574,
+      "candidateGpuP50": 41.388064
+    },
+    {
+      "id": "all-visible-opaque",
+      "variant": "material-filter",
+      "baselineWallP50": 50.65500000002794,
+      "candidateWallP50": 54.84749999991618,
+      "wallRatio": 0.9235607821706614,
+      "baselineGpuP50": 49.246791,
+      "candidateGpuP50": 53.604159499999994
+    },
+    {
+      "id": "all-visible-opaque",
+      "variant": "shadow-cache",
+      "baselineWallP50": 49.72250000014901,
+      "candidateWallP50": 36.34499999997206,
+      "wallRatio": 1.3680698858216325,
+      "baselineGpuP50": 48.931354,
+      "candidateGpuP50": 35.326085
+    },
+    {
+      "id": "all-visible-opaque",
+      "variant": "stable-visibility",
+      "baselineWallP50": 56.43000000016764,
+      "candidateWallP50": 45.862500000046566,
+      "wallRatio": 1.2304170073613594,
+      "baselineGpuP50": 55.2300375,
+      "candidateGpuP50": 44.475601
+    },
+    {
+      "id": "mostly-offscreen",
+      "variant": "candidate-default",
+      "baselineWallP50": 112.59000000008382,
+      "candidateWallP50": 67.43749999976717,
+      "wallRatio": 1.6695458758179431,
+      "baselineGpuP50": 111.04433850000001,
+      "candidateGpuP50": 66.17743250000001
+    },
+    {
+      "id": "mostly-offscreen",
+      "variant": "material-filter",
+      "baselineWallP50": 119.6449999997858,
+      "candidateWallP50": 115.57250000000931,
+      "wallRatio": 1.0352376214045396,
+      "baselineGpuP50": 117.9977995,
+      "candidateGpuP50": 113.7777825
+    },
+    {
+      "id": "mostly-offscreen",
+      "variant": "shadow-cache",
+      "baselineWallP50": 111.91749999998137,
+      "candidateWallP50": 69.55249999999069,
+      "wallRatio": 1.6091082275978055,
+      "baselineGpuP50": 110.165448,
+      "candidateGpuP50": 68.0188585
+    },
+    {
+      "id": "mostly-offscreen",
+      "variant": "stable-visibility",
+      "baselineWallP50": 121.58250000025146,
+      "candidateWallP50": 26.117499999701977,
+      "wallRatio": 4.655212022652965,
+      "baselineGpuP50": 120.3651675,
+      "candidateGpuP50": 24.417731
+    },
+    {
+      "id": "mixed-materials",
+      "variant": "candidate-default",
+      "baselineWallP50": 108.13749999995343,
+      "candidateWallP50": 60.68500000005588,
+      "wallRatio": 1.781947763036234,
+      "baselineGpuP50": 106.71446900000001,
+      "candidateGpuP50": 59.5034695
+    },
+    {
+      "id": "mixed-materials",
+      "variant": "material-filter",
+      "baselineWallP50": 93.49249999993481,
+      "candidateWallP50": 66.40500000002794,
+      "wallRatio": 1.4079135607242748,
+      "baselineGpuP50": 92.344521,
+      "candidateGpuP50": 64.592451
+    },
+    {
+      "id": "mixed-materials",
+      "variant": "shadow-cache",
+      "baselineWallP50": 83.49249999993481,
+      "candidateWallP50": 48.82250000000931,
+      "wallRatio": 1.7101234062147346,
+      "baselineGpuP50": 82.13396499999999,
+      "candidateGpuP50": 46.9651115
+    },
+    {
+      "id": "mixed-materials",
+      "variant": "stable-visibility",
+      "baselineWallP50": 83.82499999995343,
+      "candidateWallP50": 46.674999999813735,
+      "wallRatio": 1.7959292983457515,
+      "baselineGpuP50": 82.418994,
+      "candidateGpuP50": 45.117941
+    },
+    {
+      "id": "paused-orbit",
+      "variant": "candidate-default",
+      "baselineWallP50": 41.28000000002794,
+      "candidateWallP50": 33.22750000003725,
+      "wallRatio": 1.242344443607905,
+      "baselineGpuP50": 39.5891285,
+      "candidateGpuP50": 31.959274999999998
+    },
+    {
+      "id": "paused-orbit",
+      "variant": "material-filter",
+      "baselineWallP50": 46.37250000005588,
+      "candidateWallP50": 45.625,
+      "wallRatio": 1.0163835616450603,
+      "baselineGpuP50": 45.037332500000005,
+      "candidateGpuP50": 44.215028000000004
+    },
+    {
+      "id": "paused-orbit",
+      "variant": "shadow-cache",
+      "baselineWallP50": 42.67999999993481,
+      "candidateWallP50": 34.237500000046566,
+      "wallRatio": 1.2465863453779265,
+      "baselineGpuP50": 41.559689,
+      "candidateGpuP50": 32.8043505
+    },
+    {
+      "id": "paused-orbit",
+      "variant": "stable-visibility",
+      "baselineWallP50": 48.87750000017695,
+      "candidateWallP50": 39.00499999988824,
+      "wallRatio": 1.2531085758317395,
+      "baselineGpuP50": 47.652957,
+      "candidateGpuP50": 37.4851285
+    },
+    {
+      "id": "moving-rigids",
+      "variant": "candidate-default",
+      "baselineWallP50": 46.86750000016764,
+      "candidateWallP50": 45.76000000000931,
+      "wallRatio": 1.024202360143315,
+      "baselineGpuP50": 45.752608499999994,
+      "candidateGpuP50": 44.041257
+    },
+    {
+      "id": "moving-rigids",
+      "variant": "material-filter",
+      "baselineWallP50": 50.517500000074506,
+      "candidateWallP50": 48.16500000003725,
+      "wallRatio": 1.0488425205031753,
+      "baselineGpuP50": 48.9793535,
+      "candidateGpuP50": 46.6250795
+    },
+    {
+      "id": "moving-rigids",
+      "variant": "shadow-cache",
+      "baselineWallP50": 45.43249999987893,
+      "candidateWallP50": 48.862500000046566,
+      "wallRatio": 0.929803018671489,
+      "baselineGpuP50": 43.852686500000004,
+      "candidateGpuP50": 47.469455499999995
+    },
+    {
+      "id": "moving-rigids",
+      "variant": "stable-visibility",
+      "baselineWallP50": 49.92750000022352,
+      "candidateWallP50": 48.18999999994412,
+      "wallRatio": 1.0360551981797346,
+      "baselineGpuP50": 48.637527000000006,
+      "candidateGpuP50": 46.515378
+    },
+    {
+      "id": "quality-4x-nine-taps",
+      "variant": "candidate-default",
+      "baselineWallP50": 63.31749999988824,
+      "candidateWallP50": 44.637500000186265,
+      "wallRatio": 1.4184822178577212,
+      "baselineGpuP50": 61.7929505,
+      "candidateGpuP50": 43.478335
+    },
+    {
+      "id": "quality-4x-nine-taps",
+      "variant": "material-filter",
+      "baselineWallP50": 67.0999999998603,
+      "candidateWallP50": 53.61750000016764,
+      "wallRatio": 1.251457080237805,
+      "baselineGpuP50": 65.3773415,
+      "candidateGpuP50": 52.229541
+    },
+    {
+      "id": "quality-4x-nine-taps",
+      "variant": "shadow-cache",
+      "baselineWallP50": 63.20999999996275,
+      "candidateWallP50": 48.03500000014901,
+      "wallRatio": 1.3159154782922173,
+      "baselineGpuP50": 61.6641265,
+      "candidateGpuP50": 46.382353499999994
+    },
+    {
+      "id": "quality-4x-nine-taps",
+      "variant": "stable-visibility",
+      "baselineWallP50": 67.72750000003725,
+      "candidateWallP50": 50.65749999997206,
+      "wallRatio": 1.3369688594990792,
+      "baselineGpuP50": 66.5319315,
+      "candidateGpuP50": 49.2330215
+    }
+  ],
+  "gpuValidationErrors": []
+}

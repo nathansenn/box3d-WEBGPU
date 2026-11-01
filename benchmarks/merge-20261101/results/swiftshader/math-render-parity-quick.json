@@ -1,0 +1,919 @@
+{
+  "schemaVersion": "box3d-resident-water-render-parity/1",
+  "createdAt": "2026-11-01T11:23:34.769Z",
+  "status": "PASSED",
+  "scope": "Actual renderer offscreen parity; no FPS or canvas-presentation claim.",
+  "outputTarget": "GPU texture matching viewport/format, sample count 1.",
+  "canvasPresentation": {
+    "status": "UNQUALIFIED",
+    "reason": "Offscreen output only."
+  },
+  "uploadAccountingCaveat": "Initial counters differ for uniform/index accounting; only steady dynamic bytes are comparable.",
+  "provenance": {
+    "userAgent": "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) HeadlessChrome/153.0.0.0 Safari/537.36",
+    "secureContext": true,
+    "crossOriginIsolated": true,
+    "sourceSha256": {
+      "src/webgpu/renderer.ts": "b441aa851c24dec5ce9276f5b00bd4cb6f5e7539d333289fc070e8b259e19a45",
+      "src/webgpu/water-compute.ts": "507b1c30a6d4b60a2d682f4d3fc525941ae134fd7c81d7881b511e819a5de7b4",
+      "src/soft/water-reference.ts": "ba7526294d6f45f5c4c6ee2a082a3d652043e7ab687627edfd2b26cc7236cf82",
+      "src/webgpu/water-surface-plan.ts": "69115696a024110deb7c6589dbfba3cd06bd3c9916dbd4462f7794bbeede53c3",
+      "src/runtime/execution-graph.ts": "656849d46181021aed046a1b2ca25315488172065288022f5ab891eb5e222829",
+      "src/math.ts": "d1a3ee7187954e156b2c5db891c7e3a5c725cf7c70d356bd1d23d8509ba5a5ce",
+      "src/assets/ktx2.ts": "d0c0ca07091d760ab78218480bee5978b798e29b412bf8b2fdde2d8a46a53853",
+      "benchmarks/math-runtime/render-parity.mjs": "a5fbe015db3831a043fa81c89fcb436936b8e32af7279e23d234be977022e705",
+      "benchmarks/math-runtime/common.mjs": "7cd29de8a84b9ed72536d10b2e37a736e9c74e9100ff77d057bb22ce966f5193",
+      "benchmarks/math-runtime/timing.mjs": "bf8e37f240229bdc6010e238605957368e467cc3642162eaf5cc78b3864c9284",
+      "benchmarks/math-runtime/upload-overhead.mjs": "f813e8a60acf2fcc630ed69322cdf932d2143473b328baa883b569424b80a293",
+      "benchmarks/math-runtime/baseline-renderer.mjs": "8f81d2d06dad6a0477b2473a8cc5fb092ea325cbc4df9e3645a6bcd2e729b0a5"
+    },
+    "recoveryNote": "Fresh run after workspace reset. Earlier raw sample files were lost; this rerun supersedes them.",
+    "browserVersion": "153.0.8010.12",
+    "browserExtraArguments": [
+      "--enable-unsafe-webgpu",
+      "--use-angle=swiftshader"
+    ],
+    "browserLaunchProfile": "Explicit software fallback profile",
+    "browserExecutable": "/opt/pw-browsers/chromium-1243/chrome-linux64/chrome",
+    "browserCommandLineUnavailable": "cdpSession.send: Protocol error (Browser.getBrowserCommandLine): Command line not returned because --enable-automation not set.",
+    "automation": {
+      "url": "http://127.0.0.1:4317/benchmarks/math-runtime/render-parity.html",
+      "viewport": {
+        "width": 1440,
+        "height": 1000
+      },
+      "deviceScaleFactor": 1,
+      "pageErrors": [],
+      "consoleErrors": []
+    }
+  },
+  "gpu": {
+    "status": "AVAILABLE",
+    "preflightAdapterInfo": {
+      "vendor": "google",
+      "architecture": "swiftshader",
+      "device": "",
+      "description": "",
+      "isFallbackAdapter": true
+    },
+    "classification": "software",
+    "note": "Renderer requests its own device with same power preference.",
+    "deviceAdapterInfo": {
+      "vendor": "google",
+      "architecture": "swiftshader",
+      "device": "",
+      "description": ""
+    }
+  },
+  "cases": [
+    {
+      "steps": 0,
+      "status": "PASSED",
+      "residentUploadBytes": 90124,
+      "cpuUploadBytes": 92160,
+      "pixels": {
+        "pass": true,
+        "comparison": "Exact byte equality of identical fields on the same renderer/device.",
+        "pixels": 76800,
+        "differingPixels": 0,
+        "differingChannels": 0,
+        "maxAbsolute": 0,
+        "rmsChannelError": 0
+      },
+      "waterCoveragePixels": 15116,
+      "numerical": {
+        "pass": true,
+        "expectedSteps": 0,
+        "actualSteps": 0,
+        "tolerance": {
+          "absolute": 0.00002,
+          "relative": 0.0002
+        },
+        "fields": {
+          "current.eta": {
+            "pass": true,
+            "count": 7680,
+            "exactMatches": 7680,
+            "failures": 0,
+            "nonFinite": 0,
+            "maxAbsolute": 0,
+            "rmsAbsolute": 0,
+            "maxNormalized": 0,
+            "worstIndex": 0,
+            "expectedAtWorst": 0.025054918602108955,
+            "actualAtWorst": 0.025054918602108955
+          },
+          "current.u": {
+            "pass": true,
+            "count": 7680,
+            "exactMatches": 7680,
+            "failures": 0,
+            "nonFinite": 0,
+            "maxAbsolute": 0,
+            "rmsAbsolute": 0,
+            "maxNormalized": 0,
+            "worstIndex": 0,
+            "expectedAtWorst": 0.011492257006466389,
+            "actualAtWorst": 0.011492257006466389
+          },
+          "current.v": {
+            "pass": true,
+            "count": 7680,
+            "exactMatches": 7680,
+            "failures": 0,
+            "nonFinite": 0,
+            "maxAbsolute": 0,
+            "rmsAbsolute": 0,
+            "maxNormalized": 0,
+            "worstIndex": 0,
+            "expectedAtWorst": -0.013877613469958305,
+            "actualAtWorst": -0.013877613469958305
+          },
+          "destination.eta": {
+            "pass": true,
+            "count": 7680,
+            "exactMatches": 7680,
+            "failures": 0,
+            "nonFinite": 0,
+            "maxAbsolute": 0,
+            "rmsAbsolute": 0,
+            "maxNormalized": 0,
+            "worstIndex": 0,
+            "expectedAtWorst": -0.015839872881770134,
+            "actualAtWorst": -0.015839872881770134
+          },
+          "destination.u": {
+            "pass": true,
+            "count": 7680,
+            "exactMatches": 7680,
+            "failures": 0,
+            "nonFinite": 0,
+            "maxAbsolute": 0,
+            "rmsAbsolute": 0,
+            "maxNormalized": 0,
+            "worstIndex": 0,
+            "expectedAtWorst": -0.007132924627512693,
+            "actualAtWorst": -0.007132924627512693
+          },
+          "destination.v": {
+            "pass": true,
+            "count": 7680,
+            "exactMatches": 7680,
+            "failures": 0,
+            "nonFinite": 0,
+            "maxAbsolute": 0,
+            "rmsAbsolute": 0,
+            "maxNormalized": 0,
+            "worstIndex": 0,
+            "expectedAtWorst": -0.002329818205907941,
+            "actualAtWorst": -0.002329818205907941
+          }
+        }
+      },
+      "computeAndRenderInOneEncoder": true,
+      "residentPixelSha256": "5682ffd721bb5369fba733064d086a532462f3ae40121398e25d2854fb41424b",
+      "cpuPixelSha256": "5682ffd721bb5369fba733064d086a532462f3ae40121398e25d2854fb41424b"
+    },
+    {
+      "steps": 1,
+      "status": "PASSED",
+      "residentUploadBytes": 64,
+      "cpuUploadBytes": 92160,
+      "pixels": {
+        "pass": true,
+        "comparison": "Exact byte equality of identical fields on the same renderer/device.",
+        "pixels": 76800,
+        "differingPixels": 0,
+        "differingChannels": 0,
+        "maxAbsolute": 0,
+        "rmsChannelError": 0
+      },
+      "waterCoveragePixels": 15107,
+      "numerical": {
+        "pass": true,
+        "expectedSteps": 1,
+        "actualSteps": 1,
+        "tolerance": {
+          "absolute": 0.00002,
+          "relative": 0.0002
+        },
+        "fields": {
+          "current.eta": {
+            "pass": true,
+            "count": 7680,
+            "exactMatches": 7680,
+            "failures": 0,
+            "nonFinite": 0,
+            "maxAbsolute": 0,
+            "rmsAbsolute": 0,
+            "maxNormalized": 0,
+            "worstIndex": 0,
+            "expectedAtWorst": 0.03201592341065407,
+            "actualAtWorst": 0.03201592341065407
+          },
+          "current.u": {
+            "pass": true,
+            "count": 7680,
+            "exactMatches": 7680,
+            "failures": 0,
+            "nonFinite": 0,
+            "maxAbsolute": 0,
+            "rmsAbsolute": 0,
+            "maxNormalized": 0,
+            "worstIndex": 0,
+            "expectedAtWorst": -0.0019722189754247665,
+            "actualAtWorst": -0.0019722189754247665
+          },
+          "current.v": {
+            "pass": true,
+            "count": 7680,
+            "exactMatches": 7680,
+            "failures": 0,
+            "nonFinite": 0,
+            "maxAbsolute": 0,
+            "rmsAbsolute": 0,
+            "maxNormalized": 0,
+            "worstIndex": 0,
+            "expectedAtWorst": 0.0005902567645534873,
+            "actualAtWorst": 0.0005902567645534873
+          },
+          "destination.eta": {
+            "pass": true,
+            "count": 7680,
+            "exactMatches": 7680,
+            "failures": 0,
+            "nonFinite": 0,
+            "maxAbsolute": 0,
+            "rmsAbsolute": 0,
+            "maxNormalized": 0,
+            "worstIndex": 0,
+            "expectedAtWorst": 0.025054918602108955,
+            "actualAtWorst": 0.025054918602108955
+          },
+          "destination.u": {
+            "pass": true,
+            "count": 7680,
+            "exactMatches": 7680,
+            "failures": 0,
+            "nonFinite": 0,
+            "maxAbsolute": 0,
+            "rmsAbsolute": 0,
+            "maxNormalized": 0,
+            "worstIndex": 0,
+            "expectedAtWorst": 0.011492257006466389,
+            "actualAtWorst": 0.011492257006466389
+          },
+          "destination.v": {
+            "pass": true,
+            "count": 7680,
+            "exactMatches": 7680,
+            "failures": 0,
+            "nonFinite": 0,
+            "maxAbsolute": 0,
+            "rmsAbsolute": 0,
+            "maxNormalized": 0,
+            "worstIndex": 0,
+            "expectedAtWorst": -0.013877613469958305,
+            "actualAtWorst": -0.013877613469958305
+          }
+        }
+      },
+      "computeAndRenderInOneEncoder": true,
+      "residentPixelSha256": "c6828dc541c0d08b54afed27bc078f2e536b555ad5e5ea4315396aa9a20e9c45",
+      "cpuPixelSha256": "c6828dc541c0d08b54afed27bc078f2e536b555ad5e5ea4315396aa9a20e9c45"
+    },
+    {
+      "steps": 4,
+      "status": "PASSED",
+      "residentUploadBytes": 64,
+      "cpuUploadBytes": 92160,
+      "pixels": {
+        "pass": true,
+        "comparison": "Exact byte equality of identical fields on the same renderer/device.",
+        "pixels": 76800,
+        "differingPixels": 0,
+        "differingChannels": 0,
+        "maxAbsolute": 0,
+        "rmsChannelError": 0
+      },
+      "waterCoveragePixels": 15108,
+      "numerical": {
+        "pass": true,
+        "expectedSteps": 4,
+        "actualSteps": 4,
+        "tolerance": {
+          "absolute": 0.00002,
+          "relative": 0.0002
+        },
+        "fields": {
+          "current.eta": {
+            "pass": true,
+            "count": 7680,
+            "exactMatches": 7680,
+            "failures": 0,
+            "nonFinite": 0,
+            "maxAbsolute": 0,
+            "rmsAbsolute": 0,
+            "maxNormalized": 0,
+            "worstIndex": 0,
+            "expectedAtWorst": 0.03184555843472481,
+            "actualAtWorst": 0.03184555843472481
+          },
+          "current.u": {
+            "pass": true,
+            "count": 7680,
+            "exactMatches": 7680,
+            "failures": 0,
+            "nonFinite": 0,
+            "maxAbsolute": 0,
+            "rmsAbsolute": 0,
+            "maxNormalized": 0,
+            "worstIndex": 0,
+            "expectedAtWorst": -0.0014731669798493385,
+            "actualAtWorst": -0.0014731669798493385
+          },
+          "current.v": {
+            "pass": true,
+            "count": 7680,
+            "exactMatches": 7680,
+            "failures": 0,
+            "nonFinite": 0,
+            "maxAbsolute": 0,
+            "rmsAbsolute": 0,
+            "maxNormalized": 0,
+            "worstIndex": 0,
+            "expectedAtWorst": 0.00029662836459465325,
+            "actualAtWorst": 0.00029662836459465325
+          },
+          "destination.eta": {
+            "pass": true,
+            "count": 7680,
+            "exactMatches": 7680,
+            "failures": 0,
+            "nonFinite": 0,
+            "maxAbsolute": 0,
+            "rmsAbsolute": 0,
+            "maxNormalized": 0,
+            "worstIndex": 0,
+            "expectedAtWorst": 0.03190963342785835,
+            "actualAtWorst": 0.03190963342785835
+          },
+          "destination.u": {
+            "pass": true,
+            "count": 7680,
+            "exactMatches": 7680,
+            "failures": 0,
+            "nonFinite": 0,
+            "maxAbsolute": 0,
+            "rmsAbsolute": 0,
+            "maxNormalized": 0,
+            "worstIndex": 0,
+            "expectedAtWorst": -0.001652039005421102,
+            "actualAtWorst": -0.001652039005421102
+          },
+          "destination.v": {
+            "pass": true,
+            "count": 7680,
+            "exactMatches": 7680,
+            "failures": 0,
+            "nonFinite": 0,
+            "maxAbsolute": 0,
+            "rmsAbsolute": 0,
+            "maxNormalized": 0,
+            "worstIndex": 0,
+            "expectedAtWorst": 0.00038829451659694314,
+            "actualAtWorst": 0.00038829451659694314
+          }
+        }
+      },
+      "computeAndRenderInOneEncoder": true,
+      "residentPixelSha256": "55d64671969ace41ab0dbdacdb30759ce3204108731fd5d6ef8f41fd11731d03",
+      "cpuPixelSha256": "55d64671969ace41ab0dbdacdb30759ce3204108731fd5d6ef8f41fd11731d03"
+    }
+  ],
+  "gpuValidationErrors": [],
+  "fixture": {
+    "grid": {
+      "cols": 96,
+      "rows": 80
+    },
+    "canvas": [
+      320,
+      240
+    ],
+    "format": "rgba8unorm",
+    "scene": {
+      "viewProjection": {
+        "0": 1.2161180973052979,
+        "1": -0.6221752166748047,
+        "2": -0.5485166311264038,
+        "3": -0.5481509566307068,
+        "4": 0,
+        "5": 1.8220845460891724,
+        "6": -0.4799520671367645,
+        "7": -0.47963210940361023,
+        "8": -0.9728944897651672,
+        "9": -0.7777190208435059,
+        "10": -0.6856458187103271,
+        "11": -0.6851887106895447,
+        "12": 5.532964477615544e-15,
+        "13": 0,
+        "14": 43.71269989013672,
+        "15": 43.7835578918457
+      },
+      "lightViewProjection": {
+        "0": 1,
+        "1": 0,
+        "2": 0,
+        "3": 0,
+        "4": 0,
+        "5": 1,
+        "6": 0,
+        "7": 0,
+        "8": 0,
+        "9": 0,
+        "10": 1,
+        "11": 0,
+        "12": 0,
+        "13": 0,
+        "14": 0,
+        "15": 1
+      },
+      "cameraPosition": [
+        24,
+        21,
+        30
+      ],
+      "timeSeconds": 1.25,
+      "lightDirection": [
+        0.4,
+        0.8,
+        0.3
+      ],
+      "fogColor": [
+        0.05,
+        0.08,
+        0.12
+      ],
+      "studioMode": false,
+      "quality": {
+        "id": "performance",
+        "label": "Fixed parity fixture",
+        "exposure": 1,
+        "bloomStrength": 0,
+        "fogDensity": 0,
+        "shadowStrength": 0,
+        "effectBudget": 0,
+        "resolutionScale": 1,
+        "sampleCount": 1,
+        "shadowMapSize": 1024,
+        "shadowTapCount": 1
+      }
+    },
+    "initialStateSha256": "330fb91e7c0cc4b875fb08580ae4ac6e2e8a733438c8a2f05f8cdaaf7b78f4c9",
+    "params": {
+      "dt": 0.008333333333333333,
+      "gravity": 9.81,
+      "meanDepth": 1.55,
+      "drag": 0.33,
+      "invTwoDx": 1.3970588235294117,
+      "invTwoDz": 1.6458333333333333
+    }
+  },
+  "materials": {
+    "noise": {
+      "compressed": true,
+      "sourceBytes": 43704,
+      "source": "ktx2-bc4"
+    },
+    "atlas": {
+      "compressed": true,
+      "sourceBytes": 1205024,
+      "source": "poliigon-astc"
+    }
+  },
+  "settingsSha256": "cab372c3a72064556f4a8159deb2d7046ead901ffe7f9d9b9ea5d2f1be50eb91",
+  "stage": "complete",
+  "rejections": [
+    {
+      "id": "short-height-array",
+      "status": "PASSED",
+      "reportedBytes": 0,
+      "pixels": {
+        "pass": true,
+        "comparison": "Exact byte equality of identical fields on the same renderer/device.",
+        "pixels": 76800,
+        "differingPixels": 0,
+        "differingChannels": 0,
+        "maxAbsolute": 0,
+        "rmsChannelError": 0
+      }
+    },
+    {
+      "id": "wrong-velocity-array-type",
+      "status": "PASSED",
+      "reportedBytes": 0,
+      "pixels": {
+        "pass": true,
+        "comparison": "Exact byte equality of identical fields on the same renderer/device.",
+        "pixels": 76800,
+        "differingPixels": 0,
+        "differingChannels": 0,
+        "maxAbsolute": 0,
+        "rmsChannelError": 0
+      }
+    }
+  ],
+  "waterPlanningStats": {
+    "sourceUpdates": 4,
+    "invalidations": 4,
+    "generationChanges": 0,
+    "evaluations": 8,
+    "nodesAttempted": 7,
+    "nodesComputed": 7,
+    "cacheHits": 7,
+    "failures": 0
+  },
+  "uploadOverhead": {
+    "status": "PASSED",
+    "settings": {
+      "samples": 21,
+      "warmupBatches": 5,
+      "unchangedCallsPerBatch": 1024,
+      "advancingCallsPerBatch": 16
+    },
+    "settingsSha256": "691e72ea41c76979ad41bb5c954baacde2d41902143403492c4d6ab064f16fae",
+    "cases": [
+      {
+        "id": "unchanged-frame",
+        "status": "PASSED",
+        "callsPerBatch": 1024,
+        "expectedBytesPerCall": 0,
+        "byteCountParity": true,
+        "measuredBatchReportedBytes": {
+          "baseline": [
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0
+          ],
+          "current": [
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0
+          ]
+        },
+        "measuredBatchPlanningNodesComputed": {
+          "baseline": [
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0
+          ],
+          "current": [
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0
+          ]
+        },
+        "noRepeatedPlanning": true,
+        "baseline": {
+          "unit": "ms/uploadSurface call",
+          "samples": 21,
+          "zeroSamples": 0,
+          "resolutionCaveat": null,
+          "p50": 0.00014648437536379788,
+          "p95": 0.00026367187456344254,
+          "p99": 0.00038085937485448095,
+          "min": 0.00009277343724534148,
+          "max": 0.0004101562499272404,
+          "mean": 0.0001599702380709849,
+          "raw": [
+            0.0001611328125363798,
+            0.00026367187456344254,
+            0.00025390624978172127,
+            0.0002050781249636202,
+            0.00018066406255456968,
+            0.00015136718729991117,
+            0.0001562499996907718,
+            0.0001953124997271516,
+            0.00014648437536379788,
+            0.00014648437536379788,
+            0.00015625000014551915,
+            0.0004101562499272404,
+            0.00009277343724534148,
+            0.00009765625009094947,
+            0.00009277343724534148,
+            0.00011230468771827873,
+            0.00009765625009094947,
+            0.00010742187487267074,
+            0.00009765625009094947,
+            0.00013671875012732926,
+            0.00009765625009094947
+          ]
+        },
+        "current": {
+          "unit": "ms/uploadSurface call",
+          "samples": 21,
+          "zeroSamples": 0,
+          "resolutionCaveat": null,
+          "p50": 0.000239257812154392,
+          "p95": 0.00033691406270008883,
+          "p99": 0.00038769531265643315,
+          "min": 0.00019531250018189894,
+          "max": 0.00040039062514551915,
+          "mean": 0.0002520461309922255,
+          "raw": [
+            0.00027343749979991117,
+            0.0002978515622089617,
+            0.0002734375002546585,
+            0.00026855468740905053,
+            0.0002636718750181899,
+            0.00021484375020008883,
+            0.000239257812154392,
+            0.00025878906262732926,
+            0.00021484375020008883,
+            0.0002246093749818101,
+            0.00022949218737267074,
+            0.0003076171874454303,
+            0.00040039062514551915,
+            0.000244140625,
+            0.00019531250018189894,
+            0.0002294921878274181,
+            0.00033691406270008883,
+            0.00020019531257275958,
+            0.0002050781249636202,
+            0.0002099609378092282,
+            0.0002050781249636202
+          ]
+        },
+        "observedMedianRatioCurrentToBaseline": 1.6333333269175556
+      },
+      {
+        "id": "advancing-frame",
+        "status": "PASSED",
+        "callsPerBatch": 16,
+        "expectedBytesPerCall": 92160,
+        "byteCountParity": true,
+        "measuredBatchReportedBytes": {
+          "baseline": [
+            1474560,
+            1474560,
+            1474560,
+            1474560,
+            1474560,
+            1474560,
+            1474560,
+            1474560,
+            1474560,
+            1474560,
+            1474560,
+            1474560,
+            1474560,
+            1474560,
+            1474560,
+            1474560,
+            1474560,
+            1474560,
+            1474560,
+            1474560,
+            1474560
+          ],
+          "current": [
+            1474560,
+            1474560,
+            1474560,
+            1474560,
+            1474560,
+            1474560,
+            1474560,
+            1474560,
+            1474560,
+            1474560,
+            1474560,
+            1474560,
+            1474560,
+            1474560,
+            1474560,
+            1474560,
+            1474560,
+            1474560,
+            1474560,
+            1474560,
+            1474560
+          ]
+        },
+        "measuredBatchPlanningNodesComputed": {
+          "baseline": [
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0
+          ],
+          "current": [
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0
+          ]
+        },
+        "noRepeatedPlanning": true,
+        "baseline": {
+          "unit": "ms/uploadSurface call",
+          "samples": 21,
+          "zeroSamples": 0,
+          "resolutionCaveat": null,
+          "p50": 0.03937499999301508,
+          "p95": 0.07250000000931323,
+          "p99": 0.07475000000558794,
+          "min": 0.03437499998835847,
+          "max": 0.07531250000465661,
+          "mean": 0.043139880954099465,
+          "raw": [
+            0.03937499999301508,
+            0.03531249999650754,
+            0.03812500002095476,
+            0.04312499999650754,
+            0.04250000001047738,
+            0.05968750000465661,
+            0.03812500002095476,
+            0.03593750001164153,
+            0.040937500016298145,
+            0.04187499999534339,
+            0.03437499998835847,
+            0.07250000000931323,
+            0.07531250000465661,
+            0.048750000016298145,
+            0.03999999997904524,
+            0.036562499997671694,
+            0.03843750001396984,
+            0.04031250000116415,
+            0.03437499998835847,
+            0.03468749998137355,
+            0.03562499998952262
+          ]
+        },
+        "current": {
+          "unit": "ms/uploadSurface call",
+          "samples": 21,
+          "zeroSamples": 0,
+          "resolutionCaveat": null,
+          "p50": 0.03937499999301508,
+          "p95": 0.04406249997555278,
+          "p99": 0.0895624999830034,
+          "min": 0.03468749998137355,
+          "max": 0.10093749998486601,
+          "mean": 0.042306547614446445,
+          "raw": [
+            0.040625000023283064,
+            0.03812499999185093,
+            0.04406249997555278,
+            0.0421875000174623,
+            0.03812499999185093,
+            0.04343749998952262,
+            0.04000000000814907,
+            0.03843749998486601,
+            0.04281250000349246,
+            0.037500000005820766,
+            0.04187499999534339,
+            0.03468749998137355,
+            0.036874999990686774,
+            0.03937499999301508,
+            0.03937499999301508,
+            0.10093749998486601,
+            0.03781249999883585,
+            0.036874999990686774,
+            0.037187499983701855,
+            0.0359374999825377,
+            0.0421875000174623
+          ]
+        },
+        "observedMedianRatioCurrentToBaseline": 1
+      }
+    ],
+    "scope": "CPU time in actual pinned/current uploadSurface on the same initialized resources.",
+    "exclusions": [
+      "creation",
+      "cache seeding",
+      "queue drain",
+      "simulation",
+      "draw",
+      "GPU completion"
+    ],
+    "accounting": "Only steady-state dynamic bytes are comparable; initial uniform/index accounting differs.",
+    "baselineProvenance": {
+      "source": "https://github.com/nathansenn/box3d-WEBGPU/blob/dfedd9fe9983200f492d686488d27b6a4b11c650/src/webgpu/renderer.ts",
+      "gitBlob": "e75d39fa091f3b91665c967dcfe548a86d8a0352",
+      "sourceSha256": "af5b3beac1f02f4e6d75e383270151c7679a473fac196b576ff59085c6e3b03f",
+      "sourceBytes": 139414,
+      "removedOnlyToolAppendedFinalLF": false,
+      "transform": "node v24.22.1 stripTypeScriptTypes(mode=transform)",
+      "runtimeImportRelocation": "../assets/ktx2.js → ../../src/assets/ktx2.ts",
+      "fixtureSha256": "8f81d2d06dad6a0477b2473a8cc5fb092ea325cbc4df9e3645a6bcd2e729b0a5"
+    }
+  }
+}

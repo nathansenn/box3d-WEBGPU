@@ -1,0 +1,26 @@
+verify-source              rc=1       0s
+typecheck                  rc=0       9s
+test-build                 rc=0       6s
+unit                       rc=0      91s
+engineering-evidence       rc=0       0s
+execution-graph            rc=0       0s
+water-reference            rc=0       0s
+water-surface-plan         rc=0       0s
+projection-depth           rc=0       0s
+instance-visibility        rc=0       1s
+self-test                  rc=0       0s
+cbridge                    rc=0       0s
+soft-kernel                rc=0       1s
+test-build-2               rc=0       6s
+soft-kernel-integration    rc=0       0s
+webgpu                     rc=0       3s
+collision                  rc=0     274s
+assets                     rc=0       1s
+soft-soak-all              rc=0     133s
+rope-batching              rc=0      29s
+native-wasm                rc=0       9s
+material-100               rc=0     171s
+build                      rc=0       3s
+build-pages                rc=0       1s
+audit                      rc=0       1s
+DONE

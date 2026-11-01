@@ -1,0 +1,3 @@
+soft kernels (simd): core numerical tests passed
+soft kernels (scalar): core numerical tests passed
+soft kernels: SIMD/scalar parity and loader fallback tests passed

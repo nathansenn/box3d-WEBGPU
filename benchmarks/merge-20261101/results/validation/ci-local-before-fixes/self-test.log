@@ -1,0 +1,303 @@
+node:internal/modules/run_main:123
+    triggerUncaughtException(
+    ^
+
+AssertionError [ERR_ASSERTION]: native bridge missing AAA set dressing
+    at file:///home/user/box3d-WEBGPU/scripts/self-test.mjs:165:8
+    at ModuleJob.run (node:internal/modules/esm/module_job:343:25)
+    at async onImport.tracePromise.__proto__ (node:internal/modules/esm/loader:681:26)
+    at async asyncRunEntryPointWithESMLoader (node:internal/modules/run_main:117:5) {
+  generatedMessage: false,
+  code: 'ERR_ASSERTION',
+  actual: '// Box3D WebGPU AAA Physics Lab bridge\n' +
+    '// Keeps upstream Box3D intact and exposes a compact C ABI for browser/WebGPU demos.\n' +
+    '// The browser renderer supplies HDR lighting, shadows, post processing, and effects;\n' +
+    '// this bridge supplies Box3D-native rigid-body simulation and deterministic transforms.\n' +
+    '\n' +
+    '#include <box3d/box3d.h>\n' +
+    '\n' +
+    '#include <math.h>\n' +
+    '#include <stdint.h>\n' +
+    '#include <stdlib.h>\n' +
+    '#include <string.h>\n' +
+    '\n' +
+    '#ifdef __EMSCRIPTEN__\n' +
+    '#include <emscripten/emscripten.h>\n' +
+    '#define B3W_EXPORT EMSCRIPTEN_KEEPALIVE\n' +
+    '#else\n' +
+    '#define B3W_EXPORT\n' +
+    '#endif\n' +
+    '\n' +
+    '#define B3W_MAX_BODIES 4096\n' +
+    '#define B3W_BODY_CAPACITY_LIMIT 65536\n' +
+    '\n' +
+    'typedef struct B3WBody\n' +
+    '{\n' +
+    '    b3BodyId id;\n' +
+    '    float hx;\n' +
+    '    float hy;\n' +
+    '    float hz;\n' +
+    '    uint32_t color;\n' +
+    '    int dynamic;\n' +
+    '    int slot;\n' +
+    '    int dynamicPosition;\n' +
+    '} B3WBody;\n' +
+    '\n' +
+    '#define B3W_BODY_SLOT_BITS 17u\n' +
+    '#define B3W_BODY_SLOT_MASK ((UINT64_C(1) << B3W_BODY_SLOT_BITS) - 1u)\n' +
+    '#define B3W_BODY_MAX_GENERATION (UINT64_MAX >> B3W_BODY_SLOT_BITS)\n' +
+    'typedef struct B3WBodySlot\n' +
+    '{\n' +
+    '    uint64_t generation;\n' +
+    '    int denseIndex;\n' +
+    '    int nextFree;\n' +
+    '} B3WBodySlot;\n' +
+    '\n' +
+    '#define B3W_HULL_CACHE_CAPACITY 8\n' +
+    '\n' +
+    '#define B3W_QUERY_LIMIT 128\n' +
+    '#define B3W_QUERY_HIT_LIMIT 32768\n' +
+    '#define B3W_QUERY_HITS_PER_INPUT 256\n' +
+    '// Fixed C/JS ABI layouts, independent of upstream struct alignment.\n' +
+    'typedef struct B3WQueryInput\n' +
+    '{\n' +
+    '    uint32_t kind;\n' +
+    '    uint32_t bodyTypes; // bit 0 static, bit 1 dynamic\n' +
+    '    float origin[3];\n' +
+    '    float translation[3];\n' +
+    '    float extent[3]; // sphere radius in x; box half extents\n' +
+    '    uint32_t reserved;\n' +
+    '    uint64_t categoryBits;\n' +
+    '    uint64_t maskBits;\n' +
+    '    uint64_t ignoreBody;\n' +
+    '    uint32_t limit;\n' +
+    '    uint32_t padding;\n' +
+    '} B3WQueryInput;\n' +
+    'typedef struct B3WQueryHit\n' +
+    '{\n' +
+    '    uint64_t body;\n' +
+    '    uint64_t material;\n' +
+    '    float point[3];\n' +
+    '    float normal[3];\n' +
+    '    float fraction;\n' +
+    '    int32_t triangle;\n' +
+    '    int32_t child;\n' +
+    '    uint32_t flags; // 1 = cast point/normal present; overlap records contain IDs only\n' +
+    '} B3WQueryHit;\n' +
+    'typedef struct B3WQueryStatus { uint32_t offset, count, total, overflow; } B3WQueryStatus;\n' +
+    '_Static_assert(sizeof(B3WQueryInput) == 80, "Query input ABI must be 80 bytes");\n' +
+    '_Static_assert(sizeof(B3WQueryHit) == 56, "Query hit ABI must be 56 bytes");\n' +
+    '_Static_assert(sizeof(B3WQueryStatus) == 16, "Query status ABI must be 16 bytes");\n' +
+    'typedef struct B3WQueryArena\n' +
+    '{\n' +
+    '    void* block;\n' +
+    '    B3WQueryInput* inputs;\n' +
+    '    B3WQueryStatus* statuses;\n' +
+    '    B3WQueryHit* hits;\n' +
+    '    int inputCapacity, hitCapacity;\n' +
+    '    uint32_t version;\n' +
+    '} B3WQueryArena;\n' +
+    '\n' +
+    'typedef struct B3WHullCacheEntry\n' +
+    '{\n' +
+    '    b3BoxHull hull;\n' +
+    '    float hx;\n' +
+    '    float hy;\n' +
+    '    float hz;\n' +
+    '    uint32_t stamp;\n' +
+    '    int valid;\n' +
+    '} B3WHullCacheEntry;\n' +
+    '\n' +
+    '// Simulation state is passed explicitly to every stateful helper. The registry\n' +
+    '// owns lifetimes only; there is no shared selected/current simulation context.\n' +
+    'typedef struct B3WContext\n' +
+    '{\n' +
+    '    b3WorldId world;\n' +
+    '    B3WBody* bodies;\n' +
+    '    int* dynamicIndices;\n' +
+    '    B3WBodySlot* bodySlots;\n' +
+    '    int slotsUsed;\n' +
+    '    int freeSlot;\n' +
+    '    void* bufferBlock;\n' +
+    '    int capacity;\n' +
+    '    uint32_t bufferVersion;\n' +
+    '    int bodyCount;\n' +
+    '    int dynamicCount;\n' +
+    '    float* matrices;\n' +
+    '    float* colors;\n' +
+    '    uint32_t rng;\n' +
+    '    uint32_t hash;\n' +
+    '    int hashDirty;\n' +
+    '    uint32_t transformVersion;\n' +
+    '    uint32_t colorVersion;\n' +
+    '    B3WHullCacheEntry hullCache[B3W_HULL_CACHE_CAPACITY];\n' +
+    '    int cachedHullLast;\n' +
+    '    uint32_t hullCacheStamp;\n' +
+    '    B3WQueryArena queries;\n' +
+    '} B3WContext;\n' +
+    '\n' +
+    '// The compatibility world retains fixed arrays and stable offsets. Explicit\n' +
+    '// contexts own a single fallible buffer allocation, grown only on request.\n' +
+    'static B3WBody g_defaultBodies[B3W_MAX_BODIES];\n' +
+    'static int g_defaultDynamicIndices[B3W_MAX_BODIES];\n' +
+    'static float g_defaultMatrices[B3W_MAX_BODIES * 16];\n' +
+    'static float g_defaultColors[B3W_MAX_BODIES * 4];\n' +
+    'static B3WContext g_defaultContext = {\n' +
+    '    .bodies = g_defaultBodies, .dynamicIndices = g_defaultDynamicIndices,\n' +
+    '    .matrices = g_defaultMatrices, .colors = g_defaultColors,\n' +
+    '    .capacity = B3W_MAX_BODIES, .bufferVersion = 1u, .freeSlot = -1,\n' +
+    '    .rng = 0xC0FFEEu, .hashDirty = 1, .transformVersion = 1u,\n' +
+    '    .colorVersion = 1u, .cachedHullLast = -1,\n' +
+    '};\n' +
+    '\n' +
+    '// One allocation makes growth transactional: allocation failure leaves every\n' +
+    '// old pointer, count, native body ID, RNG value and stream revision untouched.\n' +
+    '// Capacity only grows through the 4096 / 16384 / 65536 tiers.\n' +
+    '#ifdef B3W_CAPACITY_TESTING\n' +
+    'static int g_failNextCapacityAllocation = 0;\n' +
+    'B3W_EXPORT void b3w_test_fail_next_capacity_allocation(void)\n' +
+    '{\n' +
+    '    g_failNextCapacityAllocation = 1;\n' +
+    '}\n' +
+    '#endif\n' +
+    '\n' +
+    'static size_t b3w_capacity_bytes(int capacity)\n' +
+    '{\n' +
+    '    return (size_t)capacity * (sizeof(B3WBody) + sizeof(int) + sizeof(B3WBodySlot) + 20u * sizeof(float));\n' +
+    '}\n' +
+    '\n' +
+    'static int b3w_ctx_reserve(B3WContext* ctx, int requested)\n' +
+    '{\n' +
+    '    if (requested < 1 || requested > B3W_BODY_CAPACITY_LIMIT) return -2;\n' +
+    '    if (requested <= ctx->capacity) return ctx->capacity;\n' +
+    '    const int capacity = requested <= 4096 ? 4096 : requested <= 16384 ? 16384 : 65536;\n' +
+    '    void* block = NULL;\n' +
+    '#ifdef B3W_CAPACITY_TESTING\n' +
+    '    if (g_failNextCapacityAllocation != 0) g_failNextCapacityAllocation = 0;\n' +
+    '    else\n' +
+    '#endif\n' +
+    '    block = calloc(1u, b3w_capacity_bytes(capacity));\n' +
+    '    if (block == NULL) return -3;\n' +
+    '\n' +
+    '    B3WBody* bodies = (B3WBody*)block;\n' +
+    '    int* dynamicIndices = (int*)((uint8_t*)block + (size_t)capacity * sizeof(B3WBody));\n' +
+    '    B3WBodySlot* bodySlots = (B3WBodySlot*)((uint8_t*)dynamicIndices + (size_t)capacity * sizeof(int));\n' +
+    '    float* matrices = (float*)(bodySlots + capacity);\n' +
+    '    float* colors = matrices + (size_t)capacity * 16u;\n' +
+    '    if (ctx->bodyCount > 0)\n' +
+    '    {\n' +
+    '        memcpy(bodies, ctx->bodies, (size_t)ctx->bodyCount * sizeof(B3WBody));\n' +
+    '        memcpy(matrices, ctx->matrices, (size_t)ctx->bodyCount * 16u * sizeof(float));\n' +
+    '        memcpy(colors, ctx->colors, (size_t)ctx->bodyCount * 4u * sizeof(float));\n' +
+    '    }\n' +
+    '    if (ctx->dynamicCount > 0) memcpy(dynamicIndices, ctx->dynamicIndices, (size_t)ctx->dynamicCount * sizeof(int));\n' +
+    '    // Dead-slot generations must survive relocation too; copying only live rows\n' +
+    '    // would revive old handles after a later capacity increase.\n' +
+    '    if (ctx->slotsUsed > 0) memcpy(bodySlots, ctx->bodySlots, (size_t)ctx->slotsUsed * sizeof(B3WBodySlot));\n' +
+    '    free(ctx->bufferBlock);\n' +
+    '    ctx->bufferBlock = block;\n' +
+    '    ctx->bodies = bodies;\n' +
+    '    ctx->dynamicIndices = dynamicIndices;\n' +
+    '    ctx->bodySlots = bodySlots;\n' +
+    '    ctx->matrices = matrices;\n' +
+    '    ctx->colors = colors;\n' +
+    '    ctx->capacity = capacity;\n' +
+    '    ctx->bufferVersion += 1u;\n' +
+    '    return capacity;\n' +
+    '}\n' +
+    '\n' +
+    '#define B3W_MAX_CONTEXTS 16\n' +
+    '#define B3W_CONTEXT_SLOT_BITS 5u\n' +
+    '#define B3W_CONTEXT_SLOT_MASK 31u\n' +
+    '#define B3W_CONTEXT_MAX_GENERATION (UINT32_MAX >> B3W_CONTEXT_SLOT_BITS)\n' +
+    'typedef struct B3WContextSlot\n' +
+    '{\n' +
+    '    B3WContext* context;\n' +
+    '    uint32_t generation;\n' +
+    '    int retired;\n' +
+    '} B3WContextSlot;\n' +
+    'static B3WContextSlot g_contextSlots[B3W_MAX_CONTEXTS];\n' +
+    '// Module creation diagnostics: 0 success, 1 slot limit, 2 allocation failure.\n' +
+    'static int g_contextCreateError = 0;\n' +
+    '\n' +
+    'static B3WContext* b3w_lookup_context(uint32_t handle)\n' +
+    '{\n' +
+    '    uint32_t slot1 = handle & B3W_CONTEXT_SLOT_MASK;\n' +
+    '    uint32_t generation = handle >> B3W_CONTEXT_SLOT_BITS;\n' +
+    '    if (slot1 == 0u || slot1 > B3W_MAX_CONTEXTS || generation == 0u) return NULL;\n' +
+    '    B3WContextSlot* slot = &g_contextSlots[slot1 - 1u];\n' +
+    '    return slot->context != NULL && slot->generation == generation ? slot->context : NULL;\n' +
+    '}\n' +
+    '\n' +
+    '// Body tokens are scoped to this world: low 17 bits store slot + 1; the\n' +
+    '// remaining 47 bits store a generation. Dense renderer rows can move freely.\n' +
+    'static int b3w_ctx_allocate_body_slot(B3WContext* ctx, int denseIndex)\n' +
+    '{\n' +
+    '    if (ctx->bodySlots == NULL) return -1; // Legacy compatibility world.\n' +
+    '    int index;\n' +
+    '    if (ctx->freeSlot >= 0) { index = ctx->freeSlot; ctx->freeSlot = ctx->bodySlots[index].nextFree; }\n' +
+    '    else { index = ctx->slotsUsed++; ctx->bodySlots[index].generation = 1u; }\n' +
+    '    ctx->bodySlots[index].denseIndex = denseIndex;\n' +
+    '    ctx->bodySlots[index].nextFree = -1;\n' +
+    '    return index;\n' +
+    '}\n' +
+    '\n' +
+    'static void b3w_ctx_release_body_slot(B3WContext* ctx, int index)\n' +
+    '{\n' +
+    '    if (ctx->bodySlots == NULL || index < 0) return;\n' +
+    '    B3WBodySlot* slot = ctx->bodySlots + index;\n' +
+    '    slot->denseIndex = -1;\n' +
+    '    slot->nextFree = -1;\n' +
+    '    if (slot->generation == B3W_BODY_MAX_GENERATION) return; // Retire, never wrap.\n' +
+    '    slot->generation += 1u;\n' +
+    '    slot->nextFree = ctx->freeSlot;\n' +
+    '    ctx->freeSlot = index;\n' +
+    '}\n' +
+    '\n' +
+    'static uint64_t b3w_ctx_body_handle(B3WContext* ctx, int index)\n' +
+    '{\n' +
+    '    if (ctx->bodySlots == NULL || index < 0 || index >= ctx->bodyCount) return 0u;\n' +
+    '    int slot = ctx->bodies[index].slot;\n' +
+    '    return (ctx->bodySlots[slot].generation << B3W_BODY_SLOT_BITS) | (uint64_t)(slot + 1);\n' +
+    '}\n' +
+    '\n' +
+    'static int b3w_ctx_body_index(B3WContext* ctx, uint64_t handle)\n' +
+    '{\n' +
+    '    uint64_t slot1 = handle & B3W_BODY_SLOT_MASK;\n' +
+    '    if (ctx->bodySlots == NULL || slot1 == 0u || slot1 > (uint64_t)ctx->slotsUsed) return -1;\n' +
+    '    const B3WBodySlot* slot = ctx->bodySlots + slot1 - 1u;\n' +
+    '    return slot->generation == (handle >> B3W_BODY_SLOT_BITS) && slot->denseIndex >= 0 ? slot->denseIndex : -1;\n' +
+    '}\n' +
+    '\n' +
+    '#ifdef B3W_QUERY_TESTING\n' +
+    'static int g_failNextQueryAllocation = 0;\n' +
+    'B3W_EXPORT void b3w_test_fail_next_query_allocation(void) { g_failNextQueryAllocation = 1; }\n' +
+    'B3W_EXPORT int b3w_test_exhaust_query_version(uint32_t handle)\n' +
+    '{\n' +
+    '    B3WContext* ctx = b3w_lookup_context(handle);\n' +
+    '    if (ctx == NULL) return -1;\n' +
+    '    ctx->queries.version = UINT32_MAX - 1u;\n' +
+    '    return 1;\n' +
+    '}\n' +
+    '#endif\n' +
+    '\n' +
+    'static size_t b3w_query_bytes(int inputs, int hits)\n' +
+    '{\n' +
+    '    return (size_t)inputs * (sizeof(B3WQueryInput) + sizeof(B3WQueryStatus)) + (size_t)hits * sizeof(B3WQueryHit);\n' +
+    '}\n' +
+    '\n' +
+    'static int b3w_ctx_query_reserve(B3WContext* ctx, int inputs, int hits)\n' +
+    '{\n' +
+    '    if (inputs < 1 || inputs > B3W_QUERY_LIMIT || hits < 1 || hits > B3W_QUERY_HIT_LIMIT) return -2;\n' +
+    '    B3WQueryArena* q = &ctx->queries;\n' +
+    '    if (q->version == UINT32_MAX) return -6;\n' +
+    '    if (inputs <= q->inputCapacity && hits <= q->hitCapacity) return 0;\n' +
+    '    int inputCapacity = inputs <= 16 ? 16 : inputs <= 64 ? 64 : 128;\n' +
+    '    int hitCapacity = hits <= 64 ? 64 : hits <= 512 ? 512 : hits <= 4096 ? 4096 : B3W_QUERY_HIT_LIMIT;\n' +
+    '    if'... 71908 more characters,
+  expected: /b3w_add_aaa_set_dressing/,
+  operator: 'match',
+  diff: 'simple'
+}
+
+Node.js v22.23.4
