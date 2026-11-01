@@ -8,8 +8,9 @@ Object.assign(globalThis, globals);
 
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 const rendererSource = fs.readFileSync(path.join(root, 'src/webgpu/renderer.ts'), 'utf8');
+const visibilitySource = fs.readFileSync(path.join(root, 'src/webgpu/instance-visibility.ts'), 'utf8');
 const shaderPattern = /const\s+(\w+)\s*=\s*\/\*\s*wgsl\s*\*\/\s*`([\s\S]*?)`;/g;
-const shaderSources = new Map([...rendererSource.matchAll(shaderPattern)].map((match) => [match[1], match[2]]));
+const shaderSources = new Map([...`${rendererSource}\n${visibilitySource}`.matchAll(shaderPattern)].map((match) => [match[1], match[2]]));
 const uniformStruct = shaderSources.get('sceneUniformStruct');
 const packedSurfaceDecode = shaderSources.get('packedSurfaceDecode');
 assert.ok(uniformStruct, 'renderer must contain sceneUniformStruct WGSL');
@@ -61,6 +62,9 @@ const shaderNames = [
   'lineShader',
   'postShader',
   'ropeComputeShader',
+  'INSTANCE_CLASSIFY_WGSL',
+  'INSTANCE_PREFIX_WGSL',
+  'INSTANCE_SCATTER_WGSL',
 ];
 const modules = {};
 for (const name of shaderNames) {
@@ -218,7 +222,7 @@ const solidPipeline = await checked('PBR solid render pipeline', () => device.cr
 const transparentSolidPipeline = await checked('translucent glass/material-particle render pipeline', () => device.createRenderPipelineAsync({
   label: 'AAA transparent solid pipeline test',
   layout: sceneLayout,
-  vertex: { module: modules.solidShader, entryPoint: 'vsMain', buffers: instanceVertexBuffers },
+  vertex: { module: modules.solidShader, entryPoint: 'vsTransparent', buffers: instanceVertexBuffers },
   fragment: {
     module: modules.solidShader,
     entryPoint: 'fsTransparent',
@@ -322,7 +326,49 @@ const ropeComputePipeline = await checked('GPU rope compute pipeline', () => dev
   compute: { module: modules.ropeComputeShader, entryPoint: 'csMain' },
 }));
 
-const uniformBuffer = device.createBuffer({ size: 52 * 4, usage: GPUBufferUsage.UNIFORM | GPUBufferUsage.COPY_DST });
+// The optional visibility path is prepared lazily in production. Validate all
+// its entrypoints here even when ordinary renderer tests use direct draws.
+for (const [name, entryPoint] of [
+  ['INSTANCE_CLASSIFY_WGSL', 'classify'],
+  ['INSTANCE_PREFIX_WGSL', 'prefix'],
+  ['INSTANCE_SCATTER_WGSL', 'scatter'],
+]) {
+  await checked(`visibility ${entryPoint} compute pipeline`, () => device.createComputePipelineAsync({
+    layout: 'auto', compute: { module: modules[name], entryPoint },
+  }));
+}
+const visibilityVertexLayout = device.createBindGroupLayout({
+  entries: [0, 1, 2].map((binding) => ({
+    binding, visibility: GPUShaderStage.VERTEX, buffer: { type: 'read-only-storage' },
+  })),
+});
+const visibleSceneLayout = device.createPipelineLayout({ bindGroupLayouts: [sceneBindGroupLayout, visibilityVertexLayout] });
+const visibleShadowLayout = device.createPipelineLayout({ bindGroupLayouts: [shadowBindGroupLayout, visibilityVertexLayout] });
+await checked('indirect shadow vertex pulling pipeline', () => device.createRenderPipelineAsync({
+  layout: visibleShadowLayout,
+  vertex: { module: modules.shadowShader, entryPoint: 'vsVisible', buffers: [instanceVertexBuffers[0]] },
+  fragment: { module: modules.shadowShader, entryPoint: 'fsMain', targets: [] },
+  primitive: { topology: 'triangle-list', cullMode: 'front' },
+  depthStencil: { format: 'depth32float', depthWriteEnabled: true, depthCompare: 'less' },
+}));
+for (const sampleCount of [1, 4]) for (const transparent of [false, true]) {
+  await checked(`indirect ${transparent ? 'transparent' : 'opaque'} ${sampleCount}x pipeline`, () => device.createRenderPipelineAsync({
+    layout: visibleSceneLayout,
+    vertex: { module: modules.solidShader, entryPoint: transparent ? 'vsVisibleTransparent' : 'vsVisibleOpaque', buffers: [instanceVertexBuffers[0]] },
+    fragment: {
+      module: modules.solidShader, entryPoint: transparent ? 'fsTransparent' : 'fsMain',
+      targets: [{ format: 'rgba16float', ...(transparent ? { blend: {
+        color: { srcFactor: 'src-alpha', dstFactor: 'one-minus-src-alpha', operation: 'add' },
+        alpha: { srcFactor: 'one', dstFactor: 'one-minus-src-alpha', operation: 'add' },
+      } } : {}) }],
+    },
+    primitive: { topology: 'triangle-list', cullMode: transparent ? 'none' : 'back' },
+    depthStencil: { format: 'depth24plus', depthWriteEnabled: !transparent, depthCompare: transparent ? 'less-equal' : 'less' },
+    multisample: { count: sampleCount },
+  }));
+}
+
+const uniformBuffer = device.createBuffer({ size: 56 * 4, usage: GPUBufferUsage.UNIFORM | GPUBufferUsage.COPY_DST });
 const vertexBuffer = device.createBuffer({ size: 36 * 6 * 4, usage: GPUBufferUsage.VERTEX | GPUBufferUsage.COPY_DST });
 const matrixBuffer = device.createBuffer({ size: 4 * 16 * 4, usage: GPUBufferUsage.VERTEX | GPUBufferUsage.COPY_DST | GPUBufferUsage.STORAGE });
 const colorBuffer = device.createBuffer({ size: 4 * 4 * 4, usage: GPUBufferUsage.VERTEX | GPUBufferUsage.COPY_DST | GPUBufferUsage.STORAGE });
@@ -352,7 +398,7 @@ device.queue.writeBuffer(ropeSegmentBuffer, 0, new Float32Array([
   0, 1, 1 / Math.hypot(1.2, -1.0, 0.2), 0.08, 0.24, 0.32, 0.42, 1,
   1, 2, 1 / Math.hypot(1.2, -0.9, -0.2), 0.08, 0.36, 0.24, 0.16, 1,
 ]));
-device.queue.writeBuffer(uniformBuffer, 0, new Float32Array(52));
+device.queue.writeBuffer(uniformBuffer, 0, new Float32Array(56));
 device.queue.writeBuffer(lineBuffer, 0, new Float32Array(14));
 const packedSurface = new Uint8Array(4 * 24);
 const packedView = new DataView(packedSurface.buffer);
@@ -597,7 +643,7 @@ await checked('complete offscreen rigid + cloth + rope + water frame', async () 
 });
 
 assert.deepEqual(uncapturedErrors, [], 'Dawn emitted no uncaptured WebGPU errors');
-console.log('✅ Dawn WebGPU pipeline test passed: 11 shaders, blended glass/dust, GPU-rope compute, packed/GPU cloth and GPU-water pipelines, storage-buffer reconstruction, shadow isolation, HDR/MSAA, and complete offscreen frame');
+console.log(`✅ Dawn null-backend validation passed: ${shaderNames.length} shaders, stable visibility compute, indirect vertex pulling, blended glass/dust, GPU rope/cloth/water, HDR/MSAA, and offscreen command encoding (no numerical GPU execution)`);
 
 device.destroy();
 gpu = null;

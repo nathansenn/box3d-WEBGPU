@@ -38,6 +38,14 @@ The [math runtime pilot](docs/MATH_RUNTIME_PILOT.md) adds a typed incremental ex
 
 Run `npm run test:math-runtime` for the graph, reference-solver, and surface-contract tests. Run `npm run bench:math-runtime` for the CPU/WASM comparisons, or `npm run bench:math-runtime:serve` for the browser solver and renderer checks. The standalone benchmark server requires Node 24 or later. [Benchmark methods and raw evidence](benchmarks/math-runtime/README.md) distinguish hardware availability, software GPU conformance, numerical error, transfer cost, and synchronized wall time.
 
+## Conservative rendering and Nanite research
+
+The [rendering review](docs/NANITE_RENDERING_REVIEW.md) applies Nanite's visibility-first principles to the existing instanced renderer. Adaptive early material rejection, redundant shadow-sample removal, and dependency-aware shadow reuse are enabled by default. Opaque-only frames and GPU-compacted draws skip redundant vertex material tests. Corrected light-depth projection, empty-caster clearing, and conservative material-boundary handling repair separate visual errors. Visible meshes, shading models, MSAA settings and shadow resolution are retained.
+
+Stable GPU visibility compaction is an explicit opt-in through `await renderer.setRenderingOptimizations({ computeVisibility: true })`. It prepares its storage and indirect pipelines lazily, preserves original instance order, and keeps camera and shadow visibility separate. Its performance needs qualification on the target adapter.
+
+Run `npm run test:rendering` for the geometric and projection tests, and `npm run test:webgpu` for shader/resource/runtime validation. The [production-renderer A/B harness](benchmarks/rendering/README.md) compares the pinned previous renderer with the current implementation, records raw samples and image checks, and distinguishes software execution from physical-GPU evidence. Earlier benchmark files and historical demo recordings retain their original scope.
+
 ## Demo gallery
 
 The retained recording below captures the v1.14 Maximum AAA Tour running through a real Chrome/WebGPU compositor with native Box3D WebAssembly and SIMD soft-system kernels. Versions 1.15–1.19 retain that live proof while adding the material-atlas pass, instrumented metal forming, concrete spall/rebar transfer, glass shattering, material-specific strike VFX, dedicated inspection cameras, and the 100-item signature-stage production pass. The new 31-program material expansion is not represented as though it were present in that historical recording. The two-minute cut plays at 2× speed from four minutes of live application capture and concentrates on the five highest-value simulation domains: cloth, water, tower destruction, bridge infrastructure, and rope rigging. The static images that follow are retained v1.12 hardware-browser acceptance captures.
@@ -593,6 +601,8 @@ docs/                           architecture, rendering, demo, and test guides
 - [Soft-body and water systems](docs/SOFT_BODY_AND_WATER.md)
 - [Material bending and fracture model](docs/MATERIAL_FRACTURE.md)
 - [WebGPU rendering pipeline](docs/RENDERING_PIPELINE.md)
+- [Nanite research, rendering changes and benchmark evidence](docs/NANITE_RENDERING_REVIEW.md)
+- [Reproduce the production-renderer A/B benchmark](benchmarks/rendering/README.md)
 - [AAA showcase guide](docs/AAA_SHOWCASE.md)
 - [Demo runbook](docs/DEMO_GUIDE.md)
 - [v1.13 benchmark matrix](docs/V1.13_1000_BENCHMARK_MATRIX.md)
