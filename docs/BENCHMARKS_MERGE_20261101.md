@@ -30,7 +30,7 @@ Speed ratios are main time ÷ merged time. **Above 1.000 the merged branch is fa
 - **Builds.** `main` is compiled from a worktree at `dfedd9f` with its own `tsc -p tsconfig.test.json`; the merged build is compiled the same way. The native comparison loads `main`'s committed `public/box3d/box3d.{js,wasm}` beside the merged branch's.
 - **Behavioural equivalence.** The native runs compare the engine's replay hash every 30 frames. The soft-body runs compare an exact FNV hash of the presented instance matrices and colours every 30 frames, through frame 150.
 
-**GPU host.** One RunPod Secure Cloud pod with an NVIDIA L4 (driver 595.91.07, Vulkan 1.4), used for about 13 minutes at $0.59/hour (estimated $0.13; billing had not been posted when this was written). The RTX 4000 Ada named in the plan was out of stock. Two kinds of run:
+**GPU host.** One RunPod Secure Cloud pod with an NVIDIA L4 (driver 595.91.07, Vulkan 1.4), used for about 13 minutes at $0.59/hour. RunPod billed $0.139 for it: $0.138 GPU and $0.001 disk. The RTX 4000 Ada named in the plan was out of stock. Two kinds of run:
 
 - **Browser runs.** Headless Chromium 153 with Dawn's Vulkan backend and unquantized timestamps.
 - **Node runs.** The `webgpu` package (Dawn) with `backend=vulkan`.
