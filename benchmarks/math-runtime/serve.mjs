@@ -5,7 +5,8 @@ import {resolve,dirname,extname} from 'node:path';
 import {fileURLToPath} from 'node:url';
 import {stripTypeScriptTypes} from 'node:module';
 const root=resolve(dirname(fileURLToPath(import.meta.url)),'../..'),port=Number(process.env.BOX3D_BENCH_PORT??4317);
-const allowed=/^(?:benchmarks\/math-runtime\/[a-z0-9-]+\.(?:mjs|html|json)|src\/(?:soft\/water-reference|webgpu\/(?:water-compute|water-surface-plan|renderer)|runtime\/execution-graph|math|assets\/ktx2)(?:\.(?:ts|js))?|soft-kernels-(?:scalar|simd)\.wasm|textures\/[a-z0-9-]+\.ktx2)$/;
+// The renderer's runtime import graph (scripts/emit-typescript-module-tree.mjs lists it) must stay inside this allowlist.
+const allowed=/^(?:benchmarks\/math-runtime\/[a-z0-9-]+\.(?:mjs|html|json)|src\/(?:soft\/water-reference|webgpu\/(?:water-compute|water-surface-plan|renderer|instance-visibility|instance-partition|gpu-timing|resident-water-surface|startup-budget)|runtime\/execution-graph|math|assets\/ktx2)(?:\.(?:ts|js))?|soft-kernels-(?:scalar|simd)\.wasm|textures\/[a-z0-9-]+\.ktx2)$/;
 createServer(async(request,response)=>{
  try{
   const url=new URL(request.url,'http://127.0.0.1:'+port);if(url.pathname==='/favicon.ico'){response.writeHead(204);response.end();return;}

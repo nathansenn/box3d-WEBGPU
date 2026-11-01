@@ -5,6 +5,7 @@ import { fileURLToPath } from 'node:url';
 import { createHash } from 'node:crypto';
 import { execFileSync } from 'node:child_process';
 import { emitTypeScriptModuleTree } from '../../scripts/emit-typescript-module-tree.mjs';
+import { applyColorPipelineControl, COLOR_PIPELINE_CONTROL } from './visual-control.mjs';
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '../..');
 const baselineCommit = '031724b8501b194d2da770eeb5f407a3520cb311';
 const args = process.argv.slice(2), arg = name => { const i = args.indexOf(name); return i < 0 ? undefined : args[i + 1]; };
@@ -26,8 +27,23 @@ for (const item of expected.files) {
     if (actual !== item.gitBlobSha)
         throw new Error(`Baseline mismatch ${item.path}: ${actual} !== ${item.gitBlobSha}`);
 }
-const provenance = { schemaVersion: 1, baselineCommit, baselineGitBlobVerification: 'PASSED', compiler: 'TypeScript transpileModule ES2022; independent runtime dependency trees; no shader/source substitutions', baseline: {}, candidate: {}, harness: {}, assets: {} };
-for (const [kind, sourceRoot] of [['baseline', baselineRoot], ['candidate', root]]) {
+// --visual-control emits the pinned baseline with only the colour-pipeline shader edits (see visual-control.mjs).
+let baselineEmitRoot = baselineRoot, baselineControl = null;
+if (args.includes('--visual-control')) {
+    baselineEmitRoot = path.join(build, 'baseline-control-source');
+    fs.rmSync(baselineEmitRoot, { recursive: true, force: true });
+    for (const item of expected.files) {
+        const destination = path.join(baselineEmitRoot, item.path);
+        fs.mkdirSync(path.dirname(destination), { recursive: true });
+        fs.copyFileSync(path.join(baselineRoot, item.path), destination);
+    }
+    const rendererPath = path.join(baselineEmitRoot, 'src/webgpu/renderer.ts');
+    fs.writeFileSync(rendererPath, applyColorPipelineControl(fs.readFileSync(rendererPath, 'utf8')));
+    baselineControl = { ...COLOR_PIPELINE_CONTROL, pinnedRendererGitBlob: expected.files.find(f => f.path === 'src/webgpu/renderer.ts').gitBlobSha, patchedRendererSha256: createHash('sha256').update(fs.readFileSync(rendererPath)).digest('hex') };
+}
+fs.rmSync(path.join(build, 'baseline'), { recursive: true, force: true });
+const provenance = { schemaVersion: 1, baselineCommit, baselineControl, baselineGitBlobVerification: 'PASSED', compiler: 'TypeScript transpileModule ES2022; independent runtime dependency trees; no shader/source substitutions', baseline: {}, candidate: {}, harness: {}, assets: {} };
+for (const [kind, sourceRoot] of [['baseline', baselineEmitRoot], ['candidate', root]]) {
     const files = new Map();
     for (const entry of ['src/webgpu/renderer.ts', 'src/math.ts', 'src/webgpu/water-compute.ts', 'src/soft/water-reference.ts']) {
         const emitted = emitTypeScriptModuleTree({ sourceRoot, outputRoot: path.join(build, kind), entry });
@@ -44,4 +60,4 @@ for (const name of fs.readdirSync(path.join(root, 'benchmarks/rendering')).filte
 for (const name of fs.readdirSync(path.join(root, 'public/textures')).filter(n => n.endsWith('.ktx2')))
     provenance.assets[name] = sha256(fs.readFileSync(path.join(root, 'public/textures', name)));
 fs.writeFileSync(path.join(build, 'provenance.json'), JSON.stringify(provenance, null, 2) + '\n');
-console.log(JSON.stringify({ build, baselineCommit, baselineFiles: Object.keys(provenance.baseline).length, candidateFiles: Object.keys(provenance.candidate).length }));
+console.log(JSON.stringify({ build, baselineCommit, baselineControl: baselineControl?.id ?? null, baselineFiles: Object.keys(provenance.baseline).length, candidateFiles: Object.keys(provenance.candidate).length }));

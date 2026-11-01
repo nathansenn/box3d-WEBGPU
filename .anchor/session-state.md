@@ -1,27 +1,28 @@
 # Session state (auto-saved — last known reality)
 
-_Updated: 2026-11-01 09:22:36_  ·  branch: `claude/upbeat-archimedes-k21g6x`
+_Updated: 2026-11-01 11:05:47_  ·  branch: `claude/upbeat-archimedes-k21g6x`
 
 ## Uncommitted changes
 ```
-?? .anchor/
+ M .anchor/session-state.md
 ```
 
 Diff stat:
 ```
-
+ .anchor/session-state.md | 22 ++--------------------
+ 1 file changed, 2 insertions(+), 20 deletions(-)
 ```
 
 ## Recent commits
 ```
-dfedd9f Ship the engineering workbench so labs can inspect, correlate, and capture evidence instead of only playing cinematic demos.
-b8806ea Merge pull request #2 from nathansenn/codex/gpu-validation
-7c596e2 Prepare v1.20 release PR
-3fab139 Implement broad project updates
-14ed9f0 Release v1.14 physics lab and corrected demo
-42eef65 Merge pull request #1 from nathansenn/codex/gpu-validation
-977c627 Release v1.13 optimized WebGPU physics lab
-9370033 Upgrade Box3D WebGPU to the AAA Physics Showcase
+30c0716 Document the integrated studio, media location and math review; refresh manifest
+8424ee0 Repair CI gates broken since August and update tests for the merged behaviour
+b734af9 Add the studio QA evidence images and logs from the Oct 4 backup
+5a982b3 Merge codex/math-runtime-water-pilot-20261031: math runtime pilot and visibility work
+09a4e56 Merge cloud-ready-20261003: agent notes, media notes and secret ignores
+94b4d8e Merge claude/speed-visual-accuracy-batch1 (already contained)
+532bf1c Add studio runtime assets and rebuilt engine WASM from the Oct 4 backup
+9d78007 Merge bridge-water-20261003: Engineering Studio, bridge experiments and river interaction
 ```
 
 ## Resume

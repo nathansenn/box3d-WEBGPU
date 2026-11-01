@@ -23,6 +23,9 @@ function validateSelection({ onlyScenario, onlyVariant, qualityOnly }) {
     if (qualityOnly && (onlyScenario !== undefined || onlyVariant !== undefined))
         throw new Error('Quality-only mode cannot be combined with scenario or variant selectors.');
 }
+// Both renderers get identical options. Renderers that time their own passes (gpuTiming, on by default when
+// timestamp-query is available) must leave the passes to the harness profiler; older renderers ignore the key.
+const RENDERER_OPTIONS = Object.freeze({ gpuTiming: false });
 function classifyAdapter(info) {
     if (!info) return 'UNAVAILABLE';
     return info.isFallbackAdapter === true || /swiftshader|llvmpipe|software|lavapipe/i.test(Object.values(info).join(' '))
@@ -376,9 +379,9 @@ export async function runRenderingBenchmark({ quick = false, parityOnly = false,
         adapterInfo.isFallbackAdapter = preflight.isFallbackAdapter ?? info.isFallbackAdapter ?? null;
         report.gpu = { status: 'AVAILABLE', preflightAdapterInfo: adapterInfo, preflightAdapterFeatures: [...preflight.features] };
         progress('Creating independent production renderers');
-        const a = await createProfiledRenderer(BaselineRenderer, document.querySelector('#baseline'), 10000);
+        const a = await createProfiledRenderer(BaselineRenderer, document.querySelector('#baseline'), 10000, RENDERER_OPTIONS);
         baseline = a.renderer;
-        const b = await createProfiledRenderer(CandidateRenderer, document.querySelector('#candidate'), 10000);
+        const b = await createProfiledRenderer(CandidateRenderer, document.querySelector('#candidate'), 10000, RENDERER_OPTIONS);
         candidate = b.renderer;
         report.gpu.timedAdapters = {
             baseline: { adapterInfo: a.adapterInfo, adapterFeatures: a.adapterFeatures, classification: classifyAdapter(a.adapterInfo) },

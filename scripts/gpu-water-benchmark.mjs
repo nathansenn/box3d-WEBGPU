@@ -14,6 +14,8 @@ import {bootstrapRatio,mean,summary,readJsonBounded} from './engine-check.mjs';
 import {closedBenchmarkInitial,closedBenchmarkMetrics,retainBenchmarkState,qualifyBenchmarkCore,verifyClosedBenchmarkFields,createGpuControl,gpuControlExpected} from './closed-water-benchmark-support.mjs';
 
 const root=path.resolve(path.dirname(fileURLToPath(import.meta.url)),'..');
+// Dawn backend for the physical adapter; Metal on macOS (the default), Vulkan on Linux GPU hosts.
+const dawnBackend=process.env.WEBGPU_DAWN_BACKEND??'metal';
 const sources=['src/engine/linear-water.ts','src/engine/closed-water.ts','src/engine/contracts.ts','src/webgpu/linear-water.ts','src/webgpu/closed-water-shader.ts','src/webgpu/water-telemetry.ts',
   'src/webgpu/renderer.ts','src/webgpu/startup-budget.ts','src/webgpu/resident-water-surface.ts','src/webgpu/instance-partition.ts',
   'src/webgpu/gpu-timing.ts','src/webgpu/water-surface-plan.ts','src/webgpu/instance-visibility.ts','src/runtime/execution-graph.ts','src/assets/ktx2.ts','src/math.ts','src/camera.ts','src/types.ts',
@@ -64,7 +66,7 @@ export function gate(samples,p) {
     const s=matches[0];bySide[side].push(s);
     if(s.status!=='passed'||s.protocolSha256!==hashValue(p)||s.errors?.length||s.cases?.length!==p.grids.length||s.controls?.length!==16)issues.push(`Incomplete ${pair}/${side}`);
     if(!Array.isArray(s.controls)||!s.controls.every(value=>Number.isFinite(value)&&value>0)||s.controlValues?.length!==16||!s.controlValues.every(Number.isSafeInteger))issues.push(`Invalid control ${pair}/${side}`);
-    if(!/^[a-f0-9]{64}$/.test(s.sourceSha256)||!/^[a-f0-9]{64}$/.test(s.runtimeSha256)||s.adapter?.backend!=='metal'||s.adapter.isFallbackAdapter!==false)issues.push(`Missing physical adapter or identity ${pair}/${side}`);
+    if(!/^[a-f0-9]{64}$/.test(s.sourceSha256)||!/^[a-f0-9]{64}$/.test(s.runtimeSha256)||s.adapter?.backend!==dawnBackend||s.adapter.isFallbackAdapter!==false)issues.push(`Missing physical adapter or identity ${pair}/${side}`);
     if(closed&&(!/^[a-f0-9]{64}$/.test(s.accuracySha256)||s.schema!=='box3d.gpu-water-frame-sample/2'||!Array.isArray(s.gpuControls)||s.gpuControls.length!==16||!s.gpuControls.every(v=>Number.isFinite(v)&&v>0)||!Array.isArray(s.gpuControlValues)||s.gpuControlValues.length!==2||s.gpuControlValues.some(a=>!Array.isArray(a)||a.length!==16||!a.every(v=>Number.isInteger(v)&&v>=0&&v<=4294967295))||hashValue(s.gpuControlValues[0])!==hashValue(s.gpuControlValues[1])))issues.push(`Missing GPU control or physics identity ${pair}/${side}`);
     if(closed&&Array.isArray(s.gpuControlValues)&&hashValue(s.gpuControlValues[0]??null)!==hashValue(gpuControlExpected()))issues.push(`Incorrect GPU control output ${pair}/${side}`);
     if(p.schema==='box3d.gpu-water-benchmark-protocol/3'&&(s.gpuControlStats?.dispatchesPerSample!==p.gpuControl.dispatchesPerSample||s.gpuControlStats?.totalDispatches!==20*p.gpuControl.dispatchesPerSample))issues.push(`Incomplete GPU control work ${pair}/${side}`);
@@ -148,7 +150,7 @@ function control() {
 
 async function child(task) {
   const {create,globals}=await import('webgpu');Object.assign(globalThis,globals);
-  const gpu=create(['backend=metal']);Object.defineProperty(globalThis,'navigator',{configurable:true,value:{gpu}});
+  const gpu=create([`backend=${dawnBackend}`]);Object.defineProperty(globalThis,'navigator',{configurable:true,value:{gpu}});
   Object.defineProperty(globalThis,'window',{configurable:true,value:{devicePixelRatio:1}});
   Object.defineProperty(globalThis,'fetch',{configurable:true,value:async()=>{throw new Error('Fixed procedural textures in this paired benchmark.');}});
   const {createLinearWaterArrays,stepLinearWaterCpu}=await import(pathToFileURL(path.join(task.sourceRoot,'src/engine/linear-water.ts')).href);
@@ -163,9 +165,9 @@ async function child(task) {
     const {WebGPURenderer}=await compileRenderer(task.sourceRoot,runtimeDir);
     const {CameraMatrixCache}=await import(pathToFileURL(path.join(runtimeDir,'camera.mjs')).href);
     const adapter=await gpu.requestAdapter({powerPreference:'high-performance'});
-    assert.ok(adapter,'Physical Metal adapter required.');
+    assert.ok(adapter,`Physical ${dawnBackend} adapter required.`);
     const info=adapter.info??{};
-    output.adapter={backend:'metal',vendor:info.vendor??null,architecture:info.architecture??null,device:info.device??null,description:info.description??null,isFallbackAdapter:info.isFallbackAdapter??adapter.isFallbackAdapter??null,features:[...adapter.features].sort()};
+    output.adapter={backend:dawnBackend,vendor:info.vendor??null,architecture:info.architecture??null,device:info.device??null,description:info.description??null,isFallbackAdapter:info.isFallbackAdapter??adapter.isFallbackAdapter??null,features:[...adapter.features].sort()};
     // Keep the native instance strongly reachable; select the same observed adapter.
     const gpuRoot=gpu;
     Object.defineProperty(globalThis,'navigator',{configurable:true,value:{gpu:{nativeRoot:gpuRoot,requestAdapter:async()=>adapter,getPreferredCanvasFormat:()=>gpuRoot.getPreferredCanvasFormat()}}});

@@ -3,8 +3,11 @@ import { writeFile, mkdir } from 'node:fs/promises';
 import { dirname, resolve, join } from 'node:path';
 import { fileURLToPath, pathToFileURL } from 'node:url';
 import os from 'node:os';
+// Headless Linux with a physical GPU: WebGPU through Dawn's Vulkan backend. Developer features remove the 100 us
+// timestamp quantization so per-pass GPU spans keep their resolution. The adapter is still classified from its own info.
+const HARDWARE_VULKAN_ARGS = ['--enable-unsafe-webgpu', '--use-angle=vulkan', '--enable-features=Vulkan', '--disable-vulkan-surface', '--ignore-gpu-blocklist', '--enable-webgpu-developer-features'];
 const root = resolve(dirname(fileURLToPath(import.meta.url)), '../..'), args = process.argv.slice(2), value = flag => { const i = args.indexOf(flag); return i < 0 ? undefined : args[i + 1]; };
-const booleanFlags = new Set(['--software-gpu', '--quick', '--parity-only', '--quality-only']);
+const booleanFlags = new Set(['--software-gpu', '--hardware-vulkan', '--quick', '--parity-only', '--quality-only']);
 const valueFlags = new Set(['--out', '--url', '--playwright-path', '--executable-path', '--screenshot', '--scenario', '--variant']);
 const seenFlags = new Set();
 for (let i = 0; i < args.length; i++) {
@@ -16,7 +19,7 @@ for (let i = 0; i < args.length; i++) {
     if (!args[i + 1] || args[i + 1].startsWith('--')) throw new Error('Missing value for ' + flag);
     i++;
 }
-const software = args.includes('--software-gpu'), profile = software ? 'software' : 'default', output = resolve(root, value('--out') ?? `benchmarks/rendering/results/${profile}.json`), url = value('--url') ?? 'http://127.0.0.1:4318/benchmarks/rendering/index.html';
+const software = args.includes('--software-gpu'), hardwareVulkan = args.includes('--hardware-vulkan'), profile = software ? 'software' : hardwareVulkan ? 'hardware-vulkan' : 'default', output = resolve(root, value('--out') ?? `benchmarks/rendering/results/${profile}.json`), url = value('--url') ?? 'http://127.0.0.1:4318/benchmarks/rendering/index.html';
 let playwright;
 if (value('--playwright-path'))
     playwright = await import(pathToFileURL(resolve(value('--playwright-path'))).href);
@@ -29,7 +32,7 @@ else
             throw e;
         playwright = await import(pathToFileURL(join(process.env.CODEX_PRIMARY_RUNTIME_NODE_MODULES, 'playwright/index.mjs')).href);
     }
-const executablePath = value('--executable-path') ?? process.env.BOX3D_BROWSER_EXECUTABLE, launchArgs = software ? ['--enable-unsafe-webgpu', '--use-angle=swiftshader'] : [];
+const executablePath = value('--executable-path') ?? process.env.BOX3D_BROWSER_EXECUTABLE, launchArgs = software ? ['--enable-unsafe-webgpu', '--use-angle=swiftshader'] : hardwareVulkan ? HARDWARE_VULKAN_ARGS : [];
 const browser = await playwright.chromium.launch({ headless: true, args: launchArgs, ...(executablePath ? { executablePath } : { channel: 'chromium' }) });
 try {
     const page = await browser.newPage({ viewport: { width: 1440, height: 1100 }, deviceScaleFactor: 1 }), pageErrors = [], consoleErrors = [];
@@ -45,7 +48,7 @@ try {
     const report = await page.evaluate(options => window.runBox3dRenderingBenchmark(options), { quick: args.includes('--quick'), parityOnly: args.includes('--parity-only'), qualityOnly: args.includes('--quality-only'), onlyScenario: value('--scenario'), onlyVariant: value('--variant') });
     report.provenance.browserVersion = browser.version();
     report.provenance.browserExtraArguments = launchArgs;
-    report.provenance.browserLaunchProfile = software ? 'Explicit SwiftShader software fallback' : 'Standard Playwright headless, no added GPU flags';
+    report.provenance.browserLaunchProfile = software ? 'Explicit SwiftShader software fallback' : hardwareVulkan ? 'Explicit hardware Vulkan profile (headless Linux, unquantized timestamps)' : 'Standard Playwright headless, no added GPU flags';
     report.provenance.browserExecutable = executablePath ?? 'Playwright Chromium';
     report.provenance.host = { platform: os.platform(), release: os.release(), arch: os.arch(), node: process.version, cpu: os.cpus()[0]?.model, logicalCpus: os.cpus().length };
     try {

@@ -11,6 +11,8 @@ import { emitTypeScriptModuleTree } from './emit-typescript-module-tree.mjs';
 
 const scriptPath = fileURLToPath(import.meta.url);
 const currentRoot = path.resolve(path.dirname(scriptPath), '..');
+// Dawn backend for the physical adapter; Metal on macOS (the default), Vulkan on Linux GPU hosts.
+const dawnBackend = process.env.WEBGPU_DAWN_BACKEND ?? 'metal';
 
 function median(values) {
   const sorted = [...values].sort((a, b) => a - b);
@@ -33,7 +35,7 @@ async function childMain(root) {
     });
 
     Object.assign(globalThis, globals);
-    const gpu = create(['backend=metal']);
+    const gpu = create([`backend=${dawnBackend}`]);
     Object.defineProperty(globalThis, 'navigator', { configurable: true, value: { gpu } });
     Object.defineProperty(globalThis, 'window', { configurable: true, value: { devicePixelRatio: 1 } });
     Object.defineProperty(globalThis, 'fetch', {
@@ -117,7 +119,7 @@ if (process.argv[2] === '--child') {
       .digest('hex');
     const evidence = {
       rendererSha256,
-      environment: { backend: 'Metal', samples, canvas: [1280, 720], maxInstances: 4096, freshProcesses: true },
+      environment: { backend: dawnBackend, samples, canvas: [1280, 720], maxInstances: 4096, freshProcesses: true },
       baseline: {
         source: process.env.RENDERER_BASELINE_ROOT ?? path.relative(currentRoot, baselineArchive),
         samplesMs: measured.baseline,
@@ -127,7 +129,7 @@ if (process.argv[2] === '--child') {
       optimized: { root: currentRoot, samplesMs: measured.optimized, medianMs: optimizedMedian, madMs: mad(measured.optimized) },
       optimizedOverBaseline: optimizedMedian / baselineMedian,
     };
-    const outputPath = path.join(currentRoot, 'benchmarks/results/renderer-startup-metal.json');
+    const outputPath = path.join(currentRoot, process.env.RENDERER_STARTUP_OUT ?? `benchmarks/results/renderer-startup-${dawnBackend}.json`);
     fs.writeFileSync(outputPath, `${JSON.stringify(evidence, null, 2)}\n`);
     console.log(JSON.stringify(evidence, null, 2));
     console.log(`Wrote ${outputPath}`);

@@ -4,15 +4,16 @@ import {dirname,resolve,join} from 'node:path';
 import {fileURLToPath,pathToFileURL} from 'node:url';
 const root=resolve(dirname(fileURLToPath(import.meta.url)),'../..'),args=process.argv.slice(2);
 const value=flag=>{const i=args.indexOf(flag);return i<0?undefined:args[i+1];};
-const softwareVulkan=args.includes('--software-vulkan'),software=args.includes('--software-gpu')||softwareVulkan,renderParity=args.includes('--render-parity');
-const profile=softwareVulkan?'software-vulkan':software?'software':'default';
+const softwareVulkan=args.includes('--software-vulkan'),software=args.includes('--software-gpu')||softwareVulkan,hardwareVulkan=!software&&args.includes('--hardware-vulkan'),renderParity=args.includes('--render-parity');
+const profile=softwareVulkan?'software-vulkan':software?'software':hardwareVulkan?'hardware-vulkan':'default';
 const output=resolve(root,value('--out')??'benchmarks/math-runtime/results/'+(renderParity?'render-parity-offscreen':'browser')+'-'+profile+'.json');
 const url=value('--url')??'http://127.0.0.1:4317/benchmarks/math-runtime/'+(renderParity?'render-parity':'index')+'.html';
 let playwright;
 if(value('--playwright-path'))playwright=await import(pathToFileURL(resolve(value('--playwright-path'))).href);
 else try{playwright=await import('playwright');}catch(e){if(!process.env.CODEX_PRIMARY_RUNTIME_NODE_MODULES)throw e;playwright=await import(pathToFileURL(join(process.env.CODEX_PRIMARY_RUNTIME_NODE_MODULES,'playwright/index.mjs')).href);}
 const executablePath=value('--executable-path')??process.env.BOX3D_BROWSER_EXECUTABLE;
-const launchArgs=softwareVulkan?['--enable-unsafe-webgpu','--use-angle=vulkan','--use-vulkan=swiftshader','--enable-features=Vulkan','--disable-vulkan-surface']:software?['--enable-unsafe-webgpu','--use-angle=swiftshader']:[];
+// --hardware-vulkan: headless Linux with a physical GPU through Dawn's Vulkan backend; developer features remove timestamp quantization.
+const launchArgs=softwareVulkan?['--enable-unsafe-webgpu','--use-angle=vulkan','--use-vulkan=swiftshader','--enable-features=Vulkan','--disable-vulkan-surface']:software?['--enable-unsafe-webgpu','--use-angle=swiftshader']:hardwareVulkan?['--enable-unsafe-webgpu','--use-angle=vulkan','--enable-features=Vulkan','--disable-vulkan-surface','--ignore-gpu-blocklist','--enable-webgpu-developer-features']:[];
 const browser=await playwright.chromium.launch({headless:true,args:launchArgs,...(executablePath?{executablePath}:{channel:'chromium'})});
 try{
  const page=await browser.newPage({viewport:{width:1440,height:1000},deviceScaleFactor:1}),pageErrors=[],consoleErrors=[];
@@ -23,7 +24,7 @@ try{
  await page.waitForFunction(n=>typeof window[n]==='function',entry,{timeout:15000});
  const report=await page.evaluate(async({entry,quick})=>window[entry]({quick}),{entry,quick:args.includes('--quick')});
  report.provenance.browserVersion=browser.version();report.provenance.browserExtraArguments=launchArgs;
- report.provenance.browserLaunchProfile=softwareVulkan?'Explicit SwiftShader Vulkan software profile':software?'Explicit software fallback profile':'Playwright standard headless profile; no additional GPU flags';
+ report.provenance.browserLaunchProfile=softwareVulkan?'Explicit SwiftShader Vulkan software profile':software?'Explicit software fallback profile':hardwareVulkan?'Explicit hardware Vulkan profile (headless Linux, unquantized timestamps)':'Playwright standard headless profile; no additional GPU flags';
  report.provenance.browserExecutable=executablePath??'Playwright Chromium channel';
  report.provenance.recoveryNote='Fresh run after workspace reset. Earlier raw sample files were lost; this rerun supersedes them.';
  try{const session=await browser.newBrowserCDPSession();report.provenance.browserFullArguments=(await session.send('Browser.getBrowserCommandLine')).arguments;await session.detach();}catch(e){report.provenance.browserCommandLineUnavailable=e.message;}
