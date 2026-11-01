@@ -1,0 +1,118 @@
+
+> box3d-webgpu@1.20.0 test:soft-soak:all
+> npm run test:soft-soak && npm run test:soft-soak:wasm && npm run test:soft-soak:scalar
+
+
+> box3d-webgpu@1.20.0 test:soft-soak
+> rm -rf .test-build && tsc -p tsconfig.test.json && node -e "require('fs').mkdirSync('.test-build', {recursive:true}); require('fs').writeFileSync('.test-build/package.json', '{\"type\":\"commonjs\"}')" && node scripts/soft-simulation-soak.cjs
+
+✅ javascript soft simulation soak passed: 200 stable scenes + 34 derived material demos, 4,800 catalog frames, 816 derived material frames, 3,000 deterministic replay frames
+{
+  "kernelVariant": "javascript",
+  "catalogScenes": 200,
+  "catalogFrames": 4800,
+  "derivedMaterialDemos": 34,
+  "derivedMaterialFrames": 816,
+  "combinedReplayFrames": 600,
+  "materialDemoKinds": {
+    "metal": 13,
+    "glass": 10,
+    "concrete": 10,
+    "combined": 1
+  },
+  "combinedTargetedActions": {
+    "metal": 13,
+    "glass": 12,
+    "concrete": 12,
+    "all": 3
+  },
+  "deepFrames": 2400,
+  "families": {
+    "cloth": 50,
+    "rope": 50,
+    "water": 50,
+    "fracture": 50
+  },
+  "maxNodes": 7011,
+  "maxConstraints": 18360,
+  "maxInstances": 896,
+  "maxBreaks": 1960,
+  "maxEnergy": 416605.61323837336,
+  "elapsedMs": 38038.76
+}
+
+> box3d-webgpu@1.20.0 test:soft-soak:wasm
+> rm -rf .test-build && tsc -p tsconfig.test.json && node -e "require('fs').mkdirSync('.test-build', {recursive:true}); require('fs').writeFileSync('.test-build/package.json', '{\"type\":\"commonjs\"}')" && SOFT_SOAK_KERNEL=simd node scripts/soft-simulation-soak.cjs
+
+✅ simd soft simulation soak passed: 200 stable scenes + 34 derived material demos, 4,800 catalog frames, 816 derived material frames, 3,000 deterministic replay frames
+{
+  "kernelVariant": "simd",
+  "catalogScenes": 200,
+  "catalogFrames": 4800,
+  "derivedMaterialDemos": 34,
+  "derivedMaterialFrames": 816,
+  "combinedReplayFrames": 600,
+  "materialDemoKinds": {
+    "metal": 13,
+    "glass": 10,
+    "concrete": 10,
+    "combined": 1
+  },
+  "combinedTargetedActions": {
+    "metal": 13,
+    "glass": 12,
+    "concrete": 12,
+    "all": 3
+  },
+  "deepFrames": 2400,
+  "families": {
+    "cloth": 50,
+    "rope": 50,
+    "water": 50,
+    "fracture": 50
+  },
+  "maxNodes": 7011,
+  "maxConstraints": 18360,
+  "maxInstances": 896,
+  "maxBreaks": 1960,
+  "maxEnergy": 416667.4787854044,
+  "elapsedMs": 38535.76
+}
+
+> box3d-webgpu@1.20.0 test:soft-soak:scalar
+> rm -rf .test-build && tsc -p tsconfig.test.json && node -e "require('fs').mkdirSync('.test-build', {recursive:true}); require('fs').writeFileSync('.test-build/package.json', '{\"type\":\"commonjs\"}')" && SOFT_SOAK_KERNEL=scalar node scripts/soft-simulation-soak.cjs
+
+✅ scalar soft simulation soak passed: 200 stable scenes + 34 derived material demos, 4,800 catalog frames, 816 derived material frames, 3,000 deterministic replay frames
+{
+  "kernelVariant": "scalar",
+  "catalogScenes": 200,
+  "catalogFrames": 4800,
+  "derivedMaterialDemos": 34,
+  "derivedMaterialFrames": 816,
+  "combinedReplayFrames": 600,
+  "materialDemoKinds": {
+    "metal": 13,
+    "glass": 10,
+    "concrete": 10,
+    "combined": 1
+  },
+  "combinedTargetedActions": {
+    "metal": 13,
+    "glass": 12,
+    "concrete": 12,
+    "all": 3
+  },
+  "deepFrames": 2400,
+  "families": {
+    "cloth": 50,
+    "rope": 50,
+    "water": 50,
+    "fracture": 50
+  },
+  "maxNodes": 7011,
+  "maxConstraints": 18360,
+  "maxInstances": 896,
+  "maxBreaks": 1960,
+  "maxEnergy": 416667.4787854044,
+  "elapsedMs": 39721.18
+}

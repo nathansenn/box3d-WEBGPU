@@ -1,0 +1,9 @@
+✓ canonical JSON and SHA-256
+✓ provenance and unit guards
+✓ run and dataset JSON validation
+✓ CSV parsing
+✓ evidence checksum and tamper detection
+✓ synthetic dataset safety
+✓ evidence callout mapping
+✓ findings checksum and correlation callouts
+All 8 engineering evidence suites passed.

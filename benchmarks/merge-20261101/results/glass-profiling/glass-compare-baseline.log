@@ -1,0 +1,17 @@
+{"t":0.25,"meanStepMs":3.2,"maxStepMs":19.1,"maxPenetrationMm":0,"broken":0,"contacts":0}
+{"t":0.5,"meanStepMs":1.9,"maxStepMs":3.4,"maxPenetrationMm":0,"broken":0,"contacts":0}
+{"t":0.75,"meanStepMs":16.2,"maxStepMs":239.1,"maxPenetrationMm":0.184,"broken":28,"contacts":925}
+{"t":1,"meanStepMs":136,"maxStepMs":241.2,"maxPenetrationMm":0.1705,"broken":354,"contacts":1239}
+{"t":1.25,"meanStepMs":77.6,"maxStepMs":124.2,"maxPenetrationMm":0.0212,"broken":364,"contacts":377}
+{"t":1.5,"meanStepMs":384.1,"maxStepMs":976.5,"maxPenetrationMm":0.022,"broken":364,"contacts":828}
+{"t":1.75,"meanStepMs":875.1,"maxStepMs":1189.2,"maxPenetrationMm":0.1032,"broken":364,"contacts":1361}
+{"t":2,"meanStepMs":363.5,"maxStepMs":673,"maxPenetrationMm":0.179,"broken":364,"contacts":1750}
+{"t":2.25,"meanStepMs":414,"maxStepMs":931.5,"maxPenetrationMm":0.1917,"broken":364,"contacts":1673}
+{"t":2.5,"meanStepMs":309.6,"maxStepMs":1000.8,"maxPenetrationMm":0.1974,"broken":364,"contacts":2206}
+{"t":2.75,"meanStepMs":200.9,"maxStepMs":526.6,"maxPenetrationMm":0.1822,"broken":364,"contacts":2442}
+{"t":3,"meanStepMs":185.1,"maxStepMs":428.6,"maxPenetrationMm":0.1547,"broken":364,"contacts":2438}
+{"t":3.25,"meanStepMs":171.7,"maxStepMs":229.5,"maxPenetrationMm":0.078,"broken":364,"contacts":2373}
+{"t":3.5,"meanStepMs":196.5,"maxStepMs":423.1,"maxPenetrationMm":0.0728,"broken":364,"contacts":2356}
+{"t":3.75,"meanStepMs":199.9,"maxStepMs":428.9,"maxPenetrationMm":0.0795,"broken":364,"contacts":2373}
+{"t":4,"meanStepMs":177.9,"maxStepMs":386.2,"maxPenetrationMm":0.0949,"broken":364,"contacts":2526}
+summary {"simS":4.008,"wallS":111.6,"p50":166.5,"p95":828.3,"max":1189.2,"rr":{"sweep":{"0":129,"1":122,"2":168,"3":98,"4":11},"discovery":{"0":7,"1":1},"penetration":{"0":36,"1":11},"level":{"0":481,"1":344,"2":268,"3":336,"4":196,"5":22}}}

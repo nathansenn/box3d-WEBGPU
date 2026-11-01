@@ -1,0 +1,1837 @@
+{
+  "schemaVersion": "box3d-production-rendering/1",
+  "createdAt": "2026-11-01T11:19:35.888Z",
+  "status": "FAILED",
+  "scope": "Pinned production renderer A/B; identical frozen geometry and rendering quality. Offscreen output, no canvas-presentation/FPS qualification.",
+  "settings": {
+    "width": 320,
+    "height": 240,
+    "devicePixelRatio": 1,
+    "warmup": 2,
+    "samples": 6,
+    "order": "Alternating baseline-first and candidate-first paired single frames; queues drained before each frame.",
+    "percentiles": "Linear interpolation over sorted samples.",
+    "timingIncludes": "Scene uniforms/uploads, command encoding, submission and queue completion. Optional GPU timestamps cover real passes; timestamp resolution/readback excluded from wall timer.",
+    "timingExcludes": "Simulation stepping, initial resource allocation/compilation, screenshot readback, browser presentation.",
+    "selection": {
+      "onlyScenario": null,
+      "onlyVariant": null,
+      "qualityOnly": false,
+      "parityOnly": false,
+      "quick": true
+    },
+    "inputStreamUploadAccounting": "inputStreamUploadedBytes excludes scene uniforms and visibility parameters; their CPU and queue-completed costs remain inside frame timing."
+  },
+  "provenance": {
+    "userAgent": "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) HeadlessChrome/153.0.0.0 Safari/537.36",
+    "secureContext": true,
+    "crossOriginIsolated": true,
+    "sources": {
+      "schemaVersion": 1,
+      "baselineCommit": "031724b8501b194d2da770eeb5f407a3520cb311",
+      "baselineGitBlobVerification": "PASSED",
+      "compiler": "TypeScript transpileModule ES2022; independent runtime dependency trees; no shader/source substitutions",
+      "baseline": {
+        "src/webgpu/renderer.ts": {
+          "sourceSha256": "a4ce5746d49ccc3f45202b9e7ca3464d85f87525b1a0667e6ce845db68a1e7fc",
+          "emittedSha256": "8a8ecdf7c3720983b83aab7ab97dd2af18b2f11138d510ad183554adb48172c6"
+        },
+        "src/webgpu/water-surface-plan.ts": {
+          "sourceSha256": "69115696a024110deb7c6589dbfba3cd06bd3c9916dbd4462f7794bbeede53c3",
+          "emittedSha256": "33709f01431f26c464010441fbd3dbb3674e762af6e795621463d418cb697c06"
+        },
+        "src/runtime/execution-graph.ts": {
+          "sourceSha256": "656849d46181021aed046a1b2ca25315488172065288022f5ab891eb5e222829",
+          "emittedSha256": "00136de555088f6decc513b9a835be215a63e61def5cd1bc31766a7c81aea289"
+        },
+        "src/assets/ktx2.ts": {
+          "sourceSha256": "01530c3fa2cb8e54a2efd77c07ac9d8016022c756c0fec43127193fd4eaec3fe",
+          "emittedSha256": "f242ae22112781832498b60301bea85b9bcfa2fbd1d717984f4b3776fc96359f"
+        },
+        "src/math.ts": {
+          "sourceSha256": "0ac09cdb4d0aa1d8e7b5114ac2f538d1875fa08be46a3b1f35314ee78b5b4aee",
+          "emittedSha256": "7d56e9a6a9295b6b0910f835367268dad994a3b54be672afe4c732fcb41d8d75"
+        },
+        "src/webgpu/water-compute.ts": {
+          "sourceSha256": "507b1c30a6d4b60a2d682f4d3fc525941ae134fd7c81d7881b511e819a5de7b4",
+          "emittedSha256": "a5981bbb457a0d9149c86124e3ba969c4f31f2dab10891e7784cebfca8f57113"
+        },
+        "src/soft/water-reference.ts": {
+          "sourceSha256": "ba7526294d6f45f5c4c6ee2a082a3d652043e7ab687627edfd2b26cc7236cf82",
+          "emittedSha256": "77d46c9cfb4af1210af1d33619c59f964931addb7a37e0839569fd509e0beb11"
+        }
+      },
+      "candidate": {
+        "src/webgpu/renderer.ts": {
+          "sourceSha256": "b441aa851c24dec5ce9276f5b00bd4cb6f5e7539d333289fc070e8b259e19a45",
+          "emittedSha256": "838640e2feea759d4e470287d670d236e008bed334ca98786ca51266d763e0c6"
+        },
+        "src/webgpu/water-surface-plan.ts": {
+          "sourceSha256": "69115696a024110deb7c6589dbfba3cd06bd3c9916dbd4462f7794bbeede53c3",
+          "emittedSha256": "33709f01431f26c464010441fbd3dbb3674e762af6e795621463d418cb697c06"
+        },
+        "src/runtime/execution-graph.ts": {
+          "sourceSha256": "656849d46181021aed046a1b2ca25315488172065288022f5ab891eb5e222829",
+          "emittedSha256": "00136de555088f6decc513b9a835be215a63e61def5cd1bc31766a7c81aea289"
+        },
+        "src/webgpu/instance-visibility.ts": {
+          "sourceSha256": "967f4782ccbc1a9d706ccdbf69c258d5fb0cfdc1e9ca6c02872d386ebe3d9981",
+          "emittedSha256": "978dbf177cf00128ad91288b03437eea33ae9db403bc0a3b74787a116ca140b3"
+        },
+        "src/webgpu/gpu-timing.ts": {
+          "sourceSha256": "0670a37c26f58eea334e8f586d906f35b604bdbffb98e0c631465244f60a930c",
+          "emittedSha256": "05d585f06b1cf158f60dabe757d7d1cd798c44b5bae32b507269173435c0811f"
+        },
+        "src/webgpu/instance-partition.ts": {
+          "sourceSha256": "488794a5915b86b4877fb4bec9ceb1271f8a559c44ee251f6cffc06da16219e1",
+          "emittedSha256": "8035bdd14a5d60df63871e34c853f50112ac60c7fa0f477ec7326598fe44fe33"
+        },
+        "src/webgpu/resident-water-surface.ts": {
+          "sourceSha256": "457b3c275fd1140e27b9904f5f8ff27a26a43c2c018ad096079408df63db1952",
+          "emittedSha256": "d00a756f171fb7b4087bbaed88549c7f96febcf926adae43e1412992f98bcc47"
+        },
+        "src/webgpu/startup-budget.ts": {
+          "sourceSha256": "028fa85a0f6fdd163b8642c474a7e85cd6bdc4aec34a81cb5bf5154d7e6ddf2f",
+          "emittedSha256": "d671ffef368a6e0cd9548ef647ca37cc092614dbc12389cfc3ff34bdc4b05851"
+        },
+        "src/assets/ktx2.ts": {
+          "sourceSha256": "d0c0ca07091d760ab78218480bee5978b798e29b412bf8b2fdde2d8a46a53853",
+          "emittedSha256": "b487e5d7cc353954dc75cc6eec211d5d8b185aecd7f84543568f7e8c4b248dfe"
+        },
+        "src/math.ts": {
+          "sourceSha256": "d1a3ee7187954e156b2c5db891c7e3a5c725cf7c70d356bd1d23d8509ba5a5ce",
+          "emittedSha256": "210742f3bb46dfacb112d1acb1b78050e273a05a6d54e9256cee84320410b001"
+        },
+        "src/webgpu/water-compute.ts": {
+          "sourceSha256": "507b1c30a6d4b60a2d682f4d3fc525941ae134fd7c81d7881b511e819a5de7b4",
+          "emittedSha256": "a5981bbb457a0d9149c86124e3ba969c4f31f2dab10891e7784cebfca8f57113"
+        },
+        "src/soft/water-reference.ts": {
+          "sourceSha256": "ba7526294d6f45f5c4c6ee2a082a3d652043e7ab687627edfd2b26cc7236cf82",
+          "emittedSha256": "77d46c9cfb4af1210af1d33619c59f964931addb7a37e0839569fd509e0beb11"
+        }
+      },
+      "harness": {
+        "baseline-sources.json": "2f2b8b30ac9eee27fb5acc4660cbb2910b11f0abfb7c7fb9e03a27a922d42bd6",
+        "browser.mjs": "02ff4f69b3fccc84bd217aec6fbdfed55e38109fd76a22415c8882ac03da3b6c",
+        "fixtures.mjs": "df01e75dfaced990798f8146aaf2350de3e697cdfdae1bf4717400a1e03a036a",
+        "index.html": "ddaf0626ad503a64fbd48b85c115c4880e6350810afcfa0dbe0c6f21d04b3bb1",
+        "prepare.mjs": "6ce737f6611acfbb7b60e2b1a2068c0919a180ff7b8b5d15a39b9affcba8a743",
+        "run.mjs": "4652a970ce8ac5a77defd7ba79daa3acedea58cad2cd2c8d190cff091b22773b",
+        "serve.mjs": "199de1183ab9bdfea1debf25e2c76029aae07f613d343a4072d570e43299710d",
+        "timing.mjs": "43f7da0086e02e92217487ad6ba4960e6125d5f0ae91f884d9e8e43c13b00a35"
+      },
+      "assets": {
+        "material-noise-bc4.ktx2": "f68275433411c66ee6f1e3ccb6c63b2572d391871501a0c7243faf3d6f3de7f9",
+        "material-noise-r8.ktx2": "01f3c5d49333d2f0136f8611593298a4d0c3bd60f98e5f9ba4a71398b2a1abcc",
+        "poliigon-materials-albedo-astc.ktx2": "878b78308bde84e4c75f7533105bf2c46ab44183a071523c365ddd666a7659eb",
+        "poliigon-materials-albedo-rgba8.ktx2": "3a650143cf414921663681990140397a258deb3ba197f38dbe143619e0355e29",
+        "poliigon-materials-surface-astc.ktx2": "314ef866c168187cbf10e0cc8c7cac4751331aaab754a84ed73ff7d3aa74bb59",
+        "poliigon-materials-surface-rgba8.ktx2": "a317190aeb7f0b51b8399415082d6face200daa6344695db7f880634bdecceaf"
+      }
+    },
+    "browserVersion": "153.0.8010.12",
+    "browserExtraArguments": [
+      "--enable-unsafe-webgpu",
+      "--use-angle=swiftshader"
+    ],
+    "browserLaunchProfile": "Explicit SwiftShader software fallback",
+    "browserExecutable": "/opt/pw-browsers/chromium-1243/chrome-linux64/chrome",
+    "host": {
+      "platform": "linux",
+      "release": "6.18.44-fc-v185",
+      "arch": "x64",
+      "node": "v22.23.4",
+      "cpu": "Intel(R) Xeon(R) Processor @ 2.10GHz",
+      "logicalCpus": 4
+    },
+    "browserCommandLineUnavailable": "cdpSession.send: Protocol error (Browser.getBrowserCommandLine): Command line not returned because --enable-automation not set.",
+    "automation": {
+      "url": "http://127.0.0.1:4318/benchmarks/rendering/index.html",
+      "viewport": {
+        "width": 1440,
+        "height": 1100
+      },
+      "deviceScaleFactor": 1,
+      "pageErrors": [],
+      "consoleErrors": []
+    }
+  },
+  "gpu": {
+    "status": "AVAILABLE",
+    "preflightAdapterInfo": {
+      "vendor": "google",
+      "architecture": "swiftshader",
+      "device": "",
+      "description": "",
+      "isFallbackAdapter": true
+    },
+    "preflightAdapterFeatures": [
+      "depth32float-stencil8",
+      "rg11b10ufloat-renderable",
+      "bgra8unorm-storage",
+      "texture-compression-bc",
+      "chromium-experimental-sampling-resource-table",
+      "core-features-and-limits",
+      "chromium-experimental-timestamp-query-inside-passes",
+      "float32-filterable",
+      "indirect-first-instance",
+      "texture-compression-astc-sliced-3d",
+      "float32-blendable",
+      "subgroup-size-control",
+      "texture-compression-unaligned",
+      "texture-compression-astc",
+      "texture-compression-etc2",
+      "depth-clip-control",
+      "texture-compression-bc-sliced-3d",
+      "timestamp-query",
+      "clip-distances",
+      "texture-component-swizzle",
+      "subgroups"
+    ],
+    "timedAdapters": {
+      "baseline": {
+        "adapterInfo": {
+          "vendor": "google",
+          "architecture": "swiftshader",
+          "device": "",
+          "description": "",
+          "isFallbackAdapter": true
+        },
+        "adapterFeatures": [
+          "depth32float-stencil8",
+          "rg11b10ufloat-renderable",
+          "bgra8unorm-storage",
+          "texture-compression-bc",
+          "core-features-and-limits",
+          "chromium-experimental-sampling-resource-table",
+          "chromium-experimental-timestamp-query-inside-passes",
+          "float32-filterable",
+          "indirect-first-instance",
+          "texture-compression-astc-sliced-3d",
+          "float32-blendable",
+          "subgroup-size-control",
+          "texture-compression-unaligned",
+          "texture-compression-astc",
+          "texture-compression-etc2",
+          "depth-clip-control",
+          "texture-compression-bc-sliced-3d",
+          "timestamp-query",
+          "clip-distances",
+          "texture-component-swizzle",
+          "subgroups"
+        ],
+        "classification": "SOFTWARE_GPU"
+      },
+      "candidate": {
+        "adapterInfo": {
+          "vendor": "google",
+          "architecture": "swiftshader",
+          "device": "",
+          "description": "",
+          "isFallbackAdapter": true
+        },
+        "adapterFeatures": [
+          "depth32float-stencil8",
+          "rg11b10ufloat-renderable",
+          "bgra8unorm-storage",
+          "texture-compression-bc",
+          "core-features-and-limits",
+          "chromium-experimental-sampling-resource-table",
+          "chromium-experimental-timestamp-query-inside-passes",
+          "float32-filterable",
+          "indirect-first-instance",
+          "texture-compression-astc-sliced-3d",
+          "float32-blendable",
+          "subgroup-size-control",
+          "texture-compression-unaligned",
+          "texture-compression-astc",
+          "texture-compression-etc2",
+          "depth-clip-control",
+          "texture-compression-bc-sliced-3d",
+          "timestamp-query",
+          "clip-distances",
+          "texture-component-swizzle",
+          "subgroups"
+        ],
+        "classification": "SOFTWARE_GPU"
+      }
+    },
+    "timedAdapterIdentityComparison": {
+      "status": "PASSED",
+      "fieldsCompared": [
+        "vendor",
+        "architecture",
+        "isFallbackAdapter"
+      ],
+      "mismatches": [],
+      "limitation": "Only exposed identity fields can be compared; redacted physical device IDs remain unverified."
+    },
+    "classification": "SOFTWARE_GPU",
+    "adapterInfo": {
+      "vendor": "google",
+      "architecture": "swiftshader",
+      "device": "",
+      "description": "",
+      "isFallbackAdapter": true
+    },
+    "hardwareQualification": "NOT_QUALIFIED_SOFTWARE_ADAPTER",
+    "baselineDeviceFeatures": [
+      "core-features-and-limits",
+      "texture-compression-astc",
+      "texture-compression-bc",
+      "timestamp-query"
+    ],
+    "candidateDeviceFeatures": [
+      "core-features-and-limits",
+      "texture-compression-astc",
+      "texture-compression-bc",
+      "timestamp-query"
+    ],
+    "timestampQueryRequestedByHarness": true,
+    "timestampStatus": "AVAILABLE"
+  },
+  "parity": [
+    {
+      "id": "all-visible-opaque",
+      "variant": "candidate-default",
+      "status": "FAILED",
+      "count": 512,
+      "quality": {
+        "id": "balanced",
+        "label": "Fixed renderer comparison",
+        "exposure": 1,
+        "bloomStrength": 0.08,
+        "fogDensity": 0,
+        "shadowStrength": 0.82,
+        "effectBudget": 1,
+        "resolutionScale": 1,
+        "sampleCount": 1,
+        "shadowMapSize": 1024,
+        "shadowTapCount": 1
+      },
+      "fixtureSha256": "95092d960d4847232716ac9ec23f45d566854561d8d143c55b50a9966091e3b8",
+      "sceneCoveragePixels": 17225,
+      "pixels": {
+        "pass": false,
+        "pixels": 76800,
+        "differingPixels": 76150,
+        "differingChannels": 208392,
+        "maxAbsolute": 10,
+        "rmsChannelError": 2.532683493270198
+      },
+      "baselinePixelSha256": "393d77bfbb93248598898f22882147c8149938113541d6103da6fb9417392c51",
+      "candidatePixelSha256": "04ba2ff455af7e539ca9ae884f7c468baee1507a228093c93354bbcc65774549",
+      "candidateDiagnostics": {
+        "frames": 1,
+        "shadowPasses": 1,
+        "shadowCacheHits": 0,
+        "shadowEmptyClears": 0,
+        "visibilityEncodes": 0,
+        "lastInputInstances": 512,
+        "lastSubmittedInstances": {
+          "opaque": 512,
+          "transparent": 0,
+          "shadow": 512
+        },
+        "lastShadowReused": false,
+        "effectiveVertexMaterialRejection": false,
+        "optimizations": {
+          "vertexMaterialRejection": true,
+          "shadowPcfFetch": true,
+          "shadowCache": true,
+          "computeVisibility": false
+        }
+      }
+    },
+    {
+      "id": "all-visible-opaque",
+      "variant": "material-filter",
+      "status": "FAILED",
+      "count": 512,
+      "quality": {
+        "id": "balanced",
+        "label": "Fixed renderer comparison",
+        "exposure": 1,
+        "bloomStrength": 0.08,
+        "fogDensity": 0,
+        "shadowStrength": 0.82,
+        "effectBudget": 1,
+        "resolutionScale": 1,
+        "sampleCount": 1,
+        "shadowMapSize": 1024,
+        "shadowTapCount": 1
+      },
+      "fixtureSha256": "95092d960d4847232716ac9ec23f45d566854561d8d143c55b50a9966091e3b8",
+      "sceneCoveragePixels": 17225,
+      "pixels": {
+        "pass": false,
+        "pixels": 76800,
+        "differingPixels": 76150,
+        "differingChannels": 208392,
+        "maxAbsolute": 10,
+        "rmsChannelError": 2.532683493270198
+      },
+      "baselinePixelSha256": "393d77bfbb93248598898f22882147c8149938113541d6103da6fb9417392c51",
+      "candidatePixelSha256": "04ba2ff455af7e539ca9ae884f7c468baee1507a228093c93354bbcc65774549",
+      "candidateDiagnostics": {
+        "frames": 2,
+        "shadowPasses": 2,
+        "shadowCacheHits": 0,
+        "shadowEmptyClears": 0,
+        "visibilityEncodes": 0,
+        "lastInputInstances": 512,
+        "lastSubmittedInstances": {
+          "opaque": 512,
+          "transparent": 0,
+          "shadow": 512
+        },
+        "lastShadowReused": false,
+        "effectiveVertexMaterialRejection": false,
+        "optimizations": {
+          "vertexMaterialRejection": true,
+          "shadowPcfFetch": true,
+          "shadowCache": false,
+          "computeVisibility": false
+        }
+      }
+    },
+    {
+      "id": "all-visible-opaque",
+      "variant": "shadow-cache",
+      "status": "FAILED",
+      "count": 512,
+      "quality": {
+        "id": "balanced",
+        "label": "Fixed renderer comparison",
+        "exposure": 1,
+        "bloomStrength": 0.08,
+        "fogDensity": 0,
+        "shadowStrength": 0.82,
+        "effectBudget": 1,
+        "resolutionScale": 1,
+        "sampleCount": 1,
+        "shadowMapSize": 1024,
+        "shadowTapCount": 1
+      },
+      "fixtureSha256": "95092d960d4847232716ac9ec23f45d566854561d8d143c55b50a9966091e3b8",
+      "sceneCoveragePixels": 17225,
+      "pixels": {
+        "pass": false,
+        "pixels": 76800,
+        "differingPixels": 76150,
+        "differingChannels": 208392,
+        "maxAbsolute": 10,
+        "rmsChannelError": 2.532683493270198
+      },
+      "baselinePixelSha256": "393d77bfbb93248598898f22882147c8149938113541d6103da6fb9417392c51",
+      "candidatePixelSha256": "04ba2ff455af7e539ca9ae884f7c468baee1507a228093c93354bbcc65774549",
+      "candidateDiagnostics": {
+        "frames": 3,
+        "shadowPasses": 3,
+        "shadowCacheHits": 0,
+        "shadowEmptyClears": 0,
+        "visibilityEncodes": 0,
+        "lastInputInstances": 512,
+        "lastSubmittedInstances": {
+          "opaque": 512,
+          "transparent": 0,
+          "shadow": 512
+        },
+        "lastShadowReused": false,
+        "effectiveVertexMaterialRejection": false,
+        "optimizations": {
+          "vertexMaterialRejection": true,
+          "shadowPcfFetch": true,
+          "shadowCache": true,
+          "computeVisibility": false
+        }
+      }
+    },
+    {
+      "id": "all-visible-opaque",
+      "variant": "stable-visibility",
+      "status": "FAILED",
+      "count": 512,
+      "quality": {
+        "id": "balanced",
+        "label": "Fixed renderer comparison",
+        "exposure": 1,
+        "bloomStrength": 0.08,
+        "fogDensity": 0,
+        "shadowStrength": 0.82,
+        "effectBudget": 1,
+        "resolutionScale": 1,
+        "sampleCount": 1,
+        "shadowMapSize": 1024,
+        "shadowTapCount": 1
+      },
+      "fixtureSha256": "95092d960d4847232716ac9ec23f45d566854561d8d143c55b50a9966091e3b8",
+      "sceneCoveragePixels": 17225,
+      "pixels": {
+        "pass": false,
+        "pixels": 76800,
+        "differingPixels": 76150,
+        "differingChannels": 208392,
+        "maxAbsolute": 10,
+        "rmsChannelError": 2.532683493270198
+      },
+      "baselinePixelSha256": "393d77bfbb93248598898f22882147c8149938113541d6103da6fb9417392c51",
+      "candidatePixelSha256": "04ba2ff455af7e539ca9ae884f7c468baee1507a228093c93354bbcc65774549",
+      "candidateDiagnostics": {
+        "frames": 4,
+        "shadowPasses": 4,
+        "shadowCacheHits": 0,
+        "shadowEmptyClears": 0,
+        "visibilityEncodes": 1,
+        "lastInputInstances": 512,
+        "lastSubmittedInstances": {
+          "opaque": null,
+          "transparent": null,
+          "shadow": null
+        },
+        "lastShadowReused": false,
+        "effectiveVertexMaterialRejection": false,
+        "optimizations": {
+          "vertexMaterialRejection": true,
+          "shadowPcfFetch": true,
+          "shadowCache": true,
+          "computeVisibility": true
+        }
+      }
+    }
+  ],
+  "visibility": [
+    {
+      "id": "all-visible-opaque",
+      "variant": "stable-visibility",
+      "status": "PASSED",
+      "method": "Independent float64 eight-corner clip-plane oracle. GPU conservative supersets allowed; missing eligible visible instances forbidden.",
+      "inputCount": 512,
+      "capacity": 10000,
+      "lists": {
+        "opaque": {
+          "pass": true,
+          "count": 512,
+          "oracleVisible": 512,
+          "conservativeExtras": 0,
+          "missing": [],
+          "strictlyOrdered": true,
+          "eligible": true,
+          "firstIds": [
+            0,
+            1,
+            2,
+            3,
+            4,
+            5,
+            6,
+            7,
+            8,
+            9,
+            10,
+            11
+          ],
+          "lastIds": [
+            500,
+            501,
+            502,
+            503,
+            504,
+            505,
+            506,
+            507,
+            508,
+            509,
+            510,
+            511
+          ]
+        },
+        "transparent": {
+          "pass": true,
+          "count": 0,
+          "oracleVisible": 0,
+          "conservativeExtras": 0,
+          "missing": [],
+          "strictlyOrdered": true,
+          "eligible": true,
+          "firstIds": [],
+          "lastIds": []
+        },
+        "shadow": {
+          "pass": true,
+          "count": 512,
+          "oracleVisible": 512,
+          "conservativeExtras": 0,
+          "missing": [],
+          "strictlyOrdered": true,
+          "eligible": true,
+          "firstIds": [
+            0,
+            1,
+            2,
+            3,
+            4,
+            5,
+            6,
+            7,
+            8,
+            9,
+            10,
+            11
+          ],
+          "lastIds": [
+            500,
+            501,
+            502,
+            503,
+            504,
+            505,
+            506,
+            507,
+            508,
+            509,
+            510,
+            511
+          ]
+        }
+      }
+    }
+  ],
+  "qualityCorrections": [],
+  "cacheInvalidation": [],
+  "timings": [
+    {
+      "id": "all-visible-opaque",
+      "variant": "candidate-default",
+      "flags": {
+        "vertexMaterialRejection": true,
+        "shadowPcfFetch": true,
+        "shadowCache": true,
+        "computeVisibility": false
+      },
+      "status": "MEASURED",
+      "count": 512,
+      "quality": {
+        "id": "balanced",
+        "label": "Fixed renderer comparison",
+        "exposure": 1,
+        "bloomStrength": 0.08,
+        "fogDensity": 0,
+        "shadowStrength": 0.82,
+        "effectBudget": 1,
+        "resolutionScale": 1,
+        "sampleCount": 1,
+        "shadowMapSize": 1024,
+        "shadowTapCount": 1
+      },
+      "baseline": {
+        "cpuFramePreparation": {
+          "n": 6,
+          "p50": 0.07750000013038516,
+          "p95": 0.11250000016298145,
+          "p99": 0.11450000021141023,
+          "min": 0.0400000000372529,
+          "max": 0.11500000022351742,
+          "mean": 0.07916666675979893
+        },
+        "cpuEncodeAndSubmit": {
+          "n": 6,
+          "p50": 0.12749999994412065,
+          "p95": 0.29625000001396984,
+          "p99": 0.3392500000772998,
+          "min": 0.10999999986961484,
+          "max": 0.35000000009313226,
+          "mean": 0.16249999993791184
+        },
+        "cpuTotal": {
+          "n": 6,
+          "p50": 0.24250000016763806,
+          "p95": 0.40125000022817403,
+          "p99": 0.4362500002840534,
+          "min": 0.1650000000372529,
+          "max": 0.4450000002980232,
+          "mean": 0.2616666667939474
+        },
+        "wallCompletion": {
+          "n": 6,
+          "p50": 63.46500000008382,
+          "p95": 77.15499999991152,
+          "p99": 78.13099999998231,
+          "min": 61.44500000029802,
+          "max": 78.375,
+          "mean": 67.00666666667287
+        },
+        "gpuFrameSpan": {
+          "n": 6,
+          "p50": 62.214237,
+          "p95": 75.81336225000001,
+          "p99": 76.74235325000001,
+          "min": 59.532186,
+          "max": 76.974601,
+          "mean": 65.66221683333333
+        },
+        "gpuPassSum": {
+          "n": 6,
+          "p50": 62.20988750000001,
+          "p95": 75.8085375,
+          "p99": 76.73738829999999,
+          "min": 59.527987,
+          "max": 76.969601,
+          "mean": 65.65802366666667
+        },
+        "gpuPasses": {
+          "AAA shadow pass": {
+            "n": 6,
+            "p50": 15.102886,
+            "p95": 16.7754895,
+            "p99": 16.795508299999998,
+            "min": 12.946274,
+            "max": 16.800513,
+            "mean": 15.13229
+          },
+          "AAA HDR main pass": {
+            "n": 6,
+            "p50": 39.8831285,
+            "p95": 49.904140999999996,
+            "p99": 50.6630194,
+            "min": 39.522117,
+            "max": 50.852739,
+            "mean": 42.79398749999999
+          },
+          "AAA tone mapping and bloom pass": {
+            "n": 6,
+            "p50": 6.9469225,
+            "p95": 9.51120725,
+            "p99": 9.56316945,
+            "min": 6.788212,
+            "max": 9.57616,
+            "mean": 7.731746166666667
+          }
+        },
+        "inputStreamUploadedBytesPerFrame": {
+          "n": 6,
+          "p50": 0,
+          "p95": 0,
+          "p99": 0,
+          "min": 0,
+          "max": 0,
+          "mean": 0
+        }
+      },
+      "candidate": {
+        "cpuFramePreparation": {
+          "n": 6,
+          "p50": 0.042499999748542905,
+          "p95": 0.08875000011175871,
+          "p99": 0.09775000009685755,
+          "min": 0.029999999795109034,
+          "max": 0.10000000009313226,
+          "mean": 0.0499999998913457
+        },
+        "cpuEncodeAndSubmit": {
+          "n": 6,
+          "p50": 0.13749999995343387,
+          "p95": 0.15874999982770532,
+          "p99": 0.1597499997122213,
+          "min": 0.0849999999627471,
+          "max": 0.15999999968335032,
+          "mean": 0.1308333333581686
+        },
+        "cpuTotal": {
+          "n": 6,
+          "p50": 0.19499999983236194,
+          "p95": 0.26875000016298145,
+          "p99": 0.27775000024121255,
+          "min": 0.125,
+          "max": 0.2800000002607703,
+          "mean": 0.197499999931703
+        },
+        "wallCompletion": {
+          "n": 6,
+          "p50": 51.11499999999069,
+          "p95": 65.9587500001071,
+          "p99": 68.38375000020024,
+          "min": 49,
+          "max": 68.99000000022352,
+          "mean": 54.42666666659837
+        },
+        "gpuFrameSpan": {
+          "n": 6,
+          "p50": 49.768080499999996,
+          "p95": 64.38424475000001,
+          "p99": 66.67007535,
+          "min": 47.979098,
+          "max": 67.241533,
+          "mean": 53.13360266666666
+        },
+        "gpuPassSum": {
+          "n": 6,
+          "p50": 49.765905,
+          "p95": 64.38200825000001,
+          "p99": 66.66773525,
+          "min": 47.976616,
+          "max": 67.23916700000001,
+          "mean": 53.13139950000001
+        },
+        "gpuPasses": {
+          "AAA HDR main pass": {
+            "n": 6,
+            "p50": 42.3547915,
+            "p95": 54.74222425,
+            "p99": 56.28535445,
+            "min": 38.534151,
+            "max": 56.671137,
+            "mean": 44.94564316666666
+          },
+          "AAA tone mapping and bloom pass": {
+            "n": 6,
+            "p50": 7.504258500000001,
+            "p95": 10.28663875,
+            "p99": 10.51175175,
+            "min": 6.855046,
+            "max": 10.56803,
+            "mean": 8.185756333333332
+          }
+        },
+        "inputStreamUploadedBytesPerFrame": {
+          "n": 6,
+          "p50": 0,
+          "p95": 0,
+          "p99": 0,
+          "min": 0,
+          "max": 0,
+          "mean": 0
+        }
+      },
+      "wallSpeedRatio": 1.2416120512588356,
+      "gpuSpanSpeedRatio": 1.250083113010557,
+      "uncertainty": {
+        "pairedRatioMedian": 1.228798981283119,
+        "bootstrap95PercentInterval": [
+          1.0168156974259794,
+          1.513019133334439
+        ],
+        "method": "1000 deterministic paired bootstrap resamples; descriptive uncertainty for this run, not cross-device generalization."
+      },
+      "candidateDiagnostics": {
+        "frames": 6,
+        "shadowPasses": 0,
+        "shadowCacheHits": 6,
+        "shadowEmptyClears": 0,
+        "visibilityEncodes": 0,
+        "lastInputInstances": 512,
+        "lastSubmittedInstances": {
+          "opaque": 512,
+          "transparent": 0,
+          "shadow": 0
+        },
+        "lastShadowReused": true,
+        "effectiveVertexMaterialRejection": false,
+        "optimizations": {
+          "vertexMaterialRejection": true,
+          "shadowPcfFetch": true,
+          "shadowCache": true,
+          "computeVisibility": false
+        }
+      },
+      "pairs": [
+        {
+          "index": 0,
+          "order": "baseline-first",
+          "baseline": {
+            "step": 200,
+            "inputStreamUploadedBytes": 0,
+            "cpuFramePreparationMs": 0.060000000055879354,
+            "cpuEncodeAndSubmitMs": 0.125,
+            "cpuTotalMs": 0.2050000000745058,
+            "wallCompletionMs": 73.4949999996461,
+            "gpu": {
+              "frameSpanMs": 72.329646,
+              "passSumMs": 72.325347,
+              "passes": [
+                {
+                  "label": "AAA shadow pass",
+                  "kind": "render",
+                  "milliseconds": 15.69084
+                },
+                {
+                  "label": "AAA HDR main pass",
+                  "kind": "render",
+                  "milliseconds": 47.058347
+                },
+                {
+                  "label": "AAA tone mapping and bloom pass",
+                  "kind": "render",
+                  "milliseconds": 9.57616
+                }
+              ]
+            }
+          },
+          "candidate": {
+            "step": 200,
+            "inputStreamUploadedBytes": 0,
+            "cpuFramePreparationMs": 0.039999999571591616,
+            "cpuEncodeAndSubmitMs": 0.11000000033527613,
+            "cpuTotalMs": 0.1699999999254942,
+            "wallCompletionMs": 49.47499999962747,
+            "gpu": {
+              "frameSpanMs": 47.979098,
+              "passSumMs": 47.976616,
+              "passes": [
+                {
+                  "label": "AAA HDR main pass",
+                  "kind": "render",
+                  "milliseconds": 38.534151
+                },
+                {
+                  "label": "AAA tone mapping and bloom pass",
+                  "kind": "render",
+                  "milliseconds": 9.442465
+                }
+              ]
+            }
+          }
+        },
+        {
+          "index": 1,
+          "order": "candidate-first",
+          "candidate": {
+            "step": 201,
+            "inputStreamUploadedBytes": 0,
+            "cpuFramePreparationMs": 0.10000000009313226,
+            "cpuEncodeAndSubmitMs": 0.15500000026077032,
+            "cpuTotalMs": 0.2800000002607703,
+            "wallCompletionMs": 68.99000000022352,
+            "gpu": {
+              "frameSpanMs": 67.241533,
+              "passSumMs": 67.23916700000001,
+              "passes": [
+                {
+                  "label": "AAA HDR main pass",
+                  "kind": "render",
+                  "milliseconds": 56.671137
+                },
+                {
+                  "label": "AAA tone mapping and bloom pass",
+                  "kind": "render",
+                  "milliseconds": 10.56803
+                }
+              ]
+            }
+          },
+          "baseline": {
+            "step": 201,
+            "inputStreamUploadedBytes": 0,
+            "cpuFramePreparationMs": 0.07000000029802322,
+            "cpuEncodeAndSubmitMs": 0.35000000009313226,
+            "cpuTotalMs": 0.4450000002980232,
+            "wallCompletionMs": 64.22500000009313,
+            "gpu": {
+              "frameSpanMs": 63.120983,
+              "passSumMs": 63.116176,
+              "passes": [
+                {
+                  "label": "AAA shadow pass",
+                  "kind": "render",
+                  "milliseconds": 16.700419
+                },
+                {
+                  "label": "AAA HDR main pass",
+                  "kind": "render",
+                  "milliseconds": 39.522117
+                },
+                {
+                  "label": "AAA tone mapping and bloom pass",
+                  "kind": "render",
+                  "milliseconds": 6.89364
+                }
+              ]
+            }
+          }
+        },
+        {
+          "index": 2,
+          "order": "baseline-first",
+          "baseline": {
+            "step": 202,
+            "inputStreamUploadedBytes": 0,
+            "cpuFramePreparationMs": 0.10499999998137355,
+            "cpuEncodeAndSubmitMs": 0.125,
+            "cpuTotalMs": 0.2450000001117587,
+            "wallCompletionMs": 61.44500000029802,
+            "gpu": {
+              "frameSpanMs": 59.532186,
+              "passSumMs": 59.527987,
+              "passes": [
+                {
+                  "label": "AAA shadow pass",
+                  "kind": "render",
+                  "milliseconds": 12.946274
+                },
+                {
+                  "label": "AAA HDR main pass",
+                  "kind": "render",
+                  "milliseconds": 39.765802
+                },
+                {
+                  "label": "AAA tone mapping and bloom pass",
+                  "kind": "render",
+                  "milliseconds": 6.815911
+                }
+              ]
+            }
+          },
+          "candidate": {
+            "step": 202,
+            "inputStreamUploadedBytes": 0,
+            "cpuFramePreparationMs": 0.05500000016763806,
+            "cpuEncodeAndSubmitMs": 0.15499999979510903,
+            "cpuTotalMs": 0.23499999986961484,
+            "wallCompletionMs": 51.35499999998137,
+            "gpu": {
+              "frameSpanMs": 49.573485,
+              "passSumMs": 49.571352999999995,
+              "passes": [
+                {
+                  "label": "AAA HDR main pass",
+                  "kind": "render",
+                  "milliseconds": 42.330873
+                },
+                {
+                  "label": "AAA tone mapping and bloom pass",
+                  "kind": "render",
+                  "milliseconds": 7.24048
+                }
+              ]
+            }
+          }
+        },
+        {
+          "index": 3,
+          "order": "candidate-first",
+          "candidate": {
+            "step": 203,
+            "inputStreamUploadedBytes": 0,
+            "cpuFramePreparationMs": 0.044999999925494194,
+            "cpuEncodeAndSubmitMs": 0.15999999968335032,
+            "cpuTotalMs": 0.21999999973922968,
+            "wallCompletionMs": 56.864999999757856,
+            "gpu": {
+              "frameSpanMs": 55.81238,
+              "passSumMs": 55.810532,
+              "passes": [
+                {
+                  "label": "AAA HDR main pass",
+                  "kind": "render",
+                  "milliseconds": 48.955486
+                },
+                {
+                  "label": "AAA tone mapping and bloom pass",
+                  "kind": "render",
+                  "milliseconds": 6.855046
+                }
+              ]
+            }
+          },
+          "baseline": {
+            "step": 203,
+            "inputStreamUploadedBytes": 0,
+            "cpuFramePreparationMs": 0.11500000022351742,
+            "cpuEncodeAndSubmitMs": 0.13499999977648258,
+            "cpuTotalMs": 0.27000000001862645,
+            "wallCompletionMs": 62.705000000074506,
+            "gpu": {
+              "frameSpanMs": 61.307491,
+              "passSumMs": 61.303599000000006,
+              "passes": [
+                {
+                  "label": "AAA shadow pass",
+                  "kind": "render",
+                  "milliseconds": 14.514932
+                },
+                {
+                  "label": "AAA HDR main pass",
+                  "kind": "render",
+                  "milliseconds": 40.000455
+                },
+                {
+                  "label": "AAA tone mapping and bloom pass",
+                  "kind": "render",
+                  "milliseconds": 6.788212
+                }
+              ]
+            }
+          }
+        },
+        {
+          "index": 4,
+          "order": "baseline-first",
+          "baseline": {
+            "step": 204,
+            "inputStreamUploadedBytes": 0,
+            "cpuFramePreparationMs": 0.0849999999627471,
+            "cpuEncodeAndSubmitMs": 0.1299999998882413,
+            "cpuTotalMs": 0.24000000022351742,
+            "wallCompletionMs": 61.794999999925494,
+            "gpu": {
+              "frameSpanMs": 60.708394,
+              "passSumMs": 60.705432,
+              "passes": [
+                {
+                  "label": "AAA shadow pass",
+                  "kind": "render",
+                  "milliseconds": 14.140762
+                },
+                {
+                  "label": "AAA HDR main pass",
+                  "kind": "render",
+                  "milliseconds": 39.564465
+                },
+                {
+                  "label": "AAA tone mapping and bloom pass",
+                  "kind": "render",
+                  "milliseconds": 7.000205
+                }
+              ]
+            }
+          },
+          "candidate": {
+            "step": 204,
+            "inputStreamUploadedBytes": 0,
+            "cpuFramePreparationMs": 0.029999999795109034,
+            "cpuEncodeAndSubmitMs": 0.12000000011175871,
+            "cpuTotalMs": 0.15499999979510903,
+            "wallCompletionMs": 49,
+            "gpu": {
+              "frameSpanMs": 48.232444,
+              "passSumMs": 48.230272,
+              "passes": [
+                {
+                  "label": "AAA HDR main pass",
+                  "kind": "render",
+                  "milliseconds": 40.803502
+                },
+                {
+                  "label": "AAA tone mapping and bloom pass",
+                  "kind": "render",
+                  "milliseconds": 7.42677
+                }
+              ]
+            }
+          }
+        },
+        {
+          "index": 5,
+          "order": "candidate-first",
+          "candidate": {
+            "step": 205,
+            "inputStreamUploadedBytes": 0,
+            "cpuFramePreparationMs": 0.029999999795109034,
+            "cpuEncodeAndSubmitMs": 0.0849999999627471,
+            "cpuTotalMs": 0.125,
+            "wallCompletionMs": 50.875,
+            "gpu": {
+              "frameSpanMs": 49.962676,
+              "passSumMs": 49.960457,
+              "passes": [
+                {
+                  "label": "AAA HDR main pass",
+                  "kind": "render",
+                  "milliseconds": 42.37871
+                },
+                {
+                  "label": "AAA tone mapping and bloom pass",
+                  "kind": "render",
+                  "milliseconds": 7.581747
+                }
+              ]
+            }
+          },
+          "baseline": {
+            "step": 205,
+            "inputStreamUploadedBytes": 0,
+            "cpuFramePreparationMs": 0.0400000000372529,
+            "cpuEncodeAndSubmitMs": 0.10999999986961484,
+            "cpuTotalMs": 0.1650000000372529,
+            "wallCompletionMs": 78.375,
+            "gpu": {
+              "frameSpanMs": 76.974601,
+              "passSumMs": 76.969601,
+              "passes": [
+                {
+                  "label": "AAA shadow pass",
+                  "kind": "render",
+                  "milliseconds": 16.800513
+                },
+                {
+                  "label": "AAA HDR main pass",
+                  "kind": "render",
+                  "milliseconds": 50.852739
+                },
+                {
+                  "label": "AAA tone mapping and bloom pass",
+                  "kind": "render",
+                  "milliseconds": 9.316349
+                }
+              ]
+            }
+          }
+        }
+      ]
+    },
+    {
+      "id": "all-visible-opaque",
+      "variant": "material-filter",
+      "flags": {
+        "vertexMaterialRejection": true,
+        "shadowPcfFetch": true,
+        "shadowCache": false,
+        "computeVisibility": false
+      },
+      "status": "MEASURED",
+      "count": 512,
+      "quality": {
+        "id": "balanced",
+        "label": "Fixed renderer comparison",
+        "exposure": 1,
+        "bloomStrength": 0.08,
+        "fogDensity": 0,
+        "shadowStrength": 0.82,
+        "effectBudget": 1,
+        "resolutionScale": 1,
+        "sampleCount": 1,
+        "shadowMapSize": 1024,
+        "shadowTapCount": 1
+      },
+      "baseline": {
+        "cpuFramePreparation": {
+          "n": 6,
+          "p50": 0.05250000022351742,
+          "p95": 0.07499999972060323,
+          "p99": 0.07899999963119626,
+          "min": 0.049999999813735485,
+          "max": 0.07999999960884452,
+          "mean": 0.05750000003414849
+        },
+        "cpuEncodeAndSubmit": {
+          "n": 6,
+          "p50": 0.11749999993480742,
+          "p95": 0.4199999999254942,
+          "p99": 0.4359999999403954,
+          "min": 0.0800000000745058,
+          "max": 0.43999999994412065,
+          "mean": 0.2033333332898716
+        },
+        "cpuTotal": {
+          "n": 6,
+          "p50": 0.19500000029802322,
+          "p95": 0.504999999771826,
+          "p99": 0.5289999997010455,
+          "min": 0.14000000013038516,
+          "max": 0.5349999996833503,
+          "mean": 0.27416666674738127
+        },
+        "wallCompletion": {
+          "n": 6,
+          "p50": 71.71999999997206,
+          "p95": 74.56250000011642,
+          "p99": 74.60850000011268,
+          "min": 65.61000000033528,
+          "max": 74.62000000011176,
+          "mean": 70.91166666677843
+        },
+        "gpuFrameSpan": {
+          "n": 6,
+          "p50": 70.57375350000001,
+          "p95": 73.01156625,
+          "p99": 73.06491645,
+          "min": 64.255171,
+          "max": 73.078254,
+          "mean": 69.58976166666666
+        },
+        "gpuPassSum": {
+          "n": 6,
+          "p50": 70.569515,
+          "p95": 73.00768674999999,
+          "p99": 73.06142374999999,
+          "min": 64.251872,
+          "max": 73.07485799999999,
+          "mean": 69.58555216666666
+        },
+        "gpuPasses": {
+          "AAA shadow pass": {
+            "n": 6,
+            "p50": 15.9993285,
+            "p95": 17.065717,
+            "p99": 17.1564562,
+            "min": 14.879921,
+            "max": 17.179141,
+            "mean": 16.01570733333333
+          },
+          "AAA HDR main pass": {
+            "n": 6,
+            "p50": 46.8902075,
+            "p95": 47.8816895,
+            "p99": 47.9885363,
+            "min": 41.894987,
+            "max": 48.015248,
+            "mean": 45.5848135
+          },
+          "AAA tone mapping and bloom pass": {
+            "n": 6,
+            "p50": 7.661045,
+            "p95": 9.335319499999999,
+            "p99": 9.4491303,
+            "min": 7.034734,
+            "max": 9.477583,
+            "mean": 7.985031333333333
+          }
+        },
+        "inputStreamUploadedBytesPerFrame": {
+          "n": 6,
+          "p50": 0,
+          "p95": 0,
+          "p99": 0,
+          "min": 0,
+          "max": 0,
+          "mean": 0
+        }
+      },
+      "candidate": {
+        "cpuFramePreparation": {
+          "n": 6,
+          "p50": 0.024999999906867743,
+          "p95": 0.03500000003259629,
+          "p99": 0.03500000012572855,
+          "min": 0.02000000001862645,
+          "max": 0.03500000014901161,
+          "mean": 0.0274999999285986
+        },
+        "cpuEncodeAndSubmit": {
+          "n": 6,
+          "p50": 0.3049999999348074,
+          "p95": 0.9312500000232831,
+          "p99": 1.0862500000046569,
+          "min": 0.07999999960884452,
+          "max": 1.125,
+          "mean": 0.38166666659526527
+        },
+        "cpuTotal": {
+          "n": 6,
+          "p50": 0.34749999991618097,
+          "p95": 0.9662500001722947,
+          "p99": 1.1212500001536685,
+          "min": 0.10999999986961484,
+          "max": 1.1600000001490116,
+          "mean": 0.4191666666883975
+        },
+        "wallCompletion": {
+          "n": 6,
+          "p50": 73.79500000015832,
+          "p95": 94.11499999999069,
+          "p99": 95.85899999993853,
+          "min": 63.31499999994412,
+          "max": 96.2949999999255,
+          "mean": 77.13000000004347
+        },
+        "gpuFrameSpan": {
+          "n": 6,
+          "p50": 72.0155355,
+          "p95": 92.23124925,
+          "p99": 94.05352505,
+          "min": 61.51214,
+          "max": 94.509094,
+          "mean": 75.37984066666668
+        },
+        "gpuPassSum": {
+          "n": 6,
+          "p50": 72.01117099999999,
+          "p95": 92.226813,
+          "p99": 94.04885540000001,
+          "min": 61.507605,
+          "max": 94.504366,
+          "mean": 75.37566466666668
+        },
+        "gpuPasses": {
+          "AAA shadow pass": {
+            "n": 6,
+            "p50": 14.8307325,
+            "p95": 18.068536,
+            "p99": 18.274956000000003,
+            "min": 13.608698,
+            "max": 18.326561,
+            "mean": 15.459054833333335
+          },
+          "AAA HDR main pass": {
+            "n": 6,
+            "p50": 49.978114,
+            "p95": 59.084794,
+            "p99": 59.3841372,
+            "min": 40.905172,
+            "max": 59.458973,
+            "mean": 50.1879025
+          },
+          "AAA tone mapping and bloom pass": {
+            "n": 6,
+            "p50": 8.340765000000001,
+            "p95": 15.589533,
+            "p99": 17.318652200000002,
+            "min": 6.993735,
+            "max": 17.750932,
+            "mean": 9.728707333333332
+          }
+        },
+        "inputStreamUploadedBytesPerFrame": {
+          "n": 6,
+          "p50": 0,
+          "p95": 0,
+          "p99": 0,
+          "min": 0,
+          "max": 0,
+          "mean": 0
+        }
+      },
+      "wallSpeedRatio": 0.971881563789121,
+      "gpuSpanSpeedRatio": 0.9799795698249028,
+      "uncertainty": {
+        "pairedRatioMedian": 0.9619329285322626,
+        "bootstrap95PercentInterval": [
+          0.8001305668768024,
+          1.0411734431341046
+        ],
+        "method": "1000 deterministic paired bootstrap resamples; descriptive uncertainty for this run, not cross-device generalization."
+      },
+      "candidateDiagnostics": {
+        "frames": 6,
+        "shadowPasses": 6,
+        "shadowCacheHits": 0,
+        "shadowEmptyClears": 0,
+        "visibilityEncodes": 0,
+        "lastInputInstances": 512,
+        "lastSubmittedInstances": {
+          "opaque": 512,
+          "transparent": 0,
+          "shadow": 512
+        },
+        "lastShadowReused": false,
+        "effectiveVertexMaterialRejection": false,
+        "optimizations": {
+          "vertexMaterialRejection": true,
+          "shadowPcfFetch": true,
+          "shadowCache": false,
+          "computeVisibility": false
+        }
+      },
+      "pairs": [
+        {
+          "index": 0,
+          "order": "baseline-first",
+          "baseline": {
+            "step": 200,
+            "inputStreamUploadedBytes": 0,
+            "cpuFramePreparationMs": 0.05000000027939677,
+            "cpuEncodeAndSubmitMs": 0.10499999998137355,
+            "cpuTotalMs": 0.1650000000372529,
+            "wallCompletionMs": 71.14000000013039,
+            "gpu": {
+              "frameSpanMs": 70.234475,
+              "passSumMs": 70.230643,
+              "passes": [
+                {
+                  "label": "AAA shadow pass",
+                  "kind": "render",
+                  "milliseconds": 15.31108
+                },
+                {
+                  "label": "AAA HDR main pass",
+                  "kind": "render",
+                  "milliseconds": 47.159729
+                },
+                {
+                  "label": "AAA tone mapping and bloom pass",
+                  "kind": "render",
+                  "milliseconds": 7.759834
+                }
+              ]
+            }
+          },
+          "candidate": {
+            "step": 200,
+            "inputStreamUploadedBytes": 0,
+            "cpuFramePreparationMs": 0.024999999906867743,
+            "cpuEncodeAndSubmitMs": 0.125,
+            "cpuTotalMs": 0.1650000000372529,
+            "wallCompletionMs": 68.00499999988824,
+            "gpu": {
+              "frameSpanMs": 66.829024,
+              "passSumMs": 66.825521,
+              "passes": [
+                {
+                  "label": "AAA shadow pass",
+                  "kind": "render",
+                  "milliseconds": 15.370118
+                },
+                {
+                  "label": "AAA HDR main pass",
+                  "kind": "render",
+                  "milliseconds": 42.844785
+                },
+                {
+                  "label": "AAA tone mapping and bloom pass",
+                  "kind": "render",
+                  "milliseconds": 8.610618
+                }
+              ]
+            }
+          }
+        },
+        {
+          "index": 1,
+          "order": "candidate-first",
+          "candidate": {
+            "step": 201,
+            "inputStreamUploadedBytes": 0,
+            "cpuFramePreparationMs": 0.02000000001862645,
+            "cpuEncodeAndSubmitMs": 0.07999999960884452,
+            "cpuTotalMs": 0.10999999986961484,
+            "wallCompletionMs": 87.57500000018626,
+            "gpu": {
+              "frameSpanMs": 85.397715,
+              "passSumMs": 85.394154,
+              "passes": [
+                {
+                  "label": "AAA shadow pass",
+                  "kind": "render",
+                  "milliseconds": 18.326561
+                },
+                {
+                  "label": "AAA HDR main pass",
+                  "kind": "render",
+                  "milliseconds": 57.962257
+                },
+                {
+                  "label": "AAA tone mapping and bloom pass",
+                  "kind": "render",
+                  "milliseconds": 9.105336
+                }
+              ]
+            }
+          },
+          "baseline": {
+            "step": 201,
+            "inputStreamUploadedBytes": 0,
+            "cpuFramePreparationMs": 0.049999999813735485,
+            "cpuEncodeAndSubmitMs": 0.35999999986961484,
+            "cpuTotalMs": 0.4150000000372529,
+            "wallCompletionMs": 74.39000000013039,
+            "gpu": {
+              "frameSpanMs": 73.078254,
+              "passSumMs": 73.07485799999999,
+              "passes": [
+                {
+                  "label": "AAA shadow pass",
+                  "kind": "render",
+                  "milliseconds": 15.582027
+                },
+                {
+                  "label": "AAA HDR main pass",
+                  "kind": "render",
+                  "milliseconds": 48.015248
+                },
+                {
+                  "label": "AAA tone mapping and bloom pass",
+                  "kind": "render",
+                  "milliseconds": 9.477583
+                }
+              ]
+            }
+          }
+        },
+        {
+          "index": 2,
+          "order": "baseline-first",
+          "baseline": {
+            "step": 202,
+            "inputStreamUploadedBytes": 0,
+            "cpuFramePreparationMs": 0.05000000027939677,
+            "cpuEncodeAndSubmitMs": 0.0800000000745058,
+            "cpuTotalMs": 0.14000000013038516,
+            "wallCompletionMs": 74.62000000011176,
+            "gpu": {
+              "frameSpanMs": 72.811503,
+              "passSumMs": 72.806173,
+              "passes": [
+                {
+                  "label": "AAA shadow pass",
+                  "kind": "render",
+                  "milliseconds": 16.41663
+                },
+                {
+                  "label": "AAA HDR main pass",
+                  "kind": "render",
+                  "milliseconds": 47.481014
+                },
+                {
+                  "label": "AAA tone mapping and bloom pass",
+                  "kind": "render",
+                  "milliseconds": 8.908529
+                }
+              ]
+            }
+          },
+          "candidate": {
+            "step": 202,
+            "inputStreamUploadedBytes": 0,
+            "cpuFramePreparationMs": 0.024999999906867743,
+            "cpuEncodeAndSubmitMs": 1.125,
+            "cpuTotalMs": 1.1600000001490116,
+            "wallCompletionMs": 74.54000000003725,
+            "gpu": {
+              "frameSpanMs": 72.705565,
+              "passSumMs": 72.70174,
+              "passes": [
+                {
+                  "label": "AAA shadow pass",
+                  "kind": "render",
+                  "milliseconds": 14.291347
+                },
+                {
+                  "label": "AAA HDR main pass",
+                  "kind": "render",
+                  "milliseconds": 50.339481
+                },
+                {
+                  "label": "AAA tone mapping and bloom pass",
+                  "kind": "render",
+                  "milliseconds": 8.070912
+                }
+              ]
+            }
+          }
+        },
+        {
+          "index": 3,
+          "order": "candidate-first",
+          "candidate": {
+            "step": 203,
+            "inputStreamUploadedBytes": 0,
+            "cpuFramePreparationMs": 0.03500000014901161,
+            "cpuEncodeAndSubmitMs": 0.2900000000372529,
+            "cpuTotalMs": 0.3300000000745058,
+            "wallCompletionMs": 96.2949999999255,
+            "gpu": {
+              "frameSpanMs": 94.509094,
+              "passSumMs": 94.504366,
+              "passes": [
+                {
+                  "label": "AAA shadow pass",
+                  "kind": "render",
+                  "milliseconds": 17.294461
+                },
+                {
+                  "label": "AAA HDR main pass",
+                  "kind": "render",
+                  "milliseconds": 59.458973
+                },
+                {
+                  "label": "AAA tone mapping and bloom pass",
+                  "kind": "render",
+                  "milliseconds": 17.750932
+                }
+              ]
+            }
+          },
+          "baseline": {
+            "step": 203,
+            "inputStreamUploadedBytes": 0,
+            "cpuFramePreparationMs": 0.07999999960884452,
+            "cpuEncodeAndSubmitMs": 0.43999999994412065,
+            "cpuTotalMs": 0.5349999996833503,
+            "wallCompletionMs": 72.29999999981374,
+            "gpu": {
+              "frameSpanMs": 70.913032,
+              "passSumMs": 70.908387,
+              "passes": [
+                {
+                  "label": "AAA shadow pass",
+                  "kind": "render",
+                  "milliseconds": 16.725445
+                },
+                {
+                  "label": "AAA HDR main pass",
+                  "kind": "render",
+                  "milliseconds": 46.620686
+                },
+                {
+                  "label": "AAA tone mapping and bloom pass",
+                  "kind": "render",
+                  "milliseconds": 7.562256
+                }
+              ]
+            }
+          }
+        },
+        {
+          "index": 4,
+          "order": "baseline-first",
+          "baseline": {
+            "step": 204,
+            "inputStreamUploadedBytes": 0,
+            "cpuFramePreparationMs": 0.05500000016763806,
+            "cpuEncodeAndSubmitMs": 0.1299999998882413,
+            "cpuTotalMs": 0.20000000018626451,
+            "wallCompletionMs": 65.61000000033528,
+            "gpu": {
+              "frameSpanMs": 64.255171,
+              "passSumMs": 64.251872,
+              "passes": [
+                {
+                  "label": "AAA shadow pass",
+                  "kind": "render",
+                  "milliseconds": 14.879921
+                },
+                {
+                  "label": "AAA HDR main pass",
+                  "kind": "render",
+                  "milliseconds": 42.337217
+                },
+                {
+                  "label": "AAA tone mapping and bloom pass",
+                  "kind": "render",
+                  "milliseconds": 7.034734
+                }
+              ]
+            }
+          },
+          "candidate": {
+            "step": 204,
+            "inputStreamUploadedBytes": 0,
+            "cpuFramePreparationMs": 0.034999999683350325,
+            "cpuEncodeAndSubmitMs": 0.31999999983236194,
+            "cpuTotalMs": 0.36499999975785613,
+            "wallCompletionMs": 63.31499999994412,
+            "gpu": {
+              "frameSpanMs": 61.51214,
+              "passSumMs": 61.507605,
+              "passes": [
+                {
+                  "label": "AAA shadow pass",
+                  "kind": "render",
+                  "milliseconds": 13.608698
+                },
+                {
+                  "label": "AAA HDR main pass",
+                  "kind": "render",
+                  "milliseconds": 40.905172
+                },
+                {
+                  "label": "AAA tone mapping and bloom pass",
+                  "kind": "render",
+                  "milliseconds": 6.993735
+                }
+              ]
+            }
+          }
+        },
+        {
+          "index": 5,
+          "order": "candidate-first",
+          "candidate": {
+            "step": 205,
+            "inputStreamUploadedBytes": 0,
+            "cpuFramePreparationMs": 0.024999999906867743,
+            "cpuEncodeAndSubmitMs": 0.35000000009313226,
+            "cpuTotalMs": 0.38500000024214387,
+            "wallCompletionMs": 73.0500000002794,
+            "gpu": {
+              "frameSpanMs": 71.325506,
+              "passSumMs": 71.320602,
+              "passes": [
+                {
+                  "label": "AAA shadow pass",
+                  "kind": "render",
+                  "milliseconds": 13.863144
+                },
+                {
+                  "label": "AAA HDR main pass",
+                  "kind": "render",
+                  "milliseconds": 49.616747
+                },
+                {
+                  "label": "AAA tone mapping and bloom pass",
+                  "kind": "render",
+                  "milliseconds": 7.840711
+                }
+              ]
+            }
+          },
+          "baseline": {
+            "step": 205,
+            "inputStreamUploadedBytes": 0,
+            "cpuFramePreparationMs": 0.060000000055879354,
+            "cpuEncodeAndSubmitMs": 0.10499999998137355,
+            "cpuTotalMs": 0.19000000040978193,
+            "wallCompletionMs": 67.41000000014901,
+            "gpu": {
+              "frameSpanMs": 66.246135,
+              "passSumMs": 66.24138,
+              "passes": [
+                {
+                  "label": "AAA shadow pass",
+                  "kind": "render",
+                  "milliseconds": 17.179141
+                },
+                {
+                  "label": "AAA HDR main pass",
+                  "kind": "render",
+                  "milliseconds": 41.894987
+                },
+                {
+                  "label": "AAA tone mapping and bloom pass",
+                  "kind": "render",
+                  "milliseconds": 7.167252
+                }
+              ]
+            }
+          }
+        }
+      ]
+    }
+  ],
+  "gpuValidationErrors": [],
+  "materials": {
+    "baseline": {
+      "noise": {
+        "compressed": true,
+        "sourceBytes": 43704,
+        "source": "ktx2-bc4"
+      },
+      "atlas": {
+        "compressed": true,
+        "sourceBytes": 1205024,
+        "source": "poliigon-astc"
+      }
+    },
+    "candidate": {
+      "noise": {
+        "compressed": true,
+        "sourceBytes": 43704,
+        "source": "ktx2-bc4"
+      },
+      "atlas": {
+        "compressed": true,
+        "sourceBytes": 1205024,
+        "source": "poliigon-astc"
+      }
+    }
+  },
+  "candidateDefaultFlags": {
+    "vertexMaterialRejection": true,
+    "shadowPcfFetch": true,
+    "shadowCache": true,
+    "computeVisibility": false
+  },
+  "reason": "Renderer supplied timestamps; harness must not overwrite them",
+  "stack": "Error: Renderer supplied timestamps; harness must not overwrite them\n    at encoder.<computed> [as beginRenderPass] (http://127.0.0.1:4318/benchmarks/rendering/timing.mjs:91:27)\n    at WebGPURenderer.render (http://127.0.0.1:4318/compiled/candidate/src/webgpu/renderer.mjs:3730:38)\n    at timed (http://127.0.0.1:4318/benchmarks/rendering/browser.mjs:151:281)\n    at async benchmarkPair (http://127.0.0.1:4318/benchmarks/rendering/browser.mjs:167:30)\n    at async runRenderingBenchmark (http://127.0.0.1:4318/benchmarks/rendering/browser.mjs:449:41)\n    at async <anonymous>:337:30"
+}

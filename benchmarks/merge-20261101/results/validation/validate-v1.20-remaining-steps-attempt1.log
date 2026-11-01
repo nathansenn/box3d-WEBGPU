@@ -1,0 +1,18 @@
+== test:soft-kernels (without the toolchain byte comparison)
+soft kernels (simd): core numerical tests passed
+soft kernels (scalar): core numerical tests passed
+soft kernels: SIMD/scalar parity and loader fallback tests passed
+tsconfig.test.json(5,25): error TS5107: Option 'moduleResolution=node10' is deprecated and will stop functioning in TypeScript 7.0. Specify compilerOption '"ignoreDeprecations": "6.0"' to silence this error.
+  Visit https://aka.ms/ts6 for migration information.
+== test:webgpu
+
+> box3d-webgpu@1.20.0 test:webgpu
+> node scripts/webgpu-pipeline-test.mjs && node scripts/webgpu-renderer-runtime-test.mjs && npm run test:ktx2
+
+✅ Dawn null-backend validation passed: 14 shaders, stable visibility compute, indirect vertex pulling, blended glass/dust, GPU rope/cloth/water, HDR/MSAA, and offscreen command encoding (no numerical GPU execution)
+Segmentation fault
+
+real	0m6.282s
+user	0m12.753s
+sys	0m0.419s
+rest rc=139

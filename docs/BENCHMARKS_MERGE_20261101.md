@@ -1,6 +1,6 @@
 # Merge benchmarks, 2026-11-01
 
-This report measures the October integration against `main` at `dfedd9f`. The integration covers the Engineering Studio and bridge experiments, the math-runtime pilot with GPU visibility and shadow reuse, the speed and visual-accuracy batch, the rebuilt native engine and the CI repairs. Every number below comes from a raw result file under [`benchmarks/merge-20261101/results/`](../benchmarks/merge-20261101/results/). The generated [summary tables](../benchmarks/merge-20261101/results/SUMMARY.md) list every case.
+This report measures the October integration against `main` at `dfedd9f`. The integration covers the Engineering Studio and bridge experiments, the math-runtime pilot with GPU visibility and shadow reuse, the speed and visual-accuracy batch, the rebuilt native engine and the CI repairs. Every number below comes from a raw result file under [`benchmarks/merge-20261101/results/`](../benchmarks/merge-20261101/results/). The generated [summary tables](../benchmarks/merge-20261101/results/SUMMARY.md) list every case. [`EVIDENCE.md`](../benchmarks/merge-20261101/results/EVIDENCE.md) indexes the supporting records: software-GPU runs, raw pod archives, glass-lab profiles, and CI and validation logs.
 
 Speed ratios are main time ÷ merged time. **Above 1.000 the merged branch is faster.** Brackets are 95% bootstrap intervals. A difference counts as real only when its interval excludes 1.000.
 
@@ -49,7 +49,7 @@ The production renderer A/B ([`benchmarks/rendering`](../benchmarks/rendering/RE
 - The `pow(x, 2.2)` gamma approximations were replaced with the exact sRGB transfer functions.
 - A static ±0.5/255 interleaved-gradient dither was added against banding.
 
-Against the unmodified baseline every image differs, by at most 13 levels per channel and 2.5 levels RMS. To separate that intended change from everything else, `prepare.mjs --visual-control` builds a **control baseline**: the pinned renderer with only those shader edits applied (see [`visual-control.mjs`](../benchmarks/rendering/visual-control.mjs)). Against the control, the merged renderer passes every gate, on SwiftShader and on the L4:
+Against the unmodified baseline every image differs, by at most 13 levels per channel and 2.5 levels RMS. To separate that intended change from everything else, `prepare.mjs --visual-control` builds a **control baseline**: the pinned renderer with only those shader edits applied (see [`visual-control.mjs`](../benchmarks/rendering/visual-control.mjs)). Against the control, the merged renderer passes every gate, on SwiftShader ([`swiftshader/rendering-control-quick.json`](../benchmarks/merge-20261101/results/swiftshader/rendering-control-quick.json)) and on the L4:
 
 - 84 of 84 images byte-exact.
 - 20 visibility checks plus the documented rope exception.

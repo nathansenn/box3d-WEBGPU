@@ -1,0 +1,101 @@
+[render-benchmark] Creating independent production renderers
+[render-benchmark] Pixel parity: all-visible-opaque / candidate-default
+[render-benchmark] Pixel parity: all-visible-opaque / material-filter
+[render-benchmark] Pixel parity: all-visible-opaque / shadow-cache
+[render-benchmark] Pixel parity: all-visible-opaque / stable-visibility
+[render-benchmark] Timing: all-visible-opaque / candidate-default
+[render-benchmark] Timing: all-visible-opaque / material-filter
+[render-benchmark] Timing: all-visible-opaque / shadow-cache
+[render-benchmark] FAILED
+{
+  "output": "/tmp/claude-0/-home-user-box3d-WEBGPU/3496b4bd-b15e-564a-9b42-e3dfab8e515e/scratchpad/bench/sw/rendering-quick.json",
+  "status": "FAILED",
+  "reason": "Renderer supplied timestamps; harness must not overwrite them",
+  "gpu": {
+    "classification": "SOFTWARE_GPU",
+    "timestamps": "AVAILABLE"
+  },
+  "parity": {
+    "total": 4,
+    "failed": [
+      {
+        "id": "all-visible-opaque",
+        "variant": "candidate-default",
+        "pixels": {
+          "pass": false,
+          "pixels": 76800,
+          "differingPixels": 76150,
+          "differingChannels": 208392,
+          "maxAbsolute": 10,
+          "rmsChannelError": 2.532683493270198
+        }
+      },
+      {
+        "id": "all-visible-opaque",
+        "variant": "material-filter",
+        "pixels": {
+          "pass": false,
+          "pixels": 76800,
+          "differingPixels": 76150,
+          "differingChannels": 208392,
+          "maxAbsolute": 10,
+          "rmsChannelError": 2.532683493270198
+        }
+      },
+      {
+        "id": "all-visible-opaque",
+        "variant": "shadow-cache",
+        "pixels": {
+          "pass": false,
+          "pixels": 76800,
+          "differingPixels": 76150,
+          "differingChannels": 208392,
+          "maxAbsolute": 10,
+          "rmsChannelError": 2.532683493270198
+        }
+      },
+      {
+        "id": "all-visible-opaque",
+        "variant": "stable-visibility",
+        "pixels": {
+          "pass": false,
+          "pixels": 76800,
+          "differingPixels": 76150,
+          "differingChannels": 208392,
+          "maxAbsolute": 10,
+          "rmsChannelError": 2.532683493270198
+        }
+      }
+    ]
+  },
+  "visibility": {
+    "total": 1,
+    "failed": []
+  },
+  "qualityCorrections": [],
+  "cacheInvalidation": {
+    "total": 0,
+    "failed": []
+  },
+  "timings": [
+    {
+      "id": "all-visible-opaque",
+      "variant": "candidate-default",
+      "baselineWallP50": 63.46500000008382,
+      "candidateWallP50": 51.11499999999069,
+      "wallRatio": 1.2416120512588356,
+      "baselineGpuP50": 62.214237,
+      "candidateGpuP50": 49.768080499999996
+    },
+    {
+      "id": "all-visible-opaque",
+      "variant": "material-filter",
+      "baselineWallP50": 71.71999999997206,
+      "candidateWallP50": 73.79500000015832,
+      "wallRatio": 0.971881563789121,
+      "baselineGpuP50": 70.57375350000001,
+      "candidateGpuP50": 72.0155355
+    }
+  ],
+  "gpuValidationErrors": []
+}

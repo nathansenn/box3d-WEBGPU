@@ -1,0 +1,14 @@
+[WebGPU] material-noise-bc4.ktx2 unavailable; using deterministic R8 fallback. Error: Runtime test intentionally uses the procedural KTX2 fallback.
+    at value (file:///tmp/claude-0/-home-user-box3d-WEBGPU/3496b4bd-b15e-564a-9b42-e3dfab8e515e/scratchpad/wt-bridge-water-20261003/scripts/webgpu-renderer-runtime-test.mjs:64:30)
+    at fetchKtx2 (file:///tmp/box3d-webgpu-runtime-TSELZk/assets/ktx2.mjs:211:28)
+    at loadMaterialNoiseTexture (file:///tmp/box3d-webgpu-runtime-TSELZk/assets/ktx2.mjs:221:30)
+    at WebGPURenderer.create (file:///tmp/box3d-webgpu-runtime-TSELZk/webgpu/renderer-runtime.mjs?v=1793529094445:1840:17)
+    at async file:///tmp/claude-0/-home-user-box3d-WEBGPU/3496b4bd-b15e-564a-9b42-e3dfab8e515e/scratchpad/wt-bridge-water-20261003/scripts/webgpu-renderer-runtime-test.mjs:100:18
+[WebGPU] Poliigon astc material atlases unavailable; using deterministic procedural materials. Error: Runtime test intentionally uses the procedural KTX2 fallback.
+    at value (file:///tmp/claude-0/-home-user-box3d-WEBGPU/3496b4bd-b15e-564a-9b42-e3dfab8e515e/scratchpad/wt-bridge-water-20261003/scripts/webgpu-renderer-runtime-test.mjs:64:30)
+    at fetchKtx2 (file:///tmp/box3d-webgpu-runtime-TSELZk/assets/ktx2.mjs:211:28)
+    at loadMaterialAtlasTexture (file:///tmp/box3d-webgpu-runtime-TSELZk/assets/ktx2.mjs:239:54)
+    at WebGPURenderer.create (file:///tmp/box3d-webgpu-runtime-TSELZk/webgpu/renderer-runtime.mjs?v=1793529094445:1841:17)
+    at async file:///tmp/claude-0/-home-user-box3d-WEBGPU/3496b4bd-b15e-564a-9b42-e3dfab8e515e/scratchpad/wt-bridge-water-20261003/scripts/webgpu-renderer-runtime-test.mjs:100:18
+GPU timing diagnostics: {"status":"error","supported":true,"reason":"Invalid GPU timestamp pair for shadow in frame 10: 0 -> 0.","latest":{"frameId":2,"sampledAtMs":892.326667,"completedAtMs":892.599831,"passMs":{"compute":null,"shadow":null,"main":43838154.547009,"post":7086428.278736},"totalPassMs":50924582.825745},"frames":15,"submittedSamples":10,"completedSamples":1,"droppedSamples":0,"failedSamples":9,"pendingSamples":0,"ringSize":3,"sampleEveryFrames":1}
+✅ Actual WebGPURenderer runtime test passed on Dawn null: rigid shadows, packed/GPU cloth and GPU water, GPU-compute rope reconstruction, exact paused-frame upload caches, debug lines, resize, empty frame, and clean Dawn error stream

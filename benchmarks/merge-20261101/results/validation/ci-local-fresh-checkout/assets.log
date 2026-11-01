@@ -1,0 +1,81 @@
+
+> box3d-webgpu@1.20.0 test:assets
+> node --test tests/assets/*.test.mjs tests/physics/*.test.mjs
+
+TAP version 13
+# shipped ktx2 files parsed: 6
+# Subtest: rejects cube, array and 3D textures
+ok 1 - rejects cube, array and 3D textures
+  ---
+  duration_ms: 1.372952
+  type: 'test'
+  ...
+# Subtest: single 2D header with faces=1 is not rejected by the layout check
+ok 2 - single 2D header with faces=1 is not rejected by the layout check
+  ---
+  duration_ms: 0.222105
+  type: 'test'
+  ...
+# Subtest: every shipped .ktx2 asset still parses
+ok 3 - every shipped .ktx2 asset still parses
+  ---
+  duration_ms: 12.461983
+  type: 'test'
+  ...
+# Subtest: keeps only the consecutive block-aligned prefix, no re-admission after a gap
+ok 4 - keeps only the consecutive block-aligned prefix, no re-admission after a gap
+  ---
+  duration_ms: 1.458231
+  type: 'test'
+  ...
+# Subtest: keeps a fully aligned chain and returns a copy
+ok 5 - keeps a fully aligned chain and returns a copy
+  ---
+  duration_ms: 0.208391
+  type: 'test'
+  ...
+# Subtest: empty when the base level is misaligned
+ok 6 - empty when the base level is misaligned
+  ---
+  duration_ms: 0.118214
+  type: 'test'
+  ...
+# Subtest: bit-identical to the legacy hash on finite in-range state
+ok 7 - bit-identical to the legacy hash on finite in-range state
+  ---
+  duration_ms: 18.426362
+  type: 'test'
+  ...
+# Subtest: NaN and overflow no longer collide with zero or each other
+ok 8 - NaN and overflow no longer collide with zero or each other
+  ---
+  duration_ms: 0.193258
+  type: 'test'
+  ...
+# Subtest: substeps clamp to an integer in 1..16
+ok 9 - substeps clamp to an integer in 1..16
+  ---
+  duration_ms: 4.092621
+  type: 'test'
+  ...
+# Subtest: max dt is 1/30
+ok 10 - max dt is 1/30
+  ---
+  duration_ms: 0.304881
+  type: 'test'
+  ...
+# Subtest: hostile launch/kick inputs are rejected
+ok 11 - hostile launch/kick inputs are rejected
+  ---
+  duration_ms: 0.317924
+  type: 'test'
+  ...
+1..11
+# tests 11
+# suites 0
+# pass 11
+# fail 0
+# cancelled 0
+# skipped 0
+# todo 0
+# duration_ms 251.811386

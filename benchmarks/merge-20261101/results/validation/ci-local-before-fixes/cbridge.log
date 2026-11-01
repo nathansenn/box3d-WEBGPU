@@ -1,0 +1,5 @@
+
+> box3d-webgpu@1.20.0 test:cbridge
+> bash ./scripts/c-bridge-syntax-test.sh
+
+✅ C17 bridge syntax test passed with the pinned Box3D API contract stub (clang): box3d_web.c, its threaded rename, and box3d_threads.c

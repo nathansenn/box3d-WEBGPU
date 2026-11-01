@@ -1,0 +1,30 @@
+[WebGPU] material-noise-bc4.ktx2 unavailable; using deterministic R8 fallback. Error: Runtime test intentionally uses the procedural KTX2 fallback.
+    at value (file:///tmp/claude-0/-home-user-box3d-WEBGPU/3496b4bd-b15e-564a-9b42-e3dfab8e515e/scratchpad/wt-main/scripts/webgpu-renderer-runtime-test.mjs:48:30)
+    at fetchKtx2 (file:///tmp/claude-0/-home-user-box3d-WEBGPU/3496b4bd-b15e-564a-9b42-e3dfab8e515e/scratchpad/wt-main/.test-build/assets/ktx2.mjs:208:28)
+    at loadMaterialNoiseTexture (file:///tmp/claude-0/-home-user-box3d-WEBGPU/3496b4bd-b15e-564a-9b42-e3dfab8e515e/scratchpad/wt-main/.test-build/assets/ktx2.mjs:216:30)
+    at WebGPURenderer.create (file:///tmp/claude-0/-home-user-box3d-WEBGPU/3496b4bd-b15e-564a-9b42-e3dfab8e515e/scratchpad/wt-main/.test-build/webgpu/renderer-runtime.mjs?v=1793529098987:1750:38)
+    at async file:///tmp/claude-0/-home-user-box3d-WEBGPU/3496b4bd-b15e-564a-9b42-e3dfab8e515e/scratchpad/wt-main/scripts/webgpu-renderer-runtime-test.mjs:84:18
+[WebGPU] Poliigon astc material atlases unavailable; using deterministic procedural materials. Error: Runtime test intentionally uses the procedural KTX2 fallback.
+    at value (file:///tmp/claude-0/-home-user-box3d-WEBGPU/3496b4bd-b15e-564a-9b42-e3dfab8e515e/scratchpad/wt-main/scripts/webgpu-renderer-runtime-test.mjs:48:30)
+    at fetchKtx2 (file:///tmp/claude-0/-home-user-box3d-WEBGPU/3496b4bd-b15e-564a-9b42-e3dfab8e515e/scratchpad/wt-main/.test-build/assets/ktx2.mjs:208:28)
+    at loadMaterialAtlasTexture (file:///tmp/claude-0/-home-user-box3d-WEBGPU/3496b4bd-b15e-564a-9b42-e3dfab8e515e/scratchpad/wt-main/.test-build/assets/ktx2.mjs:233:54)
+    at WebGPURenderer.create (file:///tmp/claude-0/-home-user-box3d-WEBGPU/3496b4bd-b15e-564a-9b42-e3dfab8e515e/scratchpad/wt-main/.test-build/webgpu/renderer-runtime.mjs?v=1793529098987:1751:38)
+    at async file:///tmp/claude-0/-home-user-box3d-WEBGPU/3496b4bd-b15e-564a-9b42-e3dfab8e515e/scratchpad/wt-main/scripts/webgpu-renderer-runtime-test.mjs:84:18
+node:internal/modules/run_main:123
+    triggerUncaughtException(
+    ^
+
+AssertionError [ERR_ASSERTION]: first GPU cloth frame must upload current and immutable rest positions when topology is cached
+
+108 !== 96
+
+    at file:///tmp/claude-0/-home-user-box3d-WEBGPU/3496b4bd-b15e-564a-9b42-e3dfab8e515e/scratchpad/wt-main/scripts/webgpu-renderer-runtime-test.mjs:247:8 {
+  generatedMessage: false,
+  code: 'ERR_ASSERTION',
+  actual: 108,
+  expected: 96,
+  operator: 'strictEqual',
+  diff: 'simple'
+}
+
+Node.js v22.23.4

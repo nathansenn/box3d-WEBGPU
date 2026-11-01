@@ -1,0 +1,915 @@
+✔ broken constraints are excluded from every subsequent projection and checkpoints restore the active set (30.836772ms)
+✔ progressive failure keeps original IDs and compacts in deterministic order (781.292096ms)
+✔ direct checkpoints, evidence exports and sweep files all resume the exact trajectory (458.521293ms)
+✔ truncated, incompatible and presentation-only files are rejected before creating a replacement run (239.36052ms)
+✔ a child that prints its result and exits is a plain success (37.737812ms)
+✔ a child that prints its result and then never exits is killed after the grace and keeps its result (333.121182ms)
+✔ a child that never prints a result is a timeout, not an exit hang (405.307181ms)
+✔ the timeout stops counting once the result is printed (2549.111887ms)
+✔ a child killed by a signal before it prints is reported with the signal (37.495079ms)
+✔ a failing exit after a printed result is still a failing exit (40.747292ms)
+✔ a result written in two pieces is used only once its line is complete (238.272976ms)
+✔ stdout is forwarded as it arrives and the stderr tail is kept (38.412253ms)
+✔ a command that cannot start is reported, not thrown (3.084108ms)
+✔ lastJsonLine takes the last complete JSON object line and never a partial one (0.654049ms)
+✔ verdictOf matches only a complete verdict line for its own label (0.69092ms)
+✔ closed basin preserves uniform rest, including walls, without a height clamp (70.881448ms)
+✔ closed C-grid follows independent discrete standing waves, including centered drag (264.494356ms)
+✔ continuum wave error converges at second order when space and timestep refine together (2011.886003ms)
+✔ unforced closed basin conserves mass and bounded modified energy over 24000 ticks (73.145837ms)
+✔ destination histories are scratch and initialization owns caller arrays (0.994801ms)
+✔ closed water rejects invalid wall fluxes, ambiguous histories and coefficient underflow (1.280381ms)
+✔ free particles reproduce the implicit-drag recurrence without projection work (17.928304ms)
+✔ taut one-link motion matches an independent implicit spring solve across timestep, drag and iteration settings (31.452405ms)
+✔ continuum oscillator error converges with the actual substep, not solver iteration count (2.303543ms)
+✔ distributed hanging mass preserves mesh-independent extension, total mass and support reaction (3534.886345ms)
+✔ slack and coincident cable segments carry no compression, including after unloading (2.043209ms)
+✔ internal cable impulses conserve linear momentum and cannot create elastic plus kinetic energy in an axial relaxation (8.906317ms)
+✔ finite solve budgets expose under-convergence and early exit counts actual projection work (0.64251ms)
+✔ damped axial motion closes the implicit-Euler energy and work budget (5.156196ms)
+✔ complete JSON checkpoints retain force commands, multipliers, work and exact continuation (8.422209ms)
+✔ signed zero inputs remain canonical through complete JSON replay (3.472155ms)
+✔ invalid batches and checkpoints do not mutate a live model, and disposal releases retained buffers (1.593659ms)
+✔ edge and vertex touching retain only their distinct support points (7.535694ms)
+✔ distinct points within one millimetre retain separate cache records (6.944241ms)
+✔ one old contact impulse cannot warm start two new contacts (2.871308ms)
+✔ cache matching follows local anchors when manifold order changes (1.57006ms)
+✔ distant or differently oriented cached points are not warm started (3.190522ms)
+✔ duplicate generated points are removed without modifying provider data (1.702581ms)
+✔ releasing a fixed participant invalidates the previous support impulse (1.440992ms)
+✔ fixing a formerly dynamic participant invalidates its old contact impulse (1.239412ms)
+✔ force prediction does not commit gravity twice (6.116024ms)
+✔ gravity and drag converge to the independent closed-form trajectory (30.237722ms)
+✔ an unresolved query restores forces before retrying smaller intervals (3.17968ms)
+✔ late contact rejection restores the original velocity snapshot (2.467807ms)
+✔ gravity-driven contact stays above a thin floor (31.975122ms)
+✔ rotation detects a thin transient contact on axis 0, direction -1 (13.941243ms)
+✔ rotation detects a thin transient contact on axis 0, direction 1 (6.867031ms)
+✔ rotation detects a thin transient contact on axis 1, direction -1 (5.084349ms)
+✔ rotation detects a thin transient contact on axis 1, direction 1 (5.11755ms)
+✔ rotation detects a thin transient contact on axis 2, direction -1 (5.058208ms)
+✔ rotation detects a thin transient contact on axis 2, direction 1 (5.780367ms)
+✔ a gravity reversal detects the ceiling crossed between accepted endpoints (1.622586ms)
+✔ external split correction preserves free-body orientations and mass-weighted centre (3.470247ms)
+✔ split correction preserves the pendulum coordinate and its pivot Jacobian (1.147042ms)
+✔ terminal sweep exhaustion restores the interval and can retry after the fault is removed (9.682324ms)
+✔ failure in the second subdivision restores accepted first-half motion and warm starts (11.673995ms)
+✔ terminal contact discovery exhaustion cannot commit applied forces (7.332902ms)
+✔ an unresolved endpoint query rolls back motion instead of certifying the position projection (0.693716ms)
+✔ a callback exception restores the original error and accepted world state (0.550694ms)
+✔ a failed outer transaction restores body material, topology, callbacks and nested steps (1.493165ms)
+✔ world retries an exhausted rotating query even when endpoint overlap is small (23.679163ms)
+✔ triangular prism inertia agrees with independent degree-two triangle quadrature (1.150948ms)
+✔ collider vertices and exported XYZ rotations match the Three.js renderer (2.755013ms)
+✔ SAT distinguishes overlapping bounding boxes from actual thin triangular shapes (0.377893ms)
+✔ touching faces yield a supporting manifold and contained shapes have a finite exit (0.655203ms)
+✔ swept SAT catches fast translation through 2 mm walls with disjoint endpoints (4.090082ms)
+✔ rotational sweep catches an intermediate contact when both endpoint poses miss (1.039645ms)
+✔ near grazing motion stays separated; exhausted CCD explicitly reports uncertainty (0.323403ms)
+✔ swept broad phase includes every sampled rotating overlap and emits each pair once (38.466753ms)
+✔ broad phase matches all-pairs bounds through growth, disable, reorder and reuse (37.452924ms)
+✔ high-speed contact response keeps a thin projectile on the entry side of the wall (5.243523ms)
+✔ two-body impulses preserve linear momentum and do not create kinetic energy (2.491156ms)
+✔ resting contact supports gravity with friction and no forced orientation (55.481184ms)
+✔ removing a normal load releases cached friction without contact attraction (6.925612ms)
+✔ finite rim has no invisible collision wall above it (0.861463ms)
+✔ contact position projection preserves mass-weighted centres, fixed supports and owned arrays (14.42747ms)
+✔ display rates preserve contiguous fixed tick counts (1.384441ms)
+✔ overload bounds backlog and reports wall-time lag without skipping ticks (0.259827ms)
+✔ timing histories stay bounded and unavailable is distinct from zero (1.156954ms)
+✔ recording ring preserves initial state and chronological recent samples through rollover (2.950715ms)
+✔ interpolation does not bridge a fracture, reset, or mutate recorded frames (1.998417ms)
+✔ frame stiffness and consistent mass match independent Hermite energy integration (8.485671ms)
+✔ all six rigid modes have zero elastic force and consistent translational mass (1.100163ms)
+✔ cantilevers reproduce axial, two-plane bending and torsion compliance and all reactions (76.253941ms)
+✔ consistent gravity loading reproduces cantilever and simply-supported distributed deflection (4.62182ms)
+✔ midpoint motion matches a closed-form semidiscrete oscillator and preserves energy (140.138389ms)
+✔ gravity-loaded members have equilibrated end actions, including free ends and point weights (12.702315ms)
+✔ cantilever bending motion converges toward the continuum mode under mesh refinement (646.421628ms)
+✔ axial and torsional temporal errors decrease fourfold while discrete phase remains exact (18.470185ms)
+✔ an oblique spatial frame follows independent quadrature and dense Cholesky dynamics (242.979335ms)
+✔ frame response and reactions rotate with the reference geometry (50.129443ms)
+✔ small-kinematics screening includes interior Hermite slopes and static solutions (16.232953ms)
+✔ signed zero checkpoint metadata has a canonical JSON roundtrip (1.137012ms)
+✔ forces, moments, impulses and damping close energy and both momentum budgets (112.220613ms)
+✔ complete JSON checkpoints and owned snapshots retain exact deterministic continuation (12.080929ms)
+✔ invalid commands, unsupported geometry and incompatible checkpoints are rejected before mutation (2.682214ms)
+✔ iteration caps, static mechanisms and the small-rotation domain remain explicit (0.968257ms)
+✔ a freely sliding box keeps its path under a common global yaw (888.34181ms)
+✔ free sliding converges to the Coulomb stopping distance and direction (149.429913ms)
+✔ free-slider friction balances momentum, stays in the Coulomb disk and dissipates energy (0.308247ms)
+✔ startup timeouts reject promptly and release a late device exactly once (22.521941ms)
+✔ startup cancellation blocks new work, rejects pending work, and releases late ownership (0.784218ms)
+✔ successful startup hands ownership to the caller and ignores later aborts (0.460151ms)
+✔ water initialization releases all seven owned buffers when shader validation stalls or is cancelled (40.84845ms)
+✔ a failed GPU submission does not publish a future water tick or ping-pong field (2.168855ms)
+✔ closed GPU model rejects wall flux before allocation and dispatches two ordered stages per tick (2.173906ms)
+✔ cancelled texture loads never allocate fallback textures, including late successful fetches (0.928807ms)
+[WebGPU] material-noise-bc4.ktx2 unavailable; using deterministic R8 fallback. deterministic test fallback
+[WebGPU] Poliigon rgba8 material atlases unavailable; using deterministic procedural materials. deterministic test fallback
+[WebGPU] material-noise-bc4.ktx2 unavailable; using deterministic R8 fallback. deterministic test fallback
+[WebGPU] Poliigon rgba8 material atlases unavailable; using deterministic procedural materials. deterministic test fallback
+[WebGPU] material-noise-bc4.ktx2 unavailable; using deterministic R8 fallback. deterministic test fallback
+[WebGPU] Poliigon rgba8 material atlases unavailable; using deterministic procedural materials. deterministic test fallback
+[WebGPU] material-noise-bc4.ktx2 unavailable; using deterministic R8 fallback. deterministic test fallback
+[WebGPU] Poliigon rgba8 material atlases unavailable; using deterministic procedural materials. deterministic test fallback
+[WebGPU] material-noise-bc4.ktx2 unavailable; using deterministic R8 fallback. deterministic test fallback
+[WebGPU] Poliigon rgba8 material atlases unavailable; using deterministic procedural materials. deterministic test fallback
+[WebGPU] material-noise-bc4.ktx2 unavailable; using deterministic R8 fallback. deterministic test fallback
+[WebGPU] Poliigon rgba8 material atlases unavailable; using deterministic procedural materials. deterministic test fallback
+✔ unsupported and disabled timers allocate nothing and publish no fabricated result (2.155351ms)
+✔ default sampling cadence is first frame then every 30; ring limits stay bounded (1.43664ms)
+✔ async ring drops saturated samples, reuses slots only after map completion, and handles out-of-order results (3.019423ms)
+✔ a real equal nonzero timestamp pair is a valid quantized zero duration (0.491346ms)
+✖ invalid timestamp data reports an error instead of zero timing and stops further sampling (2.079604ms)
+✔ readback rejection and synchronous mapping failure are contained (0.994585ms)
+✔ partial allocation and encoder failures release safely without unbounded retry (0.682145ms)
+✔ disposal ignores late successful and rejected maps and destroys each timing resource exactly once (0.501404ms)
+✔ device loss reports an error and an explicit later dispose ignores the device-loss callback (1.644307ms)
+✔ raw renderer pass descriptors, quality replacement, and complete idempotent teardown preserve resource ownership (16.96591ms)
+✔ raw renderer explicit disable and optional-feature fallback retain compression support (13.971477ms)
+✔ renderer loss subscriptions handle early removal, late registration, and intentional disposal (10.770371ms)
+[WebGPU] material-noise-bc4.ktx2 unavailable; using deterministic R8 fallback. deterministic test fallback
+[WebGPU] Poliigon rgba8 material atlases unavailable; using deterministic procedural materials. deterministic test fallback
+[WebGPU] material-noise-bc4.ktx2 unavailable; using deterministic R8 fallback. deterministic test fallback
+[WebGPU] Poliigon rgba8 material atlases unavailable; using deterministic procedural materials. deterministic test fallback
+[WebGPU] material-noise-bc4.ktx2 unavailable; using deterministic R8 fallback. deterministic test fallback
+[WebGPU] Poliigon rgba8 material atlases unavailable; using deterministic procedural materials. deterministic test fallback
+[WebGPU] material-noise-bc4.ktx2 unavailable; using deterministic R8 fallback. deterministic test fallback
+[WebGPU] Poliigon rgba8 material atlases unavailable; using deterministic procedural materials. deterministic test fallback
+[WebGPU] material-noise-bc4.ktx2 unavailable; using deterministic R8 fallback. deterministic test fallback
+[WebGPU] Poliigon rgba8 material atlases unavailable; using deterministic procedural materials. deterministic test fallback
+[WebGPU] material-noise-bc4.ktx2 unavailable; using deterministic R8 fallback. deterministic test fallback
+[WebGPU] Poliigon rgba8 material atlases unavailable; using deterministic procedural materials. deterministic test fallback
+[WebGPU] material-noise-bc4.ktx2 unavailable; using deterministic R8 fallback. deterministic test fallback
+[WebGPU] Poliigon rgba8 material atlases unavailable; using deterministic procedural materials. deterministic test fallback
+[WebGPU] material-noise-bc4.ktx2 unavailable; using deterministic R8 fallback. deterministic test fallback
+[WebGPU] Poliigon rgba8 material atlases unavailable; using deterministic procedural materials. deterministic test fallback
+[WebGPU] material-noise-bc4.ktx2 unavailable; using deterministic R8 fallback. deterministic test fallback
+[WebGPU] Poliigon rgba8 material atlases unavailable; using deterministic procedural materials. deterministic test fallback
+[WebGPU] material-noise-bc4.ktx2 unavailable; using deterministic R8 fallback. deterministic test fallback
+[WebGPU] Poliigon rgba8 material atlases unavailable; using deterministic procedural materials. deterministic test fallback
+[WebGPU] material-noise-bc4.ktx2 unavailable; using deterministic R8 fallback. deterministic test fallback
+[WebGPU] Poliigon rgba8 material atlases unavailable; using deterministic procedural materials. deterministic test fallback
+✔ renderer rejects a stalled device request and destroys the device if it arrives after timeout (20.136651ms)
+✔ renderer growth preserves stream copies and rope bindings, reuses partition pipelines and releases replaced storage once (8.986912ms)
+✔ failed renderer growth keeps the current streams usable and destroys every replacement allocation (36.913039ms)
+[WebGPU] material-noise-bc4.ktx2 unavailable; using deterministic R8 fallback. deterministic test fallback
+[WebGPU] Poliigon rgba8 material atlases unavailable; using deterministic procedural materials. deterministic test fallback
+[WebGPU] material-noise-bc4.ktx2 unavailable; using deterministic R8 fallback. deterministic test fallback
+[WebGPU] Poliigon rgba8 material atlases unavailable; using deterministic procedural materials. deterministic test fallback
+[WebGPU] material-noise-bc4.ktx2 unavailable; using deterministic R8 fallback. deterministic test fallback
+[WebGPU] Poliigon rgba8 material atlases unavailable; using deterministic procedural materials. deterministic test fallback
+✔ capacity cancellation, timeout, disposal and device loss release pending buffers without committing them (39.374928ms)
+[WebGPU] material-noise-bc4.ktx2 unavailable; using deterministic R8 fallback. deterministic test fallback
+[WebGPU] Poliigon rgba8 material atlases unavailable; using deterministic procedural materials. deterministic test fallback
+✔ concurrent capacity requests serialize, keep their own deadlines and survive an earlier cancellation (21.714301ms)
+✔ capacity and stream boundaries fail before allocation or upload, while heap view relocation invalidates cached streams (4.167804ms)
+✔ known equal-quality 2x gain retains samples, median/p95, and paired bootstrap intervals (35.130381ms)
+✔ unchanged control regression rejects an otherwise fast candidate (25.177302ms)
+✔ CPU cycle regression fails its primary and tail budget (11.863017ms)
+✔ equal performance can pass no-regression gate without claiming a speedup (21.794608ms)
+✔ uncertain control drift is inconclusive, never a pass (10.085534ms)
+✔ sample source identity/hash mismatch is incomparable (1.362849ms)
+✔ manifest inventory tampering is rejected (0.600093ms)
+✔ missing measured raw values cannot become a pass (2.735491ms)
+✔ scope, quality, and active workload differences are incomparable (10.666362ms)
+✔ a claimed complete cycle cannot omit the measured stage time (1.098173ms)
+✔ physics drift and missing finite/anchor evidence fail closed (8.957273ms)
+✔ runtime identity, balanced order, and isolated process identities are mandatory (3.06431ms)
+✔ bootstrap is deterministic and refuses missing/invalid pairs (5.03949ms)
+✔ quantized stage zeros remain measured data, while missing/negative or wholly unresolved stages fail (10.971068ms)
+✔ unbounded workload and unbalanced trial requests are rejected before capture (0.30252ms)
+✔ capture has exact copied source/artifact identities and references assets without copies (308.777341ms)
+✔ existing output, symlink leaf, and source-directory collisions never overwrite (26.782451ms)
+✔ symbolic source inputs are rejected instead of following mutable external content (6.086062ms)
+✖ real subprocess evidence accepts an exact asset archive but rejects changed assets and source tampering (63.176771ms)
+✔ partition publication waits for submission, preserves invalidations and bounds capacity (2.708819ms)
+✔ partial partition allocation failures release their resources (0.450283ms)
+tar: benchmarks/baselines/engine-100x-20260910-source.tar.gz: Cannot open: No such file or directory
+tar: Error is not recoverable: exiting now
+node:internal/errors:983
+  const err = new Error(message);
+              ^
+
+Error: Command failed: tar -xOf benchmarks/baselines/engine-100x-20260910-source.tar.gz src/soft/simulations.ts
+tar: benchmarks/baselines/engine-100x-20260910-source.tar.gz: Cannot open: No such file or directory
+tar: Error is not recoverable: exiting now
+
+    at genericNodeError (node:internal/errors:983:15)
+    at wrappedFn (node:internal/errors:537:14)
+    at checkExecSyncError (node:child_process:916:11)
+    at execFileSync (node:child_process:952:15)
+    at file:///tmp/claude-0/-home-user-box3d-WEBGPU/3496b4bd-b15e-564a-9b42-e3dfab8e515e/scratchpad/wt-bridge-water-20261003/tests/engine/linear-water.test.mjs:6:14
+    at ModuleJob.run (node:internal/modules/esm/module_job:343:25)
+    at async onImport.tracePromise.__proto__ (node:internal/modules/esm/loader:681:26)
+    at async asyncRunEntryPointWithESMLoader (node:internal/modules/run_main:117:5) {
+  status: 2,
+  signal: null,
+  output: [
+    null,
+    Buffer(0) [Uint8Array] [],
+    Buffer(144) [Uint8Array] [
+      116,  97, 114,  58,  32,  98, 101, 110,  99, 104, 109,  97,
+      114, 107, 115,  47,  98,  97, 115, 101, 108, 105, 110, 101,
+      115,  47, 101, 110, 103, 105, 110, 101,  45,  49,  48,  48,
+      120,  45,  50,  48,  50,  54,  48,  57,  49,  48,  45, 115,
+      111, 117, 114,  99, 101,  46, 116,  97, 114,  46, 103, 122,
+       58,  32,  67,  97, 110, 110, 111, 116,  32, 111, 112, 101,
+      110,  58,  32,  78, 111,  32, 115, 117,  99, 104,  32, 102,
+      105, 108, 101,  32, 111, 114,  32, 100, 105, 114, 101,  99,
+      116, 111, 114, 121,
+      ... 44 more items
+    ]
+  ],
+  pid: 9099,
+  stdout: Buffer(0) [Uint8Array] [],
+  stderr: Buffer(144) [Uint8Array] [
+    116,  97, 114,  58,  32,  98, 101, 110,  99, 104, 109,  97,
+    114, 107, 115,  47,  98,  97, 115, 101, 108, 105, 110, 101,
+    115,  47, 101, 110, 103, 105, 110, 101,  45,  49,  48,  48,
+    120,  45,  50,  48,  50,  54,  48,  57,  49,  48,  45, 115,
+    111, 117, 114,  99, 101,  46, 116,  97, 114,  46, 103, 122,
+     58,  32,  67,  97, 110, 110, 111, 116,  32, 111, 112, 101,
+    110,  58,  32,  78, 111,  32, 115, 117,  99, 104,  32, 102,
+    105, 108, 101,  32, 111, 114,  32, 100, 105, 114, 101,  99,
+    116, 111, 114, 121,
+    ... 44 more items
+  ]
+}
+
+Node.js v22.23.4
+✖ tests/engine/linear-water.test.mjs (99.434616ms)
+node:internal/fs/promises:639
+  return new FileHandle(await PromisePrototypeThen(
+                        ^
+
+Error: ENOENT: no such file or directory, open '/tmp/claude-0/-home-user-box3d-WEBGPU/3496b4bd-b15e-564a-9b42-e3dfab8e515e/scratchpad/wt-bridge-water-20261003/benchmarks/baselines/native-worlds-before-20260910/public/box3d/box3d.wasm'
+    at async open (node:internal/fs/promises:639:25)
+    at async Object.readFile (node:internal/fs/promises:1252:14)
+    at async loadFactory (file:///tmp/claude-0/-home-user-box3d-WEBGPU/3496b4bd-b15e-564a-9b42-e3dfab8e515e/scratchpad/wt-bridge-water-20261003/tests/engine/native-capacity.test.mjs:11:20)
+    at async file:///tmp/claude-0/-home-user-box3d-WEBGPU/3496b4bd-b15e-564a-9b42-e3dfab8e515e/scratchpad/wt-bridge-water-20261003/tests/engine/native-capacity.test.mjs:14:53 {
+  errno: -2,
+  code: 'ENOENT',
+  syscall: 'open',
+  path: '/tmp/claude-0/-home-user-box3d-WEBGPU/3496b4bd-b15e-564a-9b42-e3dfab8e515e/scratchpad/wt-bridge-water-20261003/benchmarks/baselines/native-worlds-before-20260910/public/box3d/box3d.wasm'
+}
+
+Node.js v22.23.4
+✖ tests/engine/native-capacity.test.mjs (126.827442ms)
+✔ an exact native rebuild retains the qualification attached to those exact hashes (60.569966ms)
+✔ changed native source or artifacts invalidate prior qualification instead of relabelling it (164.425725ms)
+✖ native rays and sphere/box casts match analytic box hits with documented SDK cast slop (22.433783ms)
+✖ shape overlaps use SDK distance slop, remain distinct from broadphase candidates, and filter both body types (9.379134ms)
+✖ nearest-K overflow is deterministic across non-distance insertion, compaction and slot recycling (10.910067ms)
+✖ owned query hits survive resets, heap relocation, world isolation and destruction without reviving references (3.96939ms)
+✖ whole-batch input and stale-body validation precede any reservation or output write (14.063083ms)
+✖ raw C rejects malformed batches and stale revisions atomically, and JS rejects corrupt native layouts/results (5.643615ms)
+✖ old artifacts retain compatibility and incomplete query extensions fail explicitly (8.281751ms)
+✖ query arena warmup is bounded through repeated largest-batch execution and world churn (4.178582ms)
+✖ first, middle, last and static-body removals preserve every surviving token and exact dense row (16.885211ms)
+✖ dead-slot generations survive capacity relocation and scene resets without reviving stale handles (3.779489ms)
+✖ typed references reject other worlds, modules, forged values, partial extensions and old artifacts (8.580843ms)
+file:///tmp/claude-0/-home-user-box3d-WEBGPU/3496b4bd-b15e-564a-9b42-e3dfab8e515e/scratchpad/wt-bridge-water-20261003/src/engine/native-world.ts:149
+    throw new EngineError('UNSUPPORTED_BACKEND',`Native world export b3w_world_${name} is missing; rebuild the native artifact.`);
+          ^
+
+EngineError: Native world export b3w_world_api_version is missing; rebuild the native artifact.
+    at assertNativeWorldModule (file:///tmp/claude-0/-home-user-box3d-WEBGPU/3496b4bd-b15e-564a-9b42-e3dfab8e515e/scratchpad/wt-bridge-water-20261003/src/engine/native-world.ts:149:11)
+    at new NativeWorldPool (file:///tmp/claude-0/-home-user-box3d-WEBGPU/3496b4bd-b15e-564a-9b42-e3dfab8e515e/scratchpad/wt-bridge-water-20261003/src/engine/native-world.ts:478:5)
+    at file:///tmp/claude-0/-home-user-box3d-WEBGPU/3496b4bd-b15e-564a-9b42-e3dfab8e515e/scratchpad/wt-bridge-water-20261003/[eval1]:5:11 {
+  code: 'UNSUPPORTED_BACKEND'
+}
+
+Node.js v22.23.4
+✖ 64K live storage compacts correctly at the boundary and reference-based impulses follow moved bodies (1.986482ms)
+✖ retained stale references do not keep a destroyed native backend alive (155.934784ms)
+✖ native world ABI rejects missing exports, wrong versions and failed construction without leaking a slot (9.141177ms)
+✖ interleaved native worlds retain exact default trajectories while another world resets and changes seed (3.181456ms)
+✖ native slot reuse rejects every stale mutation and keeps the replacement and compatibility world intact (4.97485ms)
+✖ native pools enforce module capacity and release only their own worlds (5.48861ms)
+✖ native heap growth refreshes borrowed views without relocating a surviving world stream (5.743029ms)
+✖ native adapter rejects invalid and float32-overflow inputs before touching simulation state (5.602029ms)
+✖ ten thousand context lifecycles retain bounded heap and never revive an old generation (4.809901ms)
+✖ the original fixed-capacity world artifact remains supported without claiming buffer growth (1.585344ms)
+✔ partial native capacity extensions are rejected before creating a context (5.99903ms)
+✔ closed flat tools distinguish their bottom, side, bevel and top (1.933497ms)
+✔ sphere, cone, wedge and cylinder return their analytical outward normals (0.625619ms)
+✔ ring bore, disjoint tips and cross reentrant corners retain their empty space (1.406208ms)
+✔ all twelve closed shapes obey rotation, scaling, translation and distance identities (56.518908ms)
+✔ continuous casts find crossings with two clear endpoints and moving ram contact (0.683662ms)
+✔ casts preserve holes, finite tool height and explicit exhaustion (0.67275ms)
+✔ normal correction includes the guided ram effective mass and lateral sheet motion (0.409288ms)
+✔ invalid geometry and query requests fail without changing a caller-owned result (1.185528ms)
+✔ compound tools resolve retained oblique and moving-ram exhaustion cases (1.180058ms)
+✔ curved motion agrees with an independent nonlinear scalar solve, including hard constraints (77.322718ms)
+✔ curved spans match force-polygon shooting and converge toward the extensible catenary (3747.994308ms)
+✔ inextensible spans satisfy curved equilibrium without elastic stretch (6628.649973ms)
+✔ three-dimensional force and impulse commands close momentum for each complete tick and preserve checkpoint replay (106.174053ms)
+✔ off-axis elastic networks conserve linear momentum and obey the backward-Euler energy inequality (13.415213ms)
+✔ mixed hard and elastic links preserve three-dimensional force balance without hard-link stretch (5.649418ms)
+✔ a rotated and translated nonlinear problem gives the same physical trajectory (4.851974ms)
+✔ force balance is an independent stopping gate and finite caps remain visible (0.376785ms)
+✔ a small positional error on a hard cable still triggers the force-correction gate (0.583348ms)
+✔ proximal solver handles slack, coincident and fully pinned elastic links (1.479183ms)
+✔ backend identity, tolerance and impulse checkpoint contracts reject incompatible or malformed payloads (1.575682ms)
+✔ resident water reuses both ping-pong bindings and destroys only its own presentation resources (3.976643ms)
+✔ large numerical fields require explicit render stride and retain uint32 source indices (5.95383ms)
+✔ Studio canopy: exact original solver and 12-tick recordings across different batch sizes (1010.95121ms)
+✔ Studio plate: exact original solver and 12-tick recordings across different batch sizes (1191.289026ms)
+✔ Studio bridge: exact original solver and 12-tick recordings across different batch sizes (78.881606ms)
+✔ Studio validates all commands and checkpoint resets before state mutation (17.226509ms)
+✔ Studio outstanding loans are stable, bounded, explicitly recycled, and reset-safe (15.341035ms)
+✔ Studio full checkpoint restores exact future trajectory and exported copies never drift (494.731968ms)
+✔ Studio press stops at the exact original Complete tick and reports partial completion (1203.185499ms)
+✔ Studio time boundary stops without consuming extra fixed ticks or samples (9.915762ms)
+✔ Workbench preserves injected models, command order and dt; telemetry is opt-in and owned (1.520431ms)
+✔ static shadows reuse their map while camera presentation and time change (2.264979ms)
+✔ caster mutation, removal, topology, light, resolution and failed submissions invalidate reuse (0.278704ms)
+✔ atomic publication prevents early reads, duplicate claims, stale tickets and held-slot overwrites (3.359886ms)
+✔ sequence exhaustion retires storage and malformed or mutable shared layouts are rejected (17.82856ms)
+✔ shared worker output, recordings and full checkpoints match all three direct solvers exactly (2825.930887ms)
+✔ full shared rings reject commands atomically; reset and destruction preserve held old-generation data (1066.891955ms)
+✔ isolation gating and shared negotiation retain the explicit transfer fallback (432.887203ms)
+node:fs:3064
+  return binding.mkdtemp(prefix, options.encoding);
+                 ^
+
+Error: ENOENT: no such file or directory, mkdtemp '/private/tmp/box3d-soft-telemetry-XXXXXX'
+    at mkdtempSync (node:fs:3064:18)
+    at file:///tmp/claude-0/-home-user-box3d-WEBGPU/3496b4bd-b15e-564a-9b42-e3dfab8e515e/scratchpad/wt-bridge-water-20261003/tests/engine/soft-telemetry.test.mjs:10:19
+    at ModuleJob.run (node:internal/modules/esm/module_job:343:25)
+    at async onImport.tracePromise.__proto__ (node:internal/modules/esm/loader:681:26)
+    at async asyncRunEntryPointWithESMLoader (node:internal/modules/run_main:117:5) {
+  errno: -2,
+  code: 'ENOENT',
+  syscall: 'mkdtemp',
+  path: '/private/tmp/box3d-soft-telemetry-XXXXXX'
+}
+
+Node.js v22.23.4
+✖ tests/engine/soft-telemetry.test.mjs (51.945988ms)
+tar: /tmp/claude-0/-home-user-box3d-WEBGPU/3496b4bd-b15e-564a-9b42-e3dfab8e515e/scratchpad/wt-bridge-water-20261003/benchmarks/baselines/engine-100x-20260910-source.tar.gz: Cannot open: No such file or directory
+tar: Error is not recoverable: exiting now
+node:internal/test_runner/harness:99
+      throw err;
+      ^
+
+Error: Command failed: tar -xOf /tmp/claude-0/-home-user-box3d-WEBGPU/3496b4bd-b15e-564a-9b42-e3dfab8e515e/scratchpad/wt-bridge-water-20261003/benchmarks/baselines/engine-100x-20260910-source.tar.gz src/studio/physics.ts
+tar: /tmp/claude-0/-home-user-box3d-WEBGPU/3496b4bd-b15e-564a-9b42-e3dfab8e515e/scratchpad/wt-bridge-water-20261003/benchmarks/baselines/engine-100x-20260910-source.tar.gz: Cannot open: No such file or directory
+tar: Error is not recoverable: exiting now
+
+    at genericNodeError (node:internal/errors:983:15)
+    at wrappedFn (node:internal/errors:537:14)
+    at checkExecSyncError (node:child_process:916:11)
+    at execFileSync (node:child_process:952:15)
+    at file:///tmp/claude-0/-home-user-box3d-WEBGPU/3496b4bd-b15e-564a-9b42-e3dfab8e515e/scratchpad/wt-bridge-water-20261003/tests/engine/solver-exact.test.mjs:15:89
+    at ModuleJob.run (node:internal/modules/esm/module_job:343:25)
+    at async onImport.tracePromise.__proto__ (node:internal/modules/esm/loader:681:26)
+    at async asyncRunEntryPointWithESMLoader (node:internal/modules/run_main:117:5) {
+  status: 2,
+  signal: null,
+  output: [
+    null,
+    Buffer(0) [Uint8Array] [],
+    Buffer(255) [Uint8Array] [
+      116,  97, 114,  58,  32,  47, 116, 109, 112,  47,  99, 108,
+       97, 117, 100, 101,  45,  48,  47,  45, 104, 111, 109, 101,
+       45, 117, 115, 101, 114,  45,  98, 111, 120,  51, 100,  45,
+       87,  69,  66,  71,  80,  85,  47,  51,  52,  57,  54,  98,
+       52,  98, 100,  45,  98,  49,  53, 101,  45,  53,  54,  52,
+       97,  45,  57,  98,  52,  50,  45, 101,  51, 100, 102,  97,
+       98,  56, 101,  53,  49,  53, 101,  47, 115,  99, 114,  97,
+      116,  99, 104, 112,  97, 100,  47, 119, 116,  45,  98, 114,
+      105, 100, 103, 101,
+      ... 155 more items
+    ]
+  ],
+  pid: 9255,
+  stdout: Buffer(0) [Uint8Array] [],
+  stderr: Buffer(255) [Uint8Array] [
+    116,  97, 114,  58,  32,  47, 116, 109, 112,  47,  99, 108,
+     97, 117, 100, 101,  45,  48,  47,  45, 104, 111, 109, 101,
+     45, 117, 115, 101, 114,  45,  98, 111, 120,  51, 100,  45,
+     87,  69,  66,  71,  80,  85,  47,  51,  52,  57,  54,  98,
+     52,  98, 100,  45,  98,  49,  53, 101,  45,  53,  54,  52,
+     97,  45,  57,  98,  52,  50,  45, 101,  51, 100, 102,  97,
+     98,  56, 101,  53,  49,  53, 101,  47, 115,  99, 114,  97,
+    116,  99, 104, 112,  97, 100,  47, 119, 116,  45,  98, 114,
+    105, 100, 103, 101,
+    ... 155 more items
+  ]
+}
+
+Node.js v22.23.4
+✖ tests/engine/solver-exact.test.mjs (154.581242ms)
+✔ canopy: stepping, snapshots and checkpoint restore never materialize compatibility objects (217.134005ms)
+✔ canopy: edited full precision views and resumed trajectories match the preceding object solver exactly (2635.350744ms)
+✔ plate: stepping, snapshots and checkpoint restore never materialize compatibility objects (182.378565ms)
+✔ plate: edited full precision views and resumed trajectories match the preceding object solver exactly (2689.041221ms)
+✔ bridge: stepping, snapshots and checkpoint restore never materialize compatibility objects (37.40362ms)
+✔ bridge: edited full precision views and resumed trajectories match the preceding object solver exactly (236.751954ms)
+✔ vector and dependency assignments remain live without replacing retained views (27.481888ms)
+✔ default and plate startup load only the six interior fixture texture variants (6.49238ms)
+✔ bridge assets load once on demand and retain the authored node-material contracts (3.372138ms)
+✔ bridge-first startup defers the interior floor while keeping visible crown hardware textured (1.968187ms)
+✔ finishes preserve texture color spaces, tiling and physical appearance settings (2.351956ms)
+✔ two-phase finish replacement retains shared maps until their last material releases (1.481405ms)
+✔ finish release never disposes maps retained by visible fixture materials (2.455145ms)
+✔ loading bridge assets preserves a finish already adopted for hall worktops (1.716362ms)
+✔ failed finish preparation keeps the active finish usable and retires late sibling loads (7.087695ms)
+✔ failed study loading can retry without duplicate successful texture requests (2.32172ms)
+✔ dispose reclaims every owned material and texture once, leaving foreign resources untouched (2.67427ms)
+✔ pending textures that resolve after disposal are released immediately and all use rejects (4.43957ms)
+✔ disposal before queued requests start prevents the loader from being invoked (0.589118ms)
+✔ 100 successive finish adoptions keep residency bounded by the active and prepared finishes (5.470334ms)
+✔ backend identity is immutable on direct restore and factories retain either history (561.082999ms)
+✔ runtime enforces selected capabilities and restores recorded backend by default (9.763274ms)
+✔ client transport retains backend through commands, old loans and resets: {"mode":"sync"} (121.037484ms)
+✔ client transport retains backend through commands, old loans and resets: {"mode":"worker","snapshots":"transfer"} (276.445584ms)
+✔ client transport retains backend through commands, old loans and resets: {"mode":"worker","snapshots":"shared"} (285.724745ms)
+✔ worker cannot substitute another valid backend at ready (90.62856ms)
+✔ worker cannot substitute another valid backend at snapshot (91.799995ms)
+✔ worker cannot substitute another valid backend at checkpoint (98.954257ms)
+✔ scaled norm remains robust at zero, overflow, underflow and mixed magnitudes (4.09909ms)
+✔ saved-run file wrappers restore the recorded numerical backend (478.823363ms)
+✔ live snapshots reuse every buffer and nested object while copying all current values (175.630796ms)
+✔ recorded snapshots own all mutable data independently of the simulation and live targets (149.051834ms)
+✔ snapshot targets reject bad dimensions, types, shared regions and missing or frozen state before writes (36.778488ms)
+✔ packed topology identity survives backward restore and distinguishes equal counts with different edges (131.95895ms)
+✔ canopy: JSON checkpoint in active failure resumes full precision state and events exactly (5682.91765ms)
+✔ plate: JSON checkpoint in active failure resumes full precision state and events exactly (6260.806159ms)
+✔ bridge: JSON checkpoint in active failure resumes full precision state and events exactly (521.543627ms)
+✔ checkpoint restores nondefault particle rest, history, mass and all mutable press controls (433.70661ms)
+✔ checkpoint retains mutable press settings, internal hold time and retraction through completion (3511.708634ms)
+✔ checkpoint corruption and incompatible late scene entries never partially mutate a receiver (5329.704424ms)
+✔ surface triangle distances agree with independent Three.js geometry and barycentric reconstruction (14.884564ms)
+✔ collapsed triangles and point edges retain finite closest features (0.944038ms)
+✔ point/triangle CCD catches a complete thin-surface transit with separated endpoints (0.487687ms)
+✔ point/triangle CCD uses relative motion and is unchanged by a common translation (0.261929ms)
+✔ edge/edge CCD catches crossing edges even when no endpoint reaches the other edge (0.367749ms)
+✔ stationary separation and a path past a finite triangle are misses (0.297575ms)
+✔ a limited grazing query reports uncertainty rather than a missed collision (0.5365ms)
+✔ mass-weighted surface response separates a crossing without moving its centre of mass (0.35806ms)
+✔ surface response preserves fixed anchors and does not attract separated surfaces (0.534173ms)
+✔ spatial hierarchy agrees with exhaustive continuous feature queries (33.794205ms)
+✔ deleted topology leaves no hidden face or edge barriers and invalid updates are atomic (0.73425ms)
+✔ static surfaces do not create static/static contacts or duplicate edge tests (0.301209ms)
+✔ large coordinates and long features are queried without cell overflow or dropped hits (0.313604ms)
+✔ empty topology still validates query limits and particle dimensions (0.365878ms)
+✔ separating-plane advancement certifies a near-tangential miss without exhausting the query (0.136887ms)
+✔ reused surface queries find incoming features, changing thickness and newly dynamic surfaces (1.665617ms)
+✔ slow folds, mass changes and topology edits preserve complete fresh-query reports (235.703336ms)
+✔ dense candidate envelopes fall back without losing exact contacts (145.553332ms)
+✔ intact motion does not rebuild topology; equal-count tears and backwards replay do (2.678105ms)
+✔ surviving normals exclude stale faces beyond draw range and match Three for intact mesh (1.72325ms)
+✔ cached shell boundary is identical to uncached geometry after fracture (2.040922ms)
+✔ perimeter pairs have no duplicates and reusable deck frames preserve reference transforms (1.634763ms)
+✔ parallel worker sweeps preserve exact case state, order and immutable numeric samples (844.590246ms)
+✔ cancellation destroys active workers and never starts queued cases (134.971842ms)
+✔ invalid cases are rejected before any worker or output side effect (1.162784ms)
+✔ worker failure is identified per case and sink failures propagate after cleanup (2.567641ms)
+✔ large campaigns stream full checkpoints and retain only compact results (125.773751ms)
+bridge-0: completed, 24/24 ticks
+✔ CLI writes separate integrity-identified artifacts and refuses existing output directories (195.396627ms)
+✔ the threading ABI is defined in box3d_threads.c and exported by the threaded artifact only (1.706265ms)
+✔ the bridge is unchanged: threading reaches it only through the per-source rename of two world calls (0.806432ms)
+✖ the shipped threaded artifacts are the recorded builds of the current sources (1.189548ms)
+✖ a recorded threaded validation cites evidence that exists and claims no speed (0.663283ms)
+✔ the loader plans threads from the page capability and keeps the single-threaded fallback (0.334483ms)
+✔ the dev and preview servers isolate the page for shared memory and stay on 127.0.0.1 (1.02082ms)
+✔ the threaded build, test and benchmark commands exist and point at real files (0.423658ms)
+✔ every reference to the threaded design document resolves (0.774229ms)
+✔ a first threaded record identifies the exact sources and artifacts and starts unqualified (80.103031ms)
+✔ the single-threaded artifact record is never touched (48.136795ms)
+✔ an exact threaded rebuild retains the qualification attached to those exact hashes (115.515606ms)
+✔ changed threaded source or artifacts invalidate prior qualification instead of relabelling it (527.636616ms)
+✔ a missing threaded artifact or manifest is refused with the command that fixes it (112.945161ms)
+✔ an isolated page on a many-core machine gets the automatic worker ceiling (2.386087ms)
+✔ the automatic plan leaves two processors for the page and the GPU (0.702811ms)
+✔ the page must be able to share memory before workers are requested (0.422144ms)
+✔ ?threads= turns threading off or picks the worker count (0.605289ms)
+✔ unparseable ?threads= values fall back to the automatic plan (0.405787ms)
+✔ paired water frame gate accepts a controlled gain and retains small-grid losses (25.600226ms)
+✔ control drift rejects speed claims despite faster water frames (7.378963ms)
+✔ missing evidence, changed quality, shared processes and numerical drift cannot qualify (20.297223ms)
+✔ water experiment rejects unbounded or duplicate workloads before execution (0.986429ms)
+✔ closed-water timings require matching physical identity, zero wall flux and stable GPU controls (44.818164ms)
+✖ closed-water timings cannot borrow physical acceptance from a different solver source (5.586142ms)
+✖ closed model protocol preserves the inherited frozen protocol and uses physical cell-centre spacing (2.843238ms)
+✔ retained benchmark fields deduplicate by content and reject modified data (26.727946ms)
+✔ saved water comparisons rehash retained source, raw results, protocol and execution order (48.607279ms)
+✔ real worker transfers recycled snapshots and reproduces all three direct solvers (3110.668583ms)
+✔ worker backpressure, invalid command atomicity, stale reset and old loans are safe (956.815494ms)
+✔ startup fallback is explicit, mandatory-worker faults reject, and destroyed sync clients stay closed (2.757314ms)
+✔ unresponsive workers time out and release their transport (10.591127ms)
+ℹ tests 311
+ℹ suites 0
+ℹ pass 280
+ℹ fail 31
+ℹ cancelled 0
+ℹ skipped 0
+ℹ todo 0
+ℹ duration_ms 80675.022439
+
+✖ failing tests:
+
+test at tests/engine/gpu-timing.test.mjs:193:1
+✖ invalid timestamp data reports an error instead of zero timing and stops further sampling (2.079604ms)
+  AssertionError [ERR_ASSERTION]: Expected values to be strictly equal:
+  
+  'ready' !== 'error'
+  
+      at TestContext.<anonymous> (file:///tmp/claude-0/-home-user-box3d-WEBGPU/3496b4bd-b15e-564a-9b42-e3dfab8e515e/scratchpad/wt-bridge-water-20261003/tests/engine/gpu-timing.test.mjs:199:12)
+      at async Test.run (node:internal/test_runner/test:1054:7)
+      at async Test.processPendingSubtests (node:internal/test_runner/test:744:7) {
+    generatedMessage: true,
+    code: 'ERR_ASSERTION',
+    actual: 'ready',
+    expected: 'error',
+    operator: 'strictEqual',
+    diff: 'simple'
+  }
+
+test at tests/engine/harness.test.mjs:176:1
+✖ real subprocess evidence accepts an exact asset archive but rejects changed assets and source tampering (63.176771ms)
+  AssertionError [ERR_ASSERTION]: Node 24+ with native TypeScript stripping and registerHooks is required
+  
+      at file:///tmp/claude-0/-home-user-box3d-WEBGPU/3496b4bd-b15e-564a-9b42-e3dfab8e515e/scratchpad/wt-bridge-water-20261003/tests/engine/harness.test.mjs:182:30
+      at process.processTicksAndRejections (node:internal/process/task_queues:103:5)
+      at async TestContext.<anonymous> (file:///tmp/claude-0/-home-user-box3d-WEBGPU/3496b4bd-b15e-564a-9b42-e3dfab8e515e/scratchpad/wt-bridge-water-20261003/tests/engine/harness.test.mjs:179:3)
+      at async Test.run (node:internal/test_runner/test:1054:7)
+      at async Test.processPendingSubtests (node:internal/test_runner/test:744:7) {
+    generatedMessage: false,
+    code: 'ERR_ASSERTION',
+    actual: false,
+    expected: true,
+    operator: '==',
+    diff: 'simple'
+  }
+
+test at tests/engine/linear-water.test.mjs:1:1
+✖ tests/engine/linear-water.test.mjs (99.434616ms)
+  'test failed'
+
+test at tests/engine/native-capacity.test.mjs:1:1
+✖ tests/engine/native-capacity.test.mjs (126.827442ms)
+  'test failed'
+
+test at tests/engine/native-queries.test.mjs:33:1
+✖ native rays and sphere/box casts match analytic box hits with documented SDK cast slop (22.433783ms)
+  Error [EngineError]: Native world export b3w_world_api_version is missing; rebuild the native artifact.
+      at assertNativeWorldModule (file:///tmp/claude-0/-home-user-box3d-WEBGPU/3496b4bd-b15e-564a-9b42-e3dfab8e515e/scratchpad/wt-bridge-water-20261003/src/engine/native-world.ts:149:11)
+      at new NativeWorldPool (file:///tmp/claude-0/-home-user-box3d-WEBGPU/3496b4bd-b15e-564a-9b42-e3dfab8e515e/scratchpad/wt-bridge-water-20261003/src/engine/native-world.ts:478:5)
+      at TestContext.<anonymous> (file:///tmp/claude-0/-home-user-box3d-WEBGPU/3496b4bd-b15e-564a-9b42-e3dfab8e515e/scratchpad/wt-bridge-water-20261003/tests/engine/native-queries.test.mjs:34:31)
+      at async Test.run (node:internal/test_runner/test:1054:7)
+      at async startSubtestAfterBootstrap (node:internal/test_runner/harness:296:3) {
+    code: 'UNSUPPORTED_BACKEND'
+  }
+
+test at tests/engine/native-queries.test.mjs:58:1
+✖ shape overlaps use SDK distance slop, remain distinct from broadphase candidates, and filter both body types (9.379134ms)
+  Error [EngineError]: Native world export b3w_world_api_version is missing; rebuild the native artifact.
+      at assertNativeWorldModule (file:///tmp/claude-0/-home-user-box3d-WEBGPU/3496b4bd-b15e-564a-9b42-e3dfab8e515e/scratchpad/wt-bridge-water-20261003/src/engine/native-world.ts:149:11)
+      at new NativeWorldPool (file:///tmp/claude-0/-home-user-box3d-WEBGPU/3496b4bd-b15e-564a-9b42-e3dfab8e515e/scratchpad/wt-bridge-water-20261003/src/engine/native-world.ts:478:5)
+      at TestContext.<anonymous> (file:///tmp/claude-0/-home-user-box3d-WEBGPU/3496b4bd-b15e-564a-9b42-e3dfab8e515e/scratchpad/wt-bridge-water-20261003/tests/engine/native-queries.test.mjs:59:31)
+      at async Test.run (node:internal/test_runner/test:1054:7)
+      at async Test.processPendingSubtests (node:internal/test_runner/test:744:7) {
+    code: 'UNSUPPORTED_BACKEND'
+  }
+
+test at tests/engine/native-queries.test.mjs:83:1
+✖ nearest-K overflow is deterministic across non-distance insertion, compaction and slot recycling (10.910067ms)
+  Error [EngineError]: Native world export b3w_world_api_version is missing; rebuild the native artifact.
+      at assertNativeWorldModule (file:///tmp/claude-0/-home-user-box3d-WEBGPU/3496b4bd-b15e-564a-9b42-e3dfab8e515e/scratchpad/wt-bridge-water-20261003/src/engine/native-world.ts:149:11)
+      at new NativeWorldPool (file:///tmp/claude-0/-home-user-box3d-WEBGPU/3496b4bd-b15e-564a-9b42-e3dfab8e515e/scratchpad/wt-bridge-water-20261003/src/engine/native-world.ts:478:5)
+      at TestContext.<anonymous> (file:///tmp/claude-0/-home-user-box3d-WEBGPU/3496b4bd-b15e-564a-9b42-e3dfab8e515e/scratchpad/wt-bridge-water-20261003/tests/engine/native-queries.test.mjs:84:31)
+      at async Test.run (node:internal/test_runner/test:1054:7)
+      at async Test.processPendingSubtests (node:internal/test_runner/test:744:7) {
+    code: 'UNSUPPORTED_BACKEND'
+  }
+
+test at tests/engine/native-queries.test.mjs:107:1
+✖ owned query hits survive resets, heap relocation, world isolation and destruction without reviving references (3.96939ms)
+  Error [EngineError]: Native world export b3w_world_api_version is missing; rebuild the native artifact.
+      at assertNativeWorldModule (file:///tmp/claude-0/-home-user-box3d-WEBGPU/3496b4bd-b15e-564a-9b42-e3dfab8e515e/scratchpad/wt-bridge-water-20261003/src/engine/native-world.ts:149:11)
+      at new NativeWorldPool (file:///tmp/claude-0/-home-user-box3d-WEBGPU/3496b4bd-b15e-564a-9b42-e3dfab8e515e/scratchpad/wt-bridge-water-20261003/src/engine/native-world.ts:478:5)
+      at TestContext.<anonymous> (file:///tmp/claude-0/-home-user-box3d-WEBGPU/3496b4bd-b15e-564a-9b42-e3dfab8e515e/scratchpad/wt-bridge-water-20261003/tests/engine/native-queries.test.mjs:108:31)
+      at async Test.run (node:internal/test_runner/test:1054:7)
+      at async Test.processPendingSubtests (node:internal/test_runner/test:744:7) {
+    code: 'UNSUPPORTED_BACKEND'
+  }
+
+test at tests/engine/native-queries.test.mjs:125:1
+✖ whole-batch input and stale-body validation precede any reservation or output write (14.063083ms)
+  Error [EngineError]: Native world export b3w_world_api_version is missing; rebuild the native artifact.
+      at assertNativeWorldModule (file:///tmp/claude-0/-home-user-box3d-WEBGPU/3496b4bd-b15e-564a-9b42-e3dfab8e515e/scratchpad/wt-bridge-water-20261003/src/engine/native-world.ts:149:11)
+      at new NativeWorldPool (file:///tmp/claude-0/-home-user-box3d-WEBGPU/3496b4bd-b15e-564a-9b42-e3dfab8e515e/scratchpad/wt-bridge-water-20261003/src/engine/native-world.ts:478:5)
+      at TestContext.<anonymous> (file:///tmp/claude-0/-home-user-box3d-WEBGPU/3496b4bd-b15e-564a-9b42-e3dfab8e515e/scratchpad/wt-bridge-water-20261003/tests/engine/native-queries.test.mjs:126:31)
+      at async Test.run (node:internal/test_runner/test:1054:7)
+      at async Test.processPendingSubtests (node:internal/test_runner/test:744:7) {
+    code: 'UNSUPPORTED_BACKEND'
+  }
+
+test at tests/engine/native-queries.test.mjs:144:1
+✖ raw C rejects malformed batches and stale revisions atomically, and JS rejects corrupt native layouts/results (5.643615ms)
+  Error [EngineError]: Native world export b3w_world_api_version is missing; rebuild the native artifact.
+      at assertNativeWorldModule (file:///tmp/claude-0/-home-user-box3d-WEBGPU/3496b4bd-b15e-564a-9b42-e3dfab8e515e/scratchpad/wt-bridge-water-20261003/src/engine/native-world.ts:149:11)
+      at new NativeWorldPool (file:///tmp/claude-0/-home-user-box3d-WEBGPU/3496b4bd-b15e-564a-9b42-e3dfab8e515e/scratchpad/wt-bridge-water-20261003/src/engine/native-world.ts:478:5)
+      at TestContext.<anonymous> (file:///tmp/claude-0/-home-user-box3d-WEBGPU/3496b4bd-b15e-564a-9b42-e3dfab8e515e/scratchpad/wt-bridge-water-20261003/tests/engine/native-queries.test.mjs:145:31)
+      at async Test.run (node:internal/test_runner/test:1054:7)
+      at async Test.processPendingSubtests (node:internal/test_runner/test:744:7) {
+    code: 'UNSUPPORTED_BACKEND'
+  }
+
+test at tests/engine/native-queries.test.mjs:171:1
+✖ old artifacts retain compatibility and incomplete query extensions fail explicitly (8.281751ms)
+  Error [ERR_MODULE_NOT_FOUND]: Cannot find module '/tmp/claude-0/-home-user-box3d-WEBGPU/3496b4bd-b15e-564a-9b42-e3dfab8e515e/scratchpad/wt-bridge-water-20261003/benchmarks/results/engine-100x/runs/native-body-recycling-20260910-04/artifacts/box3d.js' imported from /tmp/claude-0/-home-user-box3d-WEBGPU/3496b4bd-b15e-564a-9b42-e3dfab8e515e/scratchpad/wt-bridge-water-20261003/tests/engine/native-queries.test.mjs
+      at finalizeResolution (node:internal/modules/esm/resolve:275:11)
+      at moduleResolve (node:internal/modules/esm/resolve:865:10)
+      at defaultResolve (node:internal/modules/esm/resolve:989:11)
+      at #cachedDefaultResolve (node:internal/modules/esm/loader:747:20)
+      at ModuleLoader.resolve (node:internal/modules/esm/loader:724:38)
+      at ModuleLoader.getModuleJobForImport (node:internal/modules/esm/loader:320:38)
+      at onImport.tracePromise.__proto__ (node:internal/modules/esm/loader:680:36)
+      at TracingChannel.tracePromise (node:diagnostics_channel:350:14)
+      at ModuleLoader.import (node:internal/modules/esm/loader:679:21)
+      at defaultImportModuleDynamicallyForModule (node:internal/modules/esm/utils:222:31) {
+    code: 'ERR_MODULE_NOT_FOUND',
+    url: 'file:///tmp/claude-0/-home-user-box3d-WEBGPU/3496b4bd-b15e-564a-9b42-e3dfab8e515e/scratchpad/wt-bridge-water-20261003/benchmarks/results/engine-100x/runs/native-body-recycling-20260910-04/artifacts/box3d.js'
+  }
+
+test at tests/engine/native-queries.test.mjs:182:1
+✖ query arena warmup is bounded through repeated largest-batch execution and world churn (4.178582ms)
+  Error [EngineError]: Native world export b3w_world_api_version is missing; rebuild the native artifact.
+      at assertNativeWorldModule (file:///tmp/claude-0/-home-user-box3d-WEBGPU/3496b4bd-b15e-564a-9b42-e3dfab8e515e/scratchpad/wt-bridge-water-20261003/src/engine/native-world.ts:149:11)
+      at new NativeWorldPool (file:///tmp/claude-0/-home-user-box3d-WEBGPU/3496b4bd-b15e-564a-9b42-e3dfab8e515e/scratchpad/wt-bridge-water-20261003/src/engine/native-world.ts:478:5)
+      at TestContext.<anonymous> (file:///tmp/claude-0/-home-user-box3d-WEBGPU/3496b4bd-b15e-564a-9b42-e3dfab8e515e/scratchpad/wt-bridge-water-20261003/tests/engine/native-queries.test.mjs:183:31)
+      at async Test.run (node:internal/test_runner/test:1054:7)
+      at async Test.processPendingSubtests (node:internal/test_runner/test:744:7) {
+    code: 'UNSUPPORTED_BACKEND'
+  }
+
+test at tests/engine/native-recycling.test.mjs:20:1
+✖ first, middle, last and static-body removals preserve every surviving token and exact dense row (16.885211ms)
+  Error [EngineError]: Native world export b3w_world_api_version is missing; rebuild the native artifact.
+      at assertNativeWorldModule (file:///tmp/claude-0/-home-user-box3d-WEBGPU/3496b4bd-b15e-564a-9b42-e3dfab8e515e/scratchpad/wt-bridge-water-20261003/src/engine/native-world.ts:149:11)
+      at new NativeWorldPool (file:///tmp/claude-0/-home-user-box3d-WEBGPU/3496b4bd-b15e-564a-9b42-e3dfab8e515e/scratchpad/wt-bridge-water-20261003/src/engine/native-world.ts:478:5)
+      at TestContext.<anonymous> (file:///tmp/claude-0/-home-user-box3d-WEBGPU/3496b4bd-b15e-564a-9b42-e3dfab8e515e/scratchpad/wt-bridge-water-20261003/tests/engine/native-recycling.test.mjs:21:30)
+      at async Test.run (node:internal/test_runner/test:1054:7)
+      at async startSubtestAfterBootstrap (node:internal/test_runner/harness:296:3) {
+    code: 'UNSUPPORTED_BACKEND'
+  }
+
+test at tests/engine/native-recycling.test.mjs:40:1
+✖ dead-slot generations survive capacity relocation and scene resets without reviving stale handles (3.779489ms)
+  Error [EngineError]: Native world export b3w_world_api_version is missing; rebuild the native artifact.
+      at assertNativeWorldModule (file:///tmp/claude-0/-home-user-box3d-WEBGPU/3496b4bd-b15e-564a-9b42-e3dfab8e515e/scratchpad/wt-bridge-water-20261003/src/engine/native-world.ts:149:11)
+      at new NativeWorldPool (file:///tmp/claude-0/-home-user-box3d-WEBGPU/3496b4bd-b15e-564a-9b42-e3dfab8e515e/scratchpad/wt-bridge-water-20261003/src/engine/native-world.ts:478:5)
+      at TestContext.<anonymous> (file:///tmp/claude-0/-home-user-box3d-WEBGPU/3496b4bd-b15e-564a-9b42-e3dfab8e515e/scratchpad/wt-bridge-water-20261003/tests/engine/native-recycling.test.mjs:41:30)
+      at async Test.run (node:internal/test_runner/test:1054:7)
+      at async Test.processPendingSubtests (node:internal/test_runner/test:744:7) {
+    code: 'UNSUPPORTED_BACKEND'
+  }
+
+test at tests/engine/native-recycling.test.mjs:56:1
+✖ typed references reject other worlds, modules, forged values, partial extensions and old artifacts (8.580843ms)
+  Error [EngineError]: Native world export b3w_world_api_version is missing; rebuild the native artifact.
+      at assertNativeWorldModule (file:///tmp/claude-0/-home-user-box3d-WEBGPU/3496b4bd-b15e-564a-9b42-e3dfab8e515e/scratchpad/wt-bridge-water-20261003/src/engine/native-world.ts:149:11)
+      at new NativeWorldPool (file:///tmp/claude-0/-home-user-box3d-WEBGPU/3496b4bd-b15e-564a-9b42-e3dfab8e515e/scratchpad/wt-bridge-water-20261003/src/engine/native-world.ts:478:5)
+      at TestContext.<anonymous> (file:///tmp/claude-0/-home-user-box3d-WEBGPU/3496b4bd-b15e-564a-9b42-e3dfab8e515e/scratchpad/wt-bridge-water-20261003/tests/engine/native-recycling.test.mjs:57:52)
+      at async Test.run (node:internal/test_runner/test:1054:7)
+      at async Test.processPendingSubtests (node:internal/test_runner/test:744:7) {
+    code: 'UNSUPPORTED_BACKEND'
+  }
+
+test at tests/engine/native-recycling.test.mjs:75:1
+✖ 64K live storage compacts correctly at the boundary and reference-based impulses follow moved bodies (1.986482ms)
+  Error [EngineError]: Native world export b3w_world_api_version is missing; rebuild the native artifact.
+      at assertNativeWorldModule (file:///tmp/claude-0/-home-user-box3d-WEBGPU/3496b4bd-b15e-564a-9b42-e3dfab8e515e/scratchpad/wt-bridge-water-20261003/src/engine/native-world.ts:149:11)
+      at new NativeWorldPool (file:///tmp/claude-0/-home-user-box3d-WEBGPU/3496b4bd-b15e-564a-9b42-e3dfab8e515e/scratchpad/wt-bridge-water-20261003/src/engine/native-world.ts:478:5)
+      at TestContext.<anonymous> (file:///tmp/claude-0/-home-user-box3d-WEBGPU/3496b4bd-b15e-564a-9b42-e3dfab8e515e/scratchpad/wt-bridge-water-20261003/tests/engine/native-recycling.test.mjs:76:30)
+      at async Test.run (node:internal/test_runner/test:1054:7)
+      at async Test.processPendingSubtests (node:internal/test_runner/test:744:7) {
+    code: 'UNSUPPORTED_BACKEND'
+  }
+
+test at tests/engine/native-recycling.test.mjs:111:1
+✖ retained stale references do not keep a destroyed native backend alive (155.934784ms)
+  Error: Command failed: /opt/node22/bin/node --expose-gc --input-type=module -e import fs from 'node:fs';
+   import factory from "file:///tmp/claude-0/-home-user-box3d-WEBGPU/3496b4bd-b15e-564a-9b42-e3dfab8e515e/scratchpad/wt-bridge-water-20261003/public/box3d/box3d.js";
+   import {NativeWorldPool} from "file:///tmp/claude-0/-home-user-box3d-WEBGPU/3496b4bd-b15e-564a-9b42-e3dfab8e515e/scratchpad/wt-bridge-water-20261003/src/engine/native-world.ts";
+   const mod=await factory({wasmBinary:fs.readFileSync("/tmp/claude-0/-home-user-box3d-WEBGPU/3496b4bd-b15e-564a-9b42-e3dfab8e515e/scratchpad/wt-bridge-water-20261003/public/box3d/box3d.wasm")});
+   let pool=new NativeWorldPool(mod),world=pool.createWorld();world.createScene({id:0},1,42);
+   const ref=world.bodyHandle(1),weak=new WeakRef(world);pool.destroy();world=null;pool=null;
+   for(let i=0;i<24;i++){await new Promise(setImmediate);global.gc();}
+   if(!ref.token||weak.deref()!==undefined)throw new Error('Retained stale body reference kept disposed backend alive');
+   console.log('Disposed backend collected while stale body reference remains alive');
+  file:///tmp/claude-0/-home-user-box3d-WEBGPU/3496b4bd-b15e-564a-9b42-e3dfab8e515e/scratchpad/wt-bridge-water-20261003/src/engine/native-world.ts:149
+      throw new EngineError('UNSUPPORTED_BACKEND',`Native world export b3w_world_${name} is missing; rebuild the native artifact.`);
+            ^
+  
+  EngineError: Native world export b3w_world_api_version is missing; rebuild the native artifact.
+      at assertNativeWorldModule (file:///tmp/claude-0/-home-user-box3d-WEBGPU/3496b4bd-b15e-564a-9b42-e3dfab8e515e/scratchpad/wt-bridge-water-20261003/src/engine/native-world.ts:149:11)
+      at new NativeWorldPool (file:///tmp/claude-0/-home-user-box3d-WEBGPU/3496b4bd-b15e-564a-9b42-e3dfab8e515e/scratchpad/wt-bridge-water-20261003/src/engine/native-world.ts:478:5)
+      at file:///tmp/claude-0/-home-user-box3d-WEBGPU/3496b4bd-b15e-564a-9b42-e3dfab8e515e/scratchpad/wt-bridge-water-20261003/[eval1]:5:11 {
+    code: 'UNSUPPORTED_BACKEND'
+  }
+  
+  Node.js v22.23.4
+  
+      at genericNodeError (node:internal/errors:983:15)
+      at wrappedFn (node:internal/errors:537:14)
+      at checkExecSyncError (node:child_process:916:11)
+      at execFileSync (node:child_process:952:15)
+      at TestContext.<anonymous> (file:///tmp/claude-0/-home-user-box3d-WEBGPU/3496b4bd-b15e-564a-9b42-e3dfab8e515e/scratchpad/wt-bridge-water-20261003/tests/engine/native-recycling.test.mjs:122:15)
+      at async Test.run (node:internal/test_runner/test:1054:7)
+      at async Test.processPendingSubtests (node:internal/test_runner/test:744:7) {
+    status: 1,
+    signal: null,
+    output: [ null, '', "file:///tmp/claude-0/-home-user-box3d-WEBGPU/3496b4bd-b15e-564a-9b42-e3dfab8e515e/scratchpad/wt-bridge-water-20261003/src/engine/native-world.ts:149\n    throw new EngineError('UNSUPPORTED_BACKEND',`Native world export b3w_world_${name} is missing; rebuild the native artifact.`);\n          ^\n\nEngineError: Native world export b3w_world_api_version is missing; rebuild the native artifact.\n    at assertNativeWorldModule (file:///tmp/claude-0/-home-user-box3d-WEBGPU/3496b4bd-b15e-564a-9b42-e3dfab8e515e/scratchpad/wt-bridge-water-20261003/src/engine/native-world.ts:149:11)\n    at new NativeWorldPool (file:///tmp/claude-0/-home-user-box3d-WEBGPU/3496b4bd-b15e-564a-9b42-e3dfab8e515e/scratchpad/wt-bridge-water-20261003/src/engine/native-world.ts:478:5)\n    at file:///tmp/claude-0/-home-user-box3d-WEBGPU/3496b4bd-b15e-564a-9b42-e3dfab8e515e/scratchpad/wt-bridge-water-20261003/[eval1]:5:11 {\n  code: 'UNSUPPORTED_BACKEND'\n}\n\nNode.js v22.23.4\n" ],
+    pid: 9172,
+    stdout: '',
+    stderr: "file:///tmp/claude-0/-home-user-box3d-WEBGPU/3496b4bd-b15e-564a-9b42-e3dfab8e515e/scratchpad/wt-bridge-water-20261003/src/engine/native-world.ts:149\n    throw new EngineError('UNSUPPORTED_BACKEND',`Native world export b3w_world_${name} is missing; rebuild the native artifact.`);\n          ^\n\nEngineError: Native world export b3w_world_api_version is missing; rebuild the native artifact.\n    at assertNativeWorldModule (file:///tmp/claude-0/-home-user-box3d-WEBGPU/3496b4bd-b15e-564a-9b42-e3dfab8e515e/scratchpad/wt-bridge-water-20261003/src/engine/native-world.ts:149:11)\n    at new NativeWorldPool (file:///tmp/claude-0/-home-user-box3d-WEBGPU/3496b4bd-b15e-564a-9b42-e3dfab8e515e/scratchpad/wt-bridge-water-20261003/src/engine/native-world.ts:478:5)\n    at file:///tmp/claude-0/-home-user-box3d-WEBGPU/3496b4bd-b15e-564a-9b42-e3dfab8e515e/scratchpad/wt-bridge-water-20261003/[eval1]:5:11 {\n  code: 'UNSUPPORTED_BACKEND'\n}\n\nNode.js v22.23.4\n"
+  }
+
+test at tests/engine/native-world.test.mjs:16:1
+✖ native world ABI rejects missing exports, wrong versions and failed construction without leaking a slot (9.141177ms)
+  AssertionError [ERR_ASSERTION]: The validation function is expected to return "true". Received false
+  
+  Caught error:
+  
+  EngineError: Native world export b3w_world_api_version is missing; rebuild the native artifact.
+      at TestContext.<anonymous> (file:///tmp/claude-0/-home-user-box3d-WEBGPU/3496b4bd-b15e-564a-9b42-e3dfab8e515e/scratchpad/wt-bridge-water-20261003/tests/engine/native-world.test.mjs:23:10)
+      at async Test.run (node:internal/test_runner/test:1054:7)
+      at async startSubtestAfterBootstrap (node:internal/test_runner/harness:296:3) {
+    generatedMessage: true,
+    code: 'ERR_ASSERTION',
+    actual: EngineError: Native world export b3w_world_api_version is missing; rebuild the native artifact.
+        at assertNativeWorldModule (file:///tmp/claude-0/-home-user-box3d-WEBGPU/3496b4bd-b15e-564a-9b42-e3dfab8e515e/scratchpad/wt-bridge-water-20261003/src/engine/native-world.ts:149:11)
+        at new NativeWorldBackend (file:///tmp/claude-0/-home-user-box3d-WEBGPU/3496b4bd-b15e-564a-9b42-e3dfab8e515e/scratchpad/wt-bridge-water-20261003/src/engine/native-world.ts:187:5)
+        at file:///tmp/claude-0/-home-user-box3d-WEBGPU/3496b4bd-b15e-564a-9b42-e3dfab8e515e/scratchpad/wt-bridge-water-20261003/tests/engine/native-world.test.mjs:23:21
+        at getActual (node:assert:609:5)
+        at Function.throws (node:assert:757:24)
+        at TestContext.<anonymous> (file:///tmp/claude-0/-home-user-box3d-WEBGPU/3496b4bd-b15e-564a-9b42-e3dfab8e515e/scratchpad/wt-bridge-water-20261003/tests/engine/native-world.test.mjs:23:10)
+        at async Test.run (node:internal/test_runner/test:1054:7)
+        at async startSubtestAfterBootstrap (node:internal/test_runner/harness:296:3),
+    operator: 'throws',
+    diff: 'simple'
+  }
+
+test at tests/engine/native-world.test.mjs:28:1
+✖ interleaved native worlds retain exact default trajectories while another world resets and changes seed (3.181456ms)
+  Error [EngineError]: Native world export b3w_world_api_version is missing; rebuild the native artifact.
+      at assertNativeWorldModule (file:///tmp/claude-0/-home-user-box3d-WEBGPU/3496b4bd-b15e-564a-9b42-e3dfab8e515e/scratchpad/wt-bridge-water-20261003/src/engine/native-world.ts:149:11)
+      at new NativeWorldPool (file:///tmp/claude-0/-home-user-box3d-WEBGPU/3496b4bd-b15e-564a-9b42-e3dfab8e515e/scratchpad/wt-bridge-water-20261003/src/engine/native-world.ts:478:5)
+      at TestContext.<anonymous> (file:///tmp/claude-0/-home-user-box3d-WEBGPU/3496b4bd-b15e-564a-9b42-e3dfab8e515e/scratchpad/wt-bridge-water-20261003/tests/engine/native-world.test.mjs:29:31)
+      at async Test.run (node:internal/test_runner/test:1054:7)
+      at async Test.processPendingSubtests (node:internal/test_runner/test:744:7) {
+    code: 'UNSUPPORTED_BACKEND'
+  }
+
+test at tests/engine/native-world.test.mjs:51:1
+✖ native slot reuse rejects every stale mutation and keeps the replacement and compatibility world intact (4.97485ms)
+  Error [EngineError]: Native world export b3w_world_api_version is missing; rebuild the native artifact.
+      at assertNativeWorldModule (file:///tmp/claude-0/-home-user-box3d-WEBGPU/3496b4bd-b15e-564a-9b42-e3dfab8e515e/scratchpad/wt-bridge-water-20261003/src/engine/native-world.ts:149:11)
+      at new NativeWorldPool (file:///tmp/claude-0/-home-user-box3d-WEBGPU/3496b4bd-b15e-564a-9b42-e3dfab8e515e/scratchpad/wt-bridge-water-20261003/src/engine/native-world.ts:478:5)
+      at TestContext.<anonymous> (file:///tmp/claude-0/-home-user-box3d-WEBGPU/3496b4bd-b15e-564a-9b42-e3dfab8e515e/scratchpad/wt-bridge-water-20261003/tests/engine/native-world.test.mjs:52:31)
+      at async Test.run (node:internal/test_runner/test:1054:7)
+      at async Test.processPendingSubtests (node:internal/test_runner/test:744:7) {
+    code: 'UNSUPPORTED_BACKEND'
+  }
+
+test at tests/engine/native-world.test.mjs:73:1
+✖ native pools enforce module capacity and release only their own worlds (5.48861ms)
+  Error [EngineError]: Native world export b3w_world_api_version is missing; rebuild the native artifact.
+      at assertNativeWorldModule (file:///tmp/claude-0/-home-user-box3d-WEBGPU/3496b4bd-b15e-564a-9b42-e3dfab8e515e/scratchpad/wt-bridge-water-20261003/src/engine/native-world.ts:149:11)
+      at new NativeWorldPool (file:///tmp/claude-0/-home-user-box3d-WEBGPU/3496b4bd-b15e-564a-9b42-e3dfab8e515e/scratchpad/wt-bridge-water-20261003/src/engine/native-world.ts:478:5)
+      at TestContext.<anonymous> (file:///tmp/claude-0/-home-user-box3d-WEBGPU/3496b4bd-b15e-564a-9b42-e3dfab8e515e/scratchpad/wt-bridge-water-20261003/tests/engine/native-world.test.mjs:74:32)
+      at async Test.run (node:internal/test_runner/test:1054:7)
+      at async Test.processPendingSubtests (node:internal/test_runner/test:744:7) {
+    code: 'UNSUPPORTED_BACKEND'
+  }
+
+test at tests/engine/native-world.test.mjs:88:1
+✖ native heap growth refreshes borrowed views without relocating a surviving world stream (5.743029ms)
+  Error [EngineError]: Native world export b3w_world_api_version is missing; rebuild the native artifact.
+      at assertNativeWorldModule (file:///tmp/claude-0/-home-user-box3d-WEBGPU/3496b4bd-b15e-564a-9b42-e3dfab8e515e/scratchpad/wt-bridge-water-20261003/src/engine/native-world.ts:149:11)
+      at new NativeWorldPool (file:///tmp/claude-0/-home-user-box3d-WEBGPU/3496b4bd-b15e-564a-9b42-e3dfab8e515e/scratchpad/wt-bridge-water-20261003/src/engine/native-world.ts:478:5)
+      at TestContext.<anonymous> (file:///tmp/claude-0/-home-user-box3d-WEBGPU/3496b4bd-b15e-564a-9b42-e3dfab8e515e/scratchpad/wt-bridge-water-20261003/tests/engine/native-world.test.mjs:89:31)
+      at async Test.run (node:internal/test_runner/test:1054:7)
+      at async Test.processPendingSubtests (node:internal/test_runner/test:744:7) {
+    code: 'UNSUPPORTED_BACKEND'
+  }
+
+test at tests/engine/native-world.test.mjs:99:1
+✖ native adapter rejects invalid and float32-overflow inputs before touching simulation state (5.602029ms)
+  Error [EngineError]: Native world export b3w_world_api_version is missing; rebuild the native artifact.
+      at assertNativeWorldModule (file:///tmp/claude-0/-home-user-box3d-WEBGPU/3496b4bd-b15e-564a-9b42-e3dfab8e515e/scratchpad/wt-bridge-water-20261003/src/engine/native-world.ts:149:11)
+      at new NativeWorldPool (file:///tmp/claude-0/-home-user-box3d-WEBGPU/3496b4bd-b15e-564a-9b42-e3dfab8e515e/scratchpad/wt-bridge-water-20261003/src/engine/native-world.ts:478:5)
+      at TestContext.<anonymous> (file:///tmp/claude-0/-home-user-box3d-WEBGPU/3496b4bd-b15e-564a-9b42-e3dfab8e515e/scratchpad/wt-bridge-water-20261003/tests/engine/native-world.test.mjs:100:31)
+      at async Test.run (node:internal/test_runner/test:1054:7)
+      at async Test.processPendingSubtests (node:internal/test_runner/test:744:7) {
+    code: 'UNSUPPORTED_BACKEND'
+  }
+
+test at tests/engine/native-world.test.mjs:113:1
+✖ ten thousand context lifecycles retain bounded heap and never revive an old generation (4.809901ms)
+  Error [EngineError]: Native world export b3w_world_api_version is missing; rebuild the native artifact.
+      at assertNativeWorldModule (file:///tmp/claude-0/-home-user-box3d-WEBGPU/3496b4bd-b15e-564a-9b42-e3dfab8e515e/scratchpad/wt-bridge-water-20261003/src/engine/native-world.ts:149:11)
+      at new NativeWorldPool (file:///tmp/claude-0/-home-user-box3d-WEBGPU/3496b4bd-b15e-564a-9b42-e3dfab8e515e/scratchpad/wt-bridge-water-20261003/src/engine/native-world.ts:478:5)
+      at TestContext.<anonymous> (file:///tmp/claude-0/-home-user-box3d-WEBGPU/3496b4bd-b15e-564a-9b42-e3dfab8e515e/scratchpad/wt-bridge-water-20261003/tests/engine/native-world.test.mjs:114:31)
+      at async Test.run (node:internal/test_runner/test:1054:7)
+      at async Test.processPendingSubtests (node:internal/test_runner/test:744:7) {
+    code: 'UNSUPPORTED_BACKEND'
+  }
+
+test at tests/engine/native-world.test.mjs:123:1
+✖ the original fixed-capacity world artifact remains supported without claiming buffer growth (1.585344ms)
+  Error [ERR_MODULE_NOT_FOUND]: Cannot find module '/tmp/claude-0/-home-user-box3d-WEBGPU/3496b4bd-b15e-564a-9b42-e3dfab8e515e/scratchpad/wt-bridge-water-20261003/benchmarks/results/engine-100x/runs/native-worlds-20260910-02/candidate/public/box3d/box3d.js' imported from /tmp/claude-0/-home-user-box3d-WEBGPU/3496b4bd-b15e-564a-9b42-e3dfab8e515e/scratchpad/wt-bridge-water-20261003/tests/engine/native-world.test.mjs
+      at finalizeResolution (node:internal/modules/esm/resolve:275:11)
+      at moduleResolve (node:internal/modules/esm/resolve:865:10)
+      at defaultResolve (node:internal/modules/esm/resolve:989:11)
+      at #cachedDefaultResolve (node:internal/modules/esm/loader:747:20)
+      at ModuleLoader.resolve (node:internal/modules/esm/loader:724:38)
+      at ModuleLoader.getModuleJobForImport (node:internal/modules/esm/loader:320:38)
+      at onImport.tracePromise.__proto__ (node:internal/modules/esm/loader:680:36)
+      at TracingChannel.tracePromise (node:diagnostics_channel:350:14)
+      at ModuleLoader.import (node:internal/modules/esm/loader:679:21)
+      at defaultImportModuleDynamicallyForModule (node:internal/modules/esm/utils:222:31) {
+    code: 'ERR_MODULE_NOT_FOUND',
+    url: 'file:///tmp/claude-0/-home-user-box3d-WEBGPU/3496b4bd-b15e-564a-9b42-e3dfab8e515e/scratchpad/wt-bridge-water-20261003/benchmarks/results/engine-100x/runs/native-worlds-20260910-02/candidate/public/box3d/box3d.js'
+  }
+
+test at tests/engine/soft-telemetry.test.mjs:1:1
+✖ tests/engine/soft-telemetry.test.mjs (51.945988ms)
+  'test failed'
+
+test at tests/engine/solver-exact.test.mjs:1:1
+✖ tests/engine/solver-exact.test.mjs (154.581242ms)
+  'test failed'
+
+test at tests/engine/threaded-contract.test.mjs:34:1
+✖ the shipped threaded artifacts are the recorded builds of the current sources (1.189548ms)
+  Error: ENOENT: no such file or directory, open '/tmp/claude-0/-home-user-box3d-WEBGPU/3496b4bd-b15e-564a-9b42-e3dfab8e515e/scratchpad/wt-bridge-water-20261003/public/box3d/box3d-mt.wasm'
+      at Object.openSync (node:fs:560:18)
+      at readFileSync (node:fs:444:35)
+      at bytes (file:///tmp/claude-0/-home-user-box3d-WEBGPU/3496b4bd-b15e-564a-9b42-e3dfab8e515e/scratchpad/wt-bridge-water-20261003/tests/engine/threaded-contract.test.mjs:10:19)
+      at TestContext.<anonymous> (file:///tmp/claude-0/-home-user-box3d-WEBGPU/3496b4bd-b15e-564a-9b42-e3dfab8e515e/scratchpad/wt-bridge-water-20261003/tests/engine/threaded-contract.test.mjs:42:32)
+      at Test.runInAsyncScope (node:async_hooks:214:14)
+      at Test.run (node:internal/test_runner/test:1047:25)
+      at Test.processPendingSubtests (node:internal/test_runner/test:744:18)
+      at Test.postRun (node:internal/test_runner/test:1173:19)
+      at Test.run (node:internal/test_runner/test:1101:12)
+      at async Test.processPendingSubtests (node:internal/test_runner/test:744:7) {
+    errno: -2,
+    code: 'ENOENT',
+    syscall: 'open',
+    path: '/tmp/claude-0/-home-user-box3d-WEBGPU/3496b4bd-b15e-564a-9b42-e3dfab8e515e/scratchpad/wt-bridge-water-20261003/public/box3d/box3d-mt.wasm'
+  }
+
+test at tests/engine/threaded-contract.test.mjs:48:1
+✖ a recorded threaded validation cites evidence that exists and claims no speed (0.663283ms)
+  AssertionError [ERR_ASSERTION]: benchmarks/results/engine-100x/runs/threaded-engine-20261001-01/determinism.json is cited as evidence but is missing
+      at TestContext.<anonymous> (file:///tmp/claude-0/-home-user-box3d-WEBGPU/3496b4bd-b15e-564a-9b42-e3dfab8e515e/scratchpad/wt-bridge-water-20261003/tests/engine/threaded-contract.test.mjs:53:48)
+      at Test.runInAsyncScope (node:async_hooks:214:14)
+      at Test.run (node:internal/test_runner/test:1047:25)
+      at Test.processPendingSubtests (node:internal/test_runner/test:744:18)
+      at Test.postRun (node:internal/test_runner/test:1173:19)
+      at Test.run (node:internal/test_runner/test:1101:12)
+      at async Test.processPendingSubtests (node:internal/test_runner/test:744:7) {
+    generatedMessage: false,
+    code: 'ERR_ASSERTION',
+    actual: false,
+    expected: true,
+    operator: '==',
+    diff: 'simple'
+  }
+
+test at tests/engine/water-benchmark.test.mjs:48:1
+✖ closed-water timings cannot borrow physical acceptance from a different solver source (5.586142ms)
+  Error: ENOENT: no such file or directory, open '/tmp/claude-0/-home-user-box3d-WEBGPU/3496b4bd-b15e-564a-9b42-e3dfab8e515e/scratchpad/wt-bridge-water-20261003/benchmarks/results/engine-100x/runs/closed-water-render-crossover-20260910-02/manifest.json'
+      at async open (node:internal/fs/promises:639:25)
+      at async Object.readFile (node:internal/fs/promises:1252:14)
+      at async TestContext.<anonymous> (file:///tmp/claude-0/-home-user-box3d-WEBGPU/3496b4bd-b15e-564a-9b42-e3dfab8e515e/scratchpad/wt-bridge-water-20261003/tests/engine/water-benchmark.test.mjs:50:29)
+      at async Test.run (node:internal/test_runner/test:1054:7)
+      at async Test.processPendingSubtests (node:internal/test_runner/test:744:7) {
+    errno: -2,
+    code: 'ENOENT',
+    syscall: 'open',
+    path: '/tmp/claude-0/-home-user-box3d-WEBGPU/3496b4bd-b15e-564a-9b42-e3dfab8e515e/scratchpad/wt-bridge-water-20261003/benchmarks/results/engine-100x/runs/closed-water-render-crossover-20260910-02/manifest.json'
+  }
+
+test at tests/engine/water-benchmark.test.mjs:58:1
+✖ closed model protocol preserves the inherited frozen protocol and uses physical cell-centre spacing (2.843238ms)
+  Error: ENOENT: no such file or directory, open 'benchmarks/results/engine-100x/runs/water-render-crossover-20260910-01/protocol.json'
+      at async open (node:internal/fs/promises:639:25)
+      at async Object.readFile (node:internal/fs/promises:1252:14)
+      at async TestContext.<anonymous> (file:///tmp/claude-0/-home-user-box3d-WEBGPU/3496b4bd-b15e-564a-9b42-e3dfab8e515e/scratchpad/wt-bridge-water-20261003/tests/engine/water-benchmark.test.mjs:59:24)
+      at async Test.run (node:internal/test_runner/test:1054:7)
+      at async Test.processPendingSubtests (node:internal/test_runner/test:744:7) {
+    errno: -2,
+    code: 'ENOENT',
+    syscall: 'open',
+    path: 'benchmarks/results/engine-100x/runs/water-render-crossover-20260910-01/protocol.json'
+  }

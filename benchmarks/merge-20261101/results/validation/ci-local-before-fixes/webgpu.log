@@ -1,0 +1,87 @@
+
+> box3d-webgpu@1.20.0 test:webgpu
+> node scripts/webgpu-pipeline-test.mjs && node scripts/webgpu-renderer-runtime-test.mjs && npm run test:ktx2
+
+✅ Dawn null-backend validation passed: 14 shaders, stable visibility compute, indirect vertex pulling, blended glass/dust, GPU rope/cloth/water, HDR/MSAA, and offscreen command encoding (no numerical GPU execution)
+[WebGPU] material-noise-bc4.ktx2 unavailable; using deterministic R8 fallback. Error: Runtime test intentionally uses the procedural KTX2 fallback.
+    at value (file:///home/user/box3d-WEBGPU/scripts/webgpu-renderer-runtime-test.mjs:42:30)
+    at fetchKtx2 (file:///tmp/box3d-webgpu-runtime-LlxVGf/assets/ktx2.mjs:211:28)
+    at loadMaterialNoiseTexture (file:///tmp/box3d-webgpu-runtime-LlxVGf/assets/ktx2.mjs:221:30)
+    at WebGPURenderer.create (file:///tmp/box3d-webgpu-runtime-LlxVGf/webgpu/renderer.mjs?v=1793529758133:1966:17)
+    at async file:///home/user/box3d-WEBGPU/scripts/webgpu-renderer-runtime-test.mjs:78:18
+[WebGPU] Poliigon astc material atlases unavailable; using deterministic procedural materials. Error: Runtime test intentionally uses the procedural KTX2 fallback.
+    at value (file:///home/user/box3d-WEBGPU/scripts/webgpu-renderer-runtime-test.mjs:42:30)
+    at fetchKtx2 (file:///tmp/box3d-webgpu-runtime-LlxVGf/assets/ktx2.mjs:211:28)
+    at loadMaterialAtlasTexture (file:///tmp/box3d-webgpu-runtime-LlxVGf/assets/ktx2.mjs:239:54)
+    at WebGPURenderer.create (file:///tmp/box3d-webgpu-runtime-LlxVGf/webgpu/renderer.mjs?v=1793529758133:1967:17)
+    at async file:///home/user/box3d-WEBGPU/scripts/webgpu-renderer-runtime-test.mjs:78:18
+GPU timing diagnostics: {"status":"error","supported":true,"reason":"Invalid GPU timestamp pair for shadow in frame 8: 0 -> 0.","latest":null,"frames":53,"submittedSamples":8,"completedSamples":0,"droppedSamples":0,"failedSamples":8,"pendingSamples":0,"ringSize":3,"sampleEveryFrames":1}
+✅ Actual WebGPURenderer command validation passed on Dawn null: rigid/cloth/water/rope paths, GPU-compute rope reconstruction, exact paused-frame upload caches, debug lines, resize, empty frame, lazy visibility retry/cleanup, 25 shadow-cache transitions, material boundary gates, failed-frame recovery, and clean error stream (null backend does not execute pixels)
+
+> box3d-webgpu@1.20.0 test:ktx2
+> node scripts/ktx2-runtime-test.mjs
+
+(!) Failed to run dependency scan. Skipping dependency pre-bundling. Error: The following dependencies are imported but could not be resolved:
+
+  box3d-webgpu-kit/three (imported by /home/user/box3d-WEBGPU/packages/box3d-kit/templates/three/main.js)
+  box3d-webgpu-kit (imported by /home/user/box3d-WEBGPU/packages/box3d-kit/templates/three/main.js)
+
+Are they installed?
+    at file:///home/user/box3d-WEBGPU/node_modules/vite/dist/node/chunks/node.js:31621:33
+    at async file:///home/user/box3d-WEBGPU/node_modules/vite/dist/node/chunks/node.js:33872:15
+{
+  "result": "passed",
+  "files": {
+    "r8": {
+      "bytes": 87840,
+      "sourceMipLevels": 9
+    },
+    "bc4": {
+      "bytes": 44160,
+      "sourceMipLevels": 9
+    }
+  },
+  "serving": {
+    "baseUrl": "http://127.0.0.1:5173/",
+    "mime": "image/ktx2"
+  },
+  "dawn": {
+    "backend": "null",
+    "numericalSampling": {
+      "status": "NOT_EXECUTED",
+      "reason": "Dawn null is a validation-only backend."
+    },
+    "r8": {
+      "sample": null,
+      "residentMipLevels": 9
+    },
+    "bc4": {
+      "supported": true,
+      "sample": null,
+      "residentMipLevels": 7
+    },
+    "proceduralFallback": {
+      "sample": null,
+      "residentMipLevels": 1
+    },
+    "poliigonRgba8Atlas": {
+      "sample": null,
+      "dimensions": [
+        1008,
+        1008
+      ],
+      "tiles": 4
+    },
+    "poliigonAstcAtlas": {
+      "supported": true,
+      "sample": null,
+      "dimensions": [
+        1008,
+        1008
+      ],
+      "residentMipLevels": 4
+    },
+    "uncapturedErrors": 0
+  },
+  "parserRejections": 5
+}
