@@ -41,3 +41,6 @@ var/auth.token
 *.safetensors
 *.ckpt
 *.bundle
+
+# Session checkpoints auto-saved by the anchor-memory plugin
+.anchor/
