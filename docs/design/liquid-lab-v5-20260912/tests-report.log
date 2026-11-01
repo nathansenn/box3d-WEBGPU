@@ -1,0 +1,48 @@
+✔ the actual V4 download imports with original measurements and safe V5 review defaults (9.66975ms)
+✔ baseline comparison uses actual samples and explicit units at a shared time (1.912042ms)
+✔ zero baselines and solid probes never produce infinite or fake changes (1.640125ms)
+✔ user limits compare full tick maxima with unit conversion, including equality (1.983791ms)
+✔ notes, baseline, selected time and limits survive save, update and reload (19.9825ms)
+✔ concurrent saves re-read storage and preserve every previous report (22.541458ms)
+✔ corrupt and duplicate notebook entries cannot be silently overwritten (12.537917ms)
+✔ storage quota and unavailable local storage return actionable errors without losing data (9.66175ms)
+✔ notebook entry and byte limits refuse extra writes (25.806875ms)
+✔ malformed reports fail before changing the notebook (30.183209ms)
+✖ readable report escapes user text and has no scripts or remote resource requests (19.36425ms)
+✔ one and two completed cases can be preserved after cancellation (3.26825ms)
+✔ fresh flume worker results import and export without changing their input settings (277.051708ms)
+✔ fresh pipes worker results import and export without changing their input settings (151.3295ms)
+✔ fresh river worker results import and export without changing their input settings (209.536375ms)
+✔ fresh rain worker results import and export without changing their input settings (171.814125ms)
+✔ fresh surface worker results import and export without changing their input settings (173.413291ms)
+ℹ tests 17
+ℹ suites 0
+ℹ pass 16
+ℹ fail 1
+ℹ cancelled 0
+ℹ skipped 0
+ℹ todo 0
+ℹ duration_ms 1321.535
+
+✖ failing tests:
+
+test at tests/studio/liquid-lab-v5.test.mjs:55:1
+✖ readable report escapes user text and has no scripts or remote resource requests (19.36425ms)
+  AssertionError [ERR_ASSERTION]: The expression evaluated to a falsy value:
+  
+    assert.ok(!/\s(?:src|href)=/.test(html))
+  
+      at TestContext.<anonymous> (file:///Users/commander/box3d-WEBGPU/tests/studio/liquid-lab-v5.test.mjs:57:210)
+      at Test.runInAsyncScope (node:async_hooks:226:14)
+      at Test.run (node:internal/test_runner/test:1201:25)
+      at Test.processPendingSubtests (node:internal/test_runner/test:831:18)
+      at Test.postRun (node:internal/test_runner/test:1330:19)
+      at Test.run (node:internal/test_runner/test:1258:12)
+      at async Test.processPendingSubtests (node:internal/test_runner/test:831:7) {
+    generatedMessage: true,
+    code: 'ERR_ASSERTION',
+    actual: false,
+    expected: true,
+    operator: '==',
+    diff: 'simple'
+  }

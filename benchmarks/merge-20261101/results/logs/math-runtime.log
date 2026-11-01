@@ -1,0 +1,57 @@
+Validating 48x40
+Timing 48x40
+Validating 96x80
+Timing 96x80
+Validating 256x256
+Timing 256x256
+Validating 512x512
+Timing 512x512
+{
+  "output": "/home/user/box3d-WEBGPU/benchmarks/merge-20261101/results/math-runtime-node-cpu.json",
+  "status": "COMPLETED",
+  "coverage": {
+    "javascript": "RUNTIME_MEASURED",
+    "scalarWasm": "RUNTIME_MEASURED",
+    "simdWasm": "RUNTIME_MEASURED",
+    "webgpu": "BLOCKED"
+  },
+  "elapsedMs": 2737.722445,
+  "cases": [
+    {
+      "id": "48x40",
+      "status": "VALIDATED",
+      "p50Ms": {
+        "javascript-reference": 0.0363225000000007,
+        "wasm-scalar": 0.006802687500002236,
+        "wasm-simd": 0.003377812500001909
+      }
+    },
+    {
+      "id": "96x80",
+      "status": "VALIDATED",
+      "p50Ms": {
+        "javascript-reference": 0.08277793750000484,
+        "wasm-scalar": 0.029716687499998784,
+        "wasm-simd": 0.012809375000003342
+      }
+    },
+    {
+      "id": "256x256",
+      "status": "VALIDATED",
+      "p50Ms": {
+        "javascript-reference": 0.7164154999999823,
+        "wasm-scalar": 0.2561882499999797,
+        "wasm-simd": 0.11790250000001379
+      }
+    },
+    {
+      "id": "512x512",
+      "status": "VALIDATED",
+      "p50Ms": {
+        "javascript-reference": 3.0231652500000337,
+        "wasm-scalar": 1.0868264999999155,
+        "wasm-simd": 0.49234149999995225
+      }
+    }
+  ]
+}

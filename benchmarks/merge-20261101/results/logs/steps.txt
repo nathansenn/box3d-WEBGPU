@@ -1,0 +1,8 @@
+native-ab            rc=0      727s  load 3.24 2.10 1.53
+soft-ab-simd         rc=0      388s  load 1.54 1.74 1.56
+soft-ab-js           rc=0      305s  load 1.34 1.54 1.53
+studio               rc=0      534s  load 1.68 1.56 1.54
+labs                 rc=0      519s  load 1.74 1.67 1.59
+math-runtime         rc=0        4s  load 1.68 1.65 1.58
+threaded             rc=0       54s  load 1.66 1.64 1.58
+build-size           rc=0       26s  load 1.61 1.63 1.58

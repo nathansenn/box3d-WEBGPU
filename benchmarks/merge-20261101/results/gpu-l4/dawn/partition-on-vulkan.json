@@ -1,0 +1,456 @@
+{
+  "schema": "box3d.instance-partition-qualification/1",
+  "backend": "vulkan",
+  "capturedAt": "2026-11-01T11:37:34.683Z",
+  "rendererSha256": "b441aa851c24dec5ce9276f5b00bd4cb6f5e7539d333289fc070e8b259e19a45",
+  "sources": [
+    {
+      "file": "src/webgpu/renderer.ts",
+      "sha256": "b441aa851c24dec5ce9276f5b00bd4cb6f5e7539d333289fc070e8b259e19a45"
+    },
+    {
+      "file": "src/webgpu/gpu-timing.ts",
+      "sha256": "0670a37c26f58eea334e8f586d906f35b604bdbffb98e0c631465244f60a930c"
+    },
+    {
+      "file": "src/webgpu/instance-visibility.ts",
+      "sha256": "967f4782ccbc1a9d706ccdbf69c258d5fb0cfdc1e9ca6c02872d386ebe3d9981"
+    },
+    {
+      "file": "src/webgpu/water-surface-plan.ts",
+      "sha256": "69115696a024110deb7c6589dbfba3cd06bd3c9916dbd4462f7794bbeede53c3"
+    },
+    {
+      "file": "src/runtime/execution-graph.ts",
+      "sha256": "656849d46181021aed046a1b2ca25315488172065288022f5ab891eb5e222829"
+    },
+    {
+      "file": "src/webgpu/instance-partition.ts",
+      "sha256": "488794a5915b86b4877fb4bec9ceb1271f8a559c44ee251f6cffc06da16219e1"
+    },
+    {
+      "file": "src/webgpu/resident-water-surface.ts",
+      "sha256": "457b3c275fd1140e27b9904f5f8ff27a26a43c2c018ad096079408df63db1952"
+    },
+    {
+      "file": "src/webgpu/linear-water.ts",
+      "sha256": "67725abbc6c44b5acd3b45fc4676877926f090e64da91e620ddeb819fa11550d"
+    },
+    {
+      "file": "src/webgpu/water-telemetry.ts",
+      "sha256": "07a5b1584cc878bd6b90ce283479e1f8e351dc82b78eeb5bb253277d5446025c"
+    },
+    {
+      "file": "src/webgpu/startup-budget.ts",
+      "sha256": "028fa85a0f6fdd163b8642c474a7e85cd6bdc4aec34a81cb5bf5154d7e6ddf2f"
+    },
+    {
+      "file": "src/engine/linear-water.ts",
+      "sha256": "41ef5b3ec4bd647cdd11337862846d0c88b280b684942d85ae25e518e6bd6144"
+    },
+    {
+      "file": "src/engine/closed-water.ts",
+      "sha256": "b8957c72268fc9c380a5dacfbe39eff8b01c9f1e72db84b0686eb08f7c4339a6"
+    },
+    {
+      "file": "src/webgpu/closed-water-shader.ts",
+      "sha256": "79e0a7e6e3b8a5852f6369f8741c34e2552f8261ef14beca7deb355bbf09ec75"
+    },
+    {
+      "file": "src/engine/contracts.ts",
+      "sha256": "f75ac4b747903a79664789a2000e63efebbc5de9181194ebbf8e15c7e95f634a"
+    },
+    {
+      "file": "src/assets/ktx2.ts",
+      "sha256": "d0c0ca07091d760ab78218480bee5978b798e29b412bf8b2fdde2d8a46a53853"
+    },
+    {
+      "file": "scripts/webgpu-renderer-runtime-test.mjs",
+      "sha256": "c6db3a071cbcce5ea7da61511f98c6c819a1960768184cef957636bf51f74fc3"
+    }
+  ],
+  "partitionSha256": "488794a5915b86b4877fb4bec9ceb1271f8a559c44ee251f6cffc06da16219e1",
+  "mode": "gpu-stable",
+  "cases": [
+    {
+      "count": 0,
+      "sampleCount": 1,
+      "opaque": 0,
+      "transparent": 0,
+      "pixelsSha256": "db4e6c497138fb1e34762a051fad33d5025f7c19bf7f1a7696eb4654627d44bd"
+    },
+    {
+      "count": 1,
+      "sampleCount": 1,
+      "opaque": 1,
+      "transparent": 0,
+      "pixelsSha256": "759b8f271c3240ec6474b0b793a01e40eb7e5ec2b8891ce624d8870f52ee3c6c"
+    },
+    {
+      "count": 63,
+      "sampleCount": 1,
+      "opaque": 35,
+      "transparent": 28,
+      "pixelsSha256": "a64692830d9d7f1ec80852da066049fb61ec6c0dbb516a10ce402765ef498d7d"
+    },
+    {
+      "count": 64,
+      "sampleCount": 1,
+      "opaque": 36,
+      "transparent": 28,
+      "pixelsSha256": "2fc44897a09062139b24a398741ca1239e59a5df0edbb99c0151d87f863dd060"
+    },
+    {
+      "count": 65,
+      "sampleCount": 1,
+      "opaque": 37,
+      "transparent": 28,
+      "pixelsSha256": "ef0609bbeb61362534ccea2ccd7cd567bf61f6c91219e7390fda4793d0666a42"
+    },
+    {
+      "count": 127,
+      "sampleCount": 1,
+      "opaque": 71,
+      "transparent": 56,
+      "pixelsSha256": "35bb95281d8a70eaf450dc735cfb457bb914c95de483dbb493522e4bba86a94c"
+    },
+    {
+      "count": 128,
+      "sampleCount": 1,
+      "opaque": 72,
+      "transparent": 56,
+      "pixelsSha256": "67e111c9f08a2a275fe73a5fc7fb309f2b2cca327195c2b3ce9addfde84c7ee8"
+    },
+    {
+      "count": 129,
+      "sampleCount": 1,
+      "opaque": 72,
+      "transparent": 57,
+      "pixelsSha256": "3360661396b5a5b7a0f841f42d52ca874dc013b108b0df224949688360c36c2f"
+    },
+    {
+      "count": 4096,
+      "sampleCount": 1,
+      "opaque": 2276,
+      "transparent": 1820,
+      "pixelsSha256": "dae048330896717fd44960c6eb543d1ae513e8945297d90c07d1460954da8ee3"
+    },
+    {
+      "count": 0,
+      "sampleCount": 4,
+      "opaque": 0,
+      "transparent": 0,
+      "pixelsSha256": "972e34785242607143f06ec03e8ab12a131c0d683e261fff43176f3d737117d0"
+    },
+    {
+      "count": 1,
+      "sampleCount": 4,
+      "opaque": 1,
+      "transparent": 0,
+      "pixelsSha256": "67fb9d4b1543f2f3d6a8dc1bddcedd1bc9f8074a7976cd8b75fbe4a493f087a3"
+    },
+    {
+      "count": 63,
+      "sampleCount": 4,
+      "opaque": 35,
+      "transparent": 28,
+      "pixelsSha256": "8766397092bdf0e65f857fae4bf1efec4d04065f477d51eb4f026c9b4714e690"
+    },
+    {
+      "count": 64,
+      "sampleCount": 4,
+      "opaque": 36,
+      "transparent": 28,
+      "pixelsSha256": "83c43cf557aaa3da67d0c58af6bf418e8aa4b3f5af26c3e539878d22e93184cd"
+    },
+    {
+      "count": 65,
+      "sampleCount": 4,
+      "opaque": 37,
+      "transparent": 28,
+      "pixelsSha256": "84f70808149d13f7833e8e9a671429e822d51c76d0e067ced1fa0bd6275d45d4"
+    },
+    {
+      "count": 127,
+      "sampleCount": 4,
+      "opaque": 71,
+      "transparent": 56,
+      "pixelsSha256": "4c34b663ced7449e9446aa5e4a850a5fcef050ce73e8cda0ff99ce6fab3ddde3"
+    },
+    {
+      "count": 128,
+      "sampleCount": 4,
+      "opaque": 72,
+      "transparent": 56,
+      "pixelsSha256": "09f5625bfe83e05a1d2df080a71e663e03472b5bdf9b1d2f8150f4ed4ec81fcb"
+    },
+    {
+      "count": 129,
+      "sampleCount": 4,
+      "opaque": 72,
+      "transparent": 57,
+      "pixelsSha256": "2fe2a5b3ac71db1c30d6f01b6f4b31758b9ded9de5a15aea9ffbded009a68888"
+    },
+    {
+      "count": 4096,
+      "sampleCount": 4,
+      "opaque": 2276,
+      "transparent": 1820,
+      "pixelsSha256": "074bd48fa11af21c9877f2fbb8b7f5c0c09a2fb719d72f2d510572d332061b2b"
+    }
+  ],
+  "timings": [
+    {
+      "count": 128,
+      "changed": false,
+      "samples": [
+        0.018208000000000002,
+        0.0184,
+        0.018336,
+        0.018144,
+        0.018368000000000002,
+        0.01856,
+        0.01856,
+        0.018368000000000002,
+        0.018368000000000002,
+        0.018368,
+        0.018368,
+        0.018304,
+        0.018464,
+        0.01856,
+        0.018304,
+        0.018432,
+        0.018528,
+        0.01856,
+        0.018464,
+        0.018528,
+        0.018272,
+        0.018656,
+        0.018175999999999998,
+        0.018496,
+        0.018496,
+        0.01856,
+        0.0184,
+        0.018528000000000003,
+        0.018432,
+        0.018432,
+        0.018432,
+        0.018496,
+        0.018592,
+        0.018432,
+        0.018208000000000002,
+        0.0184,
+        0.018624,
+        0.018304,
+        0.018432,
+        0.018272,
+        0.018496000000000002,
+        0.018368000000000002,
+        0.018464,
+        0.018176,
+        0.018592,
+        0.018624,
+        0.018368,
+        0.018304
+      ],
+      "totalPassMsScope": "GPU compute/shadow/main/post passes; excludes browser scheduling and physics"
+    },
+    {
+      "count": 128,
+      "changed": true,
+      "samples": [
+        0.033536,
+        0.033536,
+        0.033536,
+        0.033535999999999996,
+        0.033504000000000006,
+        0.033408,
+        0.033312,
+        0.033375999999999996,
+        0.033216,
+        0.033631999999999995,
+        0.033408,
+        0.033632,
+        0.033215999999999996,
+        0.033664,
+        0.033535999999999996,
+        0.033344,
+        0.033408,
+        0.033568,
+        0.033408,
+        0.033408,
+        0.03344,
+        0.033504,
+        0.033248,
+        0.033664,
+        0.033408,
+        0.033408,
+        0.033344,
+        0.033696,
+        0.033504,
+        0.033312,
+        0.033568,
+        0.033504,
+        0.033472,
+        0.033568,
+        0.033376,
+        0.03344,
+        0.033312,
+        0.033728,
+        0.033568,
+        0.03340799999999999,
+        0.033312,
+        0.033408,
+        0.033792,
+        0.033536,
+        0.033472,
+        0.033504,
+        0.033248,
+        0.033215999999999996
+      ],
+      "totalPassMsScope": "GPU compute/shadow/main/post passes; excludes browser scheduling and physics"
+    },
+    {
+      "count": 4096,
+      "changed": false,
+      "samples": [
+        0.071936,
+        0.07088,
+        0.071424,
+        0.07228799999999999,
+        0.0728,
+        0.07315200000000001,
+        0.07238399999999999,
+        0.072064,
+        0.07152,
+        0.07196799999999999,
+        0.07251200000000001,
+        0.07174399999999999,
+        0.07324800000000001,
+        0.071424,
+        0.07216,
+        0.07116800000000001,
+        0.07238399999999999,
+        0.07296,
+        0.071232,
+        0.07209600000000001,
+        0.07184,
+        0.07216,
+        0.072288,
+        0.072736,
+        0.072128,
+        0.07152,
+        0.071808,
+        0.07379200000000001,
+        0.071488,
+        0.070112,
+        0.07248,
+        0.071008,
+        0.073728,
+        0.07232,
+        0.071616,
+        0.07248,
+        0.07321599999999999,
+        0.071808,
+        0.07184,
+        0.070912,
+        0.07209600000000001,
+        0.07273600000000001,
+        0.072352,
+        0.071232,
+        0.07116800000000001,
+        0.073088,
+        0.070784,
+        0.07091199999999999
+      ],
+      "totalPassMsScope": "GPU compute/shadow/main/post passes; excludes browser scheduling and physics"
+    },
+    {
+      "count": 4096,
+      "changed": true,
+      "samples": [
+        0.14124799999999998,
+        0.142208,
+        0.14121599999999998,
+        0.14128,
+        0.14176,
+        0.14124799999999998,
+        0.140544,
+        0.14153600000000002,
+        0.142176,
+        0.14208,
+        0.143072,
+        0.14048000000000002,
+        0.14188800000000001,
+        0.142848,
+        0.14121599999999998,
+        0.141632,
+        0.142688,
+        0.142752,
+        0.14105600000000001,
+        0.14431999999999998,
+        0.14163199999999998,
+        0.14256000000000002,
+        0.140992,
+        0.14153600000000002,
+        0.142016,
+        0.141216,
+        0.14198400000000003,
+        0.14227199999999998,
+        0.14112,
+        0.14252800000000002,
+        0.141024,
+        0.14204799999999998,
+        0.140128,
+        0.142656,
+        0.139136,
+        0.140416,
+        0.1416,
+        0.142208,
+        0.14182399999999998,
+        0.14096,
+        0.14249599999999998,
+        0.141888,
+        0.14320000000000002,
+        0.14028800000000002,
+        0.14256,
+        0.141504,
+        0.14112,
+        0.142656
+      ],
+      "totalPassMsScope": "GPU compute/shadow/main/post passes; excludes browser scheduling and physics"
+    }
+  ],
+  "errors": [],
+  "partition": {
+    "mode": "gpu-stable",
+    "builds": 191,
+    "reuses": 182
+  },
+  "timing": {
+    "status": "ready",
+    "supported": true,
+    "reason": null,
+    "latest": {
+      "frameId": 377,
+      "sampledAtMs": 1837.502551,
+      "completedAtMs": 1837.94844,
+      "passMs": {
+        "compute": 0.019616,
+        "shadow": 0.049952,
+        "main": 0.067584,
+        "post": 0.005504
+      },
+      "totalPassMs": 0.142656
+    },
+    "frames": 377,
+    "submittedSamples": 345,
+    "completedSamples": 345,
+    "droppedSamples": 32,
+    "failedSamples": 0,
+    "pendingSamples": 0,
+    "ringSize": 3,
+    "sampleEveryFrames": 1
+  },
+  "timingQualified": true
+}

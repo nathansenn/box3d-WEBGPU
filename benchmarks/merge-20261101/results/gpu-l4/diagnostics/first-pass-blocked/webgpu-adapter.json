@@ -1,0 +1,14 @@
+{
+  "browserVersion": "153.0.8010.12",
+  "args": [
+    "--enable-unsafe-webgpu",
+    "--use-angle=vulkan",
+    "--enable-features=Vulkan",
+    "--disable-vulkan-surface",
+    "--ignore-gpu-blocklist",
+    "--enable-webgpu-developer-features"
+  ],
+  "adapter": {
+    "error": "navigator.gpu missing"
+  }
+}

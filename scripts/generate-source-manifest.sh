@@ -8,7 +8,9 @@ trap 'rm -f "$TMP"' EXIT
 
 list_source_files() {
   find . -type f \
+    ! -path './.git' \
     ! -path './.git/*' \
+    ! -path './.anchor/*' \
     ! -path './node_modules/*' \
     ! -path './dist/*' \
     ! -path './build/*' \

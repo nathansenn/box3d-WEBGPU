@@ -1,0 +1,184 @@
+1/6 baseline: 5 completed render workloads
+1/6 candidate: 5 completed render workloads
+2/6 candidate: 5 completed render workloads
+2/6 baseline: 5 completed render workloads
+3/6 baseline: 5 completed render workloads
+3/6 candidate: 5 completed render workloads
+4/6 candidate: 5 completed render workloads
+4/6 baseline: 5 completed render workloads
+5/6 baseline: 5 completed render workloads
+5/6 candidate: 5 completed render workloads
+6/6 candidate: 5 completed render workloads
+6/6 baseline: 5 completed render workloads
+{
+  "verdict": "measured",
+  "issues": [],
+  "controls": {
+    "estimator": "ratio-of-medians-of-paired-process-means",
+    "ratio": 0.9986684826337469,
+    "lower95": 0.9442963383580413,
+    "upper95": 1.1184423156037047,
+    "resamples": 2000,
+    "seed": 42
+  },
+  "controlQualified": true,
+  "cases": [
+    {
+      "grid": 64,
+      "cells": 4096,
+      "baseline": {
+        "count": 144,
+        "mean": 0.4835589166667123,
+        "median": 0.4753630000004705,
+        "p95": 0.726465999999891,
+        "min": 0.33433899999999994,
+        "max": 1.1710450000000492
+      },
+      "candidate": {
+        "count": 144,
+        "mean": 0.41558644444441484,
+        "median": 0.325533500000347,
+        "p95": 0.580618000000038,
+        "min": 0.2765990000000329,
+        "max": 11.319107000000258
+      },
+      "ratio": {
+        "estimator": "ratio-of-medians-of-paired-process-means",
+        "ratio": 1.4381996069789942,
+        "lower95": 0.8408956878302715,
+        "upper95": 1.733070167988115,
+        "resamples": 2000,
+        "seed": 64
+      },
+      "noRegression": false,
+      "qualifiedSpeedup": false
+    },
+    {
+      "grid": 128,
+      "cells": 16384,
+      "baseline": {
+        "count": 144,
+        "mean": 1.0745850833332957,
+        "median": 1.0185809999998128,
+        "p95": 1.686073149999936,
+        "min": 0.8239260000000286,
+        "max": 2.3012610000000677
+      },
+      "candidate": {
+        "count": 144,
+        "mean": 0.3423037500000024,
+        "median": 0.30361900000002606,
+        "p95": 0.42003100000073346,
+        "min": 0.2741089999999531,
+        "max": 2.6282699999999295
+      },
+      "ratio": {
+        "estimator": "ratio-of-medians-of-paired-process-means",
+        "ratio": 3.208214867738488,
+        "lower95": 2.374847064254456,
+        "upper95": 3.901773169123195,
+        "resamples": 2000,
+        "seed": 128
+      },
+      "noRegression": true,
+      "qualifiedSpeedup": true
+    },
+    {
+      "grid": 256,
+      "cells": 65536,
+      "baseline": {
+        "count": 144,
+        "mean": 3.238924284722253,
+        "median": 3.1085580000000164,
+        "p95": 4.257543500000077,
+        "min": 2.807209000000057,
+        "max": 12.524331999999958
+      },
+      "candidate": {
+        "count": 144,
+        "mean": 0.3459274236110825,
+        "median": 0.31273849999990944,
+        "p95": 0.5499749999999494,
+        "min": 0.27818900000011126,
+        "max": 0.7471069999999145
+      },
+      "ratio": {
+        "estimator": "ratio-of-medians-of-paired-process-means",
+        "ratio": 9.7938283469122,
+        "lower95": 7.325306880421326,
+        "upper95": 10.991402010676495,
+        "resamples": 2000,
+        "seed": 256
+      },
+      "noRegression": true,
+      "qualifiedSpeedup": true
+    },
+    {
+      "grid": 512,
+      "cells": 262144,
+      "baseline": {
+        "count": 144,
+        "mean": 12.687059041666691,
+        "median": 11.474330500000178,
+        "p95": 16.81541200000024,
+        "min": 10.732108000000153,
+        "max": 25.530000999999174
+      },
+      "candidate": {
+        "count": 144,
+        "mean": 0.36671461111108766,
+        "median": 0.29187400000023445,
+        "p95": 0.3686736499999369,
+        "min": 0.2750790000000052,
+        "max": 9.4597839999999
+      },
+      "ratio": {
+        "estimator": "ratio-of-medians-of-paired-process-means",
+        "ratio": 41.28635771605692,
+        "lower95": 25.402697897403506,
+        "upper95": 45.143980620653885,
+        "resamples": 2000,
+        "seed": 512
+      },
+      "noRegression": true,
+      "qualifiedSpeedup": true
+    },
+    {
+      "grid": 1024,
+      "cells": 1048576,
+      "baseline": {
+        "count": 144,
+        "mean": 65.0129558958333,
+        "median": 63.89466799999991,
+        "p95": 77.15742380000052,
+        "min": 52.051038999999946,
+        "max": 92.0357240000003
+      },
+      "candidate": {
+        "count": 144,
+        "mean": 0.3431241527777947,
+        "median": 0.29033400000002985,
+        "p95": 0.39328835000014806,
+        "min": 0.27781900000013593,
+        "max": 5.2757299999998395
+      },
+      "ratio": {
+        "estimator": "ratio-of-medians-of-paired-process-means",
+        "ratio": 217.22254643051372,
+        "lower95": 140.36954787549962,
+        "upper95": 235.93595116226282,
+        "resamples": 2000,
+        "seed": 1024
+      },
+      "noRegression": true,
+      "qualifiedSpeedup": true
+    }
+  ],
+  "qualifiedWinningGrids": [
+    128,
+    256,
+    512,
+    1024
+  ],
+  "conclusion": "Per-grid results apply only to this declared serialized workload. Small-grid losses are retained."
+}

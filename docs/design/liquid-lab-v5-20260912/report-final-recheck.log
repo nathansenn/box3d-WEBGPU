@@ -1,0 +1,13 @@
+✔ fresh flume worker results import and export without changing their input settings (301.419833ms)
+✔ fresh pipes worker results import and export without changing their input settings (155.461042ms)
+✔ fresh river worker results import and export without changing their input settings (219.658667ms)
+✔ fresh rain worker results import and export without changing their input settings (193.868333ms)
+✔ fresh surface worker results import and export without changing their input settings (184.4275ms)
+ℹ tests 5
+ℹ suites 0
+ℹ pass 5
+ℹ fail 0
+ℹ cancelled 0
+ℹ skipped 0
+ℹ todo 0
+ℹ duration_ms 1230.289958

@@ -1,0 +1,17 @@
+{
+  "source": "/Users/commander/Downloads/box3d-rubber-result.json",
+  "sha256": "1c000fc395b49474d06561cd143ff4a11b6f3b3a71a70adcf53f3cb4e383da28",
+  "duration": 18.008333333332953,
+  "complete": true,
+  "events": [
+    {
+      "time": 17.108333333333004,
+      "action": "release"
+    }
+  ],
+  "final": [
+    0,
+    100,
+    0
+  ]
+}

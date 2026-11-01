@@ -1,0 +1,42 @@
+<!doctype html>
+<!-- Zero-install: box3d-kit.single.js holds the kit and the WASM. Serve this folder from any static host
+     (for a local check: python3 -m http.server 8080 --bind 127.0.0.1) and open it. -->
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>{{NAME}}</title>
+  <style>html, body { margin: 0; height: 100%; background: #0b1020; overflow: hidden } canvas { display: block }</style>
+</head>
+<body>
+<canvas id="view"></canvas>
+<script type="module">
+  import {createWorld} from './box3d-kit.single.js';
+
+  // Plain 2D canvas side view: no renderer library at all.
+  const world = await createWorld({seed: 1});
+  for (let i = 0; i < 40; i++) world.spawnBox({position: [(i % 8) - 3.5, 0.5 + Math.floor(i / 8) * 1.05, 0], halfSize: 0.48});
+  const canvas = document.getElementById('view'), ctx = canvas.getContext('2d');
+  addEventListener('pointerdown', () => world.spawnBox({position: [-14, 2, 0], impulse: [140, 12, 0], halfSize: 0.5}));
+  let last = performance.now();
+  const frame = now => {
+    world.update((now - last) / 1000);
+    last = now;
+    canvas.width = innerWidth; canvas.height = innerHeight;
+    const scale = Math.min(innerWidth, innerHeight) / 20, ox = innerWidth / 2, oy = innerHeight * 0.85;
+    const m = world.matrices(), rgba = world.colors();
+    for (let row = 1; row < world.bodyCount(); row++) {
+      const o = row * 16, c = row * 4;
+      ctx.save();
+      ctx.translate(ox + m[o + 12] * scale, oy - m[o + 13] * scale);
+      ctx.transform(m[o], -m[o + 1], -m[o + 4], m[o + 5], 0, 0);   // x/y columns, scaled by half extents
+      ctx.fillStyle = `rgb(${rgba[c] * 255},${rgba[c + 1] * 255},${rgba[c + 2] * 255})`;
+      ctx.fillRect(-scale, -scale, 2 * scale, 2 * scale);
+      ctx.restore();
+    }
+    requestAnimationFrame(frame);
+  };
+  requestAnimationFrame(frame);
+</script>
+</body>
+</html>

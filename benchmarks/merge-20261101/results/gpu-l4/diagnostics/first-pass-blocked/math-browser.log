@@ -1,0 +1,91 @@
+{
+  "output": "/work/out/math-runtime/browser-hardware-vulkan.json",
+  "status": "COMPLETED",
+  "gpu": {
+    "status": "BLOCKED",
+    "reason": "requestAdapter returned null."
+  },
+  "coverage": {
+    "javascript": "RUNTIME_MEASURED",
+    "scalarWasm": "RUNTIME_MEASURED",
+    "simdWasm": "RUNTIME_MEASURED",
+    "webgpu": "BLOCKED"
+  },
+  "gpuQualification": "BLOCKED",
+  "pageErrors": [],
+  "consoleErrors": [],
+  "cases": [
+    {
+      "id": "48x40",
+      "status": "VALIDATED",
+      "timings": {
+        "javascript-reference": {
+          "status": "MEASURED",
+          "p50": 0.015312492847442627
+        },
+        "wasm-scalar": {
+          "status": "MEASURED",
+          "p50": 0.0065625011920928955
+        },
+        "wasm-simd": {
+          "status": "MEASURED",
+          "p50": 0.0034375041723251343
+        }
+      }
+    },
+    {
+      "id": "96x80",
+      "status": "VALIDATED",
+      "timings": {
+        "javascript-reference": {
+          "status": "MEASURED",
+          "p50": 0.06406249105930328
+        },
+        "wasm-scalar": {
+          "status": "MEASURED",
+          "p50": 0.027187496423721313
+        },
+        "wasm-simd": {
+          "status": "MEASURED",
+          "p50": 0.01218751072883606
+        }
+      }
+    },
+    {
+      "id": "256x256",
+      "status": "VALIDATED",
+      "timings": {
+        "javascript-reference": {
+          "status": "MEASURED",
+          "p50": 0.5237500071525574
+        },
+        "wasm-scalar": {
+          "status": "MEASURED",
+          "p50": 0.22874999046325684
+        },
+        "wasm-simd": {
+          "status": "MEASURED",
+          "p50": 0.10000002384185791
+        }
+      }
+    },
+    {
+      "id": "512x512",
+      "status": "VALIDATED",
+      "timings": {
+        "javascript-reference": {
+          "status": "MEASURED",
+          "p50": 2.131250023841858
+        },
+        "wasm-scalar": {
+          "status": "MEASURED",
+          "p50": 0.9300000071525574
+        },
+        "wasm-simd": {
+          "status": "MEASURED",
+          "p50": 0.39625000953674316
+        }
+      }
+    }
+  ]
+}

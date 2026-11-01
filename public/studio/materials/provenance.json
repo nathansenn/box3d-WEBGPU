@@ -1,0 +1,50 @@
+[
+  {
+    "file": "ivory-weave.png",
+    "generator": "OpenAI built-in ImageGen",
+    "date": "2026-09-08",
+    "width": 1254,
+    "height": 1254,
+    "mode": "RGB",
+    "sha256": "9e37b3e2843830c9952a18f9620f9c02bcb0252a558054fb3c50e2e0916b7361",
+    "use": "Ivory membrane albedo and subtle bump",
+    "referencePixelsUsedAsBackdrop": false,
+    "physicsData": false
+  },
+  {
+    "file": "cast-concrete.png",
+    "generator": "OpenAI built-in ImageGen",
+    "date": "2026-09-08",
+    "width": 1254,
+    "height": 1254,
+    "mode": "RGB",
+    "sha256": "159cb60bb9d150528af34ddc159512b09ecf267e90e6723848b3a6a6a7cc9f7c",
+    "use": "Concrete albedo and mineral surface variation",
+    "referencePixelsUsedAsBackdrop": false,
+    "physicsData": false
+  },
+  {
+    "file": "machined-metal.png",
+    "generator": "OpenAI built-in ImageGen",
+    "date": "2026-09-08",
+    "width": 1254,
+    "height": 1254,
+    "mode": "RGB",
+    "sha256": "fd88bd91f8dbe3144ed6164880cb2030cda5cd57a092dacd8908eaff74e33dc0",
+    "use": "Metal albedo and micro machining bump",
+    "referencePixelsUsedAsBackdrop": false,
+    "physicsData": false
+  },
+  {
+    "file": "oak-foliage.png",
+    "generator": "OpenAI built-in ImageGen",
+    "date": "2026-09-08",
+    "width": 1254,
+    "height": 1254,
+    "mode": "RGBA",
+    "sha256": "8ce5d1a1692a671a6c3c6c8c8f3a3417711a0bf94b9d397a6c6d3dbfc13abc2c",
+    "use": "Alpha-tested leaf cards on modeled tree branches",
+    "referencePixelsUsedAsBackdrop": false,
+    "physicsData": false
+  }
+]

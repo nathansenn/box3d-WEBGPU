@@ -1,0 +1,50 @@
+{
+  "src/studio/press-settings.ts": {
+    "bytes": 21062,
+    "sha256": "689d8699e6719c9f5db82d797e007d3de6d8995ac711d0bf46180e822618363e"
+  },
+  "src/studio/press-workbench.ts": {
+    "bytes": 15653,
+    "sha256": "78d5c59798955350bfe47fafd0214d34c86c82c8617e80c93989aa6ddd9fa964"
+  },
+  "src/studio/press-workbench.css": {
+    "bytes": 10037,
+    "sha256": "b001ac8714a03622dd9cb9886f9862d847dcda505eab8d3584ada19eadcdec88"
+  },
+  "src/studio/press-inspection.ts": {
+    "bytes": 2408,
+    "sha256": "e28341bdf7078def21636017a40f50b0c7e5bf7675e761f137d307a874a84ac2"
+  },
+  "src/studio/press-inspection-view.ts": {
+    "bytes": 5892,
+    "sha256": "d7c2a502a302c314eadf6c6ffe27d815e5cf619a6c1dfe08ef08ac689d5e4754"
+  },
+  "src/studio/press-inspection.css": {
+    "bytes": 8778,
+    "sha256": "05c710ecd4952dbda9858b6485862b7ba3edd95895bcc12f5aa793225504ccce"
+  },
+  "src/studio/world.ts": {
+    "bytes": 69899,
+    "sha256": "a842f534ef65c37bf58a2e10b564dc6b9f9574a32e0e6b6d7cbc3b9b86b1d9c5"
+  },
+  "src/studio/lighting.ts": {
+    "bytes": 4702,
+    "sha256": "c1c3a9bd6e38fa8765a0da132832b9a45ec087e18069ccc43af33c8fe0346da3"
+  },
+  "src/studio/main.ts": {
+    "bytes": 60482,
+    "sha256": "fa40df9b4eec1f941cbb1dce5303a99a118f4411b20ceb7fed293dd579a66e86"
+  },
+  "tests/studio/press-lab.test.mjs": {
+    "bytes": 7275,
+    "sha256": "089bf2e913878ab820ee0fbc9a93cf574984aac64c6f3eafcf3206b669031b27"
+  },
+  "tests/studio/press-inspection.test.mjs": {
+    "bytes": 5011,
+    "sha256": "8c53cdea8428bdd78db7592d802b1bc6cf4f855e163c2a6520d1c940bb1835c1"
+  },
+  "docs/design/press-lab-v2-20260911/mockup.png": {
+    "bytes": 1948978,
+    "sha256": "85779551fb67b94261f0efbbac3ba132b2df009ffd339708747444be63368da8"
+  }
+}

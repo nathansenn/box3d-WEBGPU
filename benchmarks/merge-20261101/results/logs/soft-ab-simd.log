@@ -1,0 +1,122 @@
+[soft-ab] 600 cloth    Tempest Standard — Baseline              base 3.077 ms cand 3.273 ms ratio 0.940 [0.797, 0.986] candidate slower; bit-identical hashes at every checkpoint
+[soft-ab] 605 cloth    Racing Sail Aerodynamics — Baseline      base 3.008 ms cand 2.946 ms ratio 1.021 [0.995, 1.064] no significant difference; bit-identical hashes at every checkpoint
+[soft-ab] 610 cloth    Tempest Standard — High Stress           base 3.020 ms cand 3.129 ms ratio 0.965 [0.920, 1.132] no significant difference; bit-identical hashes at every checkpoint
+[soft-ab] 615 cloth    Racing Sail Aerodynamics — High Stress   base 3.004 ms cand 3.014 ms ratio 0.997 [0.860, 1.078] no significant difference; bit-identical hashes at every checkpoint
+[soft-ab] 620 cloth    Tempest Standard — Precision             base 2.983 ms cand 2.985 ms ratio 0.999 [0.908, 1.031] no significant difference; bit-identical hashes at every checkpoint
+[soft-ab] 625 cloth    Racing Sail Aerodynamics — Precision     base 3.102 ms cand 3.047 ms ratio 1.018 [0.951, 1.050] no significant difference; bit-identical hashes at every checkpoint
+[soft-ab] 630 cloth    Tempest Standard — Impact Demo           base 3.086 ms cand 3.206 ms ratio 0.963 [0.912, 1.044] no significant difference; bit-identical hashes at every checkpoint
+[soft-ab] 635 cloth    Racing Sail Aerodynamics — Impact Demo   base 3.298 ms cand 3.235 ms ratio 1.019 [1.000, 1.038] candidate faster; bit-identical hashes at every checkpoint
+[soft-ab] 640 cloth    Tempest Standard — Cinematic             base 3.452 ms cand 3.436 ms ratio 1.005 [0.965, 1.103] no significant difference; bit-identical hashes at every checkpoint
+[soft-ab] 645 cloth    Racing Sail Aerodynamics — Cinematic     base 3.687 ms cand 3.686 ms ratio 1.000 [0.967, 1.038] no significant difference; bit-identical hashes at every checkpoint
+[soft-ab] 650 rope     Sky Crane Cable Load — Baseline          base 0.246 ms cand 0.237 ms ratio 1.039 [0.977, 1.086] no significant difference; bit-identical hashes at every checkpoint
+[soft-ab] 651 rope     Suspension Cable Bridge — Baseline       base 0.350 ms cand 0.380 ms ratio 0.920 [0.739, 1.077] no significant difference; bit-identical hashes at every checkpoint
+[soft-ab] 652 rope     Heavy Pendulum Strike — Baseline         base 0.261 ms cand 0.290 ms ratio 0.900 [0.852, 1.067] no significant difference; bit-identical hashes at every checkpoint
+[soft-ab] 653 rope     Industrial Rope Ladder — Baseline        base 0.336 ms cand 0.433 ms ratio 0.775 [0.605, 0.983] candidate slower; bit-identical hashes at every checkpoint
+[soft-ab] 654 rope     Four-Point Mooring Array — Baseline      base 0.469 ms cand 0.507 ms ratio 0.925 [0.832, 1.083] no significant difference; bit-identical hashes at every checkpoint
+[soft-ab] 655 rope     Cable Curtain Failure — Baseline         base 0.778 ms cand 0.811 ms ratio 0.960 [0.820, 1.153] no significant difference; bit-identical hashes at every checkpoint
+[soft-ab] 656 rope     High-Speed Zipline — Baseline            base 0.281 ms cand 0.273 ms ratio 1.031 [0.970, 1.191] no significant difference; bit-identical hashes at every checkpoint
+[soft-ab] 657 rope     Grappling Line Tension — Baseline        base 0.303 ms cand 0.322 ms ratio 0.941 [0.835, 1.061] no significant difference; bit-identical hashes at every checkpoint
+[soft-ab] 658 rope     Multi-Sling Rigging Test — Baseline      base 0.430 ms cand 0.425 ms ratio 1.011 [0.934, 1.104] no significant difference; bit-identical hashes at every checkpoint
+[soft-ab] 659 rope     Rope Net Resonance — Baseline            base 0.645 ms cand 0.735 ms ratio 0.877 [0.751, 1.029] no significant difference; bit-identical hashes at every checkpoint
+[soft-ab] 660 rope     Sky Crane Cable Load — High Stress       base 0.214 ms cand 0.228 ms ratio 0.939 [0.918, 1.268] no significant difference; bit-identical hashes at every checkpoint
+[soft-ab] 661 rope     Suspension Cable Bridge — High Stress    base 0.389 ms cand 0.380 ms ratio 1.024 [0.866, 1.099] no significant difference; bit-identical hashes at every checkpoint
+[soft-ab] 662 rope     Heavy Pendulum Strike — High Stress      base 0.265 ms cand 0.294 ms ratio 0.903 [0.752, 1.029] no significant difference; bit-identical hashes at every checkpoint
+[soft-ab] 663 rope     Industrial Rope Ladder — High Stress     base 0.336 ms cand 0.410 ms ratio 0.820 [0.621, 0.990] candidate slower; bit-identical hashes at every checkpoint
+[soft-ab] 664 rope     Four-Point Mooring Array — High Stress   base 0.450 ms cand 0.449 ms ratio 1.003 [0.805, 1.093] no significant difference; bit-identical hashes at every checkpoint
+[soft-ab] 665 rope     Cable Curtain Failure — High Stress      base 0.703 ms cand 0.774 ms ratio 0.908 [0.801, 0.980] candidate slower; bit-identical hashes at every checkpoint
+[soft-ab] 666 rope     High-Speed Zipline — High Stress         base 0.270 ms cand 0.264 ms ratio 1.024 [0.979, 1.043] no significant difference; bit-identical hashes at every checkpoint
+[soft-ab] 667 rope     Grappling Line Tension — High Stress     base 0.281 ms cand 0.303 ms ratio 0.929 [0.908, 0.984] candidate slower; bit-identical hashes at every checkpoint
+[soft-ab] 668 rope     Multi-Sling Rigging Test — High Stress   base 0.423 ms cand 0.457 ms ratio 0.925 [0.887, 1.185] no significant difference; bit-identical hashes at every checkpoint
+[soft-ab] 669 rope     Rope Net Resonance — High Stress         base 0.631 ms cand 0.661 ms ratio 0.956 [0.880, 1.038] no significant difference; bit-identical hashes at every checkpoint
+[soft-ab] 670 rope     Sky Crane Cable Load — Precision         base 0.221 ms cand 0.228 ms ratio 0.969 [0.780, 1.149] no significant difference; bit-identical hashes at every checkpoint
+[soft-ab] 671 rope     Suspension Cable Bridge — Precision      base 0.423 ms cand 0.345 ms ratio 1.228 [0.976, 1.332] no significant difference; bit-identical hashes at every checkpoint
+[soft-ab] 672 rope     Heavy Pendulum Strike — Precision        base 0.281 ms cand 0.357 ms ratio 0.787 [0.659, 0.956] candidate slower; bit-identical hashes at every checkpoint
+[soft-ab] 673 rope     Industrial Rope Ladder — Precision       base 0.334 ms cand 0.389 ms ratio 0.860 [0.838, 1.008] no significant difference; bit-identical hashes at every checkpoint
+[soft-ab] 674 rope     Four-Point Mooring Array — Precision     base 0.436 ms cand 0.443 ms ratio 0.986 [0.951, 1.027] no significant difference; bit-identical hashes at every checkpoint
+[soft-ab] 675 rope     Cable Curtain Failure — Precision        base 0.715 ms cand 0.789 ms ratio 0.906 [0.773, 1.058] no significant difference; bit-identical hashes at every checkpoint
+[soft-ab] 676 rope     High-Speed Zipline — Precision           base 0.260 ms cand 0.272 ms ratio 0.956 [0.750, 1.103] no significant difference; bit-identical hashes at every checkpoint
+[soft-ab] 677 rope     Grappling Line Tension — Precision       base 0.306 ms cand 0.324 ms ratio 0.944 [0.796, 1.031] no significant difference; bit-identical hashes at every checkpoint
+[soft-ab] 678 rope     Multi-Sling Rigging Test — Precision     base 0.404 ms cand 0.413 ms ratio 0.979 [0.876, 1.188] no significant difference; bit-identical hashes at every checkpoint
+[soft-ab] 679 rope     Rope Net Resonance — Precision           base 0.639 ms cand 0.639 ms ratio 1.000 [0.946, 1.063] no significant difference; bit-identical hashes at every checkpoint
+[soft-ab] 680 rope     Sky Crane Cable Load — Impact Demo       base 0.281 ms cand 0.299 ms ratio 0.939 [0.868, 0.990] candidate slower; bit-identical hashes at every checkpoint
+[soft-ab] 681 rope     Suspension Cable Bridge — Impact Demo    base 0.418 ms cand 0.418 ms ratio 1.001 [0.947, 1.003] no significant difference; bit-identical hashes at every checkpoint
+[soft-ab] 682 rope     Heavy Pendulum Strike — Impact Demo      base 0.261 ms cand 0.286 ms ratio 0.913 [0.847, 0.941] candidate slower; bit-identical hashes at every checkpoint
+[soft-ab] 683 rope     Industrial Rope Ladder — Impact Demo     base 0.343 ms cand 0.406 ms ratio 0.844 [0.613, 0.922] candidate slower; bit-identical hashes at every checkpoint
+[soft-ab] 684 rope     Four-Point Mooring Array — Impact Demo   base 0.458 ms cand 0.472 ms ratio 0.969 [0.963, 1.314] no significant difference; bit-identical hashes at every checkpoint
+[soft-ab] 685 rope     Cable Curtain Failure — Impact Demo      base 0.692 ms cand 0.814 ms ratio 0.850 [0.840, 0.873] candidate slower; bit-identical hashes at every checkpoint
+[soft-ab] 686 rope     High-Speed Zipline — Impact Demo         base 0.278 ms cand 0.289 ms ratio 0.962 [0.783, 1.029] no significant difference; bit-identical hashes at every checkpoint
+[soft-ab] 687 rope     Grappling Line Tension — Impact Demo     base 0.319 ms cand 0.312 ms ratio 1.022 [0.891, 1.112] no significant difference; bit-identical hashes at every checkpoint
+[soft-ab] 688 rope     Multi-Sling Rigging Test — Impact Demo   base 0.454 ms cand 0.490 ms ratio 0.927 [0.755, 1.220] no significant difference; bit-identical hashes at every checkpoint
+[soft-ab] 689 rope     Rope Net Resonance — Impact Demo         base 0.798 ms cand 0.802 ms ratio 0.995 [0.875, 1.141] no significant difference; bit-identical hashes at every checkpoint
+[soft-ab] 690 rope     Sky Crane Cable Load — Cinematic         base 0.277 ms cand 0.313 ms ratio 0.886 [0.758, 1.173] no significant difference; bit-identical hashes at every checkpoint
+[soft-ab] 691 rope     Suspension Cable Bridge — Cinematic      base 0.434 ms cand 0.440 ms ratio 0.987 [0.949, 1.214] no significant difference; bit-identical hashes at every checkpoint
+[soft-ab] 692 rope     Heavy Pendulum Strike — Cinematic        base 0.270 ms cand 0.303 ms ratio 0.890 [0.793, 0.957] candidate slower; bit-identical hashes at every checkpoint
+[soft-ab] 693 rope     Industrial Rope Ladder — Cinematic       base 0.342 ms cand 0.425 ms ratio 0.805 [0.639, 0.963] candidate slower; bit-identical hashes at every checkpoint
+[soft-ab] 694 rope     Four-Point Mooring Array — Cinematic     base 0.551 ms cand 0.517 ms ratio 1.065 [0.971, 1.209] no significant difference; bit-identical hashes at every checkpoint
+[soft-ab] 695 rope     Cable Curtain Failure — Cinematic        base 0.759 ms cand 0.858 ms ratio 0.884 [0.790, 1.158] no significant difference; bit-identical hashes at every checkpoint
+[soft-ab] 696 rope     High-Speed Zipline — Cinematic           base 0.309 ms cand 0.335 ms ratio 0.923 [0.814, 1.130] no significant difference; bit-identical hashes at every checkpoint
+[soft-ab] 697 rope     Grappling Line Tension — Cinematic       base 0.373 ms cand 0.323 ms ratio 1.155 [1.030, 1.341] candidate faster; bit-identical hashes at every checkpoint
+[soft-ab] 698 rope     Multi-Sling Rigging Test — Cinematic     base 0.469 ms cand 0.488 ms ratio 0.961 [0.941, 1.104] no significant difference; bit-identical hashes at every checkpoint
+[soft-ab] 699 rope     Rope Net Resonance — Cinematic           base 0.882 ms cand 0.876 ms ratio 1.007 [0.965, 1.055] no significant difference; bit-identical hashes at every checkpoint
+[soft-ab] 700 water    Interactive Ripple Basin — Baseline      base 0.362 ms cand 0.408 ms ratio 0.886 [0.788, 1.156] no significant difference; bit-identical hashes at every checkpoint
+[soft-ab] 705 water    Rain Impact Reservoir — Baseline         base 0.716 ms cand 0.737 ms ratio 0.972 [0.855, 1.037] no significant difference; bit-identical hashes at every checkpoint
+[soft-ab] 710 water    Interactive Ripple Basin — High Stress   base 0.335 ms cand 0.390 ms ratio 0.859 [0.809, 1.042] no significant difference; bit-identical hashes at every checkpoint
+[soft-ab] 715 water    Rain Impact Reservoir — High Stress      base 0.660 ms cand 0.738 ms ratio 0.894 [0.756, 1.021] no significant difference; bit-identical hashes at every checkpoint
+[soft-ab] 720 water    Interactive Ripple Basin — Precision     base 0.305 ms cand 0.370 ms ratio 0.826 [0.659, 0.909] candidate slower; bit-identical hashes at every checkpoint
+[soft-ab] 725 water    Rain Impact Reservoir — Precision        base 0.704 ms cand 0.615 ms ratio 1.144 [0.775, 1.261] no significant difference; bit-identical hashes at every checkpoint
+[soft-ab] 730 water    Interactive Ripple Basin — Impact Demo   base 0.313 ms cand 0.320 ms ratio 0.978 [0.788, 1.120] no significant difference; bit-identical hashes at every checkpoint
+[soft-ab] 735 water    Rain Impact Reservoir — Impact Demo      base 0.796 ms cand 0.709 ms ratio 1.123 [1.063, 1.183] candidate faster; bit-identical hashes at every checkpoint
+[soft-ab] 740 water    Interactive Ripple Basin — Cinematic     base 0.390 ms cand 0.347 ms ratio 1.123 [0.922, 1.360] no significant difference; bit-identical hashes at every checkpoint
+[soft-ab] 745 water    Rain Impact Reservoir — Cinematic        base 0.671 ms cand 0.690 ms ratio 0.973 [0.834, 1.193] no significant difference; bit-identical hashes at every checkpoint
+[soft-ab] 750 fracture Structural Steel Three-Point Bend — Base base 0.952 ms cand 0.900 ms ratio 1.057 [0.941, 1.390] no significant difference; bit-identical hashes at every checkpoint
+[soft-ab] 755 fracture Reinforced Concrete Span — Baseline      base 1.935 ms cand 1.912 ms ratio 1.012 [0.878, 1.046] no significant difference; bit-identical hashes at every checkpoint
+[soft-ab] 760 fracture Structural Steel Three-Point Bend — High base 0.880 ms cand 0.891 ms ratio 0.988 [0.880, 1.104] no significant difference; bit-identical hashes at every checkpoint
+[soft-ab] 765 fracture Reinforced Concrete Span — High Stress   base 1.848 ms cand 1.844 ms ratio 1.002 [0.943, 1.059] no significant difference; bit-identical hashes at every checkpoint
+[soft-ab] 770 fracture Structural Steel Three-Point Bend — Prec base 1.001 ms cand 1.013 ms ratio 0.988 [0.900, 1.128] no significant difference; bit-identical hashes at every checkpoint
+[soft-ab] 775 fracture Reinforced Concrete Span — Precision     base 1.966 ms cand 1.929 ms ratio 1.019 [0.941, 1.082] no significant difference; bit-identical hashes at every checkpoint
+[soft-ab] 780 fracture Structural Steel Three-Point Bend — Impa base 30.805 ms cand 28.479 ms ratio 1.082 [0.961, 1.164] no significant difference; bit-identical hashes at every checkpoint
+[soft-ab] 785 fracture Reinforced Concrete Span — Impact Demo   base 2.154 ms cand 2.090 ms ratio 1.031 [0.874, 1.363] no significant difference; bit-identical hashes at every checkpoint
+[soft-ab] 790 fracture Structural Steel Three-Point Bend — Cine base 8.071 ms cand 7.516 ms ratio 1.074 [0.926, 1.398] no significant difference; bit-identical hashes at every checkpoint
+[soft-ab] 795 fracture Reinforced Concrete Span — Cinematic     base 4.845 ms cand 5.171 ms ratio 0.937 [0.828, 1.050] no significant difference; bit-identical hashes at every checkpoint
+{
+  "scenes": 80,
+  "geometricMeanSpeedRatio": 0.9628322343431222,
+  "families": {
+    "cloth": {
+      "scenes": 10,
+      "geometricMeanSpeedRatio": 0.9923355715273218,
+      "medianSpeedRatio": 0.9996768950318655,
+      "faster": 1,
+      "slower": 1,
+      "noSignificantDifference": 8,
+      "bitIdenticalTrajectories": 10
+    },
+    "rope": {
+      "scenes": 50,
+      "geometricMeanSpeedRatio": 0.9446749750667716,
+      "medianSpeedRatio": 0.9423189438373814,
+      "faster": 1,
+      "slower": 11,
+      "noSignificantDifference": 38,
+      "bitIdenticalTrajectories": 50
+    },
+    "water": {
+      "scenes": 10,
+      "geometricMeanSpeedRatio": 0.9717482131465959,
+      "medianSpeedRatio": 0.9723184075488699,
+      "faster": 1,
+      "slower": 1,
+      "noSignificantDifference": 8,
+      "bitIdenticalTrajectories": 10
+    },
+    "fracture": {
+      "scenes": 10,
+      "geometricMeanSpeedRatio": 1.018076955794927,
+      "medianSpeedRatio": 1.0154504747447972,
+      "faster": 0,
+      "slower": 0,
+      "noSignificantDifference": 10,
+      "bitIdenticalTrajectories": 10
+    }
+  }
+}

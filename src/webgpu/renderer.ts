@@ -1,5 +1,12 @@
 import type { Mat4 } from '../math';
+import { WaterSurfacePlanner, type WaterSurfaceDescription, type WaterSurfacePlan } from './water-surface-plan';
+import { GpuInstanceVisibility, INSTANCE_MATERIAL_WGSL, classifyInstanceMaterialMask } from './instance-visibility';
 import type { DebugLine, DynamicSurfaceFrame, InstanceBufferSource, RopeGridFrame, SceneUniformState } from '../types';
+import { GpuPassTimer, type GpuPassTimestampWrites, type GpuTimingInfo, type GpuTimingOptions } from './gpu-timing.js';
+import { InstancePartition, partitionVertexBindings, partitionVertexEntry } from './instance-partition.js';
+import { ResidentWaterSurface, type ResidentWaterOptions } from './resident-water-surface.js';
+import { GpuStartupBudget, type GpuStartupOptions } from './startup-budget.js';
+import type { GpuLinearWater } from './linear-water.ts';
 import {
   loadMaterialAtlasTexture,
   loadMaterialNoiseTexture,
@@ -8,8 +15,13 @@ import {
 } from '../assets/ktx2.js';
 
 const CUBE_VERTEX_COUNT = 36;
+const INSTANCE_CAPACITY_TIERS = [4096,16384,65536,131072,262144,524288,1048576] as const;
+const MAX_INSTANCE_CAPACITY = 1048576;
 const MAX_DEBUG_LINE_VERTICES = 131072;
-const SCENE_UNIFORM_FLOATS = 52;
+const SCENE_UNIFORM_FLOATS = 56;
+let uncapturedErrorCount = 0;
+let lastUncapturedError = '';
+export const getUncapturedGpuErrors = (): { count: number; last: string } => ({ count: uncapturedErrorCount, last: lastUncapturedError });
 const SCENE_UNIFORM_BYTES = SCENE_UNIFORM_FLOATS * Float32Array.BYTES_PER_ELEMENT;
 const DEFAULT_SHADOW_MAP_SIZE: 1024 | 2048 = 2048;
 const DEFAULT_SAMPLE_COUNT: 1 | 4 = 4;
@@ -30,6 +42,44 @@ const ROPE_GRID_UNIFORM_BYTES = 16;
 const MAX_ROPE_NODES = 4096;
 const MAX_ROPE_SEGMENTS = 4096;
 
+/** Each optimization can be measured independently against the direct renderer. */
+export interface RenderingOptimizations {
+  vertexMaterialRejection: boolean;
+  shadowPcfFetch: boolean;
+  shadowCache: boolean;
+  computeVisibility: boolean;
+}
+
+export interface WebGPURendererOptions extends GpuStartupOptions {
+  optimizations?: Partial<RenderingOptimizations>;
+  /** Enabled when timestamp-query is supported. Defaults to one sample per 30 frames. */
+  gpuTiming?: boolean | GpuTimingOptions;
+  /** Opt-in until the complete-frame crossover is qualified on target adapters. */
+  instancePartitioning?: boolean;
+}
+
+export interface RenderingDiagnostics {
+  frames: number;
+  shadowPasses: number;
+  shadowCacheHits: number;
+  shadowEmptyClears: number;
+  visibilityEncodes: number;
+  lastInputInstances: number;
+  /** Encoded instance counts, not fragments. Indirect counts require readback. */
+  lastSubmittedInstances: { opaque: number | null; transparent: number | null; shadow: number | null };
+  lastShadowReused: boolean;
+  /** Actual uniform flag; the requested option remains available below. */
+  effectiveVertexMaterialRejection: boolean;
+  optimizations: Readonly<RenderingOptimizations>;
+}
+
+const DEFAULT_RENDERING_OPTIMIZATIONS: Readonly<RenderingOptimizations> = Object.freeze({
+  vertexMaterialRejection: true,
+  shadowPcfFetch: true,
+  shadowCache: true,
+  computeVisibility: false,
+});
+
 // The checked-in ambient WebGPU declarations predate depth-bias fields even
 // though current browsers and Dawn implement them. Keep the compatibility cast
 // narrow and local to shadow depth state.
@@ -37,6 +87,11 @@ type BiasedDepthStencilState = GPUDepthStencilState & {
   depthBias: number;
   depthBiasSlopeScale: number;
   depthBiasClamp: number;
+};
+
+// drawIndirect is baseline WebGPU; the repository's ambient declaration is older.
+type IndirectRenderPassEncoder = GPURenderPassEncoder & {
+  drawIndirect(indirectBuffer: GPUBuffer, indirectOffset: number): void;
 };
 
 function assertNever(value: never, message: string): never {
@@ -52,7 +107,42 @@ struct SceneUniforms {
   fogColorDensity : vec4<f32>,
   viewportBloomShadow : vec4<f32>,
   qualityModes : vec4<f32>,
+  renderOptions : vec4<f32>,
 };
+
+fn srgbToLinear(c : vec3<f32>) -> vec3<f32> {
+  return select(pow((c + vec3<f32>(0.055)) / 1.055, vec3<f32>(2.4)), c / 12.92, c <= vec3<f32>(0.04045));
+}
+
+fn linearToSrgb(c : vec3<f32>) -> vec3<f32> {
+  return select(1.055 * pow(c, vec3<f32>(1.0 / 2.4)) - vec3<f32>(0.055), c * 12.92, c <= vec3<f32>(0.0031308));
+}
+`;
+
+// Only the indirect entry points use these bindings. Direct draws keep their
+// existing instance vertex streams and do not require a second bind group.
+const instanceVertexPulling = /* wgsl */ `
+${INSTANCE_MATERIAL_WGSL}
+
+struct VisibleVertexIn {
+  @location(0) position : vec3<f32>,
+  @location(1) normal : vec3<f32>,
+};
+
+@group(1) @binding(0)
+var<storage, read> visibleModelMatrices : array<mat4x4<f32>>;
+@group(1) @binding(1)
+var<storage, read> visibleInstanceColors : array<vec4<f32>>;
+@group(1) @binding(2)
+var<storage, read> visibleInstanceIds : array<u32>;
+
+fn pullVisibleVertex(input : VisibleVertexIn, instanceIndex : u32) -> VertexIn {
+  let sourceIndex = visibleInstanceIds[instanceIndex];
+  let model = visibleModelMatrices[sourceIndex];
+  return VertexIn(input.position, input.normal, model[0], model[1], model[2], model[3],
+    visibleInstanceColors[sourceIndex]);
+}
+
 `;
 
 const packedSurfaceDecode = /* wgsl */ `
@@ -165,7 +255,12 @@ fn sampleGpuSurfaceShadow(shadowPosition : vec4<f32>, normal : vec3<f32>, lightD
   let texel = vec2<f32>(1.0) / vec2<f32>(textureDimensions(shadowMap));
   let nDotL = max(dot(normal, -lightDirection), 0.0);
   let referenceDepth = clamp(projected.z - max(0.00005, 0.00036 * (1.0 - nDotL)), 0.0, 1.0);
-  let centerVisibility = textureSampleCompareLevel(shadowMap, shadowSampler, uv, referenceDepth);
+  var centerVisibility = 0.0;
+  // The nine-tap loop already includes its center. Keep its arithmetic order
+  // intact, but avoid the extra lookup when the candidate is enabled.
+  if (scene.renderOptions.y < 0.5 || scene.qualityModes.x < 1.5) {
+    centerVisibility = textureSampleCompareLevel(shadowMap, shadowSampler, uv, referenceDepth);
+  }
   if (scene.qualityModes.x < 1.5) {
     return mix(1.0, centerVisibility, inBounds);
   }
@@ -189,6 +284,7 @@ fn sampleGpuSurfaceShadow(shadowPosition : vec4<f32>, normal : vec3<f32>, lightD
 const solidShader = /* wgsl */ `
 ${sceneUniformStruct}
 ${materialAtlasSampling}
+${partitionVertexBindings}
 
 @group(0) @binding(0)
 var<uniform> scene : SceneUniforms;
@@ -233,8 +329,9 @@ struct VertexOut {
   @location(4) materialUv : vec2<f32>,
 };
 
-@vertex
-fn vsMain(input : VertexIn) -> VertexOut {
+${instanceVertexPulling}
+
+fn buildSolidVertex(input : VertexIn) -> VertexOut {
   let model = mat4x4<f32>(input.m0, input.m1, input.m2, input.m3);
   let world = model * vec4<f32>(input.position, 1.0);
 
@@ -263,6 +360,44 @@ fn vsMain(input : VertexIn) -> VertexOut {
   out.materialUv = dominantProjectionUv(metricPosition, input.normal) * 0.22;
   return out;
 }
+
+fn vertexForInstance(input : VertexIn) -> VertexOut { return buildSolidVertex(input); }
+
+fn rejectedSolidVertex() -> VertexOut {
+  var out : VertexOut;
+  // All vertices are degenerate and beyond the far clip plane. No fragment
+  // invocation, derivative, texture lookup, or depth write can be produced.
+  out.clipPosition = vec4<f32>(0.0, 0.0, 2.0, 1.0);
+  return out;
+}
+
+@vertex
+fn vsMain(input : VertexIn) -> VertexOut {
+  if (scene.renderOptions.x > 0.5 && (materialPassMask(input.color.a) & 1u) == 0u) {
+    return rejectedSolidVertex();
+  }
+  return buildSolidVertex(input);
+}
+
+@vertex
+fn vsTransparent(input : VertexIn) -> VertexOut {
+  if (scene.renderOptions.x > 0.5 && (materialPassMask(input.color.a) & 2u) == 0u) {
+    return rejectedSolidVertex();
+  }
+  return buildSolidVertex(input);
+}
+
+@vertex
+fn vsVisibleOpaque(input : VisibleVertexIn, @builtin(instance_index) instanceIndex : u32) -> VertexOut {
+  return buildSolidVertex(pullVisibleVertex(input, instanceIndex));
+}
+
+@vertex
+fn vsVisibleTransparent(input : VisibleVertexIn, @builtin(instance_index) instanceIndex : u32) -> VertexOut {
+  return buildSolidVertex(pullVisibleVertex(input, instanceIndex));
+}
+
+${partitionVertexEntry}
 
 fn distributionGGX(nDotH : f32, roughness : f32) -> f32 {
   let a = roughness * roughness;
@@ -333,7 +468,12 @@ fn sampleShadow(shadowPosition : vec4<f32>, normal : vec3<f32>, lightDirection :
   let nDotL = max(dot(normal, -lightDirection), 0.0);
   let bias = max(0.00004, 0.00028 * (1.0 - nDotL));
   let referenceDepth = clamp(projected.z - bias, 0.0, 1.0);
-  let centerVisibility = textureSampleCompareLevel(shadowMap, shadowSampler, uv, referenceDepth);
+  var centerVisibility = 0.0;
+  // The nine-tap loop already includes its center. Keep its arithmetic order
+  // intact, but avoid the extra lookup when the candidate is enabled.
+  if (scene.renderOptions.y < 0.5 || scene.qualityModes.x < 1.5) {
+    centerVisibility = textureSampleCompareLevel(shadowMap, shadowSampler, uv, referenceDepth);
+  }
   if (scene.qualityModes.x < 1.5) {
     return mix(1.0, centerVisibility, inBounds);
   }
@@ -390,7 +530,7 @@ fn fsMain(input : VertexOut) -> @location(0) vec4<f32> {
   let detailNormal = atlasSurface.rgb * 2.0 - vec3<f32>(1.0);
 
   let encodedColor = clamp(input.color.rgb, vec3<f32>(0.0), vec3<f32>(1.0));
-  let authoredColor = pow(encodedColor, vec3<f32>(2.2));
+  let authoredColor = srgbToLinear(encodedColor);
   var baseColor = select(authoredColor, atlasAlbedo * mix(vec3<f32>(0.76), authoredColor * 1.45, 0.36), usesAtlas);
   // For conductors the atlas texel represents colored specular reflectance,
   // not a diffuse layer to be multiplied down by the authored swatch.
@@ -542,7 +682,7 @@ fn fsTransparent(input : VertexOut) -> @location(0) vec4<f32> {
       clamp(reflected.y * 0.5 + 0.5, 0.0, 1.0)
     );
     let environment = mix(outdoorEnvironment, studioEnvironment(reflected), studioMix);
-    let tint = pow(clamp(input.color.rgb, vec3<f32>(0.0), vec3<f32>(1.0)), vec3<f32>(2.2));
+    let tint = srgbToLinear(clamp(input.color.rgb, vec3<f32>(0.0), vec3<f32>(1.0)));
     var color = tint * (0.11 + variation * 0.035) + environment * (0.22 + fresnel * 0.78);
     color = mix(color, scene.fogColorDensity.xyz, fogAmount);
     return vec4<f32>(color, clamp(0.10 + fresnel * 0.48 + variation * 0.025, 0.10, 0.62));
@@ -553,7 +693,7 @@ fn fsTransparent(input : VertexOut) -> @location(0) vec4<f32> {
   // hiding the rebar and aggregate behind opaque glowing cubes.
   let lightDirection = normalize(scene.lightDirExposure.xyz);
   let diffuse = 0.38 + max(dot(normal, -lightDirection), 0.0) * 0.28;
-  let dustBase = pow(clamp(input.color.rgb, vec3<f32>(0.0), vec3<f32>(1.0)), vec3<f32>(2.2));
+  let dustBase = srgbToLinear(clamp(input.color.rgb, vec3<f32>(0.0), vec3<f32>(1.0)));
   var dustColor = dustBase * (diffuse + variation * 0.16);
   dustColor = mix(dustColor, scene.fogColorDensity.xyz, fogAmount);
   return vec4<f32>(dustColor, clamp(0.10 + variation * 0.16, 0.10, 0.30));
@@ -581,13 +721,30 @@ struct ShadowVertexOut {
   @location(0) color : vec4<f32>,
 };
 
-@vertex
-fn vsMain(input : VertexIn) -> ShadowVertexOut {
+${instanceVertexPulling}
+
+fn buildShadowVertex(input : VertexIn) -> ShadowVertexOut {
   let model = mat4x4<f32>(input.m0, input.m1, input.m2, input.m3);
   var out : ShadowVertexOut;
   out.clipPosition = scene.lightViewProj * model * vec4<f32>(input.position, 1.0);
   out.color = input.color;
   return out;
+}
+
+@vertex
+fn vsMain(input : VertexIn) -> ShadowVertexOut {
+  if (scene.renderOptions.x > 0.5 && (materialPassMask(input.color.a) & 4u) == 0u) {
+    var out : ShadowVertexOut;
+    out.clipPosition = vec4<f32>(0.0, 0.0, 2.0, 1.0);
+    out.color = input.color;
+    return out;
+  }
+  return buildShadowVertex(input);
+}
+
+@vertex
+fn vsVisible(input : VisibleVertexIn, @builtin(instance_index) instanceIndex : u32) -> ShadowVertexOut {
+  return buildShadowVertex(pullVisibleVertex(input, instanceIndex));
 }
 
 @fragment
@@ -687,7 +844,12 @@ fn sampleSurfaceShadow(shadowPosition : vec4<f32>, normal : vec3<f32>, lightDire
   let nDotL = max(dot(normal, -lightDirection), 0.0);
   let bias = max(0.00005, 0.00036 * (1.0 - nDotL));
   let referenceDepth = clamp(projected.z - bias, 0.0, 1.0);
-  let centerVisibility = textureSampleCompareLevel(shadowMap, shadowSampler, uv, referenceDepth);
+  var centerVisibility = 0.0;
+  // The nine-tap loop already includes its center. Keep its arithmetic order
+  // intact, but avoid the extra lookup when the candidate is enabled.
+  if (scene.renderOptions.y < 0.5 || scene.qualityModes.x < 1.5) {
+    centerVisibility = textureSampleCompareLevel(shadowMap, shadowSampler, uv, referenceDepth);
+  }
   if (scene.qualityModes.x < 1.5) {
     return mix(1.0, centerVisibility, inBounds);
   }
@@ -718,7 +880,7 @@ fn fsMain(input : VertexOut, @builtin(front_facing) frontFacing : bool) -> @loca
   let weave = mix(0.82, 1.12, warp * weft);
   let stress = clamp(input.color.a, 0.0, 1.0);
   let textile = textureSample(materialAlbedoAtlas, materialAtlasSampler, materialTileUv(2u, input.uv * vec2<f32>(5.0, 4.0))).rgb;
-  let tint = pow(clamp(input.color.rgb * weave, vec3<f32>(0.0), vec3<f32>(1.0)), vec3<f32>(2.2));
+  let tint = srgbToLinear(clamp(input.color.rgb * weave, vec3<f32>(0.0), vec3<f32>(1.0)));
   let baseColor = tint * mix(vec3<f32>(1.0), textile * 1.55, 0.48);
   let nDotL = max(dot(normal, toLight), 0.0);
   let nDotV = max(dot(normal, viewDirection), 0.0);
@@ -835,7 +997,7 @@ fn fsMain(input : VertexOut, @builtin(front_facing) frontFacing : bool) -> @loca
   ).rgb;
   let millUv = vec2<f32>(input.uv.x * 2.4, input.uv.y * 56.0);
   let millGrain = textureSample(materialNoise, materialNoiseSampler, millUv).r;
-  let authoredColor = pow(clamp(input.color.rgb, vec3<f32>(0.0), vec3<f32>(1.0)), vec3<f32>(2.2));
+  let authoredColor = srgbToLinear(clamp(input.color.rgb, vec3<f32>(0.0), vec3<f32>(1.0)));
   let zinc = mix(vec3<f32>(0.52, 0.55, 0.58), mix(atlasAlbedo, authoredColor, 0.46), 0.42);
   var baseColor = clamp(zinc * mix(0.96, 1.03, millGrain), vec3<f32>(0.08), vec3<f32>(0.72));
   let overlay = clamp(input.color.a, 0.0, 1.0);
@@ -1048,7 +1210,7 @@ fn fsMain(input : GpuSurfaceVertexOut, @builtin(front_facing) frontFacing : bool
   let weave = mix(0.82, 1.12, warp * weft);
   let stress = clamp(input.color.a, 0.0, 1.0);
   let textile = textureSample(materialAlbedoAtlas, materialAtlasSampler, materialTileUv(2u, input.uv * vec2<f32>(5.0, 4.0))).rgb;
-  let tint = pow(clamp(input.color.rgb * weave, vec3<f32>(0.0), vec3<f32>(1.0)), vec3<f32>(2.2));
+  let tint = srgbToLinear(clamp(input.color.rgb * weave, vec3<f32>(0.0), vec3<f32>(1.0)));
   let baseColor = tint * mix(vec3<f32>(1.0), textile * 1.55, 0.48);
   let nDotL = max(dot(normal, toLight), 0.0);
   let nDotV = max(dot(normal, viewDirection), 0.0);
@@ -1125,7 +1287,14 @@ fn vsMain(@builtin(vertex_index) vertexIndex : u32) -> GpuSurfaceVertexOut {
   let slopeZ = (waterEta[upIndex] - waterEta[downIndex]) / max(cellZ * 2.0, 0.0001);
   let normal = normalize(vec3<f32>(slopeX, 1.0, slopeZ));
   let curvature = abs(waterEta[leftIndex] + waterEta[rightIndex] + waterEta[upIndex] + waterEta[downIndex] - waterEta[vertexIndex] * 4.0);
-  let current = length(vec2<f32>(waterU[vertexIndex], waterV[vertexIndex]));
+  var velocity = vec2<f32>(waterU[vertexIndex], waterV[vertexIndex]);
+  if (waterParams.grid.w == 1u) {
+    var west = 0.0; var south = 0.0;
+    if (col > 0u) { west = waterU[leftIndex]; }
+    if (row > 0u) { south = waterV[upIndex]; }
+    velocity = 0.5 * (velocity + vec2<f32>(west, south));
+  }
+  let current = length(velocity);
   let foam = clamp(curvature * 4.5 + current * 0.12, 0.0, 1.0);
   let uv = vec2<f32>(f32(col) / f32(max(cols - 1u, 1u)), f32(row) / f32(max(rows - 1u, 1u)));
   let depthColor = mix(vec3<f32>(0.006, 0.075, 0.14), vec3<f32>(0.025, 0.32, 0.48), clamp(waterEta[vertexIndex] * 0.18 + 0.5, 0.0, 1.0));
@@ -1158,7 +1327,7 @@ fn fsMain(input : GpuSurfaceVertexOut, @builtin(front_facing) frontFacing : bool
   let fresnel = 0.025 + 0.975 * pow(1.0 - nDotV, 5.0);
   let foam = clamp(input.color.a, 0.0, 1.0);
   let visibility = mix(1.0, sampleGpuSurfaceShadow(input.shadowPosition, normal, lightDirection), scene.viewportBloomShadow.w * 0.7);
-  let depthTint = pow(clamp(input.color.rgb, vec3<f32>(0.0), vec3<f32>(1.0)), vec3<f32>(2.2));
+  let depthTint = srgbToLinear(clamp(input.color.rgb, vec3<f32>(0.0), vec3<f32>(1.0)));
   let skyReflection = mix(vec3<f32>(0.05, 0.18, 0.34), vec3<f32>(0.34, 0.58, 0.92), clamp(normal.y * 0.5 + 0.5, 0.0, 1.0));
   let sunGlint = pow(nDotH, 230.0) * vec3<f32>(14.0, 10.5, 7.0) * visibility;
   let broadSpecular = pow(nDotH, 42.0) * vec3<f32>(1.4, 1.8, 2.4) * visibility;
@@ -1450,7 +1619,11 @@ fn fsMain(input : VertexOut) -> @location(0) vec4<f32> {
 
   // No time-driven film grain: paused simulations and deterministic captures
   // must resolve to identical pixels.
-  color = pow(clamp(color, vec3<f32>(0.0), vec3<f32>(1.0)), vec3<f32>(1.0 / 2.2));
+  color = linearToSrgb(clamp(color, vec3<f32>(0.0), vec3<f32>(1.0)));
+  // Static interleaved-gradient dither (+-0.5/255, no time term) hides 8-bit
+  // banding in sky and fog gradients while keeping captures deterministic.
+  let ign = fract(52.9829189 * fract(dot(floor(input.clipPosition.xy), vec2<f32>(0.06711056, 0.00583715))));
+  color = clamp(color + vec3<f32>((ign - 0.5) / 255.0), vec3<f32>(0.0), vec3<f32>(1.0));
   return vec4<f32>(color, 1.0);
 }
 `;
@@ -1478,8 +1651,7 @@ function ptrToNumber(ptr: number | bigint): number {
 
 function containsTransparentMaterial(values: ArrayLike<number>, start: number, count: number): boolean {
   for (let i = 0; i < count; i++) {
-    const materialId = Math.round(Math.max(-values[start + i * 4 + 3], 0));
-    if (materialId === 4 || materialId === 6) return true;
+    if ((classifyInstanceMaterialMask(values[start + i * 4 + 3]) & 2) !== 0) return true;
   }
   return false;
 }
@@ -1607,12 +1779,39 @@ type MainPipelineSet = Readonly<{
   line: GPURenderPipeline;
 }>;
 
+export interface WebGPUDeviceLossInfo {
+  readonly reason: string;
+  readonly message: string;
+}
+
+type TimedRenderPassDescriptor = GPURenderPassDescriptor & { timestampWrites?: GpuPassTimestampWrites };
+type TimedComputePassDescriptor = GPUComputePassDescriptor & { timestampWrites?: GpuPassTimestampWrites };
+
+type VisibilityPipelineSet = Readonly<Pick<MainPipelineSet, 'solid' | 'transparentSolid'>>;
+type VisibilityResources = Readonly<{
+  visibility: GpuInstanceVisibility;
+  shadowPipeline: GPURenderPipeline;
+  mainPipelines1x: VisibilityPipelineSet;
+  mainPipelines4x: VisibilityPipelineSet;
+  opaqueBindGroup: GPUBindGroup;
+  transparentBindGroup: GPUBindGroup;
+  shadowBindGroup: GPUBindGroup;
+}>;
+
 export class WebGPURenderer {
   readonly canvas: HTMLCanvasElement;
   readonly device: GPUDevice;
   readonly context: GPUCanvasContext;
   readonly format: GPUTextureFormat;
-  readonly maxInstances: number;
+  private instanceCapacity: number;
+  private instanceReserve: Promise<number> | null = null;
+  get maxInstances(): number { return this.instanceCapacity; }
+
+  private readonly gpuTimer: GpuPassTimer;
+  private instancePartition: InstancePartition | null;
+  private disposed = false;
+  private deviceLoss: WebGPUDeviceLossInfo | null = null;
+  private readonly deviceLostListeners = new Set<(info: WebGPUDeviceLossInfo) => void>();
 
   private shadowPipeline: GPURenderPipeline;
   private surfaceShadowPipeline: GPURenderPipeline;
@@ -1627,7 +1826,14 @@ export class WebGPURenderer {
   private sceneBindGroupLayout: GPUBindGroupLayout;
   private gpuClothBindGroup: GPUBindGroup;
   private gpuWaterBindGroup: GPUBindGroup;
+  private readonly cpuWaterBindGroup: GPUBindGroup;
+  private readonly gpuWaterBindGroupLayout: GPUBindGroupLayout;
+  private residentWater: ResidentWaterSurface | null = null;
+  private readonly waterSurfacePlanner = new WaterSurfacePlanner();
+  private residentWaterParams: Uint8Array | null = null;
+  private residentWaterBindings = new WeakMap<GPUBuffer, { u: GPUBuffer; v: GPUBuffer; byteLength: number; group: GPUBindGroup }>();
   private ropeComputeBindGroup: GPUBindGroup;
+  private ropeComputeBindGroupLayout: GPUBindGroupLayout;
   private postBindGroup: GPUBindGroup | null = null;
   private postBindGroupLayout: GPUBindGroupLayout;
   private uniformBuffer: GPUBuffer;
@@ -1649,6 +1855,7 @@ export class WebGPURenderer {
   private waterParamsBuffer: GPUBuffer;
   private rigidSourceIdentity: InstanceBufferSource | null = null;
   private rigidHeapIdentity: ArrayBufferLike | null = null;
+  private rigidHeapByteOffset = -1;
   private rigidMatrixByteOffset = -1;
   private rigidColorByteOffset = -1;
   private rigidCount = -1;
@@ -1741,17 +1948,48 @@ export class WebGPURenderer {
   private hdrTexture: GPUTexture | null = null;
   private hdrView: GPUTextureView | null = null;
   private width = 0;
+  // Layout size is read only when a ResizeObserver reports a change (E063);
+  // without one, every call falls back to reading the canvas.
+  private layoutDirty = true;
+  private layoutObserver: ResizeObserver | null = null;
+  private cachedCssWidth = 0;
+  private cachedCssHeight = 0;
+  private lastResizeDpr = 0;
   private height = 0;
   private resolutionScale = 1;
   private sampleCount: 1 | 4 = DEFAULT_SAMPLE_COUNT;
   private shadowMapSize: 1024 | 2048 = DEFAULT_SHADOW_MAP_SIZE;
   private lastUploadedBytes = 0;
   private uniformScratch = new Float32Array(SCENE_UNIFORM_FLOATS);
+  // Last uploaded uniforms (NaN-filled so the first write always happens); a paused scene skips the queue write.
+  private uniformUploaded = new Float32Array(SCENE_UNIFORM_FLOATS).fill(Number.NaN);
+  uniformWriteCount = 0;
   private readonly lineScratch = new Float32Array(MAX_DEBUG_LINE_VERTICES * 7);
   private readonly surfaceIndexUploadScratch = new Uint8Array(MAX_DYNAMIC_SURFACE_INDICES * Uint16Array.BYTES_PER_ELEMENT + 4);
   private readonly clothParamsScratch = new ArrayBuffer(SURFACE_PARAMS_BYTES);
-  private readonly waterParamsScratch = new ArrayBuffer(SURFACE_PARAMS_BYTES);
   private readonly ropeGridUniformScratch = new ArrayBuffer(ROPE_GRID_UNIFORM_BYTES);
+  private optimizations: RenderingOptimizations = { ...DEFAULT_RENDERING_OPTIMIZATIONS };
+  private readonly prepareVisibility: (capacity: number, matrices: GPUBuffer, colors: GPUBuffer) => Promise<VisibilityResources>;
+  private visibilityPreparation: Promise<VisibilityResources> | null = null;
+  private visibilityResources: VisibilityResources | null = null;
+  private shadowContentGeneration = 0;
+  private shadowRenderedGeneration = -1;
+  private shadowRenderedInstanceCount = -1;
+  private shadowRenderedSurfaceIndexCount = -1;
+  private shadowRenderedSurfaceMaterial: DynamicSurfaceFrame['material'] | null = null;
+  private shadowRenderedSurfacePath: DynamicSurfaceFrame['path'] | null = null;
+  private shadowMapReady = false;
+  private readonly shadowRenderedLightMatrix = new Float32Array(16);
+  private readonly renderingCounters: Omit<RenderingDiagnostics, 'optimizations' | 'effectiveVertexMaterialRejection'> = {
+    frames: 0,
+    shadowPasses: 0,
+    shadowCacheHits: 0,
+    shadowEmptyClears: 0,
+    visibilityEncodes: 0,
+    lastInputInstances: 0,
+    lastSubmittedInstances: { opaque: 0, transparent: 0, shadow: 0 },
+    lastShadowReused: false,
+  };
 
   private constructor(args: {
     canvas: HTMLCanvasElement;
@@ -1771,7 +2009,9 @@ export class WebGPURenderer {
     sceneBindGroupLayout: GPUBindGroupLayout;
     gpuClothBindGroup: GPUBindGroup;
     gpuWaterBindGroup: GPUBindGroup;
+    gpuWaterBindGroupLayout: GPUBindGroupLayout;
     ropeComputeBindGroup: GPUBindGroup;
+    ropeComputeBindGroupLayout: GPUBindGroupLayout;
     postBindGroupLayout: GPUBindGroupLayout;
     uniformBuffer: GPUBuffer;
     vertexBuffer: GPUBuffer;
@@ -1796,12 +2036,18 @@ export class WebGPURenderer {
     linearSampler: GPUSampler;
     materialNoise: MaterialNoiseTexture;
     materialAtlas: MaterialAtlasTexture;
+    gpuTiming: GpuTimingOptions;
+    instancePartition: InstancePartition | null;
+    prepareVisibility: (capacity: number, matrices: GPUBuffer, colors: GPUBuffer) => Promise<VisibilityResources>;
   }) {
     this.canvas = args.canvas;
     this.device = args.device;
     this.context = args.context;
     this.format = args.format;
-    this.maxInstances = args.maxInstances;
+    this.instanceCapacity = args.maxInstances;
+    this.gpuTimer = new GpuPassTimer(args.device, args.gpuTiming);
+    this.instancePartition = args.instancePartition;
+    this.prepareVisibility = args.prepareVisibility;
     this.shadowPipeline = args.shadowPipeline;
     this.surfaceShadowPipeline = args.surfaceShadowPipeline;
     this.gpuClothShadowPipeline = args.gpuClothShadowPipeline;
@@ -1815,7 +2061,10 @@ export class WebGPURenderer {
     this.sceneBindGroupLayout = args.sceneBindGroupLayout;
     this.gpuClothBindGroup = args.gpuClothBindGroup;
     this.gpuWaterBindGroup = args.gpuWaterBindGroup;
+    this.cpuWaterBindGroup = args.gpuWaterBindGroup;
+    this.gpuWaterBindGroupLayout = args.gpuWaterBindGroupLayout;
     this.ropeComputeBindGroup = args.ropeComputeBindGroup;
+    this.ropeComputeBindGroupLayout = args.ropeComputeBindGroupLayout;
     this.postBindGroupLayout = args.postBindGroupLayout;
     this.uniformBuffer = args.uniformBuffer;
     this.vertexBuffer = args.vertexBuffer;
@@ -1848,38 +2097,69 @@ export class WebGPURenderer {
     this.materialAtlasSurfaceView = args.materialAtlas.surfaceView;
     this.materialAtlasSampler = args.materialAtlas.sampler;
     this.materialAtlasInfo = { compressed: args.materialAtlas.compressed, sourceBytes: args.materialAtlas.sourceBytes, source: args.materialAtlas.source };
+    const lost = (args.device as GPUDevice & { lost?: Promise<WebGPUDeviceLossInfo> }).lost;
+    void lost?.then((info) => this.notifyDeviceLost(info), (error: unknown) => this.notifyDeviceLost({
+      reason: 'unknown', message: error instanceof Error ? error.message : String(error),
+    }));
   }
 
-  static async create(canvas: HTMLCanvasElement, maxInstances: number): Promise<WebGPURenderer> {
-    if (!navigator.gpu) {
+  static async create(canvas: HTMLCanvasElement, maxInstances: number, options: WebGPURendererOptions = {}): Promise<WebGPURenderer> {
+    if(!Number.isSafeInteger(maxInstances)||maxInstances<1||maxInstances>MAX_INSTANCE_CAPACITY)throw new RangeError('Renderer instance capacity must be 1–1048576.');
+    const gpu = navigator.gpu;
+    if (!gpu) {
       throw new Error('navigator.gpu is unavailable. Open this over localhost/HTTPS in a WebGPU-capable browser.');
     }
 
-    const adapter = await navigator.gpu.requestAdapter({ powerPreference: 'high-performance' });
+    const startup = new GpuStartupBudget(options, 'Renderer');
+    const adapter = await startup.wait('Selecting graphics adapter', () => gpu.requestAdapter({ powerPreference: 'high-performance' }));
     if (!adapter) throw new Error('No WebGPU adapter was returned by the browser.');
     const supportsBc = adapter.features?.has('texture-compression-bc') ?? false;
     const supportsAstc = adapter.features?.has('texture-compression-astc') ?? false;
+    const gpuTiming: GpuTimingOptions = typeof options.gpuTiming === 'object'
+      ? options.gpuTiming : { enabled: options.gpuTiming !== false };
+    const supportsTimestamps = gpuTiming.enabled !== false && (adapter.features?.has('timestamp-query') ?? false);
     const requiredFeatures = [
       ...(supportsBc ? ['texture-compression-bc'] : []),
       ...(supportsAstc ? ['texture-compression-astc'] : []),
+      ...(supportsTimestamps ? ['timestamp-query'] : []),
     ];
-    const device = await adapter.requestDevice({ requiredFeatures });
-    // Texture fetch/decode/upload is independent of buffer and shader setup.
-    // Keep it in flight while the renderer builds its layouts and pipelines.
-    const materialNoisePromise = loadMaterialNoiseTexture(device, supportsBc);
-    const materialAtlasPromise = loadMaterialAtlasTexture(device, supportsAstc);
     const context = canvas.getContext('webgpu');
     if (!context) throw new Error('Could not create a webgpu canvas context.');
+    // Optional instrumentation must not prevent startup if a driver advertises
+    // timestamp-query but rejects enabling it. Preserve compression features.
+    const device = await startup.wait('Creating graphics device', () => adapter.requestDevice({ requiredFeatures }).catch((error: unknown) => {
+      startup.check('Creating graphics device');
+      if (!supportsTimestamps) throw error;
+      return adapter.requestDevice({ requiredFeatures: requiredFeatures.filter((feature) => feature !== 'timestamp-query') });
+    }), lateDevice => (lateDevice as GPUDevice & { destroy?(): void }).destroy?.());
+    device.addEventListener?.('uncapturederror', (event) => {
+      uncapturedErrorCount += 1;
+      lastUncapturedError = event.error.message;
+      console.error('WebGPU uncaptured error:', lastUncapturedError);
+    });
+    let renderer: WebGPURenderer | null = null;
+    const textureLoading = new AbortController();
+    try {
+    // Texture fetch/decode/upload is independent of buffer and shader setup.
+    // Keep it in flight while the renderer builds its layouts and pipelines.
+    const materialTexturesPromise = Promise.all([
+      loadMaterialNoiseTexture(device, supportsBc, textureLoading.signal),
+      loadMaterialAtlasTexture(device, supportsAstc, textureLoading.signal),
+    ]);
+    // Attach a handler immediately while independent shader work is awaited.
+    void materialTexturesPromise.catch(() => {});
 
-    const format = navigator.gpu.getPreferredCanvasFormat();
+    const format = gpu.getPreferredCanvasFormat();
     context.configure({ device, format, alphaMode: 'opaque' });
 
     const cube = cubeVertexData();
     const vertexBuffer = device.createBuffer({ label: 'AAA cube vertices', size: cube.byteLength, usage: GPUBufferUsage.VERTEX | GPUBufferUsage.COPY_DST });
     writeFloatBuffer(device.queue, vertexBuffer, 0, cube);
 
-    const matrixBuffer = device.createBuffer({ label: 'AAA model matrices', size: maxInstances * 16 * 4, usage: GPUBufferUsage.VERTEX | GPUBufferUsage.COPY_DST | GPUBufferUsage.STORAGE });
-    const colorBuffer = device.createBuffer({ label: 'AAA instance colors/material tags', size: maxInstances * 4 * 4, usage: GPUBufferUsage.VERTEX | GPUBufferUsage.COPY_DST | GPUBufferUsage.STORAGE });
+    const matrixBuffer = device.createBuffer({ label: 'AAA model matrices', size: maxInstances * 16 * 4, usage: GPUBufferUsage.VERTEX | GPUBufferUsage.COPY_SRC | GPUBufferUsage.COPY_DST | GPUBufferUsage.STORAGE });
+    const colorBuffer = device.createBuffer({ label: 'AAA instance colors/material tags', size: maxInstances * 4 * 4, usage: GPUBufferUsage.VERTEX | GPUBufferUsage.COPY_SRC | GPUBufferUsage.COPY_DST | GPUBufferUsage.STORAGE });
+    const instancePartition = options.instancePartitioning
+      ? await startup.wait('Compiling instance partition', () => InstancePartition.create(device, maxInstances, matrixBuffer, colorBuffer), late => late.dispose()) : null;
     const ropePositionBuffer = device.createBuffer({
       label: 'AAA GPU rope node positions',
       size: MAX_ROPE_NODES * 3 * Float32Array.BYTES_PER_ELEMENT,
@@ -2092,7 +2372,7 @@ export class WebGPURenderer {
     // Compilation diagnostics are independent. Resolve them in parallel, then
     // use asynchronous pipeline creation to avoid a first-frame compilation
     // stall. Browsers without the async method retain the validated sync path.
-    await Promise.all([
+    await startup.wait('Validating graphics shaders', () => Promise.all([
       validateShaderModule(shadowModule, 'Shadow shader'),
       validateShaderModule(surfaceShadowModule, 'Dynamic surface shadow shader'),
       validateShaderModule(gpuClothShadowModule, 'GPU cloth shadow shader'),
@@ -2105,7 +2385,7 @@ export class WebGPURenderer {
       validateShaderModule(lineModule, 'Line shader'),
       validateShaderModule(postModule, 'Post-processing shader'),
       validateShaderModule(ropeComputeModule, 'GPU rope instance compute shader'),
-    ]);
+    ]));
 
     const shadowDescriptor: GPURenderPipelineDescriptor = {
       label: 'AAA shadow map pipeline',
@@ -2210,8 +2490,8 @@ export class WebGPURenderer {
     };
     const solidDescriptor: GPURenderPipelineDescriptor = {
       label: 'AAA instanced PBR cube pipeline',
-      layout: sceneLayout,
-      vertex: { module: solidModule, entryPoint: 'vsMain', buffers: instanceVertexBuffers() },
+      layout: instancePartition ? device.createPipelineLayout({ bindGroupLayouts: [sceneBindGroupLayout, instancePartition.vertexLayout] }) : sceneLayout,
+      vertex: { module: solidModule, entryPoint: instancePartition ? 'vsPartitioned' : 'vsMain', buffers: instancePartition ? instanceVertexBuffers().slice(0, 1) : instanceVertexBuffers() },
       fragment: { module: solidModule, entryPoint: 'fsMain', targets: [{ format: HDR_FORMAT }] },
       primitive: { topology: 'triangle-list', cullMode: 'back' },
       depthStencil: { format: 'depth24plus', depthWriteEnabled: true, depthCompare: 'less' },
@@ -2219,8 +2499,8 @@ export class WebGPURenderer {
     };
     const transparentSolidDescriptor: GPURenderPipelineDescriptor = {
       label: 'AAA translucent glass and material-particle pipeline',
-      layout: sceneLayout,
-      vertex: { module: solidModule, entryPoint: 'vsMain', buffers: instanceVertexBuffers() },
+      layout: solidDescriptor.layout,
+      vertex: instancePartition ? solidDescriptor.vertex : { module: solidModule, entryPoint: 'vsTransparent', buffers: instanceVertexBuffers() },
       fragment: {
         module: solidModule,
         entryPoint: 'fsTransparent',
@@ -2301,6 +2581,7 @@ export class WebGPURenderer {
       label: `${descriptor.label ?? 'AAA main pipeline'} (${sampleCount}x)`,
       multisample: { ...(descriptor.multisample ?? {}), count: sampleCount },
     })));
+    startup.check('Compiling graphics pipelines');
     const pipelinePromise = Promise.all([
       createPipeline(shadowDescriptor),
       createPipeline(surfaceShadowDescriptor),
@@ -2310,7 +2591,7 @@ export class WebGPURenderer {
       createPipeline(postDescriptor),
       createComputePipeline(ropeComputeDescriptor),
     ]);
-    const [materialNoise, materialAtlas, pipelines] = await Promise.all([materialNoisePromise, materialAtlasPromise, pipelinePromise]);
+    const [[materialNoise, materialAtlas], pipelines] = await startup.wait('Compiling graphics pipelines and loading textures', () => Promise.all([materialTexturesPromise, pipelinePromise]));
     const [
       shadowPipeline,
       surfaceShadowPipeline,
@@ -2359,7 +2640,91 @@ export class WebGPURenderer {
       ],
     });
 
-    const renderer = new WebGPURenderer({
+    // Indirect pipelines and visibility scratch buffers are created only when
+    // requested. The established direct path pays no extra pipeline startup cost.
+    // Buffers are passed in because capacity growth can replace them.
+    const prepareVisibility = async (capacity: number, matrices: GPUBuffer, colors: GPUBuffer): Promise<VisibilityResources> => {
+      const instanceLayout = device.createBindGroupLayout({
+        label: 'Visible instance vertex storage layout',
+        entries: [0, 1, 2].map((binding) => ({
+          binding,
+          visibility: GPUShaderStage.VERTEX,
+          buffer: { type: 'read-only-storage' as const },
+        })),
+      });
+      const visibleSceneLayout = device.createPipelineLayout({
+        label: 'Visible instance scene pipeline layout',
+        bindGroupLayouts: [sceneBindGroupLayout, instanceLayout],
+      });
+      const visibleShadowLayout = device.createPipelineLayout({
+        label: 'Visible instance shadow pipeline layout',
+        bindGroupLayouts: [shadowBindGroupLayout, instanceLayout],
+      });
+      const cubeBuffers = instanceVertexBuffers().slice(0, 1);
+      const createVisibleMain = async (sampleCount: 1 | 4): Promise<VisibilityPipelineSet> => {
+        const [solid, transparentSolid] = await Promise.all([
+          createPipeline({
+            ...solidDescriptor,
+            label: `Visible opaque cube pipeline (${sampleCount}x)`,
+            layout: visibleSceneLayout,
+            vertex: { module: solidModule, entryPoint: 'vsVisibleOpaque', buffers: cubeBuffers },
+            multisample: { count: sampleCount },
+          }),
+          createPipeline({
+            ...transparentSolidDescriptor,
+            label: `Visible transparent cube pipeline (${sampleCount}x)`,
+            layout: visibleSceneLayout,
+            vertex: { module: solidModule, entryPoint: 'vsVisibleTransparent', buffers: cubeBuffers },
+            multisample: { count: sampleCount },
+          }),
+        ]);
+        return { solid, transparentSolid };
+      };
+      const [visibilityResult, shadowResult, main1xResult, main4xResult] = await Promise.allSettled([
+        Promise.resolve().then(() => GpuInstanceVisibility.create(device, { capacity, matrixBuffer: matrices, colorBuffer: colors })),
+        Promise.resolve().then(() => createPipeline({
+          ...shadowDescriptor,
+          label: 'Visible shadow caster pipeline',
+          layout: visibleShadowLayout,
+          vertex: { module: shadowModule, entryPoint: 'vsVisible', buffers: cubeBuffers },
+        })),
+        Promise.resolve().then(() => createVisibleMain(1)),
+        Promise.resolve().then(() => createVisibleMain(4)),
+      ]);
+      if (visibilityResult.status !== 'fulfilled' || shadowResult.status !== 'fulfilled' ||
+          main1xResult.status !== 'fulfilled' || main4xResult.status !== 'fulfilled') {
+        if (visibilityResult.status === 'fulfilled') visibilityResult.value.destroy();
+        const failure = [visibilityResult, shadowResult, main1xResult, main4xResult]
+          .find((result): result is PromiseRejectedResult => result.status === 'rejected');
+        throw failure!.reason;
+      }
+      const visibility = visibilityResult.value;
+      const bindGroup = (label: string, ids: GPUBuffer): GPUBindGroup => device.createBindGroup({
+        label,
+        layout: instanceLayout,
+        entries: [
+          { binding: 0, resource: { buffer: matrices } },
+          { binding: 1, resource: { buffer: colors } },
+          { binding: 2, resource: { buffer: ids } },
+        ],
+      });
+      try {
+        return {
+          visibility,
+          shadowPipeline: shadowResult.value,
+          mainPipelines1x: main1xResult.value,
+          mainPipelines4x: main4xResult.value,
+          opaqueBindGroup: bindGroup('Visible opaque instance bindings', visibility.opaque.ids),
+          transparentBindGroup: bindGroup('Visible transparent instance bindings', visibility.transparent.ids),
+          shadowBindGroup: bindGroup('Visible shadow caster bindings', visibility.shadow.ids),
+        };
+      } catch (error) {
+        visibility.destroy();
+        throw error;
+      }
+    };
+
+    renderer = new WebGPURenderer({
       canvas,
       device,
       context,
@@ -2377,7 +2742,9 @@ export class WebGPURenderer {
       sceneBindGroupLayout,
       gpuClothBindGroup,
       gpuWaterBindGroup,
+      gpuWaterBindGroupLayout,
       ropeComputeBindGroup,
+      ropeComputeBindGroupLayout,
       postBindGroupLayout,
       uniformBuffer,
       vertexBuffer,
@@ -2402,9 +2769,196 @@ export class WebGPURenderer {
       linearSampler,
       materialNoise,
       materialAtlas,
+      gpuTiming,
+      instancePartition,
+      prepareVisibility,
     });
     renderer.resize();
+    await renderer.setRenderingOptimizations(options.optimizations ?? {});
+    options.onStartupProgress?.('Graphics ready');
     return renderer;
+    } catch (error) {
+      textureLoading.abort();
+      if (renderer) renderer.dispose();
+      else {
+        try { (context as GPUCanvasContext & { unconfigure?(): void }).unconfigure?.(); } catch { /* Device may be lost. */ }
+        (device as GPUDevice & { destroy?(): void }).destroy?.();
+      }
+      throw error;
+    }
+  }
+
+  /** Reserve storage explicitly before inserting more bodies. Existing GPU
+   * streams remain usable while replacement allocation is validated. Growth
+   * preserves their contents and never waits for the GPU queue to finish.
+   */
+  async reserveInstanceCapacity(requested: number, options: GpuStartupOptions = {}): Promise<number> {
+    this.assertActive();
+    if(!Number.isSafeInteger(requested)||requested<1||requested>MAX_INSTANCE_CAPACITY)throw new RangeError('Renderer instance capacity must be 1–1048576.');
+    if(requested<=this.maxInstances)return this.maxInstances;
+    const budget=new GpuStartupBudget(options,'Instance capacity');
+    while(this.instanceReserve){
+      const pending=this.instanceReserve;
+      await budget.wait('Waiting for previous reservation',()=>pending.then(()=>{},()=>{}));
+      this.assertActive();
+      if(requested<=this.maxInstances)return this.maxInstances;
+    }
+    budget.check('Starting reservation');
+    const capacity=INSTANCE_CAPACITY_TIERS.find(value=>value>=requested)!;
+    const operation=Promise.resolve().then(()=>this.growInstanceCapacity(capacity,budget));
+    this.instanceReserve=operation;
+    try{return await operation;}finally{if(this.instanceReserve===operation)this.instanceReserve=null;}
+  }
+
+  instanceCapacityInfo(): Readonly<{capacity:number;maxCapacity:number;matrixColorBytes:number;pending:boolean}> {
+    this.assertActive();
+    return {capacity:this.maxInstances,maxCapacity:MAX_INSTANCE_CAPACITY,matrixColorBytes:this.maxInstances*80,pending:this.instanceReserve!==null};
+  }
+
+  private async growInstanceCapacity(capacity: number, budget: GpuStartupBudget): Promise<number> {
+    this.assertActive();budget.check('Allocating replacement buffers');
+    const device=this.device,limits=device.limits;
+    const bufferLimit=Math.min(limits?.maxBufferSize??268435456,limits?.maxStorageBufferBindingSize??134217728);
+    if(capacity*64>bufferLimit)throw new RangeError('Requested instance tier exceeds this device’s buffer limits.');
+    if(typeof device.pushErrorScope!=='function'||typeof device.popErrorScope!=='function')throw new Error('GPU error scopes are required for checked buffer growth.');
+    let matrices:GPUBuffer|null=null,colors:GPUBuffer|null=null,partition:InstancePartition|null=null;
+    let rope:GPUBindGroup|null=null,commands:GPUCommandBuffer|null=null,creationFailed=false,creationError:unknown;
+    const previousMatrices=this.matrixBuffer,previousColors=this.colorBuffer,previousCapacity=this.maxInstances;
+    let scopeCount=0;
+    try {
+      device.pushErrorScope('out-of-memory');scopeCount++;
+      device.pushErrorScope('validation');scopeCount++;
+      const usage=GPUBufferUsage.VERTEX|GPUBufferUsage.COPY_SRC|GPUBufferUsage.COPY_DST|GPUBufferUsage.STORAGE;
+      matrices=device.createBuffer({label:'Grown model matrices',size:capacity*64,usage});
+      colors=device.createBuffer({label:'Grown instance colors/material tags',size:capacity*16,usage});
+      partition=this.instancePartition?.cloneForCapacity(capacity,matrices,colors)??null;
+      rope=device.createBindGroup({label:'Grown rope instance compute bind group',layout:this.ropeComputeBindGroupLayout,entries:[
+        this.ropeUniformBuffer,this.ropePositionBuffer,this.ropeSegmentBuffer,matrices,colors
+      ].map((buffer,binding)=>({binding,resource:{buffer}}))});
+      const encoder=device.createCommandEncoder({label:'Preserve instance streams during growth'});
+      encoder.copyBufferToBuffer(previousMatrices,0,matrices,0,previousCapacity*64);
+      encoder.copyBufferToBuffer(previousColors,0,colors,0,previousCapacity*16);
+      commands=encoder.finish();
+    }catch(error){creationFailed=true;creationError=error;}
+    // Pop both scopes synchronously before yielding, so subsequent rendering
+    // and unrelated resource creation do not enter this allocation's scopes.
+    const scopes:Promise<GPUError|null>[]=[];
+    while(scopeCount-->0) {
+      try{scopes.push(device.popErrorScope());}catch(error){scopes.push(Promise.reject(error));}
+    }
+    const validation=Promise.all(scopes);
+    void validation.catch(()=>{});
+    try {
+      const errors=await budget.wait('Validating replacement buffers',()=>validation);
+      if(creationFailed)throw creationError;
+      if(errors[1])throw Object.assign(new Error('GPU instance buffer allocation failed: '+errors[1].message),{code:'ALLOCATION_FAILED'});
+      if(errors[0])throw Object.assign(new Error('GPU instance buffer validation failed: '+errors[0].message),{code:'INVALID_GPU_BUFFER'});
+      this.assertActive();budget.check('Committing replacement buffers');
+      if(this.deviceLoss)throw new Error('Graphics device was lost during instance buffer growth.');
+      // Queue ordering captures all writes to the previous buffers, including
+      // writes made while validation was pending. No readback or queue wait.
+      device.queue.submit([commands!]);
+      const previousPartition=this.instancePartition;
+      this.matrixBuffer=matrices!;this.colorBuffer=colors!;this.ropeComputeBindGroup=rope!;
+      this.instancePartition=partition;this.instanceCapacity=capacity;
+      matrices=null;colors=null;partition=null;
+      this.shadowContentGeneration++;
+      // GPU visibility lists bind the replaced buffers. Drop them; they are rebuilt
+      // from the new buffers below, and frames use the partition/direct path meanwhile.
+      const previousVisibility=this.visibilityResources;
+      this.visibilityResources=null;this.visibilityPreparation=null;
+      for(const release of [()=>previousMatrices.destroy(),()=>previousColors.destroy(),()=>previousPartition?.dispose(),()=>previousVisibility?.visibility.destroy()]) {
+        try{release();}catch(error){console.warn('[WebGPU] Replaced instance resource could not be released.',error);}
+      }
+      if(this.optimizations.computeVisibility){
+        void this.setRenderingOptimizations({}).catch(error=>console.warn('[WebGPU] Visibility lists could not be rebuilt after capacity growth.',error));
+      }
+      return capacity;
+    }catch(error){matrices?.destroy();colors?.destroy();partition?.dispose();throw error;}
+  }
+
+  /** Await changes before rendering. Visibility setup is lazy and outside frame timing. */
+  async setRenderingOptimizations(options: Partial<RenderingOptimizations>): Promise<void> {
+    const next = { ...this.optimizations, ...options };
+    while (next.computeVisibility && !this.visibilityResources) {
+      // Capacity growth replaces the instance buffers; never adopt lists built for old ones.
+      const capacity = this.maxInstances, matrices = this.matrixBuffer, colors = this.colorBuffer;
+      this.visibilityPreparation ??= this.prepareVisibility(capacity, matrices, colors);
+      const preparation = this.visibilityPreparation;
+      let resources: VisibilityResources;
+      try {
+        resources = await preparation;
+      } catch (error) {
+        if (this.visibilityPreparation === preparation) this.visibilityPreparation = null;
+        throw error;
+      }
+      if (this.visibilityPreparation === preparation) this.visibilityPreparation = null;
+      if (this.visibilityResources === resources) break;
+      if (this.visibilityResources || this.maxInstances !== capacity || this.matrixBuffer !== matrices || this.colorBuffer !== colors) {
+        resources.visibility.destroy();
+        continue;
+      }
+      this.visibilityResources = resources;
+    }
+    if (next.vertexMaterialRejection !== this.optimizations.vertexMaterialRejection ||
+        next.shadowPcfFetch !== this.optimizations.shadowPcfFetch ||
+        next.shadowCache !== this.optimizations.shadowCache ||
+        next.computeVisibility !== this.optimizations.computeVisibility) {
+      this.shadowContentGeneration++;
+    }
+    this.optimizations = next;
+    // render() derives the effective vertex flag from the current streams.
+    // Keeping it in this scratch buffer also preserves it through scene writes.
+    this.uniformScratch[53] = next.shadowPcfFetch ? 1 : 0;
+    this.device.queue.writeBuffer(this.uniformBuffer, 52 * 4, this.uniformScratch.buffer, 52 * 4, 4 * 4);
+  }
+
+  renderingDiagnostics(): RenderingDiagnostics {
+    return {
+      ...this.renderingCounters,
+      lastSubmittedInstances: { ...this.renderingCounters.lastSubmittedInstances },
+      effectiveVertexMaterialRejection: this.uniformScratch[52] > 0.5,
+      optimizations: { ...this.optimizations },
+    };
+  }
+
+  /** Reset measurements without invalidating an otherwise reusable shadow map. */
+  resetRenderingDiagnostics(): void {
+    Object.assign(this.renderingCounters, {
+      frames: 0, shadowPasses: 0, shadowCacheHits: 0, shadowEmptyClears: 0,
+      visibilityEncodes: 0, lastInputInstances: 0, lastShadowReused: false,
+    });
+    Object.assign(this.renderingCounters.lastSubmittedInstances, { opaque: 0, transparent: 0, shadow: 0 });
+  }
+
+  /** Explicit diagnostic readback; never used by render or by a timed frame. */
+  async readRenderingVisibilityCounts() {
+    if (!this.visibilityResources || !this.optimizations.computeVisibility) return null;
+    return this.visibilityResources.visibility.readback();
+  }
+
+  private canReuseShadow(instanceCount: number, surfaceCastsShadow: boolean): boolean {
+    if (!this.shadowMapReady || this.shadowRenderedGeneration !== this.shadowContentGeneration ||
+        this.shadowRenderedInstanceCount !== instanceCount ||
+        this.shadowRenderedSurfaceIndexCount !== (surfaceCastsShadow ? this.surfaceIndexCount : 0) ||
+        this.shadowRenderedSurfaceMaterial !== (surfaceCastsShadow ? this.surfaceMaterial : null) ||
+        this.shadowRenderedSurfacePath !== (surfaceCastsShadow ? this.surfacePath : null)) {
+      return false;
+    }
+    for (let i = 0; i < 16; i++) {
+      if (this.shadowRenderedLightMatrix[i] !== this.uniformScratch[16 + i]) return false;
+    }
+    return true;
+  }
+
+  private rememberShadow(instanceCount: number, surfaceCastsShadow: boolean): void {
+    this.shadowMapReady = true;
+    this.shadowRenderedGeneration = this.shadowContentGeneration;
+    this.shadowRenderedInstanceCount = instanceCount;
+    this.shadowRenderedSurfaceIndexCount = surfaceCastsShadow ? this.surfaceIndexCount : 0;
+    this.shadowRenderedSurfaceMaterial = surfaceCastsShadow ? this.surfaceMaterial : null;
+    this.shadowRenderedSurfacePath = surfaceCastsShadow ? this.surfacePath : null;
+    for (let i = 0; i < 16; i++) this.shadowRenderedLightMatrix[i] = this.uniformScratch[16 + i];
   }
 
   private configureQuality(quality: SceneUniformState['quality']): void {
@@ -2418,6 +2972,7 @@ export class WebGPURenderer {
     }
 
     if (quality.shadowMapSize !== this.shadowMapSize) {
+      this.shadowContentGeneration++;
       const nextTexture = this.device.createTexture({
         label: `AAA ${quality.shadowMapSize} shadow map`,
         size: [quality.shadowMapSize, quality.shadowMapSize],
@@ -2442,6 +2997,7 @@ export class WebGPURenderer {
       const previousTexture = this.shadowTexture;
       this.shadowTexture = nextTexture;
       this.shadowView = nextView;
+      this.shadowMapReady = false;
       this.sceneBindGroup = nextBindGroup;
       this.shadowMapSize = quality.shadowMapSize;
       previousTexture.destroy();
@@ -2449,9 +3005,19 @@ export class WebGPURenderer {
   }
 
   resize(): void {
+    this.assertActive();
     const dpr = Math.min(2, (window.devicePixelRatio || 1) * this.resolutionScale);
-    const requestedWidth = Math.max(1, Math.floor(this.canvas.clientWidth * dpr));
-    const requestedHeight = Math.max(1, Math.floor(this.canvas.clientHeight * dpr));
+    if (!this.layoutObserver && typeof ResizeObserver !== 'undefined') {
+      this.layoutObserver = new ResizeObserver(() => { this.layoutDirty = true; });
+      this.layoutObserver.observe(this.canvas);
+    }
+    if (this.layoutObserver && !this.layoutDirty && this.width > 0 && dpr === this.lastResizeDpr) return;
+    if (this.layoutObserver) this.layoutDirty = false;
+    this.lastResizeDpr = dpr;
+    this.cachedCssWidth = this.canvas.clientWidth;
+    this.cachedCssHeight = this.canvas.clientHeight;
+    const requestedWidth = Math.max(1, Math.floor(this.cachedCssWidth * dpr));
+    const requestedHeight = Math.max(1, Math.floor(this.cachedCssHeight * dpr));
     const maxFramebufferPixels = this.sampleCount === 4
       ? MAX_FRAMEBUFFER_PIXELS_4X
       : MAX_FRAMEBUFFER_PIXELS_1X;
@@ -2522,6 +3088,7 @@ export class WebGPURenderer {
   }
 
   writeSceneUniforms(state: SceneUniformState): void {
+    this.assertActive();
     this.configureQuality(state.quality);
     this.resolutionScale = Math.max(0.5, Math.min(1.35, state.quality.resolutionScale));
     this.resize();
@@ -2548,19 +3115,33 @@ export class WebGPURenderer {
     data[49] = state.quality.sampleCount;
     data[50] = state.quality.shadowMapSize;
     data[51] = state.studioMode ? 1 : 0;
+    let changed = false;
+    for (let i = 0; i < SCENE_UNIFORM_FLOATS; i++) {
+      if (data[i] !== this.uniformUploaded[i]) { changed = true; break; }
+    }
+    if (!changed) return;
+    this.uniformUploaded.set(data);
+    this.uniformWriteCount++;
     writeFloatBuffer(this.device.queue, this.uniformBuffer, 0, data);
   }
 
   uploadInstances(source: InstanceBufferSource, count: number): number {
-    const safeCount = Math.max(0, Math.min(count, this.maxInstances));
+    this.assertActive();
+    if (this.deviceLoss) return 0;
+    if(!Number.isSafeInteger(count)||count<0||count>this.maxInstances)throw new RangeError('Rigid instance count exceeds renderer capacity; reserve storage before uploading.');
+    const safeCount=count,sourceCount=source._b3w_body_count(),sourceCapacity=source._b3w_max_bodies();
+    if(!Number.isSafeInteger(sourceCount)||!Number.isSafeInteger(sourceCapacity)||sourceCount<0||sourceCount>sourceCapacity||count>sourceCount)throw new RangeError('Rigid instance count exceeds the source’s active body storage.');
     const matrixPtr = ptrToNumber(source._b3w_matrices_ptr());
     const colorPtr = ptrToNumber(source._b3w_colors_ptr());
     const frameVersion = source.frameVersion();
     const colorVersion = source.colorVersion();
-    const heapIdentity = source.HEAPF32.buffer;
+    const heap=source.HEAPF32,heapIdentity=heap.buffer;
+    if(!Number.isSafeInteger(matrixPtr)||matrixPtr<0||matrixPtr%4!==0||matrixPtr+safeCount*64>heap.byteLength||
+      !Number.isSafeInteger(colorPtr)||colorPtr<0||colorPtr%4!==0||colorPtr+safeCount*16>heap.byteLength)throw new RangeError('Rigid instance stream is outside its current heap view.');
     const layoutMatches =
       this.rigidSourceIdentity === source &&
       this.rigidHeapIdentity === heapIdentity &&
+      this.rigidHeapByteOffset === heap.byteOffset &&
       this.rigidMatrixByteOffset === matrixPtr &&
       this.rigidColorByteOffset === colorPtr &&
       this.rigidCount === safeCount;
@@ -2570,26 +3151,34 @@ export class WebGPURenderer {
       this.lastUploadedBytes = 0;
       return 0;
     }
+    this.shadowContentGeneration++;
     const matrixStart = matrixPtr / 4;
     const colorStart = colorPtr / 4;
     const matrixFloats = safeCount * 16;
     const colorFloats = safeCount * 4;
     if (matricesChanged) writeFloatBuffer(this.device.queue, this.matrixBuffer, 0, source.HEAPF32, matrixFloats, matrixStart);
     if (colorsChanged) writeFloatBuffer(this.device.queue, this.colorBuffer, 0, source.HEAPF32, colorFloats, colorStart);
-    if (colorsChanged) this.rigidHasTransparentMaterial = containsTransparentMaterial(source.HEAPF32, colorStart, safeCount);
+    if (colorsChanged) {
+      this.rigidHasTransparentMaterial = containsTransparentMaterial(source.HEAPF32, colorStart, safeCount);
+      this.instancePartition?.invalidate();
+    }
     this.rigidSourceIdentity = source;
     this.rigidHeapIdentity = heapIdentity;
+    this.rigidHeapByteOffset = heap.byteOffset;
     this.rigidMatrixByteOffset = matrixPtr;
     this.rigidColorByteOffset = colorPtr;
     this.rigidCount = safeCount;
     this.rigidFrameVersion = frameVersion;
     this.rigidColorVersion = colorVersion;
     const bytes = ((matricesChanged ? matrixFloats : 0) + (colorsChanged ? colorFloats : 0)) * Float32Array.BYTES_PER_ELEMENT;
+    if (bytes > 0) this.shadowContentGeneration++;
     this.lastUploadedBytes = bytes;
     return bytes;
   }
 
   uploadEffects(matrices: Float32Array, colors: Float32Array, baseInstance: number, count: number, frameVersion: number): number {
+    this.assertActive();
+    if (this.deviceLoss) return 0;
     const safeBase = Math.max(0, Math.min(baseInstance, this.maxInstances));
     const safeCount = Math.max(0, Math.min(count, this.maxInstances - safeBase));
     if (
@@ -2605,9 +3194,11 @@ export class WebGPURenderer {
     }
     const matrixFloats = Math.min(safeCount * 16, matrices.length);
     const colorFloats = Math.min(safeCount * 4, colors.length);
+    this.shadowContentGeneration++;
     writeFloatBuffer(this.device.queue, this.matrixBuffer, safeBase * 16 * 4, matrices, matrixFloats);
     writeFloatBuffer(this.device.queue, this.colorBuffer, safeBase * 4 * 4, colors, colorFloats);
     this.effectHasTransparentMaterial = containsTransparentMaterial(colors, 0, Math.min(safeCount, Math.floor(colorFloats / 4)));
+    this.instancePartition?.invalidate();
     this.effectMatrixIdentity = matrices.buffer;
     this.effectColorIdentity = colors.buffer;
     this.effectMatrixByteOffset = matrices.byteOffset;
@@ -2616,6 +3207,7 @@ export class WebGPURenderer {
     this.effectCount = safeCount;
     this.effectFrameVersion = frameVersion;
     const bytes = (matrixFloats + colorFloats) * Float32Array.BYTES_PER_ELEMENT;
+    if (bytes > 0) this.shadowContentGeneration++;
     this.lastUploadedBytes += bytes;
     return bytes;
   }
@@ -2627,8 +3219,18 @@ export class WebGPURenderer {
    * switch cannot be mistaken for an unchanged frame.
    */
   invalidateDynamicCaches(): void {
+    this.residentWater?.dispose();
+    this.residentWater = null;
+    this.instancePartition?.invalidate();
+    this.shadowContentGeneration++;
+    this.shadowMapReady = false;
+    this.waterSurfacePlanner.invalidate();
+    this.residentWaterParams = null;
+    this.residentWaterBindings = new WeakMap();
+    this.gpuWaterBindGroup = this.cpuWaterBindGroup;
     this.rigidSourceIdentity = null;
     this.rigidHeapIdentity = null;
+    this.rigidHeapByteOffset = -1;
     this.rigidMatrixByteOffset = -1;
     this.rigidColorByteOffset = -1;
     this.rigidCount = -1;
@@ -2702,6 +3304,7 @@ export class WebGPURenderer {
     count: number,
     frameVersion: number,
   ): number {
+    this.assertActive();
     const safeBase = Math.max(0, Math.min(baseInstance, this.maxInstances));
     const safeCount = Math.max(0, Math.min(count, this.maxInstances - safeBase));
     const matrixFloats = Math.min(safeCount * 16, matrices.length);
@@ -2717,11 +3320,14 @@ export class WebGPURenderer {
       this.softInstanceCount === safeCount &&
       this.softInstanceFrameVersion === frameVersion;
     if (unchanged) return 0;
+    this.shadowContentGeneration++;
 
     writeFloatBuffer(this.device.queue, this.matrixBuffer, safeBase * 16 * 4, matrices, matrixFloats);
     writeFloatBuffer(this.device.queue, this.colorBuffer, safeBase * 4 * 4, colors, colorFloats);
     this.softHasTransparentMaterial = containsTransparentMaterial(colors, 0, Math.min(safeCount, Math.floor(colorFloats / 4)));
+    this.instancePartition?.invalidate();
     const bytes = (matrixFloats + colorFloats) * Float32Array.BYTES_PER_ELEMENT;
+    if (bytes > 0) this.shadowContentGeneration++;
     this.softInstanceMatrixIdentity = matrices.buffer;
     this.softInstanceColorIdentity = colors.buffer;
     this.softInstanceMatrixByteOffset = matrices.byteOffset;
@@ -2736,6 +3342,7 @@ export class WebGPURenderer {
   }
 
   uploadRopeGrid(grid: RopeGridFrame | null, baseInstance: number): number {
+    this.assertActive();
     this.ropeGridActive = false;
     if (!grid || grid.nodeCount <= 0 || grid.segmentCount <= 0) {
       this.ropeGridDispatchPending = false;
@@ -2772,33 +3379,38 @@ export class WebGPURenderer {
       this.ropeGridSegmentByteOffset !== grid.segments.byteOffset ||
       this.ropeGridTopologyVersion !== grid.topologyVersion ||
       this.ropeGridSegmentCount !== clampedSegmentCount;
+    const presentation = grid.presentation === 'material' ? 1 : 0;
     if (topologyChanged) {
       writeFloatBuffer(this.device.queue, this.ropeSegmentBuffer, 0, grid.segments, clampedSegmentCount * 8);
-      this.ropeGridHasTransparentMaterial = false;
-      for (let i = 0; i < clampedSegmentCount; i++) {
-        const materialId = Math.round(Math.max(-grid.segments[i * 8 + 7], 0));
-        if (materialId === 4 || materialId === 6) {
-          this.ropeGridHasTransparentMaterial = true;
-          break;
-        }
-      }
       bytes += clampedSegmentCount * 8 * Float32Array.BYTES_PER_ELEMENT;
       this.ropeGridSegmentIdentity = grid.segments.buffer;
       this.ropeGridSegmentByteOffset = grid.segments.byteOffset;
       this.ropeGridTopologyVersion = grid.topologyVersion;
+    }
+    if (topologyChanged || this.ropeGridPresentation !== presentation) {
+      this.ropeGridHasTransparentMaterial = false;
+      for (let i = 0; i < clampedSegmentCount; i++) {
+        const alpha = grid.segments[i * 8 + 7];
+        // Diagnostic strain mixes alpha toward positive emissive energy on the
+        // GPU. That interval can cross a transparent ID even if its base is opaque.
+        if ((classifyInstanceMaterialMask(alpha) & 2) !== 0 || (presentation === 0 && alpha < -3.5)) {
+          this.ropeGridHasTransparentMaterial = true;
+          break;
+        }
+      }
     }
 
     const uniformChanged =
       this.ropeGridBaseInstance !== safeBaseInstance ||
       this.ropeGridSegmentCount !== clampedSegmentCount ||
       this.ropeGridNodeCount !== safeNodeCount ||
-      this.ropeGridPresentation !== (grid.presentation === 'material' ? 1 : 0);
+      this.ropeGridPresentation !== presentation;
     if (uniformChanged) {
       const view = new DataView(this.ropeGridUniformScratch);
       view.setUint32(0, safeBaseInstance >>> 0, true);
       view.setUint32(4, clampedSegmentCount >>> 0, true);
       view.setUint32(8, safeNodeCount >>> 0, true);
-      view.setUint32(12, grid.presentation === 'material' ? 1 : 0, true);
+      view.setUint32(12, presentation, true);
       this.device.queue.writeBuffer(this.ropeUniformBuffer, 0, this.ropeGridUniformScratch);
       bytes += ROPE_GRID_UNIFORM_BYTES;
     }
@@ -2807,13 +3419,18 @@ export class WebGPURenderer {
     this.ropeGridBaseInstance = safeBaseInstance;
     this.ropeGridSegmentCount = clampedSegmentCount;
     this.ropeGridNodeCount = safeNodeCount;
-    this.ropeGridPresentation = grid.presentation === 'material' ? 1 : 0;
-    this.ropeGridDispatchPending = positionChanged || topologyChanged || uniformChanged;
+    this.ropeGridPresentation = presentation;
+    this.ropeGridDispatchPending ||= positionChanged || topologyChanged || uniformChanged;
     this.lastUploadedBytes += bytes;
     return bytes;
   }
 
   uploadSurface(surface: DynamicSurfaceFrame | null): number {
+    this.assertActive();
+    this.residentWater?.dispose();
+    this.residentWater = null;
+    this.gpuWaterBindGroup = this.cpuWaterBindGroup;
+    this.residentWaterParams = null;
     const previousSurfacePath = this.surfacePath;
     this.surfaceVertexCount = 0;
     this.surfaceIndexCount = 0;
@@ -2821,6 +3438,12 @@ export class WebGPURenderer {
     this.surfacePath = null;
     if (!surface || surface.vertexCount <= 0 || surface.indexCount <= 0) {
       return 0;
+    }
+
+    let waterPlan: WaterSurfacePlan | null = null;
+    if (surface.path === 'gpu-water') {
+      try { waterPlan = this.waterSurfacePlanner.resolve(surface); }
+      catch (error) { console.warn('[WebGPU] Ignoring invalid water surface.', error); return 0; }
     }
 
     let availableVertices = 0;
@@ -2847,6 +3470,11 @@ export class WebGPURenderer {
       }
     } else {
       availableVertices = Math.min(surface.eta.length, surface.u.length, surface.v.length);
+      if (!(surface.eta instanceof Float32Array) || !(surface.u instanceof Float32Array) ||
+          !(surface.v instanceof Float32Array) || availableVertices < surface.vertexCount) {
+        console.warn('[WebGPU] Ignoring GPU water surface with incomplete f32 state fields.');
+        return 0;
+      }
       stateViewCount = 3;
       stateView0 = surface.eta;
       stateView1 = surface.u;
@@ -2871,8 +3499,8 @@ export class WebGPURenderer {
       this.surfaceIndexByteLength !== surface.indices.byteLength ||
       this.surfaceTopologyVersion !== surface.topologyVersion ||
       this.surfaceCachedIndexCount !== safeIndexCount;
-    let maxIndex = this.surfaceCachedMaxIndex;
-    if (topologyChanged) {
+    let maxIndex = waterPlan?.maxIndex ?? this.surfaceCachedMaxIndex;
+    if (topologyChanged && !waterPlan) {
       maxIndex = 0;
       for (let i = 0; i < safeIndexCount; i++) {
         const index = surface.indices[i];
@@ -2962,6 +3590,7 @@ export class WebGPURenderer {
         floats.set(surface.baseColorA, 4);
         floats.set(surface.baseColorB, 8);
         writeByteBuffer(this.device.queue, this.clothParamsBuffer, 0, new Uint8Array(this.clothParamsScratch));
+        this.shadowContentGeneration++;
         config[0] = 1;
         config[1] = surface.cols;
         config[2] = surface.rows;
@@ -2984,16 +3613,7 @@ export class WebGPURenderer {
         config[4] !== surface.depth ||
         config[5] !== surface.baseY;
       if (configChanged) {
-        const uints = new Uint32Array(this.waterParamsScratch);
-        const floats = new Float32Array(this.waterParamsScratch);
-        uints.fill(0);
-        uints[0] = surface.cols;
-        uints[1] = surface.rows;
-        uints[2] = safeVertexCount;
-        floats[4] = surface.width;
-        floats[5] = surface.depth;
-        floats[6] = surface.baseY;
-        writeByteBuffer(this.device.queue, this.waterParamsBuffer, 0, new Uint8Array(this.waterParamsScratch));
+        writeByteBuffer(this.device.queue, this.waterParamsBuffer, 0, waterPlan!.params);
         config[0] = 2;
         config[1] = surface.cols;
         config[2] = surface.rows;
@@ -3041,15 +3661,127 @@ export class WebGPURenderer {
     this.surfaceStateByteLength1 = stateView1?.byteLength ?? -1;
     this.surfaceStateByteLength2 = stateView2?.byteLength ?? -1;
     this.surfaceCachedVertexCount = safeVertexCount;
+    if (bytes > 0 && (surface.material === 'cloth' || surface.material === 'sheet')) {
+      this.shadowContentGeneration++;
+    }
     this.lastUploadedBytes += bytes;
     return bytes;
   }
 
-  render(instanceCount: number, debugLines: readonly DebugLine[], lineFrameVersion?: number): number {
+  /** Borrow the numerical GPU fields. The caller keeps ownership of the solver. */
+  useGpuWater(solver: GpuLinearWater | null, options: ResidentWaterOptions = {}): void {
+    this.assertActive();
+    const next = solver ? new ResidentWaterSurface(solver, this.device, this.gpuWaterBindGroupLayout, options) : null;
+    this.residentWater?.dispose();
+    this.residentWater = next;
+    // The externally planned resident path stays inactive while a solver is borrowed.
+    this.gpuWaterBindGroup = this.cpuWaterBindGroup;
+    this.residentWaterParams = null;
+    this.surfaceMaterial = next ? 'water' : null;
+    this.surfacePath = next ? 'gpu-water' : null;
+    this.surfaceIndexCount = next?.indexCount ?? 0;
+    this.surfaceVertexCount = next ? solver!.config.cols * solver!.config.rows : 0;
+    this.surfaceFrameVersion = -1;
+  }
+
+  gpuWaterInfo(): { mode: 'gpu-numerical' | 'cpu-fields' | 'none'; model: string | null; solverCells: number; meshVertices: number; renderStride: number | null } {
+    const resident = this.residentWater;
+    // uploadResidentWater() binds caller-owned solver buffers instead of the CPU field buffers.
+    const external = !resident && this.surfacePath === 'gpu-water' && this.gpuWaterBindGroup !== this.cpuWaterBindGroup;
+    return { mode: resident || external ? 'gpu-numerical' : this.surfacePath === 'gpu-water' ? 'cpu-fields' : 'none', model: resident?.owner.backend ?? null,
+      solverCells: resident ? resident.owner.config.cols * resident.owner.config.rows : external ? this.surfaceVertexCount : 0,
+      meshVertices: resident?.renderVertexCount ?? (external ? this.surfaceVertexCount : 0), renderStride: resident?.renderStride ?? (external ? 1 : null) };
+  }
+
+  /** Bind owned GPU solver output directly. The caller must encode its compute before
+   * the draw, submit the encoder, and retain buffers until queued work completes.
+   * Rendering never assumes ownership of these external buffers. */
+  uploadResidentWater(surface: WaterSurfaceDescription,
+    buffers: { readonly device: GPUDevice; readonly eta: GPUBuffer; readonly u: GPUBuffer; readonly v: GPUBuffer }): number {
+    this.assertActive();
+    if (buffers.device !== this.device) throw new Error('Resident water belongs to a different GPU device.');
+    const plan = this.waterSurfacePlanner.resolve(surface);
+    const byteLength = surface.vertexCount * Float32Array.BYTES_PER_ELEMENT;
+    for (const buffer of [buffers.eta, buffers.u, buffers.v]) {
+      if (buffer.size < byteLength || (buffer.usage & GPUBufferUsage.STORAGE) === 0) {
+        throw new Error('Resident water requires sufficiently large storage buffers.');
+      }
+    }
+    let cached = this.residentWaterBindings.get(buffers.eta);
+    if (!cached || cached.u !== buffers.u || cached.v !== buffers.v || cached.byteLength !== byteLength) {
+      cached = {
+        u: buffers.u, v: buffers.v, byteLength,
+        group: this.device.createBindGroup({
+          label: 'Resident solver water render bindings',
+          layout: this.gpuWaterBindGroupLayout,
+          entries: [
+            { binding: 0, resource: { buffer: buffers.eta, size: byteLength } },
+            { binding: 1, resource: { buffer: buffers.u, size: byteLength } },
+            { binding: 2, resource: { buffer: buffers.v, size: byteLength } },
+            { binding: 3, resource: { buffer: this.waterParamsBuffer } },
+          ],
+        }),
+      };
+      this.residentWaterBindings.set(buffers.eta, cached);
+    }
+    let bytes = 0;
+    const topologyChanged = this.surfaceIndexBufferIdentity !== surface.indices.buffer ||
+      this.surfaceIndexByteOffset !== surface.indices.byteOffset ||
+      this.surfaceIndexByteLength !== surface.indices.byteLength ||
+      this.surfaceTopologyVersion !== surface.topologyVersion ||
+      this.surfaceCachedIndexCount !== plan.indexCount;
+    if (topologyChanged) {
+      const indexBytes = plan.indexCount * Uint16Array.BYTES_PER_ELEMENT;
+      const alignedBytes = (indexBytes + 3) & ~3;
+      const data = this.surfaceIndexUploadScratch;
+      data.set(new Uint8Array(surface.indices.buffer, surface.indices.byteOffset, indexBytes));
+      data.fill(0, indexBytes, alignedBytes);
+      writeByteBuffer(this.device.queue, this.surfaceIndexBuffer, 0, data, alignedBytes);
+      bytes += alignedBytes;
+      this.surfaceIndexBufferIdentity = surface.indices.buffer;
+      this.surfaceIndexByteOffset = surface.indices.byteOffset;
+      this.surfaceIndexByteLength = surface.indices.byteLength;
+      this.surfaceTopologyVersion = surface.topologyVersion;
+      this.surfaceCachedIndexCount = plan.indexCount;
+      this.surfaceCachedMaxIndex = plan.maxIndex;
+    }
+    if (this.residentWaterParams !== plan.params) {
+      writeByteBuffer(this.device.queue, this.waterParamsBuffer, 0, plan.params);
+      bytes += plan.params.byteLength;
+      this.residentWaterParams = plan.params;
+    }
+    // Validated: leave any borrowed linear-water solver path.
+    this.residentWater?.dispose();
+    this.residentWater = null;
+    this.gpuWaterBindGroup = cached.group;
+    this.surfaceVertexCount = surface.vertexCount;
+    this.surfaceIndexCount = plan.indexCount;
+    this.surfaceMaterial = 'water';
+    this.surfacePath = 'gpu-water';
+    this.surfaceFrameVersion = surface.frameVersion;
+    // A later CPU upload must refresh state and its shared uniform buffer.
+    this.surfaceStateViewCount = 0;
+    this.surfaceCachedVertexCount = surface.vertexCount;
+    this.surfaceConfig.fill(Number.NaN);
+    this.lastUploadedBytes += bytes;
+    return bytes;
+  }
+
+  /** Diagnostic counters describe metadata planning, not GPU completion. */
+  waterPlanningStats() { return this.waterSurfacePlanner.stats(); }
+
+
+  /** An optional output view supports offscreen rendering through the same passes.
+   * It must use this renderer's canvas format, viewport size, and sample count 1. */
+  render(instanceCount: number, debugLines: readonly DebugLine[], lineFrameVersion?: number,
+    encodeBeforeRender?: (encoder: GPUCommandEncoder) => void, outputView?: GPUTextureView): number {
+    this.assertActive();
+    if (this.deviceLoss) return 0;
+    if(!Number.isSafeInteger(instanceCount)||instanceCount<0||instanceCount>this.maxInstances)throw new RangeError('Draw count exceeds renderer capacity; reserve storage before rendering.');
     this.resize();
     if (!this.depthView || !this.msaaView || !this.hdrView || !this.postBindGroup) return 0;
 
-    const safeCount = Math.max(0, Math.min(instanceCount, this.maxInstances));
+    const safeCount = instanceCount;
     const lineStateUnchanged = lineFrameVersion !== undefined &&
       this.lineSourceIdentity === debugLines &&
       this.lineSourceCount === debugLines.length &&
@@ -3067,22 +3799,89 @@ export class WebGPURenderer {
 
     const start = performance.now();
     const encoder = this.device.createCommandEncoder({ label: 'AAA frame encoder' });
-
-    if (this.ropeGridActive && this.ropeGridDispatchPending && this.ropeGridSegmentCount > 0) {
-      const computePass = encoder.beginComputePass({ label: 'AAA GPU rope instance expansion' });
-      computePass.setPipeline(this.ropeComputePipeline);
-      computePass.setBindGroup(0, this.ropeComputeBindGroup);
-      computePass.dispatchWorkgroups(Math.ceil(this.ropeGridSegmentCount / 64));
-      computePass.end();
-      this.ropeGridDispatchPending = false;
+    const timingFrame = this.gpuTimer.beginFrame();
+    const ropeDispatchPending = this.ropeGridDispatchPending;
+    try {
+    // An external encoder callback has no declared write set. Treat it as a
+    // possible caster or material mutation instead of reusing cached results.
+    if (encodeBeforeRender) {
+      this.shadowContentGeneration++;
+      this.instancePartition?.invalidate();
     }
+    encodeBeforeRender?.(encoder);
+
+    const counters = this.renderingCounters;
+    counters.frames++;
+    counters.lastInputInstances = safeCount;
+    counters.lastSubmittedInstances.opaque = 0;
+    counters.lastSubmittedInstances.transparent = 0;
+    counters.lastSubmittedInstances.shadow = 0;
+    counters.lastShadowReused = false;
+
+    // Instance lists: GPU visibility lists when enabled and prepared, otherwise the
+    // material partition when the renderer was created with it, otherwise direct draws.
+    const visible = this.optimizations.computeVisibility ? this.visibilityResources : null;
+    const partition = visible ? null : this.instancePartition;
+    const expandRopes = this.ropeGridActive && ropeDispatchPending && this.ropeGridSegmentCount > 0;
+    if (expandRopes) this.instancePartition?.invalidate();
+    const partitionChanged = partition?.needsUpdate(safeCount) ?? false;
+    if (expandRopes || partitionChanged) {
+      const computePass = encoder.beginComputePass({
+        label: 'AAA instance expansion and partition',
+        timestampWrites: this.gpuTimer.timestampWrites(timingFrame, 'compute'),
+      } as TimedComputePassDescriptor);
+      if (expandRopes) {
+        computePass.setPipeline(this.ropeComputePipeline);
+        computePass.setBindGroup(0, this.ropeComputeBindGroup);
+        computePass.dispatchWorkgroups(Math.ceil(this.ropeGridSegmentCount / 64));
+      }
+      if (partitionChanged) partition!.encode(computePass, safeCount, CUBE_VERTEX_COUNT);
+      computePass.end();
+      if (expandRopes) {
+        this.ropeGridDispatchPending = false;
+        this.shadowContentGeneration++;
+      }
+    }
+
+    const hasTransparentMaterial = this.rigidHasTransparentMaterial || this.softHasTransparentMaterial ||
+      this.effectHasTransparentMaterial || this.ropeGridHasTransparentMaterial;
+    // The classifier saves cross-pass work only when a transparent pass exists.
+    // Opaque-only frames and GPU-classified or partitioned lists avoid that per-vertex overhead.
+    const vertexRejectionFlag = this.optimizations.vertexMaterialRejection &&
+      !visible && !partition && safeCount > 0 && hasTransparentMaterial ? 1 : 0;
+    if (this.uniformScratch[52] !== vertexRejectionFlag) {
+      this.uniformScratch[52] = vertexRejectionFlag;
+      this.device.queue.writeBuffer(this.uniformBuffer, 52 * 4, this.uniformScratch.buffer, 52 * 4, 4);
+    }
+
+    if (visible) {
+      visible.visibility.encode(encoder, {
+        instanceCount: safeCount,
+        cameraViewProj: this.uniformScratch.subarray(0, 16),
+        lightViewProj: this.uniformScratch.subarray(16, 32),
+      });
+      counters.visibilityEncodes++;
+    }
+    const visibleMain = this.sampleCount === 1 ? visible?.mainPipelines1x : visible?.mainPipelines4x;
 
     const surfaceCastsShadow = (
       this.surfaceMaterial === 'cloth' || this.surfaceMaterial === 'sheet'
     ) && this.surfaceIndexCount > 0;
-    if (this.uniformScratch[47] > 0.001 && (safeCount > 0 || surfaceCastsShadow)) {
+    const shadowsEnabled = this.uniformScratch[47] > 0.001;
+    const reuseShadow = shadowsEnabled && this.optimizations.shadowCache && this.canReuseShadow(safeCount, surfaceCastsShadow);
+    let encodedShadow = false;
+    if (reuseShadow) {
+      counters.shadowCacheHits++;
+      counters.lastShadowReused = true;
+    }
+    if (shadowsEnabled && !reuseShadow) {
+      // Clear even with no casters: otherwise water can receive a previous
+      // scene's depth, or sample an uninitialized newly allocated shadow map.
       const shadowPass = encoder.beginRenderPass({
         label: 'AAA shadow pass',
+        // Dawn/Metal can leave a stale end counter on a clear-only pass. Keep
+        // that maintenance cost unmeasured instead of publishing an invalid pair.
+        timestampWrites: safeCount > 0 || surfaceCastsShadow ? this.gpuTimer.timestampWrites(timingFrame, 'shadow') : undefined,
         colorAttachments: [],
         depthStencilAttachment: {
           view: this.shadowView,
@@ -3090,14 +3889,24 @@ export class WebGPURenderer {
           depthLoadOp: 'clear',
           depthStoreOp: 'store',
         },
-      });
+      } as TimedRenderPassDescriptor);
+      counters.shadowPasses++;
+      if (safeCount === 0 && !surfaceCastsShadow) counters.shadowEmptyClears++;
       shadowPass.setBindGroup(0, this.shadowBindGroup);
       if (safeCount > 0) {
-        shadowPass.setPipeline(this.shadowPipeline);
         shadowPass.setVertexBuffer(0, this.vertexBuffer);
-        shadowPass.setVertexBuffer(1, this.matrixBuffer);
-        shadowPass.setVertexBuffer(2, this.colorBuffer);
-        shadowPass.draw(CUBE_VERTEX_COUNT, safeCount);
+        if (visible) {
+          shadowPass.setPipeline(visible.shadowPipeline);
+          shadowPass.setBindGroup(1, visible.shadowBindGroup);
+          (shadowPass as IndirectRenderPassEncoder).drawIndirect(visible.visibility.shadow.indirectBuffer, visible.visibility.shadow.indirectOffset);
+          counters.lastSubmittedInstances.shadow = null;
+        } else {
+          shadowPass.setPipeline(this.shadowPipeline);
+          shadowPass.setVertexBuffer(1, this.matrixBuffer);
+          shadowPass.setVertexBuffer(2, this.colorBuffer);
+          shadowPass.draw(CUBE_VERTEX_COUNT, safeCount);
+          counters.lastSubmittedInstances.shadow = safeCount;
+        }
       }
       if (surfaceCastsShadow) {
         if (this.surfacePath === 'gpu-cloth') {
@@ -3111,10 +3920,12 @@ export class WebGPURenderer {
         shadowPass.drawIndexed(this.surfaceIndexCount, 1);
       }
       shadowPass.end();
+      encodedShadow = true;
     }
 
     const mainPass = encoder.beginRenderPass({
       label: 'AAA HDR main pass',
+      timestampWrites: this.gpuTimer.timestampWrites(timingFrame, 'main'),
       colorAttachments: [{
         view: this.msaaView,
         resolveTarget: this.sampleCount === 4 ? this.hdrView : undefined,
@@ -3128,19 +3939,32 @@ export class WebGPURenderer {
         depthLoadOp: 'clear',
         depthStoreOp: 'store',
       },
-    });
+    } as TimedRenderPassDescriptor);
 
     mainPass.setPipeline(this.mainPipelines.sky);
     mainPass.setBindGroup(0, this.sceneBindGroup);
     mainPass.draw(3, 1);
 
     if (safeCount > 0) {
-      mainPass.setPipeline(this.mainPipelines.solid);
       mainPass.setBindGroup(0, this.sceneBindGroup);
       mainPass.setVertexBuffer(0, this.vertexBuffer);
-      mainPass.setVertexBuffer(1, this.matrixBuffer);
-      mainPass.setVertexBuffer(2, this.colorBuffer);
-      mainPass.draw(CUBE_VERTEX_COUNT, safeCount);
+      if (visible && visibleMain) {
+        mainPass.setPipeline(visibleMain.solid);
+        mainPass.setBindGroup(1, visible.opaqueBindGroup);
+        (mainPass as IndirectRenderPassEncoder).drawIndirect(visible.visibility.opaque.indirectBuffer, visible.visibility.opaque.indirectOffset);
+        counters.lastSubmittedInstances.opaque = null;
+      } else if (partition) {
+        mainPass.setPipeline(this.mainPipelines.solid);
+        mainPass.setBindGroup(1, partition.opaqueBindGroup);
+        (mainPass as IndirectRenderPassEncoder).drawIndirect(partition.indirectBuffer, 0);
+        counters.lastSubmittedInstances.opaque = null;
+      } else {
+        mainPass.setPipeline(this.mainPipelines.solid);
+        mainPass.setVertexBuffer(1, this.matrixBuffer);
+        mainPass.setVertexBuffer(2, this.colorBuffer);
+        mainPass.draw(CUBE_VERTEX_COUNT, safeCount);
+        counters.lastSubmittedInstances.opaque = safeCount;
+      }
     }
 
     if (this.surfaceMaterial && this.surfaceIndexCount > 0) {
@@ -3154,7 +3978,7 @@ export class WebGPURenderer {
           break;
         case 'gpu-water':
           mainPass.setPipeline(this.mainPipelines.gpuWater);
-          mainPass.setBindGroup(1, this.gpuWaterBindGroup);
+          mainPass.setBindGroup(1, this.residentWater?.bindGroup() ?? this.gpuWaterBindGroup);
           break;
         case 'packed': {
           switch (surfaceMaterial) {
@@ -3176,21 +4000,30 @@ export class WebGPURenderer {
         default:
           assertNever(path, 'Unhandled dynamic surface path');
       }
-      mainPass.setIndexBuffer(this.surfaceIndexBuffer, 'uint16');
+      mainPass.setIndexBuffer(this.residentWater?.indexBuffer ?? this.surfaceIndexBuffer, this.residentWater ? 'uint32' : 'uint16');
       mainPass.drawIndexed(this.surfaceIndexCount, 1);
     }
 
-    if (
-      safeCount > 0 &&
-      (this.rigidHasTransparentMaterial || this.softHasTransparentMaterial ||
-        this.effectHasTransparentMaterial || this.ropeGridHasTransparentMaterial)
-    ) {
-      mainPass.setPipeline(this.mainPipelines.transparentSolid);
+    if (safeCount > 0 && (visible || partition || hasTransparentMaterial)) {
       mainPass.setBindGroup(0, this.sceneBindGroup);
       mainPass.setVertexBuffer(0, this.vertexBuffer);
-      mainPass.setVertexBuffer(1, this.matrixBuffer);
-      mainPass.setVertexBuffer(2, this.colorBuffer);
-      mainPass.draw(CUBE_VERTEX_COUNT, safeCount);
+      if (visible && visibleMain) {
+        mainPass.setPipeline(visibleMain.transparentSolid);
+        mainPass.setBindGroup(1, visible.transparentBindGroup);
+        (mainPass as IndirectRenderPassEncoder).drawIndirect(visible.visibility.transparent.indirectBuffer, visible.visibility.transparent.indirectOffset);
+        counters.lastSubmittedInstances.transparent = null;
+      } else if (partition) {
+        mainPass.setPipeline(this.mainPipelines.transparentSolid);
+        mainPass.setBindGroup(1, partition.transparentBindGroup);
+        (mainPass as IndirectRenderPassEncoder).drawIndirect(partition.indirectBuffer, 16);
+        counters.lastSubmittedInstances.transparent = null;
+      } else {
+        mainPass.setPipeline(this.mainPipelines.transparentSolid);
+        mainPass.setVertexBuffer(1, this.matrixBuffer);
+        mainPass.setVertexBuffer(2, this.colorBuffer);
+        mainPass.draw(CUBE_VERTEX_COUNT, safeCount);
+        counters.lastSubmittedInstances.transparent = safeCount;
+      }
     }
 
     if (lineFloatCount > 0) {
@@ -3203,21 +4036,151 @@ export class WebGPURenderer {
 
     const postPass = encoder.beginRenderPass({
       label: 'AAA tone mapping and bloom pass',
+      timestampWrites: this.gpuTimer.timestampWrites(timingFrame, 'post'),
       colorAttachments: [{
-        view: this.context.getCurrentTexture().createView(),
+        view: outputView ?? this.context.getCurrentTexture().createView(),
         clearValue: { r: 0, g: 0, b: 0, a: 1 },
         loadOp: 'clear',
         storeOp: 'store',
       }],
-    });
+    } as TimedRenderPassDescriptor);
     postPass.setPipeline(this.postPipeline);
     postPass.setBindGroup(0, this.postBindGroup);
     postPass.draw(3, 1);
     postPass.end();
 
-    this.device.queue.submit([encoder.finish()]);
+    this.gpuTimer.resolveFrame(encoder, timingFrame);
+    try {
+      this.device.queue.submit([encoder.finish()]);
+    } catch (error) {
+      this.shadowMapReady = false;
+      throw error;
+    }
+    // Publish cache metadata only after the complete frame has been submitted.
+    // Async validation errors/device loss remain the application's responsibility.
+    partition?.submitted(safeCount, partitionChanged);
+    if (encodedShadow) this.rememberShadow(safeCount, surfaceCastsShadow);
+    this.gpuTimer.submitFrame(timingFrame);
     return performance.now() - start;
+    } catch (error) {
+      this.gpuTimer.discardFrame(timingFrame);
+      if (ropeDispatchPending) this.ropeGridDispatchPending = true;
+      throw error;
+    }
   }
+
+  gpuTimingInfo(): GpuTimingInfo {
+    return this.gpuTimer.info();
+  }
+
+  shadowCacheInfo(): { rendered: number; reused: number } {
+    return { rendered: this.renderingCounters.shadowPasses, reused: this.renderingCounters.shadowCacheHits };
+  }
+
+  instancePartitionInfo(): { mode: 'gpu-stable' | 'direct'; builds: number; reuses: number } {
+    return { mode: this.instancePartition ? 'gpu-stable' : 'direct', builds: this.instancePartition?.builds ?? 0, reuses: this.instancePartition?.reuses ?? 0 };
+  }
+
+  isDisposed(): boolean {
+    return this.disposed;
+  }
+
+  /** Subscribers registered after loss are notified on a microtask, unless removed. */
+  onDeviceLost(callback: (info: WebGPUDeviceLossInfo) => void): () => void {
+    if (this.disposed) return () => {};
+    const alreadySubscribed = this.deviceLostListeners.has(callback);
+    this.deviceLostListeners.add(callback);
+    if (this.deviceLoss && !alreadySubscribed) {
+      const info = this.deviceLoss;
+      queueMicrotask(() => {
+        if (!this.disposed && this.deviceLostListeners.has(callback)) this.callDeviceLostListener(callback, info);
+      });
+    }
+    return () => { this.deviceLostListeners.delete(callback); };
+  }
+
+  private notifyDeviceLost(info: WebGPUDeviceLossInfo): void {
+    if (this.disposed || this.deviceLoss) return;
+    this.deviceLoss = Object.freeze({ reason: info.reason, message: info.message });
+    for (const callback of [...this.deviceLostListeners]) this.callDeviceLostListener(callback, this.deviceLoss);
+  }
+
+  private callDeviceLostListener(callback: (info: WebGPUDeviceLossInfo) => void, info: WebGPUDeviceLossInfo): void {
+    if (this.disposed || !this.deviceLostListeners.has(callback)) return;
+    try {
+      void Promise.resolve(callback(info)).catch((error: unknown) => console.warn('[WebGPU] Device-loss listener failed.', error));
+    } catch (error) { console.warn('[WebGPU] Device-loss listener failed.', error); }
+  }
+
+  /** This renderer owns its device. Safe during an outstanding timing readback. */
+  dispose(): void {
+    if (this.disposed) return;
+    this.disposed = true;
+    this.deviceLostListeners.clear();
+    this.gpuTimer.dispose();
+    this.instancePartition?.dispose();
+    this.instancePartition = null;
+    this.invalidateDynamicCaches();
+    const errors: unknown[] = [];
+    const buffers = [
+      'uniformBuffer', 'vertexBuffer', 'matrixBuffer', 'colorBuffer',
+      'ropePositionBuffer', 'ropeSegmentBuffer', 'ropeUniformBuffer', 'lineBuffer',
+      'surfaceVertexBuffer', 'surfaceIndexBuffer', 'clothPositionBuffer',
+      'clothRestPositionBuffer', 'clothParamsBuffer', 'waterEtaBuffer',
+      'waterUBuffer', 'waterVBuffer', 'waterParamsBuffer',
+    ] as const;
+    const textures = [
+      'shadowTexture', 'materialNoiseTexture', 'materialAtlasAlbedoTexture',
+      'materialAtlasSurfaceTexture', 'depthTexture', 'msaaTexture', 'hdrTexture',
+    ] as const;
+    for (const field of [...buffers, ...textures]) {
+      try { this[field]?.destroy(); } catch (error) { errors.push(error); }
+      // These fields are non-null while live. Public upload/render entry points
+      // reject after disposal before touching any released resource.
+      (this[field] as GPUBuffer | GPUTexture | null) = null;
+    }
+    // Pipelines, bind groups, views and samplers have no destroy API. Release
+    // their references so they cannot retain the destroyed resource graph.
+    const references = [
+      'shadowPipeline', 'surfaceShadowPipeline', 'gpuClothShadowPipeline',
+      'mainPipelines1x', 'mainPipelines4x', 'mainPipelines', 'postPipeline',
+      'ropeComputePipeline', 'shadowBindGroup', 'sceneBindGroup',
+      'sceneBindGroupLayout', 'gpuClothBindGroup', 'gpuWaterBindGroup',
+      'gpuWaterBindGroupLayout',
+      'ropeComputeBindGroup', 'ropeComputeBindGroupLayout', 'postBindGroup', 'postBindGroupLayout',
+      'shadowView', 'shadowSampler', 'linearSampler', 'materialNoiseView',
+      'materialNoiseSampler', 'materialAtlasAlbedoView', 'materialAtlasSurfaceView',
+      'materialAtlasSampler', 'depthView', 'msaaView', 'hdrView',
+    ] as const;
+    for (const field of references) (this[field] as unknown) = null;
+    this.surfaceMaterial = null;
+    this.surfacePath = null;
+    this.surfaceVertexCount = 0;
+    this.surfaceIndexCount = 0;
+    this.layoutObserver?.disconnect();
+    this.layoutObserver = null;
+    this.layoutDirty = true;
+    this.width = 0;
+    this.height = 0;
+    this.lastUploadedBytes = 0;
+    this.uniformScratch = new Float32Array(0);
+    (this.lineScratch as Float32Array) = new Float32Array(0);
+    (this.surfaceIndexUploadScratch as Uint8Array) = new Uint8Array(0);
+    try { (this.context as GPUCanvasContext & { unconfigure?(): void }).unconfigure?.(); } catch (error) { errors.push(error); }
+    try { (this.device as GPUDevice & { destroy?(): void }).destroy?.(); } catch (error) { errors.push(error); }
+    if (errors.length > 0) console.warn('[WebGPU] Renderer disposal encountered resource errors.', errors);
+  }
+
+  destroy(): void {
+    this.dispose();
+  }
+
+  private assertActive(): void {
+    if (this.disposed) throw new Error('WebGPURenderer has been disposed.');
+  }
+
+  /** True once the GPU device has been lost; render and upload calls then return 0 without touching the queue. */
+  isLost(): boolean { return this.deviceLoss !== null; }
 
   uploadedMegabytes(): number {
     return this.lastUploadedBytes / (1024 * 1024);

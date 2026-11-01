@@ -1,0 +1,27 @@
+[WebGPU] material-noise-bc4.ktx2 unavailable; using deterministic R8 fallback. Error: Runtime test intentionally uses the procedural KTX2 fallback.
+    at value (file:///work/repo/scripts/webgpu-renderer-runtime-test.mjs:42:30)
+    at fetchKtx2 (file:///tmp/box3d-webgpu-runtime-pZ9Dxg/assets/ktx2.mjs:211:28)
+    at loadMaterialNoiseTexture (file:///tmp/box3d-webgpu-runtime-pZ9Dxg/assets/ktx2.mjs:221:30)
+    at WebGPURenderer.create (file:///tmp/box3d-webgpu-runtime-pZ9Dxg/webgpu/renderer.mjs?v=1793532614515:1966:17)
+    at async file:///work/repo/scripts/webgpu-renderer-runtime-test.mjs:78:18
+[WebGPU] Poliigon rgba8 material atlases unavailable; using deterministic procedural materials. Error: Runtime test intentionally uses the procedural KTX2 fallback.
+    at value (file:///work/repo/scripts/webgpu-renderer-runtime-test.mjs:42:30)
+    at fetchKtx2 (file:///tmp/box3d-webgpu-runtime-pZ9Dxg/assets/ktx2.mjs:211:28)
+    at loadMaterialAtlasTexture (file:///tmp/box3d-webgpu-runtime-pZ9Dxg/assets/ktx2.mjs:239:54)
+    at WebGPURenderer.create (file:///tmp/box3d-webgpu-runtime-pZ9Dxg/webgpu/renderer.mjs?v=1793532614515:1967:17)
+    at async file:///work/repo/scripts/webgpu-renderer-runtime-test.mjs:78:18
+Shadow reuse pixels: {"width":96,"height":64,"sha256":"3580036a25535367a937d456cf8c6525dbae86cfbe68eafa6f1cd2a809aacd99","cache":{"rendered":2,"reused":1}}
+All-pass GPU timing: {"frameId":10,"sampledAtMs":2237.772024,"completedAtMs":2238.365532,"passMs":{"compute":0.005728,"shadow":0.006272,"main":0.010368,"post":0.004608},"totalPassMs":0.026976}
+{
+  "rendererSha256": "b441aa851c24dec5ce9276f5b00bd4cb6f5e7539d333289fc070e8b259e19a45",
+  "uploadCacheBenchmark": {
+    "dawnBackend": "vulkan",
+    "cachedNsPerCall": 247.5304399999959,
+    "changedNsPerCall": 4345.41349999995,
+    "callSpeedup": 17.555067166688758,
+    "cachedUploadedBytes": 0
+  }
+}
+Wrote /work/repo/benchmarks/results/upload-cache-vulkan.json
+GPU timing diagnostics: {"status":"ready","supported":true,"reason":null,"latest":{"frameId":21,"sampledAtMs":2451.803597,"completedAtMs":2477.963626,"passMs":{"compute":null,"shadow":0.004416,"main":0.0056,"post":0.004256},"totalPassMs":0.014272},"frames":53,"submittedSamples":21,"completedSamples":21,"droppedSamples":32,"failedSamples":0,"pendingSamples":0,"ringSize":3,"sampleEveryFrames":1}
+✅ Actual WebGPURenderer command validation passed on Dawn vulkan: rigid/cloth/water/rope paths, GPU-compute rope reconstruction, exact paused-frame upload caches, debug lines, resize, empty frame, lazy visibility retry/cleanup, 25 shadow-cache transitions, material boundary gates, failed-frame recovery, and clean error stream (null backend does not execute pixels)

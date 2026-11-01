@@ -1,0 +1,59 @@
+{
+  "source": "/Users/commander/Downloads/box3d-liquid-comparison.json",
+  "sha256": "7b0545bb36563040a85688ffb0e2f4d6cb8dd84cdc138064486da9a1bfea9c04",
+  "checks": "JSON downloaded through live UI, two real full recordings, finite traces, bounded size, distinct results",
+  "runs": [
+    {
+      "name": "Clear-water release",
+      "study": "liquid",
+      "settings": {
+        "material": "water",
+        "mode": "release",
+        "load": 100,
+        "rate": 0.8,
+        "size": 0.65,
+        "damping": 1,
+        "fill": 10,
+        "seed": 42
+      },
+      "duration": 18.00833333333296,
+      "complete": true,
+      "final": [
+        0.26474353699239805,
+        0.09171344200109177,
+        3.0433714285714295
+      ],
+      "maximum": [
+        0.65,
+        1.7728807849889858,
+        3.0433714285714575
+      ]
+    },
+    {
+      "name": "Oil through the gate",
+      "study": "liquid",
+      "settings": {
+        "material": "oil",
+        "mode": "release",
+        "load": 100,
+        "rate": 0.8,
+        "size": 0.65,
+        "damping": 1,
+        "fill": 10,
+        "seed": 42
+      },
+      "duration": 18.008333333332953,
+      "complete": true,
+      "final": [
+        0.25977173200190884,
+        0.0022220559867560446,
+        3.043371428571425
+      ],
+      "maximum": [
+        0.65,
+        1.0315557718276978,
+        3.0433714285714575
+      ]
+    }
+  ]
+}

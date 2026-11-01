@@ -1,0 +1,41 @@
+{
+  "data": {
+    "camera": "reverse",
+    "cameraPose": "{\"position\":[36,21,42],\"target\":[0,6,0],\"fov\":48}",
+    "deskBusy": "false",
+    "deskPanel": "test",
+    "drawCalls": "70",
+    "finish": "bridge-weathered",
+    "fps": "27",
+    "lighting": "reference-daylight",
+    "phase": "ready",
+    "quality": "ultra",
+    "recipe": "bridge-service",
+    "renderFrames": "4128",
+    "renderReady": "true",
+    "riverAnimate": "true",
+    "riverFlow": "1",
+    "riverFoam": "1",
+    "riverTime": "43.277",
+    "riverWave": "1",
+    "running": "false",
+    "sceneObjects": "41722",
+    "setup": "custom",
+    "study": "bridge",
+    "surroundings": "valley-stream",
+    "theme": "observatory",
+    "triangles": "3091667"
+  },
+  "scripts": [
+    "http://127.0.0.1:5174/assets/index-CwAJzzTQ.js"
+  ],
+  "title": "BOX3D — Engineering Studio",
+  "ui": "BOX3D\nEngineering Studio\n01\nCanopy\n02\nPlate press\n03\nSuspension bridge\nReference\nPresets\nLabs\nScene\nTest\nCompare\nSuspension cable study\nSTUDY 03\nReference view\nCable connections\nLoad & failure\nMaterial\nResponse\nReady to simulate\n0.00 s\nExperiment desk\nSet up\nSurface\nWorld\nTest\nLoad & failure\nRUN 3\nPrepared load case\nCustom load case\nService crossing\nCrosswind crossing\nHeavy crossing\nProgressive collapse\nWeak connections\nReinforced crossing\nQuiet crossing\nWind dominated deck\nSlow connection loss\nMaximum deck load\nLoad program\nRamp to failure\nService load\nTarget load\n0.80\nnormalized\n0.00\n5.00\nMATERIAL & FAILURE\nSuspension footbridge\nWeathered oak\nConnection strength\n1.00×\nCrosswind\n0.10\nFailure mode\nConnection rupture\nIntegration\n120 Hz · 12 iterations\nCollision\nGround contact\nHow this study works\nRelease load\nSetup ready. Inspect the scene, then press Run simulation.\nDeflection\n0.000\nConnections lost\n0\nUndo look\nRun simulation\n0.00 s\n0 s\nLIVE HISTORY\n0.0 s recorded\nLive\n0.25×\n0.5×\n1.0×\n2.0×\nResponse history\nDeflection\nApplied load\nFailure events\n0\nRun a study to trace how failure develops.\nEvery event comes from the solver.\nWebGPU renderer · 27 fps · 70 draws\nComparative model · not calibrated\nExport evidence",
+  "url": "http://127.0.0.1:5174/?studio=bridge&theme=observatory&finish=bridge-weathered&light=reference-daylight&recipe=bridge-service&camera=reverse&quality=ultra&surroundings=valley-stream&layout=reference&water=academy&flow=1&wave=1&foam=1&flowMotion=1",
+  "viewport": {
+    "height": 1058,
+    "width": 1487
+  },
+  "logs": [],
+  "capturedAt": "2026-09-08T21:26:27.375Z"
+}

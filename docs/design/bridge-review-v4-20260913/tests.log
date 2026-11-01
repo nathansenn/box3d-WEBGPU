@@ -1,0 +1,33 @@
+✔ new generated references are immutable, full-size PNGs with recorded hashes (6.630292ms)
+✔ scanned source LODs retain their bytes and map by material name across reordered primitives (5.898541ms)
+✔ planted roots stay above the water and clear foundations, approaches and stone footprints (125.891792ms)
+✔ new sedges and fronds have grounded stems, finite normals and bounded leaf sizes (3.281791ms)
+✔ foam stays on wet terrain and forms tails downstream of real riffle stones (4.73775ms)
+✔ riffle stones actually break the surface at the coordinates used for foam (5.264958ms)
+✔ hero framing protects tower crowns and footing edges at desktop and phone breakpoints (1.322833ms)
+✔ connection groups and six span zones partition all 327 modeled links (4.052791ms)
+✔ inspection reads the snapshot mask, including backward replay, instead of stale main-thread flags (0.476292ms)
+✔ lateral movement and zone camera target follow current deck positions, excluding cables (0.421792ms)
+✔ first rupture resolves to a real sample after the event; pre-rupture is intact (0.243166ms)
+✔ milestone and baseline matching refuse an evicted initial-to-recent gap (0.11775ms)
+✔ comparison uses a nearby actual time and does not extrapolate past a saved run (0.04975ms)
+✔ imported damaged history does not claim it captured the first rupture (0.057167ms)
+✔ saved baseline roundtrips with its settings and complete response series (0.913167ms)
+✔ storage validation rejects corrupt, nonfinite, oversized and incompatible data (0.579ms)
+✔ model compatibility stays stable across damage but detects changed topology or backend (1.169292ms)
+✔ first-rupture pause fires once when a returned worker batch first contains failures (50.214416ms)
+✔ road face interiors conform to terrain, face upward and meet both timber ends (229.532917ms)
+✔ roads turn into each bank, retain width, and clear anchor bodies and ground cover (12.766958ms)
+✔ new portal hardware leaves the complete declared route prism open (7.92375ms)
+✔ tilted deck stations keep every rail endpoint attached to its own post (1.501292ms)
+✔ deck steel supports the board underside and transforms with a failed station (2.829792ms)
+✔ corrected concept pair stays byte-identical and the structural solver is unchanged (4284.775583ms)
+✔ approach framing retains road-to-deck join and portal crowns beside desktop and phone controls (0.874667ms)
+ℹ tests 25
+ℹ suites 0
+ℹ pass 25
+ℹ fail 0
+ℹ cancelled 0
+ℹ skipped 0
+ℹ todo 0
+ℹ duration_ms 4744.525167

@@ -39,6 +39,11 @@ jobs:
           node -e "require('fs').mkdirSync('.test-build', {recursive:true}); require('fs').writeFileSync('.test-build/package.json', '{\"type\":\"commonjs\"}')"
           node .test-build/tests/unit.test.js
           node .test-build/tests/engineering-evidence.test.js
+          node .test-build/tests/execution-graph.test.js
+          node .test-build/tests/water-reference.test.js
+          node .test-build/tests/water-surface-plan.test.js
+          node .test-build/tests/projection-depth.test.js
+          node .test-build/tests/instance-visibility.test.js
           node scripts/self-test.mjs
           npm run test:cbridge
           node scripts/soft-kernel-test.mjs
@@ -47,6 +52,8 @@ jobs:
           node -e "require('fs').mkdirSync('.test-build', {recursive:true}); require('fs').writeFileSync('.test-build/package.json', '{\"type\":\"commonjs\"}')"
           node scripts/soft-kernel-integration-test.cjs
           npm run test:webgpu
+          npm run test:collision
+          npm run test:assets
 
       - name: Validate v1.20 AAA programs, material, soft, native, and production gates
         run: |

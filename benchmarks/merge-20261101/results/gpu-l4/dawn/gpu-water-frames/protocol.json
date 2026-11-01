@@ -1,0 +1,140 @@
+{
+  "schema": "box3d.gpu-water-benchmark-protocol/1",
+  "trials": 6,
+  "warmup": 8,
+  "frames": 24,
+  "ticksPerFrame": 4,
+  "grids": [
+    64,
+    128,
+    256,
+    512,
+    1024
+  ],
+  "seed": 42,
+  "dt": 0.004166666666666667,
+  "viewport": [
+    512,
+    320
+  ],
+  "quality": {
+    "id": "balanced",
+    "label": "Balanced",
+    "sampleCount": 1,
+    "shadowMapSize": 1024,
+    "shadowTapCount": 1,
+    "shadowStrength": 0,
+    "exposure": 1.2,
+    "bloomStrength": 0.12,
+    "fogDensity": 0.004,
+    "effectBudget": 0,
+    "resolutionScale": 1
+  },
+  "gridCases": [
+    {
+      "grid": 64,
+      "renderStride": 1,
+      "meshVertices": 4096,
+      "config": {
+        "cols": 64,
+        "rows": 64,
+        "dt": 0.004166666666666667,
+        "gravity": 9.81,
+        "meanDepth": 1.5,
+        "drag": 0.28,
+        "dx": 0.6349206349206349,
+        "dz": 0.38095238095238093
+      }
+    },
+    {
+      "grid": 128,
+      "renderStride": 1,
+      "meshVertices": 16384,
+      "config": {
+        "cols": 128,
+        "rows": 128,
+        "dt": 0.004166666666666667,
+        "gravity": 9.81,
+        "meanDepth": 1.5,
+        "drag": 0.28,
+        "dx": 0.31496062992125984,
+        "dz": 0.1889763779527559
+      }
+    },
+    {
+      "grid": 256,
+      "renderStride": 3,
+      "meshVertices": 7396,
+      "config": {
+        "cols": 256,
+        "rows": 256,
+        "dt": 0.004166666666666667,
+        "gravity": 9.81,
+        "meanDepth": 1.5,
+        "drag": 0.28,
+        "dx": 0.1568627450980392,
+        "dz": 0.09411764705882353
+      }
+    },
+    {
+      "grid": 512,
+      "renderStride": 5,
+      "meshVertices": 10816,
+      "config": {
+        "cols": 512,
+        "rows": 512,
+        "dt": 0.004166666666666667,
+        "gravity": 9.81,
+        "meanDepth": 1.5,
+        "drag": 0.28,
+        "dx": 0.07827788649706457,
+        "dz": 0.046966731898238745
+      }
+    },
+    {
+      "grid": 1024,
+      "renderStride": 9,
+      "meshVertices": 13225,
+      "config": {
+        "cols": 1024,
+        "rows": 1024,
+        "dt": 0.004166666666666667,
+        "gravity": 9.81,
+        "meanDepth": 1.5,
+        "drag": 0.28,
+        "dx": 0.039100684261974585,
+        "dz": 0.02346041055718475
+      }
+    }
+  ],
+  "renderStride": "1 up to 128; ceil((grid-1)/126) above 128; identical source indices in both modes",
+  "timing": "Wall time for fixed numerical ticks, all required field uploads, uniforms, command encoding, render submission, and queue completion. Serialized completed frames, not browser FPS.",
+  "models": {
+    "baseline": "Exact JavaScript reference equations + three full float32 GPU field uploads per frame",
+    "candidate": "linear-water-webgpu-f32-v1; six resident ping-pong fields; no ordinary state readback"
+  },
+  "qualityEnvelope": {
+    "absolute": 0.00005,
+    "relative": 0.00005
+  },
+  "thresholds": {
+    "maxRegression": 0.05,
+    "controlTolerance": 0.15,
+    "minimumQualifiedSpeedup": 1.05
+  },
+  "control": "Eight timings of 2,000,000 unchanged integer iterations before and after each process suite",
+  "limits": {
+    "childSeconds": 120,
+    "runSeconds": 900,
+    "sourceBytes": 8388608,
+    "stdoutBytes": 1048576
+  },
+  "exclusions": [
+    "Browser presentation/compositor and interactive FPS",
+    "Calibrated physical water accuracy",
+    "Nonlinear water, droplets, forcing and rigid coupling",
+    "Performance on other adapters",
+    "Engine-wide speedup",
+    "Asset transfer/startup time"
+  ]
+}

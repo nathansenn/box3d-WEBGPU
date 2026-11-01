@@ -1,0 +1,555 @@
+{
+ "title": "Rope batched projection under main's eligibility rule vs the legacy per-constraint cadence (rope-batching gate workload)",
+ "stress": 5,
+ "framesPerScene": 720,
+ "checkEvery": 12,
+ "mainRule": "return stress === 5 && variant !== 4 && variant !== 8 && !(variant === 0 && (mode === 0 || mode === 3));",
+ "environment": {
+  "capturedAt": "2026-11-01T12:24:28.961Z",
+  "node": "v22.23.4",
+  "v8": "12.4.254.21-node.57",
+  "platform": "linux-x64",
+  "kernel": "6.18.44-fc-v185",
+  "cpuModel": "Intel(R) Xeon(R) Processor @ 2.10GHz",
+  "logicalCpus": 4,
+  "totalMemoryGiB": 15.7,
+  "loadAverageAtCapture": [
+   1.22,
+   1.15,
+   1.34
+  ],
+  "affinity": "pid 29834's current affinity list: 3"
+ },
+ "harness": {
+  "git": {
+   "commit": "c1c4676d1411cdcc5734fb4517c6774949e1ca03",
+   "describe": "c1c4676 2026-11-01 11:39:34 +0000 Retry the first WebGPU adapter request in the browser benchmark runners",
+   "dirty": true
+  },
+  "sha256": "f2d4da3a1e8b1ff08b169ef830b731da3a385e566edf0409cd8d511edf9702fd"
+ },
+ "summary": {
+  "batchedOnMain": 38,
+  "divergentWhenBatched": 13,
+  "divergentScenes": [
+   "652 v2 m0 from frame 192, max 16.142",
+   "653 v3 m0 from frame 168, max 4.968",
+   "662 v2 m1 from frame 192, max 11.700",
+   "663 v3 m1 from frame 168, max 5.795",
+   "665 v5 m1 from frame 156, max 16.677",
+   "672 v2 m2 from frame 192, max 1.302",
+   "673 v3 m2 from frame 180, max 16.638",
+   "682 v2 m3 from frame 216, max 8.235",
+   "683 v3 m3 from frame 192, max 7.663",
+   "685 v5 m3 from frame 156, max 4.798",
+   "692 v2 m4 from frame 204, max 5.772",
+   "693 v3 m4 from frame 192, max 6.794",
+   "695 v5 m4 from frame 156, max 2.831"
+  ],
+  "nonBatchedScenesIdentical": true,
+  "mergedRuleExcludesEveryDivergentScene": true,
+  "batchedOnMergedAndIdentical": true
+ },
+ "cases": [
+  {
+   "id": 650,
+   "title": "Sky Crane Cable Load — Baseline",
+   "variant": 0,
+   "mode": 0,
+   "batchedOnMain": false,
+   "batchedOnMerged": false,
+   "firstDivergentFrame": null,
+   "maxAbsDiff": 0
+  },
+  {
+   "id": 651,
+   "title": "Suspension Cable Bridge — Baseline",
+   "variant": 1,
+   "mode": 0,
+   "batchedOnMain": true,
+   "batchedOnMerged": true,
+   "firstDivergentFrame": null,
+   "maxAbsDiff": 0
+  },
+  {
+   "id": 652,
+   "title": "Heavy Pendulum Strike — Baseline",
+   "variant": 2,
+   "mode": 0,
+   "batchedOnMain": true,
+   "batchedOnMerged": false,
+   "firstDivergentFrame": 192,
+   "maxAbsDiff": 16.142168045043945
+  },
+  {
+   "id": 653,
+   "title": "Industrial Rope Ladder — Baseline",
+   "variant": 3,
+   "mode": 0,
+   "batchedOnMain": true,
+   "batchedOnMerged": false,
+   "firstDivergentFrame": 168,
+   "maxAbsDiff": 4.967682242393494
+  },
+  {
+   "id": 654,
+   "title": "Four-Point Mooring Array — Baseline",
+   "variant": 4,
+   "mode": 0,
+   "batchedOnMain": false,
+   "batchedOnMerged": false,
+   "firstDivergentFrame": null,
+   "maxAbsDiff": 0
+  },
+  {
+   "id": 655,
+   "title": "Cable Curtain Failure — Baseline",
+   "variant": 5,
+   "mode": 0,
+   "batchedOnMain": true,
+   "batchedOnMerged": false,
+   "firstDivergentFrame": null,
+   "maxAbsDiff": 0
+  },
+  {
+   "id": 656,
+   "title": "High-Speed Zipline — Baseline",
+   "variant": 6,
+   "mode": 0,
+   "batchedOnMain": true,
+   "batchedOnMerged": true,
+   "firstDivergentFrame": null,
+   "maxAbsDiff": 0
+  },
+  {
+   "id": 657,
+   "title": "Grappling Line Tension — Baseline",
+   "variant": 7,
+   "mode": 0,
+   "batchedOnMain": true,
+   "batchedOnMerged": true,
+   "firstDivergentFrame": null,
+   "maxAbsDiff": 0
+  },
+  {
+   "id": 658,
+   "title": "Multi-Sling Rigging Test — Baseline",
+   "variant": 8,
+   "mode": 0,
+   "batchedOnMain": false,
+   "batchedOnMerged": false,
+   "firstDivergentFrame": null,
+   "maxAbsDiff": 0
+  },
+  {
+   "id": 659,
+   "title": "Rope Net Resonance — Baseline",
+   "variant": 9,
+   "mode": 0,
+   "batchedOnMain": true,
+   "batchedOnMerged": true,
+   "firstDivergentFrame": null,
+   "maxAbsDiff": 0
+  },
+  {
+   "id": 660,
+   "title": "Sky Crane Cable Load — High Stress",
+   "variant": 0,
+   "mode": 1,
+   "batchedOnMain": true,
+   "batchedOnMerged": true,
+   "firstDivergentFrame": null,
+   "maxAbsDiff": 0
+  },
+  {
+   "id": 661,
+   "title": "Suspension Cable Bridge — High Stress",
+   "variant": 1,
+   "mode": 1,
+   "batchedOnMain": true,
+   "batchedOnMerged": true,
+   "firstDivergentFrame": null,
+   "maxAbsDiff": 0
+  },
+  {
+   "id": 662,
+   "title": "Heavy Pendulum Strike — High Stress",
+   "variant": 2,
+   "mode": 1,
+   "batchedOnMain": true,
+   "batchedOnMerged": false,
+   "firstDivergentFrame": 192,
+   "maxAbsDiff": 11.700363159179688
+  },
+  {
+   "id": 663,
+   "title": "Industrial Rope Ladder — High Stress",
+   "variant": 3,
+   "mode": 1,
+   "batchedOnMain": true,
+   "batchedOnMerged": false,
+   "firstDivergentFrame": 168,
+   "maxAbsDiff": 5.794501781463623
+  },
+  {
+   "id": 664,
+   "title": "Four-Point Mooring Array — High Stress",
+   "variant": 4,
+   "mode": 1,
+   "batchedOnMain": false,
+   "batchedOnMerged": false,
+   "firstDivergentFrame": null,
+   "maxAbsDiff": 0
+  },
+  {
+   "id": 665,
+   "title": "Cable Curtain Failure — High Stress",
+   "variant": 5,
+   "mode": 1,
+   "batchedOnMain": true,
+   "batchedOnMerged": false,
+   "firstDivergentFrame": 156,
+   "maxAbsDiff": 16.677167415618896
+  },
+  {
+   "id": 666,
+   "title": "High-Speed Zipline — High Stress",
+   "variant": 6,
+   "mode": 1,
+   "batchedOnMain": true,
+   "batchedOnMerged": true,
+   "firstDivergentFrame": null,
+   "maxAbsDiff": 0
+  },
+  {
+   "id": 667,
+   "title": "Grappling Line Tension — High Stress",
+   "variant": 7,
+   "mode": 1,
+   "batchedOnMain": true,
+   "batchedOnMerged": true,
+   "firstDivergentFrame": null,
+   "maxAbsDiff": 0
+  },
+  {
+   "id": 668,
+   "title": "Multi-Sling Rigging Test — High Stress",
+   "variant": 8,
+   "mode": 1,
+   "batchedOnMain": false,
+   "batchedOnMerged": false,
+   "firstDivergentFrame": null,
+   "maxAbsDiff": 0
+  },
+  {
+   "id": 669,
+   "title": "Rope Net Resonance — High Stress",
+   "variant": 9,
+   "mode": 1,
+   "batchedOnMain": true,
+   "batchedOnMerged": true,
+   "firstDivergentFrame": null,
+   "maxAbsDiff": 0
+  },
+  {
+   "id": 670,
+   "title": "Sky Crane Cable Load — Precision",
+   "variant": 0,
+   "mode": 2,
+   "batchedOnMain": true,
+   "batchedOnMerged": true,
+   "firstDivergentFrame": null,
+   "maxAbsDiff": 0
+  },
+  {
+   "id": 671,
+   "title": "Suspension Cable Bridge — Precision",
+   "variant": 1,
+   "mode": 2,
+   "batchedOnMain": true,
+   "batchedOnMerged": true,
+   "firstDivergentFrame": null,
+   "maxAbsDiff": 0
+  },
+  {
+   "id": 672,
+   "title": "Heavy Pendulum Strike — Precision",
+   "variant": 2,
+   "mode": 2,
+   "batchedOnMain": true,
+   "batchedOnMerged": false,
+   "firstDivergentFrame": 192,
+   "maxAbsDiff": 1.3021579384803772
+  },
+  {
+   "id": 673,
+   "title": "Industrial Rope Ladder — Precision",
+   "variant": 3,
+   "mode": 2,
+   "batchedOnMain": true,
+   "batchedOnMerged": false,
+   "firstDivergentFrame": 180,
+   "maxAbsDiff": 16.638389587402344
+  },
+  {
+   "id": 674,
+   "title": "Four-Point Mooring Array — Precision",
+   "variant": 4,
+   "mode": 2,
+   "batchedOnMain": false,
+   "batchedOnMerged": false,
+   "firstDivergentFrame": null,
+   "maxAbsDiff": 0
+  },
+  {
+   "id": 675,
+   "title": "Cable Curtain Failure — Precision",
+   "variant": 5,
+   "mode": 2,
+   "batchedOnMain": true,
+   "batchedOnMerged": false,
+   "firstDivergentFrame": null,
+   "maxAbsDiff": 0
+  },
+  {
+   "id": 676,
+   "title": "High-Speed Zipline — Precision",
+   "variant": 6,
+   "mode": 2,
+   "batchedOnMain": true,
+   "batchedOnMerged": true,
+   "firstDivergentFrame": null,
+   "maxAbsDiff": 0
+  },
+  {
+   "id": 677,
+   "title": "Grappling Line Tension — Precision",
+   "variant": 7,
+   "mode": 2,
+   "batchedOnMain": true,
+   "batchedOnMerged": true,
+   "firstDivergentFrame": null,
+   "maxAbsDiff": 0
+  },
+  {
+   "id": 678,
+   "title": "Multi-Sling Rigging Test — Precision",
+   "variant": 8,
+   "mode": 2,
+   "batchedOnMain": false,
+   "batchedOnMerged": false,
+   "firstDivergentFrame": null,
+   "maxAbsDiff": 0
+  },
+  {
+   "id": 679,
+   "title": "Rope Net Resonance — Precision",
+   "variant": 9,
+   "mode": 2,
+   "batchedOnMain": true,
+   "batchedOnMerged": true,
+   "firstDivergentFrame": null,
+   "maxAbsDiff": 0
+  },
+  {
+   "id": 680,
+   "title": "Sky Crane Cable Load — Impact Demo",
+   "variant": 0,
+   "mode": 3,
+   "batchedOnMain": false,
+   "batchedOnMerged": false,
+   "firstDivergentFrame": null,
+   "maxAbsDiff": 0
+  },
+  {
+   "id": 681,
+   "title": "Suspension Cable Bridge — Impact Demo",
+   "variant": 1,
+   "mode": 3,
+   "batchedOnMain": true,
+   "batchedOnMerged": true,
+   "firstDivergentFrame": null,
+   "maxAbsDiff": 0
+  },
+  {
+   "id": 682,
+   "title": "Heavy Pendulum Strike — Impact Demo",
+   "variant": 2,
+   "mode": 3,
+   "batchedOnMain": true,
+   "batchedOnMerged": false,
+   "firstDivergentFrame": 216,
+   "maxAbsDiff": 8.235037803649902
+  },
+  {
+   "id": 683,
+   "title": "Industrial Rope Ladder — Impact Demo",
+   "variant": 3,
+   "mode": 3,
+   "batchedOnMain": true,
+   "batchedOnMerged": false,
+   "firstDivergentFrame": 192,
+   "maxAbsDiff": 7.662549018859863
+  },
+  {
+   "id": 684,
+   "title": "Four-Point Mooring Array — Impact Demo",
+   "variant": 4,
+   "mode": 3,
+   "batchedOnMain": false,
+   "batchedOnMerged": false,
+   "firstDivergentFrame": null,
+   "maxAbsDiff": 0
+  },
+  {
+   "id": 685,
+   "title": "Cable Curtain Failure — Impact Demo",
+   "variant": 5,
+   "mode": 3,
+   "batchedOnMain": true,
+   "batchedOnMerged": false,
+   "firstDivergentFrame": 156,
+   "maxAbsDiff": 4.798280715942383
+  },
+  {
+   "id": 686,
+   "title": "High-Speed Zipline — Impact Demo",
+   "variant": 6,
+   "mode": 3,
+   "batchedOnMain": true,
+   "batchedOnMerged": true,
+   "firstDivergentFrame": null,
+   "maxAbsDiff": 0
+  },
+  {
+   "id": 687,
+   "title": "Grappling Line Tension — Impact Demo",
+   "variant": 7,
+   "mode": 3,
+   "batchedOnMain": true,
+   "batchedOnMerged": true,
+   "firstDivergentFrame": null,
+   "maxAbsDiff": 0
+  },
+  {
+   "id": 688,
+   "title": "Multi-Sling Rigging Test — Impact Demo",
+   "variant": 8,
+   "mode": 3,
+   "batchedOnMain": false,
+   "batchedOnMerged": false,
+   "firstDivergentFrame": null,
+   "maxAbsDiff": 0
+  },
+  {
+   "id": 689,
+   "title": "Rope Net Resonance — Impact Demo",
+   "variant": 9,
+   "mode": 3,
+   "batchedOnMain": true,
+   "batchedOnMerged": true,
+   "firstDivergentFrame": null,
+   "maxAbsDiff": 0
+  },
+  {
+   "id": 690,
+   "title": "Sky Crane Cable Load — Cinematic",
+   "variant": 0,
+   "mode": 4,
+   "batchedOnMain": true,
+   "batchedOnMerged": true,
+   "firstDivergentFrame": null,
+   "maxAbsDiff": 0
+  },
+  {
+   "id": 691,
+   "title": "Suspension Cable Bridge — Cinematic",
+   "variant": 1,
+   "mode": 4,
+   "batchedOnMain": true,
+   "batchedOnMerged": true,
+   "firstDivergentFrame": null,
+   "maxAbsDiff": 0
+  },
+  {
+   "id": 692,
+   "title": "Heavy Pendulum Strike — Cinematic",
+   "variant": 2,
+   "mode": 4,
+   "batchedOnMain": true,
+   "batchedOnMerged": false,
+   "firstDivergentFrame": 204,
+   "maxAbsDiff": 5.772331714630127
+  },
+  {
+   "id": 693,
+   "title": "Industrial Rope Ladder — Cinematic",
+   "variant": 3,
+   "mode": 4,
+   "batchedOnMain": true,
+   "batchedOnMerged": false,
+   "firstDivergentFrame": 192,
+   "maxAbsDiff": 6.794011116027832
+  },
+  {
+   "id": 694,
+   "title": "Four-Point Mooring Array — Cinematic",
+   "variant": 4,
+   "mode": 4,
+   "batchedOnMain": false,
+   "batchedOnMerged": false,
+   "firstDivergentFrame": null,
+   "maxAbsDiff": 0
+  },
+  {
+   "id": 695,
+   "title": "Cable Curtain Failure — Cinematic",
+   "variant": 5,
+   "mode": 4,
+   "batchedOnMain": true,
+   "batchedOnMerged": false,
+   "firstDivergentFrame": 156,
+   "maxAbsDiff": 2.830662727355957
+  },
+  {
+   "id": 696,
+   "title": "High-Speed Zipline — Cinematic",
+   "variant": 6,
+   "mode": 4,
+   "batchedOnMain": true,
+   "batchedOnMerged": true,
+   "firstDivergentFrame": null,
+   "maxAbsDiff": 0
+  },
+  {
+   "id": 697,
+   "title": "Grappling Line Tension — Cinematic",
+   "variant": 7,
+   "mode": 4,
+   "batchedOnMain": true,
+   "batchedOnMerged": true,
+   "firstDivergentFrame": null,
+   "maxAbsDiff": 0
+  },
+  {
+   "id": 698,
+   "title": "Multi-Sling Rigging Test — Cinematic",
+   "variant": 8,
+   "mode": 4,
+   "batchedOnMain": false,
+   "batchedOnMerged": false,
+   "firstDivergentFrame": null,
+   "maxAbsDiff": 0
+  },
+  {
+   "id": 699,
+   "title": "Rope Net Resonance — Cinematic",
+   "variant": 9,
+   "mode": 4,
+   "batchedOnMain": true,
+   "batchedOnMerged": true,
+   "firstDivergentFrame": null,
+   "maxAbsDiff": 0
+  }
+ ]
+}

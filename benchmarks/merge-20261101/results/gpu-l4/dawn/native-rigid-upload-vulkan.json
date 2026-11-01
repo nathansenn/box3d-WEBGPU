@@ -1,0 +1,14 @@
+{
+  "result": "passed",
+  "dawnBackend": "vulkan",
+  "rendererSha256": "b441aa851c24dec5ce9276f5b00bd4cb6f5e7539d333289fc070e8b259e19a45",
+  "bodyCount": 4096,
+  "actualGpuQueueUploadBytes": {
+    "initial": 327680,
+    "transformOnly": 262144,
+    "colorOnly": 65536,
+    "settledUnchanged": 0
+  },
+  "activeReductionPercent": 19.999999999999996,
+  "uncapturedWebGpuErrors": 0
+}

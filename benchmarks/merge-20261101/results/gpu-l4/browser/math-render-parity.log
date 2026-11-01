@@ -1,0 +1,85 @@
+{
+  "output": "/work/out/run4/math-runtime/render-parity-hardware-vulkan.json",
+  "status": "PASSED",
+  "gpu": {
+    "status": "AVAILABLE",
+    "preflightAdapterInfo": {
+      "vendor": "nvidia",
+      "architecture": "lovelace",
+      "device": "",
+      "description": "",
+      "isFallbackAdapter": false
+    },
+    "classification": "unclassified",
+    "note": "Renderer requests its own device with same power preference.",
+    "deviceAdapterInfo": {
+      "vendor": "nvidia",
+      "architecture": "lovelace",
+      "device": "",
+      "description": ""
+    }
+  },
+  "pageErrors": [],
+  "consoleErrors": [],
+  "cases": [
+    {
+      "id": "steps-0",
+      "status": "PASSED",
+      "pixels": {
+        "pass": true,
+        "comparison": "Exact byte equality of identical fields on the same renderer/device.",
+        "pixels": 76800,
+        "differingPixels": 0,
+        "differingChannels": 0,
+        "maxAbsolute": 0,
+        "rmsChannelError": 0
+      },
+      "waterCoveragePixels": 15117,
+      "timings": {}
+    },
+    {
+      "id": "steps-1",
+      "status": "PASSED",
+      "pixels": {
+        "pass": true,
+        "comparison": "Exact byte equality of identical fields on the same renderer/device.",
+        "pixels": 76800,
+        "differingPixels": 0,
+        "differingChannels": 0,
+        "maxAbsolute": 0,
+        "rmsChannelError": 0
+      },
+      "waterCoveragePixels": 15110,
+      "timings": {}
+    },
+    {
+      "id": "steps-4",
+      "status": "PASSED",
+      "pixels": {
+        "pass": true,
+        "comparison": "Exact byte equality of identical fields on the same renderer/device.",
+        "pixels": 76800,
+        "differingPixels": 0,
+        "differingChannels": 0,
+        "maxAbsolute": 0,
+        "rmsChannelError": 0
+      },
+      "waterCoveragePixels": 15111,
+      "timings": {}
+    }
+  ],
+  "uploadOverhead": [
+    {
+      "id": "unchanged-frame",
+      "status": "PASSED",
+      "baselineP50": 0.000527343712747097,
+      "currentP50": 0.000732421875
+    },
+    {
+      "id": "advancing-frame",
+      "status": "PASSED",
+      "baselineP50": 0.3684374988079071,
+      "currentP50": 0.3712500035762787
+    }
+  ]
+}

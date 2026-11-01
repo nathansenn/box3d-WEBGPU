@@ -1,0 +1,35 @@
+✔ new generated references are immutable, full-size PNGs with recorded hashes (7.53275ms)
+✔ scanned source LODs retain their bytes and map by material name across reordered primitives (6.542666ms)
+✔ planted roots stay above the water and clear foundations, approaches and stone footprints (164.467792ms)
+✔ new sedges and fronds have grounded stems, finite normals and bounded leaf sizes (3.897ms)
+✔ foam stays on wet terrain and forms tails downstream of real riffle stones (4.827666ms)
+✔ riffle stones actually break the surface at the coordinates used for foam (6.892834ms)
+✔ hero framing protects tower crowns and footing edges at desktop and phone breakpoints (1.317916ms)
+✔ road face interiors conform to terrain, face upward and meet both timber ends (252.548458ms)
+✔ roads turn into each bank, retain width, and clear anchor bodies and ground cover (13.540334ms)
+✔ new portal hardware leaves the complete declared route prism open (7.733833ms)
+✔ tilted deck stations keep every rail endpoint attached to its own post (1.292959ms)
+✔ deck steel supports the board underside and transforms with a failed station (2.343584ms)
+✔ corrected concept pair stays byte-identical and the structural solver is unchanged (5618.952708ms)
+✔ approach framing retains road-to-deck join and portal crowns beside desktop and phone controls (0.966375ms)
+✔ ground sampler agrees with independently raycast rendered triangles on both slopes (720.995041ms)
+✔ rotated, nonuniformly scaled bank stones contact actual terrain vertices at the allowed embed (48186.3735ms)
+✔ conifer boughs have finite geometry, bounded crown and outward top-face winding (7.618458ms)
+✔ reference tower crown and base remain inside the unobstructed desktop frame (0.918375ms)
+✔ each study has a complete original-reference setup with a compatible camera (0.172542ms)
+✔ all new tower fixtures have finite transforms and nondegenerate surfaces (18.247375ms)
+✔ all source flow profiles survive URL serialization exactly (1.772125ms)
+✔ custom tuning and frozen water survive reload without being mislabeled as a preset (0.104292ms)
+✔ hostile or stale URL values resolve to finite supported settings (0.115458ms)
+✔ freezing the current preserves its phase and resuming has no wall-clock jump (0.073541ms)
+✔ flow speed scales the visible phase while wave and foam do not alter the clock (0.058ms)
+✔ river inspection cameras are published only for the bridge (0.129708ms)
+✔ complete bridge setups have reproducible river profiles; other studies remain independent (0.208917ms)
+ℹ tests 27
+ℹ suites 0
+ℹ pass 27
+ℹ fail 0
+ℹ cancelled 0
+ℹ skipped 0
+ℹ todo 0
+ℹ duration_ms 49213.395833

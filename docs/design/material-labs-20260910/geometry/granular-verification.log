@@ -1,0 +1,18 @@
+
+=== SCENE VERIFICATION: PASS ===
+[PASS] schema (structural)
+[PASS] overlap gate — 0 interpenetration(s)
+        foot--2.9--0.86 ∩ bench: CONTACT (pen=0.0)
+        foot--2.9-0.86 ∩ bench: CONTACT (pen=0.0)
+        foot-2.9--0.86 ∩ bench: CONTACT (pen=0.0)
+        foot-2.9-0.86 ∩ bench: CONTACT (pen=0.0)
+        bench ∩ floor-plate: CONTACT (pen=0.0)
+        floor-plate ∩ open-tank: CONTACT (pen=0.0)
+        floor-plate ∩ grain-column: CONTACT (pen=0.0)
+        floor-plate ∩ obstacle-0: CONTACT (pen=0.0)
+        open-tank ∩ grain-column: CONTAINMENT (pen=1.1)
+        open-tank ∩ obstacle-0: CONTAINMENT (pen=0.65)
+[PASS] consistency
+[PASS] projection — coverage=0.136, offscreen=[]
+        depth far→near: ['foot--2.9--0.86', 'grain-column', 'foot--2.9-0.86', 'bench', 'floor-plate', 'open-tank', 'obstacle-0', 'foot-2.9--0.86', 'foot-2.9-0.86']
+        composite written: /Users/commander/box3d-WEBGPU/docs/design/material-labs-20260910/geometry/granular-composite.png

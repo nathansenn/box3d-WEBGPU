@@ -1,0 +1,26 @@
+
+> box3d-webgpu@1.20.0 test:studio:press
+> node --test tests/studio/press-lab.test.mjs
+
+✔ canopy and bridge retain exact pre-change positions, failures and responses (5222.696542ms)
+✔ complete press catalogue covers all tools and metal families with unique identities (0.118833ms)
+✔ URL round trip retains every independent control and rejects nonfinite or unknown input (0.397375ms)
+✔ pressure changes response while thickness, tool and strike speed stay fixed (9043.828917ms)
+✔ thicker plate resists the same pressure and thin sheet fractures (8620.733333ms)
+✔ strike speed changes approach time without changing pressure or playback (862.859542ms)
+✔ metal profiles change yield and deformation under the same stroke (9381.744709ms)
+✔ all 20 experiments remain finite with pinned fixtures and irreversible topology (68652.959792ms)
+✔ unloading retracts the tool while retaining plastic set and replay is immutable (5094.387791ms)
+✔ a completed short stroke holds, retracts and is exactly deterministic (7551.930208ms)
+✔ tool footprint honors the bore, four tips, rotation and contact scaling (0.116ms)
+✔ all attachment geometry is finite, scaled and contacts its analytical lower face (11.582125ms)
+✔ solid shell supplies underside and fracture walls at actual selected thickness (0.449125ms)
+✔ complete machine corners fit desktop and phone inspection bounds from both sides (1.413208ms)
+ℹ tests 14
+ℹ suites 0
+ℹ pass 14
+ℹ fail 0
+ℹ cancelled 0
+ℹ skipped 0
+ℹ todo 0
+ℹ duration_ms 114641.079916

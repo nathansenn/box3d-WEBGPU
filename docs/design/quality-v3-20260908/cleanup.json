@@ -1,0 +1,45 @@
+{
+  "recordedAt": "2026-09-08T16:29:25.740683+00:00",
+  "owner": "root task 01a07e7b-23c9-72e1-a62e-b780ac76623f",
+  "temporaryBudgetBytes": 188743680,
+  "freeBytesBefore": 28753920000,
+  "freeBytesAfter": 28876800000,
+  "removed": [
+    {
+      "path": "/Users/commander/box3d-WEBGPU/dist",
+      "logicalBytes": 105416274,
+      "reason": "Successful temporary production preview stopped; source and bundle hashes retained in final-build.json."
+    },
+    {
+      "path": "/private/tmp/box3d-quality-v3-review.py",
+      "logicalBytes": 5651,
+      "reason": "Owned one-use review generator; final interactive review.html retained."
+    }
+  ],
+  "retained": [
+    "All source changes and lockfiles",
+    "All requested PBR assets and provenance",
+    "Review HTML, captures, validation logs and final bundle hashes",
+    "Existing node_modules and development server on 127.0.0.1:5173",
+    "Git state and existing stash"
+  ],
+  "preservationHashes": {
+    "package.json": "ce2c1a325e4a0eb480c055df6e1016604702adaaf1e1963e6f9d1793aa7d029d",
+    "package-lock.json": "68550e7f7171700a37a50303ba473d6cc0e744e1f9fb3ce7661f6c7a2a86fd6b",
+    "index.html": "39561d8d714bb23feb0dd5c7b0204612b3ea8338438270b46383d9b375c5688b",
+    "vite.config.ts": "450fbeb8429907bc719c6983b546489c284bee167debc3ee5ff4d0b1938f6d42",
+    "src/studio/collection-state.ts": "0382a1fcb79c4237507dab8e9c47be626417587aabaa32fd190455ce320b7628",
+    "src/studio/collection.css": "0ddcba7edf01a2263f32a9c414c06156fcdf32c462c1772a8adbb859b8440b7d",
+    "src/studio/lighting.ts": "cb1b4b9bd603caf4daf4a8f56b9bc240400e459a6752366175567ad068ec13ff",
+    "src/studio/main.ts": "9f8a4df9a18391c7dbe6be779d072c1f9fd8343ecb1b4488e73758b75abc3e02",
+    "src/studio/materials.ts": "da3d4259f914252109cf9806838e26f07b45cd9cf5cd25b2a3ea9cc5acdcf42e",
+    "src/studio/physics.ts": "fbc8326cb7f2f734351b2fc4d68a112340756311d28db92b794133acb934e0f0",
+    "src/studio/preset-browser.ts": "9bcaa30e8cb0aa7f3fcc34a5d7faa461c64125923551f7d77f8a5d38ea49e8ea",
+    "src/studio/presets.ts": "d37851733f102fcbab119d7fac648c9aedf8d07bf7b65085240b0e9188a297d7",
+    "src/studio/studio.css": "fb029493cd1677018a3e4a21ce5c0fa6f3526887aee1a9777e35a2275670a01e",
+    "src/studio/world.ts": "599595a1f3a9c73bc86567626d63f5ae3ea40ec41c43de415072c6419687ef74"
+  },
+  "sourceAndBundleHashVerification": "passed before cleanup",
+  "protectedFilesUnchanged": true,
+  "note": "Concurrent activity affects free-space changes; logical removed size is not a physical reclaimed-space claim."
+}

@@ -1,0 +1,2328 @@
+[render-benchmark] Creating independent production renderers
+[render-benchmark] Pixel parity: all-visible-opaque / candidate-default
+[render-benchmark] Pixel parity: all-visible-opaque / material-filter
+[render-benchmark] Pixel parity: all-visible-opaque / shadow-cache
+[render-benchmark] Pixel parity: all-visible-opaque / stable-visibility
+[render-benchmark] Timing: all-visible-opaque / candidate-default
+[render-benchmark] Timing: all-visible-opaque / material-filter
+[render-benchmark] Timing: all-visible-opaque / shadow-cache
+[render-benchmark] Timing: all-visible-opaque / stable-visibility
+[render-benchmark] Pixel parity: mostly-offscreen / candidate-default
+[render-benchmark] Pixel parity: mostly-offscreen / material-filter
+[render-benchmark] Pixel parity: mostly-offscreen / shadow-cache
+[render-benchmark] Pixel parity: mostly-offscreen / stable-visibility
+[render-benchmark] Timing: mostly-offscreen / candidate-default
+[render-benchmark] Timing: mostly-offscreen / material-filter
+[render-benchmark] Timing: mostly-offscreen / shadow-cache
+[render-benchmark] Timing: mostly-offscreen / stable-visibility
+[render-benchmark] Pixel parity: mixed-materials / candidate-default
+[render-benchmark] Pixel parity: mixed-materials / material-filter
+[render-benchmark] Pixel parity: mixed-materials / shadow-cache
+[render-benchmark] Pixel parity: mixed-materials / stable-visibility
+[render-benchmark] Timing: mixed-materials / candidate-default
+[render-benchmark] Timing: mixed-materials / material-filter
+[render-benchmark] Timing: mixed-materials / shadow-cache
+[render-benchmark] Timing: mixed-materials / stable-visibility
+[render-benchmark] Pixel parity: paused-orbit / candidate-default
+[render-benchmark] Pixel parity: paused-orbit / material-filter
+[render-benchmark] Pixel parity: paused-orbit / shadow-cache
+[render-benchmark] Pixel parity: paused-orbit / stable-visibility
+[render-benchmark] Timing: paused-orbit / candidate-default
+[render-benchmark] Timing: paused-orbit / material-filter
+[render-benchmark] Timing: paused-orbit / shadow-cache
+[render-benchmark] Timing: paused-orbit / stable-visibility
+[render-benchmark] Pixel parity: moving-rigids / candidate-default
+[render-benchmark] Pixel parity: moving-rigids / material-filter
+[render-benchmark] Pixel parity: moving-rigids / shadow-cache
+[render-benchmark] Pixel parity: moving-rigids / stable-visibility
+[render-benchmark] Timing: moving-rigids / candidate-default
+[render-benchmark] Timing: moving-rigids / material-filter
+[render-benchmark] Timing: moving-rigids / shadow-cache
+[render-benchmark] Timing: moving-rigids / stable-visibility
+[render-benchmark] Pixel parity: quality-4x-nine-taps / candidate-default
+[render-benchmark] Pixel parity: quality-4x-nine-taps / material-filter
+[render-benchmark] Pixel parity: quality-4x-nine-taps / shadow-cache
+[render-benchmark] Pixel parity: quality-4x-nine-taps / stable-visibility
+[render-benchmark] Timing: quality-4x-nine-taps / candidate-default
+[render-benchmark] Timing: quality-4x-nine-taps / material-filter
+[render-benchmark] Timing: quality-4x-nine-taps / shadow-cache
+[render-benchmark] Timing: quality-4x-nine-taps / stable-visibility
+[render-benchmark] Pixel parity: clip-boundaries / candidate-default
+[render-benchmark] Pixel parity: clip-boundaries / material-filter
+[render-benchmark] Pixel parity: clip-boundaries / shadow-cache
+[render-benchmark] Pixel parity: clip-boundaries / stable-visibility
+[render-benchmark] Pixel parity: offcamera-shadow / candidate-default
+[render-benchmark] Pixel parity: offcamera-shadow / material-filter
+[render-benchmark] Pixel parity: offcamera-shadow / shadow-cache
+[render-benchmark] Pixel parity: offcamera-shadow / stable-visibility
+[render-benchmark] Pixel parity: gpu-rope / candidate-default
+[render-benchmark] Pixel parity: gpu-rope / material-filter
+[render-benchmark] Pixel parity: gpu-rope / shadow-cache
+[render-benchmark] Pixel parity: gpu-rope / stable-visibility
+[render-benchmark] Pixel parity: gpu-cloth / candidate-default
+[render-benchmark] Pixel parity: gpu-cloth / material-filter
+[render-benchmark] Pixel parity: gpu-cloth / shadow-cache
+[render-benchmark] Pixel parity: gpu-cloth / stable-visibility
+[render-benchmark] Pixel parity: packed-sheet / candidate-default
+[render-benchmark] Pixel parity: packed-sheet / material-filter
+[render-benchmark] Pixel parity: packed-sheet / shadow-cache
+[render-benchmark] Pixel parity: packed-sheet / stable-visibility
+[render-benchmark] Pixel parity: cpu-water / candidate-default
+[render-benchmark] Pixel parity: cpu-water / material-filter
+[render-benchmark] Pixel parity: cpu-water / shadow-cache
+[render-benchmark] Pixel parity: cpu-water / stable-visibility
+[render-benchmark] Pixel parity: resident-water / candidate-default
+[render-benchmark] Pixel parity: resident-water / material-filter
+[render-benchmark] Pixel parity: resident-water / shadow-cache
+[render-benchmark] Pixel parity: resident-water / stable-visibility
+[render-benchmark] Pixel parity: zero-instances / candidate-default
+[render-benchmark] Pixel parity: zero-instances / material-filter
+[render-benchmark] Pixel parity: zero-instances / shadow-cache
+[render-benchmark] Pixel parity: zero-instances / stable-visibility
+[render-benchmark] Pixel parity: single-instance / candidate-default
+[render-benchmark] Pixel parity: single-instance / material-filter
+[render-benchmark] Pixel parity: single-instance / shadow-cache
+[render-benchmark] Pixel parity: single-instance / stable-visibility
+[render-benchmark] Pixel parity: partial-group-63 / candidate-default
+[render-benchmark] Pixel parity: partial-group-63 / material-filter
+[render-benchmark] Pixel parity: partial-group-63 / shadow-cache
+[render-benchmark] Pixel parity: partial-group-63 / stable-visibility
+[render-benchmark] Pixel parity: full-group-64 / candidate-default
+[render-benchmark] Pixel parity: full-group-64 / material-filter
+[render-benchmark] Pixel parity: full-group-64 / shadow-cache
+[render-benchmark] Pixel parity: full-group-64 / stable-visibility
+[render-benchmark] Pixel parity: partial-group-65 / candidate-default
+[render-benchmark] Pixel parity: partial-group-65 / material-filter
+[render-benchmark] Pixel parity: partial-group-65 / shadow-cache
+[render-benchmark] Pixel parity: partial-group-65 / stable-visibility
+[render-benchmark] Pixel parity: prefix-4097 / candidate-default
+[render-benchmark] Pixel parity: prefix-4097 / material-filter
+[render-benchmark] Pixel parity: prefix-4097 / shadow-cache
+[render-benchmark] Pixel parity: prefix-4097 / stable-visibility
+[render-benchmark] Pixel parity: prefix-8193 / candidate-default
+[render-benchmark] Pixel parity: prefix-8193 / material-filter
+[render-benchmark] Pixel parity: prefix-8193 / shadow-cache
+[render-benchmark] Pixel parity: prefix-8193 / stable-visibility
+[render-benchmark] Pixel parity: large-cancellation / candidate-default
+[render-benchmark] Pixel parity: large-cancellation / material-filter
+[render-benchmark] Pixel parity: large-cancellation / shadow-cache
+[render-benchmark] Pixel parity: large-cancellation / stable-visibility
+[render-benchmark] Checking shadow cache invalidation
+[render-benchmark] Verifying visual correctness fixes
+[render-benchmark] FAILED
+{
+  "output": "/work/out/run4/rendering/pinned/hardware-vulkan.json",
+  "status": "FAILED",
+  "gpu": {
+    "classification": "HARDWARE_UNVERIFIED",
+    "timestamps": "AVAILABLE"
+  },
+  "parity": {
+    "total": 84,
+    "failed": [
+      {
+        "id": "all-visible-opaque",
+        "variant": "candidate-default",
+        "pixels": {
+          "pass": false,
+          "pixels": 76800,
+          "differingPixels": 76102,
+          "differingChannels": 207839,
+          "maxAbsolute": 10,
+          "rmsChannelError": 2.5156230590054625
+        }
+      },
+      {
+        "id": "all-visible-opaque",
+        "variant": "material-filter",
+        "pixels": {
+          "pass": false,
+          "pixels": 76800,
+          "differingPixels": 76102,
+          "differingChannels": 207839,
+          "maxAbsolute": 10,
+          "rmsChannelError": 2.5156230590054625
+        }
+      },
+      {
+        "id": "all-visible-opaque",
+        "variant": "shadow-cache",
+        "pixels": {
+          "pass": false,
+          "pixels": 76800,
+          "differingPixels": 76102,
+          "differingChannels": 207839,
+          "maxAbsolute": 10,
+          "rmsChannelError": 2.5156230590054625
+        }
+      },
+      {
+        "id": "all-visible-opaque",
+        "variant": "stable-visibility",
+        "pixels": {
+          "pass": false,
+          "pixels": 76800,
+          "differingPixels": 76102,
+          "differingChannels": 207839,
+          "maxAbsolute": 10,
+          "rmsChannelError": 2.5156230590054625
+        }
+      },
+      {
+        "id": "mostly-offscreen",
+        "variant": "candidate-default",
+        "pixels": {
+          "pass": false,
+          "pixels": 76800,
+          "differingPixels": 76215,
+          "differingChannels": 210281,
+          "maxAbsolute": 10,
+          "rmsChannelError": 2.501549649925355
+        }
+      },
+      {
+        "id": "mostly-offscreen",
+        "variant": "material-filter",
+        "pixels": {
+          "pass": false,
+          "pixels": 76800,
+          "differingPixels": 76215,
+          "differingChannels": 210281,
+          "maxAbsolute": 10,
+          "rmsChannelError": 2.501549649925355
+        }
+      },
+      {
+        "id": "mostly-offscreen",
+        "variant": "shadow-cache",
+        "pixels": {
+          "pass": false,
+          "pixels": 76800,
+          "differingPixels": 76215,
+          "differingChannels": 210281,
+          "maxAbsolute": 10,
+          "rmsChannelError": 2.501549649925355
+        }
+      },
+      {
+        "id": "mostly-offscreen",
+        "variant": "stable-visibility",
+        "pixels": {
+          "pass": false,
+          "pixels": 76800,
+          "differingPixels": 76215,
+          "differingChannels": 210281,
+          "maxAbsolute": 10,
+          "rmsChannelError": 2.501549649925355
+        }
+      },
+      {
+        "id": "mixed-materials",
+        "variant": "candidate-default",
+        "pixels": {
+          "pass": false,
+          "pixels": 76800,
+          "differingPixels": 76013,
+          "differingChannels": 207233,
+          "maxAbsolute": 12,
+          "rmsChannelError": 2.529869736847466
+        }
+      },
+      {
+        "id": "mixed-materials",
+        "variant": "material-filter",
+        "pixels": {
+          "pass": false,
+          "pixels": 76800,
+          "differingPixels": 76013,
+          "differingChannels": 207233,
+          "maxAbsolute": 12,
+          "rmsChannelError": 2.529869736847466
+        }
+      },
+      {
+        "id": "mixed-materials",
+        "variant": "shadow-cache",
+        "pixels": {
+          "pass": false,
+          "pixels": 76800,
+          "differingPixels": 76013,
+          "differingChannels": 207233,
+          "maxAbsolute": 12,
+          "rmsChannelError": 2.529869736847466
+        }
+      },
+      {
+        "id": "mixed-materials",
+        "variant": "stable-visibility",
+        "pixels": {
+          "pass": false,
+          "pixels": 76800,
+          "differingPixels": 76013,
+          "differingChannels": 207233,
+          "maxAbsolute": 12,
+          "rmsChannelError": 2.529869736847466
+        }
+      },
+      {
+        "id": "paused-orbit",
+        "variant": "candidate-default",
+        "pixels": {
+          "pass": false,
+          "pixels": 76800,
+          "differingPixels": 76107,
+          "differingChannels": 207941,
+          "maxAbsolute": 10,
+          "rmsChannelError": 2.510658918117911
+        }
+      },
+      {
+        "id": "paused-orbit",
+        "variant": "material-filter",
+        "pixels": {
+          "pass": false,
+          "pixels": 76800,
+          "differingPixels": 76107,
+          "differingChannels": 207941,
+          "maxAbsolute": 10,
+          "rmsChannelError": 2.510658918117911
+        }
+      },
+      {
+        "id": "paused-orbit",
+        "variant": "shadow-cache",
+        "pixels": {
+          "pass": false,
+          "pixels": 76800,
+          "differingPixels": 76107,
+          "differingChannels": 207941,
+          "maxAbsolute": 10,
+          "rmsChannelError": 2.510658918117911
+        }
+      },
+      {
+        "id": "paused-orbit",
+        "variant": "stable-visibility",
+        "pixels": {
+          "pass": false,
+          "pixels": 76800,
+          "differingPixels": 76107,
+          "differingChannels": 207941,
+          "maxAbsolute": 10,
+          "rmsChannelError": 2.510658918117911
+        }
+      },
+      {
+        "id": "moving-rigids",
+        "variant": "candidate-default",
+        "pixels": {
+          "pass": false,
+          "pixels": 76800,
+          "differingPixels": 76104,
+          "differingChannels": 207983,
+          "maxAbsolute": 10,
+          "rmsChannelError": 2.509827040023542
+        }
+      },
+      {
+        "id": "moving-rigids",
+        "variant": "material-filter",
+        "pixels": {
+          "pass": false,
+          "pixels": 76800,
+          "differingPixels": 76104,
+          "differingChannels": 207983,
+          "maxAbsolute": 10,
+          "rmsChannelError": 2.509827040023542
+        }
+      },
+      {
+        "id": "moving-rigids",
+        "variant": "shadow-cache",
+        "pixels": {
+          "pass": false,
+          "pixels": 76800,
+          "differingPixels": 76104,
+          "differingChannels": 207983,
+          "maxAbsolute": 10,
+          "rmsChannelError": 2.509827040023542
+        }
+      },
+      {
+        "id": "moving-rigids",
+        "variant": "stable-visibility",
+        "pixels": {
+          "pass": false,
+          "pixels": 76800,
+          "differingPixels": 76104,
+          "differingChannels": 207983,
+          "maxAbsolute": 10,
+          "rmsChannelError": 2.509827040023542
+        }
+      },
+      {
+        "id": "quality-4x-nine-taps",
+        "variant": "candidate-default",
+        "pixels": {
+          "pass": false,
+          "pixels": 76800,
+          "differingPixels": 75992,
+          "differingChannels": 207735,
+          "maxAbsolute": 13,
+          "rmsChannelError": 2.515487185666029
+        }
+      },
+      {
+        "id": "quality-4x-nine-taps",
+        "variant": "material-filter",
+        "pixels": {
+          "pass": false,
+          "pixels": 76800,
+          "differingPixels": 75992,
+          "differingChannels": 207735,
+          "maxAbsolute": 13,
+          "rmsChannelError": 2.515487185666029
+        }
+      },
+      {
+        "id": "quality-4x-nine-taps",
+        "variant": "shadow-cache",
+        "pixels": {
+          "pass": false,
+          "pixels": 76800,
+          "differingPixels": 75992,
+          "differingChannels": 207735,
+          "maxAbsolute": 13,
+          "rmsChannelError": 2.515487185666029
+        }
+      },
+      {
+        "id": "quality-4x-nine-taps",
+        "variant": "stable-visibility",
+        "pixels": {
+          "pass": false,
+          "pixels": 76800,
+          "differingPixels": 75992,
+          "differingChannels": 207735,
+          "maxAbsolute": 13,
+          "rmsChannelError": 2.515487185666029
+        }
+      },
+      {
+        "id": "clip-boundaries",
+        "variant": "candidate-default",
+        "pixels": {
+          "pass": false,
+          "pixels": 76800,
+          "differingPixels": 76323,
+          "differingChannels": 204642,
+          "maxAbsolute": 10,
+          "rmsChannelError": 2.491887227208527
+        }
+      },
+      {
+        "id": "clip-boundaries",
+        "variant": "material-filter",
+        "pixels": {
+          "pass": false,
+          "pixels": 76800,
+          "differingPixels": 76323,
+          "differingChannels": 204642,
+          "maxAbsolute": 10,
+          "rmsChannelError": 2.491887227208527
+        }
+      },
+      {
+        "id": "clip-boundaries",
+        "variant": "shadow-cache",
+        "pixels": {
+          "pass": false,
+          "pixels": 76800,
+          "differingPixels": 76323,
+          "differingChannels": 204642,
+          "maxAbsolute": 10,
+          "rmsChannelError": 2.491887227208527
+        }
+      },
+      {
+        "id": "clip-boundaries",
+        "variant": "stable-visibility",
+        "pixels": {
+          "pass": false,
+          "pixels": 76800,
+          "differingPixels": 76323,
+          "differingChannels": 204642,
+          "maxAbsolute": 10,
+          "rmsChannelError": 2.491887227208527
+        }
+      },
+      {
+        "id": "offcamera-shadow",
+        "variant": "candidate-default",
+        "pixels": {
+          "pass": false,
+          "pixels": 76800,
+          "differingPixels": 75403,
+          "differingChannels": 218654,
+          "maxAbsolute": 6,
+          "rmsChannelError": 1.3405448694001256
+        }
+      },
+      {
+        "id": "offcamera-shadow",
+        "variant": "material-filter",
+        "pixels": {
+          "pass": false,
+          "pixels": 76800,
+          "differingPixels": 75403,
+          "differingChannels": 218654,
+          "maxAbsolute": 6,
+          "rmsChannelError": 1.3405448694001256
+        }
+      },
+      {
+        "id": "offcamera-shadow",
+        "variant": "shadow-cache",
+        "pixels": {
+          "pass": false,
+          "pixels": 76800,
+          "differingPixels": 75403,
+          "differingChannels": 218654,
+          "maxAbsolute": 6,
+          "rmsChannelError": 1.3405448694001256
+        }
+      },
+      {
+        "id": "offcamera-shadow",
+        "variant": "stable-visibility",
+        "pixels": {
+          "pass": false,
+          "pixels": 76800,
+          "differingPixels": 75403,
+          "differingChannels": 218654,
+          "maxAbsolute": 6,
+          "rmsChannelError": 1.3405448694001256
+        }
+      },
+      {
+        "id": "gpu-rope",
+        "variant": "candidate-default",
+        "pixels": {
+          "pass": false,
+          "pixels": 76800,
+          "differingPixels": 76235,
+          "differingChannels": 210441,
+          "maxAbsolute": 10,
+          "rmsChannelError": 2.4968267621539812
+        }
+      },
+      {
+        "id": "gpu-rope",
+        "variant": "material-filter",
+        "pixels": {
+          "pass": false,
+          "pixels": 76800,
+          "differingPixels": 76235,
+          "differingChannels": 210441,
+          "maxAbsolute": 10,
+          "rmsChannelError": 2.4968267621539812
+        }
+      },
+      {
+        "id": "gpu-rope",
+        "variant": "shadow-cache",
+        "pixels": {
+          "pass": false,
+          "pixels": 76800,
+          "differingPixels": 76235,
+          "differingChannels": 210441,
+          "maxAbsolute": 10,
+          "rmsChannelError": 2.4968267621539812
+        }
+      },
+      {
+        "id": "gpu-rope",
+        "variant": "stable-visibility",
+        "pixels": {
+          "pass": false,
+          "pixels": 76800,
+          "differingPixels": 76235,
+          "differingChannels": 210441,
+          "maxAbsolute": 10,
+          "rmsChannelError": 2.4968267621539812
+        }
+      },
+      {
+        "id": "gpu-cloth",
+        "variant": "candidate-default",
+        "pixels": {
+          "pass": false,
+          "pixels": 76800,
+          "differingPixels": 76146,
+          "differingChannels": 209741,
+          "maxAbsolute": 10,
+          "rmsChannelError": 2.531552836822688
+        }
+      },
+      {
+        "id": "gpu-cloth",
+        "variant": "material-filter",
+        "pixels": {
+          "pass": false,
+          "pixels": 76800,
+          "differingPixels": 76146,
+          "differingChannels": 209741,
+          "maxAbsolute": 10,
+          "rmsChannelError": 2.531552836822688
+        }
+      },
+      {
+        "id": "gpu-cloth",
+        "variant": "shadow-cache",
+        "pixels": {
+          "pass": false,
+          "pixels": 76800,
+          "differingPixels": 76146,
+          "differingChannels": 209741,
+          "maxAbsolute": 10,
+          "rmsChannelError": 2.531552836822688
+        }
+      },
+      {
+        "id": "gpu-cloth",
+        "variant": "stable-visibility",
+        "pixels": {
+          "pass": false,
+          "pixels": 76800,
+          "differingPixels": 76146,
+          "differingChannels": 209741,
+          "maxAbsolute": 10,
+          "rmsChannelError": 2.531552836822688
+        }
+      },
+      {
+        "id": "packed-sheet",
+        "variant": "candidate-default",
+        "pixels": {
+          "pass": false,
+          "pixels": 76800,
+          "differingPixels": 76058,
+          "differingChannels": 209307,
+          "maxAbsolute": 10,
+          "rmsChannelError": 2.491336551431781
+        }
+      },
+      {
+        "id": "packed-sheet",
+        "variant": "material-filter",
+        "pixels": {
+          "pass": false,
+          "pixels": 76800,
+          "differingPixels": 76058,
+          "differingChannels": 209307,
+          "maxAbsolute": 10,
+          "rmsChannelError": 2.491336551431781
+        }
+      },
+      {
+        "id": "packed-sheet",
+        "variant": "shadow-cache",
+        "pixels": {
+          "pass": false,
+          "pixels": 76800,
+          "differingPixels": 76058,
+          "differingChannels": 209307,
+          "maxAbsolute": 10,
+          "rmsChannelError": 2.491336551431781
+        }
+      },
+      {
+        "id": "packed-sheet",
+        "variant": "stable-visibility",
+        "pixels": {
+          "pass": false,
+          "pixels": 76800,
+          "differingPixels": 76058,
+          "differingChannels": 209307,
+          "maxAbsolute": 10,
+          "rmsChannelError": 2.491336551431781
+        }
+      },
+      {
+        "id": "cpu-water",
+        "variant": "candidate-default",
+        "pixels": {
+          "pass": false,
+          "pixels": 76800,
+          "differingPixels": 76243,
+          "differingChannels": 210252,
+          "maxAbsolute": 10,
+          "rmsChannelError": 2.505136650048589
+        }
+      },
+      {
+        "id": "cpu-water",
+        "variant": "material-filter",
+        "pixels": {
+          "pass": false,
+          "pixels": 76800,
+          "differingPixels": 76243,
+          "differingChannels": 210252,
+          "maxAbsolute": 10,
+          "rmsChannelError": 2.505136650048589
+        }
+      },
+      {
+        "id": "cpu-water",
+        "variant": "shadow-cache",
+        "pixels": {
+          "pass": false,
+          "pixels": 76800,
+          "differingPixels": 76243,
+          "differingChannels": 210252,
+          "maxAbsolute": 10,
+          "rmsChannelError": 2.505136650048589
+        }
+      },
+      {
+        "id": "cpu-water",
+        "variant": "stable-visibility",
+        "pixels": {
+          "pass": false,
+          "pixels": 76800,
+          "differingPixels": 76243,
+          "differingChannels": 210252,
+          "maxAbsolute": 10,
+          "rmsChannelError": 2.505136650048589
+        }
+      },
+      {
+        "id": "resident-water",
+        "variant": "candidate-default",
+        "pixels": {
+          "pass": false,
+          "pixels": 76800,
+          "differingPixels": 76243,
+          "differingChannels": 210252,
+          "maxAbsolute": 10,
+          "rmsChannelError": 2.505136650048589
+        }
+      },
+      {
+        "id": "resident-water",
+        "variant": "material-filter",
+        "pixels": {
+          "pass": false,
+          "pixels": 76800,
+          "differingPixels": 76243,
+          "differingChannels": 210252,
+          "maxAbsolute": 10,
+          "rmsChannelError": 2.505136650048589
+        }
+      },
+      {
+        "id": "resident-water",
+        "variant": "shadow-cache",
+        "pixels": {
+          "pass": false,
+          "pixels": 76800,
+          "differingPixels": 76243,
+          "differingChannels": 210252,
+          "maxAbsolute": 10,
+          "rmsChannelError": 2.505136650048589
+        }
+      },
+      {
+        "id": "resident-water",
+        "variant": "stable-visibility",
+        "pixels": {
+          "pass": false,
+          "pixels": 76800,
+          "differingPixels": 76243,
+          "differingChannels": 210252,
+          "maxAbsolute": 10,
+          "rmsChannelError": 2.505136650048589
+        }
+      },
+      {
+        "id": "zero-instances",
+        "variant": "candidate-default",
+        "pixels": {
+          "pass": false,
+          "pixels": 76800,
+          "differingPixels": 76330,
+          "differingChannels": 204724,
+          "maxAbsolute": 10,
+          "rmsChannelError": 2.495573555275754
+        }
+      },
+      {
+        "id": "zero-instances",
+        "variant": "material-filter",
+        "pixels": {
+          "pass": false,
+          "pixels": 76800,
+          "differingPixels": 76330,
+          "differingChannels": 204724,
+          "maxAbsolute": 10,
+          "rmsChannelError": 2.495573555275754
+        }
+      },
+      {
+        "id": "zero-instances",
+        "variant": "shadow-cache",
+        "pixels": {
+          "pass": false,
+          "pixels": 76800,
+          "differingPixels": 76330,
+          "differingChannels": 204724,
+          "maxAbsolute": 10,
+          "rmsChannelError": 2.495573555275754
+        }
+      },
+      {
+        "id": "zero-instances",
+        "variant": "stable-visibility",
+        "pixels": {
+          "pass": false,
+          "pixels": 76800,
+          "differingPixels": 76330,
+          "differingChannels": 204724,
+          "maxAbsolute": 10,
+          "rmsChannelError": 2.495573555275754
+        }
+      },
+      {
+        "id": "single-instance",
+        "variant": "candidate-default",
+        "pixels": {
+          "pass": false,
+          "pixels": 76800,
+          "differingPixels": 76252,
+          "differingChannels": 210761,
+          "maxAbsolute": 10,
+          "rmsChannelError": 2.498010275907941
+        }
+      },
+      {
+        "id": "single-instance",
+        "variant": "material-filter",
+        "pixels": {
+          "pass": false,
+          "pixels": 76800,
+          "differingPixels": 76252,
+          "differingChannels": 210761,
+          "maxAbsolute": 10,
+          "rmsChannelError": 2.498010275907941
+        }
+      },
+      {
+        "id": "single-instance",
+        "variant": "shadow-cache",
+        "pixels": {
+          "pass": false,
+          "pixels": 76800,
+          "differingPixels": 76252,
+          "differingChannels": 210761,
+          "maxAbsolute": 10,
+          "rmsChannelError": 2.498010275907941
+        }
+      },
+      {
+        "id": "single-instance",
+        "variant": "stable-visibility",
+        "pixels": {
+          "pass": false,
+          "pixels": 76800,
+          "differingPixels": 76252,
+          "differingChannels": 210761,
+          "maxAbsolute": 10,
+          "rmsChannelError": 2.498010275907941
+        }
+      },
+      {
+        "id": "partial-group-63",
+        "variant": "candidate-default",
+        "pixels": {
+          "pass": false,
+          "pixels": 76800,
+          "differingPixels": 76186,
+          "differingChannels": 209878,
+          "maxAbsolute": 10,
+          "rmsChannelError": 2.5018521784703163
+        }
+      },
+      {
+        "id": "partial-group-63",
+        "variant": "material-filter",
+        "pixels": {
+          "pass": false,
+          "pixels": 76800,
+          "differingPixels": 76186,
+          "differingChannels": 209878,
+          "maxAbsolute": 10,
+          "rmsChannelError": 2.5018521784703163
+        }
+      },
+      {
+        "id": "partial-group-63",
+        "variant": "shadow-cache",
+        "pixels": {
+          "pass": false,
+          "pixels": 76800,
+          "differingPixels": 76186,
+          "differingChannels": 209878,
+          "maxAbsolute": 10,
+          "rmsChannelError": 2.5018521784703163
+        }
+      },
+      {
+        "id": "partial-group-63",
+        "variant": "stable-visibility",
+        "pixels": {
+          "pass": false,
+          "pixels": 76800,
+          "differingPixels": 76186,
+          "differingChannels": 209878,
+          "maxAbsolute": 10,
+          "rmsChannelError": 2.5018521784703163
+        }
+      },
+      {
+        "id": "full-group-64",
+        "variant": "candidate-default",
+        "pixels": {
+          "pass": false,
+          "pixels": 76800,
+          "differingPixels": 76185,
+          "differingChannels": 209851,
+          "maxAbsolute": 10,
+          "rmsChannelError": 2.5016407376376675
+        }
+      },
+      {
+        "id": "full-group-64",
+        "variant": "material-filter",
+        "pixels": {
+          "pass": false,
+          "pixels": 76800,
+          "differingPixels": 76185,
+          "differingChannels": 209851,
+          "maxAbsolute": 10,
+          "rmsChannelError": 2.5016407376376675
+        }
+      },
+      {
+        "id": "full-group-64",
+        "variant": "shadow-cache",
+        "pixels": {
+          "pass": false,
+          "pixels": 76800,
+          "differingPixels": 76185,
+          "differingChannels": 209851,
+          "maxAbsolute": 10,
+          "rmsChannelError": 2.5016407376376675
+        }
+      },
+      {
+        "id": "full-group-64",
+        "variant": "stable-visibility",
+        "pixels": {
+          "pass": false,
+          "pixels": 76800,
+          "differingPixels": 76185,
+          "differingChannels": 209851,
+          "maxAbsolute": 10,
+          "rmsChannelError": 2.5016407376376675
+        }
+      },
+      {
+        "id": "partial-group-65",
+        "variant": "candidate-default",
+        "pixels": {
+          "pass": false,
+          "pixels": 76800,
+          "differingPixels": 76186,
+          "differingChannels": 209856,
+          "maxAbsolute": 10,
+          "rmsChannelError": 2.501712954823821
+        }
+      },
+      {
+        "id": "partial-group-65",
+        "variant": "material-filter",
+        "pixels": {
+          "pass": false,
+          "pixels": 76800,
+          "differingPixels": 76186,
+          "differingChannels": 209856,
+          "maxAbsolute": 10,
+          "rmsChannelError": 2.501712954823821
+        }
+      },
+      {
+        "id": "partial-group-65",
+        "variant": "shadow-cache",
+        "pixels": {
+          "pass": false,
+          "pixels": 76800,
+          "differingPixels": 76186,
+          "differingChannels": 209856,
+          "maxAbsolute": 10,
+          "rmsChannelError": 2.501712954823821
+        }
+      },
+      {
+        "id": "partial-group-65",
+        "variant": "stable-visibility",
+        "pixels": {
+          "pass": false,
+          "pixels": 76800,
+          "differingPixels": 76186,
+          "differingChannels": 209856,
+          "maxAbsolute": 10,
+          "rmsChannelError": 2.501712954823821
+        }
+      },
+      {
+        "id": "prefix-4097",
+        "variant": "candidate-default",
+        "pixels": {
+          "pass": false,
+          "pixels": 76800,
+          "differingPixels": 76215,
+          "differingChannels": 210281,
+          "maxAbsolute": 10,
+          "rmsChannelError": 2.501549649925355
+        }
+      },
+      {
+        "id": "prefix-4097",
+        "variant": "material-filter",
+        "pixels": {
+          "pass": false,
+          "pixels": 76800,
+          "differingPixels": 76215,
+          "differingChannels": 210281,
+          "maxAbsolute": 10,
+          "rmsChannelError": 2.501549649925355
+        }
+      },
+      {
+        "id": "prefix-4097",
+        "variant": "shadow-cache",
+        "pixels": {
+          "pass": false,
+          "pixels": 76800,
+          "differingPixels": 76215,
+          "differingChannels": 210281,
+          "maxAbsolute": 10,
+          "rmsChannelError": 2.501549649925355
+        }
+      },
+      {
+        "id": "prefix-4097",
+        "variant": "stable-visibility",
+        "pixels": {
+          "pass": false,
+          "pixels": 76800,
+          "differingPixels": 76215,
+          "differingChannels": 210281,
+          "maxAbsolute": 10,
+          "rmsChannelError": 2.501549649925355
+        }
+      },
+      {
+        "id": "prefix-8193",
+        "variant": "candidate-default",
+        "pixels": {
+          "pass": false,
+          "pixels": 76800,
+          "differingPixels": 76215,
+          "differingChannels": 210281,
+          "maxAbsolute": 10,
+          "rmsChannelError": 2.501549649925355
+        }
+      },
+      {
+        "id": "prefix-8193",
+        "variant": "material-filter",
+        "pixels": {
+          "pass": false,
+          "pixels": 76800,
+          "differingPixels": 76215,
+          "differingChannels": 210281,
+          "maxAbsolute": 10,
+          "rmsChannelError": 2.501549649925355
+        }
+      },
+      {
+        "id": "prefix-8193",
+        "variant": "shadow-cache",
+        "pixels": {
+          "pass": false,
+          "pixels": 76800,
+          "differingPixels": 76215,
+          "differingChannels": 210281,
+          "maxAbsolute": 10,
+          "rmsChannelError": 2.501549649925355
+        }
+      },
+      {
+        "id": "prefix-8193",
+        "variant": "stable-visibility",
+        "pixels": {
+          "pass": false,
+          "pixels": 76800,
+          "differingPixels": 76215,
+          "differingChannels": 210281,
+          "maxAbsolute": 10,
+          "rmsChannelError": 2.501549649925355
+        }
+      },
+      {
+        "id": "large-cancellation",
+        "variant": "candidate-default",
+        "pixels": {
+          "pass": false,
+          "pixels": 76800,
+          "differingPixels": 76316,
+          "differingChannels": 205012,
+          "maxAbsolute": 10,
+          "rmsChannelError": 2.5957265310425774
+        }
+      },
+      {
+        "id": "large-cancellation",
+        "variant": "material-filter",
+        "pixels": {
+          "pass": false,
+          "pixels": 76800,
+          "differingPixels": 76316,
+          "differingChannels": 205012,
+          "maxAbsolute": 10,
+          "rmsChannelError": 2.5957265310425774
+        }
+      },
+      {
+        "id": "large-cancellation",
+        "variant": "shadow-cache",
+        "pixels": {
+          "pass": false,
+          "pixels": 76800,
+          "differingPixels": 76316,
+          "differingChannels": 205012,
+          "maxAbsolute": 10,
+          "rmsChannelError": 2.5957265310425774
+        }
+      },
+      {
+        "id": "large-cancellation",
+        "variant": "stable-visibility",
+        "pixels": {
+          "pass": false,
+          "pixels": 76800,
+          "differingPixels": 76316,
+          "differingChannels": 205012,
+          "maxAbsolute": 10,
+          "rmsChannelError": 2.5957265310425774
+        }
+      }
+    ]
+  },
+  "visibility": {
+    "total": 21,
+    "failed": []
+  },
+  "qualityCorrections": [
+    {
+      "id": "empty-caster-shadow-clear",
+      "status": "FAILED",
+      "changedPixels": 2234
+    },
+    {
+      "id": "orthographic-signed-depth",
+      "status": "FAILED",
+      "changedPixels": 1420
+    },
+    {
+      "id": "material-rounding-boundary",
+      "status": "FAILED",
+      "changedPixels": 1462
+    }
+  ],
+  "cacheInvalidation": {
+    "total": 25,
+    "failed": [
+      {
+        "id": "initial-content",
+        "status": "FAILED",
+        "pixels": {
+          "pass": false,
+          "pixels": 76800,
+          "differingPixels": 76242,
+          "differingChannels": 210604,
+          "maxAbsolute": 10,
+          "rmsChannelError": 2.499523392068976
+        },
+        "expectedShadowReuse": false,
+        "expectedShadowPass": true,
+        "behaviorPass": true,
+        "shadowPassDelta": 1,
+        "shadowCacheHitDelta": 0,
+        "candidateDiagnostics": {
+          "frames": 81,
+          "shadowPasses": 61,
+          "shadowCacheHits": 20,
+          "shadowEmptyClears": 4,
+          "visibilityEncodes": 35,
+          "lastInputInstances": 9,
+          "lastSubmittedInstances": {
+            "opaque": 9,
+            "transparent": 0,
+            "shadow": 9
+          },
+          "lastShadowReused": false,
+          "effectiveVertexMaterialRejection": false,
+          "optimizations": {
+            "vertexMaterialRejection": true,
+            "shadowPcfFetch": true,
+            "shadowCache": true,
+            "computeVisibility": false
+          }
+        }
+      },
+      {
+        "id": "reused-unchanged",
+        "status": "FAILED",
+        "pixels": {
+          "pass": false,
+          "pixels": 76800,
+          "differingPixels": 76242,
+          "differingChannels": 210604,
+          "maxAbsolute": 10,
+          "rmsChannelError": 2.499523392068976
+        },
+        "expectedShadowReuse": true,
+        "expectedShadowPass": false,
+        "behaviorPass": true,
+        "shadowPassDelta": 0,
+        "shadowCacheHitDelta": 1,
+        "candidateDiagnostics": {
+          "frames": 82,
+          "shadowPasses": 61,
+          "shadowCacheHits": 21,
+          "shadowEmptyClears": 4,
+          "visibilityEncodes": 35,
+          "lastInputInstances": 9,
+          "lastSubmittedInstances": {
+            "opaque": 9,
+            "transparent": 0,
+            "shadow": 0
+          },
+          "lastShadowReused": true,
+          "effectiveVertexMaterialRejection": false,
+          "optimizations": {
+            "vertexMaterialRejection": true,
+            "shadowPcfFetch": true,
+            "shadowCache": true,
+            "computeVisibility": false
+          }
+        }
+      },
+      {
+        "id": "rigid-transform",
+        "status": "FAILED",
+        "pixels": {
+          "pass": false,
+          "pixels": 76800,
+          "differingPixels": 76242,
+          "differingChannels": 210605,
+          "maxAbsolute": 10,
+          "rmsChannelError": 2.4992036492067493
+        },
+        "expectedShadowReuse": false,
+        "expectedShadowPass": true,
+        "behaviorPass": true,
+        "shadowPassDelta": 1,
+        "shadowCacheHitDelta": 0,
+        "candidateDiagnostics": {
+          "frames": 83,
+          "shadowPasses": 62,
+          "shadowCacheHits": 21,
+          "shadowEmptyClears": 4,
+          "visibilityEncodes": 35,
+          "lastInputInstances": 9,
+          "lastSubmittedInstances": {
+            "opaque": 9,
+            "transparent": 0,
+            "shadow": 9
+          },
+          "lastShadowReused": false,
+          "effectiveVertexMaterialRejection": false,
+          "optimizations": {
+            "vertexMaterialRejection": true,
+            "shadowPcfFetch": true,
+            "shadowCache": true,
+            "computeVisibility": false
+          }
+        }
+      },
+      {
+        "id": "caster-material-change",
+        "status": "FAILED",
+        "pixels": {
+          "pass": false,
+          "pixels": 76800,
+          "differingPixels": 76242,
+          "differingChannels": 210609,
+          "maxAbsolute": 10,
+          "rmsChannelError": 2.4992629121736405
+        },
+        "expectedShadowReuse": false,
+        "expectedShadowPass": true,
+        "behaviorPass": true,
+        "shadowPassDelta": 1,
+        "shadowCacheHitDelta": 0,
+        "candidateDiagnostics": {
+          "frames": 84,
+          "shadowPasses": 63,
+          "shadowCacheHits": 21,
+          "shadowEmptyClears": 4,
+          "visibilityEncodes": 35,
+          "lastInputInstances": 9,
+          "lastSubmittedInstances": {
+            "opaque": 9,
+            "transparent": 9,
+            "shadow": 9
+          },
+          "lastShadowReused": false,
+          "effectiveVertexMaterialRejection": true,
+          "optimizations": {
+            "vertexMaterialRejection": true,
+            "shadowPcfFetch": true,
+            "shadowCache": true,
+            "computeVisibility": false
+          }
+        }
+      },
+      {
+        "id": "light-matrix-change",
+        "status": "FAILED",
+        "pixels": {
+          "pass": false,
+          "pixels": 76800,
+          "differingPixels": 76231,
+          "differingChannels": 210612,
+          "maxAbsolute": 10,
+          "rmsChannelError": 2.4992414213700256
+        },
+        "expectedShadowReuse": false,
+        "expectedShadowPass": true,
+        "behaviorPass": true,
+        "shadowPassDelta": 1,
+        "shadowCacheHitDelta": 0,
+        "candidateDiagnostics": {
+          "frames": 85,
+          "shadowPasses": 64,
+          "shadowCacheHits": 21,
+          "shadowEmptyClears": 4,
+          "visibilityEncodes": 35,
+          "lastInputInstances": 9,
+          "lastSubmittedInstances": {
+            "opaque": 9,
+            "transparent": 9,
+            "shadow": 9
+          },
+          "lastShadowReused": false,
+          "effectiveVertexMaterialRejection": true,
+          "optimizations": {
+            "vertexMaterialRejection": true,
+            "shadowPcfFetch": true,
+            "shadowCache": true,
+            "computeVisibility": false
+          }
+        }
+      },
+      {
+        "id": "effect-upload",
+        "status": "FAILED",
+        "pixels": {
+          "pass": false,
+          "pixels": 76800,
+          "differingPixels": 76231,
+          "differingChannels": 210629,
+          "maxAbsolute": 10,
+          "rmsChannelError": 2.4991886704321997
+        },
+        "expectedShadowReuse": false,
+        "expectedShadowPass": true,
+        "behaviorPass": true,
+        "shadowPassDelta": 1,
+        "shadowCacheHitDelta": 0,
+        "candidateDiagnostics": {
+          "frames": 86,
+          "shadowPasses": 65,
+          "shadowCacheHits": 21,
+          "shadowEmptyClears": 4,
+          "visibilityEncodes": 35,
+          "lastInputInstances": 9,
+          "lastSubmittedInstances": {
+            "opaque": 9,
+            "transparent": 9,
+            "shadow": 9
+          },
+          "lastShadowReused": false,
+          "effectiveVertexMaterialRejection": true,
+          "optimizations": {
+            "vertexMaterialRejection": true,
+            "shadowPcfFetch": true,
+            "shadowCache": true,
+            "computeVisibility": false
+          }
+        }
+      },
+      {
+        "id": "soft-upload",
+        "status": "FAILED",
+        "pixels": {
+          "pass": false,
+          "pixels": 76800,
+          "differingPixels": 76230,
+          "differingChannels": 210622,
+          "maxAbsolute": 10,
+          "rmsChannelError": 2.4991821578935243
+        },
+        "expectedShadowReuse": false,
+        "expectedShadowPass": true,
+        "behaviorPass": true,
+        "shadowPassDelta": 1,
+        "shadowCacheHitDelta": 0,
+        "candidateDiagnostics": {
+          "frames": 87,
+          "shadowPasses": 66,
+          "shadowCacheHits": 21,
+          "shadowEmptyClears": 4,
+          "visibilityEncodes": 35,
+          "lastInputInstances": 9,
+          "lastSubmittedInstances": {
+            "opaque": 9,
+            "transparent": 9,
+            "shadow": 9
+          },
+          "lastShadowReused": false,
+          "effectiveVertexMaterialRejection": true,
+          "optimizations": {
+            "vertexMaterialRejection": true,
+            "shadowPcfFetch": true,
+            "shadowCache": true,
+            "computeVisibility": false
+          }
+        }
+      },
+      {
+        "id": "external-encode-callback",
+        "status": "FAILED",
+        "pixels": {
+          "pass": false,
+          "pixels": 76800,
+          "differingPixels": 76230,
+          "differingChannels": 210622,
+          "maxAbsolute": 10,
+          "rmsChannelError": 2.4991821578935243
+        },
+        "expectedShadowReuse": false,
+        "expectedShadowPass": true,
+        "behaviorPass": true,
+        "shadowPassDelta": 1,
+        "shadowCacheHitDelta": 0,
+        "candidateDiagnostics": {
+          "frames": 89,
+          "shadowPasses": 68,
+          "shadowCacheHits": 21,
+          "shadowEmptyClears": 4,
+          "visibilityEncodes": 35,
+          "lastInputInstances": 9,
+          "lastSubmittedInstances": {
+            "opaque": 9,
+            "transparent": 9,
+            "shadow": 9
+          },
+          "lastShadowReused": false,
+          "effectiveVertexMaterialRejection": true,
+          "optimizations": {
+            "vertexMaterialRejection": true,
+            "shadowPcfFetch": true,
+            "shadowCache": true,
+            "computeVisibility": false
+          }
+        }
+      },
+      {
+        "id": "quality-4x-nine-taps",
+        "status": "FAILED",
+        "pixels": {
+          "pass": false,
+          "pixels": 76800,
+          "differingPixels": 76181,
+          "differingChannels": 210338,
+          "maxAbsolute": 10,
+          "rmsChannelError": 2.498451994694248
+        },
+        "expectedShadowReuse": true,
+        "expectedShadowPass": false,
+        "behaviorPass": true,
+        "shadowPassDelta": 0,
+        "shadowCacheHitDelta": 1,
+        "candidateDiagnostics": {
+          "frames": 90,
+          "shadowPasses": 68,
+          "shadowCacheHits": 22,
+          "shadowEmptyClears": 4,
+          "visibilityEncodes": 35,
+          "lastInputInstances": 9,
+          "lastSubmittedInstances": {
+            "opaque": 9,
+            "transparent": 9,
+            "shadow": 0
+          },
+          "lastShadowReused": true,
+          "effectiveVertexMaterialRejection": true,
+          "optimizations": {
+            "vertexMaterialRejection": true,
+            "shadowPcfFetch": true,
+            "shadowCache": true,
+            "computeVisibility": false
+          }
+        }
+      },
+      {
+        "id": "shadow-map-recreation",
+        "status": "FAILED",
+        "pixels": {
+          "pass": false,
+          "pixels": 76800,
+          "differingPixels": 76235,
+          "differingChannels": 210732,
+          "maxAbsolute": 10,
+          "rmsChannelError": 2.4994224593310217
+        },
+        "expectedShadowReuse": false,
+        "expectedShadowPass": true,
+        "behaviorPass": true,
+        "shadowPassDelta": 1,
+        "shadowCacheHitDelta": 0,
+        "candidateDiagnostics": {
+          "frames": 91,
+          "shadowPasses": 69,
+          "shadowCacheHits": 22,
+          "shadowEmptyClears": 4,
+          "visibilityEncodes": 35,
+          "lastInputInstances": 9,
+          "lastSubmittedInstances": {
+            "opaque": 9,
+            "transparent": 9,
+            "shadow": 9
+          },
+          "lastShadowReused": false,
+          "effectiveVertexMaterialRejection": true,
+          "optimizations": {
+            "vertexMaterialRejection": true,
+            "shadowPcfFetch": true,
+            "shadowCache": true,
+            "computeVisibility": false
+          }
+        }
+      },
+      {
+        "id": "resolution-scale",
+        "status": "FAILED",
+        "pixels": {
+          "pass": false,
+          "pixels": 43200,
+          "differingPixels": 42889,
+          "differingChannels": 118588,
+          "maxAbsolute": 10,
+          "rmsChannelError": 2.5020974997286074
+        },
+        "expectedShadowReuse": true,
+        "expectedShadowPass": false,
+        "behaviorPass": true,
+        "shadowPassDelta": 0,
+        "shadowCacheHitDelta": 1,
+        "candidateDiagnostics": {
+          "frames": 92,
+          "shadowPasses": 69,
+          "shadowCacheHits": 23,
+          "shadowEmptyClears": 4,
+          "visibilityEncodes": 35,
+          "lastInputInstances": 9,
+          "lastSubmittedInstances": {
+            "opaque": 9,
+            "transparent": 9,
+            "shadow": 0
+          },
+          "lastShadowReused": true,
+          "effectiveVertexMaterialRejection": true,
+          "optimizations": {
+            "vertexMaterialRejection": true,
+            "shadowPcfFetch": true,
+            "shadowCache": true,
+            "computeVisibility": false
+          }
+        }
+      },
+      {
+        "id": "restored-quality",
+        "status": "FAILED",
+        "pixels": {
+          "pass": false,
+          "pixels": 76800,
+          "differingPixels": 76230,
+          "differingChannels": 210622,
+          "maxAbsolute": 10,
+          "rmsChannelError": 2.4991821578935243
+        },
+        "expectedShadowReuse": false,
+        "expectedShadowPass": true,
+        "behaviorPass": true,
+        "shadowPassDelta": 1,
+        "shadowCacheHitDelta": 0,
+        "candidateDiagnostics": {
+          "frames": 93,
+          "shadowPasses": 70,
+          "shadowCacheHits": 23,
+          "shadowEmptyClears": 4,
+          "visibilityEncodes": 35,
+          "lastInputInstances": 9,
+          "lastSubmittedInstances": {
+            "opaque": 9,
+            "transparent": 9,
+            "shadow": 9
+          },
+          "lastShadowReused": false,
+          "effectiveVertexMaterialRejection": true,
+          "optimizations": {
+            "vertexMaterialRejection": true,
+            "shadowPcfFetch": true,
+            "shadowCache": true,
+            "computeVisibility": false
+          }
+        }
+      },
+      {
+        "id": "cloth-introduced",
+        "status": "FAILED",
+        "pixels": {
+          "pass": false,
+          "pixels": 76800,
+          "differingPixels": 76134,
+          "differingChannels": 209738,
+          "maxAbsolute": 10,
+          "rmsChannelError": 2.531545121684581
+        },
+        "expectedShadowReuse": false,
+        "expectedShadowPass": true,
+        "behaviorPass": true,
+        "shadowPassDelta": 1,
+        "shadowCacheHitDelta": 0,
+        "candidateDiagnostics": {
+          "frames": 94,
+          "shadowPasses": 71,
+          "shadowCacheHits": 23,
+          "shadowEmptyClears": 4,
+          "visibilityEncodes": 35,
+          "lastInputInstances": 9,
+          "lastSubmittedInstances": {
+            "opaque": 9,
+            "transparent": 9,
+            "shadow": 9
+          },
+          "lastShadowReused": false,
+          "effectiveVertexMaterialRejection": true,
+          "optimizations": {
+            "vertexMaterialRejection": true,
+            "shadowPcfFetch": true,
+            "shadowCache": true,
+            "computeVisibility": false
+          }
+        }
+      },
+      {
+        "id": "cloth-deformation",
+        "status": "FAILED",
+        "pixels": {
+          "pass": false,
+          "pixels": 76800,
+          "differingPixels": 76134,
+          "differingChannels": 209636,
+          "maxAbsolute": 10,
+          "rmsChannelError": 2.5292584758185552
+        },
+        "expectedShadowReuse": false,
+        "expectedShadowPass": true,
+        "behaviorPass": true,
+        "shadowPassDelta": 1,
+        "shadowCacheHitDelta": 0,
+        "candidateDiagnostics": {
+          "frames": 95,
+          "shadowPasses": 72,
+          "shadowCacheHits": 23,
+          "shadowEmptyClears": 4,
+          "visibilityEncodes": 35,
+          "lastInputInstances": 9,
+          "lastSubmittedInstances": {
+            "opaque": 9,
+            "transparent": 9,
+            "shadow": 9
+          },
+          "lastShadowReused": false,
+          "effectiveVertexMaterialRejection": true,
+          "optimizations": {
+            "vertexMaterialRejection": true,
+            "shadowPcfFetch": true,
+            "shadowCache": true,
+            "computeVisibility": false
+          }
+        }
+      },
+      {
+        "id": "sheet-introduced",
+        "status": "FAILED",
+        "pixels": {
+          "pass": false,
+          "pixels": 76800,
+          "differingPixels": 76049,
+          "differingChannels": 209317,
+          "maxAbsolute": 10,
+          "rmsChannelError": 2.4913104190699857
+        },
+        "expectedShadowReuse": false,
+        "expectedShadowPass": true,
+        "behaviorPass": true,
+        "shadowPassDelta": 1,
+        "shadowCacheHitDelta": 0,
+        "candidateDiagnostics": {
+          "frames": 96,
+          "shadowPasses": 73,
+          "shadowCacheHits": 23,
+          "shadowEmptyClears": 4,
+          "visibilityEncodes": 35,
+          "lastInputInstances": 9,
+          "lastSubmittedInstances": {
+            "opaque": 9,
+            "transparent": 9,
+            "shadow": 9
+          },
+          "lastShadowReused": false,
+          "effectiveVertexMaterialRejection": true,
+          "optimizations": {
+            "vertexMaterialRejection": true,
+            "shadowPcfFetch": true,
+            "shadowCache": true,
+            "computeVisibility": false
+          }
+        }
+      },
+      {
+        "id": "sheet-deformation",
+        "status": "FAILED",
+        "pixels": {
+          "pass": false,
+          "pixels": 76800,
+          "differingPixels": 76055,
+          "differingChannels": 209362,
+          "maxAbsolute": 10,
+          "rmsChannelError": 2.4913809758177625
+        },
+        "expectedShadowReuse": false,
+        "expectedShadowPass": true,
+        "behaviorPass": true,
+        "shadowPassDelta": 1,
+        "shadowCacheHitDelta": 0,
+        "candidateDiagnostics": {
+          "frames": 97,
+          "shadowPasses": 74,
+          "shadowCacheHits": 23,
+          "shadowEmptyClears": 4,
+          "visibilityEncodes": 35,
+          "lastInputInstances": 9,
+          "lastSubmittedInstances": {
+            "opaque": 9,
+            "transparent": 9,
+            "shadow": 9
+          },
+          "lastShadowReused": false,
+          "effectiveVertexMaterialRejection": true,
+          "optimizations": {
+            "vertexMaterialRejection": true,
+            "shadowPcfFetch": true,
+            "shadowCache": true,
+            "computeVisibility": false
+          }
+        }
+      },
+      {
+        "id": "surface-caster-removed",
+        "status": "FAILED",
+        "pixels": {
+          "pass": false,
+          "pixels": 76800,
+          "differingPixels": 76230,
+          "differingChannels": 210622,
+          "maxAbsolute": 10,
+          "rmsChannelError": 2.4991821578935243
+        },
+        "expectedShadowReuse": false,
+        "expectedShadowPass": true,
+        "behaviorPass": true,
+        "shadowPassDelta": 1,
+        "shadowCacheHitDelta": 0,
+        "candidateDiagnostics": {
+          "frames": 98,
+          "shadowPasses": 75,
+          "shadowCacheHits": 23,
+          "shadowEmptyClears": 4,
+          "visibilityEncodes": 35,
+          "lastInputInstances": 9,
+          "lastSubmittedInstances": {
+            "opaque": 9,
+            "transparent": 9,
+            "shadow": 9
+          },
+          "lastShadowReused": false,
+          "effectiveVertexMaterialRejection": true,
+          "optimizations": {
+            "vertexMaterialRejection": true,
+            "shadowPcfFetch": true,
+            "shadowCache": true,
+            "computeVisibility": false
+          }
+        }
+      },
+      {
+        "id": "water-introduced",
+        "status": "FAILED",
+        "pixels": {
+          "pass": false,
+          "pixels": 76800,
+          "differingPixels": 76231,
+          "differingChannels": 210271,
+          "maxAbsolute": 10,
+          "rmsChannelError": 2.5047942311944507
+        },
+        "expectedShadowReuse": true,
+        "expectedShadowPass": false,
+        "behaviorPass": true,
+        "shadowPassDelta": 0,
+        "shadowCacheHitDelta": 1,
+        "candidateDiagnostics": {
+          "frames": 99,
+          "shadowPasses": 75,
+          "shadowCacheHits": 24,
+          "shadowEmptyClears": 4,
+          "visibilityEncodes": 35,
+          "lastInputInstances": 9,
+          "lastSubmittedInstances": {
+            "opaque": 9,
+            "transparent": 9,
+            "shadow": 0
+          },
+          "lastShadowReused": true,
+          "effectiveVertexMaterialRejection": true,
+          "optimizations": {
+            "vertexMaterialRejection": true,
+            "shadowPcfFetch": true,
+            "shadowCache": true,
+            "computeVisibility": false
+          }
+        }
+      },
+      {
+        "id": "water-only-update",
+        "status": "FAILED",
+        "pixels": {
+          "pass": false,
+          "pixels": 76800,
+          "differingPixels": 76224,
+          "differingChannels": 210213,
+          "maxAbsolute": 10,
+          "rmsChannelError": 2.5045628932926265
+        },
+        "expectedShadowReuse": true,
+        "expectedShadowPass": false,
+        "behaviorPass": true,
+        "shadowPassDelta": 0,
+        "shadowCacheHitDelta": 1,
+        "candidateDiagnostics": {
+          "frames": 100,
+          "shadowPasses": 75,
+          "shadowCacheHits": 25,
+          "shadowEmptyClears": 4,
+          "visibilityEncodes": 35,
+          "lastInputInstances": 9,
+          "lastSubmittedInstances": {
+            "opaque": 9,
+            "transparent": 9,
+            "shadow": 0
+          },
+          "lastShadowReused": true,
+          "effectiveVertexMaterialRejection": true,
+          "optimizations": {
+            "vertexMaterialRejection": true,
+            "shadowPcfFetch": true,
+            "shadowCache": true,
+            "computeVisibility": false
+          }
+        }
+      },
+      {
+        "id": "shadows-disabled",
+        "status": "FAILED",
+        "pixels": {
+          "pass": false,
+          "pixels": 76800,
+          "differingPixels": 76239,
+          "differingChannels": 210350,
+          "maxAbsolute": 10,
+          "rmsChannelError": 2.5045193525904326
+        },
+        "expectedShadowReuse": false,
+        "expectedShadowPass": false,
+        "behaviorPass": true,
+        "shadowPassDelta": 0,
+        "shadowCacheHitDelta": 0,
+        "candidateDiagnostics": {
+          "frames": 101,
+          "shadowPasses": 75,
+          "shadowCacheHits": 25,
+          "shadowEmptyClears": 4,
+          "visibilityEncodes": 35,
+          "lastInputInstances": 9,
+          "lastSubmittedInstances": {
+            "opaque": 9,
+            "transparent": 9,
+            "shadow": 0
+          },
+          "lastShadowReused": false,
+          "effectiveVertexMaterialRejection": true,
+          "optimizations": {
+            "vertexMaterialRejection": true,
+            "shadowPcfFetch": true,
+            "shadowCache": true,
+            "computeVisibility": false
+          }
+        }
+      },
+      {
+        "id": "changed-while-shadows-disabled",
+        "status": "FAILED",
+        "pixels": {
+          "pass": false,
+          "pixels": 76800,
+          "differingPixels": 76239,
+          "differingChannels": 210354,
+          "maxAbsolute": 10,
+          "rmsChannelError": 2.504520652323847
+        },
+        "expectedShadowReuse": false,
+        "expectedShadowPass": false,
+        "behaviorPass": true,
+        "shadowPassDelta": 0,
+        "shadowCacheHitDelta": 0,
+        "candidateDiagnostics": {
+          "frames": 102,
+          "shadowPasses": 75,
+          "shadowCacheHits": 25,
+          "shadowEmptyClears": 4,
+          "visibilityEncodes": 35,
+          "lastInputInstances": 9,
+          "lastSubmittedInstances": {
+            "opaque": 9,
+            "transparent": 9,
+            "shadow": 0
+          },
+          "lastShadowReused": false,
+          "effectiveVertexMaterialRejection": true,
+          "optimizations": {
+            "vertexMaterialRejection": true,
+            "shadowPcfFetch": true,
+            "shadowCache": true,
+            "computeVisibility": false
+          }
+        }
+      },
+      {
+        "id": "shadows-reenabled-after-change",
+        "status": "FAILED",
+        "pixels": {
+          "pass": false,
+          "pixels": 76800,
+          "differingPixels": 76225,
+          "differingChannels": 210222,
+          "maxAbsolute": 10,
+          "rmsChannelError": 2.5045674422775415
+        },
+        "expectedShadowReuse": false,
+        "expectedShadowPass": true,
+        "behaviorPass": true,
+        "shadowPassDelta": 1,
+        "shadowCacheHitDelta": 0,
+        "candidateDiagnostics": {
+          "frames": 103,
+          "shadowPasses": 76,
+          "shadowCacheHits": 25,
+          "shadowEmptyClears": 4,
+          "visibilityEncodes": 35,
+          "lastInputInstances": 9,
+          "lastSubmittedInstances": {
+            "opaque": 9,
+            "transparent": 9,
+            "shadow": 9
+          },
+          "lastShadowReused": false,
+          "effectiveVertexMaterialRejection": true,
+          "optimizations": {
+            "vertexMaterialRejection": true,
+            "shadowPcfFetch": true,
+            "shadowCache": true,
+            "computeVisibility": false
+          }
+        }
+      },
+      {
+        "id": "rope-introduced",
+        "status": "FAILED",
+        "pixels": {
+          "pass": false,
+          "pixels": 76800,
+          "differingPixels": 76235,
+          "differingChannels": 210441,
+          "maxAbsolute": 10,
+          "rmsChannelError": 2.4968267621539812
+        },
+        "expectedShadowReuse": false,
+        "expectedShadowPass": true,
+        "behaviorPass": true,
+        "shadowPassDelta": 1,
+        "shadowCacheHitDelta": 0,
+        "candidateDiagnostics": {
+          "frames": 104,
+          "shadowPasses": 77,
+          "shadowCacheHits": 25,
+          "shadowEmptyClears": 4,
+          "visibilityEncodes": 35,
+          "lastInputInstances": 65,
+          "lastSubmittedInstances": {
+            "opaque": 65,
+            "transparent": 65,
+            "shadow": 65
+          },
+          "lastShadowReused": false,
+          "effectiveVertexMaterialRejection": true,
+          "optimizations": {
+            "vertexMaterialRejection": true,
+            "shadowPcfFetch": true,
+            "shadowCache": true,
+            "computeVisibility": false
+          }
+        }
+      },
+      {
+        "id": "rope-deformation",
+        "status": "FAILED",
+        "pixels": {
+          "pass": false,
+          "pixels": 76800,
+          "differingPixels": 76234,
+          "differingChannels": 210416,
+          "maxAbsolute": 10,
+          "rmsChannelError": 2.4967791752575956
+        },
+        "expectedShadowReuse": false,
+        "expectedShadowPass": true,
+        "behaviorPass": true,
+        "shadowPassDelta": 1,
+        "shadowCacheHitDelta": 0,
+        "candidateDiagnostics": {
+          "frames": 105,
+          "shadowPasses": 78,
+          "shadowCacheHits": 25,
+          "shadowEmptyClears": 4,
+          "visibilityEncodes": 35,
+          "lastInputInstances": 65,
+          "lastSubmittedInstances": {
+            "opaque": 65,
+            "transparent": 65,
+            "shadow": 65
+          },
+          "lastShadowReused": false,
+          "effectiveVertexMaterialRejection": true,
+          "optimizations": {
+            "vertexMaterialRejection": true,
+            "shadowPcfFetch": true,
+            "shadowCache": true,
+            "computeVisibility": false
+          }
+        }
+      },
+      {
+        "id": "rope-disabled",
+        "status": "FAILED",
+        "pixels": {
+          "pass": false,
+          "pixels": 76800,
+          "differingPixels": 76252,
+          "differingChannels": 210761,
+          "maxAbsolute": 10,
+          "rmsChannelError": 2.498010275907941
+        },
+        "expectedShadowReuse": false,
+        "expectedShadowPass": true,
+        "behaviorPass": true,
+        "shadowPassDelta": 1,
+        "shadowCacheHitDelta": 0,
+        "candidateDiagnostics": {
+          "frames": 106,
+          "shadowPasses": 79,
+          "shadowCacheHits": 25,
+          "shadowEmptyClears": 4,
+          "visibilityEncodes": 35,
+          "lastInputInstances": 1,
+          "lastSubmittedInstances": {
+            "opaque": 1,
+            "transparent": 0,
+            "shadow": 1
+          },
+          "lastShadowReused": false,
+          "effectiveVertexMaterialRejection": false,
+          "optimizations": {
+            "vertexMaterialRejection": true,
+            "shadowPcfFetch": true,
+            "shadowCache": true,
+            "computeVisibility": false
+          }
+        }
+      }
+    ]
+  },
+  "timings": [
+    {
+      "id": "all-visible-opaque",
+      "variant": "candidate-default",
+      "baselineWallP50": 2.502500057220459,
+      "candidateWallP50": 2.427500009536743,
+      "wallRatio": 1.0308960030439005,
+      "baselineGpuP50": 0.046448,
+      "candidateGpuP50": 0.027712
+    },
+    {
+      "id": "all-visible-opaque",
+      "variant": "material-filter",
+      "baselineWallP50": 2.5225000381469727,
+      "candidateWallP50": 2.4750001430511475,
+      "wallRatio": 1.0191918756971334,
+      "baselineGpuP50": 0.046703999999999996,
+      "candidateGpuP50": 0.046608
+    },
+    {
+      "id": "all-visible-opaque",
+      "variant": "shadow-cache",
+      "baselineWallP50": 2.4600000381469727,
+      "candidateWallP50": 2.415000081062317,
+      "wallRatio": 1.0186335219768858,
+      "baselineGpuP50": 0.046624,
+      "candidateGpuP50": 0.027696
+    },
+    {
+      "id": "all-visible-opaque",
+      "variant": "stable-visibility",
+      "baselineWallP50": 2.4499999284744263,
+      "candidateWallP50": 2.5549999475479126,
+      "wallRatio": 0.9589041012802145,
+      "baselineGpuP50": 0.046512,
+      "candidateGpuP50": 0.057856
+    },
+    {
+      "id": "mostly-offscreen",
+      "variant": "candidate-default",
+      "baselineWallP50": 2.397499918937683,
+      "candidateWallP50": 2.3925000429153442,
+      "wallRatio": 1.0020898123020496,
+      "baselineGpuP50": 0.104576,
+      "candidateGpuP50": 0.057472
+    },
+    {
+      "id": "mostly-offscreen",
+      "variant": "material-filter",
+      "baselineWallP50": 2.3924999237060547,
+      "candidateWallP50": 2.3925000429153442,
+      "wallRatio": 0.9999999501737565,
+      "baselineGpuP50": 0.104736,
+      "candidateGpuP50": 0.10496
+    },
+    {
+      "id": "mostly-offscreen",
+      "variant": "shadow-cache",
+      "baselineWallP50": 2.4100000858306885,
+      "candidateWallP50": 2.369999885559082,
+      "wallRatio": 1.016877722448569,
+      "baselineGpuP50": 0.104752,
+      "candidateGpuP50": 0.057488
+    },
+    {
+      "id": "mostly-offscreen",
+      "variant": "stable-visibility",
+      "baselineWallP50": 2.557499885559082,
+      "candidateWallP50": 2.642500162124634,
+      "wallRatio": 0.9678333883252407,
+      "baselineGpuP50": 0.104784,
+      "candidateGpuP50": 0.050144
+    },
+    {
+      "id": "mixed-materials",
+      "variant": "candidate-default",
+      "baselineWallP50": 2.532500147819519,
+      "candidateWallP50": 2.444999933242798,
+      "wallRatio": 1.0357874098019586,
+      "baselineGpuP50": 0.054912,
+      "candidateGpuP50": 0.033920000000000006
+    },
+    {
+      "id": "mixed-materials",
+      "variant": "material-filter",
+      "baselineWallP50": 2.4449998140335083,
+      "candidateWallP50": 2.412500023841858,
+      "wallRatio": 1.013471415490349,
+      "baselineGpuP50": 0.054896,
+      "candidateGpuP50": 0.050816
+    },
+    {
+      "id": "mixed-materials",
+      "variant": "shadow-cache",
+      "baselineWallP50": 2.4200000762939453,
+      "candidateWallP50": 2.387500047683716,
+      "wallRatio": 1.0136125771564948,
+      "baselineGpuP50": 0.05488,
+      "candidateGpuP50": 0.033792
+    },
+    {
+      "id": "mixed-materials",
+      "variant": "stable-visibility",
+      "baselineWallP50": 2.4024999141693115,
+      "candidateWallP50": 2.4600000381469727,
+      "wallRatio": 0.9766259662251981,
+      "baselineGpuP50": 0.054944,
+      "candidateGpuP50": 0.059455999999999995
+    },
+    {
+      "id": "paused-orbit",
+      "variant": "candidate-default",
+      "baselineWallP50": 2.4674999713897705,
+      "candidateWallP50": 2.4024999141693115,
+      "wallRatio": 1.0270551756681054,
+      "baselineGpuP50": 0.04184,
+      "candidateGpuP50": 0.025391999999999998
+    },
+    {
+      "id": "paused-orbit",
+      "variant": "material-filter",
+      "baselineWallP50": 2.4774999618530273,
+      "candidateWallP50": 2.4700000286102295,
+      "wallRatio": 1.0030364101845852,
+      "baselineGpuP50": 0.041792,
+      "candidateGpuP50": 0.042016
+    },
+    {
+      "id": "paused-orbit",
+      "variant": "shadow-cache",
+      "baselineWallP50": 2.445000171661377,
+      "candidateWallP50": 2.4099998474121094,
+      "wallRatio": 1.0145229570395415,
+      "baselineGpuP50": 0.041712,
+      "candidateGpuP50": 0.025391999999999998
+    },
+    {
+      "id": "paused-orbit",
+      "variant": "stable-visibility",
+      "baselineWallP50": 2.4374998807907104,
+      "candidateWallP50": 2.4850000143051147,
+      "wallRatio": 0.9808852582531326,
+      "baselineGpuP50": 0.11393600000000001,
+      "candidateGpuP50": 0.103408
+    },
+    {
+      "id": "moving-rigids",
+      "variant": "candidate-default",
+      "baselineWallP50": 2.7549999952316284,
+      "candidateWallP50": 2.742500066757202,
+      "wallRatio": 1.0045578589499202,
+      "baselineGpuP50": 0.119584,
+      "candidateGpuP50": 0.120112
+    },
+    {
+      "id": "moving-rigids",
+      "variant": "material-filter",
+      "baselineWallP50": 2.84499990940094,
+      "candidateWallP50": 2.8125,
+      "wallRatio": 1.0115555233425564,
+      "baselineGpuP50": 0.126768,
+      "candidateGpuP50": 0.127808
+    },
+    {
+      "id": "moving-rigids",
+      "variant": "shadow-cache",
+      "baselineWallP50": 2.8324999809265137,
+      "candidateWallP50": 2.7675000429153442,
+      "wallRatio": 1.0234868787726186,
+      "baselineGpuP50": 0.132048,
+      "candidateGpuP50": 0.13406400000000002
+    },
+    {
+      "id": "moving-rigids",
+      "variant": "stable-visibility",
+      "baselineWallP50": 2.6399999856948853,
+      "candidateWallP50": 2.697499990463257,
+      "wallRatio": 0.9786839647927128,
+      "baselineGpuP50": 0.13828800000000002,
+      "candidateGpuP50": 0.240864
+    },
+    {
+      "id": "quality-4x-nine-taps",
+      "variant": "candidate-default",
+      "baselineWallP50": 2.6950000524520874,
+      "candidateWallP50": 2.6449999809265137,
+      "wallRatio": 1.0189036188605414,
+      "baselineGpuP50": 0.179792,
+      "candidateGpuP50": 0.122832
+    },
+    {
+      "id": "quality-4x-nine-taps",
+      "variant": "material-filter",
+      "baselineWallP50": 2.71999990940094,
+      "candidateWallP50": 2.694999933242798,
+      "wallRatio": 1.0092764292309502,
+      "baselineGpuP50": 0.19352,
+      "candidateGpuP50": 0.183824
+    },
+    {
+      "id": "quality-4x-nine-taps",
+      "variant": "shadow-cache",
+      "baselineWallP50": 2.782500147819519,
+      "candidateWallP50": 2.715000033378601,
+      "wallRatio": 1.0248619202987337,
+      "baselineGpuP50": 0.210432,
+      "candidateGpuP50": 0.144704
+    },
+    {
+      "id": "quality-4x-nine-taps",
+      "variant": "stable-visibility",
+      "baselineWallP50": 2.7874999046325684,
+      "candidateWallP50": 2.8499999046325684,
+      "wallRatio": 0.9780701747047751,
+      "baselineGpuP50": 0.21952,
+      "candidateGpuP50": 0.252272
+    }
+  ],
+  "gpuValidationErrors": []
+}

@@ -6,11 +6,13 @@ import os from 'node:os';
 import path from 'node:path';
 import { performance } from 'node:perf_hooks';
 import { fileURLToPath, pathToFileURL } from 'node:url';
-import ts from 'typescript';
 import { create, globals } from 'webgpu';
+import { emitTypeScriptModuleTree } from './emit-typescript-module-tree.mjs';
 
 const scriptPath = fileURLToPath(import.meta.url);
 const currentRoot = path.resolve(path.dirname(scriptPath), '..');
+// Dawn backend for the physical adapter; Metal on macOS (the default), Vulkan on Linux GPU hosts.
+const dawnBackend = process.env.WEBGPU_DAWN_BACKEND ?? 'metal';
 
 function median(values) {
   const sorted = [...values].sort((a, b) => a - b);
@@ -26,26 +28,14 @@ function mad(values) {
 async function childMain(root) {
   const tempDir = fs.mkdtempSync(path.join(os.tmpdir(), 'webphysics-renderer-startup-'));
   try {
-    const webgpuDir = path.join(tempDir, 'webgpu');
-    const assetsDir = path.join(tempDir, 'assets');
-    fs.mkdirSync(webgpuDir, { recursive: true });
-    fs.mkdirSync(assetsDir, { recursive: true });
-    const rendererSource = fs.readFileSync(path.join(root, 'src/webgpu/renderer.ts'), 'utf8');
-    const ktx2Source = fs.readFileSync(path.join(root, 'src/assets/ktx2.ts'), 'utf8');
-    const transpile = (source, fileName) => ts.transpileModule(source, {
-      compilerOptions: {
-        target: ts.ScriptTarget.ES2022,
-        module: ts.ModuleKind.ES2022,
-        importsNotUsedAsValues: ts.ImportsNotUsedAsValues.Remove,
-      },
-      fileName,
-    }).outputText;
-    const rendererPath = path.join(webgpuDir, 'renderer.mjs');
-    fs.writeFileSync(rendererPath, transpile(rendererSource, 'renderer.ts').replace('../assets/ktx2.js', '../assets/ktx2.mjs'));
-    fs.writeFileSync(path.join(assetsDir, 'ktx2.mjs'), transpile(ktx2Source, 'ktx2.ts'));
+    const { entryPath: rendererPath } = emitTypeScriptModuleTree({
+      sourceRoot: path.join(root, 'src'),
+      outputRoot: tempDir,
+      entry: 'webgpu/renderer.ts',
+    });
 
     Object.assign(globalThis, globals);
-    const gpu = create(['backend=metal']);
+    const gpu = create([`backend=${dawnBackend}`]);
     Object.defineProperty(globalThis, 'navigator', { configurable: true, value: { gpu } });
     Object.defineProperty(globalThis, 'window', { configurable: true, value: { devicePixelRatio: 1 } });
     Object.defineProperty(globalThis, 'fetch', {
@@ -88,7 +78,8 @@ async function childMain(root) {
     const errors = [];
     renderer.device.addEventListener?.('uncapturederror', (event) => errors.push(event.error?.message ?? String(event.error)));
     assert.deepEqual(errors, []);
-    renderer.device.destroy();
+    if (renderer.dispose) renderer.dispose();
+    else renderer.device.destroy();
     process.stdout.write(`${JSON.stringify({ createMs })}\n`);
   } finally {
     fs.rmSync(tempDir, { recursive: true, force: true });
@@ -128,7 +119,7 @@ if (process.argv[2] === '--child') {
       .digest('hex');
     const evidence = {
       rendererSha256,
-      environment: { backend: 'Metal', samples, canvas: [1280, 720], maxInstances: 4096, freshProcesses: true },
+      environment: { backend: dawnBackend, samples, canvas: [1280, 720], maxInstances: 4096, freshProcesses: true },
       baseline: {
         source: process.env.RENDERER_BASELINE_ROOT ?? path.relative(currentRoot, baselineArchive),
         samplesMs: measured.baseline,
@@ -138,7 +129,7 @@ if (process.argv[2] === '--child') {
       optimized: { root: currentRoot, samplesMs: measured.optimized, medianMs: optimizedMedian, madMs: mad(measured.optimized) },
       optimizedOverBaseline: optimizedMedian / baselineMedian,
     };
-    const outputPath = path.join(currentRoot, 'benchmarks/results/renderer-startup-metal.json');
+    const outputPath = path.resolve(currentRoot, process.env.RENDERER_STARTUP_OUT ?? `benchmarks/results/renderer-startup-${dawnBackend}.json`);
     fs.writeFileSync(outputPath, `${JSON.stringify(evidence, null, 2)}\n`);
     console.log(JSON.stringify(evidence, null, 2));
     console.log(`Wrote ${outputPath}`);

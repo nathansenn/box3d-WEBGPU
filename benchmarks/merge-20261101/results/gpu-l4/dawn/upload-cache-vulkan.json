@@ -1,0 +1,10 @@
+{
+  "rendererSha256": "b441aa851c24dec5ce9276f5b00bd4cb6f5e7539d333289fc070e8b259e19a45",
+  "uploadCacheBenchmark": {
+    "dawnBackend": "vulkan",
+    "cachedNsPerCall": 247.5304399999959,
+    "changedNsPerCall": 4345.41349999995,
+    "callSpeedup": 17.555067166688758,
+    "cachedUploadedBytes": 0
+  }
+}

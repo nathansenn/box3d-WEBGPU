@@ -1,0 +1,10 @@
+diag rc=0 52s
+rendering-prepare-pinned rc=0 1s
+rendering-pinned rc=0 2s
+rendering-prepare-control rc=0 2s
+rendering-control rc=0 1s
+math-browser rc=0 5s
+math-render-parity rc=0 2s
+startup rc=0 71s
+runtime-partition-on rc=0 2s
+runtime-partition-off rc=0 2s

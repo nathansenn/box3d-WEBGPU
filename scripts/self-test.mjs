@@ -162,9 +162,9 @@ assert.match(cmake, /MODULARIZE=1/, 'WASM output must be modularized');
 assert.match(cmake, /EXPORT_ES6=1/, 'WASM output must be an ES module');
 assert.match(cmake, /ALLOW_MEMORY_GROWTH=1/, 'WASM build must allow heap growth');
 assert.match(cmake, /-msimd128/, 'WASM build must support SIMD');
-assert.match(cBridge, /b3w_add_aaa_set_dressing/, 'native bridge missing AAA set dressing');
-assert.match(cBridge, /b3w_scene_fracture_stage/, 'native bridge missing the material-fracture fixture stage');
-assert.match(cBridge, /case 15:[\s\S]*?b3w_scene_fracture_stage/, 'native bridge must map the sixteenth family to material fracture');
+assert.match(cBridge, /b3w_ctx_add_aaa_set_dressing/, 'native bridge missing AAA set dressing');
+assert.match(cBridge, /b3w_ctx_scene_fracture_stage/, 'native bridge missing the material-fracture fixture stage');
+assert.match(cBridge, /case 15:[\s\S]*?b3w_ctx_scene_fracture_stage/, 'native bridge must map the sixteenth family to material fracture');
 assert.match(cBridge, /mode\s*>=\s*3/, 'native bridge missing cinematic scene mode');
 assert.match(cBridge, /b3World_GetAwakeBodyCount/, 'native bridge must gate settled transform work with Box3D awake counts');
 assert.match(cBridge, /if \(awakeBefore == 0\)[\s\S]*?return;/, 'native bridge must skip solver and stream work for a fully settled world');
@@ -177,27 +177,16 @@ assert.match(
 );
 
 const html = read('index.html');
-const requiredIds = [
-  'gpu-canvas', 'warning', 'showcase-select', 'showcase-title', 'showcase-play',
-  'showcase-restart', 'showcase-next', 'cinematic-progress', 'cinematic-progress-bar',
-  'scene-buttons', 'scene-search', 'category-filter', 'scene-select', 'max-tour',
-  'quality', 'speed', 'stress', 'stress-value', 'pause', 'step', 'reset', 'debug',
-  'kick', 'projectile', 'explode', 'rain', 'run-tests', 'run-turboquant', 'test-log', 'body-count',
-  'dynamic-count', 'effect-count', 'soft-system', 'soft-nodes', 'soft-constraints', 'soft-breaks', 'soft-energy', 'fps', 'sim-ms', 'render-ms', 'upload', 'backend',
-  'hash', 'quality-stat', 'material-rig', 'material-name', 'material-test',
-  'material-load-target', 'material-load-value', 'material-apply', 'material-release',
-  'material-cycle', 'material-dent', 'material-load', 'material-strain', 'material-thresholds',
-  'material-damage', 'material-dent-depth', 'material-residual-dent', 'material-fragments', 'material-failure',
-];
-for (const id of requiredIds) {
-  const matches = html.match(new RegExp(`id=["']${id}["']`, 'g')) ?? [];
-  assert.equal(matches.length, 1, `index.html must contain exactly one #${id}`);
+// The shipped page is the Engineering Studio shell: src/entry.ts boots the
+// selected study. The AAA showcase UI in src/main.ts is no longer linked from it.
+assert.equal((html.match(/id=["']studio["']/g) ?? []).length, 1, 'index.html must contain exactly one #studio root');
+assert.match(html, /<script type="module" src="\/src\/entry\.ts"><\/script>/, 'index.html must boot the studio entry module');
+for (const study of ['liquid', 'glass', 'concrete', 'rubber', 'granular', 'plate', 'canopy', 'bridge']) {
+  assert.match(html, new RegExp(`href="/\\?studio=${study}"`), `index.html must link the ${study} study`);
 }
+assert.match(html, /not calibrated engineering results/, 'index.html must state that the models are not calibrated engineering results');
 const allIds = [...html.matchAll(/id=["']([^"']+)["']/g)].map((match) => match[1]);
 assert.equal(new Set(allIds).size, allIds.length, 'index.html contains duplicate ids');
-assert.ok(html.includes(`AAA Physics Capability Lab · v${currentVersion}`), `UI release badge must match package v${currentVersion}`);
-assert.match(html, /800 deterministic recipes/, 'UI must advertise the complete 800-scene catalog');
-assert.match(html, /Run 800 \+ 68 State Tests/, 'UI state-test label must match the stable 800-scene and expanded 68-showcase matrix');
 
 const showcases = read('src/showcases.ts');
 const legacyShowcaseDefinitions = [...showcases.matchAll(/\bid:\s*'[^']+'\s*,\s*sceneId:/g)];
@@ -470,6 +459,6 @@ for (const releaseDocument of [
   assert.ok(read(releaseDocument).includes(currentGate), `${releaseDocument} must reference the current ${currentGate} gate`);
 }
 assert.ok(read('VALIDATION_REPORT.md').includes(`v${currentVersion}`), 'validation report title must match package version');
-assert.ok(html.includes(`v${currentVersion}`), 'application release badge must match package version');
+assert.ok(html.includes(`<meta name="application-version" content="${currentVersion}" />`), 'index.html must declare the package version');
 
 console.log(`✅ repository self-test passed: v${currentVersion} exact 100-improvement signature-stage registry, safe controls, synchronized pause/director behavior, 13 metal + 10 glass + 10 concrete presentations, one combined AAA materials proving ground, preserved performance evidence, native Box3D WASM, qualified soft kernels, GPU cloth/water, compute-expanded rope/material lattices, upload caches, 68 hero sequences over the stable 800-scene catalog, workflows, and UI contracts`);

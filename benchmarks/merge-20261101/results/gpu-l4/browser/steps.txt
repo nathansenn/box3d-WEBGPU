@@ -1,0 +1,6 @@
+rendering-prepare-pinned rc=0 1s
+rendering-pinned rc=1 11s
+rendering-prepare-control rc=0 1s
+rendering-control rc=0 11s
+math-browser rc=0 9s
+math-render-parity rc=0 3s

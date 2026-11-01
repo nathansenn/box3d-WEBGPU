@@ -1,0 +1,10 @@
+{
+  "source": "https://github.com/nathansenn/box3d-WEBGPU/blob/dfedd9fe9983200f492d686488d27b6a4b11c650/src/webgpu/renderer.ts",
+  "gitBlob": "e75d39fa091f3b91665c967dcfe548a86d8a0352",
+  "sourceSha256": "af5b3beac1f02f4e6d75e383270151c7679a473fac196b576ff59085c6e3b03f",
+  "sourceBytes": 139414,
+  "removedOnlyToolAppendedFinalLF": false,
+  "transform": "node v24.22.1 stripTypeScriptTypes(mode=transform)",
+  "runtimeImportRelocation": "../assets/ktx2.js → ../../src/assets/ktx2.ts",
+  "fixtureSha256": "8f81d2d06dad6a0477b2473a8cc5fb092ea325cbc4df9e3645a6bcd2e729b0a5"
+}

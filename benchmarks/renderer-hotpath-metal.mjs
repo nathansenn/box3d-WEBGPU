@@ -8,8 +8,8 @@ import os from 'node:os';
 import path from 'node:path';
 import { performance } from 'node:perf_hooks';
 import { fileURLToPath, pathToFileURL } from 'node:url';
-import ts from 'typescript';
 import { create, globals } from 'webgpu';
+import { emitTypeScriptModuleTree } from '../scripts/emit-typescript-module-tree.mjs';
 
 Object.assign(globalThis, globals);
 
@@ -456,29 +456,17 @@ function createCanvas(width, height) {
   };
 }
 
-function compileRenderer(tempRoot, label, rendererSource, ktx2Source) {
+function compileRenderer(tempRoot, label, rendererSource, ktx2Source, sourceRoot) {
   const moduleRoot = path.join(tempRoot, label);
-  const webgpuDir = path.join(moduleRoot, 'webgpu');
-  const assetsDir = path.join(moduleRoot, 'assets');
-  fs.mkdirSync(webgpuDir, { recursive: true });
-  fs.mkdirSync(assetsDir, { recursive: true });
-  let rendererJavaScript = ts.transpileModule(rendererSource, {
-    compilerOptions: {
-      target: ts.ScriptTarget.ES2022,
-      module: ts.ModuleKind.ES2022,
-      importsNotUsedAsValues: ts.ImportsNotUsedAsValues.Remove,
+  return emitTypeScriptModuleTree({
+    sourceRoot,
+    outputRoot: moduleRoot,
+    entry: 'webgpu/renderer.ts',
+    sourceOverrides: {
+      'webgpu/renderer.ts': rendererSource,
+      'assets/ktx2.ts': ktx2Source,
     },
-    fileName: 'renderer.ts',
-  }).outputText;
-  rendererJavaScript = rendererJavaScript.replace('../assets/ktx2.js', '../assets/ktx2.mjs');
-  const ktx2JavaScript = ts.transpileModule(ktx2Source, {
-    compilerOptions: { target: ts.ScriptTarget.ES2022, module: ts.ModuleKind.ES2022 },
-    fileName: 'ktx2.ts',
-  }).outputText;
-  const rendererPath = path.join(webgpuDir, 'renderer.mjs');
-  fs.writeFileSync(rendererPath, rendererJavaScript);
-  fs.writeFileSync(path.join(assetsDir, 'ktx2.mjs'), ktx2JavaScript);
-  return rendererPath;
+  }).entryPath;
 }
 
 async function createRenderer(rendererPath, label) {
@@ -857,11 +845,17 @@ async function main() {
   const runtimeErrors = [];
   const startedAt = performance.now();
   try {
-    const baselineModule = compileRenderer(tempRoot, 'baseline', baselineRendererSource, baselineKtx2Source);
+    // Archive-derived variants must resolve their dependencies from that exact
+    // archive, never from a newer workspace module with the same path.
+    const archiveSourceRoot = path.join(tempRoot, 'archive-source');
+    fs.mkdirSync(archiveSourceRoot, { recursive: true });
+    execFileSync('tar', ['--no-same-owner', '-xzf', archivePath, '-C', archiveSourceRoot, 'src']);
+    const baselineModule = compileRenderer(tempRoot, 'baseline', baselineRendererSource, baselineKtx2Source, path.join(archiveSourceRoot, 'src'));
     const variantModules = new Map();
     for (const [label, source] of variantSources) {
       if (!requestedCandidates.includes(label)) continue;
-      variantModules.set(label, compileRenderer(tempRoot, label, source, baselineKtx2Source));
+      const sourceRoot = label === 'workspace-current' ? path.join(root, 'src') : path.join(archiveSourceRoot, 'src');
+      variantModules.set(label, compileRenderer(tempRoot, label, source, baselineKtx2Source, sourceRoot));
     }
 
     gpu = create([`backend=${config.backend}`]);

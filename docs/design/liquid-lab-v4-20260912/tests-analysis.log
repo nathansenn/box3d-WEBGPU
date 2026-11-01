@@ -1,0 +1,46 @@
+✔ section measurement integrates the recorded velocity and depth with signed flow (4.217166ms)
+✔ solid probes are distinct from dry cells and excluded from discharge (3.5845ms)
+✔ timing normalizes and round-trips while old saved runs gain safe defaults (15.240292ms)
+✔ cutoff splits crossing steps exactly at 0.123 s, dt 0.008333333333333333 (36.194583ms)
+✔ cutoff splits crossing steps exactly at 0.123 s, dt 0.037 (8.595584ms)
+✔ cutoff splits crossing steps exactly at 0.123 s, dt 0.25 (5.148292ms)
+✔ after cutoff the recorded source stays off while a wet inclined bed drains (118.336708ms)
+✔ zero cutoff leaves supply running and a flume ignores supply cutoff (125.473584ms)
+✔ every preset offers three distinct bounded values including its current value (8.926917ms)
+✔ worker cases agree with the live solver and serialize actual measurements (867.782ms)
+✖ sixty-second studies bound retained samples and reach the exact requested endpoint (1404.584459ms)
+✔ recording export keeps endpoints and deduplicates repeated final frames (1.087833ms)
+ℹ tests 12
+ℹ suites 0
+ℹ pass 11
+ℹ fail 1
+ℹ cancelled 0
+ℹ skipped 0
+ℹ todo 0
+ℹ duration_ms 2773.887375
+
+✖ failing tests:
+
+test at tests/studio/liquid-lab-v4.test.mjs:58:1
+✖ sixty-second studies bound retained samples and reach the exact requested endpoint (1404.584459ms)
+  AssertionError [ERR_ASSERTION]: Expected values to be strictly equal:
+  + actual - expected
+  
+  + 5.9642857142857135
+  - 5.964285714285714
+                    ^
+  
+      at TestContext.<anonymous> (file:///Users/commander/box3d-WEBGPU/tests/studio/liquid-lab-v4.test.mjs:60:115)
+      at Test.runInAsyncScope (node:async_hooks:226:14)
+      at Test.run (node:internal/test_runner/test:1201:25)
+      at Test.processPendingSubtests (node:internal/test_runner/test:831:18)
+      at Test.postRun (node:internal/test_runner/test:1330:19)
+      at Test.run (node:internal/test_runner/test:1258:12)
+      at async Test.processPendingSubtests (node:internal/test_runner/test:831:7) {
+    generatedMessage: true,
+    code: 'ERR_ASSERTION',
+    actual: 5.9642857142857135,
+    expected: 5.964285714285714,
+    operator: 'strictEqual',
+    diff: 'simple'
+  }

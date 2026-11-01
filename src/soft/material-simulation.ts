@@ -7,8 +7,9 @@ import {
 } from '../math';
 import { getMaterialDemoRecipe, type MaterialDemoRecipe } from '../material-demos';
 import type { ScenePreset } from '../scenes';
+import { quantizedHash as sharedQuantizedHash } from './quantized-hash';
 import type { DebugLine, MaterialFailureTelemetry, PackedSurfaceFrame, RopeGridFrame } from '../types';
-import type { SoftSimulation, SoftSimulationFrame } from './simulations';
+import type { SoftSimulation, SoftSimulationFrame, SoftSimulationTelemetry } from './simulations';
 import { materialPresetForVariant, type MaterialBehaviorPreset } from './material-presets';
 import {
   PACKED_SURFACE_VERTEX_BYTES,
@@ -121,15 +122,7 @@ type HingeSeed = {
 };
 
 function quantizedHash(values: ArrayLike<number>, seed = 2166136261): number {
-  let hash = seed >>> 0;
-  for (let i = 0; i < values.length; i++) {
-    const q = Math.trunc(values[i] * 100000) | 0;
-    hash ^= q & 0xff; hash = Math.imul(hash, 16777619) >>> 0;
-    hash ^= (q >>> 8) & 0xff; hash = Math.imul(hash, 16777619) >>> 0;
-    hash ^= (q >>> 16) & 0xff; hash = Math.imul(hash, 16777619) >>> 0;
-    hash ^= (q >>> 24) & 0xff; hash = Math.imul(hash, 16777619) >>> 0;
-  }
-  return hash >>> 0;
+  return sharedQuantizedHash(values, 100000, values.length, seed);
 }
 
 function setColor(out: Float32Array, index: number, color: readonly number[]): void {
@@ -405,6 +398,7 @@ export class MaterialSimulation implements SoftSimulation {
   private cycleEnabled = false;
   private time = 0;
   private frameVersion = 1;
+  private telemetryResult: SoftSimulationTelemetry | null = null;
   private builtFrameVersion = -1;
   private builtFrameDebug = false;
   private telemetryCountdown = 0;
@@ -3301,6 +3295,23 @@ export class MaterialSimulation implements SoftSimulation {
       );
     }
     return index;
+  }
+
+  readTelemetry(): SoftSimulationTelemetry {
+    if (this.telemetryResult?.frameVersion === this.frameVersion) return this.telemetryResult;
+    return this.telemetryResult = Object.freeze({
+      kind: this.kind,
+      label: this.label,
+      nodeCount: this.nodeCountValue,
+      constraintCount: this.constraintCountValue,
+      brokenCount: this.brokenCountValue,
+      energy: this.energyValue,
+      hash: this.hashValue,
+      frameVersion: this.frameVersion,
+      // Material telemetry is mutable solver state. A retained recording read
+      // must not change when the next scheduled telemetry refresh occurs.
+      material: Object.freeze({ ...this.telemetry }),
+    });
   }
 
   buildFrame(debug: boolean): SoftSimulationFrame {

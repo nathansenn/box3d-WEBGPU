@@ -121,7 +121,9 @@ export function mat4OrthographicInto(
 ): Mat4 {
   const lr = 1 / Math.max(EPSILON, right - left);
   const bt = 1 / Math.max(EPSILON, top - bottom);
-  const nf = 1 / Math.max(EPSILON, near - far);
+  // View-space points in front of a right-handed camera have negative z.
+  // Keep the depth scale negative: -near maps to 0 and -far maps to 1.
+  const nf = -1 / Math.max(EPSILON, far - near);
   out.fill(0);
   out[0] = 2 * lr;
   out[5] = 2 * bt;

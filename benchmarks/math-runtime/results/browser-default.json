@@ -1,0 +1,4372 @@
+{
+  "schemaVersion": "box3d-math-runtime-benchmark/1",
+  "createdAt": "2026-10-31T20:55:21.129Z",
+  "status": "COMPLETED",
+  "settings": {
+    "seed": 1592631587,
+    "samples": 7,
+    "warmupBatches": 2,
+    "transferSamples": 3,
+    "budgetMs": 120000,
+    "cases": [
+      {
+        "id": "48x40",
+        "cols": 48,
+        "rows": 40,
+        "batchSteps": 16,
+        "checkpoints": [
+          1,
+          2,
+          8,
+          64
+        ]
+      },
+      {
+        "id": "96x80",
+        "cols": 96,
+        "rows": 80,
+        "batchSteps": 16,
+        "checkpoints": [
+          1,
+          2,
+          8,
+          64
+        ]
+      }
+    ],
+    "tolerance": {
+      "absolute": 0.00002,
+      "relative": 0.0002
+    }
+  },
+  "settingsSha256": "cf63e2c84855caf1e52e0c538f63a20784a2d259052724cd813532edf28688cd",
+  "provenance": {
+    "runtime": "browser",
+    "userAgent": "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) HeadlessChrome/141.0.0.0 Safari/537.36",
+    "secureContext": true,
+    "crossOriginIsolated": true,
+    "visibilityAtStart": "visible",
+    "devicePixelRatio": 1,
+    "sourceSha256": {
+      "src/soft/water-reference.ts": "ba7526294d6f45f5c4c6ee2a082a3d652043e7ab687627edfd2b26cc7236cf82",
+      "src/webgpu/water-compute.ts": "507b1c30a6d4b60a2d682f4d3fc525941ae134fd7c81d7881b511e819a5de7b4",
+      "src/runtime/execution-graph.ts": "656849d46181021aed046a1b2ca25315488172065288022f5ab891eb5e222829",
+      "benchmarks/math-runtime/common.mjs": "7cd29de8a84b9ed72536d10b2e37a736e9c74e9100ff77d057bb22ce966f5193",
+      "benchmarks/math-runtime/adapters.mjs": "a877062baadbaed90428d037cd2adfd7b836d3e09051c99b1875798aba0a8975",
+      "benchmarks/math-runtime/timing.mjs": "bf8e37f240229bdc6010e238605957368e467cc3642162eaf5cc78b3864c9284",
+      "benchmarks/math-runtime/core.mjs": "758c8e7b0e029ef9b2f0ab36c449c8e8d5fcd84f26ff5e71f34db61e82e997b4",
+      "benchmarks/math-runtime/graph.mjs": "5eebdc18ce9f5102647b30b127719403c15b4818d305c2a16cb57a28675908c0",
+      "benchmarks/math-runtime/conformance.mjs": "af135a6059f4b757912d88ab27f47ad5acfafd3408254f0e3c7d66a7b2d47e8c",
+      "benchmarks/math-runtime/browser.mjs": "f3f2725e71725c96c5011e551153b38e57938145943594223ca5da9e1d941b8e"
+    },
+    "recoveryNote": "Fresh run after workspace reset. Earlier raw sample files were lost; this rerun supersedes them.",
+    "visibilityAtEnd": "visible",
+    "browserVersion": "141.0.7390.37",
+    "browserExtraArguments": [],
+    "browserLaunchProfile": "Playwright standard headless profile; no additional GPU flags",
+    "browserExecutable": "/workspace/scratch/7ce173892f29/browser-cache/chromium-1194/chrome-linux/chrome",
+    "browserFullArguments": [
+      "/workspace/scratch/7ce173892f29/browser-cache/chromium-1194/chrome-linux/chrome",
+      "--disable-field-trial-config",
+      "--disable-background-networking",
+      "--disable-background-timer-throttling",
+      "--disable-backgrounding-occluded-windows",
+      "--disable-back-forward-cache",
+      "--disable-breakpad",
+      "--disable-client-side-phishing-detection",
+      "--disable-component-extensions-with-background-pages",
+      "--disable-component-update",
+      "--no-default-browser-check",
+      "--disable-default-apps",
+      "--disable-dev-shm-usage",
+      "--disable-extensions",
+      "--disable-features=AcceptCHFrame,AvoidUnnecessaryBeforeUnloadCheckSync,DestroyProfileOnBrowserClose,DialMediaRouteProvider,GlobalMediaControls,HttpsUpgrades,LensOverlay,MediaRouter,PaintHolding,ThirdPartyStoragePartitioning,Translate,AutoDeElevate,RenderDocument",
+      "--enable-features=CDPScreenshotNewSurface",
+      "--allow-pre-commit-input",
+      "--disable-hang-monitor",
+      "--disable-ipc-flooding-protection",
+      "--disable-popup-blocking",
+      "--disable-prompt-on-repost",
+      "--disable-renderer-backgrounding",
+      "--force-color-profile=srgb",
+      "--metrics-recording-only",
+      "--no-first-run",
+      "--password-store=basic",
+      "--use-mock-keychain",
+      "--no-service-autorun",
+      "--export-tagged-pdf",
+      "--disable-search-engine-choice-screen",
+      "--unsafely-disable-devtools-self-xss-warnings",
+      "--edge-skip-compat-layer-relaunch",
+      "--enable-automation",
+      "--headless",
+      "--hide-scrollbars",
+      "--mute-audio",
+      "--blink-settings=primaryHoverType=2,availableHoverTypes=2,primaryPointerType=4,availablePointerTypes=4",
+      "--no-sandbox",
+      "--user-data-dir=/tmp/playwright_chromiumdev_profile-r82zMP",
+      "--remote-debugging-pipe",
+      "--no-startup-window",
+      "--noerrdialogs",
+      "--ozone-platform=headless",
+      "--ozone-override-screen-size=800,600",
+      "--use-angle=swiftshader-webgl",
+      "--flag-switches-begin",
+      "--flag-switches-end"
+    ],
+    "automation": {
+      "url": "http://127.0.0.1:4317/benchmarks/math-runtime/index.html",
+      "viewport": {
+        "width": 1440,
+        "height": 1000
+      },
+      "deviceScaleFactor": 1,
+      "pageErrors": [],
+      "consoleErrors": []
+    }
+  },
+  "scope": "Solver microbenchmark; no full-scene FPS or theorem-derived speedup claim.",
+  "timingCaveat": "Percentiles describe the sample set, not confidence bounds.",
+  "validationCaveat": "Finite seeded checks, not an all-input proof.",
+  "gpu": {
+    "status": "BLOCKED",
+    "reason": "requestAdapter returned null."
+  },
+  "wasm": {
+    "scalar": {
+      "status": "AVAILABLE",
+      "byteLength": 3926,
+      "sha256": "99893fdaf3c94214ef952cd1e0d592242f2b06618480741c00630495854286b6"
+    },
+    "simd": {
+      "status": "AVAILABLE",
+      "byteLength": 6216,
+      "sha256": "8744df67b629cca4f15e9ff375723d9b6b2d5411df664c42642ec461c2e10c31"
+    }
+  },
+  "cases": [
+    {
+      "id": "48x40",
+      "grid": {
+        "cols": 48,
+        "rows": 40
+      },
+      "cells": 1920,
+      "status": "VALIDATED",
+      "seed": 1592631587,
+      "initialStateSha256": "cd1965b2bbe6d1e882750ee3514ffce08437434b6eefb67f233c99e30ad06be3",
+      "params": {
+        "dt": 0.008333333333333333,
+        "gravity": 9.81,
+        "meanDepth": 1.55,
+        "drag": 0.33,
+        "invTwoDx": 0.6911764705882353,
+        "invTwoDz": 0.8125
+      },
+      "physicalExtent": {
+        "width": 34,
+        "depth": 24
+      },
+      "nonzeroBoundaryHistory": true,
+      "checkedSteps": [
+        1,
+        2,
+        8,
+        64
+      ],
+      "comparisons": [
+        {
+          "step": 1,
+          "candidate": "f32-reference",
+          "baseline": "javascript-reference",
+          "pass": true,
+          "expectedSteps": 1,
+          "actualSteps": 1,
+          "tolerance": {
+            "absolute": 0.00002,
+            "relative": 0.0002
+          },
+          "fields": {
+            "current.eta": {
+              "pass": true,
+              "count": 1920,
+              "exactMatches": 1392,
+              "failures": 0,
+              "nonFinite": 0,
+              "maxAbsolute": 2.9802322387695312e-8,
+              "rmsAbsolute": 3.307565662472688e-9,
+              "maxNormalized": 0.0006353318297485539,
+              "worstIndex": 8,
+              "expectedAtWorst": 0.13454139232635498,
+              "actualAtWorst": 0.13454142212867737
+            },
+            "current.u": {
+              "pass": true,
+              "count": 1920,
+              "exactMatches": 1168,
+              "failures": 0,
+              "nonFinite": 0,
+              "maxAbsolute": 1.862645149230957e-9,
+              "rmsAbsolute": 5.90103629301839e-10,
+              "maxNormalized": 0.00008080601583075181,
+              "worstIndex": 1403,
+              "expectedAtWorst": 0.01525411382317543,
+              "actualAtWorst": 0.01525411568582058
+            },
+            "current.v": {
+              "pass": true,
+              "count": 1920,
+              "exactMatches": 1082,
+              "failures": 0,
+              "nonFinite": 0,
+              "maxAbsolute": 1.862645149230957e-9,
+              "rmsAbsolute": 5.906328596056139e-10,
+              "maxNormalized": 0.00008236790773539705,
+              "worstIndex": 143,
+              "expectedAtWorst": -0.013068621046841145,
+              "actualAtWorst": -0.013068619184195995
+            },
+            "destination.eta": {
+              "pass": true,
+              "count": 1920,
+              "exactMatches": 1920,
+              "failures": 0,
+              "nonFinite": 0,
+              "maxAbsolute": 0,
+              "rmsAbsolute": 0,
+              "maxNormalized": 0,
+              "worstIndex": 0,
+              "expectedAtWorst": 0.025054918602108955,
+              "actualAtWorst": 0.025054918602108955
+            },
+            "destination.u": {
+              "pass": true,
+              "count": 1920,
+              "exactMatches": 1920,
+              "failures": 0,
+              "nonFinite": 0,
+              "maxAbsolute": 0,
+              "rmsAbsolute": 0,
+              "maxNormalized": 0,
+              "worstIndex": 0,
+              "expectedAtWorst": 0.011492257006466389,
+              "actualAtWorst": 0.011492257006466389
+            },
+            "destination.v": {
+              "pass": true,
+              "count": 1920,
+              "exactMatches": 1920,
+              "failures": 0,
+              "nonFinite": 0,
+              "maxAbsolute": 0,
+              "rmsAbsolute": 0,
+              "maxNormalized": 0,
+              "worstIndex": 0,
+              "expectedAtWorst": -0.013877613469958305,
+              "actualAtWorst": -0.013877613469958305
+            }
+          }
+        },
+        {
+          "step": 1,
+          "candidate": "wasm-scalar",
+          "baseline": "javascript-reference",
+          "pass": true,
+          "expectedSteps": 1,
+          "actualSteps": 1,
+          "tolerance": {
+            "absolute": 0.00002,
+            "relative": 0.0002
+          },
+          "fields": {
+            "current.eta": {
+              "pass": true,
+              "count": 1920,
+              "exactMatches": 1392,
+              "failures": 0,
+              "nonFinite": 0,
+              "maxAbsolute": 2.9802322387695312e-8,
+              "rmsAbsolute": 3.307565662472688e-9,
+              "maxNormalized": 0.0006353318297485539,
+              "worstIndex": 8,
+              "expectedAtWorst": 0.13454139232635498,
+              "actualAtWorst": 0.13454142212867737
+            },
+            "current.u": {
+              "pass": true,
+              "count": 1920,
+              "exactMatches": 1168,
+              "failures": 0,
+              "nonFinite": 0,
+              "maxAbsolute": 1.862645149230957e-9,
+              "rmsAbsolute": 5.90103629301839e-10,
+              "maxNormalized": 0.00008080601583075181,
+              "worstIndex": 1403,
+              "expectedAtWorst": 0.01525411382317543,
+              "actualAtWorst": 0.01525411568582058
+            },
+            "current.v": {
+              "pass": true,
+              "count": 1920,
+              "exactMatches": 1082,
+              "failures": 0,
+              "nonFinite": 0,
+              "maxAbsolute": 1.862645149230957e-9,
+              "rmsAbsolute": 5.906328596056139e-10,
+              "maxNormalized": 0.00008236790773539705,
+              "worstIndex": 143,
+              "expectedAtWorst": -0.013068621046841145,
+              "actualAtWorst": -0.013068619184195995
+            },
+            "destination.eta": {
+              "pass": true,
+              "count": 1920,
+              "exactMatches": 1920,
+              "failures": 0,
+              "nonFinite": 0,
+              "maxAbsolute": 0,
+              "rmsAbsolute": 0,
+              "maxNormalized": 0,
+              "worstIndex": 0,
+              "expectedAtWorst": 0.025054918602108955,
+              "actualAtWorst": 0.025054918602108955
+            },
+            "destination.u": {
+              "pass": true,
+              "count": 1920,
+              "exactMatches": 1920,
+              "failures": 0,
+              "nonFinite": 0,
+              "maxAbsolute": 0,
+              "rmsAbsolute": 0,
+              "maxNormalized": 0,
+              "worstIndex": 0,
+              "expectedAtWorst": 0.011492257006466389,
+              "actualAtWorst": 0.011492257006466389
+            },
+            "destination.v": {
+              "pass": true,
+              "count": 1920,
+              "exactMatches": 1920,
+              "failures": 0,
+              "nonFinite": 0,
+              "maxAbsolute": 0,
+              "rmsAbsolute": 0,
+              "maxNormalized": 0,
+              "worstIndex": 0,
+              "expectedAtWorst": -0.013877613469958305,
+              "actualAtWorst": -0.013877613469958305
+            }
+          }
+        },
+        {
+          "step": 1,
+          "candidate": "wasm-scalar",
+          "baseline": "f32-reference",
+          "pass": true,
+          "expectedSteps": 1,
+          "actualSteps": 1,
+          "tolerance": {
+            "absolute": 0.00002,
+            "relative": 0.0002
+          },
+          "fields": {
+            "current.eta": {
+              "pass": true,
+              "count": 1920,
+              "exactMatches": 1920,
+              "failures": 0,
+              "nonFinite": 0,
+              "maxAbsolute": 0,
+              "rmsAbsolute": 0,
+              "maxNormalized": 0,
+              "worstIndex": 0,
+              "expectedAtWorst": 0.04306207597255707,
+              "actualAtWorst": 0.04306207597255707
+            },
+            "current.u": {
+              "pass": true,
+              "count": 1920,
+              "exactMatches": 1920,
+              "failures": 0,
+              "nonFinite": 0,
+              "maxAbsolute": 0,
+              "rmsAbsolute": 0,
+              "maxNormalized": 0,
+              "worstIndex": 0,
+              "expectedAtWorst": -0.0007402509218081832,
+              "actualAtWorst": -0.0007402509218081832
+            },
+            "current.v": {
+              "pass": true,
+              "count": 1920,
+              "exactMatches": 1920,
+              "failures": 0,
+              "nonFinite": 0,
+              "maxAbsolute": 0,
+              "rmsAbsolute": 0,
+              "maxNormalized": 0,
+              "worstIndex": 0,
+              "expectedAtWorst": 0.0005089843180030584,
+              "actualAtWorst": 0.0005089843180030584
+            },
+            "destination.eta": {
+              "pass": true,
+              "count": 1920,
+              "exactMatches": 1920,
+              "failures": 0,
+              "nonFinite": 0,
+              "maxAbsolute": 0,
+              "rmsAbsolute": 0,
+              "maxNormalized": 0,
+              "worstIndex": 0,
+              "expectedAtWorst": 0.025054918602108955,
+              "actualAtWorst": 0.025054918602108955
+            },
+            "destination.u": {
+              "pass": true,
+              "count": 1920,
+              "exactMatches": 1920,
+              "failures": 0,
+              "nonFinite": 0,
+              "maxAbsolute": 0,
+              "rmsAbsolute": 0,
+              "maxNormalized": 0,
+              "worstIndex": 0,
+              "expectedAtWorst": 0.011492257006466389,
+              "actualAtWorst": 0.011492257006466389
+            },
+            "destination.v": {
+              "pass": true,
+              "count": 1920,
+              "exactMatches": 1920,
+              "failures": 0,
+              "nonFinite": 0,
+              "maxAbsolute": 0,
+              "rmsAbsolute": 0,
+              "maxNormalized": 0,
+              "worstIndex": 0,
+              "expectedAtWorst": -0.013877613469958305,
+              "actualAtWorst": -0.013877613469958305
+            }
+          }
+        },
+        {
+          "step": 1,
+          "candidate": "wasm-simd",
+          "baseline": "javascript-reference",
+          "pass": true,
+          "expectedSteps": 1,
+          "actualSteps": 1,
+          "tolerance": {
+            "absolute": 0.00002,
+            "relative": 0.0002
+          },
+          "fields": {
+            "current.eta": {
+              "pass": true,
+              "count": 1920,
+              "exactMatches": 1392,
+              "failures": 0,
+              "nonFinite": 0,
+              "maxAbsolute": 2.9802322387695312e-8,
+              "rmsAbsolute": 3.307565662472688e-9,
+              "maxNormalized": 0.0006353318297485539,
+              "worstIndex": 8,
+              "expectedAtWorst": 0.13454139232635498,
+              "actualAtWorst": 0.13454142212867737
+            },
+            "current.u": {
+              "pass": true,
+              "count": 1920,
+              "exactMatches": 1168,
+              "failures": 0,
+              "nonFinite": 0,
+              "maxAbsolute": 1.862645149230957e-9,
+              "rmsAbsolute": 5.90103629301839e-10,
+              "maxNormalized": 0.00008080601583075181,
+              "worstIndex": 1403,
+              "expectedAtWorst": 0.01525411382317543,
+              "actualAtWorst": 0.01525411568582058
+            },
+            "current.v": {
+              "pass": true,
+              "count": 1920,
+              "exactMatches": 1082,
+              "failures": 0,
+              "nonFinite": 0,
+              "maxAbsolute": 1.862645149230957e-9,
+              "rmsAbsolute": 5.906328596056139e-10,
+              "maxNormalized": 0.00008236790773539705,
+              "worstIndex": 143,
+              "expectedAtWorst": -0.013068621046841145,
+              "actualAtWorst": -0.013068619184195995
+            },
+            "destination.eta": {
+              "pass": true,
+              "count": 1920,
+              "exactMatches": 1920,
+              "failures": 0,
+              "nonFinite": 0,
+              "maxAbsolute": 0,
+              "rmsAbsolute": 0,
+              "maxNormalized": 0,
+              "worstIndex": 0,
+              "expectedAtWorst": 0.025054918602108955,
+              "actualAtWorst": 0.025054918602108955
+            },
+            "destination.u": {
+              "pass": true,
+              "count": 1920,
+              "exactMatches": 1920,
+              "failures": 0,
+              "nonFinite": 0,
+              "maxAbsolute": 0,
+              "rmsAbsolute": 0,
+              "maxNormalized": 0,
+              "worstIndex": 0,
+              "expectedAtWorst": 0.011492257006466389,
+              "actualAtWorst": 0.011492257006466389
+            },
+            "destination.v": {
+              "pass": true,
+              "count": 1920,
+              "exactMatches": 1920,
+              "failures": 0,
+              "nonFinite": 0,
+              "maxAbsolute": 0,
+              "rmsAbsolute": 0,
+              "maxNormalized": 0,
+              "worstIndex": 0,
+              "expectedAtWorst": -0.013877613469958305,
+              "actualAtWorst": -0.013877613469958305
+            }
+          }
+        },
+        {
+          "step": 1,
+          "candidate": "wasm-simd",
+          "baseline": "f32-reference",
+          "pass": true,
+          "expectedSteps": 1,
+          "actualSteps": 1,
+          "tolerance": {
+            "absolute": 0.00002,
+            "relative": 0.0002
+          },
+          "fields": {
+            "current.eta": {
+              "pass": true,
+              "count": 1920,
+              "exactMatches": 1920,
+              "failures": 0,
+              "nonFinite": 0,
+              "maxAbsolute": 0,
+              "rmsAbsolute": 0,
+              "maxNormalized": 0,
+              "worstIndex": 0,
+              "expectedAtWorst": 0.04306207597255707,
+              "actualAtWorst": 0.04306207597255707
+            },
+            "current.u": {
+              "pass": true,
+              "count": 1920,
+              "exactMatches": 1920,
+              "failures": 0,
+              "nonFinite": 0,
+              "maxAbsolute": 0,
+              "rmsAbsolute": 0,
+              "maxNormalized": 0,
+              "worstIndex": 0,
+              "expectedAtWorst": -0.0007402509218081832,
+              "actualAtWorst": -0.0007402509218081832
+            },
+            "current.v": {
+              "pass": true,
+              "count": 1920,
+              "exactMatches": 1920,
+              "failures": 0,
+              "nonFinite": 0,
+              "maxAbsolute": 0,
+              "rmsAbsolute": 0,
+              "maxNormalized": 0,
+              "worstIndex": 0,
+              "expectedAtWorst": 0.0005089843180030584,
+              "actualAtWorst": 0.0005089843180030584
+            },
+            "destination.eta": {
+              "pass": true,
+              "count": 1920,
+              "exactMatches": 1920,
+              "failures": 0,
+              "nonFinite": 0,
+              "maxAbsolute": 0,
+              "rmsAbsolute": 0,
+              "maxNormalized": 0,
+              "worstIndex": 0,
+              "expectedAtWorst": 0.025054918602108955,
+              "actualAtWorst": 0.025054918602108955
+            },
+            "destination.u": {
+              "pass": true,
+              "count": 1920,
+              "exactMatches": 1920,
+              "failures": 0,
+              "nonFinite": 0,
+              "maxAbsolute": 0,
+              "rmsAbsolute": 0,
+              "maxNormalized": 0,
+              "worstIndex": 0,
+              "expectedAtWorst": 0.011492257006466389,
+              "actualAtWorst": 0.011492257006466389
+            },
+            "destination.v": {
+              "pass": true,
+              "count": 1920,
+              "exactMatches": 1920,
+              "failures": 0,
+              "nonFinite": 0,
+              "maxAbsolute": 0,
+              "rmsAbsolute": 0,
+              "maxNormalized": 0,
+              "worstIndex": 0,
+              "expectedAtWorst": -0.013877613469958305,
+              "actualAtWorst": -0.013877613469958305
+            }
+          }
+        },
+        {
+          "step": 2,
+          "candidate": "f32-reference",
+          "baseline": "javascript-reference",
+          "pass": true,
+          "expectedSteps": 2,
+          "actualSteps": 2,
+          "tolerance": {
+            "absolute": 0.00002,
+            "relative": 0.0002
+          },
+          "fields": {
+            "current.eta": {
+              "pass": true,
+              "count": 1920,
+              "exactMatches": 1091,
+              "failures": 0,
+              "nonFinite": 0,
+              "maxAbsolute": 2.9802322387695312e-8,
+              "rmsAbsolute": 4.542635862531598e-9,
+              "maxNormalized": 0.0006604697258048044,
+              "worstIndex": 179,
+              "expectedAtWorst": -0.12561459839344025,
+              "actualAtWorst": -0.12561456859111786
+            },
+            "current.u": {
+              "pass": true,
+              "count": 1920,
+              "exactMatches": 729,
+              "failures": 0,
+              "nonFinite": 0,
+              "maxAbsolute": 3.725290298461914e-9,
+              "rmsAbsolute": 9.507446167537052e-10,
+              "maxNormalized": 0.0001608960695989544,
+              "worstIndex": 302,
+              "expectedAtWorst": -0.01576697640120983,
+              "actualAtWorst": -0.01576698012650013
+            },
+            "current.v": {
+              "pass": true,
+              "count": 1920,
+              "exactMatches": 688,
+              "failures": 0,
+              "nonFinite": 0,
+              "maxAbsolute": 3.725290298461914e-9,
+              "rmsAbsolute": 9.80716963962623e-10,
+              "maxNormalized": 0.00016109076957107222,
+              "worstIndex": 861,
+              "expectedAtWorst": -0.01562705636024475,
+              "actualAtWorst": -0.01562706008553505
+            },
+            "destination.eta": {
+              "pass": true,
+              "count": 1920,
+              "exactMatches": 1392,
+              "failures": 0,
+              "nonFinite": 0,
+              "maxAbsolute": 2.9802322387695312e-8,
+              "rmsAbsolute": 3.307565662472688e-9,
+              "maxNormalized": 0.0006353318297485539,
+              "worstIndex": 8,
+              "expectedAtWorst": 0.13454139232635498,
+              "actualAtWorst": 0.13454142212867737
+            },
+            "destination.u": {
+              "pass": true,
+              "count": 1920,
+              "exactMatches": 1168,
+              "failures": 0,
+              "nonFinite": 0,
+              "maxAbsolute": 1.862645149230957e-9,
+              "rmsAbsolute": 5.90103629301839e-10,
+              "maxNormalized": 0.00008080601583075181,
+              "worstIndex": 1403,
+              "expectedAtWorst": 0.01525411382317543,
+              "actualAtWorst": 0.01525411568582058
+            },
+            "destination.v": {
+              "pass": true,
+              "count": 1920,
+              "exactMatches": 1082,
+              "failures": 0,
+              "nonFinite": 0,
+              "maxAbsolute": 1.862645149230957e-9,
+              "rmsAbsolute": 5.906328596056139e-10,
+              "maxNormalized": 0.00008236790773539705,
+              "worstIndex": 143,
+              "expectedAtWorst": -0.013068621046841145,
+              "actualAtWorst": -0.013068619184195995
+            }
+          }
+        },
+        {
+          "step": 2,
+          "candidate": "wasm-scalar",
+          "baseline": "javascript-reference",
+          "pass": true,
+          "expectedSteps": 2,
+          "actualSteps": 2,
+          "tolerance": {
+            "absolute": 0.00002,
+            "relative": 0.0002
+          },
+          "fields": {
+            "current.eta": {
+              "pass": true,
+              "count": 1920,
+              "exactMatches": 1091,
+              "failures": 0,
+              "nonFinite": 0,
+              "maxAbsolute": 2.9802322387695312e-8,
+              "rmsAbsolute": 4.542635862531598e-9,
+              "maxNormalized": 0.0006604697258048044,
+              "worstIndex": 179,
+              "expectedAtWorst": -0.12561459839344025,
+              "actualAtWorst": -0.12561456859111786
+            },
+            "current.u": {
+              "pass": true,
+              "count": 1920,
+              "exactMatches": 729,
+              "failures": 0,
+              "nonFinite": 0,
+              "maxAbsolute": 3.725290298461914e-9,
+              "rmsAbsolute": 9.507446167537052e-10,
+              "maxNormalized": 0.0001608960695989544,
+              "worstIndex": 302,
+              "expectedAtWorst": -0.01576697640120983,
+              "actualAtWorst": -0.01576698012650013
+            },
+            "current.v": {
+              "pass": true,
+              "count": 1920,
+              "exactMatches": 688,
+              "failures": 0,
+              "nonFinite": 0,
+              "maxAbsolute": 3.725290298461914e-9,
+              "rmsAbsolute": 9.80716963962623e-10,
+              "maxNormalized": 0.00016109076957107222,
+              "worstIndex": 861,
+              "expectedAtWorst": -0.01562705636024475,
+              "actualAtWorst": -0.01562706008553505
+            },
+            "destination.eta": {
+              "pass": true,
+              "count": 1920,
+              "exactMatches": 1392,
+              "failures": 0,
+              "nonFinite": 0,
+              "maxAbsolute": 2.9802322387695312e-8,
+              "rmsAbsolute": 3.307565662472688e-9,
+              "maxNormalized": 0.0006353318297485539,
+              "worstIndex": 8,
+              "expectedAtWorst": 0.13454139232635498,
+              "actualAtWorst": 0.13454142212867737
+            },
+            "destination.u": {
+              "pass": true,
+              "count": 1920,
+              "exactMatches": 1168,
+              "failures": 0,
+              "nonFinite": 0,
+              "maxAbsolute": 1.862645149230957e-9,
+              "rmsAbsolute": 5.90103629301839e-10,
+              "maxNormalized": 0.00008080601583075181,
+              "worstIndex": 1403,
+              "expectedAtWorst": 0.01525411382317543,
+              "actualAtWorst": 0.01525411568582058
+            },
+            "destination.v": {
+              "pass": true,
+              "count": 1920,
+              "exactMatches": 1082,
+              "failures": 0,
+              "nonFinite": 0,
+              "maxAbsolute": 1.862645149230957e-9,
+              "rmsAbsolute": 5.906328596056139e-10,
+              "maxNormalized": 0.00008236790773539705,
+              "worstIndex": 143,
+              "expectedAtWorst": -0.013068621046841145,
+              "actualAtWorst": -0.013068619184195995
+            }
+          }
+        },
+        {
+          "step": 2,
+          "candidate": "wasm-scalar",
+          "baseline": "f32-reference",
+          "pass": true,
+          "expectedSteps": 2,
+          "actualSteps": 2,
+          "tolerance": {
+            "absolute": 0.00002,
+            "relative": 0.0002
+          },
+          "fields": {
+            "current.eta": {
+              "pass": true,
+              "count": 1920,
+              "exactMatches": 1920,
+              "failures": 0,
+              "nonFinite": 0,
+              "maxAbsolute": 0,
+              "rmsAbsolute": 0,
+              "maxNormalized": 0,
+              "worstIndex": 0,
+              "expectedAtWorst": 0.043271999806165695,
+              "actualAtWorst": 0.043271999806165695
+            },
+            "current.u": {
+              "pass": true,
+              "count": 1920,
+              "exactMatches": 1920,
+              "failures": 0,
+              "nonFinite": 0,
+              "maxAbsolute": 0,
+              "rmsAbsolute": 0,
+              "maxNormalized": 0,
+              "worstIndex": 0,
+              "expectedAtWorst": -0.0006411076756194234,
+              "actualAtWorst": -0.0006411076756194234
+            },
+            "current.v": {
+              "pass": true,
+              "count": 1920,
+              "exactMatches": 1920,
+              "failures": 0,
+              "nonFinite": 0,
+              "maxAbsolute": 0,
+              "rmsAbsolute": 0,
+              "maxNormalized": 0,
+              "worstIndex": 0,
+              "expectedAtWorst": 0.0005059382528997958,
+              "actualAtWorst": 0.0005059382528997958
+            },
+            "destination.eta": {
+              "pass": true,
+              "count": 1920,
+              "exactMatches": 1920,
+              "failures": 0,
+              "nonFinite": 0,
+              "maxAbsolute": 0,
+              "rmsAbsolute": 0,
+              "maxNormalized": 0,
+              "worstIndex": 0,
+              "expectedAtWorst": 0.04306207597255707,
+              "actualAtWorst": 0.04306207597255707
+            },
+            "destination.u": {
+              "pass": true,
+              "count": 1920,
+              "exactMatches": 1920,
+              "failures": 0,
+              "nonFinite": 0,
+              "maxAbsolute": 0,
+              "rmsAbsolute": 0,
+              "maxNormalized": 0,
+              "worstIndex": 0,
+              "expectedAtWorst": -0.0007402509218081832,
+              "actualAtWorst": -0.0007402509218081832
+            },
+            "destination.v": {
+              "pass": true,
+              "count": 1920,
+              "exactMatches": 1920,
+              "failures": 0,
+              "nonFinite": 0,
+              "maxAbsolute": 0,
+              "rmsAbsolute": 0,
+              "maxNormalized": 0,
+              "worstIndex": 0,
+              "expectedAtWorst": 0.0005089843180030584,
+              "actualAtWorst": 0.0005089843180030584
+            }
+          }
+        },
+        {
+          "step": 2,
+          "candidate": "wasm-simd",
+          "baseline": "javascript-reference",
+          "pass": true,
+          "expectedSteps": 2,
+          "actualSteps": 2,
+          "tolerance": {
+            "absolute": 0.00002,
+            "relative": 0.0002
+          },
+          "fields": {
+            "current.eta": {
+              "pass": true,
+              "count": 1920,
+              "exactMatches": 1091,
+              "failures": 0,
+              "nonFinite": 0,
+              "maxAbsolute": 2.9802322387695312e-8,
+              "rmsAbsolute": 4.542635862531598e-9,
+              "maxNormalized": 0.0006604697258048044,
+              "worstIndex": 179,
+              "expectedAtWorst": -0.12561459839344025,
+              "actualAtWorst": -0.12561456859111786
+            },
+            "current.u": {
+              "pass": true,
+              "count": 1920,
+              "exactMatches": 729,
+              "failures": 0,
+              "nonFinite": 0,
+              "maxAbsolute": 3.725290298461914e-9,
+              "rmsAbsolute": 9.507446167537052e-10,
+              "maxNormalized": 0.0001608960695989544,
+              "worstIndex": 302,
+              "expectedAtWorst": -0.01576697640120983,
+              "actualAtWorst": -0.01576698012650013
+            },
+            "current.v": {
+              "pass": true,
+              "count": 1920,
+              "exactMatches": 688,
+              "failures": 0,
+              "nonFinite": 0,
+              "maxAbsolute": 3.725290298461914e-9,
+              "rmsAbsolute": 9.80716963962623e-10,
+              "maxNormalized": 0.00016109076957107222,
+              "worstIndex": 861,
+              "expectedAtWorst": -0.01562705636024475,
+              "actualAtWorst": -0.01562706008553505
+            },
+            "destination.eta": {
+              "pass": true,
+              "count": 1920,
+              "exactMatches": 1392,
+              "failures": 0,
+              "nonFinite": 0,
+              "maxAbsolute": 2.9802322387695312e-8,
+              "rmsAbsolute": 3.307565662472688e-9,
+              "maxNormalized": 0.0006353318297485539,
+              "worstIndex": 8,
+              "expectedAtWorst": 0.13454139232635498,
+              "actualAtWorst": 0.13454142212867737
+            },
+            "destination.u": {
+              "pass": true,
+              "count": 1920,
+              "exactMatches": 1168,
+              "failures": 0,
+              "nonFinite": 0,
+              "maxAbsolute": 1.862645149230957e-9,
+              "rmsAbsolute": 5.90103629301839e-10,
+              "maxNormalized": 0.00008080601583075181,
+              "worstIndex": 1403,
+              "expectedAtWorst": 0.01525411382317543,
+              "actualAtWorst": 0.01525411568582058
+            },
+            "destination.v": {
+              "pass": true,
+              "count": 1920,
+              "exactMatches": 1082,
+              "failures": 0,
+              "nonFinite": 0,
+              "maxAbsolute": 1.862645149230957e-9,
+              "rmsAbsolute": 5.906328596056139e-10,
+              "maxNormalized": 0.00008236790773539705,
+              "worstIndex": 143,
+              "expectedAtWorst": -0.013068621046841145,
+              "actualAtWorst": -0.013068619184195995
+            }
+          }
+        },
+        {
+          "step": 2,
+          "candidate": "wasm-simd",
+          "baseline": "f32-reference",
+          "pass": true,
+          "expectedSteps": 2,
+          "actualSteps": 2,
+          "tolerance": {
+            "absolute": 0.00002,
+            "relative": 0.0002
+          },
+          "fields": {
+            "current.eta": {
+              "pass": true,
+              "count": 1920,
+              "exactMatches": 1920,
+              "failures": 0,
+              "nonFinite": 0,
+              "maxAbsolute": 0,
+              "rmsAbsolute": 0,
+              "maxNormalized": 0,
+              "worstIndex": 0,
+              "expectedAtWorst": 0.043271999806165695,
+              "actualAtWorst": 0.043271999806165695
+            },
+            "current.u": {
+              "pass": true,
+              "count": 1920,
+              "exactMatches": 1920,
+              "failures": 0,
+              "nonFinite": 0,
+              "maxAbsolute": 0,
+              "rmsAbsolute": 0,
+              "maxNormalized": 0,
+              "worstIndex": 0,
+              "expectedAtWorst": -0.0006411076756194234,
+              "actualAtWorst": -0.0006411076756194234
+            },
+            "current.v": {
+              "pass": true,
+              "count": 1920,
+              "exactMatches": 1920,
+              "failures": 0,
+              "nonFinite": 0,
+              "maxAbsolute": 0,
+              "rmsAbsolute": 0,
+              "maxNormalized": 0,
+              "worstIndex": 0,
+              "expectedAtWorst": 0.0005059382528997958,
+              "actualAtWorst": 0.0005059382528997958
+            },
+            "destination.eta": {
+              "pass": true,
+              "count": 1920,
+              "exactMatches": 1920,
+              "failures": 0,
+              "nonFinite": 0,
+              "maxAbsolute": 0,
+              "rmsAbsolute": 0,
+              "maxNormalized": 0,
+              "worstIndex": 0,
+              "expectedAtWorst": 0.04306207597255707,
+              "actualAtWorst": 0.04306207597255707
+            },
+            "destination.u": {
+              "pass": true,
+              "count": 1920,
+              "exactMatches": 1920,
+              "failures": 0,
+              "nonFinite": 0,
+              "maxAbsolute": 0,
+              "rmsAbsolute": 0,
+              "maxNormalized": 0,
+              "worstIndex": 0,
+              "expectedAtWorst": -0.0007402509218081832,
+              "actualAtWorst": -0.0007402509218081832
+            },
+            "destination.v": {
+              "pass": true,
+              "count": 1920,
+              "exactMatches": 1920,
+              "failures": 0,
+              "nonFinite": 0,
+              "maxAbsolute": 0,
+              "rmsAbsolute": 0,
+              "maxNormalized": 0,
+              "worstIndex": 0,
+              "expectedAtWorst": 0.0005089843180030584,
+              "actualAtWorst": 0.0005089843180030584
+            }
+          }
+        },
+        {
+          "step": 8,
+          "candidate": "f32-reference",
+          "baseline": "javascript-reference",
+          "pass": true,
+          "expectedSteps": 8,
+          "actualSteps": 8,
+          "tolerance": {
+            "absolute": 0.00002,
+            "relative": 0.0002
+          },
+          "fields": {
+            "current.eta": {
+              "pass": true,
+              "count": 1920,
+              "exactMatches": 560,
+              "failures": 0,
+              "nonFinite": 0,
+              "maxAbsolute": 5.960464477539063e-8,
+              "rmsAbsolute": 8.3390946853871e-9,
+              "maxNormalized": 0.001215816232391698,
+              "worstIndex": 56,
+              "expectedAtWorst": 0.14512193202972412,
+              "actualAtWorst": 0.1451219916343689
+            },
+            "current.u": {
+              "pass": true,
+              "count": 1920,
+              "exactMatches": 199,
+              "failures": 0,
+              "nonFinite": 0,
+              "maxAbsolute": 2.0489096641540527e-8,
+              "rmsAbsolute": 3.825500131305963e-9,
+              "maxNormalized": 0.0008370307747391575,
+              "worstIndex": 178,
+              "expectedAtWorst": -0.022391537204384804,
+              "actualAtWorst": -0.022391557693481445
+            },
+            "current.v": {
+              "pass": true,
+              "count": 1920,
+              "exactMatches": 137,
+              "failures": 0,
+              "nonFinite": 0,
+              "maxAbsolute": 2.421438694000244e-8,
+              "rmsAbsolute": 4.49128758284326e-9,
+              "maxNormalized": 0.0010247124749873235,
+              "worstIndex": 104,
+              "expectedAtWorst": 0.00906348042190075,
+              "actualAtWorst": 0.00906350277364254
+            },
+            "destination.eta": {
+              "pass": true,
+              "count": 1920,
+              "exactMatches": 579,
+              "failures": 0,
+              "nonFinite": 0,
+              "maxAbsolute": 7.450580596923828e-8,
+              "rmsAbsolute": 8.051703012648334e-9,
+              "maxNormalized": 0.0015937181089037817,
+              "worstIndex": 8,
+              "expectedAtWorst": 0.1337483823299408,
+              "actualAtWorst": 0.13374845683574677
+            },
+            "destination.u": {
+              "pass": true,
+              "count": 1920,
+              "exactMatches": 204,
+              "failures": 0,
+              "nonFinite": 0,
+              "maxAbsolute": 1.862645149230957e-8,
+              "rmsAbsolute": 3.2697798468964595e-9,
+              "maxNormalized": 0.0007648690715786077,
+              "worstIndex": 178,
+              "expectedAtWorst": -0.02176235243678093,
+              "actualAtWorst": -0.021762371063232422
+            },
+            "destination.v": {
+              "pass": true,
+              "count": 1920,
+              "exactMatches": 170,
+              "failures": 0,
+              "nonFinite": 0,
+              "maxAbsolute": 1.862645149230957e-8,
+              "rmsAbsolute": 3.829041184211342e-9,
+              "maxNormalized": 0.0007775788128310982,
+              "worstIndex": 104,
+              "expectedAtWorst": 0.007794901728630066,
+              "actualAtWorst": 0.007794918492436409
+            }
+          }
+        },
+        {
+          "step": 8,
+          "candidate": "wasm-scalar",
+          "baseline": "javascript-reference",
+          "pass": true,
+          "expectedSteps": 8,
+          "actualSteps": 8,
+          "tolerance": {
+            "absolute": 0.00002,
+            "relative": 0.0002
+          },
+          "fields": {
+            "current.eta": {
+              "pass": true,
+              "count": 1920,
+              "exactMatches": 560,
+              "failures": 0,
+              "nonFinite": 0,
+              "maxAbsolute": 5.960464477539063e-8,
+              "rmsAbsolute": 8.3390946853871e-9,
+              "maxNormalized": 0.001215816232391698,
+              "worstIndex": 56,
+              "expectedAtWorst": 0.14512193202972412,
+              "actualAtWorst": 0.1451219916343689
+            },
+            "current.u": {
+              "pass": true,
+              "count": 1920,
+              "exactMatches": 199,
+              "failures": 0,
+              "nonFinite": 0,
+              "maxAbsolute": 2.0489096641540527e-8,
+              "rmsAbsolute": 3.825500131305963e-9,
+              "maxNormalized": 0.0008370307747391575,
+              "worstIndex": 178,
+              "expectedAtWorst": -0.022391537204384804,
+              "actualAtWorst": -0.022391557693481445
+            },
+            "current.v": {
+              "pass": true,
+              "count": 1920,
+              "exactMatches": 137,
+              "failures": 0,
+              "nonFinite": 0,
+              "maxAbsolute": 2.421438694000244e-8,
+              "rmsAbsolute": 4.49128758284326e-9,
+              "maxNormalized": 0.0010247124749873235,
+              "worstIndex": 104,
+              "expectedAtWorst": 0.00906348042190075,
+              "actualAtWorst": 0.00906350277364254
+            },
+            "destination.eta": {
+              "pass": true,
+              "count": 1920,
+              "exactMatches": 579,
+              "failures": 0,
+              "nonFinite": 0,
+              "maxAbsolute": 7.450580596923828e-8,
+              "rmsAbsolute": 8.051703012648334e-9,
+              "maxNormalized": 0.0015937181089037817,
+              "worstIndex": 8,
+              "expectedAtWorst": 0.1337483823299408,
+              "actualAtWorst": 0.13374845683574677
+            },
+            "destination.u": {
+              "pass": true,
+              "count": 1920,
+              "exactMatches": 204,
+              "failures": 0,
+              "nonFinite": 0,
+              "maxAbsolute": 1.862645149230957e-8,
+              "rmsAbsolute": 3.2697798468964595e-9,
+              "maxNormalized": 0.0007648690715786077,
+              "worstIndex": 178,
+              "expectedAtWorst": -0.02176235243678093,
+              "actualAtWorst": -0.021762371063232422
+            },
+            "destination.v": {
+              "pass": true,
+              "count": 1920,
+              "exactMatches": 170,
+              "failures": 0,
+              "nonFinite": 0,
+              "maxAbsolute": 1.862645149230957e-8,
+              "rmsAbsolute": 3.829041184211342e-9,
+              "maxNormalized": 0.0007775788128310982,
+              "worstIndex": 104,
+              "expectedAtWorst": 0.007794901728630066,
+              "actualAtWorst": 0.007794918492436409
+            }
+          }
+        },
+        {
+          "step": 8,
+          "candidate": "wasm-scalar",
+          "baseline": "f32-reference",
+          "pass": true,
+          "expectedSteps": 8,
+          "actualSteps": 8,
+          "tolerance": {
+            "absolute": 0.00002,
+            "relative": 0.0002
+          },
+          "fields": {
+            "current.eta": {
+              "pass": true,
+              "count": 1920,
+              "exactMatches": 1920,
+              "failures": 0,
+              "nonFinite": 0,
+              "maxAbsolute": 0,
+              "rmsAbsolute": 0,
+              "maxNormalized": 0,
+              "worstIndex": 0,
+              "expectedAtWorst": 0.04422978311777115,
+              "actualAtWorst": 0.04422978311777115
+            },
+            "current.u": {
+              "pass": true,
+              "count": 1920,
+              "exactMatches": 1920,
+              "failures": 0,
+              "nonFinite": 0,
+              "maxAbsolute": 0,
+              "rmsAbsolute": 0,
+              "maxNormalized": 0,
+              "worstIndex": 0,
+              "expectedAtWorst": -0.00004880374763160944,
+              "actualAtWorst": -0.00004880374763160944
+            },
+            "current.v": {
+              "pass": true,
+              "count": 1920,
+              "exactMatches": 1920,
+              "failures": 0,
+              "nonFinite": 0,
+              "maxAbsolute": 0,
+              "rmsAbsolute": 0,
+              "maxNormalized": 0,
+              "worstIndex": 0,
+              "expectedAtWorst": 0.0004787252109963447,
+              "actualAtWorst": 0.0004787252109963447
+            },
+            "destination.eta": {
+              "pass": true,
+              "count": 1920,
+              "exactMatches": 1920,
+              "failures": 0,
+              "nonFinite": 0,
+              "maxAbsolute": 0,
+              "rmsAbsolute": 0,
+              "maxNormalized": 0,
+              "worstIndex": 0,
+              "expectedAtWorst": 0.044054895639419556,
+              "actualAtWorst": 0.044054895639419556
+            },
+            "destination.u": {
+              "pass": true,
+              "count": 1920,
+              "exactMatches": 1920,
+              "failures": 0,
+              "nonFinite": 0,
+              "maxAbsolute": 0,
+              "rmsAbsolute": 0,
+              "maxNormalized": 0,
+              "worstIndex": 0,
+              "expectedAtWorst": -0.000147647486301139,
+              "actualAtWorst": -0.000147647486301139
+            },
+            "destination.v": {
+              "pass": true,
+              "count": 1920,
+              "exactMatches": 1920,
+              "failures": 0,
+              "nonFinite": 0,
+              "maxAbsolute": 0,
+              "rmsAbsolute": 0,
+              "maxNormalized": 0,
+              "worstIndex": 0,
+              "expectedAtWorst": 0.00048350359429605305,
+              "actualAtWorst": 0.00048350359429605305
+            }
+          }
+        },
+        {
+          "step": 8,
+          "candidate": "wasm-simd",
+          "baseline": "javascript-reference",
+          "pass": true,
+          "expectedSteps": 8,
+          "actualSteps": 8,
+          "tolerance": {
+            "absolute": 0.00002,
+            "relative": 0.0002
+          },
+          "fields": {
+            "current.eta": {
+              "pass": true,
+              "count": 1920,
+              "exactMatches": 560,
+              "failures": 0,
+              "nonFinite": 0,
+              "maxAbsolute": 5.960464477539063e-8,
+              "rmsAbsolute": 8.3390946853871e-9,
+              "maxNormalized": 0.001215816232391698,
+              "worstIndex": 56,
+              "expectedAtWorst": 0.14512193202972412,
+              "actualAtWorst": 0.1451219916343689
+            },
+            "current.u": {
+              "pass": true,
+              "count": 1920,
+              "exactMatches": 199,
+              "failures": 0,
+              "nonFinite": 0,
+              "maxAbsolute": 2.0489096641540527e-8,
+              "rmsAbsolute": 3.825500131305963e-9,
+              "maxNormalized": 0.0008370307747391575,
+              "worstIndex": 178,
+              "expectedAtWorst": -0.022391537204384804,
+              "actualAtWorst": -0.022391557693481445
+            },
+            "current.v": {
+              "pass": true,
+              "count": 1920,
+              "exactMatches": 137,
+              "failures": 0,
+              "nonFinite": 0,
+              "maxAbsolute": 2.421438694000244e-8,
+              "rmsAbsolute": 4.49128758284326e-9,
+              "maxNormalized": 0.0010247124749873235,
+              "worstIndex": 104,
+              "expectedAtWorst": 0.00906348042190075,
+              "actualAtWorst": 0.00906350277364254
+            },
+            "destination.eta": {
+              "pass": true,
+              "count": 1920,
+              "exactMatches": 579,
+              "failures": 0,
+              "nonFinite": 0,
+              "maxAbsolute": 7.450580596923828e-8,
+              "rmsAbsolute": 8.051703012648334e-9,
+              "maxNormalized": 0.0015937181089037817,
+              "worstIndex": 8,
+              "expectedAtWorst": 0.1337483823299408,
+              "actualAtWorst": 0.13374845683574677
+            },
+            "destination.u": {
+              "pass": true,
+              "count": 1920,
+              "exactMatches": 204,
+              "failures": 0,
+              "nonFinite": 0,
+              "maxAbsolute": 1.862645149230957e-8,
+              "rmsAbsolute": 3.2697798468964595e-9,
+              "maxNormalized": 0.0007648690715786077,
+              "worstIndex": 178,
+              "expectedAtWorst": -0.02176235243678093,
+              "actualAtWorst": -0.021762371063232422
+            },
+            "destination.v": {
+              "pass": true,
+              "count": 1920,
+              "exactMatches": 170,
+              "failures": 0,
+              "nonFinite": 0,
+              "maxAbsolute": 1.862645149230957e-8,
+              "rmsAbsolute": 3.829041184211342e-9,
+              "maxNormalized": 0.0007775788128310982,
+              "worstIndex": 104,
+              "expectedAtWorst": 0.007794901728630066,
+              "actualAtWorst": 0.007794918492436409
+            }
+          }
+        },
+        {
+          "step": 8,
+          "candidate": "wasm-simd",
+          "baseline": "f32-reference",
+          "pass": true,
+          "expectedSteps": 8,
+          "actualSteps": 8,
+          "tolerance": {
+            "absolute": 0.00002,
+            "relative": 0.0002
+          },
+          "fields": {
+            "current.eta": {
+              "pass": true,
+              "count": 1920,
+              "exactMatches": 1920,
+              "failures": 0,
+              "nonFinite": 0,
+              "maxAbsolute": 0,
+              "rmsAbsolute": 0,
+              "maxNormalized": 0,
+              "worstIndex": 0,
+              "expectedAtWorst": 0.04422978311777115,
+              "actualAtWorst": 0.04422978311777115
+            },
+            "current.u": {
+              "pass": true,
+              "count": 1920,
+              "exactMatches": 1920,
+              "failures": 0,
+              "nonFinite": 0,
+              "maxAbsolute": 0,
+              "rmsAbsolute": 0,
+              "maxNormalized": 0,
+              "worstIndex": 0,
+              "expectedAtWorst": -0.00004880374763160944,
+              "actualAtWorst": -0.00004880374763160944
+            },
+            "current.v": {
+              "pass": true,
+              "count": 1920,
+              "exactMatches": 1920,
+              "failures": 0,
+              "nonFinite": 0,
+              "maxAbsolute": 0,
+              "rmsAbsolute": 0,
+              "maxNormalized": 0,
+              "worstIndex": 0,
+              "expectedAtWorst": 0.0004787252109963447,
+              "actualAtWorst": 0.0004787252109963447
+            },
+            "destination.eta": {
+              "pass": true,
+              "count": 1920,
+              "exactMatches": 1920,
+              "failures": 0,
+              "nonFinite": 0,
+              "maxAbsolute": 0,
+              "rmsAbsolute": 0,
+              "maxNormalized": 0,
+              "worstIndex": 0,
+              "expectedAtWorst": 0.044054895639419556,
+              "actualAtWorst": 0.044054895639419556
+            },
+            "destination.u": {
+              "pass": true,
+              "count": 1920,
+              "exactMatches": 1920,
+              "failures": 0,
+              "nonFinite": 0,
+              "maxAbsolute": 0,
+              "rmsAbsolute": 0,
+              "maxNormalized": 0,
+              "worstIndex": 0,
+              "expectedAtWorst": -0.000147647486301139,
+              "actualAtWorst": -0.000147647486301139
+            },
+            "destination.v": {
+              "pass": true,
+              "count": 1920,
+              "exactMatches": 1920,
+              "failures": 0,
+              "nonFinite": 0,
+              "maxAbsolute": 0,
+              "rmsAbsolute": 0,
+              "maxNormalized": 0,
+              "worstIndex": 0,
+              "expectedAtWorst": 0.00048350359429605305,
+              "actualAtWorst": 0.00048350359429605305
+            }
+          }
+        },
+        {
+          "step": 64,
+          "candidate": "f32-reference",
+          "baseline": "javascript-reference",
+          "pass": true,
+          "expectedSteps": 64,
+          "actualSteps": 64,
+          "tolerance": {
+            "absolute": 0.00002,
+            "relative": 0.0002
+          },
+          "fields": {
+            "current.eta": {
+              "pass": true,
+              "count": 1920,
+              "exactMatches": 151,
+              "failures": 0,
+              "nonFinite": 0,
+              "maxAbsolute": 1.043081283569336e-7,
+              "rmsAbsolute": 1.7639149878901534e-8,
+              "maxNormalized": 0.0025577902749949017,
+              "worstIndex": 107,
+              "expectedAtWorst": 0.10390281677246094,
+              "actualAtWorst": 0.10390271246433258
+            },
+            "current.u": {
+              "pass": true,
+              "count": 1920,
+              "exactMatches": 30,
+              "failures": 0,
+              "nonFinite": 0,
+              "maxAbsolute": 1.4901161193847656e-7,
+              "rmsAbsolute": 4.753628773509446e-8,
+              "maxNormalized": 0.00583137935783691,
+              "worstIndex": 1257,
+              "expectedAtWorst": 0.010199069045484066,
+              "actualAtWorst": 0.010199197567999363
+            },
+            "current.v": {
+              "pass": true,
+              "count": 1920,
+              "exactMatches": 32,
+              "failures": 0,
+              "nonFinite": 0,
+              "maxAbsolute": 1.9371509552001953e-7,
+              "rmsAbsolute": 5.9395863808718984e-8,
+              "maxNormalized": 0.007096794803250972,
+              "worstIndex": 1136,
+              "expectedAtWorst": -0.008265934884548187,
+              "actualAtWorst": -0.008266088552772999
+            },
+            "destination.eta": {
+              "pass": true,
+              "count": 1920,
+              "exactMatches": 158,
+              "failures": 0,
+              "nonFinite": 0,
+              "maxAbsolute": 1.043081283569336e-7,
+              "rmsAbsolute": 1.7624208065711893e-8,
+              "maxNormalized": 0.0025490494652807955,
+              "worstIndex": 107,
+              "expectedAtWorst": 0.10460200905799866,
+              "actualAtWorst": 0.1046019047498703
+            },
+            "destination.u": {
+              "pass": true,
+              "count": 1920,
+              "exactMatches": 33,
+              "failures": 0,
+              "nonFinite": 0,
+              "maxAbsolute": 1.4901161193847656e-7,
+              "rmsAbsolute": 4.6747089621223486e-8,
+              "maxNormalized": 0.005934474462915309,
+              "worstIndex": 1257,
+              "expectedAtWorst": 0.009854007512331009,
+              "actualAtWorst": 0.009854137897491455
+            },
+            "destination.v": {
+              "pass": true,
+              "count": 1920,
+              "exactMatches": 25,
+              "failures": 0,
+              "nonFinite": 0,
+              "maxAbsolute": 1.862645149230957e-7,
+              "rmsAbsolute": 5.8117486522897466e-8,
+              "maxNormalized": 0.006841195847436458,
+              "worstIndex": 1136,
+              "expectedAtWorst": -0.008226904086768627,
+              "actualAtWorst": -0.008227052167057991
+            }
+          }
+        },
+        {
+          "step": 64,
+          "candidate": "wasm-scalar",
+          "baseline": "javascript-reference",
+          "pass": true,
+          "expectedSteps": 64,
+          "actualSteps": 64,
+          "tolerance": {
+            "absolute": 0.00002,
+            "relative": 0.0002
+          },
+          "fields": {
+            "current.eta": {
+              "pass": true,
+              "count": 1920,
+              "exactMatches": 151,
+              "failures": 0,
+              "nonFinite": 0,
+              "maxAbsolute": 1.043081283569336e-7,
+              "rmsAbsolute": 1.7639149878901534e-8,
+              "maxNormalized": 0.0025577902749949017,
+              "worstIndex": 107,
+              "expectedAtWorst": 0.10390281677246094,
+              "actualAtWorst": 0.10390271246433258
+            },
+            "current.u": {
+              "pass": true,
+              "count": 1920,
+              "exactMatches": 30,
+              "failures": 0,
+              "nonFinite": 0,
+              "maxAbsolute": 1.4901161193847656e-7,
+              "rmsAbsolute": 4.753628773509446e-8,
+              "maxNormalized": 0.00583137935783691,
+              "worstIndex": 1257,
+              "expectedAtWorst": 0.010199069045484066,
+              "actualAtWorst": 0.010199197567999363
+            },
+            "current.v": {
+              "pass": true,
+              "count": 1920,
+              "exactMatches": 32,
+              "failures": 0,
+              "nonFinite": 0,
+              "maxAbsolute": 1.9371509552001953e-7,
+              "rmsAbsolute": 5.9395863808718984e-8,
+              "maxNormalized": 0.007096794803250972,
+              "worstIndex": 1136,
+              "expectedAtWorst": -0.008265934884548187,
+              "actualAtWorst": -0.008266088552772999
+            },
+            "destination.eta": {
+              "pass": true,
+              "count": 1920,
+              "exactMatches": 158,
+              "failures": 0,
+              "nonFinite": 0,
+              "maxAbsolute": 1.043081283569336e-7,
+              "rmsAbsolute": 1.7624208065711893e-8,
+              "maxNormalized": 0.0025490494652807955,
+              "worstIndex": 107,
+              "expectedAtWorst": 0.10460200905799866,
+              "actualAtWorst": 0.1046019047498703
+            },
+            "destination.u": {
+              "pass": true,
+              "count": 1920,
+              "exactMatches": 33,
+              "failures": 0,
+              "nonFinite": 0,
+              "maxAbsolute": 1.4901161193847656e-7,
+              "rmsAbsolute": 4.6747089621223486e-8,
+              "maxNormalized": 0.005934474462915309,
+              "worstIndex": 1257,
+              "expectedAtWorst": 0.009854007512331009,
+              "actualAtWorst": 0.009854137897491455
+            },
+            "destination.v": {
+              "pass": true,
+              "count": 1920,
+              "exactMatches": 25,
+              "failures": 0,
+              "nonFinite": 0,
+              "maxAbsolute": 1.862645149230957e-7,
+              "rmsAbsolute": 5.8117486522897466e-8,
+              "maxNormalized": 0.006841195847436458,
+              "worstIndex": 1136,
+              "expectedAtWorst": -0.008226904086768627,
+              "actualAtWorst": -0.008227052167057991
+            }
+          }
+        },
+        {
+          "step": 64,
+          "candidate": "wasm-scalar",
+          "baseline": "f32-reference",
+          "pass": true,
+          "expectedSteps": 64,
+          "actualSteps": 64,
+          "tolerance": {
+            "absolute": 0.00002,
+            "relative": 0.0002
+          },
+          "fields": {
+            "current.eta": {
+              "pass": true,
+              "count": 1920,
+              "exactMatches": 1920,
+              "failures": 0,
+              "nonFinite": 0,
+              "maxAbsolute": 0,
+              "rmsAbsolute": 0,
+              "maxNormalized": 0,
+              "worstIndex": 0,
+              "expectedAtWorst": 0.062279317528009415,
+              "actualAtWorst": 0.062279317528009415
+            },
+            "current.u": {
+              "pass": true,
+              "count": 1920,
+              "exactMatches": 1920,
+              "failures": 0,
+              "nonFinite": 0,
+              "maxAbsolute": 0,
+              "rmsAbsolute": 0,
+              "maxNormalized": 0,
+              "worstIndex": 0,
+              "expectedAtWorst": 0.006414078641682863,
+              "actualAtWorst": 0.006414078641682863
+            },
+            "current.v": {
+              "pass": true,
+              "count": 1920,
+              "exactMatches": 1920,
+              "failures": 0,
+              "nonFinite": 0,
+              "maxAbsolute": 0,
+              "rmsAbsolute": 0,
+              "maxNormalized": 0,
+              "worstIndex": 0,
+              "expectedAtWorst": -0.0005905905272811651,
+              "actualAtWorst": -0.0005905905272811651
+            },
+            "destination.eta": {
+              "pass": true,
+              "count": 1920,
+              "exactMatches": 1920,
+              "failures": 0,
+              "nonFinite": 0,
+              "maxAbsolute": 0,
+              "rmsAbsolute": 0,
+              "maxNormalized": 0,
+              "worstIndex": 0,
+              "expectedAtWorst": 0.061856310814619064,
+              "actualAtWorst": 0.061856310814619064
+            },
+            "destination.u": {
+              "pass": true,
+              "count": 1920,
+              "exactMatches": 1920,
+              "failures": 0,
+              "nonFinite": 0,
+              "maxAbsolute": 0,
+              "rmsAbsolute": 0,
+              "maxNormalized": 0,
+              "worstIndex": 0,
+              "expectedAtWorst": 0.006319055799394846,
+              "actualAtWorst": 0.006319055799394846
+            },
+            "destination.v": {
+              "pass": true,
+              "count": 1920,
+              "exactMatches": 1920,
+              "failures": 0,
+              "nonFinite": 0,
+              "maxAbsolute": 0,
+              "rmsAbsolute": 0,
+              "maxNormalized": 0,
+              "worstIndex": 0,
+              "expectedAtWorst": -0.0005532238283194602,
+              "actualAtWorst": -0.0005532238283194602
+            }
+          }
+        },
+        {
+          "step": 64,
+          "candidate": "wasm-simd",
+          "baseline": "javascript-reference",
+          "pass": true,
+          "expectedSteps": 64,
+          "actualSteps": 64,
+          "tolerance": {
+            "absolute": 0.00002,
+            "relative": 0.0002
+          },
+          "fields": {
+            "current.eta": {
+              "pass": true,
+              "count": 1920,
+              "exactMatches": 151,
+              "failures": 0,
+              "nonFinite": 0,
+              "maxAbsolute": 1.043081283569336e-7,
+              "rmsAbsolute": 1.7639149878901534e-8,
+              "maxNormalized": 0.0025577902749949017,
+              "worstIndex": 107,
+              "expectedAtWorst": 0.10390281677246094,
+              "actualAtWorst": 0.10390271246433258
+            },
+            "current.u": {
+              "pass": true,
+              "count": 1920,
+              "exactMatches": 30,
+              "failures": 0,
+              "nonFinite": 0,
+              "maxAbsolute": 1.4901161193847656e-7,
+              "rmsAbsolute": 4.753628773509446e-8,
+              "maxNormalized": 0.00583137935783691,
+              "worstIndex": 1257,
+              "expectedAtWorst": 0.010199069045484066,
+              "actualAtWorst": 0.010199197567999363
+            },
+            "current.v": {
+              "pass": true,
+              "count": 1920,
+              "exactMatches": 32,
+              "failures": 0,
+              "nonFinite": 0,
+              "maxAbsolute": 1.9371509552001953e-7,
+              "rmsAbsolute": 5.9395863808718984e-8,
+              "maxNormalized": 0.007096794803250972,
+              "worstIndex": 1136,
+              "expectedAtWorst": -0.008265934884548187,
+              "actualAtWorst": -0.008266088552772999
+            },
+            "destination.eta": {
+              "pass": true,
+              "count": 1920,
+              "exactMatches": 158,
+              "failures": 0,
+              "nonFinite": 0,
+              "maxAbsolute": 1.043081283569336e-7,
+              "rmsAbsolute": 1.7624208065711893e-8,
+              "maxNormalized": 0.0025490494652807955,
+              "worstIndex": 107,
+              "expectedAtWorst": 0.10460200905799866,
+              "actualAtWorst": 0.1046019047498703
+            },
+            "destination.u": {
+              "pass": true,
+              "count": 1920,
+              "exactMatches": 33,
+              "failures": 0,
+              "nonFinite": 0,
+              "maxAbsolute": 1.4901161193847656e-7,
+              "rmsAbsolute": 4.6747089621223486e-8,
+              "maxNormalized": 0.005934474462915309,
+              "worstIndex": 1257,
+              "expectedAtWorst": 0.009854007512331009,
+              "actualAtWorst": 0.009854137897491455
+            },
+            "destination.v": {
+              "pass": true,
+              "count": 1920,
+              "exactMatches": 25,
+              "failures": 0,
+              "nonFinite": 0,
+              "maxAbsolute": 1.862645149230957e-7,
+              "rmsAbsolute": 5.8117486522897466e-8,
+              "maxNormalized": 0.006841195847436458,
+              "worstIndex": 1136,
+              "expectedAtWorst": -0.008226904086768627,
+              "actualAtWorst": -0.008227052167057991
+            }
+          }
+        },
+        {
+          "step": 64,
+          "candidate": "wasm-simd",
+          "baseline": "f32-reference",
+          "pass": true,
+          "expectedSteps": 64,
+          "actualSteps": 64,
+          "tolerance": {
+            "absolute": 0.00002,
+            "relative": 0.0002
+          },
+          "fields": {
+            "current.eta": {
+              "pass": true,
+              "count": 1920,
+              "exactMatches": 1920,
+              "failures": 0,
+              "nonFinite": 0,
+              "maxAbsolute": 0,
+              "rmsAbsolute": 0,
+              "maxNormalized": 0,
+              "worstIndex": 0,
+              "expectedAtWorst": 0.062279317528009415,
+              "actualAtWorst": 0.062279317528009415
+            },
+            "current.u": {
+              "pass": true,
+              "count": 1920,
+              "exactMatches": 1920,
+              "failures": 0,
+              "nonFinite": 0,
+              "maxAbsolute": 0,
+              "rmsAbsolute": 0,
+              "maxNormalized": 0,
+              "worstIndex": 0,
+              "expectedAtWorst": 0.006414078641682863,
+              "actualAtWorst": 0.006414078641682863
+            },
+            "current.v": {
+              "pass": true,
+              "count": 1920,
+              "exactMatches": 1920,
+              "failures": 0,
+              "nonFinite": 0,
+              "maxAbsolute": 0,
+              "rmsAbsolute": 0,
+              "maxNormalized": 0,
+              "worstIndex": 0,
+              "expectedAtWorst": -0.0005905905272811651,
+              "actualAtWorst": -0.0005905905272811651
+            },
+            "destination.eta": {
+              "pass": true,
+              "count": 1920,
+              "exactMatches": 1920,
+              "failures": 0,
+              "nonFinite": 0,
+              "maxAbsolute": 0,
+              "rmsAbsolute": 0,
+              "maxNormalized": 0,
+              "worstIndex": 0,
+              "expectedAtWorst": 0.061856310814619064,
+              "actualAtWorst": 0.061856310814619064
+            },
+            "destination.u": {
+              "pass": true,
+              "count": 1920,
+              "exactMatches": 1920,
+              "failures": 0,
+              "nonFinite": 0,
+              "maxAbsolute": 0,
+              "rmsAbsolute": 0,
+              "maxNormalized": 0,
+              "worstIndex": 0,
+              "expectedAtWorst": 0.006319055799394846,
+              "actualAtWorst": 0.006319055799394846
+            },
+            "destination.v": {
+              "pass": true,
+              "count": 1920,
+              "exactMatches": 1920,
+              "failures": 0,
+              "nonFinite": 0,
+              "maxAbsolute": 0,
+              "rmsAbsolute": 0,
+              "maxNormalized": 0,
+              "worstIndex": 0,
+              "expectedAtWorst": -0.0005532238283194602,
+              "actualAtWorst": -0.0005532238283194602
+            }
+          }
+        }
+      ],
+      "timings": {
+        "javascript-reference": {
+          "status": "MEASURED",
+          "method": "Resident arrays; reset outside timer.",
+          "batchSteps": 16,
+          "warmupBatches": 2,
+          "completion": {
+            "unit": "ms/step",
+            "samples": 7,
+            "zeroSamples": 0,
+            "resolutionCaveat": null,
+            "p50": 0.016562500037252903,
+            "p95": 0.019625000027008354,
+            "p99": 0.01992500002030283,
+            "min": 0.01593750005122274,
+            "max": 0.02000000001862645,
+            "mean": 0.017544642872443155,
+            "raw": [
+              0.01593750005122274,
+              0.01656249992083758,
+              0.016562500037252903,
+              0.01875000004656613,
+              0.016562500037252903,
+              0.018437499995343387,
+              0.02000000001862645
+            ]
+          },
+          "includes": [
+            "kernel",
+            "API call",
+            "bank swap"
+          ],
+          "excludes": [
+            "initialization",
+            "reset",
+            "readback",
+            "rendering",
+            "forcing",
+            "floaters",
+            "droplets"
+          ]
+        },
+        "wasm-scalar": {
+          "status": "MEASURED",
+          "method": "Resident arrays; reset outside timer.",
+          "batchSteps": 16,
+          "warmupBatches": 2,
+          "completion": {
+            "unit": "ms/step",
+            "samples": 7,
+            "zeroSamples": 0,
+            "resolutionCaveat": null,
+            "p50": 0.006874999962747097,
+            "p95": 0.008718750020489096,
+            "p99": 0.009243750022724269,
+            "min": 0.006874999962747097,
+            "max": 0.009375000023283064,
+            "mean": 0.0073214285574587324,
+            "raw": [
+              0.009375000023283064,
+              0.006874999962747097,
+              0.007187500013969839,
+              0.006874999962747097,
+              0.006874999962747097,
+              0.006874999962747097,
+              0.007187500013969839
+            ]
+          },
+          "includes": [
+            "kernel",
+            "API call",
+            "bank swap"
+          ],
+          "excludes": [
+            "initialization",
+            "reset",
+            "readback",
+            "rendering",
+            "forcing",
+            "floaters",
+            "droplets"
+          ]
+        },
+        "wasm-simd": {
+          "status": "MEASURED",
+          "method": "Resident arrays; reset outside timer.",
+          "batchSteps": 16,
+          "warmupBatches": 2,
+          "completion": {
+            "unit": "ms/step",
+            "samples": 7,
+            "zeroSamples": 0,
+            "resolutionCaveat": null,
+            "p50": 0.0037499999161809683,
+            "p95": 0.02637499993434174,
+            "p99": 0.033274999919813114,
+            "min": 0.0034374999813735485,
+            "max": 0.03499999991618097,
+            "mean": 0.008482142817229033,
+            "raw": [
+              0.006249999976716936,
+              0.0037499999161809683,
+              0.00375000003259629,
+              0.03499999991618097,
+              0.0034374999813735485,
+              0.0034374999813735485,
+              0.0037499999161809683
+            ]
+          },
+          "includes": [
+            "kernel",
+            "API call",
+            "bank swap"
+          ],
+          "excludes": [
+            "initialization",
+            "reset",
+            "readback",
+            "rendering",
+            "forcing",
+            "floaters",
+            "droplets"
+          ]
+        }
+      },
+      "unavailable": [],
+      "runtimeFailures": [],
+      "failedCandidates": []
+    },
+    {
+      "id": "96x80",
+      "grid": {
+        "cols": 96,
+        "rows": 80
+      },
+      "cells": 7680,
+      "status": "VALIDATED",
+      "seed": 1592631587,
+      "initialStateSha256": "330fb91e7c0cc4b875fb08580ae4ac6e2e8a733438c8a2f05f8cdaaf7b78f4c9",
+      "params": {
+        "dt": 0.008333333333333333,
+        "gravity": 9.81,
+        "meanDepth": 1.55,
+        "drag": 0.33,
+        "invTwoDx": 1.3970588235294117,
+        "invTwoDz": 1.6458333333333333
+      },
+      "physicalExtent": {
+        "width": 34,
+        "depth": 24
+      },
+      "nonzeroBoundaryHistory": true,
+      "checkedSteps": [
+        1,
+        2,
+        8,
+        64
+      ],
+      "comparisons": [
+        {
+          "step": 1,
+          "candidate": "f32-reference",
+          "baseline": "javascript-reference",
+          "pass": true,
+          "expectedSteps": 1,
+          "actualSteps": 1,
+          "tolerance": {
+            "absolute": 0.00002,
+            "relative": 0.0002
+          },
+          "fields": {
+            "current.eta": {
+              "pass": true,
+              "count": 7680,
+              "exactMatches": 5596,
+              "failures": 0,
+              "nonFinite": 0,
+              "maxAbsolute": 1.4901161193847656e-8,
+              "rmsAbsolute": 3.187546153293992e-9,
+              "maxNormalized": 0.0003656140591592358,
+              "worstIndex": 76,
+              "expectedAtWorst": -0.10378266125917435,
+              "actualAtWorst": -0.10378267616033554
+            },
+            "current.u": {
+              "pass": true,
+              "count": 7680,
+              "exactMatches": 4586,
+              "failures": 0,
+              "nonFinite": 0,
+              "maxAbsolute": 1.862645149230957e-9,
+              "rmsAbsolute": 5.921767017429711e-10,
+              "maxNormalized": 0.00008174218064354251,
+              "worstIndex": 74,
+              "expectedAtWorst": 0.013934148475527763,
+              "actualAtWorst": 0.013934146612882614
+            },
+            "current.v": {
+              "pass": true,
+              "count": 7680,
+              "exactMatches": 4291,
+              "failures": 0,
+              "nonFinite": 0,
+              "maxAbsolute": 1.862645149230957e-9,
+              "rmsAbsolute": 6.076060359639165e-10,
+              "maxNormalized": 0.0000832254395960229,
+              "worstIndex": 1498,
+              "expectedAtWorst": -0.011903593316674232,
+              "actualAtWorst": -0.011903595179319382
+            },
+            "destination.eta": {
+              "pass": true,
+              "count": 7680,
+              "exactMatches": 7680,
+              "failures": 0,
+              "nonFinite": 0,
+              "maxAbsolute": 0,
+              "rmsAbsolute": 0,
+              "maxNormalized": 0,
+              "worstIndex": 0,
+              "expectedAtWorst": 0.025054918602108955,
+              "actualAtWorst": 0.025054918602108955
+            },
+            "destination.u": {
+              "pass": true,
+              "count": 7680,
+              "exactMatches": 7680,
+              "failures": 0,
+              "nonFinite": 0,
+              "maxAbsolute": 0,
+              "rmsAbsolute": 0,
+              "maxNormalized": 0,
+              "worstIndex": 0,
+              "expectedAtWorst": 0.011492257006466389,
+              "actualAtWorst": 0.011492257006466389
+            },
+            "destination.v": {
+              "pass": true,
+              "count": 7680,
+              "exactMatches": 7680,
+              "failures": 0,
+              "nonFinite": 0,
+              "maxAbsolute": 0,
+              "rmsAbsolute": 0,
+              "maxNormalized": 0,
+              "worstIndex": 0,
+              "expectedAtWorst": -0.013877613469958305,
+              "actualAtWorst": -0.013877613469958305
+            }
+          }
+        },
+        {
+          "step": 1,
+          "candidate": "wasm-scalar",
+          "baseline": "javascript-reference",
+          "pass": true,
+          "expectedSteps": 1,
+          "actualSteps": 1,
+          "tolerance": {
+            "absolute": 0.00002,
+            "relative": 0.0002
+          },
+          "fields": {
+            "current.eta": {
+              "pass": true,
+              "count": 7680,
+              "exactMatches": 5596,
+              "failures": 0,
+              "nonFinite": 0,
+              "maxAbsolute": 1.4901161193847656e-8,
+              "rmsAbsolute": 3.187546153293992e-9,
+              "maxNormalized": 0.0003656140591592358,
+              "worstIndex": 76,
+              "expectedAtWorst": -0.10378266125917435,
+              "actualAtWorst": -0.10378267616033554
+            },
+            "current.u": {
+              "pass": true,
+              "count": 7680,
+              "exactMatches": 4586,
+              "failures": 0,
+              "nonFinite": 0,
+              "maxAbsolute": 1.862645149230957e-9,
+              "rmsAbsolute": 5.921767017429711e-10,
+              "maxNormalized": 0.00008174218064354251,
+              "worstIndex": 74,
+              "expectedAtWorst": 0.013934148475527763,
+              "actualAtWorst": 0.013934146612882614
+            },
+            "current.v": {
+              "pass": true,
+              "count": 7680,
+              "exactMatches": 4291,
+              "failures": 0,
+              "nonFinite": 0,
+              "maxAbsolute": 1.862645149230957e-9,
+              "rmsAbsolute": 6.076060359639165e-10,
+              "maxNormalized": 0.0000832254395960229,
+              "worstIndex": 1498,
+              "expectedAtWorst": -0.011903593316674232,
+              "actualAtWorst": -0.011903595179319382
+            },
+            "destination.eta": {
+              "pass": true,
+              "count": 7680,
+              "exactMatches": 7680,
+              "failures": 0,
+              "nonFinite": 0,
+              "maxAbsolute": 0,
+              "rmsAbsolute": 0,
+              "maxNormalized": 0,
+              "worstIndex": 0,
+              "expectedAtWorst": 0.025054918602108955,
+              "actualAtWorst": 0.025054918602108955
+            },
+            "destination.u": {
+              "pass": true,
+              "count": 7680,
+              "exactMatches": 7680,
+              "failures": 0,
+              "nonFinite": 0,
+              "maxAbsolute": 0,
+              "rmsAbsolute": 0,
+              "maxNormalized": 0,
+              "worstIndex": 0,
+              "expectedAtWorst": 0.011492257006466389,
+              "actualAtWorst": 0.011492257006466389
+            },
+            "destination.v": {
+              "pass": true,
+              "count": 7680,
+              "exactMatches": 7680,
+              "failures": 0,
+              "nonFinite": 0,
+              "maxAbsolute": 0,
+              "rmsAbsolute": 0,
+              "maxNormalized": 0,
+              "worstIndex": 0,
+              "expectedAtWorst": -0.013877613469958305,
+              "actualAtWorst": -0.013877613469958305
+            }
+          }
+        },
+        {
+          "step": 1,
+          "candidate": "wasm-scalar",
+          "baseline": "f32-reference",
+          "pass": true,
+          "expectedSteps": 1,
+          "actualSteps": 1,
+          "tolerance": {
+            "absolute": 0.00002,
+            "relative": 0.0002
+          },
+          "fields": {
+            "current.eta": {
+              "pass": true,
+              "count": 7680,
+              "exactMatches": 7680,
+              "failures": 0,
+              "nonFinite": 0,
+              "maxAbsolute": 0,
+              "rmsAbsolute": 0,
+              "maxNormalized": 0,
+              "worstIndex": 0,
+              "expectedAtWorst": 0.03201592341065407,
+              "actualAtWorst": 0.03201592341065407
+            },
+            "current.u": {
+              "pass": true,
+              "count": 7680,
+              "exactMatches": 7680,
+              "failures": 0,
+              "nonFinite": 0,
+              "maxAbsolute": 0,
+              "rmsAbsolute": 0,
+              "maxNormalized": 0,
+              "worstIndex": 0,
+              "expectedAtWorst": -0.0019722189754247665,
+              "actualAtWorst": -0.0019722189754247665
+            },
+            "current.v": {
+              "pass": true,
+              "count": 7680,
+              "exactMatches": 7680,
+              "failures": 0,
+              "nonFinite": 0,
+              "maxAbsolute": 0,
+              "rmsAbsolute": 0,
+              "maxNormalized": 0,
+              "worstIndex": 0,
+              "expectedAtWorst": 0.0005902567645534873,
+              "actualAtWorst": 0.0005902567645534873
+            },
+            "destination.eta": {
+              "pass": true,
+              "count": 7680,
+              "exactMatches": 7680,
+              "failures": 0,
+              "nonFinite": 0,
+              "maxAbsolute": 0,
+              "rmsAbsolute": 0,
+              "maxNormalized": 0,
+              "worstIndex": 0,
+              "expectedAtWorst": 0.025054918602108955,
+              "actualAtWorst": 0.025054918602108955
+            },
+            "destination.u": {
+              "pass": true,
+              "count": 7680,
+              "exactMatches": 7680,
+              "failures": 0,
+              "nonFinite": 0,
+              "maxAbsolute": 0,
+              "rmsAbsolute": 0,
+              "maxNormalized": 0,
+              "worstIndex": 0,
+              "expectedAtWorst": 0.011492257006466389,
+              "actualAtWorst": 0.011492257006466389
+            },
+            "destination.v": {
+              "pass": true,
+              "count": 7680,
+              "exactMatches": 7680,
+              "failures": 0,
+              "nonFinite": 0,
+              "maxAbsolute": 0,
+              "rmsAbsolute": 0,
+              "maxNormalized": 0,
+              "worstIndex": 0,
+              "expectedAtWorst": -0.013877613469958305,
+              "actualAtWorst": -0.013877613469958305
+            }
+          }
+        },
+        {
+          "step": 1,
+          "candidate": "wasm-simd",
+          "baseline": "javascript-reference",
+          "pass": true,
+          "expectedSteps": 1,
+          "actualSteps": 1,
+          "tolerance": {
+            "absolute": 0.00002,
+            "relative": 0.0002
+          },
+          "fields": {
+            "current.eta": {
+              "pass": true,
+              "count": 7680,
+              "exactMatches": 5596,
+              "failures": 0,
+              "nonFinite": 0,
+              "maxAbsolute": 1.4901161193847656e-8,
+              "rmsAbsolute": 3.187546153293992e-9,
+              "maxNormalized": 0.0003656140591592358,
+              "worstIndex": 76,
+              "expectedAtWorst": -0.10378266125917435,
+              "actualAtWorst": -0.10378267616033554
+            },
+            "current.u": {
+              "pass": true,
+              "count": 7680,
+              "exactMatches": 4586,
+              "failures": 0,
+              "nonFinite": 0,
+              "maxAbsolute": 1.862645149230957e-9,
+              "rmsAbsolute": 5.921767017429711e-10,
+              "maxNormalized": 0.00008174218064354251,
+              "worstIndex": 74,
+              "expectedAtWorst": 0.013934148475527763,
+              "actualAtWorst": 0.013934146612882614
+            },
+            "current.v": {
+              "pass": true,
+              "count": 7680,
+              "exactMatches": 4291,
+              "failures": 0,
+              "nonFinite": 0,
+              "maxAbsolute": 1.862645149230957e-9,
+              "rmsAbsolute": 6.076060359639165e-10,
+              "maxNormalized": 0.0000832254395960229,
+              "worstIndex": 1498,
+              "expectedAtWorst": -0.011903593316674232,
+              "actualAtWorst": -0.011903595179319382
+            },
+            "destination.eta": {
+              "pass": true,
+              "count": 7680,
+              "exactMatches": 7680,
+              "failures": 0,
+              "nonFinite": 0,
+              "maxAbsolute": 0,
+              "rmsAbsolute": 0,
+              "maxNormalized": 0,
+              "worstIndex": 0,
+              "expectedAtWorst": 0.025054918602108955,
+              "actualAtWorst": 0.025054918602108955
+            },
+            "destination.u": {
+              "pass": true,
+              "count": 7680,
+              "exactMatches": 7680,
+              "failures": 0,
+              "nonFinite": 0,
+              "maxAbsolute": 0,
+              "rmsAbsolute": 0,
+              "maxNormalized": 0,
+              "worstIndex": 0,
+              "expectedAtWorst": 0.011492257006466389,
+              "actualAtWorst": 0.011492257006466389
+            },
+            "destination.v": {
+              "pass": true,
+              "count": 7680,
+              "exactMatches": 7680,
+              "failures": 0,
+              "nonFinite": 0,
+              "maxAbsolute": 0,
+              "rmsAbsolute": 0,
+              "maxNormalized": 0,
+              "worstIndex": 0,
+              "expectedAtWorst": -0.013877613469958305,
+              "actualAtWorst": -0.013877613469958305
+            }
+          }
+        },
+        {
+          "step": 1,
+          "candidate": "wasm-simd",
+          "baseline": "f32-reference",
+          "pass": true,
+          "expectedSteps": 1,
+          "actualSteps": 1,
+          "tolerance": {
+            "absolute": 0.00002,
+            "relative": 0.0002
+          },
+          "fields": {
+            "current.eta": {
+              "pass": true,
+              "count": 7680,
+              "exactMatches": 7680,
+              "failures": 0,
+              "nonFinite": 0,
+              "maxAbsolute": 0,
+              "rmsAbsolute": 0,
+              "maxNormalized": 0,
+              "worstIndex": 0,
+              "expectedAtWorst": 0.03201592341065407,
+              "actualAtWorst": 0.03201592341065407
+            },
+            "current.u": {
+              "pass": true,
+              "count": 7680,
+              "exactMatches": 7680,
+              "failures": 0,
+              "nonFinite": 0,
+              "maxAbsolute": 0,
+              "rmsAbsolute": 0,
+              "maxNormalized": 0,
+              "worstIndex": 0,
+              "expectedAtWorst": -0.0019722189754247665,
+              "actualAtWorst": -0.0019722189754247665
+            },
+            "current.v": {
+              "pass": true,
+              "count": 7680,
+              "exactMatches": 7680,
+              "failures": 0,
+              "nonFinite": 0,
+              "maxAbsolute": 0,
+              "rmsAbsolute": 0,
+              "maxNormalized": 0,
+              "worstIndex": 0,
+              "expectedAtWorst": 0.0005902567645534873,
+              "actualAtWorst": 0.0005902567645534873
+            },
+            "destination.eta": {
+              "pass": true,
+              "count": 7680,
+              "exactMatches": 7680,
+              "failures": 0,
+              "nonFinite": 0,
+              "maxAbsolute": 0,
+              "rmsAbsolute": 0,
+              "maxNormalized": 0,
+              "worstIndex": 0,
+              "expectedAtWorst": 0.025054918602108955,
+              "actualAtWorst": 0.025054918602108955
+            },
+            "destination.u": {
+              "pass": true,
+              "count": 7680,
+              "exactMatches": 7680,
+              "failures": 0,
+              "nonFinite": 0,
+              "maxAbsolute": 0,
+              "rmsAbsolute": 0,
+              "maxNormalized": 0,
+              "worstIndex": 0,
+              "expectedAtWorst": 0.011492257006466389,
+              "actualAtWorst": 0.011492257006466389
+            },
+            "destination.v": {
+              "pass": true,
+              "count": 7680,
+              "exactMatches": 7680,
+              "failures": 0,
+              "nonFinite": 0,
+              "maxAbsolute": 0,
+              "rmsAbsolute": 0,
+              "maxNormalized": 0,
+              "worstIndex": 0,
+              "expectedAtWorst": -0.013877613469958305,
+              "actualAtWorst": -0.013877613469958305
+            }
+          }
+        },
+        {
+          "step": 2,
+          "candidate": "f32-reference",
+          "baseline": "javascript-reference",
+          "pass": true,
+          "expectedSteps": 2,
+          "actualSteps": 2,
+          "tolerance": {
+            "absolute": 0.00002,
+            "relative": 0.0002
+          },
+          "fields": {
+            "current.eta": {
+              "pass": true,
+              "count": 7680,
+              "exactMatches": 4400,
+              "failures": 0,
+              "nonFinite": 0,
+              "maxAbsolute": 2.9802322387695312e-8,
+              "rmsAbsolute": 4.377534116890904e-9,
+              "maxNormalized": 0.0006588932462084943,
+              "worstIndex": 4827,
+              "expectedAtWorst": -0.12615440785884857,
+              "actualAtWorst": -0.12615443766117096
+            },
+            "current.u": {
+              "pass": true,
+              "count": 7680,
+              "exactMatches": 2742,
+              "failures": 0,
+              "nonFinite": 0,
+              "maxAbsolute": 5.587935447692871e-9,
+              "rmsAbsolute": 1.0494435094296443e-9,
+              "maxNormalized": 0.00023700280114558685,
+              "worstIndex": 355,
+              "expectedAtWorst": -0.01788754016160965,
+              "actualAtWorst": -0.017887545749545097
+            },
+            "current.v": {
+              "pass": true,
+              "count": 7680,
+              "exactMatches": 2510,
+              "failures": 0,
+              "nonFinite": 0,
+              "maxAbsolute": 5.587935447692871e-9,
+              "rmsAbsolute": 1.1252284071812148e-9,
+              "maxNormalized": 0.00023734824590041588,
+              "worstIndex": 6072,
+              "expectedAtWorst": -0.01771596260368824,
+              "actualAtWorst": -0.017715968191623688
+            },
+            "destination.eta": {
+              "pass": true,
+              "count": 7680,
+              "exactMatches": 5596,
+              "failures": 0,
+              "nonFinite": 0,
+              "maxAbsolute": 1.4901161193847656e-8,
+              "rmsAbsolute": 3.187546153293992e-9,
+              "maxNormalized": 0.0003656140591592358,
+              "worstIndex": 76,
+              "expectedAtWorst": -0.10378266125917435,
+              "actualAtWorst": -0.10378267616033554
+            },
+            "destination.u": {
+              "pass": true,
+              "count": 7680,
+              "exactMatches": 4586,
+              "failures": 0,
+              "nonFinite": 0,
+              "maxAbsolute": 1.862645149230957e-9,
+              "rmsAbsolute": 5.921767017429711e-10,
+              "maxNormalized": 0.00008174218064354251,
+              "worstIndex": 74,
+              "expectedAtWorst": 0.013934148475527763,
+              "actualAtWorst": 0.013934146612882614
+            },
+            "destination.v": {
+              "pass": true,
+              "count": 7680,
+              "exactMatches": 4291,
+              "failures": 0,
+              "nonFinite": 0,
+              "maxAbsolute": 1.862645149230957e-9,
+              "rmsAbsolute": 6.076060359639165e-10,
+              "maxNormalized": 0.0000832254395960229,
+              "worstIndex": 1498,
+              "expectedAtWorst": -0.011903593316674232,
+              "actualAtWorst": -0.011903595179319382
+            }
+          }
+        },
+        {
+          "step": 2,
+          "candidate": "wasm-scalar",
+          "baseline": "javascript-reference",
+          "pass": true,
+          "expectedSteps": 2,
+          "actualSteps": 2,
+          "tolerance": {
+            "absolute": 0.00002,
+            "relative": 0.0002
+          },
+          "fields": {
+            "current.eta": {
+              "pass": true,
+              "count": 7680,
+              "exactMatches": 4400,
+              "failures": 0,
+              "nonFinite": 0,
+              "maxAbsolute": 2.9802322387695312e-8,
+              "rmsAbsolute": 4.377534116890904e-9,
+              "maxNormalized": 0.0006588932462084943,
+              "worstIndex": 4827,
+              "expectedAtWorst": -0.12615440785884857,
+              "actualAtWorst": -0.12615443766117096
+            },
+            "current.u": {
+              "pass": true,
+              "count": 7680,
+              "exactMatches": 2742,
+              "failures": 0,
+              "nonFinite": 0,
+              "maxAbsolute": 5.587935447692871e-9,
+              "rmsAbsolute": 1.0494435094296443e-9,
+              "maxNormalized": 0.00023700280114558685,
+              "worstIndex": 355,
+              "expectedAtWorst": -0.01788754016160965,
+              "actualAtWorst": -0.017887545749545097
+            },
+            "current.v": {
+              "pass": true,
+              "count": 7680,
+              "exactMatches": 2510,
+              "failures": 0,
+              "nonFinite": 0,
+              "maxAbsolute": 5.587935447692871e-9,
+              "rmsAbsolute": 1.1252284071812148e-9,
+              "maxNormalized": 0.00023734824590041588,
+              "worstIndex": 6072,
+              "expectedAtWorst": -0.01771596260368824,
+              "actualAtWorst": -0.017715968191623688
+            },
+            "destination.eta": {
+              "pass": true,
+              "count": 7680,
+              "exactMatches": 5596,
+              "failures": 0,
+              "nonFinite": 0,
+              "maxAbsolute": 1.4901161193847656e-8,
+              "rmsAbsolute": 3.187546153293992e-9,
+              "maxNormalized": 0.0003656140591592358,
+              "worstIndex": 76,
+              "expectedAtWorst": -0.10378266125917435,
+              "actualAtWorst": -0.10378267616033554
+            },
+            "destination.u": {
+              "pass": true,
+              "count": 7680,
+              "exactMatches": 4586,
+              "failures": 0,
+              "nonFinite": 0,
+              "maxAbsolute": 1.862645149230957e-9,
+              "rmsAbsolute": 5.921767017429711e-10,
+              "maxNormalized": 0.00008174218064354251,
+              "worstIndex": 74,
+              "expectedAtWorst": 0.013934148475527763,
+              "actualAtWorst": 0.013934146612882614
+            },
+            "destination.v": {
+              "pass": true,
+              "count": 7680,
+              "exactMatches": 4291,
+              "failures": 0,
+              "nonFinite": 0,
+              "maxAbsolute": 1.862645149230957e-9,
+              "rmsAbsolute": 6.076060359639165e-10,
+              "maxNormalized": 0.0000832254395960229,
+              "worstIndex": 1498,
+              "expectedAtWorst": -0.011903593316674232,
+              "actualAtWorst": -0.011903595179319382
+            }
+          }
+        },
+        {
+          "step": 2,
+          "candidate": "wasm-scalar",
+          "baseline": "f32-reference",
+          "pass": true,
+          "expectedSteps": 2,
+          "actualSteps": 2,
+          "tolerance": {
+            "absolute": 0.00002,
+            "relative": 0.0002
+          },
+          "fields": {
+            "current.eta": {
+              "pass": true,
+              "count": 7680,
+              "exactMatches": 7680,
+              "failures": 0,
+              "nonFinite": 0,
+              "maxAbsolute": 0,
+              "rmsAbsolute": 0,
+              "maxNormalized": 0,
+              "worstIndex": 0,
+              "expectedAtWorst": 0.0319809764623642,
+              "actualAtWorst": 0.0319809764623642
+            },
+            "current.u": {
+              "pass": true,
+              "count": 7680,
+              "exactMatches": 7680,
+              "failures": 0,
+              "nonFinite": 0,
+              "maxAbsolute": 0,
+              "rmsAbsolute": 0,
+              "maxNormalized": 0,
+              "worstIndex": 0,
+              "expectedAtWorst": -0.001819159835577011,
+              "actualAtWorst": -0.001819159835577011
+            },
+            "current.v": {
+              "pass": true,
+              "count": 7680,
+              "exactMatches": 7680,
+              "failures": 0,
+              "nonFinite": 0,
+              "maxAbsolute": 0,
+              "rmsAbsolute": 0,
+              "maxNormalized": 0,
+              "worstIndex": 0,
+              "expectedAtWorst": 0.0004880129999946803,
+              "actualAtWorst": 0.0004880129999946803
+            },
+            "destination.eta": {
+              "pass": true,
+              "count": 7680,
+              "exactMatches": 7680,
+              "failures": 0,
+              "nonFinite": 0,
+              "maxAbsolute": 0,
+              "rmsAbsolute": 0,
+              "maxNormalized": 0,
+              "worstIndex": 0,
+              "expectedAtWorst": 0.03201592341065407,
+              "actualAtWorst": 0.03201592341065407
+            },
+            "destination.u": {
+              "pass": true,
+              "count": 7680,
+              "exactMatches": 7680,
+              "failures": 0,
+              "nonFinite": 0,
+              "maxAbsolute": 0,
+              "rmsAbsolute": 0,
+              "maxNormalized": 0,
+              "worstIndex": 0,
+              "expectedAtWorst": -0.0019722189754247665,
+              "actualAtWorst": -0.0019722189754247665
+            },
+            "destination.v": {
+              "pass": true,
+              "count": 7680,
+              "exactMatches": 7680,
+              "failures": 0,
+              "nonFinite": 0,
+              "maxAbsolute": 0,
+              "rmsAbsolute": 0,
+              "maxNormalized": 0,
+              "worstIndex": 0,
+              "expectedAtWorst": 0.0005902567645534873,
+              "actualAtWorst": 0.0005902567645534873
+            }
+          }
+        },
+        {
+          "step": 2,
+          "candidate": "wasm-simd",
+          "baseline": "javascript-reference",
+          "pass": true,
+          "expectedSteps": 2,
+          "actualSteps": 2,
+          "tolerance": {
+            "absolute": 0.00002,
+            "relative": 0.0002
+          },
+          "fields": {
+            "current.eta": {
+              "pass": true,
+              "count": 7680,
+              "exactMatches": 4400,
+              "failures": 0,
+              "nonFinite": 0,
+              "maxAbsolute": 2.9802322387695312e-8,
+              "rmsAbsolute": 4.377534116890904e-9,
+              "maxNormalized": 0.0006588932462084943,
+              "worstIndex": 4827,
+              "expectedAtWorst": -0.12615440785884857,
+              "actualAtWorst": -0.12615443766117096
+            },
+            "current.u": {
+              "pass": true,
+              "count": 7680,
+              "exactMatches": 2742,
+              "failures": 0,
+              "nonFinite": 0,
+              "maxAbsolute": 5.587935447692871e-9,
+              "rmsAbsolute": 1.0494435094296443e-9,
+              "maxNormalized": 0.00023700280114558685,
+              "worstIndex": 355,
+              "expectedAtWorst": -0.01788754016160965,
+              "actualAtWorst": -0.017887545749545097
+            },
+            "current.v": {
+              "pass": true,
+              "count": 7680,
+              "exactMatches": 2510,
+              "failures": 0,
+              "nonFinite": 0,
+              "maxAbsolute": 5.587935447692871e-9,
+              "rmsAbsolute": 1.1252284071812148e-9,
+              "maxNormalized": 0.00023734824590041588,
+              "worstIndex": 6072,
+              "expectedAtWorst": -0.01771596260368824,
+              "actualAtWorst": -0.017715968191623688
+            },
+            "destination.eta": {
+              "pass": true,
+              "count": 7680,
+              "exactMatches": 5596,
+              "failures": 0,
+              "nonFinite": 0,
+              "maxAbsolute": 1.4901161193847656e-8,
+              "rmsAbsolute": 3.187546153293992e-9,
+              "maxNormalized": 0.0003656140591592358,
+              "worstIndex": 76,
+              "expectedAtWorst": -0.10378266125917435,
+              "actualAtWorst": -0.10378267616033554
+            },
+            "destination.u": {
+              "pass": true,
+              "count": 7680,
+              "exactMatches": 4586,
+              "failures": 0,
+              "nonFinite": 0,
+              "maxAbsolute": 1.862645149230957e-9,
+              "rmsAbsolute": 5.921767017429711e-10,
+              "maxNormalized": 0.00008174218064354251,
+              "worstIndex": 74,
+              "expectedAtWorst": 0.013934148475527763,
+              "actualAtWorst": 0.013934146612882614
+            },
+            "destination.v": {
+              "pass": true,
+              "count": 7680,
+              "exactMatches": 4291,
+              "failures": 0,
+              "nonFinite": 0,
+              "maxAbsolute": 1.862645149230957e-9,
+              "rmsAbsolute": 6.076060359639165e-10,
+              "maxNormalized": 0.0000832254395960229,
+              "worstIndex": 1498,
+              "expectedAtWorst": -0.011903593316674232,
+              "actualAtWorst": -0.011903595179319382
+            }
+          }
+        },
+        {
+          "step": 2,
+          "candidate": "wasm-simd",
+          "baseline": "f32-reference",
+          "pass": true,
+          "expectedSteps": 2,
+          "actualSteps": 2,
+          "tolerance": {
+            "absolute": 0.00002,
+            "relative": 0.0002
+          },
+          "fields": {
+            "current.eta": {
+              "pass": true,
+              "count": 7680,
+              "exactMatches": 7680,
+              "failures": 0,
+              "nonFinite": 0,
+              "maxAbsolute": 0,
+              "rmsAbsolute": 0,
+              "maxNormalized": 0,
+              "worstIndex": 0,
+              "expectedAtWorst": 0.0319809764623642,
+              "actualAtWorst": 0.0319809764623642
+            },
+            "current.u": {
+              "pass": true,
+              "count": 7680,
+              "exactMatches": 7680,
+              "failures": 0,
+              "nonFinite": 0,
+              "maxAbsolute": 0,
+              "rmsAbsolute": 0,
+              "maxNormalized": 0,
+              "worstIndex": 0,
+              "expectedAtWorst": -0.001819159835577011,
+              "actualAtWorst": -0.001819159835577011
+            },
+            "current.v": {
+              "pass": true,
+              "count": 7680,
+              "exactMatches": 7680,
+              "failures": 0,
+              "nonFinite": 0,
+              "maxAbsolute": 0,
+              "rmsAbsolute": 0,
+              "maxNormalized": 0,
+              "worstIndex": 0,
+              "expectedAtWorst": 0.0004880129999946803,
+              "actualAtWorst": 0.0004880129999946803
+            },
+            "destination.eta": {
+              "pass": true,
+              "count": 7680,
+              "exactMatches": 7680,
+              "failures": 0,
+              "nonFinite": 0,
+              "maxAbsolute": 0,
+              "rmsAbsolute": 0,
+              "maxNormalized": 0,
+              "worstIndex": 0,
+              "expectedAtWorst": 0.03201592341065407,
+              "actualAtWorst": 0.03201592341065407
+            },
+            "destination.u": {
+              "pass": true,
+              "count": 7680,
+              "exactMatches": 7680,
+              "failures": 0,
+              "nonFinite": 0,
+              "maxAbsolute": 0,
+              "rmsAbsolute": 0,
+              "maxNormalized": 0,
+              "worstIndex": 0,
+              "expectedAtWorst": -0.0019722189754247665,
+              "actualAtWorst": -0.0019722189754247665
+            },
+            "destination.v": {
+              "pass": true,
+              "count": 7680,
+              "exactMatches": 7680,
+              "failures": 0,
+              "nonFinite": 0,
+              "maxAbsolute": 0,
+              "rmsAbsolute": 0,
+              "maxNormalized": 0,
+              "worstIndex": 0,
+              "expectedAtWorst": 0.0005902567645534873,
+              "actualAtWorst": 0.0005902567645534873
+            }
+          }
+        },
+        {
+          "step": 8,
+          "candidate": "f32-reference",
+          "baseline": "javascript-reference",
+          "pass": true,
+          "expectedSteps": 8,
+          "actualSteps": 8,
+          "tolerance": {
+            "absolute": 0.00002,
+            "relative": 0.0002
+          },
+          "fields": {
+            "current.eta": {
+              "pass": true,
+              "count": 7680,
+              "exactMatches": 2192,
+              "failures": 0,
+              "nonFinite": 0,
+              "maxAbsolute": 5.960464477539063e-8,
+              "rmsAbsolute": 8.157641208591319e-9,
+              "maxNormalized": 0.001290432192453199,
+              "worstIndex": 3956,
+              "expectedAtWorst": -0.13094837963581085,
+              "actualAtWorst": -0.13094832003116608
+            },
+            "current.u": {
+              "pass": true,
+              "count": 7680,
+              "exactMatches": 584,
+              "failures": 0,
+              "nonFinite": 0,
+              "maxAbsolute": 4.6566128730773926e-8,
+              "rmsAbsolute": 6.192727658619471e-9,
+              "maxNormalized": 0.0021159687588351217,
+              "worstIndex": 156,
+              "expectedAtWorst": 0.010035010054707527,
+              "actualAtWorst": 0.010035056620836258
+            },
+            "current.v": {
+              "pass": true,
+              "count": 7680,
+              "exactMatches": 558,
+              "failures": 0,
+              "nonFinite": 0,
+              "maxAbsolute": 4.586763679981232e-8,
+              "rmsAbsolute": 7.187469788205788e-9,
+              "maxNormalized": 0.0022174455937780876,
+              "worstIndex": 4538,
+              "expectedAtWorst": 0.0034244919661432505,
+              "actualAtWorst": 0.0034245378337800503
+            },
+            "destination.eta": {
+              "pass": true,
+              "count": 7680,
+              "exactMatches": 2291,
+              "failures": 0,
+              "nonFinite": 0,
+              "maxAbsolute": 5.960464477539063e-8,
+              "rmsAbsolute": 7.71487193226212e-9,
+              "maxNormalized": 0.0012396139410801824,
+              "worstIndex": 4244,
+              "expectedAtWorst": -0.14041616022586823,
+              "actualAtWorst": -0.14041610062122345
+            },
+            "destination.u": {
+              "pass": true,
+              "count": 7680,
+              "exactMatches": 679,
+              "failures": 0,
+              "nonFinite": 0,
+              "maxAbsolute": 3.91155481338501e-8,
+              "rmsAbsolute": 5.17975102086264e-9,
+              "maxNormalized": 0.0016983686394438544,
+              "worstIndex": 4150,
+              "expectedAtWorst": 0.015156236477196217,
+              "actualAtWorst": 0.015156197361648083
+            },
+            "destination.v": {
+              "pass": true,
+              "count": 7680,
+              "exactMatches": 663,
+              "failures": 0,
+              "nonFinite": 0,
+              "maxAbsolute": 3.725290298461914e-8,
+              "rmsAbsolute": 5.988526995161696e-9,
+              "maxNormalized": 0.0017854834416509244,
+              "worstIndex": 4482,
+              "expectedAtWorst": 0.0013875688891857862,
+              "actualAtWorst": 0.001387532684020698
+            }
+          }
+        },
+        {
+          "step": 8,
+          "candidate": "wasm-scalar",
+          "baseline": "javascript-reference",
+          "pass": true,
+          "expectedSteps": 8,
+          "actualSteps": 8,
+          "tolerance": {
+            "absolute": 0.00002,
+            "relative": 0.0002
+          },
+          "fields": {
+            "current.eta": {
+              "pass": true,
+              "count": 7680,
+              "exactMatches": 2192,
+              "failures": 0,
+              "nonFinite": 0,
+              "maxAbsolute": 5.960464477539063e-8,
+              "rmsAbsolute": 8.157641208591319e-9,
+              "maxNormalized": 0.001290432192453199,
+              "worstIndex": 3956,
+              "expectedAtWorst": -0.13094837963581085,
+              "actualAtWorst": -0.13094832003116608
+            },
+            "current.u": {
+              "pass": true,
+              "count": 7680,
+              "exactMatches": 584,
+              "failures": 0,
+              "nonFinite": 0,
+              "maxAbsolute": 4.6566128730773926e-8,
+              "rmsAbsolute": 6.192727658619471e-9,
+              "maxNormalized": 0.0021159687588351217,
+              "worstIndex": 156,
+              "expectedAtWorst": 0.010035010054707527,
+              "actualAtWorst": 0.010035056620836258
+            },
+            "current.v": {
+              "pass": true,
+              "count": 7680,
+              "exactMatches": 558,
+              "failures": 0,
+              "nonFinite": 0,
+              "maxAbsolute": 4.586763679981232e-8,
+              "rmsAbsolute": 7.187469788205788e-9,
+              "maxNormalized": 0.0022174455937780876,
+              "worstIndex": 4538,
+              "expectedAtWorst": 0.0034244919661432505,
+              "actualAtWorst": 0.0034245378337800503
+            },
+            "destination.eta": {
+              "pass": true,
+              "count": 7680,
+              "exactMatches": 2291,
+              "failures": 0,
+              "nonFinite": 0,
+              "maxAbsolute": 5.960464477539063e-8,
+              "rmsAbsolute": 7.71487193226212e-9,
+              "maxNormalized": 0.0012396139410801824,
+              "worstIndex": 4244,
+              "expectedAtWorst": -0.14041616022586823,
+              "actualAtWorst": -0.14041610062122345
+            },
+            "destination.u": {
+              "pass": true,
+              "count": 7680,
+              "exactMatches": 679,
+              "failures": 0,
+              "nonFinite": 0,
+              "maxAbsolute": 3.91155481338501e-8,
+              "rmsAbsolute": 5.17975102086264e-9,
+              "maxNormalized": 0.0016983686394438544,
+              "worstIndex": 4150,
+              "expectedAtWorst": 0.015156236477196217,
+              "actualAtWorst": 0.015156197361648083
+            },
+            "destination.v": {
+              "pass": true,
+              "count": 7680,
+              "exactMatches": 663,
+              "failures": 0,
+              "nonFinite": 0,
+              "maxAbsolute": 3.725290298461914e-8,
+              "rmsAbsolute": 5.988526995161696e-9,
+              "maxNormalized": 0.0017854834416509244,
+              "worstIndex": 4482,
+              "expectedAtWorst": 0.0013875688891857862,
+              "actualAtWorst": 0.001387532684020698
+            }
+          }
+        },
+        {
+          "step": 8,
+          "candidate": "wasm-scalar",
+          "baseline": "f32-reference",
+          "pass": true,
+          "expectedSteps": 8,
+          "actualSteps": 8,
+          "tolerance": {
+            "absolute": 0.00002,
+            "relative": 0.0002
+          },
+          "fields": {
+            "current.eta": {
+              "pass": true,
+              "count": 7680,
+              "exactMatches": 7680,
+              "failures": 0,
+              "nonFinite": 0,
+              "maxAbsolute": 0,
+              "rmsAbsolute": 0,
+              "maxNormalized": 0,
+              "worstIndex": 0,
+              "expectedAtWorst": 0.03167642652988434,
+              "actualAtWorst": 0.03167642652988434
+            },
+            "current.u": {
+              "pass": true,
+              "count": 7680,
+              "exactMatches": 7680,
+              "failures": 0,
+              "nonFinite": 0,
+              "maxAbsolute": 0,
+              "rmsAbsolute": 0,
+              "maxNormalized": 0,
+              "worstIndex": 0,
+              "expectedAtWorst": -0.0006350657786242664,
+              "actualAtWorst": -0.0006350657786242664
+            },
+            "current.v": {
+              "pass": true,
+              "count": 7680,
+              "exactMatches": 7680,
+              "failures": 0,
+              "nonFinite": 0,
+              "maxAbsolute": 0,
+              "rmsAbsolute": 0,
+              "maxNormalized": 0,
+              "worstIndex": 0,
+              "expectedAtWorst": 0.00003316328002256341,
+              "actualAtWorst": 0.00003316328002256341
+            },
+            "destination.eta": {
+              "pass": true,
+              "count": 7680,
+              "exactMatches": 7680,
+              "failures": 0,
+              "nonFinite": 0,
+              "maxAbsolute": 0,
+              "rmsAbsolute": 0,
+              "maxNormalized": 0,
+              "worstIndex": 0,
+              "expectedAtWorst": 0.031703658401966095,
+              "actualAtWorst": 0.031703658401966095
+            },
+            "destination.u": {
+              "pass": true,
+              "count": 7680,
+              "exactMatches": 7680,
+              "failures": 0,
+              "nonFinite": 0,
+              "maxAbsolute": 0,
+              "rmsAbsolute": 0,
+              "maxNormalized": 0,
+              "worstIndex": 0,
+              "expectedAtWorst": -0.0008633226389065385,
+              "actualAtWorst": -0.0008633226389065385
+            },
+            "destination.v": {
+              "pass": true,
+              "count": 7680,
+              "exactMatches": 7680,
+              "failures": 0,
+              "nonFinite": 0,
+              "maxAbsolute": 0,
+              "rmsAbsolute": 0,
+              "maxNormalized": 0,
+              "worstIndex": 0,
+              "expectedAtWorst": 0.00008151489601004869,
+              "actualAtWorst": 0.00008151489601004869
+            }
+          }
+        },
+        {
+          "step": 8,
+          "candidate": "wasm-simd",
+          "baseline": "javascript-reference",
+          "pass": true,
+          "expectedSteps": 8,
+          "actualSteps": 8,
+          "tolerance": {
+            "absolute": 0.00002,
+            "relative": 0.0002
+          },
+          "fields": {
+            "current.eta": {
+              "pass": true,
+              "count": 7680,
+              "exactMatches": 2192,
+              "failures": 0,
+              "nonFinite": 0,
+              "maxAbsolute": 5.960464477539063e-8,
+              "rmsAbsolute": 8.157641208591319e-9,
+              "maxNormalized": 0.001290432192453199,
+              "worstIndex": 3956,
+              "expectedAtWorst": -0.13094837963581085,
+              "actualAtWorst": -0.13094832003116608
+            },
+            "current.u": {
+              "pass": true,
+              "count": 7680,
+              "exactMatches": 584,
+              "failures": 0,
+              "nonFinite": 0,
+              "maxAbsolute": 4.6566128730773926e-8,
+              "rmsAbsolute": 6.192727658619471e-9,
+              "maxNormalized": 0.0021159687588351217,
+              "worstIndex": 156,
+              "expectedAtWorst": 0.010035010054707527,
+              "actualAtWorst": 0.010035056620836258
+            },
+            "current.v": {
+              "pass": true,
+              "count": 7680,
+              "exactMatches": 558,
+              "failures": 0,
+              "nonFinite": 0,
+              "maxAbsolute": 4.586763679981232e-8,
+              "rmsAbsolute": 7.187469788205788e-9,
+              "maxNormalized": 0.0022174455937780876,
+              "worstIndex": 4538,
+              "expectedAtWorst": 0.0034244919661432505,
+              "actualAtWorst": 0.0034245378337800503
+            },
+            "destination.eta": {
+              "pass": true,
+              "count": 7680,
+              "exactMatches": 2291,
+              "failures": 0,
+              "nonFinite": 0,
+              "maxAbsolute": 5.960464477539063e-8,
+              "rmsAbsolute": 7.71487193226212e-9,
+              "maxNormalized": 0.0012396139410801824,
+              "worstIndex": 4244,
+              "expectedAtWorst": -0.14041616022586823,
+              "actualAtWorst": -0.14041610062122345
+            },
+            "destination.u": {
+              "pass": true,
+              "count": 7680,
+              "exactMatches": 679,
+              "failures": 0,
+              "nonFinite": 0,
+              "maxAbsolute": 3.91155481338501e-8,
+              "rmsAbsolute": 5.17975102086264e-9,
+              "maxNormalized": 0.0016983686394438544,
+              "worstIndex": 4150,
+              "expectedAtWorst": 0.015156236477196217,
+              "actualAtWorst": 0.015156197361648083
+            },
+            "destination.v": {
+              "pass": true,
+              "count": 7680,
+              "exactMatches": 663,
+              "failures": 0,
+              "nonFinite": 0,
+              "maxAbsolute": 3.725290298461914e-8,
+              "rmsAbsolute": 5.988526995161696e-9,
+              "maxNormalized": 0.0017854834416509244,
+              "worstIndex": 4482,
+              "expectedAtWorst": 0.0013875688891857862,
+              "actualAtWorst": 0.001387532684020698
+            }
+          }
+        },
+        {
+          "step": 8,
+          "candidate": "wasm-simd",
+          "baseline": "f32-reference",
+          "pass": true,
+          "expectedSteps": 8,
+          "actualSteps": 8,
+          "tolerance": {
+            "absolute": 0.00002,
+            "relative": 0.0002
+          },
+          "fields": {
+            "current.eta": {
+              "pass": true,
+              "count": 7680,
+              "exactMatches": 7680,
+              "failures": 0,
+              "nonFinite": 0,
+              "maxAbsolute": 0,
+              "rmsAbsolute": 0,
+              "maxNormalized": 0,
+              "worstIndex": 0,
+              "expectedAtWorst": 0.03167642652988434,
+              "actualAtWorst": 0.03167642652988434
+            },
+            "current.u": {
+              "pass": true,
+              "count": 7680,
+              "exactMatches": 7680,
+              "failures": 0,
+              "nonFinite": 0,
+              "maxAbsolute": 0,
+              "rmsAbsolute": 0,
+              "maxNormalized": 0,
+              "worstIndex": 0,
+              "expectedAtWorst": -0.0006350657786242664,
+              "actualAtWorst": -0.0006350657786242664
+            },
+            "current.v": {
+              "pass": true,
+              "count": 7680,
+              "exactMatches": 7680,
+              "failures": 0,
+              "nonFinite": 0,
+              "maxAbsolute": 0,
+              "rmsAbsolute": 0,
+              "maxNormalized": 0,
+              "worstIndex": 0,
+              "expectedAtWorst": 0.00003316328002256341,
+              "actualAtWorst": 0.00003316328002256341
+            },
+            "destination.eta": {
+              "pass": true,
+              "count": 7680,
+              "exactMatches": 7680,
+              "failures": 0,
+              "nonFinite": 0,
+              "maxAbsolute": 0,
+              "rmsAbsolute": 0,
+              "maxNormalized": 0,
+              "worstIndex": 0,
+              "expectedAtWorst": 0.031703658401966095,
+              "actualAtWorst": 0.031703658401966095
+            },
+            "destination.u": {
+              "pass": true,
+              "count": 7680,
+              "exactMatches": 7680,
+              "failures": 0,
+              "nonFinite": 0,
+              "maxAbsolute": 0,
+              "rmsAbsolute": 0,
+              "maxNormalized": 0,
+              "worstIndex": 0,
+              "expectedAtWorst": -0.0008633226389065385,
+              "actualAtWorst": -0.0008633226389065385
+            },
+            "destination.v": {
+              "pass": true,
+              "count": 7680,
+              "exactMatches": 7680,
+              "failures": 0,
+              "nonFinite": 0,
+              "maxAbsolute": 0,
+              "rmsAbsolute": 0,
+              "maxNormalized": 0,
+              "worstIndex": 0,
+              "expectedAtWorst": 0.00008151489601004869,
+              "actualAtWorst": 0.00008151489601004869
+            }
+          }
+        },
+        {
+          "step": 64,
+          "candidate": "f32-reference",
+          "baseline": "javascript-reference",
+          "pass": true,
+          "expectedSteps": 64,
+          "actualSteps": 64,
+          "tolerance": {
+            "absolute": 0.00002,
+            "relative": 0.0002
+          },
+          "fields": {
+            "current.eta": {
+              "pass": true,
+              "count": 7680,
+              "exactMatches": 566,
+              "failures": 0,
+              "nonFinite": 0,
+              "maxAbsolute": 1.341104507446289e-7,
+              "rmsAbsolute": 1.8905350343587432e-8,
+              "maxNormalized": 0.003106121275302438,
+              "worstIndex": 4574,
+              "expectedAtWorst": 0.11588089913129807,
+              "actualAtWorst": 0.11588103324174881
+            },
+            "current.u": {
+              "pass": true,
+              "count": 7680,
+              "exactMatches": 126,
+              "failures": 0,
+              "nonFinite": 0,
+              "maxAbsolute": 2.421438694000244e-7,
+              "rmsAbsolute": 5.044323099375753e-8,
+              "maxNormalized": 0.010715238640907987,
+              "worstIndex": 307,
+              "expectedAtWorst": 0.0005777732003480196,
+              "actualAtWorst": 0.000577557657379657
+            },
+            "current.v": {
+              "pass": true,
+              "count": 7680,
+              "exactMatches": 104,
+              "failures": 0,
+              "nonFinite": 0,
+              "maxAbsolute": 2.384185791015625e-7,
+              "rmsAbsolute": 6.250051295359733e-8,
+              "maxNormalized": 0.008070956184023271,
+              "worstIndex": 4292,
+              "expectedAtWorst": -0.0269310362637043,
+              "actualAtWorst": -0.026931241154670715
+            },
+            "destination.eta": {
+              "pass": true,
+              "count": 7680,
+              "exactMatches": 581,
+              "failures": 0,
+              "nonFinite": 0,
+              "maxAbsolute": 1.2665987014770508e-7,
+              "rmsAbsolute": 1.8720914589070997e-8,
+              "maxNormalized": 0.002916995406329361,
+              "worstIndex": 4574,
+              "expectedAtWorst": 0.11710673570632935,
+              "actualAtWorst": 0.1171068623661995
+            },
+            "destination.u": {
+              "pass": true,
+              "count": 7680,
+              "exactMatches": 103,
+              "failures": 0,
+              "nonFinite": 0,
+              "maxAbsolute": 2.3469328880310059e-7,
+              "rmsAbsolute": 4.9517767600637696e-8,
+              "maxNormalized": 0.010775020332106424,
+              "worstIndex": 307,
+              "expectedAtWorst": 0.0002898548264056444,
+              "actualAtWorst": 0.0002896387013606727
+            },
+            "destination.v": {
+              "pass": true,
+              "count": 7680,
+              "exactMatches": 100,
+              "failures": 0,
+              "nonFinite": 0,
+              "maxAbsolute": 2.4586915969848633e-7,
+              "rmsAbsolute": 6.130082376741501e-8,
+              "maxNormalized": 0.00770430742486471,
+              "worstIndex": 4292,
+              "expectedAtWorst": -0.026927528902888298,
+              "actualAtWorst": -0.026927724480628967
+            }
+          }
+        },
+        {
+          "step": 64,
+          "candidate": "wasm-scalar",
+          "baseline": "javascript-reference",
+          "pass": true,
+          "expectedSteps": 64,
+          "actualSteps": 64,
+          "tolerance": {
+            "absolute": 0.00002,
+            "relative": 0.0002
+          },
+          "fields": {
+            "current.eta": {
+              "pass": true,
+              "count": 7680,
+              "exactMatches": 566,
+              "failures": 0,
+              "nonFinite": 0,
+              "maxAbsolute": 1.341104507446289e-7,
+              "rmsAbsolute": 1.8905350343587432e-8,
+              "maxNormalized": 0.003106121275302438,
+              "worstIndex": 4574,
+              "expectedAtWorst": 0.11588089913129807,
+              "actualAtWorst": 0.11588103324174881
+            },
+            "current.u": {
+              "pass": true,
+              "count": 7680,
+              "exactMatches": 126,
+              "failures": 0,
+              "nonFinite": 0,
+              "maxAbsolute": 2.421438694000244e-7,
+              "rmsAbsolute": 5.044323099375753e-8,
+              "maxNormalized": 0.010715238640907987,
+              "worstIndex": 307,
+              "expectedAtWorst": 0.0005777732003480196,
+              "actualAtWorst": 0.000577557657379657
+            },
+            "current.v": {
+              "pass": true,
+              "count": 7680,
+              "exactMatches": 104,
+              "failures": 0,
+              "nonFinite": 0,
+              "maxAbsolute": 2.384185791015625e-7,
+              "rmsAbsolute": 6.250051295359733e-8,
+              "maxNormalized": 0.008070956184023271,
+              "worstIndex": 4292,
+              "expectedAtWorst": -0.0269310362637043,
+              "actualAtWorst": -0.026931241154670715
+            },
+            "destination.eta": {
+              "pass": true,
+              "count": 7680,
+              "exactMatches": 581,
+              "failures": 0,
+              "nonFinite": 0,
+              "maxAbsolute": 1.2665987014770508e-7,
+              "rmsAbsolute": 1.8720914589070997e-8,
+              "maxNormalized": 0.002916995406329361,
+              "worstIndex": 4574,
+              "expectedAtWorst": 0.11710673570632935,
+              "actualAtWorst": 0.1171068623661995
+            },
+            "destination.u": {
+              "pass": true,
+              "count": 7680,
+              "exactMatches": 103,
+              "failures": 0,
+              "nonFinite": 0,
+              "maxAbsolute": 2.3469328880310059e-7,
+              "rmsAbsolute": 4.9517767600637696e-8,
+              "maxNormalized": 0.010775020332106424,
+              "worstIndex": 307,
+              "expectedAtWorst": 0.0002898548264056444,
+              "actualAtWorst": 0.0002896387013606727
+            },
+            "destination.v": {
+              "pass": true,
+              "count": 7680,
+              "exactMatches": 100,
+              "failures": 0,
+              "nonFinite": 0,
+              "maxAbsolute": 2.4586915969848633e-7,
+              "rmsAbsolute": 6.130082376741501e-8,
+              "maxNormalized": 0.00770430742486471,
+              "worstIndex": 4292,
+              "expectedAtWorst": -0.026927528902888298,
+              "actualAtWorst": -0.026927724480628967
+            }
+          }
+        },
+        {
+          "step": 64,
+          "candidate": "wasm-scalar",
+          "baseline": "f32-reference",
+          "pass": true,
+          "expectedSteps": 64,
+          "actualSteps": 64,
+          "tolerance": {
+            "absolute": 0.00002,
+            "relative": 0.0002
+          },
+          "fields": {
+            "current.eta": {
+              "pass": true,
+              "count": 7680,
+              "exactMatches": 7680,
+              "failures": 0,
+              "nonFinite": 0,
+              "maxAbsolute": 0,
+              "rmsAbsolute": 0,
+              "maxNormalized": 0,
+              "worstIndex": 0,
+              "expectedAtWorst": 0.06940238177776337,
+              "actualAtWorst": 0.06940238177776337
+            },
+            "current.u": {
+              "pass": true,
+              "count": 7680,
+              "exactMatches": 7680,
+              "failures": 0,
+              "nonFinite": 0,
+              "maxAbsolute": 0,
+              "rmsAbsolute": 0,
+              "maxNormalized": 0,
+              "worstIndex": 0,
+              "expectedAtWorst": 0.005839663557708263,
+              "actualAtWorst": 0.005839663557708263
+            },
+            "current.v": {
+              "pass": true,
+              "count": 7680,
+              "exactMatches": 7680,
+              "failures": 0,
+              "nonFinite": 0,
+              "maxAbsolute": 0,
+              "rmsAbsolute": 0,
+              "maxNormalized": 0,
+              "worstIndex": 0,
+              "expectedAtWorst": 0.0005063476273790002,
+              "actualAtWorst": 0.0005063476273790002
+            },
+            "destination.eta": {
+              "pass": true,
+              "count": 7680,
+              "exactMatches": 7680,
+              "failures": 0,
+              "nonFinite": 0,
+              "maxAbsolute": 0,
+              "rmsAbsolute": 0,
+              "maxNormalized": 0,
+              "worstIndex": 0,
+              "expectedAtWorst": 0.06870612502098083,
+              "actualAtWorst": 0.06870612502098083
+            },
+            "destination.u": {
+              "pass": true,
+              "count": 7680,
+              "exactMatches": 7680,
+              "failures": 0,
+              "nonFinite": 0,
+              "maxAbsolute": 0,
+              "rmsAbsolute": 0,
+              "maxNormalized": 0,
+              "worstIndex": 0,
+              "expectedAtWorst": 0.006147925276309252,
+              "actualAtWorst": 0.006147925276309252
+            },
+            "destination.v": {
+              "pass": true,
+              "count": 7680,
+              "exactMatches": 7680,
+              "failures": 0,
+              "nonFinite": 0,
+              "maxAbsolute": 0,
+              "rmsAbsolute": 0,
+              "maxNormalized": 0,
+              "worstIndex": 0,
+              "expectedAtWorst": 0.0006788430619053543,
+              "actualAtWorst": 0.0006788430619053543
+            }
+          }
+        },
+        {
+          "step": 64,
+          "candidate": "wasm-simd",
+          "baseline": "javascript-reference",
+          "pass": true,
+          "expectedSteps": 64,
+          "actualSteps": 64,
+          "tolerance": {
+            "absolute": 0.00002,
+            "relative": 0.0002
+          },
+          "fields": {
+            "current.eta": {
+              "pass": true,
+              "count": 7680,
+              "exactMatches": 566,
+              "failures": 0,
+              "nonFinite": 0,
+              "maxAbsolute": 1.341104507446289e-7,
+              "rmsAbsolute": 1.8905350343587432e-8,
+              "maxNormalized": 0.003106121275302438,
+              "worstIndex": 4574,
+              "expectedAtWorst": 0.11588089913129807,
+              "actualAtWorst": 0.11588103324174881
+            },
+            "current.u": {
+              "pass": true,
+              "count": 7680,
+              "exactMatches": 126,
+              "failures": 0,
+              "nonFinite": 0,
+              "maxAbsolute": 2.421438694000244e-7,
+              "rmsAbsolute": 5.044323099375753e-8,
+              "maxNormalized": 0.010715238640907987,
+              "worstIndex": 307,
+              "expectedAtWorst": 0.0005777732003480196,
+              "actualAtWorst": 0.000577557657379657
+            },
+            "current.v": {
+              "pass": true,
+              "count": 7680,
+              "exactMatches": 104,
+              "failures": 0,
+              "nonFinite": 0,
+              "maxAbsolute": 2.384185791015625e-7,
+              "rmsAbsolute": 6.250051295359733e-8,
+              "maxNormalized": 0.008070956184023271,
+              "worstIndex": 4292,
+              "expectedAtWorst": -0.0269310362637043,
+              "actualAtWorst": -0.026931241154670715
+            },
+            "destination.eta": {
+              "pass": true,
+              "count": 7680,
+              "exactMatches": 581,
+              "failures": 0,
+              "nonFinite": 0,
+              "maxAbsolute": 1.2665987014770508e-7,
+              "rmsAbsolute": 1.8720914589070997e-8,
+              "maxNormalized": 0.002916995406329361,
+              "worstIndex": 4574,
+              "expectedAtWorst": 0.11710673570632935,
+              "actualAtWorst": 0.1171068623661995
+            },
+            "destination.u": {
+              "pass": true,
+              "count": 7680,
+              "exactMatches": 103,
+              "failures": 0,
+              "nonFinite": 0,
+              "maxAbsolute": 2.3469328880310059e-7,
+              "rmsAbsolute": 4.9517767600637696e-8,
+              "maxNormalized": 0.010775020332106424,
+              "worstIndex": 307,
+              "expectedAtWorst": 0.0002898548264056444,
+              "actualAtWorst": 0.0002896387013606727
+            },
+            "destination.v": {
+              "pass": true,
+              "count": 7680,
+              "exactMatches": 100,
+              "failures": 0,
+              "nonFinite": 0,
+              "maxAbsolute": 2.4586915969848633e-7,
+              "rmsAbsolute": 6.130082376741501e-8,
+              "maxNormalized": 0.00770430742486471,
+              "worstIndex": 4292,
+              "expectedAtWorst": -0.026927528902888298,
+              "actualAtWorst": -0.026927724480628967
+            }
+          }
+        },
+        {
+          "step": 64,
+          "candidate": "wasm-simd",
+          "baseline": "f32-reference",
+          "pass": true,
+          "expectedSteps": 64,
+          "actualSteps": 64,
+          "tolerance": {
+            "absolute": 0.00002,
+            "relative": 0.0002
+          },
+          "fields": {
+            "current.eta": {
+              "pass": true,
+              "count": 7680,
+              "exactMatches": 7680,
+              "failures": 0,
+              "nonFinite": 0,
+              "maxAbsolute": 0,
+              "rmsAbsolute": 0,
+              "maxNormalized": 0,
+              "worstIndex": 0,
+              "expectedAtWorst": 0.06940238177776337,
+              "actualAtWorst": 0.06940238177776337
+            },
+            "current.u": {
+              "pass": true,
+              "count": 7680,
+              "exactMatches": 7680,
+              "failures": 0,
+              "nonFinite": 0,
+              "maxAbsolute": 0,
+              "rmsAbsolute": 0,
+              "maxNormalized": 0,
+              "worstIndex": 0,
+              "expectedAtWorst": 0.005839663557708263,
+              "actualAtWorst": 0.005839663557708263
+            },
+            "current.v": {
+              "pass": true,
+              "count": 7680,
+              "exactMatches": 7680,
+              "failures": 0,
+              "nonFinite": 0,
+              "maxAbsolute": 0,
+              "rmsAbsolute": 0,
+              "maxNormalized": 0,
+              "worstIndex": 0,
+              "expectedAtWorst": 0.0005063476273790002,
+              "actualAtWorst": 0.0005063476273790002
+            },
+            "destination.eta": {
+              "pass": true,
+              "count": 7680,
+              "exactMatches": 7680,
+              "failures": 0,
+              "nonFinite": 0,
+              "maxAbsolute": 0,
+              "rmsAbsolute": 0,
+              "maxNormalized": 0,
+              "worstIndex": 0,
+              "expectedAtWorst": 0.06870612502098083,
+              "actualAtWorst": 0.06870612502098083
+            },
+            "destination.u": {
+              "pass": true,
+              "count": 7680,
+              "exactMatches": 7680,
+              "failures": 0,
+              "nonFinite": 0,
+              "maxAbsolute": 0,
+              "rmsAbsolute": 0,
+              "maxNormalized": 0,
+              "worstIndex": 0,
+              "expectedAtWorst": 0.006147925276309252,
+              "actualAtWorst": 0.006147925276309252
+            },
+            "destination.v": {
+              "pass": true,
+              "count": 7680,
+              "exactMatches": 7680,
+              "failures": 0,
+              "nonFinite": 0,
+              "maxAbsolute": 0,
+              "rmsAbsolute": 0,
+              "maxNormalized": 0,
+              "worstIndex": 0,
+              "expectedAtWorst": 0.0006788430619053543,
+              "actualAtWorst": 0.0006788430619053543
+            }
+          }
+        }
+      ],
+      "timings": {
+        "javascript-reference": {
+          "status": "MEASURED",
+          "method": "Resident arrays; reset outside timer.",
+          "batchSteps": 16,
+          "warmupBatches": 2,
+          "completion": {
+            "unit": "ms/step",
+            "samples": 7,
+            "zeroSamples": 0,
+            "resolutionCaveat": null,
+            "p50": 0.1171875,
+            "p95": 0.18475000006146725,
+            "p99": 0.2032000000681728,
+            "min": 0.07374999998137355,
+            "max": 0.2078125000698492,
+            "mean": 0.12040178574222539,
+            "raw": [
+              0.07374999998137355,
+              0.1171875,
+              0.13093750004190952,
+              0.2078125000698492,
+              0.12000000011175871,
+              0.10562499996740371,
+              0.08750000002328306
+            ]
+          },
+          "includes": [
+            "kernel",
+            "API call",
+            "bank swap"
+          ],
+          "excludes": [
+            "initialization",
+            "reset",
+            "readback",
+            "rendering",
+            "forcing",
+            "floaters",
+            "droplets"
+          ]
+        },
+        "wasm-scalar": {
+          "status": "MEASURED",
+          "method": "Resident arrays; reset outside timer.",
+          "batchSteps": 16,
+          "warmupBatches": 2,
+          "completion": {
+            "unit": "ms/step",
+            "samples": 7,
+            "zeroSamples": 0,
+            "resolutionCaveat": null,
+            "p50": 0.030312499962747097,
+            "p95": 0.07409375000279395,
+            "p99": 0.08256875002291052,
+            "min": 0.026562499930150807,
+            "max": 0.08468750002793968,
+            "mean": 0.03964285713820053,
+            "raw": [
+              0.03093750006519258,
+              0.028125000069849193,
+              0.030312499962747097,
+              0.02749999996740371,
+              0.026562499930150807,
+              0.08468750002793968,
+              0.049374999944120646
+            ]
+          },
+          "includes": [
+            "kernel",
+            "API call",
+            "bank swap"
+          ],
+          "excludes": [
+            "initialization",
+            "reset",
+            "readback",
+            "rendering",
+            "forcing",
+            "floaters",
+            "droplets"
+          ]
+        },
+        "wasm-simd": {
+          "status": "MEASURED",
+          "method": "Resident arrays; reset outside timer.",
+          "batchSteps": 16,
+          "warmupBatches": 2,
+          "completion": {
+            "unit": "ms/step",
+            "samples": 7,
+            "zeroSamples": 0,
+            "resolutionCaveat": null,
+            "p50": 0.02312500006519258,
+            "p95": 0.060093750001396974,
+            "p99": 0.06301874997792765,
+            "min": 0.02000000001862645,
+            "max": 0.06374999997206032,
+            "mean": 0.03250000000532184,
+            "raw": [
+              0.02281250001396984,
+              0.021562499925494194,
+              0.02000000001862645,
+              0.06374999997206032,
+              0.05156250006984919,
+              0.024687499972060323,
+              0.02312500006519258
+            ]
+          },
+          "includes": [
+            "kernel",
+            "API call",
+            "bank swap"
+          ],
+          "excludes": [
+            "initialization",
+            "reset",
+            "readback",
+            "rendering",
+            "forcing",
+            "floaters",
+            "droplets"
+          ]
+        }
+      },
+      "unavailable": [],
+      "runtimeFailures": [],
+      "failedCandidates": []
+    }
+  ],
+  "elapsedMs": 139.76999999955297,
+  "gpuQualification": "BLOCKED",
+  "comparisonCoverage": {
+    "javascript": "RUNTIME_MEASURED",
+    "scalarWasm": "RUNTIME_MEASURED",
+    "simdWasm": "RUNTIME_MEASURED",
+    "webgpu": "BLOCKED"
+  },
+  "coverageCaveat": "COMPLETED covers available implementations; comparisonCoverage records missing or failed backends.",
+  "executionGraph": {
+    "status": "COMPLETED",
+    "settings": {
+      "vertices": 65536,
+      "samples": 7,
+      "warmupBatches": 2,
+      "evaluationsPerBatch": 16,
+      "seed": 596567
+    },
+    "settingsSha256": "1bee5b3444c15eb989bd1f188c5dbca6ec78520b0fba8a4683e8a3f91f7dd4d6",
+    "scope": "Bounds/derived work versus eager reference, not existing renderer performance.",
+    "cases": [
+      {
+        "id": "unchanged",
+        "status": "VALIDATED",
+        "exactFinalValueMatch": true,
+        "untimedFullVectorValidation": {
+          "evaluations": 8,
+          "exactMatch": true
+        },
+        "graph": {
+          "unit": "ms/evaluation",
+          "samples": 7,
+          "zeroSamples": 0,
+          "resolutionCaveat": null,
+          "p50": 0.0009374999208375812,
+          "p95": 0.002468750008847563,
+          "p99": 0.002993750039022415,
+          "min": 0.0006249999860301614,
+          "max": 0.0031250000465661287,
+          "mean": 0.0011160714285714285,
+          "raw": [
+            0.0009374999208375812,
+            0.0009374999208375812,
+            0.0006250001024454832,
+            0.0006250001024454832,
+            0.0009374999208375812,
+            0.0031250000465661287,
+            0.0006249999860301614
+          ]
+        },
+        "eager": {
+          "unit": "ms/evaluation",
+          "samples": 7,
+          "zeroSamples": 0,
+          "resolutionCaveat": null,
+          "p50": 0.9137499999487773,
+          "p95": 1.8208124999422575,
+          "p99": 2.0314124999288463,
+          "min": 0.6471875000279397,
+          "max": 2.084062499925494,
+          "mean": 1.079374999988691,
+          "raw": [
+            1.048437500023283,
+            1.2065624999813735,
+            0.9137499999487773,
+            2.084062499925494,
+            0.6471875000279397,
+            0.8381250000093132,
+            0.8175000000046566
+          ]
+        },
+        "graphCounters": {
+          "sourceUpdates": 0,
+          "invalidations": 0,
+          "generationChanges": 0,
+          "evaluations": 112,
+          "nodesAttempted": 0,
+          "nodesComputed": 0,
+          "cacheHits": 112,
+          "failures": 0
+        },
+        "checksums": {
+          "graph": 1315715739.0428483,
+          "eager": 1315715739.0428483
+        }
+      },
+      {
+        "id": "camera-only",
+        "status": "VALIDATED",
+        "exactFinalValueMatch": true,
+        "untimedFullVectorValidation": {
+          "evaluations": 8,
+          "exactMatch": true
+        },
+        "graph": {
+          "unit": "ms/evaluation",
+          "samples": 7,
+          "zeroSamples": 0,
+          "resolutionCaveat": null,
+          "p50": 0.006875000079162419,
+          "p95": 0.014625000022351741,
+          "p99": 0.014925000015646218,
+          "min": 0.0034374999813735485,
+          "max": 0.015000000013969839,
+          "mean": 0.009062500021952604,
+          "raw": [
+            0.013750000041909516,
+            0.006875000079162419,
+            0.015000000013969839,
+            0.0034374999813735485,
+            0.005000000004656613,
+            0.013437499990686774,
+            0.005937500041909516
+          ]
+        },
+        "eager": {
+          "unit": "ms/evaluation",
+          "samples": 7,
+          "zeroSamples": 0,
+          "resolutionCaveat": null,
+          "p50": 0.9199999999254942,
+          "p95": 1.4059062500251456,
+          "p99": 1.461931250016205,
+          "min": 0.7056249999441206,
+          "max": 1.4759375000139698,
+          "mean": 0.9841964285587892,
+          "raw": [
+            0.9199999999254942,
+            1.2425000000512227,
+            1.4759375000139698,
+            0.7056249999441206,
+            0.7934375000186265,
+            0.9753125000279397,
+            0.7765624999301508
+          ]
+        },
+        "graphCounters": {
+          "sourceUpdates": 112,
+          "invalidations": 112,
+          "generationChanges": 0,
+          "evaluations": 112,
+          "nodesAttempted": 112,
+          "nodesComputed": 112,
+          "cacheHits": 112,
+          "failures": 0
+        },
+        "checksums": {
+          "graph": 1409695439.4887638,
+          "eager": 1409695439.4887638
+        }
+      },
+      {
+        "id": "geometry-change",
+        "status": "VALIDATED",
+        "exactFinalValueMatch": true,
+        "untimedFullVectorValidation": {
+          "evaluations": 8,
+          "exactMatch": true
+        },
+        "graph": {
+          "unit": "ms/evaluation",
+          "samples": 7,
+          "zeroSamples": 0,
+          "resolutionCaveat": null,
+          "p50": 0.9646875000325963,
+          "p95": 2.6917499999981365,
+          "p99": 2.9833500000182536,
+          "min": 0.6915624999674037,
+          "max": 3.056250000023283,
+          "mean": 1.4291964285574588,
+          "raw": [
+            0.6915624999674037,
+            0.9646875000325963,
+            0.8862499999813735,
+            0.825624999939464,
+            1.7387500000186265,
+            3.056250000023283,
+            1.841249999939464
+          ]
+        },
+        "eager": {
+          "unit": "ms/evaluation",
+          "samples": 7,
+          "zeroSamples": 0,
+          "resolutionCaveat": null,
+          "p50": 0.8656250000931323,
+          "p95": 2.5274687499739215,
+          "p99": 3.0484937499649813,
+          "min": 0.5965624999953434,
+          "max": 3.178749999962747,
+          "mean": 1.1556696428617994,
+          "raw": [
+            0.8053124999860302,
+            0.6496874999720603,
+            1.0078125,
+            0.8656250000931323,
+            0.9859375000232831,
+            3.178749999962747,
+            0.5965624999953434
+          ]
+        },
+        "graphCounters": {
+          "sourceUpdates": 112,
+          "invalidations": 224,
+          "generationChanges": 0,
+          "evaluations": 112,
+          "nodesAttempted": 224,
+          "nodesComputed": 224,
+          "cacheHits": 0,
+          "failures": 0
+        },
+        "checksums": {
+          "graph": 1315935730.936192,
+          "eager": 1315935730.936192
+        }
+      }
+    ]
+  },
+  "gpuConformance": {
+    "status": "BLOCKED",
+    "reason": "No WebGPU device."
+  },
+  "gpuValidationErrors": []
+}
