@@ -1,0 +1,32 @@
+✔ V3 contains 60 presets, 24 liquids, six attachments, six shaped beds and four supply programs (6.354708ms)
+✔ stationary lake and dry shoreline over flat (152.199166ms)
+✔ stationary lake and dry shoreline over crown (140.850041ms)
+✔ stationary lake and dry shoreline over gutter (131.587667ms)
+✔ stationary lake and dry shoreline over bowl (132.448042ms)
+✔ stationary lake and dry shoreline over ridges (127.320875ms)
+✔ stationary lake and dry shoreline over steps (123.146917ms)
+✔ rain collects in the modelled hollow while the displayed bed uses identical heights (350.358833ms)
+✔ a crowned road moves its film toward both edge gutters (222.616959ms)
+✔ water crosses initially dry banks; taller banks reduce floodplain inundation (1466.550916ms)
+✔ pump head, supply valve and each timed program change delivered volume (759.848209ms)
+✔ all outlet groups add water exactly where their rendered openings discharge (9.459042ms)
+✔ zero initial film starts a pipe bench dry and a supplied front wets it progressively (45.844583ms)
+✔ finite boundary rims overflow with closed drains and remain in the volume budget (543.186083ms)
+✔ cutoff and replay preserve the recorded surge, bank coverage and overflow values (416.518208ms)
+✔ all five lab setups survive persistence and URL loading without losing settings (3.100292ms)
+✔ saved measurements detach from mutable solver buffers, retain final snapshots and release events (0.138ms)
+✔ long recordings stay bounded, preserve end time and extrema from unsampled measurements (1.687375ms)
+✔ empty, nonfinite and backwards recordings cannot create plausible looking results (0.286625ms)
+✔ a full library preserves existing results, and removal plus undo works (6.894333ms)
+✔ separate callers read the latest library before saving or removing (0.366791ms)
+✔ storage denial and unsupported versions report failure without overwriting data (0.221375ms)
+✔ corrupt records, duplicate identities and invalid measurements are rejected independently (0.225292ms)
+✔ comparison exports original time axes and refuses unlike studies or metric definitions (0.356ms)
+ℹ tests 24
+ℹ suites 0
+ℹ pass 24
+ℹ fail 0
+ℹ cancelled 0
+ℹ skipped 0
+ℹ todo 0
+ℹ duration_ms 4771.585334

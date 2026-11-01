@@ -1,0 +1,35 @@
+✔ liquid: normalized controls and a complete URL round-trip (9.412041ms)
+✔ liquid / Porous concrete: full program stays finite and contains its specimen (545.62575ms)
+✔ liquid / Textured rubber film: full program stays finite and contains its specimen (560.453958ms)
+✔ glass: normalized controls and a complete URL round-trip (0.334209ms)
+✔ concrete: normalized controls and a complete URL round-trip (0.149625ms)
+✔ concrete / Cube compression: full program stays finite and contains its specimen (446.095916ms)
+✔ concrete / Reinforced core: full program stays finite and contains its specimen (409.273125ms)
+✔ concrete / High-strength cube: full program stays finite and contains its specimen (418.861708ms)
+✔ concrete / Lightweight crush: full program stays finite and contains its specimen (383.887958ms)
+✔ concrete / Weathered spall: full program stays finite and contains its specimen (389.508792ms)
+✔ concrete / Fiber bridging: full program stays finite and contains its specimen (404.37025ms)
+✔ concrete / Low-strain comparison: full program stays finite and contains its specimen (482.258375ms)
+✔ concrete / Ceramic comparison: full program stays finite and contains its specimen (423.057333ms)
+✔ concrete: identical seed and inputs reproduce state; recorded frames remain immutable (128.969791ms)
+✔ rubber: normalized controls and a complete URL round-trip (0.4045ms)
+✔ rubber / Silicone recovery: full program stays finite and contains its specimen (0.901416ms)
+✔ rubber / Rubber rebound: full program stays finite and contains its specimen (0.0935ms)
+✔ rubber / Foam collapse: full program stays finite and contains its specimen (0.709292ms)
+✔ rubber / Memory-foam creep: full program stays finite and contains its specimen (0.165958ms)
+✔ rubber / Firm polyurethane: full program stays finite and contains its specimen (0.084208ms)
+✔ rubber / Soft gel: full program stays finite and contains its specimen (0.058667ms)
+✔ rubber / Neoprene hold: full program stays finite and contains its specimen (0.063541ms)
+✔ rubber / EPDM comparison: full program stays finite and contains its specimen (0.056584ms)
+✔ rubber: identical seed and inputs reproduce state; recorded frames remain immutable (0.101333ms)
+✔ granular: normalized controls and a complete URL round-trip (0.258625ms)
+✔ concrete: modest loading stays intact; weaker bonds fail earlier and stay broken (1158.683459ms)
+✔ rubber: elastic recovery and foam permanent set are distinct (0.243334ms)
+ℹ tests 27
+ℹ suites 0
+ℹ pass 27
+ℹ fail 0
+ℹ cancelled 0
+ℹ skipped 0
+ℹ todo 0
+ℹ duration_ms 5919.959292

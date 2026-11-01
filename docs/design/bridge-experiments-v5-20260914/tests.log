@@ -1,0 +1,45 @@
+Bridge experiments stopped: Synthetic reset failure
+✔ plans vary exactly one numerical control and freeze independent copies (994.044667ms)
+✔ unsupported settings are rejected before any engine is allocated (0.639083ms)
+✔ five actual intact solver runs have exact durations, complete samples and measured outcomes (0.493833ms)
+✔ experiment response equals direct production runtime at the same fixed ticks (208.689083ms)
+✔ isolated runs preserve the live model and release every borrowed snapshot (997.494416ms)
+✔ cancelling mid-case keeps completed and partial results and destroys the client once (220.508125ms)
+✔ cancellation before initialization allocates no client (1.0495ms)
+✔ engine failure preserves prior completed cases and releases the client (200.707625ms)
+✔ saved results roundtrip and malformed, incompatible or fabricated completion is rejected (9.305208ms)
+✔ interrupted persisted batches never appear to still be running (0.873083ms)
+✔ baseline promotion uses the measured series and export includes model basis and partial status (1.582125ms)
+✔ new generated references are immutable, full-size PNGs with recorded hashes (7.684375ms)
+✔ scanned source LODs retain their bytes and map by material name across reordered primitives (7.535625ms)
+✔ planted roots stay above the water and clear foundations, approaches and stone footprints (124.240167ms)
+✔ new sedges and fronds have grounded stems, finite normals and bounded leaf sizes (3.409667ms)
+✔ foam stays on wet terrain and forms tails downstream of real riffle stones (4.74425ms)
+✔ riffle stones actually break the surface at the coordinates used for foam (5.724416ms)
+✔ hero framing protects tower crowns and footing edges at desktop and phone breakpoints (1.661125ms)
+✔ connection groups and six span zones partition all 327 modeled links (4.308292ms)
+✔ inspection reads the snapshot mask, including backward replay, instead of stale main-thread flags (0.4955ms)
+✔ lateral movement and zone camera target follow current deck positions, excluding cables (0.438667ms)
+✔ first rupture resolves to a real sample after the event; pre-rupture is intact (0.26625ms)
+✔ milestone and baseline matching refuse an evicted initial-to-recent gap (0.122917ms)
+✔ comparison uses a nearby actual time and does not extrapolate past a saved run (0.059083ms)
+✔ imported damaged history does not claim it captured the first rupture (0.082334ms)
+✔ saved baseline roundtrips with its settings and complete response series (1.240208ms)
+✔ storage validation rejects corrupt, nonfinite, oversized and incompatible data (0.738083ms)
+✔ model compatibility stays stable across damage but detects changed topology or backend (1.44275ms)
+✔ first-rupture pause fires once when a returned worker batch first contains failures (51.562083ms)
+✔ road face interiors conform to terrain, face upward and meet both timber ends (234.231583ms)
+✔ roads turn into each bank, retain width, and clear anchor bodies and ground cover (12.72875ms)
+✔ new portal hardware leaves the complete declared route prism open (8.686959ms)
+✔ tilted deck stations keep every rail endpoint attached to its own post (1.489ms)
+✔ deck steel supports the board underside and transforms with a failed station (2.691875ms)
+✔ corrected concept pair stays byte-identical and the structural solver is unchanged (4302.683ms)
+✔ approach framing retains road-to-deck join and portal crowns beside desktop and phone controls (1.1645ms)
+ℹ tests 36
+ℹ suites 0
+ℹ pass 36
+ℹ fail 0
+ℹ cancelled 0
+ℹ skipped 0
+ℹ todo 0
+ℹ duration_ms 4780.133625

@@ -1,0 +1,52 @@
+
+> box3d-webgpu@1.20.0 test:studio:presets
+> node tests/studio/presets.test.mjs
+
+PASS every preset has a stable unique URL identity
+PASS all published surface packs have real local texture payloads
+PASS copied assets retain the exact reviewed source hashes
+PASS quality enhancement preserves the established failure model
+PASS canopy: incompatible or unknown finish and recipe links resolve safely
+PASS plate: incompatible or unknown finish and recipe links resolve safely
+PASS bridge: incompatible or unknown finish and recipe links resolve safely
+PASS all lighting treatments have bounded finite inputs and a directional sun
+PASS every finish uses a compatible payload and valid surface response
+PASS canopy-service: recipe produces finite solver history with attached fixtures
+PASS canopy-calm: recipe produces finite solver history with attached fixtures
+PASS canopy-wind: recipe produces finite solver history with attached fixtures
+PASS canopy-tear: recipe produces finite solver history with attached fixtures
+PASS canopy-fragile: recipe produces finite solver history with attached fixtures
+PASS canopy-reinforced: recipe produces finite solver history with attached fixtures
+PASS canopy-gentle: recipe produces finite solver history with attached fixtures
+PASS canopy-gust: recipe produces finite solver history with attached fixtures
+PASS canopy-limit: recipe produces finite solver history with attached fixtures
+PASS canopy-ultimate: recipe produces finite solver history with attached fixtures
+PASS plate-service: recipe produces finite solver history with attached fixtures
+PASS plate-deep: recipe produces finite solver history with attached fixtures
+PASS plate-yield: recipe produces finite solver history with attached fixtures
+PASS plate-fracture: recipe produces finite solver history with attached fixtures
+PASS plate-fragile: recipe produces finite solver history with attached fixtures
+PASS plate-reinforced: recipe produces finite solver history with attached fixtures
+PASS plate-gentle: recipe produces finite solver history with attached fixtures
+PASS plate-forming: recipe produces finite solver history with attached fixtures
+PASS plate-limit: recipe produces finite solver history with attached fixtures
+PASS plate-ultimate: recipe produces finite solver history with attached fixtures
+PASS bridge-service: recipe produces finite solver history with attached fixtures
+PASS bridge-wind: recipe produces finite solver history with attached fixtures
+PASS bridge-heavy: recipe produces finite solver history with attached fixtures
+PASS bridge-collapse: recipe produces finite solver history with attached fixtures
+PASS bridge-fragile: recipe produces finite solver history with attached fixtures
+PASS bridge-reinforced: recipe produces finite solver history with attached fixtures
+PASS bridge-gentle: recipe produces finite solver history with attached fixtures
+PASS bridge-gust: recipe produces finite solver history with attached fixtures
+PASS bridge-limit: recipe produces finite solver history with attached fixtures
+PASS bridge-ultimate: recipe produces finite solver history with attached fixtures
+
+39/39 PASS — preset contracts, provenance and solver integration
+PASS complete setups resolve compatible, existing choices without fallback
+PASS new matched PBR maps preserve exact source bytes
+PASS surroundings stay compatible and cannot introduce invalid shader values
+PASS damaged or stale local storage is sanitized rather than blocking the library
+PASS favorites toggle independently; recent use is deduplicated and bounded across reload
+
+44/44 PASS — expanded collection, persistence and complete setup contracts

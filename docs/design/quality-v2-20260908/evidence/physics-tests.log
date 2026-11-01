@@ -1,0 +1,32 @@
+
+> box3d-webgpu@1.20.0 test:studio
+> node tests/studio/failure.test.mjs
+
+PASS bridge cable saddles exactly meet tower elevation and share gauge
+PASS valley has grounded banks and a continuous river channel
+PASS canopy: service load preserves all connections
+PASS canopy: overload breaks physical connections and yields an event
+PASS canopy: all fixed anchors remain exactly on their fixture coordinates
+PASS canopy: finite positions and explicit lower contact boundary after failure
+PASS canopy: broken links cannot transmit forces or reconnect on unloading
+PASS canopy: reset restores original topology and model time
+PASS canopy: rendered triangles no longer span severed edges
+PASS plate: service load preserves all connections
+PASS plate: overload breaks physical connections and yields an event
+PASS plate: all fixed anchors remain exactly on their fixture coordinates
+PASS plate: finite positions and explicit lower contact boundary after failure
+PASS plate: broken links cannot transmit forces or reconnect on unloading
+PASS plate: reset restores original topology and model time
+PASS plate: rendered triangles no longer span severed edges
+PASS plate: plastic strain and permanent dent remain after unloading
+PASS bridge: service load preserves all connections
+PASS bridge: overload breaks physical connections and yields an event
+PASS bridge: all fixed anchors remain exactly on their fixture coordinates
+PASS bridge: finite positions and explicit lower contact boundary after failure
+PASS bridge: broken links cannot transmit forces or reconnect on unloading
+PASS bridge: reset restores original topology and model time
+PASS fixed-step replay is exactly deterministic
+PASS connection strength materially changes failure under identical loading
+PASS invalid time steps are rejected before state mutation
+
+26/26 PASS — reduced failure physics and attachment invariants
