@@ -1757,12 +1757,7 @@ class RopeSimulation implements SoftSimulation {
     this.variant = scene.variant;
     this.mode = scene.mode;
     this.iterations = 6 + stress + (scene.mode >= 3 ? 2 : 0);
-    // These maximum-stress layouts remain clear of the intermediate
-    // ground/boundary pass. Lower stress geometries can reach that pass at a
-    // different projection iteration, so they retain the exact legacy cadence.
-    // A 720-frame action-heavy qualification spans every scene and UI stress.
-    this.batchKernelProjection = stress === 5 && this.variant !== 4 && this.variant !== 8 &&
-      !(this.variant === 0 && (this.mode === 0 || this.mode === 3));
+    this.batchKernelProjection = ropeBatchProjectionEligible(stress, this.variant, this.mode);
     this.rng = new LcgRng(seed ^ 0x70e5a11);
     this.kernelModule = kernelModule;
     const ropePresentation = conceptPresentation(scene);
@@ -3203,6 +3198,20 @@ const EMPTY_TELEMETRY: SoftSimulationTelemetry = Object.freeze({
   frameVersion: 0,
   material: null,
 });
+
+/**
+ * Batched kernel projection is bit-identical to the legacy per-constraint cadence
+ * only while a rope stays clear of the intermediate ground/boundary pass. Lower
+ * stress geometries can reach that pass at a different projection iteration, so
+ * they keep the exact legacy cadence. The 720-frame action-heavy qualification
+ * (scripts/rope-batching-qualification.mjs) spans every scene and UI stress. It
+ * re-derived this set after rope drag became time-step scaled (dfedd9f): at
+ * maximum stress, variants 2 and 3 (all modes) and 5 (modes 1, 3, 4) diverged.
+ */
+export function ropeBatchProjectionEligible(stress: number, variant: number, mode: number): boolean {
+  return stress === 5 && variant !== 2 && variant !== 3 && variant !== 4 && variant !== 5 && variant !== 8 &&
+    !(variant === 0 && (mode === 0 || mode === 3));
+}
 
 export class SoftSimulationSuite {
   private active: SoftSimulation | null = null;

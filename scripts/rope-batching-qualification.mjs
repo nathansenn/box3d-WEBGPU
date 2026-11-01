@@ -27,7 +27,7 @@ async function workerMain(baselineBuild, optimizedBuild, stress) {
   const baselineScenes = require(path.join(baselineBuild, 'src/scenes.js')).SCENES;
   const optimizedScenes = require(path.join(optimizedBuild, 'src/scenes.js')).SCENES;
   const BaselineSuite = require(path.join(baselineBuild, 'src/soft/simulations.js')).SoftSimulationSuite;
-  const OptimizedSuite = require(path.join(optimizedBuild, 'src/soft/simulations.js')).SoftSimulationSuite;
+  const { SoftSimulationSuite: OptimizedSuite, ropeBatchProjectionEligible } = require(path.join(optimizedBuild, 'src/soft/simulations.js'));
   const BaselineKernel = require(path.join(baselineBuild, 'src/soft/kernels.js')).SoftKernelModule;
   const OptimizedKernel = require(path.join(optimizedBuild, 'src/soft/kernels.js')).SoftKernelModule;
   const wasm = fs.readFileSync(path.join(root, 'public/soft-kernels-simd.wasm'));
@@ -65,9 +65,7 @@ async function workerMain(baselineBuild, optimizedBuild, stress) {
         assert.equal(baseline.hash(), optimized.hash(), `stress ${stress} scene ${sceneId} replay mismatch at frame ${frame}`);
       }
     }
-    const variant = baselineScenes[sceneId].variant;
-    const mode = baselineScenes[sceneId].mode;
-    const batched = stress === 5 && variant !== 4 && variant !== 8 && !(variant === 0 && (mode === 0 || mode === 3));
+    const batched = ropeBatchProjectionEligible(stress, baselineScenes[sceneId].variant, baselineScenes[sceneId].mode);
     (batched ? qualified : legacyControls).push(sceneId);
   }
 
@@ -98,12 +96,21 @@ if (process.argv[2] === '--worker') {
 } else {
   const tempRoot = fs.mkdtempSync(path.join(os.tmpdir(), 'webphysics-rope-qualification-'));
   try {
-    const baselineArchive = path.join(root, 'benchmarks/baselines/box3d-webgpu-v1.9.0-integration-source.tar.gz');
-    const baselineSource = path.join(tempRoot, 'baseline-source');
-    const baselineBuild = path.join(tempRoot, 'baseline-build');
+    // Qualify batched rope projection against the legacy per-constraint cadence of
+    // the same source. The archived v1.9.0 source is no longer a valid reference:
+    // since dfedd9f (2026-08-14) rope drag is time-step scaled and gravity comes
+    // from the scene binding, which intentionally changes every rope trajectory.
+    const baselineSource = path.join(tempRoot, 'legacy-cadence-source');
+    const baselineBuild = path.join(tempRoot, 'legacy-cadence-build');
     const optimizedBuild = path.join(tempRoot, 'optimized-build');
-    fs.mkdirSync(baselineSource, { recursive: true });
-    execFileSync('tar', ['-xzf', baselineArchive, '-C', baselineSource]);
+    for (const entry of ['src', 'tests', 'tsconfig.json', 'tsconfig.test.json']) {
+      fs.cpSync(path.join(root, entry), path.join(baselineSource, entry), { recursive: true });
+    }
+    const simulationsPath = path.join(baselineSource, 'src/soft/simulations.ts');
+    const simulations = fs.readFileSync(simulationsPath, 'utf8');
+    const batchingSwitch = 'this.batchKernelProjection = ropeBatchProjectionEligible(stress, this.variant, this.mode);';
+    if (simulations.split(batchingSwitch).length !== 2) throw new Error('Cannot locate the batched rope projection switch.');
+    fs.writeFileSync(simulationsPath, simulations.replace(batchingSwitch, 'this.batchKernelProjection = false;'));
     const tsc = path.join(root, 'node_modules/.bin/tsc');
     for (const [source, build] of [[baselineSource, baselineBuild], [root, optimizedBuild]]) {
       execFileSync(tsc, ['-p', path.join(source, 'tsconfig.test.json'), '--outDir', build, '--rootDir', source], { cwd: root, stdio: 'pipe' });
@@ -112,7 +119,7 @@ if (process.argv[2] === '--worker') {
     const results = await Promise.all([1, 2, 3, 4, 5].map((stress) => spawnWorker(baselineBuild, optimizedBuild, stress)));
     const evidence = {
       result: 'passed',
-      baselineSource: path.relative(root, baselineArchive),
+      baselineSource: 'current source with batched rope projection disabled (legacy per-constraint cadence)',
       stresses: results,
       sceneStressCombinations: results.length * 50,
       qualifiedBatchedCombinations: results.reduce((sum, result) => sum + result.qualified.length, 0),

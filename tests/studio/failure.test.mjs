@@ -1,5 +1,13 @@
 import assert from 'node:assert/strict';
-import { FailureSimulation, STUDIES, FIXED_DT, cableHeight, terrainHeight } from '../../src/studio/physics.ts';
+import { FailureSimulation, STUDIES, FIXED_DT, RIVER_SURFACE_Y, cableHeight, terrainHeight } from '../../src/studio/physics.ts';
+
+// Bridge pieces over the river channel rest on the riverbed (terrain plus the 0.08
+// contact offset), below the old flat floor; elsewhere the floor still applies.
+const lowerContact = (id, p) => {
+  if (id !== 'bridge') return STUDIES[id].floor;
+  const bed = terrainHeight(p[0], p[2]) + .08;
+  return terrainHeight(p[0], p[2]) < RIVER_SURFACE_Y ? bed : Math.max(STUDIES[id].floor, bed);
+};
 
 let passed = 0;
 function check(name, fn) { fn(); passed++; console.log(`PASS ${name}`); }
@@ -26,7 +34,8 @@ for(const id of ['canopy','plate','bridge']) {
     for(const i of failed.supports) assert.deepEqual(failed.nodes[i].p,failed.nodes[i].rest);
   });
   check(`${id}: finite positions and explicit lower contact boundary after failure`,()=>{
-    for(const n of failed.nodes) { assert.ok(n.p.every(Number.isFinite));assert.ok(n.p[1]>=STUDIES[id].floor-1e-7); }
+    for(const n of failed.nodes) { assert.ok(n.p.every(Number.isFinite));assert.ok(n.p[1]>=lowerContact(id,n.p)-1e-7,`${id}: node below its contact surface`); }
+    if(id==='bridge')assert.ok(failed.nodes.some(n=>n.p[1]<STUDIES.bridge.floor),'collapsed bridge pieces settle into the river channel below the old flat floor');
   });
   check(`${id}: broken links cannot transmit forces or reconnect on unloading`,()=>{
     const breaks=failed.links.map(e=>e.broken);failed.targetLoad=0;run(failed,1);

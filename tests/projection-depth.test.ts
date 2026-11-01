@@ -46,8 +46,12 @@ for (const target of [[0, 0, 0], [2.5, 1.25, -3.75], [-80, 22, 40]] as [number, 
     lightDirection,
   );
   const clip = project(frame.lightViewProjection, ...target);
-  near(clip[0]!, 0, 'light centers target horizontally');
-  near(clip[1]!, 0, 'light centers target vertically');
+  // CameraMatrixCache snaps the light origin to whole texels of the coarsest
+  // (1024) shadow map to stop shadow shimmer, so the target sits within half a
+  // texel (1/1024 in clip units) of the centre rather than exactly on it.
+  const halfShadowTexelClip = 1 / 1024;
+  near(clip[0]!, 0, 'light keeps target within half a shadow texel horizontally', halfShadowTexelClip + 2e-6);
+  near(clip[1]!, 0, 'light keeps target within half a shadow texel vertically', halfShadowTexelClip + 2e-6);
   near(clip[2]!, (92 - 0.1) / (190 - 0.1), 'production light target has valid depth');
   fixtures++;
 }
