@@ -2,7 +2,9 @@
 # Runs the steps of .github/workflows/ci.yml in order, continuing after failures,
 # and records status and duration for each. Usage: ci-local.sh <repo> <outdir>
 REPO="$1"; OUT="$2"
-mkdir -p "$OUT"; : > "$OUT/summary.txt"
+# Make OUT absolute before the cd below, so a relative <outdir> stays relative to the caller.
+mkdir -p "$OUT" && OUT="$(cd "$OUT" && pwd)" || exit 1
+: > "$OUT/summary.txt"
 cd "$REPO" || exit 1
 TESTBUILD_PKG="node -e \"require('fs').mkdirSync('.test-build', {recursive:true}); require('fs').writeFileSync('.test-build/package.json', '{\\\"type\\\":\\\"commonjs\\\"}')\""
 steps=(

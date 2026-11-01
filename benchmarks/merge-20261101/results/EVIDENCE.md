@@ -37,7 +37,7 @@ These were recorded before the benchmarks, while finding why fractured glass is 
 
 ## `validation/`: the test runs behind the PR's claims
 
-- **`ci-local.sh`:** runs the 25 steps of `.github/workflows/ci.yml` in order and records each exit status.
+- **`ci-local.sh`:** runs the 25 steps of `.github/workflows/ci.yml` in order and records each exit status. Usage: `ci-local.sh <repo> <outdir>`. A relative `<outdir>` now resolves from the caller's directory; before that fix, its logs were lost. The recorded runs passed absolute paths, so the fix does not affect them.
 - **`ci-local-before-fixes/`:** the merged tree before the CI repairs, 21/25 passing. The failures were the source manifest, projection depth, self-test and rope batching.
 - **`ci-local-fresh-checkout/`:** `30c0716` in a git worktree, 24/25 passing. The one failure was the manifest check tripping on the worktree's `.git` file, which commit `d9627d3` makes it ignore.
 - **`validate-v1.20-fresh-checkout.log`:** `npm run validate:v1.20` on a fresh checkout of `aefec89`. It stops at `verify:soft-kernels`, which rebuilds the kernels with the local clang 18.1.3 and byte-compares them to the committed binaries. That step fails the same way on `main` in this container.
