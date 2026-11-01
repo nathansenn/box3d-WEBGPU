@@ -32,6 +32,8 @@ var/auth.token
 *.p12
 .venv/
 *.glb
+# Runtime studio models are versioned; other large models stay out of git.
+!public/studio/models/*.glb
 *.mov
 *.webm
 *.ifc
