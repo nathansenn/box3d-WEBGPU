@@ -42,5 +42,11 @@ These were recorded before the benchmarks, while finding why fractured glass is 
 - **`ci-local-fresh-checkout/`:** `30c0716` in a git worktree, 24/25 passing. The one failure was the manifest check tripping on the worktree's `.git` file, which commit `d9627d3` makes it ignore.
 - **`validate-v1.20-fresh-checkout.log`:** `npm run validate:v1.20` on a fresh checkout of `aefec89`. It stops at `verify:soft-kernels`, which rebuilds the kernels with the local clang 18.1.3 and byte-compares them to the committed binaries. That step fails the same way on `main` in this container.
 - **`validate-v1.20-remaining-steps.log`:** every remaining `validate:v1.20` step on the same checkout, all passing. `…-attempt1.log` is an earlier attempt that called the system `tsc` by mistake and hit the one-off Dawn segfault.
+- **`runtime-test-reruns-aefec89/`:** after that segfault, three reruns of `scripts/webgpu-renderer-runtime-test.mjs` on the same `aefec89` checkout, all passing. A 20-run loop that followed also passed every run, but it printed only `merged failures: 0/20` and kept no per-run output. Together these are the 23 reruns that the description of PR #8 mentions. The same loop on `main` (`dfedd9f`) exited 1 in all 20 runs. `pre-merge-branches/main.runtime.log` has a full failing run there.
 - **`runtime-test-repeat.log`:** 30 consecutive runs of the renderer runtime test on `a511ecc`, with 0 failures.
+- **`runtime-test-null-5c76fe4/`:** the renderer runtime test on Dawn's null backend on the CPU host, on the tree committed as `5c76fe4`. Both runs pass.
+  - `default.log` ran `taskset -c 0 node scripts/webgpu-renderer-runtime-test.mjs`.
+  - `partition.log` ran `taskset -c 0 env WEBGPU_INSTANCE_PARTITION=1 node scripts/webgpu-renderer-runtime-test.mjs`.
+  - The logs don't name the mode, so the file names record it.
+  - The same two modes on Vulkan on the L4 are `gpu-l4/dawn/runtime-partition-on.log` and `runtime-partition-off.log`.
 - **`engine-tests-merged.log`** and **`pre-merge-branches/`:** `tests/engine`, rope-batching and renderer runtime results on `main` and on each source branch before merging. They show which failures predate the merge.
