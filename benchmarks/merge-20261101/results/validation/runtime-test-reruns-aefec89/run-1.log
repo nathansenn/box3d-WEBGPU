@@ -1,0 +1,14 @@
+[WebGPU] material-noise-bc4.ktx2 unavailable; using deterministic R8 fallback. Error: Runtime test intentionally uses the procedural KTX2 fallback.
+    at value (file:///tmp/claude-0/-home-user-box3d-WEBGPU/3496b4bd-b15e-564a-9b42-e3dfab8e515e/scratchpad/validate-final/scripts/webgpu-renderer-runtime-test.mjs:42:30)
+    at fetchKtx2 (file:///tmp/box3d-webgpu-runtime-s90HaY/assets/ktx2.mjs:211:28)
+    at loadMaterialNoiseTexture (file:///tmp/box3d-webgpu-runtime-s90HaY/assets/ktx2.mjs:221:30)
+    at WebGPURenderer.create (file:///tmp/box3d-webgpu-runtime-s90HaY/webgpu/renderer.mjs?v=1793536298394:1966:17)
+    at async file:///tmp/claude-0/-home-user-box3d-WEBGPU/3496b4bd-b15e-564a-9b42-e3dfab8e515e/scratchpad/validate-final/scripts/webgpu-renderer-runtime-test.mjs:78:18
+[WebGPU] Poliigon astc material atlases unavailable; using deterministic procedural materials. Error: Runtime test intentionally uses the procedural KTX2 fallback.
+    at value (file:///tmp/claude-0/-home-user-box3d-WEBGPU/3496b4bd-b15e-564a-9b42-e3dfab8e515e/scratchpad/validate-final/scripts/webgpu-renderer-runtime-test.mjs:42:30)
+    at fetchKtx2 (file:///tmp/box3d-webgpu-runtime-s90HaY/assets/ktx2.mjs:211:28)
+    at loadMaterialAtlasTexture (file:///tmp/box3d-webgpu-runtime-s90HaY/assets/ktx2.mjs:239:54)
+    at WebGPURenderer.create (file:///tmp/box3d-webgpu-runtime-s90HaY/webgpu/renderer.mjs?v=1793536298394:1967:17)
+    at async file:///tmp/claude-0/-home-user-box3d-WEBGPU/3496b4bd-b15e-564a-9b42-e3dfab8e515e/scratchpad/validate-final/scripts/webgpu-renderer-runtime-test.mjs:78:18
+GPU timing diagnostics: {"status":"error","supported":true,"reason":"Invalid GPU timestamp pair for shadow in frame 8: 0 -> 0.","latest":null,"frames":53,"submittedSamples":8,"completedSamples":0,"droppedSamples":0,"failedSamples":8,"pendingSamples":0,"ringSize":3,"sampleEveryFrames":1}
+✅ Actual WebGPURenderer command validation passed on Dawn null: rigid/cloth/water/rope paths, GPU-compute rope reconstruction, exact paused-frame upload caches, debug lines, resize, empty frame, lazy visibility retry/cleanup, 25 shadow-cache transitions, material boundary gates, failed-frame recovery, and clean error stream (null backend does not execute pixels)
