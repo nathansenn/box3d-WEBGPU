@@ -93,8 +93,8 @@ async function main() {
     const pipeline = device.createRenderPipeline({ layout: 'auto',
       vertex: { module, entryPoint: 'vs' }, fragment: { module, entryPoint: 'fs', targets: [{ format: 'rgba8unorm' }] },
       primitive: { topology: 'triangle-list' } });
-    const query = device.createQuerySet({ type: 'timestamp', count: frames * 2 });
-    const resolve = device.createBuffer({ size: frames * 16, usage: GPUBufferUsage.QUERY_RESOLVE | GPUBufferUsage.COPY_SRC });
+    const query = device.createQuerySet({ type: 'timestamp', count: 2 });
+    const resolve = device.createBuffer({ size: 16, usage: GPUBufferUsage.QUERY_RESOLVE | GPUBufferUsage.COPY_SRC });
     const readback = device.createBuffer({ size: frames * 16, usage: GPUBufferUsage.COPY_DST | GPUBufferUsage.MAP_READ });
     function target() {
       const usage = GPUBufferUsage.STORAGE | GPUBufferUsage.COPY_DST | GPUBufferUsage.COPY_SRC;
@@ -109,12 +109,12 @@ async function main() {
       const encoder = device.createCommandEncoder();
       const pass = encoder.beginRenderPass({ colorAttachments: [{ view: context.getCurrentTexture().createView(),
         loadOp: 'clear', storeOp: 'store', clearValue: { r: 0, g: 0, b: 0, a: 1 } }],
-        timestampWrites: { querySet: query, beginningOfPassWriteIndex: frame * 2, endOfPassWriteIndex: frame * 2 + 1 } });
+        timestampWrites: { querySet: query, beginningOfPassWriteIndex: 0, endOfPassWriteIndex: 1 } });
       pass.setPipeline(pipeline); pass.setBindGroup(0, t.bind); pass.draw(3, count); pass.end();
-      if (frame === frames - 1) {
-        encoder.resolveQuerySet(query, 0, frames * 2, resolve, 0);
-        encoder.copyBufferToBuffer(resolve, 0, readback, 0, frames * 16);
-      }
+      // Resolve in the command buffer that writes the queries, then preserve
+      // each frame's copied values before the query set is reused.
+      encoder.resolveQuerySet(query, 0, 2, resolve, 0);
+      encoder.copyBufferToBuffer(resolve, 0, readback, frame * 16, 16);
       device.queue.submit([encoder.finish()]);
     }
     async function bufferBytes(source, size) {
@@ -173,7 +173,8 @@ async function main() {
       const gpuMs = [];
       for (let frame = 0; frame < frames; frame++) {
         const delta = queries[2 * frame + 1] - queries[2 * frame];
-        assert.ok(delta > 0n && delta < 5_000_000_000n, 'valid nonzero GPU timestamps required');
+        assert.ok(delta > 0n && delta < 5_000_000_000n,
+          `valid nonzero GPU timestamps required: frame=${frame} queries=${queries.map(String).join(',')}`);
         gpuMs.push(Number(delta) / 1e6);
       }
       check();
@@ -196,6 +197,7 @@ async function main() {
     assert.equal(await device.popErrorScope(), null); marker.destroy();
     await run(workloads[0], policies[0], false, seeds[0], 0, true);
     await runtime.finalizeIdentity();
+    await writeFile(root + '/hardware.json', JSON.stringify(runtime.meta, null, 2));
     const hardwareBefore = await runtime.sampleTelemetry(), cases = [];
     const order = [...policies].sort((a, b) => sha(a.id + ':20261105').localeCompare(sha(b.id + ':20261105')));
     for (const policy of order) {
