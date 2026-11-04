@@ -66,11 +66,13 @@ if root.exists():
     chunks=[encoded[i:i+12000] for i in range(0,len(encoded),12000)]
     meta={'bytes':len(data),'sha256':hashlib.sha256(data).hexdigest(),'chunks':len(chunks)}
     print('BOX3D_R4_ARCHIVE '+json.dumps(meta),flush=True)
-    for i,chunk in enumerate(chunks):
-        print('BOX3D_R4_CHUNK '+json.dumps({'index':i,'sha256':hashlib.sha256(chunk.encode()).hexdigest(),'data':chunk}),flush=True)
-        time.sleep(.08)
+    if os.environ.get('BOX3D_R4_MODE') != 'serverless':
+        for i,chunk in enumerate(chunks):
+            print('BOX3D_R4_CHUNK '+json.dumps({'index':i,'sha256':hashlib.sha256(chunk.encode()).hexdigest(),'data':chunk}),flush=True)
+            time.sleep(.08)
     print('BOX3D_R4_EXPORT_DONE '+json.dumps(meta),flush=True)
 PY
 echo "BOX3D_R4_READY_TO_STOP $status"
+if [ "$(printenv BOX3D_R4_MODE || true)" = serverless ]; then exit "$status"; fi
 # Root and independent watcher call provider stop/terminate after evidence capture.
 while true; do sleep 30; done

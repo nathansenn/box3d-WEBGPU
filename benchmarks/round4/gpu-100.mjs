@@ -181,6 +181,19 @@ async function main() {
         gpuMs, queryNs: queries.map(String), bytes: bytes / frames, calls: calls / frames,
         capture: readPixels ? await capture(t, data, spec) : null };
     }
+    // Exercise and verify compute as well as render before hashing lazy-loaded
+    // native driver libraries. This untimed marker is not a performance sample.
+    const marker = device.createBuffer({ size: 4, usage: GPUBufferUsage.STORAGE | GPUBufferUsage.COPY_SRC });
+    device.pushErrorScope('validation');
+    const computeModule = device.createShaderModule({ code:
+      '@group(0) @binding(0) var<storage,read_write> value:array<u32>; @compute @workgroup_size(1) fn main(){ value[0]=0xb3d0004u; }' });
+    const computePipeline = device.createComputePipeline({ layout: 'auto', compute: { module: computeModule, entryPoint: 'main' } });
+    const computeBind = device.createBindGroup({ layout: computePipeline.getBindGroupLayout(0), entries: [{ binding: 0, resource: { buffer: marker } }] });
+    const computeEncoder = device.createCommandEncoder(), computePass = computeEncoder.beginComputePass();
+    computePass.setPipeline(computePipeline); computePass.setBindGroup(0, computeBind); computePass.dispatchWorkgroups(1); computePass.end();
+    device.queue.submit([computeEncoder.finish()]);
+    assert.equal((await bufferBytes(marker, 4)).readUInt32LE(0), 0xb3d0004, 'native compute must execute correctly');
+    assert.equal(await device.popErrorScope(), null); marker.destroy();
     await run(workloads[0], policies[0], false, seeds[0], 0, true);
     await runtime.finalizeIdentity();
     const hardwareBefore = await runtime.sampleTelemetry(), cases = [];
