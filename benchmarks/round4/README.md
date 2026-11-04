@@ -61,3 +61,14 @@ Raw benchmark output and captures stay out of Git per repository policy.
 The older Round 3 runner now resolves its missing runtime and planner imports.
 Published historical Round 3 measurements still belong to their original source
 hashes; rerunning that harness on this branch exercises the revised planner.
+
+## Native timestamp precision
+
+Round 4 explicitly disables Dawn `timestamp_quantization` in this standalone
+benchmark process, records the option in hardware metadata, and retains normal
+validation and nanosecond conversion. Short native passes can otherwise round
+to equal timestamps. Each frame resolves and copies its own query pair before
+reuse; zero, reversed, or implausible durations still fail with raw query values.
+The actual renderer qualification records final-frame pixels and last-frame
+pass timestamps for each four-frame window. The shared runtime keeps its prior
+default precision mode for callers that do not request this benchmark option.

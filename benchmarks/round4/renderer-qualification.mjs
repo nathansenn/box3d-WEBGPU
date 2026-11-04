@@ -117,7 +117,7 @@ export async function qualifyRenderer({ runtime, outputRoot, guard, emit, polici
     assert.equal(renderer.gpuTimingInfo().status, 'ready', 'Actual renderer timestamp queries are required');
     const healthy = () => { guard(); assert.equal(deviceLoss, null, 'GPU device lost'); assert.equal(renderer.isLost(), false); assert.equal(errors.length, 0, errors.join('; ')); assert.equal(getUncapturedGpuErrors().count, initialErrors); };
     async function settle(target) {
-      for (let i = 0; i < 200; i++) { const info = renderer.gpuTimingInfo(); if (!info.pendingSamples && info.latest?.frameId >= target) { assert.equal(info.status, 'ready'); assert.equal(info.failedSamples, 0); assert.ok(Number.isFinite(info.latest.passMs.main) && Number.isFinite(info.latest.passMs.post)); return info; } await pause(2); healthy(); }
+      for (let i = 0; i < 200; i++) { const info = renderer.gpuTimingInfo(); if (info.status === 'error' || info.failedSamples > 0) throw new Error('Actual renderer timing failed: ' + JSON.stringify(info)); if (!info.pendingSamples && info.latest?.frameId >= target) { assert.equal(info.status, 'ready'); assert.equal(info.failedSamples, 0); assert.ok(Number.isFinite(info.latest.passMs.main) && Number.isFinite(info.latest.passMs.post)); return info; } await pause(2); healthy(); }
       throw new Error('Actual renderer timestamp results did not settle');
     }
     async function readGpu(buffer, size) {
@@ -140,7 +140,7 @@ export async function qualifyRenderer({ runtime, outputRoot, guard, emit, polici
     }
     device.pushErrorScope('validation'); device.pushErrorScope('out-of-memory');
     renderer.render(0, []); await device.queue.onSubmittedWorkDone(); await settle(renderer.gpuTimingInfo().frames);
-    const background = await pixels(); await runtime.finalizeIdentity(); result.hardware = runtime.meta;
+    const background = await pixels(); await runtime.finalizeIdentity(); result.hardware = { ...runtime.meta, resolution: { width: WIDTH, height: HEIGHT } };
     function nonblank(bytes) {
       let changed = 0, min = 255, max = 0;
       for (let i = 0; i < bytes.length; i += 4) {

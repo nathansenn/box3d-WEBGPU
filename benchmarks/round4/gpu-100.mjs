@@ -77,7 +77,7 @@ async function main() {
     orders: 'Seeded balanced shuffle of AB/BA, 12 of each per 24-pair set.' };
   await writeFile(root + '/plan.json', JSON.stringify(plan, null, 2));
   emit({ event: 'start', policies: 100, planSha256: sha(JSON.stringify(plan)), deadline: plan.deadline });
-  const runtime = await openRuntime({ width, height, packageRoot: process.env.WEBGPU_PACKAGE_ROOT });
+  const runtime = await openRuntime({ width, height, packageRoot: process.env.WEBGPU_PACKAGE_ROOT, highResolutionTimestamps: true });
   let device, intentionalDestroy = false, fatal = null, pixelChecks = 0, bufferChecks = 0;
   const uncaptured = [];
   try {

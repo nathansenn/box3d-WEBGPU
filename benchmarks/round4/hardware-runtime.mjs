@@ -1,4 +1,4 @@
-/** Physical NVIDIA Vulkan runtime. No provider APIs or unsafe Dawn toggles. */
+/** Physical NVIDIA Vulkan runtime. Validation stays enabled in every mode. */
 import { readFile, readdir, realpath } from 'node:fs/promises';
 import { createReadStream } from 'node:fs';
 import { createHash } from 'node:crypto';
@@ -71,7 +71,7 @@ async function driverEvidence(){
  for(const path of paths){try{const canonical=await realpath(path);libraries.push({path:canonical,name:basename(canonical),sha256:await hashFile(canonical)});}catch(error){libraries.push({path,sha256:null,error:String(error.message)});}}
  return{nvidiaVersion:await readFile('/proc/driver/nvidia/version','utf8').catch(()=>null),icds,libraries,scope:'Read-only hashes of NVIDIA ICD manifests and relevant shared libraries mapped in this process. No driver installation or mutation.'};
 }
-export async function openRuntime({width=960,height=540,packageRoot=process.env.WEBGPU_PACKAGE_ROOT??'/opt/webgpu-tools'}={}){
+export async function openRuntime({width=960,height=540,packageRoot=process.env.WEBGPU_PACKAGE_ROOT??'/opt/webgpu-tools',highResolutionTimestamps=false}={}){
  if(activeRuntime)throw new Error('Close the previous hardware runtime before opening another.');
  if(process.platform!=='linux'||process.arch!=='x64')throw new Error('This cloud runtime targets Linux x86_64.');
  if(Number(process.versions.node.split('.')[0])!==24)throw new Error('Node.js 24 is required.');
@@ -82,15 +82,17 @@ export async function openRuntime({width=960,height=540,packageRoot=process.env.
  const packagePath=join(resolve(packageRoot),'node_modules/webgpu'),pkg=JSON.parse(await readFile(join(packagePath,'package.json'),'utf8'));
  if(pkg.version!=='0.6.2')throw new Error(`Pinned webgpu@0.6.2 required; found ${pkg.version}.`);
  const lockBytes=await readFile(join(resolve(packageRoot),'package-lock.json')),lock=JSON.parse(lockBytes),binary=join(packagePath,'dist/linux-x64/dawn.node');
+ const options=['backend=vulkan'];
+ if(highResolutionTimestamps)options.push('disable-dawn-features=timestamp_quantization');
  const meta={schemaVersion:1,openedAt:new Date().toISOString(),node:process.version,platform:process.platform,arch:process.arch,
   cpu:{model:os.cpus()[0]?.model??null,logicalCpus:os.cpus().length,availableParallelism:os.availableParallelism()},
   executionClass:'physical NVIDIA required; adapter verification pending',executionScope:'Real offscreen WebGPU textures and GPU timestamps. Presentation is another offscreen texture. No browser compositor, monitor refresh or game FPS measurement.',
-  resolution:{width,height},options:['backend=vulkan'],validationDisabled:false,
+  resolution:{width,height},options,validationDisabled:false,timestampQuantizationDisabled:highResolutionTimestamps,
   package:{name:pkg.name,version:pkg.version,integrity:lock.packages?.['node_modules/webgpu']?.integrity??null,packageLockSha256:hashBytes(lockBytes),nativeBinarySha256:await hashFile(binary)},
   environment:{NVIDIA_DRIVER_CAPABILITIES:process.env.NVIDIA_DRIVER_CAPABILITIES??null,NVIDIA_VISIBLE_DEVICES:process.env.NVIDIA_VISIBLE_DEVICES??null,VK_DRIVER_FILES:process.env.VK_DRIVER_FILES??null,VK_ICD_FILENAMES:process.env.VK_ICD_FILENAMES??null},
   visibleGpus,adapter:null,identity:null,identityVerification:null,driverEvidence:null};
  const {create,globals}=await import(pathToFileURL(join(packagePath,'index.js')).href);Object.assign(globalThis,globals);
- let gpu=create(['backend=vulkan']),texture=null,closed=false,presentationAcquisitions=0;
+ let gpu=create(options),texture=null,closed=false,presentationAcquisitions=0;
  const previousNavigator=Object.getOwnPropertyDescriptor(globalThis,'navigator'),canvas={width,height};
  const context={
   configure({device,format}){texture?.destroy();texture=device.createTexture({label:'Physical GPU offscreen presentation target',size:[canvas.width,canvas.height],format,usage:GPUTextureUsage.RENDER_ATTACHMENT|GPUTextureUsage.COPY_SRC});},
