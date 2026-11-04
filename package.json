@@ -112,7 +112,9 @@
     "bench:math-runtime": "node benchmarks/math-runtime/run.mjs",
     "bench:math-runtime:serve": "node benchmarks/math-runtime/serve.mjs",
     "bench:math-runtime:browser": "node benchmarks/math-runtime/playwright-run.mjs",
-    "bench:math-runtime:renderer": "node benchmarks/math-runtime/playwright-run.mjs --render-parity"
+    "bench:math-runtime:renderer": "node benchmarks/math-runtime/playwright-run.mjs --render-parity",
+    "test:round4": "npm run bench:breakthrough:compile && node .test-build/tests/sparse-upload.test.js && node --test tests/round4-statistics.test.mjs",
+    "bench:round4:prepare": "node benchmarks/round4/prepare.mjs"
   },
   "devDependencies": {
     "@types/three": "0.185.4",

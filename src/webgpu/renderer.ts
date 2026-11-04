@@ -2,7 +2,7 @@ import type { Mat4 } from '../math';
 import { WaterSurfacePlanner, type WaterSurfaceDescription, type WaterSurfacePlan } from './water-surface-plan';
 import { GpuInstanceVisibility, INSTANCE_MATERIAL_WGSL, classifyInstanceMaterialMask } from './instance-visibility';
 import type { DebugLine, DynamicSurfaceFrame, InstanceBufferSource, RopeGridFrame, SceneUniformState } from '../types';
-import { planSparseRecordUpload, type DirtyRecordSpan } from './sparse-upload';
+import { planSparseRecordUpload, type DirtyRecordSpan, type SparseUploadOptions } from './sparse-upload';
 import { GpuPassTimer, type GpuPassTimestampWrites, type GpuTimingInfo, type GpuTimingOptions } from './gpu-timing.js';
 import { InstancePartition, partitionVertexBindings, partitionVertexEntry } from './instance-partition.js';
 import { ResidentWaterSurface, type ResidentWaterOptions } from './resident-water-surface.js';
@@ -68,6 +68,8 @@ export type RigidInstanceDirtyEvidence = Readonly<{
   matrices?: readonly DirtyRecordSpan[];
   colors?: readonly DirtyRecordSpan[];
   gapRecords?: number;
+  /** Explicitly calibrated upload policy. Omit until qualified for this producer/device. */
+  uploadPolicy?: SparseUploadOptions;
 }>;
 
 export interface RenderingDiagnostics {
@@ -3177,7 +3179,7 @@ export class WebGPURenderer {
     let matrixBytes = 0;
     if (matricesChanged) {
       const plan = provenDelta && dirty?.matrices !== undefined
-        ? planSparseRecordUpload(safeCount, 64, dirty.matrices, { gapRecords: dirty.gapRecords })
+        ? planSparseRecordUpload(safeCount, 64, dirty.matrices, { ...dirty.uploadPolicy, gapRecords: dirty.gapRecords ?? dirty.uploadPolicy?.gapRecords })
         : null;
       if (plan) {
         for (const span of plan.spans) {
@@ -3193,7 +3195,7 @@ export class WebGPURenderer {
     let colorBytes = 0;
     if (colorsChanged) {
       const plan = provenDelta && dirty?.colors !== undefined
-        ? planSparseRecordUpload(safeCount, 16, dirty.colors, { gapRecords: dirty.gapRecords })
+        ? planSparseRecordUpload(safeCount, 16, dirty.colors, { ...dirty.uploadPolicy, gapRecords: dirty.gapRecords ?? dirty.uploadPolicy?.gapRecords })
         : null;
       if (plan) {
         for (const span of plan.spans) {

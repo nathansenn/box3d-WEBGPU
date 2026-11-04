@@ -1,8 +1,8 @@
 import { mkdir, writeFile, readFile } from 'node:fs/promises';
 import { createHash } from 'node:crypto';
 import { performance } from 'node:perf_hooks';
-import { openRuntime } from './hardware-runtime.mjs';
-import { planSparseRecordUpload } from './sparse-upload.ts';
+import { openRuntime } from '../round4/hardware-runtime.mjs';
+import { planSparseRecordUpload } from '../../src/webgpu/sparse-upload.ts';
 
 const root = process.env.APEX_ROUND3_OUTPUT || '/workspace/round3-gpu-results-20261102';
 const deadline = Date.parse(process.env.APEX_ROUND3_DEADLINE || '');
@@ -76,7 +76,7 @@ struct Output { @builtin(position) pos: vec4<f32>, @location(0) color: vec4<f32>
 async function main(){
  guard(); if(deadline-Date.now()>45*60000)throw new Error('New round requires a <=45-minute deadline');
  await mkdir(root,{recursive:false,mode:0o700});await mkdir(root+'/cases',{mode:0o700});
- const files=['gpu-sparse-100.mjs','sparse-upload.ts','hardware-runtime.mjs'], sources={};
+ const files=['gpu-sparse-100.mjs','../../src/webgpu/sparse-upload.ts','../round4/hardware-runtime.mjs'], sources={};
  for(const f of files)sources[f]=sha(await readFile(new URL('./'+f,import.meta.url)));
  const plan={schema:'apex.round3.100.v1',sourceHashes:sources,conditions,comparison:'same complete eight changing-frame offscreen windows, AB/BA pairs; static controls explicitly declared',
   screeningPairs:0,confirmationPairs:24,confirmationSets:2,holmTests:200,alpha:.05,improvementThreshold:1.03,tailLimit:1.10,
