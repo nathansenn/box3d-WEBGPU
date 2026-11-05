@@ -178,11 +178,17 @@ assert.match(
 
 const html = read('index.html');
 // The shipped page is the Engineering Studio shell: src/entry.ts boots the
-// selected study. The AAA showcase UI in src/main.ts is no longer linked from it.
+// selected study. The AAA showcase has its own compatible lab.html shell and entry.
 assert.equal((html.match(/id=["']studio["']/g) ?? []).length, 1, 'index.html must contain exactly one #studio root');
 assert.match(html, /<script type="module" src="\/src\/entry\.ts"><\/script>/, 'index.html must boot the studio entry module');
 for (const study of ['liquid', 'glass', 'concrete', 'rubber', 'granular', 'plate', 'canopy', 'bridge']) {
-  assert.match(html, new RegExp(`href="/\\?studio=${study}"`), `index.html must link the ${study} study`);
+  const links = [...html.matchAll(/href=["']([^"']+)["']/g)].map(match => match[1]);
+  for (const base of ['https://example.test/', 'https://example.test/box3d-WEBGPU/']) {
+    assert.ok(links.some(href => {
+      const target = new URL(href, base);
+      return target.origin === new URL(base).origin && target.pathname === new URL(base).pathname && target.searchParams.get('studio') === study;
+    }), `Studio navigation must preserve deployment base: ${study} at ${base}`);
+  }
 }
 assert.match(html, /not calibrated engineering results/, 'index.html must state that the models are not calibrated engineering results');
 const allIds = [...html.matchAll(/id=["']([^"']+)["']/g)].map((match) => match[1]);
