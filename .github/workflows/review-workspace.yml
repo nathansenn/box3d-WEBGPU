@@ -1,26 +1,66 @@
-name: Export pinned review workspace
+name: Approved review integration
 on:
   push:
     branches: [apex/restore-lab-release-gates-20261105]
-    paths: [.github/workflows/review-workspace.yml]
+    paths: [.github/workflows/review-workspace.yml, scripts/apply-approved-review.mjs]
 permissions:
-  contents: read
+  contents: write
+concurrency:
+  group: approved-box3d-review
+  cancel-in-progress: false
 jobs:
-  snapshot:
+  integrate:
+    if: github.ref == 'refs/heads/apex/restore-lab-release-gates-20261105'
     runs-on: ubuntu-latest
-    timeout-minutes: 10
+    timeout-minutes: 45
     steps:
       - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
         with:
-          ref: 90dbd05929a48a93716d3dfd46a7fd7931baa5a8
-          persist-credentials: false
-      - name: Export exact reviewed source
+          node-version: 24
+          cache: npm
+      - name: Apply guarded source integration
+        run: node scripts/apply-approved-review.mjs
+      - name: Lock browser test dependency
+        run: npm install --package-lock-only --ignore-scripts
+      - name: Install locked dependencies
+        run: npm ci
+      - name: Generate canonical catalog counts
+        run: node scripts/catalog-counts.mjs --write
+      - name: Commit reviewed files and exact manifest to the task branch only
         run: |
-          git archive --format=tar HEAD | gzip -n > "$RUNNER_TEMP/box3d-source.tar.gz"
-          sha256sum "$RUNNER_TEMP/box3d-source.tar.gz"
+          bash scripts/generate-source-manifest.sh
+          git add lab.html src/lab-entry.ts src/studio/study-navigation.ts src/studio/study-navigation.css index.html vite.config.ts package.json package-lock.json scripts tests/release-contracts.test.mjs docs/REVIEW_REPAIRS_20261105.md docs/CATALOG_COUNTS.json README.md .github/workflows/ci.yml .github/workflows/pages.yml deploy/railway SOURCE_MANIFEST.sha256
+          if ! git diff --cached --quiet; then
+            git -c user.name='APEX review integration' -c user.email='41898282+github-actions[bot]@users.noreply.github.com' commit -m 'Restore Physics Lab entry, unify release gates, and package native runtimes'
+            git push origin HEAD:refs/heads/apex/restore-lab-release-gates-20261105
+          fi
+          git rev-parse HEAD
+      - name: Install browser for software-rendered acceptance
+        run: npx playwright install --with-deps chromium
+      - name: Validate approved integration
+        env:
+          BOX3D_QA_OUTPUT: ${{ runner.temp }}/box3d-review-qa
+        run: |
+          mkdir -p "$BOX3D_QA_OUTPUT"
+          set -o pipefail
+          npm run validate:release 2>&1 | tee "$BOX3D_QA_OUTPUT/release.log"
+      - name: Bounded contact baseline, not a speedup claim
+        if: success()
+        env:
+          BOX3D_CONTACT_OUTPUT: ${{ runner.temp }}/box3d-review-qa/contact-budget.json
+          BOX3D_CONTACT_TIMEOUT_MS: '15000'
+        run: npm run bench:contact-budget
+      - name: Export small change set and validation receipts
+        if: always()
+        run: |
+          mkdir -p "$RUNNER_TEMP/box3d-review-qa"
+          git diff 90dbd05929a48a93716d3dfd46a7fd7931baa5a8 HEAD --binary > "$RUNNER_TEMP/box3d-review-qa/changes.patch"
+          git rev-parse HEAD > "$RUNNER_TEMP/box3d-review-qa/tested-commit.txt"
+          git status --short > "$RUNNER_TEMP/box3d-review-qa/status.txt"
       - uses: actions/upload-artifact@v4
+        if: always()
         with:
-          name: box3d-review-source
-          path: ${{ runner.temp }}/box3d-source.tar.gz
-          retention-days: 1
-          compression-level: 0
+          name: box3d-review-validation
+          path: ${{ runner.temp }}/box3d-review-qa
+          retention-days: 7
