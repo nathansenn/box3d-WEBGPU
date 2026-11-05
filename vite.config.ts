@@ -1,4 +1,5 @@
 import { defineConfig } from 'vite';
+import { fileURLToPath } from 'node:url';
 
 // The pthread Box3D artifact (public/box3d/box3d-mt.*) needs SharedArrayBuffer, which browsers expose only to
 // cross-origin isolated pages. Every subresource of the app is same-origin, so require-corp blocks nothing.
@@ -12,6 +13,14 @@ const crossOriginIsolation = {
 // and GitHub Pages project URLs such as /box3d-WEBGPU/.
 export default defineConfig({
   base: process.env.VITE_BASE_PATH ?? './',
+  build: {
+    rolldownOptions: {
+      input: {
+        studio: fileURLToPath(new URL('./index.html', import.meta.url)),
+        lab: fileURLToPath(new URL('./lab.html', import.meta.url)),
+      },
+    },
+  },
   server: {
     host: '127.0.0.1',
     headers: crossOriginIsolation,

@@ -112,13 +112,21 @@
     "bench:math-runtime": "node benchmarks/math-runtime/run.mjs",
     "bench:math-runtime:serve": "node benchmarks/math-runtime/serve.mjs",
     "bench:math-runtime:browser": "node benchmarks/math-runtime/playwright-run.mjs",
-    "bench:math-runtime:renderer": "node benchmarks/math-runtime/playwright-run.mjs --render-parity"
+    "bench:math-runtime:renderer": "node benchmarks/math-runtime/playwright-run.mjs --render-parity",
+    "validate:release": "node scripts/validate-release.mjs",
+    "test:release-contracts": "node --test tests/release-contracts.test.mjs",
+    "test:browser:release": "node scripts/test-release-browser.mjs",
+    "catalog:check": "node scripts/catalog-counts.mjs",
+    "catalog:sync": "node scripts/catalog-counts.mjs --write",
+    "stage:railway": "node scripts/stage-railway.mjs",
+    "bench:contact-budget": "node scripts/contact-budget.mjs"
   },
   "devDependencies": {
     "@types/three": "0.185.4",
     "typescript": "^5.5.4",
     "vite": "8.1.6",
-    "webgpu": "^0.4.0"
+    "webgpu": "^0.4.0",
+    "playwright": "1.56.1"
   },
   "license": "MIT",
   "homepage": "https://nathansenn.github.io/box3d-WEBGPU/",

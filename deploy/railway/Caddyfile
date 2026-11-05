@@ -24,6 +24,8 @@
 	route {
 		header {
 			X-Content-Type-Options nosniff
+			Cross-Origin-Opener-Policy same-origin
+			Cross-Origin-Embedder-Policy require-corp
 			Referrer-Policy strict-origin-when-cross-origin
 		}
 		header -Server

@@ -51,6 +51,7 @@ if(!docker.includes('COPY box3d '))docker=docker.replace('COPY licenses /srv/box
 write('deploy/railway/Dockerfile',docker);
 for(const path of ['.github/workflows/ci.yml','.github/workflows/pages.yml']){
   let y=read(path);
+  if(y.includes('run: npm run validate:release'))continue;
   const start=y.indexOf('      - name: Verify source manifest');
   const finish=y.indexOf('      - name: Add nojekyll marker');
   assert.ok(start>=0);
