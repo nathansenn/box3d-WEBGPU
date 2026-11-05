@@ -2,15 +2,25 @@
 
 A browser-native 3D physics showcase combining **Box3D rigid bodies**, deterministic **cloth and rope**, interactive **shallow water**, comparative **material bending and fracture**, and an HDR **WebGPU** renderer.
 
-The current tree preserves the **800 deterministic capability-scene catalog** and expands the director from 34 to **65 hero demonstrations**. Thirty-one new recipe-driven material programs add ten metal-forming tests, ten architectural-glass fracture tests, ten reinforced-concrete failure tests, and the combined **Apex Materials Proving Ground**. The ten-scene signature set and its exactly **100 runtime-authored AAA improvements** remain unchanged. The material-realism pass keeps the authoritative simulations intact while replacing exposed solver grids with curvature-following skins, giving cold-formed metal restrained coating flakes and procedural environment reflections, separating glass into a two-sided blended Fresnel pass, and rendering concrete dust as translucent media around physical aggregate, spall, and persistent reinforcement. Native Box3D WebAssembly artifacts, SIMD/scalar soft-system kernels, Poliigon-derived GPU material atlases, and the source-frozen v1.13 1,000-case optimization audit remain included.
+The current tree preserves the **800 deterministic capability-scene catalog** and expands the director from 34 to **68 hero demonstrations**. Thirty-one new recipe-driven material programs add ten metal-forming tests, ten architectural-glass fracture tests, ten reinforced-concrete failure tests, and the combined **Apex Materials Proving Ground**. The ten-scene signature set and its exactly **100 runtime-authored AAA improvements** remain unchanged. The material-realism pass keeps the authoritative simulations intact while replacing exposed solver grids with curvature-following skins, giving cold-formed metal restrained coating flakes and procedural environment reflections, separating glass into a two-sided blended Fresnel pass, and rendering concrete dust as translucent media around physical aggregate, spall, and persistent reinforcement. Native Box3D WebAssembly artifacts, SIMD/scalar soft-system kernels, Poliigon-derived GPU material atlases, and the source-frozen v1.13 1,000-case optimization audit remain included.
 
 > This is an AAA-style capability lab and engine foundation. It is not a claim that the numerical Box3D solver runs on WebGPU or that every subsystem of a commercial game engine is complete.
 
 ## Engineering Studio (the shipped page)
 
-`index.html` opens the **BOX3D Engineering Studio**: a suspension bridge, canopy and metal press, plus liquid, glass, concrete, elastomer and granular labs (`/?studio=bridge`, `canopy`, `plate`, `liquid`, `glass`, `concrete`, `rubber`, `granular`). Studies use authored, uncalibrated models for comparison, not engineering predictions. See [docs/ENGINEERING-STUDIO.md](docs/ENGINEERING-STUDIO.md). The capability lab described below remains in the source (`src/main.ts`) and its tests, but `index.html` no longer links it.
+`index.html` opens the **BOX3D Engineering Studio**: a suspension bridge, canopy and metal press, plus liquid, glass, concrete, elastomer and granular labs (`/?studio=bridge`, `canopy`, `plate`, `liquid`, `glass`, `concrete`, `rubber`, `granular`). Studies use authored, uncalibrated models for comparison, not engineering predictions. See [docs/ENGINEERING-STUDIO.md](docs/ENGINEERING-STUDIO.md). The capability lab described below remains in the source (`src/main.ts`) and its tests, and is available independently at [`lab.html`](lab.html). Both pages link to each other; Studio remains the default.
 
 [Merge benchmarks (2026-11-01)](docs/BENCHMARKS_MERGE_20261101.md) compare this integration with the previous `main` on a CPU host and an NVIDIA L4 GPU: renderer correctness and GPU time, native engine, soft bodies, water, Studio solvers, material labs, threaded engine and build size.
+
+## Runtime catalog (generated)
+
+<!-- catalog:generated:start -->
+| Runtime catalog | Count |
+| --- | ---: |
+| Capability scenes | 800 |
+| Hero demonstrations | 68 |
+| Material programs | 34 |
+<!-- catalog:generated:end -->
 
 ## At a glance
 
@@ -29,7 +39,7 @@ The current tree preserves the **800 deterministic capability-scene catalog** an
 - Poliigon-derived concrete, galvanized metal, woven fabric, and honed-stone materials in directly uploadable KTX2 atlases.
 - Reflective architectural glass plus progressive concrete fracture, physical spall, and exposed reinforcement dressing.
 - 800 searchable scenes across 16 simulation families.
-- 65 directed cinematic demonstrations: 34 established heroes plus 31 recipe-driven material programs.
+- 68 directed cinematic demonstrations: 34 established heroes plus 34 recipe-driven material programs.
 - Exactly ten new metal, ten new glass, ten new concrete, and one combined proving-ground sequence.
 - Ten starred signature scenes remain the curated cross-domain set.
 - Exactly 100 numbered, runtime-validated AAA stage improvements—ten for every signature scene.
@@ -145,7 +155,7 @@ Starred entries in the hero selector are the curated signature set. Version 1.19
 | 9 | **Concrete Spall & Rebar Exposure** | curvature-following cover, persistent ductile rebar cage, physical spall, exposed aggregate, translucent dust, and restrained contact sparks | localized cracking, cover loss, load transfer, and residual bridging |
 | 10 | **Glass Catastrophic Fracture** | blended two-sided pane, fine disappearing crack tiles, radial branch glints, vertical fracture wave, and transparent persistent shards | flaw nucleation, bounded brittle propagation, and forensic fracture inspection |
 
-Use **Cinematic** quality for normal presentation and **Ultra** only when the GPU has headroom. `F`, `E`, `Space`, `I`, slow motion, and material load controls expose the authored failure beats. Finish by opening **Automated Validation** and running the **800 + 65 State Tests**. See [AAA_SIGNATURE_SCENES.md](docs/AAA_SIGNATURE_SCENES.md) for the unchanged ten-scene signature contract and [AAA_SHOWCASE.md](docs/AAA_SHOWCASE.md) for all 65 director entries.
+Use **Cinematic** quality for normal presentation and **Ultra** only when the GPU has headroom. `F`, `E`, `Space`, `I`, slow motion, and material load controls expose the authored failure beats. Finish by opening **Automated Validation** and running the **800 + 68 State Tests**. See [AAA_SIGNATURE_SCENES.md](docs/AAA_SIGNATURE_SCENES.md) for the unchanged ten-scene signature contract and [AAA_SHOWCASE.md](docs/AAA_SHOWCASE.md) for all 68 director entries.
 
 ### The v1.19 100-improvement production pass
 
@@ -624,3 +634,9 @@ docs/                           architecture, rendering, demo, and test guides
 ## License and attribution
 
 This project is licensed under the MIT License. Upstream Box3D remains under its own license. See [LICENSE](LICENSE) and [THIRD_PARTY_NOTICES.md](THIRD_PARTY_NOTICES.md).
+
+## Release gate (both applications)
+
+Run `npm ci`, `npx playwright install chromium`, then `npm run validate:release` on Node 24. This shared CI/Pages gate tests both applications, packaged native and soft runtimes, Studio and engine suites, production assets, and software-rendered browser routes. Kernel byte-rebuild qualification remains a separate toolchain-specific check.
+
+`npm run stage:railway` creates a fresh, guarded deployment directory under `build/railway-release` containing both HTML entries, native single/threaded WASM, soft kernels, textures, Studio assets and notices. It does not deploy. See [the approved review repair notes](docs/REVIEW_REPAIRS_20261105.md).
