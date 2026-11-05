@@ -12,12 +12,12 @@ if(process.argv[2]==='--case'){
   const [name,runtime]=process.argv.slice(3),times=[];
   let model,dt,end;
   if(name.startsWith('glass:')){
-    const {createModel,DT}=await import(pathToFileURL(path.join(runtime,'materials/studio/material-labs/models.js')).href);
-    const {LABS}=await import(pathToFileURL(path.join(runtime,'materials/studio/material-labs/catalog.js')).href);
+    const {createModel,DT}=await import(pathToFileURL(path.join(runtime,'materials/studio/material-labs/models.mjs')).href);
+    const {LABS}=await import(pathToFileURL(path.join(runtime,'materials/studio/material-labs/catalog.mjs')).href);
     const experiment=LABS.glass.experiments[Number(name.split(':')[1])];
     model=createModel('glass',{...LABS.glass.defaults,...experiment.settings});dt=DT;end=LABS.glass.duration;
   }else{
-    const {FailureSimulation,FIXED_DT,STUDIO_CANOPY_CONTACT_BACKEND}=await import(pathToFileURL(path.join(runtime,'studio/studio/physics.js')).href);
+    const {FailureSimulation,FIXED_DT,STUDIO_CANOPY_CONTACT_BACKEND}=await import(pathToFileURL(path.join(runtime,'studio/studio/physics.mjs')).href);
     model=new FailureSimulation('canopy',undefined,STUDIO_CANOPY_CONTACT_BACKEND);model.targetLoad=Number(name.split(':')[1]);dt=FIXED_DT;end=16;
   }
   const time=()=>model.frame?.time??model.time;
