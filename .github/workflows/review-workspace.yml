@@ -1,0 +1,26 @@
+name: Export pinned review workspace
+on:
+  push:
+    branches: [apex/restore-lab-release-gates-20261105]
+    paths: [.github/workflows/review-workspace.yml]
+permissions:
+  contents: read
+jobs:
+  snapshot:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: 90dbd05929a48a93716d3dfd46a7fd7931baa5a8
+          persist-credentials: false
+      - name: Export exact reviewed source
+        run: |
+          git archive --format=tar HEAD | gzip -n > "$RUNNER_TEMP/box3d-source.tar.gz"
+          sha256sum "$RUNNER_TEMP/box3d-source.tar.gz"
+      - uses: actions/upload-artifact@v4
+        with:
+          name: box3d-review-source
+          path: ${{ runner.temp }}/box3d-source.tar.gz
+          retention-days: 1
+          compression-level: 0
