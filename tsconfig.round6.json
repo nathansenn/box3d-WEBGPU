@@ -1,0 +1,8 @@
+{
+  "compilerOptions": {
+    "target": "ES2022", "module": "ES2022", "moduleResolution": "Bundler",
+    "strict": true, "declaration": true, "skipLibCheck": true,
+    "outDir": ".round6-build", "rootDir": "src/webgpu"
+  },
+  "include": ["src/webgpu/optimized-dirty-record-tracker.ts"]
+}
