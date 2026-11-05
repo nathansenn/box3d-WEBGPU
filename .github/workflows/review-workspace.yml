@@ -18,43 +18,46 @@ jobs:
       commit: ${{ steps.source.outputs.commit }}
     steps:
       - uses: actions/checkout@v4
-      - name: Apply guarded subpath contract and notice integration
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - name: Update guarded workflow-closure assertions and browser pin
         run: |
           python3 - <<'PY'
           from pathlib import Path
+          import json
           p=Path('scripts/self-test.mjs'); text=p.read_text()
-          old=next((line for line in text.splitlines() if 'index.html must link the ${study} study' in line), None)
-          if old:
-              text=text.replace(old, '''  const links = [...html.matchAll(/href=["']([^"']+)["']/g)].map(match => match[1]);
-            for (const base of ['https://example.test/', 'https://example.test/box3d-WEBGPU/']) {
-              assert.ok(links.some(href => {
-                const target = new URL(href, base);
-                return target.origin === new URL(base).origin && target.pathname === new URL(base).pathname && target.searchParams.get('studio') === study;
-              }), `Studio navigation must preserve deployment base: ${study} at ${base}`);
-            }''')
-              text=text.replace('The AAA showcase UI in src/main.ts is no longer linked from it.', 'The AAA showcase has its own compatible lab.html shell and entry.')
+          start=text.find("assert.match(read('.github/workflows/ci.yml'), /npm (run validate|test)/")
+          if start >= 0:
+              end=text.index('\nfor (const releaseDocument',start)
+              text=text[:start]+'''// Workflows invoke one shared executable gate; inspect its closure instead
+          // of requiring duplicate inline commands in every YAML file.
+          const sharedReleaseGate = read('scripts/validate-release.mjs');
+          const releasePackage = JSON.parse(read('package.json'));
+          assert.equal(releasePackage.scripts['validate:release'], 'node scripts/validate-release.mjs');
+          for (const workflow of workflows) {
+            assert.match(read(workflow), /run: npm run validate:release/, `${workflow} must invoke the shared release gate`);
+          }
+          for (const command of ['verify:source', 'typecheck', 'test:cbridge', 'test:webgpu', 'test:collision', 'test:assets', 'test:engine', 'test:studio', 'test:studio:presets', 'test:studio:river', 'test:studio:reference', 'test:studio:press', 'test:soft-soak:all', 'test:rope-batching', 'test:native-wasm', 'test:material:100', 'build', 'build:pages', 'test:browser:release']) {
+            assert.ok(releasePackage.scripts[command], `Missing executable package script ${command}`);
+            assert.ok(sharedReleaseGate.includes(`'${command}'`), `Shared release gate must execute ${command}`);
+          }
+          for (const suite of ['unit', 'engineering-evidence', 'execution-graph', 'water-reference', 'water-surface-plan', 'projection-depth', 'instance-visibility']) assert.ok(sharedReleaseGate.includes(`'${suite}'`), `Shared release gate must retain ${suite}`);
+          for (const file of ['scripts/self-test.mjs', 'scripts/soft-kernel-test.mjs', 'scripts/soft-kernel-integration-test.cjs']) assert.ok(sharedReleaseGate.includes(file), `Shared release gate must retain ${file}`);
+          assert.match(sharedReleaseGate, /audit.*--audit-level=moderate/, 'Shared release gate must retain dependency audit');
+          assert.ok(sharedReleaseGate.lastIndexOf("gate('verify:source')") > sharedReleaseGate.indexOf("gate('verify:source')"), 'Source integrity must be verified before and after validation');
+          '''+text[end:]
               p.write_text(text)
-          p=Path('vite.config.ts'); text=p.read_text()
-          if 'box3d-license-notices' not in text:
-              text=text.replace("import { fileURLToPath } from 'node:url';", "import { fileURLToPath } from 'node:url';\nimport { readFileSync } from 'node:fs';")
-              text=text.replace('export default defineConfig({', '''export default defineConfig({
-            plugins: [{
-              name: 'box3d-license-notices',
-              generateBundle() {
-                for (const [fileName, sourceFile] of [['licenses/project.txt', 'LICENSE'], ['licenses/third-party.txt', 'THIRD_PARTY_NOTICES.md']]) {
-                  this.emitFile({ type: 'asset', fileName, source: readFileSync(new URL('./' + sourceFile, import.meta.url), 'utf8') });
-                }
-              },
-            }],''')
-              p.write_text(text)
+          p=Path('package.json'); pkg=json.loads(p.read_text()); pkg['devDependencies']['playwright']='1.64.1'; p.write_text(json.dumps(pkg,indent=2)+'\n')
           PY
+          npm install --package-lock-only --ignore-scripts
       - name: Refresh exact manifest on task branch only
         id: source
         run: |
           bash scripts/generate-source-manifest.sh
-          git add scripts/self-test.mjs vite.config.ts SOURCE_MANIFEST.sha256
+          git add scripts/self-test.mjs package.json package-lock.json SOURCE_MANIFEST.sha256
           if ! git diff --cached --quiet; then
-            git -c user.name='APEX review integration' -c user.email='41898282+github-actions[bot]@users.noreply.github.com' commit -m 'Verify subpath-safe navigation and emit project license notices'
+            git -c user.name='APEX review integration' -c user.email='41898282+github-actions[bot]@users.noreply.github.com' commit -m 'Verify shared release closure and pin Playwright 1.64.1'
             git push origin HEAD:refs/heads/apex/restore-lab-release-gates-20261105
           fi
           echo "commit=$(git rev-parse HEAD)" >> "$GITHUB_OUTPUT"
