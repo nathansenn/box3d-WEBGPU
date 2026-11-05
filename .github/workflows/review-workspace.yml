@@ -2,7 +2,7 @@ name: Approved review integration
 on:
   push:
     branches: [apex/restore-lab-release-gates-20261105]
-    paths: [.github/workflows/review-workspace.yml, scripts/apply-approved-review.mjs]
+    paths: [.github/workflows/review-workspace.yml, scripts/apply-approved-review.mjs, scripts/complete-approved-review.mjs]
 permissions:
   contents: write
 concurrency:
@@ -17,10 +17,10 @@ jobs:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
         with:
-          node-version: 24
+          node-version: 22
           cache: npm
       - name: Apply guarded source integration
-        run: node scripts/apply-approved-review.mjs
+        run: node scripts/complete-approved-review.mjs
       - name: Lock browser test dependency
         run: npm install --package-lock-only --ignore-scripts
       - name: Install locked dependencies
@@ -30,7 +30,7 @@ jobs:
       - name: Commit reviewed files and exact manifest to the task branch only
         run: |
           bash scripts/generate-source-manifest.sh
-          git add lab.html src/lab-entry.ts src/studio/study-navigation.ts src/studio/study-navigation.css index.html vite.config.ts package.json package-lock.json scripts tests/release-contracts.test.mjs docs/REVIEW_REPAIRS_20261105.md docs/CATALOG_COUNTS.json README.md .github/workflows/ci.yml .github/workflows/pages.yml deploy/railway SOURCE_MANIFEST.sha256
+          git add lab.html src/lab-entry.ts src/studio/study-navigation.ts src/studio/study-navigation.css index.html vite.config.ts package.json package-lock.json scripts tests/release-contracts.test.mjs docs/REVIEW_REPAIRS_20261105.md docs/CATALOG_COUNTS.json README.md deploy/railway SOURCE_MANIFEST.sha256
           if ! git diff --cached --quiet; then
             git -c user.name='APEX review integration' -c user.email='41898282+github-actions[bot]@users.noreply.github.com' commit -m 'Restore Physics Lab entry, unify release gates, and package native runtimes'
             git push origin HEAD:refs/heads/apex/restore-lab-release-gates-20261105
@@ -55,6 +55,7 @@ jobs:
         if: always()
         run: |
           mkdir -p "$RUNNER_TEMP/box3d-review-qa"
+          git fetch --depth=1 origin 90dbd05929a48a93716d3dfd46a7fd7931baa5a8
           git diff 90dbd05929a48a93716d3dfd46a7fd7931baa5a8 HEAD --binary > "$RUNNER_TEMP/box3d-review-qa/changes.patch"
           git rev-parse HEAD > "$RUNNER_TEMP/box3d-review-qa/tested-commit.txt"
           git status --short > "$RUNNER_TEMP/box3d-review-qa/status.txt"
