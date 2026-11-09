@@ -186,16 +186,30 @@ test('a real equal nonzero timestamp pair is a valid quantized zero duration', a
   timer.dispose();
 });
 
-test('invalid timestamp data reports an error instead of zero timing and stops further sampling', async () => {
+test('one invalid timestamp pair is dropped; eight in a row report an error and stop sampling', async () => {
   for (const [start, end] of [[0n, 0n], [10n, 9n], [1n, BigInt(Number.MAX_SAFE_INTEGER) + 2n]]) {
+    const invalid = [0n, 0n, 0n, 0n, start, end, 0n, 0n];
     const device = fakeDevice();
     const timer = new GpuPassTimer(device, { sampleEveryFrames: 1 });
-    const frame = submit(timer, ['main']);
-    await complete(device, frame, [0n, 0n, 0n, 0n, start, end, 0n, 0n]);
-    assert.equal(timer.info().status, 'error');
-    assert.match(timer.info().reason, /Invalid GPU timestamp pair/);
+    // A single bad pair (driver glitch, counter wrap) is dropped without publishing a zero timing.
+    await complete(device, submit(timer, ['main']), invalid);
+    assert.equal(timer.info().status, 'ready');
     assert.equal(timer.info().latest, null);
     assert.equal(timer.info().failedSamples, 1);
+    assert.equal(timer.info().pendingSamples, 0);
+    // A valid sample resets the run of bad pairs.
+    await complete(device, submit(timer, ['main']));
+    assert.equal(timer.info().status, 'ready');
+    assert.notEqual(timer.info().latest, null);
+    // Eight consecutive bad pairs disable timing.
+    for (let sample = 0; sample < 7; sample++) {
+      await complete(device, submit(timer, ['main']), invalid);
+      assert.equal(timer.info().status, 'ready');
+    }
+    await complete(device, submit(timer, ['main']), invalid);
+    assert.equal(timer.info().status, 'error');
+    assert.match(timer.info().reason, /Invalid GPU timestamp pair/);
+    assert.equal(timer.info().failedSamples, 9);
     assert.equal(timer.info().pendingSamples, 0);
     assert.equal(timer.beginFrame(), null);
     timer.dispose();

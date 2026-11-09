@@ -9,7 +9,7 @@
 <meta name="description" content="Explore liquid flow, glass fracture, concrete compression and more in eight interactive studies. Compare presets, replay simulations and export run data." />
 <meta name="robots" content="follow, max-image-preview:large, max-snippet:-1, max-video-preview:-1" />
 <link rel="canonical" href="https://box3d.apxlabs.parts/" />
-<link rel="icon" type="image/png" href="/studio/references/material-labs/liquid.png" />
+<link rel="icon" type="image/png" href="./studio/references/material-labs/liquid.png" />
 <title>BOX3D Engineering Studio — Interactive Material Simulations</title>
 <meta property="og:type" content="website" />
 <meta property="og:site_name" content="BOX3D Engineering Studio" />
@@ -73,30 +73,31 @@ html,body{margin:0;min-height:100%;background:#faf9f4}
 <body>
 <div id="studio">
   <main class="studio-intro">
-    <a href="/" aria-label="BOX3D Engineering Studio home">BOX3D</a>
+    <a href="./" aria-label="BOX3D Engineering Studio home">BOX3D</a>
     <h1>BOX3D Engineering Studio</h1>
     <p>Explore material behavior and structural failure through interactive experiments in your browser. Compare materials, adjust a test program, inspect the response and replay the recorded run.</p>
+    <p><a href="./lab.html">Open the Physics Capability Lab</a> for native rigid bodies, cloth, rope, water, and cinematic showcases.</p>
     <h2>Choose a study</h2>
     <ul>
-      <li><a href="/?studio=liquid">Liquid flow and viscosity</a></li>
-      <li><a href="/?studio=glass">Glass impact and fracture</a></li>
-      <li><a href="/?studio=concrete">Concrete compression</a></li>
-      <li><a href="/?studio=rubber">Elastomer compression and recovery</a></li>
-      <li><a href="/?studio=granular">Granular flow and settling</a></li>
-      <li><a href="/?studio=plate">Metal press and tooling</a></li>
-      <li><a href="/?studio=canopy">Canopy loading</a></li>
-      <li><a href="/?studio=bridge">Suspension bridge loading</a></li>
+      <li><a href="./?studio=liquid">Liquid flow and viscosity</a></li>
+      <li><a href="./?studio=glass">Glass impact and fracture</a></li>
+      <li><a href="./?studio=concrete">Concrete compression</a></li>
+      <li><a href="./?studio=rubber">Elastomer compression and recovery</a></li>
+      <li><a href="./?studio=granular">Granular flow and settling</a></li>
+      <li><a href="./?studio=plate">Metal press and tooling</a></li>
+      <li><a href="./?studio=canopy">Canopy loading</a></li>
+      <li><a href="./?studio=bridge">Suspension bridge loading</a></li>
     </ul>
     <h2>Compare, replay and inspect</h2>
     <p>The five material labs include 40 material profiles and 40 prepared experiments. Change the material and test controls, run the experiment, then use the timeline to inspect its recorded history. Export the selected settings and recorded frames as JSON run data.</p>
     <h2>Understand the models</h2>
     <p>The simulations use authored coefficients and reduced models for comparison. They are uncalibrated and do not provide certified engineering results. Each lab explains its model and limits. The interactive scene needs JavaScript and a browser with WebGL 2 or WebGPU support.</p>
-    <p>Project information is available in the <a href="https://github.com/nathansenn/box3d-WEBGPU">BOX3D project repository</a>. Read the <a href="/licenses/project.txt">project code license</a>; individual asset notices are included with their files.</p>
+    <p>Project information is available in the <a href="https://github.com/nathansenn/box3d-WEBGPU">BOX3D project repository</a>. Read the <a href="./licenses/project.txt">project code license</a>; individual asset notices are included with their files.</p>
     <p class="boot-message" id="boot-status" role="status">Opening the interactive studio…</p>
     <noscript>
       <style>#boot-status{display:none}</style>
       <p>Enable JavaScript to open the experiments. This page describes the available studies; it does not run a simulation without JavaScript.</p>
-      <figure><img src="/studio/references/material-labs/liquid.png" width="1586" height="992" alt="Generated design reference for the liquid flow apparatus, experiment controls and replay timeline." loading="lazy" /><figcaption>Generated design reference for the liquid dynamics lab.</figcaption></figure>
+      <figure><img src="./studio/references/material-labs/liquid.png" width="1586" height="992" alt="Generated design reference for the liquid flow apparatus, experiment controls and replay timeline." loading="lazy" /><figcaption>Generated design reference for the liquid dynamics lab.</figcaption></figure>
     </noscript>
   </main>
 </div>

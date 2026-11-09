@@ -1,14 +1,16 @@
 name: Deploy WebGPU Demo to GitHub Pages
 
+# Deploy only what CI already validated: a push to main whose CI run succeeded,
+# or a manual run. The gates live in CI, so they don't run twice per push.
 on:
-  push:
+  workflow_run:
+    workflows: [CI]
+    types: [completed]
     branches: [main]
   workflow_dispatch:
 
 permissions:
   contents: read
-  pages: write
-  id-token: write
 
 concurrency:
   group: pages
@@ -16,79 +18,44 @@ concurrency:
 
 jobs:
   build:
-    name: Build static site
-    runs-on: ubuntu-latest
+    name: Build both applications
+    if: >-
+      github.event_name == 'workflow_dispatch' ||
+      (github.event.workflow_run.conclusion == 'success' &&
+       github.event.workflow_run.event == 'push' &&
+       github.event.workflow_run.head_repository.full_name == github.repository)
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+    permissions:
+      contents: read
+      pages: read
     steps:
-      - name: Checkout
-        uses: actions/checkout@v4
-
-      - name: Setup Node
-        uses: actions/setup-node@v4
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.workflow_run.head_sha || github.sha }}
+      - uses: actions/setup-node@v4
         with:
           node-version: 22
           cache: npm
-
-      - name: Install
-        run: npm ci
-
-      - name: Verify source manifest
-        run: npm run verify:source
-
-      - name: Test application and packaged WebAssembly runtimes
-        run: |
-          # Portable expansion of npm run validate:v1.20; packaged runtime tests replace the release-toolchain byte rebuild.
-          npm run typecheck
-          rm -rf .test-build
-          npx tsc -p tsconfig.test.json
-          node -e "require('fs').mkdirSync('.test-build', {recursive:true}); require('fs').writeFileSync('.test-build/package.json', '{\"type\":\"commonjs\"}')"
-          node .test-build/tests/unit.test.js
-          node .test-build/tests/engineering-evidence.test.js
-          node .test-build/tests/execution-graph.test.js
-          node .test-build/tests/water-reference.test.js
-          node .test-build/tests/water-surface-plan.test.js
-          node .test-build/tests/projection-depth.test.js
-          node .test-build/tests/instance-visibility.test.js
-          node scripts/self-test.mjs
-          npm run test:cbridge
-          node scripts/soft-kernel-test.mjs
-          rm -rf .test-build
-          npx tsc -p tsconfig.test.json
-          node -e "require('fs').mkdirSync('.test-build', {recursive:true}); require('fs').writeFileSync('.test-build/package.json', '{\"type\":\"commonjs\"}')"
-          node scripts/soft-kernel-integration-test.cjs
-          npm run test:webgpu
-          npm run test:collision
-
-      - name: Validate v1.20 AAA programs, material, soft, native, and production gates
-        run: |
-          npm run test:soft-soak:all
-          npm run test:rope-batching
-          npm run test:native-wasm
-          npm run test:material:100
-          npm run build
-          npm run build:pages
-          npm audit --audit-level=moderate
-
-      - name: Confirm tests did not mutate tracked artifacts
-        run: npm run verify:source
-
-      - name: Add nojekyll marker
-        run: touch dist/.nojekyll
-
-      - name: Configure Pages
-        uses: actions/configure-pages@v5
-
-      - name: Upload artifact
-        uses: actions/upload-pages-artifact@v3
+      - run: npm ci
+      - run: npm run verify:source
+      - run: npm run build:pages
+      - run: touch dist/.nojekyll
+      - uses: actions/configure-pages@v5
+      - uses: actions/upload-pages-artifact@v3
         with:
           path: dist
 
   deploy:
     name: Deploy
+    needs: build
+    runs-on: ubuntu-24.04
+    permissions:
+      pages: write
+      id-token: write
     environment:
       name: github-pages
       url: ${{ steps.deployment.outputs.page_url }}
-    runs-on: ubuntu-latest
-    needs: build
     steps:
       - name: Deploy to GitHub Pages
         id: deployment

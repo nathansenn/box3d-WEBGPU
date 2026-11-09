@@ -178,11 +178,17 @@ assert.match(
 
 const html = read('index.html');
 // The shipped page is the Engineering Studio shell: src/entry.ts boots the
-// selected study. The AAA showcase UI in src/main.ts is no longer linked from it.
+// selected study. The AAA showcase has its own compatible lab.html shell and entry.
 assert.equal((html.match(/id=["']studio["']/g) ?? []).length, 1, 'index.html must contain exactly one #studio root');
 assert.match(html, /<script type="module" src="\/src\/entry\.ts"><\/script>/, 'index.html must boot the studio entry module');
 for (const study of ['liquid', 'glass', 'concrete', 'rubber', 'granular', 'plate', 'canopy', 'bridge']) {
-  assert.match(html, new RegExp(`href="/\\?studio=${study}"`), `index.html must link the ${study} study`);
+  const links = [...html.matchAll(/href=["']([^"']+)["']/g)].map(match => match[1]);
+  for (const base of ['https://example.test/', 'https://example.test/box3d-WEBGPU/']) {
+    assert.ok(links.some(href => {
+      const target = new URL(href, base);
+      return target.origin === new URL(base).origin && target.pathname === new URL(base).pathname && target.searchParams.get('studio') === study;
+    }), `Studio navigation must preserve deployment base: ${study} at ${base}`);
+  }
 }
 assert.match(html, /not calibrated engineering results/, 'index.html must state that the models are not calibrated engineering results');
 const allIds = [...html.matchAll(/id=["']([^"']+)["']/g)].map((match) => match[1]);
@@ -437,16 +443,31 @@ const workflows = ['.github/workflows/ci.yml', '.github/workflows/pages.yml'];
 for (const workflow of workflows) {
   assert.ok(fs.existsSync(path.join(root, workflow)), `missing ${workflow}`);
 }
-assert.match(read('.github/workflows/ci.yml'), /npm (run validate|test)/, 'CI must run validation/tests');
-assert.ok(read('.github/workflows/ci.yml').includes(currentGate), `CI must document the complete ${currentGate} gate`);
-assert.match(read('.github/workflows/ci.yml'), /test:material:100/, 'CI must run the 100-case material fracture gate');
-assert.match(read('.github/workflows/pages.yml'), /npm run build:pages/, 'Pages workflow must build the subpath-safe bundle');
-assert.match(read('.github/workflows/pages.yml'), /test:native-wasm/, 'Pages must validate the tracked native Box3D artifact before deployment');
-assert.match(read('.github/workflows/pages.yml'), /test:material:100/, 'Pages must run the 100-case material fracture gate before deployment');
-for (const workflow of workflows) {
-  assert.match(read(workflow), /npm run verify:source/, `${workflow} must verify source integrity`);
-  assert.ok(read(workflow).includes(currentGate), `${workflow} must name the current ${currentGate} release gate`);
+// CI runs the pull-request gate on every PR, the Studio gate on main, and reports the
+// engine suite and browser acceptance without blocking. Pages deploys only after CI.
+const sharedReleaseGate = read('scripts/validate-release.mjs');
+const releasePackage = JSON.parse(read('package.json'));
+for (const [script, mode] of [['validate:pr', 'pr'], ['validate:studio', 'studio'], ['validate:release', 'release']]) {
+  assert.equal(releasePackage.scripts[script], `node scripts/validate-release.mjs ${mode}`, `${script} must run the ${mode} gate`);
 }
+const ciWorkflow = read('.github/workflows/ci.yml');
+assert.match(ciWorkflow, /name: Typecheck, test, and build/, 'CI must keep the required check name');
+for (const command of ['validate:pr', 'validate:studio', 'test:engine', 'test:browser:release']) {
+  assert.match(ciWorkflow, new RegExp(`npm run ${command}\\b`), `CI must run ${command}`);
+}
+const pagesWorkflow = read('.github/workflows/pages.yml');
+assert.match(pagesWorkflow, /workflow_run:[\s\S]*workflows: \[CI\]/, 'Pages must deploy only after CI');
+assert.match(pagesWorkflow, /workflow_run\.conclusion == 'success'/, 'Pages must deploy only commits that passed CI');
+assert.match(pagesWorkflow, /npm run verify:source/, 'Pages must verify source integrity');
+assert.match(pagesWorkflow, /npm run build:pages/, 'Pages workflow must build the subpath-safe bundle');
+for (const command of ['verify:source', 'typecheck', 'test:cbridge', 'test:webgpu', 'test:collision', 'test:assets', 'test:release-contracts', 'catalog:check', 'test:engine', 'test:studio', 'test:studio:presets', 'test:studio:river', 'test:studio:reference', 'test:studio:press', 'test:soft-soak:all', 'test:rope-batching', 'test:native-wasm', 'test:material:100', 'build', 'build:pages', 'stage:railway', 'test:browser:release']) {
+  assert.ok(releasePackage.scripts[command], `Missing executable package script ${command}`);
+  assert.ok(sharedReleaseGate.includes(`'${command}'`), `Release gates must execute ${command}`);
+}
+for (const suite of ['unit', 'sparse-upload', 'dirty-record-tracker', 'engineering-evidence', 'execution-graph', 'water-reference', 'water-surface-plan', 'projection-depth', 'instance-visibility']) assert.ok(sharedReleaseGate.includes(`'${suite}'`), `Release gates must retain ${suite}`);
+for (const file of ['scripts/self-test.mjs', 'scripts/soft-kernel-test.mjs', 'scripts/soft-kernel-integration-test.cjs', 'tests/round4-statistics.test.mjs', 'tests/round5-worker.test.py']) assert.ok(sharedReleaseGate.includes(file), `Release gates must retain ${file}`);
+assert.match(sharedReleaseGate, /audit.*--audit-level=moderate/, 'Release gates must retain dependency audit');
+assert.ok(sharedReleaseGate.lastIndexOf("gate('verify:source')") > sharedReleaseGate.indexOf("gate('verify:source')"), 'Source integrity must be verified before and after validation');
 
 for (const releaseDocument of [
   'README.md',
