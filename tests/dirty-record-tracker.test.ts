@@ -47,7 +47,8 @@ function verifyResult(
   const expectedFull = mode === 'dense-bypass' && unique > Math.floor(recordCount / 4);
   check(result.full === expectedFull, `${label}: full decision`);
   if (expectedFull) {
-    check(result.spans.length === 0, `${label}: bypass cannot expose incomplete spans`);
+    check(recordCount > 0 && result.spans.length === 1 && result.spans[0].start === 0 && result.spans[0].count === recordCount,
+      `${label}: bypass reports one span covering every record, never incomplete or empty spans`);
     check(result.dirtyCount === null, `${label}: bypass cannot claim an exact count`);
     check(result.countedDirtyRecords === Math.floor(recordCount / 4) + 1, `${label}: counted prefix`);
     check(result.countedDirtyRecords <= unique, `${label}: counted prefix is a lower bound`);
@@ -87,13 +88,11 @@ function verifyResult(
     source[index * wordsPerRecord + 2] = 0x7fc01234;
     source[index * wordsPerRecord + 3] = (index * 2654435761) >>> 0;
   }
-  if (result.full) destination.set(source);
-  else {
-    for (const span of result.spans) {
-      const first = span.start * wordsPerRecord;
-      const end = (span.start + span.count) * wordsPerRecord;
-      destination.set(source.subarray(first, end), first);
-    }
+  // Replay through the spans alone, as a caller that forwards them would, even when full.
+  for (const span of result.spans) {
+    const first = span.start * wordsPerRecord;
+    const end = (span.start + span.count) * wordsPerRecord;
+    destination.set(source.subarray(first, end), first);
   }
   for (let word = 0; word < source.length; word++) {
     check(source[word] === destination[word], `${label}: replay word ${word}`);

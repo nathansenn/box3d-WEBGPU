@@ -4,7 +4,11 @@ import type { DirtyRecordSpan } from './sparse-upload';
 export type DirtyTrackingMode = 'ranges' | 'bitset' | 'index-list' | 'tile-32' | 'dense-bypass';
 
 export type DirtyRecordTrackingResult = Readonly<{
-  /** Borrowed storage: copy these spans before the next begin() if retaining them. */
+  /**
+   * Borrowed storage: copy these spans before the next begin() if retaining them.
+   * When full is true this is one span covering every record, never an empty list,
+   * so passing it on as upload evidence can't be read as "nothing changed".
+   */
   spans: readonly DirtyRecordSpan[];
   /** Exact unique marked records, or null after dense-bypass stops deduplicating. */
   dirtyCount: number | null;
@@ -121,8 +125,10 @@ export function createDirtyRecordTracker(recordCount: number, mode: DirtyTrackin
     let coverageUpperBound = 0;
     if (full) {
       // The bitmap prefix is retained only so begin() can clear touched words.
-      // It must not be mistaken for complete metadata after tracking stops.
+      // It must not be mistaken for complete metadata after tracking stops, so the
+      // result is one span covering every record: forwarding it uploads everything.
       spans.length = 0;
+      if (recordCount > 0) spans.push({ start: 0, count: recordCount });
       coverageUpperBound = recordCount;
     } else if (mode === 'ranges') {
       spans.sort((a, b) => a.start - b.start);
