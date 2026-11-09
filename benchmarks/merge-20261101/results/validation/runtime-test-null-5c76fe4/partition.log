@@ -1,0 +1,14 @@
+[WebGPU] material-noise-bc4.ktx2 unavailable; using deterministic R8 fallback. Error: Runtime test intentionally uses the procedural KTX2 fallback.
+    at value (file:///home/user/box3d-WEBGPU/scripts/webgpu-renderer-runtime-test.mjs:42:30)
+    at fetchKtx2 (file:///tmp/box3d-webgpu-runtime-UDrhqx/assets/ktx2.mjs:211:28)
+    at loadMaterialNoiseTexture (file:///tmp/box3d-webgpu-runtime-UDrhqx/assets/ktx2.mjs:221:30)
+    at WebGPURenderer.create (file:///tmp/box3d-webgpu-runtime-UDrhqx/webgpu/renderer.mjs?v=1793532837823:1966:17)
+    at async file:///home/user/box3d-WEBGPU/scripts/webgpu-renderer-runtime-test.mjs:78:18
+[WebGPU] Poliigon astc material atlases unavailable; using deterministic procedural materials. Error: Runtime test intentionally uses the procedural KTX2 fallback.
+    at value (file:///home/user/box3d-WEBGPU/scripts/webgpu-renderer-runtime-test.mjs:42:30)
+    at fetchKtx2 (file:///tmp/box3d-webgpu-runtime-UDrhqx/assets/ktx2.mjs:211:28)
+    at loadMaterialAtlasTexture (file:///tmp/box3d-webgpu-runtime-UDrhqx/assets/ktx2.mjs:239:54)
+    at WebGPURenderer.create (file:///tmp/box3d-webgpu-runtime-UDrhqx/webgpu/renderer.mjs?v=1793532837823:1967:17)
+    at async file:///home/user/box3d-WEBGPU/scripts/webgpu-renderer-runtime-test.mjs:78:18
+GPU timing diagnostics: {"status":"ready","supported":true,"reason":null,"latest":{"frameId":21,"sampledAtMs":3002.067095,"completedAtMs":3005.991219,"passMs":{"compute":0,"shadow":61440855.733385,"main":23507111.502515,"post":23507442.152129},"totalPassMs":108455409.388029},"frames":53,"submittedSamples":21,"completedSamples":7,"droppedSamples":32,"failedSamples":14,"pendingSamples":0,"ringSize":3,"sampleEveryFrames":1}
+✅ Actual WebGPURenderer command validation passed on Dawn null: rigid/cloth/water/rope paths, GPU-compute rope reconstruction, exact paused-frame upload caches, debug lines, resize, empty frame, lazy visibility retry/cleanup, 25 shadow-cache transitions, material boundary gates, failed-frame recovery, and clean error stream (null backend does not execute pixels)
