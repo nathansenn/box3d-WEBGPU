@@ -117,13 +117,23 @@
     "bench:round4:prepare": "node benchmarks/round4/prepare.mjs",
     "test:dirty-records": "npm run bench:breakthrough:compile && node .test-build/tests/dirty-record-tracker.test.js",
     "test:round5": "npm run test:dirty-records && node .test-build/tests/sparse-upload.test.js && node --test tests/round4-statistics.test.mjs && PYTHONPYCACHEPREFIX=/tmp/box3d-round5-pycache python3 tests/round5-worker.test.py",
-    "bench:round5:prepare": "node benchmarks/round5/prepare.mjs"
+    "bench:round5:prepare": "node benchmarks/round5/prepare.mjs",
+    "validate:pr": "node scripts/validate-release.mjs pr",
+    "validate:studio": "node scripts/validate-release.mjs studio",
+    "validate:release": "node scripts/validate-release.mjs release",
+    "test:release-contracts": "node --test tests/release-contracts.test.mjs",
+    "test:browser:release": "node scripts/test-release-browser.mjs",
+    "catalog:check": "node scripts/catalog-counts.mjs",
+    "catalog:sync": "node scripts/catalog-counts.mjs --write",
+    "stage:railway": "node scripts/stage-railway.mjs",
+    "bench:contact-budget": "node scripts/contact-budget.mjs"
   },
   "devDependencies": {
     "@types/three": "0.185.4",
     "typescript": "^5.5.4",
     "vite": "8.1.6",
-    "webgpu": "^0.4.0"
+    "webgpu": "^0.4.0",
+    "playwright": "1.64.1"
   },
   "license": "MIT",
   "homepage": "https://nathansenn.github.io/box3d-WEBGPU/",
