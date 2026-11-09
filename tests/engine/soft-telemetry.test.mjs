@@ -1,13 +1,15 @@
 import assert from 'node:assert/strict';
 import { execFileSync } from 'node:child_process';
-import { existsSync, mkdirSync, mkdtempSync, rmSync, writeFileSync } from 'node:fs';
+import { existsSync, mkdirSync, mkdtempSync, realpathSync, rmSync, writeFileSync } from 'node:fs';
+import { tmpdir } from 'node:os';
 import { createRequire } from 'node:module';
 import { dirname, join, resolve } from 'node:path';
 import { after, test } from 'node:test';
 import { fileURLToPath } from 'node:url';
 
 const root = resolve(dirname(fileURLToPath(import.meta.url)), '../..');
-const temporary = mkdtempSync('/private/tmp/box3d-soft-telemetry-');
+// The real temp path (/private/var/... on macOS, where /tmp is a symlink), not a macOS-only literal.
+const temporary = mkdtempSync(join(realpathSync(tmpdir()), 'box3d-soft-telemetry-'));
 const require = createRequire(import.meta.url);
 const compiler = join(root, 'node_modules/typescript/bin/tsc');
 const archive = join(root, 'benchmarks/baselines/engine-100x-20260910-source.tar.gz');
