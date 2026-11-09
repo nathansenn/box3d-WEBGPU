@@ -1,0 +1,66 @@
+{
+  "schema": "apex.round6.cpu-results.v1",
+  "status": "complete",
+  "finishedAt": "2026-11-05T03:05:11.410Z",
+  "environment": {
+    "node": "v22.16.0",
+    "platform": "linux",
+    "arch": "x64",
+    "cpu": "INTEL(R) XEON(R) PLATINUM 8573C",
+    "availableParallelism": 4,
+    "physicalGpuExecuted": false,
+    "cloudResourcesCreated": 0,
+    "clock": "node:perf_hooks performance.now wall time"
+  },
+  "statusCounts": {
+    "timing-floor": 31,
+    "unresolved": 35,
+    "cpu-regression": 2,
+    "static-control": 20,
+    "cpu-qualified": 11,
+    "tail-rejected": 1
+  },
+  "measuredPairs": 6400,
+  "measuredWindows": 12800,
+  "timedChangingOrControlFrames": 102400,
+  "exactParityComparisons": 8000,
+  "preflightFrames": 1600,
+  "conditions": 100,
+  "invalid": 0,
+  "physicalGpuRuns": 0,
+  "sourceHashes": {
+    "src/webgpu/optimized-dirty-record-tracker.ts": "153fb8a7b79026cdfedc2658f55f012d5f159390ba57bae664467e4d3b40ea4c",
+    ".round6-build/optimized-dirty-record-tracker.js": "7490588ad2bf0f865b1ba6eb8d9c2da1892a18e91ad471c8888a8fe1cf62f2d7",
+    "benchmarks/round6/cpu-100.mjs": "2b3f2fb6b9df0e79fe446dcfbb3fa58244c7d1d60140465ae0e5f9bc2d1421f2",
+    "benchmarks/round6/reference/dirty-record-tracker.mjs": "e5307c882f53851a976aff3bffff6b94ec084c710e31b66bca49b6c7a56f949b",
+    "benchmarks/round6/reference/sparse-upload.mjs": "31d7b3c623f02c72bc4cb122e2482074088093b7b3a15485c8715281b9a37c22"
+  },
+  "planSha256": "dcd622ae17ccf1aced7ee78f465362b3371348038230974fcda37dfe4b18fc2c",
+  "limitations": [
+    "CPU array copies are NOT GPU uploads; this is not complete renderer/GPU frame time.",
+    "Two input sets share one CPU session; no cross-device claim.",
+    "Standalone candidate compilation is not a full application build.",
+    "Ranges and locality policy additionally use producer bulk marking; they are declared compound changes.",
+    "No new runtime default or automatic source-derived enablement."
+  ],
+  "arithmeticAudit": {
+    "status": "passed",
+    "checks": 68625,
+    "errors": 0
+  },
+  "unitTests": {
+    "suites": 15,
+    "passed": 15,
+    "failed": 0,
+    "stateReplayFrames": 5647,
+    "recordAssertions": 1708610,
+    "invalidInputChecks": 70
+  },
+  "publication": {
+    "githubPushed": false,
+    "applicationMerged": false,
+    "defaultRendererChanged": false,
+    "basePr": 12,
+    "baseCommit": "0134200705499d6fdcba56127f1fb9fd1b87ac30"
+  }
+}
