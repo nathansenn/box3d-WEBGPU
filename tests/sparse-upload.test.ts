@@ -257,6 +257,17 @@ throws(() => renderer.uploadInstances(source, records, nextDelta({ matrices: [{ 
 check(writes.length === 0, 'invalid matrix range queues no write');
 check(renderer.uploadInstances(source, records) === records * 64, 'full upload safely recovers after rejected range');
 byteParity('renderer validation recovery');
+// A valid matrix span with a rejected colour span: both plans run before any write,
+// so the matrix span must not reach the GPU while the cached versions stay unchanged.
+const previousColorVersion = colorVersion;
+colorVersion++;
+heap[records * 16 + 5 * 4] = colorVersion / 8;
+writes.length = 0;
+throws(() => renderer.uploadInstances(source, records, nextDelta({ previousColorVersion, colorVersion,
+  colors: [{ start: records - 1, count: 2 }] })), 'colour range past the stream end is rejected');
+check(writes.length === 0, 'a rejected colour plan queues no matrix write either');
+check(renderer.uploadInstances(source, records) === records * 80, 'full upload recovers both streams after a rejected colour plan');
+byteParity('renderer colour validation recovery');
 for (const count of [-1, 0.5, records + 1, Number.NaN]) throws(() => renderer.uploadInstances(source, count), 'invalid renderer count reject');
 throws(() => renderer.uploadInstances({ ...source, _b3w_body_count: () => records + 1 }, records), 'invalid source capacity reject');
 

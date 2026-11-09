@@ -3176,11 +3176,17 @@ export class WebGPURenderer {
       dirty.previousColorVersion === this.rigidColorVersion &&
       dirty.frameVersion === frameVersion &&
       dirty.colorVersion === colorVersion;
+    // Plan both streams before writing either. A rejected colour plan must not leave matrix
+    // spans written while the cached versions still describe the previous upload.
+    const matrixPlan = matricesChanged && provenDelta && dirty?.matrices !== undefined
+      ? planSparseRecordUpload(safeCount, 64, dirty.matrices, { ...dirty.uploadPolicy, gapRecords: dirty.gapRecords ?? dirty.uploadPolicy?.gapRecords })
+      : null;
+    const colorPlan = colorsChanged && provenDelta && dirty?.colors !== undefined
+      ? planSparseRecordUpload(safeCount, 16, dirty.colors, { ...dirty.uploadPolicy, gapRecords: dirty.gapRecords ?? dirty.uploadPolicy?.gapRecords })
+      : null;
     let matrixBytes = 0;
     if (matricesChanged) {
-      const plan = provenDelta && dirty?.matrices !== undefined
-        ? planSparseRecordUpload(safeCount, 64, dirty.matrices, { ...dirty.uploadPolicy, gapRecords: dirty.gapRecords ?? dirty.uploadPolicy?.gapRecords })
-        : null;
+      const plan = matrixPlan;
       if (plan) {
         for (const span of plan.spans) {
           writeFloatBuffer(this.device.queue, this.matrixBuffer, span.start * 64,
@@ -3194,9 +3200,7 @@ export class WebGPURenderer {
     }
     let colorBytes = 0;
     if (colorsChanged) {
-      const plan = provenDelta && dirty?.colors !== undefined
-        ? planSparseRecordUpload(safeCount, 16, dirty.colors, { ...dirty.uploadPolicy, gapRecords: dirty.gapRecords ?? dirty.uploadPolicy?.gapRecords })
-        : null;
+      const plan = colorPlan;
       if (plan) {
         for (const span of plan.spans) {
           writeFloatBuffer(this.device.queue, this.colorBuffer, span.start * 16,
