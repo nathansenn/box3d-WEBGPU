@@ -1,6 +1,6 @@
 # Round 3 — opt-in rigid-stream sparse uploads and 100 physical-GPU cases
 
-**Status:** Review-only branch. Neither the new sparse path nor its GPU benchmark has been merged into production. Original shader, model detail and frame submission remain unchanged by default.
+**Status:** Opt-in only. The sparse path runs only when a caller passes dirty evidence to `uploadInstances`; nothing in the app does. Original shader, model detail and frame submission remain unchanged by default.
 
 ## What was applied
 
@@ -31,6 +31,15 @@ Every condition compares actual full and candidate GPU uploads with an identical
 The directional Holm family is **200 tests**, with qualification requiring both sets to show `>3%` median paired improvement, corrected `p <= 0.05` and candidate p95 window averages `<= 1.10×` baseline. There is no production FPS, display-latency, or cross-device claim. All regressions, unresolved conditions and invalid runs must remain in the saved report.
 
 Worker must validate physical NVIDIA identity, native Vulkan adapter, GPU timestamps and exact outputs; save every case and source fingerprint in a **new isolated directory** under preserved volume `5ftxitn7ox`. The original campaign directories must remain unchanged. No raw results are declared exported until off-volume checksums are verified.
+
+## Corrections after the campaign
+
+Review of the merged code found two faults in `gpu-sparse-100.mjs`, both now fixed:
+
+- **p95 tail gate.** It took the 22nd of 24 ordered samples instead of the 23rd, so a candidate whose worst windows were slower could still pass the `<= 1.10x` gate. It now uses the nearest-rank `percentile` from `../round4/statistics.mjs`.
+- **Validation scope.** The error scope covered only an empty command encoder, so a rejected draw could leave identical blank frames on both arms and still pass the image-parity check. Shader compilation, pipeline creation, the probe draw and every case now run inside validation scopes. An uncaptured error or a lost device stops the run.
+
+The Round 3 results reported in PR #11 (3 qualified, 75 regressions, 22 unresolved) were produced before these fixes and should not be relied on. Rounds 4 and 5 use separate harnesses that already capture these errors.
 
 ## Local correctness test
 

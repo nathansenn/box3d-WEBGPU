@@ -2,6 +2,7 @@ import { mkdir, writeFile, readFile } from 'node:fs/promises';
 import { createHash } from 'node:crypto';
 import { performance } from 'node:perf_hooks';
 import { openRuntime } from '../round4/hardware-runtime.mjs';
+import { percentile } from '../round4/statistics.mjs';
 import { planSparseRecordUpload } from '../../src/webgpu/sparse-upload.ts';
 
 const root = process.env.APEX_ROUND3_OUTPUT || '/workspace/round3-gpu-results-20261102';
@@ -84,17 +85,22 @@ async function main(){
  await writeFile(root+'/plan.json',JSON.stringify(plan,null,2));
  emit({event:'start',cases:100,sourceHashes:sources,deadline:new Date(deadline).toISOString()});
  const runtime=await openRuntime({width:128,height:128,packageRoot:'/workspace/benchmark-tools/webgpu'});
- let device;
+ let device,fatal=null,intentionalDestroy=false;
+ const uncaptured=[];
+ const check=()=>{if(fatal||uncaptured.length)throw new Error(fatal||uncaptured.join('\n'));};
  try{
   const adapter=await navigator.gpu.requestAdapter();
   if(!adapter||!adapter.features.has('timestamp-query'))throw new Error('Physical timestamp-capable adapter required');
   device=await adapter.requestDevice({requiredFeatures:['timestamp-query']});
+  // Any error outside a case's own scope, or a device loss, invalidates the whole run.
+  device.addEventListener('uncapturederror',event=>{uncaptured.push(event.error.message);});
+  void device.lost.then(info=>{if(!intentionalDestroy)fatal='Device lost: '+info.message;});
   const context=runtime.canvas.getContext('webgpu');
   context.configure({device,format:'rgba8unorm'});
-  const module=device.createShaderModule({code:wgsl});
+  device.pushErrorScope('validation');
+  const module=device.createShaderModule({code:wgsl}),diagnostics=await module.getCompilationInfo();
+  if(diagnostics.messages.some(m=>m.type==='error'))throw new Error('Shader must compile: '+diagnostics.messages.map(m=>m.message).join('; '));
   const pipeline=device.createRenderPipeline({layout:'auto',vertex:{module,entryPoint:'vs'},fragment:{module,entryPoint:'fs',targets:[{format:'rgba8unorm'}]},primitive:{topology:'triangle-list'}});
-  const error=await (async()=>{device.pushErrorScope('validation');device.createCommandEncoder().finish();return await device.popErrorScope();})();
-  if(error)throw new Error('WebGPU validation preflight: '+error.message);
   const usage=GPUBufferUsage.STORAGE|GPUBufferUsage.COPY_DST|GPUBufferUsage.COPY_SRC;
   function make(n){
    const m=device.createBuffer({size:n*64,usage}),c=device.createBuffer({size:n*16,usage});
@@ -155,13 +161,18 @@ async function main(){
    return {frames:8,imagesExact:true,stateExact:true};
   }
   const probe=make(257);initial(probe,state(257));draw(probe,257);await done();
+  const initError=await device.popErrorScope();
+  if(initError)throw new Error('WebGPU initialization must validate: '+initError.message);
+  check();
   await runtime.finalizeIdentity();
   probe.m.destroy();probe.c.destroy();
   emit({event:'hardware',verified:runtime.meta.identityVerification.verified,gpu:runtime.meta.visibleGpus.map(g=>({name:g.name,uuid:g.uuid,driver:g.driver_version})),adapter:runtime.meta.adapter});
   await writeFile(root+'/hardware.json',JSON.stringify(runtime.meta,null,2));
   const results=[];let checks=0;
   for(let t=0;t<conditions.length;t++){
-   guard();const spec=conditions[t],a=make(spec.count),b=make(spec.count);
+   guard();check();
+   device.pushErrorScope('validation');
+   const spec=conditions[t],a=make(spec.count),b=make(spec.count);
    const row={id:spec.id,family:spec.family,count:spec.count,fraction:spec.fraction,sets:[],validation:[],status:'complete'};
    try{
     for(let set=0;set<2;set++){
@@ -178,10 +189,14 @@ async function main(){
       samples.push({base:base.ms,candidate:candidate.ms,ratio:base.ms/candidate.ms,reverse:!!reverse,baseBytes:base.bytes,candidateBytes:candidate.bytes,baseCalls:base.calls,candidateCalls:candidate.calls});
      }
      const ratios=samples.map(s=>s.ratio),baseline=samples.map(s=>s.base),candidate=samples.map(s=>s.candidate);
-     row.sets.push({seed,samples,medianRatio:median(ratios),signP:signP(ratios),p95Ratio:quantile(candidate,.95)/quantile(baseline,.95)});
+     row.sets.push({seed,samples,medianRatio:median(ratios),signP:signP(ratios),p95Ratio:percentile(candidate,.95)/percentile(baseline,.95)});
     }
    }catch(e){row.status='invalid';row.error=String(e.message||e);}
    finally{a.m.destroy();a.c.destroy();b.m.destroy();b.c.destroy();}
+   // Validation errors don't reject queue completion, so blank frames from rejected draws
+   // could otherwise pass the parity check. Any error in this case's scope invalidates it.
+   const caseError=await device.popErrorScope();
+   if(caseError&&row.status==='complete'){row.status='invalid';row.error='WebGPU validation: '+caseError.message;}
    const bytes=Buffer.from(JSON.stringify(row)),path=root+'/cases/'+spec.id+'.json';
    await writeFile(path,bytes,{mode:0o600});
    results.push({id:row.id,status:row.status,error:row.error||null,medianRatios:row.sets.map(s=>s.medianRatio),signP:row.sets.map(s=>s.signP),p95:row.sets.map(s=>s.p95Ratio),sha256:sha(bytes)});
@@ -201,6 +216,6 @@ async function main(){
   await writeFile(root+'/final.json',JSON.stringify(summary,null,2));
   emit({event:'final',completed:summary.completed,invalid:summary.invalid,qualified:summary.qualified,regressions:summary.regressions,unresolved:summary.unresolved,exactOutputFramesChecked:checks,
    resultDir:root,manifestSha256:sha(await readFile(root+'/final.json'))});
- }finally{try{device?.destroy();}catch{}runtime.close();}
+ }finally{intentionalDestroy=true;try{device?.destroy();}catch{}runtime.close();}
 }
 main().catch(error=>{emit({event:'fatal',error:String(error.stack||error)});process.exitCode=1;});
