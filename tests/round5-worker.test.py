@@ -18,6 +18,10 @@ import unittest
 import uuid
 from unittest.mock import patch
 
+# Importing the worker would otherwise write benchmarks/round5/__pycache__/, an untracked
+# file that fails the source-manifest check, unless the caller remembered PYTHONPYCACHEPREFIX.
+sys.dont_write_bytecode = True
+
 SOURCE = pathlib.Path(__file__).resolve().parents[1] / "benchmarks/round5/runpod-serverless.py"
 PIN = "0123456789abcdef0123456789abcdef01234567"
 
