@@ -460,13 +460,19 @@ assert.match(pagesWorkflow, /workflow_run:[\s\S]*workflows: \[CI\]/, 'Pages must
 assert.match(pagesWorkflow, /workflow_run\.conclusion == 'success'/, 'Pages must deploy only commits that passed CI');
 assert.match(pagesWorkflow, /npm run verify:source/, 'Pages must verify source integrity');
 assert.match(pagesWorkflow, /npm run build:pages/, 'Pages workflow must build the subpath-safe bundle');
-for (const command of ['verify:source', 'typecheck', 'test:cbridge', 'test:webgpu', 'test:collision', 'test:assets', 'test:qualification', 'test:heat', 'test:solid', 'test:threaded', 'test:release-contracts', 'catalog:check', 'test:engine', 'test:studio', 'test:studio:presets', 'test:studio:river', 'test:studio:reference', 'test:studio:press', 'test:studio:bridge', 'test:studio:liquid', 'test:studio:materials', 'test:soft-soak:all', 'test:rope-batching', 'test:native-wasm', 'test:material:100', 'build', 'build:pages', 'stage:railway', 'test:browser:release']) {
+for (const command of ['verify:source', 'typecheck', 'test:cbridge', 'test:webgpu', 'test:collision', 'test:assets', 'test:qualification', 'test:heat', 'test:solid', 'test:threaded', 'test:release-contracts', 'test:validation', 'validation:check', 'catalog:check', 'test:engine', 'test:studio', 'test:studio:presets', 'test:studio:river', 'test:studio:reference', 'test:studio:press', 'test:studio:bridge', 'test:studio:liquid', 'test:studio:materials', 'test:soft-soak:all', 'test:rope-batching', 'test:native-wasm', 'test:material:100', 'build', 'build:pages', 'stage:railway', 'test:browser:release']) {
   assert.ok(releasePackage.scripts[command], `Missing executable package script ${command}`);
   assert.ok(sharedReleaseGate.includes(`'${command}'`), `Release gates must execute ${command}`);
 }
 for (const suite of ['unit', 'sparse-upload', 'dirty-record-tracker', 'engineering-evidence', 'execution-graph', 'water-reference', 'water-surface-plan', 'projection-depth', 'instance-visibility']) assert.ok(sharedReleaseGate.includes(`'${suite}'`), `Release gates must retain ${suite}`);
 for (const file of ['scripts/self-test.mjs', 'scripts/soft-kernel-test.mjs', 'scripts/soft-kernel-integration-test.cjs', 'tests/round4-statistics.test.mjs', 'tests/round5-worker.test.py']) assert.ok(sharedReleaseGate.includes(file), `Release gates must retain ${file}`);
 assert.match(sharedReleaseGate, /audit.*--audit-level=moderate/, 'Release gates must retain dependency audit');
+// The public validation page: the registry, its runner and the three published files travel together.
+for (const file of ['validation/registry.mjs', 'validation/report.mjs', 'scripts/validation-report.mjs', 'docs/VALIDATION.md', 'public/validation/index.html', 'public/validation/validation.css', 'public/validation/validation.js', 'public/validation/validation.json']) {
+  assert.ok(fs.existsSync(path.join(root, file)), `missing ${file}`);
+}
+assert.equal(releasePackage.scripts['validation:check'], 'node scripts/validation-report.mjs --check', 'validation:check must rerun the registry and compare the published numbers');
+assert.doesNotMatch(read('public/validation/index.html'), /<script(?![^>]*\bsrc=)|<style|\son\w+=|https?:\/\/(?!github\.com\/nathansenn\/box3d-WEBGPU)/i, 'the validation page must stay free of inline code and third-party requests');
 assert.ok(sharedReleaseGate.lastIndexOf("gate('verify:source')") > sharedReleaseGate.indexOf("gate('verify:source')"), 'Source integrity must be verified before and after validation');
 
 for (const releaseDocument of [

@@ -4,6 +4,8 @@ A browser-native 3D physics showcase combining **Box3D rigid bodies**, determini
 
 The current tree preserves the **800 deterministic capability-scene catalog** and expands the director from 34 to **68 hero demonstrations**. Thirty-four recipe-driven material programs add thirteen metal-forming tests, ten architectural-glass fracture tests, ten reinforced-concrete failure tests, and the combined **Apex Materials Proving Ground**. The ten-scene signature set and its exactly **100 runtime-authored AAA improvements** remain unchanged. The material-realism pass keeps the authoritative simulations intact while replacing exposed solver grids with curvature-following skins, giving cold-formed metal restrained coating flakes and procedural environment reflections, separating glass into a two-sided blended Fresnel pass, and rendering concrete dust as translucent media around physical aggregate, spall, and persistent reinforcement. Native Box3D WebAssembly artifacts, SIMD/scalar soft-system kernels, Poliigon-derived GPU material atlases, and the source-frozen v1.13 1,000-case optimization audit remain included.
 
+**Validation.** [docs/VALIDATION.md](docs/VALIDATION.md) lists 211 textbook cases across ten solver domains (rigid bodies and joints, bodies in water, cables and frames carrying bodies, geometry import, scene files, heat, deformable solids, frames, cables, closed-basin water): for each, the closed-form reference, the measured value, the error and the tolerance, plus what is not validated. The numbers are measured by `node scripts/validation-report.mjs`, not typed, and the same report is served with the site at `<site>/validation/`. It covers the numerical solvers; the Studio's authored models are not part of it.
+
 > This is an AAA-style capability lab and engine foundation. It is not a claim that the numerical Box3D solver runs on WebGPU or that every subsystem of a commercial game engine is complete.
 
 ## Engineering Studio (the shipped page)
@@ -628,7 +630,8 @@ docs/                           architecture, rendering, demo, and test guides
 - [AAA showcase guide](docs/AAA_SHOWCASE.md)
 - [Demo runbook](docs/DEMO_GUIDE.md)
 - [v1.13 benchmark matrix](docs/V1.13_1000_BENCHMARK_MATRIX.md)
-- [Complete validation report](VALIDATION_REPORT.md)
+- [Solver validation against textbook cases, with measured errors](docs/VALIDATION.md) (regenerate with `npm run validation:report`)
+- [Release validation report (gates and builds of earlier releases)](VALIDATION_REPORT.md)
 - [Release history](CHANGELOG.md)
 
 ## License and attribution
@@ -641,7 +644,7 @@ This project is licensed under the MIT License. Upstream Box3D remains under its
 
 | Command | What it runs | Where it runs |
 | --- | --- | --- |
-| `npm run validate:pr` | Core and engineering suites, packaged native and soft runtimes, the sparse-upload and dirty-tracking tests, the qualification oracles, threaded determinism, release contracts (including the check that every test file runs in a gate), catalog counts, soft soaks, rope batching, native WASM, the 100-case material gate, both builds, Railway staging, `npm audit` | Every pull request (the required check) and every push to `main` |
+| `npm run validate:pr` | Core and engineering suites, packaged native and soft runtimes, the sparse-upload and dirty-tracking tests, the qualification oracles, threaded determinism, release contracts (including the check that every test file runs in a gate), the solver validation check (`npm run validation:check`: every case of `validation/` rerun and compared with the published `docs/VALIDATION.md`), catalog counts, soft soaks, rope batching, native WASM, the 100-case material gate, both builds, Railway staging, `npm audit` | Every pull request (the required check) and every push to `main` |
 | `npm run validate:studio` | The eight Studio suites: failure, presets, river, reference, press, bridge, liquid and material-run suites (about 15 minutes) | Pushes to `main` and manual runs |
 | `npm run test:engine` | The engine suite. Its harness test needs Node 24. | Every CI run, reported without blocking |
 | `npm run test:browser:release` | Both applications in software-rendered Chromium | Every CI run, reported without blocking |

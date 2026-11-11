@@ -1,5 +1,13 @@
 # Changelog
 
+## Unreleased — 2026-11-11 — Public validation page
+
+- **Registry (`validation/`):** 211 cases in ten domains (rigid bodies and joints, rigid ↔ water, cable/frame ↔ rigid, geometry import, scene files, heat, deformable solids, frames, cables, closed-basin water). Each case names its closed-form reference, runs the real solver through its public API and returns the measured value, with the tolerance its test asserts and the test that asserts it.
+- **Report (`node scripts/validation-report.mjs`, `npm run validation:report`):** writes `docs/VALIDATION.md`, `public/validation/validation.json` (schema `box3d-validation` version 1) and is drawn by the static page `public/validation/` (served at `<site>/validation/`; no inline code, no third-party requests). The files hold no date, machine or commit, and two runs on one build are byte-identical.
+- **Gate:** `npm run validation:check` reruns every case and fails if one misses its tolerance or if the committed files differ from the run beyond the stated rounding; `npm run test:validation` tests the registry and the generator. Both run in the pull-request gate.
+- **Kit tests:** the mesh fixture generators of `packages/box3d-kit/test/v10-geometry.test.mjs` moved to `test/fixtures/geometry-models.mjs` so the registry measures the same generated files; the test is otherwise unchanged.
+- **Links:** the Lab's application bar and the Studio's introduction link to the page.
+
 ## Unreleased — 2026-11-11 — Lab renderer draws spheres and capsules
 
 - **Renderer (`src/webgpu/renderer.ts`, `src/webgpu/instance-shapes.ts`):** sphere and capsule instance rows are drawn in the shadow, opaque and transparent passes. A capsule is an open cylinder plus two hemisphere caps, exact at any radius and length. Box-only streams keep their single cube draw. The opt-in material partition and GPU visibility lists fall back to direct draws for a frame that has round rows.

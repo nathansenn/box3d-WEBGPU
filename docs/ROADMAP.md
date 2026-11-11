@@ -48,6 +48,8 @@ Updated 2026-11-11.
 | 5 | Import glTF, OBJ and STL: parsers, mesh measures, convex hulls and decomposition, bodies from meshes (`box3d-webgpu-kit/geometry`) | done in the kit with closed-form validation (`packages/box3d-kit/test/v10-geometry.test.mjs`); not yet used by a scene, the Studio or an editor |
 | 3 | Deformable solids with real material parameters: tetrahedral FEM, linear, corotational and Neo-Hookean, statics and dynamics (`box3d-webgpu-kit/solid`, [`SOLID_MECHANICS.md`](SOLID_MECHANICS.md)) | done as a stand-alone solver with closed-form validation (`tests/engine/solid.test.mjs`, in the pull-request gate); not coupled to the rigid world; no contact, plasticity or fracture; not yet used by a scene or the Studio |
 | 3 | Fracture on the solid solver; replace the rubber, concrete and lattice one-offs; the other Phase 3 domains | open |
+| 4 | A public validation page: every solver against textbook cases, with error numbers ([`VALIDATION.md`](VALIDATION.md), served at `<site>/validation/`) | done for the ten solver domains with closed-form tests: 211 cases measured by `node scripts/validation-report.mjs` from the registry in `validation/`, all inside their tolerances; `npm run validation:check` in the pull-request gate fails when a case misses or the published numbers go stale. Open: the Studio's authored models, cloth, rope, granular and the GPU water path have no cases; cross-machine agreement of the published digits is unverified |
+| 4 | A calibrated material library with sources; a cross-device determinism matrix; removing the "not engineering predictions" disclaimer study by study | open |
 | 5 | Share links that carry the whole scene (`encodeSceneLink`, `decodeSceneLink` in `box3d-webgpu-kit/scene`) | done in the kit: compressed, checksummed, URL-safe, with a size cap; no page reads a link yet |
 | 4–6 | Everything else below | not started |
 
@@ -93,7 +95,7 @@ One at a time, each with its validation case.
 
 Runs alongside Phases 1–3.
 
-- A public validation page: every solver against textbook cases, with error numbers.
+- A public validation page: every solver against textbook cases, with error numbers. Done for the solvers that have closed-form tests: [`VALIDATION.md`](VALIDATION.md) and the page at `<site>/validation/` are generated from the registry in `validation/` by `node scripts/validation-report.mjs`, which runs each case and prints the reference, the measured value, the error and the tolerance, with a "what is not validated" list per domain. `npm run validation:check` keeps the published numbers from going stale. A new solver adds its cases to the registry with its test (rule 1). Still without cases: the Studio's authored models, cloth, rope, granular and GPU water.
 - A calibrated material library with sources.
 - A cross-device determinism matrix.
 - Remove the "not engineering predictions" disclaimer one study at a time, as each earns it.

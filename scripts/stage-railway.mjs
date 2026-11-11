@@ -3,7 +3,7 @@ import path from 'node:path';
 import assert from 'node:assert/strict';
 import {execFileSync} from 'node:child_process';
 const dist=path.resolve('dist'),target=path.resolve('build/railway-release');
-const required=['index.html','lab.html','assets','studio','licenses','box3d','textures','soft-kernels-simd.wasm','soft-kernels-scalar.wasm','box3d/box3d.js','box3d/box3d.wasm','box3d/box3d-mt.js','box3d/box3d-mt.wasm'];
+const required=['index.html','lab.html','validation/index.html','validation/validation.css','validation/validation.js','validation/validation.json','assets','studio','licenses','box3d','textures','soft-kernels-simd.wasm','soft-kernels-scalar.wasm','box3d/box3d.js','box3d/box3d.wasm','box3d/box3d-mt.js','box3d/box3d-mt.wasm'];
 for(const name of required)assert.ok(fs.existsSync(path.join(dist,name)),`Required production artifact missing: ${name}`);
 fs.mkdirSync(path.dirname(target),{recursive:true});
 if(fs.existsSync(target)){
