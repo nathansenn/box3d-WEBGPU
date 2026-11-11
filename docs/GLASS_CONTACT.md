@@ -1,5 +1,43 @@
 # Glass contact mechanics
 
+## 2026-11-11: persistent pairs; 1.5–1.8× faster with identical results
+
+The fractured-pane step is faster, and still far from real time. Every accepted state is unchanged: all eight presets match the previous source bit for bit over all 11,520 ticks (position, rotation, linear and angular velocity of every body, and the contact statistics, compared after every tick). The backend name stays `convex-contact-sat-js-f64-v5`.
+
+| Preset | Mean step before, ms | Mean step after, ms | Worst step before → after, ms | Speedup | Real-time factor after |
+| --- | ---: | ---: | --- | ---: | ---: |
+| radial-impact | 334 | 220 | 3,618 → 2,268 | 1.52× | 0.038 |
+| tempered-dice | 1,359 | 824 | 12,481 → 5,764 | 1.65× | 0.010 |
+| laminated-retention | 166 | 90 | 1,852 → 1,166 | 1.84× | 0.092 |
+| edge-strike | 310 | 178 | 2,096 → 1,786 | 1.74× | 0.047 |
+| frosted-fracture | 310 | 176 | 2,590 → 1,239 | 1.76× | 0.047 |
+| wired-retention | 172 | 100 | 1,430 → 973 | 1.71× | 0.083 |
+| thick-panel (no fracture) | 3.1 | 1.9 | 29 → 31 | 1.69× | 4.5 |
+| acrylic-comparison (no fracture) | 3.4 | 1.7 | 44 → 33 | 1.97× | 4.8 |
+
+These are single runs of 1,440 ticks at 1/120 s in Node 22, old and new source interleaved three at a time on a four-core machine that other jobs were also using, so the absolute times are pessimistic (a quiet machine measured 238 ms and 633 ms for the first two before the change) and the ratios are the result. Process CPU time gives the same ratios (1.60× radial, 1.73× tempered). Real time is 8.3 ms per step; the fractured presets are 11 to 100 times slower than that.
+
+**Profile before (radial, first 400 ticks).** No single cost dominated: garbage collection 15%, SAT axis projection 14%, sort-and-sweep pair generation 11–12.5%, cached-axis miss checks 8%, pose construction 7%. By stage per solver call: contact discovery in the four substeps 29%, the six position-projection passes 26%, the first narrow phase 14%, pose correction 7%, constraint preparation 6%, integration 4%, final penetration check 4%, velocity solve 3%, pair generation 2%. Adaptive retries multiplied the calls: 1,558 solver calls for 400 ticks, 528 of the 579 retries caused by a rotating sweep that ran out of its 48 visits. A settled pile still costs one full call per tick, with about 18 traversals of roughly 4,500 overlapping-bounds pairs and 2,500 contacts.
+
+**Kept (all bit-identical).**
+
+- *Persistent pairs.* A key-ordered neighbour list built from fattened bounds replaces the sort-and-sweep in every traversal. Each traversal still applies the original bounds test to each listed pair, so the candidate set, its order and the pair counters are unchanged. The list is rebuilt when a body leaves its fattened box or a body's flags change.
+- *Separation certificates.* A pair found separated keeps the gap on one body-fixed SAT axis. The pair is skipped while a bound on the motion since then (change of the centre offset, each body's accumulated rotation times its lever arm, the sweep to the end pose and the chord padding) leaves that same axis clear of the whole swept interval by 3 skins plus 1 µm. The skipped query would have returned a miss on that axis, so nothing changes. About 60–70% of pair visits are skipped. Alone this gave 1.21× (radial CPU 240 → 199 ms).
+- *Projection and final-check SAT elision.* In a projection pass, once the maximum penetration exceeds the pass limit, pairs that already have a plane are not re-tested, because their SAT could only raise a maximum that is no longer read. In the final check a pair is skipped when one evaluation of its plane axis bounds its penetration below the running maximum. SAT calls in the settled pile fell from about 7,000 to 3,100 per tick; pile-phase step 174 → 145 ms.
+- *Allocation-free rigid paths.* The velocity solve, effective masses, pose correction, world inertia, swept-interval axes and pose construction repeat the original arithmetic without temporaries, and the intermediate pose of each substep is no longer built. Bodies that override a response method (the pendulum) keep the original calls. Worth a few percent each; together pile-phase 145 → about 135 ms.
+
+`ConvexContactWorld.persistentPairs=false` restores the original search and every query; `tests/engine/convex-contact.test.mjs` compares the two paths bit for bit on a tumbling pile with a fracture, a disabled body, a teleport and a rejected transaction.
+
+**Rejected.**
+
+- *Larger sweep budget (48 → 1,024 visits).* Every exhausted sweep in the first 300 ticks resolves within 1,024 visits (45% are misses), and retries fall from 507 to 48 in ticks 120–240. Mean step over the first 480 ticks improved 1.28× (189 → 148 ms CPU), but the worst step grew from 995 to 1,437 ms and the trajectories are no longer identical. Not adopted.
+- *Sleeping and islands.* Not applicable to these programs: the pile never rests. At 12 s the median radial fragment still moves 2–3 mm per half second (90th percentile 5 mm, maximum 26 mm), and fewer than 10% move under 0.5 mm; retained laminated fragments swing by centimetres. Freezing them would change the result, not preserve it.
+- *Always measuring a certificate with the full axis search*, and *backing off after short-lived certificates without first reusing the hint axis*: neither separated from the kept policy within timing noise; the kept policy has the lowest operation count.
+
+**What remains.** The profile is flat. After the change the largest items in a tempered pile are garbage collection 18%, SAT 11%, pose construction 9%, the position projection 7% and cached-axis checks 6%, on a structure of four substeps with contact discovery plus six projection passes over 2,500–7,000 contacts, multiplied by retries during breakup. Further result-preserving work is worth a few percent per item. Real time needs a different solver structure (fewer passes, localized rollback or a converging position solve), which changes trajectories and needs a new qualification.
+
+**`tests/studio/material-labs.test.mjs` stays unwired.** It now finishes in 36 minutes (107 of 108 tests pass), which is longer than the 30-minute limit of a release gate command. Its test "glass: thickness resists impact; laminates retain fractured pieces" fails on unchanged physics: the laminated pane reaches 645 mm of out-of-plane travel against 757 mm for annealed glass, where the test requires less than 30%. The previous source gives the same two numbers.
+
 ## 2026-09-25: paired sliding update now supported by readbacks
 
 [Six-contact staleness audit](../benchmarks/experiments/glass-tick117-sliding-staleness-20260925-01/README.md)

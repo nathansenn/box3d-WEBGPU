@@ -25,7 +25,7 @@ Updated 2026-11-11.
 | 0 | Studio keeps working when its WebGPU device is lost (the cause of the acceptance errors) | done for 7 of 8 routes in software rendering; bridge still times out there; unverified in CI and on a real GPU |
 | 0 | Restore the engine evidence so the 11 failing engine tests pass | open (needs the 2 GB evidence archive; owner) |
 | 0 | Run every test file in a gate, or list it with a reason | done (20 wired, 8 listed) |
-| 0 | Glass study: a step takes 0.2–8 s after fracture, so `tests/studio/material-labs.test.mjs` cannot finish | open |
+| 0 | Glass study: a step takes 0.2–8 s after fracture, so `tests/studio/material-labs.test.mjs` cannot finish | partly done: steps are 1.5–1.8× faster with bit-identical results (mean 90–820 ms, real-time factor 0.01–0.09); the file now finishes in 36 min but stays unwired because its laminated-retention assertion fails on unchanged physics (645 mm against a 227 mm limit). Real time needs a different solver; see `docs/GLASS_CONTACT.md` |
 | 0 | One roadmap and status ledger | done (this file) |
 | 0 | Enable GitHub Pages | open (owner setting) |
 | 1 | Boxes, spheres, capsules, convex hulls; static meshes and height fields; static, kinematic, dynamic bodies | done |
