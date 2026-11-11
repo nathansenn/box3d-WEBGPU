@@ -650,7 +650,9 @@ test('a hull body from an imported cube has mass = density x volume, in every fo
     assert.equal(shape.points.length / 3, 44);
     const body = world.createBody({shape, position: [20, 5, 0], density: 1000});
     within(world.getState(body).mass, 1000 * meshVolume(convexHull(shape.points)), 1e-5, 'decimated sphere hull mass');
-    assert.throws(() => world.createBody({shape: {kind: 'hull', points: ball.vertices}, position: [30, 5, 0]}), e => e.code === 'INVALID_PAYLOAD', 'the raw vertices are more than Box3D can hold');
+    // The raw vertices are more than Box3D can hold; the bridge thins them itself to an inscribed hull.
+    const raw = world.createBody({shape: {kind: 'hull', points: ball.vertices}, position: [30, 5, 0], density: 1000}), rawMass = world.getState(raw).mass;
+    assert.ok(rawMass < 1000 * meshVolume(ball) && rawMass > 0.8 * 1000 * meshVolume(ball), `raw sphere vertices become an inscribed hull (mass ${rawMass})`);
     // Through the helper, a closed mesh keeps its own mass although the hull is 14% smaller: density x mesh volume.
     const {bodies: [round]} = createBodiesFromMesh(world, ball, {as: 'hull', maxPoints: 64, position: [25, 5, 0], density: 1000});
     within(world.getState(round).mass, 1000 * meshVolume(ball), 1e-5, 'sphere mesh as a hull body: mass = density x mesh volume');
