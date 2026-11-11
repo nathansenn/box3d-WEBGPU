@@ -428,6 +428,12 @@ test('convex hulls: mass is density x volume and a hull rests on its face', asyn
     run(world, 2);
     near(world.getState(cube).position[1], 0.5, 0.006, 'the cube hull rests on the ground (within contact slop)');
     assert.deepEqual(world.bodyKinds(), ['box', 'hull', 'hull']);
+    // A dense rounded cloud exceeds Box3D's hull size; the bridge thins it to an inscribed hull.
+    const cloud = [];
+    for (let i = 0; i < 400; i++) { const y = 1 - 2 * (i + 0.5) / 400, r = Math.sqrt(1 - y * y), phi = i * 2.399963229728653; cloud.push(Math.cos(phi) * r, y, Math.sin(phi) * r); }
+    const ball = world.createBody({shape: {kind: 'hull', points: cloud}, position: [10, 30, 0]});
+    const sphereMass = 1000 * 4 / 3 * Math.PI, ballMass = world.getState(ball).mass;
+    assert.ok(ballMass < sphereMass && ballMass > 0.8 * sphereMass, `a 400-point sphere cloud becomes an inscribed hull (mass ${ballMass} of ${sphereMass})`);
     assert.throws(() => world.createBody({shape: {kind: 'hull', points: [0, 0, 0, 1, 0, 0, 0, 1, 0]}, position: [0, 0, 0]}), e => e.code === 'INVALID_PAYLOAD', 'needs 4 points');
     assert.throws(() => world.createBody({shape: {kind: 'hull', points: [0, 0, 0, 1, 0, 0, 0, 1, 0, 0, 0, 1, 5]}, position: [0, 0, 0]}), e => e.code === 'INVALID_PAYLOAD', 'triples only');
   } finally { world.dispose(); }

@@ -2261,13 +2261,18 @@ B3W_EXPORT uint64_t b3w_world_create_body(uint32_t handle, const B3WBodyDesc* de
     return b3w_ctx_create_general(ctx, desc, desc->kind, NULL);
 }
 
-// Convex hull of `count` points (xyz floats, body-local). Box3D keeps at most 64 hull vertices.
+// Convex hull of `count` points (xyz floats, body-local). Box3D keeps at most 64 hull vertices,
+// and fewer for rounded shapes; the hull is then an inscribed approximation.
 B3W_EXPORT uint64_t b3w_world_create_hull_body(uint32_t handle, const B3WBodyDesc* desc, const float* points, int count)
 {
     B3WContext* ctx = b3w_lookup_context(handle);
     if (ctx == NULL || B3_IS_NULL(ctx->world) || desc == NULL || points == NULL || count < 4 || count > 4096) return 0u;
     for (int i = 0; i < count * 3; ++i) if (!isfinite(points[i])) return 0u;
-    b3HullData* hull = b3CreateHull((const b3Vec3*)points, count, 64);
+    // Box3D refuses a hull with more than 255 half-edges, which an all-triangle hull reaches
+    // near 44 vertices. Ask for fewer vertices until it accepts, so a dense rounded cloud works.
+    static const int budgets[] = { 64, 44, 32, 24, 16, 8 };
+    b3HullData* hull = NULL;
+    for (int i = 0; i < 6 && hull == NULL; ++i) hull = b3CreateHull((const b3Vec3*)points, count, budgets[i]);
     if (hull == NULL) return 0u;
     uint64_t body = b3w_ctx_create_general(ctx, desc, 3u, hull);
     b3DestroyHull(hull); // the shape keeps its own copy
