@@ -200,6 +200,10 @@ Surface caching combines:
 
 An unchanged cloth or water surface, rope grid, rigid/effect/debug stream, and soft-instance frame should report zero additional uploaded bytes. The v1.11 target tests assert this behavior through the actual renderer class.
 
+### Scene editor overlay
+
+The Lab's scene editor ([`SCENE_EDITOR.md`](SCENE_EDITOR.md)) adds no pass, pipeline or buffer. A selected body is tinted by writing its row of the rigid instance colour stream in the WASM heap; `WasmPhysicsBackend.markGeneralColorsEdited()` then adds one to the colour version the renderer compares, so the colour stream is uploaded again on that frame and not on the following ones. The shape plan and the body meshes are keyed on the native world's own shape version and are not rebuilt. The selection frame, the joint anchors and axes and the ruler go through the existing line stream in place of the engineering inspection lines, and are restaged when the selection, the document or the simulation tick changes, and on every frame while the simulation plays or a body is dragged. The cost was not measured separately: a selection change uploads 16 bytes per body of the scene once.
+
 ## Material pipelines
 
 | Pipeline | Geometry | Key behavior |

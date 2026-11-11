@@ -50,7 +50,9 @@ export type LabSceneSource =
   | { readonly kind: 'link' }
   | { readonly kind: 'json' }
   | { readonly kind: 'file'; readonly name: string }
-  | { readonly kind: 'geometry'; readonly name: string };
+  | { readonly kind: 'geometry'; readonly name: string }
+  /** The document of the scene editor (src/lab/scene-editor.ts). */
+  | { readonly kind: 'editor' };
 
 export type LabSceneRequest =
   | { readonly kind: 'example'; readonly name: string }

@@ -29,6 +29,10 @@ The Physics Lab (`lab.html`) opens rigid-body scenes in SI units from a link or 
 
 An invalid file or link is reported in the panel with the validator's list of problems, and the scene on screen stays as it is. Hulls, meshes and height fields are drawn from their own geometry ([docs/RENDERING_PIPELINE.md](docs/RENDERING_PIPELINE.md)). This was checked in headless Chromium with software WebGPU, not on a real GPU.
 
+## Build a scene
+
+[`lab.html?edit=1`](lab.html?edit=1) opens the scene editor on an empty SI scene; **Edit** in the Scenes panel opens it on the scene on screen, and [`lab.html?example=domino-run&edit=1`](lab.html?example=domino-run&edit=1) on an example. Add boxes, spheres, capsules, wedges, cylinders, cones, a ramp or a terrain; click a body to select it, drag it over the ground or type its position, rotation and size; give it a material (steel, aluminium, concrete, wood, rubber, ice, glass: typical handbook values with their sources, not calibrated data) or your own density, friction and restitution; join two selected bodies with any of the six joint types; choose the gravity of the Earth, the Moon or Mars. Every edit is checked by the scene format's validator before it is applied and can be undone. Play, pause, step and reset the result, plot a body's position, velocity or energy and export it as CSV, measure a distance, then copy a share link or download the scene. The editor has no 3D gizmo (rotation is typed), edits rigid bodies and joints only, and has been seen in software rendering only. See [docs/SCENE_EDITOR.md](docs/SCENE_EDITOR.md).
+
 ## Runtime catalog (generated)
 
 <!-- catalog:generated:start -->
@@ -649,6 +653,7 @@ docs/                           architecture, rendering, demo, and test guides
 - [AAA showcase guide](docs/AAA_SHOWCASE.md)
 - [Demo runbook](docs/DEMO_GUIDE.md)
 - [v1.13 benchmark matrix](docs/V1.13_1000_BENCHMARK_MATRIX.md)
+- [Scene format](docs/SCENE_FORMAT.md) and [scene editor](docs/SCENE_EDITOR.md)
 - [Solver validation against textbook cases, with measured errors](docs/VALIDATION.md) (regenerate with `npm run validation:report`)
 - [Release validation report (gates and builds of earlier releases)](VALIDATION_REPORT.md)
 - [Release history](CHANGELOG.md)

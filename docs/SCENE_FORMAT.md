@@ -376,6 +376,7 @@ The Lab (`lab.html`) opens scene files with this module. Nothing is installed; a
 | `lab.html?scene=b3s1…` | A share link from `encodeSceneLink`. `#scene=…` in the fragment works too. |
 | `lab.html?scene=%7B…%7D` | The scene JSON itself, URL-encoded, up to 65,536 characters. |
 | The **Scenes** panel, bottom right: **Open file…**, or drop a file anywhere on the page | A scene file (`.json`), or geometry (`.obj`, `.stl`, `.glb`, `.gltf`; drop a `.gltf` together with its `.bin`). |
+| `lab.html?edit=1`, alone or with `example=` or `scene=` | The scene editor, on a new scene or on that one ([`SCENE_EDITOR.md`](SCENE_EDITOR.md)). |
 | The laboratory catalog, section "SI scenes" | The examples and "Open file…". They are not catalogue recipes. |
 
 With a scene loaded, the panel has **Copy share link** (the address, with `scene=` set to a link of the scene as it is at that moment), **Download scene (.json)** (the same scene as a file) and **Reset** (load it again from its start). Both use the `SceneBuilder` that built the scene, so they carry each body's current pose and velocity; [Save and resume](#save-and-resume) says what such a save restores. Boxes the Lab's own force tools add to the world (projectiles, rain) were not created through the builder and are not in the saved scene. The address bar shows `example=<name>` for an example and `scene=<link>` for a scene opened from a link or after its link was copied; a link over 32,768 characters is copied but not written to the address bar.
@@ -396,7 +397,9 @@ The Lab draws hulls, meshes and height fields from their own geometry; see [`REN
 
 For the browser console and for tests the page has `box3dLab.sceneState()` (title, source, body and joint counts, shape kinds, tick, scene steps taken, `sceneHash`, `exactHash`, replay hash), `box3dLab.stepSceneTo(tick)` (step without waiting for frames, then report the state) and `box3dLab.sceneJson()` (what Download would save).
 
-Not in the Lab yet: scenes with `water`, `cables` or `frames` (the Lab refuses them with a message; it has no Simulation), editing a scene, choosing density or scale by hand, importing one body per object of a file, and textures or colours from the geometry file. The Studio does not read scenes.
+A scene can be built and changed in the page: **New scene** and **Edit** in the panel, or `lab.html?edit=1`, open the scene editor ([`SCENE_EDITOR.md`](SCENE_EDITOR.md)). While it is open, Copy share link and Download save the edited scene (its initial state), and Reset returns to it.
+
+Not in the Lab yet: scenes with `water`, `cables` or `frames` (the Lab refuses them with a message; it has no Simulation), choosing the scale of imported geometry by hand, importing one body per object of a file, and textures or colours from the geometry file. The Studio does not read scenes.
 
 ## Limits
 

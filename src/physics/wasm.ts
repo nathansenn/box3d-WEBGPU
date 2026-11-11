@@ -54,6 +54,7 @@ class WasmPhysicsBackend implements PhysicsBackend {
   private generalPool: NativeWorldPool | null = null;
   private generalWorld: NativeWorldBackend | null = null;
   private general: NativeWorldBackend | null = null;
+  private generalColorEdits = 0;
   // A scene file fixes its own step and sub-step count; null leaves both to the caller of step().
   private generalStep: { readonly dt: number; readonly subSteps: number; readonly repeats: number; readonly before?: () => void; readonly after?: () => void } | null = null;
   // Render meshes of hull, mesh and height-field bodies, built once per retained shape.
@@ -84,7 +85,10 @@ class WasmPhysicsBackend implements PhysicsBackend {
   _b3w_body_count(): number { return this.bodyCount(); }
   _b3w_max_bodies(): number { return this.general ? this.general.maxBodies : this.maxBodies; }
   frameVersion(): number { return this.general ? this.general.frameVersion() : (this.mod._b3w_transform_version?.() ?? this.transformFrameVersion) >>> 0; }
-  colorVersion(): number { return this.general ? this.general.colorVersion() : (this.mod._b3w_color_version?.() ?? this.colorFrameVersion) >>> 0; }
+  // A general world counts its own colour changes; edits made to its colour stream from JavaScript (the scene
+  // editor's selection tint) are counted here, so the renderer uploads the stream again.
+  colorVersion(): number { return this.general ? (this.general.colorVersion() + this.generalColorEdits) >>> 0 : (this.mod._b3w_color_version?.() ?? this.colorFrameVersion) >>> 0; }
+  markGeneralColorsEdited(): void { this.generalColorEdits = (this.generalColorEdits + 1) >>> 0; }
   awakeCount(): number { return this.general ? this.general.awakeCount() : this.mod._b3w_awake_count?.() ?? 0; }
   lastStepWorkers(): number { return this.general ? 1 : this.mod._b3w_last_step_workers?.() ?? 1; }
   // Recipe scenes have only boxes, so they report version 0 and no kinds. Entering or leaving

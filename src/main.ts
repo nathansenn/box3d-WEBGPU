@@ -90,6 +90,8 @@ import {
   sceneCameraFrame, sceneFileName, sceneSummary, type LabFile, type SceneRead,
 } from './lab/scene-loading.ts';
 import { createScenePanel, type ScenePanel } from './lab/scene-panel.ts';
+import { createSceneEditor, editRequested, type SceneEditor, type SceneEditorHost } from './lab/scene-editor.ts';
+import { emptyScene } from './lab/scene-editor-model.ts';
 import { SI_BRIDGE_ID, SI_BRIDGE_TITLE } from './engine/si-bridge.ts';
 import { SiBridgeScene, SI_BRIDGE_SCENE_DEFAULTS, SI_BRIDGE_SCENE_STEP, type SiBridgeSceneSettings } from './lab/si-bridge-scene.ts';
 import { createSiBridgePanel, SI_BRIDGE_PLOTTED_STAY, type SiBridgePanel } from './lab/si-bridge-panel.ts';
@@ -382,6 +384,11 @@ let siDemoScene: MechanismsScene | null = null;
 let labScene: { readonly read: LabSceneRead; readonly loaded: LabLoadedScene; link: string | null } | null = null;
 let labSceneFailure: unknown = null;
 let scenePanel: ScenePanel | null = null;
+// The scene editor (lab.html?edit=1): its document is the scene on screen while `editorRead` is what was loaded.
+let sceneEditor: SceneEditor | null = null;
+let editorRead: LabSceneRead | null = null;
+let editorLines: readonly DebugLine[] = [];
+let editorLinesVersion = 1;
 // The cable-stayed bridge (lab.html?si=bridge): the model with its drawn bodies, and its panel.
 let siBridge: SiBridgeScene | null = null;
 let siBridgePanel: SiBridgePanel | null = null;
@@ -1361,6 +1368,7 @@ function labSceneSourceText(read: LabSceneRead): string {
     case 'json': return 'Scene from the address, SI units.';
     case 'file': return `Scene file ${read.source.name}, SI units.`;
     case 'geometry': return `Geometry imported from ${read.source.name} into a default SI scene.`;
+    case 'editor': return 'Scene from the editor, SI units.';
   }
 }
 
@@ -1454,12 +1462,88 @@ function openLabScene(read: SceneRead, link: string | null = null): boolean {
 
 function syncScenePanel(): void {
   if (!scenePanel) return;
+  // A recipe, a demo or another scene replaced the editor's scene: the editor has nothing to edit.
+  if (sceneEditor?.active && !(siDemo?.id === SI_SCENE_ID && labScene && labScene.read === editorRead)) sceneEditor.detached();
   if (siDemo && labScene) scenePanel.showScene({ title: labScene.read.title, summary: `${labSceneSourceText(labScene.read)} ${sceneSummary(labScene.read.scene)}`, notes: labScene.read.notes });
   else scenePanel.showNoScene();
 }
 
+/** Open a scene that was read from a file or the examples: in the editor when it is open, on its own otherwise. */
+function openSceneRead(read: SceneRead): void {
+  if (read.ok && sceneEditor?.active) {
+    scenePanel?.clearError();
+    if (!sceneEditor.replace(read.scene)) reportSceneError(`${read.title} was not opened in the editor`, [{ path: '', message: sceneEditor.state().message }]);
+    else if (read.notes.length > 0) scenePanel?.setStatus(read.notes.join(' '));
+    return;
+  }
+  openLabScene(read);
+}
+
 function openExampleScene(name: string): void {
-  openLabScene(resolveSceneRequest({ kind: 'example', name }));
+  openSceneRead(resolveSceneRequest({ kind: 'example', name }));
+}
+
+/**
+ * The scene editor's view of the page. The editor's scene is shown like any other scene file; an edit
+ * rebuilds the rigid world from the document and leaves the camera and the host lab alone.
+ */
+function createEditorHost(mount: HTMLElement): SceneEditorHost {
+  const messageOf = (error: unknown): string => quoteForDisplay(error instanceof Error ? error.message : String(error), 400);
+  return {
+    canvas: ui.canvas,
+    mount,
+    camera: () => camera,
+    lookAt(target, distance) {
+      camera.target = [target[0], target[1], target[2]];
+      if (distance !== undefined && Number.isFinite(distance)) camera.distance = clamp(distance, 0.4, 400);
+    },
+    checkScene(scene) {
+      if (!backend.checkGeneralScene) return 'Scenes need the native Box3D engine, which did not load.';
+      try { backend.checkGeneralScene((native) => { loadLabScene(native, scene); }); return null; } catch (error) { return messageOf(error); }
+    },
+    showScene(scene, frame) {
+      const read: LabSceneRead = { ok: true, scene, source: { kind: 'editor' }, title: scene.meta?.title ? quoteForDisplay(scene.meta.title, 96) : 'Untitled scene', notes: [] };
+      // A share link in the address stays only while it still describes this scene.
+      const link = labScene && labScene.read.scene === scene ? labScene.link : null;
+      editorRead = read;
+      if (frame || !(siDemo?.id === SI_SCENE_ID && labScene)) return openLabScene(read, link) ? null : 'the reason is shown in the Scenes panel';
+      siDemo = { id: SI_SCENE_ID, seed: (scene.world?.seed ?? 1) >>> 0, read, link };
+      seed = siDemo.seed;
+      labSceneFailure = null;
+      reloadSceneWithCurrentStress();
+      syncSiDemoUrl();
+      if ((labScene as { readonly read: LabSceneRead } | null)?.read !== read) {
+        const failure: unknown = labSceneFailure;
+        syncScenePanel();
+        return failure === null ? 'the world was not rebuilt' : messageOf(failure);
+      }
+      syncScenePanel();
+      return null;
+    },
+    world: () => (siDemo?.id === SI_SCENE_ID && labScene && labScene.read === editorRead ? { native: labScene.loaded.builder.world.native, bodies: labScene.loaded.bodies } : null),
+    setPlaying(playing) {
+      if (paused === !playing) return;
+      paused = !playing;
+      if (playing) simulationAccumulator = 0;
+      ui.pause.textContent = paused ? 'Resume' : 'Pause';
+    },
+    isPlaying: () => !paused,
+    stepOnce() {
+      engineRuntime.step({ ticks: 1, subSteps: solverSubSteps, captureTelemetry: false });
+      sceneEditor?.afterStep();
+    },
+    ticks: () => engineRuntime?.tick ?? 0,
+    transformsEdited() { backend.syncTransforms(); },
+    colorsEdited() { backend.markGeneralColorsEdited?.(); },
+    setLines(lines) { editorLines = lines; editorLinesVersion = (editorLinesVersion + 1) >>> 0; },
+    activeChanged(active) {
+      scenePanel?.setEditing(active);
+      const url = new URL(window.location.href);
+      if (active === (url.searchParams.get('edit') === '1')) return;
+      if (active) url.searchParams.set('edit', '1'); else url.searchParams.delete('edit');
+      window.history.replaceState(null, '', url);
+    },
+  };
 }
 
 async function openSceneFiles(files: readonly File[]): Promise<void> {
@@ -1483,11 +1567,14 @@ async function openSceneFiles(files: readonly File[]): Promise<void> {
     read = { ok: false, title: `${quoteForDisplay(main.name, 96)} could not be read`, problems: [{ path: '', message: error instanceof Error ? error.message : String(error) }] };
   }
   scenePanel?.setStatus('');
-  openLabScene(read);
+  openSceneRead(read);
 }
 
 /** The scene on screen as it is now: the SceneBuilder's descriptions with each body's current pose and velocity. */
 function currentLabSceneJson(): Scene | null {
+  // While the editor is open, the scene is its document: the initial state, whatever the simulation has reached.
+  const edited = sceneEditor?.active ? sceneEditor.scene() : null;
+  if (edited) return edited;
   return siDemo && labScene ? labScene.loaded.builder.toJSON() : null;
 }
 
@@ -1500,23 +1587,33 @@ async function copyLabSceneLink(): Promise<void> {
     for (const key of ['si', 'seed', 'example', 'scene']) url.searchParams.delete(key);
     url.hash = '';
     url.searchParams.set('scene', link);
+    // The copied link opens the scene for viewing; this page's own address keeps the editor open.
+    const editing = url.searchParams.get('edit') === '1';
+    url.searchParams.delete('edit');
     let copied = false;
     try { await navigator.clipboard.writeText(url.href); copied = true; } catch { /* no clipboard permission: the address bar still carries the link */ }
+    lastCopiedSceneLink = url.href;
+    const shareLength = url.href.length;
+    if (editing) url.searchParams.set('edit', '1');
     if (link.length <= LAB_SCENE_LIMITS.addressLinkChars) {
       labScene.link = link;
+      if (siDemo?.id === SI_SCENE_ID) siDemo = { ...siDemo, link };
       window.history.replaceState(null, '', url);
       scenePanel?.setStatus(copied
-        ? `Share link copied (${url.href.length} characters). It opens this scene as it is now.`
+        ? `Share link copied (${shareLength} characters). It opens ${editing ? 'the edited scene' : 'this scene as it is now'}.`
         : `The clipboard is not available, so the share link is in the address bar (${url.href.length} characters). Copy it from there.`);
     } else {
       scenePanel?.setStatus(copied
-        ? `Share link copied (${url.href.length} characters). It is too long for the address bar here, and some apps cut long links: for a scene this size, send the downloaded file.`
+        ? `Share link copied (${shareLength} characters). It is too long for the address bar here, and some apps cut long links: for a scene this size, send the downloaded file.`
         : `The link has ${url.href.length} characters and the clipboard is not available. Download the scene file instead.`);
     }
   } catch (error) {
     reportSceneError('This scene cannot be shared as a link', [{ path: '', message: `${quoteForDisplay(error instanceof Error ? error.message : String(error), 300)} Download the scene file instead.` }]);
   }
 }
+
+// The last link Copy share link produced, for tests and the console (`box3dLab.lastShareLink()`): the clipboard is not readable everywhere.
+let lastCopiedSceneLink: string | null = null;
 
 function downloadLabScene(): void {
   const scene = currentLabSceneJson();
@@ -1534,6 +1631,7 @@ function downloadLabScene(): void {
 }
 
 function resetLabScene(): void {
+  if (sceneEditor?.active) { sceneEditor.reset(); return; }
   if (!siDemo || !labScene) return;
   const { read, link } = labScene;
   if (openLabScene(read, link)) scenePanel?.setStatus('Scene reloaded from its start.');
@@ -1544,6 +1642,7 @@ function labSceneState(): Record<string, unknown> {
   const native = siDemo && labScene ? labScene.loaded.builder.world.native : null;
   return {
     loaded: native !== null,
+    editing: sceneEditor?.active ?? false,
     title: labScene?.read.title ?? null,
     source: labScene?.read.source.kind ?? null,
     sceneHash: labScene ? sceneHash(labScene.read.scene) : null,
@@ -2441,6 +2540,8 @@ function startAutoplayPlayback(workspace: EngineeringWorkspaceId): boolean {
 
 function autoplayLoadedSimulation(): boolean {
   if (cinematicPlaying || autoplayingLoadedSimulation) return engineeringRunIsPlaying();
+  // A scene being edited stays at its initial state until Play is pressed in the editor.
+  if (sceneEditor?.active) return false;
   if (!demoIntentFromSearch(window.location.search).autoplay) return false;
   if (engineeringSession && !engineeringSession.consumeAutoplayOnOpen()) {
     return engineeringRunIsPlaying();
@@ -3317,6 +3418,8 @@ function initializeEngineeringWorkspaceShell(initialWorkspace: EngineeringWorksp
 function bindControls(): void {
   ui.canvas.addEventListener('pointerdown', (event) => {
     if (cinematicPlaying) stopCinematic();
+    // The scene editor selects and drags bodies; a press on empty space falls through to the camera.
+    if (sceneEditor?.active && sceneEditor.pointerDown(event)) return;
     if (forceToolEnabled && event.button === 0) {
       forceDragging = true;
       updateForceTargetFromPointer(event);
@@ -3330,6 +3433,7 @@ function bindControls(): void {
   });
 
   ui.canvas.addEventListener('pointermove', (event) => {
+    if (sceneEditor?.active && sceneEditor.pointerMove(event)) return;
     if (forceDragging) {
       updateForceTargetFromPointer(event);
       return;
@@ -3344,6 +3448,7 @@ function bindControls(): void {
   });
 
   const releasePointer = (event: PointerEvent): void => {
+    sceneEditor?.pointerUp(event);
     isDragging = false;
     forceDragging = false;
     try { ui.canvas.releasePointerCapture(event.pointerId); } catch { /* ignored */ }
@@ -3575,8 +3680,12 @@ function bindControls(): void {
   ui.runTurboQuant.addEventListener('click', runTurboQuantBrowserProbe);
   ui.captureFrame.addEventListener('click', captureCurrentFrame);
 
+  window.addEventListener('keyup', (event) => { sceneEditor?.keyUp(event); });
   window.addEventListener('keydown', (event) => {
     const target = event.target;
+    // While a scene is being edited the keys are the editor's (Delete, undo, nudges, Escape);
+    // the Lab's single-key shortcuts are off, so typing a name or pressing an arrow cannot load another lab.
+    if (sceneEditor?.active) { sceneEditor.keyDown(event); return; }
     if (
       event.defaultPrevented || event.isComposing || event.repeat || event.metaKey || event.ctrlKey || event.altKey ||
       (target instanceof Element && target.closest(
@@ -4411,7 +4520,14 @@ async function main(): Promise<void> {
     onCopyLink: () => { void copyLabSceneLink(); },
     onDownload: downloadLabScene,
     onReset: resetLabScene,
+    onNewScene: () => { if (sceneEditor?.active) sceneEditor.replace(emptyScene()); else sceneEditor?.open(); },
+    onEdit: () => {
+      if (sceneEditor?.active) { sceneEditor.close(); scenePanel?.setStatus('Editing stopped. The scene stays on screen.'); }
+      else if (siDemo && labScene) sceneEditor?.open(labScene.read.scene);
+    },
   });
+  sceneEditor = createSceneEditor(createEditorHost(scenePanel.editorMount));
+  const editorRequested = editRequested(window.location.search);
   siBridgePanel = createSiBridgePanel({
     onRestart: (settings) => loadSiBridge(settings),
     onPause: togglePause,
@@ -4440,14 +4556,22 @@ async function main(): Promise<void> {
       return labSceneState();
     },
     sceneJson: currentLabSceneJson,
+    /** The scene editor, for the console and for tests: its state, where a body is on the page, the recorded CSV, the last copied link. */
+    editorState: () => sceneEditor?.state() ?? null,
+    editorScreenPosition: (id: string) => sceneEditor?.screenPosition(id) ?? null,
+    editorCsv: () => sceneEditor?.csv() ?? '',
+    lastShareLink: () => lastCopiedSceneLink,
   }) });
   loadScene(currentScene);
   applyConceptScreen(boot.screen);
   if (sceneRequest !== null) {
     const read = resolveSceneRequest(sceneRequest);
     // A scene that came in the address stays in the address, as a share link of the scene that was read.
-    openLabScene(read, sceneRequest.kind !== 'example' && read.ok ? await encodeSceneLink(read.scene) : null);
-  } else if (siBridgeRequested) loadSiBridge();
+    const opened = openLabScene(read, sceneRequest.kind !== 'example' && read.ok ? await encodeSceneLink(read.scene) : null);
+    // lab.html?example=<name>&edit=1 and ?scene=<link>&edit=1 open that scene in the editor.
+    if (opened && editorRequested && labScene) sceneEditor.open(labScene.read.scene);
+  } else if (editorRequested) sceneEditor.open();
+  else if (siBridgeRequested) loadSiBridge();
   else if (siRequest !== null) loadMechanismsDemo(siRequest);
   ui.solverSubsteps.value = String(solverSubSteps);
   updateForceControlLabels();
@@ -4490,6 +4614,7 @@ async function main(): Promise<void> {
         engineRuntime.step({ticks:1,subSteps:solverSubSteps,captureTelemetry:false});
         recordEngineeringFixedStep();
         if (siDemo && siBridge) siBridgePanel?.sample();
+        sceneEditor?.afterStep();
         simulationAccumulator -= fixedStep;
         steps++;
       }
@@ -4521,6 +4646,10 @@ async function main(): Promise<void> {
       studioMode,
     });
 
+    // The scene editor tints the selection in the instance colour stream and draws its frame, the joints and the ruler as lines.
+    sceneEditor?.frame(now);
+    const overlayLines = sceneEditor?.active ? editorLines : engineeringInspectionLines;
+    const overlayVersion = sceneEditor?.active ? (editorLinesVersion ^ 0x5ce4e) >>> 0 : engineeringInspectionVersion;
     const softFrame = soft.buildFrame(debugEnabled);
     // Engineering soft-body workspaces use an isolated specimen cell. The
     // backend's combinatorial rigid recipe still advances for deterministic
@@ -4564,10 +4693,10 @@ async function main(): Promise<void> {
       buildDebugLines,
       softFrame.debugLines,
       effectFrame.debugLines,
-      engineeringInspectionLines,
-      engineeringInspectionVersion,
+      overlayLines,
+      overlayVersion,
     );
-    const inspectionLineVersion = Math.imul(engineeringInspectionVersion, 0x27d4eb2d);
+    const inspectionLineVersion = Math.imul(overlayVersion, 0x27d4eb2d);
     const lineFrameVersion = debugEnabled
       ? (Math.imul(backendFrameVersion, 0x9e3779b1) ^ Math.imul(softFrame.frameVersion, 0x85ebca6b) ^ effectFrame.frameVersion ^ inspectionLineVersion ^ 0x80000000) >>> 0
       : (effectFrame.frameVersion ^ inspectionLineVersion) >>> 0;

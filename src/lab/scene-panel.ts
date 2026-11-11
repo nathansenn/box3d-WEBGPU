@@ -15,6 +15,10 @@ export interface ScenePanelCallbacks {
   onCopyLink(): void;
   onDownload(): void;
   onReset(): void;
+  /** Start an empty SI scene in the editor. */
+  onNewScene(): void;
+  /** Start or stop editing the scene on screen. */
+  onEdit(): void;
 }
 
 export interface ScenePanelScene {
@@ -33,6 +37,10 @@ export interface ScenePanel {
   openFileDialog(): void;
   expand(): void;
   scaleToFit(): boolean;
+  /** Where the scene editor puts its controls. */
+  readonly editorMount: HTMLElement;
+  /** The editor is open: the panel is taller, and the Edit button stops editing. */
+  setEditing(editing: boolean): void;
 }
 
 const ACCEPT = '.json,.obj,.stl,.glb,.gltf,.bin,application/json,model/gltf-binary,model/gltf+json,model/stl,model/obj';
@@ -101,8 +109,13 @@ export function createScenePanel(callbacks: ScenePanelCallbacks): ScenePanel {
   const copy = button('lab-scene-copy', 'Copy share link', 'Copy a link that carries the whole scene as it is now', callbacks.onCopyLink);
   const download = button('lab-scene-download', 'Download scene (.json)', 'Save the scene as it is now', callbacks.onDownload);
   const reset = button('lab-scene-reset', 'Reset', 'Load the scene again from its start', callbacks.onReset);
+  const create = button('lab-scene-new', 'New scene', 'Start an empty SI scene with a ground slab in the editor', callbacks.onNewScene);
+  const edit = button('lab-scene-edit', 'Edit', 'Edit this scene: add, move and change bodies and joints', callbacks.onEdit);
+  edit.setAttribute('aria-pressed', 'false');
   const actions = element('div', 'lab-scene-actions');
-  actions.append(open, copy, download, reset);
+  actions.append(create, open, edit, copy, download, reset);
+  const editorMount = element('div', 'lab-scene-editor-mount');
+  editorMount.id = 'lab-scene-editor-mount';
 
   const row = element('div', 'lab-scene-row');
   const examples = element('select', '');
@@ -137,7 +150,7 @@ export function createScenePanel(callbacks: ScenePanelCallbacks): ScenePanel {
 
   const body = element('div', '');
   body.id = 'lab-scene-body';
-  body.append(heading, title, summary, error, notes, actions, row, status, file);
+  body.append(heading, title, summary, error, notes, actions, row, status, file, editorMount);
   panel.append(toggle, body);
   document.body.append(panel);
 
@@ -158,7 +171,7 @@ export function createScenePanel(callbacks: ScenePanelCallbacks): ScenePanel {
     if (files.length > 0) callbacks.onFiles(files);
   });
 
-  const setSceneButtons = (enabled: boolean): void => { copy.disabled = !enabled; download.disabled = !enabled; reset.disabled = !enabled; };
+  const setSceneButtons = (enabled: boolean): void => { copy.disabled = !enabled; download.disabled = !enabled; reset.disabled = !enabled; edit.disabled = !enabled; };
   setSceneButtons(false);
   setCollapsed(true);
 
@@ -192,5 +205,16 @@ export function createScenePanel(callbacks: ScenePanelCallbacks): ScenePanel {
     openFileDialog() { setCollapsed(false); file.click(); },
     expand() { setCollapsed(false); },
     scaleToFit() { return fit.checked; },
+    editorMount,
+    setEditing(editing) {
+      panel.dataset.editing = String(editing);
+      edit.textContent = editing ? 'Stop editing' : 'Edit';
+      edit.title = editing ? 'Close the editor and keep the scene on screen' : 'Edit this scene: add, move and change bodies and joints';
+      edit.setAttribute('aria-pressed', String(editing));
+      copy.title = editing ? 'Copy a link that carries the edited scene (its initial state)' : 'Copy a link that carries the whole scene as it is now';
+      download.title = editing ? 'Save the edited scene (its initial state)' : 'Save the scene as it is now';
+      reset.title = editing ? 'Return to the edited initial state' : 'Load the scene again from its start';
+      if (editing) setCollapsed(false);
+    },
   };
 }
