@@ -857,3 +857,19 @@ test('determinism: a coupled scene repeats bit for bit; save -> load -> continue
     } finally { a.world.dispose(); b.world.dispose(); resumed?.world.dispose(); }
   }
 });
+
+test('a cable attached off a floating body\'s centre runs: round-off torques too small for float32 are dropped', async () => {
+  const {loadScene: load, mooredBuoyScene: buoy, sceneWorldOptions: options} = await import('box3d-webgpu-kit/scene');
+  const {createWorld: make} = await import('box3d-webgpu-kit');
+  const scene = JSON.parse(JSON.stringify(buoy()));
+  scene.cables[0].attachments[0].localPoint = [0, -0.2, 0];
+  const world = await make(options(scene));
+  try {
+    // Before the fix the first step threw INVALID_PAYLOAD: the interface solve left a torque component
+    // of about 1e-50 N m, nonzero but below the smallest float32, which the rigid world refuses.
+    const {simulation, bodies} = load(world, scene);
+    for (let i = 0; i < 240; i++) simulation.step();
+    const state = world.getState(bodies.get('buoy'));
+    assert.ok(state.position.every(Number.isFinite) && Math.hypot(...state.linearVelocity) < 5, 'the moored buoy stays finite and bounded');
+  } finally { world.dispose(); }
+});

@@ -267,7 +267,7 @@ Two loads of the same scene, one of them from a share link, stay bit-identical f
 - **The rigid ledger entry covers tracked bodies only**, and assumes the body's position is its centre of mass.
 - A subsystem that throws in the middle of a step leaves the step half done; the world's tick then no longer matches and the next `step()` refuses. Build a new Simulation from a saved scene.
 - The world rejects `applyForce` while recording, so a Simulation with a water or structure coupling cannot run under `startRecording()`.
-- A found limit of the existing structure coupling: it passes float64 forces to the world, and the world refuses a nonzero force or torque component too small for a float32 (below about 1.4e-45). A cable attached at a body's centre without an explicit `localPoint` gets an offset of one float32 rounding of the body's position, and with the water's tiny horizontal forces the resulting torque underflowed on the first step of the moored buoy. The example scene therefore states `localPoint: [0, 0, 0]`. The coupling is unchanged; flushing such components to zero there is open.
+- **Forces too small for a float32.** The rigid world works in float32 and refuses a nonzero force or torque component below the smallest float32 (about 1.4·10⁻⁴⁵). Round-off of the interface solve can leave one, so the coupling hands over an exact zero for such a component. (Fixed 2026-11-11; before that a cable attached off a floating body's centre threw on its first step.)
 - The Physics Lab and the Studio do not run coupled scenes.
 
 ## Reproduce

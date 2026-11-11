@@ -218,6 +218,10 @@ class Attachment<B> implements StructureAttachment {
   }
 }
 
+// The rigid world works in float32 and refuses a nonzero component too small for one (below about
+// 1.4e-45). Such a component is round-off of the interface solve, so hand over an exact zero instead.
+function flush(value:number):number{return Math.fround(value)===0?0:value;}
+
 export class StructureCoupling<B> {
   readonly backend=STRUCTURE_COUPLING_BACKEND;
   readonly dt:number;readonly baumgarte:number;readonly scheme:'implicit'|'naive-staggered';
@@ -375,8 +379,8 @@ export class StructureCoupling<B> {
   private alive(body:BodyCarrier<B>):boolean {return this.world.isAlive===undefined||this.world.isAlive(body.body);}
   private kick(body:BodyCarrier<B>):void {
     const o=this.out3;
-    o[0]=body.pendingP[0];o[1]=body.pendingP[1];o[2]=body.pendingP[2];if(o[0]!==0||o[1]!==0||o[2]!==0)this.world.applyImpulse(body.body,o);
-    o[0]=body.pendingL[0];o[1]=body.pendingL[1];o[2]=body.pendingL[2];if(o[0]!==0||o[1]!==0||o[2]!==0)this.world.applyAngularImpulse(body.body,o);
+    o[0]=flush(body.pendingP[0]);o[1]=flush(body.pendingP[1]);o[2]=flush(body.pendingP[2]);if(o[0]!==0||o[1]!==0||o[2]!==0)this.world.applyImpulse(body.body,o);
+    o[0]=flush(body.pendingL[0]);o[1]=flush(body.pendingL[1]);o[2]=flush(body.pendingL[2]);if(o[0]!==0||o[1]!==0||o[2]!==0)this.world.applyAngularImpulse(body.body,o);
     body.pendingP.fill(0);body.pendingL.fill(0);body.hasPending=false;
   }
   private readBody(body:BodyCarrier<B>):void {
@@ -601,8 +605,8 @@ export class StructureCoupling<B> {
       }
       if(!body.dynamic)continue;
       if(cables){
-        o[0]=px/h;o[1]=py/h;o[2]=pz/h;world.applyForce(body.body,o);
-        o[0]=lx/h;o[1]=ly/h;o[2]=lz/h;if(o[0]!==0||o[1]!==0||o[2]!==0)world.applyTorque(body.body,o);
+        o[0]=flush(px/h);o[1]=flush(py/h);o[2]=flush(pz/h);world.applyForce(body.body,o);
+        o[0]=flush(lx/h);o[1]=flush(ly/h);o[2]=flush(lz/h);if(o[0]!==0||o[1]!==0||o[2]!==0)world.applyTorque(body.body,o);
       }
       if(kicks){
         body.pendingP[0]=kx/2;body.pendingP[1]=ky/2;body.pendingP[2]=kz/2;body.pendingL[0]=ax/2;body.pendingL[1]=ay/2;body.pendingL[2]=az/2;
