@@ -58,7 +58,7 @@ const sample = () => ({
 test('the module is listed, and the sample scene and every example validate', () => {
   assert.ok(capabilities().modules.includes('scene'));
   assert.equal(SCENE_FORMAT, 'box3d-scene');
-  assert.equal(SCENE_VERSION, 1);
+  assert.equal(SCENE_VERSION, 2, 'the newest version this build reads; scenes without compound shapes or massData are still written as version 1');
   assert.deepEqual(validateScene(sample()), []);
   assert.deepEqual(Object.keys(EXAMPLE_SCENES), ['pendulum-wave', 'newtons-cradle', 'domino-run', 'terrain-car', 'ragdoll']);
   for (const [name, make] of Object.entries(EXAMPLE_SCENES)) {
@@ -127,8 +127,8 @@ const MALFORMED = [
   ['a scene that is an array', () => [], '', /got array/],
   ['a missing format', s => { delete s.format; }, '/format', /must be 'box3d-scene', got nothing/],
   ['a wrong format', s => { s.format = 'gltf'; }, '/format', /got "gltf"/],
-  ['a newer version', s => { s.version = 2; }, '/version', /unsupported scene version 2; this build reads version 1 only/],
-  ['a version of the wrong type', s => { s.version = '1'; }, '/version', /must be the integer 1, got "1"/],
+  ['a newer version', s => { s.version = 3; }, '/version', /unsupported scene version 3; this build reads versions 1 and 2/],
+  ['a version of the wrong type', s => { s.version = '1'; }, '/version', /must be the integer 1 or 2, got "1"/],
   ['an unknown top-level key', s => { s.camera = {}; }, '/camera', /unknown key "camera"/],
   ['units other than SI', s => { s.units = 'imperial'; }, '/units', /must be 'SI', got "imperial"/],
   ['no bodies', s => { delete s.bodies; delete s.joints; }, '/bodies', /is required/],
@@ -154,7 +154,7 @@ const MALFORMED = [
   ['an id with a slash', s => { s.bodies[3].id = 'a/b'; }, '/bodies/3/id', /may hold only letters, digits/],
   ['a numeric id', s => { s.bodies[3].id = 3; }, '/bodies/3/id', /must be a string, got number/],
   ['a body without a position', s => { delete s.bodies[3].position; }, '/bodies/3/position', /is required/],
-  ['an unknown shape kind', s => { s.bodies[3].shape = {kind: 'cylinder', radius: 1}; }, '/bodies/3/shape/kind', /must be 'box', 'sphere', 'capsule', 'hull', 'mesh' or 'heightfield', got "cylinder"/],
+  ['an unknown shape kind', s => { s.bodies[3].shape = {kind: 'cylinder', radius: 1}; }, '/bodies/3/shape/kind', /must be 'box', 'sphere', 'capsule', 'hull', 'mesh', 'heightfield' or 'compound', got "cylinder"/],
   ['a negative radius', s => { s.bodies[0].shape.radius = -1; }, '/bodies/0/shape/radius', /must be >= 0.0001, got -1/],
   ['a radius given as text', s => { s.bodies[0].shape.radius = '0.25'; }, '/bodies/0/shape/radius', /must be a number, got string/],
   ['a sphere with box keys', s => { s.bodies[0].shape.halfExtents = [1, 1, 1]; }, '/bodies/0/shape/halfExtents', /unknown key "halfExtents"/],

@@ -48,7 +48,7 @@ test('a new document is an empty, valid SI scene with the ground slab', () => {
   assert.deepEqual([doc.canUndo, doc.canRedo, doc.undoLabel, doc.revision], [false, false, null, 0]);
   assert.equal(doc.undo(), null);
   assert.equal(doc.redo(), null);
-  assert.throws(() => new SceneDocument({format: 'box3d-scene', version: 2, bodies: []}), /unsupported scene version/);
+  assert.throws(() => new SceneDocument({format: 'box3d-scene', version: 3, bodies: []}), /unsupported scene version/);
   assert.throws(() => new SceneDocument(EXAMPLE_SCENES['pendulum-wave'](), {historyLimit: 0}), RangeError);
   const withWater = {...emptyScene(), water: [{id: 'w', cols: 4, rows: 4, dx: 1, dz: 1, restDepth: 1, origin: [0, 0, 0]}]};
   assert.deepEqual(validateScene(withWater), []);
@@ -719,4 +719,41 @@ test('autosave records are validated like any other scene', () => {
   ok(big.apply({type: 'setGenerated', id: 't', generated: {preset: 'terrain', fn: 'hills', countX: 400, countZ: 400, spacing: 1, amplitude: 10, seed: 3}}));
   assert.ok(big.canonical().length > AUTOSAVE_MAX_CHARS);
   assert.equal(encodeAutosave(big.scene, '2026-11-11T10:00:00.000Z'), null);
+});
+
+test('a scene with compound bodies and massData opens in the editor: bounds, resting height, moves and undo', () => {
+  // An L of two boxes and a capsule laid along x. The editor cannot edit their geometry; it must measure and move them.
+  const q90z = [0, 0, Math.SQRT1_2, Math.SQRT1_2];
+  const ell = {kind: 'compound', shapes: [{shape: {kind: 'box', halfExtents: [0.5, 0.1, 0.3]}, position: [0, 0.1, 0]}, {shape: {kind: 'box', halfExtents: [0.1, 1, 0.3]}, position: [-0.4, 1.2, 0]},
+    {shape: {kind: 'capsule', radius: 0.05, halfLength: 0.4}, position: [0.2, 0.5, 0], rotation: q90z}]};
+  const scene = {format: 'box3d-scene', version: 2, bodies: [
+    {id: 'ell', shape: ell, position: [0, 0, 0]},
+    {id: 'ball', shape: {kind: 'sphere', radius: 0.2}, position: [3, 0.2, 0], massData: {mass: 9, center: [0, -0.05, 0], inertia: [1, 1, 1, 0, 0, 0]}},
+  ]};
+  assert.deepEqual(validateScene(scene), []);
+  const bounds = shapeLocalBounds(ell);
+  nearVec(bounds.min, [-0.5, 0, -0.3], 1e-12, 'lower corner');
+  nearVec(bounds.max, [0.65, 2.2, 0.3], 1e-12, 'upper corner: the post reaches 2.2 m and the turned capsule 0.2 + 0.4 + 0.05 along x');
+  near(shapeExtentAlong(ell, q90z, [1, 0, 0]), 0, 1e-12, 'turned a quarter about z, its base is what faces +x');
+  near(shapeThickness(ell), 0.6, 1e-12, 'its smallest overall extent');
+  near(restingHeight(ell, [0, 0, 0, 1], 0), 0, 1e-7, 'the body origin is in its base, so it rests at y = 0');
+  assert.equal(shapeVolume(ell), null);
+  assert.equal(principalInertia(ell, 1), null, 'the engine has its inertia; the editor does not compute it');
+  assert.deepEqual(stepWarnings(scene), []);
+  const doc = new SceneDocument(scene), before = doc.canonical();
+  assert.equal(doc.scene.version, 2);
+  ok(doc.apply({type: 'setTransform', id: 'ell', position: [1, 0, -2]}));
+  ok(doc.apply({type: 'duplicateBody', id: 'ell'}));
+  assert.equal(doc.scene.bodies.length, 3);
+  assert.deepEqual(doc.scene.bodies.at(-1).shape, doc.scene.bodies[0].shape, 'a copy keeps every child');
+  refused(doc.apply({type: 'setShape', id: 'ell', shape: {kind: 'compound', shapes: []}}), /a compound holds 1 to 64 shapes, got 0/);
+  doc.undo(); doc.undo();
+  assert.equal(doc.canonical(), before, 'undo returns the exact text, massData included');
+  // The scene the editor holds builds in the engine with the compound's three shapes and the ball's stated mass.
+  withWorld((world) => {
+    const loaded = loadLabScene(world, doc.scene);
+    assert.deepEqual(world.bodyKinds().slice(1), ['compound', 'sphere']);
+    assert.equal(world.bodyMassData(loaded.bodies.get('ell')).shapeCount, 3);
+    assert.deepEqual([world.bodyMassData(loaded.bodies.get('ball')).mass, world.bodyMassData(loaded.bodies.get('ball')).explicit], [9, true]);
+  });
 });

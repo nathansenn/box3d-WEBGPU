@@ -1,6 +1,7 @@
 // Scene files, share links and the example scenes (box3d-webgpu-kit/scene).
 // Set-ups are those of packages/box3d-kit/test/v12-scene.test.mjs.
 import {kit, memo, defineCases, relative, absolute} from '../lib.mjs';
+import {sceneCompound} from './compound.mjs';
 
 const G = 9.81;
 const FILE = 'packages/box3d-kit/test/v12-scene.test.mjs';
@@ -128,7 +129,7 @@ const RESUME = [
   ['ragdoll', 0.4, 'saved as it starts to topple and compared as its head strikes the ground at 7 m/s'],
 ];
 
-export default defineCases('scene', FILE, [
+const cases = defineCases('scene', FILE, [
   {id: 'scene.euler-quaternion', title: 'Euler angles to quaternion', quantity: 'largest component error of the quaternions for 90 degrees about X, Y and Z', unit: '1', test: T.euler,
     reference: {formula: 'q = (sin 45, 0, 0, cos 45) and its permutations', value: 0}, tolerance: absolute(1e-12), measure: euler},
   {id: 'scene.share-link.round-trip', title: 'Share links: round trip', quantity: 'example scenes whose canonical text changes through a compressed or a stored link (of 5 scenes x 2 paths)', unit: 'links', test: T.links,
@@ -158,3 +159,5 @@ export default defineCases('scene', FILE, [
     reference: {formula: 'p_after = p_before', value: null}, tolerance: relative(0.02),
     measure: async () => { const r = await cradle(); return {value: r.after, reference: r.before}; }},
 ]);
+
+export default [...cases, ...sceneCompound];

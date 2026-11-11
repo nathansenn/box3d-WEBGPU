@@ -34,6 +34,12 @@ export type Body = NativeBodyHandle;
 export type BodyKind = NativeBodyKind;
 ```
 
+### BodyMassData · type
+
+```ts
+export type BodyMassData = NativeBodyMassState;
+```
+
 ### BodyOptions · interface
 
 Lengths in metres, masses from density in kg/m^3, angles in radians.
@@ -63,6 +69,7 @@ export interface BodyOptions {
         readonly maskBits?: bigint;
         readonly groupIndex?: number;
     };
+    readonly massData?: MassDataOptions;
 }
 ```
 
@@ -180,6 +187,21 @@ export interface Capabilities {
 }
 ```
 
+### CompoundShapeOptions · interface
+
+One shape of a compound body, placed in the body's frame.
+
+```ts
+export interface CompoundShapeOptions {
+    readonly shape: ConvexShapeOptions;
+    readonly position?: Vec3Like;
+    readonly rotation?: QuatLike;
+    readonly density?: number;
+    readonly friction?: number;
+    readonly restitution?: number;
+}
+```
+
 ### convertMatrices · function
 
 Copy `count` column-major 4x4 matrices from `source` into `out`, converting
@@ -196,6 +218,27 @@ Convert one Box3D (Y-up) point or direction to the target frame.
 
 ```ts
 export declare function convertVector(v: readonly [number, number, number], up?: UpAxis): [number, number, number];
+```
+
+### ConvexShapeOptions · type
+
+The shapes a compound body may hold.
+
+```ts
+export type ConvexShapeOptions = {
+    readonly kind: 'box';
+    readonly halfExtents: Vec3Like;
+} | {
+    readonly kind: 'sphere';
+    readonly radius: number;
+} | {
+    readonly kind: 'capsule';
+    readonly radius: number;
+    readonly halfLength: number;
+} | {
+    readonly kind: 'hull';
+    readonly points: ArrayLike<number>;
+};
 ```
 
 ### createWorld · function
@@ -541,6 +584,19 @@ export declare function loadSession(world: PhysicsWorld, saved: unknown, options
 }): ReplayReport;
 ```
 
+### MassDataOptions · interface
+
+Mass in kg, centre of mass in the body frame (default the origin), and the inertia tensor about
+the centre of mass in body axes as [Ixx, Iyy, Izz, Ixy, Ixz, Iyz] in kg m^2.
+
+```ts
+export interface MassDataOptions {
+    readonly mass: number;
+    readonly center?: Vec3Like;
+    readonly inertia: readonly [number, number, number, number, number, number];
+}
+```
+
 ### mountInspector · function
 
 ```ts
@@ -592,6 +648,7 @@ export interface NativeBodyDescriptor {
         readonly maskBits?: bigint;
         readonly groupIndex?: number;
     };
+    readonly massData?: NativeMassData;
 }
 ```
 
@@ -609,7 +666,19 @@ export interface NativeBodyHandle {
 ### NativeBodyKind · type
 
 ```ts
-export type NativeBodyKind = 'box' | 'sphere' | 'capsule' | 'hull' | 'mesh' | 'heightfield';
+export type NativeBodyKind = 'box' | 'sphere' | 'capsule' | 'hull' | 'mesh' | 'heightfield' | 'compound';
+```
+
+### NativeBodyMassState · interface
+
+```ts
+export interface NativeBodyMassState {
+    mass: number;
+    center: [number, number, number];
+    inertia: [number, number, number, number, number, number];
+    explicit: boolean;
+    shapeCount: number;
+}
 ```
 
 ### NativeBodyShape · type
@@ -630,6 +699,10 @@ export type NativeBodyShape = {
 {
     readonly kind: 'hull';
     readonly points: ArrayLike<number>;
+} | 
+{
+    readonly kind: 'compound';
+    readonly shapes: readonly NativeCompoundChild[];
 } | 
 {
     readonly kind: 'mesh';
@@ -663,6 +736,42 @@ export interface NativeBodyState {
 
 ```ts
 export type NativeBodyType = 'static' | 'kinematic' | 'dynamic';
+```
+
+### NativeCompoundChild · interface
+
+One shape of a compound body, placed in the body's frame.
+
+```ts
+export interface NativeCompoundChild {
+    readonly shape: NativeConvexShape;
+    readonly position?: NativeQueryVector;
+    readonly rotation?: NativeQuaternion;
+    readonly density?: number;
+    readonly friction?: number;
+    readonly restitution?: number;
+}
+```
+
+### NativeConvexShape · type
+
+The shapes a compound body may hold: the convex ones.
+
+```ts
+export type NativeConvexShape = {
+    readonly kind: 'box';
+    readonly halfExtents: NativeQueryVector;
+} | {
+    readonly kind: 'sphere';
+    readonly radius: number;
+} | {
+    readonly kind: 'capsule';
+    readonly radius: number;
+    readonly halfLength: number;
+} | {
+    readonly kind: 'hull';
+    readonly points: ArrayLike<number>;
+};
 ```
 
 ### NativeJointDescriptor · interface
@@ -735,6 +844,20 @@ export interface NativeJointState {
 
 ```ts
 export type NativeJointType = 'weld' | 'revolute' | 'spherical' | 'prismatic' | 'distance' | 'wheel';
+```
+
+### NativeMassData · interface
+
+Mass, centre of mass and inertia of a body. `center` is in the body frame. `inertia` is the
+tensor about the centre of mass in body axes, as [Ixx, Iyy, Izz, Ixy, Ixz, Iyz] in kg m^2 (the
+matrix entries, so a product of inertia is minus the integral of x y dm).
+
+```ts
+export interface NativeMassData {
+    readonly mass: number;
+    readonly center?: NativeQueryVector;
+    readonly inertia: readonly [number, number, number, number, number, number];
+}
 ```
 
 ### NativeQuaternion · type
@@ -859,6 +982,10 @@ export declare class NativeWorldBackend implements PhysicsBackend {
   setGravity(x: number, y: number, z: number): void;
   gravity(): [number, number, number];
   createBody(descriptor: NativeBodyDescriptor): NativeBodyHandle | null;
+  get supportsCompoundBodies(): boolean;
+  setBodyMassData(body: NativeBodyHandle, data: NativeMassData): void;
+  resetBodyMassData(body: NativeBodyHandle): void;
+  bodyMassData(body: NativeBodyHandle): NativeBodyMassState;
   retainBodyShapes(enabled?: boolean): void;
   bodyShape(row: number): NativeBodyShape | null;
   bodyKinds(): NativeBodyKind[];
@@ -995,6 +1122,9 @@ export declare class PhysicsWorld {
   setGravity(gravity: Vec3Like): void;
   gravity(): [number, number, number];
   createBody(options: BodyOptions): Body | null;
+  setMassData(body: Body, data: MassDataOptions): void;
+  resetMassData(body: Body): void;
+  getMassData(body: Body): BodyMassData;
   getState(body: Body): BodyState;
   setTransform(body: Body, position: Vec3Like, rotation?: QuatLike): void;
   setVelocity(body: Body, linear: Vec3Like, angular?: Vec3Like): void;
@@ -1282,6 +1412,10 @@ export type ShapeOptions = {
 | {
     readonly kind: 'hull';
     readonly points: ArrayLike<number>;
+}
+| {
+    readonly kind: 'compound';
+    readonly shapes: readonly CompoundShapeOptions[];
 }
 | {
     readonly kind: 'mesh';
@@ -1755,6 +1889,9 @@ export declare class RemoteWorld implements InstanceSource {
   gravity(): Promise<[number, number, number]>;
   createBody(options: BodyOptions): Promise<RemoteBody | null>;
   getState(body: RemoteBody): Promise<BodyState>;
+  setMassData(body: RemoteBody, data: MassDataOptions): Promise<void>;
+  resetMassData(body: RemoteBody): Promise<void>;
+  getMassData(body: RemoteBody): Promise<BodyMassData>;
   setTransform(body: RemoteBody, position: Vec3Like, rotation?: QuatLike): Promise<void>;
   setVelocity(body: RemoteBody, linear: Vec3Like, angular?: Vec3Like): Promise<void>;
   moveKinematic(body: RemoteBody, position: Vec3Like, rotation?: QuatLike, seconds?: number): Promise<void>;
@@ -4169,7 +4306,7 @@ export interface SaveSceneOptions {
 ```ts
 export interface Scene {
     readonly format: 'box3d-scene';
-    readonly version: 1;
+    readonly version: 1 | 2;
     readonly units?: 'SI';
     readonly world?: SceneWorld;
     readonly materials?: {
@@ -4204,6 +4341,7 @@ export declare const SCENE_LIMITS: Readonly<{
     materials: 1024;
     idLength: 64;
     hullPoints: 4096;
+    compoundShapes: 64;
     meshVertices: 1048576;
     meshTriangles: 2097152;
     heightfieldSide: 4096;
@@ -4235,8 +4373,18 @@ export declare const SCENE_LINK_PREFIX = "b3s1";
 
 ### SCENE_VERSION · const
 
+The newest scene version this build reads and writes. A scene that needs nothing newer than version 1 is written as version 1.
+
 ```ts
-export declare const SCENE_VERSION = 1;
+export declare const SCENE_VERSION = 2;
+```
+
+### SCENE_VERSIONS · const
+
+Every scene version this build reads. Version 2 adds compound shapes and `massData`; nothing else differs.
+
+```ts
+export declare const SCENE_VERSIONS: readonly number[];
 ```
 
 ### SceneBody · interface
@@ -4265,6 +4413,7 @@ export interface SceneBody {
     readonly angularDamping?: number;
     readonly gravityScale?: number;
     readonly filter?: SceneFilter;
+    readonly massData?: SceneMassData;
     readonly userData?: {
         readonly [key: string]: unknown;
     };
@@ -4364,6 +4513,43 @@ export interface SceneCableSegment {
     readonly restLength: number;
     readonly compliance: number;
 }
+```
+
+### SceneCompoundChild · interface
+
+One shape of a compound body (scene version 2).
+
+```ts
+export interface SceneCompoundChild {
+    readonly shape: SceneConvexShape;
+    readonly position?: SceneVec3;
+    readonly rotation?: SceneQuat;
+    readonly rotationEuler?: SceneVec3;
+    readonly density?: number;
+    readonly friction?: number;
+    readonly restitution?: number;
+}
+```
+
+### SceneConvexShape · type
+
+The shapes a compound may hold.
+
+```ts
+export type SceneConvexShape = {
+    readonly kind: 'box';
+    readonly halfExtents: SceneVec3;
+} | {
+    readonly kind: 'sphere';
+    readonly radius: number;
+} | {
+    readonly kind: 'capsule';
+    readonly radius: number;
+    readonly halfLength: number;
+} | {
+    readonly kind: 'hull';
+    readonly points: readonly number[];
+};
 ```
 
 ### SceneCoupledSections · interface
@@ -4497,6 +4683,9 @@ export interface SceneHost {
     isAlive(body: NativeBodyHandle): boolean;
     isJointAlive(joint: NativeJointHandle): boolean;
     getState(body: NativeBodyHandle): NativeBodyState;
+    getMassData?(body: NativeBodyHandle): {
+        readonly center: readonly number[];
+    } | null;
     gravity(): [number, number, number];
     bodyCount(): number;
 }
@@ -4575,6 +4764,18 @@ export type SceneJointInput = Omit<SceneJoint, 'id'>;
 export type SceneJointType = 'weld' | 'revolute' | 'spherical' | 'prismatic' | 'distance' | 'wheel';
 ```
 
+### SceneMassData · interface
+
+Explicit mass data of a body (scene version 2).
+
+```ts
+export interface SceneMassData {
+    readonly mass: number;
+    readonly center?: SceneVec3;
+    readonly inertia: readonly [number, number, number, number, number, number];
+}
+```
+
 ### SceneMaterial · interface
 
 ```ts
@@ -4630,6 +4831,10 @@ export type SceneShape = {
 } | {
     readonly kind: 'hull';
     readonly points: readonly number[];
+}
+| {
+    readonly kind: 'compound';
+    readonly shapes: readonly SceneCompoundChild[];
 } | {
     readonly kind: 'mesh';
     readonly vertices: readonly number[];
@@ -5537,6 +5742,10 @@ export interface RobotLinkReport {
     principalError?: [number, number, number];
     maxPrincipalError?: number;
     tensorError?: number;
+    inertiaSource?: 'file' | 'shapes';
+    shapesPrincipalError?: number;
+    shapesTensorError?: number;
+    shapesComOffset?: number;
 }
 ```
 
@@ -5628,6 +5837,8 @@ export interface RobotSceneOptions {
     readonly neverSleeps?: boolean;
     readonly prefix?: string;
     readonly collisionGroup?: number;
+    readonly links?: 'compound' | 'welded';
+    readonly inertia?: 'file' | 'shapes';
 }
 ```
 
@@ -5649,11 +5860,14 @@ export interface RobotShapeReport {
 A robot description as a scene (docs/SCENE_FORMAT.md), ready for
 `validateScene`, `loadScene` and share links.
 
-- Each link becomes one body per collision shape, placed by forward
-  kinematics. Several shapes are welded, each to the nearest one before it.
-  A body's origin is its shape's centre of mass.
-- Density is mass / collision volume, so the link's mass is the file's. The
-  inertia is whatever the shapes then have: read `robotReport` for the gap.
+- Each link becomes one body, placed by forward kinematics. A link with
+  several collision shapes is one compound body (`links: 'welded'` gives one
+  body per shape, welded). A body's origin is the centre of mass of its
+  first (heaviest) shape.
+- Density is mass / collision volume. Where the shapes then do not have the
+  file's mass, centre of mass and inertia tensor, the body is given them
+  explicitly (`massData`; `inertia: 'shapes'` turns that off). `robotReport`
+  says which links, and what the shapes alone would have given.
   A link with mass and no shape becomes a box with the file's exact mass and
   inertia that collides with nothing.
 - fixed -> weld; revolute and continuous -> revolute about the joint axis;

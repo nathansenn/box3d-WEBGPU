@@ -1,6 +1,7 @@
 // Rigid bodies, joints and shapes (the kit's Box3D world), against closed-form mechanics.
 // Set-ups are those of packages/box3d-kit/test/v08.test.mjs: SI units, 240 Hz, 4 sub-steps.
 import {kit, memo, defineCases, relative, absolute, meanPeriod} from '../lib.mjs';
+import {rigidCompound} from './compound.mjs';
 
 const G = 9.81, HZ = 240, SUB = 4;
 const FILE = 'packages/box3d-kit/test/v08.test.mjs';
@@ -199,7 +200,7 @@ const hulls = () => memo('rigid/hulls', async () => {
   } finally { w.dispose(); }
 });
 
-export default defineCases('rigid', FILE, [
+const cases = defineCases('rigid', FILE, [
   {id: 'rigid.free-fall.speed', title: 'Free fall: speed after 2 s', quantity: 'speed of a falling sphere', unit: 'm/s', test: T.fall,
     reference: {formula: 'v = g t', value: G * 2}, tolerance: relative(1e-4), measure: async () => (await freeFall()).speed},
   {id: 'rigid.free-fall.height', title: 'Free fall: height after 2 s', quantity: 'height of a sphere dropped from 100 m', unit: 'm', test: T.fall,
@@ -272,3 +273,5 @@ export default defineCases('rigid', FILE, [
   {id: 'rigid.terrain.sliding', title: 'Height field: frictionless sliding', quantity: 'speed of a sphere after 2 s on a 0.2 rad height-field slope', unit: 'm/s', test: T.terrain,
     reference: {formula: 'v = g sin(theta) t', value: G * Math.sin(0.2) * 2}, tolerance: relative(1e-3), measure: async () => (await terrain()).speed},
 ]);
+
+export default [...cases, ...rigidCompound];

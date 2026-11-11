@@ -16,7 +16,7 @@
 import {EngineError} from './core/contracts.js';
 import type {LoadBox3DOptions} from './loader.js';
 import type {
-  BodyKind, BodyOptions, BodyPose, BodyState, BodyType, JointOptions, JointState, QuatLike, QueryOptions, ReplayLog, ReplayReport, RecordingOptions,
+  BodyKind, BodyMassData, BodyOptions, BodyPose, BodyState, BodyType, MassDataOptions, JointOptions, JointState, QuatLike, QueryOptions, ReplayLog, ReplayReport, RecordingOptions,
   ResetOptions, SpawnBoxOptions, Vec3, Vec3Like, WorldEvent, WorldOptions, WorldStats,
 } from './world.js';
 import type {PhysicsWorld} from './world.js';
@@ -168,6 +168,9 @@ export function serveWorld(endpoint: MessageEndpoint): void {
     gravity: () => live().gravity(),
     createBody: (options: BodyOptions) => { kindsDirty = true; return remember(live().createBody(options)); },
     getState: (ref: RemoteBody) => live().getState(lookup(ref)),
+    setMassData: (ref: RemoteBody, data: MassDataOptions) => live().setMassData(lookup(ref), data),
+    resetMassData: (ref: RemoteBody) => live().resetMassData(lookup(ref)),
+    getMassData: (ref: RemoteBody) => live().getMassData(lookup(ref)),
     setTransform: (ref: RemoteBody, position: Vec3Like, rotation?: QuatLike) => live().setTransform(lookup(ref), position, rotation),
     setVelocity: (ref: RemoteBody, linear: Vec3Like, angular?: Vec3Like) => live().setVelocity(lookup(ref), linear, angular),
     moveKinematic: (ref: RemoteBody, position: Vec3Like, rotation?: QuatLike, seconds?: number) => live().moveKinematic(lookup(ref), position, rotation, seconds),
@@ -387,6 +390,10 @@ export class RemoteWorld implements InstanceSource {
   gravity(): Promise<[number, number, number]> { return this.call('gravity'); }
   createBody(options: BodyOptions): Promise<RemoteBody | null> { return this.call('createBody', options); }
   getState(body: RemoteBody): Promise<BodyState> { return this.call('getState', body); }
+  /** See PhysicsWorld.setMassData. */
+  setMassData(body: RemoteBody, data: MassDataOptions): Promise<void> { return this.call('setMassData', body, data); }
+  resetMassData(body: RemoteBody): Promise<void> { return this.call('resetMassData', body); }
+  getMassData(body: RemoteBody): Promise<BodyMassData> { return this.call('getMassData', body); }
   setTransform(body: RemoteBody, position: Vec3Like, rotation?: QuatLike): Promise<void> { return this.call('setTransform', body, position, rotation); }
   setVelocity(body: RemoteBody, linear: Vec3Like, angular?: Vec3Like): Promise<void> { return this.call('setVelocity', body, linear, angular); }
   moveKinematic(body: RemoteBody, position: Vec3Like, rotation?: QuatLike, seconds?: number): Promise<void> { return this.call('moveKinematic', body, position, rotation, seconds); }

@@ -114,7 +114,7 @@ The Lab's frame loop ticks at 1/60 s and takes a whole number of scene steps per
 time_s,x_m,y_m,z_m,vx_m_per_s,vy_m_per_s,vz_m_per_s,speed_m_per_s,kinetic_translational_J,kinetic_rotational_J,potential_J,total_J
 ```
 
-RFC 4180, CRLF line ends, up to 9 significant digits, an empty field for a value that is not known. Energy is ½mv² + ½ω·Iω − m g·r, with the mass the engine reports and the inertia of a solid box, sphere or capsule; the rotational term is left out (empty in the file) for hulls and meshes, because the engine does not report an inertia tensor. Potential energy is zero at the world origin. In the test a dropped sphere keeps its recorded total within 1% until it lands.
+RFC 4180, CRLF line ends, up to 9 significant digits, an empty field for a value that is not known. Energy is ½mv² + ½ω·Iω − m g·r, with the mass the engine reports and the inertia of a solid box, sphere or capsule; the rotational term is left out (empty in the file) for hulls, meshes, compounds and bodies with `massData`, whose tensor the editor does not read back. For a compound or a body with `massData` the potential term uses the body's origin, not its centre of mass. Potential energy is zero at the world origin. In the test a dropped sphere keeps its recorded total within 1% until it lands.
 
 The **ruler** gives the straight-line distance between two points, with its components and its horizontal part: either two points clicked in the view (where the click's ray meets a body or the ground) or the centres of the two selected bodies.
 
@@ -162,7 +162,7 @@ Text from a scene (names, titles, descriptions) is only ever written to the page
 
 - **No gizmo and no rotation handle.** Translation is by dragging on a horizontal plane, by Shift-dragging vertically, by arrow keys and by typing; rotation is by typing.
 - **The camera orbits and zooms; it does not pan.** **Look at** in the inspector points it at the selected body.
-- **One shape per body** (the format has no compound shapes). Imported hulls, meshes and height fields can be moved, renamed and given materials, but their geometry cannot be edited.
+- **The editor makes one shape per body.** A scene with compound bodies or `massData` (scene version 2) opens: such a body can be selected, moved, turned, duplicated, renamed, given a material and deleted, and its bounds and resting height come from its children. Its children and its mass data cannot be edited here, and no preset creates one. Imported hulls, meshes and height fields can be moved, renamed and given materials, but their geometry cannot be edited.
 - **Every command rebuilds the world** (twice: once in a scratch world, once on screen). That is immediate for scenes of tens of bodies and was not measured for thousands; dragging previews by moving one body and commits once.
 - **Loads** are initial velocities, gravity, motors and springs. There are no applied forces or torques over time in the format, so the editor has none.
 - **Multi-selection** is for joints, deletion, duplication, nudging and the ruler; the inspector edits one item at a time.

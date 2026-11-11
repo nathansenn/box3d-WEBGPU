@@ -27,14 +27,15 @@ export const DOMAINS = [
   {
     id: 'rigid', title: 'Rigid bodies, joints and shapes', needsKit: true,
     solver: 'Box3D compiled to WebAssembly, through `box3d-webgpu-kit` (float32 state, 240 Hz, 4 sub-steps)',
-    summary: 'Free fall, pendulums, friction, restitution, collisions, forces and torques, joint motors and springs, and motion on triangle-mesh and height-field ground.',
+    summary: 'Free fall, pendulums, friction, restitution, collisions, forces and torques, joint motors and springs, motion on triangle-mesh and height-field ground, compound bodies (summed mass, centre of mass and inertia, tipping, rest) and explicit mass data (stated mass, centre of mass and inertia tensor).',
     docs: ['packages/box3d-kit/README.md'],
     notValidated: [
       'Stacks, piles and many-body contact: every case here has one or two bodies in contact. Stack stability and friction in piles are not checked against a reference.',
       'Rolling is checked for a sphere only, and the contact slips slightly (the rolling case allows 1%). There is no rolling-resistance or spinning-friction reference.',
       'Restitution is checked at one speed and one coefficient. Box3D applies restitution only above a threshold speed.',
       'Wheel, weld and spherical joints have no closed-form row here: wheel and weld joints are tested for behaviour only (a car drives and steers, a weld keeps its spacing).',
-      'Compound shapes are not exported by the bridge. Triangle meshes and height fields are static only.',
+      'Compound bodies: a body holds at most 64 convex shapes (box, sphere, capsule, hull); overlapping shapes count their overlap twice in mass and inertia. Contact of a compound is checked at rest and at tipping only, not in stacks or impacts. Triangle meshes and height fields are static only and cannot be part of a compound.',
+      'Explicit mass data replace the numbers, not the shapes: nothing checks that a stated tensor is physically possible for the collision shape (the triangle inequality of the principal moments is not required), and a body with partly locked rotation is not covered.',
       'One build on one machine. The cross-device determinism matrix is a separate roadmap item; the kit records identical hashes on arm64 Node and Bun only.',
     ],
   },
@@ -96,8 +97,8 @@ export const DOMAINS = [
   },
   {
     id: 'scene', title: 'Scene files and share links', needsKit: true,
-    solver: '`box3d-webgpu-kit/scene`: the `box3d-scene` version 1 format, canonical text, share links, save and resume',
-    summary: 'Rotation conventions, lossless share links, deterministic loading, what a save restores, and the physics of two example scenes.',
+    solver: '`box3d-webgpu-kit/scene`: the `box3d-scene` format (version 1, and version 2 for compound shapes and explicit mass data), canonical text, share links, save and resume',
+    summary: 'Rotation conventions, lossless share links, deterministic loading, what a save restores, the physics of two example scenes, and version 2 scenes (compound shapes, massData) against the same bodies built by hand.',
     docs: ['docs/SCENE_FORMAT.md'],
     notValidated: [
       'A save is not a bit-exact continuation. It restores poses and velocities, not the solver\'s warm-start impulses, sleep state or tick count; the drift rows show how far a resumed run moves in 100 ticks (up to 7 cm for a toppling ragdoll).',
@@ -122,12 +123,12 @@ export const DOMAINS = [
   },
   {
     id: 'robot', title: 'Robot import (URDF and MJCF)', needsKit: true,
-    solver: '`box3d-webgpu-kit/robot`: URDF and MJCF files as scenes of the rigid world (one body per collision shape, joints as constraints; 240 Hz, 4 sub-steps)',
-    summary: 'Forward kinematics against the product of joint transforms, the same robot from both formats, mass and the reported inertia gap, pendulum and cart-pole periods, joint limits, effort limits, joint springs and damping, a held arm, joint drift on a chain, a wheeled cart, and round trips through scene files and share links.',
+    solver: '`box3d-webgpu-kit/robot`: URDF and MJCF files as scenes of the rigid world (one body per link, a compound when the link has several collision shapes, with the file\'s mass, centre of mass and inertia tensor; joints as constraints; 240 Hz, 4 sub-steps)',
+    summary: 'Forward kinematics against the product of joint transforms, the same robot from both formats, mass, the file\'s inertia in the solver and the gap without it, pendulum and cart-pole periods, joint limits, effort limits, joint springs and damping, a held arm, joint drift on a chain, a wheeled cart, and round trips through scene files and share links.',
     docs: ['docs/ROBOT_IMPORT.md'],
     notValidated: [
-      'Inertia is not imported. The engine derives it from each shape and its density, so only the mass matches the file; `robotReport` gives the gap per link (42% on the worst link of the example arm), and the motion follows the bodies, not the file.',
-      'Joints are soft constraints (60 Hz in the engine, not adjustable from the bridge). A loaded arm settles below its kinematic pose (17 mm at the tool of the 1 m example arm) and a chain stretches by millimetres. There is no reduced-coordinate articulation solver.',
+      'The file\'s inertial is applied as numbers; the collision shapes are not changed to agree with it. A tensor that is not positive definite is not applied (the shapes\' inertia is used, with a warning), and with `links: \'welded\'` a link of several bodies keeps its shapes\' inertia. The rows marked "inertia: shapes" measure the import without the file\'s inertia (42% off on the worst link of the example arm).',
+      'Joints are soft constraints (60 Hz by default; `jointStiffness` raises it). A loaded arm settles below its kinematic pose (17 mm at the tool of the 1 m example arm) and a chain stretches by millimetres. There is no reduced-coordinate articulation solver.',
       'No comparison with MuJoCo, Gazebo or another simulator on the same model: every reference here is closed form.',
       'Mesh collision is the convex hull of each mesh; only the parser path and a cube and a tetrahedron are checked. No real robot model with meshes is in the suite.',
       'Ball joints, floating bases under contact, self-collision of real robots, and contact between a robot and objects (grasping) have no reference here.',

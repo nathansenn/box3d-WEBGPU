@@ -1,6 +1,7 @@
 // Robot import: URDF and MJCF as scenes (box3d-webgpu-kit/robot).
 // Set-ups are those of packages/box3d-kit/test/v15-robot.test.mjs.
 import {kit, memo, defineCases, relative, absolute, upper, lower} from '../lib.mjs';
+import {robotCompound} from './compound.mjs';
 
 const G = 9.81, HZ = 240;
 const FILE = 'packages/box3d-kit/test/v15-robot.test.mjs';
@@ -8,7 +9,7 @@ const T = {
   kinematics: 'forward kinematics: link poses of the two-link and six-joint arms equal the product of joint transforms to 1e-6',
   formats: 'format equivalence: the double pendulum from URDF and from MJCF is the same scene and the same trajectory',
   mass: 'mass and inertia: total mass is the sum of link masses to float32, and the reported inertia errors are those of the shapes',
-  pendulum: 'a single revolute link swings with the compound-pendulum period of its ACTUAL inertia, not the inertia in the file',
+  pendulum: 'with inertia: \'shapes\', a single revolute link swings with the compound-pendulum period of its shape\'s inertia, not the inertia in the file',
   cart: 'the cart-pole swings at the coupled small-oscillation frequency, and a slider along gravity falls at g and stops at its limit',
   motor: 'joint limits hold, and a motor with effort tau holds a horizontal link when tau >= m g d and drops it when not',
   spring: 'joint stiffness and damping become a joint spring with the right frequency and decay; dry friction becomes a motor',
@@ -17,6 +18,8 @@ const T = {
   wheels: 'the wheeled cart rests on the ground and rolls at wheel speed x radius when its wheel motors run',
   round: 'round trip: robotToScene validates, loads to the same hashes as spawnRobot, and survives a share link',
 };
+// The import as it was before compound bodies and explicit mass data; both are still options. compound.mjs has the rows for the defaults.
+const OLD = {links: 'welded', inertia: 'shapes'};
 const modules = () => memo('robot/modules', async () => ({...(await kit('robot')), ...(await kit('scene')), createWorld: (await kit('index')).createWorld}));
 const si = async (ground = false, gravity = [0, -G, 0]) => { const {createWorld} = await modules(), world = await createWorld({step: 1 / HZ, subSteps: 4}); world.reset({ground, gravity}); return world; };
 const run = (world, seconds) => { for (let i = 0; i < Math.round(seconds * HZ); i++) world.step(); };
@@ -79,7 +82,7 @@ const formats = () => memo('robot/formats', async () => {
 const mass = () => memo('robot/mass', async () => {
   const {parseURDF, sixDofArmURDF, spawnRobot} = await modules(), world = await si();
   try {
-    const spawned = spawnRobot(world, parseURDF(sixDofArmURDF()));
+    const spawned = spawnRobot(world, parseURDF(sixDofArmURDF()), OLD);
     let total = 0;
     for (const body of spawned.bodies.values()) total += world.getState(body).mass;
     const report = spawned.report, link = name => report.links.find(one => one.link === name);
@@ -103,7 +106,7 @@ const pendulum = () => memo('robot/pendulum', async () => {
     const robot = spawnRobot(world, parseURDF(`<robot name="rod"><link name="world"/>
       <joint name="hinge" type="continuous"><parent link="world"/><child link="rod"/><origin xyz="0 0 2"/><axis xyz="0 1 0"/></joint>
       <link name="rod"><inertial><origin xyz="0 0 ${-L / 2}"/><mass value="${m}"/><inertia ixx="${k * own}" ixy="0" ixz="0" iyy="${k * own}" iyz="0" izz="${m * w * w / 6}"/></inertial>
-        <collision><origin xyz="0 0 ${-L / 2}"/><geometry><box size="${w} ${w} ${L}"/></geometry></collision></link></robot>`), {positions: {hinge: theta0}}), samples = [];
+        <collision><origin xyz="0 0 ${-L / 2}"/><geometry><box size="${w} ${w} ${L}"/></geometry></collision></link></robot>`), {positions: {hinge: theta0}, inertia: 'shapes'}), samples = [];
     for (let i = 0; i < HZ * 20; i++) { world.step(); samples.push(world.getJointState(robot.joints.get('hinge')).value); }
     const period = I => 2 * Math.PI * Math.sqrt((I + m * L * L / 4) / (m * G * L / 2)) * (1 + theta0 * theta0 / 16);
     return {measured: periodOf(samples), actual: period(own), fromFile: period(k * own)};
@@ -239,7 +242,7 @@ const round = () => memo('robot/round', async () => {
   return {problems, mismatches, robots};
 });
 
-export default defineCases('robot', FILE, [
+const cases = defineCases('robot', FILE, [
   {id: 'robot.kinematics.function', title: 'Forward kinematics: the six-joint arm, as a function', quantity: 'largest error of a link position (m) or rotation-matrix entry over 6 links x 4 joint configurations', unit: 'm, 1', test: T.kinematics,
     reference: {formula: 'T_child = T_parent Trans(xyz) Rz(yaw) Ry(pitch) Rx(roll) R(axis, q)', value: 0}, tolerance: absolute(1e-12), measure: async () => (await kinematics()).pure},
   {id: 'robot.kinematics.bodies', title: 'Forward kinematics: the six-joint arm, as spawned bodies', quantity: 'the same error for the link frames read back from the bodies in the world (Y up)', unit: 'm, 1', test: T.kinematics,
@@ -249,19 +252,19 @@ export default defineCases('robot', FILE, [
     note: 'The MJCF file writes out a ground plane and a friction of 0.6, because its defaults (no ground, friction 1) differ from the URDF path.', measure: async () => (await formats()).different},
   {id: 'robot.formats.trajectory', title: 'URDF and MJCF: the double pendulum runs identically', quantity: 'difference of the exactHash after 600 steps of the two imports (0: identical)', unit: '1', test: T.formats,
     reference: {formula: 'hash(URDF run) = hash(MJCF run)', value: 0}, tolerance: absolute(0), measure: async () => (await formats()).hashes},
-  {id: 'robot.mass.total', title: 'Mass: the six-joint arm weighs what its file says', quantity: 'sum of the masses the solver reports for the arm\'s 8 bodies', unit: 'kg', test: T.mass,
+  {id: 'robot.mass.total', title: 'Mass: the six-joint arm weighs what its file says', quantity: 'sum of the masses the solver reports for the arm\'s 8 bodies (links: welded, inertia: shapes)', unit: 'kg', test: T.mass,
     reference: {formula: 'sum of the link masses in the file', value: 16.8}, tolerance: relative(2e-7), note: 'Density = link mass / collision volume, in float32.', measure: async () => (await mass()).total},
-  {id: 'robot.inertia.report', title: 'Inertia report: the two-box tool link', quantity: 'reported largest relative error of a principal moment for the tool link (file tensor against its two boxes at one density)', unit: '1', test: T.mass,
+  {id: 'robot.inertia.report', title: 'Inertia report with inertia: shapes: the two-box tool link', quantity: 'reported largest relative error of a principal moment for the tool link (file tensor against its two boxes at one density)', unit: '1', test: T.mass,
     reference: {formula: 'max |I_i(two boxes, parallel axes) - I_i(file)| / I_i(file)', value: null}, tolerance: absolute(1e-9),
-    note: 'This is the fidelity limit itself, not an error of the report: the engine cannot take the file\'s tensor, and here the bodies are 42% off it.', measure: async () => { const r = await mass(); return {value: r.tool, reference: r.toolByHand}; }},
+    note: 'This is the gap the default import closes by setting the file\'s tensor (robot.inertia.applied); with inertia: shapes the bodies are 42% off it.', measure: async () => { const r = await mass(); return {value: r.tool, reference: r.toolByHand}; }},
   {id: 'robot.inertia.cylinder', title: 'A cylinder as a 24-sided prism of the same volume', quantity: 'largest relative error of a principal moment of the prism against the solid cylinder, at equal mass', unit: '1', test: T.mass,
     reference: {formula: 'I_prism = I_cylinder', value: 0}, tolerance: absolute(3e-5), measure: async () => (await mass()).cylinder},
-  {id: 'robot.pendulum.period', title: 'One revolute link: compound-pendulum period', quantity: 'period of a 0.8 m box rod hinged at its end, mean over 20 s', unit: 's', test: T.pendulum,
-    reference: {formula: 'T = 2 pi sqrt((I_box + m d^2) / (m g d)) (1 + theta0^2 / 16), with the body\'s actual inertia', value: null}, tolerance: relative(1e-3),
+  {id: 'robot.pendulum.period', title: 'One revolute link with inertia: shapes: compound-pendulum period', quantity: 'period of a 0.8 m box rod hinged at its end, mean over 20 s', unit: 's', test: T.pendulum,
+    reference: {formula: 'T = 2 pi sqrt((I_box + m d^2) / (m g d)) (1 + theta0^2 / 16), with the shape\'s inertia', value: null}, tolerance: relative(1e-3),
     measure: async () => { const r = await pendulum(); return {value: r.measured, reference: r.actual}; }},
-  {id: 'robot.pendulum.file-inertia', title: 'One revolute link: what the file\'s inertia would have given', quantity: 'period predicted from the file\'s tensor (1.3 x the rod\'s) over the measured period, minus 1', unit: '1', test: T.pendulum,
+  {id: 'robot.pendulum.file-inertia', title: 'One revolute link with inertia: shapes: what the file\'s inertia would have given', quantity: 'period predicted from the file\'s tensor (1.3 x the rod\'s) over the measured period, minus 1', unit: '1', test: T.pendulum,
     reference: {formula: 'sqrt((1.3 I_box + m d^2) / (I_box + m d^2)) - 1', value: null}, tolerance: absolute(1e-3),
-    note: 'The body swings 3.7% faster than a body with the file\'s inertia would: the gap the inertia report warns of.', measure: async () => { const r = await pendulum(); return {value: r.fromFile / r.measured - 1, reference: r.fromFile / r.actual - 1}; }},
+    note: 'With inertia: shapes the body swings 3.7% faster than the file predicts; by default the file\'s inertia is applied (robot.pendulum.file-period).', measure: async () => { const r = await pendulum(); return {value: r.fromFile / r.measured - 1, reference: r.fromFile / r.actual - 1}; }},
   {id: 'robot.cart-pole.period', title: 'Cart-pole: coupled small oscillation about the hanging pose', quantity: 'period of the pole on a free cart, mean over 20 s', unit: 's', test: T.cart,
     reference: {formula: 'omega^2 = (M + m) m g d / ((M + m) (I + m d^2) - m^2 d^2)', value: null}, tolerance: relative(2e-3), measure: async () => { const r = await cart(); return {value: r.period, reference: r.coupled}; }},
   {id: 'robot.prismatic.free-fall', title: 'Prismatic joint along gravity', quantity: 'speed of a block on a vertical slider after 2 s', unit: 'm/s', test: T.cart,
@@ -304,3 +307,5 @@ export default defineCases('robot', FILE, [
   {id: 'robot.round-trip.hash', title: 'Round trip: spawnRobot, loadScene and a share link run identically', quantity: 'runs of 150 steps whose exactHash differs from the loaded scene\'s (7 robots x spawnRobot and a share link)', unit: 'runs', test: T.round,
     reference: {formula: 'hash(spawnRobot) = hash(loadScene) = hash(share link)', value: 0}, tolerance: absolute(0), measure: async () => (await round()).mismatches},
 ]);
+
+export default [...cases, ...robotCompound];

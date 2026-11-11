@@ -361,6 +361,15 @@ export function shapeExtentAlong(shape: SceneShape, rotation: Quat, direction: V
       }
       return Number.isFinite(best) ? best : Math.hypot(w, d);
     }
+    case 'compound': {
+      // The farthest reach of any child: its origin along the direction plus its own extent, turned by its own rotation.
+      let best = -Infinity;
+      for (const child of shape.shapes) {
+        const p = child.position ?? [0, 0, 0], value = local[0] * p[0] + local[1] * p[1] + local[2] * p[2] + shapeExtentAlong(child.shape, child.rotation ?? IDENTITY, local);
+        if (value > best) best = value;
+      }
+      return Number.isFinite(best) ? best : 0;
+    }
     default: {
       const points = shapePoints(shape)!;
       let best = -Infinity;

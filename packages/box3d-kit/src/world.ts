@@ -1,6 +1,6 @@
 import {EngineError} from './core/contracts.js';
 import type {
-  NativeBodyHandle, NativeBodyKind, NativeBodyState, NativeBodyType, NativeJointHandle, NativeJointState, NativeJointType, NativeQueryCastHit, NativeQueryFilter,
+  NativeBodyHandle, NativeBodyKind, NativeBodyMassState, NativeBodyState, NativeConvexShape, NativeBodyType, NativeJointHandle, NativeJointState, NativeJointType, NativeQueryCastHit, NativeQueryFilter,
   NativeSpatialQuery, NativeWorldBackend, NativeWorldEvent, NativeWorldPool,
 } from './core/native-world.js';
 import {FixedStepLoop, type FixedStepOptions, type FixedStepResult} from './loop.js';
@@ -34,6 +34,34 @@ export function toQuat(value: QuatLike): [number, number, number, number] {
   throw new EngineError('INVALID_PAYLOAD', 'Expected [x, y, z, w] or {x, y, z, w}.');
 }
 
+/** The shapes a compound body may hold. */
+export type ConvexShapeOptions =
+  | {readonly kind: 'box'; readonly halfExtents: Vec3Like}
+  | {readonly kind: 'sphere'; readonly radius: number}
+  | {readonly kind: 'capsule'; readonly radius: number; readonly halfLength: number}
+  | {readonly kind: 'hull'; readonly points: ArrayLike<number>};
+/** One shape of a compound body, placed in the body's frame. */
+export interface CompoundShapeOptions {
+  readonly shape: ConvexShapeOptions;
+  /** The shape's origin in the body frame. Default [0, 0, 0]. */
+  readonly position?: Vec3Like;
+  /** The shape's orientation in the body frame. Default identity. */
+  readonly rotation?: QuatLike;
+  /** kg/m^3, friction and restitution of this shape. Each defaults to the body's. */
+  readonly density?: number;
+  readonly friction?: number;
+  readonly restitution?: number;
+}
+/**
+ * Mass in kg, centre of mass in the body frame (default the origin), and the inertia tensor about
+ * the centre of mass in body axes as [Ixx, Iyy, Izz, Ixy, Ixz, Iyz] in kg m^2.
+ */
+export interface MassDataOptions {
+  readonly mass: number;
+  readonly center?: Vec3Like;
+  readonly inertia: readonly [number, number, number, number, number, number];
+}
+export type BodyMassData = NativeBodyMassState;
 export type ShapeOptions =
   | {readonly kind: 'box'; readonly halfExtents: Vec3Like}
   | {readonly kind: 'sphere'; readonly radius: number}
@@ -41,6 +69,11 @@ export type ShapeOptions =
   | {readonly kind: 'capsule'; readonly radius: number; readonly halfLength: number}
   /** Convex hull of 4 or more body-local points, as a flat [x, y, z, x, y, z, ...] list. Box3D keeps at most 64 hull vertices. */
   | {readonly kind: 'hull'; readonly points: ArrayLike<number>}
+  /**
+   * 1 to 64 convex shapes on one body. Mass, centre of mass and inertia are the sum over the
+   * shapes; `position` is the origin of the frame the shapes are placed in.
+   */
+  | {readonly kind: 'compound'; readonly shapes: readonly CompoundShapeOptions[]}
   /** Triangle mesh for static scenery: flat vertex list and counter-clockwise index triples. The body is always static. */
   | {readonly kind: 'mesh'; readonly vertices: ArrayLike<number>; readonly indices: ArrayLike<number>}
   /**
@@ -81,6 +114,8 @@ export interface BodyOptions {
   readonly gravityScale?: number;
   /** Two bodies collide when each one's categoryBits shares a bit with the other's maskBits. */
   readonly filter?: {readonly categoryBits?: bigint; readonly maskBits?: bigint; readonly groupIndex?: number};
+  /** Use this mass, centre of mass and inertia tensor instead of the ones the shape and density give. See setMassData(). */
+  readonly massData?: MassDataOptions;
 }
 
 export interface JointFrame { readonly position?: Vec3Like; readonly rotation?: QuatLike }
@@ -238,11 +273,12 @@ export interface ReplayReport {
   readonly checkpointsCompared: number;
 }
 
+const massData = (data: MassDataOptions) => ({mass: data?.mass, center: data?.center ? toVec3(data.center) : undefined, inertia: data?.inertia});
 const now = () => globalThis.performance?.now() ?? Date.now();
 /** The methods a 'call' replay command may name. */
 const REPLAYABLE = new Set(['setGravity', 'createBody', 'setTransform', 'setVelocity', 'moveKinematic', 'setBodyType', 'setAwake', 'setGravityScale',
   'setDamping', 'setCollisionFilter', 'applyForce', 'applyTorque', 'applyImpulseAt', 'applyAngularImpulse', 'createJoint', 'destroyJoint',
-  'setJointMotor', 'setJointLimits', 'setJointSpring', 'setJointSteering', 'setJointStiffness']);
+  'setJointMotor', 'setJointLimits', 'setJointSpring', 'setJointSteering', 'setJointStiffness', 'setMassData', 'resetMassData']);
 
 /**
  * Game-facing wrapper around one isolated native Box3D world.
@@ -373,15 +409,21 @@ export class PhysicsWorld {
   }
 
   /**
-   * Create a body: box, sphere, capsule or convex hull of any type, or a static
-   * triangle mesh or height field. Returns null when the world is at body capacity.
+   * Create a body: box, sphere, capsule, convex hull or a compound of those, of any type, or a
+   * static triangle mesh or height field. Returns null when the world is at body capacity.
    */
   createBody(options: BodyOptions): Body | null {
     this.general('createBody', [options]);
     const shape = options.shape;
+    const convex = (one: ConvexShapeOptions): NativeConvexShape => one?.kind === 'box' ? {kind: 'box', halfExtents: toVec3(one.halfExtents)} : one;
     return this.native.createBody({
       ...options,
-      shape: shape.kind === 'box' ? {kind: 'box', halfExtents: toVec3(shape.halfExtents)} : shape,
+      shape: shape.kind === 'box' ? {kind: 'box', halfExtents: toVec3(shape.halfExtents)}
+        // A `shapes` that is not an array is passed on as it is, for the native check to refuse by name.
+        : shape.kind === 'compound' ? {kind: 'compound', shapes: !Array.isArray(shape.shapes) ? shape.shapes as never : shape.shapes.map((child: CompoundShapeOptions) => ({
+          ...child, shape: convex(child?.shape), position: child?.position ? toVec3(child.position) : undefined, rotation: child?.rotation ? toQuat(child.rotation) : undefined,
+        }))} : shape,
+      massData: options.massData ? massData(options.massData) : undefined,
       position: toVec3(options.position),
       rotation: options.rotation ? toQuat(options.rotation) : undefined,
       linearVelocity: options.linearVelocity ? toVec3(options.linearVelocity) : undefined,
@@ -389,6 +431,21 @@ export class PhysicsWorld {
     });
   }
 
+  /**
+   * Replace the mass, centre of mass and inertia tensor that the body's shapes and densities give.
+   * The pose and the velocity of the body's origin do not change. The values stay until
+   * resetMassData(), also across setBodyType(), and act while the body is dynamic; the shapes
+   * still decide how it collides. Throws unless the mass is positive and the tensor positive definite.
+   */
+  setMassData(body: Body, data: MassDataOptions): void { this.general('setMassData', [body, data]); this.native.setBodyMassData(body, massData(data)); }
+  /** Back to the mass, centre of mass and inertia of the body's shapes. */
+  resetMassData(body: Body): void { this.general('resetMassData', [body]); this.native.resetBodyMassData(body); }
+  /**
+   * Mass, centre of mass (body frame) and inertia tensor (about that centre, body axes, as
+   * [Ixx, Iyy, Izz, Ixy, Ixz, Iyz]) as the solver holds them, whether they come from the shapes
+   * or were set. A static or kinematic body reports zeros.
+   */
+  getMassData(body: Body): BodyMassData { return this.native.bodyMassData(body); }
   /** Position, rotation, velocities, mass, sleep state and type, read from the solver. */
   getState(body: Body): BodyState { return this.native.bodyState(body); }
   /** Teleport a body. To move a kinematic body through the world use moveKinematic(). */
@@ -468,8 +525,8 @@ export class PhysicsWorld {
 
   /**
    * Shape of every render row, in the same order as matrices(). Box, sphere and
-   * capsule rows are scaled by their size; hull, mesh and height-field rows are
-   * unscaled, for drawing with the geometry you created them from.
+   * capsule rows are scaled by their size; hull, mesh, height-field and compound
+   * rows are unscaled, for drawing with the geometry you created them from.
    */
   bodyKinds(): BodyKind[] { return this.native.bodyKinds(); }
 

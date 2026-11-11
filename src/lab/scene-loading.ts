@@ -471,6 +471,11 @@ export function sceneCameraFrame(scene: Scene): SceneFrame {
       case 'sphere': around(0, 0, 0, shape.radius); break;
       case 'capsule': around(0, 0, 0, shape.radius + shape.halfLength); break;
       case 'hull': cloud(shape.points); break;
+      case 'compound': for (const child of shape.shapes) {
+        const [cx, cy, cz] = child.position ?? [0, 0, 0], one = child.shape;
+        if (one.kind === 'hull') { let r = 0; for (let i = 0; i + 2 < one.points.length; i += 3) r = Math.max(r, Math.hypot(one.points[i]!, one.points[i + 1]!, one.points[i + 2]!)); around(cx, cy, cz, r); }
+        else around(cx, cy, cz, one.kind === 'box' ? Math.hypot(one.halfExtents[0], one.halfExtents[1], one.halfExtents[2]) : one.kind === 'sphere' ? one.radius : one.radius + one.halfLength);
+      } break;
       case 'mesh': cloud(shape.vertices); break;
       case 'heightfield': {
         let lo = Infinity, hi = -Infinity;

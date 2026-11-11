@@ -3,13 +3,15 @@
  * description becomes a scene (docs/SCENE_FORMAT.md) or bodies and joints in a
  * world. Documented in docs/ROBOT_IMPORT.md.
  *
- * The solver is a maximal-coordinate rigid-body solver with one shape per body
- * and no way to set an inertia tensor. So:
+ * The solver is a maximal-coordinate rigid-body solver. So:
  *
- * - every link becomes one body per collision shape, welded together;
- * - each link's MASS is matched exactly by choosing density = mass / volume,
- *   and the inertia tensor that results is compared with the file's and
- *   REPORTED per link (`robotReport`). That gap is the main fidelity limit;
+ * - every link becomes one body; a link with several collision shapes is one
+ *   compound body (`links: 'welded'` makes one welded body per shape instead);
+ * - each link's mass is matched by choosing density = mass / volume, and where
+ *   the shapes then do not have the file's mass, centre of mass and inertia
+ *   tensor the body is given them explicitly (`inertia: 'shapes'` turns that
+ *   off). `robotReport` says per link which it is, and what the shapes alone
+ *   would have given;
  * - joints are constraints solved iteratively, so a long chain stretches a
  *   little under load (measured in the document above).
  *
@@ -24,7 +26,7 @@
 import {EngineError} from './contracts.ts';
 import {convexHull, parseGLB, parseGLTF, parseOBJ, parseSTL, toHullShape, type BinaryLike, type TriangleMesh} from './geometry.ts';
 import type {NativeBodyDescriptor, NativeBodyHandle, NativeJointDescriptor, NativeJointHandle} from './native-world.ts';
-import type {Scene, SceneBody, SceneFilter, SceneJoint, SceneShape, SceneWorld} from './scene-format.ts';
+import type {Scene, SceneBody, SceneConvexShape, SceneFilter, SceneJoint, SceneShape, SceneWorld} from './scene-format.ts';
 
 type V3 = [number, number, number];
 type Q4 = [number, number, number, number];
@@ -1238,6 +1240,17 @@ export interface RobotSceneOptions {
   readonly prefix?: string;
   /** Collision groups -collisionGroup, -collisionGroup - 1, ... are used. Default 20000. */
   readonly collisionGroup?: number;
+  /**
+   * A link with several collision shapes: 'compound' (default) makes it one body that holds every shape;
+   * 'welded' makes one body per shape and welds them, as this import did before the engine had compound bodies.
+   */
+  readonly links?: 'compound' | 'welded';
+  /**
+   * 'file' (default): a link whose shapes do not already have the file's mass, centre of mass and inertia tensor
+   * (to 1e-9) is given them explicitly, so the solver uses the file's values. 'shapes': only the mass is matched,
+   * through the density, and the inertia is whatever the shapes then have.
+   */
+  readonly inertia?: 'file' | 'shapes';
 }
 
 export interface RobotLinkReport {
@@ -1268,6 +1281,16 @@ export interface RobotLinkReport {
   maxPrincipalError?: number;
   /** Frobenius norm of (actual - specified) / specified, both tensors about the file's centre of mass in the link frame: also sees a shifted centre of mass and turned axes. */
   tensorError?: number;
+  /**
+   * Where the body's mass, centre of mass and inertia come from: 'file' when they were set explicitly from the
+   * file's inertial (the "actual" values above are then the file's), 'shapes' when they are those of the shapes at
+   * their density. Absent for a link without a moving body.
+   */
+  inertiaSource?: 'file' | 'shapes';
+  /** With `inertiaSource: 'file'`: what `maxPrincipalError`, `tensorError` and `comOffset` would have been from the shapes alone. */
+  shapesPrincipalError?: number;
+  shapesTensorError?: number;
+  shapesComOffset?: number;
 }
 export interface RobotShapeReport {
   link: string;
@@ -1339,6 +1362,10 @@ interface LinkPlan {
   link: RobotLink;
   index: number;
   pieces: Piece[];
+  /** True when the pieces are the shapes of one compound body (they then share the first piece's id). */
+  merged: boolean;
+  /** Set when the body was given the file's mass data explicitly. */
+  explicit?: boolean;
   kind: RobotLinkReport['kind'];
   /** The body that carries the link frame (null: the world) and the link frame in that body's coordinates. `free`: a massless floating frame. */
   carrier: {body: string | null; frame: RobotPose; free?: boolean};
@@ -1361,6 +1388,9 @@ function buildPlan(description: RobotDescription, options: RobotSceneOptions): R
   if (prefix !== '' && !/^[A-Za-z0-9_.:-]{1,24}$/.test(prefix)) bad('prefix may hold up to 24 letters, digits and _ . : -');
   const defaultDensity = options.defaultDensity ?? 1000, dampingHertz = options.dampingHertz ?? 0.01, group0 = options.collisionGroup ?? 20000;
   if (!(defaultDensity > 0) || !(dampingHertz > 0) || !Number.isInteger(group0) || group0 < 1) bad('defaultDensity and dampingHertz must be positive, and collisionGroup a positive integer.');
+  const linkMode = options.links ?? 'compound', inertiaMode = options.inertia ?? 'file';
+  if (linkMode !== 'compound' && linkMode !== 'welded') bad("links must be 'compound' or 'welded'.");
+  if (inertiaMode !== 'file' && inertiaMode !== 'shapes') bad("inertia must be 'file' or 'shapes'.");
   const baseRotation = options.rotation ? qunit(options.rotation) : IDENTITY, basePosition = options.position ?? [0, 0, 0];
   const upVector = (v: readonly number[]): V3 => up === 'z' ? [v[0], v[2], zero(-v[1])] : [v[0], v[1], v[2]];
   const turned = options.rotation !== undefined && !(baseRotation[0] === 0 && baseRotation[1] === 0 && baseRotation[2] === 0);
@@ -1463,8 +1493,10 @@ function buildPlan(description: RobotDescription, options: RobotSceneOptions): R
       return box ? {...collision, origin: box.origin, geometry: {type: 'box', size: box.size} as RobotGeometry}
         : {...collision, geometry: {type: 'box', size: [0.1 * Math.abs(s[0]), 0.1 * Math.abs(s[1]), 0.1 * Math.abs(s[2])]} as RobotGeometry};
     });
-    const add1 = (made: Made, id: string, extra: Partial<Piece>): void => {
-      const piece: Piece = {id: makeId(id), shape: made.shape, pose: made.pose, volume: made.volume, unit: made.unit, density: 0, colliding: true, ...extra};
+    let merged = false;
+    // `shared`: the piece is one more shape of the compound body that already has this id.
+    const add1 = (made: Made, id: string, extra: Partial<Piece>, shared = false): void => {
+      const piece: Piece = {id: shared ? id : makeId(id), shape: made.shape, pose: made.pose, volume: made.volume, unit: made.unit, density: 0, colliding: true, ...extra};
       if (made.note) shapes.push({...made.note, body: piece.id});
       pieces.push(piece);
     };
@@ -1488,17 +1520,20 @@ function buildPlan(description: RobotDescription, options: RobotSceneOptions): R
       let first = 0;
       made.forEach((one, k) => { if (densities[k] * one.volume > densities[first] * made[first].volume * (1 + 1e-12)) first = k; });
       const sequence = [first, ...made.map((_, k) => k).filter(k => k !== first)];
-      sequence.forEach((k, position) => add1(made[k], position === 0 ? name : `${name}.${position + 1}`, {density: densities[k], friction: collisions[k].friction, color: collisions[k].color ?? link.color}));
+      merged = linkMode === 'compound' && made.length > 1;
+      if (merged && made.length > 64) bad(`link "${name}" has ${made.length} collision shapes; a compound body holds at most 64. Use links: 'welded'.`);
+      sequence.forEach((k, position) => add1(made[k], position === 0 ? name : merged ? pieces[0].id : `${name}.${position + 1}`, {density: densities[k], friction: collisions[k].friction, color: collisions[k].color ?? link.color}, merged && position > 0));
     } else if (mass > 0) {
       kind = 'inertia-box';
       const box = inertiaBox(inertial!);
       if (box) add1(makePiece(name, {type: 'box', size: box.size}, box.origin), name, {density: mass / (box.size[0] * box.size[1] * box.size[2]), colliding: false, color: link.color});
       else {
-        warn('approximated', `link "${name}"`, 'has mass and no collision shape, and no solid box has its inertia tensor (a principal moment is zero or exceeds the sum of the other two); it is a 5 cm sphere of the right mass that collides with nothing');
+        if (inertiaMode === 'file' && eigenSymmetric(tensorOf(inertial!.inertia)).values[0] > 0) warn('note', `link "${name}"`, 'has mass and no collision shape, and no solid box has its inertia tensor (a principal moment exceeds the sum of the other two); it is a 5 cm sphere that collides with nothing, with the file\'s mass and inertia set explicitly');
+        else warn('approximated', `link "${name}"`, 'has mass and no collision shape, and no solid box has its inertia tensor (a principal moment is zero or exceeds the sum of the other two); it is a 5 cm sphere of the right mass that collides with nothing');
         add1(makePiece(name, {type: 'sphere', radius: 0.05}, inertial!.origin), name, {density: mass / (4 / 3 * Math.PI * 0.05 ** 3), colliding: false, color: link.color});
       }
     }
-    plans.set(name, {link, index: linkIndex.get(name)!, pieces, kind, carrier: {body: null, frame: pose()}});
+    plans.set(name, {link, index: linkIndex.get(name)!, pieces, merged, kind, carrier: {body: null, frame: pose()}});
   }
 
   // Which body carries each link frame.
@@ -1532,7 +1567,9 @@ function buildPlan(description: RobotDescription, options: RobotSceneOptions): R
   // Collision filters.
   const selfCollision = options.selfCollision !== false, filters = new Map<string, SceneFilter>();
   const bodyLinks = order.map(name => plans.get(name)!).filter(plan => plan.pieces.length > 0 && !plan.link.isWorld);
-  const compound = bodyLinks.some(plan => plan.pieces.length > 1);
+  /** The pieces of each body of a link: one group for a compound body, one group per piece otherwise. */
+  const groupsOf = (plan: LinkPlan): Piece[][] => plan.merged ? [plan.pieces] : plan.pieces.map(piece => [piece]);
+  const compound = bodyLinks.some(plan => groupsOf(plan).length > 1);
   const ownerOf = new Map<string, LinkPlan>();
   for (const plan of bodyLinks) for (const piece of plan.pieces) ownerOf.set(piece.id, plan);
   const neighbours = new Map<LinkPlan, Set<LinkPlan>>(bodyLinks.map(plan => [plan, new Set<LinkPlan>()]));
@@ -1547,7 +1584,7 @@ function buildPlan(description: RobotDescription, options: RobotSceneOptions): R
   bodyLinks.forEach((plan, k) => {
     const filter: {categoryBits?: string; maskBits?: string; groupIndex?: number} = {};
     if (!selfCollision) filter.groupIndex = -group0;
-    else if (plan.pieces.length > 1) filter.groupIndex = -(group0 + 1 + k);
+    else if (groupsOf(plan).length > 1) filter.groupIndex = -(group0 + 1 + k);
     if (bits) {
       let mask = 0xFFFFFFFFFFFFFFFFn;
       for (const other of neighbours.get(plan)!) mask &= ~(1n << BigInt(bodyLinks.indexOf(other) + 1));
@@ -1562,23 +1599,67 @@ function buildPlan(description: RobotDescription, options: RobotSceneOptions): R
   // Scene bodies, and what the solver will make of each (mass, inertia in the world frame).
   const bodies: SceneBody[] = [], joints: SceneJoint[] = [];
   const solver = new Map<string, {inverseMass: number; inverseInertia: M3; centre: V3}>();
+  /** What the file says about each link that has an inertial, in the link frame, and what the body was given. */
+  const float32Definite = (t: readonly number[]): boolean => {
+    const [xx, yy, zz, xy, xz, yz] = [t[0], t[4], t[8], t[1], t[2], t[5]].map(Math.fround), det = xx * (yy * zz - yz * yz) - xy * (xy * zz - yz * xz) + xz * (xy * yz - yy * xz);
+    return xx > 0 && xx * yy - xy * xy > 0 && det > 0 && Math.fround(det) > 0;
+  };
   for (const name of order) {
-    const plan = plans.get(name)!, base = linkPose.get(name)!;
-    for (const piece of plan.pieces) {
-      const at = toWorld(compose(base, piece.pose)), isStatic = plan.kind === 'static';
-      const body: {-readonly [K in keyof SceneBody]: SceneBody[K]} = {id: piece.id, shape: piece.shape, position: at.xyz.map(zero) as V3, rotation: at.quat.map(zero) as Q4};
-      if (isStatic) body.type = 'static'; else body.density = piece.density;
-      const friction = piece.friction ?? options.friction;
+    const plan = plans.get(name)!, base = linkPose.get(name)!, groups = groupsOf(plan), inertial = plan.link.inertial, isStatic = plan.kind === 'static';
+    for (const group of groups) {
+      const piece = group[0], at = toWorld(compose(base, piece.pose));
+      let shape: SceneShape = piece.shape;
+      if (group.length > 1) shape = {kind: 'compound', shapes: group.map((one, k) => {
+        // Each shape in the frame of the first, which is the body's frame.
+        const rel = k === 0 ? pose() : compose(invert(piece.pose), one.pose), child: {shape: SceneConvexShape; position?: V3; rotation?: Q4; density?: number; friction?: number} = {shape: one.shape as SceneConvexShape};
+        if (rel.xyz.some(v => v !== 0)) child.position = rel.xyz.map(zero) as V3;
+        if (rel.quat[0] !== 0 || rel.quat[1] !== 0 || rel.quat[2] !== 0) child.rotation = rel.quat.map(zero) as Q4;
+        if (!isStatic) child.density = one.density;
+        if (one.friction !== undefined) child.friction = one.friction;
+        return child;
+      })};
+      const body: {-readonly [K in keyof SceneBody]: SceneBody[K]} = {id: piece.id, shape, position: at.xyz.map(zero) as V3, rotation: at.quat.map(zero) as Q4};
+      if (isStatic) body.type = 'static'; else if (group.length === 1) body.density = piece.density;
+      const friction = group.length === 1 ? piece.friction ?? options.friction : options.friction;
       if (friction !== undefined) body.friction = friction;
       if (options.restitution !== undefined) body.restitution = options.restitution;
       if (piece.color !== undefined) body.color = piece.color;
       if (!isStatic && options.neverSleeps !== false) body.neverSleeps = true;
       const filter = filters.get(piece.id);
       if (filter) body.filter = filter;
-      body.userData = plan.pieces.length > 1 ? {link: name, part: plan.pieces.indexOf(piece) + 1} : {link: name};
+      body.userData = groups.length > 1 ? {link: name, part: plan.pieces.indexOf(piece) + 1} : {link: name};
+
+      // What the solver will make of the body: mass, centre of mass and inertia about it, in the link frame.
+      const masses = group.map(one => isStatic ? 0 : one.density * one.volume), m = masses.reduce((sum, value) => sum + value, 0);
+      let mass = m, com: V3 = [...piece.pose.xyz], tensor: M3 = [0, 0, 0, 0, 0, 0, 0, 0, 0];
+      if (m > 0) {
+        com = scale(group.reduce((sum, one, k) => add(sum, scale(one.pose.xyz, masses[k])), [0, 0, 0] as V3), 1 / m);
+        group.forEach((one, k) => { tensor = madd(tensor, madd(rotateTensor(one.pose.quat, mscale(one.unit, one.density)), steiner(masses[k], sub(one.pose.xyz, com)))); });
+      }
+      // The file's mass data, when the shapes do not already have them.
+      if (m > 0 && inertiaMode === 'file' && groups.length === 1 && inertial && inertial.mass > 0 && (plan.kind === 'collision' || plan.kind === 'inertia-box')) {
+        const specified = rotateTensor(inertial.origin.quat, tensorOf(inertial.inertia)), size = Math.hypot(...specified), gyration = Math.sqrt(size / inertial.mass);
+        const differs = Math.abs(m - inertial.mass) > 1e-9 * inertial.mass || Math.hypot(...sub(com, inertial.origin.xyz)) > 1e-9 * gyration
+          || Math.hypot(...madd(tensor, steiner(m, sub(inertial.origin.xyz, com))).map((value, i) => value - specified[i])) > 1e-9 * size;
+        if (differs) {
+          const toBody = qconj(piece.pose.quat), inBody = rotateTensor(toBody, specified);
+          if (!(eigenSymmetric(specified).values[0] > 0) || !float32Definite(inBody)) {
+            warn('note', `link "${name}"`, 'its inertia tensor is not positive definite (or too small for float32), so the engine cannot hold it; the inertia of its shapes is used');
+          } else {
+            body.massData = {mass: inertial.mass, center: qrot(toBody, sub(inertial.origin.xyz, piece.pose.xyz)).map(zero) as V3, inertia: [inBody[0], inBody[4], inBody[8], inBody[1], inBody[2], inBody[5]].map(zero) as [number, number, number, number, number, number]};
+            mass = inertial.mass; com = [...inertial.origin.xyz]; tensor = specified;
+            plan.explicit = true;
+          }
+        }
+      }
       bodies.push(body);
-      const m = isStatic ? 0 : piece.density * piece.volume;
-      solver.set(piece.id, {inverseMass: m > 0 ? 1 / m : 0, inverseInertia: m > 0 ? minv(rotateTensor(at.quat, mscale(piece.unit, piece.density))) : [0, 0, 0, 0, 0, 0, 0, 0, 0], centre: at.xyz});
+      if (group.length === 1 && !plan.explicit) {
+        // One shape whose centre of mass is the body origin.
+        solver.set(piece.id, {inverseMass: m > 0 ? 1 / m : 0, inverseInertia: m > 0 ? minv(rotateTensor(at.quat, mscale(piece.unit, piece.density))) : [0, 0, 0, 0, 0, 0, 0, 0, 0], centre: at.xyz});
+      } else {
+        const link = toWorld(base);
+        solver.set(piece.id, {inverseMass: mass > 0 ? 1 / mass : 0, inverseInertia: mass > 0 ? minv(rotateTensor(link.quat, tensor)) : [0, 0, 0, 0, 0, 0, 0, 0, 0], centre: toWorld(compose(base, pose(com))).xyz});
+      }
     }
   }
   const NONE = {inverseMass: 0, inverseInertia: [0, 0, 0, 0, 0, 0, 0, 0, 0] as M3, centre: [0, 0, 0] as V3};
@@ -1675,7 +1756,7 @@ function buildPlan(description: RobotDescription, options: RobotSceneOptions): R
       }
     }
     // Hold the link's shapes together: each to the nearest one before it, at the midpoint of their centres.
-    if (plan.kind !== 'static') for (let i = 1; i < plan.pieces.length; i++) {
+    if (plan.kind !== 'static' && !plan.merged) for (let i = 1; i < plan.pieces.length; i++) {
       const piece = plan.pieces[i];
       let nearest = 0, best = Infinity;
       for (let j = 0; j < i; j++) { const distance = Math.hypot(...sub(piece.pose.xyz, plan.pieces[j].pose.xyz)); if (distance < best) { best = distance; nearest = j; } }
@@ -1693,7 +1774,7 @@ function buildPlan(description: RobotDescription, options: RobotSceneOptions): R
     const plan = plans.get(name)!, inertial = plan.link.inertial;
     if (plan.link.isWorld) continue;
     const dynamic = plan.kind !== 'static' && plan.kind !== 'frame', masses = plan.pieces.map(piece => dynamic ? piece.density * piece.volume : 0), actual = masses.reduce((sum, m) => sum + m, 0);
-    const report: RobotLinkReport = {link: name, bodies: plan.pieces.map(piece => piece.id), kind: plan.kind, mass: inertial?.mass ?? 0, massActual: actual, volume: plan.pieces.reduce((sum, piece) => sum + piece.volume, 0)};
+    const report: RobotLinkReport = {link: name, bodies: groupsOf(plan).map(group => group[0].id), kind: plan.kind, mass: inertial?.mass ?? 0, massActual: actual, volume: plan.pieces.reduce((sum, piece) => sum + piece.volume, 0)};
     if (dynamic) { totalMass += report.mass; totalMassActual += actual; }
     else if (report.mass > 0 && plan.kind === 'frame') warn('note', `link "${name}"`, `its mass (${report.mass} kg) is not simulated: the link has no body`);
     if (dynamic && actual > 0) {
@@ -1712,14 +1793,22 @@ function buildPlan(description: RobotDescription, options: RobotSceneOptions): R
           report.maxPrincipalError = Math.max(...report.principalError);
           const about = madd(tensor, steiner(actual, sub(inertial.origin.xyz, com)));
           report.tensorError = Math.hypot(...about.map((value, i) => value - specified[i])) / Math.hypot(...specified);
+          if (plan.explicit) {
+            // The body was given the file's values: keep what the shapes alone would have been, and report what the solver has.
+            report.shapesPrincipalError = report.maxPrincipalError; report.shapesTensorError = report.tensorError; report.shapesComOffset = report.comOffset;
+            report.massActual = inertial.mass; totalMassActual += inertial.mass - actual;
+            report.comActual = [...inertial.origin.xyz]; report.comOffset = 0;
+            report.principalActual = wanted; report.principalError = [0, 0, 0]; report.maxPrincipalError = 0; report.tensorError = 0;
+          }
           if (report.maxPrincipalError > maxPrincipalError) { maxPrincipalError = report.maxPrincipalError; worstLink = name; }
         }
       }
+      report.inertiaSource = plan.explicit ? 'file' : 'shapes';
     }
     linkReports.push(report);
   }
   if (worstLink !== null && maxPrincipalError > 0.01) {
-    warn('note', `robot "${description.name}"`, `the bodies' inertia differs from the file's by up to ${(maxPrincipalError * 100).toPrecision(3)}% of a principal moment (link "${worstLink}"): the engine derives inertia from each shape and its density, so only the mass is matched. See the report.`);
+    warn('note', `robot "${description.name}"`, `the bodies' inertia differs from the file's by up to ${(maxPrincipalError * 100).toPrecision(3)}% of a principal moment (link "${worstLink}"): that link's inertia is its shapes' at the density that matches the mass (inertia: 'shapes', a link of welded bodies, or a tensor the engine cannot hold). See the report.`);
   }
 
   const gravityFile = description.world.gravity ?? (up === 'z' ? [0, 0, -9.81] : [0, -9.81, 0]), settings: {-readonly [K in keyof SceneWorld]: SceneWorld[K]} = {gravity: upVector(gravityFile).map(zero) as V3, ground: description.world.ground ?? true};
@@ -1731,11 +1820,11 @@ function buildPlan(description: RobotDescription, options: RobotSceneOptions): R
   Object.assign(settings, options.world);
 
   const links = new Map<string, {body: string | null; bodies: string[]; frame: RobotPose}>();
-  for (const name of order) { const plan = plans.get(name)!; links.set(name, {body: plan.carrier.free ? null : plan.carrier.body, bodies: plan.pieces.map(piece => piece.id), frame: plan.carrier.frame}); }
+  for (const name of order) { const plan = plans.get(name)!; links.set(name, {body: plan.carrier.free ? null : plan.carrier.body, bodies: groupsOf(plan).map(group => group[0].id), frame: plan.carrier.frame}); }
   let extension: {[key: string]: unknown} = {name: description.name, links: Object.fromEntries([...links].map(([name, link]) => [name, {body: link.body, ...frameOf(link.frame)}])), joints: Object.fromEntries(jointIds)};
   if (JSON.stringify(extension).length > 60000) extension = {name: description.name, truncated: true};
   const scene: Scene = {
-    format: 'box3d-scene', version: 1, units: 'SI', world: settings, bodies, joints,
+    format: 'box3d-scene', version: bodies.some(body => body.shape.kind === 'compound' || body.massData !== undefined) ? 2 : 1, units: 'SI', world: settings, bodies, joints,
     meta: {title: description.name.slice(0, 200), description: `Imported robot: ${bodyLinks.length} link${bodyLinks.length === 1 ? '' : 's'} with bodies, ${jointIds.size} joint${jointIds.size === 1 ? '' : 's'}.`},
     extensions: {robot: extension},
   };
@@ -1746,11 +1835,14 @@ function buildPlan(description: RobotDescription, options: RobotSceneOptions): R
  * A robot description as a scene (docs/SCENE_FORMAT.md), ready for
  * `validateScene`, `loadScene` and share links.
  *
- * - Each link becomes one body per collision shape, placed by forward
- *   kinematics. Several shapes are welded, each to the nearest one before it.
- *   A body's origin is its shape's centre of mass.
- * - Density is mass / collision volume, so the link's mass is the file's. The
- *   inertia is whatever the shapes then have: read `robotReport` for the gap.
+ * - Each link becomes one body, placed by forward kinematics. A link with
+ *   several collision shapes is one compound body (`links: 'welded'` gives one
+ *   body per shape, welded). A body's origin is the centre of mass of its
+ *   first (heaviest) shape.
+ * - Density is mass / collision volume. Where the shapes then do not have the
+ *   file's mass, centre of mass and inertia tensor, the body is given them
+ *   explicitly (`massData`; `inertia: 'shapes'` turns that off). `robotReport`
+ *   says which links, and what the shapes alone would have given.
  *   A link with mass and no shape becomes a box with the file's exact mass and
  *   inertia that collides with nothing.
  * - fixed -> weld; revolute and continuous -> revolute about the joint axis;
@@ -1804,7 +1896,7 @@ export function spawnRobot<B = NativeBodyHandle, J = NativeJointHandle>(world: R
     let handle: B | null;
     try {
       handle = world.createBody({
-        shape: body.shape, type: body.type, position: body.position, rotation: body.rotation, density: body.density, friction: body.friction, restitution: body.restitution, color: body.color, neverSleeps: body.neverSleeps,
+        shape: body.shape, type: body.type, position: body.position, rotation: body.rotation, density: body.density, friction: body.friction, restitution: body.restitution, color: body.color, neverSleeps: body.neverSleeps, massData: body.massData,
         filter: filter ? {categoryBits: filter.categoryBits !== undefined ? BigInt(filter.categoryBits) : undefined, maskBits: filter.maskBits !== undefined ? BigInt(filter.maskBits) : undefined, groupIndex: filter.groupIndex} : undefined,
       });
     } catch (error) {

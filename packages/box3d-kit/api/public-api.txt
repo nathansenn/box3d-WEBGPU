@@ -1373,6 +1373,10 @@ export interface NativeWorldModule {
     _b3w_world_collect_events?(world: number): number;
     _b3w_world_events_ptr?(world: number): number | bigint;
     _b3w_world_event_total?(world: number): number;
+    _b3w_world_create_compound_body?(world: number, descriptor: number | bigint, shapes: number | bigint, count: number, points: number | bigint, pointCount: number): bigint;
+    _b3w_world_set_body_mass_data?(world: number, body: bigint, values: number | bigint): number;
+    _b3w_world_get_body_mass_data?(world: number, body: bigint, out: number | bigint): number;
+    _b3w_world_reset_body_mass_data?(world: number, body: bigint): number;
 }
 declare const JOINT_OWNER: unique symbol;
 export interface NativeJointHandle {
@@ -1380,6 +1384,41 @@ export interface NativeJointHandle {
     readonly [JOINT_OWNER]: object;
 }
 export type NativeQuaternion = readonly [number, number, number, number];
+export type NativeConvexShape = {
+    readonly kind: 'box';
+    readonly halfExtents: NativeQueryVector;
+} | {
+    readonly kind: 'sphere';
+    readonly radius: number;
+} | {
+    readonly kind: 'capsule';
+    readonly radius: number;
+    readonly halfLength: number;
+} | {
+    readonly kind: 'hull';
+    readonly points: ArrayLike<number>;
+};
+export interface NativeCompoundChild {
+    readonly shape: NativeConvexShape;
+    readonly position?: NativeQueryVector;
+    readonly rotation?: NativeQuaternion;
+    readonly density?: number;
+    readonly friction?: number;
+    readonly restitution?: number;
+}
+export declare const NATIVE_COMPOUND_LIMIT = 64;
+export interface NativeMassData {
+    readonly mass: number;
+    readonly center?: NativeQueryVector;
+    readonly inertia: readonly [number, number, number, number, number, number];
+}
+export interface NativeBodyMassState {
+    mass: number;
+    center: [number, number, number];
+    inertia: [number, number, number, number, number, number];
+    explicit: boolean;
+    shapeCount: number;
+}
 export type NativeBodyShape = {
     readonly kind: 'box';
     readonly halfExtents: NativeQueryVector;
@@ -1397,6 +1436,10 @@ export type NativeBodyShape = {
     readonly points: ArrayLike<number>;
 } |
 {
+    readonly kind: 'compound';
+    readonly shapes: readonly NativeCompoundChild[];
+} |
+{
     readonly kind: 'mesh';
     readonly vertices: ArrayLike<number>;
     readonly indices: ArrayLike<number>;
@@ -1408,7 +1451,7 @@ export type NativeBodyShape = {
     readonly countZ: number;
     readonly spacing: readonly [number, number];
 };
-export type NativeBodyKind = 'box' | 'sphere' | 'capsule' | 'hull' | 'mesh' | 'heightfield';
+export type NativeBodyKind = 'box' | 'sphere' | 'capsule' | 'hull' | 'mesh' | 'heightfield' | 'compound';
 export type NativeBodyType = 'static' | 'kinematic' | 'dynamic';
 export interface NativeBodyDescriptor {
     readonly shape: NativeBodyShape;
@@ -1434,6 +1477,7 @@ export interface NativeBodyDescriptor {
         readonly maskBits?: bigint;
         readonly groupIndex?: number;
     };
+    readonly massData?: NativeMassData;
 }
 export interface NativeBodyState {
     position: [number, number, number];
@@ -1559,6 +1603,12 @@ export declare class NativeWorldBackend implements PhysicsBackend {
     setGravity(x: number, y: number, z: number): void;
     gravity(): [number, number, number];
     createBody(descriptor: NativeBodyDescriptor): NativeBodyHandle | null;
+    get supportsCompoundBodies(): boolean;
+    private compoundChildren;
+    private writeMassData;
+    setBodyMassData(body: NativeBodyHandle, data: NativeMassData): void;
+    resetBodyMassData(body: NativeBodyHandle): void;
+    bodyMassData(body: NativeBodyHandle): NativeBodyMassState;
     retainBodyShapes(enabled?: boolean): void;
     bodyShape(row: number): NativeBodyShape | null;
     bodyKinds(): NativeBodyKind[];
@@ -1830,6 +1880,8 @@ export interface RobotSceneOptions {
     readonly neverSleeps?: boolean;
     readonly prefix?: string;
     readonly collisionGroup?: number;
+    readonly links?: 'compound' | 'welded';
+    readonly inertia?: 'file' | 'shapes';
 }
 export interface RobotLinkReport {
     link: string;
@@ -1846,6 +1898,10 @@ export interface RobotLinkReport {
     principalError?: [number, number, number];
     maxPrincipalError?: number;
     tensorError?: number;
+    inertiaSource?: 'file' | 'shapes';
+    shapesPrincipalError?: number;
+    shapesTensorError?: number;
+    shapesComOffset?: number;
 }
 export interface RobotShapeReport {
     link: string;
@@ -2038,17 +2094,22 @@ export interface SceneHost {
     isAlive(body: NativeBodyHandle): boolean;
     isJointAlive(joint: NativeJointHandle): boolean;
     getState(body: NativeBodyHandle): NativeBodyState;
+    getMassData?(body: NativeBodyHandle): {
+        readonly center: readonly number[];
+    } | null;
     gravity(): [number, number, number];
     bodyCount(): number;
 }
 export declare const SCENE_FORMAT = "box3d-scene";
-export declare const SCENE_VERSION = 1;
+export declare const SCENE_VERSION = 2;
+export declare const SCENE_VERSIONS: readonly number[];
 export declare const SCENE_LIMITS: Readonly<{
     bodies: 65536;
     joints: 65536;
     materials: 1024;
     idLength: 64;
     hullPoints: 4096;
+    compoundShapes: 64;
     meshVertices: 1048576;
     meshTriangles: 2097152;
     heightfieldSide: 4096;
@@ -2085,6 +2146,34 @@ export interface SceneMaterial {
     readonly restitution: number;
     readonly color?: number;
 }
+export type SceneConvexShape = {
+    readonly kind: 'box';
+    readonly halfExtents: SceneVec3;
+} | {
+    readonly kind: 'sphere';
+    readonly radius: number;
+} | {
+    readonly kind: 'capsule';
+    readonly radius: number;
+    readonly halfLength: number;
+} | {
+    readonly kind: 'hull';
+    readonly points: readonly number[];
+};
+export interface SceneCompoundChild {
+    readonly shape: SceneConvexShape;
+    readonly position?: SceneVec3;
+    readonly rotation?: SceneQuat;
+    readonly rotationEuler?: SceneVec3;
+    readonly density?: number;
+    readonly friction?: number;
+    readonly restitution?: number;
+}
+export interface SceneMassData {
+    readonly mass: number;
+    readonly center?: SceneVec3;
+    readonly inertia: readonly [number, number, number, number, number, number];
+}
 export type SceneShape = {
     readonly kind: 'box';
     readonly halfExtents: SceneVec3;
@@ -2098,6 +2187,10 @@ export type SceneShape = {
 } | {
     readonly kind: 'hull';
     readonly points: readonly number[];
+}
+ | {
+    readonly kind: 'compound';
+    readonly shapes: readonly SceneCompoundChild[];
 } | {
     readonly kind: 'mesh';
     readonly vertices: readonly number[];
@@ -2137,6 +2230,7 @@ export interface SceneBody {
     readonly angularDamping?: number;
     readonly gravityScale?: number;
     readonly filter?: SceneFilter;
+    readonly massData?: SceneMassData;
     readonly userData?: {
         readonly [key: string]: unknown;
     };
@@ -2293,7 +2387,7 @@ export interface SceneCoupledSections {
 }
 export interface Scene {
     readonly format: 'box3d-scene';
-    readonly version: 1;
+    readonly version: 1 | 2;
     readonly units?: 'SI';
     readonly world?: SceneWorld;
     readonly materials?: {
@@ -3679,7 +3773,7 @@ import { type LoadBox3DOptions } from './loader.js';
 import { PhysicsWorld, type WorldOptions } from './world.js';
 export { loadBox3D, type LoadBox3DOptions, type Box3DModuleFactory } from './loader.js';
 export { BUILD_INFO, type BuildInfo } from './core/build-info.js';
-export { PhysicsWorld, toVec3, leakReporting, type Body, type BodyPose, type Vec3, type Vec3Like, type WorldOptions, type SpawnBoxOptions, toQuat, axisRotation, type Joint, type BodyType, type BodyState, type BodyOptions, type ShapeOptions, type QuatLike, type BodyKind, type JointType, type JointState, type JointOptions, type JointFrame, type ResetOptions, type WorldEvent, type QueryOptions, type RaycastOptions, type WorldStats, type ReplayLog, type ReplayCommand, type RecordingOptions, type ReplayReport, } from './world.js';
+export { PhysicsWorld, toVec3, leakReporting, type Body, type BodyPose, type Vec3, type Vec3Like, type WorldOptions, type SpawnBoxOptions, toQuat, axisRotation, type Joint, type BodyType, type BodyState, type BodyOptions, type ShapeOptions, type ConvexShapeOptions, type CompoundShapeOptions, type MassDataOptions, type BodyMassData, type QuatLike, type BodyKind, type JointType, type JointState, type JointOptions, type JointFrame, type ResetOptions, type WorldEvent, type QueryOptions, type RaycastOptions, type WorldStats, type ReplayLog, type ReplayCommand, type RecordingOptions, type ReplayReport, } from './world.js';
 export { convertMatrices, convertVector, toBox3DFrame, type UpAxis } from './axes.js';
 export { writeInstances, lastUploadRange, INSTANCE_WGSL, type GpuQueueLike, type GpuBufferLike, type WriteInstancesOptions, type UploadRange } from './gpu.js';
 export { spawnBoxes, applyImpulses, BodyRing, detectEnvironment, capabilities, LICENSE_NOTICE, type EnvironmentReport, type Capabilities } from './helpers.js';
@@ -3693,7 +3787,7 @@ export { WorldScheduler, type SchedulableWorld, type SchedulerOptions, type Sche
 export type { InstanceSource } from './three.js';
 export { FixedStepLoop, pauseOnHidden, type FixedStepOptions, type FixedStepResult } from './loop.js';
 export { EngineError } from './core/contracts.js';
-export { NativeWorldPool, NativeWorldBackend, NATIVE_WORLD_API_VERSION, type NativeBodyHandle, type NativeSpatialQuery, type NativeQueryResult, type NativeQueryCastHit, type NativeQueryBodyHit, type NativeQueryFilter, type NativeBodyCapacityInfo, type NativeJointHandle, type NativeBodyDescriptor, type NativeBodyShape, type NativeBodyKind, type NativeBodyState, type NativeBodyType, type NativeJointDescriptor, type NativeJointState, type NativeJointType, type NativeJointFrame, type NativeWorldEvent, type NativeQuaternion, } from './core/native-world.js';
+export { NativeWorldPool, NativeWorldBackend, NATIVE_WORLD_API_VERSION, type NativeBodyHandle, type NativeSpatialQuery, type NativeQueryResult, type NativeQueryCastHit, type NativeQueryBodyHit, type NativeQueryFilter, type NativeBodyCapacityInfo, type NativeJointHandle, type NativeBodyDescriptor, type NativeBodyShape, type NativeConvexShape, type NativeCompoundChild, type NativeMassData, type NativeBodyMassState, type NativeBodyKind, type NativeBodyState, type NativeBodyType, type NativeJointDescriptor, type NativeJointState, type NativeJointType, type NativeJointFrame, type NativeWorldEvent, type NativeQuaternion, } from './core/native-world.js';
 export type { InstanceBufferSource, PhysicsBackend } from './backend-types.js';
 export type EngineErrorCode = 'INVALID_PAYLOAD' | 'INVALID_BACKEND' | 'UNSUPPORTED_BACKEND' | 'DISPOSED' | 'STALE_BODY' | 'WORLD_CAPACITY' | 'ALLOCATION_FAILED' | 'STALE_QUERY' | 'QUERY_VERSION_EXHAUSTED' | 'INVALID_STATE' | 'INTERNAL' | 'WASM_UNAVAILABLE' | 'INTEGRITY_MISMATCH' | 'INCOMPATIBLE_SAVE' | 'STALE_JOINT' | 'UNSUPPORTED_JOINT' | 'NUMERICAL_FAILURE' | 'WORK_LIMIT' | 'UNSTABLE_TIME_STEP';
 export declare function createWorld(options?: WorldOptions & LoadBox3DOptions & {
@@ -4006,7 +4100,7 @@ export * from './core/closed-water.js';
 
 // ==== worker.d.ts ====
 import type { LoadBox3DOptions } from './loader.js';
-import type { BodyKind, BodyOptions, BodyPose, BodyState, BodyType, JointOptions, JointState, QuatLike, QueryOptions, ReplayLog, ReplayReport, RecordingOptions, ResetOptions, SpawnBoxOptions, Vec3, Vec3Like, WorldEvent, WorldOptions, WorldStats } from './world.js';
+import type { BodyKind, BodyMassData, BodyOptions, BodyPose, BodyState, BodyType, MassDataOptions, JointOptions, JointState, QuatLike, QueryOptions, ReplayLog, ReplayReport, RecordingOptions, ResetOptions, SpawnBoxOptions, Vec3, Vec3Like, WorldEvent, WorldOptions, WorldStats } from './world.js';
 import type { InstanceSource } from './three.js';
 export interface MessageEndpoint {
     postMessage(message: unknown, transfer?: Transferable[]): void;
@@ -4098,6 +4192,9 @@ export declare class RemoteWorld implements InstanceSource {
     gravity(): Promise<[number, number, number]>;
     createBody(options: BodyOptions): Promise<RemoteBody | null>;
     getState(body: RemoteBody): Promise<BodyState>;
+    setMassData(body: RemoteBody, data: MassDataOptions): Promise<void>;
+    resetMassData(body: RemoteBody): Promise<void>;
+    getMassData(body: RemoteBody): Promise<BodyMassData>;
     setTransform(body: RemoteBody, position: Vec3Like, rotation?: QuatLike): Promise<void>;
     setVelocity(body: RemoteBody, linear: Vec3Like, angular?: Vec3Like): Promise<void>;
     moveKinematic(body: RemoteBody, position: Vec3Like, rotation?: QuatLike, seconds?: number): Promise<void>;
@@ -4153,7 +4250,7 @@ export declare class RemoteWorld implements InstanceSource {
 export declare function connectWorld(endpoint: MessageEndpoint, options?: RemoteWorldOptions): Promise<RemoteWorld>;
 
 // ==== world.d.ts ====
-import type { NativeBodyHandle, NativeBodyKind, NativeBodyState, NativeBodyType, NativeJointHandle, NativeJointState, NativeJointType, NativeQueryCastHit, NativeQueryFilter, NativeWorldBackend, NativeWorldEvent, NativeWorldPool } from './core/native-world.js';
+import type { NativeBodyHandle, NativeBodyKind, NativeBodyMassState, NativeBodyState, NativeBodyType, NativeJointHandle, NativeJointState, NativeJointType, NativeQueryCastHit, NativeQueryFilter, NativeWorldBackend, NativeWorldEvent, NativeWorldPool } from './core/native-world.js';
 import { FixedStepLoop, type FixedStepOptions, type FixedStepResult } from './loop.js';
 export type Vec3 = readonly [number, number, number];
 export type Vec3Like = Vec3 | {
@@ -4176,6 +4273,34 @@ export type QuatLike = readonly [number, number, number, number] | {
     readonly w: number;
 };
 export declare function toQuat(value: QuatLike): [number, number, number, number];
+export type ConvexShapeOptions = {
+    readonly kind: 'box';
+    readonly halfExtents: Vec3Like;
+} | {
+    readonly kind: 'sphere';
+    readonly radius: number;
+} | {
+    readonly kind: 'capsule';
+    readonly radius: number;
+    readonly halfLength: number;
+} | {
+    readonly kind: 'hull';
+    readonly points: ArrayLike<number>;
+};
+export interface CompoundShapeOptions {
+    readonly shape: ConvexShapeOptions;
+    readonly position?: Vec3Like;
+    readonly rotation?: QuatLike;
+    readonly density?: number;
+    readonly friction?: number;
+    readonly restitution?: number;
+}
+export interface MassDataOptions {
+    readonly mass: number;
+    readonly center?: Vec3Like;
+    readonly inertia: readonly [number, number, number, number, number, number];
+}
+export type BodyMassData = NativeBodyMassState;
 export type ShapeOptions = {
     readonly kind: 'box';
     readonly halfExtents: Vec3Like;
@@ -4191,6 +4316,10 @@ export type ShapeOptions = {
  | {
     readonly kind: 'hull';
     readonly points: ArrayLike<number>;
+}
+ | {
+    readonly kind: 'compound';
+    readonly shapes: readonly CompoundShapeOptions[];
 }
  | {
     readonly kind: 'mesh';
@@ -4229,6 +4358,7 @@ export interface BodyOptions {
         readonly maskBits?: bigint;
         readonly groupIndex?: number;
     };
+    readonly massData?: MassDataOptions;
 }
 export interface JointFrame {
     readonly position?: Vec3Like;
@@ -4387,6 +4517,9 @@ export declare class PhysicsWorld {
     private encodeArg;
     private decodeArg;
     createBody(options: BodyOptions): Body | null;
+    setMassData(body: Body, data: MassDataOptions): void;
+    resetMassData(body: Body): void;
+    getMassData(body: Body): BodyMassData;
     getState(body: Body): BodyState;
     setTransform(body: Body, position: Vec3Like, rotation?: QuatLike): void;
     setVelocity(body: Body, linear: Vec3Like, angular?: Vec3Like): void;

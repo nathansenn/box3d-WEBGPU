@@ -74,6 +74,20 @@ function queryBits(value: unknown,label: string): bigint {
   return value;
 }
 
+// The ten floats the bridge reads: mass, centre, Ixx, Iyy, Izz, Ixy, Ixz, Iyz.
+function massDataValues(data: NativeMassData): number[] {
+  if(!data||typeof data!=='object')throw new EngineError('INVALID_PAYLOAD','massData must be {mass, center?, inertia}.');
+  const center=data.center??[0,0,0],inertia=data.inertia;
+  if(!Array.isArray(inertia)||inertia.length!==6)throw new EngineError('INVALID_PAYLOAD','massData.inertia must be [Ixx, Iyy, Izz, Ixy, Ixz, Iyz].');
+  if(!Array.isArray(center)||center.length!==3)throw new EngineError('INVALID_PAYLOAD','massData.center must be [x, y, z].');
+  const values=[finite(data.mass,'mass',Number.MIN_VALUE),finite(center[0],'centre of mass x'),finite(center[1],'centre of mass y'),finite(center[2],'centre of mass z'),
+    finite(inertia[0],'Ixx',Number.MIN_VALUE),finite(inertia[1],'Iyy',Number.MIN_VALUE),finite(inertia[2],'Izz',Number.MIN_VALUE),finite(inertia[3],'Ixy'),finite(inertia[4],'Ixz'),finite(inertia[5],'Iyz')];
+  // The bridge's own test, on the float32 values it will hold, so that nothing is created and then refused.
+  const [xx,yy,zz,xy,xz,yz]=values.slice(4).map(Math.fround) as [number,number,number,number,number,number],det=xx*(yy*zz-yz*yz)-xy*(xy*zz-yz*xz)+xz*(xy*yz-yy*xz);
+  if(!(xx*yy-xy*xy>0)||!(det>0)||!(Math.fround(det)>0))throw new EngineError('INVALID_PAYLOAD','massData.inertia must be a positive-definite tensor that float32 can hold.');
+  return values;
+}
+
 function finite(value: unknown, label: string, min=-Infinity, max=Infinity): number {
   const number=finiteNumber(value,label,min,max),converted=Math.fround(number);
   if(!Number.isFinite(converted)||(number!==0&&converted===0))throw new EngineError('INVALID_PAYLOAD',`${label} must fit a nonzero float32 value or be zero.`);
@@ -162,6 +176,11 @@ export interface NativeWorldModule {
   _b3w_world_collect_events?(world: number): number;
   _b3w_world_events_ptr?(world: number): number | bigint;
   _b3w_world_event_total?(world: number): number;
+  /** Optional compound shapes and explicit mass data; all four exports must be present together, with the general-body extension. */
+  _b3w_world_create_compound_body?(world: number, descriptor: number | bigint, shapes: number | bigint, count: number, points: number | bigint, pointCount: number): bigint;
+  _b3w_world_set_body_mass_data?(world: number, body: bigint, values: number | bigint): number;
+  _b3w_world_get_body_mass_data?(world: number, body: bigint, out: number | bigint): number;
+  _b3w_world_reset_body_mass_data?(world: number, body: bigint): number;
 }
 
 const GENERAL_EXPORTS = ['reset','set_gravity','get_gravity','create_body','copy_body_kinds','get_body_state','set_body_transform',
@@ -176,6 +195,47 @@ export interface NativeJointHandle {
   readonly [JOINT_OWNER]: object;
 }
 export type NativeQuaternion = readonly [number, number, number, number];
+/** The shapes a compound body may hold: the convex ones. */
+export type NativeConvexShape =
+  { readonly kind: 'box'; readonly halfExtents: NativeQueryVector } |
+  { readonly kind: 'sphere'; readonly radius: number } |
+  { readonly kind: 'capsule'; readonly radius: number; readonly halfLength: number } |
+  { readonly kind: 'hull'; readonly points: ArrayLike<number> };
+/** One shape of a compound body, placed in the body's frame. */
+export interface NativeCompoundChild {
+  readonly shape: NativeConvexShape;
+  /** The shape's origin in the body frame. Default [0, 0, 0]. */
+  readonly position?: NativeQueryVector;
+  /** The shape's orientation in the body frame, [x, y, z, w]. Default identity. A capsule's axis is the shape's local Y. */
+  readonly rotation?: NativeQuaternion;
+  /** kg/m^3. Default: the body's. Zero gives a shape that collides and adds no mass. */
+  readonly density?: number;
+  /** Default: the body's. */
+  readonly friction?: number;
+  /** Default: the body's. */
+  readonly restitution?: number;
+}
+/** Most shapes one compound body may hold. */
+export const NATIVE_COMPOUND_LIMIT = 64;
+/**
+ * Mass, centre of mass and inertia of a body. `center` is in the body frame. `inertia` is the
+ * tensor about the centre of mass in body axes, as [Ixx, Iyy, Izz, Ixy, Ixz, Iyz] in kg m^2 (the
+ * matrix entries, so a product of inertia is minus the integral of x y dm).
+ */
+export interface NativeMassData {
+  readonly mass: number;
+  readonly center?: NativeQueryVector;
+  readonly inertia: readonly [number, number, number, number, number, number];
+}
+export interface NativeBodyMassState {
+  mass: number;
+  center: [number, number, number];
+  inertia: [number, number, number, number, number, number];
+  /** True when the values were set with setBodyMassData (or `massData`), false when they come from the shapes. */
+  explicit: boolean;
+  /** Shapes on the body: 1, or the number of children of a compound. */
+  shapeCount: number;
+}
 export type NativeBodyShape =
   { readonly kind: 'box'; readonly halfExtents: NativeQueryVector } |
   { readonly kind: 'sphere'; readonly radius: number } |
@@ -183,13 +243,20 @@ export type NativeBodyShape =
   { readonly kind: 'capsule'; readonly radius: number; readonly halfLength: number } |
   /** Convex hull of 4..4096 body-local points (x, y, z, x, y, z, ...). Box3D keeps at most 64 hull vertices. */
   { readonly kind: 'hull'; readonly points: ArrayLike<number> } |
+  /**
+   * 1..64 convex shapes on one body, each at its own pose in the body frame with its own density,
+   * friction and restitution. The body's mass, centre of mass and inertia are the sum over the
+   * shapes (parallel-axis theorem); overlapping shapes count twice. The body's position is the
+   * origin of that frame, which need not be the centre of mass.
+   */
+  { readonly kind: 'compound'; readonly shapes: readonly NativeCompoundChild[] } |
   /** Static triangle mesh, body-local: vertices (x, y, z, ...) and counter-clockwise index triples. Always a static body. */
   { readonly kind: 'mesh'; readonly vertices: ArrayLike<number>; readonly indices: ArrayLike<number> } |
   /** Static terrain: countX by countZ heights (index x + z * countX) on a grid of spacing[0] by spacing[1]
    * metres, starting at the body position and extending along +x and +z. Always a static body.
    */
   { readonly kind: 'heightfield'; readonly heights: ArrayLike<number>; readonly countX: number; readonly countZ: number; readonly spacing: readonly [number, number] };
-export type NativeBodyKind = 'box' | 'sphere' | 'capsule' | 'hull' | 'mesh' | 'heightfield';
+export type NativeBodyKind = 'box' | 'sphere' | 'capsule' | 'hull' | 'mesh' | 'heightfield' | 'compound';
 export type NativeBodyType = 'static' | 'kinematic' | 'dynamic';
 export interface NativeBodyDescriptor {
   readonly shape: NativeBodyShape;
@@ -221,6 +288,11 @@ export interface NativeBodyDescriptor {
   /** Multiplier on world gravity; default 1. */
   readonly gravityScale?: number;
   readonly filter?: { readonly categoryBits?: bigint; readonly maskBits?: bigint; readonly groupIndex?: number };
+  /**
+   * Mass, centre of mass and inertia tensor to use instead of the ones the shape and density give
+   * (setBodyMassData). They act while the body is dynamic.
+   */
+  readonly massData?: NativeMassData;
 }
 export interface NativeBodyState {
   position: [number, number, number];
@@ -273,7 +345,8 @@ export interface NativeWorldEvent {
   readonly normal?: NativeQueryVector;
   readonly approachSpeed?: number;
 }
-const BODY_KINDS = ['box','sphere','capsule','hull','mesh','heightfield'] as const;
+const BODY_KINDS = ['box','sphere','capsule','hull','mesh','heightfield','compound'] as const;
+const SHAPE_DESC_BYTES=80;
 const BODY_TYPES = ['static','kinematic','dynamic'] as const;
 const JOINT_TYPES = ['weld','revolute','spherical','prismatic','distance','wheel'] as const;
 const EVENT_KINDS = ['contact-begin','contact-end','hit','sensor-begin','sensor-end'] as const;
@@ -312,6 +385,10 @@ export function assertNativeWorldModule(value: unknown): asserts value is Native
   if(generalExports.some(value=>value!==undefined)&&(!generalExports.every(value=>typeof value==='function')||
     typeof mod._malloc!=='function'||typeof mod._free!=='function'||!bodyExports.every(value=>typeof value==='function'))) {
     throw new EngineError('UNSUPPORTED_BACKEND','The native general-body extension requires all of its exports, malloc/free and body lifecycle support.');
+  }
+  const compoundExports=[mod._b3w_world_create_compound_body,mod._b3w_world_set_body_mass_data,mod._b3w_world_get_body_mass_data,mod._b3w_world_reset_body_mass_data];
+  if(compoundExports.some(value=>value!==undefined)&&(!compoundExports.every(value=>typeof value==='function')||!generalExports.every(value=>typeof value==='function'))) {
+    throw new EngineError('UNSUPPORTED_BACKEND','The native compound-shape and mass-data extension requires all four of its exports and the general-body extension.');
   }
   if(queryExports.some(value=>value!==undefined)&&(!queryExports.every(value=>typeof value==='function')||!bodyExports.every(value=>typeof value==='function'))) {
     throw new EngineError('UNSUPPORTED_BACKEND','The native spatial-query extension requires all query and body lifecycle exports.');
@@ -535,8 +612,9 @@ export class NativeWorldBackend implements PhysicsBackend {
   /** Create a body. Returns null when the world is at body capacity. */
   createBody(descriptor: NativeBodyDescriptor): NativeBodyHandle | null {
     const view=this.general(),shape=descriptor.shape,kind=BODY_KINDS.indexOf(shape?.kind),type=BODY_TYPES.indexOf(descriptor.type??'dynamic');
-    if(kind<0)throw new EngineError('INVALID_PAYLOAD',"shape.kind must be 'box', 'sphere', 'capsule', 'hull', 'mesh' or 'heightfield'.");
+    if(kind<0)throw new EngineError('INVALID_PAYLOAD',"shape.kind must be 'box', 'sphere', 'capsule', 'hull', 'mesh', 'heightfield' or 'compound'.");
     if(kind>=3&&typeof this.mod._b3w_world_create_hull_body!=='function')throw new EngineError('UNSUPPORTED_BACKEND','box3d.wasm lacks hull, mesh and height-field shapes; rebuild with npm run build:wasm.');
+    if((shape.kind==='compound'||descriptor.massData!==undefined)&&!this.supportsCompoundBodies)throw new EngineError('UNSUPPORTED_BACKEND','box3d.wasm lacks compound shapes and explicit mass data; rebuild with npm run build:wasm.');
     if(type<0)throw new EngineError('INVALID_PAYLOAD',"type must be 'static', 'kinematic' or 'dynamic'.");
     const vector=(value: NativeQueryVector | undefined,label: string,fallback: NativeQueryVector): NativeQueryVector=>{
       const v=value??fallback;finite(v[0],`${label} x`);finite(v[1],`${label} y`);finite(v[2],`${label} z`);return v;
@@ -545,6 +623,9 @@ export class NativeWorldBackend implements PhysicsBackend {
       shape.kind==='sphere'?[finite(shape.radius,'radius',1e-4),0,0]:shape.kind==='capsule'?[finite(shape.radius,'radius',1e-4),finite(shape.halfLength,'capsule half length',0.0025),0]:[1,1,1];
     // Validate caller geometry completely before anything is written to the heap.
     let floats: Float32Array | null=null,ints: Int32Array | null=null;
+    const density=finite(descriptor.density??1000,'density',0),friction=finite(descriptor.friction??0.6,'friction',0),restitution=finite(descriptor.restitution??0,'restitution',0);
+    const children=shape.kind==='compound'?this.compoundChildren(shape.shapes,density,friction,restitution):null;
+    const massValues=descriptor.massData===undefined?null:massDataValues(descriptor.massData);
     if(shape.kind==='hull') {
       integer(shape.points?.length,'hull point values',12,4096*3);
       if(shape.points.length%3!==0)throw new EngineError('INVALID_PAYLOAD','hull points must be x, y, z triples.');
@@ -570,9 +651,9 @@ export class NativeWorldBackend implements PhysicsBackend {
     view.setUint32(0,kind,true);view.setUint32(4,type,true);
     for(let i=0;i<3;i++){view.setFloat32(8+i*4,position[i],true);view.setFloat32(36+i*4,linear[i],true);view.setFloat32(48+i*4,angular[i],true);view.setFloat32(60+i*4,size[i],true);}
     for(let i=0;i<4;i++)view.setFloat32(20+i*4,rotation[i],true);
-    view.setFloat32(72,finite(descriptor.density??1000,'density',0),true);
-    view.setFloat32(76,finite(descriptor.friction??0.6,'friction',0),true);
-    view.setFloat32(80,finite(descriptor.restitution??0,'restitution',0),true);
+    view.setFloat32(72,density,true);
+    view.setFloat32(76,friction,true);
+    view.setFloat32(80,restitution,true);
     view.setUint32(84,integer(descriptor.color??0xB8C0CC,'color',0,0xFFFFFFFF),true);
     view.setUint32(88,(descriptor.bullet?1:0)|(descriptor.sensor?2:0)|(descriptor.hitEvents?4:0)|(descriptor.neverSleeps?8:0)|(descriptor.lockRotation?16:0),true);
     view.setFloat32(92,finite(descriptor.linearDamping??0,'linear damping',0),true);
@@ -583,7 +664,26 @@ export class NativeWorldBackend implements PhysicsBackend {
     view.setInt32(120,integer(filter?.groupIndex??0,'filter group',-0x80000000,0x7FFFFFFF),true);
     const full=this.bodyCount()>=this.maxBodies;
     let token: bigint;
-    if(floats===null)token=this.mod._b3w_world_create_body!(this.handle,this.scratch);
+    if(children!==null) {
+      // One block holds the child descriptors, then every hull child's points. malloc may grow the heap, so views are taken after it.
+      const pointFloats=children.reduce((sum,child)=>sum+(child.points?.length??0),0),bytes=children.length*SHAPE_DESC_BYTES+pointFloats*4,pointer=Number(this.mod._malloc!(bytes));
+      if(!Number.isSafeInteger(pointer)||pointer<=0||pointer%4!==0)throw new EngineError('ALLOCATION_FAILED','Native geometry allocation failed.');
+      try {
+        const block=new DataView(this.mod.HEAPF32.buffer,pointer,bytes),points=new Float32Array(this.mod.HEAPF32.buffer,pointer+children.length*SHAPE_DESC_BYTES,pointFloats);
+        let offset=0;
+        children.forEach((child,index)=>{
+          const at=index*SHAPE_DESC_BYTES;
+          for(let i=0;i<SHAPE_DESC_BYTES;i+=4)block.setUint32(at+i,0,true);
+          block.setUint32(at,child.kind,true);
+          for(let i=0;i<3;i++){block.setFloat32(at+8+i*4,child.position[i],true);block.setFloat32(at+36+i*4,child.size[i],true);}
+          for(let i=0;i<4;i++)block.setFloat32(at+20+i*4,child.rotation[i],true);
+          block.setFloat32(at+48,child.density,true);block.setFloat32(at+52,child.friction,true);block.setFloat32(at+56,child.restitution,true);
+          if(child.points){block.setInt32(at+60,offset/3,true);block.setInt32(at+64,child.points.length/3,true);points.set(child.points,offset);offset+=child.points.length;}
+        });
+        token=this.mod._b3w_world_create_compound_body!(this.handle,this.scratch,pointer,children.length,pointer+children.length*SHAPE_DESC_BYTES,pointFloats/3);
+      }finally{this.mod._free!(pointer);}
+    }
+    else if(floats===null)token=this.mod._b3w_world_create_body!(this.handle,this.scratch);
     else {
       // One block holds the floats, then the indices. malloc may grow the heap, so views are taken after it.
       const bytes=floats.byteLength+(ints?.byteLength??0),pointer=Number(this.mod._malloc!(bytes));
@@ -603,6 +703,15 @@ export class NativeWorldBackend implements PhysicsBackend {
     const body=this.wrapBody(token);
     // The descriptor cannot carry a zero gravity scale (zero means "default"), so apply it afterwards.
     if(gravityScale===0)this.bodyStatus(this.mod._b3w_world_set_body_gravity_scale!(this.handle,body.token,0));
+    if(massValues!==null) {
+      // The values were checked before the body was made; if the bridge still refuses them, the body does not stay.
+      try{this.writeMassData(body.token,massValues);}catch(error){this.mod._b3w_world_destroy_body!(this.handle,body.token);throw error;}
+    }
+    if(this.retainedShapes&&children) {
+      // Validated copies, so later changes to the caller's arrays do not show.
+      this.retainedShapes.set(body.token,Object.freeze({kind:'compound' as const,shapes:Object.freeze(children.map(child=>Object.freeze({shape:child.shape,position:child.position,rotation:child.rotation,
+        density:child.density,friction:child.friction,restitution:child.restitution})))}));
+    }
     if(this.retainedShapes&&floats) {
       // `floats` and `ints` are this call's own validated copies, so later changes to the caller's arrays do not show.
       const kept: NativeBodyShape=shape.kind==='hull'?{kind:'hull',points:floats}:
@@ -612,8 +721,72 @@ export class NativeWorldBackend implements PhysicsBackend {
     }
     return body;
   }
+  /** True when the artifact has compound shapes and explicit mass data. */
+  get supportsCompoundBodies(): boolean { this.assertAlive();return typeof this.mod._b3w_world_create_compound_body==='function'; }
+  // Checks every child of a compound and returns plain copies: the kind code, the pose, the size
+  // triple the bridge reads, the material with the body's values filled in, and hull points.
+  private compoundChildren(list: readonly NativeCompoundChild[],density: number,friction: number,restitution: number) {
+    if(!Array.isArray(list))throw new EngineError('INVALID_PAYLOAD','A compound shape needs a `shapes` array.');
+    integer(list.length,'compound shape count',1,NATIVE_COMPOUND_LIMIT);
+    let pointValues=0;
+    return list.map((child,index)=>{
+      const label=`compound shape ${index}`,shape=child?.shape,kind=shape?(['box','sphere','capsule','hull'] as const).indexOf(shape.kind):-1;
+      if(kind<0)throw new EngineError('INVALID_PAYLOAD',`${label}: shape.kind must be 'box', 'sphere', 'capsule' or 'hull'.`);
+      const p=child.position??[0,0,0],q=child.rotation??[0,0,0,1];
+      const position: [number, number, number]=[finite(p[0],`${label} position x`),finite(p[1],`${label} position y`),finite(p[2],`${label} position z`)];
+      const raw=[finite(q[0],`${label} rotation`),finite(q[1],`${label} rotation`),finite(q[2],`${label} rotation`),finite(q[3],`${label} rotation`)],length=Math.hypot(raw[0],raw[1],raw[2],raw[3]);
+      if(!(length>1e-6))throw new EngineError('INVALID_PAYLOAD',`${label}: rotation must be a non-zero quaternion.`);
+      const rotation: [number, number, number, number]=[raw[0]/length,raw[1]/length,raw[2]/length,raw[3]/length];
+      let size: [number, number, number],points: Float32Array | null=null,kept: NativeConvexShape;
+      if(shape.kind==='box'){size=[finite(shape.halfExtents?.[0],`${label} half extent x`,1e-4),finite(shape.halfExtents?.[1],`${label} half extent y`,1e-4),finite(shape.halfExtents?.[2],`${label} half extent z`,1e-4)];kept={kind:'box',halfExtents:[size[0],size[1],size[2]]};}
+      else if(shape.kind==='sphere'){size=[finite(shape.radius,`${label} radius`,1e-4),0,0];kept={kind:'sphere',radius:size[0]};}
+      else if(shape.kind==='capsule'){size=[finite(shape.radius,`${label} radius`,1e-4),finite(shape.halfLength,`${label} capsule half length`,0.0025),0];kept={kind:'capsule',radius:size[0],halfLength:size[1]};}
+      else {
+        integer(shape.points?.length,`${label} hull point values`,12,4096*3);
+        if(shape.points.length%3!==0)throw new EngineError('INVALID_PAYLOAD',`${label}: hull points must be x, y, z triples.`);
+        points=Float32Array.from(shape.points,(v,i)=>finite(v,`${label} hull point value ${i}`));
+        pointValues+=points.length;
+        if(pointValues>4096*3*NATIVE_COMPOUND_LIMIT)throw new EngineError('INVALID_PAYLOAD','A compound body holds too many hull points.');
+        size=[1,1,1];kept={kind:'hull',points};
+      }
+      return {kind,shape:Object.freeze(kept),position,rotation,size,points,density:finite(child.density??density,`${label} density`,0),
+        friction:finite(child.friction??friction,`${label} friction`,0),restitution:finite(child.restitution??restitution,`${label} restitution`,0)};
+    });
+  }
+  private writeMassData(token: bigint,values: readonly number[]): void {
+    const view=this.general();
+    for(let i=0;i<10;i++)view.setFloat32(i*4,values[i]!,true);
+    const status=this.mod._b3w_world_set_body_mass_data!(this.handle,token,this.scratch);
+    if(status===-2)throw new EngineError('INVALID_PAYLOAD','Mass data needs a positive mass and a symmetric positive-definite inertia tensor that float32 can hold.');
+    this.bodyStatus(status);
+  }
   /**
-   * Keep the geometry of every hull, mesh and height-field body created from now on, so that a
+   * Replace the mass, centre of mass and inertia tensor the body's shapes and densities give. The
+   * body's velocity at its origin and its pose are unchanged. The values stay, also across
+   * setBodyType, until resetBodyMassData; they act while the body is dynamic. A body created with
+   * `lockRotation` keeps no inertia. The shapes still decide how the body collides.
+   */
+  setBodyMassData(body: NativeBodyHandle,data: NativeMassData): void {
+    const token=this.bodyToken(body);this.general();
+    if(!this.supportsCompoundBodies)throw new EngineError('UNSUPPORTED_BACKEND','box3d.wasm lacks explicit mass data; rebuild with npm run build:wasm.');
+    this.writeMassData(token,massDataValues(data));
+  }
+  /** Back to the mass, centre of mass and inertia of the body's shapes. */
+  resetBodyMassData(body: NativeBodyHandle): void {
+    const token=this.bodyToken(body);this.general();
+    if(!this.supportsCompoundBodies)throw new EngineError('UNSUPPORTED_BACKEND','box3d.wasm lacks explicit mass data; rebuild with npm run build:wasm.');
+    this.bodyStatus(this.mod._b3w_world_reset_body_mass_data!(this.handle,token));
+  }
+  /** Mass, centre of mass (body frame) and inertia tensor (about that centre, body axes) as the solver holds them. A static or kinematic body reports zeros. */
+  bodyMassData(body: NativeBodyHandle): NativeBodyMassState {
+    const token=this.bodyToken(body),view=this.general();
+    if(!this.supportsCompoundBodies)throw new EngineError('UNSUPPORTED_BACKEND','box3d.wasm lacks explicit mass data; rebuild with npm run build:wasm.');
+    this.bodyStatus(this.mod._b3w_world_get_body_mass_data!(this.handle,token,this.scratch));
+    const f=(i: number)=>view.getFloat32(i*4,true);
+    return {mass:f(0),center:[f(1),f(2),f(3)],inertia:[f(4),f(5),f(6),f(7),f(8),f(9)],explicit:f(10)!==0,shapeCount:f(11)};
+  }
+  /**
+   * Keep the geometry of every hull, mesh, height-field and compound body created from now on, so that a
    * renderer can draw it (`bodyShape`). Off by default: a world that is not drawn this way holds
    * no copies. Turning it off drops what was kept.
    */
@@ -622,8 +795,8 @@ export class NativeWorldBackend implements PhysicsBackend {
     if(enabled)this.retainedShapes??=new Map();else this.retainedShapes=null;
   }
   /**
-   * The geometry the body at render row `row` was created with, when it is a hull, mesh or height
-   * field created after retainBodyShapes(true); null otherwise. The same object is returned for
+   * The geometry the body at render row `row` was created with, when it is a hull, mesh, height
+   * field or compound created after retainBodyShapes(true); null otherwise. The same object is returned for
    * the same body until it is destroyed, whatever row it moves to. Its arrays must not be changed.
    */
   bodyShape(row: number): NativeBodyShape | null {
@@ -652,7 +825,7 @@ export class NativeWorldBackend implements PhysicsBackend {
    * body creation, destruction and scene replacement, which are the only events that change a kind.
    */
   shapeVersion(): number { return this.colorVersion(); }
-  /** One byte per render row (0 box, 1 sphere, 2 capsule), or null when every row is a box.
+  /** One byte per render row (0 box, 1 sphere, 2 capsule, 3 hull, 4 mesh, 5 height field, 6 compound), or null when every row is a box.
    * Read from the bridge once per shapeVersion(); the same array is returned until it changes.
    */
   shapeKinds(): Uint8Array | null {

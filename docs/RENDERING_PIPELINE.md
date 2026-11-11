@@ -25,14 +25,14 @@ Pass 0: compact rope render expansion
                                                        ↓
 Pass 1: directional shadow depth (2048² depth32float)
   instanced rigid/rope/effect geometry (boxes, spheres, capsules)
-  hull, mesh and height-field bodies from their own geometry
+  hull, mesh, height-field and compound bodies from their own geometry
   intact GPU-cloth shadow reconstruction
   packed tearing-cloth shadow fallback
                                                        ↓
 Pass 2: HDR scene (rgba16float, 4× MSAA)
   atmosphere and sky
   instanced PBR solids (boxes, spheres, capsules)
-  hull, mesh and height-field bodies from their own geometry
+  hull, mesh, height-field and compound bodies from their own geometry
   intact GPU cloth or packed tearing cloth
   GPU-reconstructed translucent water
   debug/effect lines
@@ -98,9 +98,9 @@ Box-only cost, measured on Dawn's null backend (CPU-side upload, encoding and su
 
 Measured again for the body-geometry change (same method; ten processes of each build run alternately, best of each, before → after): a moved frame 66.2 → 67.5 µs; a moved one-body upload 924 → 929 ns; an unchanged upload 21.7 → 22.0 ns. Single processes ranged from 66 to 105 µs for the moved frame on either build, so again no cost was measured. A box-only stream reports no shape version; its upload takes one extra local assignment and its frames run the same draw calls as before.
 
-### Hull, mesh and height-field bodies
+### Hull, mesh, height-field and compound bodies
 
-Added 2026-11-11. A convex hull, a static triangle mesh and a height field have no shared mesh to instance: each is drawn from its own geometry. Their instance rows are unscaled rigid transforms, so the row's matrix and colour are used as they are.
+Added 2026-11-11. A convex hull, a static triangle mesh, a height field and a compound of several shapes have no shared mesh to instance: each is drawn from its own geometry. Their instance rows are unscaled rigid transforms, so the row's matrix and colour are used as they are.
 
 Where the geometry comes from:
 
@@ -117,8 +117,9 @@ The solver cannot report a shape back, so the world keeps the validated arrays i
 | hull | the convex hull of the body's points (`convexHull` in `src/engine/geometry.ts`), wound outward | flat: the triangles of one face share its normal | closed, so back faces are culled as for a box |
 | mesh | the body's own triangles; one with no area is dropped | flat, from each triangle's winding | both: every triangle is written a second time reversed, with the opposite normal, because a static mesh is often an open surface and the solid pipeline culls back faces |
 | height field | two per cell, split along the diagonal from `(x + 1, z)` to `(x, z + 1)`, which is the split Box3D collides with | smooth: `normalize(-dh/dx, 1, -dh/dz)` from central differences, one-sided at the border | top only, as in the solver |
+| compound | every child in the body's frame, turned by its rotation and moved to its position: a box as 12 triangles, a hull as above, a sphere as 24 segments by 12 bands, a capsule as the two halves of that sphere and a 24-sided cylinder between them | flat for boxes and hulls, smooth for spheres and capsules | closed; children may intersect, and nothing is merged |
 
-`tests/physics/body-geometry.test.mjs` checks windings, normals and areas, and compares the height-field triangles with 100 downward ray casts against Box3D on a rough field: they agree within 0.2 mm, where the other diagonal would be off by more than 5 cm.
+`tests/physics/body-geometry.test.mjs` checks windings, normals and areas, and compares the height-field triangles with 100 downward ray casts against Box3D on a rough field: they agree within 0.2 mm, where the other diagonal would be off by more than 5 cm. For a compound of a turned box, a sphere, a turned capsule and a turned hull on a turned body it casts a ray at the centre of every drawn triangle (1,116 of them): the box's and the hull's are on the collision surface to 0.1 mm, and the sphere's and the capsule's are below it by the sagitta of the tessellation (under 5 mm at a radius of 0.25 m). A compound has the body's one colour: children are not coloured separately.
 
 The renderer keeps one vertex buffer for all such bodies and a vertex range per body. Each row in the plan's `geometryRows` is one `draw(vertexCount, 1, firstVertex, row)` with that buffer in vertex slot 0 and the ordinary row streams in slots 1 and 2, in the same shadow, opaque and transparent pipelines as boxes: the body is lit, shadowed, fogged and textured (triplanar, in metres) like every other solid, and it casts a shadow. A mesh is identified by its object, so the buffer is written when a body with new geometry appears and not when bodies move or change rows. `bodyMeshInfo()` reports the bodies and vertices held.
 
@@ -208,7 +209,7 @@ The Lab's scene editor ([`SCENE_EDITOR.md`](SCENE_EDITOR.md)) adds no pass, pipe
 
 | Pipeline | Geometry | Key behavior |
 |---|---|---|
-| PBR solid | instanced cubes, spheres, open cylinders and hemisphere caps; per-body hull, mesh and height-field triangle lists | GGX-inspired light, shadowing, emissive tag, fog |
+| PBR solid | instanced cubes, spheres, open cylinders and hemisphere caps; per-body hull, mesh, height-field and compound triangle lists | GGX-inspired light, shadowing, emissive tag, fog |
 | Packed cloth | packed indexed surface | topology-aware tear fallback, two-sided light, stress heat |
 | GPU cloth | storage state + indexed grid | normal/UV/color/stress reconstruction, woven shading, shadows |
 | GPU cloth shadow | storage state + indexed grid | position reconstruction into light space |
@@ -274,7 +275,7 @@ Pixels for these bodies were looked at in headless Chromium with software WebGPU
 
 ## Deliberate boundaries
 
-- Sphere and capsule rows, and hull, mesh and height-field bodies, are drawn only by direct draws. The partition and visibility lists fall back for a frame that has them.
+- Sphere and capsule rows, and hull, mesh, height-field and compound bodies, are drawn only by direct draws. The partition and visibility lists fall back for a frame that has them.
 - The Mechanisms SI demo (`src/engine/mechanisms-scene.ts`, `lab.html?si=mechanisms&seed=N`, in the SI entries at the end of the laboratory catalog) has spheres and capsules. Scene files (`lab.html?example=terrain-car`, `lab.html?scene=…`, or a dropped file; see [`SCENE_FORMAT.md`](SCENE_FORMAT.md)) can have every shape kind. None of them is one of the 800 recipes.
 - Body meshes are not level-of-detail reduced or frustum-culled, and they have no index buffer: a flat-shaded triangle list repeats each vertex.
 

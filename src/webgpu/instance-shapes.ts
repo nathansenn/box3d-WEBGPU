@@ -19,7 +19,9 @@ export const SHAPE_KIND_CAPSULE = 2;
 export const SHAPE_KIND_HULL = 3;
 export const SHAPE_KIND_MESH = 4;
 export const SHAPE_KIND_HEIGHTFIELD = 5;
-const ownGeometryKind = (kind: number | undefined): boolean => kind === SHAPE_KIND_HULL || kind === SHAPE_KIND_MESH || kind === SHAPE_KIND_HEIGHTFIELD;
+/** Several shapes on one body; its geometry holds every child at its local pose. */
+export const SHAPE_KIND_COMPOUND = 6;
+const ownGeometryKind = (kind: number | undefined): boolean => kind === SHAPE_KIND_HULL || kind === SHAPE_KIND_MESH || kind === SHAPE_KIND_HEIGHTFIELD || kind === SHAPE_KIND_COMPOUND;
 
 /** Segments around the axis. The cylinder and the sphere use the same table, so their rims share vertices. */
 export const ROUND_SEGMENTS = 32;
@@ -40,7 +42,7 @@ export interface InstanceShapePlan {
   readonly sphereCount: number;
   readonly capsuleCount: number;
   /**
-   * Hull, mesh and height-field rows that have their own geometry, in ascending
+   * Hull, mesh, height-field and compound rows that have their own geometry, in ascending
    * order. They are in no run: each is one draw of that body's vertex range with
    * the row as its instance.
    */
@@ -51,7 +53,7 @@ export interface InstanceShapePlan {
  * Split the first `count` rows into runs per shape. Returns null when every row
  * is drawn as a box, which is the signal to keep the original single cube draw.
  *
- * A hull, mesh or height-field row is drawn with its own geometry when
+ * A hull, mesh, height-field or compound row is drawn with its own geometry when
  * `hasGeometry(row)` says the source has it; without `hasGeometry`, or when it
  * returns false, the row is drawn as a box, as is any unknown kind.
  */

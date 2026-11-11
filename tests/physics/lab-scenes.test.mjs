@@ -92,7 +92,7 @@ test('a request becomes a validated scene or a list of problems, and never throw
   assert.equal(resolveSceneRequest({kind: 'json', text: JSON.stringify(EXAMPLE_SCENES['pendulum-wave']())}).ok, true);
   assert.deepEqual(resolveSceneRequest({kind: 'error', title: 't', message: 'm'}), {ok: false, title: 't', problems: [{path: '', message: 'm'}]});
   // A wrong version is reported alone.
-  assert.deepEqual(readSceneText('{"format":"box3d-scene","version":2,"bodies":[]}', {kind: 'json'}, 'x').problems.map(problem => problem.path), ['/version']);
+  assert.deepEqual(readSceneText('{"format":"box3d-scene","version":3,"bodies":[]}', {kind: 'json'}, 'x').problems.map(problem => problem.path), ['/version']);
   // Problem lists are bounded for the page.
   const many = {format: 'box3d-scene', version: 1, bodies: Array.from({length: 150}, () => ({}))};
   const found = validateScene(many), lines = problemLines(found);

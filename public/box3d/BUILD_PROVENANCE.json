@@ -12,7 +12,7 @@
   },
   "bridge": {
     "source": "wasm/box3d_web.c",
-    "sha256": "311d533f91c0baf9de07128a6646d770976da6dff27ff91e46308a3e8f277692",
+    "sha256": "aacf052405b9903b0d05c45e5b5df0321eea7079e5344eed89761c2d96ca43d8",
     "lazyReplayHash": true,
     "sleepingWorldTransformCache": true,
     "independentColorRevision": true,
@@ -29,12 +29,12 @@
   },
   "artifacts": {
     "box3d.js": {
-      "bytes": 21591,
-      "sha256": "01e80912d12d54d78724b5b000be409bcafd766d55fb38021fcac06649b9e2d8"
+      "bytes": 22075,
+      "sha256": "328397c32486eae90774089d8b78f9a1183252caa0c73f373e5005c14e8a5edc"
     },
     "box3d.wasm": {
-      "bytes": 588323,
-      "sha256": "b8eb11ccc55a96b632d106f915f128019a97ed9567ac4510fea3cef642120bfe"
+      "bytes": 596682,
+      "sha256": "94b0ef9f08bb317540716cd0153ac4071ece323dd75eec76a08dcdb69102e4da"
     }
   },
   "validation": {
@@ -100,17 +100,17 @@
     "bridge": "wasm/box3d_web.c compiled unchanged; b3CreateWorld and b3World_Step renamed per source",
     "sources": {
       "threadsSha256": "5785c8eb105440000ad2520149a6ebf6f6317dca3d4b5724011972861c57f2cb",
-      "bridgeSha256": "311d533f91c0baf9de07128a6646d770976da6dff27ff91e46308a3e8f277692",
-      "cmakeSha256": "df3685213e2a274b22342870dcf707793b9d542d32251194f94b6a53a3d1d8a1"
+      "bridgeSha256": "aacf052405b9903b0d05c45e5b5df0321eea7079e5344eed89761c2d96ca43d8",
+      "cmakeSha256": "6884cab913beff85515caba18e8644b52c15afa66f5435d7f7d0a4cff0c666dc"
     },
     "artifacts": {
       "box3d-mt.js": {
-        "bytes": 36879,
-        "sha256": "1189ad97ef66d3632dd63a0f5723ecb25fb6220e2fb3a3d58d4261311b605fa3"
+        "bytes": 37363,
+        "sha256": "5009d5eae99819171cf69d4686fc9bb9deb867f55bd3fd94de2a1e8c7e248c9b"
       },
       "box3d-mt.wasm": {
-        "bytes": 595976,
-        "sha256": "af6155f22e27b57662cca7293e87fffe91b8fad2f213a4c0445c740cfb69bed8"
+        "bytes": 604293,
+        "sha256": "0c0a1d3e7a864b802ee7e11dfb6df4354355d50f38b1770169899c3549b0b354"
       }
     },
     "build": {

@@ -4,8 +4,9 @@
 
 Read this before relying on a result:
 
-- **Mass is matched, inertia is not.** The engine derives a body's inertia from its shape and density and cannot be given a tensor. The import chooses each density so that the link's mass is the file's, and reports the inertia that results. On the example arm the worst link is 42% off the file's tensor. A pendulum built from a file whose inertia is 1.3 × the shape's swings 3.7% faster than the file predicts. [Mass and inertia](#mass-and-inertia) has the policy and the measured numbers.
-- **Joints are soft.** The engine solves joints as constraints with a stiffness of 60 Hz, which the bridge cannot change. A loaded arm settles below its kinematic pose (17.7 mm at the tool of the 1 m example arm) and a chain stretches by millimetres. [Limits](#limits) has the measurements. Since this was written the bridge gained joint stiffness: `jointStiffness: {hertz: 240}` in the import options (or `stiffness` on any joint) cuts the same arm's tool displacement from 24.0 mm to 2.4 mm at 240 Hz stepping with 4 sub-steps.
+- **The file's mass, centre of mass and inertia tensor are what the solver uses.** Where a link's collision shapes do not already have the file's `<inertial>`, the body is given it explicitly (`massData`, scene version 2). On the example arm the solver's principal moments are then within 5e-8 of the file's on every link, where the shapes alone were up to 42% off. A pendulum built from a file whose inertia is 1.3 × its shape's swings with the file's period to 8.6e-7. The numbers are set, not the shapes: collision still uses the file's collision geometry. `inertia: 'shapes'` gives the earlier behaviour (mass matched through the density, inertia from the shapes). [Mass and inertia](#mass-and-inertia) has the policy and the measured numbers.
+- **One body per link.** A link with several collision shapes is one compound body. `links: 'welded'` gives the earlier one body per shape, held by welds.
+- **Joints are soft.** The engine solves joints as constraints with a stiffness of 60 Hz by default. A loaded arm settles below its kinematic pose (17.0 mm at the tool of the 1 m example arm) and a chain stretches by millimetres. [Limits](#limits) has the measurements. `jointStiffness: {hertz: 240}` in the import options (or `stiffness` on any joint) cuts the same arm's largest tool displacement from 23.0 mm to 2.3 mm at 240 Hz stepping with 4 sub-steps.
 - **Nothing is dropped silently.** Every element the import ignores, approximates or cannot represent is in `warnings`, with the element named.
 
 ## Use
@@ -31,7 +32,7 @@ const pose = robotLinkPose(world.getState(hand.body), hand.frame);   // the link
 
 // How far the bodies are from the file.
 const report = robotReport(robot);
-console.table(report.links.map(l => ({link: l.link, kind: l.kind, mass: l.massActual, inertiaError: l.maxPrincipalError, comOffset: l.comOffset})));
+console.table(report.links.map(l => ({link: l.link, kind: l.kind, mass: l.massActual, inertia: l.inertiaSource, fromShapesAlone: l.shapesPrincipalError})));
 ```
 
 | Function | Result |
@@ -48,7 +49,9 @@ console.table(report.links.map(l => ({link: l.link, kind: l.kind, mass: l.massAc
 
 Parse options: `meshes` (files by name), `missingMeshes: 'error' | 'box'`, `strict` (the first warning throws).
 
-Scene options: `positions`, `floatingBase`, `selfCollision`, `position`, `rotation`, `up`, `cylinders`, `cylinderSides`, `motors`, `hold`, `dampingHertz`, `defaultDensity`, `friction`, `restitution`, `world`, `neverSleeps`, `prefix`, `collisionGroup`. Each is described where it applies below.
+Scene options: `positions`, `floatingBase`, `selfCollision`, `jointStiffness`, `position`, `rotation`, `up`, `cylinders`, `cylinderSides`, `motors`, `hold`, `dampingHertz`, `defaultDensity`, `friction`, `restitution`, `world`, `neverSleeps`, `prefix`, `collisionGroup`, `links` (`'compound'` or `'welded'`), `inertia` (`'file'` or `'shapes'`). Each is described where it applies below.
+
+A scene from `robotToScene` is scene version 2 when a link is a compound or was given mass data, and version 1 otherwise ([`SCENE_FORMAT.md`](SCENE_FORMAT.md#versioning)). With `{links: 'welded', inertia: 'shapes'}` the seven example robots give, character for character, the scenes this import gave before the engine had compound bodies and explicit mass data (checked by hash when the options were added).
 
 `spawnRobot` does not reset the world and does not apply the scene's world settings (gravity, ground, step): the world keeps its own. It creates the same bodies and joints as `robotToScene`, in the same order, so both ways give the same `exactHash` (tested for every example).
 
@@ -61,8 +64,8 @@ Scene options: `positions`, `floatingBase`, `selfCollision`, `position`, `rotati
 - **MJCF orientation:** `quat`, `euler` (with `compiler eulerseq`; lower-case letters turn about the moving axes, upper-case about fixed ones), `axisangle`, `xyaxes`, `zaxis`. Angles are degrees unless `compiler angle="radian"`.
 - **Kinematics.** `T_child = T_parent · T_origin · T_motion(q)`. A revolute joint turns the child about its axis through the joint's anchor; a prismatic joint slides it along the axis. In URDF the anchor is the child link's origin; in MJCF it is the joint's `pos` in the body. An MJCF `ref` is the joint value of the pose the file describes; limits and spring references are shifted by it.
 - **Joint frames.** The engine's revolute joint turns about its frame's z axis and its prismatic joint slides along x; the import aims the frames at the joint axis. The angle the solver reports (`getJointState(joint).value`) is the file's joint position (minus `ref`), positive about the axis.
-- **Ids.** A body's id is its link's name and a joint's id is its joint's name, with characters outside `A-Z a-z 0-9 _ . : -` replaced by `_`. A link with several shapes has bodies `name`, `name.2`, … welded by `name.weld2`, …. The base weld is `<root>.base`. `prefix` is put before every id so that two robots can share a world. Bodies carry `userData: {link}` and joints `userData: {joint, effort?, velocity?}`.
-- **Link frames.** `scene.extensions.robot.links[name]` gives the body that carries each link frame and the frame's pose in that body's coordinates (`body: null`: in world coordinates). `spawnRobot` returns the same as `links.get(name)`. A body's origin is the centre of mass of its shape, not the link origin, so use `robotLinkPose`.
+- **Ids.** A body's id is its link's name and a joint's id is its joint's name, with characters outside `A-Z a-z 0-9 _ . : -` replaced by `_`. With `links: 'welded'`, a link with several shapes has bodies `name`, `name.2`, … welded by `name.weld2`, …. The base weld is `<root>.base`. `prefix` is put before every id so that two robots can share a world. Bodies carry `userData: {link}` and joints `userData: {joint, effort?, velocity?}`.
+- **Link frames.** `scene.extensions.robot.links[name]` gives the body that carries each link frame and the frame's pose in that body's coordinates (`body: null`: in world coordinates). `spawnRobot` returns the same as `links.get(name)`. A body's origin is the centre of mass of its first shape (the heaviest), not the link origin and not necessarily the body's centre of mass, so use `robotLinkPose`.
 - **The base.** The root link is welded to the world unless `floatingBase: true`. An MJCF model's root is the world body itself: a body without a joint is fixed, a body with a free joint is free, and `floatingBase` changes nothing.
 - **Ground.** URDF: the scene has the engine's ground slab (top face at world y = 0) unless `world: {ground: false}`. MJCF: only when the model has a horizontal plane through the origin. A robot that should stand on the ground needs `floatingBase: true`.
 - **Sleep.** Robot bodies are created with `neverSleeps` unless `neverSleeps: false`.
@@ -72,7 +75,7 @@ Scene options: `positions`, `floatingBase`, `selfCollision`, `position`, `rotati
 | Element | Support |
 |---|---|
 | `<robot name>` | read |
-| `<link>` `<inertial>`: `origin`, `mass`, `inertia` | read. Mass is matched; the tensor is compared and reported, not imposed |
+| `<link>` `<inertial>`: `origin`, `mass`, `inertia` | read, and given to the body: mass, centre of mass (`origin xyz`) and the tensor, turned from the inertial frame (`origin rpy`) into the body's axes. A tensor that is not positive definite is reported and not applied |
 | `<link>` `<collision>`: `origin`, `box`, `sphere`, `cylinder`, `mesh` with `scale` | read. A cylinder becomes a prism or a capsule (below); a mesh becomes its convex hull, at most 32 points |
 | `<collision>` `capsule` (`radius`, `length` between the cap centres) | read (an extension some exporters write) |
 | `<link>` `<visual>` | not read, except the colour of the first visual (`<material><color rgba>` or a named top-level material) |
@@ -105,7 +108,7 @@ The common subset is read. MuJoCo has many features this import does not have; a
 | `<default>` with nested `class`, and `childclass` on bodies | read, for `geom`, `joint`, `mesh`, `material` and the actuator shortcuts. A class starts from its parent's settings |
 | `<asset>` `<mesh file scale>` or `<mesh vertex>`, `<material rgba>` | read. `<hfield>` is reported |
 | `<worldbody>`, nested `<body>` with `pos` and `quat`, `euler`, `axisangle`, `xyaxes` or `zaxis` | read. The world body is the root link `world`; its geoms are static bodies |
-| `<inertial>` `pos`, orientation, `mass`, `diaginertia` or `fullinertia` | read. Without it, mass and inertia come from the geoms (`density`, default 1000 kg/m³, or `mass`), as in MuJoCo |
+| `<inertial>` `pos`, orientation, `mass`, `diaginertia` or `fullinertia` | read, and given to the body as for URDF. Without it, mass and inertia come from the geoms (`density`, default 1000 kg/m³, or `mass`), as in MuJoCo; where a geom has a stand-in (a cylinder as a prism, an ellipsoid as a hull) the body is given the exact shape's values |
 | `<geom type>` `box`, `sphere`, `capsule`, `cylinder`, `mesh`, by `size` or `fromto` | read |
 | `ellipsoid` | **approximated** and reported: a 42-point convex hull of the same volume (principal moments within 0.08% in the two cases measured) |
 | `plane` | on the world: the horizontal plane through the origin is the engine's ground; any other plane is **approximated** by a static slab 88 m square. On a body: reported and dropped |
@@ -151,11 +154,10 @@ A mesh collides as its **convex hull** (at most 32 points) and its mass is sprea
 
 ## From links to bodies
 
-The engine has one shape per body. So:
-
 - A link with one collision shape is one body. Its origin is the shape's centre of mass.
-- A link with several collision shapes is one body per shape, each welded to the nearest one before it at the midpoint of their centres (the pattern `createBodiesFromMesh` uses; welding everything to one body with long lever arms was unstable there). The heaviest shape carries the link's joints and keeps the link's name. The bodies of one link share a negative collision group, so they do not push each other apart. Welds are constraints: a compound link flexes slightly under load.
-- A link with mass and no collision shape is a box that collides with nothing and has **exactly** the file's mass and inertia tensor (the solid box with those principal moments, along the principal axes). If no box has that tensor (a principal moment is zero, or larger than the other two together) it is a 5 cm sphere of the right mass, and a warning says so.
+- A link with several collision shapes is one **compound body** that holds every shape at its place in the link. The body's frame is that of the heaviest shape, which is listed first; the others are placed relative to it. Nothing holds the shapes together but the body itself, so the link is exactly rigid. A compound holds at most 64 shapes, which is also the description's limit per link.
+- `links: 'welded'` makes one body per shape instead, each welded to the nearest one before it at the midpoint of their centres (the pattern `createBodiesFromMesh` uses). The heaviest shape carries the link's joints and keeps the link's name, and the bodies of one link share a negative collision group. Welds are constraints: measured on a T of two boxes caught by its joint limit, the two welded boxes move against each other by 0.53 mm. Such a link cannot be given the file's inertia (it is several bodies), so it keeps its shapes'.
+- A link with mass and no collision shape is a box that collides with nothing and has **exactly** the file's mass and inertia tensor (the solid box with those principal moments, along the principal axes). If no box has that tensor because a principal moment is larger than the other two together, it is a 5 cm sphere that collides with nothing and is given the file's mass and tensor explicitly; a note says so. If a principal moment is zero or negative the tensor cannot be held at all: the sphere keeps its own inertia at the right mass, and a warning says so.
 - A link with collision shapes and no mass is static scenery when it is rigidly fixed to the world, and otherwise gets `defaultDensity` (1000 kg/m³), with a warning.
 - A link with neither is only a frame. Fixed to its parent, it rides on the parent's body. On a moving joint, the first link fixed to it that has a body stands in, and the fixed joints between them need no weld. If there is none, `robotToScene` throws, naming the link.
 
@@ -170,42 +172,52 @@ The engine has one shape per body. So:
 
 Both numbers are in `robotReport(...).shapes` for every stand-in (cylinder, ellipsoid, a capsule too short for the engine).
 
-**Self-collision.** Bodies joined by a joint do not collide. With `selfCollision: false` the whole robot shares one negative collision group and nothing in it collides with anything else in it. When a link has several bodies, "joined links do not collide" needs more than the joint's own flag, so each link gets a category bit and masks out its neighbours' (up to 63 links with bodies; beyond that a warning says that neighbouring bodies may collide).
+**Self-collision.** Bodies joined by a joint do not collide. With `selfCollision: false` the whole robot shares one negative collision group and nothing in it collides with anything else in it. With `links: 'welded'`, when a link has several bodies, "joined links do not collide" needs more than the joint's own flag, so each link gets a category bit and masks out its neighbours' (up to 63 links with bodies; beyond that a warning says that neighbouring bodies may collide). With one body per link no filter is needed, and none is written.
 
 ## Mass and inertia
 
-**Policy.** `density = link mass / collision volume`, one density for the link, so the mass the solver reports is the file's to float32. (MJCF bodies without `<inertial>` keep one density per geom, as the file gives it.) The inertia is then whatever the shapes have at that density. `robotReport` compares it with the file's tensor per link:
+**Policy.**
 
-- `principalError`: `|actual − specified| / specified` for each principal moment about the centre of mass, sorted ascending; `maxPrincipalError` is the largest. A moment below 1e-9 of the largest is compared with the largest.
+1. `density = link mass / collision volume`, one density for the link, so the shapes weigh what the file says. (MJCF bodies without `<inertial>` keep one density per geom, as the file gives it.) Overlapping collision shapes are counted twice in the volume.
+2. The shapes at that density have a mass, a centre of mass and an inertia tensor. They are compared with the file's `<inertial>`. Where they differ by more than 1e-9 (relative, in mass or in the tensor about the file's centre of mass; or 1e-9 of the radius of gyration in the centre of mass), the body is given the file's values explicitly: mass, centre of mass in the body frame, and the tensor turned into the body's axes. Where they agree to 1e-9 nothing is set, and the scene is the version 1 scene it would have been.
+3. `inertia: 'shapes'` stops after step 1.
+
+The solver holds mass data in float32. A tensor that is not positive definite, or whose determinant underflows float32, is not applied; a note names the link and the shapes' inertia is used. The engine accepts any positive-definite tensor, including one no solid body could have (`I1 + I2 < I3`); the import does not check that. Setting the numbers does not change the collision shapes, so the shapes of a link can disagree with its dynamics as much as the file's do.
+
+`robotReport` gives per link:
+
+- `inertiaSource`: `'file'` when the body was given the file's values, `'shapes'` when it has its shapes'.
+- `principalError`: `|actual − specified| / specified` for each principal moment about the centre of mass, sorted ascending; `maxPrincipalError` is the largest. A moment below 1e-9 of the largest is compared with the largest. "Actual" is what the solver is given, so it is 0 for a link with `inertiaSource: 'file'`.
 - `tensorError`: the Frobenius norm of the difference of the two tensors, both about the file's centre of mass in the link frame, over the norm of the file's. It also sees a shifted centre of mass and turned principal axes, which sorted moments do not.
-- `comOffset`: the distance between the file's centre of mass and the bodies'.
+- `comOffset`: the distance between the file's centre of mass and the body's.
+- `shapesPrincipalError`, `shapesTensorError`, `shapesComOffset`: with `inertiaSource: 'file'`, what the three numbers above would have been from the shapes alone.
 
-When the worst link is more than 1% off, a warning with the number and the link is added. Overlapping collision shapes are counted twice in the volume.
+When the worst link is more than 1% off, a warning with the number and the link is added. With the defaults that happens only for a link whose tensor cannot be held.
 
-**Measured on the example robots** (`robotReport`, default options):
+**Measured on the example robots** (`robotReport`; "in the solver" is `world.getMassData` on the spawned body against the file, float32):
 
-| Robot | Link | Mass, file = bodies | Largest principal-moment error | Tensor error | Centre-of-mass offset |
+| Robot | Link | Mass | From the shapes alone: largest principal-moment error, tensor error, centre-of-mass offset | Given the file's values | In the solver, against the file (measured for the six-joint arm only) |
 |---|---|---|---|---|---|
-| double pendulum (URDF and MJCF) | both | 1 kg, 0.6 kg | < 2e-12 | < 2e-12 | 0 |
-| cart-pole | cart, pole | 1 kg, 0.2 kg | < 4e-12 | < 3e-12 | 0 |
-| two-link arm | base | 5 kg | < 4e-12 | < 4e-12 | 0 |
-| | upper arm, forearm (cylinders) | 2 kg, 1.2 kg | 0.0026% | 0.0001% | 0 |
-| wheeled cart | chassis | 5 kg | < 4e-12 | < 3e-12 | 0 |
-| | four wheels (cylinders) | 0.5 kg each | 0.0026% | 0.0026% | 0 |
-| hanging chain | each link (file: a cylinder's inertia; shape: a capsule) | 0.25 kg | 12.0% | 11.9% | 0 |
-| six-joint arm | base (cylinder) | 6 kg | 0.0026% | 0.0024% | 0 |
-| | turret (file: 1.15 × the cylinder's) | 4 kg | 13.0% | 13.0% | 0 |
-| | upper arm (file: 0.9 × the box's) | 3 kg | 11.1% | 11.1% | 0 |
-| | forearm (file: 1.1 × the box's) | 2 kg | 9.1% | 9.1% | 0 |
-| | wrist (file: 0.85 × the cylinder's) | 1 kg | 17.7% | 17.6% | 0 |
-| | hand (sphere) | 0.5 kg | 1.25% | 1.25% | 0 |
-| | tool (two boxes; the file's tensor has a product of inertia) | 0.3 kg | **42.4%** | 47.4% | 4.4 mm |
+| double pendulum (URDF and MJCF) | both | 1 kg, 0.6 kg | < 2e-12, < 2e-12, 0 | no (already equal) | |
+| cart-pole | cart, pole | 1 kg, 0.2 kg | < 4e-12, < 3e-12, 0 | no | |
+| two-link arm | base | 5 kg | < 4e-12, < 4e-12, 0 | no | |
+| | upper arm, forearm (cylinders as prisms) | 2 kg, 1.2 kg | 0.0026%, 0.0001%, 0 | yes | |
+| wheeled cart | chassis | 5 kg | < 4e-12, < 3e-12, 0 | no | |
+| | four wheels (cylinders) | 0.5 kg each | 0.0026%, 0.0026%, 0 | yes | |
+| hanging chain | each link (file: a cylinder's inertia; shape: a capsule) | 0.25 kg | 12.0%, 11.9%, 0 | yes | |
+| six-joint arm | base (cylinder) | 6 kg | 0.0026%, 0.0024%, 0 | yes | 4.7e-8 at worst over the seven links; centre of mass within 3.5e-10 m |
+| | turret (file: 1.15 × the cylinder's) | 4 kg | 13.0%, 13.0%, 0 | yes | |
+| | upper arm (file: 0.9 × the box's) | 3 kg | 11.1%, 11.1%, 0 | yes | |
+| | forearm (file: 1.1 × the box's) | 2 kg | 9.1%, 9.1%, 0 | yes | |
+| | wrist (file: 0.85 × the cylinder's) | 1 kg | 17.7%, 17.6%, 0 | yes | |
+| | hand (sphere) | 0.5 kg | 1.25%, 1.25%, 0 | yes | |
+| | tool (two boxes as one compound; the file's tensor has a product of inertia) | 0.3 kg | **42.4%**, 47.4%, 4.4 mm | yes | |
 
-Where the file's inertia is that of its collision shape, the error is the cylinder stand-in's, or the rounding of the 12 digits the example files carry. Where a file's inertia comes from CAD and its collision shapes are simple, expect errors like the arm's.
+With `inertia: 'shapes'` the tool link, as a compound body, has in the solver the tensor of its two boxes summed by parallel axes to 7.4e-8.
 
-**What it does to the motion.** A rod hinged at its end, whose file claims 1.3 × the rod's transverse inertia, swings with the period of the body's actual inertia to 7.5e-7 (1.466971 s against 1.466970 s). The file's inertia would give 1.521210 s, 3.70% longer. Rotational dynamics follow the bodies, not the file.
+**What it does to the motion.** A rod hinged at its end, whose file claims 1.3 × the rod's transverse inertia, swings with the period of the file's inertia: 1.521212 s measured against 1.521210 s (8.6e-7). With `inertia: 'shapes'` it swings with the rod's own, 1.466971 s against 1.466970 s, which is 3.70% shorter; the measured ratio of the two runs is the predicted one to 1.1e-7.
 
-**If you need the file's inertia:** give the link no collision shape (it becomes the exact inertia box, which collides with nothing), or make its collision shape the box, sphere or cylinder that has that inertia.
+**What it does not do.** Joint springs are solved from the file's stiffness and damping with the inertia the body has, so a link given the file's inertia gets a slightly different spring frequency than before. Holding an arm still is barely affected: the example arm settles 17.0 mm below its pose with the file's inertia and 17.7 mm with the shapes' ([Limits](#limits)).
 
 ## Joints
 
@@ -231,30 +243,31 @@ Where the file's inertia is that of its collision shape, the error is the cylind
 
 ## Limits
 
-**Joints are soft constraints.** Box3D gives each joint's constraint rows a stiffness of 60 Hz and a damping ratio of 2 (`constraintHertz`, `constraintDampingRatio` in its joint definition), and the bridge does not expose them. A joint under a steady load is therefore displaced, by about `load / (m_reduced (2π · 60 Hz)²)`. Raising the step rate or the sub-steps does not remove it: the arm below settles at 17.7 mm at 240 Hz with 4 sub-steps, 17.4 mm with 8, 17.3 mm with 16, and 17.3 mm at 480 Hz with 8. Measured at 240 Hz, 4 sub-steps: The stiffness can now be raised per joint (`JointOptions.stiffness`, `setJointStiffness`, `jointStiffness` here); sag falls as 1 / hertz² up to about a quarter of the sub-step rate. The measurements below are at the default.
+**Joints are soft constraints.** Box3D gives each joint's constraint rows a stiffness of 60 Hz and a damping ratio of 2 by default (`constraintHertz`, `constraintDampingRatio` in its joint definition). A joint under a steady load is therefore displaced, by about `load / (m_reduced (2π · 60 Hz)²)`. Raising the step rate or the sub-steps does not remove it: the arm below settles at 17.0 mm at 240 Hz with 4 sub-steps, 16.8 mm with 8, 16.7 mm with 16, and 16.7 mm at 480 Hz with 8. The stiffness can be raised per joint (`JointOptions.stiffness`, `setJointStiffness`, `jointStiffness` here); sag falls as 1 / hertz² up to about a quarter of the sub-step rate (at 240 Hz the same arm moves 2.3 mm at most and settles at 1.4 mm). The measurements below are at the default stiffness, 240 Hz and 4 sub-steps, with the import's default options; the second number in brackets is with `{links: 'welded', inertia: 'shapes'}`, the import before compound links and file inertia.
 
 | Case | Measured |
 |---|---|
-| Six-joint arm (16.8 kg, tool 1.0 m from the base), every joint held by a zero-speed motor at its effort limit | tool frame 24.0 mm from its kinematic pose at most in 5 s, 17.7 mm once settled; joint angles within 0.004 rad; largest joint-anchor gap 0.91 mm |
-| The same arm held by 60 Hz joint springs (`hold`) | 44.5 mm at most, 30.2 mm settled (the springs add their own sag) |
-| 12-link chain (0.25 kg, 0.2 m links) hanging still | largest anchor gap 1.52 mm, at the hinge carrying ten links. The 60 Hz estimate is 1.38 mm |
-| The same chain swinging from 1.2 rad for 10 s | largest anchor gap 3.75 mm |
-| 24-link chain | 3.17 mm at rest, 7.67 mm swinging |
+| Six-joint arm (16.8 kg, tool 1.0 m from the base), every joint held by a zero-speed motor at its effort limit | tool frame 23.0 mm (24.0) from its kinematic pose at most in 5 s, 17.0 mm (17.7) once settled; joint angles within 0.003 rad (0.004); largest joint-anchor gap 0.90 mm (0.91) |
+| The same arm held by 60 Hz joint springs (`hold`) | 42.8 mm (44.5) at most, 29.2 mm (30.2) settled (the springs add their own sag) |
+| 12-link chain (0.25 kg, 0.2 m links) hanging still | largest anchor gap 1.52 mm (1.52), at the hinge carrying ten links. The 60 Hz estimate is 1.38 mm |
+| The same chain swinging from 1.2 rad for 10 s | largest anchor gap 3.65 mm (3.75) |
+| 24-link chain | 3.17 mm (3.17) at rest, 7.64 mm (7.67) swinging |
 
-The gap grows with the load a joint carries and falls with the mass of the two links it joins. A long chain of light links carrying a heavy payload is the worst case. The tool displacement of the arm is far larger than its anchor gaps because the same softness lets each joint tilt off its axis, and a tilt near the base moves the tool by the whole reach: once settled, the base weld is tilted by 0.0044 rad and the yaw hinge's two axes are 0.011 rad apart. There is no reduced-coordinate articulation solver; a robot that needs rigid joints under load is outside what this import can do today.
+The gap grows with the load a joint carries and falls with the mass of the two links it joins. A long chain of light links carrying a heavy payload is the worst case. The tool displacement of the arm is far larger than its anchor gaps because the same softness lets each joint tilt off its axis, and a tilt near the base moves the tool by the whole reach: once settled, the base weld is tilted by 0.0044 rad and the yaw hinge's two axes are 0.010 rad apart. There is no reduced-coordinate articulation solver; a robot that needs rigid joints under load is outside what this import can do today.
 
 **Other limits.**
 
 - Joint springs are integrated implicitly and damp: the undamped 20 N m/rad spring above loses amplitude at 0.10 /s, as a damping of 0.042 N m s/rad would (about `2 k Δt` with `Δt` the sub-step, 1/960 s).
-- Welds inside a compound link and the base weld are the same soft constraints.
-- A zero-speed motor holds velocity, not position: under a load just below its limit the joint creeps (4.5e-4 rad in 3 s with a limit 2% above the load).
+- The base weld, and with `links: 'welded'` the welds inside a link, are the same soft constraints. A compound link has no welds.
+- A compound body has one colour and one set of flags; the per-shape colour of a link's collisions is not kept (the first shape's is used). Per-shape friction is kept.
+- A zero-speed motor holds velocity, not position: under a load just below its limit the joint creeps (3.7e-4 rad in 3 s with a limit 2% above the load).
 - A revolute limit cannot reach beyond ±π from the reference position.
 - Mesh collision is a convex hull of at most 32 points. Triangle meshes are static only in the engine.
 - Cylinders as prisms roll slightly rough: the wheeled cart moves at 0.487 m/s where `ω r` is 0.5 m/s (−2.7%) and its chassis bobs by about half a millimetre. More sides (`cylinderSides: 32`) make the wheel rounder.
 - MuJoCo combines friction, solves contact and integrates differently. No result here has been compared with MuJoCo or Gazebo on the same model.
 - Armature, joint speed limits, tendons, equality constraints, mimic joints and planar joints are not modelled (each is reported).
 - The description's limits: 4096 links, 4096 joints, 64 collision shapes per link.
-- Not in the Lab or the Studio yet: the module is a library.
+- Not in the Lab's menus or the Studio: the module is a library. A scene from `robotToScene` opens in the Lab like any scene file or share link, and the Lab draws each shape of a compound link at its place.
 
 ## The XML parser
 
@@ -273,7 +286,7 @@ The two double-pendulum files give the same scene, character for character in ca
 
 ## Validation
 
-`packages/box3d-kit/test/v15-robot.test.mjs` runs in the pull-request gate. The headline cases are in the validation registry (`validation/domains/robot.mjs`) and their measured numbers are published in [`VALIDATION.md`](VALIDATION.md#robot-import-urdf-and-mjcf). Worlds are SI, 240 Hz with 4 sub-steps.
+`packages/box3d-kit/test/v15-robot.test.mjs` and, for compound links and the file's inertia, `packages/box3d-kit/test/v17-compound.test.mjs` run in the pull-request gate. The headline cases are in the validation registry (`validation/domains/robot.mjs`, `validation/domains/compound.mjs`) and their measured numbers are published in [`VALIDATION.md`](VALIDATION.md#robot-import-urdf-and-mjcf). Worlds are SI, 240 Hz with 4 sub-steps.
 
 | Check | Expected | Measured | Tolerance |
 |---|---|---|---|
@@ -281,26 +294,31 @@ The two double-pendulum files give the same scene, character for character in ca
 | The same, read back from the spawned bodies (float32, Y up) | 0 | 6.4e-8 | 1e-6 |
 | Double pendulum, URDF against MJCF: canonical scene JSON | identical | 0 characters differ | 0 |
 | Double pendulum, URDF against MJCF: `exactHash` after 600 steps | identical | identical | 0 |
-| Total mass of the six-joint arm, from the solver | 16.8 kg | 16.8 kg (−2.6e-8 rel.) | 2e-7 rel. |
-| Reported inertia error of the two-box tool link against a hand calculation | 0.4235674 | 0.4235674 | 1e-9 |
+| Total mass of the six-joint arm, from the solver (`links: 'welded'`, `inertia: 'shapes'`) | 16.8 kg | 16.8 kg (−2.6e-8 rel.) | 2e-7 rel. |
+| Six-joint arm, default options: largest principal-moment error in the solver against the file | 0 | 4.7e-8 | 2e-6 |
+| The same: largest distance of a link's centre of mass from the file's | 0 | 3.5e-10 m | 1e-7 m |
+| The same: bodies (the two-box tool link is one compound) | 7 | 7 | 0 |
+| The two-box tool link as a compound with `inertia: 'shapes'`: principal moments in the solver against the sum by parallel axes | 0 | 7.4e-8 | 2e-6 |
+| With `inertia: 'shapes'`: reported inertia error of the two-box tool link against a hand calculation | 0.4235674 | 0.4235674 | 1e-9 |
 | Cylinder as a 24-sided prism: principal moments | equal | 2.6e-5 rel. | 3e-5 |
-| One revolute link: period from the body's actual inertia | 1.466970 s | 1.466971 s (+7.5e-7) | 0.1% |
-| The same: the period the file's inertia would give, over the measured one | +3.6974% | +3.6974% | 0.1% abs. |
+| One revolute link whose file states 1.3 × its shape's inertia: period | 1.521210 s | 1.521212 s (+8.6e-7) | 0.01% |
+| The same with `inertia: 'shapes'`: period from the shape's inertia | 1.466970 s | 1.466971 s (+7.5e-7) | 0.1% |
+| Ratio of the two measured periods, minus 1 | +3.69744% | +3.69745% (+1.1e-7) | 0.01% abs. |
 | Cart-pole: coupled small-oscillation period | 1.532509 s | 1.532926 s (+0.027%) | 0.2% |
 | Prismatic joint along gravity: speed after 2 s | 19.62 m/s | 19.62016 m/s (+8.1e-6) | 0.01% |
 | Prismatic limit: travel at the stop | 30 m | 30.00006 m | 1 mm |
-| Revolute limit: angle at the stop | 0.5 rad | 0.5006 rad | 0.002 rad |
-| Motor with effort 1.02 × `m g d` holds a horizontal link: angle after 3 s | 0 | 4.5e-4 rad | 0.002 rad |
+| Revolute limit: angle at the stop | 0.5 rad | 0.5005 rad | 0.002 rad |
+| Motor with effort 1.02 × `m g d` holds a horizontal link: angle after 3 s | 0 | 3.7e-4 rad | 0.002 rad |
 | Motor with effort 0.98 × `m g d`: angle after 3 s | > 0.2 rad | 0.348 rad | lower bound |
 | Joint stiffness 20 N m/rad, no gravity: period | 0.640574 s | 0.641238 s (+0.10%) | 0.2% |
 | Joint damping 0.3 N m s/rad under gravity: decay rate | 0.72158 /s | 0.71879 /s (−0.39%) | 1% |
-| Six-joint arm held by motors, 5 s: largest tool displacement | 0 | 24.0 mm | 30 mm |
-| Six-joint arm held by 60 Hz springs, 5 s | 0 | 44.5 mm | 50 mm |
+| Six-joint arm held by motors, 5 s: largest tool displacement | 0 | 23.0 mm | 30 mm |
+| Six-joint arm held by 60 Hz springs, 5 s | 0 | 42.8 mm | 50 mm |
 | 12-link chain at rest: anchor gap against the 60 Hz estimate | 1.38 mm | 1.52 mm (+10%) | 15% |
-| 12-link chain swinging, 10 s: largest anchor gap | 0 | 3.75 mm | 6 mm |
+| 12-link chain swinging, 10 s: largest anchor gap | 0 | 3.65 mm | 6 mm |
 | Wheeled cart at rest: chassis height | 0.15 m | 0.15014 m | 1 mm |
 | Wheeled cart, wheels at 5 rad/s: mean speed | 0.5 m/s | 0.4866 m/s (−2.7%) | 5% |
 | Seven example robots: `validateScene` problems | 0 | 0 | 0 |
 | Seven example robots: `spawnRobot`, `loadScene` and a share link, hash after 150 steps | identical | identical | 0 |
 
-The test file also covers the XML parser (well-formed input, malformed input with positions, DOCTYPE and entity refusal, the caps), both parsers' errors, the exact warning lists for files with unsupported elements, meshes and the name matching, the joint mapping, collision filters, compound links, and links without mass or shape.
+The test file also covers the XML parser (well-formed input, malformed input with positions, DOCTYPE and entity refusal, the caps), both parsers' errors, the exact warning lists for files with unsupported elements, meshes and the name matching, the joint mapping, collision filters, links of several shapes (welded and compound), and links without mass or shape.

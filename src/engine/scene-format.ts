@@ -5,7 +5,8 @@
  * The native solver cannot serialise its state, so a scene file says how to
  * BUILD a scene (world settings, bodies, joints) and, optionally, the pose and
  * velocity each body had when it was saved. The format is documented in
- * docs/SCENE_FORMAT.md.
+ * docs/SCENE_FORMAT.md. Version 2 adds compound shapes and explicit mass data;
+ * a scene that uses neither is a version 1 scene, as it always was.
  *
  * A scene may also carry three optional coupled sections: `water` basins with
  * the bodies that float in them, `cables` and `frames` with their attachments.
@@ -42,12 +43,17 @@ export interface SceneHost {
   isAlive(body: NativeBodyHandle): boolean;
   isJointAlive(joint: NativeJointHandle): boolean;
   getState(body: NativeBodyHandle): NativeBodyState;
+  /** Optional: where the body's centre of mass is in its own frame. A save uses it to turn the solver's velocity (of the centre of mass) into the scene's (of the body origin). */
+  getMassData?(body: NativeBodyHandle): {readonly center: readonly number[]} | null;
   gravity(): [number, number, number];
   bodyCount(): number;
 }
 
 export const SCENE_FORMAT = 'box3d-scene';
-export const SCENE_VERSION = 1;
+/** The newest scene version this build reads and writes. A scene that needs nothing newer than version 1 is written as version 1. */
+export const SCENE_VERSION = 2;
+/** Every scene version this build reads. Version 2 adds compound shapes and `massData`; nothing else differs. */
+export const SCENE_VERSIONS: readonly number[] = Object.freeze([1, 2]);
 
 /** Hard limits a scene file must respect. `validateScene` reports each one by path. */
 export const SCENE_LIMITS = Object.freeze({
@@ -57,6 +63,8 @@ export const SCENE_LIMITS = Object.freeze({
   /** Characters in a body, joint or material id. */
   idLength: 64,
   hullPoints: 4096,
+  /** Shapes in one compound body. */
+  compoundShapes: 64,
   meshVertices: 1048576,
   meshTriangles: 2097152,
   /** Height-field samples along one side. */
@@ -114,11 +122,42 @@ export interface SceneMaterial {
   readonly color?: number;
 }
 
+/** The shapes a compound may hold. */
+export type SceneConvexShape =
+  | {readonly kind: 'box'; readonly halfExtents: SceneVec3}
+  | {readonly kind: 'sphere'; readonly radius: number}
+  | {readonly kind: 'capsule'; readonly radius: number; readonly halfLength: number}
+  | {readonly kind: 'hull'; readonly points: readonly number[]};
+/** One shape of a compound body (scene version 2). */
+export interface SceneCompoundChild {
+  readonly shape: SceneConvexShape;
+  /** The shape's origin in the body frame. Default the origin. */
+  readonly position?: SceneVec3;
+  /** The shape's orientation in the body frame. Default identity. */
+  readonly rotation?: SceneQuat;
+  /** Input only, as on a body. */
+  readonly rotationEuler?: SceneVec3;
+  /** Each defaults to the body's value (inline, or from its material). */
+  readonly density?: number;
+  readonly friction?: number;
+  readonly restitution?: number;
+}
+/** Explicit mass data of a body (scene version 2). */
+export interface SceneMassData {
+  /** kg, greater than 0. */
+  readonly mass: number;
+  /** Centre of mass in the body frame. Default the origin. */
+  readonly center?: SceneVec3;
+  /** The inertia tensor about the centre of mass in body axes: [Ixx, Iyy, Izz, Ixy, Ixz, Iyz], kg m^2. Positive definite. */
+  readonly inertia: readonly [number, number, number, number, number, number];
+}
 export type SceneShape =
   | {readonly kind: 'box'; readonly halfExtents: SceneVec3}
   | {readonly kind: 'sphere'; readonly radius: number}
   | {readonly kind: 'capsule'; readonly radius: number; readonly halfLength: number}
   | {readonly kind: 'hull'; readonly points: readonly number[]}
+  /** Scene version 2: 1 to 64 convex shapes on one body, each at its own pose in the body frame. */
+  | {readonly kind: 'compound'; readonly shapes: readonly SceneCompoundChild[]}
   | {readonly kind: 'mesh'; readonly vertices: readonly number[]; readonly indices: readonly number[]}
   | {readonly kind: 'heightfield'; readonly heights: readonly number[]; readonly countX: number; readonly countZ: number; readonly spacing: readonly [number, number]};
 
@@ -158,6 +197,8 @@ export interface SceneBody {
   readonly angularDamping?: number;
   readonly gravityScale?: number;
   readonly filter?: SceneFilter;
+  /** Scene version 2: mass, centre of mass and inertia tensor in place of the ones the shape and density give. Not on a mesh or height field. */
+  readonly massData?: SceneMassData;
   /** Free-form JSON for the application. Carried, never interpreted. */
   readonly userData?: {readonly [key: string]: unknown};
 }
@@ -350,7 +391,8 @@ export interface SceneCoupledSections {
 
 export interface Scene {
   readonly format: 'box3d-scene';
-  readonly version: 1;
+  /** 2 when a body has a compound shape or `massData`; 1 otherwise. */
+  readonly version: 1 | 2;
   /** Metres, kilograms, seconds, radians. Default and only value: 'SI'. */
   readonly units?: 'SI';
   readonly world?: SceneWorld;
@@ -395,10 +437,12 @@ const BODY_TYPES = ['static', 'kinematic', 'dynamic'];
 const JOINT_TYPES = ['weld', 'revolute', 'spherical', 'prismatic', 'distance', 'wheel'];
 const SHAPE_KEYS: Record<string, readonly string[]> = {
   box: ['kind', 'halfExtents'], sphere: ['kind', 'radius'], capsule: ['kind', 'radius', 'halfLength'], hull: ['kind', 'points'],
-  mesh: ['kind', 'vertices', 'indices'], heightfield: ['kind', 'heights', 'countX', 'countZ', 'spacing'],
+  mesh: ['kind', 'vertices', 'indices'], heightfield: ['kind', 'heights', 'countX', 'countZ', 'spacing'], compound: ['kind', 'shapes'],
 };
+const CONVEX_KINDS = ['box', 'sphere', 'capsule', 'hull'];
+const CHILD_KEYS = ['shape', 'position', 'rotation', 'rotationEuler', 'density', 'friction', 'restitution'];
 const BODY_KEYS = ['id', 'shape', 'type', 'position', 'rotation', 'rotationEuler', 'linearVelocity', 'angularVelocity', 'material', 'density', 'friction', 'restitution',
-  'color', 'bullet', 'sensor', 'hitEvents', 'neverSleeps', 'lockRotation', 'linearDamping', 'angularDamping', 'gravityScale', 'filter', 'userData'];
+  'color', 'bullet', 'sensor', 'hitEvents', 'neverSleeps', 'lockRotation', 'linearDamping', 'angularDamping', 'gravityScale', 'filter', 'massData', 'userData'];
 const JOINT_KEYS = ['id', 'type', 'bodyA', 'bodyB', 'frameA', 'frameB', 'collideConnected', 'limits', 'motor', 'spring', 'length', 'coneAngle', 'stiffness', 'userData'];
 /** Which optional settings each joint type takes (the table in the kit README). */
 const JOINT_FEATURES: Record<string, readonly string[]> = {
@@ -419,6 +463,8 @@ const pointer = (key: string): string => key.replace(/~/g, '~0').replace(/\//g, 
 
 class Checker {
   readonly problems: SceneProblem[] = [];
+  /** The version the scene declares. Version 2 features are refused in a version 1 scene. */
+  version = SCENE_VERSION;
   geometryValues = 0;
   private full = false;
   add(path: string, message: string): false {
@@ -590,14 +636,34 @@ function spansVolume(p: readonly number[]): boolean {
   return false;
 }
 
-function checkShape(c: Checker, shape: unknown, path: string): string | null {
+function checkShape(c: Checker, shape: unknown, path: string, child = false): string | null {
   if (!isObject(shape)) { c.add(path, `must be an object, got ${typeName(shape)}`); return null; }
   const kind = shape.kind;
-  if (typeof kind !== 'string' || !Object.hasOwn(SHAPE_KEYS, kind)) {
-    c.add(`${path}/kind`, `must be 'box', 'sphere', 'capsule', 'hull', 'mesh' or 'heightfield', got ${show(kind)}`);
+  if (child && (typeof kind !== 'string' || !CONVEX_KINDS.includes(kind))) {
+    c.add(`${path}/kind`, `a shape of a compound must be 'box', 'sphere', 'capsule' or 'hull', got ${show(kind)}`);
+    return null;
+  }
+  if (typeof kind !== 'string' || !Object.hasOwn(SHAPE_KEYS, kind) || (kind === 'compound' && c.version < 2)) {
+    c.add(`${path}/kind`, kind === 'compound' ? "a 'compound' shape needs scene version 2; this scene declares version 1"
+      : `must be 'box', 'sphere', 'capsule', 'hull', 'mesh', 'heightfield' or 'compound', got ${show(kind)}`);
     return null;
   }
   c.object(shape, path, SHAPE_KEYS[kind], SHAPE_KEYS[kind]);
+  if (kind === 'compound') {
+    const list = shape.shapes, at = `${path}/shapes`;
+    if (list === undefined) return kind;
+    if (!Array.isArray(list)) c.add(at, `must be an array, got ${typeName(list)}`);
+    else if (list.length < 1 || list.length > SCENE_LIMITS.compoundShapes) c.add(at, `a compound holds 1 to ${SCENE_LIMITS.compoundShapes} shapes, got ${list.length}`);
+    else for (let i = 0; i < list.length && !c.stopped; i++) {
+      const one = list[i], here = `${at}/${i}`;
+      if (!c.object(one, here, CHILD_KEYS, ['shape'])) continue;
+      if (one.shape !== undefined) checkShape(c, one.shape, `${here}/shape`, true);
+      if (one.position !== undefined) c.tuple(one.position, `${here}/position`, 3);
+      checkRotation(c, one, here);
+      checkMaterialValues(c, one, here);
+    }
+    return kind;
+  }
   if (kind === 'box') { if (shape.halfExtents !== undefined) c.tuple(shape.halfExtents, `${path}/halfExtents`, 3, 1e-4); }
   else if (kind === 'sphere') { if (shape.radius !== undefined) c.number(shape.radius, `${path}/radius`, 1e-4); }
   else if (kind === 'capsule') {
@@ -684,7 +750,26 @@ function checkBody(c: Checker, body: unknown, path: string, materials: ReadonlyS
     if ((filter.categoryBits === undefined) !== (filter.maskBits === undefined)) c.add(`${path}/filter`, 'needs both categoryBits and maskBits, or neither');
     if (filter.groupIndex !== undefined) c.number(filter.groupIndex, `${path}/filter/groupIndex`, -0x80000000, 0x7FFFFFFF, true);
   }
+  if (body.massData !== undefined) {
+    const at = `${path}/massData`, data = body.massData;
+    if (c.version < 2) c.add(at, 'massData needs scene version 2; this scene declares version 1');
+    else if (kind === 'mesh' || kind === 'heightfield') c.add(at, `a ${kind} body is always static and takes no massData`);
+    else if (c.object(data, at, ['mass', 'center', 'inertia'], ['mass', 'inertia'])) {
+      if (data.mass !== undefined && c.number(data.mass, `${at}/mass`, 0) && !(data.mass > 0)) c.add(`${at}/mass`, 'must be > 0, got 0');
+      if (data.center !== undefined) c.tuple(data.center, `${at}/center`, 3);
+      if (data.inertia !== undefined && c.tuple(data.inertia, `${at}/inertia`, 6) && !positiveDefinite(data.inertia)) {
+        c.add(`${at}/inertia`, 'must be a positive-definite tensor [Ixx, Iyy, Izz, Ixy, Ixz, Iyz] that float32 can invert');
+      }
+    }
+  }
   if (body.userData !== undefined) c.freeForm(body.userData, `${path}/userData`);
+}
+
+/** The test the native bridge applies to [Ixx, Iyy, Izz, Ixy, Ixz, Iyz], on the float32 values it will hold. */
+function positiveDefinite(inertia: readonly number[]): boolean {
+  const [xx, yy, zz, xy, xz, yz] = inertia.map(Math.fround) as [number, number, number, number, number, number];
+  const det = xx * (yy * zz - yz * yz) - xy * (xy * zz - yz * xz) + xz * (xy * yz - yy * xz);
+  return xx > 0 && xx * yy - xy * xy > 0 && det > 0 && Math.fround(det) > 0;
 }
 
 function checkFrame(c: Checker, frame: unknown, path: string): void {
@@ -752,6 +837,8 @@ const WET_SHAPES = ['box', 'sphere', 'capsule'];
 /** What the coupled sections need to know about the rest of the scene. `shapes` is null when the body list is broken. */
 interface CoupledContext {
   readonly shapes: ReadonlyMap<string, string | null> | null;
+  /** Bodies with `massData`: true when its centre is off the body origin. */
+  readonly stated: ReadonlyMap<string, boolean>;
   readonly step: number;
   /** Downward gravity, m/s^2 (zero when gravity points up or sideways). */
   readonly gravity: number;
@@ -788,7 +875,11 @@ function checkBodyAttachment(c: Checker, att: Obj, path: string, ctx: CoupledCon
     if (!ctx.shapes.has(ref)) c.add(`${path}/body`, `unknown body id ${show(ref)}`);
     else {
       const kind = ctx.shapes.get(ref);
-      if (att.inertia === undefined && kind !== null && !WET_SHAPES.includes(kind!)) c.add(`${path}/inertia`, `is required: the inertia of a ${kind} body cannot be taken from its shape`);
+      // The structure coupling takes a body's position as its centre of mass, which a compound's or a stated centre's need not be.
+      if (kind === 'compound') c.add(`${path}/body`, 'a compound body cannot be attached: the structure coupling takes a body\'s position as its centre of mass');
+      else if (ctx.stated.get(ref) === true) c.add(`${path}/body`, 'a body whose massData has a centre off its origin cannot be attached: the structure coupling takes a body\'s position as its centre of mass');
+      else if (att.inertia === undefined && ctx.stated.has(ref)) c.add(`${path}/inertia`, 'is required: the body has massData, so its inertia cannot be taken from its shape');
+      else if (att.inertia === undefined && kind !== null && !WET_SHAPES.includes(kind!)) c.add(`${path}/inertia`, `is required: the inertia of a ${kind} body cannot be taken from its shape`);
     }
   }
   if (att.inertia !== undefined) checkInertia(c, att.inertia, `${path}/inertia`);
@@ -823,7 +914,11 @@ function checkWater(c: Checker, basin: unknown, path: string, ctx: CoupledContex
         else {
           if (ctx.shapes) {
             if (!ctx.shapes.has(ref)) c.add(`${at}/body`, `unknown body id ${show(ref)}`);
-            else { const kind = ctx.shapes.get(ref); if (kind !== null && !WET_SHAPES.includes(kind!)) c.add(`${at}/body`, `a ${kind} body cannot float: the water couples boxes, spheres and capsules only`); }
+            else {
+              const kind = ctx.shapes.get(ref);
+              if (kind !== null && !WET_SHAPES.includes(kind!)) c.add(`${at}/body`, `a ${kind} body cannot float: the water couples boxes, spheres and capsules only`);
+              else if (ctx.stated.get(ref) === true) c.add(`${at}/body`, 'a body whose massData has a centre off its origin cannot float: the water coupling takes a body\'s position as its centre of mass');
+            }
           }
           const first = ctx.wet.get(ref);
           if (first !== undefined) c.add(`${at}/body`, `body ${show(ref)} is already in a basin, at ${first}`);
@@ -969,12 +1064,13 @@ export function validateScene(scene: unknown): SceneProblem[] {
   const c = new Checker();
   if (!isObject(scene)) { c.add('', `a scene must be an object, got ${typeName(scene)}`); return c.problems; }
   if (scene.format !== SCENE_FORMAT) { c.add('/format', `must be '${SCENE_FORMAT}', got ${scene.format === undefined ? 'nothing' : show(scene.format)}`); return c.problems; }
-  if (scene.version !== SCENE_VERSION) {
+  if (typeof scene.version !== 'number' || !SCENE_VERSIONS.includes(scene.version)) {
     c.add('/version', Number.isInteger(scene.version) && (scene.version as number) > 0
-      ? `unsupported scene version ${scene.version}; this build reads version ${SCENE_VERSION} only`
-      : `must be the integer ${SCENE_VERSION}, got ${scene.version === undefined ? 'nothing' : show(scene.version)}`);
+      ? `unsupported scene version ${scene.version}; this build reads versions ${SCENE_VERSIONS.join(' and ')}`
+      : `must be the integer ${SCENE_VERSIONS.join(' or ')}, got ${scene.version === undefined ? 'nothing' : show(scene.version)}`);
     return c.problems;
   }
+  c.version = scene.version;
   c.object(scene, '', ['format', 'version', 'units', 'world', 'materials', 'bodies', 'joints', 'water', 'cables', 'frames', 'meta', 'extensions'], ['bodies']);
   if (scene.units !== undefined && scene.units !== 'SI') c.add('/units', `must be 'SI', got ${show(scene.units)}`);
   if (scene.world !== undefined) checkWorld(c, scene.world, '/world');
@@ -1008,7 +1104,9 @@ export function validateScene(scene: unknown): SceneProblem[] {
     if (bodiesOk) for (const body of scene.bodies as unknown[]) if (isObject(body) && typeof body.id === 'string' && bodyIds.has(body.id)) shapes.set(body.id, isObject(body.shape) && typeof body.shape.kind === 'string' ? body.shape.kind : null);
     const world = isObject(scene.world) ? scene.world : {}, step = typeof world.step === 'number' && world.step > 0 && world.step <= 1 / 30 ? world.step : 1 / 60;
     const gy = Array.isArray(world.gravity) && typeof world.gravity[1] === 'number' && Number.isFinite(world.gravity[1]) ? world.gravity[1] : -9.81;
-    const ctx: CoupledContext = {shapes: bodiesOk ? shapes : null, step, gravity: Math.max(0, -gy), wet: new Map(), frameNodes: new Map(), frameEquations: 0};
+    const stated = new Map<string, boolean>();
+    if (bodiesOk) for (const body of scene.bodies as unknown[]) if (isObject(body) && typeof body.id === 'string' && isObject(body.massData)) stated.set(body.id, Array.isArray(body.massData.center) && body.massData.center.some(v => v !== 0));
+    const ctx: CoupledContext = {shapes: bodiesOk ? shapes : null, stated, step, gravity: Math.max(0, -gy), wet: new Map(), frameNodes: new Map(), frameEquations: 0};
     const section = (key: 'water' | 'cables' | 'frames', limit: number, each: (item: unknown, path: string) => void): void => {
       const list = scene[key];
       if (list === undefined) return;
@@ -1066,6 +1164,17 @@ const worldOf = (world: SceneWorld | undefined): Required<SceneWorld> => ({
 
 function normalShape(shape: SceneShape): SceneShape {
   switch (shape.kind) {
+    case 'compound': return {kind: 'compound', shapes: shape.shapes.map(child => {
+      const out: Obj = {shape: normalShape(child.shape)};
+      if (child.position && !isZero(child.position)) out.position = vec(child.position);
+      const rotation = rotationOf(child);
+      if (rotation && !isIdentity(rotation)) out.rotation = rotation;
+      // A child's value overrides the body's, whatever that is, so it is never dropped as a default.
+      if (child.density !== undefined) out.density = zero(child.density);
+      if (child.friction !== undefined) out.friction = zero(child.friction);
+      if (child.restitution !== undefined) out.restitution = zero(child.restitution);
+      return out as unknown as SceneCompoundChild;
+    })};
     case 'box': return {kind: 'box', halfExtents: vec(shape.halfExtents) as unknown as SceneVec3};
     case 'sphere': return {kind: 'sphere', radius: shape.radius};
     case 'capsule': return {kind: 'capsule', radius: shape.radius, halfLength: shape.halfLength};
@@ -1101,6 +1210,12 @@ function normalBody(body: SceneBody): SceneBody {
     if (body.filter.categoryBits !== undefined) { filter.categoryBits = body.filter.categoryBits; filter.maskBits = body.filter.maskBits; }
     if (body.filter.groupIndex) filter.groupIndex = body.filter.groupIndex;
     if (Object.keys(filter).length > 0) out.filter = filter;
+  }
+  if (body.massData && !fixed) {
+    const data: Obj = {mass: body.massData.mass};
+    if (body.massData.center && !isZero(body.massData.center)) data.center = vec(body.massData.center);
+    data.inertia = vec(body.massData.inertia);
+    out.massData = data;
   }
   if (body.userData !== undefined) out.userData = clone(body.userData);
   return out as unknown as SceneBody;
@@ -1226,9 +1341,11 @@ function normalize(scene: Scene): Scene {
   }
   const meta: Obj = {};
   for (const key of ['title', 'description', 'author', 'created'] as const) if (scene.meta?.[key] !== undefined) meta[key] = scene.meta[key];
+  const bodies = scene.bodies.map(normalBody);
   return {
-    format: SCENE_FORMAT, version: SCENE_VERSION, units: 'SI', world: worldOf(scene.world), materials,
-    bodies: scene.bodies.map(normalBody), joints: (scene.joints ?? []).map(normalJoint),
+    // The lowest version that can hold the scene, so that a scene without version 2 features has the text and hash it always had.
+    format: SCENE_FORMAT, version: bodies.some(body => body.shape.kind === 'compound' || body.massData !== undefined) ? 2 : 1, units: 'SI', world: worldOf(scene.world), materials,
+    bodies, joints: (scene.joints ?? []).map(normalJoint),
     // Left out when absent or empty, so that a rigid-only scene has the canonical text and hash it always had.
     ...normalCoupled(scene),
     ...(Object.keys(meta).length > 0 ? {meta: meta as SceneMeta} : {}),
@@ -1619,9 +1736,25 @@ function bodyOptions(body: SceneBody, materials: ReadonlyMap<string, SceneMateri
     shape: body.shape, type: body.type, position: body.position, rotation: body.rotation, linearVelocity: body.linearVelocity, angularVelocity: body.angularVelocity,
     density: body.density ?? material?.density, friction: body.friction ?? material?.friction, restitution: body.restitution ?? material?.restitution, color: body.color ?? material?.color,
     bullet: body.bullet, sensor: body.sensor, hitEvents: body.hitEvents, neverSleeps: body.neverSleeps, lockRotation: body.lockRotation,
-    linearDamping: body.linearDamping, angularDamping: body.angularDamping, gravityScale: body.gravityScale,
+    linearDamping: body.linearDamping, angularDamping: body.angularDamping, gravityScale: body.gravityScale, massData: body.massData,
     filter: filter ? {categoryBits: filter.categoryBits !== undefined ? BigInt(filter.categoryBits) : undefined, maskBits: filter.maskBits !== undefined ? BigInt(filter.maskBits) : undefined, groupIndex: filter.groupIndex} : undefined,
   };
+}
+
+/**
+ * A scene's `linearVelocity` is the velocity of the body origin; the solver reports that of the centre of mass.
+ * They differ by w x r for a spinning body whose centre of mass is off its origin (a compound, mass data with a
+ * centre, a hull whose points are not centred): v_origin = v_com - w x (R c), rounded to float32.
+ */
+function originVelocity(world: SceneHost, handle: Body, state: NativeBodyState): [number, number, number] {
+  const w = state.angularVelocity, v = state.linearVelocity;
+  if (state.type !== 'dynamic' || (w[0] === 0 && w[1] === 0 && w[2] === 0) || !world.getMassData) return v;
+  let c: readonly number[] | undefined;
+  try { c = world.getMassData(handle)?.center; } catch { return v; }   // an artifact without mass data
+  if (!c || (c[0] === 0 && c[1] === 0 && c[2] === 0)) return v;
+  const [x, y, z, s] = state.rotation, tx = 2 * (y * c[2] - z * c[1]), ty = 2 * (z * c[0] - x * c[2]), tz = 2 * (x * c[1] - y * c[0]);
+  const r = [c[0] + s * tx + y * tz - z * ty, c[1] + s * ty + z * tx - x * tz, c[2] + s * tz + x * ty - y * tx];
+  return [Math.fround(v[0] - (w[1] * r[2] - w[2] * r[1])), Math.fround(v[1] - (w[2] * r[0] - w[0] * r[2])), Math.fround(v[2] - (w[0] * r[1] - w[1] * r[0]))];
 }
 
 const named = (kind: string, id: string, error: unknown): EngineError =>
@@ -1793,7 +1926,8 @@ export class SceneBuilder<W extends SceneHost = SceneHost> {
       if (description.shape.kind !== 'mesh' && description.shape.kind !== 'heightfield') next.type = state.type;
       if (!sameSingle(description.position, state.position, [0, 0, 0])) next.position = state.position;
       if (!sameSingle(description.rotation, state.rotation, [0, 0, 0, 1])) next.rotation = state.rotation;
-      if (!sameSingle(description.linearVelocity, state.linearVelocity, [0, 0, 0])) next.linearVelocity = state.linearVelocity;
+      const linear = originVelocity(world, handle, state);
+      if (!sameSingle(description.linearVelocity, linear, [0, 0, 0])) next.linearVelocity = linear;
       if (!sameSingle(description.angularVelocity, state.angularVelocity, [0, 0, 0])) next.angularVelocity = state.angularVelocity;
       bodies.push(normalBody(next));
     }

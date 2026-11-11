@@ -21,14 +21,14 @@ export type InstanceBufferSource = {
    */
   shapeVersion?(): number;
   /**
-   * One byte per active row: 0 box, 1 sphere, 2 capsule, 3 hull, 4 mesh, 5 height field
+   * One byte per active row: 0 box, 1 sphere, 2 capsule, 3 hull, 4 mesh, 5 height field, 6 compound
    * (src/webgpu/instance-shapes.ts).
    * Null when every row is a box. The array may be reused by the next call.
    */
   shapeKinds?(): Uint8Array | null;
   /**
-   * Optional. The render mesh of the hull, mesh or height-field body at `row`
-   * (kinds 3, 4 and 5), in the body's own frame: position.xyz, normal.xyz per
+   * Optional. The render mesh of the hull, mesh, height-field or compound body at `row`
+   * (kinds 3 to 6), in the body's own frame: position.xyz, normal.xyz per
    * vertex, three vertices per triangle (src/webgpu/body-geometry.ts). Null when
    * the source has none for that row, which is then drawn as a box. The same
    * object must be returned for the same body until it is destroyed: the

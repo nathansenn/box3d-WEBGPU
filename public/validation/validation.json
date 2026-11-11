@@ -5,8 +5,8 @@
  "generatedBy": "node scripts/validation-report.mjs",
  "digits": 9,
  "totals": {
-  "cases": 345,
-  "passed": 345,
+  "cases": 371,
+  "passed": 371,
   "failed": 0,
   "domains": 15
  },
@@ -14,7 +14,7 @@
   {
    "id": "rigid",
    "title": "Rigid bodies, joints and shapes",
-   "summary": "Free fall, pendulums, friction, restitution, collisions, forces and torques, joint motors and springs, and motion on triangle-mesh and height-field ground.",
+   "summary": "Free fall, pendulums, friction, restitution, collisions, forces and torques, joint motors and springs, motion on triangle-mesh and height-field ground, compound bodies (summed mass, centre of mass and inertia, tipping, rest) and explicit mass data (stated mass, centre of mass and inertia tensor).",
    "solver": "Box3D compiled to WebAssembly, through `box3d-webgpu-kit` (float32 state, 240 Hz, 4 sub-steps)",
    "docs": [
     "packages/box3d-kit/README.md"
@@ -24,11 +24,12 @@
     "Rolling is checked for a sphere only, and the contact slips slightly (the rolling case allows 1%). There is no rolling-resistance or spinning-friction reference.",
     "Restitution is checked at one speed and one coefficient. Box3D applies restitution only above a threshold speed.",
     "Wheel, weld and spherical joints have no closed-form row here: wheel and weld joints are tested for behaviour only (a car drives and steers, a weld keeps its spacing).",
-    "Compound shapes are not exported by the bridge. Triangle meshes and height fields are static only.",
+    "Compound bodies: a body holds at most 64 convex shapes (box, sphere, capsule, hull); overlapping shapes count their overlap twice in mass and inertia. Contact of a compound is checked at rest and at tipping only, not in stacks or impacts. Triangle meshes and height fields are static only and cannot be part of a compound.",
+    "Explicit mass data replace the numbers, not the shapes: nothing checks that a stated tensor is physically possible for the collision shape (the triangle inequality of the principal moments is not required), and a body with partly locked rotation is not covered.",
     "One build on one machine. The cross-device determinism matrix is a separate roadmap item; the kit records identical hashes on arm64 Node and Bun only."
    ],
-   "cases": 27,
-   "passed": 27
+   "cases": 42,
+   "passed": 42
   },
   {
    "id": "water-coupling",
@@ -109,8 +110,8 @@
   {
    "id": "scene",
    "title": "Scene files and share links",
-   "summary": "Rotation conventions, lossless share links, deterministic loading, what a save restores, and the physics of two example scenes.",
-   "solver": "`box3d-webgpu-kit/scene`: the `box3d-scene` version 1 format, canonical text, share links, save and resume",
+   "summary": "Rotation conventions, lossless share links, deterministic loading, what a save restores, the physics of two example scenes, and version 2 scenes (compound shapes, massData) against the same bodies built by hand.",
+   "solver": "`box3d-webgpu-kit/scene`: the `box3d-scene` format (version 1, and version 2 for compound shapes and explicit mass data), canonical text, share links, save and resume",
    "docs": [
     "docs/SCENE_FORMAT.md"
    ],
@@ -120,8 +121,8 @@
     "The domino, car and ragdoll example scenes are tested for behaviour, not against a closed-form number.",
     "The Lab and the Studio do not read scene links yet."
    ],
-   "cases": 14,
-   "passed": 14
+   "cases": 19,
+   "passed": 19
   },
   {
    "id": "simulation",
@@ -145,22 +146,22 @@
   {
    "id": "robot",
    "title": "Robot import (URDF and MJCF)",
-   "summary": "Forward kinematics against the product of joint transforms, the same robot from both formats, mass and the reported inertia gap, pendulum and cart-pole periods, joint limits, effort limits, joint springs and damping, a held arm, joint drift on a chain, a wheeled cart, and round trips through scene files and share links.",
-   "solver": "`box3d-webgpu-kit/robot`: URDF and MJCF files as scenes of the rigid world (one body per collision shape, joints as constraints; 240 Hz, 4 sub-steps)",
+   "summary": "Forward kinematics against the product of joint transforms, the same robot from both formats, mass, the file's inertia in the solver and the gap without it, pendulum and cart-pole periods, joint limits, effort limits, joint springs and damping, a held arm, joint drift on a chain, a wheeled cart, and round trips through scene files and share links.",
+   "solver": "`box3d-webgpu-kit/robot`: URDF and MJCF files as scenes of the rigid world (one body per link, a compound when the link has several collision shapes, with the file's mass, centre of mass and inertia tensor; joints as constraints; 240 Hz, 4 sub-steps)",
    "docs": [
     "docs/ROBOT_IMPORT.md"
    ],
    "notValidated": [
-    "Inertia is not imported. The engine derives it from each shape and its density, so only the mass matches the file; `robotReport` gives the gap per link (42% on the worst link of the example arm), and the motion follows the bodies, not the file.",
-    "Joints are soft constraints (60 Hz in the engine, not adjustable from the bridge). A loaded arm settles below its kinematic pose (17 mm at the tool of the 1 m example arm) and a chain stretches by millimetres. There is no reduced-coordinate articulation solver.",
+    "The file's inertial is applied as numbers; the collision shapes are not changed to agree with it. A tensor that is not positive definite is not applied (the shapes' inertia is used, with a warning), and with `links: 'welded'` a link of several bodies keeps its shapes' inertia. The rows marked \"inertia: shapes\" measure the import without the file's inertia (42% off on the worst link of the example arm).",
+    "Joints are soft constraints (60 Hz by default; `jointStiffness` raises it). A loaded arm settles below its kinematic pose (17 mm at the tool of the 1 m example arm) and a chain stretches by millimetres. There is no reduced-coordinate articulation solver.",
     "No comparison with MuJoCo, Gazebo or another simulator on the same model: every reference here is closed form.",
     "Mesh collision is the convex hull of each mesh; only the parser path and a cube and a tetrahedron are checked. No real robot model with meshes is in the suite.",
     "Ball joints, floating bases under contact, self-collision of real robots, and contact between a robot and objects (grasping) have no reference here.",
     "Joint springs damp numerically (measured 0.10 /s on the spring case), and joint damping without stiffness adds a very weak spring towards the starting pose.",
     "MJCF: equality constraints, tendons, most actuator types and several joints on one body are reported and dropped, so models that depend on them do not behave as in MuJoCo."
    ],
-   "cases": 28,
-   "passed": 28
+   "cases": 34,
+   "passed": 34
   },
   {
    "id": "cloth",
@@ -1059,6 +1060,431 @@
     "measured": "3.897508",
     "error": "-9.86e-5 rel.",
     "tolerance": "±0.1%"
+   }
+  },
+  {
+   "id": "rigid.compound.mass",
+   "domain": "rigid",
+   "title": "Compound: mass of a dumbbell",
+   "quantity": "mass of two spheres (r = 0.1 m, density 1000 kg/m^3) on one body",
+   "unit": "kg",
+   "formula": "m = 2 rho (4/3) pi r^3",
+   "reference": 8.37758041,
+   "measured": 8.37758064,
+   "error": 2.33127412e-7,
+   "relativeError": 2.78275351e-8,
+   "tolerance": {
+    "kind": "relative",
+    "value": 2e-7
+   },
+   "pass": true,
+   "note": "The world stores mass in float32.",
+   "source": {
+    "file": "packages/box3d-kit/test/v17-compound.test.mjs",
+    "test": "a compound body has the summed mass, centre of mass and parallel-axis inertia of its shapes",
+    "url": "https://github.com/nathansenn/box3d-WEBGPU/blob/main/packages/box3d-kit/test/v17-compound.test.mjs"
+   },
+   "text": {
+    "reference": "8.37758 kg",
+    "measured": "8.377581",
+    "error": "+2.78e-8 rel.",
+    "tolerance": "±2e-7 rel."
+   }
+  },
+  {
+   "id": "rigid.compound.inertia",
+   "domain": "rigid",
+   "title": "Compound: parallel-axis inertia of a dumbbell",
+   "quantity": "moment of inertia across the bar, sphere centres 0.4 m either side of the centre",
+   "unit": "kg m^2",
+   "formula": "I = 2 ((2/5) m r^2 + m d^2)",
+   "reference": 1.37392319,
+   "measured": 1.3739233,
+   "error": 1.14526841e-7,
+   "relativeError": 8.33575283e-8,
+   "tolerance": {
+    "kind": "relative",
+    "value": 2e-7
+   },
+   "pass": true,
+   "source": {
+    "file": "packages/box3d-kit/test/v17-compound.test.mjs",
+    "test": "a compound body has the summed mass, centre of mass and parallel-axis inertia of its shapes",
+    "url": "https://github.com/nathansenn/box3d-WEBGPU/blob/main/packages/box3d-kit/test/v17-compound.test.mjs"
+   },
+   "text": {
+    "reference": "1.373923 kg m^2",
+    "measured": "1.373923",
+    "error": "+8.34e-8 rel.",
+    "tolerance": "±2e-7 rel."
+   }
+  },
+  {
+   "id": "rigid.compound.centre-of-mass",
+   "domain": "rigid",
+   "title": "Compound: centre of mass of an L of two boxes",
+   "quantity": "height of the centre of mass above the body origin (a 1 x 0.2 x 0.6 m slab and a 0.2 x 2 x 0.6 m post)",
+   "unit": "m",
+   "formula": "c = (m1 c1 + m2 c2) / (m1 + m2)",
+   "reference": 0.833333333,
+   "measured": 0.833333373,
+   "error": 3.97364298e-8,
+   "relativeError": 4.76837158e-8,
+   "tolerance": {
+    "kind": "absolute",
+    "value": 2e-7
+   },
+   "pass": true,
+   "source": {
+    "file": "packages/box3d-kit/test/v17-compound.test.mjs",
+    "test": "a compound body has the summed mass, centre of mass and parallel-axis inertia of its shapes",
+    "url": "https://github.com/nathansenn/box3d-WEBGPU/blob/main/packages/box3d-kit/test/v17-compound.test.mjs"
+   },
+   "text": {
+    "reference": "0.8333333 m",
+    "measured": "0.8333334",
+    "error": "+3.97e-8",
+    "tolerance": "±2e-7"
+   }
+  },
+  {
+   "id": "rigid.compound.product-of-inertia",
+   "domain": "rigid",
+   "title": "Compound: product of inertia of the L",
+   "quantity": "Ixy about the centre of mass, in body axes",
+   "unit": "kg m^2",
+   "formula": "Ixy = -(m1 x1 y1 + m2 x2 y2), offsets from the centre of mass",
+   "reference": 35.2,
+   "measured": 35.2000046,
+   "error": 0.00000457763672,
+   "relativeError": 1.30046498e-7,
+   "tolerance": {
+    "kind": "relative",
+    "value": 3e-7
+   },
+   "pass": true,
+   "source": {
+    "file": "packages/box3d-kit/test/v17-compound.test.mjs",
+    "test": "a compound body has the summed mass, centre of mass and parallel-axis inertia of its shapes",
+    "url": "https://github.com/nathansenn/box3d-WEBGPU/blob/main/packages/box3d-kit/test/v17-compound.test.mjs"
+   },
+   "text": {
+    "reference": "35.2 kg m^2",
+    "measured": "35.2",
+    "error": "+1.3e-7 rel.",
+    "tolerance": "±3e-7 rel."
+   }
+  },
+  {
+   "id": "rigid.compound.spin-up",
+   "domain": "rigid",
+   "title": "Compound: spin-up of a dumbbell under torque",
+   "quantity": "angular velocity after 3 N m acts for 2 s across the bar, no gravity",
+   "unit": "rad/s",
+   "formula": "omega = tau t / (2 ((2/5) m r^2 + m d^2))",
+   "reference": 4.36705637,
+   "measured": 4.36706495,
+   "error": 0.00000858752395,
+   "relativeError": 0.00000196643305,
+   "tolerance": {
+    "kind": "relative",
+    "value": 0.0001
+   },
+   "pass": true,
+   "source": {
+    "file": "packages/box3d-kit/test/v17-compound.test.mjs",
+    "test": "a dumbbell spins up at torque / (2 m d^2 + 2 (2/5) m r^2) and swings as a physical pendulum",
+    "url": "https://github.com/nathansenn/box3d-WEBGPU/blob/main/packages/box3d-kit/test/v17-compound.test.mjs"
+   },
+   "text": {
+    "reference": "4.367056 rad/s",
+    "measured": "4.367065",
+    "error": "+1.97e-6 rel.",
+    "tolerance": "±0.01%"
+   }
+  },
+  {
+   "id": "rigid.compound.pendulum",
+   "domain": "rigid",
+   "title": "Compound: physical pendulum of two spheres",
+   "quantity": "period of spheres 0.5 m and 1.2 m below a hinge, released at 0.05 rad, mean over 30 s",
+   "unit": "s",
+   "formula": "T = 2 pi sqrt((2 (2/5) r^2 + l1^2 + l2^2) / (g (l1 + l2))) (1 + theta0^2 / 16)",
+   "reference": 2.00519956,
+   "measured": 2.00520017,
+   "error": 6.07538377e-7,
+   "relativeError": 3.02981504e-7,
+   "tolerance": {
+    "kind": "relative",
+    "value": 0.0001
+   },
+   "pass": true,
+   "source": {
+    "file": "packages/box3d-kit/test/v17-compound.test.mjs",
+    "test": "a dumbbell spins up at torque / (2 m d^2 + 2 (2/5) m r^2) and swings as a physical pendulum",
+    "url": "https://github.com/nathansenn/box3d-WEBGPU/blob/main/packages/box3d-kit/test/v17-compound.test.mjs"
+   },
+   "text": {
+    "reference": "2.0052 s",
+    "measured": "2.0052",
+    "error": "+3.03e-7 rel.",
+    "tolerance": "±0.01%"
+   }
+  },
+  {
+   "id": "rigid.compound.tipping",
+   "domain": "rigid",
+   "title": "Compound: tipping angle of the L",
+   "quantity": "tilt of gravity at which the L turns over the edge of its base (bisected to 0.016 degrees, 8 s a run)",
+   "unit": "degrees",
+   "formula": "tan(theta) = (0.5 + c_x) / c_y, from the centre of mass",
+   "reference": 15.6422465,
+   "measured": 15.634434,
+   "error": -0.0078125,
+   "relativeError": -0.000499448722,
+   "tolerance": {
+    "kind": "absolute",
+    "value": 0.1
+   },
+   "pass": true,
+   "note": "A body within about 0.01 degrees of the critical angle takes longer than 8 s to fall; the uniform block of the same outline would tip at 24.4 degrees.",
+   "source": {
+    "file": "packages/box3d-kit/test/v17-compound.test.mjs",
+    "test": "an L-shaped compound tips when its centre of mass passes over the edge of its base, and rests when it does not",
+    "url": "https://github.com/nathansenn/box3d-WEBGPU/blob/main/packages/box3d-kit/test/v17-compound.test.mjs"
+   },
+   "text": {
+    "reference": "15.64225 degrees",
+    "measured": "15.63443",
+    "error": "-0.00781",
+    "tolerance": "±0.1"
+   }
+  },
+  {
+   "id": "rigid.compound.rest",
+   "domain": "rigid",
+   "title": "Compound: the L at rest on the ground",
+   "quantity": "distance its origin moves in 6 s",
+   "unit": "m",
+   "formula": "no motion",
+   "reference": 0,
+   "measured": 0.00052742039,
+   "error": 0.00052742039,
+   "relativeError": null,
+   "tolerance": {
+    "kind": "upper",
+    "value": 0.001
+   },
+   "pass": true,
+   "note": "It settles into the contact by half a millimetre (Box3D's linear slop is 5 mm) and then sleeps.",
+   "source": {
+    "file": "packages/box3d-kit/test/v17-compound.test.mjs",
+    "test": "a compound resting on the ground stays at rest and goes to sleep",
+    "url": "https://github.com/nathansenn/box3d-WEBGPU/blob/main/packages/box3d-kit/test/v17-compound.test.mjs"
+   },
+   "text": {
+    "reference": "0 m",
+    "measured": "0.0005274204",
+    "error": "+0.000527",
+    "tolerance": "at most 0.001 above the reference"
+   }
+  },
+  {
+   "id": "rigid.compound.rest-speed",
+   "domain": "rigid",
+   "title": "Compound: no creep at rest",
+   "quantity": "largest linear or angular speed of the L between 1 s and 6 s",
+   "unit": "m/s, rad/s",
+   "formula": "v = 0",
+   "reference": 0,
+   "measured": 0,
+   "error": 0,
+   "relativeError": null,
+   "tolerance": {
+    "kind": "upper",
+    "value": 0.001
+   },
+   "pass": true,
+   "source": {
+    "file": "packages/box3d-kit/test/v17-compound.test.mjs",
+    "test": "a compound resting on the ground stays at rest and goes to sleep",
+    "url": "https://github.com/nathansenn/box3d-WEBGPU/blob/main/packages/box3d-kit/test/v17-compound.test.mjs"
+   },
+   "text": {
+    "reference": "0 m/s, rad/s",
+    "measured": "0",
+    "error": "0",
+    "tolerance": "at most 0.001 above the reference"
+   }
+  },
+  {
+   "id": "rigid.mass-data.force",
+   "domain": "rigid",
+   "title": "Explicit mass: F = m a",
+   "quantity": "speed after 14 N acts for 1 s on a sphere told to weigh 7 kg (its shape says 4.19 kg)",
+   "unit": "m/s",
+   "formula": "v = F t / m",
+   "reference": 2,
+   "measured": 1.99999094,
+   "error": -0.00000905990601,
+   "relativeError": -0.000004529953,
+   "tolerance": {
+    "kind": "relative",
+    "value": 0.0001
+   },
+   "pass": true,
+   "source": {
+    "file": "packages/box3d-kit/test/v17-compound.test.mjs",
+    "test": "explicit mass data: a body spins up at I^-1 torque, accelerates at F / m, and keeps the values across a type change",
+    "url": "https://github.com/nathansenn/box3d-WEBGPU/blob/main/packages/box3d-kit/test/v17-compound.test.mjs"
+   },
+   "text": {
+    "reference": "2 m/s",
+    "measured": "1.999991",
+    "error": "-4.53e-6 rel.",
+    "tolerance": "±0.01%"
+   }
+  },
+  {
+   "id": "rigid.mass-data.torque",
+   "domain": "rigid",
+   "title": "Explicit inertia: tau = I alpha",
+   "quantity": "spin after 6 N m acts for 1 s about an axis told to have I = 3 kg m^2 (its shape says 0.017)",
+   "unit": "rad/s",
+   "formula": "omega = tau t / I",
+   "reference": 2,
+   "measured": 1.99999094,
+   "error": -0.00000905990601,
+   "relativeError": -0.000004529953,
+   "tolerance": {
+    "kind": "relative",
+    "value": 0.0001
+   },
+   "pass": true,
+   "source": {
+    "file": "packages/box3d-kit/test/v17-compound.test.mjs",
+    "test": "explicit mass data: a body spins up at I^-1 torque, accelerates at F / m, and keeps the values across a type change",
+    "url": "https://github.com/nathansenn/box3d-WEBGPU/blob/main/packages/box3d-kit/test/v17-compound.test.mjs"
+   },
+   "text": {
+    "reference": "2 rad/s",
+    "measured": "1.999991",
+    "error": "-4.53e-6 rel.",
+    "tolerance": "±0.01%"
+   }
+  },
+  {
+   "id": "rigid.mass-data.cross-coupling",
+   "domain": "rigid",
+   "title": "Explicit inertia: a full tensor couples the axes",
+   "quantity": "angular velocity about y after a torque of 0.3 N m about x acts for 0.05 s on a body with products of inertia",
+   "unit": "rad/s",
+   "formula": "omega = (I^-1 tau) t",
+   "reference": -0.00444444444,
+   "measured": -0.00444513233,
+   "error": -6.87889341e-7,
+   "relativeError": -0.000154775102,
+   "tolerance": {
+    "kind": "relative",
+    "value": 0.001
+   },
+   "pass": true,
+   "source": {
+    "file": "packages/box3d-kit/test/v17-compound.test.mjs",
+    "test": "explicit mass data: a body spins up at I^-1 torque, accelerates at F / m, and keeps the values across a type change",
+    "url": "https://github.com/nathansenn/box3d-WEBGPU/blob/main/packages/box3d-kit/test/v17-compound.test.mjs"
+   },
+   "text": {
+    "reference": "-0.004444444 rad/s",
+    "measured": "-0.004445132",
+    "error": "-0.0155%",
+    "tolerance": "±0.1%"
+   }
+  },
+  {
+   "id": "rigid.mass-data.euler",
+   "domain": "rigid",
+   "title": "Explicit inertia: Euler's equations over 2 s",
+   "quantity": "relative difference of the body-axis angular velocity from an RK4 solution, full tensor, body-fixed torque, about 1.7 rad turned",
+   "unit": "1",
+   "formula": "I w' = tau - w x (I w)",
+   "reference": 0,
+   "measured": 0.00021574751,
+   "error": 0.00021574751,
+   "relativeError": null,
+   "tolerance": {
+    "kind": "upper",
+    "value": 0.002
+   },
+   "pass": true,
+   "note": "The engine integrates the gyroscopic term implicitly with one Newton step per sub-step; the torque is re-aimed once a step.",
+   "source": {
+    "file": "packages/box3d-kit/test/v17-compound.test.mjs",
+    "test": "explicit mass data: a body spins up at I^-1 torque, accelerates at F / m, and keeps the values across a type change",
+    "url": "https://github.com/nathansenn/box3d-WEBGPU/blob/main/packages/box3d-kit/test/v17-compound.test.mjs"
+   },
+   "text": {
+    "reference": "0",
+    "measured": "0.0002157475",
+    "error": "+0.000216",
+    "tolerance": "at most 0.002 above the reference"
+   }
+  },
+  {
+   "id": "rigid.mass-data.centre-of-mass",
+   "domain": "rigid",
+   "title": "Explicit centre of mass: a pendulum from stated mass data",
+   "quantity": "period of a sphere hinged through its centre and told that its centre of mass is 0.3 m below with I = 0.05 kg m^2, mean over 20 s",
+   "unit": "s",
+   "formula": "T = 2 pi sqrt((I + m d^2) / (m g d)) (1 + theta0^2 / 16)",
+   "reference": 1.24222856,
+   "measured": 1.24223065,
+   "error": 0.00000208757844,
+   "relativeError": 0.00000168051074,
+   "tolerance": {
+    "kind": "relative",
+    "value": 0.0001
+   },
+   "pass": true,
+   "note": "From its shape the body would not swing at all: the hinge passes through the sphere's centre.",
+   "source": {
+    "file": "packages/box3d-kit/test/v17-compound.test.mjs",
+    "test": "an explicit centre of mass: a hinged sphere swings with the period its stated mass data imply, and setting them keeps the motion",
+    "url": "https://github.com/nathansenn/box3d-WEBGPU/blob/main/packages/box3d-kit/test/v17-compound.test.mjs"
+   },
+   "text": {
+    "reference": "1.242229 s",
+    "measured": "1.242231",
+    "error": "+1.68e-6 rel.",
+    "tolerance": "±0.01%"
+   }
+  },
+  {
+   "id": "rigid.compound.replay",
+   "domain": "rigid",
+   "title": "Compound and mass data: replay",
+   "quantity": "a recording with compound bodies, setMassData and resetMassData, replayed from its JSON (0: every checkpoint and the final hash match)",
+   "unit": "1",
+   "formula": "replay = recording, bit for bit",
+   "reference": 0,
+   "measured": 0,
+   "error": 0,
+   "relativeError": null,
+   "tolerance": {
+    "kind": "absolute",
+    "value": 0
+   },
+   "pass": true,
+   "source": {
+    "file": "packages/box3d-kit/test/v17-compound.test.mjs",
+    "test": "recordings with compound bodies and mass data replay bit for bit, and a worker-hosted world agrees with a local one",
+    "url": "https://github.com/nathansenn/box3d-WEBGPU/blob/main/packages/box3d-kit/test/v17-compound.test.mjs"
+   },
+   "text": {
+    "reference": "0",
+    "measured": "0",
+    "error": "0",
+    "tolerance": "±0"
    }
   },
   {
@@ -4337,6 +4763,147 @@
    }
   },
   {
+   "id": "scene.v2.link",
+   "domain": "scene",
+   "title": "Version 2: a compound and massData through a share link",
+   "quantity": "characters that differ between the canonical scene and the scene decoded from its compressed link",
+   "unit": "characters",
+   "formula": "decode(encode(scene)) = scene",
+   "reference": 0,
+   "measured": 0,
+   "error": 0,
+   "relativeError": null,
+   "tolerance": {
+    "kind": "absolute",
+    "value": 0
+   },
+   "pass": true,
+   "source": {
+    "file": "packages/box3d-kit/test/v17-compound.test.mjs",
+    "test": "scene format version 2: compound shapes and massData validate, canonicalise, travel in share links and load the same everywhere",
+    "url": "https://github.com/nathansenn/box3d-WEBGPU/blob/main/packages/box3d-kit/test/v17-compound.test.mjs"
+   },
+   "text": {
+    "reference": "0 characters",
+    "measured": "0",
+    "error": "0",
+    "tolerance": "±0"
+   }
+  },
+  {
+   "id": "scene.v2.load",
+   "domain": "scene",
+   "title": "Version 2: file, link and hand-built worlds agree",
+   "quantity": "exactHash mismatches after 240 steps between the loaded file, the loaded link and the same bodies made with createBody and setMassData",
+   "unit": "1",
+   "formula": "identical hashes",
+   "reference": 0,
+   "measured": 0,
+   "error": 0,
+   "relativeError": null,
+   "tolerance": {
+    "kind": "absolute",
+    "value": 0
+   },
+   "pass": true,
+   "source": {
+    "file": "packages/box3d-kit/test/v17-compound.test.mjs",
+    "test": "scene format version 2: compound shapes and massData validate, canonicalise, travel in share links and load the same everywhere",
+    "url": "https://github.com/nathansenn/box3d-WEBGPU/blob/main/packages/box3d-kit/test/v17-compound.test.mjs"
+   },
+   "text": {
+    "reference": "0",
+    "measured": "0",
+    "error": "0",
+    "tolerance": "±0"
+   }
+  },
+  {
+   "id": "scene.v2.material",
+   "domain": "scene",
+   "title": "Version 2: per-shape density in a compound",
+   "quantity": "mass of a hammer: a 600 kg/m^3 capsule handle, and a box head and hull claw at the body material's 7800 kg/m^3",
+   "unit": "kg",
+   "formula": "m = sum of rho_i V_i",
+   "reference": 9.38269731,
+   "measured": 9.38269711,
+   "error": -2.06006035e-7,
+   "relativeError": -2.19559502e-8,
+   "tolerance": {
+    "kind": "relative",
+    "value": 0.00001
+   },
+   "pass": true,
+   "source": {
+    "file": "packages/box3d-kit/test/v17-compound.test.mjs",
+    "test": "scene format version 2: compound shapes and massData validate, canonicalise, travel in share links and load the same everywhere",
+    "url": "https://github.com/nathansenn/box3d-WEBGPU/blob/main/packages/box3d-kit/test/v17-compound.test.mjs"
+   },
+   "text": {
+    "reference": "9.382697 kg",
+    "measured": "9.382697",
+    "error": "-2.2e-8 rel.",
+    "tolerance": "±1e-5 rel."
+   }
+  },
+  {
+   "id": "scene.v2.resume",
+   "domain": "scene",
+   "title": "Version 2: a spinning compound saved and resumed",
+   "quantity": "difference of the centre-of-mass velocity at the moment of loading a save taken after 100 steps (an L spinning at 2 rad/s; origin and centre-of-mass velocities differ by 1.8 m/s)",
+   "unit": "m/s",
+   "formula": "v_origin = v_com - w x (R c), written by the save",
+   "reference": 0,
+   "measured": 8.94069672e-8,
+   "error": 8.94069672e-8,
+   "relativeError": null,
+   "tolerance": {
+    "kind": "upper",
+    "value": 0.000005
+   },
+   "pass": true,
+   "note": "float32: the save converts the solver's centre-of-mass velocity to the origin velocity the format states.",
+   "source": {
+    "file": "packages/box3d-kit/test/v17-compound.test.mjs",
+    "test": "a save of a spinning body whose centre of mass is off its origin resumes with the same motion",
+    "url": "https://github.com/nathansenn/box3d-WEBGPU/blob/main/packages/box3d-kit/test/v17-compound.test.mjs"
+   },
+   "text": {
+    "reference": "0 m/s",
+    "measured": "8.940697e-8",
+    "error": "+8.94e-8",
+    "tolerance": "at most 5e-6 above the reference"
+   }
+  },
+  {
+   "id": "scene.v1.unchanged",
+   "domain": "scene",
+   "title": "Version 1 scenes keep their hash",
+   "quantity": "example scenes (of 5) whose sceneHash differs from the one before version 2 existed, or changes when the file declares version 2 without using it",
+   "unit": "scenes",
+   "formula": "unchanged",
+   "reference": 0,
+   "measured": 0,
+   "error": 0,
+   "relativeError": null,
+   "tolerance": {
+    "kind": "absolute",
+    "value": 0
+   },
+   "pass": true,
+   "source": {
+    "file": "packages/box3d-kit/test/v17-compound.test.mjs",
+    "test": "scene format version 2: compound shapes and massData validate, canonicalise, travel in share links and load the same everywhere",
+    "url": "https://github.com/nathansenn/box3d-WEBGPU/blob/main/packages/box3d-kit/test/v17-compound.test.mjs"
+   },
+   "text": {
+    "reference": "0 scenes",
+    "measured": "0",
+    "error": "0",
+    "tolerance": "±0"
+   }
+  },
+  {
    "id": "simulation.identity.water-structure",
    "domain": "simulation",
    "title": "Moored buoy: Simulation of the scene file against the modules driven by hand",
@@ -5198,7 +5765,7 @@
    "id": "robot.mass.total",
    "domain": "robot",
    "title": "Mass: the six-joint arm weighs what its file says",
-   "quantity": "sum of the masses the solver reports for the arm's 8 bodies",
+   "quantity": "sum of the masses the solver reports for the arm's 8 bodies (links: welded, inertia: shapes)",
    "unit": "kg",
    "formula": "sum of the link masses in the file",
    "reference": 16.8,
@@ -5226,7 +5793,7 @@
   {
    "id": "robot.inertia.report",
    "domain": "robot",
-   "title": "Inertia report: the two-box tool link",
+   "title": "Inertia report with inertia: shapes: the two-box tool link",
    "quantity": "reported largest relative error of a principal moment for the tool link (file tensor against its two boxes at one density)",
    "unit": "1",
    "formula": "max |I_i(two boxes, parallel axes) - I_i(file)| / I_i(file)",
@@ -5239,7 +5806,7 @@
     "value": 1e-9
    },
    "pass": true,
-   "note": "This is the fidelity limit itself, not an error of the report: the engine cannot take the file's tensor, and here the bodies are 42% off it.",
+   "note": "This is the gap the default import closes by setting the file's tensor (robot.inertia.applied); with inertia: shapes the bodies are 42% off it.",
    "source": {
     "file": "packages/box3d-kit/test/v15-robot.test.mjs",
     "test": "mass and inertia: total mass is the sum of link masses to float32, and the reported inertia errors are those of the shapes",
@@ -5283,10 +5850,10 @@
   {
    "id": "robot.pendulum.period",
    "domain": "robot",
-   "title": "One revolute link: compound-pendulum period",
+   "title": "One revolute link with inertia: shapes: compound-pendulum period",
    "quantity": "period of a 0.8 m box rod hinged at its end, mean over 20 s",
    "unit": "s",
-   "formula": "T = 2 pi sqrt((I_box + m d^2) / (m g d)) (1 + theta0^2 / 16), with the body's actual inertia",
+   "formula": "T = 2 pi sqrt((I_box + m d^2) / (m g d)) (1 + theta0^2 / 16), with the shape's inertia",
    "reference": 1.46696998,
    "measured": 1.46697108,
    "error": 0.00000110189293,
@@ -5298,7 +5865,7 @@
    "pass": true,
    "source": {
     "file": "packages/box3d-kit/test/v15-robot.test.mjs",
-    "test": "a single revolute link swings with the compound-pendulum period of its ACTUAL inertia, not the inertia in the file",
+    "test": "with inertia: 'shapes', a single revolute link swings with the compound-pendulum period of its shape's inertia, not the inertia in the file",
     "url": "https://github.com/nathansenn/box3d-WEBGPU/blob/main/packages/box3d-kit/test/v15-robot.test.mjs"
    },
    "text": {
@@ -5311,7 +5878,7 @@
   {
    "id": "robot.pendulum.file-inertia",
    "domain": "robot",
-   "title": "One revolute link: what the file's inertia would have given",
+   "title": "One revolute link with inertia: shapes: what the file's inertia would have given",
    "quantity": "period predicted from the file's tensor (1.3 x the rod's) over the measured period, minus 1",
    "unit": "1",
    "formula": "sqrt((1.3 I_box + m d^2) / (I_box + m d^2)) - 1",
@@ -5324,10 +5891,10 @@
     "value": 0.001
    },
    "pass": true,
-   "note": "The body swings 3.7% faster than a body with the file's inertia would: the gap the inertia report warns of.",
+   "note": "With inertia: shapes the body swings 3.7% faster than the file predicts; by default the file's inertia is applied (robot.pendulum.file-period).",
    "source": {
     "file": "packages/box3d-kit/test/v15-robot.test.mjs",
-    "test": "a single revolute link swings with the compound-pendulum period of its ACTUAL inertia, not the inertia in the file",
+    "test": "with inertia: 'shapes', a single revolute link swings with the compound-pendulum period of its shape's inertia, not the inertia in the file",
     "url": "https://github.com/nathansenn/box3d-WEBGPU/blob/main/packages/box3d-kit/test/v15-robot.test.mjs"
    },
    "text": {
@@ -5429,9 +5996,9 @@
    "unit": "rad",
    "formula": "theta = upper limit",
    "reference": 0.5,
-   "measured": 0.500601709,
-   "error": 0.000601708889,
-   "relativeError": 0.00120341778,
+   "measured": 0.500545323,
+   "error": 0.000545322895,
+   "relativeError": 0.00109064579,
    "tolerance": {
     "kind": "absolute",
     "value": 0.002
@@ -5444,8 +6011,8 @@
    },
    "text": {
     "reference": "0.5 rad",
-    "measured": "0.5006017",
-    "error": "+0.000602",
+    "measured": "0.5005453",
+    "error": "+0.000545",
     "tolerance": "±0.002"
    }
   },
@@ -5457,8 +6024,8 @@
    "unit": "rad",
    "formula": "theta = 0 while tau >= m g d",
    "reference": 0,
-   "measured": 0.000454390858,
-   "error": 0.000454390858,
+   "measured": 0.000374910422,
+   "error": 0.000374910422,
    "relativeError": null,
    "tolerance": {
     "kind": "absolute",
@@ -5472,8 +6039,8 @@
    },
    "text": {
     "reference": "0 rad",
-    "measured": "0.0004543909",
-    "error": "+0.000454",
+    "measured": "0.0003749104",
+    "error": "+0.000375",
     "tolerance": "±0.002"
    }
   },
@@ -5485,9 +6052,9 @@
    "unit": "rad",
    "formula": "theta > 0.2 rad: the link sinks when tau < m g d",
    "reference": 0.2,
-   "measured": 0.348320067,
-   "error": 0.148320067,
-   "relativeError": 0.741600335,
+   "measured": 0.348225325,
+   "error": 0.148225325,
+   "relativeError": 0.741126627,
    "tolerance": {
     "kind": "lower",
     "value": 0
@@ -5500,7 +6067,7 @@
    },
    "text": {
     "reference": "0.2 rad",
-    "measured": "0.3483201",
+    "measured": "0.3482253",
     "error": "+0.148",
     "tolerance": "not below the reference"
    }
@@ -5598,8 +6165,8 @@
    "unit": "m",
    "formula": "displacement = 0 for rigid joints",
    "reference": 0,
-   "measured": 0.0240421263,
-   "error": 0.0240421263,
+   "measured": 0.0229867032,
+   "error": 0.0229867032,
    "relativeError": null,
    "tolerance": {
     "kind": "upper",
@@ -5614,8 +6181,8 @@
    },
    "text": {
     "reference": "0 m",
-    "measured": "0.02404213",
-    "error": "+0.024",
+    "measured": "0.0229867",
+    "error": "+0.023",
     "tolerance": "at most 0.03 above the reference"
    }
   },
@@ -5627,8 +6194,8 @@
    "unit": "m",
    "formula": "displacement = 0 for rigid joints",
    "reference": 0,
-   "measured": 0.0176670903,
-   "error": 0.0176670903,
+   "measured": 0.0170491823,
+   "error": 0.0170491823,
    "relativeError": null,
    "tolerance": {
     "kind": "upper",
@@ -5642,8 +6209,8 @@
    },
    "text": {
     "reference": "0 m",
-    "measured": "0.01766709",
-    "error": "+0.0177",
+    "measured": "0.01704918",
+    "error": "+0.017",
     "tolerance": "at most 0.03 above the reference"
    }
   },
@@ -5655,8 +6222,8 @@
    "unit": "m",
    "formula": "displacement = 0 for rigid joints and infinitely stiff springs",
    "reference": 0,
-   "measured": 0.044525882,
-   "error": 0.044525882,
+   "measured": 0.0427968268,
+   "error": 0.0427968268,
    "relativeError": null,
    "tolerance": {
     "kind": "upper",
@@ -5671,8 +6238,8 @@
    },
    "text": {
     "reference": "0 m",
-    "measured": "0.04452588",
-    "error": "+0.0445",
+    "measured": "0.04279683",
+    "error": "+0.0428",
     "tolerance": "at most 0.05 above the reference"
    }
   },
@@ -5684,8 +6251,8 @@
    "unit": "m",
    "formula": "gap = 0 for exact constraints",
    "reference": 0,
-   "measured": 0.000910037572,
-   "error": 0.000910037572,
+   "measured": 0.000899430872,
+   "error": 0.000899430872,
    "relativeError": null,
    "tolerance": {
     "kind": "upper",
@@ -5699,8 +6266,8 @@
    },
    "text": {
     "reference": "0 m",
-    "measured": "0.0009100376",
-    "error": "+0.00091",
+    "measured": "0.0008994309",
+    "error": "+0.000899",
     "tolerance": "at most 0.002 above the reference"
    }
   },
@@ -5741,8 +6308,8 @@
    "unit": "m",
    "formula": "gap = 0 for exact constraints",
    "reference": 0,
-   "measured": 0.00375466831,
-   "error": 0.00375466831,
+   "measured": 0.00365165607,
+   "error": 0.00365165607,
    "relativeError": null,
    "tolerance": {
     "kind": "upper",
@@ -5756,8 +6323,8 @@
    },
    "text": {
     "reference": "0 m",
-    "measured": "0.003754668",
-    "error": "+0.00375",
+    "measured": "0.003651656",
+    "error": "+0.00365",
     "tolerance": "at most 0.006 above the reference"
    }
   },
@@ -5769,9 +6336,9 @@
    "unit": "m",
    "formula": "h = wheel radius + 0.05 m",
    "reference": 0.15,
-   "measured": 0.150144354,
-   "error": 0.000144353509,
-   "relativeError": 0.000962356726,
+   "measured": 0.150144339,
+   "error": 0.000144338608,
+   "relativeError": 0.000962257385,
    "tolerance": {
     "kind": "absolute",
     "value": 0.001
@@ -5784,7 +6351,7 @@
    },
    "text": {
     "reference": "0.15 m",
-    "measured": "0.1501444",
+    "measured": "0.1501443",
     "error": "+0.000144",
     "tolerance": "±0.001"
    }
@@ -5797,9 +6364,9 @@
    "unit": "m/s",
    "formula": "v = omega r",
    "reference": 0.5,
-   "measured": 0.48657769,
-   "error": -0.0134223104,
-   "relativeError": -0.0268446207,
+   "measured": 0.486598492,
+   "error": -0.0134015083,
+   "relativeError": -0.0268030167,
    "tolerance": {
     "kind": "relative",
     "value": 0.05
@@ -5813,7 +6380,7 @@
    },
    "text": {
     "reference": "0.5 m/s",
-    "measured": "0.4865777",
+    "measured": "0.4865985",
     "error": "-2.68%",
     "tolerance": "±5%"
    }
@@ -5872,6 +6439,176 @@
     "measured": "0",
     "error": "0",
     "tolerance": "±0"
+   }
+  },
+  {
+   "id": "robot.inertia.applied",
+   "domain": "robot",
+   "title": "Inertia: the six-joint arm has the file's tensors",
+   "quantity": "largest relative error of a principal moment the solver holds against the file's, over the arm's 7 links",
+   "unit": "1",
+   "formula": "I(solver) = I(file)",
+   "reference": 0,
+   "measured": 4.70278101e-8,
+   "error": 4.70278101e-8,
+   "relativeError": null,
+   "tolerance": {
+    "kind": "upper",
+    "value": 0.000002
+   },
+   "pass": true,
+   "note": "float32. From the shapes alone the worst link was 42% off.",
+   "source": {
+    "file": "packages/box3d-kit/test/v17-compound.test.mjs",
+    "test": "robot import: a link with several shapes is one compound body, and the file's inertial is what the solver holds",
+    "url": "https://github.com/nathansenn/box3d-WEBGPU/blob/main/packages/box3d-kit/test/v17-compound.test.mjs"
+   },
+   "text": {
+    "reference": "0",
+    "measured": "4.702781e-8",
+    "error": "+4.7e-8",
+    "tolerance": "at most 2e-6 above the reference"
+   }
+  },
+  {
+   "id": "robot.inertia.centre-of-mass",
+   "domain": "robot",
+   "title": "Centre of mass: the six-joint arm has the file's",
+   "quantity": "largest distance between a link's centre of mass in the solver and the file's inertial origin",
+   "unit": "m",
+   "formula": "c(solver) = c(file)",
+   "reference": 0,
+   "measured": 3.51127137e-10,
+   "error": 3.51127137e-10,
+   "relativeError": null,
+   "tolerance": {
+    "kind": "upper",
+    "value": 1e-7
+   },
+   "pass": true,
+   "note": "From the shapes alone the tool link was 4.4 mm off.",
+   "source": {
+    "file": "packages/box3d-kit/test/v17-compound.test.mjs",
+    "test": "robot import: a link with several shapes is one compound body, and the file's inertial is what the solver holds",
+    "url": "https://github.com/nathansenn/box3d-WEBGPU/blob/main/packages/box3d-kit/test/v17-compound.test.mjs"
+   },
+   "text": {
+    "reference": "0 m",
+    "measured": "3.511271e-10",
+    "error": "+3.51e-10",
+    "tolerance": "at most 1e-7 above the reference"
+   }
+  },
+  {
+   "id": "robot.compound.bodies",
+   "domain": "robot",
+   "title": "One body per link",
+   "quantity": "bodies of the six-joint arm, whose tool link has two collision boxes",
+   "unit": "bodies",
+   "formula": "links with collision shapes",
+   "reference": 7,
+   "measured": 7,
+   "error": 0,
+   "relativeError": 0,
+   "tolerance": {
+    "kind": "absolute",
+    "value": 0
+   },
+   "pass": true,
+   "source": {
+    "file": "packages/box3d-kit/test/v17-compound.test.mjs",
+    "test": "robot import: a link with several shapes is one compound body, and the file's inertial is what the solver holds",
+    "url": "https://github.com/nathansenn/box3d-WEBGPU/blob/main/packages/box3d-kit/test/v17-compound.test.mjs"
+   },
+   "text": {
+    "reference": "7 bodies",
+    "measured": "7",
+    "error": "0",
+    "tolerance": "±0"
+   }
+  },
+  {
+   "id": "robot.compound.inertia",
+   "domain": "robot",
+   "title": "A compound link from its shapes",
+   "quantity": "largest relative error of a principal moment of the two-box tool link in the solver against the sum over its boxes by parallel axes (inertia: shapes)",
+   "unit": "1",
+   "formula": "I = sum of (I_i + m_i d_i^2)",
+   "reference": 0,
+   "measured": 7.35131647e-8,
+   "error": 7.35131647e-8,
+   "relativeError": null,
+   "tolerance": {
+    "kind": "upper",
+    "value": 0.000002
+   },
+   "pass": true,
+   "source": {
+    "file": "packages/box3d-kit/test/v17-compound.test.mjs",
+    "test": "robot import: a link with several shapes is one compound body, and the file's inertial is what the solver holds",
+    "url": "https://github.com/nathansenn/box3d-WEBGPU/blob/main/packages/box3d-kit/test/v17-compound.test.mjs"
+   },
+   "text": {
+    "reference": "0",
+    "measured": "7.351316e-8",
+    "error": "+7.35e-8",
+    "tolerance": "at most 2e-6 above the reference"
+   }
+  },
+  {
+   "id": "robot.pendulum.file-period",
+   "domain": "robot",
+   "title": "One revolute link: the period of the file's inertia",
+   "quantity": "period of a 0.8 m rod hinged at its end whose file states 1.3 x the rod's transverse inertia, mean over 20 s",
+   "unit": "s",
+   "formula": "T = 2 pi sqrt((1.3 I_box + m d^2) / (m g d)) (1 + theta0^2 / 16)",
+   "reference": 1.52121035,
+   "measured": 1.52121165,
+   "error": 0.0000013002489,
+   "relativeError": 8.54746283e-7,
+   "tolerance": {
+    "kind": "relative",
+    "value": 0.0001
+   },
+   "pass": true,
+   "source": {
+    "file": "packages/box3d-kit/test/v17-compound.test.mjs",
+    "test": "robot import: a hinged rod whose file states 1.3 x its shape's inertia swings with the file's period",
+    "url": "https://github.com/nathansenn/box3d-WEBGPU/blob/main/packages/box3d-kit/test/v17-compound.test.mjs"
+   },
+   "text": {
+    "reference": "1.52121 s",
+    "measured": "1.521212",
+    "error": "+8.55e-7 rel.",
+    "tolerance": "±0.01%"
+   }
+  },
+  {
+   "id": "robot.pendulum.file-against-shapes",
+   "domain": "robot",
+   "title": "One revolute link: file inertia against shape inertia",
+   "quantity": "measured period with the file's inertia over the measured period with inertia: shapes, minus 1",
+   "unit": "1",
+   "formula": "sqrt((1.3 I_box + m d^2) / (I_box + m d^2)) - 1",
+   "reference": 0.0369744268,
+   "measured": 0.0369745343,
+   "error": 1.0744186e-7,
+   "relativeError": 0.00000290584248,
+   "tolerance": {
+    "kind": "absolute",
+    "value": 0.0001
+   },
+   "pass": true,
+   "source": {
+    "file": "packages/box3d-kit/test/v17-compound.test.mjs",
+    "test": "robot import: a hinged rod whose file states 1.3 x its shape's inertia swings with the file's period",
+    "url": "https://github.com/nathansenn/box3d-WEBGPU/blob/main/packages/box3d-kit/test/v17-compound.test.mjs"
+   },
+   "text": {
+    "reference": "0.03697443",
+    "measured": "0.03697453",
+    "error": "+1.07e-7",
+    "tolerance": "±0.0001"
    }
   },
   {

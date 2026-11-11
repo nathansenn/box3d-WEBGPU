@@ -43,6 +43,7 @@ export class LabSceneHost implements SceneHost {
   isJointAlive(joint: NativeJointHandle): boolean { return this.native.jointAlive(joint); }
   destroyJoint(joint: NativeJointHandle): boolean { return this.native.destroyJoint(joint); }
   getState(body: NativeBodyHandle): NativeBodyState { return this.native.bodyState(body); }
+  getMassData(body: NativeBodyHandle): { readonly center: readonly number[] } | null { return this.native.supportsCompoundBodies ? this.native.bodyMassData(body) : null; }
   gravity(): [number, number, number] { return this.native.gravity(); }
   bodyCount(): number { return this.native.bodyCount(); }
 

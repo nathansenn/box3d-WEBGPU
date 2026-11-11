@@ -515,7 +515,8 @@ export function createSceneEditor(host: SceneEditorHost): SceneEditor {
     if (!body || !world || !handle) return;
     try {
       const state = world.native.bodyState(handle);
-      series.push(time(), state, scene().world?.gravity ?? [0, -9.81, 0], principalInertia(body.shape, state.mass));
+      // With massData the body's inertia is not its shape's, and the editor does not read the tensor back: the rotational term is then left out.
+      series.push(time(), state, scene().world?.gravity ?? [0, -9.81, 0], body.massData ? null : principalInertia(body.shape, state.mass));
       plotDirty = true;
     } catch { /* the body is gone */ }
   }
@@ -897,8 +898,8 @@ export function createSceneEditor(host: SceneEditorHost): SceneEditor {
       g.append(el('span', '', 'Extent (m)'), el('output', '', `${show((generated.countX - 1) * generated.spacing, 4)} × ${show((generated.countZ - 1) * generated.spacing, 4)}`));
     } else {
       const bounds = shapeLocalBounds(shape), size = bounds.max.map((value, k) => show(value - bounds.min[k]!, 4)).join(' × ');
-      const count = shape.kind === 'hull' ? `${shape.points.length / 3} points` : shape.kind === 'mesh' ? `${shape.indices.length / 3} triangles` : `${(shape as { countX: number }).countX} × ${(shape as { countZ: number }).countZ} samples`;
-      g.append(el('span', '', `Imported ${shape.kind}`), el('output', '', `${count}, ${size} m. Its geometry is not editable here.`));
+      const count = shape.kind === 'compound' ? `${shape.shapes.length} shapes` : shape.kind === 'hull' ? `${shape.points.length / 3} points` : shape.kind === 'mesh' ? `${shape.indices.length / 3} triangles` : `${(shape as { countX: number }).countX} × ${(shape as { countZ: number }).countZ} samples`;
+      g.append(el('span', '', shape.kind === 'compound' ? 'Compound' : `Imported ${shape.kind}`), el('output', '', `${count}, ${size} m. Its geometry is not editable here.`));
     }
     return g;
   }

@@ -1,4 +1,4 @@
-// Render geometry of hull, mesh and height-field bodies (src/webgpu/body-geometry.ts), the plan
+// Render geometry of hull, mesh, height-field and compound bodies (src/webgpu/body-geometry.ts), the plan
 // that routes their rows (src/webgpu/instance-shapes.ts), and the shapes the native world keeps
 // for them. The height-field triangulation is compared with ray casts against Box3D itself.
 import assert from 'node:assert/strict';
@@ -8,10 +8,10 @@ import {resolve} from 'node:path';
 import {pathToFileURL} from 'node:url';
 import {NativeWorldPool} from '../../src/engine/native-world.ts';
 import {
-  BODY_MESH_VERTEX_FLOATS, bodyRenderMesh, heightfieldRenderMesh, hullRenderMesh, meshRenderMesh,
+  BODY_MESH_VERTEX_FLOATS, bodyRenderMesh, compoundRenderMesh, heightfieldRenderMesh, hullRenderMesh, meshRenderMesh,
 } from '../../src/webgpu/body-geometry.ts';
 import {
-  SHAPE_KIND_HEIGHTFIELD, SHAPE_KIND_HULL, SHAPE_KIND_MESH, forEachBoxRun, forEachRun, geometryRowsBelow, planInstanceShapes,
+  SHAPE_KIND_COMPOUND, SHAPE_KIND_HEIGHTFIELD, SHAPE_KIND_HULL, SHAPE_KIND_MESH, forEachBoxRun, forEachRun, geometryRowsBelow, planInstanceShapes,
 } from '../../src/webgpu/instance-shapes.ts';
 import {random, showcaseScene, torusMesh} from './lab-scene-fixtures.mjs';
 import {loadLabScene} from '../../src/lab/scene-host.ts';
@@ -175,6 +175,68 @@ test('the height-field triangles are the ones Box3D collides with', () => {
     results.forEach((result, i) => { otherWorst = Math.max(otherWorst, Math.abs(result.hits[0].point[1] - origin[1] - flipped(queries[i].origin[0] - origin[0], queries[i].origin[2] - origin[2]))); });
     assert.ok(otherWorst > 0.05, `the other diagonal misses by ${otherWorst} m, so the comparison can tell them apart`);
   } finally { world.destroy(); }
+});
+
+test('a compound is drawn as every child at its local pose, and the drawn surface is the one Box3D collides with', () => {
+  // One child of each kind, turned and spaced so that no ray towards one child meets another first.
+  const turn = (axis, angle) => { const s = Math.sin(angle / 2); return [axis[0] * s, axis[1] * s, axis[2] * s, Math.cos(angle / 2)]; };
+  const cube = [];
+  for (const x of [-0.2, 0.2]) for (const y of [-0.15, 0.15]) for (const z of [-0.1, 0.1]) cube.push(x, y, z);
+  const children = [
+    {shape: {kind: 'box', halfExtents: [0.3, 0.1, 0.2]}, position: [-2, 0, 0], rotation: turn([0, 0, 1], 0.6)},
+    {shape: {kind: 'sphere', radius: 0.25}, position: [0, 0.5, 0]},
+    {shape: {kind: 'capsule', radius: 0.12, halfLength: 0.3}, position: [2, 0, 0], rotation: turn([1, 0, 0], Math.PI / 2)},   // its axis now along z
+    {shape: {kind: 'hull', points: cube}, position: [0, -2, 0], rotation: turn([0, 1, 0], 0.9)},
+  ];
+  const mesh = compoundRenderMesh(children), triangles = trianglesOf(mesh);
+  assert.equal(mesh.reduced, null);
+  assert.equal(bodyRenderMesh({kind: 'compound', shapes: children}).vertexCount, mesh.vertexCount);
+  // 12 triangles a box and a cuboid hull; a sphere of 24 x 12 bands has 24 x (12 - 1) x 2; a capsule adds 24 x 2 for its cylinder.
+  assert.equal(triangles.length, 12 + 24 * 11 * 2 + (24 * 11 * 2 + 24 * 2) + 12);
+  for (const {p, n, face, area} of triangles) {
+    assert.ok(area > 1e-7, 'no degenerate triangle');
+    for (const normal of n) { close(Math.hypot(...normal), 1, 1e-5, 'unit normal'); assert.ok(dot(normal, face) > 0.85, 'the winding faces the way the normals point'); }
+    assert.ok(p.every(v => v.every(Number.isFinite)));
+  }
+  // Each child's vertices are where its pose puts them: the capsule, turned onto z, reaches 0.42 along z and 0.12 along y.
+  const near = centre => triangles.flatMap(t => t.p).filter(v => Math.hypot(v[0] - centre[0], v[1] - centre[1], v[2] - centre[2]) < 0.9);
+  const extent = (points, axis) => [Math.min(...points.map(v => v[axis])), Math.max(...points.map(v => v[axis]))];
+  const capsule = near([2, 0, 0]);
+  [[extent(capsule, 2), [-0.42, 0.42]], [extent(capsule, 1), [-0.12, 0.12]], [extent(capsule, 0), [1.88, 2.12]]].forEach(([got, want]) => got.forEach((v, i) => close(v, want[i], 1e-6, 'capsule extent')));
+  const box = near([-2, 0, 0]), reach = 0.3 * Math.cos(0.6) + 0.1 * Math.sin(0.6);
+  extent(box, 0).forEach((v, i) => close(v, -2 + (i ? reach : -reach), 1e-6, 'the box is turned 0.6 rad about z'));
+  // Against the engine: a ray along -normal towards any drawn vertex stops at that vertex.
+  const world = pool.createWorld();
+  try {
+    world.resetWorld({ground: false});
+    world.retainBodyShapes(true);
+    const origin = [5, 3, -4], spin = turn([0.6, 0, 0.8], 1.1);
+    const body = world.createBody({shape: {kind: 'compound', shapes: children}, position: origin, rotation: spin, type: 'static'});
+    assert.deepEqual([world.bodyKinds(), world.shapeKinds()[0], world.bodyShape(0).kind, world.bodyShape(0).shapes.length], [['compound'], SHAPE_KIND_COMPOUND, 'compound', 4]);
+    assert.equal(world.bodyShape(0), world.bodyShape(world.bodyIndex(body)), 'the same object every time, so the renderer uploads it once');
+    const rotate = ([x, y, z, w], v) => { const t = [2 * (y * v[2] - z * v[1]), 2 * (z * v[0] - x * v[2]), 2 * (x * v[1] - y * v[0])]; return [v[0] + w * t[0] + y * t[2] - z * t[1], v[1] + w * t[1] + z * t[0] - x * t[2], v[2] + w * t[2] + x * t[1] - y * t[0]]; };
+    // Rays go to triangle centres (a ray along a face normal through a corner only grazes the box).
+    const drawn = trianglesOf(compoundRenderMesh(world.bodyShape(0).shapes)), queries = [], targets = [];
+    drawn.forEach(({p, face}) => {
+      const local = [0, 1, 2].map(k => (p[0][k] + p[1][k] + p[2][k]) / 3), point = rotate(spin, local).map((value, i) => value + origin[i]), out = rotate(spin, face);
+      queries.push({kind: 'ray', origin: point.map((value, i) => value + 0.4 * out[i]), translation: out.map(value => -0.8 * value), limit: 1});
+      targets.push(point);
+    });
+    let flat = 0, round = 0;
+    for (let start = 0; start < queries.length; start += 100) world.queryBatch(queries.slice(start, start + 100)).forEach((result, i) => {
+      const index = start + i, miss = result.hits.length === 1 ? Math.hypot(...result.hits[0].point.map((value, k) => value - targets[index][k])) : Infinity;
+      assert.equal(result.hits.length, 1, `ray ${index} hits the compound`);
+      // The first 12 triangles are the box and the last 12 the hull; the others are the sphere and the capsule.
+      if (index < 12 || index >= drawn.length - 12) flat = Math.max(flat, miss); else round = Math.max(round, miss);
+    });
+    assert.ok(flat < 1e-4, `the centres of the box's and the hull's triangles are on the collision surface to ${flat} m`);
+    // A flat triangle under a curved surface sits below it by the sagitta: at most r (1 - cos(pi / 24)) (1 + ...) for 24 segments and 12 bands, 4 mm at r = 0.25.
+    assert.ok(round > 1e-4 && round < 0.25 * 0.02, `the centres of the sphere's and the capsule's triangles are within ${round} m of the collision surface`);
+  } finally { world.destroy(); }
+  // A compound row has its own geometry in the plan, like a hull.
+  const plan = planInstanceShapes(new Uint8Array([0, SHAPE_KIND_COMPOUND, 1]), 3, row => row === 1);
+  assert.deepEqual([[...plan.geometryRows], [...plan.boxRuns], [...plan.sphereRuns]], [[1], [0, 1], [2, 1]]);
+  assert.equal(compoundRenderMesh([{shape: {kind: 'hull', points: [0, 0, 0, 1, 0, 0, 0, 1, 0, 1, 1, 0]}}, {shape: {kind: 'sphere', radius: 1}}]).vertexCount, 24 * 11 * 2 * 3, 'a child without volume is left out');
 });
 
 test('bodyRenderMesh picks the mesh by shape kind', () => {

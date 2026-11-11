@@ -112,6 +112,29 @@ world.createBody({shape: {kind: 'heightfield', heights, countX: 65, countZ: 65, 
 
 The physics is checked against closed-form answers in `test/v08.test.mjs`: free fall, the compound-pendulum period (within 0.1%), sliding-friction stopping distance, rebound height, momentum and energy in an elastic collision, `F = m a`, `τ = I α`, spring period, circular-motion tension, and sliding (g sin θ) and rolling (5/7 g sin θ) down mesh and terrain inclines.
 
+**Several shapes on one body, and stated mass.** A compound holds up to 64 boxes, spheres, capsules and hulls, each at its own pose in the body's frame and with its own density, friction and restitution. `massData` (or `setMassData`) replaces the mass, centre of mass and inertia tensor that the shapes give.
+
+```ts
+// A hammer: a wooden handle along y and a steel head across its top. `position` is the origin the shapes are placed from.
+const hammer = world.createBody({position: [0, 2, 0], density: 7800, shape: {kind: 'compound', shapes: [
+  {shape: {kind: 'capsule', radius: 0.02, halfLength: 0.25}, density: 600, friction: 0.9},
+  {shape: {kind: 'box', halfExtents: [0.08, 0.04, 0.04]}, position: [0, 0.29, 0]},          // rotation: [x, y, z, w] turns a child
+]}});
+world.getMassData(hammer);   // {mass, center: [x, y, z] in the body frame, inertia: [Ixx, Iyy, Izz, Ixy, Ixz, Iyz] about it, explicit: false, shapeCount: 2}
+
+// A flywheel that collides as a sphere and has the mass and inertia of the real part.
+const wheel = world.createBody({shape: {kind: 'sphere', radius: 0.2}, position: [2, 1, 0], massData: {mass: 12, inertia: [0.9, 0.9, 1.6, 0, 0, 0]}});
+world.setMassData(wheel, {mass: 12, center: [0, 0, 0.01], inertia: [0.9, 0.9, 1.6, 0, 0, 0]});   // later, at any time
+world.resetMassData(wheel);                                                                      // back to the shape's
+```
+
+- A compound's mass, centre of mass and inertia are the sums over its shapes (parallel-axis theorem); shapes that overlap count their overlap twice. The body's position is the frame's origin, not the centre of mass. `getState().linearVelocity` is the velocity of the centre of mass.
+- The whole body has one colour, one collision filter and one set of flags; events name the body, not the shape. Meshes and height fields cannot be part of a compound.
+- `inertia` is the tensor about the centre of mass in body axes. It must be positive definite; nothing checks that it suits the collision shape. Setting mass data keeps the body's pose and the velocity of its origin. The values stay across `setBodyType` and act while the body is dynamic; a body with `lockRotation` keeps no inertia.
+- Both are recorded and replayed, work on a worker-hosted world, and are in scene files (version 2).
+
+Measured in `test/v17-compound.test.mjs`: a dumbbell's mass and parallel-axis inertia to 8e-8, its spin-up under a torque to 2e-6 and its period as a physical pendulum to 3e-7; the centre of mass and product of inertia of an L of two boxes to 1.3e-7, and the tilt at which that L tips over to 0.008° of the 15.64° its centre of mass gives; a body with a stated full tensor against Euler's equations to 2.2e-4 after 2 s; a pendulum that exists only through a stated centre of mass to 1.7e-6.
+
 To draw mixed shapes with three.js use `createShapeMeshes(THREE, world)` and `syncShapeMeshes(world, meshes, {alpha})` from `box3d-webgpu-kit/three`; capsules render exactly at any size. For other renderers, `world.bodyKinds()` gives the shape of each row of `matrices()`.
 
 ### Import geometry: OBJ, STL and glTF
@@ -153,14 +176,14 @@ Things to know:
 - Triangles must be counter-clockwise seen from outside. `meshVolume` is negative for an inside-out mesh; `flipWinding` fixes it.
 - Box3D holds at most 64 vertices and 255 half-edges per hull. A rounded hull (all triangles) is cut to 44 points, which makes it smaller: a sphere's hull loses 19% of its volume at 32 points and 14% at 44. Use `{kind: 'sphere'}` for balls. `createBodiesFromMesh` scales the density so a closed mesh still has mass = density x mesh volume.
 - `convexDecompose` is greedy plane splitting: the most concave piece is cut by the best of its own face planes and nine axis-aligned planes, until the concavity target or `maxHulls` is met. Solids with flat inner faces (an L, a U, steps) split exactly. Curved concavities are only approached: a torus (576 triangles) is off by 24% with 8 hulls, 9% with 16 and 3% with 32. It is not V-HACD; it needs a closed mesh, and takes about a second for a few thousand triangles.
-- The kit has no compound shapes yet, so a decomposed solid is several bodies held by weld joints. Welds are solved iteratively and flex slightly under impact (1.7 mm for a 225 kg L landing at 2 m/s in the test).
+- `createBodiesFromMesh` makes a decomposed solid as several bodies held by weld joints, as it did before the kit had compound shapes. Welds are solved iteratively and flex slightly under impact (1.7 mm for a 225 kg L landing at 2 m/s in the test). To get one rigid body instead, pass the hulls of `convexDecompose` as the children of a `{kind: 'compound'}` shape (up to 64).
 - Parsers reject malformed input with `EngineError('INVALID_PAYLOAD')` and the reason, and refuse more than 4 million vertices or 8 million triangles (`GEOMETRY_LIMITS`).
 
 `test/v10-geometry.test.mjs` checks all of this against closed-form answers: one cube in four formats (volume exactly 1), a tetrahedron's volume and centroid, a sphere's volume converging at second order, transformed glTF nodes, mass = density x volume for imported hulls, sliding at g sin θ down an imported ramp (within 0.1%), and a decomposed L coming to rest on the ground.
 
 ### Scene files and share links
 
-`box3d-webgpu-kit/scene` turns a scene into plain JSON and back: one versioned format (`box3d-scene`, version 1) that can be validated, loaded, saved, diffed, hashed and packed into a URL. It has no dependencies. The full schema is in [`docs/SCENE_FORMAT.md`](https://github.com/nathansenn/box3d-WEBGPU/blob/main/docs/SCENE_FORMAT.md).
+`box3d-webgpu-kit/scene` turns a scene into plain JSON and back: one versioned format (`box3d-scene`; version 1, and version 2 for bodies that are compounds or state their mass data) that can be validated, loaded, saved, diffed, hashed and packed into a URL. It has no dependencies. The full schema is in [`docs/SCENE_FORMAT.md`](https://github.com/nathansenn/box3d-WEBGPU/blob/main/docs/SCENE_FORMAT.md).
 
 ```ts
 import {createWorld} from 'box3d-webgpu-kit';
@@ -208,6 +231,7 @@ const json = builder.toJSON();                         // at any time
 - **What a save restores.** Position, rotation, both velocities and the type of every body, and gravity. Positions and velocities come back bit-identical; a rotation component can differ by one float32 step. Sleep state, the solver's contact and joint impulses, the tick count and settings changed on the world directly (`setJointMotor`, `setDamping`, ...) are not saved, so a resumed run is a valid simulation from that state but not a bit-exact continuation. Measured drift after 100 more ticks: 5e-8 m for pendulums, 1.6e-4 m for a car on terrain, 1 cm for falling dominoes, 7 cm for a toppling ragdoll. For bit-exact reproduction use `startRecording` and `replay`.
 - **Links.** `encodeSceneLink` uses the platform's `CompressionStream('deflate-raw')` and falls back to storing the JSON; `encodeSceneLinkSync` always stores. `decodeSceneLink` is synchronous and has its own inflate, so it works everywhere. It checks a CRC-32 and the length, and never decompresses more than the link declares (4 MiB at most). The example scenes are 565 to 1,086 characters as links.
 - **Examples.** `pendulumWaveScene()`, `newtonsCradleScene()`, `dominoRunScene()`, `terrainCarScene()` and `ragdollScene()` return ready-made scenes; `EXAMPLE_SCENES` lists them by name.
+- **Version 2.** A body's shape may be `{kind: 'compound', shapes: [{shape, position?, rotation?, density?, friction?, restitution?}, ...]}`, and a body may have `massData: {mass, center?, inertia}`. A scene that uses either is version 2; every other scene stays version 1 with the canonical text and hash it had, whatever it declares. A version 2 feature in a file that says version 1 is reported.
 - **Coupled scenes.** A scene may also have `water`, `cables` and `frames` sections (still version 1; a scene without them is unchanged). `loadScene` builds them and returns a `simulation` to step instead of the world; see [One stepping loop](#one-stepping-loop-for-every-solver).
 
 `test/v12-scene.test.mjs` checks the round trips, determinism from a link, save and resume, 97 malformed files, damaged links and a decompression bomb, and the physics of two example scenes: every pendulum's period within 0.1% of `2π sqrt(I / (m g L))` (measured 0.0004%), and a Newton's cradle whose last ball leaves at the first ball's speed within 2% (measured 0.4%).
@@ -241,9 +265,9 @@ console.log(report.totalMass, report.totalMassActual, report.maxPrincipalError, 
 
 What you get, and what you do not:
 
-- Each link becomes one body per collision shape (several are welded), placed by forward kinematics at the joint positions you give. Fixed joints become welds, revolute and continuous joints hinges about the joint axis, prismatic joints sliders, ball joints spherical joints; limits are kept. The root is welded to the world unless `floatingBase: true`. URDF and MJCF are Z up; the robot is turned into the kit's Y-up world.
-- **Mass matches the file; inertia does not.** The engine derives inertia from a body's shape and density, so the import sets `density = mass / collision volume` and **reports** the inertia that results, per link. On the example arm above the worst link is 42% off the file's tensor, and `robotReport` says so. A link with mass and no collision shape becomes a box with exactly the file's inertia that collides with nothing.
-- **Joints are soft.** The engine's joints are 60 Hz constraints, so a loaded arm settles below its kinematic pose: 17.7 mm at the tool of this 16.8 kg, 1 m arm. A long chain stretches by millimetres.
+- Each link becomes one body, placed by forward kinematics at the joint positions you give; a link with several collision shapes is one compound body (`links: 'welded'` gives one welded body per shape instead). Fixed joints become welds, revolute and continuous joints hinges about the joint axis, prismatic joints sliders, ball joints spherical joints; limits are kept. The root is welded to the world unless `floatingBase: true`. URDF and MJCF are Z up; the robot is turned into the kit's Y-up world.
+- **Mass, centre of mass and inertia are the file's.** The import sets `density = mass / collision volume`, and where the shapes then do not have the file's `<inertial>` it gives the body the file's values as `massData`. On the example arm above the solver's principal moments are within 5e-8 of the file's on every link; from the shapes alone the worst link was 42% off, and `robotReport` still gives that number per link (`shapesPrincipalError`). The collision shapes are not changed to agree. `inertia: 'shapes'` turns this off. A link with mass and no collision shape becomes a box with exactly the file's inertia that collides with nothing.
+- **Joints are soft.** The engine's joints are 60 Hz constraints by default, so a loaded arm settles below its kinematic pose: 17.0 mm at the tool of this 16.8 kg, 1 m arm. `jointStiffness: {hertz: 240}` brings its largest displacement to 2.3 mm. A long chain stretches by millimetres.
 - An effort limit is the largest torque of the motor you ask for with `motors` (speed 0 holds the joint); joint damping and stiffness become a joint spring; dry friction a zero-speed motor.
 - Cylinders become 24-sided prisms of the same volume (inertia within 0.003%) or capsules; meshes become convex hulls; MJCF ellipsoids a 42-point hull.
 - Not supported, and reported when a file uses them: URDF `mimic` and planar joints; MJCF `equality`, `tendon`, contact pairs, most actuator types, several joints on one body, armature.
@@ -733,7 +757,7 @@ In the Vite dev server (not yet tested), add `optimizeDeps: {exclude: ['box3d-we
 
 ## Current limits (read before designing gameplay)
 
-- **One shape per body:** box, sphere, capsule or convex hull on any body; triangle mesh or height field on static bodies. Compound shapes are in Box3D but not exported by the bridge yet. `createShapeMeshes` draws boxes, spheres and capsules; draw hulls, meshes and terrain with your own geometry and the row's matrix.
+- **Shapes:** box, sphere, capsule or convex hull on any body, or up to 64 of them as one compound; triangle mesh or height field on static bodies, never in a compound. A compound has one colour, one filter and one set of flags, and events and queries name the body. `createShapeMeshes` draws boxes, spheres and capsules; a hull, mesh, terrain or compound row is an unscaled transform that it draws as a unit box, so draw those with your own geometry and the row's matrix (for a compound, each child at its local pose).
 - **Two scene styles.** `createWorld()` / `resetArena()` / `loadPreset()` give the classic arena: gravity −10 m/s², `spawnBox` cubes with a small seeded spin. `createWorld({gravity})` / `reset()` give an SI world (9.81 m/s²) that you fill with `createBody` and `createJoint`. Both run on the same solver.
 - **Recording an SI world:** `startRecording({world: {gravity}})` starts from an empty SI world and logs every mutating call, including `createBody`, `createJoint` and the setters. Mesh and terrain geometry is stored in the log, so large scenery makes large logs. A joint created before recording began cannot be used while recording.
 - **Network snapshots carry transforms only**, as before; they do not describe shapes or joints.

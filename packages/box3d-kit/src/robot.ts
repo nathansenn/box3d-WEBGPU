@@ -6,9 +6,10 @@
  * handles by link and joint name, and `robotReport` says how far the result
  * is from the file.
  *
- * Read the report. The engine derives a body's inertia from its shape and
- * density, so the import matches each link's MASS exactly and reports the
- * inertia that results; every element it ignored or approximated is in
+ * Read the report. A link is one body (a compound when it has several
+ * collision shapes) with the file's mass, centre of mass and inertia tensor;
+ * the report says per link whether those were set or already those of the
+ * shapes, and every element the import ignored or approximated is in
  * `warnings`. docs/ROBOT_IMPORT.md in the repository has the tables of what is
  * supported, the conventions and the measured errors.
  *

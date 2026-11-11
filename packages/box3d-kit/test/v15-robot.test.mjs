@@ -11,6 +11,10 @@ import {
 import {validateScene, loadScene, sceneWorldOptions, canonicalize, encodeSceneLink, encodeSceneLinkSync, decodeSceneLink} from 'box3d-webgpu-kit/scene';
 
 const G = 9.81, HZ = 240, SUB = 4;
+// The import before the engine had compound bodies and explicit mass data: one welded body per collision shape, and
+// inertia from the shapes. Both are still available as options; the tests that measure that policy ask for it.
+// The defaults (one compound body per link, the file's inertial applied) are tested in v17-compound.test.mjs.
+const OLD = {links: 'welded', inertia: 'shapes'};
 /** An empty SI world without the ground slab. */
 const si = async (ground = false) => { const world = await createWorld({step: 1 / HZ, subSteps: SUB, gravity: [0, -G, 0]}); world.reset({ground}); return world; };
 const run = (world, seconds) => { for (let i = 0; i < Math.round(seconds * HZ); i++) world.step(); };
@@ -237,7 +241,7 @@ test('URDF: unsupported elements load and are listed precisely, never silently',
   ]);
   assert.equal(robot.joints.find(joint => joint.name === 'table').supported, false);
   // The scene is still built: the planar child is free, the mimic joint is an ordinary slider, the frame-only lens has no body.
-  const scene = robotToScene(robot), report = robotReport(robot);
+  const scene = robotToScene(robot, OLD), report = robotReport(robot, OLD);
   assert.deepEqual(validateScene(scene), []);
   assert.deepEqual(scene.joints.map(joint => [joint.id, joint.type]), [['palm.base', 'weld'], ['left_slide', 'prismatic'], ['right_slide', 'prismatic'], ['loose', 'revolute']]);
   assert.deepEqual(report.joints.find(joint => joint.joint === 'table'), {joint: 'table', type: 'planar', id: null, as: 'none'});
@@ -247,6 +251,8 @@ test('URDF: unsupported elements load and are listed precisely, never silently',
   assert.deepEqual(report.warnings.slice(0, robot.warnings.length), robot.warnings);
   assert.deepEqual(report.warnings.slice(robot.warnings.length).map(w => [w.code, w.element]), [['note', 'robot "gripper"']]);
   assert.match(report.warnings.at(-1).message, /the bodies' inertia differs from the file's by up to 99\.3% of a principal moment \(link "left"\)/);
+  // By default the file's inertia is applied instead, and the conversion has nothing to add.
+  assert.deepEqual(robotReport(robot).warnings, robot.warnings);
   // strict: the first warning is an error instead.
   assert.throws(() => parseURDF(urdf, {strict: true}), /URDF line 6, column 3: link "lens": has visual geometry but no collision geometry.*\(strict mode\)/);
 });
@@ -404,7 +410,7 @@ test('MJCF: defaults, compiler settings, geoms, joints and actuators are read; u
   ]);
 
   // The scene: gravity and the step from <option>, the ground from the plane, a static post, and the joint mapping.
-  const scene = robotToScene(robot), report = robotReport(robot);
+  const scene = robotToScene(robot, OLD), report = robotReport(robot, OLD);
   assert.deepEqual(validateScene(scene), []);
   assert.deepEqual(scene.world, {gravity: [0, -3.7, 0], ground: true, step: 0.004});
   assert.deepEqual(scene.bodies.map(body => [body.id, body.shape.kind, body.type ?? 'dynamic']), [['post', 'box', 'static'], ['upper', 'capsule', 'dynamic'], ['lower', 'capsule', 'dynamic'],
@@ -522,7 +528,7 @@ test('mass and inertia: total mass is the sum of link masses to float32, and the
       within(total, specified, 2e-7, `${name}: mass the solver reports (float32)`);
       for (const link of report.links) if (link.kind === 'collision') within(link.bodies.reduce((sum, id) => sum + world.getState(spawned.bodies.get(id)).mass, 0), link.mass, 3e-7, `${name} ${link.link}: link mass`);
     }
-    const report = robotReport(parseURDF(sixDofArmURDF())), link = name => report.links.find(one => one.link === name);
+    const report = robotReport(parseURDF(sixDofArmURDF()), OLD), link = name => report.links.find(one => one.link === name);
     // Turret: the file says 1.15 x the inertia of its cylinder (r 0.07, l 0.2, 4 kg); the body is a 24-sided prism of the cylinder's volume.
     const m = 4, r = 0.07, l = 0.2, step = 2 * Math.PI / 24, r2 = r * r * step / Math.sin(step), polygon = (2 + Math.cos(step)) / 6;
     const prism = [m * r2 * polygon, m * (r2 * polygon / 2 + l * l / 12), m * (r2 * polygon / 2 + l * l / 12)], file = [1.15 * m * r * r / 2, 1.15 * m * (3 * r * r + l * l) / 12, 1.15 * m * (3 * r * r + l * l) / 12];
@@ -561,7 +567,7 @@ test('mass and inertia: total mass is the sum of link masses to float32, and the
   } finally { world.dispose(); }
 });
 
-test('a single revolute link swings with the compound-pendulum period of its ACTUAL inertia, not the inertia in the file', async () => {
+test("with inertia: 'shapes', a single revolute link swings with the compound-pendulum period of its shape's inertia, not the inertia in the file", async () => {
   const world = await si();
   try {
     // A 2 kg box rod, 0.8 m long, hinged at its end. The file claims 1.3 x the rod's true transverse inertia.
@@ -570,7 +576,7 @@ test('a single revolute link swings with the compound-pendulum period of its ACT
       <joint name="hinge" type="continuous"><parent link="world"/><child link="rod"/><origin xyz="0 0 2"/><axis xyz="0 1 0"/></joint>
       <link name="rod"><inertial><origin xyz="0 0 ${-L / 2}"/><mass value="${m}"/><inertia ixx="${k * own}" ixy="0" ixz="0" iyy="${k * own}" iyz="0" izz="${m * w * w / 6}"/></inertial>
         <collision><origin xyz="0 0 ${-L / 2}"/><geometry><box size="${w} ${w} ${L}"/></geometry></collision></link></robot>`;
-    const robot = spawnRobot(world, parseURDF(urdf), {positions: {hinge: theta0}}), samples = [];
+    const robot = spawnRobot(world, parseURDF(urdf), {positions: {hinge: theta0}, inertia: 'shapes'}), samples = [];
     for (let i = 0; i < HZ * 20; i++) { world.step(); samples.push(world.getJointState(robot.joints.get('hinge')).value); }
     // T = 2 pi sqrt(I_pivot / (m g d)) (1 + theta0^2 / 16), with d = L / 2.
     const T = I => 2 * Math.PI * Math.sqrt((I + m * L * L / 4) / (m * G * L / 2)) * (1 + theta0 * theta0 / 16);
@@ -811,8 +817,8 @@ test('round trip: robotToScene validates, loads to the same hashes as spawnRobot
 
 test('scene details: ids, collision filters, the base, compound links, cylinders and the world axes', async () => {
   const arm = parseURDF(sixDofArmURDF());
-  const scene = robotToScene(arm), byId = Object.fromEntries(scene.bodies.map(body => [body.id, body]));
-  // One body per collision shape; the tool's two boxes are welded and share a negative group.
+  const scene = robotToScene(arm, OLD), byId = Object.fromEntries(scene.bodies.map(body => [body.id, body]));
+  // With links: 'welded', one body per collision shape; the tool's two boxes are welded and share a negative group.
   assert.deepEqual(scene.bodies.map(body => [body.id, body.shape.kind]), [['base', 'hull'], ['turret', 'hull'], ['upper_arm', 'box'], ['forearm', 'box'], ['wrist', 'hull'], ['hand', 'sphere'], ['tool', 'box'], ['tool.2', 'box']]);
   assert.deepEqual(scene.joints.map(joint => [joint.id, joint.type, joint.bodyA, joint.bodyB]), [['base.base', 'weld', null, 'base'], ['yaw', 'revolute', 'base', 'turret'], ['shoulder', 'revolute', 'turret', 'upper_arm'],
     ['elbow', 'revolute', 'upper_arm', 'forearm'], ['forearm_roll', 'revolute', 'forearm', 'wrist'], ['wrist_pitch', 'revolute', 'wrist', 'hand'], ['tool_roll', 'revolute', 'hand', 'tool'], ['tool.weld2', 'weld', 'tool', 'tool.2']]);
@@ -858,7 +864,7 @@ test('scene details: ids, collision filters, the base, compound links, cylinders
   // The 32-sided prism and the compound tool really build, and the tool's two bodies do not push each other apart.
   const world = await si();
   try {
-    const spawned = spawnRobot(world, arm, {cylinderSides: 32, motors: Object.fromEntries(SIX_DOF.map(row => [row.joint, 0]))});
+    const spawned = spawnRobot(world, arm, {...OLD, cylinderSides: 32, motors: Object.fromEntries(SIX_DOF.map(row => [row.joint, 0]))});
     run(world, 2);
     const p = world.getState(spawned.bodies.get('tool')).position, q = world.getState(spawned.bodies.get('tool.2')).position;
     near(Math.hypot(p[0] - q[0], p[1] - q[1], p[2] - q[2]), Math.hypot(0.04, 0.05), 1e-3, 'the tool\'s two boxes keep their spacing');
@@ -910,7 +916,7 @@ test('links without mass or shape: static scenery, default density, inertia boxe
   assert.throws(() => robotToScene(parseURDF(`<robot name="bad"><link name="a">${inertial(1)}${box()}</link><joint name="j" type="continuous"><parent link="a"/><child link="ghost"/></joint><link name="ghost"/></robot>`)),
     /link "ghost" moves on joint "j" but has no mass and no collision shape, and no link fixed to it has a body/);
   // An inertia tensor no solid box can have (a principal moment larger than the other two together) becomes a sphere, and says so.
-  const odd = robotReport(parseURDF(`<robot name="odd"><link name="a"><inertial><mass value="1"/><inertia ixx="0.01" iyy="0.01" izz="0.05"/></inertial></link></robot>`));
+  const odd = robotReport(parseURDF(`<robot name="odd"><link name="a"><inertial><mass value="1"/><inertia ixx="0.01" iyy="0.01" izz="0.05"/></inertial></link></robot>`), {inertia: 'shapes'});
   assert.deepEqual(odd.warnings.map(w => [w.code, w.element]), [['approximated', 'link "a"'], ['note', 'robot "odd"']]);
   assert.match(odd.warnings[0].message, /no solid box has its inertia tensor/);
 });
