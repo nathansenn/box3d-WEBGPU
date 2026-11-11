@@ -641,8 +641,8 @@ This project is licensed under the MIT License. Upstream Box3D remains under its
 
 | Command | What it runs | Where it runs |
 | --- | --- | --- |
-| `npm run validate:pr` | Core and engineering suites, packaged native and soft runtimes, the sparse-upload and dirty-tracking tests, release contracts, catalog counts, soft soaks, rope batching, native WASM, the 100-case material gate, both builds, Railway staging, `npm audit` | Every pull request (the required check) and every push to `main` |
-| `npm run validate:studio` | The five Studio suites (about 15 minutes) | Pushes to `main` and manual runs |
+| `npm run validate:pr` | Core and engineering suites, packaged native and soft runtimes, the sparse-upload and dirty-tracking tests, the qualification oracles, threaded determinism, release contracts (including the check that every test file runs in a gate), catalog counts, soft soaks, rope batching, native WASM, the 100-case material gate, both builds, Railway staging, `npm audit` | Every pull request (the required check) and every push to `main` |
+| `npm run validate:studio` | The eight Studio suites: failure, presets, river, reference, press, bridge, liquid and material-run suites (about 15 minutes) | Pushes to `main` and manual runs |
 | `npm run test:engine` | The engine suite. Its harness test needs Node 24. | Every CI run, reported without blocking |
 | `npm run test:browser:release` | Both applications in software-rendered Chromium | Every CI run, reported without blocking |
 | `npm run validate:release` | All of the above, with the engine suite and browser acceptance required | Before a release |
