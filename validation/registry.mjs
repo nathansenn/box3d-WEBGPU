@@ -16,6 +16,7 @@ import scene from './domains/scene.mjs';
 import simulation from './domains/simulation.mjs';
 import robot from './domains/robot.mjs';
 import cloth from './domains/cloth.mjs';
+import granular from './domains/granular.mjs';
 import heat from './domains/heat.mjs';
 import solid from './domains/solid.mjs';
 import fracture from './domains/fracture.mjs';
@@ -153,6 +154,22 @@ export const DOMAINS = [
     ],
   },
   {
+    id: 'granular', title: 'Granular media: discrete elements, silos and rigid coupling', needsKit: true,
+    solver: '`box3d-webgpu-kit/granular`: soft spheres with Hertz or linear normal contact, a damping solved for the restitution, tangential springs with history capped by Coulomb friction, an elastic-plastic rolling spring, velocity Verlet, float64; rigid bodies as dynamic walls sub-cycled inside each rigid step',
+    summary: 'Hertz contact duration and its convergence, restitution, oblique impacts in the sliding and sticking regimes, a grain sliding and rolling on an incline, the energy ledger, a column on a floor, Janssen saturation in a silo, Beverloo discharge through an orifice, the angle of repose, a block on a bed, momentum exchange with a rigid body, a box of beads on a scale and repeatability.',
+    docs: ['docs/GRANULAR.md'],
+    notValidated: [
+      'Grain shape. Grains are spheres; angular grains are stood in for by a rolling-resistance coefficient that has to be calibrated. No clumps, no polyhedra, no breakage, no cohesion, no liquid bridges, no interstitial fluid.',
+      'Real materials. The bulk cases use beads about a thousand times softer than glass (k_n = 4000 m g / d) so that the step is affordable; overlaps reach 5% of a radius under impact. No case is compared with a measurement: every reference is a formula or a typical literature range written from memory.',
+      'Janssen and Beverloo are checked in form, not in their constants. The stress ratio comes out near 1.1 with a mobilised wall friction near half the coefficient, in a silo only six beads wide; the Beverloo C comes out at 0.45 to 0.49, below the range usually quoted. The small runs of the gate fluctuate by about 10%.',
+      'The angle of repose is a trend check on a ledge 12 beads long and 3.5 deep between frictionless planes. It is not a calibrated repose angle.',
+      'Hertz-Mindlin in the sticking regime has no closed form here: only the sign of the rebound is checked. The tangential spring uses the no-slip Mindlin stiffness at the current overlap, which is not exactly elastic when the normal load changes; the ledger books that defect under friction.',
+      'Twisting resistance is not modelled: a bead spinning about its contact normal keeps spinning. Rolling resistance is one model (an elastic-plastic spring), checked only through the repose trend.',
+      'Coupling: the rigid world receives the mean force of a rigid step; other contacts and joints of a body are seen only through an estimate of their force that lags one step, and their torque is not estimated. Bodies are boxes, spheres and capsules. Only resting and single-impact cases are checked.',
+      'Wide size ratios. The neighbour grid uses cells of the largest diameter, so a ratio above about 3 is slow; the cases here use radii within 10% of the mean.',
+    ],
+  },
+  {
     id: 'heat', title: 'Heat conduction', needsKit: false,
     solver: '`src/engine/heat.ts`: finite volumes on a structured grid, backward Euler, Crank-Nicolson or explicit, float64',
     summary: 'Steady slabs and composite walls, sources, convection and radiation boundaries, temperature-dependent conductivity, the erfc and Fourier-series transients with their observed orders, a 2-D plate, an energy audit and the explicit stability limit.',
@@ -237,7 +254,7 @@ export const DOMAINS = [
   },
 ];
 
-export const CASES = [...rigid, ...waterCoupling, ...structureCoupling, ...siBridge, ...geometry, ...scene, ...simulation, ...robot, ...cloth, ...heat, ...solid, ...fracture, ...frame, ...cable, ...closedWater];
+export const CASES = [...rigid, ...waterCoupling, ...structureCoupling, ...siBridge, ...geometry, ...scene, ...simulation, ...robot, ...cloth, ...granular, ...heat, ...solid, ...fracture, ...frame, ...cable, ...closedWater];
 
 /** Cases of the given domains (all when `only` is empty), in registry order. */
 export function selectCases(only = []) {

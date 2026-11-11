@@ -28,6 +28,7 @@ const ENTRIES = [
   ['box3d-webgpu-kit/robot', 'dist/robot.d.ts'],
   ['box3d-webgpu-kit/fracture', 'dist/fracture.d.ts'],
   ['box3d-webgpu-kit/cloth', 'dist/cloth.d.ts'],
+  ['box3d-webgpu-kit/granular', 'dist/granular.d.ts'],
 ];
 
 function kindOf(decl) {

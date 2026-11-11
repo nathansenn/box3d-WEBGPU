@@ -5,10 +5,10 @@
  "generatedBy": "node scripts/validation-report.mjs",
  "digits": 9,
  "totals": {
-  "cases": 371,
-  "passed": 371,
+  "cases": 406,
+  "passed": 406,
   "failed": 0,
-  "domains": 15
+  "domains": 16
  },
  "domains": [
   {
@@ -183,6 +183,27 @@
    ],
    "cases": 32,
    "passed": 32
+  },
+  {
+   "id": "granular",
+   "title": "Granular media: discrete elements, silos and rigid coupling",
+   "summary": "Hertz contact duration and its convergence, restitution, oblique impacts in the sliding and sticking regimes, a grain sliding and rolling on an incline, the energy ledger, a column on a floor, Janssen saturation in a silo, Beverloo discharge through an orifice, the angle of repose, a block on a bed, momentum exchange with a rigid body, a box of beads on a scale and repeatability.",
+   "solver": "`box3d-webgpu-kit/granular`: soft spheres with Hertz or linear normal contact, a damping solved for the restitution, tangential springs with history capped by Coulomb friction, an elastic-plastic rolling spring, velocity Verlet, float64; rigid bodies as dynamic walls sub-cycled inside each rigid step",
+   "docs": [
+    "docs/GRANULAR.md"
+   ],
+   "notValidated": [
+    "Grain shape. Grains are spheres; angular grains are stood in for by a rolling-resistance coefficient that has to be calibrated. No clumps, no polyhedra, no breakage, no cohesion, no liquid bridges, no interstitial fluid.",
+    "Real materials. The bulk cases use beads about a thousand times softer than glass (k_n = 4000 m g / d) so that the step is affordable; overlaps reach 5% of a radius under impact. No case is compared with a measurement: every reference is a formula or a typical literature range written from memory.",
+    "Janssen and Beverloo are checked in form, not in their constants. The stress ratio comes out near 1.1 with a mobilised wall friction near half the coefficient, in a silo only six beads wide; the Beverloo C comes out at 0.45 to 0.49, below the range usually quoted. The small runs of the gate fluctuate by about 10%.",
+    "The angle of repose is a trend check on a ledge 12 beads long and 3.5 deep between frictionless planes. It is not a calibrated repose angle.",
+    "Hertz-Mindlin in the sticking regime has no closed form here: only the sign of the rebound is checked. The tangential spring uses the no-slip Mindlin stiffness at the current overlap, which is not exactly elastic when the normal load changes; the ledger books that defect under friction.",
+    "Twisting resistance is not modelled: a bead spinning about its contact normal keeps spinning. Rolling resistance is one model (an elastic-plastic spring), checked only through the repose trend.",
+    "Coupling: the rigid world receives the mean force of a rigid step; other contacts and joints of a body are seen only through an estimate of their force that lags one step, and their torque is not estimated. Bodies are boxes, spheres and capsules. Only resting and single-impact cases are checked.",
+    "Wide size ratios. The neighbour grid uses cells of the largest diameter, so a ratio above about 3 is slow; the cases here use radii within 10% of the mean."
+   ],
+   "cases": 35,
+   "passed": 35
   },
   {
    "id": "heat",
@@ -7519,6 +7540,1003 @@
     "file": "packages/box3d-kit/test/v16-cloth.test.mjs",
     "test": "determinism: repeat runs are bit-identical, and the Simulation loop adds nothing",
     "url": "https://github.com/nathansenn/box3d-WEBGPU/blob/main/packages/box3d-kit/test/v16-cloth.test.mjs"
+   },
+   "text": {
+    "reference": "0 runs",
+    "measured": "0",
+    "error": "0",
+    "tolerance": "not above the reference"
+   }
+  },
+  {
+   "id": "granular.hertz.duration",
+   "domain": "granular",
+   "title": "Two grains head on: Hertz contact duration",
+   "quantity": "time the overlap of two 10 mm beads (E = 1e8 Pa, nu = 0.3) meeting at 0.1 m/s stays positive, step = 2% of the Rayleigh time",
+   "unit": "s",
+   "formula": "t = 2.943 (15 m* v^2 / (16 E* sqrt(R*)))^(2/5) / v",
+   "reference": 0.000643314569,
+   "measured": 0.000643308562,
+   "error": -6.006889e-9,
+   "relativeError": -0.00000933740551,
+   "tolerance": {
+    "kind": "relative",
+    "value": 0.00005
+   },
+   "pass": true,
+   "note": "The crossings are interpolated inside a step; what is left is the time-stepping error.",
+   "source": {
+    "file": "packages/box3d-kit/test/v17-granular.test.mjs",
+    "test": "two grains, elastic: the Hertz contact duration matches the closed form and the scheme is second order",
+    "url": "https://github.com/nathansenn/box3d-WEBGPU/blob/main/packages/box3d-kit/test/v17-granular.test.mjs"
+   },
+   "text": {
+    "reference": "0.0006433146 s",
+    "measured": "0.0006433086",
+    "error": "-9.34e-6 rel.",
+    "tolerance": "±5e-5 rel."
+   }
+  },
+  {
+   "id": "granular.hertz.duration-order",
+   "domain": "granular",
+   "title": "Two grains head on: convergence of the duration",
+   "quantity": "order of the duration error between steps of 8% and 4% of the Rayleigh time",
+   "unit": "1",
+   "formula": "velocity Verlet is second order",
+   "reference": 2,
+   "measured": 1.98025107,
+   "error": -0.019748934,
+   "relativeError": -0.00987446699,
+   "tolerance": {
+    "kind": "absolute",
+    "value": 0.3
+   },
+   "pass": true,
+   "source": {
+    "file": "packages/box3d-kit/test/v17-granular.test.mjs",
+    "test": "two grains, elastic: the Hertz contact duration matches the closed form and the scheme is second order",
+    "url": "https://github.com/nathansenn/box3d-WEBGPU/blob/main/packages/box3d-kit/test/v17-granular.test.mjs"
+   },
+   "text": {
+    "reference": "2",
+    "measured": "1.980251",
+    "error": "-0.0197",
+    "tolerance": "±0.3"
+   }
+  },
+  {
+   "id": "granular.hertz.energy-order",
+   "domain": "granular",
+   "title": "Two grains head on: convergence of the energy",
+   "quantity": "order of the largest energy error during an elastic impact between steps of 4% and 2% of the Rayleigh time",
+   "unit": "1",
+   "formula": "velocity Verlet is second order",
+   "reference": 2,
+   "measured": 2.09669359,
+   "error": 0.0966935949,
+   "relativeError": 0.0483467975,
+   "tolerance": {
+    "kind": "absolute",
+    "value": 0.2
+   },
+   "pass": true,
+   "source": {
+    "file": "packages/box3d-kit/test/v17-granular.test.mjs",
+    "test": "two grains, elastic: the Hertz contact duration matches the closed form and the scheme is second order",
+    "url": "https://github.com/nathansenn/box3d-WEBGPU/blob/main/packages/box3d-kit/test/v17-granular.test.mjs"
+   },
+   "text": {
+    "reference": "2",
+    "measured": "2.096694",
+    "error": "+0.0967",
+    "tolerance": "±0.2"
+   }
+  },
+  {
+   "id": "granular.linear.duration",
+   "domain": "granular",
+   "title": "Two grains head on: linear-spring contact duration",
+   "quantity": "duration of the same impact with a linear spring of 1e5 N/m, step = 1% of the duration",
+   "unit": "s",
+   "formula": "t = pi sqrt(m* / k_n)",
+   "reference": 0.000254158238,
+   "measured": 0.000254147786,
+   "error": -1.04517108e-8,
+   "relativeError": -0.0000411228489,
+   "tolerance": {
+    "kind": "relative",
+    "value": 0.0002
+   },
+   "pass": true,
+   "source": {
+    "file": "packages/box3d-kit/test/v17-granular.test.mjs",
+    "test": "two grains, elastic: the Hertz contact duration matches the closed form and the scheme is second order",
+    "url": "https://github.com/nathansenn/box3d-WEBGPU/blob/main/packages/box3d-kit/test/v17-granular.test.mjs"
+   },
+   "text": {
+    "reference": "0.0002541582 s",
+    "measured": "0.0002541478",
+    "error": "-4.11e-5 rel.",
+    "tolerance": "±0.02%"
+   }
+  },
+  {
+   "id": "granular.momentum.impact",
+   "domain": "granular",
+   "title": "Two grains head on: momentum",
+   "quantity": "change of total momentum over m v in a damped Hertz impact (e = 0.5)",
+   "unit": "1",
+   "formula": "p = const",
+   "reference": 0,
+   "measured": 0,
+   "error": 0,
+   "relativeError": null,
+   "tolerance": {
+    "kind": "upper",
+    "value": 1e-13
+   },
+   "pass": true,
+   "source": {
+    "file": "packages/box3d-kit/test/v17-granular.test.mjs",
+    "test": "two grains, damped: the restitution is the one asked for, at any speed, for both laws",
+    "url": "https://github.com/nathansenn/box3d-WEBGPU/blob/main/packages/box3d-kit/test/v17-granular.test.mjs"
+   },
+   "text": {
+    "reference": "0",
+    "measured": "0",
+    "error": "0",
+    "tolerance": "at most 1e-13 above the reference"
+   }
+  },
+  {
+   "id": "granular.restitution.hertz-09",
+   "domain": "granular",
+   "title": "Restitution, Hertz law, e = 0.9",
+   "quantity": "rebound speed over impact speed at 0.1 m/s, step = 1% of the Rayleigh time",
+   "unit": "1",
+   "formula": "e as set",
+   "reference": 0.9,
+   "measured": 0.899996504,
+   "error": -0.00000349615269,
+   "relativeError": -0.0000038846141,
+   "tolerance": {
+    "kind": "absolute",
+    "value": 0.001
+   },
+   "pass": true,
+   "source": {
+    "file": "packages/box3d-kit/test/v17-granular.test.mjs",
+    "test": "two grains, damped: the restitution is the one asked for, at any speed, for both laws",
+    "url": "https://github.com/nathansenn/box3d-WEBGPU/blob/main/packages/box3d-kit/test/v17-granular.test.mjs"
+   },
+   "text": {
+    "reference": "0.9",
+    "measured": "0.8999965",
+    "error": "-3.5e-6",
+    "tolerance": "±0.001"
+   }
+  },
+  {
+   "id": "granular.restitution.hertz-05",
+   "domain": "granular",
+   "title": "Restitution, Hertz law, e = 0.5",
+   "quantity": "rebound speed over impact speed at 0.1 m/s",
+   "unit": "1",
+   "formula": "e as set",
+   "reference": 0.5,
+   "measured": 0.49980352,
+   "error": -0.000196480431,
+   "relativeError": -0.000392960861,
+   "tolerance": {
+    "kind": "absolute",
+    "value": 0.001
+   },
+   "pass": true,
+   "note": "The damping coefficient is solved for numerically with the force clamped at zero; the textbook coefficient would give a larger rebound.",
+   "source": {
+    "file": "packages/box3d-kit/test/v17-granular.test.mjs",
+    "test": "two grains, damped: the restitution is the one asked for, at any speed, for both laws",
+    "url": "https://github.com/nathansenn/box3d-WEBGPU/blob/main/packages/box3d-kit/test/v17-granular.test.mjs"
+   },
+   "text": {
+    "reference": "0.5",
+    "measured": "0.4998035",
+    "error": "-0.000196",
+    "tolerance": "±0.001"
+   }
+  },
+  {
+   "id": "granular.restitution.hertz-02-fast",
+   "domain": "granular",
+   "title": "Restitution, Hertz law, e = 0.2, ten times faster",
+   "quantity": "rebound speed over impact speed at 1 m/s",
+   "unit": "1",
+   "formula": "e as set, at any speed",
+   "reference": 0.2,
+   "measured": 0.199339249,
+   "error": -0.000660751118,
+   "relativeError": -0.00330375559,
+   "tolerance": {
+    "kind": "absolute",
+    "value": 0.001
+   },
+   "pass": true,
+   "source": {
+    "file": "packages/box3d-kit/test/v17-granular.test.mjs",
+    "test": "two grains, damped: the restitution is the one asked for, at any speed, for both laws",
+    "url": "https://github.com/nathansenn/box3d-WEBGPU/blob/main/packages/box3d-kit/test/v17-granular.test.mjs"
+   },
+   "text": {
+    "reference": "0.2",
+    "measured": "0.1993392",
+    "error": "-0.000661",
+    "tolerance": "±0.001"
+   }
+  },
+  {
+   "id": "granular.restitution.linear-05",
+   "domain": "granular",
+   "title": "Restitution, linear law, e = 0.5",
+   "quantity": "rebound speed over impact speed at 0.1 m/s, step = 0.2% of the contact duration",
+   "unit": "1",
+   "formula": "e as set",
+   "reference": 0.5,
+   "measured": 0.499118163,
+   "error": -0.000881837332,
+   "relativeError": -0.00176367466,
+   "tolerance": {
+    "kind": "absolute",
+    "value": 0.002
+   },
+   "pass": true,
+   "note": "The linear dashpot switches on at first touch: a first-order error in the step.",
+   "source": {
+    "file": "packages/box3d-kit/test/v17-granular.test.mjs",
+    "test": "two grains, damped: the restitution is the one asked for, at any speed, for both laws",
+    "url": "https://github.com/nathansenn/box3d-WEBGPU/blob/main/packages/box3d-kit/test/v17-granular.test.mjs"
+   },
+   "text": {
+    "reference": "0.5",
+    "measured": "0.4991182",
+    "error": "-0.000882",
+    "tolerance": "±0.002"
+   }
+  },
+  {
+   "id": "granular.oblique.sliding",
+   "domain": "granular",
+   "title": "Oblique impact on a plane: sliding regime (Hertz)",
+   "quantity": "tangential velocity of the contact point after the impact over the normal speed before, psi1 = 5, mu = 0.3, e = 0.7",
+   "unit": "1",
+   "formula": "psi2 = psi1 - (7/2) mu (1 + e)",
+   "reference": 3.215,
+   "measured": 3.21577402,
+   "error": 0.000774021476,
+   "relativeError": 0.000240753181,
+   "tolerance": {
+    "kind": "absolute",
+    "value": 0.005
+   },
+   "pass": true,
+   "note": "Rigid-sphere result; the overlap is 7e-4 of the radius.",
+   "source": {
+    "file": "packages/box3d-kit/test/v17-granular.test.mjs",
+    "test": "oblique impact: sliding and sticking rebounds match their closed forms",
+    "url": "https://github.com/nathansenn/box3d-WEBGPU/blob/main/packages/box3d-kit/test/v17-granular.test.mjs"
+   },
+   "text": {
+    "reference": "3.215",
+    "measured": "3.215774",
+    "error": "+0.000774",
+    "tolerance": "±0.005"
+   }
+  },
+  {
+   "id": "granular.oblique.sliding-linear",
+   "domain": "granular",
+   "title": "Oblique impact on a plane: sliding regime (linear)",
+   "quantity": "the same with linear springs, psi1 = 6, mu = 0.4, e = 0.6",
+   "unit": "1",
+   "formula": "psi2 = psi1 - (7/2) mu (1 + e)",
+   "reference": 3.76,
+   "measured": 3.76219825,
+   "error": 0.0021982487,
+   "relativeError": 0.000584640613,
+   "tolerance": {
+    "kind": "absolute",
+    "value": 0.005
+   },
+   "pass": true,
+   "source": {
+    "file": "packages/box3d-kit/test/v17-granular.test.mjs",
+    "test": "oblique impact: sliding and sticking rebounds match their closed forms",
+    "url": "https://github.com/nathansenn/box3d-WEBGPU/blob/main/packages/box3d-kit/test/v17-granular.test.mjs"
+   },
+   "text": {
+    "reference": "3.76",
+    "measured": "3.762198",
+    "error": "+0.0022",
+    "tolerance": "±0.005"
+   }
+  },
+  {
+   "id": "granular.oblique.sticking",
+   "domain": "granular",
+   "title": "Oblique impact on a plane: sticking, k_t = 2/7 k_n",
+   "quantity": "psi2 for psi1 = 1 with linear springs, no damping and no slip",
+   "unit": "1",
+   "formula": "psi2 = psi1 cos(pi sqrt(7 k_t / (2 k_n))) = -psi1",
+   "reference": -1,
+   "measured": -1.00024712,
+   "error": -0.000247122612,
+   "relativeError": -0.000247122612,
+   "tolerance": {
+    "kind": "absolute",
+    "value": 0.002
+   },
+   "pass": true,
+   "source": {
+    "file": "packages/box3d-kit/test/v17-granular.test.mjs",
+    "test": "oblique impact: sliding and sticking rebounds match their closed forms",
+    "url": "https://github.com/nathansenn/box3d-WEBGPU/blob/main/packages/box3d-kit/test/v17-granular.test.mjs"
+   },
+   "text": {
+    "reference": "-1",
+    "measured": "-1.000247",
+    "error": "-0.000247",
+    "tolerance": "±0.002"
+   }
+  },
+  {
+   "id": "granular.oblique.sticking-half",
+   "domain": "granular",
+   "title": "Oblique impact on a plane: sticking, k_t = 1/7 k_n",
+   "quantity": "psi2 for psi1 = 1 with linear springs, no damping",
+   "unit": "1",
+   "formula": "psi2 = psi1 cos(pi sqrt(1/2))",
+   "reference": -0.605699867,
+   "measured": -0.603212756,
+   "error": 0.00248711154,
+   "relativeError": 0.00410617811,
+   "tolerance": {
+    "kind": "absolute",
+    "value": 0.005
+   },
+   "pass": true,
+   "note": "The normal force reaches zero before the tangential one at the end of the impact, so the contact slips a little there.",
+   "source": {
+    "file": "packages/box3d-kit/test/v17-granular.test.mjs",
+    "test": "oblique impact: sliding and sticking rebounds match their closed forms",
+    "url": "https://github.com/nathansenn/box3d-WEBGPU/blob/main/packages/box3d-kit/test/v17-granular.test.mjs"
+   },
+   "text": {
+    "reference": "-0.6056999",
+    "measured": "-0.6032128",
+    "error": "+0.00249",
+    "tolerance": "±0.005"
+   }
+  },
+  {
+   "id": "granular.incline.sliding",
+   "domain": "granular",
+   "title": "Grain sliding down an incline",
+   "quantity": "acceleration of a bead on a 30 degree plane with mu = 0.1 (Hertz)",
+   "unit": "m/s^2",
+   "formula": "a = g (sin theta - mu cos theta)",
+   "reference": 4.05542908,
+   "measured": 4.05542908,
+   "error": 5.35749223e-12,
+   "relativeError": 1.32106668e-12,
+   "tolerance": {
+    "kind": "relative",
+    "value": 1e-9
+   },
+   "pass": true,
+   "source": {
+    "file": "packages/box3d-kit/test/v17-granular.test.mjs",
+    "test": "a grain on an incline slides at g (sin - mu cos) and rolls at (5/7) g sin",
+    "url": "https://github.com/nathansenn/box3d-WEBGPU/blob/main/packages/box3d-kit/test/v17-granular.test.mjs"
+   },
+   "text": {
+    "reference": "4.055429 m/s^2",
+    "measured": "4.055429",
+    "error": "+1.32e-12 rel.",
+    "tolerance": "±1e-9 rel."
+   }
+  },
+  {
+   "id": "granular.incline.rolling",
+   "domain": "granular",
+   "title": "Grain rolling down an incline",
+   "quantity": "acceleration of a bead on a 30 degree plane with mu = 0.5 (Hertz), from rest",
+   "unit": "m/s^2",
+   "formula": "a = (5/7) g sin theta",
+   "reference": 3.50357143,
+   "measured": 3.50290489,
+   "error": -0.000666542382,
+   "relativeError": -0.000190246551,
+   "tolerance": {
+    "kind": "relative",
+    "value": 0.001
+   },
+   "pass": true,
+   "note": "The lever arm is the radius less the overlap, and the tangential spring rings a little after the start.",
+   "source": {
+    "file": "packages/box3d-kit/test/v17-granular.test.mjs",
+    "test": "a grain on an incline slides at g (sin - mu cos) and rolls at (5/7) g sin",
+    "url": "https://github.com/nathansenn/box3d-WEBGPU/blob/main/packages/box3d-kit/test/v17-granular.test.mjs"
+   },
+   "text": {
+    "reference": "3.503571 m/s^2",
+    "measured": "3.502905",
+    "error": "-0.019%",
+    "tolerance": "±0.1%"
+   }
+  },
+  {
+   "id": "granular.incline.rolling-linear",
+   "domain": "granular",
+   "title": "Grain rolling down an incline (linear law)",
+   "quantity": "the same with linear springs",
+   "unit": "m/s^2",
+   "formula": "a = (5/7) g sin theta",
+   "reference": 3.50357143,
+   "measured": 3.50312605,
+   "error": -0.000445380186,
+   "relativeError": -0.000127121766,
+   "tolerance": {
+    "kind": "relative",
+    "value": 0.001
+   },
+   "pass": true,
+   "source": {
+    "file": "packages/box3d-kit/test/v17-granular.test.mjs",
+    "test": "a grain on an incline slides at g (sin - mu cos) and rolls at (5/7) g sin",
+    "url": "https://github.com/nathansenn/box3d-WEBGPU/blob/main/packages/box3d-kit/test/v17-granular.test.mjs"
+   },
+   "text": {
+    "reference": "3.503571 m/s^2",
+    "measured": "3.503126",
+    "error": "-0.0127%",
+    "tolerance": "±0.1%"
+   }
+  },
+  {
+   "id": "granular.energy.ledger",
+   "domain": "granular",
+   "title": "Energy ledger of 288 beads dropped in a box",
+   "quantity": "largest change of kinetic + gravitational + elastic + dissipated over the energy dissipated, Hertz, friction 0.5, rolling 0.1, e = 0.6, step = 10% of the Rayleigh time",
+   "unit": "1",
+   "formula": "K + U + E + D = const",
+   "reference": 0,
+   "measured": 0.00118251325,
+   "error": 0.00118251325,
+   "relativeError": null,
+   "tolerance": {
+    "kind": "upper",
+    "value": 0.0025
+   },
+   "pass": true,
+   "note": "Dissipation is integrated from the forces (dashpot force times closing speed, friction force times slip), not taken as the remainder.",
+   "source": {
+    "file": "packages/box3d-kit/test/v17-granular.test.mjs",
+    "test": "energy ledger: kinetic + gravitational + elastic + dissipated stays constant, converging at second order",
+    "url": "https://github.com/nathansenn/box3d-WEBGPU/blob/main/packages/box3d-kit/test/v17-granular.test.mjs"
+   },
+   "text": {
+    "reference": "0",
+    "measured": "0.001182513",
+    "error": "+0.00118",
+    "tolerance": "at most 0.0025 above the reference"
+   }
+  },
+  {
+   "id": "granular.energy.ledger-order",
+   "domain": "granular",
+   "title": "Energy ledger: convergence",
+   "quantity": "order of the ledger drift between steps of 20% and 10% of the Rayleigh time",
+   "unit": "1",
+   "formula": "second order",
+   "reference": 2,
+   "measured": 2.04336631,
+   "error": 0.0433663064,
+   "relativeError": 0.0216831532,
+   "tolerance": {
+    "kind": "absolute",
+    "value": 0.6
+   },
+   "pass": true,
+   "note": "Many bodies: the two runs are not the same trajectory.",
+   "source": {
+    "file": "packages/box3d-kit/test/v17-granular.test.mjs",
+    "test": "energy ledger: kinetic + gravitational + elastic + dissipated stays constant, converging at second order",
+    "url": "https://github.com/nathansenn/box3d-WEBGPU/blob/main/packages/box3d-kit/test/v17-granular.test.mjs"
+   },
+   "text": {
+    "reference": "2",
+    "measured": "2.043366",
+    "error": "+0.0434",
+    "tolerance": "±0.6"
+   }
+  },
+  {
+   "id": "granular.column.floor",
+   "domain": "granular",
+   "title": "Column of 300 beads at rest",
+   "quantity": "force on the floor of a box with frictionless sides, mean over 0.1 s (Hertz, E = 5e6 Pa)",
+   "unit": "N",
+   "formula": "F = M g",
+   "reference": 3.85921435,
+   "measured": 3.85973923,
+   "error": 0.000524880159,
+   "relativeError": 0.000136006998,
+   "tolerance": {
+    "kind": "relative",
+    "value": 0.001
+   },
+   "pass": true,
+   "source": {
+    "file": "packages/box3d-kit/test/v17-granular.test.mjs",
+    "test": "a column at rest: the floor carries the weight",
+    "url": "https://github.com/nathansenn/box3d-WEBGPU/blob/main/packages/box3d-kit/test/v17-granular.test.mjs"
+   },
+   "text": {
+    "reference": "3.859214 N",
+    "measured": "3.859739",
+    "error": "+0.0136%",
+    "tolerance": "±0.1%"
+   }
+  },
+  {
+   "id": "granular.janssen.share",
+   "domain": "granular",
+   "title": "Janssen: floor load of a full silo",
+   "quantity": "floor load over the weight of 989 beads in a silo 6 bead diameters wide, read while the floor descends",
+   "unit": "1",
+   "formula": "a fluid gives 1; Janssen W_s / W for a tall fill",
+   "reference": 0,
+   "measured": 0.130849562,
+   "error": 0.130849562,
+   "relativeError": null,
+   "tolerance": {
+    "kind": "upper",
+    "value": 0.2
+   },
+   "pass": true,
+   "source": {
+    "file": "packages/box3d-kit/test/v17-granular.test.mjs",
+    "test": "Janssen: the load on a silo floor saturates with fill height",
+    "url": "https://github.com/nathansenn/box3d-WEBGPU/blob/main/packages/box3d-kit/test/v17-granular.test.mjs"
+   },
+   "text": {
+    "reference": "0",
+    "measured": "0.1308496",
+    "error": "+0.131",
+    "tolerance": "at most 0.2 above the reference"
+   }
+  },
+  {
+   "id": "granular.janssen.fit",
+   "domain": "granular",
+   "title": "Janssen: floor load against weight poured, eight fills",
+   "quantity": "rms misfit of F = W_s (1 - exp(-W / W_s)) over W_s; W_s is the one fitted number",
+   "unit": "1",
+   "formula": "F = W_s (1 - exp(-W / W_s)), W_s = rho_b g A D / (4 mu K)",
+   "reference": 0,
+   "measured": 0.0613369185,
+   "error": 0.0613369185,
+   "relativeError": null,
+   "tolerance": {
+    "kind": "upper",
+    "value": 0.1
+   },
+   "pass": true,
+   "note": "Each load is a mean over 3 mm of descent of a column six beads wide and wanders by about a tenth.",
+   "source": {
+    "file": "packages/box3d-kit/test/v17-granular.test.mjs",
+    "test": "Janssen: the load on a silo floor saturates with fill height",
+    "url": "https://github.com/nathansenn/box3d-WEBGPU/blob/main/packages/box3d-kit/test/v17-granular.test.mjs"
+   },
+   "text": {
+    "reference": "0",
+    "measured": "0.06133692",
+    "error": "+0.0613",
+    "tolerance": "at most 0.1 above the reference"
+   }
+  },
+  {
+   "id": "granular.janssen.plateau",
+   "domain": "granular",
+   "title": "Janssen: saturation",
+   "quantity": "mean floor load of the last four fills (which double the weight)",
+   "unit": "N",
+   "formula": "the fitted W_s",
+   "reference": 1.69998231,
+   "measured": 1.70648511,
+   "error": 0.0065027987,
+   "relativeError": 0.0038252155,
+   "tolerance": {
+    "kind": "relative",
+    "value": 0.1
+   },
+   "pass": true,
+   "source": {
+    "file": "packages/box3d-kit/test/v17-granular.test.mjs",
+    "test": "Janssen: the load on a silo floor saturates with fill height",
+    "url": "https://github.com/nathansenn/box3d-WEBGPU/blob/main/packages/box3d-kit/test/v17-granular.test.mjs"
+   },
+   "text": {
+    "reference": "1.699982 N",
+    "measured": "1.706485",
+    "error": "+0.383%",
+    "tolerance": "±10%"
+   }
+  },
+  {
+   "id": "granular.janssen.stress-ratio",
+   "domain": "granular",
+   "title": "Janssen: stress ratio K",
+   "quantity": "K = D / (4 mu lambda) from the fitted W_s and the measured mobilised wall friction",
+   "unit": "1",
+   "formula": "mean wall pressure over floor pressure of the full silo, read from the solver",
+   "reference": 1.05069999,
+   "measured": 1.18436806,
+   "error": 0.133668064,
+   "relativeError": 0.127218107,
+   "tolerance": {
+    "kind": "relative",
+    "value": 0.25
+   },
+   "pass": true,
+   "note": "Nothing is fitted in the reference. The mobilised friction is about half the coefficient because beads at the wall roll.",
+   "source": {
+    "file": "packages/box3d-kit/test/v17-granular.test.mjs",
+    "test": "Janssen: the load on a silo floor saturates with fill height",
+    "url": "https://github.com/nathansenn/box3d-WEBGPU/blob/main/packages/box3d-kit/test/v17-granular.test.mjs"
+   },
+   "text": {
+    "reference": "1.0507",
+    "measured": "1.184368",
+    "error": "+12.7%",
+    "tolerance": "±25%"
+   }
+  },
+  {
+   "id": "granular.beverloo.fit",
+   "domain": "granular",
+   "title": "Beverloo: discharge through four orifices",
+   "quantity": "worst misfit of W = C rho_b sqrt(g) (D - k d)^(5/2) over the rates at D = 5, 6, 7, 8 d; C and k are fitted",
+   "unit": "1",
+   "formula": "W = C rho_b sqrt(g) (D - k d)^(5/2)",
+   "reference": 0,
+   "measured": 0.0896799921,
+   "error": 0.0896799921,
+   "relativeError": null,
+   "tolerance": {
+    "kind": "upper",
+    "value": 0.15
+   },
+   "pass": true,
+   "note": "Each rate is read from 200 beads leaving a silo of 2600; a run of 12000 beads and six orifices fits to 2% (docs/GRANULAR.md).",
+   "source": {
+    "file": "packages/box3d-kit/test/v17-granular.test.mjs",
+    "test": "Beverloo: the discharge through an orifice follows (D - k d)^(5/2) and does not depend on the fill height",
+    "url": "https://github.com/nathansenn/box3d-WEBGPU/blob/main/packages/box3d-kit/test/v17-granular.test.mjs"
+   },
+   "text": {
+    "reference": "0",
+    "measured": "0.08967999",
+    "error": "+0.0897",
+    "tolerance": "at most 0.15 above the reference"
+   }
+  },
+  {
+   "id": "granular.beverloo.c",
+   "domain": "granular",
+   "title": "Beverloo: coefficient C",
+   "quantity": "fitted C with the bulk density of the fill at rest",
+   "unit": "1",
+   "formula": "typical literature values 0.55 to 0.65, from memory; the middle",
+   "reference": 0.6,
+   "measured": 0.446921793,
+   "error": -0.153078207,
+   "relativeError": -0.255130345,
+   "tolerance": {
+    "kind": "absolute",
+    "value": 0.25
+   },
+   "pass": true,
+   "note": "The measured value sits below the usual range; the larger run gives 0.49. The band is wide because two numbers are fitted to four noisy rates.",
+   "source": {
+    "file": "packages/box3d-kit/test/v17-granular.test.mjs",
+    "test": "Beverloo: the discharge through an orifice follows (D - k d)^(5/2) and does not depend on the fill height",
+    "url": "https://github.com/nathansenn/box3d-WEBGPU/blob/main/packages/box3d-kit/test/v17-granular.test.mjs"
+   },
+   "text": {
+    "reference": "0.6",
+    "measured": "0.4469218",
+    "error": "-0.153",
+    "tolerance": "±0.25"
+   }
+  },
+  {
+   "id": "granular.beverloo.k",
+   "domain": "granular",
+   "title": "Beverloo: empty-annulus factor k",
+   "quantity": "fitted k",
+   "unit": "1",
+   "formula": "typical literature values 1 to 2, from memory; the middle",
+   "reference": 1.5,
+   "measured": 1.14484116,
+   "error": -0.355158837,
+   "relativeError": -0.236772558,
+   "tolerance": {
+    "kind": "absolute",
+    "value": 1
+   },
+   "pass": true,
+   "source": {
+    "file": "packages/box3d-kit/test/v17-granular.test.mjs",
+    "test": "Beverloo: the discharge through an orifice follows (D - k d)^(5/2) and does not depend on the fill height",
+    "url": "https://github.com/nathansenn/box3d-WEBGPU/blob/main/packages/box3d-kit/test/v17-granular.test.mjs"
+   },
+   "text": {
+    "reference": "1.5",
+    "measured": "1.144841",
+    "error": "-0.355",
+    "tolerance": "±1"
+   }
+  },
+  {
+   "id": "granular.beverloo.height",
+   "domain": "granular",
+   "title": "Beverloo: independence of the fill height",
+   "quantity": "rate over the last third over rate over the first third of 700 beads through D = 8 d, the level falling from 13.8 d to 11.3 d",
+   "unit": "1",
+   "formula": "1 (a liquid would give sqrt(11.3 / 13.8) = 0.90)",
+   "reference": 1,
+   "measured": 1.03675045,
+   "error": 0.03675045,
+   "relativeError": 0.03675045,
+   "tolerance": {
+    "kind": "absolute",
+    "value": 0.12
+   },
+   "pass": true,
+   "source": {
+    "file": "packages/box3d-kit/test/v17-granular.test.mjs",
+    "test": "Beverloo: the discharge through an orifice follows (D - k d)^(5/2) and does not depend on the fill height",
+    "url": "https://github.com/nathansenn/box3d-WEBGPU/blob/main/packages/box3d-kit/test/v17-granular.test.mjs"
+   },
+   "text": {
+    "reference": "1",
+    "measured": "1.03675",
+    "error": "+0.0368",
+    "tolerance": "±0.12"
+   }
+  },
+  {
+   "id": "granular.repose.trend",
+   "domain": "granular",
+   "title": "Angle of repose: trend with friction and rolling resistance",
+   "quantity": "slope of the pile left on a ledge with mu = 0.5, mu_r = 0.3 less the slope with mu = 0.2, mu_r = 0",
+   "unit": "deg",
+   "formula": "steeper by at least 6 degrees (a trend check, no closed form)",
+   "reference": 6,
+   "measured": 12.5925937,
+   "error": 6.59259367,
+   "relativeError": 1.09876561,
+   "tolerance": {
+    "kind": "lower",
+    "value": 0
+   },
+   "pass": true,
+   "note": "The slopes are 22, 26, 27 and 35 degrees for (0.2, 0), (0.5, 0), (0.5, 0.1), (0.5, 0.3); each carries about 2 degrees of noise.",
+   "source": {
+    "file": "packages/box3d-kit/test/v17-granular.test.mjs",
+    "test": "angle of repose: steeper with friction and with rolling resistance (a trend check)",
+    "url": "https://github.com/nathansenn/box3d-WEBGPU/blob/main/packages/box3d-kit/test/v17-granular.test.mjs"
+   },
+   "text": {
+    "reference": "6 deg",
+    "measured": "12.59259",
+    "error": "+6.59",
+    "tolerance": "not below the reference"
+   }
+  },
+  {
+   "id": "granular.repose.retained",
+   "domain": "granular",
+   "title": "Angle of repose: mass left on the ledge",
+   "quantity": "pairs of consecutive cases (mu, mu_r) = (0.2, 0), (0.5, 0), (0.5, 0.1), (0.5, 0.3) in which more resistance left less mass",
+   "unit": "pairs",
+   "formula": "monotonic",
+   "reference": 0,
+   "measured": 0,
+   "error": 0,
+   "relativeError": null,
+   "tolerance": {
+    "kind": "upper",
+    "value": 0
+   },
+   "pass": true,
+   "source": {
+    "file": "packages/box3d-kit/test/v17-granular.test.mjs",
+    "test": "angle of repose: steeper with friction and with rolling resistance (a trend check)",
+    "url": "https://github.com/nathansenn/box3d-WEBGPU/blob/main/packages/box3d-kit/test/v17-granular.test.mjs"
+   },
+   "text": {
+    "reference": "0 pairs",
+    "measured": "0",
+    "error": "0",
+    "tolerance": "not above the reference"
+   }
+  },
+  {
+   "id": "granular.coupling.block",
+   "domain": "granular",
+   "title": "Rigid block resting on a bed of 384 beads",
+   "quantity": "mean force of the bed on a 0.125 kg block over 0.2 s",
+   "unit": "N",
+   "formula": "F = m g",
+   "reference": 1.23069198,
+   "measured": 1.2306912,
+   "error": -7.85475068e-7,
+   "relativeError": -6.38238551e-7,
+   "tolerance": {
+    "kind": "relative",
+    "value": 0.00001
+   },
+   "pass": true,
+   "note": "The block is a float32 body of the rigid world; the beads take 37 steps inside each rigid step.",
+   "source": {
+    "file": "packages/box3d-kit/test/v17-granular.test.mjs",
+    "test": "coupling: a block resting on a bed is carried by a force equal to its weight, and the floor reads both",
+    "url": "https://github.com/nathansenn/box3d-WEBGPU/blob/main/packages/box3d-kit/test/v17-granular.test.mjs"
+   },
+   "text": {
+    "reference": "1.230692 N",
+    "measured": "1.230691",
+    "error": "-6.38e-7 rel.",
+    "tolerance": "±1e-5 rel."
+   }
+  },
+  {
+   "id": "granular.coupling.floor",
+   "domain": "granular",
+   "title": "Rigid block on a bed: floor load",
+   "quantity": "mean load on the floor under bed and block",
+   "unit": "N",
+   "formula": "F = (M_beads + m_block) g",
+   "reference": 6.16289326,
+   "measured": 6.16289113,
+   "error": -0.00000213300574,
+   "relativeError": -3.46104605e-7,
+   "tolerance": {
+    "kind": "relative",
+    "value": 0.00001
+   },
+   "pass": true,
+   "source": {
+    "file": "packages/box3d-kit/test/v17-granular.test.mjs",
+    "test": "coupling: a block resting on a bed is carried by a force equal to its weight, and the floor reads both",
+    "url": "https://github.com/nathansenn/box3d-WEBGPU/blob/main/packages/box3d-kit/test/v17-granular.test.mjs"
+   },
+   "text": {
+    "reference": "6.162893 N",
+    "measured": "6.162891",
+    "error": "-3.46e-7 rel.",
+    "tolerance": "±1e-5 rel."
+   }
+  },
+  {
+   "id": "granular.coupling.momentum",
+   "domain": "granular",
+   "title": "Beads striking a free rigid sphere: total momentum",
+   "quantity": "change of the momentum of 27 beads plus the sphere over the momentum exchanged, no gravity",
+   "unit": "1",
+   "formula": "p = const",
+   "reference": 0,
+   "measured": 1.73148874e-7,
+   "error": 1.73148874e-7,
+   "relativeError": null,
+   "tolerance": {
+    "kind": "upper",
+    "value": 0.000002
+   },
+   "pass": true,
+   "note": "The sphere's velocity is a float32 of the rigid world.",
+   "source": {
+    "file": "packages/box3d-kit/test/v17-granular.test.mjs",
+    "test": "coupling: the third law, grains and body exchange equal and opposite momentum",
+    "url": "https://github.com/nathansenn/box3d-WEBGPU/blob/main/packages/box3d-kit/test/v17-granular.test.mjs"
+   },
+   "text": {
+    "reference": "0",
+    "measured": "1.731489e-7",
+    "error": "+1.73e-7",
+    "tolerance": "at most 2e-6 above the reference"
+   }
+  },
+  {
+   "id": "granular.coupling.third-law",
+   "domain": "granular",
+   "title": "Beads striking a free rigid sphere: impulse handed over",
+   "quantity": "momentum change of the beads plus the impulse the coupling gave the sphere, over the momentum exchanged",
+   "unit": "1",
+   "formula": "equal and opposite",
+   "reference": 0,
+   "measured": 6.13548351e-16,
+   "error": 6.13548351e-16,
+   "relativeError": null,
+   "tolerance": {
+    "kind": "upper",
+    "value": 1e-12
+   },
+   "pass": true,
+   "source": {
+    "file": "packages/box3d-kit/test/v17-granular.test.mjs",
+    "test": "coupling: the third law, grains and body exchange equal and opposite momentum",
+    "url": "https://github.com/nathansenn/box3d-WEBGPU/blob/main/packages/box3d-kit/test/v17-granular.test.mjs"
+   },
+   "text": {
+    "reference": "0",
+    "measured": "6.135484e-16",
+    "error": "+6.14e-16",
+    "tolerance": "at most 1e-12 above the reference"
+   }
+  },
+  {
+   "id": "granular.coupling.scale",
+   "domain": "granular",
+   "title": "Box of 256 beads on a spring scale",
+   "quantity": "extra load read from the extra sag (42 mm) of a tray on a spring joint under the beads",
+   "unit": "N",
+   "formula": "dF = M g",
+   "reference": 3.31025322,
+   "measured": 3.31025323,
+   "error": 1.17740835e-8,
+   "relativeError": 3.55685282e-9,
+   "tolerance": {
+    "kind": "relative",
+    "value": 0.00001
+   },
+   "pass": true,
+   "note": "The sag is a float32 position of the rigid world.",
+   "source": {
+    "file": "packages/box3d-kit/test/v17-granular.test.mjs",
+    "test": "coupling: a box of beads on a spring scale reads their weight",
+    "url": "https://github.com/nathansenn/box3d-WEBGPU/blob/main/packages/box3d-kit/test/v17-granular.test.mjs"
+   },
+   "text": {
+    "reference": "3.310253 N",
+    "measured": "3.310253",
+    "error": "+3.56e-9 rel.",
+    "tolerance": "±1e-5 rel."
+   }
+  },
+  {
+   "id": "granular.determinism.repeat",
+   "domain": "granular",
+   "title": "Repeatability",
+   "quantity": "runs whose final bits differ from the first, of three more (a coupled run, the same through the Simulation loop, the solver alone twice)",
+   "unit": "runs",
+   "formula": "bit-identical state",
+   "reference": 0,
+   "measured": 0,
+   "error": 0,
+   "relativeError": null,
+   "tolerance": {
+    "kind": "upper",
+    "value": 0
+   },
+   "pass": true,
+   "note": "One machine, one build. The grains are float64 JavaScript; the rigid world is the WASM.",
+   "source": {
+    "file": "packages/box3d-kit/test/v17-granular.test.mjs",
+    "test": "determinism: repeat runs are bit-identical, and the Simulation loop adds nothing",
+    "url": "https://github.com/nathansenn/box3d-WEBGPU/blob/main/packages/box3d-kit/test/v17-granular.test.mjs"
    },
    "text": {
     "reference": "0 runs",

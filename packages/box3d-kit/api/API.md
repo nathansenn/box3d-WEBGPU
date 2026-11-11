@@ -6708,3 +6708,430 @@ export interface ClothWorld<B> {
     readonly subSteps?: number;
 }
 ```
+
+## `box3d-webgpu-kit/granular`
+
+### Granular · class
+
+```ts
+export declare class Granular {
+  readonly solver = "granular-dem-soft-sphere-verlet-js-f64-v1";
+  readonly dt: number;
+  readonly capacity: number;
+  readonly law: 'hertz' | 'linear';
+  readonly gravity: Float64Array;
+  readonly material: Required<GranularMaterial>;
+  readonly positions: Float64Array;
+  readonly velocities: Float64Array;
+  readonly angularVelocities: Float64Array;
+  readonly radii: Float64Array;
+  readonly masses: Float64Array;
+  readonly alive: Uint8Array;
+  readonly forces: Float64Array;
+  readonly torques: Float64Array;
+  readonly stats: GranularStats;
+  time: number;
+  dissipatedDamping: number;
+  dissipatedFriction: number;
+  externalWork: number;
+  timeStepFraction: number;
+  criticalTime: number;
+  get grainCount(): number;
+  get liveCount(): number;
+  criticalTimeFor(radius: number): number;
+  maxTimeStepFor(radius: number): number;
+  addGrain(position: ArrayLike<number>, radius: number, velocity?: ArrayLike<number>, angularVelocity?: ArrayLike<number>): number;
+  addGrains(positions: ArrayLike<number>, radii: ArrayLike<number> | number, velocities?: ArrayLike<number>): number;
+  removeGrain(index: number): void;
+  touch(): void;
+  get wallCount(): number;
+  addWall(options: GranularWallOptions): number;
+  setWallState(index: number, state: GranularWallState): void;
+  setWallVelocity(index: number, linearVelocity: ArrayLike<number>, angularVelocity?: ArrayLike<number>): void;
+  setWallEnabled(index: number, enabled: boolean): void;
+  setWallMass(index: number, mass: number): void;
+  setWallExternalLoad(index: number, load: ArrayLike<number>, offset?: number): void;
+  wallPosition(index: number): Float64Array;
+  wallRotation(index: number): Float64Array;
+  wallLinearVelocity(index: number): Float64Array;
+  wallAngularVelocity(index: number): Float64Array;
+  wallMass(index: number): number;
+  wallForce(index: number): Float64Array;
+  wallTorque(index: number): Float64Array;
+  wallImpulse(index: number): Float64Array;
+  wallAngularImpulse(index: number): Float64Array;
+  wallNormalLoad(index: number): number;
+  wallContacts(index: number): number;
+  resetWallImpulses(index?: number): void;
+  mass(): number;
+  kineticEnergy(): number;
+  gravitationalEnergy(): number;
+  normalElasticEnergy(): number;
+  tangentialElasticEnergy(): number;
+  elasticEnergy(): number;
+  mechanicalEnergy(): number;
+  energyBalance(): number;
+  linearMomentum(out?: number[] | Float64Array): number[] | Float64Array;
+  angularMomentum(out?: number[] | Float64Array): number[] | Float64Array;
+  coordination(): number;
+  step(count?: number): void;
+}
+```
+
+### GRANULAR_COUPLING_BACKEND · const
+
+```ts
+export declare const GRANULAR_COUPLING_BACKEND = "rigid-granular-coupling-subcycled-js-f64-v1";
+```
+
+### GRANULAR_MAX_GRAINS · const
+
+```ts
+export declare const GRANULAR_MAX_GRAINS: number;
+```
+
+### GRANULAR_SOLVER_ID · const
+
+```ts
+export declare const GRANULAR_SOLVER_ID = "granular-dem-soft-sphere-verlet-js-f64-v1";
+```
+
+### GRANULAR_SUBSYSTEM_ORDER · const
+
+Where the grains run inside the couple stage of a Simulation: after the structure coupling (100) and the cloth (150), before the water (200).
+
+```ts
+export declare const GRANULAR_SUBSYSTEM_ORDER = 160;
+```
+
+### GRANULAR_TIME_STEP_LIMIT · const
+
+Largest dt / critical time the solver accepts without `allowUnstable`: of the Rayleigh time for 'hertz', of the contact duration for 'linear'.
+
+```ts
+export declare const GRANULAR_TIME_STEP_LIMIT: Readonly<{
+    hertz: 0.4;
+    linear: 0.2;
+}>;
+```
+
+### GranularColliderOptions · interface
+
+```ts
+export interface GranularColliderOptions {
+    readonly shape: GranularShape;
+    readonly inertia?: StructureInertia;
+    readonly friction?: number;
+    readonly rollingFriction?: number;
+    readonly restitution?: number;
+    readonly twoWay?: boolean;
+    readonly gravityScale?: number;
+}
+```
+
+### GranularConfig · interface
+
+```ts
+export interface GranularConfig {
+    readonly dt: number;
+    readonly capacity: number;
+    readonly gravity?: GranularVec3;
+    readonly law?: 'hertz' | 'linear';
+    readonly normalStiffness?: number;
+    readonly tangentialStiffnessRatio?: number;
+    readonly tangentialDamping?: number;
+    readonly skin?: number;
+    readonly allowUnstable?: boolean;
+    readonly bounds?: {
+        readonly min: GranularVec3;
+        readonly max: GranularVec3;
+    };
+}
+```
+
+### GranularCoupling · class
+
+Two-way coupling of a Granular with a rigid world. Call `step()` immediately before `world.step()`. It copies every
+coupled body in as a wall (dynamic bodies as dynamic walls with the body's mass), advances the grains by
+`substeps` = rigid step / grain step of their own steps, the dynamic bodies moving with them under gravity, the grain
+forces and the estimated support load, and gives each body the mean force and torque of those steps to act through
+the rigid step. The impulse the grains receive and the impulse the bodies are handed are the same numbers with
+opposite signs.
+
+```ts
+export declare class GranularCoupling<B> {
+  readonly backend = "rigid-granular-coupling-subcycled-js-f64-v1";
+  readonly world: GranularWorld<B>;
+  readonly granular: Granular;
+  readonly dt: number;
+  readonly substeps: number;
+  readonly estimateSupports: boolean;
+  steps: number;
+  addBody(body: B, options: GranularColliderOptions): number;
+  indexOf(body: B): number;
+  force(body: B): Float64Array;
+  torque(body: B): Float64Array;
+  step(): void;
+  contactChanges(each: (body: B, index: number, touching: boolean) => void): void;
+  diagnostics(): GranularCouplingDiagnostics;
+}
+```
+
+### GranularCouplingDiagnostics · interface
+
+```ts
+export interface GranularCouplingDiagnostics {
+    grainKinetic: number;
+    grainPotential: number;
+    grainElastic: number;
+    dissipatedDamping: number;
+    dissipatedFriction: number;
+    bodyKinetic: number;
+    bodyPotential: number;
+    momentum: [number, number, number];
+    mass: number;
+}
+```
+
+### GranularCouplingOptions · interface
+
+```ts
+export interface GranularCouplingOptions {
+    readonly step?: number;
+    readonly estimateSupports?: boolean;
+}
+```
+
+### granularDampingCoefficient · function
+
+The damping coefficient alpha of the normal law that gives the restitution `e` in a two-body impact, found by
+bisection on the integrated impact. The force is clamped at zero, so the textbook formulas, which let the contact pull
+at the end of the impact, do not apply: the same restitution needs more damping here (for e = 0.5, 0.511 against
+2 zeta = 0.431 for the linear law). 'hertz': F_d = alpha sqrt(m* k_H) delta^(1/4) v; 'linear': F_d = alpha sqrt(m* k_n) v.
+
+```ts
+export declare function granularDampingCoefficient(restitution: number, law?: 'hertz' | 'linear'): number;
+```
+
+### granularEffectiveModulus · const
+
+Effective modulus E* of two bodies of the same material: E / (2 (1 - nu^2)).
+
+```ts
+export declare const granularEffectiveModulus: (youngModulus: number, poissonRatio: number) => number;
+```
+
+### granularEffectiveShearModulus · const
+
+Effective shear modulus G* of two bodies of the same material: G / (2 (2 - nu)), G = E / (2 (1 + nu)).
+
+```ts
+export declare const granularEffectiveShearModulus: (youngModulus: number, poissonRatio: number) => number;
+```
+
+### granularLattice · function
+
+Grains on a cubic lattice filling the box [min, max]: spacing 2 * radius[1] * (1 + gap), radii drawn uniformly from
+[radius[0], radius[1]] and centres moved by up to `jitter` of the free play, from a seeded generator (repeatable).
+
+```ts
+export declare function granularLattice(options: {
+    readonly min: GranularVec3;
+    readonly max: GranularVec3;
+    readonly radius: number | readonly [number, number];
+    readonly gap?: number;
+    readonly jitter?: number;
+    readonly seed?: number;
+    readonly inside?: (x: number, y: number, z: number, r: number) => boolean;
+}): GranularLattice;
+```
+
+### GranularLattice · interface
+
+```ts
+export interface GranularLattice {
+    positions: Float64Array;
+    radii: Float64Array;
+    count: number;
+}
+```
+
+### GranularMaterial · interface
+
+```ts
+export interface GranularMaterial {
+    readonly density: number;
+    readonly youngModulus?: number;
+    readonly poissonRatio?: number;
+    readonly restitution: number;
+    readonly friction: number;
+    readonly rollingFriction?: number;
+}
+```
+
+### GranularShape · type
+
+```ts
+export type GranularShape = 
+{
+    readonly kind: 'plane';
+    readonly normal: GranularVec3;
+} | {
+    readonly kind: 'box';
+    readonly halfExtents: GranularVec3;
+} | {
+    readonly kind: 'sphere';
+    readonly radius: number;
+}
+| {
+    readonly kind: 'capsule';
+    readonly radius: number;
+    readonly halfLength: number;
+}
+| {
+    readonly kind: 'cylinder';
+    readonly radius: number;
+    readonly from: number;
+    readonly to: number;
+    readonly axis?: GranularVec3;
+}
+| {
+    readonly kind: 'annulus';
+    readonly innerRadius: number;
+    readonly outerRadius: number;
+    readonly offset?: number;
+    readonly axis?: GranularVec3;
+}
+| {
+    readonly kind: 'frustum';
+    readonly r0: number;
+    readonly z0: number;
+    readonly r1: number;
+    readonly z1: number;
+    readonly axis?: GranularVec3;
+};
+```
+
+### GranularStats · interface
+
+```ts
+export interface GranularStats {
+    steps: number;
+    rebuilds: number;
+    contacts: number;
+    wallContacts: number;
+    pairs: number;
+    overlap: number;
+    maxOverlap: number;
+    removed: number;
+    removedMass: number;
+    unstable: boolean;
+}
+```
+
+### granularSubsystem · function
+
+Grains as a subsystem of the one stepping loop (simulation.ts).
+ - A `GranularCoupling`: couple stage, order 160. Its time step is the rigid step (it takes `substeps` grain steps
+   inside), so it must equal the simulation step.
+ - A bare `Granular` (no world): post stage; its dt may be the step, a whole fraction of it or a whole multiple.
+Registration fails when the grain step exceeds the stability limit (unless the Granular was built with
+`allowUnstable`, which emits one 'unstable-step' event instead).
+Energy: kinetic (translation and spin) + gravitational + elastic (normal, tangential and rolling springs) of the
+grains, with the work of moving walls and coupled bodies, less the energy of removed grains, as `exchanged`. The parts
+also list `dissipatedDamping` and `dissipatedFriction`: total - exchanged + the two is constant up to the
+time-stepping error. Coupled bodies are not counted (track them with `simulation.trackBody`).
+Events, emitted at the end of a step: 'contact-begin' and 'contact-end' with {body, index} when a coupled body starts
+or stops touching grains, 'grains-removed' with {count, mass} when grains left the bounds, 'overlap' with {ratio} when
+the largest overlap first exceeds a quarter of a radius, and 'unstable-step' once (see above).
+
+```ts
+export declare function granularSubsystem<W, B>(target: Granular | GranularCoupling<B>, options?: {
+    readonly id?: string;
+    readonly order?: number;
+}): Subsystem<W, B>;
+```
+
+### GranularVec3 · type
+
+```ts
+export type GranularVec3 = readonly [number, number, number];
+```
+
+### GranularWallOptions · interface
+
+```ts
+export interface GranularWallOptions {
+    readonly shape: GranularShape;
+    readonly type?: 'static' | 'kinematic' | 'dynamic';
+    readonly position?: ArrayLike<number>;
+    readonly rotation?: ArrayLike<number>;
+    readonly linearVelocity?: ArrayLike<number>;
+    readonly angularVelocity?: ArrayLike<number>;
+    readonly mass?: number;
+    readonly inertia?: StructureInertia;
+    readonly gravityScale?: number;
+    readonly friction?: number;
+    readonly rollingFriction?: number;
+    readonly restitution?: number;
+}
+```
+
+### GranularWallState · interface
+
+```ts
+export interface GranularWallState {
+    readonly position: ArrayLike<number>;
+    readonly rotation?: ArrayLike<number>;
+    readonly linearVelocity?: ArrayLike<number>;
+    readonly angularVelocity?: ArrayLike<number>;
+}
+```
+
+### GranularWorld · interface
+
+The part of a rigid-body world the coupling uses. The kit's PhysicsWorld satisfies it.
+
+```ts
+export interface GranularWorld<B> {
+    gravity(): readonly number[];
+    getState(body: B): {
+        readonly position: readonly number[];
+        readonly rotation: readonly number[];
+        readonly linearVelocity: readonly number[];
+        readonly angularVelocity: readonly number[];
+        readonly mass: number;
+        readonly type: string;
+    };
+    applyForce(body: B, force: GranularVec3): void;
+    applyTorque(body: B, torque: GranularVec3): void;
+    isAlive?(body: B): boolean;
+    readonly loop?: {
+        readonly step: number;
+    };
+}
+```
+
+### HERTZ_DURATION_FACTOR · const
+
+2 * integral from 0 to 1 of dx / sqrt(1 - x^(5/2)) = (4/5) B(2/5, 1/2): Hertz contact duration over delta_max / v.
+
+```ts
+export declare const HERTZ_DURATION_FACTOR = 2.94327518432;
+```
+
+### hertzContactDuration · function
+
+Duration of an elastic Hertz impact: 2.943 delta_max / v with delta_max = (15 m* v^2 / (16 E* sqrt(R*)))^(2/5).
+
+```ts
+export declare function hertzContactDuration(effectiveMass: number, effectiveRadius: number, effectiveModulus: number, speed: number): number;
+```
+
+### rayleighTime · function
+
+Time a Rayleigh surface wave takes around half a grain: pi r sqrt(rho / G) / (0.1631 nu + 0.8766).
+
+```ts
+export declare function rayleighTime(radius: number, density: number, youngModulus: number, poissonRatio: number): number;
+```

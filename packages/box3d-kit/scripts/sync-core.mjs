@@ -48,6 +48,9 @@ export const CORE = [
   // ./cloth: the calibrated cloth and its coupling to rigid bodies. Imports contracts.ts, principalMoments from
   // structure-coupling.ts and the Subsystem type from simulation.ts.
   {from: 'src/engine/cloth.ts', rewrites: []},
+  // ./granular: discrete-element grains and their coupling to rigid bodies. Imports contracts.ts, principalMoments from
+  // structure-coupling.ts and the Subsystem type from simulation.ts.
+  {from: 'src/engine/granular.ts', rewrites: []},
 ];
 export const WASM_FILES = ['box3d.js', 'box3d.wasm', 'BUILD_PROVENANCE.json', 'BOX3D_LICENSE.txt'];
 

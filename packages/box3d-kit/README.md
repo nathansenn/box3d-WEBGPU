@@ -453,6 +453,7 @@ camera.follow(hero.state.position);
 | `box3d-webgpu-kit/geometry` | OBJ, STL and glTF import, mesh measures, convex hulls and convex decomposition (see above). |
 | `box3d-webgpu-kit/scene` | Scene files: a versioned JSON format with validation, load, save, canonical text, hashing, share links and example scenes (see above). |
 | `box3d-webgpu-kit/cloth` | Calibrated cloth: a membrane and plate with real material parameters, implicit integration, contact and friction against rigid bodies, self-collision, and two-way coupling to the rigid world (see below). |
+| `box3d-webgpu-kit/granular` | Granular media by the discrete element method: spherical grains with Hertz or linear contact, friction, rolling resistance, silo and hopper walls, and two-way coupling to the rigid world (see below). |
 | `box3d-webgpu-kit/simulation` | One stepping loop: a `Simulation` that steps the world, the water and structure couplings, heat and solids in a fixed order, with one clock, energy ledger and event stream (see below). |
 
 Cable, water, frame and solid are the same model code the Box3D WebGPU app runs; the build copies it from the app. The app's own test suites (68 tests: 11 cable, 11 proximal cable, 2 linear water, 6 closed water, 16 frame, 22 solid) run against the packaged copies in `npm test`. Heat and solid are independent of the rigid-body world. Water is coupled to it by `box3d-webgpu-kit/coupling`, and cables and frames by `box3d-webgpu-kit/structure`. The WebGPU water solver is not packaged yet.
@@ -672,6 +673,42 @@ cloth.stats.unconvergedSteps;  // steps that stopped at the iteration limit
 - **Self-collision:** `selfCollision: {thickness}` keeps layers a thickness apart by point-triangle and edge-edge repulsion.
 - **Accuracy:** `test/v16-cloth.test.mjs` checks it against closed-form answers; the repository's `docs/CLOTH.md` has the table. Second order on structured meshes: a cantilever's tip is 0.08% off with 32 elements, a tensioned strip's frequency 0.05%, a pressurised membrane 0.1%.
 - **Limits, measured:** about 100 nodes in real time on one thread (a 17 × 17 sheet takes 9 ms per 1/240 s step). Bending does not converge on irregular meshes (4% off with nodes jittered by a quarter of a cell): use structured ones. Contact is node against body, so the mesh must be finer than the bodies, and hulls, meshes and height fields are not supported. Self-collision is a repulsion, not a guarantee against intersection. No tearing, no anisotropy.
+
+### Grains: sand, beads and silos
+
+`Granular` is a discrete element solver: spheres that overlap slightly where they touch, with a contact law, friction and rolling resistance. This fills a silo, opens it and counts what flows out:
+
+```ts
+import {Granular, granularLattice} from 'box3d-webgpu-kit/granular';
+
+const d = 0.01, radius = 0.075;                                     // 10 mm beads, a silo 15 beads wide
+const material = {density: 2500, restitution: 0.3, friction: 0.5, rollingFriction: 0.02};
+const law = {law: 'linear', normalStiffness: 5e3};                  // or the default 'hertz' with youngModulus and poissonRatio
+const beads = granularLattice({min: [-radius, 0, -radius], max: [radius, 0.24, radius], radius: [0.45 * d, 0.55 * d], jitter: 1, gap: 0,
+  inside: (x, y, z) => Math.hypot(x, z) < radius - 0.6 * d});
+
+const g = new Granular({material, config: {...law, dt: 1.1e-4, capacity: beads.count,           // dt: at most g.maxTimeStepFor(radius)
+  bounds: {min: [-1, -0.03, -1], max: [1, 10, 1]}}});                                           // beads below the silo are removed
+const floor = g.addWall({shape: {kind: 'plane', normal: [0, 1, 0]}});                           // closed while filling
+g.addWall({shape: {kind: 'annulus', innerRadius: 3 * d, outerRadius: radius + d}});             // a floor with a 6 d orifice
+g.addWall({shape: {kind: 'cylinder', radius, from: 0, to: 1}});
+g.addGrains(beads.positions, beads.radii);
+
+g.step(4000);                    // pour and settle
+g.setWallEnabled(floor, false);  // open
+g.step(4000);
+g.stats.removedMass;             // kg discharged
+g.wallForce(1);                  // N on the orifice plate
+g.positions; g.radii;            // for drawing
+```
+
+With a rigid world: `const coupling = new GranularCoupling(world, g); coupling.addBody(body, {shape: {kind: 'box', halfExtents}});` then `coupling.step(); world.step();` each step, or `createSimulation(world).add(granularSubsystem(coupling))`. The world's step must be a whole number of grain steps. `coupling.force(body)` is what the grains do to the body: its weight once it rests on them.
+
+- **Contact:** Hertz with Mindlin's tangential stiffness, or linear springs. The dashpot is solved so that the restitution is the one you set, at any impact speed. Friction keeps a tangential spring per contact, so piles stand; `rollingFriction` makes them stand steeper, as angular grains do.
+- **Time step:** it must be a fraction of the contact time, typically 1e-4 s for soft centimetre beads and far less for stiff or small ones. The solver refuses a step above its limit (`UNSTABLE_TIME_STEP`) and tells you the largest it accepts.
+- **Walls:** planes, boxes, spheres, capsules, cylinders, rings with a hole, cones; fixed, moving or with mass. Each reports the force on it.
+- **Accuracy:** `test/v17-granular.test.mjs` checks it against closed-form answers; the repository's `docs/GRANULAR.md` has the table. Hertz contact duration to 1e-5, restitution to 1e-3, sliding and rolling on an incline, an energy ledger that closes to 0.12% of the energy dissipated, a block on a bed carried to 7e-7 of its weight.
+- **Limits, measured:** about 2 million grain-steps per second on one thread, which is 100 to 250 soft 10 mm beads in real time. Spheres only. Janssen's saturation and Beverloo's 5/2 law come out in form, with constants that are not the textbook ones. Create coupled bodies with `neverSleeps`.
 
 ### One stepping loop for every solver
 

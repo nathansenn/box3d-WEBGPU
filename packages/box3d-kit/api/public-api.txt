@@ -1030,6 +1030,324 @@ export declare function parseGLTF(json: string | object, buffers?: GLTFBuffers):
 export declare function parseGLB(data: BinaryLike, buffers?: GLTFBuffers): TriangleMesh[];
 export {};
 
+// ==== core/granular.d.ts ====
+import { type StructureInertia } from './structure-coupling.js';
+import type { Subsystem } from './simulation.js';
+export declare const GRANULAR_SOLVER_ID = "granular-dem-soft-sphere-verlet-js-f64-v1";
+export declare const GRANULAR_COUPLING_BACKEND = "rigid-granular-coupling-subcycled-js-f64-v1";
+export declare const GRANULAR_MAX_GRAINS: number;
+export declare const GRANULAR_TIME_STEP_LIMIT: Readonly<{
+    hertz: 0.4;
+    linear: 0.2;
+}>;
+export type GranularVec3 = readonly [number, number, number];
+export interface GranularMaterial {
+    readonly density: number;
+    readonly youngModulus?: number;
+    readonly poissonRatio?: number;
+    readonly restitution: number;
+    readonly friction: number;
+    readonly rollingFriction?: number;
+}
+export interface GranularConfig {
+    readonly dt: number;
+    readonly capacity: number;
+    readonly gravity?: GranularVec3;
+    readonly law?: 'hertz' | 'linear';
+    readonly normalStiffness?: number;
+    readonly tangentialStiffnessRatio?: number;
+    readonly tangentialDamping?: number;
+    readonly skin?: number;
+    readonly allowUnstable?: boolean;
+    readonly bounds?: {
+        readonly min: GranularVec3;
+        readonly max: GranularVec3;
+    };
+}
+export type GranularShape =
+{
+    readonly kind: 'plane';
+    readonly normal: GranularVec3;
+} | {
+    readonly kind: 'box';
+    readonly halfExtents: GranularVec3;
+} | {
+    readonly kind: 'sphere';
+    readonly radius: number;
+}
+ | {
+    readonly kind: 'capsule';
+    readonly radius: number;
+    readonly halfLength: number;
+}
+ | {
+    readonly kind: 'cylinder';
+    readonly radius: number;
+    readonly from: number;
+    readonly to: number;
+    readonly axis?: GranularVec3;
+}
+ | {
+    readonly kind: 'annulus';
+    readonly innerRadius: number;
+    readonly outerRadius: number;
+    readonly offset?: number;
+    readonly axis?: GranularVec3;
+}
+ | {
+    readonly kind: 'frustum';
+    readonly r0: number;
+    readonly z0: number;
+    readonly r1: number;
+    readonly z1: number;
+    readonly axis?: GranularVec3;
+};
+export interface GranularWallState {
+    readonly position: ArrayLike<number>;
+    readonly rotation?: ArrayLike<number>;
+    readonly linearVelocity?: ArrayLike<number>;
+    readonly angularVelocity?: ArrayLike<number>;
+}
+export interface GranularWallOptions {
+    readonly shape: GranularShape;
+    readonly type?: 'static' | 'kinematic' | 'dynamic';
+    readonly position?: ArrayLike<number>;
+    readonly rotation?: ArrayLike<number>;
+    readonly linearVelocity?: ArrayLike<number>;
+    readonly angularVelocity?: ArrayLike<number>;
+    readonly mass?: number;
+    readonly inertia?: StructureInertia;
+    readonly gravityScale?: number;
+    readonly friction?: number;
+    readonly rollingFriction?: number;
+    readonly restitution?: number;
+}
+export interface GranularStats {
+    steps: number;
+    rebuilds: number;
+    contacts: number;
+    wallContacts: number;
+    pairs: number;
+    overlap: number;
+    maxOverlap: number;
+    removed: number;
+    removedMass: number;
+    unstable: boolean;
+}
+export interface GranularLattice {
+    positions: Float64Array;
+    radii: Float64Array;
+    count: number;
+}
+export declare const HERTZ_DURATION_FACTOR = 2.94327518432;
+export declare const granularEffectiveModulus: (youngModulus: number, poissonRatio: number) => number;
+export declare const granularEffectiveShearModulus: (youngModulus: number, poissonRatio: number) => number;
+export declare function hertzContactDuration(effectiveMass: number, effectiveRadius: number, effectiveModulus: number, speed: number): number;
+export declare function rayleighTime(radius: number, density: number, youngModulus: number, poissonRatio: number): number;
+export declare function granularDampingCoefficient(restitution: number, law?: 'hertz' | 'linear'): number;
+export declare function granularLattice(options: {
+    readonly min: GranularVec3;
+    readonly max: GranularVec3;
+    readonly radius: number | readonly [number, number];
+    readonly gap?: number;
+    readonly jitter?: number;
+    readonly seed?: number;
+    readonly inside?: (x: number, y: number, z: number, r: number) => boolean;
+}): GranularLattice;
+export declare class Granular {
+    readonly solver = "granular-dem-soft-sphere-verlet-js-f64-v1";
+    readonly dt: number;
+    readonly capacity: number;
+    readonly law: 'hertz' | 'linear';
+    readonly gravity: Float64Array;
+    readonly material: Required<GranularMaterial>;
+    readonly positions: Float64Array;
+    readonly velocities: Float64Array;
+    readonly angularVelocities: Float64Array;
+    readonly radii: Float64Array;
+    readonly masses: Float64Array;
+    readonly alive: Uint8Array;
+    readonly forces: Float64Array;
+    readonly torques: Float64Array;
+    readonly stats: GranularStats;
+    time: number;
+    dissipatedDamping: number;
+    dissipatedFriction: number;
+    externalWork: number;
+    timeStepFraction: number;
+    criticalTime: number;
+    private n;
+    private live;
+    private readonly invMass;
+    private readonly invInertia;
+    private readonly built;
+    private builtCount;
+    private readonly hertz;
+    private readonly kHertz;
+    private readonly kMindlin;
+    private readonly kn;
+    private readonly kt;
+    private readonly alpha;
+    private readonly tangentialDamping;
+    private readonly allowUnstable;
+    private skin;
+    private readonly bounds;
+    private readonly walls;
+    private pairStart;
+    private pairJ;
+    private pairH;
+    private pairOn;
+    private oldStart;
+    private oldJ;
+    private oldH;
+    private oldOn;
+    private wallStart;
+    private wallW;
+    private wallH;
+    private wallOn;
+    private oldWallStart;
+    private oldWallW;
+    private oldWallH;
+    private oldWallOn;
+    private cellStart;
+    private cellItems;
+    private cellOf;
+    private dirty;
+    private fresh;
+    private readonly S;
+    private readonly gn;
+    private readonly gc;
+    private eNormal;
+    private eTangent;
+    private eTangentBefore;
+    private pDamp;
+    private pTangent;
+    private rMin;
+    private rMax;
+    constructor(options: {
+        readonly material: GranularMaterial;
+        readonly config: GranularConfig;
+    });
+    get grainCount(): number;
+    get liveCount(): number;
+    criticalTimeFor(radius: number): number;
+    maxTimeStepFor(radius: number): number;
+    addGrain(position: ArrayLike<number>, radius: number, velocity?: ArrayLike<number>, angularVelocity?: ArrayLike<number>): number;
+    addGrains(positions: ArrayLike<number>, radii: ArrayLike<number> | number, velocities?: ArrayLike<number>): number;
+    removeGrain(index: number): void;
+    private grain;
+    private grainEnergy;
+    touch(): void;
+    get wallCount(): number;
+    private wall;
+    addWall(options: GranularWallOptions): number;
+    setWallState(index: number, state: GranularWallState): void;
+    setWallVelocity(index: number, linearVelocity: ArrayLike<number>, angularVelocity?: ArrayLike<number>): void;
+    setWallEnabled(index: number, enabled: boolean): void;
+    setWallMass(index: number, mass: number): void;
+    setWallExternalLoad(index: number, load: ArrayLike<number>, offset?: number): void;
+    wallPosition(index: number): Float64Array;
+    wallRotation(index: number): Float64Array;
+    wallLinearVelocity(index: number): Float64Array;
+    wallAngularVelocity(index: number): Float64Array;
+    wallMass(index: number): number;
+    wallForce(index: number): Float64Array;
+    wallTorque(index: number): Float64Array;
+    wallImpulse(index: number): Float64Array;
+    wallAngularImpulse(index: number): Float64Array;
+    wallNormalLoad(index: number): number;
+    wallContacts(index: number): number;
+    resetWallImpulses(index?: number): void;
+    mass(): number;
+    kineticEnergy(): number;
+    gravitationalEnergy(): number;
+    normalElasticEnergy(): number;
+    tangentialElasticEnergy(): number;
+    elasticEnergy(): number;
+    mechanicalEnergy(): number;
+    energyBalance(): number;
+    linearMomentum(out?: number[] | Float64Array): number[] | Float64Array;
+    angularMomentum(out?: number[] | Float64Array): number[] | Float64Array;
+    coordination(): number;
+    private growPairs;
+    private growWalls;
+    private rebuild;
+    private moved;
+    private wallDistance;
+    private kernel;
+    private computeForces;
+    private prepare;
+    step(count?: number): void;
+}
+export interface GranularWorld<B> {
+    gravity(): readonly number[];
+    getState(body: B): {
+        readonly position: readonly number[];
+        readonly rotation: readonly number[];
+        readonly linearVelocity: readonly number[];
+        readonly angularVelocity: readonly number[];
+        readonly mass: number;
+        readonly type: string;
+    };
+    applyForce(body: B, force: GranularVec3): void;
+    applyTorque(body: B, torque: GranularVec3): void;
+    isAlive?(body: B): boolean;
+    readonly loop?: {
+        readonly step: number;
+    };
+}
+export interface GranularColliderOptions {
+    readonly shape: GranularShape;
+    readonly inertia?: StructureInertia;
+    readonly friction?: number;
+    readonly rollingFriction?: number;
+    readonly restitution?: number;
+    readonly twoWay?: boolean;
+    readonly gravityScale?: number;
+}
+export interface GranularCouplingOptions {
+    readonly step?: number;
+    readonly estimateSupports?: boolean;
+}
+export interface GranularCouplingDiagnostics {
+    grainKinetic: number;
+    grainPotential: number;
+    grainElastic: number;
+    dissipatedDamping: number;
+    dissipatedFriction: number;
+    bodyKinetic: number;
+    bodyPotential: number;
+    momentum: [number, number, number];
+    mass: number;
+}
+export declare class GranularCoupling<B> {
+    readonly backend = "rigid-granular-coupling-subcycled-js-f64-v1";
+    readonly world: GranularWorld<B>;
+    readonly granular: Granular;
+    readonly dt: number;
+    readonly substeps: number;
+    readonly estimateSupports: boolean;
+    private readonly list;
+    private readonly byBody;
+    private readonly load;
+    private readonly out;
+    steps: number;
+    constructor(world: GranularWorld<B>, granular: Granular, options?: GranularCouplingOptions);
+    addBody(body: B, options: GranularColliderOptions): number;
+    private entry;
+    indexOf(body: B): number;
+    force(body: B): Float64Array;
+    torque(body: B): Float64Array;
+    step(): void;
+    contactChanges(each: (body: B, index: number, touching: boolean) => void): void;
+    diagnostics(): GranularCouplingDiagnostics;
+}
+export declare const GRANULAR_SUBSYSTEM_ORDER = 160;
+export declare function granularSubsystem<W, B>(target: Granular | GranularCoupling<B>, options?: {
+    readonly id?: string;
+    readonly order?: number;
+}): Subsystem<W, B>;
+
 // ==== core/heat.d.ts ====
 export declare const HEAT_SOLVER_ID = "heat-fv-implicit-js-f64-v1";
 export declare const STEFAN_BOLTZMANN = 5.670374419e-8;
@@ -3710,6 +4028,9 @@ export interface UploadRange {
 export declare function lastUploadRange(): UploadRange;
 export declare function writeInstances(source: InstanceSource, queue: GpuQueueLike, buffer: GpuBufferLike, options?: WriteInstancesOptions): number;
 export declare const INSTANCE_WGSL = "\nstruct Instances { m: array<mat4x4<f32>> };\n@group(0) @binding(0) var<storage, read> instances: Instances;\n
+
+// ==== granular.d.ts ====
+export * from './core/granular.js';
 
 // ==== heat.d.ts ====
 export * from './core/heat.js';

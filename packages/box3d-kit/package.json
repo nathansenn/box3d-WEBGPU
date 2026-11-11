@@ -56,6 +56,10 @@
       "types": "./dist/cloth.d.ts",
       "default": "./dist/cloth.js"
     },
+    "./granular": {
+      "types": "./dist/granular.d.ts",
+      "default": "./dist/granular.js"
+    },
     "./gameplay": {
       "types": "./dist/gameplay.d.ts",
       "default": "./dist/gameplay.js"
