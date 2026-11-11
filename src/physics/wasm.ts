@@ -2,7 +2,7 @@ import type { ScenePreset } from '../scenes';
 import type { PhysicsBackend, PhysicsThreading } from '../types';
 import { FallbackPhysicsBackend } from './fallback';
 import { planThreading } from './threading';
-import { NativeWorldPool } from '../engine/native-world.ts';
+import { NativeWorldPool, type NativeWorldBackend } from '../engine/native-world.ts';
 import { MAX_WASM_STEP_DT, clampWasmSubSteps, finiteBounded } from './step-bounds.ts';
 
 type EmscriptenModuleBase = {
@@ -48,6 +48,11 @@ class WasmPhysicsBackend implements PhysicsBackend {
   private colorFrameVersion = 0;
   private readonly matricesPtr: number | bigint;
   private readonly colorsPtr: number | bigint;
+  // The recipe scenes live in the module's built-in world. A general SI scene lives in a
+  // separate world of the same module; while `general` is set, every call below goes to it.
+  private generalPool: NativeWorldPool | null = null;
+  private generalWorld: NativeWorldBackend | null = null;
+  private general: NativeWorldBackend | null = null;
 
   constructor(
     private readonly mod: EmscriptenModuleBase,
@@ -69,14 +74,18 @@ class WasmPhysicsBackend implements PhysicsBackend {
   // A getter prevents the renderer from retaining a detached/stale Float32Array.
   get HEAPF32(): Float32Array { return this.mod.HEAPF32; }
 
-  _b3w_matrices_ptr(): number | bigint { return this.matricesPtr; }
-  _b3w_colors_ptr(): number | bigint { return this.colorsPtr; }
+  _b3w_matrices_ptr(): number | bigint { return this.general ? this.general._b3w_matrices_ptr() : this.matricesPtr; }
+  _b3w_colors_ptr(): number | bigint { return this.general ? this.general._b3w_colors_ptr() : this.colorsPtr; }
   _b3w_body_count(): number { return this.bodyCount(); }
-  _b3w_max_bodies(): number { return this.maxBodies; }
-  frameVersion(): number { return (this.mod._b3w_transform_version?.() ?? this.transformFrameVersion) >>> 0; }
-  colorVersion(): number { return (this.mod._b3w_color_version?.() ?? this.colorFrameVersion) >>> 0; }
-  awakeCount(): number { return this.mod._b3w_awake_count?.() ?? 0; }
-  lastStepWorkers(): number { return this.mod._b3w_last_step_workers?.() ?? 1; }
+  _b3w_max_bodies(): number { return this.general ? this.general.maxBodies : this.maxBodies; }
+  frameVersion(): number { return this.general ? this.general.frameVersion() : (this.mod._b3w_transform_version?.() ?? this.transformFrameVersion) >>> 0; }
+  colorVersion(): number { return this.general ? this.general.colorVersion() : (this.mod._b3w_color_version?.() ?? this.colorFrameVersion) >>> 0; }
+  awakeCount(): number { return this.general ? this.general.awakeCount() : this.mod._b3w_awake_count?.() ?? 0; }
+  lastStepWorkers(): number { return this.general ? 1 : this.mod._b3w_last_step_workers?.() ?? 1; }
+  // Recipe scenes have only boxes, so they report version 0 and no kinds. Entering or leaving
+  // a general scene moves the instance streams, which makes the renderer read the kinds again.
+  shapeVersion(): number { return this.general ? this.general.shapeVersion() : 0; }
+  shapeKinds(): Uint8Array | null { return this.general ? this.general.shapeKinds() : null; }
 
   private markTransformsChanged(): void {
     this.transformFrameVersion = (this.transformFrameVersion + 1) >>> 0;
@@ -91,7 +100,25 @@ class WasmPhysicsBackend implements PhysicsBackend {
     this.markColorsChanged();
   }
 
+  private leaveGeneralScene(): void {
+    if (!this.general) return;
+    this.general = null;
+    this.generalWorld?.clear();
+  }
+
+  createGeneralScene(build: (world: NativeWorldBackend) => void): number {
+    this.generalPool ??= new NativeWorldPool(this.mod);
+    const world = this.generalWorld ??= this.generalPool.createWorld();
+    if (!world.supportsGeneralBodies) throw new Error('box3d.wasm lacks the general rigid-body API. Rebuild with npm run build:wasm.');
+    this.general = null;
+    build(world);
+    this.general = world;
+    this.markStreamsChanged();
+    return world.bodyCount();
+  }
+
   createScene(scene: ScenePreset, stressScale: number, seed: number): number {
+    this.leaveGeneralScene();
     if (this.mod._b3w_create_scene) {
       const count = this.mod._b3w_create_scene(scene.id, stressScale, seed >>> 0);
       this.markStreamsChanged();
@@ -109,30 +136,50 @@ class WasmPhysicsBackend implements PhysicsBackend {
 
   step(dt: number, subSteps: number): void {
     if (!Number.isFinite(dt) || dt <= 0) return;
+    if (this.general) { this.general.step(Math.min(dt, MAX_WASM_STEP_DT), clampWasmSubSteps(subSteps)); return; }
     this.mod._b3w_step?.(Math.min(dt, MAX_WASM_STEP_DT), clampWasmSubSteps(subSteps));
     this.markTransformsChanged();
   }
   syncTransforms(): void {
+    if (this.general) { this.general.syncTransforms(); return; }
     this.mod._b3w_sync_transforms?.();
     this.markTransformsChanged();
   }
-  kick(strength: number): void { if (!finiteBounded(strength)) return; this.mod._b3w_kick_stack?.(strength); }
-  explode(centerX: number, centerY: number, centerZ: number, strength: number, radius: number): void { if (!finiteBounded(centerX, centerY, centerZ, strength, radius)) return; this.mod._b3w_explode?.(centerX, centerY, centerZ, strength, radius); }
+  kick(strength: number): void {
+    if (!finiteBounded(strength)) return;
+    if (this.general) { if (strength >= 0) this.general.kick(strength); return; }
+    this.mod._b3w_kick_stack?.(strength);
+  }
+  explode(centerX: number, centerY: number, centerZ: number, strength: number, radius: number): void {
+    if (!finiteBounded(centerX, centerY, centerZ, strength, radius)) return;
+    if (this.general) { if (strength >= 0 && radius >= 0) this.general.explode(centerX, centerY, centerZ, strength, radius); return; }
+    this.mod._b3w_explode?.(centerX, centerY, centerZ, strength, radius);
+  }
   launchProjectile(x: number, y: number, z: number, vx: number, vy: number, vz: number, size: number): number {
     if (!finiteBounded(x, y, z, vx, vy, vz, size)) return -1;
+    if (this.general) return size > 0 ? this.general.launchProjectile(x, y, z, vx, vy, vz, size) : -1;
     const index = this.mod._b3w_launch_projectile?.(x, y, z, vx, vy, vz, size) ?? -1;
     if (index >= 0) this.markStreamsChanged();
     return index;
   }
   spawnRain(count: number, spread: number, height: number): number {
+    if (this.general) {
+      const room = this.general.maxBodies - this.general.bodyCount();
+      const wanted = Number.isFinite(count) ? Math.max(0, Math.min(Math.floor(count), room)) : 0;
+      return wanted > 0 && finiteBounded(spread, height) && spread >= 0 ? this.general.spawnRain(wanted, spread, height) : 0;
+    }
     const added = this.mod._b3w_spawn_rain?.(count, spread, height) ?? 0;
     if (added > 0) this.markStreamsChanged();
     return added;
   }
-  bodyCount(): number { return this.mod._b3w_body_count?.() ?? 0; }
-  dynamicCount(): number { return this.mod._b3w_dynamic_count?.() ?? Math.max(0, this.bodyCount() - 1); }
-  replayHash(): number { return this.mod._b3w_replay_hash?.() ?? 0; }
+  bodyCount(): number { return this.general ? this.general.bodyCount() : this.mod._b3w_body_count?.() ?? 0; }
+  dynamicCount(): number { return this.general ? this.general.dynamicCount() : this.mod._b3w_dynamic_count?.() ?? Math.max(0, this.bodyCount() - 1); }
+  replayHash(): number { return this.general ? this.general.replayHash() : this.mod._b3w_replay_hash?.() ?? 0; }
   destroy(): void {
+    this.general = null;
+    this.generalWorld = null;
+    this.generalPool?.destroy();
+    this.generalPool = null;
     this.mod._b3w_destroy?.();
     this.markStreamsChanged();
   }

@@ -24,13 +24,13 @@ Pass 0: compact rope render expansion
   compute-generated model matrices + material colors
                                                        ↓
 Pass 1: directional shadow depth (2048² depth32float)
-  instanced rigid/rope/effect geometry
+  instanced rigid/rope/effect geometry (boxes, spheres, capsules)
   intact GPU-cloth shadow reconstruction
   packed tearing-cloth shadow fallback
                                                        ↓
 Pass 2: HDR scene (rgba16float, 4× MSAA)
   atmosphere and sky
-  instanced PBR solids
+  instanced PBR solids (boxes, spheres, capsules)
   intact GPU cloth or packed tearing cloth
   GPU-reconstructed translucent water
   debug/effect lines
@@ -53,6 +53,45 @@ color/tag       4 × float32
 ```
 
 The renderer's `uploadSoftInstances` cache keys the soft stream by array identity, offsets/counts, and `frameVersion`. Re-requesting an unchanged frame performs no additional soft-instance queue write.
+
+### Sphere and capsule instances
+
+Added 2026-11-11. The engine creates spheres and capsules as well as boxes, and every shape uses the same instance row. A sphere row is scaled `(r, r, r)`. A capsule row is scaled `(radius, halfLength, radius)` with its axis along local Y.
+
+The shape of each row reaches the renderer through two optional methods on `InstanceBufferSource` (`src/types.ts`):
+
+```text
+shapeVersion()   changes when a body is created or destroyed, or the scene is replaced
+shapeKinds()     one byte per row: 0 box, 1 sphere, 2 capsule; null when every row is a box
+```
+
+A source without them has only boxes. That is the JavaScript fallback backend and every recipe scene. `NativeWorldBackend` returns the bridge's colour version as the shape version, because the bridge raises it on exactly those events, and reads the kinds from the bridge once per version. `uploadInstances` compares the version only on a frame whose transforms or colours changed.
+
+`src/webgpu/instance-shapes.ts` turns the kinds into a plan: runs of consecutive rows per shape. A stream with no sphere or capsule has no plan, and its frames take the original single `draw(36, instanceCount)`. With a plan, each pass that draws rigid instances directly uses the same pipeline and the same instance streams, and changes only the mesh in vertex slot 0:
+
+| Rows | Mesh | Instance streams | Draw |
+|---|---|---|---|
+| box | cube, 36 vertices | row matrices and colours | one draw per run of box rows; rows after the rigid stream (rope, soft, effects) join the last run |
+| sphere | unit sphere, 32 × 16, 2,880 vertices | row matrices and colours | one draw per run of sphere rows |
+| capsule wall | open unit cylinder, 32 segments, 192 vertices | row matrices and colours | one draw per run of capsule rows |
+| capsule ends | upper hemisphere: the first 1,440 sphere vertices | cap matrices and colours, two per capsule | one draw |
+
+The capsule is exact at any radius and length, not a stretched sphere. The row matrix scales the cylinder to radius and half length. The two ends are hemispheres of the radius, centred at ± the row's Y column: the `+Y` cap has columns `(X, Ŷ·r, Z)` and the `−Y` cap `(X, −Ŷ·r, −Z)`, which is the hemisphere turned half a revolution about X, so its winding is kept and back-face culling works. This is the decomposition `syncShapeMeshes` uses in `packages/box3d-kit/src/three.ts`. The cap rim and the cylinder rim use the same sine and cosine values. Cap matrices are derived on the CPU (80 bytes per cap) when the rigid stream changes; the round meshes and the cap buffers are created the first time a plan exists.
+
+Passes and optional paths:
+
+| Path | Spheres and capsules |
+|---|---|
+| Shadow pass, direct | drawn; they cast shadows |
+| HDR opaque pass, direct | drawn with the PBR solid shader; normals come from the mesh |
+| HDR transparent pass, direct | drawn; glass and dust tags work on any shape |
+| Material partition (`instancePartitioning`, opt-in) | falls back. Its lists treat every instance as a cube, so a frame with a plan is drawn directly. A renderer created with partitioning compiles its solid pipelines for vertex pulling only, so it compiles two direct pipelines per sample count the first time it needs them. The partition resumes when every row is a box. |
+| GPU visibility lists (`computeVisibility`, opt-in) | falls back the same way: no visibility list is encoded for a frame with a plan. Round shapes are therefore not frustum-culled. |
+| GPU rope expansion | unchanged; it writes box rows after the rigid stream |
+
+`instanceShapeInfo()` reports the mode and the sphere and capsule counts.
+
+Box-only cost, measured on Dawn's null backend (CPU-side upload, encoding and submission of the real `WebGPURenderer`, 4,096 boxes, best of the rounds, before → after): a moved frame 69.7 → 66.9 µs; a moved one-body upload 951 → 933 ns; an unchanged upload 19 → 19 ns. The differences are below the run-to-run spread of 10–50% on the shared machine, so no cost was measured. This is not a GPU timing.
 
 ### Intact cloth
 
@@ -126,7 +165,7 @@ An unchanged cloth or water surface, rope grid, rigid/effect/debug stream, and s
 
 | Pipeline | Geometry | Key behavior |
 |---|---|---|
-| PBR solid | instanced cubes | GGX-inspired light, shadowing, emissive tag, fog |
+| PBR solid | instanced cubes, spheres, open cylinders and hemisphere caps | GGX-inspired light, shadowing, emissive tag, fog |
 | Packed cloth | packed indexed surface | topology-aware tear fallback, two-sided light, stress heat |
 | GPU cloth | storage state + indexed grid | normal/UV/color/stress reconstruction, woven shading, shadows |
 | GPU cloth shadow | storage state + indexed grid | position reconstruction into light space |
@@ -186,7 +225,12 @@ native Box3D WASM backend, rendered cloth/rope/water, exercised interactions,
 and recorded zero console warnings or errors. This validates the tested Mac;
 it is not a universal browser/driver or FPS claim.
 
+`scripts/webgpu-renderer-runtime-test.mjs` also uploads a mixed box, sphere and capsule stream, checks the bytes uploaded and that kinds are read once per version, submits shaped frames at both sample counts, and checks that the visibility lists stand aside and resume. Run it with `WEBGPU_INSTANCE_PARTITION=1` to check the partition fallback; no gate sets that variable. The null backend validates commands and draws no pixels. `tests/physics/instance-shapes.test.mjs` checks the plan, the meshes and the capsule decomposition.
+
 ## Deliberate boundaries
+
+- Sphere and capsule rows are drawn only by direct draws. The partition and visibility lists fall back for a frame that has them.
+- The Mechanisms SI demo (`src/engine/mechanisms-scene.ts`, `lab.html?si=mechanisms&seed=N`, or the last entry of the laboratory catalog) is the Lab scene that has these shapes. It is not one of the 800 recipes.
 
 - WebGPU reconstructs surface presentation and expands compact rope render state; the numerical solvers remain CPU/WebAssembly work rather than WebGPU compute.
 - Water is transparent forward rendering without order-independent transparency.

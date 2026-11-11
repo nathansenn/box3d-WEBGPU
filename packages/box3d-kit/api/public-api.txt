@@ -787,6 +787,9 @@ export declare class NativeWorldBackend implements PhysicsBackend {
     private readonly bodyOwner;
     private jointOwner;
     private scratch;
+    private kindRows;
+    private kindRowsVersion;
+    private kindRowsCount;
     constructor(module: unknown, onDispose?: () => void);
     private validateStream;
     private refreshStreams;
@@ -831,6 +834,9 @@ export declare class NativeWorldBackend implements PhysicsBackend {
     gravity(): [number, number, number];
     createBody(descriptor: NativeBodyDescriptor): NativeBodyHandle | null;
     bodyKinds(): NativeBodyKind[];
+    private readKinds;
+    shapeVersion(): number;
+    shapeKinds(): Uint8Array | null;
     bodyState(body: NativeBodyHandle): NativeBodyState;
     setBodyTransform(body: NativeBodyHandle, position: NativeQueryVector, rotation?: NativeQuaternion): void;
     setBodyVelocity(body: NativeBodyHandle, linear: NativeQueryVector, angular?: NativeQueryVector): void;

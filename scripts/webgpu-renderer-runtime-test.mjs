@@ -10,7 +10,7 @@ import { emitTypeScriptModuleTree } from './emit-typescript-module-tree.mjs';
 Object.assign(globalThis, globals);
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 const rendererSource = fs.readFileSync(path.join(root, 'src/webgpu/renderer.ts'), 'utf8');
-const engineSourceIdentity=['src/webgpu/renderer.ts','src/webgpu/gpu-timing.ts','src/webgpu/instance-visibility.ts','src/webgpu/water-surface-plan.ts','src/runtime/execution-graph.ts','src/webgpu/instance-partition.ts',
+const engineSourceIdentity=['src/webgpu/renderer.ts','src/webgpu/gpu-timing.ts','src/webgpu/instance-visibility.ts','src/webgpu/water-surface-plan.ts','src/runtime/execution-graph.ts','src/webgpu/instance-partition.ts','src/webgpu/instance-shapes.ts',
   'src/webgpu/resident-water-surface.ts','src/webgpu/linear-water.ts','src/webgpu/water-telemetry.ts','src/webgpu/startup-budget.ts',
   'src/engine/linear-water.ts','src/engine/closed-water.ts','src/webgpu/closed-water-shader.ts','src/engine/contracts.ts','src/assets/ktx2.ts','scripts/webgpu-renderer-runtime-test.mjs']
   .map(file=>({file,sha256:crypto.createHash('sha256').update(fs.readFileSync(path.join(root,file))).digest('hex')}));
@@ -713,6 +713,82 @@ await renderer.device.queue.onSubmittedWorkDone();
 assert.deepEqual(runtimeErrors, [], 'optimization paths emitted no uncaptured WebGPU errors');
 assert.equal(shadowCacheChecks, 25, 'all shadow dependency and failed-frame transitions ran');
 
+// Sphere and capsule rows. A source that reports shape kinds is drawn with per-run direct
+// draws: the cube mesh for box runs, the sphere mesh for sphere rows, and an open cylinder
+// plus two hemisphere caps for each capsule. The optional partition and visibility lists
+// treat every instance as a cube, so they must stand aside while such rows are present.
+{
+  const colorBase = maxRigidBodies * 16;
+  const savedRows = heap.slice(0, 6 * 16), savedColors = heap.slice(colorBase, colorBase + 6 * 4);
+  const kinds = new Uint8Array([0, 1, 2, 2, 0, 1]);
+  let shapeVersion = 1, kindReads = 0, reportedKinds = kinds;
+  for (let row = 0; row < 6; row++) {
+    heap.set(identity, row * 16); heap[row * 16 + 12] = row * 0.2 - 0.5;
+    heap.set([0.6, 0.6, 0.6, row === 3 ? -4 : 1], colorBase + row * 4);
+  }
+  const shaped = { ...source, shapeVersion: () => shapeVersion, shapeKinds: () => { kindReads++; return reportedKinds; } };
+  const partitionBuilds = renderer.instancePartitionInfo().builds;
+  rigidFrameVersion++; rigidColorVersion++;
+  assert.deepEqual(renderer.instanceShapeInfo(), { mode: 'boxes', spheres: 0, capsules: 0, boxRuns: 1 });
+  assert.equal(renderer.uploadInstances(shaped, 6), 6 * 80 + 4 * 80, 'six rows plus two cap instances for each of the two capsules');
+  assert.deepEqual(renderer.instanceShapeInfo(), { mode: 'direct-shapes', spheres: 2, capsules: 2, boxRuns: 2 });
+  assert.equal(kindReads, 1);
+  assert.equal(renderer.uploadInstances(shaped, 6), 0, 'an unchanged shaped frame uploads nothing');
+  rigidFrameVersion++;
+  assert.equal(renderer.uploadInstances(shaped, 6), 6 * 64 + 4 * 80, 'moving bodies re-derive the capsule caps');
+  assert.equal(kindReads, 1, 'shape kinds are read only when their version changes');
+  const shapedState = { ...cacheState, quality: { ...cacheQuality, sampleCount: 4 } };
+  for (const sampleCount of [4, 1]) {
+    renderer.writeSceneUniforms({ ...shapedState, quality: { ...shapedState.quality, sampleCount } });
+    renderer.render(6, []);
+    // Row 3 is glass, so the blended pass runs too. These are CPU counts in every mode:
+    // a partitioned renderer falls back to direct draws for a shaped frame.
+    // The shadow map depends on the casters, not on the sample count, so the second frame reuses it.
+    assert.deepEqual(renderer.renderingDiagnostics().lastSubmittedInstances, { opaque: 6, transparent: 6, shadow: sampleCount === 4 ? 6 : 0 },
+      `shaped rows are drawn directly at ${sampleCount}x`);
+    assert.equal(renderer.renderingDiagnostics().lastShadowReused, sampleCount === 1);
+  }
+  assert.equal(renderer.instancePartitionInfo().builds, partitionBuilds, 'the material partition is not rebuilt for shaped frames');
+  renderer.uploadEffects(effectMatrices, effectColors, 6, 1, 501);
+  renderer.render(7, []);
+  assert.equal(renderer.renderingDiagnostics().lastSubmittedInstances.opaque, 7, 'instances after the rigid rows are drawn as boxes');
+  renderer.render(3, []);
+  assert.equal(renderer.renderingDiagnostics().lastSubmittedInstances.opaque, 3, 'a frame may draw fewer rows than were uploaded');
+
+  // GPU visibility lists stand aside for shaped frames and resume for box-only frames.
+  await renderer.setRenderingOptimizations({ computeVisibility: true });
+  const encodesBefore = renderer.renderingDiagnostics().visibilityEncodes;
+  renderer.render(6, []);
+  assert.equal(renderer.renderingDiagnostics().visibilityEncodes, encodesBefore, 'no visibility list is built for a shaped frame');
+  assert.equal(renderer.renderingDiagnostics().lastSubmittedInstances.opaque, 6);
+  // Every row becomes a box again: the kinds change together with the colour stream, as in the bridge.
+  shapeVersion++; reportedKinds = null; rigidColorVersion++;
+  assert.equal(renderer.uploadInstances(shaped, 6), 6 * 16, 'a box-only stream uploads no cap instances');
+  assert.equal(kindReads, 2);
+  assert.equal(renderer.instanceShapeInfo().mode, 'boxes');
+  renderer.render(6, []);
+  assert.equal(renderer.renderingDiagnostics().visibilityEncodes, encodesBefore + 1, 'box-only frames use the visibility lists again');
+  assert.equal(renderer.renderingDiagnostics().lastSubmittedInstances.opaque, null);
+  await renderer.setRenderingOptimizations({ computeVisibility: false });
+  renderer.render(6, []);
+  assert.equal(renderer.renderingDiagnostics().lastSubmittedInstances.opaque, submittedCount(6), 'box-only frames return to the renderer\'s own list mode');
+
+  // Kinds reappear, then the source is replaced by one that does not report kinds at all.
+  shapeVersion++; reportedKinds = kinds; rigidColorVersion++;
+  renderer.uploadInstances(shaped, 6);
+  assert.equal(renderer.instanceShapeInfo().mode, 'direct-shapes');
+  heap.set(savedRows, 0); heap.set(savedColors, colorBase);
+  rigidFrameVersion++; rigidColorVersion++;
+  assert.equal(renderer.uploadInstances(source, 1), 80, 'a source without shape kinds uploads its rows only');
+  assert.deepEqual(renderer.instanceShapeInfo(), { mode: 'boxes', spheres: 0, capsules: 0, boxRuns: 1 });
+  renderer.uploadEffects(effectMatrices, effectColors, 1, 0, 502);
+  renderer.writeSceneUniforms(cacheState);
+  renderer.render(1, []);
+  assert.equal(renderer.renderingDiagnostics().lastSubmittedInstances.opaque, submittedCount(1));
+  await renderer.device.queue.onSubmittedWorkDone();
+  assert.deepEqual(runtimeErrors, [], 'shaped-instance draws emitted no uncaptured WebGPU errors');
+}
+
 if (process.env.WEBGPU_RIGID_STREAM_EVIDENCE === '1') {
   const evidence = {
     result: 'passed',
@@ -957,7 +1033,7 @@ if (initialTimingStatus === 'ready') {
   }
 }
 console.log(`GPU timing diagnostics: ${JSON.stringify(renderer.gpuTimingInfo())}`);
-console.log(`✅ Actual WebGPURenderer command validation passed on Dawn ${dawnBackend}: rigid/cloth/water/rope paths, GPU-compute rope reconstruction, exact paused-frame upload caches, debug lines, resize, empty frame, lazy visibility retry/cleanup, 25 shadow-cache transitions, material boundary gates, failed-frame recovery, and clean error stream (null backend does not execute pixels)`);
+console.log(`✅ Actual WebGPURenderer command validation passed on Dawn ${dawnBackend}: rigid/cloth/water/rope paths, GPU-compute rope reconstruction, exact paused-frame upload caches, debug lines, resize, empty frame, lazy visibility retry/cleanup, 25 shadow-cache transitions, sphere/capsule rows with partition and visibility fallback, material boundary gates, failed-frame recovery, and clean error stream (null backend does not execute pixels)`);
 
 currentTexture?.destroy();
 renderer.dispose();

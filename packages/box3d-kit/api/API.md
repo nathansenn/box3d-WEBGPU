@@ -852,6 +852,8 @@ export declare class NativeWorldBackend implements PhysicsBackend {
   gravity(): [number, number, number];
   createBody(descriptor: NativeBodyDescriptor): NativeBodyHandle | null;
   bodyKinds(): NativeBodyKind[];
+  shapeVersion(): number;
+  shapeKinds(): Uint8Array | null;
   bodyState(body: NativeBodyHandle): NativeBodyState;
   setBodyTransform(body: NativeBodyHandle, position: NativeQueryVector, rotation?: NativeQuaternion): void;
   setBodyVelocity(body: NativeBodyHandle, linear: NativeQueryVector, angular?: NativeQueryVector): void;

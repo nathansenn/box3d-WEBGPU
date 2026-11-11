@@ -337,6 +337,10 @@ export class NativeWorldBackend implements PhysicsBackend {
   private jointOwner={};
   // One 128-byte scratch block for descriptors and small outputs, allocated on first use.
   private scratch=0;
+  // Shape kinds last read from the bridge, keyed by shapeVersion() and the body count.
+  private kindRows: Uint8Array | null=null;
+  private kindRowsVersion=-1;
+  private kindRowsCount=-1;
 
   constructor(module: unknown, onDispose?: () => void) {
     assertNativeWorldModule(module);this.mod=module;this.onDispose=onDispose;
@@ -597,15 +601,35 @@ export class NativeWorldBackend implements PhysicsBackend {
   /** Shape kind of every render row, in row order. Rows move when a body is destroyed. */
   bodyKinds(): NativeBodyKind[] {
     this.general();
+    return Array.from(this.readKinds(),kind=>BODY_KINDS[kind]??'box');
+  }
+  private readKinds(): Uint8Array {
     const count=this.bodyCount();
-    if(count===0)return [];
+    if(count===0)return new Uint8Array(0);
     const pointer=Number(this.mod._malloc!(count));
     if(!Number.isSafeInteger(pointer)||pointer<=0)throw new EngineError('ALLOCATION_FAILED','Native scratch allocation failed.');
     try {
       const written=this.mod._b3w_world_copy_body_kinds!(this.handle,pointer,count);
       if(written!==count)throw new EngineError('INVALID_BACKEND','Native body kinds are out of step with the body count.');
-      return Array.from(new Uint8Array(this.mod.HEAPF32.buffer,pointer,count),kind=>BODY_KINDS[kind]??'box');
+      return new Uint8Array(this.mod.HEAPF32.buffer,pointer,count).slice();
     }finally{this.mod._free!(pointer);}
+  }
+  /** Version of the shape-kind rows for renderers. The bridge raises its colour version on every
+   * body creation, destruction and scene replacement, which are the only events that change a kind.
+   */
+  shapeVersion(): number { return this.colorVersion(); }
+  /** One byte per render row (0 box, 1 sphere, 2 capsule), or null when every row is a box.
+   * Read from the bridge once per shapeVersion(); the same array is returned until it changes.
+   */
+  shapeKinds(): Uint8Array | null {
+    this.assertAlive();
+    if(!this.supportsGeneralBodies)return null;
+    const version=this.shapeVersion(),count=this.bodyCount();
+    if(version!==this.kindRowsVersion||count!==this.kindRowsCount) {
+      const rows=this.readKinds();
+      this.kindRows=rows.some(kind=>kind!==0)?rows:null;this.kindRowsVersion=version;this.kindRowsCount=count;
+    }
+    return this.kindRows;
   }
   bodyState(body: NativeBodyHandle): NativeBodyState {
     const token=this.bodyToken(body),view=this.general();

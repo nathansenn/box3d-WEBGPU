@@ -1,5 +1,6 @@
 import type { Mat4, Vec3 } from './math';
 import type { ScenePreset } from './scenes';
+import type { NativeWorldBackend } from './engine/native-world.ts';
 
 export type InstanceBufferSource = {
   readonly HEAPF32: Float32Array;
@@ -11,6 +12,19 @@ export type InstanceBufferSource = {
   _b3w_colors_ptr(): number | bigint;
   _b3w_body_count(): number;
   _b3w_max_bodies(): number;
+  /**
+   * Optional shape stream. A source without these two methods has only boxes.
+   * `shapeVersion` changes whenever a row's shape may have changed (a body was
+   * created or destroyed, or the scene was replaced). The renderer compares it
+   * only on frames whose transforms or colours changed, and calls `shapeKinds`
+   * only when it differs.
+   */
+  shapeVersion?(): number;
+  /**
+   * One byte per active row: 0 box, 1 sphere, 2 capsule (src/webgpu/instance-shapes.ts).
+   * Null when every row is a box. The array may be reused by the next call.
+   */
+  shapeKinds?(): Uint8Array | null;
 };
 
 /** How the native backend uses its worker pool (docs/THREADED_ENGINE.md). Results never depend on it. */
@@ -39,6 +53,12 @@ export type PhysicsBackend = InstanceBufferSource & {
   bodyCount(): number;
   dynamicCount(): number;
   replayHash(): number;
+  /**
+   * Optional. Replace the rigid world with one built through the general SI API
+   * (resetWorld, createBody, createJoint). Returns the body count. The next
+   * createScene() call returns to the recipe world.
+   */
+  createGeneralScene?(build: (world: NativeWorldBackend) => void): number;
   destroy(): void;
 };
 

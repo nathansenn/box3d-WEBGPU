@@ -1,5 +1,11 @@
 # Changelog
 
+## Unreleased — 2026-11-11 — Lab renderer draws spheres and capsules
+
+- **Renderer (`src/webgpu/renderer.ts`, `src/webgpu/instance-shapes.ts`):** sphere and capsule instance rows are drawn in the shadow, opaque and transparent passes. A capsule is an open cylinder plus two hemisphere caps, exact at any radius and length. Box-only streams keep their single cube draw. The opt-in material partition and GPU visibility lists fall back to direct draws for a frame that has round rows.
+- **Data path:** optional `shapeVersion()` and `shapeKinds()` on `InstanceBufferSource`; `NativeWorldBackend` implements them; a backend without them has only boxes.
+- **Lab:** the Mechanisms SI demo (`lab.html?si=mechanisms&seed=N`, or the last entry of the laboratory catalog) is built with `resetWorld`, `createBody` and `createJoint`. It is a separate entry, not one of the 800 recipes.
+
 ## Unreleased — 2026-11-11 — Open the engine: shapes, joints, events, SI worlds
 
 - **Bridge (`wasm/box3d_web.c`):** new optional exports for empty worlds with chosen gravity, sphere, capsule, convex-hull, triangle-mesh and height-field shapes beside boxes, static / kinematic / dynamic bodies, pose and velocity access, forces and torques, collision filters, six joint types with limits, motors and springs, and contact, hit and sensor events. The scene recipes, their streams and their hashes are unchanged; the world API version stays 1.

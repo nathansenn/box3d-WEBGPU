@@ -35,6 +35,7 @@ The WASM changed (new bridge exports), so replay logs and `exactHash()` values f
 - `NativeWorldBackend` gains the matching low-level calls (`createBody`, `createJoint`, `collectEvents`, …) and `supportsGeneralBodies`.
 - **Recording and replay** cover every new call. `startRecording({world})` begins from an SI world; such logs are `version: 2` with `'call'` commands, stay plain JSON, and replay bit for bit. Classic recordings are unchanged (`version: 1`).
 - **Worker:** `RemoteWorld` gains `reset`, `createBody`, `createJoint`, the setters, force calls, joint calls, `getState`, `getJointState`, `bodyKinds()` and `takeEvents()`. `connectWorld(worker, {gravity})` starts an SI world. A mechanism run in a worker matches the main thread bit for bit.
+- `NativeWorldBackend.shapeVersion()` and `shapeKinds()` give renderers the shape of each row as bytes (0 box, 1 sphere, 2 capsule, 3 hull, 4 mesh, 5 height field), read from the bridge once per change; `shapeKinds()` is null when every row is a box.
 - `test/v08.test.mjs` checks the solver against closed-form physics.
 
 ## 0.7.0

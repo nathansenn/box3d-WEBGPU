@@ -198,6 +198,8 @@ export type PhysicsStructuralRuntimeCounts = {
 export type PhysicsStructuralCallbacks = {
   readonly onRunCommand?: (command: PhysicsStructuralRunCommand) => void | Promise<void>;
   readonly onLabSelect?: (labId: string) => void;
+  /** An SI demo was picked in the laboratory catalog. These are not labs: see src/engine/mechanisms-scene.ts. */
+  readonly onSiDemoSelect?: (demoId: string) => void;
   readonly onComponentSelect?: (component: EngineeringAssemblyComponent | null) => void;
   readonly onParameterChange?: (id: WorkbenchParameterId, value: number) => void;
   readonly onOverlayChange?: (overlay: PhysicsStructuralOverlayId) => void;
@@ -451,6 +453,13 @@ function gizmoMarkup(): string {
     </svg>
   `;
 }
+
+// The one SI demo the catalog lists. The id is MECHANISMS_SCENE_ID in src/engine/mechanisms-scene.ts.
+const SI_DEMO_ENTRY = {
+  id: 'mechanisms',
+  title: 'Mechanisms (SI demo)',
+  detail: 'Spheres, capsules and joints in SI units · not a catalogue recipe',
+} as const;
 
 function shellMarkup(prefix: string): string {
   const id = (suffix: string): string => `${prefix}-${suffix}`;
@@ -1048,6 +1057,22 @@ export function createPhysicsStructural(options: PhysicsStructuralOptions): Phys
       }
       labList.append(section);
     }
+    // SI demos are listed apart from the laboratories: they are not catalogue recipes.
+    if (!needle || `${SI_DEMO_ENTRY.id} ${SI_DEMO_ENTRY.title} ${SI_DEMO_ENTRY.detail}`.toLowerCase().includes(needle)) {
+      const section = document.createElement('section');
+      section.className = 'phys-str-lab-group';
+      const heading = document.createElement('h3');
+      heading.textContent = 'SI demos · general rigid-body API';
+      const button = document.createElement('button');
+      button.type = 'button';
+      button.className = 'phys-str-lab-item';
+      button.dataset.physStrSiDemo = SI_DEMO_ENTRY.id;
+      button.innerHTML = `<strong></strong><span></span>`;
+      button.querySelector('strong')!.textContent = SI_DEMO_ENTRY.title;
+      button.querySelector('span')!.textContent = SI_DEMO_ENTRY.detail;
+      section.append(heading, button);
+      labList.append(section);
+    }
   };
 
   const renderTree = (): void => {
@@ -1635,6 +1660,13 @@ export function createPhysicsStructural(options: PhysicsStructuralOptions): Phys
     const labRoot = target?.closest<HTMLButtonElement>('[data-phys-str-lab-root]');
     if (labRoot) {
       labMenu.hidden = !labMenu.hidden;
+      return;
+    }
+    const siDemoButton = target?.closest<HTMLButtonElement>('[data-phys-str-si-demo]');
+    if (siDemoButton?.dataset.physStrSiDemo) {
+      labMenu.hidden = true;
+      callbacks.onSiDemoSelect?.(siDemoButton.dataset.physStrSiDemo);
+      announce(`${SI_DEMO_ENTRY.title} selected.`);
       return;
     }
     const labButton = target?.closest<HTMLButtonElement>('[data-phys-str-lab]');

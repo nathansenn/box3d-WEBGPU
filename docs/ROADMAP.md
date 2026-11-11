@@ -37,7 +37,8 @@ Updated 2026-11-11.
 | 1 | Compound shapes (several shapes on one body) | open |
 | 1 | Record and replay of the new calls; worker transport for them | done |
 | 1 | Solver state save and load | open |
-| 1 | Lab renderer draws spheres and capsules | open |
+| 1 | Lab renderer draws spheres and capsules | done for direct draws in the shadow, opaque and transparent passes; the opt-in partition and visibility lists fall back to direct draws; seen in software rendering only, not on a real GPU |
+| 1 | A Lab scene built with the general API ("Mechanisms" SI demo, `lab.html?si=mechanisms`) | done as a separate entry, not one of the 800 recipes |
 | 1 | Publish `box3d-webgpu-kit` 1.0 to npm | open (owner decision) |
 | 2 | Rigid ↔ water, both ways: buoyancy, drag, volume and momentum sources (`box3d-webgpu-kit/coupling`, [`WATER_COUPLING.md`](WATER_COUPLING.md)) | done in the kit with closed-form validation (`packages/box3d-kit/test/v09-coupling.test.mjs`); not yet used by a scene or the Studio |
 | 2 | One scene description and stepping loop; rigid ↔ cloth and rope; cable and frame ↔ rigid; bridge rebuild | open |
@@ -56,7 +57,9 @@ Box3D already has the features; the C bridge (`wasm/box3d_web.c`) exposes them a
 
 Done in kit 0.8.0: general bodies, six shape types, three body types, setters, forces, six joint types, events, SI worlds, and a closed-form validation suite (pendulum period within 0.1%, friction stopping distance within 1%, rebound height within 2%, momentum and energy conserved in an elastic collision, sliding and rolling down inclines within 1%).
 
-Remaining: compound shapes, state save/load, Lab rendering of the new shapes, and the npm release.
+Done after 0.8.0: the Lab renderer draws spheres and capsules ([`RENDERING_PIPELINE.md`](RENDERING_PIPELINE.md)), and the Mechanisms SI demo shows pendulums on revolute joints, capsule chains on spherical joints with cone limits, a motor-driven hinge and a car on wheel joints.
+
+Remaining: compound shapes, state save/load, and the npm release.
 
 ## Phase 2: one world, coupled
 

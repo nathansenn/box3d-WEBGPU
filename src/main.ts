@@ -82,6 +82,7 @@ import {
   type WorkbenchParameterId,
 } from './workbench/registry';
 import { loadBestPhysicsBackend } from './physics/wasm';
+import { buildMechanismsScene, MECHANISMS_DEFAULT_SEED, MECHANISMS_SCENE_ID, MECHANISMS_SCENE_TITLE, type MechanismsScene } from './engine/mechanisms-scene.ts';
 import { WebGPURenderer } from './webgpu/renderer';
 import { SOFT_RENDER_INSTANCE_BUDGET, SoftSimulationSuite, type SoftSimulationFrame } from './soft/simulations';
 import { initializeSoftKernelRuntime } from './soft/kernels';
@@ -355,6 +356,11 @@ const cameraMatrixCache = new CameraMatrixCache();
 let soft: SoftSimulationSuite;
 let backend: PhysicsBackend;
 let renderer: WebGPURenderer;
+// The SI demo is not one of the 800 recipes: it replaces the rigid world of a host recipe
+// with one built through the general rigid-body API. Null while a recipe is showing.
+let siDemo: { readonly id: typeof MECHANISMS_SCENE_ID; readonly seed: number } | null = null;
+let siDemoScene: MechanismsScene | null = null;
+const SI_DEMO_HOST_LAB_ID = 'titan-hauler-crash';
 let engineRuntime:WorkbenchRuntime;
 const engineTimings=new StageTimings(['step','staging','renderCpu','frame']);
 const renderGovernor=new FrameBudgetGovernor();
@@ -939,6 +945,11 @@ function cloneRig(value: CameraRig): CameraRig {
 }
 
 function frameCameraForWorkspace(workspace: EngineeringWorkspaceId = engineeringWorkspaces?.getWorkspace() ?? 'test'): void {
+  if (siDemo && siDemoScene) {
+    // The SI demo is metre-scaled and authored for its own view; the host recipe's framing does not fit it.
+    camera = cloneRig({ ...siDemoScene.camera, target: [...siDemoScene.camera.target] });
+    return;
+  }
   camera = cloneRig(currentScene.camera);
   if (workspace === 'test' && currentScene.materialDemoId === 'metal-square-punch-forming') {
     // Preserve the authored low three-quarter view: it exposes the press bed
@@ -1284,6 +1295,65 @@ function updateSceneText(): void {
           : 'projectile';
   }
   syncLabCapabilities(matchedLab);
+  if (siDemo && siDemoScene) {
+    ui.sceneTitle.textContent = MECHANISMS_SCENE_TITLE;
+    ui.sceneSubtitle.textContent = 'Spheres, capsules and joints built with the general rigid-body API in SI units.';
+    ui.sceneDetails.textContent = `${siDemoScene.bodyCount} bodies · ${siDemoScene.jointCount} joints · revolute, weld, spherical (cone limit) and wheel · gravity 9.81 m/s²`;
+    ui.viewportHudTitle.textContent = MECHANISMS_SCENE_TITLE;
+    ui.runtimeSeed.textContent = `0x${seed.toString(16)}`;
+  }
+}
+
+/** Build the rigid world of the scene being loaded: the SI demo when one is requested, the recipe otherwise. */
+function createRigidScene(scene: ScenePreset, stress: number, sceneSeed: number): number {
+  siDemoScene = null;
+  if (siDemo) {
+    if (backend.createGeneralScene) {
+      try {
+        return backend.createGeneralScene((world) => { siDemoScene = buildMechanismsScene(world, sceneSeed); });
+      } catch (error) {
+        console.warn('[SI demo] The Mechanisms scene could not be built.', error);
+      }
+    }
+    siDemo = null;
+  }
+  return backend.createScene(scene, stress, sceneSeed);
+}
+
+/** Open the Mechanisms SI demo: lab.html?si=mechanisms&seed=N, or its entry at the end of the laboratory catalog. */
+function loadMechanismsDemo(demoSeed: number = MECHANISMS_DEFAULT_SEED): void {
+  // The demo borrows a rigid lab for its panels and controls and replaces that lab's rigid world.
+  const host = getWorkbenchLab(SI_DEMO_HOST_LAB_ID) ?? WORKBENCH_LABS[0];
+  loadWorkbenchLab(host, { id: MECHANISMS_SCENE_ID, seed: demoSeed >>> 0 });
+  if (!siDemo && currentLab === host) {
+    setLog(backend.createGeneralScene
+      ? 'The Mechanisms SI demo could not be built (see the console); the host recipe is shown instead.'
+      : 'The Mechanisms SI demo needs the native Box3D WASM backend; the preview backend has only boxes, so the host recipe is shown instead.');
+  }
+}
+
+/** Keep the address shareable: ?si=mechanisms&seed=N while the demo shows, neither once a recipe is loaded. */
+function syncSiDemoUrl(): void {
+  const url = new URL(window.location.href);
+  const shown = url.searchParams.get('si');
+  if (siDemo) {
+    if (shown === siDemo.id && url.searchParams.get('seed') === String(siDemo.seed)) return;
+    url.searchParams.set('si', siDemo.id);
+    url.searchParams.set('seed', String(siDemo.seed));
+  } else {
+    if (shown === null) return;
+    url.searchParams.delete('si');
+    url.searchParams.delete('seed');
+  }
+  window.history.replaceState(null, '', url);
+}
+
+function siDemoRequestFromUrl(): number | null {
+  const params = new URLSearchParams(window.location.search);
+  if (params.get('si') !== MECHANISMS_SCENE_ID) return null;
+  const text = params.get('seed');
+  const parsed = text === null ? MECHANISMS_DEFAULT_SEED : Number(text);
+  return Number.isInteger(parsed) && parsed >= 0 && parsed <= 0xffffffff ? parsed : MECHANISMS_DEFAULT_SEED;
 }
 
 function labSupports(mode: WorkbenchForceMode, lab: WorkbenchLabDefinition | null = currentLab): boolean {
@@ -1430,7 +1500,7 @@ function findWorkbenchLabForScene(scene: ScenePreset): WorkbenchLabDefinition | 
   }) ?? null;
 }
 
-function loadWorkbenchLab(lab: WorkbenchLabDefinition): void {
+function loadWorkbenchLab(lab: WorkbenchLabDefinition, si: typeof siDemo = null): void {
   const screen = conceptScreenForWorkbenchLab(lab);
   if (workspaceSwitchBlocked(ENGINEERING_CONCEPT_VIEWS[screen].workspace)) return;
   currentLab = lab;
@@ -1442,10 +1512,10 @@ function loadWorkbenchLab(lab: WorkbenchLabDefinition): void {
   forceTargetU = recipe?.strikeCenter[0] ?? 0.5;
   forceTargetV = recipe ? 1 - recipe.strikeCenter[1] : 0.5;
   updateForceReticle();
-  loadScene(resolveWorkbenchLabScene(lab));
+  loadScene(resolveWorkbenchLabScene(lab), undefined, false, si);
   applyConceptScreen(screen);
   frameCameraForWorkspace(ENGINEERING_CONCEPT_VIEWS[screen].workspace);
-  engineeringWorkspaces?.setProvenance('solver', `${lab.fidelity} · normalized model`);
+  engineeringWorkspaces?.setProvenance('solver', siDemo ? 'General rigid-body API · SI units' : `${lab.fidelity} · normalized model`);
   syncActiveLabChrome();
   if (engineeringWorkspaces) {
     for (const label of engineeringWorkspaces.root.querySelectorAll<HTMLElement>('[data-eng-test]')) {
@@ -2132,8 +2202,9 @@ function scheduleAutoplayLoadedSimulation(): void {
   });
 }
 
-function loadScene(scene: ScenePreset, stressOverride?: number, keepCinematic = false): void {
+function loadScene(scene: ScenePreset, stressOverride?: number, keepCinematic = false, si: typeof siDemo = null): void {
   currentScene = scene;
+  siDemo = si;
   const matchingLab = findWorkbenchLabForScene(scene);
   if (matchingLab) currentLab = matchingLab;
   camera = cloneRig(scene.camera);
@@ -2141,10 +2212,12 @@ function loadScene(scene: ScenePreset, stressOverride?: number, keepCinematic = 
   resetTelemetryTraces();
   const stress = clampStress(stressOverride ?? scene.defaultStress);
   ui.stress.value = String(stress);
-  seed = seedForScene(scene);
+  seed = si ? si.seed : seedForScene(scene);
   effects.clear(seed ^ 0xa11ce);
-  effects.setStageProps(stagePrimitivesForScene(scene));
-  const count = backend.createScene(scene, stress, seed);
+  const count = createRigidScene(scene, stress, seed);
+  // The host recipe's set dressing does not belong to the SI demo.
+  effects.setStageProps(siDemo ? [] : stagePrimitivesForScene(scene));
+  syncSiDemoUrl();
   soft.createScene(scene, stress, seed);
   renderer.invalidateDynamicCaches();
   renderer.uploadInstances(backend, count);
@@ -2158,7 +2231,9 @@ function loadScene(scene: ScenePreset, stressOverride?: number, keepCinematic = 
   renderEngineeringInspection();
   frameCameraForWorkspace();
   updateStats(0, 0, 0, 0, 0, softFrame);
-  setLog(`Loaded ${sceneLabel(scene)} · ${scene.category} · ${scene.family}/${scene.variant} · seed 0x${seed.toString(16)}.`);
+  setLog(siDemo && siDemoScene
+    ? `Loaded ${MECHANISMS_SCENE_TITLE} · ${siDemoScene.bodyCount} bodies, ${siDemoScene.jointCount} joints, SI units · seed 0x${seed.toString(16)}.`
+    : `Loaded ${sceneLabel(scene)} · ${scene.category} · ${scene.family}/${scene.variant} · seed 0x${seed.toString(16)}.`);
   if (!keepCinematic) {
     engineeringSession?.setAutoplayOnOpen(true);
     scheduleAutoplayLoadedSimulation();
@@ -2169,9 +2244,9 @@ function reloadSceneWithCurrentStress(): void {
   simulationAccumulator = 0;simulationLagSeconds=0;engineTimings.reset();engineRuntime?.resetClock();
   resetTelemetryTraces();
   effects.clear(seed ^ 0xa11ce);
-  effects.setStageProps(stagePrimitivesForScene(currentScene));
   const stress = clampStress(Number(ui.stress.value));
-  const count = backend.createScene(currentScene, stress, seed);
+  const count = createRigidScene(currentScene, stress, seed);
+  effects.setStageProps(siDemo ? [] : stagePrimitivesForScene(currentScene));
   soft.createScene(currentScene, stress, seed);
   renderer.invalidateDynamicCaches();
   renderer.uploadInstances(backend, count);
@@ -2181,7 +2256,7 @@ function reloadSceneWithCurrentStress(): void {
   beginEngineeringRun(stress);
   stopCinematic(false);
   updateSceneText();
-  setLog(`Reloaded ${sceneLabel(currentScene)} at stress ${ui.stress.value}, seed 0x${seed.toString(16)}.`);
+  setLog(siDemo ? `Reloaded ${MECHANISMS_SCENE_TITLE}, seed 0x${seed.toString(16)}.` : `Reloaded ${sceneLabel(currentScene)} at stress ${ui.stress.value}, seed 0x${seed.toString(16)}.`);
   if (!autoplayingLoadedSimulation) {
     engineeringSession?.setAutoplayOnOpen(true);
     scheduleAutoplayLoadedSimulation();
@@ -2895,6 +2970,9 @@ function initializeEngineeringWorkspaceShell(initialWorkspace: EngineeringWorksp
       onEvidenceExport: exportEngineeringEvidence,
       onLabChange: (labId) => {
         loadMaterialLabSelection(labId);
+      },
+      onSiDemoSelect: (demoId) => {
+        if (demoId === MECHANISMS_SCENE_ID) loadMechanismsDemo();
       },
       onControlChange: applyMaterialLabControlChange,
       onMaterialPresetChange: (presetId) => {
@@ -3952,6 +4030,7 @@ async function runStateTests(): Promise<void> {
   const effectFrame = effects.buildFrame(quality.effectBudget);
   const effectsFinite = effectFrame.count > 0 && isFiniteArray(effectFrame.matrices) && isFiniteArray(effectFrame.colors);
 
+  siDemo = null;
   backend.createScene(restoreScene, restoreStress, seed);
   soft.createScene(restoreScene, restoreStress, seed);
   renderer.invalidateDynamicCaches();
@@ -4017,8 +4096,11 @@ async function main(): Promise<void> {
   ui.quality.value = quality.id;
   ui.speed.value = '1';
   initializeEngineeringWorkspaceShell(boot.workspace);
+  // Read the request first: loading the boot recipe clears the SI parameters from the address.
+  const siRequest = siDemoRequestFromUrl();
   loadScene(currentScene);
   applyConceptScreen(boot.screen);
+  if (siRequest !== null) loadMechanismsDemo(siRequest);
   ui.solverSubsteps.value = String(solverSubSteps);
   updateForceControlLabels();
 
