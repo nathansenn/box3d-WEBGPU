@@ -381,6 +381,16 @@ export function waterSubsystem<W,B>(water:WaterCoupling<B>,options:{readonly id?
   };
 }
 
+/** Water -> structure, for bodies that float and are attached to a cable or a frame. The structure coupling's interface
+ * solve uses each body's free motion; with this link that motion contains the buoyancy and drag the water coupling is
+ * about to apply in the same step (`water.predictLoad`, evaluated for the state the structure coupling reads, with no
+ * side effects). Without it the cable's end is placed where the body would go under gravity alone, B dt^2 / m away.
+ * It is not a subsystem and changes no order: the structure still steps first and the water still applies its own force.
+ * `loadSimulationScene` makes this link for every basin of a scene that has cables or frames. Returns a function that removes it. */
+export function linkWaterToStructure<B>(water:WaterCoupling<B>,structure:StructureCoupling<B>):()=>void {
+  return structure.addLoadProvider((body,out)=>{water.predictLoad(body,out);});
+}
+
 /** Cables and frames <-> rigid bodies (structure-coupling.ts). Couple stage, before the water: `coupling.step()` steps the
  * cables and frames it holds and must run immediately before the rigid step. Requirement: `coupling.dt` equals the simulation
  * step (the coupling itself requires every cable's and frame's dt to equal its own, and frames to use one sub-step).
@@ -646,6 +656,8 @@ export function buildSceneSimulation<W extends SimulationSceneWorld>(world:W,bui
           if(!carried.has(body))simulation.trackBody(body,shapeInertia(description,undefined),{gravityScale:description.gravityScale});
         }
         water.set(basin.id,coupling);
+        // A body that floats and hangs on a cable or a frame: the interface solve counts the water's force on it.
+        if(structure)linkWaterToStructure(coupling,structure);
         simulation.add(waterSubsystem<W,Body>(coupling,{id:basin.id}));
       }catch(error){throw error instanceof EngineError&&error.message.startsWith('Scene ')?error:named('water',basin.id,error);}
     }

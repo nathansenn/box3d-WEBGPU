@@ -2244,6 +2244,7 @@ export declare class WaterCoupling<B> {
   attachedCount(): number;
   tick(): number;
   gravity(): number;
+  predictLoad(body: B, out: Float64Array): boolean;
   step(): void;
   surfaceVolume(): number;
   displacedVolume(): number;
@@ -3239,6 +3240,7 @@ export declare class StructureCoupling<B> {
   detach(attachment: StructureAttachment): void;
   prime(attachment: StructureAttachment, force: StructureVec3, moment?: StructureVec3): void;
   get reports(): readonly StructureAttachment[];
+  addLoadProvider(provider: StructureLoadProvider<B>): () => void;
   step(): void;
   diagnostics(): StructureDiagnostics;
 }
@@ -3296,6 +3298,15 @@ export type StructureInertia = {
 } | {
     readonly kind: 'locked';
 };
+```
+
+### StructureLoadProvider · type
+
+Adds to `out` the force (out[0..2], N) and the torque about the centre of mass (out[3..5], N m) that another solver
+will put on `body` over the coming step. Called once per attached dynamic body and step, after the body was read.
+
+```ts
+export type StructureLoadProvider<B> = (body: B, out: Float64Array) => void;
 ```
 
 ### StructureVec3 · type
@@ -4829,6 +4840,19 @@ stability limit. Energy (thermal): stored energy, with the heat that crossed the
 export declare function heatSubsystem<W, B>(heat: HeatSolver, options?: {
     readonly id?: string;
 }): Subsystem<W, B>;
+```
+
+### linkWaterToStructure · function
+
+Water -> structure, for bodies that float and are attached to a cable or a frame. The structure coupling's interface
+solve uses each body's free motion; with this link that motion contains the buoyancy and drag the water coupling is
+about to apply in the same step (`water.predictLoad`, evaluated for the state the structure coupling reads, with no
+side effects). Without it the cable's end is placed where the body would go under gravity alone, B dt^2 / m away.
+It is not a subsystem and changes no order: the structure still steps first and the water still applies its own force.
+`loadSimulationScene` makes this link for every basin of a scene that has cables or frames. Returns a function that removes it.
+
+```ts
+export declare function linkWaterToStructure<B>(water: WaterCoupling<B>, structure: StructureCoupling<B>): () => void;
 ```
 
 ### LoadedSimulationScene · type

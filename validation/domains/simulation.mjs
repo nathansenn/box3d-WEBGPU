@@ -1,7 +1,9 @@
 // One stepping loop (box3d-webgpu-kit/simulation): coupled scenes and the links between solvers, against closed forms.
 // Set-ups are those of packages/box3d-kit/test/v14-simulation.test.mjs: SI units, 240 Hz, 4 sub-steps unless stated.
 import {createHash} from 'node:crypto';
-import {kit, memo, defineCases, relative, absolute, upper} from '../lib.mjs';
+import {pathToFileURL} from 'node:url';
+import path from 'node:path';
+import {kit, memo, defineCases, relative, absolute, upper, ROOT} from '../lib.mjs';
 
 const G = 9.81, HZ = 240, SUB = 4, DT = 1 / HZ;
 const FILE = 'packages/box3d-kit/test/v14-simulation.test.mjs';
@@ -87,6 +89,7 @@ const buoyIdentity = () => memo('simulation/buoy-identity', async () => {
     coupling.attachCableToBody(cable, 1, buoy, {inertia: {kind: 'sphere', radius: float.shape.radius}, localPoint: [0, 0, 0]});
     const water = new m.WaterCoupling(hand, {cols: basin.cols, rows: basin.rows, dx: basin.dx, dz: basin.dz, restDepth: basin.restDepth, origin: basin.origin, waterDrag: basin.waterDrag});
     water.attach(buoy, float.shape, {linearDrag: basin.bodies[0].linearDrag});
+    m.linkWaterToStructure(water, coupling);   // the scene loader does the same: the interface solve counts the water's force
     const views = [cable.couplingViews(), loaded.cables.get('mooring').couplingViews()], other = loaded.water.get('basin');
     let different = 0;
     for (let i = 1; i <= 480; i++) {
@@ -243,9 +246,20 @@ const resume = (name, body, field) => memo(`simulation/resume-${name}`, async ()
   } finally { original.world.dispose(); resumed?.world.dispose(); }
 });
 const resumeBuoy = () => resume('moored-buoy', 'buoy', l => l.water.get('basin').eta);
+// ---- Moored spar (the water's force in the structure coupling's interface solve) ----
+const MOORED = 'packages/box3d-kit/test/v17-moored.test.mjs';
+const M = {
+  rest: 'moored spar at rest: draught and tension against the closed form, with and without the water in the interface solve',
+  heave: 'moored spar in heave: sqrt((rho g A + E A / L0) / (m + m_n)), with no added mass',
+  large: 'a large step: the spar set at its equilibrium stays there; without the water in the interface solve it rings and settles off it',
+};
+const spar = (kind, options) => memo(`simulation/spar-${kind}-${JSON.stringify(options)}`, async () => {
+  const m = await modules(), S = await import(pathToFileURL(path.join(ROOT, 'packages/box3d-kit/test/moored-scenarios.mjs')).href);
+  return kind === 'rest' ? S.sparAtRest(m, options) : S.sparHeave(m, options);
+});
 const resumeDeck = () => resume('cable-stayed-deck', 'load', l => l.frames.get('deck').couplingViews().displacements);
 
-const FREE_RESPONSE = 'The structure coupling\'s free response of a body has gravity only, not the buoyancy B: the cable sees the buoy B dt^2 / m = 0.46 mm lower than it goes, and its end node m_n is carried as if the buoy fell, which adds m_n B / (m + m_n) = 0.73 N to the tension.';
+const LINKED = 'The water\'s force is part of the body\'s free motion in the structure coupling\'s interface solve (linkWaterToStructure, which the scene loader calls). Before that link this row was off by the stated amount: the cable saw the buoy B dt^2 / m = 0.46 mm lower than it goes and carried its end node as if the buoy fell, m_n B / (m + m_n) = 0.73 N.';
 export default defineCases('simulation', FILE, [
   {id: 'simulation.identity.water-structure', title: 'Moored buoy: Simulation of the scene file against the modules driven by hand', quantity: 'checkpoints (every 60 of 480 steps) at which the world hash or the water and cable bits differ', unit: '1', test: T.combined,
     reference: {formula: 'coupling.step(); water.step(); world.step() by hand: 0 differences', value: 0}, tolerance: absolute(0),
@@ -254,17 +268,34 @@ export default defineCases('simulation', FILE, [
     reference: {formula: 'F = rho g V_sub - m g', value: null}, tolerance: relative(1e-5), note: 'V_sub is the submerged volume the water coupling reports; the rigid solver holds mass and gravity in float32.',
     measure: async () => { const r = await buoyAtRest(); return {value: r.force, reference: r.net}; }},
   {id: 'simulation.buoy.tension', title: 'Moored buoy at rest: cable tension', quantity: 'tension of the one-segment mooring (EA = 5e4 N), half-second mean', unit: 'N', test: T.rest,
-    reference: {formula: 'T = rho g V_sub - (m + m_n) g', value: null}, tolerance: absolute(0.77), note: FREE_RESPONSE,
+    reference: {formula: 'T = rho g V_sub - (m + m_n) g', value: null}, tolerance: relative(1e-5), note: LINKED + ' Was +0.729 N.',
     measure: async () => { const r = await buoyAtRest(); return {value: r.tension, reference: r.netWithNode}; }},
   {id: 'simulation.buoy.draught', title: 'Moored buoy at rest: draught', quantity: 'draught of the sphere (R = 0.4 m) against the closed-form equilibrium of cable stretch, level rise and cap volume', unit: 'm', test: T.rest,
-    reference: {formula: 'E A s / L0 = rho g V(d) - (m + m_n) g, d = H + (V - V0) / A - (L0 + s - R)', value: null}, tolerance: absolute(6e-4), note: FREE_RESPONSE,
+    reference: {formula: 'E A s / L0 = rho g V(d) - (m + m_n) g, d = H + (V - V0) / A - (L0 + s - R)', value: null}, tolerance: absolute(5e-6), note: LINKED + ' Was -0.41 mm. Float32 resolves the height of the buoy to 2.4e-7 m.',
     measure: async () => { const r = await buoyAtRest(); return {value: r.draught, reference: r.closed.draught}; }},
   {id: 'simulation.buoy.tension-closed-form', title: 'Moored buoy at rest: tension against the closed-form equilibrium', quantity: 'cable tension against the root of the equilibrium equation', unit: 'N', test: T.rest,
-    reference: {formula: 'T = E A s / L0 at the root s', value: null}, tolerance: relative(2.3e-3), note: 'The draught offset above times the waterplane stiffness rho g A_wp = 4.0 kN/m, plus the 0.73 N.',
+    reference: {formula: 'T = E A s / L0 at the root s', value: null}, tolerance: relative(1e-5), note: 'Was -6.8e-4 before the water\'s force was in the interface solve.',
     measure: async () => { const r = await buoyAtRest(); return {value: r.tension, reference: r.closed.tension}; }},
   {id: 'simulation.buoy.vertical-balance', title: 'Moored buoy at rest: the floor and the anchor carry the total weight', quantity: 'hydrostatic floor load minus the anchor pull', unit: 'N', test: T.rest,
-    reference: {formula: 'rho g sum((H + eta) dA) - R_anchor = (m_water + m + m_cable) g', value: null}, tolerance: absolute(0.77), note: 'The same 0.73 N, on 1.88 MN.',
+    reference: {formula: 'rho g sum((H + eta) dA) - R_anchor = (m_water + m + m_cable) g', value: null}, tolerance: absolute(0.02), note: 'On 1.88 MN. Was -0.73 N before the water\'s force was in the interface solve.',
     measure: async () => { const r = await buoyAtRest(); return {value: r.ground, reference: r.total}; }},
+  {id: 'simulation.spar.tension', title: 'Moored spar at rest, 30 Hz: tether tension', quantity: 'tension of a 1000 N/m tether holding a 32 kg spar (0.2 m x 0.2 m x 2 m) under its free waterline, at a step of 1/30 s', unit: 'N', test: M.rest, file: MOORED,
+    reference: {formula: 'buoyancy - weight = tension: rho g A d - (m + m_n) g = (E A / L0) s with d = level - L0 - s', value: null}, tolerance: relative(5e-6), note: 'The same 4e-7 at 240, 60 and 30 Hz. Without the water in the interface solve: -2.2% at 30 Hz, -0.46% at 60 Hz, +0.09% at 240 Hz.',
+    measure: async () => { const r = await spar('rest', {hz: 30}); return {value: r.tension, reference: r.exactTension}; }},
+  {id: 'simulation.spar.draught', title: 'Moored spar at rest, 30 Hz: draught', quantity: 'draught of the spar against the closed-form equilibrium', unit: 'm', test: M.rest, file: MOORED,
+    reference: {formula: 'd from the same equation', value: null}, tolerance: absolute(1e-6), note: 'Float32 resolves the spar\'s height to 2.4e-7 m.',
+    measure: async () => { const r = await spar('rest', {hz: 30}); return {value: r.draught, reference: r.exactDraught}; }},
+  {id: 'simulation.spar.draught-before', title: 'The same without the water in the interface solve', quantity: 'draught error at 30 Hz with the link left out, over B dt^2 / m = 18.5 mm', unit: '1', test: M.rest, file: MOORED,
+    reference: {formula: 'the cable\'s end is placed where the spar would go under gravity alone: error of the order of -B dt^2 / m', value: -1}, tolerance: absolute(0.5),
+    note: 'What the link removes, kept as a measurement: -13.6 mm at 30 Hz, -3.6 mm at 60 Hz, -0.50 mm at 240 Hz. Not an accuracy claim.',
+    measure: async () => { const r = await spar('rest', {hz: 30, linked: false}); return r.draughtError / r.lag; }},
+  {id: 'simulation.spar.heave', title: 'Moored spar in heave', quantity: 'frequency of the spar on its taut tether, no drag, 240 Hz, 8 s', unit: 'Hz', test: M.heave, file: MOORED,
+    reference: {formula: 'f = sqrt((rho g A + E A / L0) / (m + m_n)) / (2 pi), no added mass', value: null}, tolerance: relative(0.01),
+    note: 'The coupling has no added mass, and neither has the reference. The model\'s water answers the spar\'s volume source (a local rise, radiated waves), which the closed form leaves out; -1.0% at 60 Hz. The tether alone would give 0.889 Hz.',
+    measure: async () => { const r = await spar('heave', {hz: 240, seconds: 8}); return {value: r.frequency, reference: r.exact}; }},
+  {id: 'simulation.spar.still', title: 'Moored spar set at its equilibrium, 30 Hz', quantity: 'largest swing in 8 s of a spar started at the closed-form equilibrium, at a step of 1/30 s', unit: 'm', test: M.large, file: MOORED,
+    reference: {formula: 'no motion', value: 0}, tolerance: upper(3e-7), note: 'Without the water in the interface solve it swings 12.3 mm and settles 13.6 mm off (0.49 mm and 0.50 mm at 240 Hz).',
+    measure: async () => (await spar('heave', {hz: 30, kick: 0, seconds: 8})).first},
   {id: 'simulation.buoy.return', title: 'Moored buoy released 0.4 m to the side: where it ends', quantity: 'distance from the anchor line after 24 s (linear drag 200 N s/m, bottom friction 0.5 /s)', unit: 'm', test: T.release,
     reference: {formula: 'x = 0', value: 0}, tolerance: absolute(2e-3), note: 'What the sloshing it started still moves it by; 0.5% of the offset.', measure: async () => (await buoyRun(0.4)).x},
   {id: 'simulation.buoy.rest-height', title: 'Moored buoy released 0.4 m to the side: rest height', quantity: 'height of the buoy after 24 s against the run started on the anchor line', unit: 'm', test: T.release,
@@ -272,7 +303,7 @@ export default defineCases('simulation', FILE, [
   {id: 'simulation.buoy.bounded', title: 'Moored buoy released 0.4 m to the side: bounded', quantity: 'largest distance from the anchor line during 24 s', unit: 'm', test: T.release,
     reference: {formula: 'max x <= x(0) = 0.4', value: 0.4}, tolerance: upper(4e-7), measure: async () => (await buoyRun(0.4)).far},
   {id: 'simulation.energy.drag', title: 'Energy ledger with drag: never above its start beyond the sampling offset', quantity: 'largest excess of the ledger above its first value, as a fraction of rho g V v_max dt', unit: '1', test: T.release,
-    reference: {formula: '(max E - E_1) / (rho g V v_max dt) <= 1', value: 1}, tolerance: upper(0), note: 'The ledger\'s terms are known half a step apart; the ledger fell 49.9 J in the run.', measure: async () => { const r = await buoyRun(0.4); return r.excess / r.bound; }},
+    reference: {formula: '(max E - E_1) / (rho g V v_max dt) <= 1', value: 1}, tolerance: upper(0), note: 'The ledger\'s terms are known half a step apart; the ledger fell 49.7 J in the run.', measure: async () => { const r = await buoyRun(0.4); return r.excess / r.bound; }},
   {id: 'simulation.deck.tension', title: 'Cable-stayed deck scene: stay tensions', quantity: 'worst relative error of the two stay tensions with the ball on deck nodes 1, 3, 4, 5 and 7', unit: '1', test: T.deck,
     reference: {formula: 'flexibility method: |T / T_hand - 1| = 0', value: 0}, tolerance: absolute(2e-4), note: 'The hand solution linearises the stay geometry (3e-4 of the stretch at most).', measure: async () => (await deck()).tension},
   {id: 'simulation.deck.deflection', title: 'Cable-stayed deck scene: deflection under the load', quantity: 'worst relative error of the deck deflection under the ball over 5 positions', unit: '1', test: T.deck,

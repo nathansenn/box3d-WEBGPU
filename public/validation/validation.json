@@ -5,8 +5,8 @@
  "generatedBy": "node scripts/validation-report.mjs",
  "digits": 9,
  "totals": {
-  "cases": 367,
-  "passed": 367,
+  "cases": 372,
+  "passed": 372,
   "failed": 0,
   "domains": 16
  },
@@ -139,8 +139,8 @@
     "The energy ledger is a sum of what each solver reports. With drag it may exceed its start by the sampling offset rho g V v dt, because its terms are known half a step apart.",
     "The Physics Lab and the Studio do not run coupled scenes; the Lab refuses a scene with water, cable or frame sections. Heat and solids are not in the scene format."
    ],
-   "cases": 26,
-   "passed": 26
+   "cases": 31,
+   "passed": 31
   },
   {
    "id": "robot",
@@ -4393,10 +4393,10 @@
    "quantity": "vertical force of the mooring on an 80.4 kg sphere, half-second mean",
    "unit": "N",
    "formula": "F = rho g V_sub - m g",
-   "reference": 1336.58944,
-   "measured": 1336.59199,
-   "error": 0.00254444812,
-   "relativeError": 0.00000190368713,
+   "reference": 1338.2262,
+   "measured": 1338.22709,
+   "error": 0.00088564666,
+   "relativeError": 6.61806397e-7,
    "tolerance": {
     "kind": "relative",
     "value": 0.00001
@@ -4409,9 +4409,9 @@
     "url": "https://github.com/nathansenn/box3d-WEBGPU/blob/main/packages/box3d-kit/test/v14-simulation.test.mjs"
    },
    "text": {
-    "reference": "1336.589 N",
-    "measured": "1336.592",
-    "error": "+1.9e-6 rel.",
+    "reference": "1338.226 N",
+    "measured": "1338.227",
+    "error": "+6.62e-7 rel.",
     "tolerance": "±1e-5 rel."
    }
   },
@@ -4422,26 +4422,26 @@
    "quantity": "tension of the one-segment mooring (EA = 5e4 N), half-second mean",
    "unit": "N",
    "formula": "T = rho g V_sub - (m + m_n) g",
-   "reference": 1336.31967,
-   "measured": 1337.04902,
-   "error": 0.729346303,
-   "relativeError": 0.000545787299,
+   "reference": 1337.95643,
+   "measured": 1337.95731,
+   "error": 0.000885417126,
+   "relativeError": 6.61768283e-7,
    "tolerance": {
-    "kind": "absolute",
-    "value": 0.77
+    "kind": "relative",
+    "value": 0.00001
    },
    "pass": true,
-   "note": "The structure coupling's free response of a body has gravity only, not the buoyancy B: the cable sees the buoy B dt^2 / m = 0.46 mm lower than it goes, and its end node m_n is carried as if the buoy fell, which adds m_n B / (m + m_n) = 0.73 N to the tension.",
+   "note": "The water's force is part of the body's free motion in the structure coupling's interface solve (linkWaterToStructure, which the scene loader calls). Before that link this row was off by the stated amount: the cable saw the buoy B dt^2 / m = 0.46 mm lower than it goes and carried its end node as if the buoy fell, m_n B / (m + m_n) = 0.73 N. Was +0.729 N.",
    "source": {
     "file": "packages/box3d-kit/test/v14-simulation.test.mjs",
     "test": "moored buoy at rest: cable tension = rho g V_sub - weight, the draught follows, and the floor and the anchor carry the total weight",
     "url": "https://github.com/nathansenn/box3d-WEBGPU/blob/main/packages/box3d-kit/test/v14-simulation.test.mjs"
    },
    "text": {
-    "reference": "1336.32 N",
-    "measured": "1337.049",
-    "error": "+0.729",
-    "tolerance": "±0.77"
+    "reference": "1337.956 N",
+    "measured": "1337.957",
+    "error": "+6.62e-7 rel.",
+    "tolerance": "±1e-5 rel."
    }
   },
   {
@@ -4452,15 +4452,15 @@
    "unit": "m",
    "formula": "E A s / L0 = rho g V(d) - (m + m_n) g, d = H + (V - V0) / A - (L0 + s - R)",
    "reference": 0.576098686,
-   "measured": 0.575686733,
-   "error": -0.000411953172,
-   "relativeError": -0.000715073965,
+   "measured": 0.576098233,
+   "error": -4.53041091e-7,
+   "relativeError": -7.86394939e-7,
    "tolerance": {
     "kind": "absolute",
-    "value": 0.0006
+    "value": 0.000005
    },
    "pass": true,
-   "note": "The structure coupling's free response of a body has gravity only, not the buoyancy B: the cable sees the buoy B dt^2 / m = 0.46 mm lower than it goes, and its end node m_n is carried as if the buoy fell, which adds m_n B / (m + m_n) = 0.73 N to the tension.",
+   "note": "The water's force is part of the body's free motion in the structure coupling's interface solve (linkWaterToStructure, which the scene loader calls). Before that link this row was off by the stated amount: the cable saw the buoy B dt^2 / m = 0.46 mm lower than it goes and carried its end node as if the buoy fell, m_n B / (m + m_n) = 0.73 N. Was -0.41 mm. Float32 resolves the height of the buoy to 2.4e-7 m.",
    "source": {
     "file": "packages/box3d-kit/test/v14-simulation.test.mjs",
     "test": "moored buoy at rest: cable tension = rho g V_sub - weight, the draught follows, and the floor and the anchor carry the total weight",
@@ -4468,9 +4468,9 @@
    },
    "text": {
     "reference": "0.5760987 m",
-    "measured": "0.5756867",
-    "error": "-0.000412",
-    "tolerance": "±0.0006"
+    "measured": "0.5760982",
+    "error": "-4.53e-7",
+    "tolerance": "±5e-6"
    }
   },
   {
@@ -4481,15 +4481,15 @@
    "unit": "N",
    "formula": "T = E A s / L0 at the root s",
    "reference": 1337.95821,
-   "measured": 1337.04902,
-   "error": -0.909190797,
-   "relativeError": -0.000679536022,
+   "measured": 1337.95731,
+   "error": -0.000895694388,
+   "relativeError": -6.69448705e-7,
    "tolerance": {
     "kind": "relative",
-    "value": 0.0023
+    "value": 0.00001
    },
    "pass": true,
-   "note": "The draught offset above times the waterplane stiffness rho g A_wp = 4.0 kN/m, plus the 0.73 N.",
+   "note": "Was -6.8e-4 before the water's force was in the interface solve.",
    "source": {
     "file": "packages/box3d-kit/test/v14-simulation.test.mjs",
     "test": "moored buoy at rest: cable tension = rho g V_sub - weight, the draught follows, and the floor and the anchor carry the total weight",
@@ -4497,9 +4497,9 @@
    },
    "text": {
     "reference": "1337.958 N",
-    "measured": "1337.049",
-    "error": "-0.068%",
-    "tolerance": "±0.23%"
+    "measured": "1337.957",
+    "error": "-6.69e-7 rel.",
+    "tolerance": "±1e-5 rel."
    }
   },
   {
@@ -4510,15 +4510,15 @@
    "unit": "N",
    "formula": "rho g sum((H + eta) dA) - R_anchor = (m_water + m + m_cable) g",
    "reference": 1881985.49,
-   "measured": 1881984.76,
-   "error": -0.729346315,
-   "relativeError": -3.8754088e-7,
+   "measured": 1881985.49,
+   "error": -0.000885429094,
+   "relativeError": -4.70476046e-10,
    "tolerance": {
     "kind": "absolute",
-    "value": 0.77
+    "value": 0.02
    },
    "pass": true,
-   "note": "The same 0.73 N, on 1.88 MN.",
+   "note": "On 1.88 MN. Was -0.73 N before the water's force was in the interface solve.",
    "source": {
     "file": "packages/box3d-kit/test/v14-simulation.test.mjs",
     "test": "moored buoy at rest: cable tension = rho g V_sub - weight, the draught follows, and the floor and the anchor carry the total weight",
@@ -4527,8 +4527,153 @@
    "text": {
     "reference": "1881985 N",
     "measured": "1881985",
-    "error": "-0.729",
-    "tolerance": "±0.77"
+    "error": "-0.000885",
+    "tolerance": "±0.02"
+   }
+  },
+  {
+   "id": "simulation.spar.tension",
+   "domain": "simulation",
+   "title": "Moored spar at rest, 30 Hz: tether tension",
+   "quantity": "tension of a 1000 N/m tether holding a 32 kg spar (0.2 m x 0.2 m x 2 m) under its free waterline, at a step of 1/30 s",
+   "unit": "N",
+   "formula": "buoyancy - weight = tension: rho g A d - (m + m_n) g = (E A / L0) s with d = level - L0 - s",
+   "reference": 225.28334,
+   "measured": 225.283252,
+   "error": -0.0000878091302,
+   "relativeError": -3.89771966e-7,
+   "tolerance": {
+    "kind": "relative",
+    "value": 0.000005
+   },
+   "pass": true,
+   "note": "The same 4e-7 at 240, 60 and 30 Hz. Without the water in the interface solve: -2.2% at 30 Hz, -0.46% at 60 Hz, +0.09% at 240 Hz.",
+   "source": {
+    "file": "packages/box3d-kit/test/v17-moored.test.mjs",
+    "test": "moored spar at rest: draught and tension against the closed form, with and without the water in the interface solve",
+    "url": "https://github.com/nathansenn/box3d-WEBGPU/blob/main/packages/box3d-kit/test/v17-moored.test.mjs"
+   },
+   "text": {
+    "reference": "225.2833 N",
+    "measured": "225.2833",
+    "error": "-3.9e-7 rel.",
+    "tolerance": "±5e-6 rel."
+   }
+  },
+  {
+   "id": "simulation.spar.draught",
+   "domain": "simulation",
+   "title": "Moored spar at rest, 30 Hz: draught",
+   "quantity": "draught of the spar against the closed-form equilibrium",
+   "unit": "m",
+   "formula": "d from the same equation",
+   "reference": 1.37471666,
+   "measured": 1.37471676,
+   "error": 9.8707545e-8,
+   "relativeError": 7.18021014e-8,
+   "tolerance": {
+    "kind": "absolute",
+    "value": 0.000001
+   },
+   "pass": true,
+   "note": "Float32 resolves the spar's height to 2.4e-7 m.",
+   "source": {
+    "file": "packages/box3d-kit/test/v17-moored.test.mjs",
+    "test": "moored spar at rest: draught and tension against the closed form, with and without the water in the interface solve",
+    "url": "https://github.com/nathansenn/box3d-WEBGPU/blob/main/packages/box3d-kit/test/v17-moored.test.mjs"
+   },
+   "text": {
+    "reference": "1.374717 m",
+    "measured": "1.374717",
+    "error": "+9.87e-8",
+    "tolerance": "±1e-6"
+   }
+  },
+  {
+   "id": "simulation.spar.draught-before",
+   "domain": "simulation",
+   "title": "The same without the water in the interface solve",
+   "quantity": "draught error at 30 Hz with the link left out, over B dt^2 / m = 18.5 mm",
+   "unit": "1",
+   "formula": "the cable's end is placed where the spar would go under gravity alone: error of the order of -B dt^2 / m",
+   "reference": -1,
+   "measured": -0.734030941,
+   "error": 0.265969059,
+   "relativeError": 0.265969059,
+   "tolerance": {
+    "kind": "absolute",
+    "value": 0.5
+   },
+   "pass": true,
+   "note": "What the link removes, kept as a measurement: -13.6 mm at 30 Hz, -3.6 mm at 60 Hz, -0.50 mm at 240 Hz. Not an accuracy claim.",
+   "source": {
+    "file": "packages/box3d-kit/test/v17-moored.test.mjs",
+    "test": "moored spar at rest: draught and tension against the closed form, with and without the water in the interface solve",
+    "url": "https://github.com/nathansenn/box3d-WEBGPU/blob/main/packages/box3d-kit/test/v17-moored.test.mjs"
+   },
+   "text": {
+    "reference": "-1",
+    "measured": "-0.7340309",
+    "error": "+0.266",
+    "tolerance": "±0.5"
+   }
+  },
+  {
+   "id": "simulation.spar.heave",
+   "domain": "simulation",
+   "title": "Moored spar in heave",
+   "quantity": "frequency of the spar on its taut tether, no drag, 240 Hz, 8 s",
+   "unit": "Hz",
+   "formula": "f = sqrt((rho g A + E A / L0) / (m + m_n)) / (2 pi), no added mass",
+   "reference": 1.04945622,
+   "measured": 1.04493054,
+   "error": -0.0045256796,
+   "relativeError": -0.00431240439,
+   "tolerance": {
+    "kind": "relative",
+    "value": 0.01
+   },
+   "pass": true,
+   "note": "The coupling has no added mass, and neither has the reference. The model's water answers the spar's volume source (a local rise, radiated waves), which the closed form leaves out; -1.0% at 60 Hz. The tether alone would give 0.889 Hz.",
+   "source": {
+    "file": "packages/box3d-kit/test/v17-moored.test.mjs",
+    "test": "moored spar in heave: sqrt((rho g A + E A / L0) / (m + m_n)), with no added mass",
+    "url": "https://github.com/nathansenn/box3d-WEBGPU/blob/main/packages/box3d-kit/test/v17-moored.test.mjs"
+   },
+   "text": {
+    "reference": "1.049456 Hz",
+    "measured": "1.044931",
+    "error": "-0.431%",
+    "tolerance": "±1%"
+   }
+  },
+  {
+   "id": "simulation.spar.still",
+   "domain": "simulation",
+   "title": "Moored spar set at its equilibrium, 30 Hz",
+   "quantity": "largest swing in 8 s of a spar started at the closed-form equilibrium, at a step of 1/30 s",
+   "unit": "m",
+   "formula": "no motion",
+   "reference": 0,
+   "measured": 0,
+   "error": 0,
+   "relativeError": null,
+   "tolerance": {
+    "kind": "upper",
+    "value": 3e-7
+   },
+   "pass": true,
+   "note": "Without the water in the interface solve it swings 12.3 mm and settles 13.6 mm off (0.49 mm and 0.50 mm at 240 Hz).",
+   "source": {
+    "file": "packages/box3d-kit/test/v17-moored.test.mjs",
+    "test": "a large step: the spar set at its equilibrium stays there; without the water in the interface solve it rings and settles off it",
+    "url": "https://github.com/nathansenn/box3d-WEBGPU/blob/main/packages/box3d-kit/test/v17-moored.test.mjs"
+   },
+   "text": {
+    "reference": "0 m",
+    "measured": "0",
+    "error": "0",
+    "tolerance": "at most 3e-7 above the reference"
    }
   },
   {
@@ -4539,8 +4684,8 @@
    "unit": "m",
    "formula": "x = 0",
    "reference": 0,
-   "measured": 0.000126379964,
-   "error": 0.000126379964,
+   "measured": 0.000127223058,
+   "error": 0.000127223058,
    "relativeError": null,
    "tolerance": {
     "kind": "absolute",
@@ -4555,8 +4700,8 @@
    },
    "text": {
     "reference": "0 m",
-    "measured": "0.00012638",
-    "error": "+0.000126",
+    "measured": "0.0001272231",
+    "error": "+0.000127",
     "tolerance": "±0.002"
    }
   },
@@ -4567,10 +4712,10 @@
    "quantity": "height of the buoy after 24 s against the run started on the anchor line",
    "unit": "m",
    "formula": "y = y_rest",
-   "reference": 2.8239944,
-   "measured": 2.82399392,
-   "error": -4.76837158e-7,
-   "relativeError": -1.6885202e-7,
+   "reference": 2.82358479,
+   "measured": 2.82358623,
+   "error": 0.00000143051147,
+   "relativeError": 5.06629543e-7,
    "tolerance": {
     "kind": "absolute",
     "value": 0.0002
@@ -4582,9 +4727,9 @@
     "url": "https://github.com/nathansenn/box3d-WEBGPU/blob/main/packages/box3d-kit/test/v14-simulation.test.mjs"
    },
    "text": {
-    "reference": "2.823994 m",
-    "measured": "2.823994",
-    "error": "-4.77e-7",
+    "reference": "2.823585 m",
+    "measured": "2.823586",
+    "error": "+1.43e-6",
     "tolerance": "±0.0002"
    }
   },
@@ -4596,9 +4741,9 @@
    "unit": "m",
    "formula": "max x <= x(0) = 0.4",
    "reference": 0.4,
-   "measured": 0.39993906,
-   "error": -0.0000609397888,
-   "relativeError": -0.000152349472,
+   "measured": 0.399938434,
+   "error": -0.0000615656376,
+   "relativeError": -0.000153914094,
    "tolerance": {
     "kind": "upper",
     "value": 4e-7
@@ -4611,8 +4756,8 @@
    },
    "text": {
     "reference": "0.4 m",
-    "measured": "0.3999391",
-    "error": "-6.09e-5",
+    "measured": "0.3999384",
+    "error": "-6.16e-5",
     "tolerance": "at most 4e-7 above the reference"
    }
   },
@@ -4624,15 +4769,15 @@
    "unit": "1",
    "formula": "(max E - E_1) / (rho g V v_max dt) <= 1",
    "reference": 1,
-   "measured": 0.169251132,
-   "error": -0.830748868,
-   "relativeError": -0.830748868,
+   "measured": 0.164327588,
+   "error": -0.835672412,
+   "relativeError": -0.835672412,
    "tolerance": {
     "kind": "upper",
     "value": 0
    },
    "pass": true,
-   "note": "The ledger's terms are known half a step apart; the ledger fell 49.9 J in the run.",
+   "note": "The ledger's terms are known half a step apart; the ledger fell 49.7 J in the run.",
    "source": {
     "file": "packages/box3d-kit/test/v14-simulation.test.mjs",
     "test": "moored buoy released 0.4 m to the side: bounded, decaying with the drag, back at the equilibrium; the ledger with drag only falls",
@@ -4640,8 +4785,8 @@
    },
    "text": {
     "reference": "1",
-    "measured": "0.1692511",
-    "error": "-0.831",
+    "measured": "0.1643276",
+    "error": "-0.836",
     "tolerance": "not above the reference"
    }
   },
@@ -5023,8 +5168,8 @@
    "unit": "m",
    "formula": "bit-exact continuation: 0",
    "reference": 0,
-   "measured": 0.00000610540417,
-   "error": 0.00000610540417,
+   "measured": 0.00000586924659,
+   "error": 0.00000586924659,
    "relativeError": null,
    "tolerance": {
     "kind": "upper",
@@ -5039,8 +5184,8 @@
    },
    "text": {
     "reference": "0 m",
-    "measured": "6.105404e-6",
-    "error": "+6.11e-6",
+    "measured": "5.869247e-6",
+    "error": "+5.87e-6",
     "tolerance": "at most 0.0001 above the reference"
    }
   },
@@ -5052,8 +5197,8 @@
    "unit": "m",
    "formula": "bit-exact continuation: 0",
    "reference": 0,
-   "measured": 0.0000402154419,
-   "error": 0.0000402154419,
+   "measured": 0.0000398304909,
+   "error": 0.0000398304909,
    "relativeError": null,
    "tolerance": {
     "kind": "upper",
@@ -5067,8 +5212,8 @@
    },
    "text": {
     "reference": "0 m",
-    "measured": "4.021544e-5",
-    "error": "+4.02e-5",
+    "measured": "3.983049e-5",
+    "error": "+3.98e-5",
     "tolerance": "at most 0.0004 above the reference"
    }
   },
