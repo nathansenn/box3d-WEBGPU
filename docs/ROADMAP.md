@@ -22,9 +22,10 @@ Updated 2026-11-11.
 
 | Phase | Item | Status |
 |---|---|---|
-| 0 | Fix the Studio reset errors so browser acceptance passes | in progress |
+| 0 | Studio keeps working when its WebGPU device is lost (the cause of the acceptance errors) | done for 7 of 8 routes in software rendering; bridge still times out there; unverified in CI and on a real GPU |
 | 0 | Restore the engine evidence so the 11 failing engine tests pass | open (needs the 2 GB evidence archive; owner) |
-| 0 | Run every test file in a gate, or remove it with a reason | in progress |
+| 0 | Run every test file in a gate, or list it with a reason | done (20 wired, 8 listed) |
+| 0 | Glass study: a step takes 0.2–8 s after fracture, so `tests/studio/material-labs.test.mjs` cannot finish | open |
 | 0 | One roadmap and status ledger | done (this file) |
 | 0 | Enable GitHub Pages | open (owner setting) |
 | 1 | Boxes, spheres, capsules; static, kinematic, dynamic bodies | done |
