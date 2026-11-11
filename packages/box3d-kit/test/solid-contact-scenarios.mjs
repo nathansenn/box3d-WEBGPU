@@ -314,3 +314,33 @@ export async function supported(K, {estimateSupports = true, seconds = 1.5} = {}
       boxHeight: s.position[1], boxSpeed: Math.hypot(...s.linearVelocity), solidSpeed: Math.sqrt(2 * solid.kineticEnergy() / solid.mass)};
   } finally { world.dispose(); }
 }
+
+// ---------------------------------------------------------------------------------------------------
+// The other shapes: a ground plane and a capsule.
+// ---------------------------------------------------------------------------------------------------
+
+/** A free elastic cube set on a fixed plane (nothing else holds it), and a capsule lying on a pad. Statics. */
+export function planeAndCapsule(K) {
+  const side = 0.1, cube = new K.SolidBody({mesh: K.boxMesh({size: [side, side, side], cells: [4, 4, 4]}), material: {youngModulus: 1e5, poissonRatio: 0, density: 1000}, config: {model: 'linear', dt: DT, gravity: [0, -G, 0]}});
+  const onPlane = new K.SolidContact(cube), ground = onPlane.addBody({shape: {kind: 'plane', normal: [0, 1, 0]}, type: 'static', position: [0, 0, 0], rotation: [0, 0, 0, 1]});
+  const settled = onPlane.solveStatic(), bottom = cube.selectNodes((x, y) => near(y, 0)), top = cube.selectNodes((x, y) => near(y, side));
+  let lowest = Infinity; for (const n of bottom) lowest = Math.min(lowest, cube.displacements[3 * n + 1]);
+  // With nu = 0 a cube under its own weight on a frictionless plane is a bar standing on its end and shortens by
+  // rho g L^2 / (2 E). (With nu = 0.3 the exact self-weight solution warps the cross-sections, the flat plane does not
+  // let the base follow, and the shortening is 2.0 % less on this mesh.)
+  const weight = cube.mass * G, force = onPlane.bodyForce(ground);
+
+  const L = 0.4, W = 0.2, T = 0.05, pad = new K.SolidBody({mesh: K.boxMesh({size: [L, T, W], cells: [8, 2, 8]}), material: {youngModulus: 1e6, poissonRatio: 0.3, density: 1000}, config: {model: 'linear', dt: DT}});
+  pad.constrain(pad.selectNodes((x, y) => near(y, 0)), [0, 0, 0]);
+  const onPad = new K.SolidContact(pad, {gravity: [0, -G, 0]}), radius = 0.05, halfLength = 0.1, mass = 2, s = Math.SQRT1_2;
+  // The capsule's axis is its local y; turned 90 degrees about z it lies along x.
+  const capsule = onPad.addBody({shape: {kind: 'capsule', radius, halfLength}, type: 'dynamic', mass, position: [L / 2, T + radius, W / 2], rotation: [0, 0, s, s]});
+  const rested = onPad.solveStatic(), F = onPad.bodyForce(capsule), x = onPad.bodyPosition(capsule);
+  // Only nodes are tested, so a cylinder cannot balance on one row of them: it rolls until two rows carry it. The
+  // nodes that carry it then lie within one node spacing of its axis and between its ends.
+  let widest = 0, longest = 0, carrying = 0;
+  for (const n of pad.selectNodes((px, py) => near(py, T))) { if (Math.abs(onPad.nodeForce[3 * n + 1]) > 1e-9 * mass * G) { carrying++; widest = Math.max(widest, Math.abs(pad.referencePositions[3 * n + 2] - x[2])); longest = Math.max(longest, Math.abs(pad.referencePositions[3 * n] - x[0])); } }
+  return {plane: {converged: settled.converged, force: force[1], weight, sideways: Math.hypot(force[0], force[2]), contacts: onPlane.stats.contacts, bottomNodes: bottom.length, sink: -lowest, depth: onPlane.maxPenetration(),
+      shortening: -(meanY(cube, top) - meanY(cube, bottom)), exactShortening: 1000 * G * side * side / (2 * 1e5)},
+    capsule: {converged: rested.converged, force: F[1], weight: mass * G, sideways: Math.hypot(F[0], F[2]), torque: Math.hypot(...onPad.bodyTorque(capsule)), carrying, widest, longest, sink: T + radius - x[1], reach: halfLength + radius, spacing: W / 8, rolled: Math.abs(x[2] - W / 2), chordDrop: radius - Math.sqrt(radius * radius - (W / 16) ** 2)}};
+}

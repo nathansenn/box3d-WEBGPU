@@ -2,7 +2,7 @@
 
 `SolidContact` (`src/engine/solid-contact.ts`, kit subpath `box3d-webgpu-kit/solid-contact`, solver id `solid-contact-penalty-newton-pcg-js-f64-v1`) lets the tetrahedral solid of [`SOLID_MECHANICS.md`](SOLID_MECHANICS.md) touch rigid bodies: contact with boxes, spheres, capsules and planes, Coulomb friction, and welds of solid nodes to a body. `SolidCoupling` (backend id `rigid-solid-coupling-monolithic-js-f64-v1`) couples it both ways to the rigid world, and `solidContactSubsystem` puts it in the one stepping loop of [`SIMULATION.md`](SIMULATION.md).
 
-Every number below was measured by `packages/box3d-kit/test/v17-solid-contact.test.mjs` (11 tests, about 21 s), which runs in the pull-request gate; the rows are also in [`VALIDATION.md`](VALIDATION.md) (domain "Deformable solids in contact with rigid bodies").
+Every number below was measured by `packages/box3d-kit/test/v17-solid-contact.test.mjs` (12 tests, about 21 s), which runs in the pull-request gate; the rows are also in [`VALIDATION.md`](VALIDATION.md) (domain "Deformable solids in contact with rigid bodies").
 
 ## Use
 
@@ -117,6 +117,8 @@ Contact is node against body, on the solid's surface nodes.
 | … `ν` = 0.3 | a welded end is clamped sideways | 1.36 % stiffer; the welded block on the column swings 0.51 % faster | bounded, not a closed form |
 | **Momentum:** 3 kg ball at 2.06 m/s into a free 8 kg block, friction 0.4, corotational, 120 steps, float64 bodies | total linear momentum constant | changed by 7.6·10⁻¹³ of the ball's | 2e-11: the residual of the nodes' solve times the step |
 | … through the float32 rigid world | constant | 1.2·10⁻⁷ | 2e-6 |
+| **Ground plane:** a free 1 kg cube (`E` = 0.1 MPa, `ν` = 0) set on a fixed plane, statics | the plane carries `m g`; the cube shortens by `ρ g L² / (2 E)` = 0.4905 mm | force equal to 10 digits on all 16 bottom nodes; 0.4887 mm (−0.36 %) | 1e-9; 0.8 %: lumped weights on 4 cells. With `ν` = 0.3 the flat plane stops the base from warping and the shortening is 2.0 % less |
+| **Capsule:** a 2 kg capsule (radius 0.05 m) lying on a pad, statics | carried by `m g`, no sideways force or torque | force equal to 10 digits; it rolls half a node spacing and rests on two rows of nodes, 1.66 mm lower (sagitta of that chord 1.59 mm) | 1e-9. The roll is the node-only contact, see Limits |
 | Mass ratios | see the table above | | |
 
 ## Cost
@@ -126,7 +128,7 @@ JavaScript on one thread. A resting contact step of the 125-node pad takes about
 ## Limits
 
 - **Hertz is 7 % to 16 % too stiff on the meshes in the gate** and converges slowly; linear tetrahedra with node-against-surface contact are the cause. Pressure distributions inside a contact are not checked.
-- **Only nodes are tested.** A body corner or edge that passes between nodes is not seen, and a body smaller than the mesh spacing rests on single nodes. The mesh must be finer than the bodies.
+- **Only nodes are tested.** A body corner or edge that passes between nodes is not seen, and a body smaller than the mesh spacing rests on single nodes. A round body finds the gaps: the capsule above rolls half a node spacing to sit on two rows of nodes. The mesh must be finer than the bodies.
 - **One plane per node, body and step, from the start of the step.** Nothing is traced along a node's path: a thin body that crosses a solid in one step is missed. Curved bodies are seen through tangent planes (error `t² / 2R` for a tangential travel `t` in the step).
 - **No contact between two solids, and no self-contact.**
 - Backward Euler only. It damps: 36 % of the kinetic energy is left after the impact case. Restitution is not a parameter.

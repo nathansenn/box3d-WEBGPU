@@ -16,6 +16,7 @@ const T = {
   momentum: 'momentum in a free impact: to rounding with float64 bodies, to float32 through the rigid world',
   ratios: 'mass ratios: a light body on a stiff solid and a heavy body on a soft one stay put; naive staggering throws the light one off',
   supported: 'a solid resting on a body that rests on rigid ground weighs what it should',
+  shapes: 'the other shapes: a free cube on a ground plane, and a capsule on a pad',
 };
 
 const modules = () => memo('solid-contact/modules', async () => {
@@ -30,6 +31,7 @@ const hertz = (n, m) => run(`hertz/${n}`, (S, K) => S.hertz(K, n, m));
 const incline = degrees => run(`incline/${degrees}`, (S, K) => S.incline(K, degrees));
 const column = (options = {}) => run(`column/${JSON.stringify(options)}`, (S, K) => S.column(K, options));
 const weld = (options = {}) => run(`weld/${JSON.stringify(options)}`, (S, K) => S.hangingWeld(K, options));
+const shapes = () => run('shapes', (S, K) => S.planeAndCapsule(K));
 const resting = options => run(`resting/${JSON.stringify(options)}`, (S, K) => S.resting(K, options));
 
 export default defineCases('solid-contact', FILE, [
@@ -91,6 +93,14 @@ export default defineCases('solid-contact', FILE, [
     measure: async () => (await resting({E: 2e11, density: 1, scheme: 'naive-staggered'})).ran},
   {id: 'solid-contact.ratio.heavy', title: 'An 80 kg body on a 2 kg soft pad at 60 Hz', quantity: 'force on the body after 3 s over its weight, minus 1', unit: '1', test: T.ratios,
     reference: {formula: 'F = m g at rest', value: 0}, tolerance: absolute(1e-3), measure: async () => { const r = await resting({E: 2e5, density: 20000, hz: 60, seconds: 3}); return r.force / r.weight - 1; }},
+  {id: 'solid-contact.plane.force', title: 'Free elastic cube on a ground plane', quantity: 'force of a 1 kg cube (nothing else holds it) on a fixed plane, statics', unit: 'N', test: T.shapes,
+    reference: {formula: 'F = -m g', value: null}, tolerance: relative(1e-9), measure: async () => { const r = (await shapes()).plane; return {value: r.force, reference: -r.weight}; }},
+  {id: 'solid-contact.plane.shortening', title: 'Free elastic cube on a ground plane: shortening', quantity: 'shortening of a 0.1 m cube (E = 0.1 MPa, nu = 0) under its own weight, 4 cells', unit: 'm', test: T.shapes,
+    reference: {formula: 'rho g L^2 / (2 E)', value: null}, tolerance: relative(8e-3), note: 'Lumped weights on a tetrahedral cross-section are not uniform. With nu = 0.3 the flat plane does not let the base warp as the exact solution would, and the shortening is 2.0 % less.',
+    measure: async () => { const r = (await shapes()).plane; return {value: r.shortening, reference: r.exactShortening}; }},
+  {id: 'solid-contact.capsule.force', title: 'Capsule lying on a pad', quantity: 'force of the pad on a 2 kg capsule (radius 0.05 m), statics', unit: 'N', test: T.shapes,
+    reference: {formula: 'F = m g', value: null}, tolerance: relative(1e-9), note: 'Only nodes are tested, so the capsule rolls half a node spacing and sits on two rows of nodes, 1.66 mm lower (the sagitta of that chord is 1.59 mm).',
+    measure: async () => { const r = (await shapes()).capsule; return {value: r.force, reference: r.weight}; }},
   {id: 'solid-contact.supported.force', title: 'Block resting on a box that rests on rigid ground', quantity: 'force of the 4 kg block on the box', unit: 'N', test: T.supported,
     reference: {formula: 'F = -m g', value: null}, tolerance: relative(1e-5), note: 'The coupling sees the ground under the box only through the estimate of the box\'s supports, which lags a step.',
     measure: async () => { const r = await run('supported', (S, K) => S.supported(K)); return {value: r.force, reference: -r.weight}; }},

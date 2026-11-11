@@ -217,3 +217,24 @@ test('a solid resting on a body that rests on rigid ground weighs what it should
   assert.ok(r.boxSpeed < 1e-5 && r.solidSpeed < 1e-5, 'both at rest');
   t.diagnostic(`4 kg block on a box on rigid ground: force on the box ${r.force.toFixed(5)} N against ${(-r.weight).toFixed(5)} (error ${sci(r.error)}); without the support estimate error ${sci(blind.error)}`);
 });
+
+test('the other shapes: a free cube on a ground plane, and a capsule on a pad', t => {
+  const {plane, capsule} = S.planeAndCapsule(K);
+  assert.ok(plane.converged && capsule.converged);
+  // The plane is the only thing that holds the cube: it must carry exactly the weight, on every bottom node.
+  within(plane.force, -plane.weight, 1e-9, 'force on the plane');
+  assert.ok(plane.sideways < 1e-9 * plane.weight);
+  assert.equal(plane.contacts, plane.bottomNodes);
+  // With nu = 0, under its own weight on a frictionless plane, the cube is a bar standing on its end:
+  // rho g L^2 / (2 E). Measured -0.36 % on 4 cells: the lumped weights of a tetrahedral cross-section are not uniform.
+  within(plane.shortening, plane.exactShortening, 8e-3, 'shortening of the cube');
+  // The capsule is carried by its weight, with no sideways force or torque left.
+  within(capsule.force, capsule.weight, 1e-9, 'force on the capsule');
+  assert.ok(capsule.sideways < 1e-8 * capsule.weight && capsule.torque < 1e-8 * capsule.weight);
+  // Only nodes are tested: a cylinder cannot balance on one row of them, so it rolls half a node spacing and sits
+  // on two rows, lower by the chord's sagitta R - sqrt(R^2 - (s / 2)^2) plus the pad's own dent.
+  near(capsule.rolled, capsule.spacing / 2, 1e-3, 'it settles between two rows of nodes');
+  assert.ok(capsule.widest <= 0.51 * capsule.spacing + 1e-3 && capsule.longest <= capsule.reach, 'the carrying nodes are under it');
+  assert.ok(capsule.sink > capsule.chordDrop && capsule.sink < capsule.chordDrop + 2e-4, `sink ${capsule.sink} against the sagitta ${capsule.chordDrop}`);
+  t.diagnostic(`cube on a plane: force ${plane.force.toFixed(6)} N against ${(-plane.weight).toFixed(6)}, shortening ${sci(plane.shortening)} m against ${sci(plane.exactShortening)} (${pct(plane.shortening / plane.exactShortening - 1)}), contact depth ${sci(plane.depth)} m; capsule on a pad: force ${capsule.force.toFixed(6)} N against ${capsule.weight.toFixed(6)}, rolled ${sci(capsule.rolled)} m onto two rows ${sci(capsule.spacing)} m apart, ${capsule.carrying} nodes carry it, sink ${sci(capsule.sink)} m (sagitta ${sci(capsule.chordDrop)} m)`);
+});

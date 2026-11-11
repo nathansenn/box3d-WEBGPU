@@ -5,8 +5,8 @@
  "generatedBy": "node scripts/validation-report.mjs",
  "digits": 9,
  "totals": {
-  "cases": 376,
-  "passed": 376,
+  "cases": 379,
+  "passed": 379,
   "failed": 0,
   "domains": 16
  },
@@ -239,8 +239,8 @@
     "The integrator is backward Euler: it damps (36% of the kinetic energy is left after the impact case). Restitution is not a parameter and impact speeds after a bounce are not validated.",
     "Welds are stiff springs: a welded face is held in all three directions, like a clamped end. Large rotations of a welded solid are not checked against a reference."
    ],
-   "cases": 22,
-   "passed": 22
+   "cases": 25,
+   "passed": 25
   },
   {
    "id": "fracture",
@@ -9346,6 +9346,92 @@
     "measured": "-2.910108e-8",
     "error": "-2.91e-8",
     "tolerance": "±0.001"
+   }
+  },
+  {
+   "id": "solid-contact.plane.force",
+   "domain": "solid-contact",
+   "title": "Free elastic cube on a ground plane",
+   "quantity": "force of a 1 kg cube (nothing else holds it) on a fixed plane, statics",
+   "unit": "N",
+   "formula": "F = -m g",
+   "reference": -9.81,
+   "measured": -9.81,
+   "error": 1.9394264e-11,
+   "relativeError": 1.97698919e-12,
+   "tolerance": {
+    "kind": "relative",
+    "value": 1e-9
+   },
+   "pass": true,
+   "source": {
+    "file": "packages/box3d-kit/test/v17-solid-contact.test.mjs",
+    "test": "the other shapes: a free cube on a ground plane, and a capsule on a pad",
+    "url": "https://github.com/nathansenn/box3d-WEBGPU/blob/main/packages/box3d-kit/test/v17-solid-contact.test.mjs"
+   },
+   "text": {
+    "reference": "-9.81 N",
+    "measured": "-9.81",
+    "error": "+1.98e-12 rel.",
+    "tolerance": "±1e-9 rel."
+   }
+  },
+  {
+   "id": "solid-contact.plane.shortening",
+   "domain": "solid-contact",
+   "title": "Free elastic cube on a ground plane: shortening",
+   "quantity": "shortening of a 0.1 m cube (E = 0.1 MPa, nu = 0) under its own weight, 4 cells",
+   "unit": "m",
+   "formula": "rho g L^2 / (2 E)",
+   "reference": 0.0004905,
+   "measured": 0.000488733884,
+   "error": -0.00000176611649,
+   "relativeError": -0.00360064524,
+   "tolerance": {
+    "kind": "relative",
+    "value": 0.008
+   },
+   "pass": true,
+   "note": "Lumped weights on a tetrahedral cross-section are not uniform. With nu = 0.3 the flat plane does not let the base warp as the exact solution would, and the shortening is 2.0 % less.",
+   "source": {
+    "file": "packages/box3d-kit/test/v17-solid-contact.test.mjs",
+    "test": "the other shapes: a free cube on a ground plane, and a capsule on a pad",
+    "url": "https://github.com/nathansenn/box3d-WEBGPU/blob/main/packages/box3d-kit/test/v17-solid-contact.test.mjs"
+   },
+   "text": {
+    "reference": "0.0004905 m",
+    "measured": "0.0004887339",
+    "error": "-0.36%",
+    "tolerance": "±0.8%"
+   }
+  },
+  {
+   "id": "solid-contact.capsule.force",
+   "domain": "solid-contact",
+   "title": "Capsule lying on a pad",
+   "quantity": "force of the pad on a 2 kg capsule (radius 0.05 m), statics",
+   "unit": "N",
+   "formula": "F = m g",
+   "reference": 19.62,
+   "measured": 19.62,
+   "error": -9.91668969e-11,
+   "relativeError": -5.05437803e-12,
+   "tolerance": {
+    "kind": "relative",
+    "value": 1e-9
+   },
+   "pass": true,
+   "note": "Only nodes are tested, so the capsule rolls half a node spacing and sits on two rows of nodes, 1.66 mm lower (the sagitta of that chord is 1.59 mm).",
+   "source": {
+    "file": "packages/box3d-kit/test/v17-solid-contact.test.mjs",
+    "test": "the other shapes: a free cube on a ground plane, and a capsule on a pad",
+    "url": "https://github.com/nathansenn/box3d-WEBGPU/blob/main/packages/box3d-kit/test/v17-solid-contact.test.mjs"
+   },
+   "text": {
+    "reference": "19.62 N",
+    "measured": "19.62",
+    "error": "-5.05e-12 rel.",
+    "tolerance": "±1e-9 rel."
    }
   },
   {
