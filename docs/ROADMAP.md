@@ -41,11 +41,13 @@ Updated 2026-11-11.
 | 1 | A Lab scene built with the general API ("Mechanisms" SI demo, `lab.html?si=mechanisms`) | done as a separate entry, not one of the 800 recipes |
 | 1 | Publish `box3d-webgpu-kit` 1.0 to npm | open (owner decision) |
 | 2 | Rigid ↔ water, both ways: buoyancy, drag, volume and momentum sources (`box3d-webgpu-kit/coupling`, [`WATER_COUPLING.md`](WATER_COUPLING.md)) | done in the kit with closed-form validation (`packages/box3d-kit/test/v09-coupling.test.mjs`); not yet used by a scene or the Studio |
-| 2 | One scene description and stepping loop; rigid ↔ cloth and rope; cable and frame ↔ rigid; bridge rebuild | open |
+| 2 | One scene description for rigid bodies and joints: a versioned JSON format with validation, load and save (`box3d-webgpu-kit/scene`, [`SCENE_FORMAT.md`](SCENE_FORMAT.md)) | done in the kit (`packages/box3d-kit/test/v12-scene.test.mjs`); rigid bodies and joints only, so cables, water, frames and heat are not in the format yet; a save restores poses and velocities, not solver state; not yet used by a Lab scene or the Studio |
+| 2 | One stepping loop for every solver; rigid ↔ cloth and rope; cable and frame ↔ rigid; bridge rebuild | open |
 | 3 | Heat conduction in solids: transient and steady, four boundary types, implicit and explicit stepping, energy ledger (`box3d-webgpu-kit/heat`, [`HEAT_TRANSFER.md`](HEAT_TRANSFER.md)) | done as a standalone solver with closed-form validation (`tests/engine/heat.test.mjs`, in the pull-request gate); thermal stress and thermal shock are one-way estimates; not yet coupled to a fracture solver or used by a scene |
 | 5 | Import glTF, OBJ and STL: parsers, mesh measures, convex hulls and decomposition, bodies from meshes (`box3d-webgpu-kit/geometry`) | done in the kit with closed-form validation (`packages/box3d-kit/test/v10-geometry.test.mjs`); not yet used by a scene, the Studio or an editor |
 | 3 | Deformable solids with real material parameters: tetrahedral FEM, linear, corotational and Neo-Hookean, statics and dynamics (`box3d-webgpu-kit/solid`, [`SOLID_MECHANICS.md`](SOLID_MECHANICS.md)) | done as a stand-alone solver with closed-form validation (`tests/engine/solid.test.mjs`, in the pull-request gate); not coupled to the rigid world; no contact, plasticity or fracture; not yet used by a scene or the Studio |
 | 3 | Fracture on the solid solver; replace the rubber, concrete and lattice one-offs; the other Phase 3 domains | open |
+| 5 | Share links that carry the whole scene (`encodeSceneLink`, `decodeSceneLink` in `box3d-webgpu-kit/scene`) | done in the kit: compressed, checksummed, URL-safe, with a size cap; no page reads a link yet |
 | 4–6 | Everything else below | not started |
 
 ## Phase 0: clean base
@@ -67,7 +69,7 @@ Remaining: compound shapes, state save/load, and the npm release.
 
 ## Phase 2: one world, coupled
 
-- One scene description and one stepping loop that every solver plugs into, in SI units.
+- One scene description and one stepping loop that every solver plugs into, in SI units. The scene description exists for rigid bodies and joints ([`SCENE_FORMAT.md`](SCENE_FORMAT.md)); the other solvers and the shared loop are still to come.
 - Two-way coupling, in order of payoff:
   1. rigid ↔ water: buoyancy and drag that push back on the water (done in kit 0.9.0 for one flat-bottom basin; see [`WATER_COUPLING.md`](WATER_COUPLING.md));
   2. rigid ↔ cloth and rope;
@@ -101,7 +103,7 @@ Starts after Phase 1.
 
 - Scene editor: bodies, joints, materials, loads.
 - Import glTF, OBJ, STL (done in the kit: `box3d-webgpu-kit/geometry` parses the files and makes static mesh bodies, hull bodies, or welded hull sets from an approximate convex decomposition; an editor and URDF/MJCF are still to come). Export CSV, glTF, video.
-- Scripting API and console; share links that carry the whole scene.
+- Scripting API and console; share links that carry the whole scene (the link codec is done in the kit; the Lab and Studio do not read links yet).
 - Docs site with runnable examples and a teaching track.
 - WebGL2 fallback for the Lab; a tested support statement for Safari, Firefox and mobile.
 

@@ -1893,6 +1893,270 @@ export declare class SnapshotDecoder implements InstanceSource {
     colors(): Float32Array;
 }
 
+// ==== scene-examples.d.ts ====
+import type { Scene } from './scene.js';
+export declare function pendulumWaveScene(options?: {
+    count?: number;
+    cycle?: number;
+    swings?: number;
+    radius?: number;
+    angle?: number;
+}): Scene;
+export declare function newtonsCradleScene(options?: {
+    count?: number;
+    radius?: number;
+    length?: number;
+    angle?: number;
+    gap?: number;
+}): Scene;
+export declare function dominoRunScene(options?: {
+    count?: number;
+    spacing?: number;
+}): Scene;
+export declare function terrainCarScene(options?: {
+    speed?: number;
+    bump?: number;
+}): Scene;
+export declare function ragdollScene(options?: {
+    height?: number;
+}): Scene;
+export declare const EXAMPLE_SCENES: {
+    readonly [name: string]: () => Scene;
+};
+
+// ==== scene.d.ts ====
+import { EngineError } from './core/contracts.js';
+import type { Body, BodyOptions, Joint, PhysicsWorld } from './world.js';
+export declare const SCENE_FORMAT = "box3d-scene";
+export declare const SCENE_VERSION = 1;
+export declare const SCENE_LIMITS: Readonly<{
+    bodies: 65536;
+    joints: 65536;
+    materials: 1024;
+    idLength: 64;
+    hullPoints: 4096;
+    meshVertices: 1048576;
+    meshTriangles: 2097152;
+    heightfieldSide: 4096;
+    geometryValues: 8000000;
+    userDataChars: 65536;
+    depth: 32;
+    metaChars: 4096;
+    problems: 100;
+    linkChars: 1048576;
+    linkSceneBytes: 4194304;
+}>;
+export type SceneVec3 = readonly [number, number, number];
+export type SceneQuat = readonly [number, number, number, number];
+export type SceneBodyType = 'static' | 'kinematic' | 'dynamic';
+export type SceneJointType = 'weld' | 'revolute' | 'spherical' | 'prismatic' | 'distance' | 'wheel';
+export interface SceneWorld {
+    readonly gravity?: SceneVec3;
+    readonly ground?: boolean;
+    readonly seed?: number;
+    readonly step?: number;
+    readonly subSteps?: number;
+}
+export interface SceneMaterial {
+    readonly density: number;
+    readonly friction: number;
+    readonly restitution: number;
+    readonly color?: number;
+}
+export type SceneShape = {
+    readonly kind: 'box';
+    readonly halfExtents: SceneVec3;
+} | {
+    readonly kind: 'sphere';
+    readonly radius: number;
+} | {
+    readonly kind: 'capsule';
+    readonly radius: number;
+    readonly halfLength: number;
+} | {
+    readonly kind: 'hull';
+    readonly points: readonly number[];
+} | {
+    readonly kind: 'mesh';
+    readonly vertices: readonly number[];
+    readonly indices: readonly number[];
+} | {
+    readonly kind: 'heightfield';
+    readonly heights: readonly number[];
+    readonly countX: number;
+    readonly countZ: number;
+    readonly spacing: readonly [number, number];
+};
+export interface SceneFilter {
+    readonly categoryBits?: string;
+    readonly maskBits?: string;
+    readonly groupIndex?: number;
+}
+export interface SceneBody {
+    readonly id: string;
+    readonly shape: SceneShape;
+    readonly type?: SceneBodyType;
+    readonly position: SceneVec3;
+    readonly rotation?: SceneQuat;
+    readonly rotationEuler?: SceneVec3;
+    readonly linearVelocity?: SceneVec3;
+    readonly angularVelocity?: SceneVec3;
+    readonly material?: string;
+    readonly density?: number;
+    readonly friction?: number;
+    readonly restitution?: number;
+    readonly color?: number;
+    readonly bullet?: boolean;
+    readonly sensor?: boolean;
+    readonly hitEvents?: boolean;
+    readonly neverSleeps?: boolean;
+    readonly lockRotation?: boolean;
+    readonly linearDamping?: number;
+    readonly angularDamping?: number;
+    readonly gravityScale?: number;
+    readonly filter?: SceneFilter;
+    readonly userData?: {
+        readonly [key: string]: unknown;
+    };
+}
+export interface SceneFrame {
+    readonly position?: SceneVec3;
+    readonly rotation?: SceneQuat;
+    readonly rotationEuler?: SceneVec3;
+}
+export interface SceneJoint {
+    readonly id: string;
+    readonly type: SceneJointType;
+    readonly bodyA: string | null;
+    readonly bodyB: string | null;
+    readonly frameA?: SceneFrame;
+    readonly frameB?: SceneFrame;
+    readonly collideConnected?: boolean;
+    readonly limits?: {
+        readonly lower: number;
+        readonly upper: number;
+    };
+    readonly motor?: {
+        readonly speed: number;
+        readonly maxForce: number;
+    };
+    readonly spring?: {
+        readonly hertz: number;
+        readonly dampingRatio: number;
+        readonly target?: number;
+    };
+    readonly length?: number;
+    readonly coneAngle?: number;
+    readonly userData?: {
+        readonly [key: string]: unknown;
+    };
+}
+export interface SceneMeta {
+    readonly title?: string;
+    readonly description?: string;
+    readonly author?: string;
+    readonly created?: string;
+}
+export interface Scene {
+    readonly format: 'box3d-scene';
+    readonly version: 1;
+    readonly units?: 'SI';
+    readonly world?: SceneWorld;
+    readonly materials?: {
+        readonly [name: string]: SceneMaterial;
+    };
+    readonly bodies: readonly SceneBody[];
+    readonly joints?: readonly SceneJoint[];
+    readonly meta?: SceneMeta;
+    readonly extensions?: {
+        readonly [key: string]: unknown;
+    };
+}
+export interface SceneProblem {
+    readonly path: string;
+    readonly message: string;
+}
+export declare class SceneValidationError extends EngineError {
+    readonly problems: readonly SceneProblem[];
+    constructor(problems: readonly SceneProblem[], what?: string);
+}
+export declare function validateScene(scene: unknown): SceneProblem[];
+export declare function eulerToQuaternion(degrees: SceneVec3): [number, number, number, number];
+export declare function normalizeScene(scene: unknown): Scene;
+export declare function canonicalize(scene: unknown, options?: {
+    readonly pretty?: boolean;
+}): string;
+export declare function sceneHash(scene: unknown): string;
+export declare const SCENE_LINK_PREFIX = "b3s1";
+export declare function encodeSceneLink(scene: unknown, options?: {
+    readonly compress?: boolean;
+}): Promise<string>;
+export declare function encodeSceneLinkSync(scene: unknown): string;
+export declare function decodeSceneLink(text: string): Scene;
+export declare function sceneWorldOptions(scene: Scene): {
+    step: number;
+    subSteps: number;
+    seed: number;
+    gravity: [number, number, number];
+    ground: boolean;
+};
+export type SceneBodyInput = Omit<SceneBody, 'id'> | BodyOptions;
+export type SceneJointInput = Omit<SceneJoint, 'id'>;
+export interface SaveSceneOptions {
+    readonly state?: boolean;
+    readonly meta?: SceneMeta;
+}
+export interface LoadedScene {
+    readonly bodies: Map<string, Body>;
+    readonly joints: Map<string, Joint>;
+    readonly builder: SceneBuilder;
+    readonly scene: Scene;
+}
+export declare class SceneBuilder {
+    readonly world: PhysicsWorld;
+    meta: SceneMeta | undefined;
+    extensions: {
+        readonly [key: string]: unknown;
+    } | undefined;
+    private settings;
+    private readonly materialMap;
+    private readonly bodyMap;
+    private readonly jointMap;
+    constructor(world: PhysicsWorld, options?: {
+        readonly world?: SceneWorld;
+        readonly materials?: {
+            readonly [name: string]: SceneMaterial;
+        };
+        readonly meta?: SceneMeta;
+        readonly extensions?: {
+            readonly [key: string]: unknown;
+        };
+    });
+    private resetWorld;
+    defineMaterial(name: string, material: SceneMaterial): void;
+    private claim;
+    addBody(id: string, body: SceneBodyInput): Body;
+    private place;
+    addJoint(id: string, joint: SceneJointInput): Joint;
+    private connect;
+    remove(id: string): boolean;
+    private prune;
+    has(id: string): boolean;
+    body(id: string): Body | undefined;
+    joint(id: string): Joint | undefined;
+    idOf(handle: Body | Joint): string | undefined;
+    bodies(): Map<string, Body>;
+    joints(): Map<string, Joint>;
+    describe(id: string): SceneBody | SceneJoint | undefined;
+    toJSON(options?: SaveSceneOptions): Scene;
+    static build(world: PhysicsWorld, scene: Scene): SceneBuilder;
+}
+export declare function loadScene(world: PhysicsWorld, scene: unknown): LoadedScene;
+export declare function saveScene(world: PhysicsWorld, handles: SceneBuilder | {
+    readonly builder: SceneBuilder;
+}, options?: SaveSceneOptions): Scene;
+export { pendulumWaveScene, newtonsCradleScene, dominoRunScene, terrainCarScene, ragdollScene, EXAMPLE_SCENES } from './scene-examples.js';
+
 // ==== scheduler.d.ts ====
 import type { FixedStepResult } from './loop.js';
 export interface SchedulableWorld {

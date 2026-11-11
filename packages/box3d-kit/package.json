@@ -56,6 +56,10 @@
       "types": "./dist/geometry.d.ts",
       "default": "./dist/geometry.js"
     },
+    "./scene": {
+      "types": "./dist/scene.d.ts",
+      "default": "./dist/scene.js"
+    },
     "./single": {
       "types": "./dist/index.d.ts",
       "default": "./dist/single.js"

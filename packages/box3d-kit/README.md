@@ -158,6 +158,59 @@ Things to know:
 
 `test/v10-geometry.test.mjs` checks all of this against closed-form answers: one cube in four formats (volume exactly 1), a tetrahedron's volume and centroid, a sphere's volume converging at second order, transformed glTF nodes, mass = density x volume for imported hulls, sliding at g sin θ down an imported ramp (within 0.1%), and a decomposed L coming to rest on the ground.
 
+### Scene files and share links
+
+`box3d-webgpu-kit/scene` turns a scene into plain JSON and back: one versioned format (`box3d-scene`, version 1) that can be validated, loaded, saved, diffed, hashed and packed into a URL. It has no dependencies. The full schema is in [`docs/SCENE_FORMAT.md`](https://github.com/nathansenn/box3d-WEBGPU/blob/main/docs/SCENE_FORMAT.md).
+
+```ts
+import {createWorld} from 'box3d-webgpu-kit';
+import {validateScene, loadScene, saveScene, sceneWorldOptions, canonicalize, sceneHash, encodeSceneLink, decodeSceneLink, SceneBuilder} from 'box3d-webgpu-kit/scene';
+
+const scene = {
+  format: 'box3d-scene', version: 1,
+  world: {gravity: [0, -9.81, 0], step: 1 / 60, subSteps: 4},
+  materials: {steel: {density: 7800, friction: 0.4, restitution: 0.1}},
+  bodies: [
+    {id: 'ball', shape: {kind: 'sphere', radius: 0.25}, position: [1.2, 3.4, 0], material: 'steel'},
+    {id: 'crate', shape: {kind: 'box', halfExtents: [0.5, 0.5, 0.5]}, position: [-3, 0.5, 0], rotationEuler: [0, 45, 0]},
+  ],
+  joints: [{id: 'rope', type: 'distance', bodyA: null, bodyB: 'ball', frameA: {position: [0, 5, 0]}, length: 2}],
+};
+
+validateScene(scene);                                  // [] when valid, else [{path: '/bodies/0/shape/radius', message: 'must be >= 0.0001, got -1'}, ...]
+
+const world = await createWorld(sceneWorldOptions(scene));   // the scene's step, sub-steps, seed, gravity and ground
+const loaded = loadScene(world, scene);                // {bodies: Map<id, Body>, joints: Map<id, Joint>, builder, scene}
+world.applyImpulse(loaded.bodies.get('ball'), [2, 0, 0]);
+for (let i = 0; i < 120; i++) world.step();
+
+const paused = saveScene(world, loaded);               // the same scene with every body's current pose and velocities
+const link = await encodeSceneLink(paused);            // 'b3s1d.<length>.<crc>.<base64url>': safe in a URL as it is
+location.hash = `scene=${link}`;
+loadScene(world, decodeSceneLink(location.hash));      // resume, here or on another machine
+
+canonicalize(scene, {pretty: true});                   // stable key order and number format, for diffing
+sceneHash(scene);                                      // SHA-256 of the canonical text
+```
+
+To build a scene in code and still be able to save it, create bodies and joints through a `SceneBuilder`. The world cannot report a shape or a joint definition, so the builder remembers what it created:
+
+```ts
+const builder = new SceneBuilder(world, {world: {gravity: [0, -9.81, 0]}});   // resets the world
+builder.addBody('floor', {shape: {kind: 'box', halfExtents: [5, 0.5, 5]}, type: 'static', position: [0, -0.5, 0]});
+const lamp = builder.addBody('lamp', {shape: {kind: 'sphere', radius: 0.2}, position: [4.2, 2.4, 0]});   // a Body, as from createBody
+builder.addJoint('chain', {type: 'distance', bodyA: 'floor', bodyB: 'lamp', frameA: {position: [3, 4.5, 0]}, length: 2});
+builder.remove('chain');
+const json = builder.toJSON();                         // at any time
+```
+
+- **Validation comes first.** `loadScene` checks the whole file before it touches the world and throws `SceneValidationError` (code `INVALID_PAYLOAD`, `.problems` holds every finding with a JSON-pointer path). An invalid file leaves the running scene alone. If the engine refuses a body or joint part-way, the world is left reset with none of the scene in it, and the error names the id.
+- **What a save restores.** Position, rotation, both velocities and the type of every body, and gravity. Positions and velocities come back bit-identical; a rotation component can differ by one float32 step. Sleep state, the solver's contact and joint impulses, the tick count and settings changed on the world directly (`setJointMotor`, `setDamping`, ...) are not saved, so a resumed run is a valid simulation from that state but not a bit-exact continuation. Measured drift after 100 more ticks: 5e-8 m for pendulums, 1.6e-4 m for a car on terrain, 1 cm for falling dominoes, 7 cm for a toppling ragdoll. For bit-exact reproduction use `startRecording` and `replay`.
+- **Links.** `encodeSceneLink` uses the platform's `CompressionStream('deflate-raw')` and falls back to storing the JSON; `encodeSceneLinkSync` always stores. `decodeSceneLink` is synchronous and has its own inflate, so it works everywhere. It checks a CRC-32 and the length, and never decompresses more than the link declares (4 MiB at most). The example scenes are 565 to 1,086 characters as links.
+- **Examples.** `pendulumWaveScene()`, `newtonsCradleScene()`, `dominoRunScene()`, `terrainCarScene()` and `ragdollScene()` return ready-made scenes; `EXAMPLE_SCENES` lists them by name.
+
+`test/v12-scene.test.mjs` checks the round trips, determinism from a link, save and resume, 97 malformed files, damaged links and a decompression bomb, and the physics of two example scenes: every pendulum's period within 0.1% of `2π sqrt(I / (m g L))` (measured 0.0004%), and a Newton's cradle whose last ball leaves at the first ball's speed within 2% (measured 0.4%).
+
 ### three.js
 
 ```ts
@@ -333,6 +386,7 @@ camera.follow(hero.state.position);
 | `box3d-webgpu-kit/solid` | Deformable solids from tetrahedral finite elements with real material parameters: statics, dynamics, stresses, strength checks (see below). |
 | `box3d-webgpu-kit/gameplay` | Trigger volumes and a kinematic character controller for the rigid-body world (see above). |
 | `box3d-webgpu-kit/geometry` | OBJ, STL and glTF import, mesh measures, convex hulls and convex decomposition (see above). |
+| `box3d-webgpu-kit/scene` | Scene files: a versioned JSON format with validation, load, save, canonical text, hashing, share links and example scenes (see above). |
 
 Cable, water, frame and solid are the same model code the Box3D WebGPU app runs; the build copies it from the app. The app's own test suites (68 tests: 11 cable, 11 proximal cable, 2 linear water, 6 closed water, 16 frame, 22 solid) run against the packaged copies in `npm test`. Cable, frame, heat and solid are independent of the rigid-body world. Water is coupled to it by `box3d-webgpu-kit/coupling`; ropes attached to bodies are not coupled yet. The WebGPU water solver is not packaged yet.
 
@@ -474,7 +528,7 @@ In the Vite dev server (not yet tested), add `optimizeDeps: {exclude: ['box3d-we
 - **Recording an SI world:** `startRecording({world: {gravity}})` starts from an empty SI world and logs every mutating call, including `createBody`, `createJoint` and the setters. Mesh and terrain geometry is stored in the log, so large scenery makes large logs. A joint created before recording began cannot be used while recording.
 - **Network snapshots carry transforms only**, as before; they do not describe shapes or joints.
 - **No contact-end for destroyed bodies.** Box3D reports no `contact-end` for what a destroyed body was touching; treat `destroyBody()` as the signal.
-- **Solver state cannot be saved.** `saveSession` stores a replay log and `loadSession` replays it.
+- **Solver state cannot be saved.** `saveSession` stores a replay log and `loadSession` replays it. `saveScene` (`box3d-webgpu-kit/scene`) stores how to build the scene plus each body's pose and velocity; it resumes from that state but not bit for bit.
 - **Single-threaded.** Each world steps synchronously on its thread. Use `box3d-webgpu-kit/worker` to move that thread off the renderer.
 - **Interpolation pauses for one step after a destroy, a reset or `setTransform`**, because rows move or jump. New bodies interpolate normally.
 - Default capacity is 4,096 bodies per world; `createWorld({capacity})` raises it up to 65,536. The bridge buffers take 136 bytes per body slot.

@@ -3692,3 +3692,555 @@ merged into one.
 ```ts
 export declare function weldVertices(mesh: MeshLike, tolerance?: number): TriangleMesh;
 ```
+
+## `box3d-webgpu-kit/scene`
+
+### canonicalize · function
+
+The canonical text of a scene: its normal form (see normalizeScene) as JSON
+with sorted keys, no whitespace, and numbers in their shortest round-trip
+form. Two scenes that describe the same thing give the same text, whatever
+their key order. `pretty: true` gives the same content on several lines
+(one key per line, arrays of numbers on one line) for reading and diffing;
+hashes and links always use the compact text.
+
+```ts
+export declare function canonicalize(scene: unknown, options?: {
+    readonly pretty?: boolean;
+}): string;
+```
+
+### decodeSceneLink · function
+
+Unpack a share link into a validated scene. Accepts the bare string or any
+text that contains it, such as a whole URL. Synchronous and self-contained:
+the DEFLATE decoder is built in, so a compressed link opens on platforms
+without DecompressionStream. Throws EngineError('INVALID_PAYLOAD') for a link
+that is too long, cut off, altered (CRC or length mismatch), of an unknown
+version, or that would decompress to more than it declares
+(SCENE_LIMITS.linkSceneBytes at most), and SceneValidationError when the
+JSON inside is not a valid scene.
+
+```ts
+export declare function decodeSceneLink(text: string): Scene;
+```
+
+### dominoRunScene · function
+
+A straight run of `count` dominoes on the ground; the first leans past its tipping point and starts the run.
+
+```ts
+export declare function dominoRunScene(options?: {
+    count?: number;
+    spacing?: number;
+}): Scene;
+```
+
+### encodeSceneLink · function
+
+Pack a scene into a URL-safe string:
+
+    b3s1 <mode> . <length> . <crc> . <data>
+
+- `mode`: `d` when `data` is raw DEFLATE (RFC 1951), `r` when it is stored as is;
+- `length`: UTF-8 byte length of the canonical JSON, in lowercase base 36;
+- `crc`: CRC-32 (IEEE 802.3, as in zip and PNG) of those bytes, 8 lowercase hex digits;
+- `data`: base64url (RFC 4648 section 5) without padding.
+
+Only `A-Z a-z 0-9 - _ .` appear, so the string needs no escaping in a query
+or fragment. Compression uses the platform's `CompressionStream('deflate-raw')`;
+where that is missing, or when the result is not smaller, or with
+`compress: false`, the link stores the JSON uncompressed (mode `r`).
+
+```ts
+export declare function encodeSceneLink(scene: unknown, options?: {
+    readonly compress?: boolean;
+}): Promise<string>;
+```
+
+### encodeSceneLinkSync · function
+
+The synchronous form of encodeSceneLink: always mode `r` (stored, not compressed). Works everywhere.
+
+```ts
+export declare function encodeSceneLinkSync(scene: unknown): string;
+```
+
+### eulerToQuaternion · function
+
+Degrees about X, Y, Z to a quaternion, q = qx qy qz (a vector is turned about Z first, then Y, then X: the three.js 'XYZ' order).
+
+```ts
+export declare function eulerToQuaternion(degrees: SceneVec3): [number, number, number, number];
+```
+
+### EXAMPLE_SCENES · const
+
+Every example by name, each called with its defaults.
+
+```ts
+export declare const EXAMPLE_SCENES: {
+    readonly [name: string]: () => Scene;
+};
+```
+
+### LoadedScene · interface
+
+```ts
+export interface LoadedScene {
+    readonly bodies: Map<string, Body>;
+    readonly joints: Map<string, Joint>;
+    readonly builder: SceneBuilder;
+    readonly scene: Scene;
+}
+```
+
+### loadScene · function
+
+Validate a scene, reset the world to its settings and build every body, then
+every joint, in file order. The world's body capacity is raised first when
+the scene needs more than it has.
+
+- An invalid scene throws SceneValidationError (code 'INVALID_PAYLOAD',
+  `problems` holds the full list) and the world is NOT touched.
+- A world created with another step or sub-step count throws
+  EngineError('INVALID_STATE') and is not touched: create it with
+  `createWorld(sceneWorldOptions(scene))`.
+- If the engine refuses a body or joint part-way, the world is left reset to
+  the scene's settings with none of the scene's bodies in it, and the error
+  names the offending id.
+
+```ts
+export declare function loadScene(world: PhysicsWorld, scene: unknown): LoadedScene;
+```
+
+### newtonsCradleScene · function
+
+Newton's cradle: `count` steel balls hanging on rigid hinges in a row with a
+small gap, the first one raised by `angle`. Perfectly elastic and
+frictionless, so the last ball leaves at the first ball's speed (measured:
+99.5% of it with the defaults). Keep the impact above about 1 m/s: the
+engine applies no restitution to slow contacts (a 0.44 m/s impact passed on
+only 23%), and the balls must not touch at rest (`gap` > 0).
+
+```ts
+export declare function newtonsCradleScene(options?: {
+    count?: number;
+    radius?: number;
+    length?: number;
+    angle?: number;
+    gap?: number;
+}): Scene;
+```
+
+### normalizeScene · function
+
+The normal form of a valid scene, as a new object: every world setting
+present, `rotationEuler` turned into `rotation`, values equal to the engine
+defaults dropped, -0 written as 0, `units`, `materials` and `joints` always
+present. Body and joint order is kept, because it is the build order. Throws
+SceneValidationError for an invalid scene. Normalising twice changes nothing.
+
+```ts
+export declare function normalizeScene(scene: unknown): Scene;
+```
+
+### pendulumWaveScene · function
+
+A pendulum wave: `count` spheres on revolute joints whose lengths are chosen
+so that pendulum k swings `swings + k` times in `cycle` seconds; they drift
+out of phase and realign after one cycle. Each bob's `userData` holds its
+`length` (pivot to centre), small-angle `period` and release `angle`.
+The lengths include the sphere's own inertia: T = 2 pi sqrt((L^2 + 2 r^2 / 5) / (g L)).
+
+```ts
+export declare function pendulumWaveScene(options?: {
+    count?: number;
+    cycle?: number;
+    swings?: number;
+    radius?: number;
+    angle?: number;
+}): Scene;
+```
+
+### ragdollScene · function
+
+A ragdoll: a capsule torso, a sphere head and eight capsule limb segments on
+nine spherical joints with cone and twist limits, dropped from `height`
+metres above the ground with a slight forward tumble.
+
+```ts
+export declare function ragdollScene(options?: {
+    height?: number;
+}): Scene;
+```
+
+### saveScene · function
+
+The scene a builder (or the result of loadScene) describes, with each body's
+current state: see SceneBuilder.toJSON for exactly what is and is not saved.
+
+```ts
+export declare function saveScene(world: PhysicsWorld, handles: SceneBuilder | {
+    readonly builder: SceneBuilder;
+}, options?: SaveSceneOptions): Scene;
+```
+
+### SaveSceneOptions · interface
+
+```ts
+export interface SaveSceneOptions {
+    readonly state?: boolean;
+    readonly meta?: SceneMeta;
+}
+```
+
+### Scene · interface
+
+```ts
+export interface Scene {
+    readonly format: 'box3d-scene';
+    readonly version: 1;
+    readonly units?: 'SI';
+    readonly world?: SceneWorld;
+    readonly materials?: {
+        readonly [name: string]: SceneMaterial;
+    };
+    readonly bodies: readonly SceneBody[];
+    readonly joints?: readonly SceneJoint[];
+    readonly meta?: SceneMeta;
+    readonly extensions?: {
+        readonly [key: string]: unknown;
+    };
+}
+```
+
+### SCENE_FORMAT · const
+
+```ts
+export declare const SCENE_FORMAT = "box3d-scene";
+```
+
+### SCENE_LIMITS · const
+
+Hard limits a scene file must respect. `validateScene` reports each one by path.
+
+```ts
+export declare const SCENE_LIMITS: Readonly<{
+    bodies: 65536;
+    joints: 65536;
+    materials: 1024;
+    idLength: 64;
+    hullPoints: 4096;
+    meshVertices: 1048576;
+    meshTriangles: 2097152;
+    heightfieldSide: 4096;
+    geometryValues: 8000000;
+    userDataChars: 65536;
+    depth: 32;
+    metaChars: 4096;
+    problems: 100;
+    linkChars: 1048576;
+    linkSceneBytes: 4194304;
+}>;
+```
+
+### SCENE_LINK_PREFIX · const
+
+Every share link of this version starts with this, followed by 'd' (raw DEFLATE) or 'r' (stored).
+
+```ts
+export declare const SCENE_LINK_PREFIX = "b3s1";
+```
+
+### SCENE_VERSION · const
+
+```ts
+export declare const SCENE_VERSION = 1;
+```
+
+### SceneBody · interface
+
+```ts
+export interface SceneBody {
+    readonly id: string;
+    readonly shape: SceneShape;
+    readonly type?: SceneBodyType;
+    readonly position: SceneVec3;
+    readonly rotation?: SceneQuat;
+    readonly rotationEuler?: SceneVec3;
+    readonly linearVelocity?: SceneVec3;
+    readonly angularVelocity?: SceneVec3;
+    readonly material?: string;
+    readonly density?: number;
+    readonly friction?: number;
+    readonly restitution?: number;
+    readonly color?: number;
+    readonly bullet?: boolean;
+    readonly sensor?: boolean;
+    readonly hitEvents?: boolean;
+    readonly neverSleeps?: boolean;
+    readonly lockRotation?: boolean;
+    readonly linearDamping?: number;
+    readonly angularDamping?: number;
+    readonly gravityScale?: number;
+    readonly filter?: SceneFilter;
+    readonly userData?: {
+        readonly [key: string]: unknown;
+    };
+}
+```
+
+### SceneBodyInput · type
+
+A body description for SceneBuilder.addBody: a scene body without its id, or the kit's BodyOptions (bigint filter bits, typed arrays, {x, y, z} vectors).
+
+```ts
+export type SceneBodyInput = Omit<SceneBody, 'id'> | BodyOptions;
+```
+
+### SceneBodyType · type
+
+```ts
+export type SceneBodyType = 'static' | 'kinematic' | 'dynamic';
+```
+
+### SceneBuilder · class
+
+A PhysicsWorld plus the description of everything put into it. The world
+cannot report shapes or joint definitions, so the builder remembers them as
+it creates each body and joint, and `toJSON()` writes them back out with the
+bodies' current poses and velocities.
+
+Constructing a builder RESETS the world to the given settings. Create and
+remove bodies and joints through the builder; what you change on the world
+directly (setJointMotor, setDamping, setCollisionFilter, ...) is not seen,
+except pose, velocity, body type and gravity, which are read back on save.
+
+```ts
+export declare class SceneBuilder {
+  readonly world: PhysicsWorld;
+  meta: SceneMeta | undefined;
+  extensions: { readonly [key: string]: unknown; } | undefined;
+  defineMaterial(name: string, material: SceneMaterial): void;
+  addBody(id: string, body: SceneBodyInput): Body;
+  addJoint(id: string, joint: SceneJointInput): Joint;
+  remove(id: string): boolean;
+  has(id: string): boolean;
+  body(id: string): Body | undefined;
+  joint(id: string): Joint | undefined;
+  idOf(handle: Body | Joint): string | undefined;
+  bodies(): Map<string, Body>;
+  joints(): Map<string, Joint>;
+  describe(id: string): SceneBody | SceneJoint | undefined;
+  toJSON(options?: SaveSceneOptions): Scene;
+  static build(world: PhysicsWorld, scene: Scene): SceneBuilder;
+}
+```
+
+### SceneFilter · interface
+
+```ts
+export interface SceneFilter {
+    readonly categoryBits?: string;
+    readonly maskBits?: string;
+    readonly groupIndex?: number;
+}
+```
+
+### SceneFrame · interface
+
+```ts
+export interface SceneFrame {
+    readonly position?: SceneVec3;
+    readonly rotation?: SceneQuat;
+    readonly rotationEuler?: SceneVec3;
+}
+```
+
+### sceneHash · function
+
+SHA-256 of the compact canonical text (UTF-8), as 64 lowercase hex digits. Equal scenes have equal hashes.
+
+```ts
+export declare function sceneHash(scene: unknown): string;
+```
+
+### SceneJoint · interface
+
+```ts
+export interface SceneJoint {
+    readonly id: string;
+    readonly type: SceneJointType;
+    readonly bodyA: string | null;
+    readonly bodyB: string | null;
+    readonly frameA?: SceneFrame;
+    readonly frameB?: SceneFrame;
+    readonly collideConnected?: boolean;
+    readonly limits?: {
+        readonly lower: number;
+        readonly upper: number;
+    };
+    readonly motor?: {
+        readonly speed: number;
+        readonly maxForce: number;
+    };
+    readonly spring?: {
+        readonly hertz: number;
+        readonly dampingRatio: number;
+        readonly target?: number;
+    };
+    readonly length?: number;
+    readonly coneAngle?: number;
+    readonly userData?: {
+        readonly [key: string]: unknown;
+    };
+}
+```
+
+### SceneJointInput · type
+
+A joint description for SceneBuilder.addJoint: a scene joint without its id; bodies are named by id.
+
+```ts
+export type SceneJointInput = Omit<SceneJoint, 'id'>;
+```
+
+### SceneJointType · type
+
+```ts
+export type SceneJointType = 'weld' | 'revolute' | 'spherical' | 'prismatic' | 'distance' | 'wheel';
+```
+
+### SceneMaterial · interface
+
+```ts
+export interface SceneMaterial {
+    readonly density: number;
+    readonly friction: number;
+    readonly restitution: number;
+    readonly color?: number;
+}
+```
+
+### SceneMeta · interface
+
+```ts
+export interface SceneMeta {
+    readonly title?: string;
+    readonly description?: string;
+    readonly author?: string;
+    readonly created?: string;
+}
+```
+
+### SceneProblem · interface
+
+One validation finding. `path` is a JSON pointer (RFC 6901) into the scene; '' is the scene itself.
+
+```ts
+export interface SceneProblem {
+    readonly path: string;
+    readonly message: string;
+}
+```
+
+### SceneQuat · type
+
+```ts
+export type SceneQuat = readonly [number, number, number, number];
+```
+
+### SceneShape · type
+
+```ts
+export type SceneShape = {
+    readonly kind: 'box';
+    readonly halfExtents: SceneVec3;
+} | {
+    readonly kind: 'sphere';
+    readonly radius: number;
+} | {
+    readonly kind: 'capsule';
+    readonly radius: number;
+    readonly halfLength: number;
+} | {
+    readonly kind: 'hull';
+    readonly points: readonly number[];
+} | {
+    readonly kind: 'mesh';
+    readonly vertices: readonly number[];
+    readonly indices: readonly number[];
+} | {
+    readonly kind: 'heightfield';
+    readonly heights: readonly number[];
+    readonly countX: number;
+    readonly countZ: number;
+    readonly spacing: readonly [number, number];
+};
+```
+
+### SceneValidationError · class
+
+Thrown by loadScene, canonicalize, the builder and the link functions for an invalid scene. `code` is 'INVALID_PAYLOAD'.
+
+```ts
+export declare class SceneValidationError extends EngineError {
+  readonly problems: readonly SceneProblem[];
+}
+```
+
+### SceneVec3 · type
+
+```ts
+export type SceneVec3 = readonly [number, number, number];
+```
+
+### SceneWorld · interface
+
+```ts
+export interface SceneWorld {
+    readonly gravity?: SceneVec3;
+    readonly ground?: boolean;
+    readonly seed?: number;
+    readonly step?: number;
+    readonly subSteps?: number;
+}
+```
+
+### sceneWorldOptions · function
+
+The options to create a world that can load this scene: `createWorld(sceneWorldOptions(scene))`.
+
+```ts
+export declare function sceneWorldOptions(scene: Scene): {
+    step: number;
+    subSteps: number;
+    seed: number;
+    gravity: [number, number, number];
+    ground: boolean;
+};
+```
+
+### terrainCarScene · function
+
+A four-wheel car on wheel joints (suspension spring, travel limits, spin
+motor) driving over a rolling height-field terrain. There is no ground slab:
+the terrain is the floor.
+
+```ts
+export declare function terrainCarScene(options?: {
+    speed?: number;
+    bump?: number;
+}): Scene;
+```
+
+### validateScene · function
+
+Check a scene completely, before anything is built. Returns every problem
+found (at most SCENE_LIMITS.problems), each with a JSON-pointer path; an
+empty list means the scene is valid. Never throws, whatever it is given.
+
+```ts
+export declare function validateScene(scene: unknown): SceneProblem[];
+```

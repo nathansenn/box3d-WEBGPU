@@ -11,6 +11,14 @@
 
 The WASM is unchanged from 0.8.0.
 
+- **`box3d-webgpu-kit/scene`:** scene files and share links. Dependency-free; the schema is in `docs/SCENE_FORMAT.md`.
+  - A versioned plain-JSON format (`box3d-scene`, version 1, SI): world settings, named materials, bodies with all six shape kinds and every `BodyOptions` field (64-bit filter bits as decimal strings), joints with every `JointOptions` field naming bodies by id, free-form `userData`, `meta`, and an `extensions` object that is preserved and ignored. `rotationEuler` (degrees) is accepted on input.
+  - `validateScene` checks a file completely before anything is built and returns problems with JSON-pointer paths. `loadScene` builds it atomically: an invalid file leaves the world untouched, and a body or joint the engine refuses leaves it reset and empty, with the id in the error.
+  - `SceneBuilder` wraps a world and records what it creates (`addBody`, `addJoint`, `remove`, `toJSON`), because the world cannot report shapes or joint definitions. `saveScene` writes the scene with each body's current pose, velocities and type. Sleep state and the solver's contact and joint impulses are not saved, so a resumed run drifts from the original (measured in the test).
+  - `canonicalize` (sorted keys, shortest round-trip numbers, defaults dropped), `normalizeScene` and `sceneHash` (SHA-256).
+  - `encodeSceneLink` / `encodeSceneLinkSync` / `decodeSceneLink`: `b3s1<mode>.<length>.<crc32>.<base64url>`, raw DEFLATE through `CompressionStream` with a stored fallback, a built-in inflate for decoding, and a cap on decompressed size.
+  - Example scenes: `pendulumWaveScene`, `newtonsCradleScene`, `dominoRunScene`, `terrainCarScene`, `ragdollScene`.
+  - `capabilities().modules` lists `scene`. `test/v12-scene.test.mjs` covers it.
 - **`box3d-webgpu-kit/coupling`:** `WaterCoupling` couples rigid bodies with one closed shallow-water basin, both ways.
   - Water to body: buoyancy from the exact volume of a box, sphere or capsule below the local water plane, applied at the centre of buoyancy (so it rights a heeled body), the pressure-gradient force of a sloping surface, and a drag model (linear plus quadratic in the velocity relative to the water, scaled by the submerged fraction).
   - Body to water: the displaced volume is a volume source for the free surface (water volume is conserved to float64 roundoff; the mean level rises by displaced volume / basin area), and the reaction of the horizontal force is a momentum source.
