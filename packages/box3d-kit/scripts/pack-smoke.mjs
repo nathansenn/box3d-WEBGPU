@@ -14,7 +14,7 @@ const sh = (cmd, args, cwd) => execFileSync(cmd, args, {cwd, encoding: 'utf8', s
 
 // Size budgets (bytes). Raise deliberately, in review, never silently.
 const BUDGET = {wasm: 512 * 1024, wasmGzip: 210 * 1024, wasmBrotli: 180 * 1024, glue: 24 * 1024, coreJsGzip: 40 * 1024, modulesJsGzip: 24 * 1024, singleGzip: 280 * 1024, packed: 600 * 1024};
-const OPTIONAL = ['cable.js', 'water.js', 'coupling.js', 'frame.js', 'compliant-cable.js', 'linear-water.js', 'closed-water.js', 'water-coupling.js', 'frame-element.js', 'frame-runtime.js', 'heat.js', 'gameplay.js'];
+const OPTIONAL = ['cable.js', 'water.js', 'coupling.js', 'frame.js', 'compliant-cable.js', 'linear-water.js', 'closed-water.js', 'water-coupling.js', 'frame-element.js', 'frame-runtime.js', 'heat.js', 'gameplay.js', 'geometry.js'];
 const jsFiles = () => readdirSync(join(pkg, 'dist'), {recursive: true}).map(String).filter(f => f.endsWith('.js'));
 const gzipOf = files => gzipSync(Buffer.concat(files.map(f => readFileSync(join(pkg, 'dist', f)))), {level: 9}).length;
 const size = {
@@ -34,7 +34,7 @@ try {
   size.packed = packed.size;
   const over = Object.entries(size).filter(([k, v]) => v > BUDGET[k]);
   if (over.length) throw new Error(`size budget exceeded: ${over.map(([k, v]) => `${k} ${v} > ${BUDGET[k]}`).join(', ')}`);
-  for (const required of ['dist/index.js', 'dist/index.d.ts', 'dist/three.js', 'dist/worker.js', 'dist/worker.d.ts', 'dist/babylon.js', 'dist/core/build-info.js', 'dist/shared-frames.js', 'dist/session.js', 'dist/inspector.js', 'api/API.md', 'CHANGELOG.md', 'dist/single.js', 'dist/cable.js', 'dist/water.js', 'dist/coupling.js', 'dist/frame.js', 'dist/heat.js', 'dist/gameplay.js', 'bin/box3d-kit.mjs', 'templates/three/main.js', 'wasm/box3d.js', 'wasm/box3d.wasm', 'LICENSE', 'wasm/BOX3D_LICENSE.txt', 'THIRD_PARTY_NOTICES.md']) {
+  for (const required of ['dist/index.js', 'dist/index.d.ts', 'dist/three.js', 'dist/worker.js', 'dist/worker.d.ts', 'dist/babylon.js', 'dist/core/build-info.js', 'dist/shared-frames.js', 'dist/session.js', 'dist/inspector.js', 'api/API.md', 'CHANGELOG.md', 'dist/single.js', 'dist/cable.js', 'dist/water.js', 'dist/coupling.js', 'dist/frame.js', 'dist/heat.js', 'dist/gameplay.js', 'bin/box3d-kit.mjs', 'templates/three/main.js', 'wasm/box3d.js', 'wasm/box3d.wasm', 'LICENSE', 'wasm/BOX3D_LICENSE.txt', 'THIRD_PARTY_NOTICES.md', 'dist/geometry.js']) {
     if (!files.includes(required)) throw new Error(`tarball is missing ${required}`);
   }
   const leaked = files.filter(f => f.startsWith('src/') || f.startsWith('test/') || f.endsWith('.tgz') || f.endsWith('.map')); // maps would point at src/, which is not shipped

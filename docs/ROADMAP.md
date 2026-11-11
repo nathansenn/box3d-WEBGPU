@@ -43,6 +43,7 @@ Updated 2026-11-11.
 | 2 | Rigid ↔ water, both ways: buoyancy, drag, volume and momentum sources (`box3d-webgpu-kit/coupling`, [`WATER_COUPLING.md`](WATER_COUPLING.md)) | done in the kit with closed-form validation (`packages/box3d-kit/test/v09-coupling.test.mjs`); not yet used by a scene or the Studio |
 | 2 | One scene description and stepping loop; rigid ↔ cloth and rope; cable and frame ↔ rigid; bridge rebuild | open |
 | 3 | Heat conduction in solids: transient and steady, four boundary types, implicit and explicit stepping, energy ledger (`box3d-webgpu-kit/heat`, [`HEAT_TRANSFER.md`](HEAT_TRANSFER.md)) | done as a standalone solver with closed-form validation (`tests/engine/heat.test.mjs`, in the pull-request gate); thermal stress and thermal shock are one-way estimates; not yet coupled to a fracture solver or used by a scene |
+| 5 | Import glTF, OBJ and STL: parsers, mesh measures, convex hulls and decomposition, bodies from meshes (`box3d-webgpu-kit/geometry`) | done in the kit with closed-form validation (`packages/box3d-kit/test/v10-geometry.test.mjs`); not yet used by a scene, the Studio or an editor |
 | 3–6 | Everything else below | not started |
 
 ## Phase 0: clean base
@@ -97,7 +98,7 @@ Runs alongside Phases 1–3.
 Starts after Phase 1.
 
 - Scene editor: bodies, joints, materials, loads.
-- Import glTF, OBJ, STL. Export CSV, glTF, video.
+- Import glTF, OBJ, STL (done in the kit: `box3d-webgpu-kit/geometry` parses the files and makes static mesh bodies, hull bodies, or welded hull sets from an approximate convex decomposition; an editor and URDF/MJCF are still to come). Export CSV, glTF, video.
 - Scripting API and console; share links that carry the whole scene.
 - Docs site with runnable examples and a teaching track.
 - WebGL2 fallback for the Lab; a tested support statement for Safari, Firefox and mobile.

@@ -114,6 +114,50 @@ The physics is checked against closed-form answers in `test/v08.test.mjs`: free 
 
 To draw mixed shapes with three.js use `createShapeMeshes(THREE, world)` and `syncShapeMeshes(world, meshes, {alpha})` from `box3d-webgpu-kit/three`; capsules render exactly at any size. For other renderers, `world.bodyKinds()` gives the shape of each row of `matrices()`.
 
+### Import geometry: OBJ, STL and glTF
+
+`box3d-webgpu-kit/geometry` reads mesh files into plain `{vertices, indices, name?}` meshes and turns them into shapes. It has no dependencies and does not fetch: you hand it the text or bytes.
+
+```ts
+import {createWorld} from 'box3d-webgpu-kit';
+import {parseOBJ, parseSTL, parseGLB, meshVolume, isConvex, transformMesh, createBodiesFromMesh} from 'box3d-webgpu-kit/geometry';
+
+const world = await createWorld({gravity: [0, -9.81, 0]});
+
+const [terrain] = parseGLB(await (await fetch('level.glb')).arrayBuffer());   // one mesh per node, in world space
+createBodiesFromMesh(world, terrain);                                         // one static triangle-mesh body
+
+const part = transformMesh(parseSTL(await (await fetch('bracket.stl')).arrayBuffer()), {scale: 0.001});   // mm to m
+meshVolume(part);                                                             // m^3, for a closed mesh
+const {bodies, joints, decomposition} = createBodiesFromMesh(world, part, {
+  as: isConvex(part) ? 'hull' : 'decomposed',                                 // one hull, or convex pieces welded together
+  position: [0, 2, 0], density: 2700,
+});
+decomposition?.volumeError;                                                   // (hull volume - mesh volume) / mesh volume
+```
+
+| Function | What it does |
+|---|---|
+| `parseOBJ(text)` | `v` and `f` lines, negative indices, `v/vt/vn` forms, polygons as fans, one mesh per `o`/`g` name. |
+| `parseSTL(bytes or text)` | Binary (by the 84 + 50 n length rule, even when the header says "solid") and ASCII; corners welded. |
+| `parseGLB(bytes)`, `parseGLTF(json, buffers)` | glTF 2.0 triangles, strips and fans; float positions; 8-, 16- and 32-bit or no indices; `byteStride`; node transforms baked in; `data:` and caller-supplied buffers. Sparse, quantised and compressed geometry is rejected with the reason. |
+| `meshVolume`, `meshCenterOfMass`, `meshBounds`, `isClosed`, `isConvex` | Measures of a closed mesh (signed tetrahedra). |
+| `weldVertices`, `transformMesh`, `flipWinding`, `convexHull` | Clean-up and conversion. |
+| `toHullShape`, `toMeshShape`, `toHeightfieldShape` | Shapes for `createBody`. A hull keeps 32 points by default. |
+| `convexDecompose(mesh, options)` | Convex pieces of a concave closed mesh, with the volume error. |
+| `createBodiesFromMesh(world, mesh, {as})` | `'mesh'`: one static body. `'hull'`: one body. `'decomposed'`: hull bodies joined by weld joints. |
+
+Things to know:
+
+- A file's units are its own. The kit is in metres: scale millimetre files by 0.001.
+- Triangles must be counter-clockwise seen from outside. `meshVolume` is negative for an inside-out mesh; `flipWinding` fixes it.
+- Box3D holds at most 64 vertices and 255 half-edges per hull. A rounded hull (all triangles) is cut to 44 points, which makes it smaller: a sphere's hull loses 19% of its volume at 32 points and 14% at 44. Use `{kind: 'sphere'}` for balls. `createBodiesFromMesh` scales the density so a closed mesh still has mass = density x mesh volume.
+- `convexDecompose` is greedy plane splitting: the most concave piece is cut by the best of its own face planes and nine axis-aligned planes, until the concavity target or `maxHulls` is met. Solids with flat inner faces (an L, a U, steps) split exactly. Curved concavities are only approached: a torus (576 triangles) is off by 24% with 8 hulls, 9% with 16 and 3% with 32. It is not V-HACD; it needs a closed mesh, and takes about a second for a few thousand triangles.
+- The kit has no compound shapes yet, so a decomposed solid is several bodies held by weld joints. Welds are solved iteratively and flex slightly under impact (1.7 mm for a 225 kg L landing at 2 m/s in the test).
+- Parsers reject malformed input with `EngineError('INVALID_PAYLOAD')` and the reason, and refuse more than 4 million vertices or 8 million triangles (`GEOMETRY_LIMITS`).
+
+`test/v10-geometry.test.mjs` checks all of this against closed-form answers: one cube in four formats (volume exactly 1), a tetrahedron's volume and centroid, a sphere's volume converging at second order, transformed glTF nodes, mass = density x volume for imported hulls, sliding at g sin θ down an imported ramp (within 0.1%), and a decomposed L coming to rest on the ground.
+
 ### three.js
 
 ```ts
@@ -287,6 +331,7 @@ camera.follow(hero.state.position);
 | `box3d-webgpu-kit/frame` | 3D beam and column frames: statics, dynamics, end reactions. For structures that bend. |
 | `box3d-webgpu-kit/heat` | Heat conduction in solids: transient and steady temperature fields, four boundary types, an energy ledger, and one-way thermal stress and thermal-shock estimates (see below). |
 | `box3d-webgpu-kit/gameplay` | Trigger volumes and a kinematic character controller for the rigid-body world (see above). |
+| `box3d-webgpu-kit/geometry` | OBJ, STL and glTF import, mesh measures, convex hulls and convex decomposition (see above). |
 
 Cable, water and frame are the same model code the Box3D WebGPU app runs; the build copies it from the app. The app's own test suites (46 tests: 11 cable, 11 proximal cable, 2 linear water, 6 closed water, 16 frame) run against the packaged copies in `npm test`. Cable, frame and heat are independent of the rigid-body world. Water is coupled to it by `box3d-webgpu-kit/coupling`; ropes attached to bodies are not coupled yet. The WebGPU water solver is not packaged yet.
 

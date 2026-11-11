@@ -2978,3 +2978,450 @@ export type TriggerShape = {
     readonly radius: number;
 };
 ```
+
+## `box3d-webgpu-kit/geometry`
+
+### BinaryLike · type
+
+```ts
+export type BinaryLike = ArrayBuffer | Uint8Array;
+```
+
+### BodyFactory · interface
+
+The part of `PhysicsWorld` this module uses.
+
+```ts
+export interface BodyFactory {
+    createBody(options: BodyOptions): Body | null;
+    createJoint(options: JointOptions): Joint;
+    destroyBody?(body: Body): boolean;
+}
+```
+
+### convexDecompose · function
+
+Approximate convex decomposition of a closed, outward-wound mesh, for
+turning a concave solid into a set of convex hulls.
+
+The method is greedy recursive plane splitting. Each piece's concavity is
+the volume of its convex hull minus its own volume. The piece with the
+largest concavity is cut in two by one plane, chosen among the planes of its
+own faces (the largest `maxCandidates` by area) and nine axis-aligned planes
+at the quarter points of its bounds: the plane that leaves the fewest
+concave halves, then the least concavity plus a penalty for uneven halves.
+This repeats until the summed concavity is at most `maxConcavity` of the
+mesh volume or `maxHulls` pieces exist. The result is the hull of each piece.
+
+Limits, stated plainly:
+- It is not V-HACD or CoACD. Cuts are single planes chosen greedily, so a
+  polyhedral solid with flat inner faces (an L, a U, a bracket, steps) splits
+  exactly, while a curved concavity (a bowl, a torus) is only approached as
+  the hull count grows; check `volumeError`.
+- The mesh must be closed and must not self-intersect; an open or inside-out
+  mesh is rejected.
+- Hulls of neighbouring pieces can overlap, and each hull is limited to
+  `maxHullPoints` points, so `hullVolume` can be above or (rarely) below the
+  mesh volume. `partVolume` is each piece's exact volume.
+- Cost grows with triangles x candidates x hulls: fine for thousands of
+  triangles, slow for hundreds of thousands. Simplify big meshes first.
+- Pieces thinner than about 1e-6 of the mesh size are dropped.
+
+```ts
+export declare function convexDecompose(mesh: MeshLike, options?: ConvexDecomposeOptions): ConvexDecomposition;
+```
+
+### ConvexDecomposeOptions · interface
+
+```ts
+export interface ConvexDecomposeOptions {
+    readonly maxHulls?: number;
+    readonly maxConcavity?: number;
+    readonly maxHullPoints?: number;
+    readonly maxCandidates?: number;
+}
+```
+
+### ConvexDecomposition · interface
+
+```ts
+export interface ConvexDecomposition {
+    hulls: ConvexPart[];
+    meshVolume: number;
+    hullVolume: number;
+    volumeError: number;
+    partVolumeError: number;
+}
+```
+
+### convexHull · function
+
+Convex hull of a flat [x, y, z, ...] point list (or of a mesh's vertices) as
+a closed, outward-wound triangle mesh. With `maxVertices` the result is an
+inscribed approximation: its volume never exceeds the true hull's. Points
+within 1e-7 of the bounding-box diagonal of a face are treated as on it.
+
+```ts
+export declare function convexHull(points: ArrayLike<number> | MeshLike, options?: ConvexHullOptions): TriangleMesh;
+```
+
+### ConvexHullOptions · interface
+
+```ts
+export interface ConvexHullOptions {
+    readonly maxVertices?: number;
+}
+```
+
+### ConvexPart · interface
+
+```ts
+export interface ConvexPart {
+    points: Float32Array;
+    volume: number;
+    partVolume: number;
+    centroid: [number, number, number];
+}
+```
+
+### createBodiesFromMesh · function
+
+Put a mesh into a world.
+
+- `as: 'mesh'`: one static triangle-mesh body.
+- `as: 'hull'`: one body shaped as the mesh's convex hull (see `toHullShape`
+  for how many points are kept). For a closed mesh the density is scaled so
+  the body's mass is density x mesh volume, whether the hull is larger than
+  the mesh (a concave solid) or smaller (a rounded solid cut to 44 points);
+  for an open mesh the mass is density x hull volume.
+- `as: 'decomposed'`: the kit has no compound shapes yet, so a concave solid
+  becomes one hull body per convex piece, all created at the same pose and
+  held together by weld joints to the largest piece. The pieces share a
+  negative collision group (pass `filter.groupIndex` to choose it), so they
+  do not push each other apart. Each piece's density is scaled by its exact
+  volume over its hull volume, so the set's total mass is density x mesh
+  volume even where hulls overlap. Welds are solved iteratively: under hard
+  impacts the set flexes slightly, unlike a true compound body.
+
+```ts
+export declare function createBodiesFromMesh(world: BodyFactory, mesh: MeshLike, options?: MeshBodiesOptions): MeshBodies;
+```
+
+### flipWinding · function
+
+A copy with every triangle reversed (turns an inside-out mesh the right way round).
+
+```ts
+export declare function flipWinding(mesh: MeshLike): TriangleMesh;
+```
+
+### GEOMETRY_LIMITS · const
+
+Hard caps. Input beyond them is rejected before anything large is allocated.
+
+```ts
+export declare const GEOMETRY_LIMITS: Readonly<{
+    maxVertices: 4000000;
+    maxTriangles: 8000000;
+    maxDecomposeTriangles: 200000;
+    maxHulls: 64;
+    maxHullPoints: 64;
+    maxHullHalfEdges: 255;
+    maxHeightfieldCells: number;
+    maxConvexityTests: 200000000;
+}>;
+```
+
+### GLTFBuffers · type
+
+External glTF buffers by the `uri` the file names them with.
+
+```ts
+export type GLTFBuffers = Readonly<Record<string, BinaryLike>> | ReadonlyMap<string, BinaryLike>;
+```
+
+### HeightfieldOptions · interface
+
+```ts
+export interface HeightfieldOptions {
+    readonly countX: number;
+    readonly countZ: number;
+    readonly spacing?: readonly [number, number];
+    readonly origin?: readonly [number, number];
+    readonly missing?: number;
+}
+```
+
+### HeightfieldShape · interface
+
+```ts
+export interface HeightfieldShape {
+    readonly kind: 'heightfield';
+    readonly heights: Float32Array;
+    readonly countX: number;
+    readonly countZ: number;
+    readonly spacing: readonly [number, number];
+    readonly origin: [number, number, number];
+}
+```
+
+### HullShape · interface
+
+```ts
+export interface HullShape {
+    readonly kind: 'hull';
+    readonly points: Float32Array;
+}
+```
+
+### HullShapeOptions · interface
+
+```ts
+export interface HullShapeOptions {
+    readonly maxPoints?: number;
+}
+```
+
+### isClosed · function
+
+True when the surface has no boundary: after merging vertices within
+`tolerance`, every triangle edge is matched by exactly one edge running the
+other way. A closed mesh with consistent winding is what `meshVolume`,
+`meshCenterOfMass`, `isConvex` and `convexDecompose` need.
+
+```ts
+export declare function isClosed(mesh: MeshLike, tolerance?: number): boolean;
+```
+
+### isConvex · function
+
+True when the mesh is closed, outward-wound (positive volume) and no vertex
+lies more than `tolerance` outside the plane of any triangle. The default
+tolerance is 1e-6 of the bounding-box diagonal. Costs vertices x triangles
+tests and refuses meshes beyond `GEOMETRY_LIMITS.maxConvexityTests`.
+
+```ts
+export declare function isConvex(mesh: MeshLike, tolerance?: number): boolean;
+```
+
+### MeshBodies · interface
+
+```ts
+export interface MeshBodies {
+    bodies: Body[];
+    joints: Joint[];
+    decomposition?: ConvexDecomposition;
+}
+```
+
+### MeshBodiesOptions · interface
+
+```ts
+export interface MeshBodiesOptions extends Omit<BodyOptions, 'shape' | 'position' | 'type'> {
+    readonly as?: 'mesh' | 'hull' | 'decomposed';
+    readonly position?: Vec3Like;
+    readonly type?: BodyType;
+    readonly maxPoints?: number;
+    readonly decomposition?: ConvexDecomposeOptions;
+}
+```
+
+### meshBounds · function
+
+Axis-aligned bounds of every vertex.
+
+```ts
+export declare function meshBounds(mesh: MeshLike): MeshBounds;
+```
+
+### MeshBounds · interface
+
+```ts
+export interface MeshBounds {
+    min: [number, number, number];
+    max: [number, number, number];
+}
+```
+
+### meshCenterOfMass · function
+
+Centre of mass of the uniform solid a closed mesh encloses.
+
+```ts
+export declare function meshCenterOfMass(mesh: MeshLike): [number, number, number];
+```
+
+### MeshLike · interface
+
+Anything mesh-shaped is accepted as input; outputs are always typed arrays.
+
+```ts
+export interface MeshLike {
+    readonly vertices: ArrayLike<number>;
+    readonly indices: ArrayLike<number>;
+    readonly name?: string;
+}
+```
+
+### MeshShape · interface
+
+```ts
+export interface MeshShape {
+    readonly kind: 'mesh';
+    readonly vertices: Float32Array;
+    readonly indices: Uint32Array;
+}
+```
+
+### MeshTransform · interface
+
+```ts
+export interface MeshTransform {
+    readonly position?: Vec3Like;
+    readonly rotation?: QuatLike;
+    readonly scale?: number | Vec3Like;
+}
+```
+
+### meshVolume · function
+
+Enclosed volume by summing signed tetrahedra. Exact (to float64 roundoff)
+for a closed, consistently wound mesh; positive when triangles are
+counter-clockwise seen from outside, negative when the mesh is inside out.
+For an open mesh the number has no meaning: check `isClosed` first.
+
+```ts
+export declare function meshVolume(mesh: MeshLike): number;
+```
+
+### parseGLB · function
+
+Binary glTF (.glb): the JSON chunk and the embedded BIN chunk. See `parseGLTF` for what is read.
+
+```ts
+export declare function parseGLB(data: BinaryLike, buffers?: GLTFBuffers): TriangleMesh[];
+```
+
+### parseGLTF · function
+
+glTF 2.0 from its JSON (text or parsed) and its buffers. Returns one mesh
+per node of the default scene that carries a mesh, in world space: each
+node's transform (matrix, or translation, rotation and scale) and those of
+its ancestors are applied to the positions, and a mirroring transform also
+reverses the winding. Primitives of one mesh are merged.
+
+Supported: TRIANGLES, TRIANGLE_STRIP and TRIANGLE_FAN primitives (points and
+lines are skipped); POSITION as VEC3 FLOAT; indices as UNSIGNED_BYTE, SHORT
+or INT, or none; byteStride; `data:` base64 buffers; external buffers found
+in `buffers` by their uri (nothing is fetched).
+
+Rejected with a clear error: sparse accessors, quantised or compressed
+geometry (KHR_mesh_quantization, KHR_draco_mesh_compression,
+EXT_meshopt_compression when required), versions other than 2.x, a node
+graph that is not a tree, and any accessor that reads outside its buffer.
+Ignored: normals, UVs, materials, skins, morph targets, animations, cameras
+and instancing extensions.
+
+```ts
+export declare function parseGLTF(json: string | object, buffers?: GLTFBuffers): TriangleMesh[];
+```
+
+### parseOBJ · function
+
+Wavefront OBJ. Reads `v` (x y z; a fourth value or colours are ignored) and
+`f` with the index forms `v`, `v/vt`, `v//vn` and `v/vt/vn`, 1-based or
+negative (relative to the vertices read so far). Polygons are triangulated
+as fans from their first corner, which is right for convex polygons only.
+Each `o` or `g` name starts a mesh (faces under the same name are merged);
+every mesh gets only the vertices it uses. Normals, texture coordinates,
+materials, smoothing groups, lines, points, curves and surfaces are ignored.
+Returns one mesh per object with faces.
+
+```ts
+export declare function parseOBJ(text: string): TriangleMesh[];
+```
+
+### parseSTL · function
+
+STL, binary or ASCII. Bytes are read as binary exactly when the length is
+84 + 50 x the triangle count stored at byte 80, whatever the header says (a
+binary header may begin with "solid"); otherwise they must be ASCII text
+starting with `solid`. A string is always ASCII. Corners at identical
+positions are welded to one vertex, and winding follows the corner order
+(stored normals are ignored). ASCII files must end each solid with
+`endsolid`; several solids in one file are merged. Triangles with two
+identical corners are dropped.
+
+```ts
+export declare function parseSTL(data: BinaryLike | string): TriangleMesh;
+```
+
+### toHeightfieldShape · function
+
+Sample a surface onto the regular grid a height field needs. Pass a function
+`(x, z) => y`, or a mesh: each grid point then takes the highest point of
+the mesh on its vertical line (vertical faces are skipped). Heights are
+absolute, so use the returned `origin` as the body position. Between grid
+points the terrain is piecewise linear, so features narrower than the
+spacing are lost.
+
+```ts
+export declare function toHeightfieldShape(source: MeshLike | ((x: number, z: number) => number), options: HeightfieldOptions): HeightfieldShape;
+```
+
+### toHullShape · function
+
+The convex hull of a mesh (or point list) as a `{kind: 'hull'}` shape. Only
+true hull vertices are returned. When the hull has more than `maxPoints`
+vertices the farthest-first subset is kept, which makes the shape slightly
+smaller than the true hull, never larger.
+
+Box3D stores at most 64 hull vertices and 255 half-edges, and rejects a
+hull beyond the second limit. A hull whose faces are all triangles (any
+rounded shape) reaches it at 44 vertices, so such a hull is cut to 44 points
+even when `maxPoints` is higher; a hull with polygonal faces (a prism, a
+bevelled box) can keep all 64. Passing a raw point cloud of a rounded shape
+straight to `createBody` fails for the same reason; this function is the fix.
+
+```ts
+export declare function toHullShape(mesh: MeshLike | ArrayLike<number>, options?: HullShapeOptions): HullShape;
+```
+
+### toMeshShape · function
+
+A validated `{kind: 'mesh'}` shape for static scenery. Zero-area triangles are dropped; winding is kept.
+
+```ts
+export declare function toMeshShape(mesh: MeshLike): MeshShape;
+```
+
+### transformMesh · function
+
+A copy scaled, then rotated, then translated.
+
+```ts
+export declare function transformMesh(mesh: MeshLike, transform: MeshTransform): TriangleMesh;
+```
+
+### TriangleMesh · interface
+
+A triangle mesh: flat [x, y, z, ...] vertices and index triples, counter-clockwise seen from outside.
+
+```ts
+export interface TriangleMesh {
+    vertices: Float32Array;
+    indices: Uint32Array;
+    name?: string;
+}
+```
+
+### weldVertices · function
+
+Merge vertices closer than `tolerance` (0, the default, merges only identical
+positions) and drop triangles that collapse. Each vertex joins the first
+earlier vertex within the tolerance, so chains of near points are not all
+merged into one.
+
+```ts
+export declare function weldVertices(mesh: MeshLike, tolerance?: number): TriangleMesh;
+```

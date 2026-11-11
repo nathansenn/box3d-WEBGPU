@@ -26,6 +26,13 @@ The WASM is unchanged from 0.8.0.
   - Deterministic. Not modelled: phase change, fluid flow, radiation between surfaces, unstructured meshes.
 - `test/v09-coupling.test.mjs` checks the coupling against closed-form answers; see `docs/WATER_COUPLING.md` for the model, the measured errors and the limits.
 - `test/v09-heat.test.mjs` checks the packaged heat module; the full closed-form suite is `tests/engine/heat.test.mjs` in the repository, and `docs/HEAT_TRANSFER.md` has the equations, the validation table with measured errors and convergence orders, and the limits.
+- **`box3d-webgpu-kit/geometry`:** geometry import and preparation, with no dependencies and no fetching.
+  - Parsers that return `{vertices: Float32Array, indices: Uint32Array, name?}`: `parseOBJ` (v/f, negative indices, `v/vt/vn` forms, polygons as fans, `o`/`g` meshes), `parseSTL` (binary by the 84 + 50 n length rule and ASCII, corners welded), `parseGLB` and `parseGLTF` (glTF 2.0 triangles, strips and fans; float positions; 8-, 16-, 32-bit or no indices; `byteStride`; node matrix or TRS transforms baked in; GLB BIN chunk, `data:` URIs and caller-supplied buffers). Sparse accessors, quantised or compressed geometry and anything that reads outside its buffer are rejected with `INVALID_PAYLOAD` and the reason. `GEOMETRY_LIMITS` caps sizes.
+  - Measures and tools: `meshVolume`, `meshCenterOfMass`, `meshBounds`, `isClosed`, `isConvex`, `weldVertices`, `transformMesh`, `flipWinding`, `convexHull`.
+  - Shapes: `toHullShape` (farthest-first decimation to 32 points by default, and never more than Box3D's 64 vertices or 255 half-edges), `toMeshShape`, `toHeightfieldShape` (from a function or a mesh).
+  - `convexDecompose`: approximate convex decomposition by greedy plane splitting. Exact for solids with flat inner faces; a 576-triangle torus is within 9% with 16 hulls and 3% with 32.
+  - `createBodiesFromMesh(world, mesh, {as: 'mesh' | 'hull' | 'decomposed'})`: a static mesh body, a hull body, or hull bodies held by weld joints, with mass = density x mesh volume for closed meshes.
+  - `capabilities().modules` lists `geometry`. `test/v10-geometry.test.mjs` checks the module against closed-form answers.
 
 ## 0.8.0
 

@@ -48,6 +48,10 @@
       "types": "./dist/gameplay.d.ts",
       "default": "./dist/gameplay.js"
     },
+    "./geometry": {
+      "types": "./dist/geometry.d.ts",
+      "default": "./dist/geometry.js"
+    },
     "./single": {
       "types": "./dist/index.d.ts",
       "default": "./dist/single.js"
@@ -74,7 +78,7 @@
     "sync": "node scripts/sync-core.mjs",
     "build": "node scripts/sync-core.mjs && rm -rf dist && tsc -p tsconfig.json && node scripts/build-single.mjs",
     "test": "npm run build && node --test test/*.test.mjs",
-    "test:gate": "npm run build && node --test test/features.test.mjs test/world.test.mjs test/v03.test.mjs test/v04.test.mjs test/v05.test.mjs test/v06.test.mjs test/v07.test.mjs test/v08.test.mjs test/v09-coupling.test.mjs test/v09-heat.test.mjs && npm run clean",
+    "test:gate": "npm run build && node --test test/features.test.mjs test/world.test.mjs test/v03.test.mjs test/v04.test.mjs test/v05.test.mjs test/v06.test.mjs test/v07.test.mjs test/v08.test.mjs test/v09-coupling.test.mjs test/v09-heat.test.mjs test/v10-geometry.test.mjs && npm run clean",
     "clean": "node --input-type=module -e \"import {rmSync} from 'node:fs'; for (const path of ['dist', 'src/core', 'wasm', 'test/.generated', 'LICENSE', 'THIRD_PARTY_NOTICES.md']) rmSync(path, {recursive: true, force: true});\"",
     "test:pack": "npm run build && node scripts/pack-smoke.mjs",
     "prepack": "npm run build",
