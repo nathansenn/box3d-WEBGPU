@@ -86,7 +86,15 @@ jobs:
           cache: npm
       - run: npm ci
       - name: Install Chromium for software-rendered browser acceptance
-        run: npx playwright install --with-deps chromium
+        # The system packages come from Ubuntu's mirrors, which the runner sometimes cannot resolve
+        # for a minute or two. Retry before giving up, so a network blip isn't reported as a failure.
+        run: |
+          for attempt in 1 2 3 4; do
+            npx playwright install --with-deps chromium && exit 0
+            echo "::warning::Chromium install attempt $attempt failed; retrying in $((attempt * 30)) s"
+            sleep $((attempt * 30))
+          done
+          exit 1
       - id: suite
         name: Browser acceptance
         continue-on-error: true
