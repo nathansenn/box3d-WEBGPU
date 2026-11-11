@@ -52,6 +52,8 @@ simulation.step();
  │                                           steps its cables and frames, applies their forces
  │                 150  cloth coupling       (`clothSubsystem` of box3d-webgpu-kit/cloth) solves the cloth with
  │                                           the bodies it touches, applies its forces
+ │                 170  solid coupling       (`solidContactSubsystem` of box3d-webgpu-kit/solid-contact) solves the
+ │                                           solid with the bodies it touches or is welded to, applies its forces
  │                 200  water coupling       reads the bodies at t, applies buoyancy and drag,
  │                                           advances the water to t + dt
  │
@@ -129,8 +131,8 @@ Each adapter calls the module's own `step` and nothing else. No module's numeric
 | water ↔ structure on the same body | **Each is two-way with the body; they do not know of each other.** See below. |
 | heat → solid | **One-way link** (`thermalSolidLink`): temperature becomes the solid's thermal strain. With a `FractureBody` that strain can crack the solid ([`SOLID_FRACTURE.md`](SOLID_FRACTURE.md)); the cracks do not change the heat flow. |
 | rigid → solid | **One-way link** (`deadLoadLink`): a body's weight becomes a dead load on solid nodes. |
-| rigid ↔ solid contact | **Not modelled.** A rigid body does not collide with a deformable solid, rest on it or get pushed by it. Open. |
-| solid → heat, solid → rigid, water ↔ solid, water ↔ cable or frame | Not modelled. |
+| rigid ↔ solid | Two-way, through `SolidCoupling` and `solidContactSubsystem` ([`SOLID_CONTACT.md`](SOLID_CONTACT.md)): contact with friction against boxes, spheres, capsules and planes, and welds. The adapter lives in the solid-contact module. Node against body only; no solid ↔ solid contact. Solids are not in the scene format. |
+| solid → heat, water ↔ solid, water ↔ cable or frame | Not modelled. |
 | rigid ↔ cloth | Two-way, through `ClothCoupling` and `clothSubsystem` ([`CLOTH.md`](CLOTH.md)): contact with friction, attachments. The adapter lives in the cloth module, not in `simulation.ts`. A cloth and a cable, a frame or water on the same body do not know of each other, as above. Cloth is not in the scene format. |
 | the app's cloth and rope, granular, GPU water | Not in the loop yet. |
 
@@ -160,7 +162,7 @@ The heat solver's temperature becomes the solid's thermal load, the isotropic ei
 
 The weight `m g` of a rigid body is put on solid nodes as a dead load. With `faces` it is spread as a uniform traction over those boundary faces (each node of a face takes a third of the face's share by area); with `nodes` it is shared equally.
 
-- The solid's deflection does not move the body, and nothing here holds the body up: support it in the rigid world (the test rests it on a static slab). **There is no contact.**
+- The solid's deflection does not move the body, and nothing here holds the body up: support it in the rigid world (the test rests it on a static slab). **This link has no contact;** for a body that rests on the solid and is carried by it, use `SolidCoupling` ([`SOLID_CONTACT.md`](SOLID_CONTACT.md)).
 - Mass and gravity are read from the world each step, so a changed gravity or a destroyed body changes the load.
 - The link owns the point forces of those nodes (`setNodalForce` replaces them).
 
@@ -263,7 +265,7 @@ Two loads of the same scene, one of them from a share link, stay bit-identical f
 
 ## Limits and open items
 
-- **Contact between rigid bodies and deformable solids** is not attempted. The dead-load link is the only rigid → solid path and it is one-way.
+- **Contact between rigid bodies and deformable solids** is in a module of its own ([`SOLID_CONTACT.md`](SOLID_CONTACT.md)), node against body, with its limits stated there. Two solids do not collide with each other.
 - **Water forces are not in the structure coupling's free response** (above). The error is bounded and measured; removing it is open.
 - **Links are one-way** and the thermal link needs co-located box grids. General mesh-to-grid interpolation, thermoelastic feedback and heat from a rigid contact are open.
 - **Heat and solids are not in the scene format.** A coupled scene describes rigid bodies, joints, basins, cables and frames.

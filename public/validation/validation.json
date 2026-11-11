@@ -5,10 +5,10 @@
  "generatedBy": "node scripts/validation-report.mjs",
  "digits": 9,
  "totals": {
-  "cases": 345,
-  "passed": 345,
+  "cases": 367,
+  "passed": 367,
   "failed": 0,
-  "domains": 15
+  "domains": 16
  },
  "domains": [
   {
@@ -220,6 +220,27 @@
    ],
    "cases": 29,
    "passed": 29
+  },
+  {
+   "id": "solid-contact",
+   "title": "Deformable solids in contact with rigid bodies",
+   "summary": "A rigid block on an elastic pad in uniaxial stress and in uniaxial strain, the same through the stepping loop with its energy ledger, Hertz contact with a mesh study and the force exponent, Coulomb friction on a deformable incline either side of tan(theta) = mu, a block on an elastic column against the bar with a tip mass, a welded hanging weight, momentum in a free impact, extreme mass ratios with naive staggering failing, and a solid on a supported body.",
+   "solver": "`box3d-webgpu-kit/solid-contact`: node-against-body penalty contact of the tetrahedral solid with boxes, spheres, capsules and planes, Coulomb friction as a capped stick spring, welds; backward Euler by Newton and preconditioned conjugate gradients with each dynamic rigid body as six unknowns of the same solve, float64",
+   "docs": [
+    "docs/SOLID_CONTACT.md"
+   ],
+   "notValidated": [
+    "Hertz contact is 7% to 16% too stiff on the meshes in the gate (2.5 to 5 linear tetrahedra per contact radius, against Hertz with the bonded-layer factor) and converges slowly. The pressure distribution inside the contact is not checked.",
+    "Contact is node against body: a body corner or edge between nodes is not seen, a body smaller than the mesh spacing rests on single nodes, and hulls, triangle meshes and height fields are not supported. There is no solid-solid or self contact.",
+    "A node gets one plane per body and step from where it starts, and nothing is traced along its path: a body that crosses a whole solid in one step is missed, and curved bodies are seen through tangent planes.",
+    "Bodies turn by a linearised rotation within a step (error (omega dt)^2 / 2 of the arm, about the free rotation). Fast-spinning bodies in contact are not checked.",
+    "Friction limits follow the normal force to 1e-4 by repeated solves; only steady sticking and sliding of a flat box are checked. Rolling and spinning friction are not modelled, and static and kinetic coefficients are equal.",
+    "The coupling sees a body's other contacts and joints only through an estimate that lags one step; one case (a block on a box on the ground) is checked.",
+    "The integrator is backward Euler: it damps (36% of the kinetic energy is left after the impact case). Restitution is not a parameter and impact speeds after a bounce are not validated.",
+    "Welds are stiff springs: a welded face is held in all three directions, like a clamped end. Large rotations of a welded solid are not checked against a reference."
+   ],
+   "cases": 22,
+   "passed": 22
   },
   {
    "id": "fracture",
@@ -8577,6 +8598,638 @@
     "measured": "-1.92e8",
     "error": "+4.45e-14 rel.",
     "tolerance": "±1e-10 rel."
+   }
+  },
+  {
+   "id": "solid-contact.pad.stress",
+   "domain": "solid-contact",
+   "title": "Rigid block on an elastic pad with free sides",
+   "quantity": "shortening of a 0.2 m x 0.2 m x 0.05 m pad (E = 1 MPa, nu = 0.3) under a 10 kg block, statics",
+   "unit": "m",
+   "formula": "uniaxial stress: d = m g L / (E A)",
+   "reference": 0.000122625,
+   "measured": 0.000122625,
+   "error": 1.38127357e-16,
+   "relativeError": 1.12642085e-12,
+   "tolerance": {
+    "kind": "relative",
+    "value": 1e-8
+   },
+   "pass": true,
+   "note": "A uniform strain is in the element space and each contact spring is as stiff as the area its node turns to the block, so they sink evenly. Solve tolerance only.",
+   "source": {
+    "file": "packages/box3d-kit/test/v17-solid-contact.test.mjs",
+    "test": "a rigid block on an elastic pad: uniaxial stress with free sides, uniaxial strain with held sides",
+    "url": "https://github.com/nathansenn/box3d-WEBGPU/blob/main/packages/box3d-kit/test/v17-solid-contact.test.mjs"
+   },
+   "text": {
+    "reference": "0.000122625 m",
+    "measured": "0.000122625",
+    "error": "+1.13e-12 rel.",
+    "tolerance": "±1e-8 rel."
+   }
+  },
+  {
+   "id": "solid-contact.pad.strain",
+   "domain": "solid-contact",
+   "title": "Rigid block on an elastic pad with held sides",
+   "quantity": "shortening of the same pad with every node held sideways",
+   "unit": "m",
+   "formula": "uniaxial strain: d = m g L / ((lambda + 2 mu) A)",
+   "reference": 0.0000910928571,
+   "measured": 0.0000910928571,
+   "error": -9.16462544e-16,
+   "relativeError": -1.00607509e-11,
+   "tolerance": {
+    "kind": "relative",
+    "value": 1e-8
+   },
+   "pass": true,
+   "note": "The constrained modulus is 1.346 E at nu = 0.3: the two boundary conditions differ by 35%.",
+   "source": {
+    "file": "packages/box3d-kit/test/v17-solid-contact.test.mjs",
+    "test": "a rigid block on an elastic pad: uniaxial stress with free sides, uniaxial strain with held sides",
+    "url": "https://github.com/nathansenn/box3d-WEBGPU/blob/main/packages/box3d-kit/test/v17-solid-contact.test.mjs"
+   },
+   "text": {
+    "reference": "9.109286e-5 m",
+    "measured": "9.109286e-5",
+    "error": "-1.01e-11 rel.",
+    "tolerance": "±1e-8 rel."
+   }
+  },
+  {
+   "id": "solid-contact.pad.depth",
+   "domain": "solid-contact",
+   "title": "Depth of a contact under pressure",
+   "quantity": "distance between the block and the pad surface",
+   "unit": "m",
+   "formula": "p l / (stiffnessScale (lambda + 2 mu)), l the mean element size",
+   "reference": 7.68306913e-7,
+   "measured": 7.67177596e-7,
+   "error": -1.12931708e-9,
+   "relativeError": -0.00146987755,
+   "tolerance": {
+    "kind": "relative",
+    "value": 0.005
+   },
+   "pass": true,
+   "note": "The contact is a spring. The force it carries does not depend on its stiffness; this depth does.",
+   "source": {
+    "file": "packages/box3d-kit/test/v17-solid-contact.test.mjs",
+    "test": "a rigid block on an elastic pad: uniaxial stress with free sides, uniaxial strain with held sides",
+    "url": "https://github.com/nathansenn/box3d-WEBGPU/blob/main/packages/box3d-kit/test/v17-solid-contact.test.mjs"
+   },
+   "text": {
+    "reference": "7.683069e-7 m",
+    "measured": "7.671776e-7",
+    "error": "-0.147%",
+    "tolerance": "±0.5%"
+   }
+  },
+  {
+   "id": "solid-contact.world.compression",
+   "domain": "solid-contact",
+   "title": "Box of the rigid world settling on the pad, in the stepping loop",
+   "quantity": "pad shortening under a 7.2 kg box after 2 s at 240 Hz",
+   "unit": "m",
+   "formula": "d = m g L / (E A), m the mass the world reports",
+   "reference": 0.0000882900035,
+   "measured": 0.0000882900098,
+   "error": 6.31428036e-12,
+   "relativeError": 7.15175003e-8,
+   "tolerance": {
+    "kind": "relative",
+    "value": 0.000001
+   },
+   "pass": true,
+   "note": "The box is an unknown of the solid step; the world integrates it with the force of that solve. Float32 mass.",
+   "source": {
+    "file": "packages/box3d-kit/test/v17-solid-contact.test.mjs",
+    "test": "the same pad under a box of the rigid world, in the stepping loop: compression, force, events, energy, repeat runs",
+    "url": "https://github.com/nathansenn/box3d-WEBGPU/blob/main/packages/box3d-kit/test/v17-solid-contact.test.mjs"
+   },
+   "text": {
+    "reference": "8.829e-5 m",
+    "measured": "8.829001e-5",
+    "error": "+7.15e-8 rel.",
+    "tolerance": "±1e-6 rel."
+   }
+  },
+  {
+   "id": "solid-contact.world.force",
+   "domain": "solid-contact",
+   "title": "Force of the pad on the resting box",
+   "quantity": "vertical force handed to the rigid world",
+   "unit": "N",
+   "formula": "F = m g",
+   "reference": 70.6320028,
+   "measured": 70.6320079,
+   "error": 0.00000508379266,
+   "relativeError": 7.19757681e-8,
+   "tolerance": {
+    "kind": "relative",
+    "value": 0.000001
+   },
+   "pass": true,
+   "source": {
+    "file": "packages/box3d-kit/test/v17-solid-contact.test.mjs",
+    "test": "the same pad under a box of the rigid world, in the stepping loop: compression, force, events, energy, repeat runs",
+    "url": "https://github.com/nathansenn/box3d-WEBGPU/blob/main/packages/box3d-kit/test/v17-solid-contact.test.mjs"
+   },
+   "text": {
+    "reference": "70.632 N",
+    "measured": "70.63201",
+    "error": "+7.2e-8 rel.",
+    "tolerance": "±1e-6 rel."
+   }
+  },
+  {
+   "id": "solid-contact.world.energy",
+   "domain": "solid-contact",
+   "title": "Energy ledger of the settling box",
+   "quantity": "largest rise of (total - exchanged) between samples, over the work the box did",
+   "unit": "1",
+   "formula": "backward Euler and damping only remove energy",
+   "reference": 0,
+   "measured": 5.56291217e-13,
+   "error": 5.56291217e-13,
+   "relativeError": null,
+   "tolerance": {
+    "kind": "upper",
+    "value": 1e-9
+   },
+   "pass": true,
+   "source": {
+    "file": "packages/box3d-kit/test/v17-solid-contact.test.mjs",
+    "test": "the same pad under a box of the rigid world, in the stepping loop: compression, force, events, energy, repeat runs",
+    "url": "https://github.com/nathansenn/box3d-WEBGPU/blob/main/packages/box3d-kit/test/v17-solid-contact.test.mjs"
+   },
+   "text": {
+    "reference": "0",
+    "measured": "5.562912e-13",
+    "error": "+5.56e-13",
+    "tolerance": "at most 1e-9 above the reference"
+   }
+  },
+  {
+   "id": "solid-contact.hertz.coarse",
+   "domain": "solid-contact",
+   "title": "Hertz contact, 2.5 elements per contact radius",
+   "quantity": "force on a rigid sphere (R = 1 m) pressed 0.625 mm into a block, 729 nodes, over Hertz times the bonded-layer factor, minus 1",
+   "unit": "1",
+   "formula": "F = (4/3) E* sqrt(R) d^1.5 (1 + 0.0460), E* = E / (1 - nu^2); layer factor of Dimitriadis et al. 2002 at a / t = 0.05",
+   "reference": 0,
+   "measured": 0.162603743,
+   "error": 0.162603743,
+   "relativeError": null,
+   "tolerance": {
+    "kind": "absolute",
+    "value": 0.18
+   },
+   "pass": true,
+   "note": "A bound on what was measured (+16.3%), not accuracy. Linear tetrahedra with node-against-sphere contact are too stiff. Against plain Hertz the same run is +21.6%.",
+   "source": {
+    "file": "packages/box3d-kit/test/v17-solid-contact.test.mjs",
+    "test": "Hertz: a rigid sphere pressed into an elastic block, with the mesh study",
+    "url": "https://github.com/nathansenn/box3d-WEBGPU/blob/main/packages/box3d-kit/test/v17-solid-contact.test.mjs"
+   },
+   "text": {
+    "reference": "0",
+    "measured": "0.1626037",
+    "error": "+0.163",
+    "tolerance": "±0.18"
+   }
+  },
+  {
+   "id": "solid-contact.hertz.medium",
+   "domain": "solid-contact",
+   "title": "Hertz contact, 3.75 elements per contact radius",
+   "quantity": "the same, 2197 nodes",
+   "unit": "1",
+   "formula": "as above",
+   "reference": 0,
+   "measured": 0.0941306515,
+   "error": 0.0941306515,
+   "relativeError": null,
+   "tolerance": {
+    "kind": "absolute",
+    "value": 0.11
+   },
+   "pass": true,
+   "note": "Measured +9.4% (+14.4% against plain Hertz).",
+   "source": {
+    "file": "packages/box3d-kit/test/v17-solid-contact.test.mjs",
+    "test": "Hertz: a rigid sphere pressed into an elastic block, with the mesh study",
+    "url": "https://github.com/nathansenn/box3d-WEBGPU/blob/main/packages/box3d-kit/test/v17-solid-contact.test.mjs"
+   },
+   "text": {
+    "reference": "0",
+    "measured": "0.09413065",
+    "error": "+0.0941",
+    "tolerance": "±0.11"
+   }
+  },
+  {
+   "id": "solid-contact.hertz.fine",
+   "domain": "solid-contact",
+   "title": "Hertz contact, 5 elements per contact radius",
+   "quantity": "the same, 4913 nodes",
+   "unit": "1",
+   "formula": "as above",
+   "reference": 0,
+   "measured": 0.0679226823,
+   "error": 0.0679226823,
+   "relativeError": null,
+   "tolerance": {
+    "kind": "absolute",
+    "value": 0.08
+   },
+   "pass": true,
+   "note": "Measured +6.8% (+11.7% against plain Hertz). The error falls with the mesh but slowly; a finer study is outside the gate.",
+   "source": {
+    "file": "packages/box3d-kit/test/v17-solid-contact.test.mjs",
+    "test": "Hertz: a rigid sphere pressed into an elastic block, with the mesh study",
+    "url": "https://github.com/nathansenn/box3d-WEBGPU/blob/main/packages/box3d-kit/test/v17-solid-contact.test.mjs"
+   },
+   "text": {
+    "reference": "0",
+    "measured": "0.06792268",
+    "error": "+0.0679",
+    "tolerance": "±0.08"
+   }
+  },
+  {
+   "id": "solid-contact.hertz.exponent",
+   "domain": "solid-contact",
+   "title": "Hertz contact: exponent of force against indentation",
+   "quantity": "least-squares slope of ln F against ln d over d = 0.2 to 0.625 mm, 2197 nodes",
+   "unit": "1",
+   "formula": "F ~ d^1.5",
+   "reference": 1.5,
+   "measured": 1.55876201,
+   "error": 0.05876201,
+   "relativeError": 0.0391746733,
+   "tolerance": {
+    "kind": "absolute",
+    "value": 0.08
+   },
+   "pass": true,
+   "note": "Measured 1.56; 1.54 with the layer factor divided out. The mesh is fixed, so larger indentations see relatively finer elements.",
+   "source": {
+    "file": "packages/box3d-kit/test/v17-solid-contact.test.mjs",
+    "test": "Hertz: a rigid sphere pressed into an elastic block, with the mesh study",
+    "url": "https://github.com/nathansenn/box3d-WEBGPU/blob/main/packages/box3d-kit/test/v17-solid-contact.test.mjs"
+   },
+   "text": {
+    "reference": "1.5",
+    "measured": "1.558762",
+    "error": "+0.0588",
+    "tolerance": "±0.08"
+   }
+  },
+  {
+   "id": "solid-contact.friction.stick",
+   "domain": "solid-contact",
+   "title": "Box on a deformable incline below the friction angle",
+   "quantity": "travel in 0.75 s after settling, 26 degrees, mu = 0.5 (tan = 0.488)",
+   "unit": "m",
+   "formula": "no motion while tan(theta) < mu",
+   "reference": 0,
+   "measured": 0,
+   "error": 0,
+   "relativeError": null,
+   "tolerance": {
+    "kind": "absolute",
+    "value": 1e-7
+   },
+   "pass": true,
+   "note": "The stick spring holds a fixed point of the box: no creep. Float32 resolves the position to 6e-8 m.",
+   "source": {
+    "file": "packages/box3d-kit/test/v17-solid-contact.test.mjs",
+    "test": "Coulomb friction on a deformable incline: sticks below tan(theta) = mu, slides at g (sin - mu cos) above",
+    "url": "https://github.com/nathansenn/box3d-WEBGPU/blob/main/packages/box3d-kit/test/v17-solid-contact.test.mjs"
+   },
+   "text": {
+    "reference": "0 m",
+    "measured": "0",
+    "error": "0",
+    "tolerance": "±1e-7"
+   }
+  },
+  {
+   "id": "solid-contact.friction.ratio",
+   "domain": "solid-contact",
+   "title": "Box on a deformable incline: friction force when stuck",
+   "quantity": "tangential over normal force at 26 degrees",
+   "unit": "1",
+   "formula": "F_t / N = tan(theta)",
+   "reference": 0.487732589,
+   "measured": 0.487732589,
+   "error": -7.53913598e-12,
+   "relativeError": -1.54575195e-11,
+   "tolerance": {
+    "kind": "relative",
+    "value": 0.00001
+   },
+   "pass": true,
+   "source": {
+    "file": "packages/box3d-kit/test/v17-solid-contact.test.mjs",
+    "test": "Coulomb friction on a deformable incline: sticks below tan(theta) = mu, slides at g (sin - mu cos) above",
+    "url": "https://github.com/nathansenn/box3d-WEBGPU/blob/main/packages/box3d-kit/test/v17-solid-contact.test.mjs"
+   },
+   "text": {
+    "reference": "0.4877326",
+    "measured": "0.4877326",
+    "error": "-1.55e-11 rel.",
+    "tolerance": "±1e-5 rel."
+   }
+  },
+  {
+   "id": "solid-contact.friction.slide",
+   "domain": "solid-contact",
+   "title": "Box sliding on a deformable incline",
+   "quantity": "acceleration at 27.5 degrees with mu = 0.5 (tan = 0.521), least-squares fit over 0.75 s",
+   "unit": "m/s^2",
+   "formula": "a = -g (sin(theta) - mu cos(theta))",
+   "reference": -0.178965759,
+   "measured": -0.179669053,
+   "error": -0.000703293502,
+   "relativeError": -0.0039297657,
+   "tolerance": {
+    "kind": "relative",
+    "value": 0.02
+   },
+   "pass": true,
+   "note": "The acceleration is the difference of two forces 25 times larger. Each node's friction limit follows its normal force to 1e-4.",
+   "source": {
+    "file": "packages/box3d-kit/test/v17-solid-contact.test.mjs",
+    "test": "Coulomb friction on a deformable incline: sticks below tan(theta) = mu, slides at g (sin - mu cos) above",
+    "url": "https://github.com/nathansenn/box3d-WEBGPU/blob/main/packages/box3d-kit/test/v17-solid-contact.test.mjs"
+   },
+   "text": {
+    "reference": "-0.1789658 m/s^2",
+    "measured": "-0.1796691",
+    "error": "-0.393%",
+    "tolerance": "±2%"
+   }
+  },
+  {
+   "id": "solid-contact.column.frequency",
+   "domain": "solid-contact",
+   "title": "Block resting on an elastic column",
+   "quantity": "frequency of a 2 kg block on a 1.25 kg column (k = 1000 N/m), 8 cells, 240 Hz",
+   "unit": "Hz",
+   "formula": "omega = x c / L, x tan(x) = m_column / M (bar with a tip mass)",
+   "reference": 3.22750317,
+   "measured": 3.22307693,
+   "error": -0.00442623594,
+   "relativeError": -0.0013714118,
+   "tolerance": {
+    "kind": "relative",
+    "value": 0.004
+   },
+   "pass": true,
+   "note": "The column's own mass lowers the frequency by 9.3% against sqrt(k / M); the Rayleigh estimate M + m/3 is 0.3% high.",
+   "source": {
+    "file": "packages/box3d-kit/test/v17-solid-contact.test.mjs",
+    "test": "a mass on an elastic column swings at the frequency of a bar with a tip mass",
+    "url": "https://github.com/nathansenn/box3d-WEBGPU/blob/main/packages/box3d-kit/test/v17-solid-contact.test.mjs"
+   },
+   "text": {
+    "reference": "3.227503 Hz",
+    "measured": "3.223077",
+    "error": "-0.137%",
+    "tolerance": "±0.4%"
+   }
+  },
+  {
+   "id": "solid-contact.weld.stretch",
+   "domain": "solid-contact",
+   "title": "Weight welded under a hanging bar",
+   "quantity": "stretch of a 0.4 m bar (E = 1 MPa, nu = 0) under a 1.536 kg block, settled at 240 Hz",
+   "unit": "m",
+   "formula": "d = M g L / (E A) + rho g L^2 / (2 E)",
+   "reference": 0.00319570562,
+   "measured": 0.00319571807,
+   "error": 1.24526455e-8,
+   "relativeError": 0.00000389668103,
+   "tolerance": {
+    "kind": "relative",
+    "value": 0.00005
+   },
+   "pass": true,
+   "note": "With nu = 0.3 the weld holds the end face's width and the bar is 1.4% stiffer: a welded end is a clamped end.",
+   "source": {
+    "file": "packages/box3d-kit/test/v17-solid-contact.test.mjs",
+    "test": "welds: a hanging weight stretches its bar by M g L / (E A) + rho g L^2 / (2 E), and a welded end is a clamped end",
+    "url": "https://github.com/nathansenn/box3d-WEBGPU/blob/main/packages/box3d-kit/test/v17-solid-contact.test.mjs"
+   },
+   "text": {
+    "reference": "0.003195706 m",
+    "measured": "0.003195718",
+    "error": "+3.9e-6 rel.",
+    "tolerance": "±5e-5 rel."
+   }
+  },
+  {
+   "id": "solid-contact.weld.support",
+   "domain": "solid-contact",
+   "title": "Weight welded under a hanging bar: support reaction",
+   "quantity": "sum of the reactions at the top of the bar",
+   "unit": "N",
+   "formula": "R = (M + m_bar) g",
+   "reference": 24.8781601,
+   "measured": 24.8781398,
+   "error": -0.0000203432676,
+   "relativeError": -8.1771592e-7,
+   "tolerance": {
+    "kind": "relative",
+    "value": 0.00001
+   },
+   "pass": true,
+   "source": {
+    "file": "packages/box3d-kit/test/v17-solid-contact.test.mjs",
+    "test": "welds: a hanging weight stretches its bar by M g L / (E A) + rho g L^2 / (2 E), and a welded end is a clamped end",
+    "url": "https://github.com/nathansenn/box3d-WEBGPU/blob/main/packages/box3d-kit/test/v17-solid-contact.test.mjs"
+   },
+   "text": {
+    "reference": "24.87816 N",
+    "measured": "24.87814",
+    "error": "-8.18e-7 rel.",
+    "tolerance": "±1e-5 rel."
+   }
+  },
+  {
+   "id": "solid-contact.momentum.float64",
+   "domain": "solid-contact",
+   "title": "Free impact of a ball on an elastic block",
+   "quantity": "largest change of the total linear momentum over 120 steps, over the ball's momentum; float64 bodies",
+   "unit": "1",
+   "formula": "dp = 0",
+   "reference": 0,
+   "measured": 7.55537361e-13,
+   "error": 7.55537361e-13,
+   "relativeError": null,
+   "tolerance": {
+    "kind": "upper",
+    "value": 2e-11
+   },
+   "pass": true,
+   "note": "What is left is the residual of the nodes' solve (1e-12 of the force) times the step. With friction 0.4.",
+   "source": {
+    "file": "packages/box3d-kit/test/v17-solid-contact.test.mjs",
+    "test": "momentum in a free impact: to rounding with float64 bodies, to float32 through the rigid world",
+    "url": "https://github.com/nathansenn/box3d-WEBGPU/blob/main/packages/box3d-kit/test/v17-solid-contact.test.mjs"
+   },
+   "text": {
+    "reference": "0",
+    "measured": "7.555374e-13",
+    "error": "+7.56e-13",
+    "tolerance": "at most 2e-11 above the reference"
+   }
+  },
+  {
+   "id": "solid-contact.momentum.float32",
+   "domain": "solid-contact",
+   "title": "Free impact through the rigid world",
+   "quantity": "the same with the ball in the float32 rigid world",
+   "unit": "1",
+   "formula": "dp = 0",
+   "reference": 0,
+   "measured": 1.18822607e-7,
+   "error": 1.18822607e-7,
+   "relativeError": null,
+   "tolerance": {
+    "kind": "upper",
+    "value": 0.000002
+   },
+   "pass": true,
+   "source": {
+    "file": "packages/box3d-kit/test/v17-solid-contact.test.mjs",
+    "test": "momentum in a free impact: to rounding with float64 bodies, to float32 through the rigid world",
+    "url": "https://github.com/nathansenn/box3d-WEBGPU/blob/main/packages/box3d-kit/test/v17-solid-contact.test.mjs"
+   },
+   "text": {
+    "reference": "0",
+    "measured": "1.188226e-7",
+    "error": "+1.19e-7",
+    "tolerance": "at most 2e-6 above the reference"
+   }
+  },
+  {
+   "id": "solid-contact.ratio.light",
+   "domain": "solid-contact",
+   "title": "A 4 g body on a steel block",
+   "quantity": "largest speed of the body in 1 s at 240 Hz (contact stiffness h^2 / mass = 7e8)",
+   "unit": "m/s",
+   "formula": "at rest",
+   "reference": 0,
+   "measured": 5.73694706e-7,
+   "error": 5.73694706e-7,
+   "relativeError": null,
+   "tolerance": {
+    "kind": "upper",
+    "value": 0.00001
+   },
+   "pass": true,
+   "note": "The body is an unknown of the solid step, so the stiffness ratio does not matter.",
+   "source": {
+    "file": "packages/box3d-kit/test/v17-solid-contact.test.mjs",
+    "test": "mass ratios: a light body on a stiff solid and a heavy body on a soft one stay put; naive staggering throws the light one off",
+    "url": "https://github.com/nathansenn/box3d-WEBGPU/blob/main/packages/box3d-kit/test/v17-solid-contact.test.mjs"
+   },
+   "text": {
+    "reference": "0 m/s",
+    "measured": "5.736947e-7",
+    "error": "+5.74e-7",
+    "tolerance": "at most 1e-5 above the reference"
+   }
+  },
+  {
+   "id": "solid-contact.ratio.naive",
+   "domain": "solid-contact",
+   "title": "The same with naive staggering",
+   "quantity": "steps until the body is thrown off at more than 20 m/s",
+   "unit": "steps",
+   "formula": "unstable when stiffness h^2 / mass is large: thrown off in the first step",
+   "reference": 1,
+   "measured": 1,
+   "error": 0,
+   "relativeError": 0,
+   "tolerance": {
+    "kind": "upper",
+    "value": 2
+   },
+   "pass": true,
+   "note": "Kept to show what the implicit coupling avoids. An upper bound on a failure, not accuracy.",
+   "source": {
+    "file": "packages/box3d-kit/test/v17-solid-contact.test.mjs",
+    "test": "mass ratios: a light body on a stiff solid and a heavy body on a soft one stay put; naive staggering throws the light one off",
+    "url": "https://github.com/nathansenn/box3d-WEBGPU/blob/main/packages/box3d-kit/test/v17-solid-contact.test.mjs"
+   },
+   "text": {
+    "reference": "1 steps",
+    "measured": "1",
+    "error": "0",
+    "tolerance": "at most 2 above the reference"
+   }
+  },
+  {
+   "id": "solid-contact.ratio.heavy",
+   "domain": "solid-contact",
+   "title": "An 80 kg body on a 2 kg soft pad at 60 Hz",
+   "quantity": "force on the body after 3 s over its weight, minus 1",
+   "unit": "1",
+   "formula": "F = m g at rest",
+   "reference": 0,
+   "measured": -2.91010828e-8,
+   "error": -2.91010828e-8,
+   "relativeError": null,
+   "tolerance": {
+    "kind": "absolute",
+    "value": 0.001
+   },
+   "pass": true,
+   "source": {
+    "file": "packages/box3d-kit/test/v17-solid-contact.test.mjs",
+    "test": "mass ratios: a light body on a stiff solid and a heavy body on a soft one stay put; naive staggering throws the light one off",
+    "url": "https://github.com/nathansenn/box3d-WEBGPU/blob/main/packages/box3d-kit/test/v17-solid-contact.test.mjs"
+   },
+   "text": {
+    "reference": "0",
+    "measured": "-2.910108e-8",
+    "error": "-2.91e-8",
+    "tolerance": "±0.001"
+   }
+  },
+  {
+   "id": "solid-contact.supported.force",
+   "domain": "solid-contact",
+   "title": "Block resting on a box that rests on rigid ground",
+   "quantity": "force of the 4 kg block on the box",
+   "unit": "N",
+   "formula": "F = -m g",
+   "reference": -39.24,
+   "measured": -39.2400024,
+   "error": -0.00000238114233,
+   "relativeError": -6.06815069e-8,
+   "tolerance": {
+    "kind": "relative",
+    "value": 0.00001
+   },
+   "pass": true,
+   "note": "The coupling sees the ground under the box only through the estimate of the box's supports, which lags a step.",
+   "source": {
+    "file": "packages/box3d-kit/test/v17-solid-contact.test.mjs",
+    "test": "a solid resting on a body that rests on rigid ground weighs what it should",
+    "url": "https://github.com/nathansenn/box3d-WEBGPU/blob/main/packages/box3d-kit/test/v17-solid-contact.test.mjs"
+   },
+   "text": {
+    "reference": "-39.24 N",
+    "measured": "-39.24",
+    "error": "-6.07e-8 rel.",
+    "tolerance": "±1e-5 rel."
    }
   },
   {

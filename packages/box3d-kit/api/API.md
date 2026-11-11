@@ -2952,6 +2952,7 @@ export declare class SolidBody {
   step(count?: number): void;
   explicitLimit(): SolidExplicitLimit;
   fundamentalMode(options?: { maxIterations?: number; tolerance?: number; }): SolidMode;
+  kernel(): SolidKernel;
   strainEnergy(): number;
   kineticEnergy(): number;
   loadPotential(): number;
@@ -3017,6 +3018,32 @@ export type SolidFailureCriterion = 'max-principal' | 'von-mises';
 
 ```ts
 export type SolidIntegrator = 'backward-euler' | 'midpoint' | 'explicit';
+```
+
+### SolidKernel · interface
+
+What `SolidBody.kernel()` hands to a coupled solver. Arrays are the body's own, live.
+
+```ts
+export interface SolidKernel {
+    readonly fixed: Uint8Array;
+    readonly prescribed: Float64Array;
+    readonly stiffnessDiagonal: Float64Array;
+    readonly massDamping: number;
+    readonly stiffnessDamping: number;
+    readonly tolerance: number;
+    readonly forceTolerance: number;
+    readonly maxNewtonIterations: number;
+    readonly maxLinearIterations: number;
+    readonly gravity: Float64Array;
+    loads(): Float64Array;
+    applyConstraints(): void;
+    energy(u: Float64Array, fint: Float64Array | null, store: boolean): number;
+    tangentProduct(x: Float64Array, out: Float64Array): void;
+    holdDampingTangent(): void;
+    dampingProduct(x: Float64Array, out: Float64Array): void;
+    advance(converged: boolean): void;
+}
 ```
 
 ### SolidMaterial · interface
@@ -6487,6 +6514,285 @@ export interface ClothWorld<B> {
     };
     applyForce(body: B, force: ClothVec3, point?: ClothVec3): void;
     applyTorque(body: B, torque: ClothVec3): void;
+    isAlive?(body: B): boolean;
+    readonly loop?: {
+        readonly step: number;
+    };
+    readonly subSteps?: number;
+}
+```
+
+## `box3d-webgpu-kit/solid-contact`
+
+### SOLID_CONTACT_SOLVER_ID · const
+
+```ts
+export declare const SOLID_CONTACT_SOLVER_ID = "solid-contact-penalty-newton-pcg-js-f64-v1";
+```
+
+### SOLID_CONTACT_SUBSYSTEM_ORDER · const
+
+Where the solid coupling runs inside the couple stage of a Simulation: after the cloth (150), before the water (200).
+
+```ts
+export declare const SOLID_CONTACT_SUBSYSTEM_ORDER = 170;
+```
+
+### SOLID_COUPLING_BACKEND · const
+
+```ts
+export declare const SOLID_COUPLING_BACKEND = "rigid-solid-coupling-monolithic-js-f64-v1";
+```
+
+### SolidColliderOptions · interface
+
+```ts
+export interface SolidColliderOptions {
+    readonly shape: SolidContactShape;
+    readonly friction?: number;
+    readonly inertia?: StructureInertia;
+    readonly collide?: boolean;
+    readonly twoWay?: boolean;
+    readonly gravityScale?: number;
+}
+```
+
+### SolidContact · class
+
+A deformable solid in contact with rigid bodies. Build the `SolidBody` as usual (backward Euler), hand it over,
+add bodies, and from then on step it here, not with `solid.step()`.
+
+Without a world the bodies are this object's own: `step()` moves the dynamic ones by backward Euler with the
+force and torque of the solve. A `SolidCoupling` reads them from a rigid world instead and hands the forces to it.
+
+```ts
+export declare class SolidContact {
+  readonly solver = "solid-contact-penalty-newton-pcg-js-f64-v1";
+  readonly solid: SolidBody;
+  readonly dt: number;
+  readonly stiffnessScale: number;
+  readonly skin: number;
+  readonly frictionPasses: number;
+  readonly frictionTolerance: number;
+  scheme: 'implicit' | 'naive-staggered';
+  bodyStepFactor: number;
+  integrateBodies: boolean;
+  readonly bodyGravity: Float64Array<ArrayBuffer>;
+  readonly stats: SolidContactStats;
+  externalWork: number;
+  readonly surfaceNodes: Uint32Array;
+  readonly surfaceArea: Float64Array;
+  readonly elementSize: number;
+  readonly nodeForce: Float64Array;
+  addBody(options: SolidContactBodyOptions): number;
+  get bodyCount(): number;
+  setBodyState(index: number, state: SolidContactBodyState): void;
+  setBodyExternalLoad(index: number, force: ArrayLike<number>, torque: ArrayLike<number>, torqueOffset?: number): void;
+  setBodyMass(index: number, mass: number): void;
+  bodyForce(index: number): Float64Array;
+  bodyTorque(index: number): Float64Array;
+  bodyTwoWay(index: number): boolean;
+  bodyGravityScale(index: number): number;
+  bodyMass(index: number): number;
+  bodyMotion(index: number): Float64Array;
+  bodyContacts(index: number): number;
+  bodyPosition(index: number): Float64Array;
+  bodyRotation(index: number): Float64Array;
+  bodyVelocity(index: number): Float64Array;
+  bodyAngularVelocity(index: number): Float64Array;
+  bodyAngularMomentumChange(index: number, dx: number, dy: number, dz: number, out: Float64Array): void;
+  weld(nodes: ArrayLike<number>, bodyIndex: number): void;
+  unweld(nodes: ArrayLike<number>): void;
+  get weldCount(): number;
+  step(count?: number): void;
+  solveStatic(options?: { readonly pseudoStep?: number; readonly maxPasses?: number; readonly tolerance?: number; }): SolidStaticContactResult;
+  contactEnergy(): number;
+  maxPenetration(): number;
+  linearMomentum(out?: number[] | Float64Array): number[] | Float64Array;
+}
+```
+
+### SolidContactBodyOptions · interface
+
+```ts
+export interface SolidContactBodyOptions extends SolidContactBodyState {
+    readonly shape: SolidContactShape;
+    readonly type: 'static' | 'kinematic' | 'dynamic';
+    readonly mass?: number;
+    readonly inertia?: StructureInertia;
+    readonly friction?: number;
+    readonly collide?: boolean;
+    readonly twoWay?: boolean;
+    readonly gravityScale?: number;
+}
+```
+
+### SolidContactBodyState · interface
+
+```ts
+export interface SolidContactBodyState {
+    readonly position: ArrayLike<number>;
+    readonly rotation: ArrayLike<number>;
+    readonly linearVelocity?: ArrayLike<number>;
+    readonly angularVelocity?: ArrayLike<number>;
+}
+```
+
+### SolidContactOptions · interface
+
+```ts
+export interface SolidContactOptions {
+    readonly stiffnessScale?: number;
+    readonly skin?: number;
+    readonly frictionPasses?: number;
+    readonly frictionTolerance?: number;
+    readonly scheme?: 'implicit' | 'naive-staggered';
+    readonly gravity?: SolidContactVec3;
+}
+```
+
+### SolidContactShape · type
+
+```ts
+export type SolidContactShape = {
+    readonly kind: 'box';
+    readonly halfExtents: SolidContactVec3;
+} | {
+    readonly kind: 'sphere';
+    readonly radius: number;
+}
+| {
+    readonly kind: 'capsule';
+    readonly radius: number;
+    readonly halfLength: number;
+}
+| {
+    readonly kind: 'plane';
+    readonly normal: SolidContactVec3;
+};
+```
+
+### SolidContactStats · interface
+
+```ts
+export interface SolidContactStats {
+    converged: boolean;
+    newtonIterations: number;
+    linearIterations: number;
+    residual: number;
+    reference: number;
+    frictionPasses: number;
+    unconvergedSteps: number;
+    contacts: number;
+}
+```
+
+### solidContactSubsystem · function
+
+A solid in contact as a subsystem of the one stepping loop (simulation.ts).
+ - A `SolidCoupling`: couple stage, order 170. It exchanges forces with the rigid step, so its dt must equal the
+   simulation step.
+ - A bare `SolidContact` (its own bodies, no world): post stage; its dt may be the step or a whole fraction of it.
+Do not also register the same SolidBody with `solidSubsystem`: it would be stepped twice.
+Energy: kinetic + strain + load potential of the solid plus the energy in the contact springs, with the work the
+bodies did on the solid as `exchanged`; the bodies themselves are not counted (track them with
+`simulation.trackBody`). Backward Euler and friction make `total - exchanged` fall.
+Events, emitted at the end of a step: 'contact-begin' and 'contact-end' with {body, index} when a body starts or
+stops pressing on the solid (SolidCoupling only), and 'unconverged' with {residual, reference}.
+
+```ts
+export declare function solidContactSubsystem<W, B>(target: SolidContact | SolidCoupling<B>, options?: {
+    readonly id?: string;
+    readonly order?: number;
+}): Subsystem<W, B>;
+```
+
+### SolidContactVec3 · type
+
+```ts
+export type SolidContactVec3 = readonly [number, number, number];
+```
+
+### SolidCoupling · class
+
+Two-way coupling of a deformable solid with a rigid world. Call `step()` immediately before `world.step()`: it reads
+the bodies, advances the solid by one step with the dynamic bodies as unknowns of the same solve, and gives each
+body the force and torque the solid put on it, to act through the rigid step.
+
+```ts
+export declare class SolidCoupling<B> {
+  readonly backend = "rigid-solid-coupling-monolithic-js-f64-v1";
+  readonly world: SolidWorld<B>;
+  readonly contact: SolidContact;
+  readonly solid: SolidBody;
+  readonly dt: number;
+  readonly estimateSupports: boolean;
+  steps: number;
+  addBody(body: B, options: SolidColliderOptions): number;
+  addPlane(options: { readonly normal: SolidContactVec3; readonly point?: SolidContactVec3; readonly friction?: number; }): number;
+  indexOf(body: B): number;
+  weld(nodes: ArrayLike<number>, body: B): void;
+  unweld(nodes: ArrayLike<number>): void;
+  force(body: B): Float64Array;
+  torque(body: B): Float64Array;
+  step(): void;
+  contactChanges(each: (body: B | null, index: number, touching: boolean) => void): void;
+  diagnostics(): SolidCouplingDiagnostics;
+}
+```
+
+### SolidCouplingDiagnostics · interface
+
+```ts
+export interface SolidCouplingDiagnostics {
+    solidKinetic: number;
+    solidStrain: number;
+    solidPotential: number;
+    contact: number;
+    bodyKinetic: number;
+    bodyPotential: number;
+    total: number;
+    momentum: [number, number, number];
+    mass: number;
+}
+```
+
+### SolidCouplingOptions · interface
+
+```ts
+export interface SolidCouplingOptions extends SolidContactOptions {
+    readonly estimateSupports?: boolean;
+}
+```
+
+### SolidStaticContactResult · interface
+
+```ts
+export interface SolidStaticContactResult {
+    converged: boolean;
+    passes: number;
+    residual: number;
+    change: number;
+}
+```
+
+### SolidWorld · interface
+
+The part of a rigid-body world the coupling uses. The kit's PhysicsWorld satisfies it.
+
+```ts
+export interface SolidWorld<B> {
+    gravity(): readonly number[];
+    getState(body: B): {
+        readonly position: readonly number[];
+        readonly rotation: readonly number[];
+        readonly linearVelocity: readonly number[];
+        readonly angularVelocity: readonly number[];
+        readonly mass: number;
+        readonly type: string;
+    };
+    applyForce(body: B, force: SolidContactVec3, point?: SolidContactVec3): void;
+    applyTorque(body: B, torque: SolidContactVec3): void;
     isAlive?(body: B): boolean;
     readonly loop?: {
         readonly step: number;

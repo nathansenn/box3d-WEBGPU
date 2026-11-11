@@ -4,7 +4,7 @@
 
 Source: `src/engine/solid.ts` and `src/engine/solid-mesh.ts`. Kit import: `box3d-webgpu-kit/solid`. Validation: `tests/engine/solid.test.mjs`, run by `npm run test:solid` in the required pull-request gate.
 
-It plugs into the shared stepping loop (`solidSubsystem`, [`SIMULATION.md`](SIMULATION.md)), where two one-way links reach it: the heat solver's temperature as thermal strain, and a rigid body's weight as a dead load. Nothing flows back, and there is no contact with rigid bodies, so by the roadmap's rule 3 it is still not a coupled solver.
+It plugs into the shared stepping loop (`solidSubsystem`, [`SIMULATION.md`](SIMULATION.md)), where two one-way links reach it: the heat solver's temperature as thermal strain, and a rigid body's weight as a dead load. Contact with rigid bodies, friction, welds and the two-way coupling to the rigid world are a separate module on this solver, `SolidContact` and `SolidCoupling`: see [`SOLID_CONTACT.md`](SOLID_CONTACT.md). `SolidBody.kernel()` is the access that module uses; it does not change how `step` or `solveStatic` behave.
 
 ## Formulation
 
@@ -101,7 +101,7 @@ The observed order is `log2(error(h) / error(h / 2))`.
 
 The conjugate-gradient iteration count rises with it (125 at 0.3, about 2,500 at 0.4999). Uniform states, including hydrostatic ones, stay exact at any `nu`. Rubber at `nu = 0.45` is about 5 percentage points stiffer in bending than `nu = 0` on that mesh; `nu` above 0.49 needs a mixed or higher-order element, which this version does not have. `nu` is limited to 0.4999.
 
-**Not modelled.** Contact and self-contact; plasticity and viscoelasticity; damage and crack propagation in `SolidBody` itself (its strength checks only flag elements; [`SOLID_FRACTURE.md`](SOLID_FRACTURE.md) describes the fracture solver built on the linear model); follower pressure; anisotropy; more than one material per body; higher-order or mixed elements; two-way coupling to the rigid-body, water, cable or frame solvers (the one-way links of [`SIMULATION.md`](SIMULATION.md) aside); checkpoints.
+**Not modelled.** Contact between two solids and self-contact (contact with rigid bodies is in [`SOLID_CONTACT.md`](SOLID_CONTACT.md), node against body, backward Euler only); plasticity and viscoelasticity; damage and crack propagation in `SolidBody` itself (its strength checks only flag elements; [`SOLID_FRACTURE.md`](SOLID_FRACTURE.md) describes the fracture solver built on the linear model); follower pressure; anisotropy; more than one material per body; higher-order or mixed elements; two-way coupling to the water, cable or frame solvers (the rigid world is coupled through `SolidCoupling`; the one-way links of [`SIMULATION.md`](SIMULATION.md) remain); checkpoints.
 
 **Other limits.** Up to 200,000 nodes and 1,000,000 elements. The explicit stability limit is that of the reference shape. The midpoint rule conserves energy exactly only for the linear model. Backward Euler damps high modes strongly at large time steps. The stress of a rotated element is accurate to about 1e-16 `E` in absolute terms, so the relative precision of very small strains under large rotation is limited. JavaScript on one thread: the 10,000-unknown cantilever solves in about half a second, and no performance claim is made.
 

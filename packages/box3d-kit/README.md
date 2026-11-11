@@ -424,6 +424,7 @@ camera.follow(hero.state.position);
 | `box3d-webgpu-kit/structure` | Cables and frames attached to rigid bodies, both ways: tethers, hanging loads, bodies on beams, cable-stayed spans (see below). |
 | `box3d-webgpu-kit/heat` | Heat conduction in solids: transient and steady temperature fields, four boundary types, an energy ledger, and one-way thermal stress and thermal-shock estimates (see below). |
 | `box3d-webgpu-kit/solid` | Deformable solids from tetrahedral finite elements with real material parameters: statics, dynamics, stresses, strength checks (see below). |
+| `box3d-webgpu-kit/solid-contact` | Those solids in contact with rigid bodies: friction, welds, and two-way coupling to the rigid world in which a light body on a stiff solid stays stable (see below). |
 | `box3d-webgpu-kit/fracture` | Fracture of those solids: cohesive cracks along element faces with a strength and a fracture energy, a crack-band model, fragments, and a one-way hand-off of a fragment to the rigid world (see below). |
 | `box3d-webgpu-kit/gameplay` | Trigger volumes and a kinematic character controller for the rigid-body world (see above). |
 | `box3d-webgpu-kit/geometry` | OBJ, STL and glTF import, mesh measures, convex hulls and convex decomposition (see above). |
@@ -605,6 +606,31 @@ if (pieces.length > 1) {
 - **In the stepping loop:** `fractureSubsystem(body)` emits crack events, and `thermalSolidLink(heat, body, ...)` lets the heat solver crack the solid; `quenchedPlate()` is a ready thermal-shock example.
 - **Accuracy:** checked against closed-form fracture mechanics in the repository's `docs/SOLID_FRACTURE.md`: peak load `sigma_c A` and energy `G_c A` of a bar to 1e-9; Griffith's stress for a pre-cracked plate within 3.5 % on cells of half the characteristic length `E G_c / sigma_c^2` (11.5 % on cells of that length); the work of fracture of a notched beam within half a cell of the ligament.
 - **Limits, read these:** cracks can only follow element faces, so a crack inclined to the mesh is too large (24 % to 48 % measured) and its path depends on the mesh. On-demand insertion misses the stress peak at a crack tip on a coarse mesh: lower `insertionThreshold` or pre-insert the path. Small strain only, no plasticity, no friction, and no contact between fragments: hand them to the rigid world, which is one-way.
+
+### Deformable solids in contact with rigid bodies
+
+`SolidCoupling` lets a `SolidBody` collide with boxes, spheres, capsules and planes of the world, rest on them, carry them, and be welded to them. The solid is stepped by backward Euler with each dynamic body as six unknowns of the same solve, so the stiffness of the solid and the mass of the body can differ by any factor. This sets a box on a rubber pad:
+
+```ts
+import {createWorld} from 'box3d-webgpu-kit';
+import {SolidBody, boxMesh} from 'box3d-webgpu-kit/solid';
+import {SolidCoupling, solidContactSubsystem} from 'box3d-webgpu-kit/solid-contact';
+import {createSimulation} from 'box3d-webgpu-kit/simulation';
+
+const world = await createWorld({step: 1 / 240, subSteps: 4, ground: false});
+const pad = new SolidBody({mesh: boxMesh({size: [0.2, 0.05, 0.2], cells: [4, 2, 4]}),
+  material: {youngModulus: 1e6, poissonRatio: 0.3, density: 1000}, config: {model: 'linear', dt: 1 / 240, massDamping: 5}});
+pad.constrain(pad.selectNodes((x, y) => y === 0));                       // hold the base
+const half = [0.1, 0.05, 0.1];
+const box = world.createBody({shape: {kind: 'box', halfExtents: half}, position: [0.1, 0.1, 0.1], density: 800, neverSleeps: true});
+const coupling = new SolidCoupling(world, pad);
+coupling.addBody(box, {shape: {kind: 'box', halfExtents: half}, friction: 0.5});   // say what the body is: the world cannot report shapes
+const sim = createSimulation(world).add(solidContactSubsystem(coupling));
+for (let i = 0; i < 480; i++) sim.step();
+coupling.force(box);   // [0, m g, 0]: the pad carries the box
+```
+
+`coupling.weld(nodes, body)` fixes solid nodes to a body. `SolidContact` is the same solver without a world, with its own float64 bodies and a `solveStatic()`. Measured against closed forms: a block on a pad to 1e-11 in uniaxial stress and in uniaxial strain, friction switching at tan θ = μ (sliding acceleration within 0.4 %), a block on a column at the frequency of a bar with a tip mass (−0.14 %), momentum in an impact to 1e-12, and a 4 g body at rest on steel where naive staggering throws it off in one step. Limits: Hertz contact is 7 % to 16 % too stiff on meshes of 2.5 to 5 linear tetrahedra per contact radius; only the solid's nodes are tested against the bodies; no hulls, meshes or height fields; no contact between two solids; backward Euler only. See `docs/SOLID_CONTACT.md` in the repository.
 
 ### Cloth with real material parameters
 
