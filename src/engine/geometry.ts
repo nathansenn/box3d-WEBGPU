@@ -924,7 +924,7 @@ export interface MeshBodiesOptions extends Omit<NativeBodyDescriptor, 'shape' | 
 
 export interface MeshBodies<B = NativeBodyHandle, J = NativeJointHandle> {
   bodies: B[];
-  /** Weld joints holding a decomposed set together (bodies[0] to each other body). Empty otherwise. */
+  /** Weld joints holding a decomposed set together (each piece to the nearest piece before it). Empty otherwise. */
   joints: J[];
   /** The decomposition, when `as` is 'decomposed'. */
   decomposition?: ConvexDecomposition;
@@ -944,7 +944,7 @@ let nextGroup = -0x4000;
  *   for an open mesh the mass is density x hull volume.
  * - `as: 'decomposed'`: the kit has no compound shapes yet, so a concave solid
  *   becomes one hull body per convex piece, all created at the same pose and
- *   held together by weld joints to the largest piece. The pieces share a
+ *   held together by weld joints, each piece to its nearest earlier piece. The pieces share a
  *   negative collision group (pass `filter.groupIndex` to choose it), so they
  *   do not push each other apart. Each piece's density is scaled by its exact
  *   volume over its hull volume, so the set's total mass is density x mesh
@@ -987,7 +987,19 @@ export function createBodiesFromMesh<B = NativeBodyHandle, J = NativeJointHandle
   for (const hull of decomposition.hulls) {
     create({...rest, ...(filter ? {filter} : {}), shape: {kind: 'hull', points: hull.points}, position: at, type: type ?? 'dynamic', density: density * hull.partVolume / hull.volume});
   }
-  if ((type ?? 'dynamic') === 'dynamic') for (let i = 1; i < bodies.length; i++) joints.push(world.createJoint({type: 'weld', bodyA: bodies[0], bodyB: bodies[i]}));
+  // Weld each piece to the nearest piece before it, at the midpoint of their centres of mass. Every
+  // piece shares the body frame, so that point is the same local position on both. Welding every piece
+  // to the first one at the body origin was unstable: the long lever arms let a 16-piece ring fly apart.
+  if ((type ?? 'dynamic') === 'dynamic') for (let i = 1; i < bodies.length; i++) {
+    const c = decomposition.hulls[i]!.centroid;
+    let nearest = 0, best = Infinity;
+    for (let j = 0; j < i; j++) {
+      const o = decomposition.hulls[j]!.centroid, distance = Math.hypot(c[0] - o[0], c[1] - o[1], c[2] - o[2]);
+      if (distance < best) { best = distance; nearest = j; }
+    }
+    const o = decomposition.hulls[nearest]!.centroid, anchor: [number, number, number] = [(c[0] + o[0]) / 2, (c[1] + o[1]) / 2, (c[2] + o[2]) / 2];
+    joints.push(world.createJoint({type: 'weld', bodyA: bodies[nearest], bodyB: bodies[i], frameA: {position: anchor}, frameB: {position: anchor}}));
+  }
   return {bodies, joints, decomposition};
 }
 

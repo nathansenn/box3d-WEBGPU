@@ -669,3 +669,21 @@ test('an L-shaped mesh becomes welded hulls with the right mass that rest on the
     near(world.getState(ball).position[1], 0.5 + 0.1, 0.006, 'a ball dropped on the static L rests on its foot, 0.5 m up');
   } finally { world.dispose(); }
 });
+
+test('a decomposed ring stays in one piece in free fall and on landing', async () => {
+  const world = await createWorld({gravity: [0, -9.81, 0], step: 1 / 240});
+  try {
+    const torus = modelMesh(torusModel(1, 0.4, 24, 12));
+    const {bodies, joints} = createBodiesFromMesh(world, torus, {as: 'decomposed', position: [0, 6, 0], density: 500, maxHulls: 16});
+    assert.ok(bodies.length >= 8 && joints.length === bodies.length - 1, `${bodies.length} pieces on a tree of welds`);
+    const centres = () => bodies.map(body => world.getState(body).position);
+    const spread = now => { let worst = 0; for (let i = 0; i < now.length; i++) for (let j = 0; j < i; j++) worst = Math.max(worst, Math.hypot(now[i][0] - now[j][0], now[i][1] - now[j][1], now[i][2] - now[j][2])); return worst; };
+    // Every piece is created at the body origin, so their reported positions coincide while the welds hold.
+    for (let i = 0; i < 240; i++) world.step();
+    assert.ok(spread(centres()) < 0.02, `pieces stay together in free fall (spread ${spread(centres())} m)`);
+    assert.ok(Math.max(...bodies.map(body => Math.hypot(...world.getState(body).linearVelocity))) < 12, 'and fall at about g t, not flung away');
+    for (let i = 0; i < 720; i++) world.step();
+    assert.ok(spread(centres()) < 0.05, `and after landing (spread ${spread(centres())} m)`);
+    assert.ok(world.getState(bodies[0]).position[1] > 0 && world.getState(bodies[0]).position[1] < 2, 'the ring rests on the ground');
+  } finally { world.dispose(); }
+});
