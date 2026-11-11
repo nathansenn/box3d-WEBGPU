@@ -1,0 +1,110 @@
+# Roadmap
+
+This is the one roadmap for the project. It replaces the four earlier 100-item lists as the plan of record; those lists stay in `docs/` as an idea backlog and are linked at the end.
+
+**Goal:** the most comprehensive validated physics simulator that runs in a browser tab. Zero install, shareable by link, embeddable, with every solver checked against known answers.
+
+**First audiences:** engineering education and web developers.
+
+**Scope:** mechanics first (rigid, deformable, fluid, granular, structural), then heat. Electromagnetics is out of scope for now.
+
+## Rules
+
+1. A solver ships with its validation case: a test that compares it with a closed-form answer or reference data and states the error.
+2. One unit system: SI. Metres, kilograms, seconds, radians.
+3. Solvers plug into one world and exchange forces both ways. A solver that cannot couple is a demo, and is labelled as one.
+4. Optimisations are kept only when measured, with the numbers recorded. Rejected ideas are recorded too.
+5. New showcase scenes, CPU micro-optimisation rounds and catalogue sweeps are paused until Phases 1 and 2 are done.
+
+## Status
+
+Updated 2026-11-11.
+
+| Phase | Item | Status |
+|---|---|---|
+| 0 | Fix the Studio reset errors so browser acceptance passes | in progress |
+| 0 | Restore the engine evidence so the 11 failing engine tests pass | open (needs the 2 GB evidence archive; owner) |
+| 0 | Run every test file in a gate, or remove it with a reason | in progress |
+| 0 | One roadmap and status ledger | done (this file) |
+| 0 | Enable GitHub Pages | open (owner setting) |
+| 1 | Boxes, spheres, capsules; static, kinematic, dynamic bodies | done |
+| 1 | Pose, velocity and gravity access; forces and torques; collision filters | done |
+| 1 | Joints: weld, revolute, spherical, prismatic, distance, wheel; limits, motors, springs | done |
+| 1 | Contact, hit and sensor events | done |
+| 1 | SI worlds (`reset`, gravity 9.81) beside the classic arena | done |
+| 1 | Closed-form validation of the rigid solver (`packages/box3d-kit/test/v08.test.mjs`) | done |
+| 1 | Convex hull, mesh, heightfield and compound shapes | open |
+| 1 | Record and replay of the new calls; worker and network transport for them | open |
+| 1 | Solver state save and load | open |
+| 1 | Lab renderer draws spheres and capsules | open |
+| 1 | Publish `box3d-webgpu-kit` 1.0 to npm | open (owner decision) |
+| 2–6 | See below | not started |
+
+## Phase 0: clean base
+
+- Browser acceptance passes for all eight Studio routes and becomes a blocking check.
+- The engine suite passes and becomes blocking. It fails today only because `benchmarks/results/engine-100x` and the baseline archives were never committed.
+- Every test file runs in a gate. A contract test fails when a new test file is not wired in.
+- GitHub Pages is enabled so there is a public link.
+
+## Phase 1: open the engine
+
+Box3D already has the features; the C bridge (`wasm/box3d_web.c`) exposes them and the kit (`packages/box3d-kit`) wraps them.
+
+Done in kit 0.8.0: general bodies, three shapes, three body types, setters, forces, six joint types, events, SI worlds, and a closed-form validation suite (pendulum period within 0.1%, friction stopping distance within 1%, rebound height within 2%, momentum and energy conserved in an elastic collision).
+
+Remaining: the other shape types, record/replay and worker transport for the new calls, state save/load, Lab rendering of the new shapes, and the npm release.
+
+## Phase 2: one world, coupled
+
+- One scene description and one stepping loop that every solver plugs into, in SI units.
+- Two-way coupling, in order of payoff:
+  1. rigid ↔ water: buoyancy and drag that push back on the water;
+  2. rigid ↔ cloth and rope;
+  3. cable and frame ↔ rigid.
+- Rebuild the bridge study on the validated frame and cable solvers, carrying real bodies in real units. It becomes the flagship.
+
+## Phase 3: missing domains
+
+One at a time, each with its validation case.
+
+- Deformable solids (tetrahedral FEM or XPBD with material parameters), then fracture on top. Replaces the rubber, concrete and lattice one-offs.
+- Volumetric fluid on GPU compute; sloped beds and wetting/drying for the shallow-water solver.
+- Granular on GPU (today: about 1,344 grains in JS).
+- Cloth self-collision and calibrated stiffness.
+- Articulated bodies with URDF and MJCF import.
+- Heat transfer, coupled to fracture.
+- Later: frame buckling and plasticity.
+
+## Phase 4: trust
+
+Runs alongside Phases 1–3.
+
+- A public validation page: every solver against textbook cases, with error numbers.
+- A calibrated material library with sources.
+- A cross-device determinism matrix.
+- Remove the "not engineering predictions" disclaimer one study at a time, as each earns it.
+
+## Phase 5: usable by anyone
+
+Starts after Phase 1.
+
+- Scene editor: bodies, joints, materials, loads.
+- Import glTF, OBJ, STL. Export CSV, glTF, video.
+- Scripting API and console; share links that carry the whole scene.
+- Docs site with runnable examples and a teaching track.
+- WebGL2 fallback for the Lab; a tested support statement for Safari, Firefox and mobile.
+
+## Phase 6: scale
+
+- Cloth, rope, granular and fluid on GPU compute. GPU water measured 41× at 512² and 217× at 1024² on an NVIDIA L4.
+- A GPU rigid solver for restricted shapes, as an experiment: spheres measured about 75× against threaded Box3D, and cubes failed the pile check.
+
+## Earlier lists
+
+Idea backlogs, no longer the plan of record:
+
+- [`ENGINE_100X_ROADMAP.md`](ENGINE_100X_ROADMAP.md) with [`ENGINE_100X_STATUS.json`](ENGINE_100X_STATUS.json): 6 verified, 11 implemented, 32 partial, 51 not started.
+- [`MATH_SPEED_100.md`](MATH_SPEED_100.md): 1 implemented, 3 partial, 2 trials rejected, 92 proposed.
+- [`INTEGRATION_100.md`](INTEGRATION_100.md): 38 delivered, 26 partly, 36 proposed. Its P0 bridge gaps (#1–#4, #6, #7) are closed by kit 0.8.0 except non-primitive shapes.
+- [`ENHANCEMENTS_100_20261002.md`](ENHANCEMENTS_100_20261002.md) and [`ENHANCEMENTS_SPEED_VISUAL_ACCURACY_20261002.md`](ENHANCEMENTS_SPEED_VISUAL_ACCURACY_20261002.md): proposals, mostly unmeasured.

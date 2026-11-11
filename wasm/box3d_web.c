@@ -123,6 +123,14 @@ typedef struct B3WContext
     int cachedHullLast;
     uint32_t hullCacheStamp;
     B3WQueryArena queries;
+    // General-body extension. All of it stays zero for worlds
+    // that only use the scene recipes, so their streams and hashes are unchanged.
+    uint8_t* kinds; // per dense row: 0 box, 1 sphere, 2 capsule; NULL means all boxes
+    b3BodyId anchor; // hidden static body that joints attach to when a body handle is 0
+    struct B3WEvent* events;
+    int eventCapacity;
+    int eventCount;
+    int eventTotal;
 } B3WContext;
 
 // The compatibility world retains fixed arrays and stable offsets. Explicit
@@ -167,6 +175,13 @@ static int b3w_ctx_reserve(B3WContext* ctx, int requested)
 #endif
     block = calloc(1u, b3w_capacity_bytes(capacity));
     if (block == NULL) return -3;
+    if (ctx->kinds != NULL)
+    {
+        uint8_t* kinds = (uint8_t*)realloc(ctx->kinds, (size_t)capacity);
+        if (kinds == NULL) { free(block); return -3; }
+        memset(kinds + ctx->capacity, 0, (size_t)(capacity - ctx->capacity));
+        ctx->kinds = kinds;
+    }
 
     B3WBody* bodies = (B3WBody*)block;
     int* dynamicIndices = (int*)((uint8_t*)block + (size_t)capacity * sizeof(B3WBody));
@@ -679,7 +694,9 @@ static int b3w_ctx_destroy_body(B3WContext* ctx, uint64_t handle)
         if (ctx->bodies[index].dynamic != 0) ctx->dynamicIndices[ctx->bodies[index].dynamicPosition] = index;
         memcpy(ctx->matrices + index * 16, ctx->matrices + last * 16, 16u * sizeof(float));
         memcpy(ctx->colors + index * 4, ctx->colors + last * 4, 4u * sizeof(float));
+        if (ctx->kinds != NULL) ctx->kinds[index] = ctx->kinds[last];
     }
+    if (ctx->kinds != NULL) ctx->kinds[last] = 0u;
     memset(ctx->bodies + last, 0, sizeof(B3WBody));
     memset(ctx->matrices + last * 16, 0, 16u * sizeof(float));
     memset(ctx->colors + last * 4, 0, 4u * sizeof(float));
@@ -701,6 +718,10 @@ static void b3w_ctx_destroy_world(B3WContext* ctx)
         ctx->world = b3_nullWorldId;
     }
 
+    if (ctx->kinds != NULL) memset(ctx->kinds, 0, (size_t)ctx->bodyCount);
+    ctx->anchor = b3_nullBodyId;
+    ctx->eventCount = 0;
+    ctx->eventTotal = 0;
     ctx->bodyCount = 0;
     ctx->dynamicCount = 0;
     ctx->hash = 0u;
@@ -1717,6 +1738,8 @@ B3W_EXPORT int b3w_world_destroy(uint32_t handle)
     b3w_ctx_destroy(ctx);
     free(ctx->bufferBlock);
     free(ctx->queries.block);
+    free(ctx->kinds);
+    free(ctx->events);
     free(ctx);
     B3WContextSlot* slot = &g_contextSlots[(handle & B3W_CONTEXT_SLOT_MASK) - 1u];
     slot->context = NULL;
@@ -1962,4 +1985,709 @@ B3W_EXPORT uint64_t b3w_world_launch_projectile_handle(uint32_t worldHandle, flo
     if (ctx == NULL) return 0u;
     int index = b3w_ctx_launch_projectile(ctx, x, y, z, vx, vy, vz, size);
     return b3w_ctx_body_handle(ctx, index);
+}
+
+// ---------------------------------------------------------------------------
+// General rigid-body API (optional extension; the world API version stays 1).
+//
+// The scene recipes above only ever create boxes. These exports open the rest
+// of Box3D to callers: empty worlds, gravity, spheres and capsules, static /
+// kinematic / dynamic bodies, pose and velocity access, forces, collision
+// filters, joints with limits, motors and springs, and contact / sensor events.
+// Descriptors are fixed 128-byte little-endian layouts that the caller writes
+// into WASM memory. Nothing here runs for a world that does not call it.
+
+typedef struct B3WBodyDesc
+{
+    uint32_t kind; // 0 box, 1 sphere, 2 capsule (axis along local Y)
+    uint32_t type; // 0 static, 1 kinematic, 2 dynamic
+    float position[3];
+    float rotation[4]; // x, y, z, w
+    float linearVelocity[3];
+    float angularVelocity[3];
+    float size[3]; // box half extents; sphere radius in [0]; capsule radius in [0], half length in [1]
+    float density, friction, restitution;
+    uint32_t color; // 0xRRGGBB, material tag in the top byte as in the scene recipes
+    uint32_t flags; // 1 bullet, 2 sensor, 4 hit events, 8 never sleeps, 16 lock rotation
+    float linearDamping, angularDamping, gravityScale;
+    uint64_t categoryBits, maskBits; // both zero selects the Box3D defaults
+    int32_t groupIndex;
+    uint32_t reserved;
+} B3WBodyDesc;
+
+typedef struct B3WJointDesc
+{
+    uint32_t type; // 0 weld, 1 revolute, 2 spherical, 3 prismatic, 4 distance, 5 wheel
+    uint32_t flags; // 1 collide connected, 2 limit, 4 motor, 8 spring, 16 cone limit (spherical)
+    uint64_t bodyA, bodyB; // 0 attaches to the fixed world anchor
+    float framePositionA[3], frameRotationA[4];
+    float framePositionB[3], frameRotationB[4];
+    float lower, upper; // angle (rad), translation or length limits
+    float motorSpeed, maxMotor; // rad/s or m/s; torque or force
+    float hertz, dampingRatio; // spring, or weld softness
+    float target; // spring target angle / translation, or distance length
+    float coneAngle; // spherical cone limit
+    float reserved[4];
+} B3WJointDesc;
+
+typedef struct B3WEvent
+{
+    uint32_t kind; // 0 contact begin, 1 contact end, 2 hit, 3 sensor begin, 4 sensor end
+    uint32_t reserved;
+    uint64_t bodyA, bodyB; // for sensor events A is the sensor, B the visitor
+    float point[3];
+    float normal[3];
+    float speed; // approach speed for hits
+    uint32_t padding;
+} B3WEvent;
+
+_Static_assert(sizeof(B3WBodyDesc) == 128, "Body descriptor ABI must be 128 bytes");
+_Static_assert(sizeof(B3WJointDesc) == 128, "Joint descriptor ABI must be 128 bytes");
+_Static_assert(sizeof(B3WEvent) == 56, "Event ABI must be 56 bytes");
+
+#define B3W_EVENT_LIMIT 65536
+
+static int b3w_finite3(const float* v) { return isfinite(v[0]) && isfinite(v[1]) && isfinite(v[2]); }
+
+// Returns a unit quaternion, or identity when the input is zero or not finite.
+static b3Quat b3w_quat(const float* q)
+{
+    float n = q[0] * q[0] + q[1] * q[1] + q[2] * q[2] + q[3] * q[3];
+    if (!isfinite(n) || n < 1.0e-12f) return (b3Quat){ { 0.0f, 0.0f, 0.0f }, 1.0f };
+    float inv = 1.0f / sqrtf(n);
+    return (b3Quat){ { q[0] * inv, q[1] * inv, q[2] * inv }, q[3] * inv };
+}
+
+static void b3w_ctx_set_moving(B3WContext* ctx, int index, int moving)
+{
+    B3WBody* body = ctx->bodies + index;
+    if ((body->dynamic != 0) == (moving != 0)) return;
+    if (moving != 0)
+    {
+        body->dynamic = 1;
+        body->dynamicPosition = ctx->dynamicCount;
+        ctx->dynamicIndices[ctx->dynamicCount++] = index;
+    }
+    else
+    {
+        int lastDynamic = ctx->dynamicIndices[--ctx->dynamicCount];
+        ctx->dynamicIndices[body->dynamicPosition] = lastDynamic;
+        ctx->bodies[lastDynamic].dynamicPosition = body->dynamicPosition;
+        ctx->dynamicIndices[ctx->dynamicCount] = 0;
+        body->dynamic = 0;
+        body->dynamicPosition = -1;
+    }
+}
+
+static void b3w_ctx_refresh_row(B3WContext* ctx, int index)
+{
+    const B3WBody* body = ctx->bodies + index;
+    b3WorldTransform xf = b3Body_GetTransform(body->id);
+    b3w_ctx_write_model_matrix(ctx, index, xf.p, xf.q, body->hx, body->hy, body->hz);
+    ctx->transformVersion += 1u;
+    ctx->hashDirty = 1;
+}
+
+// Replaces the world with an empty one. flags bit 0 adds the 88 m ground slab
+// that the scene recipes use.
+B3W_EXPORT int b3w_world_reset(uint32_t handle, uint32_t seed, uint32_t flags, float gx, float gy, float gz)
+{
+    B3WContext* ctx = b3w_lookup_context(handle);
+    if (ctx == NULL) return -1;
+    if (!isfinite(gx) || !isfinite(gy) || !isfinite(gz)) return -2;
+    b3w_ctx_destroy_world(ctx);
+    ctx->rng = seed == 0u ? 0xC0FFEEu : seed;
+    b3WorldDef worldDef = b3DefaultWorldDef();
+    worldDef.gravity = (b3Vec3){ gx, gy, gz };
+    worldDef.workerCount = 1;
+    worldDef.enableSleep = true;
+    worldDef.enableContinuous = true;
+    ctx->world = b3CreateWorld(&worldDef);
+    if ((flags & 1u) != 0u) b3w_ctx_add_box_ex(ctx, b3_staticBody, 0.0f, -1.0f, 0.0f, 44.0f, 1.0f, 44.0f, 0x162033u, 0.0f, 0.86f, 0.02f);
+    return 1;
+}
+
+B3W_EXPORT int b3w_world_set_gravity(uint32_t handle, float x, float y, float z)
+{
+    B3WContext* ctx = b3w_lookup_context(handle);
+    if (ctx == NULL || B3_IS_NULL(ctx->world)) return -1;
+    if (!isfinite(x) || !isfinite(y) || !isfinite(z)) return -2;
+    b3World_SetGravity(ctx->world, (b3Vec3){ x, y, z });
+    // Sleeping bodies must feel the new field.
+    for (int i = 0; i < ctx->dynamicCount; ++i) b3Body_SetAwake(ctx->bodies[ctx->dynamicIndices[i]].id, true);
+    return 1;
+}
+
+B3W_EXPORT int b3w_world_get_gravity(uint32_t handle, float* out3)
+{
+    B3WContext* ctx = b3w_lookup_context(handle);
+    if (ctx == NULL || B3_IS_NULL(ctx->world) || out3 == NULL) return -1;
+    b3Vec3 g = b3World_GetGravity(ctx->world);
+    out3[0] = g.x; out3[1] = g.y; out3[2] = g.z;
+    return 1;
+}
+
+B3W_EXPORT uint64_t b3w_world_create_body(uint32_t handle, const B3WBodyDesc* desc)
+{
+    B3WContext* ctx = b3w_lookup_context(handle);
+    if (ctx == NULL || B3_IS_NULL(ctx->world) || desc == NULL) return 0u;
+    if (desc->kind > 2u || desc->type > 2u) return 0u;
+    if (!b3w_finite3(desc->position) || !b3w_finite3(desc->linearVelocity) || !b3w_finite3(desc->angularVelocity)) return 0u;
+    float hx = desc->size[0], hy = desc->size[1], hz = desc->size[2];
+    if (desc->kind == 1u) { hy = hx; hz = hx; }
+    if (desc->kind == 2u) { hz = hx; if (!(hy >= 0.0025f)) return 0u; } // Box3D's minimum capsule length is 5 mm
+    // Every extent scales a render-matrix column, so none may be zero.
+    if (!(hx > 0.0f) || !(hy > 0.0f) || !(hz > 0.0f) || !isfinite(hx) || !isfinite(hy) || !isfinite(hz)) return 0u;
+    if (!(desc->density >= 0.0f) || !(desc->friction >= 0.0f) || !(desc->restitution >= 0.0f)) return 0u;
+    if (!isfinite(desc->density) || !isfinite(desc->friction) || !isfinite(desc->restitution)) return 0u;
+    if (ctx->bodyCount >= ctx->capacity || (ctx->freeSlot < 0 && ctx->slotsUsed >= ctx->capacity)) return 0u;
+    if (desc->kind != 0u && ctx->kinds == NULL)
+    {
+        ctx->kinds = (uint8_t*)calloc((size_t)ctx->capacity, 1u);
+        if (ctx->kinds == NULL) return 0u;
+    }
+
+    const b3BodyType type = desc->type == 0u ? b3_staticBody : desc->type == 1u ? b3_kinematicBody : b3_dynamicBody;
+    b3BodyDef bodyDef = b3DefaultBodyDef();
+    bodyDef.type = type;
+    bodyDef.position = (b3Pos){ desc->position[0], desc->position[1], desc->position[2] };
+    bodyDef.rotation = b3w_quat(desc->rotation);
+    bodyDef.linearVelocity = (b3Vec3){ desc->linearVelocity[0], desc->linearVelocity[1], desc->linearVelocity[2] };
+    bodyDef.angularVelocity = (b3Vec3){ desc->angularVelocity[0], desc->angularVelocity[1], desc->angularVelocity[2] };
+    if (isfinite(desc->linearDamping) && desc->linearDamping > 0.0f) bodyDef.linearDamping = desc->linearDamping;
+    if (isfinite(desc->angularDamping) && desc->angularDamping > 0.0f) bodyDef.angularDamping = desc->angularDamping;
+    // The descriptor is zero-filled by callers, so zero keeps normal gravity;
+    // b3w_world_set_body_gravity_scale can set a true zero afterwards.
+    if (isfinite(desc->gravityScale) && desc->gravityScale != 0.0f) bodyDef.gravityScale = desc->gravityScale;
+    bodyDef.isBullet = (desc->flags & 1u) != 0u;
+    if ((desc->flags & 8u) != 0u) bodyDef.enableSleep = false;
+    if ((desc->flags & 16u) != 0u)
+    {
+        bodyDef.motionLocks.angularX = true;
+        bodyDef.motionLocks.angularY = true;
+        bodyDef.motionLocks.angularZ = true;
+    }
+    b3BodyId body = b3CreateBody(ctx->world, &bodyDef);
+
+    b3ShapeDef shapeDef = b3DefaultShapeDef();
+    shapeDef.density = desc->density;
+    shapeDef.baseMaterial.friction = desc->friction;
+    shapeDef.baseMaterial.restitution = desc->restitution;
+    shapeDef.baseMaterial.customColor = desc->color;
+    shapeDef.isSensor = (desc->flags & 2u) != 0u;
+    shapeDef.enableSensorEvents = true;
+    shapeDef.enableContactEvents = true; // off by default upstream; one flagged shape per pair is enough
+    shapeDef.enableHitEvents = (desc->flags & 4u) != 0u;
+    if (desc->categoryBits != 0u || desc->maskBits != 0u)
+    {
+        shapeDef.filter.categoryBits = desc->categoryBits;
+        shapeDef.filter.maskBits = desc->maskBits;
+    }
+    shapeDef.filter.groupIndex = desc->groupIndex;
+    if (desc->kind == 0u)
+    {
+        const b3BoxHull* hull = b3w_ctx_get_box_hull(ctx, hx, hy, hz);
+        b3CreateHullShape(body, &shapeDef, &hull->base);
+    }
+    else if (desc->kind == 1u)
+    {
+        b3Sphere sphere = { { 0.0f, 0.0f, 0.0f }, hx };
+        b3CreateSphereShape(body, &shapeDef, &sphere);
+    }
+    else
+    {
+        b3Capsule capsule = { { 0.0f, -hy, 0.0f }, { 0.0f, hy, 0.0f }, hx };
+        b3CreateCapsuleShape(body, &shapeDef, &capsule);
+    }
+
+    int index = ctx->bodyCount++;
+    B3WBody* row = ctx->bodies + index;
+    row->id = body;
+    row->hx = hx; row->hy = hy; row->hz = hz;
+    row->color = desc->color;
+    row->dynamic = 0;
+    row->dynamicPosition = -1;
+    row->slot = b3w_ctx_allocate_body_slot(ctx, index);
+    b3Body_SetUserData(body, (void*)(uintptr_t)(row->slot + 1));
+    if (ctx->kinds != NULL) ctx->kinds[index] = (uint8_t)desc->kind;
+    if (type != b3_staticBody) b3w_ctx_set_moving(ctx, index, 1);
+    b3w_unpack_rgb(desc->color, ctx->colors + index * 4);
+    ctx->colorVersion += 1u;
+    b3w_ctx_refresh_row(ctx, index);
+    return b3w_ctx_body_handle(ctx, index);
+}
+
+// Writes one byte per dense row (0 box, 1 sphere, 2 capsule); returns the count.
+B3W_EXPORT int b3w_world_copy_body_kinds(uint32_t handle, uint8_t* out, int capacity)
+{
+    B3WContext* ctx = b3w_lookup_context(handle);
+    if (ctx == NULL || out == NULL || capacity < 0) return -1;
+    int count = ctx->bodyCount < capacity ? ctx->bodyCount : capacity;
+    if (ctx->kinds != NULL) memcpy(out, ctx->kinds, (size_t)count);
+    else memset(out, 0, (size_t)count);
+    return count;
+}
+
+#define B3W_BODY(ctxName, indexName) \
+    B3WContext* ctxName = b3w_lookup_context(worldHandle); \
+    if (ctxName == NULL) return -1; \
+    int indexName = b3w_ctx_body_index(ctxName, bodyHandle); \
+    if (indexName < 0) return 0;
+
+// out16: position 3, rotation xyzw 4, linear velocity 3, angular velocity 3,
+// mass, awake (0/1), type (0 static, 1 kinematic, 2 dynamic).
+B3W_EXPORT int b3w_world_get_body_state(uint32_t worldHandle, uint64_t bodyHandle, float* out16)
+{
+    B3W_BODY(ctx, index)
+    if (out16 == NULL) return -2;
+    b3BodyId id = ctx->bodies[index].id;
+    b3WorldTransform xf = b3Body_GetTransform(id);
+    b3Vec3 v = b3Body_GetLinearVelocity(id), w = b3Body_GetAngularVelocity(id);
+    out16[0] = (float)xf.p.x; out16[1] = (float)xf.p.y; out16[2] = (float)xf.p.z;
+    out16[3] = xf.q.v.x; out16[4] = xf.q.v.y; out16[5] = xf.q.v.z; out16[6] = xf.q.s;
+    out16[7] = v.x; out16[8] = v.y; out16[9] = v.z;
+    out16[10] = w.x; out16[11] = w.y; out16[12] = w.z;
+    out16[13] = b3Body_GetMass(id);
+    out16[14] = b3Body_IsAwake(id) ? 1.0f : 0.0f;
+    b3BodyType type = b3Body_GetType(id);
+    out16[15] = type == b3_staticBody ? 0.0f : type == b3_kinematicBody ? 1.0f : 2.0f;
+    return 1;
+}
+
+B3W_EXPORT int b3w_world_set_body_transform(uint32_t worldHandle, uint64_t bodyHandle, float x, float y, float z, float qx, float qy, float qz, float qw)
+{
+    B3W_BODY(ctx, index)
+    if (!isfinite(x) || !isfinite(y) || !isfinite(z)) return -2;
+    const float q[4] = { qx, qy, qz, qw };
+    b3Body_SetTransform(ctx->bodies[index].id, (b3Pos){ x, y, z }, b3w_quat(q));
+    b3Body_SetAwake(ctx->bodies[index].id, true);
+    b3w_ctx_refresh_row(ctx, index);
+    return 1;
+}
+
+B3W_EXPORT int b3w_world_set_body_velocity(uint32_t worldHandle, uint64_t bodyHandle, float vx, float vy, float vz, float wx, float wy, float wz)
+{
+    B3W_BODY(ctx, index)
+    if (!isfinite(vx) || !isfinite(vy) || !isfinite(vz) || !isfinite(wx) || !isfinite(wy) || !isfinite(wz)) return -2;
+    b3BodyId id = ctx->bodies[index].id;
+    b3Body_SetLinearVelocity(id, (b3Vec3){ vx, vy, vz });
+    b3Body_SetAngularVelocity(id, (b3Vec3){ wx, wy, wz });
+    b3Body_SetAwake(id, true);
+    return 1;
+}
+
+// Drives a kinematic body so that it reaches the pose after dt seconds.
+B3W_EXPORT int b3w_world_set_body_target(uint32_t worldHandle, uint64_t bodyHandle, float x, float y, float z, float qx, float qy, float qz, float qw, float dt)
+{
+    B3W_BODY(ctx, index)
+    if (!isfinite(x) || !isfinite(y) || !isfinite(z) || !isfinite(dt) || dt <= 0.0f) return -2;
+    const float q[4] = { qx, qy, qz, qw };
+    b3WorldTransform target = { (b3Pos){ x, y, z }, b3w_quat(q) };
+    b3Body_SetTargetTransform(ctx->bodies[index].id, target, dt, true);
+    return 1;
+}
+
+B3W_EXPORT int b3w_world_set_body_type(uint32_t worldHandle, uint64_t bodyHandle, uint32_t type)
+{
+    B3W_BODY(ctx, index)
+    if (type > 2u) return -2;
+    b3Body_SetType(ctx->bodies[index].id, type == 0u ? b3_staticBody : type == 1u ? b3_kinematicBody : b3_dynamicBody);
+    b3w_ctx_set_moving(ctx, index, type != 0u);
+    b3w_ctx_refresh_row(ctx, index);
+    return 1;
+}
+
+B3W_EXPORT int b3w_world_set_body_awake(uint32_t worldHandle, uint64_t bodyHandle, int awake)
+{
+    B3W_BODY(ctx, index)
+    b3Body_SetAwake(ctx->bodies[index].id, awake != 0);
+    return 1;
+}
+
+B3W_EXPORT int b3w_world_set_body_gravity_scale(uint32_t worldHandle, uint64_t bodyHandle, float scale)
+{
+    B3W_BODY(ctx, index)
+    if (!isfinite(scale)) return -2;
+    b3Body_SetGravityScale(ctx->bodies[index].id, scale);
+    b3Body_SetAwake(ctx->bodies[index].id, true);
+    return 1;
+}
+
+B3W_EXPORT int b3w_world_set_body_damping(uint32_t worldHandle, uint64_t bodyHandle, float linear, float angular)
+{
+    B3W_BODY(ctx, index)
+    if (!(linear >= 0.0f) || !(angular >= 0.0f) || !isfinite(linear) || !isfinite(angular)) return -2;
+    b3Body_SetLinearDamping(ctx->bodies[index].id, linear);
+    b3Body_SetAngularDamping(ctx->bodies[index].id, angular);
+    return 1;
+}
+
+B3W_EXPORT int b3w_world_set_body_filter(uint32_t worldHandle, uint64_t bodyHandle, uint64_t categoryBits, uint64_t maskBits, int32_t groupIndex)
+{
+    B3W_BODY(ctx, index)
+    b3ShapeId shapes[8];
+    int count = b3Body_GetShapes(ctx->bodies[index].id, shapes, 8);
+    for (int i = 0; i < count; ++i)
+    {
+        b3Filter filter = b3Shape_GetFilter(shapes[i]);
+        filter.categoryBits = categoryBits;
+        filter.maskBits = maskBits;
+        filter.groupIndex = groupIndex;
+        b3Shape_SetFilter(shapes[i], filter, true);
+    }
+    return 1;
+}
+
+// mode: 0 force at centre, 1 torque, 2 linear impulse at centre, 3 angular impulse.
+B3W_EXPORT int b3w_world_apply_body(uint32_t worldHandle, uint64_t bodyHandle, uint32_t mode, float x, float y, float z)
+{
+    B3W_BODY(ctx, index)
+    if (mode > 3u || !isfinite(x) || !isfinite(y) || !isfinite(z)) return -2;
+    b3BodyId id = ctx->bodies[index].id;
+    b3Vec3 v = { x, y, z };
+    if (mode == 0u) b3Body_ApplyForceToCenter(id, v, true);
+    else if (mode == 1u) b3Body_ApplyTorque(id, v, true);
+    else if (mode == 2u) b3Body_ApplyLinearImpulseToCenter(id, v, true);
+    else b3Body_ApplyAngularImpulse(id, v, true);
+    return 1;
+}
+
+// mode: 0 force, 1 linear impulse, applied at a world-space point.
+B3W_EXPORT int b3w_world_apply_body_at(uint32_t worldHandle, uint64_t bodyHandle, uint32_t mode, float x, float y, float z, float px, float py, float pz)
+{
+    B3W_BODY(ctx, index)
+    if (mode > 1u || !isfinite(x) || !isfinite(y) || !isfinite(z) || !isfinite(px) || !isfinite(py) || !isfinite(pz)) return -2;
+    b3BodyId id = ctx->bodies[index].id;
+    if (mode == 0u) b3Body_ApplyForce(id, (b3Vec3){ x, y, z }, (b3Pos){ px, py, pz }, true);
+    else b3Body_ApplyLinearImpulse(id, (b3Vec3){ x, y, z }, (b3Pos){ px, py, pz }, true);
+    return 1;
+}
+
+static int b3w_ctx_joint(B3WContext* ctx, uint64_t jointHandle, b3JointId* out)
+{
+    if (jointHandle == 0u || B3_IS_NULL(ctx->world)) return 0;
+    b3JointId id = b3LoadJointId(jointHandle);
+    if (id.world0 != (uint16_t)(ctx->world.index1 - 1) || !b3Joint_IsValid(id)) return 0;
+    *out = id;
+    return 1;
+}
+
+static int b3w_ctx_joint_body(B3WContext* ctx, uint64_t handle, b3BodyId* out)
+{
+    if (handle == 0u)
+    {
+        if (B3_IS_NULL(ctx->anchor))
+        {
+            b3BodyDef def = b3DefaultBodyDef();
+            def.type = b3_staticBody;
+            ctx->anchor = b3CreateBody(ctx->world, &def);
+        }
+        *out = ctx->anchor;
+        return 1;
+    }
+    int index = b3w_ctx_body_index(ctx, handle);
+    if (index < 0) return 0;
+    *out = ctx->bodies[index].id;
+    return 1;
+}
+
+B3W_EXPORT uint64_t b3w_world_create_joint(uint32_t handle, const B3WJointDesc* desc)
+{
+    B3WContext* ctx = b3w_lookup_context(handle);
+    if (ctx == NULL || B3_IS_NULL(ctx->world) || desc == NULL || desc->type > 5u) return 0u;
+    if (desc->bodyA == desc->bodyB) return 0u;
+    if (!b3w_finite3(desc->framePositionA) || !b3w_finite3(desc->framePositionB)) return 0u;
+    const float scalars[8] = { desc->lower, desc->upper, desc->motorSpeed, desc->maxMotor, desc->hertz, desc->dampingRatio, desc->target, desc->coneAngle };
+    for (int i = 0; i < 8; ++i) if (!isfinite(scalars[i])) return 0u;
+    const int limit = (desc->flags & 2u) != 0u, motor = (desc->flags & 4u) != 0u, spring = (desc->flags & 8u) != 0u;
+    if (limit && desc->lower > desc->upper) return 0u;
+    b3BodyId a, b;
+    if (!b3w_ctx_joint_body(ctx, desc->bodyA, &a) || !b3w_ctx_joint_body(ctx, desc->bodyB, &b)) return 0u;
+
+    b3JointId joint = b3_nullJointId;
+#define B3W_JOINT_BASE(def) \
+    (def).base.bodyIdA = a; (def).base.bodyIdB = b; \
+    (def).base.localFrameA = (b3Transform){ { desc->framePositionA[0], desc->framePositionA[1], desc->framePositionA[2] }, b3w_quat(desc->frameRotationA) }; \
+    (def).base.localFrameB = (b3Transform){ { desc->framePositionB[0], desc->framePositionB[1], desc->framePositionB[2] }, b3w_quat(desc->frameRotationB) }; \
+    (def).base.collideConnected = (desc->flags & 1u) != 0u;
+    switch (desc->type)
+    {
+        case 0u:
+        {
+            b3WeldJointDef def = b3DefaultWeldJointDef();
+            B3W_JOINT_BASE(def)
+            if (desc->hertz > 0.0f)
+            {
+                def.linearHertz = desc->hertz; def.angularHertz = desc->hertz;
+                def.linearDampingRatio = desc->dampingRatio; def.angularDampingRatio = desc->dampingRatio;
+            }
+            joint = b3CreateWeldJoint(ctx->world, &def);
+            break;
+        }
+        case 1u:
+        {
+            b3RevoluteJointDef def = b3DefaultRevoluteJointDef();
+            B3W_JOINT_BASE(def)
+            def.enableLimit = limit; def.lowerAngle = desc->lower; def.upperAngle = desc->upper;
+            def.enableMotor = motor; def.motorSpeed = desc->motorSpeed; def.maxMotorTorque = desc->maxMotor;
+            def.enableSpring = spring; def.hertz = desc->hertz; def.dampingRatio = desc->dampingRatio; def.targetAngle = desc->target;
+            joint = b3CreateRevoluteJoint(ctx->world, &def);
+            break;
+        }
+        case 2u:
+        {
+            b3SphericalJointDef def = b3DefaultSphericalJointDef();
+            B3W_JOINT_BASE(def)
+            def.enableTwistLimit = limit; def.lowerTwistAngle = desc->lower; def.upperTwistAngle = desc->upper;
+            def.enableConeLimit = (desc->flags & 16u) != 0u; def.coneAngle = desc->coneAngle;
+            def.enableMotor = motor; def.maxMotorTorque = desc->maxMotor;
+            def.enableSpring = spring; def.hertz = desc->hertz; def.dampingRatio = desc->dampingRatio;
+            joint = b3CreateSphericalJoint(ctx->world, &def);
+            break;
+        }
+        case 3u:
+        {
+            b3PrismaticJointDef def = b3DefaultPrismaticJointDef();
+            B3W_JOINT_BASE(def)
+            def.enableLimit = limit; def.lowerTranslation = desc->lower; def.upperTranslation = desc->upper;
+            def.enableMotor = motor; def.motorSpeed = desc->motorSpeed; def.maxMotorForce = desc->maxMotor;
+            def.enableSpring = spring; def.hertz = desc->hertz; def.dampingRatio = desc->dampingRatio; def.targetTranslation = desc->target;
+            joint = b3CreatePrismaticJoint(ctx->world, &def);
+            break;
+        }
+        case 4u:
+        {
+            if (!(desc->target > 0.0f)) return 0u;
+            b3DistanceJointDef def = b3DefaultDistanceJointDef();
+            B3W_JOINT_BASE(def)
+            def.length = desc->target;
+            def.enableLimit = limit; def.minLength = desc->lower; def.maxLength = desc->upper;
+            def.enableMotor = motor; def.motorSpeed = desc->motorSpeed; def.maxMotorForce = desc->maxMotor;
+            def.enableSpring = spring; def.hertz = desc->hertz; def.dampingRatio = desc->dampingRatio;
+            joint = b3CreateDistanceJoint(ctx->world, &def);
+            break;
+        }
+        default:
+        {
+            b3WheelJointDef def = b3DefaultWheelJointDef();
+            B3W_JOINT_BASE(def)
+            def.enableSuspensionLimit = limit; def.lowerSuspensionLimit = desc->lower; def.upperSuspensionLimit = desc->upper;
+            def.enableSpinMotor = motor; def.spinSpeed = desc->motorSpeed; def.maxSpinTorque = desc->maxMotor;
+            def.enableSuspensionSpring = spring; def.suspensionHertz = desc->hertz; def.suspensionDampingRatio = desc->dampingRatio;
+            joint = b3CreateWheelJoint(ctx->world, &def);
+            break;
+        }
+    }
+#undef B3W_JOINT_BASE
+    return B3_IS_NULL(joint) ? 0u : b3StoreJointId(joint);
+}
+
+#define B3W_JOINT(ctxName, idName) \
+    B3WContext* ctxName = b3w_lookup_context(worldHandle); \
+    if (ctxName == NULL) return -1; \
+    b3JointId idName; \
+    if (!b3w_ctx_joint(ctxName, jointHandle, &idName)) return 0;
+
+B3W_EXPORT int b3w_world_joint_valid(uint32_t worldHandle, uint64_t jointHandle)
+{
+    B3W_JOINT(ctx, id)
+    (void)id;
+    return 1;
+}
+
+B3W_EXPORT int b3w_world_destroy_joint(uint32_t worldHandle, uint64_t jointHandle)
+{
+    B3W_JOINT(ctx, id)
+    b3DestroyJoint(id, true);
+    return 1;
+}
+
+// Returns -2 when the joint type has no motor.
+B3W_EXPORT int b3w_world_joint_set_motor(uint32_t worldHandle, uint64_t jointHandle, int enable, float speed, float maxForce)
+{
+    B3W_JOINT(ctx, id)
+    if (!isfinite(speed) || !isfinite(maxForce) || maxForce < 0.0f) return -3;
+    switch (b3Joint_GetType(id))
+    {
+        case b3_revoluteJoint: b3RevoluteJoint_EnableMotor(id, enable != 0); b3RevoluteJoint_SetMotorSpeed(id, speed); b3RevoluteJoint_SetMaxMotorTorque(id, maxForce); break;
+        case b3_prismaticJoint: b3PrismaticJoint_EnableMotor(id, enable != 0); b3PrismaticJoint_SetMotorSpeed(id, speed); b3PrismaticJoint_SetMaxMotorForce(id, maxForce); break;
+        case b3_distanceJoint: b3DistanceJoint_EnableMotor(id, enable != 0); b3DistanceJoint_SetMotorSpeed(id, speed); b3DistanceJoint_SetMaxMotorForce(id, maxForce); break;
+        case b3_wheelJoint: b3WheelJoint_EnableSpinMotor(id, enable != 0); b3WheelJoint_SetSpinMotorSpeed(id, speed); b3WheelJoint_SetMaxSpinTorque(id, maxForce); break;
+        default: return -2;
+    }
+    b3Joint_WakeBodies(id);
+    return 1;
+}
+
+B3W_EXPORT int b3w_world_joint_set_limits(uint32_t worldHandle, uint64_t jointHandle, int enable, float lower, float upper)
+{
+    B3W_JOINT(ctx, id)
+    if (!isfinite(lower) || !isfinite(upper) || lower > upper) return -3;
+    switch (b3Joint_GetType(id))
+    {
+        case b3_revoluteJoint: b3RevoluteJoint_SetLimits(id, lower, upper); b3RevoluteJoint_EnableLimit(id, enable != 0); break;
+        case b3_prismaticJoint: b3PrismaticJoint_SetLimits(id, lower, upper); b3PrismaticJoint_EnableLimit(id, enable != 0); break;
+        case b3_distanceJoint: b3DistanceJoint_SetLengthRange(id, lower, upper); b3DistanceJoint_EnableLimit(id, enable != 0); break;
+        case b3_sphericalJoint: b3SphericalJoint_SetTwistLimits(id, lower, upper); b3SphericalJoint_EnableTwistLimit(id, enable != 0); break;
+        case b3_wheelJoint: b3WheelJoint_SetSuspensionLimits(id, lower, upper); b3WheelJoint_EnableSuspensionLimit(id, enable != 0); break;
+        default: return -2;
+    }
+    b3Joint_WakeBodies(id);
+    return 1;
+}
+
+B3W_EXPORT int b3w_world_joint_set_spring(uint32_t worldHandle, uint64_t jointHandle, int enable, float hertz, float dampingRatio, float target)
+{
+    B3W_JOINT(ctx, id)
+    if (!isfinite(hertz) || !isfinite(dampingRatio) || !isfinite(target) || hertz < 0.0f || dampingRatio < 0.0f) return -3;
+    switch (b3Joint_GetType(id))
+    {
+        case b3_revoluteJoint: b3RevoluteJoint_EnableSpring(id, enable != 0); b3RevoluteJoint_SetSpringHertz(id, hertz); b3RevoluteJoint_SetSpringDampingRatio(id, dampingRatio); b3RevoluteJoint_SetTargetAngle(id, target); break;
+        case b3_prismaticJoint: b3PrismaticJoint_EnableSpring(id, enable != 0); b3PrismaticJoint_SetSpringHertz(id, hertz); b3PrismaticJoint_SetSpringDampingRatio(id, dampingRatio); b3PrismaticJoint_SetTargetTranslation(id, target); break;
+        case b3_distanceJoint: b3DistanceJoint_EnableSpring(id, enable != 0); b3DistanceJoint_SetSpringHertz(id, hertz); b3DistanceJoint_SetSpringDampingRatio(id, dampingRatio); if (target > 0.0f) b3DistanceJoint_SetLength(id, target); break;
+        case b3_sphericalJoint: b3SphericalJoint_EnableSpring(id, enable != 0); b3SphericalJoint_SetSpringHertz(id, hertz); b3SphericalJoint_SetSpringDampingRatio(id, dampingRatio); break;
+        case b3_weldJoint: b3WeldJoint_SetLinearHertz(id, enable != 0 ? hertz : 0.0f); b3WeldJoint_SetAngularHertz(id, enable != 0 ? hertz : 0.0f); b3WeldJoint_SetLinearDampingRatio(id, dampingRatio); b3WeldJoint_SetAngularDampingRatio(id, dampingRatio); break;
+        case b3_wheelJoint: b3WheelJoint_EnableSuspension(id, enable != 0); b3WheelJoint_SetSuspensionHertz(id, hertz); b3WheelJoint_SetSuspensionDampingRatio(id, dampingRatio); break;
+        default: return -2;
+    }
+    b3Joint_WakeBodies(id);
+    return 1;
+}
+
+// Wheel joints only: steer towards an angle about frame A's x axis.
+B3W_EXPORT int b3w_world_joint_set_steering(uint32_t worldHandle, uint64_t jointHandle, int enable, float angle, float hertz, float dampingRatio, float maxTorque)
+{
+    B3W_JOINT(ctx, id)
+    if (!isfinite(angle) || !isfinite(hertz) || !isfinite(dampingRatio) || !isfinite(maxTorque) || hertz < 0.0f || dampingRatio < 0.0f || maxTorque < 0.0f) return -3;
+    if (b3Joint_GetType(id) != b3_wheelJoint) return -2;
+    b3WheelJoint_EnableSteering(id, enable != 0);
+    b3WheelJoint_SetSteeringHertz(id, hertz);
+    b3WheelJoint_SetSteeringDampingRatio(id, dampingRatio);
+    b3WheelJoint_SetMaxSteeringTorque(id, maxTorque);
+    b3WheelJoint_SetTargetSteeringAngle(id, angle);
+    b3Joint_WakeBodies(id);
+    return 1;
+}
+
+// out8: joint value (revolute angle, prismatic translation, distance length;
+// 0 otherwise), type, constraint force xyz, constraint torque xyz.
+B3W_EXPORT int b3w_world_get_joint_state(uint32_t worldHandle, uint64_t jointHandle, float* out8)
+{
+    B3W_JOINT(ctx, id)
+    if (out8 == NULL) return -3;
+    b3JointType type = b3Joint_GetType(id);
+    float value = 0.0f, code = -1.0f;
+    switch (type)
+    {
+        case b3_weldJoint: code = 0.0f; break;
+        case b3_revoluteJoint: code = 1.0f; value = b3RevoluteJoint_GetAngle(id); break;
+        case b3_sphericalJoint: code = 2.0f; break;
+        case b3_prismaticJoint: code = 3.0f; value = b3PrismaticJoint_GetTranslation(id); break;
+        case b3_distanceJoint: code = 4.0f; value = b3DistanceJoint_GetCurrentLength(id); break;
+        case b3_wheelJoint: code = 5.0f; break;
+        default: break;
+    }
+    b3Vec3 force = b3Joint_GetConstraintForce(id), torque = b3Joint_GetConstraintTorque(id);
+    out8[0] = value; out8[1] = code;
+    out8[2] = force.x; out8[3] = force.y; out8[4] = force.z;
+    out8[5] = torque.x; out8[6] = torque.y; out8[7] = torque.z;
+    return 1;
+}
+
+static uint64_t b3w_ctx_shape_body_handle(B3WContext* ctx, b3ShapeId shape)
+{
+    if (!b3Shape_IsValid(shape)) return 0u;
+    b3BodyId body = b3Shape_GetBody(shape);
+    uintptr_t slot1 = (uintptr_t)b3Body_GetUserData(body);
+    if (slot1 == 0u || slot1 > (uintptr_t)ctx->slotsUsed) return 0u;
+    const B3WBodySlot* slot = ctx->bodySlots + slot1 - 1u;
+    return slot->denseIndex >= 0 ? (slot->generation << B3W_BODY_SLOT_BITS) | (uint64_t)slot1 : 0u;
+}
+
+static B3WEvent* b3w_ctx_push_event(B3WContext* ctx)
+{
+    ctx->eventTotal += 1;
+    if (ctx->eventCount >= ctx->eventCapacity)
+    {
+        if (ctx->eventCapacity >= B3W_EVENT_LIMIT) return NULL;
+        int capacity = ctx->eventCapacity == 0 ? 256 : ctx->eventCapacity * 4;
+        B3WEvent* events = (B3WEvent*)realloc(ctx->events, (size_t)capacity * sizeof(B3WEvent));
+        if (events == NULL) return NULL;
+        ctx->events = events;
+        ctx->eventCapacity = capacity;
+    }
+    B3WEvent* event = ctx->events + ctx->eventCount++;
+    memset(event, 0, sizeof(B3WEvent));
+    return event;
+}
+
+// Copies the contact and sensor events of the most recent step into the
+// world's event buffer and returns how many were stored. Call once after each
+// step. b3w_world_event_total reports how many occurred, including any that
+// did not fit, so a caller can detect overflow.
+B3W_EXPORT int b3w_world_collect_events(uint32_t handle)
+{
+    B3WContext* ctx = b3w_lookup_context(handle);
+    if (ctx == NULL || B3_IS_NULL(ctx->world)) return -1;
+    ctx->eventCount = 0;
+    ctx->eventTotal = 0;
+    b3ContactEvents contacts = b3World_GetContactEvents(ctx->world);
+    for (int i = 0; i < contacts.beginCount; ++i)
+    {
+        B3WEvent* event = b3w_ctx_push_event(ctx);
+        if (event == NULL) continue;
+        event->kind = 0u;
+        event->bodyA = b3w_ctx_shape_body_handle(ctx, contacts.beginEvents[i].shapeIdA);
+        event->bodyB = b3w_ctx_shape_body_handle(ctx, contacts.beginEvents[i].shapeIdB);
+    }
+    for (int i = 0; i < contacts.endCount; ++i)
+    {
+        B3WEvent* event = b3w_ctx_push_event(ctx);
+        if (event == NULL) continue;
+        event->kind = 1u;
+        event->bodyA = b3w_ctx_shape_body_handle(ctx, contacts.endEvents[i].shapeIdA);
+        event->bodyB = b3w_ctx_shape_body_handle(ctx, contacts.endEvents[i].shapeIdB);
+    }
+    for (int i = 0; i < contacts.hitCount; ++i)
+    {
+        B3WEvent* event = b3w_ctx_push_event(ctx);
+        if (event == NULL) continue;
+        const b3ContactHitEvent* hit = contacts.hitEvents + i;
+        event->kind = 2u;
+        event->bodyA = b3w_ctx_shape_body_handle(ctx, hit->shapeIdA);
+        event->bodyB = b3w_ctx_shape_body_handle(ctx, hit->shapeIdB);
+        event->point[0] = (float)hit->point.x; event->point[1] = (float)hit->point.y; event->point[2] = (float)hit->point.z;
+        event->normal[0] = hit->normal.x; event->normal[1] = hit->normal.y; event->normal[2] = hit->normal.z;
+        event->speed = hit->approachSpeed;
+    }
+    b3SensorEvents sensors = b3World_GetSensorEvents(ctx->world);
+    for (int i = 0; i < sensors.beginCount; ++i)
+    {
+        B3WEvent* event = b3w_ctx_push_event(ctx);
+        if (event == NULL) continue;
+        event->kind = 3u;
+        event->bodyA = b3w_ctx_shape_body_handle(ctx, sensors.beginEvents[i].sensorShapeId);
+        event->bodyB = b3w_ctx_shape_body_handle(ctx, sensors.beginEvents[i].visitorShapeId);
+    }
+    for (int i = 0; i < sensors.endCount; ++i)
+    {
+        B3WEvent* event = b3w_ctx_push_event(ctx);
+        if (event == NULL) continue;
+        event->kind = 4u;
+        event->bodyA = b3w_ctx_shape_body_handle(ctx, sensors.endEvents[i].sensorShapeId);
+        event->bodyB = b3w_ctx_shape_body_handle(ctx, sensors.endEvents[i].visitorShapeId);
+    }
+    return ctx->eventCount;
+}
+
+B3W_EXPORT uintptr_t b3w_world_events_ptr(uint32_t handle)
+{
+    B3WContext* ctx = b3w_lookup_context(handle);
+    return ctx != NULL ? (uintptr_t)ctx->events : 0u;
+}
+
+B3W_EXPORT int b3w_world_event_total(uint32_t handle)
+{
+    B3WContext* ctx = b3w_lookup_context(handle);
+    return ctx != NULL ? ctx->eventTotal : -1;
 }

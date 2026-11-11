@@ -1,7 +1,7 @@
 {
   "name": "box3d-webgpu-kit",
-  "version": "0.7.0",
-  "description": "Drop-in Box3D rigid-body physics for games and apps: prebuilt, integrity-checked WebAssembly, isolated worlds, fixed-step loop with interpolation, worker hosting, network snapshots, deterministic replay, spatial queries, debug draw, and three.js, Babylon.js and raw WebGPU adapters.",
+  "version": "0.8.0",
+  "description": "Drop-in Box3D rigid-body physics for games and apps: prebuilt, integrity-checked WebAssembly, boxes, spheres and capsules, joints with motors and limits, contact events, isolated worlds, fixed-step loop with interpolation, worker hosting, network snapshots, deterministic replay, spatial queries, debug draw, and three.js, Babylon.js and raw WebGPU adapters.",
   "type": "module",
   "license": "MIT",
   "sideEffects": false,

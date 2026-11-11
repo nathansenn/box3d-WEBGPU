@@ -58,6 +58,55 @@ world.resetArena();                                  // deterministic restart
 world.dispose();
 ```
 
+### Build your own scene: shapes, joints and events
+
+`reset()` starts an empty world in SI units: metres, kilograms (from density in kg/m³), seconds, radians, and gravity 9.81 m/s² down.
+
+```ts
+import {createWorld, axisRotation} from 'box3d-webgpu-kit';
+
+const world = await createWorld({gravity: [0, -9.81, 0]});   // SI world with the ground slab; add ground: false for none
+
+const ball = world.createBody({shape: {kind: 'sphere', radius: 0.25}, position: [0, 3, 0], restitution: 0.5, hitEvents: true});
+const pill = world.createBody({shape: {kind: 'capsule', radius: 0.2, halfLength: 0.4}, position: [1, 2, 0], density: 500});
+const lift = world.createBody({shape: {kind: 'box', halfExtents: [1, 0.1, 1]}, type: 'kinematic', position: [3, 0.5, 0]});
+world.moveKinematic(lift, [3, 2, 0], [0, 0, 0, 1], 1.5);     // reach y = 2 in 1.5 s; pushes whatever rides on it
+
+// A door hinged about the vertical axis, driven by a motor and held by limits.
+const door = world.createBody({shape: {kind: 'box', halfExtents: [0.5, 1, 0.05]}, position: [6, 1, 0]});
+const up = axisRotation([0, 1, 0]);                          // hinges turn about the frame's z axis: aim it at y
+const hinge = world.createJoint({
+  type: 'revolute', bodyA: null, bodyB: door,                // null = the fixed world
+  frameA: {position: [5.5, 1, 0], rotation: up}, frameB: {position: [-0.5, 0, 0], rotation: up},
+  limits: {lower: -1.5, upper: 1.5}, motor: {speed: 1, maxForce: 200},
+});
+world.setJointMotor(hinge, null);                            // let it swing freely
+world.getJointState(hinge);                                  // {type, value: angle, force, torque}
+
+world.onEvent(event => {                                     // after each step
+  if (event.kind === 'hit') console.log(event.approachSpeed, event.point);
+});
+
+world.applyForce(ball, [10, 0, 0]);                          // newtons, over the next step
+world.setVelocity(pill, [0, 5, 0]);
+world.getState(ball);                                        // {position, rotation, linearVelocity, angularVelocity, mass, awake, type}
+world.setCollisionFilter(pill, 2n, 1n);                      // category 2, collides with category 1 only
+world.setGravity([0, -1.62, 0]);                             // the Moon
+```
+
+| Joint | Constrains | Options |
+|---|---|---|
+| `weld` | everything | `spring` makes it flexible |
+| `revolute` | hinge about frame z | `limits`, `motor`, `spring` |
+| `spherical` | ball and socket | `coneAngle`, twist `limits`, `spring` |
+| `prismatic` | slide along frame A x | `limits`, `motor`, `spring` |
+| `distance` | a fixed `length` | `limits` (min/max length), `motor`, `spring` |
+| `wheel` | spin about frame B z, suspension along frame A x | `spring`, `limits`, `motor`, `setJointSteering` |
+
+The physics is checked against closed-form answers in `test/v08.test.mjs`: free fall, the compound-pendulum period (within 0.1%), sliding-friction stopping distance, rebound height, momentum and energy in an elastic collision, `F = m a`, `τ = I α`, spring period and circular-motion tension.
+
+To draw mixed shapes with three.js use `createShapeMeshes(THREE, world)` and `syncShapeMeshes(world, meshes, {alpha})` from `box3d-webgpu-kit/three`; capsules render exactly at any size. For other renderers, `world.bodyKinds()` gives the shape of each row of `matrices()`.
+
 ### three.js
 
 ```ts
@@ -276,12 +325,14 @@ In the Vite dev server (not yet tested), add `optimizeDeps: {exclude: ['box3d-we
 
 ## Current limits (read before designing gameplay)
 
-The native bridge exposes only what the Box3D WebGPU app needed. Specifically:
-
-- **Cubes only.** Dynamic bodies are cubes from `spawnBox`. The bridge gives each one a small random spin (up to 0.2 rad/s) from the world's seeded RNG, so results stay deterministic. Half sizes of 0.05 or less are replaced with 0.8. The only static body is the 88 m × 88 m ground. Preset scenes (`loadPreset(0..799)`) contain other box sizes. There are no spheres, capsules, meshes, heightfields or joints.
-- **No pose/velocity setters, gravity control, collision filters on bodies, or native contact/trigger events.** Queries accept filters, but every body uses the default filter. `box3d-webgpu-kit/gameplay` builds triggers and a character controller from queries and impulses; they cannot report contact forces or make a body kinematic.
+- **Shapes are boxes, spheres and capsules, one per body.** Meshes, heightfields, convex hulls and compound shapes are in Box3D but not exported by the bridge yet.
+- **Two scene styles.** `createWorld()` / `resetArena()` / `loadPreset()` give the classic arena: gravity −10 m/s², `spawnBox` cubes with a small seeded spin. `createWorld({gravity})` / `reset()` give an SI world (9.81 m/s²) that you fill with `createBody` and `createJoint`. Both run on the same solver.
+- **Recording covers the classic calls only.** `startRecording()` logs `spawnBox`, `destroyBody`, `applyImpulse` and `explode`. While recording, `createBody`, `createJoint` and the setters throw `INVALID_STATE` rather than produce a log that replays differently. Worlds built with them are still deterministic: the same calls give the same bits.
+- **`RemoteWorld` (worker) and network snapshots do not carry the new calls yet.** Use them from the thread that owns the world.
+- **No contact-end for destroyed bodies.** Box3D reports no `contact-end` for what a destroyed body was touching; treat `destroyBody()` as the signal.
+- **Solver state cannot be saved.** `saveSession` stores a replay log, with the recording limits above.
 - **Single-threaded.** Each world steps synchronously on its thread. Use `box3d-webgpu-kit/worker` to move that thread off the renderer.
-- **Interpolation pauses for one step after a destroy or reset**, because destroying a body moves the last instance row into the freed slot. New spawns interpolate normally.
+- **Interpolation pauses for one step after a destroy, a reset or `setTransform`**, because rows move or jump. New bodies interpolate normally.
 - Default capacity is 4,096 bodies per world; `createWorld({capacity})` raises it up to 65,536. The bridge buffers take 136 bytes per body slot.
 
   Measured WASM heap (Node, one world, 0.6 m cubes spread on the ground):
@@ -295,7 +346,7 @@ The native bridge exposes only what the Box3D WebGPU app needed. Specifically:
 
   WebAssembly memory never shrinks, so plan mobile budgets around the peak.
 
-Closing these gaps needs new exports in `wasm/box3d_web.c` and a rebuild. They are the top P0 items in [`docs/INTEGRATION_100.md`](https://github.com/nathansenn/box3d-WEBGPU/blob/main/docs/INTEGRATION_100.md).
+The remaining bridge gaps are tracked in [`docs/ROADMAP.md`](https://github.com/nathansenn/box3d-WEBGPU/blob/main/docs/ROADMAP.md).
 
 ## Low-level access
 

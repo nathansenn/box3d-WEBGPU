@@ -7,6 +7,23 @@
 - The native world ABI version (`NATIVE_WORLD_API_VERSION`, currently 1) must match the loaded module; a mismatch fails loudly with `UNSUPPORTED_BACKEND`.
 - Before 1.0, minor versions may change the API; the changes are listed below.
 
+## 0.8.0
+
+The WASM changed (new bridge exports), so replay logs and `exactHash()` values from 0.7.0 builds are not comparable with this one. The classic arena, presets and their behaviour are unchanged.
+
+- **General rigid bodies:** `world.createBody({shape, type, position, …})` with box, sphere and capsule shapes; static, kinematic and dynamic types; density, friction, restitution, damping, gravity scale, bullet, sensor, rotation lock and collision filters.
+- **SI worlds:** `world.reset({ground, gravity, seed})` and `createWorld({gravity, ground})` start an empty world with gravity 9.81 m/s²; `setGravity` / `gravity`.
+- **State access:** `getState`, `setTransform`, `setVelocity`, `moveKinematic`, `setBodyType`, `setAwake`, `setGravityScale`, `setDamping`, `setCollisionFilter`.
+- **Forces:** `applyForce` (optionally at a point), `applyTorque`, `applyImpulseAt`, `applyAngularImpulse`.
+- **Joints:** `createJoint` for weld, revolute, spherical, prismatic, distance and wheel joints, with limits, motors and springs; `setJointMotor`, `setJointLimits`, `setJointSpring`, `setJointSteering`, `getJointState`, `isJointAlive`, `destroyJoint`; `axisRotation()` to aim joint frames.
+- **Events:** `world.onEvent(listener)` delivers `contact-begin`, `contact-end`, `hit`, `sensor-begin` and `sensor-end` after each step.
+- **Rendering:** `world.bodyKinds()`; `createShapeMeshes` / `syncShapeMeshes` in `box3d-webgpu-kit/three` draw boxes, spheres and exact capsules.
+- **`toQuat`**, and the types `BodyOptions`, `ShapeOptions`, `BodyState`, `JointOptions`, `JointState`, `WorldEvent`, `ResetOptions`, `QuatLike`.
+- New error codes: `STALE_JOINT`, `UNSUPPORTED_JOINT`.
+- `NativeWorldBackend` gains the matching low-level calls (`createBody`, `createJoint`, `collectEvents`, …) and `supportsGeneralBodies`.
+- Recording rejects the new calls with `INVALID_STATE` instead of writing a log that would replay differently.
+- `test/v08.test.mjs` checks the solver against closed-form physics.
+
 ## 0.7.0
 
 - **`box3d-webgpu-kit/gameplay`:**
