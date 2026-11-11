@@ -212,6 +212,44 @@ const json = builder.toJSON();                         // at any time
 
 `test/v12-scene.test.mjs` checks the round trips, determinism from a link, save and resume, 97 malformed files, damaged links and a decompression bomb, and the physics of two example scenes: every pendulum's period within 0.1% of `2π sqrt(I / (m g L))` (measured 0.0004%), and a Newton's cradle whose last ball leaves at the first ball's speed within 2% (measured 0.4%).
 
+### Import a robot: URDF and MJCF
+
+`box3d-webgpu-kit/robot` reads a URDF or MJCF file and makes a scene of it, or adds it to a world. No dependencies: it has its own small XML parser, which refuses DTDs and never expands entities.
+
+```js
+import {createWorld} from 'box3d-webgpu-kit';
+import {parseURDF, robotToScene, robotReport, spawnRobot, robotLinkPose, sixDofArmURDF} from 'box3d-webgpu-kit/robot';
+import {loadScene, sceneWorldOptions} from 'box3d-webgpu-kit/scene';
+
+const robot = parseURDF(sixDofArmURDF());            // or parseMJCF(text); pass {meshes: {name: bytes}} for mesh files
+console.log(robot.warnings);                         // everything ignored, approximated or unsupported, by element
+
+const names = robot.joints.map(joint => joint.name);
+const options = {positions: {shoulder: 0.4, elbow: -0.8}, motors: Object.fromEntries(names.map(name => [name, 0]))};
+const scene = robotToScene(robot, options);          // a scene file: validate, save, share by link
+const world = await createWorld(sceneWorldOptions(scene));
+loadScene(world, scene);
+
+// Or add it to a world you already have, and get handles by link and joint name.
+const arm = spawnRobot(world, robot, {...options, position: [2, 0, 0], prefix: 'second:'});
+world.setJointMotor(arm.joints.get('elbow'), {speed: 0.5, maxForce: 80});
+const tool = arm.links.get('tool'), pose = robotLinkPose(world.getState(tool.body), tool.frame);
+
+const report = robotReport(robot, options);          // what the bodies are, against what the file says
+console.log(report.totalMass, report.totalMassActual, report.maxPrincipalError, report.worstLink);
+```
+
+What you get, and what you do not:
+
+- Each link becomes one body per collision shape (several are welded), placed by forward kinematics at the joint positions you give. Fixed joints become welds, revolute and continuous joints hinges about the joint axis, prismatic joints sliders, ball joints spherical joints; limits are kept. The root is welded to the world unless `floatingBase: true`. URDF and MJCF are Z up; the robot is turned into the kit's Y-up world.
+- **Mass matches the file; inertia does not.** The engine derives inertia from a body's shape and density, so the import sets `density = mass / collision volume` and **reports** the inertia that results, per link. On the example arm above the worst link is 42% off the file's tensor, and `robotReport` says so. A link with mass and no collision shape becomes a box with exactly the file's inertia that collides with nothing.
+- **Joints are soft.** The engine's joints are 60 Hz constraints, so a loaded arm settles below its kinematic pose: 17.7 mm at the tool of this 16.8 kg, 1 m arm. A long chain stretches by millimetres.
+- An effort limit is the largest torque of the motor you ask for with `motors` (speed 0 holds the joint); joint damping and stiffness become a joint spring; dry friction a zero-speed motor.
+- Cylinders become 24-sided prisms of the same volume (inertia within 0.003%) or capsules; meshes become convex hulls; MJCF ellipsoids a 42-point hull.
+- Not supported, and reported when a file uses them: URDF `mimic` and planar joints; MJCF `equality`, `tendon`, contact pairs, most actuator types, several joints on one body, armature.
+
+`docs/ROBOT_IMPORT.md` in the repository has the tables of supported elements for both formats, the conventions, the mesh name matching and every measured error. Example robots ship as functions that return file text: `twoLinkArmURDF`, `cartPoleURDF`, `sixDofArmURDF`, `wheeledCartURDF`, `doublePendulumURDF`, `doublePendulumMJCF`, `hangingChainURDF`.
+
 ### three.js
 
 ```ts

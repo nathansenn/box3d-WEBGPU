@@ -1,5 +1,12 @@
 # Changelog
 
+## Unreleased — 2026-11-11 — Robot import: URDF and MJCF
+
+- **Module (`src/engine/robot-import.ts`, published as `box3d-webgpu-kit/robot`):** a dependency-free XML parser (no DTD, no entity expansion, size, depth and node caps, errors with line and column), `parseURDF` and `parseMJCF` into one neutral robot description, `robotToScene` and `spawnRobot` into the rigid world, `robotKinematics`, `robotReport`, and seven example robots as generated text. Every ignored, approximated or unsupported element is listed in `warnings`.
+- **Fidelity, stated:** each link's mass is matched through its density and the inertia that results is reported against the file's (the engine cannot take a tensor: 42% off on the worst link of the example arm). Joints are 60 Hz soft constraints in the engine: the 16.8 kg example arm settles 17.7 mm below its kinematic pose at the tool; a 12-link chain shows joint gaps of 1.5 mm at rest.
+- **Validation:** `packages/box3d-kit/test/v15-robot.test.mjs` in the kit gate, and 28 cases in a new `robot` domain of the validation registry (forward kinematics to 1e-6, the same scene and trajectory from URDF and MJCF, compound-pendulum and cart-pole periods, limits, effort limits, joint springs and damping, a held arm, chain drift, a wheeled cart, round trips). `docs/VALIDATION.md` and `public/validation/validation.json` regenerated: 239 cases.
+- **Docs:** `docs/ROBOT_IMPORT.md` (supported and unsupported elements per format, conventions, the mass and inertia policy with measured errors, limits); kit README section; roadmap.
+
 ## Unreleased — 2026-11-11 — The Lab opens scenes and draws every shape kind
 
 - **Lab (`src/lab/`, `src/main.ts`):** `lab.html?example=<name>` opens an example scene and `lab.html?scene=<share link>` (or URL-encoded scene JSON) a shared one. The Scenes panel opens `.json` scene files and `.obj`, `.stl`, `.glb` and `.gltf` geometry by file dialog or drag and drop, copies a share link of the scene on screen, downloads it and resets it. Geometry becomes one body in a default SI scene: a dynamic hull or welded hull set when the mesh is closed and small enough, otherwise a static mesh, with a note that says which and why and how it was scaled. Invalid input is reported in the page with the validator's problem list and changes nothing. The examples and "Open file…" are listed in the laboratory catalog; the 800 recipes are unchanged.

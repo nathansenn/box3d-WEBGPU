@@ -40,6 +40,8 @@ export const CORE = [
   // ./simulation: the one stepping loop, the adapters for the modules above and the builder of coupled scenes.
   // Imports the water, structure, cable and frame modules, and types from heat, solid, scene-format and native-world.
   {from: 'src/engine/simulation.ts', rewrites: []},
+  // ./robot: URDF and MJCF import. Imports contracts.ts, geometry.ts and types from native-world.ts and scene-format.ts.
+  {from: 'src/engine/robot-import.ts', rewrites: []},
 ];
 export const WASM_FILES = ['box3d.js', 'box3d.wasm', 'BUILD_PROVENANCE.json', 'BOX3D_LICENSE.txt'];
 

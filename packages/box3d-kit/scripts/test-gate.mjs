@@ -21,6 +21,7 @@ const FILES = [
   'test/v12-scene.test.mjs',
   'test/v13-lab-scenes.test.mjs',
   'test/v14-simulation.test.mjs',
+  'test/v15-robot.test.mjs',
 ];
 const tests = spawnSync(process.execPath, ['--test', ...FILES], {stdio: 'inherit'});
 const clean = spawnSync(process.platform === 'win32' ? 'npm.cmd' : 'npm', ['run', 'clean'], {stdio: 'inherit'});

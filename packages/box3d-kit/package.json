@@ -68,6 +68,10 @@
       "types": "./dist/simulation.d.ts",
       "default": "./dist/simulation.js"
     },
+    "./robot": {
+      "types": "./dist/robot.d.ts",
+      "default": "./dist/robot.js"
+    },
     "./single": {
       "types": "./dist/index.d.ts",
       "default": "./dist/single.js"

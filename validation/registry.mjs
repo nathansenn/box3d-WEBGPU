@@ -13,6 +13,7 @@ import structureCoupling from './domains/structure-coupling.mjs';
 import geometry from './domains/geometry.mjs';
 import scene from './domains/scene.mjs';
 import simulation from './domains/simulation.mjs';
+import robot from './domains/robot.mjs';
 import heat from './domains/heat.mjs';
 import solid from './domains/solid.mjs';
 import frame from './domains/frame.mjs';
@@ -99,6 +100,18 @@ export const DOMAINS = [
       'A save of a coupled scene is not a bit-exact continuation: the structure coupling\'s impulses and pending half kick, the cable multipliers and one step of displaced volume are not saved. The resume rows show the drift.',
       'The energy ledger is a sum of what each solver reports. With drag it may exceed its start by the sampling offset rho g V v dt, because its terms are known half a step apart.',
       'The Physics Lab and the Studio do not run coupled scenes; the Lab refuses a scene with water, cable or frame sections. Heat and solids are not in the scene format.',
+    id: 'robot', title: 'Robot import (URDF and MJCF)', needsKit: true,
+    solver: '`box3d-webgpu-kit/robot`: URDF and MJCF files as scenes of the rigid world (one body per collision shape, joints as constraints; 240 Hz, 4 sub-steps)',
+    summary: 'Forward kinematics against the product of joint transforms, the same robot from both formats, mass and the reported inertia gap, pendulum and cart-pole periods, joint limits, effort limits, joint springs and damping, a held arm, joint drift on a chain, a wheeled cart, and round trips through scene files and share links.',
+    docs: ['docs/ROBOT_IMPORT.md'],
+    notValidated: [
+      'Inertia is not imported. The engine derives it from each shape and its density, so only the mass matches the file; `robotReport` gives the gap per link (42% on the worst link of the example arm), and the motion follows the bodies, not the file.',
+      'Joints are soft constraints (60 Hz in the engine, not adjustable from the bridge). A loaded arm settles below its kinematic pose (17 mm at the tool of the 1 m example arm) and a chain stretches by millimetres. There is no reduced-coordinate articulation solver.',
+      'No comparison with MuJoCo, Gazebo or another simulator on the same model: every reference here is closed form.',
+      'Mesh collision is the convex hull of each mesh; only the parser path and a cube and a tetrahedron are checked. No real robot model with meshes is in the suite.',
+      'Ball joints, floating bases under contact, self-collision of real robots, and contact between a robot and objects (grasping) have no reference here.',
+      'Joint springs damp numerically (measured 0.10 /s on the spring case), and joint damping without stiffness adds a very weak spring towards the starting pose.',
+      'MJCF: equality constraints, tendons, most actuator types and several joints on one body are reported and dropped, so models that depend on them do not behave as in MuJoCo.',
     ],
   },
   {
@@ -172,6 +185,7 @@ export const DOMAINS = [
 ];
 
 export const CASES = [...rigid, ...waterCoupling, ...structureCoupling, ...geometry, ...scene, ...simulation, ...heat, ...solid, ...frame, ...cable, ...closedWater];
+export const CASES = [...rigid, ...waterCoupling, ...structureCoupling, ...geometry, ...scene, ...robot, ...heat, ...solid, ...frame, ...cable, ...closedWater];
 
 /** Cases of the given domains (all when `only` is empty), in registry order. */
 export function selectCases(only = []) {

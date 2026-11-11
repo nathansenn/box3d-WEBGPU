@@ -1247,6 +1247,324 @@ export declare class NativeWorldPool {
 }
 export {};
 
+// ==== core/robot-import.d.ts ====
+import { EngineError } from './contracts.js';
+import { type BinaryLike } from './geometry.js';
+import type { NativeBodyDescriptor, NativeBodyHandle, NativeJointDescriptor, NativeJointHandle } from './native-world.js';
+import type { Scene, SceneWorld } from './scene-format.js';
+export declare const XML_LIMITS: Readonly<{
+    maxChars: number;
+    maxDepth: 64;
+    maxNodes: 200000;
+    maxAttributes: 256;
+    maxNameChars: 256;
+}>;
+export type XMLLimits = {
+    readonly [K in keyof typeof XML_LIMITS]?: number;
+};
+export interface XMLElement {
+    name: string;
+    attributes: {
+        [name: string]: string;
+    };
+    children: XMLElement[];
+    text: string;
+    line: number;
+    column: number;
+}
+export declare class XMLParseError extends EngineError {
+    readonly line: number;
+    readonly column: number;
+    constructor(message: string, line: number, column: number);
+}
+export declare function parseXML(text: string, limits?: XMLLimits): XMLElement;
+export declare const ROBOT_LIMITS: Readonly<{
+    links: 4096;
+    joints: 4096;
+    collisionsPerLink: 64;
+    meshHullPoints: 32;
+}>;
+export interface RobotPose {
+    xyz: [number, number, number];
+    quat: [number, number, number, number];
+}
+export type RobotGeometry = {
+    type: 'box';
+    size: [number, number, number];
+} | {
+    type: 'sphere';
+    radius: number;
+} | {
+    type: 'cylinder';
+    radius: number;
+    length: number;
+}
+ | {
+    type: 'capsule';
+    radius: number;
+    length: number;
+} | {
+    type: 'ellipsoid';
+    radii: [number, number, number];
+}
+ | {
+    type: 'mesh';
+    filename: string;
+    scale: [number, number, number];
+    points: number[];
+}
+ | {
+    type: 'missing-mesh';
+    filename: string;
+    scale: [number, number, number];
+}
+ | {
+    type: 'plane';
+};
+export interface RobotCollision {
+    name?: string;
+    origin: RobotPose;
+    geometry: RobotGeometry;
+    mass?: number;
+    friction?: number;
+    color?: number;
+}
+export interface RobotInertial {
+    mass: number;
+    origin: RobotPose;
+    inertia: [number, number, number, number, number, number];
+    derived?: boolean;
+}
+export interface RobotLink {
+    name: string;
+    inertial?: RobotInertial;
+    collisions: RobotCollision[];
+    color?: number;
+    isWorld?: boolean;
+}
+export type RobotJointType = 'fixed' | 'revolute' | 'continuous' | 'prismatic' | 'spherical' | 'floating' | 'planar';
+export interface RobotJoint {
+    name: string;
+    type: RobotJointType;
+    parent: string;
+    child: string;
+    origin: RobotPose;
+    anchor: [number, number, number];
+    axis: [number, number, number];
+    limits?: {
+        lower: number;
+        upper: number;
+    };
+    effort?: number;
+    velocity?: number;
+    damping?: number;
+    friction?: number;
+    stiffness?: number;
+    springRef?: number;
+    ref?: number;
+    armature?: number;
+    servo?: {
+        kp: number;
+        kv: number;
+    };
+    supported: boolean;
+}
+export interface RobotWarning {
+    code: 'unsupported' | 'approximated' | 'ignored' | 'note';
+    element: string;
+    message: string;
+    line?: number;
+    column?: number;
+}
+export interface RobotDescription {
+    name: string;
+    source: 'urdf' | 'mjcf';
+    links: RobotLink[];
+    joints: RobotJoint[];
+    root: string;
+    world: {
+        gravity?: [number, number, number];
+        timestep?: number;
+        ground?: boolean;
+    };
+    warnings: RobotWarning[];
+}
+export type RobotMeshData = BinaryLike | string;
+export interface RobotParseOptions {
+    readonly meshes?: Readonly<Record<string, RobotMeshData>> | ReadonlyMap<string, RobotMeshData>;
+    readonly missingMeshes?: 'error' | 'box';
+    readonly strict?: boolean;
+}
+export declare function normalizeMeshPath(name: string): string;
+export declare function robotTree(description: Pick<RobotDescription, 'links' | 'joints' | 'root'>): {
+    order: string[];
+    parentJoint: Map<string, RobotJoint>;
+    childJoints: Map<string, RobotJoint[]>;
+};
+export declare function parseURDF(xml: string, options?: RobotParseOptions): RobotDescription;
+export declare function parseMJCF(xml: string, options?: RobotParseOptions): RobotDescription;
+export declare function robotKinematics(description: RobotDescription, positions?: {
+    readonly [joint: string]: number;
+}): Map<string, RobotPose>;
+export interface RobotSceneOptions {
+    readonly positions?: {
+        readonly [joint: string]: number;
+    };
+    readonly floatingBase?: boolean;
+    readonly selfCollision?: boolean;
+    readonly position?: readonly [number, number, number];
+    readonly rotation?: readonly [number, number, number, number];
+    readonly up?: 'z' | 'y';
+    readonly cylinders?: 'hull' | 'capsule';
+    readonly cylinderSides?: number;
+    readonly motors?: {
+        readonly [joint: string]: number | {
+            readonly speed: number;
+            readonly maxForce?: number;
+        };
+    };
+    readonly hold?: {
+        readonly hertz: number;
+        readonly dampingRatio?: number;
+        readonly joints?: readonly string[];
+    };
+    readonly dampingHertz?: number;
+    readonly defaultDensity?: number;
+    readonly friction?: number;
+    readonly restitution?: number;
+    readonly world?: SceneWorld;
+    readonly neverSleeps?: boolean;
+    readonly prefix?: string;
+    readonly collisionGroup?: number;
+}
+export interface RobotLinkReport {
+    link: string;
+    bodies: string[];
+    kind: 'collision' | 'inertia-box' | 'default-density' | 'static' | 'frame';
+    mass: number;
+    massActual: number;
+    volume: number;
+    comSpecified?: [number, number, number];
+    comActual?: [number, number, number];
+    comOffset?: number;
+    principalSpecified?: [number, number, number];
+    principalActual?: [number, number, number];
+    principalError?: [number, number, number];
+    maxPrincipalError?: number;
+    tensorError?: number;
+}
+export interface RobotShapeReport {
+    link: string;
+    body: string;
+    shape: string;
+    as: string;
+    volumeError: number;
+    inertiaError: number;
+}
+export interface RobotJointReport {
+    joint: string;
+    type: RobotJointType;
+    id: string | null;
+    as: 'weld' | 'revolute' | 'prismatic' | 'spherical' | 'none';
+    limits?: {
+        lower: number;
+        upper: number;
+    };
+    motor?: {
+        speed: number;
+        maxForce: number;
+    };
+    spring?: {
+        hertz: number;
+        dampingRatio: number;
+        target: number;
+        stiffness: number;
+        damping: number;
+        effectiveMass: number;
+    };
+    effort?: number;
+}
+export interface RobotReport {
+    name: string;
+    totalMass: number;
+    totalMassActual: number;
+    links: RobotLinkReport[];
+    shapes: RobotShapeReport[];
+    joints: RobotJointReport[];
+    maxPrincipalError: number;
+    worstLink: string | null;
+    warnings: RobotWarning[];
+}
+export declare function robotToScene(description: RobotDescription, options?: RobotSceneOptions): Scene;
+export declare function robotReport(description: RobotDescription, options?: RobotSceneOptions): RobotReport;
+export interface RobotHost<B = NativeBodyHandle, J = NativeJointHandle> {
+    createBody(options: NativeBodyDescriptor): B | null;
+    createJoint(options: Omit<NativeJointDescriptor, 'bodyA' | 'bodyB'> & {
+        readonly bodyA: B | null;
+        readonly bodyB: B | null;
+    }): J;
+    destroyBody?(body: B): unknown;
+}
+export interface RobotLinkHandle<B = NativeBodyHandle> {
+    body: B | null;
+    bodies: B[];
+    frame: {
+        position: [number, number, number];
+        rotation: [number, number, number, number];
+    };
+}
+export interface SpawnedRobot<B = NativeBodyHandle, J = NativeJointHandle> {
+    links: Map<string, RobotLinkHandle<B>>;
+    joints: Map<string, J>;
+    bodies: Map<string, B>;
+    allJoints: Map<string, J>;
+    scene: Scene;
+    report: RobotReport;
+}
+export declare function spawnRobot<B = NativeBodyHandle, J = NativeJointHandle>(world: RobotHost<B, J>, description: RobotDescription, options?: RobotSceneOptions): SpawnedRobot<B, J>;
+export declare function robotLinkPose(body: {
+    readonly position: readonly number[];
+    readonly rotation: readonly number[];
+} | null, frame: {
+    readonly position: readonly number[];
+    readonly rotation: readonly number[];
+}): {
+    position: [number, number, number];
+    rotation: [number, number, number, number];
+};
+export interface DoublePendulumOptions {
+    length1?: number;
+    length2?: number;
+    mass1?: number;
+    mass2?: number;
+    width?: number;
+    height?: number;
+}
+export declare function doublePendulumURDF(options?: DoublePendulumOptions): string;
+export declare function doublePendulumMJCF(options?: DoublePendulumOptions): string;
+export declare function twoLinkArmURDF(options?: {
+    length1?: number;
+    length2?: number;
+}): string;
+export declare function cartPoleURDF(options?: {
+    cartMass?: number;
+    poleMass?: number;
+    poleLength?: number;
+}): string;
+export declare function sixDofArmURDF(): string;
+export declare function wheeledCartURDF(options?: {
+    wheelRadius?: number;
+    wheelMass?: number;
+    chassisMass?: number;
+}): string;
+export declare function hangingChainURDF(links?: number): string;
+export declare const EXAMPLE_ROBOTS: {
+    readonly [name: string]: {
+        readonly format: 'urdf' | 'mjcf';
+        readonly text: () => string;
+    };
+};
+
 // ==== core/scene-examples.d.ts ====
 import type { Scene } from './scene-format.js';
 export declare function pendulumWaveScene(options?: {
@@ -2730,6 +3048,18 @@ export declare class SnapshotDecoder implements InstanceSource {
     matrices(): Float32Array;
     colors(): Float32Array;
 }
+
+// ==== robot.d.ts ====
+import { type RobotDescription, type RobotSceneOptions, type SpawnedRobot as CoreSpawnedRobot } from './core/robot-import.js';
+import type { Body, BodyOptions, Joint, JointOptions } from './world.js';
+export * from './core/robot-import.js';
+export interface RobotHost {
+    createBody(options: BodyOptions): Body | null;
+    createJoint(options: JointOptions): Joint;
+    destroyBody?(body: Body): boolean;
+}
+export type SpawnedRobot = CoreSpawnedRobot<Body, Joint>;
+export declare function spawnRobot(world: RobotHost, description: RobotDescription, options?: RobotSceneOptions): SpawnedRobot;
 
 // ==== scene.d.ts ====
 import { SceneBuilder as CoreSceneBuilder, type SaveSceneOptions, type Scene, type SceneBody, type SceneJoint, type SceneJointInput, type SceneMaterial, type SceneMeta } from './core/scene-format.js';

@@ -5118,3 +5118,652 @@ A Simulation of a PhysicsWorld.
 ```ts
 export type WorldSimulation = Simulation<PhysicsWorld, Body>;
 ```
+
+## `box3d-webgpu-kit/robot`
+
+### cartPoleURDF · function
+
+A pendulum on a cart as URDF: a box cart on a prismatic rail along x, 1.5 m up, and a box pole hanging from it on a free hinge about y.
+
+```ts
+export declare function cartPoleURDF(options?: {
+    cartMass?: number;
+    poleMass?: number;
+    poleLength?: number;
+}): string;
+```
+
+### doublePendulumMJCF · function
+
+The same double pendulum as MJCF. `robotToScene` gives the same scene for both (the ground plane and the friction of 0.6 are written out because MJCF's defaults differ from URDF's).
+
+```ts
+export declare function doublePendulumMJCF(options?: DoublePendulumOptions): string;
+```
+
+### DoublePendulumOptions · interface
+
+```ts
+export interface DoublePendulumOptions {
+    length1?: number;
+    length2?: number;
+    mass1?: number;
+    mass2?: number;
+    width?: number;
+    height?: number;
+}
+```
+
+### doublePendulumURDF · function
+
+A double pendulum as URDF: two box rods on hinges about y, hanging from the world at `height`. Each rod's inertial is that of its box, so the import reproduces it exactly.
+
+```ts
+export declare function doublePendulumURDF(options?: DoublePendulumOptions): string;
+```
+
+### EXAMPLE_ROBOTS · const
+
+Every example robot by name: its format and a function that returns the file text with the defaults.
+
+```ts
+export declare const EXAMPLE_ROBOTS: {
+    readonly [name: string]: {
+        readonly format: 'urdf' | 'mjcf';
+        readonly text: () => string;
+    };
+};
+```
+
+### hangingChainURDF · function
+
+A chain of `links` capsule links (0.2 m each) on free hinges about y, hanging from the world: a long serial chain for measuring joint drift.
+
+```ts
+export declare function hangingChainURDF(links?: number): string;
+```
+
+### normalizeMeshPath · function
+
+How mesh names are compared: backslashes become '/', a URI scheme
+(`package://`, `file://`, `model://`) is removed, and empty, '.' and '..'
+segments are resolved. `package://arm/meshes/hand.stl` -> `arm/meshes/hand.stl`.
+
+```ts
+export declare function normalizeMeshPath(name: string): string;
+```
+
+### parseMJCF · function
+
+Read a MuJoCo MJCF model: the common subset.
+
+Read: `<compiler>` (angle, eulerseq, meshdir, autolimits, inertiafromgeom),
+`<option>` (gravity, timestep), nested `<default>` classes with `class` and
+`childclass`, `<asset>` meshes and material colours, the `<worldbody>` tree
+(body pose by pos with quat, euler, axisangle, xyaxes or zaxis; `<inertial>`;
+`<geom>` box, sphere, capsule, cylinder, ellipsoid and mesh, by size or
+`fromto`, and a plane on the world; `<joint>` hinge, slide, ball and free with
+axis, range, damping, stiffness, springref, ref and frictionloss) and
+`<actuator>` motor, position and velocity on a joint. A body without
+`<inertial>` gets its mass and inertia from its geoms, as MuJoCo does.
+
+The world body becomes the root link "world"; a body without a joint is
+fixed to its parent. Everything else is reported in `warnings` with the
+element named, and has no effect: `<equality>`, `<tendon>`, `<contact>`
+pairs and exclusions between bodies that are not joined, `<include>`,
+composites, height fields, armature, solver settings, and any attribute this
+import does not use. A body with several joints keeps one (three hinges at a
+point become a ball joint). Sites, cameras, lights and visual settings are
+skipped without a warning: they do not change the motion.
+
+```ts
+export declare function parseMJCF(xml: string, options?: RobotParseOptions): RobotDescription;
+```
+
+### parseURDF · function
+
+Read a URDF robot.
+
+Read: links (inertial, collision boxes, cylinders, spheres and meshes, the
+first visual colour), joints (fixed, revolute, continuous, prismatic,
+floating; origin, axis, limit, dynamics) and the tree, which must have one
+root and no loops. Visual geometry is not read. Reported in `warnings` and
+otherwise without effect: planar joints (the child is left free), `<mimic>`,
+`<calibration>`, `<safety_controller>`, `<transmission>`, `<gazebo>` and
+any unknown element. Xacro must be expanded first.
+
+Throws `XMLParseError` for malformed XML and
+`EngineError('INVALID_PAYLOAD')`, with the line and column, for an invalid
+robot: a missing or dangling name, a broken tree, a bad number, a mesh that
+was not supplied.
+
+```ts
+export declare function parseURDF(xml: string, options?: RobotParseOptions): RobotDescription;
+```
+
+### parseXML · function
+
+A small XML parser for robot files: elements, attributes, text, comments,
+CDATA, the five predefined entities and numeric character references.
+
+It is deliberately not a full XML processor. A DOCTYPE with an internal
+subset (where entities are declared) is refused, an undeclared entity is an
+error, and nothing is ever expanded or fetched, so entity-expansion and
+external-entity attacks cannot work. A bare `<!DOCTYPE name>` and processing
+instructions are skipped. Namespaces are not interpreted: `xacro:macro` is
+just a name. Errors are `XMLParseError` with the line and column.
+
+```ts
+export declare function parseXML(text: string, limits?: XMLLimits): XMLElement;
+```
+
+### ROBOT_LIMITS · const
+
+Hard caps on a robot description.
+
+```ts
+export declare const ROBOT_LIMITS: Readonly<{
+    links: 4096;
+    joints: 4096;
+    collisionsPerLink: 64;
+    meshHullPoints: 32;
+}>;
+```
+
+### RobotCollision · interface
+
+```ts
+export interface RobotCollision {
+    name?: string;
+    origin: RobotPose;
+    geometry: RobotGeometry;
+    mass?: number;
+    friction?: number;
+    color?: number;
+}
+```
+
+### RobotDescription · interface
+
+```ts
+export interface RobotDescription {
+    name: string;
+    source: 'urdf' | 'mjcf';
+    links: RobotLink[];
+    joints: RobotJoint[];
+    root: string;
+    world: {
+        gravity?: [number, number, number];
+        timestep?: number;
+        ground?: boolean;
+    };
+    warnings: RobotWarning[];
+}
+```
+
+### RobotGeometry · type
+
+A collision shape, in the file's terms. Cylinders, capsules and ellipsoids have their axis along the shape's local z.
+
+```ts
+export type RobotGeometry = {
+    type: 'box';
+    size: [number, number, number];
+} | {
+    type: 'sphere';
+    radius: number;
+} | {
+    type: 'cylinder';
+    radius: number;
+    length: number;
+}
+| {
+    type: 'capsule';
+    radius: number;
+    length: number;
+} | {
+    type: 'ellipsoid';
+    radii: [number, number, number];
+}
+| {
+    type: 'mesh';
+    filename: string;
+    scale: [number, number, number];
+    points: number[];
+}
+| {
+    type: 'missing-mesh';
+    filename: string;
+    scale: [number, number, number];
+}
+| {
+    type: 'plane';
+};
+```
+
+### RobotHost · interface
+
+The part of `PhysicsWorld` this module uses.
+
+```ts
+export interface RobotHost {
+    createBody(options: BodyOptions): Body | null;
+    createJoint(options: JointOptions): Joint;
+    destroyBody?(body: Body): boolean;
+}
+```
+
+### RobotInertial · interface
+
+```ts
+export interface RobotInertial {
+    mass: number;
+    origin: RobotPose;
+    inertia: [number, number, number, number, number, number];
+    derived?: boolean;
+}
+```
+
+### RobotJoint · interface
+
+```ts
+export interface RobotJoint {
+    name: string;
+    type: RobotJointType;
+    parent: string;
+    child: string;
+    origin: RobotPose;
+    anchor: [number, number, number];
+    axis: [number, number, number];
+    limits?: {
+        lower: number;
+        upper: number;
+    };
+    effort?: number;
+    velocity?: number;
+    damping?: number;
+    friction?: number;
+    stiffness?: number;
+    springRef?: number;
+    ref?: number;
+    armature?: number;
+    servo?: {
+        kp: number;
+        kv: number;
+    };
+    supported: boolean;
+}
+```
+
+### RobotJointReport · interface
+
+```ts
+export interface RobotJointReport {
+    joint: string;
+    type: RobotJointType;
+    id: string | null;
+    as: 'weld' | 'revolute' | 'prismatic' | 'spherical' | 'none';
+    limits?: {
+        lower: number;
+        upper: number;
+    };
+    motor?: {
+        speed: number;
+        maxForce: number;
+    };
+    spring?: {
+        hertz: number;
+        dampingRatio: number;
+        target: number;
+        stiffness: number;
+        damping: number;
+        effectiveMass: number;
+    };
+    effort?: number;
+}
+```
+
+### RobotJointType · type
+
+```ts
+export type RobotJointType = 'fixed' | 'revolute' | 'continuous' | 'prismatic' | 'spherical' | 'floating' | 'planar';
+```
+
+### robotKinematics · function
+
+Pose of every link frame in the robot's own axes (the root link frame is the
+origin), for the given joint positions: radians for revolute and continuous
+joints, metres for prismatic ones, in the file's values. A joint that is not
+named sits at its reference position (0, or MJCF `ref`). Each child frame is
+parent x joint origin x joint motion, where the motion turns about, or slides
+along, the joint axis through the joint's anchor.
+
+```ts
+export declare function robotKinematics(description: RobotDescription, positions?: {
+    readonly [joint: string]: number;
+}): Map<string, RobotPose>;
+```
+
+### RobotLink · interface
+
+```ts
+export interface RobotLink {
+    name: string;
+    inertial?: RobotInertial;
+    collisions: RobotCollision[];
+    color?: number;
+    isWorld?: boolean;
+}
+```
+
+### RobotLinkHandle · interface
+
+```ts
+export interface RobotLinkHandle<B = NativeBodyHandle> {
+    body: B | null;
+    bodies: B[];
+    frame: {
+        position: [number, number, number];
+        rotation: [number, number, number, number];
+    };
+}
+```
+
+### robotLinkPose · function
+
+World pose of a link frame from the state of the body that carries it:
+`robotLinkPose(world.getState(link.body), link.frame)`. With `body` null the
+frame already is the world pose.
+
+```ts
+export declare function robotLinkPose(body: {
+    readonly position: readonly number[];
+    readonly rotation: readonly number[];
+} | null, frame: {
+    readonly position: readonly number[];
+    readonly rotation: readonly number[];
+}): {
+    position: [number, number, number];
+    rotation: [number, number, number, number];
+};
+```
+
+### RobotLinkReport · interface
+
+```ts
+export interface RobotLinkReport {
+    link: string;
+    bodies: string[];
+    kind: 'collision' | 'inertia-box' | 'default-density' | 'static' | 'frame';
+    mass: number;
+    massActual: number;
+    volume: number;
+    comSpecified?: [number, number, number];
+    comActual?: [number, number, number];
+    comOffset?: number;
+    principalSpecified?: [number, number, number];
+    principalActual?: [number, number, number];
+    principalError?: [number, number, number];
+    maxPrincipalError?: number;
+    tensorError?: number;
+}
+```
+
+### RobotMeshData · type
+
+```ts
+export type RobotMeshData = BinaryLike | string;
+```
+
+### RobotParseOptions · interface
+
+```ts
+export interface RobotParseOptions {
+    readonly meshes?: Readonly<Record<string, RobotMeshData>> | ReadonlyMap<string, RobotMeshData>;
+    readonly missingMeshes?: 'error' | 'box';
+    readonly strict?: boolean;
+}
+```
+
+### RobotPose · interface
+
+A position and a unit quaternion [x, y, z, w].
+
+```ts
+export interface RobotPose {
+    xyz: [number, number, number];
+    quat: [number, number, number, number];
+}
+```
+
+### robotReport · function
+
+What `robotToScene` does to the robot, in numbers: per-link mass and inertia against the file, shape stand-ins with their errors, the joint mapping and every warning.
+
+```ts
+export declare function robotReport(description: RobotDescription, options?: RobotSceneOptions): RobotReport;
+```
+
+### RobotReport · interface
+
+```ts
+export interface RobotReport {
+    name: string;
+    totalMass: number;
+    totalMassActual: number;
+    links: RobotLinkReport[];
+    shapes: RobotShapeReport[];
+    joints: RobotJointReport[];
+    maxPrincipalError: number;
+    worstLink: string | null;
+    warnings: RobotWarning[];
+}
+```
+
+### RobotSceneOptions · interface
+
+```ts
+export interface RobotSceneOptions {
+    readonly positions?: {
+        readonly [joint: string]: number;
+    };
+    readonly floatingBase?: boolean;
+    readonly selfCollision?: boolean;
+    readonly position?: readonly [number, number, number];
+    readonly rotation?: readonly [number, number, number, number];
+    readonly up?: 'z' | 'y';
+    readonly cylinders?: 'hull' | 'capsule';
+    readonly cylinderSides?: number;
+    readonly motors?: {
+        readonly [joint: string]: number | {
+            readonly speed: number;
+            readonly maxForce?: number;
+        };
+    };
+    readonly hold?: {
+        readonly hertz: number;
+        readonly dampingRatio?: number;
+        readonly joints?: readonly string[];
+    };
+    readonly dampingHertz?: number;
+    readonly defaultDensity?: number;
+    readonly friction?: number;
+    readonly restitution?: number;
+    readonly world?: SceneWorld;
+    readonly neverSleeps?: boolean;
+    readonly prefix?: string;
+    readonly collisionGroup?: number;
+}
+```
+
+### RobotShapeReport · interface
+
+```ts
+export interface RobotShapeReport {
+    link: string;
+    body: string;
+    shape: string;
+    as: string;
+    volumeError: number;
+    inertiaError: number;
+}
+```
+
+### robotToScene · function
+
+A robot description as a scene (docs/SCENE_FORMAT.md), ready for
+`validateScene`, `loadScene` and share links.
+
+- Each link becomes one body per collision shape, placed by forward
+  kinematics. Several shapes are welded, each to the nearest one before it.
+  A body's origin is its shape's centre of mass.
+- Density is mass / collision volume, so the link's mass is the file's. The
+  inertia is whatever the shapes then have: read `robotReport` for the gap.
+  A link with mass and no shape becomes a box with the file's exact mass and
+  inertia that collides with nothing.
+- fixed -> weld; revolute and continuous -> revolute about the joint axis;
+  prismatic -> prismatic; ball -> spherical; floating -> no joint.
+- Body ids are link names and joint ids are joint names (characters outside
+  letters, digits and `_ . : -` become `_`). `extensions.robot` maps every
+  link to its body and the link frame in that body's coordinates.
+
+```ts
+export declare function robotToScene(description: RobotDescription, options?: RobotSceneOptions): Scene;
+```
+
+### robotTree · function
+
+The tree of a description: parent joint and child joints of every link, and the links in an order that visits parents first. Throws on a broken tree.
+
+```ts
+export declare function robotTree(description: Pick<RobotDescription, 'links' | 'joints' | 'root'>): {
+    order: string[];
+    parentJoint: Map<string, RobotJoint>;
+    childJoints: Map<string, RobotJoint[]>;
+};
+```
+
+### RobotWarning · interface
+
+`unsupported`: dropped. `approximated`: represented by something close. `ignored`: has no effect on the physics here. `note`: worth knowing.
+
+```ts
+export interface RobotWarning {
+    code: 'unsupported' | 'approximated' | 'ignored' | 'note';
+    element: string;
+    message: string;
+    line?: number;
+    column?: number;
+}
+```
+
+### sixDofArmURDF · function
+
+A serial six-joint arm as URDF, from boxes, cylinders and a sphere: yaw,
+shoulder, elbow, forearm roll, wrist pitch, tool roll. Joint origins carry
+roll, pitch and yaw offsets and the tool has two collision shapes, so the
+file exercises the conventions. Its inertia tensors are deliberately not
+those of the collision shapes (they are scaled as a CAD export's would
+differ), which shows up in `robotReport`.
+
+```ts
+export declare function sixDofArmURDF(): string;
+```
+
+### SpawnedRobot · type
+
+```ts
+export type SpawnedRobot = CoreSpawnedRobot<Body, Joint>;
+```
+
+### spawnRobot · function
+
+Add a robot to a world that already exists, without resetting it, and return
+handles by link and joint name:
+
+    const robot = spawnRobot(world, parseURDF(text), {position: [0, 0, 0]});
+    world.setJointMotor(robot.joints.get('elbow'), {speed: 1, maxForce: 20});
+    const pose = robotLinkPose(world.getState(robot.links.get('hand').body), robot.links.get('hand').frame);
+
+The bodies and joints are those of `robotToScene`, created in the same
+order, so the world steps exactly like one loaded from that scene. The
+scene's world settings (gravity, ground, step) are NOT applied: the world
+keeps its own. If the world fills up part-way, the bodies made so far are
+destroyed and the error names the body.
+
+```ts
+export declare function spawnRobot(world: RobotHost, description: RobotDescription, options?: RobotSceneOptions): SpawnedRobot;
+```
+
+### twoLinkArmURDF · function
+
+A planar two-link arm as URDF: a base post and two cylinder links along x, on limited hinges about y. Link lengths 0.4 m and 0.3 m.
+
+```ts
+export declare function twoLinkArmURDF(options?: {
+    length1?: number;
+    length2?: number;
+}): string;
+```
+
+### wheeledCartURDF · function
+
+A four-wheeled cart as URDF: a box chassis and four cylinder wheels on
+continuous joints about y. The robot's origin is on the ground under the
+chassis centre. Build it with `floatingBase: true`, or it is welded down.
+
+```ts
+export declare function wheeledCartURDF(options?: {
+    wheelRadius?: number;
+    wheelMass?: number;
+    chassisMass?: number;
+}): string;
+```
+
+### XML_LIMITS · const
+
+Hard caps of `parseXML`. Input beyond them is refused, with the position.
+
+```ts
+export declare const XML_LIMITS: Readonly<{
+    maxChars: number;
+    maxDepth: 64;
+    maxNodes: 200000;
+    maxAttributes: 256;
+    maxNameChars: 256;
+}>;
+```
+
+### XMLElement · interface
+
+```ts
+export interface XMLElement {
+    name: string;
+    attributes: {
+        [name: string]: string;
+    };
+    children: XMLElement[];
+    text: string;
+    line: number;
+    column: number;
+}
+```
+
+### XMLLimits · type
+
+```ts
+export type XMLLimits = {
+    readonly [K in keyof typeof XML_LIMITS]?: number;
+};
+```
+
+### XMLParseError · class
+
+Thrown by `parseXML`. `code` is 'INVALID_PAYLOAD'; `line` and `column` are 1-based.
+
+```ts
+export declare class XMLParseError extends EngineError {
+  readonly line: number;
+  readonly column: number;
+}
+```

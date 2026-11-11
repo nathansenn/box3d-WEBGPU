@@ -25,6 +25,7 @@ const ENTRIES = [
   ['box3d-webgpu-kit/geometry', 'dist/geometry.d.ts'],
   ['box3d-webgpu-kit/scene', 'dist/scene.d.ts'],
   ['box3d-webgpu-kit/simulation', 'dist/simulation.d.ts'],
+  ['box3d-webgpu-kit/robot', 'dist/robot.d.ts'],
 ];
 
 function kindOf(decl) {
