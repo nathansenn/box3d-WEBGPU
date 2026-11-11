@@ -124,6 +124,7 @@ export async function bootMaterialLab(id:LabId):Promise<void>{
   const dispose=()=>{disposed=true;lifetime.abort();cancelAnimationFrame(animation);runLibrary.dispose();analysis?.dispose();glassWorker?.dispose();world?.dispose();window.removeEventListener('pagehide',dispose);};window.addEventListener('pagehide',dispose,{once:true});
   if(import.meta.hot)import.meta.hot.dispose(dispose);
   setTab(id==='liquid'&&query.get('panel')==='analyze'?'analyze':'setup');world=new MaterialLabWorld($('#lab-canvas'),model);await world.init();if(disposed)return;
+  world.onBackendChange=()=>{$('#renderer-status').textContent=world.backend+' renderer · fixed-step model';};
   const {GlassWorkerClient}=id==='glass'?await import('./glass-worker-client'):{GlassWorkerClient:undefined};if(disposed)return;
   function startGlassWorker():void {
     if(!GlassWorkerClient||disposed)return;

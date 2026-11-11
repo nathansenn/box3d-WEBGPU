@@ -449,8 +449,11 @@ export async function bootStudio(requested:string):Promise<void> {
   sim.targetLoad=0;sim.strength=strength;sim.wind=wind;if(id==='plate')runEnd=Math.max(30,(70+pressSettings.stroke)/pressSettings.strikeSpeed+pressSettings.hold+12);
   try{
     client=await createStudioClient({study:id,press:pressSettings,backend:sim.backend,controls:{targetLoad:sim.targetLoad,strength,wind}},{mode:initialQuery.get('simulation')==='sync'?'sync':'auto'});clientReady=true;
-    world=new StudioWorld(root.querySelector<HTMLElement>('#scene-host')!,sim);
-    await world.init(message=>setText('.scene-loading>span:last-child',message));await world.applyFinish(finish);world.setLighting(lighting);world.setSurroundings(surroundings);world.setRiver(riverSettings);world.setAutoRotate(autoRotate);world.setQuality(quality);world.setCamera(cameraPreset);world.onGraphicsLost(message=>{void recoverGraphics(message);});ready();
+    const present=async():Promise<void>=>{await world.init(message=>setText('.scene-loading>span:last-child',message));await world.applyFinish(finish);world.setLighting(lighting);world.setSurroundings(surroundings);world.setRiver(riverSettings);world.setAutoRotate(autoRotate);world.setQuality(quality);world.setCamera(cameraPreset);};
+    world=new StudioWorld(root.querySelector<HTMLElement>('#scene-host')!,sim);await present();
+    // A WebGPU device the browser cannot present is lost by its first frame. Start on WebGL instead.
+    if(!await world.survivesFirstFrame()){console.warn('The WebGPU device was lost on its first frame. Starting on the WebGL renderer.');world.dispose();world=new StudioWorld(root.querySelector<HTMLElement>('#scene-host')!,sim,true);await present();}
+    world.onGraphicsLost(message=>{void recoverGraphics(message);});ready();
   }catch(error){root.inert=false;throw error;}
   async function recoverGraphics(message:string):Promise<void> {
     if(graphicsRecovering||disposed)return;
@@ -459,7 +462,9 @@ export async function bootStudio(requested:string):Promise<void> {
     const position=world.camera.position.clone(),targetPosition=world.controls.target.clone(),fov=world.camera.fov;
     try{
       await pendingTask;if(disposed)return;
-      world.dispose();world=new StudioWorld(root.querySelector<HTMLElement>('#scene-host')!,sim);
+      // The lost device may be one the browser cannot present, so the replacement uses WebGL.
+      console.warn(`Graphics device lost (${message}). Rebuilding the scene on the WebGL renderer.`);
+      world.dispose();world=new StudioWorld(root.querySelector<HTMLElement>('#scene-host')!,sim,true);
       await world.init();await world.applyFinish(finish);
       if(disposed){world.dispose();return;}
       world.setLighting(lighting);world.setSurroundings(surroundings);world.setRiver(riverSettings);world.setAutoRotate(autoRotate);world.setQuality(quality);world.setCamera(cameraPreset);

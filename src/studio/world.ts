@@ -17,6 +17,7 @@ import {pressAttachment,updatePlateShell,PRESS_FRAME_POINTS} from './press-tooli
 import {sheetThickness,type PressSettings} from './press-settings';
 import {pressStrainHue,sheetRimEdge,PressSectionSampler,type SectionAxis} from './press-inspection';
 import { skyTexture, studioEnvironment, riverNormals } from './lighting';
+import { watchDeviceLoss, framesSettled, initWebGL } from './device-loss';
 import { finishFor, lightingFor, surroundingsFor, type FinishPreset, type LightingPreset, type CameraPreset, type SurroundingPreset } from './presets';
 import { RoundedBoxGeometry } from 'three/addons/geometries/RoundedBoxGeometry.js';
 import { mergeGeometries } from 'three/addons/utils/BufferGeometryUtils.js';
@@ -118,10 +119,12 @@ export class StudioWorld {
   private cameraLayout='';
   private disposed=false;
   private graphicsLost?: (message:string)=>void;
+  private lossMessage?: string;
 
-  constructor(private host: HTMLElement, simulation: FailureSimulation) {
+  /** `forceWebGL` rebuilds the scene on WebGL after a WebGPU device has been lost. */
+  constructor(private host: HTMLElement, simulation: FailureSimulation, forceWebGL=false) {
     this.sim=simulation;
-    this.renderer=this.createRenderer();
+    this.renderer=this.createRenderer(forceWebGL);
     this.controls=new OrbitControls(this.camera,this.renderer.domElement);
     this.configureControls();
     this.scene.add(this.root);
@@ -131,13 +134,16 @@ export class StudioWorld {
 
   private createRenderer(forceWebGL=false):T.WebGPURenderer {
     const renderer=new T.WebGPURenderer({antialias:true,alpha:false,forceWebGL});
-    const reportLoss=renderer.onDeviceLost.bind(renderer);
-    renderer.onDeviceLost=info=>{if(this.disposed)return;reportLoss(info);this.graphicsLost?.(info.message);};
+    renderer.onDeviceLost=info=>this.reportLoss(renderer,info.message);
     renderer.setPixelRatio(Math.min(window.devicePixelRatio,1.75));
     renderer.toneMapping=T.ACESFilmicToneMapping;renderer.toneMappingExposure=.94;
     renderer.shadowMap.enabled=true;renderer.shadowMap.type=T.PCFShadowMap;
     renderer.domElement.setAttribute('aria-label','Interactive 3D simulation. Drag to orbit, scroll to zoom.');
     renderer.domElement.setAttribute('role','img');this.host.append(renderer.domElement);return renderer;
+  }
+  private reportLoss(renderer:T.WebGPURenderer,message:string):void {
+    if(this.disposed||renderer!==this.renderer||this.lossMessage!==undefined)return;
+    this.lossMessage=message;this.graphicsLost?.(message);
   }
   private configureControls():void {
     this.controls.enableDamping=true;this.controls.dampingFactor=.075;
@@ -154,9 +160,9 @@ export class StudioWorld {
       // A stalled native adapter must not leave the studio on a permanent spinner.
       progress('Preparing compatible graphics');this.controls.dispose();first.domElement.remove();
       void initializing.then(()=>first.dispose()).catch(()=>{});
-      this.renderer=this.createRenderer(true);this.controls=new OrbitControls(this.camera,this.renderer.domElement);this.configureControls();
-      await this.renderer.init();
+      this.renderer=await initWebGL(()=>this.createRenderer(true));this.controls=new OrbitControls(this.camera,this.renderer.domElement);this.configureControls();
     } finally {if(timer)clearTimeout(timer);}
+    const renderer=this.renderer;watchDeviceLoss(renderer,message=>this.reportLoss(renderer,message));
     progress('Loading surfaces and lighting');
     this.interiorEnvironment=studioEnvironment(this.renderer);
     this.environmentGenerator=new T.PMREMGenerator(this.renderer);
@@ -997,7 +1003,10 @@ export class StudioWorld {
     this.controls.update();if(this.pipeline)this.pipeline.render();else this.renderer.render(this.scene,this.camera);
   }
   cameraState():object {return {position:this.camera.position.toArray(),target:this.controls.target.toArray(),fov:this.camera.fov};}
-  onGraphicsLost(callback:(message:string)=>void):void {this.graphicsLost=callback;}
+  /** Draws one frame and reports whether the graphics device outlived it. */
+  async survivesFirstFrame():Promise<boolean> {this.render(performance.now()/1000);await framesSettled(this.renderer);return this.lossMessage===undefined;}
+  /** A loss that arrived before the listener is delivered to it at once. */
+  onGraphicsLost(callback:(message:string)=>void):void {this.graphicsLost=callback;if(this.lossMessage!==undefined)callback(this.lossMessage);}
   presentationState():object {return {finish:this.currentFinish.id,lighting:this.look.id,surroundings:this.surroundings.id,camera:this.cameraPreset,quality:this.renderQuality,exposure:this.renderer.toneMappingExposure,river:this.sim.id==='bridge'?{...this.riverSettings,affectsStructure:false}:null};}
   riverTime():number {return this.water?.clock.value??0;}
   metrics():{fps:number;drawCalls:number;triangles:number;objects:number;textures:number} {

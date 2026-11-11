@@ -7,6 +7,7 @@ import {GLASS_RIG,glassFixtures} from './glass-rig';
 import {GroundedSkybox} from 'three/addons/objects/GroundedSkybox.js';
 import {StudioMaterials} from '../materials';
 import {studioEnvironment,riverNormals} from '../lighting';
+import {watchDeviceLoss,framesSettled,initWebGL} from '../device-loss';
 import {LABS,type LabId} from './catalog';
 import {GlassModel,GranularModel,LiquidModel,RubberModel,type LabFrame,type LabModel,type V3,random} from './models';
 
@@ -22,7 +23,9 @@ export class MaterialLabWorld {
   private liquidSection=3;private sectionVisible=false;
   private water?:T.Mesh<T.BufferGeometry>;private waterSides?:T.Mesh<T.BufferGeometry>;private foam?:T.InstancedMesh;
   private dummy=new T.Object3D();private color=new T.Color();private localVertices=new Float32Array();private ranges:number[]=[];
-  private rubberRest?:Float32Array;private labels:T.Texture[]=[];private view:LabView='hero';private disposed=false;
+  private rubberRest?:Float32Array;private labels:T.Texture[]=[];private view:LabView='hero';private disposed=false;private recovering=false;private recovery?:Promise<void>;
+  /** Called after a lost WebGPU device has been replaced by the WebGL renderer. */
+  onBackendChange?:()=>void;
   private tint:T.MeshPhysicalMaterial;private ripple=riverNormals();private lastFrame?:LabFrame;private rotate=false;private key=new T.DirectionalLight('#fff1d7',3.6);
   constructor(private host:HTMLElement,public model:LabModel){
     this.renderer=this.makeRenderer();this.controls=new OrbitControls(this.camera,this.renderer.domElement);this.setupControls();
@@ -46,11 +49,9 @@ export class MaterialLabWorld {
     stage('Loading metal and surface textures');await this.library.init('plate');if(this.disposed)return;stage('Preparing the laboratory environment');
     try{
       this.panorama=await new T.TextureLoader().loadAsync(`${import.meta.env.BASE_URL}studio/references/material-labs/hall-panorama.png`);this.panorama.colorSpace=T.SRGBColorSpace;this.panorama.mapping=T.EquirectangularReflectionMapping;
-      const pmrem=new T.PMREMGenerator(this.renderer);this.environment=pmrem.fromEquirectangular(this.panorama);pmrem.dispose();
-    }catch{this.environment=studioEnvironment(this.renderer);}
-    if(this.disposed){this.environment?.dispose();this.panorama?.dispose();return;}
-    if(this.model.id==='liquid')this.liquidMetalEnvironment=studioEnvironment(this.renderer,true);
-    this.scene.environment=this.environment.texture;this.scene.environmentIntensity=1.35;this.scene.background=new T.Color('#cecfc5');
+    }catch{/* The studio emitters stand in for a missing panorama. */}
+    if(this.disposed){this.panorama?.dispose();return;}
+    this.buildEnvironment();this.scene.environmentIntensity=1.35;this.scene.background=new T.Color('#cecfc5');
     const source=this.library.materials;
     this.materials={floor:source.floor,wall:source.concrete,steel:this.own(new T.MeshStandardMaterial({color:'#b7c0ba',map:source.steel.map,normalMap:source.steel.normalMap,normalScale:new T.Vector2(.1,.1),roughness:.32,metalness:.48,envMapIntensity:1.8})),chrome:source.chrome,
       orange:this.own(new T.MeshStandardMaterial({color:'#f07422',roughness:.46,metalness:.32})),black:this.own(new T.MeshStandardMaterial({color:'#1a2020',roughness:.73,metalness:.22})),
@@ -64,6 +65,34 @@ export class MaterialLabWorld {
       this.materials.liquidRock=this.own(new T.MeshStandardMaterial({map:entries[1],bumpMap:entries[1],bumpScale:.025,roughness:.93,color:'#aaa997'}));
     }
     stage('Building the apparatus');this.buildHall();this.setModel(this.model);this.resize();
+    const renderer=this.renderer;
+    if(this.backend==='WebGPU'){
+      const lose=(message:string)=>{this.recovery??=this.recover(renderer,message);};
+      renderer.onDeviceLost=info=>lose(info.message);watchDeviceLoss(renderer,lose);
+      // Prove the device by its first frame, so the lab is not shown on one that cannot present.
+      this.render();await framesSettled(renderer);await this.recovery;
+    }
+  }
+  /** Reflection maps live on the renderer that drew them, so a replacement renderer draws them again. */
+  private buildEnvironment():void {
+    this.environment?.dispose();this.liquidMetalEnvironment?.dispose();this.environment=undefined;
+    if(this.panorama)try{const pmrem=new T.PMREMGenerator(this.renderer);this.environment=pmrem.fromEquirectangular(this.panorama);pmrem.dispose();}catch{/* use the emitters below */}
+    this.environment??=studioEnvironment(this.renderer);
+    this.liquidMetalEnvironment=this.model.id==='liquid'?studioEnvironment(this.renderer,true):undefined;
+    this.scene.environment=this.environment.texture;
+  }
+  /** A lost WebGPU device rejects every later buffer and pipeline. Move the same scene to WebGL. */
+  private async recover(lost:T.WebGPURenderer,message:string):Promise<void> {
+    if(this.disposed||lost!==this.renderer)return;this.recovering=true;
+    console.warn(`Graphics device lost (${message}). Continuing on the WebGL renderer.`);
+    const position=this.camera.position.clone(),target=this.controls.target.clone(),frame=this.lastFrame,exposure=lost.toneMappingExposure;
+    this.controls.dispose();lost.domElement.remove();try{lost.dispose();}catch{/* its device is already gone */}
+    const renderer=await initWebGL(()=>this.makeRenderer(true));if(this.disposed){renderer.dispose();renderer.domElement.remove();return;}
+    this.renderer=renderer;renderer.toneMappingExposure=exposure;
+    this.controls=new OrbitControls(this.camera,renderer.domElement);this.setupControls();this.setRotate(this.rotate);
+    this.buildEnvironment();this.setModel(this.model);if(frame)this.update(frame);this.recovering=false;this.resize();
+    this.camera.position.copy(position);this.controls.target.copy(target);this.camera.lookAt(target);this.controls.update();
+    this.onBackendChange?.();
   }
   private mesh(g:T.BufferGeometry,m:T.Material,p:V3,parent:T.Object3D=this.rig):T.Mesh {const mesh=new T.Mesh(g,m);mesh.position.set(...p);mesh.castShadow=true;mesh.receiveShadow=true;parent.add(mesh);return mesh;}
   private box(size:V3,p:V3,mat='steel',bevel=0,parent:T.Object3D=this.rig):T.Mesh {const box=this.mesh(bevel?new RoundedBoxGeometry(...size,2,bevel):new T.BoxGeometry(...size),this.materials[mat],p,parent);if(mat==='glass')box.castShadow=false;return box;}
@@ -303,8 +332,8 @@ export class MaterialLabWorld {
   setLiquidDisplay(mode:LiquidDisplay):void {this.liquidDisplay=mode;this.hydraulics?.setDisplay(mode);}
   setLiquidSection(distance:number,visible:boolean):void {if(distance===this.liquidSection&&visible===this.sectionVisible)return;this.liquidSection=distance;this.sectionVisible=visible;this.hydraulics?.setSection(distance,visible);if(this.lastFrame)this.hydraulics?.update(this.lastFrame);}
   setRotate(on:boolean):void {this.rotate=on;this.controls.autoRotate=on;this.controls.autoRotateSpeed=.4;}
-  resize():void {if(this.disposed)return;const w=this.host.clientWidth,h=this.host.clientHeight;if(!w||!h)return;this.renderer.setSize(w,h);this.camera.aspect=w/h;this.camera.updateProjectionMatrix();if(Object.keys(this.materials).length)this.fit(this.view);}
-  render():void {if(this.disposed)return;this.controls.update();this.renderer.render(this.scene,this.camera);}
+  resize():void {if(this.disposed||this.recovering)return;const w=this.host.clientWidth,h=this.host.clientHeight;if(!w||!h)return;this.renderer.setSize(w,h);this.camera.aspect=w/h;this.camera.updateProjectionMatrix();if(Object.keys(this.materials).length)this.fit(this.view);}
+  render():void {if(this.disposed||this.recovering)return;this.controls.update();this.renderer.render(this.scene,this.camera);}
   async capture():Promise<string>{await this.renderer.renderAsync(this.scene,this.camera);return this.renderer.domElement.toDataURL('image/png');}
   get backend():string{return (this.renderer.backend as unknown as {isWebGPUBackend?:boolean}).isWebGPUBackend?'WebGPU':'WebGL';}
   dispose():void {if(this.disposed)return;this.disposed=true;this.observer.disconnect();this.hydraulics?.dispose();this.controls.dispose();this.scene.traverse(o=>{if(o instanceof T.Mesh||o instanceof T.LineSegments)o.geometry.dispose();});this.labels.forEach(t=>t.dispose());this.extraMaterials.forEach(m=>m.dispose());this.ripple.dispose();this.library.dispose();this.environment?.dispose();this.liquidMetalEnvironment?.dispose();this.liquidTextures.forEach(t=>t.dispose());this.panorama?.dispose();this.renderer.dispose();this.renderer.domElement.remove();}
