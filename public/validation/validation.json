@@ -5,10 +5,10 @@
  "generatedBy": "node scripts/validation-report.mjs",
  "digits": 9,
  "totals": {
-  "cases": 265,
-  "passed": 265,
+  "cases": 295,
+  "passed": 295,
   "failed": 0,
-  "domains": 12
+  "domains": 13
  },
  "domains": [
   {
@@ -67,6 +67,26 @@
    ],
    "cases": 29,
    "passed": 29
+  },
+  {
+   "id": "si-bridge",
+   "title": "Cable-stayed bridge (SI scene)",
+   "summary": "The Physics Lab's bridge scene as a whole: dead-load reactions and the levelled deck, a hand-solved propped span with its mesh study, symmetry, influence lines, the first frequencies, dynamic amplification, a stay failure, wind and repeatability.",
+   "solver": "`src/engine/si-bridge.ts`: frame elements for deck and towers, compliant cables for the stays and a rigid body for the vehicle, coupled by `StructureCoupling`; 120 Hz, 4 sub-steps",
+   "docs": [
+    "docs/SI_BRIDGE.md"
+   ],
+   "notValidated": [
+    "Contact between wheels and deck. The vehicle is one rigid body pinned to the two deck nodes it stands between and moved by re-attachment; it has no wheels, no suspension and no velocity along the deck.",
+    "The vehicle's weight is shared by the lever rule: 1.9 % of the peak midspan deflection and 2.3 % of the peak stay-tension change on the default 6 m elements. Its rigid body also acts as a strut along the element it stands on (up to 8e-4 of a stay tension in the hand case).",
+    "Buckling, yielding, geometric stiffness of the deck and towers, and cable sag (one segment per stay). The utilisation ratios are linear-elastic indicators, not a design check.",
+    "Aerodynamics: wind is a static lateral load. No vortex shedding, flutter or buffeting.",
+    "The reference for most rows is a second solver in the same file that shares the element matrices and the stay law. Only the propped span, the lateral frequency, the Rayleigh estimates and the wind beam are independent hand results.",
+    "Section properties are hand estimates for a plausible steel footbridge, not a designed or surveyed bridge, and nothing is calibrated against measurements.",
+    "The amplification rows bound the factor; they do not compare it with a moving-load solution. Damping is the model's own (about 1 % of critical in the first vertical mode at 120 Hz) plus what is set."
+   ],
+   "cases": 30,
+   "passed": 30
   },
   {
    "id": "geometry",
@@ -2445,6 +2465,865 @@
     "measured": "1.701913e-5",
     "error": "+1.7e-5",
     "tolerance": "±5e-5"
+   }
+  },
+  {
+   "id": "si-bridge.dead.level",
+   "domain": "si-bridge",
+   "title": "Dead load: the pretension levels the deck",
+   "quantity": "largest deflection at a stay anchorage (statics)",
+   "unit": "m",
+   "formula": "0 (zero-displacement method)",
+   "reference": 0,
+   "measured": 4.21937652e-8,
+   "error": 4.21937652e-8,
+   "relativeError": null,
+   "tolerance": {
+    "kind": "upper",
+    "value": 0.000001
+   },
+   "pass": true,
+   "note": "The pretension iteration stops at 1e-7 m. Between anchorages the deck sags 0.185 mm on its three 12 m gaps.",
+   "source": {
+    "file": "tests/physics/si-bridge.test.mjs",
+    "test": "dead load: the pretension levels the deck, and the supports carry deck + stays + towers + vehicle",
+    "url": "https://github.com/nathansenn/box3d-WEBGPU/blob/main/tests/physics/si-bridge.test.mjs"
+   },
+   "text": {
+    "reference": "0 m",
+    "measured": "4.219377e-8",
+    "error": "+4.22e-8",
+    "tolerance": "at most 1e-6 above the reference"
+   }
+  },
+  {
+   "id": "si-bridge.dead.vertical",
+   "domain": "si-bridge",
+   "title": "Dead load with a parked 20 t vehicle: vertical reactions",
+   "quantity": "sum of vertical reactions / total weight",
+   "unit": "1",
+   "formula": "sum R_y = (m_deck + m_stays + m_towers + m_vehicle) g",
+   "reference": 1,
+   "measured": 1.00000001,
+   "error": 7.71297182e-9,
+   "relativeError": 7.71297182e-9,
+   "tolerance": {
+    "kind": "relative",
+    "value": 0.000001
+   },
+   "pass": true,
+   "note": "Half-second mean after a 2 s damped settle; the weight uses the float32 vehicle mass the rigid world reports.",
+   "source": {
+    "file": "tests/physics/si-bridge.test.mjs",
+    "test": "dead load: the pretension levels the deck, and the supports carry deck + stays + towers + vehicle",
+    "url": "https://github.com/nathansenn/box3d-WEBGPU/blob/main/tests/physics/si-bridge.test.mjs"
+   },
+   "text": {
+    "reference": "1",
+    "measured": "1",
+    "error": "+7.71e-9 rel.",
+    "tolerance": "±1e-6 rel."
+   }
+  },
+  {
+   "id": "si-bridge.dead.horizontal",
+   "domain": "si-bridge",
+   "title": "Dead load: horizontal reactions balance",
+   "quantity": "sum of horizontal reactions / total weight",
+   "unit": "1",
+   "formula": "sum R_x = 0",
+   "reference": 0,
+   "measured": -5.40462491e-9,
+   "error": -5.40462491e-9,
+   "relativeError": null,
+   "tolerance": {
+    "kind": "absolute",
+    "value": 0.000001
+   },
+   "pass": true,
+   "note": "The single reactions are not zero: each tower base carries 101 kN and each abutment 417 kN along the deck.",
+   "source": {
+    "file": "tests/physics/si-bridge.test.mjs",
+    "test": "dead load: the pretension levels the deck, and the supports carry deck + stays + towers + vehicle",
+    "url": "https://github.com/nathansenn/box3d-WEBGPU/blob/main/tests/physics/si-bridge.test.mjs"
+   },
+   "text": {
+    "reference": "0",
+    "measured": "-5.404625e-9",
+    "error": "-5.4e-9",
+    "tolerance": "±1e-6"
+   }
+  },
+  {
+   "id": "si-bridge.dead.statics",
+   "domain": "si-bridge",
+   "title": "Time-stepped model against its statics, vehicle parked",
+   "quantity": "largest stay tension error (fraction)",
+   "unit": "1",
+   "formula": "dense Newton statics of the same structure",
+   "reference": 0,
+   "measured": 0.0000962553773,
+   "error": 0.0000962553773,
+   "relativeError": null,
+   "tolerance": {
+    "kind": "upper",
+    "value": 0.0003
+   },
+   "pass": true,
+   "note": "The coupling has a steady-state bias that falls with the step: about 1e-4 of a stay tension at 120 Hz.",
+   "source": {
+    "file": "tests/physics/si-bridge.test.mjs",
+    "test": "dead load: the pretension levels the deck, and the supports carry deck + stays + towers + vehicle",
+    "url": "https://github.com/nathansenn/box3d-WEBGPU/blob/main/tests/physics/si-bridge.test.mjs"
+   },
+   "text": {
+    "reference": "0",
+    "measured": "9.625538e-5",
+    "error": "+9.63e-5",
+    "tolerance": "at most 0.0003 above the reference"
+   }
+  },
+  {
+   "id": "si-bridge.hand.tension",
+   "domain": "si-bridge",
+   "title": "Propped span, 8 elements: stay tension",
+   "quantity": "stay tension",
+   "unit": "N",
+   "formula": "flexibility method, one redundant, true stay chord",
+   "reference": 89108.0893,
+   "measured": 89108.2221,
+   "error": 0.132730931,
+   "relativeError": 0.00000148954974,
+   "tolerance": {
+    "kind": "relative",
+    "value": 0.00005
+   },
+   "pass": true,
+   "note": "Starts undeformed and settles. The reference uses the gravity the rigid world reports (float32).",
+   "source": {
+    "file": "tests/physics/si-bridge.test.mjs",
+    "test": "hand case: a span propped by one stay matches the flexibility-method solution at every mesh, from rest",
+    "url": "https://github.com/nathansenn/box3d-WEBGPU/blob/main/tests/physics/si-bridge.test.mjs"
+   },
+   "text": {
+    "reference": "89108.09 N",
+    "measured": "89108.22",
+    "error": "+1.49e-6 rel.",
+    "tolerance": "±5e-5 rel."
+   }
+  },
+  {
+   "id": "si-bridge.hand.deflection",
+   "domain": "si-bridge",
+   "title": "Propped span, 8 elements: midspan deflection",
+   "quantity": "midspan deflection",
+   "unit": "m",
+   "formula": "5 w L^4 / (384 E I) + (W_e - T sin) L^3 / (48 E I)",
+   "reference": 0.0191721438,
+   "measured": 0.0191722304,
+   "error": 8.65537725e-8,
+   "relativeError": 0.0000045145589,
+   "tolerance": {
+    "kind": "relative",
+    "value": 0.00005
+   },
+   "pass": true,
+   "source": {
+    "file": "tests/physics/si-bridge.test.mjs",
+    "test": "hand case: a span propped by one stay matches the flexibility-method solution at every mesh, from rest",
+    "url": "https://github.com/nathansenn/box3d-WEBGPU/blob/main/tests/physics/si-bridge.test.mjs"
+   },
+   "text": {
+    "reference": "0.01917214 m",
+    "measured": "0.01917223",
+    "error": "+4.51e-6 rel.",
+    "tolerance": "±5e-5 rel."
+   }
+  },
+  {
+   "id": "si-bridge.hand.linear",
+   "domain": "si-bridge",
+   "title": "Propped span: stay tension against the linearised hand solution",
+   "quantity": "stay tension",
+   "unit": "N",
+   "formula": "the same with the stay geometry linearised",
+   "reference": 89054.6254,
+   "measured": 89108.2221,
+   "error": 53.5966614,
+   "relativeError": 0.000601840288,
+   "tolerance": {
+    "kind": "relative",
+    "value": 0.001
+   },
+   "pass": true,
+   "note": "The 19 mm sag turns and lengthens the 18 m stay at second order: (delta cos)^2 / (2 L_s) is 7.5e-4 of its stretch.",
+   "source": {
+    "file": "tests/physics/si-bridge.test.mjs",
+    "test": "hand case: a span propped by one stay matches the flexibility-method solution at every mesh, from rest",
+    "url": "https://github.com/nathansenn/box3d-WEBGPU/blob/main/tests/physics/si-bridge.test.mjs"
+   },
+   "text": {
+    "reference": "89054.63 N",
+    "measured": "89108.22",
+    "error": "+0.0602%",
+    "tolerance": "±0.1%"
+   }
+  },
+  {
+   "id": "si-bridge.hand.mesh",
+   "domain": "si-bridge",
+   "title": "Propped span: the answer does not depend on the mesh",
+   "quantity": "stay tension with 2 elements / with 16 elements",
+   "unit": "1",
+   "formula": "1 (cubic elements are exact at the nodes for these loads)",
+   "reference": 1,
+   "measured": 1.00000001,
+   "error": 6.3138037e-9,
+   "relativeError": 6.3138037e-9,
+   "tolerance": {
+    "kind": "relative",
+    "value": 0.000002
+   },
+   "pass": true,
+   "source": {
+    "file": "tests/physics/si-bridge.test.mjs",
+    "test": "hand case: a span propped by one stay matches the flexibility-method solution at every mesh, from rest",
+    "url": "https://github.com/nathansenn/box3d-WEBGPU/blob/main/tests/physics/si-bridge.test.mjs"
+   },
+   "text": {
+    "reference": "1",
+    "measured": "1",
+    "error": "+6.31e-9 rel.",
+    "tolerance": "±2e-6 rel."
+   }
+  },
+  {
+   "id": "si-bridge.lever.coarse",
+   "domain": "si-bridge",
+   "title": "Vehicle between nodes, 2 elements: lever-rule error",
+   "quantity": "midspan deflection error (fraction, magnitude)",
+   "unit": "1",
+   "formula": "hand solution with the load at its place; bound 0.2 % x h^2 xi (1 - xi) / m^2 + 1e-4",
+   "reference": 0,
+   "measured": 0.0299561162,
+   "error": 0.0299561162,
+   "relativeError": null,
+   "tolerance": {
+    "kind": "upper",
+    "value": 0.04931875
+   },
+   "pass": true,
+   "note": "Two pins share the weight by the lever rule; the cubic element also needs nodal moments. The error is second order in the element length.",
+   "source": {
+    "file": "tests/physics/si-bridge.test.mjs",
+    "test": "hand case, mesh convergence: a vehicle between nodes is shared by the lever rule, an error of second order in the element",
+    "url": "https://github.com/nathansenn/box3d-WEBGPU/blob/main/tests/physics/si-bridge.test.mjs"
+   },
+   "text": {
+    "reference": "0",
+    "measured": "0.02995612",
+    "error": "+0.03",
+    "tolerance": "at most 0.04932 above the reference"
+   }
+  },
+  {
+   "id": "si-bridge.lever.fine",
+   "domain": "si-bridge",
+   "title": "Vehicle between nodes, 8 elements: lever-rule error",
+   "quantity": "midspan deflection error (fraction, magnitude)",
+   "unit": "1",
+   "formula": "the same, h = 3.75 m, xi = 0.5",
+   "reference": 0,
+   "measured": 0.00603443765,
+   "error": 0.00603443765,
+   "relativeError": null,
+   "tolerance": {
+    "kind": "upper",
+    "value": 0.00713125
+   },
+   "pass": true,
+   "source": {
+    "file": "tests/physics/si-bridge.test.mjs",
+    "test": "hand case, mesh convergence: a vehicle between nodes is shared by the lever rule, an error of second order in the element",
+    "url": "https://github.com/nathansenn/box3d-WEBGPU/blob/main/tests/physics/si-bridge.test.mjs"
+   },
+   "text": {
+    "reference": "0",
+    "measured": "0.006034438",
+    "error": "+0.00603",
+    "tolerance": "at most 0.007131 above the reference"
+   }
+  },
+  {
+   "id": "si-bridge.lever.node",
+   "domain": "si-bridge",
+   "title": "Vehicle on a node, 16 elements",
+   "quantity": "midspan deflection error (fraction, magnitude)",
+   "unit": "1",
+   "formula": "the same, xi = 0: no lever-rule error",
+   "reference": 0,
+   "measured": 0.0000194874354,
+   "error": 0.0000194874354,
+   "relativeError": null,
+   "tolerance": {
+    "kind": "upper",
+    "value": 0.0001
+   },
+   "pass": true,
+   "source": {
+    "file": "tests/physics/si-bridge.test.mjs",
+    "test": "hand case, mesh convergence: a vehicle between nodes is shared by the lever rule, an error of second order in the element",
+    "url": "https://github.com/nathansenn/box3d-WEBGPU/blob/main/tests/physics/si-bridge.test.mjs"
+   },
+   "text": {
+    "reference": "0",
+    "measured": "1.948744e-5",
+    "error": "+1.95e-5",
+    "tolerance": "at most 0.0001 above the reference"
+   }
+  },
+  {
+   "id": "si-bridge.symmetry.tension",
+   "domain": "si-bridge",
+   "title": "Mirrored vehicles give mirrored stay tensions",
+   "quantity": "largest difference between mirror-image stays (fraction)",
+   "unit": "1",
+   "formula": "T_i(x) = T_(N-1-i)(L - x)",
+   "reference": 0,
+   "measured": 2.71616165e-8,
+   "error": 2.71616165e-8,
+   "relativeError": null,
+   "tolerance": {
+    "kind": "upper",
+    "value": 0.000001
+   },
+   "pass": true,
+   "note": "Two runs with a 20 t vehicle at 37.3 m and at 82.7 m. What is left is residual motion after a 2 s settle.",
+   "source": {
+    "file": "tests/physics/si-bridge.test.mjs",
+    "test": "symmetry: a symmetric bridge answers symmetrically, and mirrored vehicles give mirrored results",
+    "url": "https://github.com/nathansenn/box3d-WEBGPU/blob/main/tests/physics/si-bridge.test.mjs"
+   },
+   "text": {
+    "reference": "0",
+    "measured": "2.716162e-8",
+    "error": "+2.72e-8",
+    "tolerance": "at most 1e-6 above the reference"
+   }
+  },
+  {
+   "id": "si-bridge.symmetry.deflection",
+   "domain": "si-bridge",
+   "title": "Mirrored vehicles give mirrored deflections",
+   "quantity": "largest difference between mirror-image deck nodes",
+   "unit": "m",
+   "formula": "y_j(x) = y_(N-1-j)(L - x)",
+   "reference": 0,
+   "measured": 3.14594595e-9,
+   "error": 3.14594595e-9,
+   "relativeError": null,
+   "tolerance": {
+    "kind": "upper",
+    "value": 1e-7
+   },
+   "pass": true,
+   "source": {
+    "file": "tests/physics/si-bridge.test.mjs",
+    "test": "symmetry: a symmetric bridge answers symmetrically, and mirrored vehicles give mirrored results",
+    "url": "https://github.com/nathansenn/box3d-WEBGPU/blob/main/tests/physics/si-bridge.test.mjs"
+   },
+   "text": {
+    "reference": "0 m",
+    "measured": "3.145946e-9",
+    "error": "+3.15e-9",
+    "tolerance": "at most 1e-7 above the reference"
+   }
+  },
+  {
+   "id": "si-bridge.influence.deflection",
+   "domain": "si-bridge",
+   "title": "Slow crossing: midspan deflection follows its influence line",
+   "quantity": "worst error / peak of the influence line",
+   "unit": "1",
+   "formula": "static solve with the vehicle at each of 82 positions",
+   "reference": 0,
+   "measured": 0.00584734369,
+   "error": 0.00584734369,
+   "relativeError": null,
+   "tolerance": {
+    "kind": "upper",
+    "value": 0.02
+   },
+   "pass": true,
+   "note": "20 t at 3 m/s, frame damped at 6 /s. The error is the lag of a damped structure behind the load (about 0.14 m of travel) and the ripple of the motion.",
+   "source": {
+    "file": "tests/physics/si-bridge.test.mjs",
+    "test": "influence lines: a slow crossing traces the static solution at every position",
+    "url": "https://github.com/nathansenn/box3d-WEBGPU/blob/main/tests/physics/si-bridge.test.mjs"
+   },
+   "text": {
+    "reference": "0",
+    "measured": "0.005847344",
+    "error": "+0.00585",
+    "tolerance": "at most 0.02 above the reference"
+   }
+  },
+  {
+   "id": "si-bridge.influence.tension",
+   "domain": "si-bridge",
+   "title": "Slow crossing: a stay tension follows its influence line",
+   "quantity": "worst error / peak of the influence line",
+   "unit": "1",
+   "formula": "static solve with the vehicle at each of 82 positions",
+   "reference": 0,
+   "measured": 0.00352450414,
+   "error": 0.00352450414,
+   "relativeError": null,
+   "tolerance": {
+    "kind": "upper",
+    "value": 0.02
+   },
+   "pass": true,
+   "source": {
+    "file": "tests/physics/si-bridge.test.mjs",
+    "test": "influence lines: a slow crossing traces the static solution at every position",
+    "url": "https://github.com/nathansenn/box3d-WEBGPU/blob/main/tests/physics/si-bridge.test.mjs"
+   },
+   "text": {
+    "reference": "0",
+    "measured": "0.003524504",
+    "error": "+0.00352",
+    "tolerance": "at most 0.02 above the reference"
+   }
+  },
+  {
+   "id": "si-bridge.frequency.vertical",
+   "domain": "si-bridge",
+   "title": "First vertical mode: time-stepped against the eigenvalue solve",
+   "quantity": "frequency",
+   "unit": "Hz",
+   "formula": "lowest vertical root of K_t x = w^2 M x",
+   "reference": 1.79985231,
+   "measured": 1.79725767,
+   "error": -0.00259463978,
+   "relativeError": -0.00144158482,
+   "tolerance": {
+    "kind": "relative",
+    "value": 0.005
+   },
+   "pass": true,
+   "note": "Released from 200 kN at midspan, 8 s, modal coordinate. The midpoint rule runs slow by (w dt)^2 / 12 and the stays add as much.",
+   "source": {
+    "file": "tests/physics/si-bridge.test.mjs",
+    "test": "dynamics: the fundamental vertical frequency against the eigenvalue solve and a hand Rayleigh estimate, and the dynamic amplification of a fast crossing",
+    "url": "https://github.com/nathansenn/box3d-WEBGPU/blob/main/tests/physics/si-bridge.test.mjs"
+   },
+   "text": {
+    "reference": "1.799852 Hz",
+    "measured": "1.797258",
+    "error": "-0.144%",
+    "tolerance": "±0.5%"
+   }
+  },
+  {
+   "id": "si-bridge.frequency.rayleigh",
+   "domain": "si-bridge",
+   "title": "First vertical mode: Rayleigh by hand with the dead-load shape",
+   "quantity": "Rayleigh estimate / eigenvalue frequency",
+   "unit": "1",
+   "formula": "f = sqrt(g sum(m delta) / sum(m delta^2)) / (2 pi), an upper bound",
+   "reference": 1,
+   "measured": 1.17688685,
+   "error": 0.176886854,
+   "relativeError": 0.176886854,
+   "tolerance": {
+    "kind": "upper",
+    "value": 0.25
+   },
+   "pass": true,
+   "note": "A coarse shape: the weight puts the side spans down with the main span, the mode lifts them.",
+   "source": {
+    "file": "tests/physics/si-bridge.test.mjs",
+    "test": "dynamics: the fundamental vertical frequency against the eigenvalue solve and a hand Rayleigh estimate, and the dynamic amplification of a fast crossing",
+    "url": "https://github.com/nathansenn/box3d-WEBGPU/blob/main/tests/physics/si-bridge.test.mjs"
+   },
+   "text": {
+    "reference": "1",
+    "measured": "1.176887",
+    "error": "+0.177",
+    "tolerance": "at most 0.25 above the reference"
+   }
+  },
+  {
+   "id": "si-bridge.frequency.stodola",
+   "domain": "si-bridge",
+   "title": "First vertical mode: Rayleigh with two Stodola refinements",
+   "quantity": "frequency",
+   "unit": "Hz",
+   "formula": "the same with the inertia loads of the previous shape, twice",
+   "reference": 1.79985231,
+   "measured": 1.82661537,
+   "error": 0.0267630625,
+   "relativeError": 0.0148695881,
+   "tolerance": {
+    "kind": "relative",
+    "value": 0.03
+   },
+   "pass": true,
+   "note": "What is left is the lumping of the deck mass and the tower mass the hand method leaves out.",
+   "source": {
+    "file": "tests/physics/si-bridge.test.mjs",
+    "test": "dynamics: the fundamental vertical frequency against the eigenvalue solve and a hand Rayleigh estimate, and the dynamic amplification of a fast crossing",
+    "url": "https://github.com/nathansenn/box3d-WEBGPU/blob/main/tests/physics/si-bridge.test.mjs"
+   },
+   "text": {
+    "reference": "1.799852 Hz",
+    "measured": "1.826615",
+    "error": "+1.49%",
+    "tolerance": "±3%"
+   }
+  },
+  {
+   "id": "si-bridge.frequency.lateral",
+   "domain": "si-bridge",
+   "title": "Lowest mode: lateral sway of the deck",
+   "quantity": "frequency",
+   "unit": "Hz",
+   "formula": "(pi / 2) sqrt(E I_y / (m L^4)), simply supported over 120 m",
+   "reference": 0.604327221,
+   "measured": 0.619070262,
+   "error": 0.0147430409,
+   "relativeError": 0.0243957916,
+   "tolerance": {
+    "kind": "relative",
+    "value": 0.03
+   },
+   "pass": true,
+   "note": "The stays add a little pendulum stiffness and their mass.",
+   "source": {
+    "file": "tests/physics/si-bridge.test.mjs",
+    "test": "dynamics: the fundamental vertical frequency against the eigenvalue solve and a hand Rayleigh estimate, and the dynamic amplification of a fast crossing",
+    "url": "https://github.com/nathansenn/box3d-WEBGPU/blob/main/tests/physics/si-bridge.test.mjs"
+   },
+   "text": {
+    "reference": "0.6043272 Hz",
+    "measured": "0.6190703",
+    "error": "+2.44%",
+    "tolerance": "±3%"
+   }
+  },
+  {
+   "id": "si-bridge.amplification.low",
+   "domain": "si-bridge",
+   "title": "Crossing at 20 m/s: dynamic amplification is at least 1",
+   "quantity": "peak midspan deflection / static peak",
+   "unit": "1",
+   "formula": "1 (the static influence line)",
+   "reference": 1,
+   "measured": 1.01630082,
+   "error": 0.0163008174,
+   "relativeError": 0.0163008174,
+   "tolerance": {
+    "kind": "lower",
+    "value": 0.02
+   },
+   "pass": true,
+   "note": "0.02 is allowed for the lag of the model's own damping (about 1 % of critical at 120 Hz).",
+   "source": {
+    "file": "tests/physics/si-bridge.test.mjs",
+    "test": "dynamics: the fundamental vertical frequency against the eigenvalue solve and a hand Rayleigh estimate, and the dynamic amplification of a fast crossing",
+    "url": "https://github.com/nathansenn/box3d-WEBGPU/blob/main/tests/physics/si-bridge.test.mjs"
+   },
+   "text": {
+    "reference": "1",
+    "measured": "1.016301",
+    "error": "+0.0163",
+    "tolerance": "at most 0.02 below the reference"
+   }
+  },
+  {
+   "id": "si-bridge.amplification.envelope20",
+   "domain": "si-bridge",
+   "title": "Crossing at 20 m/s: amplification stays under the envelope",
+   "quantity": "peak midspan deflection / static peak",
+   "unit": "1",
+   "formula": "1 / (1 - a), a = v / (2 f_1 L)",
+   "reference": 1.10205004,
+   "measured": 1.01630082,
+   "error": -0.0857492265,
+   "relativeError": -0.0778088318,
+   "tolerance": {
+    "kind": "upper",
+    "value": 0
+   },
+   "pass": true,
+   "source": {
+    "file": "tests/physics/si-bridge.test.mjs",
+    "test": "dynamics: the fundamental vertical frequency against the eigenvalue solve and a hand Rayleigh estimate, and the dynamic amplification of a fast crossing",
+    "url": "https://github.com/nathansenn/box3d-WEBGPU/blob/main/tests/physics/si-bridge.test.mjs"
+   },
+   "text": {
+    "reference": "1.10205",
+    "measured": "1.016301",
+    "error": "-0.0857",
+    "tolerance": "not above the reference"
+   }
+  },
+  {
+   "id": "si-bridge.amplification.envelope40",
+   "domain": "si-bridge",
+   "title": "Crossing at 40 m/s: amplification stays under the envelope",
+   "quantity": "peak midspan deflection / static peak",
+   "unit": "1",
+   "formula": "1 / (1 - a), a = v / (2 f_1 L)",
+   "reference": 1.22729562,
+   "measured": 1.01369411,
+   "error": -0.21360151,
+   "relativeError": -0.174042429,
+   "tolerance": {
+    "kind": "upper",
+    "value": 0
+   },
+   "pass": true,
+   "note": "The envelope is that of a force crossing a simple span; this deck is continuous over three spans, so the load comes on smoothly.",
+   "source": {
+    "file": "tests/physics/si-bridge.test.mjs",
+    "test": "dynamics: the fundamental vertical frequency against the eigenvalue solve and a hand Rayleigh estimate, and the dynamic amplification of a fast crossing",
+    "url": "https://github.com/nathansenn/box3d-WEBGPU/blob/main/tests/physics/si-bridge.test.mjs"
+   },
+   "text": {
+    "reference": "1.227296",
+    "measured": "1.013694",
+    "error": "-0.214",
+    "tolerance": "not above the reference"
+   }
+  },
+  {
+   "id": "si-bridge.failure.tensions",
+   "domain": "si-bridge",
+   "title": "A stay fails: the others reach the damaged static solution",
+   "quantity": "largest stay tension error (fraction)",
+   "unit": "1",
+   "formula": "static re-solve without the stay",
+   "reference": 0,
+   "measured": 0.0000781091529,
+   "error": 0.0000781091529,
+   "relativeError": null,
+   "tolerance": {
+    "kind": "upper",
+    "value": 0.0005
+   },
+   "pass": true,
+   "note": "Stay 8 of 16 (502 kN) lets go at 0.5 s; mean over the tenth second.",
+   "source": {
+    "file": "tests/physics/si-bridge.test.mjs",
+    "test": "stay failure: the load moves to the neighbours as the damaged statics say, the reactions stay, the energy never grows",
+    "url": "https://github.com/nathansenn/box3d-WEBGPU/blob/main/tests/physics/si-bridge.test.mjs"
+   },
+   "text": {
+    "reference": "0",
+    "measured": "7.810915e-5",
+    "error": "+7.81e-5",
+    "tolerance": "at most 0.0005 above the reference"
+   }
+  },
+  {
+   "id": "si-bridge.failure.neighbour",
+   "domain": "si-bridge",
+   "title": "A stay fails: its neighbour takes the load the statics say",
+   "quantity": "tension of the neighbouring stay",
+   "unit": "N",
+   "formula": "static re-solve without the stay",
+   "reference": 332787.055,
+   "measured": 332810.464,
+   "error": 23.4082748,
+   "relativeError": 0.0000703401,
+   "tolerance": {
+    "kind": "relative",
+    "value": 0.0005
+   },
+   "pass": true,
+   "note": "From 197 kN before to 333 kN after: 69 % more.",
+   "source": {
+    "file": "tests/physics/si-bridge.test.mjs",
+    "test": "stay failure: the load moves to the neighbours as the damaged statics say, the reactions stay, the energy never grows",
+    "url": "https://github.com/nathansenn/box3d-WEBGPU/blob/main/tests/physics/si-bridge.test.mjs"
+   },
+   "text": {
+    "reference": "332787.1 N",
+    "measured": "332810.5",
+    "error": "+7.03e-5 rel.",
+    "tolerance": "±0.05%"
+   }
+  },
+  {
+   "id": "si-bridge.failure.reaction",
+   "domain": "si-bridge",
+   "title": "A stay fails: the supports carry the same weight",
+   "quantity": "sum of vertical reactions / total weight",
+   "unit": "1",
+   "formula": "1 (the failed stay hangs from the tower)",
+   "reference": 1,
+   "measured": 1.00003435,
+   "error": 0.0000343455411,
+   "relativeError": 0.0000343455411,
+   "tolerance": {
+    "kind": "relative",
+    "value": 0.0001
+   },
+   "pass": true,
+   "source": {
+    "file": "tests/physics/si-bridge.test.mjs",
+    "test": "stay failure: the load moves to the neighbours as the damaged statics say, the reactions stay, the energy never grows",
+    "url": "https://github.com/nathansenn/box3d-WEBGPU/blob/main/tests/physics/si-bridge.test.mjs"
+   },
+   "text": {
+    "reference": "1",
+    "measured": "1.000034",
+    "error": "+3.43e-5 rel.",
+    "tolerance": "±0.01%"
+   }
+  },
+  {
+   "id": "si-bridge.failure.energy",
+   "domain": "si-bridge",
+   "title": "A stay fails: the energy never grows",
+   "quantity": "largest rise between steps / total energy",
+   "unit": "1",
+   "formula": "0 (damped, no source)",
+   "reference": 0,
+   "measured": 9.87084625e-7,
+   "error": 9.87084625e-7,
+   "relativeError": null,
+   "tolerance": {
+    "kind": "upper",
+    "value": 0.00001
+   },
+   "pass": true,
+   "note": "The released strain energy is lost in the cable solver's implicit step; after that the total only falls.",
+   "source": {
+    "file": "tests/physics/si-bridge.test.mjs",
+    "test": "stay failure: the load moves to the neighbours as the damaged statics say, the reactions stay, the energy never grows",
+    "url": "https://github.com/nathansenn/box3d-WEBGPU/blob/main/tests/physics/si-bridge.test.mjs"
+   },
+   "text": {
+    "reference": "0",
+    "measured": "9.870846e-7",
+    "error": "+9.87e-7",
+    "tolerance": "at most 1e-5 above the reference"
+   }
+  },
+  {
+   "id": "si-bridge.wind.statics",
+   "domain": "si-bridge",
+   "title": "Wind 2 kN/m: lateral deflection, time-stepped against statics",
+   "quantity": "lateral deflection at midspan",
+   "unit": "m",
+   "formula": "dense Newton statics of the same structure",
+   "reference": 0.0642070411,
+   "measured": 0.064206682,
+   "error": -3.59054632e-7,
+   "relativeError": -0.00000559213796,
+   "tolerance": {
+    "kind": "relative",
+    "value": 0.0001
+   },
+   "pass": true,
+   "source": {
+    "file": "tests/physics/si-bridge.test.mjs",
+    "test": "wind: a static lateral load bends the deck sideways and reaches the abutments",
+    "url": "https://github.com/nathansenn/box3d-WEBGPU/blob/main/tests/physics/si-bridge.test.mjs"
+   },
+   "text": {
+    "reference": "0.06420704 m",
+    "measured": "0.06420668",
+    "error": "-5.59e-6 rel.",
+    "tolerance": "±0.01%"
+   }
+  },
+  {
+   "id": "si-bridge.wind.beam",
+   "domain": "si-bridge",
+   "title": "Wind 2 kN/m: lateral deflection against a bare beam",
+   "quantity": "lateral deflection at midspan",
+   "unit": "m",
+   "formula": "5 q L^4 / (384 E I_y)",
+   "reference": 0.0676691729,
+   "measured": 0.064206682,
+   "error": -0.00346249088,
+   "relativeError": -0.0511679208,
+   "tolerance": {
+    "kind": "relative",
+    "value": 0.1
+   },
+   "pass": true,
+   "note": "The stays hold the deck back like pendulums of stiffness T / length, so the model is below the bare beam.",
+   "source": {
+    "file": "tests/physics/si-bridge.test.mjs",
+    "test": "wind: a static lateral load bends the deck sideways and reaches the abutments",
+    "url": "https://github.com/nathansenn/box3d-WEBGPU/blob/main/tests/physics/si-bridge.test.mjs"
+   },
+   "text": {
+    "reference": "0.06766917 m",
+    "measured": "0.06420668",
+    "error": "-5.12%",
+    "tolerance": "±10%"
+   }
+  },
+  {
+   "id": "si-bridge.wind.reaction",
+   "domain": "si-bridge",
+   "title": "Wind 2 kN/m: the supports take the whole load",
+   "quantity": "sum of lateral reactions / (q L)",
+   "unit": "1",
+   "formula": "sum R_z = -q L",
+   "reference": 1,
+   "measured": 1.00000001,
+   "error": 1.36872838e-8,
+   "relativeError": 1.36872838e-8,
+   "tolerance": {
+    "kind": "relative",
+    "value": 0.000001
+   },
+   "pass": true,
+   "source": {
+    "file": "tests/physics/si-bridge.test.mjs",
+    "test": "wind: a static lateral load bends the deck sideways and reaches the abutments",
+    "url": "https://github.com/nathansenn/box3d-WEBGPU/blob/main/tests/physics/si-bridge.test.mjs"
+   },
+   "text": {
+    "reference": "1",
+    "measured": "1",
+    "error": "+1.37e-8 rel.",
+    "tolerance": "±1e-6 rel."
+   }
+  },
+  {
+   "id": "si-bridge.determinism",
+   "domain": "si-bridge",
+   "title": "Two runs with a vehicle, wind and a failing stay",
+   "quantity": "differing bytes of the final state",
+   "unit": "bytes",
+   "formula": "0 (bit-identical)",
+   "reference": 0,
+   "measured": 0,
+   "error": 0,
+   "relativeError": null,
+   "tolerance": {
+    "kind": "absolute",
+    "value": 0
+   },
+   "pass": true,
+   "source": {
+    "file": "tests/physics/si-bridge.test.mjs",
+    "test": "determinism: two runs with a crossing vehicle, wind and a failing stay are bit-identical",
+    "url": "https://github.com/nathansenn/box3d-WEBGPU/blob/main/tests/physics/si-bridge.test.mjs"
+   },
+   "text": {
+    "reference": "0 bytes",
+    "measured": "0",
+    "error": "0",
+    "tolerance": "±0"
    }
   },
   {

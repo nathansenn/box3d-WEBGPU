@@ -13,6 +13,7 @@ It is validated by `packages/box3d-kit/test/v11-structure.test.mjs` (14 tests, i
 | `attachFrameToBody(frame, frameNode, body, {mode, inertia, localPoint?})` | `'pinned'`: forces only, the body may turn about the node. `'clamped'`: forces and moments, the body turns with the node. A kinematic body prescribes the node's motion. |
 | a cable node that is `pinned` in the cable definition | The world: a fixed anchor, as before. Its reaction is in the cable snapshot. |
 | `detach(attachment)` | Removes one attachment. A cable node gets its own mass back. |
+| `prime(attachment, force, moment?)` | Says what an attachment already carries when it is made: the pull of a cable's segments on the attached node, or the force (and, clamped, the moment) of the frame on a body. See "Starting loaded" below. |
 
 A body that rests on a frame is expressed as an attachment to a frame node. Loads move along a deck by detaching and re-attaching at the next node.
 
@@ -33,6 +34,8 @@ world.step();      // the rigid solver integrates the bodies from t to t + dt
 One call per fixed step, immediately before `world.step()`, or register the coupling with a `Simulation` (`structureSubsystem`, [`SIMULATION.md`](SIMULATION.md)), which does that for you and runs it before a water coupling. The coupling steps the cables and frames it was given; do not step them yourself. `coupling.dt`, the world's fixed step, every cable's `dt` and every frame's `dt` must be equal, and a coupled frame needs `substeps: 1`.
 
 Between `world.step()` and the next `coupling.step()`, the velocity of a body attached to a frame lacks the closing half of that step's frame impulse (step 1 applies it). `diagnostics()` adds it back.
+
+The response of a frame to its interface impulses is a dense product over all attached nodes. A cable or body attachment that asks about its own node forms only that node's six rows (the same sums, so the same bits); only the closing pass of a step forms them all. On the SI bridge, with 29 attached nodes and 34 attachments, that took a step from 4.05 ms to 2.70 ms with identical results.
 
 `step()` allocates nothing of its own: all scratch is created by the constructor and the `attach` calls. The frame's CG and the kit's `getState()` and `applyForce()` allocate small temporaries as they always have.
 
@@ -84,6 +87,14 @@ The frame gets the interface loads as nodal forces for the tick; its midpoint ve
 ### Several attachments on one carrier
 
 Cables are solved one after another in the order they were added, then all frame ↔ body constraints. Each solve sees the impulses already computed this step and last step's values for the rest: one Gauss–Seidel sweep per step. The fixed point is the coupled solution, so statics are exact; the transient error is one step of lag between attachments.
+
+### Starting loaded
+
+A step uses last step's impulses of the other attachments on the same carrier, and a new attachment has none. On a structure that is built already loaded (a deck hanging from sixteen stays, each pulling hundreds of kilonewtons) the first step then misjudges every attachment at once, which is a blow: on the SI bridge ([`SI_BRIDGE.md`](SI_BRIDGE.md), 8 stays) node speeds of 0.125 m/s, 3 kN of tension error and a 5 kJ jump in energy, left ringing in the frame's stiff modes. `prime(attachment, force)` replaces that zero with the force the attachment carries in the state the structure was built in; with it the same bridge starts with node speeds of 10⁻⁴ m/s. It only sets the remembered impulse: it changes nothing once a step has been taken, and nothing if it is never called.
+
+A body that rests on a frame node has, at the moment the coupling reads it, the velocity `g dt / (2 n)` upwards (`n` rigid substeps): the half kick before `world.step()`, gravity, and the allowance for the rigid solver's lead add up to that. A body created with zero velocity starts with a jolt of that size; give it that velocity instead.
+
+Handing an attachment over (detach, re-attach elsewhere on the same node) is the same case: prime the new attachment with the force the old one reported. The bridge's vehicle is moved that way every step.
 
 ## Hooks added to the existing solvers
 
@@ -178,3 +189,5 @@ The cable-stayed span is an 8 m steel deck (8 elements, `EI` = 6·10⁵ N m², 1
 - **Attachment points between nodes.** A cable or a frame is attached at a node. Split the element to attach elsewhere.
 - **Checkpointing.** The coupling's own state (last step's impulses and the pending half kick) is not saved. A scene file saves the cables' and frames' fields ([`SCENE_FORMAT.md`](SCENE_FORMAT.md#save-and-resume)); a resumed deck differs from the original by 4·10⁻⁷ m after one second.
 - **Forces too small for a float32.** The coupling hands the world float64 forces, and the world refuses a nonzero component below the smallest float32 (about 1.4·10⁻⁴⁵). It happened with a cable attached at a body's centre without `localPoint` on a floating body: state `localPoint: [0, 0, 0]` there.
+- **A rigid body on two nodes is a strut.** A body pinned to two frame nodes holds them at a fixed distance, so it also carries axial force between them. On the SI bridge this raises a stay tension by up to 8·10⁻⁴ in its hand case.
+- **Steady-state bias.** With both ends of a cable on one frame, the state at rest differs from the static solution by an amount that falls with the step: 2.9·10⁻⁴, 9.6·10⁻⁵, 3.1·10⁻⁵ and 9.8·10⁻⁶ of a stay tension at 60, 120, 240 and 480 Hz on the SI bridge. The cause was not isolated.

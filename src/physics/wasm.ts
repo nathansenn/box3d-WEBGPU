@@ -55,7 +55,7 @@ class WasmPhysicsBackend implements PhysicsBackend {
   private generalWorld: NativeWorldBackend | null = null;
   private general: NativeWorldBackend | null = null;
   // A scene file fixes its own step and sub-step count; null leaves both to the caller of step().
-  private generalStep: { readonly dt: number; readonly subSteps: number; readonly repeats: number } | null = null;
+  private generalStep: { readonly dt: number; readonly subSteps: number; readonly repeats: number; readonly before?: () => void; readonly after?: () => void } | null = null;
   // Render meshes of hull, mesh and height-field bodies, built once per retained shape.
   private bodyMeshes = new WeakMap<NativeBodyShape, InstanceGeometry | null>();
 
@@ -150,7 +150,7 @@ class WasmPhysicsBackend implements PhysicsBackend {
     build(world);
     this.general = world;
     this.generalStep = options.step !== undefined && options.subSteps !== undefined
-      ? { dt: options.step, subSteps: options.subSteps, repeats: Math.max(1, Math.min(64, Math.floor(options.stepsPerTick ?? 1))) }
+      ? { dt: options.step, subSteps: options.subSteps, repeats: Math.max(1, Math.min(64, Math.floor(options.stepsPerTick ?? 1))), before: options.beforeStep, after: options.afterStep }
       : null;
     this.markStreamsChanged();
     return world.bodyCount();
@@ -176,7 +176,10 @@ class WasmPhysicsBackend implements PhysicsBackend {
   step(dt: number, subSteps: number): void {
     if (!Number.isFinite(dt) || dt <= 0) return;
     if (this.general) {
-      if (this.generalStep) for (let i = 0; i < this.generalStep.repeats; i++) this.general.step(this.generalStep.dt, this.generalStep.subSteps);
+      if (this.generalStep) {
+        const { dt: fixed, subSteps: fixedSubSteps, repeats, before, after } = this.generalStep;
+        for (let i = 0; i < repeats; i++) { before?.(); this.general.step(fixed, fixedSubSteps); after?.(); }
+      }
       else this.general.step(Math.min(dt, MAX_WASM_STEP_DT), clampWasmSubSteps(subSteps));
       return;
     }

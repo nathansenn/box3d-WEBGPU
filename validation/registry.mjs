@@ -10,6 +10,7 @@
 import rigid from './domains/rigid.mjs';
 import waterCoupling from './domains/water-coupling.mjs';
 import structureCoupling from './domains/structure-coupling.mjs';
+import siBridge from './domains/si-bridge.mjs';
 import geometry from './domains/geometry.mjs';
 import scene from './domains/scene.mjs';
 import simulation from './domains/simulation.mjs';
@@ -61,6 +62,21 @@ export const DOMAINS = [
       'Other constraints on an attached body. The interface uses the body\'s free response, so a cable to a body that also rests on the ground reads a wrong small tension (measured 97 N to 221 N where the true value is about 0).',
       'The cable step is implicit Euler: first order and numerically damped (the cable pendulum loses about a fifth of its swing energy in 20 s).',
       'Attachments between nodes, gyroscopic terms, step-size changes and checkpoints of the coupling state.',
+    ],
+  },
+  {
+    id: 'si-bridge', title: 'Cable-stayed bridge (SI scene)', needsKit: false,
+    solver: '`src/engine/si-bridge.ts`: frame elements for deck and towers, compliant cables for the stays and a rigid body for the vehicle, coupled by `StructureCoupling`; 120 Hz, 4 sub-steps',
+    summary: 'The Physics Lab\'s bridge scene as a whole: dead-load reactions and the levelled deck, a hand-solved propped span with its mesh study, symmetry, influence lines, the first frequencies, dynamic amplification, a stay failure, wind and repeatability.',
+    docs: ['docs/SI_BRIDGE.md'],
+    notValidated: [
+      'Contact between wheels and deck. The vehicle is one rigid body pinned to the two deck nodes it stands between and moved by re-attachment; it has no wheels, no suspension and no velocity along the deck.',
+      'The vehicle\'s weight is shared by the lever rule: 1.9 % of the peak midspan deflection and 2.3 % of the peak stay-tension change on the default 6 m elements. Its rigid body also acts as a strut along the element it stands on (up to 8e-4 of a stay tension in the hand case).',
+      'Buckling, yielding, geometric stiffness of the deck and towers, and cable sag (one segment per stay). The utilisation ratios are linear-elastic indicators, not a design check.',
+      'Aerodynamics: wind is a static lateral load. No vortex shedding, flutter or buffeting.',
+      'The reference for most rows is a second solver in the same file that shares the element matrices and the stay law. Only the propped span, the lateral frequency, the Rayleigh estimates and the wind beam are independent hand results.',
+      'Section properties are hand estimates for a plausible steel footbridge, not a designed or surveyed bridge, and nothing is calibrated against measurements.',
+      'The amplification rows bound the factor; they do not compare it with a moving-load solution. Damping is the model\'s own (about 1 % of critical in the first vertical mode at 120 Hz) plus what is set.',
     ],
   },
   {
@@ -187,7 +203,7 @@ export const DOMAINS = [
   },
 ];
 
-export const CASES = [...rigid, ...waterCoupling, ...structureCoupling, ...geometry, ...scene, ...simulation, ...robot, ...heat, ...solid, ...frame, ...cable, ...closedWater];
+export const CASES = [...rigid, ...waterCoupling, ...structureCoupling, ...siBridge, ...geometry, ...scene, ...simulation, ...robot, ...heat, ...solid, ...frame, ...cable, ...closedWater];
 
 /** Cases of the given domains (all when `only` is empty), in registry order. */
 export function selectCases(only = []) {

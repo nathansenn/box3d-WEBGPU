@@ -147,7 +147,9 @@ class BodyCarrier<B> {
   /** Closing half of last step's frame <-> body impulse, applied at the start of the next step. */
   readonly pendingP=new Float64Array(3);readonly pendingL=new Float64Array(3);
   mass=0;invM=0;dynamic=false;hasPending=false;
-  constructor(readonly body:B,readonly moments:[number,number,number]|null,public gravityScale:number){}
+  // Fields are assigned in the constructor body (no parameter properties), so that node can run this file as it is.
+  readonly body:B;readonly moments:[number,number,number]|null;gravityScale:number;
+  constructor(body:B,moments:[number,number,number]|null,gravityScale:number){this.body=body;this.moments=moments;this.gravityScale=gravityScale;}
 }
 class FrameCarrier<B> {
   readonly atts:Attachment<B>[]=[];
@@ -157,8 +159,8 @@ class FrameCarrier<B> {
   /** W: block of A^-1 on the interface. P = (1 + W M_r)^-1 and Waug = P W fold in the cable end masses M_r riding on the nodes. */
   W=new Float64Array(0);P=new Float64Array(0);Waug=new Float64Array(0);
   lam=new Float64Array(0);d0=new Float64Array(0);pd0=new Float64Array(0);dv=new Float64Array(0);rider=new Float64Array(0);
-  readonly extra:Float64Array;mid:Float64Array;
-  constructor(readonly frame:FrameRuntime){this.views=frame.couplingViews();this.extra=new Float64Array(this.views.displacements.length);this.mid=this.extra;}
+  readonly extra:Float64Array;mid:Float64Array;readonly frame:FrameRuntime;
+  constructor(frame:FrameRuntime){this.frame=frame;this.views=frame.couplingViews();this.extra=new Float64Array(this.views.displacements.length);this.mid=this.extra;}
   slot(node:number):number {
     let s=this.slots.indexOf(node);if(s>=0)return s;
     s=this.slots.length;const size=this.views.displacements.length,fresh:Float64Array[]=[];
@@ -193,8 +195,8 @@ class FrameCarrier<B> {
 class CableCarrier<B> {
   readonly atts:Attachment<B>[]=[];
   readonly views:ReturnType<CompliantCableRuntime['couplingViews']>;
-  readonly edges:{a:number;b:number}[];
-  constructor(readonly cable:CompliantCableRuntime){this.views=cable.couplingViews();this.edges=cable.checkpoint().definition.constraints.map(e=>({a:e.a,b:e.b}));}
+  readonly edges:{a:number;b:number}[];readonly cable:CompliantCableRuntime;
+  constructor(cable:CompliantCableRuntime){this.cable=cable;this.views=cable.couplingViews();this.edges=cable.checkpoint().definition.constraints.map(e=>({a:e.a,b:e.b}));}
 }
 class Attachment<B> implements StructureAttachment {
   readonly force:[number,number,number]=[0,0,0];readonly moment:[number,number,number]=[0,0,0];
@@ -208,8 +210,12 @@ class Attachment<B> implements StructureAttachment {
   /** Clamped: body rotation and node rotation when attached. */
   readonly q0=new Float64Array(4);readonly theta0=new Float64Array(3);
   neighbours:number[]=[];nodeMass=0;slot=-1;rows=3;offset=0;
-  constructor(readonly id:number,readonly kind:StructureAttachment['kind'],readonly mode:StructureAttachment['mode'],
-    readonly cable:CableCarrier<B>|null,readonly cableNode:number,readonly frame:FrameCarrier<B>|null,readonly frameNode:number,readonly body:BodyCarrier<B>|null){}
+  readonly id:number;readonly kind:StructureAttachment['kind'];readonly mode:StructureAttachment['mode'];
+  readonly cable:CableCarrier<B>|null;readonly cableNode:number;readonly frame:FrameCarrier<B>|null;readonly frameNode:number;readonly body:BodyCarrier<B>|null;
+  constructor(id:number,kind:StructureAttachment['kind'],mode:StructureAttachment['mode'],
+    cable:CableCarrier<B>|null,cableNode:number,frame:FrameCarrier<B>|null,frameNode:number,body:BodyCarrier<B>|null){
+    this.id=id;this.kind=kind;this.mode=mode;this.cable=cable;this.cableNode=cableNode;this.frame=frame;this.frameNode=frameNode;this.body=body;
+  }
 }
 
 export class StructureCoupling<B> {
@@ -344,6 +350,25 @@ export class StructureCoupling<B> {
       this.bodies.delete(body.body);this.bodyList.splice(this.bodyList.indexOf(body),1);
     }
   }
+  /** Tell the coupling what an attachment was already carrying when it was made, for a structure that
+   * is set up in equilibrium or handed over in steady motion. `force` (N, world axes) is the mean force
+   * over a step: for a cable attachment, the pull of the cable's segments on the attached node; for a
+   * frame <-> body attachment, the force of the frame on the body, with `moment` (N m) when clamped.
+   * A step uses last step's impulses of the other attachments on the same carrier, and a new
+   * attachment has none: on a stiff structure that starts loaded, the first step then misjudges every
+   * attachment at once and sets the frame ringing. Priming replaces that zero. It changes nothing
+   * once a step has been taken, and nothing at all if it is never called. */
+  prime(attachment:StructureAttachment,force:StructureVec3,moment?:StructureVec3):void {
+    const att=attachment as Attachment<B>;if(this.attachments.indexOf(att)<0)fail('That attachment is not part of this coupling.');
+    const f=vec3(force,'force'),h=this.dt;
+    if(att.kind==='frame-body'){
+      for(let k=0;k<3;k++)att.J[k]=h*f[k];
+      if(moment!==undefined){if(att.rows!==6)fail('Only a clamped attachment carries a moment.');const m=vec3(moment,'moment');for(let k=0;k<3;k++)att.J[3+k]=h*m[k];}
+    }else{
+      if(moment!==undefined)fail('A cable attachment carries no moment.');
+      for(let k=0;k<3;k++)att.Jc[k]=h*f[k];
+    }
+  }
   /** Live reports of all current attachments. */
   get reports():readonly StructureAttachment[] {return this.attachments;}
 
@@ -416,9 +441,11 @@ export class StructureCoupling<B> {
     for(let i=0;i<6;i++)out[i]=M[6*i]*px+M[6*i+1]*py+M[6*i+2]*pz+M[6*i+3]*lx+M[6*i+4]*ly+M[6*i+5]*lz;
   }
   /** Interface impulses on a frame (cable pulls, end-mass weights, minus the frame <-> body impulses), then the
-   * velocity change of every interface degree of freedom, riders included: dv = P d0 + Waug lam. */
-  private frameResponse(frame:FrameCarrier<B>,exclude:Attachment<B>|null,skipFrameBody:boolean):void {
-    const lam=frame.lam,n=lam.length,h=this.dt,Waug=frame.Waug,dv=frame.dv,pd0=frame.pd0;
+   * velocity change of every interface degree of freedom, riders included: dv = P d0 + Waug lam. With `slot`
+   * only that node's six rows of dv are formed (the same sums, so the same bits): a caller that asks about one
+   * attachment reads no others, and a frame with many attached nodes would otherwise pay n^2 per attachment. */
+  private frameResponse(frame:FrameCarrier<B>,exclude:Attachment<B>|null,skipFrameBody:boolean,slot=-1):void {
+    const lam=frame.lam,n=lam.length,h=this.dt,Waug=frame.Waug,dv=frame.dv,pd0=frame.pd0,first=slot<0?0:6*slot,last=slot<0?n:first+6;
     lam.fill(0);
     for(const a of frame.atts){
       const base=6*a.slot;
@@ -427,7 +454,7 @@ export class StructureCoupling<B> {
         for(let k=0;k<3;k++)lam[base+k]+=hm*gc[k]+(a===exclude?0:a.Jc[k]);
       }else if(!skipFrameBody&&a!==exclude)for(let k=0;k<a.rows;k++)lam[base+k]-=a.J[k];
     }
-    for(let i=0;i<n;i++){let sum=pd0[i];const row=i*n;for(let b=0;b<n;b++)sum+=Waug[row+b]*lam[b];dv[i]=sum;}
+    for(let i=first;i<last;i++){let sum=pd0[i];const row=i*n;for(let b=0;b<n;b++)sum+=Waug[row+b]*lam[b];dv[i]=sum;}
   }
   /** Velocity change (3 linear, 3 angular) of an attachment's carrier point, see bodyTwist / frameResponse. */
   private freeDv(att:Attachment<B>,carrier:'body'|'frame',exclude:Attachment<B>|null,skipFrameBody:boolean,out:Float64Array):void {
@@ -435,7 +462,7 @@ export class StructureCoupling<B> {
       const r=att.r;this.bodyTwist(att.body!,exclude,skipFrameBody,out);
       const wx=out[3],wy=out[4],wz=out[5];out[0]+=wy*r[2]-wz*r[1];out[1]+=wz*r[0]-wx*r[2];out[2]+=wx*r[1]-wy*r[0];return;
     }
-    const frame=att.frame!;this.frameResponse(frame,exclude,skipFrameBody);
+    const frame=att.frame!;this.frameResponse(frame,exclude,skipFrameBody,att.slot);
     for(let k=0;k<6;k++)out[k]=frame.dv[6*att.slot+k];
   }
 

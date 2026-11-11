@@ -45,6 +45,10 @@ export type GeneralSceneOptions = {
   readonly step?: number;
   readonly subSteps?: number;
   readonly stepsPerTick?: number;
+  /** Called before and after every fixed step of the general world (with `step` and `subSteps` set): a scene that
+   * runs its own solvers beside the rigid world steps them here (the SI bridge, src/lab/si-bridge-scene.ts). */
+  readonly beforeStep?: () => void;
+  readonly afterStep?: () => void;
 };
 
 export type InstanceGeometry = {

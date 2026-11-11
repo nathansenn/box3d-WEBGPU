@@ -90,6 +90,9 @@ import {
   sceneCameraFrame, sceneFileName, sceneSummary, type LabFile, type SceneRead,
 } from './lab/scene-loading.ts';
 import { createScenePanel, type ScenePanel } from './lab/scene-panel.ts';
+import { SI_BRIDGE_ID, SI_BRIDGE_TITLE } from './engine/si-bridge.ts';
+import { SiBridgeScene, SI_BRIDGE_SCENE_DEFAULTS, SI_BRIDGE_SCENE_STEP, type SiBridgeSceneSettings } from './lab/si-bridge-scene.ts';
+import { createSiBridgePanel, SI_BRIDGE_PLOTTED_STAY, type SiBridgePanel } from './lab/si-bridge-panel.ts';
 import { WebGPURenderer } from './webgpu/renderer';
 import { SOFT_RENDER_INSTANCE_BUDGET, SoftSimulationSuite, type SoftSimulationFrame } from './soft/simulations';
 import { initializeSoftKernelRuntime } from './soft/kernels';
@@ -371,6 +374,7 @@ const SI_SCENE_ID = 'scene';
 type LabSceneRead = Extract<SceneRead, { readonly ok: true }>;
 type SiDemoRequest =
   | { readonly id: typeof MECHANISMS_SCENE_ID; readonly seed: number }
+  | { readonly id: typeof SI_BRIDGE_ID; readonly seed: number; readonly settings: SiBridgeSceneSettings }
   | { readonly id: typeof SI_SCENE_ID; readonly seed: number; readonly read: LabSceneRead; readonly link: string | null };
 let siDemo: SiDemoRequest | null = null;
 let siDemoScene: MechanismsScene | null = null;
@@ -378,6 +382,9 @@ let siDemoScene: MechanismsScene | null = null;
 let labScene: { readonly read: LabSceneRead; readonly loaded: LabLoadedScene; link: string | null } | null = null;
 let labSceneFailure: unknown = null;
 let scenePanel: ScenePanel | null = null;
+// The cable-stayed bridge (lab.html?si=bridge): the model with its drawn bodies, and its panel.
+let siBridge: SiBridgeScene | null = null;
+let siBridgePanel: SiBridgePanel | null = null;
 const SI_DEMO_HOST_LAB_ID = 'titan-hauler-crash';
 let engineRuntime:WorkbenchRuntime;
 const engineTimings=new StageTimings(['step','staging','renderCpu','frame']);
@@ -968,6 +975,10 @@ function frameCameraForWorkspace(workspace: EngineeringWorkspaceId = engineering
     camera = cloneRig({ ...siDemoScene.camera, target: [...siDemoScene.camera.target] });
     return;
   }
+  if (siDemo && siBridge) {
+    camera = cloneRig({ ...siBridge.camera, target: [...siBridge.camera.target] });
+    return;
+  }
   if (siDemo && labScene) {
     const frame = sceneCameraFrame(labScene.read.scene);
     camera = cloneRig({ yaw: 0.72, pitch: 0.3, distance: frame.distance, target: frame.target });
@@ -1325,6 +1336,14 @@ function updateSceneText(): void {
     ui.viewportHudTitle.textContent = MECHANISMS_SCENE_TITLE;
     ui.runtimeSeed.textContent = `0x${seed.toString(16)}`;
   }
+  if (siDemo && siBridge) {
+    const { layout, settings } = siBridge;
+    ui.sceneTitle.textContent = SI_BRIDGE_TITLE;
+    ui.sceneSubtitle.textContent = 'Beam elements, stays and a vehicle on the validated frame and cable solvers, coupled both ways, in SI units.';
+    ui.sceneDetails.textContent = `${layout.length} m deck · ${layout.towers.length} towers · ${layout.stays.length} stays · ${layout.elements.length} beam elements · vehicle ${settings.vehicleMass > 0 ? `${settings.vehicleMass / 1000} t at ${settings.vehicleSpeed} m/s` : 'none'} · wind ${settings.windLoad / 1000} kN/m`;
+    ui.viewportHudTitle.textContent = SI_BRIDGE_TITLE;
+    ui.runtimeSeed.textContent = `0x${seed.toString(16)}`;
+  }
   if (siDemo && labScene) {
     const { read } = labScene;
     ui.sceneTitle.textContent = read.title;
@@ -1349,9 +1368,22 @@ function labSceneSourceText(read: LabSceneRead): string {
 function createRigidScene(scene: ScenePreset, stress: number, sceneSeed: number): number {
   siDemoScene = null;
   labScene = null;
+  if (siBridge) { siBridgePanel?.attach(null); siBridge.dispose(); siBridge = null; }
   if (siDemo) {
     if (backend.createGeneralScene) {
       try {
+        if (siDemo.id === SI_BRIDGE_ID) {
+          // The bridge steps its own solvers around every fixed step of the rigid world.
+          const { settings } = siDemo;
+          let built: SiBridgeScene | null = null;
+          const count = backend.createGeneralScene((world) => { built = new SiBridgeScene(world, settings, sceneSeed); }, {
+            step: 1 / SI_BRIDGE_SCENE_STEP.hz, subSteps: SI_BRIDGE_SCENE_STEP.subSteps, stepsPerTick: SI_BRIDGE_SCENE_STEP.stepsPerTick,
+            beforeStep: () => siBridge?.beforeStep(), afterStep: () => siBridge?.afterStep(),
+          });
+          siBridge = built;
+          siBridgePanel?.attach(siBridge);
+          return count;
+        }
         if (siDemo.id === SI_SCENE_ID) {
           // The scene was validated when it was read. Its own step and sub-step count are used for every tick.
           const { read, link } = siDemo;
@@ -1542,6 +1574,30 @@ function loadMechanismsDemo(demoSeed: number = MECHANISMS_DEFAULT_SEED): void {
   }
 }
 
+/** Open the cable-stayed bridge: lab.html?si=bridge, or its entry among the SI scenes of the laboratory catalog. */
+function loadSiBridge(settings: SiBridgeSceneSettings = SI_BRIDGE_SCENE_DEFAULTS): void {
+  const host = getWorkbenchLab(SI_DEMO_HOST_LAB_ID) ?? WORKBENCH_LABS[0];
+  loadWorkbenchLab(host, { id: SI_BRIDGE_ID, seed: 1, settings });
+  if (!siBridge && currentLab === host) {
+    setLog(backend.createGeneralScene
+      ? 'The cable-stayed bridge could not be built (see the console); the host recipe is shown instead.'
+      : 'The cable-stayed bridge needs the native Box3D WASM backend; the preview backend has only boxes, so the host recipe is shown instead.');
+  }
+}
+
+/** Read-only view of the bridge for the console and for tests: `box3dLab.bridgeState()`. */
+function siBridgeState(): Record<string, unknown> | null {
+  if (!siDemo || !siBridge) return null;
+  const { model, layout, settings } = siBridge, o = model.out;
+  return {
+    time: o.time, tick: o.tick, midspanDeflection: o.midspanDeflection, maxStayTension: o.maxStayTension, maxStayUtilisation: o.maxStayUtilisation,
+    plottedStay: SI_BRIDGE_PLOTTED_STAY, stayTension: Array.from(o.stayTension), towerBase: Array.from(o.towerBase), deckUtilisation: o.deckUtilisation, towerUtilisation: o.towerUtilisation,
+    vehicleX: o.vehicleX, vehicleMass: model.vehicle?.mass ?? 0, totalReaction: [...o.totalReaction], totalWeight: model.totalWeight(), energy: model.energy(),
+    failed: [...model.failed], exaggeration: siBridge.exaggeration, settings, length: layout.length, stays: layout.stays.length, elements: layout.elements.length,
+    bodies: backend.bodyCount(), drawnRows: siBridge.drawnRows(backend.bodyCount()), dt: model.dt, subSteps: model.subSteps,
+  };
+}
+
 /**
  * Keep the address shareable: ?si=mechanisms&seed=N while the Mechanisms demo shows,
  * ?example=<name> for an example scene, ?scene=<link> for a scene opened from a link (or
@@ -1563,10 +1619,16 @@ function syncSiDemoUrl(): void {
       url.searchParams.set('si', siDemo.id);
       url.searchParams.set('seed', String(siDemo.seed));
     }
+    if (siDemo?.id === SI_BRIDGE_ID) url.searchParams.set('si', siDemo.id);
     if (url.href !== before) window.history.replaceState(null, '', url);
     return;
   }
-  if (siDemo) {
+  if (siDemo?.id === SI_BRIDGE_ID) {
+    // The bridge has no seed: its address is just ?si=bridge.
+    if (shown === siDemo.id && !url.searchParams.has('seed')) return;
+    url.searchParams.set('si', siDemo.id);
+    url.searchParams.delete('seed');
+  } else if (siDemo) {
     if (shown === siDemo.id && url.searchParams.get('seed') === String(siDemo.seed)) return;
     url.searchParams.set('si', siDemo.id);
     url.searchParams.set('seed', String(siDemo.seed));
@@ -2462,7 +2524,9 @@ function loadScene(scene: ScenePreset, stressOverride?: number, keepCinematic = 
   renderEngineeringInspection();
   frameCameraForWorkspace();
   updateStats(0, 0, 0, 0, 0, softFrame);
-  setLog(siDemo && labScene
+  setLog(siDemo && siBridge
+    ? `Loaded ${SI_BRIDGE_TITLE} · ${siBridge.layout.stays.length} stays, ${siBridge.layout.elements.length} beam elements, SI units.`
+    : siDemo && labScene
     ? `Loaded ${labScene.read.title} · ${sceneSummary(labScene.read.scene)}.`
     : siDemo && siDemoScene
     ? `Loaded ${MECHANISMS_SCENE_TITLE} · ${siDemoScene.bodyCount} bodies, ${siDemoScene.jointCount} joints, SI units · seed 0x${seed.toString(16)}.`
@@ -2489,7 +2553,7 @@ function reloadSceneWithCurrentStress(): void {
   beginEngineeringRun(stress);
   stopCinematic(false);
   updateSceneText();
-  setLog(siDemo && labScene ? `Reloaded ${labScene.read.title} from its start.` : siDemo ? `Reloaded ${MECHANISMS_SCENE_TITLE}, seed 0x${seed.toString(16)}.` : `Reloaded ${sceneLabel(currentScene)} at stress ${ui.stress.value}, seed 0x${seed.toString(16)}.`);
+  setLog(siDemo && siBridge ? `Reloaded ${SI_BRIDGE_TITLE} from its start.` : siDemo && labScene ? `Reloaded ${labScene.read.title} from its start.` : siDemo ? `Reloaded ${MECHANISMS_SCENE_TITLE}, seed 0x${seed.toString(16)}.` : `Reloaded ${sceneLabel(currentScene)} at stress ${ui.stress.value}, seed 0x${seed.toString(16)}.`);
   if (!autoplayingLoadedSimulation) {
     engineeringSession?.setAutoplayOnOpen(true);
     scheduleAutoplayLoadedSimulation();
@@ -3206,6 +3270,7 @@ function initializeEngineeringWorkspaceShell(initialWorkspace: EngineeringWorksp
       },
       onSiDemoSelect: (demoId) => {
         if (demoId === MECHANISMS_SCENE_ID) loadMechanismsDemo();
+        else if (demoId === SI_BRIDGE_ID) loadSiBridge();
         else if (demoId === 'open-file') scenePanel?.openFileDialog();
         else if (demoId.startsWith('example:') && Object.hasOwn(EXAMPLE_SCENE_TITLES, demoId.slice(8))) openExampleScene(demoId.slice(8));
       },
@@ -3290,7 +3355,7 @@ function bindControls(): void {
     event.preventDefault();
     if (cinematicPlaying) stopCinematic();
     // A scene file is in metres and may be a 20 cm part or a 100 m terrain: zoom in proportion, with wider limits.
-    if (siDemo && labScene) camera.distance = clamp(camera.distance * Math.exp(event.deltaY * 0.0015), 0.4, 400);
+    if (siDemo && (labScene || siBridge)) camera.distance = clamp(camera.distance * Math.exp(event.deltaY * 0.0015), 0.4, 400);
     else camera.distance = clamp(camera.distance + event.deltaY * 0.018, 7, 120);
   }, { passive: false });
 
@@ -4269,6 +4334,7 @@ async function runStateTests(): Promise<void> {
 
   siDemo = null;
   labScene = null;
+  if (siBridge) { siBridgePanel?.attach(null); siBridge.dispose(); siBridge = null; }
   syncScenePanel();
   backend.createScene(restoreScene, restoreStress, seed);
   soft.createScene(restoreScene, restoreStress, seed);
@@ -4337,6 +4403,7 @@ async function main(): Promise<void> {
   initializeEngineeringWorkspaceShell(boot.workspace);
   // Read the requests first: loading the boot recipe clears the SI parameters from the address.
   const siRequest = siDemoRequestFromUrl();
+  const siBridgeRequested = new URLSearchParams(window.location.search).get('si') === SI_BRIDGE_ID;
   const sceneRequest = parseSceneRequest(window.location.search, window.location.hash);
   scenePanel = createScenePanel({
     onFiles: (files) => { void openSceneFiles(files); },
@@ -4345,8 +4412,25 @@ async function main(): Promise<void> {
     onDownload: downloadLabScene,
     onReset: resetLabScene,
   });
+  siBridgePanel = createSiBridgePanel({
+    onRestart: (settings) => loadSiBridge(settings),
+    onPause: togglePause,
+    isPaused: () => paused,
+  });
   Object.defineProperty(window, 'box3dLab', { configurable: true, value: Object.freeze({
     sceneState: labSceneState,
+    bridgeState: siBridgeState,
+    /** Bridge only: step it, without waiting for frames, until it has taken `tick` of its own fixed steps; then report its state. */
+    stepBridgeTo: (tick: number) => {
+      if (siDemo && siBridge && Number.isInteger(tick)) {
+        const target = Math.min(tick, siBridge.model.out.tick + 200000);
+        while (siBridge.model.out.tick < target) { engineRuntime.step({ ticks: 1, subSteps: solverSubSteps, captureTelemetry: false }); siBridgePanel?.sample(); }
+      }
+      return siBridgeState();
+    },
+    /** Bridge only: fail a stay, or set the drawing exaggeration, as the panel's controls do. */
+    failBridgeStay: (index: number) => (siDemo && siBridge ? siBridge.failStay(index) : false),
+    setBridgeExaggeration: (factor: number) => { if (siDemo && siBridge) siBridge.exaggeration = factor; return siBridgeState(); },
     /** Step the loaded scene, without waiting for frames, until it has taken `tick` steps; then report its state. */
     stepSceneTo: (tick: number) => {
       if (siDemo && labScene && Number.isInteger(tick)) {
@@ -4363,7 +4447,8 @@ async function main(): Promise<void> {
     const read = resolveSceneRequest(sceneRequest);
     // A scene that came in the address stays in the address, as a share link of the scene that was read.
     openLabScene(read, sceneRequest.kind !== 'example' && read.ok ? await encodeSceneLink(read.scene) : null);
-  } else if (siRequest !== null) loadMechanismsDemo(siRequest);
+  } else if (siBridgeRequested) loadSiBridge();
+  else if (siRequest !== null) loadMechanismsDemo(siRequest);
   ui.solverSubsteps.value = String(solverSubSteps);
   updateForceControlLabels();
 
@@ -4404,6 +4489,7 @@ async function main(): Promise<void> {
       while (simulationAccumulator >= fixedStep && steps < 8) {
         engineRuntime.step({ticks:1,subSteps:solverSubSteps,captureTelemetry:false});
         recordEngineeringFixedStep();
+        if (siDemo && siBridge) siBridgePanel?.sample();
         simulationAccumulator -= fixedStep;
         steps++;
       }
@@ -4441,10 +4527,16 @@ async function main(): Promise<void> {
     // provenance, but its unrelated preview props are not composited over the
     // press, crash rail, or cantilever fixture.
     const isolateReducedOrderSpecimen = studioMode && softFrame.kind !== 'none';
-    const rigidCount = isolateReducedOrderSpecimen ? 0 : backend.bodyCount();
+    // The bridge moves its drawn members to where the model is (also while paused: the exaggeration may change),
+    // draws its stays through the rope stream, and leaves the model's own vehicle body out of the draw.
+    const bridge = siDemo ? siBridge : null;
+    if (bridge?.sync()) backend.syncTransforms();
+    if (bridge) siBridgePanel?.refresh(now);
+    const rigidCount = isolateReducedOrderSpecimen ? 0 : bridge ? bridge.drawnRows(backend.bodyCount()) : backend.bodyCount();
     let uploadedBytes = renderer.uploadInstances(backend, rigidCount);
-    const ropeCount = softFrame.ropeGrid?.segmentCount ?? 0;
-    uploadedBytes += renderer.uploadRopeGrid(softFrame.ropeGrid, rigidCount);
+    const ropeGrid = bridge ? bridge.ropeGrid : softFrame.ropeGrid;
+    const ropeCount = ropeGrid?.segmentCount ?? 0;
+    uploadedBytes += renderer.uploadRopeGrid(ropeGrid, rigidCount);
     const softCpuBase = rigidCount + ropeCount;
     uploadedBytes += renderer.uploadSoftInstances(
       softFrame.matrices,

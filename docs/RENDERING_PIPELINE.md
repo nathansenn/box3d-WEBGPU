@@ -144,6 +144,8 @@ The immutable rest buffer is uploaded only when its identity or topology version
 
 ### Compact rope
 
+The stream is not tied to the rope simulation: any set of nodes and segments in the same layout is drawn. The SI bridge scene ([`SI_BRIDGE.md`](SI_BRIDGE.md)) passes its 16 stays this way, two nodes and one segment each, from the frame node positions of the model.
+
 The rope simulation publishes:
 
 ```text

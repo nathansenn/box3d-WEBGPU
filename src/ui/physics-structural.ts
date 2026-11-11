@@ -455,11 +455,12 @@ function gizmoMarkup(): string {
 }
 
 // The SI entries the catalog lists after the laboratories. None is a catalogue recipe. 'mechanisms' is
-// MECHANISMS_SCENE_ID in src/engine/mechanisms-scene.ts; 'example:<name>' is an example scene of the
+// MECHANISMS_SCENE_ID in src/engine/mechanisms-scene.ts; 'bridge' is SI_BRIDGE_ID in src/engine/si-bridge.ts; 'example:<name>' is an example scene of the
 // box3d-scene format (src/engine/scene-examples.ts); 'open-file' opens the Lab's file dialog. The
 // workbench only reports the id: src/main.ts acts on it.
 const SI_DEMO_ENTRIES = [
   { id: 'mechanisms', title: 'Mechanisms (SI demo)', detail: 'Spheres, capsules and joints in SI units · not a catalogue recipe' },
+  { id: 'bridge', title: 'Cable-stayed bridge (SI)', detail: '120 m deck, 2 towers, 16 stays, a crossing vehicle · validated frame and cable solvers, SI units' },
   { id: 'example:pendulum-wave', title: 'Pendulum wave (scene file)', detail: '9 spheres on revolute joints · example scene, SI units' },
   { id: 'example:newtons-cradle', title: "Newton's cradle (scene file)", detail: '5 elastic balls on hinges · example scene, SI units' },
   { id: 'example:domino-run', title: 'Domino run (scene file)', detail: '12 boxes, the first one leaning · example scene, SI units' },

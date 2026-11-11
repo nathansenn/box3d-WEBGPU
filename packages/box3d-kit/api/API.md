@@ -3210,6 +3210,7 @@ export declare class StructureCoupling<B> {
   attachCableToFrame(cable: CompliantCableRuntime, node: number, frame: FrameRuntime, frameNode: number): StructureAttachment;
   attachFrameToBody(frame: FrameRuntime, frameNode: number, body: B, options: FrameBodyAttachOptions): StructureAttachment;
   detach(attachment: StructureAttachment): void;
+  prime(attachment: StructureAttachment, force: StructureVec3, moment?: StructureVec3): void;
   get reports(): readonly StructureAttachment[];
   step(): void;
   diagnostics(): StructureDiagnostics;
