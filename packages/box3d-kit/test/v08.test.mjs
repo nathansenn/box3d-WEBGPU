@@ -4,9 +4,11 @@ import assert from 'node:assert/strict';
 import test from 'node:test';
 import {createWorld, axisRotation, toQuat} from 'box3d-webgpu-kit';
 import {createShapeMeshes, syncShapeMeshes} from 'box3d-webgpu-kit/three';
+import {Worker} from 'node:worker_threads';
+import {connectWorld} from 'box3d-webgpu-kit/worker';
 
 const G = 9.81, HZ = 240, SUB = 4;
-const si = (extra = {}) => createWorld({step: 1 / HZ, subSteps: SUB, ...extra});
+const si = (extra = {}) => createWorld({step: 1 / HZ, subSteps: SUB, gravity: [0, -G, 0], ...extra});
 const run = (world, seconds) => { for (let i = 0; i < Math.round(seconds * HZ); i++) world.step(); };
 const near = (actual, expected, tolerance, label) =>
   assert.ok(Math.abs(actual - expected) <= tolerance, `${label}: got ${actual}, expected ${expected} ± ${tolerance}`);
@@ -330,27 +332,55 @@ test('contact, hit and sensor events arrive after the step that caused them', as
   } finally { world.dispose(); }
 });
 
-test('the classic arena and presets are unchanged, and recording rejects calls it cannot replay', async () => {
+test('the classic arena is unchanged, and recordings of general worlds replay bit for bit', async () => {
   const world = await createWorld();
   try {
     assert.deepEqual(world.gravity().map(v => +v.toFixed(4)), [0, -10, 0], 'the arena keeps its original gravity');
     assert.deepEqual(world.bodyKinds(), ['box']);
-    world.spawnBox({position: [0, 3, 0]});
     world.startRecording();
-    assert.throws(() => world.createBody({shape: {kind: 'sphere', radius: 0.2}, position: [0, 2, 0]}), e => e.code === 'INVALID_STATE');
-    assert.throws(() => world.setGravity([0, -1, 0]), e => e.code === 'INVALID_STATE');
     world.spawnBox({position: [0, 3, 0]});
     for (let i = 0; i < 60; i++) world.step();
-    const log = world.stopRecording();
-    assert.equal(world.replay(log), true, 'recordings of the supported calls still replay exactly');
-    // Mixed worlds are deterministic too: the same calls give the same bits.
-    const build = () => {
-      world.reset({seed: 7});
-      for (let i = 0; i < 40; i++) world.createBody({shape: i % 3 === 0 ? {kind: 'sphere', radius: 0.3} : i % 3 === 1 ? {kind: 'capsule', radius: 0.2, halfLength: 0.3} : {kind: 'box', halfExtents: [0.3, 0.2, 0.4]}, position: [(i % 5) * 0.4 - 0.8, 1 + i * 0.7, (i % 3) * 0.3]});
-      for (let i = 0; i < 480; i++) world.step();
-      return world.exactHash();
-    };
-    assert.equal(build(), build(), 'a rebuilt scene of spheres, capsules and boxes repeats bit for bit');
+    const classic = world.stopRecording();
+    assert.equal(classic.version, 1, 'a classic recording keeps log version 1');
+    assert.equal(world.replay(classic), true);
+
+    // An SI recording that uses every kind of call: bodies of each shape, joints, setters, forces, destruction.
+    world.startRecording({world: {gravity: [0, -9.81, 0]}, checkpointEvery: 30});
+    const ball = world.createBody({shape: {kind: 'sphere', radius: 0.3}, position: [0, 3, 0], restitution: 0.4});
+    const pill = world.createBody({shape: {kind: 'capsule', radius: 0.2, halfLength: 0.4}, position: [1, 2, 0], filter: {categoryBits: 3n, maskBits: 0xffffn}});
+    const rock = world.createBody({shape: {kind: 'hull', points: new Float32Array([1, 0, 0, -1, 0, 0, 0, 1, 0, 0, -1, 0, 0, 0, 1, 0, 0, -1]).map(v => v * 0.4)}, position: [-2, 4, 0]});
+    world.createBody({shape: {kind: 'mesh', vertices: [3, 0, -2, 9, 2, -2, 9, 2, 2, 3, 0, 2], indices: [0, 2, 1, 0, 3, 2]}, position: [0, 0, 0]});
+    const arm = world.createBody({shape: {kind: 'box', halfExtents: [0.6, 0.1, 0.1]}, position: [-5, 2, 0]});
+    const hinge = world.createJoint({type: 'revolute', bodyA: null, bodyB: arm, frameA: {position: [-5.6, 2, 0]}, frameB: {position: [-0.6, 0, 0]}, motor: {speed: 3, maxForce: 500}});
+    const rope = world.createJoint({type: 'distance', bodyA: ball, bodyB: pill, length: 1.5, spring: {hertz: 3, dampingRatio: 0.2}});
+    for (let i = 0; i < 90; i++) {
+      if (i === 20) { world.applyForce(ball, [40, 0, 0], [0, 3.2, 0]); world.setJointMotor(hinge, {speed: -2, maxForce: 500}); }
+      if (i === 40) { world.setVelocity(rock, [0, 6, 0], [1, 0, 2]); world.setGravity([0, -3, 0]); world.setCollisionFilter(pill, 1n, 0xffffn, -1); }
+      if (i === 60) { world.destroyJoint(rope); world.destroyBody(rock); world.setJointLimits(hinge, {lower: -1, upper: 1}); world.applyTorque(arm, [0, 0, 30]); }
+      world.step();
+    }
+    const expected = world.exactHash();
+    const log = JSON.parse(JSON.stringify(world.stopRecording()));
+    assert.equal(log.version, 2);
+    assert.deepEqual(log.world, {ground: true, gravity: [0, -9.81, 0]});
+    assert.ok(log.commands.some(c => c.op === 'call' && c.method === 'createJoint'), 'general calls are logged');
+    assert.ok(log.commands.some(c => c.op === 'destroyBody'), 'beside the classic commands');
+    world.resetArena();
+    const report = world.replayDetailed(log);
+    assert.deepEqual([report.matches, report.divergence, report.finalHash, report.checkpointsCompared], [true, null, expected, 3], 'the JSON round-tripped log replays exactly');
+    assert.deepEqual(world.gravity().map(v => +v.toFixed(4)), [0, -3, 0], 'including the gravity change');
+    // A tampered log is caught at the first checkpoint after the change.
+    const bent = structuredClone(log);
+    bent.commands.find(c => c.method === 'setVelocity').args[1] = [0, 6.001, 0];
+    const diverged = world.replayDetailed(bent);
+    assert.deepEqual([diverged.matches, diverged.divergence], [false, {from: 30, to: 60}]);
+    assert.throws(() => world.replayDetailed({...log, commands: [{t: 0, op: 'call', method: 'dispose', args: []}]}), e => e.code === 'INVALID_PAYLOAD', 'only whitelisted methods replay');
+    // A joint made before recording cannot be named by the log.
+    world.reset();
+    const early = world.createJoint({type: 'weld', bodyA: null, bodyB: world.createBody({shape: {kind: 'sphere', radius: 0.2}, position: [0, 1, 0]})});
+    world.startRecording({world: {}});
+    assert.throws(() => world.setJointSpring(early, null), e => e.code === 'INVALID_PAYLOAD' || e.code === 'INVALID_STATE');
+    world.stopRecording();
   } finally { world.dispose(); }
 });
 
@@ -465,4 +495,44 @@ test('height-field terrain: exact heights on a plane, sliding on it, and settlin
     world.reset({ground: false});
     assert.equal(world.bodyCount(), 0, 'reset releases terrain and mesh data with the world');
   } finally { world.dispose(); }
+});
+
+test('a worker-hosted world runs the same mechanism to the same bits and reports its events', async () => {
+  // The same script drives a local world and a remote one; `call` awaits either.
+  const script = async world => {
+    const ball = await world.createBody({shape: {kind: 'sphere', radius: 0.3}, position: [0, 2, 0], hitEvents: true});
+    const pill = await world.createBody({shape: {kind: 'capsule', radius: 0.2, halfLength: 0.4}, position: [1.5, 1, 0]});
+    const arm = await world.createBody({shape: {kind: 'box', halfExtents: [0.6, 0.1, 0.1]}, position: [-4, 2, 0]});
+    const hinge = await world.createJoint({type: 'revolute', bodyA: null, bodyB: arm, frameA: {position: [-4.6, 2, 0]}, frameB: {position: [-0.6, 0, 0]}, motor: {speed: 2, maxForce: 500}});
+    await world.createJoint({type: 'distance', bodyA: ball, bodyB: pill, length: 1.8});
+    for (let i = 0; i < 240; i++) {
+      if (i === 60) { await world.applyForce(ball, [30, 0, 0]); await world.setJointMotor(hinge, {speed: -2, maxForce: 500}); }
+      if (i === 120) { await world.setVelocity(pill, [0, 4, 0], [0, 0, 3]); await world.setGravity([0, -4, 0]); }
+      await (world.stepOnce ? world.stepOnce() : world.step());
+    }
+    return {hash: await world.exactHash(), ball, hinge, state: await world.getState(ball), joint: await world.getJointState(hinge)};
+  };
+  const local = await si();
+  const remote = await connectWorld(new Worker(new URL('./fixtures/physics.worker.mjs', import.meta.url)), {step: 1 / HZ, subSteps: SUB, gravity: [0, -9.81, 0], sharedMemory: false});
+  try {
+    assert.deepEqual(await remote.takeEvents(), {events: [], dropped: 0}, 'the first call starts collection');
+    const [here, there] = [await script(local), await script(remote)];
+    assert.equal(there.hash, here.hash, 'worker and main thread agree bit for bit');
+    assert.deepEqual(there.state, here.state);
+    assert.deepEqual(there.joint, here.joint);
+    assert.deepEqual([...remote.bodyKinds()], ['box', 'sphere', 'capsule', 'box'], 'row shapes arrive with the frames');
+    assert.equal(remote.bodyCount(), 4);
+    const {events, dropped} = await remote.takeEvents();
+    assert.equal(dropped, 0);
+    const hit = events.find(e => e.kind === 'hit');
+    assert.ok(hit && hit.approachSpeed > 1, 'the falling ball reported its impact');
+    assert.ok([hit.bodyA.token, hit.bodyB.token].includes(there.ball.token), 'with the remote handle of the ball');
+    assert.deepEqual((await remote.takeEvents()).events, [], 'events are handed over once');
+    assert.equal(await remote.isJointAlive(there.hinge), true);
+    assert.equal(await remote.destroyJoint(there.hinge), true);
+    await assert.rejects(remote.getJointState(there.hinge), e => e.code === 'STALE_JOINT');
+    await remote.reset({ground: false});
+    assert.equal(remote.bodyCount(), 0);
+    await assert.rejects(remote.getState(there.ball), e => e.code === 'STALE_BODY', 'reset forgets the old handles');
+  } finally { local.dispose(); await remote.dispose(); }
 });

@@ -334,10 +334,10 @@ In the Vite dev server (not yet tested), add `optimizeDeps: {exclude: ['box3d-we
 
 - **One shape per body:** box, sphere, capsule or convex hull on any body; triangle mesh or height field on static bodies. Compound shapes are in Box3D but not exported by the bridge yet. `createShapeMeshes` draws boxes, spheres and capsules; draw hulls, meshes and terrain with your own geometry and the row's matrix.
 - **Two scene styles.** `createWorld()` / `resetArena()` / `loadPreset()` give the classic arena: gravity −10 m/s², `spawnBox` cubes with a small seeded spin. `createWorld({gravity})` / `reset()` give an SI world (9.81 m/s²) that you fill with `createBody` and `createJoint`. Both run on the same solver.
-- **Recording covers the classic calls only.** `startRecording()` logs `spawnBox`, `destroyBody`, `applyImpulse` and `explode`. While recording, `createBody`, `createJoint` and the setters throw `INVALID_STATE` rather than produce a log that replays differently. Worlds built with them are still deterministic: the same calls give the same bits.
-- **`RemoteWorld` (worker) and network snapshots do not carry the new calls yet.** Use them from the thread that owns the world.
+- **Recording an SI world:** `startRecording({world: {gravity}})` starts from an empty SI world and logs every mutating call, including `createBody`, `createJoint` and the setters. Mesh and terrain geometry is stored in the log, so large scenery makes large logs. A joint created before recording began cannot be used while recording.
+- **Network snapshots carry transforms only**, as before; they do not describe shapes or joints.
 - **No contact-end for destroyed bodies.** Box3D reports no `contact-end` for what a destroyed body was touching; treat `destroyBody()` as the signal.
-- **Solver state cannot be saved.** `saveSession` stores a replay log, with the recording limits above.
+- **Solver state cannot be saved.** `saveSession` stores a replay log and `loadSession` replays it.
 - **Single-threaded.** Each world steps synchronously on its thread. Use `box3d-webgpu-kit/worker` to move that thread off the renderer.
 - **Interpolation pauses for one step after a destroy, a reset or `setTransform`**, because rows move or jump. New bodies interpolate normally.
 - Default capacity is 4,096 bodies per world; `createWorld({capacity})` raises it up to 65,536. The bridge buffers take 136 bytes per body slot.

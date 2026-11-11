@@ -191,11 +191,20 @@ export type ReplayCommand =
   | {readonly t: number; readonly op: 'spawnBox'; readonly position: Vec3; readonly halfSize: number; readonly impulse: Vec3}
   | {readonly t: number; readonly op: 'destroyBody'; readonly row: number}
   | {readonly t: number; readonly op: 'applyImpulse'; readonly row: number; readonly impulse: Vec3}
-  | {readonly t: number; readonly op: 'explode'; readonly center: Vec3; readonly strength: number; readonly radius: number};
+  | {readonly t: number; readonly op: 'explode'; readonly center: Vec3; readonly strength: number; readonly radius: number}
+  /**
+   * Any other mutating call (createBody, createJoint, setVelocity, ...). In `args`, a body is
+   * {$body: row}, a joint is {$joint: n} (the n-th joint created since recording began) and a
+   * bigint is {$bigint: 'decimal'}, so the log stays plain JSON.
+   */
+  | {readonly t: number; readonly op: 'call'; readonly method: string; readonly args: readonly unknown[]};
 
 /** Everything needed to reproduce a session bit-for-bit on the same WASM build. JSON-serializable. */
 export interface ReplayLog {
-  readonly version: 1;
+  /** 2 when the log starts from an SI world or holds 'call' commands; such logs need kit 0.8 or later. */
+  readonly version: 1 | 2;
+  /** Present when recording began with reset() instead of the classic arena. */
+  readonly world?: {readonly ground: boolean; readonly gravity: Vec3};
   readonly seed: number;
   readonly step: number;
   readonly subSteps: number;
@@ -210,6 +219,8 @@ export interface ReplayLog {
 export interface RecordingOptions {
   /** Capture exactHash every N ticks (0 disables). Default 60. */
   readonly checkpointEvery?: number;
+  /** Start from an empty SI world (as reset() does) instead of the classic arena. */
+  readonly world?: {readonly ground?: boolean; readonly gravity?: Vec3Like};
 }
 
 export interface ReplayReport {
@@ -222,6 +233,10 @@ export interface ReplayReport {
 }
 
 const now = () => globalThis.performance?.now() ?? Date.now();
+/** The methods a 'call' replay command may name. */
+const REPLAYABLE = new Set(['setGravity', 'createBody', 'setTransform', 'setVelocity', 'moveKinematic', 'setBodyType', 'setAwake', 'setGravityScale',
+  'setDamping', 'setCollisionFilter', 'applyForce', 'applyTorque', 'applyImpulseAt', 'applyAngularImpulse', 'createJoint', 'destroyJoint',
+  'setJointMotor', 'setJointLimits', 'setJointSpring', 'setJointSteering']);
 
 /**
  * Game-facing wrapper around one isolated native Box3D world.
@@ -250,7 +265,9 @@ export class PhysicsWorld {
   private previousCount = 0;
   private rowsMoved = true;
   private blended = new Float32Array(0);
-  private recording: {seed: number; commands: ReplayCommand[]; every: number; checkpoints: [number, number][]} | null = null;
+  private recording: {seed: number; commands: ReplayCommand[]; every: number; checkpoints: [number, number][]; world?: {ground: boolean; gravity: Vec3}} | null = null;
+  // Joints created since the recording or replay began, so a log can name them by order.
+  private jointLog: Joint[] = [];
   private readonly stepListeners = new Set<(tick: number) => void>();
   private readonly eventListeners = new Set<(event: WorldEvent) => void>();
   private droppedEventCount = 0;
@@ -308,13 +325,45 @@ export class PhysicsWorld {
     return this;
   }
 
-  setGravity(gravity: Vec3Like): void { const g = toVec3(gravity); this.general('setGravity'); this.native.setGravity(g[0], g[1], g[2]); }
+  setGravity(gravity: Vec3Like): void { const g = toVec3(gravity); this.general('setGravity', [g]); this.native.setGravity(g[0], g[1], g[2]); }
   gravity(): [number, number, number] { return this.native.gravity(); }
 
-  // Recordings store spawnBox, destroyBody, applyImpulse and explode only, so
-  // a log that missed one of the calls below would replay to a different result.
-  private general(name: string): void {
-    if (this.recording) throw new EngineError('INVALID_STATE', `${name}() cannot be recorded yet; call stopRecording() first.`);
+  // Log a mutating call while recording. Arguments are encoded before the call runs,
+  // because a body's row is only meaningful at that moment.
+  private general(method: string, args: readonly unknown[] = []): void {
+    if (this.recording) this.recording.commands.push({t: this.tickCount, op: 'call', method, args: args.map(arg => this.encodeArg(arg))});
+  }
+  private encodeArg(value: unknown): unknown {
+    if (typeof value === 'bigint') return {$bigint: value.toString()};
+    if (value === null || typeof value !== 'object') return value;
+    if (ArrayBuffer.isView(value)) return Array.from(value as unknown as ArrayLike<number>);
+    if (Array.isArray(value)) return value.map(item => this.encodeArg(item));
+    if (typeof (value as {token?: unknown}).token === 'bigint') {
+      const joint = this.jointLog.indexOf(value as Joint);
+      if (joint >= 0) return {$joint: joint};
+      let row: number | null = null;
+      try { row = this.native.bodyIndex(value as Body); } catch { /* not a body of this world */ }
+      if (row === null) throw new EngineError('INVALID_STATE', 'Recording met a destroyed body, or a joint created before recording began.');
+      return {$body: row};
+    }
+    const out: Record<string, unknown> = {};
+    for (const [key, item] of Object.entries(value)) if (item !== undefined) out[key] = this.encodeArg(item);
+    return out;
+  }
+  private decodeArg(value: unknown): unknown {
+    if (value === null || typeof value !== 'object') return value;
+    if (Array.isArray(value)) return value.map(item => this.decodeArg(item));
+    const tagged = value as {$body?: number; $joint?: number; $bigint?: string};
+    if (typeof tagged.$bigint === 'string') return BigInt(tagged.$bigint);
+    if (typeof tagged.$body === 'number') return this.bodyAt(tagged.$body);
+    if (typeof tagged.$joint === 'number') {
+      const joint = this.jointLog[tagged.$joint];
+      if (!joint) throw new EngineError('INVALID_PAYLOAD', `Replay log names joint ${tagged.$joint}, which it never created.`);
+      return joint;
+    }
+    const out: Record<string, unknown> = {};
+    for (const [key, item] of Object.entries(value)) out[key] = this.decodeArg(item);
+    return out;
   }
 
   /**
@@ -322,7 +371,7 @@ export class PhysicsWorld {
    * triangle mesh or height field. Returns null when the world is at body capacity.
    */
   createBody(options: BodyOptions): Body | null {
-    this.general('createBody');
+    this.general('createBody', [options]);
     const shape = options.shape;
     return this.native.createBody({
       ...options,
@@ -338,10 +387,10 @@ export class PhysicsWorld {
   getState(body: Body): BodyState { return this.native.bodyState(body); }
   /** Teleport a body. To move a kinematic body through the world use moveKinematic(). */
   setTransform(body: Body, position: Vec3Like, rotation: QuatLike = [0, 0, 0, 1]): void {
-    this.general('setTransform'); this.native.setBodyTransform(body, toVec3(position), toQuat(rotation)); this.rowsMoved = true;
+    this.general('setTransform', [body, position, rotation]); this.native.setBodyTransform(body, toVec3(position), toQuat(rotation)); this.rowsMoved = true;
   }
   setVelocity(body: Body, linear: Vec3Like, angular: Vec3Like = [0, 0, 0]): void {
-    this.general('setVelocity'); this.native.setBodyVelocity(body, toVec3(linear), toVec3(angular));
+    this.general('setVelocity', [body, linear, angular]); this.native.setBodyVelocity(body, toVec3(linear), toVec3(angular));
   }
   /**
    * Drive a kinematic body so that it reaches the pose after `seconds`
@@ -350,44 +399,46 @@ export class PhysicsWorld {
    * to stop.
    */
   moveKinematic(body: Body, position: Vec3Like, rotation: QuatLike = [0, 0, 0, 1], seconds = this.loop.step): void {
-    this.general('moveKinematic'); this.native.setBodyTarget(body, toVec3(position), toQuat(rotation), seconds);
+    this.general('moveKinematic', [body, position, rotation, seconds]); this.native.setBodyTarget(body, toVec3(position), toQuat(rotation), seconds);
   }
-  setBodyType(body: Body, type: BodyType): void { this.general('setBodyType'); this.native.setBodyType(body, type); }
-  setAwake(body: Body, awake: boolean): void { this.general('setAwake'); this.native.setBodyAwake(body, awake); }
-  setGravityScale(body: Body, scale: number): void { this.general('setGravityScale'); this.native.setBodyGravityScale(body, scale); }
-  setDamping(body: Body, linear: number, angular: number): void { this.general('setDamping'); this.native.setBodyDamping(body, linear, angular); }
+  setBodyType(body: Body, type: BodyType): void { this.general('setBodyType', [body, type]); this.native.setBodyType(body, type); }
+  setAwake(body: Body, awake: boolean): void { this.general('setAwake', [body, awake]); this.native.setBodyAwake(body, awake); }
+  setGravityScale(body: Body, scale: number): void { this.general('setGravityScale', [body, scale]); this.native.setBodyGravityScale(body, scale); }
+  setDamping(body: Body, linear: number, angular: number): void { this.general('setDamping', [body, linear, angular]); this.native.setBodyDamping(body, linear, angular); }
   setCollisionFilter(body: Body, categoryBits: bigint, maskBits: bigint, groupIndex = 0): void {
-    this.general('setCollisionFilter'); this.native.setBodyFilter(body, categoryBits, maskBits, groupIndex);
+    this.general('setCollisionFilter', [body, categoryBits, maskBits, groupIndex]); this.native.setBodyFilter(body, categoryBits, maskBits, groupIndex);
   }
   /** Force in newtons, acting over the next step. With `point` (world space) it also produces torque. */
   applyForce(body: Body, force: Vec3Like, point?: Vec3Like): void {
-    this.general('applyForce'); this.native.applyToBody(body, 'force', toVec3(force), point ? toVec3(point) : undefined);
+    this.general('applyForce', point ? [body, force, point] : [body, force]); this.native.applyToBody(body, 'force', toVec3(force), point ? toVec3(point) : undefined);
   }
-  applyTorque(body: Body, torque: Vec3Like): void { this.general('applyTorque'); this.native.applyToBody(body, 'torque', toVec3(torque)); }
+  applyTorque(body: Body, torque: Vec3Like): void { this.general('applyTorque', [body, torque]); this.native.applyToBody(body, 'torque', toVec3(torque)); }
   /** Impulse in N·s at a world-space point. applyImpulse() acts at the center. */
   applyImpulseAt(body: Body, impulse: Vec3Like, point: Vec3Like): void {
-    this.general('applyImpulseAt'); this.native.applyToBody(body, 'impulse', toVec3(impulse), toVec3(point));
+    this.general('applyImpulseAt', [body, impulse, point]); this.native.applyToBody(body, 'impulse', toVec3(impulse), toVec3(point));
   }
-  applyAngularImpulse(body: Body, impulse: Vec3Like): void { this.general('applyAngularImpulse'); this.native.applyToBody(body, 'angular-impulse', toVec3(impulse)); }
+  applyAngularImpulse(body: Body, impulse: Vec3Like): void { this.general('applyAngularImpulse', [body, impulse]); this.native.applyToBody(body, 'angular-impulse', toVec3(impulse)); }
 
   /** Connect two bodies, or a body and the fixed world, with a joint. */
   createJoint(options: JointOptions): Joint {
-    this.general('createJoint');
+    this.general('createJoint', [options]);
     const frame = (f?: JointFrame) => f ? {position: f.position ? toVec3(f.position) : undefined, rotation: f.rotation ? toQuat(f.rotation) : undefined} : undefined;
-    return this.native.createJoint({...options, frameA: frame(options.frameA), frameB: frame(options.frameB)});
+    const joint = this.native.createJoint({...options, frameA: frame(options.frameA), frameB: frame(options.frameB)});
+    if (this.recording || this.replayCheck) this.jointLog.push(joint);
+    return joint;
   }
   /** False once the joint, or either of its bodies, has been destroyed. */
   isJointAlive(joint: Joint): boolean { return this.native.jointAlive(joint); }
-  destroyJoint(joint: Joint): boolean { this.general('destroyJoint'); return this.native.destroyJoint(joint); }
+  destroyJoint(joint: Joint): boolean { this.general('destroyJoint', [joint]); return this.native.destroyJoint(joint); }
   /** Pass null to switch the motor off. */
-  setJointMotor(joint: Joint, motor: {speed: number; maxForce: number} | null): void { this.general('setJointMotor'); this.native.setJointMotor(joint, motor); }
+  setJointMotor(joint: Joint, motor: {speed: number; maxForce: number} | null): void { this.general('setJointMotor', [joint, motor]); this.native.setJointMotor(joint, motor); }
   /** Pass null to remove the limits. */
-  setJointLimits(joint: Joint, limits: {lower: number; upper: number} | null): void { this.general('setJointLimits'); this.native.setJointLimits(joint, limits); }
+  setJointLimits(joint: Joint, limits: {lower: number; upper: number} | null): void { this.general('setJointLimits', [joint, limits]); this.native.setJointLimits(joint, limits); }
   /** Pass null to switch the spring off. */
-  setJointSpring(joint: Joint, spring: {hertz: number; dampingRatio: number; target?: number} | null): void { this.general('setJointSpring'); this.native.setJointSpring(joint, spring); }
+  setJointSpring(joint: Joint, spring: {hertz: number; dampingRatio: number; target?: number} | null): void { this.general('setJointSpring', [joint, spring]); this.native.setJointSpring(joint, spring); }
   /** Wheel joints: steer towards an angle. Pass null to switch steering off. */
   setJointSteering(joint: Joint, steering: {angle: number; hertz: number; dampingRatio: number; maxTorque: number} | null): void {
-    this.general('setJointSteering'); this.native.setJointSteering(joint, steering);
+    this.general('setJointSteering', [joint, steering]); this.native.setJointSteering(joint, steering);
   }
   /** Joint angle, travel or length, and the force and torque it is carrying. */
   getJointState(joint: Joint): JointState { return this.native.jointState(joint); }
@@ -653,13 +704,17 @@ export class PhysicsWorld {
   startRecording(options: RecordingOptions = {}): void {
     const every = options.checkpointEvery ?? 60;
     if (!Number.isInteger(every) || every < 0) throw new EngineError('INVALID_PAYLOAD', 'checkpointEvery must be a non-negative integer.');
-    this.resetArena(this.seed);
-    this.recording = {seed: this.seed, commands: [], every, checkpoints: []};
+    const world = options.world ? {ground: options.world.ground ?? true, gravity: toVec3(options.world.gravity ?? [0, -9.81, 0]) as Vec3} : undefined;
+    if (world) this.reset({seed: this.seed, ...world});
+    else this.resetArena(this.seed);
+    this.jointLog = [];
+    this.recording = {seed: this.seed, commands: [], every, checkpoints: [], world};
   }
 
   stopRecording(): ReplayLog {
     if (!this.recording) throw new EngineError('INVALID_STATE', 'startRecording() was not called.');
-    const log: ReplayLog = {version: 1, seed: this.recording.seed, step: this.loop.step, subSteps: this.subSteps, ticks: this.tickCount, commands: this.recording.commands, finalHash: this.exactHash(), checkpoints: this.recording.checkpoints};
+    const rec = this.recording, general = rec.world !== undefined || rec.commands.some(command => command.op === 'call');
+    const log: ReplayLog = {version: general ? 2 : 1, ...(rec.world ? {world: rec.world} : {}), seed: this.recording.seed, step: this.loop.step, subSteps: this.subSteps, ticks: this.tickCount, commands: this.recording.commands, finalHash: this.exactHash(), checkpoints: this.recording.checkpoints};
     this.recording = null;
     return log;
   }
@@ -674,10 +729,12 @@ export class PhysicsWorld {
    * checkpoints. Use it to bisect a desync between two builds or machines.
    */
   replayDetailed(log: ReplayLog): ReplayReport {
-    if (log.version !== 1) throw new EngineError('UNSUPPORTED_BACKEND', `Replay log version ${String(log.version)} is not supported.`);
+    if (log.version !== 1 && log.version !== 2) throw new EngineError('UNSUPPORTED_BACKEND', `Replay log version ${String(log.version)} is not supported.`);
     if (log.step !== this.loop.step || log.subSteps !== this.subSteps) throw new EngineError('INVALID_PAYLOAD', 'Replay needs the same step and subSteps as the recording.');
     this.stopRecordingIfActive('replay');
-    this.resetArena(log.seed);
+    if (log.world) this.reset({seed: log.seed, ground: log.world.ground, gravity: log.world.gravity});
+    else this.resetArena(log.seed);
+    this.jointLog = [];
     const checkpoints = log.checkpoints ?? [];
     let next = 0, compared = 0, lastGood = 0, divergence: {from: number; to: number} | null = null;
     this.replayCheck = tick => {
@@ -706,6 +763,11 @@ export class PhysicsWorld {
         case 'destroyBody': this.destroyBody(this.bodyAt(command.row)); break;
         case 'applyImpulse': this.applyImpulse(this.bodyAt(command.row), command.impulse); break;
         case 'explode': this.explode(command.center, command.strength, command.radius); break;
+        case 'call': {
+          if (!REPLAYABLE.has(command.method)) throw new EngineError('INVALID_PAYLOAD', `Replay log calls ${command.method}(), which cannot be replayed.`);
+          (this as unknown as Record<string, (...args: unknown[]) => unknown>)[command.method](...command.args.map(arg => this.decodeArg(arg)));
+          break;
+        }
       }
     }
     while (this.tickCount < log.ticks) this.step();

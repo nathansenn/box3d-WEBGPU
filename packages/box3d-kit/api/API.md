@@ -1115,6 +1115,10 @@ export declare function readPoses(source: InstanceSource, out: PoseArrays): numb
 ```ts
 export interface RecordingOptions {
     readonly checkpointEvery?: number;
+    readonly world?: {
+        readonly ground?: boolean;
+        readonly gravity?: Vec3Like;
+    };
 }
 ```
 
@@ -1142,6 +1146,12 @@ export type ReplayCommand = {
     readonly center: Vec3;
     readonly strength: number;
     readonly radius: number;
+}
+| {
+    readonly t: number;
+    readonly op: 'call';
+    readonly method: string;
+    readonly args: readonly unknown[];
 };
 ```
 
@@ -1151,7 +1161,11 @@ Everything needed to reproduce a session bit-for-bit on the same WASM build. JSO
 
 ```ts
 export interface ReplayLog {
-    readonly version: 1;
+    readonly version: 1 | 2;
+    readonly world?: {
+        readonly ground: boolean;
+        readonly gravity: Vec3;
+    };
     readonly seed: number;
     readonly step: number;
     readonly subSteps: number;
@@ -1670,6 +1684,25 @@ export interface RemoteFrame {
 }
 ```
 
+### RemoteJoint · interface
+
+```ts
+export interface RemoteJoint {
+    readonly token: bigint;
+}
+```
+
+### RemoteJointOptions · type
+
+JointOptions with the bodies as remote handles.
+
+```ts
+export type RemoteJointOptions = Omit<JointOptions, 'bodyA' | 'bodyB'> & {
+    readonly bodyA: RemoteBody | null;
+    readonly bodyB: RemoteBody | null;
+};
+```
+
 ### RemoteWorld · class
 
 Main-thread proxy for a worker-hosted world. Every call is async; transforms are cached per frame.
@@ -1685,6 +1718,7 @@ export declare class RemoteWorld implements InstanceSource {
   colorVersion(): number;
   matrices(): Float32Array;
   colors(): Float32Array;
+  bodyKinds(): readonly BodyKind[];
   start(hz?: number): Promise<void>;
   stop(): Promise<void>;
   update(frameSeconds: number): Promise<RemoteFrame>;
@@ -1702,6 +1736,32 @@ export declare class RemoteWorld implements InstanceSource {
   overlapSphere(center: Vec3Like, radius: number, options?: QueryOptions): Promise<RemoteBody[]>;
   overlapBox(center: Vec3Like, halfExtents: Vec3Like, options?: QueryOptions): Promise<RemoteBody[]>;
   resetArena(seed?: number): Promise<void>;
+  reset(options?: ResetOptions): Promise<void>;
+  setGravity(gravity: Vec3Like): Promise<void>;
+  gravity(): Promise<[number, number, number]>;
+  createBody(options: BodyOptions): Promise<RemoteBody | null>;
+  getState(body: RemoteBody): Promise<BodyState>;
+  setTransform(body: RemoteBody, position: Vec3Like, rotation?: QuatLike): Promise<void>;
+  setVelocity(body: RemoteBody, linear: Vec3Like, angular?: Vec3Like): Promise<void>;
+  moveKinematic(body: RemoteBody, position: Vec3Like, rotation?: QuatLike, seconds?: number): Promise<void>;
+  setBodyType(body: RemoteBody, type: BodyType): Promise<void>;
+  setAwake(body: RemoteBody, awake: boolean): Promise<void>;
+  setGravityScale(body: RemoteBody, scale: number): Promise<void>;
+  setDamping(body: RemoteBody, linear: number, angular: number): Promise<void>;
+  setCollisionFilter(body: RemoteBody, categoryBits: bigint, maskBits: bigint, groupIndex?: number): Promise<void>;
+  applyForce(body: RemoteBody, force: Vec3Like, point?: Vec3Like): Promise<void>;
+  applyTorque(body: RemoteBody, torque: Vec3Like): Promise<void>;
+  applyImpulseAt(body: RemoteBody, impulse: Vec3Like, point: Vec3Like): Promise<void>;
+  applyAngularImpulse(body: RemoteBody, impulse: Vec3Like): Promise<void>;
+  createJoint(options: RemoteJointOptions): Promise<RemoteJoint>;
+  destroyJoint(joint: RemoteJoint): Promise<boolean>;
+  isJointAlive(joint: RemoteJoint): Promise<boolean>;
+  setJointMotor(joint: RemoteJoint, motor: { speed: number; maxForce: number; } | null): Promise<void>;
+  setJointLimits(joint: RemoteJoint, limits: { lower: number; upper: number; } | null): Promise<void>;
+  setJointSpring(joint: RemoteJoint, spring: { hertz: number; dampingRatio: number; target?: number; } | null): Promise<void>;
+  setJointSteering(joint: RemoteJoint, steering: { angle: number; hertz: number; dampingRatio: number; maxTorque: number; } | null): Promise<void>;
+  getJointState(joint: RemoteJoint): Promise<JointState>;
+  takeEvents(): Promise<{ events: RemoteWorldEvent[]; dropped: number; }>;
   loadPreset(id: number, stress?: number, seed?: number): Promise<number>;
   stats(): Promise<WorldStats>;
   exactHash(): Promise<number>;
@@ -1716,12 +1776,25 @@ export declare class RemoteWorld implements InstanceSource {
 }
 ```
 
+### RemoteWorldEvent · type
+
+A WorldEvent with the bodies as remote handles.
+
+```ts
+export type RemoteWorldEvent = Omit<WorldEvent, 'bodyA' | 'bodyB'> & {
+    readonly bodyA: RemoteBody | null;
+    readonly bodyB: RemoteBody | null;
+};
+```
+
 ### RemoteWorldOptions · type
 
 ```ts
 export type RemoteWorldOptions = WorldOptions & Omit<LoadBox3DOptions, 'factory' | 'wasmBinary'> & {
     readonly interpolateFrames?: boolean;
     readonly sharedMemory?: boolean | 'auto';
+    readonly gravity?: readonly [number, number, number];
+    readonly ground?: boolean;
 };
 ```
 

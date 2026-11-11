@@ -35,7 +35,7 @@ Updated 2026-11-11.
 | 1 | SI worlds (`reset`, gravity 9.81) beside the classic arena | done |
 | 1 | Closed-form validation of the rigid solver (`packages/box3d-kit/test/v08.test.mjs`) | done |
 | 1 | Compound shapes (several shapes on one body) | open |
-| 1 | Record and replay of the new calls; worker and network transport for them | open |
+| 1 | Record and replay of the new calls; worker transport for them | done |
 | 1 | Solver state save and load | open |
 | 1 | Lab renderer draws spheres and capsules | open |
 | 1 | Publish `box3d-webgpu-kit` 1.0 to npm | open (owner decision) |
@@ -54,7 +54,7 @@ Box3D already has the features; the C bridge (`wasm/box3d_web.c`) exposes them a
 
 Done in kit 0.8.0: general bodies, six shape types, three body types, setters, forces, six joint types, events, SI worlds, and a closed-form validation suite (pendulum period within 0.1%, friction stopping distance within 1%, rebound height within 2%, momentum and energy conserved in an elastic collision, sliding and rolling down inclines within 1%).
 
-Remaining: compound shapes, record/replay and worker transport for the new calls, state save/load, Lab rendering of the new shapes, and the npm release.
+Remaining: compound shapes, state save/load, Lab rendering of the new shapes, and the npm release.
 
 ## Phase 2: one world, coupled
 
