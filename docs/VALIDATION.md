@@ -284,7 +284,7 @@ Solver: `box3d-webgpu-kit/geometry`: OBJ, STL and glTF/GLB readers, mesh measure
 | The hull of a convex mesh is the mesh | `V_hull = V_mesh` = 0.5214995 m^3 | 0.5214995 | +1.7e-9 rel. | ±1e-7 rel. | pass |
 | Convex decomposition of an L: volume error | `\|V_hulls / V_mesh - 1\| = 0` = 0 | 0 | 0 | ±1e-9 | pass |
 | Welded hulls of an L: total mass | `m = rho V` = 225 kg | 225 | 0% | ±1e-5 rel. | pass |
-| Welded hulls of an L: stands 1 m tall at rest | `y_top = 1` = 1 m | 0.9994062 | -0.000594 | ±0.006 | pass |
+| Welded hulls of an L: stands 1 m tall at rest | `y_top = 1` = 1 m | 0.9997698 | -0.00023 | ±0.006 | pass |
 | Imported cube as a hull body: mass | `m = rho V` = 518.4 kg | 518.4 | +4.71e-8 rel. | ±1e-5 rel. | pass |
 | Imported sphere mesh as a hull body: mass | `m = rho V_mesh (not the smaller hull volume)` = 515.2427 kg | 515.2427 | -6.11e-8 rel. | ±1e-5 rel. | pass |
 | Imported wedge: volume | `V = base x height x width / 2` = 1806.856 m^3 | 1806.856 | -2.2e-9 rel. | ±1e-6 rel. | pass |

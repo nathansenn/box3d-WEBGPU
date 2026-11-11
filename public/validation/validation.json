@@ -2816,9 +2816,9 @@
    "unit": "m",
    "formula": "y_top = 1",
    "reference": 1,
-   "measured": 0.999406159,
-   "error": -0.000593840666,
-   "relativeError": -0.000593840666,
+   "measured": 0.99976976,
+   "error": -0.000230240151,
+   "relativeError": -0.000230240151,
    "tolerance": {
     "kind": "absolute",
     "value": 0.006
@@ -2832,8 +2832,8 @@
    },
    "text": {
     "reference": "1 m",
-    "measured": "0.9994062",
-    "error": "-0.000594",
+    "measured": "0.9997698",
+    "error": "-0.00023",
     "tolerance": "±0.006"
    }
   },
