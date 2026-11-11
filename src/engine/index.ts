@@ -16,3 +16,4 @@ export * from './native-world.ts';
 export {PackedFailureSimulation} from '../studio/packed-physics.ts';
 export {GpuLinearWater,GPU_LINEAR_WATER_BACKEND,GPU_CLOSED_WATER_BACKEND,type GpuWaterBackend,type GpuWaterFields,type GpuWaterCheckpoint,type GpuWaterCreateOptions} from '../webgpu/linear-water.ts';
 export type {WaterTelemetry} from '../webgpu/water-telemetry.ts';
+export * from './heat.ts';

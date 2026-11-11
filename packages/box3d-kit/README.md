@@ -285,9 +285,10 @@ camera.follow(hero.state.position);
 | `box3d-webgpu-kit/water` | CPU shallow-water height fields: an open-boundary reference and a closed-basin solver that conserves volume. |
 | `box3d-webgpu-kit/coupling` | Rigid bodies in water, both ways: buoyancy, drag, and bodies that raise the level and make waves (see below). |
 | `box3d-webgpu-kit/frame` | 3D beam and column frames: statics, dynamics, end reactions. For structures that bend. |
+| `box3d-webgpu-kit/heat` | Heat conduction in solids: transient and steady temperature fields, four boundary types, an energy ledger, and one-way thermal stress and thermal-shock estimates (see below). |
 | `box3d-webgpu-kit/gameplay` | Trigger volumes and a kinematic character controller for the rigid-body world (see above). |
 
-Cable, water and frame are the same model code the Box3D WebGPU app runs; the build copies it from the app. The app's own test suites (46 tests: 11 cable, 11 proximal cable, 2 linear water, 6 closed water, 16 frame) run against the packaged copies in `npm test`. Cable and frame are independent of the rigid-body world. Water is coupled to it by `box3d-webgpu-kit/coupling`; ropes attached to bodies are not coupled yet. The WebGPU water solver is not packaged yet.
+Cable, water and frame are the same model code the Box3D WebGPU app runs; the build copies it from the app. The app's own test suites (46 tests: 11 cable, 11 proximal cable, 2 linear water, 6 closed water, 16 frame) run against the packaged copies in `npm test`. Cable, frame and heat are independent of the rigid-body world. Water is coupled to it by `box3d-webgpu-kit/coupling`; ropes attached to bodies are not coupled yet. The WebGPU water solver is not packaged yet.
 
 ### Bodies in water
 
@@ -316,6 +317,38 @@ water.meanElevation();                            // rose by the displaced volum
 ```
 
 Units are SI and gravity comes from `world.gravity()`. The step must be the world's fixed step. Drag is a model with coefficients you can set per body (`dragCoefficient`, `referenceArea`, `linearDrag`, `angularDrag`), not a flow solution. `test/v09-coupling.test.mjs` checks the coupling against closed-form answers (Archimedes for all three shapes, volume conservation, heave and roll periods, terminal velocity, the righting moment, an energy budget and determinism); the model, its limits and the measured errors are in [`docs/WATER_COUPLING.md`](https://github.com/nathansenn/box3d-WEBGPU/blob/main/docs/WATER_COUPLING.md).
+
+### Heat in solids
+
+`HeatSolver` solves heat conduction, `rho c dT/dt = div(k grad T) + q`, on a grid of cells. Each cell has a material, and a mask says which cells are solid, so any voxelised shape works; one cell on an axis makes the problem 1-D or 2-D. Faces can be held at a temperature, given a heat flux, cooled by convection or left to radiate. It is independent of the rigid-body world and needs no WASM.
+
+```ts
+import {HeatSolver, thermalShock} from 'box3d-webgpu-kit/heat';
+
+// A wall of brick, insulation and concrete, 20 °C inside and -10 °C outside (in kelvin).
+const layers = [{k: 0.7, cells: 10}, {k: 0.04, cells: 5}, {k: 1.4, cells: 15}];   // 10 mm cells
+const wall = new HeatSolver({
+  nx: 30, ny: 1, nz: 1, dx: 0.01, dy: 1, dz: 1,
+  materials: layers.map(layer => ({conductivity: layer.k, density: 1800, specificHeat: 900})),
+  material: layers.flatMap((layer, index) => Array(layer.cells).fill(index)),
+  temperature: 283.15,
+  dt: 60, scheme: 'backward-euler',               // or 'crank-nicolson', or 'explicit'
+  boundaries: [
+    {face: 'x-', type: 'temperature', temperature: 293.15},
+    {face: 'x+', type: 'convection', coefficient: 25, ambient: 263.15},
+  ],
+});
+
+wall.step(60);                                    // one hour of warming up
+wall.solveSteady();                               // or go straight to the steady state
+wall.boundaryHeatRate(0);                         // W through the inside face: dT / (sum of L/k + 1/h)
+wall.faceTemperature(9, 0, 0, 'x+');              // temperature at the brick-insulation interface
+wall.temperature;                                 // Float64Array, one value per cell
+```
+
+Units are SI and temperatures are kelvin (degrees Celsius also work when nothing radiates). The implicit schemes are stable at any time step; the explicit one reports its limit (`explicitStabilityLimit()`, `h² / (6 alpha)` inside a uniform 3-D grid) and throws above it. `boundaryEnergy` and `sourceEnergy` add up to the change in `storedEnergy()`, so an energy balance can be audited.
+
+`thermalStrain`, `restrainedThermalStress` and `thermalShock` turn a temperature field into the strain `alpha_T (T - T_ref)`, the stress of a fully restrained bar or plate (`-E alpha_T dT`, divided by `1 - nu` for a plate), and the cells whose tensile stress reaches the strength. They are a one-way estimate for feeding a fracture model, not a thermo-mechanical solver. Not modelled: phase change, fluid flow, radiation between surfaces. The equations, the closed-form validation with measured errors and convergence orders, and the limits are in [`docs/HEAT_TRANSFER.md`](https://github.com/nathansenn/box3d-WEBGPU/blob/main/docs/HEAT_TRANSFER.md).
 
 ### No build step
 

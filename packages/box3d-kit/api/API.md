@@ -2496,6 +2496,333 @@ Scaling the coefficients avoids squaring large displacements during restore.
 export declare function frameTransverseSlope(local: ArrayLike<number>, length: number): number;
 ```
 
+## `box3d-webgpu-kit/heat`
+
+### HEAT_MAX_CELLS · const
+
+```ts
+export declare const HEAT_MAX_CELLS = 2097152;
+```
+
+### HEAT_SOLVER_ID · const
+
+Transient and steady heat conduction in solids on a structured grid of cells.
+
+ rho c dT/dt = div(k grad T) + q
+
+Finite volume, cell-centred, float64, SI units: metres, seconds, kelvin (or degrees Celsius when
+no radiation boundary is used), W/(m K), kg/m^3, J/(kg K), W/m^3, W/m^2. The face conductivity
+between unlike cells is the harmonic mean, so layered walls are exact at steady state. Boundary
+conditions act on exposed faces of solid cells: fixed temperature, prescribed flux, convection
+and grey-body radiation. Time integration is backward Euler or Crank-Nicolson (both solved with
+Jacobi-preconditioned conjugate gradients, matrix-free, no allocation in the step), or explicit
+Euler, which refuses a time step above its stability limit. A direct steady solve is included.
+
+The thermal strain and stress helpers at the end are a ONE-WAY estimate from a temperature field.
+They are not a thermo-mechanical solver: nothing here computes displacements or feeds stress back.
+See docs/HEAT_TRANSFER.md for the equations, the validation and the limits.
+
+```ts
+export declare const HEAT_SOLVER_ID = "heat-fv-implicit-js-f64-v1";
+```
+
+### HeatBoundary · type
+
+```ts
+export type HeatBoundary = HeatBoundaryPlace & (
+{
+    readonly type: 'temperature';
+    readonly temperature: number;
+}
+| {
+    readonly type: 'flux';
+    readonly flux: number;
+}
+| {
+    readonly type: 'convection';
+    readonly coefficient: number;
+    readonly ambient: number;
+}
+| {
+    readonly type: 'radiation';
+    readonly emissivity: number;
+    readonly environment: number;
+});
+```
+
+### HeatBoundaryUpdate · interface
+
+New values for an existing boundary condition (its type, face and region stay).
+
+```ts
+export interface HeatBoundaryUpdate {
+    temperature?: number;
+    flux?: number;
+    coefficient?: number;
+    ambient?: number;
+    emissivity?: number;
+    environment?: number;
+}
+```
+
+### HeatConfig · interface
+
+```ts
+export interface HeatConfig {
+    readonly nx: number;
+    readonly ny: number;
+    readonly nz: number;
+    readonly dx: number;
+    readonly dy: number;
+    readonly dz: number;
+    readonly materials: readonly HeatMaterial[];
+    readonly material?: ArrayLike<number>;
+    readonly solid?: ArrayLike<number>;
+    readonly temperature: number | ArrayLike<number>;
+    readonly dt?: number;
+    readonly scheme?: HeatScheme;
+    readonly boundaries?: readonly HeatBoundary[];
+    readonly heatGeneration?: number | ArrayLike<number>;
+    readonly sources?: readonly HeatSource[];
+    readonly tolerance?: number;
+    readonly maxIterations?: number;
+}
+```
+
+### HeatDiagnostics · interface
+
+```ts
+export interface HeatDiagnostics {
+    id: string;
+    scheme: HeatScheme;
+    time: number;
+    steps: number;
+    cells: number;
+    solidCells: number;
+    storedEnergy: number;
+    boundaryEnergy: number[];
+    sourceEnergy: number;
+    boundaryHeatRates: number[];
+    sourcePower: number;
+    iterations: number;
+    residual: number;
+    explicitStabilityLimit: number;
+}
+```
+
+### heatExplicitLimit · function
+
+Largest stable explicit time step of a uniform grid: h^2 / (2 d alpha), with alpha = k/(rho c)
+and d the number of conducting axes. In 3-D this is h^2 / (6 alpha).
+
+```ts
+export declare function heatExplicitLimit(spacing: number, diffusivity: number, dimensions?: number): number;
+```
+
+### HeatFace · type
+
+```ts
+export type HeatFace = 'x-' | 'x+' | 'y-' | 'y+' | 'z-' | 'z+';
+```
+
+### HeatIndex3 · type
+
+```ts
+export type HeatIndex3 = readonly [number, number, number];
+```
+
+### HeatMaterial · interface
+
+```ts
+export interface HeatMaterial {
+    readonly conductivity?: number;
+    readonly density: number;
+    readonly specificHeat: number;
+    readonly conductivityTable?: {
+        readonly temperatures: ArrayLike<number>;
+        readonly conductivities: ArrayLike<number>;
+    };
+}
+```
+
+### HeatRegion · interface
+
+An inclusive box of cell indices.
+
+```ts
+export interface HeatRegion {
+    readonly min: HeatIndex3;
+    readonly max: HeatIndex3;
+}
+```
+
+### HeatScheme · type
+
+```ts
+export type HeatScheme = 'backward-euler' | 'crank-nicolson' | 'explicit';
+```
+
+### HeatSolver · class
+
+```ts
+export declare class HeatSolver {
+  readonly id = "heat-fv-implicit-js-f64-v1";
+  readonly nx: number;
+  readonly ny: number;
+  readonly nz: number;
+  readonly dx: number;
+  readonly dy: number;
+  readonly dz: number;
+  readonly cells: number;
+  readonly solidCells: number;
+  readonly scheme: HeatScheme;
+  readonly tolerance: number;
+  readonly maxIterations: number;
+  readonly temperature: Float64Array;
+  readonly solid: Uint8Array;
+  readonly heatGeneration: Float64Array;
+  readonly boundaryEnergy: Float64Array;
+  readonly boundaryStepRates: Float64Array;
+  readonly boundaryCount: number;
+  get dt(): number;
+  get time(): number;
+  get steps(): number;
+  get sourceEnergy(): number;
+  get iterations(): number;
+  get residual(): number;
+  get components(): number;
+  index(i: number, j?: number, k?: number): number;
+  setTimeStep(dt: number): void;
+  setTemperature(value: number | ArrayLike<number>): void;
+  setHeatGeneration(value: number | ArrayLike<number>): void;
+  addSource(value: HeatSource): void;
+  updateBoundary(index: number, values: HeatBoundaryUpdate): void;
+  explicitStabilityLimit(): number;
+  step(count?: number): number;
+  solveSteady(options?: HeatSteadyOptions): HeatSteadyResult;
+  storedEnergy(reference?: number): number;
+  sourcePower(): number;
+  boundaryHeatRate(index: number): number;
+  boundaryHeatRates(out?: Float64Array): Float64Array;
+  boundaryArea(index: number): number;
+  faceHeatFlux(out?: { x: Float64Array; y: Float64Array; z: Float64Array; }): { x: Float64Array; y: Float64Array; z: Float64Array; };
+  cellFaceFlux(i: number, j: number, k: number, face: HeatFace): number;
+  faceTemperature(i: number, j: number, k: number, face: HeatFace): number;
+  diagnostics(): HeatDiagnostics;
+}
+```
+
+### HeatSource · interface
+
+A heat source in one cell (max omitted) or spread over the solid cells of a box. Give exactly
+one of power (W in total, spread by volume) or density (W/m^3 in every solid cell of the box).
+
+```ts
+export interface HeatSource {
+    readonly min: HeatIndex3;
+    readonly max?: HeatIndex3;
+    readonly power?: number;
+    readonly density?: number;
+}
+```
+
+### HeatSteadyOptions · interface
+
+```ts
+export interface HeatSteadyOptions {
+    readonly maxOuterIterations?: number;
+    readonly nonlinearTolerance?: number;
+}
+```
+
+### HeatSteadyResult · interface
+
+```ts
+export interface HeatSteadyResult {
+    converged: boolean;
+    outerIterations: number;
+    iterations: number;
+    residual: number;
+    maxChange: number;
+}
+```
+
+### restrainedThermalStress · function
+
+Stress in a body whose thermal strain is fully prevented, per cell in Pa, tension positive:
+-E alpha_T (T - T_ref) for a bar, divided by (1 - nu) for a plate and (1 - 2 nu) for a volume.
+A one-way estimate: the temperature field is given, nothing is fed back.
+
+```ts
+export declare function restrainedThermalStress(temperature: ArrayLike<number>, options: ThermalStressOptions, out?: Float64Array): Float64Array;
+```
+
+### STEFAN_BOLTZMANN · const
+
+Stefan-Boltzmann constant in W/(m^2 K^4) (CODATA 2018, exact).
+
+```ts
+export declare const STEFAN_BOLTZMANN = 5.670374419e-8;
+```
+
+### ThermalConstraint · type
+
+```ts
+export type ThermalConstraint = 'bar' | 'plate' | 'volume';
+```
+
+### thermalShock · function
+
+A simple thermal-shock criterion: a cell cracks when its restrained thermal stress is tensile and
+reaches the tensile strength. It is a screening estimate; it does not model crack growth, stress
+relief after cracking, or the real restraint of the part.
+
+```ts
+export declare function thermalShock(temperature: ArrayLike<number>, options: ThermalShockOptions): ThermalShockResult;
+```
+
+### ThermalShockOptions · interface
+
+```ts
+export interface ThermalShockOptions extends ThermalStressOptions {
+    readonly tensileStrength: number | ArrayLike<number>;
+}
+```
+
+### ThermalShockResult · interface
+
+```ts
+export interface ThermalShockResult {
+    stress: Float64Array;
+    cracked: Uint8Array;
+    crackedCells: Int32Array;
+    count: number;
+    maxTension: number;
+    maxUtilisation: number;
+}
+```
+
+### thermalStrain · function
+
+Free thermal strain alpha_T (T - T_ref) per cell (dimensionless).
+
+```ts
+export declare function thermalStrain(temperature: ArrayLike<number>, expansion: number | ArrayLike<number>, reference: number | ArrayLike<number>, out?: Float64Array): Float64Array;
+```
+
+### ThermalStressOptions · interface
+
+```ts
+export interface ThermalStressOptions {
+    readonly expansion: number | ArrayLike<number>;
+    readonly youngsModulus: number | ArrayLike<number>;
+    readonly poissonRatio?: number;
+    readonly reference: number | ArrayLike<number> | 'mean';
+    readonly constraint?: ThermalConstraint;
+    readonly solid?: ArrayLike<number>;
+}
+```
+
 ## `box3d-webgpu-kit/gameplay`
 
 ### CharacterController · class

@@ -42,7 +42,8 @@ Updated 2026-11-11.
 | 1 | Publish `box3d-webgpu-kit` 1.0 to npm | open (owner decision) |
 | 2 | Rigid ↔ water, both ways: buoyancy, drag, volume and momentum sources (`box3d-webgpu-kit/coupling`, [`WATER_COUPLING.md`](WATER_COUPLING.md)) | done in the kit with closed-form validation (`packages/box3d-kit/test/v09-coupling.test.mjs`); not yet used by a scene or the Studio |
 | 2 | One scene description and stepping loop; rigid ↔ cloth and rope; cable and frame ↔ rigid; bridge rebuild | open |
-| 3–6 | See below | not started |
+| 3 | Heat conduction in solids: transient and steady, four boundary types, implicit and explicit stepping, energy ledger (`box3d-webgpu-kit/heat`, [`HEAT_TRANSFER.md`](HEAT_TRANSFER.md)) | done as a standalone solver with closed-form validation (`tests/engine/heat.test.mjs`, in the pull-request gate); thermal stress and thermal shock are one-way estimates; not yet coupled to a fracture solver or used by a scene |
+| 3–6 | Everything else below | not started |
 
 ## Phase 0: clean base
 
@@ -79,7 +80,7 @@ One at a time, each with its validation case.
 - Granular on GPU (today: about 1,344 grains in JS).
 - Cloth self-collision and calibrated stiffness.
 - Articulated bodies with URDF and MJCF import.
-- Heat transfer, coupled to fracture.
+- Heat transfer, coupled to fracture. Conduction in solids is done ([`HEAT_TRANSFER.md`](HEAT_TRANSFER.md)), with a one-way thermal stress and thermal-shock estimate. Remaining: the coupling to a fracture solver, phase change, and convection in fluids.
 - Later: frame buckling and plasticity.
 
 ## Phase 4: trust

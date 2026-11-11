@@ -18,6 +18,7 @@ const ENTRIES = [
   ['box3d-webgpu-kit/water', 'dist/water.d.ts'],
   ['box3d-webgpu-kit/coupling', 'dist/coupling.d.ts'],
   ['box3d-webgpu-kit/frame', 'dist/frame.d.ts'],
+  ['box3d-webgpu-kit/heat', 'dist/heat.d.ts'],
   ['box3d-webgpu-kit/gameplay', 'dist/gameplay.d.ts'],
 ];
 

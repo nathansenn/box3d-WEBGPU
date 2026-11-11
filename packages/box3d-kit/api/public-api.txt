@@ -494,6 +494,190 @@ export declare class FrameRuntime implements EngineRuntime<FrameStepRequest, Fra
 }
 export {};
 
+// ==== core/heat.d.ts ====
+export declare const HEAT_SOLVER_ID = "heat-fv-implicit-js-f64-v1";
+export declare const STEFAN_BOLTZMANN = 5.670374419e-8;
+export declare const HEAT_MAX_CELLS = 2097152;
+export type HeatScheme = 'backward-euler' | 'crank-nicolson' | 'explicit';
+export type HeatFace = 'x-' | 'x+' | 'y-' | 'y+' | 'z-' | 'z+';
+export type HeatIndex3 = readonly [number, number, number];
+export interface HeatRegion {
+    readonly min: HeatIndex3;
+    readonly max: HeatIndex3;
+}
+export interface HeatMaterial {
+    readonly conductivity?: number;
+    readonly density: number;
+    readonly specificHeat: number;
+    readonly conductivityTable?: {
+        readonly temperatures: ArrayLike<number>;
+        readonly conductivities: ArrayLike<number>;
+    };
+}
+interface HeatBoundaryPlace {
+    readonly face: HeatFace;
+    readonly region?: HeatRegion;
+}
+export type HeatBoundary = HeatBoundaryPlace & (
+{
+    readonly type: 'temperature';
+    readonly temperature: number;
+}
+ | {
+    readonly type: 'flux';
+    readonly flux: number;
+}
+ | {
+    readonly type: 'convection';
+    readonly coefficient: number;
+    readonly ambient: number;
+}
+ | {
+    readonly type: 'radiation';
+    readonly emissivity: number;
+    readonly environment: number;
+});
+export interface HeatBoundaryUpdate {
+    temperature?: number;
+    flux?: number;
+    coefficient?: number;
+    ambient?: number;
+    emissivity?: number;
+    environment?: number;
+}
+export interface HeatSource {
+    readonly min: HeatIndex3;
+    readonly max?: HeatIndex3;
+    readonly power?: number;
+    readonly density?: number;
+}
+export interface HeatConfig {
+    readonly nx: number;
+    readonly ny: number;
+    readonly nz: number;
+    readonly dx: number;
+    readonly dy: number;
+    readonly dz: number;
+    readonly materials: readonly HeatMaterial[];
+    readonly material?: ArrayLike<number>;
+    readonly solid?: ArrayLike<number>;
+    readonly temperature: number | ArrayLike<number>;
+    readonly dt?: number;
+    readonly scheme?: HeatScheme;
+    readonly boundaries?: readonly HeatBoundary[];
+    readonly heatGeneration?: number | ArrayLike<number>;
+    readonly sources?: readonly HeatSource[];
+    readonly tolerance?: number;
+    readonly maxIterations?: number;
+}
+export interface HeatSteadyOptions {
+    readonly maxOuterIterations?: number;
+    readonly nonlinearTolerance?: number;
+}
+export interface HeatSteadyResult {
+    converged: boolean;
+    outerIterations: number;
+    iterations: number;
+    residual: number;
+    maxChange: number;
+}
+export interface HeatDiagnostics {
+    id: string;
+    scheme: HeatScheme;
+    time: number;
+    steps: number;
+    cells: number;
+    solidCells: number;
+    storedEnergy: number;
+    boundaryEnergy: number[];
+    sourceEnergy: number;
+    boundaryHeatRates: number[];
+    sourcePower: number;
+    iterations: number;
+    residual: number;
+    explicitStabilityLimit: number;
+}
+export declare function heatExplicitLimit(spacing: number, diffusivity: number, dimensions?: number): number;
+export declare class HeatSolver {
+    #private;
+    readonly id = "heat-fv-implicit-js-f64-v1";
+    readonly nx: number;
+    readonly ny: number;
+    readonly nz: number;
+    readonly dx: number;
+    readonly dy: number;
+    readonly dz: number;
+    readonly cells: number;
+    readonly solidCells: number;
+    readonly scheme: HeatScheme;
+    readonly tolerance: number;
+    readonly maxIterations: number;
+    readonly temperature: Float64Array;
+    readonly solid: Uint8Array;
+    readonly heatGeneration: Float64Array;
+    readonly boundaryEnergy: Float64Array;
+    readonly boundaryStepRates: Float64Array;
+    readonly boundaryCount: number;
+    constructor(input: HeatConfig);
+    get dt(): number;
+    get time(): number;
+    get steps(): number;
+    get sourceEnergy(): number;
+    get iterations(): number;
+    get residual(): number;
+    get components(): number;
+    index(i: number, j?: number, k?: number): number;
+    setTimeStep(dt: number): void;
+    setTemperature(value: number | ArrayLike<number>): void;
+    setHeatGeneration(value: number | ArrayLike<number>): void;
+    addSource(value: HeatSource): void;
+    updateBoundary(index: number, values: HeatBoundaryUpdate): void;
+    explicitStabilityLimit(): number;
+    step(count?: number): number;
+    solveSteady(options?: HeatSteadyOptions): HeatSteadyResult;
+    storedEnergy(reference?: number): number;
+    sourcePower(): number;
+    boundaryHeatRate(index: number): number;
+    boundaryHeatRates(out?: Float64Array): Float64Array;
+    boundaryArea(index: number): number;
+    faceHeatFlux(out?: {
+        x: Float64Array;
+        y: Float64Array;
+        z: Float64Array;
+    }): {
+        x: Float64Array;
+        y: Float64Array;
+        z: Float64Array;
+    };
+    cellFaceFlux(i: number, j: number, k: number, face: HeatFace): number;
+    faceTemperature(i: number, j: number, k: number, face: HeatFace): number;
+    diagnostics(): HeatDiagnostics;
+}
+export type ThermalConstraint = 'bar' | 'plate' | 'volume';
+export interface ThermalStressOptions {
+    readonly expansion: number | ArrayLike<number>;
+    readonly youngsModulus: number | ArrayLike<number>;
+    readonly poissonRatio?: number;
+    readonly reference: number | ArrayLike<number> | 'mean';
+    readonly constraint?: ThermalConstraint;
+    readonly solid?: ArrayLike<number>;
+}
+export interface ThermalShockOptions extends ThermalStressOptions {
+    readonly tensileStrength: number | ArrayLike<number>;
+}
+export interface ThermalShockResult {
+    stress: Float64Array;
+    cracked: Uint8Array;
+    crackedCells: Int32Array;
+    count: number;
+    maxTension: number;
+    maxUtilisation: number;
+}
+export declare function thermalStrain(temperature: ArrayLike<number>, expansion: number | ArrayLike<number>, reference: number | ArrayLike<number>, out?: Float64Array): Float64Array;
+export declare function restrainedThermalStress(temperature: ArrayLike<number>, options: ThermalStressOptions, out?: Float64Array): Float64Array;
+export declare function thermalShock(temperature: ArrayLike<number>, options: ThermalShockOptions): ThermalShockResult;
+export {};
+
 // ==== core/linear-water.d.ts ====
 export interface LinearWaterConfig {
     cols: number;
@@ -1201,6 +1385,9 @@ export interface UploadRange {
 export declare function lastUploadRange(): UploadRange;
 export declare function writeInstances(source: InstanceSource, queue: GpuQueueLike, buffer: GpuBufferLike, options?: WriteInstancesOptions): number;
 export declare const INSTANCE_WGSL = "\nstruct Instances { m: array<mat4x4<f32>> };\n@group(0) @binding(0) var<storage, read> instances: Instances;\n
+
+// ==== heat.d.ts ====
+export * from './core/heat.js';
 
 // ==== helpers.d.ts ====
 import type { Body, PhysicsWorld, Vec3Like } from './world.js';

@@ -102,6 +102,7 @@
     "test:qualification": "node --test tests/qualification/closed-water-evidence.test.mjs tests/qualification/glass-reference.test.mjs tests/qualification/native-query-oracle.test.mjs tests/qualification/native-recycling-sleep.test.mjs",
     "test:assets": "node --test tests/assets/*.test.mjs tests/physics/*.test.mjs",
     "test:engine": "node --test --test-concurrency=1 tests/engine/*.test.mjs",
+    "test:heat": "node --import ./scripts/register-typescript.mjs --test tests/engine/heat.test.mjs",
     "bench:engine": "node scripts/engine-benchmark.mjs",
     "bench:engine:check": "node scripts/engine-check.mjs",
     "baseline:engine": "node scripts/engine-baseline.mjs",
