@@ -42,7 +42,8 @@ Updated 2026-11-11.
 | 1 | Publish `box3d-webgpu-kit` 1.0 to npm | open (owner decision) |
 | 2 | Rigid ↔ water, both ways: buoyancy, drag, volume and momentum sources (`box3d-webgpu-kit/coupling`, [`WATER_COUPLING.md`](WATER_COUPLING.md)) | done in the kit with closed-form validation (`packages/box3d-kit/test/v09-coupling.test.mjs`); not yet used by a scene or the Studio |
 | 2 | One scene description for rigid bodies and joints: a versioned JSON format with validation, load and save (`box3d-webgpu-kit/scene`, [`SCENE_FORMAT.md`](SCENE_FORMAT.md)) | done in the kit (`packages/box3d-kit/test/v12-scene.test.mjs`); rigid bodies and joints only, so cables, water, frames and heat are not in the format yet; a save restores poses and velocities, not solver state; not yet used by a Lab scene or the Studio |
-| 2 | One stepping loop for every solver; rigid ↔ cloth and rope; cable and frame ↔ rigid; bridge rebuild | open |
+| 2 | Cable and frame ↔ rigid, both ways: cable ends and frame nodes attached to bodies (pinned or clamped), tethers, cables holding frames (`box3d-webgpu-kit/structure`, [`STRUCTURE_COUPLING.md`](STRUCTURE_COUPLING.md)) | done in the kit with closed-form validation (`packages/box3d-kit/test/v11-structure.test.mjs`), including a small cable-stayed span carrying a body; no contact between bodies and members; not yet used by a scene or the Studio |
+| 2 | One stepping loop for every solver; rigid ↔ cloth and rope; bridge rebuild | open |
 | 3 | Heat conduction in solids: transient and steady, four boundary types, implicit and explicit stepping, energy ledger (`box3d-webgpu-kit/heat`, [`HEAT_TRANSFER.md`](HEAT_TRANSFER.md)) | done as a standalone solver with closed-form validation (`tests/engine/heat.test.mjs`, in the pull-request gate); thermal stress and thermal shock are one-way estimates; not yet coupled to a fracture solver or used by a scene |
 | 5 | Import glTF, OBJ and STL: parsers, mesh measures, convex hulls and decomposition, bodies from meshes (`box3d-webgpu-kit/geometry`) | done in the kit with closed-form validation (`packages/box3d-kit/test/v10-geometry.test.mjs`); not yet used by a scene, the Studio or an editor |
 | 3 | Deformable solids with real material parameters: tetrahedral FEM, linear, corotational and Neo-Hookean, statics and dynamics (`box3d-webgpu-kit/solid`, [`SOLID_MECHANICS.md`](SOLID_MECHANICS.md)) | done as a stand-alone solver with closed-form validation (`tests/engine/solid.test.mjs`, in the pull-request gate); not coupled to the rigid world; no contact, plasticity or fracture; not yet used by a scene or the Studio |
@@ -73,7 +74,7 @@ Remaining: compound shapes, state save/load, and the npm release.
 - Two-way coupling, in order of payoff:
   1. rigid ↔ water: buoyancy and drag that push back on the water (done in kit 0.9.0 for one flat-bottom basin; see [`WATER_COUPLING.md`](WATER_COUPLING.md));
   2. rigid ↔ cloth and rope;
-  3. cable and frame ↔ rigid.
+  3. cable and frame ↔ rigid (done in the kit as attachments; see [`STRUCTURE_COUPLING.md`](STRUCTURE_COUPLING.md)). Contact between bodies and members is not modelled.
 - Rebuild the bridge study on the validated frame and cable solvers, carrying real bodies in real units. It becomes the flagship.
 
 ## Phase 3: missing domains

@@ -221,6 +221,14 @@ export declare class CompliantCableRuntime implements EngineRuntime<CableStepReq
     private residual;
     private substep;
     private solveProximal;
+    advance(): void;
+    couplingViews(): {
+        positions: Float64Array;
+        velocities: Float64Array;
+        masses: Float64Array;
+        pinned: Uint8Array;
+    };
+    driveNode(node: number, px: number, py: number, pz: number, vx: number, vy: number, vz: number, mass: number, fx: number, fy: number, fz: number): void;
     inspect(): CableSnapshot;
     checkpoint(): CableCheckpoint;
     static fromCheckpoint(value: unknown): CompliantCableRuntime;
@@ -482,6 +490,16 @@ export declare class FrameRuntime implements EngineRuntime<FrameStepRequest, Fra
     step(request: FrameStepRequest): FrameSnapshot;
     private impulse;
     private substep;
+    private coupledOpen;
+    couplingViews(): {
+        rest: Float64Array;
+        displacements: Float64Array;
+        velocities: Float64Array;
+        fixed: Uint8Array;
+    };
+    solveCoupledOperator(dof: number, out: Float64Array): boolean;
+    beginCoupledTick(): Float64Array;
+    finishCoupledTick(extra: Float64Array): void;
     solveStatic(forces?: ArrayLike<number>): FrameStaticSolution;
     private positions;
     private localDisplacement;
@@ -1292,6 +1310,140 @@ export declare class SolidBody {
         criterion: SolidFailureCriterion;
         strength: number;
     }): Uint32Array;
+}
+
+// ==== core/structure-coupling.d.ts ====
+import type { CompliantCableRuntime } from './compliant-cable.js';
+import type { FrameRuntime } from './frame-runtime.js';
+export declare const STRUCTURE_COUPLING_BACKEND = "rigid-structure-coupling-schur-proxy-js-f64-v1";
+export type StructureVec3 = readonly [number, number, number];
+export interface StructureBodyState {
+    readonly position: StructureVec3;
+    readonly rotation: readonly [number, number, number, number];
+    readonly linearVelocity: StructureVec3;
+    readonly angularVelocity: StructureVec3;
+    readonly mass: number;
+    readonly type: string;
+}
+export interface StructureWorld<B> {
+    gravity(): readonly number[];
+    getState(body: B): StructureBodyState;
+    applyForce(body: B, force: StructureVec3, point?: StructureVec3): void;
+    applyTorque(body: B, torque: StructureVec3): void;
+    applyImpulse(body: B, impulse: StructureVec3): void;
+    applyAngularImpulse(body: B, impulse: StructureVec3): void;
+    isAlive?(body: B): boolean;
+    readonly loop?: {
+        readonly step: number;
+    };
+    readonly subSteps?: number;
+}
+export type StructureInertia = {
+    readonly kind: 'box';
+    readonly halfExtents: StructureVec3;
+} | {
+    readonly kind: 'sphere';
+    readonly radius: number;
+}
+ | {
+    readonly kind: 'capsule';
+    readonly radius: number;
+    readonly halfLength: number;
+}
+ | {
+    readonly kind: 'principal';
+    readonly moments: StructureVec3;
+} | {
+    readonly kind: 'locked';
+};
+export interface StructureCouplingOptions {
+    readonly dt?: number;
+    readonly baumgarte?: number;
+    readonly scheme?: 'implicit' | 'naive-staggered';
+}
+export interface BodyAttachOptions {
+    readonly inertia: StructureInertia;
+    readonly localPoint?: StructureVec3;
+    readonly gravityScale?: number;
+}
+export interface FrameBodyAttachOptions extends BodyAttachOptions {
+    readonly mode?: 'pinned' | 'clamped';
+}
+export interface StructureAttachment {
+    readonly id: number;
+    readonly kind: 'cable-body' | 'cable-frame' | 'frame-body';
+    readonly mode: 'cable' | 'pinned' | 'clamped';
+    readonly force: [number, number, number];
+    readonly moment: [number, number, number];
+    tension: number;
+    gap: number;
+    effectiveMass: number;
+    attached: boolean;
+}
+export interface StructureDiagnostics {
+    bodyKinetic: number;
+    bodyPotential: number;
+    cableKinetic: number;
+    cableElastic: number;
+    cablePotential: number;
+    frameKinetic: number;
+    frameElastic: number;
+    framePotential: number;
+    total: number;
+    momentum: [number, number, number];
+    mass: number;
+}
+export declare class StructureCoupling<B> {
+    readonly backend = "rigid-structure-coupling-schur-proxy-js-f64-v1";
+    readonly dt: number;
+    readonly baumgarte: number;
+    readonly scheme: 'implicit' | 'naive-staggered';
+    tick: number;
+    private readonly world;
+    private readonly bodies;
+    private readonly bodyList;
+    private readonly cables;
+    private readonly frames;
+    private readonly attachments;
+    private readonly frameBody;
+    private nextId;
+    private readonly g;
+    private readonly S;
+    private readonly rhs;
+    private readonly rowsT;
+    private readonly rowsM;
+    private readonly t3;
+    private readonly t3b;
+    private readonly t6;
+    private readonly p3;
+    private readonly G3;
+    private readonly M6;
+    private readonly t6b;
+    private readonly out3;
+    constructor(world: StructureWorld<B>, options?: StructureCouplingOptions);
+    addCable(cable: CompliantCableRuntime): this;
+    addFrame(frame: FrameRuntime): this;
+    private cableCarrier;
+    private frameCarrier;
+    private bodyCarrier;
+    private cableNode;
+    private register;
+    private localPoint;
+    attachCableToBody(cable: CompliantCableRuntime, node: number, body: B, options: BodyAttachOptions): StructureAttachment;
+    attachCableToFrame(cable: CompliantCableRuntime, node: number, frame: FrameRuntime, frameNode: number): StructureAttachment;
+    attachFrameToBody(frame: FrameRuntime, frameNode: number, body: B, options: FrameBodyAttachOptions): StructureAttachment;
+    detach(attachment: StructureAttachment): void;
+    get reports(): readonly StructureAttachment[];
+    private alive;
+    private kick;
+    private readBody;
+    private augment;
+    private bodyTwist;
+    private frameResponse;
+    private freeDv;
+    step(): void;
+    private solveSymmetric;
+    diagnostics(): StructureDiagnostics;
 }
 
 // ==== core/water-coupling.d.ts ====
@@ -2228,6 +2380,9 @@ export declare class SharedFrameReader {
 
 // ==== solid.d.ts ====
 export * from './core/solid.js';
+
+// ==== structure.d.ts ====
+export * from './core/structure-coupling.js';
 
 // ==== three.d.ts ====
 export interface InstanceSource {

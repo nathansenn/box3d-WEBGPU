@@ -189,6 +189,60 @@ export class FrameRuntime implements EngineRuntime<FrameStepRequest,FrameSnapsho
     if(!this.u.every(Number.isFinite)||!this.v.every(Number.isFinite)||!Number.isFinite(this.externalWork)||!Number.isFinite(this.dragDissipation))throw new EngineError('NUMERICAL_FAILURE','Frame integration produced nonfinite state.');
     this.reactionTime=this.tick*this.config.dt+(index+.5)*h;
   }
+  // ---- Coupling hooks (structure-coupling.ts). Additions only: step(), substep() and solveStatic() are untouched. ----
+  private coupledOpen=false;
+  /** Live state arrays for a coupler to READ without copying: rest positions, displacements, velocities. */
+  couplingViews():{rest:Float64Array;displacements:Float64Array;velocities:Float64Array;fixed:Uint8Array} {
+    this.alive();return {rest:this.initial,displacements:this.u,velocities:this.v,fixed:this.fixed};
+  }
+  /** Column `dof` of the inverse of the midpoint operator A = M (1 + drag h/2) + (h^2/4) K with h = dt,
+   * solved by the runtime's own preconditioned CG. An impulse J on that degree of freedom during one
+   * tick changes the end-of-tick velocities by (A^-1 J). Returns false if CG did not converge. */
+  solveCoupledOperator(dof:number,out:Float64Array):boolean {
+    this.alive();if(this.config.substeps!==1)throw new EngineError('INVALID_PAYLOAD','Coupled frames need substeps = 1.');
+    if(!(dof>=0&&dof<this.u.length)||out.length!==this.u.length)throw new EngineError('INVALID_PAYLOAD','Invalid coupled operator request.');
+    const h=this.config.dt;this.temp.fill(0);this.temp[dof]=1;out.fill(0);
+    return this.solve(1+this.config.drag*h/2,h*h/4,this.temp,out,1,1e-12,1e-12,work()).converged;
+  }
+  /** First half of one tick (substeps must be 1): the midpoint velocity under the present loads, as
+   * substep() computes it. Returns the live vector; a coupler may add its interface correction to it
+   * and must then call finishCoupledTick(). */
+  beginCoupledTick():Float64Array {
+    this.alive();if(this.config.substeps!==1)throw new EngineError('INVALID_PAYLOAD','Coupled frames need substeps = 1.');
+    if(this.coupledOpen)throw new EngineError('INVALID_PAYLOAD','A coupled frame tick is already open.');
+    this.lastWork=work();this.maxForceResidual=0;this.maxMomentResidual=0;this.maxImpulseResidual=0;this.maxAngularImpulseResidual=0;this.maxIterationsUsed=0;this.unconvergedSolves=0;
+    this.supportImpulse.fill(0);this.appliedImpulse.fill(0);this.dragImpulse.fill(0);
+    const h=this.config.dt,m=1+this.config.drag*h/2,k=h*h/4;
+    try{
+      this.multiply(1,0,this.v,this.rhs,this.lastWork);this.multiply(0,1,this.u,this.product,this.lastWork);
+      for(let j=0;j<this.u.length;j++){this.rhs[j]+=h/2*(this.forces[j]+this.gravityForce[j]-this.product[j]);this.mid[j]=this.v[j];}
+      const solved=this.solve(m,k,this.rhs,this.mid,2/h,this.config.forceTolerance,this.config.momentTolerance,this.lastWork);
+      this.maxForceResidual=Math.max(this.maxForceResidual,solved.forceResidual);this.maxMomentResidual=Math.max(this.maxMomentResidual,solved.momentResidual);this.maxIterationsUsed=Math.max(this.maxIterationsUsed,solved.iterations);if(!solved.converged)this.unconvergedSolves++;
+    }catch(error){if(error instanceof EngineError&&error.code==='NUMERICAL_FAILURE')this.failed=true;throw error;}
+    this.coupledOpen=true;return this.mid;
+  }
+  /** Second half of the tick opened by beginCoupledTick(). `extra` holds interface loads (N, N m) per
+   * degree of freedom, constant over the tick; the caller has already added (h/2) A^-1 extra to the
+   * midpoint velocity. Completes the midpoint update exactly as substep() does, with loads forces+extra. */
+  finishCoupledTick(extra:Float64Array):void {
+    this.alive();if(!this.coupledOpen||extra.length!==this.u.length)throw new EngineError('INVALID_PAYLOAD','No coupled frame tick is open.');
+    this.coupledOpen=false;const h=this.config.dt,m=1+this.config.drag*h/2,k=h*h/4;
+    try{
+      for(let j=0;j<this.u.length;j++){this.rhs[j]+=h/2*extra[j];if(this.fixed[j])this.mid[j]=0;}
+      this.multiply(m,k,this.mid,this.product,this.lastWork);this.multiply(1,0,this.mid,this.temp,this.lastWork);
+      this.dragDissipation+=h*this.config.drag*this.dot(this.mid,this.temp);
+      for(let j=0;j<this.u.length;j++){
+        const du=h*this.mid[j],load=this.forces[j]+extra[j];this.externalWork+=load*du;
+        this.reactions[j]=this.fixed[j]?zero((this.product[j]-this.rhs[j])*2/h):0;
+        this.supportImpulse[j]+=h*this.reactions[j];this.appliedImpulse[j]+=h*(load+this.gravityForce[j]);this.dragImpulse[j]-=h*this.config.drag*this.temp[j];
+        this.u[j]=zero(this.u[j]+du);this.v[j]=zero(2*this.mid[j]-this.v[j]);
+      }
+      let finiteState=Number.isFinite(this.externalWork)&&Number.isFinite(this.dragDissipation);
+      for(let j=0;j<this.u.length&&finiteState;j++)finiteState=Number.isFinite(this.u[j])&&Number.isFinite(this.v[j]);
+      if(!finiteState)throw new EngineError('NUMERICAL_FAILURE','Frame integration produced nonfinite state.');
+    }catch(error){if(error instanceof EngineError&&error.code==='NUMERICAL_FAILURE')this.failed=true;throw error;}
+    this.reactionTime=this.tick*this.config.dt+.5*h;this.currentTick++;
+  }
   /** Static analysis is pure: it does not reset, settle or advance the runtime. */
   solveStatic(forces?:ArrayLike<number>):FrameStaticSolution{
     this.alive();this.checkWork(1);const applied=forces===undefined?this.forces:array(forces,this.u.length,'static forces',-1e12,1e12),rhs=Float64Array.from(applied,(v,j)=>v+this.gravityForce[j]),solution=new Float64Array(this.u.length),counter=work();

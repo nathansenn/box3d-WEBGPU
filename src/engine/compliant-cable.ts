@@ -270,6 +270,28 @@ export class CompliantCableRuntime implements EngineRuntime<CableStepRequest,Cab
     }
     return {residual,iterations,implicitResidual,constraintForceResidual};
   }
+  // ---- Coupling hooks (structure-coupling.ts). Additions only: step() and its numerics are untouched. ----
+  /** One tick with no commands, no validation and no snapshot. The same per-tick sequence as step(). */
+  advance():void {
+    this.alive();
+    if(this.config.solver){this.supportImpulse.fill(0);this.appliedImpulse.fill(0);this.dragImpulse.fill(0);this.maxConstraintForceResidual=0;}
+    this.maxResidual=0;this.maxImplicitForceResidual=0;this.unconvergedSubsteps=0;this.maxIterationsUsed=0;this.constraintProjections=0;this.residualEvaluations=0;
+    for(let s=0;s<this.config.substeps;s++)this.substep();
+    this.currentTick++;
+  }
+  /** Live state arrays for a coupler to READ without copying. Write only through driveNode(). */
+  couplingViews():{positions:Float64Array;velocities:Float64Array;masses:Float64Array;pinned:Uint8Array} {
+    this.alive();return {positions:this.p,velocities:this.v,masses:this.mass,pinned:this.pinned};
+  }
+  /** Overwrite one free node's position, velocity, mass and applied force. A coupler uses this to make
+   * the node stand for an attachment point with that point's effective mass. */
+  driveNode(node:number,px:number,py:number,pz:number,vx:number,vy:number,vz:number,mass:number,fx:number,fy:number,fz:number):void {
+    this.alive();
+    if(!(node>=0&&node<this.mass.length)||this.pinned[node])throw new EngineError('INVALID_PAYLOAD','driveNode needs a free cable node.');
+    if(!(mass>=1e-9&&mass<=1e12)||!Number.isFinite(px+py+pz+vx+vy+vz+fx+fy+fz))throw new EngineError('INVALID_PAYLOAD','driveNode needs finite state and a mass within 1e-9..1e12 kg.');
+    const j=3*node;this.p[j]=px;this.p[j+1]=py;this.p[j+2]=pz;this.v[j]=vx;this.v[j+1]=vy;this.v[j+2]=vz;
+    this.mass[node]=mass;this.invMass[node]=1/mass;this.force[j]=fx;this.force[j+1]=fy;this.force[j+2]=fz;
+  }
   inspect():CableSnapshot {
     this.alive();const h=this.config.dt/this.config.substeps,scale=1/(h*h),tensions=Float64Array.from(this.lambda,v=>v<0?-v*scale:0),reactions=new Float64Array(this.p.length);
     let mass=0,kineticEnergy=0,elasticEnergy=0,gravitationalEnergy=0,maxStrain=0,maxTension=0;

@@ -30,6 +30,8 @@ export const CORE = [
   {from: 'src/engine/heat.ts', rewrites: []},
   {from: 'src/engine/solid-mesh.ts', rewrites: []},
   {from: 'src/engine/solid.ts', rewrites: []},
+  // ./structure: cables and frames <-> rigid bodies. Imports only types from the cable and frame modules.
+  {from: 'src/engine/structure-coupling.ts', rewrites: []},
 ];
 export const WASM_FILES = ['box3d.js', 'box3d.wasm', 'BUILD_PROVENANCE.json', 'BOX3D_LICENSE.txt'];
 

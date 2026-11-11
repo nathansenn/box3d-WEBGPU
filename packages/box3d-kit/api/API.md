@@ -1963,6 +1963,9 @@ export declare class CompliantCableRuntime implements EngineRuntime<CableStepReq
   readonly backend: CableBackend;
   get tick(): number;
   step(request: CableStepRequest): CableSnapshot;
+  advance(): void;
+  couplingViews(): { positions: Float64Array; velocities: Float64Array; masses: Float64Array; pinned: Uint8Array; };
+  driveNode(node: number, px: number, py: number, pz: number, vx: number, vy: number, vz: number, mass: number, fx: number, fy: number, fz: number): void;
   inspect(): CableSnapshot;
   checkpoint(): CableCheckpoint;
   static fromCheckpoint(value: unknown): CompliantCableRuntime;
@@ -2438,6 +2441,10 @@ export declare class FrameRuntime implements EngineRuntime<FrameStepRequest, Fra
   readonly config: FrameConfig;
   get tick(): number;
   step(request: FrameStepRequest): FrameSnapshot;
+  couplingViews(): { rest: Float64Array; displacements: Float64Array; velocities: Float64Array; fixed: Uint8Array; };
+  solveCoupledOperator(dof: number, out: Float64Array): boolean;
+  beginCoupledTick(): Float64Array;
+  finishCoupledTick(extra: Float64Array): void;
   solveStatic(forces?: ArrayLike<number>): FrameStaticSolution;
   inspect(): FrameSnapshot;
   checkpoint(): FrameCheckpoint;
@@ -3088,6 +3095,184 @@ Von Mises equivalent stress of a symmetric tensor [xx, yy, zz, yz, xz, xy].
 
 ```ts
 export declare function vonMisesStress(t: ArrayLike<number>, offset?: number): number;
+```
+
+## `box3d-webgpu-kit/structure`
+
+### BodyAttachOptions · interface
+
+```ts
+export interface BodyAttachOptions {
+    readonly inertia: StructureInertia;
+    readonly localPoint?: StructureVec3;
+    readonly gravityScale?: number;
+}
+```
+
+### FrameBodyAttachOptions · interface
+
+```ts
+export interface FrameBodyAttachOptions extends BodyAttachOptions {
+    readonly mode?: 'pinned' | 'clamped';
+}
+```
+
+### STRUCTURE_COUPLING_BACKEND · const
+
+Two-way coupling of rigid bodies with cables (compliant-cable.ts) and frames (frame-runtime.ts).
+
+Every attachment is solved with the effective mass of BOTH sides, so a light body on a stiff
+structure is stable at any step:
+
+- Cable <-> body or frame node ("proxy"): the attached cable node is driven to the attachment
+  point each step and given that point's effective mass along the cable, 1 / (d^T G d), with G the
+  carrier's impulse response. The cable's own implicit solve then finds the tension; the impulse
+  the carrier needs to follow the node is applied to it, equal and opposite to what the cable felt.
+- Frame <-> body ("Schur"): pinned (3 equations) or clamped (6) velocity constraints between a body
+  point and a frame node, solved exactly for the interface impulses with the dense interface
+  matrix S = G_body + A^-1, A = M (1 + c h/2) + (h^2/4) K being the frame's midpoint operator. The
+  impulse reaches the body as two half kicks around world.step(), which makes the body's share of
+  the interface work a midpoint rule like the frame's: no first-order energy loss.
+
+Attachments that share a body or a frame are coupled by one Gauss-Seidel sweep per step (cables in
+the order they were added, then all frame <-> body constraints together), with last step's impulses
+standing in for the ones not yet computed. SI units, float64 (the rigid solver's own state is
+float32). See docs/STRUCTURE_COUPLING.md for the equations, measured stability limits and validation.
+
+```ts
+export declare const STRUCTURE_COUPLING_BACKEND = "rigid-structure-coupling-schur-proxy-js-f64-v1";
+```
+
+### StructureAttachment · interface
+
+Live report of one attachment, updated in place by every step().
+
+```ts
+export interface StructureAttachment {
+    readonly id: number;
+    readonly kind: 'cable-body' | 'cable-frame' | 'frame-body';
+    readonly mode: 'cable' | 'pinned' | 'clamped';
+    readonly force: [number, number, number];
+    readonly moment: [number, number, number];
+    tension: number;
+    gap: number;
+    effectiveMass: number;
+    attached: boolean;
+}
+```
+
+### StructureBodyState · interface
+
+```ts
+export interface StructureBodyState {
+    readonly position: StructureVec3;
+    readonly rotation: readonly [number, number, number, number];
+    readonly linearVelocity: StructureVec3;
+    readonly angularVelocity: StructureVec3;
+    readonly mass: number;
+    readonly type: string;
+}
+```
+
+### StructureCoupling · class
+
+```ts
+export declare class StructureCoupling<B> {
+  readonly backend = "rigid-structure-coupling-schur-proxy-js-f64-v1";
+  readonly dt: number;
+  readonly baumgarte: number;
+  readonly scheme: 'implicit' | 'naive-staggered';
+  tick: number;
+  addCable(cable: CompliantCableRuntime): this;
+  addFrame(frame: FrameRuntime): this;
+  attachCableToBody(cable: CompliantCableRuntime, node: number, body: B, options: BodyAttachOptions): StructureAttachment;
+  attachCableToFrame(cable: CompliantCableRuntime, node: number, frame: FrameRuntime, frameNode: number): StructureAttachment;
+  attachFrameToBody(frame: FrameRuntime, frameNode: number, body: B, options: FrameBodyAttachOptions): StructureAttachment;
+  detach(attachment: StructureAttachment): void;
+  get reports(): readonly StructureAttachment[];
+  step(): void;
+  diagnostics(): StructureDiagnostics;
+}
+```
+
+### StructureCouplingOptions · interface
+
+```ts
+export interface StructureCouplingOptions {
+    readonly dt?: number;
+    readonly baumgarte?: number;
+    readonly scheme?: 'implicit' | 'naive-staggered';
+}
+```
+
+### StructureDiagnostics · interface
+
+```ts
+export interface StructureDiagnostics {
+    bodyKinetic: number;
+    bodyPotential: number;
+    cableKinetic: number;
+    cableElastic: number;
+    cablePotential: number;
+    frameKinetic: number;
+    frameElastic: number;
+    framePotential: number;
+    total: number;
+    momentum: [number, number, number];
+    mass: number;
+}
+```
+
+### StructureInertia · type
+
+Rotational inertia of a body about its centre of mass, in its own axes. The world reports mass but
+not inertia, so say what the body is. `locked` is a body that cannot rotate (lockRotation).
+
+```ts
+export type StructureInertia = {
+    readonly kind: 'box';
+    readonly halfExtents: StructureVec3;
+} | {
+    readonly kind: 'sphere';
+    readonly radius: number;
+}
+| {
+    readonly kind: 'capsule';
+    readonly radius: number;
+    readonly halfLength: number;
+}
+| {
+    readonly kind: 'principal';
+    readonly moments: StructureVec3;
+} | {
+    readonly kind: 'locked';
+};
+```
+
+### StructureVec3 · type
+
+```ts
+export type StructureVec3 = readonly [number, number, number];
+```
+
+### StructureWorld · interface
+
+The part of a rigid-body world the coupling uses. The kit's PhysicsWorld satisfies it.
+
+```ts
+export interface StructureWorld<B> {
+    gravity(): readonly number[];
+    getState(body: B): StructureBodyState;
+    applyForce(body: B, force: StructureVec3, point?: StructureVec3): void;
+    applyTorque(body: B, torque: StructureVec3): void;
+    applyImpulse(body: B, impulse: StructureVec3): void;
+    applyAngularImpulse(body: B, impulse: StructureVec3): void;
+    isAlive?(body: B): boolean;
+    readonly loop?: {
+        readonly step: number;
+    };
+    readonly subSteps?: number;
+}
 ```
 
 ## `box3d-webgpu-kit/gameplay`

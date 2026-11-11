@@ -127,7 +127,7 @@ export function capabilities(): Capabilities {
     build: BUILD_INFO,
     nativeApiVersion: NATIVE_WORLD_API_VERSION,
     environment: detectEnvironment(),
-    modules: ['rigid', 'three', 'babylon', 'worker', 'cable', 'water', 'coupling', 'frame', 'heat', 'webgpu-writer', 'snapshots', 'single-file', 'gameplay', 'geometry', 'solid', 'scene'],
+    modules: ['rigid', 'three', 'babylon', 'worker', 'cable', 'water', 'coupling', 'frame', 'heat', 'webgpu-writer', 'snapshots', 'single-file', 'gameplay', 'geometry', 'solid', 'scene', 'structure'],
     limits: {
       worldsPerModule: 16,
       bodiesPerWorld: {default: 4096, max: 65536},

@@ -382,13 +382,14 @@ camera.follow(hero.state.position);
 | `box3d-webgpu-kit/water` | CPU shallow-water height fields: an open-boundary reference and a closed-basin solver that conserves volume. |
 | `box3d-webgpu-kit/coupling` | Rigid bodies in water, both ways: buoyancy, drag, and bodies that raise the level and make waves (see below). |
 | `box3d-webgpu-kit/frame` | 3D beam and column frames: statics, dynamics, end reactions. For structures that bend. |
+| `box3d-webgpu-kit/structure` | Cables and frames attached to rigid bodies, both ways: tethers, hanging loads, bodies on beams, cable-stayed spans (see below). |
 | `box3d-webgpu-kit/heat` | Heat conduction in solids: transient and steady temperature fields, four boundary types, an energy ledger, and one-way thermal stress and thermal-shock estimates (see below). |
 | `box3d-webgpu-kit/solid` | Deformable solids from tetrahedral finite elements with real material parameters: statics, dynamics, stresses, strength checks (see below). |
 | `box3d-webgpu-kit/gameplay` | Trigger volumes and a kinematic character controller for the rigid-body world (see above). |
 | `box3d-webgpu-kit/geometry` | OBJ, STL and glTF import, mesh measures, convex hulls and convex decomposition (see above). |
 | `box3d-webgpu-kit/scene` | Scene files: a versioned JSON format with validation, load, save, canonical text, hashing, share links and example scenes (see above). |
 
-Cable, water, frame and solid are the same model code the Box3D WebGPU app runs; the build copies it from the app. The app's own test suites (68 tests: 11 cable, 11 proximal cable, 2 linear water, 6 closed water, 16 frame, 22 solid) run against the packaged copies in `npm test`. Cable, frame, heat and solid are independent of the rigid-body world. Water is coupled to it by `box3d-webgpu-kit/coupling`; ropes attached to bodies are not coupled yet. The WebGPU water solver is not packaged yet.
+Cable, water, frame and solid are the same model code the Box3D WebGPU app runs; the build copies it from the app. The app's own test suites (68 tests: 11 cable, 11 proximal cable, 2 linear water, 6 closed water, 16 frame, 22 solid) run against the packaged copies in `npm test`. Heat and solid are independent of the rigid-body world. Water is coupled to it by `box3d-webgpu-kit/coupling`, and cables and frames by `box3d-webgpu-kit/structure`. The WebGPU water solver is not packaged yet.
 
 ### Bodies in water
 
@@ -417,6 +418,52 @@ water.meanElevation();                            // rose by the displaced volum
 ```
 
 Units are SI and gravity comes from `world.gravity()`. The step must be the world's fixed step. Drag is a model with coefficients you can set per body (`dragCoefficient`, `referenceArea`, `linearDrag`, `angularDrag`), not a flow solution. `test/v09-coupling.test.mjs` checks the coupling against closed-form answers (Archimedes for all three shapes, volume conservation, heave and roll periods, terminal velocity, the righting moment, an energy budget and determinism); the model, its limits and the measured errors are in [`docs/WATER_COUPLING.md`](https://github.com/nathansenn/box3d-WEBGPU/blob/main/docs/WATER_COUPLING.md).
+
+### Bodies on cables and frames
+
+`StructureCoupling` attaches cables (`box3d-webgpu-kit/cable`) and frames (`box3d-webgpu-kit/frame`) to bodies of the world, in both directions. A cable end follows a point on a body and its tension pulls on the body there; a frame node carries a body, pinned (forces) or clamped (forces and moments); a cable can hold a frame. Each attachment is solved with the effective mass of both sides, so a light body on a stiff cable or beam stays stable at any step.
+
+```ts
+import {createWorld} from 'box3d-webgpu-kit';
+import {CompliantCableRuntime} from 'box3d-webgpu-kit/cable';
+import {FrameRuntime} from 'box3d-webgpu-kit/frame';
+import {StructureCoupling} from 'box3d-webgpu-kit/structure';
+
+const dt = 1 / 240, g = 9.81;
+const world = await createWorld({step: dt, ground: false});
+
+// A 2 m cantilever along x, clamped at x = 0: 8 beam elements, 9 nodes with 6 degrees of freedom each.
+const section = {youngModulus: 2e9, shearModulus: 8e8, area: 0.002, iy: 1e-6, iz: 3e-6, torsionConstant: 2e-6, density: 1000, up: [0, 1, 0]};
+const positions = [], elements = [], fixed = new Array(9 * 6).fill(0);
+for (let i = 0; i <= 8; i++) { positions.push(0.25 * i, 0, 0); if (i) elements.push({...section, a: i - 1, b: i}); }
+fixed.fill(1, 0, 6);
+const frame = new FrameRuntime({positions, elements, fixed, config: {dt, substeps: 1, maxIterations: 1024, drag: 5, gravity: [0, -g, 0],
+  forceTolerance: 1e-9, momentTolerance: 1e-9, impulseTolerance: 1e-10, angularImpulseTolerance: 1e-10}});
+
+// A 1 m cable of two segments hanging from the tip, EA = 1e6 N, 0.2 kg/m.
+const cable = new CompliantCableRuntime({positions: [2, 0, 0, 2, -0.5, 0, 2, -1, 0], masses: [0.05, 0.1, 0.05],
+  constraints: [{a: 0, b: 1, restLength: 0.5, compliance: 0.5 / 1e6}, {a: 1, b: 2, restLength: 0.5, compliance: 0.5 / 1e6}],
+  config: {dt, substeps: 1, maxIterations: 2048, residualTolerance: 1e-10, drag: 0, gravity: [0, -g, 0], solver: 'proximal', forceTolerance: 1e-6}});
+
+// A 4.2 kg ball at the end of the cable.
+const ball = world.createBody({shape: {kind: 'sphere', radius: 0.1}, position: [2, -1, 0], density: 1000, neverSleeps: true});
+
+const coupling = new StructureCoupling(world);
+coupling.attachCableToFrame(cable, 0, frame, 8);                       // cable top on the beam tip
+const hold = coupling.attachCableToBody(cable, 2, ball, {inertia: {kind: 'sphere', radius: 0.1}});   // cable end on the ball
+
+function fixedStep() {
+  coupling.step();                                 // first: steps the cable and the frame, gives the ball this step's force
+  world.step();                                    // then the rigid bodies
+}
+hold.force;                                        // N on the ball: [0, m g, 0] once it hangs at rest
+frame.inspect().displacements[6 * 8 + 1];          // tip deflection, m: -(m + m_cable) g L^3 / (3 E I) - w L^4 / (8 E I)
+coupling.diagnostics().total;                      // energy of ball + cable + frame, J
+```
+
+`attachFrameToBody(frame, node, body, {mode: 'pinned' | 'clamped', inertia})` puts a body on a frame node, and `attachCableToBody` on both ends of a cable makes a tether. The world reports a body's mass but not its rotational inertia, so each body attachment states it (`box`, `sphere`, `capsule`, `principal` or `locked`). Units are SI; the step must be the world's fixed step and equal the cable's and the frame's `dt`; a coupled frame needs `substeps: 1`; create attached bodies with `neverSleeps: true`. The coupling steps the cables and frames it is given.
+
+`test/v11-structure.test.mjs` checks it against closed-form answers: a hanging load (tension, stretch, reaction), pendulum and spring-pendulum frequencies, a tether in zero gravity (momentum), an off-centre attachment (torque), a body on a cantilever tip (deflection and frequency), a simply supported beam, a cable-stayed span carrying a body along its deck, light bodies on stiff structures where naive staggering fails, energy and determinism. Not modelled: contact between bodies and cables or beams, cable bending, frame nonlinearity, and the effect of other contacts or joints on an attached body within a step. The scheme, the measured errors and the limits are in [`docs/STRUCTURE_COUPLING.md`](https://github.com/nathansenn/box3d-WEBGPU/blob/main/docs/STRUCTURE_COUPLING.md).
 
 ### Heat in solids
 

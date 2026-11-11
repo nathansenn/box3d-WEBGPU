@@ -20,6 +20,7 @@ const ENTRIES = [
   ['box3d-webgpu-kit/frame', 'dist/frame.d.ts'],
   ['box3d-webgpu-kit/heat', 'dist/heat.d.ts'],
   ['box3d-webgpu-kit/solid', 'dist/solid.d.ts'],
+  ['box3d-webgpu-kit/structure', 'dist/structure.d.ts'],
   ['box3d-webgpu-kit/gameplay', 'dist/gameplay.d.ts'],
   ['box3d-webgpu-kit/geometry', 'dist/geometry.d.ts'],
   ['box3d-webgpu-kit/scene', 'dist/scene.d.ts'],

@@ -40,6 +40,10 @@
       "types": "./dist/frame.d.ts",
       "default": "./dist/frame.js"
     },
+    "./structure": {
+      "types": "./dist/structure.d.ts",
+      "default": "./dist/structure.js"
+    },
     "./heat": {
       "types": "./dist/heat.d.ts",
       "default": "./dist/heat.js"
