@@ -44,7 +44,9 @@ Updated 2026-11-11.
 | 2 | One scene description and stepping loop; rigid ↔ cloth and rope; cable and frame ↔ rigid; bridge rebuild | open |
 | 3 | Heat conduction in solids: transient and steady, four boundary types, implicit and explicit stepping, energy ledger (`box3d-webgpu-kit/heat`, [`HEAT_TRANSFER.md`](HEAT_TRANSFER.md)) | done as a standalone solver with closed-form validation (`tests/engine/heat.test.mjs`, in the pull-request gate); thermal stress and thermal shock are one-way estimates; not yet coupled to a fracture solver or used by a scene |
 | 5 | Import glTF, OBJ and STL: parsers, mesh measures, convex hulls and decomposition, bodies from meshes (`box3d-webgpu-kit/geometry`) | done in the kit with closed-form validation (`packages/box3d-kit/test/v10-geometry.test.mjs`); not yet used by a scene, the Studio or an editor |
-| 3–6 | Everything else below | not started |
+| 3 | Deformable solids with real material parameters: tetrahedral FEM, linear, corotational and Neo-Hookean, statics and dynamics (`box3d-webgpu-kit/solid`, [`SOLID_MECHANICS.md`](SOLID_MECHANICS.md)) | done as a stand-alone solver with closed-form validation (`tests/engine/solid.test.mjs`, in the pull-request gate); not coupled to the rigid world; no contact, plasticity or fracture; not yet used by a scene or the Studio |
+| 3 | Fracture on the solid solver; replace the rubber, concrete and lattice one-offs; the other Phase 3 domains | open |
+| 4–6 | Everything else below | not started |
 
 ## Phase 0: clean base
 
@@ -76,7 +78,7 @@ Remaining: compound shapes, state save/load, and the npm release.
 
 One at a time, each with its validation case.
 
-- Deformable solids (tetrahedral FEM or XPBD with material parameters), then fracture on top. Replaces the rubber, concrete and lattice one-offs.
+- Deformable solids (tetrahedral FEM or XPBD with material parameters), then fracture on top. Replaces the rubber, concrete and lattice one-offs. The tetrahedral solver is done and validated ([`SOLID_MECHANICS.md`](SOLID_MECHANICS.md)); contact, coupling to the rigid world, fracture and the replacement of the one-offs remain.
 - Volumetric fluid on GPU compute; sloped beds and wetting/drying for the shallow-water solver.
 - Granular on GPU (today: about 1,344 grains in JS).
 - Cloth self-collision and calibrated stiffness.

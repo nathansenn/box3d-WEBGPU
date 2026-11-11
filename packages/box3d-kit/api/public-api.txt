@@ -1092,6 +1092,208 @@ export declare class NativeWorldPool {
 }
 export {};
 
+// ==== core/solid-mesh.d.ts ====
+export interface TetMesh {
+    positions: Float64Array;
+    tets: Uint32Array;
+}
+export interface BoxMeshOptions {
+    size: readonly [number, number, number];
+    cells: readonly [number, number, number];
+    origin?: readonly [number, number, number];
+    pattern?: 'alternating5' | 'kuhn6';
+}
+export declare const SOLID_MAX_NODES = 200000, SOLID_MAX_TETS = 1000000;
+export declare function tetVolume(p: ArrayLike<number>, a: number, b: number, c: number, d: number): number;
+export declare function boxNode(cells: readonly [number, number, number], i: number, j: number, k: number): number;
+export declare function boxMesh(options: BoxMeshOptions): TetMesh;
+export declare function boundaryFaces(mesh: TetMesh): Uint32Array;
+
+// ==== core/solid.d.ts ====
+import { type TetMesh } from './solid-mesh.js';
+export { boxMesh, boxNode, boundaryFaces, tetVolume, SOLID_MAX_NODES, SOLID_MAX_TETS, type TetMesh, type BoxMeshOptions } from './solid-mesh.js';
+export declare const SOLID_SOLVER_ID = "solid-tet-corot-js-f64-v1";
+export type SolidModel = 'linear' | 'corotational' | 'neo-hookean';
+export type SolidIntegrator = 'backward-euler' | 'midpoint' | 'explicit';
+export interface SolidMaterial {
+    youngModulus: number;
+    poissonRatio: number;
+    density: number;
+    thermalExpansion?: number;
+}
+export interface SolidConfig {
+    model?: SolidModel;
+    dt?: number;
+    integrator?: SolidIntegrator;
+    massDamping?: number;
+    stiffnessDamping?: number;
+    gravity?: readonly [number, number, number];
+    tolerance?: number;
+    forceTolerance?: number;
+    maxNewtonIterations?: number;
+    maxLinearIterations?: number;
+    explicitSafety?: number;
+}
+export interface SolidDefinition {
+    mesh: TetMesh | {
+        positions: ArrayLike<number>;
+        tets: ArrayLike<number>;
+    };
+    material: SolidMaterial;
+    config?: SolidConfig;
+}
+export interface SolidSolveStats {
+    converged: boolean;
+    reason: 'converged' | 'iteration-limit' | 'line-search' | 'singular-or-indefinite';
+    newtonIterations: number;
+    linearIterations: number;
+    residual: number;
+    reference: number;
+}
+export interface SolidStaticResult extends SolidSolveStats {
+    loadSteps: number;
+    displacements: Float64Array;
+    reactions: Float64Array;
+    strainEnergy: number;
+}
+export interface SolidExplicitLimit {
+    criticalTimeStep: number;
+    waveSpeed: number;
+    minAltitude: number;
+    courant: number;
+}
+export interface SolidMode {
+    angularFrequency: number;
+    frequency: number;
+    shape: Float64Array;
+    iterations: number;
+    converged: boolean;
+}
+export type SolidFailureCriterion = 'max-principal' | 'von-mises';
+export declare function symmetricEigenvalues(t: ArrayLike<number>, offset: number, out: Float64Array | number[], outOffset: number): void;
+export declare function vonMisesStress(t: ArrayLike<number>, offset?: number): number;
+export declare class SolidBody {
+    readonly solver = "solid-tet-corot-js-f64-v1";
+    readonly model: SolidModel;
+    readonly integrator: SolidIntegrator;
+    readonly dt: number;
+    readonly nodeCount: number;
+    readonly tetCount: number;
+    readonly referencePositions: Float64Array;
+    readonly tets: Uint32Array;
+    readonly faces: Uint32Array;
+    readonly nodalMass: Float64Array;
+    readonly elementVolume: Float64Array;
+    readonly referenceVolume: number;
+    readonly mass: number;
+    readonly lambda: number;
+    readonly mu: number;
+    readonly material: Readonly<Required<SolidMaterial>>;
+    readonly stats: SolidSolveStats;
+    private readonly massDamping;
+    private readonly stiffnessDamping;
+    private readonly gravity;
+    private readonly tolerance;
+    private readonly forceTolerance;
+    private readonly maxNewton;
+    private readonly maxLinear;
+    private readonly explicitSafety;
+    private readonly grad;
+    private readonly theta;
+    private readonly kDiagonal;
+    private readonly fixed;
+    private readonly prescribed;
+    private readonly nodalForce;
+    private readonly surfaceForce;
+    private readonly fext;
+    private readonly u;
+    private readonly v;
+    private readonly acceleration;
+    private readonly fint;
+    private g;
+    private gTrial;
+    private readonly trial;
+    private readonly u0;
+    private readonly target;
+    private readonly x;
+    private readonly r;
+    private readonly z;
+    private readonly p;
+    private readonly ap;
+    private readonly work;
+    private readonly work2;
+    private readonly lin;
+    private readonly linOld;
+    private readonly H;
+    private readonly P;
+    private readonly F;
+    private readonly R;
+    private readonly B;
+    private cm;
+    private cd;
+    private reference;
+    private referenceInertia;
+    private loadScale;
+    private accelerationValid;
+    private steps;
+    private unconverged;
+    private limit;
+    constructor(input: SolidDefinition);
+    selectNodes(predicate: (x: number, y: number, z: number) => boolean): Uint32Array;
+    selectFaces(predicate: (cx: number, cy: number, cz: number, nx: number, ny: number, nz: number) => boolean): Uint32Array;
+    private faceNormal;
+    constrain(nodes: ArrayLike<number>, value?: readonly [number | null, number | null, number | null]): void;
+    release(nodes: ArrayLike<number>): void;
+    setNodalForce(node: number, force: readonly [number, number, number]): void;
+    addTraction(faces: ArrayLike<number>, traction: readonly [number, number, number]): void;
+    addPressure(faces: ArrayLike<number>, pressure: number): void;
+    clearSurfaceLoads(): void;
+    setTemperatureChange(rise: number | ArrayLike<number>): void;
+    private assembleLoads;
+    get displacements(): Float64Array;
+    get velocities(): Float64Array;
+    get time(): number;
+    get unconvergedSteps(): number;
+    setState(displacements?: ArrayLike<number>, velocities?: ArrayLike<number>): void;
+    reset(): void;
+    positions(out?: Float64Array<ArrayBuffer>): Float64Array;
+    private gradient;
+    private piola;
+    private tangent;
+    private scatter;
+    private elastic;
+    private stiffness;
+    private norm;
+    private objective;
+    private conjugateGradient;
+    private minimise;
+    private applyConstraints;
+    solveStatic(options?: {
+        loadSteps?: number;
+    }): SolidStaticResult;
+    step(count?: number): void;
+    private accelerate;
+    explicitLimit(): SolidExplicitLimit;
+    fundamentalMode(options?: {
+        maxIterations?: number;
+        tolerance?: number;
+    }): SolidMode;
+    strainEnergy(): number;
+    kineticEnergy(): number;
+    loadPotential(): number;
+    volume(): number;
+    reactions(out?: Float64Array<ArrayBuffer>): Float64Array;
+    stresses(out?: Float64Array<ArrayBuffer>): Float64Array;
+    strains(out?: Float64Array<ArrayBuffer>): Float64Array;
+    private tensors;
+    vonMises(out?: Float64Array<ArrayBuffer>): Float64Array;
+    principalStresses(out?: Float64Array<ArrayBuffer>): Float64Array;
+    failedElements(options: {
+        criterion: SolidFailureCriterion;
+        strength: number;
+    }): Uint32Array;
+}
+
 // ==== core/water-coupling.d.ts ====
 import { type LinearWaterArrays, type LinearWaterConfig } from './linear-water.js';
 export declare const WATER_COUPLING_BACKEND = "rigid-water-coupling-closed-cgrid-js-f64-v1";
@@ -1582,7 +1784,7 @@ export { FixedStepLoop, pauseOnHidden, type FixedStepOptions, type FixedStepResu
 export { EngineError } from './core/contracts.js';
 export { NativeWorldPool, NativeWorldBackend, NATIVE_WORLD_API_VERSION, type NativeBodyHandle, type NativeSpatialQuery, type NativeQueryResult, type NativeQueryCastHit, type NativeQueryBodyHit, type NativeQueryFilter, type NativeBodyCapacityInfo, type NativeJointHandle, type NativeBodyDescriptor, type NativeBodyShape, type NativeBodyKind, type NativeBodyState, type NativeBodyType, type NativeJointDescriptor, type NativeJointState, type NativeJointType, type NativeJointFrame, type NativeWorldEvent, type NativeQuaternion, } from './core/native-world.js';
 export type { InstanceBufferSource, PhysicsBackend } from './backend-types.js';
-export type EngineErrorCode = 'INVALID_PAYLOAD' | 'INVALID_BACKEND' | 'UNSUPPORTED_BACKEND' | 'DISPOSED' | 'STALE_BODY' | 'WORLD_CAPACITY' | 'ALLOCATION_FAILED' | 'STALE_QUERY' | 'QUERY_VERSION_EXHAUSTED' | 'INVALID_STATE' | 'INTERNAL' | 'WASM_UNAVAILABLE' | 'INTEGRITY_MISMATCH' | 'INCOMPATIBLE_SAVE' | 'STALE_JOINT' | 'UNSUPPORTED_JOINT';
+export type EngineErrorCode = 'INVALID_PAYLOAD' | 'INVALID_BACKEND' | 'UNSUPPORTED_BACKEND' | 'DISPOSED' | 'STALE_BODY' | 'WORLD_CAPACITY' | 'ALLOCATION_FAILED' | 'STALE_QUERY' | 'QUERY_VERSION_EXHAUSTED' | 'INVALID_STATE' | 'INTERNAL' | 'WASM_UNAVAILABLE' | 'INTEGRITY_MISMATCH' | 'INCOMPATIBLE_SAVE' | 'STALE_JOINT' | 'UNSUPPORTED_JOINT' | 'NUMERICAL_FAILURE' | 'WORK_LIMIT' | 'UNSTABLE_TIME_STEP';
 export declare function createWorld(options?: WorldOptions & LoadBox3DOptions & {
     readonly gravity?: readonly [number, number, number];
     readonly ground?: boolean;
@@ -1759,6 +1961,9 @@ export declare class SharedFrameReader {
     constructor(buffer: SharedArrayBuffer);
     poll(): boolean;
 }
+
+// ==== solid.d.ts ====
+export * from './core/solid.js';
 
 // ==== three.d.ts ====
 export interface InstanceSource {

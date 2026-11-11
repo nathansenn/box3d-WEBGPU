@@ -103,6 +103,7 @@
     "test:assets": "node --test tests/assets/*.test.mjs tests/physics/*.test.mjs",
     "test:engine": "node --test --test-concurrency=1 tests/engine/*.test.mjs",
     "test:heat": "node --import ./scripts/register-typescript.mjs --test tests/engine/heat.test.mjs",
+    "test:solid": "node --test tests/engine/solid.test.mjs",
     "bench:engine": "node scripts/engine-benchmark.mjs",
     "bench:engine:check": "node scripts/engine-check.mjs",
     "baseline:engine": "node scripts/engine-baseline.mjs",

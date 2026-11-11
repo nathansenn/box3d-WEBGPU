@@ -330,10 +330,11 @@ camera.follow(hero.state.position);
 | `box3d-webgpu-kit/coupling` | Rigid bodies in water, both ways: buoyancy, drag, and bodies that raise the level and make waves (see below). |
 | `box3d-webgpu-kit/frame` | 3D beam and column frames: statics, dynamics, end reactions. For structures that bend. |
 | `box3d-webgpu-kit/heat` | Heat conduction in solids: transient and steady temperature fields, four boundary types, an energy ledger, and one-way thermal stress and thermal-shock estimates (see below). |
+| `box3d-webgpu-kit/solid` | Deformable solids from tetrahedral finite elements with real material parameters: statics, dynamics, stresses, strength checks (see below). |
 | `box3d-webgpu-kit/gameplay` | Trigger volumes and a kinematic character controller for the rigid-body world (see above). |
 | `box3d-webgpu-kit/geometry` | OBJ, STL and glTF import, mesh measures, convex hulls and convex decomposition (see above). |
 
-Cable, water and frame are the same model code the Box3D WebGPU app runs; the build copies it from the app. The app's own test suites (46 tests: 11 cable, 11 proximal cable, 2 linear water, 6 closed water, 16 frame) run against the packaged copies in `npm test`. Cable, frame and heat are independent of the rigid-body world. Water is coupled to it by `box3d-webgpu-kit/coupling`; ropes attached to bodies are not coupled yet. The WebGPU water solver is not packaged yet.
+Cable, water, frame and solid are the same model code the Box3D WebGPU app runs; the build copies it from the app. The app's own test suites (68 tests: 11 cable, 11 proximal cable, 2 linear water, 6 closed water, 16 frame, 22 solid) run against the packaged copies in `npm test`. Cable, frame, heat and solid are independent of the rigid-body world. Water is coupled to it by `box3d-webgpu-kit/coupling`; ropes attached to bodies are not coupled yet. The WebGPU water solver is not packaged yet.
 
 ### Bodies in water
 
@@ -394,6 +395,35 @@ wall.temperature;                                 // Float64Array, one value per
 Units are SI and temperatures are kelvin (degrees Celsius also work when nothing radiates). The implicit schemes are stable at any time step; the explicit one reports its limit (`explicitStabilityLimit()`, `h² / (6 alpha)` inside a uniform 3-D grid) and throws above it. `boundaryEnergy` and `sourceEnergy` add up to the change in `storedEnergy()`, so an energy balance can be audited.
 
 `thermalStrain`, `restrainedThermalStress` and `thermalShock` turn a temperature field into the strain `alpha_T (T - T_ref)`, the stress of a fully restrained bar or plate (`-E alpha_T dT`, divided by `1 - nu` for a plate), and the cells whose tensile stress reaches the strength. They are a one-way estimate for feeding a fracture model, not a thermo-mechanical solver. Not modelled: phase change, fluid flow, radiation between surfaces. The equations, the closed-form validation with measured errors and convergence orders, and the limits are in [`docs/HEAT_TRANSFER.md`](https://github.com/nathansenn/box3d-WEBGPU/blob/main/docs/HEAT_TRANSFER.md).
+
+### Deformable solids
+
+`SolidBody` is a finite-element solid made of tetrahedra. You give it Young's modulus (Pa), Poisson's ratio and density (kg/m³); it gives back displacements, stresses and reactions in SI units. This example bends a steel cantilever and checks it against a strength:
+
+```ts
+import {SolidBody, boxMesh} from 'box3d-webgpu-kit/solid';
+
+const beam = new SolidBody({
+  mesh: boxMesh({size: [1, 0.2, 0.2], cells: [20, 4, 4]}),            // metres; four cells through the thickness
+  material: {youngModulus: 200e9, poissonRatio: 0.3, density: 7850},  // steel
+  config: {model: 'corotational', gravity: [0, -9.81, 0]},
+});
+beam.constrain(beam.selectNodes(x => x < 1e-9));                              // clamp the face at x = 0
+beam.addTraction(beam.selectFaces((cx, cy, cz, nx) => nx > 0.99), [0, -25e3, 0]);  // 1 kN down on the end face (25 kPa × 0.04 m²)
+
+const result = beam.solveStatic();
+result.converged;                       // true
+result.displacements;                   // x, y, z per node, metres
+beam.vonMises();                        // Pa, one per element
+beam.failedElements({criterion: 'von-mises', strength: 250e6});   // elements above yield: none here
+beam.fundamentalMode().frequency;       // lowest natural frequency, Hz
+```
+
+- **Models:** `linear` (small strain), `corotational` (large rotations without false stress, the default) and `neo-hookean` (rubber at large stretch).
+- **Dynamics:** `beam.step(n)` with `integrator: 'backward-euler'`, `'midpoint'` (conserves energy for the linear model) or `'explicit'` (refuses a time step above its stability limit; see `explicitLimit()`), with Rayleigh damping.
+- **Loads:** fixed or prescribed nodes, point forces, tractions and pressure on boundary faces, gravity, and a temperature rise.
+- **Accuracy:** checked against closed-form answers in the repository's `docs/SOLID_MECHANICS.md`. Uniform strain states are exact. Bending needs at least four cells through the thickness: the tip deflection is then 12% low, and 3.4% low with eight. Poisson's ratio above 0.49 locks.
+- **Not included:** contact, plasticity and crack growth. `failedElements` only reports where a strength is exceeded. The solid is not coupled to the rigid-body world yet.
 
 ### No build step
 

@@ -44,6 +44,10 @@
       "types": "./dist/heat.d.ts",
       "default": "./dist/heat.js"
     },
+    "./solid": {
+      "types": "./dist/solid.d.ts",
+      "default": "./dist/solid.js"
+    },
     "./gameplay": {
       "types": "./dist/gameplay.d.ts",
       "default": "./dist/gameplay.js"

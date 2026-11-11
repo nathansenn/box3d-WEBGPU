@@ -16,7 +16,7 @@ The WASM is unchanged from 0.8.0.
   - Body to water: the displaced volume is a volume source for the free surface (water volume is conserved to float64 roundoff; the mean level rises by displaced volume / basin area), and the reaction of the horizontal force is a momentum source.
   - `attach(body, shape, options)`, `detach(body)`, `step()` (call it before `world.step()`), per-body reports, and diagnostics: `waterVolume`, `displacedVolume`, `surfaceVolume`, `meanElevation`, `elevationAt`, `floorLoad`, `buoyancyTotal`, `waterKineticEnergy`, `waterPotentialEnergy`, `copyTo`.
   - Float64 state, deterministic, no allocation of its own per step.
-- `capabilities().modules` lists `coupling` and `heat`.
+- `capabilities().modules` lists `coupling`, `heat` and `solid`.
 - **`box3d-webgpu-kit/heat`:** `HeatSolver` solves heat conduction in solids, `rho c dT/dt = div(k grad T) + q`, in SI units and float64 (solver id `heat-fv-implicit-js-f64-v1`).
   - A structured 3-D grid of cells with per-cell materials, optional temperature-dependent conductivity from a table, and a solid mask for voxelised shapes; one cell on an axis gives 1-D and 2-D problems. Harmonic-mean face conductivity makes layered walls exact at steady state.
   - Boundary conditions per face region: fixed temperature, prescribed flux (insulated by default), convection `h_c (T_inf - T)`, and grey-body radiation linearised each step. Volumetric, region and point sources.
@@ -24,6 +24,15 @@ The WASM is unchanged from 0.8.0.
   - Outputs: temperatures, face heat fluxes, face and surface temperatures, stored energy, heat rates per boundary condition, and energy ledgers that balance the stored-energy change to solver precision.
   - `thermalStrain`, `restrainedThermalStress` (bar, plate, volume) and `thermalShock` (which cells reach the tensile strength). These are a one-way thermal to stress estimate, not a coupled thermo-mechanical solver.
   - Deterministic. Not modelled: phase change, fluid flow, radiation between surfaces, unstructured meshes.
+- **`box3d-webgpu-kit/solid`:** `SolidBody`, a tetrahedral finite-element solver for deformable solids with real material parameters (Young's modulus, Poisson's ratio, density, optional thermal expansion). Solver id `solid-tet-corot-js-f64-v1`.
+  - Three material models: `linear`, `corotational` (the default; large rotations without false stress) and compressible `neo-hookean`.
+  - Statics by Newton's method with a preconditioned conjugate-gradient solve; dynamics by backward Euler, the implicit midpoint rule or an explicit integrator that reports and enforces its stability limit; Rayleigh damping.
+  - Fixed and prescribed nodes, point forces, tractions and pressure on boundary faces, gravity, temperature change.
+  - Outputs: displacements, strain and Cauchy stress per element, von Mises and principal stresses, energies, reactions, volume, lowest natural frequency. `failedElements` flags elements above a strength; it does not crack or yield them.
+  - `boxMesh` builds a box of tetrahedra; caller meshes are accepted.
+  - No contact, plasticity or crack growth, and no coupling to the rigid-body world yet. Linear tetrahedra are stiff in bending and lock near `nu = 0.5`; `docs/SOLID_MECHANICS.md` gives the measured errors.
+  - `capabilities().modules` lists `solid`. `EngineErrorCode` gains `NUMERICAL_FAILURE`, `WORK_LIMIT` and `UNSTABLE_TIME_STEP`, which the optional modules raise.
+  - `test/v10-solid.test.mjs` checks the packaged module; the full closed-form suite is `tests/engine/solid.test.mjs` in the repository.
 - `test/v09-coupling.test.mjs` checks the coupling against closed-form answers; see `docs/WATER_COUPLING.md` for the model, the measured errors and the limits.
 - `test/v09-heat.test.mjs` checks the packaged heat module; the full closed-form suite is `tests/engine/heat.test.mjs` in the repository, and `docs/HEAT_TRANSFER.md` has the equations, the validation table with measured errors and convergence orders, and the limits.
 - **`box3d-webgpu-kit/geometry`:** geometry import and preparation, with no dependencies and no fetching.

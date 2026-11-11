@@ -258,7 +258,7 @@ export declare class EngineError extends Error {
 Every `code` an EngineError from this package can carry.
 
 ```ts
-export type EngineErrorCode = 'INVALID_PAYLOAD' | 'INVALID_BACKEND' | 'UNSUPPORTED_BACKEND' | 'DISPOSED' | 'STALE_BODY' | 'WORLD_CAPACITY' | 'ALLOCATION_FAILED' | 'STALE_QUERY' | 'QUERY_VERSION_EXHAUSTED' | 'INVALID_STATE' | 'INTERNAL' | 'WASM_UNAVAILABLE' | 'INTEGRITY_MISMATCH' | 'INCOMPATIBLE_SAVE' | 'STALE_JOINT' | 'UNSUPPORTED_JOINT';
+export type EngineErrorCode = 'INVALID_PAYLOAD' | 'INVALID_BACKEND' | 'UNSUPPORTED_BACKEND' | 'DISPOSED' | 'STALE_BODY' | 'WORLD_CAPACITY' | 'ALLOCATION_FAILED' | 'STALE_QUERY' | 'QUERY_VERSION_EXHAUSTED' | 'INVALID_STATE' | 'INTERNAL' | 'WASM_UNAVAILABLE' | 'INTEGRITY_MISMATCH' | 'INCOMPATIBLE_SAVE' | 'STALE_JOINT' | 'UNSUPPORTED_JOINT' | 'NUMERICAL_FAILURE' | 'WORK_LIMIT' | 'UNSTABLE_TIME_STEP';
 ```
 
 ### EnvironmentReport · interface
@@ -2821,6 +2821,273 @@ export interface ThermalStressOptions {
     readonly constraint?: ThermalConstraint;
     readonly solid?: ArrayLike<number>;
 }
+```
+
+## `box3d-webgpu-kit/solid`
+
+### boundaryFaces · function
+
+Triangles that belong to exactly one tetrahedron, three node indices each, wound so the
+normal (b - a) x (c - a) points out of the solid. The order follows the element order.
+
+```ts
+export declare function boundaryFaces(mesh: TetMesh): Uint32Array;
+```
+
+### boxMesh · function
+
+A box split into tetrahedra. The split is conforming (neighbouring cells share whole
+triangles). `alternating5` gives every cell the symmetry of a regular tetrahedron and
+mirrors the split between neighbours, so the mesh is mirror-symmetric about each mid-plane
+whose cell count is even, and is unchanged by swapping two axes with equal counts and sizes.
+`kuhn6` uses congruent elements but favours one diagonal. Every element has positive volume.
+
+```ts
+export declare function boxMesh(options: BoxMeshOptions): TetMesh;
+```
+
+### BoxMeshOptions · interface
+
+```ts
+export interface BoxMeshOptions {
+    size: readonly [number, number, number];
+    cells: readonly [number, number, number];
+    origin?: readonly [number, number, number];
+    pattern?: 'alternating5' | 'kuhn6';
+}
+```
+
+### boxNode · function
+
+Index of the node at grid position (i, j, k) of a `boxMesh` with the given cell counts.
+
+```ts
+export declare function boxNode(cells: readonly [number, number, number], i: number, j: number, k: number): number;
+```
+
+### SOLID_MAX_NODES · const
+
+```ts
+export declare const SOLID_MAX_NODES = 200000, SOLID_MAX_TETS = 1000000;
+```
+
+### SOLID_MAX_TETS · const
+
+```ts
+export declare const SOLID_MAX_NODES = 200000, SOLID_MAX_TETS = 1000000;
+```
+
+### SOLID_SOLVER_ID · const
+
+```ts
+export declare const SOLID_SOLVER_ID = "solid-tet-corot-js-f64-v1";
+```
+
+### SolidBody · class
+
+A deformable solid of four-node tetrahedra with a lumped mass matrix. SI units, float64.
+
+Statics and the implicit integrators minimise one incremental potential by Newton's method
+with a Jacobi-preconditioned conjugate-gradient inner solve; products with the tangent
+stiffness are formed element by element, so no global matrix is stored. Loads are dead
+loads: tractions, pressure and gravity keep their reference direction and area.
+No contact, no plasticity and no crack growth. See docs/SOLID_MECHANICS.md.
+
+```ts
+export declare class SolidBody {
+  readonly solver = "solid-tet-corot-js-f64-v1";
+  readonly model: SolidModel;
+  readonly integrator: SolidIntegrator;
+  readonly dt: number;
+  readonly nodeCount: number;
+  readonly tetCount: number;
+  readonly referencePositions: Float64Array;
+  readonly tets: Uint32Array;
+  readonly faces: Uint32Array;
+  readonly nodalMass: Float64Array;
+  readonly elementVolume: Float64Array;
+  readonly referenceVolume: number;
+  readonly mass: number;
+  readonly lambda: number;
+  readonly mu: number;
+  readonly material: Readonly<Required<SolidMaterial>>;
+  readonly stats: SolidSolveStats;
+  selectNodes(predicate: (x: number, y: number, z: number) => boolean): Uint32Array;
+  selectFaces(predicate: (cx: number, cy: number, cz: number, nx: number, ny: number, nz: number) => boolean): Uint32Array;
+  constrain(nodes: ArrayLike<number>, value?: readonly [number | null, number | null, number | null]): void;
+  release(nodes: ArrayLike<number>): void;
+  setNodalForce(node: number, force: readonly [number, number, number]): void;
+  addTraction(faces: ArrayLike<number>, traction: readonly [number, number, number]): void;
+  addPressure(faces: ArrayLike<number>, pressure: number): void;
+  clearSurfaceLoads(): void;
+  setTemperatureChange(rise: number | ArrayLike<number>): void;
+  get displacements(): Float64Array;
+  get velocities(): Float64Array;
+  get time(): number;
+  get unconvergedSteps(): number;
+  setState(displacements?: ArrayLike<number>, velocities?: ArrayLike<number>): void;
+  reset(): void;
+  positions(out?: Float64Array<ArrayBuffer>): Float64Array;
+  solveStatic(options?: { loadSteps?: number; }): SolidStaticResult;
+  step(count?: number): void;
+  explicitLimit(): SolidExplicitLimit;
+  fundamentalMode(options?: { maxIterations?: number; tolerance?: number; }): SolidMode;
+  strainEnergy(): number;
+  kineticEnergy(): number;
+  loadPotential(): number;
+  volume(): number;
+  reactions(out?: Float64Array<ArrayBuffer>): Float64Array;
+  stresses(out?: Float64Array<ArrayBuffer>): Float64Array;
+  strains(out?: Float64Array<ArrayBuffer>): Float64Array;
+  vonMises(out?: Float64Array<ArrayBuffer>): Float64Array;
+  principalStresses(out?: Float64Array<ArrayBuffer>): Float64Array;
+  failedElements(options: { criterion: SolidFailureCriterion; strength: number; }): Uint32Array;
+}
+```
+
+### SolidConfig · interface
+
+```ts
+export interface SolidConfig {
+    model?: SolidModel;
+    dt?: number;
+    integrator?: SolidIntegrator;
+    massDamping?: number;
+    stiffnessDamping?: number;
+    gravity?: readonly [number, number, number];
+    tolerance?: number;
+    forceTolerance?: number;
+    maxNewtonIterations?: number;
+    maxLinearIterations?: number;
+    explicitSafety?: number;
+}
+```
+
+### SolidDefinition · interface
+
+```ts
+export interface SolidDefinition {
+    mesh: TetMesh | {
+        positions: ArrayLike<number>;
+        tets: ArrayLike<number>;
+    };
+    material: SolidMaterial;
+    config?: SolidConfig;
+}
+```
+
+### SolidExplicitLimit · interface
+
+```ts
+export interface SolidExplicitLimit {
+    criticalTimeStep: number;
+    waveSpeed: number;
+    minAltitude: number;
+    courant: number;
+}
+```
+
+### SolidFailureCriterion · type
+
+```ts
+export type SolidFailureCriterion = 'max-principal' | 'von-mises';
+```
+
+### SolidIntegrator · type
+
+```ts
+export type SolidIntegrator = 'backward-euler' | 'midpoint' | 'explicit';
+```
+
+### SolidMaterial · interface
+
+```ts
+export interface SolidMaterial {
+    youngModulus: number;
+    poissonRatio: number;
+    density: number;
+    thermalExpansion?: number;
+}
+```
+
+### SolidMode · interface
+
+```ts
+export interface SolidMode {
+    angularFrequency: number;
+    frequency: number;
+    shape: Float64Array;
+    iterations: number;
+    converged: boolean;
+}
+```
+
+### SolidModel · type
+
+`linear`: small-strain Hooke. `corotational`: Hooke on the stretch left after removing each
+element's rotation. `neo-hookean`: compressible Neo-Hookean rubber.
+
+```ts
+export type SolidModel = 'linear' | 'corotational' | 'neo-hookean';
+```
+
+### SolidSolveStats · interface
+
+```ts
+export interface SolidSolveStats {
+    converged: boolean;
+    reason: 'converged' | 'iteration-limit' | 'line-search' | 'singular-or-indefinite';
+    newtonIterations: number;
+    linearIterations: number;
+    residual: number;
+    reference: number;
+}
+```
+
+### SolidStaticResult · interface
+
+```ts
+export interface SolidStaticResult extends SolidSolveStats {
+    loadSteps: number;
+    displacements: Float64Array;
+    reactions: Float64Array;
+    strainEnergy: number;
+}
+```
+
+### symmetricEigenvalues · function
+
+Eigenvalues of a symmetric 3x3 tensor [xx, yy, zz, yz, xz, xy], largest first, by cyclic Jacobi rotations.
+
+```ts
+export declare function symmetricEigenvalues(t: ArrayLike<number>, offset: number, out: Float64Array | number[], outOffset: number): void;
+```
+
+### TetMesh · interface
+
+A tetrahedral mesh. `positions` holds x, y, z per node in metres; `tets` holds four node indices per element.
+
+```ts
+export interface TetMesh {
+    positions: Float64Array;
+    tets: Uint32Array;
+}
+```
+
+### tetVolume · function
+
+Signed volume of the tetrahedron (a, b, c, d): positive when d lies on the side of the normal of a→b→c.
+
+```ts
+export declare function tetVolume(p: ArrayLike<number>, a: number, b: number, c: number, d: number): number;
+```
+
+### vonMisesStress · function
+
+Von Mises equivalent stress of a symmetric tensor [xx, yy, zz, yz, xz, xy].
+
+```ts
+export declare function vonMisesStress(t: ArrayLike<number>, offset?: number): number;
 ```
 
 ## `box3d-webgpu-kit/gameplay`

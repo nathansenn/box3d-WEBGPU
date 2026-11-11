@@ -34,9 +34,10 @@ function pullRequestGate(){
   // Test the shipped artifacts here. Rebuilding with a pinned clang is a separate release-toolchain gate.
   run(process.execPath,['scripts/soft-kernel-test.mjs']);
   run(process.execPath,['scripts/soft-kernel-integration-test.cjs']);
-  for(const name of ['test:webgpu','test:collision','test:assets','test:qualification','test:heat','test:threaded','test:release-contracts','catalog:check','test:soft-soak:all','test:rope-batching','test:native-wasm','test:kit','test:material:100','build','build:pages','stage:railway'])gate(name);
+  for(const name of ['test:webgpu','test:collision','test:assets','test:qualification','test:heat','test:solid','test:threaded','test:release-contracts','catalog:check','test:soft-soak:all','test:rope-batching','test:native-wasm','test:kit','test:material:100','build','build:pages','stage:railway'])gate(name);
   run(npm,['audit','--audit-level=moderate']);
 }
+// test:solid is the closed-form validation of the tetrahedral solid solver; it runs on the gate's Node, unlike the rest of the engine suite.
 // test:kit covers the embeddable kit, including its closed-form physics validation. The kit's
 // upstream-suites file is left to the engine gate: it needs the baseline archives that the
 // engine suite needs.

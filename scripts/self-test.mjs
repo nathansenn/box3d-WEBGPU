@@ -460,7 +460,7 @@ assert.match(pagesWorkflow, /workflow_run:[\s\S]*workflows: \[CI\]/, 'Pages must
 assert.match(pagesWorkflow, /workflow_run\.conclusion == 'success'/, 'Pages must deploy only commits that passed CI');
 assert.match(pagesWorkflow, /npm run verify:source/, 'Pages must verify source integrity');
 assert.match(pagesWorkflow, /npm run build:pages/, 'Pages workflow must build the subpath-safe bundle');
-for (const command of ['verify:source', 'typecheck', 'test:cbridge', 'test:webgpu', 'test:collision', 'test:assets', 'test:qualification', 'test:heat', 'test:threaded', 'test:release-contracts', 'catalog:check', 'test:engine', 'test:studio', 'test:studio:presets', 'test:studio:river', 'test:studio:reference', 'test:studio:press', 'test:studio:bridge', 'test:studio:liquid', 'test:studio:materials', 'test:soft-soak:all', 'test:rope-batching', 'test:native-wasm', 'test:material:100', 'build', 'build:pages', 'stage:railway', 'test:browser:release']) {
+for (const command of ['verify:source', 'typecheck', 'test:cbridge', 'test:webgpu', 'test:collision', 'test:assets', 'test:qualification', 'test:heat', 'test:solid', 'test:threaded', 'test:release-contracts', 'catalog:check', 'test:engine', 'test:studio', 'test:studio:presets', 'test:studio:river', 'test:studio:reference', 'test:studio:press', 'test:studio:bridge', 'test:studio:liquid', 'test:studio:materials', 'test:soft-soak:all', 'test:rope-batching', 'test:native-wasm', 'test:material:100', 'build', 'build:pages', 'stage:railway', 'test:browser:release']) {
   assert.ok(releasePackage.scripts[command], `Missing executable package script ${command}`);
   assert.ok(sharedReleaseGate.includes(`'${command}'`), `Release gates must execute ${command}`);
 }
