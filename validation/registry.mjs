@@ -15,6 +15,7 @@ import geometry from './domains/geometry.mjs';
 import scene from './domains/scene.mjs';
 import simulation from './domains/simulation.mjs';
 import robot from './domains/robot.mjs';
+import cloth from './domains/cloth.mjs';
 import heat from './domains/heat.mjs';
 import solid from './domains/solid.mjs';
 import fracture from './domains/fracture.mjs';
@@ -135,6 +136,22 @@ export const DOMAINS = [
     ],
   },
   {
+    id: 'cloth', title: 'Cloth: membrane, bending, contact and rigid coupling', needsKit: true,
+    solver: '`box3d-webgpu-kit/cloth`: constant-strain St. Venant-Kirchhoff triangles, Koiter bending on the triangle-averaged shape operator, backward Euler by Newton and preconditioned conjugate gradients, float64; rigid bodies as unknowns of the same solve',
+    summary: 'The patch test, uniaxial stress and Poisson contraction (and the edge-spring model failing it), a hanging strip, the catenary, a cantilever with its mesh study, the frequency of a tensioned strip, a pressurised membrane, the integrators\' energy, Coulomb friction on a ramp, a plate that must not tunnel, a ball on a trampoline, a draped box on a scale, a hanging body, self-collision and repeatability.',
+    docs: ['docs/CLOTH.md'],
+    notValidated: [
+      'Bending on irregular meshes. The triangle-averaged curvature is consistent on structured meshes only: with nodes jittered by 25% of a cell the cantilever is 4% too stiff at 16 elements and 11% at 32, and refinement does not help. The membrane rows do not have this limit.',
+      'Large strains and wrinkling. The membrane law is St. Venant-Kirchhoff, checked at strains up to 2e-3; it is not a fabric model (no anisotropy, no warp and weft, no hysteresis), and compression is carried until the sheet buckles at the scale of the mesh.',
+      'Tearing, plasticity and damage are not modelled. Bending stiffness of a woven fabric is not E t^3 / 12: it must be measured and set.',
+      'Contact is node against body: a body corner or edge between nodes is not seen, a body smaller than the mesh spacing rests on single nodes, and hulls, triangle meshes and height fields are not supported. Curved bodies are safe from tunnelling only below about one radius of travel per step.',
+      'Self-collision is a repulsion without friction, checked for layers pressed at 0.02 N per pair. It is not intersection-free: a pair pressed harder than stiffness times thickness, or one that closes by more than a mesh edge in one step, can pass through, and nothing untangles it.',
+      'Friction limits lag the normal force by a Newton iterate in transients; only steady sliding and sticking are checked. Rolling and spinning friction are not modelled.',
+      'The coupling sees a body\'s other contacts and joints only through an estimate that lags one step. A cloth heavier than the supported body it rests on is not checked. Bodies rotate by a linearised rotation in the contact geometry (error (omega dt)^2 / 2 times the body size per step).',
+      'Wind is a normal-pressure formula, not aerodynamics, and has no reference here beyond its own force. No real-fabric measurement is used anywhere: every reference is a formula.',
+    ],
+  },
+  {
     id: 'heat', title: 'Heat conduction', needsKit: false,
     solver: '`src/engine/heat.ts`: finite volumes on a structured grid, backward Euler, Crank-Nicolson or explicit, float64',
     summary: 'Steady slabs and composite walls, sources, convection and radiation boundaries, temperature-dependent conductivity, the erfc and Fourier-series transients with their observed orders, a 2-D plate, an energy audit and the explicit stability limit.',
@@ -219,7 +236,7 @@ export const DOMAINS = [
   },
 ];
 
-export const CASES = [...rigid, ...waterCoupling, ...structureCoupling, ...siBridge, ...geometry, ...scene, ...simulation, ...robot, ...heat, ...solid, ...fracture, ...frame, ...cable, ...closedWater];
+export const CASES = [...rigid, ...waterCoupling, ...structureCoupling, ...siBridge, ...geometry, ...scene, ...simulation, ...robot, ...cloth, ...heat, ...solid, ...fracture, ...frame, ...cable, ...closedWater];
 
 /** Cases of the given domains (all when `only` is empty), in registry order. */
 export function selectCases(only = []) {

@@ -52,6 +52,10 @@
       "types": "./dist/solid.d.ts",
       "default": "./dist/solid.js"
     },
+    "./cloth": {
+      "types": "./dist/cloth.d.ts",
+      "default": "./dist/cloth.js"
+    },
     "./gameplay": {
       "types": "./dist/gameplay.d.ts",
       "default": "./dist/gameplay.js"

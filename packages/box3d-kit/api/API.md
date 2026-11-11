@@ -6109,3 +6109,388 @@ export interface QuenchedPlateOptions {
 ```ts
 export declare const SOLID_FRACTURE_SOLVER_ID = "solid-fracture-czm-js-f64-v1";
 ```
+
+## `box3d-webgpu-kit/cloth`
+
+### Cloth · class
+
+A cloth. Step it alone with `step()`, or hand it to a `ClothCoupling` to exchange forces with a rigid world.
+
+```ts
+export declare class Cloth {
+  readonly solver = "cloth-stvk-koiter-newton-pcg-js-f64-v1";
+  readonly nodeCount: number;
+  readonly triangleCount: number;
+  readonly edgeCount: number;
+  readonly hingeCount: number;
+  readonly dt: number;
+  readonly integrator: 'backward-euler' | 'midpoint';
+  readonly gravity: Float64Array;
+  readonly membraneStiffness: number;
+  readonly bendingStiffness: number;
+  readonly poissonRatio: number;
+  readonly membraneModel: 'stvk' | 'spring';
+  readonly bendingModel: 'koiter' | 'hinge' | 'none';
+  readonly positions: Float64Array;
+  readonly velocities: Float64Array;
+  readonly masses: Float64Array;
+  readonly triangles: Uint32Array;
+  readonly edges: Uint32Array;
+  readonly reactions: Float64Array;
+  readonly stats: ClothStats;
+  externalWork: number;
+  time: number;
+  drag: number;
+  scheme: 'implicit' | 'naive-staggered';
+  bodyStepFactor: number;
+  mass(): number;
+  pin(node: number, position?: ArrayLike<number>): void;
+  release(node: number): void;
+  isPinned(node: number): boolean;
+  setNodalForce(node: number, force: ArrayLike<number>): void;
+  setPressure(pascal: number): void;
+  setWind(wind: { readonly velocity: ArrayLike<number>; readonly airDensity?: number; readonly coefficient?: number; } | null): void;
+  addBody(options: ClothBodyOptions): number;
+  get bodyCount(): number;
+  setBodyState(index: number, state: ClothBodyState): void;
+  setBodyExternalLoad(index: number, force: ArrayLike<number>, torque: ArrayLike<number>, torqueOffset?: number): void;
+  setBodyMass(index: number, mass: number): void;
+  bodyForce(index: number): Float64Array;
+  bodyTorque(index: number): Float64Array;
+  bodyTwoWay(index: number): boolean;
+  bodyGravityScale(index: number): number;
+  bodyAngularMomentumChange(index: number, dx: number, dy: number, dz: number, out: Float64Array): void;
+  bodyContacts(index: number): number;
+  attach(node: number, bodyIndex: number, localPoint?: ArrayLike<number>): void;
+  kineticEnergy(): number;
+  gravitationalEnergy(): number;
+  membraneEnergy(): number;
+  bendingEnergy(): number;
+  contactEnergy(): number;
+  totalEnergy(): number;
+  linearMomentum(out?: number[] | Float64Array): number[] | Float64Array;
+  totalReaction(out?: number[] | Float64Array): number[] | Float64Array;
+  triangleStress(triangle: number, out?: number[] | Float64Array): number[] | Float64Array;
+  minimumSelfDistance(): number;
+  step(count?: number): void;
+  solveStatic(options?: { readonly pseudoStep?: number; readonly maxIterations?: number; }): ClothStaticResult;
+  bodyPosition(index: number): Float64Array;
+}
+```
+
+### CLOTH_COUPLING_BACKEND · const
+
+```ts
+export declare const CLOTH_COUPLING_BACKEND = "rigid-cloth-coupling-monolithic-js-f64-v1";
+```
+
+### CLOTH_MAX_NODES · const
+
+```ts
+export declare const CLOTH_MAX_NODES = 65536;
+```
+
+### CLOTH_SOLVER_ID · const
+
+```ts
+export declare const CLOTH_SOLVER_ID = "cloth-stvk-koiter-newton-pcg-js-f64-v1";
+```
+
+### CLOTH_SUBSYSTEM_ORDER · const
+
+Where the cloth runs inside its stage of a Simulation: after the structure coupling (100), before the water (200).
+
+```ts
+export declare const CLOTH_SUBSYSTEM_ORDER = 150;
+```
+
+### ClothBodyOptions · interface
+
+```ts
+export interface ClothBodyOptions extends ClothBodyState {
+    readonly shape: ClothShape;
+    readonly type: 'static' | 'kinematic' | 'dynamic';
+    readonly mass?: number;
+    readonly inertia?: StructureInertia;
+    readonly friction?: number;
+    readonly collide?: boolean;
+    readonly twoWay?: boolean;
+    readonly gravityScale?: number;
+}
+```
+
+### ClothBodyState · interface
+
+```ts
+export interface ClothBodyState {
+    readonly position: ArrayLike<number>;
+    readonly rotation: ArrayLike<number>;
+    readonly linearVelocity?: ArrayLike<number>;
+    readonly angularVelocity?: ArrayLike<number>;
+}
+```
+
+### ClothColliderOptions · interface
+
+```ts
+export interface ClothColliderOptions {
+    readonly shape: ClothShape;
+    readonly friction?: number;
+    readonly inertia?: StructureInertia;
+    readonly collide?: boolean;
+    readonly twoWay?: boolean;
+    readonly gravityScale?: number;
+}
+```
+
+### ClothConfig · interface
+
+```ts
+export interface ClothConfig {
+    readonly dt: number;
+    readonly gravity?: ClothVec3;
+    readonly integrator?: 'backward-euler' | 'midpoint';
+    readonly drag?: number;
+    readonly maxNewtonIterations?: number;
+    readonly residualTolerance?: number;
+    readonly forceTolerance?: number;
+    readonly maxCgIterations?: number;
+    readonly cgTolerance?: number;
+}
+```
+
+### ClothContactOptions · interface
+
+```ts
+export interface ClothContactOptions {
+    readonly offset?: number;
+    readonly stiffness?: number;
+    readonly skin?: number;
+}
+```
+
+### ClothCoupling · class
+
+Two-way coupling of a Cloth with a rigid world. Call `step()` immediately before `world.step()`: it reads the bodies,
+advances the cloth by one step with the dynamic bodies as unknowns of the same solve, and gives each body the force and
+torque the cloth put on it, to act through the rigid step. What the cloth feels and what the bodies get are the same
+numbers with opposite signs.
+
+```ts
+export declare class ClothCoupling<B> {
+  readonly backend = "rigid-cloth-coupling-monolithic-js-f64-v1";
+  readonly world: ClothWorld<B>;
+  readonly cloth: Cloth;
+  readonly dt: number;
+  readonly scheme: 'implicit' | 'naive-staggered';
+  readonly estimateSupports: boolean;
+  steps: number;
+  addBody(body: B, options: ClothColliderOptions): number;
+  addPlane(options: { readonly normal: ClothVec3; readonly point?: ClothVec3; readonly friction?: number; }): number;
+  indexOf(body: B): number;
+  attach(node: number, body: B, localPoint?: ArrayLike<number>): void;
+  detach(node: number): void;
+  force(body: B): Float64Array;
+  torque(body: B): Float64Array;
+  step(): void;
+  contactChanges(each: (body: B | null, index: number, touching: boolean) => void): void;
+  diagnostics(): ClothCouplingDiagnostics;
+}
+```
+
+### ClothCouplingDiagnostics · interface
+
+```ts
+export interface ClothCouplingDiagnostics {
+    clothKinetic: number;
+    clothMembrane: number;
+    clothBending: number;
+    clothPotential: number;
+    bodyKinetic: number;
+    bodyPotential: number;
+    total: number;
+    momentum: [number, number, number];
+    mass: number;
+}
+```
+
+### ClothCouplingOptions · interface
+
+```ts
+export interface ClothCouplingOptions {
+    readonly scheme?: 'implicit' | 'naive-staggered';
+    readonly estimateSupports?: boolean;
+}
+```
+
+### ClothDefinition · interface
+
+```ts
+export interface ClothDefinition {
+    readonly positions: ArrayLike<number>;
+    readonly triangles: ArrayLike<number>;
+    readonly restPositions?: ArrayLike<number>;
+    readonly velocities?: ArrayLike<number>;
+    readonly material: ClothMaterial;
+    readonly config: ClothConfig;
+    readonly pinned?: ArrayLike<number>;
+    readonly extraMass?: ArrayLike<number>;
+    readonly contact?: ClothContactOptions;
+    readonly selfCollision?: ClothSelfCollisionOptions;
+}
+```
+
+### clothGrid · function
+
+A rectangle of (nx + 1) x (ny + 1) nodes spanned by `u` and `v` from `origin` (default: the x-y plane), node (i, j) at
+index i + (nx + 1) j. `diagonal`: 'uniform' cuts every cell the same way, 'alternate' in a union-jack pattern.
+`jitter` moves interior nodes by up to that fraction of a cell (a seeded generator, so the mesh is repeatable).
+
+```ts
+export declare function clothGrid(options: {
+    readonly nx: number;
+    readonly ny: number;
+    readonly u: ClothVec3;
+    readonly v: ClothVec3;
+    readonly origin?: ClothVec3;
+    readonly diagonal?: 'uniform' | 'alternate';
+    readonly jitter?: number;
+    readonly seed?: number;
+}): ClothGrid;
+```
+
+### ClothGrid · interface
+
+```ts
+export interface ClothGrid {
+    positions: Float64Array;
+    triangles: Uint32Array;
+    nx: number;
+    ny: number;
+    node(i: number, j: number): number;
+}
+```
+
+### ClothMaterial · interface
+
+```ts
+export interface ClothMaterial {
+    readonly arealDensity: number;
+    readonly youngModulus: number;
+    readonly thickness: number;
+    readonly poissonRatio: number;
+    readonly membrane?: 'stvk' | 'spring';
+    readonly bending?: 'koiter' | 'hinge' | 'none';
+    readonly bendingStiffness?: number;
+}
+```
+
+### ClothSelfCollisionOptions · interface
+
+```ts
+export interface ClothSelfCollisionOptions {
+    readonly thickness: number;
+    readonly stiffness?: number;
+    readonly capacity?: number;
+}
+```
+
+### ClothShape · type
+
+```ts
+export type ClothShape = {
+    readonly kind: 'box';
+    readonly halfExtents: ClothVec3;
+} | {
+    readonly kind: 'sphere';
+    readonly radius: number;
+}
+| {
+    readonly kind: 'capsule';
+    readonly radius: number;
+    readonly halfLength: number;
+}
+| {
+    readonly kind: 'plane';
+    readonly normal: ClothVec3;
+};
+```
+
+### ClothStaticResult · interface
+
+```ts
+export interface ClothStaticResult {
+    converged: boolean;
+    iterations: number;
+    residual: number;
+    tolerance: number;
+}
+```
+
+### ClothStats · interface
+
+```ts
+export interface ClothStats {
+    steps: number;
+    newtonIterations: number;
+    cgIterations: number;
+    lineSearchHalvings: number;
+    unconvergedSteps: number;
+    residual: number;
+    tolerance: number;
+    contacts: number;
+    selfPairs: number;
+    droppedPairs: number;
+}
+```
+
+### clothSubsystem · function
+
+A cloth as a subsystem of the one stepping loop (simulation.ts).
+ - A `ClothCoupling`: couple stage, order 150. It exchanges forces with the rigid step, so its dt must equal the
+   simulation step.
+ - A bare `Cloth` (no world): post stage; its dt may be the step, a whole fraction of it or a whole multiple.
+Energy: kinetic + membrane + bending + gravitational + contact-spring energy of the cloth, with the work of loads, moving supports and
+bodies as `exchanged`; the bodies themselves are not counted (track them with `simulation.trackBody`). Numerical
+damping, drag and friction make `total - exchanged` fall.
+Events, emitted at the end of a step: 'contact-begin' and 'contact-end' with {body, index} when a body starts or stops
+pressing on the cloth, and 'unconverged' with {residual, tolerance} when a step stopped at its iteration limit.
+Tearing is not modelled, so there is no tear event.
+
+```ts
+export declare function clothSubsystem<W, B>(target: Cloth | ClothCoupling<B>, options?: {
+    readonly id?: string;
+    readonly order?: number;
+}): Subsystem<W, B>;
+```
+
+### ClothVec3 · type
+
+```ts
+export type ClothVec3 = readonly [number, number, number];
+```
+
+### ClothWorld · interface
+
+The part of a rigid-body world the coupling uses. The kit's PhysicsWorld satisfies it.
+
+```ts
+export interface ClothWorld<B> {
+    gravity(): readonly number[];
+    getState(body: B): {
+        readonly position: readonly number[];
+        readonly rotation: readonly number[];
+        readonly linearVelocity: readonly number[];
+        readonly angularVelocity: readonly number[];
+        readonly mass: number;
+        readonly type: string;
+    };
+    applyForce(body: B, force: ClothVec3, point?: ClothVec3): void;
+    applyTorque(body: B, torque: ClothVec3): void;
+    isAlive?(body: B): boolean;
+    readonly loop?: {
+        readonly step: number;
+    };
+    readonly subSteps?: number;
+}
+```

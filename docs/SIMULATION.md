@@ -50,6 +50,8 @@ simulation.step();
  │
  ├─ couple         100  structure coupling   closes last step's frame impulse, reads the bodies at t,
  │                                           steps its cables and frames, applies their forces
+ │                 150  cloth coupling       (`clothSubsystem` of box3d-webgpu-kit/cloth) solves the cloth with
+ │                                           the bodies it touches, applies its forces
  │                 200  water coupling       reads the bodies at t, applies buoyancy and drag,
  │                                           advances the water to t + dt
  │
@@ -129,7 +131,8 @@ Each adapter calls the module's own `step` and nothing else. No module's numeric
 | rigid → solid | **One-way link** (`deadLoadLink`): a body's weight becomes a dead load on solid nodes. |
 | rigid ↔ solid contact | **Not modelled.** A rigid body does not collide with a deformable solid, rest on it or get pushed by it. Open. |
 | solid → heat, solid → rigid, water ↔ solid, water ↔ cable or frame | Not modelled. |
-| cloth, rope, granular, GPU water | Not in the loop yet. |
+| rigid ↔ cloth | Two-way, through `ClothCoupling` and `clothSubsystem` ([`CLOTH.md`](CLOTH.md)): contact with friction, attachments. The adapter lives in the cloth module, not in `simulation.ts`. A cloth and a cable, a frame or water on the same body do not know of each other, as above. Cloth is not in the scene format. |
+| the app's cloth and rope, granular, GPU water | Not in the loop yet. |
 
 ### Water and structure together
 

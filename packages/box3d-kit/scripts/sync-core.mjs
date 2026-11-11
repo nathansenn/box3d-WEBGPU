@@ -45,6 +45,9 @@ export const CORE = [
   // ./fracture: cohesive and crack-band fracture of tetrahedral solids. Imports contracts.ts, solid-mesh.ts, solid.ts,
   // geometry.ts and heat.ts, and types from simulation.ts.
   {from: 'src/engine/solid-fracture.ts', rewrites: []},
+  // ./cloth: the calibrated cloth and its coupling to rigid bodies. Imports contracts.ts, principalMoments from
+  // structure-coupling.ts and the Subsystem type from simulation.ts.
+  {from: 'src/engine/cloth.ts', rewrites: []},
 ];
 export const WASM_FILES = ['box3d.js', 'box3d.wasm', 'BUILD_PROVENANCE.json', 'BOX3D_LICENSE.txt'];
 

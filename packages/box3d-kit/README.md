@@ -428,6 +428,7 @@ camera.follow(hero.state.position);
 | `box3d-webgpu-kit/gameplay` | Trigger volumes and a kinematic character controller for the rigid-body world (see above). |
 | `box3d-webgpu-kit/geometry` | OBJ, STL and glTF import, mesh measures, convex hulls and convex decomposition (see above). |
 | `box3d-webgpu-kit/scene` | Scene files: a versioned JSON format with validation, load, save, canonical text, hashing, share links and example scenes (see above). |
+| `box3d-webgpu-kit/cloth` | Calibrated cloth: a membrane and plate with real material parameters, implicit integration, contact and friction against rigid bodies, self-collision, and two-way coupling to the rigid world (see below). |
 | `box3d-webgpu-kit/simulation` | One stepping loop: a `Simulation` that steps the world, the water and structure couplings, heat and solids in a fixed order, with one clock, energy ledger and event stream (see below). |
 
 Cable, water, frame and solid are the same model code the Box3D WebGPU app runs; the build copies it from the app. The app's own test suites (68 tests: 11 cable, 11 proximal cable, 2 linear water, 6 closed water, 16 frame, 22 solid) run against the packaged copies in `npm test`. Heat and solid are independent of the rigid-body world. Water is coupled to it by `box3d-webgpu-kit/coupling`, and cables and frames by `box3d-webgpu-kit/structure`. The WebGPU water solver is not packaged yet.
@@ -604,6 +605,49 @@ if (pieces.length > 1) {
 - **In the stepping loop:** `fractureSubsystem(body)` emits crack events, and `thermalSolidLink(heat, body, ...)` lets the heat solver crack the solid; `quenchedPlate()` is a ready thermal-shock example.
 - **Accuracy:** checked against closed-form fracture mechanics in the repository's `docs/SOLID_FRACTURE.md`: peak load `sigma_c A` and energy `G_c A` of a bar to 1e-9; Griffith's stress for a pre-cracked plate within 3.5 % on cells of half the characteristic length `E G_c / sigma_c^2` (11.5 % on cells of that length); the work of fracture of a notched beam within half a cell of the ligament.
 - **Limits, read these:** cracks can only follow element faces, so a crack inclined to the mesh is too large (24 % to 48 % measured) and its path depends on the mesh. On-demand insertion misses the stress peak at a crack tip on a coarse mesh: lower `insertionThreshold` or pre-insert the path. Small strain only, no plasticity, no friction, and no contact between fragments: hand them to the rigid world, which is one-way.
+
+### Cloth with real material parameters
+
+`Cloth` is a triangle mesh with an areal density (kg/m²), Young's modulus (Pa), a thickness (m) and Poisson's ratio. `ClothCoupling` lets it collide with bodies of the world, rest on them, be attached to them and push them. This drops a ball on a sheet held along its edges:
+
+```ts
+import {createWorld} from 'box3d-webgpu-kit';
+import {Cloth, ClothCoupling, clothGrid, clothSubsystem} from 'box3d-webgpu-kit/cloth';
+import {createSimulation} from 'box3d-webgpu-kit/simulation';
+
+const world = await createWorld({step: 1 / 240, subSteps: 4, ground: false});
+// A 1 m square sheet, 10 x 10 cells, held along its edges at y = 0.
+const grid = clothGrid({nx: 10, ny: 10, u: [1, 0, 0], v: [0, 0, -1], origin: [-0.5, 0, 0.5]});
+const edge = [];
+for (let j = 0; j <= 10; j++) for (let i = 0; i <= 10; i++) if (i % 10 === 0 || j % 10 === 0) edge.push(grid.node(i, j));
+const cloth = new Cloth({
+  positions: grid.positions, triangles: grid.triangles, pinned: edge,
+  material: {arealDensity: 0.3, youngModulus: 5e6, thickness: 1e-3, poissonRatio: 0.3,   // kg/m², Pa, m
+    bendingStiffness: 1e-3},                                                              // N m; default E t³ / (12 (1 − ν²))
+  config: {dt: 1 / 240, gravity: [0, -9.81, 0], drag: 2},
+});
+
+const ball = world.createBody({shape: {kind: 'sphere', radius: 0.35}, position: [0, 0.6, 0], density: 15, neverSleeps: true});
+const coupling = new ClothCoupling(world, cloth);
+coupling.addBody(ball, {shape: {kind: 'sphere', radius: 0.35}, friction: 0.3});   // say what the body is: the world cannot
+
+const sim = createSimulation(world).add(clothSubsystem(coupling));                 // or: coupling.step(); world.step();
+sim.onEvent(e => { if (e.source === 'cloth') console.log(e.tick, e.type); });      // contact-begin, contact-end, unconverged
+for (let i = 0; i < 4 * 240; i++) sim.step();
+
+coupling.force(ball);          // N: what the cloth does to the ball; the ball's weight once it rests
+cloth.totalReaction();         // N: what the supports carry; cloth + ball once they rest
+cloth.positions;               // Float64Array, xyz per node, for drawing
+cloth.stats.unconvergedSteps;  // steps that stopped at the iteration limit
+```
+
+- **Material:** constant-strain triangles with the St. Venant–Kirchhoff law (so Poisson's ratio is real: 0.3002 when asked for 0.3, where edge springs give whatever the mesh dictates) and plate bending with `D = E t³ / (12 (1 − ν²))` or a stiffness you state. Fabric bends more easily than a plate of its thickness: measure it and set `bendingStiffness`.
+- **Integration:** backward Euler solved by Newton's method to a force tolerance, so stiffness does not depend on an iteration count. `integrator: 'midpoint'` conserves energy for smooth problems without contact. `solveStatic()` finds equilibria.
+- **Supports and loads:** `pinned`, `pin(node, position)`, gravity, `setNodalForce`, `setPressure` (inflation) and `setWind` (a normal-pressure formula, not aerodynamics). `cloth.reactions` holds the support forces.
+- **Bodies:** `coupling.addBody(body, {shape, friction})` for boxes, spheres and capsules, `coupling.addPlane({normal})` for a ground, `coupling.attach(node, body)` for a flag on a pole or a load on a hammock. Each dynamic body is an unknown of the cloth's own solve, so a 40 g box on a stiff strip is stable where handing forces back and forth overflows. Call `coupling.step()` immediately before `world.step()`, or register `clothSubsystem(coupling)` with a `Simulation`.
+- **Self-collision:** `selfCollision: {thickness}` keeps layers a thickness apart by point-triangle and edge-edge repulsion.
+- **Accuracy:** `test/v16-cloth.test.mjs` checks it against closed-form answers; the repository's `docs/CLOTH.md` has the table. Second order on structured meshes: a cantilever's tip is 0.08% off with 32 elements, a tensioned strip's frequency 0.05%, a pressurised membrane 0.1%.
+- **Limits, measured:** about 100 nodes in real time on one thread (a 17 × 17 sheet takes 9 ms per 1/240 s step). Bending does not converge on irregular meshes (4% off with nodes jittered by a quarter of a cell): use structured ones. Contact is node against body, so the mesh must be finer than the bodies, and hulls, meshes and height fields are not supported. Self-collision is a repulsion, not a guarantee against intersection. No tearing, no anisotropy.
 
 ### One stepping loop for every solver
 
