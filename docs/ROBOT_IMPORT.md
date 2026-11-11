@@ -5,7 +5,7 @@
 Read this before relying on a result:
 
 - **Mass is matched, inertia is not.** The engine derives a body's inertia from its shape and density and cannot be given a tensor. The import chooses each density so that the link's mass is the file's, and reports the inertia that results. On the example arm the worst link is 42% off the file's tensor. A pendulum built from a file whose inertia is 1.3 × the shape's swings 3.7% faster than the file predicts. [Mass and inertia](#mass-and-inertia) has the policy and the measured numbers.
-- **Joints are soft.** The engine solves joints as constraints with a stiffness of 60 Hz, which the bridge cannot change. A loaded arm settles below its kinematic pose (17.7 mm at the tool of the 1 m example arm) and a chain stretches by millimetres. [Limits](#limits) has the measurements.
+- **Joints are soft.** The engine solves joints as constraints with a stiffness of 60 Hz, which the bridge cannot change. A loaded arm settles below its kinematic pose (17.7 mm at the tool of the 1 m example arm) and a chain stretches by millimetres. [Limits](#limits) has the measurements. Since this was written the bridge gained joint stiffness: `jointStiffness: {hertz: 240}` in the import options (or `stiffness` on any joint) cuts the same arm's tool displacement from 24.0 mm to 2.4 mm at 240 Hz stepping with 4 sub-steps.
 - **Nothing is dropped silently.** Every element the import ignores, approximates or cannot represent is in `warnings`, with the element named.
 
 ## Use
@@ -231,7 +231,7 @@ Where the file's inertia is that of its collision shape, the error is the cylind
 
 ## Limits
 
-**Joints are soft constraints.** Box3D gives each joint's constraint rows a stiffness of 60 Hz and a damping ratio of 2 (`constraintHertz`, `constraintDampingRatio` in its joint definition), and the bridge does not expose them. A joint under a steady load is therefore displaced, by about `load / (m_reduced (2π · 60 Hz)²)`. Raising the step rate or the sub-steps does not remove it: the arm below settles at 17.7 mm at 240 Hz with 4 sub-steps, 17.4 mm with 8, 17.3 mm with 16, and 17.3 mm at 480 Hz with 8. Measured at 240 Hz, 4 sub-steps:
+**Joints are soft constraints.** Box3D gives each joint's constraint rows a stiffness of 60 Hz and a damping ratio of 2 (`constraintHertz`, `constraintDampingRatio` in its joint definition), and the bridge does not expose them. A joint under a steady load is therefore displaced, by about `load / (m_reduced (2π · 60 Hz)²)`. Raising the step rate or the sub-steps does not remove it: the arm below settles at 17.7 mm at 240 Hz with 4 sub-steps, 17.4 mm with 8, 17.3 mm with 16, and 17.3 mm at 480 Hz with 8. Measured at 240 Hz, 4 sub-steps: The stiffness can now be raised per joint (`JointOptions.stiffness`, `setJointStiffness`, `jointStiffness` here); sag falls as 1 / hertz² up to about a quarter of the sub-step rate. The measurements below are at the default.
 
 | Case | Measured |
 |---|---|

@@ -462,6 +462,10 @@ export interface JointOptions {
     };
     readonly length?: number;
     readonly coneAngle?: number;
+    readonly stiffness?: {
+        readonly hertz: number;
+        readonly dampingRatio?: number;
+    };
 }
 ```
 
@@ -689,6 +693,10 @@ export interface NativeJointDescriptor {
     };
     readonly length?: number;
     readonly coneAngle?: number;
+    readonly stiffness?: {
+        readonly hertz: number;
+        readonly dampingRatio?: number;
+    };
 }
 ```
 
@@ -872,6 +880,7 @@ export declare class NativeWorldBackend implements PhysicsBackend {
   setJointMotor(joint: NativeJointHandle, motor: { speed: number; maxForce: number; } | null): void;
   setJointLimits(joint: NativeJointHandle, limits: { lower: number; upper: number; } | null): void;
   setJointSpring(joint: NativeJointHandle, spring: { hertz: number; dampingRatio: number; target?: number; } | null): void;
+  setJointStiffness(joint: NativeJointHandle, hertz: number, dampingRatio?: number): void;
   setJointSteering(joint: NativeJointHandle, steering: { angle: number; hertz: number; dampingRatio: number; maxTorque: number; } | null): void;
   jointState(joint: NativeJointHandle): NativeJointState;
   collectEvents(): { events: NativeWorldEvent[]; dropped: number; };
@@ -1005,6 +1014,7 @@ export declare class PhysicsWorld {
   setJointMotor(joint: Joint, motor: { speed: number; maxForce: number; } | null): void;
   setJointLimits(joint: Joint, limits: { lower: number; upper: number; } | null): void;
   setJointSpring(joint: Joint, spring: { hertz: number; dampingRatio: number; target?: number; } | null): void;
+  setJointStiffness(joint: Joint, hertz: number, dampingRatio?: number): void;
   setJointSteering(joint: Joint, steering: { angle: number; hertz: number; dampingRatio: number; maxTorque: number; } | null): void;
   getJointState(joint: Joint): JointState;
   onEvent(listener: (event: WorldEvent) => void): () => void;
@@ -1763,6 +1773,7 @@ export declare class RemoteWorld implements InstanceSource {
   setJointMotor(joint: RemoteJoint, motor: { speed: number; maxForce: number; } | null): Promise<void>;
   setJointLimits(joint: RemoteJoint, limits: { lower: number; upper: number; } | null): Promise<void>;
   setJointSpring(joint: RemoteJoint, spring: { hertz: number; dampingRatio: number; target?: number; } | null): Promise<void>;
+  setJointStiffness(joint: RemoteJoint, hertz: number, dampingRatio?: number): Promise<void>;
   setJointSteering(joint: RemoteJoint, steering: { angle: number; hertz: number; dampingRatio: number; maxTorque: number; } | null): Promise<void>;
   getJointState(joint: RemoteJoint): Promise<JointState>;
   takeEvents(): Promise<{ events: RemoteWorldEvent[]; dropped: number; }>;
@@ -4539,6 +4550,10 @@ export interface SceneJoint {
     };
     readonly length?: number;
     readonly coneAngle?: number;
+    readonly stiffness?: {
+        readonly hertz: number;
+        readonly dampingRatio?: number;
+    };
     readonly userData?: {
         readonly [key: string]: unknown;
     };
@@ -5569,6 +5584,10 @@ export interface RobotSceneOptions {
     };
     readonly floatingBase?: boolean;
     readonly selfCollision?: boolean;
+    readonly jointStiffness?: {
+        readonly hertz: number;
+        readonly dampingRatio?: number;
+    };
     readonly position?: readonly [number, number, number];
     readonly rotation?: readonly [number, number, number, number];
     readonly up?: 'z' | 'y';

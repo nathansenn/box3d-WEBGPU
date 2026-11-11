@@ -1204,6 +1204,12 @@ export interface RobotSceneOptions {
   readonly floatingBase?: boolean;
   /** true (default): links collide with each other, except links joined by a joint. false: the whole robot shares one negative collision group. */
   readonly selfCollision?: boolean;
+  /**
+   * How stiffly every joint of the robot holds its links together. The engine's default (60 Hz,
+   * damping ratio 2) lets a loaded arm sag by millimetres per joint; a higher frequency holds it
+   * closer. Keep it well below the sub-step rate (steps per second x subSteps).
+   */
+  readonly jointStiffness?: {readonly hertz: number; readonly dampingRatio?: number};
   /** Where the robot's origin goes in the world, and its orientation there (applied after `up`). */
   readonly position?: readonly [number, number, number];
   readonly rotation?: readonly [number, number, number, number];
@@ -1678,6 +1684,8 @@ function buildPlan(description: RobotDescription, options: RobotSceneOptions): R
     }
   }
 
+  if (options.jointStiffness) for (let i = 0; i < joints.length; i++) joints[i] = {...joints[i]!, stiffness: options.jointStiffness};
+
   // The report: what the file asked for against what the bodies are.
   const linkReports: RobotLinkReport[] = [];
   let totalMass = 0, totalMassActual = 0, maxPrincipalError = 0, worstLink: string | null = null;
@@ -1813,7 +1821,7 @@ export function spawnRobot<B = NativeBodyHandle, J = NativeJointHandle>(world: R
     try {
       allJoints.set(joint.id, world.createJoint({
         type: joint.type, bodyA: joint.bodyA === null ? null : bodies.get(joint.bodyA)!, bodyB: joint.bodyB === null ? null : bodies.get(joint.bodyB)!,
-        frameA: joint.frameA, frameB: joint.frameB, limits: joint.limits, motor: joint.motor, spring: joint.spring,
+        frameA: joint.frameA, frameB: joint.frameB, limits: joint.limits, motor: joint.motor, spring: joint.spring, stiffness: joint.stiffness,
       }));
     } catch (error) {
       for (const made of bodies.values()) world.destroyBody?.(made);

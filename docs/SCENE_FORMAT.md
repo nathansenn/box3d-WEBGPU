@@ -151,6 +151,7 @@ Geometry is inline, as plain arrays of numbers.
 | `spring` | `{hertz, dampingRatio, target?}` | no | `hertz`, `dampingRatio` ≥ 0. |
 | `length` | number > 0 | distance joints | Rest length in metres. |
 | `coneAngle` | number in [0, π] | no | Spherical joints: cone half-angle. |
+| `stiffness` | `{hertz, dampingRatio?}` | no | How stiffly the joint holds its bodies together. Default 60 Hz with damping ratio 2. |
 | `userData` | object | no | |
 
 Revolute and wheel joints turn about the frame's z axis. Prismatic travel and wheel suspension run along frame A's x axis. A spherical joint's cone is about the frame's z axis.

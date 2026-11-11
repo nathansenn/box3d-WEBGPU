@@ -699,6 +699,7 @@ test('static stability: the six-joint arm holds its pose for 5 s within a stated
     for (const [label, options, toolLimit, angleLimit] of [
       ['motors holding zero speed', {motors: Object.fromEntries(names.map(name => [name, 0]))}, 0.03, 0.01],
       ['60 Hz springs', {hold: {hertz: 60, dampingRatio: 1}}, 0.05, 0.02],
+      ['motors, joints stiffened to 240 Hz', {motors: Object.fromEntries(names.map(name => [name, 0])), jointStiffness: {hertz: 240}}, 0.003, 0.01],
     ]) {
       world.reset({ground: false});
       const spawned = spawnRobot(world, robot, options), tool = spawned.links.get('tool');
@@ -710,6 +711,7 @@ test('static stability: the six-joint arm holds its pose for 5 s within a stated
         worst = Math.max(worst, Math.hypot(p[0] - start[0], p[1] - start[1], p[2] - start[2]));
         if (i % 24 === 0) { gap = Math.max(gap, anchorGap(world, spawned).gap); for (const body of spawned.bodies.values()) fastest = Math.max(fastest, Math.hypot(...world.getState(body).linearVelocity)); }
       }
+      if (process.env.ROBOT_PROBE) console.log(label, 'worst', worst, 'gap', gap);
       assert.ok(worst < toolLimit, `${label}: the tool moved ${worst} m at most (limit ${toolLimit})`);
       assert.ok(fastest < 1, `${label}: no body ever moved faster than 1 m/s (${fastest}): nothing exploded`);
       assert.ok(gap < 2e-3, `${label}: joint anchors stayed within 2 mm (${gap})`);

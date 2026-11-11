@@ -542,3 +542,38 @@ test('a worker-hosted world runs the same mechanism to the same bits and reports
     await assert.rejects(remote.getState(there.ball), e => e.code === 'STALE_BODY', 'reset forgets the old handles');
   } finally { local.dispose(); await remote.dispose(); }
 });
+
+test('joint stiffness: a hanging chain sags as 1 / hertz^2, and the setting survives scenes and replay', async () => {
+  const sag = async (stiffness, viaSetter = false) => {
+    const world = await si({ground: false});
+    try {
+      const n = 12, L = 0.25;
+      let previous = null, last = null;
+      for (let i = 0; i < n; i++) {
+        const link = world.createBody({shape: {kind: 'box', halfExtents: [0.03, L / 2, 0.03]}, position: [0, -L / 2 - i * L, 0], density: 2000, neverSleeps: true});
+        const joint = world.createJoint({type: 'revolute', bodyA: previous, bodyB: link, frameA: {position: previous ? [0, -L / 2, 0] : [0, 0, 0]}, frameB: {position: [0, L / 2, 0]},
+          ...(stiffness && !viaSetter ? {stiffness} : {})});
+        if (stiffness && viaSetter) world.setJointStiffness(joint, stiffness.hertz, stiffness.dampingRatio);
+        previous = link; last = link;
+      }
+      run(world, 4);
+      return -L / 2 - (n - 1) * L - world.getState(last).position[1];
+    } finally { world.dispose(); }
+  };
+  const base = await sag(null), same = await sag({hertz: 60, dampingRatio: 2}), double = await sag({hertz: 120}), quad = await sag({hertz: 240}), set = await sag({hertz: 120}, true);
+  assert.equal(same, base, "60 Hz with ratio 2 is the engine's default, bit for bit");
+  // A joint is a spring of stiffness m_eff (2 pi f)^2, so the sag under the same weight falls as 1 / f^2.
+  within(base / double, 4, 0.02, 'twice the frequency, a quarter of the sag');
+  within(base / quad, 16, 0.05, 'four times the frequency, a sixteenth');
+  assert.ok(base > 0.005 && quad < 0.001, `default ${base} m, stiff ${quad} m`);
+  assert.equal(set, double, 'setJointStiffness gives the same result as the option');
+  const world = await si();
+  try {
+    const body = world.createBody({shape: {kind: 'sphere', radius: 0.2}, position: [0, 2, 0]});
+    assert.throws(() => world.createJoint({type: 'weld', bodyA: null, bodyB: body, stiffness: {hertz: 0}}), e => e.code === 'INVALID_PAYLOAD');
+    const joint = world.createJoint({type: 'weld', bodyA: null, bodyB: body, stiffness: {hertz: 200}});
+    assert.throws(() => world.setJointStiffness(joint, -1), e => e.code === 'INVALID_PAYLOAD');
+    world.destroyBody(body);
+    assert.throws(() => world.setJointStiffness(joint, 100), e => e.code === 'STALE_JOINT');
+  } finally { world.dispose(); }
+});

@@ -714,3 +714,22 @@ test('the domino, car and ragdoll scenes do what they describe', async () => {
     } finally { world.dispose(); }
   }
 });
+
+test('joint stiffness is part of the scene format', async () => {
+  const {validateScene, canonicalize, loadScene: load} = await import('box3d-webgpu-kit/scene');
+  const {createWorld: make} = await import('box3d-webgpu-kit');
+  const scene = stiffness => ({format: 'box3d-scene', version: 1, world: {ground: false, step: 1 / 240},
+    bodies: [{id: 'bob', shape: {kind: 'sphere', radius: 0.1}, position: [0, -1, 0], density: 8000, neverSleeps: true}],
+    joints: [{id: 'rod', type: 'weld', bodyA: null, bodyB: 'bob', frameB: {position: [0, 1, 0]}, ...(stiffness ? {stiffness} : {})}]});
+  assert.deepEqual(validateScene(scene({hertz: 240})), []);
+  assert.equal(validateScene(scene({hertz: -5}))[0].path, '/joints/0/stiffness/hertz');
+  assert.equal(validateScene(scene({hertz: 60, extra: 1}))[0].path, '/joints/0/stiffness/extra');
+  assert.ok(canonicalize(scene({hertz: 240, dampingRatio: 2})).includes('"stiffness":{"hertz":240}'), 'the default damping ratio is dropped from the normal form');
+  const hang = async stiffness => {
+    const world = await make({gravity: [0, -9.81, 0], ground: false, step: 1 / 240, subSteps: 4});
+    try { const {bodies} = load(world, scene(stiffness)); for (let i = 0; i < 480; i++) world.step(); return -1 - world.getState(bodies.get('bob')).position[1]; }
+    finally { world.dispose(); }
+  };
+  const soft = await hang(null), stiff = await hang({hertz: 240});
+  assert.ok(soft > 4 * stiff && stiff >= 0, `a stiffer weld from a scene file sags less (${soft} m against ${stiff} m)`);
+});

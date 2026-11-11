@@ -195,6 +195,7 @@ export function serveWorld(endpoint: MessageEndpoint): void {
     setJointMotor: (ref: RemoteJoint, motor: {speed: number; maxForce: number} | null) => live().setJointMotor(joint(ref), motor),
     setJointLimits: (ref: RemoteJoint, limits: {lower: number; upper: number} | null) => live().setJointLimits(joint(ref), limits),
     setJointSpring: (ref: RemoteJoint, spring: {hertz: number; dampingRatio: number; target?: number} | null) => live().setJointSpring(joint(ref), spring),
+    setJointStiffness: (ref: RemoteJoint, hertz: number, dampingRatio?: number) => live().setJointStiffness(joint(ref), hertz, dampingRatio),
     setJointSteering: (ref: RemoteJoint, steering: {angle: number; hertz: number; dampingRatio: number; maxTorque: number} | null) => live().setJointSteering(joint(ref), steering),
     getJointState: (ref: RemoteJoint) => live().getJointState(joint(ref)),
     /** Start collecting events (first call) and hand over everything collected since the last call. */
@@ -404,6 +405,7 @@ export class RemoteWorld implements InstanceSource {
   setJointMotor(joint: RemoteJoint, motor: {speed: number; maxForce: number} | null): Promise<void> { return this.call('setJointMotor', joint, motor); }
   setJointLimits(joint: RemoteJoint, limits: {lower: number; upper: number} | null): Promise<void> { return this.call('setJointLimits', joint, limits); }
   setJointSpring(joint: RemoteJoint, spring: {hertz: number; dampingRatio: number; target?: number} | null): Promise<void> { return this.call('setJointSpring', joint, spring); }
+  setJointStiffness(joint: RemoteJoint, hertz: number, dampingRatio?: number): Promise<void> { return this.call('setJointStiffness', joint, hertz, dampingRatio); }
   setJointSteering(joint: RemoteJoint, steering: {angle: number; hertz: number; dampingRatio: number; maxTorque: number} | null): Promise<void> { return this.call('setJointSteering', joint, steering); }
   getJointState(joint: RemoteJoint): Promise<JointState> { return this.call('getJointState', joint); }
   /**

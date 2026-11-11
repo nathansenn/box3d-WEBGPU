@@ -2036,7 +2036,8 @@ typedef struct B3WJointDesc
     float hertz, dampingRatio; // spring, or weld softness
     float target; // spring target angle / translation, or distance length
     float coneAngle; // spherical cone limit
-    float reserved[4];
+    float constraintHertz, constraintDampingRatio; // how stiffly the joint holds its bodies together; 0 hertz keeps Box3D's default (60 Hz, ratio 2)
+    float reserved[2];
 } B3WJointDesc;
 
 typedef struct B3WEvent
@@ -2515,8 +2516,9 @@ B3W_EXPORT uint64_t b3w_world_create_joint(uint32_t handle, const B3WJointDesc* 
     if (ctx == NULL || B3_IS_NULL(ctx->world) || desc == NULL || desc->type > 5u) return 0u;
     if (desc->bodyA == desc->bodyB) return 0u;
     if (!b3w_finite3(desc->framePositionA) || !b3w_finite3(desc->framePositionB)) return 0u;
-    const float scalars[8] = { desc->lower, desc->upper, desc->motorSpeed, desc->maxMotor, desc->hertz, desc->dampingRatio, desc->target, desc->coneAngle };
-    for (int i = 0; i < 8; ++i) if (!isfinite(scalars[i])) return 0u;
+    const float scalars[10] = { desc->lower, desc->upper, desc->motorSpeed, desc->maxMotor, desc->hertz, desc->dampingRatio, desc->target, desc->coneAngle, desc->constraintHertz, desc->constraintDampingRatio };
+    for (int i = 0; i < 10; ++i) if (!isfinite(scalars[i])) return 0u;
+    if (desc->constraintHertz < 0.0f || desc->constraintDampingRatio < 0.0f) return 0u;
     const int limit = (desc->flags & 2u) != 0u, motor = (desc->flags & 4u) != 0u, spring = (desc->flags & 8u) != 0u;
     if (limit && desc->lower > desc->upper) return 0u;
     b3BodyId a, b;
@@ -2527,7 +2529,8 @@ B3W_EXPORT uint64_t b3w_world_create_joint(uint32_t handle, const B3WJointDesc* 
     (def).base.bodyIdA = a; (def).base.bodyIdB = b; \
     (def).base.localFrameA = (b3Transform){ { desc->framePositionA[0], desc->framePositionA[1], desc->framePositionA[2] }, b3w_quat(desc->frameRotationA) }; \
     (def).base.localFrameB = (b3Transform){ { desc->framePositionB[0], desc->framePositionB[1], desc->framePositionB[2] }, b3w_quat(desc->frameRotationB) }; \
-    (def).base.collideConnected = (desc->flags & 1u) != 0u;
+    (def).base.collideConnected = (desc->flags & 1u) != 0u; \
+    if (desc->constraintHertz > 0.0f) { (def).base.constraintHertz = desc->constraintHertz; (def).base.constraintDampingRatio = desc->constraintDampingRatio; }
     switch (desc->type)
     {
         case 0u:
@@ -2668,6 +2671,17 @@ B3W_EXPORT int b3w_world_joint_set_spring(uint32_t worldHandle, uint64_t jointHa
         case b3_wheelJoint: b3WheelJoint_EnableSuspension(id, enable != 0); b3WheelJoint_SetSuspensionHertz(id, hertz); b3WheelJoint_SetSuspensionDampingRatio(id, dampingRatio); break;
         default: return -2;
     }
+    b3Joint_WakeBodies(id);
+    return 1;
+}
+
+// How stiffly a joint holds its two bodies together. Box3D's default is 60 Hz with damping
+// ratio 2; a higher frequency sags less under load but needs enough solver sub-steps.
+B3W_EXPORT int b3w_world_joint_set_tuning(uint32_t worldHandle, uint64_t jointHandle, float hertz, float dampingRatio)
+{
+    B3W_JOINT(ctx, id)
+    if (!isfinite(hertz) || !isfinite(dampingRatio) || !(hertz > 0.0f) || dampingRatio < 0.0f) return -3;
+    b3Joint_SetConstraintTuning(id, hertz, dampingRatio);
     b3Joint_WakeBodies(id);
     return 1;
 }

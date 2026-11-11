@@ -185,6 +185,8 @@ export interface SceneJoint {
   readonly length?: number;
   /** Spherical joints only. */
   readonly coneAngle?: number;
+  /** How stiffly the joint holds its bodies together. Default 60 Hz with damping ratio 2. */
+  readonly stiffness?: {readonly hertz: number; readonly dampingRatio?: number};
   readonly userData?: {readonly [key: string]: unknown};
 }
 
@@ -397,7 +399,7 @@ const SHAPE_KEYS: Record<string, readonly string[]> = {
 };
 const BODY_KEYS = ['id', 'shape', 'type', 'position', 'rotation', 'rotationEuler', 'linearVelocity', 'angularVelocity', 'material', 'density', 'friction', 'restitution',
   'color', 'bullet', 'sensor', 'hitEvents', 'neverSleeps', 'lockRotation', 'linearDamping', 'angularDamping', 'gravityScale', 'filter', 'userData'];
-const JOINT_KEYS = ['id', 'type', 'bodyA', 'bodyB', 'frameA', 'frameB', 'collideConnected', 'limits', 'motor', 'spring', 'length', 'coneAngle', 'userData'];
+const JOINT_KEYS = ['id', 'type', 'bodyA', 'bodyB', 'frameA', 'frameB', 'collideConnected', 'limits', 'motor', 'spring', 'length', 'coneAngle', 'stiffness', 'userData'];
 /** Which optional settings each joint type takes (the table in the kit README). */
 const JOINT_FEATURES: Record<string, readonly string[]> = {
   weld: ['spring'], revolute: ['limits', 'motor', 'spring'], spherical: ['limits', 'spring', 'coneAngle'],
@@ -726,6 +728,11 @@ function checkJoint(c: Checker, joint: unknown, path: string, hasBody: ((id: str
   if (joint.length !== undefined) { if (c.number(joint.length, `${path}/length`) && !(joint.length > 0)) c.add(`${path}/length`, `must be > 0, got ${joint.length}`); }
   else if (type === 'distance') c.add(`${path}/length`, 'is required on a distance joint');
   if (joint.coneAngle !== undefined) c.number(joint.coneAngle, `${path}/coneAngle`, 0, Math.PI);
+  if (joint.stiffness !== undefined && c.object(joint.stiffness, `${path}/stiffness`, ['hertz', 'dampingRatio'], ['hertz'])) {
+    const stiffness = joint.stiffness as {hertz?: unknown; dampingRatio?: unknown};
+    if (c.number(stiffness.hertz, `${path}/stiffness/hertz`) && !((stiffness.hertz as number) > 0)) c.add(`${path}/stiffness/hertz`, `must be > 0, got ${String(stiffness.hertz)}`);
+    if (stiffness.dampingRatio !== undefined) c.number(stiffness.dampingRatio, `${path}/stiffness/dampingRatio`, 0);
+  }
   if (joint.userData !== undefined) c.freeForm(joint.userData, `${path}/userData`);
 }
 
@@ -1118,6 +1125,7 @@ function normalJoint(joint: SceneJoint): SceneJoint {
   if (joint.spring) out.spring = {hertz: zero(joint.spring.hertz), dampingRatio: zero(joint.spring.dampingRatio), ...(joint.spring.target ? {target: joint.spring.target} : {})};
   if (joint.length !== undefined) out.length = joint.length;
   if (joint.coneAngle !== undefined) out.coneAngle = zero(joint.coneAngle);
+  if (joint.stiffness) out.stiffness = {hertz: joint.stiffness.hertz, ...(joint.stiffness.dampingRatio !== undefined && joint.stiffness.dampingRatio !== 2 ? {dampingRatio: zero(joint.stiffness.dampingRatio)} : {})};
   if (joint.userData !== undefined) out.userData = clone(joint.userData);
   return out as unknown as SceneJoint;
 }
@@ -1715,7 +1723,7 @@ export class SceneBuilder<W extends SceneHost = SceneHost> {
     const body = (ref: string | null): Body | null => ref === null ? null : this.bodyMap.get(ref)!.handle;
     const options: NativeJointDescriptor = {
       type: description.type, bodyA: body(description.bodyA), bodyB: body(description.bodyB), frameA: description.frameA, frameB: description.frameB,
-      collideConnected: description.collideConnected, limits: description.limits, motor: description.motor, spring: description.spring, length: description.length, coneAngle: description.coneAngle,
+      collideConnected: description.collideConnected, limits: description.limits, motor: description.motor, spring: description.spring, length: description.length, coneAngle: description.coneAngle, stiffness: description.stiffness,
     };
     let handle: Joint;
     try { handle = this.world.createJoint(options); } catch (error) { throw named('joint', description.id, error); }

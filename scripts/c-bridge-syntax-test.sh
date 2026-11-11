@@ -54,7 +54,7 @@ typedef struct { float* heights; uint8_t* materialIndices; b3Vec3 scale; int cou
 typedef struct { int32_t index1; uint16_t world0; uint16_t generation; } b3JointId;
 typedef struct { b3Vec3 p; b3Quat q; } b3Transform;
 typedef enum { b3_parallelJoint, b3_distanceJoint, b3_filterJoint, b3_motorJoint, b3_prismaticJoint, b3_revoluteJoint, b3_sphericalJoint, b3_weldJoint, b3_wheelJoint } b3JointType;
-typedef struct { b3BodyId bodyIdA, bodyIdB; b3Transform localFrameA, localFrameB; bool collideConnected; } b3JointDef;
+typedef struct { b3BodyId bodyIdA, bodyIdB; b3Transform localFrameA, localFrameB; float constraintHertz, constraintDampingRatio; bool collideConnected; } b3JointDef;
 typedef struct { b3JointDef base; float linearHertz, angularHertz, linearDampingRatio, angularDampingRatio; } b3WeldJointDef;
 typedef struct { b3JointDef base; float targetAngle; bool enableSpring; float hertz, dampingRatio; bool enableLimit; float lowerAngle, upperAngle; bool enableMotor; float maxMotorTorque, motorSpeed; } b3RevoluteJointDef;
 typedef struct { b3JointDef base; bool enableSpring; float hertz, dampingRatio; bool enableConeLimit; float coneAngle; bool enableTwistLimit; float lowerTwistAngle, upperTwistAngle; bool enableMotor; float maxMotorTorque; } b3SphericalJointDef;
@@ -167,6 +167,7 @@ bool b3Joint_IsValid(b3JointId joint);
 b3JointType b3Joint_GetType(b3JointId joint);
 void b3DestroyJoint(b3JointId joint, bool wakeAttached);
 void b3Joint_WakeBodies(b3JointId joint);
+void b3Joint_SetConstraintTuning(b3JointId joint, float hertz, float dampingRatio);
 b3Vec3 b3Joint_GetConstraintForce(b3JointId joint);
 b3Vec3 b3Joint_GetConstraintTorque(b3JointId joint);
 b3WeldJointDef b3DefaultWeldJointDef(void);

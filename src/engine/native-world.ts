@@ -156,6 +156,8 @@ export interface NativeWorldModule {
   _b3w_world_joint_set_limits?(world: number, joint: bigint, enable: number, lower: number, upper: number): number;
   _b3w_world_joint_set_spring?(world: number, joint: bigint, enable: number, hertz: number, dampingRatio: number, target: number): number;
   _b3w_world_joint_set_steering?(world: number, joint: bigint, enable: number, angle: number, hertz: number, dampingRatio: number, maxTorque: number): number;
+  /** Optional: joint stiffness. Absent in artifacts built before it was added. */
+  _b3w_world_joint_set_tuning?(world: number, joint: bigint, hertz: number, dampingRatio: number): number;
   _b3w_world_get_joint_state?(world: number, joint: bigint, out: number | bigint): number;
   _b3w_world_collect_events?(world: number): number;
   _b3w_world_events_ptr?(world: number): number | bigint;
@@ -251,6 +253,8 @@ export interface NativeJointDescriptor {
   readonly length?: number;
   /** Spherical joints: cone limit half-angle in radians. */
   readonly coneAngle?: number;
+  /** How stiffly the joint holds its bodies together. Default 60 Hz with damping ratio 2. */
+  readonly stiffness?: { readonly hertz: number; readonly dampingRatio?: number };
 }
 export interface NativeJointState {
   type: NativeJointType;
@@ -729,6 +733,7 @@ export class NativeWorldBackend implements PhysicsBackend {
     if(spring){finite(spring.hertz,'spring hertz',0);finite(spring.dampingRatio,'spring damping ratio',0);finite(spring.target??0,'spring target');}
     if(descriptor.type==='distance')finite(descriptor.length,'distance joint length',Number.MIN_VALUE);
     if(descriptor.coneAngle!==undefined)finite(descriptor.coneAngle,'cone angle',0,Math.PI);
+    if(descriptor.stiffness){finite(descriptor.stiffness.hertz,'joint stiffness hertz',Number.MIN_VALUE);finite(descriptor.stiffness.dampingRatio??2,'joint stiffness damping ratio',0);}
     for(let i=0;i<128;i+=4)view.setUint32(i,0,true);
     view.setUint32(0,type,true);
     view.setUint32(4,(descriptor.collideConnected?1:0)|(limits?2:0)|(motor?4:0)|(spring?8:0)|(descriptor.coneAngle!==undefined?16:0),true);
@@ -743,6 +748,7 @@ export class NativeWorldBackend implements PhysicsBackend {
     view.setFloat32(96,spring?.hertz??0,true);view.setFloat32(100,spring?.dampingRatio??0,true);
     view.setFloat32(104,descriptor.type==='distance'?descriptor.length!:spring?.target??0,true);
     view.setFloat32(108,descriptor.coneAngle??0,true);
+    view.setFloat32(112,descriptor.stiffness?.hertz??0,true);view.setFloat32(116,descriptor.stiffness?descriptor.stiffness.dampingRatio??2:0,true);
     const token=this.mod._b3w_world_create_joint!(this.handle,this.scratch);
     if(token===0n)throw new EngineError('INVALID_PAYLOAD','The native bridge rejected the joint: check that both bodies are alive.');
     return this.wrapJoint(token);
@@ -775,6 +781,15 @@ export class NativeWorldBackend implements PhysicsBackend {
     const token=this.jointToken(joint);this.general();
     if(spring){finite(spring.hertz,'spring hertz',0);finite(spring.dampingRatio,'spring damping ratio',0);finite(spring.target??0,'spring target');}
     this.jointStatus(this.mod._b3w_world_joint_set_spring!(this.handle,token,spring?1:0,spring?.hertz??0,spring?.dampingRatio??0,spring?.target??0));
+  }
+  /** How stiffly the joint holds its bodies together (Box3D's default: 60 Hz, damping ratio 2).
+   * A higher frequency sags less under load; keep it well below the sub-step rate.
+   */
+  setJointStiffness(joint: NativeJointHandle,hertz: number,dampingRatio=2): void {
+    const token=this.jointToken(joint);this.general();
+    finite(hertz,'joint stiffness hertz',Number.MIN_VALUE);finite(dampingRatio,'joint stiffness damping ratio',0);
+    if(typeof this.mod._b3w_world_joint_set_tuning!=='function')throw new EngineError('UNSUPPORTED_BACKEND','box3d.wasm lacks joint stiffness; rebuild with npm run build:wasm.');
+    this.jointStatus(this.mod._b3w_world_joint_set_tuning(this.handle,token,hertz,dampingRatio));
   }
   /** Wheel joints only. Pass null to switch steering off. */
   setJointSteering(joint: NativeJointHandle,steering: {angle: number; hertz: number; dampingRatio: number; maxTorque: number} | null): void {

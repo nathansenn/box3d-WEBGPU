@@ -984,6 +984,7 @@ export interface NativeWorldModule {
     _b3w_world_joint_set_limits?(world: number, joint: bigint, enable: number, lower: number, upper: number): number;
     _b3w_world_joint_set_spring?(world: number, joint: bigint, enable: number, hertz: number, dampingRatio: number, target: number): number;
     _b3w_world_joint_set_steering?(world: number, joint: bigint, enable: number, angle: number, hertz: number, dampingRatio: number, maxTorque: number): number;
+    _b3w_world_joint_set_tuning?(world: number, joint: bigint, hertz: number, dampingRatio: number): number;
     _b3w_world_get_joint_state?(world: number, joint: bigint, out: number | bigint): number;
     _b3w_world_collect_events?(world: number): number;
     _b3w_world_events_ptr?(world: number): number | bigint;
@@ -1086,6 +1087,10 @@ export interface NativeJointDescriptor {
     };
     readonly length?: number;
     readonly coneAngle?: number;
+    readonly stiffness?: {
+        readonly hertz: number;
+        readonly dampingRatio?: number;
+    };
 }
 export interface NativeJointState {
     type: NativeJointType;
@@ -1202,6 +1207,7 @@ export declare class NativeWorldBackend implements PhysicsBackend {
         dampingRatio: number;
         target?: number;
     } | null): void;
+    setJointStiffness(joint: NativeJointHandle, hertz: number, dampingRatio?: number): void;
     setJointSteering(joint: NativeJointHandle, steering: {
         angle: number;
         hertz: number;
@@ -1412,6 +1418,10 @@ export interface RobotSceneOptions {
     };
     readonly floatingBase?: boolean;
     readonly selfCollision?: boolean;
+    readonly jointStiffness?: {
+        readonly hertz: number;
+        readonly dampingRatio?: number;
+    };
     readonly position?: readonly [number, number, number];
     readonly rotation?: readonly [number, number, number, number];
     readonly up?: 'z' | 'y';
@@ -1775,6 +1785,10 @@ export interface SceneJoint {
     };
     readonly length?: number;
     readonly coneAngle?: number;
+    readonly stiffness?: {
+        readonly hertz: number;
+        readonly dampingRatio?: number;
+    };
     readonly userData?: {
         readonly [key: string]: unknown;
     };
@@ -3371,6 +3385,7 @@ export declare class RemoteWorld implements InstanceSource {
         dampingRatio: number;
         target?: number;
     } | null): Promise<void>;
+    setJointStiffness(joint: RemoteJoint, hertz: number, dampingRatio?: number): Promise<void>;
     setJointSteering(joint: RemoteJoint, steering: {
         angle: number;
         hertz: number;
@@ -3500,6 +3515,10 @@ export interface JointOptions {
     };
     readonly length?: number;
     readonly coneAngle?: number;
+    readonly stiffness?: {
+        readonly hertz: number;
+        readonly dampingRatio?: number;
+    };
 }
 export interface ResetOptions {
     readonly ground?: boolean;
@@ -3656,6 +3675,7 @@ export declare class PhysicsWorld {
         dampingRatio: number;
         target?: number;
     } | null): void;
+    setJointStiffness(joint: Joint, hertz: number, dampingRatio?: number): void;
     setJointSteering(joint: Joint, steering: {
         angle: number;
         hertz: number;

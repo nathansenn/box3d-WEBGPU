@@ -108,6 +108,12 @@ export interface JointOptions {
   readonly length?: number;
   /** Spherical joints: cone limit half-angle in radians. */
   readonly coneAngle?: number;
+  /**
+   * How stiffly the joint holds its bodies together. The default (60 Hz, damping ratio 2) lets a
+   * loaded chain sag by millimetres; raise it for robot arms, keeping it well below the sub-step
+   * rate (steps per second x subSteps).
+   */
+  readonly stiffness?: {readonly hertz: number; readonly dampingRatio?: number};
 }
 
 export interface ResetOptions {
@@ -236,7 +242,7 @@ const now = () => globalThis.performance?.now() ?? Date.now();
 /** The methods a 'call' replay command may name. */
 const REPLAYABLE = new Set(['setGravity', 'createBody', 'setTransform', 'setVelocity', 'moveKinematic', 'setBodyType', 'setAwake', 'setGravityScale',
   'setDamping', 'setCollisionFilter', 'applyForce', 'applyTorque', 'applyImpulseAt', 'applyAngularImpulse', 'createJoint', 'destroyJoint',
-  'setJointMotor', 'setJointLimits', 'setJointSpring', 'setJointSteering']);
+  'setJointMotor', 'setJointLimits', 'setJointSpring', 'setJointSteering', 'setJointStiffness']);
 
 /**
  * Game-facing wrapper around one isolated native Box3D world.
@@ -436,6 +442,8 @@ export class PhysicsWorld {
   setJointLimits(joint: Joint, limits: {lower: number; upper: number} | null): void { this.general('setJointLimits', [joint, limits]); this.native.setJointLimits(joint, limits); }
   /** Pass null to switch the spring off. */
   setJointSpring(joint: Joint, spring: {hertz: number; dampingRatio: number; target?: number} | null): void { this.general('setJointSpring', [joint, spring]); this.native.setJointSpring(joint, spring); }
+  /** Set how stiffly a joint holds its bodies together; see JointOptions.stiffness. */
+  setJointStiffness(joint: Joint, hertz: number, dampingRatio = 2): void { this.general('setJointStiffness', [joint, hertz, dampingRatio]); this.native.setJointStiffness(joint, hertz, dampingRatio); }
   /** Wheel joints: steer towards an angle. Pass null to switch steering off. */
   setJointSteering(joint: Joint, steering: {angle: number; hertz: number; dampingRatio: number; maxTorque: number} | null): void {
     this.general('setJointSteering', [joint, steering]); this.native.setJointSteering(joint, steering);
