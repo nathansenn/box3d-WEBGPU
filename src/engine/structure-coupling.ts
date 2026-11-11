@@ -100,6 +100,9 @@ export interface StructureAttachment {
   effectiveMass:number;
   attached:boolean;
 }
+/** Adds to `out` the force (out[0..2], N) and the torque about the centre of mass (out[3..5], N m) that another solver
+ * will put on `body` over the coming step. Called once per attached dynamic body and step, after the body was read. */
+export type StructureLoadProvider<B>=(body:B,out:Float64Array)=>void;
 export interface StructureDiagnostics {
   /** Rigid bodies: translational + rotational kinetic energy and -m g.x, J. */
   bodyKinetic:number;bodyPotential:number;
@@ -144,6 +147,8 @@ class BodyCarrier<B> {
   readonly Minv=new Float64Array(36);
   /** Twist change (V then omega) of the last step's interface solve. */
   readonly tw=new Float64Array(6);
+  /** Force (N) and torque about the centre of mass (N m) that other solvers put on the body over this step (load providers). */
+  readonly ext=new Float64Array(6);
   /** Closing half of last step's frame <-> body impulse, applied at the start of the next step. */
   readonly pendingP=new Float64Array(3);readonly pendingL=new Float64Array(3);
   mass=0;invM=0;dynamic=false;hasPending=false;
@@ -233,6 +238,7 @@ export class StructureCoupling<B> {
   private readonly cables:CableCarrier<B>[]=[];
   private readonly frames:FrameCarrier<B>[]=[];
   private readonly attachments:Attachment<B>[]=[];
+  private readonly providers:StructureLoadProvider<B>[]=[];
   private readonly frameBody:Attachment<B>[]=[];
   private nextId=1;
   private readonly g=new Float64Array(3);
@@ -376,6 +382,16 @@ export class StructureCoupling<B> {
   /** Live reports of all current attachments. */
   get reports():readonly StructureAttachment[] {return this.attachments;}
 
+  /** Tell the interface solve about forces that another solver applies to attached bodies in the same step (a water
+   * coupling's buoyancy and drag). Without it the solve sees a body's mass, inertia and gravity only, and a cable or frame
+   * is placed where the body would go without those forces. The provider must report what that solver will apply for
+   * the body's state as it is when the provider is called; the coupling does not apply the force itself.
+   * Returns a function that removes the provider. */
+  addLoadProvider(provider:StructureLoadProvider<B>):()=>void {
+    if(typeof provider!=='function')fail('A load provider is a function (body, out) => void.');
+    this.providers.push(provider);
+    return ()=>{const index=this.providers.indexOf(provider);if(index>=0)this.providers.splice(index,1);};
+  }
   private alive(body:BodyCarrier<B>):boolean {return this.world.isAlive===undefined||this.world.isAlive(body.body);}
   private kick(body:BodyCarrier<B>):void {
     const o=this.out3;
@@ -423,12 +439,13 @@ export class StructureCoupling<B> {
       for(let i=0;i<6;i++)Minv[6*i+c]=y[i];
     }
   }
-  /** Twist change (V, omega) of a body and its riders over this step from gravity and the newest estimate
+  /** Twist change (V, omega) of a body and its riders over this step from gravity, the loads of other solvers and the newest estimate
    * of every interface impulse on it, except the cable pull of `exclude` and, with skipFrameBody, all
    * frame <-> body impulses. */
   private bodyTwist(body:BodyCarrier<B>,exclude:Attachment<B>|null,skipFrameBody:boolean,out:Float64Array):void {
     const h=this.dt,gs=body.dynamic?h*body.mass*body.gravityScale:0;
-    let px=gs*this.g[0],py=gs*this.g[1],pz=gs*this.g[2],lx=0,ly=0,lz=0;
+    const e=body.ext;
+    let px=gs*this.g[0]+h*e[0],py=gs*this.g[1]+h*e[1],pz=gs*this.g[2]+h*e[2],lx=h*e[3],ly=h*e[4],lz=h*e[5];
     for(const a of body.atts){
       let jx=0,jy=0,jz=0;
       if(a.kind==='cable-body'){
@@ -478,7 +495,13 @@ export class StructureCoupling<B> {
     // 0. Bodies that were destroyed take their attachments with them.
     for(let i=this.bodyList.length-1;i>=0;i--){const body=this.bodyList[i];if(!this.alive(body)){body.hasPending=false;while(body.atts.length>0)this.detach(body.atts[body.atts.length-1]);}}
     // 1. Close last step's frame <-> body impulse (second half kick), then read the bodies at time t.
-    for(const body of this.bodyList){if(body.hasPending)this.kick(body);this.readBody(body);this.augment(body);}
+    for(const body of this.bodyList){
+      if(body.hasPending)this.kick(body);this.readBody(body);this.augment(body);
+      // What other solvers will put on the body over this step (the water's buoyancy and drag): part of its free motion.
+      body.ext.fill(0);
+      if(body.dynamic)for(const provider of this.providers)provider(body.body,body.ext);
+      for(let k=0;k<6;k++)if(!Number.isFinite(body.ext[k]))throw new EngineError('NUMERICAL_FAILURE','A load provider returned a nonfinite force.');
+    }
     // 2. Frames: midpoint velocity under their own loads only, and what it does to the interface (d0 = v_end - v, P d0 with riders).
     for(const frame of this.frames){
       const mid=frame.mid=frame.frame.beginCoupledTick(),v=frame.views.velocities,n=frame.lam.length,d0=frame.d0,P=frame.P;

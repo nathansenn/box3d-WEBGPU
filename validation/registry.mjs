@@ -17,6 +17,7 @@ import simulation from './domains/simulation.mjs';
 import robot from './domains/robot.mjs';
 import cloth from './domains/cloth.mjs';
 import granular from './domains/granular.mjs';
+import solidContact from './domains/solid-contact.mjs';
 import heat from './domains/heat.mjs';
 import solid from './domains/solid.mjs';
 import fracture from './domains/fracture.mjs';
@@ -198,13 +199,29 @@ export const DOMAINS = [
     ],
   },
   {
+    id: 'solid-contact', title: 'Deformable solids in contact with rigid bodies', needsKit: true,
+    solver: '`box3d-webgpu-kit/solid-contact`: node-against-body penalty contact of the tetrahedral solid with boxes, spheres, capsules and planes, Coulomb friction as a capped stick spring, welds; backward Euler by Newton and preconditioned conjugate gradients with each dynamic rigid body as six unknowns of the same solve, float64',
+    summary: 'A rigid block on an elastic pad in uniaxial stress and in uniaxial strain, the same through the stepping loop with its energy ledger, Hertz contact with a mesh study and the force exponent, Coulomb friction on a deformable incline either side of tan(theta) = mu, a block on an elastic column against the bar with a tip mass, a welded hanging weight, momentum in a free impact, extreme mass ratios with naive staggering failing, and a solid on a supported body.',
+    docs: ['docs/SOLID_CONTACT.md'],
+    notValidated: [
+      'Hertz contact is 7% to 16% too stiff on the meshes in the gate (2.5 to 5 linear tetrahedra per contact radius, against Hertz with the bonded-layer factor) and converges slowly. The pressure distribution inside the contact is not checked.',
+      'Contact is node against body: a body corner or edge between nodes is not seen, a body smaller than the mesh spacing rests on single nodes, and hulls, triangle meshes and height fields are not supported. There is no solid-solid or self contact.',
+      'A node gets one plane per body and step from where it starts, and nothing is traced along its path: a body that crosses a whole solid in one step is missed, and curved bodies are seen through tangent planes.',
+      'Bodies turn by a linearised rotation within a step (error (omega dt)^2 / 2 of the arm, about the free rotation). Fast-spinning bodies in contact are not checked.',
+      'Friction limits follow the normal force to 1e-4 by repeated solves; only steady sticking and sliding of a flat box are checked. Rolling and spinning friction are not modelled, and static and kinetic coefficients are equal.',
+      'The coupling sees a body\'s other contacts and joints only through an estimate that lags one step; one case (a block on a box on the ground) is checked.',
+      'The integrator is backward Euler: it damps (36% of the kinetic energy is left after the impact case). Restitution is not a parameter and impact speeds after a bounce are not validated.',
+      'Welds are stiff springs: a welded face is held in all three directions, like a clamped end. Large rotations of a welded solid are not checked against a reference.',
+    ],
+  },
+  {
     id: 'fracture', title: 'Fracture of deformable solids', needsKit: false,
     solver: '`src/engine/solid-fracture.ts`: small-strain linear tetrahedra with cohesive interfaces on element faces (bilinear traction-separation law, nodes duplicated where a face opens) or a Rankine crack band; static, midpoint, backward-Euler and explicit integration, float64',
     summary: 'A bar with a weak cross-section against the traction-separation law and G_c A, mesh objectivity of the cohesive and crack-band energies, a centre-cracked plate against Griffith, a notched beam against the size-effect law and the work of fracture, momentum and energy of a bar that breaks in flight, the onset of thermal-shock cracking against the heat module, and the mesh dependence of an inclined crack.',
     docs: ['docs/SOLID_FRACTURE.md'],
     notValidated: [
-      'Crack paths. A cohesive crack can only follow element faces: a crack inclined 30 degrees to the mesh is 24 % (five-tetrahedron cells) or 48 % (six-tetrahedron cells) larger than the plane it should follow, at any resolution, and dissipates 30 % to 70 % too much energy. Every closed-form row here has its crack on a mesh plane.',
-      'Insertion on demand near a crack tip. The criterion reads the mean stress of two elements, which misses the peak at a tip: with cells of l_ch / 2 the centre-cracked plate fails at 1.60 of the Griffith stress unless interfaces are inserted earlier (0.5 sigma_c gives 0.985) or placed along the expected path, as the Griffith and beam rows do.',
+      'Crack paths. A cohesive crack can only follow element faces: a crack inclined 30 degrees to the mesh is 2.5 % to 30 % larger than the plane it should follow, depending on the mesh pattern and the cell size and not falling with refinement, and dissipates 38 % to 54 % too much energy. Every closed-form row here has its crack on a mesh plane.',
+      'Insertion on demand near a crack tip. The criterion reads the mean stress of two elements, which misses the peak at a tip, so faces that touch a crack front are inserted at 0.4 of their strength. That value was chosen on one case, the centre-cracked plate with cells of l_ch and l_ch / 2 in mode I on a mesh plane, where it gives the failure load of the pre-inserted path within the 1 % load step. Coarser cells, mixed mode, and a notch that is not a cut face are not covered. With the rule off the plate holds 1.6 times its Griffith stress.',
       'The Griffith and beam rows are converged in neither mesh nor size: cells of l_ch read 11.5 % high, cells of l_ch / 2 read 3.5 % low, and the cohesive law itself is 4.5 % below LEFM at a = 5 l_ch (1.5 % at 10 l_ch). The size-effect law used for the beam is an asymptote, and its constant c_f = 0.419 l_ch is taken from the literature.',
       'Crack branching, dynamic crack speeds and fragmentation statistics have no reference here; branching is whatever the faces allow. No plasticity, no rate dependence, no fatigue.',
       'Contact exists only across an interface (a penalty that stops its two sides passing through each other, without friction). Fragments do not collide with each other or with anything else until they are handed to the rigid world, and that hand-off is one-way.',
@@ -254,7 +271,7 @@ export const DOMAINS = [
   },
 ];
 
-export const CASES = [...rigid, ...waterCoupling, ...structureCoupling, ...siBridge, ...geometry, ...scene, ...simulation, ...robot, ...cloth, ...granular, ...heat, ...solid, ...fracture, ...frame, ...cable, ...closedWater];
+export const CASES = [...rigid, ...waterCoupling, ...structureCoupling, ...siBridge, ...geometry, ...scene, ...simulation, ...robot, ...cloth, ...granular, ...heat, ...solid, ...solidContact, ...fracture, ...frame, ...cable, ...closedWater];
 
 /** Cases of the given domains (all when `only` is empty), in registry order. */
 export function selectCases(only = []) {

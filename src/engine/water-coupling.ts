@@ -155,6 +155,8 @@ export class WaterCoupling<B> {
   private readonly polygon=new Float64Array(24);
   private readonly breaks=new Float64Array(10);
   private readonly clip=new Float64Array(4);
+  /** predictLoad(): where couple() reports instead of acting, and the entry fields it restores afterwards. */
+  private probe:Float64Array|null=null;private readonly saved=new Float64Array(14);
   private readonly chord=new Float64Array(2);
   private readonly force:[number,number,number]=[0,0,0];
   private readonly point:[number,number,number]=[0,0,0];
@@ -236,6 +238,27 @@ export class WaterCoupling<B> {
   tick():number {return this.ticks;}
   /** Gravity magnitude used in the most recent step, from world.gravity(). */
   gravity():number {return this.g;}
+
+  /** Adds to `out` the force (out[0..2], N) and the torque about the centre of mass (out[3..5], N m) that `step()` would
+   * put on `body` if it were called now, for the body's present state and the present water. Nothing is changed: no
+   * force is applied and the water is not touched. Returns false for a body that is not attached. A structure coupling
+   * uses it to count the water in a moored body's free motion (StructureCoupling.addLoadProvider). */
+  predictLoad(body:B,out:Float64Array):boolean {
+    const index=this.find(body);if(index<0)return false;
+    const entry=this.entries[index],world=this.world;
+    if(world.isAlive!==undefined&&!world.isAlive(body))return false;
+    const g=this.readGravity(),kept=this.g,s=this.saved;
+    s[0]=entry.submergedVolume;s[1]=entry.submergedFraction;
+    for(let k=0;k<3;k++){s[2+k]=entry.centre[k];s[5+k]=entry.buoyancy[k];s[8+k]=entry.drag[k];s[11+k]=entry.dragTorque[k];}
+    const fresh=entry.fresh;
+    this.g=g;this.probe=out;
+    try{this.couple(entry);}
+    finally{
+      this.probe=null;this.g=kept;entry.fresh=fresh;entry.submergedVolume=s[0];entry.submergedFraction=s[1];
+      for(let k=0;k<3;k++){entry.centre[k]=s[2+k];entry.buoyancy[k]=s[5+k];entry.drag[k]=s[8+k];entry.dragTorque[k]=s[11+k];}
+    }
+    return true;
+  }
 
   /** Advance the coupling and the water by one fixed step. Call it once per fixed step,
    * immediately BEFORE world.step(): it reads each body's state at t, gives the world the water's
@@ -467,6 +490,12 @@ export class WaterCoupling<B> {
     const inertia=0.4*mass*entry.equivalentRadius*entry.equivalentRadius;
     if(dynamic&&mass>0&&angular*dt>inertia)angular=inertia/dt;
     entry.dragTorque[0]=-angular*w[0];entry.dragTorque[1]=-angular*w[1];entry.dragTorque[2]=-angular*w[2];
+    if(this.probe) {
+      // predictLoad(): report the force and its torque about the centre of mass, and change nothing.
+      const o=this.probe,Fx=bx+fx,Fy=by+fy,Fz=bz+fz;
+      if(dynamic){o[0]+=Fx;o[1]+=Fy;o[2]+=Fz;o[3]+=ry*Fz-rz*Fy+entry.dragTorque[0];o[4]+=rz*Fx-rx*Fz+entry.dragTorque[1];o[5]+=rx*Fy-ry*Fx+entry.dragTorque[2];}
+      return;
+    }
     if(dynamic) {
       const force=this.force,point=this.point;
       // The world takes the point at the body's current pose: keep the lever arm found at the half-step pose.

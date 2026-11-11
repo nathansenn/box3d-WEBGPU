@@ -54,6 +54,8 @@ simulation.step();
  │                                           the bodies it touches, applies its forces
  │                 160  granular coupling    (`granularSubsystem` of box3d-webgpu-kit/granular) takes the grains'
  │                                           own steps to t + dt with the bodies they touch, applies the mean force
+ │                 170  solid coupling       (`solidContactSubsystem` of box3d-webgpu-kit/solid-contact) solves the
+ │                                           solid with the bodies it touches or is welded to, applies its forces
  │                 200  water coupling       reads the bodies at t, applies buoyancy and drag,
  │                                           advances the water to t + dt
  │
@@ -128,26 +130,45 @@ Each adapter calls the module's own `step` and nothing else. No module's numeric
 |---|---|
 | rigid ↔ water | Two-way, through `WaterCoupling` ([`WATER_COUPLING.md`](WATER_COUPLING.md)). |
 | rigid ↔ cables, rigid ↔ frames, cable ↔ frame | Two-way, through `StructureCoupling` ([`STRUCTURE_COUPLING.md`](STRUCTURE_COUPLING.md)). |
-| water ↔ structure on the same body | **Each is two-way with the body; they do not know of each other.** See below. |
+| water ↔ structure on the same body | Each is two-way with the body, and the structure coupling's interface solve counts the water's force (`linkWaterToStructure`; the scene loader makes the link). See below. |
 | heat → solid | **One-way link** (`thermalSolidLink`): temperature becomes the solid's thermal strain. With a `FractureBody` that strain can crack the solid ([`SOLID_FRACTURE.md`](SOLID_FRACTURE.md)); the cracks do not change the heat flow. |
 | rigid → solid | **One-way link** (`deadLoadLink`): a body's weight becomes a dead load on solid nodes. |
-| rigid ↔ solid contact | **Not modelled.** A rigid body does not collide with a deformable solid, rest on it or get pushed by it. Open. |
-| solid → heat, solid → rigid, water ↔ solid, water ↔ cable or frame | Not modelled. |
+| rigid ↔ solid | Two-way, through `SolidCoupling` and `solidContactSubsystem` ([`SOLID_CONTACT.md`](SOLID_CONTACT.md)): contact with friction against boxes, spheres, capsules and planes, and welds. The adapter lives in the solid-contact module. Node against body only; no solid ↔ solid contact. Solids are not in the scene format. |
+| solid → heat, water ↔ solid, water ↔ cable or frame | Not modelled. |
 | rigid ↔ cloth | Two-way, through `ClothCoupling` and `clothSubsystem` ([`CLOTH.md`](CLOTH.md)): contact with friction, attachments. The adapter lives in the cloth module, not in `simulation.ts`. A cloth and a cable, a frame or water on the same body do not know of each other, as above. Cloth is not in the scene format. |
 | rigid ↔ grains | Two-way, through `GranularCoupling` and `granularSubsystem` ([`GRANULAR.md`](GRANULAR.md)): the grains take a whole number of their own steps inside each rigid step, with the bodies they touch moving alongside, and hand the world the mean force. The adapter lives in the granular module. Grains and a cloth, a cable or water on the same body do not know of each other, as above. Grains are not in the scene format. |
 | the app's cloth, rope and granular scenes, GPU water | Not in the loop yet. |
 
 ### Water and structure together
 
-A body may be attached to a cable or a frame and float in a basin at the same time (the moored buoy). Both couplings read the body at time t and add their forces to the same rigid step, so the body's motion has both. What is missing is inside the structure coupling: its interface solve uses the body's *free response*, and that contains gravity only ([`STRUCTURE_COUPLING.md`](STRUCTURE_COUPLING.md), "Other constraints on an attached body"). It does not see the buoyancy `B`. Measured on the moored buoy at rest (80.4 kg sphere, `B` = 2125 N, cable node `m_n` = 0.0275 kg, 240 Hz):
+A body may be attached to a cable or a frame and float in a basin at the same time (the moored buoy). Both couplings read the body at time t and add their forces to the same rigid step. The structure coupling's interface solve uses the body's *free motion*; `linkWaterToStructure(water, structure)` puts the water's force into it:
 
-- The cable's implicit step places its end node where a body falling under gravity and the cable alone would go, `B dt² / m` = 0.46 mm lower than the buoy goes. The draught is off by that much (measured −0.41 mm).
-- The node's own weight and inertia are transmitted for that imagined fall, which makes the segment tension high by `m_n B / (m + m_n)` = 0.73 N of 1337 N (measured +0.729 N).
-- The force of the cable **on the buoy** is not affected: the rigid solver balances it against the buoyancy (measured 1.9e-6 from `ρ g V_sub − m g`).
+```ts
+import {linkWaterToStructure} from 'box3d-webgpu-kit/simulation';
+const unlink = linkWaterToStructure(water, structure);   // loadScene does this for every basin of a scene with cables or frames
+```
 
-Neither error grows in time, and both scale with `B dt²` and with the cable's end mass: keep the cable's nodes light compared with the body. With a 0.69 kg end node the same buoy reads a tension 18 N (1.4%) high. Feeding the water force into the structure coupling's free response would remove both; it needs a hook in `structure-coupling.ts` and is open.
+It registers a load provider on the structure coupling ([`STRUCTURE_COUPLING.md`](STRUCTURE_COUPLING.md)) that asks the water coupling for the buoyancy and drag it is about to apply (`water.predictLoad`, the water coupling's own evaluation for the present state, with no side effects). The order of a step does not change: structure first, then the water applies its force, then the rigid step. For a body on cables only, the predicted force is bit for bit the one the water then applies.
 
-A body that is both floating and on a **frame** gets the frame's half kicks before the water reads its velocity (that is why structure runs first). The combination runs and is covered by the bit-identity test, but has no closed-form validation.
+Without the link the free motion has gravity only, and the cable's implicit step places its end node where a body falling under gravity and the cable alone would go, `B dt² / m` lower than the body goes. Measured on a spar on a taut vertical tether (0.2 × 0.2 × 2 m, 32 kg, tether 1000 N/m, basin 4 m deep; `packages/box3d-kit/test/v17-moored.test.mjs`):
+
+| Step | `B dt² / m` | Draught error, linked | Draught error, not linked | Tension error, linked | Tension error, not linked |
+|---|---|---|---|---|---|
+| 1/240 s | 0.29 mm | 1·10⁻⁷ m | −0.50 mm | −4·10⁻⁷ | +9.1·10⁻⁴ |
+| 1/60 s | 4.7 mm | 1·10⁻⁷ m | −3.6 mm | −4·10⁻⁷ | −4.6·10⁻³ |
+| 1/30 s | 18.5 mm | 1·10⁻⁷ m | −13.6 mm | −4·10⁻⁷ | −2.2·10⁻² |
+
+Set at its closed-form equilibrium, the linked spar does not move at any of these steps (its float32 height never changes). Not linked, it rings and settles off the equilibrium: a swing of 0.49 mm and an offset of 0.50 mm at 240 Hz, 12.3 mm and 13.6 mm at 30 Hz.
+
+**Heave.** The same spar, kicked at 0.05 m/s with no drag, swings at 1.0449 Hz at 240 Hz against `√((ρ g A + E A / L₀) / (m + m_n)) / 2π` = 1.0495 Hz (−0.43 %; −1.0 % at 60 Hz). The tether alone would give 0.889 Hz. Neither the reference nor the coupling has added mass. The swing decays (to 0.65 of the first swing after 8 s at 240 Hz, 0.25 at 60 Hz): the cable's implicit step takes energy at a rate first order in the step, and the model's water radiates waves.
+
+On the example buoy (80.4 kg sphere, `B` = 2125 N, cable node `m_n` = 0.0275 kg, 240 Hz) the link removed a tension error of +0.729 N (`m_n B / (m + m_n)`) and a draught error of −0.41 mm; the rows are in the table below.
+
+What remains:
+
+- The water's force is taken as constant over the step. Its stiffness, the hydrostatic term `ρ g A`, is not in the interface solve. No instability was found with it at 30 Hz on the spar (392 N/m beside a 1000 N/m tether); a case where the hydrostatic stiffness times `dt²` is large against the mass is not checked.
+- A body that is both floating and on a **frame** gets the frame's first half kick after the force was predicted and before the water reads the body, so the predicted and the applied force differ slightly there. The combination runs and is covered by the bit-identity test, but has no closed-form validation.
+- Driving the modules by hand: call `linkWaterToStructure` yourself, or the interface solve sees gravity only as before.
 
 ## Links
 
@@ -163,7 +184,7 @@ The heat solver's temperature becomes the solid's thermal load, the isotropic ei
 
 The weight `m g` of a rigid body is put on solid nodes as a dead load. With `faces` it is spread as a uniform traction over those boundary faces (each node of a face takes a third of the face's share by area); with `nodes` it is shared equally.
 
-- The solid's deflection does not move the body, and nothing here holds the body up: support it in the rigid world (the test rests it on a static slab). **There is no contact.**
+- The solid's deflection does not move the body, and nothing here holds the body up: support it in the rigid world (the test rests it on a static slab). **This link has no contact;** for a body that rests on the solid and is carried by it, use `SolidCoupling` ([`SOLID_CONTACT.md`](SOLID_CONTACT.md)).
 - Mass and gravity are read from the world each step, so a changed gravity or a destroyed body changes the load.
 - The link owns the point forces of those nodes (`setNodalForce` replaces them).
 
@@ -179,7 +200,7 @@ The weight `m g` of a rigid body is put on solid nodes as a dead load. With `fac
 - `mechanical` and `thermal` are kept apart because they differ by many orders of magnitude; `total` is their sum.
 - **Rigid bodies.** The world reports mass but not rotational inertia. `simulation.trackBody(body, inertia)` counts a body in the `rigid` entry: `½ m v² + ½ ω·I ω − m g·x`. A body the structure coupling carries is counted there (with the pending half kick), and `trackBody` refuses it. The scene loader tracks floating bodies that no cable or frame carries. Other bodies are not in the ledger unless you track them.
 - **Water.** The water's potential includes the work against the displaced volume, which it knows after its first step. Take the baseline after the first step.
-- The ledger is a sum of what each solver reports at the end of a step. Terms are known up to half a step apart. With drag it falls, but it may exceed its start by the sampling offset `ρ g V v dt` of [`WATER_COUPLING.md`](WATER_COUPLING.md) (measured 0.85 J against a bound of 4.99 J, in a run that lost 49.9 J).
+- The ledger is a sum of what each solver reports at the end of a step. Terms are known up to half a step apart. With drag it falls, but it may exceed its start by the sampling offset `ρ g V v dt` of [`WATER_COUPLING.md`](WATER_COUPLING.md) (measured 0.82 J against a bound of 4.99 J, in a run that lost 49.7 J).
 - A solid whose temperature or loads a link is changing is not a closed system; its entry then changes by the work done on it.
 
 ## Scenes
@@ -231,13 +252,13 @@ Two example scenes (`COUPLED_EXAMPLE_SCENES`; they are kept out of `EXAMPLE_SCEN
 
 | Check | Expected | Measured | Tolerance |
 |---|---|---|---|
-| Moored buoy at rest: force of the cable on the buoy | `ρ g V_sub − m g` = 1336.5894 N | 1336.5920 N (1.9e-6) | 1e-5: float32 mass and gravity |
-| … segment tension | `ρ g V_sub − (m + m_n) g` = 1336.320 N | 1337.049 N (+0.729 N) | 1.05 `m_n B / (m + m_n)` = 0.76 N: the free-response limit above |
-| … draught, against the equilibrium of cable stretch, level rise and cap volume | 0.57610 m | 0.57569 m (−0.41 mm) | 1.3 `B dt² / m` = 0.60 mm |
-| … tension against that equilibrium | 1337.958 N | 1337.049 N (−6.8e-4) | 3.1 N: the draught bound times `ρ g A_wp`, plus 0.76 N |
-| … floor load − anchor pull | total weight 1 881 985.49 N | 1 881 984.76 N (−0.73 N) | 0.76 N |
+| Moored buoy at rest: force of the cable on the buoy | `ρ g V_sub − m g` = 1338.2262 N | 1338.2271 N (6.6e-7) | 1e-5: float32 mass and gravity |
+| … segment tension | `ρ g V_sub − (m + m_n) g` = 1337.9564 N | 1337.9573 N (+0.0009 N, 7·10⁻⁷) | 1e-5. Was +0.729 N before the water's force was in the interface solve |
+| … draught, against the equilibrium of cable stretch, level rise and cap volume | 0.57610 m | 0.57610 m (−0.45 µm) | 5e-6 m: float32 height. Was −0.41 mm |
+| … tension against that equilibrium | 1337.958 N | 1337.957 N (−6.7e-7) | 1e-5. Was −6.8e-4 |
+| … floor load − anchor pull | total weight 1 881 985.494 N | 1 881 985.493 N (−0.001 N) | 0.02 N. Was −0.73 N |
 | … mean level rise | `(V_sub − V_0) / A` | equal | 1e-9 m |
-| Released 0.4 m to the side, 24 s | bounded by the offset; each 4 s window smaller; back at rest | windows 0.3999, 0.0040, 0.0015, 0.0009, 0.0003, 0.0002 m; ends 0.13 mm off the line, 4.8e-7 m from the rest height | ≤ offset; monotone; 2 mm; 0.2 mm |
+| Released 0.4 m to the side, 24 s | bounded by the offset; each 4 s window smaller; back at rest | windows 0.3999, 0.0040, 0.0015, 0.0009, 0.0003, 0.0002 m; ends 0.13 mm off the line, 1.4e-6 m from the rest height | ≤ offset; monotone; 2 mm; 0.2 mm |
 | Cable-stayed deck, ball on nodes 1, 3, 4, 5, 7: stay tensions | flexibility-method hand statics | worst error 9.5e-5 | 2e-4 |
 | … deflection under the ball | hand statics | worst error 1.4e-4 | 2e-4 + 1e-7 m |
 | … total vertical reaction | total weight 1384.97 N | worst error 1.7e-5 | 5e-5 |
@@ -252,22 +273,22 @@ Two example scenes (`COUPLED_EXAMPLE_SCENES`; they are kept out of `EXAMPLE_SCEN
 | Midpoint linear solid, 480 steps | constant | 5.5e-12 of the energy in play | 1e-10 |
 | Heat with a fixed face, a film and a source | stored − exchanged constant | 6.5e-13 of the 625 J exchanged | 1e-10 |
 | Cable pendulum, no drag, 6 s | never grows; loss first order in `dt` | largest rise 0; loss 8.1% at 240 Hz (rate formula 7.7%), 4.5% at 480 Hz, ratio 1.79 | rise ≤ 1e-4; ratio 2 ± 0.3; loss within 1.5× of the formula |
-| Moored buoy with drag, released | falls; never above the start by more than `ρ g V v dt` | fell 49.9 J; largest excess 0.85 J against 4.99 J; always below the start in the second half | as stated |
+| Moored buoy with drag, released | falls; never above the start by more than `ρ g V v dt` | fell 49.7 J; largest excess 0.82 J against 4.99 J; always below the start in the second half | as stated |
 | A tracked spinning box in zero gravity | `½ m v² + ½ I_x ω²` = 28.080001 J | 28.080001 J at the start; 28.080338 J after 1 s | 1e-6; 1e-4 (the rigid solver's drift; the first bound for this was 1e-6 and it measured 1.2e-5) |
 
 **Save, load, continue.** Saved at tick 240 through a share link, compared 240 ticks later. Bounds are about ten times the measured values.
 
 | Scene | At the moment of loading | Drift after 240 ticks | Bound |
 |---|---|---|---|
-| Moored buoy, released 0.4 m off | fields bit-identical; body position and velocity equal | buoy 6.1e-6 m; surface 4.0e-5 m (waves 2.3 mm high) | 1e-4 m; 4e-4 m |
+| Moored buoy, released 0.4 m off | fields bit-identical; body position and velocity equal | buoy 5.9e-6 m; surface 4.0e-5 m (waves 2.3 mm high) | 1e-4 m; 4e-4 m |
 | Cable-stayed deck | fields bit-identical; body position and velocity equal | ball 1.6e-8 m; deck 4.3e-7 m (deflection 1.2 mm) | 2e-7 m; 4e-6 m |
 
 Two loads of the same scene, one of them from a share link, stay bit-identical for the whole 480 steps.
 
 ## Limits and open items
 
-- **Contact between rigid bodies and deformable solids** is not attempted. The dead-load link is the only rigid → solid path and it is one-way.
-- **Water forces are not in the structure coupling's free response** (above). The error is bounded and measured; removing it is open.
+- **Contact between rigid bodies and deformable solids** is in a module of its own ([`SOLID_CONTACT.md`](SOLID_CONTACT.md)), node against body, with its limits stated there. Two solids do not collide with each other.
+- **Water and structure on one body:** the water's force is in the structure coupling's interface solve through `linkWaterToStructure`; its hydrostatic stiffness is not, and a floating body on a frame has no closed-form check (above).
 - **Links are one-way** and the thermal link needs co-located box grids. General mesh-to-grid interpolation, thermoelastic feedback and heat from a rigid contact are open.
 - **Heat and solids are not in the scene format.** A coupled scene describes rigid bodies, joints, basins, cables and frames.
 - **A save is not a checkpoint.** The structure coupling has no checkpoint; see the drift table.

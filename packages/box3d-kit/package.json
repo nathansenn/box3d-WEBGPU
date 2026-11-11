@@ -60,6 +60,10 @@
       "types": "./dist/granular.d.ts",
       "default": "./dist/granular.js"
     },
+    "./solid-contact": {
+      "types": "./dist/solid-contact.d.ts",
+      "default": "./dist/solid-contact.js"
+    },
     "./gameplay": {
       "types": "./dist/gameplay.d.ts",
       "default": "./dist/gameplay.js"

@@ -72,5 +72,6 @@ export function erf(x) {
 
 /** Adds the domain and the shared source file to a list of cases. */
 export function defineCases(domain, file, cases) {
-  return cases.map(({test, ...one}) => ({domain, ...one, source: {file, test}}));
+  // A case may name its own test file (`file`) when it is asserted in another one than the domain's.
+  return cases.map(({test, file: own, ...one}) => ({domain, ...one, source: {file: own ?? file, test}}));
 }

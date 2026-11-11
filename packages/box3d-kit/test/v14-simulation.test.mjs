@@ -525,20 +525,20 @@ test('moored buoy at rest: cable tension = rho g V_sub - weight, the draught fol
   // draught is d = level - (y - R) and V = pi d^2 (3R - d) / 3. Equilibrium: E A s / L0 = rho g V - (m + m_n) g, m_n the
   // cable's upper node, which hangs from the buoy. One equation in s, solved by bisection.
   //
-  // What the coupling does not do, and what it costs (docs/SIMULATION.md, "Water and structure together"): the structure
-  // coupling's free response of a body contains gravity only. It does not see the buoyancy B, so (a) the cable's implicit
-  // step places the node where a body falling under gravity and the cable alone would go, B dt^2 / m = 0.46 mm lower
-  // than it does go, which is a draught error of that size; (b) the node's own weight and inertia are transmitted for
-  // that imagined fall, which makes the segment tension high by m_n B / (m + m_n) = 0.73 N. Neither grows with time.
-  // The force of the cable on the buoy is not affected: the rigid solver balances it against the buoyancy exactly.
+  // The water's force in the interface solve (docs/SIMULATION.md, "Water and structure together"): the scene loader links
+  // the basin to the structure coupling (linkWaterToStructure), so the body's free motion in the cable's interface solve
+  // contains the buoyancy B the water coupling applies in the same step. Before that link the free motion had gravity
+  // only: (a) the cable's implicit step placed the node where a body falling under gravity and the cable alone would go,
+  // B dt^2 / m = 0.46 mm lower than it does go, a draught error of that size (measured -0.41 mm); (b) the node's own
+  // weight and inertia were transmitted for that imagined fall, which made the segment tension high by
+  // m_n B / (m + m_n) = 0.73 N (measured +0.729 N). Both are gone; v17-moored.test.mjs measures the two schemes side by side.
   //
   // Checks and tolerances:
   //   1. force of the cable on the buoy = rho g V_sub - m g: 1e-5 relative (float32 mass and gravity in the rigid solver).
-  //   2. segment tension = rho g V_sub - (m + m_n) g: within 1.05 m_n B / (m + m_n) = 0.76 N (5.7e-4), from (b).
-  //   3. draught against the closed form: within 1.3 B dt^2 / m = 0.6 mm, from (a) and (b).
-  //   4. tension against the closed form: within rho g A_wp x that draught bound + the bound of 2 (3.1 N, 2.3e-3), A_wp
-  //      being the waterplane area.
-  //   5. vertical balance: hydrostatic floor load - anchor pull = weight of water + buoy + cable, within the bound of 2.
+  //   2. segment tension = rho g V_sub - (m + m_n) g: 1e-5 relative (measured 7e-7).
+  //   3. draught against the closed form: 5e-6 m (measured under 1e-6 m; float32 resolves the buoy's height to 2.4e-7 m).
+  //   4. tension against the closed form: 1e-5 relative (measured -7e-7).
+  //   5. vertical balance: hydrostatic floor load - anchor pull = weight of water + buoy + cable, within 0.02 N of 1.88 MN.
   //   6. mean level rise = (V_sub - V0) / A: 1e-9 m (the water volume is conserved to roundoff).
   const R = 0.4, H = 3, L0 = 2.75, EA = 5e4, A = 64, rho = 1000, scene = mooredBuoyScene({linearDrag: 2000, waterDrag: 2});
   const world = await createWorld(sceneWorldOptions(scene));
@@ -557,18 +557,19 @@ test('moored buoy at rest: cable tension = rho g V_sub - weight, the draught fol
       mean.tension += cable.inspect().tensions[0] / window; mean.force += attachment.force[1] / window; mean.y += s.position[1] / window; mean.x += Math.hypot(s.position[0], s.position[2]) / window;
       mean.V += report.submergedVolume / window; mean.buoyancy += report.buoyancy[1] / window; mean.anchor += cable.inspect().supportReactions[1] / window; mean.floor += water.floorLoad() / window; mean.level += water.elevationAt(s.position[0], s.position[2]) / window;
     }
-    const B = rho * g * mean.V, bias = mn * B / (m + mn), lag = B * DT * DT / m, measuredDraught = H + mean.level - (mean.y - R), waterplane = Math.PI * (2 * R * draught - draught * draught);
+    const B = rho * g * mean.V, bias = mn * B / (m + mn), lag = B * DT * DT / m, measuredDraught = H + mean.level - (mean.y - R);
     const total = rho * g * water.waterVolume() + (m + 2 * mn) * g;
-    t.diagnostic(`closed form: stretch ${(stretch * 1e3).toFixed(3)} mm, tension ${tension.toFixed(3)} N, draught ${draught.toFixed(5)} m, V_sub ${V.toFixed(6)} m^3; bounds: m_n B/(m+m_n) = ${bias.toFixed(3)} N, B dt^2/m = ${(lag * 1e3).toFixed(3)} mm`);
+    t.diagnostic(`closed form: stretch ${(stretch * 1e3).toFixed(3)} mm, tension ${tension.toFixed(3)} N, draught ${draught.toFixed(5)} m, V_sub ${V.toFixed(6)} m^3; before the water was in the interface solve: m_n B/(m+m_n) = ${bias.toFixed(3)} N, B dt^2/m = ${(lag * 1e3).toFixed(3)} mm`);
     t.diagnostic(`measured: force on the buoy ${mean.force.toFixed(4)} N against rho g V_sub - m g = ${(B - m * g).toFixed(4)} N (${sci(-mean.force / (B - m * g) - 1)}); segment tension ${mean.tension.toFixed(4)} N against rho g V_sub - (m + m_n) g = ${(B - (m + mn) * g).toFixed(4)} N (+${(mean.tension - (B - (m + mn) * g)).toFixed(4)} N)`);
-    t.diagnostic(`measured: draught ${measuredDraught.toFixed(5)} m (closed form ${draught.toFixed(5)}, ${((measuredDraught - draught) * 1e3).toFixed(3)} mm); tension against the closed form ${sci(mean.tension / tension - 1)}; floor load - anchor pull ${(mean.floor + mean.anchor).toFixed(3)} N against total weight ${total.toFixed(3)} N (${(mean.floor + mean.anchor - total).toFixed(3)} N); sideways ${sci(mean.x)} m`);
+    t.diagnostic(`measured: draught ${measuredDraught.toFixed(5)} m (closed form ${draught.toFixed(5)}, ${((measuredDraught - draught) * 1e6).toFixed(3)} um); tension against the closed form ${sci(mean.tension / tension - 1)}; floor load - anchor pull ${(mean.floor + mean.anchor).toFixed(3)} N against total weight ${total.toFixed(3)} N (${(mean.floor + mean.anchor - total).toFixed(3)} N); sideways ${sci(mean.x)} m`);
     within(-mean.force, B - m * g, 1e-5, '1. force of the cable on the buoy');
     within(B, mean.buoyancy, 1e-9, 'the reported buoyancy is rho g V_sub');
-    near(mean.tension, B - (m + mn) * g, 1.05 * bias, '2. segment tension');
+    within(mean.tension, B - (m + mn) * g, 1e-5, '2. segment tension');
+    assert.ok(bias > 0.7 && lag > 4e-4, 'the errors the link removes were 0.73 N and 0.46 mm');
     assert.ok(mean.tension > 0.5 * m * g, 'the cable is taut: the buoy is held under its free waterline');
-    near(measuredDraught, draught, 1.3 * lag, '3. draught');
-    near(mean.tension, tension, rho * g * waterplane * 1.3 * lag + 1.05 * bias, '4. tension against the closed form');
-    near(mean.floor + mean.anchor, total, 1.05 * bias, '5. floor load - anchor pull = total weight');
+    near(measuredDraught, draught, 5e-6, '3. draught');
+    within(mean.tension, tension, 1e-5, '4. tension against the closed form');
+    near(mean.floor + mean.anchor, total, 0.02, '5. floor load - anchor pull = total weight');
     near(water.meanElevation(), (water.displacedVolume() - V0) / A, 1e-9, '6. mean level');
     near(mean.x, 0, 1e-6, 'no sideways drift');
     assert.equal(cable.inspect().diagnostics.unconvergedSubsteps, 0);

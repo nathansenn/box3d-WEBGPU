@@ -2,7 +2,7 @@
 // The scenarios are exported so that tests/engine/solid-fracture.test.mjs asserts on the same runs the
 // report prints. SI units. The material is concrete-like unless stated: E = 30 GPa, nu = 0.2,
 // sigma_c = 3 MPa, G_c = 100 J/m^2, so l_ch = E G_c / sigma_c^2 = 0.333 m and delta_c = 66.7 um.
-import {engine, memo, defineCases, relative, absolute, upper} from '../lib.mjs';
+import {engine, memo, defineCases, relative, absolute, upper, lower} from '../lib.mjs';
 
 const FILE = 'tests/engine/solid-fracture.test.mjs';
 const T = {
@@ -102,13 +102,13 @@ export async function crackBandBar({nx = 4, regularisation = 'crack-band', poiss
  * The crack plane y = 0 is a mesh plane: the crack is cut for x < a and the ligament carries cohesive
  * interfaces. The mesh has cells of size h = `cell` l_ch from `back` cells behind the tip to `ahead` cells in
  * front of it and three rows on each side of the plane, and grows geometrically away from there. */
-export async function griffithPlate({cell = 0.5, a = 5, grading = 1.5, back = 6, ahead = 10, rows = 3, insertion = 'manual', threshold = 1} = {}) {
+export async function griffithPlate({cell = 0.5, a = 5, grading = 1.5, back = 6, ahead = 10, rows = 3, insertion = 'manual', threshold = 1, tip} = {}) {
   const {FractureBody, gradedBoxMesh} = await fracture();
   const E = CONCRETE.youngModulus, half = a * L_CH, b = 4 * half, H = 2 * b, h = cell * L_CH, t = 2 * h, behind = Math.min(back, Math.round(a / cell) - 1), lo = half - behind * h, hi = half + ahead * h;
   const xs = geometric(lo, 0, h, grading).reverse(); for (let i = 0; i < behind + ahead; i++) xs.push(lo + i * h); xs.push(hi, ...geometric(hi, b, h, grading));
   const up = [0]; for (let i = 1; i <= rows; i++) up.push(i * h); up.push(...geometric(up.at(-1), H, h * grading, grading));
   const body = new FractureBody({mesh: gradedBoxMesh({x: xs, y: [...up.slice(1).map(v => -v).reverse(), ...up], z: [0, t]}), material: CONCRETE,
-    fracture: {model: 'cohesive', strength: SIGMA_C, toughness: G_C, insertion, insertionThreshold: threshold}, config: {tolerance: 1e-9, maxNewtonIterations: 12, maxLinearIterations: 5000}});
+    fracture: {model: 'cohesive', strength: SIGMA_C, toughness: G_C, insertion, insertionThreshold: threshold, ...(tip === undefined ? {} : {tipInsertionThreshold: tip})}, config: {tolerance: 1e-9, maxNewtonIterations: 12, maxLinearIterations: 5000}});
   const plane = [...body.selectInteriorFaces((cx, cy, cz, nx, ny) => near(cy, 0) && Math.abs(ny) > 0.999)];
   body.precrack(plane.filter(f => body.interiorFace(f).centroid[0] < half));
   if (insertion === 'manual') body.insertCohesive(plane.filter(f => body.interiorFace(f).centroid[0] > half));
@@ -200,10 +200,10 @@ export async function freeFlight({integrator = 'explicit', stepShare = 0.8, spin
 
 /** A strip in tension whose weak faces lie in a band around a plane inclined by `degrees` to the cross-section.
  * The solver inserts interfaces where they are needed, so the crack is the path the mesh offers inside the band. */
-export async function inclinedCrack({nx = 8, pattern = 'alternating5', degrees = 30, steps = 60} = {}) {
+export async function inclinedCrack({nx = 8, pattern = 'alternating5', degrees = 30, steps = 60, tip} = {}) {
   const {FractureBody, boxMesh} = {...await fracture(), ...await engine('solid')};
   const L = 0.2, W = 0.1, h = L / nx, angle = degrees * Math.PI / 180, n = [Math.cos(angle), Math.sin(angle)], distance = (x, y) => (x - L / 2) * n[0] + (y - W / 2) * n[1];
-  const body = new FractureBody({mesh: boxMesh({size: [L, W, h], cells: [nx, nx / 2, 1], pattern}), material: CONCRETE, fracture: {model: 'cohesive', strength: 20 * SIGMA_C, toughness: G_C}, config: {tolerance: 1e-9, maxNewtonIterations: 200}});
+  const body = new FractureBody({mesh: boxMesh({size: [L, W, h], cells: [nx, nx / 2, 1], pattern}), material: CONCRETE, fracture: {model: 'cohesive', strength: 20 * SIGMA_C, toughness: G_C, ...(tip === undefined ? {} : {tipInsertionThreshold: tip})}, config: {tolerance: 1e-9, maxNewtonIterations: 200}});
   body.setInterfaceProperties(body.selectInteriorFaces((cx, cy) => Math.abs(distance(cx, cy)) < 0.75 * h), {strength: SIGMA_C});
   body.constrain(body.selectNodes(x => near(x, 0)), [0, null, null]);
   body.constrain(body.selectNodes((x, y) => near(x, 0) && near(y, 0)), [0, 0, null]);
@@ -242,6 +242,8 @@ const bar = () => memo('fracture/bar', () => cohesiveBar({cells: [8, 2, 2], inse
 const barOnDemand = () => memo('fracture/bar-on-demand', () => cohesiveBar({cells: [8, 2, 2]}));
 const band = (nx, regularisation) => memo(`fracture/band/${nx}/${regularisation}`, () => crackBandBar({nx, regularisation}));
 const plate = cell => memo(`fracture/griffith/${cell}`, () => griffithStrength({cell}));
+/** The same plate with nothing inserted beforehand: the solver finds the ligament. `tip` 1 turns the crack-front rule off. */
+const plateOnDemand = (cell, tip) => memo(`fracture/griffith-on-demand/${cell}/${tip}`, () => griffithStrength({cell, insertion: 'on-demand', ...(tip === undefined ? {} : {tip})}, tip === 1 ? {limit: 1.3} : {}));
 const beam = (depth, cells, stop) => memo(`fracture/beam/${depth}/${cells}/${stop}`, () => notchedBeam({depth, cells, stop}));
 const flight = spin => memo(`fracture/flight/${spin}`, () => freeFlight({spin}));
 const shock = () => memo('fracture/quench', () => quench());
@@ -273,6 +275,14 @@ export default defineCases('fracture', FILE, [
     note: 'A cohesive crack of this size is weaker than LEFM because of its process zone: refined meshes converge to 0.955 of the reference (see the next row and docs/SOLID_FRACTURE.md).'},
   {id: 'fracture.griffith.effective-crack', title: 'Griffith with the process zone', quantity: 'the same against LEFM for the crack a + c_f, c_f = 0.419 l_ch', unit: 'Pa', test: T.griffith,
     reference: {formula: 'sqrt(E G_c) / (Y sqrt(pi (a + c_f)))', value: null}, tolerance: relative(0.03), measure: async () => { const r = await plate(0.5); return {value: r.strength, reference: r.effective}; }},
+  {id: 'fracture.griffith.on-demand-fine', title: 'Griffith with on-demand insertion, cells of l_ch / 2', quantity: 'failure stress with no interface inserted beforehand (default thresholds), over that of the pre-inserted crack path, minus 1', unit: '1', test: T.griffith,
+    reference: {formula: 'the same crack: 0', value: 0}, tolerance: absolute(0.011), measure: async () => (await plateOnDemand(0.5)).ratio / (await plate(0.5)).ratio - 1,
+    note: 'One load step is 1 % of the reference. Faces that touch a crack front are inserted at 0.4 of their strength (tipInsertionThreshold); with that rule off the plate still holds 1.59 times its Griffith stress.'},
+  {id: 'fracture.griffith.on-demand-coarse', title: 'Griffith with on-demand insertion, cells of l_ch', quantity: 'the same with cells of l_ch', unit: '1', test: T.griffith,
+    reference: {formula: 'the same crack: 0', value: 0}, tolerance: absolute(0.011), measure: async () => (await plateOnDemand(1)).ratio / (await plate(1)).ratio - 1, note: 'Measured +0.9 %, one load step.'},
+  {id: 'fracture.griffith.on-demand-off', title: 'Griffith with insertion at the strength only', quantity: 'largest stress held, over LEFM, with tipInsertionThreshold = 1 and cells of l_ch / 2; the load stops at 1.3', unit: '1', test: T.griffith,
+    reference: {formula: 'the pre-inserted path fails at 0.965', value: 0.965}, tolerance: lower(0), measure: async () => (await plateOnDemand(0.5, 1)).stable,
+    note: 'Shown as a failure of the plain rule, not as accuracy: the mean stress of two linear elements under-reads the peak at the tip, so no interface appears and the plate does not fail (1.59 when loaded further; on cells of l_ch not below 1.8).'},
   {id: 'fracture.beam.work', title: 'Notched beam: work of fracture', quantity: 'area under the load-deflection curve of a beam of depth 0.6 l_ch, 6 cells in the ligament', unit: 'J', test: T.beam,
     reference: {formula: 'G_c t (D - a0) (1 - h / (2 (D - a0)))', value: null}, tolerance: relative(0.01), measure: async () => { const r = await beam(0.6, 12, 0.002); return {value: r.work, reference: G_C * r.ligament * r.hinge}; },
     note: 'The node row under the load is the hinge and never opens, so half a cell of the ligament stays whole: 8.3 % of G_c times the ligament here, 12.5 % with 4 cells.'},
@@ -289,5 +299,7 @@ export default defineCases('fracture', FILE, [
     reference: {formula: 'time at which E alpha dT / (1 - nu) of the surface cell reaches sigma_c (heat module)', value: null}, tolerance: relative(0.05), measure: async () => { const r = await shock(); return {value: r.onset, reference: r.estimate}; },
     note: 'The solid reads element temperatures that average in the second cell layer, so it cracks a few steps later.'},
   {id: 'fracture.path.area', title: 'Crack path: a crack inclined 30 degrees to the mesh', quantity: 'crack area divided by the area of the inclined plane, five-tetrahedron cells', unit: '1', test: T.path,
-    reference: {formula: 'area of the plane: ratio 1', value: 1}, tolerance: upper(0.3), measure: async () => (await path('alternating5')).areaRatio, note: 'Shown as a limit: the crack follows faces, so it is 24 % larger than the plane on this mesh and 48 % on six-tetrahedron cells, at any resolution.'},
+    reference: {formula: 'area of the plane: ratio 1', value: 1}, tolerance: upper(0.3), measure: async () => (await path('alternating5')).areaRatio, note: 'Shown as a limit: the crack follows faces. It is 2.5 % larger than the plane on this mesh, 21 % with cells half the size and 30 % on six-tetrahedron cells, and the dissipated energy is 38 % to 54 % above G_c times the plane.'},
+  {id: 'fracture.path.energy', title: 'Crack path: energy of the inclined crack', quantity: 'dissipated energy over G_c times the area of the inclined plane, five-tetrahedron cells', unit: '1', test: T.path,
+    reference: {formula: 'G_c times the plane: ratio 1', value: 1}, tolerance: upper(0.6), measure: async () => (await path('alternating5')).energyRatio, note: 'Shown as a limit, measured +38 %: faces beside the path soften without opening. It does not fall with refinement (+49 % with cells half the size).'},
 ]);

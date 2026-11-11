@@ -2980,6 +2980,7 @@ export declare class Simulation<W extends SimulationWorld<B>, B = unknown> {
 export declare function waterSubsystem<W, B>(water: WaterCoupling<B>, options?: {
     readonly id?: string;
 }): Subsystem<W, B>;
+export declare function linkWaterToStructure<B>(water: WaterCoupling<B>, structure: StructureCoupling<B>): () => void;
 export declare function structureSubsystem<W, B>(coupling: StructureCoupling<B>, options?: {
     readonly id?: string;
     readonly bodies?: Iterable<B>;
@@ -3024,12 +3025,280 @@ export declare function buildSceneSimulation<W extends SimulationSceneWorld>(wor
 export declare function loadSimulationScene<W extends SimulationSceneWorld>(world: W, scene: unknown): LoadedSimulationScene<W>;
 export {};
 
+// ==== core/solid-contact.d.ts ====
+import { SolidBody } from './solid.js';
+import { type StructureInertia } from './structure-coupling.js';
+import type { Subsystem } from './simulation.js';
+export declare const SOLID_CONTACT_SOLVER_ID = "solid-contact-penalty-newton-pcg-js-f64-v1";
+export declare const SOLID_COUPLING_BACKEND = "rigid-solid-coupling-monolithic-js-f64-v1";
+export type SolidContactVec3 = readonly [number, number, number];
+export type SolidContactShape = {
+    readonly kind: 'box';
+    readonly halfExtents: SolidContactVec3;
+} | {
+    readonly kind: 'sphere';
+    readonly radius: number;
+}
+ | {
+    readonly kind: 'capsule';
+    readonly radius: number;
+    readonly halfLength: number;
+}
+ | {
+    readonly kind: 'plane';
+    readonly normal: SolidContactVec3;
+};
+export interface SolidContactBodyState {
+    readonly position: ArrayLike<number>;
+    readonly rotation: ArrayLike<number>;
+    readonly linearVelocity?: ArrayLike<number>;
+    readonly angularVelocity?: ArrayLike<number>;
+}
+export interface SolidContactBodyOptions extends SolidContactBodyState {
+    readonly shape: SolidContactShape;
+    readonly type: 'static' | 'kinematic' | 'dynamic';
+    readonly mass?: number;
+    readonly inertia?: StructureInertia;
+    readonly friction?: number;
+    readonly collide?: boolean;
+    readonly twoWay?: boolean;
+    readonly gravityScale?: number;
+}
+export interface SolidContactOptions {
+    readonly stiffnessScale?: number;
+    readonly skin?: number;
+    readonly frictionPasses?: number;
+    readonly frictionTolerance?: number;
+    readonly scheme?: 'implicit' | 'naive-staggered';
+    readonly gravity?: SolidContactVec3;
+}
+export interface SolidContactStats {
+    converged: boolean;
+    newtonIterations: number;
+    linearIterations: number;
+    residual: number;
+    reference: number;
+    frictionPasses: number;
+    unconvergedSteps: number;
+    contacts: number;
+}
+export interface SolidStaticContactResult {
+    converged: boolean;
+    passes: number;
+    residual: number;
+    change: number;
+}
+export declare class SolidContact {
+    readonly solver = "solid-contact-penalty-newton-pcg-js-f64-v1";
+    readonly solid: SolidBody;
+    readonly dt: number;
+    readonly stiffnessScale: number;
+    readonly skin: number;
+    readonly frictionPasses: number;
+    readonly frictionTolerance: number;
+    scheme: 'implicit' | 'naive-staggered';
+    bodyStepFactor: number;
+    integrateBodies: boolean;
+    readonly bodyGravity: Float64Array<ArrayBuffer>;
+    readonly stats: SolidContactStats;
+    externalWork: number;
+    readonly surfaceNodes: Uint32Array;
+    readonly surfaceArea: Float64Array;
+    readonly elementSize: number;
+    readonly nodeForce: Float64Array;
+    private readonly k;
+    private readonly n3;
+    private readonly bodies;
+    private size;
+    private z;
+    private G;
+    private Gt;
+    private trial;
+    private cgX;
+    private cgR;
+    private cgZ;
+    private cgP;
+    private cgA;
+    private diag;
+    private views;
+    private readonly fint;
+    private readonly u0;
+    private readonly target;
+    private readonly work;
+    private readonly work2;
+    private readonly kArea;
+    private readonly areaVector;
+    private kc;
+    private cand;
+    private act;
+    private cn;
+    private ca;
+    private cr;
+    private cForce;
+    private g0;
+    private f0;
+    private w0;
+    private fHas;
+    private fl;
+    private fa;
+    private fr;
+    private fcap;
+    private fmode;
+    private fs;
+    private fsl;
+    private list;
+    private listCount;
+    private readonly wNode;
+    private readonly wBody;
+    private readonly wLocal;
+    private readonly wK;
+    private wa;
+    private wr;
+    private readonly welded;
+    private blocks;
+    private readonly m6;
+    private readonly v6;
+    private cm;
+    private cd;
+    private reference;
+    private referenceInertia;
+    private h;
+    private staticMode;
+    private fext;
+    private readonly sn;
+    private all;
+    private warm;
+    constructor(solid: SolidBody, options?: SolidContactOptions);
+    private makeViews;
+    addBody(options: SolidContactBodyOptions): number;
+    get bodyCount(): number;
+    private body;
+    setBodyState(index: number, state: SolidContactBodyState): void;
+    setBodyExternalLoad(index: number, force: ArrayLike<number>, torque: ArrayLike<number>, torqueOffset?: number): void;
+    setBodyMass(index: number, mass: number): void;
+    bodyForce(index: number): Float64Array;
+    bodyTorque(index: number): Float64Array;
+    bodyTwoWay(index: number): boolean;
+    bodyGravityScale(index: number): number;
+    bodyMass(index: number): number;
+    bodyMotion(index: number): Float64Array;
+    bodyContacts(index: number): number;
+    bodyPosition(index: number): Float64Array;
+    bodyRotation(index: number): Float64Array;
+    bodyVelocity(index: number): Float64Array;
+    bodyAngularVelocity(index: number): Float64Array;
+    bodyAngularMomentumChange(index: number, dx: number, dy: number, dz: number, out: Float64Array): void;
+    weld(nodes: ArrayLike<number>, bodyIndex: number): void;
+    unweld(nodes: ArrayLike<number>): void;
+    get weldCount(): number;
+    private sdf;
+    private prepare;
+    private springs;
+    private objective;
+    private bodyScale;
+    private product;
+    private addBlock;
+    private precondition;
+    private applyPreconditioner;
+    private norm;
+    private conjugateGradient;
+    private minimise;
+    private rounding;
+    private updateCaps;
+    private solve;
+    private collect;
+    step(count?: number): void;
+    solveStatic(options?: {
+        readonly pseudoStep?: number;
+        readonly maxPasses?: number;
+        readonly tolerance?: number;
+    }): SolidStaticContactResult;
+    contactEnergy(): number;
+    maxPenetration(): number;
+    linearMomentum(out?: number[] | Float64Array): number[] | Float64Array;
+}
+export interface SolidWorld<B> {
+    gravity(): readonly number[];
+    getState(body: B): {
+        readonly position: readonly number[];
+        readonly rotation: readonly number[];
+        readonly linearVelocity: readonly number[];
+        readonly angularVelocity: readonly number[];
+        readonly mass: number;
+        readonly type: string;
+    };
+    applyForce(body: B, force: SolidContactVec3, point?: SolidContactVec3): void;
+    applyTorque(body: B, torque: SolidContactVec3): void;
+    isAlive?(body: B): boolean;
+    readonly loop?: {
+        readonly step: number;
+    };
+    readonly subSteps?: number;
+}
+export interface SolidColliderOptions {
+    readonly shape: SolidContactShape;
+    readonly friction?: number;
+    readonly inertia?: StructureInertia;
+    readonly collide?: boolean;
+    readonly twoWay?: boolean;
+    readonly gravityScale?: number;
+}
+export interface SolidCouplingOptions extends SolidContactOptions {
+    readonly estimateSupports?: boolean;
+}
+export interface SolidCouplingDiagnostics {
+    solidKinetic: number;
+    solidStrain: number;
+    solidPotential: number;
+    contact: number;
+    bodyKinetic: number;
+    bodyPotential: number;
+    total: number;
+    momentum: [number, number, number];
+    mass: number;
+}
+export declare class SolidCoupling<B> {
+    readonly backend = "rigid-solid-coupling-monolithic-js-f64-v1";
+    readonly world: SolidWorld<B>;
+    readonly contact: SolidContact;
+    readonly solid: SolidBody;
+    readonly dt: number;
+    readonly estimateSupports: boolean;
+    private readonly list;
+    private readonly byBody;
+    private readonly load;
+    private readonly out;
+    steps: number;
+    constructor(world: SolidWorld<B>, solid: SolidBody, options?: SolidCouplingOptions);
+    addBody(body: B, options: SolidColliderOptions): number;
+    addPlane(options: {
+        readonly normal: SolidContactVec3;
+        readonly point?: SolidContactVec3;
+        readonly friction?: number;
+    }): number;
+    private entry;
+    indexOf(body: B): number;
+    weld(nodes: ArrayLike<number>, body: B): void;
+    unweld(nodes: ArrayLike<number>): void;
+    force(body: B): Float64Array;
+    torque(body: B): Float64Array;
+    step(): void;
+    contactChanges(each: (body: B | null, index: number, touching: boolean) => void): void;
+    diagnostics(): SolidCouplingDiagnostics;
+}
+export declare const SOLID_CONTACT_SUBSYSTEM_ORDER = 170;
+export declare function solidContactSubsystem<W, B>(target: SolidContact | SolidCoupling<B>, options?: {
+    readonly id?: string;
+    readonly order?: number;
+}): Subsystem<W, B>;
+
 // ==== core/solid-fracture.d.ts ====
 import { type TetMesh } from './solid-mesh.js';
 import { type SolidMaterial } from './solid.js';
 import { HeatSolver, type ThermalShockOptions } from './heat.js';
 import type { Subsystem } from './simulation.js';
 export declare const SOLID_FRACTURE_SOLVER_ID = "solid-fracture-czm-js-f64-v1";
+export declare const TIP_INSERTION_THRESHOLD = 0.4;
 export type FractureModel = 'cohesive' | 'crack-band' | 'none';
 export type FractureIntegrator = 'backward-euler' | 'midpoint' | 'explicit';
 export interface FractureLaw {
@@ -3040,6 +3309,7 @@ export interface FractureLaw {
     initialOpeningRatio?: number;
     insertion?: 'on-demand' | 'manual';
     insertionThreshold?: number;
+    tipInsertionThreshold?: number;
     regularisation?: 'crack-band' | 'none';
     failureStrain?: number;
     residualStiffness?: number;
@@ -3168,6 +3438,7 @@ export declare class FractureBody {
     private readonly fStrength;
     private readonly fToughness;
     private readonly fState;
+    private readonly front;
     private readonly hist;
     private readonly lin;
     private readonly mix;
@@ -3449,6 +3720,25 @@ export interface SolidMode {
     converged: boolean;
 }
 export type SolidFailureCriterion = 'max-principal' | 'von-mises';
+export interface SolidKernel {
+    readonly fixed: Uint8Array;
+    readonly prescribed: Float64Array;
+    readonly stiffnessDiagonal: Float64Array;
+    readonly massDamping: number;
+    readonly stiffnessDamping: number;
+    readonly tolerance: number;
+    readonly forceTolerance: number;
+    readonly maxNewtonIterations: number;
+    readonly maxLinearIterations: number;
+    readonly gravity: Float64Array;
+    loads(): Float64Array;
+    applyConstraints(): void;
+    energy(u: Float64Array, fint: Float64Array | null, store: boolean): number;
+    tangentProduct(x: Float64Array, out: Float64Array): void;
+    holdDampingTangent(): void;
+    dampingProduct(x: Float64Array, out: Float64Array): void;
+    advance(converged: boolean): void;
+}
 export declare function symmetricEigenvalues(t: ArrayLike<number>, offset: number, out: Float64Array | number[], outOffset: number): void;
 export declare function vonMisesStress(t: ArrayLike<number>, offset?: number): number;
 export declare class SolidBody {
@@ -3557,6 +3847,7 @@ export declare class SolidBody {
         maxIterations?: number;
         tolerance?: number;
     }): SolidMode;
+    kernel(): SolidKernel;
     strainEnergy(): number;
     kineticEnergy(): number;
     loadPotential(): number;
@@ -3641,6 +3932,7 @@ export interface StructureAttachment {
     effectiveMass: number;
     attached: boolean;
 }
+export type StructureLoadProvider<B> = (body: B, out: Float64Array) => void;
 export interface StructureDiagnostics {
     bodyKinetic: number;
     bodyPotential: number;
@@ -3667,6 +3959,7 @@ export declare class StructureCoupling<B> {
     private readonly cables;
     private readonly frames;
     private readonly attachments;
+    private readonly providers;
     private readonly frameBody;
     private nextId;
     private readonly g;
@@ -3697,6 +3990,7 @@ export declare class StructureCoupling<B> {
     detach(attachment: StructureAttachment): void;
     prime(attachment: StructureAttachment, force: StructureVec3, moment?: StructureVec3): void;
     get reports(): readonly StructureAttachment[];
+    addLoadProvider(provider: StructureLoadProvider<B>): () => void;
     private alive;
     private kick;
     private readBody;
@@ -3801,6 +4095,8 @@ export declare class WaterCoupling<B> {
     private readonly polygon;
     private readonly breaks;
     private readonly clip;
+    private probe;
+    private readonly saved;
     private readonly chord;
     private readonly force;
     private readonly point;
@@ -3812,6 +4108,7 @@ export declare class WaterCoupling<B> {
     attachedCount(): number;
     tick(): number;
     gravity(): number;
+    predictLoad(body: B, out: Float64Array): boolean;
     step(): void;
     surfaceVolume(): number;
     displacedVolume(): number;
@@ -4355,6 +4652,9 @@ export type WorldSimulation = Simulation<PhysicsWorld, Body>;
 export type LoadedSimulationScene = CoreLoadedSimulationScene<PhysicsWorld>;
 export declare function createSimulation(world: PhysicsWorld, options?: SimulationOptions): WorldSimulation;
 export declare function loadSimulationScene(world: PhysicsWorld, scene: unknown): LoadedSimulationScene;
+
+// ==== solid-contact.d.ts ====
+export * from './core/solid-contact.js';
 
 // ==== solid.d.ts ====
 export * from './core/solid.js';

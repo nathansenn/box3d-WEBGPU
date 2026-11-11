@@ -58,6 +58,29 @@ export interface SolidExplicitLimit {
 }
 export interface SolidMode {angularFrequency:number;frequency:number;shape:Float64Array;iterations:number;converged:boolean}
 export type SolidFailureCriterion='max-principal'|'von-mises';
+/** What `SolidBody.kernel()` hands to a coupled solver. Arrays are the body's own, live. */
+export interface SolidKernel {
+  /** 1 for a constrained component. */
+  readonly fixed:Uint8Array;readonly prescribed:Float64Array;
+  /** Diagonal of the reference stiffness, N/m per component. */
+  readonly stiffnessDiagonal:Float64Array;
+  readonly massDamping:number;readonly stiffnessDamping:number;readonly tolerance:number;readonly forceTolerance:number;
+  readonly maxNewtonIterations:number;readonly maxLinearIterations:number;readonly gravity:Float64Array;
+  /** Assembles the dead loads (point forces, surface loads, weight) and returns them, N. */
+  loads():Float64Array;
+  /** Puts the prescribed values into the constrained displacement components. */
+  applyConstraints():void;
+  /** Strain energy of the displacement field `u`, J; fills `fint` with the internal forces. With `store`
+   * the tangent at `u` is kept for `tangentProduct`. Infinity when an element is inverted. */
+  energy(u:Float64Array,fint:Float64Array|null,store:boolean):number;
+  /** out = K x with the tangent kept by the last `energy(..., true)` (the constant stiffness for the linear model). */
+  tangentProduct(x:Float64Array,out:Float64Array):void;
+  /** Keeps the tangent of the present state as the stiffness of Rayleigh damping for the coming step. */
+  holdDampingTangent():void;
+  dampingProduct(x:Float64Array,out:Float64Array):void;
+  /** Counts one time step taken by the outside solver. */
+  advance(converged:boolean):void;
+}
 
 const MIN_J=1e-6;
 const zero=(x:number)=>x===0?0:x;
@@ -581,6 +604,32 @@ export class SolidBody {
     for(let j=0;j<size;j++)shape[j]/=peak;
     const angularFrequency=Math.sqrt(lambda);
     return {angularFrequency,frequency:angularFrequency/(2*Math.PI),shape,iterations,converged};
+  }
+
+  // ---- Access for a coupled solve ----
+
+  /** Low-level access for a solver that advances this body together with something else
+   * (solid-contact.ts adds contact springs and rigid bodies to the same Newton iteration).
+   * The element mechanics are this body's own; nothing here changes how `step` or
+   * `solveStatic` behave. */
+  kernel():SolidKernel {
+    const self=this;
+    return {
+      fixed:this.fixed,prescribed:this.prescribed,stiffnessDiagonal:this.kDiagonal,
+      massDamping:this.massDamping,stiffnessDamping:this.stiffnessDamping,tolerance:this.tolerance,forceTolerance:this.forceTolerance,
+      maxNewtonIterations:this.maxNewton,maxLinearIterations:this.maxLinear,gravity:this.gravity,
+      loads(){self.loadScale=1;self.assembleLoads();return self.fext;},
+      applyConstraints(){self.applyConstraints(1);},
+      energy(u,fint,store){return self.elastic(u,fint,store&&self.model!=='linear'?self.lin:null);},
+      tangentProduct(x,out){self.stiffness(self.model,self.lin,x,out);},
+      holdDampingTangent(){
+        if(self.linOld.length===0)return;
+        if(!(self.elastic(self.u,null,self.lin)<Infinity))throw new EngineError('NUMERICAL_FAILURE','An element is inverted.');
+        self.linOld.set(self.lin);
+      },
+      dampingProduct(x,out){self.stiffness(self.model,self.linOld,x,out);},
+      advance(converged){self.steps++;if(!converged)self.unconverged++;self.accelerationValid=false;},
+    };
   }
 
   // ---- Outputs ----

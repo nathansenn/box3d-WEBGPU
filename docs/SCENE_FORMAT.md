@@ -365,7 +365,7 @@ Measured (`v12-scene.test.mjs`, each example run for 100 ticks, saved, loaded in
 | Car on terrain (rolling contact, springs) | 1.6e-4 m | 5e-3 m |
 | Domino run (dominoes mid-fall) | 1.1e-2 m | 5e-2 m |
 | Ragdoll (toppling; compared as its head strikes the ground at 7 m/s) | 6.9e-2 m | 0.4 m |
-| Moored buoy (coupled; saved mid-swing at tick 240, compared 240 ticks later) | buoy 6.1e-6 m; water surface 4.0e-5 m | 1e-4 m; 4e-4 m |
+| Moored buoy (coupled; saved mid-swing at tick 240, compared 240 ticks later) | buoy 5.9e-6 m; water surface 4.0e-5 m | 1e-4 m; 4e-4 m |
 | Cable-stayed deck (coupled; same ticks) | ball 1.6e-8 m; deck 4.3e-7 m | 2e-7 m; 4e-6 m |
 
 The two coupled rows are measured by `v14-simulation.test.mjs`; their fields are bit-identical at the moment of loading.
