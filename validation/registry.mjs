@@ -100,6 +100,9 @@ export const DOMAINS = [
       'A save of a coupled scene is not a bit-exact continuation: the structure coupling\'s impulses and pending half kick, the cable multipliers and one step of displaced volume are not saved. The resume rows show the drift.',
       'The energy ledger is a sum of what each solver reports. With drag it may exceed its start by the sampling offset rho g V v dt, because its terms are known half a step apart.',
       'The Physics Lab and the Studio do not run coupled scenes; the Lab refuses a scene with water, cable or frame sections. Heat and solids are not in the scene format.',
+    ],
+  },
+  {
     id: 'robot', title: 'Robot import (URDF and MJCF)', needsKit: true,
     solver: '`box3d-webgpu-kit/robot`: URDF and MJCF files as scenes of the rigid world (one body per collision shape, joints as constraints; 240 Hz, 4 sub-steps)',
     summary: 'Forward kinematics against the product of joint transforms, the same robot from both formats, mass and the reported inertia gap, pendulum and cart-pole periods, joint limits, effort limits, joint springs and damping, a held arm, joint drift on a chain, a wheeled cart, and round trips through scene files and share links.',
@@ -184,8 +187,7 @@ export const DOMAINS = [
   },
 ];
 
-export const CASES = [...rigid, ...waterCoupling, ...structureCoupling, ...geometry, ...scene, ...simulation, ...heat, ...solid, ...frame, ...cable, ...closedWater];
-export const CASES = [...rigid, ...waterCoupling, ...structureCoupling, ...geometry, ...scene, ...robot, ...heat, ...solid, ...frame, ...cable, ...closedWater];
+export const CASES = [...rigid, ...waterCoupling, ...structureCoupling, ...geometry, ...scene, ...simulation, ...robot, ...heat, ...solid, ...frame, ...cable, ...closedWater];
 
 /** Cases of the given domains (all when `only` is empty), in registry order. */
 export function selectCases(only = []) {

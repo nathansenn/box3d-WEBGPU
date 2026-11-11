@@ -5,10 +5,10 @@
  "generatedBy": "node scripts/validation-report.mjs",
  "digits": 9,
  "totals": {
-  "cases": 237,
-  "passed": 237,
+  "cases": 265,
+  "passed": 265,
   "failed": 0,
-  "domains": 11
+  "domains": 12
  },
  "domains": [
   {
@@ -121,6 +121,26 @@
    ],
    "cases": 26,
    "passed": 26
+  },
+  {
+   "id": "robot",
+   "title": "Robot import (URDF and MJCF)",
+   "summary": "Forward kinematics against the product of joint transforms, the same robot from both formats, mass and the reported inertia gap, pendulum and cart-pole periods, joint limits, effort limits, joint springs and damping, a held arm, joint drift on a chain, a wheeled cart, and round trips through scene files and share links.",
+   "solver": "`box3d-webgpu-kit/robot`: URDF and MJCF files as scenes of the rigid world (one body per collision shape, joints as constraints; 240 Hz, 4 sub-steps)",
+   "docs": [
+    "docs/ROBOT_IMPORT.md"
+   ],
+   "notValidated": [
+    "Inertia is not imported. The engine derives it from each shape and its density, so only the mass matches the file; `robotReport` gives the gap per link (42% on the worst link of the example arm), and the motion follows the bodies, not the file.",
+    "Joints are soft constraints (60 Hz in the engine, not adjustable from the bridge). A loaded arm settles below its kinematic pose (17 mm at the tool of the 1 m example arm) and a chain stretches by millimetres. There is no reduced-coordinate articulation solver.",
+    "No comparison with MuJoCo, Gazebo or another simulator on the same model: every reference here is closed form.",
+    "Mesh collision is the convex hull of each mesh; only the parser path and a cube and a tetrahedron are checked. No real robot model with meshes is in the suite.",
+    "Ball joints, floating bases under contact, self-collision of real robots, and contact between a robot and objects (grasping) have no reference here.",
+    "Joint springs damp numerically (measured 0.10 /s on the spring case), and joint damping without stiffness adds a very weak spring towards the starting pose.",
+    "MJCF: equality constraints, tendons, most actuator types and several joints on one body are reported and dropped, so models that depend on them do not behave as in MuJoCo."
+   ],
+   "cases": 28,
+   "passed": 28
   },
   {
    "id": "heat",
@@ -4138,6 +4158,800 @@
     "measured": "4.268478e-7",
     "error": "+4.27e-7",
     "tolerance": "at most 4e-6 above the reference"
+   }
+  },
+  {
+   "id": "robot.kinematics.function",
+   "domain": "robot",
+   "title": "Forward kinematics: the six-joint arm, as a function",
+   "quantity": "largest error of a link position (m) or rotation-matrix entry over 6 links x 4 joint configurations",
+   "unit": "m, 1",
+   "formula": "T_child = T_parent Trans(xyz) Rz(yaw) Ry(pitch) Rx(roll) R(axis, q)",
+   "reference": 0,
+   "measured": 1.11022302e-15,
+   "error": 1.11022302e-15,
+   "relativeError": null,
+   "tolerance": {
+    "kind": "absolute",
+    "value": 1e-12
+   },
+   "pass": true,
+   "source": {
+    "file": "packages/box3d-kit/test/v15-robot.test.mjs",
+    "test": "forward kinematics: link poses of the two-link and six-joint arms equal the product of joint transforms to 1e-6",
+    "url": "https://github.com/nathansenn/box3d-WEBGPU/blob/main/packages/box3d-kit/test/v15-robot.test.mjs"
+   },
+   "text": {
+    "reference": "0 m, 1",
+    "measured": "1.110223e-15",
+    "error": "+1.11e-15",
+    "tolerance": "±1e-12"
+   }
+  },
+  {
+   "id": "robot.kinematics.bodies",
+   "domain": "robot",
+   "title": "Forward kinematics: the six-joint arm, as spawned bodies",
+   "quantity": "the same error for the link frames read back from the bodies in the world (Y up)",
+   "unit": "m, 1",
+   "formula": "world pose = U T_link, U: (x, y, z) -> (x, z, -y)",
+   "reference": 0,
+   "measured": 6.42535722e-8,
+   "error": 6.42535722e-8,
+   "relativeError": null,
+   "tolerance": {
+    "kind": "absolute",
+    "value": 0.000001
+   },
+   "pass": true,
+   "note": "Body positions and rotations are float32 in the solver.",
+   "source": {
+    "file": "packages/box3d-kit/test/v15-robot.test.mjs",
+    "test": "forward kinematics: link poses of the two-link and six-joint arms equal the product of joint transforms to 1e-6",
+    "url": "https://github.com/nathansenn/box3d-WEBGPU/blob/main/packages/box3d-kit/test/v15-robot.test.mjs"
+   },
+   "text": {
+    "reference": "0 m, 1",
+    "measured": "6.425357e-8",
+    "error": "+6.43e-8",
+    "tolerance": "±1e-6"
+   }
+  },
+  {
+   "id": "robot.formats.scene",
+   "domain": "robot",
+   "title": "URDF and MJCF: the double pendulum is one scene",
+   "quantity": "characters that differ between the canonical scene JSON from the URDF file and from the MJCF file",
+   "unit": "characters",
+   "formula": "canonical(scene from URDF) = canonical(scene from MJCF)",
+   "reference": 0,
+   "measured": 0,
+   "error": 0,
+   "relativeError": null,
+   "tolerance": {
+    "kind": "absolute",
+    "value": 0
+   },
+   "pass": true,
+   "note": "The MJCF file writes out a ground plane and a friction of 0.6, because its defaults (no ground, friction 1) differ from the URDF path.",
+   "source": {
+    "file": "packages/box3d-kit/test/v15-robot.test.mjs",
+    "test": "format equivalence: the double pendulum from URDF and from MJCF is the same scene and the same trajectory",
+    "url": "https://github.com/nathansenn/box3d-WEBGPU/blob/main/packages/box3d-kit/test/v15-robot.test.mjs"
+   },
+   "text": {
+    "reference": "0 characters",
+    "measured": "0",
+    "error": "0",
+    "tolerance": "±0"
+   }
+  },
+  {
+   "id": "robot.formats.trajectory",
+   "domain": "robot",
+   "title": "URDF and MJCF: the double pendulum runs identically",
+   "quantity": "difference of the exactHash after 600 steps of the two imports (0: identical)",
+   "unit": "1",
+   "formula": "hash(URDF run) = hash(MJCF run)",
+   "reference": 0,
+   "measured": 0,
+   "error": 0,
+   "relativeError": null,
+   "tolerance": {
+    "kind": "absolute",
+    "value": 0
+   },
+   "pass": true,
+   "source": {
+    "file": "packages/box3d-kit/test/v15-robot.test.mjs",
+    "test": "format equivalence: the double pendulum from URDF and from MJCF is the same scene and the same trajectory",
+    "url": "https://github.com/nathansenn/box3d-WEBGPU/blob/main/packages/box3d-kit/test/v15-robot.test.mjs"
+   },
+   "text": {
+    "reference": "0",
+    "measured": "0",
+    "error": "0",
+    "tolerance": "±0"
+   }
+  },
+  {
+   "id": "robot.mass.total",
+   "domain": "robot",
+   "title": "Mass: the six-joint arm weighs what its file says",
+   "quantity": "sum of the masses the solver reports for the arm's 8 bodies",
+   "unit": "kg",
+   "formula": "sum of the link masses in the file",
+   "reference": 16.8,
+   "measured": 16.7999996,
+   "error": -4.35113908e-7,
+   "relativeError": -2.58996374e-8,
+   "tolerance": {
+    "kind": "relative",
+    "value": 2e-7
+   },
+   "pass": true,
+   "note": "Density = link mass / collision volume, in float32.",
+   "source": {
+    "file": "packages/box3d-kit/test/v15-robot.test.mjs",
+    "test": "mass and inertia: total mass is the sum of link masses to float32, and the reported inertia errors are those of the shapes",
+    "url": "https://github.com/nathansenn/box3d-WEBGPU/blob/main/packages/box3d-kit/test/v15-robot.test.mjs"
+   },
+   "text": {
+    "reference": "16.8 kg",
+    "measured": "16.8",
+    "error": "-2.59e-8 rel.",
+    "tolerance": "±2e-7 rel."
+   }
+  },
+  {
+   "id": "robot.inertia.report",
+   "domain": "robot",
+   "title": "Inertia report: the two-box tool link",
+   "quantity": "reported largest relative error of a principal moment for the tool link (file tensor against its two boxes at one density)",
+   "unit": "1",
+   "formula": "max |I_i(two boxes, parallel axes) - I_i(file)| / I_i(file)",
+   "reference": 0.423567395,
+   "measured": 0.423567395,
+   "error": 3.88578059e-16,
+   "relativeError": 9.17393697e-16,
+   "tolerance": {
+    "kind": "absolute",
+    "value": 1e-9
+   },
+   "pass": true,
+   "note": "This is the fidelity limit itself, not an error of the report: the engine cannot take the file's tensor, and here the bodies are 42% off it.",
+   "source": {
+    "file": "packages/box3d-kit/test/v15-robot.test.mjs",
+    "test": "mass and inertia: total mass is the sum of link masses to float32, and the reported inertia errors are those of the shapes",
+    "url": "https://github.com/nathansenn/box3d-WEBGPU/blob/main/packages/box3d-kit/test/v15-robot.test.mjs"
+   },
+   "text": {
+    "reference": "0.4235674",
+    "measured": "0.4235674",
+    "error": "+3.89e-16",
+    "tolerance": "±1e-9"
+   }
+  },
+  {
+   "id": "robot.inertia.cylinder",
+   "domain": "robot",
+   "title": "A cylinder as a 24-sided prism of the same volume",
+   "quantity": "largest relative error of a principal moment of the prism against the solid cylinder, at equal mass",
+   "unit": "1",
+   "formula": "I_prism = I_cylinder",
+   "reference": 0,
+   "measured": 0.0000263242286,
+   "error": 0.0000263242286,
+   "relativeError": null,
+   "tolerance": {
+    "kind": "absolute",
+    "value": 0.00003
+   },
+   "pass": true,
+   "source": {
+    "file": "packages/box3d-kit/test/v15-robot.test.mjs",
+    "test": "mass and inertia: total mass is the sum of link masses to float32, and the reported inertia errors are those of the shapes",
+    "url": "https://github.com/nathansenn/box3d-WEBGPU/blob/main/packages/box3d-kit/test/v15-robot.test.mjs"
+   },
+   "text": {
+    "reference": "0",
+    "measured": "2.632423e-5",
+    "error": "+2.63e-5",
+    "tolerance": "±3e-5"
+   }
+  },
+  {
+   "id": "robot.pendulum.period",
+   "domain": "robot",
+   "title": "One revolute link: compound-pendulum period",
+   "quantity": "period of a 0.8 m box rod hinged at its end, mean over 20 s",
+   "unit": "s",
+   "formula": "T = 2 pi sqrt((I_box + m d^2) / (m g d)) (1 + theta0^2 / 16), with the body's actual inertia",
+   "reference": 1.46696998,
+   "measured": 1.46697108,
+   "error": 0.00000110189293,
+   "relativeError": 7.51135299e-7,
+   "tolerance": {
+    "kind": "relative",
+    "value": 0.001
+   },
+   "pass": true,
+   "source": {
+    "file": "packages/box3d-kit/test/v15-robot.test.mjs",
+    "test": "a single revolute link swings with the compound-pendulum period of its ACTUAL inertia, not the inertia in the file",
+    "url": "https://github.com/nathansenn/box3d-WEBGPU/blob/main/packages/box3d-kit/test/v15-robot.test.mjs"
+   },
+   "text": {
+    "reference": "1.46697 s",
+    "measured": "1.466971",
+    "error": "+7.51e-7 rel.",
+    "tolerance": "±0.1%"
+   }
+  },
+  {
+   "id": "robot.pendulum.file-inertia",
+   "domain": "robot",
+   "title": "One revolute link: what the file's inertia would have given",
+   "quantity": "period predicted from the file's tensor (1.3 x the rod's) over the measured period, minus 1",
+   "unit": "1",
+   "formula": "sqrt((1.3 I_box + m d^2) / (I_box + m d^2)) - 1",
+   "reference": 0.0369744268,
+   "measured": 0.0369736479,
+   "error": -7.78907511e-7,
+   "relativeError": -0.0000210661145,
+   "tolerance": {
+    "kind": "absolute",
+    "value": 0.001
+   },
+   "pass": true,
+   "note": "The body swings 3.7% faster than a body with the file's inertia would: the gap the inertia report warns of.",
+   "source": {
+    "file": "packages/box3d-kit/test/v15-robot.test.mjs",
+    "test": "a single revolute link swings with the compound-pendulum period of its ACTUAL inertia, not the inertia in the file",
+    "url": "https://github.com/nathansenn/box3d-WEBGPU/blob/main/packages/box3d-kit/test/v15-robot.test.mjs"
+   },
+   "text": {
+    "reference": "0.03697443",
+    "measured": "0.03697365",
+    "error": "-7.79e-7",
+    "tolerance": "±0.001"
+   }
+  },
+  {
+   "id": "robot.cart-pole.period",
+   "domain": "robot",
+   "title": "Cart-pole: coupled small oscillation about the hanging pose",
+   "quantity": "period of the pole on a free cart, mean over 20 s",
+   "unit": "s",
+   "formula": "omega^2 = (M + m) m g d / ((M + m) (I + m d^2) - m^2 d^2)",
+   "reference": 1.5325089,
+   "measured": 1.53292645,
+   "error": 0.000417549052,
+   "relativeError": 0.000272461094,
+   "tolerance": {
+    "kind": "relative",
+    "value": 0.002
+   },
+   "pass": true,
+   "source": {
+    "file": "packages/box3d-kit/test/v15-robot.test.mjs",
+    "test": "the cart-pole swings at the coupled small-oscillation frequency, and a slider along gravity falls at g and stops at its limit",
+    "url": "https://github.com/nathansenn/box3d-WEBGPU/blob/main/packages/box3d-kit/test/v15-robot.test.mjs"
+   },
+   "text": {
+    "reference": "1.532509 s",
+    "measured": "1.532926",
+    "error": "+0.0272%",
+    "tolerance": "±0.2%"
+   }
+  },
+  {
+   "id": "robot.prismatic.free-fall",
+   "domain": "robot",
+   "title": "Prismatic joint along gravity",
+   "quantity": "speed of a block on a vertical slider after 2 s",
+   "unit": "m/s",
+   "formula": "v = g t",
+   "reference": 19.62,
+   "measured": 19.6201591,
+   "error": 0.00015914917,
+   "relativeError": 0.00000811157849,
+   "tolerance": {
+    "kind": "relative",
+    "value": 0.0001
+   },
+   "pass": true,
+   "source": {
+    "file": "packages/box3d-kit/test/v15-robot.test.mjs",
+    "test": "the cart-pole swings at the coupled small-oscillation frequency, and a slider along gravity falls at g and stops at its limit",
+    "url": "https://github.com/nathansenn/box3d-WEBGPU/blob/main/packages/box3d-kit/test/v15-robot.test.mjs"
+   },
+   "text": {
+    "reference": "19.62 m/s",
+    "measured": "19.62016",
+    "error": "+8.11e-6 rel.",
+    "tolerance": "±0.01%"
+   }
+  },
+  {
+   "id": "robot.prismatic.limit",
+   "domain": "robot",
+   "title": "Prismatic joint: the limit holds",
+   "quantity": "travel of the falling block once it rests on its upper limit",
+   "unit": "m",
+   "formula": "x = upper limit",
+   "reference": 30,
+   "measured": 30.0000648,
+   "error": 0.0000648498535,
+   "relativeError": 0.00000216166178,
+   "tolerance": {
+    "kind": "absolute",
+    "value": 0.001
+   },
+   "pass": true,
+   "source": {
+    "file": "packages/box3d-kit/test/v15-robot.test.mjs",
+    "test": "the cart-pole swings at the coupled small-oscillation frequency, and a slider along gravity falls at g and stops at its limit",
+    "url": "https://github.com/nathansenn/box3d-WEBGPU/blob/main/packages/box3d-kit/test/v15-robot.test.mjs"
+   },
+   "text": {
+    "reference": "30 m",
+    "measured": "30.00006",
+    "error": "+6.48e-5",
+    "tolerance": "±0.001"
+   }
+  },
+  {
+   "id": "robot.revolute.limit",
+   "domain": "robot",
+   "title": "Revolute joint: the limit holds",
+   "quantity": "angle of a horizontal link after it has fallen onto its upper limit",
+   "unit": "rad",
+   "formula": "theta = upper limit",
+   "reference": 0.5,
+   "measured": 0.500601709,
+   "error": 0.000601708889,
+   "relativeError": 0.00120341778,
+   "tolerance": {
+    "kind": "absolute",
+    "value": 0.002
+   },
+   "pass": true,
+   "source": {
+    "file": "packages/box3d-kit/test/v15-robot.test.mjs",
+    "test": "joint limits hold, and a motor with effort tau holds a horizontal link when tau >= m g d and drops it when not",
+    "url": "https://github.com/nathansenn/box3d-WEBGPU/blob/main/packages/box3d-kit/test/v15-robot.test.mjs"
+   },
+   "text": {
+    "reference": "0.5 rad",
+    "measured": "0.5006017",
+    "error": "+0.000602",
+    "tolerance": "±0.002"
+   }
+  },
+  {
+   "id": "robot.motor.holds",
+   "domain": "robot",
+   "title": "Effort limit: 1.02 m g d holds a horizontal link",
+   "quantity": "angle after 3 s with a zero-speed motor whose largest torque is 1.02 times the gravity torque",
+   "unit": "rad",
+   "formula": "theta = 0 while tau >= m g d",
+   "reference": 0,
+   "measured": 0.000454390858,
+   "error": 0.000454390858,
+   "relativeError": null,
+   "tolerance": {
+    "kind": "absolute",
+    "value": 0.002
+   },
+   "pass": true,
+   "source": {
+    "file": "packages/box3d-kit/test/v15-robot.test.mjs",
+    "test": "joint limits hold, and a motor with effort tau holds a horizontal link when tau >= m g d and drops it when not",
+    "url": "https://github.com/nathansenn/box3d-WEBGPU/blob/main/packages/box3d-kit/test/v15-robot.test.mjs"
+   },
+   "text": {
+    "reference": "0 rad",
+    "measured": "0.0004543909",
+    "error": "+0.000454",
+    "tolerance": "±0.002"
+   }
+  },
+  {
+   "id": "robot.motor.drops",
+   "domain": "robot",
+   "title": "Effort limit: 0.98 m g d does not",
+   "quantity": "angle after 3 s with a zero-speed motor whose largest torque is 0.98 times the gravity torque",
+   "unit": "rad",
+   "formula": "theta > 0.2 rad: the link sinks when tau < m g d",
+   "reference": 0.2,
+   "measured": 0.348320067,
+   "error": 0.148320067,
+   "relativeError": 0.741600335,
+   "tolerance": {
+    "kind": "lower",
+    "value": 0
+   },
+   "pass": true,
+   "source": {
+    "file": "packages/box3d-kit/test/v15-robot.test.mjs",
+    "test": "joint limits hold, and a motor with effort tau holds a horizontal link when tau >= m g d and drops it when not",
+    "url": "https://github.com/nathansenn/box3d-WEBGPU/blob/main/packages/box3d-kit/test/v15-robot.test.mjs"
+   },
+   "text": {
+    "reference": "0.2 rad",
+    "measured": "0.3483201",
+    "error": "+0.148",
+    "tolerance": "not below the reference"
+   }
+  },
+  {
+   "id": "robot.spring.period",
+   "domain": "robot",
+   "title": "Joint stiffness: period of a spring-loaded hinge without gravity",
+   "quantity": "period of a rod on a hinge with stiffness 20 N m/rad, mean over 10 s",
+   "unit": "s",
+   "formula": "T = 2 pi sqrt(I_pivot / k)",
+   "reference": 0.640574363,
+   "measured": 0.641238184,
+   "error": 0.000663821649,
+   "relativeError": 0.00103629132,
+   "tolerance": {
+    "kind": "relative",
+    "value": 0.002
+   },
+   "pass": true,
+   "source": {
+    "file": "packages/box3d-kit/test/v15-robot.test.mjs",
+    "test": "joint stiffness and damping become a joint spring with the right frequency and decay; dry friction becomes a motor",
+    "url": "https://github.com/nathansenn/box3d-WEBGPU/blob/main/packages/box3d-kit/test/v15-robot.test.mjs"
+   },
+   "text": {
+    "reference": "0.6405744 s",
+    "measured": "0.6412382",
+    "error": "+0.104%",
+    "tolerance": "±0.2%"
+   }
+  },
+  {
+   "id": "robot.spring.numerical-damping",
+   "domain": "robot",
+   "title": "Joint stiffness: the spring damps numerically",
+   "quantity": "decay rate of the swing of the undamped spring-loaded hinge",
+   "unit": "1/s",
+   "formula": "rate = 0 for an ideal spring",
+   "reference": 0,
+   "measured": 0.101685503,
+   "error": 0.101685503,
+   "relativeError": null,
+   "tolerance": {
+    "kind": "upper",
+    "value": 0.12
+   },
+   "pass": true,
+   "note": "The joint spring is integrated implicitly. Here it loses amplitude as a damping of 0.042 N m s/rad would: about 2 k dt, with dt the sub-step.",
+   "source": {
+    "file": "packages/box3d-kit/test/v15-robot.test.mjs",
+    "test": "joint stiffness and damping become a joint spring with the right frequency and decay; dry friction becomes a motor",
+    "url": "https://github.com/nathansenn/box3d-WEBGPU/blob/main/packages/box3d-kit/test/v15-robot.test.mjs"
+   },
+   "text": {
+    "reference": "0 1/s",
+    "measured": "0.1016855",
+    "error": "+0.102",
+    "tolerance": "at most 0.12 above the reference"
+   }
+  },
+  {
+   "id": "robot.damping.decay",
+   "domain": "robot",
+   "title": "Joint damping: decay of a damped pendulum",
+   "quantity": "decay rate of the swing of a rod on a hinge with damping 0.3 N m s/rad, under gravity",
+   "unit": "1/s",
+   "formula": "rate = c / (2 I_pivot)",
+   "reference": 0.72157569,
+   "measured": 0.718789298,
+   "error": -0.00278639289,
+   "relativeError": -0.00386153931,
+   "tolerance": {
+    "kind": "relative",
+    "value": 0.01
+   },
+   "pass": true,
+   "source": {
+    "file": "packages/box3d-kit/test/v15-robot.test.mjs",
+    "test": "joint stiffness and damping become a joint spring with the right frequency and decay; dry friction becomes a motor",
+    "url": "https://github.com/nathansenn/box3d-WEBGPU/blob/main/packages/box3d-kit/test/v15-robot.test.mjs"
+   },
+   "text": {
+    "reference": "0.7215757 1/s",
+    "measured": "0.7187893",
+    "error": "-0.386%",
+    "tolerance": "±1%"
+   }
+  },
+  {
+   "id": "robot.arm.hold-motors",
+   "domain": "robot",
+   "title": "Six-joint arm held by zero-speed motors",
+   "quantity": "largest displacement of the tool frame from its kinematic pose in 5 s (16.8 kg arm, 1 m reach)",
+   "unit": "m",
+   "formula": "displacement = 0 for rigid joints",
+   "reference": 0,
+   "measured": 0.0240421263,
+   "error": 0.0240421263,
+   "relativeError": null,
+   "tolerance": {
+    "kind": "upper",
+    "value": 0.03
+   },
+   "pass": true,
+   "note": "Joint constraints are soft in the engine (60 Hz), so the arm settles below its kinematic pose.",
+   "source": {
+    "file": "packages/box3d-kit/test/v15-robot.test.mjs",
+    "test": "static stability: the six-joint arm holds its pose for 5 s within a stated tolerance, by motors and by springs",
+    "url": "https://github.com/nathansenn/box3d-WEBGPU/blob/main/packages/box3d-kit/test/v15-robot.test.mjs"
+   },
+   "text": {
+    "reference": "0 m",
+    "measured": "0.02404213",
+    "error": "+0.024",
+    "tolerance": "at most 0.03 above the reference"
+   }
+  },
+  {
+   "id": "robot.arm.hold-motors-settled",
+   "domain": "robot",
+   "title": "Six-joint arm held by zero-speed motors: where it settles",
+   "quantity": "displacement of the tool frame after 5 s",
+   "unit": "m",
+   "formula": "displacement = 0 for rigid joints",
+   "reference": 0,
+   "measured": 0.0176670903,
+   "error": 0.0176670903,
+   "relativeError": null,
+   "tolerance": {
+    "kind": "upper",
+    "value": 0.03
+   },
+   "pass": true,
+   "source": {
+    "file": "packages/box3d-kit/test/v15-robot.test.mjs",
+    "test": "static stability: the six-joint arm holds its pose for 5 s within a stated tolerance, by motors and by springs",
+    "url": "https://github.com/nathansenn/box3d-WEBGPU/blob/main/packages/box3d-kit/test/v15-robot.test.mjs"
+   },
+   "text": {
+    "reference": "0 m",
+    "measured": "0.01766709",
+    "error": "+0.0177",
+    "tolerance": "at most 0.03 above the reference"
+   }
+  },
+  {
+   "id": "robot.arm.hold-springs",
+   "domain": "robot",
+   "title": "Six-joint arm held by 60 Hz joint springs",
+   "quantity": "largest displacement of the tool frame from its kinematic pose in 5 s",
+   "unit": "m",
+   "formula": "displacement = 0 for rigid joints and infinitely stiff springs",
+   "reference": 0,
+   "measured": 0.044525882,
+   "error": 0.044525882,
+   "relativeError": null,
+   "tolerance": {
+    "kind": "upper",
+    "value": 0.05
+   },
+   "pass": true,
+   "note": "The springs add their own sag to that of the joints.",
+   "source": {
+    "file": "packages/box3d-kit/test/v15-robot.test.mjs",
+    "test": "static stability: the six-joint arm holds its pose for 5 s within a stated tolerance, by motors and by springs",
+    "url": "https://github.com/nathansenn/box3d-WEBGPU/blob/main/packages/box3d-kit/test/v15-robot.test.mjs"
+   },
+   "text": {
+    "reference": "0 m",
+    "measured": "0.04452588",
+    "error": "+0.0445",
+    "tolerance": "at most 0.05 above the reference"
+   }
+  },
+  {
+   "id": "robot.arm.joint-gap",
+   "domain": "robot",
+   "title": "Six-joint arm: how far the joints are pulled apart",
+   "quantity": "largest distance between the two sides of a joint anchor in 5 s, motors holding",
+   "unit": "m",
+   "formula": "gap = 0 for exact constraints",
+   "reference": 0,
+   "measured": 0.000910037572,
+   "error": 0.000910037572,
+   "relativeError": null,
+   "tolerance": {
+    "kind": "upper",
+    "value": 0.002
+   },
+   "pass": true,
+   "source": {
+    "file": "packages/box3d-kit/test/v15-robot.test.mjs",
+    "test": "static stability: the six-joint arm holds its pose for 5 s within a stated tolerance, by motors and by springs",
+    "url": "https://github.com/nathansenn/box3d-WEBGPU/blob/main/packages/box3d-kit/test/v15-robot.test.mjs"
+   },
+   "text": {
+    "reference": "0 m",
+    "measured": "0.0009100376",
+    "error": "+0.00091",
+    "tolerance": "at most 0.002 above the reference"
+   }
+  },
+  {
+   "id": "robot.chain.rest-gap",
+   "domain": "robot",
+   "title": "12-link hanging chain: joint gap at rest",
+   "quantity": "largest anchor gap of the chain hanging still (the hinge that carries ten links)",
+   "unit": "m",
+   "formula": "gap = load / (m_reduced (2 pi 60 Hz)^2), the engine's 60 Hz soft constraint",
+   "reference": 0.00138050113,
+   "measured": 0.0015182972,
+   "error": 0.000137796068,
+   "relativeError": 0.0998159767,
+   "tolerance": {
+    "kind": "relative",
+    "value": 0.15
+   },
+   "pass": true,
+   "note": "The estimate uses only the reduced translational mass of the two links at the hinge; it comes out 10% low.",
+   "source": {
+    "file": "packages/box3d-kit/test/v15-robot.test.mjs",
+    "test": "maximal-coordinate drift: a 12-link chain stretches by millimetres at its joints, as the soft-constraint model predicts",
+    "url": "https://github.com/nathansenn/box3d-WEBGPU/blob/main/packages/box3d-kit/test/v15-robot.test.mjs"
+   },
+   "text": {
+    "reference": "0.001380501 m",
+    "measured": "0.001518297",
+    "error": "+9.98%",
+    "tolerance": "±15%"
+   }
+  },
+  {
+   "id": "robot.chain.swing-gap",
+   "domain": "robot",
+   "title": "12-link chain swinging from 1.2 rad: joint drift",
+   "quantity": "largest anchor gap in 10 s",
+   "unit": "m",
+   "formula": "gap = 0 for exact constraints",
+   "reference": 0,
+   "measured": 0.00375466831,
+   "error": 0.00375466831,
+   "relativeError": null,
+   "tolerance": {
+    "kind": "upper",
+    "value": 0.006
+   },
+   "pass": true,
+   "source": {
+    "file": "packages/box3d-kit/test/v15-robot.test.mjs",
+    "test": "maximal-coordinate drift: a 12-link chain stretches by millimetres at its joints, as the soft-constraint model predicts",
+    "url": "https://github.com/nathansenn/box3d-WEBGPU/blob/main/packages/box3d-kit/test/v15-robot.test.mjs"
+   },
+   "text": {
+    "reference": "0 m",
+    "measured": "0.003754668",
+    "error": "+0.00375",
+    "tolerance": "at most 0.006 above the reference"
+   }
+  },
+  {
+   "id": "robot.wheels.rest",
+   "domain": "robot",
+   "title": "Wheeled cart: rests on its wheels",
+   "quantity": "height of the chassis centre after 2 s on the ground",
+   "unit": "m",
+   "formula": "h = wheel radius + 0.05 m",
+   "reference": 0.15,
+   "measured": 0.150144354,
+   "error": 0.000144353509,
+   "relativeError": 0.000962356726,
+   "tolerance": {
+    "kind": "absolute",
+    "value": 0.001
+   },
+   "pass": true,
+   "source": {
+    "file": "packages/box3d-kit/test/v15-robot.test.mjs",
+    "test": "the wheeled cart rests on the ground and rolls at wheel speed x radius when its wheel motors run",
+    "url": "https://github.com/nathansenn/box3d-WEBGPU/blob/main/packages/box3d-kit/test/v15-robot.test.mjs"
+   },
+   "text": {
+    "reference": "0.15 m",
+    "measured": "0.1501444",
+    "error": "+0.000144",
+    "tolerance": "±0.001"
+   }
+  },
+  {
+   "id": "robot.wheels.speed",
+   "domain": "robot",
+   "title": "Wheeled cart: rolls at wheel speed x radius",
+   "quantity": "mean speed over 2 s with the four wheel motors at 5 rad/s",
+   "unit": "m/s",
+   "formula": "v = omega r",
+   "reference": 0.5,
+   "measured": 0.48657769,
+   "error": -0.0134223104,
+   "relativeError": -0.0268446207,
+   "tolerance": {
+    "kind": "relative",
+    "value": 0.05
+   },
+   "pass": true,
+   "note": "The wheels are 24-sided prisms, which roll a little slow.",
+   "source": {
+    "file": "packages/box3d-kit/test/v15-robot.test.mjs",
+    "test": "the wheeled cart rests on the ground and rolls at wheel speed x radius when its wheel motors run",
+    "url": "https://github.com/nathansenn/box3d-WEBGPU/blob/main/packages/box3d-kit/test/v15-robot.test.mjs"
+   },
+   "text": {
+    "reference": "0.5 m/s",
+    "measured": "0.4865777",
+    "error": "-2.68%",
+    "tolerance": "±5%"
+   }
+  },
+  {
+   "id": "robot.round-trip.valid",
+   "domain": "robot",
+   "title": "Round trip: every example robot is a valid scene",
+   "quantity": "problems validateScene finds in the scenes of the 7 example robots",
+   "unit": "problems",
+   "formula": "validateScene(robotToScene(robot)) = []",
+   "reference": 0,
+   "measured": 0,
+   "error": 0,
+   "relativeError": null,
+   "tolerance": {
+    "kind": "absolute",
+    "value": 0
+   },
+   "pass": true,
+   "source": {
+    "file": "packages/box3d-kit/test/v15-robot.test.mjs",
+    "test": "round trip: robotToScene validates, loads to the same hashes as spawnRobot, and survives a share link",
+    "url": "https://github.com/nathansenn/box3d-WEBGPU/blob/main/packages/box3d-kit/test/v15-robot.test.mjs"
+   },
+   "text": {
+    "reference": "0 problems",
+    "measured": "0",
+    "error": "0",
+    "tolerance": "±0"
+   }
+  },
+  {
+   "id": "robot.round-trip.hash",
+   "domain": "robot",
+   "title": "Round trip: spawnRobot, loadScene and a share link run identically",
+   "quantity": "runs of 150 steps whose exactHash differs from the loaded scene's (7 robots x spawnRobot and a share link)",
+   "unit": "runs",
+   "formula": "hash(spawnRobot) = hash(loadScene) = hash(share link)",
+   "reference": 0,
+   "measured": 0,
+   "error": 0,
+   "relativeError": null,
+   "tolerance": {
+    "kind": "absolute",
+    "value": 0
+   },
+   "pass": true,
+   "source": {
+    "file": "packages/box3d-kit/test/v15-robot.test.mjs",
+    "test": "round trip: robotToScene validates, loads to the same hashes as spawnRobot, and survives a share link",
+    "url": "https://github.com/nathansenn/box3d-WEBGPU/blob/main/packages/box3d-kit/test/v15-robot.test.mjs"
+   },
+   "text": {
+    "reference": "0 runs",
+    "measured": "0",
+    "error": "0",
+    "tolerance": "±0"
    }
   },
   {
