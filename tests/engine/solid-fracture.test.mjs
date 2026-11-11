@@ -58,7 +58,7 @@ test('without cracks the body is the linear solid of solid.ts; inputs are valida
   assert.deepEqual([...gradedBoxMesh({x:[0,1],y:[0,1],z:[0,1]}).positions],[...mesh.positions]);
   assert.equal(graded.positions.length,3*3*2*3);close(new FractureBody({mesh:graded,material:CONCRETE,fracture:COHESIVE}).referenceVolume,2*1*4,1e-12);
   invalid(()=>gradedBoxMesh({x:[0,0],y:[0,1],z:[0,1]}));
-  for(const patch of [{model:'plastic'},{strength:0},{toughness:-1},{shearWeight:0},{initialOpeningRatio:.9},{insertion:'always'},{insertionThreshold:2},{regularisation:'nonlocal'},{extra:1}])invalid(()=>new FractureBody({mesh,material:CONCRETE,fracture:{...COHESIVE,...patch}}));
+  for(const patch of [{model:'plastic'},{strength:0},{toughness:-1},{shearWeight:0},{initialOpeningRatio:.9},{insertion:'always'},{insertionThreshold:2},{tipInsertionThreshold:0},{tipInsertionThreshold:1.5},{regularisation:'nonlocal'},{extra:1}])invalid(()=>new FractureBody({mesh,material:CONCRETE,fracture:{...COHESIVE,...patch}}));
   invalid(()=>new FractureBody({mesh,material:CONCRETE,fracture:{model:'crack-band',strength:SIGMA_C,toughness:G_C,regularisation:'none'}}),'INVALID_PAYLOAD');
   invalid(()=>new FractureBody({mesh,material:CONCRETE,fracture:COHESIVE,config:{integrator:'rk4'}}));
   const body=new FractureBody({mesh:boxMesh({size:[1,1,1],cells:[2,1,1]}),material:CONCRETE,fracture:COHESIVE});
@@ -230,6 +230,21 @@ test('Griffith: a centre-cracked plate fails at K_Ic / (Y sqrt(pi a)) with K_Ic 
     assert.ok(run.growthBeforeFailure<=2*C_F,`stable growth before failure ${run.growthBeforeFailure/L_CH} l_ch`);
     note(`Griffith h = ${run.h/L_CH} l_ch (${run.tets} elements, ${run.zoneCells.toFixed(2)} cells per c_f, ${run.solves} solves): sigma_f / LEFM in (${run.stable.toFixed(2)}, ${run.unstable.toFixed(2)}], error ${(100*(run.ratio-1)).toFixed(1)} %; against the effective crack ${(100*(run.strength/run.effective-1)).toFixed(1)} %`);
   }
+  // On-demand insertion: nothing is inserted beforehand and the solver has to find the ligament. A face that touches
+  // a crack front (cut, open or softening) gets its interface at tipInsertionThreshold = 0.4 of its strength, because
+  // the mean stress of its two elements under-reads the peak there. The failure load must be that of the pre-inserted
+  // path within one load step (1 %): measured 0 on cells of l_ch / 2 and +0.9 % on cells of l_ch.
+  for(const [cell,manual] of [[1,coarse],[.5,fine]]){
+    const run=await griffithStrength({cell,insertion:'on-demand'});
+    assert.ok(run.unstable>0,'the plate fails');
+    assert.ok(Math.abs(run.ratio-manual.ratio)<=.0101,`on-demand at h = ${cell} l_ch: ${run.ratio} against ${manual.ratio} for the pre-inserted path`);
+    // The cost: interfaces beside the path. Nodes after splitting against the pre-inserted mesh.
+    assert.ok(run.body.nodeCount<=1.03*manual.body.nodeCount,`node count ${run.body.nodeCount} against ${manual.body.nodeCount}`);
+    note(`on-demand insertion, h = ${cell} l_ch: sigma_f / LEFM in (${run.stable.toFixed(2)}, ${run.unstable.toFixed(2)}] against (${manual.stable.toFixed(2)}, ${manual.unstable.toFixed(2)}] pre-inserted; ${run.body.interfaces.length} interfaces and ${run.body.nodeCount} nodes against ${manual.body.interfaces.length} and ${manual.body.nodeCount}`);
+  }
+  // With the rule off (insertion at the strength everywhere) no interface appears ahead of the tip and the plate holds
+  // far more than it should: still intact at 1.3 times LEFM (it fails at 1.59 with cells of l_ch / 2, not below 1.8 with l_ch).
+  for(const cell of [1,.5]){const run=await griffithStrength({cell,insertion:'on-demand',tip:1},{limit:1.3});assert.ok(run.unstable===0&&run.stable>1.29,`insertion at sigma_c only, h = ${cell} l_ch: held ${run.stable}`);}
   assert.ok(Math.abs(fine.ratio-1)<Math.abs(coarse.ratio-1),'the error against LEFM falls with refinement');
   close(fine.strength,fine.effective,.03,0,'strength against the effective-crack estimate');
   if(SLOW){
@@ -237,7 +252,9 @@ test('Griffith: a centre-cracked plate fails at K_Ic / (Y sqrt(pi a)) with K_Ic 
     const study={grading:1.25,back:12,ahead:16,rows:6};
     for(const [cell,a] of [[.5,5],[.25,5],[.125,5],[.25,10]]){const run=await griffithStrength({cell,a,...study});note(`refined Griffith a = ${a} l_ch, h = ${cell} l_ch (${run.tets} elements): sigma_f / LEFM in (${run.stable.toFixed(2)}, ${run.unstable.toFixed(2)}], effective-crack ${(run.effective/run.lefm).toFixed(4)}`);assert.ok(Math.abs(run.strength/run.effective-1)<=.015);}
     // On-demand insertion reads the mean stress of two elements, which misses the peak at the tip.
-    for(const threshold of [1,.5,.25]){const run=await griffithStrength({cell:.5,insertion:'on-demand',threshold},{limit:1.6});note(`on-demand insertion at ${threshold} sigma_c, h = l_ch / 2: stable to ${run.stable.toFixed(2)}, failed at ${run.unstable.toFixed(2)}`);}
+    // The threshold study of docs/SOLID_FRACTURE.md: the crack-front rule at several values, and one threshold for every face.
+    for(const cell of [1,.5])for(const tip of [1,.7,.6,.5,.4,.3,.25]){const run=await griffithStrength({cell,insertion:'on-demand',tip},{start:.5,limit:1.8});note(`crack-front threshold ${tip}, h = ${cell} l_ch: stable to ${run.stable.toFixed(2)}, failed at ${run.unstable.toFixed(2)}, ${run.body.nodeCount} nodes`);}
+    for(const cell of [1,.5])for(const threshold of [.7,.6,.5,.4,.3,.25]){const run=await griffithStrength({cell,insertion:'on-demand',threshold},{start:.5,limit:1.8});note(`one threshold ${threshold} for every face, h = ${cell} l_ch: stable to ${run.stable.toFixed(2)}, failed at ${run.unstable.toFixed(2)}, ${run.body.nodeCount} nodes`);}
   }
 });
 
@@ -347,11 +364,18 @@ test('crack paths follow element faces: the area and energy of a crack inclined 
   const note=message=>t.diagnostic(message);
   // The limit of the method, measured. The ideal crack is a plane inclined 30 degrees to the cross-section.
   const five=await inclined(),fiveFine=await inclinedCrack({pattern:'alternating5',nx:16}),six=await inclinedCrack({pattern:'kuhn6'});
-  for(const run of [five,fiveFine,six]){assert.equal(run.fragments,2);assert.equal(run.unconverged,0);assert.ok(run.areaRatio>1.1,'a faceted crack is larger than the plane');}
-  // The excess does not go away with refinement (same pattern, half the cell: within 2 %) and depends on the pattern.
-  close(fiveFine.areaRatio,five.areaRatio,.02,0,'area ratio at two resolutions');
+  for(const run of [five,fiveFine,six]){assert.equal(run.fragments,2);assert.equal(run.unconverged,0);assert.ok(run.areaRatio>1,'a faceted crack is larger than the plane');}
+  // The excess does not go away with refinement and depends on the pattern. Measured area / plane: 1.025 (five
+  // tetrahedra per cell), 1.212 (the same with half the cell), 1.299 (six per cell); energy / (G_c plane): 1.375,
+  // 1.486, 1.537, because faces beside the path soften without opening; peak / (sigma_c A): 1.022, 1.146, 1.072.
+  assert.ok(fiveFine.areaRatio>five.areaRatio+.1,`halving the cell does not bring the area to the plane: ${five.areaRatio} and ${fiveFine.areaRatio}`);
   assert.ok(six.areaRatio-five.areaRatio>.1,`five- and six-tetrahedron cells give different cracks: ${five.areaRatio} and ${six.areaRatio}`);
-  assert.ok(five.energyRatio>1.2&&six.energyRatio>1.2&&five.roughness<.75);
+  assert.ok(five.energyRatio>1.3&&fiveFine.energyRatio>1.3&&six.energyRatio>1.3&&five.roughness<.75);
+  for(const run of [five,fiveFine,six])assert.ok(run.areaRatio<1.35&&run.energyRatio<1.6&&run.peak<1.2,'bounds on what was measured');
+  // With insertion at the strength only (the crack-front rule off) the same strips give 1.241, 1.241 and 1.478 for
+  // the area and 1.123, 1.435 and 1.109 for the peak: the rule lowers the peak error from 11-44 % to 2-15 %.
+  const plain=await inclinedCrack({tip:1});
+  close(plain.areaRatio,1.241,2e-3,0,'area ratio with the crack-front rule off');assert.ok(plain.peak>five.peak+.05);
   note(`inclined crack, area / plane, energy / (G_c plane), peak / (sigma_c A), rms distance / h: five-tet h ${[five.areaRatio,five.energyRatio,five.peak,five.roughness].map(v=>v.toFixed(3)).join(', ')}; five-tet h/2 ${[fiveFine.areaRatio,fiveFine.energyRatio,fiveFine.peak,fiveFine.roughness].map(v=>v.toFixed(3)).join(', ')}; six-tet h ${[six.areaRatio,six.energyRatio,six.peak,six.roughness].map(v=>v.toFixed(3)).join(', ')}`);
 });
 

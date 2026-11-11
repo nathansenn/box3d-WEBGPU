@@ -29,6 +29,10 @@ import {HeatSolver,type ThermalShockOptions} from './heat.ts';
 import type {Subsystem} from './simulation.ts';
 
 export const SOLID_FRACTURE_SOLVER_ID='solid-fracture-czm-js-f64-v1';
+/** Default share of the strength at which on-demand insertion acts on a face that touches a crack front. Measured on the
+ * centre-cracked plate: with 0.4 the failure load is that of a pre-inserted crack path within the 1 % load step on cells of
+ * l_ch and of l_ch / 2 (docs/SOLID_FRACTURE.md). */
+export const TIP_INSERTION_THRESHOLD=.4;
 export type FractureModel='cohesive'|'crack-band'|'none';
 export type FractureIntegrator='backward-euler'|'midpoint'|'explicit';
 
@@ -53,6 +57,12 @@ export interface FractureLaw {
    * under-reads the peak at a crack tip on a coarse mesh; a value below 1 inserts earlier and lets the
    * interface law decide. The inserted interface is undamaged either way. Default 1. */
   insertionThreshold?:number;
+  /** Cohesive, on-demand: the share of the strength at which an interface is inserted on a face that touches a
+   * crack front, that is, a face sharing a node with a face that is cut, open or has started to soften. The
+   * two-element mean under-reads the stress there by a factor that grows with the cell size; elsewhere the
+   * stress has no singularity and `insertionThreshold` applies. Default 0.4, or `insertionThreshold` when that
+   * is lower. 1 turns the rule off. */
+  tipInsertionThreshold?:number;
   /** Crack band: 'crack-band' scales the softening by the element size (energy per crack area G_c);
    * 'none' uses the fixed `failureStrain`, which makes the dissipated energy mesh-dependent. Default 'crack-band'. */
   regularisation?:'crack-band'|'none';
@@ -236,6 +246,8 @@ export class FractureBody {
   private readonly fStrength:Float64Array;private readonly fToughness:Float64Array;
   /** 0: no interface. 1: interface. 2: interface without traction. 3: pre-crack (never had cohesion). */
   private readonly fState:Uint8Array;
+  /** insertOnDemand(): 1 for the nodes of the mesh as given that lie on a crack front. */
+  private readonly front:Uint8Array;
   private readonly hist:Float64Array;private readonly lin:Float64Array;private readonly mix:Float64Array;
   private readonly tetFace:Int32Array;private readonly inserted:number[]=[];
   // Boundary faces.
@@ -261,14 +273,14 @@ export class FractureBody {
     const d=record(input,'definition');onlyKeys(d,['mesh','material','fracture','config'],'definition');
     const mesh=record(d.mesh,'mesh');onlyKeys(mesh,['positions','tets'],'mesh');
     const nodeCount=integer((mesh.positions as ArrayLike<number>)?.length/3,'node count',4,SOLID_MAX_NODES),tetCount=integer((mesh.tets as ArrayLike<number>)?.length/4,'element count',1,SOLID_MAX_TETS);
-    this.nodes=this.thermalNodeCount=nodeCount;this.tetCount=tetCount;this.capacity=nodeCount;
+    this.nodes=this.thermalNodeCount=nodeCount;this.tetCount=tetCount;this.capacity=nodeCount;this.front=new Uint8Array(nodeCount);
     const X0=numbers(Array.isArray(mesh.positions)?mesh.positions:Float64Array.from(mesh.positions as ArrayLike<number>),3*nodeCount,'positions',-1e6,1e6);
     const tets=this.tets=Uint32Array.from(indexList(mesh.tets,nodeCount,'tets'));
     const m=record(d.material,'material');onlyKeys(m,['youngModulus','poissonRatio','density','thermalExpansion'],'material');
     const E=finite(m.youngModulus,'youngModulus',1,1e13),nu=finite(m.poissonRatio,'poissonRatio',-.99,.4999),rho=finite(m.density,'density',1e-6,1e6);
     this.material=Object.freeze({youngModulus:E,poissonRatio:nu,density:rho,thermalExpansion:m.thermalExpansion===undefined?0:finite(m.thermalExpansion,'thermalExpansion',-1e-2,1e-2)});
     this.lambda=E*nu/((1+nu)*(1-2*nu));this.mu=E/(2*(1+nu));
-    const l=record(d.fracture,'fracture');onlyKeys(l,['model','strength','toughness','shearWeight','initialOpeningRatio','insertion','insertionThreshold','regularisation','failureStrain','residualStiffness'],'fracture');
+    const l=record(d.fracture,'fracture');onlyKeys(l,['model','strength','toughness','shearWeight','initialOpeningRatio','insertion','insertionThreshold','tipInsertionThreshold','regularisation','failureStrain','residualStiffness'],'fracture');
     if(l.model!=='cohesive'&&l.model!=='crack-band'&&l.model!=='none')throw payload('Unknown fracture model.');
     const strength=finite(l.strength,'strength',1e-6,1e13),toughness=finite(l.toughness,'toughness',1e-12,1e12);
     const insertion=l.insertion===undefined?'on-demand':l.insertion,regularisation=l.regularisation===undefined?'crack-band':l.regularisation;
@@ -276,7 +288,7 @@ export class FractureBody {
     if(regularisation!=='crack-band'&&regularisation!=='none')throw payload('Unknown regularisation.');
     const failureStrain=l.failureStrain===undefined?0:finite(l.failureStrain,'failureStrain',0,10);
     if(l.model==='crack-band'&&regularisation==='none'&&!(failureStrain>strength/E))throw payload('Without regularisation, failureStrain must be above strength / youngModulus.');
-    this.law=Object.freeze({model:l.model,strength,toughness,shearWeight:l.shearWeight===undefined?1:finite(l.shearWeight,'shearWeight',1e-3,1e3),initialOpeningRatio:l.initialOpeningRatio===undefined?.02:finite(l.initialOpeningRatio,'initialOpeningRatio',1e-6,.5),insertion,insertionThreshold:l.insertionThreshold===undefined?1:finite(l.insertionThreshold,'insertionThreshold',1e-3,1),regularisation,failureStrain,residualStiffness:l.residualStiffness===undefined?1e-9:finite(l.residualStiffness,'residualStiffness',0,.1)});
+    this.law=Object.freeze({model:l.model,strength,toughness,shearWeight:l.shearWeight===undefined?1:finite(l.shearWeight,'shearWeight',1e-3,1e3),initialOpeningRatio:l.initialOpeningRatio===undefined?.02:finite(l.initialOpeningRatio,'initialOpeningRatio',1e-6,.5),insertion,insertionThreshold:l.insertionThreshold===undefined?1:finite(l.insertionThreshold,'insertionThreshold',1e-3,1),tipInsertionThreshold:Math.min(l.tipInsertionThreshold===undefined?TIP_INSERTION_THRESHOLD:finite(l.tipInsertionThreshold,'tipInsertionThreshold',1e-3,1),l.insertionThreshold===undefined?1:(l.insertionThreshold as number)),regularisation,failureStrain,residualStiffness:l.residualStiffness===undefined?1e-9:finite(l.residualStiffness,'residualStiffness',0,.1)});
     this.model=l.model;
     const c=d.config===undefined?{}:record(d.config,'config');onlyKeys(c,['dt','integrator','massDamping','gravity','tolerance','forceTolerance','maxNewtonIterations','maxLinearIterations','explicitSafety','maxInsertionSweeps','maxDamageIterations'],'config');
     const integrator=c.integrator===undefined?'backward-euler':c.integrator;
@@ -871,16 +883,32 @@ export class FractureBody {
     }
   }
   /** Inserts an interface on every face whose effective traction, from the mean stress of its two
-   * elements, has reached the face's strength. Faces are taken in index order. Returns how many. */
+   * elements, has reached the face's strength times the insertion threshold: `tipInsertionThreshold` for a
+   * face that shares a node with a crack front (a face that is cut, open or softening), `insertionThreshold`
+   * elsewhere. Faces are taken in index order. Returns how many. */
   private insertOnDemand(u:Float64Array):number {
     if(this.model!=='cohesive'||this.law.insertion!=='on-demand')return 0;
-    const stress=this.stresses(undefined,u),N=this.fNormal,threshold=this.law.insertionThreshold*this.law.insertionThreshold,beta2=this.law.shearWeight*this.law.shearWeight,list:number[]=[],mixes:number[]=[];
+    const stress=this.stresses(undefined,u),N=this.fNormal,far=this.law.insertionThreshold*this.law.insertionThreshold,near=this.law.tipInsertionThreshold*this.law.tipInsertionThreshold,beta2=this.law.shearWeight*this.law.shearWeight,list:number[]=[],mixes:number[]=[];
+    // Nodes of the mesh as given (a duplicate counts as its original) that lie on a crack front.
+    const front=this.front,ratio=this.law.initialOpeningRatio,origin=this.origin,tets=this.tets,local=this.fLocal;let fronts=0;
+    if(near<far){
+      front.fill(0);
+      for(let k=0;k<this.inserted.length;k++){
+        const f=this.inserted[k],state=this.fState[f];let cracked=state===2||state===3;
+        if(state===1){const d0=ratio*2*this.fToughness[f]/this.fStrength[f];for(let i=0;i<3;i++)if(this.hist[3*f+i]>d0*(1+1e-12))cracked=true;}
+        if(!cracked)continue;
+        for(let i=0;i<3;i++)front[origin[tets[4*this.fA[f]+local[6*f+i]]]]=1;fronts++;
+      }
+    }
     for(let f=0;f<this.interiorFaceCount;f++){
       if(this.fState[f]!==0)continue;
       const A=6*this.fA[f],B=6*this.fB[f];if(!this.tetActive[this.fA[f]]||!this.tetActive[this.fB[f]])continue;
       const nx=N[3*f],ny=N[3*f+1],nz=N[3*f+2],xx=.5*(stress[A]+stress[B]),yy=.5*(stress[A+1]+stress[B+1]),zz=.5*(stress[A+2]+stress[B+2]),yz=.5*(stress[A+3]+stress[B+3]),xz=.5*(stress[A+4]+stress[B+4]),xy=.5*(stress[A+5]+stress[B+5]);
-      const tx=xx*nx+xy*ny+xz*nz,ty=xy*nx+yy*ny+yz*nz,tz=xz*nx+yz*ny+zz*nz,tn=tx*nx+ty*ny+tz*nz,pull=tn>0?tn:0,shear2=Math.max(tx*tx+ty*ty+tz*tz-tn*tn,0),eff2=pull*pull+shear2/beta2;
-      if(eff2>=threshold*this.fStrength[f]*this.fStrength[f]){list.push(f);mixes.push(pull*pull/eff2);}
+      const tx=xx*nx+xy*ny+xz*nz,ty=xy*nx+yy*ny+yz*nz,tz=xz*nx+yz*ny+zz*nz,tn=tx*nx+ty*ny+tz*nz,pull=tn>0?tn:0,shear2=Math.max(tx*tx+ty*ty+tz*tz-tn*tn,0),eff2=pull*pull+shear2/beta2,limit=this.fStrength[f]*this.fStrength[f];
+      if(eff2<near*limit)continue;
+      let threshold=far;
+      if(fronts>0&&eff2<far*limit){const t=4*this.fA[f];if(front[origin[tets[t+local[6*f]]]]||front[origin[tets[t+local[6*f+1]]]]||front[origin[tets[t+local[6*f+2]]]])threshold=near;}
+      if(eff2>=threshold*limit){list.push(f);mixes.push(pull*pull/eff2);}
     }
     for(let i=0;i<list.length;i++){const share=mixes[i];this.events.push({time:this.time,step:this.solves,kind:'initiated',face:list[i],element:-1,mode:share>.9?'I':share<.1?'II':'mixed',modeMix:share,energy:0,area:this.fArea[list[i]]});}
     return this.insert(list,1);

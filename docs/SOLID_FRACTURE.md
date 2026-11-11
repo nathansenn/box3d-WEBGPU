@@ -39,14 +39,34 @@ The area under the curve is `sigma_c delta_c / 2 = G_c` exactly, whatever `delta
 
 ### Where interfaces appear
 
-- `insertion: 'on-demand'` (default). After each static solve and each time step, the traction on every interior face is read from the mean stress of its two elements, `t = sigma n`, and an undamaged interface is inserted where `sqrt(<t_n>^2 + |t_s|^2 / beta^2) >= insertionThreshold * sigma_c` (threshold 1 by default). Faces are taken in index order. A static solve repeats "solve, insert" until no face qualifies.
+- `insertion: 'on-demand'` (default). After each static solve and each time step, the traction on every interior face is read from the mean stress of its two elements, `t = sigma n`, and an undamaged interface is inserted where `sqrt(<t_n>^2 + |t_s|^2 / beta^2) >= threshold * sigma_c`. The threshold is `insertionThreshold` (1 by default), except on a face that touches a **crack front**, where it is `tipInsertionThreshold` (0.4 by default). A face touches a crack front when it shares a node with a face that is cut, open, or has started to soften. Faces are taken in index order. A static solve repeats "solve, insert" until no face qualifies.
 - `insertCohesive(faces)` puts interfaces on chosen faces before loading (a known crack path, a weak plane).
 - `precrack(faces)` cuts the body along faces: an interface with no cohesion from the start, which dissipates nothing and still cannot be pushed through itself. A notch or an initial crack.
 - `setInterfaceProperties(faces, {strength, toughness})` gives chosen faces their own values.
 
 A new interface is undamaged and has no opening, so in dynamics the forces do not jump when it appears. It does add its compliance. In a static solve the body relaxes onto it at once, and the energy that lets go, `T_before T_after / (2 K)` per unit area with `K = sigma_c / delta_0`, is booked as `relaxation`: `initialOpeningRatio * G_c` for a face inserted at its strength, 2 % by default.
 
-**Limit of the on-demand rule.** The mean stress of two linear elements under-reads the stress peak at a crack tip. The centre-cracked plate below, with cells of `l_ch / 2` and the default threshold, held 1.59 times its Griffith stress. With `insertionThreshold: 0.5` it failed at 0.985, with 0.25 at 0.965, the value the pre-inserted path gives. Use a threshold below 1 when cracks must start from a notch or grow from a tip, or pre-insert the expected path. In fields without a singularity (the bar, the thermal shock) the default is exact.
+**Why two thresholds.** The mean stress of two linear elements under-reads the stress peak at a crack tip. With insertion at the strength everywhere, the centre-cracked plate below never gets an interface ahead of its tip: with cells of `l_ch / 2` it held 1.59 times its Griffith stress, with cells of `l_ch` more than 1.8 times. Away from a crack front the stress has no singularity and the same reading is exact (the bar, the thermal shock).
+
+Measured on that plate (failure stress over LEFM, load steps of 1 %, loaded from 0.5; the pre-inserted crack path fails at 0.965 on cells of `l_ch / 2` and at 1.115 on cells of `l_ch`):
+
+| Threshold | Crack-front rule, `l_ch / 2` | Crack-front rule, `l_ch` | One threshold for every face, `l_ch / 2` | One threshold for every face, `l_ch` |
+|---|---|---|---|---|
+| 1 | 1.595 | above 1.8 | 1.595 | above 1.8 |
+| 0.7 | 1.205 | 1.615 | 1.165 | 1.605 |
+| 0.6 | 1.045 | 1.385 | 1.005 | 1.375 |
+| 0.5 | 1.005 | 1.175 | 0.975 | 1.145 |
+| **0.4** | **0.965** | **1.125** | 0.965 | 1.125 |
+| 0.3 | 1.015 | 1.135 | 0.965 | 1.115 |
+| 0.25 | 1.015 | 1.135 | 0.955 | 1.115 |
+
+At 0.4 both rules give the failure load of the pre-inserted path within one load step on both meshes (0 and +0.9 %), and 0.4 is the default of the crack-front rule. Below it the crack-front rule inserts faces beside the path and the plate reads up to 5 % strong again.
+
+**Why not one lower threshold for every face.** It has the same failure load, but it puts an interface on every face of any region stressed above the threshold, and each interface adds its compliance. Measured on a bar of uniform strength pulled to 0.9 of its strength: with one threshold of 0.4 the bar carries 68 % of its elastic stress on 8 cells (56 interfaces, 81 nodes become 144) and 50 % on 16 cells (480 interfaces, 425 nodes become 800); the loss grows as the cells shrink, and the bar test's peak, sampled where the elastic bar has it, reads 2.1 % low. With the crack-front rule the same bar has no interface and its stress is the elastic one to 4·10⁻¹⁵. On the plate, one threshold of 0.25 costs 1933 nodes and 14 s against 1256 nodes and 5 s for the crack-front rule at 0.4.
+
+**What the crack-front rule costs.** On the Griffith plate, 847 nodes against 836 for the pre-inserted path on cells of `l_ch`, and 1266 against 1248 on cells of `l_ch / 2`; the eight increments take 1.6 s against under 1 s. Results without a crack front are unchanged bit for bit: the bar's peak, softening curve and `G_c A`, the energy balances, the notched beam (its path is pre-inserted), free flight and the thermal shock up to its first crack print the same digits as before the rule. What did change is the strip with a crack inclined to the mesh ([Mesh dependence](#mesh-dependence)), where faces next to a softening face now get their interface early.
+
+`tipInsertionThreshold: 1` turns the rule off. A threshold given as `insertionThreshold` below the crack-front value is used everywhere.
 
 ### Splitting nodes
 
@@ -143,6 +163,8 @@ Measured by `tests/engine/solid-fracture.test.mjs` (12 tests, about 17 s) on Nod
 | The same, backward Euler | Energy only lost | Imbalance positive (numerical damping) | sign | n/a |
 | Griffith: centre crack, `a = 5 l_ch`, half-width `4 a`, cells of `l_ch` | `sigma_f = sqrt(E G_c) / (Y sqrt(pi a))`, `Y = sqrt(sec(pi a / (2 b)))` = 1.040 | +11.5 % | 15 %: 0.42 cells per `c_f`, too coarse on purpose | see below |
 | Griffith, cells of `l_ch / 2` | same | −3.5 %; +1.2 % against LEFM for the crack `a + c_f` | 5 % and 3 % | see below |
+| Griffith with on-demand insertion (nothing inserted beforehand), cells of `l_ch` and `l_ch / 2` | The failure stress of the pre-inserted path | +0.9 % and 0 | 1.01 %: one load step | n/a |
+| The same with `tipInsertionThreshold: 1` | It must fail near the same stress | Still intact at 1.3 times LEFM on both meshes | shown as the failure the rule removes | n/a |
 | Notched beam, depth 0.6 `l_ch`: work of fracture, 4 and 6 cells in the ligament | `G_c` × ligament × `(1 - 1 / (2 n))` | 0.8759 (0.8750) and 0.9157 (0.9167) of `G_c` × ligament | 1 %; and 13 %, 9 % against `G_c` × the full ligament | first order: the shortfall is half a cell |
 | Notched beam, depth 2.4 `l_ch`: peak load | Below LEFM; Bažant's size-effect law `t sqrt(E G_c D) / sqrt(k^2 + (k^2)' c_f / D)` | 0.750 of LEFM; +8.9 % against the law | 12 %: the law is an asymptote for large beams | see below |
 | Free flight: linear momentum | Constant | Drift 1.7e-14 of `m V` over 358 steps | 1e-12: round-off | n/a |
@@ -184,11 +206,13 @@ A strip in tension has its weak faces in a band around a plane inclined 30° to 
 
 | Mesh | Crack area / plane | Dissipated / (`G_c` × plane) | Peak load / (`sigma_c A`) | RMS distance of the crack from the plane |
 |---|---|---|---|---|
-| Five tetrahedra per cell, 8 cells along | 1.241 | 1.524 | 1.123 | 0.35 cells |
-| Five tetrahedra per cell, 16 cells along | 1.241 | 1.316 | 1.435 | 0.30 cells |
-| Six tetrahedra per cell, 8 cells along | 1.478 | 1.686 | 1.109 | 0.27 cells |
+| Five tetrahedra per cell, 8 cells along | 1.025 | 1.375 | 1.022 | 0.48 cells |
+| Five tetrahedra per cell, 16 cells along | 1.212 | 1.486 | 1.146 | 0.31 cells |
+| Six tetrahedra per cell, 8 cells along | 1.299 | 1.537 | 1.072 | 0.20 cells |
 
-The crack is 24 % larger than the plane on one mesh pattern and 48 % on the other, and halving the cells changes nothing: the excess is the staircase, set by the angle between the plane and the faces the mesh offers. The dissipated energy is 32 % to 69 % too high and the peak load 11 % to 44 % too high. Read every result of this solver whose crack is not on a mesh plane with that in mind. What *is* mesh-objective is the energy per unit of crack area that actually opens: `G_c`, on every mesh.
+The crack is 2.5 % to 30 % larger than the plane, depending on the mesh pattern and on the cell size, and halving the cells does not bring it to the plane (1.03 becomes 1.21): the excess is the staircase, set by the angle between the plane and the faces the mesh offers. The dissipated energy is 38 % to 54 % too high, more than the area, because faces beside the path soften without opening. The peak load is 2 % to 15 % too high.
+
+These numbers are with the default crack-front rule. With insertion at the strength only (`tipInsertionThreshold: 1`) the same three strips give areas of 1.241, 1.241 and 1.478, energies of 1.524, 1.316 and 1.686 and peaks of 1.123, 1.435 and 1.109: the rule lowers the peak error from 11–44 % to 2–15 % and changes which faces open, but the mesh still decides the path. Read every result of this solver whose crack is not on a mesh plane with that in mind. What *is* mesh-objective is the energy per unit of crack area that actually opens: `G_c`, on every mesh.
 
 ## Limits
 
@@ -197,7 +221,7 @@ The crack is 24 % larger than the plane on one mesh pattern and 48 % on the othe
 - **No plasticity**, no rate dependence, no fatigue, one bulk material per body (faces and elements can have their own strength and toughness).
 - **Contact** only across an interface, as a frictionless penalty. Fragments do not collide with each other or with anything else here. Hand them to the rigid world, one way.
 - **Small strain.** A piece that rotates carries false stress; angular momentum is conserved to the order of rotation times strain.
-- **Insertion on demand** under-reads crack-tip stress on coarse meshes (see above), and an inserted interface is compliant: `initialOpeningRatio` trades that compliance against conditioning and the explicit time step.
+- **Insertion on demand** reads the mean stress of two elements, which under-reads the peak at a crack tip. The crack-front threshold of 0.4 corrects that for cells up to `l_ch` (checked on the centre-cracked plate only, mode I, crack on a mesh plane); coarser cells, or a crack that starts at a notch that is not cut with `precrack`, are not covered: a re-entrant corner without a cut face has no crack front and is read with `insertionThreshold`. An inserted interface is compliant: `initialOpeningRatio` trades that compliance against conditioning and the explicit time step.
 - **Snap-back** in a static solve is followed as a jump; the energy that would become motion shows up as a ledger imbalance.
 - **The crack band** is isotropic damage with a Rankine measure: no crack closure, weakened compression, 10 % less energy when confined at `nu = 0.2`.
 - **Not in the scene format**, not used by the Lab or the Studio, no checkpoints, at most 200,000 nodes.

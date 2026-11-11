@@ -6020,6 +6020,7 @@ export interface FractureLaw {
     initialOpeningRatio?: number;
     insertion?: 'on-demand' | 'manual';
     insertionThreshold?: number;
+    tipInsertionThreshold?: number;
     regularisation?: 'crack-band' | 'none';
     failureStrain?: number;
     residualStiffness?: number;
@@ -6159,6 +6160,16 @@ export interface QuenchedPlateOptions {
 
 ```ts
 export declare const SOLID_FRACTURE_SOLVER_ID = "solid-fracture-czm-js-f64-v1";
+```
+
+### TIP_INSERTION_THRESHOLD · const
+
+Default share of the strength at which on-demand insertion acts on a face that touches a crack front. Measured on the
+centre-cracked plate: with 0.4 the failure load is that of a pre-inserted crack path within the 1 % load step on cells of
+l_ch and of l_ch / 2 (docs/SOLID_FRACTURE.md).
+
+```ts
+export declare const TIP_INSERTION_THRESHOLD = 0.4;
 ```
 
 ## `box3d-webgpu-kit/cloth`

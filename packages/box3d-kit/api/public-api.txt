@@ -2886,6 +2886,7 @@ import { type SolidMaterial } from './solid.js';
 import { HeatSolver, type ThermalShockOptions } from './heat.js';
 import type { Subsystem } from './simulation.js';
 export declare const SOLID_FRACTURE_SOLVER_ID = "solid-fracture-czm-js-f64-v1";
+export declare const TIP_INSERTION_THRESHOLD = 0.4;
 export type FractureModel = 'cohesive' | 'crack-band' | 'none';
 export type FractureIntegrator = 'backward-euler' | 'midpoint' | 'explicit';
 export interface FractureLaw {
@@ -2896,6 +2897,7 @@ export interface FractureLaw {
     initialOpeningRatio?: number;
     insertion?: 'on-demand' | 'manual';
     insertionThreshold?: number;
+    tipInsertionThreshold?: number;
     regularisation?: 'crack-band' | 'none';
     failureStrain?: number;
     residualStiffness?: number;
@@ -3024,6 +3026,7 @@ export declare class FractureBody {
     private readonly fStrength;
     private readonly fToughness;
     private readonly fState;
+    private readonly front;
     private readonly hist;
     private readonly lin;
     private readonly mix;

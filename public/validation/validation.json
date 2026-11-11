@@ -5,8 +5,8 @@
  "generatedBy": "node scripts/validation-report.mjs",
  "digits": 9,
  "totals": {
-  "cases": 372,
-  "passed": 372,
+  "cases": 376,
+  "passed": 376,
   "failed": 0,
   "domains": 16
  },
@@ -251,16 +251,16 @@
     "docs/SOLID_FRACTURE.md"
    ],
    "notValidated": [
-    "Crack paths. A cohesive crack can only follow element faces: a crack inclined 30 degrees to the mesh is 24 % (five-tetrahedron cells) or 48 % (six-tetrahedron cells) larger than the plane it should follow, at any resolution, and dissipates 30 % to 70 % too much energy. Every closed-form row here has its crack on a mesh plane.",
-    "Insertion on demand near a crack tip. The criterion reads the mean stress of two elements, which misses the peak at a tip: with cells of l_ch / 2 the centre-cracked plate fails at 1.60 of the Griffith stress unless interfaces are inserted earlier (0.5 sigma_c gives 0.985) or placed along the expected path, as the Griffith and beam rows do.",
+    "Crack paths. A cohesive crack can only follow element faces: a crack inclined 30 degrees to the mesh is 2.5 % to 30 % larger than the plane it should follow, depending on the mesh pattern and the cell size and not falling with refinement, and dissipates 38 % to 54 % too much energy. Every closed-form row here has its crack on a mesh plane.",
+    "Insertion on demand near a crack tip. The criterion reads the mean stress of two elements, which misses the peak at a tip, so faces that touch a crack front are inserted at 0.4 of their strength. That value was chosen on one case, the centre-cracked plate with cells of l_ch and l_ch / 2 in mode I on a mesh plane, where it gives the failure load of the pre-inserted path within the 1 % load step. Coarser cells, mixed mode, and a notch that is not a cut face are not covered. With the rule off the plate holds 1.6 times its Griffith stress.",
     "The Griffith and beam rows are converged in neither mesh nor size: cells of l_ch read 11.5 % high, cells of l_ch / 2 read 3.5 % low, and the cohesive law itself is 4.5 % below LEFM at a = 5 l_ch (1.5 % at 10 l_ch). The size-effect law used for the beam is an asymptote, and its constant c_f = 0.419 l_ch is taken from the literature.",
     "Crack branching, dynamic crack speeds and fragmentation statistics have no reference here; branching is whatever the faces allow. No plasticity, no rate dependence, no fatigue.",
     "Contact exists only across an interface (a penalty that stops its two sides passing through each other, without friction). Fragments do not collide with each other or with anything else until they are handed to the rigid world, and that hand-off is one-way.",
     "Small strain: a piece that rotates after breaking off carries false stress (angular momentum of a bar spinning at 40 rad/s drifts by 1.5e-4 of m V L). The crack band uses isotropic damage: it weakens compression too, and a band held sideways by its neighbours dissipates 0.9 G_c at nu = 0.2.",
     "The thermal-shock row checks when and where the first crack appears, on elements larger than l_ch; the crack pattern after that (spacing, depth, arrest) is not resolved and has no row. The heat flow does not see the cracks."
    ],
-   "cases": 18,
-   "passed": 18
+   "cases": 22,
+   "passed": 22
   },
   {
    "id": "frame",
@@ -9692,6 +9692,93 @@
    }
   },
   {
+   "id": "fracture.griffith.on-demand-fine",
+   "domain": "fracture",
+   "title": "Griffith with on-demand insertion, cells of l_ch / 2",
+   "quantity": "failure stress with no interface inserted beforehand (default thresholds), over that of the pre-inserted crack path, minus 1",
+   "unit": "1",
+   "formula": "the same crack: 0",
+   "reference": 0,
+   "measured": 0,
+   "error": 0,
+   "relativeError": null,
+   "tolerance": {
+    "kind": "absolute",
+    "value": 0.011
+   },
+   "pass": true,
+   "note": "One load step is 1 % of the reference. Faces that touch a crack front are inserted at 0.4 of their strength (tipInsertionThreshold); with that rule off the plate still holds 1.59 times its Griffith stress.",
+   "source": {
+    "file": "tests/engine/solid-fracture.test.mjs",
+    "test": "Griffith: a centre-cracked plate fails at K_Ic / (Y sqrt(pi a)) with K_Ic = sqrt(E G_c), within the stated band",
+    "url": "https://github.com/nathansenn/box3d-WEBGPU/blob/main/tests/engine/solid-fracture.test.mjs"
+   },
+   "text": {
+    "reference": "0",
+    "measured": "0",
+    "error": "0",
+    "tolerance": "±0.011"
+   }
+  },
+  {
+   "id": "fracture.griffith.on-demand-coarse",
+   "domain": "fracture",
+   "title": "Griffith with on-demand insertion, cells of l_ch",
+   "quantity": "the same with cells of l_ch",
+   "unit": "1",
+   "formula": "the same crack: 0",
+   "reference": 0,
+   "measured": 0.00896860987,
+   "error": 0.00896860987,
+   "relativeError": null,
+   "tolerance": {
+    "kind": "absolute",
+    "value": 0.011
+   },
+   "pass": true,
+   "note": "Measured +0.9 %, one load step.",
+   "source": {
+    "file": "tests/engine/solid-fracture.test.mjs",
+    "test": "Griffith: a centre-cracked plate fails at K_Ic / (Y sqrt(pi a)) with K_Ic = sqrt(E G_c), within the stated band",
+    "url": "https://github.com/nathansenn/box3d-WEBGPU/blob/main/tests/engine/solid-fracture.test.mjs"
+   },
+   "text": {
+    "reference": "0",
+    "measured": "0.00896861",
+    "error": "+0.00897",
+    "tolerance": "±0.011"
+   }
+  },
+  {
+   "id": "fracture.griffith.on-demand-off",
+   "domain": "fracture",
+   "title": "Griffith with insertion at the strength only",
+   "quantity": "largest stress held, over LEFM, with tipInsertionThreshold = 1 and cells of l_ch / 2; the load stops at 1.3",
+   "unit": "1",
+   "formula": "the pre-inserted path fails at 0.965",
+   "reference": 0.965,
+   "measured": 1.3,
+   "error": 0.335,
+   "relativeError": 0.347150259,
+   "tolerance": {
+    "kind": "lower",
+    "value": 0
+   },
+   "pass": true,
+   "note": "Shown as a failure of the plain rule, not as accuracy: the mean stress of two linear elements under-reads the peak at the tip, so no interface appears and the plate does not fail (1.59 when loaded further; on cells of l_ch not below 1.8).",
+   "source": {
+    "file": "tests/engine/solid-fracture.test.mjs",
+    "test": "Griffith: a centre-cracked plate fails at K_Ic / (Y sqrt(pi a)) with K_Ic = sqrt(E G_c), within the stated band",
+    "url": "https://github.com/nathansenn/box3d-WEBGPU/blob/main/tests/engine/solid-fracture.test.mjs"
+   },
+   "text": {
+    "reference": "0.965",
+    "measured": "1.3",
+    "error": "+0.335",
+    "tolerance": "not below the reference"
+   }
+  },
+  {
    "id": "fracture.beam.work",
    "domain": "fracture",
    "title": "Notched beam: work of fracture",
@@ -9872,15 +9959,15 @@
    "unit": "1",
    "formula": "area of the plane: ratio 1",
    "reference": 1,
-   "measured": 1.2410254,
-   "error": 0.241025404,
-   "relativeError": 0.241025404,
+   "measured": 1.02451905,
+   "error": 0.0245190528,
+   "relativeError": 0.0245190528,
    "tolerance": {
     "kind": "upper",
     "value": 0.3
    },
    "pass": true,
-   "note": "Shown as a limit: the crack follows faces, so it is 24 % larger than the plane on this mesh and 48 % on six-tetrahedron cells, at any resolution.",
+   "note": "Shown as a limit: the crack follows faces. It is 2.5 % larger than the plane on this mesh, 21 % with cells half the size and 30 % on six-tetrahedron cells, and the dissipated energy is 38 % to 54 % above G_c times the plane.",
    "source": {
     "file": "tests/engine/solid-fracture.test.mjs",
     "test": "crack paths follow element faces: the area and energy of a crack inclined to the mesh depend on the mesh",
@@ -9888,9 +9975,38 @@
    },
    "text": {
     "reference": "1",
-    "measured": "1.241025",
-    "error": "+0.241",
+    "measured": "1.024519",
+    "error": "+0.0245",
     "tolerance": "at most 0.3 above the reference"
+   }
+  },
+  {
+   "id": "fracture.path.energy",
+   "domain": "fracture",
+   "title": "Crack path: energy of the inclined crack",
+   "quantity": "dissipated energy over G_c times the area of the inclined plane, five-tetrahedron cells",
+   "unit": "1",
+   "formula": "G_c times the plane: ratio 1",
+   "reference": 1,
+   "measured": 1.37469437,
+   "error": 0.374694373,
+   "relativeError": 0.374694373,
+   "tolerance": {
+    "kind": "upper",
+    "value": 0.6
+   },
+   "pass": true,
+   "note": "Shown as a limit, measured +38 %: faces beside the path soften without opening. It does not fall with refinement (+49 % with cells half the size).",
+   "source": {
+    "file": "tests/engine/solid-fracture.test.mjs",
+    "test": "crack paths follow element faces: the area and energy of a crack inclined to the mesh depend on the mesh",
+    "url": "https://github.com/nathansenn/box3d-WEBGPU/blob/main/tests/engine/solid-fracture.test.mjs"
+   },
+   "text": {
+    "reference": "1",
+    "measured": "1.374694",
+    "error": "+0.375",
+    "tolerance": "at most 0.6 above the reference"
    }
   },
   {
