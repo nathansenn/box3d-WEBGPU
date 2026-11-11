@@ -1,7 +1,7 @@
 import type { Mat4 } from '../math';
 import { WaterSurfacePlanner, type WaterSurfaceDescription, type WaterSurfacePlan } from './water-surface-plan';
 import { GpuInstanceVisibility, INSTANCE_MATERIAL_WGSL, classifyInstanceMaterialMask } from './instance-visibility';
-import type { DebugLine, DynamicSurfaceFrame, InstanceBufferSource, RopeGridFrame, SceneUniformState } from '../types';
+import type { DebugLine, DynamicSurfaceFrame, InstanceBufferSource, InstanceGeometry, RopeGridFrame, SceneUniformState } from '../types';
 import { planSparseRecordUpload, type DirtyRecordSpan, type SparseUploadOptions } from './sparse-upload';
 import { GpuPassTimer, type GpuPassTimestampWrites, type GpuTimingInfo, type GpuTimingOptions } from './gpu-timing.js';
 import { InstancePartition, partitionVertexBindings, partitionVertexEntry } from './instance-partition.js';
@@ -9,7 +9,7 @@ import { ResidentWaterSurface, type ResidentWaterOptions } from './resident-wate
 import { GpuStartupBudget, type GpuStartupOptions } from './startup-budget.js';
 import type { GpuLinearWater } from './linear-water.ts';
 import {
-  capsulesBelow, cylinderVertexCount, cylinderVertexData, forEachBoxRun, forEachRun, hemisphereVertexCount,
+  capsulesBelow, cylinderVertexCount, cylinderVertexData, forEachBoxRun, forEachRun, geometryRowsBelow, hemisphereVertexCount,
   planInstanceShapes, sphereVertexCount, sphereVertexData, writeCapsuleCaps, type InstanceShapePlan,
 } from './instance-shapes.ts';
 import {
@@ -1895,6 +1895,14 @@ export class WebGPURenderer {
   private capCapacity = 0;
   private capMatrixScratch = new Float32Array(0);
   private capColorScratch = new Float32Array(0);
+  // Hull, mesh and height-field bodies: one vertex buffer holds every body's own geometry,
+  // and each geometry row of the plan draws its range with the row as the instance.
+  private bodyMeshBuffer: GPUBuffer | null = null;
+  private bodyMeshCapacity = 0;
+  private bodyMeshRanges = new Map<InstanceGeometry, { first: number; count: number }>();
+  /** [firstVertex, vertexCount] per plan.geometryRows entry. */
+  private bodyMeshDraws = new Uint32Array(0);
+  private bodyMeshVertices = 0;
   private readonly createDirectSolidPipelines: (sampleCount: 1 | 4) => VisibilityPipelineSet;
   private readonly directSolidPipelines: [VisibilityPipelineSet | null, VisibilityPipelineSet | null] = [null, null];
   private effectMatrixIdentity: ArrayBufferLike | null = null;
@@ -3265,13 +3273,16 @@ export class WebGPURenderer {
     // colour stream or the count, so this runs on changed frames only. A source without
     // shapeVersion() has only boxes.
     const shapeVersion = source.shapeVersion?.();
+    let meshBytes = 0;
     if (shapeVersion === undefined) {
       this.shapePlan = null;
     } else if (!layoutMatches || shapeVersion !== this.rigidShapeVersion) {
-      this.shapePlan = planInstanceShapes(source.shapeKinds?.() ?? null, safeCount);
+      const geometry = source.shapeGeometry ? (row: number): boolean => source.shapeGeometry!(row) !== null : undefined;
+      this.shapePlan = planInstanceShapes(source.shapeKinds?.() ?? null, safeCount, geometry);
+      if (this.shapePlan && this.shapePlan.geometryRows.length > 0) meshBytes = this.uploadBodyMeshes(this.shapePlan, source);
     }
     this.rigidShapeVersion = shapeVersion;
-    const capBytes = this.shapePlan ? this.uploadShapeStreams(this.shapePlan, source.HEAPF32, matrixStart, colorStart) : 0;
+    const capBytes = (this.shapePlan ? this.uploadShapeStreams(this.shapePlan, source.HEAPF32, matrixStart, colorStart) : 0) + meshBytes;
     this.rigidSourceIdentity = source;
     this.rigidHeapIdentity = heapIdentity;
     this.rigidHeapByteOffset = heap.byteOffset;
@@ -3315,6 +3326,60 @@ export class WebGPURenderer {
   }
 
   /**
+   * Put the render mesh of every geometry row in the shared body-mesh buffer and record each
+   * row's vertex range. A mesh is identified by its object: while the set of meshes is the one
+   * already uploaded (bodies only moved between rows), nothing is written.
+   */
+  private uploadBodyMeshes(plan: InstanceShapePlan, source: InstanceBufferSource): number {
+    const rows = plan.geometryRows;
+    const meshes: InstanceGeometry[] = [];
+    let known = this.bodyMeshBuffer !== null;
+    for (let k = 0; k < rows.length; k++) {
+      const mesh = source.shapeGeometry!(rows[k]!)!;
+      meshes.push(mesh);
+      if (!this.bodyMeshRanges.has(mesh)) known = false;
+    }
+    let bytes = 0;
+    if (!known) {
+      const ranges = new Map<InstanceGeometry, { first: number; count: number }>();
+      let total = 0;
+      for (const mesh of meshes) {
+        if (ranges.has(mesh)) continue;
+        const count = Math.min(mesh.vertexCount, Math.floor(mesh.vertices.length / 6));
+        ranges.set(mesh, { first: total, count });
+        total += count;
+      }
+      if (total > this.bodyMeshCapacity || !this.bodyMeshBuffer) {
+        let capacity = Math.max(1024, this.bodyMeshCapacity);
+        while (capacity < total) capacity *= 2;
+        this.bodyMeshBuffer?.destroy();
+        this.bodyMeshBuffer = this.device.createBuffer({ label: 'AAA body geometry vertices (hulls, meshes, height fields)', size: capacity * 24, usage: GPUBufferUsage.VERTEX | GPUBufferUsage.COPY_DST });
+        this.bodyMeshCapacity = capacity;
+      }
+      for (const [mesh, range] of ranges) {
+        if (range.count === 0) continue;
+        writeFloatBuffer(this.device.queue, this.bodyMeshBuffer, range.first * 24, mesh.vertices, range.count * 6);
+        bytes += range.count * 24;
+      }
+      this.bodyMeshRanges = ranges;
+      this.bodyMeshVertices = total;
+    }
+    if (this.bodyMeshDraws.length < rows.length * 2) this.bodyMeshDraws = new Uint32Array(rows.length * 2);
+    for (let k = 0; k < rows.length; k++) {
+      const range = this.bodyMeshRanges.get(meshes[k]!)!;
+      this.bodyMeshDraws[k * 2] = range.first;
+      this.bodyMeshDraws[k * 2 + 1] = range.count;
+    }
+    return bytes;
+  }
+
+  /** Hull, mesh and height-field bodies drawn with their own geometry, and the vertices held for them. */
+  bodyMeshInfo(): Readonly<{ bodies: number; vertices: number }> {
+    const bodies = this.shapePlan?.geometryRows.length ?? 0;
+    return { bodies, vertices: bodies > 0 ? this.bodyMeshVertices : 0 };
+  }
+
+  /**
    * Direct draws for a frame with sphere or capsule rows. The caller has set the pipeline,
    * the cube mesh in slot 0 and the instance streams in slots 1 and 2. Boxes are drawn per
    * run of consecutive box rows; spheres use the sphere mesh on their own rows; a capsule is
@@ -3325,6 +3390,15 @@ export class WebGPURenderer {
     if (plan.sphereCount > 0) {
       pass.setVertexBuffer(0, this.sphereVertexBuffer!);
       forEachRun(plan.sphereRuns, instanceCount, (start, length) => pass.draw(SPHERE_VERTEX_COUNT, length, 0, start));
+    }
+    // Before the capsule caps, which replace the instance streams in slots 1 and 2.
+    const geometryRows = geometryRowsBelow(plan, instanceCount);
+    if (geometryRows > 0) {
+      pass.setVertexBuffer(0, this.bodyMeshBuffer!);
+      const rows = plan.geometryRows, draws = this.bodyMeshDraws;
+      for (let k = 0; k < geometryRows; k++) {
+        if (draws[k * 2 + 1]! > 0) pass.draw(draws[k * 2 + 1]!, 1, draws[k * 2]!, rows[k]!);
+      }
     }
     const capsules = capsulesBelow(plan, instanceCount);
     if (capsules > 0) {
@@ -4308,7 +4382,7 @@ export class WebGPURenderer {
       'surfaceVertexBuffer', 'surfaceIndexBuffer', 'clothPositionBuffer',
       'clothRestPositionBuffer', 'clothParamsBuffer', 'waterEtaBuffer',
       'waterUBuffer', 'waterVBuffer', 'waterParamsBuffer',
-      'sphereVertexBuffer', 'cylinderVertexBuffer', 'capMatrixBuffer', 'capColorBuffer',
+      'sphereVertexBuffer', 'cylinderVertexBuffer', 'capMatrixBuffer', 'capColorBuffer', 'bodyMeshBuffer',
     ] as const;
     const textures = [
       'shadowTexture', 'materialNoiseTexture', 'materialAtlasAlbedoTexture',
@@ -4335,6 +4409,9 @@ export class WebGPURenderer {
     ] as const;
     for (const field of references) (this[field] as unknown) = null;
     this.shapePlan = null;
+    this.bodyMeshRanges = new Map();
+    this.bodyMeshCapacity = 0;
+    this.bodyMeshVertices = 0;
     this.directSolidPipelines[0] = null;
     this.directSolidPipelines[1] = null;
     this.surfaceMaterial = null;

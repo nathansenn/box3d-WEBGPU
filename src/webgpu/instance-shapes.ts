@@ -1,5 +1,6 @@
 /**
- * Sphere and capsule instances for the Lab renderer.
+ * Sphere and capsule instances for the Lab renderer, and the plan that says how
+ * every rigid row is drawn (boxes, spheres, capsules, or a body's own geometry).
  *
  * A rigid instance row is a column-major 4x4 matrix scaled by the body's half
  * extents. A sphere row is scaled (r, r, r). A capsule row is scaled
@@ -14,6 +15,11 @@
 export const SHAPE_KIND_BOX = 0;
 export const SHAPE_KIND_SPHERE = 1;
 export const SHAPE_KIND_CAPSULE = 2;
+/** Rows drawn with the body's own geometry when the source supplies it (src/webgpu/body-geometry.ts). */
+export const SHAPE_KIND_HULL = 3;
+export const SHAPE_KIND_MESH = 4;
+export const SHAPE_KIND_HEIGHTFIELD = 5;
+const ownGeometryKind = (kind: number | undefined): boolean => kind === SHAPE_KIND_HULL || kind === SHAPE_KIND_MESH || kind === SHAPE_KIND_HEIGHTFIELD;
 
 /** Segments around the axis. The cylinder and the sphere use the same table, so their rims share vertices. */
 export const ROUND_SEGMENTS = 32;
@@ -33,25 +39,40 @@ export interface InstanceShapePlan {
   readonly capsuleRows: Uint32Array;
   readonly sphereCount: number;
   readonly capsuleCount: number;
+  /**
+   * Hull, mesh and height-field rows that have their own geometry, in ascending
+   * order. They are in no run: each is one draw of that body's vertex range with
+   * the row as its instance.
+   */
+  readonly geometryRows: Uint32Array;
 }
 
 /**
  * Split the first `count` rows into runs per shape. Returns null when every row
- * is a box, which is the signal to keep the original single cube draw.
- * A kind other than sphere or capsule is drawn as a box.
+ * is drawn as a box, which is the signal to keep the original single cube draw.
+ *
+ * A hull, mesh or height-field row is drawn with its own geometry when
+ * `hasGeometry(row)` says the source has it; without `hasGeometry`, or when it
+ * returns false, the row is drawn as a box, as is any unknown kind.
  */
-export function planInstanceShapes(kinds: ArrayLike<number> | null | undefined, count: number): InstanceShapePlan | null {
+export function planInstanceShapes(
+  kinds: ArrayLike<number> | null | undefined, count: number, hasGeometry?: (row: number) => boolean,
+): InstanceShapePlan | null {
   if (!Number.isSafeInteger(count) || count < 0) throw new RangeError('Shape plan count must be a non-negative integer.');
   if (!kinds || count === 0) return null;
   const known = Math.min(count, kinds.length);
-  let round = false;
+  let shaped = false;
+  const geometryRows: number[] = [];
   for (let i = 0; i < known; i++) {
     const kind = kinds[i];
-    if (kind === SHAPE_KIND_SPHERE || kind === SHAPE_KIND_CAPSULE) { round = true; break; }
+    if (kind === SHAPE_KIND_SPHERE || kind === SHAPE_KIND_CAPSULE) shaped = true;
+    else if (hasGeometry && ownGeometryKind(kind) && hasGeometry(i)) geometryRows.push(i);
   }
-  if (!round) return null;
-  const runs: number[][] = [[], [], []];
+  if (!shaped && geometryRows.length === 0) return null;
+  const GEOMETRY = 3;
+  const runs: number[][] = [[], [], [], []];
   const capsuleRows: number[] = [];
+  let nextGeometry = 0;
   let sphereCount = 0;
   let runKind = -1;
   let runStart = 0;
@@ -60,6 +81,7 @@ export function planInstanceShapes(kinds: ArrayLike<number> | null | undefined, 
     if (i < count) {
       const raw = i < known ? kinds[i] : SHAPE_KIND_BOX;
       kind = raw === SHAPE_KIND_SPHERE || raw === SHAPE_KIND_CAPSULE ? raw : SHAPE_KIND_BOX;
+      if (geometryRows[nextGeometry] === i) { kind = GEOMETRY; nextGeometry++; }
       if (kind === SHAPE_KIND_SPHERE) sphereCount++;
       else if (kind === SHAPE_KIND_CAPSULE) capsuleRows.push(i);
     }
@@ -77,6 +99,7 @@ export function planInstanceShapes(kinds: ArrayLike<number> | null | undefined, 
     capsuleRows: Uint32Array.from(capsuleRows),
     sphereCount,
     capsuleCount: capsuleRows.length,
+    geometryRows: Uint32Array.from(geometryRows),
   };
 }
 
@@ -87,6 +110,15 @@ export function forEachRun(runs: Uint32Array, limit: number, draw: (start: numbe
     if (start >= limit) return;
     draw(start, Math.min(runs[i + 1]!, limit - start));
   }
+}
+
+/** Geometry rows below `instanceCount`. */
+export function geometryRowsBelow(plan: InstanceShapePlan, instanceCount: number): number {
+  const rows = plan.geometryRows;
+  if (instanceCount >= plan.count) return rows.length;
+  let n = 0;
+  while (n < rows.length && rows[n]! < instanceCount) n++;
+  return n;
 }
 
 /**

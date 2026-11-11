@@ -58,6 +58,8 @@ The WASM is unchanged from 0.8.0.
   - `createBodiesFromMesh(world, mesh, {as: 'mesh' | 'hull' | 'decomposed'})`: a static mesh body, a hull body, or hull bodies held by weld joints, with mass = density x mesh volume for closed meshes.
   - `capabilities().modules` lists `geometry`. `test/v10-geometry.test.mjs` checks the module against closed-form answers.
 
+- **Shared with the Physics Lab:** the code of `/scene` and `/geometry` now lives in the repository's `src/engine` (`scene-format.ts`, `scene-examples.ts`, `geometry.ts`) and is copied into the package like the other core files, because the Lab loads scenes with it. Every export of both modules keeps its name and signature. New: `SceneHost`, the contract `SceneBuilder` needs from a world (a `PhysicsWorld` meets it), and on the native world `retainBodyShapes()` and `bodyShape(row)`, which a renderer uses to draw hulls, meshes and height fields; they are off by default and change nothing for a world that does not call them.
+
 ## 0.8.0
 
 The WASM changed (new bridge exports), so replay logs and `exactHash()` values from 0.7.0 builds are not comparable with this one. The classic arena, presets and their behaviour are unchanged.

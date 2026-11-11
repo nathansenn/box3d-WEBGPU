@@ -1,5 +1,12 @@
 # Changelog
 
+## Unreleased — 2026-11-11 — The Lab opens scenes and draws every shape kind
+
+- **Lab (`src/lab/`, `src/main.ts`):** `lab.html?example=<name>` opens an example scene and `lab.html?scene=<share link>` (or URL-encoded scene JSON) a shared one. The Scenes panel opens `.json` scene files and `.obj`, `.stl`, `.glb` and `.gltf` geometry by file dialog or drag and drop, copies a share link of the scene on screen, downloads it and resets it. Geometry becomes one body in a default SI scene: a dynamic hull or welded hull set when the mesh is closed and small enough, otherwise a static mesh, with a note that says which and why and how it was scaled. Invalid input is reported in the page with the validator's problem list and changes nothing. The examples and "Open file…" are listed in the laboratory catalog; the 800 recipes are unchanged.
+- **One scene loader (`src/engine/scene-format.ts`, `scene-examples.ts`, `geometry.ts`):** the scene format and the geometry import moved here from `packages/box3d-kit/src`, so the Lab and the kit run the same code; the kit copies them like its other core files. `SceneBuilder` now works against a small `SceneHost` contract that the kit's `PhysicsWorld` and the Lab's `LabSceneHost` both meet. The kit's exports and tests are unchanged; `SceneHost` is new.
+- **Renderer (`src/webgpu/renderer.ts`, `src/webgpu/body-geometry.ts`, `src/webgpu/instance-shapes.ts`):** convex hulls, static meshes and height fields are drawn from each body's own geometry in the shadow, opaque and transparent passes. Box-only and box, sphere and capsule streams draw as before; no box-only cost was measured. The opt-in partition and visibility lists fall back to direct draws for such frames.
+- **Data path:** optional `shapeGeometry(row)` on `InstanceBufferSource`; `NativeWorldBackend.retainBodyShapes()` and `bodyShape(row)` (off by default); `createGeneralScene` takes the scene's own step.
+
 ## Unreleased — 2026-11-11 — Public validation page
 
 - **Registry (`validation/`):** 211 cases in ten domains (rigid bodies and joints, rigid ↔ water, cable/frame ↔ rigid, geometry import, scene files, heat, deformable solids, frames, cables, closed-basin water). Each case names its closed-form reference, runs the real solver through its public API and returns the measured value, with the tolerance its test asserts and the test that asserts it.

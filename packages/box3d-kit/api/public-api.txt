@@ -512,6 +512,140 @@ export declare class FrameRuntime implements EngineRuntime<FrameStepRequest, Fra
 }
 export {};
 
+// ==== core/geometry.d.ts ====
+import type { NativeBodyDescriptor, NativeBodyHandle, NativeBodyType, NativeJointDescriptor, NativeJointHandle } from './native-world.js';
+type Vec3Like = readonly [number, number, number] | {
+    readonly x: number;
+    readonly y: number;
+    readonly z: number;
+};
+type QuatLike = readonly [number, number, number, number] | {
+    readonly x: number;
+    readonly y: number;
+    readonly z: number;
+    readonly w: number;
+};
+type BodyType = NativeBodyType;
+export interface TriangleMesh {
+    vertices: Float32Array;
+    indices: Uint32Array;
+    name?: string;
+}
+export interface MeshLike {
+    readonly vertices: ArrayLike<number>;
+    readonly indices: ArrayLike<number>;
+    readonly name?: string;
+}
+export type BinaryLike = ArrayBuffer | Uint8Array;
+export type GLTFBuffers = Readonly<Record<string, BinaryLike>> | ReadonlyMap<string, BinaryLike>;
+export declare const GEOMETRY_LIMITS: Readonly<{
+    maxVertices: 4000000;
+    maxTriangles: 8000000;
+    maxDecomposeTriangles: 200000;
+    maxHulls: 64;
+    maxHullPoints: 64;
+    maxHullHalfEdges: 255;
+    maxHeightfieldCells: number;
+    maxConvexityTests: 200000000;
+}>;
+export interface MeshBounds {
+    min: [number, number, number];
+    max: [number, number, number];
+}
+export declare function meshBounds(mesh: MeshLike): MeshBounds;
+export declare function meshVolume(mesh: MeshLike): number;
+export declare function meshCenterOfMass(mesh: MeshLike): [number, number, number];
+export declare function weldVertices(mesh: MeshLike, tolerance?: number): TriangleMesh;
+export interface MeshTransform {
+    readonly position?: Vec3Like;
+    readonly rotation?: QuatLike;
+    readonly scale?: number | Vec3Like;
+}
+export declare function transformMesh(mesh: MeshLike, transform: MeshTransform): TriangleMesh;
+export declare function flipWinding(mesh: MeshLike): TriangleMesh;
+export declare function isClosed(mesh: MeshLike, tolerance?: number): boolean;
+export declare function isConvex(mesh: MeshLike, tolerance?: number): boolean;
+export interface ConvexHullOptions {
+    readonly maxVertices?: number;
+}
+export declare function convexHull(points: ArrayLike<number> | MeshLike, options?: ConvexHullOptions): TriangleMesh;
+export interface HullShape {
+    readonly kind: 'hull';
+    readonly points: Float32Array;
+}
+export interface MeshShape {
+    readonly kind: 'mesh';
+    readonly vertices: Float32Array;
+    readonly indices: Uint32Array;
+}
+export interface HeightfieldShape {
+    readonly kind: 'heightfield';
+    readonly heights: Float32Array;
+    readonly countX: number;
+    readonly countZ: number;
+    readonly spacing: readonly [number, number];
+    readonly origin: [number, number, number];
+}
+export interface HullShapeOptions {
+    readonly maxPoints?: number;
+}
+export declare function toHullShape(mesh: MeshLike | ArrayLike<number>, options?: HullShapeOptions): HullShape;
+export declare function toMeshShape(mesh: MeshLike): MeshShape;
+export interface HeightfieldOptions {
+    readonly countX: number;
+    readonly countZ: number;
+    readonly spacing?: readonly [number, number];
+    readonly origin?: readonly [number, number];
+    readonly missing?: number;
+}
+export declare function toHeightfieldShape(source: MeshLike | ((x: number, z: number) => number), options: HeightfieldOptions): HeightfieldShape;
+export interface ConvexDecomposeOptions {
+    readonly maxHulls?: number;
+    readonly maxConcavity?: number;
+    readonly maxHullPoints?: number;
+    readonly maxCandidates?: number;
+}
+export interface ConvexPart {
+    points: Float32Array;
+    volume: number;
+    partVolume: number;
+    centroid: [number, number, number];
+}
+export interface ConvexDecomposition {
+    hulls: ConvexPart[];
+    meshVolume: number;
+    hullVolume: number;
+    volumeError: number;
+    partVolumeError: number;
+}
+export declare function convexDecompose(mesh: MeshLike, options?: ConvexDecomposeOptions): ConvexDecomposition;
+export interface BodyFactory<B = NativeBodyHandle, J = NativeJointHandle> {
+    createBody(options: NativeBodyDescriptor): B | null;
+    createJoint(options: Omit<NativeJointDescriptor, 'bodyA' | 'bodyB'> & {
+        readonly bodyA: B | null;
+        readonly bodyB: B | null;
+    }): J;
+    destroyBody?(body: B): unknown;
+}
+export interface MeshBodiesOptions extends Omit<NativeBodyDescriptor, 'shape' | 'position' | 'type'> {
+    readonly as?: 'mesh' | 'hull' | 'decomposed';
+    readonly position?: Vec3Like;
+    readonly type?: BodyType;
+    readonly maxPoints?: number;
+    readonly decomposition?: ConvexDecomposeOptions;
+}
+export interface MeshBodies<B = NativeBodyHandle, J = NativeJointHandle> {
+    bodies: B[];
+    joints: J[];
+    decomposition?: ConvexDecomposition;
+}
+export declare function createBodiesFromMesh<B = NativeBodyHandle, J = NativeJointHandle>(world: BodyFactory<B, J>, mesh: MeshLike, options?: MeshBodiesOptions): MeshBodies<B, J>;
+export declare function parseOBJ(text: string): TriangleMesh[];
+export declare function parseSTL(data: BinaryLike | string): TriangleMesh;
+export declare function parseGLTF(json: string | object, buffers?: GLTFBuffers): TriangleMesh[];
+export declare function parseGLB(data: BinaryLike, buffers?: GLTFBuffers): TriangleMesh[];
+export {};
+
 // ==== core/heat.d.ts ====
 export declare const HEAT_SOLVER_ID = "heat-fv-implicit-js-f64-v1";
 export declare const STEFAN_BOLTZMANN = 5.670374419e-8;
@@ -992,6 +1126,7 @@ export declare class NativeWorldBackend implements PhysicsBackend {
     private kindRows;
     private kindRowsVersion;
     private kindRowsCount;
+    private retainedShapes;
     constructor(module: unknown, onDispose?: () => void);
     private validateStream;
     private refreshStreams;
@@ -1035,6 +1170,8 @@ export declare class NativeWorldBackend implements PhysicsBackend {
     setGravity(x: number, y: number, z: number): void;
     gravity(): [number, number, number];
     createBody(descriptor: NativeBodyDescriptor): NativeBodyHandle | null;
+    retainBodyShapes(enabled?: boolean): void;
+    bodyShape(row: number): NativeBodyShape | null;
     bodyKinds(): NativeBodyKind[];
     private readKinds;
     shapeVersion(): number;
@@ -1109,6 +1246,297 @@ export declare class NativeWorldPool {
     destroy(): void;
 }
 export {};
+
+// ==== core/scene-examples.d.ts ====
+import type { Scene } from './scene-format.js';
+export declare function pendulumWaveScene(options?: {
+    count?: number;
+    cycle?: number;
+    swings?: number;
+    radius?: number;
+    angle?: number;
+}): Scene;
+export declare function newtonsCradleScene(options?: {
+    count?: number;
+    radius?: number;
+    length?: number;
+    angle?: number;
+    gap?: number;
+}): Scene;
+export declare function dominoRunScene(options?: {
+    count?: number;
+    spacing?: number;
+}): Scene;
+export declare function terrainCarScene(options?: {
+    speed?: number;
+    bump?: number;
+}): Scene;
+export declare function ragdollScene(options?: {
+    height?: number;
+}): Scene;
+export declare const EXAMPLE_SCENES: {
+    readonly [name: string]: () => Scene;
+};
+
+// ==== core/scene-format.d.ts ====
+import { EngineError } from './contracts.js';
+import type { NativeBodyDescriptor, NativeBodyHandle, NativeBodyState, NativeJointDescriptor, NativeJointHandle } from './native-world.js';
+type Body = NativeBodyHandle;
+type Joint = NativeJointHandle;
+export interface SceneHost {
+    readonly loop: {
+        readonly step: number;
+    };
+    readonly subSteps: number;
+    readonly seed: number;
+    readonly native: {
+        readonly maxBodies: number;
+        reserveBodyCapacity(bodies: number): unknown;
+    };
+    reset(options: {
+        readonly ground?: boolean;
+        readonly gravity?: SceneVec3;
+        readonly seed?: number;
+    }): unknown;
+    createBody(options: NativeBodyDescriptor): NativeBodyHandle | null;
+    createJoint(options: NativeJointDescriptor): NativeJointHandle;
+    destroyBody(body: NativeBodyHandle): boolean;
+    destroyJoint(joint: NativeJointHandle): boolean;
+    isAlive(body: NativeBodyHandle): boolean;
+    isJointAlive(joint: NativeJointHandle): boolean;
+    getState(body: NativeBodyHandle): NativeBodyState;
+    gravity(): [number, number, number];
+    bodyCount(): number;
+}
+export declare const SCENE_FORMAT = "box3d-scene";
+export declare const SCENE_VERSION = 1;
+export declare const SCENE_LIMITS: Readonly<{
+    bodies: 65536;
+    joints: 65536;
+    materials: 1024;
+    idLength: 64;
+    hullPoints: 4096;
+    meshVertices: 1048576;
+    meshTriangles: 2097152;
+    heightfieldSide: 4096;
+    geometryValues: 8000000;
+    userDataChars: 65536;
+    depth: 32;
+    metaChars: 4096;
+    problems: 100;
+    linkChars: 1048576;
+    linkSceneBytes: 4194304;
+}>;
+export type SceneVec3 = readonly [number, number, number];
+export type SceneQuat = readonly [number, number, number, number];
+export type SceneBodyType = 'static' | 'kinematic' | 'dynamic';
+export type SceneJointType = 'weld' | 'revolute' | 'spherical' | 'prismatic' | 'distance' | 'wheel';
+export interface SceneWorld {
+    readonly gravity?: SceneVec3;
+    readonly ground?: boolean;
+    readonly seed?: number;
+    readonly step?: number;
+    readonly subSteps?: number;
+}
+export interface SceneMaterial {
+    readonly density: number;
+    readonly friction: number;
+    readonly restitution: number;
+    readonly color?: number;
+}
+export type SceneShape = {
+    readonly kind: 'box';
+    readonly halfExtents: SceneVec3;
+} | {
+    readonly kind: 'sphere';
+    readonly radius: number;
+} | {
+    readonly kind: 'capsule';
+    readonly radius: number;
+    readonly halfLength: number;
+} | {
+    readonly kind: 'hull';
+    readonly points: readonly number[];
+} | {
+    readonly kind: 'mesh';
+    readonly vertices: readonly number[];
+    readonly indices: readonly number[];
+} | {
+    readonly kind: 'heightfield';
+    readonly heights: readonly number[];
+    readonly countX: number;
+    readonly countZ: number;
+    readonly spacing: readonly [number, number];
+};
+export interface SceneFilter {
+    readonly categoryBits?: string;
+    readonly maskBits?: string;
+    readonly groupIndex?: number;
+}
+export interface SceneBody {
+    readonly id: string;
+    readonly shape: SceneShape;
+    readonly type?: SceneBodyType;
+    readonly position: SceneVec3;
+    readonly rotation?: SceneQuat;
+    readonly rotationEuler?: SceneVec3;
+    readonly linearVelocity?: SceneVec3;
+    readonly angularVelocity?: SceneVec3;
+    readonly material?: string;
+    readonly density?: number;
+    readonly friction?: number;
+    readonly restitution?: number;
+    readonly color?: number;
+    readonly bullet?: boolean;
+    readonly sensor?: boolean;
+    readonly hitEvents?: boolean;
+    readonly neverSleeps?: boolean;
+    readonly lockRotation?: boolean;
+    readonly linearDamping?: number;
+    readonly angularDamping?: number;
+    readonly gravityScale?: number;
+    readonly filter?: SceneFilter;
+    readonly userData?: {
+        readonly [key: string]: unknown;
+    };
+}
+export interface SceneFrame {
+    readonly position?: SceneVec3;
+    readonly rotation?: SceneQuat;
+    readonly rotationEuler?: SceneVec3;
+}
+export interface SceneJoint {
+    readonly id: string;
+    readonly type: SceneJointType;
+    readonly bodyA: string | null;
+    readonly bodyB: string | null;
+    readonly frameA?: SceneFrame;
+    readonly frameB?: SceneFrame;
+    readonly collideConnected?: boolean;
+    readonly limits?: {
+        readonly lower: number;
+        readonly upper: number;
+    };
+    readonly motor?: {
+        readonly speed: number;
+        readonly maxForce: number;
+    };
+    readonly spring?: {
+        readonly hertz: number;
+        readonly dampingRatio: number;
+        readonly target?: number;
+    };
+    readonly length?: number;
+    readonly coneAngle?: number;
+    readonly userData?: {
+        readonly [key: string]: unknown;
+    };
+}
+export interface SceneMeta {
+    readonly title?: string;
+    readonly description?: string;
+    readonly author?: string;
+    readonly created?: string;
+}
+export interface Scene {
+    readonly format: 'box3d-scene';
+    readonly version: 1;
+    readonly units?: 'SI';
+    readonly world?: SceneWorld;
+    readonly materials?: {
+        readonly [name: string]: SceneMaterial;
+    };
+    readonly bodies: readonly SceneBody[];
+    readonly joints?: readonly SceneJoint[];
+    readonly meta?: SceneMeta;
+    readonly extensions?: {
+        readonly [key: string]: unknown;
+    };
+}
+export interface SceneProblem {
+    readonly path: string;
+    readonly message: string;
+}
+export declare class SceneValidationError extends EngineError {
+    readonly problems: readonly SceneProblem[];
+    constructor(problems: readonly SceneProblem[], what?: string);
+}
+export declare function validateScene(scene: unknown): SceneProblem[];
+export declare function eulerToQuaternion(degrees: SceneVec3): [number, number, number, number];
+export declare function normalizeScene(scene: unknown): Scene;
+export declare function canonicalize(scene: unknown, options?: {
+    readonly pretty?: boolean;
+}): string;
+export declare function sceneHash(scene: unknown): string;
+export declare const SCENE_LINK_PREFIX = "b3s1";
+export declare function encodeSceneLink(scene: unknown, options?: {
+    readonly compress?: boolean;
+}): Promise<string>;
+export declare function encodeSceneLinkSync(scene: unknown): string;
+export declare function decodeSceneLink(text: string): Scene;
+export declare function sceneWorldOptions(scene: Scene): {
+    step: number;
+    subSteps: number;
+    seed: number;
+    gravity: [number, number, number];
+    ground: boolean;
+};
+export type SceneBodyInput = Omit<SceneBody, 'id'> | NativeBodyDescriptor;
+export type SceneJointInput = Omit<SceneJoint, 'id'>;
+export interface SaveSceneOptions {
+    readonly state?: boolean;
+    readonly meta?: SceneMeta;
+}
+export interface LoadedScene<W extends SceneHost = SceneHost> {
+    readonly bodies: Map<string, Body>;
+    readonly joints: Map<string, Joint>;
+    readonly builder: SceneBuilder<W>;
+    readonly scene: Scene;
+}
+export declare class SceneBuilder<W extends SceneHost = SceneHost> {
+    readonly world: W;
+    meta: SceneMeta | undefined;
+    extensions: {
+        readonly [key: string]: unknown;
+    } | undefined;
+    private settings;
+    private readonly materialMap;
+    private readonly bodyMap;
+    private readonly jointMap;
+    constructor(world: W, options?: {
+        readonly world?: SceneWorld;
+        readonly materials?: {
+            readonly [name: string]: SceneMaterial;
+        };
+        readonly meta?: SceneMeta;
+        readonly extensions?: {
+            readonly [key: string]: unknown;
+        };
+    });
+    resetWorld(): void;
+    defineMaterial(name: string, material: SceneMaterial): void;
+    private claim;
+    addBody(id: string, body: SceneBodyInput): Body;
+    place(description: SceneBody): Body;
+    addJoint(id: string, joint: SceneJointInput): Joint;
+    connect(description: SceneJoint): Joint;
+    remove(id: string): boolean;
+    private prune;
+    has(id: string): boolean;
+    body(id: string): Body | undefined;
+    joint(id: string): Joint | undefined;
+    idOf(handle: Body | Joint): string | undefined;
+    bodies(): Map<string, Body>;
+    joints(): Map<string, Joint>;
+    describe(id: string): SceneBody | SceneJoint | undefined;
+    toJSON(options?: SaveSceneOptions): Scene;
+    populate(scene: Scene): this;
+}
+export declare function loadScene<W extends SceneHost>(world: W, scene: unknown): LoadedScene<W>;
+export declare function saveScene<W extends SceneHost>(world: W, handles: SceneBuilder<W> | {
+    readonly builder: SceneBuilder<W>;
+}, options?: SaveSceneOptions): Scene;
+export { pendulumWaveScene, newtonsCradleScene, dominoRunScene, terrainCarScene, ragdollScene, EXAMPLE_SCENES } from './scene-examples.js';
 
 // ==== core/solid-mesh.d.ts ====
 export interface TetMesh {
@@ -1716,100 +2144,9 @@ export declare class CharacterController {
 }
 
 // ==== geometry.d.ts ====
-import type { Body, BodyOptions, BodyType, Joint, JointOptions, QuatLike, Vec3Like } from './world.js';
-export interface TriangleMesh {
-    vertices: Float32Array;
-    indices: Uint32Array;
-    name?: string;
-}
-export interface MeshLike {
-    readonly vertices: ArrayLike<number>;
-    readonly indices: ArrayLike<number>;
-    readonly name?: string;
-}
-export type BinaryLike = ArrayBuffer | Uint8Array;
-export type GLTFBuffers = Readonly<Record<string, BinaryLike>> | ReadonlyMap<string, BinaryLike>;
-export declare const GEOMETRY_LIMITS: Readonly<{
-    maxVertices: 4000000;
-    maxTriangles: 8000000;
-    maxDecomposeTriangles: 200000;
-    maxHulls: 64;
-    maxHullPoints: 64;
-    maxHullHalfEdges: 255;
-    maxHeightfieldCells: number;
-    maxConvexityTests: 200000000;
-}>;
-export interface MeshBounds {
-    min: [number, number, number];
-    max: [number, number, number];
-}
-export declare function meshBounds(mesh: MeshLike): MeshBounds;
-export declare function meshVolume(mesh: MeshLike): number;
-export declare function meshCenterOfMass(mesh: MeshLike): [number, number, number];
-export declare function weldVertices(mesh: MeshLike, tolerance?: number): TriangleMesh;
-export interface MeshTransform {
-    readonly position?: Vec3Like;
-    readonly rotation?: QuatLike;
-    readonly scale?: number | Vec3Like;
-}
-export declare function transformMesh(mesh: MeshLike, transform: MeshTransform): TriangleMesh;
-export declare function flipWinding(mesh: MeshLike): TriangleMesh;
-export declare function isClosed(mesh: MeshLike, tolerance?: number): boolean;
-export declare function isConvex(mesh: MeshLike, tolerance?: number): boolean;
-export interface ConvexHullOptions {
-    readonly maxVertices?: number;
-}
-export declare function convexHull(points: ArrayLike<number> | MeshLike, options?: ConvexHullOptions): TriangleMesh;
-export interface HullShape {
-    readonly kind: 'hull';
-    readonly points: Float32Array;
-}
-export interface MeshShape {
-    readonly kind: 'mesh';
-    readonly vertices: Float32Array;
-    readonly indices: Uint32Array;
-}
-export interface HeightfieldShape {
-    readonly kind: 'heightfield';
-    readonly heights: Float32Array;
-    readonly countX: number;
-    readonly countZ: number;
-    readonly spacing: readonly [number, number];
-    readonly origin: [number, number, number];
-}
-export interface HullShapeOptions {
-    readonly maxPoints?: number;
-}
-export declare function toHullShape(mesh: MeshLike | ArrayLike<number>, options?: HullShapeOptions): HullShape;
-export declare function toMeshShape(mesh: MeshLike): MeshShape;
-export interface HeightfieldOptions {
-    readonly countX: number;
-    readonly countZ: number;
-    readonly spacing?: readonly [number, number];
-    readonly origin?: readonly [number, number];
-    readonly missing?: number;
-}
-export declare function toHeightfieldShape(source: MeshLike | ((x: number, z: number) => number), options: HeightfieldOptions): HeightfieldShape;
-export interface ConvexDecomposeOptions {
-    readonly maxHulls?: number;
-    readonly maxConcavity?: number;
-    readonly maxHullPoints?: number;
-    readonly maxCandidates?: number;
-}
-export interface ConvexPart {
-    points: Float32Array;
-    volume: number;
-    partVolume: number;
-    centroid: [number, number, number];
-}
-export interface ConvexDecomposition {
-    hulls: ConvexPart[];
-    meshVolume: number;
-    hullVolume: number;
-    volumeError: number;
-    partVolumeError: number;
-}
-export declare function convexDecompose(mesh: MeshLike, options?: ConvexDecomposeOptions): ConvexDecomposition;
+import { type ConvexDecomposeOptions, type ConvexDecomposition, type MeshLike } from './core/geometry.js';
+import type { Body, BodyOptions, BodyType, Joint, JointOptions, Vec3Like } from './world.js';
+export * from './core/geometry.js';
 export interface BodyFactory {
     createBody(options: BodyOptions): Body | null;
     createJoint(options: JointOptions): Joint;
@@ -1828,10 +2165,6 @@ export interface MeshBodies {
     decomposition?: ConvexDecomposition;
 }
 export declare function createBodiesFromMesh(world: BodyFactory, mesh: MeshLike, options?: MeshBodiesOptions): MeshBodies;
-export declare function parseOBJ(text: string): TriangleMesh[];
-export declare function parseSTL(data: BinaryLike | string): TriangleMesh;
-export declare function parseGLTF(json: string | object, buffers?: GLTFBuffers): TriangleMesh[];
-export declare function parseGLB(data: BinaryLike, buffers?: GLTFBuffers): TriangleMesh[];
 
 // ==== gpu.d.ts ====
 import { type UpAxis } from './axes.js';
@@ -2045,254 +2378,27 @@ export declare class SnapshotDecoder implements InstanceSource {
     colors(): Float32Array;
 }
 
-// ==== scene-examples.d.ts ====
-import type { Scene } from './scene.js';
-export declare function pendulumWaveScene(options?: {
-    count?: number;
-    cycle?: number;
-    swings?: number;
-    radius?: number;
-    angle?: number;
-}): Scene;
-export declare function newtonsCradleScene(options?: {
-    count?: number;
-    radius?: number;
-    length?: number;
-    angle?: number;
-    gap?: number;
-}): Scene;
-export declare function dominoRunScene(options?: {
-    count?: number;
-    spacing?: number;
-}): Scene;
-export declare function terrainCarScene(options?: {
-    speed?: number;
-    bump?: number;
-}): Scene;
-export declare function ragdollScene(options?: {
-    height?: number;
-}): Scene;
-export declare const EXAMPLE_SCENES: {
-    readonly [name: string]: () => Scene;
-};
-
 // ==== scene.d.ts ====
-import { EngineError } from './core/contracts.js';
+import { SceneBuilder as CoreSceneBuilder, type SaveSceneOptions, type Scene, type SceneBody, type SceneJoint, type SceneJointInput, type SceneMaterial, type SceneMeta } from './core/scene-format.js';
 import type { Body, BodyOptions, Joint, PhysicsWorld } from './world.js';
-export declare const SCENE_FORMAT = "box3d-scene";
-export declare const SCENE_VERSION = 1;
-export declare const SCENE_LIMITS: Readonly<{
-    bodies: 65536;
-    joints: 65536;
-    materials: 1024;
-    idLength: 64;
-    hullPoints: 4096;
-    meshVertices: 1048576;
-    meshTriangles: 2097152;
-    heightfieldSide: 4096;
-    geometryValues: 8000000;
-    userDataChars: 65536;
-    depth: 32;
-    metaChars: 4096;
-    problems: 100;
-    linkChars: 1048576;
-    linkSceneBytes: 4194304;
-}>;
-export type SceneVec3 = readonly [number, number, number];
-export type SceneQuat = readonly [number, number, number, number];
-export type SceneBodyType = 'static' | 'kinematic' | 'dynamic';
-export type SceneJointType = 'weld' | 'revolute' | 'spherical' | 'prismatic' | 'distance' | 'wheel';
-export interface SceneWorld {
-    readonly gravity?: SceneVec3;
-    readonly ground?: boolean;
-    readonly seed?: number;
-    readonly step?: number;
-    readonly subSteps?: number;
-}
-export interface SceneMaterial {
-    readonly density: number;
-    readonly friction: number;
-    readonly restitution: number;
-    readonly color?: number;
-}
-export type SceneShape = {
-    readonly kind: 'box';
-    readonly halfExtents: SceneVec3;
-} | {
-    readonly kind: 'sphere';
-    readonly radius: number;
-} | {
-    readonly kind: 'capsule';
-    readonly radius: number;
-    readonly halfLength: number;
-} | {
-    readonly kind: 'hull';
-    readonly points: readonly number[];
-} | {
-    readonly kind: 'mesh';
-    readonly vertices: readonly number[];
-    readonly indices: readonly number[];
-} | {
-    readonly kind: 'heightfield';
-    readonly heights: readonly number[];
-    readonly countX: number;
-    readonly countZ: number;
-    readonly spacing: readonly [number, number];
-};
-export interface SceneFilter {
-    readonly categoryBits?: string;
-    readonly maskBits?: string;
-    readonly groupIndex?: number;
-}
-export interface SceneBody {
-    readonly id: string;
-    readonly shape: SceneShape;
-    readonly type?: SceneBodyType;
-    readonly position: SceneVec3;
-    readonly rotation?: SceneQuat;
-    readonly rotationEuler?: SceneVec3;
-    readonly linearVelocity?: SceneVec3;
-    readonly angularVelocity?: SceneVec3;
-    readonly material?: string;
-    readonly density?: number;
-    readonly friction?: number;
-    readonly restitution?: number;
-    readonly color?: number;
-    readonly bullet?: boolean;
-    readonly sensor?: boolean;
-    readonly hitEvents?: boolean;
-    readonly neverSleeps?: boolean;
-    readonly lockRotation?: boolean;
-    readonly linearDamping?: number;
-    readonly angularDamping?: number;
-    readonly gravityScale?: number;
-    readonly filter?: SceneFilter;
-    readonly userData?: {
-        readonly [key: string]: unknown;
-    };
-}
-export interface SceneFrame {
-    readonly position?: SceneVec3;
-    readonly rotation?: SceneQuat;
-    readonly rotationEuler?: SceneVec3;
-}
-export interface SceneJoint {
-    readonly id: string;
-    readonly type: SceneJointType;
-    readonly bodyA: string | null;
-    readonly bodyB: string | null;
-    readonly frameA?: SceneFrame;
-    readonly frameB?: SceneFrame;
-    readonly collideConnected?: boolean;
-    readonly limits?: {
-        readonly lower: number;
-        readonly upper: number;
-    };
-    readonly motor?: {
-        readonly speed: number;
-        readonly maxForce: number;
-    };
-    readonly spring?: {
-        readonly hertz: number;
-        readonly dampingRatio: number;
-        readonly target?: number;
-    };
-    readonly length?: number;
-    readonly coneAngle?: number;
-    readonly userData?: {
-        readonly [key: string]: unknown;
-    };
-}
-export interface SceneMeta {
-    readonly title?: string;
-    readonly description?: string;
-    readonly author?: string;
-    readonly created?: string;
-}
-export interface Scene {
-    readonly format: 'box3d-scene';
-    readonly version: 1;
-    readonly units?: 'SI';
-    readonly world?: SceneWorld;
-    readonly materials?: {
-        readonly [name: string]: SceneMaterial;
-    };
-    readonly bodies: readonly SceneBody[];
-    readonly joints?: readonly SceneJoint[];
-    readonly meta?: SceneMeta;
-    readonly extensions?: {
-        readonly [key: string]: unknown;
-    };
-}
-export interface SceneProblem {
-    readonly path: string;
-    readonly message: string;
-}
-export declare class SceneValidationError extends EngineError {
-    readonly problems: readonly SceneProblem[];
-    constructor(problems: readonly SceneProblem[], what?: string);
-}
-export declare function validateScene(scene: unknown): SceneProblem[];
-export declare function eulerToQuaternion(degrees: SceneVec3): [number, number, number, number];
-export declare function normalizeScene(scene: unknown): Scene;
-export declare function canonicalize(scene: unknown, options?: {
-    readonly pretty?: boolean;
-}): string;
-export declare function sceneHash(scene: unknown): string;
-export declare const SCENE_LINK_PREFIX = "b3s1";
-export declare function encodeSceneLink(scene: unknown, options?: {
-    readonly compress?: boolean;
-}): Promise<string>;
-export declare function encodeSceneLinkSync(scene: unknown): string;
-export declare function decodeSceneLink(text: string): Scene;
-export declare function sceneWorldOptions(scene: Scene): {
-    step: number;
-    subSteps: number;
-    seed: number;
-    gravity: [number, number, number];
-    ground: boolean;
-};
+export * from './core/scene-format.js';
 export type SceneBodyInput = Omit<SceneBody, 'id'> | BodyOptions;
-export type SceneJointInput = Omit<SceneJoint, 'id'>;
-export interface SaveSceneOptions {
-    readonly state?: boolean;
-    readonly meta?: SceneMeta;
-}
 export interface LoadedScene {
     readonly bodies: Map<string, Body>;
     readonly joints: Map<string, Joint>;
     readonly builder: SceneBuilder;
     readonly scene: Scene;
 }
-export declare class SceneBuilder {
+export declare class SceneBuilder extends CoreSceneBuilder<PhysicsWorld> {
     readonly world: PhysicsWorld;
     meta: SceneMeta | undefined;
     extensions: {
         readonly [key: string]: unknown;
     } | undefined;
-    private settings;
-    private readonly materialMap;
-    private readonly bodyMap;
-    private readonly jointMap;
-    constructor(world: PhysicsWorld, options?: {
-        readonly world?: SceneWorld;
-        readonly materials?: {
-            readonly [name: string]: SceneMaterial;
-        };
-        readonly meta?: SceneMeta;
-        readonly extensions?: {
-            readonly [key: string]: unknown;
-        };
-    });
-    private resetWorld;
     defineMaterial(name: string, material: SceneMaterial): void;
-    private claim;
     addBody(id: string, body: SceneBodyInput): Body;
-    private place;
     addJoint(id: string, joint: SceneJointInput): Joint;
-    private connect;
     remove(id: string): boolean;
-    private prune;
     has(id: string): boolean;
     body(id: string): Body | undefined;
     joint(id: string): Joint | undefined;
@@ -2307,7 +2413,6 @@ export declare function loadScene(world: PhysicsWorld, scene: unknown): LoadedSc
 export declare function saveScene(world: PhysicsWorld, handles: SceneBuilder | {
     readonly builder: SceneBuilder;
 }, options?: SaveSceneOptions): Scene;
-export { pendulumWaveScene, newtonsCradleScene, dominoRunScene, terrainCarScene, ragdollScene, EXAMPLE_SCENES } from './scene-examples.js';
 
 // ==== scheduler.d.ts ====
 import type { FixedStepResult } from './loop.js';

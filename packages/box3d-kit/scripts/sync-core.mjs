@@ -32,6 +32,11 @@ export const CORE = [
   {from: 'src/engine/solid.ts', rewrites: []},
   // ./structure: cables and frames <-> rigid bodies. Imports only types from the cable and frame modules.
   {from: 'src/engine/structure-coupling.ts', rewrites: []},
+  // ./scene and ./geometry: the scene format (validator, canonical form, link codec, builder), its example scenes and
+  // the geometry import. The Physics Lab uses the same files. They import only contracts.ts and types from native-world.ts.
+  {from: 'src/engine/scene-format.ts', rewrites: []},
+  {from: 'src/engine/scene-examples.ts', rewrites: []},
+  {from: 'src/engine/geometry.ts', rewrites: []},
 ];
 export const WASM_FILES = ['box3d.js', 'box3d.wasm', 'BUILD_PROVENANCE.json', 'BOX3D_LICENSE.txt'];
 

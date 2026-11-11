@@ -851,6 +851,8 @@ export declare class NativeWorldBackend implements PhysicsBackend {
   setGravity(x: number, y: number, z: number): void;
   gravity(): [number, number, number];
   createBody(descriptor: NativeBodyDescriptor): NativeBodyHandle | null;
+  retainBodyShapes(enabled?: boolean): void;
+  bodyShape(row: number): NativeBodyShape | null;
   bodyKinds(): NativeBodyKind[];
   shapeVersion(): number;
   shapeKinds(): Uint8Array | null;
@@ -4203,7 +4205,7 @@ directly (setJointMotor, setDamping, setCollisionFilter, ...) is not seen,
 except pose, velocity, body type and gravity, which are read back on save.
 
 ```ts
-export declare class SceneBuilder {
+export declare class SceneBuilder extends CoreSceneBuilder<PhysicsWorld> {
   readonly world: PhysicsWorld;
   meta: SceneMeta | undefined;
   extensions: { readonly [key: string]: unknown; } | undefined;
@@ -4249,6 +4251,39 @@ SHA-256 of the compact canonical text (UTF-8), as 64 lowercase hex digits. Equal
 
 ```ts
 export declare function sceneHash(scene: unknown): string;
+```
+
+### SceneHost · interface
+
+What a SceneBuilder needs from a world. The kit's PhysicsWorld has exactly
+these members; the Lab wraps a NativeWorldBackend (src/lab/scene-host.ts).
+
+```ts
+export interface SceneHost {
+    readonly loop: {
+        readonly step: number;
+    };
+    readonly subSteps: number;
+    readonly seed: number;
+    readonly native: {
+        readonly maxBodies: number;
+        reserveBodyCapacity(bodies: number): unknown;
+    };
+    reset(options: {
+        readonly ground?: boolean;
+        readonly gravity?: SceneVec3;
+        readonly seed?: number;
+    }): unknown;
+    createBody(options: NativeBodyDescriptor): NativeBodyHandle | null;
+    createJoint(options: NativeJointDescriptor): NativeJointHandle;
+    destroyBody(body: NativeBodyHandle): boolean;
+    destroyJoint(joint: NativeJointHandle): boolean;
+    isAlive(body: NativeBodyHandle): boolean;
+    isJointAlive(joint: NativeJointHandle): boolean;
+    getState(body: NativeBodyHandle): NativeBodyState;
+    gravity(): [number, number, number];
+    bodyCount(): number;
+}
 ```
 
 ### SceneJoint · interface

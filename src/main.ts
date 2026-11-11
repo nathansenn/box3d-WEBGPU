@@ -83,6 +83,13 @@ import {
 } from './workbench/registry';
 import { loadBestPhysicsBackend } from './physics/wasm';
 import { buildMechanismsScene, MECHANISMS_DEFAULT_SEED, MECHANISMS_SCENE_ID, MECHANISMS_SCENE_TITLE, type MechanismsScene } from './engine/mechanisms-scene.ts';
+import { encodeSceneLink, sceneHash, type Scene, type SceneProblem } from './engine/scene-format.ts';
+import { exactTransformHash, loadLabScene, sceneStepsPerLabTick, type LabLoadedScene } from './lab/scene-host.ts';
+import {
+  EXAMPLE_SCENE_TITLES, LAB_SCENE_LIMITS, parseSceneRequest, problemLines, quoteForDisplay, readLabFile, resolveSceneRequest,
+  sceneCameraFrame, sceneFileName, sceneSummary, type LabFile, type SceneRead,
+} from './lab/scene-loading.ts';
+import { createScenePanel, type ScenePanel } from './lab/scene-panel.ts';
 import { WebGPURenderer } from './webgpu/renderer';
 import { SOFT_RENDER_INSTANCE_BUDGET, SoftSimulationSuite, type SoftSimulationFrame } from './soft/simulations';
 import { initializeSoftKernelRuntime } from './soft/kernels';
@@ -358,8 +365,19 @@ let backend: PhysicsBackend;
 let renderer: WebGPURenderer;
 // The SI demo is not one of the 800 recipes: it replaces the rigid world of a host recipe
 // with one built through the general rigid-body API. Null while a recipe is showing.
-let siDemo: { readonly id: typeof MECHANISMS_SCENE_ID; readonly seed: number } | null = null;
+// It is either the Mechanisms demo or a scene in the box3d-scene format (an example, a share
+// link, a scene file or imported geometry: src/lab/scene-loading.ts).
+const SI_SCENE_ID = 'scene';
+type LabSceneRead = Extract<SceneRead, { readonly ok: true }>;
+type SiDemoRequest =
+  | { readonly id: typeof MECHANISMS_SCENE_ID; readonly seed: number }
+  | { readonly id: typeof SI_SCENE_ID; readonly seed: number; readonly read: LabSceneRead; readonly link: string | null };
+let siDemo: SiDemoRequest | null = null;
 let siDemoScene: MechanismsScene | null = null;
+// The scene file on screen: what was read, and the SceneBuilder that built it and can save it.
+let labScene: { readonly read: LabSceneRead; readonly loaded: LabLoadedScene; link: string | null } | null = null;
+let labSceneFailure: unknown = null;
+let scenePanel: ScenePanel | null = null;
 const SI_DEMO_HOST_LAB_ID = 'titan-hauler-crash';
 let engineRuntime:WorkbenchRuntime;
 const engineTimings=new StageTimings(['step','staging','renderCpu','frame']);
@@ -950,6 +968,11 @@ function frameCameraForWorkspace(workspace: EngineeringWorkspaceId = engineering
     camera = cloneRig({ ...siDemoScene.camera, target: [...siDemoScene.camera.target] });
     return;
   }
+  if (siDemo && labScene) {
+    const frame = sceneCameraFrame(labScene.read.scene);
+    camera = cloneRig({ yaw: 0.72, pitch: 0.3, distance: frame.distance, target: frame.target });
+    return;
+  }
   camera = cloneRig(currentScene.camera);
   if (workspace === 'test' && currentScene.materialDemoId === 'metal-square-punch-forming') {
     // Preserve the authored low three-quarter view: it exposes the press bed
@@ -1302,22 +1325,209 @@ function updateSceneText(): void {
     ui.viewportHudTitle.textContent = MECHANISMS_SCENE_TITLE;
     ui.runtimeSeed.textContent = `0x${seed.toString(16)}`;
   }
+  if (siDemo && labScene) {
+    const { read } = labScene;
+    ui.sceneTitle.textContent = read.title;
+    ui.sceneSubtitle.textContent = labSceneSourceText(read);
+    ui.sceneDetails.textContent = sceneSummary(read.scene);
+    ui.viewportHudTitle.textContent = read.title;
+    ui.runtimeSeed.textContent = `0x${seed.toString(16)}`;
+  }
+}
+
+function labSceneSourceText(read: LabSceneRead): string {
+  switch (read.source.kind) {
+    case 'example': return 'Example scene in the box3d-scene format, SI units.';
+    case 'link': return 'Scene from a share link, SI units.';
+    case 'json': return 'Scene from the address, SI units.';
+    case 'file': return `Scene file ${read.source.name}, SI units.`;
+    case 'geometry': return `Geometry imported from ${read.source.name} into a default SI scene.`;
+  }
 }
 
 /** Build the rigid world of the scene being loaded: the SI demo when one is requested, the recipe otherwise. */
 function createRigidScene(scene: ScenePreset, stress: number, sceneSeed: number): number {
   siDemoScene = null;
+  labScene = null;
   if (siDemo) {
     if (backend.createGeneralScene) {
       try {
+        if (siDemo.id === SI_SCENE_ID) {
+          // The scene was validated when it was read. Its own step and sub-step count are used for every tick.
+          const { read, link } = siDemo;
+          const world = read.scene.world ?? {};
+          let loaded: LabLoadedScene | null = null;
+          const count = backend.createGeneralScene((native) => { loaded = loadLabScene(native, read.scene); },
+            { step: world.step, subSteps: world.subSteps, stepsPerTick: sceneStepsPerLabTick(world.step ?? 1 / 60) });
+          labScene = { read, loaded: loaded!, link };
+          return count;
+        }
         return backend.createGeneralScene((world) => { siDemoScene = buildMechanismsScene(world, sceneSeed); });
       } catch (error) {
-        console.warn('[SI demo] The Mechanisms scene could not be built.', error);
+        labSceneFailure = error;
+        console.warn('[SI demo] The scene could not be built.', error);
       }
     }
     siDemo = null;
   }
   return backend.createScene(scene, stress, sceneSeed);
+}
+
+function reportSceneError(title: string, problems: readonly SceneProblem[]): void {
+  const { lines, more } = problemLines(problems);
+  const kept = labScene ? `Nothing was loaded: “${labScene.read.title}” is still on screen.` : 'Nothing was loaded: the scene on screen is unchanged.';
+  scenePanel?.showError(title, lines, more, kept);
+  appendLog(`Scene not loaded. ${title}: ${lines[0] ?? ''}`);
+}
+
+/**
+ * Show a scene that was read from the address, a file or the examples. An invalid scene is
+ * reported and nothing changes. A valid scene is first built in a scratch world: if the engine
+ * refuses a body or joint there (geometry it cannot use), that is reported and nothing changes
+ * either. Only then is the world on screen replaced.
+ */
+function openLabScene(read: SceneRead, link: string | null = null): boolean {
+  if (!read.ok) { reportSceneError(read.title, read.problems); return false; }
+  if (!backend.createGeneralScene) {
+    reportSceneError('Scenes need the native Box3D engine', [{ path: '', message: 'This page is running the preview backend, which has only boxes. The native WebAssembly engine did not load.' }]);
+    return false;
+  }
+  try {
+    backend.checkGeneralScene?.((native) => { loadLabScene(native, read.scene); });
+  } catch (error) {
+    reportSceneError(`${read.title} could not be built`, [{ path: '', message: quoteForDisplay(error instanceof Error ? error.message : String(error), 400) }]);
+    return false;
+  }
+  const host = getWorkbenchLab(SI_DEMO_HOST_LAB_ID) ?? WORKBENCH_LABS[0];
+  const previous = siDemo;
+  labSceneFailure = null;
+  loadWorkbenchLab(host, { id: SI_SCENE_ID, seed: (read.scene.world?.seed ?? 1) >>> 0, read, link });
+  if (labScene?.read !== read) {
+    const failure: unknown = labSceneFailure;
+    if (failure === null) {
+      reportSceneError(`${read.title} was not loaded`, [{ path: '', message: 'A test run owns the simulation. Complete or abort it, then open the scene again.' }]);
+      return false;
+    }
+    // The scratch build succeeded, so this is not expected; show the previous scene again from its start.
+    if (previous) loadWorkbenchLab(host, previous);
+    syncScenePanel();
+    reportSceneError(`${read.title} could not be built`, [{ path: '', message: quoteForDisplay(failure instanceof Error ? failure.message : String(failure), 400) }]);
+    return false;
+  }
+  scenePanel?.clearError();
+  syncScenePanel();
+  scenePanel?.setStatus('');
+  return true;
+}
+
+function syncScenePanel(): void {
+  if (!scenePanel) return;
+  if (siDemo && labScene) scenePanel.showScene({ title: labScene.read.title, summary: `${labSceneSourceText(labScene.read)} ${sceneSummary(labScene.read.scene)}`, notes: labScene.read.notes });
+  else scenePanel.showNoScene();
+}
+
+function openExampleScene(name: string): void {
+  openLabScene(resolveSceneRequest({ kind: 'example', name }));
+}
+
+async function openSceneFiles(files: readonly File[]): Promise<void> {
+  if (files.length === 0) return;
+  scenePanel?.expand();
+  // A .gltf may come with its .bin; every other file is opened on its own, and the first one that is not a buffer wins.
+  const main = files.find(file => !/\.bin$/i.test(file.name)) ?? files[0]!;
+  const tooLarge = files.find(file => file.size > LAB_SCENE_LIMITS.fileBytes);
+  if (tooLarge) {
+    reportSceneError(`${quoteForDisplay(tooLarge.name, 96)} is too large`, [{ path: '', message: `The file has ${tooLarge.size} bytes; the Lab reads files up to ${LAB_SCENE_LIMITS.fileBytes} bytes.` }]);
+    return;
+  }
+  scenePanel?.setStatus(`Reading ${quoteForDisplay(main.name, 96)}…`);
+  let read: SceneRead;
+  try {
+    const loaded: LabFile[] = [];
+    for (const file of files) loaded.push({ name: file.name, bytes: new Uint8Array(await file.arrayBuffer()) });
+    const mainFile = loaded[files.indexOf(main)]!;
+    read = readLabFile(mainFile, { scaleToFit: scenePanel?.scaleToFit() ?? true, companions: loaded.filter(file => file !== mainFile) });
+  } catch (error) {
+    read = { ok: false, title: `${quoteForDisplay(main.name, 96)} could not be read`, problems: [{ path: '', message: error instanceof Error ? error.message : String(error) }] };
+  }
+  scenePanel?.setStatus('');
+  openLabScene(read);
+}
+
+/** The scene on screen as it is now: the SceneBuilder's descriptions with each body's current pose and velocity. */
+function currentLabSceneJson(): Scene | null {
+  return siDemo && labScene ? labScene.loaded.builder.toJSON() : null;
+}
+
+async function copyLabSceneLink(): Promise<void> {
+  const scene = currentLabSceneJson();
+  if (!scene || !labScene) return;
+  try {
+    const link = await encodeSceneLink(scene);
+    const url = new URL(window.location.href);
+    for (const key of ['si', 'seed', 'example', 'scene']) url.searchParams.delete(key);
+    url.hash = '';
+    url.searchParams.set('scene', link);
+    let copied = false;
+    try { await navigator.clipboard.writeText(url.href); copied = true; } catch { /* no clipboard permission: the address bar still carries the link */ }
+    if (link.length <= LAB_SCENE_LIMITS.addressLinkChars) {
+      labScene.link = link;
+      window.history.replaceState(null, '', url);
+      scenePanel?.setStatus(copied
+        ? `Share link copied (${url.href.length} characters). It opens this scene as it is now.`
+        : `The clipboard is not available, so the share link is in the address bar (${url.href.length} characters). Copy it from there.`);
+    } else {
+      scenePanel?.setStatus(copied
+        ? `Share link copied (${url.href.length} characters). It is too long for the address bar here, and some apps cut long links: for a scene this size, send the downloaded file.`
+        : `The link has ${url.href.length} characters and the clipboard is not available. Download the scene file instead.`);
+    }
+  } catch (error) {
+    reportSceneError('This scene cannot be shared as a link', [{ path: '', message: `${quoteForDisplay(error instanceof Error ? error.message : String(error), 300)} Download the scene file instead.` }]);
+  }
+}
+
+function downloadLabScene(): void {
+  const scene = currentLabSceneJson();
+  if (!scene || !labScene) return;
+  const blob = new Blob([`${JSON.stringify(scene, null, 1)}\n`], { type: 'application/json' });
+  const href = URL.createObjectURL(blob);
+  const anchor = document.createElement('a');
+  anchor.href = href;
+  anchor.download = sceneFileName(labScene.read.title);
+  document.body.append(anchor);
+  anchor.click();
+  anchor.remove();
+  setTimeout(() => URL.revokeObjectURL(href), 10_000);
+  scenePanel?.setStatus(`Saved ${anchor.download} (${blob.size} bytes): the scene as it is now.`);
+}
+
+function resetLabScene(): void {
+  if (!siDemo || !labScene) return;
+  const { read, link } = labScene;
+  if (openLabScene(read, link)) scenePanel?.setStatus('Scene reloaded from its start.');
+}
+
+/** Read-only view of the loaded scene for the console and for tests: `box3dLab.sceneState()`. */
+function labSceneState(): Record<string, unknown> {
+  const native = siDemo && labScene ? labScene.loaded.builder.world.native : null;
+  return {
+    loaded: native !== null,
+    title: labScene?.read.title ?? null,
+    source: labScene?.read.source.kind ?? null,
+    sceneHash: labScene ? sceneHash(labScene.read.scene) : null,
+    bodies: native ? native.bodyCount() : 0,
+    sceneBodies: labScene?.read.scene.bodies.length ?? 0,
+    joints: labScene?.read.scene.joints?.length ?? 0,
+    kinds: native ? native.bodyKinds() : [],
+    tick: engineRuntime?.tick ?? 0,
+    // One Lab tick is this many of the scene's own fixed steps; `steps` is how many it has taken.
+    stepsPerTick: labScene ? sceneStepsPerLabTick(labScene.read.scene.world?.step ?? 1 / 60) : 1,
+    steps: (engineRuntime?.tick ?? 0) * (labScene ? sceneStepsPerLabTick(labScene.read.scene.world?.step ?? 1 / 60) : 1),
+    replayHash: native ? native.replayHash() : null,
+    exactHash: native ? exactTransformHash(native) : null,
+    drawnMeshes: renderer?.bodyMeshInfo() ?? null,
+    shapes: renderer?.instanceShapeInfo() ?? null,
+  };
 }
 
 /** Open the Mechanisms SI demo: lab.html?si=mechanisms&seed=N, or its entry at the end of the laboratory catalog. */
@@ -1332,10 +1542,30 @@ function loadMechanismsDemo(demoSeed: number = MECHANISMS_DEFAULT_SEED): void {
   }
 }
 
-/** Keep the address shareable: ?si=mechanisms&seed=N while the demo shows, neither once a recipe is loaded. */
+/**
+ * Keep the address shareable: ?si=mechanisms&seed=N while the Mechanisms demo shows,
+ * ?example=<name> for an example scene, ?scene=<link> for a scene opened from a link (or
+ * whose link was copied), and none of them once a recipe is loaded.
+ */
 function syncSiDemoUrl(): void {
   const url = new URL(window.location.href);
   const shown = url.searchParams.get('si');
+  if (siDemo?.id === SI_SCENE_ID || url.searchParams.has('example') || url.searchParams.has('scene') || /(?:^#|&)(?:scene|example)=/.test(url.hash)) {
+    const before = url.href;
+    for (const key of ['si', 'seed', 'example', 'scene']) url.searchParams.delete(key);
+    if (/(?:^#|&)(?:scene|example)=/.test(url.hash)) url.hash = '';
+    if (siDemo?.id === SI_SCENE_ID) {
+      const source = siDemo.read.source;
+      if (source.kind === 'example') url.searchParams.set('example', source.name);
+      else if (siDemo.link !== null && siDemo.link.length <= LAB_SCENE_LIMITS.addressLinkChars) url.searchParams.set('scene', siDemo.link);
+    }
+    if (siDemo?.id === MECHANISMS_SCENE_ID) {
+      url.searchParams.set('si', siDemo.id);
+      url.searchParams.set('seed', String(siDemo.seed));
+    }
+    if (url.href !== before) window.history.replaceState(null, '', url);
+    return;
+  }
   if (siDemo) {
     if (shown === siDemo.id && url.searchParams.get('seed') === String(siDemo.seed)) return;
     url.searchParams.set('si', siDemo.id);
@@ -2218,6 +2448,7 @@ function loadScene(scene: ScenePreset, stressOverride?: number, keepCinematic = 
   // The host recipe's set dressing does not belong to the SI demo.
   effects.setStageProps(siDemo ? [] : stagePrimitivesForScene(scene));
   syncSiDemoUrl();
+  syncScenePanel();
   soft.createScene(scene, stress, seed);
   renderer.invalidateDynamicCaches();
   renderer.uploadInstances(backend, count);
@@ -2231,7 +2462,9 @@ function loadScene(scene: ScenePreset, stressOverride?: number, keepCinematic = 
   renderEngineeringInspection();
   frameCameraForWorkspace();
   updateStats(0, 0, 0, 0, 0, softFrame);
-  setLog(siDemo && siDemoScene
+  setLog(siDemo && labScene
+    ? `Loaded ${labScene.read.title} · ${sceneSummary(labScene.read.scene)}.`
+    : siDemo && siDemoScene
     ? `Loaded ${MECHANISMS_SCENE_TITLE} · ${siDemoScene.bodyCount} bodies, ${siDemoScene.jointCount} joints, SI units · seed 0x${seed.toString(16)}.`
     : `Loaded ${sceneLabel(scene)} · ${scene.category} · ${scene.family}/${scene.variant} · seed 0x${seed.toString(16)}.`);
   if (!keepCinematic) {
@@ -2256,7 +2489,7 @@ function reloadSceneWithCurrentStress(): void {
   beginEngineeringRun(stress);
   stopCinematic(false);
   updateSceneText();
-  setLog(siDemo ? `Reloaded ${MECHANISMS_SCENE_TITLE}, seed 0x${seed.toString(16)}.` : `Reloaded ${sceneLabel(currentScene)} at stress ${ui.stress.value}, seed 0x${seed.toString(16)}.`);
+  setLog(siDemo && labScene ? `Reloaded ${labScene.read.title} from its start.` : siDemo ? `Reloaded ${MECHANISMS_SCENE_TITLE}, seed 0x${seed.toString(16)}.` : `Reloaded ${sceneLabel(currentScene)} at stress ${ui.stress.value}, seed 0x${seed.toString(16)}.`);
   if (!autoplayingLoadedSimulation) {
     engineeringSession?.setAutoplayOnOpen(true);
     scheduleAutoplayLoadedSimulation();
@@ -2973,6 +3206,8 @@ function initializeEngineeringWorkspaceShell(initialWorkspace: EngineeringWorksp
       },
       onSiDemoSelect: (demoId) => {
         if (demoId === MECHANISMS_SCENE_ID) loadMechanismsDemo();
+        else if (demoId === 'open-file') scenePanel?.openFileDialog();
+        else if (demoId.startsWith('example:') && Object.hasOwn(EXAMPLE_SCENE_TITLES, demoId.slice(8))) openExampleScene(demoId.slice(8));
       },
       onControlChange: applyMaterialLabControlChange,
       onMaterialPresetChange: (presetId) => {
@@ -3054,7 +3289,9 @@ function bindControls(): void {
   ui.canvas.addEventListener('wheel', (event) => {
     event.preventDefault();
     if (cinematicPlaying) stopCinematic();
-    camera.distance = clamp(camera.distance + event.deltaY * 0.018, 7, 120);
+    // A scene file is in metres and may be a 20 cm part or a 100 m terrain: zoom in proportion, with wider limits.
+    if (siDemo && labScene) camera.distance = clamp(camera.distance * Math.exp(event.deltaY * 0.0015), 0.4, 400);
+    else camera.distance = clamp(camera.distance + event.deltaY * 0.018, 7, 120);
   }, { passive: false });
 
   const filterButtons = Array.from(document.querySelectorAll<HTMLButtonElement>('[data-lab-filter]'));
@@ -4031,6 +4268,8 @@ async function runStateTests(): Promise<void> {
   const effectsFinite = effectFrame.count > 0 && isFiniteArray(effectFrame.matrices) && isFiniteArray(effectFrame.colors);
 
   siDemo = null;
+  labScene = null;
+  syncScenePanel();
   backend.createScene(restoreScene, restoreStress, seed);
   soft.createScene(restoreScene, restoreStress, seed);
   renderer.invalidateDynamicCaches();
@@ -4096,11 +4335,35 @@ async function main(): Promise<void> {
   ui.quality.value = quality.id;
   ui.speed.value = '1';
   initializeEngineeringWorkspaceShell(boot.workspace);
-  // Read the request first: loading the boot recipe clears the SI parameters from the address.
+  // Read the requests first: loading the boot recipe clears the SI parameters from the address.
   const siRequest = siDemoRequestFromUrl();
+  const sceneRequest = parseSceneRequest(window.location.search, window.location.hash);
+  scenePanel = createScenePanel({
+    onFiles: (files) => { void openSceneFiles(files); },
+    onExample: openExampleScene,
+    onCopyLink: () => { void copyLabSceneLink(); },
+    onDownload: downloadLabScene,
+    onReset: resetLabScene,
+  });
+  Object.defineProperty(window, 'box3dLab', { configurable: true, value: Object.freeze({
+    sceneState: labSceneState,
+    /** Step the loaded scene, without waiting for frames, until it has taken `tick` steps; then report its state. */
+    stepSceneTo: (tick: number) => {
+      if (siDemo && labScene && Number.isInteger(tick)) {
+        const target = Math.min(tick, engineRuntime.tick + 100000);
+        while (engineRuntime.tick < target) engineRuntime.step({ ticks: 1, subSteps: solverSubSteps, captureTelemetry: false });
+      }
+      return labSceneState();
+    },
+    sceneJson: currentLabSceneJson,
+  }) });
   loadScene(currentScene);
   applyConceptScreen(boot.screen);
-  if (siRequest !== null) loadMechanismsDemo(siRequest);
+  if (sceneRequest !== null) {
+    const read = resolveSceneRequest(sceneRequest);
+    // A scene that came in the address stays in the address, as a share link of the scene that was read.
+    openLabScene(read, sceneRequest.kind !== 'example' && read.ok ? await encodeSceneLink(read.scene) : null);
+  } else if (siRequest !== null) loadMechanismsDemo(siRequest);
   ui.solverSubsteps.value = String(solverSubSteps);
   updateForceControlLabels();
 

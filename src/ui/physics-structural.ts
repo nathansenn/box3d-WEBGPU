@@ -454,12 +454,19 @@ function gizmoMarkup(): string {
   `;
 }
 
-// The one SI demo the catalog lists. The id is MECHANISMS_SCENE_ID in src/engine/mechanisms-scene.ts.
-const SI_DEMO_ENTRY = {
-  id: 'mechanisms',
-  title: 'Mechanisms (SI demo)',
-  detail: 'Spheres, capsules and joints in SI units · not a catalogue recipe',
-} as const;
+// The SI entries the catalog lists after the laboratories. None is a catalogue recipe. 'mechanisms' is
+// MECHANISMS_SCENE_ID in src/engine/mechanisms-scene.ts; 'example:<name>' is an example scene of the
+// box3d-scene format (src/engine/scene-examples.ts); 'open-file' opens the Lab's file dialog. The
+// workbench only reports the id: src/main.ts acts on it.
+const SI_DEMO_ENTRIES = [
+  { id: 'mechanisms', title: 'Mechanisms (SI demo)', detail: 'Spheres, capsules and joints in SI units · not a catalogue recipe' },
+  { id: 'example:pendulum-wave', title: 'Pendulum wave (scene file)', detail: '9 spheres on revolute joints · example scene, SI units' },
+  { id: 'example:newtons-cradle', title: "Newton's cradle (scene file)", detail: '5 elastic balls on hinges · example scene, SI units' },
+  { id: 'example:domino-run', title: 'Domino run (scene file)', detail: '12 boxes, the first one leaning · example scene, SI units' },
+  { id: 'example:terrain-car', title: 'Car on terrain (scene file)', detail: 'Wheel joints with suspension on a height field · example scene, SI units' },
+  { id: 'example:ragdoll', title: 'Ragdoll (scene file)', detail: 'Capsules on spherical joints with cone limits · example scene, SI units' },
+  { id: 'open-file', title: 'Open file…', detail: 'A scene (.json) or geometry (.obj, .stl, .glb, .gltf) · you can also drop a file on the page' },
+] as const;
 
 function shellMarkup(prefix: string): string {
   const id = (suffix: string): string => `${prefix}-${suffix}`;
@@ -1058,19 +1065,23 @@ export function createPhysicsStructural(options: PhysicsStructuralOptions): Phys
       labList.append(section);
     }
     // SI demos are listed apart from the laboratories: they are not catalogue recipes.
-    if (!needle || `${SI_DEMO_ENTRY.id} ${SI_DEMO_ENTRY.title} ${SI_DEMO_ENTRY.detail}`.toLowerCase().includes(needle)) {
+    const siEntries = SI_DEMO_ENTRIES.filter((entry) => !needle || `${entry.id} ${entry.title} ${entry.detail}`.toLowerCase().includes(needle));
+    if (siEntries.length > 0) {
       const section = document.createElement('section');
       section.className = 'phys-str-lab-group';
       const heading = document.createElement('h3');
-      heading.textContent = 'SI demos · general rigid-body API';
-      const button = document.createElement('button');
-      button.type = 'button';
-      button.className = 'phys-str-lab-item';
-      button.dataset.physStrSiDemo = SI_DEMO_ENTRY.id;
-      button.innerHTML = `<strong></strong><span></span>`;
-      button.querySelector('strong')!.textContent = SI_DEMO_ENTRY.title;
-      button.querySelector('span')!.textContent = SI_DEMO_ENTRY.detail;
-      section.append(heading, button);
+      heading.textContent = 'SI scenes · general rigid-body API';
+      section.append(heading);
+      for (const entry of siEntries) {
+        const button = document.createElement('button');
+        button.type = 'button';
+        button.className = 'phys-str-lab-item';
+        button.dataset.physStrSiDemo = entry.id;
+        button.innerHTML = `<strong></strong><span></span>`;
+        button.querySelector('strong')!.textContent = entry.title;
+        button.querySelector('span')!.textContent = entry.detail;
+        section.append(button);
+      }
       labList.append(section);
     }
   };
@@ -1666,7 +1677,7 @@ export function createPhysicsStructural(options: PhysicsStructuralOptions): Phys
     if (siDemoButton?.dataset.physStrSiDemo) {
       labMenu.hidden = true;
       callbacks.onSiDemoSelect?.(siDemoButton.dataset.physStrSiDemo);
-      announce(`${SI_DEMO_ENTRY.title} selected.`);
+      announce(`${SI_DEMO_ENTRIES.find((entry) => entry.id === siDemoButton.dataset.physStrSiDemo)?.title ?? 'SI scene'} selected.`);
       return;
     }
     const labButton = target?.closest<HTMLButtonElement>('[data-phys-str-lab]');

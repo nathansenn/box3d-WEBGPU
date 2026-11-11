@@ -341,6 +341,8 @@ export class NativeWorldBackend implements PhysicsBackend {
   private kindRows: Uint8Array | null=null;
   private kindRowsVersion=-1;
   private kindRowsCount=-1;
+  // Geometry of hull, mesh and height-field bodies by token, kept only after retainBodyShapes(true).
+  private retainedShapes: Map<bigint, NativeBodyShape> | null=null;
 
   constructor(module: unknown, onDispose?: () => void) {
     assertNativeWorldModule(module);this.mod=module;this.onDispose=onDispose;
@@ -458,6 +460,7 @@ export class NativeWorldBackend implements PhysicsBackend {
     const token=this.bodyToken(body),status=this.mod._b3w_world_destroy_body!(this.handle,token);
     if(status===0)return false;
     if(status!==1)throw new EngineError('DISPOSED','The native context rejected body destruction.');
+    this.retainedShapes?.delete(token);
     return true;
   }
   applyBodyImpulse(body: NativeBodyHandle,x: number,y: number,z: number): void {
@@ -513,7 +516,7 @@ export class NativeWorldBackend implements PhysicsBackend {
     const seed=integer(options.seed??1,'seed',0,0xFFFFFFFF),g=options.gravity??[0,-9.81,0];
     finite(g[0],'gravity x');finite(g[1],'gravity y');finite(g[2],'gravity z');
     this.accepted(this.mod._b3w_world_reset!(this.handle,seed,options.ground===false?0:1,g[0],g[1],g[2]));
-    this.jointOwner={};
+    this.jointOwner={};this.retainedShapes?.clear();
   }
   setGravity(x: number,y: number,z: number): void {
     this.general();finite(x,'gravity x');finite(y,'gravity y');finite(z,'gravity z');
@@ -596,7 +599,34 @@ export class NativeWorldBackend implements PhysicsBackend {
     const body=this.wrapBody(token);
     // The descriptor cannot carry a zero gravity scale (zero means "default"), so apply it afterwards.
     if(gravityScale===0)this.bodyStatus(this.mod._b3w_world_set_body_gravity_scale!(this.handle,body.token,0));
+    if(this.retainedShapes&&floats) {
+      // `floats` and `ints` are this call's own validated copies, so later changes to the caller's arrays do not show.
+      const kept: NativeBodyShape=shape.kind==='hull'?{kind:'hull',points:floats}:
+        shape.kind==='mesh'?{kind:'mesh',vertices:floats,indices:ints!}:
+        shape.kind==='heightfield'?{kind:'heightfield',heights:floats,countX:shape.countX,countZ:shape.countZ,spacing:[shape.spacing[0],shape.spacing[1]]}:shape;
+      this.retainedShapes.set(body.token,Object.freeze(kept));
+    }
     return body;
+  }
+  /**
+   * Keep the geometry of every hull, mesh and height-field body created from now on, so that a
+   * renderer can draw it (`bodyShape`). Off by default: a world that is not drawn this way holds
+   * no copies. Turning it off drops what was kept.
+   */
+  retainBodyShapes(enabled=true): void {
+    this.assertAlive();
+    if(enabled)this.retainedShapes??=new Map();else this.retainedShapes=null;
+  }
+  /**
+   * The geometry the body at render row `row` was created with, when it is a hull, mesh or height
+   * field created after retainBodyShapes(true); null otherwise. The same object is returned for
+   * the same body until it is destroyed, whatever row it moves to. Its arrays must not be changed.
+   */
+  bodyShape(row: number): NativeBodyShape | null {
+    this.assertAlive();
+    if(!this.retainedShapes||this.retainedShapes.size===0||!this.supportsBodyLifecycle)return null;
+    integer(row,'body index',0,this.bodyCount()-1);
+    return this.retainedShapes.get(BigInt.asUintN(64,this.mod._b3w_world_body_handle!(this.handle,row)))??null;
   }
   /** Shape kind of every render row, in row order. Rows move when a body is destroyed. */
   bodyKinds(): NativeBodyKind[] {
@@ -897,7 +927,7 @@ export class NativeWorldBackend implements PhysicsBackend {
     this.assertAlive();integer(scene?.id,'scene ID',0,799);finite(stressScale,'stress scale',1,5);integer(seed,'seed',0,0xFFFFFFFF);
     const count=this.mod._b3w_world_create_scene(this.handle,scene.id,stressScale,seed);
     if(count<0)throw new EngineError('DISPOSED','Native scene creation rejected this context.');
-    this.jointOwner={};
+    this.jointOwner={};this.retainedShapes?.clear();
     return count;
   }
   step(dt: number, subSteps: number): void {
@@ -928,7 +958,7 @@ export class NativeWorldBackend implements PhysicsBackend {
     return count===0?0:this.mod._b3w_world_spawn_rain(this.handle,count,spread,height);
   }
   /** Empty this specimen while retaining its context, buffers and generation. */
-  clear(): void { this.assertAlive();this.accepted(this.mod._b3w_world_clear(this.handle));this.jointOwner={}; }
+  clear(): void { this.assertAlive();this.accepted(this.mod._b3w_world_clear(this.handle));this.jointOwner={};this.retainedShapes?.clear(); }
   destroy(): void {
     if(this.disposed)return;
     this.disposed=true;

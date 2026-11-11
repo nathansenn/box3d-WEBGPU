@@ -1,6 +1,6 @@
 # Scene format (`box3d-scene`, version 1)
 
-A scene file is plain JSON that says how to build a rigid-body scene: the world settings, the bodies and the joints. It can be validated, loaded, saved, diffed, hashed and packed into a share link. The code is `box3d-webgpu-kit/scene` (`packages/box3d-kit/src/scene.ts`); the tests are `packages/box3d-kit/test/v12-scene.test.mjs`.
+A scene file is plain JSON that says how to build a rigid-body scene: the world settings, the bodies and the joints. It can be validated, loaded, saved, diffed, hashed and packed into a share link. The code is `src/engine/scene-format.ts`, published by the kit as `box3d-webgpu-kit/scene` (`packages/box3d-kit/src/scene.ts`) and used by the Physics Lab ([In the Physics Lab](#in-the-physics-lab)); the tests are `packages/box3d-kit/test/v12-scene.test.mjs`.
 
 The native solver cannot serialise its internal state. A scene file therefore describes how to **build** a scene, and may also carry the pose and velocity each body had when it was saved. [Save and resume](#save-and-resume) lists exactly what that does and does not restore.
 
@@ -271,6 +271,38 @@ For example `b3s1d.1cl.3bb55234.rZRNj6Qg…`. Only `A-Z a-z 0-9 - _ .` appear, s
 - the bytes are not UTF-8 JSON.
 
 A link whose JSON is not a valid scene throws `SceneValidationError`.
+
+## In the Physics Lab
+
+The Lab (`lab.html`) opens scene files with this module. Nothing is installed; a link is enough.
+
+| How | What opens |
+|---|---|
+| `lab.html?example=<name>` | An example scene: `pendulum-wave`, `newtons-cradle`, `domino-run`, `terrain-car`, `ragdoll`. |
+| `lab.html?scene=b3s1…` | A share link from `encodeSceneLink`. `#scene=…` in the fragment works too. |
+| `lab.html?scene=%7B…%7D` | The scene JSON itself, URL-encoded, up to 65,536 characters. |
+| The **Scenes** panel, bottom right: **Open file…**, or drop a file anywhere on the page | A scene file (`.json`), or geometry (`.obj`, `.stl`, `.glb`, `.gltf`; drop a `.gltf` together with its `.bin`). |
+| The laboratory catalog, section "SI scenes" | The examples and "Open file…". They are not catalogue recipes. |
+
+With a scene loaded, the panel has **Copy share link** (the address, with `scene=` set to a link of the scene as it is at that moment), **Download scene (.json)** (the same scene as a file) and **Reset** (load it again from its start). Both use the `SceneBuilder` that built the scene, so they carry each body's current pose and velocity; [Save and resume](#save-and-resume) says what such a save restores. Boxes the Lab's own force tools add to the world (projectiles, rain) were not created through the builder and are not in the saved scene. The address bar shows `example=<name>` for an example and `scene=<link>` for a scene opened from a link or after its link was copied; a link over 32,768 characters is copied but not written to the address bar.
+
+**One loader.** The kit's `PhysicsWorld` and the Lab's `LabSceneHost` (`src/lab/scene-host.ts`, a thin wrapper over the Lab's `NativeWorldBackend`) both implement `SceneHost`, the dozen members the `SceneBuilder` needs. They pass the same calls with the same values to the same native world. `packages/box3d-kit/test/v13-lab-scenes.test.mjs` loads each example, and a scene with hulls, a mesh and a height field, through both and requires equal `exactHash` and replay hash after 0, 1, 60 and 300 steps, and equal saved scenes.
+
+**Step size.** The Lab steps a scene with the scene's own `step` and `subSteps`, not with the Lab's sub-step control. Its frame loop ticks at 1/60 s, so it takes `round((1/60) / step)` scene steps a tick: 2 for a 1/120 s scene, 4 for a 1/240 s one. A step that does not divide 1/60 s plays slightly fast or slow (1/100 s: 2 steps a tick, 1.2 times real speed).
+
+**Errors.** Input is checked before the world is touched: links by `decodeSceneLink`, scene JSON by `validateScene`, geometry by the parsers of `src/engine/geometry.ts`, files by a 64 MiB size cap. A failure is shown in the panel with up to 12 problems from the validator's list (path and message) and the count of the rest, and the scene on screen stays as it is. A valid scene is then built once in a scratch world that is thrown away: if the engine refuses a body the validator accepted (a mesh whose triangles have no area, for example), that is reported with the body's id and the scene on screen is still untouched. A scene is therefore built twice when it is opened. Text from a file, a link or the address is only ever written to the page as text.
+
+**Geometry files** become one body in a default scene (gravity 9.81 m/s² down, the ground slab). The notes in the panel say what was done:
+
+- All meshes of the file are merged, welded, and centred on their bounding box.
+- *Scale.* Files do not state their unit. With "Scale imported geometry to fit" on (the default), the largest side of the bounding box decides: 0.05 to 10 units is read as metres; above 10 it is read as millimetres when that gives 0.05 m to 10 m, and otherwise scaled to 2 m; below 0.05 it is scaled to 1 m. With the box off, the file's numbers are metres.
+- *Body.* A surface that is not closed encloses no volume, so it becomes a static triangle mesh. A closed, convex one becomes one dynamic convex hull. A closed, concave one of at most 5,000 triangles is split into up to 16 convex hulls welded together (`convexDecompose`; the note gives how far their volume is from the mesh's, about 10% over for a torus); a larger one becomes a static mesh, because the split would stall the page (5,000 triangles took about 3 s here). The pieces share a collision group, so they do not push each other apart, and each is welded to the nearest piece before it, at the midpoint of their centres of mass. `createBodiesFromMesh` welds every piece to the first one at the body origin instead; that flew apart for a 16-piece torus (tens of metres in free fall), so the Lab does not use it for split bodies. Welds are solved iteratively: on a hard landing the pieces move against each other by up to about 2 cm. A dynamic body has density 1000 kg/m³, so its mass is the mesh volume times that, and it starts 0.3 m above the ground.
+
+The Lab draws hulls, meshes and height fields from their own geometry; see [`RENDERING_PIPELINE.md`](RENDERING_PIPELINE.md).
+
+For the browser console and for tests the page has `box3dLab.sceneState()` (title, source, body and joint counts, shape kinds, tick, scene steps taken, `sceneHash`, `exactHash`, replay hash), `box3dLab.stepSceneTo(tick)` (step without waiting for frames, then report the state) and `box3dLab.sceneJson()` (what Download would save).
+
+Not in the Lab yet: editing a scene, choosing density or scale by hand, importing one body per object of a file, and textures or colours from the geometry file. The Studio does not read scenes.
 
 ## Limits
 

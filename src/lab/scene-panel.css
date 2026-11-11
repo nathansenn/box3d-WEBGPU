@@ -1,0 +1,68 @@
+/* Scene panel of the Physics Lab: open, share, download and reset SI scenes. */
+.lab-scene-panel {
+  position: fixed;
+  right: 12px;
+  bottom: 12px;
+  z-index: 70;
+  width: min(380px, calc(100vw - 24px));
+  max-height: min(70vh, 560px);
+  overflow: auto;
+  padding: 12px;
+  border: 1px solid var(--line-strong, #50585b);
+  border-radius: var(--radius-lg, 8px);
+  background: var(--panel, #171b1e);
+  color: var(--text, #f3f4f2);
+  box-shadow: var(--shadow, 0 18px 54px rgba(0, 0, 0, 0.44));
+  font: 13px/1.4 var(--sans, system-ui, sans-serif);
+}
+.lab-scene-panel[data-collapsed="true"] { width: auto; padding: 0; overflow: visible; }
+.lab-scene-panel[data-collapsed="true"] > :not(.lab-scene-toggle) { display: none; }
+.lab-scene-toggle,
+.lab-scene-panel button,
+.lab-scene-panel select {
+  min-height: 32px;
+  padding: 4px 10px;
+  border: 1px solid var(--line-strong, #50585b);
+  border-radius: var(--radius, 4px);
+  background: var(--panel-raised, #1c2023);
+  color: inherit;
+  font: inherit;
+  cursor: pointer;
+}
+.lab-scene-panel button:hover:not(:disabled), .lab-scene-panel select:hover { background: var(--panel-hover, #272c2f); }
+.lab-scene-panel button:disabled { opacity: 0.45; cursor: default; }
+.lab-scene-panel button:focus-visible, .lab-scene-panel select:focus-visible, .lab-scene-panel input:focus-visible { outline: 2px solid var(--cyan, #29c8ff); outline-offset: 1px; }
+.lab-scene-toggle { font-weight: 600; }
+.lab-scene-panel:not([data-collapsed="true"]) .lab-scene-toggle { float: right; min-height: 26px; padding: 0 8px; }
+.lab-scene-heading { margin: 0 0 2px; font-size: 11px; letter-spacing: 0.08em; text-transform: uppercase; color: var(--muted, #a8adae); }
+.lab-scene-title { margin: 0 0 4px; font-size: 16px; line-height: 1.25; overflow-wrap: anywhere; }
+.lab-scene-summary { margin: 0 0 8px; color: var(--muted, #a8adae); overflow-wrap: anywhere; }
+.lab-scene-notes { margin: 0 0 8px; padding: 8px 8px 8px 24px; border-left: 3px solid var(--cyan, #29c8ff); background: var(--panel-soft, #202427); overflow-wrap: anywhere; }
+.lab-scene-notes:empty { display: none; }
+.lab-scene-actions { display: flex; flex-wrap: wrap; gap: 6px; margin: 0 0 8px; }
+.lab-scene-row { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; margin: 0 0 8px; }
+.lab-scene-row label { display: inline-flex; align-items: center; gap: 6px; }
+.lab-scene-status { min-height: 1.4em; margin: 0; color: var(--green, #68df55); overflow-wrap: anywhere; }
+.lab-scene-error { margin: 0 0 8px; padding: 8px; border: 1px solid var(--red, #ff4053); border-radius: var(--radius, 4px); background: #2a1216; overflow-wrap: anywhere; }
+.lab-scene-error[hidden] { display: none; }
+.lab-scene-error strong { display: block; margin-bottom: 4px; color: #ffb3bb; }
+.lab-scene-error ul { margin: 0; padding-left: 18px; font-family: var(--mono, monospace); font-size: 12px; }
+.lab-scene-error p { margin: 6px 0 0; color: var(--muted, #a8adae); }
+.lab-scene-file { position: absolute; width: 1px; height: 1px; overflow: hidden; clip-path: inset(50%); }
+.lab-scene-drop {
+  position: fixed;
+  inset: 0;
+  z-index: 80;
+  display: grid;
+  place-items: center;
+  border: 3px dashed var(--cyan, #29c8ff);
+  background: rgba(8, 10, 11, 0.72);
+  color: var(--text, #f3f4f2);
+  font: 600 20px/1.4 var(--sans, system-ui, sans-serif);
+  text-align: center;
+  pointer-events: none;
+}
+.lab-scene-drop[hidden] { display: none; }
+@media (max-width: 640px) {
+  .lab-scene-panel { right: 8px; bottom: 8px; max-height: 60vh; }
+}

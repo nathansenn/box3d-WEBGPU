@@ -25,12 +25,14 @@ Pass 0: compact rope render expansion
                                                        ↓
 Pass 1: directional shadow depth (2048² depth32float)
   instanced rigid/rope/effect geometry (boxes, spheres, capsules)
+  hull, mesh and height-field bodies from their own geometry
   intact GPU-cloth shadow reconstruction
   packed tearing-cloth shadow fallback
                                                        ↓
 Pass 2: HDR scene (rgba16float, 4× MSAA)
   atmosphere and sky
   instanced PBR solids (boxes, spheres, capsules)
+  hull, mesh and height-field bodies from their own geometry
   intact GPU cloth or packed tearing cloth
   GPU-reconstructed translucent water
   debug/effect lines
@@ -62,12 +64,13 @@ The shape of each row reaches the renderer through two optional methods on `Inst
 
 ```text
 shapeVersion()   changes when a body is created or destroyed, or the scene is replaced
-shapeKinds()     one byte per row: 0 box, 1 sphere, 2 capsule; null when every row is a box
+shapeKinds()     one byte per row: 0 box, 1 sphere, 2 capsule, 3 hull, 4 mesh, 5 height field;
+                 null when every row is a box
 ```
 
 A source without them has only boxes. That is the JavaScript fallback backend and every recipe scene. `NativeWorldBackend` returns the bridge's colour version as the shape version, because the bridge raises it on exactly those events, and reads the kinds from the bridge once per version. `uploadInstances` compares the version only on a frame whose transforms or colours changed.
 
-`src/webgpu/instance-shapes.ts` turns the kinds into a plan: runs of consecutive rows per shape. A stream with no sphere or capsule has no plan, and its frames take the original single `draw(36, instanceCount)`. With a plan, each pass that draws rigid instances directly uses the same pipeline and the same instance streams, and changes only the mesh in vertex slot 0:
+`src/webgpu/instance-shapes.ts` turns the kinds into a plan: runs of consecutive rows per shape, and the list of rows drawn from a body's own geometry (next section). A stream with no sphere, capsule or own-geometry row has no plan, and its frames take the original single `draw(36, instanceCount)`. With a plan, each pass that draws rigid instances directly uses the same pipeline and the same instance streams, and changes only the mesh in vertex slot 0:
 
 | Rows | Mesh | Instance streams | Draw |
 |---|---|---|---|
@@ -80,18 +83,52 @@ The capsule is exact at any radius and length, not a stretched sphere. The row m
 
 Passes and optional paths:
 
-| Path | Spheres and capsules |
+| Path | Spheres, capsules, and bodies with their own geometry |
 |---|---|
 | Shadow pass, direct | drawn; they cast shadows |
 | HDR opaque pass, direct | drawn with the PBR solid shader; normals come from the mesh |
 | HDR transparent pass, direct | drawn; glass and dust tags work on any shape |
 | Material partition (`instancePartitioning`, opt-in) | falls back. Its lists treat every instance as a cube, so a frame with a plan is drawn directly. A renderer created with partitioning compiles its solid pipelines for vertex pulling only, so it compiles two direct pipelines per sample count the first time it needs them. The partition resumes when every row is a box. |
-| GPU visibility lists (`computeVisibility`, opt-in) | falls back the same way: no visibility list is encoded for a frame with a plan. Round shapes are therefore not frustum-culled. |
+| GPU visibility lists (`computeVisibility`, opt-in) | falls back the same way: no visibility list is encoded for a frame with a plan. These shapes are therefore not frustum-culled. |
 | GPU rope expansion | unchanged; it writes box rows after the rigid stream |
 
 `instanceShapeInfo()` reports the mode and the sphere and capsule counts.
 
 Box-only cost, measured on Dawn's null backend (CPU-side upload, encoding and submission of the real `WebGPURenderer`, 4,096 boxes, best of the rounds, before → after): a moved frame 69.7 → 66.9 µs; a moved one-body upload 951 → 933 ns; an unchanged upload 19 → 19 ns. The differences are below the run-to-run spread of 10–50% on the shared machine, so no cost was measured. This is not a GPU timing.
+
+Measured again for the body-geometry change (same method; ten processes of each build run alternately, best of each, before → after): a moved frame 66.2 → 67.5 µs; a moved one-body upload 924 → 929 ns; an unchanged upload 21.7 → 22.0 ns. Single processes ranged from 66 to 105 µs for the moved frame on either build, so again no cost was measured. A box-only stream reports no shape version; its upload takes one extra local assignment and its frames run the same draw calls as before.
+
+### Hull, mesh and height-field bodies
+
+Added 2026-11-11. A convex hull, a static triangle mesh and a height field have no shared mesh to instance: each is drawn from its own geometry. Their instance rows are unscaled rigid transforms, so the row's matrix and colour are used as they are.
+
+Where the geometry comes from:
+
+```text
+NativeWorldBackend.retainBodyShapes(true)   keep a copy of the geometry each such body is created with
+NativeWorldBackend.bodyShape(row)           that copy, by render row; the same object for the same body
+InstanceBufferSource.shapeGeometry(row)     optional: the render mesh of that row, or null
+```
+
+The solver cannot report a shape back, so the world keeps the validated arrays it handed to the bridge. Retention is off by default (the kit's worlds hold no copies); the Lab's backend turns it on for its general world. `src/webgpu/body-geometry.ts` turns a shape into a triangle list in the cube mesh's layout (position.xyz, normal.xyz, 24 bytes a vertex, no index buffer), once per body:
+
+| Kind | Triangles | Normals | Sides |
+|---|---|---|---|
+| hull | the convex hull of the body's points (`convexHull` in `src/engine/geometry.ts`), wound outward | flat: the triangles of one face share its normal | closed, so back faces are culled as for a box |
+| mesh | the body's own triangles; one with no area is dropped | flat, from each triangle's winding | both: every triangle is written a second time reversed, with the opposite normal, because a static mesh is often an open surface and the solid pipeline culls back faces |
+| height field | two per cell, split along the diagonal from `(x + 1, z)` to `(x, z + 1)`, which is the split Box3D collides with | smooth: `normalize(-dh/dx, 1, -dh/dz)` from central differences, one-sided at the border | top only, as in the solver |
+
+`tests/physics/body-geometry.test.mjs` checks windings, normals and areas, and compares the height-field triangles with 100 downward ray casts against Box3D on a rough field: they agree within 0.2 mm, where the other diagonal would be off by more than 5 cm.
+
+The renderer keeps one vertex buffer for all such bodies and a vertex range per body. Each row in the plan's `geometryRows` is one `draw(vertexCount, 1, firstVertex, row)` with that buffer in vertex slot 0 and the ordinary row streams in slots 1 and 2, in the same shadow, opaque and transparent pipelines as boxes: the body is lit, shadowed, fogged and textured (triplanar, in metres) like every other solid, and it casts a shadow. A mesh is identified by its object, so the buffer is written when a body with new geometry appears and not when bodies move or change rows. `bodyMeshInfo()` reports the bodies and vertices held.
+
+Limits and fallbacks:
+
+- A row whose source has no geometry for it (no `shapeGeometry`, or it returns null) is drawn as a box, as before. That is the kit's own `PhysicsWorld`, which the Lab renderer does not draw, and any world that did not retain shapes.
+- One body's mesh has at most 1,500,000 vertices (36 MB). A mesh above 250,000 triangles is drawn one-sided, and only the first 500,000 triangles of a larger one are drawn; a height field over the budget is drawn from every k-th sample, keeping its last row and column. The scene format allows meshes up to 2,097,152 triangles, so the largest ones are not drawn in full.
+- Box3D keeps at most 64 hull vertices. For a hull created with more points than that, the drawn hull is the exact hull of the points and the solver's is an inscribed simplification. Imported geometry goes through `toHullShape`, which stays within the limit, so the two agree there.
+- The shadow map covers at least 34 m at 2048², about 3 cm a texel. A part 20 cm across casts a shadow a few texels wide.
+- The material partition and the GPU visibility lists fall back to direct draws for a frame with such rows, exactly as for spheres and capsules (table below). These bodies are therefore not frustum-culled.
 
 ### Intact cloth
 
@@ -165,7 +202,7 @@ An unchanged cloth or water surface, rope grid, rigid/effect/debug stream, and s
 
 | Pipeline | Geometry | Key behavior |
 |---|---|---|
-| PBR solid | instanced cubes, spheres, open cylinders and hemisphere caps | GGX-inspired light, shadowing, emissive tag, fog |
+| PBR solid | instanced cubes, spheres, open cylinders and hemisphere caps; per-body hull, mesh and height-field triangle lists | GGX-inspired light, shadowing, emissive tag, fog |
 | Packed cloth | packed indexed surface | topology-aware tear fallback, two-sided light, stress heat |
 | GPU cloth | storage state + indexed grid | normal/UV/color/stress reconstruction, woven shading, shadows |
 | GPU cloth shadow | storage state + indexed grid | position reconstruction into light space |
@@ -225,12 +262,15 @@ native Box3D WASM backend, rendered cloth/rope/water, exercised interactions,
 and recorded zero console warnings or errors. This validates the tested Mac;
 it is not a universal browser/driver or FPS claim.
 
-`scripts/webgpu-renderer-runtime-test.mjs` also uploads a mixed box, sphere and capsule stream, checks the bytes uploaded and that kinds are read once per version, submits shaped frames at both sample counts, and checks that the visibility lists stand aside and resume. Run it with `WEBGPU_INSTANCE_PARTITION=1` to check the partition fallback; no gate sets that variable. The null backend validates commands and draws no pixels. `tests/physics/instance-shapes.test.mjs` checks the plan, the meshes and the capsule decomposition.
+`scripts/webgpu-renderer-runtime-test.mjs` also uploads a mixed box, sphere and capsule stream, checks the bytes uploaded and that kinds are read once per version, submits shaped frames at both sample counts, and checks that the visibility lists stand aside and resume. It does the same for hull, mesh and height-field rows: the body meshes are uploaded once per object (not when bodies move or change rows), a row without geometry stays a box, and frames with body meshes validate at both sample counts. Run it with `WEBGPU_INSTANCE_PARTITION=1` to check the partition fallback; no gate sets that variable. The null backend validates commands and draws no pixels. `tests/physics/instance-shapes.test.mjs` checks the plan, the meshes and the capsule decomposition, and `tests/physics/body-geometry.test.mjs` the body meshes.
+
+Pixels for these bodies were looked at in headless Chromium with software WebGPU (SwiftShader), not on a real GPU: the five example scenes, a dropped OBJ, a dropped STL, a static mesh and a scene with all six shape kinds.
 
 ## Deliberate boundaries
 
-- Sphere and capsule rows are drawn only by direct draws. The partition and visibility lists fall back for a frame that has them.
-- The Mechanisms SI demo (`src/engine/mechanisms-scene.ts`, `lab.html?si=mechanisms&seed=N`, or the last entry of the laboratory catalog) is the Lab scene that has these shapes. It is not one of the 800 recipes.
+- Sphere and capsule rows, and hull, mesh and height-field bodies, are drawn only by direct draws. The partition and visibility lists fall back for a frame that has them.
+- The Mechanisms SI demo (`src/engine/mechanisms-scene.ts`, `lab.html?si=mechanisms&seed=N`, in the SI entries at the end of the laboratory catalog) has spheres and capsules. Scene files (`lab.html?example=terrain-car`, `lab.html?scene=…`, or a dropped file; see [`SCENE_FORMAT.md`](SCENE_FORMAT.md)) can have every shape kind. None of them is one of the 800 recipes.
+- Body meshes are not level-of-detail reduced or frustum-culled, and they have no index buffer: a flat-shaded triangle list repeats each vertex.
 
 - WebGPU reconstructs surface presentation and expands compact rope render state; the numerical solvers remain CPU/WebAssembly work rather than WebGPU compute.
 - Water is transparent forward rendering without order-independent transparency.

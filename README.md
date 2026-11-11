@@ -14,6 +14,17 @@ The current tree preserves the **800 deterministic capability-scene catalog** an
 
 [Merge benchmarks (2026-11-01)](docs/BENCHMARKS_MERGE_20261101.md) compare this integration with the previous `main` on a CPU host and an NVIDIA L4 GPU: renderer correctness and GPU time, native engine, soft bodies, water, Studio solvers, material labs, threaded engine and build size.
 
+## Open a scene
+
+The Physics Lab (`lab.html`) opens rigid-body scenes in SI units from a link or a file. Nothing is installed.
+
+- Examples: [`lab.html?example=pendulum-wave`](lab.html?example=pendulum-wave), [`newtons-cradle`](lab.html?example=newtons-cradle), [`domino-run`](lab.html?example=domino-run), [`terrain-car`](lab.html?example=terrain-car), [`ragdoll`](lab.html?example=ragdoll). They are also listed under "SI scenes" at the end of the laboratory catalog.
+- A share link: `lab.html?scene=b3s1…`. The link carries the whole scene; **Copy share link** in the Scenes panel makes one from whatever scene is on screen, as it is at that moment.
+- A file: **Open file…** in the Scenes panel, or drop it on the page. A scene file is `.json` ([format](docs/SCENE_FORMAT.md)); geometry is `.obj`, `.stl`, `.glb` or `.gltf` and becomes one body on the ground. A closed mesh becomes a dynamic body (a convex hull, or several welded hulls when it is concave and has at most 5,000 triangles), anything else a static mesh, and the panel says which and why. A file in millimetres is read as millimetres; the rule is in [docs/SCENE_FORMAT.md](docs/SCENE_FORMAT.md#in-the-physics-lab).
+- **Download scene (.json)** saves the scene on screen, and **Reset** loads it again from its start.
+
+An invalid file or link is reported in the panel with the validator's list of problems, and the scene on screen stays as it is. Hulls, meshes and height fields are drawn from their own geometry ([docs/RENDERING_PIPELINE.md](docs/RENDERING_PIPELINE.md)). This was checked in headless Chromium with software WebGPU, not on a real GPU.
+
 ## Runtime catalog (generated)
 
 <!-- catalog:generated:start -->
@@ -598,6 +609,10 @@ src/soft/material-simulation.ts deterministic bending, plasticity, damage, and f
 src/soft/combined-material-simulation.ts bounded three-rig Apex material composition
 src/soft/kernels.ts             SIMD → scalar → JavaScript kernel selection
 src/webgpu/renderer.ts          frame graph, GPU surfaces, rope/material compute, HDR/post
+src/webgpu/body-geometry.ts     render meshes of hull, mesh and height-field bodies
+src/engine/scene-format.ts      scene files: validator, canonical form, share links, builder (the kit's /scene)
+src/engine/geometry.ts          OBJ, STL and glTF import, convex hulls and decomposition (the kit's /geometry)
+src/lab/                        the Lab's scene loading: address and file reading, geometry import, scene panel
 src/assets/ktx2.ts              ASTC/RGBA8 material atlases, BC4/R8 noise, fallbacks
 src/compression/turboquant.ts   optional remote-state codec
 wasm/box3d_web.c                native Box3D application bridge

@@ -789,6 +789,90 @@ assert.equal(shadowCacheChecks, 25, 'all shadow dependency and failed-frame tran
   assert.deepEqual(runtimeErrors, [], 'shaped-instance draws emitted no uncaptured WebGPU errors');
 }
 
+// Hull, mesh and height-field rows. A source that also supplies a render mesh for such a row
+// (shapeGeometry) has it drawn from one shared vertex buffer with the row as the instance; a
+// row without a mesh is drawn as a box. Meshes are uploaded once per object, not per frame.
+{
+  const colorBase = maxRigidBodies * 16;
+  const savedRows = heap.slice(0, 6 * 16), savedColors = heap.slice(colorBase, colorBase + 6 * 4);
+  for (let row = 0; row < 6; row++) {
+    heap.set(identity, row * 16); heap[row * 16 + 12] = row * 0.2 - 0.5;
+    heap.set([0.6, 0.6, 0.6, 1], colorBase + row * 4);
+  }
+  const triangleList = triangles => {
+    const vertices = new Float32Array(triangles * 3 * 6);
+    for (let v = 0; v < triangles * 3; v++) vertices.set([(v % 3) * 0.1, (v % 2) * 0.1, v * 0.01, 0, 1, 0], v * 6);
+    return { vertices, vertexCount: triangles * 3 };
+  };
+  const hull = triangleList(4), terrain = triangleList(2);
+  let rowMeshes = [null, hull, null, terrain, null, null];
+  let kinds = new Uint8Array([0, 3, 4, 5, 0, 1]);
+  let shapeVersion = 100, geometryReads = 0;
+  const shaped = { ...source, shapeVersion: () => shapeVersion, shapeKinds: () => kinds, shapeGeometry: row => { geometryReads++; return rowMeshes[row]; } };
+  rigidFrameVersion++; rigidColorVersion++;
+  assert.deepEqual(renderer.bodyMeshInfo(), { bodies: 0, vertices: 0 });
+  assert.equal(renderer.uploadInstances(shaped, 6), 6 * 80 + (12 + 6) * 24, 'six rows plus the two body meshes; the sphere row needs no cap instances');
+  assert.deepEqual(renderer.bodyMeshInfo(), { bodies: 2, vertices: 18 });
+  assert.deepEqual(renderer.instanceShapeInfo(), { mode: 'direct-shapes', spheres: 1, capsules: 0, boxRuns: 3 }, 'the mesh row without geometry stays a box: the box runs are rows 0, 2 and 4');
+  const readsAfterPlan = geometryReads;
+  assert.equal(renderer.uploadInstances(shaped, 6), 0, 'an unchanged frame uploads nothing');
+  rigidFrameVersion++;
+  assert.equal(renderer.uploadInstances(shaped, 6), 6 * 64, 'moving bodies upload their rows, not their meshes');
+  assert.equal(geometryReads, readsAfterPlan, 'geometry is asked for only when the shape version changes');
+  const meshState = { ...cacheState, quality: { ...cacheQuality, sampleCount: 4 } };
+  for (const sampleCount of [4, 1]) {
+    renderer.writeSceneUniforms({ ...meshState, quality: { ...meshState.quality, sampleCount } });
+    renderer.render(6, []);
+    assert.equal(renderer.renderingDiagnostics().lastSubmittedInstances.opaque, 6, `body meshes are drawn directly at ${sampleCount}x`);
+    assert.equal(renderer.renderingDiagnostics().lastSubmittedInstances.shadow, sampleCount === 4 ? 6 : 0, 'body meshes cast shadows; the second frame reuses the map');
+  }
+  renderer.render(2, []);
+  assert.equal(renderer.renderingDiagnostics().lastSubmittedInstances.opaque, 2, 'a frame may stop before the last geometry row');
+  // A destroyed body moves the last row into its place: the same mesh objects on other rows are not uploaded again.
+  rowMeshes = [null, terrain, null, hull, null, null]; kinds = new Uint8Array([0, 5, 4, 3, 0, 1]);
+  shapeVersion++; rigidColorVersion++;
+  assert.equal(renderer.uploadInstances(shaped, 6), 6 * 16, 'known meshes on new rows cost only the colour stream that changed with them');
+  renderer.render(6, []);
+  // A new body brings a new mesh object: the shared buffer is written again.
+  const added = triangleList(3);
+  rowMeshes = [null, terrain, added, hull, null, null];
+  shapeVersion++; rigidColorVersion++;
+  assert.equal(renderer.uploadInstances(shaped, 6), 6 * 16 + (6 + 9 + 12) * 24);
+  assert.deepEqual(renderer.bodyMeshInfo(), { bodies: 3, vertices: 27 });
+  assert.deepEqual(renderer.instanceShapeInfo(), { mode: 'direct-shapes', spheres: 1, capsules: 0, boxRuns: 2 });
+  renderer.render(6, []);
+  // The visibility lists treat every instance as a cube, so they stand aside here too.
+  await renderer.setRenderingOptimizations({ computeVisibility: true });
+  const encodesBefore = renderer.renderingDiagnostics().visibilityEncodes;
+  renderer.render(6, []);
+  assert.equal(renderer.renderingDiagnostics().visibilityEncodes, encodesBefore, 'no visibility list is built for a frame with body meshes');
+  assert.equal(renderer.renderingDiagnostics().lastSubmittedInstances.opaque, 6);
+  await renderer.setRenderingOptimizations({ computeVisibility: false });
+  // Only hull rows and boxes, no sphere: the plan still exists because of the geometry.
+  rowMeshes = [null, hull, null, null, null, null]; kinds = new Uint8Array([0, 3, 0, 0, 0, 0]);
+  shapeVersion++; rigidColorVersion++;
+  renderer.uploadInstances(shaped, 6);
+  assert.deepEqual(renderer.instanceShapeInfo(), { mode: 'direct-shapes', spheres: 0, capsules: 0, boxRuns: 2 });
+  assert.equal(renderer.bodyMeshInfo().bodies, 1);
+  renderer.render(6, []);
+  assert.equal(renderer.renderingDiagnostics().lastSubmittedInstances.opaque, 6);
+  // A source that reports the kinds but has no geometry draws those rows as boxes, with the single cube draw.
+  const kindsOnly = { ...source, shapeVersion: () => shapeVersion, shapeKinds: () => kinds };
+  shapeVersion++; rigidColorVersion++;
+  renderer.uploadInstances(kindsOnly, 6);
+  assert.deepEqual(renderer.instanceShapeInfo(), { mode: 'boxes', spheres: 0, capsules: 0, boxRuns: 1 });
+  assert.deepEqual(renderer.bodyMeshInfo(), { bodies: 0, vertices: 0 });
+  heap.set(savedRows, 0); heap.set(savedColors, colorBase);
+  rigidFrameVersion++; rigidColorVersion++;
+  assert.equal(renderer.uploadInstances(source, 1), 80);
+  renderer.uploadEffects(effectMatrices, effectColors, 1, 0, 503);
+  renderer.writeSceneUniforms(cacheState);
+  renderer.render(1, []);
+  assert.equal(renderer.renderingDiagnostics().lastSubmittedInstances.opaque, submittedCount(1));
+  await renderer.device.queue.onSubmittedWorkDone();
+  assert.deepEqual(runtimeErrors, [], 'body-mesh draws emitted no uncaptured WebGPU errors');
+}
+
 if (process.env.WEBGPU_RIGID_STREAM_EVIDENCE === '1') {
   const evidence = {
     result: 'passed',
@@ -1033,7 +1117,7 @@ if (initialTimingStatus === 'ready') {
   }
 }
 console.log(`GPU timing diagnostics: ${JSON.stringify(renderer.gpuTimingInfo())}`);
-console.log(`✅ Actual WebGPURenderer command validation passed on Dawn ${dawnBackend}: rigid/cloth/water/rope paths, GPU-compute rope reconstruction, exact paused-frame upload caches, debug lines, resize, empty frame, lazy visibility retry/cleanup, 25 shadow-cache transitions, sphere/capsule rows with partition and visibility fallback, material boundary gates, failed-frame recovery, and clean error stream (null backend does not execute pixels)`);
+console.log(`✅ Actual WebGPURenderer command validation passed on Dawn ${dawnBackend}: rigid/cloth/water/rope paths, GPU-compute rope reconstruction, exact paused-frame upload caches, debug lines, resize, empty frame, lazy visibility retry/cleanup, 25 shadow-cache transitions, sphere/capsule rows and hull/mesh/height-field body meshes with partition and visibility fallback, material boundary gates, failed-frame recovery, and clean error stream (null backend does not execute pixels)`);
 
 currentTexture?.destroy();
 renderer.dispose();

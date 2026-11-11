@@ -21,10 +21,35 @@ export type InstanceBufferSource = {
    */
   shapeVersion?(): number;
   /**
-   * One byte per active row: 0 box, 1 sphere, 2 capsule (src/webgpu/instance-shapes.ts).
+   * One byte per active row: 0 box, 1 sphere, 2 capsule, 3 hull, 4 mesh, 5 height field
+   * (src/webgpu/instance-shapes.ts).
    * Null when every row is a box. The array may be reused by the next call.
    */
   shapeKinds?(): Uint8Array | null;
+  /**
+   * Optional. The render mesh of the hull, mesh or height-field body at `row`
+   * (kinds 3, 4 and 5), in the body's own frame: position.xyz, normal.xyz per
+   * vertex, three vertices per triangle (src/webgpu/body-geometry.ts). Null when
+   * the source has none for that row, which is then drawn as a box. The same
+   * object must be returned for the same body until it is destroyed: the
+   * renderer uploads a mesh once per object. Called only when shapeVersion changes.
+   */
+  shapeGeometry?(row: number): InstanceGeometry | null;
+};
+
+/**
+ * A scene file states its own fixed step. With `step` and `subSteps` set, every step() of the
+ * general scene takes `stepsPerTick` (default 1) steps of exactly that size, whatever it is called with.
+ */
+export type GeneralSceneOptions = {
+  readonly step?: number;
+  readonly subSteps?: number;
+  readonly stepsPerTick?: number;
+};
+
+export type InstanceGeometry = {
+  readonly vertices: Float32Array;
+  readonly vertexCount: number;
 };
 
 /** How the native backend uses its worker pool (docs/THREADED_ENGINE.md). Results never depend on it. */
@@ -56,9 +81,15 @@ export type PhysicsBackend = InstanceBufferSource & {
   /**
    * Optional. Replace the rigid world with one built through the general SI API
    * (resetWorld, createBody, createJoint). Returns the body count. The next
-   * createScene() call returns to the recipe world.
+   * createScene() call returns to the recipe world. If `build` throws, the general
+   * world is abandoned and the backend shows the recipe world again.
    */
-  createGeneralScene?(build: (world: NativeWorldBackend) => void): number;
+  createGeneralScene?(build: (world: NativeWorldBackend) => void, options?: GeneralSceneOptions): number;
+  /**
+   * Optional. Run `build` in a scratch world that is thrown away, so a scene the engine refuses
+   * is found before createGeneralScene replaces what is on screen. Throws what `build` throws.
+   */
+  checkGeneralScene?(build: (world: NativeWorldBackend) => void): void;
   destroy(): void;
 };
 

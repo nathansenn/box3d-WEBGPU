@@ -2,7 +2,7 @@
  * Ready-made scenes in the box3d-scene format. Each function returns a new
  * plain-JSON scene; pass it to loadScene, encodeSceneLink or JSON.stringify.
  */
-import type {Scene, SceneBody, SceneJoint} from './scene.js';
+import type {Scene, SceneBody, SceneJoint} from './scene-format.ts';
 
 const G = 9.81;
 const round = (value: number, digits = 6): number => { const v = Number(value.toFixed(digits)); return v === 0 ? 0 : v; };

@@ -1,8 +1,9 @@
 import type { ScenePreset } from '../scenes';
-import type { PhysicsBackend, PhysicsThreading } from '../types';
+import type { GeneralSceneOptions, InstanceGeometry, PhysicsBackend, PhysicsThreading } from '../types';
 import { FallbackPhysicsBackend } from './fallback';
 import { planThreading } from './threading';
-import { NativeWorldPool, type NativeWorldBackend } from '../engine/native-world.ts';
+import { NativeWorldPool, type NativeBodyShape, type NativeWorldBackend } from '../engine/native-world.ts';
+import { bodyRenderMesh } from '../webgpu/body-geometry.ts';
 import { MAX_WASM_STEP_DT, clampWasmSubSteps, finiteBounded } from './step-bounds.ts';
 
 type EmscriptenModuleBase = {
@@ -53,6 +54,10 @@ class WasmPhysicsBackend implements PhysicsBackend {
   private generalPool: NativeWorldPool | null = null;
   private generalWorld: NativeWorldBackend | null = null;
   private general: NativeWorldBackend | null = null;
+  // A scene file fixes its own step and sub-step count; null leaves both to the caller of step().
+  private generalStep: { readonly dt: number; readonly subSteps: number; readonly repeats: number } | null = null;
+  // Render meshes of hull, mesh and height-field bodies, built once per retained shape.
+  private bodyMeshes = new WeakMap<NativeBodyShape, InstanceGeometry | null>();
 
   constructor(
     private readonly mod: EmscriptenModuleBase,
@@ -86,6 +91,18 @@ class WasmPhysicsBackend implements PhysicsBackend {
   // a general scene moves the instance streams, which makes the renderer read the kinds again.
   shapeVersion(): number { return this.general ? this.general.shapeVersion() : 0; }
   shapeKinds(): Uint8Array | null { return this.general ? this.general.shapeKinds() : null; }
+  shapeGeometry(row: number): InstanceGeometry | null {
+    const shape = this.general?.bodyShape(row);
+    if (!shape) return null;
+    let mesh = this.bodyMeshes.get(shape);
+    if (mesh === undefined) {
+      // Geometry the engine accepted but that has no drawable hull falls back to the box row.
+      try { mesh = bodyRenderMesh(shape); } catch { mesh = null; }
+      if (mesh && mesh.vertexCount === 0) mesh = null;
+      this.bodyMeshes.set(shape, mesh);
+    }
+    return mesh;
+  }
 
   private markTransformsChanged(): void {
     this.transformFrameVersion = (this.transformFrameVersion + 1) >>> 0;
@@ -103,16 +120,38 @@ class WasmPhysicsBackend implements PhysicsBackend {
   private leaveGeneralScene(): void {
     if (!this.general) return;
     this.general = null;
+    this.generalStep = null;
     this.generalWorld?.clear();
   }
 
-  createGeneralScene(build: (world: NativeWorldBackend) => void): number {
+  /**
+   * Run `build` in a scratch world that is thrown away, to find out whether the engine accepts
+   * a scene before the world on screen is replaced. Throws what `build` throws.
+   */
+  checkGeneralScene(build: (world: NativeWorldBackend) => void): void {
+    this.generalPool ??= new NativeWorldPool(this.mod);
+    const scratch = this.generalPool.createWorld();
+    try {
+      if (!scratch.supportsGeneralBodies) throw new Error('box3d.wasm lacks the general rigid-body API. Rebuild with npm run build:wasm.');
+      build(scratch);
+    } finally {
+      scratch.destroy();
+    }
+  }
+
+  createGeneralScene(build: (world: NativeWorldBackend) => void, options: GeneralSceneOptions = {}): number {
     this.generalPool ??= new NativeWorldPool(this.mod);
     const world = this.generalWorld ??= this.generalPool.createWorld();
     if (!world.supportsGeneralBodies) throw new Error('box3d.wasm lacks the general rigid-body API. Rebuild with npm run build:wasm.');
+    // The renderer draws hulls, meshes and height fields from the geometry they were created with.
+    world.retainBodyShapes(true);
     this.general = null;
+    this.generalStep = null;
     build(world);
     this.general = world;
+    this.generalStep = options.step !== undefined && options.subSteps !== undefined
+      ? { dt: options.step, subSteps: options.subSteps, repeats: Math.max(1, Math.min(64, Math.floor(options.stepsPerTick ?? 1))) }
+      : null;
     this.markStreamsChanged();
     return world.bodyCount();
   }
@@ -136,7 +175,11 @@ class WasmPhysicsBackend implements PhysicsBackend {
 
   step(dt: number, subSteps: number): void {
     if (!Number.isFinite(dt) || dt <= 0) return;
-    if (this.general) { this.general.step(Math.min(dt, MAX_WASM_STEP_DT), clampWasmSubSteps(subSteps)); return; }
+    if (this.general) {
+      if (this.generalStep) for (let i = 0; i < this.generalStep.repeats; i++) this.general.step(this.generalStep.dt, this.generalStep.subSteps);
+      else this.general.step(Math.min(dt, MAX_WASM_STEP_DT), clampWasmSubSteps(subSteps));
+      return;
+    }
     this.mod._b3w_step?.(Math.min(dt, MAX_WASM_STEP_DT), clampWasmSubSteps(subSteps));
     this.markTransformsChanged();
   }

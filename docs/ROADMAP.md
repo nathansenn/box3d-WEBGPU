@@ -38,19 +38,21 @@ Updated 2026-11-11.
 | 1 | Record and replay of the new calls; worker transport for them | done |
 | 1 | Solver state save and load | open |
 | 1 | Lab renderer draws spheres and capsules | done for direct draws in the shadow, opaque and transparent passes; the opt-in partition and visibility lists fall back to direct draws; seen in software rendering only, not on a real GPU |
+| 1 | Lab renderer draws convex hulls, static meshes and height fields from each body's own geometry | done for direct draws in the same three passes (lit, shadowed, casting shadows); the partition and visibility lists fall back; very large meshes are drawn reduced; seen in software rendering only, not on a real GPU |
 | 1 | A Lab scene built with the general API ("Mechanisms" SI demo, `lab.html?si=mechanisms`) | done as a separate entry, not one of the 800 recipes |
 | 1 | Publish `box3d-webgpu-kit` 1.0 to npm | open (owner decision) |
 | 2 | Rigid ↔ water, both ways: buoyancy, drag, volume and momentum sources (`box3d-webgpu-kit/coupling`, [`WATER_COUPLING.md`](WATER_COUPLING.md)) | done in the kit with closed-form validation (`packages/box3d-kit/test/v09-coupling.test.mjs`); not yet used by a scene or the Studio |
-| 2 | One scene description for rigid bodies and joints: a versioned JSON format with validation, load and save (`box3d-webgpu-kit/scene`, [`SCENE_FORMAT.md`](SCENE_FORMAT.md)) | done in the kit (`packages/box3d-kit/test/v12-scene.test.mjs`); rigid bodies and joints only, so cables, water, frames and heat are not in the format yet; a save restores poses and velocities, not solver state; not yet used by a Lab scene or the Studio |
+| 2 | One scene description for rigid bodies and joints: a versioned JSON format with validation, load and save (`box3d-webgpu-kit/scene`, [`SCENE_FORMAT.md`](SCENE_FORMAT.md)) | done (`src/engine/scene-format.ts`, published by the kit; `packages/box3d-kit/test/v12-scene.test.mjs`); rigid bodies and joints only, so cables, water, frames and heat are not in the format yet; a save restores poses and velocities, not solver state; the Lab loads scenes with it, the Studio does not |
 | 2 | Cable and frame ↔ rigid, both ways: cable ends and frame nodes attached to bodies (pinned or clamped), tethers, cables holding frames (`box3d-webgpu-kit/structure`, [`STRUCTURE_COUPLING.md`](STRUCTURE_COUPLING.md)) | done in the kit with closed-form validation (`packages/box3d-kit/test/v11-structure.test.mjs`), including a small cable-stayed span carrying a body; no contact between bodies and members; not yet used by a scene or the Studio |
 | 2 | One stepping loop for every solver; rigid ↔ cloth and rope; bridge rebuild | open |
 | 3 | Heat conduction in solids: transient and steady, four boundary types, implicit and explicit stepping, energy ledger (`box3d-webgpu-kit/heat`, [`HEAT_TRANSFER.md`](HEAT_TRANSFER.md)) | done as a standalone solver with closed-form validation (`tests/engine/heat.test.mjs`, in the pull-request gate); thermal stress and thermal shock are one-way estimates; not yet coupled to a fracture solver or used by a scene |
-| 5 | Import glTF, OBJ and STL: parsers, mesh measures, convex hulls and decomposition, bodies from meshes (`box3d-webgpu-kit/geometry`) | done in the kit with closed-form validation (`packages/box3d-kit/test/v10-geometry.test.mjs`); not yet used by a scene, the Studio or an editor |
+| 5 | Import glTF, OBJ and STL: parsers, mesh measures, convex hulls and decomposition, bodies from meshes (`box3d-webgpu-kit/geometry`) | done (`src/engine/geometry.ts`, published by the kit) with closed-form validation (`packages/box3d-kit/test/v10-geometry.test.mjs`); the Lab imports a dropped or opened file as one body; no editor, and the Studio does not use it. Open: `createBodiesFromMesh` with `as: 'decomposed'` welds every piece to the first one, and a 16-piece torus built that way flies apart in free fall (found 2026-11-11; the Lab welds piece to nearest piece instead, which holds) |
 | 3 | Deformable solids with real material parameters: tetrahedral FEM, linear, corotational and Neo-Hookean, statics and dynamics (`box3d-webgpu-kit/solid`, [`SOLID_MECHANICS.md`](SOLID_MECHANICS.md)) | done as a stand-alone solver with closed-form validation (`tests/engine/solid.test.mjs`, in the pull-request gate); not coupled to the rigid world; no contact, plasticity or fracture; not yet used by a scene or the Studio |
 | 3 | Fracture on the solid solver; replace the rubber, concrete and lattice one-offs; the other Phase 3 domains | open |
 | 4 | A public validation page: every solver against textbook cases, with error numbers ([`VALIDATION.md`](VALIDATION.md), served at `<site>/validation/`) | done for the ten solver domains with closed-form tests: 211 cases measured by `node scripts/validation-report.mjs` from the registry in `validation/`, all inside their tolerances; `npm run validation:check` in the pull-request gate fails when a case misses or the published numbers go stale. Open: the Studio's authored models, cloth, rope, granular and the GPU water path have no cases; cross-machine agreement of the published digits is unverified |
 | 4 | A calibrated material library with sources; a cross-device determinism matrix; removing the "not engineering predictions" disclaimer study by study | open |
-| 5 | Share links that carry the whole scene (`encodeSceneLink`, `decodeSceneLink` in `box3d-webgpu-kit/scene`) | done in the kit: compressed, checksummed, URL-safe, with a size cap; no page reads a link yet |
+| 5 | Share links that carry the whole scene (`encodeSceneLink`, `decodeSceneLink` in `box3d-webgpu-kit/scene`) | done: compressed, checksummed, URL-safe, with a size cap; the Lab opens `lab.html?scene=<link>` and copies a link of the scene on screen; the Studio does not |
+| 5 | Open a scene in the Lab without installing anything: example links, share links, scene files and OBJ, STL and glTF geometry by file dialog or drag and drop, with download and reset ([`SCENE_FORMAT.md`](SCENE_FORMAT.md#in-the-physics-lab)) | done; one body per geometry file; no editing; checked in headless Chromium with software WebGPU only |
 | 4–6 | Everything else below | not started |
 
 ## Phase 0: clean base
@@ -66,13 +68,13 @@ Box3D already has the features; the C bridge (`wasm/box3d_web.c`) exposes them a
 
 Done in kit 0.8.0: general bodies, six shape types, three body types, setters, forces, six joint types, events, SI worlds, and a closed-form validation suite (pendulum period within 0.1%, friction stopping distance within 1%, rebound height within 2%, momentum and energy conserved in an elastic collision, sliding and rolling down inclines within 1%).
 
-Done after 0.8.0: the Lab renderer draws spheres and capsules ([`RENDERING_PIPELINE.md`](RENDERING_PIPELINE.md)), and the Mechanisms SI demo shows pendulums on revolute joints, capsule chains on spherical joints with cone limits, a motor-driven hinge and a car on wheel joints.
+Done after 0.8.0: the Lab renderer draws spheres and capsules, and convex hulls, static meshes and height fields from each body's own geometry ([`RENDERING_PIPELINE.md`](RENDERING_PIPELINE.md)), and the Mechanisms SI demo shows pendulums on revolute joints, capsule chains on spherical joints with cone limits, a motor-driven hinge and a car on wheel joints.
 
 Remaining: compound shapes, state save/load, and the npm release.
 
 ## Phase 2: one world, coupled
 
-- One scene description and one stepping loop that every solver plugs into, in SI units. The scene description exists for rigid bodies and joints ([`SCENE_FORMAT.md`](SCENE_FORMAT.md)); the other solvers and the shared loop are still to come.
+- One scene description and one stepping loop that every solver plugs into, in SI units. The scene description exists for rigid bodies and joints ([`SCENE_FORMAT.md`](SCENE_FORMAT.md)) and the Lab loads it; the other solvers and the shared loop are still to come.
 - Two-way coupling, in order of payoff:
   1. rigid ↔ water: buoyancy and drag that push back on the water (done in kit 0.9.0 for one flat-bottom basin; see [`WATER_COUPLING.md`](WATER_COUPLING.md));
   2. rigid ↔ cloth and rope;
@@ -105,8 +107,8 @@ Runs alongside Phases 1–3.
 Starts after Phase 1.
 
 - Scene editor: bodies, joints, materials, loads.
-- Import glTF, OBJ, STL (done in the kit: `box3d-webgpu-kit/geometry` parses the files and makes static mesh bodies, hull bodies, or welded hull sets from an approximate convex decomposition; an editor and URDF/MJCF are still to come). Export CSV, glTF, video.
-- Scripting API and console; share links that carry the whole scene (the link codec is done in the kit; the Lab and Studio do not read links yet).
+- Import glTF, OBJ, STL (done: `box3d-webgpu-kit/geometry` parses the files and makes static mesh bodies, hull bodies, or welded hull sets from an approximate convex decomposition, and the Lab opens such a file as one body; an editor and URDF/MJCF are still to come). Export CSV, glTF, video.
+- Scripting API and console; share links that carry the whole scene (done for the Lab: it opens example links, share links and scene files, and copies a link of the scene on screen; the Studio does not read links yet).
 - Docs site with runnable examples and a teaching track.
 - WebGL2 fallback for the Lab; a tested support statement for Safari, Firefox and mobile.
 
