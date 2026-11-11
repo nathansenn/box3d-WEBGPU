@@ -12,6 +12,7 @@ import waterCoupling from './domains/water-coupling.mjs';
 import structureCoupling from './domains/structure-coupling.mjs';
 import geometry from './domains/geometry.mjs';
 import scene from './domains/scene.mjs';
+import simulation from './domains/simulation.mjs';
 import heat from './domains/heat.mjs';
 import solid from './domains/solid.mjs';
 import frame from './domains/frame.mjs';
@@ -44,7 +45,7 @@ export const DOMAINS = [
       'No added mass, lift or viscosity. Drag is a model with a coefficient you set: the terminal-velocity case checks the force balance, not the drag coefficient.',
       'Each body sees one plane of water averaged over a kernel about twice its size. Waves shorter than the body are averaged away; bodies do not shelter each other.',
       'Boxes, spheres and capsules only, one shape per body. Hulls and meshes are not coupled.',
-      'CPU only; the WebGPU closed-water solver is not coupled. Not used by a scene, the Lab or the Studio yet.',
+      'CPU only; the WebGPU closed-water solver is not coupled. A scene file can describe a basin (see the simulation domain); the Lab and the Studio do not run it.',
     ],
   },
   {
@@ -87,6 +88,20 @@ export const DOMAINS = [
     ],
   },
   {
+    id: 'simulation', title: 'One stepping loop: coupled scenes and links', needsKit: true,
+    solver: '`box3d-webgpu-kit/simulation`: one Simulation that steps the rigid world, the water and structure couplings, heat and solids in fixed stages, and builds scenes with water, cable and frame sections',
+    summary: 'Bit-identity with the modules driven by hand, a moored buoy and a cable-stayed deck loaded from scene files against closed-form statics, the heat-to-solid and weight-to-solid links, the energy ledger, and what a save of a coupled scene restores.',
+    docs: ['docs/SIMULATION.md'],
+    notValidated: [
+      'Water and structure do not know of each other: the structure coupling\'s free response of a body has gravity only. A moored buoy\'s cable tension is high by m_n B / (m + m_n) (0.73 N of 1337 N here) and its draught off by B dt^2 / m (0.46 mm); a heavy cable node on a light buoy makes both larger.',
+      'The two links are one-way. Heat drives the solid\'s thermal strain and a rigid body\'s weight loads a solid; the solid does not change the temperature, hold the body up or push it. There is no contact between rigid bodies and deformable solids.',
+      'The thermal link needs co-located grids: a box mesh whose cells are the heat grid\'s cells. Only uniform end states are checked, where the mapping is exact.',
+      'A save of a coupled scene is not a bit-exact continuation: the structure coupling\'s impulses and pending half kick, the cable multipliers and one step of displaced volume are not saved. The resume rows show the drift.',
+      'The energy ledger is a sum of what each solver reports. With drag it may exceed its start by the sampling offset rho g V v dt, because its terms are known half a step apart.',
+      'The Physics Lab and the Studio do not run coupled scenes; the Lab refuses a scene with water, cable or frame sections. Heat and solids are not in the scene format.',
+    ],
+  },
+  {
     id: 'heat', title: 'Heat conduction', needsKit: false,
     solver: '`src/engine/heat.ts`: finite volumes on a structured grid, backward Euler, Crank-Nicolson or explicit, float64',
     summary: 'Steady slabs and composite walls, sources, convection and radiation boundaries, temperature-dependent conductivity, the erfc and Fourier-series transients with their observed orders, a 2-D plate, an energy audit and the explicit stability limit.',
@@ -97,7 +112,7 @@ export const DOMAINS = [
       'Crank-Nicolson overshoots after a sudden change when alpha dt / h^2 is large (452 K next to a 400 K surface at 8.2); the erfc rows use a step where it does not.',
       'k(T) is lagged by one step and radiation is linearised once per step: first order in dt for strongly nonlinear cases.',
       'The thermal-stress rows are one-way formulas for full restraint, not a stress analysis.',
-      'Material data are inputs: no calibrated material library is validated here. Not used by a scene, the Lab or the Studio yet.',
+      'Material data are inputs: no calibrated material library is validated here. Not in the scene format, and not used by the Lab or the Studio.',
     ],
   },
   {
@@ -110,7 +125,7 @@ export const DOMAINS = [
       'Near-incompressibility: at nu = 0.4999 the four-cell cantilever is 29% too stiff. There is no mixed or higher-order element.',
       'With nu = 0.3 a clamped root also restrains Poisson contraction, which beam theory ignores: the 3-D limit sits about 1.2% below the Timoshenko reference.',
       'Contact and self-contact, plasticity, viscoelasticity, damage and crack growth (the strength checks only flag elements), anisotropy, and more than one material per body.',
-      'Not coupled to the rigid-body, water, cable or frame solvers.',
+      'No two-way coupling to the rigid-body, water, cable or frame solvers, and no contact with rigid bodies. The one-way thermal and dead-load links are in the simulation domain.',
       'Uniform states are exact, so the tension, shear, pressure and rubber rows say nothing about accuracy under stress gradients.',
     ],
   },
@@ -156,7 +171,7 @@ export const DOMAINS = [
   },
 ];
 
-export const CASES = [...rigid, ...waterCoupling, ...structureCoupling, ...geometry, ...scene, ...heat, ...solid, ...frame, ...cable, ...closedWater];
+export const CASES = [...rigid, ...waterCoupling, ...structureCoupling, ...geometry, ...scene, ...simulation, ...heat, ...solid, ...frame, ...cable, ...closedWater];
 
 /** Cases of the given domains (all when `only` is empty), in registry order. */
 export function selectCases(only = []) {

@@ -5,10 +5,10 @@
  "generatedBy": "node scripts/validation-report.mjs",
  "digits": 9,
  "totals": {
-  "cases": 211,
-  "passed": 211,
+  "cases": 237,
+  "passed": 237,
   "failed": 0,
-  "domains": 10
+  "domains": 11
  },
  "domains": [
   {
@@ -44,7 +44,7 @@
     "No added mass, lift or viscosity. Drag is a model with a coefficient you set: the terminal-velocity case checks the force balance, not the drag coefficient.",
     "Each body sees one plane of water averaged over a kernel about twice its size. Waves shorter than the body are averaged away; bodies do not shelter each other.",
     "Boxes, spheres and capsules only, one shape per body. Hulls and meshes are not coupled.",
-    "CPU only; the WebGPU closed-water solver is not coupled. Not used by a scene, the Lab or the Studio yet."
+    "CPU only; the WebGPU closed-water solver is not coupled. A scene file can describe a basin (see the simulation domain); the Lab and the Studio do not run it."
    ],
    "cases": 22,
    "passed": 22
@@ -104,6 +104,25 @@
    "passed": 14
   },
   {
+   "id": "simulation",
+   "title": "One stepping loop: coupled scenes and links",
+   "summary": "Bit-identity with the modules driven by hand, a moored buoy and a cable-stayed deck loaded from scene files against closed-form statics, the heat-to-solid and weight-to-solid links, the energy ledger, and what a save of a coupled scene restores.",
+   "solver": "`box3d-webgpu-kit/simulation`: one Simulation that steps the rigid world, the water and structure couplings, heat and solids in fixed stages, and builds scenes with water, cable and frame sections",
+   "docs": [
+    "docs/SIMULATION.md"
+   ],
+   "notValidated": [
+    "Water and structure do not know of each other: the structure coupling's free response of a body has gravity only. A moored buoy's cable tension is high by m_n B / (m + m_n) (0.73 N of 1337 N here) and its draught off by B dt^2 / m (0.46 mm); a heavy cable node on a light buoy makes both larger.",
+    "The two links are one-way. Heat drives the solid's thermal strain and a rigid body's weight loads a solid; the solid does not change the temperature, hold the body up or push it. There is no contact between rigid bodies and deformable solids.",
+    "The thermal link needs co-located grids: a box mesh whose cells are the heat grid's cells. Only uniform end states are checked, where the mapping is exact.",
+    "A save of a coupled scene is not a bit-exact continuation: the structure coupling's impulses and pending half kick, the cable multipliers and one step of displaced volume are not saved. The resume rows show the drift.",
+    "The energy ledger is a sum of what each solver reports. With drag it may exceed its start by the sampling offset rho g V v dt, because its terms are known half a step apart.",
+    "The Physics Lab and the Studio do not run coupled scenes; the Lab refuses a scene with water, cable or frame sections. Heat and solids are not in the scene format."
+   ],
+   "cases": 26,
+   "passed": 26
+  },
+  {
    "id": "heat",
    "title": "Heat conduction",
    "summary": "Steady slabs and composite walls, sources, convection and radiation boundaries, temperature-dependent conductivity, the erfc and Fourier-series transients with their observed orders, a 2-D plate, an energy audit and the explicit stability limit.",
@@ -117,7 +136,7 @@
     "Crank-Nicolson overshoots after a sudden change when alpha dt / h^2 is large (452 K next to a 400 K surface at 8.2); the erfc rows use a step where it does not.",
     "k(T) is lagged by one step and radiation is linearised once per step: first order in dt for strongly nonlinear cases.",
     "The thermal-stress rows are one-way formulas for full restraint, not a stress analysis.",
-    "Material data are inputs: no calibrated material library is validated here. Not used by a scene, the Lab or the Studio yet."
+    "Material data are inputs: no calibrated material library is validated here. Not in the scene format, and not used by the Lab or the Studio."
    ],
    "cases": 34,
    "passed": 34
@@ -135,7 +154,7 @@
     "Near-incompressibility: at nu = 0.4999 the four-cell cantilever is 29% too stiff. There is no mixed or higher-order element.",
     "With nu = 0.3 a clamped root also restrains Poisson contraction, which beam theory ignores: the 3-D limit sits about 1.2% below the Timoshenko reference.",
     "Contact and self-contact, plasticity, viscoelasticity, damage and crack growth (the strength checks only flag elements), anisotropy, and more than one material per body.",
-    "Not coupled to the rigid-body, water, cable or frame solvers.",
+    "No two-way coupling to the rigid-body, water, cable or frame solvers, and no contact with rigid bodies. The one-way thermal and dead-load links are in the simulation domain.",
     "Uniform states are exact, so the tension, shear, pressure and rubber rows say nothing about accuracy under stress gradients."
    ],
    "cases": 29,
@@ -3375,6 +3394,750 @@
     "measured": "7.458263",
     "error": "-1.22%",
     "tolerance": "±2%"
+   }
+  },
+  {
+   "id": "simulation.identity.water-structure",
+   "domain": "simulation",
+   "title": "Moored buoy: Simulation of the scene file against the modules driven by hand",
+   "quantity": "checkpoints (every 60 of 480 steps) at which the world hash or the water and cable bits differ",
+   "unit": "1",
+   "formula": "coupling.step(); water.step(); world.step() by hand: 0 differences",
+   "reference": 0,
+   "measured": 0,
+   "error": 0,
+   "relativeError": null,
+   "tolerance": {
+    "kind": "absolute",
+    "value": 0
+   },
+   "pass": true,
+   "note": "Bit-identity is exact or it is not; the test file proves it for each adapter alone and for five solvers together.",
+   "source": {
+    "file": "packages/box3d-kit/test/v14-simulation.test.mjs",
+    "test": "bit-identity, combined: water + structure + heat + solid with the thermal link, registered in any order, equal the hand-driven sequence",
+    "url": "https://github.com/nathansenn/box3d-WEBGPU/blob/main/packages/box3d-kit/test/v14-simulation.test.mjs"
+   },
+   "text": {
+    "reference": "0",
+    "measured": "0",
+    "error": "0",
+    "tolerance": "±0"
+   }
+  },
+  {
+   "id": "simulation.buoy.cable-force",
+   "domain": "simulation",
+   "title": "Moored buoy at rest: force of the cable on the buoy",
+   "quantity": "vertical force of the mooring on an 80.4 kg sphere, half-second mean",
+   "unit": "N",
+   "formula": "F = rho g V_sub - m g",
+   "reference": 1336.58944,
+   "measured": 1336.59199,
+   "error": 0.00254444812,
+   "relativeError": 0.00000190368713,
+   "tolerance": {
+    "kind": "relative",
+    "value": 0.00001
+   },
+   "pass": true,
+   "note": "V_sub is the submerged volume the water coupling reports; the rigid solver holds mass and gravity in float32.",
+   "source": {
+    "file": "packages/box3d-kit/test/v14-simulation.test.mjs",
+    "test": "moored buoy at rest: cable tension = rho g V_sub - weight, the draught follows, and the floor and the anchor carry the total weight",
+    "url": "https://github.com/nathansenn/box3d-WEBGPU/blob/main/packages/box3d-kit/test/v14-simulation.test.mjs"
+   },
+   "text": {
+    "reference": "1336.589 N",
+    "measured": "1336.592",
+    "error": "+1.9e-6 rel.",
+    "tolerance": "±1e-5 rel."
+   }
+  },
+  {
+   "id": "simulation.buoy.tension",
+   "domain": "simulation",
+   "title": "Moored buoy at rest: cable tension",
+   "quantity": "tension of the one-segment mooring (EA = 5e4 N), half-second mean",
+   "unit": "N",
+   "formula": "T = rho g V_sub - (m + m_n) g",
+   "reference": 1336.31967,
+   "measured": 1337.04902,
+   "error": 0.729346303,
+   "relativeError": 0.000545787299,
+   "tolerance": {
+    "kind": "absolute",
+    "value": 0.77
+   },
+   "pass": true,
+   "note": "The structure coupling's free response of a body has gravity only, not the buoyancy B: the cable sees the buoy B dt^2 / m = 0.46 mm lower than it goes, and its end node m_n is carried as if the buoy fell, which adds m_n B / (m + m_n) = 0.73 N to the tension.",
+   "source": {
+    "file": "packages/box3d-kit/test/v14-simulation.test.mjs",
+    "test": "moored buoy at rest: cable tension = rho g V_sub - weight, the draught follows, and the floor and the anchor carry the total weight",
+    "url": "https://github.com/nathansenn/box3d-WEBGPU/blob/main/packages/box3d-kit/test/v14-simulation.test.mjs"
+   },
+   "text": {
+    "reference": "1336.32 N",
+    "measured": "1337.049",
+    "error": "+0.729",
+    "tolerance": "±0.77"
+   }
+  },
+  {
+   "id": "simulation.buoy.draught",
+   "domain": "simulation",
+   "title": "Moored buoy at rest: draught",
+   "quantity": "draught of the sphere (R = 0.4 m) against the closed-form equilibrium of cable stretch, level rise and cap volume",
+   "unit": "m",
+   "formula": "E A s / L0 = rho g V(d) - (m + m_n) g, d = H + (V - V0) / A - (L0 + s - R)",
+   "reference": 0.576098686,
+   "measured": 0.575686733,
+   "error": -0.000411953172,
+   "relativeError": -0.000715073965,
+   "tolerance": {
+    "kind": "absolute",
+    "value": 0.0006
+   },
+   "pass": true,
+   "note": "The structure coupling's free response of a body has gravity only, not the buoyancy B: the cable sees the buoy B dt^2 / m = 0.46 mm lower than it goes, and its end node m_n is carried as if the buoy fell, which adds m_n B / (m + m_n) = 0.73 N to the tension.",
+   "source": {
+    "file": "packages/box3d-kit/test/v14-simulation.test.mjs",
+    "test": "moored buoy at rest: cable tension = rho g V_sub - weight, the draught follows, and the floor and the anchor carry the total weight",
+    "url": "https://github.com/nathansenn/box3d-WEBGPU/blob/main/packages/box3d-kit/test/v14-simulation.test.mjs"
+   },
+   "text": {
+    "reference": "0.5760987 m",
+    "measured": "0.5756867",
+    "error": "-0.000412",
+    "tolerance": "±0.0006"
+   }
+  },
+  {
+   "id": "simulation.buoy.tension-closed-form",
+   "domain": "simulation",
+   "title": "Moored buoy at rest: tension against the closed-form equilibrium",
+   "quantity": "cable tension against the root of the equilibrium equation",
+   "unit": "N",
+   "formula": "T = E A s / L0 at the root s",
+   "reference": 1337.95821,
+   "measured": 1337.04902,
+   "error": -0.909190797,
+   "relativeError": -0.000679536022,
+   "tolerance": {
+    "kind": "relative",
+    "value": 0.0023
+   },
+   "pass": true,
+   "note": "The draught offset above times the waterplane stiffness rho g A_wp = 4.0 kN/m, plus the 0.73 N.",
+   "source": {
+    "file": "packages/box3d-kit/test/v14-simulation.test.mjs",
+    "test": "moored buoy at rest: cable tension = rho g V_sub - weight, the draught follows, and the floor and the anchor carry the total weight",
+    "url": "https://github.com/nathansenn/box3d-WEBGPU/blob/main/packages/box3d-kit/test/v14-simulation.test.mjs"
+   },
+   "text": {
+    "reference": "1337.958 N",
+    "measured": "1337.049",
+    "error": "-0.068%",
+    "tolerance": "±0.23%"
+   }
+  },
+  {
+   "id": "simulation.buoy.vertical-balance",
+   "domain": "simulation",
+   "title": "Moored buoy at rest: the floor and the anchor carry the total weight",
+   "quantity": "hydrostatic floor load minus the anchor pull",
+   "unit": "N",
+   "formula": "rho g sum((H + eta) dA) - R_anchor = (m_water + m + m_cable) g",
+   "reference": 1881985.49,
+   "measured": 1881984.76,
+   "error": -0.729346315,
+   "relativeError": -3.8754088e-7,
+   "tolerance": {
+    "kind": "absolute",
+    "value": 0.77
+   },
+   "pass": true,
+   "note": "The same 0.73 N, on 1.88 MN.",
+   "source": {
+    "file": "packages/box3d-kit/test/v14-simulation.test.mjs",
+    "test": "moored buoy at rest: cable tension = rho g V_sub - weight, the draught follows, and the floor and the anchor carry the total weight",
+    "url": "https://github.com/nathansenn/box3d-WEBGPU/blob/main/packages/box3d-kit/test/v14-simulation.test.mjs"
+   },
+   "text": {
+    "reference": "1881985 N",
+    "measured": "1881985",
+    "error": "-0.729",
+    "tolerance": "±0.77"
+   }
+  },
+  {
+   "id": "simulation.buoy.return",
+   "domain": "simulation",
+   "title": "Moored buoy released 0.4 m to the side: where it ends",
+   "quantity": "distance from the anchor line after 24 s (linear drag 200 N s/m, bottom friction 0.5 /s)",
+   "unit": "m",
+   "formula": "x = 0",
+   "reference": 0,
+   "measured": 0.000126379964,
+   "error": 0.000126379964,
+   "relativeError": null,
+   "tolerance": {
+    "kind": "absolute",
+    "value": 0.002
+   },
+   "pass": true,
+   "note": "What the sloshing it started still moves it by; 0.5% of the offset.",
+   "source": {
+    "file": "packages/box3d-kit/test/v14-simulation.test.mjs",
+    "test": "moored buoy released 0.4 m to the side: bounded, decaying with the drag, back at the equilibrium; the ledger with drag only falls",
+    "url": "https://github.com/nathansenn/box3d-WEBGPU/blob/main/packages/box3d-kit/test/v14-simulation.test.mjs"
+   },
+   "text": {
+    "reference": "0 m",
+    "measured": "0.00012638",
+    "error": "+0.000126",
+    "tolerance": "±0.002"
+   }
+  },
+  {
+   "id": "simulation.buoy.rest-height",
+   "domain": "simulation",
+   "title": "Moored buoy released 0.4 m to the side: rest height",
+   "quantity": "height of the buoy after 24 s against the run started on the anchor line",
+   "unit": "m",
+   "formula": "y = y_rest",
+   "reference": 2.8239944,
+   "measured": 2.82399392,
+   "error": -4.76837158e-7,
+   "relativeError": -1.6885202e-7,
+   "tolerance": {
+    "kind": "absolute",
+    "value": 0.0002
+   },
+   "pass": true,
+   "source": {
+    "file": "packages/box3d-kit/test/v14-simulation.test.mjs",
+    "test": "moored buoy released 0.4 m to the side: bounded, decaying with the drag, back at the equilibrium; the ledger with drag only falls",
+    "url": "https://github.com/nathansenn/box3d-WEBGPU/blob/main/packages/box3d-kit/test/v14-simulation.test.mjs"
+   },
+   "text": {
+    "reference": "2.823994 m",
+    "measured": "2.823994",
+    "error": "-4.77e-7",
+    "tolerance": "±0.0002"
+   }
+  },
+  {
+   "id": "simulation.buoy.bounded",
+   "domain": "simulation",
+   "title": "Moored buoy released 0.4 m to the side: bounded",
+   "quantity": "largest distance from the anchor line during 24 s",
+   "unit": "m",
+   "formula": "max x <= x(0) = 0.4",
+   "reference": 0.4,
+   "measured": 0.39993906,
+   "error": -0.0000609397888,
+   "relativeError": -0.000152349472,
+   "tolerance": {
+    "kind": "upper",
+    "value": 4e-7
+   },
+   "pass": true,
+   "source": {
+    "file": "packages/box3d-kit/test/v14-simulation.test.mjs",
+    "test": "moored buoy released 0.4 m to the side: bounded, decaying with the drag, back at the equilibrium; the ledger with drag only falls",
+    "url": "https://github.com/nathansenn/box3d-WEBGPU/blob/main/packages/box3d-kit/test/v14-simulation.test.mjs"
+   },
+   "text": {
+    "reference": "0.4 m",
+    "measured": "0.3999391",
+    "error": "-6.09e-5",
+    "tolerance": "at most 4e-7 above the reference"
+   }
+  },
+  {
+   "id": "simulation.energy.drag",
+   "domain": "simulation",
+   "title": "Energy ledger with drag: never above its start beyond the sampling offset",
+   "quantity": "largest excess of the ledger above its first value, as a fraction of rho g V v_max dt",
+   "unit": "1",
+   "formula": "(max E - E_1) / (rho g V v_max dt) <= 1",
+   "reference": 1,
+   "measured": 0.169251132,
+   "error": -0.830748868,
+   "relativeError": -0.830748868,
+   "tolerance": {
+    "kind": "upper",
+    "value": 0
+   },
+   "pass": true,
+   "note": "The ledger's terms are known half a step apart; the ledger fell 49.9 J in the run.",
+   "source": {
+    "file": "packages/box3d-kit/test/v14-simulation.test.mjs",
+    "test": "moored buoy released 0.4 m to the side: bounded, decaying with the drag, back at the equilibrium; the ledger with drag only falls",
+    "url": "https://github.com/nathansenn/box3d-WEBGPU/blob/main/packages/box3d-kit/test/v14-simulation.test.mjs"
+   },
+   "text": {
+    "reference": "1",
+    "measured": "0.1692511",
+    "error": "-0.831",
+    "tolerance": "not above the reference"
+   }
+  },
+  {
+   "id": "simulation.deck.tension",
+   "domain": "simulation",
+   "title": "Cable-stayed deck scene: stay tensions",
+   "quantity": "worst relative error of the two stay tensions with the ball on deck nodes 1, 3, 4, 5 and 7",
+   "unit": "1",
+   "formula": "flexibility method: |T / T_hand - 1| = 0",
+   "reference": 0,
+   "measured": 0.000095147942,
+   "error": 0.000095147942,
+   "relativeError": null,
+   "tolerance": {
+    "kind": "absolute",
+    "value": 0.0002
+   },
+   "pass": true,
+   "note": "The hand solution linearises the stay geometry (3e-4 of the stretch at most).",
+   "source": {
+    "file": "packages/box3d-kit/test/v14-simulation.test.mjs",
+    "test": "cable-stayed deck: stay tensions and deflection match the hand statics through the Simulation, from the scene JSON and from a share link, with the same bits",
+    "url": "https://github.com/nathansenn/box3d-WEBGPU/blob/main/packages/box3d-kit/test/v14-simulation.test.mjs"
+   },
+   "text": {
+    "reference": "0",
+    "measured": "9.514794e-5",
+    "error": "+9.51e-5",
+    "tolerance": "±0.0002"
+   }
+  },
+  {
+   "id": "simulation.deck.deflection",
+   "domain": "simulation",
+   "title": "Cable-stayed deck scene: deflection under the load",
+   "quantity": "worst relative error of the deck deflection under the ball over 5 positions",
+   "unit": "1",
+   "formula": "flexibility method: |u / u_hand - 1| = 0",
+   "reference": 0,
+   "measured": 0.000136116604,
+   "error": 0.000136116604,
+   "relativeError": null,
+   "tolerance": {
+    "kind": "absolute",
+    "value": 0.0002
+   },
+   "pass": true,
+   "source": {
+    "file": "packages/box3d-kit/test/v14-simulation.test.mjs",
+    "test": "cable-stayed deck: stay tensions and deflection match the hand statics through the Simulation, from the scene JSON and from a share link, with the same bits",
+    "url": "https://github.com/nathansenn/box3d-WEBGPU/blob/main/packages/box3d-kit/test/v14-simulation.test.mjs"
+   },
+   "text": {
+    "reference": "0",
+    "measured": "0.0001361166",
+    "error": "+0.000136",
+    "tolerance": "±0.0002"
+   }
+  },
+  {
+   "id": "simulation.deck.reaction",
+   "domain": "simulation",
+   "title": "Cable-stayed deck scene: total vertical reaction",
+   "quantity": "worst relative error of the summed support and tower reactions over 5 positions",
+   "unit": "1",
+   "formula": "|sum R / (total weight) - 1| = 0",
+   "reference": 0,
+   "measured": 0.0000170191259,
+   "error": 0.0000170191259,
+   "relativeError": null,
+   "tolerance": {
+    "kind": "absolute",
+    "value": 0.00005
+   },
+   "pass": true,
+   "source": {
+    "file": "packages/box3d-kit/test/v14-simulation.test.mjs",
+    "test": "cable-stayed deck: stay tensions and deflection match the hand statics through the Simulation, from the scene JSON and from a share link, with the same bits",
+    "url": "https://github.com/nathansenn/box3d-WEBGPU/blob/main/packages/box3d-kit/test/v14-simulation.test.mjs"
+   },
+   "text": {
+    "reference": "0",
+    "measured": "1.701913e-5",
+    "error": "+1.7e-5",
+    "tolerance": "±5e-5"
+   }
+  },
+  {
+   "id": "simulation.deck.share-link",
+   "domain": "simulation",
+   "title": "Cable-stayed deck scene: the same from a share link",
+   "quantity": "links (one compressed, one stored) whose run differs in any bit of the world hash, the fields or the measured numbers",
+   "unit": "1",
+   "formula": "decodeSceneLink(encodeSceneLink(scene)): 0 differences",
+   "reference": 0,
+   "measured": 0,
+   "error": 0,
+   "relativeError": null,
+   "tolerance": {
+    "kind": "absolute",
+    "value": 0
+   },
+   "pass": true,
+   "source": {
+    "file": "packages/box3d-kit/test/v14-simulation.test.mjs",
+    "test": "cable-stayed deck: stay tensions and deflection match the hand statics through the Simulation, from the scene JSON and from a share link, with the same bits",
+    "url": "https://github.com/nathansenn/box3d-WEBGPU/blob/main/packages/box3d-kit/test/v14-simulation.test.mjs"
+   },
+   "text": {
+    "reference": "0",
+    "measured": "0",
+    "error": "0",
+    "tolerance": "±0"
+   }
+  },
+  {
+   "id": "simulation.thermal.free-expansion",
+   "domain": "simulation",
+   "title": "Heat to solid: a free block grows by alpha dT",
+   "quantity": "strain of a steel block 12.5 x 10 x 7.5 mm heated 80 K by the heat solver, from its far corner",
+   "unit": "1",
+   "formula": "u / x = alpha dT",
+   "reference": 0.00096,
+   "measured": 0.00096,
+   "error": -5.63926076e-15,
+   "relativeError": -5.87422996e-12,
+   "tolerance": {
+    "kind": "relative",
+    "value": 1e-9
+   },
+   "pass": true,
+   "note": "A uniform state is in the element space: only the solvers' tolerances are left.",
+   "source": {
+    "file": "packages/box3d-kit/test/v14-simulation.test.mjs",
+    "test": "thermal -> solid link: a free block expands by alpha dT with zero stress; a restrained bar reaches -E alpha dT as the heat solver brings it to a uniform temperature",
+    "url": "https://github.com/nathansenn/box3d-WEBGPU/blob/main/packages/box3d-kit/test/v14-simulation.test.mjs"
+   },
+   "text": {
+    "reference": "0.00096",
+    "measured": "0.00096",
+    "error": "-5.87e-12 rel.",
+    "tolerance": "±1e-9 rel."
+   }
+  },
+  {
+   "id": "simulation.thermal.free-stress",
+   "domain": "simulation",
+   "title": "Heat to solid: a free block stays stress-free",
+   "quantity": "largest stress component in the block, as a fraction of E alpha dT",
+   "unit": "1",
+   "formula": "sigma = 0",
+   "reference": 0,
+   "measured": 1.85542784e-11,
+   "error": 1.85542784e-11,
+   "relativeError": null,
+   "tolerance": {
+    "kind": "absolute",
+    "value": 1e-9
+   },
+   "pass": true,
+   "source": {
+    "file": "packages/box3d-kit/test/v14-simulation.test.mjs",
+    "test": "thermal -> solid link: a free block expands by alpha dT with zero stress; a restrained bar reaches -E alpha dT as the heat solver brings it to a uniform temperature",
+    "url": "https://github.com/nathansenn/box3d-WEBGPU/blob/main/packages/box3d-kit/test/v14-simulation.test.mjs"
+   },
+   "text": {
+    "reference": "0",
+    "measured": "1.855428e-11",
+    "error": "+1.86e-11",
+    "tolerance": "±1e-9"
+   }
+  },
+  {
+   "id": "simulation.thermal.restrained-stress",
+   "domain": "simulation",
+   "title": "Heat to solid: a bar held at both ends",
+   "quantity": "axial stress of a 20 mm steel bar (linear model) once the heat solver has brought it from 300 K to 380 K",
+   "unit": "Pa",
+   "formula": "sigma = -E alpha dT",
+   "reference": -192000000,
+   "measured": -192000000,
+   "error": -0.000649452209,
+   "relativeError": -3.38256359e-12,
+   "tolerance": {
+    "kind": "relative",
+    "value": 1e-9
+   },
+   "pass": true,
+   "note": "The link is one-way: the solid does not act on the temperature.",
+   "source": {
+    "file": "packages/box3d-kit/test/v14-simulation.test.mjs",
+    "test": "thermal -> solid link: a free block expands by alpha dT with zero stress; a restrained bar reaches -E alpha dT as the heat solver brings it to a uniform temperature",
+    "url": "https://github.com/nathansenn/box3d-WEBGPU/blob/main/packages/box3d-kit/test/v14-simulation.test.mjs"
+   },
+   "text": {
+    "reference": "-1.92e8 Pa",
+    "measured": "-1.92e8",
+    "error": "-3.38e-12 rel.",
+    "tolerance": "±1e-9 rel."
+   }
+  },
+  {
+   "id": "simulation.dead-load.shortening",
+   "domain": "simulation",
+   "title": "Rigid weight on a solid: shortening",
+   "quantity": "shortening of a 0.2 m steel block (A = 0.01 m^2) under a 62.8 kg resting body",
+   "unit": "m",
+   "formula": "u = m g L / (E A)",
+   "reference": 6.16068056e-8,
+   "measured": 6.16068056e-8,
+   "error": 9.04247376e-19,
+   "relativeError": 1.46777189e-11,
+   "tolerance": {
+    "kind": "relative",
+    "value": 1e-8
+   },
+   "pass": true,
+   "note": "One-way: the weight is a dead load, and the body does not feel the block.",
+   "source": {
+    "file": "packages/box3d-kit/test/v14-simulation.test.mjs",
+    "test": "rigid -> solid dead load (one-way): a block under a resting body shortens by m g L / (E A) with stress -m g / A; the body is not moved",
+    "url": "https://github.com/nathansenn/box3d-WEBGPU/blob/main/packages/box3d-kit/test/v14-simulation.test.mjs"
+   },
+   "text": {
+    "reference": "6.160681e-8 m",
+    "measured": "6.160681e-8",
+    "error": "+1.47e-11 rel.",
+    "tolerance": "±1e-8 rel."
+   }
+  },
+  {
+   "id": "simulation.dead-load.stress",
+   "domain": "simulation",
+   "title": "Rigid weight on a solid: stress",
+   "quantity": "vertical stress in the block",
+   "unit": "Pa",
+   "formula": "sigma = -m g / A",
+   "reference": -61606.8056,
+   "measured": -61606.8056,
+   "error": -0.0000012564924,
+   "relativeError": -2.03953505e-11,
+   "tolerance": {
+    "kind": "relative",
+    "value": 1e-8
+   },
+   "pass": true,
+   "source": {
+    "file": "packages/box3d-kit/test/v14-simulation.test.mjs",
+    "test": "rigid -> solid dead load (one-way): a block under a resting body shortens by m g L / (E A) with stress -m g / A; the body is not moved",
+    "url": "https://github.com/nathansenn/box3d-WEBGPU/blob/main/packages/box3d-kit/test/v14-simulation.test.mjs"
+   },
+   "text": {
+    "reference": "-61606.81 Pa",
+    "measured": "-61606.81",
+    "error": "-2.04e-11 rel.",
+    "tolerance": "±1e-8 rel."
+   }
+  },
+  {
+   "id": "simulation.energy.solid",
+   "domain": "simulation",
+   "title": "Energy ledger: a midpoint, linear solid",
+   "quantity": "largest relative change of the solid entry over 480 steps",
+   "unit": "1",
+   "formula": "E_kinetic + E_strain + E_load = constant",
+   "reference": 0,
+   "measured": 5.48532648e-12,
+   "error": 5.48532648e-12,
+   "relativeError": null,
+   "tolerance": {
+    "kind": "upper",
+    "value": 1e-10
+   },
+   "pass": true,
+   "source": {
+    "file": "packages/box3d-kit/test/v14-simulation.test.mjs",
+    "test": "energy ledger, undamped: conserved to the stated order of the integrators and never growing",
+    "url": "https://github.com/nathansenn/box3d-WEBGPU/blob/main/packages/box3d-kit/test/v14-simulation.test.mjs"
+   },
+   "text": {
+    "reference": "0",
+    "measured": "5.485326e-12",
+    "error": "+5.49e-12",
+    "tolerance": "at most 1e-10 above the reference"
+   }
+  },
+  {
+   "id": "simulation.energy.heat",
+   "domain": "simulation",
+   "title": "Energy ledger: heat with a fixed face, a film and a source",
+   "quantity": "largest change of stored energy minus the heat exchanged, as a fraction of the heat exchanged",
+   "unit": "1",
+   "formula": "E_stored - sum(boundary heat) - source heat = constant",
+   "reference": 0,
+   "measured": 6.47474479e-13,
+   "error": 6.47474479e-13,
+   "relativeError": null,
+   "tolerance": {
+    "kind": "upper",
+    "value": 1e-10
+   },
+   "pass": true,
+   "source": {
+    "file": "packages/box3d-kit/test/v14-simulation.test.mjs",
+    "test": "energy ledger, undamped: conserved to the stated order of the integrators and never growing",
+    "url": "https://github.com/nathansenn/box3d-WEBGPU/blob/main/packages/box3d-kit/test/v14-simulation.test.mjs"
+   },
+   "text": {
+    "reference": "0",
+    "measured": "6.474745e-13",
+    "error": "+6.47e-13",
+    "tolerance": "at most 1e-10 above the reference"
+   }
+  },
+  {
+   "id": "simulation.energy.pendulum-rise",
+   "domain": "simulation",
+   "title": "Energy ledger: a pendulum on a cable never gains",
+   "quantity": "largest rise of the ledger between quarter-second samples over 6 s, as a fraction of the swing energy",
+   "unit": "1",
+   "formula": "E(t + 0.25 s) - E(t) <= 0",
+   "reference": 0,
+   "measured": 0,
+   "error": 0,
+   "relativeError": null,
+   "tolerance": {
+    "kind": "upper",
+    "value": 0.0001
+   },
+   "pass": true,
+   "note": "The bound is float32 noise of the body state.",
+   "source": {
+    "file": "packages/box3d-kit/test/v14-simulation.test.mjs",
+    "test": "energy ledger, undamped: conserved to the stated order of the integrators and never growing",
+    "url": "https://github.com/nathansenn/box3d-WEBGPU/blob/main/packages/box3d-kit/test/v14-simulation.test.mjs"
+   },
+   "text": {
+    "reference": "0",
+    "measured": "0",
+    "error": "0",
+    "tolerance": "at most 0.0001 above the reference"
+   }
+  },
+  {
+   "id": "simulation.energy.pendulum-order",
+   "domain": "simulation",
+   "title": "Energy ledger: the cable step is first order",
+   "quantity": "energy lost in 6 s at 240 Hz divided by the loss at 480 Hz",
+   "unit": "1",
+   "formula": "loss(dt) / loss(dt / 2) = 2",
+   "reference": 2,
+   "measured": 1.78886709,
+   "error": -0.211132912,
+   "relativeError": -0.105566456,
+   "tolerance": {
+    "kind": "absolute",
+    "value": 0.3
+   },
+   "pass": true,
+   "note": "Implicit Euler damps the swing at (n + 1) / (4 n) omega^2 dt per second for n rigid sub-steps.",
+   "source": {
+    "file": "packages/box3d-kit/test/v14-simulation.test.mjs",
+    "test": "energy ledger, undamped: conserved to the stated order of the integrators and never growing",
+    "url": "https://github.com/nathansenn/box3d-WEBGPU/blob/main/packages/box3d-kit/test/v14-simulation.test.mjs"
+   },
+   "text": {
+    "reference": "2",
+    "measured": "1.788867",
+    "error": "-0.211",
+    "tolerance": "±0.3"
+   }
+  },
+  {
+   "id": "simulation.resume.buoy",
+   "domain": "simulation",
+   "title": "Save and resume, moored buoy: body",
+   "quantity": "distance between the buoy of a run saved at tick 240 and resumed, and the original, 240 ticks later",
+   "unit": "m",
+   "formula": "bit-exact continuation: 0",
+   "reference": 0,
+   "measured": 0.00000610540417,
+   "error": 0.00000610540417,
+   "relativeError": null,
+   "tolerance": {
+    "kind": "upper",
+    "value": 0.0001
+   },
+   "pass": true,
+   "note": "A save does not carry the coupling's impulses, the cable multipliers or the last step's displaced volume.",
+   "source": {
+    "file": "packages/box3d-kit/test/v14-simulation.test.mjs",
+    "test": "determinism: a coupled scene repeats bit for bit; save -> load -> continue starts from the same fields and stays within a stated bound",
+    "url": "https://github.com/nathansenn/box3d-WEBGPU/blob/main/packages/box3d-kit/test/v14-simulation.test.mjs"
+   },
+   "text": {
+    "reference": "0 m",
+    "measured": "6.105404e-6",
+    "error": "+6.11e-6",
+    "tolerance": "at most 0.0001 above the reference"
+   }
+  },
+  {
+   "id": "simulation.resume.buoy-water",
+   "domain": "simulation",
+   "title": "Save and resume, moored buoy: water",
+   "quantity": "largest difference of the surface elevation, same runs (waves 2.3 mm high)",
+   "unit": "m",
+   "formula": "bit-exact continuation: 0",
+   "reference": 0,
+   "measured": 0.0000402154419,
+   "error": 0.0000402154419,
+   "relativeError": null,
+   "tolerance": {
+    "kind": "upper",
+    "value": 0.0004
+   },
+   "pass": true,
+   "source": {
+    "file": "packages/box3d-kit/test/v14-simulation.test.mjs",
+    "test": "determinism: a coupled scene repeats bit for bit; save -> load -> continue starts from the same fields and stays within a stated bound",
+    "url": "https://github.com/nathansenn/box3d-WEBGPU/blob/main/packages/box3d-kit/test/v14-simulation.test.mjs"
+   },
+   "text": {
+    "reference": "0 m",
+    "measured": "4.021544e-5",
+    "error": "+4.02e-5",
+    "tolerance": "at most 0.0004 above the reference"
+   }
+  },
+  {
+   "id": "simulation.resume.deck",
+   "domain": "simulation",
+   "title": "Save and resume, cable-stayed deck: deck",
+   "quantity": "largest difference of a deck displacement between a resumed run and the original, 240 ticks after the save",
+   "unit": "m",
+   "formula": "bit-exact continuation: 0",
+   "reference": 0,
+   "measured": 4.26847834e-7,
+   "error": 4.26847834e-7,
+   "relativeError": null,
+   "tolerance": {
+    "kind": "upper",
+    "value": 0.000004
+   },
+   "pass": true,
+   "note": "The saved velocity of a body on a frame lacks the closing half of the last frame impulse (g dt / 2 = 0.02 m/s).",
+   "source": {
+    "file": "packages/box3d-kit/test/v14-simulation.test.mjs",
+    "test": "determinism: a coupled scene repeats bit for bit; save -> load -> continue starts from the same fields and stays within a stated bound",
+    "url": "https://github.com/nathansenn/box3d-WEBGPU/blob/main/packages/box3d-kit/test/v14-simulation.test.mjs"
+   },
+   "text": {
+    "reference": "0 m",
+    "measured": "4.268478e-7",
+    "error": "+4.27e-7",
+    "tolerance": "at most 4e-6 above the reference"
    }
   },
   {

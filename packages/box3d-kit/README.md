@@ -208,6 +208,7 @@ const json = builder.toJSON();                         // at any time
 - **What a save restores.** Position, rotation, both velocities and the type of every body, and gravity. Positions and velocities come back bit-identical; a rotation component can differ by one float32 step. Sleep state, the solver's contact and joint impulses, the tick count and settings changed on the world directly (`setJointMotor`, `setDamping`, ...) are not saved, so a resumed run is a valid simulation from that state but not a bit-exact continuation. Measured drift after 100 more ticks: 5e-8 m for pendulums, 1.6e-4 m for a car on terrain, 1 cm for falling dominoes, 7 cm for a toppling ragdoll. For bit-exact reproduction use `startRecording` and `replay`.
 - **Links.** `encodeSceneLink` uses the platform's `CompressionStream('deflate-raw')` and falls back to storing the JSON; `encodeSceneLinkSync` always stores. `decodeSceneLink` is synchronous and has its own inflate, so it works everywhere. It checks a CRC-32 and the length, and never decompresses more than the link declares (4 MiB at most). The example scenes are 565 to 1,086 characters as links.
 - **Examples.** `pendulumWaveScene()`, `newtonsCradleScene()`, `dominoRunScene()`, `terrainCarScene()` and `ragdollScene()` return ready-made scenes; `EXAMPLE_SCENES` lists them by name.
+- **Coupled scenes.** A scene may also have `water`, `cables` and `frames` sections (still version 1; a scene without them is unchanged). `loadScene` builds them and returns a `simulation` to step instead of the world; see [One stepping loop](#one-stepping-loop-for-every-solver).
 
 `test/v12-scene.test.mjs` checks the round trips, determinism from a link, save and resume, 97 malformed files, damaged links and a decompression bomb, and the physics of two example scenes: every pendulum's period within 0.1% of `2π sqrt(I / (m g L))` (measured 0.0004%), and a Newton's cradle whose last ball leaves at the first ball's speed within 2% (measured 0.4%).
 
@@ -388,6 +389,7 @@ camera.follow(hero.state.position);
 | `box3d-webgpu-kit/gameplay` | Trigger volumes and a kinematic character controller for the rigid-body world (see above). |
 | `box3d-webgpu-kit/geometry` | OBJ, STL and glTF import, mesh measures, convex hulls and convex decomposition (see above). |
 | `box3d-webgpu-kit/scene` | Scene files: a versioned JSON format with validation, load, save, canonical text, hashing, share links and example scenes (see above). |
+| `box3d-webgpu-kit/simulation` | One stepping loop: a `Simulation` that steps the world, the water and structure couplings, heat and solids in a fixed order, with one clock, energy ledger and event stream (see below). |
 
 Cable, water, frame and solid are the same model code the Box3D WebGPU app runs; the build copies it from the app. The app's own test suites (68 tests: 11 cable, 11 proximal cable, 2 linear water, 6 closed water, 16 frame, 22 solid) run against the packaged copies in `npm test`. Heat and solid are independent of the rigid-body world. Water is coupled to it by `box3d-webgpu-kit/coupling`, and cables and frames by `box3d-webgpu-kit/structure`. The WebGPU water solver is not packaged yet.
 
@@ -524,7 +526,47 @@ beam.fundamentalMode().frequency;       // lowest natural frequency, Hz
 - **Dynamics:** `beam.step(n)` with `integrator: 'backward-euler'`, `'midpoint'` (conserves energy for the linear model) or `'explicit'` (refuses a time step above its stability limit; see `explicitLimit()`), with Rayleigh damping.
 - **Loads:** fixed or prescribed nodes, point forces, tractions and pressure on boundary faces, gravity, and a temperature rise.
 - **Accuracy:** checked against closed-form answers in the repository's `docs/SOLID_MECHANICS.md`. Uniform strain states are exact. Bending needs at least four cells through the thickness: the tip deflection is then 12% low, and 3.4% low with eight. Poisson's ratio above 0.49 locks.
-- **Not included:** contact, plasticity and crack growth. `failedElements` only reports where a strength is exceeded. The solid is not coupled to the rigid-body world yet.
+- **Not included:** contact, plasticity and crack growth. `failedElements` only reports where a strength is exceeded. The solid is not coupled to the rigid-body world two-way; `box3d-webgpu-kit/simulation` has two one-way links into it (temperature from the heat solver, the weight of a rigid body).
+
+### One stepping loop for every solver
+
+`box3d-webgpu-kit/simulation` replaces "call `water.step()` immediately before `world.step()`, and the structure coupling before that" with one object that knows the order. Register the solvers in any order; each one states the stage it runs in and the time step it needs, and a solver that does not fit the world's step is refused when it is registered.
+
+```ts
+import {createWorld} from 'box3d-webgpu-kit';
+import {createSimulation, waterSubsystem, structureSubsystem, heatSubsystem, solidSubsystem, thermalSolidLink} from 'box3d-webgpu-kit/simulation';
+
+const world = await createWorld({step: 1 / 240, ground: false});
+const sim = createSimulation(world)
+  .add(waterSubsystem(water))                            // a WaterCoupling
+  .add(structureSubsystem(coupling, {bodies}))           // a StructureCoupling and the bodies attached to it
+  .add(heatSubsystem(heat)).add(solidSubsystem(solid))   // a HeatSolver and a SolidBody
+  .add(thermalSolidLink(heat, solid, {reference: 300})); // heat -> solid thermal strain, one-way
+
+sim.step();                    // or sim.update(frameSeconds). Do not call world.step() yourself.
+sim.order();                   // couple: structure, water -> rigid: world -> post: heat, link, solid -> events
+sim.energy();                  // one ledger: an entry per solver, mechanical and thermal totals
+sim.onEvent(e => {}); sim.onStep(tick => {});
+```
+
+A scene file can describe a coupled scene, and loading it gives a ready Simulation:
+
+```ts
+import {loadScene, sceneWorldOptions, mooredBuoyScene} from 'box3d-webgpu-kit/scene';
+
+const scene = mooredBuoyScene();                       // a buoy in a basin, moored to the bed by a cable
+const world = await createWorld(sceneWorldOptions(scene));
+const {simulation, bodies, cables, attachments} = loadScene(world, scene);
+for (let i = 0; i < 8 * 240; i++) simulation.step();
+attachments.get('mooring:0').force;                    // the cable's pull on the buoy: buoyancy minus weight
+```
+
+- **Order.** `prepare` on everything, then the stages `pre-couple`, `couple` (structure, then water), the rigid step, `post` (heat, links, solids), then events and `onStep`. Inside a stage: by `order`, then by `id`.
+- **Bit-identical.** The Simulation adds no numerics. A run through it gives exactly the bits of the same modules driven by hand in that order; `test/v14-simulation.test.mjs` proves it for each adapter alone and for water, structure, heat and a solid together.
+- **Time steps.** The water and structure couplings must step with the world. Heat and solids may also take N of their own steps per world step, or one every N world steps; an explicit one must be within its stability limit. Anything else throws an `EngineError` that says which rule failed.
+- **Links, both one-way.** `thermalSolidLink` (the heat solver's temperature becomes a solid's thermal strain; the two grids must be the same boxes) and `deadLoadLink` (a rigid body's weight on solid nodes). Nothing flows back.
+- **Your own solver.** Anything with `{id, kind, stage, timeStep, step(ctx)}` can be registered; `prepare`, `finish`, `energy`, `diagnostics` and `dispose` are optional.
+- **Not coupled:** a rigid body does not collide with a deformable solid. A floating body on a cable works, but the cable coupling does not see the water's force in its solve: on the moored buoy the tension reads 0.73 N of 1337 N high and the draught 0.4 mm low. Cloth, rope, granular and GPU water are not in the loop. See the repository's `docs/SIMULATION.md` for the contract, the measured numbers and the limits.
 
 ### No build step
 

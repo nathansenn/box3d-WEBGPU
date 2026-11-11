@@ -119,7 +119,8 @@ function vec3(value:unknown,label:string):[number,number,number] {
   if(!v||v.length!==3||!Number.isFinite(v[0])||!Number.isFinite(v[1])||!Number.isFinite(v[2]))fail(`${label} must be three finite numbers.`);
   return [v[0],v[1],v[2]];
 }
-function principalMoments(inertia:StructureInertia,mass:number):[number,number,number]|null {
+/** Principal moments of inertia (body axes, kg m^2) of a body of the given mass, or null for a locked body. */
+export function principalMoments(inertia:StructureInertia,mass:number):[number,number,number]|null {
   const positive=(x:number,label:string)=>Number.isFinite(x)&&x>0?x:fail(`${label} must be positive.`);
   if(!inertia||typeof inertia!=='object')return fail('An attachment needs the body inertia: {kind: box | sphere | capsule | principal | locked}.');
   switch(inertia.kind){

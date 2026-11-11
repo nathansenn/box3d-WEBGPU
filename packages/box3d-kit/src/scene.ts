@@ -13,6 +13,11 @@ import {
   SceneBuilder as CoreSceneBuilder, normalizeScene,
   type SaveSceneOptions, type Scene, type SceneBody, type SceneJoint, type SceneJointInput, type SceneMaterial, type SceneMeta,
 } from './core/scene-format.js';
+import {buildSceneSimulation, type Simulation} from './core/simulation.js';
+import type {WaterCoupling} from './core/water-coupling.js';
+import type {StructureAttachment, StructureCoupling} from './core/structure-coupling.js';
+import type {CompliantCableRuntime} from './core/compliant-cable.js';
+import type {FrameRuntime} from './core/frame-runtime.js';
 import type {Body, BodyOptions, Joint, PhysicsWorld} from './world.js';
 
 export * from './core/scene-format.js';
@@ -27,6 +32,21 @@ export interface LoadedScene {
   readonly builder: SceneBuilder;
   /** The scene in normal form, as it was built. */
   readonly scene: Scene;
+  /**
+   * Steps the world and everything else the scene describes, in the right
+   * order. Call `simulation.step()` or `simulation.update(frameSeconds)`
+   * instead of the world's; for a scene of rigid bodies and joints only the
+   * two are the same thing. See `box3d-webgpu-kit/simulation`.
+   */
+  readonly simulation: Simulation<PhysicsWorld, Body>;
+  /** The scene's water basins by id (empty for a rigid-only scene). Each is a subsystem of `simulation` under its id. */
+  readonly water: Map<string, WaterCoupling<Body>>;
+  readonly cables: Map<string, CompliantCableRuntime>;
+  readonly frames: Map<string, FrameRuntime>;
+  /** The coupling that holds every cable and frame of the scene (subsystem 'structure'), or null. */
+  readonly structure: StructureCoupling<Body> | null;
+  /** Live attachment reports, keyed '<cable or frame id>:<index in its attachments>'. */
+  readonly attachments: Map<string, StructureAttachment>;
 }
 
 /**
@@ -93,10 +113,15 @@ export class SceneBuilder extends CoreSceneBuilder<PhysicsWorld> {
  * - If the engine refuses a body or joint part-way, the world is left reset to
  *   the scene's settings with none of the scene's bodies in it, and the error
  *   names the offending id.
+ *
+ * The scene's `water`, `cables` and `frames` sections are built after the
+ * joints, and the result carries a ready `simulation` that steps the world
+ * and all of them. A rigid-only scene builds exactly what it always did.
  */
 export function loadScene(world: PhysicsWorld, scene: unknown): LoadedScene {
   const normal = normalizeScene(scene), builder = SceneBuilder.build(world, normal);
-  return {bodies: builder.bodies(), joints: builder.joints(), builder, scene: normal};
+  const built = buildSceneSimulation(world, builder, normal);
+  return {bodies: built.bodies, joints: built.joints, builder, scene: normal, simulation: built.simulation, water: built.water, cables: built.cables, frames: built.frames, structure: built.structure, attachments: built.attachments};
 }
 
 /**

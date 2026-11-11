@@ -64,6 +64,10 @@
       "types": "./dist/scene.d.ts",
       "default": "./dist/scene.js"
     },
+    "./simulation": {
+      "types": "./dist/simulation.d.ts",
+      "default": "./dist/simulation.js"
+    },
     "./single": {
       "types": "./dist/index.d.ts",
       "default": "./dist/single.js"

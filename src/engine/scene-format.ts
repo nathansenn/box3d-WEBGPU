@@ -7,6 +7,12 @@
  * velocity each body had when it was saved. The format is documented in
  * docs/SCENE_FORMAT.md.
  *
+ * A scene may also carry three optional coupled sections: `water` basins with
+ * the bodies that float in them, `cables` and `frames` with their attachments.
+ * This module validates, normalises, hashes and links them; BUILDING them is
+ * the job of simulation.ts (`loadSimulationScene`, the kit's `loadScene`),
+ * which returns one Simulation that steps everything in the right order.
+ *
  * This is the one copy of the format. The kit publishes it as
  * `box3d-webgpu-kit/scene` (packages/box3d-kit/src/scene.ts pins the builder to
  * its PhysicsWorld) and the Physics Lab loads scenes with it through
@@ -63,6 +69,16 @@ export const SCENE_LIMITS = Object.freeze({
   depth: 32,
   /** Characters in a meta string. */
   metaChars: 4096,
+  /** Water basins in one scene, and cells in one basin. */
+  waterBasins: 8,
+  waterCells: 65536,
+  cables: 1024,
+  cableNodes: 16384,
+  frames: 64,
+  frameNodes: 4096,
+  frameElements: 8192,
+  /** Equations of all frame <-> body attachments together: 3 per pinned, 6 per clamped. */
+  frameBodyEquations: 96,
   /** Problems `validateScene` lists before it stops. */
   problems: 100,
   /** Characters in a share link. */
@@ -180,6 +196,156 @@ export interface SceneMeta {
   readonly created?: string;
 }
 
+/** Per-body drag settings of a body in a water basin. Omitted values take the coupling's defaults. */
+export interface SceneWaterBody {
+  /** Id of a box, sphere or capsule body. A body floats in at most one basin. */
+  readonly body: string;
+  readonly dragCoefficient?: number;
+  /** m^2. */
+  readonly referenceArea?: number;
+  /** N s/m. Default 0. */
+  readonly linearDrag?: number;
+  /** N m s/rad. Default 0. */
+  readonly angularDrag?: number;
+}
+
+/** One closed, flat-bottom shallow-water basin (docs/WATER_COUPLING.md). Numbers here are float64. */
+export interface SceneWater {
+  readonly id: string;
+  /** Cells along world x and z, each 3 or more. */
+  readonly cols: number;
+  readonly rows: number;
+  /** Cell size in metres. */
+  readonly dx: number;
+  readonly dz: number;
+  /** Rest depth in metres. */
+  readonly restDepth: number;
+  /** The basin floor at the grid's minimum-x, minimum-z corner. */
+  readonly origin: SceneVec3;
+  /** kg/m^3. Default 1000. */
+  readonly density?: number;
+  /** Bottom friction of the water, 1/s. Default 0. */
+  readonly waterDrag?: number;
+  /** State, `cols * rows` values each: surface elevation above rest (m) and the face velocities (m/s). Default zero. */
+  readonly eta?: readonly number[];
+  readonly u?: readonly number[];
+  readonly v?: readonly number[];
+  readonly bodies?: readonly SceneWaterBody[];
+}
+
+/** Rotational inertia of an attached body: the world reports mass only. Default: from the body's box, sphere or capsule shape. */
+export type SceneInertia =
+  | {readonly kind: 'box'; readonly halfExtents: SceneVec3}
+  | {readonly kind: 'sphere'; readonly radius: number}
+  | {readonly kind: 'capsule'; readonly radius: number; readonly halfLength: number}
+  | {readonly kind: 'principal'; readonly moments: SceneVec3}
+  | {readonly kind: 'locked'};
+
+/** A free cable node attached to a point on a body (`body`), or to a frame node (`frame` and `frameNode`). */
+export interface SceneCableAttachment {
+  readonly node: number;
+  readonly body?: string;
+  readonly frame?: string;
+  readonly frameNode?: number;
+  /** Body attachments only. Required when the body's shape is not a box, sphere or capsule. */
+  readonly inertia?: SceneInertia;
+  /** Body attachments only: the attachment point in body axes. Default: where the node is when the scene is built. */
+  readonly localPoint?: SceneVec3;
+}
+
+export interface SceneCableSegment {
+  readonly a: number;
+  readonly b: number;
+  /** Metres. */
+  readonly restLength: number;
+  /** Metres per newton: restLength / (E A). Zero is inextensible. */
+  readonly compliance: number;
+}
+
+/** A tension-only cable (docs/COMPLIANT_CABLE.md, docs/NONLINEAR_CABLE.md). It steps with the world's step and gravity. Numbers are float64. */
+export interface SceneCable {
+  readonly id: string;
+  /** Default 'proximal'. */
+  readonly solver?: 'proximal' | 'xpbd';
+  /** x, y, z per node, metres. */
+  readonly nodes: readonly number[];
+  /** kg per node. */
+  readonly masses: readonly number[];
+  /** 1 per node that is a fixed anchor in the world, else 0. Default all 0. */
+  readonly pinned?: readonly number[];
+  readonly velocities?: readonly number[];
+  readonly segments: readonly SceneCableSegment[];
+  /** Default 1. A cable with drag needs 1. */
+  readonly substeps?: number;
+  /** Default 64. */
+  readonly maxIterations?: number;
+  /** Default 1e-10. */
+  readonly residualTolerance?: number;
+  /** Newtons; proximal solver only. Default 1e-6. */
+  readonly forceTolerance?: number;
+  /** Mass-proportional velocity damping, 1/s. Default 0. */
+  readonly drag?: number;
+  readonly attachments?: readonly SceneCableAttachment[];
+}
+
+export interface SceneFrameElement {
+  readonly a: number;
+  readonly b: number;
+  readonly youngModulus: number;
+  readonly shearModulus: number;
+  readonly area: number;
+  readonly iy: number;
+  readonly iz: number;
+  readonly torsionConstant: number;
+  readonly density: number;
+  /** A direction that is not parallel to the element; it fixes the section's local y axis. */
+  readonly up: SceneVec3;
+}
+
+/** A frame node attached to a point on a body: 'pinned' (forces) or 'clamped' (forces and moments). */
+export interface SceneFrameAttachment {
+  readonly node: number;
+  readonly body: string;
+  /** Default 'pinned'. */
+  readonly mode?: 'pinned' | 'clamped';
+  readonly inertia?: SceneInertia;
+  readonly localPoint?: SceneVec3;
+}
+
+/** A linear beam frame (docs/FRAME_MECHANICS.md). It steps with the world's step and gravity, one sub-step. Numbers are float64. */
+export interface SceneFrameSection {
+  readonly id: string;
+  /** Rest position x, y, z per node, metres. */
+  readonly nodes: readonly number[];
+  readonly elements: readonly SceneFrameElement[];
+  /** Six flags per node (translation x, y, z, rotation x, y, z): 1 is held at zero. Default all 0. */
+  readonly fixed?: readonly number[];
+  /** kg per node. */
+  readonly pointMasses?: readonly number[];
+  /** Three rotary inertias per node, kg m^2. */
+  readonly pointInertias?: readonly number[];
+  /** State: six values per node. Default zero. */
+  readonly displacements?: readonly number[];
+  readonly velocities?: readonly number[];
+  /** Mass-proportional damping, 1/s. Default 0. */
+  readonly drag?: number;
+  /** Default 1024. */
+  readonly maxIterations?: number;
+  /** Defaults 1e-9 N, 1e-9 N m, 1e-10 N s, 1e-10 N m s. */
+  readonly forceTolerance?: number;
+  readonly momentTolerance?: number;
+  readonly impulseTolerance?: number;
+  readonly angularImpulseTolerance?: number;
+  readonly attachments?: readonly SceneFrameAttachment[];
+}
+
+/** The optional coupled sections of a scene. */
+export interface SceneCoupledSections {
+  readonly water?: readonly SceneWater[];
+  readonly cables?: readonly SceneCable[];
+  readonly frames?: readonly SceneFrameSection[];
+}
+
 export interface Scene {
   readonly format: 'box3d-scene';
   readonly version: 1;
@@ -189,6 +355,12 @@ export interface Scene {
   readonly materials?: {readonly [name: string]: SceneMaterial};
   readonly bodies: readonly SceneBody[];
   readonly joints?: readonly SceneJoint[];
+  /** Water basins and the bodies that float in them. Built by simulation.ts, not by this module. */
+  readonly water?: readonly SceneWater[];
+  /** Cables and their attachments to bodies and frames. */
+  readonly cables?: readonly SceneCable[];
+  /** Frames and their attachments to bodies. */
+  readonly frames?: readonly SceneFrameSection[];
   readonly meta?: SceneMeta;
   /** Preserved and ignored by this module. */
   readonly extensions?: {readonly [key: string]: unknown};
@@ -272,6 +444,38 @@ class Checker {
       if (!Number.isFinite(single) || (value !== 0 && single === 0)) return this.add(path, `must fit a float32, got ${value}`);
     }
     return true;
+  }
+  /** A finite float64 (the coupled sections are float64, unlike the rigid solver's float32 values). */
+  real(value: unknown, path: string, min = -Infinity, max = Infinity, integer = false): value is number {
+    if (typeof value !== 'number') return this.add(path, `must be a number, got ${typeName(value)}`);
+    if (!Number.isFinite(value)) return this.add(path, `must be a finite number, got ${value}`);
+    if (integer && !Number.isInteger(value)) return this.add(path, `must be an integer, got ${value}`);
+    if (value < min) return this.add(path, `must be >= ${min}, got ${value}`);
+    if (value > max) return this.add(path, `must be <= ${max}, got ${value}`);
+    return true;
+  }
+  /** A real that is strictly positive. */
+  positive(value: unknown, path: string, max = Infinity): value is number {
+    if (!this.real(value, path, 0, max)) return false;
+    return value > 0 || this.add(path, `must be > 0, got ${value}`);
+  }
+  /** A flat array of `length` finite float64 numbers within [min, max]; reports only the first bad element. */
+  reals(value: unknown, path: string, length: number, min = -Infinity, max = Infinity): value is number[] {
+    if (!Array.isArray(value)) return this.add(path, `must be an array of ${length} numbers, got ${typeName(value)}`);
+    this.geometryValues += value.length;
+    if (value.length !== length) return this.add(path, `must hold exactly ${length} numbers, got ${value.length}`);
+    for (let i = 0; i < length; i++) {
+      const v = value[i];
+      if (typeof v !== 'number' || !Number.isFinite(v) || v < min || v > max) return this.real(v, `${path}/${i}`, min, max);
+    }
+    return true;
+  }
+  realTuple(value: unknown, path: string, length: number): value is number[] {
+    if (!Array.isArray(value)) return this.add(path, `must be an array of ${length} numbers, got ${typeName(value)}`);
+    if (value.length !== length) return this.add(path, `must hold exactly ${length} numbers, got ${value.length}`);
+    let ok = true;
+    for (let i = 0; i < length; i++) if (!this.real(value[i], `${path}/${i}`)) ok = false;
+    return ok;
   }
   tuple(value: unknown, path: string, length: number, min = -Infinity): value is number[] {
     if (!Array.isArray(value)) return this.add(path, `must be an array of ${length} numbers, got ${typeName(value)}`);
@@ -525,6 +729,230 @@ function checkJoint(c: Checker, joint: unknown, path: string, hasBody: ((id: str
   if (joint.userData !== undefined) c.freeForm(joint.userData, `${path}/userData`);
 }
 
+// ---- Coupled sections: water basins, cables and frames ----
+
+const WATER_KEYS = ['id', 'cols', 'rows', 'dx', 'dz', 'restDepth', 'origin', 'density', 'waterDrag', 'eta', 'u', 'v', 'bodies'];
+const WATER_BODY_KEYS = ['body', 'dragCoefficient', 'referenceArea', 'linearDrag', 'angularDrag'];
+const CABLE_KEYS = ['id', 'solver', 'nodes', 'masses', 'pinned', 'velocities', 'segments', 'substeps', 'maxIterations', 'residualTolerance', 'forceTolerance', 'drag', 'attachments'];
+const FRAME_KEYS = ['id', 'nodes', 'elements', 'fixed', 'pointMasses', 'pointInertias', 'displacements', 'velocities', 'drag', 'maxIterations',
+  'forceTolerance', 'momentTolerance', 'impulseTolerance', 'angularImpulseTolerance', 'attachments'];
+const ELEMENT_KEYS = ['a', 'b', 'youngModulus', 'shearModulus', 'area', 'iy', 'iz', 'torsionConstant', 'density', 'up'];
+const INERTIA_KEYS: Record<string, readonly string[]> = {
+  box: ['kind', 'halfExtents'], sphere: ['kind', 'radius'], capsule: ['kind', 'radius', 'halfLength'], principal: ['kind', 'moments'], locked: ['kind'],
+};
+const WET_SHAPES = ['box', 'sphere', 'capsule'];
+
+/** What the coupled sections need to know about the rest of the scene. `shapes` is null when the body list is broken. */
+interface CoupledContext {
+  readonly shapes: ReadonlyMap<string, string | null> | null;
+  readonly step: number;
+  /** Downward gravity, m/s^2 (zero when gravity points up or sideways). */
+  readonly gravity: number;
+  readonly wet: Map<string, string>;
+  readonly frameNodes: Map<string, number>;
+  frameEquations: number;
+}
+
+function flags(c: Checker, value: unknown, path: string, length: number): boolean {
+  if (!c.reals(value, path, length, 0, 1)) return false;
+  for (let i = 0; i < length; i++) if (value[i] !== 0 && value[i] !== 1) return c.add(`${path}/${i}`, `must be 0 or 1, got ${value[i]}`);
+  return true;
+}
+
+function checkInertia(c: Checker, inertia: unknown, path: string): void {
+  if (!isObject(inertia)) { c.add(path, `must be an object, got ${typeName(inertia)}`); return; }
+  const kind = inertia.kind;
+  if (typeof kind !== 'string' || !Object.hasOwn(INERTIA_KEYS, kind)) { c.add(`${path}/kind`, `must be 'box', 'sphere', 'capsule', 'principal' or 'locked', got ${show(kind)}`); return; }
+  c.object(inertia, path, INERTIA_KEYS[kind], INERTIA_KEYS[kind]);
+  const triple = (key: string): void => { const v = inertia[key]; if (v !== undefined && c.realTuple(v, `${path}/${key}`, 3)) for (let i = 0; i < 3; i++) if (!(v[i] > 0)) c.add(`${path}/${key}/${i}`, `must be > 0, got ${v[i]}`); };
+  if (kind === 'box') triple('halfExtents');
+  else if (kind === 'principal') triple('moments');
+  else if (kind !== 'locked') {
+    if (inertia.radius !== undefined) c.positive(inertia.radius, `${path}/radius`);
+    if (kind === 'capsule' && inertia.halfLength !== undefined) c.positive(inertia.halfLength, `${path}/halfLength`);
+  }
+}
+
+/** The `body`, `inertia` and `localPoint` of an attachment to a body. */
+function checkBodyAttachment(c: Checker, att: Obj, path: string, ctx: CoupledContext): void {
+  const ref = att.body;
+  if (typeof ref !== 'string') c.add(`${path}/body`, `must be a body id, got ${typeName(ref)}`);
+  else if (ctx.shapes) {
+    if (!ctx.shapes.has(ref)) c.add(`${path}/body`, `unknown body id ${show(ref)}`);
+    else {
+      const kind = ctx.shapes.get(ref);
+      if (att.inertia === undefined && kind !== null && !WET_SHAPES.includes(kind!)) c.add(`${path}/inertia`, `is required: the inertia of a ${kind} body cannot be taken from its shape`);
+    }
+  }
+  if (att.inertia !== undefined) checkInertia(c, att.inertia, `${path}/inertia`);
+  if (att.localPoint !== undefined) c.realTuple(att.localPoint, `${path}/localPoint`, 3);
+}
+
+function checkWater(c: Checker, basin: unknown, path: string, ctx: CoupledContext): void {
+  if (!c.object(basin, path, WATER_KEYS, ['id', 'cols', 'rows', 'dx', 'dz', 'restDepth', 'origin'])) return;
+  const cols = basin.cols !== undefined && c.real(basin.cols, `${path}/cols`, 3, SCENE_LIMITS.waterCells, true) ? basin.cols : 0;
+  const rows = basin.rows !== undefined && c.real(basin.rows, `${path}/rows`, 3, SCENE_LIMITS.waterCells, true) ? basin.rows : 0;
+  const cells = cols * rows;
+  if (cells > SCENE_LIMITS.waterCells) c.add(path, `holds ${cells} cells; the limit is ${SCENE_LIMITS.waterCells}`);
+  const dx = basin.dx !== undefined && c.positive(basin.dx, `${path}/dx`, 1e6) ? basin.dx : 0, dz = basin.dz !== undefined && c.positive(basin.dz, `${path}/dz`, 1e6) ? basin.dz : 0;
+  const depth = basin.restDepth !== undefined && c.positive(basin.restDepth, `${path}/restDepth`, 1e5) ? basin.restDepth : 0;
+  if (basin.origin !== undefined) c.realTuple(basin.origin, `${path}/origin`, 3);
+  if (basin.density !== undefined) c.positive(basin.density, `${path}/density`, 1e6);
+  const drag = basin.waterDrag !== undefined && c.real(basin.waterDrag, `${path}/waterDrag`, 0) ? basin.waterDrag : 0;
+  if (drag * ctx.step > 1) c.add(`${path}/waterDrag`, `waterDrag * step must be <= 1, got ${drag * ctx.step}`);
+  if (dx > 0 && dz > 0 && depth > 0 && ctx.gravity > 0) {
+    const courant = ctx.step * Math.sqrt(ctx.gravity * depth) * Math.hypot(1 / dx, 1 / dz);
+    if (courant > 0.8) c.add(path, `step * sqrt(g * restDepth) * hypot(1/dx, 1/dz) must be <= 0.8 for the water to be stable, got ${+courant.toPrecision(4)}; use larger cells or a smaller world step`);
+  }
+  if (cells > 0 && cells <= SCENE_LIMITS.waterCells) for (const key of ['eta', 'u', 'v']) if (basin[key] !== undefined) c.reals(basin[key], `${path}/${key}`, cells, -1e6, 1e6);
+  if (basin.bodies !== undefined) {
+    if (!Array.isArray(basin.bodies)) c.add(`${path}/bodies`, `must be an array, got ${typeName(basin.bodies)}`);
+    else for (let i = 0; i < basin.bodies.length && !c.stopped; i++) {
+      const entry = basin.bodies[i], at = `${path}/bodies/${i}`;
+      if (!c.object(entry, at, WATER_BODY_KEYS, ['body'])) continue;
+      const ref = entry.body;
+      if (ref !== undefined) {
+        if (typeof ref !== 'string') c.add(`${at}/body`, `must be a body id, got ${typeName(ref)}`);
+        else {
+          if (ctx.shapes) {
+            if (!ctx.shapes.has(ref)) c.add(`${at}/body`, `unknown body id ${show(ref)}`);
+            else { const kind = ctx.shapes.get(ref); if (kind !== null && !WET_SHAPES.includes(kind!)) c.add(`${at}/body`, `a ${kind} body cannot float: the water couples boxes, spheres and capsules only`); }
+          }
+          const first = ctx.wet.get(ref);
+          if (first !== undefined) c.add(`${at}/body`, `body ${show(ref)} is already in a basin, at ${first}`);
+          else ctx.wet.set(ref, `${at}/body`);
+        }
+      }
+      for (const key of ['dragCoefficient', 'referenceArea', 'linearDrag', 'angularDrag']) if (entry[key] !== undefined) c.real(entry[key], `${at}/${key}`, 0);
+    }
+  }
+}
+
+function checkCable(c: Checker, cable: unknown, path: string, ctx: CoupledContext): void {
+  if (!c.object(cable, path, CABLE_KEYS, ['id', 'nodes', 'masses', 'segments'])) return;
+  const proximal = cable.solver === undefined || cable.solver === 'proximal';
+  if (cable.solver !== undefined && cable.solver !== 'proximal' && cable.solver !== 'xpbd') c.add(`${path}/solver`, `must be 'proximal' or 'xpbd', got ${show(cable.solver)}`);
+  let count = -1;
+  if (cable.masses !== undefined) {
+    if (!Array.isArray(cable.masses)) c.add(`${path}/masses`, `must be an array of numbers, got ${typeName(cable.masses)}`);
+    else if (cable.masses.length < 2) c.add(`${path}/masses`, `a cable needs at least 2 nodes, got ${cable.masses.length}`);
+    else if (cable.masses.length > SCENE_LIMITS.cableNodes) c.add(`${path}/masses`, `holds ${cable.masses.length} nodes; the limit is ${SCENE_LIMITS.cableNodes}`);
+    else if (c.reals(cable.masses, `${path}/masses`, cable.masses.length, 1e-9, 1e12)) count = cable.masses.length;
+  }
+  if (count > 0) {
+    if (cable.nodes !== undefined) c.reals(cable.nodes, `${path}/nodes`, 3 * count, -1e9, 1e9);
+    if (cable.velocities !== undefined) c.reals(cable.velocities, `${path}/velocities`, 3 * count, -1e9, 1e9);
+  }
+  const pinned = count > 0 && cable.pinned !== undefined && flags(c, cable.pinned, `${path}/pinned`, count) ? cable.pinned as number[] : null;
+  if (pinned && Array.isArray(cable.velocities) && cable.velocities.length === 3 * count) {
+    for (let i = 0; i < count; i++) if (pinned[i] && (cable.velocities[3 * i] !== 0 || cable.velocities[3 * i + 1] !== 0 || cable.velocities[3 * i + 2] !== 0)) { c.add(`${path}/velocities/${3 * i}`, `node ${i} is pinned and cannot have a velocity`); break; }
+  }
+  const linked = new Set<number>();
+  if (cable.segments !== undefined) {
+    if (!Array.isArray(cable.segments)) c.add(`${path}/segments`, `must be an array, got ${typeName(cable.segments)}`);
+    else if (cable.segments.length < 1) c.add(`${path}/segments`, 'a cable needs at least 1 segment');
+    else if (cable.segments.length > 4 * SCENE_LIMITS.cableNodes) c.add(`${path}/segments`, `holds ${cable.segments.length} segments; the limit is ${4 * SCENE_LIMITS.cableNodes}`);
+    else for (let i = 0; i < cable.segments.length && !c.stopped; i++) {
+      const segment = cable.segments[i], at = `${path}/segments/${i}`;
+      if (!c.object(segment, at, ['a', 'b', 'restLength', 'compliance'], ['a', 'b', 'restLength', 'compliance'])) continue;
+      const a = segment.a !== undefined && c.real(segment.a, `${at}/a`, 0, count > 0 ? count - 1 : Infinity, true), b = segment.b !== undefined && c.real(segment.b, `${at}/b`, 0, count > 0 ? count - 1 : Infinity, true);
+      if (a && b) { if (segment.a === segment.b) c.add(`${at}/b`, `a segment needs two different nodes; both are ${segment.a}`); else { linked.add(segment.a as number); linked.add(segment.b as number); } }
+      if (segment.restLength !== undefined) c.real(segment.restLength, `${at}/restLength`, 1e-9, 1e9);
+      if (segment.compliance !== undefined && c.real(segment.compliance, `${at}/compliance`, 0, 1e12) && segment.compliance > 0 && segment.compliance < 1e-18) c.add(`${at}/compliance`, `must be 0 or at least 1e-18 m/N, got ${segment.compliance}`);
+    }
+  }
+  const substeps = cable.substeps !== undefined && c.real(cable.substeps, `${path}/substeps`, 1, 16, true) ? cable.substeps : 1;
+  if (cable.maxIterations !== undefined) c.real(cable.maxIterations, `${path}/maxIterations`, 1, proximal ? 4096 : 256, true);
+  if (cable.residualTolerance !== undefined) c.real(cable.residualTolerance, `${path}/residualTolerance`, 0, 1e-2);
+  if (cable.forceTolerance !== undefined) { if (!proximal) c.add(`${path}/forceTolerance`, 'only the proximal solver takes forceTolerance'); else c.real(cable.forceTolerance, `${path}/forceTolerance`, 0, 1); }
+  if (cable.drag !== undefined && c.real(cable.drag, `${path}/drag`, 0, 1000) && cable.drag > 0 && substeps !== 1) c.add(`${path}/substeps`, 'a cable with drag needs substeps = 1 to be coupled');
+  if (cable.attachments !== undefined) {
+    if (!Array.isArray(cable.attachments)) c.add(`${path}/attachments`, `must be an array, got ${typeName(cable.attachments)}`);
+    else {
+      const used = new Set<number>();
+      for (let i = 0; i < cable.attachments.length && !c.stopped; i++) {
+        const att: unknown = cable.attachments[i], at = `${path}/attachments/${i}`;
+        if (!c.object(att, at, ['node', 'body', 'frame', 'frameNode', 'inertia', 'localPoint'], ['node'])) continue;
+        if (att.node !== undefined && c.real(att.node, `${at}/node`, 0, count > 0 ? count - 1 : Infinity, true)) {
+          const node = att.node;
+          if (used.has(node)) c.add(`${at}/node`, `node ${node} is already attached`);
+          else if (pinned && pinned[node]) c.add(`${at}/node`, `node ${node} is pinned: attach a free node`);
+          else if (Array.isArray(cable.segments) && !linked.has(node)) c.add(`${at}/node`, `node ${node} has no segment`);
+          used.add(node);
+        }
+        if ((att.body !== undefined) === (att.frame !== undefined)) { c.add(at, 'needs exactly one of body and frame'); continue; }
+        if (att.body !== undefined) {
+          if (att.frameNode !== undefined) c.add(`${at}/frameNode`, 'goes with frame, not with body');
+          checkBodyAttachment(c, att, at, ctx);
+        } else {
+          for (const key of ['inertia', 'localPoint']) if (att[key] !== undefined) c.add(`${at}/${key}`, `goes with body, not with frame`);
+          if (typeof att.frame !== 'string') c.add(`${at}/frame`, `must be a frame id, got ${typeName(att.frame)}`);
+          else if (!ctx.frameNodes.has(att.frame)) c.add(`${at}/frame`, `unknown frame id ${show(att.frame)}`);
+          if (att.frameNode === undefined) c.add(`${at}/frameNode`, 'is required with frame');
+          else if (c.real(att.frameNode, `${at}/frameNode`, 0, Infinity, true) && typeof att.frame === 'string' && ctx.frameNodes.has(att.frame)) {
+            const nodes = ctx.frameNodes.get(att.frame)!;
+            if (nodes >= 0 && att.frameNode >= nodes) c.add(`${at}/frameNode`, `node ${att.frameNode} is out of range; frame ${show(att.frame)} has ${nodes} nodes`);
+          }
+        }
+      }
+    }
+  }
+}
+
+/** Node count of a frame's `nodes` array, or -1 when it cannot be told. */
+function frameNodeCount(frame: unknown): number {
+  return isObject(frame) && Array.isArray(frame.nodes) && frame.nodes.length % 3 === 0 && frame.nodes.length >= 6 && frame.nodes.length <= 3 * SCENE_LIMITS.frameNodes ? frame.nodes.length / 3 : -1;
+}
+
+function checkFrameSection(c: Checker, frame: unknown, path: string, ctx: CoupledContext): void {
+  if (!c.object(frame, path, FRAME_KEYS, ['id', 'nodes', 'elements'])) return;
+  const count = frameNodeCount(frame);
+  if (frame.nodes !== undefined) {
+    if (!Array.isArray(frame.nodes)) c.add(`${path}/nodes`, `must be an array of numbers, got ${typeName(frame.nodes)}`);
+    else if (count < 0) c.add(`${path}/nodes`, `must hold x, y, z for 2 to ${SCENE_LIMITS.frameNodes} nodes, got ${frame.nodes.length} numbers`);
+    else c.reals(frame.nodes, `${path}/nodes`, 3 * count, -1e6, 1e6);
+  }
+  if (frame.elements !== undefined) {
+    if (!Array.isArray(frame.elements)) c.add(`${path}/elements`, `must be an array, got ${typeName(frame.elements)}`);
+    else if (frame.elements.length < 1) c.add(`${path}/elements`, 'a frame needs at least 1 element');
+    else if (frame.elements.length > SCENE_LIMITS.frameElements) c.add(`${path}/elements`, `holds ${frame.elements.length} elements; the limit is ${SCENE_LIMITS.frameElements}`);
+    else for (let i = 0; i < frame.elements.length && !c.stopped; i++) {
+      const element = frame.elements[i], at = `${path}/elements/${i}`;
+      if (!c.object(element, at, ELEMENT_KEYS, ELEMENT_KEYS)) continue;
+      const a = element.a !== undefined && c.real(element.a, `${at}/a`, 0, count > 0 ? count - 1 : Infinity, true), b = element.b !== undefined && c.real(element.b, `${at}/b`, 0, count > 0 ? count - 1 : Infinity, true);
+      if (a && b && element.a === element.b) c.add(`${at}/b`, `an element needs two different nodes; both are ${element.a}`);
+      for (const [key, min, max] of [['youngModulus', 1, 1e13], ['shearModulus', 1, 1e13], ['area', 1e-10, 1e4], ['iy', 1e-16, 1e8], ['iz', 1e-16, 1e8], ['torsionConstant', 1e-16, 1e8], ['density', 1e-6, 1e6]] as const) {
+        if (element[key] !== undefined) c.real(element[key], `${at}/${key}`, min, max);
+      }
+      if (element.up !== undefined && c.realTuple(element.up, `${at}/up`, 3) && element.up.some(v => Math.abs(v) > 1)) c.add(`${at}/up`, 'each component must be within [-1, 1]');
+    }
+  }
+  if (count > 0) {
+    const fixed = frame.fixed !== undefined && flags(c, frame.fixed, `${path}/fixed`, 6 * count) ? frame.fixed as number[] : null;
+    if (frame.pointMasses !== undefined) c.reals(frame.pointMasses, `${path}/pointMasses`, count, 0, 1e12);
+    if (frame.pointInertias !== undefined) c.reals(frame.pointInertias, `${path}/pointInertias`, 3 * count, 0, 1e18);
+    for (const [key, limit] of [['displacements', 1e6], ['velocities', 1e9]] as const) {
+      const values = frame[key];
+      if (values === undefined || !c.reals(values, `${path}/${key}`, 6 * count, -limit, limit) || !fixed) continue;
+      for (let j = 0; j < fixed.length; j++) if (fixed[j] && values[j] !== 0) { c.add(`${path}/${key}/${j}`, 'a fixed degree of freedom cannot move'); break; }
+    }
+  }
+  if (frame.drag !== undefined) c.real(frame.drag, `${path}/drag`, 0, 1000);
+  if (frame.maxIterations !== undefined) c.real(frame.maxIterations, `${path}/maxIterations`, 1, 1024, true);
+  for (const [key, min] of [['forceTolerance', 1e-14], ['momentTolerance', 1e-14], ['impulseTolerance', 1e-16], ['angularImpulseTolerance', 1e-16]] as const) if (frame[key] !== undefined) c.real(frame[key], `${path}/${key}`, min, 1);
+  if (frame.attachments !== undefined) {
+    if (!Array.isArray(frame.attachments)) c.add(`${path}/attachments`, `must be an array, got ${typeName(frame.attachments)}`);
+    else for (let i = 0; i < frame.attachments.length && !c.stopped; i++) {
+      const att: unknown = frame.attachments[i], at = `${path}/attachments/${i}`;
+      if (!c.object(att, at, ['node', 'body', 'mode', 'inertia', 'localPoint'], ['node', 'body'])) continue;
+      if (att.node !== undefined) c.real(att.node, `${at}/node`, 0, count > 0 ? count - 1 : Infinity, true);
+      if (att.mode !== undefined && att.mode !== 'pinned' && att.mode !== 'clamped') c.add(`${at}/mode`, `must be 'pinned' or 'clamped', got ${show(att.mode)}`);
+      if (att.body !== undefined) checkBodyAttachment(c, att, at, ctx);
+      ctx.frameEquations += att.mode === 'clamped' ? 6 : 3;
+    }
+  }
+}
+
 /**
  * Check a scene completely, before anything is built. Returns every problem
  * found (at most SCENE_LIMITS.problems), each with a JSON-pointer path; an
@@ -540,7 +968,7 @@ export function validateScene(scene: unknown): SceneProblem[] {
       : `must be the integer ${SCENE_VERSION}, got ${scene.version === undefined ? 'nothing' : show(scene.version)}`);
     return c.problems;
   }
-  c.object(scene, '', ['format', 'version', 'units', 'world', 'materials', 'bodies', 'joints', 'meta', 'extensions'], ['bodies']);
+  c.object(scene, '', ['format', 'version', 'units', 'world', 'materials', 'bodies', 'joints', 'water', 'cables', 'frames', 'meta', 'extensions'], ['bodies']);
   if (scene.units !== undefined && scene.units !== 'SI') c.add('/units', `must be 'SI', got ${show(scene.units)}`);
   if (scene.world !== undefined) checkWorld(c, scene.world, '/world');
   const materials = scene.materials === undefined ? new Set<string>() : checkMaterials(c, scene.materials, '/materials');
@@ -566,7 +994,29 @@ export function validateScene(scene: unknown): SceneProblem[] {
     else if (scene.joints.length > SCENE_LIMITS.joints) c.add('/joints', `holds ${scene.joints.length} joints; the limit is ${SCENE_LIMITS.joints}`);
     else for (let i = 0; i < scene.joints.length && !c.stopped; i++) { checkJoint(c, scene.joints[i], `/joints/${i}`, bodiesOk ? id => bodyIds.has(id) : null); claim(scene.joints[i], `/joints/${i}`, false); }
   }
-  if (c.geometryValues > SCENE_LIMITS.geometryValues) c.add('/bodies', `the shapes hold ${c.geometryValues} numbers together; the limit is ${SCENE_LIMITS.geometryValues}`);
+  const shapeValues = c.geometryValues;
+  if (shapeValues > SCENE_LIMITS.geometryValues) c.add('/bodies', `the shapes hold ${c.geometryValues} numbers together; the limit is ${SCENE_LIMITS.geometryValues}`);
+  if (scene.water !== undefined || scene.cables !== undefined || scene.frames !== undefined) {
+    const shapes = new Map<string, string | null>();
+    if (bodiesOk) for (const body of scene.bodies as unknown[]) if (isObject(body) && typeof body.id === 'string' && bodyIds.has(body.id)) shapes.set(body.id, isObject(body.shape) && typeof body.shape.kind === 'string' ? body.shape.kind : null);
+    const world = isObject(scene.world) ? scene.world : {}, step = typeof world.step === 'number' && world.step > 0 && world.step <= 1 / 30 ? world.step : 1 / 60;
+    const gy = Array.isArray(world.gravity) && typeof world.gravity[1] === 'number' && Number.isFinite(world.gravity[1]) ? world.gravity[1] : -9.81;
+    const ctx: CoupledContext = {shapes: bodiesOk ? shapes : null, step, gravity: Math.max(0, -gy), wet: new Map(), frameNodes: new Map(), frameEquations: 0};
+    const section = (key: 'water' | 'cables' | 'frames', limit: number, each: (item: unknown, path: string) => void): void => {
+      const list = scene[key];
+      if (list === undefined) return;
+      if (!Array.isArray(list)) c.add(`/${key}`, `must be an array, got ${typeName(list)}`);
+      else if (list.length > limit) c.add(`/${key}`, `holds ${list.length} entries; the limit is ${limit}`);
+      else for (let i = 0; i < list.length && !c.stopped; i++) { each(list[i], `/${key}/${i}`); claim(list[i], `/${key}/${i}`, false); }
+    };
+    // Frames first: a cable may be attached to one.
+    if (Array.isArray(scene.frames)) for (const frame of scene.frames) if (isObject(frame) && typeof frame.id === 'string') ctx.frameNodes.set(frame.id, frameNodeCount(frame));
+    section('frames', SCENE_LIMITS.frames, (item, path) => checkFrameSection(c, item, path, ctx));
+    section('cables', SCENE_LIMITS.cables, (item, path) => checkCable(c, item, path, ctx));
+    section('water', SCENE_LIMITS.waterBasins, (item, path) => checkWater(c, item, path, ctx));
+    if (ctx.frameEquations > SCENE_LIMITS.frameBodyEquations) c.add('/frames', `the frame attachments need ${ctx.frameEquations} equations (3 per pinned, 6 per clamped); the limit is ${SCENE_LIMITS.frameBodyEquations}`);
+    if (c.geometryValues > SCENE_LIMITS.geometryValues && shapeValues <= SCENE_LIMITS.geometryValues) c.add('', `the scene's arrays hold ${c.geometryValues} numbers together; the limit is ${SCENE_LIMITS.geometryValues}`);
+  }
   if (scene.meta !== undefined && c.object(scene.meta, '/meta', ['title', 'description', 'author', 'created'])) {
     for (const key of ['title', 'description', 'author']) if (scene.meta[key] !== undefined) c.string(scene.meta[key], `/meta/${key}`, SCENE_LIMITS.metaChars);
     const created = scene.meta.created;
@@ -672,6 +1122,88 @@ function normalJoint(joint: SceneJoint): SceneJoint {
   return out as unknown as SceneJoint;
 }
 
+const allZero = (v: readonly number[] | undefined): boolean => v === undefined || v.every(x => x === 0);
+
+function normalInertia(inertia: SceneInertia): SceneInertia {
+  switch (inertia.kind) {
+    case 'box': return {kind: 'box', halfExtents: vec(inertia.halfExtents) as unknown as SceneVec3};
+    case 'sphere': return {kind: 'sphere', radius: inertia.radius};
+    case 'capsule': return {kind: 'capsule', radius: inertia.radius, halfLength: inertia.halfLength};
+    case 'principal': return {kind: 'principal', moments: vec(inertia.moments) as unknown as SceneVec3};
+    case 'locked': return {kind: 'locked'};
+  }
+}
+
+function normalWater(basin: SceneWater): SceneWater {
+  const out: Obj = {id: basin.id, cols: basin.cols, rows: basin.rows, dx: basin.dx, dz: basin.dz, restDepth: basin.restDepth, origin: vec(basin.origin)};
+  if (basin.density !== undefined && basin.density !== 1000) out.density = basin.density;
+  if (basin.waterDrag) out.waterDrag = basin.waterDrag;
+  for (const key of ['eta', 'u', 'v'] as const) if (!allZero(basin[key])) out[key] = vec(basin[key]!);
+  if (basin.bodies && basin.bodies.length > 0) out.bodies = basin.bodies.map(entry => {
+    const one: Obj = {body: entry.body};
+    if (entry.dragCoefficient !== undefined) one.dragCoefficient = zero(entry.dragCoefficient);
+    if (entry.referenceArea !== undefined) one.referenceArea = zero(entry.referenceArea);
+    if (entry.linearDrag) one.linearDrag = entry.linearDrag;
+    if (entry.angularDrag) one.angularDrag = entry.angularDrag;
+    return one;
+  });
+  return out as unknown as SceneWater;
+}
+
+function normalBodyAttachment(att: {inertia?: SceneInertia; localPoint?: SceneVec3}, out: Obj): void {
+  if (att.inertia) out.inertia = normalInertia(att.inertia);
+  if (att.localPoint) out.localPoint = vec(att.localPoint);
+}
+
+function normalCable(cable: SceneCable): SceneCable {
+  const out: Obj = {id: cable.id, nodes: vec(cable.nodes), masses: vec(cable.masses)}, proximal = cable.solver !== 'xpbd';
+  if (!proximal) out.solver = 'xpbd';
+  if (!allZero(cable.pinned)) out.pinned = vec(cable.pinned!);
+  if (!allZero(cable.velocities)) out.velocities = vec(cable.velocities!);
+  out.segments = cable.segments.map(s => ({a: s.a, b: s.b, restLength: s.restLength, compliance: zero(s.compliance)}));
+  if (cable.substeps !== undefined && cable.substeps !== 1) out.substeps = cable.substeps;
+  if (cable.maxIterations !== undefined && cable.maxIterations !== 64) out.maxIterations = cable.maxIterations;
+  if (cable.residualTolerance !== undefined && cable.residualTolerance !== 1e-10) out.residualTolerance = zero(cable.residualTolerance);
+  if (proximal && cable.forceTolerance !== undefined && cable.forceTolerance !== 1e-6) out.forceTolerance = zero(cable.forceTolerance);
+  if (cable.drag) out.drag = cable.drag;
+  if (cable.attachments && cable.attachments.length > 0) out.attachments = cable.attachments.map(att => {
+    const one: Obj = {node: att.node};
+    if (att.body !== undefined) { one.body = att.body; normalBodyAttachment(att, one); } else { one.frame = att.frame; one.frameNode = att.frameNode; }
+    return one;
+  });
+  return out as unknown as SceneCable;
+}
+
+function normalFrameSection(frame: SceneFrameSection): SceneFrameSection {
+  const out: Obj = {id: frame.id, nodes: vec(frame.nodes)};
+  out.elements = frame.elements.map(e => ({a: e.a, b: e.b, youngModulus: e.youngModulus, shearModulus: e.shearModulus, area: e.area, iy: e.iy, iz: e.iz, torsionConstant: e.torsionConstant, density: e.density, up: vec(e.up)}));
+  for (const key of ['fixed', 'pointMasses', 'pointInertias', 'displacements', 'velocities'] as const) if (!allZero(frame[key])) out[key] = vec(frame[key]!);
+  if (frame.drag) out.drag = frame.drag;
+  if (frame.maxIterations !== undefined && frame.maxIterations !== 1024) out.maxIterations = frame.maxIterations;
+  for (const [key, standard] of [['forceTolerance', 1e-9], ['momentTolerance', 1e-9], ['impulseTolerance', 1e-10], ['angularImpulseTolerance', 1e-10]] as const) if (frame[key] !== undefined && frame[key] !== standard) out[key] = frame[key];
+  if (frame.attachments && frame.attachments.length > 0) out.attachments = frame.attachments.map(att => {
+    const one: Obj = {node: att.node, body: att.body};
+    if (att.mode === 'clamped') one.mode = 'clamped';
+    normalBodyAttachment(att, one);
+    return one;
+  });
+  return out as unknown as SceneFrameSection;
+}
+
+/** The coupled sections of a scene in normal form; a section that is absent or empty is left out. */
+function normalCoupled(scene: SceneCoupledSections): SceneCoupledSections {
+  return {
+    ...(scene.water && scene.water.length > 0 ? {water: scene.water.map(normalWater)} : {}),
+    ...(scene.cables && scene.cables.length > 0 ? {cables: scene.cables.map(normalCable)} : {}),
+    ...(scene.frames && scene.frames.length > 0 ? {frames: scene.frames.map(normalFrameSection)} : {}),
+  };
+}
+
+/** True when a scene has a water basin, a cable or a frame: it then needs a Simulation, not just a rigid world. */
+export function sceneHasCoupling(scene: SceneCoupledSections): boolean {
+  return (scene.water?.length ?? 0) + (scene.cables?.length ?? 0) + (scene.frames?.length ?? 0) > 0;
+}
+
 function clone<T>(value: T): T {
   if (Array.isArray(value)) return value.map(clone) as unknown as T;
   if (value !== null && typeof value === 'object') { const out: Obj = {}; for (const key of Object.keys(value)) out[key] = clone((value as Obj)[key]); return out as T; }
@@ -689,6 +1221,8 @@ function normalize(scene: Scene): Scene {
   return {
     format: SCENE_FORMAT, version: SCENE_VERSION, units: 'SI', world: worldOf(scene.world), materials,
     bodies: scene.bodies.map(normalBody), joints: (scene.joints ?? []).map(normalJoint),
+    // Left out when absent or empty, so that a rigid-only scene has the canonical text and hash it always had.
+    ...normalCoupled(scene),
     ...(Object.keys(meta).length > 0 ? {meta: meta as SceneMeta} : {}),
     ...(scene.extensions !== undefined ? {extensions: clone(scene.extensions)} : {}),
   };
@@ -698,7 +1232,8 @@ function normalize(scene: Scene): Scene {
  * The normal form of a valid scene, as a new object: every world setting
  * present, `rotationEuler` turned into `rotation`, values equal to the engine
  * defaults dropped, -0 written as 0, `units`, `materials` and `joints` always
- * present. Body and joint order is kept, because it is the build order. Throws
+ * present; `water`, `cables` and `frames` present only when they hold something.
+ * Body and joint order is kept, because it is the build order. Throws
  * SceneValidationError for an invalid scene. Normalising twice changes nothing.
  */
 export function normalizeScene(scene: unknown): Scene { return normalize(assertValid(scene)); }
@@ -1104,6 +1639,10 @@ export class SceneBuilder<W extends SceneHost = SceneHost> {
   private readonly materialMap = new Map<string, SceneMaterial>();
   private readonly bodyMap = new Map<string, {description: SceneBody; handle: Body}>();
   private readonly jointMap = new Map<string, {description: SceneJoint; handle: Joint}>();
+  /** @internal The scene's water, cable and frame sections as they were described (normal form). This module carries them; simulation.ts builds them. */
+  coupledSections: SceneCoupledSections = {};
+  /** @internal Set by simulation.ts: the same sections with the solvers' current state, for a save. */
+  coupledCapture: (() => SceneCoupledSections) | null = null;
 
   constructor(world: W, options: {readonly world?: SceneWorld; readonly materials?: {readonly [name: string]: SceneMaterial}; readonly meta?: SceneMeta; readonly extensions?: {readonly [key: string]: unknown}} = {}) {
     // Unlike a file, a builder takes the step, sub-steps and seed it was not given from its world.
@@ -1124,6 +1663,7 @@ export class SceneBuilder<W extends SceneHost = SceneHost> {
   /** @internal Empty the world and forget every body and joint. */
   resetWorld(): void {
     this.bodyMap.clear(); this.jointMap.clear();
+    this.coupledSections = {}; this.coupledCapture = null;
     this.world.reset({ground: this.settings.ground, gravity: this.settings.gravity, seed: this.settings.seed});
   }
 
@@ -1231,6 +1771,9 @@ export class SceneBuilder<W extends SceneHost = SceneHost> {
    * Not carried: sleep state, contact and joint impulses (the solver starts
    * them from zero), forces applied for the next step, the tick count, and any
    * setting changed on the world directly other than those listed above.
+   * Water, cable and frame sections are written with their current fields when
+   * a Simulation built them (see docs/SIMULATION.md for what that restores),
+   * and without the entries that name a body that no longer exists.
    */
   toJSON(options: SaveSceneOptions = {}): Scene {
     this.prune();
@@ -1249,8 +1792,12 @@ export class SceneBuilder<W extends SceneHost = SceneHost> {
     const gravity = world.gravity(), settings = live && !sameSingle(this.settings.gravity, gravity, [0, 0, 0]) ? {...this.settings, gravity} : this.settings;
     const materials: Record<string, SceneMaterial> = {};
     for (const [name, material] of this.materialMap) materials[name] = material;
+    const coupled = live && this.coupledCapture ? this.coupledCapture() : this.coupledSections, has = (id: string | undefined): boolean => id === undefined || this.bodyMap.has(id);
     return normalizeScene({
       format: SCENE_FORMAT, version: SCENE_VERSION, world: settings, materials, bodies, joints: [...this.jointMap.values()].map(joint => joint.description),
+      water: coupled.water?.map(basin => ({...basin, bodies: basin.bodies?.filter(entry => has(entry.body))})),
+      cables: coupled.cables?.map(cable => ({...cable, attachments: cable.attachments?.filter(att => has(att.body))})),
+      frames: coupled.frames?.map(frame => ({...frame, attachments: frame.attachments?.filter(att => has(att.body))})),
       meta: options.meta ?? this.meta, extensions: this.extensions,
     });
   }
@@ -1267,6 +1814,7 @@ export class SceneBuilder<W extends SceneHost = SceneHost> {
       }
       for (const body of scene.bodies) this.place(body);
       for (const joint of scene.joints ?? []) this.connect(joint);
+      this.coupledSections = normalCoupled(scene);
     } catch (error) {
       this.resetWorld();
       throw error;
@@ -1288,9 +1836,15 @@ export class SceneBuilder<W extends SceneHost = SceneHost> {
  * - If the engine refuses a body or joint part-way, the world is left reset to
  *   the scene's settings with none of the scene's bodies in it, and the error
  *   names the offending id.
+ * - A scene with `water`, `cables` or `frames` throws EngineError('INVALID_STATE')
+ *   and the world is not touched: this loader has no solvers for them.
  */
 export function loadScene<W extends SceneHost>(world: W, scene: unknown): LoadedScene<W> {
   const normal = normalizeScene(scene);
+  if (sceneHasCoupling(normal)) {
+    throw new EngineError('INVALID_STATE', 'This scene has water, cable or frame sections. This loader builds rigid bodies and joints only and would drop them: ' +
+      'load the scene with loadSimulationScene (simulation.ts; the kit\'s loadScene), which returns a Simulation that steps every solver.');
+  }
   const builder = new SceneBuilder<W>(world, {world: normal.world, materials: normal.materials, meta: normal.meta, extensions: normal.extensions}).populate(normal);
   return {bodies: builder.bodies(), joints: builder.joints(), builder, scene: normal};
 }
@@ -1306,4 +1860,4 @@ export function saveScene<W extends SceneHost>(world: W, handles: SceneBuilder<W
   return builder.toJSON(options);
 }
 
-export {pendulumWaveScene, newtonsCradleScene, dominoRunScene, terrainCarScene, ragdollScene, EXAMPLE_SCENES} from './scene-examples.ts';
+export {pendulumWaveScene, newtonsCradleScene, dominoRunScene, terrainCarScene, ragdollScene, EXAMPLE_SCENES, mooredBuoyScene, cableStayedDeckScene, COUPLED_EXAMPLE_SCENES} from './scene-examples.ts';

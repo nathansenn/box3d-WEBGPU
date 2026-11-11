@@ -156,3 +156,79 @@ export const EXAMPLE_SCENES: {readonly [name: string]: () => Scene} = Object.fre
   'terrain-car': () => terrainCarScene(),
   ragdoll: () => ragdollScene(),
 });
+
+// ---------------------------------------------------------------------------
+// Coupled examples: scenes with water, cable and frame sections. They need a
+// Simulation (simulation.ts; the kit's loadScene), so they are kept out of
+// EXAMPLE_SCENES, which every rigid-only loader can open.
+// ---------------------------------------------------------------------------
+
+/**
+ * A buoy moored to the bed: a sphere of radius `radius` and density `density`
+ * floats in an 8 m x 8 m basin `depth` deep and is held under its free
+ * waterline by one compliant cable (rest length `cableLength`, axial rigidity
+ * `axialRigidity` in newtons) from a fixed anchor on the bed to its centre.
+ * `offset` moves the buoy sideways at the start. At rest the cable tension is
+ * the buoyancy minus the weight of the buoy and of the cable's upper node.
+ */
+export function mooredBuoyScene(options: {radius?: number; density?: number; depth?: number; cableLength?: number; axialRigidity?: number; offset?: number; linearDrag?: number; waterDrag?: number; lineDensity?: number} = {}): Scene {
+  const {radius = 0.4, density = 300, depth = 3, cableLength = 2.75, axialRigidity = 5e4, offset = 0, linearDrag = 200, waterDrag = 0.5, lineDensity = 0.02} = options;
+  const cells = 16, size = 0.5, half = cells * size / 2, cableMass = lineDensity * cableLength, y = round(cableLength + 0.02);
+  return {
+    ...header, world: {gravity: [0, -G, 0], ground: false, seed: 1, step: 1 / 240, subSteps: 4},
+    materials: {}, joints: [],
+    bodies: [
+      {id: 'bed', shape: {kind: 'box', halfExtents: [half, 0.25, half]}, type: 'static', position: [0, -0.25, 0], color: 0x8A7F6A},
+      {id: 'buoy', shape: {kind: 'sphere', radius}, position: [offset, y, 0], density, neverSleeps: true, color: 0xE8792B},
+    ],
+    water: [{
+      id: 'basin', cols: cells, rows: cells, dx: size, dz: size, restDepth: depth, origin: [-half, 0, -half], waterDrag,
+      bodies: [{body: 'buoy', linearDrag}],
+    }],
+    cables: [{
+      id: 'mooring', nodes: [0, 0, 0, offset, y, 0], masses: [cableMass / 2, cableMass / 2], pinned: [1, 0],
+      segments: [{a: 0, b: 1, restLength: cableLength, compliance: cableLength / axialRigidity}],
+      maxIterations: 64, residualTolerance: 1e-12, forceTolerance: 1e-9,
+      attachments: [{node: 1, body: 'buoy', localPoint: [0, 0, 0]}],
+    }],
+    meta: {title: 'Moored buoy', description: 'A sphere floating in a basin, held under its free waterline by a compliant cable to the bed.'},
+  };
+}
+
+/**
+ * A small cable-stayed deck: an 8 m steel beam of 8 elements on a pin and a
+ * roller, two stays from a fixed tower top 3 m above midspan to the deck at
+ * 2 m and 6 m, and a ball pinned to deck node `loadNode` (1 to 7). It is the
+ * span of the structure-coupling validation, so its stay tensions and its
+ * deflection have a hand solution (docs/STRUCTURE_COUPLING.md).
+ */
+export function cableStayedDeckScene(options: {loadNode?: number; ballRadius?: number; ballDensity?: number; stayRigidity?: number; drag?: number} = {}): Scene {
+  const {loadNode = 5, ballRadius = 0.15, ballDensity = 1000, stayRigidity = 5e6, drag = 60} = options;
+  const length = 8, segments = 8, towerX = 4, towerY = 3, stayDensity = 0.2;
+  const section = {youngModulus: 2e11, shearModulus: 8e10, area: 0.002, iy: 1e-6, iz: 3e-6, torsionConstant: 2e-6, density: 7850, up: [0, 1, 0] as const};
+  const nodes: number[] = [], fixed = new Array<number>(6 * (segments + 1)).fill(0), elements = [];
+  for (let i = 0; i <= segments; i++) { nodes.push(length * i / segments, 0, 0); if (i > 0) elements.push({...section, a: i - 1, b: i}); }
+  // A pin at node 0 (which also holds the twist) and a roller at the far end.
+  fixed[0] = fixed[1] = fixed[2] = fixed[3] = 1; fixed[6 * segments + 1] = fixed[6 * segments + 2] = 1;
+  const stay = (id: string, x: number) => {
+    const span = Math.hypot(x - towerX, towerY), end = stayDensity * span / 2;
+    return {
+      id, nodes: [towerX, towerY, 0, x, 0, 0], masses: [end, end], pinned: [1, 0], segments: [{a: 0, b: 1, restLength: span, compliance: span / stayRigidity}],
+      maxIterations: 64, residualTolerance: 1e-12, forceTolerance: 1e-9, attachments: [{node: 1, frame: 'deck', frameNode: x}],
+    };
+  };
+  return {
+    ...header, world: {gravity: [0, -G, 0], ground: false, seed: 1, step: 1 / 240, subSteps: 4},
+    materials: {}, joints: [],
+    bodies: [{id: 'load', shape: {kind: 'sphere', radius: ballRadius}, position: [loadNode, 0, 0], density: ballDensity, neverSleeps: true, color: 0xD9412B}],
+    frames: [{id: 'deck', nodes, elements, fixed, drag, attachments: [{node: loadNode, body: 'load'}]}],
+    cables: [stay('stay-left', 2), stay('stay-right', 6)],
+    meta: {title: 'Cable-stayed deck', description: 'A steel deck on a pin and a roller, two stays from a tower top, and a ball pinned to the deck.'},
+  };
+}
+
+/** The coupled examples by name, each called with its defaults. Load them with a Simulation (`loadSimulationScene`, the kit's `loadScene`). */
+export const COUPLED_EXAMPLE_SCENES: {readonly [name: string]: () => Scene} = Object.freeze({
+  'moored-buoy': () => mooredBuoyScene(),
+  'cable-stayed-deck': () => cableStayedDeckScene(),
+});

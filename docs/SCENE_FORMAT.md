@@ -1,6 +1,6 @@
 # Scene format (`box3d-scene`, version 1)
 
-A scene file is plain JSON that says how to build a rigid-body scene: the world settings, the bodies and the joints. It can be validated, loaded, saved, diffed, hashed and packed into a share link. The code is `src/engine/scene-format.ts`, published by the kit as `box3d-webgpu-kit/scene` (`packages/box3d-kit/src/scene.ts`) and used by the Physics Lab ([In the Physics Lab](#in-the-physics-lab)); the tests are `packages/box3d-kit/test/v12-scene.test.mjs`.
+A scene file is plain JSON that says how to build a scene: the world settings, the rigid bodies and the joints, and optionally water basins, cables and frames coupled to those bodies ([Coupled sections](#coupled-sections-water-cables-frames)). It can be validated, loaded, saved, diffed, hashed and packed into a share link. The code is `src/engine/scene-format.ts`, published by the kit as `box3d-webgpu-kit/scene` (`packages/box3d-kit/src/scene.ts`) and used by the Physics Lab ([In the Physics Lab](#in-the-physics-lab)); the tests are `packages/box3d-kit/test/v12-scene.test.mjs` and, for the coupled sections, `packages/box3d-kit/test/v14-simulation.test.mjs`.
 
 The native solver cannot serialise its internal state. A scene file therefore describes how to **build** a scene, and may also carry the pose and velocity each body had when it was saved. [Save and resume](#save-and-resume) lists exactly what that does and does not restore.
 
@@ -64,7 +64,7 @@ Units are SI throughout: metres, kilograms (through density in kg/m³), seconds,
 
 ## Schema
 
-A key that is not listed here is an error, everywhere except inside `userData` and `extensions`. "Number" always means a finite number that fits a float32, because that is what the solver stores.
+A key that is not listed here is an error, everywhere except inside `userData` and `extensions`. "Number" means a finite number that fits a float32, because that is what the rigid solver stores; in the `water`, `cables` and `frames` sections it means any finite float64, because those solvers are float64.
 
 ### Top level
 
@@ -77,6 +77,9 @@ A key that is not listed here is an error, everywhere except inside `userData` a
 | `materials` | object, name → material | no | `{}` | |
 | `bodies` | array of bodies | yes | | May be empty. Built in this order. |
 | `joints` | array of joints | no | `[]` | Built in this order, after all bodies. |
+| `water` | array of basins | no | absent | See [Coupled sections](#coupled-sections-water-cables-frames). Needs a Simulation to run. |
+| `cables` | array of cables | no | absent | |
+| `frames` | array of frames | no | absent | |
 | `meta` | object | no | | `title`, `description`, `author`, `created`: strings. `created` must be a date `Date.parse` accepts. |
 | `extensions` | object | no | | Any JSON. Preserved by load, save, canonicalize and links; ignored otherwise. |
 
@@ -169,11 +172,91 @@ Wheel steering (`setJointSteering`) is a runtime call, not part of `JointOptions
 
 `rotationEuler` is for files written by hand. It holds degrees about the X, Y and Z axes, combined as `q = qx · qy · qz`: a vector is turned about Z first, then Y, then X (the three.js `'XYZ'` order). `normalizeScene`, `canonicalize`, `loadScene` and the link encoder turn it into `rotation`; a saved or canonical scene never contains `rotationEuler`. `eulerToQuaternion` is exported.
 
+## Coupled sections: water, cables, frames
+
+Three optional top-level arrays describe solvers that are coupled to the scene's bodies. A scene that has any of them is a *coupled scene*: it is stepped by a `Simulation` ([`SIMULATION.md`](SIMULATION.md)), which the kit's `loadScene` returns. Ids of basins, cables and frames share the namespace of body and joint ids. Numbers in these sections are float64. The solvers take the world's `step` and `gravity`; neither is repeated here.
+
+### `water`: basins
+
+One closed, flat-bottom shallow-water basin per entry ([`WATER_COUPLING.md`](WATER_COUPLING.md)). At most 8 basins of at most 65,536 cells each.
+
+| Key | Type | Required | Default | Notes |
+|---|---|---|---|---|
+| `id` | string | yes | | |
+| `cols`, `rows` | integer ≥ 3 | yes | | Cells along world x and z. |
+| `dx`, `dz` | number > 0 | yes | | Cell size, m. `step · sqrt(g · restDepth) · hypot(1/dx, 1/dz)` must be at most 0.8; the validator checks it with the scene's step and gravity. |
+| `restDepth` | number > 0 | yes | | m. |
+| `origin` | `[x, y, z]` | yes | | The basin floor at the grid's minimum-x, minimum-z corner. |
+| `density` | number > 0 | no | 1000 | kg/m³. |
+| `waterDrag` | number ≥ 0 | no | 0 | Bottom friction, 1/s. |
+| `eta`, `u`, `v` | `cols · rows` numbers each | no | zero | State: surface elevation above rest (m) and the two face velocities (m/s), exactly as the solver holds them (the velocities are half a step behind `eta`). A save writes them. |
+| `bodies` | array | no | `[]` | The bodies that float: `{body, dragCoefficient?, referenceArea?, linearDrag?, angularDrag?}`. `body` is the id of a box, sphere or capsule body; the drag options are those of `WaterCoupling.attach` and take its defaults. A body may be in one basin only. |
+
+The basin's floor and walls are not bodies. Put a static body where the floor is if something may sink.
+
+### `cables`
+
+One tension-only cable per entry ([`COMPLIANT_CABLE.md`](COMPLIANT_CABLE.md), [`NONLINEAR_CABLE.md`](NONLINEAR_CABLE.md)). At most 1,024 cables of at most 16,384 nodes.
+
+| Key | Type | Required | Default | Notes |
+|---|---|---|---|---|
+| `id` | string | yes | | |
+| `solver` | `"proximal"` or `"xpbd"` | no | `"proximal"` | |
+| `nodes` | `[x, y, z, ...]` | yes | | Node positions, m. A save writes the current ones. |
+| `masses` | one number per node | yes | | kg, 1e-9 to 1e12. At least 2 nodes. |
+| `pinned` | 0 or 1 per node | no | all 0 | 1 is a fixed anchor in the world. |
+| `velocities` | `[x, y, z, ...]` | no | zero | m/s. Zero on pinned nodes. |
+| `segments` | array of `{a, b, restLength, compliance}` | yes | | `a ≠ b` are node indices; `restLength` in m; `compliance` in m/N is `restLength / (E A)`, and 0 is inextensible. |
+| `substeps` | integer 1..16 | no | 1 | A cable with `drag` needs 1. |
+| `maxIterations` | integer | no | 64 | Up to 4096 (proximal) or 256 (xpbd). |
+| `residualTolerance` | number in [0, 0.01] | no | 1e-10 | |
+| `forceTolerance` | number in [0, 1] | no | 1e-6 | N; proximal solver only. |
+| `drag` | number in [0, 1000] | no | 0 | Mass-proportional damping, 1/s. |
+| `attachments` | array | no | `[]` | See below. |
+
+A cable attachment ties a free node (not pinned, with a segment, attached once) to one carrier:
+
+- `{node, body, inertia?, localPoint?}`: a point fixed on a body. The cable pulls on the body there.
+- `{node, frame, frameNode}`: a node of a frame of this scene.
+
+### `frames`
+
+One linear beam frame per entry ([`FRAME_MECHANICS.md`](FRAME_MECHANICS.md)). At most 64 frames of at most 4,096 nodes and 8,192 elements. A coupled frame steps with one sub-step.
+
+| Key | Type | Required | Default | Notes |
+|---|---|---|---|---|
+| `id` | string | yes | | |
+| `nodes` | `[x, y, z, ...]` | yes | | Rest positions, m. At least 2 nodes. |
+| `elements` | array | yes | | `{a, b, youngModulus, shearModulus, area, iy, iz, torsionConstant, density, up}`: all required, SI. `up` is a direction with components in [-1, 1] that is not parallel to the element. |
+| `fixed` | six 0 or 1 per node | no | all 0 | Translation x, y, z, then rotation x, y, z. 1 holds the degree of freedom at zero. |
+| `pointMasses` | one number per node | no | zero | kg. |
+| `pointInertias` | three numbers per node | no | zero | kg·m². |
+| `displacements`, `velocities` | six numbers per node | no | zero | State. Zero on fixed degrees of freedom. A save writes them. |
+| `drag` | number in [0, 1000] | no | 0 | 1/s. |
+| `maxIterations` | integer 1..1024 | no | 1024 | |
+| `forceTolerance`, `momentTolerance`, `impulseTolerance`, `angularImpulseTolerance` | number | no | 1e-9, 1e-9, 1e-10, 1e-10 | N, N·m, N·s, N·m·s. |
+| `attachments` | array | no | `[]` | `{node, body, mode?, inertia?, localPoint?}`. `mode` is `"pinned"` (default; forces only) or `"clamped"` (forces and moments). All attachments of all frames together may need at most 96 equations: 3 per pinned, 6 per clamped. |
+
+### Attachments to bodies
+
+- `inertia` is the body's rotational inertia, which the world does not report: `{kind: "box", halfExtents}`, `{kind: "sphere", radius}`, `{kind: "capsule", radius, halfLength}`, `{kind: "principal", moments: [Ix, Iy, Iz]}` or `{kind: "locked"}`. When it is left out it is taken from the body's shape, which works for a box, a sphere or a capsule; for any other shape it is required.
+- `localPoint` is the attachment point in body axes. When it is left out, it is where the node is when the scene is built. State `[0, 0, 0]` for an attachment at the centre of mass: the body's position is a float32 and the node's a float64, so the computed offset is otherwise one rounding step, not zero.
+- The body's `gravityScale` is passed on.
+- Attached bodies should have `neverSleeps: true`: the couplings do not wake bodies.
+
+### What is built, and in which order
+
+After the bodies and joints: every frame, then every cable, in file order; one structure coupling that is handed all of them; the cables' attachments, cable by cable in file order; the frames' attachments; then each basin and its bodies. The order is part of the format: it fixes the bits of a run. `loadScene` returns the basins, cables, frames, the coupling and the live attachment reports next to the bodies and joints ([`SIMULATION.md`](SIMULATION.md#scenes)).
+
+### Canonical form of the sections
+
+A section that is absent or empty is left out of the normal form, so a scene of rigid bodies and joints has the canonical text and `sceneHash` it has always had. Inside a section, a value equal to its default is left out (`solver: "proximal"`, `substeps: 1`, `density: 1000`, an all-zero `eta`, `velocities`, `fixed`, …), and `-0` is written as `0`. Order is kept, because it is the build order.
+
 ## Validation
 
 `validateScene(json)` checks all of the above before anything is built and returns a list of `{path, message}`. `path` is a JSON pointer (RFC 6901) into the scene, for example `/bodies/3/shape/radius`, `/joints/0/bodyB` or `/bodies/1/shape/indices/4`; an empty list means the scene is valid. It never throws.
 
-It reports: unknown keys, missing required keys, wrong types, non-finite numbers and numbers that do not fit a float32, out-of-range sizes, duplicate ids (with the path of the first use), joints that name a missing body, unknown material names, mesh indices out of range, filter bits that are not decimal strings, and every limit below. A wrong `format` or an unknown `version` is reported alone, because nothing else can be trusted. At most 100 problems are listed.
+It reports: unknown keys, missing required keys, wrong types, non-finite numbers and numbers that do not fit a float32, out-of-range sizes, duplicate ids (with the path of the first use), joints that name a missing body, unknown material names, mesh indices out of range, filter bits that are not decimal strings, and every limit below. In the coupled sections it also reports a basin that would be unstable at the scene's step, a body that cannot float (a hull, mesh or height field), a body in two basins, an attachment to a missing body, frame or node, a pinned or unconnected cable node that is attached, a missing `inertia` where the shape cannot supply it, a moving fixed degree of freedom, and too many frame equations. A wrong `format` or an unknown `version` is reported alone, because nothing else can be trusted. At most 100 problems are listed.
 
 `loadScene`, `canonicalize`, `sceneHash`, `normalizeScene` and the link functions throw `SceneValidationError` for an invalid scene. It is an `EngineError` with code `INVALID_PAYLOAD`; its message holds the first five problems and its `problems` property holds them all.
 
@@ -181,12 +264,15 @@ Validation is structural. The engine can still refuse geometry it cannot use, su
 
 ## Loading
 
-`loadScene(world, scene)` returns `{bodies: Map<id, Body>, joints: Map<id, Joint>, builder, scene}`.
+`loadScene(world, scene)` returns `{bodies: Map<id, Body>, joints: Map<id, Joint>, builder, scene, simulation, water, cables, frames, structure, attachments}`. `simulation` is a ready [`Simulation`](SIMULATION.md): call `simulation.step()` instead of `world.step()`. For a scene without coupled sections the two are the same thing, and the maps are empty.
 
 1. The scene is validated. If it is invalid, the world is **not touched**.
 2. The world's step and sub-steps are compared with the scene's. If they differ, `EngineError('INVALID_STATE')` is thrown and the world is not touched.
 3. The world is reset to `scene.world` and its body capacity is raised if the scene needs more. Every body is created in file order, then every joint in file order.
 4. If the engine refuses a body or a joint, the world is reset again, so it holds none of the scene's bodies (only the ground slab, if the scene asked for one), and the error message starts with `Scene body "<id>":` or `Scene joint "<id>":`.
+5. The coupled sections are built ([order](#what-is-built-and-in-which-order)). A frame, cable or basin the engine refuses is handled like a refused body: the world is reset, and the message starts with `Scene frame "<id>":`, `Scene cable "<id>":` or `Scene water "<id>":`.
+
+The loader in `src/engine/scene-format.ts` that the Physics Lab uses has no solvers for the coupled sections. It throws `EngineError('INVALID_STATE')` for a scene that has them and does not touch the world. `loadSimulationScene` (`box3d-webgpu-kit/simulation`) is the loader that builds them; the kit's `loadScene` calls it.
 
 Loading the same scene always gives the same `world.exactHash()` after the same number of steps, on the same WASM build.
 
@@ -201,13 +287,16 @@ A save carries, read from the solver at that moment:
 
 A value the solver still holds unchanged is written exactly as it was authored, so saving a scene before the first step gives back the scene.
 
+A save of a coupled scene also carries each basin's `eta`, `u` and `v`, each cable's node positions and velocities, and each frame's displacements and velocities, as the solvers hold them (float64, bit-exact). Entries that name a body that no longer exists are left out.
+
 A save does **not** carry:
 
 - sleep state (every body that can move is awake after loading);
 - the contact impulses and joint impulses the solver warm-starts from (it starts them from zero);
 - forces and torques applied for the next step;
 - the tick count (`world.tick` is 0 after loading);
-- settings changed on the world directly, such as `setJointMotor`, `setJointLimits`, `setJointSpring`, `setJointSteering`, `setDamping`, `setGravityScale` and `setCollisionFilter`. The saved scene has the values the body or joint was created with.
+- settings changed on the world directly, such as `setJointMotor`, `setJointLimits`, `setJointSpring`, `setJointSteering`, `setDamping`, `setGravityScale` and `setCollisionFilter`. The saved scene has the values the body or joint was created with;
+- in a coupled scene: the structure coupling's own state (last step's interface impulses and the pending half of the frame impulse, so the saved velocity of a body resting on a frame is off by about `g · step / 2`), the cable solver's multipliers, attachments made or removed on the coupling directly, and one step's change of displaced volume (after a load, a body that is in the water is taken as part of the starting state).
 
 Measured (`v12-scene.test.mjs`, each example run for 100 ticks, saved, loaded into a new world):
 
@@ -221,8 +310,12 @@ Measured (`v12-scene.test.mjs`, each example run for 100 ticks, saved, loaded in
 | Car on terrain (rolling contact, springs) | 1.6e-4 m | 5e-3 m |
 | Domino run (dominoes mid-fall) | 1.1e-2 m | 5e-2 m |
 | Ragdoll (toppling; compared as its head strikes the ground at 7 m/s) | 6.9e-2 m | 0.4 m |
+| Moored buoy (coupled; saved mid-swing at tick 240, compared 240 ticks later) | buoy 6.1e-6 m; water surface 4.0e-5 m | 1e-4 m; 4e-4 m |
+| Cable-stayed deck (coupled; same ticks) | ball 1.6e-8 m; deck 4.3e-7 m | 2e-7 m; 4e-6 m |
 
-A resumed run is a valid simulation from the saved state. It is not a bit-exact continuation; for that, record and replay (`startRecording`, `replay`).
+The two coupled rows are measured by `v14-simulation.test.mjs`; their fields are bit-identical at the moment of loading.
+
+A resumed run is a valid simulation from the saved state. It is not a bit-exact continuation; for that, record and replay (`startRecording`, `replay`), which do not cover coupled scenes.
 
 ## Canonical form and hash
 
@@ -302,7 +395,7 @@ The Lab draws hulls, meshes and height fields from their own geometry; see [`REN
 
 For the browser console and for tests the page has `box3dLab.sceneState()` (title, source, body and joint counts, shape kinds, tick, scene steps taken, `sceneHash`, `exactHash`, replay hash), `box3dLab.stepSceneTo(tick)` (step without waiting for frames, then report the state) and `box3dLab.sceneJson()` (what Download would save).
 
-Not in the Lab yet: editing a scene, choosing density or scale by hand, importing one body per object of a file, and textures or colours from the geometry file. The Studio does not read scenes.
+Not in the Lab yet: scenes with `water`, `cables` or `frames` (the Lab refuses them with a message; it has no Simulation), editing a scene, choosing density or scale by hand, importing one body per object of a file, and textures or colours from the geometry file. The Studio does not read scenes.
 
 ## Limits
 
@@ -317,7 +410,11 @@ Not in the Lab yet: editing a scene, choosing density or scale by hand, importin
 | Hull points | 4,096 (Box3D keeps 64 vertices) |
 | Mesh vertices / triangles | 1,048,576 / 2,097,152 |
 | Height-field side | 4,096 samples |
-| Numbers in all geometry arrays of one scene | 8,000,000 |
+| Numbers in all geometry arrays of one scene, the arrays of the coupled sections included | 8,000,000 |
+| Water basins / cells in one basin | 8 / 65,536 |
+| Cables / nodes in one cable | 1,024 / 16,384 |
+| Frames / nodes / elements in one frame | 64 / 4,096 / 8,192 |
+| Equations of all frame attachments (3 per pinned, 6 per clamped) | 96 |
 | One `userData`, or `extensions` | 65,536 characters of JSON, 32 levels deep |
 | A `meta` string | 4,096 characters |
 | Problems listed by `validateScene` | 100 |
@@ -332,6 +429,7 @@ A world has room for 4,096 bodies unless it was created with a larger `capacity`
 - A reader accepts exactly the versions it knows. Version 1 readers reject any other number with `unsupported scene version N; this build reads version 1 only`, and do not guess.
 - Within version 1 the schema is closed: unknown keys are errors. That keeps typos from being silently ignored and keeps canonical text and hashes well defined.
 - Additive data that a version 1 reader may ignore goes in `extensions` (scene-wide) or `userData` (per body or joint). Use a key you own, for example your tool's name.
+- The `water`, `cables` and `frames` sections were added to version 1 without a new number. They are optional, a scene without them is byte for byte the scene it was (same canonical text, same `sceneHash`), and a reader from before them does not misread a scene that has them: it rejects it with `/water: unknown key "water"`, because the schema is closed. A reader cannot tell from the version alone whether it can run a file; `sceneHasCoupling(scene)` says whether a scene needs a Simulation.
 - Any change that a version 1 reader would misread, such as a new required key, a new shape kind, a changed default or a changed meaning, gets a new `version`. A later reader will keep reading version 1 files.
 - Share links have their own version in the prefix (`b3s1`). A new compression or framing gets a new prefix; version 1 links stay readable.
 - Canonical text and `sceneHash` are defined by the scene version. They are stable for version 1.
@@ -348,5 +446,12 @@ A world has room for 4,096 bodies unless it was created with a larger `capacity`
 | `dominoRunScene()` | 12 boxes; the first leans past its tipping point. |
 | `terrainCarScene()` | A chassis on four wheel joints with suspension and motors, on a height field. No ground slab. |
 | `ragdollScene()` | A capsule torso, a sphere head and 8 capsule limbs on 9 spherical joints with cone and twist limits. |
+
+`COUPLED_EXAMPLE_SCENES` maps two more names to scenes with coupled sections. They are kept out of `EXAMPLE_SCENES` because a loader without a Simulation, such as the Lab's, cannot open them.
+
+| Function | Contents |
+|---|---|
+| `mooredBuoyScene()` | A sphere floating in an 8 m × 8 m basin, held under its free waterline by a compliant cable to the bed. At rest the cable carries the buoyancy minus the weight (1337 N); released to the side it swings back and settles. |
+| `cableStayedDeckScene()` | An 8 m steel deck on a pin and a roller, two stays from a tower top, a ball pinned to the deck. Stay tensions and deflection match hand statics to 1.4e-4. |
 
 Two engine behaviours showed up while building the cradle and are worth knowing when you write scenes: restitution is not applied to slow impacts (a 0.44 m/s impact passed on 23% of its speed, a 1.85 m/s impact 99.6%), and balls that touch at rest do not pass the impulse cleanly, so the scene leaves a 2 mm gap.

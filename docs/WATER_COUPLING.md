@@ -29,7 +29,7 @@ water.step();   // 1. reads bodies at t, applies the water's forces for t -> t +
 world.step();   // 2. advances the bodies to t + dt
 ```
 
-**Order.** Call `water.step()` once per fixed step, immediately before `world.step()`. `world.onStep(() => water.step())` gives the same sequence shifted by one step (the first rigid step then has no water forces); `onStep` listeners do not run during `replay()`.
+**Order.** Call `water.step()` once per fixed step, immediately before `world.step()`, or register the coupling with a `Simulation` (`waterSubsystem`, [`SIMULATION.md`](SIMULATION.md)), which does that for you and puts it after a structure coupling when there is one. `world.onStep(() => water.step())` gives the same sequence shifted by one step (the first rigid step then has no water forces); `onStep` listeners do not run during `replay()`.
 
 **Rules.** The coupling's `dt` must equal the world's fixed step (it defaults to `world.loop.step` and throws on a mismatch). Gravity is read from `world.gravity()` every step; only its downward part is used. The grid must satisfy the closed-water limits (`dt·sqrt(g·H)·hypot(1/dx, 1/dz) ≤ 0.8`, at least 3×3 cells). `attach` needs the shape again because the world does not report it. A body that is already wet at its first step is taken as part of the starting state: the water is assumed to stand around it, so attaching makes no wave and `waterVolume()` drops by its displaced volume once. `detach`, or destroying the body, hands the displaced volume back to the water in the next step. Kinematic and static bodies displace water and exchange momentum with it but receive no force.
 
@@ -157,4 +157,5 @@ Notes on three of these:
 - A body that hangs over the basin edge displaces only the share of its wet volume that is over the grid (sampled on 24 × 24 vertical chords); there is no water outside the grid.
 - Attached bodies are kept awake by the applied forces.
 - CPU only. The WebGPU closed-water solver is not coupled; `copyTo()` writes the state into the float32 closed-water arrays for rendering.
-- Not yet used by a scene, the Lab or the Studio, and not covered by record/replay (the world rejects `applyForce` while recording).
+- A scene file can describe a basin and its bodies ([`SCENE_FORMAT.md`](SCENE_FORMAT.md#coupled-sections-water-cables-frames)) and the kit loads it; the Lab and the Studio do not run it. Not covered by record/replay (the world rejects `applyForce` while recording).
+- A body that is also attached to a cable or a frame: the structure coupling does not see the water's force in its interface solve. [`SIMULATION.md`](SIMULATION.md#water-and-structure-together) has the measured cost.

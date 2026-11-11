@@ -189,4 +189,4 @@ Two tolerances were set after a first measurement and are stated as such:
 - **The explicit limit is the no-overshoot limit**, which is what the solver enforces. It is never looser than the true stability limit.
 - **Solver cost.** Jacobi-preconditioned conjugate gradients needs a number of iterations that grows with the grid size for steady problems (36, 106 and 313 iterations for the 9², 27² and 81² plates). There is no multigrid. At most 2,097,152 cells.
 - **The thermal stress helpers are one-way** and assume full restraint (or the free, non-bending plate with `reference: 'mean'`). They do not replace a stress analysis, and they are not yet connected to a fracture solver in the repository.
-- CPU, float64, one thread. Not yet used by a scene, the Lab or the Studio.
+- CPU, float64, one thread. It plugs into the shared stepping loop (`heatSubsystem`) and can drive a solid's thermal strain one-way (`thermalSolidLink`); see [`SIMULATION.md`](SIMULATION.md). Not in the scene format, and not used by the Lab or the Studio.

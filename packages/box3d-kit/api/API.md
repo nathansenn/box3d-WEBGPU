@@ -3119,6 +3119,14 @@ export interface FrameBodyAttachOptions extends BodyAttachOptions {
 }
 ```
 
+### principalMoments · function
+
+Principal moments of inertia (body axes, kg m^2) of a body of the given mass, or null for a locked body.
+
+```ts
+export declare function principalMoments(inertia: StructureInertia, mass: number): [number, number, number] | null;
+```
+
 ### STRUCTURE_COUPLING_BACKEND · const
 
 Two-way coupling of rigid bodies with cables (compliant-cable.ts) and frames (frame-runtime.ts).
@@ -3882,6 +3890,24 @@ export declare function weldVertices(mesh: MeshLike, tolerance?: number): Triang
 
 ## `box3d-webgpu-kit/scene`
 
+### cableStayedDeckScene · function
+
+A small cable-stayed deck: an 8 m steel beam of 8 elements on a pin and a
+roller, two stays from a fixed tower top 3 m above midspan to the deck at
+2 m and 6 m, and a ball pinned to deck node `loadNode` (1 to 7). It is the
+span of the structure-coupling validation, so its stay tensions and its
+deflection have a hand solution (docs/STRUCTURE_COUPLING.md).
+
+```ts
+export declare function cableStayedDeckScene(options?: {
+    loadNode?: number;
+    ballRadius?: number;
+    ballDensity?: number;
+    stayRigidity?: number;
+    drag?: number;
+}): Scene;
+```
+
 ### canonicalize · function
 
 The canonical text of a scene: its normal form (see normalizeScene) as JSON
@@ -3895,6 +3921,16 @@ hashes and links always use the compact text.
 export declare function canonicalize(scene: unknown, options?: {
     readonly pretty?: boolean;
 }): string;
+```
+
+### COUPLED_EXAMPLE_SCENES · const
+
+The coupled examples by name, each called with its defaults. Load them with a Simulation (`loadSimulationScene`, the kit's `loadScene`).
+
+```ts
+export declare const COUPLED_EXAMPLE_SCENES: {
+    readonly [name: string]: () => Scene;
+};
 ```
 
 ### decodeSceneLink · function
@@ -3979,6 +4015,12 @@ export interface LoadedScene {
     readonly joints: Map<string, Joint>;
     readonly builder: SceneBuilder;
     readonly scene: Scene;
+    readonly simulation: Simulation<PhysicsWorld, Body>;
+    readonly water: Map<string, WaterCoupling<Body>>;
+    readonly cables: Map<string, CompliantCableRuntime>;
+    readonly frames: Map<string, FrameRuntime>;
+    readonly structure: StructureCoupling<Body> | null;
+    readonly attachments: Map<string, StructureAttachment>;
 }
 ```
 
@@ -3997,8 +4039,35 @@ the scene needs more than it has.
   the scene's settings with none of the scene's bodies in it, and the error
   names the offending id.
 
+The scene's `water`, `cables` and `frames` sections are built after the
+joints, and the result carries a ready `simulation` that steps the world
+and all of them. A rigid-only scene builds exactly what it always did.
+
 ```ts
 export declare function loadScene(world: PhysicsWorld, scene: unknown): LoadedScene;
+```
+
+### mooredBuoyScene · function
+
+A buoy moored to the bed: a sphere of radius `radius` and density `density`
+floats in an 8 m x 8 m basin `depth` deep and is held under its free
+waterline by one compliant cable (rest length `cableLength`, axial rigidity
+`axialRigidity` in newtons) from a fixed anchor on the bed to its centre.
+`offset` moves the buoy sideways at the start. At rest the cable tension is
+the buoyancy minus the weight of the buoy and of the cable's upper node.
+
+```ts
+export declare function mooredBuoyScene(options?: {
+    radius?: number;
+    density?: number;
+    depth?: number;
+    cableLength?: number;
+    axialRigidity?: number;
+    offset?: number;
+    linearDrag?: number;
+    waterDrag?: number;
+    lineDensity?: number;
+}): Scene;
 ```
 
 ### newtonsCradleScene · function
@@ -4025,7 +4094,8 @@ export declare function newtonsCradleScene(options?: {
 The normal form of a valid scene, as a new object: every world setting
 present, `rotationEuler` turned into `rotation`, values equal to the engine
 defaults dropped, -0 written as 0, `units`, `materials` and `joints` always
-present. Body and joint order is kept, because it is the build order. Throws
+present; `water`, `cables` and `frames` present only when they hold something.
+Body and joint order is kept, because it is the build order. Throws
 SceneValidationError for an invalid scene. Normalising twice changes nothing.
 
 ```ts
@@ -4095,6 +4165,9 @@ export interface Scene {
     };
     readonly bodies: readonly SceneBody[];
     readonly joints?: readonly SceneJoint[];
+    readonly water?: readonly SceneWater[];
+    readonly cables?: readonly SceneCable[];
+    readonly frames?: readonly SceneFrameSection[];
     readonly meta?: SceneMeta;
     readonly extensions?: {
         readonly [key: string]: unknown;
@@ -4126,6 +4199,14 @@ export declare const SCENE_LIMITS: Readonly<{
     userDataChars: 65536;
     depth: 32;
     metaChars: 4096;
+    waterBasins: 8;
+    waterCells: 65536;
+    cables: 1024;
+    cableNodes: 16384;
+    frames: 64;
+    frameNodes: 4096;
+    frameElements: 8192;
+    frameBodyEquations: 96;
     problems: 100;
     linkChars: 1048576;
     linkSceneBytes: 4194304;
@@ -4225,6 +4306,66 @@ export declare class SceneBuilder extends CoreSceneBuilder<PhysicsWorld> {
 }
 ```
 
+### SceneCable · interface
+
+A tension-only cable (docs/COMPLIANT_CABLE.md, docs/NONLINEAR_CABLE.md). It steps with the world's step and gravity. Numbers are float64.
+
+```ts
+export interface SceneCable {
+    readonly id: string;
+    readonly solver?: 'proximal' | 'xpbd';
+    readonly nodes: readonly number[];
+    readonly masses: readonly number[];
+    readonly pinned?: readonly number[];
+    readonly velocities?: readonly number[];
+    readonly segments: readonly SceneCableSegment[];
+    readonly substeps?: number;
+    readonly maxIterations?: number;
+    readonly residualTolerance?: number;
+    readonly forceTolerance?: number;
+    readonly drag?: number;
+    readonly attachments?: readonly SceneCableAttachment[];
+}
+```
+
+### SceneCableAttachment · interface
+
+A free cable node attached to a point on a body (`body`), or to a frame node (`frame` and `frameNode`).
+
+```ts
+export interface SceneCableAttachment {
+    readonly node: number;
+    readonly body?: string;
+    readonly frame?: string;
+    readonly frameNode?: number;
+    readonly inertia?: SceneInertia;
+    readonly localPoint?: SceneVec3;
+}
+```
+
+### SceneCableSegment · interface
+
+```ts
+export interface SceneCableSegment {
+    readonly a: number;
+    readonly b: number;
+    readonly restLength: number;
+    readonly compliance: number;
+}
+```
+
+### SceneCoupledSections · interface
+
+The optional coupled sections of a scene.
+
+```ts
+export interface SceneCoupledSections {
+    readonly water?: readonly SceneWater[];
+    readonly cables?: readonly SceneCable[];
+    readonly frames?: readonly SceneFrameSection[];
+}
+```
+
 ### SceneFilter · interface
 
 ```ts
@@ -4243,6 +4384,69 @@ export interface SceneFrame {
     readonly rotation?: SceneQuat;
     readonly rotationEuler?: SceneVec3;
 }
+```
+
+### SceneFrameAttachment · interface
+
+A frame node attached to a point on a body: 'pinned' (forces) or 'clamped' (forces and moments).
+
+```ts
+export interface SceneFrameAttachment {
+    readonly node: number;
+    readonly body: string;
+    readonly mode?: 'pinned' | 'clamped';
+    readonly inertia?: SceneInertia;
+    readonly localPoint?: SceneVec3;
+}
+```
+
+### SceneFrameElement · interface
+
+```ts
+export interface SceneFrameElement {
+    readonly a: number;
+    readonly b: number;
+    readonly youngModulus: number;
+    readonly shearModulus: number;
+    readonly area: number;
+    readonly iy: number;
+    readonly iz: number;
+    readonly torsionConstant: number;
+    readonly density: number;
+    readonly up: SceneVec3;
+}
+```
+
+### SceneFrameSection · interface
+
+A linear beam frame (docs/FRAME_MECHANICS.md). It steps with the world's step and gravity, one sub-step. Numbers are float64.
+
+```ts
+export interface SceneFrameSection {
+    readonly id: string;
+    readonly nodes: readonly number[];
+    readonly elements: readonly SceneFrameElement[];
+    readonly fixed?: readonly number[];
+    readonly pointMasses?: readonly number[];
+    readonly pointInertias?: readonly number[];
+    readonly displacements?: readonly number[];
+    readonly velocities?: readonly number[];
+    readonly drag?: number;
+    readonly maxIterations?: number;
+    readonly forceTolerance?: number;
+    readonly momentTolerance?: number;
+    readonly impulseTolerance?: number;
+    readonly angularImpulseTolerance?: number;
+    readonly attachments?: readonly SceneFrameAttachment[];
+}
+```
+
+### sceneHasCoupling · function
+
+True when a scene has a water basin, a cable or a frame: it then needs a Simulation, not just a rigid world.
+
+```ts
+export declare function sceneHasCoupling(scene: SceneCoupledSections): boolean;
 ```
 
 ### sceneHash · function
@@ -4284,6 +4488,29 @@ export interface SceneHost {
     gravity(): [number, number, number];
     bodyCount(): number;
 }
+```
+
+### SceneInertia · type
+
+Rotational inertia of an attached body: the world reports mass only. Default: from the body's box, sphere or capsule shape.
+
+```ts
+export type SceneInertia = {
+    readonly kind: 'box';
+    readonly halfExtents: SceneVec3;
+} | {
+    readonly kind: 'sphere';
+    readonly radius: number;
+} | {
+    readonly kind: 'capsule';
+    readonly radius: number;
+    readonly halfLength: number;
+} | {
+    readonly kind: 'principal';
+    readonly moments: SceneVec3;
+} | {
+    readonly kind: 'locked';
+};
 ```
 
 ### SceneJoint · interface
@@ -4416,6 +4643,42 @@ export declare class SceneValidationError extends EngineError {
 export type SceneVec3 = readonly [number, number, number];
 ```
 
+### SceneWater · interface
+
+One closed, flat-bottom shallow-water basin (docs/WATER_COUPLING.md). Numbers here are float64.
+
+```ts
+export interface SceneWater {
+    readonly id: string;
+    readonly cols: number;
+    readonly rows: number;
+    readonly dx: number;
+    readonly dz: number;
+    readonly restDepth: number;
+    readonly origin: SceneVec3;
+    readonly density?: number;
+    readonly waterDrag?: number;
+    readonly eta?: readonly number[];
+    readonly u?: readonly number[];
+    readonly v?: readonly number[];
+    readonly bodies?: readonly SceneWaterBody[];
+}
+```
+
+### SceneWaterBody · interface
+
+Per-body drag settings of a body in a water basin. Omitted values take the coupling's defaults.
+
+```ts
+export interface SceneWaterBody {
+    readonly body: string;
+    readonly dragCoefficient?: number;
+    readonly referenceArea?: number;
+    readonly linearDrag?: number;
+    readonly angularDrag?: number;
+}
+```
+
 ### SceneWorld · interface
 
 ```ts
@@ -4463,4 +4726,395 @@ empty list means the scene is valid. Never throws, whatever it is given.
 
 ```ts
 export declare function validateScene(scene: unknown): SceneProblem[];
+```
+
+## `box3d-webgpu-kit/simulation`
+
+### buildSceneSimulation · function
+
+Build the water, cable and frame sections of a scene whose bodies and joints `builder` has already
+built, and return the Simulation that steps them. Build order: frames, then cables (file order),
+one StructureCoupling with the cables' attachments (cable by cable, in file order) and then the
+frames' attachments; then the basins and their bodies. A rigid-only scene gives a Simulation with
+no subsystems, whose step is `world.step()`. On a failure the world is reset and the error names the id.
+
+```ts
+export declare function buildSceneSimulation<W extends SimulationSceneWorld>(world: W, builder: SceneBuilder<W>, scene: Scene): LoadedSimulationScene<W>;
+```
+
+### cellTemperaturesToNodes · function
+
+Temperature rise at the nodes of a box mesh from the cell temperatures of a co-located heat grid.
+Heat cell (i, j, k) is at index i + nx (j + ny k) and node (i, j, k) at i + (nx + 1) (j + (ny + 1) k).
+A node takes the mean of the cells that touch it (one at a corner, eight inside), minus `reference`.
+
+```ts
+export declare function cellTemperaturesToNodes(temperature: ArrayLike<number>, cells: readonly [number, number, number], reference: number, out: number[] | Float64Array): number[] | Float64Array;
+```
+
+### createSimulation · function
+
+A Simulation that owns the stepping of `world`. Register subsystems with `add`, then call `step()` instead of `world.step()`.
+
+```ts
+export declare function createSimulation(world: PhysicsWorld, options?: SimulationOptions): WorldSimulation;
+```
+
+### deadLoadLink · function
+
+ONE-WAY rigid -> solid: the weight of a rigid body, m g, is put on solid nodes as a dead load. The solid's deflection
+does not move the body, and nothing here holds the body up: support it in the rigid world. There is no contact.
+With `faces` the weight is spread as a uniform traction over those boundary faces (each node of a face takes a third of
+the face's share by area); with `nodes` it is shared equally. The link owns the point forces of those nodes: it replaces
+them. The mass and gravity are read from the world each step; a destroyed body takes its weight away. Post stage, before the solid.
+
+```ts
+export declare function deadLoadLink<W extends SimulationWorld<B>, B>(body: B, solid: SolidBody, options: {
+    readonly id?: string;
+    readonly faces?: ArrayLike<number>;
+    readonly nodes?: ArrayLike<number>;
+}): Subsystem<W, B>;
+```
+
+### heatSubsystem · function
+
+Heat conduction (heat.ts). Post stage: it does not act on the rigid step. Requirement: the solver's dt is the simulation
+step, a whole fraction of it or a whole multiple of it; with the explicit scheme the dt must also be within the solver's
+stability limit. Energy (thermal): stored energy, with the heat that crossed the boundaries and came from sources as `exchanged`.
+
+```ts
+export declare function heatSubsystem<W, B>(heat: HeatSolver, options?: {
+    readonly id?: string;
+}): Subsystem<W, B>;
+```
+
+### LoadedSimulationScene · type
+
+What `loadSimulationScene` returns for a PhysicsWorld.
+
+```ts
+export type LoadedSimulationScene = CoreLoadedSimulationScene<PhysicsWorld>;
+```
+
+### loadSimulationScene · function
+
+Validate a scene, build its bodies, joints, water basins, cables and frames
+in `world`, and return them with a ready Simulation. `loadScene` of
+`box3d-webgpu-kit/scene` does the same and returns the kit's SceneBuilder.
+
+```ts
+export declare function loadSimulationScene(world: PhysicsWorld, scene: unknown): LoadedSimulationScene;
+```
+
+### resolveTiming · function
+
+Decide how a subsystem with the given requirement runs on a simulation step of `dt`, or throw the stated error.
+
+```ts
+export declare function resolveTiming(id: string, kind: string, timeStep: SubsystemTimeStep, dt: number): SubsystemTiming;
+```
+
+### Simulation · class
+
+One clock, one step, one energy ledger and one event stream for a rigid world and the solvers registered with it.
+
+```ts
+export declare class Simulation<W extends SimulationWorld<B>, B = unknown> {
+  readonly world: W;
+  readonly dt: number;
+  readonly subSteps: number | undefined;
+  readonly maxSteps: number;
+  get tick(): number;
+  get time(): number;
+  add(subsystem: Subsystem<W, B>): this;
+  remove(id: string): boolean;
+  get(id: string): Subsystem<W, B> | undefined;
+  subsystems(): Subsystem<W, B>[];
+  order(): SimulationDiagnostics['order'];
+  step(): void;
+  update(frameSeconds: number): { steps: number; alpha: number; droppedSeconds: number; };
+  onStep(listener: (tick: number) => void): () => void;
+  onEvent(listener: (event: SimulationEvent) => void): () => void;
+  trackBody(body: B, inertia: StructureInertia, options?: { readonly gravityScale?: number; }): this;
+  untrackBody(body: B): boolean;
+  energy(): SimulationEnergy;
+  diagnostics(): SimulationDiagnostics;
+  dispose(): void;
+}
+```
+
+### SIMULATION_STAGES · const
+
+The order of one step. `rigid` and `events` belong to the Simulation; subsystems choose one of the other three.
+
+```ts
+export declare const SIMULATION_STAGES: readonly ["pre-couple", "couple", "rigid", "post", "events"];
+```
+
+### SimulationDiagnostics · interface
+
+```ts
+export interface SimulationDiagnostics {
+    readonly tick: number;
+    readonly time: number;
+    readonly dt: number;
+    readonly order: readonly {
+        readonly stage: SimulationStage;
+        readonly id: string;
+        readonly kind: string;
+        readonly order: number;
+        readonly timing: SubsystemTiming | null;
+    }[];
+    readonly energy: SimulationEnergy;
+    readonly subsystems: {
+        readonly [id: string]: unknown;
+    };
+}
+```
+
+### SimulationEnergy · interface
+
+```ts
+export interface SimulationEnergy {
+    readonly entries: readonly SimulationEnergyEntry[];
+    readonly mechanical: number;
+    readonly thermal: number;
+    readonly total: number;
+    readonly exchanged: number;
+    readonly balance: number;
+}
+```
+
+### SimulationEnergyEntry · interface
+
+```ts
+export interface SimulationEnergyEntry extends SubsystemEnergy {
+    readonly id: string;
+    readonly kind: string;
+    readonly balance: number;
+}
+```
+
+### SimulationEvent · interface
+
+```ts
+export interface SimulationEvent {
+    readonly tick: number;
+    readonly source: string;
+    readonly type: string;
+    readonly data: unknown;
+}
+```
+
+### SimulationOptions · interface
+
+```ts
+export interface SimulationOptions {
+    readonly maxSteps?: number;
+}
+```
+
+### SimulationSceneWorld · type
+
+What building a coupled scene needs from the world: a SceneHost that can also take forces and impulses. The kit's PhysicsWorld is one.
+
+```ts
+export type SimulationSceneWorld = SceneHost & SimulationWorld<Body> & CouplingWorld<Body> & StructureWorld<Body>;
+```
+
+### SimulationStage · type
+
+```ts
+export type SimulationStage = typeof SIMULATION_STAGES[number];
+```
+
+### SimulationWorld · interface
+
+What a Simulation needs from the rigid world. The kit's PhysicsWorld has these members.
+
+```ts
+export interface SimulationWorld<B = unknown> {
+    readonly loop: {
+        readonly step: number;
+    };
+    readonly subSteps?: number;
+    readonly tick?: number;
+    step(): void;
+    gravity(): readonly number[];
+    getState(body: B): {
+        readonly position: readonly number[];
+        readonly rotation: readonly number[];
+        readonly linearVelocity: readonly number[];
+        readonly angularVelocity: readonly number[];
+        readonly mass: number;
+        readonly type: string;
+    };
+    isAlive?(body: B): boolean;
+    onEvent?(listener: (event: any) => void): () => void;
+}
+```
+
+### solidSubsystem · function
+
+A deformable solid (solid.ts). Post stage, after heat and the links. Requirement: the body's dt is the simulation step, a
+whole fraction of it or a whole multiple of it; an explicit body must be within its stability limit.
+Energy: kinetic + strain + load potential. It is not conserved while a link changes the loads or the temperature.
+
+```ts
+export declare function solidSubsystem<W, B>(solid: SolidBody, options?: {
+    readonly id?: string;
+}): Subsystem<W, B>;
+```
+
+### StepContext · interface
+
+Handed to every hook. One object, reused: do not keep it.
+
+```ts
+export interface StepContext<W = unknown> {
+    readonly world: W;
+    readonly tick: number;
+    readonly time: number;
+    readonly dt: number;
+    readonly substeps: number;
+    emit(type: string, data?: unknown): void;
+}
+```
+
+### structureSubsystem · function
+
+Cables and frames <-> rigid bodies (structure-coupling.ts). Couple stage, before the water: `coupling.step()` steps the
+cables and frames it holds and must run immediately before the rigid step. Requirement: `coupling.dt` equals the simulation
+step (the coupling itself requires every cable's and frame's dt to equal its own, and frames to use one sub-step).
+Energy: `coupling.diagnostics()`, which counts the attached bodies; pass them as `bodies` so they are not tracked twice.
+
+```ts
+export declare function structureSubsystem<W, B>(coupling: StructureCoupling<B>, options?: {
+    readonly id?: string;
+    readonly bodies?: Iterable<B>;
+}): Subsystem<W, B>;
+```
+
+### Subsystem · interface
+
+The contract every solver plugs in with.
+
+Per simulation step the Simulation calls, in this order: `prepare` on every subsystem (the
+world and all fields are at time t; read, do not advance), `step` stage by stage on the
+subsystems that are due, `world.step()` between the couple and post stages, then `finish` on
+every subsystem (everything is at t + dt; emit events here).
+
+```ts
+export interface Subsystem<W = unknown, B = unknown> {
+    readonly id: string;
+    readonly kind: string;
+    readonly stage: SubsystemStage;
+    readonly order?: number;
+    readonly timeStep: SubsystemTimeStep | null;
+    readonly bodies?: Iterable<B>;
+    validate?(info: {
+        readonly dt: number;
+        readonly subSteps: number | undefined;
+        readonly timing: SubsystemTiming;
+    }): void;
+    prepare?(ctx: StepContext<W>): void;
+    step(ctx: StepContext<W>): void;
+    finish?(ctx: StepContext<W>): void;
+    energy?(): SubsystemEnergy;
+    diagnostics?(): unknown;
+    dispose?(): void;
+}
+```
+
+### SUBSYSTEM_ORDER · const
+
+The default `order` of the adapters inside their stage. Lower runs first.
+
+```ts
+export declare const SUBSYSTEM_ORDER: Readonly<{
+    structure: 100;
+    water: 200;
+    heat: 100;
+    link: 200;
+    solid: 300;
+}>;
+```
+
+### SubsystemEnergy · interface
+
+```ts
+export interface SubsystemEnergy {
+    readonly domain: 'mechanical' | 'thermal';
+    readonly total: number;
+    readonly exchanged: number;
+    readonly parts: {
+        readonly [name: string]: number;
+    };
+}
+```
+
+### SubsystemStage · type
+
+```ts
+export type SubsystemStage = 'pre-couple' | 'couple' | 'post';
+```
+
+### SubsystemTimeStep · interface
+
+A subsystem's own time step and how it must relate to the simulation's fixed step.
+- 'equal': it exchanges forces with the rigid step, so its dt must be the simulation step.
+- 'commensurate': an independent field. Its dt may be the step, a whole fraction of it (N of its
+  steps per simulation step) or a whole multiple of it (one of its steps every N simulation steps).
+
+```ts
+export interface SubsystemTimeStep {
+    readonly dt: number;
+    readonly rule: 'equal' | 'commensurate';
+}
+```
+
+### SubsystemTiming · interface
+
+How the Simulation runs a subsystem: `substeps` of its own steps on every `every`-th simulation step. One of the two is 1.
+
+```ts
+export interface SubsystemTiming {
+    readonly dt: number;
+    readonly substeps: number;
+    readonly every: number;
+}
+```
+
+### thermalSolidLink · function
+
+ONE-WAY thermal -> solid: the heat solver's temperature becomes the solid's thermal load (eigenstrain alpha_T dT).
+The solid does not act on the temperature. Co-located grids only: the solid must be a `boxMesh` whose cells are the heat
+grid's cells (same counts, same cell size, every heat cell solid). Mapping: `cellTemperaturesToNodes`, then the solid takes
+the mean of an element's four nodes. Post stage, between the heat solver and the solid, after every heat step.
+`reference` is the stress-free temperature. The solid module allocates one array per update.
+
+```ts
+export declare function thermalSolidLink<W, B>(heat: HeatSolver, solid: SolidBody, options: {
+    readonly id?: string;
+    readonly reference: number;
+}): Subsystem<W, B>;
+```
+
+### waterSubsystem · function
+
+Rigid bodies <-> water (water-coupling.ts). Couple stage: `water.step()` immediately before the rigid step.
+Requirement: `water.dt` equals the simulation step. Energy: the water's kinetic and potential energy; track the floating bodies with `trackBody`.
+
+```ts
+export declare function waterSubsystem<W, B>(water: WaterCoupling<B>, options?: {
+    readonly id?: string;
+}): Subsystem<W, B>;
+```
+
+### WorldSimulation · type
+
+A Simulation of a PhysicsWorld.
+
+```ts
+export type WorldSimulation = Simulation<PhysicsWorld, Body>;
 ```

@@ -37,6 +37,9 @@ export const CORE = [
   {from: 'src/engine/scene-format.ts', rewrites: []},
   {from: 'src/engine/scene-examples.ts', rewrites: []},
   {from: 'src/engine/geometry.ts', rewrites: []},
+  // ./simulation: the one stepping loop, the adapters for the modules above and the builder of coupled scenes.
+  // Imports the water, structure, cable and frame modules, and types from heat, solid, scene-format and native-world.
+  {from: 'src/engine/simulation.ts', rewrites: []},
 ];
 export const WASM_FILES = ['box3d.js', 'box3d.wasm', 'BUILD_PROVENANCE.json', 'BOX3D_LICENSE.txt'];
 
