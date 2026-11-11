@@ -1,6 +1,6 @@
 import {EngineError} from './core/contracts.js';
 import type {
-  NativeBodyHandle, NativeBodyState, NativeBodyType, NativeJointHandle, NativeJointState, NativeJointType, NativeQueryCastHit, NativeQueryFilter,
+  NativeBodyHandle, NativeBodyKind, NativeBodyState, NativeBodyType, NativeJointHandle, NativeJointState, NativeJointType, NativeQueryCastHit, NativeQueryFilter,
   NativeSpatialQuery, NativeWorldBackend, NativeWorldEvent, NativeWorldPool,
 } from './core/native-world.js';
 import {FixedStepLoop, type FixedStepOptions, type FixedStepResult} from './loop.js';
@@ -38,7 +38,17 @@ export type ShapeOptions =
   | {readonly kind: 'box'; readonly halfExtents: Vec3Like}
   | {readonly kind: 'sphere'; readonly radius: number}
   /** The capsule's axis is the body's local Y; halfLength is half the distance between the cap centers. */
-  | {readonly kind: 'capsule'; readonly radius: number; readonly halfLength: number};
+  | {readonly kind: 'capsule'; readonly radius: number; readonly halfLength: number}
+  /** Convex hull of 4 or more body-local points, as a flat [x, y, z, x, y, z, ...] list. Box3D keeps at most 64 hull vertices. */
+  | {readonly kind: 'hull'; readonly points: ArrayLike<number>}
+  /** Triangle mesh for static scenery: flat vertex list and counter-clockwise index triples. The body is always static. */
+  | {readonly kind: 'mesh'; readonly vertices: ArrayLike<number>; readonly indices: ArrayLike<number>}
+  /**
+   * Terrain: countX by countZ heights in metres (index x + z * countX) on a grid of spacing [dx, dz],
+   * starting at the body position and extending along +x and +z. The body is always static.
+   */
+  | {readonly kind: 'heightfield'; readonly heights: ArrayLike<number>; readonly countX: number; readonly countZ: number; readonly spacing: readonly [number, number]};
+export type BodyKind = NativeBodyKind;
 
 /** Lengths in metres, masses from density in kg/m^3, angles in radians. */
 export interface BodyOptions {
@@ -307,7 +317,10 @@ export class PhysicsWorld {
     if (this.recording) throw new EngineError('INVALID_STATE', `${name}() cannot be recorded yet; call stopRecording() first.`);
   }
 
-  /** Create a box, sphere or capsule body. Returns null when the world is at body capacity. */
+  /**
+   * Create a body: box, sphere, capsule or convex hull of any type, or a static
+   * triangle mesh or height field. Returns null when the world is at body capacity.
+   */
   createBody(options: BodyOptions): Body | null {
     this.general('createBody');
     const shape = options.shape;
@@ -394,8 +407,12 @@ export class PhysicsWorld {
   /** Events lost because one step produced more than 65,536 of them. */
   get droppedEvents(): number { return this.droppedEventCount; }
 
-  /** Shape of every render row ('box', 'sphere' or 'capsule'), in the same order as matrices(). */
-  bodyKinds(): ('box' | 'sphere' | 'capsule')[] { return this.native.bodyKinds(); }
+  /**
+   * Shape of every render row, in the same order as matrices(). Box, sphere and
+   * capsule rows are scaled by their size; hull, mesh and height-field rows are
+   * unscaled, for drawing with the geometry you created them from.
+   */
+  bodyKinds(): BodyKind[] { return this.native.bodyKinds(); }
 
   private afterReset(): void {
     this.loop.reset();

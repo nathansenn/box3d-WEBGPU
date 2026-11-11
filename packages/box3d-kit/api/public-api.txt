@@ -627,6 +627,9 @@ export interface NativeWorldModule {
     _b3w_world_get_gravity?(world: number, out: number | bigint): number;
     _b3w_world_create_body?(world: number, descriptor: number | bigint): bigint;
     _b3w_world_copy_body_kinds?(world: number, out: number | bigint, capacity: number): number;
+    _b3w_world_create_hull_body?(world: number, descriptor: number | bigint, points: number | bigint, count: number): bigint;
+    _b3w_world_create_mesh_body?(world: number, descriptor: number | bigint, vertices: number | bigint, vertexCount: number, indices: number | bigint, triangleCount: number): bigint;
+    _b3w_world_create_heightfield_body?(world: number, descriptor: number | bigint, heights: number | bigint, countX: number, countZ: number, sx: number, sy: number, sz: number): bigint;
     _b3w_world_get_body_state?(world: number, body: bigint, out: number | bigint): number;
     _b3w_world_set_body_transform?(world: number, body: bigint, x: number, y: number, z: number, qx: number, qy: number, qz: number, qw: number): number;
     _b3w_world_set_body_velocity?(world: number, body: bigint, vx: number, vy: number, vz: number, wx: number, wy: number, wz: number): number;
@@ -667,7 +670,24 @@ export type NativeBodyShape = {
     readonly kind: 'capsule';
     readonly radius: number;
     readonly halfLength: number;
+} |
+{
+    readonly kind: 'hull';
+    readonly points: ArrayLike<number>;
+} |
+{
+    readonly kind: 'mesh';
+    readonly vertices: ArrayLike<number>;
+    readonly indices: ArrayLike<number>;
+} |
+{
+    readonly kind: 'heightfield';
+    readonly heights: ArrayLike<number>;
+    readonly countX: number;
+    readonly countZ: number;
+    readonly spacing: readonly [number, number];
 };
+export type NativeBodyKind = 'box' | 'sphere' | 'capsule' | 'hull' | 'mesh' | 'heightfield';
 export type NativeBodyType = 'static' | 'kinematic' | 'dynamic';
 export interface NativeBodyDescriptor {
     readonly shape: NativeBodyShape;
@@ -810,7 +830,7 @@ export declare class NativeWorldBackend implements PhysicsBackend {
     setGravity(x: number, y: number, z: number): void;
     gravity(): [number, number, number];
     createBody(descriptor: NativeBodyDescriptor): NativeBodyHandle | null;
-    bodyKinds(): ('box' | 'sphere' | 'capsule')[];
+    bodyKinds(): NativeBodyKind[];
     bodyState(body: NativeBodyHandle): NativeBodyState;
     setBodyTransform(body: NativeBodyHandle, position: NativeQueryVector, rotation?: NativeQuaternion): void;
     setBodyVelocity(body: NativeBodyHandle, linear: NativeQueryVector, angular?: NativeQueryVector): void;
@@ -1105,7 +1125,7 @@ import { type LoadBox3DOptions } from './loader.js';
 import { PhysicsWorld, type WorldOptions } from './world.js';
 export { loadBox3D, type LoadBox3DOptions, type Box3DModuleFactory } from './loader.js';
 export { BUILD_INFO, type BuildInfo } from './core/build-info.js';
-export { PhysicsWorld, toVec3, leakReporting, type Body, type BodyPose, type Vec3, type Vec3Like, type WorldOptions, type SpawnBoxOptions, toQuat, axisRotation, type Joint, type BodyType, type BodyState, type BodyOptions, type ShapeOptions, type QuatLike, type JointType, type JointState, type JointOptions, type JointFrame, type ResetOptions, type WorldEvent, type QueryOptions, type RaycastOptions, type WorldStats, type ReplayLog, type ReplayCommand, type RecordingOptions, type ReplayReport, } from './world.js';
+export { PhysicsWorld, toVec3, leakReporting, type Body, type BodyPose, type Vec3, type Vec3Like, type WorldOptions, type SpawnBoxOptions, toQuat, axisRotation, type Joint, type BodyType, type BodyState, type BodyOptions, type ShapeOptions, type QuatLike, type BodyKind, type JointType, type JointState, type JointOptions, type JointFrame, type ResetOptions, type WorldEvent, type QueryOptions, type RaycastOptions, type WorldStats, type ReplayLog, type ReplayCommand, type RecordingOptions, type ReplayReport, } from './world.js';
 export { convertMatrices, convertVector, toBox3DFrame, type UpAxis } from './axes.js';
 export { writeInstances, lastUploadRange, INSTANCE_WGSL, type GpuQueueLike, type GpuBufferLike, type WriteInstancesOptions, type UploadRange } from './gpu.js';
 export { spawnBoxes, applyImpulses, BodyRing, detectEnvironment, capabilities, LICENSE_NOTICE, type EnvironmentReport, type Capabilities } from './helpers.js';
@@ -1119,7 +1139,7 @@ export { WorldScheduler, type SchedulableWorld, type SchedulerOptions, type Sche
 export type { InstanceSource } from './three.js';
 export { FixedStepLoop, pauseOnHidden, type FixedStepOptions, type FixedStepResult } from './loop.js';
 export { EngineError } from './core/contracts.js';
-export { NativeWorldPool, NativeWorldBackend, NATIVE_WORLD_API_VERSION, type NativeBodyHandle, type NativeSpatialQuery, type NativeQueryResult, type NativeQueryCastHit, type NativeQueryBodyHit, type NativeQueryFilter, type NativeBodyCapacityInfo, type NativeJointHandle, type NativeBodyDescriptor, type NativeBodyShape, type NativeBodyState, type NativeBodyType, type NativeJointDescriptor, type NativeJointState, type NativeJointType, type NativeJointFrame, type NativeWorldEvent, type NativeQuaternion, } from './core/native-world.js';
+export { NativeWorldPool, NativeWorldBackend, NATIVE_WORLD_API_VERSION, type NativeBodyHandle, type NativeSpatialQuery, type NativeQueryResult, type NativeQueryCastHit, type NativeQueryBodyHit, type NativeQueryFilter, type NativeBodyCapacityInfo, type NativeJointHandle, type NativeBodyDescriptor, type NativeBodyShape, type NativeBodyKind, type NativeBodyState, type NativeBodyType, type NativeJointDescriptor, type NativeJointState, type NativeJointType, type NativeJointFrame, type NativeWorldEvent, type NativeQuaternion, } from './core/native-world.js';
 export type { InstanceBufferSource, PhysicsBackend } from './backend-types.js';
 export type EngineErrorCode = 'INVALID_PAYLOAD' | 'INVALID_BACKEND' | 'UNSUPPORTED_BACKEND' | 'DISPOSED' | 'STALE_BODY' | 'WORLD_CAPACITY' | 'ALLOCATION_FAILED' | 'STALE_QUERY' | 'QUERY_VERSION_EXHAUSTED' | 'INVALID_STATE' | 'INTERNAL' | 'WASM_UNAVAILABLE' | 'INTEGRITY_MISMATCH' | 'INCOMPATIBLE_SAVE' | 'STALE_JOINT' | 'UNSUPPORTED_JOINT';
 export declare function createWorld(options?: WorldOptions & LoadBox3DOptions & {
@@ -1311,7 +1331,7 @@ export interface InstanceSource {
     readonly native?: {
         readonly maxBodies: number;
     };
-    bodyKinds?(): readonly ('box' | 'sphere' | 'capsule')[];
+    bodyKinds?(): readonly string[];
 }
 interface BufferAttributeLike {
     array: ArrayLike<number> & {
@@ -1445,7 +1465,7 @@ export declare class RemoteWorld implements InstanceSource {
 export declare function connectWorld(endpoint: MessageEndpoint, options?: RemoteWorldOptions): Promise<RemoteWorld>;
 
 // ==== world.d.ts ====
-import type { NativeBodyHandle, NativeBodyState, NativeBodyType, NativeJointHandle, NativeJointState, NativeJointType, NativeQueryCastHit, NativeQueryFilter, NativeWorldBackend, NativeWorldEvent, NativeWorldPool } from './core/native-world.js';
+import type { NativeBodyHandle, NativeBodyKind, NativeBodyState, NativeBodyType, NativeJointHandle, NativeJointState, NativeJointType, NativeQueryCastHit, NativeQueryFilter, NativeWorldBackend, NativeWorldEvent, NativeWorldPool } from './core/native-world.js';
 import { FixedStepLoop, type FixedStepOptions, type FixedStepResult } from './loop.js';
 export type Vec3 = readonly [number, number, number];
 export type Vec3Like = Vec3 | {
@@ -1479,7 +1499,24 @@ export type ShapeOptions = {
     readonly kind: 'capsule';
     readonly radius: number;
     readonly halfLength: number;
+}
+ | {
+    readonly kind: 'hull';
+    readonly points: ArrayLike<number>;
+}
+ | {
+    readonly kind: 'mesh';
+    readonly vertices: ArrayLike<number>;
+    readonly indices: ArrayLike<number>;
+}
+ | {
+    readonly kind: 'heightfield';
+    readonly heights: ArrayLike<number>;
+    readonly countX: number;
+    readonly countZ: number;
+    readonly spacing: readonly [number, number];
 };
+export type BodyKind = NativeBodyKind;
 export interface BodyOptions {
     readonly shape: ShapeOptions;
     readonly type?: BodyType;
@@ -1679,7 +1716,7 @@ export declare class PhysicsWorld {
     getJointState(joint: Joint): JointState;
     onEvent(listener: (event: WorldEvent) => void): () => void;
     get droppedEvents(): number;
-    bodyKinds(): ('box' | 'sphere' | 'capsule')[];
+    bodyKinds(): BodyKind[];
     private afterReset;
     spawnBox(options: SpawnBoxOptions): Body | null;
     isAlive(body: Body): boolean;

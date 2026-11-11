@@ -47,6 +47,10 @@ typedef struct {
 } b3ShapeDef;
 typedef struct { b3Vec3 center; float radius; } b3Sphere;
 typedef struct { b3Vec3 center1, center2; float radius; } b3Capsule;
+typedef struct b3MeshData b3MeshData;
+typedef struct b3HeightFieldData b3HeightFieldData;
+typedef struct { b3Vec3* vertices; int32_t* indices; uint8_t* materialIndices; float weldTolerance; int vertexCount, triangleCount; bool weldVertices, useMedianSplit, identifyEdges; } b3MeshDef;
+typedef struct { float* heights; uint8_t* materialIndices; b3Vec3 scale; int countX, countZ; float globalMinimumHeight, globalMaximumHeight; bool clockwiseWinding; } b3HeightFieldDef;
 typedef struct { int32_t index1; uint16_t world0; uint16_t generation; } b3JointId;
 typedef struct { b3Vec3 p; b3Quat q; } b3Transform;
 typedef enum { b3_parallelJoint, b3_distanceJoint, b3_filterJoint, b3_motorJoint, b3_prismaticJoint, b3_revoluteJoint, b3_sphericalJoint, b3_weldJoint, b3_wheelJoint } b3JointType;
@@ -64,8 +68,8 @@ typedef struct { b3ContactBeginTouchEvent* beginEvents; b3ContactEndTouchEvent* 
 typedef struct { b3ShapeId sensorShapeId, visitorShapeId; } b3SensorBeginTouchEvent;
 typedef struct { b3ShapeId sensorShapeId, visitorShapeId; } b3SensorEndTouchEvent;
 typedef struct { b3SensorBeginTouchEvent* beginEvents; b3SensorEndTouchEvent* endEvents; int beginCount, endCount; } b3SensorEvents;
-typedef struct { int unused; } b3Hull;
-typedef struct { b3Hull base; } b3BoxHull;
+typedef struct b3HullData { int unused; } b3HullData;
+typedef struct { b3HullData base; } b3BoxHull;
 typedef void b3TaskCallback(void* taskContext);
 typedef void* b3EnqueueTaskCallback(b3TaskCallback* task, void* taskContext, void* userContext, const char* taskName);
 typedef void b3FinishTaskCallback(void* userTask, void* userContext);
@@ -111,7 +115,15 @@ b3TreeStats b3World_CastShape(b3WorldId, b3Pos, const b3ShapeProxy*, b3Vec3, b3Q
 b3TreeStats b3World_OverlapShape(b3WorldId, b3Pos, const b3ShapeProxy*, b3QueryFilter, b3OverlapResultFcn*, void*);
 b3TreeStats b3World_OverlapAABB(b3WorldId, b3AABB, b3QueryFilter, b3OverlapResultFcn*, void*);
 b3BoxHull b3MakeBoxHull(float hx, float hy, float hz);
-void b3CreateHullShape(b3BodyId body, const b3ShapeDef* def, const b3Hull* hull);
+void b3CreateHullShape(b3BodyId body, const b3ShapeDef* def, const b3HullData* hull);
+b3HullData* b3CreateHull(const b3Vec3* points, int pointCount, int maxVertexCount);
+void b3DestroyHull(b3HullData* hull);
+b3MeshData* b3CreateMesh(const b3MeshDef* def, int* degenerateTriangleIndices, int degenerateCapacity);
+void b3DestroyMesh(b3MeshData* mesh);
+void b3CreateMeshShape(b3BodyId body, const b3ShapeDef* def, const b3MeshData* mesh, b3Vec3 scale);
+b3HeightFieldData* b3CreateHeightField(const b3HeightFieldDef* def);
+void b3DestroyHeightField(b3HeightFieldData* heightField);
+void b3CreateHeightFieldShape(b3BodyId body, const b3ShapeDef* def, const b3HeightFieldData* heightField);
 void b3Body_ApplyLinearImpulseToCenter(b3BodyId body, b3Vec3 impulse, bool wake);
 b3WorldTransform b3Body_GetTransform(b3BodyId body);
 b3Pos b3Body_GetPosition(b3BodyId body);

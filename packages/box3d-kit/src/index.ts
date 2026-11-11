@@ -6,7 +6,7 @@ export {BUILD_INFO, type BuildInfo} from './core/build-info.js';
 export {
   PhysicsWorld, toVec3, leakReporting, type Body, type BodyPose, type Vec3, type Vec3Like, type WorldOptions, type SpawnBoxOptions,
   toQuat, axisRotation, type Joint, type BodyType, type BodyState, type BodyOptions, type ShapeOptions, type QuatLike,
-  type JointType, type JointState, type JointOptions, type JointFrame, type ResetOptions, type WorldEvent,
+  type BodyKind, type JointType, type JointState, type JointOptions, type JointFrame, type ResetOptions, type WorldEvent,
   type QueryOptions, type RaycastOptions, type WorldStats, type ReplayLog, type ReplayCommand,
   type RecordingOptions, type ReplayReport,
 } from './world.js';
@@ -27,7 +27,7 @@ export {
   NativeWorldPool, NativeWorldBackend, NATIVE_WORLD_API_VERSION,
   type NativeBodyHandle, type NativeSpatialQuery, type NativeQueryResult, type NativeQueryCastHit,
   type NativeQueryBodyHit, type NativeQueryFilter, type NativeBodyCapacityInfo,
-  type NativeJointHandle, type NativeBodyDescriptor, type NativeBodyShape, type NativeBodyState, type NativeBodyType,
+  type NativeJointHandle, type NativeBodyDescriptor, type NativeBodyShape, type NativeBodyKind, type NativeBodyState, type NativeBodyType,
   type NativeJointDescriptor, type NativeJointState, type NativeJointType, type NativeJointFrame, type NativeWorldEvent, type NativeQuaternion,
 } from './core/native-world.js';
 export type {InstanceBufferSource, PhysicsBackend} from './backend-types.js';

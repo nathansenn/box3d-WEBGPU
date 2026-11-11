@@ -131,6 +131,10 @@ typedef struct B3WContext
     int eventCapacity;
     int eventCount;
     int eventTotal;
+    // Mesh and height-field data that Box3D references instead of copying.
+    struct B3WGeometry* geometry;
+    int geometryCount;
+    int geometryCapacity;
 } B3WContext;
 
 // The compatibility world retains fixed arrays and stable offsets. Explicit
@@ -671,6 +675,8 @@ static int b3w_ctx_add_box_ex(B3WContext* ctx, b3BodyType type, float x, float y
     return index;
 }
 
+static void b3w_ctx_free_geometry(B3WContext* ctx, int slot);
+
 // Constant-time removal: compact dense rendering rows and repair both lookup
 // tables. A body's public generation token does not encode its dense index.
 static int b3w_ctx_destroy_body(B3WContext* ctx, uint64_t handle)
@@ -679,6 +685,7 @@ static int b3w_ctx_destroy_body(B3WContext* ctx, uint64_t handle)
     if (index < 0) return 0;
     const B3WBody removed = ctx->bodies[index];
     b3DestroyBody(removed.id);
+    b3w_ctx_free_geometry(ctx, removed.slot);
     if (removed.dynamic != 0)
     {
         int lastDynamic = ctx->dynamicIndices[--ctx->dynamicCount];
@@ -717,6 +724,7 @@ static void b3w_ctx_destroy_world(B3WContext* ctx)
         b3DestroyWorld(ctx->world);
         ctx->world = b3_nullWorldId;
     }
+    b3w_ctx_free_geometry(ctx, -1);
 
     if (ctx->kinds != NULL) memset(ctx->kinds, 0, (size_t)ctx->bodyCount);
     ctx->anchor = b3_nullBodyId;
@@ -1740,6 +1748,7 @@ B3W_EXPORT int b3w_world_destroy(uint32_t handle)
     free(ctx->queries.block);
     free(ctx->kinds);
     free(ctx->events);
+    free(ctx->geometry);
     free(ctx);
     B3WContextSlot* slot = &g_contextSlots[(handle & B3W_CONTEXT_SLOT_MASK) - 1u];
     slot->context = NULL;
@@ -2127,24 +2136,48 @@ B3W_EXPORT int b3w_world_get_gravity(uint32_t handle, float* out3)
     return 1;
 }
 
-B3W_EXPORT uint64_t b3w_world_create_body(uint32_t handle, const B3WBodyDesc* desc)
+// Kinds 3 (convex hull), 4 (triangle mesh) and 5 (height field) take their
+// geometry from the caller; `geometry` is then a b3HullData, b3MeshData or
+// b3HeightFieldData. Their render rows are unscaled: the caller draws its own geometry.
+typedef struct B3WGeometry { int slot; uint32_t kind; void* data; } B3WGeometry;
+
+static void b3w_ctx_free_geometry(B3WContext* ctx, int slot)
 {
-    B3WContext* ctx = b3w_lookup_context(handle);
-    if (ctx == NULL || B3_IS_NULL(ctx->world) || desc == NULL) return 0u;
-    if (desc->kind > 2u || desc->type > 2u) return 0u;
+    for (int i = 0; i < ctx->geometryCount;)
+    {
+        B3WGeometry* entry = ctx->geometry + i;
+        if (slot >= 0 && entry->slot != slot) { ++i; continue; }
+        if (entry->kind == 4u) b3DestroyMesh((b3MeshData*)entry->data);
+        else b3DestroyHeightField((b3HeightFieldData*)entry->data);
+        *entry = ctx->geometry[--ctx->geometryCount];
+    }
+}
+
+static uint64_t b3w_ctx_create_general(B3WContext* ctx, const B3WBodyDesc* desc, uint32_t kind, const void* geometry)
+{
+    if (desc->type > 2u) return 0u;
     if (!b3w_finite3(desc->position) || !b3w_finite3(desc->linearVelocity) || !b3w_finite3(desc->angularVelocity)) return 0u;
     float hx = desc->size[0], hy = desc->size[1], hz = desc->size[2];
-    if (desc->kind == 1u) { hy = hx; hz = hx; }
-    if (desc->kind == 2u) { hz = hx; if (!(hy >= 0.0025f)) return 0u; } // Box3D's minimum capsule length is 5 mm
+    if (kind >= 3u) { hx = 1.0f; hy = 1.0f; hz = 1.0f; }
+    if (kind == 1u) { hy = hx; hz = hx; }
+    if (kind == 2u) { hz = hx; if (!(hy >= 0.0025f)) return 0u; } // Box3D's minimum capsule length is 5 mm
     // Every extent scales a render-matrix column, so none may be zero.
     if (!(hx > 0.0f) || !(hy > 0.0f) || !(hz > 0.0f) || !isfinite(hx) || !isfinite(hy) || !isfinite(hz)) return 0u;
     if (!(desc->density >= 0.0f) || !(desc->friction >= 0.0f) || !(desc->restitution >= 0.0f)) return 0u;
     if (!isfinite(desc->density) || !isfinite(desc->friction) || !isfinite(desc->restitution)) return 0u;
     if (ctx->bodyCount >= ctx->capacity || (ctx->freeSlot < 0 && ctx->slotsUsed >= ctx->capacity)) return 0u;
-    if (desc->kind != 0u && ctx->kinds == NULL)
+    if (kind != 0u && ctx->kinds == NULL)
     {
         ctx->kinds = (uint8_t*)calloc((size_t)ctx->capacity, 1u);
         if (ctx->kinds == NULL) return 0u;
+    }
+    if (kind >= 4u && ctx->geometryCount >= ctx->geometryCapacity)
+    {
+        int capacity = ctx->geometryCapacity == 0 ? 16 : ctx->geometryCapacity * 2;
+        B3WGeometry* list = (B3WGeometry*)realloc(ctx->geometry, (size_t)capacity * sizeof(B3WGeometry));
+        if (list == NULL) return 0u;
+        ctx->geometry = list;
+        ctx->geometryCapacity = capacity;
     }
 
     const b3BodyType type = desc->type == 0u ? b3_staticBody : desc->type == 1u ? b3_kinematicBody : b3_dynamicBody;
@@ -2184,21 +2217,24 @@ B3W_EXPORT uint64_t b3w_world_create_body(uint32_t handle, const B3WBodyDesc* de
         shapeDef.filter.maskBits = desc->maskBits;
     }
     shapeDef.filter.groupIndex = desc->groupIndex;
-    if (desc->kind == 0u)
+    if (kind == 0u)
     {
         const b3BoxHull* hull = b3w_ctx_get_box_hull(ctx, hx, hy, hz);
         b3CreateHullShape(body, &shapeDef, &hull->base);
     }
-    else if (desc->kind == 1u)
+    else if (kind == 1u)
     {
         b3Sphere sphere = { { 0.0f, 0.0f, 0.0f }, hx };
         b3CreateSphereShape(body, &shapeDef, &sphere);
     }
-    else
+    else if (kind == 2u)
     {
         b3Capsule capsule = { { 0.0f, -hy, 0.0f }, { 0.0f, hy, 0.0f }, hx };
         b3CreateCapsuleShape(body, &shapeDef, &capsule);
     }
+    else if (kind == 3u) b3CreateHullShape(body, &shapeDef, (const b3HullData*)geometry);
+    else if (kind == 4u) b3CreateMeshShape(body, &shapeDef, (const b3MeshData*)geometry, (b3Vec3){ 1.0f, 1.0f, 1.0f });
+    else b3CreateHeightFieldShape(body, &shapeDef, (const b3HeightFieldData*)geometry);
 
     int index = ctx->bodyCount++;
     B3WBody* row = ctx->bodies + index;
@@ -2209,7 +2245,8 @@ B3W_EXPORT uint64_t b3w_world_create_body(uint32_t handle, const B3WBodyDesc* de
     row->dynamicPosition = -1;
     row->slot = b3w_ctx_allocate_body_slot(ctx, index);
     b3Body_SetUserData(body, (void*)(uintptr_t)(row->slot + 1));
-    if (ctx->kinds != NULL) ctx->kinds[index] = (uint8_t)desc->kind;
+    if (ctx->kinds != NULL) ctx->kinds[index] = (uint8_t)kind;
+    if (kind >= 4u) ctx->geometry[ctx->geometryCount++] = (B3WGeometry){ row->slot, kind, (void*)(uintptr_t)geometry };
     if (type != b3_staticBody) b3w_ctx_set_moving(ctx, index, 1);
     b3w_unpack_rgb(desc->color, ctx->colors + index * 4);
     ctx->colorVersion += 1u;
@@ -2217,7 +2254,83 @@ B3W_EXPORT uint64_t b3w_world_create_body(uint32_t handle, const B3WBodyDesc* de
     return b3w_ctx_body_handle(ctx, index);
 }
 
-// Writes one byte per dense row (0 box, 1 sphere, 2 capsule); returns the count.
+B3W_EXPORT uint64_t b3w_world_create_body(uint32_t handle, const B3WBodyDesc* desc)
+{
+    B3WContext* ctx = b3w_lookup_context(handle);
+    if (ctx == NULL || B3_IS_NULL(ctx->world) || desc == NULL || desc->kind > 2u) return 0u;
+    return b3w_ctx_create_general(ctx, desc, desc->kind, NULL);
+}
+
+// Convex hull of `count` points (xyz floats, body-local). Box3D keeps at most 64 hull vertices.
+B3W_EXPORT uint64_t b3w_world_create_hull_body(uint32_t handle, const B3WBodyDesc* desc, const float* points, int count)
+{
+    B3WContext* ctx = b3w_lookup_context(handle);
+    if (ctx == NULL || B3_IS_NULL(ctx->world) || desc == NULL || points == NULL || count < 4 || count > 4096) return 0u;
+    for (int i = 0; i < count * 3; ++i) if (!isfinite(points[i])) return 0u;
+    b3HullData* hull = b3CreateHull((const b3Vec3*)points, count, 64);
+    if (hull == NULL) return 0u;
+    uint64_t body = b3w_ctx_create_general(ctx, desc, 3u, hull);
+    b3DestroyHull(hull); // the shape keeps its own copy
+    return body;
+}
+
+// Static triangle mesh: `vertexCount` xyz floats and `triangleCount` index triples, body-local.
+// Only a static body may carry a mesh, so desc->type is ignored.
+B3W_EXPORT uint64_t b3w_world_create_mesh_body(uint32_t handle, const B3WBodyDesc* desc, const float* vertices, int vertexCount, const int32_t* indices, int triangleCount)
+{
+    B3WContext* ctx = b3w_lookup_context(handle);
+    if (ctx == NULL || B3_IS_NULL(ctx->world) || desc == NULL || vertices == NULL || indices == NULL) return 0u;
+    if (vertexCount < 3 || vertexCount > 1048576 || triangleCount < 1 || triangleCount > 2097152) return 0u;
+    for (int i = 0; i < vertexCount * 3; ++i) if (!isfinite(vertices[i])) return 0u;
+    for (int i = 0; i < triangleCount * 3; ++i) if (indices[i] < 0 || indices[i] >= vertexCount) return 0u;
+    b3MeshDef def = { 0 };
+    def.vertices = (b3Vec3*)(uintptr_t)vertices;
+    def.indices = (int32_t*)(uintptr_t)indices;
+    def.vertexCount = vertexCount;
+    def.triangleCount = triangleCount;
+    def.identifyEdges = true; // lets bodies slide across shared edges without catching
+    b3MeshData* mesh = b3CreateMesh(&def, NULL, 0);
+    if (mesh == NULL) return 0u;
+    B3WBodyDesc fixed = *desc;
+    fixed.type = 0u;
+    uint64_t body = b3w_ctx_create_general(ctx, &fixed, 4u, mesh);
+    if (body == 0u) b3DestroyMesh(mesh);
+    return body;
+}
+
+// Static height field: countX by countZ heights (index x + z * countX), spaced sx and sz
+// apart and multiplied by sy. Its corner (x = 0, z = 0) sits at the body position.
+B3W_EXPORT uint64_t b3w_world_create_heightfield_body(uint32_t handle, const B3WBodyDesc* desc, const float* heights, int countX, int countZ, float sx, float sy, float sz)
+{
+    B3WContext* ctx = b3w_lookup_context(handle);
+    if (ctx == NULL || B3_IS_NULL(ctx->world) || desc == NULL || heights == NULL) return 0u;
+    if (countX < 2 || countZ < 2 || countX > 4096 || countZ > 4096) return 0u;
+    if (!(sx > 0.0f) || !(sy > 0.0f) || !(sz > 0.0f) || !isfinite(sx) || !isfinite(sy) || !isfinite(sz)) return 0u;
+    float low = heights[0], high = heights[0];
+    for (int i = 0; i < countX * countZ; ++i)
+    {
+        if (!isfinite(heights[i])) return 0u;
+        if (heights[i] < low) low = heights[i];
+        if (heights[i] > high) high = heights[i];
+    }
+    if (!(high > low)) high = low + 1.0f; // a flat field still needs a quantisation range
+    b3HeightFieldDef def = { 0 };
+    def.heights = (float*)(uintptr_t)heights;
+    def.scale = (b3Vec3){ sx, sy, sz };
+    def.countX = countX;
+    def.countZ = countZ;
+    def.globalMinimumHeight = low;
+    def.globalMaximumHeight = high;
+    b3HeightFieldData* field = b3CreateHeightField(&def);
+    if (field == NULL) return 0u;
+    B3WBodyDesc fixed = *desc;
+    fixed.type = 0u;
+    uint64_t body = b3w_ctx_create_general(ctx, &fixed, 5u, field);
+    if (body == 0u) b3DestroyHeightField(field);
+    return body;
+}
+
+// Writes one byte per dense row (0 box, 1 sphere, 2 capsule, 3 hull, 4 mesh, 5 height field); returns the count.
 B3W_EXPORT int b3w_world_copy_body_kinds(uint32_t handle, uint8_t* out, int capacity)
 {
     B3WContext* ctx = b3w_lookup_context(handle);

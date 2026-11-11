@@ -2,7 +2,7 @@
 
 ## Unreleased — 2026-11-11 — Open the engine: shapes, joints, events, SI worlds
 
-- **Bridge (`wasm/box3d_web.c`):** new optional exports for empty worlds with chosen gravity, sphere and capsule shapes beside boxes, static / kinematic / dynamic bodies, pose and velocity access, forces and torques, collision filters, six joint types with limits, motors and springs, and contact, hit and sensor events. The scene recipes, their streams and their hashes are unchanged; the world API version stays 1.
+- **Bridge (`wasm/box3d_web.c`):** new optional exports for empty worlds with chosen gravity, sphere, capsule, convex-hull, triangle-mesh and height-field shapes beside boxes, static / kinematic / dynamic bodies, pose and velocity access, forces and torques, collision filters, six joint types with limits, motors and springs, and contact, hit and sensor events. The scene recipes, their streams and their hashes are unchanged; the world API version stays 1.
 - **Artifacts:** `box3d.wasm` and `box3d-mt.wasm` rebuilt with Emscripten 4.0.23 from Box3D v0.1.0. Before the change, the same toolchain reproduced the committed `box3d.wasm` byte for byte.
 - **Kit 0.8.0 (`packages/box3d-kit`):** `createBody`, `createJoint`, `onEvent`, `reset`, setters and force calls on `PhysicsWorld`; a three.js adapter for mixed shapes; a validation suite against closed-form physics. See the kit changelog.
 - **Roadmap:** `docs/ROADMAP.md` is now the single plan of record.

@@ -134,6 +134,10 @@ export interface NativeWorldModule {
   _b3w_world_get_gravity?(world: number, out: number | bigint): number;
   _b3w_world_create_body?(world: number, descriptor: number | bigint): bigint;
   _b3w_world_copy_body_kinds?(world: number, out: number | bigint, capacity: number): number;
+  /** Optional geometry shapes; all three exports must be present together, with the general-body extension. */
+  _b3w_world_create_hull_body?(world: number, descriptor: number | bigint, points: number | bigint, count: number): bigint;
+  _b3w_world_create_mesh_body?(world: number, descriptor: number | bigint, vertices: number | bigint, vertexCount: number, indices: number | bigint, triangleCount: number): bigint;
+  _b3w_world_create_heightfield_body?(world: number, descriptor: number | bigint, heights: number | bigint, countX: number, countZ: number, sx: number, sy: number, sz: number): bigint;
   _b3w_world_get_body_state?(world: number, body: bigint, out: number | bigint): number;
   _b3w_world_set_body_transform?(world: number, body: bigint, x: number, y: number, z: number, qx: number, qy: number, qz: number, qw: number): number;
   _b3w_world_set_body_velocity?(world: number, body: bigint, vx: number, vy: number, vz: number, wx: number, wy: number, wz: number): number;
@@ -174,7 +178,16 @@ export type NativeBodyShape =
   { readonly kind: 'box'; readonly halfExtents: NativeQueryVector } |
   { readonly kind: 'sphere'; readonly radius: number } |
   /** The capsule axis is the body's local Y; halfLength excludes the round caps. */
-  { readonly kind: 'capsule'; readonly radius: number; readonly halfLength: number };
+  { readonly kind: 'capsule'; readonly radius: number; readonly halfLength: number } |
+  /** Convex hull of 4..4096 body-local points (x, y, z, x, y, z, ...). Box3D keeps at most 64 hull vertices. */
+  { readonly kind: 'hull'; readonly points: ArrayLike<number> } |
+  /** Static triangle mesh, body-local: vertices (x, y, z, ...) and counter-clockwise index triples. Always a static body. */
+  { readonly kind: 'mesh'; readonly vertices: ArrayLike<number>; readonly indices: ArrayLike<number> } |
+  /** Static terrain: countX by countZ heights (index x + z * countX) on a grid of spacing[0] by spacing[1]
+   * metres, starting at the body position and extending along +x and +z. Always a static body.
+   */
+  { readonly kind: 'heightfield'; readonly heights: ArrayLike<number>; readonly countX: number; readonly countZ: number; readonly spacing: readonly [number, number] };
+export type NativeBodyKind = 'box' | 'sphere' | 'capsule' | 'hull' | 'mesh' | 'heightfield';
 export type NativeBodyType = 'static' | 'kinematic' | 'dynamic';
 export interface NativeBodyDescriptor {
   readonly shape: NativeBodyShape;
@@ -256,7 +269,7 @@ export interface NativeWorldEvent {
   readonly normal?: NativeQueryVector;
   readonly approachSpeed?: number;
 }
-const BODY_KINDS = ['box','sphere','capsule'] as const;
+const BODY_KINDS = ['box','sphere','capsule','hull','mesh','heightfield'] as const;
 const BODY_TYPES = ['static','kinematic','dynamic'] as const;
 const JOINT_TYPES = ['weld','revolute','spherical','prismatic','distance','wheel'] as const;
 const EVENT_KINDS = ['contact-begin','contact-end','hit','sensor-begin','sensor-end'] as const;
@@ -511,13 +524,32 @@ export class NativeWorldBackend implements PhysicsBackend {
   /** Create a body. Returns null when the world is at body capacity. */
   createBody(descriptor: NativeBodyDescriptor): NativeBodyHandle | null {
     const view=this.general(),shape=descriptor.shape,kind=BODY_KINDS.indexOf(shape?.kind),type=BODY_TYPES.indexOf(descriptor.type??'dynamic');
-    if(kind<0)throw new EngineError('INVALID_PAYLOAD',"shape.kind must be 'box', 'sphere' or 'capsule'.");
+    if(kind<0)throw new EngineError('INVALID_PAYLOAD',"shape.kind must be 'box', 'sphere', 'capsule', 'hull', 'mesh' or 'heightfield'.");
+    if(kind>=3&&typeof this.mod._b3w_world_create_hull_body!=='function')throw new EngineError('UNSUPPORTED_BACKEND','box3d.wasm lacks hull, mesh and height-field shapes; rebuild with npm run build:wasm.');
     if(type<0)throw new EngineError('INVALID_PAYLOAD',"type must be 'static', 'kinematic' or 'dynamic'.");
     const vector=(value: NativeQueryVector | undefined,label: string,fallback: NativeQueryVector): NativeQueryVector=>{
       const v=value??fallback;finite(v[0],`${label} x`);finite(v[1],`${label} y`);finite(v[2],`${label} z`);return v;
     };
     const size: [number, number, number]=shape.kind==='box'?[finite(shape.halfExtents[0],'half extent x',1e-4),finite(shape.halfExtents[1],'half extent y',1e-4),finite(shape.halfExtents[2],'half extent z',1e-4)]:
-      shape.kind==='sphere'?[finite(shape.radius,'radius',1e-4),0,0]:[finite(shape.radius,'radius',1e-4),finite(shape.halfLength,'capsule half length',0.0025),0];
+      shape.kind==='sphere'?[finite(shape.radius,'radius',1e-4),0,0]:shape.kind==='capsule'?[finite(shape.radius,'radius',1e-4),finite(shape.halfLength,'capsule half length',0.0025),0]:[1,1,1];
+    // Validate caller geometry completely before anything is written to the heap.
+    let floats: Float32Array | null=null,ints: Int32Array | null=null;
+    if(shape.kind==='hull') {
+      integer(shape.points?.length,'hull point values',12,4096*3);
+      if(shape.points.length%3!==0)throw new EngineError('INVALID_PAYLOAD','hull points must be x, y, z triples.');
+      floats=Float32Array.from(shape.points,(v,i)=>finite(v,`hull point value ${i}`));
+    }else if(shape.kind==='mesh') {
+      integer(shape.vertices?.length,'mesh vertex values',9,1048576*3);integer(shape.indices?.length,'mesh index count',3,2097152*3);
+      if(shape.vertices.length%3!==0||shape.indices.length%3!==0)throw new EngineError('INVALID_PAYLOAD','mesh vertices and indices must come in triples.');
+      floats=Float32Array.from(shape.vertices,(v,i)=>finite(v,`mesh vertex value ${i}`));
+      const vertexCount=floats.length/3;
+      ints=Int32Array.from(shape.indices,(v,i)=>integer(v,`mesh index ${i}`,0,vertexCount-1));
+    }else if(shape.kind==='heightfield') {
+      integer(shape.countX,'height-field countX',2,4096);integer(shape.countZ,'height-field countZ',2,4096);
+      if(shape.heights?.length!==shape.countX*shape.countZ)throw new EngineError('INVALID_PAYLOAD','heights must hold countX * countZ values.');
+      finite(shape.spacing?.[0],'height-field x spacing',1e-4);finite(shape.spacing?.[1],'height-field z spacing',1e-4);
+      floats=Float32Array.from(shape.heights,(v,i)=>finite(v,`height ${i}`));
+    }
     const position=vector(descriptor.position,'position',[0,0,0]),rotation=descriptor.rotation??[0,0,0,1];
     for(let i=0;i<4;i++)finite(rotation[i],'rotation');
     const linear=vector(descriptor.linearVelocity,'linear velocity',[0,0,0]),angular=vector(descriptor.angularVelocity,'angular velocity',[0,0,0]);
@@ -539,7 +571,20 @@ export class NativeWorldBackend implements PhysicsBackend {
     view.setBigUint64(104,BigInt.asUintN(64,filter?.categoryBits??0n),true);view.setBigUint64(112,BigInt.asUintN(64,filter?.maskBits??0n),true);
     view.setInt32(120,integer(filter?.groupIndex??0,'filter group',-0x80000000,0x7FFFFFFF),true);
     const full=this.bodyCount()>=this.maxBodies;
-    const token=this.mod._b3w_world_create_body!(this.handle,this.scratch);
+    let token: bigint;
+    if(floats===null)token=this.mod._b3w_world_create_body!(this.handle,this.scratch);
+    else {
+      // One block holds the floats, then the indices. malloc may grow the heap, so views are taken after it.
+      const bytes=floats.byteLength+(ints?.byteLength??0),pointer=Number(this.mod._malloc!(bytes));
+      if(!Number.isSafeInteger(pointer)||pointer<=0||pointer%4!==0)throw new EngineError('ALLOCATION_FAILED','Native geometry allocation failed.');
+      try {
+        new Float32Array(this.mod.HEAPF32.buffer,pointer,floats.length).set(floats);
+        if(ints)new Int32Array(this.mod.HEAPF32.buffer,pointer+floats.byteLength,ints.length).set(ints);
+        token=shape.kind==='hull'?this.mod._b3w_world_create_hull_body!(this.handle,this.scratch,pointer,floats.length/3):
+          shape.kind==='mesh'?this.mod._b3w_world_create_mesh_body!(this.handle,this.scratch,pointer,floats.length/3,pointer+floats.byteLength,ints!.length/3):
+          shape.kind==='heightfield'?this.mod._b3w_world_create_heightfield_body!(this.handle,this.scratch,pointer,shape.countX,shape.countZ,shape.spacing[0],1,shape.spacing[1]):0n;
+      }finally{this.mod._free!(pointer);}
+    }
     if(token===0n) {
       if(full)return null;
       throw new EngineError('INVALID_PAYLOAD','The native bridge rejected the body descriptor.');
@@ -550,7 +595,7 @@ export class NativeWorldBackend implements PhysicsBackend {
     return body;
   }
   /** Shape kind of every render row, in row order. Rows move when a body is destroyed. */
-  bodyKinds(): ('box' | 'sphere' | 'capsule')[] {
+  bodyKinds(): NativeBodyKind[] {
     this.general();
     const count=this.bodyCount();
     if(count===0)return [];

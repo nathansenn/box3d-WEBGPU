@@ -103,7 +103,14 @@ world.setGravity([0, -1.62, 0]);                             // the Moon
 | `distance` | a fixed `length` | `limits` (min/max length), `motor`, `spring` |
 | `wheel` | spin about frame B z, suspension along frame A x | `spring`, `limits`, `motor`, `setJointSteering` |
 
-The physics is checked against closed-form answers in `test/v08.test.mjs`: free fall, the compound-pendulum period (within 0.1%), sliding-friction stopping distance, rebound height, momentum and energy in an elastic collision, `F = m a`, `τ = I α`, spring period and circular-motion tension.
+```ts
+// Convex hull from points, static triangle mesh, and terrain.
+world.createBody({shape: {kind: 'hull', points: [1, 0, 0, -1, 0, 0, 0, 1, 0, 0, -1, 0, 0, 0, 1, 0, 0, -1]}, position: [0, 5, 0]});
+world.createBody({shape: {kind: 'mesh', vertices: [0, 0, -4, 10, -3, -4, 10, -3, 4, 0, 0, 4], indices: [0, 2, 1, 0, 3, 2]}, position: [0, 2, 0]});
+world.createBody({shape: {kind: 'heightfield', heights, countX: 65, countZ: 65, spacing: [0.5, 0.5]}, position: [-16, 0, -16]});
+```
+
+The physics is checked against closed-form answers in `test/v08.test.mjs`: free fall, the compound-pendulum period (within 0.1%), sliding-friction stopping distance, rebound height, momentum and energy in an elastic collision, `F = m a`, `τ = I α`, spring period, circular-motion tension, and sliding (g sin θ) and rolling (5/7 g sin θ) down mesh and terrain inclines.
 
 To draw mixed shapes with three.js use `createShapeMeshes(THREE, world)` and `syncShapeMeshes(world, meshes, {alpha})` from `box3d-webgpu-kit/three`; capsules render exactly at any size. For other renderers, `world.bodyKinds()` gives the shape of each row of `matrices()`.
 
@@ -325,7 +332,7 @@ In the Vite dev server (not yet tested), add `optimizeDeps: {exclude: ['box3d-we
 
 ## Current limits (read before designing gameplay)
 
-- **Shapes are boxes, spheres and capsules, one per body.** Meshes, heightfields, convex hulls and compound shapes are in Box3D but not exported by the bridge yet.
+- **One shape per body:** box, sphere, capsule or convex hull on any body; triangle mesh or height field on static bodies. Compound shapes are in Box3D but not exported by the bridge yet. `createShapeMeshes` draws boxes, spheres and capsules; draw hulls, meshes and terrain with your own geometry and the row's matrix.
 - **Two scene styles.** `createWorld()` / `resetArena()` / `loadPreset()` give the classic arena: gravity −10 m/s², `spawnBox` cubes with a small seeded spin. `createWorld({gravity})` / `reset()` give an SI world (9.81 m/s²) that you fill with `createBody` and `createJoint`. Both run on the same solver.
 - **Recording covers the classic calls only.** `startRecording()` logs `spawnBox`, `destroyBody`, `applyImpulse` and `explode`. While recording, `createBody`, `createJoint` and the setters throw `INVALID_STATE` rather than produce a log that replays differently. Worlds built with them are still deterministic: the same calls give the same bits.
 - **`RemoteWorld` (worker) and network snapshots do not carry the new calls yet.** Use them from the thread that owns the world.

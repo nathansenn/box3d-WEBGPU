@@ -28,6 +28,12 @@ export declare function axisRotation(axisLike: Vec3Like, from?: 'x' | 'z'): [num
 export type Body = NativeBodyHandle;
 ```
 
+### BodyKind · type
+
+```ts
+export type BodyKind = NativeBodyKind;
+```
+
 ### BodyOptions · interface
 
 Lengths in metres, masses from density in kg/m^3, angles in radians.
@@ -407,7 +413,7 @@ export interface InstanceSource {
     readonly native?: {
         readonly maxBodies: number;
     };
-    bodyKinds?(): readonly ('box' | 'sphere' | 'capsule')[];
+    bodyKinds?(): readonly string[];
 }
 ```
 
@@ -596,6 +602,12 @@ export interface NativeBodyHandle {
 }
 ```
 
+### NativeBodyKind · type
+
+```ts
+export type NativeBodyKind = 'box' | 'sphere' | 'capsule' | 'hull' | 'mesh' | 'heightfield';
+```
+
 ### NativeBodyShape · type
 
 ```ts
@@ -610,6 +622,22 @@ export type NativeBodyShape = {
     readonly kind: 'capsule';
     readonly radius: number;
     readonly halfLength: number;
+} | 
+{
+    readonly kind: 'hull';
+    readonly points: ArrayLike<number>;
+} | 
+{
+    readonly kind: 'mesh';
+    readonly vertices: ArrayLike<number>;
+    readonly indices: ArrayLike<number>;
+} | 
+{
+    readonly kind: 'heightfield';
+    readonly heights: ArrayLike<number>;
+    readonly countX: number;
+    readonly countZ: number;
+    readonly spacing: readonly [number, number];
 };
 ```
 
@@ -823,7 +851,7 @@ export declare class NativeWorldBackend implements PhysicsBackend {
   setGravity(x: number, y: number, z: number): void;
   gravity(): [number, number, number];
   createBody(descriptor: NativeBodyDescriptor): NativeBodyHandle | null;
-  bodyKinds(): ('box' | 'sphere' | 'capsule')[];
+  bodyKinds(): NativeBodyKind[];
   bodyState(body: NativeBodyHandle): NativeBodyState;
   setBodyTransform(body: NativeBodyHandle, position: NativeQueryVector, rotation?: NativeQuaternion): void;
   setBodyVelocity(body: NativeBodyHandle, linear: NativeQueryVector, angular?: NativeQueryVector): void;
@@ -977,7 +1005,7 @@ export declare class PhysicsWorld {
   getJointState(joint: Joint): JointState;
   onEvent(listener: (event: WorldEvent) => void): () => void;
   get droppedEvents(): number;
-  bodyKinds(): ('box' | 'sphere' | 'capsule')[];
+  bodyKinds(): BodyKind[];
   spawnBox(options: SpawnBoxOptions): Body | null;
   isAlive(body: Body): boolean;
   destroyBody(body: Body): boolean;
@@ -1222,6 +1250,22 @@ export type ShapeOptions = {
     readonly kind: 'capsule';
     readonly radius: number;
     readonly halfLength: number;
+}
+| {
+    readonly kind: 'hull';
+    readonly points: ArrayLike<number>;
+}
+| {
+    readonly kind: 'mesh';
+    readonly vertices: ArrayLike<number>;
+    readonly indices: ArrayLike<number>;
+}
+| {
+    readonly kind: 'heightfield';
+    readonly heights: ArrayLike<number>;
+    readonly countX: number;
+    readonly countZ: number;
+    readonly spacing: readonly [number, number];
 };
 ```
 
@@ -1488,7 +1532,7 @@ export interface InstanceSource {
     readonly native?: {
         readonly maxBodies: number;
     };
-    bodyKinds?(): readonly ('box' | 'sphere' | 'capsule')[];
+    bodyKinds?(): readonly string[];
 }
 ```
 

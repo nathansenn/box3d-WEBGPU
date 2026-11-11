@@ -28,13 +28,13 @@ Updated 2026-11-11.
 | 0 | Glass study: a step takes 0.2–8 s after fracture, so `tests/studio/material-labs.test.mjs` cannot finish | open |
 | 0 | One roadmap and status ledger | done (this file) |
 | 0 | Enable GitHub Pages | open (owner setting) |
-| 1 | Boxes, spheres, capsules; static, kinematic, dynamic bodies | done |
+| 1 | Boxes, spheres, capsules, convex hulls; static meshes and height fields; static, kinematic, dynamic bodies | done |
 | 1 | Pose, velocity and gravity access; forces and torques; collision filters | done |
 | 1 | Joints: weld, revolute, spherical, prismatic, distance, wheel; limits, motors, springs | done |
 | 1 | Contact, hit and sensor events | done |
 | 1 | SI worlds (`reset`, gravity 9.81) beside the classic arena | done |
 | 1 | Closed-form validation of the rigid solver (`packages/box3d-kit/test/v08.test.mjs`) | done |
-| 1 | Convex hull, mesh, heightfield and compound shapes | open |
+| 1 | Compound shapes (several shapes on one body) | open |
 | 1 | Record and replay of the new calls; worker and network transport for them | open |
 | 1 | Solver state save and load | open |
 | 1 | Lab renderer draws spheres and capsules | open |
@@ -52,9 +52,9 @@ Updated 2026-11-11.
 
 Box3D already has the features; the C bridge (`wasm/box3d_web.c`) exposes them and the kit (`packages/box3d-kit`) wraps them.
 
-Done in kit 0.8.0: general bodies, three shapes, three body types, setters, forces, six joint types, events, SI worlds, and a closed-form validation suite (pendulum period within 0.1%, friction stopping distance within 1%, rebound height within 2%, momentum and energy conserved in an elastic collision).
+Done in kit 0.8.0: general bodies, six shape types, three body types, setters, forces, six joint types, events, SI worlds, and a closed-form validation suite (pendulum period within 0.1%, friction stopping distance within 1%, rebound height within 2%, momentum and energy conserved in an elastic collision, sliding and rolling down inclines within 1%).
 
-Remaining: the other shape types, record/replay and worker transport for the new calls, state save/load, Lab rendering of the new shapes, and the npm release.
+Remaining: compound shapes, record/replay and worker transport for the new calls, state save/load, Lab rendering of the new shapes, and the npm release.
 
 ## Phase 2: one world, coupled
 
@@ -107,5 +107,5 @@ Idea backlogs, no longer the plan of record:
 
 - [`ENGINE_100X_ROADMAP.md`](ENGINE_100X_ROADMAP.md) with [`ENGINE_100X_STATUS.json`](ENGINE_100X_STATUS.json): 6 verified, 11 implemented, 32 partial, 51 not started.
 - [`MATH_SPEED_100.md`](MATH_SPEED_100.md): 1 implemented, 3 partial, 2 trials rejected, 92 proposed.
-- [`INTEGRATION_100.md`](INTEGRATION_100.md): 38 delivered, 26 partly, 36 proposed. Its P0 bridge gaps (#1–#4, #6, #7) are closed by kit 0.8.0 except non-primitive shapes.
+- [`INTEGRATION_100.md`](INTEGRATION_100.md): 38 delivered, 26 partly, 36 proposed. Its P0 bridge gaps (#1–#4, #6, #7) are closed by kit 0.8.0.
 - [`ENHANCEMENTS_100_20261002.md`](ENHANCEMENTS_100_20261002.md) and [`ENHANCEMENTS_SPEED_VISUAL_ACCURACY_20261002.md`](ENHANCEMENTS_SPEED_VISUAL_ACCURACY_20261002.md): proposals, mostly unmeasured.

@@ -11,7 +11,7 @@
 
 The WASM changed (new bridge exports), so replay logs and `exactHash()` values from 0.7.0 builds are not comparable with this one. The classic arena, presets and their behaviour are unchanged.
 
-- **General rigid bodies:** `world.createBody({shape, type, position, …})` with box, sphere and capsule shapes; static, kinematic and dynamic types; density, friction, restitution, damping, gravity scale, bullet, sensor, rotation lock and collision filters.
+- **General rigid bodies:** `world.createBody({shape, type, position, …})` with box, sphere, capsule and convex-hull shapes, plus static triangle meshes and height-field terrain; static, kinematic and dynamic types; density, friction, restitution, damping, gravity scale, bullet, sensor, rotation lock and collision filters.
 - **SI worlds:** `world.reset({ground, gravity, seed})` and `createWorld({gravity, ground})` start an empty world with gravity 9.81 m/s²; `setGravity` / `gravity`.
 - **State access:** `getState`, `setTransform`, `setVelocity`, `moveKinematic`, `setBodyType`, `setAwake`, `setGravityScale`, `setDamping`, `setCollisionFilter`.
 - **Forces:** `applyForce` (optionally at a point), `applyTorque`, `applyImpulseAt`, `applyAngularImpulse`.

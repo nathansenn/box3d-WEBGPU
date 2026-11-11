@@ -16,7 +16,7 @@ export interface InstanceSource {
   readonly capacity?: number;
   readonly native?: {readonly maxBodies: number};
   /** Shape of every row. When absent every row is a box. */
-  bodyKinds?(): readonly ('box' | 'sphere' | 'capsule')[];
+  bodyKinds?(): readonly string[];
 }
 
 interface BufferAttributeLike { array: ArrayLike<number> & {set(source: ArrayLike<number>, offset?: number): void}; needsUpdate: boolean }
@@ -148,6 +148,8 @@ export function syncShapeMeshes(source: InstanceSource, meshes: ShapeMeshes, opt
     const kind = kinds?.[row] ?? 'box';
     if (kind === 'box') { put(0, row); continue; }
     if (kind === 'sphere') { put(1, row); continue; }
+    // Hull, mesh and height-field rows carry caller geometry: draw those with your own meshes and the row's matrix.
+    if (kind !== 'capsule') continue;
     // Capsule rows are scaled (radius, halfLength, radius): right for the cylinder as they are.
     put(2, row);
     const m = row * 16, radius = Math.hypot(matrices[m], matrices[m + 1], matrices[m + 2]);

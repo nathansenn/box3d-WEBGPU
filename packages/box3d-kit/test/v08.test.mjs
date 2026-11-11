@@ -385,3 +385,84 @@ test('the three.js shape adapter draws boxes, spheres and exact capsules', async
     assert.ok(s[12] > 5, 'the sphere moved and was re-synced');
   } finally { world.dispose(); }
 });
+
+test('convex hulls: mass is density x volume and a hull rests on its face', async () => {
+  const world = await si();
+  try {
+    const corners = [];
+    for (const x of [-0.5, 0.5]) for (const y of [-0.5, 0.5]) for (const z of [-0.5, 0.5]) corners.push(x, y, z);
+    const cube = world.createBody({shape: {kind: 'hull', points: [...corners, 0, 0, 0]}, position: [0, 0.6, 0], density: 800});
+    within(world.getState(cube).mass, 800, 1e-5, 'unit cube hull (the interior point is ignored)');
+    const octahedron = world.createBody({shape: {kind: 'hull', points: [1, 0, 0, -1, 0, 0, 0, 1, 0, 0, -1, 0, 0, 0, 1, 0, 0, -1]}, position: [5, 30, 0]});
+    within(world.getState(octahedron).mass, 1000 * 4 / 3, 1e-5, 'octahedron volume 4/3');
+    run(world, 2);
+    near(world.getState(cube).position[1], 0.5, 0.006, 'the cube hull rests on the ground (within contact slop)');
+    assert.deepEqual(world.bodyKinds(), ['box', 'hull', 'hull']);
+    assert.throws(() => world.createBody({shape: {kind: 'hull', points: [0, 0, 0, 1, 0, 0, 0, 1, 0]}, position: [0, 0, 0]}), e => e.code === 'INVALID_PAYLOAD', 'needs 4 points');
+    assert.throws(() => world.createBody({shape: {kind: 'hull', points: [0, 0, 0, 1, 0, 0, 0, 1, 0, 0, 0, 1, 5]}, position: [0, 0, 0]}), e => e.code === 'INVALID_PAYLOAD', 'triples only');
+  } finally { world.dispose(); }
+});
+
+test('a triangle-mesh incline: sliding at g sin(theta) and rolling at 5/7 of it', async () => {
+  const world = await si({ground: false});
+  try {
+    const theta = 0.3, length = 40, half = 4, c = Math.cos(theta), s = Math.sin(theta), r = 0.25, t = 2;
+    const ramp = (z, friction) => world.createBody({
+      shape: {kind: 'mesh', vertices: [0, 0, z - half, length * c, -length * s, z - half, length * c, -length * s, z + half, 0, 0, z + half], indices: [0, 2, 1, 0, 3, 2]},
+      position: [0, 0, 0], friction, type: 'dynamic',
+    });
+    const start = z => [c + r * s, -s + r * c, z]; // touching the incline 1 m down from its top edge
+    const ice = ramp(0, 0);
+    assert.equal(world.getState(ice).type, 'static', 'a mesh body is always static');
+    const slider = world.createBody({shape: {kind: 'sphere', radius: r}, position: start(0), friction: 0});
+    ramp(20, 1);
+    const roller = world.createBody({shape: {kind: 'sphere', radius: r}, position: start(20), friction: 1});
+    run(world, t);
+    const sliding = world.getState(slider), rolling = world.getState(roller);
+    within(Math.hypot(...sliding.linearVelocity), G * s * t, 1e-3, 'frictionless: v = g sin(theta) t');
+    near(Math.hypot(...sliding.angularVelocity), 0, 1e-3, 'and no spin');
+    near(sliding.position[0] * s + sliding.position[1] * c, r, 0.006, 'it stays on the surface (within contact slop)');
+    // A solid sphere rolling without slipping: a = (5/7) g sin(theta). The solver lets it slip slightly.
+    within(Math.hypot(...rolling.linearVelocity), 5 / 7 * G * s * t, 0.01, 'rolling: v = (5/7) g sin(theta) t');
+    within(Math.abs(rolling.angularVelocity[2]) * r, Math.hypot(...rolling.linearVelocity), 0.02, 'rolling: v = omega r');
+    assert.deepEqual(world.bodyKinds().slice(0, 2), ['mesh', 'sphere']);
+    assert.throws(() => world.createBody({shape: {kind: 'mesh', vertices: [0, 0, 0, 1, 0, 0, 0, 0, 1], indices: [0, 1, 3]}, position: [0, 0, 0]}), e => e.code === 'INVALID_PAYLOAD', 'index out of range');
+    assert.equal(world.destroyBody(ice), true, 'a mesh body can be destroyed');
+    run(world, 0.5);
+    assert.ok(world.getState(slider).position[1] < sliding.position[1] - 1, 'and the sphere then falls freely');
+  } finally { world.dispose(); }
+});
+
+test('height-field terrain: exact heights on a plane, sliding on it, and settling in a bowl', async () => {
+  const world = await si({ground: false});
+  try {
+    const theta = 0.2, nx = 81, nz = 9, d = 0.5, slope = Math.tan(theta), heights = [];
+    for (let z = 0; z < nz; z++) for (let x = 0; x < nx; x++) heights.push((nx - 1 - x) * d * slope);
+    const hill = world.createBody({shape: {kind: 'heightfield', heights, countX: nx, countZ: nz, spacing: [d, d]}, position: [100, 0, -2], friction: 0, type: 'kinematic'});
+    assert.equal(world.getState(hill).type, 'static', 'a height field is always static');
+    for (const x of [0.25, 10.3, 39.9]) {
+      const hit = world.raycast([100 + x, 100, 0], [0, -200, 0]);
+      // Heights are quantised to 16 bits over the field's range (8 m here): about 0.12 mm.
+      near(hit.point[1], (40 - x) * slope, 5e-4, `terrain height at x = ${x}`);
+      near(hit.normal[1], Math.cos(theta), 1e-4, 'terrain normal');
+    }
+    const r = 0.25, c = Math.cos(theta), s = Math.sin(theta), t = 2;
+    const puck = world.createBody({shape: {kind: 'sphere', radius: r}, position: [101 + r * s, 39 * slope + r * c, 0], friction: 0});
+    run(world, t);
+    within(Math.hypot(...world.getState(puck).linearVelocity), G * s * t, 1e-3, 'frictionless slide down the terrain');
+
+    const n = 41, bowl = [];
+    for (let z = 0; z < n; z++) for (let x = 0; x < n; x++) bowl.push(0.02 * ((x - 20) ** 2 + (z - 20) ** 2) * 0.0625);
+    world.createBody({shape: {kind: 'heightfield', heights: bowl, countX: n, countZ: n, spacing: [0.25, 0.25]}, position: [200, 0, 0], friction: 0.6});
+    const marble = world.createBody({shape: {kind: 'sphere', radius: 0.2}, position: [203.5, 3, 6.5], friction: 0.6, linearDamping: 0.5, angularDamping: 0.5});
+    run(world, 20);
+    const rest = world.getState(marble);
+    near(rest.position[0], 205, 0.1, 'the marble settles at the bottom of the bowl (x)');
+    near(rest.position[2], 5, 0.1, 'the marble settles at the bottom of the bowl (z)');
+    near(rest.position[1], 0.2, 0.01, 'resting on the lowest cell');
+    assert.equal(rest.awake, false);
+    assert.throws(() => world.createBody({shape: {kind: 'heightfield', heights: [0, 0, 0], countX: 2, countZ: 2, spacing: [1, 1]}, position: [0, 0, 0]}), e => e.code === 'INVALID_PAYLOAD', 'heights must match the grid');
+    world.reset({ground: false});
+    assert.equal(world.bodyCount(), 0, 'reset releases terrain and mesh data with the world');
+  } finally { world.dispose(); }
+});
