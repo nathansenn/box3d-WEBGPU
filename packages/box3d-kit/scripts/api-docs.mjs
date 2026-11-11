@@ -16,6 +16,7 @@ const ENTRIES = [
   ['box3d-webgpu-kit/worker', 'dist/worker.d.ts'],
   ['box3d-webgpu-kit/cable', 'dist/cable.d.ts'],
   ['box3d-webgpu-kit/water', 'dist/water.d.ts'],
+  ['box3d-webgpu-kit/coupling', 'dist/coupling.d.ts'],
   ['box3d-webgpu-kit/frame', 'dist/frame.d.ts'],
   ['box3d-webgpu-kit/gameplay', 'dist/gameplay.d.ts'],
 ];

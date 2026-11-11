@@ -2100,6 +2100,164 @@ export declare function stepLinearWaterCpu(s: LinearWaterArrays, c: Readonly<Lin
 export declare function validateLinearWaterConfig(input: LinearWaterConfig): Readonly<LinearWaterConfig>;
 ```
 
+## `box3d-webgpu-kit/coupling`
+
+### CoupledBodyReport · interface
+
+Live per-body results of the most recent step(). Do not write to it.
+
+```ts
+export interface CoupledBodyReport {
+    readonly volume: number;
+    readonly submergedVolume: number;
+    readonly submergedFraction: number;
+    readonly centre: Float64Array;
+    readonly buoyancy: Float64Array;
+    readonly drag: Float64Array;
+    readonly dragTorque: Float64Array;
+}
+```
+
+### CouplingBodyOptions · interface
+
+```ts
+export interface CouplingBodyOptions {
+    readonly dragCoefficient?: number;
+    readonly referenceArea?: number;
+    readonly linearDrag?: number;
+    readonly angularDrag?: number;
+}
+```
+
+### CouplingBodyState · interface
+
+```ts
+export interface CouplingBodyState {
+    readonly position: CouplingVec3;
+    readonly rotation: readonly [number, number, number, number];
+    readonly linearVelocity: CouplingVec3;
+    readonly angularVelocity: CouplingVec3;
+    readonly mass: number;
+    readonly type: string;
+}
+```
+
+### CouplingShape · type
+
+```ts
+export type CouplingShape = {
+    readonly kind: 'box';
+    readonly halfExtents: CouplingVec3;
+} | {
+    readonly kind: 'sphere';
+    readonly radius: number;
+}
+| {
+    readonly kind: 'capsule';
+    readonly radius: number;
+    readonly halfLength: number;
+};
+```
+
+### CouplingVec3 · type
+
+```ts
+export type CouplingVec3 = readonly [number, number, number];
+```
+
+### CouplingWorld · interface
+
+The part of a rigid-body world the coupling uses. The kit's PhysicsWorld satisfies it.
+
+```ts
+export interface CouplingWorld<B> {
+    gravity(): readonly number[];
+    getState(body: B): CouplingBodyState;
+    applyForce(body: B, force: CouplingVec3, point?: CouplingVec3): void;
+    applyTorque(body: B, torque: CouplingVec3): void;
+    isAlive?(body: B): boolean;
+    readonly loop?: {
+        readonly step: number;
+    };
+}
+```
+
+### WATER_COUPLING_BACKEND · const
+
+Two-way coupling of rigid bodies with one closed, flat-bottom, linear shallow-water basin.
+
+Water -> body: Archimedes buoyancy from the exact volume of the shape below the local
+water plane, applied at the centre of buoyancy, plus a drag MODEL (linear + quadratic in the
+velocity relative to the water, scaled by the submerged fraction). This is not CFD.
+Body -> water: the displaced volume is a volume source for the free surface, and the reaction
+of every horizontal force the water puts on a body is a momentum source for the water.
+
+SI units, float64 state, world Y is up, grid x/z are world x/z. The water scheme is the one in
+closed-water.ts (C-grid, eta at t, face velocities at t - dt/2) with the two source terms added.
+See docs/WATER_COUPLING.md for the equations, what is conserved, and the validation.
+
+```ts
+export declare const WATER_COUPLING_BACKEND = "rigid-water-coupling-closed-cgrid-js-f64-v1";
+```
+
+### WaterCoupling · class
+
+```ts
+export declare class WaterCoupling<B> {
+  readonly backend = "rigid-water-coupling-closed-cgrid-js-f64-v1";
+  readonly cols: number;
+  readonly rows: number;
+  readonly dx: number;
+  readonly dz: number;
+  readonly dt: number;
+  readonly restDepth: number;
+  readonly density: number;
+  readonly waterDrag: number;
+  readonly origin: CouplingVec3;
+  readonly eta: Float64Array;
+  readonly u: Float64Array;
+  readonly v: Float64Array;
+  readonly stepImpulseOnWater: Float64Array<ArrayBuffer>;
+  readonly stepImpulseOnBodies: Float64Array<ArrayBuffer>;
+  waterConfig(gravity?: number): LinearWaterConfig;
+  attach(body: B, shape: CouplingShape, options?: CouplingBodyOptions): CoupledBodyReport;
+  detach(body: B): boolean;
+  report(body: B): CoupledBodyReport | null;
+  attachedCount(): number;
+  tick(): number;
+  gravity(): number;
+  step(): void;
+  surfaceVolume(): number;
+  displacedVolume(): number;
+  waterVolume(): number;
+  meanElevation(): number;
+  elevationAt(x: number, z: number): number;
+  floorLoad(): number;
+  buoyancyTotal(): number;
+  verticalDragTotal(): number;
+  waterKineticEnergy(): number;
+  waterPotentialEnergy(): number;
+  copyTo(arrays: Pick<LinearWaterArrays, 'eta' | 'u' | 'v'>): void;
+}
+```
+
+### WaterCouplingOptions · interface
+
+```ts
+export interface WaterCouplingOptions {
+    readonly cols: number;
+    readonly rows: number;
+    readonly dx: number;
+    readonly dz: number;
+    readonly restDepth: number;
+    readonly origin: CouplingVec3;
+    readonly dt?: number;
+    readonly density?: number;
+    readonly waterDrag?: number;
+    readonly eta?: ArrayLike<number>;
+}
+```
+
 ## `box3d-webgpu-kit/frame`
 
 ### FRAME_BACKEND · const

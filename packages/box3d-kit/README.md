@@ -283,10 +283,39 @@ camera.follow(hero.state.position);
 |---|---|
 | `box3d-webgpu-kit/cable` | Compliant cables and ropes (XPBD and proximal solvers, float64): node forces and impulses, tensions, support reactions, exact JSON checkpoints. |
 | `box3d-webgpu-kit/water` | CPU shallow-water height fields: an open-boundary reference and a closed-basin solver that conserves volume. |
+| `box3d-webgpu-kit/coupling` | Rigid bodies in water, both ways: buoyancy, drag, and bodies that raise the level and make waves (see below). |
 | `box3d-webgpu-kit/frame` | 3D beam and column frames: statics, dynamics, end reactions. For structures that bend. |
 | `box3d-webgpu-kit/gameplay` | Trigger volumes and a kinematic character controller for the rigid-body world (see above). |
 
-Cable, water and frame are the same model code the Box3D WebGPU app runs; the build copies it from the app. The app's own test suites (46 tests: 11 cable, 11 proximal cable, 2 linear water, 6 closed water, 16 frame) run against the packaged copies in `npm test`. They are independent of the rigid-body world; coupling them (for example buoyancy, or ropes attached to bodies) needs the native events and pose setters listed under limits. The WebGPU water solver is not packaged yet.
+Cable, water and frame are the same model code the Box3D WebGPU app runs; the build copies it from the app. The app's own test suites (46 tests: 11 cable, 11 proximal cable, 2 linear water, 6 closed water, 16 frame) run against the packaged copies in `npm test`. Cable and frame are independent of the rigid-body world. Water is coupled to it by `box3d-webgpu-kit/coupling`; ropes attached to bodies are not coupled yet. The WebGPU water solver is not packaged yet.
+
+### Bodies in water
+
+`WaterCoupling` joins one closed water basin to the world, in both directions. The water lifts each attached body with the weight of the water it displaces, applied at the centre of buoyancy, so bodies float at the right draught and right themselves; a drag model slows them. Each body's displaced volume raises the water and makes waves, and the horizontal force the water puts on a body is taken out of the water's momentum.
+
+```ts
+import {createWorld} from 'box3d-webgpu-kit';
+import {WaterCoupling} from 'box3d-webgpu-kit/coupling';
+
+const world = await createWorld({step: 1 / 240, ground: false});
+// A 16 m x 16 m pool, 2 m deep, floor at y = 0. The pool floor and walls are ordinary static bodies.
+world.createBody({shape: {kind: 'box', halfExtents: [8, 0.5, 8]}, type: 'static', position: [0, -0.5, 0]});
+const water = new WaterCoupling(world, {cols: 32, rows: 32, dx: 0.5, dz: 0.5, restDepth: 2, origin: [-8, 0, -8]});
+
+const shape = {kind: 'box', halfExtents: [0.5, 0.3, 0.5]};
+const crate = world.createBody({shape, position: [0, 4, 0], density: 600});
+const report = water.attach(crate, shape);        // pass the shape again: the world does not report it
+
+function fixedStep() {
+  water.step();                                   // first: forces for this step, and the water advances
+  world.step();                                   // then the rigid bodies
+}
+report.submergedFraction;                         // 0.6 once it has settled (Archimedes)
+water.eta;                                        // Float64Array of surface heights above rest, cols * rows
+water.meanElevation();                            // rose by the displaced volume / pool area
+```
+
+Units are SI and gravity comes from `world.gravity()`. The step must be the world's fixed step. Drag is a model with coefficients you can set per body (`dragCoefficient`, `referenceArea`, `linearDrag`, `angularDrag`), not a flow solution. `test/v09-coupling.test.mjs` checks the coupling against closed-form answers (Archimedes for all three shapes, volume conservation, heave and roll periods, terminal velocity, the righting moment, an energy budget and determinism); the model, its limits and the measured errors are in [`docs/WATER_COUPLING.md`](https://github.com/nathansenn/box3d-WEBGPU/blob/main/docs/WATER_COUPLING.md).
 
 ### No build step
 

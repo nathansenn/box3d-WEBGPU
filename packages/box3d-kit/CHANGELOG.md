@@ -7,6 +7,18 @@
 - The native world ABI version (`NATIVE_WORLD_API_VERSION`, currently 1) must match the loaded module; a mismatch fails loudly with `UNSUPPORTED_BACKEND`.
 - Before 1.0, minor versions may change the API; the changes are listed below.
 
+## 0.9.0
+
+The WASM is unchanged from 0.8.0.
+
+- **`box3d-webgpu-kit/coupling`:** `WaterCoupling` couples rigid bodies with one closed shallow-water basin, both ways.
+  - Water to body: buoyancy from the exact volume of a box, sphere or capsule below the local water plane, applied at the centre of buoyancy (so it rights a heeled body), the pressure-gradient force of a sloping surface, and a drag model (linear plus quadratic in the velocity relative to the water, scaled by the submerged fraction).
+  - Body to water: the displaced volume is a volume source for the free surface (water volume is conserved to float64 roundoff; the mean level rises by displaced volume / basin area), and the reaction of the horizontal force is a momentum source.
+  - `attach(body, shape, options)`, `detach(body)`, `step()` (call it before `world.step()`), per-body reports, and diagnostics: `waterVolume`, `displacedVolume`, `surfaceVolume`, `meanElevation`, `elevationAt`, `floorLoad`, `buoyancyTotal`, `waterKineticEnergy`, `waterPotentialEnergy`, `copyTo`.
+  - Float64 state, deterministic, no allocation of its own per step.
+- `capabilities().modules` lists `coupling`.
+- `test/v09-coupling.test.mjs` checks the coupling against closed-form answers; see `docs/WATER_COUPLING.md` for the model, the measured errors and the limits.
+
 ## 0.8.0
 
 The WASM changed (new bridge exports), so replay logs and `exactHash()` values from 0.7.0 builds are not comparable with this one. The classic arena, presets and their behaviour are unchanged.

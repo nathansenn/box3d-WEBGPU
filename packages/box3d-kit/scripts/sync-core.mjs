@@ -20,10 +20,11 @@ export const CORE = [
     ],
   },
   {from: 'src/engine/contracts.ts', rewrites: []},
-  // Optional modules (subpath exports ./cable, ./water, ./frame). Self-contained apart from contracts.ts.
+  // Optional modules (subpath exports ./cable, ./water, ./coupling, ./frame). Self-contained apart from contracts.ts.
   {from: 'src/engine/compliant-cable.ts', rewrites: []},
   {from: 'src/engine/linear-water.ts', rewrites: []},
   {from: 'src/engine/closed-water.ts', rewrites: []},
+  {from: 'src/engine/water-coupling.ts', rewrites: []},
   {from: 'src/engine/frame-element.ts', rewrites: []},
   {from: 'src/engine/frame-runtime.ts', rewrites: []},
 ];

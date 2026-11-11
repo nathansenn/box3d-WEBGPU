@@ -902,6 +902,136 @@ export declare class NativeWorldPool {
 }
 export {};
 
+// ==== core/water-coupling.d.ts ====
+import { type LinearWaterArrays, type LinearWaterConfig } from './linear-water.js';
+export declare const WATER_COUPLING_BACKEND = "rigid-water-coupling-closed-cgrid-js-f64-v1";
+export type CouplingVec3 = readonly [number, number, number];
+export type CouplingShape = {
+    readonly kind: 'box';
+    readonly halfExtents: CouplingVec3;
+} | {
+    readonly kind: 'sphere';
+    readonly radius: number;
+}
+ | {
+    readonly kind: 'capsule';
+    readonly radius: number;
+    readonly halfLength: number;
+};
+export interface CouplingBodyState {
+    readonly position: CouplingVec3;
+    readonly rotation: readonly [number, number, number, number];
+    readonly linearVelocity: CouplingVec3;
+    readonly angularVelocity: CouplingVec3;
+    readonly mass: number;
+    readonly type: string;
+}
+export interface CouplingWorld<B> {
+    gravity(): readonly number[];
+    getState(body: B): CouplingBodyState;
+    applyForce(body: B, force: CouplingVec3, point?: CouplingVec3): void;
+    applyTorque(body: B, torque: CouplingVec3): void;
+    isAlive?(body: B): boolean;
+    readonly loop?: {
+        readonly step: number;
+    };
+}
+export interface WaterCouplingOptions {
+    readonly cols: number;
+    readonly rows: number;
+    readonly dx: number;
+    readonly dz: number;
+    readonly restDepth: number;
+    readonly origin: CouplingVec3;
+    readonly dt?: number;
+    readonly density?: number;
+    readonly waterDrag?: number;
+    readonly eta?: ArrayLike<number>;
+}
+export interface CouplingBodyOptions {
+    readonly dragCoefficient?: number;
+    readonly referenceArea?: number;
+    readonly linearDrag?: number;
+    readonly angularDrag?: number;
+}
+export interface CoupledBodyReport {
+    readonly volume: number;
+    readonly submergedVolume: number;
+    readonly submergedFraction: number;
+    readonly centre: Float64Array;
+    readonly buoyancy: Float64Array;
+    readonly drag: Float64Array;
+    readonly dragTorque: Float64Array;
+}
+export declare class WaterCoupling<B> {
+    readonly backend = "rigid-water-coupling-closed-cgrid-js-f64-v1";
+    readonly cols: number;
+    readonly rows: number;
+    readonly dx: number;
+    readonly dz: number;
+    readonly dt: number;
+    readonly restDepth: number;
+    readonly density: number;
+    readonly waterDrag: number;
+    readonly origin: CouplingVec3;
+    readonly eta: Float64Array;
+    readonly u: Float64Array;
+    readonly v: Float64Array;
+    readonly stepImpulseOnWater: Float64Array<ArrayBuffer>;
+    readonly stepImpulseOnBodies: Float64Array<ArrayBuffer>;
+    private readonly world;
+    private displaced;
+    private displacedNext;
+    private readonly entries;
+    private g;
+    private ticks;
+    private buoyancySum;
+    private dragYSum;
+    private displacedMoment;
+    private readonly rot;
+    private readonly corners;
+    private readonly cornerDistance;
+    private readonly polygon;
+    private readonly breaks;
+    private readonly clip;
+    private readonly chord;
+    private readonly force;
+    private readonly point;
+    constructor(world: CouplingWorld<B>, options: WaterCouplingOptions);
+    waterConfig(gravity?: number): LinearWaterConfig;
+    attach(body: B, shape: CouplingShape, options?: CouplingBodyOptions): CoupledBodyReport;
+    detach(body: B): boolean;
+    report(body: B): CoupledBodyReport | null;
+    attachedCount(): number;
+    tick(): number;
+    gravity(): number;
+    step(): void;
+    surfaceVolume(): number;
+    displacedVolume(): number;
+    waterVolume(): number;
+    meanElevation(): number;
+    elevationAt(x: number, z: number): number;
+    floorLoad(): number;
+    buoyancyTotal(): number;
+    verticalDragTotal(): number;
+    waterKineticEnergy(): number;
+    waterPotentialEnergy(): number;
+    copyTo(arrays: Pick<LinearWaterArrays, 'eta' | 'u' | 'v'>): void;
+    private readGravity;
+    private find;
+    private removeAt;
+    private sampleEta;
+    private couple;
+    private verticalChord;
+    private clipShape;
+    private clipBox;
+    private clipSphere;
+    private clipCapsule;
+}
+
+// ==== coupling.d.ts ====
+export * from './core/water-coupling.js';
+
 // ==== debug.d.ts ====
 import { type UpAxis } from './axes.js';
 import type { InstanceSource } from './three.js';

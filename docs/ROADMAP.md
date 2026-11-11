@@ -39,7 +39,9 @@ Updated 2026-11-11.
 | 1 | Solver state save and load | open |
 | 1 | Lab renderer draws spheres and capsules | open |
 | 1 | Publish `box3d-webgpu-kit` 1.0 to npm | open (owner decision) |
-| 2–6 | See below | not started |
+| 2 | Rigid ↔ water, both ways: buoyancy, drag, volume and momentum sources (`box3d-webgpu-kit/coupling`, [`WATER_COUPLING.md`](WATER_COUPLING.md)) | done in the kit with closed-form validation (`packages/box3d-kit/test/v09-coupling.test.mjs`); not yet used by a scene or the Studio |
+| 2 | One scene description and stepping loop; rigid ↔ cloth and rope; cable and frame ↔ rigid; bridge rebuild | open |
+| 3–6 | See below | not started |
 
 ## Phase 0: clean base
 
@@ -60,7 +62,7 @@ Remaining: compound shapes, state save/load, Lab rendering of the new shapes, an
 
 - One scene description and one stepping loop that every solver plugs into, in SI units.
 - Two-way coupling, in order of payoff:
-  1. rigid ↔ water: buoyancy and drag that push back on the water;
+  1. rigid ↔ water: buoyancy and drag that push back on the water (done in kit 0.9.0 for one flat-bottom basin; see [`WATER_COUPLING.md`](WATER_COUPLING.md));
   2. rigid ↔ cloth and rope;
   3. cable and frame ↔ rigid.
 - Rebuild the bridge study on the validated frame and cable solvers, carrying real bodies in real units. It becomes the flagship.

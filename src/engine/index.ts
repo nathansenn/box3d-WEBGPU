@@ -6,6 +6,7 @@ export * from './workbench-runtime.ts';
 export * from './studio-sweep.ts';
 export * from './linear-water.ts';
 export * from './closed-water.ts';
+export * from './water-coupling.ts';
 export * from './compliant-cable.ts';
 export * from './frame-element.ts';
 export * from './frame-runtime.ts';
