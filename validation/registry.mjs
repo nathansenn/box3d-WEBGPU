@@ -17,6 +17,7 @@ import simulation from './domains/simulation.mjs';
 import robot from './domains/robot.mjs';
 import heat from './domains/heat.mjs';
 import solid from './domains/solid.mjs';
+import fracture from './domains/fracture.mjs';
 import frame from './domains/frame.mjs';
 import cable from './domains/cable.mjs';
 import closedWater from './domains/closed-water.mjs';
@@ -156,9 +157,24 @@ export const DOMAINS = [
       'Bending is where this element is weak, and the table shows it: one cell through the thickness is three times too stiff, four cells 12%, eight cells 3.4%. Bending frequencies are 5% to 6% high at four cells.',
       'Near-incompressibility: at nu = 0.4999 the four-cell cantilever is 29% too stiff. There is no mixed or higher-order element.',
       'With nu = 0.3 a clamped root also restrains Poisson contraction, which beam theory ignores: the 3-D limit sits about 1.2% below the Timoshenko reference.',
-      'Contact and self-contact, plasticity, viscoelasticity, damage and crack growth (the strength checks only flag elements), anisotropy, and more than one material per body.',
+      'Contact and self-contact, plasticity, viscoelasticity, anisotropy, and more than one material per body. Crack growth is a separate solver on the linear model of this element (the fracture domain); `SolidBody` itself only flags elements above a strength.',
       'No two-way coupling to the rigid-body, water, cable or frame solvers, and no contact with rigid bodies. The one-way thermal and dead-load links are in the simulation domain.',
       'Uniform states are exact, so the tension, shear, pressure and rubber rows say nothing about accuracy under stress gradients.',
+    ],
+  },
+  {
+    id: 'fracture', title: 'Fracture of deformable solids', needsKit: false,
+    solver: '`src/engine/solid-fracture.ts`: small-strain linear tetrahedra with cohesive interfaces on element faces (bilinear traction-separation law, nodes duplicated where a face opens) or a Rankine crack band; static, midpoint, backward-Euler and explicit integration, float64',
+    summary: 'A bar with a weak cross-section against the traction-separation law and G_c A, mesh objectivity of the cohesive and crack-band energies, a centre-cracked plate against Griffith, a notched beam against the size-effect law and the work of fracture, momentum and energy of a bar that breaks in flight, the onset of thermal-shock cracking against the heat module, and the mesh dependence of an inclined crack.',
+    docs: ['docs/SOLID_FRACTURE.md'],
+    notValidated: [
+      'Crack paths. A cohesive crack can only follow element faces: a crack inclined 30 degrees to the mesh is 24 % (five-tetrahedron cells) or 48 % (six-tetrahedron cells) larger than the plane it should follow, at any resolution, and dissipates 30 % to 70 % too much energy. Every closed-form row here has its crack on a mesh plane.',
+      'Insertion on demand near a crack tip. The criterion reads the mean stress of two elements, which misses the peak at a tip: with cells of l_ch / 2 the centre-cracked plate fails at 1.60 of the Griffith stress unless interfaces are inserted earlier (0.5 sigma_c gives 0.985) or placed along the expected path, as the Griffith and beam rows do.',
+      'The Griffith and beam rows are converged in neither mesh nor size: cells of l_ch read 11.5 % high, cells of l_ch / 2 read 3.5 % low, and the cohesive law itself is 4.5 % below LEFM at a = 5 l_ch (1.5 % at 10 l_ch). The size-effect law used for the beam is an asymptote, and its constant c_f = 0.419 l_ch is taken from the literature.',
+      'Crack branching, dynamic crack speeds and fragmentation statistics have no reference here; branching is whatever the faces allow. No plasticity, no rate dependence, no fatigue.',
+      'Contact exists only across an interface (a penalty that stops its two sides passing through each other, without friction). Fragments do not collide with each other or with anything else until they are handed to the rigid world, and that hand-off is one-way.',
+      'Small strain: a piece that rotates after breaking off carries false stress (angular momentum of a bar spinning at 40 rad/s drifts by 1.5e-4 of m V L). The crack band uses isotropic damage: it weakens compression too, and a band held sideways by its neighbours dissipates 0.9 G_c at nu = 0.2.',
+      'The thermal-shock row checks when and where the first crack appears, on elements larger than l_ch; the crack pattern after that (spacing, depth, arrest) is not resolved and has no row. The heat flow does not see the cracks.',
     ],
   },
   {
@@ -203,7 +219,7 @@ export const DOMAINS = [
   },
 ];
 
-export const CASES = [...rigid, ...waterCoupling, ...structureCoupling, ...siBridge, ...geometry, ...scene, ...simulation, ...robot, ...heat, ...solid, ...frame, ...cable, ...closedWater];
+export const CASES = [...rigid, ...waterCoupling, ...structureCoupling, ...siBridge, ...geometry, ...scene, ...simulation, ...robot, ...heat, ...solid, ...fracture, ...frame, ...cable, ...closedWater];
 
 /** Cases of the given domains (all when `only` is empty), in registry order. */
 export function selectCases(only = []) {

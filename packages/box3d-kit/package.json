@@ -72,6 +72,10 @@
       "types": "./dist/robot.d.ts",
       "default": "./dist/robot.js"
     },
+    "./fracture": {
+      "types": "./dist/fracture.d.ts",
+      "default": "./dist/fracture.js"
+    },
     "./single": {
       "types": "./dist/index.d.ts",
       "default": "./dist/single.js"

@@ -114,6 +114,7 @@ Each adapter calls the module's own `step` and nothing else. No module's numeric
 | `structureSubsystem(coupling, {id?, bodies?})` | couple, 100 | `coupling.step()`, which steps the cables and frames it holds | `equal`: `coupling.dt` is the simulation step. The coupling itself requires every cable's and frame's `dt` to equal its own, frames to use `substeps: 1`, and a cable with drag to use `substeps: 1`. | `coupling.diagnostics()`: attached bodies (with the pending half kick), cables and frames. Pass the attached bodies as `bodies`. |
 | `heatSubsystem(heat, {id?})` | post, 100 | `heat.step(substeps)` | `commensurate`. With `scheme: 'explicit'` the solver's `dt` must also be within `explicitStabilityLimit()`, else `UNSTABLE_TIME_STEP` (the module checks this when it is built; the adapter checks again, because a boundary changed later can lower the limit). | Thermal: stored energy, with boundary and source heat as `exchanged`. |
 | `solidSubsystem(solid, {id?})` | post, 300 | `solid.step(substeps)` | `commensurate`. An explicit body must be within `explicitLimit()`, else `UNSTABLE_TIME_STEP`; in practice it needs many of its own steps per simulation step (the test uses the count the limit gives). | Kinetic + strain + load potential. |
+| `fractureSubsystem(body, {id?})` (from `box3d-webgpu-kit/fracture`) | post, 300 | `body.step(substeps)`; crack events of the step are emitted as `'crack'` in the events stage | `commensurate`. An explicit body must be within its `explicitLimit()`, which already allows for every face cracking. | Kinetic + strain + interface energy, with the dissipated and damped energy as `exchanged`. |
 
 **Sub-cycling, and where it is sound.** Heat and solids are independent fields here: nothing in the rigid step depends on them inside a step, so stepping them N times per simulation step, or once every N steps, is exactly the solver run at its own `dt`. Both are allowed for every scheme, subject to the solver's own stability check. Water and structure couplings exchange forces with the rigid step and are never sub-cycled. A link reads its source when the source has advanced, so a solid that steps more often than its heat solver holds the temperature between heat steps.
 
@@ -124,7 +125,7 @@ Each adapter calls the module's own `step` and nothing else. No module's numeric
 | rigid ↔ water | Two-way, through `WaterCoupling` ([`WATER_COUPLING.md`](WATER_COUPLING.md)). |
 | rigid ↔ cables, rigid ↔ frames, cable ↔ frame | Two-way, through `StructureCoupling` ([`STRUCTURE_COUPLING.md`](STRUCTURE_COUPLING.md)). |
 | water ↔ structure on the same body | **Each is two-way with the body; they do not know of each other.** See below. |
-| heat → solid | **One-way link** (`thermalSolidLink`): temperature becomes the solid's thermal strain. |
+| heat → solid | **One-way link** (`thermalSolidLink`): temperature becomes the solid's thermal strain. With a `FractureBody` that strain can crack the solid ([`SOLID_FRACTURE.md`](SOLID_FRACTURE.md)); the cracks do not change the heat flow. |
 | rigid → solid | **One-way link** (`deadLoadLink`): a body's weight becomes a dead load on solid nodes. |
 | rigid ↔ solid contact | **Not modelled.** A rigid body does not collide with a deformable solid, rest on it or get pushed by it. Open. |
 | solid → heat, solid → rigid, water ↔ solid, water ↔ cable or frame | Not modelled. |

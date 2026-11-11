@@ -454,16 +454,28 @@ export function cellTemperaturesToNodes(temperature:ArrayLike<number>,cells:read
   return out;
 }
 
+/** What `thermalSolidLink` needs from a solid: a `SolidBody`, or a `FractureBody` (solid-fracture.ts), whose node count
+ * grows when it cracks and which therefore states the node count of its mesh as given in `thermalNodeCount`. */
+export interface ThermalSolidTarget {
+  readonly nodeCount:number;
+  /** Nodes that `setTemperatureChange` takes one value for, when that is not `nodeCount`. */
+  readonly thermalNodeCount?:number;
+  readonly referencePositions:Float64Array;
+  setTemperatureChange(rise:number|ArrayLike<number>):void;
+}
+
 /** ONE-WAY thermal -> solid: the heat solver's temperature becomes the solid's thermal load (eigenstrain alpha_T dT).
+ * With a `FractureBody` as the solid, that strain can crack it (docs/SOLID_FRACTURE.md).
  * The solid does not act on the temperature. Co-located grids only: the solid must be a `boxMesh` whose cells are the heat
  * grid's cells (same counts, same cell size, every heat cell solid). Mapping: `cellTemperaturesToNodes`, then the solid takes
  * the mean of an element's four nodes. Post stage, between the heat solver and the solid, after every heat step.
  * `reference` is the stress-free temperature. The solid module allocates one array per update. */
-export function thermalSolidLink<W,B>(heat:HeatSolver,solid:SolidBody,options:{readonly id?:string;readonly reference:number}):Subsystem<W,B> {
+export function thermalSolidLink<W,B>(heat:HeatSolver,solid:ThermalSolidTarget,options:{readonly id?:string;readonly reference:number}):Subsystem<W,B> {
   const id=options.id??'thermal-solid',reference=options.reference,cells:[number,number,number]=[heat.nx,heat.ny,heat.nz];
   if(!Number.isFinite(reference))throw payload(`Link "${id}": reference must be the stress-free temperature, a finite number.`);
   const nodes=(heat.nx+1)*(heat.ny+1)*(heat.nz+1);
-  if(solid.nodeCount!==nodes)throw payload(`Link "${id}": the solid has ${solid.nodeCount} nodes but a box mesh on the ${heat.nx} x ${heat.ny} x ${heat.nz} heat grid has ${nodes}. The grids must be co-located.`);
+  const solidNodes=solid.thermalNodeCount??solid.nodeCount;
+  if(solidNodes!==nodes)throw payload(`Link "${id}": the solid has ${solidNodes} nodes but a box mesh on the ${heat.nx} x ${heat.ny} x ${heat.nz} heat grid has ${nodes}. The grids must be co-located.`);
   for(let i=0;i<heat.cells;i++)if(!heat.solid[i])throw payload(`Link "${id}": heat cell ${i} is not solid. The link needs a full box.`);
   const p=solid.referencePositions,spacing=[heat.dx,heat.dy,heat.dz],stride=[1,heat.nx+1,(heat.nx+1)*(heat.ny+1)];
   for(let axis=0;axis<3;axis++){

@@ -424,6 +424,7 @@ camera.follow(hero.state.position);
 | `box3d-webgpu-kit/structure` | Cables and frames attached to rigid bodies, both ways: tethers, hanging loads, bodies on beams, cable-stayed spans (see below). |
 | `box3d-webgpu-kit/heat` | Heat conduction in solids: transient and steady temperature fields, four boundary types, an energy ledger, and one-way thermal stress and thermal-shock estimates (see below). |
 | `box3d-webgpu-kit/solid` | Deformable solids from tetrahedral finite elements with real material parameters: statics, dynamics, stresses, strength checks (see below). |
+| `box3d-webgpu-kit/fracture` | Fracture of those solids: cohesive cracks along element faces with a strength and a fracture energy, a crack-band model, fragments, and a one-way hand-off of a fragment to the rigid world (see below). |
 | `box3d-webgpu-kit/gameplay` | Trigger volumes and a kinematic character controller for the rigid-body world (see above). |
 | `box3d-webgpu-kit/geometry` | OBJ, STL and glTF import, mesh measures, convex hulls and convex decomposition (see above). |
 | `box3d-webgpu-kit/scene` | Scene files: a versioned JSON format with validation, load, save, canonical text, hashing, share links and example scenes (see above). |
@@ -564,7 +565,45 @@ beam.fundamentalMode().frequency;       // lowest natural frequency, Hz
 - **Dynamics:** `beam.step(n)` with `integrator: 'backward-euler'`, `'midpoint'` (conserves energy for the linear model) or `'explicit'` (refuses a time step above its stability limit; see `explicitLimit()`), with Rayleigh damping.
 - **Loads:** fixed or prescribed nodes, point forces, tractions and pressure on boundary faces, gravity, and a temperature rise.
 - **Accuracy:** checked against closed-form answers in the repository's `docs/SOLID_MECHANICS.md`. Uniform strain states are exact. Bending needs at least four cells through the thickness: the tip deflection is then 12% low, and 3.4% low with eight. Poisson's ratio above 0.49 locks.
-- **Not included:** contact, plasticity and crack growth. `failedElements` only reports where a strength is exceeded. The solid is not coupled to the rigid-body world two-way; `box3d-webgpu-kit/simulation` has two one-way links into it (temperature from the heat solver, the weight of a rigid body).
+- **Not included:** contact and plasticity. `failedElements` only reports where a strength is exceeded; crack growth is in `box3d-webgpu-kit/fracture` (next section). The solid is not coupled to the rigid-body world two-way; `box3d-webgpu-kit/simulation` has two one-way links into it (temperature from the heat solver, the weight of a rigid body).
+
+### Fracture of solids
+
+`FractureBody` is a tetrahedral solid that cracks. You give it a tensile strength `sigma_c` (Pa) and a fracture energy `G_c` (J/m²). With `model: 'cohesive'` a face that reaches its strength gets a cohesive interface (traction rising to `sigma_c`, then falling linearly to zero at the opening `2 G_c / sigma_c`), and its nodes are duplicated where that separates the elements. This example pulls a concrete bar apart and hands one half to the rigid world:
+
+```ts
+import {createWorld} from 'box3d-webgpu-kit';
+import {FractureBody} from 'box3d-webgpu-kit/fracture';
+import {boxMesh} from 'box3d-webgpu-kit/solid';
+
+const bar = new FractureBody({
+  mesh: boxMesh({size: [0.2, 0.05, 0.05], cells: [8, 2, 2]}),               // metres
+  material: {youngModulus: 30e9, poissonRatio: 0.2, density: 2400},           // concrete
+  fracture: {model: 'cohesive', strength: 3e6, toughness: 100},               // 3 MPa, 100 J/m²
+});
+bar.constrain(bar.selectNodes(x => x < 1e-9));                               // hold the face at x = 0
+const end = bar.selectNodes(x => x > 0.2 - 1e-9);
+for (let i = 1; i <= 50; i++) {                                              // you step the load: damage is irreversible
+  bar.constrain(end, [i * 2e-6, null, null]);                                // pull the other face, 2 µm at a time
+  bar.solveStatic();
+  for (const event of bar.takeEvents()) console.log(event.kind, event.face, event.mode);   // 'initiated', 'opened'
+}
+bar.energy().dissipated;                // J: G_c times the area that opened
+const pieces = bar.fragments();         // connected pieces with mass, centre of mass, momentum, inertia
+if (pieces.length > 1) {
+  const {mass, hullVolume, linearMomentum, ...body} = bar.handOff(pieces[1]);   // one way: the piece leaves the solid
+  const world = await createWorld({step: 1 / 240});
+  world.createBody(body);               // a hull body with the piece's mass and velocity
+}
+```
+
+- **Laws:** mixed mode through an effective opening `sqrt(<d_n>^2 + beta^2 |d_s|^2)` (`shearWeight`), damage that never heals (unloading returns to the origin), and a penalty that stops the two sides of a closed crack passing through each other.
+- **Where cracks start:** on demand, where the traction on a face reaches its strength; on faces you choose (`insertCohesive`); or as a cut from the start (`precrack`, for a notch). `setInterfaceProperties` makes a weak plane.
+- **`model: 'crack-band'`** softens elements instead (largest principal stress), with the softening scaled by element size so that the energy per crack area is `G_c`.
+- **Solvers:** `solveStatic()` (one increment per call) and `step()` with `backward-euler`, `midpoint` or `explicit`; `energy()` is a ledger of strain, kinetic, dissipated and external work.
+- **In the stepping loop:** `fractureSubsystem(body)` emits crack events, and `thermalSolidLink(heat, body, ...)` lets the heat solver crack the solid; `quenchedPlate()` is a ready thermal-shock example.
+- **Accuracy:** checked against closed-form fracture mechanics in the repository's `docs/SOLID_FRACTURE.md`: peak load `sigma_c A` and energy `G_c A` of a bar to 1e-9; Griffith's stress for a pre-cracked plate within 3.5 % on cells of half the characteristic length `E G_c / sigma_c^2` (11.5 % on cells of that length); the work of fracture of a notched beam within half a cell of the ligament.
+- **Limits, read these:** cracks can only follow element faces, so a crack inclined to the mesh is too large (24 % to 48 % measured) and its path depends on the mesh. On-demand insertion misses the stress peak at a crack tip on a coarse mesh: lower `insertionThreshold` or pre-insert the path. Small strain only, no plasticity, no friction, and no contact between fragments: hand them to the rigid world, which is one-way.
 
 ### One stepping loop for every solver
 

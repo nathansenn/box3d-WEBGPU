@@ -34,10 +34,11 @@ function pullRequestGate(){
   // Test the shipped artifacts here. Rebuilding with a pinned clang is a separate release-toolchain gate.
   run(process.execPath,['scripts/soft-kernel-test.mjs']);
   run(process.execPath,['scripts/soft-kernel-integration-test.cjs']);
-  for(const name of ['test:webgpu','test:collision','test:assets','test:qualification','test:heat','test:solid','test:threaded','test:release-contracts','test:validation','validation:check','catalog:check','test:soft-soak:all','test:rope-batching','test:native-wasm','test:kit','test:material:100','build','build:pages','stage:railway'])gate(name);
+  for(const name of ['test:webgpu','test:collision','test:assets','test:qualification','test:heat','test:solid','test:fracture','test:threaded','test:release-contracts','test:validation','validation:check','catalog:check','test:soft-soak:all','test:rope-batching','test:native-wasm','test:kit','test:material:100','build','build:pages','stage:railway'])gate(name);
   run(npm,['audit','--audit-level=moderate']);
 }
 // test:solid is the closed-form validation of the tetrahedral solid solver; it runs on the gate's Node, unlike the rest of the engine suite.
+// test:fracture is the validation of fracture on that solver (cohesive interfaces, crack band, fragments) against closed-form fracture mechanics.
 // validation:check reruns the validation registry (validation/) and fails when a case misses its tolerance or when the
 // published numbers (docs/VALIDATION.md, public/validation/validation.json) no longer match; test:validation tests the registry.
 // test:kit covers the embeddable kit, including its closed-form physics validation. The kit's

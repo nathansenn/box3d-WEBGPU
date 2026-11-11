@@ -5,10 +5,10 @@
  "generatedBy": "node scripts/validation-report.mjs",
  "digits": 9,
  "totals": {
-  "cases": 295,
-  "passed": 295,
+  "cases": 313,
+  "passed": 313,
   "failed": 0,
-  "domains": 13
+  "domains": 14
  },
  "domains": [
   {
@@ -193,12 +193,32 @@
     "Bending is where this element is weak, and the table shows it: one cell through the thickness is three times too stiff, four cells 12%, eight cells 3.4%. Bending frequencies are 5% to 6% high at four cells.",
     "Near-incompressibility: at nu = 0.4999 the four-cell cantilever is 29% too stiff. There is no mixed or higher-order element.",
     "With nu = 0.3 a clamped root also restrains Poisson contraction, which beam theory ignores: the 3-D limit sits about 1.2% below the Timoshenko reference.",
-    "Contact and self-contact, plasticity, viscoelasticity, damage and crack growth (the strength checks only flag elements), anisotropy, and more than one material per body.",
+    "Contact and self-contact, plasticity, viscoelasticity, anisotropy, and more than one material per body. Crack growth is a separate solver on the linear model of this element (the fracture domain); `SolidBody` itself only flags elements above a strength.",
     "No two-way coupling to the rigid-body, water, cable or frame solvers, and no contact with rigid bodies. The one-way thermal and dead-load links are in the simulation domain.",
     "Uniform states are exact, so the tension, shear, pressure and rubber rows say nothing about accuracy under stress gradients."
    ],
    "cases": 29,
    "passed": 29
+  },
+  {
+   "id": "fracture",
+   "title": "Fracture of deformable solids",
+   "summary": "A bar with a weak cross-section against the traction-separation law and G_c A, mesh objectivity of the cohesive and crack-band energies, a centre-cracked plate against Griffith, a notched beam against the size-effect law and the work of fracture, momentum and energy of a bar that breaks in flight, the onset of thermal-shock cracking against the heat module, and the mesh dependence of an inclined crack.",
+   "solver": "`src/engine/solid-fracture.ts`: small-strain linear tetrahedra with cohesive interfaces on element faces (bilinear traction-separation law, nodes duplicated where a face opens) or a Rankine crack band; static, midpoint, backward-Euler and explicit integration, float64",
+   "docs": [
+    "docs/SOLID_FRACTURE.md"
+   ],
+   "notValidated": [
+    "Crack paths. A cohesive crack can only follow element faces: a crack inclined 30 degrees to the mesh is 24 % (five-tetrahedron cells) or 48 % (six-tetrahedron cells) larger than the plane it should follow, at any resolution, and dissipates 30 % to 70 % too much energy. Every closed-form row here has its crack on a mesh plane.",
+    "Insertion on demand near a crack tip. The criterion reads the mean stress of two elements, which misses the peak at a tip: with cells of l_ch / 2 the centre-cracked plate fails at 1.60 of the Griffith stress unless interfaces are inserted earlier (0.5 sigma_c gives 0.985) or placed along the expected path, as the Griffith and beam rows do.",
+    "The Griffith and beam rows are converged in neither mesh nor size: cells of l_ch read 11.5 % high, cells of l_ch / 2 read 3.5 % low, and the cohesive law itself is 4.5 % below LEFM at a = 5 l_ch (1.5 % at 10 l_ch). The size-effect law used for the beam is an asymptote, and its constant c_f = 0.419 l_ch is taken from the literature.",
+    "Crack branching, dynamic crack speeds and fragmentation statistics have no reference here; branching is whatever the faces allow. No plasticity, no rate dependence, no fatigue.",
+    "Contact exists only across an interface (a penalty that stops its two sides passing through each other, without friction). Fragments do not collide with each other or with anything else until they are handed to the rigid world, and that hand-off is one-way.",
+    "Small strain: a piece that rotates after breaking off carries false stress (angular momentum of a bar spinning at 40 rad/s drifts by 1.5e-4 of m V L). The crack band uses isotropic damage: it weakens compression too, and a band held sideways by its neighbours dissipates 0.9 G_c at nu = 0.2.",
+    "The thermal-shock row checks when and where the first crack appears, on elements larger than l_ch; the crack pattern after that (spacing, depth, arrest) is not resolved and has no row. The heat flow does not see the cracks."
+   ],
+   "cases": 18,
+   "passed": 18
   },
   {
    "id": "frame",
@@ -7620,6 +7640,522 @@
     "measured": "-1.92e8",
     "error": "+4.45e-14 rel.",
     "tolerance": "±1e-10 rel."
+   }
+  },
+  {
+   "id": "fracture.bar.peak",
+   "domain": "fracture",
+   "title": "Cohesive bar: peak load",
+   "quantity": "peak stress of a 0.2 m bar with a weak cross-section, cohesive interface, 8 x 2 x 2 cells",
+   "unit": "Pa",
+   "formula": "sigma_c",
+   "reference": 3000000,
+   "measured": 3000000,
+   "error": -0.00000371551141,
+   "relativeError": -1.2385038e-12,
+   "tolerance": {
+    "kind": "relative",
+    "value": 1e-9
+   },
+   "pass": true,
+   "note": "A load step lands on the peak, U = sigma_c L / E + delta_0; the stress is uniform, so only the solver tolerance remains.",
+   "source": {
+    "file": "tests/engine/solid-fracture.test.mjs",
+    "test": "uniaxial bar with a weak interface: peak sigma_c A, linear softening, G_c A dissipated, damaged secant, zero traction when broken",
+    "url": "https://github.com/nathansenn/box3d-WEBGPU/blob/main/tests/engine/solid-fracture.test.mjs"
+   },
+   "text": {
+    "reference": "3000000 Pa",
+    "measured": "3000000",
+    "error": "-1.24e-12 rel.",
+    "tolerance": "±1e-9 rel."
+   }
+  },
+  {
+   "id": "fracture.bar.softening",
+   "domain": "fracture",
+   "title": "Cohesive bar: softening law",
+   "quantity": "largest difference between the bar stress and sigma_c (delta_c - delta) / (delta_c - delta_0) at the measured opening, over 40 load steps, divided by sigma_c",
+   "unit": "1",
+   "formula": "linear softening to delta_c = 2 G_c / sigma_c",
+   "reference": 0,
+   "measured": 1.07924764e-12,
+   "error": 1.07924764e-12,
+   "relativeError": null,
+   "tolerance": {
+    "kind": "absolute",
+    "value": 1e-8
+   },
+   "pass": true,
+   "source": {
+    "file": "tests/engine/solid-fracture.test.mjs",
+    "test": "uniaxial bar with a weak interface: peak sigma_c A, linear softening, G_c A dissipated, damaged secant, zero traction when broken",
+    "url": "https://github.com/nathansenn/box3d-WEBGPU/blob/main/tests/engine/solid-fracture.test.mjs"
+   },
+   "text": {
+    "reference": "0",
+    "measured": "1.079248e-12",
+    "error": "+1.08e-12",
+    "tolerance": "±1e-8"
+   }
+  },
+  {
+   "id": "fracture.bar.energy",
+   "domain": "fracture",
+   "title": "Cohesive bar: fracture energy",
+   "quantity": "energy dissipated when the bar has separated",
+   "unit": "J",
+   "formula": "G_c A",
+   "reference": 0.25,
+   "measured": 0.25,
+   "error": -1.38777878e-16,
+   "relativeError": -5.55111512e-16,
+   "tolerance": {
+    "kind": "relative",
+    "value": 1e-9
+   },
+   "pass": true,
+   "source": {
+    "file": "tests/engine/solid-fracture.test.mjs",
+    "test": "uniaxial bar with a weak interface: peak sigma_c A, linear softening, G_c A dissipated, damaged secant, zero traction when broken",
+    "url": "https://github.com/nathansenn/box3d-WEBGPU/blob/main/tests/engine/solid-fracture.test.mjs"
+   },
+   "text": {
+    "reference": "0.25 J",
+    "measured": "0.25",
+    "error": "-5.55e-16 rel.",
+    "tolerance": "±1e-9 rel."
+   }
+  },
+  {
+   "id": "fracture.bar.work",
+   "domain": "fracture",
+   "title": "Cohesive bar: work to break it",
+   "quantity": "area under the load-displacement curve of the same bar",
+   "unit": "J",
+   "formula": "G_c A",
+   "reference": 0.25,
+   "measured": 0.250011275,
+   "error": 0.0000112745098,
+   "relativeError": 0.0000450980393,
+   "tolerance": {
+    "kind": "relative",
+    "value": 0.001
+   },
+   "pass": true,
+   "note": "Trapezoid rule over the load steps; the error is in the two steps that hold a kink of the curve.",
+   "source": {
+    "file": "tests/engine/solid-fracture.test.mjs",
+    "test": "uniaxial bar with a weak interface: peak sigma_c A, linear softening, G_c A dissipated, damaged secant, zero traction when broken",
+    "url": "https://github.com/nathansenn/box3d-WEBGPU/blob/main/tests/engine/solid-fracture.test.mjs"
+   },
+   "text": {
+    "reference": "0.25 J",
+    "measured": "0.2500113",
+    "error": "+4.51e-5 rel.",
+    "tolerance": "±0.1%"
+   }
+  },
+  {
+   "id": "fracture.bar.insertion-loss",
+   "domain": "fracture",
+   "title": "Cohesive bar: energy released when an interface is inserted under load",
+   "quantity": "relaxation the ledger books when the solver inserts the interface of the same bar itself, divided by G_c A",
+   "unit": "1",
+   "formula": "T_before T_after / (2 K G_c) = (delta_0 / delta_c) (1 + E delta_0 / (sigma_c L))",
+   "reference": 0.0213333333,
+   "measured": 0.0213333333,
+   "error": 2.01227923e-16,
+   "relativeError": 9.4325589e-15,
+   "tolerance": {
+    "kind": "relative",
+    "value": 0.000001
+   },
+   "pass": true,
+   "note": "An interface inserted at a loaded face adds its compliance at once. The work to break this bar is 2.1 % above G_c A for that reason; the dissipated energy is still G_c A.",
+   "source": {
+    "file": "tests/engine/solid-fracture.test.mjs",
+    "test": "mesh objectivity: a through-crack dissipates G_c A on three meshes; the crack band needs its regularisation for that",
+    "url": "https://github.com/nathansenn/box3d-WEBGPU/blob/main/tests/engine/solid-fracture.test.mjs"
+   },
+   "text": {
+    "reference": "0.02133333",
+    "measured": "0.02133333",
+    "error": "+9.43e-15 rel.",
+    "tolerance": "±1e-6 rel."
+   }
+  },
+  {
+   "id": "fracture.band.regularised",
+   "domain": "fracture",
+   "title": "Crack band: fracture energy with regularisation",
+   "quantity": "work to break a bar with a weak layer of 12.5 mm cells, nu = 0",
+   "unit": "J",
+   "formula": "G_c A",
+   "reference": 0.25,
+   "measured": 0.250011438,
+   "error": 0.0000114379712,
+   "relativeError": 0.0000457518847,
+   "tolerance": {
+    "kind": "relative",
+    "value": 0.01
+   },
+   "pass": true,
+   "source": {
+    "file": "tests/engine/solid-fracture.test.mjs",
+    "test": "mesh objectivity: a through-crack dissipates G_c A on three meshes; the crack band needs its regularisation for that",
+    "url": "https://github.com/nathansenn/box3d-WEBGPU/blob/main/tests/engine/solid-fracture.test.mjs"
+   },
+   "text": {
+    "reference": "0.25 J",
+    "measured": "0.2500114",
+    "error": "+4.58e-5 rel.",
+    "tolerance": "±1%"
+   }
+  },
+  {
+   "id": "fracture.band.objectivity",
+   "domain": "fracture",
+   "title": "Crack band: mesh objectivity",
+   "quantity": "work to break the bar on 50 mm cells divided by that on 12.5 mm cells, with regularisation",
+   "unit": "1",
+   "formula": "W_coarse / W_fine = 1",
+   "reference": 1,
+   "measured": 0.999999971,
+   "error": -2.88928134e-8,
+   "relativeError": -2.88928134e-8,
+   "tolerance": {
+    "kind": "relative",
+    "value": 0.01
+   },
+   "pass": true,
+   "source": {
+    "file": "tests/engine/solid-fracture.test.mjs",
+    "test": "mesh objectivity: a through-crack dissipates G_c A on three meshes; the crack band needs its regularisation for that",
+    "url": "https://github.com/nathansenn/box3d-WEBGPU/blob/main/tests/engine/solid-fracture.test.mjs"
+   },
+   "text": {
+    "reference": "1",
+    "measured": "1",
+    "error": "-2.89e-8 rel.",
+    "tolerance": "±1%"
+   }
+  },
+  {
+   "id": "fracture.band.unregularised",
+   "domain": "fracture",
+   "title": "Crack band without regularisation: mesh dependence",
+   "quantity": "the same ratio with a fixed failure strain",
+   "unit": "1",
+   "formula": "h_coarse / h_fine = 4",
+   "reference": 4,
+   "measured": 4.00006967,
+   "error": 0.0000696671528,
+   "relativeError": 0.0000174167882,
+   "tolerance": {
+    "kind": "relative",
+    "value": 0.02
+   },
+   "pass": true,
+   "note": "Shown as a failure of the unregularised model: its dissipated energy is proportional to the element size.",
+   "source": {
+    "file": "tests/engine/solid-fracture.test.mjs",
+    "test": "mesh objectivity: a through-crack dissipates G_c A on three meshes; the crack band needs its regularisation for that",
+    "url": "https://github.com/nathansenn/box3d-WEBGPU/blob/main/tests/engine/solid-fracture.test.mjs"
+   },
+   "text": {
+    "reference": "4",
+    "measured": "4.00007",
+    "error": "+1.74e-5 rel.",
+    "tolerance": "±2%"
+   }
+  },
+  {
+   "id": "fracture.griffith.coarse",
+   "domain": "fracture",
+   "title": "Griffith: centre-cracked plate, cells of l_ch",
+   "quantity": "remote stress at which a crack of half-length 5 l_ch runs, cells of l_ch at the tip",
+   "unit": "Pa",
+   "formula": "sqrt(E G_c) / (Y sqrt(pi a)), Y = sqrt(sec(pi a / (2 b)))",
+   "reference": 727560.293,
+   "measured": 811229.727,
+   "error": 83669.4337,
+   "relativeError": 0.115,
+   "tolerance": {
+    "kind": "relative",
+    "value": 0.15
+   },
+   "pass": true,
+   "note": "Too coarse on purpose: 0.42 cells per process-zone length c_f. The plate reads 11.5 % strong. Load steps of 1 % of the reference.",
+   "source": {
+    "file": "tests/engine/solid-fracture.test.mjs",
+    "test": "Griffith: a centre-cracked plate fails at K_Ic / (Y sqrt(pi a)) with K_Ic = sqrt(E G_c), within the stated band",
+    "url": "https://github.com/nathansenn/box3d-WEBGPU/blob/main/tests/engine/solid-fracture.test.mjs"
+   },
+   "text": {
+    "reference": "727560.3 Pa",
+    "measured": "811229.7",
+    "error": "+11.5%",
+    "tolerance": "±15%"
+   }
+  },
+  {
+   "id": "fracture.griffith.fine",
+   "domain": "fracture",
+   "title": "Griffith: centre-cracked plate, cells of l_ch / 2",
+   "quantity": "the same with cells of l_ch / 2",
+   "unit": "Pa",
+   "formula": "sqrt(E G_c) / (Y sqrt(pi a))",
+   "reference": 727560.293,
+   "measured": 702095.683,
+   "error": -25464.6103,
+   "relativeError": -0.035,
+   "tolerance": {
+    "kind": "relative",
+    "value": 0.05
+   },
+   "pass": true,
+   "note": "A cohesive crack of this size is weaker than LEFM because of its process zone: refined meshes converge to 0.955 of the reference (see the next row and docs/SOLID_FRACTURE.md).",
+   "source": {
+    "file": "tests/engine/solid-fracture.test.mjs",
+    "test": "Griffith: a centre-cracked plate fails at K_Ic / (Y sqrt(pi a)) with K_Ic = sqrt(E G_c), within the stated band",
+    "url": "https://github.com/nathansenn/box3d-WEBGPU/blob/main/tests/engine/solid-fracture.test.mjs"
+   },
+   "text": {
+    "reference": "727560.3 Pa",
+    "measured": "702095.7",
+    "error": "-3.5%",
+    "tolerance": "±5%"
+   }
+  },
+  {
+   "id": "fracture.griffith.effective-crack",
+   "domain": "fracture",
+   "title": "Griffith with the process zone",
+   "quantity": "the same against LEFM for the crack a + c_f, c_f = 0.419 l_ch",
+   "unit": "Pa",
+   "formula": "sqrt(E G_c) / (Y sqrt(pi (a + c_f)))",
+   "reference": 693897.679,
+   "measured": 702095.683,
+   "error": 8198.00332,
+   "relativeError": 0.0118144268,
+   "tolerance": {
+    "kind": "relative",
+    "value": 0.03
+   },
+   "pass": true,
+   "source": {
+    "file": "tests/engine/solid-fracture.test.mjs",
+    "test": "Griffith: a centre-cracked plate fails at K_Ic / (Y sqrt(pi a)) with K_Ic = sqrt(E G_c), within the stated band",
+    "url": "https://github.com/nathansenn/box3d-WEBGPU/blob/main/tests/engine/solid-fracture.test.mjs"
+   },
+   "text": {
+    "reference": "693897.7 Pa",
+    "measured": "702095.7",
+    "error": "+1.18%",
+    "tolerance": "±3%"
+   }
+  },
+  {
+   "id": "fracture.beam.work",
+   "domain": "fracture",
+   "title": "Notched beam: work of fracture",
+   "quantity": "area under the load-deflection curve of a beam of depth 0.6 l_ch, 6 cells in the ligament",
+   "unit": "J",
+   "formula": "G_c t (D - a0) (1 - h / (2 (D - a0)))",
+   "reference": 0.305555556,
+   "measured": 0.305230928,
+   "error": -0.000324627218,
+   "relativeError": -0.00106241635,
+   "tolerance": {
+    "kind": "relative",
+    "value": 0.01
+   },
+   "pass": true,
+   "note": "The node row under the load is the hinge and never opens, so half a cell of the ligament stays whole: 8.3 % of G_c times the ligament here, 12.5 % with 4 cells.",
+   "source": {
+    "file": "tests/engine/solid-fracture.test.mjs",
+    "test": "notched three-point bending: peak load against LEFM and the size-effect law, and the work of fracture against G_c times the ligament",
+    "url": "https://github.com/nathansenn/box3d-WEBGPU/blob/main/tests/engine/solid-fracture.test.mjs"
+   },
+   "text": {
+    "reference": "0.3055556 J",
+    "measured": "0.3052309",
+    "error": "-0.106%",
+    "tolerance": "±1%"
+   }
+  },
+  {
+   "id": "fracture.beam.peak",
+   "domain": "fracture",
+   "title": "Notched beam: peak load",
+   "quantity": "peak load of a beam of depth 2.4 l_ch, 8 cells through the depth",
+   "unit": "N",
+   "formula": "t sqrt(E G_c D) / sqrt(k^2 + (k^2)' c_f / D), Bazant's size-effect law",
+   "reference": 20037.881,
+   "measured": 21811.0504,
+   "error": 1773.16935,
+   "relativeError": 0.0884908615,
+   "tolerance": {
+    "kind": "relative",
+    "value": 0.12
+   },
+   "pass": true,
+   "note": "The law is an asymptote for large beams: measured +9 % at 2.4 l_ch with 8 cells, +6 % with 12 cells and +1 % at 4.8 l_ch. The LEFM load is an upper bound (0.75 of it here).",
+   "source": {
+    "file": "tests/engine/solid-fracture.test.mjs",
+    "test": "notched three-point bending: peak load against LEFM and the size-effect law, and the work of fracture against G_c times the ligament",
+    "url": "https://github.com/nathansenn/box3d-WEBGPU/blob/main/tests/engine/solid-fracture.test.mjs"
+   },
+   "text": {
+    "reference": "20037.88 N",
+    "measured": "21811.05",
+    "error": "+8.85%",
+    "tolerance": "±12%"
+   }
+  },
+  {
+   "id": "fracture.flight.linear-momentum",
+   "domain": "fracture",
+   "title": "Free flight: linear momentum",
+   "quantity": "largest change of the linear momentum of a bar that breaks in flight, divided by m V",
+   "unit": "1",
+   "formula": "no change: internal forces cancel in pairs",
+   "reference": 0,
+   "measured": 1.73187839e-14,
+   "error": 1.73187839e-14,
+   "relativeError": null,
+   "tolerance": {
+    "kind": "absolute",
+    "value": 1e-12
+   },
+   "pass": true,
+   "source": {
+    "file": "tests/engine/solid-fracture.test.mjs",
+    "test": "mass and momentum: node splitting and the fragment hand-off conserve them; a bar broken in free flight keeps its momentum",
+    "url": "https://github.com/nathansenn/box3d-WEBGPU/blob/main/tests/engine/solid-fracture.test.mjs"
+   },
+   "text": {
+    "reference": "0",
+    "measured": "1.731878e-14",
+    "error": "+1.73e-14",
+    "tolerance": "±1e-12"
+   }
+  },
+  {
+   "id": "fracture.flight.angular-momentum",
+   "domain": "fracture",
+   "title": "Free flight: angular momentum of a spinning bar",
+   "quantity": "largest change of the angular momentum of the bar spinning at 40 rad/s, divided by m V L",
+   "unit": "1",
+   "formula": "no change",
+   "reference": 0,
+   "measured": 0.000154293433,
+   "error": 0.000154293433,
+   "relativeError": null,
+   "tolerance": {
+    "kind": "absolute",
+    "value": 0.001
+   },
+   "pass": true,
+   "note": "Small-strain elements: forces act along reference directions, so angular momentum is kept only to the order of the rotation times the strain.",
+   "source": {
+    "file": "tests/engine/solid-fracture.test.mjs",
+    "test": "mass and momentum: node splitting and the fragment hand-off conserve them; a bar broken in free flight keeps its momentum",
+    "url": "https://github.com/nathansenn/box3d-WEBGPU/blob/main/tests/engine/solid-fracture.test.mjs"
+   },
+   "text": {
+    "reference": "0",
+    "measured": "0.0001542934",
+    "error": "+0.000154",
+    "tolerance": "±0.001"
+   }
+  },
+  {
+   "id": "fracture.flight.energy",
+   "domain": "fracture",
+   "title": "Free flight: energy balance",
+   "quantity": "largest energy imbalance of the explicit run at 0.8 of the stability limit, divided by the initial kinetic energy",
+   "unit": "1",
+   "formula": "work - (strain + interface + kinetic + dissipated) = 0",
+   "reference": 0,
+   "measured": 0.000117383475,
+   "error": 0.000117383475,
+   "relativeError": null,
+   "tolerance": {
+    "kind": "absolute",
+    "value": 0.0005
+   },
+   "pass": true,
+   "note": "Second order in the time step: 1.2e-4, 2.9e-5 and 8e-6 at 0.8, 0.4 and 0.2 of the limit.",
+   "source": {
+    "file": "tests/engine/solid-fracture.test.mjs",
+    "test": "energy balance: external work = strain + interface + kinetic + dissipated energy, quasi-static and dynamic",
+    "url": "https://github.com/nathansenn/box3d-WEBGPU/blob/main/tests/engine/solid-fracture.test.mjs"
+   },
+   "text": {
+    "reference": "0",
+    "measured": "0.0001173835",
+    "error": "+0.000117",
+    "tolerance": "±0.0005"
+   }
+  },
+  {
+   "id": "fracture.thermal.onset",
+   "domain": "fracture",
+   "title": "Thermal shock: time of the first crack",
+   "quantity": "time at which the quenched plate first cracks",
+   "unit": "s",
+   "formula": "time at which E alpha dT / (1 - nu) of the surface cell reaches sigma_c (heat module)",
+   "reference": 0.4,
+   "measured": 0.41,
+   "error": 0.01,
+   "relativeError": 0.025,
+   "tolerance": {
+    "kind": "relative",
+    "value": 0.05
+   },
+   "pass": true,
+   "note": "The solid reads element temperatures that average in the second cell layer, so it cracks a few steps later.",
+   "source": {
+    "file": "tests/engine/solid-fracture.test.mjs",
+    "test": "thermal shock: the heat solver cracks the quenched plate at its cooled face when the heat module says the surface stress reaches the strength",
+    "url": "https://github.com/nathansenn/box3d-WEBGPU/blob/main/tests/engine/solid-fracture.test.mjs"
+   },
+   "text": {
+    "reference": "0.4 s",
+    "measured": "0.41",
+    "error": "+2.5%",
+    "tolerance": "±5%"
+   }
+  },
+  {
+   "id": "fracture.path.area",
+   "domain": "fracture",
+   "title": "Crack path: a crack inclined 30 degrees to the mesh",
+   "quantity": "crack area divided by the area of the inclined plane, five-tetrahedron cells",
+   "unit": "1",
+   "formula": "area of the plane: ratio 1",
+   "reference": 1,
+   "measured": 1.2410254,
+   "error": 0.241025404,
+   "relativeError": 0.241025404,
+   "tolerance": {
+    "kind": "upper",
+    "value": 0.3
+   },
+   "pass": true,
+   "note": "Shown as a limit: the crack follows faces, so it is 24 % larger than the plane on this mesh and 48 % on six-tetrahedron cells, at any resolution.",
+   "source": {
+    "file": "tests/engine/solid-fracture.test.mjs",
+    "test": "crack paths follow element faces: the area and energy of a crack inclined to the mesh depend on the mesh",
+    "url": "https://github.com/nathansenn/box3d-WEBGPU/blob/main/tests/engine/solid-fracture.test.mjs"
+   },
+   "text": {
+    "reference": "1",
+    "measured": "1.241025",
+    "error": "+0.241",
+    "tolerance": "at most 0.3 above the reference"
    }
   },
   {

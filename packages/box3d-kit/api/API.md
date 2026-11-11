@@ -5104,16 +5104,31 @@ export interface SubsystemTiming {
 ### thermalSolidLink · function
 
 ONE-WAY thermal -> solid: the heat solver's temperature becomes the solid's thermal load (eigenstrain alpha_T dT).
+With a `FractureBody` as the solid, that strain can crack it (docs/SOLID_FRACTURE.md).
 The solid does not act on the temperature. Co-located grids only: the solid must be a `boxMesh` whose cells are the heat
 grid's cells (same counts, same cell size, every heat cell solid). Mapping: `cellTemperaturesToNodes`, then the solid takes
 the mean of an element's four nodes. Post stage, between the heat solver and the solid, after every heat step.
 `reference` is the stress-free temperature. The solid module allocates one array per update.
 
 ```ts
-export declare function thermalSolidLink<W, B>(heat: HeatSolver, solid: SolidBody, options: {
+export declare function thermalSolidLink<W, B>(heat: HeatSolver, solid: ThermalSolidTarget, options: {
     readonly id?: string;
     readonly reference: number;
 }): Subsystem<W, B>;
+```
+
+### ThermalSolidTarget · interface
+
+What `thermalSolidLink` needs from a solid: a `SolidBody`, or a `FractureBody` (solid-fracture.ts), whose node count
+grows when it cracks and which therefore states the node count of its mesh as given in `thermalNodeCount`.
+
+```ts
+export interface ThermalSolidTarget {
+    readonly nodeCount: number;
+    readonly thermalNodeCount?: number;
+    readonly referencePositions: Float64Array;
+    setTemperatureChange(rise: number | ArrayLike<number>): void;
+}
 ```
 
 ### waterSubsystem · function
@@ -5786,4 +5801,311 @@ export declare class XMLParseError extends EngineError {
   readonly line: number;
   readonly column: number;
 }
+```
+
+## `box3d-webgpu-kit/fracture`
+
+### CrackEvent · interface
+
+```ts
+export interface CrackEvent {
+    time: number;
+    step: number;
+    kind: 'initiated' | 'opened' | 'element-failed';
+    face: number;
+    element: number;
+    mode: 'I' | 'II' | 'mixed';
+    modeMix: number;
+    energy: number;
+    area: number;
+}
+```
+
+### FRACTURE_SUBSYSTEM_ORDER · const
+
+The stage order of solids in a Simulation (`SUBSYSTEM_ORDER.solid` of simulation.ts).
+
+```ts
+export declare const FRACTURE_SUBSYSTEM_ORDER = 300;
+```
+
+### FractureBody · class
+
+A deformable solid that can crack. Small strain: the elements follow Hooke's law on
+sym(grad u), so a piece that rotates far after breaking off carries false stress. Hand such a
+piece to a rigid world with `handOff`. No plasticity. Contact exists only across an interface
+(the penalty that keeps the two sides of a closed crack from passing through each other).
+
+```ts
+export declare class FractureBody {
+  readonly solver = "solid-fracture-czm-js-f64-v1";
+  readonly model: FractureModel;
+  readonly integrator: FractureIntegrator;
+  readonly dt: number;
+  readonly tetCount: number;
+  readonly thermalNodeCount: number;
+  readonly tets: Uint32Array;
+  readonly elementVolume: Float64Array;
+  readonly referenceVolume: number;
+  readonly mass: number;
+  readonly lambda: number;
+  readonly mu: number;
+  readonly material: Readonly<Required<SolidMaterial>>;
+  readonly law: Readonly<Required<FractureLaw>>;
+  readonly interiorFaceCount: number;
+  readonly boundaryFaceCount: number;
+  readonly stats: FractureSolveStats;
+  get nodeCount(): number;
+  get referencePositions(): Float64Array;
+  get nodalMass(): Float64Array;
+  get nodeOrigin(): Uint32Array;
+  get faces(): Uint32Array;
+  selectNodes(predicate: (x: number, y: number, z: number) => boolean): Uint32Array;
+  selectFaces(predicate: (cx: number, cy: number, cz: number, nx: number, ny: number, nz: number) => boolean): Uint32Array;
+  selectInteriorFaces(predicate: (cx: number, cy: number, cz: number, nx: number, ny: number, nz: number) => boolean): Uint32Array;
+  selectElements(predicate: (cx: number, cy: number, cz: number) => boolean): Uint32Array;
+  interiorFace(face: number): { elements: [number, number]; nodes: [number, number, number, number, number, number]; normal: [number, number, number]; centroid: [number, number, number]; area: number; state: 'intact' | 'cohesive' | 'open' | 'precrack'; strength: number; toughness: number; };
+  constrain(nodes: ArrayLike<number>, value?: readonly [number | null, number | null, number | null]): void;
+  release(nodes: ArrayLike<number>): void;
+  setNodalForce(node: number, force: readonly [number, number, number]): void;
+  addTraction(faces: ArrayLike<number>, traction: readonly [number, number, number]): void;
+  addPressure(faces: ArrayLike<number>, pressure: number): void;
+  clearSurfaceLoads(): void;
+  setTemperatureChange(rise: number | ArrayLike<number>): void;
+  setInterfaceProperties(faces: ArrayLike<number>, properties: { strength?: number; toughness?: number; }): void;
+  setElementProperties(elements: ArrayLike<number>, properties: { strength?: number; toughness?: number; }): void;
+  insertCohesive(faces: ArrayLike<number>): number;
+  precrack(faces: ArrayLike<number>): number;
+  get displacements(): Float64Array;
+  get velocities(): Float64Array;
+  get time(): number;
+  get unconvergedSteps(): number;
+  setState(displacements?: ArrayLike<number>, velocities?: ArrayLike<number>): void;
+  positions(out?: Float64Array<ArrayBuffer>): Float64Array;
+  solveStatic(options?: { predictor?: number; }): FractureSolveStats & { displacements: Float64Array; reactions: Float64Array; };
+  step(count?: number): void;
+  explicitLimit(): number;
+  strainEnergy(): number;
+  interfaceEnergy(): number;
+  kineticEnergy(): number;
+  dissipatedEnergy(): number;
+  energy(): FractureEnergy;
+  reactions(out?: Float64Array<ArrayBuffer>): Float64Array;
+  stresses(out?: Float64Array<ArrayBuffer>, u?: Float64Array): Float64Array;
+  get elementDamage(): Float64Array;
+  interfaceState(face: number): { inserted: boolean; normal: number[]; sliding: number[]; effective: number[]; history: number[]; damage: number[]; criticalOpening: number; peakOpening: number; };
+  crackArea(): { open: number; cohesive: number; precrack: number; };
+  get interfaces(): Uint32Array;
+  takeEvents(): CrackEvent[];
+  momentum(): { linear: [number, number, number]; angular: [number, number, number]; mass: number; handedOffMass: number; handedOffLinear: [number, number, number]; };
+  get clampedElements(): number;
+  fragments(): Fragment[];
+  fragmentRigidBody(fragment: Fragment, options?: { maxPoints?: number; }): FragmentRigidBody;
+  handOff(fragment: Fragment, options?: { maxPoints?: number; }): FragmentRigidBody;
+}
+```
+
+### FractureConfig · interface
+
+```ts
+export interface FractureConfig {
+    dt?: number;
+    integrator?: FractureIntegrator;
+    massDamping?: number;
+    gravity?: readonly [number, number, number];
+    tolerance?: number;
+    forceTolerance?: number;
+    maxNewtonIterations?: number;
+    maxLinearIterations?: number;
+    explicitSafety?: number;
+    maxInsertionSweeps?: number;
+    maxDamageIterations?: number;
+}
+```
+
+### FractureDefinition · interface
+
+```ts
+export interface FractureDefinition {
+    mesh: TetMesh | {
+        positions: ArrayLike<number>;
+        tets: ArrayLike<number>;
+    };
+    material: SolidMaterial;
+    fracture: FractureLaw;
+    config?: FractureConfig;
+}
+```
+
+### FractureEnergy · interface
+
+```ts
+export interface FractureEnergy {
+    strain: number;
+    interface: number;
+    kinetic: number;
+    dissipated: number;
+    damping: number;
+    relaxation: number;
+    externalWork: number;
+    balance: number;
+}
+```
+
+### FractureIntegrator · type
+
+```ts
+export type FractureIntegrator = 'backward-euler' | 'midpoint' | 'explicit';
+```
+
+### FractureLaw · interface
+
+```ts
+export interface FractureLaw {
+    model: FractureModel;
+    strength: number;
+    toughness: number;
+    shearWeight?: number;
+    initialOpeningRatio?: number;
+    insertion?: 'on-demand' | 'manual';
+    insertionThreshold?: number;
+    regularisation?: 'crack-band' | 'none';
+    failureStrain?: number;
+    residualStiffness?: number;
+}
+```
+
+### FractureModel · type
+
+```ts
+export type FractureModel = 'cohesive' | 'crack-band' | 'none';
+```
+
+### FractureSolveStats · interface
+
+```ts
+export interface FractureSolveStats {
+    converged: boolean;
+    reason: 'converged' | 'iteration-limit' | 'line-search' | 'singular-or-indefinite' | 'diverged';
+    newtonIterations: number;
+    linearIterations: number;
+    residual: number;
+    reference: number;
+    sweeps: number;
+    insertedFaces: number;
+    damageIterations: number;
+}
+```
+
+### fractureSubsystem · function
+
+A fracturing solid in the shared stepping loop. Post stage, where `solidSubsystem` runs, after heat
+and the links, so `thermalSolidLink(heat, body, ...)` drives its thermal strain. Requirement: the
+body's dt is the simulation step, a whole fraction of it or a whole multiple of it; an explicit body
+must be within `explicitLimit()`. Crack events of a step are emitted in the events stage with the
+type 'crack' (data: a `CrackEvent`). Energy: kinetic + strain + interface, with minus the dissipated
+and damped energy as `exchanged`, so `total - exchanged` stays constant when no load does work.
+
+```ts
+export declare function fractureSubsystem<W = unknown, B = unknown>(body: FractureBody, options?: {
+    readonly id?: string;
+}): Subsystem<W, B>;
+```
+
+### Fragment · interface
+
+```ts
+export interface Fragment {
+    index: number;
+    tets: Uint32Array;
+    nodes: Uint32Array;
+    mass: number;
+    volume: number;
+    centerOfMass: [number, number, number];
+    linearMomentum: [number, number, number];
+    angularMomentum: [number, number, number];
+    inertia: [number, number, number, number, number, number];
+    handedOff: boolean;
+}
+```
+
+### FragmentRigidBody · interface
+
+```ts
+export interface FragmentRigidBody {
+    shape: {
+        kind: 'hull';
+        points: Float32Array;
+    };
+    position: [number, number, number];
+    linearVelocity: [number, number, number];
+    angularVelocity: [number, number, number];
+    density: number;
+    mass: number;
+    hullVolume: number;
+    linearMomentum: [number, number, number];
+    type: 'dynamic';
+}
+```
+
+### gradedBoxMesh · function
+
+A box split into tetrahedra with the cell planes at the given coordinates, for meshes that are
+fine where a crack runs and coarse elsewhere. Each list is strictly increasing, in metres.
+
+```ts
+export declare function gradedBoxMesh(options: {
+    x: ArrayLike<number>;
+    y: ArrayLike<number>;
+    z: ArrayLike<number>;
+    pattern?: 'alternating5' | 'kuhn6';
+}): TetMesh;
+```
+
+### quenchedPlate · function
+
+The thermal-shock example: a hot ceramic plate (alumina-like: E = 370 GPa, nu = 0.22, alpha_T = 8e-6 /K,
+k = 30 W/(m K), rho = 3900 kg/m^3, c = 880 J/(kg K), strength 300 MPa, G_c = 40 J/m^2) whose face x = 0 is
+suddenly cooled by a film coefficient. The strip modelled is held in its plane (rollers on the y and z
+faces) and free through its depth, so a cooled layer carries the biaxial tension E alpha dT / (1 - nu).
+Register `heatSubsystem(heat)`, `thermalSolidLink(heat, body, {reference})` and `fractureSubsystem(body)`
+with a Simulation whose step is `dt`; the heat solver's temperature then cracks the solid. One-way: the
+cracks do not change the heat flow. The elements are larger than E G_c / sigma_c^2 (0.16 mm), so the
+onset of cracking is meaningful and the crack pattern after it is not resolved.
+
+```ts
+export declare function quenchedPlate(options?: QuenchedPlateOptions): QuenchedPlate;
+```
+
+### QuenchedPlate · interface
+
+```ts
+export interface QuenchedPlate {
+    heat: HeatSolver;
+    body: FractureBody;
+    reference: number;
+    cells: [number, number, number];
+    cellSize: number;
+    shock: ThermalShockOptions;
+    criticalDrop: number;
+}
+```
+
+### QuenchedPlateOptions · interface
+
+```ts
+export interface QuenchedPlateOptions {
+    cells?: readonly [number, number, number];
+    cellSize?: number;
+    initialTemperature?: number;
+    ambient?: number;
+    coefficient?: number;
+    dt?: number;
+}
+```
+
+### SOLID_FRACTURE_SOLVER_ID · const
+
+```ts
+export declare const SOLID_FRACTURE_SOLVER_ID = "solid-fracture-czm-js-f64-v1";
 ```

@@ -2195,7 +2195,13 @@ export declare function solidSubsystem<W, B>(solid: SolidBody, options?: {
     readonly id?: string;
 }): Subsystem<W, B>;
 export declare function cellTemperaturesToNodes(temperature: ArrayLike<number>, cells: readonly [number, number, number], reference: number, out: number[] | Float64Array): number[] | Float64Array;
-export declare function thermalSolidLink<W, B>(heat: HeatSolver, solid: SolidBody, options: {
+export interface ThermalSolidTarget {
+    readonly nodeCount: number;
+    readonly thermalNodeCount?: number;
+    readonly referencePositions: Float64Array;
+    setTemperatureChange(rise: number | ArrayLike<number>): void;
+}
+export declare function thermalSolidLink<W, B>(heat: HeatSolver, solid: ThermalSolidTarget, options: {
     readonly id?: string;
     readonly reference: number;
 }): Subsystem<W, B>;
@@ -2221,6 +2227,353 @@ export interface LoadedSimulationScene<W extends SimulationSceneWorld = Simulati
 export declare function buildSceneSimulation<W extends SimulationSceneWorld>(world: W, builder: SceneBuilder<W>, scene: Scene): LoadedSimulationScene<W>;
 export declare function loadSimulationScene<W extends SimulationSceneWorld>(world: W, scene: unknown): LoadedSimulationScene<W>;
 export {};
+
+// ==== core/solid-fracture.d.ts ====
+import { type TetMesh } from './solid-mesh.js';
+import { type SolidMaterial } from './solid.js';
+import { HeatSolver, type ThermalShockOptions } from './heat.js';
+import type { Subsystem } from './simulation.js';
+export declare const SOLID_FRACTURE_SOLVER_ID = "solid-fracture-czm-js-f64-v1";
+export type FractureModel = 'cohesive' | 'crack-band' | 'none';
+export type FractureIntegrator = 'backward-euler' | 'midpoint' | 'explicit';
+export interface FractureLaw {
+    model: FractureModel;
+    strength: number;
+    toughness: number;
+    shearWeight?: number;
+    initialOpeningRatio?: number;
+    insertion?: 'on-demand' | 'manual';
+    insertionThreshold?: number;
+    regularisation?: 'crack-band' | 'none';
+    failureStrain?: number;
+    residualStiffness?: number;
+}
+export interface FractureConfig {
+    dt?: number;
+    integrator?: FractureIntegrator;
+    massDamping?: number;
+    gravity?: readonly [number, number, number];
+    tolerance?: number;
+    forceTolerance?: number;
+    maxNewtonIterations?: number;
+    maxLinearIterations?: number;
+    explicitSafety?: number;
+    maxInsertionSweeps?: number;
+    maxDamageIterations?: number;
+}
+export interface FractureDefinition {
+    mesh: TetMesh | {
+        positions: ArrayLike<number>;
+        tets: ArrayLike<number>;
+    };
+    material: SolidMaterial;
+    fracture: FractureLaw;
+    config?: FractureConfig;
+}
+export interface FractureSolveStats {
+    converged: boolean;
+    reason: 'converged' | 'iteration-limit' | 'line-search' | 'singular-or-indefinite' | 'diverged';
+    newtonIterations: number;
+    linearIterations: number;
+    residual: number;
+    reference: number;
+    sweeps: number;
+    insertedFaces: number;
+    damageIterations: number;
+}
+export interface CrackEvent {
+    time: number;
+    step: number;
+    kind: 'initiated' | 'opened' | 'element-failed';
+    face: number;
+    element: number;
+    mode: 'I' | 'II' | 'mixed';
+    modeMix: number;
+    energy: number;
+    area: number;
+}
+export interface FractureEnergy {
+    strain: number;
+    interface: number;
+    kinetic: number;
+    dissipated: number;
+    damping: number;
+    relaxation: number;
+    externalWork: number;
+    balance: number;
+}
+export interface Fragment {
+    index: number;
+    tets: Uint32Array;
+    nodes: Uint32Array;
+    mass: number;
+    volume: number;
+    centerOfMass: [number, number, number];
+    linearMomentum: [number, number, number];
+    angularMomentum: [number, number, number];
+    inertia: [number, number, number, number, number, number];
+    handedOff: boolean;
+}
+export interface FragmentRigidBody {
+    shape: {
+        kind: 'hull';
+        points: Float32Array;
+    };
+    position: [number, number, number];
+    linearVelocity: [number, number, number];
+    angularVelocity: [number, number, number];
+    density: number;
+    mass: number;
+    hullVolume: number;
+    linearMomentum: [number, number, number];
+    type: 'dynamic';
+}
+export declare function gradedBoxMesh(options: {
+    x: ArrayLike<number>;
+    y: ArrayLike<number>;
+    z: ArrayLike<number>;
+    pattern?: 'alternating5' | 'kuhn6';
+}): TetMesh;
+export declare class FractureBody {
+    readonly solver = "solid-fracture-czm-js-f64-v1";
+    readonly model: FractureModel;
+    readonly integrator: FractureIntegrator;
+    readonly dt: number;
+    readonly tetCount: number;
+    readonly thermalNodeCount: number;
+    readonly tets: Uint32Array;
+    readonly elementVolume: Float64Array;
+    readonly referenceVolume: number;
+    readonly mass: number;
+    readonly lambda: number;
+    readonly mu: number;
+    readonly material: Readonly<Required<SolidMaterial>>;
+    readonly law: Readonly<Required<FractureLaw>>;
+    readonly interiorFaceCount: number;
+    readonly boundaryFaceCount: number;
+    readonly stats: FractureSolveStats;
+    private nodes;
+    private capacity;
+    private f;
+    private fixed;
+    private nodeMass;
+    private origin;
+    private nodeActive;
+    private readonly nodeTets;
+    private readonly grad;
+    private readonly theta;
+    private readonly tetActive;
+    private readonly fA;
+    private readonly fB;
+    private readonly fLocal;
+    private readonly fNormal;
+    private readonly fArea;
+    private readonly fCentroid;
+    private readonly fStrength;
+    private readonly fToughness;
+    private readonly fState;
+    private readonly hist;
+    private readonly lin;
+    private readonly mix;
+    private readonly tetFace;
+    private readonly inserted;
+    private readonly bTet;
+    private readonly bLocal;
+    private readonly bNormal;
+    private readonly bLoad;
+    private readonly bLoadPrev;
+    private readonly eStrength;
+    private readonly eToughness;
+    private readonly omega;
+    private readonly kappa;
+    private readonly band;
+    private readonly omegaOld;
+    private readonly psiOld;
+    private readonly eDissipated;
+    private readonly eFailed;
+    private readonly massDamping;
+    private readonly gravity;
+    private readonly tolerance;
+    private readonly forceTolerance;
+    private readonly maxNewton;
+    private readonly maxLinear;
+    private readonly explicitSafety;
+    private readonly maxSweeps;
+    private readonly maxDamage;
+    private readonly H;
+    private readonly S;
+    private readonly principal;
+    private readonly direction;
+    private readonly extent;
+    private cm;
+    private cd;
+    private reference;
+    private referenceInertia;
+    private accelerationValid;
+    private steps;
+    private solves;
+    private unconverged;
+    private limit;
+    private work;
+    private dampingLoss;
+    private relaxed;
+    private phiStart;
+    private phiEnd;
+    private bulkDissipated;
+    private handedMass;
+    private readonly handedMomentum;
+    private clamped;
+    private rowStart;
+    private column;
+    private block;
+    private slot;
+    private patternStale;
+    private valuesStale;
+    private thermalConstant;
+    private events;
+    constructor(input: FractureDefinition);
+    private allocate;
+    private triangle;
+    private lumpNode;
+    private splitNodes;
+    private insert;
+    get nodeCount(): number;
+    get referencePositions(): Float64Array;
+    get nodalMass(): Float64Array;
+    get nodeOrigin(): Uint32Array;
+    get faces(): Uint32Array;
+    selectNodes(predicate: (x: number, y: number, z: number) => boolean): Uint32Array;
+    selectFaces(predicate: (cx: number, cy: number, cz: number, nx: number, ny: number, nz: number) => boolean): Uint32Array;
+    selectInteriorFaces(predicate: (cx: number, cy: number, cz: number, nx: number, ny: number, nz: number) => boolean): Uint32Array;
+    selectElements(predicate: (cx: number, cy: number, cz: number) => boolean): Uint32Array;
+    interiorFace(face: number): {
+        elements: [number, number];
+        nodes: [number, number, number, number, number, number];
+        normal: [number, number, number];
+        centroid: [number, number, number];
+        area: number;
+        state: 'intact' | 'cohesive' | 'open' | 'precrack';
+        strength: number;
+        toughness: number;
+    };
+    constrain(nodes: ArrayLike<number>, value?: readonly [number | null, number | null, number | null]): void;
+    release(nodes: ArrayLike<number>): void;
+    setNodalForce(node: number, force: readonly [number, number, number]): void;
+    addTraction(faces: ArrayLike<number>, traction: readonly [number, number, number]): void;
+    addPressure(faces: ArrayLike<number>, pressure: number): void;
+    clearSurfaceLoads(): void;
+    setTemperatureChange(rise: number | ArrayLike<number>): void;
+    setInterfaceProperties(faces: ArrayLike<number>, properties: {
+        strength?: number;
+        toughness?: number;
+    }): void;
+    setElementProperties(elements: ArrayLike<number>, properties: {
+        strength?: number;
+        toughness?: number;
+    }): void;
+    insertCohesive(faces: ArrayLike<number>): number;
+    precrack(faces: ArrayLike<number>): number;
+    private assembleLoads;
+    get displacements(): Float64Array;
+    get velocities(): Float64Array;
+    get time(): number;
+    get unconvergedSteps(): number;
+    setState(displacements?: ArrayLike<number>, velocities?: ArrayLike<number>): void;
+    positions(out?: Float64Array<ArrayBuffer>): Float64Array;
+    private strain;
+    private hooke;
+    private scatter;
+    private assemble;
+    private stiffnessScale;
+    private bulk;
+    private envelope;
+    private cohesive;
+    private stiffness;
+    private internal;
+    private norm;
+    private objective;
+    private conjugateGradient;
+    private minimise;
+    private equilibrate;
+    private updateBand;
+    private settleBand;
+    private settleInterfaces;
+    private insertOnDemand;
+    private applyConstraints;
+    private resetStats;
+    solveStatic(options?: {
+        predictor?: number;
+    }): FractureSolveStats & {
+        displacements: Float64Array;
+        reactions: Float64Array;
+    };
+    private finish;
+    step(count?: number): void;
+    private accelerate;
+    explicitLimit(): number;
+    strainEnergy(): number;
+    interfaceEnergy(): number;
+    kineticEnergy(): number;
+    dissipatedEnergy(): number;
+    energy(): FractureEnergy;
+    reactions(out?: Float64Array<ArrayBuffer>): Float64Array;
+    stresses(out?: Float64Array<ArrayBuffer>, u?: Float64Array): Float64Array;
+    get elementDamage(): Float64Array;
+    interfaceState(face: number): {
+        inserted: boolean;
+        normal: number[];
+        sliding: number[];
+        effective: number[];
+        history: number[];
+        damage: number[];
+        criticalOpening: number;
+        peakOpening: number;
+    };
+    crackArea(): {
+        open: number;
+        cohesive: number;
+        precrack: number;
+    };
+    get interfaces(): Uint32Array;
+    takeEvents(): CrackEvent[];
+    momentum(): {
+        linear: [number, number, number];
+        angular: [number, number, number];
+        mass: number;
+        handedOffMass: number;
+        handedOffLinear: [number, number, number];
+    };
+    get clampedElements(): number;
+    fragments(): Fragment[];
+    fragmentRigidBody(fragment: Fragment, options?: {
+        maxPoints?: number;
+    }): FragmentRigidBody;
+    handOff(fragment: Fragment, options?: {
+        maxPoints?: number;
+    }): FragmentRigidBody;
+}
+export declare const FRACTURE_SUBSYSTEM_ORDER = 300;
+export declare function fractureSubsystem<W = unknown, B = unknown>(body: FractureBody, options?: {
+    readonly id?: string;
+}): Subsystem<W, B>;
+export interface QuenchedPlateOptions {
+    cells?: readonly [number, number, number];
+    cellSize?: number;
+    initialTemperature?: number;
+    ambient?: number;
+    coefficient?: number;
+    dt?: number;
+}
+export interface QuenchedPlate {
+    heat: HeatSolver;
+    body: FractureBody;
+    reference: number;
+    cells: [number, number, number];
+    cellSize: number;
+    shock: ThermalShockOptions;
+    criticalDrop: number;
+}
+export declare function quenchedPlate(options?: QuenchedPlateOptions): QuenchedPlate;
 
 // ==== core/solid-mesh.d.ts ====
 export interface TetMesh {
@@ -2720,6 +3073,9 @@ export interface PoseArrays {
 export declare function readPoses(source: InstanceSource, out: PoseArrays): number;
 export declare function packPoses(source: InstanceSource, out: Float32Array): number;
 export declare function readBodyPoses(world: PhysicsWorld, bodies: readonly (Body | null)[], out: PoseArrays): number;
+
+// ==== fracture.d.ts ====
+export * from './core/solid-fracture.js';
 
 // ==== frame.d.ts ====
 export * from './core/frame-runtime.js';

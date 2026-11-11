@@ -49,7 +49,7 @@ Rayleigh damping is `C = massDamping * M + stiffnessDamping * K`. For the finite
 
 **Outputs.** Nodal displacements and velocities; per element the strain tensor, Cauchy stress tensor, von Mises stress and principal stresses; strain energy, kinetic energy and load potential; reaction forces at constraints; current volume; the lowest natural frequency and mode (`fundamentalMode`, inverse iteration). For the finite-strain models the stress is `P F^T / J` and the strain is the Biot strain `V - I` in the current frame.
 
-**Failure.** `failedElements({criterion, strength})` returns the elements whose largest principal stress (`max-principal`, brittle) or von Mises stress (`von-mises`, yield) is above a strength. This is post-processing only. The material does not yield, soften or crack, and crack propagation is not implemented.
+**Failure.** `failedElements({criterion, strength})` returns the elements whose largest principal stress (`max-principal`, brittle) or von Mises stress (`von-mises`, yield) is above a strength. This is post-processing only. The material does not yield, soften or crack in `SolidBody`. Crack propagation is a separate body type on this element's linear model, `FractureBody`: see [`SOLID_FRACTURE.md`](SOLID_FRACTURE.md).
 
 ## Validation
 
@@ -101,7 +101,7 @@ The observed order is `log2(error(h) / error(h / 2))`.
 
 The conjugate-gradient iteration count rises with it (125 at 0.3, about 2,500 at 0.4999). Uniform states, including hydrostatic ones, stay exact at any `nu`. Rubber at `nu = 0.45` is about 5 percentage points stiffer in bending than `nu = 0` on that mesh; `nu` above 0.49 needs a mixed or higher-order element, which this version does not have. `nu` is limited to 0.4999.
 
-**Not modelled.** Contact and self-contact; plasticity, viscoelasticity and damage; crack propagation (the strength checks only flag elements); follower pressure; anisotropy; more than one material per body; higher-order or mixed elements; two-way coupling to the rigid-body, water, cable or frame solvers (the one-way links of [`SIMULATION.md`](SIMULATION.md) aside); checkpoints.
+**Not modelled.** Contact and self-contact; plasticity and viscoelasticity; damage and crack propagation in `SolidBody` itself (its strength checks only flag elements; [`SOLID_FRACTURE.md`](SOLID_FRACTURE.md) describes the fracture solver built on the linear model); follower pressure; anisotropy; more than one material per body; higher-order or mixed elements; two-way coupling to the rigid-body, water, cable or frame solvers (the one-way links of [`SIMULATION.md`](SIMULATION.md) aside); checkpoints.
 
 **Other limits.** Up to 200,000 nodes and 1,000,000 elements. The explicit stability limit is that of the reference shape. The midpoint rule conserves energy exactly only for the linear model. Backward Euler damps high modes strongly at large time steps. The stress of a rotated element is accurate to about 1e-16 `E` in absolute terms, so the relative precision of very small strains under large rotation is limited. JavaScript on one thread: the 10,000-unknown cantilever solves in about half a second, and no performance claim is made.
 

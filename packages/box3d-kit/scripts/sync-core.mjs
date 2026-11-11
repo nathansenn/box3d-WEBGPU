@@ -42,6 +42,9 @@ export const CORE = [
   {from: 'src/engine/simulation.ts', rewrites: []},
   // ./robot: URDF and MJCF import. Imports contracts.ts, geometry.ts and types from native-world.ts and scene-format.ts.
   {from: 'src/engine/robot-import.ts', rewrites: []},
+  // ./fracture: cohesive and crack-band fracture of tetrahedral solids. Imports contracts.ts, solid-mesh.ts, solid.ts,
+  // geometry.ts and heat.ts, and types from simulation.ts.
+  {from: 'src/engine/solid-fracture.ts', rewrites: []},
 ];
 export const WASM_FILES = ['box3d.js', 'box3d.wasm', 'BUILD_PROVENANCE.json', 'BOX3D_LICENSE.txt'];
 
