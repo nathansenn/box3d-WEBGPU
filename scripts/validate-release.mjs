@@ -34,9 +34,12 @@ function pullRequestGate(){
   // Test the shipped artifacts here. Rebuilding with a pinned clang is a separate release-toolchain gate.
   run(process.execPath,['scripts/soft-kernel-test.mjs']);
   run(process.execPath,['scripts/soft-kernel-integration-test.cjs']);
-  for(const name of ['test:webgpu','test:collision','test:assets','test:release-contracts','catalog:check','test:soft-soak:all','test:rope-batching','test:native-wasm','test:material:100','build','build:pages','stage:railway'])gate(name);
+  for(const name of ['test:webgpu','test:collision','test:assets','test:release-contracts','catalog:check','test:soft-soak:all','test:rope-batching','test:native-wasm','test:kit','test:material:100','build','build:pages','stage:railway'])gate(name);
   run(npm,['audit','--audit-level=moderate']);
 }
+// test:kit covers the embeddable kit, including its closed-form physics validation. The kit's
+// upstream-suites file is left to the engine gate: it needs the baseline archives that the
+// engine suite needs.
 function studioGate(){
   for(const name of ['test:studio','test:studio:presets','test:studio:river','test:studio:reference','test:studio:press'])gate(name);
 }

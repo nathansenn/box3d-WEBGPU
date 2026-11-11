@@ -52,6 +52,7 @@
     "test:soft-kernels": "npm run verify:soft-kernels && node scripts/soft-kernel-test.mjs && rm -rf .test-build && tsc -p tsconfig.test.json && node -e \"require('fs').mkdirSync('.test-build', {recursive:true}); require('fs').writeFileSync('.test-build/package.json', '{\\\"type\\\":\\\"commonjs\\\"}')\" && node scripts/soft-kernel-integration-test.cjs",
     "test:cbridge": "bash ./scripts/c-bridge-syntax-test.sh",
     "test:native-wasm": "node scripts/native-box3d-soak.mjs",
+    "test:kit": "npm --prefix packages/box3d-kit run test:gate",
     "test:threaded": "node scripts/threaded-determinism-test.mjs",
     "bench:threaded": "node scripts/threaded-benchmark.mjs",
     "bench:native:rigid-stream": "node benchmarks/native-rigid-stream.mjs",
