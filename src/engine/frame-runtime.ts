@@ -68,8 +68,10 @@ const work=():Work=>({matrixProducts:0,elementVisits:0});
  * Small-strain/small-rotation elasticity; no buckling, yielding, contact or shear.
  * Element matrix products avoid allocating a dense global system.
  */
-/** What an exact checkpoint of a FrameRuntime holds: every field but the element matrices, which never change. */
-const STATE_FIELDS:FieldOptions={label:'FrameRuntime',skip:['elements']};
+/** What an exact checkpoint of a FrameRuntime holds: every field but the element matrices, which never change, and the
+ * 'direct' solver's Cholesky factors, a cache of m M + k K that depends only on the elements, supports and point masses
+ * (all fixed at construction): a restored runtime factors again and gets the same bits. */
+const STATE_FIELDS:FieldOptions={label:'FrameRuntime',skip:['elements','factors']};
 
 export class FrameRuntime implements EngineRuntime<FrameStepRequest,FrameSnapshot> {
   readonly capabilities:EngineCapabilities;readonly config:FrameConfig;

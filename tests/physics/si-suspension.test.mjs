@@ -14,10 +14,11 @@ import test from 'node:test';
 import {CompliantCableRuntime, hangingCableDefinition} from '../../src/engine/compliant-cable.ts';
 import {FrameRuntime} from '../../src/engine/frame-runtime.ts';
 import {suspensionLayout, SiSuspensionStatics, SI_SUSPENSION_DEFAULTS} from '../../src/engine/si-suspension.ts';
+import {encodeState, readCheckpoint, writeCheckpoint} from '../../src/engine/checkpoint.ts';
 import {freshWorld} from './si-bridge-fixtures.mjs';
 import {
   defaultStatics, measureCable, measureCrowd, measureDead, measureFailure, measureForm, measureMirror, measureModes, measurePoint, measureRelease,
-  measureRepeat, measureVehicle, measureWind,
+  measureRepeat, measureVehicle, measureWind, withSuspension, HZ,
 } from './si-suspension-fixtures.mjs';
 
 const sci = value => value.toExponential(2);
@@ -126,6 +127,36 @@ test('a parked service vehicle on the Box3D world: equal to the statics with its
 test('determinism: two runs with a changing crowd, wind and a failing hanger are bit-identical', async () => {
   const r = await measureRepeat();
   assert.equal(r.different, 0, `${r.different} of ${r.bytes} bytes differ`);
+});
+
+test('exact checkpoints: a bridge restored mid-run, in a fresh bridge or rewound in place, steps on bit for bit', async () => {
+  const {layout: L} = defaultStatics(), options = {hz: HZ, windLoad: 800, failures: [{segment: L.hangers[1][20], time: .2}]}, total = 48, at = 18;
+  const script = (bridge, i) => { if (i === 10) bridge.setCrowd({pressure: 2500, from: 6, to: 24}); if (i === 30) bridge.failHanger(L.hangers[0][17]); if (i === 36) bridge.setWind(1200); bridge.step(); };
+  // The uninterrupted run, with a checkpoint (through its bytes) after `at` steps.
+  let saved = null;
+  const straight = await withSuspension(L, options, bridge => {
+    for (let i = 0; i < total; i++) { if (i === at) saved = writeCheckpoint('si-suspension', bridge.saveState()); script(bridge, i); }
+    return {state: bridge.stateBytes(), tree: encodeState(bridge.saveState())};
+  });
+  // A fresh bridge built the same way, resumed from the checkpoint.
+  const resumed = await withSuspension(L, options, bridge => {
+    bridge.restoreState(readCheckpoint(saved, 'si-suspension'));
+    for (let i = at; i < total; i++) script(bridge, i);
+    return {state: bridge.stateBytes(), tree: encodeState(bridge.saveState())};
+  });
+  assert.deepEqual(resumed.state, straight.state, 'state after resuming in a fresh bridge');
+  assert.deepEqual(resumed.tree, straight.tree, 'every saved field after resuming in a fresh bridge');
+  // The same bridge rewound after the later failures (a released link and the scheduled one go back to carrying).
+  const rewound = await withSuspension(L, options, bridge => {
+    for (let i = 0; i < total; i++) script(bridge, i);
+    bridge.restoreState(readCheckpoint(saved, 'si-suspension'));
+    assert.equal(bridge.failed.length, 0, 'no hanger has failed at the checkpoint');
+    for (let i = at; i < total; i++) script(bridge, i);
+    return {state: bridge.stateBytes(), tree: encodeState(bridge.saveState())};
+  });
+  assert.deepEqual(rewound.state, straight.state, 'state after rewinding in place');
+  assert.deepEqual(rewound.tree, straight.tree, 'every saved field after rewinding in place');
+  console.log(`checkpoint ${saved.length} bytes; resumed and rewound runs equal the uninterrupted one after ${total - at} more steps`);
 });
 
 test('the Newton cable backend solves the same implicit step as the proximal one', () => {

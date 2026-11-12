@@ -1,5 +1,5 @@
 import {EngineError,finite,integer,onlyKeys,record,validateTickBatch,type EngineCapabilities,type EngineRuntime,type FixedTickCommand,type FixedTickStep} from './contracts.ts';
-import {captureFields,restoreFields,type FieldOptions,type StateObject,type StateValue} from './checkpoint.ts';
+import {captureFields,captureValue,checkpointError,restoreFields,restoreValue,type FieldHandler,type FieldOptions,type StateObject,type StateValue} from './checkpoint.ts';
 import {EnvelopeMatrix} from './envelope-matrix.ts';
 
 export const COMPLIANT_CABLE_BACKEND='cable-xpbd-js-f64-v1';
@@ -64,8 +64,35 @@ function config(value:unknown):CableConfig {
  * XPBD multipliers reset per substep and accumulate only across that substep's iterations.
  * Constitutive compliance is independent of solve settings; finite solve/integration error is reported.
  */
-/** What an exact checkpoint of a CompliantCableRuntime holds: every field. */
-const STATE_FIELDS:FieldOptions={label:'CompliantCableRuntime',skip:[]};
+/** The Newton backend's kept state: node order, the factor it reuses from step to step (its envelope only; the rest of
+ * the matrix is zero) and the version of the coupling it was built for. A restored run reuses the same factor, so it
+ * takes the same Newton iterations as the uninterrupted one. */
+const NEWTON_STATE:FieldHandler={
+  capture:value=>{
+    if(value===undefined)return null;
+    const s=value as {index:Int32Array;coupled:Int32Array;matrix:EnvelopeMatrix;step:Float64Array;saved:Float64Array;version:number;valid:boolean};
+    const {n,first,a}=s.matrix;let size=0;for(let i=0;i<n;i++)size+=i-first[i]+1;
+    const envelope=new Float64Array(size);let at=0;for(let i=0;i<n;i++)for(let j=first[i];j<=i;j++)envelope[at++]=a[i*n+j];
+    return {index:s.index.slice(),coupled:s.coupled.slice(),n,first:first.slice(),envelope,step:s.step.slice(),saved:s.saved.slice(),version:s.version,valid:s.valid};
+  },
+  restore:(_value,state,owner,key)=>{
+    if(state===null||state===undefined){owner[key]=undefined;return;}
+    const s=state as {index:Int32Array;coupled:Int32Array;n:number;first:Int32Array;envelope:Float64Array;step:Float64Array;saved:Float64Array;version:number;valid:boolean};
+    if(!(s.index instanceof Int32Array&&s.coupled instanceof Int32Array&&s.first instanceof Int32Array&&s.envelope instanceof Float64Array&&s.step instanceof Float64Array&&s.saved instanceof Float64Array)||!Number.isInteger(s.n)||s.first.length!==s.n)throw checkpointError('CompliantCableRuntime: the saved Newton state is malformed.');
+    const matrix=new EnvelopeMatrix(s.n,s.first.slice());let at=0;
+    for(let i=0;i<s.n;i++){if(!(s.first[i]>=0&&s.first[i]<=i))throw checkpointError('CompliantCableRuntime: the saved Newton state is malformed.');for(let j=s.first[i];j<=i;j++)matrix.a[i*s.n+j]=s.envelope[at++];}
+    if(at!==s.envelope.length)throw checkpointError('CompliantCableRuntime: the saved Newton state is malformed.');
+    owner[key]={index:s.index.slice(),coupled:s.coupled.slice(),matrix,step:s.step.slice(),saved:s.saved.slice(),version:s.version,valid:s.valid};
+  },
+};
+/** A field that is undefined until first used: saved as null then, so that restoring an earlier state clears it again. */
+const OPTIONAL:FieldHandler={
+  capture:value=>value===undefined?null:captureValue(value,'CompliantCableRuntime optional field')??null,
+  restore:(value,state,owner,key)=>{owner[key]=state===null||state===undefined?undefined:restoreValue(value,state,`CompliantCableRuntime.${key}`);},
+};
+/** What an exact checkpoint of a CompliantCableRuntime holds: every field; the Newton backend's kept factor, released
+ * links and coupled nodes through their handlers. */
+const STATE_FIELDS:FieldOptions={label:'CompliantCableRuntime',skip:[],nested:{newton:NEWTON_STATE,couple:OPTIONAL,released:OPTIONAL}};
 
 export class CompliantCableRuntime implements EngineRuntime<CableStepRequest,CableSnapshot> {
   readonly capabilities:EngineCapabilities;
@@ -297,7 +324,7 @@ export class CompliantCableRuntime implements EngineRuntime<CableStepRequest,Cab
   private couple?:{nodes:Int32Array;stiffness:Float64Array;targets:Float64Array;version:number};
   private released?:Uint8Array;
   /** Newton backend: from the next tick on, link `index` carries nothing, as if it had been cut (its two nodes and
-   * their masses stay). Not part of checkpoints. */
+   * their masses stay). Released links are part of checkpoints. */
   releaseLink(index:number):void {
     this.alive();if(this.config.solver!=='newton')throw new EngineError('INVALID_PAYLOAD','Only the Newton cable solver can release a link.');
     if(!(Number.isInteger(index)&&index>=0&&index<this.edges.length))throw new EngineError('INVALID_PAYLOAD','Link index out of range.');

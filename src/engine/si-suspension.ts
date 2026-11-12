@@ -26,6 +26,7 @@ import {CompliantCableRuntime} from './compliant-cable.ts';
 import {StructureCoupling,type StructureAttachment,type StructureWorld} from './structure-coupling.ts';
 import {materialProperty} from './materials.ts';
 import {EnvelopeMatrix} from './envelope-matrix.ts';
+import {captureValue,checkpointError,restoreValue,type StateObject,type StateValue} from './checkpoint.ts';
 import type {NativeBodyHandle,NativeWorldBackend} from './native-world.ts';
 
 export const SI_SUSPENSION_GRAVITY=9.81;
@@ -997,6 +998,32 @@ export class SiSuspensionBridge {
       }
     });
     return out;
+  }
+  /** Everything a later step reads, as a state tree (checkpoint.ts): the coupling (which holds the frame and every cable,
+   * the Newton factors and released links included), the loads, the failures and the outputs. A bridge built the same way
+   * and given this state steps on bit for bit. Not with a service vehicle: it lives in the rigid world, which is
+   * checkpointed with that world. */
+  saveState():StateObject {
+    if(this.disposed)throw new Error('This bridge has been disposed.');
+    if(this.vehicle)throw checkpointError('A bridge with a service vehicle is checkpointed with its rigid world, not alone.');
+    return {coupling:this.coupling.saveState(),wind:this.statics.windLoad,crowd:this.crowd?{pressure:this.crowd.pressure,from:this.crowd.from,to:this.crowd.to}:null,
+      ruptureAt:this.ruptureAt,failed:Int32Array.from(this.failed),failedAt:Float64Array.from(this.failedAt),failedMask:this.failedMask.slice(),
+      baseLoads:this.baseLoads.slice(),applied:this.applied.slice(),out:captureValue(this.out,'SiSuspensionBridge.out')!};
+  }
+  /** Put back a state from `saveState()` of a bridge built with the same layout and options. */
+  restoreState(state:StateValue):void {
+    if(this.disposed)throw new Error('This bridge has been disposed.');
+    if(this.vehicle)throw checkpointError('A bridge with a service vehicle is checkpointed with its rigid world, not alone.');
+    const s=state as {coupling:StateValue;wind:number;crowd:{pressure:number;from:number;to:number}|null;ruptureAt:number;failed:Int32Array;failedAt:Float64Array;failedMask:Uint8Array;baseLoads:Float64Array;applied:Float64Array;out:StateValue};
+    if(!s||typeof s!=='object'||!(s.failed instanceof Int32Array&&s.failedAt instanceof Float64Array&&s.failedAt.length===s.failed.length&&s.failedMask instanceof Uint8Array&&s.failedMask.length===this.failedMask.length
+      &&s.baseLoads instanceof Float64Array&&s.baseLoads.length===this.baseLoads.length&&s.applied instanceof Float64Array&&typeof s.wind==='number'&&typeof s.ruptureAt==='number'))throw checkpointError('SiSuspensionBridge: the checkpoint is not the state of this bridge.');
+    this.coupling.restoreState(s.coupling);
+    if(this.statics.windLoad!==s.wind)this.statics.setWindLoad(s.wind);
+    if(s.crowd)this.statics.crowdLoad(s.crowd.pressure,s.crowd.from,s.crowd.to);
+    this.crowd=s.crowd?{pressure:s.crowd.pressure,from:s.crowd.from,to:s.crowd.to}:null;this.ruptureAt=s.ruptureAt;
+    this.failed.length=0;this.failed.push(...s.failed);this.failedAt.length=0;this.failedAt.push(...s.failedAt);this.failedMask.set(s.failedMask);
+    this.baseLoads.set(s.baseLoads);this.applied=s.applied.slice();
+    restoreValue(this.out,s.out,'SiSuspensionBridge.out');
   }
   /** Weight the supports carry, N. */
   totalWeight():number {return (this.statics.structureMass()+(this.vehicle?this.vehicle.mass:0))*this.gravity;}
