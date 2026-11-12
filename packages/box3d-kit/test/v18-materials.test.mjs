@@ -20,7 +20,7 @@ test('the materials subpath publishes the library, its helpers and its version',
   assert.match(M.MATERIAL_LIBRARY_VERSION, /^\d+\.\d+\.\d+$/);
   assert.equal(M.materialIds().length, 27);
   assert.deepEqual(M.solidMaterial('structural-steel-s355'), repoSolidMaterial('structural-steel-s355'), 'the packaged copy is the repository source');
-  assert.equal(M.materialAudit().length, 228);
+  assert.equal(M.materialAudit().length, 230);
   assert.throws(() => M.material('unobtainium'), error => error instanceof EngineError && error.code === 'INVALID_PAYLOAD');
   for (const source of Object.values(M.MATERIAL_SOURCES)) assert.match(source.url, /^https:\/\//);
 });

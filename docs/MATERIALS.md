@@ -1,12 +1,12 @@
 # Material library
 
-`src/engine/materials.ts`, published by the kit as `box3d-webgpu-kit/materials`: engineering materials in SI units, each value with the conditions it holds for, the figure exactly as it was read in its source, the conversion when it was not read in SI, a range where sources disagree or state one, and a numbered citation below. Library version `1.2.0` (`MATERIAL_LIBRARY_VERSION`); the sources were opened on 2026-11-12.
+`src/engine/materials.ts`, published by the kit as `box3d-webgpu-kit/materials`: engineering materials in SI units, each value with the conditions it holds for, the figure exactly as it was read in its source, the conversion when it was not read in SI, a range where sources disagree or state one, and a numbered citation below. Library version `1.3.0` (`MATERIAL_LIBRARY_VERSION`); the sources were opened on 2026-11-12.
 
 This is roadmap Phase 4, "a calibrated material library with sources". *Calibrated* here means traceable: every number can be followed to a page that was opened and read. It does not mean that the project measured anything. The values are typical or nominal figures for a named grade; real samples differ.
 
 ## What is in it
 
-27 materials, 31 contact-pair entries, 38 sources, **228 values: 221 from a source, 7 unverified**.
+27 materials, 31 contact-pair entries, 38 sources, **230 values: 222 from a source, 8 unverified**.
 
 | Material (`id`) | Grade and conditions | Density | E, ν, G | Strength | K_IC / G_c | k, c_p, α |
 |---|---|---|---|---|---|---|
@@ -42,10 +42,11 @@ Where the values come from, counted per value: standards and design aids that ta
 
 ## Unverified values
 
-Six contact coefficients that the scene editor needs, and the density of honey, were not found in any opened source. They are kept so that the editor keeps a value, carry `source: 'unverified'` and a reason, and every helper refuses them unless `allowUnverified: true` is passed:
+Six contact coefficients that the scene editor needs, the density of honey and the elongation at break of S355 were not found in any opened source. They are kept so that the editor, the flow labs and the metal press keep a value, carry `source: 'unverified'` and a reason, and every helper refuses them unless `allowUnverified: true` is passed:
 
-| Pair | Value | Note |
+| Value | Value | Note |
 |---|---|---|
+| S355 elongation at break | 0.22 | EN 10025-2 minimum A for 3 < t ≤ 40 mm, as remembered; the opened design aid gives no elongation and the standard was not opened |
 | aluminium 6061-T6 on itself, restitution | 0.5 | the editor's earlier value, written from memory |
 | concrete on concrete, static friction | 0.6 | the editor's earlier table cited ACI 318's shear-friction coefficient; that code was not opened |
 | concrete on concrete, restitution | 0.2 | the editor's earlier value |
@@ -55,6 +56,8 @@ Six contact coefficients that the scene editor needs, and the density of honey, 
 | honey, density | 1420 kg/m³ | a recalled typical figure; the viscosity source's specific-gravity table was not readable |
 
 Not in the library because no opened source gave them (the helpers then ask for the value): fracture toughness of the steels, stainless 304, copper, concrete (fracture energy), granite, PMMA, ABS, nylon and PTFE; tensile strength of ice; Poisson's ratio and specific heat of ABS and PTFE; specific heat of nylon; thermal conductivity of natural rubber; heat capacity and expansion of granite (illegible in the scanned report); restitution of quartz sand and of most pairs.
+
+Elongation at break (`elongationAtBreak`, a fraction) is in the library for 6061-T6 (12% for 1.6 mm sheet, 17% for 12.7 mm bar; ASM / Aluminum Association typical, read in the datasheet) and, unverified, for S355. `plasticMaterial(id)` turns yield strength, tensile strength and elongation into the inputs of the elastic-plastic solid (docs/SOLID_MECHANICS.md): the yield stress, a linear hardening modulus from a straight line through (f_y / E, f_y) and (A, f_u), and a failure strain A - f_u / E at which elements erode. That fit uses engineering values and ignores necking; it is coarse. For 6061-T6 it gives H = 0.29 GPa and a failure strain of 0.116; for S355 (with `allowUnverified`) H = 0.62 GPa and 0.218.
 
 ## Using it
 

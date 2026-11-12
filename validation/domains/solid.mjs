@@ -189,6 +189,66 @@ const thermal = () => memo('solid/thermal', async () => {
   return {growth: meanComponent(expanded.displacements, free.selectNodes(x => near(x, size[0])), 0), stress: held.stresses()[0]};
 });
 
+
+// J2 plasticity (tests/engine/solid-plasticity.test.mjs) and the press brake (tests/engine/press-brake.test.mjs).
+const PLASTIC_FILE = 'tests/engine/solid-plasticity.test.mjs', PRESS_FILE = 'tests/engine/press-brake.test.mjs';
+const P = {
+  cycle: 'uniaxial cycle, linear model: hardening branch, elastic unloading and reverse yield match the bilinear law exactly',
+  bending: 'pure bending: elastic-plastic moment-curvature of a rectangular section, and springback after release',
+  cylinder: 'thick-walled cylinder under internal pressure (plane strain): first yield and the Hill collapse pressure',
+  brake: 'three-point air bend, S355, 2 mm, die opening 8 t: limit load, equilibrium of punch and die, and elastic springback',
+};
+const PL = {E: 200e9, nu: 0.3, sy: 250e6};
+const plasticCycle = () => memo('solid/plastic-cycle', async () => {
+  const {SolidBody, boxMesh} = await solid(), L = 0.1, w = 0.01, H = 2e9;
+  const body = new SolidBody({mesh: boxMesh({size: [L, w, w], cells: [4, 1, 1]}), material: {youngModulus: PL.E, poissonRatio: PL.nu, density: 7850, yieldStress: PL.sy, hardeningModulus: H}, config: {model: 'linear'}});
+  symmetryPlanes(body); const end = body.selectNodes(x => near(x, L)), out = {};
+  for (const strain of [0.006, 0.003]) { body.constrain(end, [strain * L, null, null]); const r = body.solveStatic(); out[strain] = sumComponent(r.reactions, end, 0) / (w * w); }
+  return out;
+});
+// Bilinear law: yield at 250 MPa, tangent E H / (E + H) after; then elastic back from 0.006 until reverse yield at -(sigma_y + H p).
+const HARD = 2e9, ET = PL.E * HARD / (PL.E + HARD), S6 = PL.sy + ET * (0.006 - PL.sy / PL.E), P6 = 0.006 - S6 / PL.E;
+const plasticBending = () => memo('solid/plastic-bending', async () => {
+  const {SolidBody, boxMesh} = await solid(), h = 0.01, b = 0.01, L = 0.02;
+  const body = new SolidBody({mesh: boxMesh({size: [L, h, b / 2], cells: [16, 8, 2]}), material: {youngModulus: PL.E, poissonRatio: PL.nu, density: 7850, yieldStress: PL.sy}, config: {model: 'linear'}});
+  body.constrain(body.selectNodes(x => near(x, 0)), [0, null, null]); body.constrain(body.selectNodes((x, y, z) => near(z, 0)), [null, null, 0]); body.constrain(body.selectNodes((x, y) => near(x, 0) && near(y, h / 2)), [0, 0, null]);
+  const end = body.selectNodes(x => near(x, L)), mid = body.selectNodes(x => near(x, L / 2)), X = body.referencePositions, ky = 2 * PL.sy / PL.E / h, k = 8 * ky;
+  const curvature = () => { let sy = 0, sx = 0, sxy = 0, syy = 0, n0 = 0; const u = body.displacements; for (const n of mid) { const y = X[3 * n + 1] - h / 2; sy += y; sx += u[3 * n]; sxy += y * u[3 * n]; syy += y * y; n0++; } return -(n0 * sxy - sy * sx) / (n0 * syy - sy * sy) / (L / 2); };
+  for (const n of end) body.constrain([n], [-k * L * (X[3 * n + 1] - h / 2), null, null]);
+  const r = body.solveStatic(); let M = 0; for (const n of end) M -= r.reactions[3 * n] * (X[3 * n + 1] - h / 2);
+  const moment = (kk) => { const c = Math.min(h / 2, PL.sy / PL.E / kk); return 2 * b * (PL.E * kk * c ** 3 / 3 + PL.sy * ((h / 2) ** 2 - c * c) / 2); };
+  const loaded = curvature(); body.release(end); body.solveStatic();
+  return {moment: 2 * M, exact: moment(k), recovered: loaded - curvature(), springback: moment(loaded) / (PL.E * b * h ** 3 / 12)};
+});
+const brake = () => memo('solid/press-brake', async () => {
+  const {PressBrake} = await engine('press-brake'), {plasticMaterial} = await engine('materials'), t = 0.002;
+  const material = {...plasticMaterial('structural-steel-s355', {allowUnverified: true}), hardeningModulus: 0, failureStrain: Infinity};
+  const pb = new PressBrake({material, thickness: t, width: 1, dt: 1 / 60, friction: 0}), speed = 0.8 * t / (16 * pb.dt);
+  pb.setPunchSpeed(speed); for (let s = 0; s < 16; s++) pb.step();
+  const F = pb.punchForce, d = pb.deflection; pb.setPunchSpeed(-speed); for (let s = 0; s < 10; s++) pb.step();
+  const Ep = material.youngModulus / (1 - material.poissonRatio ** 2), Mp = 2 / Math.sqrt(3) * material.yieldStress * t * t / 4, V = pb.dieOpening;
+  return {limit: F, FL: 4 * Mp / V, recovered: d - pb.deflection, springback: F * V ** 3 / (48 * Ep * t ** 3 / 12)};
+});
+const PLASTIC_CASES = [
+  {id: 'solid.plastic.hardening', title: 'J2 plasticity: uniaxial stress on the hardening branch', quantity: 'axial stress of a bar stretched to 0.6% (sigma_y 250 MPa, H 2 GPa, linear model)', unit: 'Pa', test: P.cycle, file: PLASTIC_FILE,
+    reference: {formula: 'sigma = sigma_y + E H / (E + H) (eps - sigma_y / E)', value: S6}, tolerance: relative(1e-9), measure: async () => (await plasticCycle())[0.006]},
+  {id: 'solid.plastic.reverse-yield', title: 'J2 plasticity: reverse yield after unloading', quantity: 'axial stress after unloading from 0.6% to 0.3% strain', unit: 'Pa', test: P.cycle, file: PLASTIC_FILE,
+    reference: {formula: 'sigma = -(sigma_y + H p), p from the bilinear law', value: -(PL.sy + HARD * (P6 + (Math.abs(S6 - PL.E * 0.003) - PL.sy - HARD * P6) / (PL.E + HARD)))}, tolerance: relative(1e-9), measure: async () => (await plasticCycle())[0.003]},
+  {id: 'solid.plastic.moment', title: 'Elastic-plastic bending moment at 8 times the yield curvature', quantity: 'end moment of a 10 x 10 mm beam in pure bending, 16 x 8 x 2 cells, perfectly plastic', unit: 'N m', test: P.bending, file: PLASTIC_FILE,
+    reference: {formula: 'M = b (E k c^3 / 3 ... ) = M_y (3 / 2)(1 - (k_y / k)^2 / 3)', value: null}, tolerance: relative(0.04), note: 'Linear tetrahedra are too strong in bending: 3.2% here, from shear and plastic-incompressibility locking.',
+    measure: async () => { const r = await plasticBending(); return {value: r.moment, reference: r.exact}; }},
+  {id: 'solid.plastic.springback', title: 'Springback of a plastically bent beam', quantity: 'curvature recovered at mid-length when the end moment is released', unit: '1/m', test: P.bending, file: PLASTIC_FILE,
+    reference: {formula: 'dk = M(k) / (E I), k the curvature reached at mid-length', value: null}, tolerance: relative(0.01),
+    measure: async () => { const r = await plasticBending(); return {value: r.recovered, reference: r.springback}; }},
+  {id: 'solid.press-brake.limit', title: 'Press brake: three-point air bend at the limit load', quantity: 'punch force of a 2 mm S355 sheet (perfectly plastic) over an 8 t die, divided by the beam-theory limit load', unit: '1', test: P.brake, file: PRESS_FILE,
+    reference: {formula: 'F / (4 M_p\' / V) = 1, M_p\' = (2 / sqrt 3) sigma_y t^2 / 4 (plane strain)', value: 1}, tolerance: upper(0.35),
+    note: 'Measured 1.23 times beam theory: a short section under a punch of radius t, and 4 cells through the thickness are 6.6% too strong in plastic plane-strain bending.',
+    measure: async () => { const r = await brake(); return r.limit / r.FL; }},
+  {id: 'solid.press-brake.springback', title: 'Press brake: elastic springback of the bend depth', quantity: 'bend depth recovered when the punch retracts', unit: 'm', test: P.brake, file: PRESS_FILE,
+    reference: {formula: 'd = F V^3 / (48 E\' I), E\' = E / (1 - nu^2)', value: null}, tolerance: relative(0.12), note: 'Measured 0.90 of the beam value: the elastic bending stiffness of four cells through the thickness.',
+    measure: async () => { const r = await brake(); return {value: r.recovered, reference: r.springback}; }},
+];
+
 const LOCKING = [[1, 0.68], [2, 0.37], [4, 0.13], [8, 0.036]];
 export default defineCases('solid', FILE, [
   ...['linear', 'corotational', 'neo-hookean'].map(model => (
@@ -253,6 +313,7 @@ export default defineCases('solid', FILE, [
     reference: {formula: 'u = alpha dT L', value: THERMAL.alpha * THERMAL.rise * 0.5}, tolerance: relative(1e-10), measure: async () => (await thermal()).growth},
   {id: 'solid.thermal.restrained-stress', title: 'Thermal eigenstrain: restrained bar', quantity: 'axial stress of the bar held at both ends and heated by 80 K (linear model)', unit: 'Pa', test: T.thermal,
     reference: {formula: 'sigma = -E alpha dT', value: -200e9 * THERMAL.alpha * THERMAL.rise}, tolerance: relative(1e-10), measure: async () => (await thermal()).stress},
+  ...PLASTIC_CASES,
 ]);
 
 // Viscoelasticity (config.viscoelastic): a Prony branch on the elastic stress, E(t) = E (1 + gamma exp(-t / tau)).

@@ -108,7 +108,8 @@ its state in private `#` fields and has an explicit list instead.
 | Water coupling | Surface, face velocities, the displaced volumes of the step before (the volume source), gravity, step count, every attached body's report (submerged volume and centre, buoyancy, drag, the "fresh" flag), the momentum ledgers. |
 | Structure coupling | Each body carrier's rigid state, inverse inertia and pending impulses; each attachment's multipliers, Jacobians, reference pose and reports; each frame carrier's interface operator (`W`, `P`, `Waug`), multipliers and interface loads; every cable's and frame's full state through them (positions, velocities, masses and inverse masses as attachments drive them, XPBD and vector multipliers, support impulses, work and dissipation ledgers, residual statistics, the reaction time). A frame carrier's `mid` is the frame's own vector, fetched again every tick, and is not saved. |
 | Heat | Temperature, sources, boundary values, the boundary energy ledgers and step rates, source energy, time, step count, CG statistics, the assembly flag and the assembled conductances. |
-| Solid | Displacements, velocities, loads, constraints, the integrator's history and the corotational frames: every field of `SolidBody`. |
+| Solid | Displacements, velocities, loads, constraints, the integrator's history and the corotational frames: every field of `SolidBody`. For an elastic-plastic body also the committed plastic strains and equivalent plastic strains, the eroded-element flags and count, the plastic work, and the tangent data of the last trial state. |
+| Press brake | `PressBrake.saveState()`: its sheet (above), its contact solver, the punch's speed, travel and last speed, and the carried-forward increment the next step starts from. It is not a stepping-loop subsystem; the Studio does not resume a press run. |
 | Fracture | Every field of `FractureBody`, so the cracked topology (elements, split nodes, interfaces with their damage and history), the energy counters and the events not yet taken. |
 | Solid contact | The solid, the contact solver's candidate and active sets, friction anchors and modes, welds (with the weld map), its work vectors and statistics, the bodies' states, and the coupling's records. |
 | Cloth | Positions, velocities, the Newton and CG vectors, the contact records, self-contact pairs and spatial hash, statistics and ledgers, the bodies it touches, and the coupling's records (previous velocities, contact flags). |
@@ -154,9 +155,9 @@ Measured:
   same bytes, and so is the rigid transform hash. Restoring and checkpointing again gives the same bytes. Nine of
   the scenes (two of them fluid) are also resumed in a fresh Node process, with the same result. For one coupled set-up of each solver
   family, built by hand (cloth with self-contact and an attachment, grains under a block, the volumetric fluid with
-  an obstacle and a sphere, solid contact with an impact, the quenched plate across the onset of cracking with 178
+  an obstacle and a sphere, solid contact with an impact, an elastic-plastic block dented by a heavy sphere, the quenched plate across the onset of cracking with 178
   crack events before the checkpoint and 66 after, heat with a solid and both links): the same bytes, and the same
-  events after the checkpoint. The free-surface fluid, with viscosity, no-slip walls, a moving obstacle and a time step changed mid-run, is restored bit for bit. A world checkpoint keeps handles (also with a body added after the build) and
+  events after the checkpoint. The free-surface fluid, with viscosity, no-slip walls, a moving obstacle and a time step changed mid-run, is restored bit for bit. `tests/engine/solid-plasticity.test.mjs` and `tests/engine/press-brake.test.mjs` resume a plastic bar across the onset of erosion and a press brake mid-stroke from `saveState()` to the same bytes. A world checkpoint keeps handles (also with a body added after the build) and
   the fixed-step accumulator; `RemoteWorld` restores in its worker. Refused, with nothing changed: another scene, a
   flipped bit, another format version, a truncated file, a world checkpoint where a simulation one is expected, a
   simulation with a subsystem removed.

@@ -157,6 +157,17 @@ const SETUPS = {
     coupling.addBody(ball, {shape: {kind: 'sphere', radius}, friction: 0.4});
     return createSimulation(world).add(solidContactSubsystem(coupling)).trackBody(ball, {kind: 'sphere', radius});
   },
+  // An elastic-plastic block (J2, green-lagrange) dented by a heavy sphere: plastic strain, hardening and committed state.
+  async 'plastic-solid-contact'(world) {
+    const solid = new SolidBody({mesh: boxMesh({size: [0.2, 0.1, 0.2], cells: [4, 2, 4]}), material: {youngModulus: 2e7, poissonRatio: 0.3, density: 1000, yieldStress: 2e5, hardeningModulus: 2e6},
+      config: {model: 'green-lagrange', dt: DT, tolerance: 1e-10}});
+    solid.constrain(solid.selectNodes((x, y) => y < 1e-9), [0, 0, 0]);
+    const radius = 0.05;
+    const ball = world.createBody({shape: {kind: 'sphere', radius}, position: [0.1, 0.1 + radius + 0.005, 0.1], density: 20000, linearVelocity: [0, -1.5, 0], neverSleeps: true});
+    const coupling = new SolidCoupling(world, solid);
+    coupling.addBody(ball, {shape: {kind: 'sphere', radius}, friction: 0.3});
+    return createSimulation(world).add(solidContactSubsystem(coupling)).trackBody(ball, {kind: 'sphere', radius});
+  },
   async fracture(world) {
     const plate = quenchedPlate({dt: world.loop.step});
     return createSimulation(world).add(heatSubsystem(plate.heat)).add(thermalSolidLink(plate.heat, plate.body, {reference: plate.reference})).add(fractureSubsystem(plate.body));
@@ -171,7 +182,7 @@ const SETUPS = {
       .add(deadLoadLink(body, solid, {faces: solid.selectFaces((cx, cy, cz, nx, ny) => ny > 0.99)}));
   },
 };
-const SETUP_STEPS = {cloth: [100, 60], grains: [60, 40], fluid: [15, 15], 'solid-contact': [120, 60], fracture: [230, 60], 'heat-solid': [80, 80]};
+const SETUP_STEPS = {cloth: [100, 60], grains: [60, 40], fluid: [15, 15], 'solid-contact': [120, 60], 'plastic-solid-contact': [40, 30], fracture: [230, 60], 'heat-solid': [80, 80]};
 const SETUP_WORLD = {fluid: () => newWorld([0, -G, 0], 1 / 120), fracture: () => newWorld([0, -G, 0], 2e-3)};
 
 test('a coupled set-up of every solver family resumes bit for bit', async t => {

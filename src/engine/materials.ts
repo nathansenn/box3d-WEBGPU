@@ -23,7 +23,7 @@ import type {GranularMaterial} from './granular.ts';
 
 export const MATERIAL_LIBRARY_ID = 'box3d-materials';
 /** Semver of the data: a changed value is a minor release, a removed material or property a major one. */
-export const MATERIAL_LIBRARY_VERSION = '1.2.0';
+export const MATERIAL_LIBRARY_VERSION = '1.3.0';
 /** The date the sources were opened and read. */
 export const MATERIAL_SOURCES_ACCESSED = '2026-11-12';
 
@@ -154,7 +154,7 @@ export const MATERIAL_SOURCES: Readonly<Record<string, MaterialSource>> = deepFr
 export type MaterialPropertyName =
   | 'density' | 'youngModulus' | 'poissonRatio' | 'shearModulus'
   | 'yieldStrength' | 'tensileStrength' | 'compressiveStrength' | 'flexuralStrength'
-  | 'fractureToughness' | 'fractureEnergy'
+  | 'fractureToughness' | 'fractureEnergy' | 'elongationAtBreak'
   | 'thermalConductivity' | 'specificHeat' | 'thermalExpansion'
   | 'viscosity' | 'soundSpeed';
 
@@ -162,7 +162,7 @@ export type MaterialPropertyName =
 export const MATERIAL_PROPERTY_UNITS: Readonly<Record<MaterialPropertyName, string>> = Object.freeze({
   density: 'kg/m^3', youngModulus: 'Pa', poissonRatio: '1', shearModulus: 'Pa',
   yieldStrength: 'Pa', tensileStrength: 'Pa', compressiveStrength: 'Pa', flexuralStrength: 'Pa',
-  fractureToughness: 'Pa m^0.5', fractureEnergy: 'J/m^2',
+  fractureToughness: 'Pa m^0.5', fractureEnergy: 'J/m^2', elongationAtBreak: '1',
   thermalConductivity: 'W/(m K)', specificHeat: 'J/(kg K)', thermalExpansion: '1/K',
   viscosity: 'Pa s', soundSpeed: 'm/s',
 });
@@ -256,7 +256,9 @@ export const MATERIALS: Readonly<Record<string, MaterialEntry>> = deepFreeze({
   'structural-steel-s355': {id: 'structural-steel-s355', name: 'Structural steel S355', category: 'metal', grade: 'EN 10025-2 S355, thickness up to 40 mm', isotropic: true,
     properties: {...steelCommon('S355'),
       yieldStrength: v(355e6, 'ec3-design-properties', 'f_y = 355 MPa', 'S355, EN 10025-2, t <= 40 mm (nominal)'),
-      tensileStrength: v(490e6, 'ec3-design-properties', 'f_u = 490 MPa', 'S355, EN 10025-2, t <= 40 mm (nominal)')},
+      tensileStrength: v(490e6, 'ec3-design-properties', 'f_u = 490 MPa', 'S355, EN 10025-2, t <= 40 mm (nominal)'),
+      elongationAtBreak: unverified(0.22, 'S355, EN 10025-2 minimum A (L0 = 5.65 sqrt(S0)), 3 < t <= 40 mm, longitudinal',
+        'The opened design aid gives no elongation and EN 10025-2 itself was not opened; 22% is the standard\'s minimum as remembered, not read.')},
     notes: ['No fracture toughness: none was found in an opened source; structural steel is ductile at room temperature and its toughness depends on the grade\'s Charpy class.']},
   'structural-steel-s235': {id: 'structural-steel-s235', name: 'Structural steel S235', category: 'metal', grade: 'EN 10025-2 S235, thickness up to 40 mm', isotropic: true,
     properties: {...steelCommon('S235'),
@@ -283,6 +285,7 @@ export const MATERIALS: Readonly<Record<string, MaterialEntry>> = deepFreeze({
       shearModulus: v(26e9, 'asm-6061-t6', '26 GPa (estimated from similar Al alloys)', 'room temperature'),
       yieldStrength: v(276e6, 'asm-6061-t6', '276 MPa (AA; Typical)', 'T6, room temperature'),
       tensileStrength: v(310e6, 'asm-6061-t6', '310 MPa (AA; Typical)', 'T6, room temperature'),
+      elongationAtBreak: v(0.12, 'asm-6061-t6', 'Elongation at Break 12 % (AA; Typical; 1/16 in. (1.6 mm) Thickness); 17 % (1/2 in. (12.7 mm) Diameter)', 'T6 sheet 1.6 mm, room temperature; 17% for 12.7 mm bar', {range: [0.12, 0.17]}),
       fractureToughness: v(29e6, 'asm-6061-t6', '29 MPa-m^1/2 (K_IC; TL orientation)', 'T6, TL orientation'),
       thermalConductivity: v(167, 'asm-6061-t6', '167 W/m-K (AA; Typical at 77 °F)', '25 °C',
         {range: [154.4, 167], also: ['nist-cryo-6061'], derived: 'NIST log-polynomial fit evaluated at 293.15 K gives 154.4 W/(m K) (fit error 0.5%)'}),
@@ -673,6 +676,22 @@ export function solidMaterial(id: string, options: SolidMaterialOptions = {}): S
     else if (entry.properties.thermalExpansion) out.thermalExpansion = accept(entry.properties.thermalExpansion, `${id}.thermalExpansion`, options);
   }
   return out;
+}
+
+/**
+ * The input of an elastic-plastic `SolidBody` (J2 with linear isotropic hardening): E, nu, rho as `solidMaterial`, plus
+ *  - yieldStress = the library's yield strength;
+ *  - hardeningModulus H from a bilinear fit through (f_y / E, f_y) and (A, f_u), A the elongation at break: the tangent
+ *    E_t = (f_u - f_y) / (A - f_y / E) and H = E E_t / (E - E_t). Engineering values, so this is a coarse fit that ignores
+ *    necking and the difference between true and engineering stress;
+ *  - failureStrain = A - f_u / E, the plastic strain at the end of that line (the elements erode there).
+ * Needs yield strength, tensile strength and elongation at break in the library (an unverified one needs allowUnverified).
+ */
+export function plasticMaterial(id: string, options: SolidMaterialOptions = {}): SolidMaterial {
+  const base = solidMaterial(id, options), E = base.youngModulus;
+  const fy = materialProperty(id, 'yieldStrength', options), fu = materialProperty(id, 'tensileStrength', options), A = materialProperty(id, 'elongationAtBreak', options);
+  const Et = Math.max(0, (fu - fy) / (A - fy / E)), H = Et >= E ? 0 : E * Et / (E - Et);
+  return {...base, yieldStress: fy, hardeningModulus: H, failureStrain: Math.max(1e-6, A - fu / E)};
 }
 
 /** Plane strain (a thick body: G_c = K^2 (1 - nu^2) / E) or plane stress (a thin sheet: G_c = K^2 / E). */

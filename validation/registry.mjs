@@ -203,14 +203,16 @@ export const DOMAINS = [
   },
   {
     id: 'solid', title: 'Deformable solids', needsKit: false,
-    solver: '`src/engine/solid.ts`: linear tetrahedra with linear, corotational and Neo-Hookean models; static, midpoint, backward-Euler and explicit integration, float64',
-    summary: 'The patch test, uniaxial tension, shear and bulk moduli, a hanging bar, the cantilever locking table, axial and bending frequencies with observed orders, a stress wave, energy and damping, large-strain rubber and thermal eigenstrain.',
+    solver: '`src/engine/solid.ts`: linear tetrahedra with linear, corotational, Neo-Hookean and Green-Lagrange models, J2 plasticity with linear isotropic hardening and ductile erosion (linear and Green-Lagrange); static, midpoint, backward-Euler and explicit integration, float64. The press brake (`src/engine/press-brake.ts`) bends a plane-strain section of sheet with rigid punch and die through `SolidContact`',
+    summary: 'The patch test, uniaxial tension, shear and bulk moduli, a hanging bar, the cantilever locking table, axial and bending frequencies with observed orders, a stress wave, energy and damping, large-strain rubber and thermal eigenstrain. Plasticity: the uniaxial bilinear cycle, the elastic-plastic moment and springback of a beam, and a press-brake air bend against the beam limit load and elastic springback.',
     docs: ['docs/SOLID_MECHANICS.md'],
     notValidated: [
       'Bending is where this element is weak, and the table shows it: one cell through the thickness is three times too stiff, four cells 12%, eight cells 3.4%. Bending frequencies are 5% to 6% high at four cells.',
       'Near-incompressibility: at nu = 0.4999 the four-cell cantilever is 29% too stiff. There is no mixed or higher-order element.',
       'With nu = 0.3 a clamped root also restrains Poisson contraction, which beam theory ignores: the 3-D limit sits about 1.2% below the Timoshenko reference.',
       'Viscoelasticity is a stress-based Prony series: checked for uniaxial creep, relaxation and recovery at small strain and for a uniform Neo-Hookean stretch; it is not objective under large rotation while an overstress remains, and no measured rubber was fitted. Contact and self-contact, plasticity, anisotropy, and more than one material per body. Crack growth is a separate solver on the linear model of this element (the fracture domain); `SolidBody` itself only flags elements above a strength.',
+      'Plasticity is small-strain J2 (additive in the Green-Lagrange strain for large rotations), isotropic linear hardening only: no kinematic hardening, rate dependence, necking or anisotropy. Linear tetrahedra lock under plastic incompressibility: fully plastic bending is 3.2% (3-D) to 6.6% (plane strain, 4 cells) too strong. Ductile erosion uses one failure strain, independent of stress triaxiality, and the press brake\'s limit load is 1.23 times beam theory.',
+      'Self-contact, plasticity combined with viscoelasticity (refused), anisotropy, and more than one material per body. Crack growth is a separate solver on the linear model of this element (the fracture domain); `SolidBody` erodes plastic elements at a failure strain but has no crack-growth law of its own.',
       'No two-way coupling to the rigid-body, water, cable or frame solvers, and no contact with rigid bodies. The one-way thermal and dead-load links are in the simulation domain.',
       'Uniform states are exact, so the tension, shear, pressure and rubber rows say nothing about accuracy under stress gradients.',
     ],

@@ -4,9 +4,13 @@ import {boundaryFaces,tetVolume,SOLID_MAX_NODES,SOLID_MAX_TETS,type TetMesh} fro
 export {boxMesh,boxNode,boundaryFaces,tetVolume,SOLID_MAX_NODES,SOLID_MAX_TETS,type TetMesh,type BoxMeshOptions} from './solid-mesh.ts';
 
 export const SOLID_SOLVER_ID='solid-tet-corot-js-f64-v1';
+/** Solver id of a body with a yield stress: J2 plasticity on the same element. */
+export const SOLID_PLASTIC_SOLVER_ID='solid-tet-j2-js-f64-v1';
 /** `linear`: small-strain Hooke. `corotational`: Hooke on the stretch left after removing each
- * element's rotation. `neo-hookean`: compressible Neo-Hookean rubber. */
-export type SolidModel='linear'|'corotational'|'neo-hookean';
+ * element's rotation. `neo-hookean`: compressible Neo-Hookean rubber. `green-lagrange`: Hooke on the
+ * Green-Lagrange strain (St Venant-Kirchhoff): exact under rotation, for small elastic strain; the model
+ * that carries J2 plasticity through large rotations. */
+export type SolidModel='linear'|'corotational'|'neo-hookean'|'green-lagrange';
 export type SolidIntegrator='backward-euler'|'midpoint'|'explicit';
 export interface SolidMaterial {
   /** Young's modulus E in Pa. */
@@ -17,6 +21,15 @@ export interface SolidMaterial {
   density:number;
   /** Linear thermal expansion coefficient in 1/K. Default 0. */
   thermalExpansion?:number;
+  /** Initial yield stress sigma_y0 in Pa (von Mises, J2). Leave out for an elastic body. With it the
+   * `linear` and `corotational` models become elastic-plastic: associative J2 flow, radial return. */
+  yieldStress?:number;
+  /** Linear isotropic hardening modulus H in Pa: the yield stress is sigma_y0 + H p, p the equivalent
+   * plastic strain. The uniaxial tangent after yield is E H / (E + H). Default 0 (perfectly plastic). */
+  hardeningModulus?:number;
+  /** Ductile failure: an element whose equivalent plastic strain reaches this value is eroded (removed:
+   * no stiffness, no stress) at the end of the step. Default Infinity (no erosion). */
+  failureStrain?:number;
 }
 export interface SolidConfig {
   model?:SolidModel;
@@ -83,11 +96,16 @@ export interface SolidKernel {
   /** Keeps the tangent of the present state as the stiffness of Rayleigh damping for the coming step. */
   holdDampingTangent():void;
   dampingProduct(x:Float64Array,out:Float64Array):void;
-  /** Counts one time step taken by the outside solver. */
+  /** Counts one time step taken by the outside solver and commits the plastic state of the present displacements. */
   advance(converged:boolean):void;
+  /** Commits the plastic state of the present displacements (a static solve by the outside solver). */
+  commit():void;
 }
 
 const MIN_J=1e-6;
+/** Per element data of the plastic tangent: flow direction n (6), 2 mu beta, 2 mu (3 mu / (3 mu + H) - beta)
+ * and the plastic strain of the trial state (6). */
+const PT=14;
 const zero=(x:number)=>x===0?0:x;
 function numbers(value:unknown,count:number,label:string,min=-1e100,max=1e100):Float64Array {
   if(!Array.isArray(value)&&!(value instanceof Float64Array)&&!(value instanceof Float32Array))throw new EngineError('INVALID_PAYLOAD',`${label} needs a numeric array.`);
@@ -142,7 +160,8 @@ export function vonMisesStress(t:ArrayLike<number>,offset=0):number {
  * with a Jacobi-preconditioned conjugate-gradient inner solve; products with the tangent
  * stiffness are formed element by element, so no global matrix is stored. Loads are dead
  * loads: tractions, pressure and gravity keep their reference direction and area.
- * No contact, no plasticity and no crack growth. See docs/SOLID_MECHANICS.md.
+ * With a yield stress the linear and green-lagrange models are elastic-plastic (J2, isotropic hardening,
+ * ductile erosion). No contact here (solid-contact.ts) and no crack-growth law. See docs/SOLID_MECHANICS.md.
  */
 /** What an exact checkpoint of a SolidBody holds: every field it has (displacements, velocities, loads, constraints, the
  * integrator's history and the corotational frames). */
@@ -154,7 +173,7 @@ export class SolidBody {
   /** Put back a state from `saveState()` of a solid with the same mesh, material and settings. */
   restoreState(state:StateValue):void {restoreFields(this,state,SOLID_FIELDS);}
 
-  readonly solver=SOLID_SOLVER_ID;
+  readonly solver:string=SOLID_SOLVER_ID;
   readonly model:SolidModel;readonly integrator:SolidIntegrator;readonly dt:number;
   readonly nodeCount:number;readonly tetCount:number;
   /** Reference node positions (x, y, z per node, m). */
@@ -171,6 +190,8 @@ export class SolidBody {
   /** Lame parameters in Pa: lambda = E nu / ((1 + nu)(1 - 2 nu)), mu = E / (2 (1 + nu)). */
   readonly lambda:number;readonly mu:number;
   readonly material:Readonly<Required<SolidMaterial>>;
+  /** True when the material has a yield stress. */
+  readonly plastic:boolean;
   /** Statistics of the most recent solve (static load step or implicit time step). Updated in place. */
   readonly stats:SolidSolveStats={converged:true,reason:'converged',newtonIterations:0,linearIterations:0,residual:0,reference:0};
   private readonly massDamping:number;private readonly stiffnessDamping:number;private readonly gravity:Float64Array;
@@ -185,6 +206,9 @@ export class SolidBody {
   private veBranches:{ratio:number;time:number}[]=[];private veA=new Float64Array(0);private veB=new Float64Array(0);private veHist=new Float64Array(0);private vePrev=new Float64Array(0);private veC=new Float64Array(0);private relaxed=false;private reporting=false;
   /** Scale of the elastic stress within one step of a viscoelastic body: 1 + sum ratio_i (1 - a_i) / (dt / time_i), a_i = exp(-dt / time_i). 1 when elastic. */
   readonly viscoelasticScale:number=1;
+  /** Committed plastic strain per element [xx, yy, zz, yz, xz, xy] (tensor shear), equivalent plastic strain, erosion flags. */
+  private readonly ep:Float64Array;private readonly alpha:Float64Array;private readonly eroded:Uint8Array;private readonly ptan:Float64Array;
+  private readonly T=new Float64Array(6);private storeMode=0;private storedOnly=false;private erodedTotal=0;private plasticWorkTotal=0;
   private cm=0;private cd=0;private reference=0;private referenceInertia=0;private loadScale=1;private accelerationValid=false;private steps=0;private unconverged=0;private limit:SolidExplicitLimit|null=null;
 
   constructor(input:SolidDefinition){
@@ -193,13 +217,18 @@ export class SolidBody {
     const nodeCount=integer((mesh.positions as ArrayLike<number>)?.length/3,'node count',4,SOLID_MAX_NODES),tetCount=integer((mesh.tets as ArrayLike<number>)?.length/4,'element count',1,SOLID_MAX_TETS),size=3*nodeCount;
     this.nodeCount=nodeCount;this.tetCount=tetCount;
     const X=this.referencePositions=numbers(mesh.positions,size,'positions',-1e6,1e6),tets=this.tets=indices(mesh.tets,nodeCount,'tets');
-    const m=record(d.material,'material');onlyKeys(m,['youngModulus','poissonRatio','density','thermalExpansion'],'material');
+    const m=record(d.material,'material');onlyKeys(m,['youngModulus','poissonRatio','density','thermalExpansion','yieldStress','hardeningModulus','failureStrain'],'material');
     const E=finite(m.youngModulus,'youngModulus',1,1e13),nu=finite(m.poissonRatio,'poissonRatio',-.99,.4999),rho=finite(m.density,'density',1e-6,1e6);
-    this.material=Object.freeze({youngModulus:E,poissonRatio:nu,density:rho,thermalExpansion:m.thermalExpansion===undefined?0:finite(m.thermalExpansion,'thermalExpansion',-1e-2,1e-2)});
+    const plastic=this.plastic=m.yieldStress!==undefined;
+    if(!plastic&&(m.hardeningModulus!==undefined||m.failureStrain!==undefined))throw new EngineError('INVALID_PAYLOAD','hardeningModulus and failureStrain need a yieldStress.');
+    this.material=Object.freeze({youngModulus:E,poissonRatio:nu,density:rho,thermalExpansion:m.thermalExpansion===undefined?0:finite(m.thermalExpansion,'thermalExpansion',-1e-2,1e-2),
+      yieldStress:plastic?finite(m.yieldStress,'yieldStress',1e-6,1e13):Infinity,hardeningModulus:m.hardeningModulus===undefined?0:finite(m.hardeningModulus,'hardeningModulus',0,1e13),
+      failureStrain:m.failureStrain===undefined?Infinity:m.failureStrain===Infinity?Infinity:finite(m.failureStrain,'failureStrain',1e-9,1e3)});
+    if(plastic)this.solver=SOLID_PLASTIC_SOLVER_ID;
     this.lambda=E*nu/((1+nu)*(1-2*nu));this.mu=E/(2*(1+nu));
     const c=d.config===undefined?{}:record(d.config,'config');onlyKeys(c,['model','dt','integrator','massDamping','stiffnessDamping','gravity','tolerance','forceTolerance','maxNewtonIterations','maxLinearIterations','explicitSafety','viscoelastic'],'config');
     const model=c.model===undefined?'corotational':c.model,integrator=c.integrator===undefined?'backward-euler':c.integrator;
-    if(model!=='linear'&&model!=='corotational'&&model!=='neo-hookean')throw new EngineError('INVALID_PAYLOAD','Unknown solid model.');
+    if(model!=='linear'&&model!=='corotational'&&model!=='neo-hookean'&&model!=='green-lagrange')throw new EngineError('INVALID_PAYLOAD','Unknown solid model.');
     if(integrator!=='backward-euler'&&integrator!=='midpoint'&&integrator!=='explicit')throw new EngineError('INVALID_PAYLOAD','Unknown solid integrator.');
     if(c.viscoelastic!==undefined){
       const ve=record(c.viscoelastic,'viscoelastic');onlyKeys(ve,['branches'],'viscoelastic');
@@ -207,6 +236,9 @@ export class SolidBody {
       if(!Array.isArray(ve.branches)||ve.branches.length<1||ve.branches.length>8)throw new EngineError('INVALID_PAYLOAD','viscoelastic.branches takes 1 to 8 branches.');
       this.veBranches=ve.branches.map((b:unknown,i:number)=>{const r=record(b,`branches[${i}]`);onlyKeys(r,['ratio','time'],`branches[${i}]`);return {ratio:finite(r.ratio,'ratio',0,1e4),time:finite(r.time,'time',1e-9,1e12)};});
     }
+    if(plastic&&model!=='linear'&&model!=='green-lagrange')throw new EngineError('INVALID_PAYLOAD','Plasticity needs the linear or green-lagrange model.');
+    if(plastic&&integrator==='midpoint')throw new EngineError('INVALID_PAYLOAD','Plasticity needs the backward-euler or explicit integrator: the midpoint rule extrapolates past the state it solved.');
+    if(plastic&&c.viscoelastic!==undefined)throw new EngineError('INVALID_PAYLOAD','A solid is either viscoelastic or plastic, not both: the Prony branches relax the total strain, and J2 needs them to act on the elastic strain, which this version does not model.');
     this.model=model;this.integrator=integrator;this.dt=c.dt===undefined?1/240:finite(c.dt,'dt',1e-12,10);
     this.massDamping=c.massDamping===undefined?0:zero(finite(c.massDamping,'massDamping',0,1e6));this.stiffnessDamping=c.stiffnessDamping===undefined?0:zero(finite(c.stiffnessDamping,'stiffnessDamping',0,1e3));
     this.gravity=c.gravity===undefined?new Float64Array(3):numbers(c.gravity,3,'gravity',-1e5,1e5);
@@ -248,7 +280,8 @@ export class SolidBody {
       this.veBranches.forEach((b,i)=>{const x=this.dt/b.time,a=Math.exp(-x);this.veA[i]=a;this.veB[i]=b.ratio*(x>1e-8?-Math.expm1(-x)/x:1-x/2);scale+=this.veB[i];});
       this.viscoelasticScale=scale;this.veHist=new Float64Array(9*nb*tetCount);this.vePrev=new Float64Array(9*tetCount);this.veC=new Float64Array(9*tetCount);
     }
-    const stride=model==='linear'?0:16;this.lin=new Float64Array(stride*tetCount);this.linOld=new Float64Array(this.stiffnessDamping>0?stride*tetCount:0);
+    const stride=model==='linear'&&!plastic?0:16;this.lin=new Float64Array(stride*tetCount);this.linOld=new Float64Array(this.stiffnessDamping>0?stride*tetCount:0);
+    this.ep=new Float64Array(plastic?6*tetCount:0);this.alpha=new Float64Array(plastic?tetCount:0);this.eroded=new Uint8Array(plastic?tetCount:0);this.ptan=new Float64Array(plastic?PT*tetCount:0);
     if(integrator==='explicit'&&this.dt>this.explicitSafety*this.explicitLimit().criticalTimeStep){
       const limit=this.explicitLimit();
       throw new EngineError('UNSTABLE_TIME_STEP',`Explicit time step ${this.dt} s exceeds ${this.explicitSafety} of the stability limit ${limit.criticalTimeStep} s (wave speed ${limit.waveSpeed} m/s, smallest altitude ${limit.minAltitude} m).`);
@@ -344,7 +377,10 @@ export class SolidBody {
     if(u)this.u.set(u);if(v)this.v.set(v);this.accelerationValid=false;
   }
   /** Returns to the undeformed state at rest and time zero. Constraints and loads stay. */
-  reset():void {this.u.fill(0);this.v.fill(0);this.steps=0;this.unconverged=0;this.accelerationValid=false;}
+  reset():void {
+    this.u.fill(0);this.v.fill(0);this.steps=0;this.unconverged=0;this.accelerationValid=false;
+    this.ep.fill(0);this.alpha.fill(0);this.eroded.fill(0);this.erodedTotal=0;this.plasticWorkTotal=0;
+  }
   /** Current node positions (m). */
   positions(out=new Float64Array(this.u.length)):Float64Array {for(let j=0;j<out.length;j++)out[j]=this.referencePositions[j]+this.u[j];return out;}
 
@@ -395,11 +431,31 @@ export class SolidBody {
     const H=this.H,P=this.P,mu=this.mu,la=this.lambda,th=this.loadScale*this.theta[e];
     if(this.model==='linear'){
       const exx=H[0]-th,eyy=H[4]-th,ezz=H[8]-th,exy=.5*(H[1]+H[3]),exz=.5*(H[2]+H[6]),eyz=.5*(H[5]+H[7]),tr=exx+eyy+ezz;
+      if(this.plastic){
+        if(this.eroded[e]){P.fill(0);return 0;}
+        const w=this.constitutive(e,exx,eyy,ezz,eyz,exz,exy,lin!==null),T=this.T;
+        P[0]=T[0];P[4]=T[1];P[8]=T[2];P[5]=P[7]=T[3];P[2]=P[6]=T[4];P[1]=P[3]=T[5];return w;
+      }
       P[0]=2*mu*exx+la*tr;P[4]=2*mu*eyy+la*tr;P[8]=2*mu*ezz+la*tr;P[1]=P[3]=2*mu*exy;P[2]=P[6]=2*mu*exz;P[5]=P[7]=2*mu*eyz;
       return mu*(exx*exx+eyy*eyy+ezz*ezz+2*(exy*exy+exz*exz+eyz*eyz))+.5*la*tr*tr;
     }
     // Strains are formed from H, not from F - I, so that small strains keep full relative precision.
     const F=this.F,R=this.R,o=16*e;
+    if(this.model==='green-lagrange'){
+      if(this.plastic&&this.eroded[e]){P.fill(0);return 0;}
+      F[0]=1+H[0];F[1]=H[1];F[2]=H[2];F[3]=H[3];F[4]=1+H[4];F[5]=H[5];F[6]=H[6];F[7]=H[7];F[8]=1+H[8];
+      if(!(F[0]*(F[4]*F[8]-F[5]*F[7])+F[1]*(F[5]*F[6]-F[3]*F[8])+F[2]*(F[3]*F[7]-F[4]*F[6])>MIN_J))return Infinity;
+      // Green-Lagrange strain E = (H + H^T + H^T H) / 2, less the thermal strain.
+      const exx=H[0]+.5*(H[0]*H[0]+H[3]*H[3]+H[6]*H[6])-th,eyy=H[4]+.5*(H[1]*H[1]+H[4]*H[4]+H[7]*H[7])-th,ezz=H[8]+.5*(H[2]*H[2]+H[5]*H[5]+H[8]*H[8])-th;
+      const exy=.5*(H[1]+H[3]+H[0]*H[1]+H[3]*H[4]+H[6]*H[7]),exz=.5*(H[2]+H[6]+H[0]*H[2]+H[3]*H[5]+H[6]*H[8]),eyz=.5*(H[5]+H[7]+H[1]*H[2]+H[4]*H[5]+H[7]*H[8]);
+      let w:number,sxx:number,syy:number,szz:number,syz:number,sxz:number,sxy:number;
+      if(this.plastic){w=this.constitutive(e,exx,eyy,ezz,eyz,exz,exy,lin!==null);const T=this.T;sxx=T[0];syy=T[1];szz=T[2];syz=T[3];sxz=T[4];sxy=T[5];}
+      else{const tr=exx+eyy+ezz;sxx=2*mu*exx+la*tr;syy=2*mu*eyy+la*tr;szz=2*mu*ezz+la*tr;syz=2*mu*eyz;sxz=2*mu*exz;sxy=2*mu*exy;w=mu*(exx*exx+eyy*eyy+ezz*ezz+2*(exy*exy+exz*exz+eyz*eyz))+.5*la*tr*tr;}
+      // First Piola-Kirchhoff stress P = F S (S the second Piola-Kirchhoff stress, here sxx..sxy).
+      for(let i=0;i<3;i++){const a=F[3*i],b=F[3*i+1],c=F[3*i+2];P[3*i]=a*sxx+b*sxy+c*sxz;P[3*i+1]=a*sxy+b*syy+c*syz;P[3*i+2]=a*sxz+b*syz+c*szz;}
+      if(lin){for(let q=0;q<9;q++)lin[o+q]=F[q];lin[o+9]=sxx;lin[o+10]=syy;lin[o+11]=szz;lin[o+12]=syz;lin[o+13]=sxz;lin[o+14]=sxy;}
+      return w;
+    }
     if(this.model==='corotational'){
       F[0]=1+H[0];F[1]=H[1];F[2]=H[2];F[3]=H[3];F[4]=1+H[4];F[5]=H[5];F[6]=H[6];F[7]=H[7];F[8]=1+H[8];
       if(!(F[0]*(F[4]*F[8]-F[5]*F[7])+F[1]*(F[5]*F[6]-F[3]*F[8])+F[2]*(F[3]*F[7]-F[4]*F[6])>MIN_J))return Infinity;
@@ -447,16 +503,60 @@ export class SolidBody {
     // W = mu/2 (|Fe|^2 - 3) - mu ln J + lambda/2 ln^2 J, with |Fe|^2 - 3 = 2 tr He + |He|^2.
     return mu*(.5*norm+(F[0]+F[4]+F[8]-J1)-(logJ-J1))+.5*la*logJ*logJ;
   }
+  /** J2 return mapping of element e for the strain e (tensor shear components), from the committed plastic
+   * state. Writes the stress [xx, yy, zz, yz, xz, xy] into T and returns the incremental potential density:
+   * stored elastic energy plus hardening energy plus the dissipation sigma_y0 dp of this increment, whose
+   * derivative is the stress. With `store` keeps the tangent data; with storeMode 2 commits the state. */
+  private constitutive(e:number,xx:number,yy:number,zz:number,yz:number,xz:number,xy:number,store:boolean):number {
+    const mu=this.mu,la=this.lambda,Hm=this.material.hardeningModulus,ep=this.ep,o=6*e,tr=xx+yy+zz,m=tr/3;
+    // Trial deviatoric elastic strain dev(eps) - eps_p.
+    let dxx=xx-m-ep[o],dyy=yy-m-ep[o+1],dzz=zz-m-ep[o+2],dyz=yz-ep[o+3],dxz=xz-ep[o+4],dxy=xy-ep[o+5];
+    const norm=Math.sqrt(dxx*dxx+dyy*dyy+dzz*dzz+2*(dyz*dyz+dxz*dxz+dxy*dxy)),q=3*mu*Math.sqrt(2/3)*norm;
+    const a0=this.alpha[e],sy=this.material.yieldStress+Hm*a0,f=q-sy;
+    let dp=0,nx=0,ny=0,nz=0,nyz=0,nxz=0,nxy=0,c1=0,c2=0;
+    if(f>0&&norm>0){
+      dp=f/(3*mu+Hm);const k=1/norm;nx=dxx*k;ny=dyy*k;nz=dzz*k;nyz=dyz*k;nxz=dxz*k;nxy=dxy*k;
+      // The plastic increment sqrt(3/2) dp n takes the deviatoric strain back to the yield surface.
+      const r=1-3*mu*dp/q;dxx*=r;dyy*=r;dzz*=r;dyz*=r;dxz*=r;dxy*=r;
+      const beta=3*mu*dp/q;c1=2*mu*beta;c2=2*mu*(3*mu/(3*mu+Hm)-beta);
+    }
+    const T=this.T,pressure=(la+2*mu/3)*tr;T[0]=2*mu*dxx+pressure;T[1]=2*mu*dyy+pressure;T[2]=2*mu*dzz+pressure;T[3]=2*mu*dyz;T[4]=2*mu*dxz;T[5]=2*mu*dxy;
+    // Plastic strain of this state: eps_p = dev(eps) - (deviatoric elastic strain).
+    const pxx=xx-m-dxx,pyy=yy-m-dyy,pzz=zz-m-dzz,pyz=yz-dyz,pxz=xz-dxz,pxy=xy-dxy;
+    if(store){
+      const s=PT*e,P=this.ptan;P[s]=nx;P[s+1]=ny;P[s+2]=nz;P[s+3]=nyz;P[s+4]=nxz;P[s+5]=nxy;P[s+6]=c1;P[s+7]=c2;
+      P[s+8]=pxx;P[s+9]=pyy;P[s+10]=pzz;P[s+11]=pyz;P[s+12]=pxz;P[s+13]=pxy;
+    }
+    if(this.storeMode===2){
+      ep[o]=pxx;ep[o+1]=pyy;ep[o+2]=pzz;ep[o+3]=pyz;ep[o+4]=pxz;ep[o+5]=pxy;this.alpha[e]=a0+dp;
+      this.plasticWorkTotal+=this.elementVolume[e]*(sy+Hm*dp)*dp;
+    }
+    const elastic=mu*(dxx*dxx+dyy*dyy+dzz*dzz+2*(dyz*dyz+dxz*dxz+dxy*dxy))+.5*(la+2*mu/3)*tr*tr;
+    if(this.storedOnly)return elastic;
+    return elastic+dp*(this.material.yieldStress+Hm*(a0+.5*dp));
+  }
   /** Tangent of the first Piola-Kirchhoff stress of element e: dH in H, dP out in P. */
-  private tangent(e:number,model:SolidModel,lin:Float64Array):void {
-    this.tangentElastic(e,model,lin);
+  private tangent(e:number,model:SolidModel,lin:Float64Array,plastic=false):void {
+    this.tangentElastic(e,model,lin,plastic);
     if(this.veBranches.length&&!this.relaxed){const P=this.P,s=this.viscoelasticScale;for(let q=0;q<9;q++)P[q]*=s;}
   }
-  private tangentElastic(e:number,model:SolidModel,lin:Float64Array):void {
+  private tangentElastic(e:number,model:SolidModel,lin:Float64Array,plastic=false):void {
     const H=this.H,P=this.P,mu=this.mu,la=this.lambda,o=16*e;
+    if(this.plastic&&this.eroded[e]){P.fill(0);return;}
     if(model==='linear'){
       const tr=la*(H[0]+H[4]+H[8]),xy=mu*(H[1]+H[3]),xz=mu*(H[2]+H[6]),yz=mu*(H[5]+H[7]);
-      P[0]=2*mu*H[0]+tr;P[4]=2*mu*H[4]+tr;P[8]=2*mu*H[8]+tr;P[1]=P[3]=xy;P[2]=P[6]=xz;P[5]=P[7]=yz;return;
+      P[0]=2*mu*H[0]+tr;P[4]=2*mu*H[4]+tr;P[8]=2*mu*H[8]+tr;P[1]=P[3]=xy;P[2]=P[6]=xz;P[5]=P[7]=yz;
+      if(plastic){
+        const q=PT*e,T=this.ptan,c1=T[q+6],c2=T[q+7];
+        if(c1!==0||c2!==0){
+          const d0=H[0],d1=H[4],d2=H[8],d3=.5*(H[5]+H[7]),d4=.5*(H[2]+H[6]),d5=.5*(H[1]+H[3]),m=(d0+d1+d2)/3;
+          const nd=c2*(T[q]*d0+T[q+1]*d1+T[q+2]*d2+2*(T[q+3]*d3+T[q+4]*d4+T[q+5]*d5));
+          P[0]-=c1*(d0-m)+nd*T[q];P[4]-=c1*(d1-m)+nd*T[q+1];P[8]-=c1*(d2-m)+nd*T[q+2];
+          const yz2=c1*d3+nd*T[q+3],xz2=c1*d4+nd*T[q+4],xy2=c1*d5+nd*T[q+5];
+          P[5]-=yz2;P[7]-=yz2;P[2]-=xz2;P[6]-=xz2;P[1]-=xy2;P[3]-=xy2;
+        }
+      }
+      return;
     }
     if(model==='corotational'){
       // A = R^T dH; its skew part gives the spin w of R; dP = 2 mu dH + s R [w]x + lambda tr(A) R.
@@ -467,6 +567,29 @@ export class SolidBody {
       P[0]=2*mu*H[0]+r1*wz-r2*wy+tr*r0;P[1]=2*mu*H[1]-r0*wz+r2*wx+tr*r1;P[2]=2*mu*H[2]+r0*wy-r1*wx+tr*r2;
       P[3]=2*mu*H[3]+r4*wz-r5*wy+tr*r3;P[4]=2*mu*H[4]-r3*wz+r5*wx+tr*r4;P[5]=2*mu*H[5]+r3*wy-r4*wx+tr*r5;
       P[6]=2*mu*H[6]+r7*wz-r8*wy+tr*r6;P[7]=2*mu*H[7]-r6*wz+r8*wx+tr*r7;P[8]=2*mu*H[8]+r6*wy-r7*wx+tr*r8;return;
+    }
+    if(model==='green-lagrange'){
+      // P = F T: dP = dH T + F dT, dT = C : dE (elastic-plastic when `plastic`), dE = sym(F^T dH).
+      const B=this.B;for(let q=0;q<9;q++)B[q]=H[q];
+      const f0=lin[o],f1=lin[o+1],f2=lin[o+2],f3=lin[o+3],f4=lin[o+4],f5=lin[o+5],f6=lin[o+6],f7=lin[o+7],f8=lin[o+8];
+      const d0=f0*B[0]+f3*B[3]+f6*B[6],d1=f1*B[1]+f4*B[4]+f7*B[7],d2=f2*B[2]+f5*B[5]+f8*B[8];
+      const d3=.5*(f1*B[2]+f4*B[5]+f7*B[8]+f2*B[1]+f5*B[4]+f8*B[7]),d4=.5*(f0*B[2]+f3*B[5]+f6*B[8]+f2*B[0]+f5*B[3]+f8*B[6]),d5=.5*(f0*B[1]+f3*B[4]+f6*B[7]+f1*B[0]+f4*B[3]+f7*B[6]);
+      const ltr=la*(d0+d1+d2);let t0=2*mu*d0+ltr,t1=2*mu*d1+ltr,t2=2*mu*d2+ltr,t3=2*mu*d3,t4=2*mu*d4,t5=2*mu*d5;
+      if(plastic){
+        const q=PT*e,T=this.ptan,c1=T[q+6],c2=T[q+7];
+        if(c1!==0||c2!==0){
+          const m=(d0+d1+d2)/3,nd=c2*(T[q]*d0+T[q+1]*d1+T[q+2]*d2+2*(T[q+3]*d3+T[q+4]*d4+T[q+5]*d5));
+          t0-=c1*(d0-m)+nd*T[q];t1-=c1*(d1-m)+nd*T[q+1];t2-=c1*(d2-m)+nd*T[q+2];t3-=c1*d3+nd*T[q+3];t4-=c1*d4+nd*T[q+4];t5-=c1*d5+nd*T[q+5];
+        }
+      }
+      const sxx=lin[o+9],syy=lin[o+10],szz=lin[o+11],syz=lin[o+12],sxz=lin[o+13],sxy=lin[o+14];
+      for(let i=0;i<3;i++){
+        const h0=B[3*i],h1=B[3*i+1],h2=B[3*i+2],a=lin[o+3*i],b=lin[o+3*i+1],c=lin[o+3*i+2];
+        P[3*i]=h0*sxx+h1*sxy+h2*sxz+a*t0+b*t5+c*t4;
+        P[3*i+1]=h0*sxy+h1*syy+h2*syz+a*t5+b*t1+c*t3;
+        P[3*i+2]=h0*sxz+h1*syz+h2*szz+a*t4+b*t3+c*t2;
+      }
+      return;
     }
     // Neo-Hookean: dPe = mu dFe + lambda tr(B) Fe^-T + (mu - lambda ln J) (B Fe^-1)^T with B = Fe^-1 dFe.
     const k=lin[o+10],c=mu-la*lin[o+9],B=this.F;
@@ -493,9 +616,9 @@ export class SolidBody {
     return energy;
   }
   /** out = K x with the tangent stiffness of `model` linearised with `lin`. */
-  private stiffness(model:SolidModel,lin:Float64Array,x:Float64Array,out:Float64Array):void {
+  private stiffness(model:SolidModel,lin:Float64Array,x:Float64Array,out:Float64Array,plastic=false):void {
     out.fill(0);
-    for(let e=0;e<this.tetCount;e++){this.gradient(e,x);this.tangent(e,model,lin);this.scatter(e,out);}
+    for(let e=0;e<this.tetCount;e++){this.gradient(e,x);this.tangent(e,model,lin,plastic);this.scatter(e,out);}
   }
 
   // ---- Solver ----
@@ -504,7 +627,7 @@ export class SolidBody {
   /** Incremental potential at u and its gradient on the free components. */
   private objective(u:Float64Array,g:Float64Array):number {
     const fint=this.fint,fext=this.fext,size=u.length,cm=this.cm,cd=this.cd,alpha=this.massDamping,beta=this.stiffnessDamping;
-    let phi=this.elastic(u,fint,this.model==='linear'?null:this.lin),internal=0,external=0;
+    let phi=this.elastic(u,fint,this.lin.length?this.lin:null),internal=0,external=0;
     if(!(phi<Infinity))return Infinity;
     for(let j=0;j<size;j++){phi-=fext[j]*u[j];g[j]=fint[j]-fext[j];internal+=fint[j]*fint[j];external+=fext[j]*fext[j];}
     if(cm>0)for(let j=0;j<size;j++){const d=u[j]-this.target[j],md=cm*this.nodalMass[(j-j%3)/3]*d;phi+=.5*md*d;g[j]+=md;}
@@ -519,11 +642,11 @@ export class SolidBody {
   }
   /** Preconditioned conjugate gradients for (kScale K + mScale M) x = -g on the free components.
    * Stops early on a direction of non-positive curvature. Returns the iteration count, negative when it stopped that way. */
-  private conjugateGradient(model:SolidModel,lin:Float64Array,kScale:number,mScale:number,g:Float64Array,target:number):number {
+  private conjugateGradient(model:SolidModel,lin:Float64Array,kScale:number,mScale:number,g:Float64Array,target:number,plastic=false):number {
     const {x,r,z,p,ap,fixed,kDiagonal,nodalMass}=this,size=x.length;let rz=0,iterations=0;
     for(let j=0;j<size;j++){x[j]=0;r[j]=fixed[j]?0:-g[j];z[j]=p[j]=r[j]/(kScale*kDiagonal[j]+mScale*nodalMass[(j-j%3)/3]);rz+=r[j]*z[j];}
     while(iterations<this.maxLinear&&this.norm(r)>target){
-      this.stiffness(model,lin,p,ap);let curvature=0;
+      this.stiffness(model,lin,p,ap,plastic);let curvature=0;
       for(let j=0;j<size;j++){ap[j]=fixed[j]?0:kScale*ap[j]+mScale*nodalMass[(j-j%3)/3]*p[j];curvature+=p[j]*ap[j];}
       if(!(curvature>0)||!Number.isFinite(curvature)){if(iterations===0)x.set(z);return -iterations-1;}
       const step=rz/curvature;let next=0;
@@ -535,7 +658,7 @@ export class SolidBody {
   }
   /** Newton's method on the incremental potential, starting from the current displacements. */
   private minimise():void {
-    const st=this.stats,linear=this.model==='linear',u=this.u,size=u.length,kScale=1+this.cd*this.stiffnessDamping,mScale=this.cm+this.cd*this.massDamping;
+    const st=this.stats,linear=this.model==='linear'&&!this.plastic,u=this.u,size=u.length,kScale=1+this.cd*this.stiffnessDamping,mScale=this.cm+this.cd*this.massDamping;
     st.converged=false;st.reason='iteration-limit';st.newtonIterations=0;st.linearIterations=0;
     let phi=this.objective(u,this.g),residual=this.norm(this.g);
     if(!(phi<Infinity))throw new EngineError('NUMERICAL_FAILURE','An element is inverted at the start of the solve. Apply the load in more steps or use a smaller time step.');
@@ -548,7 +671,7 @@ export class SolidBody {
       if(residual<=tolerance){st.converged=true;st.reason='converged';break;}
       if(st.newtonIterations>=this.maxNewton)break;
       st.newtonIterations++;
-      const inner=this.conjugateGradient(this.model,this.lin,kScale,mScale,this.g,linear?.1*tolerance:Math.max(.1*tolerance,Math.min(.1,Math.sqrt(residual/reference))*residual));
+      const inner=this.conjugateGradient(this.model,this.lin,kScale,mScale,this.g,linear?.1*tolerance:Math.max(.1*tolerance,Math.min(.1,Math.sqrt(residual/reference))*residual),this.plastic);
       st.linearIterations+=Math.abs(inner);
       if(inner<0&&linear){st.reason='singular-or-indefinite';break;}
       const x=this.x;let slope=0;for(let j=0;j<size;j++)slope+=this.g[j]*x[j];
@@ -581,6 +704,7 @@ export class SolidBody {
       for(let step=1;step<=loadSteps;step++){
         this.loadScale=step/loadSteps;this.assembleLoads();this.applyConstraints(this.loadScale);this.minimise();
         newton+=this.stats.newtonIterations;inner+=this.stats.linearIterations;
+        if(this.plastic)this.commitPlastic();
         if(!this.stats.converged)break;
       }
     }finally{this.loadScale=1;this.relaxed=false;}
@@ -601,6 +725,7 @@ export class SolidBody {
         for(let j=0;j<size;j++)if(!this.fixed[j]){v[j]+=.5*h*a[j];u[j]+=h*v[j];}
         this.accelerate();
         for(let j=0;j<size;j++)if(!this.fixed[j])v[j]+=.5*h*a[j];
+        if(this.plastic&&this.commitPlastic()>0)this.accelerationValid=false;
       }else{
         const tau=this.integrator==='midpoint'?.5*h:h,damped=this.massDamping>0||this.stiffnessDamping>0;let inertia=0;
         this.cm=1/(tau*tau);this.cd=damped?1/tau:0;
@@ -611,6 +736,7 @@ export class SolidBody {
         this.commitViscous(u);
         if(this.integrator==='midpoint')for(let j=0;j<size;j++){const mid=(u[j]-this.u0[j])/tau;u[j]=2*u[j]-this.u0[j];v[j]=2*mid-v[j];}
         else for(let j=0;j<size;j++)v[j]=(u[j]-this.u0[j])/h;
+        if(this.plastic)this.commitPlastic();
       }
       for(let j=0;j<size;j++)if(!Number.isFinite(u[j])||!Number.isFinite(v[j]))throw new EngineError('NUMERICAL_FAILURE','The solid step produced a nonfinite state.');
       this.steps++;
@@ -619,7 +745,7 @@ export class SolidBody {
   /** a = M^-1 (f_ext - f_int(u) - C v) on the free components, for the explicit integrator. */
   private accelerate():void {
     const a=this.acceleration,beta=this.stiffnessDamping,alpha=this.massDamping;
-    if(!(this.elastic(this.u,this.fint,beta>0&&this.model!=='linear'?this.lin:null)<Infinity))throw new EngineError('NUMERICAL_FAILURE','An element inverted during explicit integration. Use a smaller time step or an implicit integrator.');
+    if(!(this.elastic(this.u,this.fint,beta>0&&this.lin.length?this.lin:null)<Infinity))throw new EngineError('NUMERICAL_FAILURE','An element inverted during explicit integration. Use a smaller time step or an implicit integrator.');
     if(beta>0)this.stiffness(this.model,this.lin,this.v,this.work);
     for(let j=0;j<a.length;j++){const m=this.nodalMass[(j-j%3)/3];a[j]=this.fixed[j]?0:(this.fext[j]-this.fint[j]-(beta>0?beta*this.work[j]:0))/m-alpha*this.v[j];}
   }
@@ -686,22 +812,27 @@ export class SolidBody {
       maxNewtonIterations:this.maxNewton,maxLinearIterations:this.maxLinear,gravity:this.gravity,
       loads(){self.loadScale=1;self.assembleLoads();return self.fext;},
       applyConstraints(){self.applyConstraints(1);},
-      energy(u,fint,store){return self.elastic(u,fint,store&&self.model!=='linear'?self.lin:null);},
-      tangentProduct(x,out){self.stiffness(self.model,self.lin,x,out);},
+      energy(u,fint,store){return self.elastic(u,fint,store&&self.lin.length?self.lin:null);},
+      tangentProduct(x,out){self.stiffness(self.model,self.lin,x,out,self.plastic);},
       holdDampingTangent(){
         if(self.linOld.length===0)return;
         if(!(self.elastic(self.u,null,self.lin)<Infinity))throw new EngineError('NUMERICAL_FAILURE','An element is inverted.');
         self.linOld.set(self.lin);
       },
       dampingProduct(x,out){self.stiffness(self.model,self.linOld,x,out);},
-      advance(converged){self.steps++;if(!converged)self.unconverged++;self.accelerationValid=false;self.commitViscous(self.u);},
+      advance(converged){self.steps++;if(!converged)self.unconverged++;self.accelerationValid=false;self.commitViscous(self.u);if(self.plastic)self.commitPlastic();},
+      commit(){if(self.plastic)self.commitPlastic();},
     };
   }
 
   // ---- Outputs ----
 
   /** Elastic strain energy, J. */
-  strainEnergy():number {const relaxed=this.relaxed;this.relaxed=true;const energy=this.elastic(this.u,null,null);this.relaxed=relaxed;if(!(energy<Infinity))throw new EngineError('NUMERICAL_FAILURE','An element is inverted.');return energy;}
+  strainEnergy():number {
+    const relaxed=this.relaxed;this.relaxed=true;this.storedOnly=true;let energy:number;
+    try{energy=this.elastic(this.u,null,null);}finally{this.relaxed=relaxed;this.storedOnly=false;}
+    if(!(energy<Infinity))throw new EngineError('NUMERICAL_FAILURE','An element is inverted.');return energy;
+  }
   /** Kinetic energy with the lumped mass, J. */
   kineticEnergy():number {let s=0;for(let j=0;j<this.v.length;j++)s+=this.nodalMass[(j-j%3)/3]*this.v[j]*this.v[j];return .5*s;}
   /** Potential of the dead loads, J: minus the work of nodal forces, surface loads and gravity. */
@@ -716,7 +847,7 @@ export class SolidBody {
    * constrained component of the current state, zero elsewhere. They do not include inertia. */
   reactions(out=new Float64Array(this.u.length)):Float64Array {
     const beta=this.stiffnessDamping;this.assembleLoads();
-    if(!(this.elastic(this.u,this.fint,beta>0&&this.model!=='linear'?this.lin:null)<Infinity))throw new EngineError('NUMERICAL_FAILURE','An element is inverted.');
+    if(!(this.elastic(this.u,this.fint,beta>0&&this.lin.length?this.lin:null)<Infinity))throw new EngineError('NUMERICAL_FAILURE','An element is inverted.');
     if(beta>0)this.stiffness(this.model,this.lin,this.v,this.work);
     for(let j=0;j<out.length;j++)out[j]=this.fixed[j]?zero(this.fint[j]-this.fext[j]+(beta>0?beta*this.work[j]:0)):0;
     return out;
@@ -755,6 +886,32 @@ export class SolidBody {
       }
     }
   }
+  /** Commits the plastic state of the present displacements and erodes the elements whose equivalent
+   * plastic strain reached `failureStrain`. Returns the number of elements eroded now. */
+  private commitPlastic():number {
+    const limit=this.material.failureStrain;let eroded=0;
+    this.storeMode=2;
+    try{
+      for(let e=0;e<this.tetCount;e++){
+        if(this.eroded[e])continue;
+        this.gradient(e,this.u);
+        if(!(this.piola(e,null)<Infinity))throw new EngineError('NUMERICAL_FAILURE',`Element ${e} is inverted.`);
+        if(this.alpha[e]>=limit){this.eroded[e]=1;eroded++;}
+      }
+    }finally{this.storeMode=0;}
+    this.erodedTotal+=eroded;return eroded;
+  }
+  /** Equivalent plastic strain p per element (committed state); zeros for an elastic body. */
+  equivalentPlasticStrain(out=new Float64Array(this.tetCount)):Float64Array {if(this.plastic)out.set(this.alpha);else out.fill(0);return out;}
+  /** Plastic strain per element [xx, yy, zz, yz, xz, xy] (tensor shear; committed state). Corotational: in the
+   * element's unrotated frame. Zeros for an elastic body. */
+  plasticStrains(out=new Float64Array(6*this.tetCount)):Float64Array {if(this.plastic)out.set(this.ep);else out.fill(0);return out;}
+  /** Plastic work dissipated (plus stored in hardening) since construction or `reset`, J: sum of V sigma_y dp. */
+  get plasticWork():number {return this.plasticWorkTotal;}
+  /** Number of eroded elements. */
+  get erodedCount():number {return this.erodedTotal;}
+  /** 1 per eroded element (live, read only). Empty for an elastic body. */
+  get erodedMask():Uint8Array {return this.eroded;}
   /** Von Mises stress per element, Pa. */
   vonMises(out=new Float64Array(this.tetCount)):Float64Array {
     const s=this.stresses();for(let e=0;e<this.tetCount;e++)out[e]=vonMisesStress(s,6*e);return out;

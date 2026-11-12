@@ -237,7 +237,7 @@ export class FractureBody {
   readonly elementVolume:Float64Array;
   readonly referenceVolume:number;readonly mass:number;
   readonly lambda:number;readonly mu:number;
-  readonly material:Readonly<Required<SolidMaterial>>;
+  readonly material:Readonly<Required<Pick<SolidMaterial,'youngModulus'|'poissonRatio'|'density'|'thermalExpansion'>>>;
   readonly law:Readonly<Required<FractureLaw>>;
   /** Number of interior faces (shared by two elements). Interface calls take indices into this list. */
   readonly interiorFaceCount:number;
