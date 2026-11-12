@@ -4,7 +4,7 @@
 import '../../scripts/register-typescript.mjs';
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import {CT, cubeAndCylinder} from '../../validation/domains/concrete.mjs';
+import {cubeAndCylinder} from '../../validation/domains/concrete.mjs';
 const {ConcreteModel, concreteSpec, ec2Curve, PLATEN_FRICTION, CONCRETE_DRAW_SCALE, liveFaces} = await import('../../src/studio/material-labs/concrete-si.ts');
 const {materialProperty} = await import('../../src/engine/materials.ts');
 const {LABS, MATERIALS, normalizeSettings} = await import('../../src/studio/material-labs/catalog.ts');
@@ -31,7 +31,7 @@ test('SI values: EN 1992-1-1 classes from the library for every mix; reinforceme
   assert.equal(LABS.concrete.defaults.size, 150);assert.equal(LABS.concrete.defaults.damping, PLATEN_FRICTION);
 });
 
-test(CT.cube, async () => {
+test("the 150 mm cube between frictional steel platens fails above a prism of slenderness 2, the cylinder's (EN 1992-1-1 Table 3.1 gives 37 / 30)", async () => {
   const r = await cubeAndCylinder();
   console.log('# cube and slenderness-2 prism', JSON.stringify(r));
   assert.ok(r.cube.peak > r.cylinder.peak, 'the cube is stronger');

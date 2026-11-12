@@ -3044,6 +3044,80 @@ Index of the node at grid position (i, j, k) of a `boxMesh` with the given cell 
 export declare function boxNode(cells: readonly [number, number, number], i: number, j: number, k: number): number;
 ```
 
+### buildConcreteLaw · function
+
+Tabulates the law for a solid of Young's modulus E (the secant E_cm), Poisson's ratio nu and mean element volume.
+
+```ts
+export declare function buildConcreteLaw(input: unknown, youngModulus: number, poissonRatio: number, meanVolume: number): ConcreteLaw;
+```
+
+### ConcreteLaw · interface
+
+The law with its curves tabulated for one solid (its E, nu and band width): frozen, a constant of the solid.
+
+```ts
+export interface ConcreteLaw {
+    readonly input: Readonly<Required<Omit<ConcreteLawInput, 'tensionSoftening' | 'bandWidth'>> & {
+        tensionSoftening: readonly number[];
+    }>;
+    readonly youngModulus: number;
+    readonly poissonRatio: number;
+    readonly friction: number;
+    readonly bandWidth: number;
+    readonly referenceLength: number;
+    readonly compressionEnergyFactor: number;
+    readonly tensionEnergyFactor: number;
+    readonly kx: Float64Array;
+    readonly ky: Float64Array;
+    readonly kint: Float64Array;
+    readonly tx: Float64Array;
+    readonly ty: Float64Array;
+    readonly tint: Float64Array;
+    readonly kappaPeak: number;
+    readonly kappaCrushed: number;
+    readonly kappaErode: number;
+    readonly uniaxialStrain: Float64Array;
+    readonly uniaxialStress: Float64Array;
+}
+```
+
+### ConcreteLawInput · interface
+
+Inputs of the law. SI units. Strains as fractions (0.0022, not 2.2 per mille).
+
+```ts
+export interface ConcreteLawInput {
+    readonly compressiveStrength: number;
+    readonly tensileStrength: number;
+    readonly peakStrain: number;
+    readonly ultimateStrain: number;
+    readonly fractureEnergy: number;
+    readonly crushingEnergy?: number;
+    readonly friction?: number;
+    readonly elasticLimit?: number;
+    readonly bandWidth?: number;
+    readonly tensionSoftening?: readonly number[];
+    readonly erosionOpening?: number;
+}
+```
+
+### ec2CompressionStress · function
+
+Ascending (and descending) branch of EN 1992-1-1 (3.14): sigma / f_cm = (k eta - eta^2) / (1 + (k - 2) eta).
+
+```ts
+export declare function ec2CompressionStress(strain: number, fcm: number, peakStrain: number, secantModulus: number): number;
+```
+
+### SOLID_CONCRETE_SOLVER_ID · const
+
+Solver id of a body with a concrete law: Drucker-Prager and Rankine composite plasticity with crack-band softening.
+
+```ts
+export declare const SOLID_CONCRETE_SOLVER_ID = "solid-tet-dp-rankine-js-f64-v1";
+```
+
 ### SOLID_MAX_NODES · const
 
 ```ts
@@ -3091,10 +3165,11 @@ export declare class SolidBody {
   readonly mass: number;
   readonly lambda: number;
   readonly mu: number;
-  readonly material: Readonly<Required<SolidMaterial>>;
+  readonly material: Readonly<Required<Omit<SolidMaterial, 'concrete'>> & { concrete?: ConcreteLawInput; }>;
   readonly plastic: boolean;
   readonly stats: SolidSolveStats;
   readonly viscoelasticScale: number;
+  readonly concreteLaw: ConcreteLaw | null;
   selectNodes(predicate: (x: number, y: number, z: number) => boolean): Uint32Array;
   selectFaces(predicate: (cx: number, cy: number, cz: number, nx: number, ny: number, nz: number) => boolean): Uint32Array;
   constrain(nodes: ArrayLike<number>, value?: readonly [number | null, number | null, number | null]): void;
@@ -3123,9 +3198,14 @@ export declare class SolidBody {
   reactions(out?: Float64Array<ArrayBuffer>): Float64Array;
   stresses(out?: Float64Array<ArrayBuffer>): Float64Array;
   strains(out?: Float64Array<ArrayBuffer>): Float64Array;
+  erode(elements: ArrayLike<number>): void;
   equivalentPlasticStrain(out?: Float64Array<ArrayBuffer>): Float64Array;
   plasticStrains(out?: Float64Array<ArrayBuffer>): Float64Array;
   get plasticWork(): number;
+  damage(out?: Float64Array<ArrayBuffer>): Float64Array;
+  setStrengthFactors(factors: ArrayLike<number>): void;
+  crackOpening(out?: Float64Array<ArrayBuffer>): Float64Array;
+  compressiveStrengthLeft(e: number): number;
   get erodedCount(): number;
   get erodedMask(): Uint8Array;
   vonMises(out?: Float64Array<ArrayBuffer>): Float64Array;
@@ -3232,6 +3312,7 @@ export interface SolidMaterial {
     yieldStress?: number;
     hardeningModulus?: number;
     failureStrain?: number;
+    concrete?: ConcreteLawInput;
 }
 ```
 
@@ -8734,6 +8815,7 @@ export declare class SolidContact {
   readonly dt: number;
   readonly stiffnessScale: number;
   readonly skin: number;
+  readonly predictor: 'previous' | 'velocity';
   readonly frictionPasses: number;
   readonly frictionTolerance: number;
   scheme: 'implicit' | 'naive-staggered';
@@ -8810,6 +8892,7 @@ export interface SolidContactOptions {
     readonly frictionTolerance?: number;
     readonly scheme?: 'implicit' | 'naive-staggered';
     readonly gravity?: SolidContactVec3;
+    readonly predictor?: 'previous' | 'velocity';
 }
 ```
 
@@ -8966,6 +9049,30 @@ export interface SolidWorld<B> {
 ```
 
 ## `box3d-webgpu-kit/materials`
+
+### concreteMaterial · function
+
+The input of a `SolidBody` with the concrete law (concrete-law.ts): E, nu, rho as `solidMaterial`, and `concrete` from
+the library's f_cm (compressiveStrength), f_ctm (tensileStrength), eps_c1 (peakStrain), eps_cu1 (ultimateStrain) and
+G_f (fractureEnergy). Without a peak strain (a ceramic) the material is elastic up to f_cm (elasticLimit 1, eps_c1 =
+f_cm / E); without a fracture energy G_f comes from K_IC by Irwin's relation in plane strain. The law's other inputs
+(friction, crushing energy, band width) keep their defaults unless the caller adds them.
+
+```ts
+export declare function concreteMaterial(id: string, options?: ConcreteMaterialOptions): SolidMaterial;
+```
+
+### ConcreteMaterialOptions · interface
+
+```ts
+export interface ConcreteMaterialOptions extends SolidMaterialOptions {
+    readonly compressiveStrength?: number;
+    readonly tensileStrength?: number;
+    readonly peakStrain?: number;
+    readonly ultimateStrain?: number;
+    readonly fractureEnergy?: number;
+}
+```
 
 ### CONTACT_PAIRS · const
 
@@ -9165,7 +9272,7 @@ export declare const MATERIAL_LIBRARY_ID = "box3d-materials";
 Semver of the data: a changed value is a minor release, a removed material or property a major one.
 
 ```ts
-export declare const MATERIAL_LIBRARY_VERSION = "1.4.0";
+export declare const MATERIAL_LIBRARY_VERSION = "1.5.0";
 ```
 
 ### MATERIAL_PROPERTY_UNITS · const
@@ -9216,7 +9323,7 @@ export interface MaterialAuditRow {
 ### MaterialCategory · type
 
 ```ts
-export type MaterialCategory = 'metal' | 'glass' | 'stone' | 'concrete' | 'wood' | 'polymer' | 'elastomer' | 'ice' | 'fluid' | 'granular' | 'fabric';
+export type MaterialCategory = 'metal' | 'glass' | 'ceramic' | 'stone' | 'concrete' | 'wood' | 'polymer' | 'elastomer' | 'ice' | 'fluid' | 'granular' | 'fabric';
 ```
 
 ### MaterialEntry · interface
@@ -9261,7 +9368,7 @@ export declare function materialProperty(id: string, property: MaterialPropertyN
 ### MaterialPropertyName · type
 
 ```ts
-export type MaterialPropertyName = 'density' | 'youngModulus' | 'poissonRatio' | 'shearModulus' | 'yieldStrength' | 'tensileStrength' | 'compressiveStrength' | 'flexuralStrength' | 'fractureToughness' | 'fractureEnergy' | 'elongationAtBreak' | 'arealDensity' | 'membraneStiffnessWarp' | 'membraneStiffnessWeft' | 'membraneShearStiffness' | 'membranePoissonRatio' | 'tensileStrengthWarp' | 'tensileStrengthWeft' | 'tearStrength' | 'thermalConductivity' | 'specificHeat' | 'thermalExpansion' | 'viscosity' | 'soundSpeed';
+export type MaterialPropertyName = 'density' | 'youngModulus' | 'poissonRatio' | 'shearModulus' | 'yieldStrength' | 'tensileStrength' | 'compressiveStrength' | 'flexuralStrength' | 'fractureToughness' | 'fractureEnergy' | 'elongationAtBreak' | 'peakStrain' | 'ultimateStrain' | 'arealDensity' | 'membraneStiffnessWarp' | 'membraneStiffnessWeft' | 'membraneShearStiffness' | 'membranePoissonRatio' | 'tensileStrengthWarp' | 'tensileStrengthWeft' | 'tearStrength' | 'thermalConductivity' | 'specificHeat' | 'thermalExpansion' | 'viscosity' | 'soundSpeed';
 ```
 
 ### MATERIALS · const

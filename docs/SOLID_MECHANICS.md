@@ -104,7 +104,7 @@ Not modelled: see the last bullet above. Plastic-incompressibility locking (no m
 
 ### Concrete validation
 
-`tests/engine/solid-concrete.test.mjs` (7 tests, about 8 s, in `npm run test:solid`; 15 rows `solid.concrete.*` and one Studio row in [`VALIDATION.md`](VALIDATION.md)), C30/37 from the library:
+`tests/engine/solid-concrete.test.mjs` (7 tests, about 8 s, in `npm run test:solid`; 13 rows `solid.concrete.*` and one Studio row in [`VALIDATION.md`](VALIDATION.md)), C30/37 from the library:
 
 | Check | Reference | Measured | Tolerance |
 |---|---|---|---|

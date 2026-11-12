@@ -211,8 +211,8 @@ function drawStressChart(root:HTMLElement,f:LabFrame,settings:LabSettings):void 
   for(let i=0;i<ref.length;i+=2)xmax=Math.max(xmax,ref[i]);ymax*=1.12;
   const X=(v:number)=>30+v/xmax*200,Y=(v:number)=>130-v/ymax*118,path=(a:ArrayLike<number>)=>{let d='';for(let i=0;i+1<a.length;i+=2)d+=(i?'L':'M')+X(a[i]).toFixed(1)+' '+Y(Math.max(0,a[i+1])).toFixed(1);return d;};
   svg.querySelector('.ec2')!.setAttribute('d',path(ref));svg.querySelector('.run')!.setAttribute('d',path(run));
-  const step=ymax>500?500:ymax>100?50:10,axes=svg.querySelector('.axes')!;let html=`<path d="M30 12V130H230"/><text x="230" y="146" text-anchor="end">strain %</text><text x="4" y="9">MPa</text>`;
+  const step=ymax>500?500:ymax>100?50:10,axes=svg.querySelector('.axes')!;let html=`<path d="M30 12V130H230"/><text x="130" y="149" text-anchor="middle">strain %</text><text x="4" y="9">MPa</text>`;
   for(let v=step;v<ymax;v+=step)html+=`<text x="26" y="${Y(v)+3}" text-anchor="end">${v}</text><path class="grid" d="M30 ${Y(v)}H230"/>`;
-  for(const v of [xmax/2,xmax])html+=`<text x="${X(v)}" y="140" text-anchor="middle">${v.toFixed(2)}</text>`;
+  for(const v of [xmax/2,xmax])html+=`<text x="${X(v)}" y="140" text-anchor="${v===xmax?'end':'middle'}">${v.toFixed(2)}</text>`;
   if(axes.innerHTML!==html)axes.innerHTML=html;
 }

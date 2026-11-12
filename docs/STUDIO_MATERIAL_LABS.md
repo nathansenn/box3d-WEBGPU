@@ -247,7 +247,7 @@ The programs run to the set travel at the set rate; Node 22 on the shared 4-core
 | Low-strain comparison (1.5 ‰) | 38.3 MPa | 1.50 ‰ | holding | 0 | 6.0 |
 | Ceramic comparison (alumina, 100 mm, 7.5 ‰ at 1 ‰/s) | 1940 MPa | 5.77 ‰ | stopped: shattered | 345 | 2.0 |
 
-The cost is in the softening: below the peak a step takes 20 to 60 ms, after it up to a second (Newton converges linearly while elements soften), and the step that finds no equilibrium took up to 16 s before the iteration limit was lowered (40 Newton iterations per friction pass now). In headless Chromium serving the built site the worker's figure is given in the CHANGELOG entry. The fibre mix peaks like the plain one: before the peak the cube does not crack in tension, and the fibres act only once it does.
+The cost is in the softening: below the peak a step takes 20 to 60 ms, after it up to a second (Newton converges linearly while elements soften), and the step that finds no equilibrium took up to 16 s before the iteration limit was lowered (40 Newton iterations per friction pass now). In headless Chromium (SwiftShader WebGPU) serving the built site, the cube-crush preset at 1 ‰/s reached the same result as Node (45.0 MPa at 2.87 ‰, stopped at 7.2 ‰ with 2 elements spalled, 21.45 MPa at the stop); the worker reported 0.6 to 0.9 times real time before the peak and 0.15 to 0.5 times while softening, and 5.7 to 12.5 times for the low-strain preset. The page itself advanced only 7.3 s of the program in 450 s there, because software rendering limits how many steps are requested per frame; that figure says nothing about a hardware GPU. The fibre mix peaks like the plain one: before the peak the cube does not crack in tension, and the fibres act only once it does.
 
 ### Limits
 

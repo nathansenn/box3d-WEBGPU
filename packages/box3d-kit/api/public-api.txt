@@ -735,6 +735,78 @@ export declare function hangingCableDefinition(input: {
 }): CableDefinition;
 export {};
 
+// ==== core/concrete-law.d.ts ====
+export interface ConcreteLawInput {
+    readonly compressiveStrength: number;
+    readonly tensileStrength: number;
+    readonly peakStrain: number;
+    readonly ultimateStrain: number;
+    readonly fractureEnergy: number;
+    readonly crushingEnergy?: number;
+    readonly friction?: number;
+    readonly elasticLimit?: number;
+    readonly bandWidth?: number;
+    readonly tensionSoftening?: readonly number[];
+    readonly erosionOpening?: number;
+}
+export interface ConcreteLaw {
+    readonly input: Readonly<Required<Omit<ConcreteLawInput, 'tensionSoftening' | 'bandWidth'>> & {
+        tensionSoftening: readonly number[];
+    }>;
+    readonly youngModulus: number;
+    readonly poissonRatio: number;
+    readonly friction: number;
+    readonly bandWidth: number;
+    readonly referenceLength: number;
+    readonly compressionEnergyFactor: number;
+    readonly tensionEnergyFactor: number;
+    readonly kx: Float64Array;
+    readonly ky: Float64Array;
+    readonly kint: Float64Array;
+    readonly tx: Float64Array;
+    readonly ty: Float64Array;
+    readonly tint: Float64Array;
+    readonly kappaPeak: number;
+    readonly kappaCrushed: number;
+    readonly kappaErode: number;
+    readonly uniaxialStrain: Float64Array;
+    readonly uniaxialStress: Float64Array;
+}
+export declare const DEFAULT_FRICTION: number;
+export declare function ec2CompressionStress(strain: number, fcm: number, peakStrain: number, secantModulus: number): number;
+export declare function buildConcreteLaw(input: unknown, youngModulus: number, poissonRatio: number, meanVolume: number): ConcreteLaw;
+export declare function tableValue(x: Float64Array, y: Float64Array, at: number): number;
+export declare class ConcreteReturn {
+    readonly stress: Float64Array<ArrayBuffer>;
+    readonly plastic: Float64Array<ArrayBuffer>;
+    dKappaC: number;
+    dKappaT: number;
+    energy: number;
+    elastic: number;
+    yielded: boolean;
+    private readonly V;
+    private readonly ev;
+    private readonly a;
+    private readonly b;
+    private readonly order;
+    readonly law: ConcreteLaw;
+    readonly lambda: number;
+    readonly mu: number;
+    constructor(law: ConcreteLaw, lambda: number, mu: number);
+    map(t: ArrayLike<number>, kc0: number, kt0: number, f?: number): void;
+    private readonly g;
+    private readonly bp;
+    private readonly gp;
+    private readonly s3;
+    private dpBlock;
+    private rkBlock;
+    private tensorFinish;
+    private finish;
+}
+export declare function jacobi(t: ArrayLike<number>, ev: Float64Array, V: Float64Array): void;
+export declare function largestEigenvalue(xx: number, yy: number, zz: number, yz: number, xz: number, xy: number): number;
+export declare function concreteDamage(law: ConcreteLaw, kappaC: number, kappaT: number): number;
+
 // ==== core/contracts.d.ts ====
 export interface ModelIdentity {
     readonly id: string;
@@ -2139,7 +2211,7 @@ import type { FractureLaw, FractureModel } from './solid-fracture.js';
 import type { HeatMaterial } from './heat.js';
 import type { GranularMaterial } from './granular.js';
 export declare const MATERIAL_LIBRARY_ID = "box3d-materials";
-export declare const MATERIAL_LIBRARY_VERSION = "1.4.0";
+export declare const MATERIAL_LIBRARY_VERSION = "1.5.0";
 export declare const MATERIAL_SOURCES_ACCESSED = "2026-11-12";
 export type MaterialSourceKind = 'standard' | 'government' | 'manufacturer' | 'peer-reviewed' | 'textbook' | 'last-resort';
 export interface MaterialSource {
@@ -2151,7 +2223,7 @@ export interface MaterialSource {
     readonly note?: string;
 }
 export declare const MATERIAL_SOURCES: Readonly<Record<string, MaterialSource>>;
-export type MaterialPropertyName = 'density' | 'youngModulus' | 'poissonRatio' | 'shearModulus' | 'yieldStrength' | 'tensileStrength' | 'compressiveStrength' | 'flexuralStrength' | 'fractureToughness' | 'fractureEnergy' | 'elongationAtBreak' | 'arealDensity' | 'membraneStiffnessWarp' | 'membraneStiffnessWeft' | 'membraneShearStiffness' | 'membranePoissonRatio' | 'tensileStrengthWarp' | 'tensileStrengthWeft' | 'tearStrength' | 'thermalConductivity' | 'specificHeat' | 'thermalExpansion' | 'viscosity' | 'soundSpeed';
+export type MaterialPropertyName = 'density' | 'youngModulus' | 'poissonRatio' | 'shearModulus' | 'yieldStrength' | 'tensileStrength' | 'compressiveStrength' | 'flexuralStrength' | 'fractureToughness' | 'fractureEnergy' | 'elongationAtBreak' | 'peakStrain' | 'ultimateStrain' | 'arealDensity' | 'membraneStiffnessWarp' | 'membraneStiffnessWeft' | 'membraneShearStiffness' | 'membranePoissonRatio' | 'tensileStrengthWarp' | 'tensileStrengthWeft' | 'tearStrength' | 'thermalConductivity' | 'specificHeat' | 'thermalExpansion' | 'viscosity' | 'soundSpeed';
 export declare const MATERIAL_PROPERTY_UNITS: Readonly<Record<MaterialPropertyName, string>>;
 export interface MaterialValue {
     readonly value: number;
@@ -2164,7 +2236,7 @@ export interface MaterialValue {
     readonly derived?: string;
     readonly reason?: string;
 }
-export type MaterialCategory = 'metal' | 'glass' | 'stone' | 'concrete' | 'wood' | 'polymer' | 'elastomer' | 'ice' | 'fluid' | 'granular' | 'fabric';
+export type MaterialCategory = 'metal' | 'glass' | 'ceramic' | 'stone' | 'concrete' | 'wood' | 'polymer' | 'elastomer' | 'ice' | 'fluid' | 'granular' | 'fabric';
 export interface MaterialEntry {
     readonly id: string;
     readonly name: string;
@@ -2229,6 +2301,14 @@ export declare function fabricMaterial(id: string, options: MaterialOptions & {
 };
 export type StressState = 'plane-strain' | 'plane-stress';
 export declare function fractureEnergyFromToughness(toughness: number, youngModulus: number, poissonRatio: number, state?: StressState): number;
+export interface ConcreteMaterialOptions extends SolidMaterialOptions {
+    readonly compressiveStrength?: number;
+    readonly tensileStrength?: number;
+    readonly peakStrain?: number;
+    readonly ultimateStrain?: number;
+    readonly fractureEnergy?: number;
+}
+export declare function concreteMaterial(id: string, options?: ConcreteMaterialOptions): SolidMaterial;
 export interface FractureLawOptions extends MaterialOptions {
     readonly model?: FractureModel;
     readonly strength?: number;
@@ -4280,6 +4360,7 @@ export interface SolidContactOptions {
     readonly frictionTolerance?: number;
     readonly scheme?: 'implicit' | 'naive-staggered';
     readonly gravity?: SolidContactVec3;
+    readonly predictor?: 'previous' | 'velocity';
 }
 export interface SolidContactStats {
     converged: boolean;
@@ -4305,6 +4386,7 @@ export declare class SolidContact {
     readonly dt: number;
     readonly stiffnessScale: number;
     readonly skin: number;
+    readonly predictor: 'previous' | 'velocity';
     readonly frictionPasses: number;
     readonly frictionTolerance: number;
     scheme: 'implicit' | 'naive-staggered';
@@ -4890,9 +4972,12 @@ export declare function boundaryFaces(mesh: TetMesh): Uint32Array;
 // ==== core/solid.d.ts ====
 import { type StateObject, type StateValue } from './checkpoint.js';
 import { type TetMesh } from './solid-mesh.js';
+import { type ConcreteLaw, type ConcreteLawInput } from './concrete-law.js';
+export { buildConcreteLaw, ec2CompressionStress, type ConcreteLaw, type ConcreteLawInput } from './concrete-law.js';
 export { boxMesh, boxNode, boundaryFaces, tetVolume, SOLID_MAX_NODES, SOLID_MAX_TETS, type TetMesh, type BoxMeshOptions } from './solid-mesh.js';
 export declare const SOLID_SOLVER_ID = "solid-tet-corot-js-f64-v1";
 export declare const SOLID_PLASTIC_SOLVER_ID = "solid-tet-j2-js-f64-v1";
+export declare const SOLID_CONCRETE_SOLVER_ID = "solid-tet-dp-rankine-js-f64-v1";
 export type SolidModel = 'linear' | 'corotational' | 'neo-hookean' | 'green-lagrange';
 export type SolidIntegrator = 'backward-euler' | 'midpoint' | 'explicit';
 export interface SolidMaterial {
@@ -4903,6 +4988,7 @@ export interface SolidMaterial {
     yieldStress?: number;
     hardeningModulus?: number;
     failureStrain?: number;
+    concrete?: ConcreteLawInput;
 }
 export interface SolidConfig {
     model?: SolidModel;
@@ -4999,7 +5085,9 @@ export declare class SolidBody {
     readonly mass: number;
     readonly lambda: number;
     readonly mu: number;
-    readonly material: Readonly<Required<SolidMaterial>>;
+    readonly material: Readonly<Required<Omit<SolidMaterial, 'concrete'>> & {
+        concrete?: ConcreteLawInput;
+    }>;
     readonly plastic: boolean;
     readonly stats: SolidSolveStats;
     private readonly massDamping;
@@ -5054,6 +5142,17 @@ export declare class SolidBody {
     private readonly alpha;
     private readonly eroded;
     private readonly ptan;
+    readonly concreteLaw: ConcreteLaw | null;
+    private readonly kappaT;
+    private readonly strengthFactor;
+    private readonly ctan;
+    private readonly ctrial;
+    private readonly cdirty;
+    private readonly creturn;
+    private readonly cbase;
+    private readonly cstrain;
+    private readonly cmat;
+    private kDiagonalFirst;
     private readonly T;
     private storeMode;
     private storedOnly;
@@ -5092,6 +5191,9 @@ export declare class SolidBody {
     private commitViscous;
     private piolaElastic;
     private constitutive;
+    private concreteConstitutive;
+    private concreteTangentForm;
+    private concreteTangent;
     private tangent;
     private tangentElastic;
     private scatter;
@@ -5123,9 +5225,15 @@ export declare class SolidBody {
     private tensors;
     private tensorsNow;
     private commitPlastic;
+    private liveStiffnessDiagonal;
+    erode(elements: ArrayLike<number>): void;
     equivalentPlasticStrain(out?: Float64Array<ArrayBuffer>): Float64Array;
     plasticStrains(out?: Float64Array<ArrayBuffer>): Float64Array;
     get plasticWork(): number;
+    damage(out?: Float64Array<ArrayBuffer>): Float64Array;
+    setStrengthFactors(factors: ArrayLike<number>): void;
+    crackOpening(out?: Float64Array<ArrayBuffer>): Float64Array;
+    compressiveStrengthLeft(e: number): number;
     get erodedCount(): number;
     get erodedMask(): Uint8Array;
     vonMises(out?: Float64Array<ArrayBuffer>): Float64Array;

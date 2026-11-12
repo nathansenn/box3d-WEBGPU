@@ -5,14 +5,14 @@
 import '../../scripts/register-typescript.mjs';
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import {CT, compression, tension, band, confined, c30} from '../../validation/domains/concrete.mjs';
+import {compression, tension, band, confined, c30} from '../../validation/domains/concrete.mjs';
 const {SolidBody, boxMesh, SOLID_CONCRETE_SOLVER_ID, buildConcreteLaw} = await import('../../src/engine/solid.ts');
 const {ConcreteReturn} = await import('../../src/engine/concrete-law.ts');
 const {encodeState} = await import('../../src/engine/checkpoint.ts');
 
 const close = (a, b, tol, label) => assert.ok(Math.abs(a - b) <= tol * Math.abs(b), `${label}: ${a} vs ${b} (${(a / b - 1) * 100} %)`);
 
-test(CT.compression, async () => {
+test('uniaxial compression of one cell of band width L_c follows EN 1992-1-1 (3.14) to f_cm at eps_c1 and on to eps_cu1', async () => {
   const r = await compression();
   console.log(`# L_c ${r.L.toFixed(4)} m, peak ${(r.peak / 1e6).toFixed(3)} MPa at ${(r.at * 1e3).toFixed(3)} per mille, worst ${(r.worst / r.fcm * 100).toFixed(2)} % of f_cm, at eps_cu1 ${(r.ultimate / 1e6).toFixed(3)} vs ${(r.ec2Ultimate / 1e6).toFixed(3)} MPa`);
   close(r.peak, 38e6, 0.005, 'peak = f_cm');
@@ -22,7 +22,7 @@ test(CT.compression, async () => {
   assert.ok(r.rows.every(row => row.converged), 'every load step converged');
 });
 
-test(CT.tension, async () => {
+test('uniaxial tension: the peak is f_ctm and the energy dissipated through a cracked band is G_f A on three meshes (crack band, mesh objective)', async () => {
   const rows = [];
   for (const n of [5, 10, 20]) {
     const r = await tension(n);
@@ -34,7 +34,7 @@ test(CT.tension, async () => {
   console.log('# tension', JSON.stringify(rows));
 });
 
-test(CT.band, async () => {
+test('crack band in compression: a crushed band of width h dissipates G_c per unit area after the peak for every h', async () => {
   for (const h of [0.12, 0.06, 0.03]) {
     const r = await band(h);
     close(r.perArea, r.Gc, 0.02, `${h} m band: G_c per unit area`);
@@ -42,7 +42,7 @@ test(CT.band, async () => {
   }
 });
 
-test(CT.confinement, async () => {
+test('confinement: under lateral pressure the peak follows the Drucker-Prager closed form f_c + m sigma_3', async () => {
   for (const ratio of [0.05, 0.2]) {
     const c = await confined(ratio);
     close(c.peak, c.closed, 0.005, `lateral ${ratio} f_cm`);

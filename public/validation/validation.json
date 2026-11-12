@@ -5,8 +5,8 @@
  "generatedBy": "node scripts/validation-report.mjs",
  "digits": 9,
  "totals": {
-  "cases": 549,
-  "passed": 549,
+  "cases": 563,
+  "passed": 563,
   "failed": 0,
   "domains": 21
  },
@@ -267,8 +267,8 @@
   {
    "id": "solid",
    "title": "Deformable solids",
-   "summary": "The patch test, uniaxial tension, shear and bulk moduli, a hanging bar, the cantilever locking table, axial and bending frequencies with observed orders, a stress wave, energy and damping, large-strain rubber and thermal eigenstrain. Plasticity: the uniaxial bilinear cycle, the elastic-plastic moment and springback of a beam, and a press-brake air bend against the beam limit load and elastic springback.",
-   "solver": "`src/engine/solid.ts`: linear tetrahedra with linear, corotational, Neo-Hookean and Green-Lagrange models, J2 plasticity with linear isotropic hardening and ductile erosion (linear and Green-Lagrange); static, midpoint, backward-Euler and explicit integration, float64. The press brake (`src/engine/press-brake.ts`) bends a plane-strain section of sheet with rigid punch and die through `SolidContact`",
+   "summary": "The patch test, uniaxial tension, shear and bulk moduli, a hanging bar, the cantilever locking table, axial and bending frequencies with observed orders, a stress wave, energy and damping, large-strain rubber and thermal eigenstrain. Plasticity: the uniaxial bilinear cycle, the elastic-plastic moment and springback of a beam, and a press-brake air bend against the beam limit load and elastic springback. Concrete: the EN 1992-1-1 (3.14) curve to f_cm, eps_c1 and eps_cu1, f_ctm and G_f on three meshes, G_c per unit area of a crushed band, the Drucker-Prager confinement closed form, and the Studio cube against a slenderness-2 prism.",
+   "solver": "`src/engine/solid.ts`: linear tetrahedra with linear, corotational, Neo-Hookean and Green-Lagrange models, J2 plasticity with linear isotropic hardening and ductile erosion (linear and Green-Lagrange), a concrete law (Drucker-Prager and Rankine composite plasticity with crack-band softening, `src/engine/concrete-law.ts`); static, midpoint, backward-Euler and explicit integration, float64. The press brake (`src/engine/press-brake.ts`) bends a plane-strain section of sheet with rigid punch and die through `SolidContact`",
    "docs": [
     "docs/SOLID_MECHANICS.md"
    ],
@@ -280,10 +280,11 @@
     "Plasticity is small-strain J2 (additive in the Green-Lagrange strain for large rotations), isotropic linear hardening only: no kinematic hardening, rate dependence, necking or anisotropy. Linear tetrahedra lock under plastic incompressibility: fully plastic bending is 3.2% (3-D) to 6.6% (plane strain, 4 cells) too strong. Ductile erosion uses one failure strain, independent of stress triaxiality, and the press brake's limit load is 1.23 times beam theory.",
     "Self-contact, plasticity combined with viscoelasticity (refused), anisotropy, and more than one material per body. Crack growth is a separate solver on the linear model of this element (the fracture domain); `SolidBody` erodes plastic elements at a failure strain but has no crack-growth law of its own.",
     "No two-way coupling to the rigid-body, water, cable or frame solvers, and no contact with rigid bodies. The one-way thermal and dead-load links are in the simulation domain.",
+    "Concrete: compressive softening does not stay in one element layer. In a prism the crushed band is restrained across by its neighbours (associated flow dilates it), so the post-peak energy of a 5, 10 and 20-cell bar grows with refinement instead of staying G_c A; only the tensile crack band is mesh objective here. Confinement raises the strength by m = 1.41 sigma_3, not the 2.5 to 5 of EN 1992-1-1 3.1.9; the equal-biaxial ratio 1.16 is quoted, not read. Cracks unload elastically (plasticity, not damage) and do not close; no rate, size (beyond the crack band), creep, shrinkage or reinforcement.",
     "Uniform states are exact, so the tension, shear, pressure and rubber rows say nothing about accuracy under stress gradients."
    ],
-   "cases": 42,
-   "passed": 42
+   "cases": 56,
+   "passed": 56
   },
   {
    "id": "solid-contact",
@@ -12995,6 +12996,406 @@
     "measured": "2600038",
     "error": "+51.6%",
     "tolerance": "±60%"
+   }
+  },
+  {
+   "id": "solid.concrete.peak",
+   "domain": "solid",
+   "title": "Concrete law: uniaxial compressive strength",
+   "quantity": "peak nominal stress of one C30/37 cell of band width L_c in uniaxial compression",
+   "unit": "Pa",
+   "formula": "f_cm (EN 1992-1-1 Table 3.1, C30/37)",
+   "reference": 38000000,
+   "measured": 37915591.2,
+   "error": -84408.8031,
+   "relativeError": -0.00222128429,
+   "tolerance": {
+    "kind": "relative",
+    "value": 0.005
+   },
+   "pass": true,
+   "note": "Nominal stress over the reference area and Green-Lagrange kinematics: 0.2 % low at the peak.",
+   "source": {
+    "file": "tests/engine/solid-concrete.test.mjs",
+    "test": "uniaxial compression of one cell of band width L_c follows EN 1992-1-1 (3.14) to f_cm at eps_c1 and on to eps_cu1",
+    "url": "https://github.com/nathansenn/box3d-WEBGPU/blob/main/tests/engine/solid-concrete.test.mjs"
+   },
+   "text": {
+    "reference": "3.8e7 Pa",
+    "measured": "3.791559e7",
+    "error": "-0.222%",
+    "tolerance": "±0.5%"
+   }
+  },
+  {
+   "id": "solid.concrete.peak-strain",
+   "domain": "solid",
+   "title": "Concrete law: strain at the compressive peak",
+   "quantity": "axial strain at the peak of the same test (steps of 0.02 per mille)",
+   "unit": "1",
+   "formula": "eps_c1 (EN 1992-1-1 Table 3.1, C30/37)",
+   "reference": 0.0022,
+   "measured": 0.0022,
+   "error": 0,
+   "relativeError": 0,
+   "tolerance": {
+    "kind": "relative",
+    "value": 0.02
+   },
+   "pass": true,
+   "source": {
+    "file": "tests/engine/solid-concrete.test.mjs",
+    "test": "uniaxial compression of one cell of band width L_c follows EN 1992-1-1 (3.14) to f_cm at eps_c1 and on to eps_cu1",
+    "url": "https://github.com/nathansenn/box3d-WEBGPU/blob/main/tests/engine/solid-concrete.test.mjs"
+   },
+   "text": {
+    "reference": "0.0022",
+    "measured": "0.0022",
+    "error": "0%",
+    "tolerance": "±2%"
+   }
+  },
+  {
+   "id": "solid.concrete.curve",
+   "domain": "solid",
+   "title": "Concrete law: the EN 1992-1-1 (3.14) curve",
+   "quantity": "largest stress difference from (3.14) between 0 and eps_cu1, over f_cm",
+   "unit": "1",
+   "formula": "sigma / f_cm = (k eta - eta^2) / (1 + (k - 2) eta), k = 1.05 E_cm eps_c1 / f_cm",
+   "reference": 0,
+   "measured": 0.0232682391,
+   "error": 0.0232682391,
+   "relativeError": null,
+   "tolerance": {
+    "kind": "absolute",
+    "value": 0.03
+   },
+   "pass": true,
+   "note": "Largest where plasticity starts (0.4 f_cm): E_cm is a secant there, so the law blends the small offset to the curve into the hardening.",
+   "source": {
+    "file": "tests/engine/solid-concrete.test.mjs",
+    "test": "uniaxial compression of one cell of band width L_c follows EN 1992-1-1 (3.14) to f_cm at eps_c1 and on to eps_cu1",
+    "url": "https://github.com/nathansenn/box3d-WEBGPU/blob/main/tests/engine/solid-concrete.test.mjs"
+   },
+   "text": {
+    "reference": "0",
+    "measured": "0.02326824",
+    "error": "+0.0233",
+    "tolerance": "±0.03"
+   }
+  },
+  {
+   "id": "solid.concrete.ultimate",
+   "domain": "solid",
+   "title": "Concrete law: stress at the nominal ultimate strain",
+   "quantity": "nominal stress of the same cell at eps_cu1 = 3.5 per mille",
+   "unit": "Pa",
+   "formula": "(3.14) at eps_cu1",
+   "reference": 24649504.6,
+   "measured": 24686114,
+   "error": 36609.4187,
+   "relativeError": 0.00148519896,
+   "tolerance": {
+    "kind": "relative",
+    "value": 0.02
+   },
+   "pass": true,
+   "source": {
+    "file": "tests/engine/solid-concrete.test.mjs",
+    "test": "uniaxial compression of one cell of band width L_c follows EN 1992-1-1 (3.14) to f_cm at eps_c1 and on to eps_cu1",
+    "url": "https://github.com/nathansenn/box3d-WEBGPU/blob/main/tests/engine/solid-concrete.test.mjs"
+   },
+   "text": {
+    "reference": "2.46495e7 Pa",
+    "measured": "2.468611e7",
+    "error": "+0.149%",
+    "tolerance": "±2%"
+   }
+  },
+  {
+   "id": "solid.concrete.tension-peak",
+   "domain": "solid",
+   "title": "Concrete law: uniaxial tensile strength",
+   "quantity": "peak stress of a 5-cell bar whose middle cell is 2 % weaker",
+   "unit": "Pa",
+   "formula": "0.98 f_ctm (EN 1992-1-1 Table 3.1, C30/37: 2.9 MPa)",
+   "reference": 2842000,
+   "measured": 2817633.35,
+   "error": -24366.6529,
+   "relativeError": -0.00857376949,
+   "tolerance": {
+    "kind": "relative",
+    "value": 0.02
+   },
+   "pass": true,
+   "source": {
+    "file": "tests/engine/solid-concrete.test.mjs",
+    "test": "uniaxial tension: the peak is f_ctm and the energy dissipated through a cracked band is G_f A on three meshes (crack band, mesh objective)",
+    "url": "https://github.com/nathansenn/box3d-WEBGPU/blob/main/tests/engine/solid-concrete.test.mjs"
+   },
+   "text": {
+    "reference": "2842000 Pa",
+    "measured": "2817633",
+    "error": "-0.857%",
+    "tolerance": "±2%"
+   }
+  },
+  {
+   "id": "solid.concrete.fracture-energy-5",
+   "domain": "solid",
+   "title": "Concrete law: energy to break a bar in tension, 5 cells",
+   "quantity": "work of the end force until the 5-cell bar carries nothing, over 0.98 G_f A",
+   "unit": "1",
+   "formula": "G_f = 73 f_cm^0.18 N/m (fib Model Code 2010, quoted), crack band",
+   "reference": 1,
+   "measured": 0.999867313,
+   "error": -0.000132686662,
+   "relativeError": -0.000132686662,
+   "tolerance": {
+    "kind": "relative",
+    "value": 0.01
+   },
+   "pass": true,
+   "source": {
+    "file": "tests/engine/solid-concrete.test.mjs",
+    "test": "uniaxial tension: the peak is f_ctm and the energy dissipated through a cracked band is G_f A on three meshes (crack band, mesh objective)",
+    "url": "https://github.com/nathansenn/box3d-WEBGPU/blob/main/tests/engine/solid-concrete.test.mjs"
+   },
+   "text": {
+    "reference": "1",
+    "measured": "0.9998673",
+    "error": "-0.0133%",
+    "tolerance": "±1%"
+   }
+  },
+  {
+   "id": "solid.concrete.fracture-energy-10",
+   "domain": "solid",
+   "title": "Concrete law: energy to break a bar in tension, 10 cells",
+   "quantity": "work of the end force until the 10-cell bar carries nothing, over 0.98 G_f A",
+   "unit": "1",
+   "formula": "G_f = 73 f_cm^0.18 N/m (fib Model Code 2010, quoted), crack band",
+   "reference": 1,
+   "measured": 0.999874097,
+   "error": -0.00012590271,
+   "relativeError": -0.00012590271,
+   "tolerance": {
+    "kind": "relative",
+    "value": 0.01
+   },
+   "pass": true,
+   "source": {
+    "file": "tests/engine/solid-concrete.test.mjs",
+    "test": "uniaxial tension: the peak is f_ctm and the energy dissipated through a cracked band is G_f A on three meshes (crack band, mesh objective)",
+    "url": "https://github.com/nathansenn/box3d-WEBGPU/blob/main/tests/engine/solid-concrete.test.mjs"
+   },
+   "text": {
+    "reference": "1",
+    "measured": "0.9998741",
+    "error": "-0.0126%",
+    "tolerance": "±1%"
+   }
+  },
+  {
+   "id": "solid.concrete.fracture-energy-20",
+   "domain": "solid",
+   "title": "Concrete law: energy to break a bar in tension, 20 cells",
+   "quantity": "work of the end force until the 20-cell bar carries nothing, over 0.98 G_f A",
+   "unit": "1",
+   "formula": "G_f = 73 f_cm^0.18 N/m (fib Model Code 2010, quoted), crack band",
+   "reference": 1,
+   "measured": 0.999877124,
+   "error": -0.000122875963,
+   "relativeError": -0.000122875963,
+   "tolerance": {
+    "kind": "relative",
+    "value": 0.01
+   },
+   "pass": true,
+   "source": {
+    "file": "tests/engine/solid-concrete.test.mjs",
+    "test": "uniaxial tension: the peak is f_ctm and the energy dissipated through a cracked band is G_f A on three meshes (crack band, mesh objective)",
+    "url": "https://github.com/nathansenn/box3d-WEBGPU/blob/main/tests/engine/solid-concrete.test.mjs"
+   },
+   "text": {
+    "reference": "1",
+    "measured": "0.9998771",
+    "error": "-0.0123%",
+    "tolerance": "±1%"
+   }
+  },
+  {
+   "id": "solid.concrete.crushing-energy-120mm",
+   "domain": "solid",
+   "title": "Concrete law: crushing energy of a 120 mm band",
+   "quantity": "plastic work after the peak per unit area of a single crushed cell",
+   "unit": "J/m^2",
+   "formula": "G_c = f_cm w_d / 2, w_d = 0.5 mm (ATENA crack band default)",
+   "reference": 9500,
+   "measured": 9534.55862,
+   "error": 34.5586214,
+   "relativeError": 0.00363774962,
+   "tolerance": {
+    "kind": "relative",
+    "value": 0.02
+   },
+   "pass": true,
+   "note": "The cell crushes homogeneously; in a longer prism the band does not stay one cell thick (see notValidated).",
+   "source": {
+    "file": "tests/engine/solid-concrete.test.mjs",
+    "test": "crack band in compression: a crushed band of width h dissipates G_c per unit area after the peak for every h",
+    "url": "https://github.com/nathansenn/box3d-WEBGPU/blob/main/tests/engine/solid-concrete.test.mjs"
+   },
+   "text": {
+    "reference": "9500 J/m^2",
+    "measured": "9534.559",
+    "error": "+0.364%",
+    "tolerance": "±2%"
+   }
+  },
+  {
+   "id": "solid.concrete.crushing-energy-60mm",
+   "domain": "solid",
+   "title": "Concrete law: crushing energy of a 60 mm band",
+   "quantity": "plastic work after the peak per unit area of a single crushed cell",
+   "unit": "J/m^2",
+   "formula": "G_c = f_cm w_d / 2, w_d = 0.5 mm (ATENA crack band default)",
+   "reference": 9500,
+   "measured": 9481.83268,
+   "error": -18.1673243,
+   "relativeError": -0.00191234993,
+   "tolerance": {
+    "kind": "relative",
+    "value": 0.02
+   },
+   "pass": true,
+   "note": "The cell crushes homogeneously; in a longer prism the band does not stay one cell thick (see notValidated).",
+   "source": {
+    "file": "tests/engine/solid-concrete.test.mjs",
+    "test": "crack band in compression: a crushed band of width h dissipates G_c per unit area after the peak for every h",
+    "url": "https://github.com/nathansenn/box3d-WEBGPU/blob/main/tests/engine/solid-concrete.test.mjs"
+   },
+   "text": {
+    "reference": "9500 J/m^2",
+    "measured": "9481.833",
+    "error": "-0.191%",
+    "tolerance": "±2%"
+   }
+  },
+  {
+   "id": "solid.concrete.crushing-energy-30mm",
+   "domain": "solid",
+   "title": "Concrete law: crushing energy of a 30 mm band",
+   "quantity": "plastic work after the peak per unit area of a single crushed cell",
+   "unit": "J/m^2",
+   "formula": "G_c = f_cm w_d / 2, w_d = 0.5 mm (ATENA crack band default)",
+   "reference": 9500,
+   "measured": 9472.14776,
+   "error": -27.8522421,
+   "relativeError": -0.00293181496,
+   "tolerance": {
+    "kind": "relative",
+    "value": 0.02
+   },
+   "pass": true,
+   "note": "The cell crushes homogeneously; in a longer prism the band does not stay one cell thick (see notValidated).",
+   "source": {
+    "file": "tests/engine/solid-concrete.test.mjs",
+    "test": "crack band in compression: a crushed band of width h dissipates G_c per unit area after the peak for every h",
+    "url": "https://github.com/nathansenn/box3d-WEBGPU/blob/main/tests/engine/solid-concrete.test.mjs"
+   },
+   "text": {
+    "reference": "9500 J/m^2",
+    "measured": "9472.148",
+    "error": "-0.293%",
+    "tolerance": "±2%"
+   }
+  },
+  {
+   "id": "solid.concrete.confined-5",
+   "domain": "solid",
+   "title": "Concrete law: strength under a lateral pressure of 0.05 f_cm",
+   "quantity": "peak axial stress of one cell under constant lateral pressure",
+   "unit": "Pa",
+   "formula": "f_cm + m sigma_3, m = (1 + 2 beta / 3) / (1 - beta / 3)",
+   "reference": 40686206.9,
+   "measured": 40588449.8,
+   "error": -97757.1144,
+   "relativeError": -0.00240270897,
+   "tolerance": {
+    "kind": "relative",
+    "value": 0.005
+   },
+   "pass": true,
+   "note": "The closed form of the law, not of concrete: EN 1992-1-1 (3.24) and (3.25) give a larger gain (see the Studio document).",
+   "source": {
+    "file": "tests/engine/solid-concrete.test.mjs",
+    "test": "confinement: under lateral pressure the peak follows the Drucker-Prager closed form f_c + m sigma_3",
+    "url": "https://github.com/nathansenn/box3d-WEBGPU/blob/main/tests/engine/solid-concrete.test.mjs"
+   },
+   "text": {
+    "reference": "4.068621e7 Pa",
+    "measured": "4.058845e7",
+    "error": "-0.24%",
+    "tolerance": "±0.5%"
+   }
+  },
+  {
+   "id": "solid.concrete.confined-20",
+   "domain": "solid",
+   "title": "Concrete law: strength under a lateral pressure of 0.2 f_cm",
+   "quantity": "peak axial stress of one cell under constant lateral pressure",
+   "unit": "Pa",
+   "formula": "f_cm + m sigma_3, m = (1 + 2 beta / 3) / (1 - beta / 3)",
+   "reference": 48744827.6,
+   "measured": 48613964.2,
+   "error": -130863.393,
+   "relativeError": -0.00268466214,
+   "tolerance": {
+    "kind": "relative",
+    "value": 0.005
+   },
+   "pass": true,
+   "note": "The closed form of the law, not of concrete: EN 1992-1-1 (3.24) and (3.25) give a larger gain (see the Studio document).",
+   "source": {
+    "file": "tests/engine/solid-concrete.test.mjs",
+    "test": "confinement: under lateral pressure the peak follows the Drucker-Prager closed form f_c + m sigma_3",
+    "url": "https://github.com/nathansenn/box3d-WEBGPU/blob/main/tests/engine/solid-concrete.test.mjs"
+   },
+   "text": {
+    "reference": "4.874483e7 Pa",
+    "measured": "4.861396e7",
+    "error": "-0.268%",
+    "tolerance": "±0.5%"
+   }
+  },
+  {
+   "id": "solid.concrete.cube-cylinder",
+   "domain": "solid",
+   "title": "Studio concrete cube over a cylinder",
+   "quantity": "peak stress of the 150 mm C30/37 cube over that of a 150 x 150 x 300 mm prism (the cylinder's slenderness), both between steel platens with friction 0.57",
+   "unit": "1",
+   "formula": "f_ck,cube / f_ck = 37 / 30 (EN 1992-1-1 Table 3.1, C30/37)",
+   "reference": 1.23333333,
+   "measured": 1.16781713,
+   "error": -0.0655162048,
+   "relativeError": -0.0531212472,
+   "tolerance": {
+    "kind": "relative",
+    "value": 0.1
+   },
+   "pass": true,
+   "note": "A square prism stands in for the cylinder; confinement by platen friction only, with the biaxial-fitted friction parameter, on 5 cells across.",
+   "source": {
+    "file": "tests/studio/concrete-si.test.mjs",
+    "test": "the 150 mm cube between frictional steel platens fails above a prism of slenderness 2, the cylinder's (EN 1992-1-1 Table 3.1 gives 37 / 30)",
+    "url": "https://github.com/nathansenn/box3d-WEBGPU/blob/main/tests/studio/concrete-si.test.mjs"
+   },
+   "text": {
+    "reference": "1.233333",
+    "measured": "1.167817",
+    "error": "-5.31%",
+    "tolerance": "±10%"
    }
   },
   {
