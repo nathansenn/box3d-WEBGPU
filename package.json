@@ -97,7 +97,7 @@
     "test:studio:reference": "node tests/studio/reference-geometry.test.mjs",
     "test:studio:press": "node --test tests/studio/press-lab.test.mjs tests/studio/press-adjustments.test.mjs tests/studio/press-inspection.test.mjs tests/studio/press-v3.test.mjs tests/studio/press-v4.test.mjs",
     "test:studio:bridge": "node --test tests/studio/bridge-experiments.test.mjs tests/studio/bridge-refinement.test.mjs tests/studio/bridge-review.test.mjs tests/studio/bridge-roads.test.mjs",
-    "test:studio:liquid": "node --test tests/studio/liquid-lab-v2.test.mjs tests/studio/liquid-lab-v3.test.mjs tests/studio/liquid-lab-v4.test.mjs tests/studio/liquid-lab-v5.test.mjs",
+    "test:studio:liquid": "node --test tests/studio/liquid-lab-v2.test.mjs tests/studio/liquid-lab-v3.test.mjs tests/studio/liquid-lab-v4.test.mjs tests/studio/liquid-lab-v5.test.mjs tests/studio/liquid-si.test.mjs tests/studio/granular-si.test.mjs",
     "test:studio:materials": "node --test tests/studio/glass-presentation.test.mjs tests/studio/material-run-export.test.mjs tests/studio/material-run-library.test.mjs",
     "test:qualification": "node --test tests/qualification/closed-water-evidence.test.mjs tests/qualification/glass-reference.test.mjs tests/qualification/native-query-oracle.test.mjs tests/qualification/native-recycling-sleep.test.mjs",
     "test:assets": "node --test tests/assets/*.test.mjs tests/physics/*.test.mjs",

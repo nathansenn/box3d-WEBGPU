@@ -17,7 +17,8 @@ test('catalog covers five rigs and at least twenty fluids and forty presets and 
   assert.equal(invalid.rig,'flume');assert.equal(invalid.rain,0);assert.equal(invalid.slope,0);assert.equal(invalid.bore,200);assert.equal(invalid.damping,12);assert.equal(invalid.inflow,18);
 });
 for(const preset of LABS.liquid.experiments)test(`complete hydraulic program: ${preset.id}`,()=>{
-  const t=performance.now(),m=run(new LiquidModel(preset.settings),LABS.liquid.duration),h=m.frame.hydraulics;
+  // Flume presets run the 3D free-surface solver (tests/studio/liquid-si.test.mjs); one second each keeps this file short.
+  const t=performance.now(),m=run(new LiquidModel(preset.settings),(preset.settings.rig??'flume')==='flume'?1:LABS.liquid.duration),h=m.frame.hydraulics;
   for(const a of [m.h,m.qx,m.qz,m.frame.positions,m.frame.rotations,m.frame.metrics,Object.values(h).filter(v=>typeof v==='number')])assert.ok([...a].every(Number.isFinite));
   assert.ok(Math.abs(h.residual)<1e-8,`budget ${h.residual}`);assert.ok([...m.h].every(v=>v>=0));m.solid.forEach((v,i)=>{if(v)assert.equal(m.h[i],0);});
   if(m.liquid.rig==='flume')assert.ok(Math.abs(m.volume()-m.initialVolume)<1e-8);
@@ -25,8 +26,8 @@ for(const preset of LABS.liquid.experiments)test(`complete hydraulic program: ${
   receipts.push({preset:preset.id,rig:m.liquid.rig,seconds:m.frame.time,cpuMs:performance.now()-t,metrics:m.frame.metrics,hydraulics:h});
 });
 test('pipe demand, diameter, length, viscosity and attachment affect actual delivery',()=>{
-  const base=liquidSettings({rig:'pipes',bore:50,inflow:80}),water=pipeDelivery(base,.02,1),narrow=pipeDelivery({...base,bore:20},.02,1),wide=pipeDelivery({...base,bore:200},.02,1),long=pipeDelivery({...base,pipeLength:20},.02,1),honey=pipeDelivery(base,5,1.4),nozzle=pipeDelivery({...base,pipe:'nozzle'},.02,1);
-  assert.ok(wide.flow>water.flow&&water.flow>narrow.flow);assert.ok(water.flow>long.flow&&water.flow>honey.flow&&water.flow>nozzle.flow);assert.ok(water.head<=4.000001);assert.equal(pipeDelivery({...base,inflow:0},.02,1).flow,0);
+  const W=[1.0016e-3,998.207],base=liquidSettings({rig:'pipes',bore:50,inflow:80}),water=pipeDelivery(base,...W),narrow=pipeDelivery({...base,bore:20},...W),wide=pipeDelivery({...base,bore:200},...W),long=pipeDelivery({...base,pipeLength:20},...W),honey=pipeDelivery(base,7.43,1420),nozzle=pipeDelivery({...base,pipe:'nozzle'},...W);
+  assert.ok(wide.flow>water.flow&&water.flow>narrow.flow);assert.ok(water.flow>long.flow&&water.flow>honey.flow&&water.flow>nozzle.flow);assert.ok(water.head<=4.000001);assert.equal(pipeDelivery({...base,inflow:0},...W).flow,0);
   const m=run(new LiquidModel({...base,fill:0}),2);assert.ok(Math.abs(m.frame.hydraulics.added-water.flow*2)<1e-9);
 });
 test('rain adds the specified depth over exposed area; a closed sealed table conserves it',()=>{

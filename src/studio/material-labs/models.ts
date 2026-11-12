@@ -1,4 +1,6 @@
 import {liquidSettings,surfaceFor,pipeDelivery,rainFactor,supplyFactor,type LiquidSettings} from './liquid-config';
+import {FlumeSI,liquidSI,type LiquidSI} from './liquid-si';
+import {GranularTray,grainSI,TRAY} from './granular-si';
 import {bedDatum,bedElevation,bedRelief,channelCenter,liquidOutlets,rimHeight} from './liquid-terrain';
 import {LABS,materialFor,normalizeSettings,type LabId,type LabSettings,type MaterialProfile} from './catalog';
 import {ConvexBody,ConvexContactWorld,contactBox,triangularPrism,contactEuler,convexSeparation,CONTACT_SKIN,type ContactStats} from '../../engine/convex-contact';
@@ -24,7 +26,12 @@ export abstract class LabModel {
   protected allocate(n:number):void {this.frame.positions=new Float32Array(n*3);this.frame.rotations=new Float32Array(n*3);this.frame.damage=new Uint8Array(n);}
 }
 
-/** Conservative finite-volume depth field with closed-wall fluxes and explicit sources/sinks. */
+/**
+ * The liquid lab. Flume: the validated free-surface solver in SI (FlumeSI: 3D incompressible liquid with viscosity, a
+ * lifting gate and two posts), read back as a depth field on this grid. Pipes, river, rain and surface: a conservative
+ * finite-volume depth field with closed-wall fluxes and explicit sources and sinks; its bed drag, absorption and the
+ * authored damping are comparative, while the pipe delivery uses the Darcy-Weisbach law with SI viscosity.
+ */
 export class LiquidModel extends LabModel {
   readonly nx=84;readonly nz=28;readonly width=6;readonly depth=2;
   readonly h=new Float64Array(this.nx*this.nz);readonly qx=new Float64Array(this.h.length);readonly qz=new Float64Array(this.h.length);
@@ -32,6 +39,8 @@ export class LiquidModel extends LabModel {
   readonly dx=this.width/this.nx;readonly dz=this.depth/this.nz;readonly gateColumn=27;
   readonly initialVolume:number;
   readonly liquid:LiquidSettings;readonly substrate:ReturnType<typeof surfaceFor>;readonly delivery:ReturnType<typeof pipeDelivery>;
+  /** SI density and viscosity of the liquid (viscosity already multiplied by the viscosity control). */
+  readonly si:LiquidSI;readonly flume?:FlumeSI;
   readonly outlets:[number,number][];private inletCells:number[][]=[];private activeCells=0;private added=0;private rained=0;private drained=0;private absorbed=0;private outlet=0;private overflow=0;private overflowRate=0;
   datum(x:number):number {return bedDatum(this.liquid,x);}
   bed(x:number,z=0):number {return bedElevation(this.liquid,x,z);}
@@ -39,7 +48,9 @@ export class LiquidModel extends LabModel {
   channelCenter(x:number):number {return channelCenter(this.liquid,x);}
   constructor(p:Partial<LabSettings>={}){
     super('liquid',p);this.liquid=liquidSettings(this.settings);this.substrate=surfaceFor(this.liquid.surface);
-    this.delivery=pipeDelivery(this.liquid,this.material.viscosity*this.settings.damping,this.material.density);
+    const base=liquidSI(this.material.id);this.si={...base,viscosity:base.viscosity*this.settings.damping};
+    this.delivery=pipeDelivery(this.liquid,this.si.viscosity,this.si.density);
+    if(this.liquid.rig==='flume')this.flume=new FlumeSI({depth:this.settings.size,lift:this.settings.load/100*1.1,liftSpeed:this.settings.rate,downstream:.008+this.settings.fill/100*.6,slope:this.liquid.slope,density:this.si.density,viscosity:this.si.viscosity,pulse:this.settings.mode==='pulse'});
     this.outlets=liquidOutlets(this.liquid);this.inletCells=this.outlets.map(()=>[]);
     this.frame.positions=new Float32Array(this.h.length);this.frame.rotations=new Float32Array(this.h.length*2);
     const rig=this.liquid.rig;
@@ -52,9 +63,19 @@ export class LiquidModel extends LabModel {
       if(rig==='flume'&&this.settings.mode==='pulse')this.h[i]=this.settings.size*.65+.08*Math.cos(px*Math.PI/3);
       this.outlets.forEach(([ox,oz],j)=>{if(Math.hypot(px-ox,pz-oz)<.13)this.inletCells[j].push(i);});
     }
+    if(this.flume)this.fromFlume();
     this.initialVolume=this.volume();if(this.settings.mode==='pulse')this.frame.actuator=1.1;this.sync();
   }
-  volume():number {let total=0;for(const h of this.h)total+=h;return total*this.dx*this.dz;}
+  /** Liquid volume, m^3: the solver particles' volume in the flume (exact), the depth field's elsewhere. */
+  volume():number {if(this.flume)return this.flume.volume();let total=0;for(const h of this.h)total+=h;return total*this.dx*this.dz;}
+  /** Depth and depth-averaged velocity of the flume solver at each cell of this grid (zero inside the posts). */
+  private fromFlume():void {
+    const f=this.flume!;
+    for(let z=0;z<this.nz;z++)for(let x=0;x<this.nx;x++){
+      const i=z*this.nx+x;if(this.solid[i]){this.h[i]=this.qx[i]=this.qz[i]=0;continue;}
+      const [d,u,w]=f.sample((x+.5)*this.dx-3,(z+.5)*this.dz-1);this.h[i]=d;this.qx[i]=d*u;this.qz[i]=d*w;
+    }
+  }
   private supplyOn(time=this.frame.time):boolean {return !this.released&&(this.liquid.cutoff===0||time<this.liquid.cutoff-1e-10);}
   private face(a:number,b:number,axis:0|1,dt:number,gate:number):void {
     const n=this.h.length,da=axis===0?this.dx:this.dz,g=9.81;
@@ -76,6 +97,10 @@ export class LiquidModel extends LabModel {
   }
   step(dt=DT):void {
     if(!Number.isFinite(dt)||dt<=0||dt>.25)throw new Error('Liquid step must be in (0, 0.25] seconds');
+    if(this.flume){
+      this.flume.step(dt,this.released);this.frame.time+=dt;this.fromFlume();
+      this.frame.actuator=Math.min(1.1,this.flume.lift(this.frame.time,this.released));this.outlet=0;this.overflowRate=0;this.sync();return;
+    }
     let left=dt;this.outlet=0;const previousOverflow=this.overflow;
     while(left>1e-9){
       let speed=.1;for(let i=0;i<this.h.length;i++)if(this.h[i]>1e-7)speed=Math.max(speed,Math.hypot(this.qx[i],this.qz[i])/this.h[i]+Math.sqrt(9.81*this.h[i]));
@@ -123,7 +148,7 @@ export class LiquidModel extends LabModel {
     const rig=this.liquid.rig,supply=rig==='flume'?!this.released:this.supplyOn(),volume=this.volume(),factor=supplyFactor(this.frame.time,this.liquid.supply);let wetArea=0,floodArea=0,speedSum=0;
     for(let i=0;i<this.h.length;i++){const x=(i%this.nx+.5)*this.dx-3,z=(Math.floor(i/this.nx)+.5)*this.dz-1;if(this.h[i]>.00005)wetArea+=this.dx*this.dz;if(rig==='river'&&this.relief(x,z)>=this.liquid.bankHeight*.9&&this.h[i]>.002)floodArea+=this.dx*this.dz;speedSum+=Math.hypot(this.qx[i],this.qz[i]);}
     this.frame.phase=this.frame.time===0?'Ready':rig==='flume'?(velocity<.025&&this.frame.time>5?'Settling':this.frame.actuator<.3?'Gate lifting':'Flowing'):!supply?'Supply stopped · draining':rig==='rain'?(rainFactor(this.frame.time,this.liquid.storm)>.01?'Rainfall':'Between showers'):rig==='river'?'River flowing':rig==='surface'?'Film spreading':'Pump delivering';
-    this.frame.metrics=[peak,velocity,volume];
+    this.frame.metrics=this.flume?[this.flume.peakDepth(),this.flume.peakSpeed(),volume]:[peak,velocity,volume];
     if(rig==='river'&&floodArea>.01&&supply&&this.frame.time>0)this.frame.phase='Banks overtopped';
     this.frame.hydraulics={inlet:rig==='flume'||rig==='rain'||!supply?0:this.delivery.flow*factor,rainRate:rig==='flume'||!supply?0:this.liquid.rain*rainFactor(this.frame.time,this.liquid.storm),outlet:this.outlet,added:this.added,rained:this.rained,drained:this.drained,absorbed:this.absorbed,residual:volume-(this.initialVolume+this.added+this.rained-this.drained-this.absorbed),wetArea,meanFilm:wetArea?volume/wetArea*1000:0,head:rig==='flume'||rig==='rain'?0:this.delivery.head,reynolds:rig==='flume'||rig==='rain'?0:this.delivery.reynolds,supplyOn:supply,floodArea,coverage:Math.min(100,wetArea/(this.activeCells*this.dx*this.dz)*100),meanSpeed:volume?speedSum*this.dx*this.dz/volume:0,overflow:this.overflow,overflowRate:this.overflowRate};
   }
@@ -317,51 +342,33 @@ export class RubberModel extends LabModel {
   }
 }
 
+/**
+ * The granular lab: the discrete element solver in SI (GranularTray, granular-si.ts). Positions are drawn ten times
+ * larger than the apparatus (model units = SI x 10, floor at 0.58); the readouts are SI.
+ */
 export class GranularModel extends LabModel {
-  readonly radius:number;readonly count:number;private velocity:Float64Array;private previous:Float64Array;private next:Int32Array;readonly initialMass:number;
-  private heads:Int32Array;private neighborOffsets:Int32Array;private strideX:number;private strideY:number;
+  readonly radius:number;readonly count:number;readonly initialMass:number;readonly tray:GranularTray;
   constructor(p:Partial<LabSettings>={}){
-    super('granular',p);this.radius=this.settings.size*.005;const r=this.radius,cols=Math.min(12,Math.floor(1.5/(r*2.06))),rows=Math.min(8,Math.floor(1.5/(r*2.06))),layers=Math.round(this.settings.fill/100*Math.min(14,1.4/(r*2.02))),rng=random(this.settings.seed);
-    this.count=cols*rows*layers;this.allocate(this.count);this.velocity=new Float64Array(this.count*3);this.previous=new Float64Array(this.count*3);this.next=new Int32Array(this.count);
-    const cell=r*2.1;this.strideY=Math.ceil(2.6/cell)+4;this.strideX=(Math.ceil(4/cell)+4)*this.strideY;
-    this.heads=new Int32Array((Math.ceil(7/cell)+4)*this.strideX);this.neighborOffsets=new Int32Array(27);
-    let neighbor=0;for(let dx=-1;dx<=1;dx++)for(let dy=-1;dy<=1;dy++)for(let dz=-1;dz<=1;dz++)this.neighborOffsets[neighbor++]=dx*this.strideX+dy*this.strideY+dz;
-    let i=0;for(let y=0;y<layers&&i<this.count;y++)for(let z=0;z<rows&&i<this.count;z++)for(let x=0;x<cols&&i<this.count;x++,i++)this.frame.positions.set([-2.75+r+x*r*2.06+(rng()-.5)*.003,.58+r+y*r*2.02,-.78+r+z*r*2.06],i*3);
-    this.initialMass=this.count*4/3*Math.PI*r**3*this.material.density;this.frame.metrics=[0,layers*r*2.02,this.count];
+    super('granular',p);
+    this.tray=new GranularTray(grainSI(this.material.id),{diameter:this.settings.size/1000,fill:this.settings.fill,opening:this.settings.load/100*.15,liftSpeed:this.settings.rate*.1,frictionScale:this.settings.damping,seed:this.settings.seed});
+    this.radius=this.tray.radius*TRAY.scale;this.count=this.tray.count;this.allocate(this.count);
+    this.initialMass=this.tray.solver.mass();this.sync();
   }
+  release():void {super.release();this.tray.release();}
   step(dt=DT):void {
-    const f=this.frame,p=f.positions,r=this.radius;f.time+=dt;this.previous.set(p);
-    const gate=this.released?1.5:Math.min(this.settings.load/100*1.5,f.time*this.settings.rate),friction=clamp(this.material.friction*this.settings.damping,0,1);
-    for(let i=0;i<this.count;i++){const k=i*3;this.velocity[k+1]-=9.81*dt;for(let a=0;a<3;a++)p[k+a]+=this.velocity[k+a]*dt;}
-    const diameter=r*2,cell=diameter*1.05;
-    for(let iteration=0;iteration<4;iteration++){
-      this.heads.fill(-1);
-      for(let i=0;i<this.count;i++){
-        const k=i*3,x=Math.floor((p[k]+3.5)/cell)+2,y=Math.floor(p[k+1]/cell)+2,z=Math.floor((p[k+2]+1.3)/cell)+2,key=x*this.strideX+y*this.strideY+z;
-        for(let neighbor=0;neighbor<27;neighbor++){
-          let j=this.heads[key+this.neighborOffsets[neighbor]];
-          while(j>=0){const l=j*3,vx=p[k]-p[l],vy=p[k+1]-p[l+1],vz=p[k+2]-p[l+2],len2=vx*vx+vy*vy+vz*vz;if(len2>1e-14&&len2<diameter*diameter){const len=Math.sqrt(len2),q=(diameter-len)/len*.5;p[k]+=vx*q;p[k+1]+=vy*q;p[k+2]+=vz*q;p[l]-=vx*q;p[l+1]-=vy*q;p[l+2]-=vz*q;}j=this.next[j];}
-        }
-        this.next[i]=this.heads[key];this.heads[key]=i;
-      }
-      for(let i=0;i<this.count;i++){
-        const k=i*3;p[k]=clamp(p[k],-2.85+r,2.85-r);p[k+1]=Math.max(.58+r,p[k+1]);p[k+2]=clamp(p[k+2],-.85+r,.85-r);
-        if(p[k+1]+r>.58+gate&&this.previous[k]<-1.15-r)p[k]=Math.min(p[k],-1.15-r);
-        const dx=p[k]-1,zz=p[k+2],d=Math.hypot(dx,zz),radius=.27+r;
-        if(p[k+1]<1.18+r&&d<radius){if(d>1e-8){p[k]=1+dx/d*radius;p[k+2]=zz/d*radius;}else p[k]=1+radius;}
-      }
-    }
-    let front=-3,height=0,energy=0;
-    for(let i=0;i<this.count;i++){
-      const k=i*3;for(let a=0;a<3;a++)this.velocity[k+a]=clamp((p[k+a]-this.previous[k+a])/dt,-6,6)*(.996-this.material.damping*.018);
-      if(p[k+1]<.58+r+.004){this.velocity[k]*=1-friction*.2;this.velocity[k+2]*=1-friction*.2;}
-      else {this.velocity[k]*=1-friction*.012;this.velocity[k+2]*=1-friction*.012;}
-      front=Math.max(front,p[k]+r);height=Math.max(height,p[k+1]+r-.58);energy+=this.velocity[k]**2+this.velocity[k+1]**2+this.velocity[k+2]**2;
-    }
-    f.actuator=gate;f.phase=gate<.2?'Gate lifting':energy/this.count<.002&&f.time>4?'Settled':'Avalanching';f.metrics=[Math.max(0,front+1.15),height,this.count];
+    if(!Number.isFinite(dt)||dt<=0||dt>.25)throw new Error('Granular step must be in (0, 0.25] seconds');
+    this.tray.step(dt);this.frame.time+=dt;this.sync();
+  }
+  private sync():void {
+    const f=this.frame,g=this.tray.solver,s=TRAY.scale;
+    for(let i=0;i<this.count;i++){f.positions[3*i]=g.positions[3*i]*s;f.positions[3*i+1]=TRAY.floorModelY+g.positions[3*i+1]*s;f.positions[3*i+2]=g.positions[3*i+2]*s;}
+    const m=this.tray.measure(),lift=this.tray.lift(f.time);
+    f.actuator=Math.min(1.5,lift*s);
+    f.phase=f.time===0?'Ready':lift<.02&&!this.tray.released?'Gate lifting':m.agitation<1e-3&&f.time>1?'Settled':'Avalanching';
+    f.metrics=[m.runout,m.height,m.behind];
   }
 }
 export function createModel(id:LabId,p:Partial<LabSettings>={}):LabModel {
   return id==='liquid'?new LiquidModel(p):id==='glass'?new GlassModel(p):id==='concrete'?new ConcreteModel(p):id==='rubber'?new RubberModel(p):new GranularModel(p);
 }
-export const METRIC_LABELS:Record<LabId,[string,string,string]>={liquid:['Peak depth · m','Peak speed · m/s','Fluid volume · m³'],glass:['Potential energy · J','Fractured pieces · %','Out-of-plane · mm'],concrete:['Compression · %','Broken bonds · %','Peak local strain · %'],rubber:['Compression · %','Retained volume · %','Permanent set · %'],granular:['Runout · model m','Pile height · model m','Grains retained']};
+export const METRIC_LABELS:Record<LabId,[string,string,string]>={liquid:['Peak depth · m','Peak speed · m/s','Fluid volume · m³'],glass:['Potential energy · J','Fractured pieces · %','Out-of-plane · mm'],concrete:['Compression · %','Broken bonds · %','Peak local strain · %'],rubber:['Compression · %','Retained volume · %','Permanent set · %'],granular:['Runout · m','Pile height · m','Grains behind gate']};
