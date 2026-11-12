@@ -5,10 +5,10 @@
  "generatedBy": "node scripts/validation-report.mjs",
  "digits": 9,
  "totals": {
-  "cases": 525,
-  "passed": 525,
+  "cases": 549,
+  "passed": 549,
   "failed": 0,
-  "domains": 20
+  "domains": 21
  },
  "domains": [
   {
@@ -88,6 +88,27 @@
    ],
    "cases": 30,
    "passed": 30
+  },
+  {
+   "id": "si-suspension",
+   "title": "Suspension footbridge (SI model of the Studio bridge)",
+   "summary": "The Engineering Studio's 42 m footbridge: form-finding, the main cable against the parabola, the hangers against the continuous deck, point loads against the deflection theory, the first antisymmetric mode, the time-stepped model against its statics, symmetry, a hanger failure, wind, a parked vehicle and repeatability.",
+   "solver": "`src/engine/si-suspension.ts`: frame elements for the deck grillage and the portal towers, one Newton cable network for the main cables, backstays and hangers solved together with the frame each step by `StructureCoupling`, and a rigid body for an optional service vehicle; 120 Hz",
+   "docs": [
+    "docs/SI_BRIDGE.md"
+   ],
+   "notValidated": [
+    "Contact: nothing rests on the deck surface. Pedestrians are a distributed load on whole panels; the service vehicle is a rigid body pinned to two centreline nodes, as in the cable-stayed scene.",
+    "Linear beams: no buckling of columns, girders or bracing (the plan bracing is linear and carries compression), no yielding, no geometric stiffness of the beams. The utilisations are linear-elastic indicators, not a design check.",
+    "Saddles are fixed to the column tops: the cable does not slip over them. The cables are axial and tension-only with exact geometry; there is no bending of strands and no clamp slip.",
+    "Aerodynamics: wind is a static lateral load fixed for a run. No vortex shedding, flutter, buffeting or pedestrian lock-in, although the first vertical mode (1.41 Hz) is in the band of walking pace.",
+    "A failed hanger stops carrying load at once; it is not drawn swinging. The rupture of a main cable is not modelled.",
+    "The timber boards are mass only; their stiffness, the eccentricity of the crossbeams and the bearings' flexibility are left out.",
+    "Sections are table values of rolled sections and hand estimates of the strands for a plausible footbridge of the Studio's look. Nothing is calibrated against a designed or measured bridge.",
+    "Most time-stepped rows compare with the model's own statics. The independent references are the parabola, the hanger share, the deflection theory and the tensioned-beam frequency."
+   ],
+   "cases": 24,
+   "passed": 24
   },
   {
    "id": "geometry",
@@ -3890,6 +3911,685 @@
     "measured": "0",
     "error": "0",
     "tolerance": "±0"
+   }
+  },
+  {
+   "id": "si-suspension.form.level",
+   "domain": "si-suspension",
+   "title": "Form-finding: the deck is level under dead load",
+   "quantity": "largest girder deflection at a hanger",
+   "unit": "m",
+   "formula": "0 (hangers cut for the reactions of a deck on level supports)",
+   "reference": 0,
+   "measured": 5.80071986e-8,
+   "error": 5.80071986e-8,
+   "relativeError": null,
+   "tolerance": {
+    "kind": "upper",
+    "value": 0.000001
+   },
+   "pass": true,
+   "note": "Four passes: the towers shorten by 0.48 mm and the backstays pull the saddles 0.25 mm outwards, and the funicular is redrawn between the saddles where they went.",
+   "source": {
+    "file": "tests/physics/si-suspension.test.mjs",
+    "test": "form-finding: the deck is level at every hanger, the cable passes the drawn midspan height, the hangers hang plumb",
+    "url": "https://github.com/nathansenn/box3d-WEBGPU/blob/main/tests/physics/si-suspension.test.mjs"
+   },
+   "text": {
+    "reference": "0 m",
+    "measured": "5.80072e-8",
+    "error": "+5.8e-8",
+    "tolerance": "at most 1e-6 above the reference"
+   }
+  },
+  {
+   "id": "si-suspension.form.sag",
+   "domain": "si-suspension",
+   "title": "Form-finding: the main cable passes the drawn midspan height",
+   "quantity": "midspan cable height",
+   "unit": "m",
+   "formula": "saddle height - sag = 14 - 6.8",
+   "reference": 7.2,
+   "measured": 7.19999994,
+   "error": -5.89791469e-8,
+   "relativeError": -8.19154818e-9,
+   "tolerance": {
+    "kind": "upper",
+    "value": 0.000001
+   },
+   "pass": true,
+   "source": {
+    "file": "tests/physics/si-suspension.test.mjs",
+    "test": "form-finding: the deck is level at every hanger, the cable passes the drawn midspan height, the hangers hang plumb",
+    "url": "https://github.com/nathansenn/box3d-WEBGPU/blob/main/tests/physics/si-suspension.test.mjs"
+   },
+   "text": {
+    "reference": "7.2 m",
+    "measured": "7.2",
+    "error": "-5.9e-8",
+    "tolerance": "at most 1e-6 above the reference"
+   }
+  },
+  {
+   "id": "si-suspension.dead.vertical",
+   "domain": "si-suspension",
+   "title": "Dead load: the supports carry the weight (statics)",
+   "quantity": "sum of vertical reactions / weight",
+   "unit": "1",
+   "formula": "sum R_y = (deck + towers + cables + saddles) g",
+   "reference": 1,
+   "measured": 1,
+   "error": -3.28626015e-14,
+   "relativeError": -3.28626015e-14,
+   "tolerance": {
+    "kind": "relative",
+    "value": 1e-9
+   },
+   "pass": true,
+   "source": {
+    "file": "tests/physics/si-suspension.test.mjs",
+    "test": "dead load: the supports carry the whole weight and the horizontal forces balance (statics)",
+    "url": "https://github.com/nathansenn/box3d-WEBGPU/blob/main/tests/physics/si-suspension.test.mjs"
+   },
+   "text": {
+    "reference": "1",
+    "measured": "1",
+    "error": "-3.29e-14 rel.",
+    "tolerance": "±1e-9 rel."
+   }
+  },
+  {
+   "id": "si-suspension.cable.parabola",
+   "domain": "si-suspension",
+   "title": "Main cable: horizontal tension against the parabola",
+   "quantity": "H",
+   "unit": "N",
+   "formula": "H = w L^2 / (8 f), w = cable load / L",
+   "reference": 127433.919,
+   "measured": 129791.914,
+   "error": 2357.99572,
+   "relativeError": 0.0185036743,
+   "tolerance": {
+    "kind": "relative",
+    "value": 0.03
+   },
+   "pass": true,
+   "note": "The parabola takes the load as uniform; the hangers next to the towers carry 13 % more (the end panels of a continuous deck), which puts H 1.9 % above it.",
+   "source": {
+    "file": "tests/physics/si-suspension.test.mjs",
+    "test": "main cable under dead load: H against w L^2 / 8 f, tension at the towers, hangers against the continuous deck",
+    "url": "https://github.com/nathansenn/box3d-WEBGPU/blob/main/tests/physics/si-suspension.test.mjs"
+   },
+   "text": {
+    "reference": "127433.9 N",
+    "measured": "129791.9",
+    "error": "+1.85%",
+    "tolerance": "±3%"
+   }
+  },
+  {
+   "id": "si-suspension.cable.tower",
+   "domain": "si-suspension",
+   "title": "Main cable: tension at the towers",
+   "quantity": "tension of the end segment",
+   "unit": "N",
+   "formula": "sqrt(H^2 + V^2), V = half the cable load",
+   "reference": 153808.05,
+   "measured": 153808.047,
+   "error": -0.00315543014,
+   "relativeError": -2.0515377e-8,
+   "tolerance": {
+    "kind": "relative",
+    "value": 0.000001
+   },
+   "pass": true,
+   "source": {
+    "file": "tests/physics/si-suspension.test.mjs",
+    "test": "main cable under dead load: H against w L^2 / 8 f, tension at the towers, hangers against the continuous deck",
+    "url": "https://github.com/nathansenn/box3d-WEBGPU/blob/main/tests/physics/si-suspension.test.mjs"
+   },
+   "text": {
+    "reference": "153808 N",
+    "measured": "153808",
+    "error": "-2.05e-8 rel.",
+    "tolerance": "±1e-6 rel."
+   }
+  },
+  {
+   "id": "si-suspension.cable.tower-parabola",
+   "domain": "si-suspension",
+   "title": "Main cable: tension at the towers against the parabola",
+   "quantity": "tension of the end segment",
+   "unit": "N",
+   "formula": "H_p sqrt(1 + 16 (f / L)^2)",
+   "reference": 151823.512,
+   "measured": 153808.047,
+   "error": 1984.53473,
+   "relativeError": 0.0130713267,
+   "tolerance": {
+    "kind": "relative",
+    "value": 0.03
+   },
+   "pass": true,
+   "source": {
+    "file": "tests/physics/si-suspension.test.mjs",
+    "test": "main cable under dead load: H against w L^2 / 8 f, tension at the towers, hangers against the continuous deck",
+    "url": "https://github.com/nathansenn/box3d-WEBGPU/blob/main/tests/physics/si-suspension.test.mjs"
+   },
+   "text": {
+    "reference": "151823.5 N",
+    "measured": "153808",
+    "error": "+1.31%",
+    "tolerance": "±3%"
+   }
+  },
+  {
+   "id": "si-suspension.cable.hanger",
+   "domain": "si-suspension",
+   "title": "Hangers: the midspan hanger carries one panel of deck",
+   "quantity": "hanger tension",
+   "unit": "N",
+   "formula": "(girder + crossbeam/2 + bracing/2) g s + half the hanger weight",
+   "reference": 4459.76722,
+   "measured": 4459.76713,
+   "error": -0.0000840373004,
+   "relativeError": -1.88434276e-8,
+   "tolerance": {
+    "kind": "relative",
+    "value": 0.00001
+   },
+   "pass": true,
+   "source": {
+    "file": "tests/physics/si-suspension.test.mjs",
+    "test": "main cable under dead load: H against w L^2 / 8 f, tension at the towers, hangers against the continuous deck",
+    "url": "https://github.com/nathansenn/box3d-WEBGPU/blob/main/tests/physics/si-suspension.test.mjs"
+   },
+   "text": {
+    "reference": "4459.767 N",
+    "measured": "4459.767",
+    "error": "-1.88e-8 rel.",
+    "tolerance": "±1e-5 rel."
+   }
+  },
+  {
+   "id": "si-suspension.point.mid",
+   "domain": "si-suspension",
+   "title": "20 kN at midspan: deck deflection",
+   "quantity": "deflection under the load",
+   "unit": "m",
+   "formula": "linearised deflection theory, EI v'''' - H v'' = p - (8 f / L^2) h, Fourier series",
+   "reference": 0.0107328439,
+   "measured": 0.0109732901,
+   "error": 0.000240446218,
+   "relativeError": 0.0224028432,
+   "tolerance": {
+    "kind": "relative",
+    "value": 0.05
+   },
+   "pass": true,
+   "note": "The theory has inextensible hangers spread as a membrane and one spring per saddle (backstay plus column); the model has 35 elastic hangers per cable and the portal towers.",
+   "source": {
+    "file": "tests/physics/si-suspension.test.mjs",
+    "test": "a 20 kN point load: deck deflection and cable force against the linearised deflection theory",
+    "url": "https://github.com/nathansenn/box3d-WEBGPU/blob/main/tests/physics/si-suspension.test.mjs"
+   },
+   "text": {
+    "reference": "0.01073284 m",
+    "measured": "0.01097329",
+    "error": "+2.24%",
+    "tolerance": "±5%"
+   }
+  },
+  {
+   "id": "si-suspension.point.mid-cable",
+   "domain": "si-suspension",
+   "title": "20 kN at midspan: extra horizontal cable force",
+   "quantity": "h, both cables",
+   "unit": "N",
+   "formula": "h (L_e / EA + 2 / k_s) = (8 f / L^2) integral v dx per cable",
+   "reference": 23462.6076,
+   "measured": 23446.0756,
+   "error": -16.5320378,
+   "relativeError": -0.000704612124,
+   "tolerance": {
+    "kind": "relative",
+    "value": 0.01
+   },
+   "pass": true,
+   "source": {
+    "file": "tests/physics/si-suspension.test.mjs",
+    "test": "a 20 kN point load: deck deflection and cable force against the linearised deflection theory",
+    "url": "https://github.com/nathansenn/box3d-WEBGPU/blob/main/tests/physics/si-suspension.test.mjs"
+   },
+   "text": {
+    "reference": "23462.61 N",
+    "measured": "23446.08",
+    "error": "-0.0705%",
+    "tolerance": "±1%"
+   }
+  },
+  {
+   "id": "si-suspension.point.quarter",
+   "domain": "si-suspension",
+   "title": "20 kN at the quarter point: deck deflection",
+   "quantity": "deflection under the load",
+   "unit": "m",
+   "formula": "the same theory",
+   "reference": 0.018625073,
+   "measured": 0.0181811252,
+   "error": -0.000443947797,
+   "relativeError": -0.0238360299,
+   "tolerance": {
+    "kind": "relative",
+    "value": 0.05
+   },
+   "pass": true,
+   "source": {
+    "file": "tests/physics/si-suspension.test.mjs",
+    "test": "a 20 kN point load: deck deflection and cable force against the linearised deflection theory",
+    "url": "https://github.com/nathansenn/box3d-WEBGPU/blob/main/tests/physics/si-suspension.test.mjs"
+   },
+   "text": {
+    "reference": "0.01862507 m",
+    "measured": "0.01818113",
+    "error": "-2.38%",
+    "tolerance": "±5%"
+   }
+  },
+  {
+   "id": "si-suspension.point.quarter-cable",
+   "domain": "si-suspension",
+   "title": "20 kN at the quarter point: extra horizontal cable force",
+   "quantity": "h, both cables",
+   "unit": "N",
+   "formula": "the same compatibility condition",
+   "reference": 16759.9035,
+   "measured": 16695.8959,
+   "error": -64.0076219,
+   "relativeError": -0.00381909252,
+   "tolerance": {
+    "kind": "relative",
+    "value": 0.01
+   },
+   "pass": true,
+   "source": {
+    "file": "tests/physics/si-suspension.test.mjs",
+    "test": "a 20 kN point load: deck deflection and cable force against the linearised deflection theory",
+    "url": "https://github.com/nathansenn/box3d-WEBGPU/blob/main/tests/physics/si-suspension.test.mjs"
+   },
+   "text": {
+    "reference": "16759.9 N",
+    "measured": "16695.9",
+    "error": "-0.382%",
+    "tolerance": "±1%"
+   }
+  },
+  {
+   "id": "si-suspension.point.antisymmetric",
+   "domain": "si-suspension",
+   "title": "20 kN down and up at the quarter points",
+   "quantity": "deflection under the load",
+   "unit": "m",
+   "formula": "the same theory, h = 0 (the cable keeps its length)",
+   "reference": 0.0302096466,
+   "measured": 0.0292252521,
+   "error": -0.000984394489,
+   "relativeError": -0.0325854354,
+   "tolerance": {
+    "kind": "relative",
+    "value": 0.05
+   },
+   "pass": true,
+   "source": {
+    "file": "tests/physics/si-suspension.test.mjs",
+    "test": "a 20 kN point load: deck deflection and cable force against the linearised deflection theory",
+    "url": "https://github.com/nathansenn/box3d-WEBGPU/blob/main/tests/physics/si-suspension.test.mjs"
+   },
+   "text": {
+    "reference": "0.03020965 m",
+    "measured": "0.02922525",
+    "error": "-3.26%",
+    "tolerance": "±5%"
+   }
+  },
+  {
+   "id": "si-suspension.modes.antisymmetric",
+   "domain": "si-suspension",
+   "title": "First antisymmetric vertical mode: eigenvalue solve against the closed form",
+   "quantity": "frequency",
+   "unit": "Hz",
+   "formula": "f = sqrt((EI k^4 + H k^2) / m) / (2 pi), k = 2 pi / L",
+   "reference": 1.4053751,
+   "measured": 1.41480812,
+   "error": 0.00943301914,
+   "relativeError": 0.00671210065,
+   "tolerance": {
+    "kind": "relative",
+    "value": 0.02
+   },
+   "pass": true,
+   "note": "The closed form leaves out the towers, the cable's own swinging and the discreteness of the hangers. It is the lowest mode of the bridge, inside the band of walking pace.",
+   "source": {
+    "file": "tests/physics/si-suspension.test.mjs",
+    "test": "natural frequencies: the first antisymmetric vertical mode against the tensioned-beam closed form",
+    "url": "https://github.com/nathansenn/box3d-WEBGPU/blob/main/tests/physics/si-suspension.test.mjs"
+   },
+   "text": {
+    "reference": "1.405375 Hz",
+    "measured": "1.414808",
+    "error": "+0.671%",
+    "tolerance": "±2%"
+   }
+  },
+  {
+   "id": "si-suspension.modes.stepped",
+   "domain": "si-suspension",
+   "title": "First antisymmetric mode: time-stepped against the eigenvalue solve",
+   "quantity": "frequency",
+   "unit": "Hz",
+   "formula": "lowest root of K_t x = w^2 M x",
+   "reference": 1.41480812,
+   "measured": 1.41434135,
+   "error": -0.000466772381,
+   "relativeError": -0.000329919212,
+   "tolerance": {
+    "kind": "relative",
+    "value": 0.002
+   },
+   "pass": true,
+   "note": "Released from +-20 kN at the quarter points, undamped, 4 s, modal coordinate.",
+   "source": {
+    "file": "tests/physics/si-suspension.test.mjs",
+    "test": "time-stepped, released from antisymmetric loads: the frequency of the first antisymmetric mode",
+    "url": "https://github.com/nathansenn/box3d-WEBGPU/blob/main/tests/physics/si-suspension.test.mjs"
+   },
+   "text": {
+    "reference": "1.414808 Hz",
+    "measured": "1.414341",
+    "error": "-0.033%",
+    "tolerance": "±0.2%"
+   }
+  },
+  {
+   "id": "si-suspension.crowd.tension",
+   "domain": "si-suspension",
+   "title": "3 kN/m^2 on the west half: time-stepped against the statics",
+   "quantity": "largest segment tension error (fraction)",
+   "unit": "1",
+   "formula": "Newton statics of the same structure",
+   "reference": 0,
+   "measured": 2.86688451e-11,
+   "error": 2.86688451e-11,
+   "relativeError": null,
+   "tolerance": {
+    "kind": "upper",
+    "value": 0.000001
+   },
+   "pass": true,
+   "note": "The cable network is solved with the frame each step (StructureCoupling joint step): at rest the two agree to the solvers' stopping tolerances.",
+   "source": {
+    "file": "tests/physics/si-suspension.test.mjs",
+    "test": "time-stepped, crowd on the west half: equal to the statics, the supports carry structure and crowd",
+    "url": "https://github.com/nathansenn/box3d-WEBGPU/blob/main/tests/physics/si-suspension.test.mjs"
+   },
+   "text": {
+    "reference": "0",
+    "measured": "2.866885e-11",
+    "error": "+2.87e-11",
+    "tolerance": "at most 1e-6 above the reference"
+   }
+  },
+  {
+   "id": "si-suspension.crowd.deflection",
+   "domain": "si-suspension",
+   "title": "3 kN/m^2 on the west half: deck deflection against the statics",
+   "quantity": "largest deck deflection error",
+   "unit": "m",
+   "formula": "Newton statics of the same structure",
+   "reference": 0,
+   "measured": 1.1103618e-13,
+   "error": 1.1103618e-13,
+   "relativeError": null,
+   "tolerance": {
+    "kind": "upper",
+    "value": 1e-7
+   },
+   "pass": true,
+   "source": {
+    "file": "tests/physics/si-suspension.test.mjs",
+    "test": "time-stepped, crowd on the west half: equal to the statics, the supports carry structure and crowd",
+    "url": "https://github.com/nathansenn/box3d-WEBGPU/blob/main/tests/physics/si-suspension.test.mjs"
+   },
+   "text": {
+    "reference": "0 m",
+    "measured": "1.110362e-13",
+    "error": "+1.11e-13",
+    "tolerance": "at most 1e-7 above the reference"
+   }
+  },
+  {
+   "id": "si-suspension.crowd.reactions",
+   "domain": "si-suspension",
+   "title": "3 kN/m^2 on the west half: the supports carry structure and crowd",
+   "quantity": "sum of vertical reactions / (weight + crowd)",
+   "unit": "1",
+   "formula": "sum R_y = weight + crowd (statics)",
+   "reference": 1,
+   "measured": 1,
+   "error": -3.74034137e-13,
+   "relativeError": -3.74034137e-13,
+   "tolerance": {
+    "kind": "relative",
+    "value": 0.000001
+   },
+   "pass": true,
+   "source": {
+    "file": "tests/physics/si-suspension.test.mjs",
+    "test": "time-stepped, crowd on the west half: equal to the statics, the supports carry structure and crowd",
+    "url": "https://github.com/nathansenn/box3d-WEBGPU/blob/main/tests/physics/si-suspension.test.mjs"
+   },
+   "text": {
+    "reference": "1",
+    "measured": "1",
+    "error": "-3.74e-13 rel.",
+    "tolerance": "±1e-6 rel."
+   }
+  },
+  {
+   "id": "si-suspension.mirror.stepped",
+   "domain": "si-suspension",
+   "title": "Mirrored crowds give mirrored tensions (time-stepped)",
+   "quantity": "largest difference between mirror-image segments (fraction)",
+   "unit": "1",
+   "formula": "T_i(west) = T_mirror(i)(east)",
+   "reference": 0,
+   "measured": 7.91482148e-13,
+   "error": 7.91482148e-13,
+   "relativeError": null,
+   "tolerance": {
+    "kind": "upper",
+    "value": 0.000001
+   },
+   "pass": true,
+   "source": {
+    "file": "tests/physics/si-suspension.test.mjs",
+    "test": "symmetry: crowds on the west and east thirds give mirror-image answers",
+    "url": "https://github.com/nathansenn/box3d-WEBGPU/blob/main/tests/physics/si-suspension.test.mjs"
+   },
+   "text": {
+    "reference": "0",
+    "measured": "7.914821e-13",
+    "error": "+7.91e-13",
+    "tolerance": "at most 1e-6 above the reference"
+   }
+  },
+  {
+   "id": "si-suspension.failure.statics",
+   "domain": "si-suspension",
+   "title": "A hanger fails: the others against the damaged statics",
+   "quantity": "largest segment tension error (fraction)",
+   "unit": "1",
+   "formula": "Newton statics without that hanger",
+   "reference": 0,
+   "measured": 7.8769324e-7,
+   "error": 7.8769324e-7,
+   "relativeError": null,
+   "tolerance": {
+    "kind": "upper",
+    "value": 0.0001
+   },
+   "pass": true,
+   "note": "Hanger 12 of the west cable fails at 0.25 s; readings 3 s later. Its two neighbours each take about half of its load (+50 %).",
+   "source": {
+    "file": "tests/physics/si-suspension.test.mjs",
+    "test": "a hanger fails: the load moves to its neighbours as the damaged statics say",
+    "url": "https://github.com/nathansenn/box3d-WEBGPU/blob/main/tests/physics/si-suspension.test.mjs"
+   },
+   "text": {
+    "reference": "0",
+    "measured": "7.876932e-7",
+    "error": "+7.88e-7",
+    "tolerance": "at most 0.0001 above the reference"
+   }
+  },
+  {
+   "id": "si-suspension.failure.reactions",
+   "domain": "si-suspension",
+   "title": "A hanger fails: the supports keep the weight",
+   "quantity": "sum of vertical reactions / weight",
+   "unit": "1",
+   "formula": "sum R_y = weight (statics)",
+   "reference": 1,
+   "measured": 0.999999839,
+   "error": -1.60528403e-7,
+   "relativeError": -1.60528403e-7,
+   "tolerance": {
+    "kind": "relative",
+    "value": 0.00001
+   },
+   "pass": true,
+   "source": {
+    "file": "tests/physics/si-suspension.test.mjs",
+    "test": "a hanger fails: the load moves to its neighbours as the damaged statics say",
+    "url": "https://github.com/nathansenn/box3d-WEBGPU/blob/main/tests/physics/si-suspension.test.mjs"
+   },
+   "text": {
+    "reference": "1",
+    "measured": "0.9999998",
+    "error": "-1.61e-7 rel.",
+    "tolerance": "±1e-5 rel."
+   }
+  },
+  {
+   "id": "si-suspension.wind.lateral",
+   "domain": "si-suspension",
+   "title": "Wind 1.5 kN/m: lateral deflection against the statics",
+   "quantity": "midspan lateral deflection",
+   "unit": "m",
+   "formula": "Newton statics with the wind",
+   "reference": 0.00477065771,
+   "measured": 0.00477065771,
+   "error": -1.57599628e-15,
+   "relativeError": -3.30351992e-13,
+   "tolerance": {
+    "kind": "relative",
+    "value": 0.000001
+   },
+   "pass": true,
+   "source": {
+    "file": "tests/physics/si-suspension.test.mjs",
+    "test": "wind on the deck: lateral deflection equal to the statics, the bearings carry the whole lateral load",
+    "url": "https://github.com/nathansenn/box3d-WEBGPU/blob/main/tests/physics/si-suspension.test.mjs"
+   },
+   "text": {
+    "reference": "0.004770658 m",
+    "measured": "0.004770658",
+    "error": "-3.3e-13 rel.",
+    "tolerance": "±1e-6 rel."
+   }
+  },
+  {
+   "id": "si-suspension.wind.reactions",
+   "domain": "si-suspension",
+   "title": "Wind 1.5 kN/m: the bearings carry the lateral load",
+   "quantity": "sum of lateral reactions / (q L)",
+   "unit": "1",
+   "formula": "sum of lateral R = q L (statics)",
+   "reference": 1,
+   "measured": 1,
+   "error": -1.56430424e-13,
+   "relativeError": -1.56430424e-13,
+   "tolerance": {
+    "kind": "relative",
+    "value": 0.000001
+   },
+   "pass": true,
+   "source": {
+    "file": "tests/physics/si-suspension.test.mjs",
+    "test": "wind on the deck: lateral deflection equal to the statics, the bearings carry the whole lateral load",
+    "url": "https://github.com/nathansenn/box3d-WEBGPU/blob/main/tests/physics/si-suspension.test.mjs"
+   },
+   "text": {
+    "reference": "1",
+    "measured": "1",
+    "error": "-1.56e-13 rel.",
+    "tolerance": "±1e-6 rel."
+   }
+  },
+  {
+   "id": "si-suspension.vehicle.statics",
+   "domain": "si-suspension",
+   "title": "A parked 2 t service vehicle (rigid body): against the statics",
+   "quantity": "largest segment tension error (fraction)",
+   "unit": "1",
+   "formula": "statics with the vehicle's weight shared by the lever rule",
+   "reference": 0,
+   "measured": 4.9636476e-9,
+   "error": 4.9636476e-9,
+   "relativeError": null,
+   "tolerance": {
+    "kind": "upper",
+    "value": 0.000001
+   },
+   "pass": true,
+   "source": {
+    "file": "tests/physics/si-suspension.test.mjs",
+    "test": "a parked service vehicle on the Box3D world: equal to the statics with its weight at its place",
+    "url": "https://github.com/nathansenn/box3d-WEBGPU/blob/main/tests/physics/si-suspension.test.mjs"
+   },
+   "text": {
+    "reference": "0",
+    "measured": "4.963648e-9",
+    "error": "+4.96e-9",
+    "tolerance": "at most 1e-6 above the reference"
+   }
+  },
+  {
+   "id": "si-suspension.determinism",
+   "domain": "si-suspension",
+   "title": "Determinism: bit-identical repeat",
+   "quantity": "differing bytes of the state",
+   "unit": "bytes",
+   "formula": "two runs, the same inputs",
+   "reference": 0,
+   "measured": 0,
+   "error": 0,
+   "relativeError": null,
+   "tolerance": {
+    "kind": "upper",
+    "value": 0
+   },
+   "pass": true,
+   "source": {
+    "file": "tests/physics/si-suspension.test.mjs",
+    "test": "determinism: two runs with a changing crowd, wind and a failing hanger are bit-identical",
+    "url": "https://github.com/nathansenn/box3d-WEBGPU/blob/main/tests/physics/si-suspension.test.mjs"
+   },
+   "text": {
+    "reference": "0 bytes",
+    "measured": "0",
+    "error": "0",
+    "tolerance": "not above the reference"
    }
   },
   {
