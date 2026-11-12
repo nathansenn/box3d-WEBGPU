@@ -82,9 +82,10 @@ restored again.
 `b3w_world_checkpoint_free`, `b3w_world_restore`). Its checkpoint is a 48-byte header, the bridge's body table
 (rows, render matrices and colours, shape kinds, dynamic rows, body slots, mass data set by hand, the random
 generator) and the snapshot. A restore validates everything before it changes anything, then overwrites the world
-in place. When the world holds as many bodies as the checkpoint (it was built the same way, as loading the scene
-does), each row keeps the handle it has in *this* world, so the body and joint handles the caller holds stay
-valid even in a world that hosted other scenes before (its slots carry other generations); otherwise the
+in place. When the world's rows are the checkpoint's first rows (it was built the same way, as loading the scene
+does; bodies the run added later, such as the Lab's projectiles, are extra rows at the end), each row keeps the
+handle it has in *this* world and each extra row gets a new one, so the body and joint handles the caller holds
+stay valid even in a world that hosted other scenes before (its slots carry other generations); otherwise the
 checkpoint's handle table is taken. Body user data (the bridge's slot) and the world index in body ids are written
 for the world the checkpoint lands in.
 
@@ -155,7 +156,7 @@ Measured:
   family, built by hand (cloth with self-contact and an attachment, grains under a block, the volumetric fluid with
   an obstacle and a sphere, solid contact with an impact, the quenched plate across the onset of cracking with 178
   crack events before the checkpoint and 66 after, heat with a solid and both links): the same bytes, and the same
-  events after the checkpoint. The free-surface fluid, with viscosity, no-slip walls, a moving obstacle and a time step changed mid-run, is restored bit for bit. A world checkpoint keeps handles and
+  events after the checkpoint. The free-surface fluid, with viscosity, no-slip walls, a moving obstacle and a time step changed mid-run, is restored bit for bit. A world checkpoint keeps handles (also with a body added after the build) and
   the fixed-step accumulator; `RemoteWorld` restores in its worker. Refused, with nothing changed: another scene, a
   flipped bit, another format version, a truncated file, a world checkpoint where a simulation one is expected, a
   simulation with a subsystem removed.
@@ -179,9 +180,10 @@ Measured:
   and by the solvers' fields and list lengths, so a set-up that differs only in a constant (a material, a friction
   coefficient) is not detected. A bare world restore (`PhysicsWorld.restoreCheckpoint`) checks nothing about the
   bodies: it replaces them.
-- **Handles.** In a world built the same way the caller's body and joint handles keep their meaning. Bodies created
-  or destroyed after the scene was loaded follow the checkpoint (the checkpoint's own handles are used); read them
-  again with `bodyAt`. JavaScript objects outside the Simulation (user data, listeners, a coupling's attachment
+- **Handles.** In a world built the same way the caller's body and joint handles keep their meaning, also when the
+  run added bodies after the build (they get new handles here; read them with `bodyAt`). After a body was destroyed
+  the rows no longer line up: the checkpoint's own handles are taken, and handles held in the world restored into may
+  be stale or name another body; read them again with `bodyAt`. JavaScript objects outside the Simulation (user data, listeners, a coupling's attachment
   reports read by reference) are not saved. A body attached to a coupling that died before the checkpoint must
   also be dead in the world restored into, or the coupling's lists differ and the restore is refused.
 - **Events.** Events are outputs of the step that made them: a checkpoint holds none, and the world's event buffers

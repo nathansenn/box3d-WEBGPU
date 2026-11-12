@@ -12,7 +12,7 @@
   },
   "bridge": {
     "source": "wasm/box3d_web.c",
-    "sha256": "986e16870f8b6d0bf96b1efad623a07323e0c910361be06ecc1bd5b7a4cb3e07",
+    "sha256": "552b6d8310c6675ba7ac97ee68c261eb2731e5384fc14c499729b443ad4229c9",
     "lazyReplayHash": true,
     "sleepingWorldTransformCache": true,
     "independentColorRevision": true,
@@ -35,8 +35,8 @@
       "sha256": "49f7dac3586f7d8d6fed0c85dad4ff6d146b296d1fb9e34861e318247879f959"
     },
     "box3d.wasm": {
-      "bytes": 623667,
-      "sha256": "b2bd28050b3c118aaa45bd50084b6762081789f8781d605574878316656dba63"
+      "bytes": 623498,
+      "sha256": "025bca44cfe3af849d7cad28387f0c5afe99fff1ee2252e4d75b5d6e4d32d009"
     }
   },
   "validation": {
@@ -102,7 +102,7 @@
     "bridge": "wasm/box3d_web.c compiled unchanged; b3CreateWorld and b3World_Step renamed per source",
     "sources": {
       "threadsSha256": "5785c8eb105440000ad2520149a6ebf6f6317dca3d4b5724011972861c57f2cb",
-      "bridgeSha256": "986e16870f8b6d0bf96b1efad623a07323e0c910361be06ecc1bd5b7a4cb3e07",
+      "bridgeSha256": "552b6d8310c6675ba7ac97ee68c261eb2731e5384fc14c499729b443ad4229c9",
       "cmakeSha256": "aa7a56ebc972ef8aaae0a7a4154bc454645f1b001b440e01ebf6af08c5ce1c33"
     },
     "artifacts": {
@@ -111,8 +111,8 @@
         "sha256": "02ddb4df56d3ee2bf9ba21d166caedf33f5e48b521bf987670bcf909264ce8dd"
       },
       "box3d-mt.wasm": {
-        "bytes": 631076,
-        "sha256": "f1cc2dce706992418c0ad706eefcbcaab55ad0fc58811a2f0f3e9a7766eae904"
+        "bytes": 630911,
+        "sha256": "40597bda42ba6149eb667e4f7d5d892861d7e783a53d8ffc26605754f15ffb3f"
       }
     },
     "build": {

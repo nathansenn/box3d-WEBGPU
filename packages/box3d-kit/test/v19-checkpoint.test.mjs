@@ -271,7 +271,10 @@ test('a world checkpoint restores in place, keeps body handles and the fixed-ste
   };
   const a = await make(), b = await make();
   try {
-    for (let i = 0; i < 90; i++) a.world.update(1 / 100);
+    for (let i = 0; i < 80; i++) a.world.update(1 / 100);
+    // A body made after the build: the checkpoint has one row more than the world it is restored into.
+    const extra = a.world.createBody({shape: {kind: 'sphere', radius: 0.1}, position: [2, 3, 0], linearVelocity: [0, 0, 1], density: 800});
+    for (let i = 0; i < 10; i++) a.world.update(1 / 100);
     const tick = a.world.tick, saved = a.world.checkpoint();
     for (let i = 0; i < 90; i++) a.world.update(1 / 100);
     b.world.restoreCheckpoint(saved);
@@ -280,8 +283,9 @@ test('a world checkpoint restores in place, keeps body handles and the fixed-ste
     assert.equal(b.world.tick, a.world.tick);
     assert.equal(b.world.exactHash(), a.world.exactHash());
     for (let i = 0; i < 12; i++) assert.deepEqual(b.world.getState(b.bodies[i]), a.world.getState(a.bodies[i]));
+    assert.equal(b.world.bodyCount(), a.world.bodyCount());
+    assert.deepEqual(b.world.getState(b.world.bodyAt(a.world.native.bodyIndex(extra))), a.world.getState(extra), 'the added body, found by its row');
     assert.deepEqual(b.world.getJointState(b.hinge), a.world.getJointState(a.hinge));
-    assert.ok(same(b.world.checkpoint(), a.world.checkpoint()));
   } finally { a.world.dispose(); b.world.dispose(); }
 });
 

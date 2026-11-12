@@ -3230,19 +3230,23 @@ B3W_EXPORT int b3w_world_restore(uint32_t handle, const uint8_t* data, int size)
     ctx->snapshotHolder = holder;
 
     const uint16_t world0 = (uint16_t)(ctx->world.index1 - 1);
-    // Body handles belong to the world they were made in. When this world holds as many bodies as the checkpoint (it
-    // was built the same way, as a scene load does), every row keeps the handle it has here: the rows take the
+    // Body handles belong to the world they were made in. When this world's rows are the checkpoint's first rows (it
+    // was built the same way, as a scene load does; the checkpoint may have more bodies, added later at the end), every
+    // row this world has keeps the handle it has here and each added row gets a new slot here: the rows take the
     // checkpoint's simulation data and this world's slots, so the handles its caller holds stay valid even when the
     // world was used before and its slots carry other generations. Otherwise the checkpoint's whole handle table is
     // taken, and the bodies have the handles they had where the checkpoint was written.
-    const int keepHandles = ctx->bodyCount == h.bodyCount;
+    const int existing = ctx->bodyCount;
+    int freeAfter = 0;
+    for (int f = ctx->freeSlot; f >= 0 && freeAfter <= h.bodyCount; f = ctx->bodySlots[f].nextFree) ++freeAfter;
+    const int keepHandles = existing <= h.bodyCount && (h.bodyCount - existing) <= freeAfter + (ctx->capacity - ctx->slotsUsed);
     if (keepHandles)
     {
         for (int i = 0; i < h.bodyCount; ++i)
         {
             B3WBody row;
             memcpy(&row, bodies + i, sizeof(row));
-            row.slot = ctx->bodies[i].slot;
+            row.slot = i < existing ? ctx->bodies[i].slot : b3w_ctx_allocate_body_slot(ctx, i);
             ctx->bodies[i] = row;
         }
         int written = 0;
