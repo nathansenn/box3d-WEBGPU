@@ -17,6 +17,7 @@ import simulation from './domains/simulation.mjs';
 import robot from './domains/robot.mjs';
 import cloth from './domains/cloth.mjs';
 import granular from './domains/granular.mjs';
+import fluid from './domains/fluid.mjs';
 import solidContact from './domains/solid-contact.mjs';
 import heat from './domains/heat.mjs';
 import solid from './domains/solid.mjs';
@@ -172,6 +173,20 @@ export const DOMAINS = [
     ],
   },
   {
+    id: 'fluid', title: 'Volumetric fluid: incompressible flow, obstacles, rigid coupling and free surface', needsKit: true,
+    solver: '`box3d-webgpu-kit/fluid`: Navier-Stokes on a staggered grid, incremental pressure projection by MIC(0)-preconditioned conjugate gradients, central (or upwind) advection with Adams-Bashforth 2, explicit, Crank-Nicolson or backward-Euler viscosity, float64; obstacles immersed in the grid; rigid bodies as moving obstacles; a free surface by APIC particles with ghost-fluid p = 0',
+    summary: 'The divergence left by the projection, the Taylor-Green vortex and its convergence, plane Poiseuille and Couette flow, a square duct against its series, an inflow and an outflow, the lid-driven cavity at Re 100 and 400 against Ghia et al., water at rest, Stokes drag on a sphere against Hasimoto, a settling sphere of the rigid world, momentum exchange, repeatability, a dam break against Martin & Moyce and the sloshing frequency.',
+    docs: ['docs/FLUID.md'],
+    notValidated: [
+      'Turbulence. There is no turbulence model; the central scheme is for resolved flow (cell Reynolds number of a few at most), the upwind option is first order and diffusive. No case is above Re 400.',
+      'Obstacles are immersed in the grid with their surface placed to about h^2: at 2.4 cells per radius a sphere\'s drag is 7.5% low, at 3.6 cells 3.3%. Drag at higher Reynolds number, lift, torque on a body, thin plates and bodies smaller than two cells have no case. The pressure inside an obstacle is not physical and creeps.',
+      'Coupling is explicit: the body feels the fluid of the last step. It is checked for a sphere 1.5 times denser than the fluid with the step below the body\'s response time m / (6 pi mu a K); lighter bodies or longer steps can be unstable. Only spheres are checked; the energy ledger of a coupled run does not close (the bodies\' work is sampled at the start of the step).',
+      'Free surface: inviscid, no surface tension, walls only (no obstacles or bodies), closed free-slip tanks. The surface is located from the particles to about half a particle spacing. The dam-break comparison is with one experiment whose start time is not known and is normalised away, as in the paper; the sloshing case loses 15% of its amplitude in three periods.',
+      'Ghia et al. is compared through transcriptions of its tables found on the web (two copies that agree), not the paper. Hasimoto\'s coefficients come from Ladd (1994). Martin & Moyce\'s table was read from a scan.',
+      'Cost: one JavaScript thread. A 32^3 grid steps at a few steps per second; nothing here runs on the GPU.',
+    ],
+  },
+  {
     id: 'heat', title: 'Heat conduction', needsKit: false,
     solver: '`src/engine/heat.ts`: finite volumes on a structured grid, backward Euler, Crank-Nicolson or explicit, float64',
     summary: 'Steady slabs and composite walls, sources, convection and radiation boundaries, temperature-dependent conductivity, the erfc and Fourier-series transients with their observed orders, a 2-D plate, an energy audit and the explicit stability limit.',
@@ -285,7 +300,7 @@ export const DOMAINS = [
   },
 ];
 
-export const CASES = [...rigid, ...waterCoupling, ...structureCoupling, ...siBridge, ...geometry, ...scene, ...simulation, ...robot, ...cloth, ...granular, ...heat, ...solid, ...solidContact, ...fracture, ...frame, ...cable, ...closedWater, ...materials];
+export const CASES = [...rigid, ...waterCoupling, ...structureCoupling, ...siBridge, ...geometry, ...scene, ...simulation, ...robot, ...cloth, ...granular, ...fluid, ...heat, ...solid, ...solidContact, ...fracture, ...frame, ...cable, ...closedWater, ...materials];
 
 /** Cases of the given domains (all when `only` is empty), in registry order. */
 export function selectCases(only = []) {

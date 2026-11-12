@@ -455,6 +455,7 @@ camera.follow(hero.state.position);
 | `box3d-webgpu-kit/scene` | Scene files: a versioned JSON format with validation, load, save, canonical text, hashing, share links and example scenes (see above). |
 | `box3d-webgpu-kit/cloth` | Calibrated cloth: a membrane and plate with real material parameters, implicit integration, contact and friction against rigid bodies, self-collision, and two-way coupling to the rigid world (see below). |
 | `box3d-webgpu-kit/granular` | Granular media by the discrete element method: spherical grains with Hertz or linear contact, friction, rolling resistance, silo and hopper walls, and two-way coupling to the rigid world (see below). |
+| `box3d-webgpu-kit/fluid` | Volumetric incompressible flow: the Navier–Stokes equations on a staggered grid with walls, inflows, outflows and periodic sides, fixed and moving obstacles, two-way coupling to the rigid world, and a free-surface tank of liquid particles (see below). |
 | `box3d-webgpu-kit/materials` | A material library with sources: steels, aluminium, copper, cast iron, glass, concrete, granite, wood, polymers, rubber, ice, water, air, glass beads and sand, each value with its conditions and citation, and helpers that build the inputs of the solvers above (see below). |
 | `box3d-webgpu-kit/simulation` | One stepping loop: a `Simulation` that steps the world, the water and structure couplings, heat and solids in a fixed order, with one clock, energy ledger and event stream (see below). |
 
@@ -736,6 +737,38 @@ With a rigid world: `const coupling = new GranularCoupling(world, g); coupling.a
 - **Walls:** planes, boxes, spheres, capsules, cylinders, rings with a hole, cones; fixed, moving or with mass. Each reports the force on it.
 - **Accuracy:** `test/v17-granular.test.mjs` checks it against closed-form answers; the repository's `docs/GRANULAR.md` has the table. Hertz contact duration to 1e-5, restitution to 1e-3, sliding and rolling on an incline, an energy ledger that closes to 0.12% of the energy dissipated, a block on a bed carried to 7e-7 of its weight.
 - **Limits, measured:** about 2 million grain-steps per second on one thread, which is 100 to 250 soft 10 mm beads in real time. Spheres only. Janssen's saturation and Beverloo's 5/2 law come out in form, with constants that are not the textbook ones. Create coupled bodies with `neverSleeps`.
+
+### Fluid in a volume: drag, wakes and splashes
+
+`Fluid` solves incompressible flow on a grid of cubic cells. This fills a 10 cm tank with an oil, slides its lid, puts a fixed post in it and drops a steel ball of the rigid world into it:
+
+```ts
+import {Fluid, FluidCoupling, fluidSubsystem} from 'box3d-webgpu-kit/fluid';
+import {createSimulation} from 'box3d-webgpu-kit/simulation';
+
+const fluid = new Fluid({cells: [24, 24, 24], spacing: 0.1 / 24, density: 1260, viscosity: 1.4,   // SI: kg/m^3, Pa s
+  dt: 1 / 240, gravity: [0, -9.81, 0], diffusion: 'backward-euler',                               // implicit viscosity: no viscous step limit
+  boundaries: {yMax: {type: 'no-slip', velocity: [0.05, 0, 0]}}});                               // other sides: still walls
+const post = fluid.addObstacle({shape: {kind: 'cylinder', radius: 0.01, halfLength: 0.03}, position: [0.05, 0.03, 0.05], rotation: [0.7071068, 0, 0, 0.7071068]});
+fluid.setPressure((x, y) => 1260 * 9.81 * (0.1 - y));                                           // start at rest, hydrostatic
+
+const ball = world.createBody({shape: {kind: 'sphere', radius: 0.01}, position: [0.05, 0.07, 0.05], density: 7800, neverSleeps: true});
+const coupling = new FluidCoupling(world, fluid);                                                // world step = whole number of fluid steps
+coupling.addBody(ball, {shape: {kind: 'sphere', radius: 0.01}});
+const sim = createSimulation(world).add(fluidSubsystem(coupling));
+sim.step();
+fluid.velocityAt(0.05, 0.09, 0.05);  // m/s, interpolated
+fluid.obstacleForce(post);            // N on the post (pressure, viscous stress, buoyancy)
+coupling.force(ball);                 // N the fluid put on the ball over the last step
+```
+
+Sides are `'no-slip'` (a wall, moving along itself if you give it a velocity), `'free-slip'`, `'inflow'` (a velocity, constant or a function of position), `'outflow'` (p = 0) or `'periodic'`. One cell along z with periodic z sides makes a 2D flow. `FreeSurfaceFluid` is a closed tank of liquid particles with a free surface: `tank.addLiquid((x, y) => x < 0.08 && y < 0.12); tank.step(50); tank.positions`.
+
+- **Method:** pressure on cell centres, velocities on faces, a projection solved by conjugate gradients with an incomplete-Cholesky preconditioner; second-order central advection (or first-order `'upwind'`); viscosity explicit, Crank–Nicolson or backward Euler. Float64 and deterministic.
+- **Obstacles and bodies:** spheres, boxes, capsules and cylinders, fixed or moving. Each reports the force and torque of the fluid on it. A coupled body is moved by that force, and what the body gets the fluid loses, to round-off.
+- **Time step:** with explicit viscosity at most `h^2 / (2 d nu)`; the Courant number must stay below `cflLimit` (1). A step above either is refused (`UNSTABLE_TIME_STEP`); `fluid.maxTimeStep()` gives both. The coupling is explicit: keep the rigid step below the body's response time (about `m / (6 pi mu r)` for a sphere).
+- **Accuracy:** `test/v18-fluid.test.mjs` checks it against closed forms and published data; the repository's `docs/FLUID.md` has the table. The lid-driven cavity within 0.8% (Re 100) and 1.5% (Re 400) of Ghia et al. on the centre lines, Taylor–Green decay at second order, water at rest to round-off, a sphere's drag 7.5% low at 2.4 cells per radius and 3.3% at 3.6, a dam break within 7.4% of Martin & Moyce, sloshing frequency within 0.5%.
+- **Limits, measured:** about 0.3 to 0.9 million cell-steps per second on one thread (a 16³ grid in 5 ms, 32³ in 53 ms), so about 10,000 cells per 60 Hz frame. No turbulence model. The free surface has no viscosity, surface tension or bodies.
 
 ### Materials with sources
 

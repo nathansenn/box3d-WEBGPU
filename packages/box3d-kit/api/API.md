@@ -7800,6 +7800,483 @@ Time a Rayleigh surface wave takes around half a grain: pi r sqrt(rho / G) / (0.
 export declare function rayleighTime(radius: number, density: number, youngModulus: number, poissonRatio: number): number;
 ```
 
+## `box3d-webgpu-kit/fluid`
+
+### ductFlowRate · function
+
+Volume flow of the same duct: Q = (4 b a^3 G / (3 nu)) [1 - (192 a / (pi^5 b)) sum_{n odd} tanh(n pi b / 2a) / n^5].
+
+```ts
+export declare function ductFlowRate(a: number, b: number, acceleration: number, nu: number, terms?: number): number;
+```
+
+### ductVelocity · function
+
+Fully developed flow in a rectangular duct |y| < a, |z| < b driven by a body acceleration G (pressure gradient over
+density), kinematic viscosity nu (series solution, e.g. White, Viscous Fluid Flow, sec. 3-3; written from memory and
+checked against the solver and against the limit b >> a, where it tends to plane Poiseuille flow):
+  u = (16 a^2 G / (nu pi^3)) sum_{n odd} (-1)^((n-1)/2) [1 - cosh(n pi z / 2a) / cosh(n pi b / 2a)] cos(n pi y / 2a) / n^3
+
+```ts
+export declare function ductVelocity(y: number, z: number, a: number, b: number, acceleration: number, nu: number, terms?: number): number;
+```
+
+### Fluid · class
+
+Incompressible Navier-Stokes on a staggered grid. See the file header and docs/FLUID.md.
+
+```ts
+export declare class Fluid {
+  readonly solver = "fluid-mac-projection-mic-pcg-js-f64-v1";
+  readonly nx: number;
+  readonly ny: number;
+  readonly nz: number;
+  readonly h: number;
+  readonly origin: FluidVec3;
+  readonly density: number;
+  readonly viscosity: number;
+  readonly nu: number;
+  readonly dt: number;
+  readonly gravity: Float64Array;
+  readonly bodyForce: Float64Array;
+  readonly advection: 'central' | 'upwind' | 'none';
+  readonly diffusion: 'explicit' | 'crank-nicolson' | 'backward-euler';
+  readonly theta: number;
+  readonly pressureTolerance: number;
+  readonly viscousTolerance: number;
+  readonly maxIterations: number;
+  readonly cflLimit: number;
+  readonly sides: readonly Side[];
+  readonly NX: number;
+  readonly NY: number;
+  readonly NZ: number;
+  readonly size: number;
+  readonly stride: readonly [number, number, number];
+  readonly u: Float64Array;
+  readonly v: Float64Array;
+  readonly w: Float64Array;
+  readonly vel: readonly [Float64Array, Float64Array, Float64Array];
+  readonly p: Float64Array;
+  readonly cells: number;
+  readonly stats: FluidStats;
+  time: number;
+  dissipated: number;
+  workByBodies: number;
+  workByBoundaries: number;
+  workByForces: number;
+  faceIndex(f: number): [number, number, number];
+  facePosition(c: number, f: number): [number, number, number];
+  index(i: number, j: number, k: number): number;
+  maxTimeStep(): FluidTimeStepLimits;
+  checkTimeStep(allowUnstable?: boolean): void;
+  setVelocity(field: (x: number, y: number, z: number) => ArrayLike<number>): void;
+  project(): void;
+  setPressure(field: (x: number, y: number, z: number) => number): void;
+  cellCentre(c: number): [number, number, number];
+  addObstacle(options: FluidObstacleOptions): number;
+  get obstacleCount(): number;
+  setObstacleState(index: number, state: FluidObstacleState): void;
+  setObstacleEnabled(index: number, enabled: boolean): void;
+  obstacleForce(index: number): Float64Array;
+  obstacleTorque(index: number): Float64Array;
+  obstacleImpulse(index: number): Float64Array;
+  resetObstacleImpulses(index?: number): void;
+  obstacleVolume(index: number): number;
+  step(count?: number): void;
+  divergenceAt(c: number): number;
+  maxDivergence(): number;
+  kineticEnergy(): number;
+  momentum(): [number, number, number];
+  viscousPower(): number;
+  boundaryPower(): number;
+  energyBalance(): number;
+  velocityAt(x: number, y: number, z: number, out?: number[] | Float64Array): number[] | Float64Array;
+  pressureAt(x: number, y: number, z: number): number;
+  flowRate(axis: 0 | 1 | 2, index: number): number;
+  controlVolumeForce(min: FluidVec3, max: FluidVec3): [number, number, number];
+}
+```
+
+### FLUID_COUPLING_BACKEND · const
+
+```ts
+export declare const FLUID_COUPLING_BACKEND = "rigid-fluid-coupling-fictitious-domain-js-f64-v1";
+```
+
+### FLUID_MAX_CELLS · const
+
+```ts
+export declare const FLUID_MAX_CELLS: number;
+```
+
+### FLUID_SOLVER_ID · const
+
+```ts
+export declare const FLUID_SOLVER_ID = "fluid-mac-projection-mic-pcg-js-f64-v1";
+```
+
+### FLUID_SUBSYSTEM_ORDER · const
+
+Where the fluid runs inside the couple stage of a Simulation: after the grains (160) and solid contact (170), before the water (200).
+
+```ts
+export declare const FLUID_SUBSYSTEM_ORDER = 180;
+```
+
+### FluidBodyOptions · interface
+
+```ts
+export interface FluidBodyOptions {
+    readonly shape: FluidShape;
+    readonly twoWay?: boolean;
+}
+```
+
+### FluidBoundaries · interface
+
+```ts
+export interface FluidBoundaries {
+    readonly xMin?: FluidBoundaryType | FluidBoundary;
+    readonly xMax?: FluidBoundaryType | FluidBoundary;
+    readonly yMin?: FluidBoundaryType | FluidBoundary;
+    readonly yMax?: FluidBoundaryType | FluidBoundary;
+    readonly zMin?: FluidBoundaryType | FluidBoundary;
+    readonly zMax?: FluidBoundaryType | FluidBoundary;
+}
+```
+
+### FluidBoundary · interface
+
+```ts
+export interface FluidBoundary {
+    readonly type: FluidBoundaryType;
+    readonly velocity?: FluidVec3 | ((x: number, y: number, z: number) => FluidVec3);
+}
+```
+
+### FluidBoundaryType · type
+
+```ts
+export type FluidBoundaryType = 'no-slip' | 'free-slip' | 'inflow' | 'outflow' | 'periodic';
+```
+
+### FluidCoupling · class
+
+Two-way coupling of a Fluid with a rigid world. Call `step()` immediately before `world.step()`. Every coupled body is
+a moving obstacle at the pose and velocity the world reports; the fluid takes `substeps` = rigid step / fluid step of
+its own steps (the body moving at that velocity), and each dynamic body receives the mean hydrodynamic force and torque
+of those steps (buoyancy included) to act through the rigid step. The impulse the fluid receives and the impulse the
+body is handed are the same numbers with opposite signs. The body's response comes one rigid step later (explicit
+coupling): a body lighter than about the fluid it displaces can be unstable.
+
+```ts
+export declare class FluidCoupling<B> {
+  readonly backend = "rigid-fluid-coupling-fictitious-domain-js-f64-v1";
+  readonly world: FluidWorld<B>;
+  readonly fluid: Fluid;
+  readonly dt: number;
+  readonly substeps: number;
+  steps: number;
+  addBody(body: B, options: FluidBodyOptions): number;
+  indexOf(body: B): number;
+  force(body: B): Float64Array;
+  torque(body: B): Float64Array;
+  step(): void;
+  diagnostics(): FluidCouplingDiagnostics;
+}
+```
+
+### FluidCouplingDiagnostics · interface
+
+```ts
+export interface FluidCouplingDiagnostics {
+    fluidKinetic: number;
+    bodyKinetic: number;
+    momentum: [number, number, number];
+    dissipated: number;
+    workByBodies: number;
+}
+```
+
+### FluidCouplingOptions · interface
+
+```ts
+export interface FluidCouplingOptions {
+    readonly step?: number;
+}
+```
+
+### FluidObstacleOptions · interface
+
+```ts
+export interface FluidObstacleOptions extends Partial<FluidObstacleState> {
+    readonly shape: FluidShape;
+}
+```
+
+### FluidObstacleState · interface
+
+```ts
+export interface FluidObstacleState {
+    readonly position: ArrayLike<number>;
+    readonly rotation?: ArrayLike<number>;
+    readonly linearVelocity?: ArrayLike<number>;
+    readonly angularVelocity?: ArrayLike<number>;
+}
+```
+
+### FluidOptions · interface
+
+```ts
+export interface FluidOptions {
+    readonly cells: FluidVec3;
+    readonly spacing: number;
+    readonly origin?: FluidVec3;
+    readonly density: number;
+    readonly viscosity: number;
+    readonly dt: number;
+    readonly gravity?: FluidVec3;
+    readonly bodyForce?: FluidVec3;
+    readonly boundaries?: FluidBoundaries;
+    readonly advection?: 'central' | 'upwind' | 'none';
+    readonly diffusion?: 'explicit' | 'crank-nicolson' | 'backward-euler';
+    readonly pressureTolerance?: number;
+    readonly viscousTolerance?: number;
+    readonly maxIterations?: number;
+    readonly cflLimit?: number;
+    readonly allowUnstable?: boolean;
+}
+```
+
+### FluidShape · type
+
+```ts
+export type FluidShape = {
+    readonly kind: 'sphere';
+    readonly radius: number;
+} | {
+    readonly kind: 'box';
+    readonly halfExtents: FluidVec3;
+}
+| {
+    readonly kind: 'capsule';
+    readonly radius: number;
+    readonly halfLength: number;
+}
+| {
+    readonly kind: 'cylinder';
+    readonly radius: number;
+    readonly halfLength: number;
+};
+```
+
+### fluidShapeVolume · function
+
+Volume of a shape, m^3.
+
+```ts
+export declare function fluidShapeVolume(s: FluidShape): number;
+```
+
+### FluidStats · interface
+
+```ts
+export interface FluidStats {
+    steps: number;
+    pressureIterations: number;
+    divergence: number;
+    viscousIterations: number;
+    cfl: number;
+    maxCfl: number;
+    cflExceeded: number;
+    unconverged: number;
+    unstable: boolean;
+}
+```
+
+### fluidSubsystem · function
+
+A fluid as a subsystem of the one stepping loop (simulation.ts).
+ - A `FluidCoupling`: couple stage, order 180. Its time step is the rigid step (it takes `substeps` fluid steps inside).
+ - A bare `Fluid`: post stage; its dt may be the step, a whole fraction of it or a whole multiple.
+Registration fails with UNSTABLE_TIME_STEP when the step is above the explicit viscous limit or the starting Courant
+number is above `cflLimit` (unless the Fluid was built with allowUnstable).
+Energy: kinetic energy of the fluid; `exchanged` is the work of the bodies, moving walls, open sides and body forces;
+the parts list `dissipated` (viscous): total - exchanged + dissipated is constant up to the discretisation error.
+Events, at the end of a step: 'cfl-exceeded' {cfl} when the Courant number first rises above the limit,
+'unconverged' {iterations} when a projection stopped at maxIterations, 'unstable-step' once when accepted above a limit.
+
+```ts
+export declare function fluidSubsystem<W, B>(target: Fluid | FluidCoupling<B>, options?: {
+    readonly id?: string;
+    readonly order?: number;
+}): Subsystem<W, B>;
+```
+
+### FluidTimeStepLimits · interface
+
+```ts
+export interface FluidTimeStepLimits {
+    readonly viscous: number;
+    readonly advective: number;
+}
+```
+
+### FluidVec3 · type
+
+```ts
+export type FluidVec3 = readonly [number, number, number];
+```
+
+### FluidWorld · interface
+
+The part of a rigid-body world the coupling uses. The kit's PhysicsWorld satisfies it.
+
+```ts
+export interface FluidWorld<B> {
+    gravity(): readonly number[];
+    getState(body: B): {
+        readonly position: readonly number[];
+        readonly rotation: readonly number[];
+        readonly linearVelocity: readonly number[];
+        readonly angularVelocity: readonly number[];
+        readonly mass: number;
+        readonly type: string;
+    };
+    applyForce(body: B, force: FluidVec3): void;
+    applyTorque(body: B, torque: FluidVec3): void;
+    isAlive?(body: B): boolean;
+    readonly loop?: {
+        readonly step: number;
+    };
+}
+```
+
+### FREE_SURFACE_SOLVER_ID · const
+
+```ts
+export declare const FREE_SURFACE_SOLVER_ID = "fluid-free-surface-apic-mac-js-f64-v1";
+```
+
+### FreeSurfaceFluid · class
+
+Inviscid incompressible liquid with a free surface in a closed tank (free-slip walls), float64, deterministic.
+The liquid is carried by particles with the affine particle-in-cell transfer (APIC, Jiang et al. 2015): each step the
+particles' momentum goes to the staggered grid, gravity is added, the velocity is projected to zero divergence in the
+cells that hold particles with p = 0 at the centres of the empty cells (a first-order free surface), extrapolated two
+cells out, and read back to the particles with its gradient, which then move with it. See docs/FLUID.md.
+
+```ts
+export declare class FreeSurfaceFluid {
+  readonly solver = "fluid-free-surface-apic-mac-js-f64-v1";
+  readonly nx: number;
+  readonly ny: number;
+  readonly nz: number;
+  readonly h: number;
+  readonly origin: FluidVec3;
+  readonly density: number;
+  readonly dt: number;
+  readonly gravity: Float64Array;
+  readonly flat: boolean;
+  readonly perAxis: number;
+  readonly pressureTolerance: number;
+  readonly maxIterations: number;
+  readonly cflLimit: number;
+  readonly capacity: number;
+  readonly vel: [Float64Array, Float64Array, Float64Array];
+  readonly p: Float64Array;
+  readonly liquid: Uint8Array;
+  readonly stats: FreeSurfaceStats;
+  time: number;
+  positions: Float64Array;
+  velocities: Float64Array;
+  affine: Float64Array;
+  count: number;
+  particleMass: number;
+  addLiquid(inside: (x: number, y: number, z: number) => boolean, velocity?: FluidVec3): number;
+  maxDivergence(): number;
+  step(count?: number): void;
+  liquidVolume(): number;
+  particleVolume(): number;
+  kineticEnergy(): number;
+  potentialEnergy(): number;
+  front(axis?: 0 | 1 | 2): number;
+  surfaceHeight(x0: number, x1: number): number;
+  maxSpeed(): number;
+}
+```
+
+### FreeSurfaceOptions · interface
+
+```ts
+export interface FreeSurfaceOptions {
+    readonly cells: FluidVec3;
+    readonly spacing: number;
+    readonly origin?: FluidVec3;
+    readonly density: number;
+    readonly dt: number;
+    readonly gravity?: FluidVec3;
+    readonly particlesPerAxis?: number;
+    readonly pressureTolerance?: number;
+    readonly maxIterations?: number;
+    readonly cflLimit?: number;
+    readonly capacity?: number;
+}
+```
+
+### FreeSurfaceStats · interface
+
+```ts
+export interface FreeSurfaceStats {
+    steps: number;
+    pressureIterations: number;
+    liquidCells: number;
+    cfl: number;
+    maxCfl: number;
+    cflExceeded: number;
+    unconverged: number;
+    divergence: number;
+}
+```
+
+### hasimotoDragFactor · const
+
+Drag of a simple cubic array of spheres in Stokes flow over that of one sphere alone, K = F / (6 pi mu a U), with U the
+mean velocity over the whole periodic cell and c the solid fraction (Hasimoto 1959, as given by Ladd 1994, eq. 3.5):
+  1 / K = 1 - 1.7601 c^(1/3) + c - 1.5593 c^2
+
+```ts
+export declare const hasimotoDragFactor: (solidFraction: number) => number;
+```
+
+### poiseuilleVelocity · const
+
+Plane Poiseuille flow between walls at 0 and H driven by a body acceleration G: u = G y (H - y) / (2 nu).
+
+```ts
+export declare const poiseuilleVelocity: (y: number, height: number, acceleration: number, nu: number) => number;
+```
+
+### sloshingFrequency · const
+
+Linear standing wave in a tank of length L and depth H, mode n: omega^2 = g k tanh(k H), k = n pi / L. Returns the frequency, Hz.
+
+```ts
+export declare const sloshingFrequency: (length: number, depth: number, gravity?: number, mode?: number) => number;
+```
+
+### taylorGreenVelocity · function
+
+Taylor-Green vortex in a periodic square of side 2 pi / k: u = U sin kx cos ky e^(-2 nu k^2 t), v = -U cos kx sin ky e^(-2 nu k^2 t).
+
+```ts
+export declare function taylorGreenVelocity(x: number, y: number, t: number, { speed, wavenumber, nu }: {
+    speed?: number;
+    wavenumber?: number;
+    nu: number;
+}): [number, number, number];
+```
+
 ## `box3d-webgpu-kit/solid-contact`
 
 ### SOLID_CONTACT_SOLVER_ID · const

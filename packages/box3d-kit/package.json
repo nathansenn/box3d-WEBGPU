@@ -60,6 +60,10 @@
       "types": "./dist/granular.d.ts",
       "default": "./dist/granular.js"
     },
+    "./fluid": {
+      "types": "./dist/fluid.d.ts",
+      "default": "./dist/fluid.js"
+    },
     "./materials": {
       "types": "./dist/materials.d.ts",
       "default": "./dist/materials.js"

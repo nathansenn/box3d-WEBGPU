@@ -673,6 +673,387 @@ export declare function validateTickBatch<C extends FixedTickCommand>(tick: numb
     commands: C[];
 };
 
+// ==== core/fluid.d.ts ====
+import type { Subsystem } from './simulation.js';
+export declare const FLUID_SOLVER_ID = "fluid-mac-projection-mic-pcg-js-f64-v1";
+export declare const FLUID_COUPLING_BACKEND = "rigid-fluid-coupling-fictitious-domain-js-f64-v1";
+export declare const FLUID_MAX_CELLS: number;
+export type FluidVec3 = readonly [number, number, number];
+export type FluidBoundaryType = 'no-slip' | 'free-slip' | 'inflow' | 'outflow' | 'periodic';
+export interface FluidBoundary {
+    readonly type: FluidBoundaryType;
+    readonly velocity?: FluidVec3 | ((x: number, y: number, z: number) => FluidVec3);
+}
+export interface FluidBoundaries {
+    readonly xMin?: FluidBoundaryType | FluidBoundary;
+    readonly xMax?: FluidBoundaryType | FluidBoundary;
+    readonly yMin?: FluidBoundaryType | FluidBoundary;
+    readonly yMax?: FluidBoundaryType | FluidBoundary;
+    readonly zMin?: FluidBoundaryType | FluidBoundary;
+    readonly zMax?: FluidBoundaryType | FluidBoundary;
+}
+export type FluidShape = {
+    readonly kind: 'sphere';
+    readonly radius: number;
+} | {
+    readonly kind: 'box';
+    readonly halfExtents: FluidVec3;
+}
+ | {
+    readonly kind: 'capsule';
+    readonly radius: number;
+    readonly halfLength: number;
+}
+ | {
+    readonly kind: 'cylinder';
+    readonly radius: number;
+    readonly halfLength: number;
+};
+export interface FluidObstacleState {
+    readonly position: ArrayLike<number>;
+    readonly rotation?: ArrayLike<number>;
+    readonly linearVelocity?: ArrayLike<number>;
+    readonly angularVelocity?: ArrayLike<number>;
+}
+export interface FluidObstacleOptions extends Partial<FluidObstacleState> {
+    readonly shape: FluidShape;
+}
+export interface FluidOptions {
+    readonly cells: FluidVec3;
+    readonly spacing: number;
+    readonly origin?: FluidVec3;
+    readonly density: number;
+    readonly viscosity: number;
+    readonly dt: number;
+    readonly gravity?: FluidVec3;
+    readonly bodyForce?: FluidVec3;
+    readonly boundaries?: FluidBoundaries;
+    readonly advection?: 'central' | 'upwind' | 'none';
+    readonly diffusion?: 'explicit' | 'crank-nicolson' | 'backward-euler';
+    readonly pressureTolerance?: number;
+    readonly viscousTolerance?: number;
+    readonly maxIterations?: number;
+    readonly cflLimit?: number;
+    readonly allowUnstable?: boolean;
+}
+export interface FluidStats {
+    steps: number;
+    pressureIterations: number;
+    divergence: number;
+    viscousIterations: number;
+    cfl: number;
+    maxCfl: number;
+    cflExceeded: number;
+    unconverged: number;
+    unstable: boolean;
+}
+export interface FluidTimeStepLimits {
+    readonly viscous: number;
+    readonly advective: number;
+}
+interface Side {
+    readonly type: FluidBoundaryType;
+    readonly velocity: FluidVec3 | ((x: number, y: number, z: number) => FluidVec3);
+}
+export declare function fluidShapeVolume(s: FluidShape): number;
+export declare class Fluid {
+    readonly solver = "fluid-mac-projection-mic-pcg-js-f64-v1";
+    readonly nx: number;
+    readonly ny: number;
+    readonly nz: number;
+    readonly h: number;
+    readonly origin: FluidVec3;
+    readonly density: number;
+    readonly viscosity: number;
+    readonly nu: number;
+    readonly dt: number;
+    readonly gravity: Float64Array;
+    readonly bodyForce: Float64Array;
+    readonly advection: 'central' | 'upwind' | 'none';
+    readonly diffusion: 'explicit' | 'crank-nicolson' | 'backward-euler';
+    readonly theta: number;
+    readonly pressureTolerance: number;
+    readonly viscousTolerance: number;
+    readonly maxIterations: number;
+    readonly cflLimit: number;
+    readonly sides: readonly Side[];
+    readonly NX: number;
+    readonly NY: number;
+    readonly NZ: number;
+    readonly size: number;
+    readonly stride: readonly [number, number, number];
+    private readonly es;
+    readonly u: Float64Array;
+    readonly v: Float64Array;
+    readonly w: Float64Array;
+    readonly vel: readonly [Float64Array, Float64Array, Float64Array];
+    readonly p: Float64Array;
+    readonly cells: number;
+    readonly stats: FluidStats;
+    time: number;
+    dissipated: number;
+    workByBodies: number;
+    workByBoundaries: number;
+    workByForces: number;
+    private readonly kind;
+    private readonly unknown;
+    private readonly copies;
+    private readonly outflows;
+    private readonly fixedFaces;
+    private readonly fixedValues;
+    private readonly ghostDst;
+    private readonly ghostSrc;
+    private readonly ghostA;
+    private readonly ghostB;
+    private readonly gradFace;
+    private readonly gradLow;
+    private readonly gradHigh;
+    private readonly gradWL;
+    private readonly gradWH;
+    private readonly cellPad;
+    private readonly nbr;
+    private readonly diag;
+    private readonly plus;
+    private readonly lowMask;
+    private readonly precon;
+    private readonly singular;
+    private readonly activeAxes;
+    private readonly adv;
+    private readonly advPrev;
+    private hasPrev;
+    private readonly rhs;
+    private readonly cr;
+    private readonly cz;
+    private readonly cd;
+    private readonly cq;
+    private readonly phi;
+    private readonly wx;
+    private readonly wr;
+    private readonly wz;
+    private readonly wd;
+    private readonly wq;
+    private readonly wb;
+    private readonly pred;
+    private readonly pen;
+    private readonly alpha;
+    private readonly dist;
+    private readonly mode;
+    private readonly outFace;
+    private readonly weight;
+    private readonly value;
+    private readonly owner;
+    private readonly target;
+    private readonly solidFaces;
+    private readonly obstacles;
+    private obstaclesDirty;
+    private ledgerRate;
+    private boundaryRate;
+    constructor(options: FluidOptions);
+    private sideVelocity;
+    faceIndex(f: number): [number, number, number];
+    facePosition(c: number, f: number): [number, number, number];
+    index(i: number, j: number, k: number): number;
+    maxTimeStep(): FluidTimeStepLimits;
+    private maxComponent;
+    private maxSpeedSum;
+    checkTimeStep(allowUnstable?: boolean): void;
+    setVelocity(field: (x: number, y: number, z: number) => ArrayLike<number>): void;
+    project(): void;
+    setPressure(field: (x: number, y: number, z: number) => number): void;
+    cellCentre(c: number): [number, number, number];
+    private fillGhosts;
+    private fillAll;
+    private copyOutflows;
+    addObstacle(options: FluidObstacleOptions): number;
+    get obstacleCount(): number;
+    private obstacle;
+    setObstacleState(index: number, state: FluidObstacleState): void;
+    setObstacleEnabled(index: number, enabled: boolean): void;
+    obstacleForce(index: number): Float64Array;
+    obstacleTorque(index: number): Float64Array;
+    obstacleImpulse(index: number): Float64Array;
+    resetObstacleImpulses(index?: number): void;
+    obstacleVolume(index: number): number;
+    private updateObstacles;
+    private faceDistance;
+    private updateTargets;
+    private insideMomentum;
+    private advect;
+    private lap;
+    step(count?: number): void;
+    private advance;
+    private solveViscous;
+    divergenceAt(c: number): number;
+    maxDivergence(): number;
+    private maxSpeed;
+    private applyA;
+    private buildPreconditioner;
+    private applyPreconditioner;
+    private projectVelocity;
+    kineticEnergy(): number;
+    momentum(): [number, number, number];
+    viscousPower(): number;
+    private wallPower;
+    boundaryPower(): number;
+    private forcePower;
+    energyBalance(): number;
+    velocityAt(x: number, y: number, z: number, out?: number[] | Float64Array): number[] | Float64Array;
+    pressureAt(x: number, y: number, z: number): number;
+    flowRate(axis: 0 | 1 | 2, index: number): number;
+    controlVolumeForce(min: FluidVec3, max: FluidVec3): [number, number, number];
+}
+export declare const FREE_SURFACE_SOLVER_ID = "fluid-free-surface-apic-mac-js-f64-v1";
+export interface FreeSurfaceOptions {
+    readonly cells: FluidVec3;
+    readonly spacing: number;
+    readonly origin?: FluidVec3;
+    readonly density: number;
+    readonly dt: number;
+    readonly gravity?: FluidVec3;
+    readonly particlesPerAxis?: number;
+    readonly pressureTolerance?: number;
+    readonly maxIterations?: number;
+    readonly cflLimit?: number;
+    readonly capacity?: number;
+}
+export interface FreeSurfaceStats {
+    steps: number;
+    pressureIterations: number;
+    liquidCells: number;
+    cfl: number;
+    maxCfl: number;
+    cflExceeded: number;
+    unconverged: number;
+    divergence: number;
+}
+export declare class FreeSurfaceFluid {
+    readonly solver = "fluid-free-surface-apic-mac-js-f64-v1";
+    readonly nx: number;
+    readonly ny: number;
+    readonly nz: number;
+    readonly h: number;
+    readonly origin: FluidVec3;
+    readonly density: number;
+    readonly dt: number;
+    readonly gravity: Float64Array;
+    readonly flat: boolean;
+    readonly perAxis: number;
+    readonly pressureTolerance: number;
+    readonly maxIterations: number;
+    readonly cflLimit: number;
+    readonly capacity: number;
+    readonly vel: [Float64Array, Float64Array, Float64Array];
+    readonly p: Float64Array;
+    readonly liquid: Uint8Array;
+    readonly stats: FreeSurfaceStats;
+    time: number;
+    positions: Float64Array;
+    velocities: Float64Array;
+    affine: Float64Array;
+    count: number;
+    particleMass: number;
+    private readonly dims;
+    private readonly weight;
+    private readonly valid;
+    private readonly cellsTotal;
+    private readonly phi;
+    private readonly b;
+    private readonly r;
+    private readonly z;
+    private readonly d;
+    private readonly q;
+    private readonly pre;
+    private readonly diag;
+    private readonly scratch;
+    constructor(options: FreeSurfaceOptions);
+    addLiquid(inside: (x: number, y: number, z: number) => boolean, velocity?: FluidVec3): number;
+    private stencil;
+    private readonly base;
+    private readonly frac;
+    private toGrid;
+    private markLiquid;
+    private cell;
+    private walls;
+    private extrapolate;
+    private project;
+    maxDivergence(): number;
+    private toParticles;
+    step(count?: number): void;
+    liquidVolume(): number;
+    particleVolume(): number;
+    kineticEnergy(): number;
+    potentialEnergy(): number;
+    front(axis?: 0 | 1 | 2): number;
+    surfaceHeight(x0: number, x1: number): number;
+    maxSpeed(): number;
+}
+export declare const sloshingFrequency: (length: number, depth: number, gravity?: number, mode?: number) => number;
+export declare function taylorGreenVelocity(x: number, y: number, t: number, { speed, wavenumber, nu }: {
+    speed?: number;
+    wavenumber?: number;
+    nu: number;
+}): [number, number, number];
+export declare const poiseuilleVelocity: (y: number, height: number, acceleration: number, nu: number) => number;
+export declare function ductVelocity(y: number, z: number, a: number, b: number, acceleration: number, nu: number, terms?: number): number;
+export declare function ductFlowRate(a: number, b: number, acceleration: number, nu: number, terms?: number): number;
+export declare const hasimotoDragFactor: (solidFraction: number) => number;
+export interface FluidWorld<B> {
+    gravity(): readonly number[];
+    getState(body: B): {
+        readonly position: readonly number[];
+        readonly rotation: readonly number[];
+        readonly linearVelocity: readonly number[];
+        readonly angularVelocity: readonly number[];
+        readonly mass: number;
+        readonly type: string;
+    };
+    applyForce(body: B, force: FluidVec3): void;
+    applyTorque(body: B, torque: FluidVec3): void;
+    isAlive?(body: B): boolean;
+    readonly loop?: {
+        readonly step: number;
+    };
+}
+export interface FluidBodyOptions {
+    readonly shape: FluidShape;
+    readonly twoWay?: boolean;
+}
+export interface FluidCouplingOptions {
+    readonly step?: number;
+}
+export interface FluidCouplingDiagnostics {
+    fluidKinetic: number;
+    bodyKinetic: number;
+    momentum: [number, number, number];
+    dissipated: number;
+    workByBodies: number;
+}
+export declare class FluidCoupling<B> {
+    readonly backend = "rigid-fluid-coupling-fictitious-domain-js-f64-v1";
+    readonly world: FluidWorld<B>;
+    readonly fluid: Fluid;
+    readonly dt: number;
+    readonly substeps: number;
+    private readonly list;
+    private readonly byBody;
+    private readonly out;
+    steps: number;
+    constructor(world: FluidWorld<B>, fluid: Fluid, options?: FluidCouplingOptions);
+    addBody(body: B, options: FluidBodyOptions): number;
+    private entry;
+    indexOf(body: B): number;
+    force(body: B): Float64Array;
+    torque(body: B): Float64Array;
+    step(): void;
+    diagnostics(): FluidCouplingDiagnostics;
+}
+export declare const FLUID_SUBSYSTEM_ORDER = 180;
+export declare function fluidSubsystem<W, B>(target: Fluid | FluidCoupling<B>, options?: {
+    readonly id?: string;
+    readonly order?: number;
+}): Subsystem<W, B>;
+export {};
+
 // ==== core/frame-element.d.ts ====
 export interface FrameElement {
     a: number;
@@ -4662,6 +5043,9 @@ export interface PoseArrays {
 export declare function readPoses(source: InstanceSource, out: PoseArrays): number;
 export declare function packPoses(source: InstanceSource, out: Float32Array): number;
 export declare function readBodyPoses(world: PhysicsWorld, bodies: readonly (Body | null)[], out: PoseArrays): number;
+
+// ==== fluid.d.ts ====
+export * from './core/fluid.js';
 
 // ==== fracture.d.ts ====
 export * from './core/solid-fracture.js';

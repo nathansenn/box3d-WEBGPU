@@ -56,6 +56,8 @@ simulation.step();
  │                                           own steps to t + dt with the bodies they touch, applies the mean force
  │                 170  solid coupling       (`solidContactSubsystem` of box3d-webgpu-kit/solid-contact) solves the
  │                                           solid with the bodies it touches or is welded to, applies its forces
+ │                 180  fluid coupling       (`fluidSubsystem` of box3d-webgpu-kit/fluid) takes the fluid's own steps
+ │                                           to t + dt with the bodies as moving obstacles, applies the mean force
  │                 200  water coupling       reads the bodies at t, applies buoyancy and drag,
  │                                           advances the water to t + dt
  │
@@ -137,6 +139,7 @@ Each adapter calls the module's own `step` and nothing else. No module's numeric
 | solid → heat, water ↔ solid, water ↔ cable or frame | Not modelled. |
 | rigid ↔ cloth | Two-way, through `ClothCoupling` and `clothSubsystem` ([`CLOTH.md`](CLOTH.md)): contact with friction, attachments. The adapter lives in the cloth module, not in `simulation.ts`. A cloth and a cable, a frame or water on the same body do not know of each other, as above. A scene file can describe a cloth (`cloths`, [`SCENE_FORMAT.md`](SCENE_FORMAT.md#coupled-sections-cloths-and-grains)). |
 | rigid ↔ grains | Two-way, through `GranularCoupling` and `granularSubsystem` ([`GRANULAR.md`](GRANULAR.md)): the grains take a whole number of their own steps inside each rigid step, with the bodies they touch moving alongside, and hand the world the mean force. The adapter lives in the granular module. Grains and a cloth, a cable or water on the same body do not know of each other, as above. A scene file can describe grain sets (`grains`). |
+| rigid ↔ volumetric fluid | Two-way, through `FluidCoupling` and `fluidSubsystem` ([`FLUID.md`](FLUID.md)): bodies are moving obstacles of the fluid's grid, the fluid takes a whole number of its own steps inside each rigid step and hands each body the mean force and torque (buoyancy included). Explicit: the body sees the fluid one step late. A bare `Fluid` runs in the post stage. The free-surface option is not coupled. Fluid is not in the scene format, and it does not know of the height-field water, cloth, cables or grains on the same body. |
 | the app's cloth, rope and granular scenes, GPU water | Not in the loop yet. |
 
 ### Water and structure together
