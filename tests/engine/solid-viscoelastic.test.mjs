@@ -93,3 +93,10 @@ test('through SolidContact: a viscoelastic cube resting on a plane creeps under 
   console.log('# contact creep',JSON.stringify({early,late,elastic}));
   assert.ok(early<.5*elastic,'stiff at first');assert.ok(Math.abs(late/elastic-1)<.03,`relaxed settlement ${late} against ${elastic}`);
 });
+
+test('checkpoint: a creeping viscoelastic bar restored from saveState() continues bit for bit',async()=>{
+  const {encodeState,decodeState}=await import('../../src/engine/checkpoint.ts');
+  const make=()=>{const b=bar({density:1e-3});b.constrain(b.selectNodes(x=>x<1e-9));b.addTraction(b.selectFaces((cx,cy,cz,nx)=>nx>.999),[3e4,0,0]);return b;};
+  const a=make();a.step(40);const b=make();b.restoreState(decodeState(encodeState(a.saveState())));
+  a.step(60);b.step(60);assert.deepEqual([...b.displacements],[...a.displacements]);assert.deepEqual(b.stresses(),a.stresses());
+});

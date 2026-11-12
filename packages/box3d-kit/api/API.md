@@ -9071,7 +9071,7 @@ export declare const MATERIAL_LIBRARY_ID = "box3d-materials";
 Semver of the data: a changed value is a minor release, a removed material or property a major one.
 
 ```ts
-export declare const MATERIAL_LIBRARY_VERSION = "1.1.0";
+export declare const MATERIAL_LIBRARY_VERSION = "1.2.0";
 ```
 
 ### MATERIAL_PROPERTY_UNITS · const

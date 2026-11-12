@@ -5,10 +5,10 @@
  "generatedBy": "node scripts/validation-report.mjs",
  "digits": 9,
  "totals": {
-  "cases": 496,
-  "passed": 496,
+  "cases": 511,
+  "passed": 511,
   "failed": 0,
-  "domains": 19
+  "domains": 20
  },
  "domains": [
   {
@@ -255,12 +255,12 @@
     "Bending is where this element is weak, and the table shows it: one cell through the thickness is three times too stiff, four cells 12%, eight cells 3.4%. Bending frequencies are 5% to 6% high at four cells.",
     "Near-incompressibility: at nu = 0.4999 the four-cell cantilever is 29% too stiff. There is no mixed or higher-order element.",
     "With nu = 0.3 a clamped root also restrains Poisson contraction, which beam theory ignores: the 3-D limit sits about 1.2% below the Timoshenko reference.",
-    "Contact and self-contact, plasticity, viscoelasticity, anisotropy, and more than one material per body. Crack growth is a separate solver on the linear model of this element (the fracture domain); `SolidBody` itself only flags elements above a strength.",
+    "Viscoelasticity is a stress-based Prony series: checked for uniaxial creep, relaxation and recovery at small strain and for a uniform Neo-Hookean stretch; it is not objective under large rotation while an overstress remains, and no measured rubber was fitted. Contact and self-contact, plasticity, anisotropy, and more than one material per body. Crack growth is a separate solver on the linear model of this element (the fracture domain); `SolidBody` itself only flags elements above a strength.",
     "No two-way coupling to the rigid-body, water, cable or frame solvers, and no contact with rigid bodies. The one-way thermal and dead-load links are in the simulation domain.",
     "Uniform states are exact, so the tension, shear, pressure and rubber rows say nothing about accuracy under stress gradients."
    ],
-   "cases": 29,
-   "passed": 29
+   "cases": 35,
+   "passed": 35
   },
   {
    "id": "solid-contact",
@@ -302,6 +302,24 @@
    ],
    "cases": 22,
    "passed": 22
+  },
+  {
+   "id": "plate",
+   "title": "Thin plates with brittle fracture",
+   "summary": "A simply supported pane under uniform pressure against the Navier series (deflection, moment, order), its first mode against the grid's exact frequency and Kirchhoff theory, energy of the explicit step, and the pressure of the first crack, with and without a surface prestress, against the Navier stress.",
+   "solver": "`src/engine/plate.ts`: Kirchhoff bending on a regular grid (finite-difference curvatures, energy-consistent forces), explicit symplectic Euler, cracks as broken bonds between nodes, float64",
+   "docs": [
+    "docs/STUDIO_MATERIAL_LABS.md"
+   ],
+   "notValidated": [
+    "Linear plate theory: deflections well above the thickness stiffen a real pane by membrane action, which is not modelled; the Studio's impacts reach several thicknesses.",
+    "Crack paths follow the grid (bonds along x and y, 0.1 m in the Studio): a crack at 45 degrees is a staircase, and nothing finer than a cell is resolved. Once a bond breaks the crack runs, which is right for glass (l_ch of a fraction of a millimetre) and wrong for tougher materials.",
+    "The strength check reads the moment at a bond's middle. A point load on one node gives a mesh-dependent peak (the Kirchhoff point-load moment is logarithmically singular): onset under a hard impactor depends on the cell size. Hertzian contact stresses and cone cracks are not modelled.",
+    "Tempered glass dicing is a front that breaks every bond it reaches; its speed and the fragment size quoted by the Studio are inputs from the literature, not results.",
+    "Bridging layers (PVB, wire mesh) are strings with the in-plane displacement neglected; they never tear. No impact validation: the contact with the pendulum is a penalty spring and dashpot, and fragments fall as rigid bodies that do not collide with each other."
+   ],
+   "cases": 9,
+   "passed": 9
   },
   {
    "id": "frame",
@@ -369,7 +387,7 @@
    ],
    "notValidated": [
     "The values themselves: each row checks that a library value reaches a solver in the right unit and role, with the reference computed from the same value. Whether 6061-T6 really has E = 68.9 GPa is the source's claim (docs/MATERIALS.md cites it), not something measured here.",
-    "Source quality varies: standards and NIST data, manufacturers' typical values (\"not for design\"), and for several friction pairs only The Engineering ToolBox, marked as a last resort. 6 of the 208 values are unverified (no source opened) and are refused by the helpers unless allowUnverified is set.",
+    "Source quality varies: standards and NIST data, manufacturers' typical values (\"not for design\"), and for several friction pairs only The Engineering ToolBox, marked as a last resort. 6 of the 228 values are unverified (no source opened) and are refused by the helpers unless allowUnverified is set.",
     "Friction and restitution are properties of a pair, a surface finish and a speed. The rigid world applies one coefficient to sticking and sliding, mixes two bodies as sqrt(f_a f_b) and max(e_a, e_b), and does not apply restitution to slow impacts; the library records the measured speed but no solver uses it.",
     "Temperature dependence: each value holds at the stated temperature (mostly 20 to 25 °C); only the steel, concrete and wood formulas the sources give were evaluated, at 20 °C.",
     "Anisotropy and variability: wood is orthotropic and is given along the grain; rubber, polymers and wood vary with grade, moisture, rate and cross-linking well beyond the ranges here; grain-scale moduli of beads and sand are back-calculated from contact tests."
@@ -11708,6 +11726,176 @@
    }
   },
   {
+   "id": "solid.viscoelastic.recursion",
+   "domain": "solid",
+   "title": "Viscoelastic relaxation: the stress history",
+   "quantity": "largest relative difference over 600 steps between the stress of a held strain and the discrete Prony recursion E eps (1 + gamma b a^(n-1))",
+   "unit": "1",
+   "formula": "a = exp(-dt / tau), b = (1 - a) / (dt / tau)",
+   "reference": 0,
+   "measured": 1.33226763e-15,
+   "error": 1.33226763e-15,
+   "relativeError": null,
+   "tolerance": {
+    "kind": "absolute",
+    "value": 1e-9
+   },
+   "pass": true,
+   "source": {
+    "file": "tests/engine/solid-viscoelastic.test.mjs",
+    "test": "relaxation: a strain held from the first step relaxes by the discrete Prony recursion, which approaches E (1 + gamma exp(-t / tau))",
+    "url": "https://github.com/nathansenn/box3d-WEBGPU/blob/main/tests/engine/solid-viscoelastic.test.mjs"
+   },
+   "text": {
+    "reference": "0",
+    "measured": "1.332268e-15",
+    "error": "+1.33e-15",
+    "tolerance": "±1e-9"
+   }
+  },
+  {
+   "id": "solid.viscoelastic.relaxation",
+   "domain": "solid",
+   "title": "Viscoelastic relaxation at t = tau",
+   "quantity": "axial stress of a bar held at 1 % strain from t = 0, dt = tau / 200",
+   "unit": "Pa",
+   "formula": "sigma = E eps (1 + gamma exp(-t / tau))",
+   "reference": 31036.3832,
+   "measured": 31064.0202,
+   "error": 27.6370006,
+   "relativeError": 0.000890471043,
+   "tolerance": {
+    "kind": "relative",
+    "value": 0.01
+   },
+   "pass": true,
+   "note": "The recursion takes the strain as rising linearly over the first step, so a step load reads O(dt / tau) high.",
+   "source": {
+    "file": "tests/engine/solid-viscoelastic.test.mjs",
+    "test": "relaxation: a strain held from the first step relaxes by the discrete Prony recursion, which approaches E (1 + gamma exp(-t / tau))",
+    "url": "https://github.com/nathansenn/box3d-WEBGPU/blob/main/tests/engine/solid-viscoelastic.test.mjs"
+   },
+   "text": {
+    "reference": "31036.38 Pa",
+    "measured": "31064.02",
+    "error": "+0.089%",
+    "tolerance": "±1%"
+   }
+  },
+  {
+   "id": "solid.viscoelastic.creep",
+   "domain": "solid",
+   "title": "Creep of a standard linear solid at t = tau (1 + gamma)",
+   "quantity": "strain of a bar under a constant 50 kPa traction, dt = tau / 200",
+   "unit": "1",
+   "formula": "eps = sigma / E - (sigma / E - sigma / E0) exp(-t / tau_c), E0 = E (1 + gamma), tau_c = tau (1 + gamma)",
+   "reference": 0.0194818084,
+   "measured": 0.0194762865,
+   "error": -0.00000552186949,
+   "relativeError": -0.000283437214,
+   "tolerance": {
+    "kind": "relative",
+    "value": 0.01
+   },
+   "pass": true,
+   "source": {
+    "file": "tests/engine/solid-viscoelastic.test.mjs",
+    "test": "creep and recovery of a bar under constant stress follow the standard linear solid, retardation time tau (1 + gamma)",
+    "url": "https://github.com/nathansenn/box3d-WEBGPU/blob/main/tests/engine/solid-viscoelastic.test.mjs"
+   },
+   "text": {
+    "reference": "0.01948181",
+    "measured": "0.01947629",
+    "error": "-0.0283%",
+    "tolerance": "±1%"
+   }
+  },
+  {
+   "id": "solid.viscoelastic.creep-order",
+   "domain": "solid",
+   "title": "Creep: observed order in the time step",
+   "quantity": "order of the creep error at tau_c from dt = tau / 100 to tau / 200",
+   "unit": "1",
+   "formula": "backward Euler: 1",
+   "reference": 1,
+   "measured": 1.00096011,
+   "error": 0.000960109064,
+   "relativeError": 0.000960109064,
+   "tolerance": {
+    "kind": "absolute",
+    "value": 0.2
+   },
+   "pass": true,
+   "source": {
+    "file": "tests/engine/solid-viscoelastic.test.mjs",
+    "test": "creep and recovery of a bar under constant stress follow the standard linear solid, retardation time tau (1 + gamma)",
+    "url": "https://github.com/nathansenn/box3d-WEBGPU/blob/main/tests/engine/solid-viscoelastic.test.mjs"
+   },
+   "text": {
+    "reference": "1",
+    "measured": "1.00096",
+    "error": "+0.00096",
+    "tolerance": "±0.2"
+   }
+  },
+  {
+   "id": "solid.viscoelastic.recovery",
+   "domain": "solid",
+   "title": "Recovery after unloading",
+   "quantity": "strain tau_c after the 50 kPa traction is removed at 3 tau_c",
+   "unit": "1",
+   "formula": "eps = (eps(t1) - sigma / E0) exp(-(t - t1) / tau_c)",
+   "reference": 0.00524345703,
+   "measured": 0.00524870357,
+   "error": 0.00000524653928,
+   "relativeError": 0.00100058783,
+   "tolerance": {
+    "kind": "relative",
+    "value": 0.01
+   },
+   "pass": true,
+   "source": {
+    "file": "tests/engine/solid-viscoelastic.test.mjs",
+    "test": "creep and recovery of a bar under constant stress follow the standard linear solid, retardation time tau (1 + gamma)",
+    "url": "https://github.com/nathansenn/box3d-WEBGPU/blob/main/tests/engine/solid-viscoelastic.test.mjs"
+   },
+   "text": {
+    "reference": "0.005243457",
+    "measured": "0.005248704",
+    "error": "+0.1%",
+    "tolerance": "±1%"
+   }
+  },
+  {
+   "id": "solid.viscoelastic.contact",
+   "domain": "solid",
+   "title": "Viscoelastic cube on a plane through SolidContact",
+   "quantity": "settlement of the top face after 16 tau under its own weight (E = 20 kPa long-term, 4x instantaneous)",
+   "unit": "m",
+   "formula": "rho g L^2 / (2 E) (fully relaxed)",
+   "reference": 0.0024525,
+   "measured": 0.00241851485,
+   "error": -0.0000339851478,
+   "relativeError": -0.0138573487,
+   "tolerance": {
+    "kind": "relative",
+    "value": 0.03
+   },
+   "pass": true,
+   "note": "Lumped weights on 2 cells; the contact springs sink the base by a small extra depth.",
+   "source": {
+    "file": "tests/engine/solid-viscoelastic.test.mjs",
+    "test": "through SolidContact: a viscoelastic cube resting on a plane creeps under its weight to the elastic settlement",
+    "url": "https://github.com/nathansenn/box3d-WEBGPU/blob/main/tests/engine/solid-viscoelastic.test.mjs"
+   },
+   "text": {
+    "reference": "0.0024525 m",
+    "measured": "0.002418515",
+    "error": "-1.39%",
+    "tolerance": "±3%"
+   }
+  },
+  {
    "id": "solid-contact.pad.stress",
    "domain": "solid-contact",
    "title": "Rigid block on an elastic pad with free sides",
@@ -13055,6 +13243,263 @@
     "measured": "1.374694",
     "error": "+0.375",
     "tolerance": "at most 0.6 above the reference"
+   }
+  },
+  {
+   "id": "plate.navier.deflection",
+   "domain": "plate",
+   "title": "Simply supported plate under uniform pressure: centre deflection",
+   "quantity": "centre deflection of the pane under 1 kPa, 26 x 20 cells (0.1 m)",
+   "unit": "m",
+   "formula": "Navier series w = sum 16 q sin(m pi/2) sin(n pi/2) / (pi^6 D m n ((m/a)^2 + (n/b)^2)^2)",
+   "reference": 0.0315315706,
+   "measured": 0.0315318462,
+   "error": 2.75624853e-7,
+   "relativeError": 0.00000874123451,
+   "tolerance": {
+    "kind": "relative",
+    "value": 0.00002
+   },
+   "pass": true,
+   "source": {
+    "file": "tests/engine/plate.test.mjs",
+    "test": "static: uniform pressure on a simply supported plate matches the Navier series; moments converge at second order",
+    "url": "https://github.com/nathansenn/box3d-WEBGPU/blob/main/tests/engine/plate.test.mjs"
+   },
+   "text": {
+    "reference": "0.03153157 m",
+    "measured": "0.03153185",
+    "error": "+8.74e-6 rel.",
+    "tolerance": "±2e-5 rel."
+   }
+  },
+  {
+   "id": "plate.navier.moment",
+   "domain": "plate",
+   "title": "Simply supported plate under uniform pressure: centre moment",
+   "quantity": "centre moment M_y per unit length, 26 x 20 cells",
+   "unit": "N m/m",
+   "formula": "Navier series M_y = D sum c ((n pi / b)^2 + nu (m pi / a)^2)",
+   "reference": 268.45832,
+   "measured": 267.982455,
+   "error": -0.475865215,
+   "relativeError": -0.00177258509,
+   "tolerance": {
+    "kind": "relative",
+    "value": 0.003
+   },
+   "pass": true,
+   "note": "Finite-difference curvatures: second-order error, 0.18 % at 0.1 m cells.",
+   "source": {
+    "file": "tests/engine/plate.test.mjs",
+    "test": "static: uniform pressure on a simply supported plate matches the Navier series; moments converge at second order",
+    "url": "https://github.com/nathansenn/box3d-WEBGPU/blob/main/tests/engine/plate.test.mjs"
+   },
+   "text": {
+    "reference": "268.4583 N m/m",
+    "measured": "267.9825",
+    "error": "-0.177%",
+    "tolerance": "±0.3%"
+   }
+  },
+  {
+   "id": "plate.navier.order",
+   "domain": "plate",
+   "title": "Centre moment: observed order",
+   "quantity": "convergence order of the M_y error from 26 x 20 to 52 x 40 cells",
+   "unit": "1",
+   "formula": "log2(e_coarse / e_fine) = 2",
+   "reference": 2,
+   "measured": 1.99740223,
+   "error": -0.00259777219,
+   "relativeError": -0.00129888609,
+   "tolerance": {
+    "kind": "absolute",
+    "value": 0.1
+   },
+   "pass": true,
+   "source": {
+    "file": "tests/engine/plate.test.mjs",
+    "test": "static: uniform pressure on a simply supported plate matches the Navier series; moments converge at second order",
+    "url": "https://github.com/nathansenn/box3d-WEBGPU/blob/main/tests/engine/plate.test.mjs"
+   },
+   "text": {
+    "reference": "2",
+    "measured": "1.997402",
+    "error": "-0.0026",
+    "tolerance": "±0.1"
+   }
+  },
+  {
+   "id": "plate.frequency.grid",
+   "domain": "plate",
+   "title": "First mode of the simply supported pane: the grid's own frequency",
+   "quantity": "frequency of the (1,1) mode released from its shape, explicit steps at half the limit",
+   "unit": "Hz",
+   "formula": "f = (lambda_x + lambda_y) sqrt(D / (rho t)) / (2 pi), lambda = (4 / h^2) sin^2(m pi h / (2 a))",
+   "reference": 7.94631177,
+   "measured": 7.94631972,
+   "error": 0.00000795193238,
+   "relativeError": 0.00000100070732,
+   "tolerance": {
+    "kind": "relative",
+    "value": 0.00001
+   },
+   "pass": true,
+   "note": "The sine modes are exact eigenvectors of the grid, so this checks the operator and the time step, not the mesh.",
+   "source": {
+    "file": "tests/engine/plate.test.mjs",
+    "test": "dynamics: the (1,1) mode rings at the exact grid frequency, which approaches Kirchhoff theory",
+    "url": "https://github.com/nathansenn/box3d-WEBGPU/blob/main/tests/engine/plate.test.mjs"
+   },
+   "text": {
+    "reference": "7.946312 Hz",
+    "measured": "7.94632",
+    "error": "+1e-6 rel.",
+    "tolerance": "±1e-5 rel."
+   }
+  },
+  {
+   "id": "plate.frequency.theory",
+   "domain": "plate",
+   "title": "First mode of the simply supported pane against Kirchhoff theory",
+   "quantity": "frequency of the (1,1) mode, 26 x 20 cells",
+   "unit": "Hz",
+   "formula": "f = (pi / 2) ((1 / a)^2 + (1 / b)^2) sqrt(D / (rho t))",
+   "reference": 7.96018481,
+   "measured": 7.94631972,
+   "error": -0.0138650869,
+   "relativeError": -0.00174180465,
+   "tolerance": {
+    "kind": "relative",
+    "value": 0.0025
+   },
+   "pass": true,
+   "note": "The grid is 0.17 % low at 0.1 m cells (second order).",
+   "source": {
+    "file": "tests/engine/plate.test.mjs",
+    "test": "dynamics: the (1,1) mode rings at the exact grid frequency, which approaches Kirchhoff theory",
+    "url": "https://github.com/nathansenn/box3d-WEBGPU/blob/main/tests/engine/plate.test.mjs"
+   },
+   "text": {
+    "reference": "7.960185 Hz",
+    "measured": "7.94632",
+    "error": "-0.174%",
+    "tolerance": "±0.25%"
+   }
+  },
+  {
+   "id": "plate.energy",
+   "domain": "plate",
+   "title": "Explicit step: energy without damping",
+   "quantity": "largest relative energy change over 40,000 steps at half the stability limit",
+   "unit": "1",
+   "formula": "|E(t) / E(0) - 1| -> 0 as h -> 0",
+   "reference": 0,
+   "measured": 0.00245636634,
+   "error": 0.00245636634,
+   "relativeError": null,
+   "tolerance": {
+    "kind": "absolute",
+    "value": 0.005
+   },
+   "pass": true,
+   "note": "Symplectic Euler keeps a bounded oscillation of order omega h; it does not drift.",
+   "source": {
+    "file": "tests/engine/plate.test.mjs",
+    "test": "dynamics: the (1,1) mode rings at the exact grid frequency, which approaches Kirchhoff theory",
+    "url": "https://github.com/nathansenn/box3d-WEBGPU/blob/main/tests/engine/plate.test.mjs"
+   },
+   "text": {
+    "reference": "0",
+    "measured": "0.002456366",
+    "error": "+0.00246",
+    "tolerance": "±0.005"
+   }
+  },
+  {
+   "id": "plate.fracture.onset",
+   "domain": "plate",
+   "title": "First crack under uniform pressure",
+   "quantity": "pressure at which the first bond of the simply supported pane breaks (strength 41 MPa)",
+   "unit": "Pa",
+   "formula": "q_c = sigma_c t^2 / (6 max(M_x, M_y) per unit q) (Navier)",
+   "reference": 1629.05487,
+   "measured": 1638.58923,
+   "error": 9.53435698,
+   "relativeError": 0.00585269235,
+   "tolerance": {
+    "kind": "relative",
+    "value": 0.02
+   },
+   "pass": true,
+   "note": "The check reads the moment at a bond's middle, the mean of two nodes, so the grid cracks 0.6 % later than the peak at the centre says.",
+   "source": {
+    "file": "tests/engine/plate.test.mjs",
+    "test": "fracture: the first crack opens where the Navier surface stress reaches the strength, perpendicular to it; prestress adds to the strength",
+    "url": "https://github.com/nathansenn/box3d-WEBGPU/blob/main/tests/engine/plate.test.mjs"
+   },
+   "text": {
+    "reference": "1629.055 Pa",
+    "measured": "1638.589",
+    "error": "+0.585%",
+    "tolerance": "±2%"
+   }
+  },
+  {
+   "id": "plate.fracture.prestress",
+   "domain": "plate",
+   "title": "First crack with a surface prestress",
+   "quantity": "onset pressure with 124 MPa surface compression over that without",
+   "unit": "1",
+   "formula": "(sigma_c + sigma_p) / sigma_c (linear plate)",
+   "reference": 4.02439024,
+   "measured": 4.02439024,
+   "error": -1.65378822e-12,
+   "relativeError": -4.10941315e-13,
+   "tolerance": {
+    "kind": "relative",
+    "value": 1e-9
+   },
+   "pass": true,
+   "source": {
+    "file": "tests/engine/plate.test.mjs",
+    "test": "fracture: the first crack opens where the Navier surface stress reaches the strength, perpendicular to it; prestress adds to the strength",
+    "url": "https://github.com/nathansenn/box3d-WEBGPU/blob/main/tests/engine/plate.test.mjs"
+   },
+   "text": {
+    "reference": "4.02439",
+    "measured": "4.02439",
+    "error": "-4.11e-13 rel.",
+    "tolerance": "±1e-9 rel."
+   }
+  },
+  {
+   "id": "plate.fracture.margin",
+   "domain": "plate",
+   "title": "First crack is never early",
+   "quantity": "onset pressure over the Navier estimate",
+   "unit": "1",
+   "formula": "q_c / q_Navier >= 1",
+   "reference": 1,
+   "measured": 1.00585269,
+   "error": 0.00585269235,
+   "relativeError": 0.00585269235,
+   "tolerance": {
+    "kind": "lower",
+    "value": 0
+   },
+   "pass": true,
+   "source": {
+    "file": "tests/engine/plate.test.mjs",
+    "test": "fracture: the first crack opens where the Navier surface stress reaches the strength, perpendicular to it; prestress adds to the strength",
+    "url": "https://github.com/nathansenn/box3d-WEBGPU/blob/main/tests/engine/plate.test.mjs"
+   },
+   "text": {
+    "reference": "1",
+    "measured": "1.005853",
+    "error": "+0.00585",
+    "tolerance": "not below the reference"
    }
   },
   {

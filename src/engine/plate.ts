@@ -1,6 +1,7 @@
 // Thin plates: Kirchhoff bending on a regular grid, explicit dynamics, brittle fracture between nodes.
 // See docs/PLATE.md. SI units throughout. float64.
 import {EngineError,finite,integer,onlyKeys,record} from './contracts.ts';
+import {captureFields,restoreFields,type FieldOptions,type StateObject,type StateValue} from './checkpoint.ts';
 
 export const PLATE_SOLVER_ID='plate-kirchhoff-fd-explicit-js-f64-v1';
 
@@ -34,6 +35,8 @@ export interface PlateDefinition {
 export interface PlateFragment {nodes:Uint32Array;mass:number;center:[number,number,number];velocity:number;angularVelocity:[number,number];supported:boolean}
 
 const payload=(message:string)=>new EngineError('INVALID_PAYLOAD',message);
+/** An exact checkpoint of a PlateBody holds every field: deflections, velocities, loads, supports, cracks, the clock and the assembled stiffness. */
+const PLATE_FIELDS:FieldOptions={label:'PlateBody'};
 const STENCIL=25,slot=(di:number,dj:number)=>(dj+2)*5+di+2;
 
 /** Kirchhoff plate in the x-y plane with transverse deflection w along z. The bending energy is a sum of
@@ -99,6 +102,10 @@ export class PlateBody {
     for(let j=0;j<this.ny;j++)for(let i=0;i<this.cx;i++)this.tieWidth[j*this.cx+i]=this.hy*(j===0||j===this.cy?.5:1);
     for(let j=0;j<this.cy;j++)for(let i=0;i<this.nx;i++)this.tieWidth[this.cx*this.ny+j*this.nx+i]=this.hx*(i===0||i===this.cx?.5:1);
   }
+  /** Everything a later step reads, as a state tree (checkpoint.ts), for exact checkpoints. */
+  saveState():StateObject {return captureFields(this,PLATE_FIELDS);}
+  /** Put back a state from `saveState()` of a plate with the same grid, material and options. */
+  restoreState(state:StateValue):void {restoreFields(this,state,PLATE_FIELDS);}
   node(i:number,j:number):number {return j*this.nx+i;}
   x(n:number):number {return this.origin[0]+(n%this.nx)*this.hx;}
   y(n:number):number {return this.origin[1]+Math.floor(n/this.nx)*this.hy;}

@@ -36,10 +36,7 @@ for(const id of LAB_IDS){
         assert.ok([...model.h].every(h=>h>=0),'nonnegative water depths');
         model.solid.forEach((solid,i)=>{if(solid)assert.equal(model.h[i],0);});
       }
-      if(id==='granular'){
-        assert.equal(model.frame.metrics[2],model.count);assert.equal(model.frame.positions.length,model.count*3);
-        for(let i=0;i<model.count;i++){const [x,y,z]=model.frame.positions.subarray(i*3,i*3+3),r=model.radius;assert.ok(x-r>=-2.85001&&x+r<=2.85001);assert.ok(y-r>=.57999);assert.ok(z-r>=-.85001&&z+r<=.85001);}
-      }
+      // Granular: the tray runs the SI discrete element solver; its checks are in tests/studio/granular-si.test.mjs.
       if(id==='glass'){
         const [force,stress,travel]=model.frame.metrics,limit=(model.spec.strength+model.spec.prestress)/1e6,broken=model.plate.breakTime>=0;
         assert.ok(force>0&&force<1e3&&stress>0&&travel>=0,'SI readouts: kN, MPa, mm');
@@ -58,11 +55,7 @@ for(const id of LAB_IDS){
     const frozen=a.snapshot(),copy=structuredClone(frozen);run(a,.5);assert.deepEqual(frozen,copy);
   });
 }
-test('liquid: viscosity suppresses a moving wave without losing liquid',()=>{
-  const water=run(createModel('liquid',{material:'water'}),3),honey=run(createModel('liquid',{material:'honey'}),3);
-  assert.ok(honey.frame.metrics[1]<water.frame.metrics[1]*.4);
-  assert.ok(Math.abs(honey.volume()-honey.initialVolume)<1e-8);
-});
+// The SI flume and tray are tested in tests/studio/liquid-si.test.mjs and granular-si.test.mjs (npm run test:studio:liquid).
 test('glass: SI properties come from the material library',()=>{
   const annealed=glassSpec('annealed'),tempered=glassSpec('tempered'),laminated=glassSpec('laminated'),boro=glassSpec('borosilicate'),acrylic=glassSpec('acrylic');
   assert.equal(annealed.youngModulus,materialProperty('soda-lime-glass','youngModulus'));assert.equal(annealed.strength,41e6);
@@ -96,13 +89,6 @@ test('rubber: elastic recovery and foam permanent set are distinct',()=>{
   const elastic=run(createModel('rubber'),18),foam=run(createModel('rubber',{material:'foam',load:75}),18);
   assert.ok(elastic.frame.metrics[0]<.1);assert.ok(elastic.frame.metrics[1]>99.9);assert.ok(foam.frame.metrics[2]>5);assert.ok(foam.frame.metrics[0]>elastic.frame.metrics[0]+5);
   const held=run(createModel('rubber',{damping:8}),6);assert.ok(held.frame.metrics[0]>40);
-});
-test('granular: low-friction beads spread farther; contacts stay bounded',()=>{
-  const beads=run(createModel('granular',{material:'beads'}),10),sand=run(createModel('granular',{material:'angular',damping:1.5}),10);
-  assert.ok(beads.frame.metrics[0]>sand.frame.metrics[0]+.1);
-  let worst=0;const p=sand.frame.positions,d=sand.radius*2;
-  for(let i=0;i<sand.count;i++)for(let j=i+1;j<sand.count;j++){const k=i*3,l=j*3,dist=Math.hypot(p[k]-p[l],p[k+1]-p[l+1],p[k+2]-p[l+2]);worst=Math.max(worst,(d-dist)/d);}
-  assert.ok(worst<.2,`maximum contact overlap ${(worst*100).toFixed(1)}%`);
 });
 after(()=>{
   const paths=['src/studio/material-labs/catalog.ts','src/studio/material-labs/models.ts','src/studio/material-labs/glass-si.ts','src/engine/plate.ts'];

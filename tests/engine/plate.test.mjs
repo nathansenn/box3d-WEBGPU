@@ -80,3 +80,12 @@ test('determinism: a cracking run repeats bit for bit',()=>{
     for(let s=0;s<3000;s++){p.force.fill(0);if(s<400)p.force[c]=-4e3;p.advance(h);}return {w:[...p.w],b:[...p.broken]};};
   assert.deepEqual(run(),run());
 });
+
+test('checkpoint: a cracking plate restored from saveState() continues bit for bit',async()=>{
+  const {encodeState,decodeState}=await import('../../src/engine/checkpoint.ts');
+  const make=()=>{const p=simplySupported([26,20],{fracture:{strength:41e6,tie:2e4}});return p;},c=n=>n,load=(p,s)=>{p.force.fill(0);if(s<400)p.force[p.node(13,10)]=-4e3;};
+  const a=make(),h=.9*a.stableTimeStep();for(let s=0;s<300;s++){load(a,s);a.advance(h);}
+  const saved=decodeState(encodeState(a.saveState())),b=make();b.restoreState(saved);
+  for(let s=300;s<1500;s++){load(a,s);load(b,s);a.advance(h);b.advance(h);}
+  assert.deepEqual([...b.w],[...a.w]);assert.deepEqual([...b.broken],[...a.broken]);assert.ok(a.broken.some(Boolean));void c;
+});
