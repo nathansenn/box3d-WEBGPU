@@ -42,8 +42,9 @@ export interface Snapshot {
 export interface SiBridgeReadout {
   /** Crowd on the deck now, kN/m^2, and wind on the deck, kN/m. */
   crowd: number; wind: number;
-  /** Hangers that have failed. */
-  hangersFailed: number;
+  /** Hangers that have failed, and how many of them were cut by the "hangers cut" control (the rest ruptured over
+   * their breaking force). */
+  hangersFailed: number; hangersCut: number;
   /** Midspan deflection from the dead-load shape (down positive), the largest anywhere, and the largest sideways movement, mm. */
   midspan: number; drop: number; lateral: number;
   maxHanger: number; hangerUtilisation: number; maxMain: number; mainUtilisation: number;

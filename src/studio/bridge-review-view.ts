@@ -101,7 +101,7 @@ export class BridgeReviewView {
     const set=(selector:string,text:string)=>{this.host.querySelector(selector)!.textContent=text;};
     const {groups,zones,point}=bridgeInspection(s.model,s.snapshot,this.zone);
     set('.br-mode',`${s.replay?'REPLAY':s.running?'LIVE':'PAUSED'} · ${r.time.toFixed(2)} s`);
-    set('[data-br-drop]',fmt(point.drop));set('[data-br-lateral]',fmt(point.lateral));set('[data-br-broken]',String(point.broken));set('[data-br-total]','of 70 hangers');
+    set('[data-br-drop]',fmt(point.drop));set('[data-br-lateral]',fmt(point.lateral));set('[data-br-broken]',String(point.broken));set('[data-br-total]',s.snapshot.si?`of 70 · ${s.snapshot.si.hangersCut} cut, ${s.snapshot.si.hangersFailed-s.snapshot.si.hangersCut} ruptured`:'of 70 hangers');
     const si=s.snapshot.si,pct=(v:number)=>(v*100).toFixed(1)+' %';
     this.host.querySelector('.br-si-list')!.innerHTML=si?[['Crowd',`${si.crowd.toFixed(2)} kN/m²`],['Wind',`${si.wind.toFixed(2)} kN/m`],['Midspan deflection',`${si.midspan.toFixed(1)} mm`],['Largest hanger tension',`${si.maxHanger.toFixed(2)} kN · ${pct(si.hangerUtilisation)} of breaking`],['Main cable tension',`${si.maxMain.toFixed(1)} kN · ${pct(si.mainUtilisation)} of breaking`],['Girder stress',`${si.girderStress.toFixed(1)} MPa · ${pct(si.girderUtilisation)} of yield`],['Tower stress',`${pct(si.towerUtilisation)} of yield`],['Saddle movement',`${si.saddle.toFixed(2)} mm`]].map(([k,v])=>`<div><dt>${k}</dt><dd>${v}</dd></div>`).join(''):'';
     set('.br-selection',this.zone===null?'Whole bridge':bridgeZoneLabel(this.zone));

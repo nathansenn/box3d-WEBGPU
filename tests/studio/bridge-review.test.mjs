@@ -102,3 +102,26 @@ test('the SI study has no resumable checkpoint and says so',()=>{
   finally{runtime.destroy();}
   assert.throws(()=>createStudioRuntime({study:'canopy',backend:STUDIO_SI_BRIDGE_BACKEND}),/bridge study/);
 });
+
+test('the default load case fails exactly the hangers its control cuts; with no cuts the same crowd and wind fail none',async()=>{
+  const {loadFor}=await import('../../src/studio/presets.ts');
+  const recipe=loadFor('bridge');
+  assert.equal(recipe.id,'bridge-collapse');assert.equal(recipe.strength,4,'the default case cuts four hangers, and says so');
+  assert.match(recipe.description,/Four hangers of the upstream cable cut/);
+  const run=cuts=>{
+    const model=new SiBridgeStudy({targetLoad:recipe.target,wind:recipe.wind,cuts});
+    for(let i=0;i<360;i++)model.step();
+    return {model,snapshot:model.snapshot()};
+  };
+  const intact=run(0);
+  assert.equal(intact.snapshot.si.hangersFailed,0,'no hanger fails under the default crowd and wind without cuts');
+  assert.equal(intact.snapshot.si.hangersCut,0);
+  assert.ok(!intact.model.events.some(e=>e.type==='break'),'no break events');
+  assert.ok(intact.snapshot.si.hangerUtilisation<.1,`largest hanger at ${(intact.snapshot.si.hangerUtilisation*100).toFixed(1)} % of breaking`);
+  const cut=run(recipe.strength),cutSegments=[0,1,2,3].map(n=>cut.model.cutSegment(n));
+  assert.equal(cut.snapshot.si.hangersFailed,4);assert.equal(cut.snapshot.si.hangersCut,4,'all four failures are cuts');
+  assert.deepEqual([...cut.model.model.failed].sort((a,b)=>a-b),cutSegments.sort((a,b)=>a-b),'the failed hangers are the cut ones');
+  const breaks=cut.model.events.filter(e=>e.type==='break');
+  assert.equal(breaks.length,4);assert.ok(breaks.every(e=>/ cut$/.test(e.message)),'every break event is a cut, none a rupture');
+  assert.ok(cut.snapshot.si.hangerUtilisation<.1,'the remaining hangers stay far below their breaking force');
+});

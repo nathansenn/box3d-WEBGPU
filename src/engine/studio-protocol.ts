@@ -97,10 +97,10 @@ export function validateStudioSnapshot(value: unknown, shared?: StudioBuffers): 
   } else if (s.press !== undefined) throw new EngineError('INVALID_PAYLOAD', 'Unexpected press telemetry.');
   if (s.si !== undefined) {
     if (s.study !== 'bridge') throw new EngineError('INVALID_PAYLOAD', 'Unexpected SI bridge readings.');
-    const si = record(s.si, 'si'), keys = ['crowd', 'wind', 'hangersFailed', 'midspan', 'drop', 'lateral', 'maxHanger', 'hangerUtilisation', 'maxMain', 'mainUtilisation', 'girderStress', 'girderUtilisation', 'towerUtilisation', 'saddle'];
+    const si = record(s.si, 'si'), keys = ['crowd', 'wind', 'hangersFailed', 'hangersCut', 'midspan', 'drop', 'lateral', 'maxHanger', 'hangerUtilisation', 'maxMain', 'mainUtilisation', 'girderStress', 'girderUtilisation', 'towerUtilisation', 'saddle'];
     onlyKeys(si, [...keys, 'hangers'], 'si');
     for (const key of keys) finite(si[key], `si.${key}`);
-    integer(si.hangersFailed, 'si.hangersFailed', 0, 70);
+    integer(si.hangersFailed, 'si.hangersFailed', 0, 70); integer(si.hangersCut, 'si.hangersCut', 0, si.hangersFailed as number);
     if (!Array.isArray(si.hangers) || si.hangers.length !== 70) throw new EngineError('INVALID_PAYLOAD', 'SI hanger tensions must hold 70 values.');
     for (const value of si.hangers) finite(value, 'si.hangers', 0);
   }

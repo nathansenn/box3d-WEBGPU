@@ -400,7 +400,8 @@ All numbers are measured by `tests/physics/si-suspension.test.mjs` on the defaul
 - **Controls:** crowd 0 to 5 kN/m² on the east half (the EN 1991-2 crowd for this span, 2 + 120 / (L + 30), is 3.7 kN/m²), hangers cut on the upstream cable 0 to 6 (from midspan outwards), wind 0 to 2 kN/m. The prepared load cases are in these units.
 - **Readouts:** deck drop in mm, hangers failed of 70, largest hanger and main cable tensions in kN; in Analyze → Inspect the crowd, wind, midspan deflection, hanger and main cable tension against breaking, girder stress in MPa against yield, tower utilisation and saddle movement, and a hanger map by span; Experiments scans the crowd, the hangers lost or the wind, in mm and kN.
 - **Footer:** "SI model · validated solvers" with a link to this document, in place of "Comparative model · not calibrated" (the other studies keep theirs).
-- **Not supported:** resuming a saved run (the coupling's state has no checkpoint; Export evidence holds the recorded response), the service vehicle, and drawing a failed hanger hanging.
+- **Default load case:** *Hanger loss under crowd*: 3.7 kN/m² on the east half, wind 0.3 kN/m and four hangers of the upstream cable cut at midspan (stations 16 to 19). Its four failed hangers are those cuts, not ruptures: the remaining hangers stay below 7 % of their breaking force, and the same crowd and wind with no cuts fail none (`tests/studio/bridge-review.test.mjs`). The readouts say how many failures are cuts ("of 70 · 4 cut", and "4 cut, 0 ruptured" in Inspect).
+- **Not supported:** resuming a saved run in the Studio (its checkpoint format does not carry the model yet; Export evidence holds the recorded response), the service vehicle, and drawing a failed hanger hanging.
 
 Under a 3 kN/m² crowd on the east half the deck drops about 130 mm; cutting the three midspan hangers of one cable raises the largest hanger tension from 7 to 19.5 kN, 5 % of its breaking force. The bridge does not progress to a collapse under these loads: its hangers are close together and strong, and that is what the model says.
 
@@ -414,5 +415,5 @@ The earlier authored model (`FailureSimulation('bridge')`, position-based, norma
 - Wind is static; no vortex shedding, flutter, buffeting or pedestrian lock-in.
 - A failed hanger stops carrying load at once and is not drawn; a main cable does not fail.
 - The timber boards are mass only; crossbeam eccentricity and bearing flexibility are left out.
-- No checkpoint of the coupled state.
+- Exact checkpoints: `SiSuspensionBridge.saveState()` / `restoreState()` hold the coupling, the frame, every cable (the Newton backend's kept factor and released links included), the loads, the failures and the outputs; a bridge resumed from one, fresh or rewound in place, steps on bit for bit (`tests/physics/si-suspension.test.mjs`). About 8.9 MB per checkpoint (the frame's interface operators are dense). Not with the service vehicle, which lives in the rigid world; the Studio does not use them yet.
 - Most time-stepped references are the model's own statics; the independent ones are the parabola, the hanger share, the deflection theory and the tensioned-beam frequency.

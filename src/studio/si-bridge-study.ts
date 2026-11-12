@@ -53,6 +53,8 @@ export class SiBridgeStudy extends FailureSimulation {
   /** Hangers to cut (control). */
   cuts = 0;
   private cut = 0;
+  /** Hangers the control has cut so far (each cut fails one hanger that was still carrying). */
+  private cutCount = 0;
   private appliedCrowd = 0; private appliedWind = 0;
   private yielded = false;
   private readonly failedSeen = new Set<number>();
@@ -91,7 +93,7 @@ export class SiBridgeStudy extends FailureSimulation {
     while (this.cut < wanted) {
       const segment = this.cutSegment(this.cut++);
       if (this.model.failHanger(segment)) {
-        this.failedSeen.add(segment);
+        this.failedSeen.add(segment); this.cutCount++;
         this.events.push({ time: this.time, type: 'break', message: `Hanger ${this.hangerLabel(segment)} cut`, connection: this.linkOfSegment[segment] });
       }
     }
@@ -124,7 +126,7 @@ export class SiBridgeStudy extends FailureSimulation {
     Object.assign(target.response, { time: 0, load: 0, deflection: 0, strain: 0, broken: 0, damage: 0, plastic: 0, phase: 'Ready' });
     let hanger = 0, main = 0;
     L.segments.forEach((seg, i) => { if (seg.kind === 'hanger') hanger = Math.max(hanger, s.dead.tensions[i]); else main = Math.max(main, s.dead.tensions[i]); });
-    Object.assign(si, { crowd: 0, wind: 0, hangersFailed: 0, midspan: 0, drop: 0, lateral: 0, maxHanger: hanger / 1e3, hangerUtilisation: hanger / L.params.hanger.breakingLoad, maxMain: main / 1e3, mainUtilisation: main / L.params.mainCable.breakingLoad, girderStress: 0, girderUtilisation: 0, towerUtilisation: 0, saddle: 0 });
+    Object.assign(si, { crowd: 0, wind: 0, hangersFailed: 0, hangersCut: 0, midspan: 0, drop: 0, lateral: 0, maxHanger: hanger / 1e3, hangerUtilisation: hanger / L.params.hanger.breakingLoad, maxMain: main / 1e3, mainUtilisation: main / L.params.mainCable.breakingLoad, girderStress: 0, girderUtilisation: 0, towerUtilisation: 0, saddle: 0 });
     for (let side = 0; side < 2; side++) for (let j = 1; j < N; j++) si.hangers[side * (N - 1) + j - 1] = s.dead.tensions[L.hangers[side][j]] / 1e3;
     return target;
   }
@@ -133,7 +135,7 @@ export class SiBridgeStudy extends FailureSimulation {
     const target: Snapshot = {
       study: 'bridge', positions: new Float32Array(this.nodes.length * 3), broken: new Uint8Array(this.links.length), strains: new Float32Array(this.nodes.length),
       topologyVersion: 0, topologyIdentity: '', punchY: 0, response: { time: 0, load: 0, deflection: 0, strain: 0, broken: 0, damage: 0, plastic: 0, phase: '' },
-      si: { crowd: 0, wind: 0, hangersFailed: 0, midspan: 0, drop: 0, lateral: 0, maxHanger: 0, hangerUtilisation: 0, maxMain: 0, mainUtilisation: 0, girderStress: 0, girderUtilisation: 0, towerUtilisation: 0, saddle: 0, hangers: new Array(70).fill(0) },
+      si: { crowd: 0, wind: 0, hangersFailed: 0, hangersCut: 0, midspan: 0, drop: 0, lateral: 0, maxHanger: 0, hangerUtilisation: 0, maxMain: 0, mainUtilisation: 0, girderStress: 0, girderUtilisation: 0, towerUtilisation: 0, saddle: 0, hangers: new Array(70).fill(0) },
     };
     return this.snapshotInto(target);
   }
@@ -174,7 +176,7 @@ export class SiBridgeStudy extends FailureSimulation {
     r.damage = Math.min(1, out.maxHangerUtilisation); r.plastic = 0;
     r.phase = Math.max(steel, strands) >= 1 ? 'Beyond stated strength' : m.failed.length ? 'Hangers failed' : this.load > .02 || this.wind !== 0 ? 'Elastic response' : 'Ready';
     const si = target.si;
-    si.crowd = this.load; si.wind = this.wind; si.hangersFailed = m.failed.length;
+    si.crowd = this.load; si.wind = this.wind; si.hangersFailed = m.failed.length; si.hangersCut = this.cutCount;
     si.midspan = -out.midspanDeflection * 1e3; si.drop = drop * 1e3; si.lateral = lateral * 1e3;
     si.maxHanger = out.maxHangerTension / 1e3; si.hangerUtilisation = out.maxHangerUtilisation; si.maxMain = out.maxMainTension / 1e3; si.mainUtilisation = out.maxMainUtilisation;
     si.girderStress = out.girderUtilisation * L.params.girder.yieldStress / 1e6; si.girderUtilisation = out.girderUtilisation; si.towerUtilisation = out.towerUtilisation;
@@ -183,7 +185,7 @@ export class SiBridgeStudy extends FailureSimulation {
     return target;
   }
   override exportCheckpoint(): StudioCheckpoint {
-    throw new RangeError('The SI bridge has no resumable checkpoint (the coupling\'s state is not saved); export the recorded response instead.');
+    throw new RangeError('The SI bridge has no resumable checkpoint in the Studio (its checkpoint format does not carry the model); export the recorded response instead.');
   }
   override restoreCheckpoint(): void {
     throw new RangeError('The SI bridge has no resumable checkpoint.');

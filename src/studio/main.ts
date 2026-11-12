@@ -421,7 +421,7 @@ export async function bootStudio(requested:string):Promise<void> {
     setText('#phase-label',playback>=0?(replaying?'Replaying history':'Recorded history'):running?r.phase:sim.time===0?'Ready to simulate':'Paused · '+r.phase);
     setText('#viewport-time',r.time.toFixed(2)+' s');setText('#clock',r.time.toFixed(2)+' s');
     setText('#stat-deflection',id==='plate'?(r.deflection*100).toFixed(2):id==='canopy'?(r.deflection*1000).toFixed(0):id==='bridge'?(r.deflection*1e3).toFixed(1):r.deflection.toFixed(3));
-    if(visible.si){setText('#stat-hanger',visible.si.maxHanger.toFixed(1));setText('#stat-main',visible.si.maxMain.toFixed(0));}setText('#stat-broken',String(r.broken));setText('#tree-broken',String(r.broken));
+    if(visible.si){setText('#stat-hanger',visible.si.maxHanger.toFixed(1));setText('#stat-main',visible.si.maxMain.toFixed(0));setText('#stat-total',`of 70 · ${visible.si.hangersCut} cut`);}setText('#stat-broken',String(r.broken));setText('#tree-broken',String(r.broken));
     root.dataset.phase=r.phase.toLowerCase().replaceAll(' ','-');root.dataset.running=String(running||replaying);
     setText('#collision-label',collisionLabel());root.dataset.numericalBackend=client?.capabilities.models[0]?.id??sim.backend;
     root.dataset.simulationMode=client?.mode??'initializing';root.dataset.simulationLag=clock.lagSeconds.toFixed(3);root.dataset.simulationOverloads=String(clock.overloads);root.dataset.engineTimings=JSON.stringify(timings.inspect());
