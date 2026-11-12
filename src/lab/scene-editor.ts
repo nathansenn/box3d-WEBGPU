@@ -813,7 +813,7 @@ export function createSceneEditor(host: SceneEditorHost): SceneEditor {
 
     const material = resolvedMaterial(scene(), body), m = grid();
     const names = [...new Set([...MATERIAL_PRESETS.map(preset => preset.name), ...Object.keys(scene().materials ?? {})])];
-    select(m, 'material', 'Material', [['', 'custom values'], ...names.map(name => [name, materialPreset(name) ? `${materialPreset(name)!.label} (typical)` : name] as const)], body.material ?? '',
+    select(m, 'material', 'Material', [['', 'custom values'], ...names.map(name => [name, materialPreset(name) ? `${materialPreset(name)!.label} (library)` : name] as const)], body.material ?? '',
       value => run({ type: 'setMaterial', id, material: value === '' ? null : value }), running);
     number(m, 'density', 'Density (kg/m³)', material.density, value => run({ type: 'setMaterial', id, material: null, density: value }), { min: 0, disabled: running });
     number(m, 'friction', 'Friction (–)', material.friction, value => run({ type: 'setMaterial', id, material: null, friction: value }), { min: 0, step: 0.05, disabled: running });
@@ -825,7 +825,8 @@ export function createSceneEditor(host: SceneEditorHost): SceneEditor {
     const mass = el('output', '', massText(id)); mass.id = 'lab-editor-mass';
     m.append(el('span', '', 'Mass (kg)'), mass);
     nodes.push(heading('Material'), m);
-    if (body.material && materialPreset(body.material)) nodes.push(el('p', 'lab-editor-hint', 'Typical handbook values, not a measurement of a particular sample. Changing a number makes the material custom.'));
+    const preset = body.material ? materialPreset(body.material) : null;
+    if (preset) nodes.push(el('p', 'lab-editor-hint', `Values of the material library (${preset.library}; sources in docs/MATERIALS.md), not a measurement of a particular sample.${preset.unverified.length ? ` Not from a source: ${preset.unverified.join(', ')}.` : ''} Changing a number makes the material custom.`));
 
     const v = grid();
     vector(v, 'linear-velocity', 'Initial velocity (m/s)', body.linearVelocity ?? [0, 0, 0], value => run({ type: 'setVelocity', id, linear: value }), running);

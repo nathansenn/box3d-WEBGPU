@@ -60,6 +60,10 @@
       "types": "./dist/granular.d.ts",
       "default": "./dist/granular.js"
     },
+    "./materials": {
+      "types": "./dist/materials.d.ts",
+      "default": "./dist/materials.js"
+    },
     "./solid-contact": {
       "types": "./dist/solid-contact.d.ts",
       "default": "./dist/solid-contact.js"

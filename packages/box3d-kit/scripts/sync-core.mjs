@@ -54,6 +54,9 @@ export const CORE = [
   // ./solid-contact: contact, friction and welds between a tetrahedral solid and rigid bodies. Imports contracts.ts,
   // solid.ts, principalMoments from structure-coupling.ts and the Subsystem type from simulation.ts.
   {from: 'src/engine/solid-contact.ts', rewrites: []},
+  // ./materials: the sourced material library and the helpers that build solver inputs from it. Imports contracts.ts
+  // and only types from solid.ts, solid-fracture.ts, heat.ts and granular.ts.
+  {from: 'src/engine/materials.ts', rewrites: []},
 ];
 export const WASM_FILES = ['box3d.js', 'box3d.wasm', 'BUILD_PROVENANCE.json', 'BOX3D_LICENSE.txt'];
 

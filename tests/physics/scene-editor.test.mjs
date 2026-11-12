@@ -12,6 +12,8 @@ import {NativeWorldPool} from '../../src/engine/native-world.ts';
 import {isClosed, meshVolume} from '../../src/engine/geometry.ts';
 import {EXAMPLE_SCENES, canonicalize, decodeSceneLink, encodeSceneLinkSync, eulerToQuaternion, sceneHash, validateScene} from '../../src/engine/scene-format.ts';
 import {loadLabScene} from '../../src/lab/scene-host.ts';
+import {shortFloat32} from '../../src/lab/scene-loading.ts';
+import {rigidMaterial} from '../../src/engine/materials.ts';
 import {
   AUTOSAVE_MAX_CHARS, BODY_PRESETS, EditorError, GRAVITY_PRESETS, JOINT_TYPES, MATERIAL_PRESETS, MEASUREMENT_COLUMNS, MeasurementSeries, ROUND_SEGMENTS, SceneDocument,
   bodyEnergy, cameraProject, cameraRay, decodeAutosave, emptyScene, encodeAutosave, generateShape, generatedShapeOf, gravityPresetOf, jointFramesFromWorld, jointGeometryInScene,
@@ -157,14 +159,14 @@ test('command details: ids, defaults, transforms, materials, flags', () => {
   ok(doc.apply({type: 'setMaterial', id: 'ball', material: null, density: 500, friction: 0.2, restitution: 0.9}));
   assert.deepEqual([doc.body('ball').density, doc.body('ball').friction, doc.body('ball').restitution, doc.body('ball').material], [500, 0.2, 0.9, undefined]);
   ok(doc.apply({type: 'setMaterial', id: 'ball', material: 'rubber'}));
-  assert.deepEqual(doc.scene.materials.rubber, {density: 1100, friction: 0.9, restitution: 0.8, color: 0x2F3336});
+  assert.deepEqual(doc.scene.materials.rubber, {density: 921.7, friction: 1, restitution: 0.8, color: 0x2F3336});
   assert.deepEqual([doc.body('ball').material, doc.body('ball').density, doc.body('ball').friction, doc.body('ball').color], ['rubber', undefined, undefined, undefined]);
-  assert.deepEqual(resolvedMaterial(doc.scene, doc.body('ball')), {density: 1100, friction: 0.9, restitution: 0.8, color: 0x2F3336});
+  assert.deepEqual(resolvedMaterial(doc.scene, doc.body('ball')), {density: 921.7, friction: 1, restitution: 0.8, color: 0x2F3336});
   assert.deepEqual(resolvedMaterial(doc.scene, doc.body('arm')).density, 1000, 'the engine default');
   refused(doc.apply({type: 'setMaterial', id: 'ball', material: 'unobtainium'}), /no material called/);
   // Editing one value of a material body makes it custom, keeping the other values.
   ok(doc.apply({type: 'setMaterial', id: 'ball', material: null, friction: 0.33}));
-  assert.deepEqual([doc.body('ball').material, doc.body('ball').density, doc.body('ball').friction, doc.body('ball').restitution], [undefined, 1100, 0.33, 0.8]);
+  assert.deepEqual([doc.body('ball').material, doc.body('ball').density, doc.body('ball').friction, doc.body('ball').restitution], [undefined, 921.7, 0.33, 0.8]);
   ok(doc.apply({type: 'setFlags', id: 'ball', flags: {sensor: true, hitEvents: true, lockRotation: true, angularDamping: 0.25}}));
   assert.deepEqual([doc.body('ball').sensor, doc.body('ball').hitEvents, doc.body('ball').lockRotation, doc.body('ball').angularDamping], [true, true, true, 0.25]);
   ok(doc.apply({type: 'setFilter', id: 'ball', filter: {groupIndex: -3}}));
@@ -383,12 +385,12 @@ test('terrain functions are deterministic and have the stated shape', () => {
 // terrainHeights('hills', 3, 3, 1, 1), to six decimals.
 const TERRAIN_PIN = [0.845536, 0.639076, 1, 0.750291, 0.169079, 0.45561, 0.199605, 0, 0.809042];
 
-test('the materials table: seven named materials with typical values inside their published ranges', () => {
+test('the materials table: seven named materials with the material library\'s values inside its ranges', () => {
   assert.deepEqual(MATERIAL_PRESETS.map(preset => preset.name), ['steel', 'aluminium', 'concrete', 'wood', 'rubber', 'ice', 'glass']);
   for (const preset of MATERIAL_PRESETS) {
     for (const key of ['density', 'friction', 'restitution']) {
       const [low, high] = preset[`${key}Range`];
-      assert.ok(low <= preset[key] && preset[key] <= high && low < high, `${preset.name} ${key} ${preset[key]} is inside ${low}..${high}`);
+      assert.ok(low <= preset[key] && preset[key] <= high, `${preset.name} ${key} ${preset[key]} is inside ${low}..${high}`);
     }
     assert.ok(preset.restitution >= 0 && preset.restitution <= 1 && preset.friction >= 0 && preset.density > 0);
     assert.ok(Number.isInteger(preset.color) && preset.color >= 0 && preset.color <= 0xFFFFFF);
@@ -401,9 +403,16 @@ test('the materials table: seven named materials with typical values inside thei
     ok(doc.apply({type: 'setMaterial', id: 'b', material: preset.name}));
     assert.deepEqual(resolvedMaterial(doc.scene, doc.body('b')), {density: preset.density, friction: preset.friction, restitution: preset.restitution, color: preset.color});
   }
-  assert.deepEqual(MATERIAL_PRESETS.map(preset => [preset.name, preset.density, preset.friction, preset.restitution]), [
-    ['steel', 7850, 0.6, 0.6], ['aluminium', 2700, 0.5, 0.5], ['concrete', 2400, 0.6, 0.2], ['wood', 600, 0.4, 0.45], ['rubber', 1100, 0.9, 0.8], ['ice', 917, 0.05, 0.3], ['glass', 2500, 0.5, 0.65],
+  // The values come from src/engine/materials.ts (docs/MATERIALS.md); this pins them so that a change of the library shows here.
+  assert.deepEqual(MATERIAL_PRESETS.map(preset => [preset.name, preset.library, preset.density, preset.friction, preset.restitution, preset.unverified.join(',')]), [
+    ['steel', 'structural-steel-s355', 7850, 0.6, 0.56, ''], ['aluminium', 'aluminium-6061-t6', 2700, 0.61, 0.5, 'restitution'], ['concrete', 'concrete-c30-37', 2400, 0.6, 0.2, 'friction,restitution'],
+    ['wood', 'pine-loblolly', 571.2, 0.5, 0.45, 'restitution'], ['rubber', 'natural-rubber', 921.7, 1, 0.8, 'restitution'], ['ice', 'ice', 918.9, 0.1, 0.3, 'restitution'], ['glass', 'soda-lime-glass', 2500, 0.95, 0.926, ''],
   ]);
+  for (const preset of MATERIAL_PRESETS) {
+    const library = rigidMaterial(preset.library, {allowUnverified: true, frictionPair: preset.frictionPair, restitutionPair: preset.restitutionPair});
+    assert.deepEqual([preset.density, preset.friction, preset.restitution], [library.density, library.friction, library.restitution].map(shortFloat32), `${preset.name} carries the library's numbers`);
+    assert.deepEqual([...preset.unverified], [...library.unverified]);
+  }
   assert.equal(materialPreset('toString'), null);
   // A scene's own material of the same name is used as it is, not overwritten by the preset.
   const doc = new SceneDocument({format: 'box3d-scene', version: 1, materials: {steel: {density: 7700, friction: 0.3, restitution: 0.1}}, bodies: [{id: 'b', shape: {kind: 'sphere', radius: 1}, position: [0, 1, 0]}]});

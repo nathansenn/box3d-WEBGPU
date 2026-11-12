@@ -24,6 +24,7 @@ import fracture from './domains/fracture.mjs';
 import frame from './domains/frame.mjs';
 import cable from './domains/cable.mjs';
 import closedWater from './domains/closed-water.mjs';
+import materials from './domains/materials.mjs';
 
 export const DOMAINS = [
   {
@@ -269,9 +270,22 @@ export const DOMAINS = [
       'No empirical calibration against a tank or a measurement.',
     ],
   },
+  {
+    id: 'materials', title: 'Material library in the solvers', needsKit: true,
+    solver: '`src/engine/materials.ts` (`box3d-webgpu-kit/materials`): sourced SI values with conditions and citations, and the helpers that build the inputs of the solid, fracture, heat, granular and rigid solvers from them',
+    summary: 'Shear moduli against E / (2 (1 + nu)) for the entries with three sourced moduli; an aluminium bar in tension, a steel cantilever, a heated stainless bar, a cracked glass plate, a cooling copper bar, Hertz impacts of rubber spheres and glass beads, the restitution of glass beads, and a steel block and ball in the rigid world, each built from library values and checked against the closed form in which the value enters.',
+    docs: ['docs/MATERIALS.md'],
+    notValidated: [
+      'The values themselves: each row checks that a library value reaches a solver in the right unit and role, with the reference computed from the same value. Whether 6061-T6 really has E = 68.9 GPa is the source\'s claim (docs/MATERIALS.md cites it), not something measured here.',
+      'Source quality varies: standards and NIST data, manufacturers\' typical values ("not for design"), and for several friction pairs only The Engineering ToolBox, marked as a last resort. 6 of the 208 values are unverified (no source opened) and are refused by the helpers unless allowUnverified is set.',
+      'Friction and restitution are properties of a pair, a surface finish and a speed. The rigid world applies one coefficient to sticking and sliding, mixes two bodies as sqrt(f_a f_b) and max(e_a, e_b), and does not apply restitution to slow impacts; the library records the measured speed but no solver uses it.',
+      'Temperature dependence: each value holds at the stated temperature (mostly 20 to 25 °C); only the steel, concrete and wood formulas the sources give were evaluated, at 20 °C.',
+      'Anisotropy and variability: wood is orthotropic and is given along the grain; rubber, polymers and wood vary with grade, moisture, rate and cross-linking well beyond the ranges here; grain-scale moduli of beads and sand are back-calculated from contact tests.',
+    ],
+  },
 ];
 
-export const CASES = [...rigid, ...waterCoupling, ...structureCoupling, ...siBridge, ...geometry, ...scene, ...simulation, ...robot, ...cloth, ...granular, ...heat, ...solid, ...solidContact, ...fracture, ...frame, ...cable, ...closedWater];
+export const CASES = [...rigid, ...waterCoupling, ...structureCoupling, ...siBridge, ...geometry, ...scene, ...simulation, ...robot, ...cloth, ...granular, ...heat, ...solid, ...solidContact, ...fracture, ...frame, ...cable, ...closedWater, ...materials];
 
 /** Cases of the given domains (all when `only` is empty), in registry order. */
 export function selectCases(only = []) {

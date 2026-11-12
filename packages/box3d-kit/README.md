@@ -455,6 +455,7 @@ camera.follow(hero.state.position);
 | `box3d-webgpu-kit/scene` | Scene files: a versioned JSON format with validation, load, save, canonical text, hashing, share links and example scenes (see above). |
 | `box3d-webgpu-kit/cloth` | Calibrated cloth: a membrane and plate with real material parameters, implicit integration, contact and friction against rigid bodies, self-collision, and two-way coupling to the rigid world (see below). |
 | `box3d-webgpu-kit/granular` | Granular media by the discrete element method: spherical grains with Hertz or linear contact, friction, rolling resistance, silo and hopper walls, and two-way coupling to the rigid world (see below). |
+| `box3d-webgpu-kit/materials` | A material library with sources: steels, aluminium, copper, cast iron, glass, concrete, granite, wood, polymers, rubber, ice, water, air, glass beads and sand, each value with its conditions and citation, and helpers that build the inputs of the solvers above (see below). |
 | `box3d-webgpu-kit/simulation` | One stepping loop: a `Simulation` that steps the world, the water and structure couplings, heat and solids in a fixed order, with one clock, energy ledger and event stream (see below). |
 
 Cable, water, frame and solid are the same model code the Box3D WebGPU app runs; the build copies it from the app. The app's own test suites (68 tests: 11 cable, 11 proximal cable, 2 linear water, 6 closed water, 16 frame, 22 solid) run against the packaged copies in `npm test`. Heat and solid are independent of the rigid-body world. Water is coupled to it by `box3d-webgpu-kit/coupling`, and cables and frames by `box3d-webgpu-kit/structure`. The WebGPU water solver is not packaged yet.
@@ -735,6 +736,26 @@ With a rigid world: `const coupling = new GranularCoupling(world, g); coupling.a
 - **Walls:** planes, boxes, spheres, capsules, cylinders, rings with a hole, cones; fixed, moving or with mass. Each reports the force on it.
 - **Accuracy:** `test/v17-granular.test.mjs` checks it against closed-form answers; the repository's `docs/GRANULAR.md` has the table. Hertz contact duration to 1e-5, restitution to 1e-3, sliding and rolling on an incline, an energy ledger that closes to 0.12% of the energy dissipated, a block on a bed carried to 7e-7 of its weight.
 - **Limits, measured:** about 2 million grain-steps per second on one thread, which is 100 to 250 soft 10 mm beads in real time. Spheres only. Janssen's saturation and Beverloo's 5/2 law come out in form, with constants that are not the textbook ones. Create coupled bodies with `neverSleeps`.
+
+### Materials with sources
+
+`box3d-webgpu-kit/materials` holds engineering materials in SI units. Every value has the conditions it holds for (grade, temper, temperature, moisture), the figure as read in its source, and a citation (`MATERIAL_SOURCES`, all opened and read); values no source gave are marked unverified and refused unless you pass `allowUnverified: true`.
+
+```ts
+import {solidMaterial, fractureLaw, heatMaterial, grainMaterial, contactPair, rigidMaterial, materialValue} from 'box3d-webgpu-kit/materials';
+
+const beam = new SolidBody({mesh, material: solidMaterial('structural-steel-s355')});   // E 210 GPa, nu 0.3, 7850 kg/m3, alpha 12e-6
+const pane = new FractureBody({mesh, material: solidMaterial('soda-lime-glass'), fracture: fractureLaw('soda-lime-glass')});
+const bar = new HeatSolver({nx: 50, ny: 1, nz: 1, dx: 0.002, dy: 1, dz: 1, materials: [heatMaterial('copper-c11000')], temperature: 293.15, dt: 0.01});
+const beads = new Granular({material: grainMaterial('glass-beads'), config: {dt: 1e-6, capacity: 1000}});
+world.createBody({shape, ...rigidMaterial('structural-steel-s355')});                    // density, friction 0.6 (static), restitution 0.56
+contactPair('ptfe', 'structural-steel-s355');                                            // {staticFriction: 0.04, kineticFriction: 0.04, ...}
+materialValue('aluminium-6061-t6', 'fractureToughness');                                 // {value: 29e6, conditions: 'T6, TL orientation', source: 'asm-6061-t6', read: '29 MPa-m^1/2 ...'}
+```
+
+- **What it is:** 21 materials, 31 contact pairs, 208 values; 6 unverified. Sources range from standards and NIST data to manufacturers' typical values; 24 values come from The Engineering ToolBox or Webmineral and say so. The repository's `docs/MATERIALS.md` has every value, its source and how it was converted.
+- **Choices you should know:** `fractureLaw` converts K_IC to G_c in plane strain unless you pass `state: 'plane-stress'`. `contactPair` and `rigidMaterial` give the static friction coefficient by default (`use: 'kinetic'` for sliding problems); Box3D mixes two bodies as sqrt(f_a f_b) and max(e_a, e_b). Poisson's ratio is capped at 0.4999 for the solvers. Wood is stored along the grain.
+- **Accuracy:** `test/v18-materials.test.mjs` and the repository's `materials` validation domain run the solvers with library values against closed forms (a bar in tension to 1e-9, a copper bar's cooling time constant to 4e-4, Hertz contact durations to 2e-5, a cracked glass plate within 5%, steel sliding and bouncing in the rigid world). They check that the values reach the solvers correctly, not that the values are right.
 
 ### One stepping loop for every solver
 

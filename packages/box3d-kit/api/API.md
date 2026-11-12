@@ -7751,3 +7751,415 @@ export interface SolidWorld<B> {
     readonly subSteps?: number;
 }
 ```
+
+## `box3d-webgpu-kit/materials`
+
+### CONTACT_PAIRS · const
+
+Friction and restitution between pairs of library materials (order of a and b does not matter).
+
+```ts
+export declare const CONTACT_PAIRS: readonly ContactPairEntry[];
+```
+
+### ContactCondition · type
+
+```ts
+export type ContactCondition = 'dry' | 'lubricated' | 'wet';
+```
+
+### contactPair · function
+
+Friction and restitution between two library materials, in either order, for a condition ('dry' by default).
+The rigid world has one Coulomb coefficient per contact for sticking and sliding alike; `friction` is the static
+coefficient by default (what holds still in reality holds still; sliding then dissipates mu_s / mu_k times too
+much), or the kinetic one with `use: 'kinetic'`, or the source's unqualified coefficient when it gives neither.
+Box3D mixes two bodies' coefficients as sqrt(f_a f_b) for friction and max(e_a, e_b) for restitution, so to get
+this pair's value between bodies of different materials, give both bodies these numbers (or set a friction callback).
+Throws when the library has no entry for the pair.
+
+```ts
+export declare function contactPair(a: string, b: string, condition?: ContactCondition, options?: ContactPairOptions): ContactPairValues;
+```
+
+### contactPairEntries · function
+
+Every pair entry for a and b in this condition (either order).
+
+```ts
+export declare function contactPairEntries(a: string, b: string, condition?: ContactCondition): ContactPairEntry[];
+```
+
+### ContactPairEntry · interface
+
+```ts
+export interface ContactPairEntry {
+    readonly a: string;
+    readonly b: string;
+    readonly condition: ContactCondition;
+    readonly staticFriction?: MaterialValue;
+    readonly kineticFriction?: MaterialValue;
+    readonly friction?: MaterialValue;
+    readonly restitution?: MaterialValue;
+    readonly impactSpeed?: readonly [number, number] | null;
+}
+```
+
+### ContactPairOptions · interface
+
+```ts
+export interface ContactPairOptions extends MaterialOptions {
+    readonly use?: 'static' | 'kinetic';
+}
+```
+
+### ContactPairValues · interface
+
+```ts
+export interface ContactPairValues {
+    readonly a: string;
+    readonly b: string;
+    readonly condition: ContactCondition;
+    readonly staticFriction: number | null;
+    readonly kineticFriction: number | null;
+    readonly friction: number | null;
+    readonly restitution: number | null;
+    readonly impactSpeed: readonly [number, number] | null;
+    readonly entries: readonly ContactPairEntry[];
+}
+```
+
+### fractureEnergyFromToughness · function
+
+Irwin's relation between the fracture toughness K_IC (Pa m^0.5) and the energy release rate G_c (J/m^2).
+
+```ts
+export declare function fractureEnergyFromToughness(toughness: number, youngModulus: number, poissonRatio: number, state?: StressState): number;
+```
+
+### fractureLaw · function
+
+The fracture law of `FractureBody` (solid-fracture.ts): `strength` sigma_c and `toughness` G_c.
+G_c comes from K_IC: K_IC^2 (1 - nu^2) / E in plane strain (the default, the state K_IC is measured in), or
+K_IC^2 / E in plane stress for a thin sheet; the cohesive law then dissipates G_c per unit crack area.
+When the library has no K_IC, its fracture energy is used. Throws when either value is missing.
+
+```ts
+export declare function fractureLaw(id: string, options?: FractureLawOptions): FractureLaw;
+```
+
+### FractureLawOptions · interface
+
+```ts
+export interface FractureLawOptions extends MaterialOptions {
+    readonly model?: FractureModel;
+    readonly strength?: number;
+    readonly toughness?: number;
+    readonly state?: StressState;
+}
+```
+
+### grainMaterial · function
+
+The input of `Granular` (granular.ts) for the Hertz law: density, E, nu (capped at SOLVER_POISSON_LIMIT), and
+the grain-on-grain friction and restitution of the material on itself. Throws when the library has no friction
+or restitution for the material on itself and none is passed.
+
+```ts
+export declare function grainMaterial(id: string, options?: GrainMaterialOptions): GranularMaterial;
+```
+
+### GrainMaterialOptions · interface
+
+```ts
+export interface GrainMaterialOptions extends MaterialOptions {
+    readonly restitution?: number;
+    readonly friction?: number;
+    readonly rollingFriction?: number;
+    readonly youngModulus?: number;
+    readonly poissonRatio?: number;
+    readonly density?: number;
+}
+```
+
+### heatMaterial · function
+
+The input of `HeatSolver` (heat.ts): conductivity k, density rho and specific heat c_p.
+
+```ts
+export declare function heatMaterial(id: string, options?: HeatMaterialOptions): HeatMaterial;
+```
+
+### HeatMaterialOptions · interface
+
+```ts
+export interface HeatMaterialOptions extends MaterialOptions {
+    readonly conductivity?: number;
+    readonly density?: number;
+    readonly specificHeat?: number;
+}
+```
+
+### material · function
+
+The entry of one material. Throws EngineError INVALID_PAYLOAD for an unknown id.
+
+```ts
+export declare function material(id: string): MaterialEntry;
+```
+
+### MATERIAL_LIBRARY_ID · const
+
+```ts
+export declare const MATERIAL_LIBRARY_ID = "box3d-materials";
+```
+
+### MATERIAL_LIBRARY_VERSION · const
+
+Semver of the data: a changed value is a minor release, a removed material or property a major one.
+
+```ts
+export declare const MATERIAL_LIBRARY_VERSION = "1.0.0";
+```
+
+### MATERIAL_PROPERTY_UNITS · const
+
+The SI unit of each property.
+
+```ts
+export declare const MATERIAL_PROPERTY_UNITS: Readonly<Record<MaterialPropertyName, string>>;
+```
+
+### MATERIAL_SOURCES · const
+
+Every source a value was read from. Each URL was opened on MATERIAL_SOURCES_ACCESSED.
+
+```ts
+export declare const MATERIAL_SOURCES: Readonly<Record<string, MaterialSource>>;
+```
+
+### MATERIAL_SOURCES_ACCESSED · const
+
+The date the sources were opened and read.
+
+```ts
+export declare const MATERIAL_SOURCES_ACCESSED = "2026-11-12";
+```
+
+### materialAudit · function
+
+Every value in the library, one row each, in library order.
+
+```ts
+export declare function materialAudit(): MaterialAuditRow[];
+```
+
+### MaterialAuditRow · interface
+
+```ts
+export interface MaterialAuditRow {
+    readonly kind: 'property' | 'pair';
+    readonly subject: string;
+    readonly property: string;
+    readonly value: number;
+    readonly source: string;
+    readonly reason?: string;
+}
+```
+
+### MaterialCategory · type
+
+```ts
+export type MaterialCategory = 'metal' | 'glass' | 'stone' | 'concrete' | 'wood' | 'polymer' | 'elastomer' | 'ice' | 'fluid' | 'granular';
+```
+
+### MaterialEntry · interface
+
+```ts
+export interface MaterialEntry {
+    readonly id: string;
+    readonly name: string;
+    readonly category: MaterialCategory;
+    readonly grade: string;
+    readonly isotropic: boolean;
+    readonly properties: Readonly<Partial<Record<MaterialPropertyName, MaterialValue>>>;
+    readonly flags?: readonly string[];
+    readonly notes?: readonly string[];
+}
+```
+
+### materialIds · function
+
+The ids of the library's materials, in library order.
+
+```ts
+export declare function materialIds(): string[];
+```
+
+### MaterialOptions · interface
+
+```ts
+export interface MaterialOptions {
+    readonly allowUnverified?: boolean;
+}
+```
+
+### materialProperty · function
+
+The SI value of one property. Throws when the library has none, or when it is unverified and not allowed.
+
+```ts
+export declare function materialProperty(id: string, property: MaterialPropertyName, options?: MaterialOptions): number;
+```
+
+### MaterialPropertyName · type
+
+```ts
+export type MaterialPropertyName = 'density' | 'youngModulus' | 'poissonRatio' | 'shearModulus' | 'yieldStrength' | 'tensileStrength' | 'compressiveStrength' | 'flexuralStrength' | 'fractureToughness' | 'fractureEnergy' | 'thermalConductivity' | 'specificHeat' | 'thermalExpansion' | 'viscosity' | 'soundSpeed';
+```
+
+### MATERIALS · const
+
+The library's materials, by id.
+
+```ts
+export declare const MATERIALS: Readonly<Record<string, MaterialEntry>>;
+```
+
+### MaterialSource · interface
+
+```ts
+export interface MaterialSource {
+    readonly id: string;
+    readonly title: string;
+    readonly author: string;
+    readonly kind: MaterialSourceKind;
+    readonly url: string;
+    readonly note?: string;
+}
+```
+
+### MaterialSourceKind · type
+
+```ts
+export type MaterialSourceKind = 'standard' | 'government' | 'manufacturer' | 'peer-reviewed' | 'textbook' | 'last-resort';
+```
+
+### materialValue · function
+
+One property with its source and conditions, or null when the library has none.
+
+```ts
+export declare function materialValue(id: string, property: MaterialPropertyName): MaterialValue | null;
+```
+
+### MaterialValue · interface
+
+```ts
+export interface MaterialValue {
+    readonly value: number;
+    readonly range?: readonly [number, number];
+    readonly uncertainty?: number;
+    readonly conditions: string;
+    readonly source: string;
+    readonly also?: readonly string[];
+    readonly read: string;
+    readonly derived?: string;
+    readonly reason?: string;
+}
+```
+
+### rigidMaterial · function
+
+The density, friction and restitution of one rigid body made of a library material (a `SceneMaterial`).
+
+```ts
+export declare function rigidMaterial(id: string, options?: RigidMaterialOptions): RigidMaterialValues;
+```
+
+### RigidMaterialOptions · interface
+
+```ts
+export interface RigidMaterialOptions extends MaterialOptions {
+    readonly frictionPair?: readonly [string, string, ContactCondition?];
+    readonly restitutionPair?: readonly [string, string, ContactCondition?];
+    readonly use?: 'static' | 'kinetic';
+}
+```
+
+### RigidMaterialValues · interface
+
+```ts
+export interface RigidMaterialValues {
+    readonly density: number;
+    readonly friction: number;
+    readonly restitution: number;
+    readonly frictionPair: readonly [string, string, ContactCondition];
+    readonly restitutionPair: readonly [string, string, ContactCondition];
+    readonly unverified: readonly ('density' | 'friction' | 'restitution')[];
+}
+```
+
+### shearConsistency · function
+
+For an isotropic entry with E, nu and G: how far the stated G is from E / (2 (1 + nu)). Null otherwise.
+
+```ts
+export declare function shearConsistency(id: string): ShearConsistency | null;
+```
+
+### ShearConsistency · interface
+
+```ts
+export interface ShearConsistency {
+    readonly id: string;
+    readonly stated: number;
+    readonly isotropic: number;
+    readonly relative: number;
+    readonly flagged: boolean;
+}
+```
+
+### solidMaterial · function
+
+The input of `SolidBody` and `FractureBody` (solid.ts): E, nu, rho and, when the library has it, the linear
+expansion coefficient. Poisson's ratio is capped at SOLVER_POISSON_LIMIT. Overrides replace library values.
+
+```ts
+export declare function solidMaterial(id: string, options?: SolidMaterialOptions): SolidMaterial;
+```
+
+### SolidMaterialOptions · interface
+
+```ts
+export interface SolidMaterialOptions extends MaterialOptions {
+    readonly youngModulus?: number;
+    readonly poissonRatio?: number;
+    readonly density?: number;
+    readonly thermalExpansion?: number | null;
+}
+```
+
+### SOLVER_POISSON_LIMIT · const
+
+The largest Poisson's ratio the solid and granular solvers accept.
+
+```ts
+export declare const SOLVER_POISSON_LIMIT = 0.4999;
+```
+
+### StressState · type
+
+Plane strain (a thick body: G_c = K^2 (1 - nu^2) / E) or plane stress (a thin sheet: G_c = K^2 / E).
+
+```ts
+export type StressState = 'plane-strain' | 'plane-stress';
+```
+
+### thermalDiffusivity · function
+
+Thermal diffusivity k / (rho c_p), m^2/s.
+
+```ts
+export declare function thermalDiffusivity(id: string, options?: MaterialOptions): number;
+```

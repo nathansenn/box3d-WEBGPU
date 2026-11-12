@@ -21,6 +21,7 @@ import {
   type SceneProblem, type SceneShape, type SceneWorld,
 } from '../engine/scene-format.ts';
 import { shortFloat32 } from './scene-loading.ts';
+import { contactPairEntries, materialValue, rigidMaterial, type MaterialValue, type RigidMaterialOptions } from '../engine/materials.ts';
 
 export type Vec3 = readonly [number, number, number];
 export type Quat = readonly [number, number, number, number];
@@ -102,33 +103,62 @@ export interface MaterialPreset {
   /** The key written to `scene.materials`. */
   readonly name: string;
   readonly label: string;
-  /** Typical values, used when the preset is picked. */
+  /** The material of the library (src/engine/materials.ts, docs/MATERIALS.md) the values come from. */
+  readonly library: string;
+  /** The values used when the preset is picked: the library's, rounded to float32. */
   readonly density: number;
   readonly friction: number;
   readonly restitution: number;
   readonly color: number;
-  /** The published range each typical value was taken from; see docs/SCENE_EDITOR.md for the sources. */
+  /** The library's range for each value (the value itself at both ends when the sources give one figure). */
   readonly densityRange: readonly [number, number];
   readonly frictionRange: readonly [number, number];
   readonly restitutionRange: readonly [number, number];
+  /** The contact pairs the friction and restitution are taken from: [material A, material B, condition]. */
+  readonly frictionPair: readonly [string, string, string];
+  readonly restitutionPair: readonly [string, string, string];
+  /** Which of the three values no opened source gave (the library marks them unverified). */
+  readonly unverified: readonly ('density' | 'friction' | 'restitution')[];
+}
+
+const libraryRange = (value: MaterialValue | undefined, fallback: number): readonly [number, number] =>
+  Object.freeze(value?.range ? [f32(Math.min(value.range[0], fallback)), f32(Math.max(value.range[1], fallback))] as [number, number] : [f32(fallback), f32(fallback)] as [number, number]);
+
+function libraryPreset(name: string, label: string, library: string, color: number, options: RigidMaterialOptions = {}): MaterialPreset {
+  const values = rigidMaterial(library, {...options, allowUnverified: true});
+  const pairValue = (pair: readonly [string, string, string], key: 'staticFriction' | 'kineticFriction' | 'friction' | 'restitution'): MaterialValue | undefined => {
+    for (const entry of contactPairEntries(pair[0], pair[1], pair[2] as 'dry')) if (entry[key] && entry[key]!.value === (key === 'restitution' ? values.restitution : values.friction)) return entry[key];
+    return undefined;
+  };
+  const friction = pairValue(values.frictionPair, 'staticFriction') ?? pairValue(values.frictionPair, 'kineticFriction') ?? pairValue(values.frictionPair, 'friction');
+  return Object.freeze({
+    name, label, library, color,
+    density: f32(values.density), friction: f32(values.friction), restitution: f32(values.restitution),
+    densityRange: libraryRange(materialValue(library, 'density') ?? undefined, values.density),
+    frictionRange: libraryRange(friction, values.friction),
+    restitutionRange: libraryRange(pairValue(values.restitutionPair, 'restitution'), values.restitution),
+    frictionPair: Object.freeze([...values.frictionPair]) as readonly [string, string, string],
+    restitutionPair: Object.freeze([...values.restitutionPair]) as readonly [string, string, string],
+    unverified: Object.freeze([...values.unverified]),
+  });
 }
 
 /**
- * Typical handbook values, not measurements of this project and not a
- * calibrated material library. Friction is for the dry material sliding on
- * itself (or on steel, for aluminium; on dry concrete, for rubber);
- * restitution is for a compact body on a hard surface at about 1 m/s and
- * falls with speed. docs/SCENE_EDITOR.md gives the table with its sources.
+ * The editor's named materials, taken from the material library (src/engine/materials.ts; docs/MATERIALS.md
+ * has the sources). Density is the library material's. Friction is the static coefficient of the pair named
+ * (the material on itself unless stated), because the rigid world applies one coefficient to sticking and
+ * sliding alike. Restitution is the pair's, measured at the impact speed the library records; the values the
+ * library marks unverified are listed in `unverified` and in docs/SCENE_EDITOR.md.
  */
-export const MATERIAL_PRESETS: readonly MaterialPreset[] = Object.freeze(([
-  { name: 'steel', label: 'Steel', density: 7850, friction: 0.6, restitution: 0.6, color: 0x9AA4AE, densityRange: [7750, 8050], frictionRange: [0.42, 0.8], restitutionRange: [0.5, 0.9] },
-  { name: 'aluminium', label: 'Aluminium', density: 2700, friction: 0.5, restitution: 0.5, color: 0xC9CED3, densityRange: [2640, 2810], frictionRange: [0.47, 0.61], restitutionRange: [0.4, 0.75] },
-  { name: 'concrete', label: 'Concrete', density: 2400, friction: 0.6, restitution: 0.2, color: 0x8C8F8A, densityRange: [2200, 2500], frictionRange: [0.5, 1.0], restitutionRange: [0.1, 0.3] },
-  { name: 'wood', label: 'Wood', density: 600, friction: 0.4, restitution: 0.45, color: 0xB07A45, densityRange: [350, 900], frictionRange: [0.2, 0.5], restitutionRange: [0.3, 0.6] },
-  { name: 'rubber', label: 'Rubber', density: 1100, friction: 0.9, restitution: 0.8, color: 0x2F3336, densityRange: [920, 1500], frictionRange: [0.6, 1.0], restitutionRange: [0.6, 0.9] },
-  { name: 'ice', label: 'Ice', density: 917, friction: 0.05, restitution: 0.3, color: 0xBFE3F2, densityRange: [900, 920], frictionRange: [0.02, 0.1], restitutionRange: [0.1, 0.9] },
-  { name: 'glass', label: 'Glass', density: 2500, friction: 0.5, restitution: 0.65, color: 0x9FD3C7, densityRange: [2400, 2800], frictionRange: [0.4, 0.94], restitutionRange: [0.5, 0.95] },
-] as MaterialPreset[]).map(preset => Object.freeze(preset)));
+export const MATERIAL_PRESETS: readonly MaterialPreset[] = Object.freeze([
+  libraryPreset('steel', 'Steel', 'structural-steel-s355', 0x9AA4AE),
+  libraryPreset('aluminium', 'Aluminium', 'aluminium-6061-t6', 0xC9CED3, {frictionPair: ['aluminium-6061-t6', 'structural-steel-s355', 'dry']}),
+  libraryPreset('concrete', 'Concrete', 'concrete-c30-37', 0x8C8F8A),
+  libraryPreset('wood', 'Wood', 'pine-loblolly', 0xB07A45),
+  libraryPreset('rubber', 'Rubber', 'natural-rubber', 0x2F3336, {frictionPair: ['natural-rubber', 'concrete-c30-37', 'dry']}),
+  libraryPreset('ice', 'Ice', 'ice', 0xBFE3F2),
+  libraryPreset('glass', 'Glass', 'soda-lime-glass', 0x9FD3C7, {restitutionPair: ['glass-beads', 'glass-beads', 'dry']}),
+]);
 
 export function materialPreset(name: string): MaterialPreset | null {
   return MATERIAL_PRESETS.find(preset => preset.name === name) ?? null;

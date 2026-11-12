@@ -56,24 +56,21 @@ There is **no 3D gizmo**. A body is moved in three ways:
 
 Picking a named material writes it to the scene's `materials` table and makes the body refer to it. Changing density, friction or restitution afterwards makes the body's material custom (its own three numbers, no name).
 
-The values below are **typical handbook values**. They are not measurements made by this project, they are not a calibrated material library (that is roadmap Phase 4), and real samples vary inside and outside the ranges given.
+The values come from the material library (`src/engine/materials.ts`, [MATERIALS.md](MATERIALS.md)), where each one has its conditions and a citation to a source that was opened. Before the library (until 2026-11-12) this table held typical handbook values, partly written from memory; the restitution column in particular was never checked against a source.
 
-| Material | Density, kg/m³ (range) | Friction (range) | Restitution (range) | What the numbers refer to |
-|---|---|---|---|---|
-| Steel | 7850 (7750–8050) | 0.6 (0.42–0.8) | 0.6 (0.5–0.9) | Carbon steel. Steel on steel, dry: 0.74 static, 0.57 kinetic [1]; lower values are for mild steel sliding [2]. |
-| Aluminium | 2700 (2640–2810) | 0.5 (0.47–0.61) | 0.5 (0.4–0.75) | Aluminium on steel: 0.61 static, 0.47 kinetic [1]. |
-| Concrete | 2400 (2200–2500) | 0.6 (0.5–1.0) | 0.2 (0.1–0.3) | Normal-weight concrete. Concrete on hardened concrete: 0.6 not roughened, 1.0 roughened [3]. |
-| Wood | 600 (350–900) | 0.4 (0.2–0.5) | 0.45 (0.3–0.6) | Seasoned softwood to hardwood. Wood on wood: 0.25–0.5 static, 0.2 kinetic [1]. |
-| Rubber | 1100 (920–1500) | 0.9 (0.6–1.0) | 0.8 (0.6–0.9) | Natural rubber to filled compounds. Rubber on dry concrete: 1.0 static, 0.8 kinetic [1]. |
-| Ice | 917 (900–920) | 0.05 (0.02–0.1) | 0.3 (0.1–0.9) | At 0 °C. Ice on ice: 0.1 static, 0.03 kinetic [1]. |
-| Glass | 2500 (2400–2800) | 0.5 (0.4–0.94) | 0.65 (0.5–0.95) | Soda-lime glass. Glass on glass: 0.94 static, 0.4 kinetic [1]. |
+| Material | Library entry | Density, kg/m³ (range) | Friction (range) | Restitution (range) | What the numbers refer to |
+|---|---|---|---|---|---|
+| Steel | `structural-steel-s355` | 7850 | 0.6 (0.5–0.8) | 0.56 | EN 1993-1-1 density. Steel on steel, dry, static (0.3 kinetic). Restitution of a steel ball on a 10 mm steel plate at 3.1 to 4.4 m/s. |
+| Aluminium | `aluminium-6061-t6` | 2700 | 0.61 | 0.5, **unverified** | 6061-T6. Aluminium on mild steel, clean and dry, static (0.47 kinetic; The Engineering ToolBox, last resort). No source for the restitution. |
+| Concrete | `concrete-c30-37` | 2400 (2300–2500) | 0.6, **unverified** | 0.2, **unverified** | Normal-weight C30/37. No opened source for concrete on concrete. |
+| Wood | `pine-loblolly` | 571.2 | 0.5 | 0.45, **unverified** | Loblolly pine at 12% moisture. Wood on wood, static (0.3 kinetic). |
+| Rubber | `natural-rubber` | 921.7 | 1.0 | 0.8, **unverified** | Natural rubber hydrocarbon. Rubber on dry concrete, static (0.7 kinetic). |
+| Ice | `ice` | 918.9 (916.2–920) | 0.1 (0.1–0.6) | 0.3, **unverified** | Ice at −10 °C. Ice on ice, static (0.03 kinetic); slow sliding of cold ice is far higher, see MATERIALS.md. |
+| Glass | `soda-lime-glass` | 2500 | 0.95 (0.9–1.0) | 0.926 (0.926–0.94) | Soda-lime glass. Glass on glass, clean and dry, static (0.4 kinetic; ToolBox). Restitution of 2 mm glass beads on each other (speed not stated). |
 
-Sources:
+What changed against the earlier table: steel restitution 0.6 → 0.56; aluminium friction 0.5 → 0.61; wood density 600 → 571.2 and friction 0.4 → 0.5; rubber density 1100 → 921.7 and friction 0.9 → 1.0; ice density 917 → 918.9 and friction 0.05 → 0.1; glass friction 0.5 → 0.95 and restitution 0.65 → 0.926. Concrete and aluminium's restitution are unchanged and still unsourced. The editor shows the library entry and the unverified values under the material; the UI is otherwise the same. Scenes that name a material carry its numbers in their own `materials` table, so saved scenes and the example scenes are unchanged; the editor's tests pin the new numbers, and the editor's scene hashes are not pinned.
 
-1. R. A. Serway and J. W. Jewett, *Physics for Scientists and Engineers*, the table "Coefficients of friction" (Table 5.1 in recent editions): static and kinetic values for steel on steel, aluminium on steel, glass on glass, wood on wood, rubber on concrete and ice on ice. The friction ranges above run from the kinetic to the static value where the table gives both.
-2. Densities, and the lower friction figure for steel: standard handbook values, as tabulated in the *CRC Handbook of Chemistry and Physics* (density of ice and of the metals) and in engineering data collections such as The Engineering ToolBox (densities of structural steel, aluminium alloys, concrete, seasoned timber, rubbers and glasses; friction of mild steel on mild steel).
-3. ACI 318, *Building Code Requirements for Structural Concrete*, shear-friction coefficients for normal-weight concrete.
-4. Restitution has no single handbook table: it depends on impact speed, size, shape and surface finish, and falls as speed rises (W. Goldsmith, *Impact*, 1960; W. J. Stronge, *Impact Mechanics*, 2000). The restitution column gives order-of-magnitude figures for a compact body striking a hard surface at about 1 m/s. They were collected from memory of those texts and of classroom data and were **not checked against a specific table for this document**; treat them as starting points.
+Friction is the static coefficient because the rigid world has one coefficient for sticking and sliding: what holds still in reality holds still, and sliding dissipates more than it should (twice as much for steel on steel). The ranges are the library's; where the sources give one figure the range is that figure.
 
 How the numbers are used: a body has one friction and one restitution value, while real coefficients belong to a pair of surfaces. Box3D combines the two touching bodies' values itself. Restitution is not applied to slow impacts ([SCENE_FORMAT.md](SCENE_FORMAT.md#example-scenes) measured 23% of the speed passed on at 0.44 m/s and 99.6% at 1.85 m/s in the cradle example), so a ball dropped a few centimetres does not bounce as its value suggests.
 
@@ -170,4 +167,4 @@ Text from a scene (names, titles, descriptions) is only ever written to the page
 - **Selection highlight:** the selected body's instance colour is tinted and a line frame is drawn around it. Once the simulation has moved on, the frame stays and the tint is removed. No render pass was added. The lines are depth-tested like the rest of the scene, so the part of a joint marker that lies inside a body is hidden; the markers are sized to reach out of ordinary bodies, and a joint buried in a large body shows only its axis ends.
 - **Phone (390 px wide):** the panel fits the width, nothing is cut off at the sides, and scenes can be edited by touch through the outline and the inspector. With the panel open it covers the lower part of the screen (62% of the height), so little of the view is visible while typing; **Hide** collapses it to reach the view, where a tap selects a body and a drag moves it. Shift-drag (the vertical move) needs a keyboard; by touch the height is typed. Selecting two bodies by touch needs **Select several** turned on. The Lab's own left and bottom panels still take most of a phone screen.
 - **Seen in software rendering only** (SwiftShader in headless Chromium), not on a real GPU, and not in Safari or Firefox.
-- The materials table is typical values with the sources above, not validated data.
+- The materials table comes from the material library ([MATERIALS.md](MATERIALS.md)): typical or nominal values of named grades with citations, six of them unverified (concrete's friction, and the restitution of aluminium, concrete, wood, rubber and ice). A body has one friction and one restitution, not a value per pair.

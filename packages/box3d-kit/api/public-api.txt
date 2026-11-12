@@ -1556,6 +1556,149 @@ export declare function validateLinearWaterConfig(input: LinearWaterConfig): Rea
 export declare function createLinearWaterArrays(config: LinearWaterConfig, initial?: Partial<LinearWaterArrays>): LinearWaterArrays;
 export declare function stepLinearWaterCpu(s: LinearWaterArrays, c: Readonly<LinearWaterConfig>): void;
 
+// ==== core/materials.d.ts ====
+import type { SolidMaterial } from './solid.js';
+import type { FractureLaw, FractureModel } from './solid-fracture.js';
+import type { HeatMaterial } from './heat.js';
+import type { GranularMaterial } from './granular.js';
+export declare const MATERIAL_LIBRARY_ID = "box3d-materials";
+export declare const MATERIAL_LIBRARY_VERSION = "1.0.0";
+export declare const MATERIAL_SOURCES_ACCESSED = "2026-11-12";
+export type MaterialSourceKind = 'standard' | 'government' | 'manufacturer' | 'peer-reviewed' | 'textbook' | 'last-resort';
+export interface MaterialSource {
+    readonly id: string;
+    readonly title: string;
+    readonly author: string;
+    readonly kind: MaterialSourceKind;
+    readonly url: string;
+    readonly note?: string;
+}
+export declare const MATERIAL_SOURCES: Readonly<Record<string, MaterialSource>>;
+export type MaterialPropertyName = 'density' | 'youngModulus' | 'poissonRatio' | 'shearModulus' | 'yieldStrength' | 'tensileStrength' | 'compressiveStrength' | 'flexuralStrength' | 'fractureToughness' | 'fractureEnergy' | 'thermalConductivity' | 'specificHeat' | 'thermalExpansion' | 'viscosity' | 'soundSpeed';
+export declare const MATERIAL_PROPERTY_UNITS: Readonly<Record<MaterialPropertyName, string>>;
+export interface MaterialValue {
+    readonly value: number;
+    readonly range?: readonly [number, number];
+    readonly uncertainty?: number;
+    readonly conditions: string;
+    readonly source: string;
+    readonly also?: readonly string[];
+    readonly read: string;
+    readonly derived?: string;
+    readonly reason?: string;
+}
+export type MaterialCategory = 'metal' | 'glass' | 'stone' | 'concrete' | 'wood' | 'polymer' | 'elastomer' | 'ice' | 'fluid' | 'granular';
+export interface MaterialEntry {
+    readonly id: string;
+    readonly name: string;
+    readonly category: MaterialCategory;
+    readonly grade: string;
+    readonly isotropic: boolean;
+    readonly properties: Readonly<Partial<Record<MaterialPropertyName, MaterialValue>>>;
+    readonly flags?: readonly string[];
+    readonly notes?: readonly string[];
+}
+export type ContactCondition = 'dry' | 'lubricated' | 'wet';
+export interface ContactPairEntry {
+    readonly a: string;
+    readonly b: string;
+    readonly condition: ContactCondition;
+    readonly staticFriction?: MaterialValue;
+    readonly kineticFriction?: MaterialValue;
+    readonly friction?: MaterialValue;
+    readonly restitution?: MaterialValue;
+    readonly impactSpeed?: readonly [number, number] | null;
+}
+export declare const MATERIALS: Readonly<Record<string, MaterialEntry>>;
+export declare const CONTACT_PAIRS: readonly ContactPairEntry[];
+export interface MaterialOptions {
+    readonly allowUnverified?: boolean;
+}
+export declare function materialIds(): string[];
+export declare function material(id: string): MaterialEntry;
+export declare function materialValue(id: string, property: MaterialPropertyName): MaterialValue | null;
+export declare function materialProperty(id: string, property: MaterialPropertyName, options?: MaterialOptions): number;
+export declare const SOLVER_POISSON_LIMIT = 0.4999;
+export interface SolidMaterialOptions extends MaterialOptions {
+    readonly youngModulus?: number;
+    readonly poissonRatio?: number;
+    readonly density?: number;
+    readonly thermalExpansion?: number | null;
+}
+export declare function solidMaterial(id: string, options?: SolidMaterialOptions): SolidMaterial;
+export type StressState = 'plane-strain' | 'plane-stress';
+export declare function fractureEnergyFromToughness(toughness: number, youngModulus: number, poissonRatio: number, state?: StressState): number;
+export interface FractureLawOptions extends MaterialOptions {
+    readonly model?: FractureModel;
+    readonly strength?: number;
+    readonly toughness?: number;
+    readonly state?: StressState;
+}
+export declare function fractureLaw(id: string, options?: FractureLawOptions): FractureLaw;
+export interface HeatMaterialOptions extends MaterialOptions {
+    readonly conductivity?: number;
+    readonly density?: number;
+    readonly specificHeat?: number;
+}
+export declare function heatMaterial(id: string, options?: HeatMaterialOptions): HeatMaterial;
+export declare function thermalDiffusivity(id: string, options?: MaterialOptions): number;
+export interface ContactPairValues {
+    readonly a: string;
+    readonly b: string;
+    readonly condition: ContactCondition;
+    readonly staticFriction: number | null;
+    readonly kineticFriction: number | null;
+    readonly friction: number | null;
+    readonly restitution: number | null;
+    readonly impactSpeed: readonly [number, number] | null;
+    readonly entries: readonly ContactPairEntry[];
+}
+export interface ContactPairOptions extends MaterialOptions {
+    readonly use?: 'static' | 'kinetic';
+}
+export declare function contactPairEntries(a: string, b: string, condition?: ContactCondition): ContactPairEntry[];
+export declare function contactPair(a: string, b: string, condition?: ContactCondition, options?: ContactPairOptions): ContactPairValues;
+export interface RigidMaterialValues {
+    readonly density: number;
+    readonly friction: number;
+    readonly restitution: number;
+    readonly frictionPair: readonly [string, string, ContactCondition];
+    readonly restitutionPair: readonly [string, string, ContactCondition];
+    readonly unverified: readonly ('density' | 'friction' | 'restitution')[];
+}
+export interface RigidMaterialOptions extends MaterialOptions {
+    readonly frictionPair?: readonly [string, string, ContactCondition?];
+    readonly restitutionPair?: readonly [string, string, ContactCondition?];
+    readonly use?: 'static' | 'kinetic';
+}
+export declare function rigidMaterial(id: string, options?: RigidMaterialOptions): RigidMaterialValues;
+export interface GrainMaterialOptions extends MaterialOptions {
+    readonly restitution?: number;
+    readonly friction?: number;
+    readonly rollingFriction?: number;
+    readonly youngModulus?: number;
+    readonly poissonRatio?: number;
+    readonly density?: number;
+}
+export declare function grainMaterial(id: string, options?: GrainMaterialOptions): GranularMaterial;
+export interface ShearConsistency {
+    readonly id: string;
+    readonly stated: number;
+    readonly isotropic: number;
+    readonly relative: number;
+    readonly flagged: boolean;
+}
+export declare function shearConsistency(id: string): ShearConsistency | null;
+export interface MaterialAuditRow {
+    readonly kind: 'property' | 'pair';
+    readonly subject: string;
+    readonly property: string;
+    readonly value: number;
+    readonly source: string;
+    readonly reason?: string;
+}
+export declare function materialAudit(): MaterialAuditRow[];
+
 // ==== core/native-world.d.ts ====
 import type { PhysicsBackend } from '../backend-types.js';
 import type { ScenePreset } from '../backend-types.js';
@@ -4659,6 +4802,9 @@ export declare function pauseOnHidden(target: FixedStepLoop | {
     addEventListener(type: string, fn: () => void): void;
     removeEventListener(type: string, fn: () => void): void;
 } | undefined): () => void;
+
+// ==== materials.d.ts ====
+export * from './core/materials.js';
 
 // ==== net.d.ts ====
 import type { InstanceSource } from './three.js';

@@ -7,6 +7,11 @@
 - The native world ABI version (`NATIVE_WORLD_API_VERSION`, currently 1) must match the loaded module; a mismatch fails loudly with `UNSUPPORTED_BACKEND`.
 - Before 1.0, minor versions may change the API; the changes are listed below.
 
+## Unreleased
+
+- **`box3d-webgpu-kit/materials`:** a material library with sources (`MATERIAL_LIBRARY_VERSION` 1.0.0): 21 materials and 31 contact-pair entries, 208 SI values each with conditions, the figure read and a citation (`MATERIAL_SOURCES`); 6 contact coefficients without a source are marked unverified and refused unless `allowUnverified` is passed. Helpers build solver inputs: `solidMaterial` (solid and fracture), `fractureLaw` (G_c from K_IC, plane strain by default), `heatMaterial`, `grainMaterial`, `contactPair` and `rigidMaterial` (density, friction, restitution for a body). `materialAudit()` and `shearConsistency()` for checks. Pure data and functions; it imports only types from the solver modules. See `docs/MATERIALS.md` in the repository.
+- `capabilities().modules` includes `'materials'`. `test/v18-materials.test.mjs` (3 tests) runs in the gate.
+
 ## 0.9.0
 
 The WASM changed: the bridge has four new exports (`b3w_world_create_compound_body`, `b3w_world_set_body_mass_data`, `b3w_world_get_body_mass_data`, `b3w_world_reset_body_mass_data`) and `BUILD_INFO` has new hashes. Nothing that existed was changed: the native world ABI version is still 1, and the replay hashes of the presets, the hashes of the example scenes and the determinism checks of the gate are what they were. The new exports are optional; an artifact without them still loads, and asking it for a compound or mass data throws `UNSUPPORTED_BACKEND`.

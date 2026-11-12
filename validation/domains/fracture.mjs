@@ -102,13 +102,15 @@ export async function crackBandBar({nx = 4, regularisation = 'crack-band', poiss
  * The crack plane y = 0 is a mesh plane: the crack is cut for x < a and the ligament carries cohesive
  * interfaces. The mesh has cells of size h = `cell` l_ch from `back` cells behind the tip to `ahead` cells in
  * front of it and three rows on each side of the plane, and grows geometrically away from there. */
-export async function griffithPlate({cell = 0.5, a = 5, grading = 1.5, back = 6, ahead = 10, rows = 3, insertion = 'manual', threshold = 1, tip} = {}) {
+export async function griffithPlate({cell = 0.5, a = 5, grading = 1.5, back = 6, ahead = 10, rows = 3, insertion = 'manual', threshold = 1, tip, material = CONCRETE, strength = SIGMA_C, toughness = G_C} = {}) {
   const {FractureBody, gradedBoxMesh} = await fracture();
-  const E = CONCRETE.youngModulus, half = a * L_CH, b = 4 * half, H = 2 * b, h = cell * L_CH, t = 2 * h, behind = Math.min(back, Math.round(a / cell) - 1), lo = half - behind * h, hi = half + ahead * h;
+  // Lengths scale with l_ch = E G_c / sigma_c^2 of the material (the concrete-like default unless given).
+  const E = material.youngModulus, lch = E * toughness / strength ** 2, cf = 0.419 * lch;
+  const half = a * lch, b = 4 * half, H = 2 * b, h = cell * lch, t = 2 * h, behind = Math.min(back, Math.round(a / cell) - 1), lo = half - behind * h, hi = half + ahead * h;
   const xs = geometric(lo, 0, h, grading).reverse(); for (let i = 0; i < behind + ahead; i++) xs.push(lo + i * h); xs.push(hi, ...geometric(hi, b, h, grading));
   const up = [0]; for (let i = 1; i <= rows; i++) up.push(i * h); up.push(...geometric(up.at(-1), H, h * grading, grading));
-  const body = new FractureBody({mesh: gradedBoxMesh({x: xs, y: [...up.slice(1).map(v => -v).reverse(), ...up], z: [0, t]}), material: CONCRETE,
-    fracture: {model: 'cohesive', strength: SIGMA_C, toughness: G_C, insertion, insertionThreshold: threshold, ...(tip === undefined ? {} : {tipInsertionThreshold: tip})}, config: {tolerance: 1e-9, maxNewtonIterations: 12, maxLinearIterations: 5000}});
+  const body = new FractureBody({mesh: gradedBoxMesh({x: xs, y: [...up.slice(1).map(v => -v).reverse(), ...up], z: [0, t]}), material,
+    fracture: {model: 'cohesive', strength, toughness, insertion, insertionThreshold: threshold, ...(tip === undefined ? {} : {tipInsertionThreshold: tip})}, config: {tolerance: 1e-9, maxNewtonIterations: 12, maxLinearIterations: 5000}});
   const plane = [...body.selectInteriorFaces((cx, cy, cz, nx, ny) => near(cy, 0) && Math.abs(ny) > 0.999)];
   body.precrack(plane.filter(f => body.interiorFace(f).centroid[0] < half));
   if (insertion === 'manual') body.insertCohesive(plane.filter(f => body.interiorFace(f).centroid[0] > half));
@@ -116,9 +118,9 @@ export async function griffithPlate({cell = 0.5, a = 5, grading = 1.5, back = 6,
   body.constrain(body.selectNodes((x, y, z) => near(z, 0)), [null, null, 0]);
   const top = body.selectFaces((cx, cy, cz, nx, ny) => ny > 0.999), bottom = body.selectFaces((cx, cy, cz, nx, ny) => ny < -0.999);
   // Y: Feddersen's secant formula for a centre crack in a strip of finite width.
-  const Y = w => Math.sqrt(1 / Math.cos(Math.PI * w / (2 * b))), K = Math.sqrt(E * G_C);
-  return {body, top, bottom, a: half, b, H, h, t, Y: Y(half), lefm: K / (Y(half) * Math.sqrt(Math.PI * half)),
-    effective: K / (Y(half + C_F) * Math.sqrt(Math.PI * (half + C_F))), ligament: (b - half) * t, fineAhead: ahead * h * t};
+  const Y = w => Math.sqrt(1 / Math.cos(Math.PI * w / (2 * b))), K = Math.sqrt(E * toughness);
+  return {body, top, bottom, a: half, b, H, h, t, Y: Y(half), lefm: K / (Y(half) * Math.sqrt(Math.PI * half)), cf, lch,
+    effective: K / (Y(half + cf) * Math.sqrt(Math.PI * (half + cf))), ligament: (b - half) * t, fineAhead: ahead * h * t};
 }
 /** Raises the remote stress from 0.9 of the LEFM estimate in steps of `step` of it until the crack runs: the solve
  * does not converge, or the crack has run out of the refined zone. Returns the last stable and the first unstable stress. */
@@ -132,7 +134,7 @@ export async function griffithStrength(options = {}, {start = 0.9, step = 0.01, 
     stable = k; applied = stress; openBefore = area.open;
   }
   return {...plate, stable, unstable, strength: unstable > 0 && stable > 0 ? 0.5 * (stable + unstable) * lefm : NaN, ratio: unstable > 0 && stable > 0 ? 0.5 * (stable + unstable) : NaN,
-    step, growthBeforeFailure: openBefore / plate.t, solves, tets: body.tetCount, zoneCells: C_F / plate.h};
+    step, growthBeforeFailure: openBefore / plate.t, solves, tets: body.tetCount, zoneCells: plate.cf / plate.h};
 }
 
 // ---- Notched three-point bending ---------------------------------------------------------------------------------

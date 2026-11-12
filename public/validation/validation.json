@@ -5,10 +5,10 @@
  "generatedBy": "node scripts/validation-report.mjs",
  "digits": 9,
  "totals": {
-  "cases": 440,
-  "passed": 440,
+  "cases": 455,
+  "passed": 455,
   "failed": 0,
-  "domains": 17
+  "domains": 18
  },
  "domains": [
   {
@@ -339,6 +339,24 @@
    ],
    "cases": 8,
    "passed": 8
+  },
+  {
+   "id": "materials",
+   "title": "Material library in the solvers",
+   "summary": "Shear moduli against E / (2 (1 + nu)) for the entries with three sourced moduli; an aluminium bar in tension, a steel cantilever, a heated stainless bar, a cracked glass plate, a cooling copper bar, Hertz impacts of rubber spheres and glass beads, the restitution of glass beads, and a steel block and ball in the rigid world, each built from library values and checked against the closed form in which the value enters.",
+   "solver": "`src/engine/materials.ts` (`box3d-webgpu-kit/materials`): sourced SI values with conditions and citations, and the helpers that build the inputs of the solid, fracture, heat, granular and rigid solvers from them",
+   "docs": [
+    "docs/MATERIALS.md"
+   ],
+   "notValidated": [
+    "The values themselves: each row checks that a library value reaches a solver in the right unit and role, with the reference computed from the same value. Whether 6061-T6 really has E = 68.9 GPa is the source's claim (docs/MATERIALS.md cites it), not something measured here.",
+    "Source quality varies: standards and NIST data, manufacturers' typical values (\"not for design\"), and for several friction pairs only The Engineering ToolBox, marked as a last resort. 6 of the 208 values are unverified (no source opened) and are refused by the helpers unless allowUnverified is set.",
+    "Friction and restitution are properties of a pair, a surface finish and a speed. The rigid world applies one coefficient to sticking and sliding, mixes two bodies as sqrt(f_a f_b) and max(e_a, e_b), and does not apply restitution to slow impacts; the library records the measured speed but no solver uses it.",
+    "Temperature dependence: each value holds at the stated temperature (mostly 20 to 25 °C); only the steel, concrete and wood formulas the sources give were evaluated, at 20 °C.",
+    "Anisotropy and variability: wood is orthotropic and is given along the grain; rubber, polymers and wood vary with grade, moisture, rate and cross-linking well beyond the ranges here; grain-scale moduli of beads and sand are back-calculated from contact tests."
+   ],
+   "cases": 15,
+   "passed": 15
   }
  ],
  "cases": [
@@ -12874,6 +12892,436 @@
     "measured": "0",
     "error": "0",
     "tolerance": "±0"
+   }
+  },
+  {
+   "id": "materials.consistency.aluminium-6061-t6",
+   "domain": "materials",
+   "title": "Consistency of the moduli: aluminium-6061-t6",
+   "quantity": "shear modulus as the source states it",
+   "unit": "Pa",
+   "formula": "G = E / (2 (1 + nu)) from the stated E and nu",
+   "reference": 25902255600,
+   "measured": 26000000000,
+   "error": 97744360.9,
+   "relativeError": 0.00377358491,
+   "tolerance": {
+    "kind": "relative",
+    "value": 0.01
+   },
+   "pass": true,
+   "note": "E and G to three and two digits; G and nu \"estimated from trends in similar Al alloys\".",
+   "source": {
+    "file": "tests/engine/materials.test.mjs",
+    "test": "internal consistency: G = E / (2 (1 + nu)) for the isotropic entries with three sourced moduli, and the disagreements are flagged",
+    "url": "https://github.com/nathansenn/box3d-WEBGPU/blob/main/tests/engine/materials.test.mjs"
+   },
+   "text": {
+    "reference": "2.590226e10 Pa",
+    "measured": "2.6e10",
+    "error": "+0.377%",
+    "tolerance": "±1%"
+   }
+  },
+  {
+   "id": "materials.consistency.soda-lime-glass",
+   "domain": "materials",
+   "title": "Consistency of the moduli: soda-lime-glass",
+   "quantity": "shear modulus as the source states it",
+   "unit": "Pa",
+   "formula": "G = E / (2 (1 + nu)) from the stated E and nu",
+   "reference": 29268292700,
+   "measured": 30000000000,
+   "error": 731707317,
+   "relativeError": 0.025,
+   "tolerance": {
+    "kind": "relative",
+    "value": 0.03
+   },
+   "pass": true,
+   "note": "The sheet gives E and G to two digits (72 and 30 GPa), so G is known to about 1.7% and E to 0.7%.",
+   "source": {
+    "file": "tests/engine/materials.test.mjs",
+    "test": "internal consistency: G = E / (2 (1 + nu)) for the isotropic entries with three sourced moduli, and the disagreements are flagged",
+    "url": "https://github.com/nathansenn/box3d-WEBGPU/blob/main/tests/engine/materials.test.mjs"
+   },
+   "text": {
+    "reference": "2.926829e10 Pa",
+    "measured": "3e10",
+    "error": "+2.5%",
+    "tolerance": "±3%"
+   }
+  },
+  {
+   "id": "materials.consistency.granite-barre",
+   "domain": "materials",
+   "title": "Consistency of the moduli: granite-barre",
+   "quantity": "shear modulus as the source states it",
+   "unit": "Pa",
+   "formula": "G = E / (2 (1 + nu)) from the stated E and nu",
+   "reference": 29672131100,
+   "measured": 29700000000,
+   "error": 27868852.5,
+   "relativeError": 0.000939226519,
+   "tolerance": {
+    "kind": "relative",
+    "value": 0.01
+   },
+   "pass": true,
+   "note": "One specimen set, four values from one table.",
+   "source": {
+    "file": "tests/engine/materials.test.mjs",
+    "test": "internal consistency: G = E / (2 (1 + nu)) for the isotropic entries with three sourced moduli, and the disagreements are flagged",
+    "url": "https://github.com/nathansenn/box3d-WEBGPU/blob/main/tests/engine/materials.test.mjs"
+   },
+   "text": {
+    "reference": "2.967213e10 Pa",
+    "measured": "2.97e10",
+    "error": "+0.0939%",
+    "tolerance": "±1%"
+   }
+  },
+  {
+   "id": "materials.consistency.structural-steel-s355",
+   "domain": "materials",
+   "title": "Consistency of the moduli: structural-steel-s355",
+   "quantity": "shear modulus as the source states it",
+   "unit": "Pa",
+   "formula": "G = E / (2 (1 + nu)) from the stated E and nu",
+   "reference": 80769230800,
+   "measured": 81000000000,
+   "error": 230769231,
+   "relativeError": 0.00285714286,
+   "tolerance": {
+    "kind": "relative",
+    "value": 0.005
+   },
+   "pass": true,
+   "note": "The design value G ≈ 81000 MPa is itself E / (2 (1 + nu)) rounded.",
+   "source": {
+    "file": "tests/engine/materials.test.mjs",
+    "test": "internal consistency: G = E / (2 (1 + nu)) for the isotropic entries with three sourced moduli, and the disagreements are flagged",
+    "url": "https://github.com/nathansenn/box3d-WEBGPU/blob/main/tests/engine/materials.test.mjs"
+   },
+   "text": {
+    "reference": "8.076923e10 Pa",
+    "measured": "8.1e10",
+    "error": "+0.286%",
+    "tolerance": "±0.5%"
+   }
+  },
+  {
+   "id": "materials.consistency.flagged",
+   "domain": "materials",
+   "title": "Consistency of the moduli: the disagreements are flagged",
+   "quantity": "entries whose G is more than 3% from E / (2 (1 + nu)) and that do not say so",
+   "unit": "1",
+   "formula": "none unflagged",
+   "reference": 0,
+   "measured": 0,
+   "error": 0,
+   "relativeError": null,
+   "tolerance": {
+    "kind": "absolute",
+    "value": 0
+   },
+   "pass": true,
+   "note": "Stainless 304 (G 13% above, from one datasheet) and PMMA (a dynamic G at 10 Hz against a short-term E, 41% above) are flagged in the library and kept as stated.",
+   "source": {
+    "file": "tests/engine/materials.test.mjs",
+    "test": "internal consistency: G = E / (2 (1 + nu)) for the isotropic entries with three sourced moduli, and the disagreements are flagged",
+    "url": "https://github.com/nathansenn/box3d-WEBGPU/blob/main/tests/engine/materials.test.mjs"
+   },
+   "text": {
+    "reference": "0",
+    "measured": "0",
+    "error": "0",
+    "tolerance": "±0"
+   }
+  },
+  {
+   "id": "materials.tension.aluminium-6061-t6",
+   "domain": "materials",
+   "title": "Aluminium 6061-T6 bar in tension",
+   "quantity": "elongation of a 2 m bar, 50 x 40 mm, under 200 kN, built with solidMaterial",
+   "unit": "m",
+   "formula": "dL = F L / (E A), E from the library",
+   "reference": 0.00290275762,
+   "measured": 0.00290275762,
+   "error": 1.73472348e-18,
+   "relativeError": 5.97612237e-16,
+   "tolerance": {
+    "kind": "relative",
+    "value": 1e-9
+   },
+   "pass": true,
+   "source": {
+    "file": "tests/engine/materials.test.mjs",
+    "test": "an aluminium 6061-T6 bar in tension stretches by F L / (E A) with the library E",
+    "url": "https://github.com/nathansenn/box3d-WEBGPU/blob/main/tests/engine/materials.test.mjs"
+   },
+   "text": {
+    "reference": "0.002902758 m",
+    "measured": "0.002902758",
+    "error": "+5.98e-16 rel.",
+    "tolerance": "±1e-9 rel."
+   }
+  },
+  {
+   "id": "materials.cantilever.steel-s355",
+   "domain": "materials",
+   "title": "Structural steel S355 cantilever, 8 cells through the thickness",
+   "quantity": "tip deflection of a 1 m cantilever, 100 x 100 mm, 2 kN at the end, 80 x 8 x 8 cells",
+   "unit": "m",
+   "formula": "u = -(F L^3 / (3 E I) + F L / (kappa G A)), E and nu from the library",
+   "reference": -0.000383866667,
+   "measured": -0.000369784746,
+   "error": 0.0000140819207,
+   "relativeError": 0.0366844062,
+   "tolerance": {
+    "kind": "relative",
+    "value": 0.045
+   },
+   "pass": true,
+   "note": "Linear tetrahedra are stiff in bending (the solid domain measures the locking; 3.7% here, 5.8% at 6 cells, 11% at 4): the tolerance is that discretisation error, not uncertainty in E.",
+   "source": {
+    "file": "tests/engine/materials.test.mjs",
+    "test": "a structural-steel cantilever deflects as Timoshenko beam theory says with the library E and nu",
+    "url": "https://github.com/nathansenn/box3d-WEBGPU/blob/main/tests/engine/materials.test.mjs"
+   },
+   "text": {
+    "reference": "-0.0003838667 m",
+    "measured": "-0.0003697847",
+    "error": "+3.67%",
+    "tolerance": "±4.5%"
+   }
+  },
+  {
+   "id": "materials.expansion.stainless-304",
+   "domain": "materials",
+   "title": "Stainless 304 bar heated by 100 K",
+   "quantity": "free growth of a 1 m bar with the thermal eigenstrain",
+   "unit": "m",
+   "formula": "dL = alpha dT L, alpha from the library",
+   "reference": 0.00173,
+   "measured": 0.00173,
+   "error": 1.51788304e-18,
+   "relativeError": 8.77389041e-16,
+   "tolerance": {
+    "kind": "relative",
+    "value": 1e-9
+   },
+   "pass": true,
+   "source": {
+    "file": "tests/engine/materials.test.mjs",
+    "test": "a free stainless 304 bar heated by 100 K grows by alpha dT L with the library alpha",
+    "url": "https://github.com/nathansenn/box3d-WEBGPU/blob/main/tests/engine/materials.test.mjs"
+   },
+   "text": {
+    "reference": "0.00173 m",
+    "measured": "0.00173",
+    "error": "+8.77e-16 rel.",
+    "tolerance": "±1e-9 rel."
+   }
+  },
+  {
+   "id": "materials.griffith.soda-lime-glass",
+   "domain": "materials",
+   "title": "Soda-lime glass plate: Griffith stress",
+   "quantity": "remote stress at which a centre crack of half-length 5 l_ch runs (l_ch = 0.33 mm), cells of l_ch / 2, cohesive law from fractureLaw",
+   "unit": "Pa",
+   "formula": "K_IC / (Y sqrt(pi a)), Y = sqrt(sec(pi a / (2 b))), K_IC from the library",
+   "reference": 9943324,
+   "measured": 9595307.66,
+   "error": -348016.34,
+   "relativeError": -0.035,
+   "tolerance": {
+    "kind": "relative",
+    "value": 0.05
+   },
+   "pass": true,
+   "note": "The plate of fracture.griffith.fine scaled to glass, and it reads the same 3.5% low: the process zone of a crack of 5 l_ch. Thin plate, so G_c = K_IC^2 / E (plane stress).",
+   "source": {
+    "file": "tests/engine/materials.test.mjs",
+    "test": "a soda-lime glass plate fails at the Griffith stress of the library K_IC",
+    "url": "https://github.com/nathansenn/box3d-WEBGPU/blob/main/tests/engine/materials.test.mjs"
+   },
+   "text": {
+    "reference": "9943324 Pa",
+    "measured": "9595308",
+    "error": "-3.5%",
+    "tolerance": "±5%"
+   }
+  },
+  {
+   "id": "materials.diffusion.copper",
+   "domain": "materials",
+   "title": "Copper bar cooling: time constant",
+   "quantity": "decay time of the mid-point excess of a 0.1 m bar between its ends at 300 K, 50 cells, Crank-Nicolson",
+   "unit": "s",
+   "formula": "tau = L^2 / (pi^2 alpha), alpha = k / (rho c_p) from the library",
+   "reference": 8.89152842,
+   "measured": 8.89547254,
+   "error": 0.00394411913,
+   "relativeError": 0.000443581681,
+   "tolerance": {
+    "kind": "relative",
+    "value": 0.001
+   },
+   "pass": true,
+   "note": "Second-order finite volumes: the slowest eigenvalue is about 3e-4 off at 50 cells.",
+   "source": {
+    "file": "tests/engine/materials.test.mjs",
+    "test": "a copper bar cools with the time constant L^2 / (pi^2 alpha) of the library k, rho and c_p",
+    "url": "https://github.com/nathansenn/box3d-WEBGPU/blob/main/tests/engine/materials.test.mjs"
+   },
+   "text": {
+    "reference": "8.891528 s",
+    "measured": "8.895473",
+    "error": "+0.0444%",
+    "tolerance": "±0.1%"
+   }
+  },
+  {
+   "id": "materials.hertz.natural-rubber",
+   "domain": "materials",
+   "title": "Natural-rubber spheres: Hertz contact duration",
+   "quantity": "contact time of two 10 mm spheres meeting at 0.1 m/s, restitution 1, step 2% of the Rayleigh time",
+   "unit": "s",
+   "formula": "t = 2.9433 d / v, d = (15 m* v^2 / (16 E* sqrt(R*)))^(2/5), E* = E / (2 (1 - nu^2)), library E, nu (capped at 0.4999) and rho",
+   "reference": 0.00214327462,
+   "measured": 0.00214322746,
+   "error": -4.71624051e-8,
+   "relativeError": -0.0000220048353,
+   "tolerance": {
+    "kind": "relative",
+    "value": 0.001
+   },
+   "pass": true,
+   "note": "Restitution 1 and friction 0 are passed in (the library has no sourced rubber-on-rubber values); the overlap reaches about 1.5% of the radius.",
+   "source": {
+    "file": "tests/engine/materials.test.mjs",
+    "test": "two natural-rubber spheres and two glass beads stay in contact for the Hertz duration of the library E, nu and rho",
+    "url": "https://github.com/nathansenn/box3d-WEBGPU/blob/main/tests/engine/materials.test.mjs"
+   },
+   "text": {
+    "reference": "0.002143275 s",
+    "measured": "0.002143227",
+    "error": "-2.2e-5 rel.",
+    "tolerance": "±0.1%"
+   }
+  },
+  {
+   "id": "materials.hertz.glass-beads",
+   "domain": "materials",
+   "title": "Glass beads: Hertz contact duration",
+   "quantity": "contact time of two 10 mm glass beads meeting at 0.1 m/s, restitution 1",
+   "unit": "s",
+   "formula": "t = 2.9433 d / v, d = (15 m* v^2 / (16 E* sqrt(R*)))^(2/5), library E, nu and rho",
+   "reference": 0.0000560011004,
+   "measured": 0.000056000955,
+   "error": -1.45394166e-10,
+   "relativeError": -0.00000259627337,
+   "tolerance": {
+    "kind": "relative",
+    "value": 0.001
+   },
+   "pass": true,
+   "source": {
+    "file": "tests/engine/materials.test.mjs",
+    "test": "two natural-rubber spheres and two glass beads stay in contact for the Hertz duration of the library E, nu and rho",
+    "url": "https://github.com/nathansenn/box3d-WEBGPU/blob/main/tests/engine/materials.test.mjs"
+   },
+   "text": {
+    "reference": "5.60011e-5 s",
+    "measured": "5.600095e-5",
+    "error": "-2.6e-6 rel.",
+    "tolerance": "±0.1%"
+   }
+  },
+  {
+   "id": "materials.restitution.glass-beads",
+   "domain": "materials",
+   "title": "Glass beads: restitution",
+   "quantity": "rebound speed over impact speed of two beads built with grainMaterial, at 0.1 m/s",
+   "unit": "1",
+   "formula": "e of glass beads on glass beads in the library",
+   "reference": 0.926,
+   "measured": 0.925991524,
+   "error": -0.0000084763622,
+   "relativeError": -0.00000915373888,
+   "tolerance": {
+    "kind": "absolute",
+    "value": 0.001
+   },
+   "pass": true,
+   "source": {
+    "file": "tests/engine/materials.test.mjs",
+    "test": "two glass beads rebound at the library restitution",
+    "url": "https://github.com/nathansenn/box3d-WEBGPU/blob/main/tests/engine/materials.test.mjs"
+   },
+   "text": {
+    "reference": "0.926",
+    "measured": "0.9259915",
+    "error": "-8.48e-6",
+    "tolerance": "±0.001"
+   }
+  },
+  {
+   "id": "materials.rigid.sliding.steel",
+   "domain": "materials",
+   "title": "Steel on steel: sliding distance",
+   "quantity": "distance a steel block slides from 3 m/s on a steel floor, kinetic coefficient from contactPair",
+   "unit": "m",
+   "formula": "d = v0^2 / (2 mu_k g), mu_k = 0.3 (steel on steel, dry)",
+   "reference": 1.52905199,
+   "measured": 1.52750671,
+   "error": -0.00154527867,
+   "relativeError": -0.00101061225,
+   "tolerance": {
+    "kind": "relative",
+    "value": 0.01
+   },
+   "pass": true,
+   "source": {
+    "file": "packages/box3d-kit/test/v18-materials.test.mjs",
+    "test": "with the library steel-on-steel values a block slides to v0^2 / (2 mu_k g) and a ball rebounds to e^2 h",
+    "url": "https://github.com/nathansenn/box3d-WEBGPU/blob/main/packages/box3d-kit/test/v18-materials.test.mjs"
+   },
+   "text": {
+    "reference": "1.529052 m",
+    "measured": "1.527507",
+    "error": "-0.101%",
+    "tolerance": "±1%"
+   }
+  },
+  {
+   "id": "materials.rigid.rebound.steel",
+   "domain": "materials",
+   "title": "Steel on steel: rebound height",
+   "quantity": "first rebound of a steel ball dropped 0.75 m on a steel floor, restitution from contactPair",
+   "unit": "m",
+   "formula": "h1 = e^2 h, e = 0.56 (steel ball on steel plate at 3.1 to 4.4 m/s)",
+   "reference": 0.2352,
+   "measured": 0.230174118,
+   "error": -0.00502588172,
+   "relativeError": -0.0213685447,
+   "tolerance": {
+    "kind": "relative",
+    "value": 0.03
+   },
+   "pass": true,
+   "note": "At 240 Hz one step of gravity is 0.04 m/s against 3.8 m/s at impact; the ball reads about 2% low, as the rigid domain's 5 m drop reads within 2%.",
+   "source": {
+    "file": "packages/box3d-kit/test/v18-materials.test.mjs",
+    "test": "with the library steel-on-steel values a block slides to v0^2 / (2 mu_k g) and a ball rebounds to e^2 h",
+    "url": "https://github.com/nathansenn/box3d-WEBGPU/blob/main/packages/box3d-kit/test/v18-materials.test.mjs"
+   },
+   "text": {
+    "reference": "0.2352 m",
+    "measured": "0.2301741",
+    "error": "-2.14%",
+    "tolerance": "±3%"
    }
   }
  ]
