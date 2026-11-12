@@ -4819,6 +4819,12 @@ export interface SolidConfig {
     maxNewtonIterations?: number;
     maxLinearIterations?: number;
     explicitSafety?: number;
+    viscoelastic?: {
+        readonly branches: readonly {
+            readonly ratio: number;
+            readonly time: number;
+        }[];
+    };
 }
 export interface SolidDefinition {
     mesh: TetMesh | {
@@ -4936,6 +4942,15 @@ export declare class SolidBody {
     private readonly F;
     private readonly R;
     private readonly B;
+    private veBranches;
+    private veA;
+    private veB;
+    private veHist;
+    private vePrev;
+    private veC;
+    private relaxed;
+    private reporting;
+    readonly viscoelasticScale: number;
     private cm;
     private cd;
     private reference;
@@ -4966,7 +4981,10 @@ export declare class SolidBody {
     positions(out?: Float64Array<ArrayBuffer>): Float64Array;
     private gradient;
     private piola;
+    private commitViscous;
+    private piolaElastic;
     private tangent;
+    private tangentElastic;
     private scatter;
     private elastic;
     private stiffness;
@@ -4994,6 +5012,7 @@ export declare class SolidBody {
     stresses(out?: Float64Array<ArrayBuffer>): Float64Array;
     strains(out?: Float64Array<ArrayBuffer>): Float64Array;
     private tensors;
+    private tensorsNow;
     vonMises(out?: Float64Array<ArrayBuffer>): Float64Array;
     principalStresses(out?: Float64Array<ArrayBuffer>): Float64Array;
     failedElements(options: {

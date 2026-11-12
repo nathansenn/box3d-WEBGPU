@@ -20,7 +20,7 @@ import granular from './domains/granular.mjs';
 import fluid from './domains/fluid.mjs';
 import solidContact from './domains/solid-contact.mjs';
 import heat from './domains/heat.mjs';
-import solid from './domains/solid.mjs';
+import solid, {viscoelastic as solidViscoelastic} from './domains/solid.mjs';
 import fracture from './domains/fracture.mjs';
 import plate from './domains/plate.mjs';
 import frame from './domains/frame.mjs';
@@ -210,7 +210,7 @@ export const DOMAINS = [
       'Bending is where this element is weak, and the table shows it: one cell through the thickness is three times too stiff, four cells 12%, eight cells 3.4%. Bending frequencies are 5% to 6% high at four cells.',
       'Near-incompressibility: at nu = 0.4999 the four-cell cantilever is 29% too stiff. There is no mixed or higher-order element.',
       'With nu = 0.3 a clamped root also restrains Poisson contraction, which beam theory ignores: the 3-D limit sits about 1.2% below the Timoshenko reference.',
-      'Contact and self-contact, plasticity, viscoelasticity, anisotropy, and more than one material per body. Crack growth is a separate solver on the linear model of this element (the fracture domain); `SolidBody` itself only flags elements above a strength.',
+      'Viscoelasticity is a stress-based Prony series: checked for uniaxial creep, relaxation and recovery at small strain and for a uniform Neo-Hookean stretch; it is not objective under large rotation while an overstress remains, and no measured rubber was fitted. Contact and self-contact, plasticity, anisotropy, and more than one material per body. Crack growth is a separate solver on the linear model of this element (the fracture domain); `SolidBody` itself only flags elements above a strength.',
       'No two-way coupling to the rigid-body, water, cable or frame solvers, and no contact with rigid bodies. The one-way thermal and dead-load links are in the simulation domain.',
       'Uniform states are exact, so the tension, shear, pressure and rubber rows say nothing about accuracy under stress gradients.',
     ],
@@ -314,7 +314,7 @@ export const DOMAINS = [
   },
 ];
 
-export const CASES = [...rigid, ...waterCoupling, ...structureCoupling, ...siBridge, ...geometry, ...scene, ...simulation, ...robot, ...cloth, ...granular, ...fluid, ...heat, ...solid, ...solidContact, ...fracture, ...plate, ...frame, ...cable, ...closedWater, ...materials];
+export const CASES = [...rigid, ...waterCoupling, ...structureCoupling, ...siBridge, ...geometry, ...scene, ...simulation, ...robot, ...cloth, ...granular, ...fluid, ...heat, ...solid, ...solidViscoelastic, ...solidContact, ...fracture, ...plate, ...frame, ...cable, ...closedWater, ...materials];
 
 /** Cases of the given domains (all when `only` is empty), in registry order. */
 export function selectCases(only = []) {

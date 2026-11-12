@@ -3073,6 +3073,7 @@ export declare class SolidBody {
   readonly mu: number;
   readonly material: Readonly<Required<SolidMaterial>>;
   readonly stats: SolidSolveStats;
+  readonly viscoelasticScale: number;
   selectNodes(predicate: (x: number, y: number, z: number) => boolean): Uint32Array;
   selectFaces(predicate: (cx: number, cy: number, cz: number, nx: number, ny: number, nz: number) => boolean): Uint32Array;
   constrain(nodes: ArrayLike<number>, value?: readonly [number | null, number | null, number | null]): void;
@@ -3122,6 +3123,12 @@ export interface SolidConfig {
     maxNewtonIterations?: number;
     maxLinearIterations?: number;
     explicitSafety?: number;
+    viscoelastic?: {
+        readonly branches: readonly {
+            readonly ratio: number;
+            readonly time: number;
+        }[];
+    };
 }
 ```
 

@@ -49,6 +49,8 @@ Rayleigh damping is `C = massDamping * M + stiffnessDamping * K`. For the finite
 
 **Outputs.** Nodal displacements and velocities; per element the strain tensor, Cauchy stress tensor, von Mises stress and principal stresses; strain energy, kinetic energy and load potential; reaction forces at constraints; current volume; the lowest natural frequency and mode (`fundamentalMode`, inverse iteration). For the finite-strain models the stress is `P F^T / J` and the strain is the Biot strain `V - I` in the current frame.
 
+**Viscoelasticity.** `config.viscoelastic: {branches: [{ratio, time}, ...]}` (1 to 8 branches, backward Euler only) adds a Prony series on the elastic stress of any of the three models: the material's `E` and `nu` are the long-term (relaxed) moduli, and branch `i` carries an overstress `h_i` that follows `ratio_i` times the elastic stress and relaxes with the time constant `time_i`. In one dimension at small strain the relaxation modulus is `E(t) = E (1 + sum ratio_i exp(-t / time_i))`; one branch is the standard linear solid (Zener), with instantaneous modulus `E (1 + ratio)` and creep retardation time `time (1 + ratio)`. Each step uses Simo's recursion `h_i <- a_i h_i + b_i ratio_i (P_e,new - P_e,old)`, `a_i = exp(-dt / time_i)`, `b_i = (1 - a_i) / (dt / time_i)`, exact when the elastic stress varies linearly within a step. Within a step the stress is `s P_e + C`, with `s = 1 + sum b_i ratio_i` and `C` from the history: the gradient of `s W + C : H`, so the step is still one minimisation with the tangent scaled by `s`. The history is per element (9 numbers per branch); it is committed after each step of `step()` and of `SolidContact` (through the kernel's `advance`). `stresses()` reports the elastic stress plus the overstress; `strainEnergy()` the long-term (elastic) part; `solveStatic()` gives the relaxed response and leaves the body relaxed (no overstress). For the finite-strain models the overstress follows the first Piola-Kirchhoff stress of the elastic law (a stress-based finite-strain Prony model, not a multiplicative split): it is exact for a uniform deformation held or applied at constant rate, and not objective under large rotation while the overstress is non-zero.
+
 **Failure.** `failedElements({criterion, strength})` returns the elements whose largest principal stress (`max-principal`, brittle) or von Mises stress (`von-mises`, yield) is above a strength. This is post-processing only. The material does not yield, soften or crack in `SolidBody`. Crack propagation is a separate body type on this element's linear model, `FractureBody`: see [`SOLID_FRACTURE.md`](SOLID_FRACTURE.md).
 
 ## Validation
@@ -87,6 +89,23 @@ Measured by `tests/engine/solid.test.mjs` (22 tests, about 8 s) on Node 22.23.4,
 
 The observed order is `log2(error(h) / error(h / 2))`.
 
+### Viscoelasticity
+
+Measured by `tests/engine/solid-viscoelastic.test.mjs` (6 tests, in `npm run test:solid`), rows `solid.viscoelastic.*` in [`VALIDATION.md`](VALIDATION.md). One branch, `E` = 2 MPa long-term, `ratio` = 1.5, `time` = 2 s; a 0.1 m bar, `nu = 0`.
+
+| Check | Expected | Measured | Tolerance |
+|---|---|---|---|
+| Strain held from the first step, 600 steps of `tau / 200` | the discrete recursion `E eps (1 + gamma b a^(n-1))` | 1.3e-15 | 1e-9 |
+| The same at `t = tau` | `E eps (1 + gamma / e)` | +0.09 % (a step load is taken as a ramp over the first step) | 1 % |
+| Creep under 50 kPa at `t = tau (1 + gamma)` | standard linear solid | −0.028 % (−0.057 % at twice the step: first order) | 1 % |
+| Recovery `tau_c` after unloading | `(eps(t1) − sigma / E0) exp(−1)` | +0.10 % | 1 % |
+| Neo-Hookean block held at a stretch of 1.5 | `(1 + gamma b a^(n-1))` times the elastic stress | 1.7e-15; relaxed to the elastic stress | 1e-9 |
+| Statics | the long-term solid | identical to the elastic body | 1e-15 m |
+| Cube on a plane through `SolidContact`, 16 `tau` | relaxed settlement `rho g L^2 / (2 E)` = 2.4525 mm | 2.4507 mm (−0.07 %), 0.28 of it after 5 steps | 3 % |
+| Midpoint or explicit integrator with viscoelasticity | refused | `INVALID_PAYLOAD` | exact |
+
+Cost: one elastic stress evaluation per element per step to commit the history, about one extra `energy` pass.
+
 ## Limits
 
 **Bending (shear locking).** Linear tetrahedra are too stiff in bending. A cantilever with one cell through its thickness is three times too stiff, with two cells 1.56 times, with four cells 12%, with eight cells 3.4% (`nu = 0`). Outside the gate, 12 and 16 cells measured 1.5% (`nu = 0`) and 2.8% / 2.2% (`nu = 0.3`). Use at least four cells through the thickness of anything that bends, and expect frequencies of bending modes to be 5% to 6% high there.
@@ -101,7 +120,7 @@ The observed order is `log2(error(h) / error(h / 2))`.
 
 The conjugate-gradient iteration count rises with it (125 at 0.3, about 2,500 at 0.4999). Uniform states, including hydrostatic ones, stay exact at any `nu`. Rubber at `nu = 0.45` is about 5 percentage points stiffer in bending than `nu = 0` on that mesh; `nu` above 0.49 needs a mixed or higher-order element, which this version does not have. `nu` is limited to 0.4999.
 
-**Not modelled.** Contact between two solids and self-contact (contact with rigid bodies is in [`SOLID_CONTACT.md`](SOLID_CONTACT.md), node against body, backward Euler only); plasticity and viscoelasticity; damage and crack propagation in `SolidBody` itself (its strength checks only flag elements; [`SOLID_FRACTURE.md`](SOLID_FRACTURE.md) describes the fracture solver built on the linear model); follower pressure; anisotropy; more than one material per body; higher-order or mixed elements; two-way coupling to the water, cable or frame solvers (the rigid world is coupled through `SolidCoupling`; the one-way links of [`SIMULATION.md`](SIMULATION.md) remain); checkpoints.
+**Not modelled.** Contact between two solids and self-contact (contact with rigid bodies is in [`SOLID_CONTACT.md`](SOLID_CONTACT.md), node against body, backward Euler only); plasticity; viscoelasticity with a rotation-objective finite-strain split (the Prony model above is stress-based); damage and crack propagation in `SolidBody` itself (its strength checks only flag elements; [`SOLID_FRACTURE.md`](SOLID_FRACTURE.md) describes the fracture solver built on the linear model); follower pressure; anisotropy; more than one material per body; higher-order or mixed elements; two-way coupling to the water, cable or frame solvers (the rigid world is coupled through `SolidCoupling`; the one-way links of [`SIMULATION.md`](SIMULATION.md) remain); checkpoints.
 
 **Other limits.** Up to 200,000 nodes and 1,000,000 elements. The explicit stability limit is that of the reference shape. The midpoint rule conserves energy exactly only for the linear model. Backward Euler damps high modes strongly at large time steps. The stress of a rotated element is accurate to about 1e-16 `E` in absolute terms, so the relative precision of very small strains under large rotation is limited. JavaScript on one thread: the 10,000-unknown cantilever solves in about half a second, and no performance claim is made.
 

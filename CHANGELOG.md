@@ -1,5 +1,11 @@
 # Changelog
 
+## Unreleased — 2026-11-12 — Viscoelastic solid
+
+- **Solver (`src/engine/solid.ts`, `config.viscoelastic`):** a Prony series on the elastic stress of the tetrahedral solid (linear, corotational or Neo-Hookean): long-term moduli from the material, up to 8 branches of `{ratio, time}`, Simo's recursion per element and step, each step still one minimisation (tangent scaled by `1 + sum b_i ratio_i`). Backward Euler only; the history is committed by `step()` and by `SolidContact` through the kernel. Statics give the relaxed solid. New read-only `viscoelasticScale`.
+- **Validated (`tests/engine/solid-viscoelastic.test.mjs` in `npm run test:solid`, 6 tests; 6 rows `solid.viscoelastic.*` in `docs/VALIDATION.md`):** relaxation follows the discrete recursion to 1e-15 and `E (1 + gamma e^(-t/tau))` to 0.09 %; creep and recovery of the standard linear solid to 0.03 % and 0.10 % with first-order convergence in the step; a Neo-Hookean block relaxes to its elastic stress; a soft cube on a plane through `SolidContact` creeps to its relaxed settlement (−0.07 %).
+- **For the Studio:** this is the material law the elastomer lab needs for creep, hold and recovery. The lab itself is not converted yet (see `docs/STUDIO_MATERIAL_LABS.md`).
+
 ## Unreleased — 2026-11-12 — Glass impact lab in SI units
 
 - **Finding:** linear tetrahedra cannot model the Studio's 2.6 m × 2.0 m × 8 mm pane: with 0.1 m cells the solid of `SOLID_MECHANICS.md` deflects 1e-4 of the Navier value, and 0.09 to 0.25 of it even with cells as wide as the pane is thick. The glass lab therefore runs a plate.

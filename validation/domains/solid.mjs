@@ -254,3 +254,65 @@ export default defineCases('solid', FILE, [
   {id: 'solid.thermal.restrained-stress', title: 'Thermal eigenstrain: restrained bar', quantity: 'axial stress of the bar held at both ends and heated by 80 K (linear model)', unit: 'Pa', test: T.thermal,
     reference: {formula: 'sigma = -E alpha dT', value: -200e9 * THERMAL.alpha * THERMAL.rise}, tolerance: relative(1e-10), measure: async () => (await thermal()).stress},
 ]);
+
+// Viscoelasticity (config.viscoelastic): a Prony branch on the elastic stress, E(t) = E (1 + gamma exp(-t / tau)).
+const VFILE = 'tests/engine/solid-viscoelastic.test.mjs';
+const VT = {
+  relaxation: 'relaxation: a strain held from the first step relaxes by the discrete Prony recursion, which approaches E (1 + gamma exp(-t / tau))',
+  creep: 'creep and recovery of a bar under constant stress follow the standard linear solid, retardation time tau (1 + gamma)',
+  contact: 'through SolidContact: a viscoelastic cube resting on a plane creeps under its weight to the elastic settlement',
+};
+const VE = {E: 2e6, gamma: 1.5, tau: 2, L: 0.1};
+async function veBar(dt, density = 1) {
+  const {SolidBody, boxMesh} = await solid();
+  return new SolidBody({mesh: boxMesh({size: [VE.L, 0.02, 0.02], cells: [4, 1, 1]}), material: {youngModulus: VE.E, poissonRatio: 0, density},
+    config: {model: 'linear', dt, massDamping: 0, tolerance: 1e-12, viscoelastic: {branches: [{ratio: VE.gamma, time: VE.tau}]}}});
+}
+const veAxial = b => { const s = b.stresses(); let m = 0; for (let e = 0; e < b.tetCount; e++) m += s[6 * e]; return m / b.tetCount; };
+const veRelax = () => memo('solid/ve-relax', async () => {
+  const dt = VE.tau / 200, b = await veBar(dt), eps = 0.01, a = Math.exp(-dt / VE.tau), beta = (1 - a) / (dt / VE.tau); let worst = 0, atTau = 0;
+  for (let n = 0; n < b.nodeCount; n++) b.constrain([n], [eps * b.referencePositions[3 * n], 0, 0]);
+  for (let n = 1; n <= 600; n++) { b.step(); const s = veAxial(b); worst = Math.max(worst, Math.abs(s / (VE.E * eps * (1 + VE.gamma * beta * a ** (n - 1))) - 1)); if (n === 200) atTau = s; }
+  return {worst, atTau, eps};
+});
+const veCreep = dt => memo(`solid/ve-creep/${dt}`, async () => {
+  const b = await veBar(dt, 1e-3), sigma = 5e4, end = b.selectFaces((cx, cy, cz, nx) => nx > 0.999), tip = b.selectNodes(x => x > VE.L - 1e-9);
+  b.constrain(b.selectNodes(x => x < 1e-9), [0, null, null]); b.constrain(b.selectNodes((x, y) => y < 1e-9), [null, 0, null]); b.constrain(b.selectNodes((x, y, z) => z < 1e-9), [null, null, 0]);
+  b.addTraction(end, [sigma, 0, 0]);
+  const strain = () => { let s = 0; for (const n of tip) s += b.displacements[3 * n]; return s / tip.length / VE.L; };
+  const tauC = VE.tau * (1 + VE.gamma), steps = t => Math.round(t / dt); let atTauC = 0;
+  for (let n = 1; n <= steps(3 * tauC); n++) { b.step(); if (n === steps(tauC)) atTauC = strain(); }
+  b.addTraction(end, [-sigma, 0, 0]); b.step(steps(tauC));
+  const e0 = sigma / (VE.E * (1 + VE.gamma)), einf = sigma / VE.E, creepAt = t => einf - (einf - e0) * Math.exp(-t / tauC);
+  return {atTauC, recovered: strain(), expected: creepAt(tauC), recoveredExpected: (creepAt(3 * tauC) - e0) * Math.exp(-1)};
+});
+const veContact = () => memo('solid/ve-contact', async () => {
+  const {SolidBody, boxMesh} = await solid(), {SolidContact} = await engine('solid-contact');
+  const size = 0.1, rho = 1000, Einf = 2e4, tau = 0.5, dt = 1 / 100;
+  const cube = new SolidBody({mesh: boxMesh({size: [size, size, size], cells: [2, 2, 2]}), material: {youngModulus: Einf, poissonRatio: 0, density: rho},
+    config: {model: 'linear', dt, massDamping: 20, gravity: [0, -9.81, 0], tolerance: 1e-10, viscoelastic: {branches: [{ratio: 3, time: tau}]}}});
+  const contact = new SolidContact(cube, {gravity: [0, -9.81, 0]});
+  contact.addBody({shape: {kind: 'plane', normal: [0, 1, 0]}, type: 'static', position: [0, 0, 0], rotation: [0, 0, 0, 1]});
+  const top = cube.selectNodes((x, y) => y > size - 1e-9); contact.step(5 + Math.round(16 * tau / dt));
+  let s = 0; for (const n of top) s += cube.displacements[3 * n + 1];
+  return {settlement: -s / top.length, elastic: rho * 9.81 * size * size / (2 * Einf)};
+});
+export const viscoelastic = defineCases('solid', VFILE, [
+  {id: 'solid.viscoelastic.recursion', title: 'Viscoelastic relaxation: the stress history', quantity: 'largest relative difference over 600 steps between the stress of a held strain and the discrete Prony recursion E eps (1 + gamma b a^(n-1))', unit: '1', test: VT.relaxation,
+    reference: {formula: 'a = exp(-dt / tau), b = (1 - a) / (dt / tau)', value: 0}, tolerance: absolute(1e-9), measure: async () => (await veRelax()).worst},
+  {id: 'solid.viscoelastic.relaxation', title: 'Viscoelastic relaxation at t = tau', quantity: 'axial stress of a bar held at 1 % strain from t = 0, dt = tau / 200', unit: 'Pa', test: VT.relaxation,
+    reference: {formula: 'sigma = E eps (1 + gamma exp(-t / tau))', value: VE.E * 0.01 * (1 + VE.gamma * Math.exp(-1))}, tolerance: relative(0.01),
+    note: 'The recursion takes the strain as rising linearly over the first step, so a step load reads O(dt / tau) high.', measure: async () => (await veRelax()).atTau},
+  {id: 'solid.viscoelastic.creep', title: 'Creep of a standard linear solid at t = tau (1 + gamma)', quantity: 'strain of a bar under a constant 50 kPa traction, dt = tau / 200', unit: '1', test: VT.creep,
+    reference: {formula: 'eps = sigma / E - (sigma / E - sigma / E0) exp(-t / tau_c), E0 = E (1 + gamma), tau_c = tau (1 + gamma)', value: null}, tolerance: relative(0.01),
+    measure: async () => { const r = await veCreep(VE.tau / 200); return {value: r.atTauC, reference: r.expected}; }},
+  {id: 'solid.viscoelastic.creep-order', title: 'Creep: observed order in the time step', quantity: 'order of the creep error at tau_c from dt = tau / 100 to tau / 200', unit: '1', test: VT.creep,
+    reference: {formula: 'backward Euler: 1', value: 1}, tolerance: absolute(0.2),
+    measure: async () => { const c = await veCreep(VE.tau / 100), f = await veCreep(VE.tau / 200); return Math.log2((c.atTauC / c.expected - 1) / (f.atTauC / f.expected - 1)); }},
+  {id: 'solid.viscoelastic.recovery', title: 'Recovery after unloading', quantity: 'strain tau_c after the 50 kPa traction is removed at 3 tau_c', unit: '1', test: VT.creep,
+    reference: {formula: 'eps = (eps(t1) - sigma / E0) exp(-(t - t1) / tau_c)', value: null}, tolerance: relative(0.01),
+    measure: async () => { const r = await veCreep(VE.tau / 200); return {value: r.recovered, reference: r.recoveredExpected}; }},
+  {id: 'solid.viscoelastic.contact', title: 'Viscoelastic cube on a plane through SolidContact', quantity: 'settlement of the top face after 16 tau under its own weight (E = 20 kPa long-term, 4x instantaneous)', unit: 'm', test: VT.contact,
+    reference: {formula: 'rho g L^2 / (2 E) (fully relaxed)', value: 1000 * 9.81 * 0.01 / (2 * 2e4)}, tolerance: relative(0.03),
+    note: 'Lumped weights on 2 cells; the contact springs sink the base by a small extra depth.', measure: async () => (await veContact()).settlement},
+]);

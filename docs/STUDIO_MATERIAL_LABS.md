@@ -6,7 +6,7 @@ The Engineering Studio's material labs (`index.html?studio=glass`, `concrete`, `
 |---|---|---|
 | Glass impact (`GI–02`) | **SI** since 2026-11-12 | Kirchhoff plate with brittle fracture, `src/engine/plate.ts` (new); lab model `src/studio/material-labs/glass-si.ts` |
 | Concrete crush (`CC–03`) | still the authored bond lattice ("not calibrated") | — |
-| Elastomer lab (`EL–04`) | still the authored spring-damper ("not calibrated") | — |
+| Elastomer lab (`EL–04`) | still the authored spring-damper ("not calibrated") | material law ready: viscoelastic tetrahedral solid (`config.viscoelastic`) |
 
 ## Glass impact
 
@@ -118,7 +118,10 @@ Below 1 the lab plays slower than real time while it computes; the recorded run 
 
 ## Concrete crush and Elastomer lab
 
-Not converted yet. They keep their authored models and the "Comparative model · not calibrated" label. What they would need: for concrete, compressive crushing (cohesive fracture has no friction on closed cracks and no compression failure; a damage-plasticity model validated against f_c and the EC2 parabola) and platens as constraints or rigid bodies; for the elastomer, viscoelasticity (a standard linear solid or Prony series on the Neo-Hookean solid, validated against the closed-form creep and relaxation curves) and platen contact through `SolidContact`. Both specimens are bulky, so the tetrahedral solid suits them.
+Not converted yet. They keep their authored models and the "Comparative model · not calibrated" label.
+
+- **Elastomer lab.** Its material law now exists: the tetrahedral solid takes a Prony series (`config.viscoelastic`), validated against the standard linear solid's creep, relaxation and recovery, also through `SolidContact` ([`SOLID_MECHANICS.md`](SOLID_MECHANICS.md#viscoelasticity)). What remains is the lab model: a cylinder mesh between a kinematic top platen and a fixed base through `SolidContact`, sourced moduli and Prony parameters for the eight elastomers and foams (none are in the library yet), a compressible law for the foams, a worker, a renderer that draws the tetrahedral surface, and SI tests.
+- **Concrete crush.** Needs compressive crushing: cohesive fracture has no friction on closed cracks and no compression failure, so a scoped damage-plasticity model validated against f_c and the EC2 parabola, platens as constraints or rigid bodies, sourced values for the eight mixes (the library has C30/37 only, without a fracture energy), and the lab wiring. Reinforcement as embedded bars was not attempted. The cube is bulky, so the tetrahedral solid suits it.
 
 ## Reproduce
 

@@ -34,6 +34,10 @@ export interface SolidConfig {
   maxNewtonIterations?:number;maxLinearIterations?:number;
   /** The explicit integrator refuses a time step above this fraction of its stability limit. Default 0.9. */
   explicitSafety?:number;
+  /** Viscoelasticity: a Prony series on the elastic stress. The material's moduli are the long-term (relaxed) ones; branch i
+   * adds `ratio` times the elastic stress, relaxing with time constant `time` (s), so in one dimension the relaxation
+   * modulus is E(t) = E (1 + sum ratio_i exp(-t / time_i)). Backward Euler only. Default: none (elastic). */
+  viscoelastic?:{readonly branches:readonly {readonly ratio:number;readonly time:number}[]};
 }
 export interface SolidDefinition {mesh:TetMesh|{positions:ArrayLike<number>;tets:ArrayLike<number>};material:SolidMaterial;config?:SolidConfig}
 export interface SolidSolveStats {
@@ -178,6 +182,9 @@ export class SolidBody {
   private readonly x:Float64Array;private readonly r:Float64Array;private readonly z:Float64Array;private readonly p:Float64Array;private readonly ap:Float64Array;private readonly work:Float64Array;private readonly work2:Float64Array;
   private readonly lin:Float64Array;private readonly linOld:Float64Array;
   private readonly H=new Float64Array(9);private readonly P=new Float64Array(9);private readonly F=new Float64Array(9);private readonly R=new Float64Array(9);private readonly B=new Float64Array(9);
+  private veBranches:{ratio:number;time:number}[]=[];private veA=new Float64Array(0);private veB=new Float64Array(0);private veHist=new Float64Array(0);private vePrev=new Float64Array(0);private veC=new Float64Array(0);private relaxed=false;private reporting=false;
+  /** Scale of the elastic stress within one step of a viscoelastic body: 1 + sum ratio_i (1 - a_i) / (dt / time_i), a_i = exp(-dt / time_i). 1 when elastic. */
+  readonly viscoelasticScale:number=1;
   private cm=0;private cd=0;private reference=0;private referenceInertia=0;private loadScale=1;private accelerationValid=false;private steps=0;private unconverged=0;private limit:SolidExplicitLimit|null=null;
 
   constructor(input:SolidDefinition){
@@ -190,10 +197,16 @@ export class SolidBody {
     const E=finite(m.youngModulus,'youngModulus',1,1e13),nu=finite(m.poissonRatio,'poissonRatio',-.99,.4999),rho=finite(m.density,'density',1e-6,1e6);
     this.material=Object.freeze({youngModulus:E,poissonRatio:nu,density:rho,thermalExpansion:m.thermalExpansion===undefined?0:finite(m.thermalExpansion,'thermalExpansion',-1e-2,1e-2)});
     this.lambda=E*nu/((1+nu)*(1-2*nu));this.mu=E/(2*(1+nu));
-    const c=d.config===undefined?{}:record(d.config,'config');onlyKeys(c,['model','dt','integrator','massDamping','stiffnessDamping','gravity','tolerance','forceTolerance','maxNewtonIterations','maxLinearIterations','explicitSafety'],'config');
+    const c=d.config===undefined?{}:record(d.config,'config');onlyKeys(c,['model','dt','integrator','massDamping','stiffnessDamping','gravity','tolerance','forceTolerance','maxNewtonIterations','maxLinearIterations','explicitSafety','viscoelastic'],'config');
     const model=c.model===undefined?'corotational':c.model,integrator=c.integrator===undefined?'backward-euler':c.integrator;
     if(model!=='linear'&&model!=='corotational'&&model!=='neo-hookean')throw new EngineError('INVALID_PAYLOAD','Unknown solid model.');
     if(integrator!=='backward-euler'&&integrator!=='midpoint'&&integrator!=='explicit')throw new EngineError('INVALID_PAYLOAD','Unknown solid integrator.');
+    if(c.viscoelastic!==undefined){
+      const ve=record(c.viscoelastic,'viscoelastic');onlyKeys(ve,['branches'],'viscoelastic');
+      if(integrator!=='backward-euler')throw new EngineError('INVALID_PAYLOAD','A viscoelastic solid needs the backward-euler integrator.');
+      if(!Array.isArray(ve.branches)||ve.branches.length<1||ve.branches.length>8)throw new EngineError('INVALID_PAYLOAD','viscoelastic.branches takes 1 to 8 branches.');
+      this.veBranches=ve.branches.map((b:unknown,i:number)=>{const r=record(b,`branches[${i}]`);onlyKeys(r,['ratio','time'],`branches[${i}]`);return {ratio:finite(r.ratio,'ratio',0,1e4),time:finite(r.time,'time',1e-9,1e12)};});
+    }
     this.model=model;this.integrator=integrator;this.dt=c.dt===undefined?1/240:finite(c.dt,'dt',1e-12,10);
     this.massDamping=c.massDamping===undefined?0:zero(finite(c.massDamping,'massDamping',0,1e6));this.stiffnessDamping=c.stiffnessDamping===undefined?0:zero(finite(c.stiffnessDamping,'stiffnessDamping',0,1e3));
     this.gravity=c.gravity===undefined?new Float64Array(3):numbers(c.gravity,3,'gravity',-1e5,1e5);
@@ -230,6 +243,11 @@ export class SolidBody {
     const f64=()=>new Float64Array(size);
     this.prescribed=f64();this.nodalForce=f64();this.surfaceForce=f64();this.fext=f64();this.u=f64();this.v=f64();this.acceleration=f64();this.fint=f64();this.g=f64();this.gTrial=f64();this.trial=f64();this.u0=f64();this.target=f64();
     this.x=f64();this.r=f64();this.z=f64();this.p=f64();this.ap=f64();this.work=f64();this.work2=f64();
+    if(this.veBranches.length){
+      const nb=this.veBranches.length;this.veA=new Float64Array(nb);this.veB=new Float64Array(nb);let scale=1;
+      this.veBranches.forEach((b,i)=>{const x=this.dt/b.time,a=Math.exp(-x);this.veA[i]=a;this.veB[i]=b.ratio*(x>1e-8?-Math.expm1(-x)/x:1-x/2);scale+=this.veB[i];});
+      this.viscoelasticScale=scale;this.veHist=new Float64Array(9*nb*tetCount);this.vePrev=new Float64Array(9*tetCount);this.veC=new Float64Array(9*tetCount);
+    }
     const stride=model==='linear'?0:16;this.lin=new Float64Array(stride*tetCount);this.linOld=new Float64Array(this.stiffnessDamping>0?stride*tetCount:0);
     if(integrator==='explicit'&&this.dt>this.explicitSafety*this.explicitLimit().criticalTimeStep){
       const limit=this.explicitLimit();
@@ -343,6 +361,37 @@ export class SolidBody {
   /** First Piola-Kirchhoff stress of element e from H into P; returns the strain energy density,
    * or Infinity when the element is inverted. Stores the data of the tangent when `lin` is given. */
   private piola(e:number,lin:Float64Array|null):number {
+    const w=this.piolaElastic(e,lin);
+    if(!this.veBranches.length||this.relaxed||!(w<Infinity))return w;
+    if(this.reporting){
+      // The stress now: the elastic stress plus every branch's overstress h_i (C_e already looks ahead to the next step).
+      const P=this.P,hist=this.veHist,nb=this.veBranches.length;
+      for(let i=0;i<nb;i++){const o=9*(nb*e+i);for(let q=0;q<9;q++)P[q]+=hist[o+q];}
+      return w;
+    }
+    // Viscoelastic step: P = s P_elastic + C_e, the gradient of s W + C_e : H (C_e from the history, constant in the step).
+    const P=this.P,H=this.H,C=this.veC,o=9*e,scale=this.viscoelasticScale;let linear=0;
+    for(let q=0;q<9;q++){P[q]=scale*P[q]+C[o+q];linear+=C[o+q]*H[q];}
+    return scale*w+linear;
+  }
+  /** After an accepted step: h_i <- a_i h_i + b_i (P_elastic(u) - P_elastic,old) for every branch, and the constant
+   * C_e = sum_i (a_i h_i - b_i P_elastic) of the next step (Simo's recursion, exact for a stress that varies linearly within a step). */
+  private commitViscous(u:Float64Array,relaxed=false):void {
+    if(!this.veBranches.length)return;
+    const nb=this.veBranches.length,P=this.P,hist=this.veHist,prev=this.vePrev,C=this.veC;
+    for(let e=0;e<this.tetCount;e++){
+      this.gradient(e,u);if(!(this.piolaElastic(e,null)<Infinity))throw new EngineError('NUMERICAL_FAILURE','An element is inverted.');
+      const o=9*e;
+      for(let q=0;q<9;q++){
+        const delta=relaxed?0:P[q]-prev[o+q];let c=0;
+        for(let i=0;i<nb;i++){const k=9*(nb*e+i)+q;hist[k]=this.veA[i]*hist[k]+this.veB[i]*delta;c+=this.veA[i]*hist[k];}
+        prev[o+q]=P[q];
+        for(let i=0;i<nb;i++)c-=this.veB[i]*P[q];
+        C[o+q]=c;
+      }
+    }
+  }
+  private piolaElastic(e:number,lin:Float64Array|null):number {
     const H=this.H,P=this.P,mu=this.mu,la=this.lambda,th=this.loadScale*this.theta[e];
     if(this.model==='linear'){
       const exx=H[0]-th,eyy=H[4]-th,ezz=H[8]-th,exy=.5*(H[1]+H[3]),exz=.5*(H[2]+H[6]),eyz=.5*(H[5]+H[7]),tr=exx+eyy+ezz;
@@ -400,6 +449,10 @@ export class SolidBody {
   }
   /** Tangent of the first Piola-Kirchhoff stress of element e: dH in H, dP out in P. */
   private tangent(e:number,model:SolidModel,lin:Float64Array):void {
+    this.tangentElastic(e,model,lin);
+    if(this.veBranches.length&&!this.relaxed){const P=this.P,s=this.viscoelasticScale;for(let q=0;q<9;q++)P[q]*=s;}
+  }
+  private tangentElastic(e:number,model:SolidModel,lin:Float64Array):void {
     const H=this.H,P=this.P,mu=this.mu,la=this.lambda,o=16*e;
     if(model==='linear'){
       const tr=la*(H[0]+H[4]+H[8]),xy=mu*(H[1]+H[3]),xz=mu*(H[2]+H[6]),yz=mu*(H[5]+H[7]);
@@ -523,14 +576,16 @@ export class SolidBody {
   solveStatic(options:{loadSteps?:number}={}):SolidStaticResult {
     const o=record(options,'static options');onlyKeys(o,['loadSteps'],'static options');
     const loadSteps=o.loadSteps===undefined?1:integer(o.loadSteps,'loadSteps',1,10000);let newton=0,inner=0;
-    this.v.fill(0);this.cm=0;this.cd=0;this.referenceInertia=0;this.accelerationValid=false;
+    this.v.fill(0);this.cm=0;this.cd=0;this.referenceInertia=0;this.accelerationValid=false;this.relaxed=true;
     try{
       for(let step=1;step<=loadSteps;step++){
         this.loadScale=step/loadSteps;this.assembleLoads();this.applyConstraints(this.loadScale);this.minimise();
         newton+=this.stats.newtonIterations;inner+=this.stats.linearIterations;
         if(!this.stats.converged)break;
       }
-    }finally{this.loadScale=1;}
+    }finally{this.loadScale=1;this.relaxed=false;}
+    // A statically loaded body is fully relaxed: no overstress remains, and later steps start from this stress.
+    if(this.veBranches.length){this.veHist.fill(0);this.commitViscous(this.u,true);}
     return {...this.stats,newtonIterations:newton,linearIterations:inner,loadSteps,displacements:this.u.slice(),reactions:this.reactions(),strainEnergy:this.strainEnergy()};
   }
 
@@ -553,6 +608,7 @@ export class SolidBody {
         this.referenceInertia=Math.sqrt(inertia);
         if(this.linOld.length>0){if(!(this.elastic(u,null,this.lin)<Infinity))throw new EngineError('NUMERICAL_FAILURE','An element is inverted.');this.linOld.set(this.lin);}
         this.minimise();if(!this.stats.converged)this.unconverged++;
+        this.commitViscous(u);
         if(this.integrator==='midpoint')for(let j=0;j<size;j++){const mid=(u[j]-this.u0[j])/tau;u[j]=2*u[j]-this.u0[j];v[j]=2*mid-v[j];}
         else for(let j=0;j<size;j++)v[j]=(u[j]-this.u0[j])/h;
       }
@@ -638,14 +694,14 @@ export class SolidBody {
         self.linOld.set(self.lin);
       },
       dampingProduct(x,out){self.stiffness(self.model,self.linOld,x,out);},
-      advance(converged){self.steps++;if(!converged)self.unconverged++;self.accelerationValid=false;},
+      advance(converged){self.steps++;if(!converged)self.unconverged++;self.accelerationValid=false;self.commitViscous(self.u);},
     };
   }
 
   // ---- Outputs ----
 
   /** Elastic strain energy, J. */
-  strainEnergy():number {const energy=this.elastic(this.u,null,null);if(!(energy<Infinity))throw new EngineError('NUMERICAL_FAILURE','An element is inverted.');return energy;}
+  strainEnergy():number {const relaxed=this.relaxed;this.relaxed=true;const energy=this.elastic(this.u,null,null);this.relaxed=relaxed;if(!(energy<Infinity))throw new EngineError('NUMERICAL_FAILURE','An element is inverted.');return energy;}
   /** Kinetic energy with the lumped mass, J. */
   kineticEnergy():number {let s=0;for(let j=0;j<this.v.length;j++)s+=this.nodalMass[(j-j%3)/3]*this.v[j]*this.v[j];return .5*s;}
   /** Potential of the dead loads, J: minus the work of nodal forces, surface loads and gravity. */
@@ -673,6 +729,9 @@ export class SolidBody {
    * whose principal values are the stretches minus one. Thermal strain is included. */
   strains(out=new Float64Array(6*this.tetCount)):Float64Array {this.tensors(null,out);return out;}
   private tensors(stress:Float64Array|null,strain:Float64Array|null):void {
+    this.reporting=true;try{this.tensorsNow(stress,strain);}finally{this.reporting=false;}
+  }
+  private tensorsNow(stress:Float64Array|null,strain:Float64Array|null):void {
     const H=this.H,P=this.P,F=this.F,R=this.R;
     for(let e=0;e<this.tetCount;e++){
       const o=6*e;this.gradient(e,this.u);
