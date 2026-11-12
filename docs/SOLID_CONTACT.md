@@ -136,7 +136,7 @@ JavaScript on one thread. A resting contact step of the 125-node pad takes about
 - The rotation of a body in contact is linearised within a step; fast-spinning bodies are not checked.
 - Other contacts and joints of a coupled body are seen through an estimate that lags one step.
 - Extreme stiffness with a light body works because increments are measured from the start of the step; the force of a spring is still resolved only to `k × increment × 2⁻⁵²`.
-- Solids in contact are not in the scene format, and the Lab and the Studio do not run them.
+- A scene file can describe a solid in contact (`solids` with `contact` and `welds`, [`SCENE_FORMAT.md`](SCENE_FORMAT.md#coupled-sections-solids-and-heat)) and the Lab runs and draws it (`lab.html?example=rubber-pad`); a save does not carry the contact state (friction anchors, the support estimate). The Studio does not run them.
 
 ## Reproduce
 

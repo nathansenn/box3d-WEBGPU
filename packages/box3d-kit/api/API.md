@@ -4124,8 +4124,6 @@ export declare function canonicalize(scene: unknown, options?: {
 
 ### COUPLED_EXAMPLE_SCENES · const
 
-The coupled examples by name, each called with its defaults. Load them with a Simulation (`loadSimulationScene`, the kit's `loadScene`).
-
 ```ts
 export declare const COUPLED_EXAMPLE_SCENES: {
     readonly [name: string]: () => Scene;
@@ -4206,6 +4204,20 @@ export declare const EXAMPLE_SCENES: {
 };
 ```
 
+### heatedBarScene · function
+
+A heated bar: an aluminium bar (k = 237 W/(m K), alpha_T = 23e-6 /K, E = 70 GPa) clamped at both ends between
+a hot block at 500 K and a cold one at 300 K. Its temperature rises from the hot end and settles to a linear
+ramp in about 20 s; the restrained expansion puts it in compression.
+
+```ts
+export declare function heatedBarScene(options?: {
+    hot?: number;
+    cold?: number;
+    cells?: number;
+}): Scene;
+```
+
 ### hopperSeesawScene · function
 
 A hopper over a see-saw: `count` beads fill a conical hopper and run out of its orifice into a tray on one end of a
@@ -4238,6 +4250,8 @@ export interface LoadedScene {
     readonly attachments: Map<string, StructureAttachment>;
     readonly cloths: Map<string, ClothCoupling<Body>>;
     readonly grains: Map<string, GranularCoupling<Body>>;
+    readonly solids: Map<string, SceneSolidRuntime<Body>>;
+    readonly heat: Map<string, HeatSolver>;
 }
 ```
 
@@ -4256,7 +4270,7 @@ the scene needs more than it has.
   the scene's settings with none of the scene's bodies in it, and the error
   names the offending id.
 
-The scene's `water`, `cables`, `frames`, `cloths` and `grains` sections are built after the
+The scene's `water`, `cables`, `frames`, `cloths`, `grains`, `solids` and `heat` sections are built after the
 joints, and the result carries a ready `simulation` that steps the world
 and all of them. A rigid-only scene builds exactly what it always did.
 
@@ -4319,6 +4333,21 @@ SceneValidationError for an invalid scene. Normalising twice changes nothing.
 export declare function normalizeScene(scene: unknown): Scene;
 ```
 
+### notchedBeamScene · function
+
+A notched concrete beam loaded by a falling weight (a 200 kg drop hammer from 1.5 m, on a guide). The beam (E = 30 GPa, sigma_c = 3 MPa, G_c = 100 J/m^2)
+is pinned along both ends of its base, cut by a notch at mid-span and given cohesive interfaces on the
+section above it. The weight falls on a steel platen over mid-span; the force that holds the weight up is put
+on the beam's top under the platen (one-way, `reactionLoadLink`). The impact cracks the section from the notch.
+
+```ts
+export declare function notchedBeamScene(options?: {
+    mass?: number;
+    drop?: number;
+    cells?: number;
+}): Scene;
+```
+
 ### pendulumWaveScene · function
 
 A pendulum wave: `count` spheres on revolute joints whose lengths are chosen
@@ -4337,6 +4366,21 @@ export declare function pendulumWaveScene(options?: {
 }): Scene;
 ```
 
+### quenchedPlateScene · function
+
+Thermal shock: an alumina plate at 600 K (E = 370 GPa, nu = 0.22, alpha_T = 8e-6 /K, sigma_c = 300 MPa,
+G_c = 40 J/m^2, k = 30 W/(m K)) whose face x = 0 is quenched by a film coefficient of 20,000 W/(m^2 K) to
+300 K. As quenchedPlate() in solid-fracture.ts, with 6 mm cells instead of 0.25 mm: held in its plane
+(rollers on the y and z faces and the back face), the cooled layer cracks in tension from about 1.2 s.
+
+```ts
+export declare function quenchedPlateScene(options?: {
+    cells?: readonly [number, number, number];
+    cellSize?: number;
+    coefficient?: number;
+}): Scene;
+```
+
 ### ragdollScene · function
 
 A ragdoll: a capsule torso, a sphere head and eight capsule limb segments on
@@ -4346,6 +4390,20 @@ metres above the ground with a slight forward tumble.
 ```ts
 export declare function ragdollScene(options?: {
     height?: number;
+}): Scene;
+```
+
+### rubberPadScene · function
+
+A rubber pad under a dropped box: a neo-Hookean pad (E = 1.5 MPa, nu = 0.45) welded along its base to a
+steel plate, and a box that falls on it, bounces on it and comes to rest pressed into it. Solid contact,
+two-way, with friction (docs/SOLID_CONTACT.md).
+
+```ts
+export declare function rubberPadScene(options?: {
+    cells?: number;
+    drop?: number;
+    mass?: number;
 }): Scene;
 ```
 
@@ -4387,6 +4445,8 @@ export interface Scene {
     readonly frames?: readonly SceneFrameSection[];
     readonly cloths?: readonly SceneCloth[];
     readonly grains?: readonly SceneGrains[];
+    readonly solids?: readonly SceneSolid[];
+    readonly heat?: readonly SceneHeat[];
     readonly meta?: SceneMeta;
     readonly extensions?: {
         readonly [key: string]: unknown;
@@ -4434,6 +4494,14 @@ export declare const SCENE_LIMITS: Readonly<{
     grains: 65536;
     grainWalls: 256;
     grainSubsteps: 4096;
+    solids: 8;
+    solidNodes: 20000;
+    solidTets: 60000;
+    solidSubsteps: 64;
+    heat: 8;
+    heatSubsteps: 256;
+    solidRegions: 64;
+    solidCracks: 60000;
     problems: 100;
     linkChars: 1048576;
     linkSceneBytes: 4194304;
@@ -4730,6 +4798,8 @@ export interface SceneCoupledSections {
     readonly frames?: readonly SceneFrameSection[];
     readonly cloths?: readonly SceneCloth[];
     readonly grains?: readonly SceneGrains[];
+    readonly solids?: readonly SceneSolid[];
+    readonly heat?: readonly SceneHeat[];
 }
 ```
 
@@ -4922,7 +4992,7 @@ export type SceneGrainWallShape = {
 
 ### sceneHasCoupling · function
 
-True when a scene has a water basin, a cable, a frame, a cloth or a set of grains: it then needs a Simulation, not just a rigid world.
+True when a scene has a water basin, a cable, a frame, a cloth, a set of grains, a solid or a heat grid: it then needs a Simulation, not just a rigid world.
 
 ```ts
 export declare function sceneHasCoupling(scene: SceneCoupledSections): boolean;
@@ -4934,6 +5004,55 @@ SHA-256 of the compact canonical text (UTF-8), as 64 lowercase hex digits. Equal
 
 ```ts
 export declare function sceneHash(scene: unknown): string;
+```
+
+### SceneHeat · interface
+
+Heat conduction in a solid with a box mesh (docs/HEAT_TRANSFER.md): one cell per cell of the box. Its temperature is the solid's thermal load.
+
+```ts
+export interface SceneHeat {
+    readonly id: string;
+    readonly solid: string;
+    readonly material: {
+        readonly conductivity: number;
+        readonly density: number;
+        readonly specificHeat: number;
+    };
+    readonly temperature: number | readonly number[];
+    readonly reference?: number;
+    readonly scheme?: 'backward-euler' | 'crank-nicolson' | 'explicit';
+    readonly substeps?: number;
+    readonly boundaries?: readonly SceneHeatBoundary[];
+}
+```
+
+### SceneHeatBoundary · type
+
+A boundary condition of a heat grid (`HeatBoundary` of heat.ts), on the exposed faces of the cells in `region` (cell indices, inclusive; default all).
+
+```ts
+export type SceneHeatBoundary = {
+    readonly face: 'x-' | 'x+' | 'y-' | 'y+' | 'z-' | 'z+';
+    readonly region?: {
+        readonly min: readonly [number, number, number];
+        readonly max: readonly [number, number, number];
+    };
+} & ({
+    readonly type: 'temperature';
+    readonly temperature: number;
+} | {
+    readonly type: 'flux';
+    readonly flux: number;
+} | {
+    readonly type: 'convection';
+    readonly coefficient: number;
+    readonly ambient: number;
+} | {
+    readonly type: 'radiation';
+    readonly emissivity: number;
+    readonly environment: number;
+});
 ```
 
 ### SceneHost · interface
@@ -5129,6 +5248,158 @@ export type SceneShape = {
 };
 ```
 
+### SceneSolid · interface
+
+A deformable tetrahedral solid (docs/SOLID_MECHANICS.md), optionally in contact with rigid bodies or cracking. Numbers are float64.
+
+```ts
+export interface SceneSolid {
+    readonly id: string;
+    readonly mesh: SceneSolidMesh;
+    readonly material: {
+        readonly youngModulus: number;
+        readonly poissonRatio: number;
+        readonly density: number;
+        readonly thermalExpansion?: number;
+    };
+    readonly model?: 'linear' | 'corotational' | 'neo-hookean';
+    readonly integrator?: 'backward-euler' | 'midpoint' | 'explicit';
+    readonly substeps?: number;
+    readonly massDamping?: number;
+    readonly stiffnessDamping?: number;
+    readonly tolerance?: number;
+    readonly maxNewtonIterations?: number;
+    readonly gravity?: boolean;
+    readonly supports?: readonly SceneSolidSupport[];
+    readonly contact?: SceneSolidContact;
+    readonly welds?: readonly SceneSolidWeld[];
+    readonly loads?: readonly SceneSolidLoad[];
+    readonly fracture?: SceneSolidFracture;
+    readonly displacements?: readonly number[];
+    readonly velocities?: readonly number[];
+    readonly cracks?: readonly SceneSolidCrack[];
+}
+```
+
+### SceneSolidBody · interface
+
+A box, sphere or capsule body the solid touches (docs/SOLID_CONTACT.md).
+
+```ts
+export interface SceneSolidBody {
+    readonly body: string;
+    readonly friction?: number;
+    readonly collide?: boolean;
+    readonly twoWay?: boolean;
+    readonly inertia?: SceneInertia;
+}
+```
+
+### SceneSolidContact · interface
+
+Contact of a solid with rigid bodies and fixed planes, two-way (`SolidCoupling`).
+
+```ts
+export interface SceneSolidContact {
+    readonly bodies?: readonly SceneSolidBody[];
+    readonly planes?: readonly SceneClothPlane[];
+    readonly stiffnessScale?: number;
+    readonly skin?: number;
+    readonly frictionPasses?: number;
+    readonly frictionTolerance?: number;
+}
+```
+
+### SceneSolidCrack · interface
+
+A saved interface of a cracked solid (`FractureBody.crackState`).
+
+```ts
+export interface SceneSolidCrack {
+    readonly face: number;
+    readonly history: readonly [number, number, number];
+    readonly mix?: number;
+    readonly open?: boolean;
+}
+```
+
+### SceneSolidFracture · interface
+
+Cohesive fracture of a solid (docs/SOLID_FRACTURE.md). The solid is then a `FractureBody`: linear elements.
+
+```ts
+export interface SceneSolidFracture {
+    readonly strength: number;
+    readonly toughness: number;
+    readonly shearWeight?: number;
+    readonly initialOpeningRatio?: number;
+    readonly insertion?: 'on-demand' | 'manual';
+    readonly insertionThreshold?: number;
+    readonly tipInsertionThreshold?: number;
+    readonly notches?: readonly SceneSolidRegion[];
+    readonly interfaces?: readonly SceneSolidRegion[];
+}
+```
+
+### SceneSolidLoad · interface
+
+The force that holds `body` up (measured from its motion: m (dv / dt - g)) is put, reversed, on the solid's boundary faces in the box as a uniform traction.
+
+```ts
+export interface SceneSolidLoad extends SceneSolidRegion {
+    readonly body: string;
+}
+```
+
+### SceneSolidMesh · type
+
+The tetrahedral mesh of a solid: a box split into tetrahedra (`boxMesh` of solid.ts), or the nodes and tetrahedra themselves.
+
+```ts
+export type SceneSolidMesh = {
+    readonly box: {
+        readonly size: SceneVec3;
+        readonly cells: readonly [number, number, number];
+        readonly origin?: SceneVec3;
+        readonly pattern?: 'alternating5' | 'kuhn6';
+    };
+} | {
+    readonly positions: readonly number[];
+    readonly tets: readonly number[];
+};
+```
+
+### SceneSolidRegion · interface
+
+A box of reference positions, m: a node, face or face centroid is in it when min <= x <= max on every axis.
+
+```ts
+export interface SceneSolidRegion {
+    readonly min: SceneVec3;
+    readonly max: SceneVec3;
+}
+```
+
+### SceneSolidSupport · interface
+
+Nodes in the box are held where they are. `axes` says which components; default all three.
+
+```ts
+export interface SceneSolidSupport extends SceneSolidRegion {
+    readonly axes?: readonly [boolean, boolean, boolean];
+}
+```
+
+### SceneSolidWeld · interface
+
+Nodes of the solid in the box are welded to the body where they are when the scene is built. The body must be in `contact.bodies`.
+
+```ts
+export interface SceneSolidWeld extends SceneSolidRegion {
+    readonly body: string;
+}
+```
+
 ### SceneValidationError · class
 
 Thrown by loadScene, canonicalize, the builder and the link functions for an invalid scene. `code` is 'INVALID_PAYLOAD'.
@@ -5268,7 +5539,8 @@ export declare function validateScene(scene: unknown): SceneProblem[];
 Build the coupled sections of a scene whose bodies and joints `builder` has already built, and
 return the Simulation that steps them. Build order: frames, then cables (file order), one
 StructureCoupling with the cables' attachments (cable by cable, in file order) and then the
-frames' attachments; then the cloths, then the grain sets, then the basins and their bodies. A
+frames' attachments; then the cloths, then the grain sets, then the solids (supports, saved state,
+contact, welds, loads), then the heat grids and their links to the solids, then the basins and their bodies. A
 rigid-only scene gives a Simulation with no subsystems, whose step is `world.step()`. On a
 failure the world is reset and the error names the id.
 
@@ -5353,12 +5625,65 @@ in `world`, and return them with a ready Simulation. `loadScene` of
 export declare function loadSimulationScene(world: PhysicsWorld, scene: unknown): LoadedSimulationScene;
 ```
 
+### ReactionLoad · interface
+
+One body whose support force a `reactionLoadLink` hands to a solid: boundary faces (indices into the solid's `faces`).
+
+```ts
+export interface ReactionLoad<B> {
+    readonly body: B;
+    readonly faces: ArrayLike<number>;
+    readonly gravityScale?: number;
+}
+```
+
+### reactionLoadLink · function
+
+ONE-WAY rigid -> solid: the force that holds a body up is put, reversed, on boundary faces of a solid. The force is
+measured from the body's motion in the rigid step just taken, m (dv / dt - g), so it is the body's weight while the
+body rests and the impact force, spread over one rigid step, when it lands. It is meant for a body that rests on a
+fixed carrier over the solid (a platen) and touches nothing else: every force the rigid world puts on the body is
+counted. The solid's deflection does not move the body. Each entry is a uniform traction over its faces (the force
+divided by their reference area). The link owns the surface loads of the solid: it clears them every step. Post stage,
+before the solid; for a solid in contact (couple stage) the load acts from the next step.
+
+```ts
+export declare function reactionLoadLink<W extends SimulationWorld<B>, B>(solid: ReactionLoadTarget, loads: readonly ReactionLoad<B>[], options?: {
+    readonly id?: string;
+}): Subsystem<W, B>;
+```
+
+### ReactionLoadTarget · interface
+
+What `reactionLoadLink` needs from a solid: a `SolidBody` or a `FractureBody`.
+
+```ts
+export interface ReactionLoadTarget {
+    readonly referencePositions: Float64Array;
+    readonly faces: Uint32Array;
+    clearSurfaceLoads(): void;
+    addTraction(faces: ArrayLike<number>, traction: readonly [number, number, number]): void;
+}
+```
+
 ### resolveTiming · function
 
 Decide how a subsystem with the given requirement runs on a simulation step of `dt`, or throw the stated error.
 
 ```ts
 export declare function resolveTiming(id: string, kind: string, timeStep: SubsystemTimeStep, dt: number): SubsystemTiming;
+```
+
+### SceneSolidRuntime · interface
+
+A solid of a scene as built: the body (a `FractureBody` when the scene gives it fracture), its contact coupling or null, and the heat grid in it or null.
+
+```ts
+export interface SceneSolidRuntime<B> {
+    readonly body: SolidBody | FractureBody;
+    readonly coupling: SolidCoupling<B> | null;
+    readonly heat: HeatSolver | null;
+}
 ```
 
 ### Simulation · class
@@ -6416,6 +6741,8 @@ export declare class FractureBody {
   setElementProperties(elements: ArrayLike<number>, properties: { strength?: number; toughness?: number; }): void;
   insertCohesive(faces: ArrayLike<number>): number;
   precrack(faces: ArrayLike<number>): number;
+  crackState(): { face: number; history: [number, number, number]; mix: number; open: boolean; }[];
+  restoreCracks(entries: readonly { readonly face: number; readonly history: readonly number[]; readonly mix?: number; readonly open?: boolean; }[]): number;
   get displacements(): Float64Array;
   get velocities(): Float64Array;
   get time(): number;

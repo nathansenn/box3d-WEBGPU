@@ -17,7 +17,7 @@ import {
 import type { NativeBodyDescriptor } from '../engine/native-world.ts';
 import {
   COUPLED_EXAMPLE_SCENES, EXAMPLE_SCENES, SCENE_LIMITS, SCENE_LINK_PREFIX, SceneValidationError, decodeSceneLink, normalizeScene, validateScene,
-  type Scene, type SceneBody, type SceneJoint, type SceneProblem,
+  type Scene, type SceneBody, type SceneJoint, type SceneProblem, type SceneSolid,
 } from '../engine/scene-format.ts';
 
 export const LAB_SCENE_LIMITS = Object.freeze({
@@ -43,7 +43,7 @@ export const EXAMPLE_SCENE_TITLES: { readonly [name: string]: string } = Object.
   ragdoll: 'Ragdoll',
 });
 export const EXAMPLE_SCENE_NAMES: readonly string[] = Object.freeze(Object.keys(EXAMPLE_SCENES));
-/** The coupled examples: scenes with water, cables, frames, cloths or grains, which the Lab steps through a Simulation. */
+/** The coupled examples: scenes with water, cables, frames, cloths, grains, solids or heat, which the Lab steps through a Simulation. */
 export const COUPLED_EXAMPLE_TITLES: { readonly [name: string]: string } = Object.freeze({
   'moored-buoy': 'Moored buoy',
   'cable-stayed-deck': 'Cable-stayed deck',
@@ -51,6 +51,10 @@ export const COUPLED_EXAMPLE_TITLES: { readonly [name: string]: string } = Objec
   trampoline: 'Trampoline',
   'hopper-seesaw': 'Hopper and see-saw',
   'suspended-platform': 'Suspended platform',
+  'rubber-pad': 'Rubber pad',
+  'notched-beam': 'Notched beam',
+  'quenched-plate': 'Quenched plate',
+  'heated-bar': 'Heated bar',
 });
 export const COUPLED_EXAMPLE_NAMES: readonly string[] = Object.freeze(Object.keys(COUPLED_EXAMPLE_SCENES));
 /** Every example `?example=<name>` opens: the rigid ones, then the coupled ones. */
@@ -459,7 +463,21 @@ function coupledSummary(scene: Scene): string {
   if (scene.frames?.length) parts.push(`${count(scene.frames.length, 'frame', 'frames')} (${scene.frames.reduce((sum, frame) => sum + frame.elements.length, 0)} elements)`);
   if (scene.cloths?.length) parts.push(`${count(scene.cloths.length, 'cloth', 'cloths')} (${scene.cloths.reduce((sum, cloth) => sum + cloth.nodes.length / 3, 0)} nodes)`);
   if (scene.grains?.length) parts.push(`${scene.grains.reduce((sum, set) => sum + set.radii.length, 0)} grains`);
+  if (scene.solids?.length) parts.push(`${count(scene.solids.length, 'solid', 'solids')} (${scene.solids.reduce((sum, solid) => sum + solidMeshSize(solid).tets, 0)} tetrahedra${scene.solids.some(solid => solid.fracture) ? ', fracture' : ''}${scene.solids.some(solid => solid.contact) ? ', contact' : ''})`);
+  if (scene.heat?.length) parts.push(`${count(scene.heat.length, 'heat grid', 'heat grids')}`);
   return parts.length ? ` · ${parts.join(' · ')}` : '';
+}
+
+/** Nodes and tetrahedra of a solid's mesh as given. */
+function solidMeshSize(solid: SceneSolid): { nodes: number; tets: number } {
+  if ('box' in solid.mesh) { const [nx, ny, nz] = solid.mesh.box.cells; return { nodes: (nx + 1) * (ny + 1) * (nz + 1), tets: nx * ny * nz * (solid.mesh.box.pattern === 'kuhn6' ? 6 : 5) }; }
+  return { nodes: solid.mesh.positions.length / 3, tets: solid.mesh.tets.length / 4 };
+}
+/** The corners of a solid's mesh as given, as a point list. */
+function solidCorners(solid: SceneSolid): number[] {
+  if (!('box' in solid.mesh)) return [...solid.mesh.positions];
+  const o = solid.mesh.box.origin ?? [0, 0, 0], d = solid.mesh.box.size;
+  return [o[0], o[1], o[2], o[0] + d[0], o[1] + d[1], o[2] + d[2]];
 }
 
 export interface SceneFrame { readonly target: [number, number, number]; readonly distance: number }
@@ -527,14 +545,18 @@ export function sceneCameraFrame(scene: Scene): SceneFrame {
   for (const cable of scene.cables ?? []) points([all, moving], cable.nodes);
   for (const cloth of scene.cloths ?? []) points([all, moving], cloth.nodes);
   for (const set of scene.grains ?? []) points([all, moving], set.positions);
+  // A solid is what the scene is about: the view is centred on the solids when there are any.
+  const solidBox = empty();
+  for (const solid of scene.solids ?? []) points([all, moving, solidBox], solidCorners(solid));
   const has = (box: Box): boolean => box.max[0]! >= box.min[0]!;
   if (!has(all)) return { target: [0, 1, 0], distance: 8 };
   const sizeOf = (box: Box): number => Math.hypot(box.max[0]! - box.min[0]!, box.max[1]! - box.min[1]!, box.max[2]! - box.min[2]!);
   const distanceFor = (size: number): number => size * 1.15 + 0.6;
-  const focus = has(moving) ? moving : all;
+  const focus = has(solidBox) ? solidBox : has(moving) ? moving : all;
   return {
     target: [(focus.min[0]! + focus.max[0]!) / 2, (focus.min[1]! + focus.max[1]!) / 2, (focus.min[2]! + focus.max[2]!) / 2],
-    distance: Math.min(400, Math.max(0.9, distanceFor(sizeOf(focus)), distanceFor(sizeOf(all)) / 3)),
+    // A scene smaller than half a metre (a specimen: a plate, a bar) is framed by its own size, not from 0.9 m.
+    distance: sizeOf(all) < 0.5 ? Math.max(0.3, 3 * sizeOf(focus), 1.2 * sizeOf(all)) : Math.min(400, Math.max(0.9, distanceFor(sizeOf(focus)), distanceFor(sizeOf(all)) / 3)),
   };
 }
 

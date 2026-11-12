@@ -1,12 +1,14 @@
 /**
  * The readout of a coupled scene in the Physics Lab: the clock and the cost of a step, the
- * simulation's energy ledger by subsystem, and the latest events. It uses the styles of the SI
+ * simulation's energy ledger by subsystem, and the latest events. For a scene with solids it also
+ * has the field picker (von Mises stress, temperature or damage) and the displacement scale the
+ * solids are drawn with, and the range of the colour ramp. It uses the styles of the SI
  * bridge panel (si-bridge-panel.css).
  *
  * Every value is written with textContent; nothing here builds markup from data.
  */
 import './si-bridge-panel.css';
-import type { CoupledSceneView } from './coupled-scene.ts';
+import { SOLID_FIELDS, type CoupledSceneView, type SolidField } from './coupled-scene.ts';
 
 export interface CoupledPanel {
   /** Show the panel for this scene, or hide it with null. */
@@ -52,7 +54,18 @@ export function createCoupledPanel(): CoupledPanel {
     return value;
   };
   const time = readout(clock, 'time', 'Time · step'), cost = readout(clock, 'cost', 'Step cost'), order = readout(clock, 'order', 'Step order');
-  panel.append(clock, element('p', 'lab-bridge-heading', 'Energy by subsystem (total · balance)'));
+  // Solids: the field the colour ramp shows and how much the displacements are magnified.
+  const solidBlock = element('div', ''); solidBlock.id = 'lab-coupled-solids';
+  const fieldSelect = element('select', ''); fieldSelect.id = 'lab-coupled-field'; fieldSelect.setAttribute('aria-label', 'Colour solids by');
+  const FIELD_NAMES: Record<SolidField, string> = { stress: 'Von Mises stress', temperature: 'Temperature', damage: 'Damage' };
+  for (const field of SOLID_FIELDS) { const option = element('option', '', FIELD_NAMES[field]); option.value = field; fieldSelect.append(option); }
+  const scaleSelect = element('select', ''); scaleSelect.id = 'lab-coupled-scale'; scaleSelect.setAttribute('aria-label', 'Displacements drawn times');
+  for (const factor of [1, 10, 100, 1000]) { const option = element('option', '', `× ${factor}`); option.value = String(factor); scaleSelect.append(option); }
+  const pickers = element('p', 'lab-bridge-note');
+  pickers.append('Colour solids by ', fieldSelect, ' · displacements ', scaleSelect);
+  const ramp = element('dl', 'lab-bridge-readouts'); ramp.id = 'lab-coupled-ramp';
+  solidBlock.append(element('p', 'lab-bridge-heading', 'Solids (blue low → red high)'), pickers, ramp);
+  panel.append(clock, solidBlock, element('p', 'lab-bridge-heading', 'Energy by subsystem (total · balance)'));
   const ledger = element('dl', 'lab-bridge-readouts'); ledger.id = 'lab-coupled-ledger';
   panel.append(ledger, element('p', 'lab-bridge-heading', 'Latest events'));
   const events = element('ol', 'lab-bridge-note'); events.id = 'lab-coupled-events';
@@ -62,8 +75,27 @@ export function createCoupledPanel(): CoupledPanel {
   document.body.append(panel);
 
   let view: CoupledSceneView | null = null, last = -Infinity;
+  const quantity = (value: number, unit: string): string => {
+    if (!Number.isFinite(value)) return '–';
+    if (unit === 'Pa') return Math.abs(value) >= 1e6 ? `${(value / 1e6).toPrecision(3)} MPa` : Math.abs(value) >= 1e3 ? `${(value / 1e3).toPrecision(3)} kPa` : `${value.toPrecision(3)} Pa`;
+    return unit ? `${value.toPrecision(4)} ${unit}` : value.toPrecision(3);
+  };
+  const showSolids = (): void => {
+    if (!view || !view.hasSolids) return;
+    const info = view.solidView(), rows: HTMLElement[] = [];
+    fieldSelect.value = info.field; scaleSelect.value = String(info.scale);
+    for (const solid of info.solids) {
+      const text = solid.available ? `${quantity(solid.min, solid.unit)} to ${quantity(solid.max, solid.unit)}${solid.crackFaces ? ` · ${solid.crackFaces} interfaces` : ''}` : 'no heat grid in this solid';
+      rows.push(element('dt', '', `${solid.id} (${solid.nodes} nodes)`), element('dd', '', text));
+    }
+    ramp.replaceChildren(...rows);
+  };
+  fieldSelect.addEventListener('change', () => { view?.setSolidView({ field: fieldSelect.value as SolidField }); showSolids(); });
+  scaleSelect.addEventListener('change', () => { view?.setSolidView({ scale: Number(scaleSelect.value) }); showSolids(); });
   const show = (): void => {
     if (!view) return;
+    solidBlock.hidden = !view.hasSolids;
+    showSolids();
     const r = view.readout();
     time.textContent = `${r.time.toFixed(2)} s · ${r.tick} × ${(r.dt * 1000).toFixed(2)} ms`;
     cost.textContent = Number.isFinite(r.stepMs) ? `${r.stepMs.toFixed(2)} ms (${(100 * r.stepMs / (r.dt * 1000)).toFixed(0)}% of real time)` : '–';

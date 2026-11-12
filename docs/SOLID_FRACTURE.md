@@ -120,6 +120,8 @@ Its limits are those of isotropic damage: it weakens compression as much as tens
 
 `initiated` is an interface inserted on a face (energy 0), `opened` a face that lost all traction (energy `G_c` times its area), `element-failed` a crack-band element at full damage. `modeMix` is the share of the normal part in the effective traction or opening; above 0.9 is mode I, below 0.1 mode II. Outside a Simulation, `body.takeEvents()` returns the same events.
 
+**Saving a cracked body.** `crackState()` lists the cohesive interfaces (face, the largest opening so far at its three node pairs, mode share, open or not); `restoreCracks(list)` puts them back on a body built from the same mesh after its `precrack` and `insertCohesive` calls, in one batch. Nodes split as the final set of interfaces requires, but they are numbered in the order one insertion gives, which can differ from the run that was saved; a node is the same node when its original (`nodeOrigin`) and the lowest element that holds it agree. The scene format uses this ([`SCENE_FORMAT.md`](SCENE_FORMAT.md#coupled-sections-solids-and-heat)); the energy counters and the events are not carried.
+
 ### Thermal shock
 
 `thermalSolidLink(heat, body, {reference})` accepts a `FractureBody`, so the heat solver's temperature field becomes the eigenstrain that cracks it. Temperatures are given on the nodes of the mesh as built; duplicated nodes read their original. The link stays one-way: cracks do not change the heat flow.
@@ -224,7 +226,7 @@ These numbers are with the default crack-front rule. With insertion at the stren
 - **Insertion on demand** reads the mean stress of two elements, which under-reads the peak at a crack tip. The crack-front threshold of 0.4 corrects that for cells up to `l_ch` (checked on the centre-cracked plate only, mode I, crack on a mesh plane); coarser cells, or a crack that starts at a notch that is not cut with `precrack`, are not covered: a re-entrant corner without a cut face has no crack front and is read with `insertionThreshold`. An inserted interface is compliant: `initialOpeningRatio` trades that compliance against conditioning and the explicit time step.
 - **Snap-back** in a static solve is followed as a jump; the energy that would become motion shows up as a ledger imbalance.
 - **The crack band** is isotropic damage with a Rankine measure: no crack closure, weakened compression, 10 % less energy when confined at `nu = 0.2`.
-- **Not in the scene format**, not used by the Lab or the Studio, no checkpoints, at most 200,000 nodes.
+- **In scenes:** a scene file can describe a cohesive fracture body (`solids` with `fracture`: notches, pre-inserted interfaces, saved interfaces, [`SCENE_FORMAT.md`](SCENE_FORMAT.md#coupled-sections-solids-and-heat)) and the Lab runs and draws it (`lab.html?example=notched-beam`, `quenched-plate`). `crackState()` and `restoreCracks()` carry the interfaces of a save; the energy counters and the events are not saved, and the crack-band model has no scene form. Not used by the Studio; at most 200,000 nodes.
 
 ## Cost
 

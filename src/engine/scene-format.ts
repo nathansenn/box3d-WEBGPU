@@ -10,7 +10,8 @@
  *
  * A scene may also carry optional coupled sections: `water` basins with the
  * bodies that float in them, `cables` and `frames` with their attachments,
- * `cloths` and `grains` with the bodies they touch.
+ * `cloths` and `grains` with the bodies they touch, `solids` (with their
+ * contacts, welds, loads and fracture) and `heat` grids in them.
  * This module validates, normalises, hashes and links them; BUILDING them is
  * the job of simulation.ts (`loadSimulationScene`, the kit's `loadScene`),
  * which returns one Simulation that steps everything in the right order.
@@ -97,6 +98,17 @@ export const SCENE_LIMITS = Object.freeze({
   grains: 65536,
   grainWalls: 256,
   grainSubsteps: 4096,
+  /** Deformable solids in one scene, nodes and tetrahedra in one solid, and solid steps in one world step. */
+  solids: 8,
+  solidNodes: 20000,
+  solidTets: 60000,
+  solidSubsteps: 64,
+  /** Heat grids in one scene (one per solid), and heat steps in one world step. */
+  heat: 8,
+  heatSubsteps: 256,
+  /** Regions (supports, welds, loads, notches, interfaces) of one solid, and saved interfaces of one solid. */
+  solidRegions: 64,
+  solidCracks: 60000,
   /** Problems `validateScene` lists before it stops. */
   problems: 100,
   /** Characters in a share link. */
@@ -537,6 +549,123 @@ export interface SceneGrains {
   readonly bodies?: readonly SceneGrainBody[];
 }
 
+/** A box of reference positions, m: a node, face or face centroid is in it when min <= x <= max on every axis. */
+export interface SceneSolidRegion {
+  readonly min: SceneVec3;
+  readonly max: SceneVec3;
+}
+/** Nodes in the box are held where they are. `axes` says which components; default all three. */
+export interface SceneSolidSupport extends SceneSolidRegion {
+  readonly axes?: readonly [boolean, boolean, boolean];
+}
+/** The tetrahedral mesh of a solid: a box split into tetrahedra (`boxMesh` of solid.ts), or the nodes and tetrahedra themselves. */
+export type SceneSolidMesh =
+  | {readonly box: {readonly size: SceneVec3; readonly cells: readonly [number, number, number]; readonly origin?: SceneVec3; readonly pattern?: 'alternating5' | 'kuhn6'}}
+  | {readonly positions: readonly number[]; readonly tets: readonly number[]};
+/** A box, sphere or capsule body the solid touches (docs/SOLID_CONTACT.md). */
+export interface SceneSolidBody {
+  readonly body: string;
+  readonly friction?: number;
+  /** Default true. False: nodes can be welded to the body but do not collide with it. */
+  readonly collide?: boolean;
+  /** Default true. False: the solid feels the body but does not push it. */
+  readonly twoWay?: boolean;
+  readonly inertia?: SceneInertia;
+}
+/** Contact of a solid with rigid bodies and fixed planes, two-way (`SolidCoupling`). */
+export interface SceneSolidContact {
+  readonly bodies?: readonly SceneSolidBody[];
+  readonly planes?: readonly SceneClothPlane[];
+  /** Defaults 100, half an element, 12, 1e-4 (the solver's). */
+  readonly stiffnessScale?: number;
+  readonly skin?: number;
+  readonly frictionPasses?: number;
+  readonly frictionTolerance?: number;
+}
+/** Nodes of the solid in the box are welded to the body where they are when the scene is built. The body must be in `contact.bodies`. */
+export interface SceneSolidWeld extends SceneSolidRegion {
+  readonly body: string;
+}
+/** The force that holds `body` up (measured from its motion: m (dv / dt - g)) is put, reversed, on the solid's boundary faces in the box as a uniform traction. */
+export interface SceneSolidLoad extends SceneSolidRegion {
+  readonly body: string;
+}
+/** Cohesive fracture of a solid (docs/SOLID_FRACTURE.md). The solid is then a `FractureBody`: linear elements. */
+export interface SceneSolidFracture {
+  /** Tensile strength sigma_c, Pa. */
+  readonly strength: number;
+  /** Fracture energy G_c, J/m^2. */
+  readonly toughness: number;
+  readonly shearWeight?: number;
+  readonly initialOpeningRatio?: number;
+  /** Default 'on-demand'. 'manual': interfaces only on the faces of `interfaces`. */
+  readonly insertion?: 'on-demand' | 'manual';
+  readonly insertionThreshold?: number;
+  readonly tipInsertionThreshold?: number;
+  /** Interior faces whose centroid is in one of these boxes are cut before the first step (`precrack`): a notch. */
+  readonly notches?: readonly SceneSolidRegion[];
+  /** Interior faces whose centroid is in one of these boxes get an undamaged interface before the first step (`insertCohesive`). */
+  readonly interfaces?: readonly SceneSolidRegion[];
+}
+/** A saved interface of a cracked solid (`FractureBody.crackState`). */
+export interface SceneSolidCrack {
+  readonly face: number;
+  readonly history: readonly [number, number, number];
+  readonly mix?: number;
+  readonly open?: boolean;
+}
+/** A deformable tetrahedral solid (docs/SOLID_MECHANICS.md), optionally in contact with rigid bodies or cracking. Numbers are float64. */
+export interface SceneSolid {
+  readonly id: string;
+  readonly mesh: SceneSolidMesh;
+  readonly material: {readonly youngModulus: number; readonly poissonRatio: number; readonly density: number; readonly thermalExpansion?: number};
+  /** Default 'corotational'; a solid with `fracture` is 'linear'. */
+  readonly model?: 'linear' | 'corotational' | 'neo-hookean';
+  /** Default 'backward-euler'. A solid in contact uses backward Euler only. */
+  readonly integrator?: 'backward-euler' | 'midpoint' | 'explicit';
+  /** Solid steps in one world step. Default 1; a solid in contact takes exactly one. */
+  readonly substeps?: number;
+  readonly massDamping?: number;
+  readonly stiffnessDamping?: number;
+  /** Defaults 1e-10 and the solver's iteration limit. */
+  readonly tolerance?: number;
+  readonly maxNewtonIterations?: number;
+  /** Default true: the world's gravity acts on the solid. */
+  readonly gravity?: boolean;
+  readonly supports?: readonly SceneSolidSupport[];
+  readonly contact?: SceneSolidContact;
+  readonly welds?: readonly SceneSolidWeld[];
+  readonly loads?: readonly SceneSolidLoad[];
+  readonly fracture?: SceneSolidFracture;
+  /** Saved state: x, y, z per node (after the saved cracks have split nodes), m and m/s. */
+  readonly displacements?: readonly number[];
+  readonly velocities?: readonly number[];
+  /** Saved interfaces of a cracked solid. */
+  readonly cracks?: readonly SceneSolidCrack[];
+}
+/** A boundary condition of a heat grid (`HeatBoundary` of heat.ts), on the exposed faces of the cells in `region` (cell indices, inclusive; default all). */
+export type SceneHeatBoundary = {readonly face: 'x-' | 'x+' | 'y-' | 'y+' | 'z-' | 'z+'; readonly region?: {readonly min: readonly [number, number, number]; readonly max: readonly [number, number, number]}} & (
+  | {readonly type: 'temperature'; readonly temperature: number}
+  | {readonly type: 'flux'; readonly flux: number}
+  | {readonly type: 'convection'; readonly coefficient: number; readonly ambient: number}
+  | {readonly type: 'radiation'; readonly emissivity: number; readonly environment: number});
+/** Heat conduction in a solid with a box mesh (docs/HEAT_TRANSFER.md): one cell per cell of the box. Its temperature is the solid's thermal load. */
+export interface SceneHeat {
+  readonly id: string;
+  /** The solid it conducts in. It must have a `box` mesh. */
+  readonly solid: string;
+  readonly material: {readonly conductivity: number; readonly density: number; readonly specificHeat: number};
+  /** K: one value, or one per cell (i + nx (j + ny k)). A save writes the field. */
+  readonly temperature: number | readonly number[];
+  /** Stress-free temperature, K. Default `temperature` when that is one value; required otherwise. */
+  readonly reference?: number;
+  /** Default 'backward-euler'. */
+  readonly scheme?: 'backward-euler' | 'crank-nicolson' | 'explicit';
+  /** Heat steps in one world step. Default 1. */
+  readonly substeps?: number;
+  readonly boundaries?: readonly SceneHeatBoundary[];
+}
+
 /** The optional coupled sections of a scene. */
 export interface SceneCoupledSections {
   readonly water?: readonly SceneWater[];
@@ -544,6 +673,8 @@ export interface SceneCoupledSections {
   readonly frames?: readonly SceneFrameSection[];
   readonly cloths?: readonly SceneCloth[];
   readonly grains?: readonly SceneGrains[];
+  readonly solids?: readonly SceneSolid[];
+  readonly heat?: readonly SceneHeat[];
 }
 
 export interface Scene {
@@ -566,6 +697,10 @@ export interface Scene {
   readonly cloths?: readonly SceneCloth[];
   /** Sets of grains, their fixed walls and the bodies they touch. */
   readonly grains?: readonly SceneGrains[];
+  /** Deformable solids, their supports, contacts, welds, loads and fracture. */
+  readonly solids?: readonly SceneSolid[];
+  /** Heat conduction in solids. */
+  readonly heat?: readonly SceneHeat[];
   readonly meta?: SceneMeta;
   /** Preserved and ignored by this module. */
   readonly extensions?: {readonly [key: string]: unknown};
@@ -1435,6 +1570,224 @@ function checkGrains(c: Checker, set: unknown, path: string, ctx: CoupledContext
   }
 }
 
+const SOLID_KEYS = ['id', 'mesh', 'material', 'model', 'integrator', 'substeps', 'massDamping', 'stiffnessDamping', 'tolerance', 'maxNewtonIterations', 'gravity', 'supports', 'contact',
+  'welds', 'loads', 'fracture', 'displacements', 'velocities', 'cracks'];
+const FRACTURE_KEYS = ['strength', 'toughness', 'shearWeight', 'initialOpeningRatio', 'insertion', 'insertionThreshold', 'tipInsertionThreshold', 'notches', 'interfaces'];
+const HEAT_KEYS = ['id', 'solid', 'material', 'temperature', 'reference', 'scheme', 'substeps', 'boundaries'];
+const HEAT_BOUNDARY_VALUES: Record<string, readonly string[]> = {temperature: ['temperature'], flux: ['flux'], convection: ['coefficient', 'ambient'], radiation: ['emissivity', 'environment']};
+
+/** What the heat section needs to know about a solid: its box cells, or null for a solid without a box mesh. */
+interface SolidInfo { readonly cells: readonly [number, number, number] | null }
+
+function checkRegion(c: Checker, value: unknown, path: string, extra: readonly string[] = [], required: readonly string[] = []): value is Obj {
+  if (!c.object(value, path, ['min', 'max', ...extra], ['min', 'max', ...required])) return false;
+  const lo = value.min, hi = value.max;
+  if (lo !== undefined && hi !== undefined && c.realTuple(lo, `${path}/min`, 3) && c.realTuple(hi, `${path}/max`, 3) && !(hi[0] >= lo[0] && hi[1] >= lo[1] && hi[2] >= lo[2])) c.add(`${path}/max`, 'must not be below min on any axis');
+  return true;
+}
+function checkRegions(c: Checker, value: unknown, path: string, each?: (item: Obj, at: string) => void, extra: readonly string[] = [], required: readonly string[] = []): void {
+  if (!Array.isArray(value)) { c.add(path, `must be an array, got ${typeName(value)}`); return; }
+  if (value.length > SCENE_LIMITS.solidRegions) { c.add(path, `holds ${value.length} entries; the limit is ${SCENE_LIMITS.solidRegions}`); return; }
+  for (let i = 0; i < value.length && !c.stopped; i++) { const item: unknown = value[i]; if (checkRegion(c, item, `${path}/${i}`, extra, required)) each?.(item, `${path}/${i}`); }
+}
+
+function checkSolid(c: Checker, solid: unknown, path: string, ctx: CoupledContext, solids: Map<string, SolidInfo>): void {
+  if (!c.object(solid, path, SOLID_KEYS, ['id', 'mesh', 'material'])) return;
+  let nodes = -1, cells: [number, number, number] | null = null;
+  const mesh: unknown = solid.mesh;
+  if (mesh !== undefined) {
+    if (!isObject(mesh)) c.add(`${path}/mesh`, `must be an object, got ${typeName(mesh)}`);
+    else if (mesh.box !== undefined) {
+      if (c.object(mesh, `${path}/mesh`, ['box'], ['box']) && c.object(mesh.box, `${path}/mesh/box`, ['size', 'cells', 'origin', 'pattern'], ['size', 'cells'])) {
+        const box = mesh.box, at = `${path}/mesh/box`;
+        if (box.size !== undefined && c.realTuple(box.size, `${at}/size`, 3)) for (let k = 0; k < 3; k++) if (!(box.size[k] > 0)) c.add(`${at}/size/${k}`, `must be > 0, got ${box.size[k]}`);
+        if (box.cells !== undefined && c.realTuple(box.cells, `${at}/cells`, 3)) {
+          let ok = true;
+          for (let k = 0; k < 3; k++) if (!c.real(box.cells[k], `${at}/cells/${k}`, 1, 4096, true)) ok = false;
+          if (ok) {
+            const [nx, ny, nz] = box.cells as [number, number, number], count = (nx + 1) * (ny + 1) * (nz + 1), tets = nx * ny * nz * (box.pattern === 'kuhn6' ? 6 : 5);
+            if (count > SCENE_LIMITS.solidNodes || tets > SCENE_LIMITS.solidTets) c.add(`${at}/cells`, `make ${count} nodes and ${tets} tetrahedra; the limits are ${SCENE_LIMITS.solidNodes} and ${SCENE_LIMITS.solidTets}`);
+            else { nodes = count; cells = [nx, ny, nz]; }
+          }
+        }
+        if (box.origin !== undefined) c.realTuple(box.origin, `${at}/origin`, 3);
+        if (box.pattern !== undefined && box.pattern !== 'alternating5' && box.pattern !== 'kuhn6') c.add(`${at}/pattern`, `must be 'alternating5' or 'kuhn6', got ${show(box.pattern)}`);
+      }
+    } else if (c.object(mesh, `${path}/mesh`, ['box', 'positions', 'tets'], ['positions', 'tets'])) {
+      const positions: unknown = mesh.positions, tets: unknown = mesh.tets;
+      if (positions !== undefined) {
+        if (!Array.isArray(positions)) c.add(`${path}/mesh/positions`, `must be an array of numbers, got ${typeName(positions)}`);
+        else if (positions.length % 3 !== 0 || positions.length < 12 || positions.length > 3 * SCENE_LIMITS.solidNodes) c.add(`${path}/mesh/positions`, `must hold x, y, z for 4 to ${SCENE_LIMITS.solidNodes} nodes, got ${positions.length} numbers`);
+        else if (c.reals(positions, `${path}/mesh/positions`, positions.length, -1e6, 1e6)) nodes = positions.length / 3;
+      }
+      if (tets !== undefined) {
+        if (!Array.isArray(tets)) c.add(`${path}/mesh/tets`, `must be an array of node indices, got ${typeName(tets)}`);
+        else if (tets.length % 4 !== 0 || tets.length < 4 || tets.length > 4 * SCENE_LIMITS.solidTets) c.add(`${path}/mesh/tets`, `must hold four node indices for 1 to ${SCENE_LIMITS.solidTets} tetrahedra, got ${tets.length} numbers`);
+        else {
+          c.geometryValues += tets.length;
+          for (let i = 0; i < tets.length; i++) {
+            const v: unknown = tets[i];
+            if (typeof v !== 'number' || !Number.isInteger(v) || v < 0 || (nodes > 0 && v >= nodes)) { c.add(`${path}/mesh/tets/${i}`, `must be a node index${nodes > 0 ? ` below ${nodes}` : ''}, got ${show(v)}`); break; }
+          }
+        }
+      }
+    }
+  }
+  const m: unknown = solid.material;
+  if (m !== undefined && c.object(m, `${path}/material`, ['youngModulus', 'poissonRatio', 'density', 'thermalExpansion'], ['youngModulus', 'poissonRatio', 'density'])) {
+    if (m.youngModulus !== undefined) c.real(m.youngModulus, `${path}/material/youngModulus`, 1, 1e13);
+    if (m.poissonRatio !== undefined) c.real(m.poissonRatio, `${path}/material/poissonRatio`, -0.99, 0.4999);
+    if (m.density !== undefined) c.real(m.density, `${path}/material/density`, 1e-6, 1e6);
+    if (m.thermalExpansion !== undefined) c.real(m.thermalExpansion, `${path}/material/thermalExpansion`, -1e-2, 1e-2);
+  }
+  const fracture = solid.fracture !== undefined, contact = solid.contact !== undefined;
+  if (solid.model !== undefined && solid.model !== 'linear' && solid.model !== 'corotational' && solid.model !== 'neo-hookean') c.add(`${path}/model`, `must be 'linear', 'corotational' or 'neo-hookean', got ${show(solid.model)}`);
+  else if (fracture && solid.model !== undefined && solid.model !== 'linear') c.add(`${path}/model`, "a solid with fracture is 'linear' (small strain)");
+  if (solid.integrator !== undefined && solid.integrator !== 'backward-euler' && solid.integrator !== 'midpoint' && solid.integrator !== 'explicit') c.add(`${path}/integrator`, `must be 'backward-euler', 'midpoint' or 'explicit', got ${show(solid.integrator)}`);
+  else if (contact && solid.integrator !== undefined && solid.integrator !== 'backward-euler') c.add(`${path}/integrator`, "a solid in contact uses 'backward-euler'");
+  if (solid.substeps !== undefined && c.real(solid.substeps, `${path}/substeps`, 1, SCENE_LIMITS.solidSubsteps, true) && contact && solid.substeps !== 1) c.add(`${path}/substeps`, 'a solid in contact takes one step per world step');
+  if (solid.massDamping !== undefined) c.real(solid.massDamping, `${path}/massDamping`, 0, 1e6);
+  if (solid.stiffnessDamping !== undefined && c.real(solid.stiffnessDamping, `${path}/stiffnessDamping`, 0, 1e3) && fracture && solid.stiffnessDamping !== 0) c.add(`${path}/stiffnessDamping`, 'a solid with fracture has mass damping only');
+  if (solid.tolerance !== undefined) c.real(solid.tolerance, `${path}/tolerance`, 0, 1e-2);
+  if (solid.maxNewtonIterations !== undefined) c.real(solid.maxNewtonIterations, `${path}/maxNewtonIterations`, 1, 10000, true);
+  if (solid.gravity !== undefined) c.boolean(solid.gravity, `${path}/gravity`);
+  if (solid.supports !== undefined) checkRegions(c, solid.supports, `${path}/supports`, (item, at) => {
+    if (item.axes !== undefined && (!Array.isArray(item.axes) || item.axes.length !== 3 || item.axes.some(v => typeof v !== 'boolean'))) c.add(`${at}/axes`, 'must be three booleans [x, y, z]');
+  }, ['axes']);
+  const touched = new Set<string>();
+  if (contact && c.object(solid.contact, `${path}/contact`, ['bodies', 'planes', 'stiffnessScale', 'skin', 'frictionPasses', 'frictionTolerance'])) {
+    const k = solid.contact, at = `${path}/contact`;
+    if (fracture) c.add(at, 'a solid with fracture has no contact with bodies (docs/SOLID_FRACTURE.md)');
+    if (k.bodies !== undefined) {
+      if (!Array.isArray(k.bodies)) c.add(`${at}/bodies`, `must be an array, got ${typeName(k.bodies)}`);
+      else for (let i = 0; i < k.bodies.length && !c.stopped; i++) {
+        const entry: unknown = k.bodies[i], ep = `${at}/bodies/${i}`;
+        if (!c.object(entry, ep, ['body', 'friction', 'collide', 'twoWay', 'inertia'], ['body'])) continue;
+        if (entry.body !== undefined) {
+          const ref = checkColliderBody(c, entry, ep, ctx, 'a solid');
+          if (ref !== null) { if (touched.has(ref)) c.add(`${ep}/body`, `body ${show(ref)} is listed twice`); touched.add(ref); }
+        }
+        if (entry.friction !== undefined) c.real(entry.friction, `${ep}/friction`, 0, 100);
+        for (const key of ['collide', 'twoWay']) if (entry[key] !== undefined) c.boolean(entry[key], `${ep}/${key}`);
+      }
+    }
+    if (k.planes !== undefined) {
+      if (!Array.isArray(k.planes)) c.add(`${at}/planes`, `must be an array, got ${typeName(k.planes)}`);
+      else if (k.planes.length > 64) c.add(`${at}/planes`, `holds ${k.planes.length} planes; the limit is 64`);
+      else for (let i = 0; i < k.planes.length && !c.stopped; i++) {
+        const plane: unknown = k.planes[i], pp = `${at}/planes/${i}`;
+        if (!c.object(plane, pp, ['normal', 'point', 'friction'], ['normal'])) continue;
+        if (plane.normal !== undefined) unitLike(c, plane.normal, `${pp}/normal`);
+        if (plane.point !== undefined) c.realTuple(plane.point, `${pp}/point`, 3);
+        if (plane.friction !== undefined) c.real(plane.friction, `${pp}/friction`, 0, 100);
+      }
+    }
+    if (k.stiffnessScale !== undefined) c.real(k.stiffnessScale, `${at}/stiffnessScale`, 1e-6, 1e9);
+    if (k.skin !== undefined) c.real(k.skin, `${at}/skin`, 0, 1e6);
+    if (k.frictionPasses !== undefined) c.real(k.frictionPasses, `${at}/frictionPasses`, 1, 1000, true);
+    if (k.frictionTolerance !== undefined) c.real(k.frictionTolerance, `${at}/frictionTolerance`, 1e-12, 1);
+  }
+  if (solid.welds !== undefined) checkRegions(c, solid.welds, `${path}/welds`, (item, at) => {
+    if (typeof item.body !== 'string') c.add(`${at}/body`, `must be a body id, got ${typeName(item.body)}`);
+    else if (!touched.has(item.body)) c.add(`${at}/body`, `body ${show(item.body)} is not in this solid's contact.bodies: list it there first`);
+  }, ['body'], ['body']);
+  if (solid.loads !== undefined) checkRegions(c, solid.loads, `${path}/loads`, (item, at) => {
+    if (typeof item.body !== 'string') c.add(`${at}/body`, `must be a body id, got ${typeName(item.body)}`);
+    else if (ctx.shapes && !ctx.shapes.has(item.body)) c.add(`${at}/body`, `unknown body id ${show(item.body)}`);
+  }, ['body'], ['body']);
+  if (fracture && c.object(solid.fracture, `${path}/fracture`, FRACTURE_KEYS, ['strength', 'toughness'])) {
+    const f = solid.fracture, at = `${path}/fracture`;
+    if (f.strength !== undefined) c.real(f.strength, `${at}/strength`, 1e-6, 1e13);
+    if (f.toughness !== undefined) c.real(f.toughness, `${at}/toughness`, 1e-12, 1e12);
+    if (f.shearWeight !== undefined) c.real(f.shearWeight, `${at}/shearWeight`, 1e-3, 1e3);
+    if (f.initialOpeningRatio !== undefined) c.real(f.initialOpeningRatio, `${at}/initialOpeningRatio`, 1e-6, 0.5);
+    if (f.insertion !== undefined && f.insertion !== 'on-demand' && f.insertion !== 'manual') c.add(`${at}/insertion`, `must be 'on-demand' or 'manual', got ${show(f.insertion)}`);
+    for (const key of ['insertionThreshold', 'tipInsertionThreshold']) if (f[key] !== undefined) c.real(f[key], `${at}/${key}`, 1e-3, 1);
+    if (f.notches !== undefined) checkRegions(c, f.notches, `${at}/notches`);
+    if (f.interfaces !== undefined) checkRegions(c, f.interfaces, `${at}/interfaces`);
+  }
+  // The saved state: one triple per node. A cracked solid has more nodes than its mesh; the build checks the count.
+  for (const key of ['displacements', 'velocities']) {
+    const value: unknown = solid[key];
+    if (value === undefined || nodes < 0) continue;
+    if (!Array.isArray(value)) c.add(`${path}/${key}`, `must be an array of numbers, got ${typeName(value)}`);
+    else if (!fracture && value.length !== 3 * nodes) c.add(`${path}/${key}`, `must hold exactly ${3 * nodes} numbers, got ${value.length}`);
+    else if (fracture && (value.length % 3 !== 0 || value.length < 3 * nodes || value.length > 3 * SCENE_LIMITS.solidNodes * 4)) c.add(`${path}/${key}`, `must hold x, y, z for at least the ${nodes} nodes of the mesh, got ${value.length} numbers`);
+    else c.reals(value, `${path}/${key}`, value.length, -1e9, 1e9);
+  }
+  if (solid.cracks !== undefined) {
+    const list: unknown = solid.cracks;
+    if (!fracture) c.add(`${path}/cracks`, 'belongs to a solid with fracture');
+    else if (!Array.isArray(list)) c.add(`${path}/cracks`, `must be an array, got ${typeName(list)}`);
+    else if (list.length > SCENE_LIMITS.solidCracks) c.add(`${path}/cracks`, `holds ${list.length} interfaces; the limit is ${SCENE_LIMITS.solidCracks}`);
+    else {
+      const faces = new Set<number>();
+      for (let i = 0; i < list.length && !c.stopped; i++) {
+        const entry: unknown = list[i], at = `${path}/cracks/${i}`;
+        if (!c.object(entry, at, ['face', 'history', 'mix', 'open'], ['face', 'history'])) continue;
+        if (entry.face !== undefined && c.real(entry.face, `${at}/face`, 0, 4 * SCENE_LIMITS.solidTets, true)) { if (faces.has(entry.face)) c.add(`${at}/face`, `face ${entry.face} is listed twice`); faces.add(entry.face); }
+        if (entry.history !== undefined) c.reals(entry.history, `${at}/history`, 3, 0, 1e6);
+        if (entry.mix !== undefined) c.real(entry.mix, `${at}/mix`, 0, 1);
+        if (entry.open !== undefined) c.boolean(entry.open, `${at}/open`);
+      }
+    }
+  }
+  if (typeof solid.id === 'string') solids.set(solid.id, {cells: nodes > 0 ? cells : null});
+}
+
+function checkHeat(c: Checker, heat: unknown, path: string, solids: Map<string, SolidInfo>, used: Set<string>): void {
+  if (!c.object(heat, path, HEAT_KEYS, ['id', 'solid', 'material', 'temperature'])) return;
+  let cells: readonly [number, number, number] | null = null;
+  if (heat.solid !== undefined) {
+    if (typeof heat.solid !== 'string') c.add(`${path}/solid`, `must be a solid id, got ${typeName(heat.solid)}`);
+    else if (!solids.has(heat.solid)) c.add(`${path}/solid`, `unknown solid id ${show(heat.solid)}`);
+    else if (used.has(heat.solid)) c.add(`${path}/solid`, `solid ${show(heat.solid)} already has a heat grid`);
+    else if ((cells = solids.get(heat.solid)!.cells) === null) c.add(`${path}/solid`, `solid ${show(heat.solid)} needs a box mesh: the heat grid is its cells`);
+    if (typeof heat.solid === 'string') used.add(heat.solid);
+  }
+  const m: unknown = heat.material;
+  if (m !== undefined && c.object(m, `${path}/material`, ['conductivity', 'density', 'specificHeat'], ['conductivity', 'density', 'specificHeat'])) {
+    for (const key of ['conductivity', 'density', 'specificHeat']) if (m[key] !== undefined) c.positive(m[key], `${path}/material/${key}`, 1e9);
+  }
+  const count = cells ? cells[0] * cells[1] * cells[2] : -1;
+  if (heat.temperature !== undefined) {
+    if (typeof heat.temperature === 'number') c.positive(heat.temperature, `${path}/temperature`, 1e5);
+    else if (!Array.isArray(heat.temperature)) c.add(`${path}/temperature`, `must be a number or one number per cell, got ${typeName(heat.temperature)}`);
+    else {
+      if (count > 0) c.reals(heat.temperature, `${path}/temperature`, count, 1e-9, 1e5);
+      if (heat.reference === undefined) c.add(`${path}/reference`, 'is required when the temperature is given per cell');
+    }
+  }
+  if (heat.reference !== undefined) c.positive(heat.reference, `${path}/reference`, 1e5);
+  if (heat.scheme !== undefined && heat.scheme !== 'backward-euler' && heat.scheme !== 'crank-nicolson' && heat.scheme !== 'explicit') c.add(`${path}/scheme`, `must be 'backward-euler', 'crank-nicolson' or 'explicit', got ${show(heat.scheme)}`);
+  if (heat.substeps !== undefined) c.real(heat.substeps, `${path}/substeps`, 1, SCENE_LIMITS.heatSubsteps, true);
+  if (heat.boundaries !== undefined) {
+    if (!Array.isArray(heat.boundaries)) c.add(`${path}/boundaries`, `must be an array, got ${typeName(heat.boundaries)}`);
+    else if (heat.boundaries.length > 64) c.add(`${path}/boundaries`, `holds ${heat.boundaries.length} conditions; the limit is 64`);
+    else for (let i = 0; i < heat.boundaries.length && !c.stopped; i++) {
+      const b: unknown = heat.boundaries[i], at = `${path}/boundaries/${i}`;
+      if (!isObject(b)) { c.add(at, `must be an object, got ${typeName(b)}`); continue; }
+      if (typeof b.type !== 'string' || !Object.hasOwn(HEAT_BOUNDARY_VALUES, b.type)) { c.add(`${at}/type`, `must be 'temperature', 'flux', 'convection' or 'radiation', got ${show(b.type)}`); continue; }
+      const values = HEAT_BOUNDARY_VALUES[b.type]!;
+      if (!c.object(b, at, ['face', 'region', 'type', ...values], ['face', 'type', ...values])) continue;
+      if (b.face !== undefined && !['x-', 'x+', 'y-', 'y+', 'z-', 'z+'].includes(b.face as string)) c.add(`${at}/face`, `must be 'x-', 'x+', 'y-', 'y+', 'z-' or 'z+', got ${show(b.face)}`);
+      for (const key of values) if (b[key] !== undefined) {
+        if (key === 'flux') c.real(b[key], `${at}/${key}`, -1e12, 1e12);
+        else if (key === 'emissivity') c.real(b[key], `${at}/${key}`, 0, 1);
+        else c.positive(b[key], `${at}/${key}`, 1e9);
+      }
+      if (b.region !== undefined && c.object(b.region, `${at}/region`, ['min', 'max'], ['min', 'max'])) {
+        for (const end of ['min', 'max']) {
+          const v: unknown = b.region[end];
+          if (v === undefined) continue;
+          if (!Array.isArray(v) || v.length !== 3) { c.add(`${at}/region/${end}`, 'must be [i, j, k]'); continue; }
+          for (let k = 0; k < 3; k++) c.real(v[k], `${at}/region/${end}/${k}`, 0, cells ? cells[k]! - 1 : 4095, true);
+        }
+      }
+    }
+  }
+}
+
 /**
  * Check a scene completely, before anything is built. Returns every problem
  * found (at most SCENE_LIMITS.problems), each with a JSON-pointer path; an
@@ -1451,7 +1804,7 @@ export function validateScene(scene: unknown): SceneProblem[] {
     return c.problems;
   }
   c.version = scene.version;
-  c.object(scene, '', ['format', 'version', 'units', 'world', 'materials', 'bodies', 'joints', 'water', 'cables', 'frames', 'cloths', 'grains', 'meta', 'extensions'], ['bodies']);
+  c.object(scene, '', ['format', 'version', 'units', 'world', 'materials', 'bodies', 'joints', 'water', 'cables', 'frames', 'cloths', 'grains', 'solids', 'heat', 'meta', 'extensions'], ['bodies']);
   if (scene.units !== undefined && scene.units !== 'SI') c.add('/units', `must be 'SI', got ${show(scene.units)}`);
   if (scene.world !== undefined) checkWorld(c, scene.world, '/world');
   const materials = scene.materials === undefined ? new Set<string>() : checkMaterials(c, scene.materials, '/materials');
@@ -1479,7 +1832,7 @@ export function validateScene(scene: unknown): SceneProblem[] {
   }
   const shapeValues = c.geometryValues;
   if (shapeValues > SCENE_LIMITS.geometryValues) c.add('/bodies', `the shapes hold ${c.geometryValues} numbers together; the limit is ${SCENE_LIMITS.geometryValues}`);
-  if (scene.water !== undefined || scene.cables !== undefined || scene.frames !== undefined || scene.cloths !== undefined || scene.grains !== undefined) {
+  if (scene.water !== undefined || scene.cables !== undefined || scene.frames !== undefined || scene.cloths !== undefined || scene.grains !== undefined || scene.solids !== undefined || scene.heat !== undefined) {
     const shapes = new Map<string, string | null>();
     if (bodiesOk) for (const body of scene.bodies as unknown[]) if (isObject(body) && typeof body.id === 'string' && bodyIds.has(body.id)) shapes.set(body.id, isObject(body.shape) && typeof body.shape.kind === 'string' ? body.shape.kind : null);
     const world = isObject(scene.world) ? scene.world : {}, step = typeof world.step === 'number' && world.step > 0 && world.step <= 1 / 30 ? world.step : 1 / 60;
@@ -1487,7 +1840,7 @@ export function validateScene(scene: unknown): SceneProblem[] {
     const stated = new Map<string, boolean>();
     if (bodiesOk) for (const body of scene.bodies as unknown[]) if (isObject(body) && typeof body.id === 'string' && isObject(body.massData)) stated.set(body.id, Array.isArray(body.massData.center) && body.massData.center.some(v => v !== 0));
     const ctx: CoupledContext = {shapes: bodiesOk ? shapes : null, stated, step, gravity: Math.max(0, -gy), wet: new Map(), frameNodes: new Map(), frameEquations: 0};
-    const section = (key: 'water' | 'cables' | 'frames' | 'cloths' | 'grains', limit: number, each: (item: unknown, path: string) => void): void => {
+    const section = (key: 'water' | 'cables' | 'frames' | 'cloths' | 'grains' | 'solids' | 'heat', limit: number, each: (item: unknown, path: string) => void): void => {
       const list = scene[key];
       if (list === undefined) return;
       if (!Array.isArray(list)) c.add(`/${key}`, `must be an array, got ${typeName(list)}`);
@@ -1500,6 +1853,9 @@ export function validateScene(scene: unknown): SceneProblem[] {
     section('cables', SCENE_LIMITS.cables, (item, path) => checkCable(c, item, path, ctx));
     section('cloths', SCENE_LIMITS.cloths, (item, path) => checkCloth(c, item, path, ctx));
     section('grains', SCENE_LIMITS.grainSets, (item, path) => checkGrains(c, item, path, ctx));
+    const solids = new Map<string, SolidInfo>(), heated = new Set<string>();
+    section('solids', SCENE_LIMITS.solids, (item, path) => checkSolid(c, item, path, ctx, solids));
+    section('heat', SCENE_LIMITS.heat, (item, path) => checkHeat(c, item, path, solids, heated));
     section('water', SCENE_LIMITS.waterBasins, (item, path) => checkWater(c, item, path, ctx));
     if (ctx.frameEquations > SCENE_LIMITS.frameBodyEquations) c.add('/frames', `the frame attachments need ${ctx.frameEquations} equations (3 per pinned, 6 per clamped); the limit is ${SCENE_LIMITS.frameBodyEquations}`);
     if (c.geometryValues > SCENE_LIMITS.geometryValues && shapeValues <= SCENE_LIMITS.geometryValues) c.add('', `the scene's arrays hold ${c.geometryValues} numbers together; the limit is ${SCENE_LIMITS.geometryValues}`);
@@ -1762,6 +2118,74 @@ function normalGrains(set: SceneGrains): SceneGrains {
   return out as unknown as SceneGrains;
 }
 
+const normalRegion = (r: SceneSolidRegion): Obj => ({min: vec(r.min), max: vec(r.max)});
+
+function normalSolid(solid: SceneSolid): SceneSolid {
+  const mesh: Obj = 'box' in solid.mesh
+    ? {box: {size: vec(solid.mesh.box.size), cells: [...solid.mesh.box.cells], ...(solid.mesh.box.origin && !isZero(solid.mesh.box.origin) ? {origin: vec(solid.mesh.box.origin)} : {}), ...(solid.mesh.box.pattern === 'kuhn6' ? {pattern: 'kuhn6'} : {})}}
+    : {positions: vec(solid.mesh.positions), tets: [...solid.mesh.tets]};
+  const m = solid.material, material: Obj = {youngModulus: m.youngModulus, poissonRatio: zero(m.poissonRatio), density: m.density};
+  if (m.thermalExpansion) material.thermalExpansion = m.thermalExpansion;
+  const out: Obj = {id: solid.id, mesh, material}, fracture = solid.fracture;
+  if (!fracture && solid.model !== undefined && solid.model !== 'corotational') out.model = solid.model;
+  if (solid.integrator !== undefined && solid.integrator !== 'backward-euler') out.integrator = solid.integrator;
+  if (solid.substeps !== undefined && solid.substeps !== 1) out.substeps = solid.substeps;
+  if (solid.massDamping) out.massDamping = solid.massDamping;
+  if (solid.stiffnessDamping) out.stiffnessDamping = solid.stiffnessDamping;
+  if (solid.tolerance !== undefined && solid.tolerance !== 1e-10) out.tolerance = zero(solid.tolerance);
+  if (solid.maxNewtonIterations !== undefined) out.maxNewtonIterations = solid.maxNewtonIterations;
+  if (solid.gravity === false) out.gravity = false;
+  if (solid.supports && solid.supports.length > 0) out.supports = solid.supports.map(s => ({...normalRegion(s), ...(s.axes && !s.axes.every(Boolean) ? {axes: [...s.axes]} : {})}));
+  const k = solid.contact;
+  if (k) {
+    const contact: Obj = {};
+    if (k.bodies && k.bodies.length > 0) contact.bodies = k.bodies.map(entry => {
+      const one: Obj = {body: entry.body};
+      if (entry.friction) one.friction = entry.friction;
+      if (entry.collide === false) one.collide = false;
+      if (entry.twoWay === false) one.twoWay = false;
+      if (entry.inertia) one.inertia = normalInertia(entry.inertia);
+      return one;
+    });
+    if (k.planes && k.planes.length > 0) contact.planes = k.planes.map(plane => ({normal: vec(plane.normal), ...(plane.point && !isZero(plane.point) ? {point: vec(plane.point)} : {}), ...(plane.friction ? {friction: plane.friction} : {})}));
+    for (const [key, standard] of [['stiffnessScale', 100], ['frictionPasses', 12], ['frictionTolerance', 1e-4]] as const) if (k[key] !== undefined && k[key] !== standard) contact[key] = k[key];
+    if (k.skin !== undefined) contact.skin = zero(k.skin);
+    out.contact = contact;
+  }
+  if (solid.welds && solid.welds.length > 0) out.welds = solid.welds.map(w => ({body: w.body, ...normalRegion(w)}));
+  if (solid.loads && solid.loads.length > 0) out.loads = solid.loads.map(w => ({body: w.body, ...normalRegion(w)}));
+  if (fracture) {
+    const f: Obj = {strength: fracture.strength, toughness: fracture.toughness};
+    if (fracture.shearWeight !== undefined && fracture.shearWeight !== 1) f.shearWeight = fracture.shearWeight;
+    if (fracture.initialOpeningRatio !== undefined && fracture.initialOpeningRatio !== 0.02) f.initialOpeningRatio = fracture.initialOpeningRatio;
+    if (fracture.insertion === 'manual') f.insertion = 'manual';
+    if (fracture.insertionThreshold !== undefined && fracture.insertionThreshold !== 1) f.insertionThreshold = fracture.insertionThreshold;
+    if (fracture.tipInsertionThreshold !== undefined) f.tipInsertionThreshold = fracture.tipInsertionThreshold;
+    if (fracture.notches && fracture.notches.length > 0) f.notches = fracture.notches.map(normalRegion);
+    if (fracture.interfaces && fracture.interfaces.length > 0) f.interfaces = fracture.interfaces.map(normalRegion);
+    out.fracture = f;
+  }
+  if (!allZero(solid.displacements)) out.displacements = vec(solid.displacements!);
+  if (!allZero(solid.velocities)) out.velocities = vec(solid.velocities!);
+  if (fracture && solid.cracks && solid.cracks.length > 0) out.cracks = solid.cracks.map(crack => ({face: crack.face, history: vec(crack.history), ...(crack.mix !== undefined && crack.mix !== 1 ? {mix: zero(crack.mix)} : {}), ...(crack.open ? {open: true} : {})}));
+  return out as unknown as SceneSolid;
+}
+
+function normalHeat(heat: SceneHeat): SceneHeat {
+  const out: Obj = {id: heat.id, solid: heat.solid, material: {conductivity: heat.material.conductivity, density: heat.material.density, specificHeat: heat.material.specificHeat}};
+  out.temperature = typeof heat.temperature === 'number' ? heat.temperature : [...heat.temperature];
+  if (heat.reference !== undefined && heat.reference !== heat.temperature) out.reference = heat.reference;
+  if (heat.scheme !== undefined && heat.scheme !== 'backward-euler') out.scheme = heat.scheme;
+  if (heat.substeps !== undefined && heat.substeps !== 1) out.substeps = heat.substeps;
+  if (heat.boundaries && heat.boundaries.length > 0) out.boundaries = heat.boundaries.map(b => {
+    const one: Obj = {face: b.face, type: b.type};
+    for (const key of HEAT_BOUNDARY_VALUES[b.type]!) one[key] = zero((b as unknown as Obj)[key] as number);
+    if (b.region) one.region = {min: [...b.region.min], max: [...b.region.max]};
+    return one;
+  });
+  return out as unknown as SceneHeat;
+}
+
 /** The coupled sections of a scene in normal form; a section that is absent or empty is left out. */
 function normalCoupled(scene: SceneCoupledSections): SceneCoupledSections {
   return {
@@ -1770,12 +2194,14 @@ function normalCoupled(scene: SceneCoupledSections): SceneCoupledSections {
     ...(scene.frames && scene.frames.length > 0 ? {frames: scene.frames.map(normalFrameSection)} : {}),
     ...(scene.cloths && scene.cloths.length > 0 ? {cloths: scene.cloths.map(normalCloth)} : {}),
     ...(scene.grains && scene.grains.length > 0 ? {grains: scene.grains.map(normalGrains)} : {}),
+    ...(scene.solids && scene.solids.length > 0 ? {solids: scene.solids.map(normalSolid)} : {}),
+    ...(scene.heat && scene.heat.length > 0 ? {heat: scene.heat.map(normalHeat)} : {}),
   };
 }
 
-/** True when a scene has a water basin, a cable, a frame, a cloth or a set of grains: it then needs a Simulation, not just a rigid world. */
+/** True when a scene has a water basin, a cable, a frame, a cloth, a set of grains, a solid or a heat grid: it then needs a Simulation, not just a rigid world. */
 export function sceneHasCoupling(scene: SceneCoupledSections): boolean {
-  return (scene.water?.length ?? 0) + (scene.cables?.length ?? 0) + (scene.frames?.length ?? 0) + (scene.cloths?.length ?? 0) + (scene.grains?.length ?? 0) > 0;
+  return (scene.water?.length ?? 0) + (scene.cables?.length ?? 0) + (scene.frames?.length ?? 0) + (scene.cloths?.length ?? 0) + (scene.grains?.length ?? 0) + (scene.solids?.length ?? 0) + (scene.heat?.length ?? 0) > 0;
 }
 
 function clone<T>(value: T): T {
@@ -2231,7 +2657,7 @@ export class SceneBuilder<W extends SceneHost = SceneHost> {
   private readonly materialMap = new Map<string, SceneMaterial>();
   private readonly bodyMap = new Map<string, {description: SceneBody; handle: Body}>();
   private readonly jointMap = new Map<string, {description: SceneJoint; handle: Joint}>();
-  /** @internal The scene's coupled sections (water, cables, frames, cloths, grains) as they were described (normal form). This module carries them; simulation.ts builds them. */
+  /** @internal The scene's coupled sections (water, cables, frames, cloths, grains, solids, heat) as they were described (normal form). This module carries them; simulation.ts builds them. */
   coupledSections: SceneCoupledSections = {};
   /** @internal Set by simulation.ts: the same sections with the solvers' current state, for a save. */
   coupledCapture: (() => SceneCoupledSections) | null = null;
@@ -2393,6 +2819,9 @@ export class SceneBuilder<W extends SceneHost = SceneHost> {
       frames: coupled.frames?.map(frame => ({...frame, attachments: frame.attachments?.filter(att => has(att.body))})),
       cloths: coupled.cloths?.map(cloth => ({...cloth, bodies: cloth.bodies?.filter(entry => has(entry.body)), attachments: cloth.attachments?.filter(att => has(att.body))})),
       grains: coupled.grains?.map(set => ({...set, bodies: set.bodies?.filter(entry => has(entry.body))})),
+      solids: coupled.solids?.map(solid => ({...solid, ...(solid.contact ? {contact: {...solid.contact, bodies: solid.contact.bodies?.filter(entry => has(entry.body))}} : {}),
+        welds: solid.welds?.filter(w => has(w.body)), loads: solid.loads?.filter(w => has(w.body))})),
+      heat: coupled.heat,
       meta: options.meta ?? this.meta, extensions: this.extensions,
     });
   }
@@ -2437,7 +2866,7 @@ export class SceneBuilder<W extends SceneHost = SceneHost> {
 export function loadScene<W extends SceneHost>(world: W, scene: unknown): LoadedScene<W> {
   const normal = normalizeScene(scene);
   if (sceneHasCoupling(normal)) {
-    throw new EngineError('INVALID_STATE', 'This scene has coupled sections (water, cables, frames, cloths or grains). This loader builds rigid bodies and joints only and would drop them: ' +
+    throw new EngineError('INVALID_STATE', 'This scene has coupled sections (water, cables, frames, cloths, grains, solids or heat). This loader builds rigid bodies and joints only and would drop them: ' +
       'load the scene with loadSimulationScene (simulation.ts; the kit\'s loadScene), which returns a Simulation that steps every solver.');
   }
   const builder = new SceneBuilder<W>(world, {world: normal.world, materials: normal.materials, meta: normal.meta, extensions: normal.extensions}).populate(normal);
@@ -2455,4 +2884,4 @@ export function saveScene<W extends SceneHost>(world: W, handles: SceneBuilder<W
   return builder.toJSON(options);
 }
 
-export {pendulumWaveScene, newtonsCradleScene, dominoRunScene, terrainCarScene, ragdollScene, EXAMPLE_SCENES, mooredBuoyScene, cableStayedDeckScene, buoyAndCratesScene, trampolineScene, hopperSeesawScene, suspendedPlatformScene, COUPLED_EXAMPLE_SCENES} from './scene-examples.ts';
+export {pendulumWaveScene, newtonsCradleScene, dominoRunScene, terrainCarScene, ragdollScene, EXAMPLE_SCENES, mooredBuoyScene, cableStayedDeckScene, buoyAndCratesScene, trampolineScene, hopperSeesawScene, suspendedPlatformScene, rubberPadScene, notchedBeamScene, quenchedPlateScene, heatedBarScene, COUPLED_EXAMPLE_SCENES} from './scene-examples.ts';

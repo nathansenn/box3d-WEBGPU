@@ -1,6 +1,6 @@
 # Scene format (`box3d-scene`, versions 1 and 2)
 
-A scene file is plain JSON that says how to build a scene: the world settings, the rigid bodies and the joints, and optionally water basins, cables, frames, cloths and sets of grains coupled to those bodies ([Coupled sections](#coupled-sections-water-cables-frames), [Cloths and grains](#coupled-sections-cloths-and-grains)). It can be validated, loaded, saved, diffed, hashed and packed into a share link. The code is `src/engine/scene-format.ts`, published by the kit as `box3d-webgpu-kit/scene` (`packages/box3d-kit/src/scene.ts`) and used by the Physics Lab ([In the Physics Lab](#in-the-physics-lab)); the tests are `packages/box3d-kit/test/v12-scene.test.mjs`, for the coupled sections `packages/box3d-kit/test/v14-simulation.test.mjs`, and for version 2 `packages/box3d-kit/test/v17-compound.test.mjs`.
+A scene file is plain JSON that says how to build a scene: the world settings, the rigid bodies and the joints, and optionally water basins, cables, frames, cloths, sets of grains, deformable solids and heat grids coupled to those bodies ([Coupled sections](#coupled-sections-water-cables-frames), [Cloths and grains](#coupled-sections-cloths-and-grains), [Solids and heat](#coupled-sections-solids-and-heat)). It can be validated, loaded, saved, diffed, hashed and packed into a share link. The code is `src/engine/scene-format.ts`, published by the kit as `box3d-webgpu-kit/scene` (`packages/box3d-kit/src/scene.ts`) and used by the Physics Lab ([In the Physics Lab](#in-the-physics-lab)); the tests are `packages/box3d-kit/test/v12-scene.test.mjs`, for the coupled sections `packages/box3d-kit/test/v14-simulation.test.mjs`, and for version 2 `packages/box3d-kit/test/v17-compound.test.mjs`.
 
 Version 2 adds two things to version 1 and changes nothing else: a body may be a **compound** of several shapes, and a body may state its **mass data** (mass, centre of mass, inertia tensor). A file that uses neither is a version 1 file. [Versioning](#versioning) has the rules.
 
@@ -84,6 +84,8 @@ A key that is not listed here is an error, everywhere except inside `userData` a
 | `frames` | array of frames | no | absent | |
 | `cloths` | array of cloths | no | absent | See [Cloths and grains](#coupled-sections-cloths-and-grains). |
 | `grains` | array of grain sets | no | absent | |
+| `solids` | array of solids | no | absent | See [Solids and heat](#coupled-sections-solids-and-heat). |
+| `heat` | array of heat grids | no | absent | |
 | `meta` | object | no | | `title`, `description`, `author`, `created`: strings. `created` must be a date `Date.parse` accepts. |
 | `extensions` | object | no | | Any JSON. Preserved by load, save, canonicalize and links; ignored otherwise. |
 
@@ -352,11 +354,57 @@ Build order, after the frames, cables and their attachments: every cloth in file
 
 A save writes each cloth's node positions and velocities (and its `restNodes`) and each grain set's live grains with their velocities and spins. Not saved: the cloth's contact state and the support-load estimate of the coupling (both rebuilt in the first steps), and the grains' contact history (tangential springs), which restarts from zero. A resumed run therefore starts from bit-identical fields and then differs slightly, as for the other sections; two loads of the same saved scene stay bit-identical (`tests/physics/lab-coupled-scenes.test.mjs`).
 
-Heat solvers, deformable solids and fracture bodies are not in the scene format.
+Heat solvers, deformable solids and fracture bodies have their own sections, below.
+
+### Coupled sections: solids and heat
+
+Two more optional arrays, added on 2026-11-12 under the same rules (see [Versioning](#versioning)). Ids share the namespace of bodies and joints. Numbers are float64.
+
+#### `solids`
+
+One tetrahedral solid per entry ([`SOLID_MECHANICS.md`](SOLID_MECHANICS.md)). Without `contact` or `fracture` it is a `SolidBody` stepped by `solidSubsystem` (post stage); with `contact` it is coupled two-way to the bodies it touches by `SolidCoupling` and `solidContactSubsystem` (couple stage, order 170, [`SOLID_CONTACT.md`](SOLID_CONTACT.md)); with `fracture` it is a `FractureBody` stepped by `fractureSubsystem` (post stage, [`SOLID_FRACTURE.md`](SOLID_FRACTURE.md)). Each is registered under the solid's id. At most 8 solids of at most 20,000 nodes and 60,000 tetrahedra.
+
+| Key | Type | Required | Default | Notes |
+|---|---|---|---|---|
+| `id` | string | yes | | |
+| `mesh` | object | yes | | `{box: {size, cells, origin?, pattern?}}`: a box split into tetrahedra (`boxMesh`, five per cell, or six with `pattern: "kuhn6"`); or `{positions, tets}`: x, y, z per node and four node indices per tetrahedron. |
+| `material` | object | yes | | `youngModulus` (Pa), `poissonRatio` (−0.99 to 0.4999), `density` (kg/m³), `thermalExpansion` (1/K, default 0). |
+| `model` | `"linear"`, `"corotational"` or `"neo-hookean"` | no | `"corotational"` | A solid with `fracture` is linear and takes no other value. |
+| `integrator` | `"backward-euler"`, `"midpoint"` or `"explicit"` | no | `"backward-euler"` | A solid in contact uses backward Euler only; an explicit solid is refused at build when its step is above its stability limit. |
+| `substeps` | integer 1..64 | no | 1 | Solid steps in one world step. A solid in contact takes exactly one. |
+| `massDamping`, `stiffnessDamping` | number ≥ 0 | no | 0 | Rayleigh damping, 1/s and s. A solid with fracture has mass damping only. |
+| `tolerance`, `maxNewtonIterations` | number | no | the solver's | |
+| `gravity` | boolean | no | true | False: the world's gravity does not act on the solid. |
+| `supports` | array | no | `[]` | `{min, max, axes?}`: nodes whose reference position is inside the box (bounds widened by 10⁻⁹ of the coordinate) are held where they are, in the components `axes` marks (default all three). |
+| `contact` | object | no | none | `{bodies?, planes?, stiffnessScale?, skin?, frictionPasses?, frictionTolerance?}`. `bodies`: `{body, friction?, collide?, twoWay?, inertia?}` for a box, sphere or capsule body; `planes`: `{normal, point?, friction?}`, fixed half spaces. Not with `fracture`. |
+| `welds` | array | no | `[]` | `{body, min, max}`: nodes in the box are welded to the body where they are when the scene is built. The body must be in `contact.bodies` (with `collide: false` when it should only carry the weld). |
+| `loads` | array | no | `[]` | `{body, min, max}`: the force that holds `body` up, measured from its motion in each rigid step (`m (Δv / Δt − g)`), is put, reversed, on the solid's boundary faces whose centroid is in the box, as a uniform traction (`reactionLoadLink`, one-way). For a body that rests on a fixed carrier over the solid and touches nothing else: every force the world puts on the body is counted. |
+| `fracture` | object | no | none | `{strength, toughness, shearWeight?, initialOpeningRatio?, insertion?, insertionThreshold?, tipInsertionThreshold?, notches?, interfaces?}`: cohesive fracture, `strength` σ_c in Pa and `toughness` G_c in J/m². `notches`: boxes; interior faces whose centroid is in one are cut before the first step (`precrack`). `interfaces`: boxes; interior faces there get an undamaged interface before the first step (`insertCohesive`); with `insertion: "manual"` no other face can crack. The crack-band model is not available in scenes. |
+| `displacements`, `velocities` | `[x, y, z, ...]` | no | zero | Saved state, one triple per node. For a cracked solid there are more nodes than in the mesh: the order is the one a load of the saved `cracks` gives (below). |
+| `cracks` | array | no | none | Saved interfaces of a solid with `fracture`: `{face, history, mix?, open?}`, the interior face, the largest effective opening so far at its three node pairs (m), the mode share and whether it lost all traction (`FractureBody.crackState`). |
+
+#### `heat`
+
+Heat conduction in one solid per entry ([`HEAT_TRANSFER.md`](HEAT_TRANSFER.md); `heatSubsystem`, post stage), with the one-way link that makes its temperature the solid's thermal strain (`thermalSolidLink`, registered as `<id>:solid`). The grid is the solid's box: one heat cell per cell of its `mesh.box`, so the solid must have a box mesh, and a solid has at most one heat grid.
+
+| Key | Type | Required | Default | Notes |
+|---|---|---|---|---|
+| `id` | string | yes | | |
+| `solid` | solid id | yes | | A solid with a `box` mesh. |
+| `material` | object | yes | | `conductivity` (W/(m K)), `density` (kg/m³), `specificHeat` (J/(kg K)). |
+| `temperature` | number or one number per cell | yes | | K. Cell (i, j, k) is at `i + nx (j + ny k)`. A save writes the field. |
+| `reference` | number | no | `temperature` | The stress-free temperature, K. Required when `temperature` is a field. |
+| `scheme` | `"backward-euler"`, `"crank-nicolson"` or `"explicit"` | no | `"backward-euler"` | An explicit grid is refused at build when its step is above the stability limit. |
+| `substeps` | integer 1..256 | no | 1 | Heat steps in one world step. |
+| `boundaries` | array | no | `[]` (insulated) | `{face, type, ..., region?}` with `face` one of `x-`, `x+`, `y-`, `y+`, `z-`, `z+` and `type` `temperature` (`temperature`), `flux` (`flux`, W/m² into the solid), `convection` (`coefficient`, `ambient`) or `radiation` (`emissivity`, `environment`); `region` is `{min, max}` in cell indices, inclusive. |
+
+Build order, after the grain sets: every solid in file order (mesh, notches and interfaces, saved cracks, supports, saved state, contact bodies and planes, welds, loads), then every heat grid (the solid takes the thermal strain of the given field at once), then the basins. A dynamic body a solid touches two-way or loads is counted in the ledger's `rigid` entry. A solid or heat grid the engine refuses leaves the world reset, with `Scene solid "<id>":` or `Scene heat "<id>":` in the error.
+
+A save writes each solid's displacements and velocities, each cracked solid's interfaces, and each heat grid's temperatures (and its `reference`). Not saved: the contact state of a solid in contact (friction anchors, the coupling's support estimate), the energy counters and events of a fracture body, and the heat grid's boundary energy and clock. **Cracked solids.** The saved interfaces are put back in one batch, so nodes are split as the final set of interfaces requires and numbered in the order one insertion gives, which can differ from the order of the run that was saved; the save writes the displacements in the order the load will use (a node is identified by its node in the mesh and the lowest element that holds it). A reopened cracked solid has the same nodes, interfaces, crack area and node positions bit for bit (`tests/physics/lab-coupled-scenes.test.mjs`). As for the other sections, a resumed run then differs slightly from the run that was saved; two loads of one save stay bit-identical.
 
 ### Canonical form of the sections
 
-A section that is absent or empty is left out of the normal form (this holds for `cloths` and `grains` too), so a scene of rigid bodies and joints has the canonical text and `sceneHash` it has always had. Inside a section, a value equal to its default is left out (`solver: "proximal"`, `substeps: 1`, `density: 1000`, an all-zero `eta`, `velocities`, `fixed`, …), and `-0` is written as `0`. Order is kept, because it is the build order.
+A section that is absent or empty is left out of the normal form (this holds for `cloths`, `grains`, `solids` and `heat` too), so a scene of rigid bodies and joints has the canonical text and `sceneHash` it has always had. Inside a section, a value equal to its default is left out (`solver: "proximal"`, `substeps: 1`, `density: 1000`, an all-zero `eta`, `velocities`, `fixed`, …), and `-0` is written as `0`. Order is kept, because it is the build order.
 
 ## Validation
 
@@ -395,7 +443,7 @@ A value the solver still holds unchanged is written exactly as it was authored, 
 
 `linearVelocity` in a scene is the velocity of the body's origin. The solver holds the velocity of the centre of mass. The two are the same unless the body spins and its centre of mass is off its origin (a compound, `massData` with a `center`, a hull whose points are not centred on its origin); a save then writes `v_com − ω × (R c)`, rounded to float32. For such a body the saved velocity can differ from the authored one in the last float32 digit even before the first step. Measured on an L-shaped compound spinning at 2 rad/s, whose two velocities differ by 1.8 m/s: saved after 100 steps and loaded into a new world, the velocities agree to 4.8e-7 m/s at the moment of loading and the positions are identical after one more second of free flight.
 
-A save of a coupled scene also carries each basin's `eta`, `u` and `v`, each cable's node positions and velocities, and each frame's displacements and velocities, as the solvers hold them (float64, bit-exact). Entries that name a body that no longer exists are left out.
+A save of a coupled scene also carries each basin's `eta`, `u` and `v`, each cable's node positions and velocities, each frame's displacements and velocities, each cloth's and grain set's fields, each solid's displacements, velocities and interfaces, and each heat grid's temperatures, as the solvers hold them (float64, bit-exact; a cracked solid's nodes in the order its load gives, [Solids and heat](#coupled-sections-solids-and-heat)). Entries that name a body that no longer exists are left out.
 
 A save does **not** carry:
 
@@ -480,7 +528,7 @@ The Lab (`lab.html`) opens scene files with this module. Nothing is installed; a
 
 | How | What opens |
 |---|---|
-| `lab.html?example=<name>` | An example scene: `pendulum-wave`, `newtons-cradle`, `domino-run`, `terrain-car`, `ragdoll`, and the coupled ones: `moored-buoy`, `cable-stayed-deck`, `buoy-and-crates`, `trampoline`, `hopper-seesaw`, `suspended-platform`. |
+| `lab.html?example=<name>` | An example scene: `pendulum-wave`, `newtons-cradle`, `domino-run`, `terrain-car`, `ragdoll`, and the coupled ones: `moored-buoy`, `cable-stayed-deck`, `buoy-and-crates`, `trampoline`, `hopper-seesaw`, `suspended-platform`, `rubber-pad`, `notched-beam`, `quenched-plate`, `heated-bar`. |
 | `lab.html?scene=b3s1…` | A share link from `encodeSceneLink`. `#scene=…` in the fragment works too. |
 | `lab.html?scene=%7B…%7D` | The scene JSON itself, URL-encoded, up to 65,536 characters. |
 | The **Scenes** panel, bottom right: **Open file…**, or drop a file anywhere on the page | A scene file (`.json`), or geometry (`.obj`, `.stl`, `.glb`, `.gltf`; drop a `.gltf` together with its `.bin`). |
@@ -516,8 +564,9 @@ A scene can be built and changed in the page: **New scene** and **Edit** in the 
 | Cloth | One mesh row: the triangles from the node positions after every step, smooth normals, both sides. |
 | Grains | One sphere row per grain. A grain that left its bounds keeps its row with no size. |
 | Grain walls | Boxes, spheres and capsules as rows of those shapes; cylinders, rings and cones as mesh rows; all translucent. Plane walls are not drawn. |
+| Solid | Eight mesh rows, one per colour band of the field the panel picks (von Mises stress from 0 to its present largest value, temperature over the range of the heat grid's start and boundary temperatures, or damage from 0 to 1), on a blue-cyan-green-yellow-red ramp. The triangles are the boundary faces at the present node positions, rebuilt after every step with flat normals; a solid with fracture adds both sides of every interface, each coloured by its own element (or by the interface's damage), so an opened crack shows as two surfaces and each fragment is closed. The panel can draw the displacements 10, 100 or 1000 times larger (`box3dLab.setSolidView({field, scale})`): brittle cracks open by micrometres. An empty band is drawn with no size. |
 
-A panel at the bottom left shows the clock and the measured cost of a step, the step order, the energy ledger by subsystem (total and balance, with the parts on hover) and the latest events: world contacts and each subsystem's events, with body handles shown as scene ids. `box3dLab.sceneState()` also reports `simulationTick`, `stateHash` (a hash of every body transform and every solver's fields, `coupledStateHash`), the energy entries and what is drawn; `box3dLab.coupledReadout()` returns what the panel shows, and `box3dLab.setPaused(flag)` pauses the clock. Copy share link and Download save the scene as it is, with the solvers' fields ([Save and resume](#save-and-resume)); a link opened in a fresh page gives the same scene hash and, after the same number of steps, the same state hash (checked by `scripts/coupled-scenes-browser-check.mjs`). The editor does not open a coupled scene. A saved coupled scene carries every field, so its link is long: the hopper's is 3,526 characters at the start and 20,395 after 3 s (150 grains with positions, velocities and spins), the buoy and crates' 11,258 after 3 s. That fits the address bar (up to 32,768 characters), but some servers refuse a request line that long (Node's default limit is 16 KB); send the file for those.
+A panel at the bottom left shows the clock and the measured cost of a step, the step order, the energy ledger by subsystem (total and balance, with the parts on hover) and the latest events: world contacts and each subsystem's events, with body handles shown as scene ids. `box3dLab.sceneState()` also reports `simulationTick`, `stateHash` (a hash of every body transform and every solver's fields, `coupledStateHash`), the energy entries and what is drawn; `box3dLab.coupledReadout()` returns what the panel shows, and `box3dLab.setPaused(flag)` pauses the clock. With solids, the panel also has the field picker and the displacement scale, and shows the range of the ramp for each solid; `sceneState().solidView` reports the same. Solid events are listed with the others: `contact-begin` and `contact-end` of a solid in contact, `crack` with the kind (`initiated`, `opened`), face, mode and energy of a fracture body. Copy share link and Download save the scene as it is, with the solvers' fields ([Save and resume](#save-and-resume)); a link opened in a fresh page gives the same scene hash and, after the same number of steps, the same state hash (checked by `scripts/coupled-scenes-browser-check.mjs`). The editor does not open a coupled scene. A saved coupled scene carries every field, so its link is long: the hopper's is 3,526 characters at the start and 20,395 after 3 s (150 grains with positions, velocities and spins), the buoy and crates' 11,258 after 3 s. That fits the address bar (up to 32,768 characters), but some servers refuse a request line that long (Node's default limit is 16 KB); send the file for those.
 
 Not in the Lab yet: choosing the scale of imported geometry by hand, importing one body per object of a file, and textures or colours from the geometry file. The Studio does not read scenes.
 
@@ -541,6 +590,9 @@ Not in the Lab yet: choosing the scale of imported geometry by hand, importing o
 | Frames / nodes / elements in one frame | 64 / 4,096 / 8,192 |
 | Cloths / nodes / triangles in one cloth | 16 / 16,384 / 32,768 |
 | Grain sets / grains / fixed walls in one set / grain steps per world step | 8 / 65,536 / 256 / 4,096 |
+| Solids / nodes / tetrahedra in one solid / solid steps per world step | 8 / 20,000 / 60,000 / 64 |
+| Heat grids (one per solid) / heat steps per world step | 8 / 256 |
+| Supports, welds, loads, notches or interface boxes of one solid (each list) / saved interfaces | 64 / 60,000 |
 | Equations of all frame attachments (3 per pinned, 6 per clamped) | 96 |
 | One `userData`, or `extensions` | 65,536 characters of JSON, 32 levels deep |
 | A `meta` string | 4,096 characters |
@@ -561,6 +613,7 @@ A world has room for 4,096 bodies unless it was created with a larger `capacity`
 - Additive data that a version 1 reader may ignore goes in `extensions` (scene-wide) or `userData` (per body or joint). Use a key you own, for example your tool's name.
 - The `water`, `cables` and `frames` sections were added to version 1 without a new number. They are optional, a scene without them is byte for byte the scene it was (same canonical text, same `sceneHash`), and a reader from before them does not misread a scene that has them: it rejects it with `/water: unknown key "water"`, because the schema is closed. A reader cannot tell from the version alone whether it can run a file; `sceneHasCoupling(scene)` says whether a scene needs a Simulation.
 - The `cloths` and `grains` sections were added the same way on 2026-11-11, without a new number: optional, absent from the normal form when empty (the example hashes are unchanged; `tests/physics/lab-scenes.test.mjs` and the kit test pin them), and rejected by an earlier reader as `unknown key "cloths"` or `unknown key "grains"`. `sceneHasCoupling` counts them.
+- The `solids` and `heat` sections were added the same way on 2026-11-12: optional, absent from the normal form when empty (the example hashes, rigid and coupled, are unchanged), rejected by an earlier reader as `unknown key "solids"` or `unknown key "heat"`, and counted by `sceneHasCoupling`.
 - Any change that an earlier reader would misread, such as a new required key, a new shape kind, a changed default or a changed meaning, gets a new `version`. A later reader keeps reading the earlier versions. Version 2 was made for the new shape kind; `massData` went with it because a version 1 reader that ignored it would simulate another body.
 - Share links have their own version in the prefix (`b3s1`). A new compression or framing gets a new prefix; version 1 links stay readable.
 - Canonical text and `sceneHash` are defined by the scene version. They are stable for versions 1 and 2.
@@ -578,7 +631,7 @@ A world has room for 4,096 bodies unless it was created with a larger `capacity`
 | `terrainCarScene()` | A chassis on four wheel joints with suspension and motors, on a height field. No ground slab. |
 | `ragdollScene()` | A capsule torso, a sphere head and 8 capsule limbs on 9 spherical joints with cone and twist limits. |
 
-`COUPLED_EXAMPLE_SCENES` maps six more names to scenes with coupled sections. They are kept out of `EXAMPLE_SCENES` because a loader without a Simulation (the core `loadScene`) cannot open them; the Lab opens all of them.
+`COUPLED_EXAMPLE_SCENES` maps ten more names to scenes with coupled sections. They are kept out of `EXAMPLE_SCENES` because a loader without a Simulation (the core `loadScene`) cannot open them; the Lab opens all of them.
 
 | Function | Contents |
 |---|---|
@@ -588,7 +641,11 @@ A world has room for 4,096 bodies unless it was created with a larger `capacity`
 | `trampolineScene()` | A 2 m cloth of 81 nodes held along its edges between four posts, with a 6.8 kg ball and a box dropped on it. 1/120 s step. |
 | `hopperSeesawScene()` | 150 beads of 6 mm radius (linear contact law, 12 grain steps per 1/240 s world step) run out of a conical hopper into a tray on a hinged plank and tip it against a 24 kg counterweight. |
 | `suspendedPlatformScene()` | A platform on four compliant cables from four posts, loaded by four boxes that fall on it one after another. |
+| `rubberPadScene()` | An 8 kg box dropped 0.2 m onto a neo-Hookean rubber pad (E = 1.5 MPa, ν = 0.45, 243 nodes) welded along its base to a steel plate: two-way contact with friction. The box bounces, settles and rests pressed in on 25 nodes. |
+| `notchedBeamScene()` | A 200 kg drop hammer on a vertical guide (a prismatic joint) falls 1.5 m onto a steel platen over a notched concrete beam (0.4 × 0.1 × 0.05 m, σ_c = 3 MPa, G_c = 100 J/m², 240 tetrahedra), pinned along a node line one cell in from each end of its base, with cohesive interfaces on the mid-section above the notch (`insertion: "manual"`). The platen's reaction is the beam's load; the impact opens half of the ligament from the notch, and at rest the beam carries the hammer's weight (to 10⁻³). |
+| `quenchedPlateScene()` | `quenchedPlate()` of `solid-fracture.ts` at 6 mm cells (60 × 36 × 6 mm, 300 tetrahedra): an alumina plate at 600 K whose face x = 0 is quenched by a film of 20,000 W/(m² K) to 300 K. The heat grid's temperature is the plate's thermal strain; the cooled layer cracks from about 1.2 s. The cells are far larger than `l_ch` (0.16 mm): the onset is meaningful, the crack pattern is not. |
+| `heatedBarScene()` | An aluminium bar (80 × 16 × 16 mm) clamped between a block held at 500 K and one at 300 K: the temperature settles to a linear ramp in about 20 s and the restrained bar goes into compression (up to about 300 MPa von Mises at the hot end). |
 
-Cost of one simulation step, measured once on this sandbox (4 shared cores, Node 22; in the browser, headless Chromium with software WebGPU, stepping only): moored buoy 0.18 ms (browser 0.19 ms), cable-stayed deck 0.47 (0.55), buoy and crates 0.20 (0.78), suspended platform 0.10 (0.32), hopper 1.5 (1.9) against a 4.17 ms real-time budget; the trampoline 4.8 to 5.7 ms in node and 8.8 ms in the browser against its 8.33 ms budget, so it is about real time in node and runs at about 0.9 times real time in that browser. The cloth is the limit: about 100 nodes in real time ([`CLOTH.md`](CLOTH.md#cost)); grains, about 100 to 250 soft beads ([`GRANULAR.md`](GRANULAR.md#cost)). Larger cloths or more grains run slower than real time: the Lab then takes the steps it can in a frame and drops the rest of the time, as it does for any scene.
+Cost of one simulation step, measured once on this sandbox (4 shared cores, Node 22; in the browser, headless Chromium with software WebGPU, stepping only): moored buoy 0.18 ms (browser 0.19 ms), cable-stayed deck 0.47 (0.55), buoy and crates 0.20 (0.78), suspended platform 0.10 (0.32), hopper 1.5 (1.9) against a 4.17 ms real-time budget; the trampoline 4.8 to 5.7 ms in node and 8.8 ms in the browser against its 8.33 ms budget, so it is about real time in node and runs at about 0.9 times real time in that browser. The solids, measured the same way: heated bar 0.8 ms in node (1.1 ms in the browser) against 16.7 ms, about 20 times faster than real time; quenched plate 1.4 to 2.3 ms before it cracks and 20 to 31 ms after (the fracture solve grows with the interfaces), against 16.7 ms, so about 0.6 times real time once cracked (browser 12 ms mean over the first 2.5 s); notched beam 1.5 ms mean against 4.17 ms (browser 2.0 ms), with single steps of 40 ms at the impact; rubber pad 1.7 to 2 ms at rest but about 80 ms per step while the box lands and bounces (the first 0.4 s), about 0.05 times real time then (browser 27 ms mean over the first second). The meshes are kept small for that: 140 to 279 nodes. The cloth is the limit: about 100 nodes in real time ([`CLOTH.md`](CLOTH.md#cost)); grains, about 100 to 250 soft beads ([`GRANULAR.md`](GRANULAR.md#cost)). Larger cloths or more grains run slower than real time: the Lab then takes the steps it can in a frame and drops the rest of the time, as it does for any scene.
 
 Two engine behaviours showed up while building the cradle and are worth knowing when you write scenes: restitution is not applied to slow impacts (a 0.44 m/s impact passed on 23% of its speed, a 1.85 m/s impact 99.6%), and balls that touch at rest do not pass the impulse cleanly, so the scene leaves a 2 mm gap.

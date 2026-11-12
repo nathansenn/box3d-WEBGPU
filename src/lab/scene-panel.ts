@@ -124,7 +124,7 @@ export function createScenePanel(callbacks: ScenePanelCallbacks): ScenePanel {
   const placeholder = element('option', '', 'Example scenes…');
   placeholder.value = '';
   examples.append(placeholder);
-  for (const [label, names, titles] of [['Rigid bodies and joints', EXAMPLE_SCENE_NAMES, EXAMPLE_SCENE_TITLES], ['Coupled: water, cables, cloth, grains', COUPLED_EXAMPLE_NAMES, COUPLED_EXAMPLE_TITLES]] as const) {
+  for (const [label, names, titles] of [['Rigid bodies and joints', EXAMPLE_SCENE_NAMES, EXAMPLE_SCENE_TITLES], ['Coupled: water, cables, cloth, grains, solids, heat', COUPLED_EXAMPLE_NAMES, COUPLED_EXAMPLE_TITLES]] as const) {
     const group = document.createElement('optgroup');
     group.label = label;
     for (const name of names) {

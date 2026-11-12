@@ -966,7 +966,7 @@ function produce(scene: Scene, command: EditorCommand): Produced {
       const problems = validateScene(command.scene);
       if (problems.length > 0) throw new RefusedScene(problems);
       const next = normalizeScene(command.scene);
-      if (sceneHasCoupling(next)) throw new EditorError('This scene has coupled sections (water, cables, frames, cloths or grains). The editor works on rigid bodies and joints only.');
+      if (sceneHasCoupling(next)) throw new EditorError('This scene has coupled sections (water, cables, frames, cloths, grains, solids or heat). The editor works on rigid bodies and joints only.');
       return done(next, 'Open a scene');
     }
     default: throw new EditorError(`Unknown command "${String((command as { type?: unknown }).type)}".`);
@@ -1013,7 +1013,7 @@ export class SceneDocument {
   /** Throws SceneValidationError for an invalid scene, and EditorError for one with coupled sections. */
   constructor(scene: unknown = emptyScene(), options: SceneDocumentOptions = {}) {
     const normal = normalizeScene(scene);
-    if (sceneHasCoupling(normal)) throw new EditorError('This scene has coupled sections (water, cables, frames, cloths or grains). The editor works on rigid bodies and joints only.');
+    if (sceneHasCoupling(normal)) throw new EditorError('This scene has coupled sections (water, cables, frames, cloths, grains, solids or heat). The editor works on rigid bodies and joints only.');
     this.#scene = normal;
     const limit = options.historyLimit ?? SceneDocument.DEFAULT_HISTORY;
     if (!Number.isInteger(limit) || limit < 1) throw new RangeError('The history limit must be a positive integer.');

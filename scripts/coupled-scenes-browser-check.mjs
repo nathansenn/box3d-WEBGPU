@@ -12,7 +12,8 @@
 // drew it (page.screenshot shows a blank WebGPU canvas) and require that it is not blank; read the
 // coupled readout (energy ledger, events); copy the share link, open it in two fresh browser contexts, step
 // both the same number of steps and require the same scene hash and the same state hash in both; and require
-// that no page error, console error or failed request happened.
+// that no page error, console error or failed request happened. A scene with solids is also captured once per
+// field of the colour ramp (stress, temperature, damage), with the displacements magnified where cracks are tiny.
 import assert from 'node:assert/strict';
 import {execSync} from 'node:child_process';
 import fs from 'node:fs';
@@ -28,9 +29,11 @@ const {chromium} = playwright;
 
 const output = path.resolve(process.argv[2] ?? process.env.BOX3D_QA_OUTPUT ?? path.join(os.tmpdir(), 'box3d-coupled-scenes'));
 fs.mkdirSync(output, {recursive: true});
-const EXAMPLES = (process.argv[3] ?? 'buoy-and-crates,trampoline,hopper-seesaw,suspended-platform,moored-buoy,cable-stayed-deck').split(',');
+const EXAMPLES = (process.argv[3] ?? 'buoy-and-crates,trampoline,hopper-seesaw,suspended-platform,moored-buoy,cable-stayed-deck,rubber-pad,notched-beam,quenched-plate,heated-bar').split(',');
 /** Lab ticks to advance before the first capture, and after reopening a link. */
-const FIRST = {'hopper-seesaw': 180, trampoline: 90}, SHARE_TICKS = 30;
+const FIRST = {'hopper-seesaw': 180, trampoline: 90, 'rubber-pad': 60, 'notched-beam': 60, 'quenched-plate': 150, 'heated-bar': 300}, SHARE_TICKS = 30;
+/** Solids: the fields captured and the displacement scale for each. */
+const SOLID_VIEWS = {'notched-beam': [['stress', 1], ['damage', 1], ['damage', 100]], 'quenched-plate': [['temperature', 1], ['stress', 1], ['damage', 100]], 'heated-bar': [['temperature', 1], ['stress', 1]], 'rubber-pad': [['stress', 1]]};
 
 const root = path.resolve('dist');
 assert.ok(fs.existsSync(path.join(root, 'lab.html')), 'dist/lab.html is missing: run npm run build:pages first');
@@ -125,6 +128,15 @@ try {
     assert.equal(stepped.simulationTick, opened.simulationTick + first * stepped.stepsPerTick, `${name}: every Lab tick is stepsPerTick simulation steps`);
     const canvas = await captureCanvas(page, `${name}.png`);
     assert.ok(canvas.lit > 0.2 && canvas.colours > 20, `${name}: the canvas is not blank (${JSON.stringify(canvas)})`);
+    const solidShots = [];
+    for (const [field, scale] of SOLID_VIEWS[name] ?? []) {
+      const view = await page.evaluate(options => window.box3dLab.setSolidView(options), {field, scale});
+      assert.deepEqual(view, {field, scale}, `${name}: the solid view is set`);
+      const shot = await captureCanvas(page, `${name}-${field}-x${scale}.png`);
+      assert.ok(shot.lit > 0.2, `${name}: the ${field} capture is not blank`);
+      solidShots.push({field, scale, ...shot, solids: (await page.evaluate(() => window.box3dLab.sceneState().solidView)).solids});
+    }
+    if (solidShots.length) await page.evaluate(() => window.box3dLab.setSolidView({field: 'stress', scale: 1}));
     const readout = await page.evaluate(() => window.box3dLab.coupledReadout());
     assert.ok(readout.energy.entries.length > 0, `${name}: the energy ledger has entries`);
     assert.equal(await page.locator('#lab-coupled-panel').isVisible(), true, `${name}: the readout panel is shown`);
@@ -160,7 +172,7 @@ try {
     report.examples[name] = {
       opened: {sceneHash: opened.sceneHash, bodies: opened.bodies, draw: opened.coupledDraw},
       stepped: {labTicks: stepped.ticks, simulationSteps: stepped.ticks * stepped.stepsPerTick, wallMs: Math.round(stepped.wallMs), msPerStep: +(stepped.wallMs / (stepped.ticks * stepped.stepsPerTick)).toFixed(3), stateHash: stepped.stateHash, events: stepped.events, energy: stepped.energy},
-      canvas, readoutStepMs: readout.stepMs, link: link.length,
+      canvas, solidShots, readoutStepMs: readout.stepMs, link: link.length, latestEvents: readout.events,
       share: {sceneHash: a.state.sceneHash, simulationTick: a.state.simulationTick, stateHash: a.state.stateHash},
     };
     check(`${name}: opens, steps, draws, and its share link reopens the same twice`, {canvas, msPerStep: report.examples[name].stepped.msPerStep, share: report.examples[name].share});

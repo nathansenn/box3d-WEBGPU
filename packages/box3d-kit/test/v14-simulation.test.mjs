@@ -461,7 +461,7 @@ test('scene format: rigid-only scenes keep their hashes and load as before; load
 });
 
 test('scene format: the coupled sections validate with paths, normalise, hash and survive a share link', async () => {
-  assert.deepEqual(Object.keys(COUPLED_EXAMPLE_SCENES), ['moored-buoy', 'cable-stayed-deck', 'buoy-and-crates', 'trampoline', 'hopper-seesaw', 'suspended-platform']);
+  assert.deepEqual(Object.keys(COUPLED_EXAMPLE_SCENES), ['moored-buoy', 'cable-stayed-deck', 'buoy-and-crates', 'trampoline', 'hopper-seesaw', 'suspended-platform', 'rubber-pad', 'notched-beam', 'quenched-plate', 'heated-bar']);
   for (const [name, make] of Object.entries(COUPLED_EXAMPLE_SCENES)) {
     const scene = make(), normal = normalizeScene(scene);
     assert.deepEqual(validateScene(scene), [], name);

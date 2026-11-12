@@ -12,6 +12,11 @@
  *     and cones as mesh rows, all translucent. A `plane` wall is not drawn.
  *   - Cables and frame elements: segments of the renderer's rope stream (straight square tubes
  *     between node positions), as the SI bridge draws its stays.
+ *   - Solids: eight mesh rows each, one per colour band of the field the panel picks (von Mises stress,
+ *     temperature or damage, on a blue-to-red ramp). Their triangles are the solid's boundary faces at the
+ *     current node positions, rebuilt after every step with flat normals; a solid that can crack adds both
+ *     sides of every interface, so a crack shows as two surfaces that move apart and each fragment is closed.
+ *     Displacements can be drawn magnified (`setSolidView`), as a structural viewer does.
  *   - The water surface also gets a wire grid in the renderer's line stream (the one the scene
  *     editor draws its frames with): seen from above, the translucent surface alone is faint.
  *
@@ -24,8 +29,10 @@
  * (tests/physics/lab-coupled-scenes.test.mjs).
  */
 import type { NativeBodyHandle } from '../engine/native-world.ts';
-import type { Scene, SceneGrainWall } from '../engine/scene-format.ts';
-import type { SimulationEnergy, SimulationEvent } from '../engine/simulation.ts';
+import type { Scene, SceneGrainWall, SceneHeat, SceneSolid } from '../engine/scene-format.ts';
+import type { SceneSolidRuntime, SimulationEnergy, SimulationEvent } from '../engine/simulation.ts';
+import { FractureBody } from '../engine/solid-fracture.ts';
+import { vonMisesStress } from '../engine/solid.ts';
 import type { DebugLine, GpuSegmentGridFrame, InstanceBufferSource, InstanceGeometry } from '../types';
 import { exactTransformHash, type LabLoadedScene } from './scene-host.ts';
 
@@ -40,7 +47,8 @@ const ROUND = 32;
 
 /** Does this scene need the coupled view: has it a section that is not rigid bodies and joints? */
 export function sceneIsCoupled(scene: Scene): boolean {
-  return (scene.water?.length ?? 0) + (scene.cables?.length ?? 0) + (scene.frames?.length ?? 0) + (scene.cloths?.length ?? 0) + (scene.grains?.length ?? 0) > 0;
+  return (scene.water?.length ?? 0) + (scene.cables?.length ?? 0) + (scene.frames?.length ?? 0) + (scene.cloths?.length ?? 0) + (scene.grains?.length ?? 0) +
+    (scene.solids?.length ?? 0) + (scene.heat?.length ?? 0) > 0;
 }
 
 // ---------------------------------------------------------------------------
@@ -64,8 +72,9 @@ class Fnv {
 /**
  * A hash of everything a coupled scene's solvers hold, bit for bit: the exact float32 bits of every body
  * transform, then the float64 arrays of each basin (eta, u, v), cable (node positions and velocities), frame
- * (displacements and velocities), cloth (node positions and velocities) and grain set (positions, velocities,
- * spins, and which grains are left), in file order. Two runs with equal hashes after the same number of steps
+ * (displacements and velocities), cloth (node positions and velocities), grain set (positions, velocities,
+ * spins, and which grains are left), solid (displacements and velocities of its current nodes, so a crack that
+ * splits nodes changes it) and heat grid (cell temperatures), in file order. Two runs with equal hashes after the same number of steps
  * took the same steps. For a rigid-only scene it covers the transforms only.
  */
 export function coupledStateHash(loaded: LabLoadedScene): string {
@@ -79,6 +88,8 @@ export function coupledStateHash(loaded: LabLoadedScene): string {
     const g = loaded.grains.get(set.id)!.granular, n = g.grainCount;
     h.bytes(g.positions.subarray(0, 3 * n)); h.bytes(g.velocities.subarray(0, 3 * n)); h.bytes(g.angularVelocities.subarray(0, 3 * n)); h.bytes(g.alive.subarray(0, n));
   }
+  for (const solid of scene.solids ?? []) { const body = loaded.solids.get(solid.id)!.body; h.word(body.nodeCount); h.bytes(body.displacements); h.bytes(body.velocities); }
+  for (const heat of scene.heat ?? []) h.bytes(loaded.heat.get(heat.id)!.temperature);
   return h.digest();
 }
 
@@ -222,6 +233,131 @@ export function grainWallMesh(wall: SceneGrainWall): Float32Array | null {
 }
 
 // ---------------------------------------------------------------------------
+// Solids: boundary and crack faces in colour bands
+// ---------------------------------------------------------------------------
+
+/** What a solid can be coloured by. */
+export type SolidField = 'stress' | 'temperature' | 'damage';
+export const SOLID_FIELDS: readonly SolidField[] = Object.freeze(['stress', 'temperature', 'damage']);
+/** Colour bands of a solid: one mesh row each. */
+export const SOLID_BANDS = 8;
+/** The ramp, low to high: blue, cyan, green, yellow, red. */
+export function rampColor(t: number): [number, number, number] {
+  const stops = [[0.16, 0.29, 0.78], [0.10, 0.66, 0.84], [0.22, 0.72, 0.36], [0.95, 0.80, 0.18], [0.86, 0.20, 0.16]];
+  const x = Math.max(0, Math.min(1, t)) * (stops.length - 1), i = Math.min(stops.length - 2, Math.floor(x)), f = x - i, a = stops[i]!, b = stops[i + 1]!;
+  return [a[0]! + (b[0]! - a[0]!) * f, a[1]! + (b[1]! - a[1]!) * f, a[2]! + (b[2]! - a[2]!) * f];
+}
+/** The band of a value in [lo, hi]: 0 to SOLID_BANDS - 1. A value with no meaning (NaN) is band 0. */
+export function solidBand(value: number, lo: number, hi: number): number {
+  if (!(hi > lo) || !Number.isFinite(value)) return 0;
+  return Math.max(0, Math.min(SOLID_BANDS - 1, Math.floor((value - lo) / (hi - lo) * SOLID_BANDS)));
+}
+
+/** The element each boundary face belongs to. `faces` hold current node indices; `origin` maps a node to the node of the mesh as given. */
+export function boundaryFaceElements(faces: ArrayLike<number>, tets: ArrayLike<number>, origin: ArrayLike<number> | null): Int32Array {
+  const of = (n: number): number => origin ? origin[n]! : n, key = (a: number, b: number, c: number): string => [a, b, c].sort((x, y) => x - y).join(',');
+  const owner = new Map<string, number>();
+  for (let e = 0; 4 * e < tets.length; e++) for (let skip = 0; skip < 4; skip++) {
+    const q = [0, 1, 2, 3].filter(k => k !== skip).map(k => of(tets[4 * e + k]!));
+    const k = key(q[0]!, q[1]!, q[2]!);
+    if (!owner.has(k)) owner.set(k, e);
+  }
+  const out = new Int32Array(faces.length / 3);
+  for (let f = 0; f < out.length; f++) out[f] = owner.get(key(of(faces[3 * f]!), of(faces[3 * f + 1]!), of(faces[3 * f + 2]!))) ?? -1;
+  return out;
+}
+
+/** The temperature range a heat grid will see: its start and every boundary temperature. */
+function heatRange(heat: SceneHeat): [number, number] {
+  const values = typeof heat.temperature === 'number' ? [heat.temperature] : [...heat.temperature];
+  if (heat.reference !== undefined) values.push(heat.reference);
+  for (const b of heat.boundaries ?? []) for (const key of ['temperature', 'ambient', 'environment'] as const) { const v = (b as unknown as Record<string, number>)[key]; if (v !== undefined) values.push(v); }
+  let lo = Infinity, hi = -Infinity;
+  for (const v of values) { if (v < lo) lo = v; if (v > hi) hi = v; }
+  return [lo, hi > lo ? hi : lo + 1];
+}
+
+interface SolidDraw {
+  readonly id: string;
+  readonly runtime: SceneSolidRuntime<NativeBodyHandle>;
+  readonly rows: MeshRow[];
+  readonly bands: Float32Array[];
+  readonly faceElement: Int32Array;
+  readonly perCell: number;
+  readonly temperatureRange: [number, number] | null;
+  /** The range and the largest value of the field as last drawn. */
+  range: [number, number];
+  peak: number;
+  triangles: number;
+  crackFaces: number;
+}
+
+/** What the panel shows about the colouring of each solid. */
+export interface SolidViewInfo { readonly id: string; readonly field: SolidField; readonly unit: string; readonly min: number; readonly max: number; readonly peak: number; readonly available: boolean; readonly crackFaces: number; readonly nodes: number }
+
+/** Write the triangles of a solid into its colour bands, at its node positions with displacements times `scale`. */
+function writeSolid(draw: SolidDraw, field: SolidField, scale: number): void {
+  const body = draw.runtime.body, X = body.referencePositions, u = body.displacements, elements = body.tetCount;
+  // One value per element.
+  const value = new Float64Array(elements);
+  let lo = 0, hi = 1, available = true;
+  if (field === 'stress') {
+    let stress: Float64Array;
+    try { stress = body.stresses(); } catch { stress = new Float64Array(6 * elements); available = false; }   // an inverted element has no stress
+    let peak = 0;
+    for (let e = 0; e < elements; e++) { value[e] = vonMisesStress(stress, 6 * e); if (value[e]! > peak) peak = value[e]!; }
+    lo = 0; hi = peak > 0 ? peak : 1;
+  } else if (field === 'temperature') {
+    const heat = draw.runtime.heat;
+    if (heat && draw.temperatureRange) { for (let e = 0; e < elements; e++) value[e] = heat.temperature[Math.floor(e / draw.perCell)]!; [lo, hi] = draw.temperatureRange; }
+    else { value.fill(NaN); available = false; }
+  } else if (!(body instanceof FractureBody)) value.fill(0);
+  // Interfaces: their damage, and the largest damage of an element's interfaces as the element's.
+  const cracks: { a: number[]; b: number[]; elements: number[]; normal: number[]; damage: number }[] = [];
+  if (body instanceof FractureBody) {
+    for (const f of body.interfaces) {
+      const face = body.interiorFace(f), state = body.interfaceState(f);
+      const damage = face.state === 'precrack' || face.state === 'open' ? 1 : (state.damage[0]! + state.damage[1]! + state.damage[2]!) / 3;
+      cracks.push({ a: face.nodes.slice(0, 3), b: face.nodes.slice(3, 6), elements: face.elements, normal: face.normal, damage });
+      if (field === 'damage') for (const e of face.elements) if (damage > value[e]!) value[e] = damage;
+    }
+  }
+  draw.range = [lo, hi];
+  let peak = -Infinity; for (let e = 0; e < elements; e++) if (value[e]! > peak) peak = value[e]!;
+  draw.peak = available ? peak : NaN;
+  const counts = new Int32Array(SOLID_BANDS), faces = body.faces, total = faces.length / 3 + 2 * cracks.length;
+  // Room for every triangle in one band: a crack adds triangles, so the bands grow.
+  if (draw.bands[0]!.length < total * 18) for (let k = 0; k < SOLID_BANDS; k++) draw.bands[k] = new Float32Array(Math.ceil(total * 1.5) * 18);
+  const at = (n: number, k: number): number => X[3 * n + k]! + scale * u[3 * n + k]!;
+  const put = (band: number, a: number, b: number, c: number): void => {
+    const out = draw.bands[band]!;
+    const ux = at(b, 0) - at(a, 0), uy = at(b, 1) - at(a, 1), uz = at(b, 2) - at(a, 2), vx = at(c, 0) - at(a, 0), vy = at(c, 1) - at(a, 1), vz = at(c, 2) - at(a, 2);
+    let nx = uy * vz - uz * vy, ny = uz * vx - ux * vz, nz = ux * vy - uy * vx;
+    const size = Math.hypot(nx, ny, nz) || 1; nx /= size; ny /= size; nz /= size;
+    let o = counts[band]! * 18;
+    for (const n of [a, b, c]) { out[o++] = at(n, 0); out[o++] = at(n, 1); out[o++] = at(n, 2); out[o++] = nx; out[o++] = ny; out[o++] = nz; }
+    counts[band]!++;
+  };
+  for (let f = 0; f < faces.length / 3; f++) {
+    const e = draw.faceElement[f]!;
+    put(solidBand(e >= 0 ? value[e]! : NaN, lo, hi), faces[3 * f]!, faces[3 * f + 1]!, faces[3 * f + 2]!);
+  }
+  // Both sides of each interface, each wound to face out of its own element: side A along the face normal, side B against it.
+  for (const crack of cracks) {
+    for (const [nodes, sign, element] of [[crack.a, 1, crack.elements[0]!], [crack.b, -1, crack.elements[1]!]] as const) {
+      const band = field === 'damage' ? solidBand(crack.damage, 0, 1) : solidBand(value[element]!, lo, hi);
+      const [p, q, r] = nodes as [number, number, number];
+      const ux = X[3 * q]! - X[3 * p]!, uy = X[3 * q + 1]! - X[3 * p + 1]!, uz = X[3 * q + 2]! - X[3 * p + 2]!, vx = X[3 * r]! - X[3 * p]!, vy = X[3 * r + 1]! - X[3 * p + 1]!, vz = X[3 * r + 2]! - X[3 * p + 2]!;
+      const facing = (uy * vz - uz * vy) * crack.normal[0]! + (uz * vx - ux * vz) * crack.normal[1]! + (ux * vy - uy * vx) * crack.normal[2]!;
+      if (facing * sign >= 0) put(band, p, q, r); else put(band, p, r, q);
+    }
+  }
+  draw.triangles = total;
+  draw.crackFaces = cracks.length;
+  for (let k = 0; k < SOLID_BANDS; k++) draw.rows[k]!.geometry = { vertices: draw.bands[k]!, vertexCount: 3 * counts[k]! };
+}
+
+// ---------------------------------------------------------------------------
 // The view
 // ---------------------------------------------------------------------------
 
@@ -253,6 +389,8 @@ function rigidMatrix(position: readonly number[], q: readonly number[] | undefin
   return m;
 }
 const IDENTITY = rigidMatrix([0, 0, 0], undefined, [1, 1, 1]);
+/** An empty mesh row is drawn as a box of no size (a mesh row without geometry would be a unit box). */
+const COLLAPSED = new Float32Array(16);
 
 /**
  * Steps a loaded coupled scene and exposes it to the renderer. Create it after `loadLabScene`, call `step()`
@@ -290,6 +428,10 @@ export class CoupledSceneView implements InstanceBufferSource {
   private eventCount = 0;
   private readonly events: CoupledEventLine[] = [];
   private readonly unsubscribe: () => void;
+  private readonly solidDraws: SolidDraw[] = [];
+  private field: SolidField = 'stress';
+  private scale = 1;
+  private solidDirty = true;
 
   constructor(loaded: LabLoadedScene, base: InstanceBufferSource) {
     this.loaded = loaded;
@@ -311,6 +453,21 @@ export class CoupledSceneView implements InstanceBufferSource {
       const row: MeshRow = { geometry: { vertices, vertexCount: 0 }, color: WATER_COLOR, alpha: TRANSLUCENT, update: null };
       (row as { update: () => void }).update = () => { row.geometry = { vertices, vertexCount: writeWaterMesh(water.eta, basin.cols, basin.rows, basin.dx, basin.dz, basin.restDepth, basin.origin, grid, heights, vertices) / 6 }; };
       this.meshRows.push(row);
+    }
+    const heatOf = new Map<string, SceneHeat>((scene.heat ?? []).map(heat => [heat.solid, heat]));
+    for (const description of scene.solids ?? []) {
+      const runtime = loaded.solids.get(description.id)!, body = runtime.body, heat = heatOf.get(description.id);
+      const rows: MeshRow[] = [], bands: Float32Array[] = [];
+      for (let k = 0; k < SOLID_BANDS; k++) {
+        bands.push(new Float32Array(Math.max(1, body.faces.length / 3) * 18));
+        rows.push({ geometry: { vertices: bands[k]!, vertexCount: 0 }, color: rampColor((k + 0.5) / SOLID_BANDS), alpha: OPAQUE, update: null });
+      }
+      const box = 'box' in description.mesh ? description.mesh.box : null;
+      this.solidDraws.push({
+        id: description.id, runtime, rows, bands, faceElement: boundaryFaceElements(body.faces, body.tets, body instanceof FractureBody ? body.nodeOrigin : null),
+        perCell: box?.pattern === 'kuhn6' ? 6 : 5, temperatureRange: heat ? heatRange(heat) : null, range: [0, 1], peak: NaN, triangles: 0, crackFaces: 0,
+      });
+      this.meshRows.push(...rows);
     }
     let planes = 0;
     (scene.grains ?? []).forEach((set, index) => {
@@ -372,7 +529,7 @@ export class CoupledSceneView implements InstanceBufferSource {
       let detail = '';
       if (event.data !== null && typeof event.data === 'object') {
         const parts: string[] = [];
-        for (const [key, value] of Object.entries(event.data as Record<string, unknown>)) { if (key === 'kind' || key === 'type') continue; const shown = idOf(value); if (shown !== null && typeof shown !== 'object') parts.push(`${key} ${String(shown)}`); }
+        for (const [key, value] of Object.entries(event.data as Record<string, unknown>)) { if ((key === 'kind' || key === 'type') && value === event.type) continue; const shown = idOf(value); if (shown !== null && typeof shown !== 'object') parts.push(`${key} ${String(shown)}`); }
         detail = parts.join(', ');
       }
       this.events.push({ tick: event.tick, source: event.source, type: event.type, detail });
@@ -393,11 +550,28 @@ export class CoupledSceneView implements InstanceBufferSource {
   get rowCount(): number { return this.bodyRows + this.extraRows; }
   private get extraRows(): number { return this.meshRows.length + this.shapeRows.length + this.grainRows; }
   /** What is drawn besides the bodies, for `box3dLab.sceneState()` and the tests. */
-  drawInfo(): { meshRows: number; meshVertices: number; wallRows: number; grainRows: number; liveGrains: number; lineNodes: number; lineSegments: number } {
-    let meshVertices = 0, liveGrains = 0;
+  drawInfo(): { meshRows: number; meshVertices: number; wallRows: number; grainRows: number; liveGrains: number; lineNodes: number; lineSegments: number; solidRows: number; solidTriangles: number; crackFaces: number } {
+    let meshVertices = 0, liveGrains = 0, solidTriangles = 0, crackFaces = 0;
     for (const row of this.meshRows) meshVertices += row.geometry.vertexCount;
     for (const set of this.grainSets) for (let i = 0; i < set.count; i++) liveGrains += set.alive[i]!;
-    return { meshRows: this.meshRows.length, meshVertices, wallRows: this.shapeRows.length, grainRows: this.grainRows, liveGrains, lineNodes: this.ropeGrid?.nodeCount ?? 0, lineSegments: this.ropeGrid?.segmentCount ?? 0 };
+    for (const draw of this.solidDraws) { solidTriangles += draw.triangles; crackFaces += draw.crackFaces; }
+    return { meshRows: this.meshRows.length, meshVertices, wallRows: this.shapeRows.length, grainRows: this.grainRows, liveGrains, lineNodes: this.ropeGrid?.nodeCount ?? 0, lineSegments: this.ropeGrid?.segmentCount ?? 0,
+      solidRows: this.solidDraws.length * SOLID_BANDS, solidTriangles, crackFaces };
+  }
+
+  /** Colour the solids by `field` and draw their displacements times `scale` (1: as they are). Returns the view as set. */
+  setSolidView(options: { readonly field?: SolidField; readonly scale?: number }): { field: SolidField; scale: number } {
+    if (options.field !== undefined) { if (!SOLID_FIELDS.includes(options.field)) throw new RangeError(`Unknown solid field ${String(options.field)}.`); this.field = options.field; }
+    if (options.scale !== undefined) { if (!(options.scale >= 1 && options.scale <= 1e4)) throw new RangeError('The displacement scale is from 1 to 10000.'); this.scale = options.scale; }
+    this.solidDirty = true; this.syncedKey = '';
+    return { field: this.field, scale: this.scale };
+  }
+  /** Has the scene solids to colour? */
+  get hasSolids(): boolean { return this.solidDraws.length > 0; }
+  /** The field, the scale and, per solid, the range of the colour ramp as last drawn. */
+  solidView(): { field: SolidField; scale: number; solids: SolidViewInfo[] } {
+    const unit = this.field === 'stress' ? 'Pa' : this.field === 'temperature' ? 'K' : '';
+    return { field: this.field, scale: this.scale, solids: this.solidDraws.map(draw => ({ id: draw.id, field: this.field, unit, min: draw.range[0], max: draw.range[1], peak: draw.peak, available: Number.isFinite(draw.peak), crackFaces: draw.crackFaces, nodes: draw.runtime.body.nodeCount })) };
   }
 
   /**
@@ -427,9 +601,10 @@ export class CoupledSceneView implements InstanceBufferSource {
     this.drawnTick = tick;
     let row = bodies;
     const color = (at: number, rgb: readonly number[], alpha: number): void => { heap[colorStart + 4 * at] = rgb[0]!; heap[colorStart + 4 * at + 1] = rgb[1]!; heap[colorStart + 4 * at + 2] = rgb[2]!; heap[colorStart + 4 * at + 3] = alpha; };
+    if (moved || this.solidDirty) { for (const draw of this.solidDraws) writeSolid(draw, this.field, this.scale); this.solidDirty = false; }
     for (const mesh of this.meshRows) {
       if (mesh.update && (moved || mesh.geometry.vertexCount === 0)) mesh.update();
-      heap.set(IDENTITY, 16 * row); color(row, mesh.color, mesh.alpha); this.kinds[row++] = KIND_MESH;
+      heap.set(mesh.geometry.vertexCount > 0 ? IDENTITY : COLLAPSED, 16 * row); color(row, mesh.color, mesh.alpha); this.kinds[row++] = KIND_MESH;
     }
     for (const shape of this.shapeRows) { heap.set(shape.matrix, 16 * row); color(row, shape.color, shape.alpha); this.kinds[row++] = shape.kind; }
     for (const set of this.grainSets) {

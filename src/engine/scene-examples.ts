@@ -392,6 +392,120 @@ export function suspendedPlatformScene(options: {boxes?: number; axialRigidity?:
 }
 
 /** The coupled examples by name, each called with its defaults. Load them with a Simulation (`loadSimulationScene`, the kit's `loadScene`). */
+/**
+ * A rubber pad under a dropped box: a neo-Hookean pad (E = 1.5 MPa, nu = 0.45) welded along its base to a
+ * steel plate, and a box that falls on it, bounces on it and comes to rest pressed into it. Solid contact,
+ * two-way, with friction (docs/SOLID_CONTACT.md).
+ */
+export function rubberPadScene(options: {cells?: number; drop?: number; mass?: number} = {}): Scene {
+  const {cells = 8, drop = 0.2, mass = 8} = options;
+  const pad: [number, number, number] = [0.4, 0.08, 0.4], baseY = 0.1, top = baseY + 0.02 + pad[1], half = 0.12;
+  return {
+    ...header, world: {gravity: [0, -G, 0], ground: true, seed: 1, step: 1 / 240, subSteps: 4},
+    materials: {}, joints: [],
+    bodies: [
+      {id: 'base', shape: {kind: 'box', halfExtents: [0.26, 0.02, 0.26]}, type: 'static', position: [0, round(baseY + 0.01), 0], color: 0x59616B},
+      {id: 'box', shape: {kind: 'box', halfExtents: [half, half, half]}, position: [0.02, round(top + half + drop), -0.01], rotationEuler: [0, 15, 0],
+        density: round(mass / (8 * half ** 3), 3), friction: 0.6, neverSleeps: true, color: 0xC9CDD2},
+    ],
+    solids: [{
+      id: 'pad', mesh: {box: {size: pad, cells: [cells, 2, cells], origin: [-pad[0] / 2, round(baseY + 0.02), -pad[2] / 2]}},
+      material: {youngModulus: 1.5e6, poissonRatio: 0.45, density: 1100}, model: 'neo-hookean', stiffnessDamping: 0.002,
+      contact: {bodies: [{body: 'box', friction: 0.6}, {body: 'base', collide: false}]},
+      welds: [{body: 'base', min: [-1, round(baseY + 0.02), -1], max: [1, round(baseY + 0.02), 1]}],
+    }],
+    meta: {title: 'Rubber pad', description: `A ${mass} kg box dropped ${drop} m onto a neo-Hookean rubber pad welded to a steel plate: two-way solid contact with friction.`},
+  };
+}
+
+/**
+ * A notched concrete beam loaded by a falling weight (a 200 kg drop hammer from 1.5 m, on a guide). The beam (E = 30 GPa, sigma_c = 3 MPa, G_c = 100 J/m^2)
+ * is pinned along both ends of its base, cut by a notch at mid-span and given cohesive interfaces on the
+ * section above it. The weight falls on a steel platen over mid-span; the force that holds the weight up is put
+ * on the beam's top under the platen (one-way, `reactionLoadLink`). The impact cracks the section from the notch.
+ */
+export function notchedBeamScene(options: {mass?: number; drop?: number; cells?: number} = {}): Scene {
+  const {mass = 200, drop = 1.5, cells = 12} = options;
+  const L = 0.4, D = 0.1, W = 0.05, y0 = 0.25, h = L / cells, platen = 0.05, hammer: [number, number, number] = [0.08, 0.2, 0.08];
+  return {
+    ...header, world: {gravity: [0, -G, 0], ground: true, seed: 1, step: 1 / 240, subSteps: 4},
+    materials: {},
+    // The hammer runs on a vertical guide, as on a drop-weight tester: a prismatic joint along y (frame A's x axis turned to y).
+    joints: [{id: 'guide', type: 'prismatic', bodyA: null, bodyB: 'weight', frameA: {position: [0, round(y0 + D + 0.01 + hammer[1] + drop), 0], rotation: [0, 0, 0.7071067811865476, 0.7071067811865476]}, frameB: {rotation: [0, 0, 0.7071067811865476, 0.7071067811865476]}}],
+    bodies: [
+      {id: 'support-left', shape: {kind: 'box', halfExtents: [0.03, round(y0 / 2), 0.06]}, type: 'static', position: [round(-L / 2 + h), round(y0 / 2), 0], color: 0x59616B},
+      {id: 'support-right', shape: {kind: 'box', halfExtents: [0.03, round(y0 / 2), 0.06]}, type: 'static', position: [round(L / 2 - h), round(y0 / 2), 0], color: 0x59616B},
+      {id: 'platen', shape: {kind: 'box', halfExtents: [platen, 0.005, 0.06]}, type: 'static', position: [0, round(y0 + D + 0.005), 0], color: 0x8C939B},
+      // A tungsten-alloy drop hammer.
+      {id: 'weight', shape: {kind: 'box', halfExtents: hammer}, position: [0, round(y0 + D + 0.01 + hammer[1] + drop), 0], density: round(mass / (8 * hammer[0] * hammer[1] * hammer[2]), 3), friction: 0.8, restitution: 0, neverSleeps: true, color: 0x50565E},
+    ],
+    solids: [{
+      id: 'beam', mesh: {box: {size: [L, D, W], cells: [cells, 4, 1], origin: [-L / 2, y0, -W / 2]}},
+      material: {youngModulus: 30e9, poissonRatio: 0.2, density: 2400}, tolerance: 1e-9,
+      // The node lines one cell in from each end of the base, picked with a quarter-cell margin.
+      supports: [{min: [round(-L / 2 + 0.75 * h), round(y0 - 0.001), -1], max: [round(-L / 2 + 1.25 * h), round(y0 + 0.001), 1]}, {min: [round(L / 2 - 1.25 * h), round(y0 - 0.001), -1], max: [round(L / 2 - 0.75 * h), round(y0 + 0.001), 1]}],
+      loads: [{body: 'weight', min: [-platen, round(y0 + D), -1], max: [platen, round(y0 + D), 1]}],
+      fracture: {strength: 3e6, toughness: 100, insertion: 'manual', notches: [{min: [0, y0, -1], max: [0, round(y0 + D / 4), 1]}], interfaces: [{min: [0, round(y0 + D / 4), -1], max: [0, round(y0 + D), 1]}]},
+    }],
+    meta: {title: 'Notched beam', description: `A ${mass} kg weight dropped ${drop} m onto a notched concrete beam: the impact cracks it from the notch (cohesive fracture).`},
+  };
+}
+
+/**
+ * Thermal shock: an alumina plate at 600 K (E = 370 GPa, nu = 0.22, alpha_T = 8e-6 /K, sigma_c = 300 MPa,
+ * G_c = 40 J/m^2, k = 30 W/(m K)) whose face x = 0 is quenched by a film coefficient of 20,000 W/(m^2 K) to
+ * 300 K. As quenchedPlate() in solid-fracture.ts, with 6 mm cells instead of 0.25 mm: held in its plane
+ * (rollers on the y and z faces and the back face), the cooled layer cracks in tension from about 1.2 s.
+ */
+export function quenchedPlateScene(options: {cells?: readonly [number, number, number]; cellSize?: number; coefficient?: number} = {}): Scene {
+  const {cells = [10, 6, 1], cellSize = 0.006, coefficient = 20000} = options;
+  const size = cells.map(n => round(n * cellSize)) as [number, number, number], y0 = 0.1, z0 = round(-size[2] / 2);
+  return {
+    ...header, world: {gravity: [0, -G, 0], ground: true, seed: 1, step: 1 / 60, subSteps: 4},
+    materials: {}, joints: [],
+    bodies: [{id: 'stand', shape: {kind: 'box', halfExtents: [round(size[0] / 2 + 0.004), round(y0 / 2 - 0.002), 0.008]}, type: 'static', position: [round(size[0] / 2), round(y0 / 2 - 0.002), 0], color: 0x59616B}],
+    solids: [{
+      id: 'plate', mesh: {box: {size, cells: [...cells], origin: [0, y0, z0]}},
+      material: {youngModulus: 370e9, poissonRatio: 0.22, density: 3900, thermalExpansion: 8e-6}, model: 'linear', gravity: false, tolerance: 1e-9,
+      supports: [
+        {min: [size[0], y0 - 1, -1], max: [size[0], y0 + 1, 1], axes: [true, false, false]},
+        {min: [-1, y0, -1], max: [1, y0, 1], axes: [false, true, false]}, {min: [-1, round(y0 + size[1]), -1], max: [1, round(y0 + size[1]), 1], axes: [false, true, false]},
+        {min: [-1, -1, z0], max: [1, 1, z0], axes: [false, false, true]}, {min: [-1, -1, round(z0 + size[2])], max: [1, 1, round(z0 + size[2])], axes: [false, false, true]},
+      ],
+      fracture: {strength: 300e6, toughness: 40},
+    }],
+    heat: [{id: 'plate-heat', solid: 'plate', material: {conductivity: 30, density: 3900, specificHeat: 880}, temperature: 600,
+      boundaries: [{face: 'x-', type: 'convection', coefficient, ambient: 300}]}],
+    meta: {title: 'Quenched plate', description: 'A hot alumina plate quenched on one face: the heat solver’s temperature is the plate’s thermal strain, and the cooled layer cracks.'},
+  };
+}
+
+/**
+ * A heated bar: an aluminium bar (k = 237 W/(m K), alpha_T = 23e-6 /K, E = 70 GPa) clamped at both ends between
+ * a hot block at 500 K and a cold one at 300 K. Its temperature rises from the hot end and settles to a linear
+ * ramp in about 20 s; the restrained expansion puts it in compression.
+ */
+export function heatedBarScene(options: {hot?: number; cold?: number; cells?: number} = {}): Scene {
+  const {hot = 500, cold = 300, cells = 10} = options;
+  const size: [number, number, number] = [0.08, 0.016, 0.016], y0 = 0.06, origin: [number, number, number] = [round(-size[0] / 2), round(y0 - size[1] / 2), round(-size[2] / 2)];
+  return {
+    ...header, world: {gravity: [0, -G, 0], ground: true, seed: 1, step: 1 / 60, subSteps: 4},
+    materials: {}, joints: [],
+    bodies: [
+      {id: 'hot-block', shape: {kind: 'box', halfExtents: [0.015, round(y0 / 2 + 0.015), 0.02]}, type: 'static', position: [round(origin[0] - 0.015), round(y0 / 2 + 0.015), 0], color: 0xC8432F},
+      {id: 'cold-block', shape: {kind: 'box', halfExtents: [0.015, round(y0 / 2 + 0.015), 0.02]}, type: 'static', position: [round(-origin[0] + 0.015), round(y0 / 2 + 0.015), 0], color: 0x2F6FB5},
+    ],
+    solids: [{
+      id: 'bar', mesh: {box: {size, cells: [cells, 2, 2], origin}},
+      material: {youngModulus: 70e9, poissonRatio: 0.33, density: 2700, thermalExpansion: 23e-6}, model: 'linear', tolerance: 1e-9,
+      supports: [{min: [origin[0], -1, -1], max: [origin[0], 1, 1]}, {min: [-origin[0], -1, -1], max: [-origin[0], 1, 1]}],
+    }],
+    heat: [{id: 'bar-heat', solid: 'bar', material: {conductivity: 237, density: 2700, specificHeat: 900}, temperature: cold,
+      boundaries: [{face: 'x-', type: 'temperature', temperature: hot}, {face: 'x+', type: 'temperature', temperature: cold}]}],
+    meta: {title: 'Heated bar', description: `An aluminium bar clamped between a block at ${hot} K and one at ${cold} K: the temperature settles to a linear ramp and the restrained bar goes into compression.`},
+  };
+}
+
 export const COUPLED_EXAMPLE_SCENES: {readonly [name: string]: () => Scene} = Object.freeze({
   'moored-buoy': () => mooredBuoyScene(),
   'cable-stayed-deck': () => cableStayedDeckScene(),
@@ -399,4 +513,8 @@ export const COUPLED_EXAMPLE_SCENES: {readonly [name: string]: () => Scene} = Ob
   trampoline: () => trampolineScene(),
   'hopper-seesaw': () => hopperSeesawScene(),
   'suspended-platform': () => suspendedPlatformScene(),
+  'rubber-pad': () => rubberPadScene(),
+  'notched-beam': () => notchedBeamScene(),
+  'quenched-plate': () => quenchedPlateScene(),
+  'heated-bar': () => heatedBarScene(),
 });

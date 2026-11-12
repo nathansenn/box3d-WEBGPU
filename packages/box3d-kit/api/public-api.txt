@@ -2546,6 +2546,26 @@ export declare function suspendedPlatformScene(options?: {
     axialRigidity?: number;
     drop?: number;
 }): Scene;
+export declare function rubberPadScene(options?: {
+    cells?: number;
+    drop?: number;
+    mass?: number;
+}): Scene;
+export declare function notchedBeamScene(options?: {
+    mass?: number;
+    drop?: number;
+    cells?: number;
+}): Scene;
+export declare function quenchedPlateScene(options?: {
+    cells?: readonly [number, number, number];
+    cellSize?: number;
+    coefficient?: number;
+}): Scene;
+export declare function heatedBarScene(options?: {
+    hot?: number;
+    cold?: number;
+    cells?: number;
+}): Scene;
 export declare const COUPLED_EXAMPLE_SCENES: {
     readonly [name: string]: () => Scene;
 };
@@ -2615,6 +2635,14 @@ export declare const SCENE_LIMITS: Readonly<{
     grains: 65536;
     grainWalls: 256;
     grainSubsteps: 4096;
+    solids: 8;
+    solidNodes: 20000;
+    solidTets: 60000;
+    solidSubsteps: 64;
+    heat: 8;
+    heatSubsteps: 256;
+    solidRegions: 64;
+    solidCracks: 60000;
     problems: 100;
     linkChars: 1048576;
     linkSceneBytes: 4194304;
@@ -3002,12 +3030,131 @@ export interface SceneGrains {
     readonly walls?: readonly SceneGrainWall[];
     readonly bodies?: readonly SceneGrainBody[];
 }
+export interface SceneSolidRegion {
+    readonly min: SceneVec3;
+    readonly max: SceneVec3;
+}
+export interface SceneSolidSupport extends SceneSolidRegion {
+    readonly axes?: readonly [boolean, boolean, boolean];
+}
+export type SceneSolidMesh = {
+    readonly box: {
+        readonly size: SceneVec3;
+        readonly cells: readonly [number, number, number];
+        readonly origin?: SceneVec3;
+        readonly pattern?: 'alternating5' | 'kuhn6';
+    };
+} | {
+    readonly positions: readonly number[];
+    readonly tets: readonly number[];
+};
+export interface SceneSolidBody {
+    readonly body: string;
+    readonly friction?: number;
+    readonly collide?: boolean;
+    readonly twoWay?: boolean;
+    readonly inertia?: SceneInertia;
+}
+export interface SceneSolidContact {
+    readonly bodies?: readonly SceneSolidBody[];
+    readonly planes?: readonly SceneClothPlane[];
+    readonly stiffnessScale?: number;
+    readonly skin?: number;
+    readonly frictionPasses?: number;
+    readonly frictionTolerance?: number;
+}
+export interface SceneSolidWeld extends SceneSolidRegion {
+    readonly body: string;
+}
+export interface SceneSolidLoad extends SceneSolidRegion {
+    readonly body: string;
+}
+export interface SceneSolidFracture {
+    readonly strength: number;
+    readonly toughness: number;
+    readonly shearWeight?: number;
+    readonly initialOpeningRatio?: number;
+    readonly insertion?: 'on-demand' | 'manual';
+    readonly insertionThreshold?: number;
+    readonly tipInsertionThreshold?: number;
+    readonly notches?: readonly SceneSolidRegion[];
+    readonly interfaces?: readonly SceneSolidRegion[];
+}
+export interface SceneSolidCrack {
+    readonly face: number;
+    readonly history: readonly [number, number, number];
+    readonly mix?: number;
+    readonly open?: boolean;
+}
+export interface SceneSolid {
+    readonly id: string;
+    readonly mesh: SceneSolidMesh;
+    readonly material: {
+        readonly youngModulus: number;
+        readonly poissonRatio: number;
+        readonly density: number;
+        readonly thermalExpansion?: number;
+    };
+    readonly model?: 'linear' | 'corotational' | 'neo-hookean';
+    readonly integrator?: 'backward-euler' | 'midpoint' | 'explicit';
+    readonly substeps?: number;
+    readonly massDamping?: number;
+    readonly stiffnessDamping?: number;
+    readonly tolerance?: number;
+    readonly maxNewtonIterations?: number;
+    readonly gravity?: boolean;
+    readonly supports?: readonly SceneSolidSupport[];
+    readonly contact?: SceneSolidContact;
+    readonly welds?: readonly SceneSolidWeld[];
+    readonly loads?: readonly SceneSolidLoad[];
+    readonly fracture?: SceneSolidFracture;
+    readonly displacements?: readonly number[];
+    readonly velocities?: readonly number[];
+    readonly cracks?: readonly SceneSolidCrack[];
+}
+export type SceneHeatBoundary = {
+    readonly face: 'x-' | 'x+' | 'y-' | 'y+' | 'z-' | 'z+';
+    readonly region?: {
+        readonly min: readonly [number, number, number];
+        readonly max: readonly [number, number, number];
+    };
+} & ({
+    readonly type: 'temperature';
+    readonly temperature: number;
+} | {
+    readonly type: 'flux';
+    readonly flux: number;
+} | {
+    readonly type: 'convection';
+    readonly coefficient: number;
+    readonly ambient: number;
+} | {
+    readonly type: 'radiation';
+    readonly emissivity: number;
+    readonly environment: number;
+});
+export interface SceneHeat {
+    readonly id: string;
+    readonly solid: string;
+    readonly material: {
+        readonly conductivity: number;
+        readonly density: number;
+        readonly specificHeat: number;
+    };
+    readonly temperature: number | readonly number[];
+    readonly reference?: number;
+    readonly scheme?: 'backward-euler' | 'crank-nicolson' | 'explicit';
+    readonly substeps?: number;
+    readonly boundaries?: readonly SceneHeatBoundary[];
+}
 export interface SceneCoupledSections {
     readonly water?: readonly SceneWater[];
     readonly cables?: readonly SceneCable[];
     readonly frames?: readonly SceneFrameSection[];
     readonly cloths?: readonly SceneCloth[];
     readonly grains?: readonly SceneGrains[];
+    readonly solids?: readonly SceneSolid[];
+    readonly heat?: readonly SceneHeat[];
 }
 export interface Scene {
     readonly format: 'box3d-scene';
@@ -3024,6 +3171,8 @@ export interface Scene {
     readonly frames?: readonly SceneFrameSection[];
     readonly cloths?: readonly SceneCloth[];
     readonly grains?: readonly SceneGrains[];
+    readonly solids?: readonly SceneSolid[];
+    readonly heat?: readonly SceneHeat[];
     readonly meta?: SceneMeta;
     readonly extensions?: {
         readonly [key: string]: unknown;
@@ -3115,15 +3264,17 @@ export declare function loadScene<W extends SceneHost>(world: W, scene: unknown)
 export declare function saveScene<W extends SceneHost>(world: W, handles: SceneBuilder<W> | {
     readonly builder: SceneBuilder<W>;
 }, options?: SaveSceneOptions): Scene;
-export { pendulumWaveScene, newtonsCradleScene, dominoRunScene, terrainCarScene, ragdollScene, EXAMPLE_SCENES, mooredBuoyScene, cableStayedDeckScene, buoyAndCratesScene, trampolineScene, hopperSeesawScene, suspendedPlatformScene, COUPLED_EXAMPLE_SCENES } from './scene-examples.js';
+export { pendulumWaveScene, newtonsCradleScene, dominoRunScene, terrainCarScene, ragdollScene, EXAMPLE_SCENES, mooredBuoyScene, cableStayedDeckScene, buoyAndCratesScene, trampolineScene, hopperSeesawScene, suspendedPlatformScene, rubberPadScene, notchedBeamScene, quenchedPlateScene, heatedBarScene, COUPLED_EXAMPLE_SCENES } from './scene-examples.js';
 
 // ==== core/simulation.d.ts ====
 import type { WaterCoupling, CouplingWorld } from './water-coupling.js';
 import { StructureCoupling, type StructureAttachment, type StructureInertia, type StructureWorld } from './structure-coupling.js';
 import { CompliantCableRuntime } from './compliant-cable.js';
 import { FrameRuntime } from './frame-runtime.js';
-import type { HeatSolver } from './heat.js';
-import type { SolidBody } from './solid.js';
+import { HeatSolver } from './heat.js';
+import { SolidBody } from './solid.js';
+import { FractureBody } from './solid-fracture.js';
+import { SolidCoupling } from './solid-contact.js';
 import { ClothCoupling } from './cloth.js';
 import { GranularCoupling } from './granular.js';
 import { SceneBuilder, type Scene, type SceneHost } from './scene-format.js';
@@ -3317,6 +3468,20 @@ export declare function deadLoadLink<W extends SimulationWorld<B>, B>(body: B, s
     readonly faces?: ArrayLike<number>;
     readonly nodes?: ArrayLike<number>;
 }): Subsystem<W, B>;
+export interface ReactionLoadTarget {
+    readonly referencePositions: Float64Array;
+    readonly faces: Uint32Array;
+    clearSurfaceLoads(): void;
+    addTraction(faces: ArrayLike<number>, traction: readonly [number, number, number]): void;
+}
+export interface ReactionLoad<B> {
+    readonly body: B;
+    readonly faces: ArrayLike<number>;
+    readonly gravityScale?: number;
+}
+export declare function reactionLoadLink<W extends SimulationWorld<B>, B>(solid: ReactionLoadTarget, loads: readonly ReactionLoad<B>[], options?: {
+    readonly id?: string;
+}): Subsystem<W, B>;
 type Body = NativeBodyHandle;
 export type SimulationSceneWorld = SceneHost & SimulationWorld<Body> & CouplingWorld<Body> & StructureWorld<Body>;
 export interface LoadedSimulationScene<W extends SimulationSceneWorld = SimulationSceneWorld> {
@@ -3332,6 +3497,13 @@ export interface LoadedSimulationScene<W extends SimulationSceneWorld = Simulati
     readonly attachments: Map<string, StructureAttachment>;
     readonly cloths: Map<string, ClothCoupling<Body>>;
     readonly grains: Map<string, GranularCoupling<Body>>;
+    readonly solids: Map<string, SceneSolidRuntime<Body>>;
+    readonly heat: Map<string, HeatSolver>;
+}
+export interface SceneSolidRuntime<B> {
+    readonly body: SolidBody | FractureBody;
+    readonly coupling: SolidCoupling<B> | null;
+    readonly heat: HeatSolver | null;
 }
 export declare function buildSceneSimulation<W extends SimulationSceneWorld>(world: W, builder: SceneBuilder<W>, scene: Scene): LoadedSimulationScene<W>;
 export declare function loadSimulationScene<W extends SimulationSceneWorld>(world: W, scene: unknown): LoadedSimulationScene<W>;
@@ -3852,6 +4024,18 @@ export declare class FractureBody {
     }): void;
     insertCohesive(faces: ArrayLike<number>): number;
     precrack(faces: ArrayLike<number>): number;
+    crackState(): {
+        face: number;
+        history: [number, number, number];
+        mix: number;
+        open: boolean;
+    }[];
+    restoreCracks(entries: readonly {
+        readonly face: number;
+        readonly history: readonly number[];
+        readonly mix?: number;
+        readonly open?: boolean;
+    }[]): number;
     private assembleLoads;
     get displacements(): Float64Array;
     get velocities(): Float64Array;
@@ -4852,6 +5036,8 @@ import type { CompliantCableRuntime } from './core/compliant-cable.js';
 import type { FrameRuntime } from './core/frame-runtime.js';
 import type { ClothCoupling } from './core/cloth.js';
 import type { GranularCoupling } from './core/granular.js';
+import type { SceneSolidRuntime } from './core/simulation.js';
+import type { HeatSolver } from './core/heat.js';
 import type { Body, BodyOptions, Joint, PhysicsWorld } from './world.js';
 export * from './core/scene-format.js';
 export type SceneBodyInput = Omit<SceneBody, 'id'> | BodyOptions;
@@ -4868,6 +5054,8 @@ export interface LoadedScene {
     readonly attachments: Map<string, StructureAttachment>;
     readonly cloths: Map<string, ClothCoupling<Body>>;
     readonly grains: Map<string, GranularCoupling<Body>>;
+    readonly solids: Map<string, SceneSolidRuntime<Body>>;
+    readonly heat: Map<string, HeatSolver>;
 }
 export declare class SceneBuilder extends CoreSceneBuilder<PhysicsWorld> {
     readonly world: PhysicsWorld;

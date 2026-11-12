@@ -394,7 +394,7 @@ let editorLinesVersion = 1;
 // The cable-stayed bridge (lab.html?si=bridge): the model with its drawn bodies, and its panel.
 let siBridge: SiBridgeScene | null = null;
 let siBridgePanel: SiBridgePanel | null = null;
-// A coupled scene (water, cables, frames, cloths, grains) is stepped through its Simulation and drawn through this view.
+// A coupled scene (water, cables, frames, cloths, grains, solids, heat) is stepped through its Simulation and drawn through this view.
 let coupledView: CoupledSceneView | null = null;
 let coupledPanel: CoupledPanel | null = null;
 function clearCoupledView(): void {
@@ -1684,6 +1684,7 @@ function labSceneState(): Record<string, unknown> {
     coupledDraw: coupledView?.drawInfo() ?? null,
     energy: coupledView ? labScene!.loaded.simulation.energy().entries.map(entry => ({ id: entry.id, total: entry.total, balance: entry.balance })) : null,
     events: coupledView ? coupledView.eventTotal() : 0,
+    solidView: coupledView?.hasSolids ? coupledView.solidView() : null,
   };
 }
 
@@ -4588,6 +4589,8 @@ async function main(): Promise<void> {
     setPaused: (flag: boolean) => { if (paused !== !!flag) togglePause(); return paused; },
     /** Coupled scenes: the readout the panel shows (clock, step cost, energy ledger, latest events), or null. */
     coupledReadout: () => coupledView?.readout() ?? null,
+    /** Solids: colour by 'stress', 'temperature' or 'damage' and draw displacements times `scale`; returns the view, or null without a coupled scene. */
+    setSolidView: (options: { field?: 'stress' | 'temperature' | 'damage'; scale?: number }) => coupledView ? coupledView.setSolidView(options) : null,
     /** The scene editor, for the console and for tests: its state, where a body is on the page, the recorded CSV, the last copied link. */
     editorState: () => sceneEditor?.state() ?? null,
     editorScreenPosition: (id: string) => sceneEditor?.screenPosition(id) ?? null,

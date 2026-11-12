@@ -28,11 +28,13 @@ import {WaterCoupling as WaterCouplingClass} from './water-coupling.ts';
 import {StructureCoupling,principalMoments,type StructureAttachment,type StructureInertia,type StructureWorld} from './structure-coupling.ts';
 import {CompliantCableRuntime} from './compliant-cable.ts';
 import {FrameRuntime} from './frame-runtime.ts';
-import type {HeatSolver} from './heat.ts';
-import type {SolidBody} from './solid.ts';
+import {HeatSolver,type HeatBoundary} from './heat.ts';
+import {SolidBody,boxMesh} from './solid.ts';
+import {FractureBody,fractureSubsystem} from './solid-fracture.ts';
+import {SolidCoupling,solidContactSubsystem,type SolidContactShape} from './solid-contact.ts';
 import {Cloth,ClothCoupling,clothSubsystem,type ClothShape} from './cloth.ts';
 import {Granular,GranularCoupling,granularSubsystem,type GranularShape} from './granular.ts';
-import {normalizeScene,sceneHasCoupling,SceneBuilder,type Scene,type SceneBody,type SceneCable,type SceneCloth,type SceneCoupledSections,type SceneFrameSection,type SceneGrains,type SceneHost,type SceneInertia,type SceneWater} from './scene-format.ts';
+import {normalizeScene,sceneHasCoupling,SceneBuilder,type Scene,type SceneBody,type SceneCable,type SceneCloth,type SceneCoupledSections,type SceneFrameSection,type SceneGrains,type SceneHeat,type SceneHost,type SceneInertia,type SceneSolid,type SceneSolidRegion,type SceneWater} from './scene-format.ts';
 import type {NativeBodyHandle,NativeJointHandle} from './native-world.ts';
 
 /** The order of one step. `rigid` and `events` belong to the Simulation; subsystems choose one of the other three. */
@@ -544,6 +546,61 @@ export function deadLoadLink<W extends SimulationWorld<B>,B>(body:B,solid:SolidB
   };
 }
 
+/** What `reactionLoadLink` needs from a solid: a `SolidBody` or a `FractureBody`. */
+export interface ReactionLoadTarget {
+  readonly referencePositions:Float64Array;
+  readonly faces:Uint32Array;
+  clearSurfaceLoads():void;
+  addTraction(faces:ArrayLike<number>,traction:readonly [number,number,number]):void;
+}
+/** One body whose support force a `reactionLoadLink` hands to a solid: boundary faces (indices into the solid's `faces`). */
+export interface ReactionLoad<B> {readonly body:B;readonly faces:ArrayLike<number>;readonly gravityScale?:number}
+
+/** ONE-WAY rigid -> solid: the force that holds a body up is put, reversed, on boundary faces of a solid. The force is
+ * measured from the body's motion in the rigid step just taken, m (dv / dt - g), so it is the body's weight while the
+ * body rests and the impact force, spread over one rigid step, when it lands. It is meant for a body that rests on a
+ * fixed carrier over the solid (a platen) and touches nothing else: every force the rigid world puts on the body is
+ * counted. The solid's deflection does not move the body. Each entry is a uniform traction over its faces (the force
+ * divided by their reference area). The link owns the surface loads of the solid: it clears them every step. Post stage,
+ * before the solid; for a solid in contact (couple stage) the load acts from the next step. */
+export function reactionLoadLink<W extends SimulationWorld<B>,B>(solid:ReactionLoadTarget,loads:readonly ReactionLoad<B>[],options:{readonly id?:string}={}):Subsystem<W,B> {
+  const id=options.id??'reaction-load',p=solid.referencePositions,faces=solid.faces;
+  const entries=loads.map((load,index)=>{
+    const list=Array.from(load.faces);let area=0;
+    if(list.length===0)throw payload(`Link "${id}": load ${index} has no faces.`);
+    for(const f of list){
+      if(!Number.isInteger(f)||f<0||3*f>=faces.length)throw payload(`Link "${id}": face ${f} is out of range.`);
+      const a=3*faces[3*f],b=3*faces[3*f+1],c=3*faces[3*f+2],ux=p[b]-p[a],uy=p[b+1]-p[a+1],uz=p[b+2]-p[a+2],vx=p[c]-p[a],vy=p[c+1]-p[a+1],vz=p[c+2]-p[a+2];
+      area+=.5*Math.hypot(uy*vz-uz*vy,uz*vx-ux*vz,ux*vy-uy*vx);
+    }
+    if(!(area>0))throw payload(`Link "${id}": the faces of load ${index} have no area.`);
+    return {body:load.body,faces:list,area,scale:load.gravityScale??1,before:[0,0,0],force:[0,0,0] as [number,number,number],live:false};
+  });
+  const traction:[number,number,number]=[0,0,0];
+  return {
+    id,kind:'reaction-load-link',stage:'post',order:SUBSYSTEM_ORDER.link,timeStep:null,
+    prepare(ctx){
+      for(const e of entries){
+        e.live=ctx.world.isAlive===undefined||ctx.world.isAlive(e.body);
+        if(e.live){const v=ctx.world.getState(e.body).linearVelocity;e.before[0]=v[0];e.before[1]=v[1];e.before[2]=v[2];}
+      }
+    },
+    step(ctx){
+      const g=ctx.world.gravity();
+      solid.clearSurfaceLoads();
+      for(const e of entries){
+        e.force[0]=e.force[1]=e.force[2]=0;
+        if(!e.live)continue;
+        const s=ctx.world.getState(e.body);if(s.type!=='dynamic')continue;
+        for(let k=0;k<3;k++)e.force[k]=s.mass*((s.linearVelocity[k]-e.before[k])/ctx.dt-e.scale*Number(g[k]));
+        for(let k=0;k<3;k++)traction[k]=-e.force[k]/e.area;
+        solid.addTraction(e.faces,traction);
+      }
+    },
+    diagnostics(){return {direction:'rigid -> solid, one-way',loads:entries.map(e=>({faces:e.faces.length,area:e.area,support:[e.force[0],e.force[1],e.force[2]]}))};},
+  };
+}
+
 // ---------------------------------------------------------------------------
 // Scenes: a `box3d-scene` with water, cable and frame sections becomes a ready Simulation.
 // ---------------------------------------------------------------------------
@@ -572,7 +629,60 @@ export interface LoadedSimulationScene<W extends SimulationSceneWorld=Simulation
   readonly cloths:Map<string,ClothCoupling<Body>>;
   /** By grain-set id. Each is registered under its id (`granularSubsystem`). */
   readonly grains:Map<string,GranularCoupling<Body>>;
+  /** By solid id. Each is registered under its id: `solidContactSubsystem` for a solid in contact, `fractureSubsystem` for one that can crack, `solidSubsystem` otherwise. */
+  readonly solids:Map<string,SceneSolidRuntime<Body>>;
+  /** By heat id. Each is registered under its id (`heatSubsystem`), with its link to the solid as '<id>:solid'. */
+  readonly heat:Map<string,HeatSolver>;
 }
+/** A solid of a scene as built: the body (a `FractureBody` when the scene gives it fracture), its contact coupling or null, and the heat grid in it or null. */
+export interface SceneSolidRuntime<B> {readonly body:SolidBody|FractureBody;readonly coupling:SolidCoupling<B>|null;readonly heat:HeatSolver|null}
+
+/** Is the point inside a region of a scene solid? The bounds are widened by 1e-9 of the coordinate, so a node on a face of the box counts. */
+function inRegion(r:SceneSolidRegion,x:number,y:number,z:number):boolean {
+  const p=[x,y,z];
+  for(let k=0;k<3;k++){const slack=1e-9*(1+Math.abs(p[k]));if(p[k]<r.min[k]-slack||p[k]>r.max[k]+slack)return false;}
+  return true;
+}
+const inAny=(list:readonly SceneSolidRegion[]|undefined,x:number,y:number,z:number):boolean=>(list??[]).some(r=>inRegion(r,x,y,z));
+
+/** The body of a scene solid as its description gives it before any state: mesh, material, solver settings, notches and interfaces. */
+function sceneSolidBody(desc:SceneSolid,step:number,gravity:readonly [number,number,number]):SolidBody|FractureBody {
+  const mesh='box' in desc.mesh?boxMesh({size:desc.mesh.box.size,cells:desc.mesh.box.cells,...(desc.mesh.box.origin?{origin:desc.mesh.box.origin}:{}),...(desc.mesh.box.pattern?{pattern:desc.mesh.box.pattern}:{})}):{positions:desc.mesh.positions,tets:desc.mesh.tets};
+  const m=desc.material,material={youngModulus:m.youngModulus,poissonRatio:m.poissonRatio,density:m.density,...(m.thermalExpansion!==undefined?{thermalExpansion:m.thermalExpansion}:{})};
+  const g:[number,number,number]=desc.gravity===false?[0,0,0]:[gravity[0],gravity[1],gravity[2]],dt=step/(desc.substeps??1);
+  const common={dt,gravity:g,...(desc.integrator?{integrator:desc.integrator}:{}),...(desc.massDamping!==undefined?{massDamping:desc.massDamping}:{}),...(desc.tolerance!==undefined?{tolerance:desc.tolerance}:{}),...(desc.maxNewtonIterations!==undefined?{maxNewtonIterations:desc.maxNewtonIterations}:{})};
+  const f=desc.fracture;
+  if(!f)return new SolidBody({mesh,material,config:{...common,model:desc.model??'corotational',...(desc.stiffnessDamping!==undefined?{stiffnessDamping:desc.stiffnessDamping}:{})}});
+  const body=new FractureBody({mesh,material,config:common,fracture:{model:'cohesive',strength:f.strength,toughness:f.toughness,
+    ...(f.shearWeight!==undefined?{shearWeight:f.shearWeight}:{}),...(f.initialOpeningRatio!==undefined?{initialOpeningRatio:f.initialOpeningRatio}:{}),...(f.insertion?{insertion:f.insertion}:{}),
+    ...(f.insertionThreshold!==undefined?{insertionThreshold:f.insertionThreshold}:{}),...(f.tipInsertionThreshold!==undefined?{tipInsertionThreshold:f.tipInsertionThreshold}:{})}});
+  if(f.notches?.length)body.precrack(body.selectInteriorFaces((x,y,z)=>inAny(f.notches,x,y,z)));
+  if(f.interfaces?.length)body.insertCohesive(body.selectInteriorFaces((x,y,z)=>inAny(f.interfaces,x,y,z)));
+  return body;
+}
+
+/** For each node, the lowest element that holds it: with `nodeOrigin` this names a node of a cracked body whatever order its nodes were split in. */
+function lowestElement(body:FractureBody):Int32Array {
+  const out=new Int32Array(body.nodeCount).fill(-1),t=body.tets;
+  for(let i=0;i<t.length;i++)if(out[t[i]]<0)out[t[i]]=i>>2;
+  return out;
+}
+/** The displacements and velocities of a cracked body in the node order a load of its save gives (`restoreCracks` inserts the saved interfaces in one batch). */
+function canonicalFractureState(desc:SceneSolid,live:FractureBody,step:number,gravity:readonly [number,number,number]):{cracks:ReturnType<FractureBody['crackState']>;displacements:number[];velocities:number[]} {
+  const cracks=live.crackState();
+  const fresh=sceneSolidBody(desc,step,gravity) as FractureBody;fresh.restoreCracks(cracks);
+  if(fresh.nodeCount!==live.nodeCount)throw new EngineError('INTERNAL',`The saved interfaces of solid "${desc.id}" give ${fresh.nodeCount} nodes, the body has ${live.nodeCount}.`);
+  const index=new Map<string,number>(),freshLowest=lowestElement(fresh),liveLowest=lowestElement(live),freshOrigin=fresh.nodeOrigin,liveOrigin=live.nodeOrigin;
+  for(let n=0;n<fresh.nodeCount;n++)index.set(`${freshOrigin[n]}:${freshLowest[n]}`,n);
+  const u=live.displacements,v=live.velocities,displacements=new Array<number>(u.length),velocities=new Array<number>(v.length);
+  for(let n=0;n<live.nodeCount;n++){
+    const k=index.get(`${liveOrigin[n]}:${liveLowest[n]}`);
+    if(k===undefined)throw new EngineError('INTERNAL',`Node ${n} of solid "${desc.id}" has no counterpart in the saved topology.`);
+    for(let c=0;c<3;c++){displacements[3*k+c]=u[3*n+c];velocities[3*k+c]=v[3*n+c];}
+  }
+  return {cracks,displacements,velocities};
+}
+
 
 const named=(kind:string,id:string,error:unknown):EngineError=>
   new EngineError(error instanceof EngineError?error.code:error instanceof RangeError||error instanceof TypeError?'INVALID_PAYLOAD':'INTERNAL',`Scene ${kind} "${id}": ${error instanceof Error?error.message:String(error)}`);
@@ -590,7 +700,8 @@ function shapeInertia(body:SceneBody,explicit:SceneInertia|undefined):StructureI
  * Build the coupled sections of a scene whose bodies and joints `builder` has already built, and
  * return the Simulation that steps them. Build order: frames, then cables (file order), one
  * StructureCoupling with the cables' attachments (cable by cable, in file order) and then the
- * frames' attachments; then the cloths, then the grain sets, then the basins and their bodies. A
+ * frames' attachments; then the cloths, then the grain sets, then the solids (supports, saved state,
+ * contact, welds, loads), then the heat grids and their links to the solids, then the basins and their bodies. A
  * rigid-only scene gives a Simulation with no subsystems, whose step is `world.step()`. On a
  * failure the world is reset and the error names the id.
  */
@@ -599,11 +710,11 @@ export function buildSceneSimulation<W extends SimulationSceneWorld>(world:W,bui
   const gravity:[number,number,number]=[g[0],g[1],g[2]];
   const descriptions=new Map<string,SceneBody>(scene.bodies.map(body=>[body.id,body]));
   const water=new Map<string,WaterCoupling<Body>>(),cables=new Map<string,CompliantCableRuntime>(),frames=new Map<string,FrameRuntime>(),attachments=new Map<string,StructureAttachment>();
-  const cloths=new Map<string,ClothCoupling<Body>>(),grains=new Map<string,GranularCoupling<Body>>();
+  const cloths=new Map<string,ClothCoupling<Body>>(),grains=new Map<string,GranularCoupling<Body>>(),solids=new Map<string,SceneSolidRuntime<Body>>(),heats=new Map<string,HeatSolver>();
   const carried=new Set<Body>();
   let structure:StructureCoupling<Body>|null=null;
   const simulation=new Simulation<W,Body>(world);
-  if(!sceneHasCoupling(scene))return {bodies,joints,builder,scene,simulation,water,cables,frames,structure,attachments,cloths,grains};
+  if(!sceneHasCoupling(scene))return {bodies,joints,builder,scene,simulation,water,cables,frames,structure,attachments,cloths,grains,solids,heat:heats};
   // A dynamic body that a cloth or grains push is counted in the ledger's 'rigid' entry, unless the structure coupling already counts it.
   const track=(id:string):void=>{
     const body=bodies.get(id)!,description=descriptions.get(id)!;
@@ -705,6 +816,59 @@ export function buildSceneSimulation<W extends SimulationSceneWorld>(world:W,bui
         for(const entry of set.bodies??[])if(entry.twoWay!==false)track(entry.body);
       }catch(error){throw named('grains',set.id,error);}
     }
+    for(const desc of scene.solids??[]){
+      try{
+        const body=sceneSolidBody(desc,step,gravity);
+        if(desc.cracks?.length)(body as FractureBody).restoreCracks(desc.cracks);
+        for(const support of desc.supports??[]){
+          const nodes=body.selectNodes((x,y,z)=>inRegion(support,x,y,z)),axes=support.axes??[true,true,true];
+          if(nodes.length>0)body.constrain(nodes,[axes[0]?0:null,axes[1]?0:null,axes[2]?0:null]);
+        }
+        if(desc.displacements||desc.velocities)body.setState(desc.displacements,desc.velocities);
+        let coupling:SolidCoupling<Body>|null=null;
+        if(desc.contact){
+          const k=desc.contact;
+          coupling=new SolidCoupling<Body>(world,body as SolidBody,{...(k.stiffnessScale!==undefined?{stiffnessScale:k.stiffnessScale}:{}),...(k.skin!==undefined?{skin:k.skin}:{}),
+            ...(k.frictionPasses!==undefined?{frictionPasses:k.frictionPasses}:{}),...(k.frictionTolerance!==undefined?{frictionTolerance:k.frictionTolerance}:{})});
+          for(const entry of k.bodies??[]){
+            const description=descriptions.get(entry.body)!;
+            coupling.addBody(bodies.get(entry.body)!,{shape:description.shape as SolidContactShape,...(entry.friction!==undefined?{friction:entry.friction}:{}),...(entry.collide!==undefined?{collide:entry.collide}:{}),...(entry.twoWay!==undefined?{twoWay:entry.twoWay}:{}),
+              ...(entry.inertia?{inertia:entry.inertia as StructureInertia}:description.lockRotation?{inertia:{kind:'locked'} as StructureInertia}:{}),...(description.gravityScale!==undefined?{gravityScale:description.gravityScale}:{})});
+          }
+          for(const plane of k.planes??[])coupling.addPlane({normal:[plane.normal[0],plane.normal[1],plane.normal[2]],...(plane.point?{point:[plane.point[0],plane.point[1],plane.point[2]] as const}:{}),...(plane.friction!==undefined?{friction:plane.friction}:{})});
+          for(const weld of desc.welds??[]){const nodes=body.selectNodes((x,y,z)=>inRegion(weld,x,y,z));if(nodes.length>0)coupling.weld(nodes,bodies.get(weld.body)!);}
+          simulation.add(solidContactSubsystem<W,Body>(coupling,{id:desc.id}));
+          for(const entry of k.bodies??[])if(entry.twoWay!==false)track(entry.body);
+        }else simulation.add(body instanceof FractureBody?fractureSubsystem<W,Body>(body,{id:desc.id}):solidSubsystem<W,Body>(body,{id:desc.id}));
+        if(desc.loads?.length){
+          const faces=body.faces,p=body.referencePositions;
+          const loads=desc.loads.map(load=>{
+            const list:number[]=[];
+            for(let f=0;f<faces.length/3;f++){const a=3*faces[3*f],b=3*faces[3*f+1],c=3*faces[3*f+2];if(inRegion(load,(p[a]+p[b]+p[c])/3,(p[a+1]+p[b+1]+p[c+1])/3,(p[a+2]+p[b+2]+p[c+2])/3))list.push(f);}
+            if(list.length===0)throw new EngineError('INVALID_PAYLOAD',`the load of body "${load.body}" covers no boundary face.`);
+            return {body:bodies.get(load.body)!,faces:list,...(descriptions.get(load.body)!.gravityScale!==undefined?{gravityScale:descriptions.get(load.body)!.gravityScale}:{})};
+          });
+          simulation.add(reactionLoadLink<W,Body>(body,loads,{id:`${desc.id}:loads`}));
+          for(const load of desc.loads)track(load.body);
+        }
+        solids.set(desc.id,{body,coupling,heat:null});
+      }catch(error){throw named('solid',desc.id,error);}
+    }
+    for(const desc of scene.heat??[]){
+      try{
+        const target=solids.get(desc.solid)!,solid=scene.solids!.find(entry=>entry.id===desc.solid)!;
+        if(!('box' in solid.mesh))throw new EngineError('INVALID_PAYLOAD',`solid "${desc.solid}" has no box mesh.`);
+        const box=solid.mesh.box,[nx,ny,nz]=box.cells,reference=desc.reference??(desc.temperature as number);
+        const heat=new HeatSolver({nx,ny,nz,dx:box.size[0]/nx,dy:box.size[1]/ny,dz:box.size[2]/nz,materials:[{conductivity:desc.material.conductivity,density:desc.material.density,specificHeat:desc.material.specificHeat}],
+          temperature:typeof desc.temperature==='number'?desc.temperature:desc.temperature,dt:step/(desc.substeps??1),...(desc.scheme?{scheme:desc.scheme}:{}),
+          boundaries:(desc.boundaries??[]).map(b=>({...b}) as HeatBoundary)});
+        simulation.add(heatSubsystem<W,Body>(heat,{id:desc.id}));
+        simulation.add(thermalSolidLink<W,Body>(heat,target.body,{id:`${desc.id}:solid`,reference}));
+        // The solid starts with the thermal strain of the field it is given (a saved field differs from the reference).
+        target.body.setTemperatureChange(cellTemperaturesToNodes(heat.temperature,[nx,ny,nz],reference,new Array<number>((nx+1)*(ny+1)*(nz+1))) as number[]);
+        heats.set(desc.id,heat);solids.set(desc.solid,{...target,heat});
+      }catch(error){throw named('heat',desc.id,error);}
+    }
     for(const basin of scene.water??[]){
       try{
         const coupling=new WaterCouplingClass<Body>(world,{cols:basin.cols,rows:basin.rows,dx:basin.dx,dz:basin.dz,restDepth:basin.restDepth,origin:[basin.origin[0],basin.origin[1],basin.origin[2]],
@@ -745,8 +909,15 @@ export function buildSceneSimulation<W extends SimulationSceneWorld>(world:W,bui
       }
       return {...set,positions,radii,velocities,angularVelocities:angular};
     }),
+    // A cracked solid writes its interfaces and its nodes in the order a load of the save gives them.
+    solids:scene.solids?.map((desc:SceneSolid)=>{
+      const body=solids.get(desc.id)!.body;
+      if(body instanceof FractureBody){const state=canonicalFractureState(desc,body,step,gravity);return {...desc,displacements:state.displacements,velocities:state.velocities,cracks:state.cracks};}
+      return {...desc,displacements:Array.from(body.displacements),velocities:Array.from(body.velocities)};
+    }),
+    heat:scene.heat?.map((desc:SceneHeat)=>{const heat=heats.get(desc.id)!;return {...desc,temperature:Array.from(heat.temperature),reference:desc.reference??(desc.temperature as number)};}),
   });
-  return {bodies,joints,builder,scene,simulation,water,cables,frames,structure,attachments,cloths,grains};
+  return {bodies,joints,builder,scene,simulation,water,cables,frames,structure,attachments,cloths,grains,solids,heat:heats};
 }
 
 /**

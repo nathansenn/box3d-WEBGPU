@@ -574,6 +574,43 @@ export class FractureBody {
   /** Cuts the body along interior faces: an interface with no cohesion from the start (a notch or a
    * pre-crack). It dissipates nothing; its two sides still cannot pass through each other. Any model. */
   precrack(faces:ArrayLike<number>):number {return this.insert(indexList(faces,this.interiorFaceCount,'faces'),3);}
+  /** The cohesive interfaces (not the cuts made by `precrack`) as `restoreCracks` takes them, in the order they were
+   * inserted: the face, the largest effective opening so far at its three node pairs (m), the mode share of the last
+   * rise, and whether it has lost all traction. With the displacements and velocities this is what a save of a cracked
+   * body needs; the energy counters and the events are not in it. */
+  crackState():{face:number;history:[number,number,number];mix:number;open:boolean}[] {
+    const out:{face:number;history:[number,number,number];mix:number;open:boolean}[]=[];
+    for(const f of this.inserted){const s=this.fState[f];if(s===1||s===2)out.push({face:f,history:[this.hist[3*f],this.hist[3*f+1],this.hist[3*f+2]],mix:this.mix[f],open:s===2});}
+    return out;
+  }
+  /** Puts back interfaces saved with `crackState`, on a body built from the same mesh, after any `precrack` and
+   * `insertCohesive` it had (a face that already has an undamaged interface takes the saved history). The others are
+   * inserted in one batch: nodes split as the final set of interfaces requires, and the new nodes are
+   * numbered in the order one insertion gives, which can differ from the order of the run that was saved. A node is
+   * identified across the two by its original (`nodeOrigin`) and the lowest element that holds it. No events are
+   * emitted. Returns how many interfaces were inserted. */
+  restoreCracks(entries:readonly {readonly face:number;readonly history:readonly number[];readonly mix?:number;readonly open?:boolean}[]):number {
+    if(this.model!=='cohesive')throw new EngineError('INVALID_STATE','Interfaces need the cohesive model.');
+    if(!Array.isArray(entries))throw payload('cracks needs an array.');
+    const faces:number[]=[],seen=new Set<number>();
+    for(const [i,entry] of entries.entries()){
+      const e=record(entry,`cracks[${i}]`);onlyKeys(e,['face','history','mix','open'],`cracks[${i}]`);
+      const f=integer(e.face,`cracks[${i}].face`,0,this.interiorFaceCount-1);
+      if(seen.has(f)||(this.fState[f]!==0&&this.fState[f]!==1))throw payload(`cracks[${i}]: face ${f} is listed twice or is cut.`);
+      const history=numbers(e.history,3,`cracks[${i}].history`,0,1e6);
+      seen.add(f);
+      // A face that already has an undamaged interface (`insertCohesive`) takes the saved history; the others are inserted.
+      if(this.fState[f]===0){faces.push(f);this.inserted.push(f);}
+      this.fState[f]=e.open===true?2:1;
+      for(let k=0;k<3;k++)this.hist[3*f+k]=history[k];
+      this.mix[f]=e.mix===undefined?1:finite(e.mix,`cracks[${i}].mix`,0,1);
+    }
+    const touched=new Set<number>();
+    for(const f of faces)for(let i=0;i<3;i++)touched.add(this.tets[4*this.fA[f]+this.fLocal[6*f+i]]);
+    if(faces.length>0)this.splitNodes([...touched].sort((p,q)=>p-q));
+    this.valuesStale=true;this.accelerationValid=false;
+    return faces.length;
+  }
 
   private assembleLoads(point:Float64Array,face:Float64Array,out:Float64Array):void {
     const g=this.gravity,t=this.tets;
