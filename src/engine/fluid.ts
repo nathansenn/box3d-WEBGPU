@@ -41,6 +41,7 @@
  * See docs/FLUID.md for the equations, the validation and the limits.
  */
 import {EngineError} from './contracts.ts';
+import {captureFields,checkpointError,eachElement,holder,restoreFields,type FieldOptions,type StateObject,type StateValue} from './checkpoint.ts';
 import type {Subsystem} from './simulation.ts';
 
 export const FLUID_SOLVER_ID='fluid-mac-projection-mic-pcg-js-f64-v1';
@@ -209,7 +210,18 @@ export function fluidShapeVolume(s:FluidShape):number {
 }
 
 /** Incompressible Navier-Stokes on a staggered grid. See the file header and docs/FLUID.md. */
+/** What an exact checkpoint of a Fluid holds: every field (velocities, pressure, obstacles and their motion, the
+ * pressure solver's warm start, ledgers and statistics). */
+const FLUID_FIELDS:FieldOptions={label:'Fluid'};
+/** What an exact checkpoint of a FluidCoupling holds: the fluid and the coupled bodies' records. */
+const FLUID_COUPLING_FIELDS:FieldOptions={label:'FluidCoupling',skip:['world','byBody'],nested:{fluid:holder,list:eachElement({label:'FluidCoupling body'})}};
+
 export class Fluid {
+  /** Everything a later step reads, as a state tree (checkpoint.ts), for exact checkpoints. */
+  saveState():StateObject {return captureFields(this,FLUID_FIELDS);}
+  /** Put back a state from `saveState()` of a fluid built from the same grid, boundaries and obstacles. */
+  restoreState(state:StateValue):void {restoreFields(this,state,FLUID_FIELDS);}
+
   readonly solver=FLUID_SOLVER_ID;
   readonly nx:number;readonly ny:number;readonly nz:number;readonly h:number;
   readonly origin:FluidVec3;readonly density:number;readonly viscosity:number;readonly nu:number;readonly dt:number;
@@ -1156,7 +1168,16 @@ const insideShape=(s:FluidShape,dx:number,dy:number,dz:number):boolean=>{
  * their faces carry the obstacle's velocity, and the pressure on the faces between them and the liquid is their force.
  * See docs/FLUID.md.
  */
+/** What an exact checkpoint of a FreeSurfaceFluid holds: every field (grid velocities, pressure, particles and their affine velocities, the
+ * viscous solve's vectors, the voxelised obstacles and their motion and forces, the time step), with the obstacles as a list of fixed length. */
+const FREE_SURFACE_FIELDS:FieldOptions={label:'FreeSurfaceFluid',nested:{obstacles:eachElement({label:'FreeSurfaceFluid obstacle'})}};
+
 export class FreeSurfaceFluid {
+  /** Everything a later step reads, as a state tree (checkpoint.ts), for exact checkpoints. */
+  saveState():StateObject {return captureFields(this,FREE_SURFACE_FIELDS);}
+  /** Put back a state from `saveState()` of a free-surface fluid built from the same options. */
+  restoreState(state:StateValue):void {restoreFields(this,state,FREE_SURFACE_FIELDS);}
+
   readonly solver=FREE_SURFACE_SOLVER_ID;
   readonly nx:number;readonly ny:number;readonly nz:number;readonly h:number;readonly origin:FluidVec3;readonly density:number;
   /** Time step, s. */
@@ -1817,6 +1838,11 @@ interface CoupledBody<B> {readonly body:B;readonly index:number;readonly dynamic
  * coupling): a body lighter than about the fluid it displaces can be unstable.
  */
 export class FluidCoupling<B> {
+  /** Everything a later step reads, as a state tree (checkpoint.ts), for exact checkpoints. */
+  saveState():StateObject {return captureFields(this,FLUID_COUPLING_FIELDS);}
+  /** Put back a state from `saveState()` of a coupling set up the same way (same fluid and bodies, in the same order). */
+  restoreState(state:StateValue):void {restoreFields(this,state,FLUID_COUPLING_FIELDS);}
+
   readonly backend=FLUID_COUPLING_BACKEND;
   readonly world:FluidWorld<B>;readonly fluid:Fluid;readonly dt:number;readonly substeps:number;
   private readonly list:CoupledBody<B>[]=[];private readonly byBody=new Map<B,CoupledBody<B>>();
@@ -1921,6 +1947,13 @@ export function fluidSubsystem<W,B>(target:Fluid|FluidCoupling<B>,options:{reado
     timeStep:{dt:coupling?coupling.dt:fluid.dt,rule:coupling?'equal':'commensurate'},
     validate(){fluid.checkTimeStep();},
     step(ctx){if(coupling)coupling.step();else fluid.step(ctx.substeps);},
+    // The solver (with the coupling's records) and the event cursors.
+    checkpoint(){return {state:(coupling??fluid).saveState(),over,unconverged,warned};},
+    restore(state){
+      const s=state as {state?:StateValue;over?:unknown;unconverged?:unknown;warned?:unknown}|null;
+      if(!s||typeof s.over!=='boolean'||typeof s.unconverged!=='number'||typeof s.warned!=='boolean')throw checkpointError(`Subsystem "${options.id??'fluid'}": the saved state is malformed.`);
+      (coupling??fluid).restoreState(s.state);over=s.over;unconverged=s.unconverged;warned=s.warned;
+    },
     finish(ctx){
       const now=fluid.stats.cfl>fluid.cflLimit;
       if(now&&!over)ctx.emit('cfl-exceeded',{cfl:fluid.stats.cfl,limit:fluid.cflLimit});
@@ -1954,6 +1987,13 @@ export function freeSurfaceSubsystem<W,B>(fluid:FreeSurfaceFluid,options:{readon
     id:options.id??'free-surface',kind:'free-surface',stage:'post',order:options.order??FREE_SURFACE_SUBSYSTEM_ORDER,
     timeStep:{dt:fluid.dt,rule:'commensurate'},
     step(ctx){fluid.step(ctx.substeps);},
+    // The tank and the event cursors.
+    checkpoint(){return {state:fluid.saveState(),over,unconverged};},
+    restore(state){
+      const s=state as {state?:StateValue;over?:unknown;unconverged?:unknown}|null;
+      if(!s||typeof s.over!=='boolean'||typeof s.unconverged!=='number')throw checkpointError(`Subsystem "${options.id??'free-surface'}": the saved state is malformed.`);
+      fluid.restoreState(s.state);over=s.over;unconverged=s.unconverged;
+    },
     finish(ctx){
       const now=fluid.stats.cfl>fluid.cflLimit;
       if(now&&!over)ctx.emit('cfl-exceeded',{cfl:fluid.stats.cfl,limit:fluid.cflLimit});

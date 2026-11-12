@@ -1,4 +1,5 @@
 import {EngineError,finite,integer,onlyKeys,record,validateTickBatch,type EngineCapabilities,type EngineRuntime,type FixedTickCommand,type FixedTickStep} from './contracts.ts';
+import {captureFields,restoreFields,type FieldOptions,type StateObject,type StateValue} from './checkpoint.ts';
 
 export const COMPLIANT_CABLE_BACKEND='cable-xpbd-js-f64-v1';
 export const PROXIMAL_CABLE_BACKEND='cable-proximal-js-f64-v2';
@@ -60,6 +61,9 @@ function config(value:unknown):CableConfig {
  * XPBD multipliers reset per substep and accumulate only across that substep's iterations.
  * Constitutive compliance is independent of solve settings; finite solve/integration error is reported.
  */
+/** What an exact checkpoint of a CompliantCableRuntime holds: every field. */
+const STATE_FIELDS:FieldOptions={label:'CompliantCableRuntime',skip:[]};
+
 export class CompliantCableRuntime implements EngineRuntime<CableStepRequest,CableSnapshot> {
   readonly capabilities:EngineCapabilities;
   readonly config:CableConfig;
@@ -347,6 +351,11 @@ export class CompliantCableRuntime implements EngineRuntime<CableStepRequest,Cab
       return runtime;
     }catch(error){runtime.destroy();throw error;}
   }
+  /** Every field a later tick reads, as a state tree (checkpoint.ts), for exact checkpoints. Unlike `checkpoint()` it is
+   * restored in place (`restoreState`), so a coupling that holds this runtime keeps holding it. */
+  saveState():StateObject {return captureFields(this,STATE_FIELDS);}
+  /** Put back a state from `saveState()` of a runtime with the same definition. */
+  restoreState(state:StateValue):void {restoreFields(this,state,STATE_FIELDS);}
   destroy():void {if(this.disposed)return;this.disposed=true;this.p=new Float64Array();this.v=new Float64Array();this.force=new Float64Array();this.lambda=new Float64Array();this.initial=new Float64Array();this.mass=new Float64Array();this.pinned=new Uint8Array();this.invMass=new Float64Array();this.edges=[];this.previous=new Float64Array();this.predicted=new Float64Array();this.forceResidual=new Float64Array();this.vectorMultipliers=new Float64Array();this.supportImpulse=new Float64Array();}
 }
 

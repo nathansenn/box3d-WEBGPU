@@ -84,11 +84,13 @@ import {
 import { loadBestPhysicsBackend } from './physics/wasm';
 import { buildMechanismsScene, MECHANISMS_DEFAULT_SEED, MECHANISMS_SCENE_ID, MECHANISMS_SCENE_TITLE, type MechanismsScene } from './engine/mechanisms-scene.ts';
 import { encodeSceneLink, sceneHash, type Scene, type SceneProblem } from './engine/scene-format.ts';
+import { checkpointInfo, readCheckpoint, writeCheckpoint, type StateObject } from './engine/checkpoint.ts';
+import { simulationCheckpointInfo } from './engine/simulation.ts';
 import { disposeLabScene, exactTransformHash, loadLabScene, sceneStepsPerLabTick, type LabLoadedScene } from './lab/scene-host.ts';
 import { CoupledSceneView, sceneIsCoupled } from './lab/coupled-scene.ts';
 import { createCoupledPanel, type CoupledPanel } from './lab/coupled-panel.ts';
 import {
-  EXAMPLE_SCENE_TITLES, LAB_SCENE_LIMITS, parseSceneRequest, problemLines, quoteForDisplay, readLabFile, resolveSceneRequest,
+  EXAMPLE_SCENE_TITLES, LAB_SCENE_LIMITS, parseSceneRequest, problemLines, quoteForDisplay, readLabFile, readSceneText, resolveSceneRequest,
   sceneCameraFrame, sceneFileName, sceneSummary, type LabFile, type SceneRead,
 } from './lab/scene-loading.ts';
 import { createScenePanel, type ScenePanel } from './lab/scene-panel.ts';
@@ -1488,6 +1490,7 @@ function openLabScene(read: SceneRead, link: string | null = null): boolean {
   scenePanel?.clearError();
   syncScenePanel();
   scenePanel?.setStatus('');
+  labStepsBefore = 0;
   return true;
 }
 
@@ -1662,6 +1665,84 @@ function downloadLabScene(): void {
   scenePanel?.setStatus(`Saved ${anchor.download} (${blob.size} bytes): the scene as it is now.`);
 }
 
+// Exact checkpoints (docs/CHECKPOINTS.md). A Lab checkpoint is the Simulation's checkpoint (which carries the scene) with the
+// scene's title and the steps taken before it, so that a fresh page shows the same title and step count after loading it.
+const LAB_CHECKPOINT_KIND = 'lab-checkpoint';
+// Scene steps taken before this page loaded the checkpoint the scene on screen resumed from (0 for a scene opened afresh).
+let labStepsBefore = 0;
+function labSceneSteps(): number {
+  return labStepsBefore + (engineRuntime?.tick ?? 0) * (labScene ? sceneStepsPerLabTick(labScene.read.scene.world?.step ?? 1 / 60) : 1);
+}
+
+/** The Lab checkpoint of the running simulation, or null without a scene file on screen. */
+function labCheckpointBytes(): Uint8Array | null {
+  if (!siDemo || !labScene) return null;
+  const simulation = labScene.loaded.simulation.checkpoint();
+  return writeCheckpoint(LAB_CHECKPOINT_KIND, { title: labScene.read.title, steps: labSceneSteps(), simulation });
+}
+
+function saveLabCheckpoint(): void {
+  let bytes: Uint8Array | null;
+  try { bytes = labCheckpointBytes(); } catch (error) {
+    reportSceneError('No checkpoint was saved', [{ path: '', message: quoteForDisplay(error instanceof Error ? error.message : String(error), 300) }]);
+    return;
+  }
+  if (!bytes || !labScene) return;
+  const blob = new Blob([bytes as Uint8Array<ArrayBuffer>], { type: 'application/octet-stream' });
+  const href = URL.createObjectURL(blob);
+  const anchor = document.createElement('a');
+  anchor.href = href;
+  anchor.download = sceneFileName(labScene.read.title).replace(/\.json$/, `-step-${labSceneSteps()}.b3ck`);
+  document.body.append(anchor);
+  anchor.click();
+  anchor.remove();
+  setTimeout(() => URL.revokeObjectURL(href), 10_000);
+  scenePanel?.setStatus(`Saved ${anchor.download} (${blob.size} bytes, SHA-256 ${checkpointInfo(bytes).hash.slice(0, 12)}…): the complete state at step ${labSceneSteps()}. Load checkpoint resumes it, here or in a fresh page.`);
+}
+
+/** Resume a checkpoint: a Lab checkpoint, or a bare Simulation checkpoint (the kit's simulation.checkpoint()). */
+async function loadLabCheckpoint(file: File): Promise<void> {
+  scenePanel?.expand();
+  const fail = (title: string, error: unknown): void => reportSceneError(title, [{ path: '', message: quoteForDisplay(error instanceof Error ? error.message : String(error), 400) }]);
+  if (file.size > LAB_SCENE_LIMITS.fileBytes) { fail(`${quoteForDisplay(file.name, 96)} is too large`, `The file has ${file.size} bytes; the Lab reads files up to ${LAB_SCENE_LIMITS.fileBytes} bytes.`); return; }
+  let simulation: Uint8Array, title: string, steps: number, scene: string;
+  try {
+    const bytes = new Uint8Array(await file.arrayBuffer());
+    if (checkpointInfo(bytes).kind === LAB_CHECKPOINT_KIND) {
+      const state = readCheckpoint(bytes, LAB_CHECKPOINT_KIND) as StateObject;
+      if (!(state.simulation instanceof Uint8Array) || typeof state.title !== 'string' || typeof state.steps !== 'number') throw new Error('The Lab checkpoint is malformed.');
+      simulation = state.simulation; title = state.title; steps = state.steps;
+    } else { simulation = bytes; title = file.name.replace(/\.b3ck$/i, ''); steps = -1; }
+    const info = simulationCheckpointInfo(simulation);
+    if (info.scene === null) throw new Error('This checkpoint does not carry the scene it was taken from, so the Lab cannot rebuild it.');
+    scene = info.scene;
+    if (steps < 0) steps = info.tick;
+  } catch (error) { fail(`${quoteForDisplay(file.name, 96)} is not a checkpoint the Lab can resume`, error); return; }
+  const text = readSceneText(scene, { kind: 'file', name: file.name }, title);
+  const read: SceneRead = text.ok ? { ...text, title } : text;
+  // The checkpoint resumes a running simulation; the editor edits initial states, so it is closed.
+  if (sceneEditor?.active) sceneEditor.close();
+  if (!openLabScene(read)) return;
+  try {
+    labScene!.loaded.simulation.restore(simulation);
+  } catch (error) {
+    fail(`${quoteForDisplay(file.name, 96)} could not be restored`, error);
+    scenePanel?.setStatus(`The scene of the checkpoint is on screen from its start; its state was not restored.`);
+    return;
+  }
+  labStepsBefore = steps - (engineRuntime?.tick ?? 0) * sceneStepsPerLabTick(labScene!.read.scene.world?.step ?? 1 / 60);
+  // The solvers were restored in place; the view of a coupled scene is built again so that it reads their arrays afresh.
+  if (coupledView) {
+    const loaded = coupledView.loaded;
+    coupledPanel?.attach(null);
+    coupledView.dispose();
+    coupledView = new CoupledSceneView(loaded, backend);
+    coupledPanel?.attach(coupledView, labScene!.read.title);
+  }
+  backend.syncTransforms();
+  scenePanel?.setStatus(`Resumed ${quoteForDisplay(file.name, 96)} at step ${steps}: the run continues exactly where it was saved.`);
+}
+
 function resetLabScene(): void {
   if (sceneEditor?.active) { sceneEditor.reset(); return; }
   if (!siDemo || !labScene) return;
@@ -1685,7 +1766,7 @@ function labSceneState(): Record<string, unknown> {
     tick: engineRuntime?.tick ?? 0,
     // One Lab tick is this many of the scene's own fixed steps; `steps` is how many it has taken.
     stepsPerTick: labScene ? sceneStepsPerLabTick(labScene.read.scene.world?.step ?? 1 / 60) : 1,
-    steps: (engineRuntime?.tick ?? 0) * (labScene ? sceneStepsPerLabTick(labScene.read.scene.world?.step ?? 1 / 60) : 1),
+    steps: labStepsBefore + (engineRuntime?.tick ?? 0) * (labScene ? sceneStepsPerLabTick(labScene.read.scene.world?.step ?? 1 / 60) : 1),
     replayHash: native ? native.replayHash() : null,
     exactHash: native ? exactTransformHash(native) : null,
     drawnMeshes: renderer?.bodyMeshInfo() ?? null,
@@ -4623,6 +4704,8 @@ async function main(): Promise<void> {
     onExample: openExampleScene,
     onCopyLink: () => { void copyLabSceneLink(); },
     onDownload: downloadLabScene,
+    onSaveCheckpoint: saveLabCheckpoint,
+    onLoadCheckpoint: (file) => { void loadLabCheckpoint(file); },
     onReset: resetLabScene,
     onNewScene: () => { if (sceneEditor?.active) sceneEditor.replace(emptyScene()); else sceneEditor?.open(); },
     onEdit: () => {

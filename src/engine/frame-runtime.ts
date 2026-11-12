@@ -1,4 +1,5 @@
 import {EngineError,finite,integer,onlyKeys,record,validateTickBatch,type EngineCapabilities,type EngineRuntime,type FixedTickCommand,type FixedTickStep} from './contracts.ts';
+import {captureFields,restoreFields,type FieldOptions,type StateObject,type StateValue} from './checkpoint.ts';
 import {frameElementMatrices,frameTransverseSlope,type FrameElement,type FrameElementMatrices} from './frame-element.ts';
 
 export const FRAME_BACKEND='frame-eb-midpoint-js-f64-v1';
@@ -61,6 +62,9 @@ const work=():Work=>({matrixProducts:0,elementVisits:0});
  * Small-strain/small-rotation elasticity; no buckling, yielding, contact or shear.
  * Element matrix products avoid allocating a dense global system.
  */
+/** What an exact checkpoint of a FrameRuntime holds: every field but the element matrices, which never change. */
+const STATE_FIELDS:FieldOptions={label:'FrameRuntime',skip:['elements']};
+
 export class FrameRuntime implements EngineRuntime<FrameStepRequest,FrameSnapshot> {
   readonly capabilities:EngineCapabilities;readonly config:FrameConfig;
   private initial:Float64Array;private elements:FrameElementMatrices[];private fixed:Uint8Array;private pointMass:Float64Array;private pointInertia:Float64Array;
@@ -296,5 +300,10 @@ export class FrameRuntime implements EngineRuntime<FrameStepRequest,FrameSnapsho
       runtime.maxIterationsUsed=zero(integer(s.maxIterationsUsed,'maxIterationsUsed',0,runtime.config.maxIterations));runtime.unconvergedSolves=zero(integer(s.unconvergedSolves,'unconvergedSolves',0,runtime.config.substeps+64));runtime.lastWork={matrixProducts:zero(integer(s.matrixProducts,'matrixProducts',0,MAX_ELEMENT_VISITS)),elementVisits:zero(integer(s.elementVisits,'elementVisits',0,MAX_ELEMENT_VISITS))};return runtime;
     }catch(error){runtime.destroy();throw error;}
   }
+  /** Every field a later tick reads, as a state tree (checkpoint.ts), for exact checkpoints. Unlike `checkpoint()` it is
+   * restored in place (`restoreState`), so a coupling that holds this runtime keeps holding it. */
+  saveState():StateObject {return captureFields(this,STATE_FIELDS);}
+  /** Put back a state from `saveState()` of a runtime with the same definition. */
+  restoreState(state:StateValue):void {restoreFields(this,state,STATE_FIELDS);}
   destroy():void{if(this.disposed)return;this.disposed=true;this.elements=[];this.fixed=new Uint8Array();for(const key of ['initial','pointMass','pointInertia','u','v','forces','gravityForce','diagonalMass','diagonalStiffness','reactions','supportImpulse','appliedImpulse','dragImpulse','rhs','mid','product','temp','residual','direction','preconditioned','ap'] as const)this[key]=new Float64Array();}
 }

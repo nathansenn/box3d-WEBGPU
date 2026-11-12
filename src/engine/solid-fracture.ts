@@ -22,6 +22,7 @@
  * one-way: the piece stops being simulated here.
  */
 import {EngineError,finite,integer,onlyKeys,record} from './contracts.ts';
+import {captureFields,restoreFields,type FieldOptions,type StateObject,type StateValue} from './checkpoint.ts';
 import {boxMesh,tetVolume,SOLID_MAX_NODES,SOLID_MAX_TETS,type TetMesh} from './solid-mesh.ts';
 import {symmetricEigenvalues,type SolidMaterial} from './solid.ts';
 import {convexHull,meshVolume,toHullShape} from './geometry.ts';
@@ -216,7 +217,16 @@ type NodeField=typeof NODE_FIELDS[number];
  * piece to a rigid world with `handOff`. No plasticity. Contact exists only across an interface
  * (the penalty that keeps the two sides of a closed crack from passing through each other).
  */
+/** What an exact checkpoint of a FractureBody holds: every field it has, the cracked topology (elements, node splits,
+ * interfaces and their damage) included. */
+const FRACTURE_FIELDS:FieldOptions={label:'FractureBody'};
+
 export class FractureBody {
+  /** Everything a later step reads, as a state tree (checkpoint.ts), for exact checkpoints. */
+  saveState():StateObject {return captureFields(this,FRACTURE_FIELDS);}
+  /** Put back a state from `saveState()` of a body built from the same mesh, material and fracture settings (its own cracks are restored with it). */
+  restoreState(state:StateValue):void {restoreFields(this,state,FRACTURE_FIELDS);}
+
   readonly solver=SOLID_FRACTURE_SOLVER_ID;
   readonly model:FractureModel;readonly integrator:FractureIntegrator;readonly dt:number;
   readonly tetCount:number;
@@ -1243,6 +1253,8 @@ export function fractureSubsystem<W=unknown,B=unknown>(body:FractureBody,options
       if(body.dt>limit)throw new EngineError('UNSTABLE_TIME_STEP',`Subsystem "${id}" (solid-fracture): the explicit step ${body.dt} s is above the stability limit ${limit} s. Give the body a smaller dt (a whole fraction of the simulation step) or use an implicit integrator.`);
     },
     step(ctx){body.step(ctx.substeps);},
+    checkpoint(){return body.saveState();},
+    restore(state){body.restoreState(state);},
     finish(ctx){for(const event of body.takeEvents())ctx.emit('crack',event);},
     energy(){const e=body.energy();return {domain:'mechanical',total:e.strain+e.interface+e.kinetic,exchanged:e.externalWork-e.dissipated-e.damping-e.relaxation,parts:{kinetic:e.kinetic,strain:e.strain,interface:e.interface,dissipated:e.dissipated,damping:e.damping,relaxation:e.relaxation,externalWork:e.externalWork}};},
     diagnostics(){const area=body.crackArea();return {solver:body.solver,model:body.model,integrator:body.integrator,time:body.time,nodes:body.nodeCount,interfaces:body.interfaces.length,crackArea:area.open,unconvergedSteps:body.unconvergedSteps,...body.stats};},

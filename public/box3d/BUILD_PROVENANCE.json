@@ -12,7 +12,7 @@
   },
   "bridge": {
     "source": "wasm/box3d_web.c",
-    "sha256": "aacf052405b9903b0d05c45e5b5df0321eea7079e5344eed89761c2d96ca43d8",
+    "sha256": "986e16870f8b6d0bf96b1efad623a07323e0c910361be06ecc1bd5b7a4cb3e07",
     "lazyReplayHash": true,
     "sleepingWorldTransformCache": true,
     "independentColorRevision": true,
@@ -25,16 +25,18 @@
     "signatureSetDressing": 10,
     "materialFailurePresentation": true,
     "concreteReinforcementRig": true,
-    "glassFractureStage": true
+    "glassFractureStage": true,
+    "checkpointSource": "wasm/box3d_snapshot.c",
+    "checkpointSha256": "03977116507d81714586eaf799852af6dfbd601ef5acabb9de8b16f1326d1cf0"
   },
   "artifacts": {
     "box3d.js": {
-      "bytes": 22075,
-      "sha256": "328397c32486eae90774089d8b78f9a1183252caa0c73f373e5005c14e8a5edc"
+      "bytes": 22469,
+      "sha256": "49f7dac3586f7d8d6fed0c85dad4ff6d146b296d1fb9e34861e318247879f959"
     },
     "box3d.wasm": {
-      "bytes": 596682,
-      "sha256": "94b0ef9f08bb317540716cd0153ac4071ece323dd75eec76a08dcdb69102e4da"
+      "bytes": 623667,
+      "sha256": "b2bd28050b3c118aaa45bd50084b6762081789f8781d605574878316656dba63"
     }
   },
   "validation": {
@@ -100,17 +102,17 @@
     "bridge": "wasm/box3d_web.c compiled unchanged; b3CreateWorld and b3World_Step renamed per source",
     "sources": {
       "threadsSha256": "5785c8eb105440000ad2520149a6ebf6f6317dca3d4b5724011972861c57f2cb",
-      "bridgeSha256": "aacf052405b9903b0d05c45e5b5df0321eea7079e5344eed89761c2d96ca43d8",
-      "cmakeSha256": "6884cab913beff85515caba18e8644b52c15afa66f5435d7f7d0a4cff0c666dc"
+      "bridgeSha256": "986e16870f8b6d0bf96b1efad623a07323e0c910361be06ecc1bd5b7a4cb3e07",
+      "cmakeSha256": "aa7a56ebc972ef8aaae0a7a4154bc454645f1b001b440e01ebf6af08c5ce1c33"
     },
     "artifacts": {
       "box3d-mt.js": {
-        "bytes": 37363,
-        "sha256": "5009d5eae99819171cf69d4686fc9bb9deb867f55bd3fd94de2a1e8c7e248c9b"
+        "bytes": 37757,
+        "sha256": "02ddb4df56d3ee2bf9ba21d166caedf33f5e48b521bf987670bcf909264ce8dd"
       },
       "box3d-mt.wasm": {
-        "bytes": 604293,
-        "sha256": "0c0a1d3e7a864b802ee7e11dfb6df4354355d50f38b1770169899c3549b0b354"
+        "bytes": 631076,
+        "sha256": "f1cc2dce706992418c0ad706eefcbcaab55ad0fc58811a2f0f3e9a7766eae904"
       }
     },
     "build": {

@@ -20,7 +20,11 @@ export const CORE = [
     ],
   },
   {from: 'src/engine/contracts.ts', rewrites: []},
-  // Optional modules (subpath exports ./cable, ./water, ./coupling, ./frame, ./heat, ./solid). Self-contained apart from contracts.ts.
+  // Exact checkpoints: state trees, their encoding and the self-checking container. Imports contracts.ts only; the world,
+  // the solvers and the Simulation use it.
+  {from: 'src/engine/checkpoint.ts', rewrites: []},
+  // Optional modules (subpath exports ./cable, ./water, ./coupling, ./frame, ./heat, ./solid). Self-contained apart from contracts.ts
+  // and checkpoint.ts.
   {from: 'src/engine/compliant-cable.ts', rewrites: []},
   {from: 'src/engine/linear-water.ts', rewrites: []},
   {from: 'src/engine/closed-water.ts', rewrites: []},
@@ -30,7 +34,7 @@ export const CORE = [
   {from: 'src/engine/heat.ts', rewrites: []},
   {from: 'src/engine/solid-mesh.ts', rewrites: []},
   {from: 'src/engine/solid.ts', rewrites: []},
-  // ./structure: cables and frames <-> rigid bodies. Imports only types from the cable and frame modules.
+  // ./structure: cables and frames <-> rigid bodies. Imports contracts.ts, checkpoint.ts and only types from the cable and frame modules.
   {from: 'src/engine/structure-coupling.ts', rewrites: []},
   // ./scene and ./geometry: the scene format (validator, canonical form, link codec, builder), its example scenes and
   // the geometry import. The Physics Lab uses the same files. They import only contracts.ts and types from native-world.ts.
@@ -38,23 +42,24 @@ export const CORE = [
   {from: 'src/engine/scene-examples.ts', rewrites: []},
   {from: 'src/engine/geometry.ts', rewrites: []},
   // ./simulation: the one stepping loop, the adapters for the modules above and the builder of coupled scenes.
-  // Imports the water, structure, cable, frame, cloth, granular, heat, solid, solid-contact, fracture and fluid modules, and types from scene-format and native-world.
+  // Imports checkpoint.ts, the water, structure, cable, frame, cloth, granular, heat, solid, solid-contact, fracture and fluid
+  // modules, scene-format (for a checkpoint's scene) and types from native-world.
   {from: 'src/engine/simulation.ts', rewrites: []},
   // ./robot: URDF and MJCF import. Imports contracts.ts, geometry.ts and types from native-world.ts and scene-format.ts.
   {from: 'src/engine/robot-import.ts', rewrites: []},
-  // ./fracture: cohesive and crack-band fracture of tetrahedral solids. Imports contracts.ts, solid-mesh.ts, solid.ts,
+  // ./fracture: cohesive and crack-band fracture of tetrahedral solids. Imports contracts.ts, checkpoint.ts, solid-mesh.ts, solid.ts,
   // geometry.ts and heat.ts, and types from simulation.ts.
   {from: 'src/engine/solid-fracture.ts', rewrites: []},
-  // ./cloth: the calibrated cloth and its coupling to rigid bodies. Imports contracts.ts, principalMoments from
+  // ./cloth: the calibrated cloth and its coupling to rigid bodies. Imports contracts.ts, checkpoint.ts, principalMoments from
   // structure-coupling.ts and the Subsystem type from simulation.ts.
   {from: 'src/engine/cloth.ts', rewrites: []},
-  // ./granular: discrete-element grains and their coupling to rigid bodies. Imports contracts.ts, principalMoments from
+  // ./granular: discrete-element grains and their coupling to rigid bodies. Imports contracts.ts, checkpoint.ts, principalMoments from
   // structure-coupling.ts and the Subsystem type from simulation.ts.
   {from: 'src/engine/granular.ts', rewrites: []},
-  // ./fluid: incompressible flow on a staggered grid and its coupling to rigid bodies. Imports contracts.ts and the
+  // ./fluid: incompressible flow on a staggered grid and its coupling to rigid bodies. Imports contracts.ts, checkpoint.ts and the
   // Subsystem type from simulation.ts.
   {from: 'src/engine/fluid.ts', rewrites: []},
-  // ./solid-contact: contact, friction and welds between a tetrahedral solid and rigid bodies. Imports contracts.ts,
+  // ./solid-contact: contact, friction and welds between a tetrahedral solid and rigid bodies. Imports contracts.ts, checkpoint.ts,
   // solid.ts, principalMoments from structure-coupling.ts and the Subsystem type from simulation.ts.
   {from: 'src/engine/solid-contact.ts', rewrites: []},
   // ./materials: the sourced material library and the helpers that build solver inputs from it. Imports contracts.ts

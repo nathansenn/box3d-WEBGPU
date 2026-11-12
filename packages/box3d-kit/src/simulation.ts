@@ -10,10 +10,13 @@
  * src/engine/simulation.ts. This module publishes them and pins the scene
  * loader to the kit's PhysicsWorld. See docs/SIMULATION.md in the repository.
  */
-import {Simulation, loadSimulationScene as coreLoadSimulationScene, type LoadedSimulationScene as CoreLoadedSimulationScene, type SimulationOptions} from './core/simulation.js';
+import {Simulation, loadSimulationScene as coreLoadSimulationScene, resumeSimulationScene as coreResumeSimulationScene, type LoadedSimulationScene as CoreLoadedSimulationScene, type SimulationOptions} from './core/simulation.js';
 import type {Body, PhysicsWorld} from './world.js';
 
 export * from './core/simulation.js';
+/** Exact checkpoints (docs/CHECKPOINTS.md in the repository): the container's version, the error code of a refused
+ * checkpoint, and the header of any checkpoint (world or simulation). */
+export {CHECKPOINT_VERSION, CHECKPOINT_ERROR, checkpointInfo, type CheckpointInfo, type StateValue} from './core/checkpoint.js';
 
 /** A Simulation of a PhysicsWorld. */
 export type WorldSimulation = Simulation<PhysicsWorld, Body>;
@@ -32,4 +35,12 @@ export function createSimulation(world: PhysicsWorld, options: SimulationOptions
  */
 export function loadSimulationScene(world: PhysicsWorld, scene: unknown): LoadedSimulationScene {
   return coreLoadSimulationScene(world, scene);
+}
+
+/**
+ * Resume a simulation checkpoint (`simulation.checkpoint()`) in `world`, in this page or a fresh one: the scene it
+ * carries is loaded (the world is reset to it) and the checkpoint restored, so the run continues bit-identically.
+ */
+export function resumeSimulation(world: PhysicsWorld, bytes: Uint8Array): LoadedSimulationScene {
+  return coreResumeSimulationScene(world, bytes);
 }

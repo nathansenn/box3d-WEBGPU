@@ -19,6 +19,7 @@ import type {
 } from '../engine/native-world.ts';
 import { normalizeScene, sceneWorldOptions, type Scene, type SceneHost, type SceneVec3 } from '../engine/scene-format.ts';
 import { loadSimulationScene, type LoadedSimulationScene } from '../engine/simulation.ts';
+import { checkpointError, readCheckpoint, writeCheckpoint, type StateObject } from '../engine/checkpoint.ts';
 
 export class LabSceneHost implements SceneHost {
   readonly native: NativeWorldBackend;
@@ -74,6 +75,16 @@ export class LabSceneHost implements SceneHost {
   step(): void {
     this.native.step(this.loop.step, this.subSteps); this.tick++;
     if (this.eventListeners.size > 0 && this.native.supportsGeneralBodies) for (const event of this.native.collectEvents().events) for (const listener of this.eventListeners) listener(event);
+  }
+  /** The complete state of the world and this host's step count, as an exact checkpoint (checkpoint.ts, kind 'world'):
+   * the same layout as the kit's PhysicsWorld.checkpoint(). */
+  checkpoint(): Uint8Array { return writeCheckpoint('world', { tick: this.tick, native: this.native.checkpoint() }); }
+  /** Put back a checkpoint from `checkpoint()` (or from the kit's PhysicsWorld) of a world built the same way. */
+  restoreCheckpoint(bytes: Uint8Array): void {
+    const state = readCheckpoint(bytes, 'world') as StateObject;
+    if (!state || typeof state.tick !== 'number' || !Number.isSafeInteger(state.tick) || !(state.native instanceof Uint8Array)) throw checkpointError('The world checkpoint is malformed.');
+    this.native.restoreCheckpoint(state.native);
+    this.tick = state.tick;
   }
   /** FNV-1a over the exact float32 bits of every transform: the kit's PhysicsWorld.exactHash(). */
   exactHash(): number { return exactTransformHash(this.native); }

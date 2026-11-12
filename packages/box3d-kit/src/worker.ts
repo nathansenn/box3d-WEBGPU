@@ -221,6 +221,8 @@ export function serveWorld(endpoint: MessageEndpoint): void {
     resetArena: (seed?: number) => { live().resetArena(seed); forget(); },
     loadPreset: (id: number, stress?: number, seed?: number) => { const n = live().loadPreset(id, stress, seed); forget(); return n; },
     stats: () => live().stats(),
+    checkpoint: () => live().checkpoint(),
+    restoreCheckpoint: (bytes: Uint8Array) => { live().restoreCheckpoint(bytes); kindsDirty = true; sentColorVersion = -1; },
     exactHash: () => live().exactHash(),
     replayHash: () => live().replayHash(),
     startRecording: (options?: RecordingOptions) => { live().startRecording(options); forget(); },
@@ -249,7 +251,7 @@ export function serveWorld(endpoint: MessageEndpoint): void {
     dispose: () => { stop(); unsubscribe?.(); unsubscribe = null; world?.dispose(); world = null; shared = null; forget(); },
   };
   const withFrame = new Set(['init', 'update', 'step', 'spawnBox', 'destroyBody', 'resetArena', 'loadPreset', 'startRecording', 'replay', 'replayDetailed', 'explode', 'applyImpulse',
-    'reset', 'createBody', 'setTransform', 'setBodyType']);
+    'reset', 'createBody', 'setTransform', 'setBodyType', 'restoreCheckpoint']);
 
   listen(endpoint, async data => {
     const {id, method, args} = data as Request;
@@ -422,6 +424,10 @@ export class RemoteWorld implements InstanceSource {
   takeEvents(): Promise<{events: RemoteWorldEvent[]; dropped: number}> { return this.call('takeEvents'); }
   loadPreset(id: number, stress?: number, seed?: number): Promise<number> { this.userData.clear(); return this.call('loadPreset', id, stress, seed); }
   stats(): Promise<WorldStats> { return this.call('stats'); }
+  /** An exact checkpoint of the worker's world; see PhysicsWorld.checkpoint. */
+  checkpoint(): Promise<Uint8Array> { return this.call('checkpoint'); }
+  /** Put back a checkpoint in the worker's world; see PhysicsWorld.restoreCheckpoint. Resolves once the restored transforms have arrived. */
+  restoreCheckpoint(bytes: Uint8Array): Promise<void> { return this.call('restoreCheckpoint', bytes); }
   exactHash(): Promise<number> { return this.call('exactHash'); }
   replayHash(): Promise<number> { return this.call('replayHash'); }
   startRecording(options?: RecordingOptions): Promise<void> { this.userData.clear(); return this.call('startRecording', options); }

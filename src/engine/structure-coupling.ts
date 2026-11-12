@@ -1,4 +1,5 @@
 import {EngineError} from './contracts.ts';
+import {captureFields,eachElement,holder,restoreFields,type FieldOptions,type StateObject,type StateValue} from './checkpoint.ts';
 import type {CompliantCableRuntime} from './compliant-cable.ts';
 import type {FrameRuntime} from './frame-runtime.ts';
 
@@ -227,6 +228,16 @@ class Attachment<B> implements StructureAttachment {
 // 1.4e-45). Such a component is round-off of the interface solve, so hand over an exact zero instead.
 function flush(value:number):number{return Math.fround(value)===0?0:value;}
 
+// What a checkpoint of a StructureCoupling holds. The carriers and attachments keep their identity (they reference each
+// other); each one's numbers and arrays are saved. The cables and frames the coupling steps are saved through them.
+// A frame carrier's `mid` is the frame's own midpoint vector, fetched again at the start of every coupled tick; it is not saved.
+const STRUCTURE_FIELDS:FieldOptions={label:'StructureCoupling',skip:['world','bodies','frameBody','providers'],nested:{
+  bodyList:eachElement({label:'StructureCoupling body',skip:['atts','body']}),
+  cables:eachElement({label:'StructureCoupling cable',skip:['atts','views','edges'],nested:{cable:holder}}),
+  frames:eachElement({label:'StructureCoupling frame',skip:['atts','views','mid'],nested:{frame:holder}}),
+  attachments:eachElement({label:'StructureCoupling attachment',skip:['cable','frame','body']}),
+}};
+
 export class StructureCoupling<B> {
   readonly backend=STRUCTURE_COUPLING_BACKEND;
   readonly dt:number;readonly baumgarte:number;readonly scheme:'implicit'|'naive-staggered';
@@ -259,6 +270,13 @@ export class StructureCoupling<B> {
     if(options.scheme!==undefined&&options.scheme!=='implicit'&&options.scheme!=='naive-staggered')fail('Unknown coupling scheme.');
     this.world=world;this.dt=dt!;this.baumgarte=beta;this.scheme=options.scheme??'implicit';
   }
+
+  /** Everything a later step reads, as a state tree (checkpoint.ts): the carriers' rigid states and pending impulses, every
+   * attachment's multipliers and reports, the frames' interface operators, and the full state of every cable and frame
+   * the coupling steps. For exact checkpoints. */
+  saveState():StateObject {return captureFields(this,STRUCTURE_FIELDS);}
+  /** Put back a state from `saveState()` of a coupling built the same way (same cables, frames and attachments, in the same order). */
+  restoreState(state:StateValue):void {restoreFields(this,state,STRUCTURE_FIELDS);}
 
   /** Hand a cable to the coupling, which steps it from now on (do not call cable.step() yourself). */
   addCable(cable:CompliantCableRuntime):this {

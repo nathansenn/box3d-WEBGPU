@@ -1,4 +1,5 @@
 import {EngineError,finite,integer,onlyKeys,record} from './contracts.ts';
+import {checkpointError,type StateObject,type StateValue} from './checkpoint.ts';
 
 /** Transient and steady heat conduction in solids on a structured grid of cells.
  *
@@ -735,6 +736,34 @@ export class HeatSolver {
     }
     const flux=this.cellFaceFlux(i,j,k,face);
     return this.temperature[f.cell]-flux*f.half/this.#kCell[f.cell];
+  }
+
+  /** Everything a later step reads, as a state tree (checkpoint.ts), for exact checkpoints: the temperature and source
+   * fields, the boundary values and ledgers, the clock, and the assembled conductances and solver vectors (so that the
+   * diagnostics read the same before the next step, too). The grid, materials and boundary layout are not saved: restore
+   * into a solver built from the same configuration. */
+  saveState():StateObject {
+    return {temperature:this.temperature.slice(),heatGeneration:this.heatGeneration.slice(),boundaryEnergy:this.boundaryEnergy.slice(),boundaryStepRates:this.boundaryStepRates.slice(),
+      dt:this.#dt,time:this.#time,steps:this.#steps,sourceEnergy:this.#sourceEnergy,iterations:this.#iterations,residual:this.#residual,dirty:this.#dirty,
+      bP0:this.#bP0.slice(),bP1:this.#bP1.slice(),kCell:this.#kCell.slice(),gx:this.#gx.slice(),gy:this.#gy.slice(),gz:this.#gz.slice(),sumG:this.#sumG.slice(),
+      bG:this.#bG.slice(),bA:this.#bA.slice(),diag:this.#diag.slice(),invDiag:this.#invDiag.slice(),recG:this.#recG.slice(),recA:this.#recA.slice(),delta:this.#delta.slice()};
+  }
+  /** Put back a state from `saveState()` of a solver built from the same configuration. A state of another grid is refused before anything changes. */
+  restoreState(value:StateValue):void {
+    if(!value||typeof value!=='object'||Array.isArray(value)||ArrayBuffer.isView(value))throw checkpointError('HeatSolver: the saved state is not an object.');
+    const state=value as StateObject;
+    const arrays:[string,Float64Array][]=[['temperature',this.temperature],['heatGeneration',this.heatGeneration],['boundaryEnergy',this.boundaryEnergy],['boundaryStepRates',this.boundaryStepRates],
+      ['bP0',this.#bP0],['bP1',this.#bP1],['kCell',this.#kCell],['gx',this.#gx],['gy',this.#gy],['gz',this.#gz],['sumG',this.#sumG],['bG',this.#bG],['bA',this.#bA],
+      ['diag',this.#diag],['invDiag',this.#invDiag],['recG',this.#recG],['recA',this.#recA],['delta',this.#delta]];
+    for(const [key,live] of arrays){
+      const saved=state[key];
+      if(!(saved instanceof Float64Array)||saved.length!==live.length)throw checkpointError(`HeatSolver: the saved ${key} does not fit this grid (${live.length} values).`);
+    }
+    for(const key of ['dt','time','steps','sourceEnergy','iterations','residual'])if(typeof state[key]!=='number')throw checkpointError(`HeatSolver: the saved ${key} is not a number.`);
+    if(typeof state.dirty!=='boolean')throw checkpointError('HeatSolver: the saved state has no assembly flag.');
+    for(const [key,live] of arrays)live.set(state[key] as Float64Array);
+    this.#dt=state.dt as number;this.#time=state.time as number;this.#steps=state.steps as number;this.#sourceEnergy=state.sourceEnergy as number;
+    this.#iterations=state.iterations as number;this.#residual=state.residual as number;this.#dirty=state.dirty as boolean;
   }
 
   diagnostics():HeatDiagnostics {

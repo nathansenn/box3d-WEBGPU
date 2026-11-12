@@ -53,6 +53,13 @@ export class FixedStepLoop {
   }
 
   reset(): void { this.accumulator = 0; }
+  /** Seconds accumulated towards the next step, in [0, step) between calls. Saved by PhysicsWorld.checkpoint(). */
+  get pending(): number { return this.accumulator; }
+  /** Set the accumulated seconds, as `pending` read them. */
+  setPending(seconds: number): void {
+    if (!(Number.isFinite(seconds) && seconds >= 0)) throw new RangeError('pending must be a finite number of seconds, zero or more.');
+    this.accumulator = seconds;
+  }
 }
 
 /**

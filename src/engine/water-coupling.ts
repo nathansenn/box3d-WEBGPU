@@ -1,4 +1,5 @@
 import {validateLinearWaterConfig,type LinearWaterArrays,type LinearWaterConfig} from './linear-water.ts';
+import {captureFields,eachElement,restoreFields,type FieldOptions,type StateObject,type StateValue} from './checkpoint.ts';
 
 /** Two-way coupling of rigid bodies with one closed, flat-bottom, linear shallow-water basin.
  *
@@ -122,6 +123,9 @@ function gaussLegendre(n:number):{nodes:Float64Array;weights:Float64Array} {
   return {nodes,weights};
 }
 const GAUSS=gaussLegendre(GAUSS_ORDER);
+
+/** What a checkpoint of a WaterCoupling holds: every field but the world, with the attached bodies as a list of fixed length. */
+const WATER_FIELDS:FieldOptions={label:'WaterCoupling',skip:['world'],nested:{entries:eachElement({label:'WaterCoupling.entries'})}};
 
 export class WaterCoupling<B> {
   readonly backend=WATER_COUPLING_BACKEND;
@@ -343,6 +347,11 @@ export class WaterCoupling<B> {
     for(let i=0;i<this.eta.length;i++)sum+=this.eta[i]*(H+0.5*this.eta[i]);
     return this.density*this.g*(sum*this.dx*this.dz-this.displacedMoment);
   }
+  /** Everything a later step reads, as a state tree (checkpoint.ts): the surface and face velocities, the displaced
+   * volumes of the step before, the gravity and step count, and every attached body's report. For exact checkpoints. */
+  saveState():StateObject {return captureFields(this,WATER_FIELDS);}
+  /** Put back a state from `saveState()` of a coupling built the same way (same basin, same bodies attached in the same order). */
+  restoreState(state:StateValue):void {restoreFields(this,state,WATER_FIELDS);}
   /** Copy the state into float32 closed-water arrays, for a renderer or the GPU solver's checkpoint format. */
   copyTo(arrays:Pick<LinearWaterArrays,'eta'|'u'|'v'>):void {
     arrays.eta.set(this.eta);arrays.u.set(this.u);arrays.v.set(this.v);

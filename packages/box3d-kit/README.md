@@ -336,7 +336,20 @@ const file = saveSession(world.stopRecording());          // JSON-safe: kit vers
 const report = loadSession(freshWorld, file);             // replays and proves the result: report.matches
 ```
 
-The native bridge cannot serialize solver state yet, so a save *replays* the session. Loading refuses a file from a different WASM build (`INCOMPATIBLE_SAVE`) unless you pass `{allowOtherBuild: true}`; `matches` then tells you whether it still held.
+A session save *replays* the session. Loading refuses a file from a different WASM build (`INCOMPATIBLE_SAVE`) unless you pass `{allowOtherBuild: true}`; `matches` then tells you whether it still held.
+
+### Exact checkpoints
+
+```ts
+const bytes = world.checkpoint();         // Uint8Array: the solver's complete state, the step count, the loop accumulator
+otherWorld.restoreCheckpoint(bytes);      // a world built the same way: every later step is bit-identical
+const saved = simulation.checkpoint();    // a Simulation: the world, every solver, the clock, and the scene it was built from
+simulation.restore(saved);                // refused with CHECKPOINT_MISMATCH for another scene or set-up, a damaged file or another format version
+const resumed = resumeSimulation(freshWorld, saved);  // box3d-webgpu-kit/simulation: loads the scene it carries, then restores
+await remote.checkpoint(); await remote.restoreCheckpoint(bytes);   // RemoteWorld, in its worker
+```
+
+A checkpoint is the solver's state, not a description: contacts with their warm-start impulses, the constraint graph, islands and sleep timers, joints and their impulses and the broad phase (through Box3D's own world snapshot), and in a Simulation every coupled solver's fields, histories, clocks, ledgers and event counters. Restored into a world of the same WASM build that was built the same way, here or in a fresh page or process, the run continues bit for bit; `test/v19-checkpoint.test.mjs` checks it for every example scene and one coupled set-up of each solver. The file has a format version (`CHECKPOINT_VERSION`) and a SHA-256 (`checkpointInfo(bytes).hash`). Body and joint handles keep their meaning in a world built the same way. Same build only; see the repository's `docs/CHECKPOINTS.md` for what is saved, the format, the sizes (17 KiB to 0.6 MiB for the examples, about 3 MiB with a volumetric flow) and the limits.
 
 ### Debug overlay
 
@@ -827,7 +840,8 @@ attachments.get('mooring:0').force;                    // the cable's pull on th
 - **Bit-identical.** The Simulation adds no numerics. A run through it gives exactly the bits of the same modules driven by hand in that order; `test/v14-simulation.test.mjs` proves it for each adapter alone and for water, structure, heat and a solid together.
 - **Time steps.** The water and structure couplings must step with the world. Heat and solids may also take N of their own steps per world step, or one every N world steps; an explicit one must be within its stability limit. Anything else throws an `EngineError` that says which rule failed.
 - **Links, both one-way.** `thermalSolidLink` (the heat solver's temperature becomes a solid's thermal strain; the two grids must be the same boxes) and `deadLoadLink` (a rigid body's weight on solid nodes). Nothing flows back.
-- **Your own solver.** Anything with `{id, kind, stage, timeStep, step(ctx)}` can be registered; `prepare`, `finish`, `energy`, `diagnostics` and `dispose` are optional.
+- **Your own solver.** Anything with `{id, kind, stage, timeStep, step(ctx)}` can be registered; `prepare`, `finish`, `energy`, `diagnostics` and `dispose` are optional, and `checkpoint()` / `restore(state)` let `simulation.checkpoint()` include it.
+- **Exact checkpoints.** `simulation.checkpoint()` / `restore(bytes)` and `resumeSimulation(world, bytes)` ([Exact checkpoints](#exact-checkpoints)).
 - **Coupled across modules:** a rigid body collides with a deformable solid through `box3d-webgpu-kit/solid-contact` (node against body; two solids do not collide). A floating body on a cable is solved with the water's force in the cable's interface solve (`linkWaterToStructure(water, structure)`, which `loadScene` calls): on the moored buoy the tension is right to 0.001 N of 1338 N and the draught to 0.5 µm, where they were 0.73 N and 0.4 mm off; the hydrostatic stiffness is not in that solve, and a floating body on a frame is unchecked. **Not in the loop:** rope contact, granular media, GPU water and the app's own cloth. See the repository's `docs/SIMULATION.md` for the contract, the measured numbers and the limits.
 
 ### No build step
@@ -879,7 +893,7 @@ In the Vite dev server (not yet tested), add `optimizeDeps: {exclude: ['box3d-we
 - **Recording an SI world:** `startRecording({world: {gravity}})` starts from an empty SI world and logs every mutating call, including `createBody`, `createJoint` and the setters. Mesh and terrain geometry is stored in the log, so large scenery makes large logs. A joint created before recording began cannot be used while recording.
 - **Network snapshots carry transforms only**, as before; they do not describe shapes or joints.
 - **No contact-end for destroyed bodies.** Box3D reports no `contact-end` for what a destroyed body was touching; treat `destroyBody()` as the signal.
-- **Solver state cannot be saved.** `saveSession` stores a replay log and `loadSession` replays it. `saveScene` (`box3d-webgpu-kit/scene`) stores how to build the scene plus each body's pose and velocity; it resumes from that state but not bit for bit.
+- **Saves.** `world.checkpoint()` and `simulation.checkpoint()` save the complete solver state and resume bit for bit, on the same WASM build only. `saveSession` stores a replay log and `loadSession` replays it. `saveScene` (`box3d-webgpu-kit/scene`) stores how to build the scene plus each body's pose and velocity; it resumes from that state but not bit for bit.
 - **Single-threaded.** Each world steps synchronously on its thread. Use `box3d-webgpu-kit/worker` to move that thread off the renderer.
 - **Interpolation pauses for one step after a destroy, a reset or `setTransform`**, because rows move or jump. New bodies interpolate normally.
 - Default capacity is 4,096 bodies per world; `createWorld({capacity})` raises it up to 65,536. The bridge buffers take 136 bytes per body slot.

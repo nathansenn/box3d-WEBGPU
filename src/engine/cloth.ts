@@ -22,6 +22,7 @@
  * Deterministic; no allocation in `step()`. See docs/CLOTH.md for the equations, validation and limits.
  */
 import {EngineError} from './contracts.ts';
+import {captureFields,checkpointError,eachElement,holder,restoreFields,type FieldOptions,type StateObject,type StateValue} from './checkpoint.ts';
 import {principalMoments,type StructureInertia} from './structure-coupling.ts';
 import type {Subsystem} from './simulation.ts';
 
@@ -204,7 +205,18 @@ function invertSym(a:number,b:number,c:number,d:number,e:number,f:number,out:Flo
 }
 
 /** A cloth. Step it alone with `step()`, or hand it to a `ClothCoupling` to exchange forces with a rigid world. */
+/** What an exact checkpoint of a Cloth holds: every field (state, contact and self-contact records, solver vectors and
+ * statistics); the bodies it touches keep their identity. */
+const CLOTH_FIELDS:FieldOptions={label:'Cloth',nested:{bodies:eachElement({label:'Cloth body'})}};
+/** What an exact checkpoint of a ClothCoupling holds: the cloth and the coupled bodies' records. */
+const CLOTH_COUPLING_FIELDS:FieldOptions={label:'ClothCoupling',skip:['world','byBody'],nested:{cloth:holder,list:eachElement({label:'ClothCoupling body'})}};
+
 export class Cloth {
+  /** Everything a later step reads, as a state tree (checkpoint.ts), for exact checkpoints. */
+  saveState():StateObject {return captureFields(this,CLOTH_FIELDS);}
+  /** Put back a state from `saveState()` of a cloth built from the same mesh, material and settings, touching the same bodies. */
+  restoreState(state:StateValue):void {restoreFields(this,state,CLOTH_FIELDS);}
+
   readonly solver=CLOTH_SOLVER_ID;
   readonly nodeCount:number;readonly triangleCount:number;readonly edgeCount:number;readonly hingeCount:number;
   readonly dt:number;readonly integrator:'backward-euler'|'midpoint';
@@ -1481,6 +1493,11 @@ interface CoupledBody<B> {readonly body:B|null;readonly index:number;readonly pr
  * numbers with opposite signs.
  */
 export class ClothCoupling<B> {
+  /** Everything a later step reads, as a state tree (checkpoint.ts), for exact checkpoints. */
+  saveState():StateObject {return captureFields(this,CLOTH_COUPLING_FIELDS);}
+  /** Put back a state from `saveState()` of a coupling set up the same way (same cloth, bodies, planes and attachments, in the same order). */
+  restoreState(state:StateValue):void {restoreFields(this,state,CLOTH_COUPLING_FIELDS);}
+
   readonly backend=CLOTH_COUPLING_BACKEND;
   readonly world:ClothWorld<B>;readonly cloth:Cloth;readonly dt:number;readonly scheme:'implicit'|'naive-staggered';readonly estimateSupports:boolean;
   private readonly list:CoupledBody<B>[]=[];private readonly byBody=new Map<B,CoupledBody<B>>();
@@ -1606,6 +1623,13 @@ export function clothSubsystem<W,B>(target:Cloth|ClothCoupling<B>,options:{reado
     id:options.id??'cloth',kind:coupling?'cloth-coupling':'cloth',stage:coupling?'couple':'post',order:options.order??(coupling?CLOTH_SUBSYSTEM_ORDER:400),
     timeStep:{dt:cloth.dt,rule:coupling?'equal':'commensurate'},
     step(ctx){if(coupling)coupling.step();else cloth.step(ctx.substeps);},
+    // The solver (with the coupling's records) and the event cursor.
+    checkpoint(){return {state:(coupling??cloth).saveState(),unconverged};},
+    restore(state){
+      const s=state as {state?:StateValue;unconverged?:unknown}|null;
+      if(!s||typeof s.unconverged!=='number')throw checkpointError(`Subsystem "${options.id??'cloth'}": the saved state is malformed.`);
+      (coupling??cloth).restoreState(s.state);unconverged=s.unconverged;
+    },
     finish(ctx){
       if(coupling)coupling.contactChanges((body,index,touching)=>ctx.emit(touching?'contact-begin':'contact-end',{body,index}));
       if(cloth.stats.unconvergedSteps!==unconverged){unconverged=cloth.stats.unconvergedSteps;ctx.emit('unconverged',{residual:cloth.stats.residual,tolerance:cloth.stats.tolerance});}

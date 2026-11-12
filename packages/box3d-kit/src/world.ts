@@ -1,4 +1,5 @@
 import {EngineError} from './core/contracts.js';
+import {checkpointError, readCheckpoint, writeCheckpoint, type StateObject} from './core/checkpoint.js';
 import type {
   NativeBodyHandle, NativeBodyKind, NativeBodyMassState, NativeBodyState, NativeConvexShape, NativeBodyType, NativeJointHandle, NativeJointState, NativeJointType, NativeQueryCastHit, NativeQueryFilter,
   NativeSpatialQuery, NativeWorldBackend, NativeWorldEvent, NativeWorldPool,
@@ -785,6 +786,34 @@ export class PhysicsWorld {
   }
 
   get isRecording(): boolean { return this.recording !== null; }
+
+  /**
+   * An exact checkpoint of the world: Box3D's complete state (contacts with their manifolds and warm-start impulses, the
+   * constraint graph, islands and sleep timers, joints and their impulses, the broad phase), the body table (handles, render
+   * rows, shape kinds, mass data you set), the step count and the fixed-step accumulator, in one self-checking file. Restore it
+   * with `restoreCheckpoint` into a world of the same build that was built the same way, here or in a fresh page: every later
+   * step is bit-identical to this world's. Not while recording. See docs/CHECKPOINTS.md in the repository.
+   */
+  checkpoint(): Uint8Array {
+    return writeCheckpoint('world', {tick: this.tickCount, native: this.native.checkpoint(), loop: this.loop.pending, droppedEvents: this.droppedEventCount});
+  }
+  /**
+   * Put back a checkpoint from `checkpoint()`. Body and joint handles you hold keep their meaning when this world was built
+   * the same way as the one the checkpoint came from (the same calls in the same order); bodies made or destroyed in between
+   * follow the checkpoint, so read them again with `bodyAt`. A damaged checkpoint, one of another format version or one that is
+   * not a world checkpoint is refused and changes nothing. User data stays.
+   */
+  restoreCheckpoint(bytes: Uint8Array): void {
+    this.stopRecordingIfActive('restoreCheckpoint');
+    const state = readCheckpoint(bytes, 'world') as StateObject;
+    if (!state || typeof state.tick !== 'number' || !Number.isSafeInteger(state.tick) || state.tick < 0 || !(state.native instanceof Uint8Array)) throw checkpointError('The world checkpoint is malformed.');
+    if (state.loop !== undefined && !(typeof state.loop === 'number' && Number.isFinite(state.loop) && state.loop >= 0)) throw checkpointError('The world checkpoint is malformed.');
+    this.native.restoreCheckpoint(state.native);
+    this.tickCount = state.tick;
+    this.loop.setPending(typeof state.loop === 'number' ? state.loop : 0);
+    if (typeof state.droppedEvents === 'number') this.droppedEventCount = state.droppedEvents;
+    this.rowsMoved = true;
+  }
 
   /** Re-run a ReplayLog in this world. Returns true when the result matches the recording bit-for-bit. */
   replay(log: ReplayLog): boolean { return this.replayDetailed(log).matches; }

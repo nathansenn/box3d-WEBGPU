@@ -330,6 +330,8 @@ export declare class FixedStepLoop {
   readonly maxSteps: number;
   advance(frameSeconds: number, tick: (step: number) => void): FixedStepResult;
   reset(): void;
+  get pending(): number;
+  setPending(seconds: number): void;
 }
 ```
 
@@ -1011,6 +1013,9 @@ export declare class NativeWorldBackend implements PhysicsBackend {
   setJointSteering(joint: NativeJointHandle, steering: { angle: number; hertz: number; dampingRatio: number; maxTorque: number; } | null): void;
   jointState(joint: NativeJointHandle): NativeJointState;
   collectEvents(): { events: NativeWorldEvent[]; dropped: number; };
+  get supportsCheckpoints(): boolean;
+  checkpoint(): Uint8Array;
+  restoreCheckpoint(bytes: Uint8Array): void;
   get supportsSpatialQueries(): boolean;
   spatialQueryInfo(): { supported: boolean; maxBatch: number; maxHitsPerQuery: number; bridgeBufferBytes: number; version: number; };
   queryBatch(queries: readonly NativeSpatialQuery[]): NativeQueryResult[];
@@ -1181,6 +1186,8 @@ export declare class PhysicsWorld {
   startRecording(options?: RecordingOptions): void;
   stopRecording(): ReplayLog;
   get isRecording(): boolean;
+  checkpoint(): Uint8Array;
+  restoreCheckpoint(bytes: Uint8Array): void;
   replay(log: ReplayLog): boolean;
   replayDetailed(log: ReplayLog): ReplayReport;
   dispose(): void;
@@ -1916,6 +1923,8 @@ export declare class RemoteWorld implements InstanceSource {
   takeEvents(): Promise<{ events: RemoteWorldEvent[]; dropped: number; }>;
   loadPreset(id: number, stress?: number, seed?: number): Promise<number>;
   stats(): Promise<WorldStats>;
+  checkpoint(): Promise<Uint8Array>;
+  restoreCheckpoint(bytes: Uint8Array): Promise<void>;
   exactHash(): Promise<number>;
   replayHash(): Promise<number>;
   startRecording(options?: RecordingOptions): Promise<void>;
@@ -2102,10 +2111,6 @@ export declare const COMPLIANT_CABLE_BACKEND = "cable-xpbd-js-f64-v1";
 
 ### CompliantCableRuntime · class
 
-SI, tension-only axial cables. Fixed anchors exchange reactions with an external support.
-XPBD multipliers reset per substep and accumulate only across that substep's iterations.
-Constitutive compliance is independent of solve settings; finite solve/integration error is reported.
-
 ```ts
 export declare class CompliantCableRuntime implements EngineRuntime<CableStepRequest, CableSnapshot> {
   readonly capabilities: EngineCapabilities;
@@ -2119,6 +2124,8 @@ export declare class CompliantCableRuntime implements EngineRuntime<CableStepReq
   inspect(): CableSnapshot;
   checkpoint(): CableCheckpoint;
   static fromCheckpoint(value: unknown): CompliantCableRuntime;
+  saveState(): StateObject;
+  restoreState(state: StateValue): void;
   destroy(): void;
 }
 ```
@@ -2393,6 +2400,8 @@ export declare class WaterCoupling<B> {
   verticalDragTotal(): number;
   waterKineticEnergy(): number;
   waterPotentialEnergy(): number;
+  saveState(): StateObject;
+  restoreState(state: StateValue): void;
   copyTo(arrays: Pick<LinearWaterArrays, 'eta' | 'u' | 'v'>): void;
 }
 ```
@@ -2582,10 +2591,6 @@ export interface FrameKinematics {
 
 ### FrameRuntime · class
 
-Linear 3D prismatic frames with consistent mass and implicit midpoint dynamics.
-Small-strain/small-rotation elasticity; no buckling, yielding, contact or shear.
-Element matrix products avoid allocating a dense global system.
-
 ```ts
 export declare class FrameRuntime implements EngineRuntime<FrameStepRequest, FrameSnapshot> {
   readonly capabilities: EngineCapabilities;
@@ -2600,6 +2605,8 @@ export declare class FrameRuntime implements EngineRuntime<FrameStepRequest, Fra
   inspect(): FrameSnapshot;
   checkpoint(): FrameCheckpoint;
   static fromCheckpoint(value: unknown): FrameRuntime;
+  saveState(): StateObject;
+  restoreState(state: StateValue): void;
   destroy(): void;
 }
 ```
@@ -2866,6 +2873,8 @@ export declare class HeatSolver {
   faceHeatFlux(out?: { x: Float64Array; y: Float64Array; z: Float64Array; }): { x: Float64Array; y: Float64Array; z: Float64Array; };
   cellFaceFlux(i: number, j: number, k: number, face: HeatFace): number;
   faceTemperature(i: number, j: number, k: number, face: HeatFace): number;
+  saveState(): StateObject;
+  restoreState(value: StateValue): void;
   diagnostics(): HeatDiagnostics;
 }
 ```
@@ -3043,16 +3052,10 @@ export declare const SOLID_SOLVER_ID = "solid-tet-corot-js-f64-v1";
 
 ### SolidBody · class
 
-A deformable solid of four-node tetrahedra with a lumped mass matrix. SI units, float64.
-
-Statics and the implicit integrators minimise one incremental potential by Newton's method
-with a Jacobi-preconditioned conjugate-gradient inner solve; products with the tangent
-stiffness are formed element by element, so no global matrix is stored. Loads are dead
-loads: tractions, pressure and gravity keep their reference direction and area.
-No contact, no plasticity and no crack growth. See docs/SOLID_MECHANICS.md.
-
 ```ts
 export declare class SolidBody {
+  saveState(): StateObject;
+  restoreState(state: StateValue): void;
   readonly solver = "solid-tet-corot-js-f64-v1";
   readonly model: SolidModel;
   readonly integrator: SolidIntegrator;
@@ -3369,6 +3372,8 @@ export declare class StructureCoupling<B> {
   readonly baumgarte: number;
   readonly scheme: 'implicit' | 'naive-staggered';
   tick: number;
+  saveState(): StateObject;
+  restoreState(state: StateValue): void;
   addCable(cable: CompliantCableRuntime): this;
   addFrame(frame: FrameRuntime): this;
   attachCableToBody(cable: CompliantCableRuntime, node: number, body: B, options: BodyAttachOptions): StructureAttachment;
@@ -5709,6 +5714,41 @@ A node takes the mean of the cells that touch it (one at a corner, eight inside)
 export declare function cellTemperaturesToNodes(temperature: ArrayLike<number>, cells: readonly [number, number, number], reference: number, out: number[] | Float64Array): number[] | Float64Array;
 ```
 
+### CHECKPOINT_ERROR · const
+
+The error every refused checkpoint throws: wrong format or version, a damaged file, or one taken from something else.
+
+```ts
+export declare const CHECKPOINT_ERROR = "CHECKPOINT_MISMATCH";
+```
+
+### CHECKPOINT_VERSION · const
+
+Version of the container and of every state tree in it. A checkpoint of another version is refused.
+
+```ts
+export declare const CHECKPOINT_VERSION = 1;
+```
+
+### checkpointInfo · function
+
+Kind, version, hash and size, from the header alone (the hash is not checked).
+
+```ts
+export declare function checkpointInfo(bytes: Uint8Array): CheckpointInfo;
+```
+
+### CheckpointInfo · interface
+
+```ts
+export interface CheckpointInfo {
+    readonly kind: string;
+    readonly version: number;
+    readonly hash: string;
+    readonly bytes: number;
+}
+```
+
 ### createSimulation · function
 
 A Simulation that owns the stepping of `world`. Register subsystems with `add`, then call `step()` instead of `world.step()`.
@@ -5825,6 +5865,25 @@ Decide how a subsystem with the given requirement runs on a simulation step of `
 export declare function resolveTiming(id: string, kind: string, timeStep: SubsystemTimeStep, dt: number): SubsystemTiming;
 ```
 
+### resumeSimulation · function
+
+Resume a simulation checkpoint (`simulation.checkpoint()`) in `world`, in this page or a fresh one: the scene it
+carries is loaded (the world is reset to it) and the checkpoint restored, so the run continues bit-identically.
+
+```ts
+export declare function resumeSimulation(world: PhysicsWorld, bytes: Uint8Array): LoadedSimulationScene;
+```
+
+### resumeSimulationScene · function
+
+Resume a checkpoint that carries its scene (`checkpoint()` does by default) in `world`, in this page or a fresh one:
+load the scene it was taken from (the world is reset to it), then restore the checkpoint. The run continues
+bit-identically to the one the checkpoint was taken from. The world must be of the same build.
+
+```ts
+export declare function resumeSimulationScene<W extends SimulationSceneWorld>(world: W, bytes: Uint8Array): LoadedSimulationScene<W>;
+```
+
 ### SceneFluidRuntime · type
 
 A fluid of a scene as built: a flow (with its coupling to the bodies, or null when it has none) or a free-surface tank.
@@ -5877,6 +5936,10 @@ export declare class Simulation<W extends SimulationWorld<B>, B = unknown> {
   untrackBody(body: B): boolean;
   energy(): SimulationEnergy;
   diagnostics(): SimulationDiagnostics;
+  get sceneSource(): SimulationSource | null;
+  setSceneSource(source: SimulationSource | (() => SimulationSource) | null): void;
+  checkpoint(options?: SimulationCheckpointOptions): Uint8Array;
+  restore(bytes: Uint8Array): void;
   dispose(): void;
 }
 ```
@@ -5887,6 +5950,44 @@ The order of one step. `rigid` and `events` belong to the Simulation; subsystems
 
 ```ts
 export declare const SIMULATION_STAGES: readonly ["pre-couple", "couple", "rigid", "post", "events"];
+```
+
+### simulationCheckpointInfo · function
+
+What a simulation checkpoint says about itself: its clock, the scene it was taken from (and the scene, when it carries
+it), its subsystems, size and SHA-256. The hash, version and format are checked; nothing is restored.
+
+```ts
+export declare function simulationCheckpointInfo(bytes: Uint8Array): SimulationCheckpointInfo;
+```
+
+### SimulationCheckpointInfo · interface
+
+What a simulation checkpoint says about itself (`simulationCheckpointInfo`).
+
+```ts
+export interface SimulationCheckpointInfo {
+    readonly version: number;
+    readonly hash: string;
+    readonly bytes: number;
+    readonly tick: number;
+    readonly time: number;
+    readonly dt: number;
+    readonly sceneHash: string | null;
+    readonly scene: string | null;
+    readonly subsystems: readonly {
+        readonly id: string;
+        readonly kind: string;
+    }[];
+}
+```
+
+### SimulationCheckpointOptions · interface
+
+```ts
+export interface SimulationCheckpointOptions {
+    readonly scene?: boolean;
+}
 ```
 
 ### SimulationDiagnostics · interface
@@ -5960,6 +6061,17 @@ What building a coupled scene needs from the world: a SceneHost that can also ta
 export type SimulationSceneWorld = SceneHost & SimulationWorld<Body> & CouplingWorld<Body> & StructureWorld<Body>;
 ```
 
+### SimulationSource · interface
+
+Where a Simulation came from, for its checkpoints: `buildSceneSimulation` records the scene it built.
+
+```ts
+export interface SimulationSource {
+    readonly sceneHash: string;
+    readonly scene: string;
+}
+```
+
 ### SimulationStage · type
 
 ```ts
@@ -5977,6 +6089,8 @@ export interface SimulationWorld<B = unknown> {
     };
     readonly subSteps?: number;
     readonly tick?: number;
+    checkpoint?(): Uint8Array;
+    restoreCheckpoint?(bytes: Uint8Array): void;
     step(): void;
     gravity(): readonly number[];
     getState(body: B): {
@@ -6002,6 +6116,12 @@ Energy: kinetic + strain + load potential. It is not conserved while a link chan
 export declare function solidSubsystem<W, B>(solid: SolidBody, options?: {
     readonly id?: string;
 }): Subsystem<W, B>;
+```
+
+### StateValue · type
+
+```ts
+export type StateValue = null | undefined | boolean | number | string | bigint | TypedArray | readonly StateValue[] | StateObject;
 ```
 
 ### StepContext · interface
@@ -6061,6 +6181,8 @@ export interface Subsystem<W = unknown, B = unknown> {
     energy?(): SubsystemEnergy;
     diagnostics?(): unknown;
     dispose?(): void;
+    checkpoint?(): StateValue;
+    restore?(state: StateValue): void;
 }
 ```
 
@@ -6862,13 +6984,10 @@ export declare const FRACTURE_SUBSYSTEM_ORDER = 300;
 
 ### FractureBody · class
 
-A deformable solid that can crack. Small strain: the elements follow Hooke's law on
-sym(grad u), so a piece that rotates far after breaking off carries false stress. Hand such a
-piece to a rigid world with `handOff`. No plasticity. Contact exists only across an interface
-(the penalty that keeps the two sides of a closed crack from passing through each other).
-
 ```ts
 export declare class FractureBody {
+  saveState(): StateObject;
+  restoreState(state: StateValue): void;
   readonly solver = "solid-fracture-czm-js-f64-v1";
   readonly model: FractureModel;
   readonly integrator: FractureIntegrator;
@@ -7158,10 +7277,10 @@ export declare const TIP_INSERTION_THRESHOLD = 0.4;
 
 ### Cloth · class
 
-A cloth. Step it alone with `step()`, or hand it to a `ClothCoupling` to exchange forces with a rigid world.
-
 ```ts
 export declare class Cloth {
+  saveState(): StateObject;
+  restoreState(state: StateValue): void;
   readonly solver = "cloth-stvk-koiter-newton-pcg-js-f64-v1";
   readonly nodeCount: number;
   readonly triangleCount: number;
@@ -7322,6 +7441,8 @@ numbers with opposite signs.
 
 ```ts
 export declare class ClothCoupling<B> {
+  saveState(): StateObject;
+  restoreState(state: StateValue): void;
   readonly backend = "rigid-cloth-coupling-monolithic-js-f64-v1";
   readonly world: ClothWorld<B>;
   readonly cloth: Cloth;
@@ -7545,6 +7666,8 @@ export interface ClothWorld<B> {
 
 ```ts
 export declare class Granular {
+  saveState(): StateObject;
+  restoreState(state: StateValue): void;
   readonly solver = "granular-dem-soft-sphere-verlet-js-f64-v1";
   readonly dt: number;
   readonly capacity: number;
@@ -7690,6 +7813,8 @@ opposite signs.
 
 ```ts
 export declare class GranularCoupling<B> {
+  saveState(): StateObject;
+  restoreState(state: StateValue): void;
   readonly backend = "rigid-granular-coupling-subcycled-js-f64-v1";
   readonly world: GranularWorld<B>;
   readonly granular: Granular;
@@ -7989,10 +8114,10 @@ export declare function ductVelocity(y: number, z: number, a: number, b: number,
 
 ### Fluid · class
 
-Incompressible Navier-Stokes on a staggered grid. See the file header and docs/FLUID.md.
-
 ```ts
 export declare class Fluid {
+  saveState(): StateObject;
+  restoreState(state: StateValue): void;
   readonly solver = "fluid-mac-projection-mic-pcg-js-f64-v1";
   readonly nx: number;
   readonly ny: number;
@@ -8141,6 +8266,8 @@ coupling): a body lighter than about the fluid it displaces can be unstable.
 
 ```ts
 export declare class FluidCoupling<B> {
+  saveState(): StateObject;
+  restoreState(state: StateValue): void;
   readonly backend = "rigid-fluid-coupling-fictitious-domain-js-f64-v1";
   readonly world: FluidWorld<B>;
   readonly fluid: Fluid;
@@ -8338,17 +8465,10 @@ export declare const FREE_SURFACE_SUBSYSTEM_ORDER = 520;
 
 ### FreeSurfaceFluid · class
 
-Incompressible liquid with a free surface in a closed tank, float64, deterministic. The liquid is carried by particles
-with the affine particle-in-cell transfer (APIC, Jiang et al. 2015): each step the particles' momentum goes to the
-staggered grid, gravity is added, viscosity is applied implicitly (backward Euler, component-wise Laplacian, no-slip or
-free-slip on walls and obstacles, zero normal gradient into the air), the velocity is projected to zero divergence in
-the cells that hold particles with p = 0 on the surface (ghost fluid), extrapolated two cells out, and read back to the
-particles with its gradient, which then move with it. Obstacles are voxelised solids: their cells take no liquid,
-their faces carry the obstacle's velocity, and the pressure on the faces between them and the liquid is their force.
-See docs/FLUID.md.
-
 ```ts
 export declare class FreeSurfaceFluid {
+  saveState(): StateObject;
+  restoreState(state: StateValue): void;
   readonly solver = "fluid-free-surface-apic-mac-js-f64-v1";
   readonly nx: number;
   readonly ny: number;
@@ -8537,14 +8657,10 @@ export interface SolidColliderOptions {
 
 ### SolidContact · class
 
-A deformable solid in contact with rigid bodies. Build the `SolidBody` as usual (backward Euler), hand it over,
-add bodies, and from then on step it here, not with `solid.step()`.
-
-Without a world the bodies are this object's own: `step()` moves the dynamic ones by backward Euler with the
-force and torque of the solve. A `SolidCoupling` reads them from a rigid world instead and hands the forces to it.
-
 ```ts
 export declare class SolidContact {
+  saveState(): StateObject;
+  restoreState(state: StateValue): void;
   readonly solver = "solid-contact-penalty-newton-pcg-js-f64-v1";
   readonly solid: SolidBody;
   readonly dt: number;
@@ -8699,6 +8815,8 @@ body the force and torque the solid put on it, to act through the rigid step.
 
 ```ts
 export declare class SolidCoupling<B> {
+  saveState(): StateObject;
+  restoreState(state: StateValue): void;
   readonly backend = "rigid-solid-coupling-monolithic-js-f64-v1";
   readonly world: SolidWorld<B>;
   readonly contact: SolidContact;

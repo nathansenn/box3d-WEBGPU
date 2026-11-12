@@ -181,6 +181,11 @@ export interface NativeWorldModule {
   _b3w_world_set_body_mass_data?(world: number, body: bigint, values: number | bigint): number;
   _b3w_world_get_body_mass_data?(world: number, body: bigint, out: number | bigint): number;
   _b3w_world_reset_body_mass_data?(world: number, body: bigint): number;
+  /** Optional exact checkpoints; all four exports must be present together. */
+  _b3w_world_checkpoint?(world: number): number;
+  _b3w_world_checkpoint_ptr?(world: number): number | bigint;
+  _b3w_world_checkpoint_free?(world: number): number;
+  _b3w_world_restore?(world: number, data: number | bigint, size: number): number;
 }
 
 const GENERAL_EXPORTS = ['reset','set_gravity','get_gravity','create_body','copy_body_kinds','get_body_state','set_body_transform',
@@ -998,6 +1003,49 @@ export class NativeWorldBackend implements PhysicsBackend {
         normal:[view.getFloat32(o+36,true),view.getFloat32(o+40,true),view.getFloat32(o+44,true)],approachSpeed:view.getFloat32(o+48,true)}:{kind,bodyA,bodyB});
     }
     return {events,dropped:Math.max(0,total-count)};
+  }
+
+  /** True when the artifact can write and restore exact checkpoints of a world (docs/CHECKPOINTS.md). */
+  get supportsCheckpoints(): boolean { this.assertAlive();return typeof this.mod._b3w_world_restore==='function'&&typeof this.mod._b3w_world_checkpoint==='function'; }
+  /**
+   * The complete state of this world: its body table (handles, render rows and streams, shape kinds, mass data set by
+   * hand) and Box3D's own snapshot of everything a step reads (contacts with their manifolds and warm-start impulses,
+   * the constraint graph, islands and sleep timers, joints and their impulses, the broad phase). `restoreCheckpoint`
+   * of these bytes in a world of the same artifact makes every later step bit-identical to this world's.
+   */
+  checkpoint(): Uint8Array {
+    this.assertAlive();
+    if(!this.supportsCheckpoints)throw new EngineError('UNSUPPORTED_BACKEND','box3d.wasm lacks exact checkpoints; rebuild with npm run build:wasm.');
+    const size=this.mod._b3w_world_checkpoint!(this.handle);
+    if(size===-1)throw new EngineError('INVALID_STATE','The native world has no simulation to checkpoint.');
+    if(size<0)throw new EngineError('ALLOCATION_FAILED','The native checkpoint could not be allocated.');
+    try {
+      const pointer=Number(this.mod._b3w_world_checkpoint_ptr!(this.handle));
+      if(!Number.isSafeInteger(pointer)||pointer<=0||pointer+size>this.mod.HEAPF32.buffer.byteLength)throw new EngineError('INVALID_BACKEND','Native checkpoint is outside the module heap.');
+      return new Uint8Array(this.mod.HEAPF32.buffer,pointer,size).slice();
+    }finally{this.mod._b3w_world_checkpoint_free!(this.handle);}
+  }
+  /**
+   * Replace this world's state with a checkpoint from `checkpoint()`. Body and joint handles keep their meaning when
+   * the world was built the same way as the one the checkpoint was taken from. Bytes that are not a checkpoint of this
+   * artifact's format are refused and change nothing.
+   */
+  restoreCheckpoint(bytes: Uint8Array): void {
+    this.assertAlive();
+    if(!this.supportsCheckpoints)throw new EngineError('UNSUPPORTED_BACKEND','box3d.wasm lacks exact checkpoints; rebuild with npm run build:wasm.');
+    if(!(bytes instanceof Uint8Array)||bytes.length===0)throw new EngineError('INVALID_PAYLOAD','A native checkpoint is a non-empty Uint8Array.');
+    const pointer=Number(this.mod._malloc!(bytes.length));
+    if(!Number.isSafeInteger(pointer)||pointer<=0)throw new EngineError('ALLOCATION_FAILED','Native scratch allocation failed.');
+    let status: number;
+    try {
+      new Uint8Array(this.mod.HEAPF32.buffer,pointer,bytes.length).set(bytes);
+      status=this.mod._b3w_world_restore!(this.handle,pointer,bytes.length);
+    }finally{this.mod._free!(pointer);}
+    if(status===-2)throw new EngineError('INVALID_PAYLOAD','These bytes are not a native world checkpoint of this build.');
+    if(status===-3)throw new EngineError('ALLOCATION_FAILED','The native checkpoint could not be restored: out of memory. The world is unchanged.');
+    if(status===-4)throw new EngineError('INVALID_PAYLOAD','Box3D refused the world snapshot; the world was reset to an empty one.');
+    if(status!==1)throw new EngineError('DISPOSED','The native context rejected the restore.');
+    this.refreshStreams(true);
   }
 
   get supportsSpatialQueries(): boolean { this.assertAlive();return typeof this.mod._b3w_world_query_batch==='function'; }

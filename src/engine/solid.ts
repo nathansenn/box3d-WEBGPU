@@ -1,4 +1,5 @@
 import {EngineError,finite,integer,onlyKeys,record} from './contracts.ts';
+import {captureFields,restoreFields,type FieldOptions,type StateObject,type StateValue} from './checkpoint.ts';
 import {boundaryFaces,tetVolume,SOLID_MAX_NODES,SOLID_MAX_TETS,type TetMesh} from './solid-mesh.ts';
 export {boxMesh,boxNode,boundaryFaces,tetVolume,SOLID_MAX_NODES,SOLID_MAX_TETS,type TetMesh,type BoxMeshOptions} from './solid-mesh.ts';
 
@@ -139,7 +140,16 @@ export function vonMisesStress(t:ArrayLike<number>,offset=0):number {
  * loads: tractions, pressure and gravity keep their reference direction and area.
  * No contact, no plasticity and no crack growth. See docs/SOLID_MECHANICS.md.
  */
+/** What an exact checkpoint of a SolidBody holds: every field it has (displacements, velocities, loads, constraints, the
+ * integrator's history and the corotational frames). */
+const SOLID_FIELDS:FieldOptions={label:'SolidBody'};
+
 export class SolidBody {
+  /** Everything a later step reads, as a state tree (checkpoint.ts), for exact checkpoints. */
+  saveState():StateObject {return captureFields(this,SOLID_FIELDS);}
+  /** Put back a state from `saveState()` of a solid with the same mesh, material and settings. */
+  restoreState(state:StateValue):void {restoreFields(this,state,SOLID_FIELDS);}
+
   readonly solver=SOLID_SOLVER_ID;
   readonly model:SolidModel;readonly integrator:SolidIntegrator;readonly dt:number;
   readonly nodeCount:number;readonly tetCount:number;

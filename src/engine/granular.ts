@@ -38,6 +38,7 @@
  * See docs/GRANULAR.md for the equations, the validation against closed forms and the limits.
  */
 import {EngineError} from './contracts.ts';
+import {captureFields,checkpointError,eachElement,holder,restoreFields,type FieldOptions,type StateObject,type StateValue} from './checkpoint.ts';
 import {principalMoments,type StructureInertia} from './structure-coupling.ts';
 import type {Subsystem} from './simulation.ts';
 
@@ -288,7 +289,18 @@ class Wall {
 // The solver.
 // -------------------------------------------------------------------------------------------------
 
+/** What an exact checkpoint of a Granular holds: every field (grains, the tangential springs of every contact, the
+ * neighbour lists, ledgers and statistics); the walls keep their identity. */
+const GRANULAR_FIELDS:FieldOptions={label:'Granular',nested:{walls:eachElement({label:'Granular wall'})}};
+/** What an exact checkpoint of a GranularCoupling holds: the grain set and the coupled bodies' records. */
+const GRANULAR_COUPLING_FIELDS:FieldOptions={label:'GranularCoupling',skip:['world','byBody'],nested:{granular:holder,list:eachElement({label:'GranularCoupling body'})}};
+
 export class Granular {
+  /** Everything a later step reads, as a state tree (checkpoint.ts), for exact checkpoints. */
+  saveState():StateObject {return captureFields(this,GRANULAR_FIELDS);}
+  /** Put back a state from `saveState()` of a grain set built the same way (same material, settings and walls; the grains themselves are restored). */
+  restoreState(state:StateValue):void {restoreFields(this,state,GRANULAR_FIELDS);}
+
   readonly solver=GRANULAR_SOLVER_ID;
   readonly dt:number;readonly capacity:number;readonly law:'hertz'|'linear';
   readonly gravity:Float64Array;
@@ -973,6 +985,11 @@ const flush=(value:number):number=>Math.fround(value)===0?0:value;
  * opposite signs.
  */
 export class GranularCoupling<B> {
+  /** Everything a later step reads, as a state tree (checkpoint.ts), for exact checkpoints. */
+  saveState():StateObject {return captureFields(this,GRANULAR_COUPLING_FIELDS);}
+  /** Put back a state from `saveState()` of a coupling set up the same way (same grain set and bodies, in the same order). */
+  restoreState(state:StateValue):void {restoreFields(this,state,GRANULAR_COUPLING_FIELDS);}
+
   readonly backend=GRANULAR_COUPLING_BACKEND;
   readonly world:GranularWorld<B>;readonly granular:Granular;
   /** The rigid step, s, and the grain steps taken in each. */
@@ -1098,6 +1115,13 @@ export function granularSubsystem<W,B>(target:Granular|GranularCoupling<B>,optio
         throw new EngineError('UNSTABLE_TIME_STEP',`The grain step ${dem.dt} s is ${dem.timeStepFraction.toFixed(3)} of the critical time; the limit is ${GRANULAR_TIME_STEP_LIMIT[dem.law]}.`);
     },
     step(ctx){if(coupling)coupling.step();else dem.step(ctx.substeps);},
+    // The solver (with the coupling's records) and the event cursors.
+    checkpoint(){return {state:(coupling??dem).saveState(),removed,removedMass,deep,warned};},
+    restore(state){
+      const s=state as {state?:StateValue;removed?:unknown;removedMass?:unknown;deep?:unknown;warned?:unknown}|null;
+      if(!s||typeof s.removed!=='number'||typeof s.removedMass!=='number'||typeof s.deep!=='boolean'||typeof s.warned!=='boolean')throw checkpointError(`Subsystem "${options.id??'granular'}": the saved state is malformed.`);
+      (coupling??dem).restoreState(s.state);removed=s.removed;removedMass=s.removedMass;deep=s.deep;warned=s.warned;
+    },
     finish(ctx){
       if(coupling)coupling.contactChanges((body,index,touching)=>ctx.emit(touching?'contact-begin':'contact-end',{body,index}));
       if(dem.stats.removed!==removed){ctx.emit('grains-removed',{count:dem.stats.removed-removed,mass:dem.stats.removedMass-removedMass});removed=dem.stats.removed;removedMass=dem.stats.removedMass;}

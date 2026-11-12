@@ -67,6 +67,53 @@ export interface BuildInfo {
 }
 export declare const BUILD_INFO: BuildInfo;
 
+// ==== core/checkpoint.d.ts ====
+import { EngineError } from './contracts.js';
+export type TypedArray = Float64Array | Float32Array | Int32Array | Uint32Array | Int16Array | Uint16Array | Int8Array | Uint8Array | Uint8ClampedArray | BigInt64Array | BigUint64Array;
+export type StateValue = null | undefined | boolean | number | string | bigint | TypedArray | readonly StateValue[] | StateObject;
+export interface StateObject {
+    readonly [key: string]: StateValue;
+}
+export declare const CHECKPOINT_ERROR = "CHECKPOINT_MISMATCH";
+export declare const checkpointError: (message: string) => EngineError;
+export declare function encodeState(value: StateValue): Uint8Array;
+export declare function decodeState(bytes: Uint8Array): StateValue;
+export declare const CHECKPOINT_VERSION = 1;
+export interface CheckpointInfo {
+    readonly kind: string;
+    readonly version: number;
+    readonly hash: string;
+    readonly bytes: number;
+}
+export declare function writeCheckpoint(kind: string, state: StateValue): Uint8Array;
+export declare function checkpointInfo(bytes: Uint8Array): CheckpointInfo;
+export declare function readCheckpoint(bytes: Uint8Array, kind: string): StateValue;
+export interface FieldHandler {
+    capture(value: unknown): StateValue;
+    restore(value: unknown, state: StateValue, owner: Record<string, unknown>, key: string): void;
+}
+export interface FieldOptions {
+    readonly label: string;
+    readonly skip?: readonly string[];
+    readonly nested?: {
+        readonly [key: string]: FieldHandler;
+    };
+}
+export declare function captureValue(value: unknown, path: string): StateValue;
+export declare function restoreValue(live: unknown, saved: StateValue, path: string): unknown;
+export declare function captureFields(target: object, options: FieldOptions): StateObject;
+export declare function restoreFields(target: object, state: StateValue, options: FieldOptions): void;
+export declare function eachElement(options: FieldOptions): FieldHandler;
+export declare function oneObject(options: FieldOptions): FieldHandler;
+export interface StateHolder {
+    saveState(): StateObject;
+    restoreState(state: StateValue): void;
+}
+export declare const holder: FieldHandler;
+export declare const IGNORE: FieldHandler;
+export declare function sha256(data: Uint8Array): Uint8Array;
+export declare const sha256Hex: (data: Uint8Array) => string;
+
 // ==== core/closed-water.d.ts ====
 import { type LinearWaterArrays, type LinearWaterConfig } from './linear-water.js';
 export declare const CLOSED_WATER_CPU_BACKEND = "linear-water-closed-cgrid-js-f32-v1";
@@ -82,6 +129,7 @@ export declare function createClosedWaterArrays(input: LinearWaterConfig, initia
 export declare function stepClosedWaterCpu(s: LinearWaterArrays, c: Readonly<LinearWaterConfig>): void;
 
 // ==== core/cloth.d.ts ====
+import { type StateObject, type StateValue } from './checkpoint.js';
 import { type StructureInertia } from './structure-coupling.js';
 import type { Subsystem } from './simulation.js';
 export declare const CLOTH_SOLVER_ID = "cloth-stvk-koiter-newton-pcg-js-f64-v1";
@@ -198,6 +246,8 @@ export declare function clothGrid(options: {
     readonly seed?: number;
 }): ClothGrid;
 export declare class Cloth {
+    saveState(): StateObject;
+    restoreState(state: StateValue): void;
     readonly solver = "cloth-stvk-koiter-newton-pcg-js-f64-v1";
     readonly nodeCount: number;
     readonly triangleCount: number;
@@ -427,6 +477,8 @@ export interface ClothCouplingDiagnostics {
     mass: number;
 }
 export declare class ClothCoupling<B> {
+    saveState(): StateObject;
+    restoreState(state: StateValue): void;
     readonly backend = "rigid-cloth-coupling-monolithic-js-f64-v1";
     readonly world: ClothWorld<B>;
     readonly cloth: Cloth;
@@ -464,6 +516,7 @@ export declare function clothSubsystem<W, B>(target: Cloth | ClothCoupling<B>, o
 
 // ==== core/compliant-cable.d.ts ====
 import { type EngineCapabilities, type EngineRuntime, type FixedTickCommand, type FixedTickStep } from './contracts.js';
+import { type StateObject, type StateValue } from './checkpoint.js';
 export declare const COMPLIANT_CABLE_BACKEND = "cable-xpbd-js-f64-v1";
 export declare const PROXIMAL_CABLE_BACKEND = "cable-proximal-js-f64-v2";
 type CableBackend = typeof COMPLIANT_CABLE_BACKEND | typeof PROXIMAL_CABLE_BACKEND;
@@ -616,6 +669,8 @@ export declare class CompliantCableRuntime implements EngineRuntime<CableStepReq
     inspect(): CableSnapshot;
     checkpoint(): CableCheckpoint;
     static fromCheckpoint(value: unknown): CompliantCableRuntime;
+    saveState(): StateObject;
+    restoreState(state: StateValue): void;
     destroy(): void;
 }
 export declare function hangingCableDefinition(input: {
@@ -674,6 +729,7 @@ export declare function validateTickBatch<C extends FixedTickCommand>(tick: numb
 };
 
 // ==== core/fluid.d.ts ====
+import { type StateObject, type StateValue } from './checkpoint.js';
 import type { Subsystem } from './simulation.js';
 export declare const FLUID_SOLVER_ID = "fluid-mac-projection-mic-pcg-js-f64-v1";
 export declare const FLUID_COUPLING_BACKEND = "rigid-fluid-coupling-fictitious-domain-js-f64-v1";
@@ -757,6 +813,8 @@ interface Side {
 }
 export declare function fluidShapeVolume(s: FluidShape): number;
 export declare class Fluid {
+    saveState(): StateObject;
+    restoreState(state: StateValue): void;
     readonly solver = "fluid-mac-projection-mic-pcg-js-f64-v1";
     readonly nx: number;
     readonly ny: number;
@@ -951,6 +1009,8 @@ export interface FreeSurfaceStats {
     divergence: number;
 }
 export declare class FreeSurfaceFluid {
+    saveState(): StateObject;
+    restoreState(state: StateValue): void;
     readonly solver = "fluid-free-surface-apic-mac-js-f64-v1";
     readonly nx: number;
     readonly ny: number;
@@ -1078,6 +1138,8 @@ export interface FluidCouplingDiagnostics {
     workByBodies: number;
 }
 export declare class FluidCoupling<B> {
+    saveState(): StateObject;
+    restoreState(state: StateValue): void;
     readonly backend = "rigid-fluid-coupling-fictitious-domain-js-f64-v1";
     readonly world: FluidWorld<B>;
     readonly fluid: Fluid;
@@ -1136,6 +1198,7 @@ export declare function frameElementMatrices(value: unknown, positions: ArrayLik
 
 // ==== core/frame-runtime.d.ts ====
 import { type EngineCapabilities, type EngineRuntime, type FixedTickCommand, type FixedTickStep } from './contracts.js';
+import { type StateObject, type StateValue } from './checkpoint.js';
 import { type FrameElement } from './frame-element.js';
 export declare const FRAME_BACKEND = "frame-eb-midpoint-js-f64-v1";
 export interface FrameConfig {
@@ -1327,6 +1390,8 @@ export declare class FrameRuntime implements EngineRuntime<FrameStepRequest, Fra
     inspect(): FrameSnapshot;
     checkpoint(): FrameCheckpoint;
     static fromCheckpoint(value: unknown): FrameRuntime;
+    saveState(): StateObject;
+    restoreState(state: StateValue): void;
     destroy(): void;
 }
 export {};
@@ -1466,6 +1531,7 @@ export declare function parseGLB(data: BinaryLike, buffers?: GLTFBuffers): Trian
 export {};
 
 // ==== core/granular.d.ts ====
+import { type StateObject, type StateValue } from './checkpoint.js';
 import { type StructureInertia } from './structure-coupling.js';
 import type { Subsystem } from './simulation.js';
 export declare const GRANULAR_SOLVER_ID = "granular-dem-soft-sphere-verlet-js-f64-v1";
@@ -1590,6 +1656,8 @@ export declare function granularLattice(options: {
     readonly inside?: (x: number, y: number, z: number, r: number) => boolean;
 }): GranularLattice;
 export declare class Granular {
+    saveState(): StateObject;
+    restoreState(state: StateValue): void;
     readonly solver = "granular-dem-soft-sphere-verlet-js-f64-v1";
     readonly dt: number;
     readonly capacity: number;
@@ -1756,6 +1824,8 @@ export interface GranularCouplingDiagnostics {
     mass: number;
 }
 export declare class GranularCoupling<B> {
+    saveState(): StateObject;
+    restoreState(state: StateValue): void;
     readonly backend = "rigid-granular-coupling-subcycled-js-f64-v1";
     readonly world: GranularWorld<B>;
     readonly granular: Granular;
@@ -1784,6 +1854,7 @@ export declare function granularSubsystem<W, B>(target: Granular | GranularCoupl
 }): Subsystem<W, B>;
 
 // ==== core/heat.d.ts ====
+import { type StateObject, type StateValue } from './checkpoint.js';
 export declare const HEAT_SOLVER_ID = "heat-fv-implicit-js-f64-v1";
 export declare const STEFAN_BOLTZMANN = 5.670374419e-8;
 export declare const HEAT_MAX_CELLS = 2097152;
@@ -1940,6 +2011,8 @@ export declare class HeatSolver {
     };
     cellFaceFlux(i: number, j: number, k: number, face: HeatFace): number;
     faceTemperature(i: number, j: number, k: number, face: HeatFace): number;
+    saveState(): StateObject;
+    restoreState(value: StateValue): void;
     diagnostics(): HeatDiagnostics;
 }
 export type ThermalConstraint = 'bar' | 'plate' | 'volume';
@@ -2273,6 +2346,10 @@ export interface NativeWorldModule {
     _b3w_world_set_body_mass_data?(world: number, body: bigint, values: number | bigint): number;
     _b3w_world_get_body_mass_data?(world: number, body: bigint, out: number | bigint): number;
     _b3w_world_reset_body_mass_data?(world: number, body: bigint): number;
+    _b3w_world_checkpoint?(world: number): number;
+    _b3w_world_checkpoint_ptr?(world: number): number | bigint;
+    _b3w_world_checkpoint_free?(world: number): number;
+    _b3w_world_restore?(world: number, data: number | bigint, size: number): number;
 }
 declare const JOINT_OWNER: unique symbol;
 export interface NativeJointHandle {
@@ -2549,6 +2626,9 @@ export declare class NativeWorldBackend implements PhysicsBackend {
         events: NativeWorldEvent[];
         dropped: number;
     };
+    get supportsCheckpoints(): boolean;
+    checkpoint(): Uint8Array;
+    restoreCheckpoint(bytes: Uint8Array): void;
     get supportsSpatialQueries(): boolean;
     spatialQueryInfo(): {
         supported: boolean;
@@ -3785,6 +3865,7 @@ import { ClothCoupling } from './cloth.js';
 import { GranularCoupling } from './granular.js';
 import { Fluid, FluidCoupling, FreeSurfaceFluid } from './fluid.js';
 import { SceneBuilder, type Scene, type SceneHost } from './scene-format.js';
+import { type StateValue } from './checkpoint.js';
 import type { NativeBodyHandle, NativeJointHandle } from './native-world.js';
 export declare const SIMULATION_STAGES: readonly ["pre-couple", "couple", "rigid", "post", "events"];
 export type SimulationStage = typeof SIMULATION_STAGES[number];
@@ -3802,6 +3883,8 @@ export interface SimulationWorld<B = unknown> {
     };
     readonly subSteps?: number;
     readonly tick?: number;
+    checkpoint?(): Uint8Array;
+    restoreCheckpoint?(bytes: Uint8Array): void;
     step(): void;
     gravity(): readonly number[];
     getState(body: B): {
@@ -3858,6 +3941,8 @@ export interface Subsystem<W = unknown, B = unknown> {
     energy?(): SubsystemEnergy;
     diagnostics?(): unknown;
     dispose?(): void;
+    checkpoint?(): StateValue;
+    restore?(state: StateValue): void;
 }
 export interface SimulationEvent {
     readonly tick: number;
@@ -3897,6 +3982,27 @@ export interface SimulationDiagnostics {
 export interface SimulationOptions {
     readonly maxSteps?: number;
 }
+export interface SimulationSource {
+    readonly sceneHash: string;
+    readonly scene: string;
+}
+export interface SimulationCheckpointOptions {
+    readonly scene?: boolean;
+}
+export interface SimulationCheckpointInfo {
+    readonly version: number;
+    readonly hash: string;
+    readonly bytes: number;
+    readonly tick: number;
+    readonly time: number;
+    readonly dt: number;
+    readonly sceneHash: string | null;
+    readonly scene: string | null;
+    readonly subsystems: readonly {
+        readonly id: string;
+        readonly kind: string;
+    }[];
+}
 export declare function resolveTiming(id: string, kind: string, timeStep: SubsystemTimeStep, dt: number): SubsystemTiming;
 export declare class Simulation<W extends SimulationWorld<B>, B = unknown> {
     readonly world: W;
@@ -3917,6 +4023,7 @@ export declare class Simulation<W extends SimulationWorld<B>, B = unknown> {
     private accumulator;
     private disposed;
     private source;
+    private originSource;
     private readonly ctx;
     constructor(world: W, options?: SimulationOptions);
     get tick(): number;
@@ -3943,6 +4050,12 @@ export declare class Simulation<W extends SimulationWorld<B>, B = unknown> {
     untrackBody(body: B): boolean;
     energy(): SimulationEnergy;
     diagnostics(): SimulationDiagnostics;
+    get sceneSource(): SimulationSource | null;
+    setSceneSource(source: SimulationSource | (() => SimulationSource) | null): void;
+    private get origin();
+    private plan;
+    checkpoint(options?: SimulationCheckpointOptions): Uint8Array;
+    restore(bytes: Uint8Array): void;
     dispose(): void;
 }
 export declare function waterSubsystem<W, B>(water: WaterCoupling<B>, options?: {
@@ -4023,9 +4136,12 @@ export interface SceneSolidRuntime<B> {
 }
 export declare function buildSceneSimulation<W extends SimulationSceneWorld>(world: W, builder: SceneBuilder<W>, scene: Scene): LoadedSimulationScene<W>;
 export declare function loadSimulationScene<W extends SimulationSceneWorld>(world: W, scene: unknown): LoadedSimulationScene<W>;
+export declare function simulationCheckpointInfo(bytes: Uint8Array): SimulationCheckpointInfo;
+export declare function resumeSimulationScene<W extends SimulationSceneWorld>(world: W, bytes: Uint8Array): LoadedSimulationScene<W>;
 export {};
 
 // ==== core/solid-contact.d.ts ====
+import { type StateObject, type StateValue } from './checkpoint.js';
 import { SolidBody } from './solid.js';
 import { type StructureInertia } from './structure-coupling.js';
 import type { Subsystem } from './simulation.js';
@@ -4089,6 +4205,8 @@ export interface SolidStaticContactResult {
     change: number;
 }
 export declare class SolidContact {
+    saveState(): StateObject;
+    restoreState(state: StateValue): void;
     readonly solver = "solid-contact-penalty-newton-pcg-js-f64-v1";
     readonly solid: SolidBody;
     readonly dt: number;
@@ -4258,6 +4376,8 @@ export interface SolidCouplingDiagnostics {
     mass: number;
 }
 export declare class SolidCoupling<B> {
+    saveState(): StateObject;
+    restoreState(state: StateValue): void;
     readonly backend = "rigid-solid-coupling-monolithic-js-f64-v1";
     readonly world: SolidWorld<B>;
     readonly contact: SolidContact;
@@ -4293,6 +4413,7 @@ export declare function solidContactSubsystem<W, B>(target: SolidContact | Solid
 }): Subsystem<W, B>;
 
 // ==== core/solid-fracture.d.ts ====
+import { type StateObject, type StateValue } from './checkpoint.js';
 import { type TetMesh } from './solid-mesh.js';
 import { type SolidMaterial } from './solid.js';
 import { HeatSolver, type ThermalShockOptions } from './heat.js';
@@ -4401,6 +4522,8 @@ export declare function gradedBoxMesh(options: {
     pattern?: 'alternating5' | 'kuhn6';
 }): TetMesh;
 export declare class FractureBody {
+    saveState(): StateObject;
+    restoreState(state: StateValue): void;
     readonly solver = "solid-fracture-czm-js-f64-v1";
     readonly model: FractureModel;
     readonly integrator: FractureIntegrator;
@@ -4672,6 +4795,7 @@ export declare function boxMesh(options: BoxMeshOptions): TetMesh;
 export declare function boundaryFaces(mesh: TetMesh): Uint32Array;
 
 // ==== core/solid.d.ts ====
+import { type StateObject, type StateValue } from './checkpoint.js';
 import { type TetMesh } from './solid-mesh.js';
 export { boxMesh, boxNode, boundaryFaces, tetVolume, SOLID_MAX_NODES, SOLID_MAX_TETS, type TetMesh, type BoxMeshOptions } from './solid-mesh.js';
 export declare const SOLID_SOLVER_ID = "solid-tet-corot-js-f64-v1";
@@ -4754,6 +4878,8 @@ export interface SolidKernel {
 export declare function symmetricEigenvalues(t: ArrayLike<number>, offset: number, out: Float64Array | number[], outOffset: number): void;
 export declare function vonMisesStress(t: ArrayLike<number>, offset?: number): number;
 export declare class SolidBody {
+    saveState(): StateObject;
+    restoreState(state: StateValue): void;
     readonly solver = "solid-tet-corot-js-f64-v1";
     readonly model: SolidModel;
     readonly integrator: SolidIntegrator;
@@ -4877,6 +5003,7 @@ export declare class SolidBody {
 }
 
 // ==== core/structure-coupling.d.ts ====
+import { type StateObject, type StateValue } from './checkpoint.js';
 import type { CompliantCableRuntime } from './compliant-cable.js';
 import type { FrameRuntime } from './frame-runtime.js';
 export declare const STRUCTURE_COUPLING_BACKEND = "rigid-structure-coupling-schur-proxy-js-f64-v1";
@@ -4988,6 +5115,8 @@ export declare class StructureCoupling<B> {
     private readonly t6b;
     private readonly out3;
     constructor(world: StructureWorld<B>, options?: StructureCouplingOptions);
+    saveState(): StateObject;
+    restoreState(state: StateValue): void;
     addCable(cable: CompliantCableRuntime): this;
     addFrame(frame: FrameRuntime): this;
     private cableCarrier;
@@ -5017,6 +5146,7 @@ export declare class StructureCoupling<B> {
 
 // ==== core/water-coupling.d.ts ====
 import { type LinearWaterArrays, type LinearWaterConfig } from './linear-water.js';
+import { type StateObject, type StateValue } from './checkpoint.js';
 export declare const WATER_COUPLING_BACKEND = "rigid-water-coupling-closed-cgrid-js-f64-v1";
 export type CouplingVec3 = readonly [number, number, number];
 export type CouplingShape = {
@@ -5132,6 +5262,8 @@ export declare class WaterCoupling<B> {
     verticalDragTotal(): number;
     waterKineticEnergy(): number;
     waterPotentialEnergy(): number;
+    saveState(): StateObject;
+    restoreState(state: StateValue): void;
     copyTo(arrays: Pick<LinearWaterArrays, 'eta' | 'u' | 'v'>): void;
     private readGravity;
     private find;
@@ -5498,6 +5630,8 @@ export declare class FixedStepLoop {
     constructor(options?: FixedStepOptions);
     advance(frameSeconds: number, tick: (step: number) => void): FixedStepResult;
     reset(): void;
+    get pending(): number;
+    setPending(seconds: number): void;
 }
 export declare function pauseOnHidden(target: FixedStepLoop | {
     readonly loop: FixedStepLoop;
@@ -5675,10 +5809,12 @@ export declare class SharedFrameReader {
 import { Simulation, type LoadedSimulationScene as CoreLoadedSimulationScene, type SimulationOptions } from './core/simulation.js';
 import type { Body, PhysicsWorld } from './world.js';
 export * from './core/simulation.js';
+export { CHECKPOINT_VERSION, CHECKPOINT_ERROR, checkpointInfo, type CheckpointInfo, type StateValue } from './core/checkpoint.js';
 export type WorldSimulation = Simulation<PhysicsWorld, Body>;
 export type LoadedSimulationScene = CoreLoadedSimulationScene<PhysicsWorld>;
 export declare function createSimulation(world: PhysicsWorld, options?: SimulationOptions): WorldSimulation;
 export declare function loadSimulationScene(world: PhysicsWorld, scene: unknown): LoadedSimulationScene;
+export declare function resumeSimulation(world: PhysicsWorld, bytes: Uint8Array): LoadedSimulationScene;
 
 // ==== solid-contact.d.ts ====
 export * from './core/solid-contact.js';
@@ -5885,6 +6021,8 @@ export declare class RemoteWorld implements InstanceSource {
     }>;
     loadPreset(id: number, stress?: number, seed?: number): Promise<number>;
     stats(): Promise<WorldStats>;
+    checkpoint(): Promise<Uint8Array>;
+    restoreCheckpoint(bytes: Uint8Array): Promise<void>;
     exactHash(): Promise<number>;
     replayHash(): Promise<number>;
     startRecording(options?: RecordingOptions): Promise<void>;
@@ -6246,6 +6384,8 @@ export declare class PhysicsWorld {
     startRecording(options?: RecordingOptions): void;
     stopRecording(): ReplayLog;
     get isRecording(): boolean;
+    checkpoint(): Uint8Array;
+    restoreCheckpoint(bytes: Uint8Array): void;
     replay(log: ReplayLog): boolean;
     replayDetailed(log: ReplayLog): ReplayReport;
     private replayCommands;

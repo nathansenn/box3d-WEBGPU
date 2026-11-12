@@ -5,6 +5,8 @@
 
 #include <box3d/box3d.h>
 
+#include "box3d_snapshot.h"
+
 #include <math.h>
 #include <stdint.h>
 #include <stdlib.h>
@@ -140,6 +142,11 @@ typedef struct B3WContext
     struct B3WMassOverride* massOverrides;
     int massOverrideCount;
     int massOverrideCapacity;
+    // Exact checkpoints. The geometry that the shapes of a restored world borrow, and the last
+    // checkpoint written (box3d_snapshot.c, b3w_world_checkpoint).
+    void* snapshotHolder;
+    uint8_t* checkpoint;
+    int checkpointSize;
 } B3WContext;
 
 // The compatibility world retains fixed arrays and stable offsets. Explicit
@@ -732,6 +739,8 @@ static void b3w_ctx_destroy_world(B3WContext* ctx)
         ctx->world = b3_nullWorldId;
     }
     b3w_ctx_free_geometry(ctx, -1);
+    b3w_snapshot_release(ctx->snapshotHolder);
+    ctx->snapshotHolder = NULL;
     ctx->massOverrideCount = 0;
 
     if (ctx->kinds != NULL) memset(ctx->kinds, 0, (size_t)ctx->bodyCount);
@@ -1758,6 +1767,7 @@ B3W_EXPORT int b3w_world_destroy(uint32_t handle)
     free(ctx->events);
     free(ctx->geometry);
     free(ctx->massOverrides);
+    free(ctx->checkpoint);
     free(ctx);
     B3WContextSlot* slot = &g_contextSlots[(handle & B3W_CONTEXT_SLOT_MASK) - 1u];
     slot->context = NULL;
@@ -3065,4 +3075,232 @@ B3W_EXPORT int b3w_world_event_total(uint32_t handle)
 {
     B3WContext* ctx = b3w_lookup_context(handle);
     return ctx != NULL ? ctx->eventTotal : -1;
+}
+
+// ---------------------------------------------------------------------------
+// Exact checkpoints. A checkpoint holds this world's body table (handles, rows,
+// render streams, kinds, mass overrides, RNG) and Box3D's own complete snapshot
+// of the simulation state (box3d_snapshot.c). Restoring it into a world of the
+// same build makes every later step bit-identical to the uninterrupted run.
+// ---------------------------------------------------------------------------
+
+#define B3W_CHECKPOINT_MAGIC 0x43573342u // 'B3WC'
+#define B3W_CHECKPOINT_VERSION 1u
+#define B3W_CHECKPOINT_HEADER 48
+
+typedef struct B3WCheckpointHeader
+{
+    uint32_t magic, version, flags;
+    int32_t bodyCount, dynamicCount, slotsUsed, freeSlot, capacity, massOverrideCount;
+    uint32_t rng;
+    b3BodyId anchor;
+} B3WCheckpointHeader;
+_Static_assert(sizeof(B3WCheckpointHeader) == B3W_CHECKPOINT_HEADER, "Checkpoint header must be 48 bytes");
+_Static_assert(sizeof(B3WBody) == 36 && sizeof(B3WBodySlot) == 16, "Checkpoint body rows must have no padding");
+
+static size_t b3w_checkpoint_table_bytes(const B3WCheckpointHeader* h)
+{
+    return (size_t)h->bodyCount * (sizeof(B3WBody) + 16u * sizeof(float) + 4u * sizeof(float) + ((h->flags & 1u) != 0u ? 1u : 0u))
+        + (size_t)h->dynamicCount * sizeof(int) + (size_t)h->slotsUsed * sizeof(B3WBodySlot)
+        + (size_t)h->massOverrideCount * sizeof(struct B3WMassOverride);
+}
+
+// Writes a checkpoint of the world into a buffer the world owns and returns its length in bytes:
+// read it at b3w_world_checkpoint_ptr before the next call. -1 for an unknown or empty world, -3 when memory ran out.
+B3W_EXPORT int b3w_world_checkpoint(uint32_t handle)
+{
+    B3WContext* ctx = b3w_lookup_context(handle);
+    if (ctx == NULL || B3_IS_NULL(ctx->world) || ctx->bodySlots == NULL) return -1;
+    free(ctx->checkpoint);
+    ctx->checkpoint = NULL;
+    ctx->checkpointSize = 0;
+    int snapshotSize = 0;
+    uint8_t* snapshot = b3w_snapshot_capture(ctx->world, &snapshotSize);
+    if (snapshot == NULL) return -3;
+    B3WCheckpointHeader h;
+    memset(&h, 0, sizeof(h));
+    h.magic = B3W_CHECKPOINT_MAGIC; h.version = B3W_CHECKPOINT_VERSION; h.flags = ctx->kinds != NULL ? 1u : 0u;
+    h.bodyCount = ctx->bodyCount; h.dynamicCount = ctx->dynamicCount; h.slotsUsed = ctx->slotsUsed; h.freeSlot = ctx->freeSlot;
+    h.capacity = ctx->capacity; h.massOverrideCount = ctx->massOverrideCount; h.rng = ctx->rng; h.anchor = ctx->anchor;
+    const size_t table = b3w_checkpoint_table_bytes(&h), total = sizeof(h) + table + 4u + (size_t)snapshotSize;
+    uint8_t* out = total <= 0x7FFFFFFFu ? (uint8_t*)malloc(total) : NULL;
+    if (out == NULL) { free(snapshot); return -3; }
+    uint8_t* p = out;
+    memcpy(p, &h, sizeof(h)); p += sizeof(h);
+    memcpy(p, ctx->bodies, (size_t)h.bodyCount * sizeof(B3WBody)); p += (size_t)h.bodyCount * sizeof(B3WBody);
+    memcpy(p, ctx->dynamicIndices, (size_t)h.dynamicCount * sizeof(int)); p += (size_t)h.dynamicCount * sizeof(int);
+    memcpy(p, ctx->bodySlots, (size_t)h.slotsUsed * sizeof(B3WBodySlot)); p += (size_t)h.slotsUsed * sizeof(B3WBodySlot);
+    memcpy(p, ctx->matrices, (size_t)h.bodyCount * 16u * sizeof(float)); p += (size_t)h.bodyCount * 16u * sizeof(float);
+    memcpy(p, ctx->colors, (size_t)h.bodyCount * 4u * sizeof(float)); p += (size_t)h.bodyCount * 4u * sizeof(float);
+    if ((h.flags & 1u) != 0u) { memcpy(p, ctx->kinds, (size_t)h.bodyCount); p += h.bodyCount; }
+    memcpy(p, ctx->massOverrides, (size_t)h.massOverrideCount * sizeof(struct B3WMassOverride)); p += (size_t)h.massOverrideCount * sizeof(struct B3WMassOverride);
+    const uint32_t size32 = (uint32_t)snapshotSize;
+    memcpy(p, &size32, 4u); p += 4;
+    memcpy(p, snapshot, (size_t)snapshotSize);
+    free(snapshot);
+    // The world ids in the body table name this world; a restore rewrites them for the world it lands in.
+    ctx->checkpoint = out;
+    ctx->checkpointSize = (int)total;
+    return ctx->checkpointSize;
+}
+
+B3W_EXPORT uintptr_t b3w_world_checkpoint_ptr(uint32_t handle)
+{
+    B3WContext* ctx = b3w_lookup_context(handle);
+    return ctx != NULL ? (uintptr_t)ctx->checkpoint : 0u;
+}
+
+// Frees the buffer of the last checkpoint. Returns 1, or -1 for an unknown world.
+B3W_EXPORT int b3w_world_checkpoint_free(uint32_t handle)
+{
+    B3WContext* ctx = b3w_lookup_context(handle);
+    if (ctx == NULL) return -1;
+    free(ctx->checkpoint);
+    ctx->checkpoint = NULL;
+    ctx->checkpointSize = 0;
+    return 1;
+}
+
+// Replaces the world's state with a checkpoint that b3w_world_checkpoint wrote in a module of the same build.
+// Returns 1; -1 for an unknown or empty world; -2 for bytes that are not such a checkpoint (nothing is changed);
+// -3 when memory ran out (nothing is changed); -4 when Box3D refused the snapshot after it began to overwrite
+// the world, which is then reset to an empty world without bodies.
+B3W_EXPORT int b3w_world_restore(uint32_t handle, const uint8_t* data, int size)
+{
+    B3WContext* ctx = b3w_lookup_context(handle);
+    if (ctx == NULL || B3_IS_NULL(ctx->world) || ctx->bodySlots == NULL) return -1;
+    if (data == NULL || size < B3W_CHECKPOINT_HEADER + 4) return -2;
+    B3WCheckpointHeader h;
+    memcpy(&h, data, sizeof(h));
+    if (h.magic != B3W_CHECKPOINT_MAGIC || h.version != B3W_CHECKPOINT_VERSION || (h.flags & ~1u) != 0u) return -2;
+    if (h.bodyCount < 0 || h.dynamicCount < 0 || h.dynamicCount > h.bodyCount || h.slotsUsed < h.bodyCount || h.massOverrideCount < 0) return -2;
+    if (h.capacity < 1 || h.capacity > B3W_BODY_CAPACITY_LIMIT || h.slotsUsed > h.capacity || h.freeSlot < -1 || h.freeSlot >= h.slotsUsed) return -2;
+    const size_t table = b3w_checkpoint_table_bytes(&h);
+    if ((size_t)size < sizeof(h) + table + 4u) return -2;
+    const uint8_t* p = data + sizeof(h);
+    const B3WBody* bodies = (const B3WBody*)p; p += (size_t)h.bodyCount * sizeof(B3WBody);
+    const uint8_t* dynamicIndices = p; p += (size_t)h.dynamicCount * sizeof(int);
+    const uint8_t* bodySlots = p; p += (size_t)h.slotsUsed * sizeof(B3WBodySlot);
+    const uint8_t* matrices = p; p += (size_t)h.bodyCount * 16u * sizeof(float);
+    const uint8_t* colors = p; p += (size_t)h.bodyCount * 4u * sizeof(float);
+    const uint8_t* kinds = NULL;
+    if ((h.flags & 1u) != 0u) { kinds = p; p += h.bodyCount; }
+    const uint8_t* massOverrides = p; p += (size_t)h.massOverrideCount * sizeof(struct B3WMassOverride);
+    uint32_t snapshotSize;
+    memcpy(&snapshotSize, p, 4u); p += 4;
+    if ((uint64_t)snapshotSize != (uint64_t)(data + size - p)) return -2;
+    if (b3w_snapshot_check(p, (int)snapshotSize) == 0) return -2;
+    for (int i = 0; i < h.bodyCount; ++i)
+    {
+        B3WBody row;
+        memcpy(&row, bodies + i, sizeof(row));
+        if (row.slot < 0 || row.slot >= h.slotsUsed) return -2;
+    }
+
+    // Everything that can fail without touching the world comes first.
+    if (h.capacity > ctx->capacity && b3w_ctx_reserve(ctx, h.capacity) < 0) return -3;
+    if (kinds != NULL && ctx->kinds == NULL)
+    {
+        ctx->kinds = (uint8_t*)calloc((size_t)ctx->capacity, 1u);
+        if (ctx->kinds == NULL) return -3;
+    }
+    if (h.massOverrideCount > ctx->massOverrideCapacity)
+    {
+        struct B3WMassOverride* list = (struct B3WMassOverride*)realloc(ctx->massOverrides, (size_t)h.massOverrideCount * sizeof(struct B3WMassOverride));
+        if (list == NULL) return -3;
+        ctx->massOverrides = list;
+        ctx->massOverrideCapacity = h.massOverrideCount;
+    }
+
+    void* holder = b3w_snapshot_restore(ctx->world, p, (int)snapshotSize);
+    if (holder == NULL)
+    {
+        b3w_ctx_destroy_world(ctx);
+        b3WorldDef worldDef = b3DefaultWorldDef();
+        worldDef.gravity = (b3Vec3){ 0.0f, -9.81f, 0.0f };
+        worldDef.workerCount = 1;
+        worldDef.enableSleep = true;
+        worldDef.enableContinuous = true;
+        ctx->world = b3CreateWorld(&worldDef);
+        return -4;
+    }
+    // The restored mesh and height-field shapes borrow the holder's geometry; the bridge's own copies are unused now.
+    b3w_ctx_free_geometry(ctx, -1);
+    b3w_snapshot_release(ctx->snapshotHolder);
+    ctx->snapshotHolder = holder;
+
+    const uint16_t world0 = (uint16_t)(ctx->world.index1 - 1);
+    // Body handles belong to the world they were made in. When this world holds as many bodies as the checkpoint (it
+    // was built the same way, as a scene load does), every row keeps the handle it has here: the rows take the
+    // checkpoint's simulation data and this world's slots, so the handles its caller holds stay valid even when the
+    // world was used before and its slots carry other generations. Otherwise the checkpoint's whole handle table is
+    // taken, and the bodies have the handles they had where the checkpoint was written.
+    const int keepHandles = ctx->bodyCount == h.bodyCount;
+    if (keepHandles)
+    {
+        for (int i = 0; i < h.bodyCount; ++i)
+        {
+            B3WBody row;
+            memcpy(&row, bodies + i, sizeof(row));
+            row.slot = ctx->bodies[i].slot;
+            ctx->bodies[i] = row;
+        }
+        int written = 0;
+        for (int k = 0; k < h.massOverrideCount; ++k)
+        {
+            struct B3WMassOverride entry;
+            memcpy(&entry, massOverrides + (size_t)k * sizeof(entry), sizeof(entry));
+            if (entry.slot < 0 || entry.slot >= h.slotsUsed) continue;
+            B3WBodySlot savedSlot;
+            memcpy(&savedSlot, bodySlots + (size_t)entry.slot * sizeof(B3WBodySlot), sizeof(savedSlot));
+            if (savedSlot.denseIndex < 0 || savedSlot.denseIndex >= h.bodyCount) continue;
+            entry.slot = ctx->bodies[savedSlot.denseIndex].slot;
+            ctx->massOverrides[written++] = entry;
+        }
+        ctx->massOverrideCount = written;
+    }
+    else
+    {
+        // Rows the restored table no longer uses are cleared, as a destroy leaves them.
+        if (ctx->bodyCount > h.bodyCount)
+        {
+            memset(ctx->bodies + h.bodyCount, 0, (size_t)(ctx->bodyCount - h.bodyCount) * sizeof(B3WBody));
+            memset(ctx->matrices + (size_t)h.bodyCount * 16u, 0, (size_t)(ctx->bodyCount - h.bodyCount) * 16u * sizeof(float));
+            memset(ctx->colors + (size_t)h.bodyCount * 4u, 0, (size_t)(ctx->bodyCount - h.bodyCount) * 4u * sizeof(float));
+            if (ctx->kinds != NULL) memset(ctx->kinds + h.bodyCount, 0, (size_t)(ctx->bodyCount - h.bodyCount));
+        }
+        memcpy(ctx->bodies, bodies, (size_t)h.bodyCount * sizeof(B3WBody));
+        memcpy(ctx->bodySlots, bodySlots, (size_t)h.slotsUsed * sizeof(B3WBodySlot));
+        memcpy(ctx->massOverrides, massOverrides, (size_t)h.massOverrideCount * sizeof(struct B3WMassOverride));
+        ctx->massOverrideCount = h.massOverrideCount;
+        ctx->slotsUsed = h.slotsUsed;
+        ctx->freeSlot = h.freeSlot;
+    }
+    if (ctx->dynamicCount > h.dynamicCount) memset(ctx->dynamicIndices + h.dynamicCount, 0, (size_t)(ctx->dynamicCount - h.dynamicCount) * sizeof(int));
+    memcpy(ctx->dynamicIndices, dynamicIndices, (size_t)h.dynamicCount * sizeof(int));
+    memcpy(ctx->matrices, matrices, (size_t)h.bodyCount * 16u * sizeof(float));
+    memcpy(ctx->colors, colors, (size_t)h.bodyCount * 4u * sizeof(float));
+    if (ctx->kinds != NULL)
+    {
+        if (kinds != NULL) memcpy(ctx->kinds, kinds, (size_t)h.bodyCount);
+        else memset(ctx->kinds, 0, (size_t)h.bodyCount);
+    }
+    ctx->bodyCount = h.bodyCount;
+    ctx->dynamicCount = h.dynamicCount;
+    ctx->rng = h.rng;
+    ctx->anchor = h.anchor;
+    if (B3_IS_NON_NULL(ctx->anchor)) ctx->anchor.world0 = world0;
+    // Box3D's snapshot leaves body user data empty; the bridge keeps each body's slot there.
+    for (int i = 0; i < ctx->bodyCount; ++i)
+    {
+        ctx->bodies[i].id.world0 = world0;
+        b3Body_SetUserData(ctx->bodies[i].id, (void*)(uintptr_t)(ctx->bodies[i].slot + 1));
+    }
+    ctx->eventCount = 0;
+    ctx->eventTotal = 0;
+    ctx->hashDirty = 1;
+    ctx->transformVersion += 1u;
+    ctx->colorVersion += 1u;
+    if (ctx->queries.version < UINT32_MAX) ctx->queries.version += 1u;
+    return 1;
 }

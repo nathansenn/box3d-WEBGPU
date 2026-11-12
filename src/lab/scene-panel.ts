@@ -1,6 +1,7 @@
 /**
  * The Lab's scene panel: open a scene or geometry file (button or drag and
- * drop), pick an example, copy a share link, download the scene and reset it.
+ * drop), pick an example, copy a share link, download the scene and reset it,
+ * and save or load an exact checkpoint of the running simulation.
  * It also shows what was loaded, the import notes and any error.
  *
  * Every string that comes from a file, a link or the address is written with
@@ -14,6 +15,10 @@ export interface ScenePanelCallbacks {
   onExample(name: string): void;
   onCopyLink(): void;
   onDownload(): void;
+  /** Save an exact checkpoint of the running simulation (docs/CHECKPOINTS.md). */
+  onSaveCheckpoint(): void;
+  /** Resume a checkpoint file: its scene is loaded and the simulation continues exactly where it was saved. */
+  onLoadCheckpoint(file: File): void;
   onReset(): void;
   /** Start an empty SI scene in the editor. */
   onNewScene(): void;
@@ -55,7 +60,7 @@ function element<K extends keyof HTMLElementTagNameMap>(tag: K, className: strin
 export function createScenePanel(callbacks: ScenePanelCallbacks): ScenePanel {
   const panel = element('section', 'lab-scene-panel');
   panel.id = 'lab-scene-panel';
-  panel.setAttribute('aria-label', 'Scene: open, share and download');
+  panel.setAttribute('aria-label', 'Scene: open, share, download and checkpoint');
   panel.dataset.collapsed = 'true';
 
   const toggle = element('button', 'lab-scene-toggle', 'Scenes');
@@ -108,12 +113,26 @@ export function createScenePanel(callbacks: ScenePanelCallbacks): ScenePanel {
   const open = button('lab-scene-open', 'Open file…', 'Open a scene (.json) or geometry (.obj, .stl, .glb, .gltf)', () => file.click());
   const copy = button('lab-scene-copy', 'Copy share link', 'Copy a link that carries the whole scene as it is now', callbacks.onCopyLink);
   const download = button('lab-scene-download', 'Download scene (.json)', 'Save the scene as it is now', callbacks.onDownload);
+  // Exact checkpoints: the complete solver state, not a scene. A checkpoint carries its scene, so loading one needs nothing else.
+  const checkpointFile = element('input', 'lab-scene-file');
+  checkpointFile.type = 'file';
+  checkpointFile.id = 'lab-checkpoint-file';
+  checkpointFile.accept = '.b3ck,application/octet-stream';
+  checkpointFile.tabIndex = -1;
+  checkpointFile.setAttribute('aria-hidden', 'true');
+  checkpointFile.addEventListener('change', () => {
+    const chosen = checkpointFile.files?.[0];
+    checkpointFile.value = '';
+    if (chosen) callbacks.onLoadCheckpoint(chosen);
+  });
+  const saveCheckpoint = button('lab-checkpoint-save', 'Save checkpoint', 'Save the complete state of the running simulation (.b3ck): load it later, here or in a fresh page, and the run continues bit for bit', callbacks.onSaveCheckpoint);
+  const loadCheckpoint = button('lab-checkpoint-load', 'Load checkpoint…', 'Resume a checkpoint file (.b3ck): its scene is loaded and the run continues exactly where it was saved', () => checkpointFile.click());
   const reset = button('lab-scene-reset', 'Reset', 'Load the scene again from its start', callbacks.onReset);
   const create = button('lab-scene-new', 'New scene', 'Start an empty SI scene with a ground slab in the editor', callbacks.onNewScene);
   const edit = button('lab-scene-edit', 'Edit', 'Edit this scene: add, move and change bodies and joints', callbacks.onEdit);
   edit.setAttribute('aria-pressed', 'false');
   const actions = element('div', 'lab-scene-actions');
-  actions.append(create, open, edit, copy, download, reset);
+  actions.append(create, open, edit, copy, download, saveCheckpoint, loadCheckpoint, reset);
   const editorMount = element('div', 'lab-scene-editor-mount');
   editorMount.id = 'lab-scene-editor-mount';
 
@@ -155,7 +174,7 @@ export function createScenePanel(callbacks: ScenePanelCallbacks): ScenePanel {
 
   const body = element('div', '');
   body.id = 'lab-scene-body';
-  body.append(heading, title, summary, error, notes, actions, row, status, file, editorMount);
+  body.append(heading, title, summary, error, notes, actions, row, status, file, checkpointFile, editorMount);
   panel.append(toggle, body);
   document.body.append(panel);
 
@@ -173,10 +192,12 @@ export function createScenePanel(callbacks: ScenePanelCallbacks): ScenePanel {
     depth = 0;
     drop.hidden = true;
     const files = Array.from(event.dataTransfer?.files ?? []);
-    if (files.length > 0) callbacks.onFiles(files);
+    const checkpoint = files.find(file => /\.b3ck$/i.test(file.name));
+    if (checkpoint) callbacks.onLoadCheckpoint(checkpoint);
+    else if (files.length > 0) callbacks.onFiles(files);
   });
 
-  const setSceneButtons = (enabled: boolean): void => { copy.disabled = !enabled; download.disabled = !enabled; reset.disabled = !enabled; edit.disabled = !enabled; };
+  const setSceneButtons = (enabled: boolean): void => { copy.disabled = !enabled; download.disabled = !enabled; reset.disabled = !enabled; edit.disabled = !enabled; saveCheckpoint.disabled = !enabled; };
   setSceneButtons(false);
   setCollapsed(true);
 

@@ -22,6 +22,7 @@
  * See docs/SOLID_CONTACT.md for the equations, the validation and the limits.
  */
 import {EngineError} from './contracts.ts';
+import {captureFields,checkpointError,eachElement,holder,restoreFields,type FieldHandler,type FieldOptions,type StateObject,type StateValue} from './checkpoint.ts';
 import {SolidBody,type SolidKernel} from './solid.ts';
 import {principalMoments,type StructureInertia} from './structure-coupling.ts';
 import type {Subsystem} from './simulation.ts';
@@ -158,7 +159,23 @@ function invert3(a:Float64Array,out:Float64Array):void {
  * Without a world the bodies are this object's own: `step()` moves the dynamic ones by backward Euler with the
  * force and torque of the solve. A `SolidCoupling` reads them from a rigid world instead and hands the forces to it.
  */
+/** The weld map (node to weld index) as pairs. */
+const weldMap:FieldHandler={
+  capture:value=>Array.from(value as Map<number,number>,([node,index])=>[node,index]),
+  restore:(value,state)=>{const map=value as Map<number,number>;map.clear();for(const pair of state as number[][])map.set(pair[0],pair[1]);},
+};
+/** What an exact checkpoint of a SolidContact holds: every field but the solid (saved by whoever owns it), its kernel (part of
+ * the solid) and the views into its own work vectors; the bodies it holds keep their identity. */
+const CONTACT_FIELDS:FieldOptions={label:'SolidContact',skip:['solid','k','views'],nested:{bodies:eachElement({label:'SolidContact body'}),welded:weldMap}};
+/** What an exact checkpoint of a SolidCoupling holds: the solid, the contact solver and the coupled bodies' records. */
+const SOLID_COUPLING_FIELDS:FieldOptions={label:'SolidCoupling',skip:['world','byBody'],nested:{solid:holder,contact:holder,list:eachElement({label:'SolidCoupling body'})}};
+
 export class SolidContact {
+  /** Everything a later step reads, as a state tree (checkpoint.ts), for exact checkpoints. */
+  saveState():StateObject {return captureFields(this,CONTACT_FIELDS);}
+  /** Put back a state from `saveState()` of a contact solver set up the same way (same solid, bodies, planes and welds). */
+  restoreState(state:StateValue):void {restoreFields(this,state,CONTACT_FIELDS);}
+
   readonly solver=SOLID_CONTACT_SOLVER_ID;
   readonly solid:SolidBody;readonly dt:number;readonly stiffnessScale:number;readonly skin:number;readonly frictionPasses:number;readonly frictionTolerance:number;
   scheme:'implicit'|'naive-staggered';
@@ -906,6 +923,11 @@ function flush(value:number):number {return Math.fround(value)===0?0:value;}
  * body the force and torque the solid put on it, to act through the rigid step.
  */
 export class SolidCoupling<B> {
+  /** Everything a later step reads, as a state tree (checkpoint.ts), for exact checkpoints. */
+  saveState():StateObject {return captureFields(this,SOLID_COUPLING_FIELDS);}
+  /** Put back a state from `saveState()` of a coupling set up the same way (same solid, bodies, planes and welds, in the same order). */
+  restoreState(state:StateValue):void {restoreFields(this,state,SOLID_COUPLING_FIELDS);}
+
   readonly backend=SOLID_COUPLING_BACKEND;
   readonly world:SolidWorld<B>;readonly contact:SolidContact;readonly solid:SolidBody;readonly dt:number;readonly estimateSupports:boolean;
   private readonly list:CoupledBody<B>[]=[];private readonly byBody=new Map<B,CoupledBody<B>>();
@@ -1043,6 +1065,14 @@ export function solidContactSubsystem<W,B>(target:SolidContact|SolidCoupling<B>,
     timeStep:{dt:solid.dt,rule:coupling?'equal':'commensurate'},
     validate(info){if(!coupling&&info.timing.every>1)throw new EngineError('INVALID_STATE','A solid in contact cannot step less often than the simulation.');},
     step(ctx){if(coupling)coupling.step();else contact.step(ctx.substeps);},
+    // The solid, the contact solver (with the coupling's records) and the event cursor.
+    checkpoint(){return {state:coupling?coupling.saveState():{solid:solid.saveState(),contact:contact.saveState()},unconverged};},
+    restore(state){
+      const s=state as {state?:{solid?:StateValue;contact?:StateValue};unconverged?:unknown}|null;
+      if(!s||!s.state||typeof s.unconverged!=='number')throw checkpointError(`Subsystem "${options.id??'solid-contact'}": the saved state is malformed.`);
+      if(coupling)coupling.restoreState(s.state);else{solid.restoreState(s.state.solid);contact.restoreState(s.state.contact);}
+      unconverged=s.unconverged;
+    },
     finish(ctx){
       if(coupling)coupling.contactChanges((body,index,touching)=>ctx.emit(touching?'contact-begin':'contact-end',{body,index}));
       if(contact.stats.unconvergedSteps!==unconverged){unconverged=contact.stats.unconvergedSteps;ctx.emit('unconverged',{residual:contact.stats.residual,reference:contact.stats.reference});}

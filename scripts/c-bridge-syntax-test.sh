@@ -248,7 +248,9 @@ STUB
 # headers too, so the stub above cannot drift from the API it stands in for.
 if [[ -f "$ROOT/third_party/box3d/include/box3d/box3d.h" ]]; then
   "$CC_BIN" -std=c17 -Wall -Wextra -Werror -I"$ROOT/third_party/box3d/include" -fsyntax-only "$ROOT/wasm/box3d_web.c"
-  echo "Bridge also compiles against the real Box3D headers in third_party/box3d."
+  # The checkpoint glue reads Box3D's internal structs (world_snapshot.c), so it is checked against the real sources only.
+  "$CC_BIN" -std=c17 -Wall -Wextra -Werror -I"$ROOT/third_party/box3d/include" -I"$ROOT/third_party/box3d/src" -fsyntax-only "$ROOT/wasm/box3d_snapshot.c"
+  echo "Bridge and checkpoint glue also compile against the real Box3D headers in third_party/box3d."
 fi
 
-echo "✅ C17 bridge syntax test passed with the pinned Box3D API contract stub ($CC_BIN): box3d_web.c, its threaded rename, and box3d_threads.c"
+echo "✅ C17 bridge syntax test passed with the pinned Box3D API contract stub ($CC_BIN): box3d_web.c (with the box3d_snapshot.h checkpoint calls), its threaded rename, and box3d_threads.c"

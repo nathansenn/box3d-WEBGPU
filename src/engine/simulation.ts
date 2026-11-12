@@ -35,7 +35,8 @@ import {SolidCoupling,solidContactSubsystem,type SolidContactShape} from './soli
 import {Cloth,ClothCoupling,clothSubsystem,type ClothShape} from './cloth.ts';
 import {Granular,GranularCoupling,granularSubsystem,type GranularShape} from './granular.ts';
 import {Fluid,FluidCoupling,FreeSurfaceFluid,fluidSubsystem,freeSurfaceSubsystem,type FluidBoundaries,type FluidShape,type FluidWorld} from './fluid.ts';
-import {normalizeScene,sceneHasCoupling,SceneBuilder,type Scene,type SceneBody,type SceneCable,type SceneCloth,type SceneCoupledSections,type SceneFluid,type SceneFrameSection,type SceneGrains,type SceneHeat,type SceneHost,type SceneInertia,type SceneSolid,type SceneSolidRegion,type SceneWater} from './scene-format.ts';
+import {canonicalize,normalizeScene,sceneHasCoupling,sceneHash,SceneBuilder,type Scene,type SceneBody,type SceneCable,type SceneCloth,type SceneCoupledSections,type SceneFluid,type SceneFrameSection,type SceneGrains,type SceneHeat,type SceneHost,type SceneInertia,type SceneSolid,type SceneSolidRegion,type SceneWater} from './scene-format.ts';
+import {CHECKPOINT_VERSION,checkpointError,readCheckpoint,writeCheckpoint,type StateObject,type StateValue} from './checkpoint.ts';
 import type {NativeBodyHandle,NativeJointHandle} from './native-world.ts';
 
 /** The order of one step. `rigid` and `events` belong to the Simulation; subsystems choose one of the other three. */
@@ -52,6 +53,10 @@ export interface SimulationWorld<B=unknown> {
   readonly subSteps?:number;
   /** Fixed steps since the last reset. When present, the Simulation refuses to run after the world was stepped or reset behind its back. */
   readonly tick?:number;
+  /** Exact checkpoints (docs/CHECKPOINTS.md): the world's complete state as bytes, and their restore. The kit's PhysicsWorld
+   * and the Lab's host have both; `Simulation.checkpoint()` needs them. A restore must leave `tick` as it was at the checkpoint. */
+  checkpoint?():Uint8Array;
+  restoreCheckpoint?(bytes:Uint8Array):void;
   step():void;
   gravity():readonly number[];
   getState(body:B):{readonly position:readonly number[];readonly rotation:readonly number[];readonly linearVelocity:readonly number[];readonly angularVelocity:readonly number[];readonly mass:number;readonly type:string};
@@ -120,6 +125,13 @@ export interface Subsystem<W=unknown,B=unknown> {
   energy?():SubsystemEnergy;
   diagnostics?():unknown;
   dispose?():void;
+  /** Everything that influences this subsystem's later steps and events (fields, histories, warm starts, clocks,
+   * counters, ledgers, event cursors), as a state tree (checkpoint.ts). `Simulation.checkpoint()` needs it from every
+   * subsystem; one without it cannot be checkpointed. */
+  checkpoint?():StateValue;
+  /** Put back a state from `checkpoint()` of a subsystem set up the same way. Throw an EngineError with code
+   * CHECKPOINT_MISMATCH (checkpoint.ts) for a state of another set-up. */
+  restore?(state:StateValue):void;
 }
 
 export interface SimulationEvent {
@@ -156,6 +168,31 @@ export interface SimulationDiagnostics {
 export interface SimulationOptions {
   /** Most steps `update()` takes per call; the rest of the time is dropped. Default 5. */
   readonly maxSteps?:number;
+}
+/** Where a Simulation came from, for its checkpoints: `buildSceneSimulation` records the scene it built. */
+export interface SimulationSource {
+  /** sceneHash() of the scene in normal form. A checkpoint is restored only into a simulation of the same scene. */
+  readonly sceneHash:string;
+  /** The scene's canonical text, carried in checkpoints so that one can be resumed in a fresh page (`resumeSimulationScene`). */
+  readonly scene:string;
+}
+export interface SimulationCheckpointOptions {
+  /** Carry the scene the simulation was built from (when it was built from one), so that the checkpoint alone can resume it. Default true. */
+  readonly scene?:boolean;
+}
+/** What a simulation checkpoint says about itself (`simulationCheckpointInfo`). */
+export interface SimulationCheckpointInfo {
+  readonly version:number;
+  /** SHA-256 of the checkpoint's contents. */
+  readonly hash:string;
+  readonly bytes:number;
+  readonly tick:number;readonly time:number;readonly dt:number;
+  /** The sceneHash of the scene it was taken from, or null for a simulation not built from a scene. */
+  readonly sceneHash:string|null;
+  /** The scene itself (canonical text), when the checkpoint carries it. */
+  readonly scene:string|null;
+  /** id and kind of every subsystem, in step order. */
+  readonly subsystems:readonly {readonly id:string;readonly kind:string}[];
 }
 
 const STAGE_INDEX:Record<SubsystemStage,number>={'pre-couple':0,couple:1,post:3};
@@ -202,6 +239,7 @@ export class Simulation<W extends SimulationWorld<B>,B=unknown> {
   private accumulator=0;
   private disposed=false;
   private source='';
+  private originSource:SimulationSource|(()=>SimulationSource)|null=null;
   private readonly ctx:{world:W;tick:number;time:number;dt:number;substeps:number;emit(type:string,data?:unknown):void};
 
   constructor(world:W,options:SimulationOptions={}) {
@@ -361,6 +399,87 @@ export class Simulation<W extends SimulationWorld<B>,B=unknown> {
     return {tick:this.tickCount,time:this.time,dt:this.dt,order:this.order(),energy:this.energy(),subsystems};
   }
 
+  /** The scene this simulation was built from, as `buildSceneSimulation` recorded it, or null. */
+  get sceneSource():SimulationSource|null {
+    if(typeof this.originSource==='function'){
+      const source=this.originSource();
+      if(typeof source?.sceneHash!=='string'||typeof source.scene!=='string')throw payload('A simulation source is a scene hash and the scene text.');
+      this.originSource=source;
+    }
+    return this.originSource;
+  }
+  /** Record the scene this simulation was built from (`buildSceneSimulation` does), or a function that gives it when a
+   * checkpoint first needs it. Checkpoints then name it, and refuse to restore into a simulation of another scene. */
+  setSceneSource(source:SimulationSource|(()=>SimulationSource)|null):void {
+    if(source!==null&&typeof source!=='function'&&(typeof source.sceneHash!=='string'||typeof source.scene!=='string'))throw payload('A simulation source is a scene hash and the scene text.');
+    this.originSource=source;
+  }
+  private get origin():SimulationSource|null {return this.sceneSource;}
+
+  private plan():{id:string;kind:string;stage:string;order:number;timing:string}[] {
+    return this.slots.map(slot=>({id:slot.subsystem.id,kind:slot.subsystem.kind,stage:slot.subsystem.stage,order:slot.order,timing:slot.timing?`${slot.timing.substeps}x${slot.timing.every}`:'none'}));
+  }
+
+  /**
+   * An exact checkpoint: the world's complete state (`world.checkpoint()`), every subsystem's `checkpoint()`, and this
+   * simulation's clock and update accumulator, in one self-checking file (format version, SHA-256; checkpoint.ts).
+   * `restore()` of it in a simulation set up the same way, in this page or a fresh one, makes every later step bit-identical
+   * to this run's. Call it between steps. See docs/CHECKPOINTS.md.
+   */
+  checkpoint(options:SimulationCheckpointOptions={}):Uint8Array {
+    this.live();
+    const world=this.world;
+    if(typeof world.checkpoint!=='function'||typeof world.restoreCheckpoint!=='function')throw new EngineError('UNSUPPORTED_BACKEND','This world cannot write exact checkpoints (it has no checkpoint() and restoreCheckpoint()).');
+    const subsystems:Record<string,StateValue>={};
+    for(const slot of this.slots){
+      const s=slot.subsystem;
+      if(typeof s.checkpoint!=='function'||typeof s.restore!=='function')throw state(`Subsystem "${s.id}" (${s.kind}) cannot be checkpointed: it has no checkpoint() and restore().`);
+      subsystems[s.id]=s.checkpoint();
+    }
+    const tree:StateObject={
+      tick:this.tickCount,dt:this.dt,subSteps:this.subSteps??null,accumulator:this.accumulator,worldTick:this.worldTick??null,
+      sceneHash:this.origin?.sceneHash??null,scene:options.scene===false?null:this.origin?.scene??null,
+      plan:this.plan(),world:world.checkpoint(),subsystems,
+    };
+    return writeCheckpoint('simulation',tree);
+  }
+
+  /**
+   * Put back a checkpoint from `checkpoint()`. Refused, with nothing changed, when the bytes are damaged or of another
+   * format version, when the checkpoint was taken from another scene, or when the step, the sub-steps or the subsystems
+   * (ids, kinds, stages, order) differ. Then the world, every subsystem and the clock are restored.
+   */
+  restore(bytes:Uint8Array):void {
+    this.live();
+    const world=this.world;
+    if(typeof world.checkpoint!=='function'||typeof world.restoreCheckpoint!=='function')throw new EngineError('UNSUPPORTED_BACKEND','This world cannot restore exact checkpoints (it has no checkpoint() and restoreCheckpoint()).');
+    const tree=readCheckpoint(bytes,'simulation') as StateObject;
+    if(!tree||typeof tree!=='object'||!(tree.world instanceof Uint8Array)||!tree.subsystems||typeof tree.subsystems!=='object'||!Array.isArray(tree.plan))throw checkpointError('The simulation checkpoint is malformed.');
+    const savedScene=tree.sceneHash as string|null,ownScene=this.origin?.sceneHash??null;
+    if(savedScene!==ownScene){
+      if(savedScene&&ownScene)throw checkpointError(`This checkpoint was taken from another scene (scene ${savedScene.slice(0,12)}); this simulation runs scene ${ownScene.slice(0,12)}. Load the scene the checkpoint was taken from (it carries it: resumeSimulationScene), then restore.`);
+      throw checkpointError(savedScene?`This checkpoint was taken from a scene (${savedScene.slice(0,12)}); this simulation was not built from that scene.`:'This checkpoint was taken from a simulation that was not built from a scene; this one was.');
+    }
+    if(tree.dt!==this.dt||tree.subSteps!==(this.subSteps??null))throw checkpointError(`This checkpoint steps at ${String(tree.dt)} s with ${String(tree.subSteps)} sub-steps; this simulation at ${this.dt} s with ${String(this.subSteps)}.`);
+    const plan=this.plan(),saved=tree.plan as StateObject[];
+    const row=(p:StateObject|ReturnType<Simulation<W,B>['plan']>[number])=>`${String(p.id)} (${String(p.kind)}, ${String(p.stage)}, order ${String(p.order)}, ${String(p.timing)})`;
+    if(saved.length!==plan.length||saved.some((p,i)=>row(p)!==row(plan[i])))
+      throw checkpointError(`This checkpoint has the subsystems [${saved.map(row).join('; ')}], this simulation [${plan.map(row).join('; ')}]. Restore into a simulation set up the same way.`);
+    const states=tree.subsystems as StateObject;
+    for(const slot of this.slots){
+      const s=slot.subsystem;
+      if(typeof s.restore!=='function'||typeof s.checkpoint!=='function')throw state(`Subsystem "${s.id}" (${s.kind}) cannot be restored: it has no checkpoint() and restore().`);
+      if(!Object.hasOwn(states,s.id))throw checkpointError(`The checkpoint holds no state for subsystem "${s.id}".`);
+    }
+    if(typeof tree.tick!=='number'||!Number.isSafeInteger(tree.tick)||tree.tick<0||typeof tree.accumulator!=='number')throw checkpointError('The checkpoint clock is malformed.');
+    world.restoreCheckpoint(tree.world);
+    for(const slot of this.slots)slot.subsystem.restore!(states[slot.subsystem.id]);
+    this.tickCount=tree.tick;this.accumulator=tree.accumulator;
+    this.worldTick=world.tick;
+    if(tree.worldTick!==null&&this.worldTick!==undefined&&tree.worldTick!==this.worldTick)throw new EngineError('INTERNAL',`The world restored its tick as ${String(this.worldTick)}, the checkpoint says ${String(tree.worldTick)}.`);
+    this.worldEvents.length=0;this.ownEvents.length=0;
+  }
+
   /** Dispose every subsystem that can be disposed and stop listening to the world. The world itself is left alone. */
   dispose():void {
     if(this.disposed)return;
@@ -381,6 +500,8 @@ export function waterSubsystem<W,B>(water:WaterCoupling<B>,options:{readonly id?
   return {
     id:options.id??'water',kind:'water-coupling',stage:'couple',order:SUBSYSTEM_ORDER.water,timeStep:{dt:water.dt,rule:'equal'},
     step(){water.step();},
+    checkpoint(){return water.saveState();},
+    restore(state){water.restoreState(state);},
     energy(){const kinetic=water.waterKineticEnergy(),potential=water.waterPotentialEnergy();return {domain:'mechanical',total:kinetic+potential,exchanged:0,parts:{waterKinetic:kinetic,waterPotential:potential}};},
     diagnostics(){return {backend:water.backend,tick:water.tick(),attached:water.attachedCount(),waterVolume:water.waterVolume(),displacedVolume:water.displacedVolume(),meanElevation:water.meanElevation(),floorLoad:water.floorLoad(),buoyancy:water.buoyancyTotal(),verticalDrag:water.verticalDragTotal()};},
   };
@@ -405,6 +526,8 @@ export function structureSubsystem<W,B>(coupling:StructureCoupling<B>,options:{r
   return {
     id:options.id??'structure',kind:'structure-coupling',stage:'couple',order:SUBSYSTEM_ORDER.structure,timeStep:{dt:coupling.dt,rule:'equal'},bodies,
     step(){coupling.step();},
+    checkpoint(){return coupling.saveState();},
+    restore(state){coupling.restoreState(state);},
     energy(){
       const d=coupling.diagnostics();
       return {domain:'mechanical',total:d.total,exchanged:0,parts:{bodyKinetic:d.bodyKinetic,bodyPotential:d.bodyPotential,cableKinetic:d.cableKinetic,cableElastic:d.cableElastic,cablePotential:d.cablePotential,frameKinetic:d.frameKinetic,frameElastic:d.frameElastic,framePotential:d.framePotential}};
@@ -426,6 +549,8 @@ export function heatSubsystem<W,B>(heat:HeatSolver,options:{readonly id?:string}
       if(heat.dt>limit*(1+1e-9))throw new EngineError('UNSTABLE_TIME_STEP',`Subsystem "${id}" (heat): the explicit step ${heat.dt} s is above the stability limit ${limit} s. Give the solver a smaller dt (a whole fraction of the simulation step) or use an implicit scheme.`);
     },
     step(ctx){heat.step(ctx.substeps);},
+    checkpoint(){return heat.saveState();},
+    restore(state){heat.restoreState(state);},
     energy(){
       let exchanged=heat.sourceEnergy;for(let i=0;i<heat.boundaryEnergy.length;i++)exchanged+=heat.boundaryEnergy[i];
       const stored=heat.storedEnergy();return {domain:'thermal',total:stored,exchanged,parts:{stored}};
@@ -447,6 +572,8 @@ export function solidSubsystem<W,B>(solid:SolidBody,options:{readonly id?:string
       if(solid.dt>limit)throw new EngineError('UNSTABLE_TIME_STEP',`Subsystem "${id}" (solid): the explicit step ${solid.dt} s is above the stability limit ${limit} s. Give the body a smaller dt (a whole fraction of the simulation step) or use an implicit integrator.`);
     },
     step(ctx){solid.step(ctx.substeps);},
+    checkpoint(){return solid.saveState();},
+    restore(state){solid.restoreState(state);},
     energy(){const kinetic=solid.kineticEnergy(),strain=solid.strainEnergy(),load=solid.loadPotential();return {domain:'mechanical',total:kinetic+strain+load,exchanged:0,parts:{kinetic,strain,loadPotential:load}};},
     diagnostics(){return {solver:solid.solver,model:solid.model,integrator:solid.integrator,time:solid.time,unconvergedSteps:solid.unconvergedSteps,...solid.stats};},
   };
@@ -506,6 +633,13 @@ export function thermalSolidLink<W,B>(heat:HeatSolver,solid:ThermalSolidTarget,o
       seen=heat.steps;
       solid.setTemperatureChange(cellTemperaturesToNodes(heat.temperature,cells,reference,rise) as number[]);
     },
+    // The heat step it last handed over: it acts again only after the next one. The solid and the heat grid are saved by their own subsystems.
+    checkpoint(){return {heatSteps:seen};},
+    restore(state){
+      const s=state as StateObject|null;
+      if(!s||typeof s.heatSteps!=='number')throw checkpointError(`Link "${id}": the saved state is malformed.`);
+      seen=s.heatSteps;
+    },
     diagnostics(){return {direction:'heat -> solid, one-way',reference,heatSteps:seen};},
   };
 }
@@ -542,6 +676,13 @@ export function deadLoadLink<W extends SimulationWorld<B>,B>(body:B,solid:SolidB
       if(wx===applied[0]&&wy===applied[1]&&wz===applied[2])return;
       applied[0]=wx;applied[1]=wy;applied[2]=wz;
       for(let i=0;i<nodes.length;i++){force[0]=weights[i]*wx;force[1]=weights[i]*wy;force[2]=weights[i]*wz;solid.setNodalForce(nodes[i],force);}
+    },
+    // The weight it last put on the solid: it writes again only when the weight changes.
+    checkpoint(){return {applied:[applied[0],applied[1],applied[2]],force:[force[0],force[1],force[2]]};},
+    restore(state){
+      const s=state as StateObject|null,a=s?.applied as number[]|undefined,f=s?.force as number[]|undefined;
+      if(!Array.isArray(a)||a.length!==3||!Array.isArray(f)||f.length!==3)throw checkpointError(`Link "${id}": the saved state is malformed.`);
+      for(let k=0;k<3;k++){applied[k]=a[k];force[k]=f[k];}
     },
     diagnostics(){return {direction:'rigid -> solid, one-way',weight:[applied[0],applied[1],applied[2]],nodes:nodes.length};},
   };
@@ -597,6 +738,12 @@ export function reactionLoadLink<W extends SimulationWorld<B>,B>(solid:ReactionL
         for(let k=0;k<3;k++)traction[k]=-e.force[k]/e.area;
         solid.addTraction(e.faces,traction);
       }
+    },
+    checkpoint(){return {entries:entries.map(e=>({before:e.before.slice(),force:e.force.slice(),live:e.live})),traction:traction.slice()};},
+    restore(state){
+      const s=state as StateObject|null,saved=s?.entries as StateObject[]|undefined,t=s?.traction as number[]|undefined;
+      if(!Array.isArray(saved)||saved.length!==entries.length||!Array.isArray(t)||t.length!==3)throw checkpointError(`Link "${id}": the checkpoint has ${Array.isArray(saved)?saved.length:'no'} loads, this link ${entries.length}.`);
+      entries.forEach((e,i)=>{const b=saved[i].before as number[],f=saved[i].force as number[];for(let k=0;k<3;k++){e.before[k]=b[k];e.force[k]=f[k];traction[k]=t[k];}e.live=saved[i].live===true;});
     },
     diagnostics(){return {direction:'rigid -> solid, one-way',loads:entries.map(e=>({faces:e.faces.length,area:e.area,support:[e.force[0],e.force[1],e.force[2]]}))};},
   };
@@ -750,6 +897,7 @@ export function buildSceneSimulation<W extends SimulationSceneWorld>(world:W,bui
   const carried=new Set<Body>();
   let structure:StructureCoupling<Body>|null=null;
   const simulation=new Simulation<W,Body>(world);
+  simulation.setSceneSource(()=>({sceneHash:sceneHash(scene),scene:canonicalize(scene)}));
   if(!sceneHasCoupling(scene))return {bodies,joints,builder,scene,simulation,water,cables,frames,structure,attachments,cloths,grains,solids,heat:heats,fluids};
   // A dynamic body that a cloth or grains push is counted in the ledger's 'rigid' entry, unless the structure coupling already counts it.
   const track=(id:string):void=>{
@@ -992,4 +1140,33 @@ export function loadSimulationScene<W extends SimulationSceneWorld>(world:W,scen
   const normal=normalizeScene(scene);
   const builder=new SceneBuilder<W>(world,{world:normal.world,materials:normal.materials,meta:normal.meta,extensions:normal.extensions}).populate(normal);
   return buildSceneSimulation(world,builder,normal);
+}
+
+// ---------------------------------------------------------------------------
+// Checkpoints of scene simulations.
+// ---------------------------------------------------------------------------
+
+/** What a simulation checkpoint says about itself: its clock, the scene it was taken from (and the scene, when it carries
+ * it), its subsystems, size and SHA-256. The hash, version and format are checked; nothing is restored. */
+export function simulationCheckpointInfo(bytes:Uint8Array):SimulationCheckpointInfo {
+  const tree=readCheckpoint(bytes,'simulation') as StateObject;
+  if(!tree||typeof tree!=='object'||!Array.isArray(tree.plan)||typeof tree.tick!=='number'||typeof tree.dt!=='number')throw checkpointError('The simulation checkpoint is malformed.');
+  let hash='';for(let i=8;i<40;i++)hash+=bytes[i].toString(16).padStart(2,'0');
+  return {version:CHECKPOINT_VERSION,hash,bytes:bytes.length,tick:tree.tick,dt:tree.dt,time:tree.tick*tree.dt,
+    sceneHash:typeof tree.sceneHash==='string'?tree.sceneHash:null,scene:typeof tree.scene==='string'?tree.scene:null,
+    subsystems:(tree.plan as StateObject[]).map(p=>({id:String(p.id),kind:String(p.kind)}))};
+}
+
+/**
+ * Resume a checkpoint that carries its scene (`checkpoint()` does by default) in `world`, in this page or a fresh one:
+ * load the scene it was taken from (the world is reset to it), then restore the checkpoint. The run continues
+ * bit-identically to the one the checkpoint was taken from. The world must be of the same build.
+ */
+export function resumeSimulationScene<W extends SimulationSceneWorld>(world:W,bytes:Uint8Array):LoadedSimulationScene<W> {
+  const info=simulationCheckpointInfo(bytes);
+  if(info.scene===null)throw checkpointError(info.sceneHash===null?'This checkpoint was not taken from a scene, so it cannot rebuild one: restore it into the simulation it came from.':'This checkpoint does not carry its scene (it was written with {scene: false}): load the scene yourself, then restore it.');
+  const loaded=loadSimulationScene(world,JSON.parse(info.scene));
+  try{loaded.simulation.restore(bytes);}
+  catch(error){loaded.simulation.dispose();throw error;}
+  return loaded;
 }
