@@ -98,6 +98,8 @@ import { SI_BRIDGE_ID, SI_BRIDGE_TITLE } from './engine/si-bridge.ts';
 import { SiBridgeScene, SI_BRIDGE_SCENE_DEFAULTS, SI_BRIDGE_SCENE_STEP, type SiBridgeSceneSettings } from './lab/si-bridge-scene.ts';
 import { createSiBridgePanel, SI_BRIDGE_PLOTTED_STAY, type SiBridgePanel } from './lab/si-bridge-panel.ts';
 import { WebGPURenderer } from './webgpu/renderer';
+import { WebGL2LabRenderer } from './webgl/lab-renderer.ts';
+import { fallbackReason, rendererAfterLoss, rendererCandidates, rendererLabel, rendererRequest, selectRenderer, type LabRenderer, type LabRendererKind } from './webgl/renderer-selection.ts';
 import { SOFT_RENDER_INSTANCE_BUDGET, SoftSimulationSuite, type SoftSimulationFrame } from './soft/simulations';
 import { initializeSoftKernelRuntime } from './soft/kernels';
 import {
@@ -297,6 +299,7 @@ type Ui = {
   runtimeSeed: HTMLElement;
   runtimeSolver: HTMLElement;
   runtimeFidelity: HTMLElement;
+  runtimeRenderer: HTMLElement;
   hash: HTMLElement;
   qualityStat: HTMLElement;
   warning: HTMLElement;
@@ -369,7 +372,13 @@ const effects = new CinematicEffects();
 const cameraMatrixCache = new CameraMatrixCache();
 let soft: SoftSimulationSuite;
 let backend: PhysicsBackend;
-let renderer: WebGPURenderer;
+let renderer: LabRenderer;
+// Which renderer draws (src/webgl/renderer-selection.ts): WebGPU, or WebGL2 when WebGPU is missing, fails to start,
+// is lost, or `?renderer=webgl2` asks for it. The simulation never reads it.
+const requestedRenderer = rendererRequest(location.search);
+let rendererKind: LabRendererKind = 'webgpu';
+let rendererNote: string | null = null;
+let rendererSwitches = 0;
 // The SI demo is not one of the 800 recipes: it replaces the rigid world of a host recipe
 // with one built through the general rigid-body API. Null while a recipe is showing.
 // It is either the Mechanisms demo or a scene in the box3d-scene format (an example, a share
@@ -916,6 +925,7 @@ function getUi(): Ui {
     runtimeSeed: byId('runtime-seed'),
     runtimeSolver: byId('runtime-solver'),
     runtimeFidelity: byId('runtime-fidelity'),
+    runtimeRenderer: byId('runtime-renderer'),
     hash: byId('hash'),
     qualityStat: byId('quality-stat'),
     warning: byId('warning'),
@@ -1509,7 +1519,8 @@ function openExampleScene(name: string): void {
 function createEditorHost(mount: HTMLElement): SceneEditorHost {
   const messageOf = (error: unknown): string => quoteForDisplay(error instanceof Error ? error.message : String(error), 400);
   return {
-    canvas: ui.canvas,
+    // A getter: the canvas is replaced when a lost WebGPU device hands over to WebGL2.
+    get canvas() { return ui.canvas; },
     mount,
     camera: () => camera,
     lookAt(target, distance) {
@@ -3442,7 +3453,39 @@ function initializeEngineeringWorkspaceShell(initialWorkspace: EngineeringWorksp
   }
 }
 
-function bindControls(): void {
+const boundCanvases = new WeakSet<HTMLCanvasElement>();
+let canvasControlsReady = false;
+
+/**
+ * Put a fresh canvas element where the 3D canvas is and return it. A canvas that has held a WebGPU
+ * context (or a lost WebGL context) cannot give a new WebGL2 one. Its attributes (id, classes, ARIA,
+ * data-*) are copied, the pointer handlers are bound again, and the focus moves with it.
+ */
+function replaceCanvas(): HTMLCanvasElement {
+  const old = ui.canvas, fresh = document.createElement('canvas');
+  for (const attribute of Array.from(old.attributes)) if (attribute.name !== 'width' && attribute.name !== 'height') fresh.setAttribute(attribute.name, attribute.value);
+  const focused = document.activeElement === old;
+  old.replaceWith(fresh);
+  ui.canvas = fresh;
+  if (canvasControlsReady) bindCanvasControls();
+  if (focused) fresh.focus({ preventScroll: true });
+  return fresh;
+}
+
+/** The active renderer in the status bar and on the canvas (data-renderer), for people and for tests. */
+function showRendererStatus(): void {
+  const name = rendererKind === 'webgpu' ? 'WebGPU' : 'WebGL2';
+  ui.runtimeRenderer.textContent = name;
+  ui.runtimeRenderer.title = rendererLabel(rendererKind, rendererNote);
+  ui.canvas.dataset.renderer = rendererKind;
+  ui.canvas.setAttribute('aria-label', `Interactive Box3D ${name} physics viewport`);
+}
+
+/** The camera, force tool and editor pointer handlers on the 3D canvas; bound again when the canvas is replaced. */
+function bindCanvasControls(): void {
+  if (boundCanvases.has(ui.canvas)) return;
+  boundCanvases.add(ui.canvas);
+  canvasControlsReady = true;
   ui.canvas.addEventListener('pointerdown', (event) => {
     if (cinematicPlaying) stopCinematic();
     // The scene editor selects and drags bodies; a press on empty space falls through to the camera.
@@ -3490,6 +3533,10 @@ function bindControls(): void {
     if (siDemo && (labScene || siBridge)) camera.distance = clamp(camera.distance * Math.exp(event.deltaY * 0.0015), 0.4, 400);
     else camera.distance = clamp(camera.distance + event.deltaY * 0.018, 7, 120);
   }, { passive: false });
+}
+
+function bindControls(): void {
+  bindCanvasControls();
 
   const filterButtons = Array.from(document.querySelectorAll<HTMLButtonElement>('[data-lab-filter]'));
   for (const button of document.querySelectorAll<HTMLButtonElement>('[data-library-mode]')) {
@@ -4493,9 +4540,17 @@ async function main(): Promise<void> {
   startupProgress('Loading physics and soft kernels');
   const physicsPromise = loadBestPhysicsBackend();
   const softRuntimePromise = initializeSoftKernelRuntime();
-  const rendererPromise = physicsPromise.then(({ backend: selectedBackend }) =>
-    WebGPURenderer.create(ui.canvas, selectedBackend.maxBodies + SOFT_RENDER_INSTANCE_BUDGET + MAX_EFFECT_INSTANCES, {onStartupProgress:startupProgress}));
-  const [loaded, softRuntime, loadedRenderer] = await Promise.all([
+  // WebGPU when the browser has it and it starts; otherwise, or with ?renderer=webgl2, WebGL2.
+  let webgpuTried = false;
+  const rendererPromise = physicsPromise.then(({ backend: selectedBackend }) => {
+    const capacity = selectedBackend.maxBodies + SOFT_RENDER_INSTANCE_BUDGET + MAX_EFFECT_INSTANCES;
+    return selectRenderer<LabRenderer>(rendererCandidates(requestedRenderer, typeof navigator !== 'undefined' && !!navigator.gpu), {
+      webgpu: () => { webgpuTried = true; return WebGPURenderer.create(ui.canvas, capacity, {onStartupProgress:startupProgress}); },
+      // A failed WebGPU start may have taken the canvas's context: draw WebGL2 on a fresh canvas then.
+      webgl2: () => WebGL2LabRenderer.create(webgpuTried ? replaceCanvas() : ui.canvas, capacity, {onStartupProgress:startupProgress}),
+    });
+  });
+  const [loaded, softRuntime, selection] = await Promise.all([
     physicsPromise,
     softRuntimePromise,
     rendererPromise,
@@ -4503,15 +4558,32 @@ async function main(): Promise<void> {
   backend = loaded.backend;
   soft = new SoftSimulationSuite(softRuntime.module);
   engineRuntime=createWorkbenchRuntime({backend,soft,softKernelVariant:softRuntime.available?softRuntime.variant:'javascript'});
-  renderer = loadedRenderer;
+  renderer = selection.renderer;
+  rendererKind = selection.kind;
+  rendererNote = fallbackReason(selection, requestedRenderer);
+  for (const attempt of selection.attempts) console.warn(`[Lab] ${rendererLabel(attempt.kind)} did not start: ${attempt.error}`);
+  showRendererStatus();
+  /**
+   * A lost device or context: draw on with a new renderer (WebGL2 unless the page forced WebGPU) on a fresh canvas.
+   * The scene, its clock and the camera are CPU state and are left as they are; only the drawing restarts.
+   */
   function watchRendererLoss():void {
     stopRendererLoss();stopRendererLoss=renderer.onDeviceLost(info=>{
       if(rendererRecovering||frameDisposed)return;rendererRecovering=true;rendererFailed=false;
-      ui.warning.textContent=`Graphics device lost: ${info.message||info.reason}. Recreating graphics from the current CPU simulation state.`;
+      const lostKind=rendererKind,next=rendererAfterLoss(lostKind,requestedRenderer);
+      ui.warning.textContent=`Graphics ${lostKind==='webgpu'?'device':'context'} lost: ${info.message||info.reason}. Drawing the current simulation state with ${rendererLabel(next)}.`;
+      console.warn(`[Lab] ${rendererLabel(lostKind)} lost (${info.message||info.reason}); continuing on ${rendererLabel(next)}.`);
       renderer.dispose();
-      void WebGPURenderer.create(ui.canvas,backend.maxBodies+SOFT_RENDER_INSTANCE_BUDGET+MAX_EFFECT_INSTANCES).then(replacement=>{
-        if(frameDisposed){replacement.dispose();return;}renderer=replacement;renderer.invalidateDynamicCaches();rendererRecovering=false;simulationAccumulator=0;watchRendererLoss();
-        ui.warning.textContent='Graphics recovered. Simulation state and recorded results were preserved.';
+      const capacity=backend.maxBodies+SOFT_RENDER_INSTANCE_BUDGET+MAX_EFFECT_INSTANCES;
+      // A canvas that had a WebGPU or lost WebGL context cannot take a new one: replace the element.
+      const canvas=replaceCanvas();
+      const created:Promise<LabRenderer>=next==='webgpu'?WebGPURenderer.create(canvas,capacity):WebGL2LabRenderer.create(canvas,capacity);
+      void created.then(replacement=>{
+        if(frameDisposed){replacement.dispose();return;}
+        renderer=replacement;rendererKind=next;rendererSwitches++;
+        rendererNote=lostKind==='webgpu'&&next==='webgl2'?'WebGPU device lost':lostKind==='webgl2'?'WebGL2 context restarted':'WebGPU device recreated';
+        renderer.invalidateDynamicCaches();rendererRecovering=false;simulationAccumulator=0;watchRendererLoss();showRendererStatus();
+        ui.warning.textContent=`Graphics recovered on ${rendererLabel(next)}. Simulation state, clock, camera and recorded results were preserved.`;
       }).catch(error=>{rendererRecovering=false;rendererFailed=true;paused=true;ui.warning.textContent=`Graphics recovery failed: ${error instanceof Error?error.message:String(error)}. Reload to initialize a new graphics device.`;});
     });
   }
@@ -4520,9 +4592,10 @@ async function main(): Promise<void> {
   const rigidThreading = backend.threading;
   ui.canvas.dataset.physicsThreads = String(rigidThreading?.workers ?? 1);
   if (rigidThreading?.reason) ui.canvas.dataset.physicsThreadsReason = rigidThreading.reason;
+  const drawing = rendererKind === 'webgpu' ? 'GPU surface reconstruction, compute-expanded rope rendering' : `the WebGL2 renderer${rendererNote ? ` (${rendererNote})` : ''}`;
   ui.warning.textContent = loaded.warning
-    ? `Preview backend active: ${loaded.warning} ${softBackend}; GPU surface reconstruction, compute-expanded rope rendering, and deterministic material fracture are active. Build Box3D WASM for native rigid-body fidelity.`
-    : `Native Box3D WASM rigid-body backend loaded${rigidThreading?.mode === 'threads' ? ` on ${rigidThreading.workers} threads` : ''} with ${softBackend}, GPU surface reconstruction, compute-expanded rope rendering, and deterministic material fracture.`;
+    ? `Preview backend active: ${loaded.warning} ${softBackend}; ${drawing}, and deterministic material fracture are active. Build Box3D WASM for native rigid-body fidelity.`
+    : `Native Box3D WASM rigid-body backend loaded${rigidThreading?.mode === 'threads' ? ` on ${rigidThreading.workers} threads` : ''} with ${softBackend}, ${drawing}, and deterministic material fracture.`;
   ui.warning.classList.toggle('native', !loaded.warning);
 
   const boot = resolveBootConcept();
@@ -4596,6 +4669,14 @@ async function main(): Promise<void> {
     editorScreenPosition: (id: string) => sceneEditor?.screenPosition(id) ?? null,
     editorCsv: () => sceneEditor?.csv() ?? '',
     lastShareLink: () => lastCopiedSceneLink,
+    /** The renderer that draws ('webgpu' or 'webgl2'), what the address asked for, why, how often a loss replaced it, and the camera. */
+    rendererInfo: () => ({ kind: rendererKind, requested: requestedRenderer, note: rendererNote, switches: rendererSwitches, recovering: rendererRecovering, failed: rendererFailed,
+      camera: { yaw: camera.yaw, pitch: camera.pitch, distance: camera.distance, target: [...camera.target] } }),
+    /** For tests: lose the graphics device as a driver reset would (WebGPU: destroy the device; WebGL2: WEBGL_lose_context). */
+    simulateGraphicsLoss: () => {
+      if (renderer instanceof WebGPURenderer) { (renderer.device as GPUDevice & { destroy?(): void }).destroy?.(); return true; }
+      return renderer instanceof WebGL2LabRenderer ? renderer.simulateContextLoss() : false;
+    },
   }) });
   loadScene(currentScene);
   applyConceptScreen(boot.screen);

@@ -279,6 +279,48 @@ it is not a universal browser/driver or FPS claim.
 
 Pixels for these bodies were looked at in headless Chromium with software WebGPU (SwiftShader), not on a real GPU: the five example scenes, a dropped OBJ, a dropped STL, a static mesh and a scene with all six shape kinds.
 
+## WebGL2 fallback (Lab)
+
+`lab.html` draws with WebGPU when it can and with a WebGL2 renderer (`src/webgl/lab-renderer.ts`, programs in `src/webgl/lab-shaders.ts`) when it cannot. The Studio's own fallback is separate: it rebuilds its three.js scene on three.js's WebGL backend after a device loss (`src/studio/device-loss.ts`); the Lab's renderer is hand-written, so none of that code draws the Lab. The Lab's WebGL2 renderer reuses the Studio's one idea that applies, retrying a refused context for about two seconds after a loss.
+
+### Selection
+
+`src/webgl/renderer-selection.ts`:
+
+| Address | Tried in order | After a loss |
+|---|---|---|
+| no `renderer`, `navigator.gpu` present | WebGPU (adapter, device, pipelines), then WebGL2 | WebGPU lost → WebGL2; WebGL2 lost → WebGL2 |
+| no `renderer`, no `navigator.gpu` | WebGL2 | WebGL2 |
+| `?renderer=webgl2` | WebGL2 | WebGL2 |
+| `?renderer=webgpu` | WebGPU only, as before this fallback | WebGPU again |
+
+A lost device or context is replaced without reloading: the renderer is disposed, the canvas element is replaced by a fresh one (a canvas that has held a WebGPU context cannot give a WebGL2 one; its attributes are copied and the pointer handlers bound again), and the new renderer gets every stream again on the next frame. The scene, the simulation clock, the camera and the recorded results are CPU state and are not touched; the frame loop does not step while the replacement is created. The status bar shows the renderer under **Renderer** (its tooltip says why, for example "WebGPU device lost"), the canvas carries `data-renderer`, and `box3dLab.rendererInfo()` returns the kind, the request, the reason, the number of switches and the camera. `box3dLab.simulateGraphicsLoss()` destroys the WebGPU device or loses the WebGL2 context, for tests.
+
+The physics does not depend on the renderer: the modules the fixed step runs import neither renderer (checked by `tests/physics/lab-renderer-selection.test.mjs`), and every example reaches the same state hash after the same number of ticks on both (checked in the browser, below).
+
+### What it draws
+
+The same streams through the same interface (`LabRenderer`): rigid rows with the shape plan of `src/webgpu/instance-shapes.ts` (boxes, spheres, capsules as an open cylinder and two hemisphere caps), hull, mesh, height-field and compound bodies from their own geometry (uploaded once per geometry object), every coupled-scene row (cloth and solid mesh rows, water height fields, grains, translucent grain walls), the rope stream (cables, frame elements, bridge stays), soft instances, effect instances, the packed, GPU-cloth and GPU-water surfaces, and the overlay lines (the scene editor's frame, joints and ruler; the coupled scenes' water grid). The editor's selection tint is the instance colour stream, so it needs nothing of its own. The frame has the same passes: a depth-only shadow map from the directional light (depth32float, slope-scaled bias, 1 or 9 PCF taps as the quality profile says, redrawn only when a caster stream, the light or the map changed), an HDR scene pass (RGBA16F, 4× MSAA at Cinematic and Ultra; sky, opaque instances, the surface, translucent instances, lines), a blit resolve, and a post pass with the same bloom, exposure, ACES curve, vignette and dither.
+
+WebGL2 has no base instance: each run of rows re-points the instance attributes at its first row and draws with `drawArraysInstanced`. The Lab's matrices give WebGPU clip depth (0 to 1); every vertex shader maps it to GL's −1 to 1, so the depth stored and compared is the same number. Shadow and post lookups do not flip V (GL textures start at the bottom row).
+
+### What differs
+
+- No material textures. The Poliigon atlas and the noise texture are KTX2 uploads of the WebGPU path; the WebGL2 path uses the mean linear colour of each atlas tile (concrete, galvanized metal, woven fabric, honed stone), no normal detail, and the mean of the noise. Floors and atlas materials are flat where WebGPU shows texture.
+- Galvanized metal and the brushed sheet use isotropic GGX, so the stretched highlight of WebGPU's anisotropic lobe is missing; the sheet's lighting is a shorter version of the WebGPU sheet shader.
+- The shadow lookup's bias is larger (0.00015 + 0.0006 (1 − N·L) against 0.00004 + 0.00028 (1 − N·L)). With the WebGPU bias, a flat floor showed acne bands that WebGPU's textures hide.
+- Ropes are expanded on the CPU and surfaces rebuilt on the CPU (`src/webgl/lab-streams.ts`) where WebGPU uses a compute pass and vertex shaders. GPU-cloth strain looks at the 4-neighbourhood and two diagonals (WebGPU: eight neighbours and the nodes two away); water foam uses the cell's own velocity (WebGPU averages the staggered faces). Ropes keep the same limits (4096 nodes and segments).
+- The WebGPU renderer's resident GPU water input (`useGpuWater`, which the Lab's frame loop does not use) has no WebGL2 counterpart; water is drawn from the CPU fields.
+- Without `EXT_color_buffer_float` the scene targets are RGBA8 and each fragment is tone-mapped where it is drawn: blending happens after tone mapping and there is no bloom. SwiftShader and current desktop browsers have the extension.
+- No GPU timestamp queries (`gpuTimingInfo()` reports `unsupported`), no GPU visibility lists or instance partition, and no adaptive-quality GPU sample; the render time shown is CPU time.
+- The drawing buffer is preserved (`preserveDrawingBuffer`), so the capture and run-archive buttons can read the canvas outside a frame; this costs a copy per frame on some GPUs.
+
+### Checks
+
+`scripts/lab-webgl2-browser-check.mjs` (not gated; needs `npm run build:pages`, Playwright and Chromium) opens all 15 examples (5 rigid, 10 coupled, including the four with solids) with `?renderer=webgpu` and with `?renderer=webgl2`, steps each to the same tick, requires the same state hash, the same shape plan and own-geometry vertex count, non-blank canvases, and agreement of the two captures (128 × 80 luminance thumbnails: correlation above 0.85, mean difference below 0.08, under 3% of cells differing by more than 0.15), and writes them side by side. It also captures four recipe labs with GPU water, cloth, a cable and a metal sheet on both (no agreement required: they run on wall time), selects a body in the editor on both, checks startup with and without `navigator.gpu`, destroys the WebGPU device mid-run and requires the switch to WebGL2 with the tick, camera and state kept and the run ending on the state hash of a run that never lost its device, loses the WebGL2 context and requires a new one, and requires no console errors. `tests/physics/lab-webgl-streams.test.mjs` and `tests/physics/lab-renderer-selection.test.mjs` (in `npm run test:assets`) test the code without a DOM.
+
+All of this ran in headless Chromium on SwiftShader (software Vulkan for WebGPU, ANGLE on SwiftShader for WebGL2), not on a GPU, not in Safari or Firefox, and not on a phone. Frame times there, a running scene at 672 × 463 drawing pixels at Cinematic quality, median of six seconds: domino-run 16.7 ms with WebGPU and 117 ms with WebGL2 (90th percentile 16.7 and 150 ms); buoy-and-crates 16.7 ms and 150 ms (16.7 and 183 ms). Earlier runs of the same check gave 117 to 150 ms for WebGL2. CPU time in the WebGL2 `render()` call was 0.1 to 0.7 ms. These are software numbers. The WebGL2 frame there is paced by SwiftShader filling the shadow map, the 4× MSAA HDR target and the post pass on the CPU (without shadows and MSAA it measured about 50 ms); the WebGPU canvas on SwiftShader keeps the 60 Hz animation frame. Neither says how a GPU behaves.
+
 ## Deliberate boundaries
 
 - Sphere and capsule rows, and hull, mesh, height-field and compound bodies, are drawn only by direct draws. The partition and visibility lists fall back for a frame that has them.
@@ -291,3 +333,4 @@ Pixels for these bodies were looked at in headless Chromium with software WebGPU
 - Tearing cloth stays on the packed CPU fallback because its topology is mutable.
 - Bloom is a compact neighborhood glow rather than a mip-chain implementation.
 - Render telemetry is CPU encode/submit time, not physical-GPU timestamp duration.
+- The WebGL2 fallback draws the same streams with the differences listed in "WebGL2 fallback (Lab)" above.

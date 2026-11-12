@@ -4,6 +4,7 @@ import { GpuInstanceVisibility, INSTANCE_MATERIAL_WGSL, classifyInstanceMaterial
 import type { DebugLine, DynamicSurfaceFrame, InstanceBufferSource, InstanceGeometry, RopeGridFrame, SceneUniformState } from '../types';
 import { planSparseRecordUpload, type DirtyRecordSpan, type SparseUploadOptions } from './sparse-upload';
 import { GpuPassTimer, type GpuPassTimestampWrites, type GpuTimingInfo, type GpuTimingOptions } from './gpu-timing.js';
+import { fillLineVertexData } from '../webgl/lab-streams.ts';
 import { InstancePartition, partitionVertexBindings, partitionVertexEntry } from './instance-partition.js';
 import { ResidentWaterSurface, type ResidentWaterOptions } from './resident-water-surface.js';
 import { GpuStartupBudget, type GpuStartupOptions } from './startup-budget.js';
@@ -1707,29 +1708,6 @@ function writeByteBuffer(
   const safeCount = Math.max(0, Math.min(byteCount, data.byteLength - sourceByteOffset));
   if (safeCount === 0) return;
   queue.writeBuffer(buffer, offset, data.buffer as unknown as BufferSource, data.byteOffset + sourceByteOffset, safeCount);
-}
-
-function fillLineVertexData(lines: readonly DebugLine[], maxVertices: number, out: Float32Array): number {
-  const maxFloats = Math.min(out.length, Math.min(maxVertices, lines.length * 2) * 7);
-  let cursor = 0;
-  for (let i = 0; i < lines.length && cursor + 14 <= maxFloats; i++) {
-    const line = lines[i];
-    out[cursor++] = line.ax;
-    out[cursor++] = line.ay;
-    out[cursor++] = line.az;
-    out[cursor++] = line.r;
-    out[cursor++] = line.g;
-    out[cursor++] = line.b;
-    out[cursor++] = line.a;
-    out[cursor++] = line.bx;
-    out[cursor++] = line.by;
-    out[cursor++] = line.bz;
-    out[cursor++] = line.r;
-    out[cursor++] = line.g;
-    out[cursor++] = line.b;
-    out[cursor++] = line.a;
-  }
-  return cursor;
 }
 
 function instanceVertexBuffers(): GPUVertexBufferLayout[] {

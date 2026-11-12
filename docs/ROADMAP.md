@@ -121,7 +121,7 @@ Starts after Phase 1.
 - Import glTF, OBJ, STL (done: `box3d-webgpu-kit/geometry` parses the files and makes static mesh bodies, hull bodies, or welded hull sets from an approximate convex decomposition, and the Lab opens such a file as one body; URDF and MJCF robots are read by `box3d-webgpu-kit/robot`; the editor is the item above). Export CSV (done for one body's measured series in the editor), glTF, video.
 - Scripting API and console; share links that carry the whole scene (done for the Lab: it opens example links, share links and scene files, and copies a link of the scene on screen; the Studio does not read links yet).
 - Docs site with runnable examples and a teaching track.
-- WebGL2 fallback for the Lab; a tested support statement for Safari, Firefox and mobile.
+- WebGL2 fallback for the Lab (done: the Lab draws with WebGL2 when WebGPU is missing or fails to start, with `?renderer=webgl2`, and after a lost WebGPU device without reloading the scene; same streams and passes, no material textures, isotropic metal; same state hashes on both renderers. See [`RENDERING_PIPELINE.md`](RENDERING_PIPELINE.md#webgl2-fallback-lab). Checked only in headless Chromium on SwiftShader). Remaining: a tested support statement for Safari, Firefox and mobile, on real devices.
 
 ## Phase 6: scale
 

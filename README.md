@@ -146,7 +146,7 @@ Box3D remains authoritative for rigid bodies. Cloth, rope, and water numerical s
 Requirements:
 
 - Node.js `^20.19.0` or `>=22.12.0`; CI uses Node 22.
-- A current desktop browser with WebGPU support.
+- A current desktop browser. The Physics Lab (`lab.html`) draws with WebGPU when the browser has it and with WebGL2 otherwise (`?renderer=webgl2` forces WebGL2); see Runtime path below. Both renderers were checked in headless Chromium with software rendering only, not in Safari, Firefox or on phones.
 - `localhost` or HTTPS. Opening `index.html` directly is not supported.
 
 ```bash
@@ -203,12 +203,12 @@ The application degrades by capability instead of refusing to start:
 | Rigid physics | native Box3D C17 WebAssembly | deterministic TypeScript preview | backend badge |
 | Cloth, rope, water kernels | SIMD WebAssembly | scalar WebAssembly, then JavaScript | soft-kernel telemetry |
 | Material failure | deterministic TypeScript beam lattice | same deterministic path | material telemetry panel |
-| Rendering | WebGPU HDR frame graph | no non-WebGPU renderer | startup diagnostics |
+| Rendering (Lab) | WebGPU HDR frame graph | WebGL2 renderer: when WebGPU is missing or fails to start, with `?renderer=webgl2`, or after a lost WebGPU device (no reload) | status bar **Renderer** |
 | Material-noise texture | KTX2 BC4 | KTX2 R8, then procedural R8 | renderer diagnostics |
 | AAA material atlas | KTX2 ASTC 6×6 | KTX2 RGBA8, then deterministic procedural atlas | renderer diagnostics |
 | Remote state | raw full-precision streams | optional TurboQuant transport | TurboQuant probe |
 
-`Deterministic Preview` means only the rigid-body backend has fallen back. Cloth, rope, water, and material specimens remain active. A WebGPU initialization failure is terminal because this project intentionally exercises WebGPU rather than hiding errors behind a WebGL renderer.
+`Deterministic Preview` means only the rigid-body backend has fallen back. Cloth, rope, water, and material specimens remain active. The Lab's WebGL2 renderer draws the same bodies, surfaces, ropes and overlays with the same passes, without the material textures (atlas materials are flat), with isotropic metal highlights and without GPU timing; the physics is the same on both (equal state hashes). `?renderer=webgpu` keeps the old behaviour: WebGPU only, and a lost device is recreated on WebGPU. Details in [docs/RENDERING_PIPELINE.md](docs/RENDERING_PIPELINE.md#webgl2-fallback-lab). The Studio has its own fallback to three.js's WebGL backend after a device loss.
 
 ## What you can simulate
 
