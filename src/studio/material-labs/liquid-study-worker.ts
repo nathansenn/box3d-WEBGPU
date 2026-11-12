@@ -8,7 +8,7 @@ scope.onmessage=event=>{
   const data=event.data;
   if(isLabWorkerRequest(data)){
     const response=live(data);if(!response)return;
-    const transfer=response.type==='frame'?[response.frame.positions.buffer,response.frame.rotations.buffer,response.frame.damage.buffer]:[];
+    const transfer=response.type==='frame'?[response.frame.positions.buffer,response.frame.rotations.buffer,response.frame.damage.buffer,...(response.frame.curve?[response.frame.curve.buffer]:[])]:[];
     scope.postMessage(response,transfer as Transferable[]);return;
   }
   try {

@@ -22,6 +22,7 @@ import fluid from './domains/fluid.mjs';
 import solidContact from './domains/solid-contact.mjs';
 import heat from './domains/heat.mjs';
 import solid, {viscoelastic as solidViscoelastic} from './domains/solid.mjs';
+import {concrete as solidConcrete} from './domains/concrete.mjs';
 import fracture from './domains/fracture.mjs';
 import plate from './domains/plate.mjs';
 import frame from './domains/frame.mjs';
@@ -220,8 +221,8 @@ export const DOMAINS = [
   },
   {
     id: 'solid', title: 'Deformable solids', needsKit: false,
-    solver: '`src/engine/solid.ts`: linear tetrahedra with linear, corotational, Neo-Hookean and Green-Lagrange models, J2 plasticity with linear isotropic hardening and ductile erosion (linear and Green-Lagrange); static, midpoint, backward-Euler and explicit integration, float64. The press brake (`src/engine/press-brake.ts`) bends a plane-strain section of sheet with rigid punch and die through `SolidContact`',
-    summary: 'The patch test, uniaxial tension, shear and bulk moduli, a hanging bar, the cantilever locking table, axial and bending frequencies with observed orders, a stress wave, energy and damping, large-strain rubber and thermal eigenstrain. Plasticity: the uniaxial bilinear cycle, the elastic-plastic moment and springback of a beam, and a press-brake air bend against the beam limit load and elastic springback.',
+    solver: '`src/engine/solid.ts`: linear tetrahedra with linear, corotational, Neo-Hookean and Green-Lagrange models, J2 plasticity with linear isotropic hardening and ductile erosion (linear and Green-Lagrange), a concrete law (Drucker-Prager and Rankine composite plasticity with crack-band softening, `src/engine/concrete-law.ts`); static, midpoint, backward-Euler and explicit integration, float64. The press brake (`src/engine/press-brake.ts`) bends a plane-strain section of sheet with rigid punch and die through `SolidContact`',
+    summary: 'The patch test, uniaxial tension, shear and bulk moduli, a hanging bar, the cantilever locking table, axial and bending frequencies with observed orders, a stress wave, energy and damping, large-strain rubber and thermal eigenstrain. Plasticity: the uniaxial bilinear cycle, the elastic-plastic moment and springback of a beam, and a press-brake air bend against the beam limit load and elastic springback. Concrete: the EN 1992-1-1 (3.14) curve to f_cm, eps_c1 and eps_cu1, f_ctm and G_f on three meshes, G_c per unit area of a crushed band, the Drucker-Prager confinement closed form, and the Studio cube against a slenderness-2 prism.',
     docs: ['docs/SOLID_MECHANICS.md'],
     notValidated: [
       'Bending is where this element is weak, and the table shows it: one cell through the thickness is three times too stiff, four cells 12%, eight cells 3.4%. Bending frequencies are 5% to 6% high at four cells.',
@@ -231,6 +232,7 @@ export const DOMAINS = [
       'Plasticity is small-strain J2 (additive in the Green-Lagrange strain for large rotations), isotropic linear hardening only: no kinematic hardening, rate dependence, necking or anisotropy. Linear tetrahedra lock under plastic incompressibility: fully plastic bending is 3.2% (3-D) to 6.6% (plane strain, 4 cells) too strong. Ductile erosion uses one failure strain, independent of stress triaxiality, and the press brake\'s limit load is 1.23 times beam theory.',
       'Self-contact, plasticity combined with viscoelasticity (refused), anisotropy, and more than one material per body. Crack growth is a separate solver on the linear model of this element (the fracture domain); `SolidBody` erodes plastic elements at a failure strain but has no crack-growth law of its own.',
       'No two-way coupling to the rigid-body, water, cable or frame solvers, and no contact with rigid bodies. The one-way thermal and dead-load links are in the simulation domain.',
+      'Concrete: compressive softening does not stay in one element layer. In a prism the crushed band is restrained across by its neighbours (associated flow dilates it), so the post-peak energy of a 5, 10 and 20-cell bar grows with refinement instead of staying G_c A; only the tensile crack band is mesh objective here. Confinement raises the strength by m = 1.41 sigma_3, not the 2.5 to 5 of EN 1992-1-1 3.1.9; the equal-biaxial ratio 1.16 is quoted, not read. Cracks unload elastically (plasticity, not damage) and do not close; no rate, size (beyond the crack band), creep, shrinkage or reinforcement.',
       'Uniform states are exact, so the tension, shear, pressure and rubber rows say nothing about accuracy under stress gradients.',
     ],
   },
@@ -333,7 +335,7 @@ export const DOMAINS = [
   },
 ];
 
-export const CASES = [...rigid, ...waterCoupling, ...structureCoupling, ...siBridge, ...siSuspension, ...geometry, ...scene, ...simulation, ...robot, ...cloth, ...granular, ...fluid, ...heat, ...solid, ...solidViscoelastic, ...solidContact, ...fracture, ...plate, ...frame, ...cable, ...closedWater, ...materials];
+export const CASES = [...rigid, ...waterCoupling, ...structureCoupling, ...siBridge, ...siSuspension, ...geometry, ...scene, ...simulation, ...robot, ...cloth, ...granular, ...fluid, ...heat, ...solid, ...solidViscoelastic, ...solidConcrete, ...solidContact, ...fracture, ...plate, ...frame, ...cable, ...closedWater, ...materials];
 
 /** Cases of the given domains (all when `only` is empty), in registry order. */
 export function selectCases(only = []) {

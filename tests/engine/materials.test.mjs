@@ -56,10 +56,10 @@ test('the library covers the materials and properties it promises, and counts it
   for (const id of ids.filter(id => M.material(id).category === 'fluid')) for (const property of ['density', 'viscosity']) assert.ok(M.materialValue(id, property), `${id}.${property}`);
   for (const id of ['glass-beads', 'sand-quartz']) for (const property of ['density', 'youngModulus', 'poissonRatio']) assert.ok(M.materialValue(id, property), `${id}.${property}`);
   const rows = M.materialAudit(), unverified = rows.filter(row => row.source === 'unverified');
-  assert.equal(rows.length, 239, 'values in the library (docs/MATERIALS.md and the validation domain quote this count)');
-  assert.equal(unverified.length, 9, 'unverified values (docs/MATERIALS.md lists them)');
-  assert.deepEqual(unverified.filter(row => row.kind !== 'pair').map(row => `${row.subject}.${row.property}`).sort(), ['honey.density', 'pvc-polyester-fabric.membraneShearStiffness', 'structural-steel-s355.elongationAtBreak'],
-    'every material property has a source except the density of honey, the fabric\'s shear stiffness and the S355 elongation; the rest are contact coefficients');
+  assert.equal(rows.length, 274, 'values in the library (docs/MATERIALS.md and the validation domain quote this count)');
+  assert.equal(unverified.length, 10, 'unverified values (docs/MATERIALS.md lists them)');
+  assert.deepEqual(unverified.filter(row => row.kind !== 'pair').map(row => `${row.subject}.${row.property}`).sort(), ['concrete-lc25-28.fractureEnergy', 'honey.density', 'pvc-polyester-fabric.membraneShearStiffness', 'structural-steel-s355.elongationAtBreak'],
+    'every material property has a source except the density of honey, the fabric\'s shear stiffness, the S355 elongation and the fracture energy of lightweight concrete; the rest are contact coefficients');
 });
 
 test('the conversions recorded in the entries reproduce the SI values', () => {
@@ -104,7 +104,7 @@ test('the helpers build each solver\'s input, refuse what is missing or unverifi
   assert.equal(glass.strength, 41e6); assert.equal(glass.model, 'cohesive');
   assert.equal(M.fractureLaw('ice', {strength: 1e6}).toughness, M.fractureEnergyFromToughness(0.1e6, 9.3e9, 0.33));
   refuses(() => M.fractureLaw('ice'), /no tensile or flexural strength for "ice"/);
-  refuses(() => M.fractureLaw('concrete-c30-37'), /no fracture toughness or fracture energy/);
+  assert.equal(M.fractureLaw('concrete-c30-37').toughness, 140.5, 'concrete: the library fracture energy (fib Model Code 2010 formula)');
   assert.equal(M.fractureLaw('concrete-c30-37', {toughness: 100, model: 'crack-band'}).strength, 2.9e6);
   // Contact pairs, in either order.
   const steel = M.contactPair('structural-steel-s355', 'structural-steel-s355');

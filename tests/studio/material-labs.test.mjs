@@ -13,6 +13,8 @@ const {createModel,DT}=await import('../../src/studio/material-labs/models.ts');
 const receipts=[],glassResults={};const GLASS_SECONDS=3;
 // Rubber: the first 1.5 s of the program here; full programs are in tests/studio/rubber-si.test.mjs.
 const RUBBER_SECONDS=1.5;
+// Concrete: the first 2 s (elastic loading); peaks, softening and spalling are in tests/studio/concrete-si.test.mjs.
+const CONCRETE_SECONDS=2;
 const {glassSpec}=await import('../../src/studio/material-labs/glass-si.ts');
 const {materialProperty}=await import('../../src/engine/materials.ts');
 const run=(m,seconds)=>{for(let step=0;step<Math.ceil(seconds/DT);step++)m.step(DT);return m;};
@@ -32,7 +34,7 @@ for(const id of LAB_IDS){
     test(`${id} / ${experiment.name}: full program stays finite and contains its specimen`,()=>{
       const settings=normalizeSettings(id,{...LABS[id].defaults,...experiment.settings}),model=createModel(id,settings),t=performance.now();
       // Glass: the impact, the cracking and the fall of the first pieces happen in the first 3 s of the 12 s program.
-      run(model,id==='glass'?GLASS_SECONDS:id==='rubber'?RUBBER_SECONDS:duration(id,settings));finite(model);
+      run(model,id==='glass'?GLASS_SECONDS:id==='rubber'?RUBBER_SECONDS:id==='concrete'?CONCRETE_SECONDS:duration(id,settings));finite(model);
       if(id==='liquid'){
         assert.ok(Math.abs(model.frame.hydraulics.residual)<1e-8,'sources, storage and sinks balance');
         assert.ok([...model.h].every(h=>h>=0),'nonnegative water depths');
@@ -46,7 +48,7 @@ for(const id of LAB_IDS){
         assert.ok(model.retained>=0&&model.retained<=1);
         glassResults[experiment.id]={broken,force,stress,travel,retained:model.retained,pieces:model.fragmentCount,detached:model.fragments.length,throw:model.throwDistance,substeps:model.substeps,cpuMs:performance.now()-t};
       }
-      if(id==='concrete')assert.ok(model.frame.metrics[1]>=0&&model.frame.metrics[1]<=100);
+      if(id==='concrete'){const [stress,strain,force]=model.frame.metrics;assert.ok(stress>0&&strain>0&&strain<1&&force>0,'SI readouts: MPa, %, kN');assert.ok(Math.abs(force*1e3/(settings.size/1e3)**2/1e6-stress)<1e-9*stress+1e-9);}
       if(id==='rubber'){const [compression,force,volume]=model.frame.metrics;assert.ok(compression>0&&compression<100&&force>=0&&volume>0&&volume<=100.01,'SI readouts: %, kN, %');}
       receipts.push({study:id,experiment:experiment.id,simulatedSeconds:model.frame.time,cpuMs:Math.round((performance.now()-t)*100)/100,phase:model.frame.phase,metrics:[...model.frame.metrics]});
     });
@@ -81,11 +83,6 @@ test('glass: the tiles drawn for the plate nodes cover the rectangular pane exac
       for(let k=0;k<v.length;k++){const a=v[k],b=v[(k+1)%v.length];area+=(a[0]*b[1]-b[0]*a[1])/2;}}
     assert.ok(Math.abs(area-5.2)<1e-10,`area ${area}`);
   }
-});
-test('concrete: modest loading stays intact; weaker bonds fail earlier and stay broken',()=>{
-  const low=run(createModel('concrete',{load:3,rate:1}),12),weak=run(createModel('concrete',{material:'aged'}),12),strong=run(createModel('concrete',{material:'high-strength'}),12);
-  assert.equal(low.frame.metrics[1],0);assert.ok(weak.frame.metrics[1]>strong.frame.metrics[1]+10);
-  const count=weak.bonds.filter(b=>b.broken).length;weak.release();run(weak,8);assert.ok(weak.bonds.filter(b=>b.broken).length>=count);
 });
 after(()=>{
   const paths=['src/studio/material-labs/catalog.ts','src/studio/material-labs/models.ts','src/studio/material-labs/glass-si.ts','src/engine/plate.ts'];

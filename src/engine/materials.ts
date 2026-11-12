@@ -23,7 +23,7 @@ import type {GranularMaterial} from './granular.ts';
 
 export const MATERIAL_LIBRARY_ID = 'box3d-materials';
 /** Semver of the data: a changed value is a minor release, a removed material or property a major one. */
-export const MATERIAL_LIBRARY_VERSION = '1.4.0';
+export const MATERIAL_LIBRARY_VERSION = '1.5.0';
 /** The date the sources were opened and read. */
 export const MATERIAL_SOURCES_ACCESSED = '2026-11-12';
 
@@ -155,12 +155,24 @@ export const MATERIAL_SOURCES: Readonly<Record<string, MaterialSource>> = deepFr
   'agc-stratobel-pvb': {id: 'agc-stratobel-pvb', kind: 'manufacturer', author: 'AGC Glass Europe (H. Lefèvre)',
     title: 'Material properties of PVB interlayers, Stratobel and Stratobel Strong laminated glass, 20 July 2022', url: 'https://www.agc-yourglass.com/sites/default/files/2022-10/Material%20Properties%20of%20PVB%200722_EN_0.pdf',
     note: 'Relaxation moduli for load resistance design (EN 16612 / EN 16613); the shortest duration tabulated for standard PVB is 3 s.'},
+  'en1992-1-1': {id: 'en1992-1-1', kind: 'standard', author: 'CEN (BS EN 1992-1-1:2004)',
+    title: 'Eurocode 2: Design of concrete structures, Part 1-1: General rules and rules for buildings: Table 3.1, 3.1.5 (expression 3.14), 3.1.9 and section 11 (Tables 11.1 and 11.3.1)',
+    url: 'https://www.phd.eng.br/wp-content/uploads/2015/12/en.1992.1.1.2004.pdf',
+    note: 'A scanned copy of the standard; read through its text layer, where Table 11.3.1 is partly garbled.'},
+  'sucharda-2020': {id: 'sucharda-2020', kind: 'peer-reviewed', author: 'O. Sucharda',
+    title: 'Identification of Fracture Mechanic Properties of Concrete and Analysis of Shear Capacity of Reinforced Concrete Beams without Transverse Reinforcement, Materials 13 (2020) 2788, doi:10.3390/ma13122788, equation 14 and Table 6',
+    url: 'https://pmc.ncbi.nlm.nih.gov/articles/PMC7344630/',
+    note: 'Quotes the fib Model Code 2010 fracture energy G_F = 73 f_c^0.18 (N/m, f_c in MPa); the Model Code itself was not opened.'},
+  'syalons-aloxalon-96': {id: 'syalons-aloxalon-96', kind: 'manufacturer', author: 'International Syalons (Newcastle) Ltd',
+    title: 'Alumina: Aloxalon 96 (96% Al2O3) property table', url: 'https://syalons.com/materials/alumina/'},
+  'morgan-al600': {id: 'morgan-al600', kind: 'manufacturer', author: 'Morgan Advanced Materials',
+    title: 'AL600 data sheet (96% Al2O3 alumina)', url: 'https://morgantechnicalceramics.com/media/2296/al600.pdf'},
 } satisfies Record<string, MaterialSource>);
 
 export type MaterialPropertyName =
   | 'density' | 'youngModulus' | 'poissonRatio' | 'shearModulus'
   | 'yieldStrength' | 'tensileStrength' | 'compressiveStrength' | 'flexuralStrength'
-  | 'fractureToughness' | 'fractureEnergy' | 'elongationAtBreak'
+  | 'fractureToughness' | 'fractureEnergy' | 'elongationAtBreak' | 'peakStrain' | 'ultimateStrain'
   | 'arealDensity' | 'membraneStiffnessWarp' | 'membraneStiffnessWeft' | 'membraneShearStiffness' | 'membranePoissonRatio'
   | 'tensileStrengthWarp' | 'tensileStrengthWeft' | 'tearStrength'
   | 'thermalConductivity' | 'specificHeat' | 'thermalExpansion'
@@ -170,7 +182,7 @@ export type MaterialPropertyName =
 export const MATERIAL_PROPERTY_UNITS: Readonly<Record<MaterialPropertyName, string>> = Object.freeze({
   density: 'kg/m^3', youngModulus: 'Pa', poissonRatio: '1', shearModulus: 'Pa',
   yieldStrength: 'Pa', tensileStrength: 'Pa', compressiveStrength: 'Pa', flexuralStrength: 'Pa',
-  fractureToughness: 'Pa m^0.5', fractureEnergy: 'J/m^2', elongationAtBreak: '1',
+  fractureToughness: 'Pa m^0.5', fractureEnergy: 'J/m^2', elongationAtBreak: '1', peakStrain: '1', ultimateStrain: '1',
   arealDensity: 'kg/m^2', membraneStiffnessWarp: 'N/m', membraneStiffnessWeft: 'N/m', membraneShearStiffness: 'N/m', membranePoissonRatio: '1',
   tensileStrengthWarp: 'N/m', tensileStrengthWeft: 'N/m', tearStrength: 'N',
   thermalConductivity: 'W/(m K)', specificHeat: 'J/(kg K)', thermalExpansion: '1/K',
@@ -198,7 +210,7 @@ export interface MaterialValue {
   readonly reason?: string;
 }
 
-export type MaterialCategory = 'metal' | 'glass' | 'stone' | 'concrete' | 'wood' | 'polymer' | 'elastomer' | 'ice' | 'fluid' | 'granular' | 'fabric';
+export type MaterialCategory = 'metal' | 'glass' | 'ceramic' | 'stone' | 'concrete' | 'wood' | 'polymer' | 'elastomer' | 'ice' | 'fluid' | 'granular' | 'fabric';
 
 export interface MaterialEntry {
   readonly id: string;
@@ -373,11 +385,60 @@ export const MATERIALS: Readonly<Record<string, MaterialEntry>> = deepFreeze({
       poissonRatio: v(0.2, 'ec2-design-properties', 'nu = 0.2 (uncracked concrete), clause 3.1.3(4)', 'uncracked'),
       compressiveStrength: v(38e6, 'ec2-design-properties', 'f_cm = 38 MPa (f_ck = 30 MPa)', 'mean cylinder strength at 28 days; characteristic 30 MPa', {range: [30e6, 38e6]}),
       tensileStrength: v(2.9e6, 'ec2-design-properties', 'f_ctm = 2.90 MPa', 'mean axial tensile strength at 28 days'),
+      peakStrain: v(0.0022, 'en1992-1-1', 'Table 3.1: eps_c1 (per mille) 2,2 (C30/37); eps_c1 = 0,7 f_cm^0,31 < 2,8', 'strain at the peak of the 3.1.5 curve (short-term uniaxial)', {derived: 'per mille / 1000'}),
+      ultimateStrain: v(0.0035, 'en1992-1-1', 'Table 3.1: eps_cu1 (per mille) 3,5 for f_ck <= 50 MPa', 'nominal ultimate strain of the 3.1.5 curve', {derived: 'per mille / 1000'}),
+      fractureEnergy: v(140.5, 'sucharda-2020', 'G_F = 73 f_c^0.18 (fib Model Code 2010), N/m', 'mean tensile fracture energy from f_cm = 38 MPa', {derived: '73 x 38^0.18 = 140.5 N/m'}),
       thermalConductivity: v(1.642, 'en1992-1-2', 'upper limit lambda_c = 2 - 0,2451 (theta/100) + 0,0107 (theta/100)^2 W/m K; lower limit 1,36 - 0,136 (theta/100) + 0,0057 (theta/100)^2', '20 °C',
         {range: [1.333, 1.951], derived: 'both limits evaluated at 20 °C; the value is their mean'}),
       specificHeat: v(900, 'en1992-1-2', 'c_p(theta) = 900 J/kg K for 20 °C <= theta <= 100 °C', 'dry concrete (moisture 0%), 20 to 100 °C'),
       thermalExpansion: v(10e-6, 'ec2-design-properties', 'alpha = 10 x 10^-6 1/K, clause 3.1.3(5)', 'design value')},
-    notes: ['No fracture energy: the fib Model Code formula was not opened in a source, so fractureLaw needs `toughness` for concrete.']},
+    notes: ['The fracture energy is the fib Model Code 2010 formula as quoted in a paper (the Model Code was not opened). fractureLaw uses it, with the tensile strength, when no toughness is passed.']},
+  'concrete-c20-25': {id: 'concrete-c20-25', name: 'Concrete C20/25', category: 'concrete', grade: 'normal-weight concrete, strength class C20/25 (EN 1992-1-1), quartzite aggregate', isotropic: true,
+    properties: {
+      density: v(2400, 'en1992-1-2', '2300 kg/m3 (siliceous concrete with 3% moisture, EN 1992-1-2 3.3.2 figure); ≈ 2500 kg/m3 for reinforced concrete (design aid)', 'plain normal-weight concrete',
+        {range: [2300, 2500], also: ['ec2-design-properties'], derived: 'middle of the two figures read'}),
+      youngModulus: v(29.962e9, 'ec2-design-properties', 'E_cm = 29962 MPa (C20/25)', 'secant modulus at 28 days, quartzite aggregate', {range: [29.962e9, 30e9], also: ['en1992-1-1'], derived: 'Table 3.1 rounds it to 30 GPa'}),
+      poissonRatio: v(0.2, 'en1992-1-1', '3.1.3 (4): Poisson\'s ratio may be taken equal to 0,2 for uncracked concrete', 'uncracked'),
+      compressiveStrength: v(28e6, 'en1992-1-1', 'Table 3.1: f_cm (MPa) 28 (f_ck 20); f_cm = f_ck + 8', 'mean cylinder strength at 28 days; characteristic 20 MPa', {range: [20e6, 28e6]}),
+      tensileStrength: v(2.21e6, 'ec2-design-properties', 'f_ctm = 2.21 MPa (C20/25)', 'mean axial tensile strength at 28 days', {range: [2.2e6, 2.21e6], also: ['en1992-1-1'], derived: 'Table 3.1 gives 2,2'}),
+      peakStrain: v(0.0020, 'en1992-1-1', 'Table 3.1: eps_c1 (per mille) 2,0 (C20/25)', 'strain at the peak of the 3.1.5 curve', {derived: 'per mille / 1000'}),
+      ultimateStrain: v(0.0035, 'en1992-1-1', 'Table 3.1: eps_cu1 (per mille) 3,5 for f_ck <= 50 MPa', 'nominal ultimate strain of the 3.1.5 curve', {derived: 'per mille / 1000'}),
+      fractureEnergy: v(133.0, 'sucharda-2020', 'G_F = 73 f_c^0.18 (fib Model Code 2010), N/m', 'mean tensile fracture energy from f_cm = 28 MPa', {derived: '73 x 28^0.18 = 133.0 N/m'})}},
+  'concrete-c60-75': {id: 'concrete-c60-75', name: 'Concrete C60/75', category: 'concrete', grade: 'high-strength normal-weight concrete, strength class C60/75 (EN 1992-1-1), quartzite aggregate', isotropic: true,
+    properties: {
+      density: v(2400, 'en1992-1-2', '2300 kg/m3 (siliceous concrete with 3% moisture, EN 1992-1-2 3.3.2 figure); ≈ 2500 kg/m3 for reinforced concrete (design aid)', 'plain normal-weight concrete',
+        {range: [2300, 2500], also: ['ec2-design-properties'], derived: 'middle of the two figures read'}),
+      youngModulus: v(39.1e9, 'ec2-design-properties', 'E_cm = 39100 MPa (C60/75)', 'secant modulus at 28 days, quartzite aggregate', {also: ['en1992-1-1']}),
+      poissonRatio: v(0.2, 'en1992-1-1', '3.1.3 (4): Poisson\'s ratio may be taken equal to 0,2 for uncracked concrete', 'uncracked'),
+      compressiveStrength: v(68e6, 'en1992-1-1', 'Table 3.1: f_cm (MPa) 68 (f_ck 60); f_cm = f_ck + 8', 'mean cylinder strength at 28 days; characteristic 60 MPa', {range: [60e6, 68e6]}),
+      tensileStrength: v(4.35e6, 'ec2-design-properties', 'f_ctm = 4.35 MPa (C60/75)', 'mean axial tensile strength at 28 days', {range: [4.35e6, 4.4e6], also: ['en1992-1-1'], derived: 'Table 3.1 gives 4,4'}),
+      peakStrain: v(0.0026, 'en1992-1-1', 'Table 3.1: eps_c1 (per mille) 2,6 (C60/75)', 'strain at the peak of the 3.1.5 curve', {derived: 'per mille / 1000'}),
+      ultimateStrain: v(0.0030, 'en1992-1-1', 'Table 3.1: eps_cu1 (per mille) 3,0 (C60/75); 2,8 + 27 [(98 - f_cm)/100]^4 for f_ck >= 50 MPa', 'nominal ultimate strain of the 3.1.5 curve', {derived: 'per mille / 1000'}),
+      fractureEnergy: v(156.0, 'sucharda-2020', 'G_F = 73 f_c^0.18 (fib Model Code 2010), N/m', 'mean tensile fracture energy from f_cm = 68 MPa', {derived: '73 x 68^0.18 = 156.0 N/m'})}},
+  'concrete-lc25-28': {id: 'concrete-lc25-28', name: 'Lightweight aggregate concrete LC25/28', category: 'concrete', grade: 'lightweight aggregate concrete LC25/28, density class 1,8 (oven-dry 1601 to 1800 kg/m3), sanded (EN 1992-1-1 section 11)', isotropic: true,
+    properties: {
+      density: v(1850, 'en1992-1-1', 'Table 11.1: density class 1,8, density 1601-1800 kg/m3; design density, plain concrete 1850', 'design density of plain LWAC of density class 1,8'),
+      youngModulus: v(21.07e9, 'en1992-1-1', '11.3.2 (1): E_lcm = E_cm (Table 3.1) x eta_E, eta_E = (rho/2200)^2', 'secant modulus, rho = 1800 kg/m3 (upper limit of class 1,8)',
+        {also: ['ec2-design-properties'], derived: 'E_cm of C25/30, 31476 MPa (design aid), x (1800/2200)^2 = 0.6694'}),
+      poissonRatio: v(0.2, 'en1992-1-1', '3.1.3 (4): Poisson\'s ratio may be taken equal to 0,2 for uncracked concrete (section 11 changes nothing)', 'uncracked'),
+      compressiveStrength: v(33e6, 'en1992-1-1', 'Table 11.3.1: f_lck 25, f_lck,cube 28, f_lcm = f_lck + 8 (MPa)', 'mean cylinder strength at 28 days; characteristic 25 MPa', {range: [25e6, 33e6]}),
+      tensileStrength: v(2.28e6, 'en1992-1-1', '11.3.1 (3): f_lctm = f_ctm x eta_1, eta_1 = 0,40 + 0,60 rho/2200 (rho the upper limit of the class)', 'mean axial tensile strength, rho = 1800 kg/m3',
+        {also: ['ec2-design-properties'], derived: 'f_ctm of C25/30, 2.56 MPa (design aid), x 0.8909'}),
+      peakStrain: v(0.00164, 'en1992-1-1', 'Table 11.3.1: eps_lc1 = k f_lcm / (E_lci eta_E), k = 1,1 for sanded lightweight aggregate concrete (partly garbled in the scan)', 'strain at the peak, sanded LWAC',
+        {derived: 'E_lci taken as the tangent modulus 1.05 E_cm = 33050 MPa of C25/30: 1.1 x 33 / (33050 x 0.6694); this reading of the garbled formula was not confirmed'}),
+      ultimateStrain: v(0.00164, 'en1992-1-1', 'Table 11.3.1: eps_lcu1 = eps_lc1', 'nominal ultimate strain: no descending branch'),
+      fractureEnergy: unverified(137, 'the normal-weight formula 73 f_lcm^0.18 N/m applied to f_lcm = 33 MPa', 'The Model Code formula read (as quoted) is for normal-weight concrete; no lightweight figure was found in an opened source.')}},
+  'alumina-96': {id: 'alumina-96', name: 'Alumina 96%', category: 'ceramic', grade: 'sintered 96% Al2O3 technical ceramic (Aloxalon 96; Morgan AL600 for the range)', isotropic: true,
+    properties: {
+      density: v(3750, 'syalons-aloxalon-96', 'Density 3.75 g/cc', 'fired, fully dense', {range: [3720, 3750], also: ['morgan-al600'], derived: 'AL600: bulk density 3.72 g/cm3'}),
+      youngModulus: v(330e9, 'syalons-aloxalon-96', 'Young\'s Modulus 330 GPa', 'room temperature'),
+      poissonRatio: v(0.22, 'syalons-aloxalon-96', 'Poisson\'s Ratio 0.22', 'room temperature'),
+      compressiveStrength: v(2000e6, 'syalons-aloxalon-96', 'Compressive Strength >2000 MPa', 'room temperature; a lower bound as printed', {range: [2000e6, 2070e6], also: ['morgan-al600'], derived: 'AL600: >2070 MPa; both sheets print a lower bound'}),
+      flexuralStrength: v(300e6, 'syalons-aloxalon-96', 'Flexural strength 300 MPa (3-point MOR at 20°C)', '3-point bending, 20 °C', {range: [300e6, 365e6], also: ['morgan-al600'], derived: 'AL600: 365 MPa'}),
+      fractureToughness: v(3.5e6, 'syalons-aloxalon-96', 'Fracture Toughness K1c 3.5 MPa m½', 'room temperature'),
+      thermalConductivity: v(25.6, 'morgan-al600', 'Thermal Conductivity 25.6 W/m.K', 'room temperature'),
+      thermalExpansion: v(6.4e-6, 'morgan-al600', 'Thermal Expansion Coefficient 25-200°C 6.4 10-6/°C', 'mean, 25 to 200 °C')},
+    notes: ['No tensile strength: the sheets give the flexural strength, which is higher than the direct tensile strength of a ceramic.']},
   'granite-barre': {id: 'granite-barre', name: 'Granite (Barre)', category: 'stone', grade: 'Barre granite (Vermont), intact laboratory specimen', isotropic: true,
     properties: {
       density: v(2659.3, 'ucrl-15151', 'unit weight 2659.3 kg/m3', 'intact, natural moisture'),
@@ -744,6 +805,32 @@ export type StressState = 'plane-strain' | 'plane-stress';
 /** Irwin's relation between the fracture toughness K_IC (Pa m^0.5) and the energy release rate G_c (J/m^2). */
 export function fractureEnergyFromToughness(toughness: number, youngModulus: number, poissonRatio: number, state: StressState = 'plane-strain'): number {
   return toughness * toughness * (state === 'plane-strain' ? 1 - poissonRatio * poissonRatio : 1) / youngModulus;
+}
+
+export interface ConcreteMaterialOptions extends SolidMaterialOptions {
+  readonly compressiveStrength?: number;
+  readonly tensileStrength?: number;
+  readonly peakStrain?: number;
+  readonly ultimateStrain?: number;
+  readonly fractureEnergy?: number;
+}
+
+/**
+ * The input of a `SolidBody` with the concrete law (concrete-law.ts): E, nu, rho as `solidMaterial`, and `concrete` from
+ * the library's f_cm (compressiveStrength), f_ctm (tensileStrength), eps_c1 (peakStrain), eps_cu1 (ultimateStrain) and
+ * G_f (fractureEnergy). Without a peak strain (a ceramic) the material is elastic up to f_cm (elasticLimit 1, eps_c1 =
+ * f_cm / E); without a fracture energy G_f comes from K_IC by Irwin's relation in plane strain. The law's other inputs
+ * (friction, crushing energy, band width) keep their defaults unless the caller adds them.
+ */
+export function concreteMaterial(id: string, options: ConcreteMaterialOptions = {}): SolidMaterial {
+  const entry = material(id), base = solidMaterial(id, {...options, thermalExpansion: options.thermalExpansion === undefined ? null : options.thermalExpansion});
+  const fc = optional(id, 'compressiveStrength', options.compressiveStrength, options), ft = optional(id, 'tensileStrength', options.tensileStrength, options);
+  const brittle = options.peakStrain === undefined && !entry.properties.peakStrain;
+  const peak = brittle ? fc / base.youngModulus : optional(id, 'peakStrain', options.peakStrain, options);
+  const ultimate = brittle ? peak : optional(id, 'ultimateStrain', options.ultimateStrain, options);
+  const energy = options.fractureEnergy ?? (entry.properties.fractureEnergy ? materialProperty(id, 'fractureEnergy', options)
+    : fractureEnergyFromToughness(materialProperty(id, 'fractureToughness', options), base.youngModulus, base.poissonRatio));
+  return {...base, concrete: {compressiveStrength: fc, tensileStrength: ft, peakStrain: peak, ultimateStrain: ultimate, fractureEnergy: energy, ...(brittle ? {elasticLimit: 1} : {})}};
 }
 
 export interface FractureLawOptions extends MaterialOptions {

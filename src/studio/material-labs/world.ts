@@ -9,7 +9,8 @@ import {StudioMaterials} from '../materials';
 import {studioEnvironment,riverNormals} from '../lighting';
 import {watchDeviceLoss,framesSettled,initWebGL} from '../device-loss';
 import {LABS,type LabId} from './catalog';
-import {GlassModel,GranularModel,LiquidModel,RubberModel,type LabFrame,type LabModel,type V3,random} from './models';
+import {ConcreteModel,GlassModel,GranularModel,LiquidModel,RubberModel,type LabFrame,type LabModel,type V3,random} from './models';
+import {liveFaces} from './concrete-si';
 
 /** Triangles of a prism over an n-gon: bottom vertices 0..n-1, top n..2n-1. */
 const prismFaces=(n:number):number[]=>{const out:number[]=[];for(let k=1;k<n-1;k++)out.push(0,k+1,k,n,n+k,n+k+1);for(let a=0;a<n;a++){const b=(a+1)%n;out.push(a,b,n+b,a,n+b,n+a);}return out;};
@@ -25,7 +26,7 @@ export class MaterialLabWorld {
   private liquidSection=3;private sectionVisible=false;
   private water?:T.Mesh<T.BufferGeometry>;private waterSides?:T.Mesh<T.BufferGeometry>;private foam?:T.InstancedMesh;
   private dummy=new T.Object3D();private color=new T.Color();private localVertices=new Float32Array();private ranges:number[]=[];
-  private rubberRest?:Float32Array;private paneRest?:Float32Array;private labels:T.Texture[]=[];private view:LabView='hero';private disposed=false;private recovering=false;private recovery?:Promise<void>;
+  private rubberRest?:Float32Array;private concreteSpalled=-1;private concreteFaces:Uint32Array=new Uint32Array(0);private concreteOwners:Uint32Array=new Uint32Array(0);private paneRest?:Float32Array;private labels:T.Texture[]=[];private view:LabView='hero';private disposed=false;private recovering=false;private recovery?:Promise<void>;
   /** Called after a lost WebGPU device has been replaced by the WebGL renderer. */
   onBackendChange?:()=>void;
   private tint:T.MeshPhysicalMaterial;private ripple=riverNormals();private lastFrame?:LabFrame;private rotate=false;private key=new T.DirectionalLight('#fff1d7',3.6);
@@ -241,10 +242,40 @@ export class MaterialLabWorld {
       this.rubberRest=new Float32Array(0);this.specimen=this.mesh(g,this.tint,[0,0,0]);this.specimen.frustumCulled=false;
       this.trayRack();this.box([.28,.19,.22],[1.3,1.6,.25],'black',.02);this.rod([1.01,1.6,-.1],[1.3,1.6,.25],.025,'steel');this.hose([[1.25,1.6,.2],[1.55,2.4,.2],[1.3,3.65,0]],.028);
     }else{
-      this.box([2.5,.13,1.7],[0,.765,0],'steel',.02);this.tray(2.7,1.9,.95);this.box([1.9,.19,1.9],[0,.095,0],'chrome',.016,this.actuator);this.buildPieces(false);
-      if(this.model.material.retention)for(const x of [-.4,.4])for(const z of [-.4,.4]){this.cylinder(.037,1.45,[x,1.61,z],'steel');for(let y=1;y<2.2;y+=.085){const ring=this.mesh(new T.TorusGeometry(.04,.009,5,8),this.materials.chrome,[x,y,z]);ring.rotation.x=Math.PI/2;}}
+      this.box([2.5,.13,1.7],[0,.765,0],'steel',.02);this.tray(2.7,1.9,.95);this.box([1.9,.19,1.9],[0,.095,0],'chrome',.016,this.actuator);this.buildConcrete();
       this.box([.78,1.2,.8],[2.45,.6,-.35],'orange',.035);this.label('HYDRAULIC / 03',.64,.15,[2.45,.96,.056],'#d87127','#29332d');this.hose([[2.5,1,-.65],[2.3,2.1,-1.6],[1.2,4.15,-.3],[.44,height-.55,0]],.056);this.hose([[2.25,.6,-.35],[1.7,.25,-1.35],[.3,.62,-1.4]],.045);
     }
+  }
+  /** The concrete cube: the boundary triangles of the elements that have not spalled, one vertex per corner (flat faces),
+   * coloured by the strength each element has lost. Rebuilt when an element spalls. */
+  private buildConcrete():void {
+    const m=this.model as ConcreteModel,n=m.solid.tetCount*12,g=new T.BufferGeometry();
+    g.setAttribute('position',new T.BufferAttribute(new Float32Array(3*n),3).setUsage(T.DynamicDrawUsage));
+    g.setAttribute('color',new T.BufferAttribute(new Float32Array(3*n),3).setUsage(T.DynamicDrawUsage));
+    g.setAttribute('uv',new T.BufferAttribute(new Float32Array(2*n),2).setUsage(T.DynamicDrawUsage));
+    this.tint.vertexColors=true;this.concreteSpalled=-1;
+    this.specimen=this.mesh(g,this.tint,[0,0,0]);this.specimen.frustumCulled=false;this.specimen.castShadow=true;
+  }
+  private updateConcrete(f:LabFrame):void {
+    const m=this.model as ConcreteModel,g=this.specimen!.geometry,X=m.solid.referencePositions,p=g.getAttribute('position'),c=g.getAttribute('color'),uv=g.getAttribute('uv');
+    if(f.positions.length!==3*m.solid.nodeCount||f.damage.length!==m.solid.tetCount)return;
+    let spalled=0;for(let e=0;e<f.damage.length;e++)if(f.damage[e]===255)spalled++;
+    if(spalled!==this.concreteSpalled){
+      const live=liveFaces(m.solid,e=>f.damage[e]!==255);this.concreteFaces=live.faces;this.concreteOwners=live.owners;this.concreteSpalled=spalled;
+      // Texture coordinates by the reference face orientation, in drawn metres.
+      for(let k=0;k<this.concreteFaces.length;k+=3){
+        const a=3*this.concreteFaces[k],b=3*this.concreteFaces[k+1],d=3*this.concreteFaces[k+2];
+        const ux=X[b]-X[a],uy=X[b+1]-X[a+1],uz=X[b+2]-X[a+2],vx=X[d]-X[a],vy=X[d+1]-X[a+1],vz=X[d+2]-X[a+2],nx=Math.abs(uy*vz-uz*vy),ny=Math.abs(uz*vx-ux*vz),nz=Math.abs(ux*vy-uy*vx);
+        for(let q=0;q<3;q++){const i=3*this.concreteFaces[k+q],s=8;uv.setXY(k+q,ny>=nx&&ny>=nz?X[i]*s:nx>=nz?X[i+2]*s:X[i]*s,ny>=nx&&ny>=nz?X[i+2]*s:X[i+1]*s);}
+      }
+      uv.needsUpdate=true;g.setDrawRange(0,this.concreteFaces.length);
+    }
+    const intact=new T.Color(1,1,1),crushed=new T.Color('#9a3b1f'),col=this.color;
+    for(let k=0;k<this.concreteFaces.length;k++){
+      const i=3*this.concreteFaces[k];p.setXYZ(k,f.positions[i],f.positions[i+1],f.positions[i+2]);
+      const d=f.damage[this.concreteOwners[(k-k%3)/3]]/254;col.copy(intact).lerp(crushed,Math.min(1,d*1.15));c.setXYZ(k,col.r,col.g,col.b);
+    }
+    p.needsUpdate=true;c.needsUpdate=true;g.computeVertexNormals();
   }
   private trayRack():void {
     this.box([1.15,.12,.72],[-2,.28,.2],'steel',.025);const colors=['#dc742b','#d6cba9'];for(let i=0;i<2;i++)this.mesh(new T.CylinderGeometry(.19,.19,.23,32),this.own(new T.MeshStandardMaterial({color:colors[i],roughness:.7})),[-2.27+i*.5,.455,.2]);for(const x of [-2.45,-1.55])for(const z of [-.08,.48])this.cylinder(.045,.22,[x,.11,z],'black');
@@ -279,7 +310,7 @@ export class MaterialLabWorld {
       // including the first fractured frame after live stepping or replay.
       if(fractured)this.updatePieces(f,true);
     }
-    if(m.id==='concrete'){this.actuator.position.y=f.actuator;this.updatePieces(f,false);}
+    if(m.id==='concrete'){this.actuator.position.y=f.actuator;if(this.specimen)this.updateConcrete(f);}
     if(m.id==='rubber'&&this.specimen&&this.rubberRest){
       const g=this.specimen.geometry,p=g.getAttribute('position');
       if(f.positions.length===p.array.length){(p.array as Float32Array).set(f.positions);p.needsUpdate=true;g.computeVertexNormals();}

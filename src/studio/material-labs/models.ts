@@ -6,9 +6,11 @@ import {LABS,materialFor,normalizeSettings,type LabId,type LabSettings,type Mate
 import {LabModel,DT,random,clamp,copyFrame,type LabFrame,type V3,type Piece} from './lab-model';
 import {GlassModel} from './glass-si';
 import {RubberModel} from './rubber-si';
+import {ConcreteModel} from './concrete-si';
 export * from './lab-model';
 export {GlassModel} from './glass-si';
 export {RubberModel} from './rubber-si';
+export {ConcreteModel} from './concrete-si';
 
 /**
  * The liquid lab. Flume: the validated free-surface solver in SI (FlumeSI: 3D incompressible liquid with viscosity, a
@@ -138,63 +140,6 @@ export class LiquidModel extends LabModel {
   }
 }
 
-interface Bond {a:number;b:number;rest:number;broken:boolean;strain:number;}
-export class ConcreteModel extends LabModel {
-  readonly bonds:Bond[]=[];readonly edge:number;private velocity:Float64Array;private old:Float64Array;
-  private heights:Float64Array;private lowerExtents:Float64Array;private strain=0;
-  constructor(p:Partial<LabSettings>={}){
-    super('concrete',p);this.edge=1.3*this.settings.size;const n=5,cell=this.edge/n,rng=random(this.settings.seed);
-    const point=(x:number,y:number,z:number):V3=>[-this.edge/2+x*cell,.95+y*cell,-this.edge/2+z*cell];
-    const corners:V3[]=[];for(let z=0;z<=n;z++)for(let y=0;y<=n;y++)for(let x=0;x<=n;x++){const v=point(x,y,z);if(x>0&&x<n)v[0]+=(rng()-.5)*cell*.3;if(y>0&&y<n)v[1]+=(rng()-.5)*cell*.3;if(z>0&&z<n)v[2]+=(rng()-.5)*cell*.3;corners.push(v);}
-    const at=(x:number,y:number,z:number)=>corners[(z*(n+1)+y)*(n+1)+x];
-    for(let z=0;z<n;z++)for(let y=0;y<n;y++)for(let x=0;x<n;x++){
-      const verts=[at(x,y,z),at(x+1,y,z),at(x+1,y+1,z),at(x,y+1,z),at(x,y,z+1),at(x+1,y,z+1),at(x+1,y+1,z+1),at(x,y+1,z+1)];
-      const center:V3=[0,0,0];for(const v of verts)for(let a=0;a<3;a++)center[a]+=v[a]/8;
-      this.pieces.push({center,vertices:verts.map(v=>[v[0]-center[0],v[1]-center[1],v[2]-center[2]]),radius:cell*.5});
-    }
-    this.allocate(this.pieces.length);this.velocity=new Float64Array(this.pieces.length*3);this.old=new Float64Array(this.velocity.length);this.heights=new Float64Array(this.pieces.length);this.lowerExtents=new Float64Array(this.pieces.length);
-    this.pieces.forEach((p,i)=>{this.frame.positions.set(p.center,i*3);this.heights[i]=Math.max(...p.vertices.map(v=>v[1]));this.lowerExtents[i]=-Math.min(...p.vertices.map(v=>v[1]));});
-    for(let z=0;z<n;z++)for(let y=0;y<n;y++)for(let x=0;x<n;x++){
-      const a=(z*n+y)*n+x;
-      for(const [ox,oy,oz] of [[1,0,0],[0,1,0],[0,0,1],[1,1,0],[-1,1,0],[0,1,1],[0,1,-1]])if(x+ox>=0&&x+ox<n&&y+oy<n&&z+oz>=0&&z+oz<n){const b=((z+oz)*n+y+oy)*n+x+ox;this.bonds.push({a,b,rest:Math.hypot(...this.pieces[a].center.map((v,j)=>v-this.pieces[b].center[j]) as V3),broken:false,strain:0});}
-    }
-    this.frame.actuator=.95+this.edge;
-  }
-  step(dt=DT):void {
-    const f=this.frame;f.time+=dt;const p=f.positions;
-    const target=this.released?0:this.settings.load/100;this.strain+=clamp(target-this.strain,-this.settings.rate/100*dt,this.settings.rate/100*dt);
-    const top=.95+this.edge*(1-this.strain);this.old.set(p);
-    for(let i=0;i<this.pieces.length;i++)for(let a=0;a<3;a++){const k=i*3+a;this.velocity[k]+=(a===1?-9.81:0)*dt;this.velocity[k]*=.997;p[k]+=this.velocity[k]*dt;}
-    let maxStrain=0;
-    for(let it=0;it<7;it++){
-      for(const b of this.bonds){if(b.broken)continue;const a=b.a*3,c=b.b*3,dx=p[c]-p[a],dy=p[c+1]-p[a+1],dz=p[c+2]-p[a+2],l=Math.hypot(dx,dy,dz)||1e-8,s=(l-b.rest)/b.rest;
-        b.strain=Math.max(b.strain,Math.abs(s));maxStrain=Math.max(maxStrain,Math.abs(s));
-        const threshold=.095*this.material.strength*(.85+(b.a%7)*.04);
-        if(Math.abs(s)>threshold&&f.time>.15){b.broken=true;f.damage[b.a]=f.damage[b.b]=1;continue;}
-        const q=(l-b.rest)/l*.39;
-        p[a]+=dx*q;p[a+1]+=dy*q;p[a+2]+=dz*q;p[c]-=dx*q;p[c+1]-=dy*q;p[c+2]-=dz*q;
-      }
-      for(let i=0;i<this.pieces.length;i++){
-        const k=i*3,hh=this.heights[i],rest=this.pieces[i].center;
-        const low=.95+this.lowerExtents[i];p[k+1]=clamp(p[k+1],low,Math.max(low,top-hh));
-        const hold=(.003+this.material.retention*.018)*this.settings.damping;p[k]+=(rest[0]-p[k])*hold;p[k+2]+=(rest[2]-p[k+2])*hold;
-        for(let j=i+1;j<this.pieces.length;j++){
-          const l=j*3,dx=p[l]-p[k],dy=p[l+1]-p[k+1],dz=p[l+2]-p[k+2],d2=dx*dx+dy*dy+dz*dz,r=(this.pieces[i].radius+this.pieces[j].radius)*.83;
-          if(d2>1e-14&&d2<r*r){const d=Math.sqrt(d2),q=(r-d)/d*.5;p[k]-=dx*q;p[k+1]-=dy*q;p[k+2]-=dz*q;p[l]+=dx*q;p[l+1]+=dy*q;p[l+2]+=dz*q;}
-        }
-      }
-    }
-    let broken=0;for(const b of this.bonds)if(b.broken)broken++;
-    for(let i=0;i<this.pieces.length;i++){
-      const k=i*3;for(let a=0;a<3;a++)this.velocity[k+a]=clamp((p[k+a]-this.old[k+a])/dt,-4,4)*.965;
-      const margin=this.pieces[i].radius;p[k]=clamp(p[k],-1.26+margin,1.26-margin);p[k+1]=Math.max(.95+this.lowerExtents[i],p[k+1]);p[k+2]=clamp(p[k+2],-.86+margin,.86-margin);
-      if(f.damage[i]){f.rotations[k]+=(p[k+2]-this.pieces[i].center[2])*.006;f.rotations[k+2]-=(p[k]-this.pieces[i].center[0])*.006;}
-    }
-    f.actuator=top;f.phase=broken?'Crushing · spalling':this.strain>0?'Compressing':'Unloaded';f.metrics=[this.strain*100,broken/this.bonds.length*100,maxStrain*100];
-  }
-}
-
-
 /**
  * The granular lab: the discrete element solver in SI (GranularTray, granular-si.ts). Positions are drawn ten times
  * larger than the apparatus (model units = SI x 10, floor at 0.58); the readouts are SI.
@@ -224,4 +169,4 @@ export class GranularModel extends LabModel {
 export function createModel(id:LabId,p:Partial<LabSettings>={}):LabModel {
   return id==='liquid'?new LiquidModel(p):id==='glass'?new GlassModel(p):id==='concrete'?new ConcreteModel(p):id==='rubber'?new RubberModel(p):new GranularModel(p);
 }
-export const METRIC_LABELS:Record<LabId,[string,string,string]>={liquid:['Peak depth · m','Peak speed · m/s','Fluid volume · m³'],glass:['Peak contact force · kN','Peak surface stress · MPa','Out-of-plane · mm'],concrete:['Compression · %','Broken bonds · %','Peak local strain · %'],rubber:['Compression · %','Platen force · kN','Retained volume · %'],granular:['Runout · m','Pile height · m','Grains behind gate']};
+export const METRIC_LABELS:Record<LabId,[string,string,string]>={liquid:['Peak depth · m','Peak speed · m/s','Fluid volume · m³'],glass:['Peak contact force · kN','Peak surface stress · MPa','Out-of-plane · mm'],concrete:['Stress · MPa','Strain · %','Platen force · kN'],rubber:['Compression · %','Platen force · kN','Retained volume · %'],granular:['Runout · m','Pile height · m','Grains behind gate']};

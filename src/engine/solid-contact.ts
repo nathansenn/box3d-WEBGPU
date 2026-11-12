@@ -77,6 +77,10 @@ export interface SolidContactOptions {
   readonly scheme?:'implicit'|'naive-staggered';
   /** Acceleration of gravity on the bodies when no world states it, m/s^2. Default: the solid's own gravity. */
   readonly gravity?:SolidContactVec3;
+  /** Starting guess of each step's Newton iteration for the solid: 'previous' (default) starts from the displacements of
+   * the last step; 'velocity' from them plus h v, the free motion. 'velocity' lets a softening solid (a concrete law) follow
+   * the loading path into the branch where it localises instead of the branch the constraints alone point to. */
+  readonly predictor?:'previous'|'velocity';
 }
 export interface SolidContactStats {
   converged:boolean;newtonIterations:number;linearIterations:number;
@@ -177,7 +181,7 @@ export class SolidContact {
   restoreState(state:StateValue):void {restoreFields(this,state,CONTACT_FIELDS);}
 
   readonly solver=SOLID_CONTACT_SOLVER_ID;
-  readonly solid:SolidBody;readonly dt:number;readonly stiffnessScale:number;readonly skin:number;readonly frictionPasses:number;readonly frictionTolerance:number;
+  readonly solid:SolidBody;readonly dt:number;readonly stiffnessScale:number;readonly skin:number;readonly predictor:'previous'|'velocity';readonly frictionPasses:number;readonly frictionTolerance:number;
   scheme:'implicit'|'naive-staggered';
   /** The rigid step moves a body by h v + alpha h^2 a. 1 for this object's own bodies; a SolidCoupling sets (n + 1) / (2 n) for n substeps. */
   bodyStepFactor=1;
@@ -222,7 +226,8 @@ export class SolidContact {
     this.stiffnessScale=options.stiffnessScale===undefined?100:num(options.stiffnessScale,'stiffnessScale',1e-3,1e9);
     this.frictionPasses=options.frictionPasses===undefined?12:num(options.frictionPasses,'frictionPasses',1,1000);
     this.frictionTolerance=options.frictionTolerance===undefined?1e-4:num(options.frictionTolerance,'frictionTolerance',0,1);
-    this.scheme=options.scheme??'implicit';
+    this.scheme=options.scheme??'implicit';this.predictor=options.predictor??'previous';
+    if(this.predictor!=='previous'&&this.predictor!=='velocity')fail("predictor must be 'previous' or 'velocity'.");
     if(this.scheme!=='implicit'&&this.scheme!=='naive-staggered')fail("scheme must be 'implicit' or 'naive-staggered'.");
     const g=options.gravity??this.k.gravity;for(let i=0;i<3;i++)this.bodyGravity[i]=num(g[i],'gravity',-1e5,1e5);
     const n3=this.n3=3*solid.nodeCount,X=solid.referencePositions,faces=solid.faces,area=new Float64Array(solid.nodeCount);
@@ -803,7 +808,8 @@ export class SolidContact {
     for(let s=0;s<count;s++){
       this.h=h;this.staticMode=false;this.cm=1/(h*h);this.cd=k.massDamping>0||k.stiffnessDamping>0?1/h:0;
       let inertia=0;
-      for(let j=0;j<n3;j++){this.u0[j]=u[j];this.target[j]=u[j]+h*v[j];const mv=this.cm*mass[(j-j%3)/3]*h*v[j];inertia+=mv*mv;z[j]=u[j];}
+      const ahead=this.predictor==='velocity'?h:0;
+      for(let j=0;j<n3;j++){this.u0[j]=u[j];this.target[j]=u[j]+h*v[j];const mv=this.cm*mass[(j-j%3)/3]*h*v[j];inertia+=mv*mv;z[j]=k.fixed[j]?u[j]:u[j]+ahead*v[j];}
       this.referenceInertia=Math.sqrt(inertia);
       k.holdDampingTangent();
       this.prepare(h,false);

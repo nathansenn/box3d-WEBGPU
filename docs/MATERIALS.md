@@ -1,12 +1,12 @@
 # Material library
 
-`src/engine/materials.ts`, published by the kit as `box3d-webgpu-kit/materials`: engineering materials in SI units, each value with the conditions it holds for, the figure exactly as it was read in its source, the conversion when it was not read in SI, a range where sources disagree or state one, and a numbered citation below. Library version `1.4.0` (`MATERIAL_LIBRARY_VERSION`); the sources were opened on 2026-11-12.
+`src/engine/materials.ts`, published by the kit as `box3d-webgpu-kit/materials`: engineering materials in SI units, each value with the conditions it holds for, the figure exactly as it was read in its source, the conversion when it was not read in SI, a range where sources disagree or state one, and a numbered citation below. Library version `1.5.0` (`MATERIAL_LIBRARY_VERSION`); the sources were opened on 2026-11-12.
 
 This is roadmap Phase 4, "a calibrated material library with sources". *Calibrated* here means traceable: every number can be followed to a page that was opened and read. It does not mean that the project measured anything. The values are typical or nominal figures for a named grade; real samples differ.
 
 ## What is in it
 
-28 materials, 31 contact-pair entries, 40 sources, **239 values: 230 from a source, 9 unverified**.
+32 materials, 31 contact-pair entries, 44 sources, **274 values: 264 from a source, 10 unverified**.
 
 | Material (`id`) | Grade and conditions | Density | E, ν, G | Strength | K_IC / G_c | k, c_p, α |
 |---|---|---|---|---|---|---|
@@ -18,7 +18,10 @@ This is roadmap Phase 4, "a calibrated material library with sources". *Calibrat
 | Soda-lime glass (`soda-lime-glass`) | annealed sheet | 2500 | 72 GPa, 0.23, 30 GPa | flexural 41 MPa | 0.75 ± 0.04 MPa√m | 0.937, 880, 8.3e-6 |
 | Soda-lime glass, toughened (`soda-lime-glass-toughened`) | thermally toughened sheet | 2500 | 72 GPa, 0.23, 30 GPa | flexural 165 MPa | 0.75 ± 0.04 MPa√m | — |
 | Borosilicate glass (`borosilicate-glass`) | SCHOTT BOROFLOAT 33 | 2230 | 64 GPa, 0.2 | bending 25 MPa | — | —, —, 3.25e-6 (20–300 °C) |
-| Concrete C30/37 (`concrete-c30-37`) | normal weight, 28 days | 2400 (2300–2500) | 32.8 GPa, 0.2 | f_cm 38, f_ctm 2.9 MPa | — | 1.64 (1.33–1.95), 900, 10e-6 |
+| Concrete C30/37 (`concrete-c30-37`) | normal weight, 28 days | 2400 (2300–2500) | 32.8 GPa, 0.2 | f_cm 38, f_ctm 2.9 MPa; eps_c1 2.2, eps_cu1 3.5 ‰ | G_f 140.5 J/m² | 1.64 (1.33–1.95), 900, 10e-6 |
+| Concrete C20/25 (`concrete-c20-25`), C60/75 (`concrete-c60-75`) | normal weight, 28 days | 2400 | 30.0 / 39.1 GPa, 0.2 | f_cm 28 / 68, f_ctm 2.21 / 4.35 MPa; eps_c1 2.0 / 2.6, eps_cu1 3.5 / 3.0 ‰ | G_f 133 / 156 J/m² | — |
+| Lightweight concrete LC25/28 (`concrete-lc25-28`) | density class 1.8, sanded | 1850 | 21.1 GPa, 0.2 | f_lcm 33, f_lctm 2.28 MPa; eps_lc1 = eps_lcu1 1.64 ‰ | G_f 137 J/m² (unverified) | — |
+| Alumina 96% (`alumina-96`) | Aloxalon 96 / AL600 | 3750 (3720–3750) | 330 GPa, 0.22 | compressive 2000 (lower bound), flexural 300 (–365) MPa | 3.5 MPa√m | 25.6, —, 6.4e-6 |
 | Granite (`granite-barre`) | Barre granite, intact | 2659 | 72.4 GPa, 0.22, 29.7 GPa | UCS 234.5, tensile 7.6 MPa | — | 2.37 |
 | Northern red oak (`oak-red-northern`), loblolly pine (`pine-loblolly`) | clear wood, 12% moisture, along the grain | 706, 571 | 13.75 / 13.53 GPa, ν_LR 0.350 / 0.328, G_LR 1.22 / 1.11 GPa | MOR 99 / 88, compression 46.6 / 49.2 MPa | 0.22–0.55 MPa√m (crack along the grain) | 0.31 / 0.26, 1620, 3.8e-6 |
 | PMMA (`pmma`) | PLEXIGLAS GS, 23 °C | 1190 | 3.3 GPa, 0.37, 1.7 GPa dynamic (flagged) | tensile 80 MPa | — | 0.19, 1470, 70e-6 |
@@ -43,7 +46,7 @@ Where the values come from, counted per value: standards and design aids that ta
 
 ## Unverified values
 
-Six contact coefficients that the scene editor needs, the density of honey, the elongation at break of S355 and the in-plane shear stiffness of the coated fabric were not found in any opened source. They are kept so that the editor, the flow labs and the metal press keep a value, carry `source: 'unverified'` and a reason, and every helper refuses them unless `allowUnverified: true` is passed:
+Six contact coefficients that the scene editor needs, the density of honey, the elongation at break of S355, the in-plane shear stiffness of the coated fabric and the fracture energy of lightweight concrete were not found in any opened source. They are kept so that the editor, the flow labs and the metal press keep a value, carry `source: 'unverified'` and a reason, and every helper refuses them unless `allowUnverified: true` is passed:
 
 | Value | Value | Note |
 |---|---|---|
@@ -56,10 +59,13 @@ Six contact coefficients that the scene editor needs, the density of honey, the 
 | ice on ice, restitution | 0.3 | the editor's earlier value |
 | loblolly pine on itself, restitution | 0.45 | the editor's earlier value |
 | honey, density | 1420 kg/m³ | a recalled typical figure; the viscosity source's specific-gravity table was not readable |
+| LC25/28, fracture energy | 137 J/m² | the normal-weight Model Code formula applied to f_lcm = 33 MPa; no lightweight figure found |
 
-Not in the library because no opened source gave them (the helpers then ask for the value): fracture toughness of the steels, stainless 304, copper, concrete (fracture energy), granite, PMMA, ABS, nylon and PTFE; tensile strength of ice; Poisson's ratio and specific heat of ABS and PTFE; specific heat of nylon; thermal conductivity of natural rubber; heat capacity and expansion of granite (illegible in the scanned report); restitution of quartz sand and of most pairs.
+Not in the library because no opened source gave them (the helpers then ask for the value): fracture toughness of the steels, stainless 304, copper, granite, PMMA, ABS, nylon and PTFE; tensile strength of ice; Poisson's ratio and specific heat of ABS and PTFE; specific heat of nylon; thermal conductivity of natural rubber; heat capacity and expansion of granite (illegible in the scanned report); restitution of quartz sand and of most pairs.
 
 Elongation at break (`elongationAtBreak`, a fraction) is in the library for 6061-T6 (12% for 1.6 mm sheet, 17% for 12.7 mm bar; ASM / Aluminum Association typical, read in the datasheet) and, unverified, for S355. `plasticMaterial(id)` turns yield strength, tensile strength and elongation into the inputs of the elastic-plastic solid (docs/SOLID_MECHANICS.md): the yield stress, a linear hardening modulus from a straight line through (f_y / E, f_y) and (A, f_u), and a failure strain A - f_u / E at which elements erode. That fit uses engineering values and ignores necking; it is coarse. For 6061-T6 it gives H = 0.29 GPa and a failure strain of 0.116; for S355 (with `allowUnverified`) H = 0.62 GPa and 0.218.
+
+Concrete for the concrete law of the solid (`concreteMaterial(id)`, docs/SOLID_MECHANICS.md#concrete-law): C20/25, C30/37 and C60/75 carry the EN 1992-1-1 Table 3.1 strain at the peak (`peakStrain`, eps_c1) and nominal ultimate strain (`ultimateStrain`, eps_cu1), read in a scanned copy of the standard, and the fib Model Code 2010 fracture energy G_F = 73 f_cm^0.18 N/m as quoted by Sucharda (2020). LC25/28 (density class 1.8, sanded) follows section 11: E and f_ctm of C25/30 times eta_E = (rho / 2200)^2 and eta_1 = 0.40 + 0.60 rho / 2200 with rho = 1800 kg/m³; its eps_lc1 = k f_lcm / (E_lci eta_E) with k = 1.1 reads E_lci as 1.05 E_cm, because the scan of Table 11.3.1 is garbled there. Alumina 96% (`category: 'ceramic'`) is a technical ceramic from two datasheets; it has no tensile strength (the sheets give the flexural strength) and `concreteMaterial` makes it elastic to the peak and takes G_f from K_IC. Library 1.5.0 adds these 4 materials, 4 sources and 35 values (1 unverified).
 
 Woven fabric (`category: 'fabric'`, `isotropic: false`): `pvc-polyester-fabric` carries its stiffness and strength per unit width along the warp and the weft, in N/m, as a fabric is tested (`membraneStiffnessWarp`, `membraneStiffnessWeft`, `membraneShearStiffness`, `membranePoissonRatio`, `tensileStrengthWarp`, `tensileStrengthWeft`), its areal density in kg/m² and a tear strength in N. The stiffness is that of Ambroziak's biaxial 1:1 tests at small strain (first loading); his uniaxial tests give 600, 800 and 440 kN/m in successive strain ranges (the range in the entry). `fabricMaterial(id, {warpDirection})` builds the input of `Cloth` (docs/CLOTH.md): areal density, the orthotropic membrane and the tearing strengths; it needs `allowUnverified` (or `shear`) because the shear stiffness is unverified. The canopy study uses it (docs/STUDIO_CANOPY.md).
 
@@ -265,11 +271,76 @@ normal-weight concrete, strength class C30/37 (EN 1992-1-1), siliceous or calcar
 | Poisson's ratio (1) | 0.2 |  | uncracked | nu = 0.2 (uncracked concrete), clause 3.1.3(4) | [10] |
 | Compressive strength (MPa) | 38 | 30 – 38 | mean cylinder strength at 28 days; characteristic 30 MPa | f_cm = 38 MPa (f_ck = 30 MPa) | [10] |
 | Tensile strength (MPa) | 2.9 |  | mean axial tensile strength at 28 days | f_ctm = 2.90 MPa | [10] |
+| Strain at peak stress (per mille) | 2.2 |  | strain at the peak of the 3.1.5 curve (short-term uniaxial) | Table 3.1: eps_c1 (per mille) 2,2 (C30/37); eps_c1 = 0,7 f_cm^0,31 < 2,8 *(per mille / 1000)* | [41] |
+| Nominal ultimate strain (per mille) | 3.5 |  | nominal ultimate strain of the 3.1.5 curve | Table 3.1: eps_cu1 (per mille) 3,5 for f_ck <= 50 MPa *(per mille / 1000)* | [41] |
+| Fracture energy (J/m^2) | 140.5 |  | mean tensile fracture energy from f_cm = 38 MPa | G_F = 73 f_c^0.18 (fib Model Code 2010), N/m *(73 x 38^0.18 = 140.5 N/m)* | [42] |
 | Thermal conductivity (W/(m K)) | 1.642 | 1.333 – 1.951 | 20 °C | upper limit lambda_c = 2 - 0,2451 (theta/100) + 0,0107 (theta/100)^2 W/m K; lower limit 1,36 - 0,136 (theta/100) + 0,0057 (theta/100)^2 *(both limits evaluated at 20 °C; the value is their mean)* | [11] |
 | Specific heat (J/(kg K)) | 900 |  | dry concrete (moisture 0%), 20 to 100 °C | c_p(theta) = 900 J/kg K for 20 °C <= theta <= 100 °C | [11] |
 | Thermal expansion (1e-6/K) | 10 |  | design value | alpha = 10 x 10^-6 1/K, clause 3.1.3(5) | [10] |
 
-*Note:* No fracture energy: the fib Model Code formula was not opened in a source, so fractureLaw needs `toughness` for concrete.
+*Note:* The fracture energy is the fib Model Code 2010 formula as quoted in a paper (the Model Code was not opened). fractureLaw uses it, with the tensile strength, when no toughness is passed.
+
+### Concrete C20/25 (`concrete-c20-25`)
+
+normal-weight concrete, strength class C20/25 (EN 1992-1-1), quartzite aggregate.
+
+| Property | Value | Range | Conditions | Read in the source | Source |
+|---|---|---|---|---|---|
+| Density (kg/m^3) | 2400 | 2300 – 2500 | plain normal-weight concrete | 2300 kg/m3 (siliceous concrete with 3% moisture, EN 1992-1-2 3.3.2 figure); ≈ 2500 kg/m3 for reinforced concrete (design aid) *(middle of the two figures read)* | [11] [10] |
+| Young's modulus (GPa) | 29.962 | 29.962 – 30 | secant modulus at 28 days, quartzite aggregate | E_cm = 29962 MPa (C20/25) *(Table 3.1 rounds it to 30 GPa)* | [10] [41] |
+| Poisson's ratio (1) | 0.2 |  | uncracked | 3.1.3 (4): Poisson's ratio may be taken equal to 0,2 for uncracked concrete | [41] |
+| Compressive strength (MPa) | 28 | 20 – 28 | mean cylinder strength at 28 days; characteristic 20 MPa | Table 3.1: f_cm (MPa) 28 (f_ck 20); f_cm = f_ck + 8 | [41] |
+| Tensile strength (MPa) | 2.21 | 2.2 – 2.21 | mean axial tensile strength at 28 days | f_ctm = 2.21 MPa (C20/25) *(Table 3.1 gives 2,2)* | [10] [41] |
+| Strain at peak stress (per mille) | 2 |  | strain at the peak of the 3.1.5 curve | Table 3.1: eps_c1 (per mille) 2,0 (C20/25) *(per mille / 1000)* | [41] |
+| Nominal ultimate strain (per mille) | 3.5 |  | nominal ultimate strain of the 3.1.5 curve | Table 3.1: eps_cu1 (per mille) 3,5 for f_ck <= 50 MPa *(per mille / 1000)* | [41] |
+| Fracture energy (J/m^2) | 133 |  | mean tensile fracture energy from f_cm = 28 MPa | G_F = 73 f_c^0.18 (fib Model Code 2010), N/m *(73 x 28^0.18 = 133.0 N/m)* | [42] |
+
+### Concrete C60/75 (`concrete-c60-75`)
+
+high-strength normal-weight concrete, strength class C60/75 (EN 1992-1-1), quartzite aggregate.
+
+| Property | Value | Range | Conditions | Read in the source | Source |
+|---|---|---|---|---|---|
+| Density (kg/m^3) | 2400 | 2300 – 2500 | plain normal-weight concrete | 2300 kg/m3 (siliceous concrete with 3% moisture, EN 1992-1-2 3.3.2 figure); ≈ 2500 kg/m3 for reinforced concrete (design aid) *(middle of the two figures read)* | [11] [10] |
+| Young's modulus (GPa) | 39.1 |  | secant modulus at 28 days, quartzite aggregate | E_cm = 39100 MPa (C60/75) | [10] [41] |
+| Poisson's ratio (1) | 0.2 |  | uncracked | 3.1.3 (4): Poisson's ratio may be taken equal to 0,2 for uncracked concrete | [41] |
+| Compressive strength (MPa) | 68 | 60 – 68 | mean cylinder strength at 28 days; characteristic 60 MPa | Table 3.1: f_cm (MPa) 68 (f_ck 60); f_cm = f_ck + 8 | [41] |
+| Tensile strength (MPa) | 4.35 | 4.35 – 4.4 | mean axial tensile strength at 28 days | f_ctm = 4.35 MPa (C60/75) *(Table 3.1 gives 4,4)* | [10] [41] |
+| Strain at peak stress (per mille) | 2.6 |  | strain at the peak of the 3.1.5 curve | Table 3.1: eps_c1 (per mille) 2,6 (C60/75) *(per mille / 1000)* | [41] |
+| Nominal ultimate strain (per mille) | 3 |  | nominal ultimate strain of the 3.1.5 curve | Table 3.1: eps_cu1 (per mille) 3,0 (C60/75); 2,8 + 27 [(98 - f_cm)/100]^4 for f_ck >= 50 MPa *(per mille / 1000)* | [41] |
+| Fracture energy (J/m^2) | 156 |  | mean tensile fracture energy from f_cm = 68 MPa | G_F = 73 f_c^0.18 (fib Model Code 2010), N/m *(73 x 68^0.18 = 156.0 N/m)* | [42] |
+
+### Lightweight aggregate concrete LC25/28 (`concrete-lc25-28`)
+
+lightweight aggregate concrete LC25/28, density class 1,8 (oven-dry 1601 to 1800 kg/m3), sanded (EN 1992-1-1 section 11).
+
+| Property | Value | Range | Conditions | Read in the source | Source |
+|---|---|---|---|---|---|
+| Density (kg/m^3) | 1850 |  | design density of plain LWAC of density class 1,8 | Table 11.1: density class 1,8, density 1601-1800 kg/m3; design density, plain concrete 1850 | [41] |
+| Young's modulus (GPa) | 21.07 |  | secant modulus, rho = 1800 kg/m3 (upper limit of class 1,8) | 11.3.2 (1): E_lcm = E_cm (Table 3.1) x eta_E, eta_E = (rho/2200)^2 *(E_cm of C25/30, 31476 MPa (design aid), x (1800/2200)^2 = 0.6694)* | [41] [10] |
+| Poisson's ratio (1) | 0.2 |  | uncracked | 3.1.3 (4): Poisson's ratio may be taken equal to 0,2 for uncracked concrete (section 11 changes nothing) | [41] |
+| Compressive strength (MPa) | 33 | 25 – 33 | mean cylinder strength at 28 days; characteristic 25 MPa | Table 11.3.1: f_lck 25, f_lck,cube 28, f_lcm = f_lck + 8 (MPa) | [41] |
+| Tensile strength (MPa) | 2.28 |  | mean axial tensile strength, rho = 1800 kg/m3 | 11.3.1 (3): f_lctm = f_ctm x eta_1, eta_1 = 0,40 + 0,60 rho/2200 (rho the upper limit of the class) *(f_ctm of C25/30, 2.56 MPa (design aid), x 0.8909)* | [41] [10] |
+| Strain at peak stress (per mille) | 1.64 |  | strain at the peak, sanded LWAC | Table 11.3.1: eps_lc1 = k f_lcm / (E_lci eta_E), k = 1,1 for sanded lightweight aggregate concrete (partly garbled in the scan) *(E_lci taken as the tangent modulus 1.05 E_cm = 33050 MPa of C25/30: 1.1 x 33 / (33050 x 0.6694); this reading of the garbled formula was not confirmed)* | [41] |
+| Nominal ultimate strain (per mille) | 1.64 |  | nominal ultimate strain: no descending branch | Table 11.3.1: eps_lcu1 = eps_lc1 | [41] |
+| Fracture energy (J/m^2) | 137 |  | the normal-weight formula 73 f_lcm^0.18 N/m applied to f_lcm = 33 MPa | *The Model Code formula read (as quoted) is for normal-weight concrete; no lightweight figure was found in an opened source.* | unverified |
+
+### Alumina 96% (`alumina-96`)
+
+sintered 96% Al2O3 technical ceramic (Aloxalon 96; Morgan AL600 for the range).
+
+| Property | Value | Range | Conditions | Read in the source | Source |
+|---|---|---|---|---|---|
+| Density (kg/m^3) | 3750 | 3720 – 3750 | fired, fully dense | Density 3.75 g/cc *(AL600: bulk density 3.72 g/cm3)* | [43] [44] |
+| Young's modulus (GPa) | 330 |  | room temperature | Young's Modulus 330 GPa | [43] |
+| Poisson's ratio (1) | 0.22 |  | room temperature | Poisson's Ratio 0.22 | [43] |
+| Compressive strength (MPa) | 2000 | 2000 – 2070 | room temperature; a lower bound as printed | Compressive Strength >2000 MPa *(AL600: >2070 MPa; both sheets print a lower bound)* | [43] [44] |
+| Flexural strength (MPa) | 300 | 300 – 365 | 3-point bending, 20 °C | Flexural strength 300 MPa (3-point MOR at 20°C) *(AL600: 365 MPa)* | [43] [44] |
+| Fracture toughness (MPa m^0.5) | 3.5 |  | room temperature | Fracture Toughness K1c 3.5 MPa m½ | [43] |
+| Thermal conductivity (W/(m K)) | 25.6 |  | room temperature | Thermal Conductivity 25.6 W/m.K | [44] |
+| Thermal expansion (1e-6/K) | 6.4 |  | mean, 25 to 200 °C | Thermal Expansion Coefficient 25-200°C 6.4 10-6/°C | [44] |
+
+*Note:* No tensile strength: the sheets give the flexural strength, which is higher than the direct tensile strength of a ceramic.
 
 ### Granite (Barre) (`granite-barre`)
 
@@ -590,6 +661,10 @@ All opened on 2026-11-12.
 38. `agc-stratobel-pvb` — AGC Glass Europe (H. Lefèvre), *Material properties of PVB interlayers, Stratobel and Stratobel Strong laminated glass, 20 July 2022*. <https://www.agc-yourglass.com/sites/default/files/2022-10/Material%20Properties%20of%20PVB%200722_EN_0.pdf>. Kind: manufacturer. Relaxation moduli for load resistance design (EN 16612 / EN 16613); the shortest duration tabulated for standard PVB is 3 s.
 39. `ambroziak-2020` — A. Ambroziak, *Characterization study on mechanical properties of polyester coated fabric, Archives of Civil Engineering 66(2) (2020) 105-118, doi:10.24425/ace.2020.131799, Tables 2 and 3*. <https://ace.il.pw.edu.pl/pdf-185228-105926?filename=Characterization+Study+on.pdf>
 40. `sioen-b6657` — Sioen Industries (Sioline), *B6657 architectural membrane, Type III PVC-coated polyester: technical data*. <https://sioline.com/en/products/b6657>
+41. `en1992-1-1` — CEN (BS EN 1992-1-1:2004), *Eurocode 2: Design of concrete structures, Part 1-1: General rules and rules for buildings: Table 3.1, 3.1.5 (expression 3.14), 3.1.9 and section 11 (Tables 11.1 and 11.3.1)*. <https://www.phd.eng.br/wp-content/uploads/2015/12/en.1992.1.1.2004.pdf>. Kind: standard. A scanned copy of the standard; read through its text layer, where Table 11.3.1 is partly garbled.
+42. `sucharda-2020` — O. Sucharda, *Identification of Fracture Mechanic Properties of Concrete and Analysis of Shear Capacity of Reinforced Concrete Beams without Transverse Reinforcement, Materials 13 (2020) 2788, doi:10.3390/ma13122788, equation 14 and Table 6*. <https://pmc.ncbi.nlm.nih.gov/articles/PMC7344630/>. Kind: peer-reviewed. Quotes the fib Model Code 2010 fracture energy G_F = 73 f_c^0.18 (N/m, f_c in MPa); the Model Code itself was not opened.
+43. `syalons-aloxalon-96` — International Syalons (Newcastle) Ltd, *Alumina: Aloxalon 96 (96% Al2O3) property table*. <https://syalons.com/materials/alumina/>. Kind: manufacturer.
+44. `morgan-al600` — Morgan Advanced Materials, *AL600 data sheet (96% Al2O3 alumina)*. <https://morgantechnicalceramics.com/media/2296/al600.pdf>. Kind: manufacturer.
 
 ## Unverified values
 
@@ -597,6 +672,7 @@ All opened on 2026-11-12.
 |---|---|---|
 | pvc-polyester-fabric membraneShearStiffness | 30000 | Not in the opened sources; 30 kN/m is a recalled order of magnitude for PVC-polyester (a few percent of the tensile stiffness). The membrane deflections of the canopy depend on it only weakly. |
 | honey density | 1420 | The opened source measured the specific gravity but its table was not readable; 1420 kg/m3 is a typical figure recalled, not read. A honey with 22% water, as in the viscosity source, is lighter (about 1.38 to 1.40). |
+| concrete-lc25-28 fractureEnergy | 137 | The Model Code formula read (as quoted) is for normal-weight concrete; no lightweight figure was found in an opened source. |
 | aluminium-6061-t6/aluminium-6061-t6 (dry) restitution | 0.5 | No source was opened for this value. It is the scene editor's earlier typical value, written from memory (docs/SCENE_EDITOR.md before the library), kept so that the editor keeps a value for it. |
 | concrete-c30-37/concrete-c30-37 (dry) staticFriction | 0.6 | The editor's earlier table cited ACI 318 shear-friction coefficients; that code was not opened here. |
 | concrete-c30-37/concrete-c30-37 (dry) restitution | 0.2 | No source was opened for this value. It is the scene editor's earlier typical value, written from memory (docs/SCENE_EDITOR.md before the library), kept so that the editor keeps a value for it. |

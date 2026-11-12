@@ -1,11 +1,15 @@
 import {EngineError,finite,integer,onlyKeys,record} from './contracts.ts';
 import {captureFields,restoreFields,type FieldOptions,type StateObject,type StateValue} from './checkpoint.ts';
 import {boundaryFaces,tetVolume,SOLID_MAX_NODES,SOLID_MAX_TETS,type TetMesh} from './solid-mesh.ts';
+import {buildConcreteLaw,ConcreteReturn,concreteDamage,tableValue,type ConcreteLaw,type ConcreteLawInput} from './concrete-law.ts';
+export {buildConcreteLaw,ec2CompressionStress,type ConcreteLaw,type ConcreteLawInput} from './concrete-law.ts';
 export {boxMesh,boxNode,boundaryFaces,tetVolume,SOLID_MAX_NODES,SOLID_MAX_TETS,type TetMesh,type BoxMeshOptions} from './solid-mesh.ts';
 
 export const SOLID_SOLVER_ID='solid-tet-corot-js-f64-v1';
 /** Solver id of a body with a yield stress: J2 plasticity on the same element. */
 export const SOLID_PLASTIC_SOLVER_ID='solid-tet-j2-js-f64-v1';
+/** Solver id of a body with a concrete law: Drucker-Prager and Rankine composite plasticity with crack-band softening. */
+export const SOLID_CONCRETE_SOLVER_ID='solid-tet-dp-rankine-js-f64-v1';
 /** `linear`: small-strain Hooke. `corotational`: Hooke on the stretch left after removing each
  * element's rotation. `neo-hookean`: compressible Neo-Hookean rubber. `green-lagrange`: Hooke on the
  * Green-Lagrange strain (St Venant-Kirchhoff): exact under rotation, for small elastic strain; the model
@@ -30,6 +34,10 @@ export interface SolidMaterial {
   /** Ductile failure: an element whose equivalent plastic strain reaches this value is eroded (removed:
    * no stiffness, no stress) at the end of the step. Default Infinity (no erosion). */
   failureStrain?:number;
+  /** Quasi-brittle damage-plasticity (concrete-law.ts): Drucker-Prager in compression fitted to the EN 1992-1-1 3.1.5
+   * curve and Rankine in tension, both softening by the crack band; crushed and fully opened elements erode. Instead of
+   * yieldStress. Linear or green-lagrange model, backward-euler or explicit integrator, not viscoelastic. */
+  concrete?:ConcreteLawInput;
 }
 export interface SolidConfig {
   model?:SolidModel;
@@ -148,6 +156,7 @@ export function symmetricEigenvalues(t:ArrayLike<number>,offset:number,out:Float
   out[outOffset]=x;out[outOffset+1]=y;out[outOffset+2]=z;
 }
 
+/** Symmetric 6 x 6 matrix M (row-major) with its eigenvalues raised to at least `floor`, by cyclic Jacobi. In place. */
 /** Von Mises equivalent stress of a symmetric tensor [xx, yy, zz, yz, xz, xy]. */
 export function vonMisesStress(t:ArrayLike<number>,offset=0):number {
   const a=t[offset]-t[offset+1],b=t[offset+1]-t[offset+2],c=t[offset+2]-t[offset];
@@ -164,8 +173,8 @@ export function vonMisesStress(t:ArrayLike<number>,offset=0):number {
  * ductile erosion). No contact here (solid-contact.ts) and no crack-growth law. See docs/SOLID_MECHANICS.md.
  */
 /** What an exact checkpoint of a SolidBody holds: every field it has (displacements, velocities, loads, constraints, the
- * integrator's history and the corotational frames). */
-const SOLID_FIELDS:FieldOptions={label:'SolidBody'};
+ * integrator's history, the corotational frames, the plastic and concrete state). The concrete return mapping is scratch. */
+const SOLID_FIELDS:FieldOptions={label:'SolidBody',skip:['creturn']};
 
 export class SolidBody {
   /** Everything a later step reads, as a state tree (checkpoint.ts), for exact checkpoints. */
@@ -189,7 +198,7 @@ export class SolidBody {
   readonly referenceVolume:number;readonly mass:number;
   /** Lame parameters in Pa: lambda = E nu / ((1 + nu)(1 - 2 nu)), mu = E / (2 (1 + nu)). */
   readonly lambda:number;readonly mu:number;
-  readonly material:Readonly<Required<SolidMaterial>>;
+  readonly material:Readonly<Required<Omit<SolidMaterial,'concrete'>>&{concrete?:ConcreteLawInput}>;
   /** True when the material has a yield stress. */
   readonly plastic:boolean;
   /** Statistics of the most recent solve (static load step or implicit time step). Updated in place. */
@@ -208,6 +217,10 @@ export class SolidBody {
   readonly viscoelasticScale:number=1;
   /** Committed plastic strain per element [xx, yy, zz, yz, xz, xy] (tensor shear), equivalent plastic strain, erosion flags. */
   private readonly ep:Float64Array;private readonly alpha:Float64Array;private readonly eroded:Uint8Array;private readonly ptan:Float64Array;
+  /** Concrete law (constant), crack strain kappa_t per element, and the stored symmetric 6 x 6 tangent per element (21 values). */
+  readonly concreteLaw:ConcreteLaw|null=null;private readonly kappaT:Float64Array=new Float64Array(0);private readonly strengthFactor:Float64Array=new Float64Array(0);private readonly ctan:Float64Array=new Float64Array(0);private readonly ctrial:Float64Array=new Float64Array(0);private readonly cdirty:Uint8Array=new Uint8Array(0);
+  private readonly creturn:ConcreteReturn|null=null;private readonly cbase=new Float64Array(13);private readonly cstrain=new Float64Array(6);private readonly cmat=new Float64Array(36);
+  private kDiagonalFirst:Float64Array|null=null;
   private readonly T=new Float64Array(6);private storeMode=0;private storedOnly=false;private erodedTotal=0;private plasticWorkTotal=0;
   private cm=0;private cd=0;private reference=0;private referenceInertia=0;private loadScale=1;private accelerationValid=false;private steps=0;private unconverged=0;private limit:SolidExplicitLimit|null=null;
 
@@ -217,14 +230,16 @@ export class SolidBody {
     const nodeCount=integer((mesh.positions as ArrayLike<number>)?.length/3,'node count',4,SOLID_MAX_NODES),tetCount=integer((mesh.tets as ArrayLike<number>)?.length/4,'element count',1,SOLID_MAX_TETS),size=3*nodeCount;
     this.nodeCount=nodeCount;this.tetCount=tetCount;
     const X=this.referencePositions=numbers(mesh.positions,size,'positions',-1e6,1e6),tets=this.tets=indices(mesh.tets,nodeCount,'tets');
-    const m=record(d.material,'material');onlyKeys(m,['youngModulus','poissonRatio','density','thermalExpansion','yieldStress','hardeningModulus','failureStrain'],'material');
+    const m=record(d.material,'material');onlyKeys(m,['youngModulus','poissonRatio','density','thermalExpansion','yieldStress','hardeningModulus','failureStrain','concrete'],'material');
     const E=finite(m.youngModulus,'youngModulus',1,1e13),nu=finite(m.poissonRatio,'poissonRatio',-.99,.4999),rho=finite(m.density,'density',1e-6,1e6);
-    const plastic=this.plastic=m.yieldStress!==undefined;
+    const concrete=m.concrete!==undefined;
+    if(concrete&&(m.yieldStress!==undefined||m.hardeningModulus!==undefined||m.failureStrain!==undefined))throw new EngineError('INVALID_PAYLOAD','A concrete law replaces yieldStress, hardeningModulus and failureStrain.');
+    const plastic=this.plastic=m.yieldStress!==undefined||concrete;
     if(!plastic&&(m.hardeningModulus!==undefined||m.failureStrain!==undefined))throw new EngineError('INVALID_PAYLOAD','hardeningModulus and failureStrain need a yieldStress.');
     this.material=Object.freeze({youngModulus:E,poissonRatio:nu,density:rho,thermalExpansion:m.thermalExpansion===undefined?0:finite(m.thermalExpansion,'thermalExpansion',-1e-2,1e-2),
-      yieldStress:plastic?finite(m.yieldStress,'yieldStress',1e-6,1e13):Infinity,hardeningModulus:m.hardeningModulus===undefined?0:finite(m.hardeningModulus,'hardeningModulus',0,1e13),
-      failureStrain:m.failureStrain===undefined?Infinity:m.failureStrain===Infinity?Infinity:finite(m.failureStrain,'failureStrain',1e-9,1e3)});
-    if(plastic)this.solver=SOLID_PLASTIC_SOLVER_ID;
+      yieldStress:plastic&&!concrete?finite(m.yieldStress,'yieldStress',1e-6,1e13):Infinity,hardeningModulus:m.hardeningModulus===undefined?0:finite(m.hardeningModulus,'hardeningModulus',0,1e13),
+      failureStrain:m.failureStrain===undefined?Infinity:m.failureStrain===Infinity?Infinity:finite(m.failureStrain,'failureStrain',1e-9,1e3),...(concrete?{concrete:m.concrete as ConcreteLawInput}:{})});
+    if(plastic)this.solver=concrete?SOLID_CONCRETE_SOLVER_ID:SOLID_PLASTIC_SOLVER_ID;
     this.lambda=E*nu/((1+nu)*(1-2*nu));this.mu=E/(2*(1+nu));
     const c=d.config===undefined?{}:record(d.config,'config');onlyKeys(c,['model','dt','integrator','massDamping','stiffnessDamping','gravity','tolerance','forceTolerance','maxNewtonIterations','maxLinearIterations','explicitSafety','viscoelastic'],'config');
     const model=c.model===undefined?'corotational':c.model,integrator=c.integrator===undefined?'backward-euler':c.integrator;
@@ -237,6 +252,7 @@ export class SolidBody {
       this.veBranches=ve.branches.map((b:unknown,i:number)=>{const r=record(b,`branches[${i}]`);onlyKeys(r,['ratio','time'],`branches[${i}]`);return {ratio:finite(r.ratio,'ratio',0,1e4),time:finite(r.time,'time',1e-9,1e12)};});
     }
     if(plastic&&model!=='linear'&&model!=='green-lagrange')throw new EngineError('INVALID_PAYLOAD','Plasticity needs the linear or green-lagrange model.');
+    if(concrete&&c.viscoelastic!==undefined)throw new EngineError('INVALID_PAYLOAD','A solid is either viscoelastic or has a concrete law, not both.');
     if(plastic&&integrator==='midpoint')throw new EngineError('INVALID_PAYLOAD','Plasticity needs the backward-euler or explicit integrator: the midpoint rule extrapolates past the state it solved.');
     if(plastic&&c.viscoelastic!==undefined)throw new EngineError('INVALID_PAYLOAD','A solid is either viscoelastic or plastic, not both: the Prony branches relax the total strain, and J2 needs them to act on the elastic strain, which this version does not model.');
     this.model=model;this.integrator=integrator;this.dt=c.dt===undefined?1/240:finite(c.dt,'dt',1e-12,10);
@@ -281,7 +297,11 @@ export class SolidBody {
       this.viscoelasticScale=scale;this.veHist=new Float64Array(9*nb*tetCount);this.vePrev=new Float64Array(9*tetCount);this.veC=new Float64Array(9*tetCount);
     }
     const stride=model==='linear'&&!plastic?0:16;this.lin=new Float64Array(stride*tetCount);this.linOld=new Float64Array(this.stiffnessDamping>0?stride*tetCount:0);
-    this.ep=new Float64Array(plastic?6*tetCount:0);this.alpha=new Float64Array(plastic?tetCount:0);this.eroded=new Uint8Array(plastic?tetCount:0);this.ptan=new Float64Array(plastic?PT*tetCount:0);
+    this.ep=new Float64Array(plastic?6*tetCount:0);this.alpha=new Float64Array(plastic?tetCount:0);this.eroded=new Uint8Array(plastic?tetCount:0);this.ptan=new Float64Array(plastic&&!concrete?PT*tetCount:0);
+    if(concrete){
+      this.concreteLaw=buildConcreteLaw(m.concrete,E,nu,total/tetCount);this.kappaT=new Float64Array(tetCount);this.strengthFactor=new Float64Array(tetCount).fill(1);this.ctan=new Float64Array(21*tetCount);this.ctrial=new Float64Array(6*tetCount);this.cdirty=new Uint8Array(tetCount).fill(2);
+      this.creturn=new ConcreteReturn(this.concreteLaw,this.lambda,this.mu);
+    }
     if(integrator==='explicit'&&this.dt>this.explicitSafety*this.explicitLimit().criticalTimeStep){
       const limit=this.explicitLimit();
       throw new EngineError('UNSTABLE_TIME_STEP',`Explicit time step ${this.dt} s exceeds ${this.explicitSafety} of the stability limit ${limit.criticalTimeStep} s (wave speed ${limit.waveSpeed} m/s, smallest altitude ${limit.minAltitude} m).`);
@@ -379,7 +399,8 @@ export class SolidBody {
   /** Returns to the undeformed state at rest and time zero. Constraints and loads stay. */
   reset():void {
     this.u.fill(0);this.v.fill(0);this.steps=0;this.unconverged=0;this.accelerationValid=false;
-    this.ep.fill(0);this.alpha.fill(0);this.eroded.fill(0);this.erodedTotal=0;this.plasticWorkTotal=0;
+    this.ep.fill(0);this.alpha.fill(0);this.kappaT.fill(0);this.eroded.fill(0);this.erodedTotal=0;this.plasticWorkTotal=0;
+    if(this.kDiagonalFirst)this.kDiagonal.set(this.kDiagonalFirst);
   }
   /** Current node positions (m). */
   positions(out=new Float64Array(this.u.length)):Float64Array {for(let j=0;j<out.length;j++)out[j]=this.referencePositions[j]+this.u[j];return out;}
@@ -508,6 +529,7 @@ export class SolidBody {
    * stored elastic energy plus hardening energy plus the dissipation sigma_y0 dp of this increment, whose
    * derivative is the stress. With `store` keeps the tangent data; with storeMode 2 commits the state. */
   private constitutive(e:number,xx:number,yy:number,zz:number,yz:number,xz:number,xy:number,store:boolean):number {
+    if(this.creturn)return this.concreteConstitutive(e,xx,yy,zz,yz,xz,xy,store);
     const mu=this.mu,la=this.lambda,Hm=this.material.hardeningModulus,ep=this.ep,o=6*e,tr=xx+yy+zz,m=tr/3;
     // Trial deviatoric elastic strain dev(eps) - eps_p.
     let dxx=xx-m-ep[o],dyy=yy-m-ep[o+1],dzz=zz-m-ep[o+2],dyz=yz-ep[o+3],dxz=xz-ep[o+4],dxy=xy-ep[o+5];
@@ -535,6 +557,58 @@ export class SolidBody {
     if(this.storedOnly)return elastic;
     return elastic+dp*(this.material.yieldStress+Hm*(a0+.5*dp));
   }
+  /** The concrete law at element e for the strain [xx, yy, zz, yz, xz, xy] (tensor shear): the return mapping from the
+   * committed state into T, the incremental potential density as the result. With `store`, keeps the trial strain from
+   * which `concreteTangentForm` forms the element's tangent when a product needs it. With storeMode 2, commits the state. */
+  private concreteConstitutive(e:number,xx:number,yy:number,zz:number,yz:number,xz:number,xy:number,store:boolean):number {
+    const R=this.creturn!,ep=this.ep,o=6*e,t=this.cstrain,kc0=this.alpha[e],kt0=this.kappaT[e],T=this.T,base=this.cbase;
+    t[0]=xx-ep[o];t[1]=yy-ep[o+1];t[2]=zz-ep[o+2];t[3]=yz-ep[o+3];t[4]=xz-ep[o+4];t[5]=xy-ep[o+5];
+    const f=this.strengthFactor[e];R.map(t,kc0,kt0,f);
+    for(let q=0;q<6;q++){T[q]=R.stress[q];base[q]=R.plastic[q];}
+    base[6]=R.dKappaC;base[7]=R.dKappaT;base[8]=R.energy;base[9]=R.elastic;const yielded=R.yielded;
+    if(store){
+      // The tangent is formed when a product first needs it (concreteTangent): line-search trials that are not kept cost nothing.
+      if(yielded){const c=this.ctrial;for(let q=0;q<6;q++)c[o+q]=t[q];this.cdirty[e]=1;}
+      else{this.cdirty[e]=2;}
+    }
+    if(this.storeMode===2){
+      for(let q=0;q<6;q++)ep[o+q]+=base[q];
+      this.alpha[e]=kc0+base[6];this.kappaT[e]=kt0+base[7];
+      this.plasticWorkTotal+=this.elementVolume[e]*(base[8]-base[9]);
+    }
+    return this.storedOnly?base[9]:base[8];
+  }
+  /** Forms element e's tangent from the trial strain kept by the last evaluation: elastic, or the derivative of the
+   * returned stress by forward differences in engineering strain, symmetrised. Softening
+   * makes it indefinite; the conjugate gradients stop at negative curvature. */
+  private concreteTangentForm(e:number):void {
+    const c=this.ctan,s=21*e,M=this.cmat,la=this.lambda,mu=this.mu,flag=this.cdirty[e];this.cdirty[e]=0;
+    if(flag===2){
+      M.fill(0);for(let i=0;i<3;i++){for(let j=0;j<3;j++)M[6*i+j]=la;M[7*i]+=2*mu;M[6*(i+3)+i+3]=mu;}
+    }else{
+      const R=this.creturn!,t=this.cstrain,o=6*e,kc0=this.alpha[e],kt0=this.kappaT[e],f=this.strengthFactor[e],base=this.cbase;
+      for(let q=0;q<6;q++)t[q]=this.ctrial[o+q];
+      R.map(t,kc0,kt0,f);for(let q=0;q<6;q++)base[q]=R.stress[q];
+      const d=1e-9;
+      for(let j=0;j<6;j++){
+        const keep=t[j];t[j]+=j<3?d:d/2;R.map(t,kc0,kt0,f);t[j]=keep;
+        for(let i=0;i<6;i++)M[6*i+j]=(R.stress[i]-base[i])/d;
+      }
+      for(let i=0;i<6;i++)for(let j=i+1;j<6;j++){const v=.5*(M[6*i+j]+M[6*j+i]);M[6*i+j]=M[6*j+i]=v;}
+    }
+    for(let i=0,k=0;i<6;i++)for(let j=i;j<6;j++)c[s+k++]=M[6*i+j];
+  }
+  /** Product of element e's stored concrete tangent with the strain increment d (tensor shear) into t. */
+  private concreteTangent(e:number,d0:number,d1:number,d2:number,d3:number,d4:number,d5:number,t:Float64Array):void {
+    if(this.cdirty[e])this.concreteTangentForm(e);
+    const c=this.ctan,s=21*e,v0=d0,v1=d1,v2=d2,v3=2*d3,v4=2*d4,v5=2*d5;
+    t[0]=c[s]*v0+c[s+1]*v1+c[s+2]*v2+c[s+3]*v3+c[s+4]*v4+c[s+5]*v5;
+    t[1]=c[s+1]*v0+c[s+6]*v1+c[s+7]*v2+c[s+8]*v3+c[s+9]*v4+c[s+10]*v5;
+    t[2]=c[s+2]*v0+c[s+7]*v1+c[s+11]*v2+c[s+12]*v3+c[s+13]*v4+c[s+14]*v5;
+    t[3]=c[s+3]*v0+c[s+8]*v1+c[s+12]*v2+c[s+15]*v3+c[s+16]*v4+c[s+17]*v5;
+    t[4]=c[s+4]*v0+c[s+9]*v1+c[s+13]*v2+c[s+16]*v3+c[s+18]*v4+c[s+19]*v5;
+    t[5]=c[s+5]*v0+c[s+10]*v1+c[s+14]*v2+c[s+17]*v3+c[s+19]*v4+c[s+20]*v5;
+  }
   /** Tangent of the first Piola-Kirchhoff stress of element e: dH in H, dP out in P. */
   private tangent(e:number,model:SolidModel,lin:Float64Array,plastic=false):void {
     this.tangentElastic(e,model,lin,plastic);
@@ -546,6 +620,10 @@ export class SolidBody {
     if(model==='linear'){
       const tr=la*(H[0]+H[4]+H[8]),xy=mu*(H[1]+H[3]),xz=mu*(H[2]+H[6]),yz=mu*(H[5]+H[7]);
       P[0]=2*mu*H[0]+tr;P[4]=2*mu*H[4]+tr;P[8]=2*mu*H[8]+tr;P[1]=P[3]=xy;P[2]=P[6]=xz;P[5]=P[7]=yz;
+      if(plastic&&this.creturn){
+        const T=this.T;this.concreteTangent(e,H[0],H[4],H[8],.5*(H[5]+H[7]),.5*(H[2]+H[6]),.5*(H[1]+H[3]),T);
+        P[0]=T[0];P[4]=T[1];P[8]=T[2];P[5]=P[7]=T[3];P[2]=P[6]=T[4];P[1]=P[3]=T[5];return;
+      }
       if(plastic){
         const q=PT*e,T=this.ptan,c1=T[q+6],c2=T[q+7];
         if(c1!==0||c2!==0){
@@ -575,7 +653,8 @@ export class SolidBody {
       const d0=f0*B[0]+f3*B[3]+f6*B[6],d1=f1*B[1]+f4*B[4]+f7*B[7],d2=f2*B[2]+f5*B[5]+f8*B[8];
       const d3=.5*(f1*B[2]+f4*B[5]+f7*B[8]+f2*B[1]+f5*B[4]+f8*B[7]),d4=.5*(f0*B[2]+f3*B[5]+f6*B[8]+f2*B[0]+f5*B[3]+f8*B[6]),d5=.5*(f0*B[1]+f3*B[4]+f6*B[7]+f1*B[0]+f4*B[3]+f7*B[6]);
       const ltr=la*(d0+d1+d2);let t0=2*mu*d0+ltr,t1=2*mu*d1+ltr,t2=2*mu*d2+ltr,t3=2*mu*d3,t4=2*mu*d4,t5=2*mu*d5;
-      if(plastic){
+      if(plastic&&this.creturn){const T=this.T;this.concreteTangent(e,d0,d1,d2,d3,d4,d5,T);t0=T[0];t1=T[1];t2=T[2];t3=T[3];t4=T[4];t5=T[5];}
+      else if(plastic){
         const q=PT*e,T=this.ptan,c1=T[q+6],c2=T[q+7];
         if(c1!==0||c2!==0){
           const m=(d0+d1+d2)/3,nd=c2*(T[q]*d0+T[q+1]*d1+T[q+2]*d2+2*(T[q+3]*d3+T[q+4]*d4+T[q+5]*d5));
@@ -896,10 +975,29 @@ export class SolidBody {
         if(this.eroded[e])continue;
         this.gradient(e,this.u);
         if(!(this.piola(e,null)<Infinity))throw new EngineError('NUMERICAL_FAILURE',`Element ${e} is inverted.`);
-        if(this.alpha[e]>=limit){this.eroded[e]=1;eroded++;}
+        const law=this.concreteLaw;
+        if(law?this.alpha[e]>=law.kappaCrushed||this.kappaT[e]>=law.kappaErode:this.alpha[e]>=limit){this.eroded[e]=1;eroded++;}
       }
     }finally{this.storeMode=0;}
-    this.erodedTotal+=eroded;return eroded;
+    this.erodedTotal+=eroded;if(eroded>0&&this.concreteLaw)this.liveStiffnessDiagonal();return eroded;
+  }
+  /** Concrete: the diagonal of the reference stiffness from the elements still present (the preconditioner of both
+   * solvers). A node left in no element keeps 1e-9 of its first value, so that a static preconditioner never divides by zero. */
+  private liveStiffnessDiagonal():void {
+    const kd=this.kDiagonal,g=this.grad,t=this.tets,first=this.kDiagonalFirst??(this.kDiagonalFirst=kd.slice());kd.fill(0);
+    for(let e=0;e<this.tetCount;e++){
+      if(this.eroded[e])continue;const o=12*e,V=this.elementVolume[e];
+      for(let q=0;q<4;q++){const gx=g[o+3*q],gy=g[o+3*q+1],gz=g[o+3*q+2],g2=gx*gx+gy*gy+gz*gz,n=t[4*e+q];
+        kd[3*n]+=V*(this.mu*g2+(this.lambda+this.mu)*gx*gx);kd[3*n+1]+=V*(this.mu*g2+(this.lambda+this.mu)*gy*gy);kd[3*n+2]+=V*(this.mu*g2+(this.lambda+this.mu)*gz*gz);}
+    }
+    for(let j=0;j<kd.length;j++)if(!(kd[j]>1e-9*first[j]))kd[j]=1e-9*first[j];
+  }
+  /** Concrete: remove elements now (for example pieces that hang on by an edge or a node and carry nothing). They stop
+   * carrying stress at once; the change counts in `erodedCount`. */
+  erode(elements:ArrayLike<number>):void {
+    if(!this.concreteLaw)throw new EngineError('INVALID_PAYLOAD','Only a solid with a concrete law erodes elements on request.');
+    let n=0;for(const e of indices(Array.from(elements),this.tetCount,'elements'))if(!this.eroded[e]){this.eroded[e]=1;n++;}
+    if(n>0){this.erodedTotal+=n;this.liveStiffnessDiagonal();this.accelerationValid=false;}
   }
   /** Equivalent plastic strain p per element (committed state); zeros for an elastic body. */
   equivalentPlasticStrain(out=new Float64Array(this.tetCount)):Float64Array {if(this.plastic)out.set(this.alpha);else out.fill(0);return out;}
@@ -908,6 +1006,25 @@ export class SolidBody {
   plasticStrains(out=new Float64Array(6*this.tetCount)):Float64Array {if(this.plastic)out.set(this.ep);else out.fill(0);return out;}
   /** Plastic work dissipated (plus stored in hardening) since construction or `reset`, J: sum of V sigma_y dp. */
   get plasticWork():number {return this.plasticWorkTotal;}
+  /** Concrete: strength lost per element, 0 to 1 (1 - k / k_peak after the compressive peak, 1 - f_t / f_t0 in tension,
+   * the larger; 1 when eroded). Zeros without a concrete law. */
+  damage(out=new Float64Array(this.tetCount)):Float64Array {
+    const law=this.concreteLaw;if(!law){out.fill(0);return out;}
+    for(let e=0;e<this.tetCount;e++)out[e]=this.eroded[e]?1:concreteDamage(law,this.alpha[e],this.kappaT[e]);return out;
+  }
+  /** Concrete: scale the strengths (and with them the fracture energies) of each element by a factor, e.g. to seed
+   * localisation or to give a specimen a scatter of strength. One factor per element, 0.05 to 20. Default 1. */
+  setStrengthFactors(factors:ArrayLike<number>):void {
+    if(!this.concreteLaw)throw new EngineError('INVALID_PAYLOAD','Strength factors need a concrete law.');
+    this.strengthFactor.set(numbers(Array.from(factors),this.tetCount,'strength factors',.05,20));
+  }
+  /** Concrete: crack opening per element, kappa_t times the band width, m (committed state). */
+  crackOpening(out=new Float64Array(this.tetCount)):Float64Array {
+    const law=this.concreteLaw;if(!law){out.fill(0);return out;}
+    for(let e=0;e<this.tetCount;e++)out[e]=this.kappaT[e]*law.bandWidth;return out;
+  }
+  /** Concrete: the compressive hardening variable kappa_c and the strength k(kappa_c) left, Pa (Drucker-Prager units). */
+  compressiveStrengthLeft(e:number):number {const law=this.concreteLaw;return law?tableValue(law.kx,law.ky,this.alpha[e]):NaN;}
   /** Number of eroded elements. */
   get erodedCount():number {return this.erodedTotal;}
   /** 1 per eroded element (live, read only). Empty for an elastic body. */

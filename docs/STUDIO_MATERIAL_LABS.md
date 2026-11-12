@@ -5,7 +5,7 @@ The Engineering Studio's material labs (`index.html?studio=glass`, `concrete`, `
 | Lab | State | Solver |
 |---|---|---|
 | Glass impact (`GI–02`) | **SI** since 2026-11-12 | Kirchhoff plate with brittle fracture, `src/engine/plate.ts` (new); lab model `src/studio/material-labs/glass-si.ts` |
-| Concrete crush (`CC–03`) | still the authored bond lattice ("not calibrated") | — |
+| Concrete crush (`CC–03`) | **SI** since 2026-11-12 | tetrahedral solid with the concrete law (`material.concrete`, `src/engine/concrete-law.ts`, new) and `SolidContact` with friction; lab model `src/studio/material-labs/concrete-si.ts` |
 | Elastomer lab (`EL–04`) | **SI** since 2026-11-12 | viscoelastic Neo-Hookean tetrahedral solid (`config.viscoelastic`) with `SolidContact` welds; lab model `src/studio/material-labs/rubber-si.ts` |
 
 ## Glass impact
@@ -167,7 +167,95 @@ Node 22 on the shared 4-core sandbox, single runs. In headless Chromium serving 
 
 ## Concrete crush
 
-Not converted yet. It keeps its authored model and the "Comparative model · not calibrated" label. It needs compressive crushing: cohesive fracture has no friction on closed cracks and no compression failure, so a scoped damage-plasticity model validated against f_c and the EC2 parabola, platens as constraints or rigid bodies, sourced values for the eight mixes (the library has C30/37 only, without a fracture energy), and the lab wiring. Reinforcement as embedded bars was not attempted. The cube is bulky, so the tetrahedral solid suits it.
+### The law (`src/engine/concrete-law.ts`, solver id `solid-tet-dp-rankine-js-f64-v1`)
+
+Composite plasticity on the J2 structure of the solid (Green-Lagrange strain, return mapping from the committed state, erosion), described in [`SOLID_MECHANICS.md`](SOLID_MECHANICS.md#concrete-law):
+
+- **Compression:** associated Drucker-Prager `q + beta p = k(kappa_c)`. Elastic to 0.4 f_cm (E_cm is the secant modulus to 0.4 f_cm); then k follows EN 1992-1-1 3.1.5, expression (3.14) (`sigma_c / f_cm = (k eta - eta^2) / (1 + (k - 2) eta)`, `eta = eps_c / eps_c1`, `k = 1.05 E_cm |eps_c1| / f_cm`) to f_cm at eps_c1 and down to eps_cu1, then a straight tail to zero. After the peak the stress is a function of the plastic displacement across a band of width h (the element size): crack band. The tail is set so that a crushed band dissipates G_c = f_cm w_d / 2 per unit area, w_d = 0.5 mm, the plastic displacement that ends compressive softening in the ATENA model (after van Mier), read in A. Pizzocchero, *Calibration and validation of ATENA concrete material model with respect to experimental data*, MSc thesis, Padova 2015 ([PDF](https://thesis.unipd.it/retrieve/a9f59e86-598b-4002-9b82-ac5013317d92/Alessio_Pizzocchero.pdf)), not in van Mier's papers. For C30/37 an element of h = L_c = 0.118 m follows (3.14) exactly to eps_cu1.
+- **Friction parameter.** beta = 0.364 gives the equal-biaxial strength 1.16 f_c (Kupfer, Hilsdorf and Rüsch 1969, as widely quoted; the paper was not opened). Under lateral pressure the law gains `m = (1 + 2 beta / 3) / (1 - beta / 3)` = 1.41 per unit of lateral stress. EN 1992-1-1 3.1.9, (3.24) and (3.25), gives 5 at low and 2.5 at higher confinement: the law gains less. Fitting beta to (3.25) (beta = 1.44) gives a 150 mm cube 2.5 times f_cm through the associated dilatancy; beta = 0.6 gives 1.28 times and beta = 1.0 1.58 times (measured, the lab's mesh and friction).
+- **Tension:** Rankine on each principal stress, linear softening in the crack opening w = kappa_t h with the area G_f = 73 f_cm^0.18 N/m (fib Model Code 2010, quoted in Sucharda 2020; the Model Code was not opened).
+- **Damage** shown in the lab is the strength lost: `1 - k / k_peak` after the compressive peak, `1 - f_t / f_t0` in tension. Unloading is elastic (plasticity, not secant damage); cracks do not close.
+- **Erosion.** An element erodes when its compressive strength reaches zero (crushed) or its crack is 1 mm wide. In the lab an element left without a face neighbour (hanging by an edge or a corner) is removed too (`SolidBody.erode`).
+
+### The lab model (`src/studio/material-labs/concrete-si.ts`)
+
+- **Specimen.** The 150 mm cube of EN 12390-3 (control: 100 or 150 mm), 5 × 5 × 5 cells of 5 tetrahedra (625 elements, band width 30 mm), drawn **eight times larger** (a 150 mm cube is drawn 1.2 m wide in the rig). A seeded scatter of element strength (normal, coefficient of variation 8 %, 15 % for the weathered mix, 5 % for C60/75 and ceramic) decides where it cracks; the specimen seed control changes it.
+- **Platens.** A static steel plane below and a kinematic steel box above through `SolidContact` with Coulomb friction 0.57 (control 0 to 0.6): the dry static coefficient of rolled steel plate on concrete cast against it, Rabbat and Russell, J. Struct. Eng. 111(3) (1985), as read in a search summary of the paper, **unverified** for a machined platen. The contact step starts from the free motion (`predictor: 'velocity'`) so the solve follows the loading path.
+- **Program.** Displacement control: the platen moves down at the set rate (‰ of the edge per second) to the set travel and holds. Backward Euler at 1/30 s. The test is quasi-static: the law has no rate effect and the cube's inertia is negligible at these platen speeds, so the simulated test runs faster than the EN 12390-3 rate (0.6 MPa/s) and gives the same curve. After the peak, a step that finds no equilibrium (the cube gives way faster than the platen moves) is undone and the machine stops there, as testing machines stop on a load drop; it also stops when the load falls below 30 % of the peak.
+- **Readouts.** Stress (MPa, platen force over the loaded area), strain (% of the edge), platen force (kN); a stress-strain chart of the run against the EN 1992-1-1 (3.14) cylinder curve of the mix; the status line gives the peak and how many elements spalled. Colour: grey to red by the strength lost; spalled elements are removed.
+- **Material panel.** f_cm, f_ctm, E, ν, ρ, eps_c1 / eps_cu1 and G_f as the model uses them, and what is sourced.
+- **Worker.** The lab steps in the shared lab worker.
+
+| Studio mix | Runs as | Source |
+|---|---|---|
+| Standard | C30/37: f_cm 38, f_ctm 2.9 MPa, E_cm 32.8 GPa, eps_c1 2.2 ‰, eps_cu1 3.5 ‰, G_f 141 N/m | library (`concrete-c30-37`), EN 1992-1-1 Table 3.1, fib MC2010 G_f |
+| High strength | C60/75: 68 / 4.35 MPa, 39.1 GPa, 2.6 / 3.0 ‰, 156 N/m | library (`concrete-c60-75`) |
+| Reinforced | **plain C30/37: bars are not modelled** | **authored, unverified**: the preset says so |
+| Fibre | C30/37 matrix with a fibre tension softening (half f_t at 0.05 mm, 0.3 f_t at 2.5 mm, zero at 5 mm; G_f ≈ 4 kJ/m²) | matrix: library; fibre softening **unverified** |
+| Lightweight | LC25/28, density class 1.8, sanded: f_lcm 33, f_lctm 2.28 MPa, E_lcm 21.1 GPa, eps_lc1 = eps_lcu1 = 1.64 ‰, 1850 kg/m³ | library (`concrete-lc25-28`, EN 1992-1-1 section 11); eps_lc1 from a garbled scan (stated), G_f **unverified** |
+| Mortar | C20/25: 28 / 2.21 MPa, 30.0 GPa, 2.0 / 3.5 ‰, 133 N/m | library (`concrete-c20-25`); the mapping of a mortar onto a concrete class is **unverified** |
+| Weathered | C20/25 with a 15 % strength scatter | **unverified** mapping |
+| Technical ceramic | 96 % alumina: E 330 GPa, ν 0.22, 3750 kg/m³, compressive 2000 MPa, flexural 300 MPa, K_IC 3.5 MPa√m (G_f = 35 J/m²), elastic to the peak | library (`alumina-96`, Syalons Aloxalon 96, Morgan AL600); tensile strength taken as the flexural strength and the friction parameter of concrete: **unverified**. On 20 mm elements its softening has to be stretched (it would snap back), so it dissipates far more than G_f |
+
+### Hand numbers (C30/37, 150 mm cube)
+
+- Elastic slope: 33 GPa × 0.15² / 0.15 = 4.9 GN/m; 1 ‰ of travel (0.15 mm) ≈ 0.74 MN, 33 MPa before plasticity.
+- f_cm on 150² mm² = 0.855 MN. EN 1992-1-1 Table 3.1 gives the cube strength f_ck,cube / f_ck = 37 / 30 = 1.23, i.e. about 47 MPa (1.06 MN) on the mean.
+- Crushing energy G_c = 38 MPa × 0.5 mm / 2 = 9.5 kJ/m², 214 J across the section.
+
+### Validation
+
+Engine rows (`tests/engine/solid-concrete.test.mjs` in `npm run test:solid`; rows `solid.concrete.*` of [`VALIDATION.md`](VALIDATION.md)):
+
+| Check | Reference | Measured | Tolerance |
+|---|---|---|---|
+| One cell, h = L_c, uniaxial compression: peak | f_cm = 38 MPa (Table 3.1) | 37.92 MPa | 0.5 % |
+| Strain at the peak | eps_c1 = 2.2 ‰ | 2.20 ‰ | 2 % |
+| Largest difference from (3.14), 0 to eps_cu1 | 0 | 2.3 % of f_cm, near 0.4 f_cm where E_cm is a secant | 3 % of f_cm |
+| Stress at eps_cu1 = 3.5 ‰ | (3.14): 24.65 MPa | 24.69 MPa | 2 % |
+| Tension, bar with a 2 % weaker middle cell: peak | 0.98 f_ctm = 2.84 MPa | 2.82 MPa | 2 % |
+| Energy to break that bar in tension, 5, 10, 20 cells | 0.98 G_f A | 0.99987, 0.99987, 0.99988 of it | 1 %: the tensile crack band is mesh objective |
+| One crushed cell of h = 120, 60, 30 mm: plastic work after the peak per unit area | G_c = 9.5 kJ/m² | within 2 % for each h | 2 % |
+| Lateral pressure 0.05 and 0.2 f_cm, then axial compression | f_cm + m sigma_3, m = 1.41 | the closed form within 0.5 %: 1.068 and 1.279 f_cm | 0.5 %; EN 1992-1-1 (3.24) / (3.25) give 1.250 and 1.625 f_cm |
+| Return mapping, every regime (elastic, Drucker-Prager, Rankine, corner, strength factor 0.9) | the stress is the derivative of the returned energy | central differences agree | 1e-6 |
+| Checkpoint: a cracked, crushed bar resumes from `saveState()` | bit-identical | bit-identical; also a struck concrete block in the kit's checkpoint test (`concrete-solid-contact`) | exact |
+
+**Not mesh objective in compression.** A prism of 5, 10 and 20 cells (0.2 m, middle cell 10 % weaker) dissipates 26, 54 and 119 J after the peak against 0.9 G_c A = 13.7 J. The crushed band does not stay one cell thick: its plastic flow expands it sideways (associated Drucker-Prager; the same happens with beta = 0, where the flow is isochoric), its elastic neighbours restrain that, and the softening spreads to the next cells. Only the tensile crack band is objective here; the single-cell rows above check the regularisation formula, not localisation.
+
+Studio rows (`tests/studio/concrete-si.test.mjs` in `npm run test:studio:materials`, 6 tests, about 90 s):
+
+| Check | Reference | Measured |
+|---|---|---|
+| Cube with frictionless platens | f_cm at eps_c1 | 37.80 MPa at 2.30 ‰ |
+| Cube with friction 0.57 over a 150 × 150 × 300 mm prism (slenderness 2, the cylinder's) with the same platens | f_ck,cube / f_ck = 37 / 30 = 1.233 (Table 3.1) | 45.02 / 38.55 MPa = **1.168**, 5 % below (row `solid.concrete.cube-cylinder`, tolerance 10 %) |
+| Default program | peak above f_cm, softening, spalling, machine stop | 45.0 MPa at 2.87 ‰; stopped at 7.2 ‰ with 2 elements spalled |
+
+A square prism stands for the cylinder: the mapped cylinder mesh (as in the elastomer lab) did not converge in its first contact step against the stiff steel platen, and this was not resolved.
+
+### Presets and real time
+
+The programs run to the set travel at the set rate; Node 22 on the shared 4-core sandbox, single runs, the whole program including the hold after a stop.
+
+| Preset | Peak stress | at | End | Spalled | Real-time factor |
+|---|---|---|---|---|---|
+| Cube compression (C30/37, 8 ‰ at 0.5 ‰/s) | 45.0 MPa | 2.87 ‰ | stopped at 7.2 ‰ | 2 | 0.37 |
+| Reinforced core (plain C30/37) | 45.0 MPa | 2.87 ‰ | stopped at 7.2 ‰ | 2 | 0.37 |
+| High-strength cube (C60/75, 6 ‰) | 77.4 MPa | 3.07 ‰ | softening | 0 | 1.25 |
+| Lightweight crush (LC25/28) | 35.8 MPa | 2.30 ‰ | stopped | 2 | 0.36 |
+| Weathered spall (C20/25) | 33.3 MPa | 2.60 ‰ | stopped | 1 | 0.44 |
+| Fibre bridging | 45.0 MPa | 2.87 ‰ | stopped | 1 | 0.44 |
+| Low-strain comparison (1.5 ‰) | 38.3 MPa | 1.50 ‰ | holding | 0 | 6.0 |
+| Ceramic comparison (alumina, 100 mm, 7.5 ‰ at 1 ‰/s) | 1940 MPa | 5.77 ‰ | stopped: shattered | 345 | 2.0 |
+
+The cost is in the softening: below the peak a step takes 20 to 60 ms, after it up to a second (Newton converges linearly while elements soften), and the step that finds no equilibrium took up to 16 s before the iteration limit was lowered (40 Newton iterations per friction pass now). In headless Chromium serving the built site the worker's figure is given in the CHANGELOG entry. The fibre mix peaks like the plain one: before the peak the cube does not crack in tension, and the fibres act only once it does.
+
+### Limits
+
+- Compressive softening is not mesh objective in a prism (above); the 5-cell cube cannot resolve the cones of a crushed cube or splitting cracks finer than 30 mm.
+- Confinement: m = 1.41 against 2.5 to 5 in EN 1992-1-1 3.1.9; associated flow overstates dilatancy, which is why beta cannot be raised to fit 3.1.9.
+- Cracks unload elastically and keep their opening (plasticity, not damage); no crack closure, friction on cracks, aggregate interlock, creep, shrinkage, rate or size effects beyond the crack band.
+- Reinforcement is not modelled (the preset says so); the fibre softening, the mortar and weathered mappings and the ceramic's tensile strength and friction are unverified.
+- After the peak the cube fails abruptly at about 7 ‰ in every concrete mix: the test stops there, so the post-failure rubble is not shown.
 
 ## Reproduce
 
@@ -176,5 +264,7 @@ npm run test:plate
 node --test tests/studio/material-labs.test.mjs       # the Studio's labs, glass in SI (about 4 minutes)
 node --import ./scripts/register-typescript.mjs --test tests/studio/glass-worker.test.mjs
 node --test tests/studio/rubber-si.test.mjs           # the elastomer lab
+node --test tests/studio/concrete-si.test.mjs         # the concrete lab (about 90 s)
+node --test tests/engine/solid-concrete.test.mjs      # the concrete law
 node scripts/validation-report.mjs --only plate
 ```
