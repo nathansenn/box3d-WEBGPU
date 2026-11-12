@@ -1106,38 +1106,72 @@ export interface FreeSurfaceOptions {
   readonly origin?:FluidVec3;
   /** Liquid density, kg/m^3. The air has none. */
   readonly density:number;
+  /** Time step, s. `setTimeStep` changes it between steps. */
   readonly dt:number;
   /** Default [0, -9.81, 0]. */
   readonly gravity?:FluidVec3;
+  /** Dynamic viscosity of the liquid, Pa s. Default 0 (inviscid). Solved implicitly (backward Euler), so any value is stable. */
+  readonly viscosity?:number;
+  /** Tangential condition of the viscous liquid on the tank walls and obstacles. Default 'free-slip'; ignored when inviscid. */
+  readonly walls?:'free-slip'|'no-slip';
   /** Particles per cell along each axis when seeding. Default 2. */
   readonly particlesPerAxis?:number;
   readonly pressureTolerance?:number;
+  /** Relative tolerance of the viscous solve (infinity norm of the residual over that of the right side). Default 1e-9. */
+  readonly viscousTolerance?:number;
   readonly maxIterations?:number;
   /** Largest Courant number dt max|v| / h. Default 1. */
   readonly cflLimit?:number;
   /** Most particles. Default 4,000,000. */
   readonly capacity?:number;
 }
-export interface FreeSurfaceStats {steps:number;pressureIterations:number;liquidCells:number;cfl:number;maxCfl:number;cflExceeded:number;unconverged:number;divergence:number}
+/** A fixed or moving solid in the tank: axis-aligned (no rotation), voxelised (a cell is solid when its centre is inside). */
+export interface FreeSurfaceObstacleOptions {
+  readonly shape:FluidShape;
+  /** Centre, m. */
+  readonly position:FluidVec3;
+  /** Velocity of a moving obstacle, m/s (the faces next to it take it). Default zero. */
+  readonly velocity?:FluidVec3;
+}
+export interface FreeSurfaceStats {steps:number;pressureIterations:number;viscousIterations:number;liquidCells:number;solidCells:number;cfl:number;maxCfl:number;cflExceeded:number;unconverged:number;divergence:number}
+
+interface FreeSurfaceObstacle {shape:FluidShape;position:[number,number,number];velocity:[number,number,number];force:Float64Array}
+
+const insideShape=(s:FluidShape,dx:number,dy:number,dz:number):boolean=>{
+  switch(s.kind){
+    case 'sphere':return dx*dx+dy*dy+dz*dz<s.radius*s.radius;
+    case 'box':return Math.abs(dx)<s.halfExtents[0]&&Math.abs(dy)<s.halfExtents[1]&&Math.abs(dz)<s.halfExtents[2];
+    case 'cylinder':return Math.abs(dy)<s.halfLength&&dx*dx+dz*dz<s.radius*s.radius;
+    case 'capsule':{const y=Math.max(-s.halfLength,Math.min(s.halfLength,dy));return dx*dx+(dy-y)**2+dz*dz<s.radius*s.radius;}
+  }
+};
 
 /**
- * Inviscid incompressible liquid with a free surface in a closed tank (free-slip walls), float64, deterministic.
- * The liquid is carried by particles with the affine particle-in-cell transfer (APIC, Jiang et al. 2015): each step the
- * particles' momentum goes to the staggered grid, gravity is added, the velocity is projected to zero divergence in the
- * cells that hold particles with p = 0 at the centres of the empty cells (a first-order free surface), extrapolated two
- * cells out, and read back to the particles with its gradient, which then move with it. See docs/FLUID.md.
+ * Incompressible liquid with a free surface in a closed tank, float64, deterministic. The liquid is carried by particles
+ * with the affine particle-in-cell transfer (APIC, Jiang et al. 2015): each step the particles' momentum goes to the
+ * staggered grid, gravity is added, viscosity is applied implicitly (backward Euler, component-wise Laplacian, no-slip or
+ * free-slip on walls and obstacles, zero normal gradient into the air), the velocity is projected to zero divergence in
+ * the cells that hold particles with p = 0 on the surface (ghost fluid), extrapolated two cells out, and read back to the
+ * particles with its gradient, which then move with it. Obstacles are voxelised solids: their cells take no liquid,
+ * their faces carry the obstacle's velocity, and the pressure on the faces between them and the liquid is their force.
+ * See docs/FLUID.md.
  */
 export class FreeSurfaceFluid {
   readonly solver=FREE_SURFACE_SOLVER_ID;
-  readonly nx:number;readonly ny:number;readonly nz:number;readonly h:number;readonly origin:FluidVec3;readonly density:number;readonly dt:number;
-  readonly gravity:Float64Array;readonly flat:boolean;readonly perAxis:number;readonly pressureTolerance:number;readonly maxIterations:number;readonly cflLimit:number;readonly capacity:number;
+  readonly nx:number;readonly ny:number;readonly nz:number;readonly h:number;readonly origin:FluidVec3;readonly density:number;
+  /** Time step, s. */
+  dt:number;
+  readonly viscosity:number;readonly noSlip:boolean;
+  readonly gravity:Float64Array;readonly flat:boolean;readonly perAxis:number;readonly pressureTolerance:number;readonly viscousTolerance:number;readonly maxIterations:number;readonly cflLimit:number;readonly capacity:number;
   /** Face velocities: u (nx + 1) ny nz, v nx (ny + 1) nz, w nx ny (nz + 1); index i + Nx (j + Ny k) with that component's counts. */
   readonly vel:[Float64Array,Float64Array,Float64Array];
   /** Pressure at the liquid cells' centres, Pa (zero in empty cells). */
   readonly p:Float64Array;
   /** 1 for a cell holding a particle. */
   readonly liquid:Uint8Array;
-  readonly stats:FreeSurfaceStats={steps:0,pressureIterations:0,liquidCells:0,cfl:0,maxCfl:0,cflExceeded:0,unconverged:0,divergence:0};
+  /** 1 for a cell inside an obstacle. */
+  readonly solid:Uint8Array;
+  readonly stats:FreeSurfaceStats={steps:0,pressureIterations:0,viscousIterations:0,liquidCells:0,solidCells:0,cfl:0,maxCfl:0,cflExceeded:0,unconverged:0,divergence:0};
   time=0;
   /** Particle positions and velocities (3 per particle) and affine matrices (9 per particle, C[3 c + d] = d v_c / d x_d). */
   positions:Float64Array;velocities:Float64Array;affine:Float64Array;
@@ -1145,7 +1179,10 @@ export class FreeSurfaceFluid {
   /** Mass of one particle, kg. */
   particleMass=0;
   private readonly dims:[number,number,number][];private readonly weight:[Float64Array,Float64Array,Float64Array];private readonly valid:[Uint8Array,Uint8Array,Uint8Array];
-  private readonly cellsTotal:number;private readonly phi:Float64Array;private readonly b:Float64Array;private readonly r:Float64Array;private readonly z:Float64Array;private readonly d:Float64Array;private readonly q:Float64Array;private readonly pre:Float64Array;private readonly diag:Float64Array;private readonly scratch:[Float64Array,Float64Array,Float64Array];
+  /** Faces whose value is set (1: a tank wall's normal face, 2: a face next to a solid cell) and the value they take. */
+  private readonly fixed:[Uint8Array,Uint8Array,Uint8Array];private readonly fixedValue:[Float64Array,Float64Array,Float64Array];
+  private readonly owner:Int32Array;private readonly obstacles:FreeSurfaceObstacle[]=[];private solidDirty=false;
+  private readonly cellsTotal:number;private readonly phi:Float64Array;private readonly near:Uint8Array;private readonly b:Float64Array;private readonly r:Float64Array;private readonly z:Float64Array;private readonly d:Float64Array;private readonly q:Float64Array;private readonly pre:Float64Array;private readonly diag:Float64Array;private readonly Ad:Float64Array;private readonly p2:Float64Array;private readonly scratch:[Float64Array,Float64Array,Float64Array];
 
   constructor(options:FreeSurfaceOptions) {
     if(!options||typeof options!=='object')fail('FreeSurfaceFluid needs options.');
@@ -1157,35 +1194,94 @@ export class FreeSurfaceFluid {
     if(this.cellsTotal>FLUID_MAX_CELLS)fail(`At most ${FLUID_MAX_CELLS} cells.`);
     this.h=num(options.spacing,'spacing',1e-9,1e6);this.origin=options.origin?vec(options.origin,'origin'):[0,0,0];
     this.density=num(options.density,'density',1e-6,1e6);this.dt=num(options.dt,'dt',1e-12,1e3);
+    this.viscosity=num(options.viscosity??0,'viscosity',0,1e9);
+    if(options.walls!==undefined&&options.walls!=='free-slip'&&options.walls!=='no-slip')fail("walls must be 'free-slip' or 'no-slip'.");
+    this.noSlip=options.walls==='no-slip';
     this.gravity=new Float64Array(options.gravity?vec(options.gravity,'gravity'):[0,-9.81,0]);
     this.perAxis=num(options.particlesPerAxis??2,'particlesPerAxis',1,8);
     if(!Number.isInteger(this.perAxis))fail('particlesPerAxis must be an integer.');
     this.pressureTolerance=num(options.pressureTolerance??1e-10,'pressureTolerance',1e-15,1e-2);
+    this.viscousTolerance=num(options.viscousTolerance??1e-9,'viscousTolerance',1e-15,1e-2);
     this.maxIterations=num(options.maxIterations??4000,'maxIterations',1,1e7);
     this.cflLimit=num(options.cflLimit??1,'cflLimit',1e-6,100);
     this.capacity=num(options.capacity??4e6,'capacity',1,1<<26);
     const nx=this.nx,ny=this.ny,nz=this.nz;
     this.dims=[[nx+1,ny,nz],[nx,ny+1,nz],[nx,ny,nz+1]];
-    this.vel=this.dims.map(([a,b,c])=>new Float64Array(a*b*c)) as [Float64Array,Float64Array,Float64Array];
-    this.weight=this.dims.map(([a,b,c])=>new Float64Array(a*b*c)) as [Float64Array,Float64Array,Float64Array];
-    this.scratch=this.dims.map(([a,b,c])=>new Float64Array(a*b*c)) as [Float64Array,Float64Array,Float64Array];
-    this.valid=this.dims.map(([a,b,c])=>new Uint8Array(a*b*c)) as [Uint8Array,Uint8Array,Uint8Array];
+    const f64=()=>this.dims.map(([a,b,c])=>new Float64Array(a*b*c)) as [Float64Array,Float64Array,Float64Array];
+    const u8=()=>this.dims.map(([a,b,c])=>new Uint8Array(a*b*c)) as [Uint8Array,Uint8Array,Uint8Array];
+    this.vel=f64();this.weight=f64();this.scratch=f64();this.fixedValue=f64();this.valid=u8();this.fixed=u8();
     const N=this.cellsTotal;
-    this.p=new Float64Array(N);this.liquid=new Uint8Array(N);this.phi=new Float64Array(N);
-    this.b=new Float64Array(N);this.r=new Float64Array(N);this.z=new Float64Array(N);this.d=new Float64Array(N);this.q=new Float64Array(N);this.pre=new Float64Array(N);this.diag=new Float64Array(N);
+    this.p=new Float64Array(N);this.liquid=new Uint8Array(N);this.solid=new Uint8Array(N);this.owner=new Int32Array(N).fill(-1);this.phi=new Float64Array(N);this.near=new Uint8Array(N);
+    this.b=new Float64Array(N);this.r=new Float64Array(N);this.z=new Float64Array(N);this.d=new Float64Array(N);this.q=new Float64Array(N);this.pre=new Float64Array(N);this.diag=new Float64Array(N);this.Ad=new Float64Array(N);this.p2=new Float64Array(N);
     this.positions=new Float64Array(0);this.velocities=new Float64Array(0);this.affine=new Float64Array(0);
     this.particleMass=this.density*this.h**3/(this.perAxis**(this.flat?2:3));
+    this.classify();
   }
 
-  /** Fill every cell whose seeding points satisfy `inside` with particles (perAxis per axis, at regular positions) moving at `velocity`. Returns the number added. */
+  /** Change the time step for the following steps (an adaptive Courant-number control), s. */
+  setTimeStep(dt:number):void {this.dt=num(dt,'dt',1e-12,1e3);}
+
+  /** Add a voxelised obstacle; returns its index. Particles already in its cells are left there (add obstacles before the liquid). */
+  addObstacle(options:FreeSurfaceObstacleOptions):number {
+    if(!options||typeof options!=='object'||!options.shape)fail('addObstacle needs a shape and a position.');
+    const s=options.shape;
+    if(s.kind==='sphere')num(s.radius,'radius',0,1e6);
+    else if(s.kind==='box')vec(s.halfExtents,'halfExtents').forEach((v,i)=>num(v,`halfExtents[${i}]`,0,1e6));
+    else if(s.kind==='cylinder'||s.kind==='capsule'){num(s.radius,'radius',0,1e6);num(s.halfLength,'halfLength',0,1e6);}
+    else fail('Unknown obstacle shape.');
+    this.obstacles.push({shape:s,position:vec(options.position,'position'),velocity:options.velocity?vec(options.velocity,'velocity'):[0,0,0],force:new Float64Array(3)});
+    this.solidDirty=true;this.classify();return this.obstacles.length-1;
+  }
+  /**
+   * Move an obstacle (and give it a velocity for the faces next to it). An obstacle may only retreat from the liquid (a
+   * gate that lifts): particles in cells it moves into stay where they are and no longer count as liquid until it leaves.
+   */
+  moveObstacle(index:number,position:FluidVec3,velocity:FluidVec3=[0,0,0]):void {
+    const o=this.obstacles[index];if(!o)fail('No such obstacle.');
+    o.position=vec(position,'position');o.velocity=vec(velocity,'velocity');this.solidDirty=true;
+  }
+  /** Pressure force of the liquid on an obstacle over the last step, N (the sum of p h^2 over the faces between it and liquid cells; a 2D tank counts one cell of depth). The viscous traction is not included. */
+  obstacleForce(index:number):[number,number,number] {const o=this.obstacles[index];if(!o)fail('No such obstacle.');return [o.force[0],o.force[1],o.force[2]];}
+
+  /** Solid cells from the obstacles, then the fixed faces: tank walls (zero normal velocity) and faces next to a solid cell. */
+  private classify():void {
+    const nx=this.nx,ny=this.ny,nz=this.nz,h=this.h,o=this.origin,S=this.solid,own=this.owner;
+    if(this.solidDirty||this.obstacles.length===0){
+      S.fill(0);own.fill(-1);let count=0;
+      for(let n=0;n<this.obstacles.length;n++){
+        const ob=this.obstacles[n],[px,py,pz]=ob.position;
+        for(let k=0,c=0;k<nz;k++)for(let j=0;j<ny;j++)for(let i=0;i<nx;i++,c++){
+          if(S[c])continue;
+          const cx=o[0]+(i+.5)*h-px,cy=o[1]+(j+.5)*h-py,cz=this.flat?0:o[2]+(k+.5)*h-pz;
+          if(insideShape(ob.shape,cx,cy,cz)){S[c]=1;own[c]=n;count++;}
+        }
+      }
+      this.stats.solidCells=count;this.solidDirty=false;
+    }
+    const comps=this.flat?2:3;
+    for(let c=0;c<comps;c++){
+      const [Nx,Ny,Nz]=this.dims[c],F=this.fixed[c],FV=this.fixedValue[c],n=[nx,ny,nz][c],sc=c===0?1:c===1?nx:nx*ny;
+      for(let k=0,f=0;k<Nz;k++)for(let j=0;j<Ny;j++)for(let i=0;i<Nx;i++,f++){
+        const idx=c===0?i:c===1?j:k;
+        if(idx===0||idx===n){F[f]=1;FV[f]=0;continue;}
+        const hi=i+nx*(j+ny*k),lo=hi-sc,a=S[lo]?own[lo]:-1,b=S[hi]?own[hi]:-1;
+        if(a<0&&b<0){F[f]=0;FV[f]=0;continue;}
+        F[f]=2;FV[f]=this.obstacles[a>=0?a:b].velocity[c];
+      }
+    }
+  }
+
+  /** Fill every cell whose seeding points satisfy `inside` with particles (perAxis per axis, at regular positions) moving at `velocity`. Cells inside obstacles are skipped. Returns the number added. */
   addLiquid(inside:(x:number,y:number,z:number)=>boolean,velocity:FluidVec3=[0,0,0]):number {
     const v=vec(velocity,'velocity'),n=this.perAxis,h=this.h,o=this.origin,pts:number[]=[];
     const nzSeeds=this.flat?1:n;
-    for(let k=0;k<this.nz;k++)for(let j=0;j<this.ny;j++)for(let i=0;i<this.nx;i++)
+    for(let k=0;k<this.nz;k++)for(let j=0;j<this.ny;j++)for(let i=0;i<this.nx;i++){
+      if(this.solid[i+this.nx*(j+this.ny*k)])continue;
       for(let c=0;c<nzSeeds;c++)for(let b=0;b<n;b++)for(let a=0;a<n;a++){
         const x=o[0]+(i+(a+.5)/n)*h,y=o[1]+(j+(b+.5)/n)*h,z=o[2]+(k+(this.flat?.5:(c+.5)/n))*h;
         if(inside(x,y,z))pts.push(x,y,z);
       }
+    }
     const added=pts.length/3;
     if(this.count+added>this.capacity)fail(`At most ${this.capacity} particles.`);
     const grow=(a:Float64Array,size:number)=>{const out=new Float64Array(size);out.set(a.subarray(0,Math.min(a.length,size)));return out;};
@@ -1215,146 +1311,175 @@ export class FreeSurfaceFluid {
   }
 
   /** Trilinear stencil of component c at a point: base indices and fractions (flat: no z interpolation for u and v). */
-  private stencil(c:number,x:number,y:number,z:number,base:Int32Array,frac:Float64Array):void {
-    const p=[x,y,z],dims=this.dims[c];
-    for(let d=0;d<3;d++){
-      if(this.flat&&d===2){base[2]=0;frac[2]=0;continue;}
-      const s=(p[d]-this.origin[d])/this.h-(d===c?0:.5);
-      let i=Math.floor(s);const top=dims[d]-2;
-      if(i<0)i=0;else if(i>top)i=top;
-      let f=s-i;f=f<0?0:f>1?1:f;
-      base[d]=i;frac[d]=f;
-    }
+  private stencil(c:number,x:number,y:number,z:number):void {
+    const base=this.base,frac=this.frac,dims=this.dims[c],h=this.h,o=this.origin;
+    let s=(x-o[0])/h-(c===0?0:.5),i=Math.floor(s),top=dims[0]-2;if(i<0)i=0;else if(i>top)i=top;let f=s-i;base[0]=i;frac[0]=f<0?0:f>1?1:f;
+    s=(y-o[1])/h-(c===1?0:.5);i=Math.floor(s);top=dims[1]-2;if(i<0)i=0;else if(i>top)i=top;f=s-i;base[1]=i;frac[1]=f<0?0:f>1?1:f;
+    if(this.flat){base[2]=0;frac[2]=0;return;}
+    s=(z-o[2])/h-(c===2?0:.5);i=Math.floor(s);top=dims[2]-2;if(i<0)i=0;else if(i>top)i=top;f=s-i;base[2]=i;frac[2]=f<0?0:f>1?1:f;
   }
 
   private readonly base=new Int32Array(3);private readonly frac=new Float64Array(3);
 
   /** Particles to grid (APIC), then mark the liquid cells. */
   private toGrid():void {
-    const {base,frac}=this,h=this.h,o=this.origin,X=this.positions,V=this.velocities,C=this.affine,comps=this.flat?2:3;
+    const h=this.h,o=this.origin,X=this.positions,V=this.velocities,C=this.affine,comps=this.flat?2:3,flat=this.flat;
+    const inv=1/h,ox0=o[0],oy0=o[1],oz0=o[2],sx=[0,.5,.5],sy=[.5,0,.5],sz2=[.5,.5,0],tx=this.dims.map(d=>d[0]-2),ty=this.dims.map(d=>d[1]-2),tz=this.dims.map(d=>d[2]-2),NX=this.dims.map(d=>d[0]),NXY=this.dims.map(d=>d[0]*d[1]);
     for(let c=0;c<3;c++){this.vel[c].fill(0);this.weight[c].fill(0);}
     for(let c=0;c<comps;c++){
-      const [Nx,Ny]=this.dims[c],u=this.vel[c],W=this.weight[c],zs=this.flat?1:2;
+      const [Nx,Ny]=this.dims[c],u=this.vel[c],W=this.weight[c],zs=flat?1:2,ox=c===0?0:.5,oy=c===1?0:.5,oz=c===2?0:.5,NxNy=Nx*Ny;
       for(let pI=0;pI<this.count;pI++){
         const x=X[3*pI],y=X[3*pI+1],z=X[3*pI+2];
-        this.stencil(c,x,y,z,base,frac);
-        const vc=V[3*pI+c],c0=C[9*pI+3*c],c1=C[9*pI+3*c+1],c2=C[9*pI+3*c+2];
-        for(let dz=0;dz<zs;dz++)for(let dy=0;dy<2;dy++)for(let dx=0;dx<2;dx++){
-          const w=(dx?frac[0]:1-frac[0])*(dy?frac[1]:1-frac[1])*(this.flat?1:(dz?frac[2]:1-frac[2]));
-          if(w===0)continue;
-          const i=base[0]+dx,j=base[1]+dy,k=base[2]+dz;
-          const fx=o[0]+(i+(c===0?0:.5))*h,fy=o[1]+(j+(c===1?0:.5))*h,fz=o[2]+(k+(c===2?0:.5))*h;
-          const value=vc+c0*(fx-x)+c1*(fy-y)+(this.flat?0:c2*(fz-z));
-          const id=i+Nx*(j+Ny*k);
-          u[id]+=w*value;W[id]+=w;
+        let b0=0,b1=0,b2=0,f0=0,f1=0,f2=0;
+        {let q=(x-ox0)*inv-sx[c],i=Math.floor(q);if(i<0)i=0;else if(i>tx[c])i=tx[c];let f=q-i;b0=i;f0=f<0?0:f>1?1:f;
+        q=(y-oy0)*inv-sy[c];i=Math.floor(q);if(i<0)i=0;else if(i>ty[c])i=ty[c];f=q-i;b1=i;f1=f<0?0:f>1?1:f;
+        if(!flat){q=(z-oz0)*inv-sz2[c];i=Math.floor(q);if(i<0)i=0;else if(i>tz[c])i=tz[c];f=q-i;b2=i;f2=f<0?0:f>1?1:f;}}
+        const vc=V[3*pI+c],c0=C[9*pI+3*c],c1=C[9*pI+3*c+1],c2=flat?0:C[9*pI+3*c+2];
+        for(let dz=0;dz<zs;dz++){
+          const wz=flat?1:(dz?f2:1-f2),k=b2+dz,fz=flat?0:c2*(o[2]+(k+oz)*h-z);
+          for(let dy=0;dy<2;dy++){
+            const wy=wz*(dy?f1:1-f1),j=b1+dy,fy=c1*(o[1]+(j+oy)*h-y)+fz,row=Nx*j+NxNy*k;
+            for(let dx=0;dx<2;dx++){
+              const w=wy*(dx?f0:1-f0);
+              if(w===0)continue;
+              const i=b0+dx,id=i+row;
+              u[id]+=w*(vc+c0*(o[0]+(i+ox)*h-x)+fy);W[id]+=w;
+            }
+          }
         }
       }
       for(let id=0;id<u.length;id++)if(W[id]>0)u[id]/=W[id];
     }
     this.markLiquid();
   }
-  /** Mark the cells that hold a particle. */
+  /** Mark the cells that hold a particle (never a solid cell). */
   private markLiquid():void {
-    const L=this.liquid,X=this.positions,o=this.origin,h=this.h;L.fill(0);
+    const L=this.liquid,X=this.positions,o=this.origin,h=this.h,S=this.solid;L.fill(0);
     for(let pI=0;pI<this.count;pI++){
       let i=Math.floor((X[3*pI]-o[0])/h),j=Math.floor((X[3*pI+1]-o[1])/h),k=this.flat?0:Math.floor((X[3*pI+2]-o[2])/h);
       i=i<0?0:i>=this.nx?this.nx-1:i;j=j<0?0:j>=this.ny?this.ny-1:j;k=k<0?0:k>=this.nz?this.nz-1:k;
-      L[i+this.nx*(j+this.ny*k)]=1;
+      const c=i+this.nx*(j+this.ny*k);if(!S[c])L[c]=1;
     }
   }
 
-  /** Is cell (i, j, k) liquid? Out of the box is a wall (not liquid, not air). */
-  private cell(i:number,j:number,k:number):number {return this.liquid[i+this.nx*(j+this.ny*k)];}
-
-  /** Zero the normal velocity on the walls. */
-  private walls():void {
+  /** Set the fixed faces: zero normal velocity on the tank walls, the obstacle's velocity next to a solid cell. */
+  private boundary():void {
     const comps=this.flat?2:3;
-    for(let c=0;c<comps;c++){
-      const [Nx,Ny,Nz]=this.dims[c],u=this.vel[c];
-      for(let k=0;k<Nz;k++)for(let j=0;j<Ny;j++)for(let i=0;i<Nx;i++){
-        const idx=[i,j,k][c],n=[Nx,Ny,Nz][c]-1;
-        if(idx===0||idx===n)u[i+Nx*(j+Ny*k)]=0;
-      }
-    }
+    for(let c=0;c<comps;c++){const u=this.vel[c],F=this.fixed[c],FV=this.fixedValue[c];for(let f=0;f<u.length;f++)if(F[f])u[f]=FV[f];}
   }
 
-  /** Faces next to at least one liquid cell are valid; the rest are filled from valid neighbours, two layers out. */
+  /** Faces next to at least one liquid cell (or fixed) are valid; the rest are filled from valid neighbours, two layers out. */
   private extrapolate():void {
-    const comps=this.flat?2:3;
+    const comps=this.flat?2:3,nx=this.nx,ny=this.ny,L=this.liquid;
     for(let c=0;c<comps;c++){
-      const [Nx,Ny,Nz]=this.dims[c],u=this.vel[c],valid=this.valid[c],tmp=this.scratch[c];
-      for(let k=0;k<Nz;k++)for(let j=0;j<Ny;j++)for(let i=0;i<Nx;i++){
-        const id=i+Nx*(j+Ny*k),at=[i,j,k];let ok=0;
-        const lo=[...at];lo[c]-=1;
-        if(at[c]<[this.nx,this.ny,this.nz][c]&&this.cell(at[0],at[1],at[2]))ok=1;
-        if(lo[c]>=0&&this.cell(lo[0],lo[1],lo[2]))ok=1;
-        valid[id]=ok;if(!ok)u[id]=0;
+      const [Nx,Ny,Nz]=this.dims[c],u=this.vel[c],valid=this.valid[c],tmp=this.scratch[c],F=this.fixed[c],n=[nx,ny,this.nz][c],sc=c===0?1:c===1?nx:nx*ny,NxNy=Nx*Ny;
+      for(let k=0,id=0;k<Nz;k++)for(let j=0;j<Ny;j++)for(let i=0;i<Nx;i++,id++){
+        const idx=c===0?i:c===1?j:k,hi=i+nx*(j+ny*k);
+        const ok=F[id]===2||(idx<n&&L[hi])||(idx>0&&L[hi-sc]);
+        valid[id]=ok?1:0;if(!ok)u[id]=0;
       }
       for(let layer=0;layer<2;layer++){
-        tmp.set(u);
-        const mark=new Uint8Array(valid);
-        for(let k=0;k<Nz;k++)for(let j=0;j<Ny;j++)for(let i=0;i<Nx;i++){
-          const id=i+Nx*(j+Ny*k);if(valid[id])continue;
+        tmp.set(u);const mark=this.markScratch(c,valid);
+        for(let k=0,id=0;k<Nz;k++)for(let j=0;j<Ny;j++)for(let i=0;i<Nx;i++,id++){
+          if(valid[id])continue;
           let s=0,m=0;
-          const add=(a:number,b:number,c2:number)=>{if(a<0||b<0||c2<0||a>=Nx||b>=Ny||c2>=Nz)return;const n=a+Nx*(b+Ny*c2);if(valid[n]){s+=u[n];m++;}};
-          add(i-1,j,k);add(i+1,j,k);add(i,j-1,k);add(i,j+1,k);if(!this.flat){add(i,j,k-1);add(i,j,k+1);}
+          if(i>0&&valid[id-1]){s+=u[id-1];m++;}
+          if(i<Nx-1&&valid[id+1]){s+=u[id+1];m++;}
+          if(j>0&&valid[id-Nx]){s+=u[id-Nx];m++;}
+          if(j<Ny-1&&valid[id+Nx]){s+=u[id+Nx];m++;}
+          if(!this.flat){if(k>0&&valid[id-NxNy]){s+=u[id-NxNy];m++;}if(k<Nz-1&&valid[id+NxNy]){s+=u[id+NxNy];m++;}}
           if(m>0){tmp[id]=s/m;mark[id]=1;}
         }
         u.set(tmp);valid.set(mark);
       }
     }
   }
+  private readonly markBuffers:Uint8Array[]=[];private readonly acc=new Float64Array(2);private readonly vbuf:Float64Array[][]=[];
+  private viscousBuffers(c:number,M:number):Float64Array[] {return this.vbuf[c]??=[0,1,2,3,4].map(()=>new Float64Array(M));}
+  private markScratch(c:number,valid:Uint8Array):Uint8Array {const m=this.markBuffers[c]??=new Uint8Array(valid.length);m.set(valid);return m;}
 
-  /** Project the liquid cells: A p = -h^2 (rho / dt) div u with p = 0 in empty cells, MIC(0)-preconditioned CG. */
-  private project():void {
-    const nx=this.nx,ny=this.ny,nz=this.nz,N=this.cellsTotal,L=this.liquid,h=this.h,rho=this.density,dt=this.dt,flat=this.flat;
-    const [u,v,w]=this.vel,b=this.b,diag=this.diag,pre=this.pre,p=this.p,r=this.r,z=this.z,d=this.d,q=this.q;
-    const U=(i:number,j:number,k:number)=>i+(nx+1)*(j+ny*k),Vi=(i:number,j:number,k:number)=>i+nx*(j+(ny+1)*k),Wi=(i:number,j:number,k:number)=>i+nx*(j+ny*k);
-    const nb=(i:number,j:number,k:number):number=>i<0||j<0||k<0||i>=nx||j>=ny||k>=nz?-1:L[i+nx*(j+ny*k)];
-    let liquid=0,dirichlet=false,vmax=0;
-    for(let id=0;id<3;id++){const x=this.vel[id];for(let f=0;f<x.length;f++){const a=Math.abs(x[f]);if(a>vmax)vmax=a;}}
-    p.fill(0);
-    // Distance from each empty cell's centre to the liquid surface, from the particles: min |x - x_p| - s / 2 (s the seeding
-    // spacing), so that a flat surface lies half a spacing above the top particles, where seeding put it.
-    const phi=this.phi,X=this.positions,o=this.origin,radius=h/(2*this.perAxis);
-    phi.fill(Infinity);
-    for(let pI=0;pI<this.count;pI++){
-      const x=X[3*pI],y=X[3*pI+1],zp=X[3*pI+2];
-      const ci=Math.floor((x-o[0])/h),cj=Math.floor((y-o[1])/h),ck=flat?0:Math.floor((zp-o[2])/h);
-      for(let dk=flat?0:-1;dk<=(flat?0:1);dk++)for(let dj=-1;dj<=1;dj++)for(let di=-1;di<=1;di++){
-        const i=ci+di,j=cj+dj,k=ck+dk;if(i<0||j<0||k<0||i>=nx||j>=ny||k>=nz)continue;
-        const c=i+nx*(j+ny*k);if(L[c])continue;
-        const ex=o[0]+(i+.5)*h-x,ey=o[1]+(j+.5)*h-y,ez=flat?0:o[2]+(k+.5)*h-zp,dist=Math.sqrt(ex*ex+ey*ey+ez*ez)-radius;
-        if(dist<phi[c])phi[c]=dist;
+  /**
+   * Viscosity, backward Euler: (1 - dt nu L) u = u*, per component over the faces next to liquid. A neighbour face that is
+   * fixed is a Dirichlet value; across a tank wall the ghost is -u (no-slip) or u (free-slip); an air face adds nothing
+   * (zero normal gradient, the stress-free surface approximated). Jacobi-preconditioned conjugate gradients.
+   */
+  private diffuse():void {
+    const nu=this.viscosity/this.density,k0=nu*this.dt/(this.h*this.h),comps=this.flat?2:3,nx=this.nx,ny=this.ny,L=this.liquid;
+    let total=0;
+    for(let c=0;c<comps;c++){
+      const [Nx,Ny,Nz]=this.dims[c],u=this.vel[c],F=this.fixed[c],unknown=this.valid[c],n=[nx,ny,this.nz][c],sc=c===0?1:c===1?nx:nx*ny,NxNy=Nx*Ny,M=u.length;
+      const diag=this.scratch[c],rhs=this.viscousBuffers(c,M)[4];
+      // Unknown faces: next to a liquid cell and not fixed.
+      let any=0;
+      for(let k=0,id=0;k<Nz;k++)for(let j=0;j<Ny;j++)for(let i=0;i<Nx;i++,id++){
+        const idx=c===0?i:c===1?j:k,hi=i+nx*(j+ny*k);
+        const ok=!F[id]&&((idx<n&&L[hi])||(idx>0&&L[hi-sc]));unknown[id]=ok?1:0;if(ok)any++;
       }
+      if(!any)continue;
+      const axes=this.flat?2:3,FV=this.fixedValue[c],noSlip=this.noSlip;
+      // One neighbour along axis a (0 x, 1 y, 2 z): unknown couples; fixed is a Dirichlet value (along the component its
+      // normal velocity; across it a wall or obstacle, no-slip only); beyond a tank wall the ghost is -u (no-slip).
+      const side=(id:number,nb:number,inside:boolean,a:number,acc:Float64Array)=>{
+        if(!inside){if(noSlip)acc[0]+=2*k0;return;}
+        if(unknown[nb]){acc[0]+=k0;return;}
+        if(F[nb]&&(a===c||noSlip)){acc[0]+=k0;acc[1]+=k0*FV[nb];}
+        void id;
+      };
+      const acc=this.acc;
+      for(let k=0,id=0;k<Nz;k++)for(let j=0;j<Ny;j++)for(let i=0;i<Nx;i++,id++){
+        if(!unknown[id]){diag[id]=0;rhs[id]=0;continue;}
+        acc[0]=1;acc[1]=u[id];
+        side(id,id-1,i>0,0,acc);side(id,id+1,i<Nx-1,0,acc);
+        side(id,id-Nx,j>0,1,acc);side(id,id+Nx,j<Ny-1,1,acc);
+        if(axes===3){side(id,id-NxNy,k>0,2,acc);side(id,id+NxNy,k<Nz-1,2,acc);}
+        diag[id]=acc[0];rhs[id]=acc[1];
+      }
+      const apply=(x:Float64Array,out:Float64Array)=>{
+        for(let k=0,id=0;k<Nz;k++)for(let j=0;j<Ny;j++)for(let i=0;i<Nx;i++,id++){
+          if(!unknown[id]){out[id]=0;continue;}
+          let s=diag[id]*x[id];
+          if(i>0&&unknown[id-1])s-=k0*x[id-1];if(i<Nx-1&&unknown[id+1])s-=k0*x[id+1];
+          if(j>0&&unknown[id-Nx])s-=k0*x[id-Nx];if(j<Ny-1&&unknown[id+Nx])s-=k0*x[id+Nx];
+          if(axes===3){if(k>0&&unknown[id-NxNy])s-=k0*x[id-NxNy];if(k<Nz-1&&unknown[id+NxNy])s-=k0*x[id+NxNy];}
+          out[id]=s;
+        }
+      };
+      const [r,zz,d,Ad]=this.viscousBuffers(c,M);
+      apply(u,Ad);let bmax=0,rmax=0;
+      for(let id=0;id<M;id++){if(!unknown[id])continue;r[id]=rhs[id]-Ad[id];bmax=Math.max(bmax,Math.abs(rhs[id]));rmax=Math.max(rmax,Math.abs(r[id]));}
+      const tol=this.viscousTolerance*Math.max(bmax,1e-300);let it=0;
+      if(rmax>tol){
+        let rz=0;for(let id=0;id<M;id++)if(unknown[id]){zz[id]=r[id]/diag[id];d[id]=zz[id];rz+=r[id]*zz[id];}
+        for(;it<this.maxIterations;it++){
+          apply(d,Ad);let dAd=0;for(let id=0;id<M;id++)dAd+=d[id]*Ad[id];
+          if(!(dAd>0))break;
+          const alpha=rz/dAd;rmax=0;
+          for(let id=0;id<M;id++){if(!unknown[id])continue;u[id]+=alpha*d[id];r[id]-=alpha*Ad[id];const a=Math.abs(r[id]);if(a>rmax)rmax=a;}
+          if(rmax<=tol){it++;break;}
+          let rzNew=0;for(let id=0;id<M;id++)if(unknown[id]){zz[id]=r[id]/diag[id];rzNew+=r[id]*zz[id];}
+          const beta=rzNew/rz;rz=rzNew;
+          for(let id=0;id<M;id++)if(unknown[id])d[id]=zz[id]+beta*d[id];
+        }
+        if(rmax>tol)this.stats.unconverged++;
+      }
+      total+=it;
     }
-    // theta: fraction of the way from a liquid centre to the next empty centre at which the surface lies (ghost fluid,
-    // p = 0 on the surface), from that empty cell's distance assuming unit slope; at least 0.05.
-    const theta=(air:number)=>{const t=1-phi[air]/h;return t<.05?.05:t>1?1:t;};
-    for(let k=0,c=0;k<nz;k++)for(let j=0;j<ny;j++)for(let i=0;i<nx;i++,c++){
-      if(!L[c]){b[c]=0;diag[c]=0;continue;}
-      liquid++;
-      let dg=0;
-      for(const [a,bb,cc] of flat?[[i-1,j,k],[i+1,j,k],[i,j-1,k],[i,j+1,k]]:[[i-1,j,k],[i+1,j,k],[i,j-1,k],[i,j+1,k],[i,j,k-1],[i,j,k+1]]){const s=nb(a,bb,cc);if(s===1)dg++;if(s===0){dg+=1/theta(a+nx*(bb+ny*cc));dirichlet=true;}}
-      diag[c]=dg;
-      const div=(u[U(i+1,j,k)]-u[U(i,j,k)]+v[Vi(i,j+1,k)]-v[Vi(i,j,k)]+(flat?0:w[Wi(i,j,k+1)]-w[Wi(i,j,k)]))/h;
-      b[c]=-h*h*rho/dt*div;
-    }
-    this.stats.liquidCells=liquid;
-    if(!dirichlet&&liquid>0){let mean=0;for(let c=0;c<N;c++)if(L[c])mean+=b[c];mean/=liquid;for(let c=0;c<N;c++)if(L[c])b[c]-=mean;}
-    const sy=nx,sz=nx*ny;
-    const lowerLiquid=(c:number,i:number,j:number,k:number,axis:number)=>axis===0?i>0&&L[c-1]===1:axis===1?j>0&&L[c-sy]===1:!flat&&k>0&&L[c-sz]===1;
-    const upperLiquid=(c:number,i:number,j:number,k:number,axis:number)=>axis===0?i<nx-1&&L[c+1]===1:axis===1?j<ny-1&&L[c+sy]===1:!flat&&k<nz-1&&L[c+sz]===1;
-    // MIC(0).
+    this.stats.viscousIterations=total;
+  }
+
+  /** Solve A x = b over the liquid cells (diag and b set), MIC(0)-preconditioned conjugate gradients, until max |r| <= tol. Returns the iterations. */
+  private solvePoisson(p:Float64Array,tol:number):number {
+    const b=this.b,diag=this.diag,pre=this.pre,r=this.r,z=this.z,d=this.d,q=this.q,L=this.liquid,nx=this.nx,ny=this.ny,nz=this.nz,N=this.cellsTotal,flat=this.flat,sy=nx,sz=nx*ny;
+    let liquid=0;for(let c=0;c<N;c++)liquid+=L[c];
+    p.fill(0);
+    // MIC(0): for each lower liquid neighbour m, subtract pre[m]^2 (1 + 0.97 (number of m's other upper liquid neighbours)).
+    const up=(c:number,i:number,j:number,k:number,skip:number):number=>(skip!==0&&i<nx-1&&L[c+1]===1?1:0)+(skip!==1&&j<ny-1&&L[c+sy]===1?1:0)+(skip!==2&&!flat&&k<nz-1&&L[c+sz]===1?1:0);
     for(let k=0,c=0;k<nz;k++)for(let j=0;j<ny;j++)for(let i=0;i<nx;i++,c++){
       if(!L[c]){pre[c]=0;continue;}
       let e=diag[c];
-      for(let axis=0;axis<3;axis++){
-        if(!lowerLiquid(c,i,j,k,axis))continue;
-        const m=axis===0?c-1:axis===1?c-sy:c-sz,mi=m%nx,mj=Math.floor(m/nx)%ny,mk=Math.floor(m/sz);
-        let others=0;for(let o2=0;o2<3;o2++)if(o2!==axis&&upperLiquid(m,mi,mj,mk,o2))others++;
-        e-=pre[m]*pre[m]*(1+.97*others);
-      }
+      if(i>0&&L[c-1]===1){const m=c-1;e-=pre[m]*pre[m]*(1+.97*up(m,i-1,j,k,0));}
+      if(j>0&&L[c-sy]===1){const m=c-sy;e-=pre[m]*pre[m]*(1+.97*up(m,i,j-1,k,1));}
+      if(!flat&&k>0&&L[c-sz]===1){const m=c-sz;e-=pre[m]*pre[m]*(1+.97*up(m,i,j,k-1,2));}
       if(e<.25*diag[c])e=diag[c];
       pre[c]=e>0?1/Math.sqrt(e):0;
     }
@@ -1378,9 +1503,8 @@ export class FreeSurfaceFluid {
         if(!flat&&k>0&&L[c-sz])t+=pre[c-sz]*tmp[c-sz];
         tmp[c]=t*pre[c];
       }
-      for(let c=N-1;c>=0;c--){
+      for(let k=nz-1,c=N-1;k>=0;k--)for(let j=ny-1;j>=0;j--)for(let i=nx-1;i>=0;i--,c--){
         if(!L[c]){out[c]=0;continue;}
-        const i=c%nx,j=Math.floor(c/nx)%ny,k=Math.floor(c/sz);
         let t=tmp[c];
         if(i<nx-1&&L[c+1])t+=pre[c]*out[c+1];
         if(j<ny-1&&L[c+sy])t+=pre[c]*out[c+sy];
@@ -1388,12 +1512,11 @@ export class FreeSurfaceFluid {
         out[c]=t*pre[c];
       }
     };
-    const tol=this.pressureTolerance*Math.max(vmax,1e-300)*rho*h/dt;
     r.set(b);
     let rmax=0;for(let c=0;c<N;c++){const a=Math.abs(r[c]);if(a>rmax)rmax=a;}
     let it=0;
     if(rmax>tol&&liquid>0){
-      const Ad=new Float64Array(N);
+      const Ad=this.Ad;
       precondition(r,z);
       let rz=0;for(let c=0;c<N;c++){d[c]=z[c];rz+=r[c]*z[c];}
       for(;it<this.maxIterations;it++){
@@ -1410,8 +1533,63 @@ export class FreeSurfaceFluid {
       }
       if(rmax>tol)this.stats.unconverged++;
     }
+    return it;
+  }
+
+  /** Project the liquid cells: A p = -h^2 (rho / dt) div u with p = 0 in empty cells, MIC(0)-preconditioned CG. Solid cells and walls are closed. */
+  private project(first=true):void {
+    const nx=this.nx,ny=this.ny,nz=this.nz,N=this.cellsTotal,L=this.liquid,S=this.solid,h=this.h,rho=this.density,dt=this.dt,flat=this.flat;
+    const [u,v,w]=this.vel,b=this.b,diag=this.diag,pre=this.pre,p=first?this.p:this.p2,r=this.r,z=this.z,d=this.d,q=this.q;
+    const U=(i:number,j:number,k:number)=>i+(nx+1)*(j+ny*k),Vi=(i:number,j:number,k:number)=>i+nx*(j+(ny+1)*k),Wi=(i:number,j:number,k:number)=>i+nx*(j+ny*k);
+    const sy=nx,sz=nx*ny;
+    let liquid=0,dirichlet=false,vmax=0;
+    for(let id=0;id<3;id++){const x=this.vel[id];for(let f=0;f<x.length;f++){const a=Math.abs(x[f]);if(a>vmax)vmax=a;}}
+    p.fill(0);
+    // Distance from each empty cell's centre to the liquid surface, from the particles: min |x - x_p| - s / 2 (s the seeding
+    // spacing), so that a flat surface lies half a spacing above the top particles, where seeding put it. Only particles
+    // in cells with an empty cell among their 27 neighbours can be the nearest to one.
+    const phi=this.phi,near=this.near,X=this.positions,o=this.origin,radius=h/(2*this.perAxis);
+    phi.fill(Infinity);near.fill(0);
+    for(let k=0,c=0;k<nz;k++)for(let j=0;j<ny;j++)for(let i=0;i<nx;i++,c++){
+      if(L[c]||S[c])continue;
+      for(let dk=flat?0:-1;dk<=(flat?0:1);dk++){const kk=k+dk;if(kk<0||kk>=nz)continue;
+        for(let dj=-1;dj<=1;dj++){const jj=j+dj;if(jj<0||jj>=ny)continue;
+          for(let di=-1;di<=1;di++){const ii=i+di;if(ii<0||ii>=nx)continue;near[ii+nx*(jj+ny*kk)]=1;}}}
+    }
+    for(let pI=0;pI<this.count;pI++){
+      const x=X[3*pI],y=X[3*pI+1],zp=X[3*pI+2];
+      const ci=Math.floor((x-o[0])/h),cj=Math.floor((y-o[1])/h),ck=flat?0:Math.floor((zp-o[2])/h);
+      if(ci<0||cj<0||ck<0||ci>=nx||cj>=ny||ck>=nz||!near[ci+nx*(cj+ny*ck)])continue;
+      for(let dk=flat?0:-1;dk<=(flat?0:1);dk++)for(let dj=-1;dj<=1;dj++)for(let di=-1;di<=1;di++){
+        const i=ci+di,j=cj+dj,k=ck+dk;if(i<0||j<0||k<0||i>=nx||j>=ny||k>=nz)continue;
+        const c=i+nx*(j+ny*k);if(L[c]||S[c])continue;
+        const ex=o[0]+(i+.5)*h-x,ey=o[1]+(j+.5)*h-y,ez=flat?0:o[2]+(k+.5)*h-zp,dist=Math.sqrt(ex*ex+ey*ey+ez*ez)-radius;
+        if(dist<phi[c])phi[c]=dist;
+      }
+    }
+    // theta: fraction of the way from a liquid centre to the next empty centre at which the surface lies (ghost fluid,
+    // p = 0 on the surface), from that empty cell's distance assuming unit slope; at least 0.05.
+    const theta=(air:number)=>{const t=1-phi[air]/h;return t<.05?.05:t>1?1:t;};
+    // Neighbour state: 1 liquid, 0 air, -1 wall or solid.
+    const nb=(i:number,j:number,k:number):number=>{if(i<0||j<0||k<0||i>=nx||j>=ny||k>=nz)return -1;const c=i+nx*(j+ny*k);return S[c]?-1:L[c];};
+    for(let k=0,c=0;k<nz;k++)for(let j=0;j<ny;j++)for(let i=0;i<nx;i++,c++){
+      if(!L[c]){b[c]=0;diag[c]=0;continue;}
+      liquid++;
+      let dg=0;
+      for(let a=0;a<(flat?4:6);a++){
+        const ii=i+(a===0?-1:a===1?1:0),jj=j+(a===2?-1:a===3?1:0),kk=k+(a===4?-1:a===5?1:0);
+        const s=nb(ii,jj,kk);if(s===1)dg++;if(s===0){dg+=1/theta(ii+nx*(jj+ny*kk));dirichlet=true;}
+      }
+      diag[c]=dg;
+      const div=(u[U(i+1,j,k)]-u[U(i,j,k)]+v[Vi(i,j+1,k)]-v[Vi(i,j,k)]+(flat?0:w[Wi(i,j,k+1)]-w[Wi(i,j,k)]))/h;
+      b[c]=-h*h*rho/dt*div;
+    }
+    this.stats.liquidCells=liquid;
+    if(!dirichlet&&liquid>0){let mean=0;for(let c=0;c<N;c++)if(L[c])mean+=b[c];mean/=liquid;for(let c=0;c<N;c++)if(L[c])b[c]-=mean;}
+    const tol=this.pressureTolerance*Math.max(vmax,1e-300)*rho*h/dt;
+    const it=this.solvePoisson(p,tol);
     this.stats.pressureIterations=it;
-    // u -= (dt / rho) grad p on faces with a liquid cell on at least one side and no wall.
+    // u -= (dt / rho) grad p on faces with a liquid cell on at least one side and no wall or solid.
     const k0=dt/(rho*h);
     // Pressure difference across a face; an empty side takes the ghost value p_l (1 - 1 / theta) that is zero on the surface.
     const jump=(lo:number,hi:number):number=>{
@@ -1420,9 +1598,21 @@ export class FreeSurfaceFluid {
       if(a)return -p[lo]/theta(hi);
       return p[hi]/theta(lo);
     };
-    for(let k=0;k<nz;k++)for(let j=0;j<ny;j++)for(let i=1;i<nx;i++){const lo=i-1+nx*(j+ny*k),hi=lo+1;if(L[lo]||L[hi])u[U(i,j,k)]-=k0*jump(lo,hi);}
-    for(let k=0;k<nz;k++)for(let j=1;j<ny;j++)for(let i=0;i<nx;i++){const lo=i+nx*(j-1+ny*k),hi=lo+nx;if(L[lo]||L[hi])v[Vi(i,j,k)]-=k0*jump(lo,hi);}
-    if(!flat)for(let k=1;k<nz;k++)for(let j=0;j<ny;j++)for(let i=0;i<nx;i++){const lo=i+nx*(j+ny*(k-1)),hi=lo+nx*ny;if(L[lo]||L[hi])w[Wi(i,j,k)]-=k0*jump(lo,hi);}
+    for(let k=0;k<nz;k++)for(let j=0;j<ny;j++)for(let i=1;i<nx;i++){const lo=i-1+nx*(j+ny*k),hi=lo+1;if((L[lo]||L[hi])&&!S[lo]&&!S[hi])u[U(i,j,k)]-=k0*jump(lo,hi);}
+    for(let k=0;k<nz;k++)for(let j=1;j<ny;j++)for(let i=0;i<nx;i++){const lo=i+nx*(j-1+ny*k),hi=lo+nx;if((L[lo]||L[hi])&&!S[lo]&&!S[hi])v[Vi(i,j,k)]-=k0*jump(lo,hi);}
+    if(!flat)for(let k=1;k<nz;k++)for(let j=0;j<ny;j++)for(let i=0;i<nx;i++){const lo=i+nx*(j+ny*(k-1)),hi=lo+nx*ny;if((L[lo]||L[hi])&&!S[lo]&&!S[hi])w[Wi(i,j,k)]-=k0*jump(lo,hi);}
+    // Pressure force on each obstacle: p h^2 on every face between one of its cells and a liquid cell, pushing into the solid.
+    if(this.obstacles.length){
+      if(first)for(const ob of this.obstacles)ob.force.fill(0);
+      const own=this.owner,area=h*h;
+      for(let k=0,c=0;k<nz;k++)for(let j=0;j<ny;j++)for(let i=0;i<nx;i++,c++){
+        if(!S[c])continue;const f=this.obstacles[own[c]].force;
+        if(i>0&&L[c-1])f[0]+=p[c-1]*area;if(i<nx-1&&L[c+1])f[0]-=p[c+1]*area;
+        if(j>0&&L[c-sy])f[1]+=p[c-sy]*area;if(j<ny-1&&L[c+sy])f[1]-=p[c+sy]*area;
+        if(!flat){if(k>0&&L[c-sz])f[2]+=p[c-sz]*area;if(k<nz-1&&L[c+sz])f[2]-=p[c+sz]*area;}
+      }
+    }
+    if(!first)for(let c=0;c<N;c++)this.p[c]+=p[c];
     this.stats.divergence=vmax>0?this.maxDivergence()*h/vmax:0;
   }
 
@@ -1437,31 +1627,61 @@ export class FreeSurfaceFluid {
     return m/h;
   }
 
-  /** Grid to particles (APIC: velocity and its gradient), then move the particles and keep them inside the tank. */
+  /** Grid to particles (APIC: velocity and its gradient), then move the particles, keeping them inside the tank and out of solid cells. */
   private toParticles():void {
-    const {base,frac}=this,h=this.h,X=this.positions,V=this.velocities,C=this.affine,dt=this.dt,o=this.origin,comps=this.flat?2:3;
-    const hi=[o[0]+this.nx*h,o[1]+this.ny*h,o[2]+this.nz*h],eps=1e-6*h;
+    const h=this.h,X=this.positions,V=this.velocities,C=this.affine,dt=this.dt,o=this.origin,comps=this.flat?2:3,flat=this.flat;
+    const inv=1/h,ox0=o[0],oy0=o[1],oz0=o[2],sx=[0,.5,.5],sy=[.5,0,.5],sz2=[.5,.5,0],tx=this.dims.map(d=>d[0]-2),ty=this.dims.map(d=>d[1]-2),tz=this.dims.map(d=>d[2]-2),NX=this.dims.map(d=>d[0]),NXY=this.dims.map(d=>d[0]*d[1]);
+    const wallSlip=this.noSlip&&this.viscosity>0;
+    const hi=[o[0]+this.nx*h,o[1]+this.ny*h,o[2]+this.nz*h],eps=1e-6*h,S=this.solid,hasSolid=this.stats.solidCells>0,nx=this.nx,ny=this.ny,nz=this.nz;
+    const solidAt=(x:number,y:number,z:number)=>{
+      let i=Math.floor((x-o[0])/h),j=Math.floor((y-o[1])/h),k=flat?0:Math.floor((z-o[2])/h);
+      i=i<0?0:i>=nx?nx-1:i;j=j<0?0:j>=ny?ny-1:j;k=k<0?0:k>=nz?nz-1:k;return S[i+nx*(j+ny*k)]===1;
+    };
     let vmax=0;
     for(let pI=0;pI<this.count;pI++){
       const x=X[3*pI],y=X[3*pI+1],z=X[3*pI+2];
       for(let c=0;c<comps;c++){
-        const [Nx,Ny]=this.dims[c],u=this.vel[c];
-        this.stencil(c,x,y,z,base,frac);
+        const Nx=NX[c],u=this.vel[c],NxNy=NXY[c];
+        let b0=0,b1=0,b2=0,f0=0,f1=0,f2=0;
+        {let q=(x-ox0)*inv-sx[c],i=Math.floor(q);if(i<0)i=0;else if(i>tx[c])i=tx[c];let f=q-i;b0=i;f0=f<0?0:f>1?1:f;
+        q=(y-oy0)*inv-sy[c];i=Math.floor(q);if(i<0)i=0;else if(i>ty[c])i=ty[c];f=q-i;b1=i;f1=f<0?0:f>1?1:f;
+        if(!flat){q=(z-oz0)*inv-sz2[c];i=Math.floor(q);if(i<0)i=0;else if(i>tz[c])i=tz[c];f=q-i;b2=i;f2=f<0?0:f>1?1:f;}}
         let vc=0,gx=0,gy=0,gz=0;
-        const zs=this.flat?1:2;
-        for(let dz=0;dz<zs;dz++)for(let dy=0;dy<2;dy++)for(let dx=0;dx<2;dx++){
-          const wx=dx?frac[0]:1-frac[0],wy=dy?frac[1]:1-frac[1],wz=this.flat?1:(dz?frac[2]:1-frac[2]);
-          const value=u[base[0]+dx+Nx*(base[1]+dy+Ny*(base[2]+dz))];
-          vc+=wx*wy*wz*value;
-          gx+=(dx?1:-1)*wy*wz*value/h;gy+=wx*(dy?1:-1)*wz*value/h;if(!this.flat)gz+=wx*wy*(dz?1:-1)*value/h;
+        const zs=flat?1:2;
+        for(let dz=0;dz<zs;dz++){
+          const wz=flat?1:(dz?f2:1-f2),sz=dz?1:-1;
+          for(let dy=0;dy<2;dy++){
+            const wy=dy?f1:1-f1,row=Nx*(b1+dy)+NxNy*(b2+dz);
+            for(let dx=0;dx<2;dx++){
+              const wx=dx?f0:1-f0,value=u[b0+dx+row];
+              vc+=wx*wy*wz*value;
+              gx+=(dx?1:-1)*wy*wz*value;gy+=wx*(dy?1:-1)*wz*value;if(!flat)gz+=wx*wy*sz*value;
+            }
+          }
+        }
+        gx/=h;gy/=h;gz/=h;
+        // Viscous no-slip walls: between a wall and the first row of tangential faces, interpolate toward the ghost row
+        // (-u), which puts zero tangential velocity on the wall, instead of holding the first row's value.
+        if(wallSlip)for(let d=0;d<comps;d++){
+          if(d===c)continue;
+          const n=this.dims[c][d],sd=((d===0?x:d===1?y:z)-o[d])/h-.5;
+          let t=0,sign=0;
+          if(sd<0){t=-sd;sign=1;}else if(sd>n-1){t=sd-(n-1);sign=-1;}
+          if(!sign)continue;
+          const factor=1-2*t,slope=2*vc/h*sign;
+          vc*=factor;
+          if(d===0){gx=slope;gy*=factor;gz*=factor;}else if(d===1){gy=slope;gx*=factor;gz*=factor;}else{gz=slope;gx*=factor;gy*=factor;}
         }
         V[3*pI+c]=vc;C[9*pI+3*c]=gx;C[9*pI+3*c+1]=gy;C[9*pI+3*c+2]=gz;
       }
       for(let d=0;d<comps;d++){
-        let nxp=X[3*pI+d]+dt*V[3*pI+d];
+        const old=X[3*pI+d];
+        let nxp=old+dt*V[3*pI+d];
         if(nxp<o[d]+eps){nxp=o[d]+eps;if(V[3*pI+d]<0)V[3*pI+d]=0;}
         else if(nxp>hi[d]-eps){nxp=hi[d]-eps;if(V[3*pI+d]>0)V[3*pI+d]=0;}
         X[3*pI+d]=nxp;
+        // Into a solid cell along this axis: stay, and lose the velocity into it.
+        if(hasSolid&&solidAt(X[3*pI],X[3*pI+1],X[3*pI+2])){X[3*pI+d]=old;V[3*pI+d]=0;}
       }
       const s=Math.abs(V[3*pI])+Math.abs(V[3*pI+1])+Math.abs(V[3*pI+2]);if(s>vmax)vmax=s;
     }
@@ -1471,12 +1691,16 @@ export class FreeSurfaceFluid {
   /** Advance by count steps of dt. */
   step(count=1):void {
     for(let s=0;s<count;s++){
+      if(this.solidDirty)this.classify();
       this.toGrid();
       const comps=this.flat?2:3;
       for(let c=0;c<comps;c++){const u=this.vel[c],W=this.weight[c],g=this.dt*this.gravity[c];for(let id=0;id<u.length;id++)if(W[id]>0)u[id]+=g;}
-      this.walls();
-      this.project();
-      this.walls();
+      this.boundary();
+      // Viscous: project, diffuse, project again. Diffusing the divergence-free field (not the raw gravity increment) keeps
+      // a liquid at rest at rest, and the steady state is nu lap u = grad p / rho - g whatever the step.
+      if(this.viscosity>0){this.project();this.boundary();this.diffuse();this.boundary();this.project(false);}
+      else this.project();
+      this.boundary();
       this.extrapolate();
       this.toParticles();
       this.time+=this.dt;this.stats.steps++;
@@ -1496,6 +1720,18 @@ export class FreeSurfaceFluid {
   surfaceHeight(x0:number,x1:number):number {let m=-Infinity;const X=this.positions;for(let pI=0;pI<this.count;pI++){const x=X[3*pI];if(x>=x0&&x<x1&&X[3*pI+1]>m)m=X[3*pI+1];}return m;}
   /** Largest particle speed, m/s. */
   maxSpeed():number {let m=0;const V=this.velocities;for(let pI=0;pI<this.count;pI++){const s=Math.hypot(V[3*pI],V[3*pI+1],V[3*pI+2]);if(s>m)m=s;}return m;}
+  /** Mean grid velocity component c of the faces next to liquid cells whose centre lies in the box [lo, hi), m/s, from the last step. */
+  meanVelocity(c:0|1|2,lo:FluidVec3,hi:FluidVec3):number {
+    const [Nx,Ny,Nz]=this.dims[c],u=this.vel[c],h=this.h,o=this.origin;let s=0,n=0;
+    for(let k=0,id=0;k<Nz;k++)for(let j=0;j<Ny;j++)for(let i=0;i<Nx;i++,id++){
+      const x=o[0]+(i+(c===0?0:.5))*h,y=o[1]+(j+(c===1?0:.5))*h,z=o[2]+(k+(c===2?0:.5))*h;
+      if(x<lo[0]||x>=hi[0]||y<lo[1]||y>=hi[1]||(!this.flat&&(z<lo[2]||z>=hi[2])))continue;
+      const idx=c===0?i:c===1?j:k,cell=i+this.nx*(j+this.ny*k),sc=c===0?1:c===1?this.nx:this.nx*this.ny,n2=[this.nx,this.ny,this.nz][c];
+      if(!((idx<n2&&this.liquid[cell])||(idx>0&&this.liquid[cell-sc])))continue;
+      s+=u[id];n++;
+    }
+    return n?s/n:0;
+  }
 }
 
 /** Linear standing wave in a tank of length L and depth H, mode n: omega^2 = g k tanh(k H), k = n pi / L. Returns the frequency, Hz. */

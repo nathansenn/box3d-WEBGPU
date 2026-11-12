@@ -267,10 +267,10 @@ export function beverloo(K, {diameters = 15, latticeHeight = 24, orifices = [5, 
  * along the ledge, in degrees, and the fraction of the mass that stayed (a second reading that does not depend on a
  * fit).
  */
-export function repose(K, {friction = 0.5, rollingFriction = 0.1, length = 12, height = 8, depth = 3.5, seconds = 1.4, fraction = 0.17} = {}) {
-  const material = {density: 2500, restitution: 0.3, friction, rollingFriction}, config = linearLaw(SILO_STIFFNESS);
+export function repose(K, {friction = 0.5, rollingFriction = 0.1, length = 12, height = 8, depth = 3.5, seconds = 1.4, fraction = 0.17, material: given, seed = 5} = {}) {
+  const material = given ?? {density: 2500, restitution: 0.3, friction, rollingFriction}, config = linearLaw(SILO_STIFFNESS);
   const L = length * SILO_D, D = depth * SILO_D;
-  const lattice = K.granularLattice({min: [0, 0, 0], max: [L, 2.2 * height * SILO_D, D], radius: [0.9 * R, 1.1 * R], gap: 0, jitter: 1, seed: 5});
+  const lattice = K.granularLattice({min: [0, 0, 0], max: [L, 2.2 * height * SILO_D, D], radius: [0.9 * R, 1.1 * R], gap: 0, jitter: 1, seed});
   const dt = fraction * criticalTime(K, material, config, 0.9 * R);
   const g = new K.Granular({material, config: {...config, dt, capacity: lattice.count, bounds: {min: [-1, -4 * SILO_D, -1], max: [L + 1, 1e3, D + 1]}}});
   // The ledge is the top of a box, so that beads past its edge fall away.
@@ -421,4 +421,60 @@ export function solverFingerprint(K) {
   g.addGrains(lattice.positions, lattice.radii);
   g.step(3000);
   return {hash: stateHash(g, null), contacts: g.stats.contacts, rebuilds: g.stats.rebuilds, removed: g.stats.removed};
+}
+
+// ---------------------------------------------------------------------------------------------------
+// Glass beads against experiments: the angle of repose and the collapse of a column.
+// ---------------------------------------------------------------------------------------------------
+
+/**
+ * Glass beads of the material library (density 2500 kg/m^3, grain friction 0.12 from Sandeep & Senetakis 2018,
+ * restitution 0.926) with a rolling resistance that stands in for the beads' imperfect sphericity and the coarse-graining
+ * (10 mm stand-ins for 1 to 3 mm beads): `GLASS_BEAD_ROLLING` is fitted so that the repose case below gives 22 degrees,
+ * the angle Lajeunesse et al. (2005) Table I measured for their beads. Linear springs k_n = 4000 m g / d.
+ */
+export const GLASS_BEAD_ROLLING = 0.06;
+export const glassBeads = (rollingFriction = GLASS_BEAD_ROLLING) => ({density: 2500, restitution: 0.926, friction: 0.12, rollingFriction});
+
+/** The repose case above with the library glass beads: a ledge 12 d long that a gate opens; the pile angle, degrees, averaged over three packings (one packing scatters by about 2 degrees). */
+export function glassBeadRepose(K, {rollingFriction = GLASS_BEAD_ROLLING, seeds = [5, 6, 7]} = {}) {
+  const runs = seeds.map(seed => repose(K, {friction: 0.12, rollingFriction, material: glassBeads(rollingFriction), seed}));
+  return {angle: runs.reduce((a, r) => a + r.angle, 0) / runs.length, angles: runs.map(r => r.angle), retained: runs.reduce((a, r) => a + r.retained, 0) / runs.length};
+}
+
+/**
+ * Lajeunesse, Monnier & Homsy, Granular slumping on a horizontal surface, Phys. Fluids 17 (2005) 103302, read from the
+ * author's copy (https://www.ipgp.fr/~lajeunes/download/2005-pof-slumping.pdf). In their rectangular channel (W = 45 mm,
+ * glass beads of 1.15 and 3 mm, repose 22 degrees, a rough sandpaper floor) a column of length L_i and height H_i = a L_i
+ * released by lifting a gate runs out by Delta L / L_i proportional to a for a below about 3 (a^(2/3) above), and the
+ * deposit keeps the column's height, H_f / L_i = a, for a below about 0.7 (a^(1/3) above). The prefactor of the runout,
+ * 1.8 for the channel, is read from their Fig. 6(a) (the line through Delta L / L_i = 0.18 at a = 0.1), not from text.
+ * Here: 10 mm beads in a channel 6 d wide with side walls of friction tan 12.5 deg (their wall angle for 3 mm beads) and
+ * a floor of friction tan 24.8 deg (their bed angle for 1.15 mm beads), L_i = 8 d, the gate removed at once.
+ * The front is the 99.5th percentile of the grains' leading edges, so that a few stray beads do not set it.
+ */
+export function columnCollapse(K, {aspect = 1, length = 8, width = 6, seconds = 1.6, fraction = 0.17, rollingFriction = GLASS_BEAD_ROLLING, floorRolling = Math.tan(24.8 * Math.PI / 180), seed = 7} = {}) {
+  const material = glassBeads(rollingFriction), config = linearLaw(SILO_STIFFNESS);
+  const Li = length * SILO_D, Hi = aspect * Li, W = width * SILO_D;
+  const lattice = K.granularLattice({min: [0, 0, 0], max: [Li, 1.15 * Hi, W], radius: [0.9 * R, 1.1 * R], gap: 0, jitter: 1, seed});
+  const dt = fraction * criticalTime(K, material, config, 0.9 * R);
+  const g = new K.Granular({material, config: {...config, dt, capacity: lattice.count}});
+  g.addWall({shape: {kind: 'plane', normal: [0, 1, 0]}, friction: Math.tan(24.8 * Math.PI / 180), rollingFriction: floorRolling});
+  g.addWall({shape: {kind: 'plane', normal: [1, 0, 0]}, friction: Math.tan(12.5 * Math.PI / 180)});
+  for (const [z, n] of [[0, 1], [W, -1]]) g.addWall({shape: {kind: 'plane', normal: [0, 0, n]}, position: [0, 0, z], friction: Math.tan(12.5 * Math.PI / 180), rollingFriction: 0});
+  const gate = g.addWall({shape: {kind: 'plane', normal: [-1, 0, 0]}, position: [Li, 0, 0]});
+  g.addGrains(lattice.positions, lattice.radii);
+  g.step(Math.round(0.35 / dt));
+  // The settled column: trim to height H_i so that the aspect ratio is the one asked for.
+  for (let i = 0; i < g.grainCount; i++) if (g.alive[i] && g.positions[3 * i + 1] > Hi) g.removeGrain(i);
+  g.step(Math.round(0.1 / dt));
+  let top = 0; for (let i = 0; i < g.grainCount; i++) if (g.alive[i]) top = Math.max(top, g.positions[3 * i + 1] + g.radii[i]);
+  g.setWallEnabled(gate, false);
+  g.step(Math.round(seconds / dt));
+  const fronts = [];let height = 0, kinetic = 0;
+  for (let i = 0; i < g.grainCount; i++) { if (!g.alive[i]) continue; fronts.push(g.positions[3 * i] + g.radii[i]); height = Math.max(height, g.positions[3 * i + 1] + g.radii[i]); }
+  kinetic = g.kineticEnergy();
+  fronts.sort((a, b) => a - b);
+  const front = fronts[Math.floor(0.995 * (fronts.length - 1))], a = top / Li;
+  return {aspect: a, runout: (front - Li) / Li, height: height / Li, expectedRunout: 1.8 * a, expectedHeight: a <= 0.7 ? a : null, grains: g.liveCount, kinetic, steps: g.stats.steps};
 }

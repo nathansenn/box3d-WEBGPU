@@ -184,7 +184,7 @@ A run through a `Simulation` is bit-identical to calling `coupling.step(); world
 
 ## Validation
 
-Measured by `packages/box3d-kit/test/v17-granular.test.mjs` (18 tests in the kit gate, 46 s on the machine below) and published as 35 rows of the `granular` domain of [`VALIDATION.md`](VALIDATION.md). The set-ups are in `packages/box3d-kit/test/granular-scenarios.mjs`. Beads are 10 mm (radii 4.5 to 5.5 mm in the bulk cases), density 2500 kg/m³.
+Measured by `packages/box3d-kit/test/v17-granular.test.mjs` (19 tests in the kit gate) and published as 40 rows of the `granular` domain of [`VALIDATION.md`](VALIDATION.md). The set-ups are in `packages/box3d-kit/test/granular-scenarios.mjs`. Beads are 10 mm (radii 4.5 to 5.5 mm in the bulk cases), density 2500 kg/m³.
 
 Two-body cases use `E = 1e8 Pa`, `ν = 0.3` (Hertz) or `k_n = 1e5 N/m` (linear), and overlaps below 1e-3 of a radius except where stated.
 
@@ -227,8 +227,13 @@ Bulk cases use the Hertz law with `E = 5e6 Pa` (ledger, column) or linear spring
 | the same inside the solver, the sphere a dynamic wall | total momentum constant | 4e-16 | 1e-12 |
 | 256 beads in a box on a spring scale (a tray on a spring joint, sag 42 mm) | extra load = their weight | 3.6e-9 | 1e-5 |
 | Repeat runs: coupled, through the `Simulation` loop, solver alone | bit-identical | identical | exact |
+| Glass beads of the material library (ρ 2500 kg/m³, μ 0.12, e 0.926, linear k_n = 4000 m g / d) on the 12 d ledge, mean of three packings; **fitted: rolling resistance 0.06** | Lajeunesse, Monnier & Homsy (2005), Table I: repose 22 ± 0.5° | 22.6° (one packing scatters by about 2°) | ±2.5° |
+| Column collapse of those beads (L_i = 8 d, channel 6 d wide, wall friction tan 12.5°, rough floor tan 24.8°, gate removed at once): runout ΔL/L_i at a = 0.47, 0.81, 1.50 | ΔL/L_i = 1.8 a for a ≲ 3 (Lajeunesse et al. 2005: linear from the text, the prefactor read from Fig. 6a) | 0.63, 1.45, 3.16 (−25%, 0%, +17%) | ±30% |
+| the same, deposit height at a = 0.47 | H_f / L_i = a for a ≲ 0.7 | 0.46 (−2%) | ±10% |
 
 ### What is fitted and what is not
+
+- **Glass beads.** One number is fitted, the rolling resistance (0.06), to the repose angle Lajeunesse et al. measured for their beads; density, friction and restitution are the library's. The column collapse is then a prediction. E. Lajeunesse, J. B. Monnier, G. M. Homsy, *Granular slumping on a horizontal surface*, Phys. Fluids 17 (2005) 103302, read from the author's copy (https://www.ipgp.fr/~lajeunes/download/2005-pof-slumping.pdf): their beads were 1.15 and 3 mm in a channel 45 mm wide (15 to 39 beads), ours are 10 mm in a channel six beads wide; in a ten-bead channel the three runouts were −26%, +16% and +33%. The computed runout rises faster than linearly with a (about a^1.3) in both widths; the experiment's is linear to a ≈ 3. The front is the 99.5th percentile of the grains' leading edges. The rough floor is a plane with friction and rolling resistance tan 24.8° (their bed friction angle); without the floor's rolling resistance the beads rolled 2.6 to 4 times too far.
 
 - **Janssen.** One number is fitted, the saturation load `W_s`, to eight (weight, floor load) pairs. `λ = W_s / (weight per height)` uses the measured fill height. Janssen's formula contains the product `μ K`; the row above takes μ as the measured ratio of the wall's vertical force to the sum of its normal forces (0.264, about half the coefficient of 0.5, because beads at the wall roll as the fill slides down), and compares the resulting `K` with one read directly from the wall and floor loads. `K` near 1.1 is above the 0.4 to 0.6 often quoted for wide silos (from memory). The silo here is six beads wide, the beads are soft and the floor is being lowered; none of these was varied systematically, so the value is reported, not explained.
 - **How the silo is loaded.** Each batch is dropped from just above the fill, and after it has come to rest the floor is lowered by half a bead diameter at 2 cm/s, the loads being read during the descent. Without the descent the wall friction is mobilised to 5% to 15% only and the floor reads most of the weight; pouring a tall column in one go leaves wall pressures locked in from the impact (overlaps of 6% to 10%; in a 6 d silo the wall's normal load was 2.4 times what it is after the descent).
@@ -275,4 +280,4 @@ Nothing is parallel and nothing is on the GPU. The roadmap's "granular on GPU" i
 - **Coupling.** Bodies are boxes, spheres and capsules. The world gets the mean force of a rigid step; the body's position at the end of the step is the world's, which can differ from the stand-in's by the second-order term of one rigid step. Supports are estimated one step late and without torque, so a body held by a stiff joint against a hard-driven bed is not checked. Sleeping is not handled: create coupled bodies with `neverSleeps`.
 - **Size ratio.** The grid cell is the largest diameter, so a wide size distribution makes the neighbour search slow. The cases here use ±10%.
 - **No checkpoints.** The state arrays are public and `touch()` re-reads them, but contact histories cannot be saved or restored.
-- **Not in the scene format, the Lab or the Studio.** The app's granular scenes still use rigid bodies.
+- **The Studio's granular lab runs this solver** ([`STUDIO_FLOW_LABS.md`](STUDIO_FLOW_LABS.md)): coarse-grained grains in a 0.57 m tray. The app's granular scenes still use rigid bodies.

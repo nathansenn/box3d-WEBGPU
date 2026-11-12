@@ -191,3 +191,34 @@ test('free surface: the first sloshing mode has the frequency of the linear disp
   assert.ok(rest.speed < 1e-9 * rest.scale, `still water: ${sci(rest.speed)} m/s`);
   assert.equal(rest.volumeChange, 0);
 });
+
+test('free surface, viscous: a film on a no-slip floor slows down as the series solution of u_t = nu u_yy says', t => {
+  const r = S.viscousFilmDecay(K);
+  t.diagnostic(r.rows.map(x => `t ${x.time.toFixed(3)} s: ${x.measured.toFixed(4)} against ${x.expected.toFixed(4)} (${(100 * x.error).toFixed(2)}%)`).join('; '));
+  assert.ok(r.worst < 0.02, 'depth-averaged speed within 2% while it falls to 7% of its start (10 cells across the film)');
+});
+
+test('free surface, viscous: a released volume spreads as Huppert (1982) gives, x_N = 1.411 (g q^3 t / 3 nu)^(1/5)', t => {
+  const r = S.viscousSpreading(K);
+  t.diagnostic(r.late.map(x => `t ${x.time.toFixed(1)} s: ${x.front.toFixed(4)} m against ${x.expected.toFixed(4)} (${(100 * x.error).toFixed(2)}%)`).join('; ') + `; d(x_N^5)/dt ${sci(r.slope)} against ${sci(r.expectedSlope)}`);
+  assert.ok(r.worst < 0.02, 'front within 2% from t = 3 s to 6 s');
+  within(r.slope, r.expectedSlope, 0.08, 'growth of x_N^5');
+  assert.equal(r.particleVolume, 0, 'particles keep their volume exactly');
+});
+
+test('free surface, obstacles: a gate holds water and glycerol at rest with the hydrostatic force; a lifting gate releases flow past a post', t => {
+  for (const [viscosity, density] of [[0, 998.2], [1.412, 1261.08]]) {
+    const r = S.gateHydrostatic(K, {viscosity, density});
+    t.diagnostic(`mu ${viscosity} Pa s: gate force ${r.force.toFixed(5)} N against ${r.expected.toFixed(5)} (${sci(r.force / r.expected - 1)}), speed ${sci(r.speed)} m/s`);
+    within(r.force, r.expected, 0.01, 'hydrostatic gate force');
+    assert.ok(r.speed < 1e-9 * r.scale, 'held liquid stays at rest');
+  }
+  const a = S.gateRelease(K, {seconds: 0.6}), b = S.gateRelease(K, {seconds: 0.6}), oil = S.gateRelease(K, {seconds: 0.6, viscosity: 0.0797});
+  t.diagnostic(`water: front ${a.front.toFixed(3)} m, cells ${sci(a.cellVolumeChange)}, post ${a.peakPost.toFixed(1)} N; olive oil front ${oil.front.toFixed(3)} m`);
+  assert.equal(a.inSolid, 0, 'no particle enters a solid cell');
+  assert.equal(oil.inSolid, 0);
+  assert.equal(a.particleVolumeChange, 0);
+  assert.ok(Math.abs(a.cellVolumeChange) < 0.15, 'cells holding particles within 15% while the release splashes against the far wall');
+  assert.ok(a.front > 0.55 && a.peakPost > 0, 'the release reaches the post and pushes on it');
+  assert.equal(a.hash, b.hash, 'bit-identical repeat');
+});

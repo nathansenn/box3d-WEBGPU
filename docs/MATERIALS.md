@@ -6,7 +6,7 @@ This is roadmap Phase 4, "a calibrated material library with sources". *Calibrat
 
 ## What is in it
 
-21 materials, 31 contact-pair entries, 32 sources, **208 values: 202 from a source, 6 unverified**.
+24 materials, 31 contact-pair entries, 36 sources, **214 values: 207 from a source, 7 unverified**.
 
 | Material (`id`) | Grade and conditions | Density | E, ν, G | Strength | K_IC / G_c | k, c_p, α |
 |---|---|---|---|---|---|---|
@@ -27,16 +27,19 @@ This is roadmap Phase 4, "a calibrated material library with sources". *Calibrat
 | Ice (`ice`) | polycrystalline, about −10 °C | 919 | 9.3 GPa, 0.33 | — | 0.1 MPa√m, G_c 1 J/m² | 2.30, 2000 |
 | Water (`water`) | 20 °C, 1 atm | 998.2 | — | — | — | 0.598, 4184; μ 1.0016 mPa s, c 1482 m/s |
 | Air (`air`) | 20 °C, 1 atm | 1.204 | — | — | — | 0.0251, 1007; μ 1.825e-5 Pa s |
+| Glycerol (`glycerol`) | anhydrous, 20 °C | 1261.1 | — | — | — | μ 1.412 Pa s |
+| Olive oil (`olive-oil`) | refined; μ at 20 °C, ρ at 25 °C | 879 | — | — | — | μ 79.7 mPa s |
+| Honey (`honey`) | industrialized, 21–24% water, 20 °C | 1420 (unverified) | — | — | — | μ 7.43 Pa s |
 | Glass beads (`glass-beads`) | 2–4 mm | 2500 (–2600) | 46.2 (–65) GPa, 0.245 | — | — | — |
 | Quartz sand (`sand-quartz`) | Leighton Buzzard, 1.18–2.36 mm | 2650 | 52 ± 12 GPa (grain scale), 0.25 | — | — | — |
 
 Units: kg/m³, W/(m K), J/(kg K), 1/K. The full tables with every condition, the figure read and the citation are below.
 
-Where the values come from, counted per value: standards and design aids that tabulate them 26, government laboratories and agencies (NIST, NBS, USDA Forest Products Laboratory, Lawrence Livermore) 35, manufacturers' and distributors' datasheets 76, peer-reviewed papers 19, an open textbook and a university course table 22, and **The Engineering ToolBox and Webmineral, marked as last resort, 24** (20 friction coefficients, ice's density, conductivity and specific heat, quartz's density). Two kinds of secondary copy are used and named as such: the Eurocode clauses were read in design aids (Eurocode Applied, Dlubal) except EN 1992-1-2, which was read in a copy of the standard; Wikipedia was not used.
+Where the values come from, counted per value: standards and design aids that tabulate them 26, government laboratories and agencies (NIST, NBS, USDA Forest Products Laboratory, Lawrence Livermore) 35, manufacturers' and distributors' datasheets 76, peer-reviewed papers 24, an open textbook and a university course table 22, and **The Engineering ToolBox and Webmineral, marked as last resort, 24** (20 friction coefficients, ice's density, conductivity and specific heat, quartz's density). Two kinds of secondary copy are used and named as such: the Eurocode clauses were read in design aids (Eurocode Applied, Dlubal) except EN 1992-1-2, which was read in a copy of the standard; Wikipedia was not used.
 
 ## Unverified values
 
-Six contact coefficients that the scene editor needs were not found in any opened source. They are kept so that the editor keeps a value, carry `source: 'unverified'` and a reason, and every helper refuses them unless `allowUnverified: true` is passed:
+Six contact coefficients that the scene editor needs, and the density of honey, were not found in any opened source. They are kept so that the editor keeps a value, carry `source: 'unverified'` and a reason, and every helper refuses them unless `allowUnverified: true` is passed:
 
 | Pair | Value | Note |
 |---|---|---|
@@ -46,6 +49,7 @@ Six contact coefficients that the scene editor needs were not found in any opene
 | natural rubber on itself, restitution | 0.8 | the editor's earlier value |
 | ice on ice, restitution | 0.3 | the editor's earlier value |
 | loblolly pine on itself, restitution | 0.45 | the editor's earlier value |
+| honey, density | 1420 kg/m³ | a recalled typical figure; the viscosity source's specific-gravity table was not readable |
 
 Not in the library because no opened source gave them (the helpers then ask for the value): fracture toughness of the steels, stainless 304, copper, concrete (fracture energy), granite, PMMA, ABS, nylon and PTFE; tensile strength of ice; Poisson's ratio and specific heat of ABS and PTFE; specific heat of nylon; thermal conductivity of natural rubber; heat capacity and expansion of granite (illegible in the scanned report); restitution of quartz sand and of most pairs.
 
@@ -400,6 +404,37 @@ dry air, 20 °C, 1 atm.
 | Thermal conductivity (W/(m K)) | 0.02514 |  | 20 °C, 1 atm | k 0.02514 W/m K at 20 °C | [25] |
 | Viscosity (mPa s) | 0.01825 |  | 20 °C, 1 atm | mu 1.825 x 10^-5 kg/m s at 20 °C | [25] |
 
+
+### Glycerol at 20 °C (`glycerol`)
+
+anhydrous glycerol (100% by weight), 20 °C, 1 atm.
+
+| Property | Value | Range | Conditions | Read in the source | Source |
+|---|---|---|---|---|---|
+| Density (kg/m^3) | 1261.1 |  | 100% glycerol, 20 °C | 100 w/w %: 1.26108 at 20 °C (g/cm3) | [34] |
+| Viscosity (mPa s) | 1412 |  | 100% glycerol, 20 °C | 100% glycerol, 20 °C: 1412 centipoise (Table V) | [33] |
+
+A few percent of water lowers the viscosity sharply: 99% glycerol is 1150 cP and 95% is 523 cP at 20 °C in the same table.
+
+### Olive oil (refined) (`olive-oil`)
+
+refined olive oil (Salada brand), viscosity at 20 °C, density at 25 °C.
+
+| Property | Value | Range | Conditions | Read in the source | Source |
+|---|---|---|---|---|---|
+| Density (kg/m^3) | 879 | ± 3 | 25 °C (not 20 °C) | Oliva: ρ 0,879 ± 0,003 g/cm3 at 25 ± 1 °C (Tabela 2) | [35] |
+| Viscosity (mPa s) | 79.7 |  | 20 °C, constant shear rate | Oliva, T 20,0 °C: 79,7 mPa.s (Tabela 3) | [35] |
+
+### Honey (industrialized) (`honey`)
+
+industrialized bee honey, 20.8 to 24.4% water, 73.6 to 77.3 °Brix, 20 °C.
+
+| Property | Value | Range | Conditions | Read in the source | Source |
+|---|---|---|---|---|---|
+| Density (kg/m^3) | 1420 |  | 20 °C, about 17 to 18% water | — | unverified |
+| Viscosity (mPa s) | 7430 |  | 20 °C, Brookfield RVDV-E viscometer, mean of the samples | mean absolute viscosity at 20 ºC (7430 mPa∙s); Newtonian | [36] |
+
+Honey viscosity depends strongly on water content and temperature: 2636 mPa s at 30 °C in the same source.
 ### Glass beads (`glass-beads`)
 
 solid glass spheres of about 2 to 4 mm.
@@ -496,11 +531,16 @@ All opened on 2026-11-12.
 30. `openstax-up1` — OpenStax (Rice University), University Physics Volume 1, *6.2 Friction, Table 6.1 "Approximate Coefficients of Static and Kinetic Friction"*. <https://openstax.org/books/university-physics-volume-1/pages/6-2-friction>. Kind: textbook. The text states that the values are approximate, to one or two digits.
 31. `etb-friction` — The Engineering ToolBox, *Friction and Friction Coefficients for various Materials*. <https://www.engineeringtoolbox.com/friction-coefficients-d_778.html>. Kind: last-resort. Gives no primary reference for its rows.
 32. `zou-2024` — Z. Zou et al., *Experimental study of the restitution coefficient of spherical particles, J. Phys.: Conf. Ser. 2730 (2024) 012008, Table 1*. <https://iopscience.iop.org/article/10.1088/1742-6596/2730/1/012008/pdf>. Kind: peer-reviewed.
+33. `segur-oberstar-1951` — J. B. Segur, H. E. Oberstar, *Viscosity of Glycerol and Its Aqueous Solutions, Ind. Eng. Chem. 43 (1951) 2117-2120, doi:10.1021/ie50501a040, Table V*. <https://faculty.ksu.edu.sa/sites/default/files/viscocity_of_glycerol.pdf>. Kind: peer-reviewed. A scanned copy of the journal article.
+34. `volk-kahler-2018` — A. Volk, C. J. Kähler (supplementary material), tabulating N. Bosart and A. O. Snoddy (1928), *Density model for aqueous glycerol solutions, Exp. Fluids 59 (2018) 75, doi:10.1007/s00348-018-2527-y, Electronic Supplementary Material 2, Table 1 "Measured densities of aqueous glycerol solutions (Bosart and Snoddy 1928)"*. <https://media.springernature.com/original/springer-static/esm/art%3A10.1007%2Fs00348-018-2527-y/MediaObjects/348_2018_2527_MOESM2_ESM.pdf>. Kind: peer-reviewed.
+35. `brock-2008` — J. Brock, M. R. Nogueira, C. Zakrzevski, F. de Castilhos Corazza, M. L. Corazza, J. V. de Oliveira, *Determinação experimental da viscosidade e condutividade térmica de óleos vegetais (Experimental measurements of viscosity and thermal conductivity of vegetable oils), Ciênc. Tecnol. Aliment. 28 (2008) 564-570, Tables 2 and 3*. <https://www.redalyc.org/pdf/3959/395940088010.pdf>. Kind: peer-reviewed.
+36. `rodriguez-navarro-2022` — H. Rodriguez-Navarro, D. Vivanco-Pezantes, *Influence of temperature on the rheological behavior of industrialized honey, Agroindustrial Science 12 (2022) 7-14, doi:10.17268/agroind.sci.2022.01.01*. <https://revistas.unitru.edu.pe/index.php/agroindscience/article/download/4359/6544?inline=1>. Kind: peer-reviewed.
 
 ## Unverified values
 
 | Value | Number | Reason |
 |---|---|---|
+| honey density | 1420 | The opened source measured the specific gravity but its table was not readable; 1420 kg/m3 is a typical figure recalled, not read. A honey with 22% water, as in the viscosity source, is lighter (about 1.38 to 1.40). |
 | aluminium-6061-t6/aluminium-6061-t6 (dry) restitution | 0.5 | No source was opened for this value. It is the scene editor's earlier typical value, written from memory (docs/SCENE_EDITOR.md before the library), kept so that the editor keeps a value for it. |
 | concrete-c30-37/concrete-c30-37 (dry) staticFriction | 0.6 | The editor's earlier table cited ACI 318 shear-friction coefficients; that code was not opened here. |
 | concrete-c30-37/concrete-c30-37 (dry) restitution | 0.2 | No source was opened for this value. It is the scene editor's earlier typical value, written from memory (docs/SCENE_EDITOR.md before the library), kept so that the editor keeps a value for it. |

@@ -50,13 +50,14 @@ test('every value has a source that exists, the figure read, conditions, and a r
 test('the library covers the materials and properties it promises, and counts its unverified values', () => {
   const ids = M.materialIds();
   for (const id of ['structural-steel-s355', 'structural-steel-s235', 'stainless-304', 'aluminium-6061-t6', 'copper-c11000', 'cast-iron-gjl-250', 'soda-lime-glass', 'concrete-c30-37', 'granite-barre',
-    'oak-red-northern', 'pine-loblolly', 'pmma', 'abs', 'nylon-66', 'natural-rubber', 'ptfe', 'ice', 'water', 'air', 'glass-beads', 'sand-quartz']) assert.ok(ids.includes(id), id);
-  for (const id of ids.filter(id => !['water', 'air'].includes(id))) assert.ok(M.materialValue(id, 'youngModulus'), `${id}: a Young's modulus`);
+    'oak-red-northern', 'pine-loblolly', 'pmma', 'abs', 'nylon-66', 'natural-rubber', 'ptfe', 'ice', 'water', 'air', 'glycerol', 'olive-oil', 'honey', 'glass-beads', 'sand-quartz']) assert.ok(ids.includes(id), id);
+  for (const id of ids.filter(id => M.material(id).category !== 'fluid')) assert.ok(M.materialValue(id, 'youngModulus'), `${id}: a Young's modulus`);
+  for (const id of ids.filter(id => M.material(id).category === 'fluid')) for (const property of ['density', 'viscosity']) assert.ok(M.materialValue(id, property), `${id}.${property}`);
   for (const id of ['glass-beads', 'sand-quartz']) for (const property of ['density', 'youngModulus', 'poissonRatio']) assert.ok(M.materialValue(id, property), `${id}.${property}`);
   const rows = M.materialAudit(), unverified = rows.filter(row => row.source === 'unverified');
-  assert.equal(rows.length, 208, 'values in the library (docs/MATERIALS.md and the validation domain quote this count)');
-  assert.equal(unverified.length, 6, 'unverified values (docs/MATERIALS.md lists them)');
-  assert.ok(unverified.every(row => row.kind === 'pair'), 'every material property has a source; only some contact coefficients do not');
+  assert.equal(rows.length, 214, 'values in the library (docs/MATERIALS.md and the validation domain quote this count)');
+  assert.equal(unverified.length, 7, 'unverified values (docs/MATERIALS.md lists them)');
+  assert.deepEqual(unverified.filter(row => row.kind !== 'pair').map(row => `${row.subject}.${row.property}`), ['honey.density'], 'every material property has a source except the density of honey; the rest are contact coefficients');
 });
 
 test('the conversions recorded in the entries reproduce the SI values', () => {

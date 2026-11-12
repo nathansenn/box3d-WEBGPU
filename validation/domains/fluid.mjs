@@ -21,6 +21,9 @@ const T = {
   determinism: 'determinism: repeat runs are bit-identical, and the Simulation loop adds nothing',
   dam: 'free surface: a water column collapses as Martin & Moyce (1952) measured',
   slosh: 'free surface: the first sloshing mode has the frequency of the linear dispersion relation; a tank at rest stays at rest',
+  film: 'free surface, viscous: a film on a no-slip floor slows down as the series solution of u_t = nu u_yy says',
+  huppert: 'free surface, viscous: a released volume spreads as Huppert (1982) gives, x_N = 1.411 (g q^3 t / 3 nu)^(1/5)',
+  gate: 'free surface, obstacles: a gate holds water and glycerol at rest with the hydrostatic force; a lifting gate releases flow past a post',
 };
 
 const modules = () => memo('fluid/modules', async () => {
@@ -122,4 +125,19 @@ export default defineCases('fluid', FILE, [
     reference: {formula: 'conserved', value: 0}, tolerance: absolute(0.01), measure: async () => (await slosh()).volumeChange},
   {id: 'fluid.free-surface.rest', title: 'Free surface: still water', quantity: 'largest particle speed after 1 s in a tank of still water, over sqrt(g h)', unit: '1', test: T.slosh,
     reference: {formula: 'u = 0', value: 0}, tolerance: upper(1e-9), measure: async () => { const r = await run('still', (S, K) => S.freeSurfaceRest(K)); return r.speed / r.scale; }},
+  {id: 'fluid.free-surface.viscous-film', title: 'Free surface, viscous: film slowing on a no-slip floor', quantity: 'largest relative error of the depth-averaged speed in the middle fifth of a 10 mm film (nu = 1e-3 m^2/s, 10 cells deep) at t = 0.02, 0.05 and 0.1 s', unit: '1', test: T.film,
+    reference: {formula: 'mean u / U = sum 8 / ((2m+1)^2 pi^2) exp(-nu ((2m+1) pi / 2H)^2 t)', value: 0}, tolerance: absolute(0.02), note: 'Checks the implicit viscosity, the no-slip floor and the stress-free surface together; the speed falls to 7% of its start.',
+    measure: async () => (await run('film', (S, K) => S.viscousFilmDecay(K))).worst},
+  {id: 'fluid.free-surface.huppert-front', title: 'Free surface, viscous: gravity current front (Huppert 1982)', quantity: 'largest relative error of x_N = sqrt(11/3 <x^2>) from t = 3 to 6 s; 50 mm square column, nu = 1e-2 m^2/s, h = 2.5 mm, 3 particles per axis', unit: '1', test: T.huppert,
+    reference: {formula: 'x_N = 1.411 (g q^3 t / (3 nu))^(1/5), Huppert 1982 eqs. 2.17-2.18', value: 0}, tolerance: absolute(0.02), note: 'With 2 particles per axis the front is 4% behind (the particles compact and the current thins).',
+    measure: async () => (await run('huppert', (S, K) => S.viscousSpreading(K))).worst},
+  {id: 'fluid.free-surface.huppert-rate', title: 'Free surface, viscous: gravity current growth rate', quantity: 'd(x_N^5)/dt fitted from t = 3 to 6 s', unit: 'm^5/s', test: T.huppert,
+    reference: {formula: '1.411^5 g q^3 / (3 nu)', value: null}, tolerance: relative(0.08),
+    measure: async () => { const r = await run('huppert', (S, K) => S.viscousSpreading(K)); return {value: r.slope, reference: r.expectedSlope}; }},
+  {id: 'fluid.free-surface.gate-force', title: 'Free surface, obstacles: hydrostatic force on a gate', quantity: 'pressure force on a voxelised gate holding water 0.2 m deep (2D, h = 10 mm), per cell of width', unit: 'N', test: T.gate,
+    reference: {formula: 'rho g H^2 h / 2', value: null}, tolerance: relative(0.01), note: 'The same to 1e-12 with glycerol (1.412 Pa s): viscosity leaves a liquid at rest at rest.',
+    measure: async () => { const r = await run('gate', (S, K) => S.gateHydrostatic(K)); return {value: r.force, reference: r.expected}; }},
+  {id: 'fluid.free-surface.gate-release', title: 'Free surface, obstacles: release past a post', quantity: 'particles found in a solid cell over a 3D release under a lifting gate past a cylindrical post (40 x 16 x 16 cells, 0.6 s)', unit: '1', test: T.gate,
+    reference: {formula: 'none', value: 0}, tolerance: upper(0), note: 'The particles keep their volume exactly; the volume of the cells holding them changes by about 12% while the front splashes on the far wall.',
+    measure: async () => (await run('release', (S, K) => S.gateRelease(K, {seconds: 0.6}))).inSolid},
 ]);

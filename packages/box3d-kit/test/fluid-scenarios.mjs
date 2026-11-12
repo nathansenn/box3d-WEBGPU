@@ -345,3 +345,87 @@ export function freeSurfaceRest(K, {n = 32, dt = 0.005, seconds = 1} = {}) {
   fluid.step(Math.round(seconds / dt));
   return {speed: fluid.maxSpeed(), scale: Math.sqrt(G * h), volumeChange: fluid.liquidVolume() / volume0 - 1, hash: hashArrays(fluid.positions, fluid.velocities)};
 }
+
+/**
+ * A viscous film on a no-slip floor under a stress-free surface, started at a uniform speed U and left to slow down
+ * (2D, 0.2 m long, H = 10 mm deep, nu = 1e-3 m^2/s, no gravity): the depth-averaged speed in the middle fifth against the
+ * series solution of u_t = nu u_yy with u(0) = 0, u_y(H) = 0:
+ *   mean u / U = sum_m 8 / ((2m + 1)^2 pi^2) exp(-nu lambda_m^2 t),  lambda_m = (2m + 1) pi / (2 H).
+ */
+export function viscousFilmDecay(K, {n = 10, dt = 2.5e-4, times = [0.02, 0.05, 0.1]} = {}) {
+  const H = 0.01, h = H / n, L = 0.2, nu = 1e-3, rho = 1000, U = 1e-3;
+  const fluid = new K.FreeSurfaceFluid({cells: [Math.round(L / h), n + 3, 1], spacing: h, density: rho, viscosity: nu * rho, walls: 'no-slip', dt, gravity: [0, 0, 0]});
+  fluid.addLiquid((x, y) => y < H, [U, 0, 0]);
+  const exact = t => { let s = 0; for (let m = 0; m < 200; m++) { const l = (2 * m + 1) * Math.PI / (2 * H); s += 8 / ((2 * m + 1) ** 2 * Math.PI ** 2) * Math.exp(-nu * l * l * t); } return s; };
+  const rows = [];
+  for (const T of times) {
+    while (fluid.time < T - 1e-9) fluid.step();
+    const measured = fluid.meanVelocity(0, [0.4 * L, 0, 0], [0.6 * L, H, 1]) / U, expected = exact(fluid.time);
+    rows.push({time: fluid.time, measured, expected, error: measured / expected - 1});
+  }
+  return {rows, worst: Math.max(...rows.map(r => Math.abs(r.error))), iterations: fluid.stats.viscousIterations};
+}
+
+/**
+ * Huppert (1982), J. Fluid Mech. 121, 43-58, eqs. (2.17)-(2.18), alpha = 0: a fixed volume q per unit width of viscous
+ * liquid released against a wall spreads as x_N = eta_N (g q^3 t / (3 nu))^(1/5), eta_N = 1.411, with the profile
+ * h ∝ (1 - x^2 / x_N^2)^(1/3) (2.16). Read from the scanned paper (https://scispace.com/pdf/the-propagation-of-two-
+ * dimensional-and-axisymmetric-viscous-1ybbc4dya0.pdf). For that profile the mean square position of the liquid is
+ * (3/11) x_N^2, so x_N is taken as sqrt(11/3 <x^2>) over the particles, which does not depend on where the thin tip is cut.
+ * Column 50 mm x 50 mm, nu = 1e-2 m^2/s, rho = 1000 kg/m^3, no-slip floor, 2D.
+ */
+export function viscousSpreading(K, {h = 2.5e-3, dt = 5e-3, seconds = 6, from = 3, nu = 1e-2, particlesPerAxis = 3} = {}) {
+  const x0 = 0.05, q = x0 * x0, rho = 1000;
+  const fluid = new K.FreeSurfaceFluid({cells: [Math.round(0.22 / h), Math.round(1.2 * x0 / h), 1], spacing: h, density: rho, viscosity: nu * rho, walls: 'no-slip', dt, particlesPerAxis, gravity: [0, -G, 0]});
+  fluid.addLiquid((x, y) => x < x0 && y < x0);
+  const theory = t => 1.411 * Math.pow(G * q ** 3 * t / (3 * nu), 0.2), rows = [], volume0 = fluid.particleVolume();
+  const every = Math.round(0.5 / dt), steps = Math.round(seconds / dt);
+  for (let s = 1; s <= steps; s++) {
+    fluid.step();
+    if (s % every) continue;
+    let m2 = 0; for (let i = 0; i < fluid.count; i++) m2 += fluid.positions[3 * i] ** 2;
+    const front = Math.sqrt(11 / 3 * m2 / fluid.count);
+    rows.push({time: fluid.time, front, expected: theory(fluid.time), error: front / theory(fluid.time) - 1});
+  }
+  const late = rows.filter(r => r.time >= from - 1e-9), mx = late.reduce((a, r) => a + r.time, 0) / late.length, my = late.reduce((a, r) => a + r.front ** 5, 0) / late.length;
+  const slope = late.reduce((a, r) => a + (r.time - mx) * (r.front ** 5 - my), 0) / late.reduce((a, r) => a + (r.time - mx) ** 2, 0);
+  return {rows, late, slope, expectedSlope: 1.411 ** 5 * G * q ** 3 / (3 * nu), worst: Math.max(...late.map(r => Math.abs(r.error))), particleVolume: fluid.particleVolume() / volume0 - 1, courant: fluid.stats.maxCfl};
+}
+
+/**
+ * Water (and glycerol) 0.2 m deep held at rest behind a gate (a voxelised box obstacle) in a 2D tank, h = 10 mm: the
+ * pressure force on the gate against rho g H^2 / 2 per metre of width (one cell, h, of width here), and the speed the
+ * liquid picks up in 0.5 s.
+ */
+export function gateHydrostatic(K, {viscosity = 0, density = 998.2} = {}) {
+  const h = 0.01, H = 0.2;
+  const fluid = new K.FreeSurfaceFluid({cells: [60, 30, 1], spacing: h, density, dt: 2e-3, viscosity, walls: 'no-slip', gravity: [0, -G, 0]});
+  const gate = fluid.addObstacle({shape: {kind: 'box', halfExtents: [0.01, 0.2, 1]}, position: [0.21, 0.2, 0.005]});
+  fluid.addLiquid((x, y) => x < 0.2 && y < H);
+  fluid.step(250);
+  return {force: fluid.obstacleForce(gate)[0], expected: 0.5 * density * G * H * H * h, speed: fluid.maxSpeed(), scale: Math.sqrt(G * H)};
+}
+
+/**
+ * A 3D release: water 0.25 m deep behind a gate that lifts at 1 m/s, flowing past a cylindrical post (h = 25 mm, 40 x 16 x 16
+ * cells, 1 s). Particles must never enter a solid cell; the particles' volume is exact by construction; the volume of the
+ * cells holding particles is reported (it is the measure that changes).
+ */
+export function gateRelease(K, {viscosity = 0, seconds = 1} = {}) {
+  const h = 0.025, dt = 4e-3;
+  const fluid = new K.FreeSurfaceFluid({cells: [40, 16, 16], spacing: h, density: 1000, dt, viscosity, walls: viscosity ? 'no-slip' : 'free-slip', gravity: [0, -G, 0]});
+  const gate = fluid.addObstacle({shape: {kind: 'box', halfExtents: [h / 2, 0.2, 0.2]}, position: [0.3125, 0.2, 0.2]});
+  const post = fluid.addObstacle({shape: {kind: 'cylinder', radius: 0.05, halfLength: 0.2}, position: [0.6, 0.2, 0.15]});
+  fluid.addLiquid((x, y) => x < 0.3 && y < 0.25);
+  const cells0 = fluid.liquidVolume(), particles0 = fluid.particleVolume();
+  let inSolid = 0, peakPost = 0;
+  for (let s = 0; s < Math.round(seconds / dt); s++) {
+    const lift = Math.min(0.3, fluid.time * 1.0);
+    fluid.moveObstacle(gate, [0.3125, 0.2 + lift, 0.2], [0, lift < 0.3 ? 1 : 0, 0]);
+    fluid.step();
+    peakPost = Math.max(peakPost, Math.hypot(...fluid.obstacleForce(post)));
+    const X = fluid.positions;
+    for (let i = 0; i < fluid.count; i++) { const c = Math.floor(X[3 * i] / h) + 40 * (Math.floor(X[3 * i + 1] / h) + 16 * Math.floor(X[3 * i + 2] / h)); if (fluid.solid[c]) inSolid++; }
+  }
+  return {cellVolumeChange: fluid.liquidVolume() / cells0 - 1, particleVolumeChange: fluid.particleVolume() / particles0 - 1, inSolid, peakPost, front: fluid.front(0), hash: hashArrays(fluid.positions, fluid.velocities)};
+}

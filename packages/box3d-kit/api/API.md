@@ -8338,11 +8338,14 @@ export declare const FREE_SURFACE_SUBSYSTEM_ORDER = 520;
 
 ### FreeSurfaceFluid · class
 
-Inviscid incompressible liquid with a free surface in a closed tank (free-slip walls), float64, deterministic.
-The liquid is carried by particles with the affine particle-in-cell transfer (APIC, Jiang et al. 2015): each step the
-particles' momentum goes to the staggered grid, gravity is added, the velocity is projected to zero divergence in the
-cells that hold particles with p = 0 at the centres of the empty cells (a first-order free surface), extrapolated two
-cells out, and read back to the particles with its gradient, which then move with it. See docs/FLUID.md.
+Incompressible liquid with a free surface in a closed tank, float64, deterministic. The liquid is carried by particles
+with the affine particle-in-cell transfer (APIC, Jiang et al. 2015): each step the particles' momentum goes to the
+staggered grid, gravity is added, viscosity is applied implicitly (backward Euler, component-wise Laplacian, no-slip or
+free-slip on walls and obstacles, zero normal gradient into the air), the velocity is projected to zero divergence in
+the cells that hold particles with p = 0 on the surface (ghost fluid), extrapolated two cells out, and read back to the
+particles with its gradient, which then move with it. Obstacles are voxelised solids: their cells take no liquid,
+their faces carry the obstacle's velocity, and the pressure on the faces between them and the liquid is their force.
+See docs/FLUID.md.
 
 ```ts
 export declare class FreeSurfaceFluid {
@@ -8353,17 +8356,21 @@ export declare class FreeSurfaceFluid {
   readonly h: number;
   readonly origin: FluidVec3;
   readonly density: number;
-  readonly dt: number;
+  dt: number;
+  readonly viscosity: number;
+  readonly noSlip: boolean;
   readonly gravity: Float64Array;
   readonly flat: boolean;
   readonly perAxis: number;
   readonly pressureTolerance: number;
+  readonly viscousTolerance: number;
   readonly maxIterations: number;
   readonly cflLimit: number;
   readonly capacity: number;
   readonly vel: [Float64Array, Float64Array, Float64Array];
   readonly p: Float64Array;
   readonly liquid: Uint8Array;
+  readonly solid: Uint8Array;
   readonly stats: FreeSurfaceStats;
   time: number;
   positions: Float64Array;
@@ -8371,6 +8378,10 @@ export declare class FreeSurfaceFluid {
   affine: Float64Array;
   count: number;
   particleMass: number;
+  setTimeStep(dt: number): void;
+  addObstacle(options: FreeSurfaceObstacleOptions): number;
+  moveObstacle(index: number, position: FluidVec3, velocity?: FluidVec3): void;
+  obstacleForce(index: number): [number, number, number];
   addLiquid(inside: (x: number, y: number, z: number) => boolean, velocity?: FluidVec3): number;
   setParticles(positions: ArrayLike<number>, velocities?: ArrayLike<number>, affine?: ArrayLike<number>): void;
   maxDivergence(): number;
@@ -8382,6 +8393,19 @@ export declare class FreeSurfaceFluid {
   front(axis?: 0 | 1 | 2): number;
   surfaceHeight(x0: number, x1: number): number;
   maxSpeed(): number;
+  meanVelocity(c: 0 | 1 | 2, lo: FluidVec3, hi: FluidVec3): number;
+}
+```
+
+### FreeSurfaceObstacleOptions · interface
+
+A fixed or moving solid in the tank: axis-aligned (no rotation), voxelised (a cell is solid when its centre is inside).
+
+```ts
+export interface FreeSurfaceObstacleOptions {
+    readonly shape: FluidShape;
+    readonly position: FluidVec3;
+    readonly velocity?: FluidVec3;
 }
 ```
 
@@ -8395,8 +8419,11 @@ export interface FreeSurfaceOptions {
     readonly density: number;
     readonly dt: number;
     readonly gravity?: FluidVec3;
+    readonly viscosity?: number;
+    readonly walls?: 'free-slip' | 'no-slip';
     readonly particlesPerAxis?: number;
     readonly pressureTolerance?: number;
+    readonly viscousTolerance?: number;
     readonly maxIterations?: number;
     readonly cflLimit?: number;
     readonly capacity?: number;
@@ -8409,7 +8436,9 @@ export interface FreeSurfaceOptions {
 export interface FreeSurfaceStats {
     steps: number;
     pressureIterations: number;
+    viscousIterations: number;
     liquidCells: number;
+    solidCells: number;
     cfl: number;
     maxCfl: number;
     cflExceeded: number;
@@ -8917,7 +8946,7 @@ export declare const MATERIAL_LIBRARY_ID = "box3d-materials";
 Semver of the data: a changed value is a minor release, a removed material or property a major one.
 
 ```ts
-export declare const MATERIAL_LIBRARY_VERSION = "1.0.0";
+export declare const MATERIAL_LIBRARY_VERSION = "1.1.0";
 ```
 
 ### MATERIAL_PROPERTY_UNITS · const

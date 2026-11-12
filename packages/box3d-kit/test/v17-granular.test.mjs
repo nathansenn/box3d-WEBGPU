@@ -365,3 +365,16 @@ test('determinism: repeat runs are bit-identical, and the Simulation loop adds n
   assert.equal(x.hash, y.hash, 'two runs of the solver alone agree in every bit');
   assert.ok(x.contacts > 0 && x.rebuilds > 1, 'the run had contacts and rebuilt its neighbour list');
 });
+
+test('glass beads: the library beads with one fitted rolling resistance pile at 22 degrees and collapse as Lajeunesse et al. (2005) measured', t => {
+  const pile = S.glassBeadRepose(K);
+  t.diagnostic(`pile angles ${pile.angles.map(a => a.toFixed(1)).join(', ')} deg, mean ${pile.angle.toFixed(2)} against 22 (fitted with rolling resistance ${S.GLASS_BEAD_ROLLING})`);
+  near(pile.angle, 22, 2.5, 'angle of repose of the library glass beads (Lajeunesse et al. Table I: 22 ± 0.5 deg)');
+  for (const aspect of [0.5, 1, 2]) {
+    const r = S.columnCollapse(K, {aspect});
+    t.diagnostic(`a = ${r.aspect.toFixed(2)}: runout ${r.runout.toFixed(2)} L_i against ${r.expectedRunout.toFixed(2)} (${(100 * (r.runout / r.expectedRunout - 1)).toFixed(0)}%), deposit height ${r.height.toFixed(2)} L_i, ${r.grains} beads`);
+    within(r.runout, r.expectedRunout, 0.3, `runout at a = ${r.aspect.toFixed(2)} (prefactor read from a log-log figure, 10 mm beads in a channel 6 d wide)`);
+    if (r.expectedHeight !== null) within(r.height, r.expectedHeight, 0.1, 'a low column keeps its height');
+    assert.ok(r.kinetic < 1e-3, 'the deposit has come to rest');
+  }
+});

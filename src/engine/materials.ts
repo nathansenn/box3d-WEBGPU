@@ -23,7 +23,7 @@ import type {GranularMaterial} from './granular.ts';
 
 export const MATERIAL_LIBRARY_ID = 'box3d-materials';
 /** Semver of the data: a changed value is a minor release, a removed material or property a major one. */
-export const MATERIAL_LIBRARY_VERSION = '1.0.0';
+export const MATERIAL_LIBRARY_VERSION = '1.1.0';
 /** The date the sources were opened and read. */
 export const MATERIAL_SOURCES_ACCESSED = '2026-11-12';
 
@@ -110,6 +110,18 @@ export const MATERIAL_SOURCES: Readonly<Record<string, MaterialSource>> = deepFr
   'nist-webbook-water': {id: 'nist-webbook-water', kind: 'government', author: 'NIST Chemistry WebBook, SRD 69 (E. W. Lemmon, M. O. McLinden, D. G. Friend)',
     title: 'Thermophysical Properties of Fluid Systems: water, isobar 0.101325 MPa, 293.15 K',
     url: 'https://webbook.nist.gov/cgi/fluid.cgi?Action=Data&Wide=on&ID=C7732185&Type=IsoBar&Digits=6&P=0.101325&THigh=293.15&TLow=293.15&TInc=1&RefState=DEF&TUnit=K&PUnit=MPa&DUnit=kg%2Fm3&HUnit=kJ%2Fkg&WUnit=m%2Fs&VisUnit=Pa*s&STUnit=N%2Fm'},
+  'segur-oberstar-1951': {id: 'segur-oberstar-1951', kind: 'peer-reviewed', author: 'J. B. Segur, H. E. Oberstar',
+    title: 'Viscosity of Glycerol and Its Aqueous Solutions, Ind. Eng. Chem. 43 (1951) 2117-2120, doi:10.1021/ie50501a040, Table V',
+    url: 'https://faculty.ksu.edu.sa/sites/default/files/viscocity_of_glycerol.pdf', note: 'A scanned copy of the journal article.'},
+  'volk-kahler-2018': {id: 'volk-kahler-2018', kind: 'peer-reviewed', author: 'A. Volk, C. J. Kähler (supplementary material), tabulating N. Bosart and A. O. Snoddy (1928)',
+    title: 'Density model for aqueous glycerol solutions, Exp. Fluids 59 (2018) 75, doi:10.1007/s00348-018-2527-y, Electronic Supplementary Material 2, Table 1 "Measured densities of aqueous glycerol solutions (Bosart and Snoddy 1928)"',
+    url: 'https://media.springernature.com/original/springer-static/esm/art%3A10.1007%2Fs00348-018-2527-y/MediaObjects/348_2018_2527_MOESM2_ESM.pdf'},
+  'brock-2008': {id: 'brock-2008', kind: 'peer-reviewed', author: 'J. Brock, M. R. Nogueira, C. Zakrzevski, F. de Castilhos Corazza, M. L. Corazza, J. V. de Oliveira',
+    title: 'Determinação experimental da viscosidade e condutividade térmica de óleos vegetais (Experimental measurements of viscosity and thermal conductivity of vegetable oils), Ciênc. Tecnol. Aliment. 28 (2008) 564-570, Tables 2 and 3',
+    url: 'https://www.redalyc.org/pdf/3959/395940088010.pdf'},
+  'rodriguez-navarro-2022': {id: 'rodriguez-navarro-2022', kind: 'peer-reviewed', author: 'H. Rodriguez-Navarro, D. Vivanco-Pezantes',
+    title: 'Influence of temperature on the rheological behavior of industrialized honey, Agroindustrial Science 12 (2022) 7-14, doi:10.17268/agroind.sci.2022.01.01',
+    url: 'https://revistas.unitru.edu.pe/index.php/agroindscience/article/download/4359/6544?inline=1'},
   'cengel-a9-air': {id: 'cengel-a9-air', kind: 'textbook', author: 'Y. A. Çengel, Table A-9, as posted by J. M. Cimbala for Penn State ME 420',
     title: 'Table A-9: Properties of air at 1 atm pressure', url: 'https://www.me.psu.edu/cimbala/me420/Links/Table_A_9_CC_Properties_of_Air.pdf'},
   'tang-2019': {id: 'tang-2019', kind: 'peer-reviewed', author: 'H. Tang, R. Song, Y. Dong, X. Song',
@@ -440,6 +452,20 @@ export const MATERIALS: Readonly<Record<string, MaterialEntry>> = deepFreeze({
       specificHeat: v(1007, 'cengel-a9-air', 'c_p 1007 J/kg K at 20 °C', '20 °C, 1 atm'),
       thermalConductivity: v(0.02514, 'cengel-a9-air', 'k 0.02514 W/m K at 20 °C', '20 °C, 1 atm'),
       viscosity: v(1.825e-5, 'cengel-a9-air', 'mu 1.825 x 10^-5 kg/m s at 20 °C', '20 °C, 1 atm')}},
+  'glycerol': {id: 'glycerol', name: 'Glycerol at 20 °C', category: 'fluid', grade: 'anhydrous glycerol (100% by weight), 20 °C, 1 atm', isotropic: true,
+    properties: {
+      density: v(1261.08, 'volk-kahler-2018', '100 w/w %: 1.26108 at 20 °C (g/cm3)', '100% glycerol, 20 °C', {derived: 'g/cm3 times 1000'}),
+      viscosity: v(1.412, 'segur-oberstar-1951', '100% glycerol, 20 °C: 1412 centipoise (Table V)', '100% glycerol, 20 °C', {derived: '1 cP = 1e-3 Pa s'})},
+    notes: ['A few percent of water lowers the viscosity sharply: 99% glycerol is 1150 cP and 95% is 523 cP at 20 °C in the same table.']},
+  'olive-oil': {id: 'olive-oil', name: 'Olive oil (refined)', category: 'fluid', grade: 'refined olive oil (Salada brand), viscosity at 20 °C, density at 25 °C', isotropic: true,
+    properties: {
+      density: v(879, 'brock-2008', 'Oliva: ρ 0,879 ± 0,003 g/cm3 at 25 ± 1 °C (Tabela 2)', '25 °C (not 20 °C)', {uncertainty: 3, derived: 'g/cm3 times 1000'}),
+      viscosity: v(79.7e-3, 'brock-2008', 'Oliva, T 20,0 °C: 79,7 mPa.s (Tabela 3)', '20 °C, constant shear rate', {derived: '1 mPa s = 1e-3 Pa s'})}},
+  'honey': {id: 'honey', name: 'Honey (industrialized)', category: 'fluid', grade: 'industrialized bee honey, 20.8 to 24.4% water, 73.6 to 77.3 °Brix, 20 °C', isotropic: true,
+    properties: {
+      density: unverified(1420, '20 °C, about 17 to 18% water', 'The opened source measured the specific gravity but its table was not readable; 1420 kg/m3 is a typical figure recalled, not read. A honey with 22% water, as in the viscosity source, is lighter (about 1.38 to 1.40).'),
+      viscosity: v(7.43, 'rodriguez-navarro-2022', 'mean absolute viscosity at 20 ºC (7430 mPa∙s); Newtonian', '20 °C, Brookfield RVDV-E viscometer, mean of the samples', {derived: '1 mPa s = 1e-3 Pa s'})},
+    notes: ['Honey viscosity depends strongly on water content and temperature: 2636 mPa s at 30 °C in the same source.']},
   'glass-beads': {id: 'glass-beads', name: 'Glass beads', category: 'granular', grade: 'solid glass spheres of about 2 to 4 mm', isotropic: true,
     properties: {
       density: v(2500, 'tang-2019', 'density of glass beads rho 2500 kg/m3 (Table 5)', 'beads of 2 mm', {range: [2500, 2600], also: ['sandeep-2020'], derived: 'Sandeep et al. 2020 Table 1: 2.60 t/m3'}),

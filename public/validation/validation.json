@@ -5,8 +5,8 @@
  "generatedBy": "node scripts/validation-report.mjs",
  "digits": 9,
  "totals": {
-  "cases": 486,
-  "passed": 486,
+  "cases": 496,
+  "passed": 496,
   "failed": 0,
   "domains": 19
  },
@@ -202,8 +202,8 @@
     "Coupling: the rigid world receives the mean force of a rigid step; other contacts and joints of a body are seen only through an estimate of their force that lags one step, and their torque is not estimated. Bodies are boxes, spheres and capsules. Only resting and single-impact cases are checked.",
     "Wide size ratios. The neighbour grid uses cells of the largest diameter, so a ratio above about 3 is slow; the cases here use radii within 10% of the mean."
    ],
-   "cases": 35,
-   "passed": 35
+   "cases": 40,
+   "passed": 40
   },
   {
    "id": "fluid",
@@ -221,8 +221,8 @@
     "Ghia et al. is compared through transcriptions of its tables found on the web (two copies that agree), not the paper. Hasimoto's coefficients come from Ladd (1994). Martin & Moyce's table was read from a scan.",
     "Cost: one JavaScript thread. A 32^3 grid steps at a few steps per second; nothing here runs on the GPU."
    ],
-   "cases": 31,
-   "passed": 31
+   "cases": 36,
+   "passed": 36
   },
   {
    "id": "heat",
@@ -8749,6 +8749,147 @@
    }
   },
   {
+   "id": "granular.glass-beads.repose",
+   "domain": "granular",
+   "title": "Glass beads: angle of repose (fitted)",
+   "quantity": "pile angle on a 12 d ledge, mean of three packings, library glass beads (mu 0.12, e 0.926) with rolling resistance 0.06; the rolling resistance is fitted to this row",
+   "unit": "deg",
+   "formula": "Lajeunesse, Monnier & Homsy 2005, Table I: 22 +/- 0.5 deg",
+   "reference": 22,
+   "measured": 22.6278269,
+   "error": 0.62782691,
+   "relativeError": 0.0285375868,
+   "tolerance": {
+    "kind": "absolute",
+    "value": 2.5
+   },
+   "pass": true,
+   "note": "One number fitted (the rolling resistance); one packing scatters by about 2 degrees. Makse et al. (1998) measured 26 +/- 1 deg for spherical beads in a Hele-Shaw cell, where the walls add friction.",
+   "source": {
+    "file": "packages/box3d-kit/test/v17-granular.test.mjs",
+    "test": "glass beads: the library beads with one fitted rolling resistance pile at 22 degrees and collapse as Lajeunesse et al. (2005) measured",
+    "url": "https://github.com/nathansenn/box3d-WEBGPU/blob/main/packages/box3d-kit/test/v17-granular.test.mjs"
+   },
+   "text": {
+    "reference": "22 deg",
+    "measured": "22.62783",
+    "error": "+0.628",
+    "tolerance": "±2.5"
+   }
+  },
+  {
+   "id": "granular.collapse.runout-05",
+   "domain": "granular",
+   "title": "Column collapse: runout at a = 0.5",
+   "quantity": "Delta L / L_i of a column of library glass beads (10 mm, L_i = 8 d) released at once in a channel 6 d wide, rough floor",
+   "unit": "1",
+   "formula": "Delta L / L_i = 1.8 a for a < 3 (Lajeunesse et al. 2005; the proportionality from the text, the prefactor read from Fig. 6a)",
+   "reference": 0.841523913,
+   "measured": 0.628731197,
+   "error": -0.212792716,
+   "relativeError": -0.252865917,
+   "tolerance": {
+    "kind": "relative",
+    "value": 0.3
+   },
+   "pass": true,
+   "source": {
+    "file": "packages/box3d-kit/test/v17-granular.test.mjs",
+    "test": "glass beads: the library beads with one fitted rolling resistance pile at 22 degrees and collapse as Lajeunesse et al. (2005) measured",
+    "url": "https://github.com/nathansenn/box3d-WEBGPU/blob/main/packages/box3d-kit/test/v17-granular.test.mjs"
+   },
+   "text": {
+    "reference": "0.8415239",
+    "measured": "0.6287312",
+    "error": "-25.3%",
+    "tolerance": "±30%"
+   }
+  },
+  {
+   "id": "granular.collapse.runout-1",
+   "domain": "granular",
+   "title": "Column collapse: runout at a = 1",
+   "quantity": "Delta L / L_i of a column of library glass beads (10 mm, L_i = 8 d) released at once in a channel 6 d wide, rough floor",
+   "unit": "1",
+   "formula": "Delta L / L_i = 1.8 a for a < 3 (Lajeunesse et al. 2005; the proportionality from the text, the prefactor read from Fig. 6a)",
+   "reference": 1.45258411,
+   "measured": 1.45420785,
+   "error": 0.00162374226,
+   "relativeError": 0.00111783011,
+   "tolerance": {
+    "kind": "relative",
+    "value": 0.3
+   },
+   "pass": true,
+   "source": {
+    "file": "packages/box3d-kit/test/v17-granular.test.mjs",
+    "test": "glass beads: the library beads with one fitted rolling resistance pile at 22 degrees and collapse as Lajeunesse et al. (2005) measured",
+    "url": "https://github.com/nathansenn/box3d-WEBGPU/blob/main/packages/box3d-kit/test/v17-granular.test.mjs"
+   },
+   "text": {
+    "reference": "1.452584",
+    "measured": "1.454208",
+    "error": "+0.112%",
+    "tolerance": "±30%"
+   }
+  },
+  {
+   "id": "granular.collapse.runout-2",
+   "domain": "granular",
+   "title": "Column collapse: runout at a = 2",
+   "quantity": "Delta L / L_i of a column of library glass beads (10 mm, L_i = 8 d) released at once in a channel 6 d wide, rough floor",
+   "unit": "1",
+   "formula": "Delta L / L_i = 1.8 a for a < 3 (Lajeunesse et al. 2005; the proportionality from the text, the prefactor read from Fig. 6a)",
+   "reference": 2.70698894,
+   "measured": 3.16402861,
+   "error": 0.457039671,
+   "relativeError": 0.168836919,
+   "tolerance": {
+    "kind": "relative",
+    "value": 0.3
+   },
+   "pass": true,
+   "source": {
+    "file": "packages/box3d-kit/test/v17-granular.test.mjs",
+    "test": "glass beads: the library beads with one fitted rolling resistance pile at 22 degrees and collapse as Lajeunesse et al. (2005) measured",
+    "url": "https://github.com/nathansenn/box3d-WEBGPU/blob/main/packages/box3d-kit/test/v17-granular.test.mjs"
+   },
+   "text": {
+    "reference": "2.706989",
+    "measured": "3.164029",
+    "error": "+16.9%",
+    "tolerance": "±30%"
+   }
+  },
+  {
+   "id": "granular.collapse.height",
+   "domain": "granular",
+   "title": "Column collapse: a low column keeps its height",
+   "quantity": "H_f / L_i of the deposit at a = 0.5",
+   "unit": "1",
+   "formula": "H_f / L_i = a for a < 0.7 (Lajeunesse et al. 2005)",
+   "reference": 0.467513285,
+   "measured": 0.459239327,
+   "error": -0.00827395822,
+   "relativeError": -0.0176978034,
+   "tolerance": {
+    "kind": "relative",
+    "value": 0.1
+   },
+   "pass": true,
+   "source": {
+    "file": "packages/box3d-kit/test/v17-granular.test.mjs",
+    "test": "glass beads: the library beads with one fitted rolling resistance pile at 22 degrees and collapse as Lajeunesse et al. (2005) measured",
+    "url": "https://github.com/nathansenn/box3d-WEBGPU/blob/main/packages/box3d-kit/test/v17-granular.test.mjs"
+   },
+   "text": {
+    "reference": "0.4675133",
+    "measured": "0.4592393",
+    "error": "-1.77%",
+    "tolerance": "±10%"
+   }
+  },
+  {
    "id": "fluid.projection.divergence",
    "domain": "fluid",
    "title": "Projection: divergence left",
@@ -9631,6 +9772,150 @@
     "measured": "7.813348e-12",
     "error": "+7.81e-12",
     "tolerance": "at most 1e-9 above the reference"
+   }
+  },
+  {
+   "id": "fluid.free-surface.viscous-film",
+   "domain": "fluid",
+   "title": "Free surface, viscous: film slowing on a no-slip floor",
+   "quantity": "largest relative error of the depth-averaged speed in the middle fifth of a 10 mm film (nu = 1e-3 m^2/s, 10 cells deep) at t = 0.02, 0.05 and 0.1 s",
+   "unit": "1",
+   "formula": "mean u / U = sum 8 / ((2m+1)^2 pi^2) exp(-nu ((2m+1) pi / 2H)^2 t)",
+   "reference": 0,
+   "measured": 0.0147821424,
+   "error": 0.0147821424,
+   "relativeError": null,
+   "tolerance": {
+    "kind": "absolute",
+    "value": 0.02
+   },
+   "pass": true,
+   "note": "Checks the implicit viscosity, the no-slip floor and the stress-free surface together; the speed falls to 7% of its start.",
+   "source": {
+    "file": "packages/box3d-kit/test/v18-fluid.test.mjs",
+    "test": "free surface, viscous: a film on a no-slip floor slows down as the series solution of u_t = nu u_yy says",
+    "url": "https://github.com/nathansenn/box3d-WEBGPU/blob/main/packages/box3d-kit/test/v18-fluid.test.mjs"
+   },
+   "text": {
+    "reference": "0",
+    "measured": "0.01478214",
+    "error": "+0.0148",
+    "tolerance": "±0.02"
+   }
+  },
+  {
+   "id": "fluid.free-surface.huppert-front",
+   "domain": "fluid",
+   "title": "Free surface, viscous: gravity current front (Huppert 1982)",
+   "quantity": "largest relative error of x_N = sqrt(11/3 <x^2>) from t = 3 to 6 s; 50 mm square column, nu = 1e-2 m^2/s, h = 2.5 mm, 3 particles per axis",
+   "unit": "1",
+   "formula": "x_N = 1.411 (g q^3 t / (3 nu))^(1/5), Huppert 1982 eqs. 2.17-2.18",
+   "reference": 0,
+   "measured": 0.0126936626,
+   "error": 0.0126936626,
+   "relativeError": null,
+   "tolerance": {
+    "kind": "absolute",
+    "value": 0.02
+   },
+   "pass": true,
+   "note": "With 2 particles per axis the front is 4% behind (the particles compact and the current thins).",
+   "source": {
+    "file": "packages/box3d-kit/test/v18-fluid.test.mjs",
+    "test": "free surface, viscous: a released volume spreads as Huppert (1982) gives, x_N = 1.411 (g q^3 t / 3 nu)^(1/5)",
+    "url": "https://github.com/nathansenn/box3d-WEBGPU/blob/main/packages/box3d-kit/test/v18-fluid.test.mjs"
+   },
+   "text": {
+    "reference": "0",
+    "measured": "0.01269366",
+    "error": "+0.0127",
+    "tolerance": "±0.02"
+   }
+  },
+  {
+   "id": "fluid.free-surface.huppert-rate",
+   "domain": "fluid",
+   "title": "Free surface, viscous: gravity current growth rate",
+   "quantity": "d(x_N^5)/dt fitted from t = 3 to 6 s",
+   "unit": "m^5/s",
+   "formula": "1.411^5 g q^3 / (3 nu)",
+   "reference": 0.0000285760928,
+   "measured": 0.0000283234312,
+   "error": -2.5266161e-7,
+   "relativeError": -0.00884171295,
+   "tolerance": {
+    "kind": "relative",
+    "value": 0.08
+   },
+   "pass": true,
+   "source": {
+    "file": "packages/box3d-kit/test/v18-fluid.test.mjs",
+    "test": "free surface, viscous: a released volume spreads as Huppert (1982) gives, x_N = 1.411 (g q^3 t / 3 nu)^(1/5)",
+    "url": "https://github.com/nathansenn/box3d-WEBGPU/blob/main/packages/box3d-kit/test/v18-fluid.test.mjs"
+   },
+   "text": {
+    "reference": "2.857609e-5 m^5/s",
+    "measured": "2.832343e-5",
+    "error": "-0.884%",
+    "tolerance": "±8%"
+   }
+  },
+  {
+   "id": "fluid.free-surface.gate-force",
+   "domain": "fluid",
+   "title": "Free surface, obstacles: hydrostatic force on a gate",
+   "quantity": "pressure force on a voxelised gate holding water 0.2 m deep (2D, h = 10 mm), per cell of width",
+   "unit": "N",
+   "formula": "rho g H^2 h / 2",
+   "reference": 1.9584684,
+   "measured": 1.95052301,
+   "error": -0.00794539174,
+   "relativeError": -0.0040569415,
+   "tolerance": {
+    "kind": "relative",
+    "value": 0.01
+   },
+   "pass": true,
+   "note": "The same to 1e-12 with glycerol (1.412 Pa s): viscosity leaves a liquid at rest at rest.",
+   "source": {
+    "file": "packages/box3d-kit/test/v18-fluid.test.mjs",
+    "test": "free surface, obstacles: a gate holds water and glycerol at rest with the hydrostatic force; a lifting gate releases flow past a post",
+    "url": "https://github.com/nathansenn/box3d-WEBGPU/blob/main/packages/box3d-kit/test/v18-fluid.test.mjs"
+   },
+   "text": {
+    "reference": "1.958468 N",
+    "measured": "1.950523",
+    "error": "-0.406%",
+    "tolerance": "±1%"
+   }
+  },
+  {
+   "id": "fluid.free-surface.gate-release",
+   "domain": "fluid",
+   "title": "Free surface, obstacles: release past a post",
+   "quantity": "particles found in a solid cell over a 3D release under a lifting gate past a cylindrical post (40 x 16 x 16 cells, 0.6 s)",
+   "unit": "1",
+   "formula": "none",
+   "reference": 0,
+   "measured": 0,
+   "error": 0,
+   "relativeError": null,
+   "tolerance": {
+    "kind": "upper",
+    "value": 0
+   },
+   "pass": true,
+   "note": "The particles keep their volume exactly; the volume of the cells holding them changes by about 12% while the front splashes on the far wall.",
+   "source": {
+    "file": "packages/box3d-kit/test/v18-fluid.test.mjs",
+    "test": "free surface, obstacles: a gate holds water and glycerol at rest with the hydrostatic force; a lifting gate releases flow past a post",
+    "url": "https://github.com/nathansenn/box3d-WEBGPU/blob/main/packages/box3d-kit/test/v18-fluid.test.mjs"
+   },
+   "text": {
+    "reference": "0",
+    "measured": "0",
+    "error": "0",
+    "tolerance": "not above the reference"
    }
   },
   {

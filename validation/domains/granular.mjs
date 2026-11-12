@@ -17,6 +17,7 @@ const T = {
   janssen: 'Janssen: the load on a silo floor saturates with fill height',
   beverloo: 'Beverloo: the discharge through an orifice follows (D - k d)^(5/2) and does not depend on the fill height',
   repose: 'angle of repose: steeper with friction and with rolling resistance (a trend check)',
+  beads: 'glass beads: the library beads with one fitted rolling resistance pile at 22 degrees and collapse as Lajeunesse et al. (2005) measured',
   block: 'coupling: a block resting on a bed is carried by a force equal to its weight, and the floor reads both',
   third: 'coupling: the third law, grains and body exchange equal and opposite momentum',
   scale: 'coupling: a box of beads on a spring scale reads their weight',
@@ -35,6 +36,7 @@ const incline = (options = {}) => run(`incline/${JSON.stringify(options)}`, (S, 
 const ledger = (options = {}) => run(`ledger/${JSON.stringify(options)}`, (S, K) => S.ledger(K, options));
 const janssen = () => run('janssen', (S, K) => S.janssen(K));
 const beverloo = () => run('beverloo', (S, K) => S.beverloo(K));
+const collapse = aspect => run(`collapse/${aspect}`, (S, K) => S.columnCollapse(K, {aspect}));
 const repose = (friction, rollingFriction) => run(`repose/${friction}/${rollingFriction}`, (S, K) => S.repose(K, {friction, rollingFriction}));
 const REPOSE = [[0.2, 0], [0.5, 0], [0.5, 0.1], [0.5, 0.3]];
 const block = () => run('block', (S, K) => S.blockOnBed(K));
@@ -136,4 +138,19 @@ export default defineCases('granular', FILE, [
   {id: 'granular.determinism.repeat', title: 'Repeatability', quantity: 'runs whose final bits differ from the first, of three more (a coupled run, the same through the Simulation loop, the solver alone twice)', unit: 'runs', test: T.determinism,
     reference: {formula: 'bit-identical state', value: 0}, tolerance: upper(0), note: 'One machine, one build. The grains are float64 JavaScript; the rigid world is the WASM.',
     measure: async () => { const {S, K} = await modules(), a = await S.fingerprint(K), b = await S.fingerprint(K), c = await S.fingerprint(K, {simulation: true}), x = S.solverFingerprint(K), y = S.solverFingerprint(K); return (a.hash !== b.hash) + (a.hash !== c.hash) + (x.hash !== y.hash); }},
+  {id: 'granular.glass-beads.repose', title: 'Glass beads: angle of repose (fitted)', quantity: 'pile angle on a 12 d ledge, mean of three packings, library glass beads (mu 0.12, e 0.926) with rolling resistance 0.06; the rolling resistance is fitted to this row', unit: 'deg', test: T.beads,
+    reference: {formula: 'Lajeunesse, Monnier & Homsy 2005, Table I: 22 +/- 0.5 deg', value: 22}, tolerance: absolute(2.5), note: 'One number fitted (the rolling resistance); one packing scatters by about 2 degrees. Makse et al. (1998) measured 26 +/- 1 deg for spherical beads in a Hele-Shaw cell, where the walls add friction.',
+    measure: async () => (await run('bead-repose', (S, K) => S.glassBeadRepose(K))).angle},
+  {id: 'granular.collapse.runout-05', title: 'Column collapse: runout at a = 0.5', quantity: 'Delta L / L_i of a column of library glass beads (10 mm, L_i = 8 d) released at once in a channel 6 d wide, rough floor', unit: '1', test: T.beads,
+    reference: {formula: 'Delta L / L_i = 1.8 a for a < 3 (Lajeunesse et al. 2005; the proportionality from the text, the prefactor read from Fig. 6a)', value: null}, tolerance: relative(0.3),
+    measure: async () => { const r = await collapse(0.5); return {value: r.runout, reference: r.expectedRunout}; }},
+  {id: 'granular.collapse.runout-1', title: 'Column collapse: runout at a = 1', quantity: 'Delta L / L_i of a column of library glass beads (10 mm, L_i = 8 d) released at once in a channel 6 d wide, rough floor', unit: '1', test: T.beads,
+    reference: {formula: 'Delta L / L_i = 1.8 a for a < 3 (Lajeunesse et al. 2005; the proportionality from the text, the prefactor read from Fig. 6a)', value: null}, tolerance: relative(0.3),
+    measure: async () => { const r = await collapse(1); return {value: r.runout, reference: r.expectedRunout}; }},
+  {id: 'granular.collapse.runout-2', title: 'Column collapse: runout at a = 2', quantity: 'Delta L / L_i of a column of library glass beads (10 mm, L_i = 8 d) released at once in a channel 6 d wide, rough floor', unit: '1', test: T.beads,
+    reference: {formula: 'Delta L / L_i = 1.8 a for a < 3 (Lajeunesse et al. 2005; the proportionality from the text, the prefactor read from Fig. 6a)', value: null}, tolerance: relative(0.3),
+    measure: async () => { const r = await collapse(2); return {value: r.runout, reference: r.expectedRunout}; }},
+  {id: 'granular.collapse.height', title: 'Column collapse: a low column keeps its height', quantity: 'H_f / L_i of the deposit at a = 0.5', unit: '1', test: T.beads,
+    reference: {formula: 'H_f / L_i = a for a < 0.7 (Lajeunesse et al. 2005)', value: null}, tolerance: relative(0.1),
+    measure: async () => { const r = await collapse(0.5); return {value: r.height, reference: r.expectedHeight}; }},
 ]);
