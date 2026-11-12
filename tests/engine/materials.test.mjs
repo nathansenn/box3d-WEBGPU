@@ -51,14 +51,15 @@ test('the library covers the materials and properties it promises, and counts it
   const ids = M.materialIds();
   for (const id of ['structural-steel-s355', 'structural-steel-s235', 'stainless-304', 'aluminium-6061-t6', 'copper-c11000', 'cast-iron-gjl-250', 'soda-lime-glass', 'concrete-c30-37', 'granite-barre',
     'oak-red-northern', 'pine-loblolly', 'pmma', 'abs', 'nylon-66', 'natural-rubber', 'ptfe', 'ice', 'water', 'air', 'glycerol', 'olive-oil', 'honey', 'glass-beads', 'sand-quartz']) assert.ok(ids.includes(id), id);
-  for (const id of ids.filter(id => M.material(id).category !== 'fluid')) assert.ok(M.materialValue(id, 'youngModulus'), `${id}: a Young's modulus`);
+  for (const id of ids.filter(id => !['fluid', 'fabric'].includes(M.material(id).category))) assert.ok(M.materialValue(id, 'youngModulus'), `${id}: a Young's modulus`);
+  for (const id of ids.filter(id => M.material(id).category === 'fabric')) for (const property of ['arealDensity', 'membraneStiffnessWarp', 'membraneStiffnessWeft', 'tensileStrengthWarp']) assert.ok(M.materialValue(id, property), `${id}.${property}`);
   for (const id of ids.filter(id => M.material(id).category === 'fluid')) for (const property of ['density', 'viscosity']) assert.ok(M.materialValue(id, property), `${id}.${property}`);
   for (const id of ['glass-beads', 'sand-quartz']) for (const property of ['density', 'youngModulus', 'poissonRatio']) assert.ok(M.materialValue(id, property), `${id}.${property}`);
   const rows = M.materialAudit(), unverified = rows.filter(row => row.source === 'unverified');
-  assert.equal(rows.length, 230, 'values in the library (docs/MATERIALS.md and the validation domain quote this count)');
-  assert.equal(unverified.length, 8, 'unverified values (docs/MATERIALS.md lists them)');
-  assert.deepEqual(unverified.filter(row => row.kind !== 'pair').map(row => `${row.subject}.${row.property}`).sort(), ['honey.density', 'structural-steel-s355.elongationAtBreak'],
-    'every material property has a source except the density of honey and the S355 elongation; the rest are contact coefficients');
+  assert.equal(rows.length, 239, 'values in the library (docs/MATERIALS.md and the validation domain quote this count)');
+  assert.equal(unverified.length, 9, 'unverified values (docs/MATERIALS.md lists them)');
+  assert.deepEqual(unverified.filter(row => row.kind !== 'pair').map(row => `${row.subject}.${row.property}`).sort(), ['honey.density', 'pvc-polyester-fabric.membraneShearStiffness', 'structural-steel-s355.elongationAtBreak'],
+    'every material property has a source except the density of honey, the fabric\'s shear stiffness and the S355 elongation; the rest are contact coefficients');
 });
 
 test('the conversions recorded in the entries reproduce the SI values', () => {

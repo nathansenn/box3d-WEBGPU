@@ -91,7 +91,7 @@
     "validate:v1.18": "npm run verify:source && npm test && npm run test:soft-soak:all && npm run test:rope-batching && npm run test:native-wasm && npm run test:material:100 && npm run build && npm run build:pages && npm audit --audit-level=moderate && npm run verify:source",
     "validate:v1.19": "npm run verify:source && npm test && npm run test:soft-soak:all && npm run test:rope-batching && npm run test:native-wasm && npm run test:material:100 && npm run build && npm run build:pages && npm audit --audit-level=moderate && npm run verify:source",
     "validate:v1.20": "npm run verify:source && npm test && npm run test:soft-soak:all && npm run test:rope-batching && npm run test:native-wasm && npm run test:material:100 && npm run build && npm run build:pages && npm audit --audit-level=moderate && npm run verify:source",
-    "test:studio": "node tests/studio/failure.test.mjs",
+    "test:studio": "node tests/studio/failure.test.mjs && node --test tests/studio/canopy-si.test.mjs",
     "test:studio:presets": "node tests/studio/presets.test.mjs",
     "test:studio:river": "node tests/studio/river-workflow.test.mjs",
     "test:studio:reference": "node tests/studio/reference-geometry.test.mjs",

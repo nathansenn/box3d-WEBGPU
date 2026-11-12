@@ -7362,6 +7362,11 @@ export declare class Cloth {
   totalReaction(out?: number[] | Float64Array): number[] | Float64Array;
   triangleStress(triangle: number, out?: number[] | Float64Array): number[] | Float64Array;
   minimumSelfDistance(): number;
+  cableTensions(out?: Float64Array<ArrayBuffer>): Float64Array;
+  yarnStress(triangle: number, out?: number[] | Float64Array): number[] | Float64Array;
+  setStrength(strength: { readonly warp: number; readonly weft?: number; }): void;
+  get tornCount(): number;
+  get tornMask(): Uint8Array;
   step(count?: number): void;
   solveStatic(options?: { readonly pseudoStep?: number; readonly maxIterations?: number; }): ClothStaticResult;
   bodyPosition(index: number): Float64Array;
@@ -7417,6 +7422,18 @@ export interface ClothBodyState {
     readonly rotation: ArrayLike<number>;
     readonly linearVelocity?: ArrayLike<number>;
     readonly angularVelocity?: ArrayLike<number>;
+}
+```
+
+### ClothCable · interface
+
+Edge cables and ropes: chains of nodes joined by tension-only bars.
+
+```ts
+export interface ClothCable {
+    readonly nodes: ArrayLike<number>;
+    readonly axialStiffness: number;
+    readonly restLengthFactor?: number;
 }
 ```
 
@@ -7529,6 +7546,7 @@ export interface ClothDefinition {
     readonly extraMass?: ArrayLike<number>;
     readonly contact?: ClothContactOptions;
     readonly selfCollision?: ClothSelfCollisionOptions;
+    readonly cables?: readonly ClothCable[];
 }
 ```
 
@@ -7574,6 +7592,17 @@ export interface ClothMaterial {
     readonly membrane?: 'stvk' | 'spring';
     readonly bending?: 'koiter' | 'hinge' | 'none';
     readonly bendingStiffness?: number;
+    readonly orthotropic?: {
+        readonly warp: number;
+        readonly weft: number;
+        readonly shear: number;
+        readonly poissonRatio: number;
+        readonly warpDirection: ClothVec3;
+    };
+    readonly strength?: {
+        readonly warp: number;
+        readonly weft?: number;
+    };
 }
 ```
 
@@ -7647,7 +7676,7 @@ bodies as `exchanged`; the bodies themselves are not counted (track them with `s
 damping, drag and friction make `total - exchanged` fall.
 Events, emitted at the end of a step: 'contact-begin' and 'contact-end' with {body, index} when a body starts or stops
 pressing on the cloth, and 'unconverged' with {residual, tolerance} when a step stopped at its iteration limit.
-Tearing is not modelled, so there is no tear event.
+Tearing (`strength`) emits no event of its own here: read `tornCount` and `tornMask` after a step.
 
 ```ts
 export declare function clothSubsystem<W, B>(target: Cloth | ClothCoupling<B>, options?: {
@@ -9001,6 +9030,39 @@ export interface ContactPairValues {
 }
 ```
 
+### fabricMaterial · function
+
+The material of a `Cloth` (cloth.ts) for a woven fabric: areal density, the orthotropic membrane (warp along
+`warpDirection`) and the tearing strengths along warp and weft, all from the library. `youngModulus` and `thickness`
+only set the cloth's contact stiffness and offset here: E t is the mean of the warp and weft stiffnesses, t 1 mm.
+The fabric's shear stiffness is unverified in the library, so this needs `allowUnverified` unless `shear` is given.
+
+```ts
+export declare function fabricMaterial(id: string, options: MaterialOptions & {
+    readonly warpDirection: readonly [number, number, number];
+    readonly shear?: number;
+    readonly bendingStiffness?: number;
+}): {
+    orthotropic: {
+        warp: number;
+        weft: number;
+        shear: number;
+        poissonRatio: number;
+        warpDirection: readonly [number, number, number];
+    };
+    strength: {
+        warp: number;
+        weft: number;
+    };
+    bending: "none" | "koiter";
+    bendingStiffness?: number | undefined;
+    arealDensity: number;
+    youngModulus: number;
+    thickness: number;
+    poissonRatio: number;
+};
+```
+
 ### fractureEnergyFromToughness · function
 
 Irwin's relation between the fracture toughness K_IC (Pa m^0.5) and the energy release rate G_c (J/m^2).
@@ -9091,7 +9153,7 @@ export declare const MATERIAL_LIBRARY_ID = "box3d-materials";
 Semver of the data: a changed value is a minor release, a removed material or property a major one.
 
 ```ts
-export declare const MATERIAL_LIBRARY_VERSION = "1.3.0";
+export declare const MATERIAL_LIBRARY_VERSION = "1.4.0";
 ```
 
 ### MATERIAL_PROPERTY_UNITS · const
@@ -9142,7 +9204,7 @@ export interface MaterialAuditRow {
 ### MaterialCategory · type
 
 ```ts
-export type MaterialCategory = 'metal' | 'glass' | 'stone' | 'concrete' | 'wood' | 'polymer' | 'elastomer' | 'ice' | 'fluid' | 'granular';
+export type MaterialCategory = 'metal' | 'glass' | 'stone' | 'concrete' | 'wood' | 'polymer' | 'elastomer' | 'ice' | 'fluid' | 'granular' | 'fabric';
 ```
 
 ### MaterialEntry · interface
@@ -9187,7 +9249,7 @@ export declare function materialProperty(id: string, property: MaterialPropertyN
 ### MaterialPropertyName · type
 
 ```ts
-export type MaterialPropertyName = 'density' | 'youngModulus' | 'poissonRatio' | 'shearModulus' | 'yieldStrength' | 'tensileStrength' | 'compressiveStrength' | 'flexuralStrength' | 'fractureToughness' | 'fractureEnergy' | 'elongationAtBreak' | 'thermalConductivity' | 'specificHeat' | 'thermalExpansion' | 'viscosity' | 'soundSpeed';
+export type MaterialPropertyName = 'density' | 'youngModulus' | 'poissonRatio' | 'shearModulus' | 'yieldStrength' | 'tensileStrength' | 'compressiveStrength' | 'flexuralStrength' | 'fractureToughness' | 'fractureEnergy' | 'elongationAtBreak' | 'arealDensity' | 'membraneStiffnessWarp' | 'membraneStiffnessWeft' | 'membraneShearStiffness' | 'membranePoissonRatio' | 'tensileStrengthWarp' | 'tensileStrengthWeft' | 'tearStrength' | 'thermalConductivity' | 'specificHeat' | 'thermalExpansion' | 'viscosity' | 'soundSpeed';
 ```
 
 ### MATERIALS · const

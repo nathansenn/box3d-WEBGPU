@@ -46,6 +46,84 @@ const hangingBody = (options = {}) => run(`body/${JSON.stringify(options)}`, (S,
 const fold = () => run('fold', (S, K) => S.foldPress(K));
 const stack = () => run('stack', (S, K) => S.stack(K));
 
+// Woven fabric (orthotropic membrane, edge cables, tearing): tests/engine/cloth-fabric.test.mjs, through the engine source.
+const FABRIC_FILE = 'tests/engine/cloth-fabric.test.mjs';
+const FT = {
+  uniaxial: 'uniaxial strip along the warp, the weft and at 45 degrees: strain = T / E_dir (orthotropic compliance)',
+  arc: 'a long strip under pressure takes a circular arc: T = p R with the weft stiffness in plane strain',
+  square: 'a pretensioned square membrane under a small uniform load: Fourier series of T laplacian(w) = -q; reactions equal the load',
+  tear: 'tearing: an intact strip fails at its strength times its width; a strip with a slit fails below the net-section load',
+};
+const FAB = {warp: 1225e3, weft: 1000e3, shear: 30e3, poissonRatio: 0.35};
+const fabricOf = (dir, extra = {}) => ({arealDensity: 1.35, youngModulus: 1e9, thickness: 1e-3, poissonRatio: 0.3, bending: 'none', orthotropic: {...FAB, warpDirection: dir}, ...extra});
+const clothSrc = () => import(pathToFileURL(path.join(ROOT, 'src/engine/cloth.ts')).href);
+const fabricStrip = dir => memo(`cloth/fabric-strip/${dir}`, async () => {
+  const {Cloth, clothGrid} = await clothSrc(), T = 1000, nx = 20, nz = 4, W = 0.2;
+  const g = clothGrid({nx, ny: nz, u: [1, 0, 0], v: [0, 0, W], origin: [0, 0, 0], diagonal: 'alternate'});
+  const cloth = new Cloth({positions: g.positions, triangles: g.triangles, material: fabricOf(dir.split(',').map(Number)), config: {dt: 1, gravity: [0, 0, 0]}});
+  for (let j = 0; j <= nz; j++) cloth.pin(g.node(0, j));
+  for (let j = 0; j <= nz; j++) cloth.setNodalForce(g.node(nx, j), [T * W / nz * (j === 0 || j === nz ? 0.5 : 1), 0, 0]);
+  cloth.solveStatic();
+  const x = cloth.positions, a = g.node(7, 2), b = g.node(13, 2);
+  return (x[3 * b] - x[3 * a]) / 0.3 - 1;
+});
+const fabricArc = () => memo('cloth/fabric-arc', async () => {
+  const {Cloth, clothGrid} = await clothSrc(), S = 1, B = 6, nx = 16, nz = 48, p = 2000;
+  const g = clothGrid({nx, ny: nz, u: [S, 0, 0], v: [0, 0, B], origin: [0, 0, 0], diagonal: 'alternate'});
+  const pinned = []; for (let j = 0; j <= nz; j++) pinned.push(g.node(0, j), g.node(nx, j));
+  for (let i = 0; i <= nx; i++) pinned.push(g.node(i, 0), g.node(i, nz));
+  const cloth = new Cloth({positions: g.positions, triangles: g.triangles, material: fabricOf([0, 0, 1]), config: {dt: 1, gravity: [0, 0, 0]}, pinned});
+  cloth.setPressure(p); cloth.solveStatic();
+  const n21 = FAB.poissonRatio * FAB.weft / FAB.warp, Q = FAB.weft / (1 - FAB.poissonRatio * n21);
+  let lo = S / 2 * 1.0000001, hi = 1e6;
+  for (let k = 0; k < 200; k++) { const R = Math.sqrt(lo * hi), a = Math.asin(S / (2 * R)); if (2 * R * a > S * (1 + p * R / Q)) lo = R; else hi = R; }
+  const R = Math.sqrt(lo * hi), a = Math.asin(S / (2 * R));
+  return {value: Math.abs(cloth.positions[3 * g.node(nx / 2, nz / 2) + 1]), reference: R * (1 - Math.cos(a))};
+});
+const fabricSquare = () => memo('cloth/fabric-square', async () => {
+  const {Cloth, clothGrid} = await clothSrc(), a = 2, n = 24, e0 = 2e-3, q = 50, E = 600e3, nu = 0.3;
+  const g = clothGrid({nx: n, ny: n, u: [a, 0, 0], v: [0, 0, a], origin: [0, 0, 0], diagonal: 'alternate'});
+  const rest = Float64Array.from(g.positions, (v, i) => i % 3 === 1 ? v : (v - a / 2) * (1 - e0) + a / 2);
+  const pinned = []; for (let i = 0; i <= n; i++) pinned.push(g.node(i, 0), g.node(i, n), g.node(0, i), g.node(n, i));
+  const cloth = new Cloth({positions: g.positions, restPositions: rest, triangles: g.triangles, pinned: [...new Set(pinned)],
+    material: {arealDensity: 1, youngModulus: E, thickness: 1, poissonRatio: nu, bending: 'none'}, config: {dt: 1, gravity: [0, 0, 0]}});
+  const h = a / n; for (let i = 1; i < n; i++) for (let j = 1; j < n; j++) cloth.setNodalForce(g.node(i, j), [0, -q * h * h, 0]);
+  cloth.solveStatic();
+  const e = 1 / (1 - e0) - 1, T = E * (e + 0.5 * e * e) / (1 - nu);
+  let w = 0; for (let m = 1; m < 200; m += 2) for (let k = 1; k < 200; k += 2) w += 16 * q / (Math.PI ** 2 * m * k * T * ((m * Math.PI / a) ** 2 + (k * Math.PI / a) ** 2)) * Math.sin(m * Math.PI / 2) * Math.sin(k * Math.PI / 2);
+  return {centre: -cloth.positions[3 * g.node(n / 2, n / 2) + 1], series: w, reaction: cloth.totalReaction()[1], load: q * h * h * (n - 1) ** 2};
+});
+const fabricTear = () => memo('cloth/fabric-tear', async () => {
+  const {Cloth, clothGrid} = await clothSrc(), W = 0.2, L = 0.6, nx = 24, nz = 16, strength = 120e3;
+  const g = clothGrid({nx, ny: nz, u: [L, 0, 0], v: [0, 0, W], origin: [0, 0, 0], diagonal: 'alternate'});
+  const cloth = new Cloth({positions: g.positions, triangles: g.triangles, material: fabricOf([1, 0, 0], {strength: {warp: strength, weft: strength}}), config: {dt: 0.01, gravity: [0, 0, 0], drag: 20}});
+  for (let j = 0; j <= nz; j++) cloth.pin(g.node(0, j));
+  for (let s = 1; s <= 200; s++) {
+    const T = strength * s / 160;
+    for (let j = 0; j <= nz; j++) cloth.setNodalForce(g.node(nx, j), [T * W / nz * (j === 0 || j === nz ? 0.5 : 1), 0, 0]);
+    cloth.step(); if (cloth.tornCount > 0) return T / strength;
+  }
+  return Infinity;
+});
+const E45 = 1 / ((1 / FAB.warp + 1 / FAB.weft + 1 / FAB.shear - 2 * FAB.poissonRatio / FAB.warp) / 4);
+const FABRIC_CASES = [
+  {id: 'cloth.fabric.warp', title: 'Woven fabric: strain of a strip pulled along the warp', quantity: 'strain of the middle third of a 1 m x 0.2 m strip at 1 kN/m, orthotropic membrane', unit: '1', test: FT.uniaxial, file: FABRIC_FILE,
+    reference: {formula: 'eps = T / E_warp', value: 1000 / FAB.warp}, tolerance: relative(0.002), note: 'The Green strain against the engineering strain at 1e-3.', measure: () => fabricStrip('1,0,0')},
+  {id: 'cloth.fabric.weft', title: 'Woven fabric: strain of a strip pulled along the weft', quantity: 'the same strip with the warp across it', unit: '1', test: FT.uniaxial, file: FABRIC_FILE,
+    reference: {formula: 'eps = T / E_weft', value: 1000 / FAB.weft}, tolerance: relative(0.002), measure: () => fabricStrip('0,0,1')},
+  {id: 'cloth.fabric.bias', title: 'Woven fabric: strain of a strip pulled at 45 degrees to the yarns', quantity: 'the same strip with the warp at 45 degrees', unit: '1', test: FT.uniaxial, file: FABRIC_FILE,
+    reference: {formula: '1 / E_45 = (1 / E1 + 1 / E2 + 1 / G12 - 2 nu12 / E1) / 4', value: 1000 / E45}, tolerance: relative(0.02), note: 'The clamped end restrains the shear-extension coupling of the bias strip; the middle third is 1.5% stiff.', measure: () => fabricStrip('1,0,1')},
+  {id: 'cloth.fabric.pressure-arc', title: 'Woven fabric: long strip under pressure', quantity: 'mid-span rise of a 1 m strip, 6 m long, pinned on its edges, 2 kPa, weft across the span', unit: 'm', test: FT.arc, file: FABRIC_FILE,
+    reference: {formula: 'circular arc, T = p R = Q22 eps, 2 R asin(S / 2R) = S (1 + eps)', value: null}, tolerance: relative(0.01), measure: fabricArc},
+  {id: 'cloth.membrane.pretensioned-square', title: 'Pretensioned square membrane under uniform load: centre deflection', quantity: '2 m square, 0.2% isotropic prestrain, 50 Pa', unit: 'm', test: FT.square, file: FABRIC_FILE,
+    reference: {formula: 'w = sum 16 q / (pi^2 m n T ((m pi / a)^2 + (n pi / a)^2)) sin sin', value: null}, tolerance: relative(0.03), note: 'The load is on interior nodes only and the deflection stiffens the sheet a little: 2% low.',
+    measure: async () => { const r = await fabricSquare(); return {value: r.centre, reference: r.series}; }},
+  {id: 'cloth.membrane.reactions', title: 'Pretensioned square membrane: support reactions', quantity: 'sum of the vertical reactions of the held edges', unit: 'N', test: FT.square, file: FABRIC_FILE,
+    reference: {formula: 'sum R = applied load', value: null}, tolerance: relative(1e-6), measure: async () => { const r = await fabricSquare(); return {value: r.reaction, reference: r.load}; }},
+  {id: 'cloth.fabric.tear-onset', title: 'Tearing: load at which an intact strip starts to tear', quantity: 'end load / (strength x width) at the first torn triangle, 0.6% load steps', unit: '1', test: FT.tear, file: FABRIC_FILE,
+    reference: {formula: 'T = strength', value: 1}, tolerance: upper(0.12), note: 'The criterion reads the second Piola-Kirchhoff resultant at 10% strain; the nominal end load is up to 1.1 times it.', measure: fabricTear},
+];
+
 export default defineCases('cloth', FILE, [
   {id: 'cloth.patch.position', title: 'Membrane patch test on an irregular mesh', quantity: 'largest distance of an interior node from the uniform deformation given to the boundary (49 nodes jittered by 30% of a cell)', unit: 'm', test: T.patch,
     reference: {formula: 'x = F X for every node', value: 0}, tolerance: upper(1e-12), note: 'Constant-strain triangles hold a uniform deformation exactly; what is left is rounding.',
@@ -138,4 +216,5 @@ export default defineCases('cloth', FILE, [
   {id: 'cloth.determinism.repeat', title: 'Repeatability of a coupled run', quantity: 'runs of 150 coupled steps (contact, friction, attachment, self-collision) whose final bits differ from the first, of two more (one through the Simulation loop)', unit: 'runs', test: T.determinism,
     reference: {formula: 'bit-identical state', value: 0}, tolerance: upper(0), note: 'One machine, one build. The cloth is float64 JavaScript; the rigid world is the WASM.',
     measure: async () => { const {S, K} = await modules(), a = await S.fingerprint(K), b = await S.fingerprint(K), c = await S.fingerprint(K, {simulation: true}); return (a.hash !== b.hash) + (a.hash !== c.hash); }},
+  ...FABRIC_CASES,
 ]);

@@ -4,6 +4,9 @@
  *  - Membrane: constant-strain triangles with the St. Venant-Kirchhoff plane-stress law,
  *    S = Y / (1 - nu^2) [(1 - nu) E + nu tr(E) 1], Y = E t (N/m), E the Green strain. `membrane: 'spring'`
  *    replaces it by edge springs (k = Y sum(A) / L^2) for comparison: springs cannot be given a Poisson ratio.
+ *    `orthotropic` gives a woven fabric: plane-stress stiffness along warp and weft (N/m), shear and nu_warp-weft,
+ *    turned into each triangle's rest axes. `strength` tears triangles whose yarn stress reaches it; `cables`
+ *    adds tension-only edge cables.
  *  - Bending: the Koiter plate energy (D/2) [nu tr(L)^2 + (1 - nu) tr(L^2)], D = E t^3 / (12 (1 - nu^2)), on the
  *    triangle-averaged shape operator L = sum over the triangle's interior edges of (theta - theta0) |e| / (2 A) t (x) t,
  *    theta the dihedral angle and t the in-plane normal of the edge. Exact for constant curvature on structured
@@ -45,6 +48,24 @@ export interface ClothMaterial {
   readonly bending?:'koiter'|'hinge'|'none';
   /** Bending stiffness D in N m. Default E t^3 / (12 (1 - nu^2)). Woven fabric bends far more easily than a plate of its thickness: measure it and set it. */
   readonly bendingStiffness?:number;
+  /** A woven fabric: orthotropic plane-stress membrane with its engineering constants per unit width, N/m, along the warp
+   * (direction `warpDirection`, projected into each triangle's rest plane) and the weft (in the plane, perpendicular to it),
+   * the in-plane shear stiffness and nu_warp-weft (nu_weft-warp = nu weft / warp). Replaces E t and nu in the membrane
+   * (`youngModulus` and `thickness` still set the contact stiffness and offset). 'stvk' membrane only. */
+  readonly orthotropic?:{readonly warp:number;readonly weft:number;readonly shear:number;readonly poissonRatio:number;readonly warpDirection:ClothVec3};
+  /** Tearing: tensile strength along the warp and the weft (isotropic: of the largest principal stress resultant), N/m.
+   * At the end of each converged step a triangle whose second Piola-Kirchhoff stress resultant along either yarn has reached its
+   * strength tears: it is removed (no membrane or bending stiffness from then on; its nodes keep their mass). */
+  readonly strength?:{readonly warp:number;readonly weft?:number};
+}
+/** Edge cables and ropes: chains of nodes joined by tension-only bars. */
+export interface ClothCable {
+  /** Node indices along the cable, at least two. */
+  readonly nodes:ArrayLike<number>;
+  /** Axial stiffness E A, N. */
+  readonly axialStiffness:number;
+  /** Rest length of each bar as a fraction of its length in `positions` (below 1: pretensioned). Default 1. */
+  readonly restLengthFactor?:number;
 }
 export interface ClothConfig {
   /** Fixed step, s. */
@@ -96,6 +117,8 @@ export interface ClothDefinition {
   readonly extraMass?:ArrayLike<number>;
   readonly contact?:ClothContactOptions;
   readonly selfCollision?:ClothSelfCollisionOptions;
+  /** Edge cables (tension-only bars between nodes). */
+  readonly cables?:readonly ClothCable[];
 }
 export type ClothShape=
   |{readonly kind:'box';readonly halfExtents:ClothVec3}
@@ -251,6 +274,14 @@ export class Cloth {
   // Membrane.
   private readonly triInv:Float64Array;private readonly triArea:Float64Array;private readonly triLin:Float64Array;
   private readonly edgeRest:Float64Array;private readonly edgeK:Float64Array;private readonly edgeLin:Float64Array;
+  /** Orthotropic membrane: per triangle the stiffness in its rest axes [Q11, Q22, Q12, Q16, Q26, Q66] (engineering shear) and the
+   * cosine and sine of the warp direction from its first axis. Empty for an isotropic membrane. */
+  private readonly triQ:Float64Array;private readonly triWarp:Float64Array;
+  /** 1 for a torn triangle. */
+  private readonly torn:Uint8Array;private tornTotal=0;private lastConverged=true;private strengthWarp:number;private strengthWeft:number;
+  /** Cables: two node indices per bar, the rest length, k = E A / L0, and the linearisation (direction, k s / l). */
+  private readonly barNodes:Uint32Array;private readonly barRest:Float64Array;private readonly barK:Float64Array;private readonly barLin:Float64Array;
+  private readonly hingeTris:Int32Array;
   // Bending.
   private readonly hinge:Uint32Array;private readonly hingeRest:Float64Array;private readonly hingeNbr:Int32Array;private readonly hingeB:Float64Array;
   private readonly hingeGrad:Float64Array;private readonly hingePhi:Float64Array;
@@ -349,10 +380,11 @@ export class Cloth {
     for(let e=0;e<Ecount;e++)if(eB[e]>=0)hingeOf[e]=H++;
     if(this.bendingModel==='none'||!(this.bendingStiffness>0))H=0;
     this.hingeCount=H;
+    const hingeTris=this.hingeTris=new Int32Array(2*H);
     const hinge=this.hinge=new Uint32Array(4*H),hingeNbr=this.hingeNbr=new Int32Array(4*H).fill(-1),hingeB=this.hingeB=new Float64Array(5*H);
     this.hingeRest=new Float64Array(H);this.hingeGrad=new Float64Array(12*H);this.hingePhi=new Float64Array(H);
     if(H>0){
-      for(let e=0;e<Ecount;e++){const hh=hingeOf[e];if(hh<0)continue;hinge[4*hh]=ea[e];hinge[4*hh+1]=eb[e];hinge[4*hh+2]=eoA[e];hinge[4*hh+3]=eoB[e];}
+      for(let e=0;e<Ecount;e++){const hh=hingeOf[e];if(hh<0)continue;hinge[4*hh]=ea[e];hinge[4*hh+1]=eb[e];hinge[4*hh+2]=eoA[e];hinge[4*hh+3]=eoB[e];hingeTris[2*hh]=eA[e];hingeTris[2*hh+1]=eB[e];}
       // A triangle whose three nodes are held from the start is a wall: it stores no bending energy, and the angle of an
       // edge between it and a free triangle counts twice in the free one (the wall is that triangle's mirror image). That
       // is what makes a clamped edge second-order accurate; without it the clamp is too soft by a whole half cell.
@@ -379,6 +411,48 @@ export class Cloth {
       for(let hh=0;hh<H;hh++)this.hingeRest[hh]=this.dihedral(X,hh,false);
     }
     this.triLin=new Float64Array(9*T);
+    // Orthotropic membrane: the plane-stress stiffness in material axes, turned into each triangle's rest axes.
+    const ortho=m.orthotropic;
+    if(ortho){
+      if(this.membraneModel!=='stvk')fail("orthotropic needs the 'stvk' membrane.");
+      const E1=num(ortho.warp,'orthotropic.warp',1e-9,1e15),E2=num(ortho.weft,'orthotropic.weft',1e-9,1e15),G12=num(ortho.shear,'orthotropic.shear',1e-9,1e15),n12=num(ortho.poissonRatio,'orthotropic.poissonRatio',0,.99),n21=n12*E2/E1;
+      if(!(n12*n21<1))fail('orthotropic: nu_12 nu_21 must be below 1.');
+      const d=1-n12*n21,Q11=E1/d,Q22=E2/d,Q12=n12*E2/d,Q66=G12,w=ortho.warpDirection;
+      const wx=num(w[0],'warpDirection',-1e9,1e9),wy=num(w[1],'warpDirection',-1e9,1e9),wz=num(w[2],'warpDirection',-1e9,1e9);
+      this.triQ=new Float64Array(6*T);this.triWarp=new Float64Array(2*T);
+      for(let k=0;k<T;k++){
+        const a=3*tri[3*k],b=3*tri[3*k+1],cc=3*tri[3*k+2];
+        const ux=X[b]-X[a],uy=X[b+1]-X[a+1],uz=X[b+2]-X[a+2],vx=X[cc]-X[a],vy=X[cc+1]-X[a+1],vz=X[cc+2]-X[a+2],l1=Math.hypot(ux,uy,uz);
+        const e1x=ux/l1,e1y=uy/l1,e1z=uz/l1,d1=vx*e1x+vy*e1y+vz*e1z;let e2x=vx-d1*e1x,e2y=vy-d1*e1y,e2z=vz-d1*e1z;const l2=Math.hypot(e2x,e2y,e2z);e2x/=l2;e2y/=l2;e2z/=l2;
+        const p1=wx*e1x+wy*e1y+wz*e1z,p2=wx*e2x+wy*e2y+wz*e2z,pl=Math.hypot(p1,p2);
+        if(!(pl>1e-9*Math.hypot(wx,wy,wz)))fail(`orthotropic: the warp direction is normal to triangle ${k}.`);
+        const c=p1/pl,sn=p2/pl,c2=c*c,s2=sn*sn,cs=c*sn;
+        // Rotated plane-stress stiffness (Voigt, engineering shear), theta the angle from the first axis to the warp.
+        const Q=this.triQ,o=6*k;
+        Q[o]=Q11*c2*c2+2*(Q12+2*Q66)*s2*c2+Q22*s2*s2;
+        Q[o+1]=Q11*s2*s2+2*(Q12+2*Q66)*s2*c2+Q22*c2*c2;
+        Q[o+2]=(Q11+Q22-4*Q66)*s2*c2+Q12*(s2*s2+c2*c2);
+        Q[o+3]=(Q11-Q12-2*Q66)*cs*c2+(Q12-Q22+2*Q66)*cs*s2;
+        Q[o+4]=(Q11-Q12-2*Q66)*cs*s2+(Q12-Q22+2*Q66)*cs*c2;
+        Q[o+5]=(Q11+Q22-2*Q12-2*Q66)*s2*c2+Q66*(s2*s2+c2*c2);
+        this.triWarp[2*k]=c;this.triWarp[2*k+1]=sn;
+      }
+    }else{this.triQ=new Float64Array(0);this.triWarp=new Float64Array(0);}
+    this.torn=new Uint8Array(T);
+    const st=m.strength;
+    this.strengthWarp=st?num(st.warp,'strength.warp',1e-9,1e15):Infinity;this.strengthWeft=st?(st.weft===undefined?this.strengthWarp:num(st.weft,'strength.weft',1e-9,1e15)):Infinity;
+    // Cables.
+    const bars:number[]=[],barRest:number[]=[],barK:number[]=[];
+    for(const [ci,cable] of (definition.cables??[]).entries()){
+      const list=Array.from(cable.nodes);if(list.length<2)fail(`cables[${ci}] needs two nodes or more.`);
+      const EA=num(cable.axialStiffness,'axialStiffness',1e-9,1e15),factor=cable.restLengthFactor===undefined?1:num(cable.restLengthFactor,'restLengthFactor',.5,2);
+      for(let q=0;q+1<list.length;q++){
+        const i=list[q],j=list[q+1];if(!Number.isInteger(i)||!Number.isInteger(j)||i<0||j<0||i>=n||j>=n||i===j)fail(`cables[${ci}]: bad node.`);
+        const L=factor*Math.hypot(x[3*j]-x[3*i],x[3*j+1]-x[3*i+1],x[3*j+2]-x[3*i+2]);if(!(L>0))fail(`cables[${ci}]: a bar has no length.`);
+        bars.push(i,j);barRest.push(L);barK.push(EA/L);
+      }
+    }
+    this.barNodes=Uint32Array.from(bars);this.barRest=Float64Array.from(barRest);this.barK=Float64Array.from(barK);this.barLin=new Float64Array(4*barRest.length);
     this.kind=new Uint8Array(n);this.target=new Float64Array(3*n);this.x0=new Float64Array(3*n);this.xt=new Float64Array(3*n);this.vLast=new Float64Array(3*n);
     this.attBody=new Int32Array(n).fill(-1);this.attLocal=new Float64Array(3*n);this.attR=new Float64Array(3*n);
     this.fext=new Float64Array(3*n);this.pointForce=new Float64Array(3*n);this.follower=new Float64Array(3*n);this.reactions=new Float64Array(3*n);
@@ -534,8 +608,11 @@ export class Cloth {
     const x=this.positions,tri=this.triangles,inv=this.triInv,k=triangle,a=3*tri[3*k],b=3*tri[3*k+1],c=3*tri[3*k+2],i0=inv[3*k],i1=inv[3*k+1],i2=inv[3*k+2];
     let e11=-.5,e22=-.5,e12=0;
     for(let d=0;d<3;d++){const u=x[b+d]-x[a+d],v=x[c+d]-x[a+d],f1=u*i0,f2=u*i1+v*i2;e11+=.5*f1*f1;e22+=.5*f2*f2;e12+=.5*f1*f2;}
+    out[3]=e11;out[4]=e22;out[5]=e12;
+    if(this.torn[k]){out[0]=out[1]=out[2]=0;return out;}
+    if(this.triQ.length){const Q=this.triQ,o=6*k,g=2*e12;out[0]=Q[o]*e11+Q[o+2]*e22+Q[o+3]*g;out[1]=Q[o+2]*e11+Q[o+1]*e22+Q[o+4]*g;out[2]=Q[o+3]*e11+Q[o+4]*e22+Q[o+5]*g;return out;}
     const nu=this.poissonRatio,Yv=this.membraneStiffness/(1-nu*nu);
-    out[0]=Yv*(e11+nu*e22);out[1]=Yv*(e22+nu*e11);out[2]=Yv*(1-nu)*e12;out[3]=e11;out[4]=e22;out[5]=e12;return out;
+    out[0]=Yv*(e11+nu*e22);out[1]=Yv*(e22+nu*e11);out[2]=Yv*(1-nu)*e12;return out;
   }
   /** Smallest distance between two parts of the cloth that do not share a node (node to triangle), m. O(nodes x triangles): for tests and reports. */
   minimumSelfDistance():number {
@@ -570,13 +647,16 @@ export class Cloth {
       }
       return energy;
     }
-    const tri=this.triangles,inv=this.triInv,area=this.triArea,lin=this.triLin,nu=this.poissonRatio,Yv=this.membraneStiffness/(1-nu*nu),mu2=Yv*(1-nu);
+    const tri=this.triangles,inv=this.triInv,area=this.triArea,lin=this.triLin,nu=this.poissonRatio,Yv=this.membraneStiffness/(1-nu*nu),mu2=Yv*(1-nu),Q=this.triQ,ortho=Q.length>0,torn=this.torn;
     for(let k=0;k<this.triangleCount;k++){
+      if(torn[k]){const o=9*k;for(let q=0;q<9;q++)lin[o+q]=0;continue;}
       const a=3*tri[3*k],b=3*tri[3*k+1],c=3*tri[3*k+2],i0=inv[3*k],i1=inv[3*k+1],i2=inv[3*k+2],A=area[k];
       const ux=x[b]-x[a],uy=x[b+1]-x[a+1],uz=x[b+2]-x[a+2],vx=x[c]-x[a],vy=x[c+1]-x[a+1],vz=x[c+2]-x[a+2];
       const f1x=ux*i0,f1y=uy*i0,f1z=uz*i0,f2x=ux*i1+vx*i2,f2y=uy*i1+vy*i2,f2z=uz*i1+vz*i2;
       const e11=.5*(f1x*f1x+f1y*f1y+f1z*f1z-1),e22=.5*(f2x*f2x+f2y*f2y+f2z*f2z-1),e12=.5*(f1x*f2x+f1y*f2y+f1z*f2z);
-      const s11=Yv*(e11+nu*e22),s22=Yv*(e22+nu*e11),s12=mu2*e12;
+      let s11:number,s22:number,s12:number;
+      if(ortho){const o=6*k,g=2*e12;s11=Q[o]*e11+Q[o+2]*e22+Q[o+3]*g;s22=Q[o+2]*e11+Q[o+1]*e22+Q[o+4]*g;s12=Q[o+3]*e11+Q[o+4]*e22+Q[o+5]*g;}
+      else{s11=Yv*(e11+nu*e22);s22=Yv*(e22+nu*e11);s12=mu2*e12;}
       energy+=.5*A*(s11*e11+s22*e22+2*s12*e12);
       if(!G)continue;
       // P = F S (3x2); force on node n is -A P g_n with g_b = (i0, i1), g_c = (0, i2), g_a = -g_b - g_c.
@@ -608,14 +688,17 @@ export class Cloth {
       }
       return;
     }
-    const tri=this.triangles,inv=this.triInv,area=this.triArea,lin=this.triLin,nu=this.poissonRatio,Yv=this.membraneStiffness/(1-nu*nu),mu2=Yv*(1-nu);
+    const tri=this.triangles,inv=this.triInv,area=this.triArea,lin=this.triLin,nu=this.poissonRatio,Yv=this.membraneStiffness/(1-nu*nu),mu2=Yv*(1-nu),Q=this.triQ,ortho=Q.length>0,torn=this.torn;
     for(let k=0;k<this.triangleCount;k++){
+      if(torn[k])continue;
       const a=3*tri[3*k],b=3*tri[3*k+1],c=3*tri[3*k+2],i0=inv[3*k],i1=inv[3*k+1],i2=inv[3*k+2],A=area[k],o=9*k;
       const ux=p[b]-p[a],uy=p[b+1]-p[a+1],uz=p[b+2]-p[a+2],vx=p[c]-p[a],vy=p[c+1]-p[a+1],vz=p[c+2]-p[a+2];
       const d1x=ux*i0,d1y=uy*i0,d1z=uz*i0,d2x=ux*i1+vx*i2,d2y=uy*i1+vy*i2,d2z=uz*i1+vz*i2;
       const f1x=lin[o],f1y=lin[o+1],f1z=lin[o+2],f2x=lin[o+3],f2y=lin[o+4],f2z=lin[o+5],t11=lin[o+6],t22=lin[o+7],t12=lin[o+8];
       const e11=f1x*d1x+f1y*d1y+f1z*d1z,e22=f2x*d2x+f2y*d2y+f2z*d2z,e12=.5*(f1x*d2x+f1y*d2y+f1z*d2z+f2x*d1x+f2y*d1y+f2z*d1z);
-      const s11=Yv*(e11+nu*e22),s22=Yv*(e22+nu*e11),s12=mu2*e12;
+      let s11:number,s22:number,s12:number;
+      if(ortho){const q=6*k,g=2*e12;s11=Q[q]*e11+Q[q+2]*e22+Q[q+3]*g;s22=Q[q+2]*e11+Q[q+1]*e22+Q[q+4]*g;s12=Q[q+3]*e11+Q[q+4]*e22+Q[q+5]*g;}
+      else{s11=Yv*(e11+nu*e22);s22=Yv*(e22+nu*e11);s12=mu2*e12;}
       const p1x=d1x*t11+d2x*t12+f1x*s11+f2x*s12,p1y=d1y*t11+d2y*t12+f1y*s11+f2y*s12,p1z=d1z*t11+d2z*t12+f1z*s11+f2z*s12;
       const p2x=d1x*t12+d2x*t22+f1x*s12+f2x*s22,p2y=d1y*t12+d2y*t22+f1y*s12+f2y*s22,p2z=d1z*t12+d2z*t22+f1z*s12+f2z*s22;
       const bx=A*(p1x*i0+p2x*i1),by=A*(p1y*i0+p2y*i1),bz=A*(p1z*i0+p2z*i1),cx=A*p2x*i2,cy=A*p2y*i2,cz=A*p2z*i2;
@@ -632,8 +715,12 @@ export class Cloth {
       }
       return;
     }
-    const tri=this.triangles,inv=this.triInv,area=this.triArea,lin=this.triLin,nu=this.poissonRatio,Yv=this.membraneStiffness/(1-nu*nu),mu=.5*Yv*(1-nu);
+    const tri=this.triangles,inv=this.triInv,area=this.triArea,lin=this.triLin,Q=this.triQ,ortho=Q.length>0;
+    let nu=this.poissonRatio,Yv=this.membraneStiffness/(1-nu*nu),mu=.5*Yv*(1-nu);
     for(let k=0;k<this.triangleCount;k++){
+      if(this.torn[k])continue;
+      // An orthotropic triangle is preconditioned as an isotropic one of its mean in-plane stiffness (the exact block is not needed here).
+      if(ortho){const q=6*k;Yv=.5*(Q[q]+Q[q+1]);nu=Math.min(.49,Q[q+2]/Yv);mu=Q[q+5];}
       const i0=inv[3*k],i1=inv[3*k+1],i2=inv[3*k+2],A=area[k],o=9*k;
       const f1x=lin[o],f1y=lin[o+1],f1z=lin[o+2],f2x=lin[o+3],f2y=lin[o+4],f2z=lin[o+5],t11=lin[o+6],t22=lin[o+7],t12=lin[o+8];
       for(let q=0;q<3;q++){
@@ -647,6 +734,80 @@ export class Cloth {
         D[d+5]+=c11*f1z*f1z+c22*f2z*f2z+2*c12*f1z*f2z+geo;
       }
     }
+  }
+  /** Tension-only cable bars: energy (k / 2) <l - L0>^2; with G the gradient and the linearisation. */
+  private cables(x:Float64Array,G:Float64Array|null):number {
+    const bars=this.barNodes,rest=this.barRest,K=this.barK,lin=this.barLin,fabs=this.fabs;let energy=0;
+    for(let e=0;e<rest.length;e++){
+      const a=3*bars[2*e],b=3*bars[2*e+1],dx=x[b]-x[a],dy=x[b+1]-x[a+1],dz=x[b+2]-x[a+2],l=Math.hypot(dx,dy,dz)||1e-300,s=l-rest[e],k=K[e];
+      if(s<=0){if(G){lin[4*e]=dx/l;lin[4*e+1]=dy/l;lin[4*e+2]=dz/l;lin[4*e+3]=-1;}continue;}
+      energy+=.5*k*s*s;
+      if(G){
+        const f=k*s/l;G[a]-=f*dx;G[a+1]-=f*dy;G[a+2]-=f*dz;G[b]+=f*dx;G[b+1]+=f*dy;G[b+2]+=f*dz;
+        fabs[a/3]+=k*s;fabs[b/3]+=k*s;lin[4*e]=dx/l;lin[4*e+1]=dy/l;lin[4*e+2]=dz/l;lin[4*e+3]=f;
+      }
+    }
+    return energy;
+  }
+  private cableProduct(p:Float64Array,out:Float64Array):void {
+    const bars=this.barNodes,K=this.barK,lin=this.barLin;
+    for(let e=0;e<K.length;e++){
+      const g=lin[4*e+3];if(g<0)continue;
+      const a=3*bars[2*e],b=3*bars[2*e+1],dx=p[b]-p[a],dy=p[b+1]-p[a+1],dz=p[b+2]-p[a+2],nx=lin[4*e],ny=lin[4*e+1],nz=lin[4*e+2];
+      const along=(K[e]-g)*(dx*nx+dy*ny+dz*nz),fx=along*nx+g*dx,fy=along*ny+g*dy,fz=along*nz+g*dz;
+      out[a]-=fx;out[a+1]-=fy;out[a+2]-=fz;out[b]+=fx;out[b+1]+=fy;out[b+2]+=fz;
+    }
+  }
+  private cableDiagonal():void {
+    const D=this.diag,bars=this.barNodes,K=this.barK,lin=this.barLin;
+    for(let e=0;e<K.length;e++){
+      const g=lin[4*e+3];if(g<0)continue;
+      const nx=lin[4*e],ny=lin[4*e+1],nz=lin[4*e+2],s=K[e]-g;
+      for(let q=0;q<2;q++){const o=6*bars[2*e+q];D[o]+=s*nx*nx+g;D[o+1]+=s*nx*ny;D[o+2]+=s*nx*nz;D[o+3]+=s*ny*ny+g;D[o+4]+=s*ny*nz;D[o+5]+=s*nz*nz+g;}
+    }
+  }
+  /** Tension of each cable bar in the present shape, N (zero when slack). */
+  cableTensions(out=new Float64Array(this.barRest.length)):Float64Array {
+    const x=this.positions,bars=this.barNodes;
+    for(let e=0;e<out.length;e++){const a=3*bars[2*e],b=3*bars[2*e+1],l=Math.hypot(x[b]-x[a],x[b+1]-x[a+1],x[b+2]-x[a+2]);out[e]=Math.max(0,this.barK[e]*(l-this.barRest[e]));}
+    return out;
+  }
+  /** Stress resultants of a triangle along the warp and the weft (isotropic: the largest and smallest principal values), N/m, in the present shape. */
+  yarnStress(triangle:number,out:number[]|Float64Array=[0,0]):number[]|Float64Array {
+    const r=this.triangleStress(triangle,this.scratch6),s11=r[0],s22=r[1],s12=r[2];
+    if(this.triWarp.length){const c=this.triWarp[2*triangle],sn=this.triWarp[2*triangle+1];out[0]=s11*c*c+s22*sn*sn+2*s12*sn*c;out[1]=s11*sn*sn+s22*c*c-2*s12*sn*c;}
+    else{const m=.5*(s11+s22),d=Math.hypot(.5*(s11-s22),s12);out[0]=m+d;out[1]=m-d;}
+    return out;
+  }
+  private readonly scratch6=new Float64Array(6);private readonly scratch2=new Float64Array(2);
+  /** Change the tensile strengths of tearing (N/m) from the next step on; torn triangles stay torn. */
+  setStrength(strength:{readonly warp:number;readonly weft?:number}):void {
+    this.strengthWarp=num(strength.warp,'strength.warp',1e-9,1e15);this.strengthWeft=strength.weft===undefined?this.strengthWarp:num(strength.weft,'strength.weft',1e-9,1e15);
+  }
+  /** Number of torn triangles. */
+  get tornCount():number {return this.tornTotal;}
+  /** 1 per torn triangle (live, read only). */
+  get tornMask():Uint8Array {return this.torn;}
+  /** Tears the triangles whose yarn stress reached the strength; returns how many tore now. */
+  private tear():number {
+    if(!(this.strengthWarp<Infinity))return 0;
+    let count=0;const y=this.scratch2,T=this.triangleCount;
+    for(let k=0;k<T;k++){
+      if(this.torn[k])continue;
+      this.yarnStress(k,y);
+      if(y[0]>=this.strengthWarp||(this.triWarp.length?y[1]>=this.strengthWeft:false)){this.torn[k]=1;count++;}
+    }
+    if(count>0){
+      // A hinge on a torn triangle stores no bending energy; its couplings with the neighbouring hinges go with it.
+      const H=this.hingeCount,B=this.hingeB,nbr=this.hingeNbr,ht=this.hingeTris,dead=new Uint8Array(H);
+      for(let h=0;h<H;h++)if((ht[2*h]>=0&&this.torn[ht[2*h]])||(ht[2*h+1]>=0&&this.torn[ht[2*h+1]]))dead[h]=1;
+      for(let h=0;h<H;h++){
+        if(dead[h]){for(let q=0;q<5;q++)B[5*h+q]=0;continue;}
+        for(let q=0;q<4;q++){const f=nbr[4*h+q];if(f>=0&&dead[f])B[5*h+1+q]=0;}
+      }
+      this.tornTotal+=count;
+    }
+    return count;
   }
   /** Dihedral angle of a hinge; with `store`, its gradient goes to hingeGrad. */
   private dihedral(x:Float64Array,hh:number,store:boolean):number {
@@ -1076,6 +1237,7 @@ export class Cloth {
     if(p===0)return;
     const tri=this.triangles;
     for(let k=0;k<this.triangleCount;k++){
+      if(this.torn[k])continue;
       const a=3*tri[3*k],b=3*tri[3*k+1],c=3*tri[3*k+2],ux=y[b]-y[a],uy=y[b+1]-y[a+1],uz=y[b+2]-y[a+2],vx=y[c]-y[a],vy=y[c+1]-y[a+1],vz=y[c+2]-y[a+2];
       const fx=p/6*(uy*vz-uz*vy),fy=p/6*(uz*vx-ux*vz),fz=p/6*(ux*vy-uy*vx);
       f[a]+=fx;f[a+1]+=fy;f[a+2]+=fz;f[b]+=fx;f[b+1]+=fy;f[b+2]+=fz;f[c]+=fx;f[c+1]+=fy;f[c+2]+=fz;
@@ -1099,6 +1261,7 @@ export class Cloth {
     }
     if(G)this.fabs.fill(0);
     energy+=this.membrane(y,G)+this.bend(y,G);
+    if(this.barRest.length>0)energy+=this.cables(y,G);
     this.energyStored=0;
     if(this.bodies.length>0)energy+=this.contacts(y,G);
     if(this.pairCount>0){const e=this.selfEnergy(y,G);energy+=e;this.energyStored+=e;}
@@ -1152,6 +1315,7 @@ export class Cloth {
     out.fill(0);
     for(let i=0;i<n;i++){if(this.kind[i]===PINNED)continue;const a=m[i]*s,o=3*i;out[o]=a*e[o];out[o+1]=a*e[o+1];out[o+2]=a*e[o+2];}
     this.membraneProduct(e,out);this.bendProduct(e,out);
+    if(this.barRest.length>0)this.cableProduct(e,out);
     if(this.bodies.length>0)this.contactProduct(e,out);
     if(this.pairCount>0)this.selfProduct(e,out);
     this.reduce(out,false);
@@ -1168,6 +1332,7 @@ export class Cloth {
     const n=this.nodeCount,D=this.diag,BD=this.bodyDiag,m=this.masses,s=this.ih2+this.dragRate,r=this.attR;
     D.fill(0);BD.fill(0);
     this.membraneDiagonal();this.bendDiagonal();
+    if(this.barRest.length>0)this.cableDiagonal();
     if(this.bodies.length>0)this.contactDiagonal();
     if(this.pairCount>0)this.selfDiagonal();
     for(let i=0;i<n;i++){
@@ -1305,6 +1470,7 @@ export class Cloth {
     if(!this.windOn)return;
     const tri=this.triangles,x=this.positions,v=this.velocities,w=this.wind,q=.5*w[3]*w[4];
     for(let k=0;k<this.triangleCount;k++){
+      if(this.torn[k])continue;
       const a=3*tri[3*k],b=3*tri[3*k+1],c=3*tri[3*k+2],ux=x[b]-x[a],uy=x[b+1]-x[a+1],uz=x[b+2]-x[a+2],vx=x[c]-x[a],vy=x[c+1]-x[a+1],vz=x[c+2]-x[a+2];
       let nx=uy*vz-uz*vy,ny=uz*vx-ux*vz,nz=ux*vy-uy*vx;const l=Math.hypot(nx,ny,nz)||1e-300,A=.5*l;nx/=l;ny/=l;nz/=l;
       const un=(w[0]-(v[a]+v[b]+v[c])/3)*nx+(w[1]-(v[a+1]+v[b+1]+v[c+1])/3)*ny+(w[2]-(v[a+2]+v[b+2]+v[c+2])/3)*nz,s=q*un*Math.abs(un)*A/3;
@@ -1394,15 +1560,19 @@ export class Cloth {
         }
         this.countWork();
         if(!ok)this.stats.unconvergedSteps++;
+        this.lastConverged=ok;
       }else{
         const ok=this.implicitStep(h,false);
         for(let i=0;i<3*n;i++){v[i]=(y[i]-x0[i])/h;x[i]=y[i];}
         if(this.bodies.length>0)this.endContacts();
         this.countWork();
         if(!ok)this.stats.unconvergedSteps++;
+        this.lastConverged=ok;
       }
       let pressing=0;for(let q=0;q<this.pairCount;q++)pressing+=this.pairOn[q];
       this.stats.selfPairs=pressing;this.stats.steps++;this.time+=h;
+      // Only a solved state tears: the stresses of a step stopped at its iteration limit are not the material's.
+      if(this.lastConverged)this.tear();
     }
   }
   /**
@@ -1613,7 +1783,7 @@ export const CLOTH_SUBSYSTEM_ORDER=150;
  * damping, drag and friction make `total - exchanged` fall.
  * Events, emitted at the end of a step: 'contact-begin' and 'contact-end' with {body, index} when a body starts or stops
  * pressing on the cloth, and 'unconverged' with {residual, tolerance} when a step stopped at its iteration limit.
- * Tearing is not modelled, so there is no tear event.
+ * Tearing (`strength`) emits no event of its own here: read `tornCount` and `tornMask` after a step.
  */
 export function clothSubsystem<W,B>(target:Cloth|ClothCoupling<B>,options:{readonly id?:string;readonly order?:number}={}):Subsystem<W,B> {
   const coupling=target instanceof ClothCoupling?target:null,cloth=coupling?coupling.cloth:target as Cloth;

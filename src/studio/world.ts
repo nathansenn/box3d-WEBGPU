@@ -792,7 +792,7 @@ export class StudioWorld {
     const sim=this.sim;
     for(let i=0;i<this.positionScratch.length;i++){const p=this.positionScratch[i];p[0]=snapshot.positions[i*3];p[1]=snapshot.positions[i*3+1];p[2]=snapshot.positions[i*3+2];}
     const p=(i:number):Vec=>this.positionScratch[i];
-    const colorFor=(strain:number)=>this.strainColor.setHSL(sim.id==='plate'?pressStrainHue(strain,snapshot.press?.settings??sim.press,sim.strength):.52-Math.min(1,strain/(sim.config.threshold*sim.strength))*.52,.84,.52);
+    const colorFor=(strain:number)=>this.strainColor.setHSL(sim.id==='plate'?pressStrainHue(strain,snapshot.press?.settings??sim.press,sim.strength):(sim.canopySI?.52-Math.min(1,strain)*.52:.52-Math.min(1,strain/(sim.config.threshold*sim.strength))*.52),.84,.52);
     if(this.surface) {
       const g=this.surface.geometry;
       (g.getAttribute('position').array as Float32Array).set(snapshot.positions);g.getAttribute('position').needsUpdate=true;

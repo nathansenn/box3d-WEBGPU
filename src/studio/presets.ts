@@ -145,17 +145,18 @@ function recipes(study:StudyId,rows:[string,string,number,number,number,number,s
   return rows.map(([slug,name,target,strength,wind,speed,description])=>({id:`${study}-${slug}`,study,name,target,strength,wind,speed,description,source:'Commander Academy'}));
 }
 export const LOAD_PRESETS:LoadPreset[] = [
+  // SI cases for the canopy (src/studio/canopy-si.ts): target x 10 kPa of uniform load on plan, wind x 15 m/s, strength x the library fabric's.
   ...recipes('canopy',[
-    ['service','Service pressure',.8,1,.1,1,'A modest pressure ramp for studying membrane deflection.'],
-    ['calm','Calm tension',1.4,1.4,0,1,'An even pressure field with no crosswind.'],
-    ['wind','Crosswind study',1.8,1,1.6,1,'Combine surface pressure with strong lateral forcing.'],
-    ['tear','Tear propagation',4,1,.25,1,'Trace connection rupture and the growing tear.'],
-    ['fragile','Weakened connections',3,.55,.6,.5,'Lower the connection limit and inspect damage slowly.'],
-    ['reinforced','Reinforced comparison',4,1.8,.25,1,'Repeat the overload with stronger connections.'],
-    ['gentle','Gentle deflection',.45,1.2,0,.5,'A small pressure ramp for inspecting the initial shape.'],
-    ['gust','Wind dominated',.9,1.1,2,.5,'Maximum lateral forcing with a modest pressure target.'],
-    ['limit','Slow overload',2.6,.9,.15,.25,'Quarter speed inspection of accumulating connection damage.'],
-    ['ultimate','Maximum pressure',5,1.5,.8,1,'Explore the upper pressure control range at increased strength.'],
+    ['service','Design snow 0.75 kPa',.075,1,.1,1,'Characteristic snow on the plan area and a 1.5 m/s breeze: the sag and the edge-cable forces of a service case.'],
+    ['calm','Heavy snow 2 kPa',.2,1,0,1,'Two kilopascals of snow, no wind: the membrane deepens and the corner posts take the load.'],
+    ['wind','Snow and 24 m/s wind',.1,1,1.6,1,'1 kPa of snow with a 24 m/s wind as a normal pressure on the fabric.'],
+    ['tear','Overload to tearing',4.5,.5,.25,1,'Up to 45 kPa on fabric at half its library strength (an aged or damaged membrane): yarns reach their strength and tear.'],
+    ['fragile','Weakened fabric',3,.4,.6,.5,'Fabric at 40% of its library strength under up to 30 kPa: tearing starts sooner; half speed.'],
+    ['reinforced','Library-strength overload',5,1,.25,1,'Up to 50 kPa on the library fabric: it carries it without tearing (the edge cables and posts are not checked).'],
+    ['gentle','Self-weight and light snow',.02,1,0,.5,'0.2 kPa of snow: the pretensioned shape under its own weight, at half speed.'],
+    ['gust','Wind dominated',.03,1,2,.5,'A 30 m/s wind with 0.3 kPa of snow.'],
+    ['limit','Slow overload',3.5,.6,.15,.25,'Up to 35 kPa at 60% strength, quarter speed: watch the first triangles tear.'],
+    ['ultimate','Maximum load',5,2,.8,1,'50 kPa at twice the library strength: the largest load the control reaches.'],
   ]),
   ...recipes('plate',[
     ['service','Shallow forming',.8,1,0,1,'A shallow indentation for studying plastic deformation.'],

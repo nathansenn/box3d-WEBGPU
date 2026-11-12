@@ -5,8 +5,8 @@
  "generatedBy": "node scripts/validation-report.mjs",
  "digits": 9,
  "totals": {
-  "cases": 517,
-  "passed": 517,
+  "cases": 524,
+  "passed": 524,
   "failed": 0,
   "domains": 20
  },
@@ -166,23 +166,23 @@
   {
    "id": "cloth",
    "title": "Cloth: membrane, bending, contact and rigid coupling",
-   "summary": "The patch test, uniaxial stress and Poisson contraction (and the edge-spring model failing it), a hanging strip, the catenary, a cantilever with its mesh study, the frequency of a tensioned strip, a pressurised membrane, the integrators' energy, Coulomb friction on a ramp, a plate that must not tunnel, a ball on a trampoline, a draped box on a scale, a hanging body, self-collision and repeatability.",
+   "summary": "The patch test, uniaxial stress and Poisson contraction (and the edge-spring model failing it), a hanging strip, the catenary, a cantilever with its mesh study, the frequency of a tensioned strip, a pressurised membrane, the integrators' energy, a woven fabric along warp, weft and bias, a pressurised orthotropic strip, a pretensioned square membrane and its reactions, the onset of tearing, Coulomb friction on a ramp, a plate that must not tunnel, a ball on a trampoline, a draped box on a scale, a hanging body, self-collision and repeatability.",
    "solver": "`box3d-webgpu-kit/cloth`: constant-strain St. Venant-Kirchhoff triangles, Koiter bending on the triangle-averaged shape operator, backward Euler by Newton and preconditioned conjugate gradients, float64; rigid bodies as unknowns of the same solve",
    "docs": [
     "docs/CLOTH.md"
    ],
    "notValidated": [
     "Bending on irregular meshes. The triangle-averaged curvature is consistent on structured meshes only: with nodes jittered by 25% of a cell the cantilever is 4% too stiff at 16 elements and 11% at 32, and refinement does not help. The membrane rows do not have this limit.",
-    "Large strains and wrinkling. The membrane law is St. Venant-Kirchhoff, checked at strains up to 2e-3; it is not a fabric model (no anisotropy, no warp and weft, no hysteresis), and compression is carried until the sheet buckles at the scale of the mesh.",
-    "Tearing, plasticity and damage are not modelled. Bending stiffness of a woven fabric is not E t^3 / 12: it must be measured and set.",
+    "Large strains and wrinkling. The membrane law is St. Venant-Kirchhoff (isotropic, or orthotropic with warp and weft), checked at strains up to 1e-2; it has no nonlinear fabric response, crimp interchange or hysteresis, and compression is carried until the sheet buckles at the scale of the mesh.",
+    "Tearing is strength-based and removes whole triangles: the onset at a crack tip depends on the mesh (a slit strip tears at 1.27 times a one-element LEFM estimate on its mesh), and a tear follows triangle edges. No plasticity or damage before tearing. Bending stiffness of a woven fabric is not E t^3 / 12: it must be measured and set.",
     "Contact is node against body: a body corner or edge between nodes is not seen, a body smaller than the mesh spacing rests on single nodes, and hulls, triangle meshes and height fields are not supported. Curved bodies are safe from tunnelling only below about one radius of travel per step.",
     "Self-collision is a repulsion without friction, checked for layers pressed at 0.02 N per pair. It is not intersection-free: a pair pressed harder than stiffness times thickness, or one that closes by more than a mesh edge in one step, can pass through, and nothing untangles it.",
     "Friction limits lag the normal force by a Newton iterate in transients; only steady sliding and sticking are checked. Rolling and spinning friction are not modelled.",
     "The coupling sees a body's other contacts and joints only through an estimate that lags one step. A cloth heavier than the supported body it rests on is not checked. Bodies rotate by a linearised rotation in the contact geometry (error (omega dt)^2 / 2 times the body size per step).",
     "Wind is a normal-pressure formula, not aerodynamics, and has no reference here beyond its own force. No real-fabric measurement is used anywhere: every reference is a formula."
    ],
-   "cases": 32,
-   "passed": 32
+   "cases": 39,
+   "passed": 39
   },
   {
    "id": "granular",
@@ -7769,6 +7769,206 @@
     "measured": "0",
     "error": "0",
     "tolerance": "not above the reference"
+   }
+  },
+  {
+   "id": "cloth.fabric.warp",
+   "domain": "cloth",
+   "title": "Woven fabric: strain of a strip pulled along the warp",
+   "quantity": "strain of the middle third of a 1 m x 0.2 m strip at 1 kN/m, orthotropic membrane",
+   "unit": "1",
+   "formula": "eps = T / E_warp",
+   "reference": 0.000816326531,
+   "measured": 0.000814886597,
+   "error": -0.00000143993336,
+   "relativeError": -0.00176391837,
+   "tolerance": {
+    "kind": "relative",
+    "value": 0.002
+   },
+   "pass": true,
+   "note": "The Green strain against the engineering strain at 1e-3.",
+   "source": {
+    "file": "tests/engine/cloth-fabric.test.mjs",
+    "test": "uniaxial strip along the warp, the weft and at 45 degrees: strain = T / E_dir (orthotropic compliance)",
+    "url": "https://github.com/nathansenn/box3d-WEBGPU/blob/main/tests/engine/cloth-fabric.test.mjs"
+   },
+   "text": {
+    "reference": "0.0008163265",
+    "measured": "0.0008148866",
+    "error": "-0.176%",
+    "tolerance": "±0.2%"
+   }
+  },
+  {
+   "id": "cloth.fabric.weft",
+   "domain": "cloth",
+   "title": "Woven fabric: strain of a strip pulled along the weft",
+   "quantity": "the same strip with the warp across it",
+   "unit": "1",
+   "formula": "eps = T / E_weft",
+   "reference": 0.001,
+   "measured": 0.000998059901,
+   "error": -0.00000194009935,
+   "relativeError": -0.00194009935,
+   "tolerance": {
+    "kind": "relative",
+    "value": 0.002
+   },
+   "pass": true,
+   "source": {
+    "file": "tests/engine/cloth-fabric.test.mjs",
+    "test": "uniaxial strip along the warp, the weft and at 45 degrees: strain = T / E_dir (orthotropic compliance)",
+    "url": "https://github.com/nathansenn/box3d-WEBGPU/blob/main/tests/engine/cloth-fabric.test.mjs"
+   },
+   "text": {
+    "reference": "0.001",
+    "measured": "0.0009980599",
+    "error": "-0.194%",
+    "tolerance": "±0.2%"
+   }
+  },
+  {
+   "id": "cloth.fabric.bias",
+   "domain": "cloth",
+   "title": "Woven fabric: strain of a strip pulled at 45 degrees to the yarns",
+   "quantity": "the same strip with the warp at 45 degrees",
+   "unit": "1",
+   "formula": "1 / E_45 = (1 / E1 + 1 / E2 + 1 / G12 - 2 nu12 / E1) / 4",
+   "reference": 0.00864455782,
+   "measured": 0.00851112265,
+   "error": -0.000133435172,
+   "relativeError": -0.0154357429,
+   "tolerance": {
+    "kind": "relative",
+    "value": 0.02
+   },
+   "pass": true,
+   "note": "The clamped end restrains the shear-extension coupling of the bias strip; the middle third is 1.5% stiff.",
+   "source": {
+    "file": "tests/engine/cloth-fabric.test.mjs",
+    "test": "uniaxial strip along the warp, the weft and at 45 degrees: strain = T / E_dir (orthotropic compliance)",
+    "url": "https://github.com/nathansenn/box3d-WEBGPU/blob/main/tests/engine/cloth-fabric.test.mjs"
+   },
+   "text": {
+    "reference": "0.008644558",
+    "measured": "0.008511123",
+    "error": "-1.54%",
+    "tolerance": "±2%"
+   }
+  },
+  {
+   "id": "cloth.fabric.pressure-arc",
+   "domain": "cloth",
+   "title": "Woven fabric: long strip under pressure",
+   "quantity": "mid-span rise of a 1 m strip, 6 m long, pinned on its edges, 2 kPa, weft across the span",
+   "unit": "m",
+   "formula": "circular arc, T = p R = Q22 eps, 2 R asin(S / 2R) = S (1 + eps)",
+   "reference": 0.0439958175,
+   "measured": 0.0437731019,
+   "error": -0.000222715579,
+   "relativeError": -0.00506219889,
+   "tolerance": {
+    "kind": "relative",
+    "value": 0.01
+   },
+   "pass": true,
+   "source": {
+    "file": "tests/engine/cloth-fabric.test.mjs",
+    "test": "a long strip under pressure takes a circular arc: T = p R with the weft stiffness in plane strain",
+    "url": "https://github.com/nathansenn/box3d-WEBGPU/blob/main/tests/engine/cloth-fabric.test.mjs"
+   },
+   "text": {
+    "reference": "0.04399582 m",
+    "measured": "0.0437731",
+    "error": "-0.506%",
+    "tolerance": "±1%"
+   }
+  },
+  {
+   "id": "cloth.membrane.pretensioned-square",
+   "domain": "cloth",
+   "title": "Pretensioned square membrane under uniform load: centre deflection",
+   "quantity": "2 m square, 0.2% isotropic prestrain, 50 Pa",
+   "unit": "m",
+   "formula": "w = sum 16 q / (pi^2 m n T ((m pi / a)^2 + (n pi / a)^2)) sin sin",
+   "reference": 0.00856921297,
+   "measured": 0.0084000394,
+   "error": -0.000169173577,
+   "relativeError": -0.0197420203,
+   "tolerance": {
+    "kind": "relative",
+    "value": 0.03
+   },
+   "pass": true,
+   "note": "The load is on interior nodes only and the deflection stiffens the sheet a little: 2% low.",
+   "source": {
+    "file": "tests/engine/cloth-fabric.test.mjs",
+    "test": "a pretensioned square membrane under a small uniform load: Fourier series of T laplacian(w) = -q; reactions equal the load",
+    "url": "https://github.com/nathansenn/box3d-WEBGPU/blob/main/tests/engine/cloth-fabric.test.mjs"
+   },
+   "text": {
+    "reference": "0.008569213 m",
+    "measured": "0.008400039",
+    "error": "-1.97%",
+    "tolerance": "±3%"
+   }
+  },
+  {
+   "id": "cloth.membrane.reactions",
+   "domain": "cloth",
+   "title": "Pretensioned square membrane: support reactions",
+   "quantity": "sum of the vertical reactions of the held edges",
+   "unit": "N",
+   "formula": "sum R = applied load",
+   "reference": 183.680556,
+   "measured": 183.680654,
+   "error": 0.0000983151876,
+   "relativeError": 5.35250927e-7,
+   "tolerance": {
+    "kind": "relative",
+    "value": 0.000001
+   },
+   "pass": true,
+   "source": {
+    "file": "tests/engine/cloth-fabric.test.mjs",
+    "test": "a pretensioned square membrane under a small uniform load: Fourier series of T laplacian(w) = -q; reactions equal the load",
+    "url": "https://github.com/nathansenn/box3d-WEBGPU/blob/main/tests/engine/cloth-fabric.test.mjs"
+   },
+   "text": {
+    "reference": "183.6806 N",
+    "measured": "183.6807",
+    "error": "+5.35e-7 rel.",
+    "tolerance": "±1e-6 rel."
+   }
+  },
+  {
+   "id": "cloth.fabric.tear-onset",
+   "domain": "cloth",
+   "title": "Tearing: load at which an intact strip starts to tear",
+   "quantity": "end load / (strength x width) at the first torn triangle, 0.6% load steps",
+   "unit": "1",
+   "formula": "T = strength",
+   "reference": 1,
+   "measured": 1.05625,
+   "error": 0.05625,
+   "relativeError": 0.05625,
+   "tolerance": {
+    "kind": "upper",
+    "value": 0.12
+   },
+   "pass": true,
+   "note": "The criterion reads the second Piola-Kirchhoff resultant at 10% strain; the nominal end load is up to 1.1 times it.",
+   "source": {
+    "file": "tests/engine/cloth-fabric.test.mjs",
+    "test": "tearing: an intact strip fails at its strength times its width; a strip with a slit fails below the net-section load",
+    "url": "https://github.com/nathansenn/box3d-WEBGPU/blob/main/tests/engine/cloth-fabric.test.mjs"
+   },
+   "text": {
+    "reference": "1",
+    "measured": "1.05625",
+    "error": "+0.0563",
+    "tolerance": "at most 0.12 above the reference"
    }
   },
   {

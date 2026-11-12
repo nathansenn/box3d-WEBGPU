@@ -23,7 +23,7 @@ import type {GranularMaterial} from './granular.ts';
 
 export const MATERIAL_LIBRARY_ID = 'box3d-materials';
 /** Semver of the data: a changed value is a minor release, a removed material or property a major one. */
-export const MATERIAL_LIBRARY_VERSION = '1.3.0';
+export const MATERIAL_LIBRARY_VERSION = '1.4.0';
 /** The date the sources were opened and read. */
 export const MATERIAL_SOURCES_ACCESSED = '2026-11-12';
 
@@ -92,6 +92,12 @@ export const MATERIAL_SOURCES: Readonly<Record<string, MaterialSource>> = deepFr
     title: 'Product Information Terluran GP-35 (ABS)', url: 'https://static.chipdip.ru/lib/299/DOC015299117.pdf'},
   'dupont-zytel-101l': {id: 'dupont-zytel-101l', kind: 'manufacturer', author: 'DuPont',
     title: 'Zytel 101L NC010 nylon resin (PA66) datasheet', url: 'https://quickparts.com/wp-content/uploads/2023/04/zytel%C2%AE-101l-nc010-gb.pdf'},
+  'ambroziak-2020': {id: 'ambroziak-2020', kind: 'peer-reviewed', author: 'A. Ambroziak',
+    title: 'Characterization study on mechanical properties of polyester coated fabric, Archives of Civil Engineering 66(2) (2020) 105-118, doi:10.24425/ace.2020.131799, Tables 2 and 3',
+    url: 'https://ace.il.pw.edu.pl/pdf-185228-105926?filename=Characterization+Study+on.pdf',
+    note: 'Tests on Precontraint 1302 S2 (PVC-coated polyester, PVDF back): uniaxial and biaxial tensile tests; quotes the manufacturer for weight and thickness.'},
+  'sioen-b6657': {id: 'sioen-b6657', kind: 'manufacturer', author: 'Sioen Industries (Sioline)',
+    title: 'B6657 architectural membrane, Type III PVC-coated polyester: technical data', url: 'https://sioline.com/en/products/b6657'},
   'proplas-ptfe': {id: 'proplas-ptfe', kind: 'manufacturer', author: 'Professional Plastics (distributor)',
     title: 'Typical properties of PTFE', url: 'https://www.professionalplastics.com/professionalplastics/content/downloads/Teflon_PTFE.pdf'},
   'nbs-rp717': {id: 'nbs-rp717', kind: 'government', author: 'N. Bekkedahl, National Bureau of Standards',
@@ -155,6 +161,8 @@ export type MaterialPropertyName =
   | 'density' | 'youngModulus' | 'poissonRatio' | 'shearModulus'
   | 'yieldStrength' | 'tensileStrength' | 'compressiveStrength' | 'flexuralStrength'
   | 'fractureToughness' | 'fractureEnergy' | 'elongationAtBreak'
+  | 'arealDensity' | 'membraneStiffnessWarp' | 'membraneStiffnessWeft' | 'membraneShearStiffness' | 'membranePoissonRatio'
+  | 'tensileStrengthWarp' | 'tensileStrengthWeft' | 'tearStrength'
   | 'thermalConductivity' | 'specificHeat' | 'thermalExpansion'
   | 'viscosity' | 'soundSpeed';
 
@@ -163,6 +171,8 @@ export const MATERIAL_PROPERTY_UNITS: Readonly<Record<MaterialPropertyName, stri
   density: 'kg/m^3', youngModulus: 'Pa', poissonRatio: '1', shearModulus: 'Pa',
   yieldStrength: 'Pa', tensileStrength: 'Pa', compressiveStrength: 'Pa', flexuralStrength: 'Pa',
   fractureToughness: 'Pa m^0.5', fractureEnergy: 'J/m^2', elongationAtBreak: '1',
+  arealDensity: 'kg/m^2', membraneStiffnessWarp: 'N/m', membraneStiffnessWeft: 'N/m', membraneShearStiffness: 'N/m', membranePoissonRatio: '1',
+  tensileStrengthWarp: 'N/m', tensileStrengthWeft: 'N/m', tearStrength: 'N',
   thermalConductivity: 'W/(m K)', specificHeat: 'J/(kg K)', thermalExpansion: '1/K',
   viscosity: 'Pa s', soundSpeed: 'm/s',
 });
@@ -188,7 +198,7 @@ export interface MaterialValue {
   readonly reason?: string;
 }
 
-export type MaterialCategory = 'metal' | 'glass' | 'stone' | 'concrete' | 'wood' | 'polymer' | 'elastomer' | 'ice' | 'fluid' | 'granular';
+export type MaterialCategory = 'metal' | 'glass' | 'stone' | 'concrete' | 'wood' | 'polymer' | 'elastomer' | 'ice' | 'fluid' | 'granular' | 'fabric';
 
 export interface MaterialEntry {
   readonly id: string;
@@ -443,6 +453,24 @@ export const MATERIALS: Readonly<Record<string, MaterialEntry>> = deepFreeze({
       thermalConductivity: v(0.24, 'dupont-zytel-101l', 'thermal conductivity 0.24 W/(m K) (ISO 22007-2)', 'solid'),
       thermalExpansion: v(100e-6, 'dupont-zytel-101l', 'coeff. of linear therm. expansion, parallel 100 E-6/K (normal 110)', 'parallel to flow', {range: [100e-6, 110e-6]})},
     notes: ['No specific heat of the solid in the opened datasheet (only of the melt): heatMaterial needs it as an override.']},
+  'pvc-polyester-fabric': {id: 'pvc-polyester-fabric', name: 'PVC-coated polyester fabric', category: 'fabric', grade: 'architectural membrane, PES HT yarns with PVC coating and PVDF finish (Precontraint 1302 S2 as tested by Ambroziak 2020); warp and weft as stated', isotropic: false,
+    properties: {
+      arealDensity: v(1.35, 'ambroziak-2020', 'total weight 1350 (g/m2) (given by the manufacturer)', 'Precontraint 1302'),
+      density: v(1324, 'ambroziak-2020', 'total thickness 1.02 (mm), total weight 1350 (g/m2) (given by the manufacturer)', 'Precontraint 1302, coated fabric as a whole', {derived: '1.35 kg/m2 / 1.02e-3 m'}),
+      membraneStiffnessWarp: v(1225e3, 'ambroziak-2020', 'Table 3, biaxial 1:1, F1 = 1225±20 kN/m for 0 to 0.015 strain', 'biaxial 1:1 loading, first region (strain up to 1.5%)',
+        {range: [440e3, 1600e3], derived: 'uniaxial regions 600, 800 and 440 kN/m and biaxial 1600 kN/m above 1.5% strain (same table) give the range'}),
+      membraneStiffnessWeft: v(1000e3, 'ambroziak-2020', 'Table 3, biaxial 1:1, F2 = 1000±15 kN/m for 0 to 0.011 strain', 'biaxial 1:1 loading, first region (strain up to 1.1%)',
+        {range: [420e3, 1950e3], derived: 'uniaxial regions 600, 1100 and 420 kN/m and biaxial 1950 kN/m above 1.1% strain give the range'}),
+      membranePoissonRatio: v(0.35, 'ambroziak-2020', 'the Poisson\'s ratio nu12 is specified equal to 0.35', 'assumed in the paper\'s identification, not measured'),
+      membraneShearStiffness: unverified(30e3, 'in-plane shear of the coated weave, small strain',
+        'Not in the opened sources; 30 kN/m is a recalled order of magnitude for PVC-polyester (a few percent of the tensile stiffness). The membrane deflections of the canopy depend on it only weakly.'),
+      tensileStrengthWarp: v(165.5e3, 'ambroziak-2020', 'Table 2, uniaxial, warp 165.5±0.5 kN/m (stress at failure)', 'uniaxial strip test', {uncertainty: 0.5e3, also: ['sioen-b6657'], range: [110e3, 165.5e3],
+        derived: 'the Type III B6657 states 5500 N/5cm (110 kN/m) warp'}),
+      tensileStrengthWeft: v(122e3, 'ambroziak-2020', 'Table 2, uniaxial, weft 122±2 kN/m', 'uniaxial strip test', {uncertainty: 2e3, also: ['sioen-b6657'], range: [100e3, 122e3],
+        derived: 'the Type III B6657 states 5000 N/5cm (100 kN/m) weft'}),
+      tearStrength: v(800, 'sioen-b6657', 'Tear strength, warp/weft (DIN 53363 : 2003): 800 N / 800 N', 'Type III B6657 (1150 g/m2), trapezoid tear')},
+    flags: ['The stiffness is that of the first loading at small strain; coated fabrics stiffen and take a permanent set on cycling, and their response is nonlinear. One linear orthotropic law is a simplification.',
+      'Tear strength is of the Type III B6657, the other values of Precontraint 1302: the entry mixes two fabrics of the same family; the tear value is not used by the solver.']},
   'ptfe': {id: 'ptfe', name: 'PTFE', category: 'polymer', grade: 'unfilled PTFE, 23 °C', isotropic: true,
     properties: {
       density: v(2160, 'proplas-ptfe', '2.16 g/cm3 (ASTM D792)', '23 °C'),
@@ -692,6 +720,22 @@ export function plasticMaterial(id: string, options: SolidMaterialOptions = {}):
   const fy = materialProperty(id, 'yieldStrength', options), fu = materialProperty(id, 'tensileStrength', options), A = materialProperty(id, 'elongationAtBreak', options);
   const Et = Math.max(0, (fu - fy) / (A - fy / E)), H = Et >= E ? 0 : E * Et / (E - Et);
   return {...base, yieldStress: fy, hardeningModulus: H, failureStrain: Math.max(1e-6, A - fu / E)};
+}
+
+/**
+ * The material of a `Cloth` (cloth.ts) for a woven fabric: areal density, the orthotropic membrane (warp along
+ * `warpDirection`) and the tearing strengths along warp and weft, all from the library. `youngModulus` and `thickness`
+ * only set the cloth's contact stiffness and offset here: E t is the mean of the warp and weft stiffnesses, t 1 mm.
+ * The fabric's shear stiffness is unverified in the library, so this needs `allowUnverified` unless `shear` is given.
+ */
+export function fabricMaterial(id: string, options: MaterialOptions & {readonly warpDirection: readonly [number, number, number]; readonly shear?: number; readonly bendingStiffness?: number}) {
+  const warp = materialProperty(id, 'membraneStiffnessWarp', options), weft = materialProperty(id, 'membraneStiffnessWeft', options), t = 1e-3;
+  return {
+    arealDensity: materialProperty(id, 'arealDensity', options), youngModulus: (warp + weft) / 2 / t, thickness: t, poissonRatio: materialProperty(id, 'membranePoissonRatio', options),
+    bending: 'none' as const, ...(options.bendingStiffness !== undefined ? {bending: 'koiter' as const, bendingStiffness: options.bendingStiffness} : {}),
+    orthotropic: {warp, weft, shear: options.shear ?? materialProperty(id, 'membraneShearStiffness', options), poissonRatio: materialProperty(id, 'membranePoissonRatio', options), warpDirection: options.warpDirection},
+    strength: {warp: materialProperty(id, 'tensileStrengthWarp', options), weft: materialProperty(id, 'tensileStrengthWeft', options)},
+  };
 }
 
 /** Plane strain (a thick body: G_c = K^2 (1 - nu^2) / E) or plane stress (a thin sheet: G_c = K^2 / E). */

@@ -1,5 +1,5 @@
 import {
-  FailureSimulation, FIXED_DT, STUDIO_CHECKPOINT_BACKEND, STUDIO_SCALED_CHECKPOINT_BACKEND, STUDIO_CANOPY_CONTACT_BACKEND, STUDIO_PRESS_SI_BACKEND,
+  FailureSimulation, FIXED_DT, STUDIO_CHECKPOINT_BACKEND, STUDIO_SCALED_CHECKPOINT_BACKEND, STUDIO_CANOPY_CONTACT_BACKEND, STUDIO_PRESS_SI_BACKEND, STUDIO_CANOPY_SI_BACKEND,
   type FailureEvent, type Snapshot, type StudioCheckpoint, type StudyId, type StudioBackend,
 } from '../studio/physics.ts';
 import { METALS, PRESS_TOOLS, type PressSettings } from '../studio/press-settings.ts';
@@ -26,16 +26,22 @@ export const STUDIO_PRESS_SI_CAPABILITIES: EngineCapabilities = Object.freeze({
   ...STUDIO_CAPABILITIES, checkpoint: false,
   models: Object.freeze([Object.freeze({id:STUDIO_PRESS_SI_BACKEND,name:'SI press brake: plane-strain J2 tetrahedral solid, rigid punch and die',implementation:'javascript',calibration:'uncalibrated-physical'})]),
 });
+export const STUDIO_CANOPY_SI_CAPABILITIES: EngineCapabilities = Object.freeze({
+  ...STUDIO_CAPABILITIES, checkpoint: false,
+  models: Object.freeze([Object.freeze({id:STUDIO_CANOPY_SI_BACKEND,name:'SI canopy: calibrated cloth, orthotropic fabric, edge cables, tearing',implementation:'javascript',calibration:'uncalibrated-physical'})]),
+});
 export function studioCapabilitiesForBackend(backend:StudioBackend):EngineCapabilities {
+  if(backend===STUDIO_CANOPY_SI_BACKEND)return STUDIO_CANOPY_SI_CAPABILITIES;
   if(backend===STUDIO_CANOPY_CONTACT_BACKEND)return STUDIO_CANOPY_CONTACT_CAPABILITIES;
   if(backend===STUDIO_PRESS_SI_BACKEND)return STUDIO_PRESS_SI_CAPABILITIES;
   return backend===STUDIO_SCALED_CHECKPOINT_BACKEND?STUDIO_SCALED_CAPABILITIES:STUDIO_CAPABILITIES;
 }
 export function resolveStudioBackend(options:StudioCreateOptions):StudioBackend {
   const backend=options.backend??(options.initialCheckpoint===undefined?STUDIO_CHECKPOINT_BACKEND:record(options.initialCheckpoint,'checkpoint').backend);
-  if(backend!==STUDIO_CHECKPOINT_BACKEND&&backend!==STUDIO_SCALED_CHECKPOINT_BACKEND&&backend!==STUDIO_CANOPY_CONTACT_BACKEND&&backend!==STUDIO_PRESS_SI_BACKEND)throw new EngineError('INVALID_PAYLOAD','Unknown Studio numerical backend.');
+  if(backend!==STUDIO_CHECKPOINT_BACKEND&&backend!==STUDIO_SCALED_CHECKPOINT_BACKEND&&backend!==STUDIO_CANOPY_CONTACT_BACKEND&&backend!==STUDIO_PRESS_SI_BACKEND&&backend!==STUDIO_CANOPY_SI_BACKEND)throw new EngineError('INVALID_PAYLOAD','Unknown Studio numerical backend.');
   if(backend===STUDIO_CANOPY_CONTACT_BACKEND&&options.study!=='canopy')throw new EngineError('INVALID_PAYLOAD','Canopy contact backend requires a canopy study.');
   if(backend===STUDIO_PRESS_SI_BACKEND&&options.study!=='plate')throw new EngineError('INVALID_PAYLOAD','SI press backend requires the plate study.');
+  if(backend===STUDIO_CANOPY_SI_BACKEND&&options.study!=='canopy')throw new EngineError('INVALID_PAYLOAD','SI canopy backend requires the canopy study.');
   return backend;
 }
 export const STUDIO_SAMPLE_TICKS = 12;
@@ -86,8 +92,9 @@ export function validateStudioOptions(value: unknown): StudioCreateOptions {
   if (source.study !== 'canopy' && source.study !== 'plate' && source.study !== 'bridge') throw new EngineError('INVALID_PAYLOAD', 'Unknown Studio study.');
   const result: StudioCreateOptions = { study: source.study };
   if(source.backend!==undefined){
-    if(source.backend!==STUDIO_CHECKPOINT_BACKEND&&source.backend!==STUDIO_SCALED_CHECKPOINT_BACKEND&&source.backend!==STUDIO_CANOPY_CONTACT_BACKEND&&source.backend!==STUDIO_PRESS_SI_BACKEND)throw new EngineError('INVALID_PAYLOAD','Unknown Studio numerical backend.');
+    if(source.backend!==STUDIO_CHECKPOINT_BACKEND&&source.backend!==STUDIO_SCALED_CHECKPOINT_BACKEND&&source.backend!==STUDIO_CANOPY_CONTACT_BACKEND&&source.backend!==STUDIO_PRESS_SI_BACKEND&&source.backend!==STUDIO_CANOPY_SI_BACKEND)throw new EngineError('INVALID_PAYLOAD','Unknown Studio numerical backend.');
     if(source.backend===STUDIO_PRESS_SI_BACKEND&&source.study!=='plate')throw new EngineError('INVALID_PAYLOAD','SI press backend requires the plate study.');
+    if(source.backend===STUDIO_CANOPY_SI_BACKEND&&source.study!=='canopy')throw new EngineError('INVALID_PAYLOAD','SI canopy backend requires the canopy study.');
     if(source.backend===STUDIO_CANOPY_CONTACT_BACKEND&&source.study!=='canopy')throw new EngineError('INVALID_PAYLOAD','Canopy contact backend requires a canopy study.');
     result.backend=source.backend;
   }

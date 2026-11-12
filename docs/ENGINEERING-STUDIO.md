@@ -4,7 +4,7 @@ Three live studies implement the selected ImageGen directions:
 
 | Study | Local route | Failure mechanism |
 | --- | --- | --- |
-| Canopy / Precision Studio | `/?studio=canopy` | Pressure and wind strain the membrane; damaged connections tear and unsupported fabric falls. |
+| Canopy / Precision Studio | `/?studio=canopy` | A PVC-coated polyester canopy on four posts with steel edge cables, on the calibrated SI cloth: library fabric, snow on plan in kPa and wind, tearing when a yarn reaches its strength ([`STUDIO_CANOPY.md`](STUDIO_CANOPY.md)). |
 | Plate press / Research Atelier | `/?studio=plate` | An SI press brake: a punch air-bends an S355 or 6061-T6 sheet between two die shoulders on the J2 solid; it yields, springs back and cracks by ductile erosion ([`STUDIO_METAL_PRESS.md`](STUDIO_METAL_PRESS.md)). |
 | Suspension bridge / Field Observatory | `/?studio=bridge` | Cable, hanger, and deck connections rupture under load; unsupported deck sections fall. |
 
@@ -32,7 +32,7 @@ See the [previous preset-pass gallery](design/quality-v3-20260908/review.html), 
 
 ## Model boundary
 
-The metal press runs the SI press brake ([`STUDIO_METAL_PRESS.md`](STUDIO_METAL_PRESS.md)). The other studies are deterministic, reduced position-based particle/constraint models in authored model units. They are not calibrated finite-element analyses or certified engineering predictions. Failure is caused by connection strain and accumulated damage, not by timed mesh visibility changes. The metal study also updates rest lengths to retain plastic set. Broken links stop applying corrections; surface triangles crossing those links are removed. Free nodes keep integrating and collide with the modeled floor or press bed.
+The metal press runs the SI press brake ([`STUDIO_METAL_PRESS.md`](STUDIO_METAL_PRESS.md)) and the canopy the SI cloth ([`STUDIO_CANOPY.md`](STUDIO_CANOPY.md)). The other studies are deterministic, reduced position-based particle/constraint models in authored model units. They are not calibrated finite-element analyses or certified engineering predictions. Failure is caused by connection strain and accumulated damage, not by timed mesh visibility changes. The metal study also updates rest lengths to retain plastic set. Broken links stop applying corrections; surface triangles crossing those links are removed. Free nodes keep integrating and collide with the modeled floor or press bed.
 
 Fixed test fixtures, bridge towers, terrain, and buildings are scenery/support boundaries. They do not themselves fail. Cloth self-collision, detached-fragment self-collision, volume-preserving sheet fracture and hydraulics are not modeled. Water/structure interaction is one-way: bridge pieces that fall into the river channel receive buoyancy (timber floats just below the surface, steel cable sinks), water drag and downstream drift, and rest on the riverbed; their impacts drive the splash, ring, foam and spray visuals. The river does not load the intact structure. The original native Box3D/WASM workbench remains separate; these three studies use the new CPU PBD failure core with the Three.js WebGPU renderer.
 

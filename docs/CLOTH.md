@@ -13,6 +13,7 @@ It is a second cloth model, beside the one the app draws. The app's cloth and ro
 - [Two-way coupling](#two-way-coupling)
 - [Self-collision](#self-collision)
 - [In the stepping loop](#in-the-stepping-loop)
+- [Woven fabric, cables and tearing](#woven-fabric-cables-and-tearing)
 - [Validation](#validation)
 - [Cost](#cost)
 - [Limits](#limits)
@@ -184,8 +185,26 @@ What is guaranteed, and what is not:
 | a bare `Cloth` | `post` | 400 | `commensurate`: the step, a whole fraction of it or a whole multiple |
 
 - **Energy.** Kinetic, membrane, bending, gravitational and contact-spring energy of the cloth; `exchanged` is the work done on it by point forces, pressure, wind, moving supports and bodies. `total − exchanged` only falls (numerical damping, drag, friction): measured largest rise in a 150-step run with an impact, friction, an attachment and self-collision, 0 J. The bodies are not counted: track them with `simulation.trackBody`.
-- **Events**, in the events stage: `contact-begin` and `contact-end` with `{body, index}` when a body starts or stops pressing on the cloth, and `unconverged` with `{residual, tolerance}` when a step stopped at its iteration limit. Tearing is not modelled, so there is no tear event.
+- **Events**, in the events stage: `contact-begin` and `contact-end` with `{body, index}` when a body starts or stops pressing on the cloth, and `unconverged` with `{residual, tolerance}` when a step stopped at its iteration limit. Tearing (below) has no event here; read `tornCount` after a step.
 - A run through the Simulation is bit-identical to `coupling.step(); world.step()`.
+
+## Woven fabric, cables and tearing
+
+Three options make the cloth a tensile-structure model. Tests: `tests/engine/cloth-fabric.test.mjs` (7 tests, about 10 s, in `npm run test:engine`; 7 rows in [`VALIDATION.md`](VALIDATION.md)).
+
+- **Orthotropic membrane** (`material.orthotropic: {warp, weft, shear, poissonRatio, warpDirection}`, N/m): plane-stress Hooke's law in the yarn axes, `S1 = Q11 E1 + Q12 E2`, `S2 = Q12 E1 + Q22 E2`, `S12 = G12 2 E12`, `Q11 = E1 / (1 - nu12 nu21)`, `Q22 = E2 / (1 - nu12 nu21)`, `Q12 = nu12 E2 / (1 - nu12 nu21)`, `nu21 = nu12 E2 / E1`, on the Green strain. The warp direction is projected into each triangle's rest plane and the stiffness turned into its rest axes once, at construction (the usual Q-bar formulas), so the energy, gradient and Newton tangent are the isotropic ones with a 3 x 3 stiffness per triangle. The preconditioner uses an isotropic block of the mean stiffness. `materials.ts` `fabricMaterial(id, {warpDirection})` fills it from the library (docs/MATERIALS.md).
+- **Cables** (`cables: [{nodes, axialStiffness, restLengthFactor}]`): chains of tension-only bars, energy `(EA / 2 L0) <l - L0>^2`, in the same Newton solve; `restLengthFactor` below 1 pretensions them. `cableTensions()` reports them, N.
+- **Tearing** (`material.strength: {warp, weft}`, N/m): after each converged step, a triangle whose second Piola-Kirchhoff stress resultant along the warp or the weft (isotropic: the largest principal value) has reached its strength is torn: it loses its membrane and bending stiffness, its pressure and wind; its nodes keep their mass. `tornCount`, `tornMask`, `yarnStress(t)`, `setStrength()`. A torn triangle stays torn and is saved by `saveState()`.
+
+| Check | Expected | Measured | Tolerance and why |
+|---|---|---|---|
+| Strip 1 m x 0.2 m pulled at 1 kN/m along the warp (1225 kN/m), the weft (1000 kN/m), at 45° (shear 30 kN/m, nu 0.35) | strain `T / E_dir`, `1 / E_45 = (1/E1 + 1/E2 + 1/G - 2 nu12 / E1) / 4` | warp 8.149e-4 against 8.163e-4 (-0.18%), weft 9.981e-4 against 1.000e-3 (-0.19%), bias 8.511e-3 against 8.645e-3 (-1.5%) | 0.2%: Green against engineering strain; bias 2%: the clamped end restrains the shear-extension coupling |
+| Long strip (span 1 m, 6 m long) pinned on its edges, 2 kPa, weft across the span | circular arc, `T = p R = Q22 eps` (plane strain), arc length `S (1 + eps)` | mid-span rise 43.773 mm against 43.996 mm (-0.5%) | 1% |
+| Square membrane 2 m, 0.2% isotropic prestrain (600 kN/m, nu 0.3), 50 Pa | Fourier series of `T (w_xx + w_yy) = -q` | centre 8.400 mm against 8.569 mm (-2.0%); reactions equal the load to 1e-9 | 3%: load on interior nodes only, slight stiffening |
+| Cable with `restLengthFactor` 0.99 between held ends; one with 1.01 | tension `EA (1 / 0.99 - 1)`; zero | to 2e-3; 0 | |
+| Strip 0.2 m wide with strength 120 kN/m, load ramped in 0.6% steps | first tear at the strength | 126.8 kN/m (1.057) | 0.99 to 1.12: the criterion reads the second Piola-Kirchhoff resultant at 10% strain, the load is nominal |
+| Same strip with a slit of half its width | below the net section (60 kN/m); edge-crack estimate `K = sigma sqrt(pi a) 2.82` (Tada) with the tip triangle averaging `K / sqrt(2 pi r)` over its size `h`: 10.6 kN/m | 13.5 kN/m (1.27 times the estimate) | 0.7 to 1.5: an order-of-magnitude estimate; the onset falls as `sqrt(h)` with refinement (mesh-dependent) |
+| A torn orthotropic cloth with cables, checkpoint mid-tear | resumes bit for bit | same bytes | exact |
 
 ## Validation
 
@@ -258,8 +277,8 @@ So: **about 100 nodes in real time at realistic fabric stiffness, a few hundred 
 
 Not modelled:
 
-- **Tearing**, plasticity, damage. Stresses are reported (`triangleStress`); nothing breaks.
-- **Anisotropy.** One isotropic law; no warp, weft or shear locking of a weave, no hysteresis.
+- **Plasticity and damage** before tearing; tear paths finer than the mesh (a tear follows triangle edges and its onset at a crack tip depends on the mesh, see [Woven fabric](#woven-fabric-cables-and-tearing)).
+- **Nonlinear fabric response.** The orthotropic law is linear in the Green strain: no crimp interchange, shear locking of the weave or hysteresis; cables do not fail.
 - **Large-strain accuracy.** St. Venant–Kirchhoff is validated to strains of 2·10⁻³ here. It softens in strong compression; the solver stays stable there (the Hessian is kept positive), the material law is not meaningful.
 - **Bending on irregular meshes**, as measured above.
 - **Material damping.** Only mass-proportional drag and the integrator's own damping.
@@ -267,4 +286,4 @@ Not modelled:
 - **Intersection-free self-collision**, as stated above.
 - **Aerodynamics.** Wind and pressure are formulas for a normal force.
 - **Checkpoints.** The cloth's state is its positions and velocities, but friction anchors and the coupling's estimates are not saved, and the cloth is not in the scene format.
-- **Speed**, as measured above. The Lab and the Studio do not use this model.
+- **Speed**, as measured above. The Studio's canopy study uses this model ([`STUDIO_CANOPY.md`](STUDIO_CANOPY.md)); the Lab's own cloth does not.
