@@ -406,6 +406,8 @@ let siBridgePanel: SiBridgePanel | null = null;
 // A coupled scene (water, cables, frames, cloths, grains, solids, heat) is stepped through its Simulation and drawn through this view.
 let coupledView: CoupledSceneView | null = null;
 let coupledPanel: CoupledPanel | null = null;
+/** The editor's lines over a coupled scene's own, rebuilt when either changes. */
+let mergedOverlay: { editor: number; coupled: number; lines: readonly DebugLine[]; version: number } = { editor: -1, coupled: -1, lines: [], version: 0 };
 function clearCoupledView(): void {
   if (!coupledView) return;
   coupledPanel?.attach(null);
@@ -1010,7 +1012,7 @@ function frameCameraForWorkspace(workspace: EngineeringWorkspaceId = engineering
   }
   if (siDemo && labScene) {
     const frame = sceneCameraFrame(labScene.read.scene);
-    camera = cloneRig({ yaw: 0.72, pitch: 0.3, distance: frame.distance, target: frame.target });
+    camera = cloneRig({ yaw: frame.yaw ?? 0.72, pitch: frame.pitch ?? 0.3, distance: frame.distance, target: frame.target });
     return;
   }
   camera = cloneRig(currentScene.camera);
@@ -1696,6 +1698,7 @@ function labSceneState(): Record<string, unknown> {
     energy: coupledView ? labScene!.loaded.simulation.energy().entries.map(entry => ({ id: entry.id, total: entry.total, balance: entry.balance })) : null,
     events: coupledView ? coupledView.eventTotal() : 0,
     solidView: coupledView?.hasSolids ? coupledView.solidView() : null,
+    fluidView: coupledView?.hasFluids ? coupledView.fluidView() : null,
   };
 }
 
@@ -4664,6 +4667,8 @@ async function main(): Promise<void> {
     coupledReadout: () => coupledView?.readout() ?? null,
     /** Solids: colour by 'stress', 'temperature' or 'damage' and draw displacements times `scale`; returns the view, or null without a coupled scene. */
     setSolidView: (options: { field?: 'stress' | 'temperature' | 'damage'; scale?: number }) => coupledView ? coupledView.setSolidView(options) : null,
+    /** Fluids: colour by 'speed' or 'pressure'; returns the field, or null without a coupled scene. */
+    setFluidView: (options: { field?: 'speed' | 'pressure' }) => coupledView ? coupledView.setFluidView(options) : null,
     /** The scene editor, for the console and for tests: its state, where a body is on the page, the recorded CSV, the last copied link. */
     editorState: () => sceneEditor?.state() ?? null,
     editorScreenPosition: (id: string) => sceneEditor?.screenPosition(id) ?? null,
@@ -4769,8 +4774,13 @@ async function main(): Promise<void> {
     const coupled = siDemo && labScene ? coupledView : null;
     coupled?.sync();
     coupledPanel?.refresh(now);
-    const overlayLines = sceneEditor?.active ? editorLines : coupled ? coupled.overlayLines : engineeringInspectionLines;
-    const overlayVersion = sceneEditor?.active ? (editorLinesVersion ^ 0x5ce4e) >>> 0 : coupled ? (coupled.overlayVersion ^ 0xc0b1ed) >>> 0 : engineeringInspectionVersion;
+    // While the editor is open on a coupled scene, its lines are drawn over the scene's own (water grid, fluid boxes and arrows).
+    const editingCoupled = sceneEditor?.active && coupled && coupled.overlayLines.length > 0;
+    if (editingCoupled && (mergedOverlay.editor !== editorLinesVersion || mergedOverlay.coupled !== coupled.overlayVersion)) {
+      mergedOverlay = { editor: editorLinesVersion, coupled: coupled.overlayVersion, lines: [...coupled.overlayLines, ...editorLines], version: (mergedOverlay.version + 1) >>> 0 };
+    }
+    const overlayLines = editingCoupled ? mergedOverlay.lines : sceneEditor?.active ? editorLines : coupled ? coupled.overlayLines : engineeringInspectionLines;
+    const overlayVersion = editingCoupled ? (mergedOverlay.version ^ 0x3e7ed) >>> 0 : sceneEditor?.active ? (editorLinesVersion ^ 0x5ce4e) >>> 0 : coupled ? (coupled.overlayVersion ^ 0xc0b1ed) >>> 0 : engineeringInspectionVersion;
     const softFrame = soft.buildFrame(debugEnabled);
     // Engineering soft-body workspaces use an isolated specimen cell. The
     // backend's combinatorial rigid recipe still advances for deterministic

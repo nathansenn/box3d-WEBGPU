@@ -19,6 +19,12 @@
  *     Displacements can be drawn magnified (`setSolidView`), as a structural viewer does.
  *   - The water surface also gets a wire grid in the renderer's line stream (the one the scene
  *     editor draws its frames with): seen from above, the translucent surface alone is faint.
+ *   - Fluids: a flow is a slice through the middle of its box across z (the x-y plane), drawn as
+ *     FLUID_BANDS mesh rows, one per colour band of the speed or of the pressure less its hydrostatic
+ *     part (picked in the panel), with the cells inside a body left out; short velocity arrows on a
+ *     coarse sub-grid of the slice and the edges of the box are lines of the line stream. A
+ *     free-surface tank is one sphere row per particle, coloured continuously on the same ramp, and
+ *     the edges of its tank as lines.
  *
  * `CoupledSceneView` is an `InstanceBufferSource`: it holds a copy of the world's rows followed
  * by its own, so the renderer's shape plan (boxes, spheres, capsules, own geometry) covers both.
@@ -29,8 +35,8 @@
  * (tests/physics/lab-coupled-scenes.test.mjs).
  */
 import type { NativeBodyHandle } from '../engine/native-world.ts';
-import type { Scene, SceneGrainWall, SceneHeat, SceneSolid } from '../engine/scene-format.ts';
-import type { SceneSolidRuntime, SimulationEnergy, SimulationEvent } from '../engine/simulation.ts';
+import type { Scene, SceneFluid, SceneGrainWall, SceneHeat, SceneSolid } from '../engine/scene-format.ts';
+import type { SceneFluidRuntime, SceneSolidRuntime, SimulationEnergy, SimulationEvent } from '../engine/simulation.ts';
 import { FractureBody } from '../engine/solid-fracture.ts';
 import { vonMisesStress } from '../engine/solid.ts';
 import type { DebugLine, GpuSegmentGridFrame, InstanceBufferSource, InstanceGeometry } from '../types';
@@ -48,7 +54,7 @@ const ROUND = 32;
 /** Does this scene need the coupled view: has it a section that is not rigid bodies and joints? */
 export function sceneIsCoupled(scene: Scene): boolean {
   return (scene.water?.length ?? 0) + (scene.cables?.length ?? 0) + (scene.frames?.length ?? 0) + (scene.cloths?.length ?? 0) + (scene.grains?.length ?? 0) +
-    (scene.solids?.length ?? 0) + (scene.heat?.length ?? 0) > 0;
+    (scene.solids?.length ?? 0) + (scene.heat?.length ?? 0) + (scene.fluids?.length ?? 0) > 0;
 }
 
 // ---------------------------------------------------------------------------
@@ -74,7 +80,8 @@ class Fnv {
  * transform, then the float64 arrays of each basin (eta, u, v), cable (node positions and velocities), frame
  * (displacements and velocities), cloth (node positions and velocities), grain set (positions, velocities,
  * spins, and which grains are left), solid (displacements and velocities of its current nodes, so a crack that
- * splits nodes changes it) and heat grid (cell temperatures), in file order. Two runs with equal hashes after the same number of steps
+ * splits nodes changes it), heat grid (cell temperatures) and fluid (a flow's face velocities and pressures, a tank's
+ * particles), in file order. Two runs with equal hashes after the same number of steps
  * took the same steps. For a rigid-only scene it covers the transforms only.
  */
 export function coupledStateHash(loaded: LabLoadedScene): string {
@@ -90,6 +97,11 @@ export function coupledStateHash(loaded: LabLoadedScene): string {
   }
   for (const solid of scene.solids ?? []) { const body = loaded.solids.get(solid.id)!.body; h.word(body.nodeCount); h.bytes(body.displacements); h.bytes(body.velocities); }
   for (const heat of scene.heat ?? []) h.bytes(loaded.heat.get(heat.id)!.temperature);
+  for (const fluid of scene.fluids ?? []) {
+    const runtime = loaded.fluids.get(fluid.id)!;
+    if (runtime.kind === 'flow') { const f = runtime.flow; h.bytes(f.u); h.bytes(f.v); h.bytes(f.w); h.bytes(f.p); }
+    else { const t = runtime.surface, n = t.count; h.word(n); h.bytes(t.positions.subarray(0, 3 * n)); h.bytes(t.velocities.subarray(0, 3 * n)); h.bytes(t.affine.subarray(0, 9 * n)); }
+  }
   return h.digest();
 }
 
@@ -358,6 +370,104 @@ function writeSolid(draw: SolidDraw, field: SolidField, scale: number): void {
 }
 
 // ---------------------------------------------------------------------------
+// Fluids: a slice of a flow in colour bands, arrows, particles of a tank
+// ---------------------------------------------------------------------------
+
+/** What a fluid can be coloured by: the speed, or the pressure (less its hydrostatic part for a flow). */
+export type FluidField = 'speed' | 'pressure';
+export const FLUID_FIELDS: readonly FluidField[] = Object.freeze(['speed', 'pressure']);
+/** Colour bands of a flow's slice: one mesh row each. */
+export const FLUID_BANDS = 10;
+/** Arrows along the longer side of a slice, at most. */
+export const FLUID_ARROWS = 12;
+
+/** The slice of a flow: the x-y plane through the middle of the box, one quad per cell. */
+export interface FlowSlice { readonly nx: number; readonly ny: number; readonly z: number; readonly x0: number; readonly y0: number; readonly h: number; readonly stride: number }
+export function flowSlice(fluid: { readonly nx: number; readonly ny: number; readonly nz: number; readonly h: number; readonly origin: readonly number[] }): FlowSlice {
+  return { nx: fluid.nx, ny: fluid.ny, z: fluid.origin[2]! + fluid.nz * fluid.h / 2, x0: fluid.origin[0]!, y0: fluid.origin[1]!, h: fluid.h, stride: Math.max(1, Math.ceil(Math.max(fluid.nx, fluid.ny) / FLUID_ARROWS)) };
+}
+
+/**
+ * The value of a flow's field at each cell of its slice (NaN inside a body), and its range. Speed in m/s; pressure in Pa
+ * less rho g . x, so that a fluid at rest is one colour.
+ */
+export function sliceValues(flow: SceneFluidFlow, slice: FlowSlice, field: FluidField, out: Float64Array): { min: number; max: number } {
+  const v = [0, 0, 0], g = flow.gravity, rho = flow.density;
+  let min = Infinity, max = -Infinity;
+  for (let j = 0; j < slice.ny; j++) for (let i = 0; i < slice.nx; i++) {
+    const x = slice.x0 + (i + 0.5) * slice.h, y = slice.y0 + (j + 0.5) * slice.h, k = i + slice.nx * j;
+    if (flow.obstacleDistance(x, y, slice.z) < 0) { out[k] = NaN; continue; }
+    let value: number;
+    if (field === 'speed') { flow.velocityAt(x, y, slice.z, v); value = Math.hypot(v[0]!, v[1]!, v[2]!); }
+    else value = flow.pressureAt(x, y, slice.z) - rho * (g[0]! * x + g[1]! * y + g[2]! * slice.z);
+    out[k] = value;
+    if (value < min) min = value; if (value > max) max = value;
+  }
+  if (!(max >= min)) return { min: 0, max: 1 };
+  if (field === 'speed') min = 0;
+  if (!(max > min)) max = min + (field === 'speed' ? 1e-6 : 1e-3);
+  return { min, max };
+}
+
+/** The part of a Fluid the drawing reads. */
+interface SceneFluidFlow {
+  readonly nx: number; readonly ny: number; readonly nz: number; readonly h: number; readonly origin: readonly number[]; readonly density: number; readonly gravity: ArrayLike<number>;
+  velocityAt(x: number, y: number, z: number, out: number[]): unknown;
+  pressureAt(x: number, y: number, z: number): number;
+  obstacleDistance(x: number, y: number, z: number): number;
+}
+
+/** The band of a value in [lo, hi]: 0 to FLUID_BANDS - 1 (NaN: -1, not drawn). */
+export function fluidBand(value: number, lo: number, hi: number): number {
+  if (!Number.isFinite(value)) return -1;
+  return Math.max(0, Math.min(FLUID_BANDS - 1, Math.floor((value - lo) / (hi - lo) * FLUID_BANDS)));
+}
+
+interface FluidDraw {
+  readonly id: string;
+  readonly runtime: SceneFluidRuntime<NativeBodyHandle>;
+  readonly description: SceneFluid;
+  /** Flow: the band rows, their buffers, the slice and its values. */
+  readonly rows: MeshRow[];
+  readonly bands: Float32Array[];
+  readonly slice: FlowSlice | null;
+  readonly values: Float64Array;
+  range: [number, number];
+}
+
+/** What the panel shows about each fluid. */
+export interface FluidViewInfo {
+  readonly id: string; readonly kind: 'flow' | 'free-surface'; readonly field: FluidField; readonly unit: string; readonly min: number; readonly max: number;
+  readonly cells: number; readonly particles: number; readonly courant: number; readonly iterations: number; readonly steps: number;
+  /** Coupled bodies of a flow: speed (m/s) and the force of the fluid on it (N, buoyancy included). */
+  readonly bodies: readonly { readonly id: string; readonly speed: number; readonly force: readonly [number, number, number] }[];
+}
+
+/** Write the slice of a flow into its colour bands: two triangles per cell, on both sides. */
+function writeFlowSlice(draw: FluidDraw, field: FluidField): void {
+  const flow = (draw.runtime as { readonly flow: SceneFluidFlow }).flow, slice = draw.slice!, values = draw.values;
+  const { min, max } = sliceValues(flow, slice, field, values);
+  draw.range = [min, max];
+  const counts = new Int32Array(FLUID_BANDS);
+  for (let k = 0; k < slice.nx * slice.ny; k++) { const band = fluidBand(values[k]!, min, max); if (band >= 0) counts[band]!++; }
+  // 4 triangles (two per side) of 3 vertices of 6 floats per cell.
+  for (let b = 0; b < FLUID_BANDS; b++) if (draw.bands[b]!.length < counts[b]! * 72) draw.bands[b] = new Float32Array(Math.ceil(counts[b]! * 1.25 + 8) * 72);
+  const at = new Int32Array(FLUID_BANDS), z = slice.z;
+  for (let j = 0; j < slice.ny; j++) for (let i = 0; i < slice.nx; i++) {
+    const band = fluidBand(values[i + slice.nx * j]!, min, max);
+    if (band < 0) continue;
+    const out = draw.bands[band]!, x0 = slice.x0 + i * slice.h, x1 = x0 + slice.h, y0 = slice.y0 + j * slice.h, y1 = y0 + slice.h;
+    let o = at[band]!;
+    const put = (x: number, y: number, n: number): void => { out[o++] = x; out[o++] = y; out[o++] = z; out[o++] = 0; out[o++] = 0; out[o++] = n; };
+    // Front (+z), counter-clockwise seen from +z; back (-z), the reverse.
+    put(x0, y0, 1); put(x1, y0, 1); put(x1, y1, 1); put(x0, y0, 1); put(x1, y1, 1); put(x0, y1, 1);
+    put(x0, y0, -1); put(x1, y1, -1); put(x1, y0, -1); put(x0, y0, -1); put(x0, y1, -1); put(x1, y1, -1);
+    at[band] = o;
+  }
+  for (let b = 0; b < FLUID_BANDS; b++) draw.rows[b]!.geometry = { vertices: draw.bands[b]!, vertexCount: at[b]! / 6 };
+}
+
+// ---------------------------------------------------------------------------
 // The view
 // ---------------------------------------------------------------------------
 
@@ -432,6 +542,12 @@ export class CoupledSceneView implements InstanceBufferSource {
   private field: SolidField = 'stress';
   private scale = 1;
   private solidDirty = true;
+  private readonly fluidDraws: FluidDraw[] = [];
+  private readonly tanks: { readonly id: string; readonly radius: number; readonly count: number; readonly runtime: { readonly surface: import('../engine/fluid.ts').FreeSurfaceFluid }; range: [number, number] }[] = [];
+  private particleRows = 0;
+  private fluidField: FluidField = 'speed';
+  private fluidDirty = true;
+  private arrowCount = 0;
 
   constructor(loaded: LabLoadedScene, base: InstanceBufferSource) {
     this.loaded = loaded;
@@ -468,6 +584,24 @@ export class CoupledSceneView implements InstanceBufferSource {
         perCell: box?.pattern === 'kuhn6' ? 6 : 5, temperatureRange: heat ? heatRange(heat) : null, range: [0, 1], peak: NaN, triangles: 0, crackFaces: 0,
       });
       this.meshRows.push(...rows);
+    }
+    for (const description of scene.fluids ?? []) {
+      const runtime = loaded.fluids.get(description.id)!;
+      if (runtime.kind === 'flow') {
+        const rows: MeshRow[] = [], bands: Float32Array[] = [], slice = flowSlice(runtime.flow);
+        for (let k = 0; k < FLUID_BANDS; k++) {
+          bands.push(new Float32Array(72));
+          rows.push({ geometry: { vertices: bands[k]!, vertexCount: 0 }, color: rampColor((k + 0.5) / FLUID_BANDS), alpha: OPAQUE, update: null });
+        }
+        this.fluidDraws.push({ id: description.id, runtime, description, rows, bands, slice, values: new Float64Array(slice.nx * slice.ny), range: [0, 1] });
+        this.meshRows.push(...rows);
+      } else {
+        const tank = runtime.surface;
+        this.fluidDraws.push({ id: description.id, runtime, description, rows: [], bands: [], slice: null, values: new Float64Array(0), range: [0, 1] });
+        // A particle is drawn a little larger than its share of a cell, so the liquid reads as a body.
+        this.tanks.push({ id: description.id, radius: 0.6 * tank.h / tank.perAxis, count: tank.count, runtime, range: [0, 1] });
+        this.particleRows += tank.count;
+      }
     }
     let planes = 0;
     (scene.grains ?? []).forEach((set, index) => {
@@ -546,17 +680,49 @@ export class CoupledSceneView implements InstanceBufferSource {
     this.stepCount++;
   }
 
-  /** Rows to draw: the world's bodies, then the mesh rows, the wall rows and one row per grain. */
+  /** Rows to draw: the world's bodies, then the mesh rows, the wall rows, one row per grain and one per particle of a tank. */
   get rowCount(): number { return this.bodyRows + this.extraRows; }
-  private get extraRows(): number { return this.meshRows.length + this.shapeRows.length + this.grainRows; }
+  private get extraRows(): number { return this.meshRows.length + this.shapeRows.length + this.grainRows + this.particleRows; }
   /** What is drawn besides the bodies, for `box3dLab.sceneState()` and the tests. */
-  drawInfo(): { meshRows: number; meshVertices: number; wallRows: number; grainRows: number; liveGrains: number; lineNodes: number; lineSegments: number; solidRows: number; solidTriangles: number; crackFaces: number } {
+  drawInfo(): { meshRows: number; meshVertices: number; wallRows: number; grainRows: number; liveGrains: number; lineNodes: number; lineSegments: number; solidRows: number; solidTriangles: number; crackFaces: number; fluidRows: number; particleRows: number; arrows: number } {
     let meshVertices = 0, liveGrains = 0, solidTriangles = 0, crackFaces = 0;
     for (const row of this.meshRows) meshVertices += row.geometry.vertexCount;
     for (const set of this.grainSets) for (let i = 0; i < set.count; i++) liveGrains += set.alive[i]!;
     for (const draw of this.solidDraws) { solidTriangles += draw.triangles; crackFaces += draw.crackFaces; }
     return { meshRows: this.meshRows.length, meshVertices, wallRows: this.shapeRows.length, grainRows: this.grainRows, liveGrains, lineNodes: this.ropeGrid?.nodeCount ?? 0, lineSegments: this.ropeGrid?.segmentCount ?? 0,
-      solidRows: this.solidDraws.length * SOLID_BANDS, solidTriangles, crackFaces };
+      solidRows: this.solidDraws.length * SOLID_BANDS, solidTriangles, crackFaces, fluidRows: this.fluidDraws.filter(draw => draw.slice).length * FLUID_BANDS, particleRows: this.particleRows, arrows: this.arrowCount };
+  }
+
+  /** Colour the fluids by `field`. Returns the field as set. */
+  setFluidView(options: { readonly field?: FluidField }): { field: FluidField } {
+    if (options.field !== undefined) { if (!FLUID_FIELDS.includes(options.field)) throw new RangeError(`Unknown fluid field ${String(options.field)}.`); this.fluidField = options.field; }
+    this.fluidDirty = true; this.syncedKey = '';
+    return { field: this.fluidField };
+  }
+  /** Has the scene fluids to colour? */
+  get hasFluids(): boolean { return this.fluidDraws.length > 0; }
+  /** The field and, per fluid, the range of the colour ramp as last drawn, the solver's Courant number and iterations, and the coupled bodies. */
+  fluidView(): { field: FluidField; fluids: FluidViewInfo[] } {
+    const unit = this.fluidField === 'speed' ? 'm/s' : 'Pa';
+    return {
+      field: this.fluidField, fluids: this.fluidDraws.map((draw): FluidViewInfo => {
+        const runtime = draw.runtime;
+        if (runtime.kind === 'free-surface') {
+          const t = runtime.surface, range = this.tanks.find(tank => tank.id === draw.id)!.range;
+          return { id: draw.id, kind: 'free-surface', field: this.fluidField, unit, min: range[0], max: range[1], cells: t.nx * t.ny * t.nz, particles: t.count, courant: t.stats.cfl, iterations: t.stats.pressureIterations, steps: t.stats.steps, bodies: [] };
+        }
+        const f = runtime.flow, bodies: { id: string; speed: number; force: [number, number, number] }[] = [];
+        for (const entry of draw.description.bodies ?? []) {
+          const handle = this.loaded.bodies.get(entry.body);
+          if (!handle || !runtime.coupling) continue;
+          let speed = NaN;
+          try { const v = this.loaded.builder.world.getState(handle).linearVelocity; speed = Math.hypot(v[0], v[1], v[2]); } catch { /* removed */ }
+          const force = runtime.coupling.force(handle);
+          bodies.push({ id: entry.body, speed, force: [force[0]!, force[1]!, force[2]!] });
+        }
+        return { id: draw.id, kind: 'flow', field: this.fluidField, unit, min: draw.range[0], max: draw.range[1], cells: f.cells, particles: 0, courant: f.stats.cfl, iterations: f.stats.pressureIterations, steps: f.stats.steps, bodies };
+      }),
+    };
   }
 
   /** Colour the solids by `field` and draw their displacements times `scale` (1: as they are). Returns the view as set. */
@@ -602,6 +768,8 @@ export class CoupledSceneView implements InstanceBufferSource {
     let row = bodies;
     const color = (at: number, rgb: readonly number[], alpha: number): void => { heap[colorStart + 4 * at] = rgb[0]!; heap[colorStart + 4 * at + 1] = rgb[1]!; heap[colorStart + 4 * at + 2] = rgb[2]!; heap[colorStart + 4 * at + 3] = alpha; };
     if (moved || this.solidDirty) { for (const draw of this.solidDraws) writeSolid(draw, this.field, this.scale); this.solidDirty = false; }
+    const fluidsChanged = moved || this.fluidDirty;
+    if (fluidsChanged) { for (const draw of this.fluidDraws) if (draw.slice) writeFlowSlice(draw, this.fluidField); }
     for (const mesh of this.meshRows) {
       if (mesh.update && (moved || mesh.geometry.vertexCount === 0)) mesh.update();
       heap.set(mesh.geometry.vertexCount > 0 ? IDENTITY : COLLAPSED, 16 * row); color(row, mesh.color, mesh.alpha); this.kinds[row++] = KIND_MESH;
@@ -617,20 +785,51 @@ export class CoupledSceneView implements InstanceBufferSource {
         color(row, set.color, OPAQUE); this.kinds[row] = KIND_SPHERE;
       }
     }
+    for (const tank of this.tanks) row = this.writeTank(tank, row, fluidsChanged);
     if (this.ropeGrid) { for (const write of this.lines) write(); this.ropeGrid.frameVersion = (this.ropeGrid.frameVersion + 1) >>> 0; }
-    if (moved && this.waterGrids.length > 0) this.buildWaterLines();
+    if ((moved && this.waterGrids.length > 0) || (fluidsChanged && this.fluidDraws.length > 0)) this.buildOverlay();
+    this.fluidDirty = false;
     this.frames = (this.frames + 1) >>> 0;
     this.colors = (this.colors + 1) >>> 0;
     this.shapes = (this.shapes + 1) >>> 0;
     return true;
   }
 
-  private buildWaterLines(): void {
+  /** The particles of a tank as sphere rows from `row`, coloured on the ramp by speed or by the pressure of their cell. Returns the next row. */
+  private writeTank(tank: CoupledSceneView['tanks'][number], row: number, recolour: boolean): number {
+    const t = tank.runtime.surface, X = t.positions, V = t.velocities, heap = this.heap, colorStart = this.capacity * 16, r = tank.radius;
+    const pressure = this.fluidField === 'pressure';
+    const valueOf = (p: number): number => {
+      if (!pressure) return Math.hypot(V[3 * p]!, V[3 * p + 1]!, V[3 * p + 2]!);
+      const i = Math.min(t.nx - 1, Math.max(0, Math.floor((X[3 * p]! - t.origin[0]) / t.h))), j = Math.min(t.ny - 1, Math.max(0, Math.floor((X[3 * p + 1]! - t.origin[1]) / t.h))), k = Math.min(t.nz - 1, Math.max(0, Math.floor((X[3 * p + 2]! - t.origin[2]) / t.h)));
+      return t.p[i + t.nx * (j + t.ny * k)]!;
+    };
+    if (recolour) {
+      let lo = Infinity, hi = -Infinity;
+      for (let p = 0; p < tank.count; p++) { const v = valueOf(p); if (v < lo) lo = v; if (v > hi) hi = v; }
+      if (!pressure) lo = 0;
+      if (!(hi > lo)) hi = lo + (pressure ? 1e-3 : 1e-6);
+      tank.range = [lo, hi];
+    }
+    const [lo, hi] = tank.range;
+    for (let p = 0; p < tank.count; p++, row++) {
+      const m = 16 * row;
+      heap.fill(0, m, m + 16);
+      heap[m] = r; heap[m + 5] = r; heap[m + 10] = r; heap[m + 12] = X[3 * p]!; heap[m + 13] = X[3 * p + 1]!; heap[m + 14] = X[3 * p + 2]!; heap[m + 15] = 1;
+      const c = rampColor((valueOf(p) - lo) / (hi - lo));
+      heap[colorStart + 4 * row] = c[0]; heap[colorStart + 4 * row + 1] = c[1]; heap[colorStart + 4 * row + 2] = c[2]; heap[colorStart + 4 * row + 3] = OPAQUE;
+      this.kinds[row] = KIND_SPHERE;
+    }
+    return row;
+  }
+
+  /** The line stream: a wire grid on every water surface; the edges of every fluid box and the arrows of every flow's slice. */
+  private buildOverlay(): void {
     const lines = this.overlayLines;
     let n = 0;
-    const line = (ax: number, ay: number, az: number, bx: number, by: number, bz: number): void => {
-      const l = lines[n] ?? (lines[n] = { ax: 0, ay: 0, az: 0, bx: 0, by: 0, bz: 0, r: 0.55, g: 0.82, b: 1, a: 0.55 });
-      l.ax = ax; l.ay = ay; l.az = az; l.bx = bx; l.by = by; l.bz = bz; n++;
+    const line = (ax: number, ay: number, az: number, bx: number, by: number, bz: number, r = 0.55, g = 0.82, b = 1, a = 0.55): void => {
+      const l = lines[n] ?? (lines[n] = { ax: 0, ay: 0, az: 0, bx: 0, by: 0, bz: 0, r, g, b, a });
+      l.ax = ax; l.ay = ay; l.az = az; l.bx = bx; l.by = by; l.bz = bz; l.r = r; l.g = g; l.b = b; l.a = a; n++;
     };
     for (const g of this.waterGrids) {
       const h = (i: number, j: number): number => g.heights[i + (g.nx + 1) * j]! + 0.004;
@@ -639,6 +838,50 @@ export class CoupledSceneView implements InstanceBufferSource {
       for (let j = 0; j <= g.nz; j += sj) for (let i = 0; i < g.nx; i++) line(g.x(i), h(i, j), g.z(j), g.x(i + 1), h(i + 1, j), g.z(j));
       for (let i = 0; i <= g.nx; i += si) for (let j = 0; j < g.nz; j++) line(g.x(i), h(i, j), g.z(j), g.x(i), h(i, j + 1), g.z(j + 1));
     }
+    let arrows = 0;
+    const v = [0, 0, 0];
+    for (const draw of this.fluidDraws) {
+      const d = draw.description, h = d.spacing, o = d.origin ?? [0, 0, 0], e = [d.cells[0] * h, d.cells[1] * h, d.cells[2] * h];
+      // The twelve edges of the box.
+      for (let a = 0; a < 3; a++) {
+        const b = (a + 1) % 3, c = (a + 2) % 3;
+        for (const sb of [0, 1]) for (const sc of [0, 1]) {
+          const p = [0, 0, 0], q = [0, 0, 0];
+          p[a] = o[a]!; q[a] = o[a]! + e[a]!; p[b] = q[b] = o[b]! + sb * e[b]!; p[c] = q[c] = o[c]! + sc * e[c]!;
+          line(p[0]!, p[1]!, p[2]!, q[0]!, q[1]!, q[2]!, 0.72, 0.80, 0.88, 0.7);
+        }
+      }
+      const slice = draw.slice;
+      if (!slice || draw.runtime.kind !== 'flow') continue;
+      const flow = draw.runtime.flow, s = slice.stride, span = 0.9 * s * slice.h;
+      // Arrows in front of and behind the slice, scaled to the fastest one shown.
+      let top = 0;
+      const samples: number[] = [];
+      for (let j = Math.floor(s / 2); j < slice.ny; j += s) for (let i = Math.floor(s / 2); i < slice.nx; i += s) {
+        const x = slice.x0 + (i + 0.5) * slice.h, y = slice.y0 + (j + 0.5) * slice.h;
+        if (flow.obstacleDistance(x, y, slice.z) < 0.5 * slice.h) continue;
+        flow.velocityAt(x, y, slice.z, v);
+        const speed = Math.hypot(v[0]!, v[1]!);
+        if (speed > top) top = speed;
+        samples.push(x, y, v[0]!, v[1]!);
+      }
+      if (!(top > 0)) continue;
+      for (const side of [1, -1]) {
+        const z = slice.z + side * Math.min(0.3 * slice.h, 0.25 * e[2]!);
+        for (let k = 0; k < samples.length; k += 4) {
+          const x = samples[k]!, y = samples[k + 1]!, ux = samples[k + 2]!, uy = samples[k + 3]!, length = Math.hypot(ux, uy) / top * span;
+          if (length < 0.08 * span) continue;
+          const dx = ux / Math.hypot(ux, uy), dy = uy / Math.hypot(ux, uy), tx = x + 0.5 * length * dx, ty = y + 0.5 * length * dy, bx = x - 0.5 * length * dx, by = y - 0.5 * length * dy, head = 0.35 * length;
+          line(bx, by, z, tx, ty, z, 0.97, 0.98, 1, 0.95);
+          // Two barbs at 25 degrees either side of the shaft.
+          const c = 0.9063, sn = 0.4226;
+          line(tx, ty, z, tx - head * (c * dx - sn * dy), ty - head * (sn * dx + c * dy), z, 0.97, 0.98, 1, 0.95);
+          line(tx, ty, z, tx - head * (c * dx + sn * dy), ty - head * (-sn * dx + c * dy), z, 0.97, 0.98, 1, 0.95);
+          if (side === 1) arrows++;
+        }
+      }
+    }
+    this.arrowCount = arrows;
     lines.length = n;
     this.overlayVersion = (this.overlayVersion + 1) >>> 0;
   }

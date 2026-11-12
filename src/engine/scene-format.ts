@@ -11,7 +11,8 @@
  * A scene may also carry optional coupled sections: `water` basins with the
  * bodies that float in them, `cables` and `frames` with their attachments,
  * `cloths` and `grains` with the bodies they touch, `solids` (with their
- * contacts, welds, loads and fracture) and `heat` grids in them.
+ * contacts, welds, loads and fracture), `heat` grids in them, and `fluids`
+ * (flows with bodies as obstacles, and free-surface tanks).
  * This module validates, normalises, hashes and links them; BUILDING them is
  * the job of simulation.ts (`loadSimulationScene`, the kit's `loadScene`),
  * which returns one Simulation that steps everything in the right order.
@@ -106,6 +107,12 @@ export const SCENE_LIMITS = Object.freeze({
   /** Heat grids in one scene (one per solid), and heat steps in one world step. */
   heat: 8,
   heatSubsteps: 256,
+  /** Fluids in one scene, cells in one fluid, particles in one free-surface tank, fluid steps in one world step, liquid boxes of one tank. */
+  fluids: 4,
+  fluidCells: 262144,
+  fluidParticles: 262144,
+  fluidSubsteps: 64,
+  fluidLiquid: 16,
   /** Regions (supports, welds, loads, notches, interfaces) of one solid, and saved interfaces of one solid. */
   solidRegions: 64,
   solidCracks: 60000,
@@ -666,6 +673,78 @@ export interface SceneHeat {
   readonly boundaries?: readonly SceneHeatBoundary[];
 }
 
+/** A side of a fluid box (docs/FLUID.md, Boundaries): a type, or a no-slip wall that slides or an inflow, with its velocity. */
+export type SceneFluidSide =
+  | 'no-slip' | 'free-slip' | 'outflow' | 'periodic'
+  | {readonly type: 'no-slip' | 'inflow'; readonly velocity: SceneVec3};
+export interface SceneFluidBoundaries {
+  readonly xMin?: SceneFluidSide; readonly xMax?: SceneFluidSide;
+  readonly yMin?: SceneFluidSide; readonly yMax?: SceneFluidSide;
+  readonly zMin?: SceneFluidSide; readonly zMax?: SceneFluidSide;
+}
+/** A box, sphere or capsule body that is a moving obstacle in a flow and, when it is dynamic, feels its force. */
+export interface SceneFluidBody {
+  readonly body: string;
+  /** Default true. False: the flow feels the body but does not push it. */
+  readonly twoWay?: boolean;
+}
+/** A box of liquid a free-surface tank starts with, m. */
+export interface SceneFluidLiquid {
+  readonly min: SceneVec3;
+  readonly max: SceneVec3;
+  /** m/s. Default zero. */
+  readonly velocity?: SceneVec3;
+}
+/**
+ * A volumetric fluid (docs/FLUID.md): a box of `cells` cubic cells of side `spacing` from `origin`. Numbers are float64.
+ * - kind 'flow' (the default): incompressible Navier-Stokes with walls, inflows, outflows or periodic sides, and the
+ *   listed bodies as moving obstacles (FluidCoupling). Saved state: the face velocities and the cell pressures.
+ * - kind 'free-surface': an inviscid liquid carried by particles in a closed tank of free-slip walls, started from the
+ *   `liquid` boxes. No bodies. Saved state: the particles.
+ */
+export interface SceneFluid {
+  readonly id: string;
+  /** Default 'flow'. */
+  readonly kind?: 'flow' | 'free-surface';
+  readonly cells: readonly [number, number, number];
+  /** Cell edge, m. */
+  readonly spacing: number;
+  /** Corner with the smallest coordinates, m. Default the origin. */
+  readonly origin?: SceneVec3;
+  /** kg/m^3. */
+  readonly density: number;
+  /** Fluid steps in one world step: the fluid steps at world.step / substeps. Default 1. */
+  readonly substeps?: number;
+  // --- flow ---
+  /** Dynamic viscosity, Pa s. Required for a flow. */
+  readonly viscosity?: number;
+  /** Default true: the world's gravity acts on the fluid (needed for buoyancy). False: no gravity in the fluid. */
+  readonly gravity?: boolean;
+  /** Default: a no-slip wall on every side. */
+  readonly boundaries?: SceneFluidBoundaries;
+  /** Default 'central'. */
+  readonly advection?: 'central' | 'upwind';
+  /** Default 'explicit'. */
+  readonly diffusion?: 'explicit' | 'crank-nicolson' | 'backward-euler';
+  /** A uniform velocity the flow starts with (made divergence-free), m/s. Default zero. */
+  readonly velocity?: SceneVec3;
+  readonly bodies?: readonly SceneFluidBody[];
+  /** Saved state: face velocities, m/s ((nx + 1) ny nz for u, nx (ny + 1) nz for v, nx ny (nz + 1) for w, index i + Nx (j + Ny k)), and cell pressures, Pa. */
+  readonly u?: readonly number[];
+  readonly v?: readonly number[];
+  readonly w?: readonly number[];
+  readonly pressure?: readonly number[];
+  // --- free surface ---
+  /** Particles per cell along each axis when the liquid boxes are seeded. Default 2. */
+  readonly particlesPerAxis?: number;
+  /** Required for a free-surface tank. */
+  readonly liquid?: readonly SceneFluidLiquid[];
+  /** Saved state: x, y, z and the velocity per particle, and the 3 x 3 affine matrix per particle (row-major, d v_c / d x_d). */
+  readonly positions?: readonly number[];
+  readonly velocities?: readonly number[];
+  readonly affine?: readonly number[];
+}
+
 /** The optional coupled sections of a scene. */
 export interface SceneCoupledSections {
   readonly water?: readonly SceneWater[];
@@ -675,6 +754,7 @@ export interface SceneCoupledSections {
   readonly grains?: readonly SceneGrains[];
   readonly solids?: readonly SceneSolid[];
   readonly heat?: readonly SceneHeat[];
+  readonly fluids?: readonly SceneFluid[];
 }
 
 export interface Scene {
@@ -701,6 +781,8 @@ export interface Scene {
   readonly solids?: readonly SceneSolid[];
   /** Heat conduction in solids. */
   readonly heat?: readonly SceneHeat[];
+  /** Volumetric fluids: flows with bodies as obstacles, and free-surface tanks. */
+  readonly fluids?: readonly SceneFluid[];
   readonly meta?: SceneMeta;
   /** Preserved and ignored by this module. */
   readonly extensions?: {readonly [key: string]: unknown};
@@ -1788,6 +1870,144 @@ function checkHeat(c: Checker, heat: unknown, path: string, solids: Map<string, 
   }
 }
 
+const FLUID_KEYS = ['id', 'kind', 'cells', 'spacing', 'origin', 'density', 'substeps', 'viscosity', 'gravity', 'boundaries', 'advection', 'diffusion', 'velocity', 'bodies', 'u', 'v', 'w', 'pressure',
+  'particlesPerAxis', 'liquid', 'positions', 'velocities', 'affine'];
+const FLOW_ONLY = ['viscosity', 'gravity', 'boundaries', 'advection', 'diffusion', 'velocity', 'bodies', 'u', 'v', 'w', 'pressure'];
+const SURFACE_ONLY = ['particlesPerAxis', 'liquid', 'positions', 'velocities', 'affine'];
+const FLUID_SIDES = ['xMin', 'xMax', 'yMin', 'yMax', 'zMin', 'zMax'] as const;
+const FLUID_SIDE_TYPES = ['no-slip', 'free-slip', 'outflow', 'periodic'];
+
+/** The type and velocity of a fluid side as written, or null when it is not one. */
+function fluidSide(value: unknown): {type: string; velocity: readonly number[]} | null {
+  if (typeof value === 'string') return {type: value, velocity: [0, 0, 0]};
+  if (isObject(value) && typeof value.type === 'string') return {type: value.type, velocity: Array.isArray(value.velocity) ? value.velocity as number[] : [0, 0, 0]};
+  return null;
+}
+
+function checkFluid(c: Checker, fluid: unknown, path: string, ctx: CoupledContext, gravity: readonly number[]): void {
+  if (!c.object(fluid, path, FLUID_KEYS, ['id', 'cells', 'spacing', 'density'])) return;
+  const surface = fluid.kind === 'free-surface';
+  if (fluid.kind !== undefined && fluid.kind !== 'flow' && !surface) c.add(`${path}/kind`, `must be 'flow' or 'free-surface', got ${show(fluid.kind)}`);
+  for (const key of surface ? FLOW_ONLY : SURFACE_ONLY) if (fluid[key] !== undefined) c.add(`${path}/${key}`, surface ? 'belongs to a flow, not to a free-surface tank' : "belongs to a free-surface tank (kind 'free-surface')");
+  let n: number[] | null = null;
+  if (fluid.cells !== undefined && c.realTuple(fluid.cells, `${path}/cells`, 3)) {
+    let ok = true;
+    for (let k = 0; k < 3; k++) if (!c.real(fluid.cells[k], `${path}/cells/${k}`, surface && k < 2 ? 2 : 1, SCENE_LIMITS.fluidCells, true)) ok = false;
+    if (ok) {
+      const total = fluid.cells[0] * fluid.cells[1] * fluid.cells[2];
+      if (total > SCENE_LIMITS.fluidCells) c.add(`${path}/cells`, `holds ${total} cells; the limit is ${SCENE_LIMITS.fluidCells}`);
+      else n = [...fluid.cells];
+    }
+  }
+  const h = fluid.spacing !== undefined && c.positive(fluid.spacing, `${path}/spacing`, 1e3) ? fluid.spacing : 0;
+  if (fluid.origin !== undefined) c.realTuple(fluid.origin, `${path}/origin`, 3);
+  if (fluid.density !== undefined) c.positive(fluid.density, `${path}/density`, 1e5);
+  const substeps = fluid.substeps === undefined ? 1 : c.real(fluid.substeps, `${path}/substeps`, 1, SCENE_LIMITS.fluidSubsteps, true) ? fluid.substeps : 0;
+  const dt = substeps > 0 ? ctx.step / substeps : 0;
+  if (surface) {
+    if (fluid.particlesPerAxis !== undefined) c.real(fluid.particlesPerAxis, `${path}/particlesPerAxis`, 1, 4, true);
+    if (fluid.liquid === undefined) c.add(`${path}/liquid`, 'is required: a free-surface tank starts from boxes of liquid');
+    else if (!Array.isArray(fluid.liquid)) c.add(`${path}/liquid`, `must be an array, got ${typeName(fluid.liquid)}`);
+    else if (fluid.liquid.length === 0 || fluid.liquid.length > SCENE_LIMITS.fluidLiquid) c.add(`${path}/liquid`, `must hold 1 to ${SCENE_LIMITS.fluidLiquid} boxes, got ${fluid.liquid.length}`);
+    else for (let i = 0; i < fluid.liquid.length && !c.stopped; i++) {
+      const box: unknown = fluid.liquid[i], at = `${path}/liquid/${i}`;
+      if (!c.object(box, at, ['min', 'max', 'velocity'], ['min', 'max'])) continue;
+      if (box.min !== undefined && box.max !== undefined && c.realTuple(box.min, `${at}/min`, 3) && c.realTuple(box.max, `${at}/max`, 3) && !(box.max[0] > box.min[0] && box.max[1] > box.min[1] && box.max[2] > box.min[2])) c.add(`${at}/max`, 'must exceed min on every axis');
+      if (box.velocity !== undefined) c.realTuple(box.velocity, `${at}/velocity`, 3);
+    }
+    let count = -1;
+    if (fluid.positions !== undefined) {
+      if (!Array.isArray(fluid.positions) || fluid.positions.length % 3 !== 0) c.add(`${path}/positions`, 'must be an array of 3 numbers per particle');
+      else if (fluid.positions.length / 3 > SCENE_LIMITS.fluidParticles) c.add(`${path}/positions`, `holds ${fluid.positions.length / 3} particles; the limit is ${SCENE_LIMITS.fluidParticles}`);
+      else if (c.reals(fluid.positions, `${path}/positions`, fluid.positions.length, -1e9, 1e9)) count = fluid.positions.length / 3;
+    } else for (const key of ['velocities', 'affine']) if (fluid[key] !== undefined) c.add(`${path}/${key}`, 'needs `positions`');
+    if (count >= 0) {
+      if (fluid.velocities !== undefined) c.reals(fluid.velocities, `${path}/velocities`, 3 * count, -1e6, 1e6);
+      if (fluid.affine !== undefined) c.reals(fluid.affine, `${path}/affine`, 9 * count, -1e9, 1e9);
+    }
+    return;
+  }
+  // A flow.
+  if (fluid.viscosity === undefined) c.add(`${path}/viscosity`, 'is required for a flow');
+  const mu = fluid.viscosity !== undefined && c.real(fluid.viscosity, `${path}/viscosity`, 0, 1e6) ? fluid.viscosity : -1;
+  if (fluid.gravity !== undefined) c.boolean(fluid.gravity, `${path}/gravity`);
+  if (fluid.advection !== undefined && fluid.advection !== 'central' && fluid.advection !== 'upwind') c.add(`${path}/advection`, `must be 'central' or 'upwind', got ${show(fluid.advection)}`);
+  const explicit = fluid.diffusion === undefined || fluid.diffusion === 'explicit';
+  if (fluid.diffusion !== undefined && !['explicit', 'crank-nicolson', 'backward-euler'].includes(fluid.diffusion as string)) c.add(`${path}/diffusion`, `must be 'explicit', 'crank-nicolson' or 'backward-euler', got ${show(fluid.diffusion)}`);
+  if (fluid.velocity !== undefined) c.realTuple(fluid.velocity, `${path}/velocity`, 3);
+  const g = fluid.gravity === false ? [0, 0, 0] : gravity;
+  // Each side: its type and velocity; the largest speed a side imposes, per component, for the Courant check.
+  const sides: ({type: string; velocity: readonly number[]} | null)[] = FLUID_SIDES.map(() => ({type: 'no-slip', velocity: [0, 0, 0]}));
+  if (fluid.boundaries !== undefined && c.object(fluid.boundaries, `${path}/boundaries`, [...FLUID_SIDES])) {
+    FLUID_SIDES.forEach((key, s) => {
+      const raw: unknown = (fluid.boundaries as Obj)[key], at = `${path}/boundaries/${key}`, axis = s >> 1;
+      if (raw === undefined) return;
+      if (typeof raw === 'string') {
+        if (!FLUID_SIDE_TYPES.includes(raw)) { c.add(at, `must be 'no-slip', 'free-slip', 'outflow', 'periodic' or {type: 'no-slip' | 'inflow', velocity}, got ${show(raw)}`); sides[s] = null; return; }
+      } else if (!isObject(raw)) { c.add(at, `must be a side type or an object, got ${typeName(raw)}`); sides[s] = null; return; }
+      else {
+        if (!c.object(raw, at, ['type', 'velocity'], ['type', 'velocity'])) { sides[s] = null; return; }
+        if (raw.type !== 'no-slip' && raw.type !== 'inflow') { c.add(`${at}/type`, `must be 'no-slip' (a sliding wall) or 'inflow' when a velocity is given, got ${show(raw.type)}`); sides[s] = null; return; }
+        if (raw.velocity !== undefined && !c.realTuple(raw.velocity, `${at}/velocity`, 3)) { sides[s] = null; return; }
+        if (raw.type === 'no-slip' && Array.isArray(raw.velocity) && raw.velocity[axis] !== 0) c.add(`${at}/velocity/${axis}`, 'a wall cannot move along its normal');
+      }
+      sides[s] = fluidSide(raw);
+    });
+    for (let a = 0; a < 3; a++) {
+      const lo = sides[2 * a], hi = sides[2 * a + 1];
+      if (lo && hi && (lo.type === 'periodic') !== (hi.type === 'periodic')) c.add(`${path}/boundaries/${FLUID_SIDES[2 * a + 1]}`, `axis ${'xyz'[a]}: periodic must be set on both sides`);
+    }
+    // p = 0 over an outflow side cannot hold a hydrostatic pressure that varies along it.
+    FLUID_SIDES.forEach((key, s) => {
+      const side = sides[s], axis = s >> 1;
+      if (side?.type !== 'outflow') return;
+      for (let k = 0; k < 3; k++) if (k !== axis && g[k] !== 0) { c.add(`${path}/boundaries/${key}`, `an outflow side holds p = 0 all over, so gravity must not act along it (here ${'xyz'[k]}); give the fluid gravity: false or put the outflow across gravity`); break; }
+    });
+  }
+  // Time step: the explicit viscous limit and the Courant number of what the boundaries and the start impose.
+  if (n && h > 0 && dt > 0) {
+    const active = [0, 1, 2].filter(a => !(n![a] === 1 && sides[2 * a]?.type === 'periodic')).length || 1;
+    if (explicit && mu > 0 && typeof fluid.density === 'number' && fluid.density > 0) {
+      const limit = h * h / (2 * active * mu / fluid.density);
+      if (dt > limit * (1 + 1e-12)) c.add(`${path}/substeps`, `the fluid step ${+dt.toPrecision(4)} s is above the explicit viscous limit h^2 / (2 d nu) = ${+limit.toPrecision(4)} s; use more substeps, larger cells or diffusion 'crank-nicolson'`);
+    }
+    let courant = 0;
+    for (let k = 0; k < 3; k++) {
+      let top = Array.isArray(fluid.velocity) && typeof fluid.velocity[k] === 'number' ? Math.abs(fluid.velocity[k]) : 0;
+      for (const side of sides) if (side && Array.isArray(side.velocity) && typeof side.velocity[k] === 'number') top = Math.max(top, Math.abs(side.velocity[k]!));
+      courant += top;
+    }
+    courant *= dt / h;
+    if (courant > 1) c.add(`${path}/substeps`, `the walls, inflows and starting velocity give a Courant number of ${+courant.toPrecision(4)} at the fluid step; it must be at most 1: use more substeps or larger cells`);
+  }
+  if (n) {
+    const faces = [(n[0] + 1) * n[1] * n[2], n[0] * (n[1] + 1) * n[2], n[0] * n[1] * (n[2] + 1)];
+    const given = ['u', 'v', 'w'].filter(key => fluid[key] !== undefined);
+    if (given.length > 0 && given.length < 3) c.add(`${path}/${['u', 'v', 'w'].find(key => fluid[key] === undefined)}`, 'is required with the other saved face velocities');
+    ['u', 'v', 'w'].forEach((key, k) => { if (fluid[key] !== undefined) c.reals(fluid[key], `${path}/${key}`, faces[k]!, -1e6, 1e6); });
+    if (fluid.pressure !== undefined) {
+      if (given.length === 0) c.add(`${path}/pressure`, 'needs the saved face velocities u, v and w');
+      c.reals(fluid.pressure, `${path}/pressure`, n[0] * n[1] * n[2], -1e12, 1e12);
+    }
+  }
+  if (fluid.bodies !== undefined) {
+    if (!Array.isArray(fluid.bodies)) c.add(`${path}/bodies`, `must be an array, got ${typeName(fluid.bodies)}`);
+    else if (fluid.bodies.length > 64) c.add(`${path}/bodies`, `holds ${fluid.bodies.length} bodies; the limit is 64`);
+    else {
+      const listed = new Set<string>();
+      for (let i = 0; i < fluid.bodies.length && !c.stopped; i++) {
+        const entry: unknown = fluid.bodies[i], at = `${path}/bodies/${i}`;
+        if (!c.object(entry, at, ['body', 'twoWay'], ['body'])) continue;
+        if (entry.body !== undefined) {
+          const ref = checkColliderBody(c, entry, at, ctx, 'a fluid');
+          if (ref !== null) { if (listed.has(ref)) c.add(`${at}/body`, `body ${show(ref)} is listed twice`); listed.add(ref); }
+        }
+        if (entry.twoWay !== undefined) c.boolean(entry.twoWay, `${at}/twoWay`);
+      }
+    }
+  }
+}
+
 /**
  * Check a scene completely, before anything is built. Returns every problem
  * found (at most SCENE_LIMITS.problems), each with a JSON-pointer path; an
@@ -1804,7 +2024,7 @@ export function validateScene(scene: unknown): SceneProblem[] {
     return c.problems;
   }
   c.version = scene.version;
-  c.object(scene, '', ['format', 'version', 'units', 'world', 'materials', 'bodies', 'joints', 'water', 'cables', 'frames', 'cloths', 'grains', 'solids', 'heat', 'meta', 'extensions'], ['bodies']);
+  c.object(scene, '', ['format', 'version', 'units', 'world', 'materials', 'bodies', 'joints', 'water', 'cables', 'frames', 'cloths', 'grains', 'solids', 'heat', 'fluids', 'meta', 'extensions'], ['bodies']);
   if (scene.units !== undefined && scene.units !== 'SI') c.add('/units', `must be 'SI', got ${show(scene.units)}`);
   if (scene.world !== undefined) checkWorld(c, scene.world, '/world');
   const materials = scene.materials === undefined ? new Set<string>() : checkMaterials(c, scene.materials, '/materials');
@@ -1832,7 +2052,7 @@ export function validateScene(scene: unknown): SceneProblem[] {
   }
   const shapeValues = c.geometryValues;
   if (shapeValues > SCENE_LIMITS.geometryValues) c.add('/bodies', `the shapes hold ${c.geometryValues} numbers together; the limit is ${SCENE_LIMITS.geometryValues}`);
-  if (scene.water !== undefined || scene.cables !== undefined || scene.frames !== undefined || scene.cloths !== undefined || scene.grains !== undefined || scene.solids !== undefined || scene.heat !== undefined) {
+  if (scene.water !== undefined || scene.cables !== undefined || scene.frames !== undefined || scene.cloths !== undefined || scene.grains !== undefined || scene.solids !== undefined || scene.heat !== undefined || scene.fluids !== undefined) {
     const shapes = new Map<string, string | null>();
     if (bodiesOk) for (const body of scene.bodies as unknown[]) if (isObject(body) && typeof body.id === 'string' && bodyIds.has(body.id)) shapes.set(body.id, isObject(body.shape) && typeof body.shape.kind === 'string' ? body.shape.kind : null);
     const world = isObject(scene.world) ? scene.world : {}, step = typeof world.step === 'number' && world.step > 0 && world.step <= 1 / 30 ? world.step : 1 / 60;
@@ -1840,7 +2060,7 @@ export function validateScene(scene: unknown): SceneProblem[] {
     const stated = new Map<string, boolean>();
     if (bodiesOk) for (const body of scene.bodies as unknown[]) if (isObject(body) && typeof body.id === 'string' && isObject(body.massData)) stated.set(body.id, Array.isArray(body.massData.center) && body.massData.center.some(v => v !== 0));
     const ctx: CoupledContext = {shapes: bodiesOk ? shapes : null, stated, step, gravity: Math.max(0, -gy), wet: new Map(), frameNodes: new Map(), frameEquations: 0};
-    const section = (key: 'water' | 'cables' | 'frames' | 'cloths' | 'grains' | 'solids' | 'heat', limit: number, each: (item: unknown, path: string) => void): void => {
+    const section = (key: 'water' | 'cables' | 'frames' | 'cloths' | 'grains' | 'solids' | 'heat' | 'fluids', limit: number, each: (item: unknown, path: string) => void): void => {
       const list = scene[key];
       if (list === undefined) return;
       if (!Array.isArray(list)) c.add(`/${key}`, `must be an array, got ${typeName(list)}`);
@@ -1857,6 +2077,8 @@ export function validateScene(scene: unknown): SceneProblem[] {
     section('solids', SCENE_LIMITS.solids, (item, path) => checkSolid(c, item, path, ctx, solids));
     section('heat', SCENE_LIMITS.heat, (item, path) => checkHeat(c, item, path, solids, heated));
     section('water', SCENE_LIMITS.waterBasins, (item, path) => checkWater(c, item, path, ctx));
+    const gravity = Array.isArray(world.gravity) && world.gravity.length === 3 && world.gravity.every(v => typeof v === 'number' && Number.isFinite(v)) ? world.gravity as number[] : [0, -9.81, 0];
+    section('fluids', SCENE_LIMITS.fluids, (item, path) => checkFluid(c, item, path, ctx, gravity));
     if (ctx.frameEquations > SCENE_LIMITS.frameBodyEquations) c.add('/frames', `the frame attachments need ${ctx.frameEquations} equations (3 per pinned, 6 per clamped); the limit is ${SCENE_LIMITS.frameBodyEquations}`);
     if (c.geometryValues > SCENE_LIMITS.geometryValues && shapeValues <= SCENE_LIMITS.geometryValues) c.add('', `the scene's arrays hold ${c.geometryValues} numbers together; the limit is ${SCENE_LIMITS.geometryValues}`);
   }
@@ -2186,6 +2408,46 @@ function normalHeat(heat: SceneHeat): SceneHeat {
   return out as unknown as SceneHeat;
 }
 
+function normalFluid(fluid: SceneFluid): SceneFluid {
+  const out: Obj = {id: fluid.id};
+  if (fluid.kind === 'free-surface') out.kind = 'free-surface';
+  out.cells = [...fluid.cells]; out.spacing = fluid.spacing;
+  if (fluid.origin && !isZero(fluid.origin)) out.origin = vec(fluid.origin);
+  out.density = fluid.density;
+  if (fluid.substeps !== undefined && fluid.substeps !== 1) out.substeps = fluid.substeps;
+  if (fluid.kind === 'free-surface') {
+    if (fluid.particlesPerAxis !== undefined && fluid.particlesPerAxis !== 2) out.particlesPerAxis = fluid.particlesPerAxis;
+    out.liquid = fluid.liquid!.map(box => ({min: vec(box.min), max: vec(box.max), ...(box.velocity && !isZero(box.velocity) ? {velocity: vec(box.velocity)} : {})}));
+    if (fluid.positions) {
+      out.positions = vec(fluid.positions);
+      if (!allZero(fluid.velocities)) out.velocities = vec(fluid.velocities!);
+      if (!allZero(fluid.affine)) out.affine = vec(fluid.affine!);
+    }
+    return out as unknown as SceneFluid;
+  }
+  out.viscosity = zero(fluid.viscosity!);
+  if (fluid.gravity === false) out.gravity = false;
+  const sides: Obj = {};
+  for (const key of FLUID_SIDES) {
+    const side = fluid.boundaries?.[key];
+    if (side === undefined || side === 'no-slip') continue;
+    if (typeof side === 'string') sides[key] = side;
+    else if (side.type === 'no-slip' && isZero(side.velocity)) continue;
+    else sides[key] = {type: side.type, velocity: vec(side.velocity)};
+  }
+  if (Object.keys(sides).length > 0) out.boundaries = sides;
+  if (fluid.advection !== undefined && fluid.advection !== 'central') out.advection = fluid.advection;
+  if (fluid.diffusion !== undefined && fluid.diffusion !== 'explicit') out.diffusion = fluid.diffusion;
+  if (fluid.velocity && !isZero(fluid.velocity)) out.velocity = vec(fluid.velocity);
+  if (fluid.bodies && fluid.bodies.length > 0) out.bodies = fluid.bodies.map(entry => ({body: entry.body, ...(entry.twoWay === false ? {twoWay: false} : {})}));
+  // A saved field of zeros on a flow that starts at rest is the flow at rest: left out, like other defaults.
+  if (fluid.u && !(out.velocity === undefined && allZero(fluid.u) && allZero(fluid.v) && allZero(fluid.w) && allZero(fluid.pressure))) {
+    out.u = vec(fluid.u); out.v = vec(fluid.v!); out.w = vec(fluid.w!);
+    if (fluid.pressure && !allZero(fluid.pressure)) out.pressure = vec(fluid.pressure);
+  }
+  return out as unknown as SceneFluid;
+}
+
 /** The coupled sections of a scene in normal form; a section that is absent or empty is left out. */
 function normalCoupled(scene: SceneCoupledSections): SceneCoupledSections {
   return {
@@ -2196,12 +2458,13 @@ function normalCoupled(scene: SceneCoupledSections): SceneCoupledSections {
     ...(scene.grains && scene.grains.length > 0 ? {grains: scene.grains.map(normalGrains)} : {}),
     ...(scene.solids && scene.solids.length > 0 ? {solids: scene.solids.map(normalSolid)} : {}),
     ...(scene.heat && scene.heat.length > 0 ? {heat: scene.heat.map(normalHeat)} : {}),
+    ...(scene.fluids && scene.fluids.length > 0 ? {fluids: scene.fluids.map(normalFluid)} : {}),
   };
 }
 
-/** True when a scene has a water basin, a cable, a frame, a cloth, a set of grains, a solid or a heat grid: it then needs a Simulation, not just a rigid world. */
+/** True when a scene has a water basin, a cable, a frame, a cloth, a set of grains, a solid, a heat grid or a fluid: it then needs a Simulation, not just a rigid world. */
 export function sceneHasCoupling(scene: SceneCoupledSections): boolean {
-  return (scene.water?.length ?? 0) + (scene.cables?.length ?? 0) + (scene.frames?.length ?? 0) + (scene.cloths?.length ?? 0) + (scene.grains?.length ?? 0) + (scene.solids?.length ?? 0) + (scene.heat?.length ?? 0) > 0;
+  return (scene.water?.length ?? 0) + (scene.cables?.length ?? 0) + (scene.frames?.length ?? 0) + (scene.cloths?.length ?? 0) + (scene.grains?.length ?? 0) + (scene.solids?.length ?? 0) + (scene.heat?.length ?? 0) + (scene.fluids?.length ?? 0) > 0;
 }
 
 function clone<T>(value: T): T {
@@ -2657,7 +2920,7 @@ export class SceneBuilder<W extends SceneHost = SceneHost> {
   private readonly materialMap = new Map<string, SceneMaterial>();
   private readonly bodyMap = new Map<string, {description: SceneBody; handle: Body}>();
   private readonly jointMap = new Map<string, {description: SceneJoint; handle: Joint}>();
-  /** @internal The scene's coupled sections (water, cables, frames, cloths, grains, solids, heat) as they were described (normal form). This module carries them; simulation.ts builds them. */
+  /** @internal The scene's coupled sections (water, cables, frames, cloths, grains, solids, heat, fluids) as they were described (normal form). This module carries them; simulation.ts builds them. */
   coupledSections: SceneCoupledSections = {};
   /** @internal Set by simulation.ts: the same sections with the solvers' current state, for a save. */
   coupledCapture: (() => SceneCoupledSections) | null = null;
@@ -2822,6 +3085,7 @@ export class SceneBuilder<W extends SceneHost = SceneHost> {
       solids: coupled.solids?.map(solid => ({...solid, ...(solid.contact ? {contact: {...solid.contact, bodies: solid.contact.bodies?.filter(entry => has(entry.body))}} : {}),
         welds: solid.welds?.filter(w => has(w.body)), loads: solid.loads?.filter(w => has(w.body))})),
       heat: coupled.heat,
+      fluids: coupled.fluids?.map(fluid => (fluid.bodies ? {...fluid, bodies: fluid.bodies.filter(entry => has(entry.body))} : fluid)),
       meta: options.meta ?? this.meta, extensions: this.extensions,
     });
   }
@@ -2866,7 +3130,7 @@ export class SceneBuilder<W extends SceneHost = SceneHost> {
 export function loadScene<W extends SceneHost>(world: W, scene: unknown): LoadedScene<W> {
   const normal = normalizeScene(scene);
   if (sceneHasCoupling(normal)) {
-    throw new EngineError('INVALID_STATE', 'This scene has coupled sections (water, cables, frames, cloths, grains, solids or heat). This loader builds rigid bodies and joints only and would drop them: ' +
+    throw new EngineError('INVALID_STATE', 'This scene has coupled sections (water, cables, frames, cloths, grains, solids, heat or fluids). This loader builds rigid bodies and joints only and would drop them: ' +
       'load the scene with loadSimulationScene (simulation.ts; the kit\'s loadScene), which returns a Simulation that steps every solver.');
   }
   const builder = new SceneBuilder<W>(world, {world: normal.world, materials: normal.materials, meta: normal.meta, extensions: normal.extensions}).populate(normal);
@@ -2884,4 +3148,4 @@ export function saveScene<W extends SceneHost>(world: W, handles: SceneBuilder<W
   return builder.toJSON(options);
 }
 
-export {pendulumWaveScene, newtonsCradleScene, dominoRunScene, terrainCarScene, ragdollScene, EXAMPLE_SCENES, mooredBuoyScene, cableStayedDeckScene, buoyAndCratesScene, trampolineScene, hopperSeesawScene, suspendedPlatformScene, rubberPadScene, notchedBeamScene, quenchedPlateScene, heatedBarScene, COUPLED_EXAMPLE_SCENES} from './scene-examples.ts';
+export {pendulumWaveScene, newtonsCradleScene, dominoRunScene, terrainCarScene, ragdollScene, EXAMPLE_SCENES, mooredBuoyScene, cableStayedDeckScene, buoyAndCratesScene, trampolineScene, hopperSeesawScene, suspendedPlatformScene, rubberPadScene, notchedBeamScene, quenchedPlateScene, heatedBarScene, sphereSettlingScene, cavityFlowScene, flowPastCylinderScene, damBreakScene, COUPLED_EXAMPLE_SCENES} from './scene-examples.ts';

@@ -38,7 +38,7 @@ export const CORE = [
   {from: 'src/engine/scene-examples.ts', rewrites: []},
   {from: 'src/engine/geometry.ts', rewrites: []},
   // ./simulation: the one stepping loop, the adapters for the modules above and the builder of coupled scenes.
-  // Imports the water, structure, cable, frame, cloth, granular, heat, solid, solid-contact and fracture modules, and types from scene-format and native-world.
+  // Imports the water, structure, cable, frame, cloth, granular, heat, solid, solid-contact, fracture and fluid modules, and types from scene-format and native-world.
   {from: 'src/engine/simulation.ts', rewrites: []},
   // ./robot: URDF and MJCF import. Imports contracts.ts, geometry.ts and types from native-world.ts and scene-format.ts.
   {from: 'src/engine/robot-import.ts', rewrites: []},

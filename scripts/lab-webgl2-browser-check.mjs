@@ -10,7 +10,7 @@
 // tests/physics/lab-renderer-selection.test.mjs.
 //
 // What it does:
-//   1. Every rigid example and every coupled example (solids included), once with ?renderer=webgpu and
+//   1. Every rigid example and every coupled example (solids and fluids included), once with ?renderer=webgpu and
 //      once with ?renderer=webgl2: pause, step to the same Lab tick, require the same state hash from both,
 //      read both canvases back in the frame that drew them (page.screenshot shows a blank WebGPU canvas),
 //      require that neither is blank, compare them on a 128 x 80 luminance thumbnail (mean difference,
@@ -19,7 +19,8 @@
 //   1b. Four recipe labs with GPU water, intact cloth, a cable and a metal sheet on both renderers: both draw
 //      (captured side by side; they run on wall time, so no agreement is required).
 //   2. The scene editor on both renderers: select a body by clicking it and capture the selection tint and
-//      the editor's line overlay.
+//      the editor's line overlay. Then the editor with a coupled scene (sphere-settling): the ball, which the fluid
+//      section names, is selected by a click; the fluid's slice and box edges are drawn with the editor's lines.
 //   3. Selection: no ?renderer with WebGPU gives WebGPU; with navigator.gpu removed it gives WebGL2.
 //   4. A simulated device loss mid-run (box3dLab.simulateGraphicsLoss destroys the WebGPU device): the Lab
 //      switches to WebGL2 with the same tick, state hash and camera, draws, and steps on to the hash a
@@ -42,11 +43,12 @@ const {chromium} = playwright;
 const output = path.resolve(process.argv[2] ?? process.env.BOX3D_QA_OUTPUT ?? path.join(os.tmpdir(), 'box3d-lab-webgl2'));
 fs.mkdirSync(output, {recursive: true});
 const RIGID = ['pendulum-wave', 'newtons-cradle', 'domino-run', 'terrain-car', 'ragdoll'];
-const COUPLED = ['buoy-and-crates', 'trampoline', 'hopper-seesaw', 'suspended-platform', 'moored-buoy', 'cable-stayed-deck', 'rubber-pad', 'notched-beam', 'quenched-plate', 'heated-bar'];
+const COUPLED = ['buoy-and-crates', 'trampoline', 'hopper-seesaw', 'suspended-platform', 'moored-buoy', 'cable-stayed-deck', 'rubber-pad', 'notched-beam', 'quenched-plate', 'heated-bar',
+  'sphere-settling', 'cavity-flow', 'flow-past-cylinder', 'dam-break'];
 const EXAMPLES = process.argv[3] ? process.argv[3].split(',') : [...RIGID, ...COUPLED];
 const RECIPES = process.argv[4] ? process.argv[4].split(',').filter(Boolean) : ['tsunami-flume', 'tempest-flag', 'sky-crane-cable', 'titan-bend-dent'];
 /** The Lab tick both renderers step to before the capture. */
-const TICK = {'hopper-seesaw': 180, 'quenched-plate': 150, 'heated-bar': 300, 'rubber-pad': 60, 'notched-beam': 60, trampoline: 90};
+const TICK = {'hopper-seesaw': 180, 'quenched-plate': 150, 'heated-bar': 300, 'rubber-pad': 60, 'notched-beam': 60, trampoline: 90, 'sphere-settling': 45, 'cavity-flow': 240, 'flow-past-cylinder': 240, 'dam-break': 40};
 const VIEWPORT = {width: 1280, height: 800};
 
 const root = path.resolve('dist');
@@ -233,6 +235,30 @@ try {
   await sideBySide(tools, editorShots.webgpu.url, editorShots.webgl2.url, ['WebGPU — editor, domino-6 selected', 'WebGL2 — editor, domino-6 selected'], 'editor-selection.png');
   assert.ok(editorCompared.correlation > 0.85 && editorCompared.meanDifference < 0.08 && editorCompared.largeDifferenceShare < 0.03, `editor: the two renderings agree (${JSON.stringify(editorCompared)})`);
   report.editor = {lines: editorShots.webgl2.lines, compared: editorCompared};
+  // 2b. The editor with a coupled scene: its sections are listed, its fluid is drawn with the editor's lines.
+  const coupledShots = {};
+  for (const renderer of ['webgpu', 'webgl2']) {
+    const {context, page} = await openLab('example=sphere-settling&edit=1', `editor coupled ${renderer}`, {renderer});
+    await page.waitForFunction(() => window.box3dLab.editorState()?.active === true && window.box3dLab.sceneState().coupled === true, null, {timeout: 180000});
+    await pause(page);
+    assert.deepEqual((await page.evaluate(() => window.box3dLab.editorState())).coupled, ['fluids:syrup'], `editor coupled ${renderer}: the fluid section is listed`);
+    const at = await page.evaluate(() => window.box3dLab.editorScreenPosition('ball'));
+    assert.ok(at && at.visible !== false, 'the ball is on screen');
+    await page.mouse.click(at.x, at.y);
+    await page.waitForFunction(() => window.box3dLab.editorState().selection.join() === 'ball', null, {timeout: 20000});
+    await page.waitForFunction(() => window.box3dLab.editorState().overlayLines > 0, null, {timeout: 20000});
+    const url = await readCanvas(page);
+    const shot = await measure(page, [url]);
+    assert.ok(shot.lit > 0.2, `editor coupled ${renderer}: the canvas is not blank`);
+    coupledShots[renderer] = {url, shot, draw: (await page.evaluate(() => window.box3dLab.sceneState().coupledDraw))};
+    assert.equal(coupledShots[renderer].draw.fluidRows > 0, true, 'the fluid slice is drawn in the editor');
+    await context.close();
+  }
+  const coupledCompared = await measure(tools, [coupledShots.webgpu.url, coupledShots.webgl2.url]);
+  await sideBySide(tools, coupledShots.webgpu.url, coupledShots.webgl2.url, ['WebGPU — editor, sphere-settling, ball selected', 'WebGL2 — editor, sphere-settling, ball selected'], 'editor-coupled.png');
+  assert.ok(coupledCompared.correlation > 0.85 && coupledCompared.meanDifference < 0.08 && coupledCompared.largeDifferenceShare < 0.03, `editor coupled: the two renderings agree (${JSON.stringify(coupledCompared)})`);
+  report.editorCoupled = {compared: coupledCompared};
+  check('editor: a coupled scene opens with its sections listed and its fluid drawn on both renderers', report.editorCoupled);
   check('editor: a clicked body is selected, tinted and framed on both renderers', report.editor);
 
   // 3. Selection at startup.

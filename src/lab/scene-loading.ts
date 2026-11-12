@@ -43,7 +43,7 @@ export const EXAMPLE_SCENE_TITLES: { readonly [name: string]: string } = Object.
   ragdoll: 'Ragdoll',
 });
 export const EXAMPLE_SCENE_NAMES: readonly string[] = Object.freeze(Object.keys(EXAMPLE_SCENES));
-/** The coupled examples: scenes with water, cables, frames, cloths, grains, solids or heat, which the Lab steps through a Simulation. */
+/** The coupled examples: scenes with water, cables, frames, cloths, grains, solids, heat or fluids, which the Lab steps through a Simulation. */
 export const COUPLED_EXAMPLE_TITLES: { readonly [name: string]: string } = Object.freeze({
   'moored-buoy': 'Moored buoy',
   'cable-stayed-deck': 'Cable-stayed deck',
@@ -55,6 +55,10 @@ export const COUPLED_EXAMPLE_TITLES: { readonly [name: string]: string } = Objec
   'notched-beam': 'Notched beam',
   'quenched-plate': 'Quenched plate',
   'heated-bar': 'Heated bar',
+  'sphere-settling': 'Sphere settling',
+  'cavity-flow': 'Lid-driven cavity',
+  'flow-past-cylinder': 'Flow past a cylinder',
+  'dam-break': 'Dam break',
 });
 export const COUPLED_EXAMPLE_NAMES: readonly string[] = Object.freeze(Object.keys(COUPLED_EXAMPLE_SCENES));
 /** Every example `?example=<name>` opens: the rigid ones, then the coupled ones. */
@@ -465,6 +469,12 @@ function coupledSummary(scene: Scene): string {
   if (scene.grains?.length) parts.push(`${scene.grains.reduce((sum, set) => sum + set.radii.length, 0)} grains`);
   if (scene.solids?.length) parts.push(`${count(scene.solids.length, 'solid', 'solids')} (${scene.solids.reduce((sum, solid) => sum + solidMeshSize(solid).tets, 0)} tetrahedra${scene.solids.some(solid => solid.fracture) ? ', fracture' : ''}${scene.solids.some(solid => solid.contact) ? ', contact' : ''})`);
   if (scene.heat?.length) parts.push(`${count(scene.heat.length, 'heat grid', 'heat grids')}`);
+  for (const fluid of scene.fluids ?? []) {
+    const cells = fluid.cells[0] * fluid.cells[1] * fluid.cells[2];
+    parts.push(fluid.kind === 'free-surface'
+      ? `a free-surface tank (${cells} cells${fluid.positions ? `, ${fluid.positions.length / 3} particles` : ''})`
+      : `a flow (${cells} cells${fluid.bodies?.length ? `, ${count(fluid.bodies.length, 'body', 'bodies')} in it` : ''})`);
+  }
   return parts.length ? ` · ${parts.join(' · ')}` : '';
 }
 
@@ -480,7 +490,8 @@ function solidCorners(solid: SceneSolid): number[] {
   return [o[0], o[1], o[2], o[0] + d[0], o[1] + d[1], o[2] + d[2]];
 }
 
-export interface SceneFrame { readonly target: [number, number, number]; readonly distance: number }
+/** A camera target and distance; `yaw` and `pitch` (radians) when the scene asks for a view of its own (a flow is seen across its slice). */
+export interface SceneFrame { readonly target: [number, number, number]; readonly distance: number; readonly yaw?: number; readonly pitch?: number }
 
 /**
  * A camera target and distance for a scene. The view is centred on the bodies
@@ -548,8 +559,22 @@ export function sceneCameraFrame(scene: Scene): SceneFrame {
   // A solid is what the scene is about: the view is centred on the solids when there are any.
   const solidBox = empty();
   for (const solid of scene.solids ?? []) points([all, moving, solidBox], solidCorners(solid));
+  // So is a fluid: its box, seen from close by. A flow's slice is the x-y plane: it is seen nearly face on.
+  const fluidBox = empty();
+  for (const fluid of scene.fluids ?? []) {
+    const o = fluid.origin ?? [0, 0, 0], h = fluid.spacing;
+    points([all, fluidBox], [o[0], o[1], o[2], o[0] + fluid.cells[0] * h, o[1] + fluid.cells[1] * h, o[2] + fluid.cells[2] * h]);
+  }
   const has = (box: Box): boolean => box.max[0]! >= box.min[0]!;
   if (!has(all)) return { target: [0, 1, 0], distance: 8 };
+  if (has(fluidBox) && !has(solidBox)) {
+    const extent = Math.max(fluidBox.max[0]! - fluidBox.min[0]!, fluidBox.max[1]! - fluidBox.min[1]!, fluidBox.max[2]! - fluidBox.min[2]!);
+    const flow = (scene.fluids ?? []).some(fluid => fluid.kind !== 'free-surface');
+    return {
+      target: [(fluidBox.min[0]! + fluidBox.max[0]!) / 2, (fluidBox.min[1]! + fluidBox.max[1]!) / 2, (fluidBox.min[2]! + fluidBox.max[2]!) / 2],
+      distance: Math.min(400, Math.max(0.3, 1.35 * extent + 0.05)), yaw: flow ? 1.3 : 1.05, pitch: flow ? 0.2 : 0.42,
+    };
+  }
   const sizeOf = (box: Box): number => Math.hypot(box.max[0]! - box.min[0]!, box.max[1]! - box.min[1]!, box.max[2]! - box.min[2]!);
   const distanceFor = (size: number): number => size * 1.15 + 0.6;
   const focus = has(solidBox) ? solidBox : has(moving) ? moving : all;

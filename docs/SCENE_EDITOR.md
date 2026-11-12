@@ -1,17 +1,17 @@
 # Scene editor
 
-The Physics Lab can build and change a rigid-body scene in the page, without writing JSON. The editor is a mode of the Scenes panel (bottom right of `lab.html`). What it edits is a scene in the [scene format](SCENE_FORMAT.md), version 1, in SI units; what it saves is that same format, as a file or a share link.
+The Physics Lab can build and change a rigid-body scene in the page, without writing JSON, and change the rigid bodies of a coupled scene (water, cables, frames, cloths, grains, solids, heat, fluids) while keeping its other sections as they are ([Coupled scenes](#coupled-scenes)). The editor is a mode of the Scenes panel (bottom right of `lab.html`). What it edits is a scene in the [scene format](SCENE_FORMAT.md), version 1, in SI units; what it saves is that same format, as a file or a share link.
 
 | How | What opens |
 |---|---|
 | `lab.html?edit=1` | A new, empty scene in the editor: gravity 9.81 m/s² down and the ground slab. |
-| `lab.html?example=<name>&edit=1` | An example scene in the editor (`pendulum-wave`, `newtons-cradle`, `domino-run`, `terrain-car`, `ragdoll`). |
+| `lab.html?example=<name>&edit=1` | An example scene in the editor (`pendulum-wave`, `newtons-cradle`, `domino-run`, `terrain-car`, `ragdoll`, and the coupled ones, such as `sphere-settling` or `hopper-seesaw`). |
 | `lab.html?scene=<share link>&edit=1` | A shared scene in the editor. |
 | **New scene** in the Scenes panel | An empty scene in the editor. |
 | **Edit** in the Scenes panel, with an SI scene loaded | That scene in the editor. **Stop editing** closes the editor and leaves the scene on screen. |
 | **Open file…**, a dropped file, or an example, while the editor is open | That scene in the editor, as one undoable step. |
 
-The code is `src/lab/scene-editor-model.ts` (the document and its commands; no DOM, runs in node), `src/lab/scene-editor.ts` (the panel, picking, dragging, drawing) and a few hooks in `src/main.ts`. The tests are `tests/physics/scene-editor.test.mjs` (18 tests, in the pull-request gate) and the browser check `scripts/scene-editor-browser-check.mjs` (needs a Chromium with WebGPU; not in a gate).
+The code is `src/lab/scene-editor-model.ts` (the document and its commands; no DOM, runs in node), `src/lab/scene-editor.ts` (the panel, picking, dragging, drawing) and a few hooks in `src/main.ts`. The tests are `tests/physics/scene-editor.test.mjs` (21 tests, in the pull-request gate) and the browser check `scripts/scene-editor-browser-check.mjs` (needs a Chromium with WebGPU; not in a gate).
 
 ## How it works
 
@@ -103,6 +103,32 @@ The World section lists **step warnings**. They are rules of thumb, never refusa
 
 The Lab's frame loop ticks at 1/60 s and takes a whole number of scene steps per tick, so a step rate that is not a multiple of 60 Hz plays faster or slower than real time; the World section says by how much.
 
+## Coupled scenes
+
+A scene with coupled sections opens like any other (until 2026-11-12 the editor refused it). What changes:
+
+- **Bodies and joints** are edited exactly as in a rigid scene: add, move, turn, resize, retype, give a material, duplicate, delete, join.
+- **The sections are carried unchanged.** Every command builds the new scene from the old one with the sections as the same values, so their canonical text is the text they had, through edits, undo, redo, autosave, Download and Copy share link (`tests/physics/scene-editor.test.mjs` checks it on every coupled example: open, move a body, rename, undo, redo, save as a link, compare each section's canonical text).
+- **The outline lists them read-only** under the bodies and joints, one box each: its id and kind (water basin, cable, frame, cloth, grains, solid, heat grid, fluid flow or free-surface tank) and its key values (grid and cell size, rest depth, node and element counts, material, grain count and contact law, mesh and model, viscosity and density) and the bodies it names.
+- **A few values can be set** in that box, each one a command that goes through `validateScene` and the scratch build like any other, and is undone the same way:
+
+| Section | Values |
+|---|---|
+| Water basin | water level (rest depth) |
+| Cloth | areal density, Young's modulus, thickness |
+| Grains | the grain count (keeps the first N; the editor does not add grains, because it does not know where they go), friction, restitution |
+| Solid | Young's modulus, Poisson's ratio, density |
+| Heat grid | conductivity, specific heat |
+| Fluid | viscosity (a flow), density |
+| Cable, frame | none |
+
+  A value that makes the scene invalid is refused with the validator's message: for example a viscosity that puts the flow's step above the explicit viscous limit (`/fluids/0/substeps: the fluid step 0.008333 s is above the explicit viscous limit …`), or a negative rest depth.
+- **Bodies a section names.** Moving, turning or retyping such a body keeps the reference (it is by id), and the scratch build checks the result like any edit; a shape the section cannot use (a hull in a fluid, for example) is refused by the validator. Renaming it renames it in every section that names it (the message says how many references followed). Deleting it is refused, with the sections that name it, because the editor cannot change those sections to do without it. A duplicate is not added to any section.
+- **New ids** never take an id a section uses: bodies, joints and section entries share one namespace.
+- While the editor is open on a coupled scene, the scene's own lines (the wire grid on water, the edges of a fluid box and its arrows) are drawn with the editor's selection frames and joint markers.
+
+Not done: adding, removing or reshaping a section, editing its other values (meshes, supports, attachments, boundaries, grids, saved fields), or picking a section's parts in the view.
+
 ## Measuring
 
 **Measure** records one body (the selected one, or one chosen by name) while the simulation runs: one sample per tick, up to 3,600 (a minute at 60 Hz), on a small plot of position (x, y, z in m), velocity (components and speed in m/s) or energy (J). **Export CSV** saves every recorded column:
@@ -155,6 +181,8 @@ Text from a scene (names, titles, descriptions) is only ever written to the page
 - a keyboard-only pass (no pointer events): add, select in the outline, nudge, type a coordinate, delete, undo, redo, duplicate, deselect, play, reset;
 - a 390 × 844 touch viewport: see below.
 
+The editor with a coupled scene is checked by `scripts/coupled-scenes-browser-check.mjs` (on 2026-11-12, `lab.html?example=sphere-settling&edit=1`: the fluid section listed in the outline, the ball typed to a new position with the section unchanged, the viscosity set in the outline and a negative value refused with the validator's message, undo twice back to the opened scene hash, the copied link reopened with the edited scene's hash) and by `scripts/lab-webgl2-browser-check.mjs` (the same scene with the ball clicked and selected, drawn alike by the WebGPU and WebGL2 renderers).
+
 ## Limits
 
 - **No gizmo and no rotation handle.** Translation is by dragging on a horizontal plane, by Shift-dragging vertically, by arrow keys and by typing; rotation is by typing.
@@ -163,7 +191,7 @@ Text from a scene (names, titles, descriptions) is only ever written to the page
 - **Every command rebuilds the world** (twice: once in a scratch world, once on screen). That is immediate for scenes of tens of bodies and was not measured for thousands; dragging previews by moving one body and commits once.
 - **Loads** are initial velocities, gravity, motors and springs. There are no applied forces or torques over time in the format, so the editor has none.
 - **Multi-selection** is for joints, deletion, duplication, nudging and the ruler; the inspector edits one item at a time.
-- **Coupled scenes** (water, cables, frames, cloths, grains) are not opened in the editor: it edits rigid bodies and joints only and says so. The Lab itself opens, runs and draws them ([`SCENE_FORMAT.md`](SCENE_FORMAT.md#in-the-physics-lab)).
+- **Coupled scenes** open, but only their rigid bodies and joints and the few section values above are edited; the rest of each section is kept as it is ([Coupled scenes](#coupled-scenes)). A body a section names cannot be deleted in the editor.
 - **Selection highlight:** the selected body's instance colour is tinted and a line frame is drawn around it. Once the simulation has moved on, the frame stays and the tint is removed. No render pass was added. The lines are depth-tested like the rest of the scene, so the part of a joint marker that lies inside a body is hidden; the markers are sized to reach out of ordinary bodies, and a joint buried in a large body shows only its axis ends.
 - **Phone (390 px wide):** the panel fits the width, nothing is cut off at the sides, and scenes can be edited by touch through the outline and the inspector. With the panel open it covers the lower part of the screen (62% of the height), so little of the view is visible while typing; **Hide** collapses it to reach the view, where a tap selects a body and a drag moves it. Shift-drag (the vertical move) needs a keyboard; by touch the height is typed. Selecting two bodies by touch needs **Select several** turned on. The Lab's own left and bottom panels still take most of a phone screen.
 - **Seen in software rendering only** (SwiftShader in headless Chromium), not on a real GPU, and not in Safari or Firefox.

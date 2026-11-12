@@ -13,7 +13,14 @@
 // coupled readout (energy ledger, events); copy the share link, open it in two fresh browser contexts, step
 // both the same number of steps and require the same scene hash and the same state hash in both; and require
 // that no page error, console error or failed request happened. A scene with solids is also captured once per
-// field of the colour ramp (stress, temperature, damage), with the displacements magnified where cracks are tiny.
+// field of the colour ramp (stress, temperature, damage), with the displacements magnified where cracks are tiny, and a
+// scene with fluids once per fluid field (speed, pressure), with the fluid readout (Courant number, coupled bodies).
+//
+// Then the scene editor with a coupled scene (EDITOR_EXAMPLE, sphere-settling by default; set it to '' to skip):
+// lab.html?example=<name>&edit=1 opens in the editor, the outline lists the coupled section, a body the section names is
+// moved by typing its position, a section value (the fluid's viscosity) is set in the outline, an invalid value is
+// refused with the validator's message, undo twice returns to the opened scene hash, the share link of the edited
+// document carries the section byte for byte, and the editor's panel and the canvas are captured.
 import assert from 'node:assert/strict';
 import {execSync} from 'node:child_process';
 import fs from 'node:fs';
@@ -29,9 +36,11 @@ const {chromium} = playwright;
 
 const output = path.resolve(process.argv[2] ?? process.env.BOX3D_QA_OUTPUT ?? path.join(os.tmpdir(), 'box3d-coupled-scenes'));
 fs.mkdirSync(output, {recursive: true});
-const EXAMPLES = (process.argv[3] ?? 'buoy-and-crates,trampoline,hopper-seesaw,suspended-platform,moored-buoy,cable-stayed-deck,rubber-pad,notched-beam,quenched-plate,heated-bar').split(',');
+const EXAMPLES = (process.argv[3] ?? 'buoy-and-crates,trampoline,hopper-seesaw,suspended-platform,moored-buoy,cable-stayed-deck,rubber-pad,notched-beam,quenched-plate,heated-bar,sphere-settling,cavity-flow,flow-past-cylinder,dam-break').split(',');
 /** Lab ticks to advance before the first capture, and after reopening a link. */
-const FIRST = {'hopper-seesaw': 180, trampoline: 90, 'rubber-pad': 60, 'notched-beam': 60, 'quenched-plate': 150, 'heated-bar': 300}, SHARE_TICKS = 30;
+const FIRST = {'hopper-seesaw': 180, trampoline: 90, 'rubber-pad': 60, 'notched-beam': 60, 'quenched-plate': 150, 'heated-bar': 300, 'sphere-settling': 45, 'cavity-flow': 300, 'flow-past-cylinder': 300, 'dam-break': 40}, SHARE_TICKS = 30;
+/** Fluids: the fields captured. */
+const FLUID_VIEWS = {'sphere-settling': ['speed', 'pressure'], 'cavity-flow': ['speed', 'pressure'], 'flow-past-cylinder': ['speed', 'pressure'], 'dam-break': ['speed', 'pressure']};
 /** Solids: the fields captured and the displacement scale for each. */
 const SOLID_VIEWS = {'notched-beam': [['stress', 1], ['damage', 1], ['damage', 100]], 'quenched-plate': [['temperature', 1], ['stress', 1], ['damage', 100]], 'heated-bar': [['temperature', 1], ['stress', 1]], 'rubber-pad': [['stress', 1]]};
 
@@ -137,6 +146,21 @@ try {
       solidShots.push({field, scale, ...shot, solids: (await page.evaluate(() => window.box3dLab.sceneState().solidView)).solids});
     }
     if (solidShots.length) await page.evaluate(() => window.box3dLab.setSolidView({field: 'stress', scale: 1}));
+    const fluidShots = [];
+    for (const field of FLUID_VIEWS[name] ?? []) {
+      const view = await page.evaluate(options => window.box3dLab.setFluidView(options), {field});
+      assert.deepEqual(view, {field}, `${name}: the fluid view is set`);
+      const shot = await captureCanvas(page, `${name}-${field}.png`);
+      assert.ok(shot.lit > 0.2 && shot.colours > 20, `${name}: the ${field} capture is not blank`);
+      const fluids = (await page.evaluate(() => window.box3dLab.sceneState().fluidView)).fluids;
+      assert.ok(fluids.every(f => Number.isFinite(f.min) && Number.isFinite(f.max) && f.max > f.min && f.courant < 1.5), `${name}: the fluid readout is finite (${JSON.stringify(fluids)})`);
+      fluidShots.push({field, ...shot, fluids});
+    }
+    if (fluidShots.length) {
+      await page.evaluate(() => window.box3dLab.setFluidView({field: 'speed'}));
+      const draw = (await page.evaluate(() => window.box3dLab.sceneState().coupledDraw));
+      assert.ok(draw.fluidRows > 0 || draw.particleRows > 0, `${name}: the fluid is drawn (${JSON.stringify(draw)})`);
+    }
     const readout = await page.evaluate(() => window.box3dLab.coupledReadout());
     assert.ok(readout.energy.entries.length > 0, `${name}: the energy ledger has entries`);
     assert.equal(await page.locator('#lab-coupled-panel').isVisible(), true, `${name}: the readout panel is shown`);
@@ -172,10 +196,70 @@ try {
     report.examples[name] = {
       opened: {sceneHash: opened.sceneHash, bodies: opened.bodies, draw: opened.coupledDraw},
       stepped: {labTicks: stepped.ticks, simulationSteps: stepped.ticks * stepped.stepsPerTick, wallMs: Math.round(stepped.wallMs), msPerStep: +(stepped.wallMs / (stepped.ticks * stepped.stepsPerTick)).toFixed(3), stateHash: stepped.stateHash, events: stepped.events, energy: stepped.energy},
-      canvas, solidShots, readoutStepMs: readout.stepMs, link: link.length, latestEvents: readout.events,
+      canvas, solidShots, fluidShots, readoutStepMs: readout.stepMs, link: link.length, latestEvents: readout.events,
       share: {sceneHash: a.state.sceneHash, simulationTick: a.state.simulationTick, stateHash: a.state.stateHash},
     };
     check(`${name}: opens, steps, draws, and its share link reopens the same twice`, {canvas, msPerStep: report.examples[name].stepped.msPerStep, share: report.examples[name].share});
+  }
+  const editorExample = process.env.EDITOR_EXAMPLE ?? 'sphere-settling';
+  if (editorExample) {
+    const context = await browser.newContext({viewport: {width: 1280, height: 800}});
+    const page = await newPage(context, `editor ${editorExample}`);
+    await page.goto(`${base}lab.html?example=${editorExample}&edit=1`);
+    await page.waitForFunction(() => window.box3dLab?.editorState()?.active === true && window.box3dLab.sceneState().coupled === true, null, {timeout: 240000});
+    const editor = () => page.evaluate(() => window.box3dLab.editorState());
+    const sections = () => page.evaluate(() => { const scene = window.box3dLab.sceneJson(); const out = {}; for (const key of ['water', 'cables', 'frames', 'cloths', 'grains', 'solids', 'heat', 'fluids']) if (scene[key]) out[key] = scene[key]; return out; });
+    const opened = await editor(), openedSections = await sections();
+    assert.ok(opened.coupled.length > 0, `${editorExample}: the outline lists the coupled sections`);
+    assert.equal(await page.locator('#lab-editor-coupled').isVisible(), true, 'the coupled sections are shown in the outline');
+    const setField = async (selector, value) => {
+      const before = (await editor()).messages;
+      await page.fill(selector, String(value));
+      await page.keyboard.press('Tab');
+      await page.waitForFunction(old => window.box3dLab.editorState().messages !== old, before, {timeout: 60000});
+    };
+    // Move the first body a section names by typing its position.
+    const target = (await page.evaluate(() => window.box3dLab.sceneJson())).bodies[0];
+    await page.click(`#lab-editor-item-${target.id}`);
+    await page.waitForFunction(id => window.box3dLab.editorState().selection.join() === id, target.id, {timeout: 20000});
+    await setField('#lab-editor-position-x', target.position[0] + 0.01);
+    const moved = await editor();
+    assert.equal(moved.error, false, moved.message);
+    assert.notEqual(moved.sceneHash, opened.sceneHash, 'the move changed the scene');
+    assert.deepEqual(await sections(), openedSections, 'a move keeps the coupled sections as they were');
+    // A section value: the first editable field of the coupled outline.
+    const field = await page.evaluate(() => { const input = document.querySelector('#lab-editor-coupled input[type=number]'); return input ? {id: input.id, value: Number(input.value)} : null; });
+    assert.ok(field, 'a section value can be set in the outline');
+    await setField(`#${field.id}`, field.value * 0.8);
+    const edited = await editor();
+    assert.equal(edited.error, false, edited.message);
+    assert.notDeepEqual(await sections(), openedSections, 'the section value changed');
+    await page.waitForTimeout(400);
+    await captureCanvas(page, `editor-${editorExample}.png`);
+    await page.locator('#lab-editor-details-outline').screenshot({path: path.join(output, `editor-${editorExample}-outline.png`)});
+    report.screenshots.push(path.join(output, `editor-${editorExample}-outline.png`));
+    await setField(`#${field.id}`, -1);
+    const refused = await editor();
+    assert.equal(refused.error, true, 'a negative value is refused');
+    assert.match(refused.message, /must be >= 0/);
+    // The share link of the edited document, then undo twice back to the scene as opened.
+    await page.click('#lab-scene-copy');
+    await page.waitForFunction(() => typeof window.box3dLab.lastShareLink() === 'string', null, {timeout: 60000});
+    const link = await page.evaluate(() => window.box3dLab.lastShareLink());
+    await page.click('#lab-editor-undo'); await page.click('#lab-editor-undo');
+    await page.waitForFunction(hash => window.box3dLab.editorState().sceneHash === hash, opened.sceneHash, {timeout: 60000});
+    assert.deepEqual(await sections(), openedSections, 'undo returns the sections as they were');
+    await context.close();
+    const fresh = await browser.newContext({viewport: {width: 1280, height: 800}});
+    const viewer = await newPage(fresh, `editor ${editorExample} link`);
+    await viewer.goto(link);
+    await loaded(viewer);
+    // The page opened from the link holds the edited document: same scene hash (its sceneJson would be the live state).
+    const reopened = await viewer.evaluate(() => window.box3dLab.sceneState().sceneHash);
+    await fresh.close();
+    assert.equal(reopened, edited.sceneHash, 'the link of the edited scene carries it, sections included');
+    report.editor = {example: editorExample, coupled: opened.coupled, field: field.id, opened: opened.sceneHash, moved: moved.sceneHash, edited: edited.sceneHash, refused: refused.message, link: link.length};
+    check(`editor: ${editorExample} opens with its sections listed, a named body moves, a section value is set and refused, undo and the link keep the sections`, report.editor);
   }
   assert.deepEqual(report.errors, [], `console errors:\n${report.errors.join('\n')}`);
   check('no console errors, page errors or failed requests', {warnings: report.warnings.length});

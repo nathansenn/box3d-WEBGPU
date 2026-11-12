@@ -34,7 +34,8 @@ import {FractureBody,fractureSubsystem} from './solid-fracture.ts';
 import {SolidCoupling,solidContactSubsystem,type SolidContactShape} from './solid-contact.ts';
 import {Cloth,ClothCoupling,clothSubsystem,type ClothShape} from './cloth.ts';
 import {Granular,GranularCoupling,granularSubsystem,type GranularShape} from './granular.ts';
-import {normalizeScene,sceneHasCoupling,SceneBuilder,type Scene,type SceneBody,type SceneCable,type SceneCloth,type SceneCoupledSections,type SceneFrameSection,type SceneGrains,type SceneHeat,type SceneHost,type SceneInertia,type SceneSolid,type SceneSolidRegion,type SceneWater} from './scene-format.ts';
+import {Fluid,FluidCoupling,FreeSurfaceFluid,fluidSubsystem,freeSurfaceSubsystem,type FluidBoundaries,type FluidShape,type FluidWorld} from './fluid.ts';
+import {normalizeScene,sceneHasCoupling,SceneBuilder,type Scene,type SceneBody,type SceneCable,type SceneCloth,type SceneCoupledSections,type SceneFluid,type SceneFrameSection,type SceneGrains,type SceneHeat,type SceneHost,type SceneInertia,type SceneSolid,type SceneSolidRegion,type SceneWater} from './scene-format.ts';
 import type {NativeBodyHandle,NativeJointHandle} from './native-world.ts';
 
 /** The order of one step. `rigid` and `events` belong to the Simulation; subsystems choose one of the other three. */
@@ -633,6 +634,41 @@ export interface LoadedSimulationScene<W extends SimulationSceneWorld=Simulation
   readonly solids:Map<string,SceneSolidRuntime<Body>>;
   /** By heat id. Each is registered under its id (`heatSubsystem`), with its link to the solid as '<id>:solid'. */
   readonly heat:Map<string,HeatSolver>;
+  /** By fluid id. Each is registered under its id: `fluidSubsystem` (of the coupling when the flow has bodies), `freeSurfaceSubsystem` for a tank. */
+  readonly fluids:Map<string,SceneFluidRuntime<Body>>;
+}
+/** A fluid of a scene as built: a flow (with its coupling to the bodies, or null when it has none) or a free-surface tank. */
+export type SceneFluidRuntime<B>=
+  |{readonly kind:'flow';readonly flow:Fluid;readonly coupling:FluidCoupling<B>|null}
+  |{readonly kind:'free-surface';readonly surface:FreeSurfaceFluid};
+
+/** The flow of a scene fluid as its description gives it: grid, material, sides, gravity and step, at rest or at the start it gives (no bodies). */
+function sceneFlow(desc:SceneFluid,step:number,gravity:readonly [number,number,number]):Fluid {
+  const boundaries:{[key:string]:unknown}={};
+  for(const [key,side] of Object.entries(desc.boundaries??{}))boundaries[key]=typeof side==='string'?side:{type:side.type,velocity:[side.velocity[0],side.velocity[1],side.velocity[2]]};
+  const g:[number,number,number]=desc.gravity===false?[0,0,0]:[gravity[0],gravity[1],gravity[2]];
+  const fluid=new Fluid({cells:[desc.cells[0],desc.cells[1],desc.cells[2]],spacing:desc.spacing,...(desc.origin?{origin:[desc.origin[0],desc.origin[1],desc.origin[2]]}:{}),density:desc.density,viscosity:desc.viscosity!,
+    dt:step/(desc.substeps??1),gravity:g,boundaries:boundaries as FluidBoundaries,...(desc.advection?{advection:desc.advection}:{}),...(desc.diffusion?{diffusion:desc.diffusion}:{})});
+  if(desc.u){fluid.setState({u:desc.u,v:desc.v!,w:desc.w!,...(desc.pressure?{pressure:desc.pressure}:{})});return fluid;}
+  // At rest the pressure is hydrostatic: zero on an outflow side (which the format puts across gravity), zero mean otherwise.
+  const outflow=(['xMin','xMax','yMin','yMax','zMin','zMax'] as const).findIndex(key=>desc.boundaries?.[key]==='outflow');
+  if(g[0]!==0||g[1]!==0||g[2]!==0){
+    const rho=desc.density,o=fluid.origin,n=[fluid.nx,fluid.ny,fluid.nz];
+    let datum=0;
+    if(outflow>=0){const a=outflow>>1;datum=-rho*g[a]*(o[a]+(outflow&1?n[a]*fluid.h:0));}
+    fluid.setPressure((x,y,z)=>rho*(g[0]*x+g[1]*y+g[2]*z)+datum);
+    if(outflow<0){let mean=0;for(let c=0;c<fluid.cells;c++)mean+=fluid.p[c];mean/=fluid.cells;for(let c=0;c<fluid.cells;c++)fluid.p[c]-=mean;}
+  }
+  if(desc.velocity){const v=desc.velocity;fluid.setVelocity(()=>v);fluid.project();}
+  return fluid;
+}
+/** The free-surface tank of a scene fluid: the saved particles, or its liquid boxes seeded in file order. */
+function sceneSurface(desc:SceneFluid,step:number,gravity:readonly [number,number,number]):FreeSurfaceFluid {
+  const tank=new FreeSurfaceFluid({cells:[desc.cells[0],desc.cells[1],desc.cells[2]],spacing:desc.spacing,...(desc.origin?{origin:[desc.origin[0],desc.origin[1],desc.origin[2]]}:{}),density:desc.density,
+    dt:step/(desc.substeps??1),gravity:[gravity[0],gravity[1],gravity[2]],...(desc.particlesPerAxis!==undefined?{particlesPerAxis:desc.particlesPerAxis}:{})});
+  if(desc.positions)tank.setParticles(desc.positions,desc.velocities,desc.affine);
+  else for(const box of desc.liquid??[])tank.addLiquid((x,y,z)=>x>=box.min[0]&&x<=box.max[0]&&y>=box.min[1]&&y<=box.max[1]&&z>=box.min[2]&&z<=box.max[2],box.velocity?[box.velocity[0],box.velocity[1],box.velocity[2]]:[0,0,0]);
+  return tank;
 }
 /** A solid of a scene as built: the body (a `FractureBody` when the scene gives it fracture), its contact coupling or null, and the heat grid in it or null. */
 export interface SceneSolidRuntime<B> {readonly body:SolidBody|FractureBody;readonly coupling:SolidCoupling<B>|null;readonly heat:HeatSolver|null}
@@ -701,7 +737,7 @@ function shapeInertia(body:SceneBody,explicit:SceneInertia|undefined):StructureI
  * return the Simulation that steps them. Build order: frames, then cables (file order), one
  * StructureCoupling with the cables' attachments (cable by cable, in file order) and then the
  * frames' attachments; then the cloths, then the grain sets, then the solids (supports, saved state,
- * contact, welds, loads), then the heat grids and their links to the solids, then the basins and their bodies. A
+ * contact, welds, loads), then the heat grids and their links to the solids, then the fluids (flows and their bodies, tanks), then the basins and their bodies. A
  * rigid-only scene gives a Simulation with no subsystems, whose step is `world.step()`. On a
  * failure the world is reset and the error names the id.
  */
@@ -710,11 +746,11 @@ export function buildSceneSimulation<W extends SimulationSceneWorld>(world:W,bui
   const gravity:[number,number,number]=[g[0],g[1],g[2]];
   const descriptions=new Map<string,SceneBody>(scene.bodies.map(body=>[body.id,body]));
   const water=new Map<string,WaterCoupling<Body>>(),cables=new Map<string,CompliantCableRuntime>(),frames=new Map<string,FrameRuntime>(),attachments=new Map<string,StructureAttachment>();
-  const cloths=new Map<string,ClothCoupling<Body>>(),grains=new Map<string,GranularCoupling<Body>>(),solids=new Map<string,SceneSolidRuntime<Body>>(),heats=new Map<string,HeatSolver>();
+  const cloths=new Map<string,ClothCoupling<Body>>(),grains=new Map<string,GranularCoupling<Body>>(),solids=new Map<string,SceneSolidRuntime<Body>>(),heats=new Map<string,HeatSolver>(),fluids=new Map<string,SceneFluidRuntime<Body>>();
   const carried=new Set<Body>();
   let structure:StructureCoupling<Body>|null=null;
   const simulation=new Simulation<W,Body>(world);
-  if(!sceneHasCoupling(scene))return {bodies,joints,builder,scene,simulation,water,cables,frames,structure,attachments,cloths,grains,solids,heat:heats};
+  if(!sceneHasCoupling(scene))return {bodies,joints,builder,scene,simulation,water,cables,frames,structure,attachments,cloths,grains,solids,heat:heats,fluids};
   // A dynamic body that a cloth or grains push is counted in the ledger's 'rigid' entry, unless the structure coupling already counts it.
   const track=(id:string):void=>{
     const body=bodies.get(id)!,description=descriptions.get(id)!;
@@ -869,6 +905,25 @@ export function buildSceneSimulation<W extends SimulationSceneWorld>(world:W,bui
         heats.set(desc.id,heat);solids.set(desc.solid,{...target,heat});
       }catch(error){throw named('heat',desc.id,error);}
     }
+    for(const desc of scene.fluids??[]){
+      try{
+        if(desc.kind==='free-surface'){
+          const surface=sceneSurface(desc,step,gravity);
+          fluids.set(desc.id,{kind:'free-surface',surface});
+          simulation.add(freeSurfaceSubsystem<W,Body>(surface,{id:desc.id}));
+          continue;
+        }
+        const flow=sceneFlow(desc,step,gravity);
+        let coupling:FluidCoupling<Body>|null=null;
+        if(desc.bodies?.length){
+          coupling=new FluidCoupling<Body>(world as unknown as FluidWorld<Body>,flow);
+          for(const entry of desc.bodies)coupling.addBody(bodies.get(entry.body)!,{shape:descriptions.get(entry.body)!.shape as FluidShape,...(entry.twoWay!==undefined?{twoWay:entry.twoWay}:{})});
+        }
+        fluids.set(desc.id,{kind:'flow',flow,coupling});
+        simulation.add(fluidSubsystem<W,Body>(coupling??flow,{id:desc.id}));
+        for(const entry of desc.bodies??[])if(entry.twoWay!==false)track(entry.body);
+      }catch(error){throw named('fluid',desc.id,error);}
+    }
     for(const basin of scene.water??[]){
       try{
         const coupling=new WaterCouplingClass<Body>(world,{cols:basin.cols,rows:basin.rows,dx:basin.dx,dz:basin.dz,restDepth:basin.restDepth,origin:[basin.origin[0],basin.origin[1],basin.origin[2]],
@@ -916,8 +971,15 @@ export function buildSceneSimulation<W extends SimulationSceneWorld>(world:W,bui
       return {...desc,displacements:Array.from(body.displacements),velocities:Array.from(body.velocities)};
     }),
     heat:scene.heat?.map((desc:SceneHeat)=>{const heat=heats.get(desc.id)!;return {...desc,temperature:Array.from(heat.temperature),reference:desc.reference??(desc.temperature as number)};}),
+    // A flow writes its face velocities and pressures, a tank its particles.
+    fluids:scene.fluids?.map((desc:SceneFluid)=>{
+      const runtime=fluids.get(desc.id)!;
+      if(runtime.kind==='free-surface'){const t=runtime.surface;return {...desc,positions:Array.from(t.positions.subarray(0,3*t.count)),velocities:Array.from(t.velocities.subarray(0,3*t.count)),affine:Array.from(t.affine.subarray(0,9*t.count))};}
+      const state=runtime.flow.getState();
+      return {...desc,u:Array.from(state.u),v:Array.from(state.v),w:Array.from(state.w),pressure:Array.from(state.pressure)};
+    }),
   });
-  return {bodies,joints,builder,scene,simulation,water,cables,frames,structure,attachments,cloths,grains,solids,heat:heats};
+  return {bodies,joints,builder,scene,simulation,water,cables,frames,structure,attachments,cloths,grains,solids,heat:heats,fluids};
 }
 
 /**

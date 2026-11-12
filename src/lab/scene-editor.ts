@@ -11,6 +11,11 @@
  * through the point that was grabbed; Shift moves it vertically), nudge it
  * with the arrow keys, or type its coordinates. There is no 3D gizmo.
  *
+ * A scene with coupled sections (water, cables, frames, cloths, grains, solids,
+ * heat, fluids) opens like any other: its bodies and joints are edited, and the
+ * outline lists each section read-only with its key values, with fields for the
+ * few values the model lets the editor set (`COUPLED_EDITS`).
+ *
  * Every string that comes from a scene is written with textContent or as a
  * form value; nothing here builds markup from data.
  */
@@ -22,7 +27,7 @@ import { sceneStepsPerLabTick, LAB_TICK_SECONDS } from './scene-host.ts';
 import { quoteForDisplay } from './scene-loading.ts';
 import {
   AUTOSAVE_KEY, BODY_PRESETS, GRAVITY_PRESETS, IDENTITY, JOINT_TYPES, MATERIAL_PRESETS, MEASUREMENT_COLUMNS, MeasurementSeries, SceneDocument,
-  add3, cameraProject, cameraRay, decodeAutosave, emptyScene, encodeAutosave, generatedShapeOf, gravityPresetOf, jointGeometryInScene, jointTraits, jointWorldGeometry,
+  add3, cameraProject, cameraRay, coupledSections, decodeAutosave, emptyScene, encodeAutosave, generatedShapeOf, gravityPresetOf, jointGeometryInScene, jointTraits, jointWorldGeometry,
   length3, materialPreset, presetShape, principalInertia, quatRotate, quaternionToEuler, rayPlaneY, resolvedMaterial, restingHeight, rulerMeasure, scale3,
   shapeLocalBounds, snapValue, stepWarnings, sub3,
   type BodyPresetId, type CameraRigLike, type EditorCommand, type GeneratedShape, type JointPatch, type MeasurementColumn, type Pose, type Quat, type TerrainFunction, type Vec3,
@@ -82,6 +87,8 @@ export interface SceneEditorState {
   readonly warnings: readonly string[];
   /** Lines the editor is drawing over the scene: selection frames, joints, the ruler. */
   readonly overlayLines: number;
+  /** The coupled sections the outline lists, as 'section:id'. */
+  readonly coupled: readonly string[];
 }
 
 export interface SceneEditor {
@@ -740,7 +747,8 @@ export function createSceneEditor(host: SceneEditorHost): SceneEditor {
 
   function renderOutline(): void {
     const bodies = scene().bodies, joints = scene().joints ?? [];
-    outlineSection.summary.textContent = `Outline · ${bodies.length} ${bodies.length === 1 ? 'body' : 'bodies'}, ${joints.length} ${joints.length === 1 ? 'joint' : 'joints'}`;
+    const sections = coupledSections(scene()).length;
+    outlineSection.summary.textContent = `Outline · ${bodies.length} ${bodies.length === 1 ? 'body' : 'bodies'}, ${joints.length} ${joints.length === 1 ? 'joint' : 'joints'}${sections ? `, ${sections} coupled ${sections === 1 ? 'section' : 'sections'}` : ''}`;
     const list = el('div', 'lab-editor-outline');
     list.id = 'lab-editor-outline-list';
     list.setAttribute('role', 'listbox'); list.setAttribute('aria-multiselectable', 'true'); list.setAttribute('aria-label', 'Bodies and joints');
@@ -748,7 +756,7 @@ export function createSceneEditor(host: SceneEditorHost): SceneEditor {
       ...bodies.map(body => ({ id: body.id, text: `${body.id}  ·  ${generatedShapeOf(body)?.preset ?? body.shape.kind}, ${body.type ?? (body.shape.kind === 'mesh' || body.shape.kind === 'heightfield' ? 'static' : 'dynamic')}` })),
       ...joints.map(joint => ({ id: joint.id, text: `${joint.id}  ·  ${joint.type} joint, ${joint.bodyA ?? 'world'} – ${joint.bodyB ?? 'world'}` })),
     ];
-    if (items.length === 0) { list.append(el('p', 'lab-editor-hint', 'The scene is empty. Add a body above.')); outlineSection.body.replaceChildren(list); return; }
+    if (items.length === 0) { list.append(el('p', 'lab-editor-hint', 'The scene is empty. Add a body above.')); outlineSection.body.replaceChildren(list, ...coupledOutline()); return; }
     const tabStop = items.find(item => selection.includes(item.id))?.id ?? items[0]!.id;
     const nodes: HTMLElement[] = [];
     items.forEach((item, index) => {
@@ -772,7 +780,32 @@ export function createSceneEditor(host: SceneEditorHost): SceneEditor {
     list.append(...nodes);
     const row = el('div', 'lab-editor-row');
     check(row, 'multi-select', 'Select several (a click adds to the selection)', multiSelect, (value) => { multiSelect = value; });
-    outlineSection.body.replaceChildren(list, row);
+    outlineSection.body.replaceChildren(list, row, ...coupledOutline());
+  }
+
+  /** The coupled sections, read-only, with their key values and the few values that can be set here. */
+  function coupledOutline(): HTMLElement[] {
+    const entries = coupledSections(scene());
+    if (entries.length === 0) return [];
+    const running = mode === 'run', block = el('div', 'lab-editor-coupled');
+    block.id = 'lab-editor-coupled';
+    block.append(heading(`Coupled sections (${entries.length})`), el('p', 'lab-editor-hint', 'Kept as they are in the file through every edit, undo and save. The values below can be changed here; bodies they name can be moved and renamed.'));
+    for (const entry of entries) {
+      const item = el('div', 'lab-editor-coupled-item');
+      item.id = `lab-editor-coupled-${entry.section}-${entry.id}`;
+      item.append(el('p', 'lab-editor-coupled-title', `${entry.id} · ${entry.kind}`));
+      for (const line of entry.details) item.append(el('p', 'lab-editor-hint', line));
+      if (entry.edits.length > 0) {
+        const fields = grid();
+        for (const edit of entry.edits) {
+          number(fields, `coupled-${entry.section}-${entry.id}-${edit.key.replace(/\./g, '-')}`, `${edit.label}${edit.unit ? ` (${edit.unit})` : ''}`, edit.value,
+            (value) => { run({ type: 'setCoupled', section: entry.section, id: entry.id, key: edit.key, value }); }, { min: edit.min, step: edit.integer ? 1 : undefined, disabled: running });
+        }
+        item.append(fields);
+      }
+      block.append(item);
+    }
+    return [block];
   }
 
   function renderInspector(running: boolean): void {
@@ -1261,6 +1294,7 @@ export function createSceneEditor(host: SceneEditorHost): SceneEditor {
         sceneHash: active && doc ? sceneHash(doc.scene) : null, message, error: messageIsError, messages: messageCount, time: active && doc ? time() : 0, samples: series.length, tracked: seriesBody,
         ruler: m && ruler.a && ruler.b ? { a: ruler.a, b: ruler.b, distance: m.distance } : null, recovery: recovery !== null,
         warnings: doc ? stepWarnings(doc.scene) : [], overlayLines: active ? lineCount : 0,
+        coupled: doc ? coupledSections(doc.scene).map(entry => `${entry.section}:${entry.id}`) : [],
       };
     },
     screenPosition(id) {

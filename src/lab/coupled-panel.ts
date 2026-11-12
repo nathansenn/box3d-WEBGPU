@@ -2,13 +2,16 @@
  * The readout of a coupled scene in the Physics Lab: the clock and the cost of a step, the
  * simulation's energy ledger by subsystem, and the latest events. For a scene with solids it also
  * has the field picker (von Mises stress, temperature or damage) and the displacement scale the
- * solids are drawn with, and the range of the colour ramp. It uses the styles of the SI
+ * solids are drawn with, and the range of the colour ramp. For a scene with fluids it has the
+ * field picker of the fluids (speed or pressure), the range of their ramp, the Courant number and
+ * the pressure-solve iterations of each, and the speed of and the fluid's force on each body in a
+ * flow. It uses the styles of the SI
  * bridge panel (si-bridge-panel.css).
  *
  * Every value is written with textContent; nothing here builds markup from data.
  */
 import './si-bridge-panel.css';
-import { SOLID_FIELDS, type CoupledSceneView, type SolidField } from './coupled-scene.ts';
+import { FLUID_FIELDS, SOLID_FIELDS, type CoupledSceneView, type FluidField, type SolidField } from './coupled-scene.ts';
 
 export interface CoupledPanel {
   /** Show the panel for this scene, or hide it with null. */
@@ -65,7 +68,16 @@ export function createCoupledPanel(): CoupledPanel {
   pickers.append('Colour solids by ', fieldSelect, ' · displacements ', scaleSelect);
   const ramp = element('dl', 'lab-bridge-readouts'); ramp.id = 'lab-coupled-ramp';
   solidBlock.append(element('p', 'lab-bridge-heading', 'Solids (blue low → red high)'), pickers, ramp);
-  panel.append(clock, solidBlock, element('p', 'lab-bridge-heading', 'Energy by subsystem (total · balance)'));
+  // Fluids: what the slice and the particles are coloured by.
+  const fluidBlock = element('div', ''); fluidBlock.id = 'lab-coupled-fluids';
+  const fluidSelect = element('select', ''); fluidSelect.id = 'lab-coupled-fluid-field'; fluidSelect.setAttribute('aria-label', 'Colour fluids by');
+  const FLUID_NAMES: Record<FluidField, string> = { speed: 'Speed', pressure: 'Pressure (less hydrostatic in a flow)' };
+  for (const field of FLUID_FIELDS) { const option = element('option', '', FLUID_NAMES[field]); option.value = field; fluidSelect.append(option); }
+  const fluidPicker = element('p', 'lab-bridge-note');
+  fluidPicker.append('Colour fluids by ', fluidSelect);
+  const fluidRamp = element('dl', 'lab-bridge-readouts'); fluidRamp.id = 'lab-coupled-fluid-ramp';
+  fluidBlock.append(element('p', 'lab-bridge-heading', 'Fluids (blue low → red high; arrows: velocity in the slice)'), fluidPicker, fluidRamp);
+  panel.append(clock, solidBlock, fluidBlock, element('p', 'lab-bridge-heading', 'Energy by subsystem (total · balance)'));
   const ledger = element('dl', 'lab-bridge-readouts'); ledger.id = 'lab-coupled-ledger';
   panel.append(ledger, element('p', 'lab-bridge-heading', 'Latest events'));
   const events = element('ol', 'lab-bridge-note'); events.id = 'lab-coupled-events';
@@ -90,12 +102,35 @@ export function createCoupledPanel(): CoupledPanel {
     }
     ramp.replaceChildren(...rows);
   };
+  const showFluids = (): void => {
+    if (!view || !view.hasFluids) return;
+    const info = view.fluidView(), rows: HTMLElement[] = [];
+    fluidSelect.value = info.field;
+    for (const fluid of info.fluids) {
+      const label = element('dt', '', fluid.id);
+      label.title = fluid.kind === 'flow' ? `Flow, ${fluid.cells} cells` : `Free-surface tank, ${fluid.cells} cells, ${fluid.particles} particles`;
+      const value = element('dd', '', `${quantity(fluid.min, fluid.unit)} to ${quantity(fluid.max, fluid.unit)}`);
+      value.title = `Courant number ${fluid.courant.toFixed(3)}, ${fluid.iterations} pressure iterations in the last step`;
+      rows.push(label, value, element('dt', '', 'Courant · CG'), element('dd', '', `${fluid.courant.toFixed(2)} · ${fluid.iterations} it.`));
+      for (const body of fluid.bodies) {
+        // Components below a millionth of the largest are round-off: shown as 0.
+        const top = Math.max(...body.force.map(Math.abs)), force = body.force.map(f => (Math.abs(f) < 1e-6 * top ? 0 : +f.toPrecision(3)));
+        const line = element('dd', '', `${quantity(body.speed, 'm/s')} · F (${force.join(', ')}) N`);
+        line.title = 'Speed of the body and the force of the fluid on it, buoyancy included';
+        rows.push(element('dt', '', body.id), line);
+      }
+    }
+    fluidRamp.replaceChildren(...rows);
+  };
+  fluidSelect.addEventListener('change', () => { view?.setFluidView({ field: fluidSelect.value as FluidField }); showFluids(); });
   fieldSelect.addEventListener('change', () => { view?.setSolidView({ field: fieldSelect.value as SolidField }); showSolids(); });
   scaleSelect.addEventListener('change', () => { view?.setSolidView({ scale: Number(scaleSelect.value) }); showSolids(); });
   const show = (): void => {
     if (!view) return;
     solidBlock.hidden = !view.hasSolids;
     showSolids();
+    fluidBlock.hidden = !view.hasFluids;
+    showFluids();
     const r = view.readout();
     time.textContent = `${r.time.toFixed(2)} s · ${r.tick} × ${(r.dt * 1000).toFixed(2)} ms`;
     cost.textContent = Number.isFinite(r.stepMs) ? `${r.stepMs.toFixed(2)} ms (${(100 * r.stepMs / (r.dt * 1000)).toFixed(0)}% of real time)` : '–';

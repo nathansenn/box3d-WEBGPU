@@ -2,7 +2,9 @@
 // byte-identical canonical JSON, rename and delete reaching the joints, refusals with the
 // validator's message, snapping, the materials table, terrain determinism, joint frames, step
 // warnings, the measurement series and its CSV, and autosave records. The scenes the editor
-// produces are also built in the native world, the way the Lab builds them.
+// produces are also built in the native world, the way the Lab builds them. Coupled scenes open: every
+// coupled example is edited, undone, redone and saved with its sections unchanged, and the few
+// section values the editor sets are validated and built like any edit.
 import assert from 'node:assert/strict';
 import test from 'node:test';
 import {readFile} from 'node:fs/promises';
@@ -10,12 +12,12 @@ import {resolve} from 'node:path';
 import {pathToFileURL} from 'node:url';
 import {NativeWorldPool} from '../../src/engine/native-world.ts';
 import {isClosed, meshVolume} from '../../src/engine/geometry.ts';
-import {EXAMPLE_SCENES, canonicalize, decodeSceneLink, encodeSceneLinkSync, eulerToQuaternion, sceneHash, validateScene} from '../../src/engine/scene-format.ts';
+import {COUPLED_EXAMPLE_SCENES, EXAMPLE_SCENES, canonicalize, decodeSceneLink, encodeSceneLinkSync, eulerToQuaternion, sceneHash, validateScene} from '../../src/engine/scene-format.ts';
 import {loadLabScene} from '../../src/lab/scene-host.ts';
 import {shortFloat32} from '../../src/lab/scene-loading.ts';
 import {rigidMaterial} from '../../src/engine/materials.ts';
 import {
-  AUTOSAVE_MAX_CHARS, BODY_PRESETS, EditorError, GRAVITY_PRESETS, JOINT_TYPES, MATERIAL_PRESETS, MEASUREMENT_COLUMNS, MeasurementSeries, ROUND_SEGMENTS, SceneDocument,
+  AUTOSAVE_MAX_CHARS, BODY_PRESETS, COUPLED_SECTION_KEYS, EditorError, GRAVITY_PRESETS, coupledSections, JOINT_TYPES, MATERIAL_PRESETS, MEASUREMENT_COLUMNS, MeasurementSeries, ROUND_SEGMENTS, SceneDocument,
   bodyEnergy, cameraProject, cameraRay, decodeAutosave, emptyScene, encodeAutosave, generateShape, generatedShapeOf, gravityPresetOf, jointFramesFromWorld, jointGeometryInScene,
   jointTraits, materialPreset, presetShape, principalInertia, quatRotate, quaternionToEuler, rayPlaneY, resolvedMaterial, restingHeight, rulerMeasure, shapeExtentAlong,
   shapeLocalBounds, shapeThickness, shapeVolume, snapValue, snapVec3, stepWarnings, terrainHeights, uniqueId,
@@ -54,7 +56,9 @@ test('a new document is an empty, valid SI scene with the ground slab', () => {
   assert.throws(() => new SceneDocument(EXAMPLE_SCENES['pendulum-wave'](), {historyLimit: 0}), RangeError);
   const withWater = {...emptyScene(), water: [{id: 'w', cols: 4, rows: 4, dx: 1, dz: 1, restDepth: 1, origin: [0, 0, 0]}]};
   assert.deepEqual(validateScene(withWater), []);
-  assert.throws(() => new SceneDocument(withWater), EditorError, 'coupled scenes are not edited');
+  // A coupled scene opens; its section is listed read-only.
+  const wet = new SceneDocument(withWater);
+  assert.deepEqual(coupledSections(wet.scene).map(entry => [entry.section, entry.id, entry.kind]), [['water', 'w', 'Water basin']]);
 });
 
 test('every command changes the scene, and undo and redo restore the exact canonical text', () => {
@@ -765,4 +769,76 @@ test('a scene with compound bodies and massData opens in the editor: bounds, res
     assert.equal(world.bodyMassData(loaded.bodies.get('ell')).shapeCount, 3);
     assert.deepEqual([world.bodyMassData(loaded.bodies.get('ball')).mass, world.bodyMassData(loaded.bodies.get('ball')).explicit], [9, true]);
   });
+});
+
+/** The canonical text of each coupled section of a scene. */
+const sectionsText = scene => { const canonical = JSON.parse(canonicalize(scene)); return COUPLED_SECTION_KEYS.map(key => JSON.stringify(canonical[key] ?? null)); };
+/** A document whose every candidate is built in a scratch native world, as the Lab's editor does. */
+const scratchDocument = scene => new SceneDocument(scene, {accept: candidate => withWorld((world) => { try { loadLabScene(world, candidate); return null; } catch (error) { return error.message; } })});
+
+test('every coupled example opens in the editor: a moved body, undo, redo, save and link keep the sections byte for byte', () => {
+  for (const [name, make] of Object.entries(COUPLED_EXAMPLE_SCENES)) {
+    const doc = scratchDocument(make()), original = doc.canonical(), sections = sectionsText(doc.scene);
+    const listed = coupledSections(doc.scene);
+    assert.ok(listed.length > 0 && listed.every(entry => entry.details.length > 0), `${name}: the sections are listed with their values`);
+    // The body to move: one a section names when there is one (its reference must stay valid), else any; a scene with no bodies gets one.
+    const named = listed.flatMap(entry => entry.bodies).find(id => doc.body(id)?.type !== 'static') ?? listed.flatMap(entry => entry.bodies)[0];
+    let id = named ?? doc.scene.bodies.find(body => body.shape.kind !== 'heightfield' && body.shape.kind !== 'mesh')?.id;
+    if (!id) { ok(doc.apply({type: 'addBody', preset: 'box', id: 'crate', position: [3, 0.5, 3]})); id = 'crate'; }
+    const before = doc.canonical(), body = doc.body(id);
+    ok(doc.apply({type: 'setTransform', id, position: [body.position[0] + 0.01, body.position[1] + 0.005, body.position[2]]}));
+    assert.notEqual(doc.canonical(), before, `${name}: the body moved`);
+    assert.deepEqual(sectionsText(doc.scene), sections, `${name}: the sections are unchanged by a move`);
+    assert.deepEqual(validateScene(doc.scene), [], `${name}: the moved scene validates`);
+    const moved = doc.canonical();
+    // The link of the edited document carries the sections as they were.
+    assert.deepEqual(sectionsText(decodeSceneLink(encodeSceneLinkSync(doc.scene))), sections, `${name}: a saved link keeps the sections`);
+    if (named) {
+      // Renaming a body a section names renames the reference; deleting it is refused.
+      const renamed = ok(doc.apply({type: 'rename', id: named, newId: `${named}-renamed`}));
+      assert.match(renamed.notes.join(' '), /in the coupled sections follow/);
+      assert.ok(coupledSections(doc.scene).some(entry => entry.bodies.includes(`${named}-renamed`)) && !coupledSections(doc.scene).some(entry => entry.bodies.includes(named)), `${name}: the reference follows the new name`);
+      refused(doc.apply({type: 'deleteBody', id: `${named}-renamed`}), /is named by .* cannot be deleted here/);
+      assert.equal(doc.undo(), `Rename "${named}" to "${named}-renamed"`);
+    }
+    assert.equal(doc.canonical(), moved);
+    doc.undo();
+    assert.equal(doc.canonical(), before, `${name}: undo restores the exact text`);
+    doc.redo();
+    assert.equal(doc.canonical(), moved, `${name}: redo restores the exact text`);
+    if (id !== 'crate') { doc.undo(); assert.equal(doc.canonical(), original); }
+  }
+});
+
+test('section values the editor sets are validated and built like any edit, and undone', () => {
+  const buoy = scratchDocument(COUPLED_EXAMPLE_SCENES['buoy-and-crates']()), basin = buoy.scene.water[0];
+  ok(buoy.apply({type: 'setCoupled', section: 'water', id: basin.id, key: 'restDepth', value: basin.restDepth + 0.1}));
+  assert.equal(buoy.scene.water[0].restDepth, basin.restDepth + 0.1);
+  refused(buoy.apply({type: 'setCoupled', section: 'water', id: basin.id, key: 'restDepth', value: -1}), /\/water\/0\/restDepth: must be >= 0/);
+  refused(buoy.apply({type: 'setCoupled', section: 'water', id: basin.id, key: 'cols', value: 9}), /is not edited here/);
+  buoy.undo(); assert.equal(buoy.scene.water[0].restDepth, basin.restDepth);
+  const trampoline = scratchDocument(COUPLED_EXAMPLE_SCENES.trampoline()), sheet = trampoline.scene.cloths[0];
+  ok(trampoline.apply({type: 'setCoupled', section: 'cloths', id: sheet.id, key: 'material.youngModulus', value: 2 * sheet.material.youngModulus}));
+  assert.equal(trampoline.scene.cloths[0].material.youngModulus, 2 * sheet.material.youngModulus);
+  assert.equal(trampoline.scene.cloths[0].material.arealDensity, sheet.material.arealDensity);
+  const hopper = scratchDocument(COUPLED_EXAMPLE_SCENES['hopper-seesaw']()), beads = hopper.scene.grains[0], count = beads.radii.length;
+  ok(hopper.apply({type: 'setCoupled', section: 'grains', id: beads.id, key: 'count', value: 10}));
+  assert.deepEqual([hopper.scene.grains[0].radii.length, hopper.scene.grains[0].positions.length], [10, 30]);
+  refused(hopper.apply({type: 'setCoupled', section: 'grains', id: beads.id, key: 'count', value: count + 1}), /can keep fewer, not add any/);
+  refused(hopper.apply({type: 'setCoupled', section: 'grains', id: beads.id, key: 'count', value: 2.5}), /whole number/);
+  hopper.undo(); assert.equal(hopper.scene.grains[0].radii.length, count);
+  const cavity = scratchDocument(COUPLED_EXAMPLE_SCENES['cavity-flow']());
+  ok(cavity.apply({type: 'setCoupled', section: 'fluids', id: 'cavity', key: 'viscosity', value: 0.2}));
+  assert.equal(cavity.scene.fluids[0].viscosity, 0.2);
+  refused(cavity.apply({type: 'setCoupled', section: 'fluids', id: 'cavity', key: 'viscosity', value: 50}), /\/fluids\/0\/substeps: the fluid step .* explicit viscous limit/);
+  const dam = scratchDocument(COUPLED_EXAMPLE_SCENES['dam-break']());
+  assert.deepEqual(coupledSections(dam.scene)[0].edits.map(edit => edit.key), ['density'], 'a tank has no viscosity');
+  refused(dam.apply({type: 'setCoupled', section: 'fluids', id: 'tank', key: 'viscosity', value: 1}), /is not edited here/);
+  refused(dam.apply({type: 'setCoupled', section: 'fluids', id: 'pond', key: 'density', value: 1}), /no fluids entry called "pond"/);
+  // A new body never takes an id a section uses.
+  ok(dam.apply({type: 'addBody', preset: 'box', id: 'tank-1', position: [2, 0.5, 2]}));
+  refused(dam.apply({type: 'rename', id: 'tank-1', newId: 'tank'}), /duplicate id "tank"/);
+  // An autosave of a coupled scene is read back like any other.
+  const back = decodeAutosave(encodeAutosave(cavity.scene, '2026-11-12T10:00:00.000Z'));
+  assert.equal(canonicalize(back.scene), cavity.canonical());
 });

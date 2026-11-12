@@ -4122,12 +4122,40 @@ export declare function canonicalize(scene: unknown, options?: {
 }): string;
 ```
 
+### cavityFlowScene · function
+
+The lid-driven cavity: a cube of oil 0.1 m on a side (rho = 900 kg/m^3, mu = 0.09 Pa s) whose top wall slides at
+0.1 m/s, Re = 100. The flow turns into one large vortex with small ones in the lower corners (the 2D case is checked
+against Ghia, Ghia & Shin 1982 in docs/FLUID.md; this one is 3D, with side walls). 16^3 cells.
+
+```ts
+export declare function cavityFlowScene(options?: {
+    cells?: number;
+    lidSpeed?: number;
+}): Scene;
+```
+
 ### COUPLED_EXAMPLE_SCENES · const
 
 ```ts
 export declare const COUPLED_EXAMPLE_SCENES: {
     readonly [name: string]: () => Scene;
 };
+```
+
+### damBreakScene · function
+
+A dam break in three dimensions: a column of water 0.18 m by 0.09 m and 0.3 m tall stands in one corner of a tank
+0.6 x 0.36 x 0.18 m and is let go at t = 0. It spreads over the floor, runs to the far wall, climbs it and falls back.
+Free surface by particles (APIC), eight per cell; inviscid; closed free-slip tank. 20 x 12 x 6 cells of 30 mm,
+1,440 particles, two fluid steps per world step.
+
+```ts
+export declare function damBreakScene(options?: {
+    width?: number;
+    depth?: number;
+    height?: number;
+}): Scene;
 ```
 
 ### decodeSceneLink · function
@@ -4204,6 +4232,21 @@ export declare const EXAMPLE_SCENES: {
 };
 ```
 
+### flowPastCylinderScene · function
+
+Flow past a cylinder at Re = 20, in two dimensions: a slab one cell thick (periodic in z) of a liquid with
+nu = 4e-5 m^2/s enters at 40 mm/s on the left and leaves on the right (p = 0), with free-slip top and bottom. The
+cylinder (20 mm across, 6 cells) is a static capsule of the rigid world lying across the slab. Behind it a pair of
+standing vortices forms; the flow does not shed at this Reynolds number. The channel is 5.3 diameters tall (19%
+blockage). Gravity is off in the fluid: the flow is horizontal and an outflow side cannot hold a hydrostatic pressure.
+
+```ts
+export declare function flowPastCylinderScene(options?: {
+    speed?: number;
+    reynolds?: number;
+}): Scene;
+```
+
 ### heatedBarScene · function
 
 A heated bar: an aluminium bar (k = 237 W/(m K), alpha_T = 23e-6 /K, E = 70 GPa) clamped at both ends between
@@ -4252,6 +4295,7 @@ export interface LoadedScene {
     readonly grains: Map<string, GranularCoupling<Body>>;
     readonly solids: Map<string, SceneSolidRuntime<Body>>;
     readonly heat: Map<string, HeatSolver>;
+    readonly fluids: Map<string, SceneFluidRuntime<Body>>;
 }
 ```
 
@@ -4270,7 +4314,7 @@ the scene needs more than it has.
   the scene's settings with none of the scene's bodies in it, and the error
   names the offending id.
 
-The scene's `water`, `cables`, `frames`, `cloths`, `grains`, `solids` and `heat` sections are built after the
+The scene's `water`, `cables`, `frames`, `cloths`, `grains`, `solids`, `heat` and `fluids` sections are built after the
 joints, and the result carries a ready `simulation` that steps the world
 and all of them. A rigid-only scene builds exactly what it always did.
 
@@ -4447,6 +4491,7 @@ export interface Scene {
     readonly grains?: readonly SceneGrains[];
     readonly solids?: readonly SceneSolid[];
     readonly heat?: readonly SceneHeat[];
+    readonly fluids?: readonly SceneFluid[];
     readonly meta?: SceneMeta;
     readonly extensions?: {
         readonly [key: string]: unknown;
@@ -4500,6 +4545,11 @@ export declare const SCENE_LIMITS: Readonly<{
     solidSubsteps: 64;
     heat: 8;
     heatSubsteps: 256;
+    fluids: 4;
+    fluidCells: 262144;
+    fluidParticles: 262144;
+    fluidSubsteps: 64;
+    fluidLiquid: 16;
     solidRegions: 64;
     solidCracks: 60000;
     problems: 100;
@@ -4800,6 +4850,7 @@ export interface SceneCoupledSections {
     readonly grains?: readonly SceneGrains[];
     readonly solids?: readonly SceneSolid[];
     readonly heat?: readonly SceneHeat[];
+    readonly fluids?: readonly SceneFluid[];
 }
 ```
 
@@ -4811,6 +4862,89 @@ export interface SceneFilter {
     readonly maskBits?: string;
     readonly groupIndex?: number;
 }
+```
+
+### SceneFluid · interface
+
+A volumetric fluid (docs/FLUID.md): a box of `cells` cubic cells of side `spacing` from `origin`. Numbers are float64.
+- kind 'flow' (the default): incompressible Navier-Stokes with walls, inflows, outflows or periodic sides, and the
+  listed bodies as moving obstacles (FluidCoupling). Saved state: the face velocities and the cell pressures.
+- kind 'free-surface': an inviscid liquid carried by particles in a closed tank of free-slip walls, started from the
+  `liquid` boxes. No bodies. Saved state: the particles.
+
+```ts
+export interface SceneFluid {
+    readonly id: string;
+    readonly kind?: 'flow' | 'free-surface';
+    readonly cells: readonly [number, number, number];
+    readonly spacing: number;
+    readonly origin?: SceneVec3;
+    readonly density: number;
+    readonly substeps?: number;
+    readonly viscosity?: number;
+    readonly gravity?: boolean;
+    readonly boundaries?: SceneFluidBoundaries;
+    readonly advection?: 'central' | 'upwind';
+    readonly diffusion?: 'explicit' | 'crank-nicolson' | 'backward-euler';
+    readonly velocity?: SceneVec3;
+    readonly bodies?: readonly SceneFluidBody[];
+    readonly u?: readonly number[];
+    readonly v?: readonly number[];
+    readonly w?: readonly number[];
+    readonly pressure?: readonly number[];
+    readonly particlesPerAxis?: number;
+    readonly liquid?: readonly SceneFluidLiquid[];
+    readonly positions?: readonly number[];
+    readonly velocities?: readonly number[];
+    readonly affine?: readonly number[];
+}
+```
+
+### SceneFluidBody · interface
+
+A box, sphere or capsule body that is a moving obstacle in a flow and, when it is dynamic, feels its force.
+
+```ts
+export interface SceneFluidBody {
+    readonly body: string;
+    readonly twoWay?: boolean;
+}
+```
+
+### SceneFluidBoundaries · interface
+
+```ts
+export interface SceneFluidBoundaries {
+    readonly xMin?: SceneFluidSide;
+    readonly xMax?: SceneFluidSide;
+    readonly yMin?: SceneFluidSide;
+    readonly yMax?: SceneFluidSide;
+    readonly zMin?: SceneFluidSide;
+    readonly zMax?: SceneFluidSide;
+}
+```
+
+### SceneFluidLiquid · interface
+
+A box of liquid a free-surface tank starts with, m.
+
+```ts
+export interface SceneFluidLiquid {
+    readonly min: SceneVec3;
+    readonly max: SceneVec3;
+    readonly velocity?: SceneVec3;
+}
+```
+
+### SceneFluidSide · type
+
+A side of a fluid box (docs/FLUID.md, Boundaries): a type, or a no-slip wall that slides or an inflow, with its velocity.
+
+```ts
+export type SceneFluidSide = 'no-slip' | 'free-slip' | 'outflow' | 'periodic' | {
+    readonly type: 'no-slip' | 'inflow';
+    readonly velocity: SceneVec3;
+};
 ```
 
 ### SceneFrame · interface
@@ -4992,7 +5126,7 @@ export type SceneGrainWallShape = {
 
 ### sceneHasCoupling · function
 
-True when a scene has a water basin, a cable, a frame, a cloth, a set of grains, a solid or a heat grid: it then needs a Simulation, not just a rigid world.
+True when a scene has a water basin, a cable, a frame, a cloth, a set of grains, a solid, a heat grid or a fluid: it then needs a Simulation, not just a rigid world.
 
 ```ts
 export declare function sceneHasCoupling(scene: SceneCoupledSections): boolean;
@@ -5478,6 +5612,23 @@ export declare function sceneWorldOptions(scene: Scene): {
 };
 ```
 
+### sphereSettlingScene · function
+
+A PTFE ball (2200 kg/m^3) settling through a syrup (rho = 1380 kg/m^3, mu = 2.5 Pa s, a corn-syrup-like liquid) in
+a square column 0.12 m wide: the ball is a body of the rigid world and a moving obstacle in the flow (FluidCoupling),
+which hands it the drag and the buoyancy. It reaches a terminal velocity within a few centimetres, far below Stokes's
+2 (rho_s - rho) g a^2 / (9 mu) because the walls are 1.2 diameters from it, and lands on the floor. 12 x 30 x 12
+cells of 10 mm (2.5 cells per radius). The world steps at 1/120 s: the coupling is explicit and must step below the
+ball's response time in the column (about 0.03 s).
+
+```ts
+export declare function sphereSettlingScene(options?: {
+    radius?: number;
+    density?: number;
+    viscosity?: number;
+}): Scene;
+```
+
 ### suspendedPlatformScene · function
 
 A platform hung on four cables from fixed anchors, loaded by `boxes` boxes that fall on it one after another.
@@ -5540,7 +5691,7 @@ Build the coupled sections of a scene whose bodies and joints `builder` has alre
 return the Simulation that steps them. Build order: frames, then cables (file order), one
 StructureCoupling with the cables' attachments (cable by cable, in file order) and then the
 frames' attachments; then the cloths, then the grain sets, then the solids (supports, saved state,
-contact, welds, loads), then the heat grids and their links to the solids, then the basins and their bodies. A
+contact, welds, loads), then the heat grids and their links to the solids, then the fluids (flows and their bodies, tanks), then the basins and their bodies. A
 rigid-only scene gives a Simulation with no subsystems, whose step is `world.step()`. On a
 failure the world is reset and the error names the id.
 
@@ -5672,6 +5823,21 @@ Decide how a subsystem with the given requirement runs on a simulation step of `
 
 ```ts
 export declare function resolveTiming(id: string, kind: string, timeStep: SubsystemTimeStep, dt: number): SubsystemTiming;
+```
+
+### SceneFluidRuntime · type
+
+A fluid of a scene as built: a flow (with its coupling to the bodies, or null when it has none) or a free-surface tank.
+
+```ts
+export type SceneFluidRuntime<B> = {
+    readonly kind: 'flow';
+    readonly flow: Fluid;
+    readonly coupling: FluidCoupling<B> | null;
+} | {
+    readonly kind: 'free-surface';
+    readonly surface: FreeSurfaceFluid;
+};
 ```
 
 ### SceneSolidRuntime · interface
@@ -7873,6 +8039,10 @@ export declare class Fluid {
   project(): void;
   setPressure(field: (x: number, y: number, z: number) => number): void;
   cellCentre(c: number): [number, number, number];
+  faceCount(c: 0 | 1 | 2): number;
+  getState(): { u: Float64Array; v: Float64Array; w: Float64Array; pressure: Float64Array; };
+  setState(state: { readonly u: ArrayLike<number>; readonly v: ArrayLike<number>; readonly w: ArrayLike<number>; readonly pressure?: ArrayLike<number>; }): void;
+  obstacleDistance(x: number, y: number, z: number): number;
   addObstacle(options: FluidObstacleOptions): number;
   get obstacleCount(): number;
   setObstacleState(index: number, state: FluidObstacleState): void;
@@ -8158,6 +8328,14 @@ export interface FluidWorld<B> {
 export declare const FREE_SURFACE_SOLVER_ID = "fluid-free-surface-apic-mac-js-f64-v1";
 ```
 
+### FREE_SURFACE_SUBSYSTEM_ORDER · const
+
+Where a free-surface tank runs in the post stage of a Simulation: after a bare Fluid (510).
+
+```ts
+export declare const FREE_SURFACE_SUBSYSTEM_ORDER = 520;
+```
+
 ### FreeSurfaceFluid · class
 
 Inviscid incompressible liquid with a free surface in a closed tank (free-slip walls), float64, deterministic.
@@ -8194,6 +8372,7 @@ export declare class FreeSurfaceFluid {
   count: number;
   particleMass: number;
   addLiquid(inside: (x: number, y: number, z: number) => boolean, velocity?: FluidVec3): number;
+  setParticles(positions: ArrayLike<number>, velocities?: ArrayLike<number>, affine?: ArrayLike<number>): void;
   maxDivergence(): number;
   step(count?: number): void;
   liquidVolume(): number;
@@ -8237,6 +8416,21 @@ export interface FreeSurfaceStats {
     unconverged: number;
     divergence: number;
 }
+```
+
+### freeSurfaceSubsystem · function
+
+A free-surface tank as a subsystem of the one stepping loop (simulation.ts). Post stage (it does not act on the rigid
+world); its dt may be the step, a whole fraction of it or a whole multiple. Energy: kinetic plus gravitational
+potential energy of the particles (zero at the origin); nothing is exchanged with the outside, so the balance falls by
+what the transfers and the walls dissipate. Events: 'cfl-exceeded' {cfl} when the Courant number first rises above the
+limit, 'unconverged' {iterations} when a projection stopped at maxIterations.
+
+```ts
+export declare function freeSurfaceSubsystem<W, B>(fluid: FreeSurfaceFluid, options?: {
+    readonly id?: string;
+    readonly order?: number;
+}): Subsystem<W, B>;
 ```
 
 ### hasimotoDragFactor · const

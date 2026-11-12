@@ -20,7 +20,7 @@ import type {CompliantCableRuntime} from './core/compliant-cable.js';
 import type {FrameRuntime} from './core/frame-runtime.js';
 import type {ClothCoupling} from './core/cloth.js';
 import type {GranularCoupling} from './core/granular.js';
-import type {SceneSolidRuntime} from './core/simulation.js';
+import type {SceneFluidRuntime, SceneSolidRuntime} from './core/simulation.js';
 import type {HeatSolver} from './core/heat.js';
 import type {Body, BodyOptions, Joint, PhysicsWorld} from './world.js';
 
@@ -59,6 +59,8 @@ export interface LoadedScene {
   readonly solids: Map<string, SceneSolidRuntime<Body>>;
   /** The scene's heat grids by id; each is a subsystem of `simulation` under its id, with its link to the solid as '<id>:solid'. */
   readonly heat: Map<string, HeatSolver>;
+  /** The scene's fluids by id: `{kind: 'flow', flow, coupling}` (the coupling to its bodies, or null) or `{kind: 'free-surface', surface}`. Each is a subsystem of `simulation` under its id. */
+  readonly fluids: Map<string, SceneFluidRuntime<Body>>;
 }
 
 /**
@@ -126,14 +128,14 @@ export class SceneBuilder extends CoreSceneBuilder<PhysicsWorld> {
  *   the scene's settings with none of the scene's bodies in it, and the error
  *   names the offending id.
  *
- * The scene's `water`, `cables`, `frames`, `cloths`, `grains`, `solids` and `heat` sections are built after the
+ * The scene's `water`, `cables`, `frames`, `cloths`, `grains`, `solids`, `heat` and `fluids` sections are built after the
  * joints, and the result carries a ready `simulation` that steps the world
  * and all of them. A rigid-only scene builds exactly what it always did.
  */
 export function loadScene(world: PhysicsWorld, scene: unknown): LoadedScene {
   const normal = normalizeScene(scene), builder = SceneBuilder.build(world, normal);
   const built = buildSceneSimulation(world, builder, normal);
-  return {bodies: built.bodies, joints: built.joints, builder, scene: normal, simulation: built.simulation, water: built.water, cables: built.cables, frames: built.frames, structure: built.structure, attachments: built.attachments, cloths: built.cloths, grains: built.grains, solids: built.solids, heat: built.heat};
+  return {bodies: built.bodies, joints: built.joints, builder, scene: normal, simulation: built.simulation, water: built.water, cables: built.cables, frames: built.frames, structure: built.structure, attachments: built.attachments, cloths: built.cloths, grains: built.grains, solids: built.solids, heat: built.heat, fluids: built.fluids};
 }
 
 /**

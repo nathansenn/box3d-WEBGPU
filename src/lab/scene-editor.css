@@ -69,3 +69,9 @@
   .lab-editor-grid { grid-template-columns: minmax(84px, 38%) minmax(0, 1fr); }
   .lab-editor button, .lab-editor select, .lab-editor input[type="number"], .lab-editor input[type="text"] { min-height: 36px; }
 }
+
+/* Coupled sections: listed read-only under the outline, with the few values that can be set. */
+.lab-editor-coupled { margin-top: 8px; }
+.lab-editor-coupled-item { margin: 6px 0; padding: 6px 8px; border: 1px solid var(--line, #353b3e); border-radius: var(--radius, 4px); background: #0e1113; }
+.lab-editor-coupled-item .lab-editor-hint { margin: 2px 0; }
+.lab-editor-coupled-title { margin: 0 0 4px; font-family: var(--mono, ui-monospace, monospace); font-size: 12px; color: var(--text, #e8eaea); overflow-wrap: anywhere; }

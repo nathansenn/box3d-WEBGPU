@@ -8,7 +8,10 @@
 //  - what is drawn: rows, meshes and rope segments;
 //  - rigid scenes are unchanged: their Simulation has no subsystems and steps exactly like the world;
 //  - solids, fracture and heat: validation paths, the build, a save of a cracked solid reopened from its link with
-//    the same nodes, interfaces and fields, the reaction load at rest, the colour bands and the events.
+//    the same nodes, interfaces and fields, the reaction load at rest, the colour bands and the events;
+//  - fluids: validation paths, normal form, the build, a save of a flow and of a free-surface tank reopened from its
+//    link with the same fields (a tank then runs on bit for bit like the original), the slice in colour bands, the
+//    arrows and the particles, the settling ball's terminal velocity and the cylinder's drag.
 import assert from 'node:assert/strict';
 import test from 'node:test';
 import {readFile} from 'node:fs/promises';
@@ -18,10 +21,11 @@ import {NativeWorldPool} from '../../src/engine/native-world.ts';
 import {
   COUPLED_EXAMPLE_SCENES, EXAMPLE_SCENES, canonicalize, decodeSceneLink, encodeSceneLink, encodeSceneLinkSync, loadScene, normalizeScene, sceneHash,
   sceneHasCoupling, trampolineScene, hopperSeesawScene, validateScene, rubberPadScene, notchedBeamScene, quenchedPlateScene, heatedBarScene,
+  sphereSettlingScene, cavityFlowScene, flowPastCylinderScene, damBreakScene,
 } from '../../src/engine/scene-format.ts';
 import {FractureBody} from '../../src/engine/solid-fracture.ts';
 import {exactTransformHash, loadLabScene} from '../../src/lab/scene-host.ts';
-import {CoupledSceneView, SOLID_BANDS, boundaryFaceElements, coupledStateHash, grainWallMesh, rampColor, sceneIsCoupled, solidBand, waterDrawGrid, writeTwoSidedMesh, writeWaterMesh} from '../../src/lab/coupled-scene.ts';
+import {CoupledSceneView, FLUID_BANDS, SOLID_BANDS, boundaryFaceElements, coupledStateHash, flowSlice, fluidBand, grainWallMesh, rampColor, sceneIsCoupled, sliceValues, solidBand, waterDrawGrid, writeTwoSidedMesh, writeWaterMesh} from '../../src/lab/coupled-scene.ts';
 import {COUPLED_EXAMPLE_NAMES, LAB_EXAMPLE_NAMES, parseSceneRequest, resolveSceneRequest, sceneCameraFrame, sceneSummary} from '../../src/lab/scene-loading.ts';
 
 const artifact = resolve(process.env.BOX3D_WORLD_ARTIFACT_DIR ?? 'public/box3d');
@@ -31,7 +35,7 @@ const pool = new NativeWorldPool(await factory({wasmBinary: await readFile(resol
 const withWorld = run => { const world = pool.createWorld(); try { world.retainBodyShapes(true); return run(world); } finally { world.destroy(); } };
 /** Steps of each example in the repeat test: about one second, fewer for the slow ones. */
 const STEPS = {'moored-buoy': 240, 'cable-stayed-deck': 240, 'buoy-and-crates': 360, trampoline: 150, 'hopper-seesaw': 360, 'suspended-platform': 480,
-  'rubber-pad': 90, 'notched-beam': 180, 'quenched-plate': 150, 'heated-bar': 120};
+  'rubber-pad': 90, 'notched-beam': 180, 'quenched-plate': 150, 'heated-bar': 120, 'sphere-settling': 120, 'cavity-flow': 120, 'flow-past-cylinder': 120, 'dam-break': 60};
 const copy = value => JSON.parse(JSON.stringify(value));
 
 /** Load a scene as the Lab does, step it `steps` times through the view, and report. */
@@ -47,7 +51,8 @@ function run(scene, steps, after) {
 }
 
 test('the Lab opens every coupled example by name, after the rigid ones', () => {
-  assert.deepEqual(COUPLED_EXAMPLE_NAMES, ['moored-buoy', 'cable-stayed-deck', 'buoy-and-crates', 'trampoline', 'hopper-seesaw', 'suspended-platform', 'rubber-pad', 'notched-beam', 'quenched-plate', 'heated-bar']);
+  assert.deepEqual(COUPLED_EXAMPLE_NAMES, ['moored-buoy', 'cable-stayed-deck', 'buoy-and-crates', 'trampoline', 'hopper-seesaw', 'suspended-platform', 'rubber-pad', 'notched-beam', 'quenched-plate', 'heated-bar',
+    'sphere-settling', 'cavity-flow', 'flow-past-cylinder', 'dam-break']);
   assert.deepEqual(LAB_EXAMPLE_NAMES, [...Object.keys(EXAMPLE_SCENES), ...COUPLED_EXAMPLE_NAMES]);
   for (const name of COUPLED_EXAMPLE_NAMES) {
     const request = parseSceneRequest(`?example=${name}`);
@@ -56,7 +61,7 @@ test('the Lab opens every coupled example by name, after the rigid ones', () => 
     assert.equal(read.ok, true, name);
     assert.equal(sceneHash(read.scene), sceneHash(COUPLED_EXAMPLE_SCENES[name]()));
     assert.equal(sceneIsCoupled(read.scene), true);
-    assert.match(sceneSummary(read.scene), /basin|cable|frame|cloth|grains|solid/);
+    assert.match(sceneSummary(read.scene), /basin|cable|frame|cloth|grains|solid|a flow|free-surface tank/);
     const frame = sceneCameraFrame(read.scene);
     assert.ok(frame.distance >= 0.3 && frame.distance < 40 && frame.target.every(Number.isFinite), `${name}: ${JSON.stringify(frame)}`);
   }
@@ -133,9 +138,10 @@ for (const name of Object.keys(COUPLED_EXAMPLE_SCENES)) {
     assert.deepEqual(second.hashes, first.hashes);
     assert.equal(second.final, first.final);
     assert.equal(sceneHash(second.saved), sceneHash(first.saved));
-    assert.equal(first.rows, first.bodies + first.draw.meshRows + first.draw.wallRows + first.draw.grainRows);
+    assert.equal(first.rows, first.bodies + first.draw.meshRows + first.draw.wallRows + first.draw.grainRows + first.draw.particleRows);
     const scene = normalizeScene(COUPLED_EXAMPLE_SCENES[name]());
-    assert.equal(first.draw.meshRows > 0 || first.draw.lineSegments > 0 || first.draw.grainRows > 0, true);
+    assert.equal(first.draw.meshRows > 0 || first.draw.lineSegments > 0 || first.draw.grainRows > 0 || first.draw.particleRows > 0, true);
+    if (scene.fluids) assert.equal(first.draw.fluidRows + first.draw.particleRows > 0, true);
     if (scene.cloths) assert.equal(first.draw.meshVertices >= scene.cloths[0].triangles.length * 2, true);
     if (scene.cables) assert.equal(first.draw.lineSegments, scene.cables.reduce((n, c) => n + c.segments.length, 0) + (scene.frames ?? []).reduce((n, f) => n + f.elements.length, 0));
     if (scene.grains) assert.equal(first.draw.grainRows, scene.grains[0].radii.length);
@@ -334,4 +340,149 @@ test('solids are coloured in bands of the chosen field, and cracks are drawn as 
     assert.throws(() => view.setSolidView({field: 'colour'}), /Unknown solid field/);
     view.dispose();
   });
+});
+
+// ---------------------------------------------------------------------------
+// Fluids
+// ---------------------------------------------------------------------------
+
+test('fluid sections: problems are reported with their paths', () => {
+  const problems = (make, edit) => { const scene = make(); edit(scene); return validateScene(scene).map(p => `${p.path}: ${p.message}`).join('\n'); };
+  assert.match(problems(cavityFlowScene, s => { s.fluids[0].cells = [16, 0, 16]; }), /\/fluids\/0\/cells\/1: must be >= 1/);
+  assert.match(problems(cavityFlowScene, s => { s.fluids[0].cells = [128, 128, 128]; }), /\/fluids\/0\/cells: holds 2097152 cells; the limit is 262144/);
+  assert.match(problems(cavityFlowScene, s => { delete s.fluids[0].viscosity; }), /\/fluids\/0\/viscosity: is required for a flow/);
+  assert.match(problems(cavityFlowScene, s => { s.fluids[0].viscosity = 50; }), /\/fluids\/0\/substeps: the fluid step 0.01667 s is above the explicit viscous limit/);
+  assert.match(problems(cavityFlowScene, s => { s.fluids[0].boundaries.yMax.velocity = [0.1, 0.2, 0]; }), /\/fluids\/0\/boundaries\/yMax\/velocity\/1: a wall cannot move along its normal/);
+  assert.match(problems(cavityFlowScene, s => { s.fluids[0].boundaries.yMax.velocity = [5, 0, 0]; }), /\/fluids\/0\/substeps: the walls, inflows and starting velocity give a Courant number of 13\.33/);
+  assert.match(problems(cavityFlowScene, s => { s.fluids[0].boundaries.xMin = 'periodic'; }), /\/fluids\/0\/boundaries\/xMax: axis x: periodic must be set on both sides/);
+  assert.match(problems(cavityFlowScene, s => { s.fluids[0].boundaries.xMin = 'leaky'; }), /\/fluids\/0\/boundaries\/xMin: must be 'no-slip', 'free-slip', 'outflow', 'periodic'/);
+  assert.match(problems(cavityFlowScene, s => { s.fluids[0].boundaries.xMax = 'outflow'; }), /\/fluids\/0\/boundaries\/xMax: an outflow side holds p = 0 all over, so gravity must not act along it \(here y\)/);
+  assert.match(problems(cavityFlowScene, s => { s.fluids[0].u = [0, 0]; }), /\/fluids\/0\/u: must hold exactly 4352 numbers, got 2/);
+  assert.match(problems(cavityFlowScene, s => { s.fluids[0].u = [0, 0]; }), /\/fluids\/0\/v: is required with the other saved face velocities/);
+  assert.match(problems(cavityFlowScene, s => { s.fluids[0].liquid = []; }), /\/fluids\/0\/liquid: belongs to a free-surface tank/);
+  assert.match(problems(cavityFlowScene, s => { s.fluids[0].kind = 'gas'; }), /\/fluids\/0\/kind: must be 'flow' or 'free-surface'/);
+  assert.match(problems(sphereSettlingScene, s => { s.fluids[0].bodies.push({body: 'ghost'}); }), /\/fluids\/0\/bodies\/1\/body: unknown body id "ghost"/);
+  assert.match(problems(sphereSettlingScene, s => { s.fluids[0].bodies.push({body: 'ball'}); }), /\/fluids\/0\/bodies\/1\/body: body "ball" is listed twice/);
+  assert.match(problems(sphereSettlingScene, s => { s.fluids[0].id = 'ball'; }), /\/fluids\/0\/id: duplicate id "ball"/);
+  assert.match(problems(sphereSettlingScene, s => { s.bodies[0].shape = {kind: 'hull', points: [0, 0, 0, 0.1, 0, 0, 0, 0.1, 0, 0, 0, 0.1]}; }), /\/fluids\/0\/bodies\/0\/body: a hull body cannot touch a fluid/);
+  assert.match(problems(damBreakScene, s => { delete s.fluids[0].liquid; }), /\/fluids\/0\/liquid: is required: a free-surface tank starts from boxes of liquid/);
+  assert.match(problems(damBreakScene, s => { s.fluids[0].liquid[0].max = [-0.4, 1, 1]; }), /\/fluids\/0\/liquid\/0\/max: must exceed min on every axis/);
+  assert.match(problems(damBreakScene, s => { s.fluids[0].viscosity = 1; }), /\/fluids\/0\/viscosity: belongs to a flow, not to a free-surface tank/);
+  assert.match(problems(damBreakScene, s => { s.fluids[0].cells = [1, 12, 6]; }), /\/fluids\/0\/cells\/0: must be >= 2/);
+  assert.match(problems(damBreakScene, s => { s.fluids[0].positions = [0, 0, 0]; s.fluids[0].velocities = [1, 2]; }), /\/fluids\/0\/velocities: must hold exactly 3 numbers, got 2/);
+  assert.match(problems(damBreakScene, s => { s.fluids[0].affine = [0]; }), /\/fluids\/0\/affine: needs `positions`/);
+  assert.match(problems(damBreakScene, s => { s.fluids = [1, 2, 3, 4, 5]; }), /\/fluids: holds 5 entries; the limit is 4/);
+  // A fluid the solver refuses when it is built is reported with its id, and the world is left reset.
+  withWorld(world => {
+    const scene = sphereSettlingScene(); scene.bodies[0].linearVelocity = [0, -40, 0];
+    assert.throws(() => loadLabScene(world, scene), /Scene fluid "syrup":.*fluid step/);
+    assert.equal(world.bodyCount(), 1, 'reset to the scene settings: only the ground slab');
+  });
+  // Defaults written out do not change the hash; rigid scenes and the coupled examples from before keep theirs.
+  const cavity = cavityFlowScene(), d = copy(cavity);
+  Object.assign(d.fluids[0], {kind: 'flow', substeps: 1, gravity: true, advection: 'central', diffusion: 'explicit', origin: d.fluids[0].origin, velocity: [0, 0, 0],
+    u: new Array(17 * 16 * 16).fill(0), v: new Array(17 * 16 * 16).fill(0), w: new Array(17 * 16 * 16).fill(0), pressure: new Array(4096).fill(0)});
+  Object.assign(d.fluids[0].boundaries, {xMin: 'no-slip', zMax: {type: 'no-slip', velocity: [0, 0, 0]}});
+  assert.equal(sceneHash(d), sceneHash(cavity));
+  const dam = damBreakScene(), e = copy(dam);
+  Object.assign(e.fluids[0], {particlesPerAxis: 2});
+  e.fluids[0].liquid[0].velocity = [0, 0, 0];
+  assert.equal(sceneHash(e), sceneHash(dam));
+});
+
+test('fluids are built as their sections say: a coupled flow in the couple stage, a bare flow and a tank in the post stage', () => {
+  withWorld(world => {
+    const settle = loadLabScene(world, sphereSettlingScene()), runtime = settle.fluids.get('syrup');
+    assert.equal(runtime.kind, 'flow');
+    assert.ok(runtime.coupling && runtime.coupling.substeps === 1 && runtime.flow.obstacleCount === 1);
+    assert.deepEqual(settle.simulation.order().map(row => row.id), ['syrup', 'world', 'events']);
+    // At rest the pressure is hydrostatic (zero mean in a closed box).
+    const p = runtime.flow.p, rho = 1380, g = 9.81, h = 0.01;
+    assert.ok(Math.abs((p[0] - p[12 * 29]) - rho * g * 29 * h) < 1e-9 * rho * g, 'hydrostatic start');
+    const cavity = loadLabScene(world, cavityFlowScene());
+    assert.deepEqual(cavity.simulation.order().map(row => row.id), ['world', 'cavity', 'events']);
+    assert.equal(cavity.fluids.get('cavity').coupling, null);
+    const cylinder = loadLabScene(world, flowPastCylinderScene()), channel = cylinder.fluids.get('channel').flow;
+    assert.deepEqual(Array.from(channel.gravity), [0, 0, 0]);
+    assert.ok(channel.maxDivergence() * channel.h / 0.04 < 1e-9, 'the starting velocity is made divergence-free');
+    const dam = loadLabScene(world, damBreakScene()), tank = dam.fluids.get('tank').surface;
+    assert.deepEqual(dam.simulation.order().map(row => row.id), ['world', 'tank', 'events']);
+    assert.equal(tank.count, 6 * 10 * 3 * 8, 'eight particles in each of the 6 x 10 x 3 cells of the column');
+    assert.equal(tank.dt, 1 / 120);
+  });
+});
+
+test('a flow and a free-surface tank saved after N steps reopen from their links with the same fields', async () => {
+  const fields = loaded => [...loaded.fluids.values()].map(runtime => runtime.kind === 'flow'
+    ? (({u, v, w, pressure}) => ({u: Array.from(u, x => x + 0), v: Array.from(v, x => x + 0), w: Array.from(w, x => x + 0), pressure: Array.from(pressure, x => x + 0)}))(runtime.flow.getState())
+    : {positions: Array.from(runtime.surface.positions, x => x + 0), velocities: Array.from(runtime.surface.velocities, x => x + 0), affine: Array.from(runtime.surface.affine, x => x + 0)});
+  for (const [name, steps] of [['sphere-settling', 90], ['flow-past-cylinder', 60], ['dam-break', 45]]) {
+    const original = run(COUPLED_EXAMPLE_SCENES[name](), steps, fields);
+    const link = await encodeSceneLink(original.saved), reopened = decodeSceneLink(link);
+    assert.equal(sceneHash(reopened), sceneHash(original.saved), `${name}: the link carries the saved scene`);
+    assert.ok(link.length < 1_048_576, `${name}: the link fits the link limit (${link.length} characters)`);
+    assert.deepEqual(withWorld(world => fields(loadLabScene(world, reopened))), original.extra, `${name}: the solvers start from the saved fields, bit for bit (-0 read as 0)`);
+    const a = run(reopened, 30), b = run(decodeSceneLink(link), 30);
+    assert.deepEqual(b.hashes, a.hashes); assert.equal(b.final, a.final, `${name}: two fresh openings of the link stay identical`);
+  }
+  // A tank's state is its particles: reopened, it runs on exactly as the original would have.
+  const longer = run(damBreakScene(), 75), reopened = run(decodeSceneLink(await encodeSceneLink(run(damBreakScene(), 45).saved)), 30);
+  assert.equal(reopened.final, longer.final, 'dam-break: 45 steps, save, reopen, 30 steps = 75 steps');
+});
+
+test('fluids are drawn: the slice in colour bands without the body, arrows, the box edges and one sphere per particle', () => {
+  assert.equal(fluidBand(0, 0, 1), 0); assert.equal(fluidBand(1, 0, 1), FLUID_BANDS - 1); assert.equal(fluidBand(NaN, 0, 1), -1);
+  withWorld(world => {
+    const loaded = loadLabScene(world, sphereSettlingScene()), view = new CoupledSceneView(loaded, world);
+    for (let i = 0; i < 30; i++) view.step();
+    view.sync();
+    const flow = loaded.fluids.get('syrup').flow, slice = flowSlice(flow), values = new Float64Array(slice.nx * slice.ny);
+    assert.deepEqual([slice.nx, slice.ny, slice.z, slice.stride], [12, 30, 0, 3]);
+    const range = sliceValues(flow, slice, 'speed', values);
+    const inside = Array.from(values).filter(Number.isNaN).length;
+    assert.ok(inside >= 12 && inside <= 24, `the cells of the slice inside the ball are left out: ${inside}`);
+    assert.equal(range.min, 0);
+    const info = view.drawInfo();
+    assert.equal(info.fluidRows, FLUID_BANDS);
+    assert.equal(info.meshVertices, 12 * (12 * 30 - inside), 'two triangles a side for every cell outside the ball');
+    assert.ok(info.arrows > 4, `arrows around the ball: ${info.arrows}`);
+    const ball = view.fluidView().fluids[0].bodies[0];
+    assert.ok(ball.id === 'ball' && ball.speed > 0.1 && ball.force[1] > 0, JSON.stringify(ball));
+    assert.deepEqual(view.setFluidView({field: 'pressure'}), {field: 'pressure'});
+    assert.equal(view.sync(), true);
+    assert.equal(view.fluidView().fluids[0].unit, 'Pa');
+    assert.throws(() => view.setFluidView({field: 'vorticity'}), /Unknown fluid field/);
+    view.dispose();
+    // A fluid at rest has one pressure once the hydrostatic part is taken off: the slice is one band.
+    const still = cavityFlowScene({lidSpeed: 0}), rest = loadLabScene(world, still), restFlow = rest.fluids.get('cavity').flow;
+    for (let i = 0; i < 5; i++) rest.simulation.step();
+    const restSlice = flowSlice(restFlow), restValues = new Float64Array(restSlice.nx * restSlice.ny);
+    sliceValues(restFlow, restSlice, 'pressure', restValues);
+    const spread = Math.max(...restValues) - Math.min(...restValues);
+    assert.ok(spread < 1e-9 * 900 * 9.81 * 0.1, `the pressure less its hydrostatic part is uniform at rest: spread ${spread} Pa`);
+    const dam = loadLabScene(world, damBreakScene()), damView = new CoupledSceneView(dam, world);
+    for (let i = 0; i < 20; i++) damView.step();
+    damView.sync();
+    const damInfo = damView.drawInfo(), tank = dam.fluids.get('tank').surface;
+    assert.equal(damInfo.particleRows, tank.count);
+    assert.equal(damView.rowCount, world.bodyCount() + tank.count);
+    const last = damView.rowCount - 1, m = damView.HEAPF32.subarray(16 * last, 16 * last + 16);
+    assert.deepEqual([m[12], m[13], m[14]], [Math.fround(tank.positions[3 * tank.count - 3]), Math.fround(tank.positions[3 * tank.count - 2]), Math.fround(tank.positions[3 * tank.count - 1])]);
+    assert.equal(damView.overlayLines.length, 12, 'the twelve edges of the tank');
+    damView.dispose();
+  });
+});
+
+test('the settling ball reaches a terminal velocity; the cylinder feels a steady drag with no lift', () => {
+  const ball = run(sphereSettlingScene(), 150, (loaded, view) => {
+    const world = loaded.builder.world, handle = loaded.bodies.get('ball');
+    return {v: world.getState(handle).linearVelocity[1], y: world.getState(handle).position[1]};
+  });
+  const early = run(sphereSettlingScene(), 90, loaded => loaded.builder.world.getState(loaded.bodies.get('ball')).linearVelocity[1]);
+  // Stokes's velocity in an unbounded fluid is 0.447 m/s; the walls of the column slow the ball to about a third of it.
+  assert.ok(ball.extra.v < -0.13 && ball.extra.v > -0.17, `terminal velocity ${ball.extra.v} m/s`);
+  assert.ok(Math.abs(early.extra - ball.extra.v) < 0.01 * Math.abs(ball.extra.v), `steady between 0.75 s and 1.25 s: ${early.extra} and ${ball.extra.v}`);
+  const cylinder = run(flowPastCylinderScene(), 240, loaded => Array.from(loaded.fluids.get('channel').coupling.force(loaded.bodies.get('cylinder'))));
+  const [fx, fy] = cylinder.extra, perLength = fx / (0.02 / 6), cd = perLength / (0.5 * 1000 * 0.04 ** 2 * 0.02);
+  assert.ok(cd > 2 && cd < 3.5 && Math.abs(fy) < 0.05 * fx, `drag coefficient ${cd} (unbounded flow at Re 20: about 2; the channel blocks 19%), lift ${fy} N`);
 });

@@ -861,6 +861,20 @@ export declare class Fluid {
     project(): void;
     setPressure(field: (x: number, y: number, z: number) => number): void;
     cellCentre(c: number): [number, number, number];
+    faceCount(c: 0 | 1 | 2): number;
+    getState(): {
+        u: Float64Array;
+        v: Float64Array;
+        w: Float64Array;
+        pressure: Float64Array;
+    };
+    setState(state: {
+        readonly u: ArrayLike<number>;
+        readonly v: ArrayLike<number>;
+        readonly w: ArrayLike<number>;
+        readonly pressure?: ArrayLike<number>;
+    }): void;
+    obstacleDistance(x: number, y: number, z: number): number;
     private fillGhosts;
     private fillAll;
     private copyOutflows;
@@ -967,6 +981,7 @@ export declare class FreeSurfaceFluid {
     private readonly scratch;
     constructor(options: FreeSurfaceOptions);
     addLiquid(inside: (x: number, y: number, z: number) => boolean, velocity?: FluidVec3): number;
+    setParticles(positions: ArrayLike<number>, velocities?: ArrayLike<number>, affine?: ArrayLike<number>): void;
     private stencil;
     private readonly base;
     private readonly frac;
@@ -1049,6 +1064,11 @@ export declare class FluidCoupling<B> {
 }
 export declare const FLUID_SUBSYSTEM_ORDER = 180;
 export declare function fluidSubsystem<W, B>(target: Fluid | FluidCoupling<B>, options?: {
+    readonly id?: string;
+    readonly order?: number;
+}): Subsystem<W, B>;
+export declare const FREE_SURFACE_SUBSYSTEM_ORDER = 520;
+export declare function freeSurfaceSubsystem<W, B>(fluid: FreeSurfaceFluid, options?: {
     readonly id?: string;
     readonly order?: number;
 }): Subsystem<W, B>;
@@ -2947,6 +2967,24 @@ export declare function heatedBarScene(options?: {
     cold?: number;
     cells?: number;
 }): Scene;
+export declare function sphereSettlingScene(options?: {
+    radius?: number;
+    density?: number;
+    viscosity?: number;
+}): Scene;
+export declare function cavityFlowScene(options?: {
+    cells?: number;
+    lidSpeed?: number;
+}): Scene;
+export declare function flowPastCylinderScene(options?: {
+    speed?: number;
+    reynolds?: number;
+}): Scene;
+export declare function damBreakScene(options?: {
+    width?: number;
+    depth?: number;
+    height?: number;
+}): Scene;
 export declare const COUPLED_EXAMPLE_SCENES: {
     readonly [name: string]: () => Scene;
 };
@@ -3022,6 +3060,11 @@ export declare const SCENE_LIMITS: Readonly<{
     solidSubsteps: 64;
     heat: 8;
     heatSubsteps: 256;
+    fluids: 4;
+    fluidCells: 262144;
+    fluidParticles: 262144;
+    fluidSubsteps: 64;
+    fluidLiquid: 16;
     solidRegions: 64;
     solidCracks: 60000;
     problems: 100;
@@ -3528,6 +3571,52 @@ export interface SceneHeat {
     readonly substeps?: number;
     readonly boundaries?: readonly SceneHeatBoundary[];
 }
+export type SceneFluidSide = 'no-slip' | 'free-slip' | 'outflow' | 'periodic' | {
+    readonly type: 'no-slip' | 'inflow';
+    readonly velocity: SceneVec3;
+};
+export interface SceneFluidBoundaries {
+    readonly xMin?: SceneFluidSide;
+    readonly xMax?: SceneFluidSide;
+    readonly yMin?: SceneFluidSide;
+    readonly yMax?: SceneFluidSide;
+    readonly zMin?: SceneFluidSide;
+    readonly zMax?: SceneFluidSide;
+}
+export interface SceneFluidBody {
+    readonly body: string;
+    readonly twoWay?: boolean;
+}
+export interface SceneFluidLiquid {
+    readonly min: SceneVec3;
+    readonly max: SceneVec3;
+    readonly velocity?: SceneVec3;
+}
+export interface SceneFluid {
+    readonly id: string;
+    readonly kind?: 'flow' | 'free-surface';
+    readonly cells: readonly [number, number, number];
+    readonly spacing: number;
+    readonly origin?: SceneVec3;
+    readonly density: number;
+    readonly substeps?: number;
+    readonly viscosity?: number;
+    readonly gravity?: boolean;
+    readonly boundaries?: SceneFluidBoundaries;
+    readonly advection?: 'central' | 'upwind';
+    readonly diffusion?: 'explicit' | 'crank-nicolson' | 'backward-euler';
+    readonly velocity?: SceneVec3;
+    readonly bodies?: readonly SceneFluidBody[];
+    readonly u?: readonly number[];
+    readonly v?: readonly number[];
+    readonly w?: readonly number[];
+    readonly pressure?: readonly number[];
+    readonly particlesPerAxis?: number;
+    readonly liquid?: readonly SceneFluidLiquid[];
+    readonly positions?: readonly number[];
+    readonly velocities?: readonly number[];
+    readonly affine?: readonly number[];
+}
 export interface SceneCoupledSections {
     readonly water?: readonly SceneWater[];
     readonly cables?: readonly SceneCable[];
@@ -3536,6 +3625,7 @@ export interface SceneCoupledSections {
     readonly grains?: readonly SceneGrains[];
     readonly solids?: readonly SceneSolid[];
     readonly heat?: readonly SceneHeat[];
+    readonly fluids?: readonly SceneFluid[];
 }
 export interface Scene {
     readonly format: 'box3d-scene';
@@ -3554,6 +3644,7 @@ export interface Scene {
     readonly grains?: readonly SceneGrains[];
     readonly solids?: readonly SceneSolid[];
     readonly heat?: readonly SceneHeat[];
+    readonly fluids?: readonly SceneFluid[];
     readonly meta?: SceneMeta;
     readonly extensions?: {
         readonly [key: string]: unknown;
@@ -3645,7 +3736,7 @@ export declare function loadScene<W extends SceneHost>(world: W, scene: unknown)
 export declare function saveScene<W extends SceneHost>(world: W, handles: SceneBuilder<W> | {
     readonly builder: SceneBuilder<W>;
 }, options?: SaveSceneOptions): Scene;
-export { pendulumWaveScene, newtonsCradleScene, dominoRunScene, terrainCarScene, ragdollScene, EXAMPLE_SCENES, mooredBuoyScene, cableStayedDeckScene, buoyAndCratesScene, trampolineScene, hopperSeesawScene, suspendedPlatformScene, rubberPadScene, notchedBeamScene, quenchedPlateScene, heatedBarScene, COUPLED_EXAMPLE_SCENES } from './scene-examples.js';
+export { pendulumWaveScene, newtonsCradleScene, dominoRunScene, terrainCarScene, ragdollScene, EXAMPLE_SCENES, mooredBuoyScene, cableStayedDeckScene, buoyAndCratesScene, trampolineScene, hopperSeesawScene, suspendedPlatformScene, rubberPadScene, notchedBeamScene, quenchedPlateScene, heatedBarScene, sphereSettlingScene, cavityFlowScene, flowPastCylinderScene, damBreakScene, COUPLED_EXAMPLE_SCENES } from './scene-examples.js';
 
 // ==== core/simulation.d.ts ====
 import type { WaterCoupling, CouplingWorld } from './water-coupling.js';
@@ -3658,6 +3749,7 @@ import { FractureBody } from './solid-fracture.js';
 import { SolidCoupling } from './solid-contact.js';
 import { ClothCoupling } from './cloth.js';
 import { GranularCoupling } from './granular.js';
+import { Fluid, FluidCoupling, FreeSurfaceFluid } from './fluid.js';
 import { SceneBuilder, type Scene, type SceneHost } from './scene-format.js';
 import type { NativeBodyHandle, NativeJointHandle } from './native-world.js';
 export declare const SIMULATION_STAGES: readonly ["pre-couple", "couple", "rigid", "post", "events"];
@@ -3880,7 +3972,16 @@ export interface LoadedSimulationScene<W extends SimulationSceneWorld = Simulati
     readonly grains: Map<string, GranularCoupling<Body>>;
     readonly solids: Map<string, SceneSolidRuntime<Body>>;
     readonly heat: Map<string, HeatSolver>;
+    readonly fluids: Map<string, SceneFluidRuntime<Body>>;
 }
+export type SceneFluidRuntime<B> = {
+    readonly kind: 'flow';
+    readonly flow: Fluid;
+    readonly coupling: FluidCoupling<B> | null;
+} | {
+    readonly kind: 'free-surface';
+    readonly surface: FreeSurfaceFluid;
+};
 export interface SceneSolidRuntime<B> {
     readonly body: SolidBody | FractureBody;
     readonly coupling: SolidCoupling<B> | null;
@@ -5420,7 +5521,7 @@ import type { CompliantCableRuntime } from './core/compliant-cable.js';
 import type { FrameRuntime } from './core/frame-runtime.js';
 import type { ClothCoupling } from './core/cloth.js';
 import type { GranularCoupling } from './core/granular.js';
-import type { SceneSolidRuntime } from './core/simulation.js';
+import type { SceneFluidRuntime, SceneSolidRuntime } from './core/simulation.js';
 import type { HeatSolver } from './core/heat.js';
 import type { Body, BodyOptions, Joint, PhysicsWorld } from './world.js';
 export * from './core/scene-format.js';
@@ -5440,6 +5541,7 @@ export interface LoadedScene {
     readonly grains: Map<string, GranularCoupling<Body>>;
     readonly solids: Map<string, SceneSolidRuntime<Body>>;
     readonly heat: Map<string, HeatSolver>;
+    readonly fluids: Map<string, SceneFluidRuntime<Body>>;
 }
 export declare class SceneBuilder extends CoreSceneBuilder<PhysicsWorld> {
     readonly world: PhysicsWorld;

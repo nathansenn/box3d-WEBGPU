@@ -8,6 +8,17 @@
  * Nothing here touches the DOM or the physics world, so it runs in node
  * (tests/physics/scene-editor.test.mjs).
  *
+ * A scene with coupled sections (water, cables, frames, cloths, grains, solids,
+ * heat, fluids) opens too. Its rigid bodies and joints are edited as in any
+ * scene; the sections are carried through every command unchanged (the same
+ * objects, so the canonical text of each section is the text it had), listed
+ * read-only with their key values (`coupledSections`), and a few values that
+ * are safe to change on their own (a water level, a cloth's material, a grain
+ * count, a fluid's viscosity: `COUPLED_EDITS`) can be set with `setCoupled`,
+ * which goes through the validator and the scratch build like every command.
+ * Renaming a body renames it in every section that names it; a body a section
+ * names cannot be deleted until that section no longer needs it.
+ *
  * The document always holds a valid scene. A command builds a candidate scene,
  * the format's own `validateScene` checks it, and only a candidate without
  * problems replaces the current scene; otherwise the command is refused with
@@ -16,8 +27,8 @@
  * because float32 is what the rigid solver stores.
  */
 import {
-  SCENE_LIMITS, canonicalize, eulerToQuaternion, normalizeScene, sceneHasCoupling, validateScene,
-  type Scene, type SceneBody, type SceneBodyType, type SceneFilter, type SceneFrame, type SceneJoint, type SceneJointType, type SceneMaterial,
+  SCENE_LIMITS, canonicalize, eulerToQuaternion, normalizeScene, validateScene,
+  type Scene, type SceneBody, type SceneBodyType, type SceneCoupledSections, type SceneFilter, type SceneFrame, type SceneJoint, type SceneJointType, type SceneMaterial,
   type SceneProblem, type SceneShape, type SceneWorld,
 } from '../engine/scene-format.ts';
 import { shortFloat32 } from './scene-loading.ts';
@@ -721,7 +732,8 @@ export type EditorCommand =
   | { readonly type: 'deleteJoint'; readonly id: string }
   | { readonly type: 'setWorld'; readonly world: SceneWorld }
   | { readonly type: 'setMeta'; readonly title?: string; readonly description?: string; readonly author?: string }
-  | { readonly type: 'replaceScene'; readonly scene: unknown };
+  | { readonly type: 'replaceScene'; readonly scene: unknown }
+  | { readonly type: 'setCoupled'; readonly section: CoupledSectionKey; readonly id: string; readonly key: string; readonly value: number };
 
 export type EditorResult =
   | { readonly ok: true; readonly label: string; readonly notes: readonly string[]; /** Ids the command created or renamed to: what to select next. */ readonly created: readonly string[] }
@@ -736,12 +748,142 @@ function without<T extends object>(value: T, ...keys: string[]): T {
   return out as T;
 }
 
-/** Every id a scene uses: bodies and joints share one namespace. */
+/** Every id a scene uses: bodies, joints and the entries of the coupled sections share one namespace. */
 export function sceneIds(scene: Scene): Set<string> {
   const ids = new Set<string>();
   for (const body of scene.bodies) ids.add(body.id);
   for (const joint of scene.joints ?? []) ids.add(joint.id);
+  for (const key of COUPLED_SECTION_KEYS) for (const entry of (scene[key] ?? []) as readonly { readonly id: string }[]) ids.add(entry.id);
   return ids;
+}
+
+// ---------------------------------------------------------------------------
+// Coupled sections: carried, listed, a few values edited
+// ---------------------------------------------------------------------------
+
+export type CoupledSectionKey = keyof SceneCoupledSections;
+export const COUPLED_SECTION_KEYS: readonly CoupledSectionKey[] = Object.freeze(['water', 'cables', 'frames', 'cloths', 'grains', 'solids', 'heat', 'fluids'] as CoupledSectionKey[]);
+type Entry = { readonly id: string; readonly [key: string]: unknown };
+
+/** A value of a section the editor may set on its own. `key` is a path of object keys ('material.youngModulus'); 'count' of a grain set keeps its first N grains. */
+export interface CoupledEdit { readonly key: string; readonly label: string; readonly unit: string; readonly min: number; readonly integer?: boolean; readonly kind?: 'flow' | 'free-surface' }
+/** The values each section offers. Each is checked by the validator and the scratch build like any edit. */
+export const COUPLED_EDITS: { readonly [K in CoupledSectionKey]-?: readonly CoupledEdit[] } = Object.freeze({
+  water: [{ key: 'restDepth', label: 'Water level (rest depth)', unit: 'm', min: 0 }],
+  cables: [],
+  frames: [],
+  cloths: [{ key: 'material.arealDensity', label: 'Areal density', unit: 'kg/m²', min: 0 }, { key: 'material.youngModulus', label: "Young's modulus", unit: 'Pa', min: 0 }, { key: 'material.thickness', label: 'Thickness', unit: 'm', min: 0 }],
+  grains: [{ key: 'count', label: 'Grains (keeps the first N)', unit: '', min: 1, integer: true }, { key: 'material.friction', label: 'Friction', unit: '', min: 0 }, { key: 'material.restitution', label: 'Restitution', unit: '', min: 0.05 }],
+  solids: [{ key: 'material.youngModulus', label: "Young's modulus", unit: 'Pa', min: 0 }, { key: 'material.poissonRatio', label: "Poisson's ratio", unit: '', min: -0.99 }, { key: 'material.density', label: 'Density', unit: 'kg/m³', min: 0 }],
+  heat: [{ key: 'material.conductivity', label: 'Conductivity', unit: 'W/(m K)', min: 0 }, { key: 'material.specificHeat', label: 'Specific heat', unit: 'J/(kg K)', min: 0 }],
+  fluids: [{ key: 'viscosity', label: 'Viscosity', unit: 'Pa s', min: 0, kind: 'flow' }, { key: 'density', label: 'Density', unit: 'kg/m³', min: 0 }],
+});
+
+const valueAt = (entry: Entry, key: string): unknown => key.split('.').reduce<unknown>((at, part) => (at !== null && typeof at === 'object' ? (at as { [k: string]: unknown })[part] : undefined), entry);
+/** The value of an editable key of a section entry ('count': the grain count). */
+export function coupledValue(entry: Entry, key: string): number {
+  if (key === 'count') return Array.isArray(entry.radii) ? entry.radii.length : NaN;
+  const value = valueAt(entry, key);
+  return typeof value === 'number' ? value : NaN;
+}
+/** The edits a section entry offers (a fluid's depend on its kind). */
+export function coupledEdits(section: CoupledSectionKey, entry: Entry): readonly CoupledEdit[] {
+  return COUPLED_EDITS[section].filter(edit => edit.kind === undefined || edit.kind === ((entry.kind as string | undefined) ?? 'flow'));
+}
+
+/** Every body id a value of a section names: the value of each `body` key, at any depth. */
+function bodiesNamed(value: unknown, out: Set<string>): Set<string> {
+  if (Array.isArray(value)) for (const item of value) bodiesNamed(item, out);
+  else if (value !== null && typeof value === 'object') for (const [key, item] of Object.entries(value)) { if (key === 'body' && typeof item === 'string') out.add(item); else if (typeof item === 'object') bodiesNamed(item, out); }
+  return out;
+}
+/** A copy of a section value with every `body` that names `from` renamed to `to`, and the number of names changed. Untouched values are shared. */
+function renameBody(value: unknown, from: string, to: string, count: { n: number }): unknown {
+  if (Array.isArray(value)) { let changed = false; const out = value.map(item => { const next = renameBody(item, from, to, count); if (next !== item) changed = true; return next; }); return changed ? out : value; }
+  if (value === null || typeof value !== 'object') return value;
+  let out: { [key: string]: unknown } | null = null;
+  for (const [key, item] of Object.entries(value)) {
+    const next = key === 'body' && item === from ? (count.n++, to) : typeof item === 'object' ? renameBody(item, from, to, count) : item;
+    if (next !== item) { out ??= { ...(value as { [key: string]: unknown }) }; out[key] = next; }
+  }
+  return out ?? value;
+}
+
+/** One entry of a coupled section as the editor lists it: what it is, its key values, and the bodies it names. */
+export interface CoupledOutlineEntry {
+  readonly section: CoupledSectionKey;
+  readonly id: string;
+  /** 'Fluid (flow)', 'Water basin', ... */
+  readonly kind: string;
+  /** Key values, one line each, plain text. */
+  readonly details: readonly string[];
+  readonly bodies: readonly string[];
+  readonly edits: readonly (CoupledEdit & { readonly value: number })[];
+}
+const n4 = (value: number): string => Number.isFinite(value) ? String(Number(value.toPrecision(4))) : '–';
+const list = (ids: Iterable<string>): string => { const all = [...ids]; return all.length ? all.join(', ') : 'none'; };
+
+/** The coupled sections of a scene, entry by entry, in file order, for the editor's outline. */
+export function coupledSections(scene: Scene): CoupledOutlineEntry[] {
+  const out: CoupledOutlineEntry[] = [];
+  for (const section of COUPLED_SECTION_KEYS) {
+    for (const raw of (scene[section] ?? []) as unknown as readonly Entry[]) {
+      const e = raw as { [key: string]: any }, bodies = [...bodiesNamed(raw, new Set())], details: string[] = [];
+      let kind = section as string;
+      switch (section) {
+        case 'water': kind = 'Water basin'; details.push(`${e.cols} × ${e.rows} cells of ${n4(e.dx)} × ${n4(e.dz)} m, rest depth ${n4(e.restDepth)} m`, `Floating: ${list(bodies)}`); break;
+        case 'cables': kind = 'Cable'; details.push(`${e.masses.length} nodes, ${e.segments.length} segments`, `Attached to: ${list(bodies)}`); break;
+        case 'frames': kind = 'Frame'; details.push(`${e.nodes.length / 3} nodes, ${e.elements.length} beam elements`, `Attached to: ${list(bodies)}`); break;
+        case 'cloths': kind = 'Cloth'; details.push(`${e.nodes.length / 3} nodes, ${e.triangles.length / 3} triangles, ${n4(e.material.arealDensity)} kg/m², E ${n4(e.material.youngModulus)} Pa`, `Touches: ${list(bodies)}`); break;
+        case 'grains': kind = 'Grains'; details.push(`${e.radii.length} grains, ${e.law ?? 'hertz'} contact, ${e.substeps} steps per world step`, `Touches: ${list(bodies)}`); break;
+        case 'solids': {
+          kind = 'Solid';
+          const mesh = 'box' in e.mesh ? `box mesh ${e.mesh.box.cells.join(' × ')} cells` : `${e.mesh.positions.length / 3} nodes, ${e.mesh.tets.length / 4} tetrahedra`;
+          details.push(`${mesh}, ${e.model ?? (e.fracture ? 'linear' : 'corotational')}, E ${n4(e.material.youngModulus)} Pa, ν ${n4(e.material.poissonRatio)}${e.fracture ? ', fracture' : ''}`, `Bodies: ${list(bodies)}`);
+          break;
+        }
+        case 'heat': kind = 'Heat grid'; details.push(`In solid ${e.solid}, k ${n4(e.material.conductivity)} W/(m K), ${(e.boundaries ?? []).length} boundary conditions`); break;
+        case 'fluids': {
+          const cells = e.cells[0] * e.cells[1] * e.cells[2];
+          if (e.kind === 'free-surface') { kind = 'Fluid (free-surface tank)'; details.push(`${e.cells.join(' × ')} cells of ${n4(e.spacing)} m (${cells}), ${n4(e.density)} kg/m³`, `${(e.liquid ?? []).length} liquid ${(e.liquid ?? []).length === 1 ? 'box' : 'boxes'}${e.positions ? `, ${e.positions.length / 3} saved particles` : ''}`); }
+          else { kind = 'Fluid (flow)'; details.push(`${e.cells.join(' × ')} cells of ${n4(e.spacing)} m (${cells}), ${n4(e.density)} kg/m³, μ ${n4(e.viscosity)} Pa s`, `Obstacles: ${list(bodies)}`); }
+          break;
+        }
+      }
+      out.push({ section, id: raw.id, kind, details, bodies, edits: coupledEdits(section, raw).map(edit => ({ ...edit, value: coupledValue(raw, edit.key) })) });
+    }
+  }
+  return out;
+}
+
+/** The sections and ids that name a body. */
+function sectionsNaming(scene: Scene, id: string): string[] {
+  const out: string[] = [];
+  for (const section of COUPLED_SECTION_KEYS) for (const entry of (scene[section] ?? []) as unknown as readonly Entry[]) if (bodiesNamed(entry, new Set()).has(id)) out.push(`${section} "${entry.id}"`);
+  return out;
+}
+
+/** The section entry with a value set: `key` a path of object keys, or 'count' (a grain set keeps its first N grains). */
+function setCoupledValue(scene: Scene, section: CoupledSectionKey, id: string, key: string, value: number): Scene {
+  const entries = (scene[section] ?? []) as unknown as readonly Entry[], entry = entries.find(candidate => candidate.id === id);
+  if (!entry) throw new EditorError(`There is no ${section} entry called "${id}".`);
+  const edit = coupledEdits(section, entry).find(candidate => candidate.key === key);
+  if (!edit) throw new EditorError(`"${key}" of ${section} "${id}" is not edited here; it is kept as it is in the file.`);
+  if (!Number.isFinite(value)) throw new EditorError('Enter a number.');
+  if (edit.integer && !Number.isInteger(value)) throw new EditorError(`${edit.label} must be a whole number.`);
+  let next: { [key: string]: unknown };
+  if (key === 'count') {
+    const grains = entry as unknown as { radii: number[]; positions: number[]; velocities?: number[]; angularVelocities?: number[] }, count = grains.radii.length;
+    if (value > count) throw new EditorError(`The set has ${count} grains; the editor can keep fewer, not add any (it does not know where new grains go).`);
+    if (value < 1) throw new EditorError('Keep at least one grain.');
+    next = { ...entry, radii: grains.radii.slice(0, value), positions: grains.positions.slice(0, 3 * value),
+      ...(grains.velocities ? { velocities: grains.velocities.slice(0, 3 * value) } : {}), ...(grains.angularVelocities ? { angularVelocities: grains.angularVelocities.slice(0, 3 * value) } : {}) };
+  } else {
+    const path = key.split('.');
+    const write = (at: { [key: string]: unknown }, depth: number): { [key: string]: unknown } => ({ ...at, [path[depth]!]: depth === path.length - 1 ? value : write(at[path[depth]!] as { [key: string]: unknown }, depth + 1) });
+    next = write(entry as { [key: string]: unknown }, 0);
+  }
+  return { ...scene, [section]: entries.map(candidate => candidate === entry ? next : candidate) } as Scene;
 }
 
 /** `base-1`, `base-2`, ...: the first that no body or joint uses. A trailing `-N` of `base` is dropped first. */
@@ -792,6 +934,8 @@ function produce(scene: Scene, command: EditorCommand): Produced {
     }
     case 'deleteBody': {
       requireBody(scene, command.id);
+      const users = sectionsNaming(scene, command.id);
+      if (users.length > 0) throw new EditorError(`"${command.id}" is named by ${users.join(' and ')}, which the editor keeps as they are: it cannot be deleted here.`);
       const joints = scene.joints ?? [], removed = joints.filter(joint => joint.bodyA === command.id || joint.bodyB === command.id);
       const notes = removed.map(joint => `Joint "${joint.id}" was removed with it: it was attached to "${command.id}".`);
       return done({ ...scene, bodies: scene.bodies.filter(body => body.id !== command.id), joints: joints.filter(joint => !removed.includes(joint)) }, `Delete body "${command.id}"`, [], notes);
@@ -813,8 +957,13 @@ function produce(scene: Scene, command: EditorCommand): Produced {
           followed++;
           return { ...joint, bodyA: joint.bodyA === command.id ? command.newId : joint.bodyA, bodyB: joint.bodyB === command.id ? command.newId : joint.bodyB };
         });
-        return done({ ...scene, bodies: scene.bodies.map(body => body.id === command.id ? { ...body, id: command.newId } : body), joints: renamed },
-          `Rename "${command.id}" to "${command.newId}"`, [command.newId], followed > 0 ? [`${followed} ${followed === 1 ? 'joint follows' : 'joints follow'} the new name.`] : []);
+        // The coupled sections that name the body follow the new name too.
+        const sections: { [key: string]: unknown } = {}, count = { n: 0 };
+        for (const key of COUPLED_SECTION_KEYS) if (scene[key]) sections[key] = renameBody(scene[key], command.id, command.newId, count);
+        const notes = followed > 0 ? [`${followed} ${followed === 1 ? 'joint follows' : 'joints follow'} the new name.`] : [];
+        if (count.n > 0) notes.push(`${count.n} ${count.n === 1 ? 'reference' : 'references'} in the coupled sections ${count.n === 1 ? 'follows' : 'follow'} it.`);
+        return done({ ...scene, ...sections, bodies: scene.bodies.map(body => body.id === command.id ? { ...body, id: command.newId } : body), joints: renamed } as Scene,
+          `Rename "${command.id}" to "${command.newId}"`, [command.newId], notes);
       }
       if (joints.some(joint => joint.id === command.id)) {
         return done({ ...scene, joints: joints.map(joint => joint.id === command.id ? { ...joint, id: command.newId } : joint) }, `Rename "${command.id}" to "${command.newId}"`, [command.newId]);
@@ -965,9 +1114,11 @@ function produce(scene: Scene, command: EditorCommand): Produced {
     case 'replaceScene': {
       const problems = validateScene(command.scene);
       if (problems.length > 0) throw new RefusedScene(problems);
-      const next = normalizeScene(command.scene);
-      if (sceneHasCoupling(next)) throw new EditorError('This scene has coupled sections (water, cables, frames, cloths, grains, solids or heat). The editor works on rigid bodies and joints only.');
-      return done(next, 'Open a scene');
+      return done(normalizeScene(command.scene), 'Open a scene');
+    }
+    case 'setCoupled': {
+      if (!COUPLED_SECTION_KEYS.includes(command.section)) throw new EditorError(`There is no section called "${String(command.section)}".`);
+      return done(setCoupledValue(scene, command.section, command.id, command.key, command.value), `Set ${command.key === 'count' ? 'the grain count' : command.key.replace('material.', '')} of ${command.section} "${command.id}"`);
     }
     default: throw new EditorError(`Unknown command "${String((command as { type?: unknown }).type)}".`);
   }
@@ -1010,11 +1161,9 @@ export class SceneDocument {
   readonly #accept: ((scene: Scene) => string | null) | null;
   #revision = 0;
 
-  /** Throws SceneValidationError for an invalid scene, and EditorError for one with coupled sections. */
+  /** Throws SceneValidationError for an invalid scene. A scene with coupled sections opens: they are carried as they are. */
   constructor(scene: unknown = emptyScene(), options: SceneDocumentOptions = {}) {
-    const normal = normalizeScene(scene);
-    if (sceneHasCoupling(normal)) throw new EditorError('This scene has coupled sections (water, cables, frames, cloths, grains, solids or heat). The editor works on rigid bodies and joints only.');
-    this.#scene = normal;
+    this.#scene = normalizeScene(scene);
     const limit = options.historyLimit ?? SceneDocument.DEFAULT_HISTORY;
     if (!Number.isInteger(limit) || limit < 1) throw new RangeError('The history limit must be a positive integer.');
     this.#limit = limit;
@@ -1223,8 +1372,7 @@ export function decodeAutosave(text: string | null): { scene: Scene; savedAt: st
     if (record === null || typeof record !== 'object' || record.kind !== 'box3d-scene-editor-autosave' || record.version !== 1) return null;
     if (typeof record.savedAt !== 'string' || record.savedAt.length > 64 || Number.isNaN(Date.parse(record.savedAt))) return null;
     if (validateScene(record.scene).length > 0) return null;
-    const scene = normalizeScene(record.scene);
-    return sceneHasCoupling(scene) ? null : { scene, savedAt: record.savedAt };
+    return { scene: normalizeScene(record.scene), savedAt: record.savedAt };
   } catch {
     return null;
   }

@@ -18,6 +18,7 @@ Values in this document marked "from memory" are recalled, not checked against a
 - [Two-way coupling](#two-way-coupling)
 - [In the stepping loop](#in-the-stepping-loop)
 - [Free surface](#free-surface)
+- [In scenes and the Physics Lab](#in-scenes-and-the-physics-lab)
 - [Validation](#validation)
 - [Cost](#cost)
 - [Limits](#limits)
@@ -143,6 +144,19 @@ Registration runs `checkTimeStep()`. Energy entry: `total` is the kinetic energy
 
 Particles conserve the liquid's mass exactly; the volume of the cells they occupy is what the checks call volume. There is no viscosity, surface tension, obstacle or coupling in this option.
 
+`freeSurfaceSubsystem(tank, {id, order})` plugs a tank into the stepping loop: post stage, order 520, its step the simulation step, a whole fraction or a whole multiple of it. Energy entry: kinetic plus gravitational potential energy of the particles (zero at the origin), nothing exchanged, so the balance falls by what the transfers and the walls dissipate. Events: `'cfl-exceeded'` and `'unconverged'`, as for a flow. `setParticles(positions, velocities?, affine?)` replaces every particle (what a saved tank gives back).
+
+## In scenes and the Physics Lab
+
+The scene format has a `fluids` section ([`SCENE_FORMAT.md`](SCENE_FORMAT.md#fluids)): a flow with its grid, density, viscosity, sides, gravity on or off, starting velocity and the bodies of the rigid world that are its obstacles, or a free-surface tank with its boxes of liquid. `loadSimulationScene` builds them (`FluidCoupling` for a flow with bodies, a bare `Fluid` otherwise, a `FreeSurfaceFluid` for a tank) and a save writes their state: `Fluid.getState()` (face velocities in compact order, `faceCount(c)` values per component, and cell pressures) and `setState()` for a flow, the particles for a tank. A restored flow starts its Adams–Bashforth history afresh; a restored tank continues bit for bit.
+
+The Lab (`lab.html?example=sphere-settling`, `cavity-flow`, `flow-past-cylinder`, `dam-break`) steps them through the scene's Simulation and draws a flow as a slice across z coloured by speed or by pressure less its hydrostatic part, with velocity arrows, and a tank as one sphere per particle. `Fluid.obstacleDistance(x, y, z)` tells the drawing which cells of the slice are inside a body. The examples, what they show and their cost are in [`SCENE_FORMAT.md`](SCENE_FORMAT.md#example-scenes): about 1.1 to 3.1 times real time in node on this sandbox, 0.3 to 2.6 times in a headless browser with software WebGPU on the same, loaded, machine. The scene editor opens these scenes, keeps the section as it is and can set a fluid's viscosity and density ([`SCENE_EDITOR.md`](SCENE_EDITOR.md#coupled-scenes)).
+
+Two things the examples showed:
+
+- **An outflow side and gravity do not mix.** An outflow holds p = 0 over its whole side; with gravity along that side the hydrostatic pressure cannot be held, the fluid drains through the bottom of the side and the run blows up within a few steps (seen: Courant number 8 after 3 steps in a channel with gravity across it). The scene format refuses that combination; the cylinder example turns gravity off in its fluid (the flow is horizontal and the cylinder static, so nothing else needs it).
+- **The explicit coupling needs a short rigid step.** A ball heavy and slow enough to be watched settling in a column (here PTFE in a 2.5 Pa s syrup) has a response time of about 0.03 s once the walls are counted: the settling example steps at 1/120 s. A glass ball in glycerol (1.41 Pa s) at 1/60 s reached 0.38 m/s and crossed the column in under a second, faster than is useful to watch.
+
 ## Validation
 
 `packages/box3d-kit/test/v18-fluid.test.mjs` (14 tests, 31 s on the machine below) asserts on the set-ups in `packages/box3d-kit/test/fluid-scenarios.mjs`, and the validation registry (`validation/domains/fluid.mjs`, 31 rows in [`VALIDATION.md`](VALIDATION.md)) reports the same runs. Measured values, from the registry run:
@@ -211,5 +225,5 @@ So about 10,000 cells (a 21³ box) keep up with a 60 Hz loop at one fluid step p
 - Immersed obstacles: the surface is placed to second order in the cell size along one grid line, and the drag is several percent off at 2–4 cells per radius. Lift, torque on a body, bodies under two cells across and thin plates are not checked. Obstacles overlapping each other or the walls are not handled specially. The pressure inside an obstacle creeps (see above).
 - The coupling is explicit; the step limits are in [Two-way coupling](#two-way-coupling). Only spheres are checked. The coupled energy ledger does not close.
 - The free surface: inviscid, no surface tension, closed free-slip tanks only, no obstacles or bodies, the volume of occupied cells varies by a few percent in splashing flow, and the transfers damp waves (15% of a sloshing amplitude in three periods). It is 2D-checked only.
-- Fluid is not in the scene format, the Lab or the Studio. No GPU version; one thread.
+- Fluid is in the scene format and the Lab (above), not in the Studio. No GPU version; one thread. The Lab draws one slice of a flow, not the whole volume, and does not draw streamlines.
 - Steady states with obstacles converge slowly in step count (77 steps at 16³, 189 at 24³ for the Stokes case).

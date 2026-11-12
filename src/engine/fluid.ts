@@ -34,7 +34,8 @@
  * stress over a box of faces around a body, as an independent check.
  *
  * `FluidCoupling` joins the solver to a rigid world (the rigid bodies are moving obstacles; the world receives the force
- * and torque); `fluidSubsystem` plugs either into the one stepping loop (simulation.ts). A step uses only +, -, *, /,
+ * and torque); `fluidSubsystem` plugs either into the one stepping loop (simulation.ts), `freeSurfaceSubsystem` a
+ * `FreeSurfaceFluid` tank. The scene format's `fluids` section builds them (simulation.ts `loadSimulationScene`). A step uses only +, -, *, /,
  * the square root and fixed loop orders, so repeat runs are bit-identical.
  *
  * See docs/FLUID.md for the equations, the validation and the limits.
@@ -462,6 +463,48 @@ export class Fluid {
   cellCentre(c:number):[number,number,number] {
     const i=c%this.nx,j=Math.floor(c/this.nx)%this.ny,k=Math.floor(c/(this.nx*this.ny)),h=this.h,o=this.origin;
     return [o[0]+(i+.5)*h,o[1]+(j+.5)*h,o[2]+(k+.5)*h];
+  }
+  /** Faces of component c in compact order: (nx + 1) ny nz for u, nx (ny + 1) nz for v, nx ny (nz + 1) for w, index i + Nx (j + Ny k) with that component's counts. */
+  faceCount(c:0|1|2):number {const n=[this.nx,this.ny,this.nz];n[c]++;return n[0]*n[1]*n[2];}
+  /**
+   * The state a save needs: the face velocities in compact order (see `faceCount`) and the cell pressures. Copies.
+   * Restoring it with `setState` gives the same velocity and pressure fields; the Adams-Bashforth history and the
+   * energy ledger are not part of it (the first step after a restore advects by forward Euler, as the first step does).
+   */
+  getState():{u:Float64Array;v:Float64Array;w:Float64Array;pressure:Float64Array} {
+    const out=[0,1,2].map(c=>{
+      const n=[this.nx,this.ny,this.nz];n[c]++;
+      const a=new Float64Array(n[0]*n[1]*n[2]),x=this.vel[c];let q=0;
+      for(let k=0;k<n[2];k++)for(let j=0;j<n[1];j++)for(let i=0;i<n[0];i++)a[q++]=x[this.index(i,j,k)];
+      return a;
+    });
+    return {u:out[0],v:out[1],w:out[2],pressure:Float64Array.from(this.p)};
+  }
+  /** Set the face velocities (compact order, see `faceCount`) and optionally the cell pressures. Wall, inflow and periodic-copy faces keep their own values. */
+  setState(state:{readonly u:ArrayLike<number>;readonly v:ArrayLike<number>;readonly w:ArrayLike<number>;readonly pressure?:ArrayLike<number>}):void {
+    const given=[state.u,state.v,state.w];
+    for(let c=0;c<3;c++){
+      const n=[this.nx,this.ny,this.nz];n[c]++;
+      const a=given[c],x=this.vel[c],kind=this.kind[c];
+      if(!a||a.length!==n[0]*n[1]*n[2])fail(`setState: ${'uvw'[c]} must hold ${n[0]*n[1]*n[2]} values.`);
+      let q=0;
+      for(let k=0;k<n[2];k++)for(let j=0;j<n[1];j++)for(let i=0;i<n[0];i++,q++){
+        const f=this.index(i,j,k),value=Number(a[q]);
+        if(!Number.isFinite(value))fail(`setState: ${'uvw'[c]}[${q}] is not a finite number.`);
+        if(kind[f]===UNKNOWN||kind[f]===OUTFLOW)x[f]=value;
+      }
+    }
+    if(state.pressure!==undefined){
+      if(state.pressure.length!==this.cells)fail(`setState: pressure must hold ${this.cells} values.`);
+      for(let c=0;c<this.cells;c++){const value=Number(state.pressure[c]);if(!Number.isFinite(value))fail(`setState: pressure[${c}] is not a finite number.`);this.p[c]=value;}
+    }
+    this.hasPrev=false;this.fillAll();
+  }
+  /** Signed distance from a point to the nearest enabled obstacle's surface, m (negative inside; Infinity with none). */
+  obstacleDistance(x:number,y:number,z:number):number {
+    let d=Infinity;
+    for(const o of this.obstacles){if(!o.enabled)continue;const s=shapeDistance(o,x-o.x[0],y-o.x[1],z-o.x[2]);if(s<d)d=s;}
+    return d;
   }
 
   private fillGhosts(c:number,x:Float64Array,homogeneous:boolean):void {
@@ -1155,6 +1198,21 @@ export class FreeSurfaceFluid {
     this.count=total;this.markLiquid();
     return added;
   }
+  /**
+   * Replace every particle: positions and velocities (3 per particle) and, optionally, the affine matrices (9 per
+   * particle; zero when left out). What a save of `positions`, `velocities` and `affine` gives back exactly.
+   */
+  setParticles(positions:ArrayLike<number>,velocities?:ArrayLike<number>,affine?:ArrayLike<number>):void {
+    if(!positions||positions.length%3!==0)fail('setParticles: positions must hold 3 numbers per particle.');
+    const count=positions.length/3;
+    if(count>this.capacity)fail(`At most ${this.capacity} particles.`);
+    if(velocities!==undefined&&velocities.length!==3*count)fail(`setParticles: velocities must hold ${3*count} numbers.`);
+    if(affine!==undefined&&affine.length!==9*count)fail(`setParticles: affine must hold ${9*count} numbers.`);
+    const X=new Float64Array(3*count),V=new Float64Array(3*count),C=new Float64Array(9*count);
+    for(let i=0;i<3*count;i++){X[i]=Number(positions[i]);if(velocities)V[i]=Number(velocities[i]);if(!Number.isFinite(X[i])||!Number.isFinite(V[i]))fail(`setParticles: value ${i} is not a finite number.`);}
+    if(affine)for(let i=0;i<9*count;i++){C[i]=Number(affine[i]);if(!Number.isFinite(C[i]))fail(`setParticles: affine[${i}] is not a finite number.`);}
+    this.positions=X;this.velocities=V;this.affine=C;this.count=count;this.markLiquid();
+  }
 
   /** Trilinear stencil of component c at a point: base indices and fractions (flat: no z interpolation for u and v). */
   private stencil(c:number,x:number,y:number,z:number,base:Int32Array,frac:Float64Array):void {
@@ -1640,5 +1698,33 @@ export function fluidSubsystem<W,B>(target:Fluid|FluidCoupling<B>,options:{reado
         parts:{kinetic,dissipated:fluid.dissipated,workByBodies:fluid.workByBodies,workByBoundaries:fluid.workByBoundaries,workByForces:fluid.workByForces}};
     },
     diagnostics(){return {solver:fluid.solver,backend:coupling?coupling.backend:null,cells:fluid.cells,time:fluid.time,dt:fluid.dt,substeps:coupling?coupling.substeps:1,obstacles:fluid.obstacleCount,...fluid.stats};},
+  };
+}
+
+/** Where a free-surface tank runs in the post stage of a Simulation: after a bare Fluid (510). */
+export const FREE_SURFACE_SUBSYSTEM_ORDER=520;
+
+/**
+ * A free-surface tank as a subsystem of the one stepping loop (simulation.ts). Post stage (it does not act on the rigid
+ * world); its dt may be the step, a whole fraction of it or a whole multiple. Energy: kinetic plus gravitational
+ * potential energy of the particles (zero at the origin); nothing is exchanged with the outside, so the balance falls by
+ * what the transfers and the walls dissipate. Events: 'cfl-exceeded' {cfl} when the Courant number first rises above the
+ * limit, 'unconverged' {iterations} when a projection stopped at maxIterations.
+ */
+export function freeSurfaceSubsystem<W,B>(fluid:FreeSurfaceFluid,options:{readonly id?:string;readonly order?:number}={}):Subsystem<W,B> {
+  if(!(fluid instanceof FreeSurfaceFluid))throw new TypeError('freeSurfaceSubsystem needs a FreeSurfaceFluid.');
+  let over=false,unconverged=fluid.stats.unconverged;
+  return {
+    id:options.id??'free-surface',kind:'free-surface',stage:'post',order:options.order??FREE_SURFACE_SUBSYSTEM_ORDER,
+    timeStep:{dt:fluid.dt,rule:'commensurate'},
+    step(ctx){fluid.step(ctx.substeps);},
+    finish(ctx){
+      const now=fluid.stats.cfl>fluid.cflLimit;
+      if(now&&!over)ctx.emit('cfl-exceeded',{cfl:fluid.stats.cfl,limit:fluid.cflLimit});
+      over=now;
+      if(fluid.stats.unconverged!==unconverged){ctx.emit('unconverged',{iterations:fluid.stats.pressureIterations,divergence:fluid.stats.divergence});unconverged=fluid.stats.unconverged;}
+    },
+    energy(){const kinetic=fluid.kineticEnergy(),potential=fluid.potentialEnergy();return {domain:'mechanical',total:kinetic+potential,exchanged:0,parts:{kinetic,potential}};},
+    diagnostics(){return {solver:fluid.solver,cells:fluid.nx*fluid.ny*fluid.nz,particles:fluid.count,time:fluid.time,dt:fluid.dt,...fluid.stats};},
   };
 }

@@ -506,6 +506,83 @@ export function heatedBarScene(options: {hot?: number; cold?: number; cells?: nu
   };
 }
 
+/**
+ * A PTFE ball (2200 kg/m^3) settling through a syrup (rho = 1380 kg/m^3, mu = 2.5 Pa s, a corn-syrup-like liquid) in
+ * a square column 0.12 m wide: the ball is a body of the rigid world and a moving obstacle in the flow (FluidCoupling),
+ * which hands it the drag and the buoyancy. It reaches a terminal velocity within a few centimetres, far below Stokes's
+ * 2 (rho_s - rho) g a^2 / (9 mu) because the walls are 1.2 diameters from it, and lands on the floor. 12 x 30 x 12
+ * cells of 10 mm (2.5 cells per radius). The world steps at 1/120 s: the coupling is explicit and must step below the
+ * ball's response time in the column (about 0.03 s).
+ */
+export function sphereSettlingScene(options: {radius?: number; density?: number; viscosity?: number} = {}): Scene {
+  const {radius = 0.025, density = 2200, viscosity = 2.5} = options;
+  const h = 0.01, cells: [number, number, number] = [12, 30, 12], half = round(cells[0] * h / 2);
+  return {
+    ...header, world: {gravity: [0, -G, 0], ground: true, seed: 1, step: 1 / 120, subSteps: 4},
+    materials: {}, joints: [],
+    bodies: [{id: 'ball', shape: {kind: 'sphere', radius}, position: [0, round(cells[1] * h - 0.05), 0], density, friction: 0.4, neverSleeps: true, color: 0xE9E4D8}],
+    fluids: [{id: 'syrup', cells, spacing: h, origin: [-half, 0, -half], density: 1380, viscosity, bodies: [{body: 'ball'}]}],
+    meta: {title: 'Sphere settling', description: `A ${radius * 2000} mm PTFE ball falling through a syrup of ${viscosity} Pa s in a 120 mm column: drag and buoyancy from the resolved flow, to a terminal velocity.`},
+  };
+}
+
+/**
+ * The lid-driven cavity: a cube of oil 0.1 m on a side (rho = 900 kg/m^3, mu = 0.09 Pa s) whose top wall slides at
+ * 0.1 m/s, Re = 100. The flow turns into one large vortex with small ones in the lower corners (the 2D case is checked
+ * against Ghia, Ghia & Shin 1982 in docs/FLUID.md; this one is 3D, with side walls). 16^3 cells.
+ */
+export function cavityFlowScene(options: {cells?: number; lidSpeed?: number} = {}): Scene {
+  const {cells = 16, lidSpeed = 0.1} = options, L = 0.1, h = L / cells;
+  return {
+    ...header, world: {gravity: [0, -G, 0], ground: true, seed: 1, step: 1 / 60, subSteps: 4},
+    materials: {}, joints: [], bodies: [],
+    fluids: [{id: 'cavity', cells: [cells, cells, cells], spacing: h, origin: [-L / 2, 0.05, -L / 2], density: 900, viscosity: 0.09, boundaries: {yMax: {type: 'no-slip', velocity: [lidSpeed, 0, 0]}}}],
+    meta: {title: 'Lid-driven cavity', description: `A cube of oil whose lid slides at ${lidSpeed} m/s (Re ${Math.round(lidSpeed * L * 900 / 0.09)}): one large vortex, small ones in the lower corners.`},
+  };
+}
+
+/**
+ * Flow past a cylinder at Re = 20, in two dimensions: a slab one cell thick (periodic in z) of a liquid with
+ * nu = 4e-5 m^2/s enters at 40 mm/s on the left and leaves on the right (p = 0), with free-slip top and bottom. The
+ * cylinder (20 mm across, 6 cells) is a static capsule of the rigid world lying across the slab. Behind it a pair of
+ * standing vortices forms; the flow does not shed at this Reynolds number. The channel is 5.3 diameters tall (19%
+ * blockage). Gravity is off in the fluid: the flow is horizontal and an outflow side cannot hold a hydrostatic pressure.
+ */
+export function flowPastCylinderScene(options: {speed?: number; reynolds?: number} = {}): Scene {
+  const {speed = 0.04, reynolds = 20} = options, D = 0.02, h = round(D / 6, 9), cells: [number, number, number] = [80, 32, 1];
+  const origin: [number, number, number] = [round(-0.3 * cells[0] * h), 0.06, round(-h / 2, 9)], centreY = round(origin[1] + cells[1] * h / 2);
+  return {
+    ...header, world: {gravity: [0, -G, 0], ground: true, seed: 1, step: 1 / 60, subSteps: 4},
+    materials: {}, joints: [],
+    // The capsule's axis is its local y, turned to z.
+    bodies: [{id: 'cylinder', shape: {kind: 'capsule', radius: D / 2, halfLength: 0.03}, type: 'static', position: [0, centreY, 0], rotation: [0.7071067811865476, 0, 0, 0.7071067811865476], color: 0x59616B}],
+    fluids: [{
+      id: 'channel', cells, spacing: h, origin, density: 1000, viscosity: round(1000 * speed * D / reynolds, 9), gravity: false, velocity: [speed, 0, 0],
+      boundaries: {xMin: {type: 'inflow', velocity: [speed, 0, 0]}, xMax: 'outflow', yMin: 'free-slip', yMax: 'free-slip', zMin: 'periodic', zMax: 'periodic'},
+      bodies: [{body: 'cylinder'}],
+    }],
+    meta: {title: 'Flow past a cylinder', description: `A liquid entering at ${speed * 1000} mm/s past a 20 mm cylinder (Re ${reynolds}, two-dimensional): a pair of standing vortices forms behind it.`},
+  };
+}
+
+/**
+ * A dam break in three dimensions: a column of water 0.18 m by 0.09 m and 0.3 m tall stands in one corner of a tank
+ * 0.6 x 0.36 x 0.18 m and is let go at t = 0. It spreads over the floor, runs to the far wall, climbs it and falls back.
+ * Free surface by particles (APIC), eight per cell; inviscid; closed free-slip tank. 20 x 12 x 6 cells of 30 mm,
+ * 1,440 particles, two fluid steps per world step.
+ */
+export function damBreakScene(options: {width?: number; depth?: number; height?: number} = {}): Scene {
+  const {width = 0.18, depth = 0.09, height = 0.3} = options, h = 0.03, cells: [number, number, number] = [20, 12, 6];
+  const origin: [number, number, number] = [-0.3, 0, -0.09];
+  return {
+    ...header, world: {gravity: [0, -G, 0], ground: true, seed: 1, step: 1 / 60, subSteps: 4},
+    materials: {}, joints: [], bodies: [],
+    fluids: [{id: 'tank', kind: 'free-surface', cells, spacing: h, origin, density: 1000, substeps: 2,
+      liquid: [{min: origin, max: [round(origin[0] + width), round(origin[1] + height), round(origin[2] + depth)]}]}],
+    meta: {title: 'Dam break', description: `A ${height} m column of water let go in a corner of a closed tank: it spreads over the floor, climbs the far wall and falls back (free surface by particles).`},
+  };
+}
+
 export const COUPLED_EXAMPLE_SCENES: {readonly [name: string]: () => Scene} = Object.freeze({
   'moored-buoy': () => mooredBuoyScene(),
   'cable-stayed-deck': () => cableStayedDeckScene(),
@@ -517,4 +594,8 @@ export const COUPLED_EXAMPLE_SCENES: {readonly [name: string]: () => Scene} = Ob
   'notched-beam': () => notchedBeamScene(),
   'quenched-plate': () => quenchedPlateScene(),
   'heated-bar': () => heatedBarScene(),
+  'sphere-settling': () => sphereSettlingScene(),
+  'cavity-flow': () => cavityFlowScene(),
+  'flow-past-cylinder': () => flowPastCylinderScene(),
+  'dam-break': () => damBreakScene(),
 });
