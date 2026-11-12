@@ -56,7 +56,7 @@ export class SceneDesk {
         <section class="desk-page" id="desk-page-surface" role="tabpanel" aria-labelledby="desk-tab-surface" hidden>
           <div class="desk-section-title"><h3>Specimen finish</h3><button data-desk-browse="finishes" class="desk-text-button">Browse ${icon('arrow-up-right')}</button></div>
           <p class="desk-note">Compare the same specimen in a different material finish. The recorded run stays intact.</p>
-          <div class="desk-finishes"></div><p class="desk-note desk-boundary">${actions.state().study==='plate'?'Finish changes appearance. Metal and thickness are controlled in Test.':'Finish changes appearance. Connection strength is controlled in Test.'}</p>
+          <div class="desk-finishes"></div><p class="desk-note desk-boundary">${actions.state().study==='plate'?'Finish changes appearance. Metal and thickness are controlled in Test.':actions.state().study==='bridge'?'Finish changes appearance only. Crowd, wind and hangers cut are set in Test, in SI units.':'Finish changes appearance. Connection strength is controlled in Test.'}</p>
         </section>
         <section class="desk-page" id="desk-page-environment" role="tabpanel" aria-labelledby="desk-tab-environment" hidden>
           <div class="desk-section-title"><h3>Lighting & atmosphere</h3><button data-desk-browse="lighting" class="desk-text-button">All lights ${icon('arrow-up-right')}</button></div>

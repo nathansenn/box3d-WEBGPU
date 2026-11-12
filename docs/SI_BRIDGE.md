@@ -11,7 +11,7 @@ The model is `src/engine/si-bridge.ts`, the scene `src/lab/si-bridge-scene.ts`, 
 
 **What it is:** linear beams, axial stays, loads attached at nodes. **What it is not:** there is no contact between wheels and deck, no buckling, yielding or geometric stiffness of the members, no cable sag, and no aerodynamics beyond a static wind load. The utilisation ratios are linear-elastic indicators, not a design check. The section properties are hand estimates for a plausible steel footbridge that can carry a service vehicle; this is not a designed or surveyed bridge, and nothing is calibrated against measurements.
 
-The Studio's suspension-bridge study (`index.html?studio=bridge`) is a different model and is unchanged; [the last section](#re-basing-the-studio-study) says how it could move onto this one.
+The Studio's suspension-bridge study (`index.html?studio=bridge`) runs on a second model of the same family, the suspension footbridge of `src/engine/si-suspension.ts`: [the second part of this document](#suspension-footbridge-the-studio-bridge) describes it.
 
 ## The structure
 
@@ -256,15 +256,163 @@ Checked in headless Chromium with software WebGPU (not on a real GPU): the bridg
 - Most references are the model's own statics. The independent ones are the hand case, the lateral frequency, the Rayleigh estimates and the wind beam.
 - No checkpoint: the coupling's own state is not saved.
 
-## Re-basing the Studio study
+# Suspension footbridge (the Studio bridge)
 
-The Studio's bridge (`src/studio/`, `index.html?studio=bridge`) is an authored position-based model in made-up units with a large interface and its own tests. Moving it onto this model would take, in this order:
+`index.html?studio=bridge` (the Engineering Studio's "Suspension bridge") runs on `src/engine/si-suspension.ts`, the Studio's own geometry as an SI model on the validated solvers:
 
-1. **A suspension layout.** `SiBridgeLayout` is general (frame nodes and elements, supports, stays between frame nodes), but the Studio bridge is a suspension bridge: main cables over the towers with hangers. That needs main cables of several segments attached to tower tops and anchorages, hangers from cable nodes to deck nodes, and a form-finding step for the main cable in place of the zero-displacement pretension (the cable solver's proximal backend already solves curved spans; see [`NONLINEAR_CABLE.md`](NONLINEAR_CABLE.md)).
-2. **The Studio's load cases as inputs of this model:** traffic as one or more vehicles, wind as the static lateral load, a hanger or cable failure as `failStay`. Its sliders would set SI quantities.
-3. **Its readouts from `SiBridge.out`:** deflections in millimetres, tensions in kilonewtons, utilisations against stated strengths, in place of the normalised values.
-4. **Its renderer.** The Studio draws with Three.js; the model is renderer-independent (`si-bridge.ts` imports no drawing code), so the Studio would read node positions and stay ends as the Lab scene does.
-5. **Its worker and tests.** The Studio steps in a worker with its own protocol (`src/engine/studio-*.ts`); the model needs the rigid world in that worker. Its acceptance tests assert on the authored model's behaviour and would be rewritten against SI values.
-6. **Then** the "not engineering predictions" label of that study can be replaced by this document's list of what is and is not modelled.
+- deck grillage and portal towers: Euler–Bernoulli frame elements ([`FRAME_MECHANICS.md`](FRAME_MECHANICS.md)), factorised directly (`solver: 'direct'`);
+- main cables, backstays and hangers: one tension-only cable network with exact geometry ([`COMPLIANT_CABLE.md`](COMPLIANT_CABLE.md)), solved by the cable runtime's Newton backend;
+- the two are solved together each step by `StructureCoupling`'s joint step ([`STRUCTURE_COUPLING.md`](STRUCTURE_COUPLING.md));
+- an optional service vehicle is a rigid body in the Box3D world, pinned to the deck centreline as in the cable-stayed scene.
 
-Until then the two are separate: the Studio study is the authored one, and this scene is the validated one.
+The model is `src/engine/si-suspension.ts`, the Studio adapter `src/studio/si-bridge-study.ts`, the tests `tests/physics/si-suspension.test.mjs` (16 tests, in the pull-request gate), and 24 checks are published in [`VALIDATION.md`](VALIDATION.md) under "Suspension footbridge".
+
+**What it is:** linear steel beams; axial, tension-only steel strands whose geometry is exact, so the main cables' sag and gravity stiffness are modelled; loads at nodes; a static wind. **What it is not:** no contact, no buckling, yielding or geometric stiffness of the beams, no slip of the cables over the saddles, no aerodynamics beyond a static lateral load, no stiffness of the timber boards (they are mass only). The utilisations are linear-elastic indicators against stated strengths, not a design check. The sections below are table values and hand estimates for a plausible footbridge of the Studio's look; it is not a designed or surveyed bridge and nothing is calibrated against measurements.
+
+## The structure
+
+The geometry is the Studio's (`src/studio/physics.ts` `STUDIES.bridge`, `world.ts`, `reference-scene.ts`), in metres, in the Studio's own coordinates (x along the bridge, y up, z across).
+
+| | |
+|---|---|
+| Span | 42 m between the tower axes (x = ±21 m), 36 panels of 7/6 m |
+| Deck | two edge girders at z = ±1.9 m and y = 4.8 m, a crossbeam at every panel point (with a centreline node for a vehicle), X plan bracing in every panel; both girder ends held in x, y and z on the piers |
+| Towers | at each end a portal: two columns from the pier top (y = 3.73 m, clamped) to the saddle (y = 14.0 m), a portal beam at 13.5 m and two knee braces from 11.85 m |
+| Main cables | two, in the planes z = ±1.9 m, 36 straight segments each between the saddles, drawn sag 6.8 m (lowest point 7.2 m), fixed to the saddles (no slip) |
+| Backstays | from each saddle to a ground anchorage at x = ±31 m, z = ±4.3 m, y = 6.30 m (the drawn anchorages stand between 6.25 and 6.36 m; one height keeps the structure symmetric) |
+| Hangers | 70, vertical, at every interior panel point of both cables (stations 1 to 35) |
+| Gravity | 9.81 m/s² as the rigid world keeps it (float32, 9.8100004) |
+
+### Sections
+
+Steel values come from the material library (`structural-steel-s355`: E = 210 GPa, G = 81 GPa, ρ = 7850 kg/m³, f_y = 355 MPa); the timber density from `pine-loblolly` (571.2 kg/m³ at 12 % moisture). Rolled sections use their EN 10365 table values.
+
+| Member | Section | Values |
+|---|---|---|
+| Edge girder | HEA 340 | A = 133.5 cm², I = 27,690 cm⁴ (vertical), 7,436 cm⁴ (lateral), I_t = 127.2 cm⁴, W = 1,678 cm³; 104.8 kg/m steel + 227.9 kg/m carried = 332.7 kg/m |
+| Crossbeam | IPE 200 | A = 28.48 cm², I = 1,943 cm⁴, W = 194.3 cm³; 22.4 kg/m |
+| Plan bracing | L 60 × 6 | A = 6.91 cm², 5.4 kg/m (an axial member in practice) |
+| Column | HEB 400 | A = 197.8 cm², I = 57,680 cm⁴ along the bridge, 10,820 cm⁴ across; 155.3 kg/m |
+| Portal beam, knees | HEB 300, HEB 200 | strong axis in the portal plane |
+| Main cable | 50 mm full locked coil strand | metallic area 0.87 × π 25² = 1,708 mm²; E = 160 GPa (EN 1993-1-11 range for locked coil); minimum breaking force 0.9 × 1,570 MPa × 1,708 mm² = 2,413 kN; 13.7 kg/m |
+| Hanger | 20 mm spiral strand | 0.78 × π 10² = 245 mm²; E = 150 GPa; minimum breaking force 0.86 × 1,770 MPa × 245 mm² = 373 kN; 2.0 kg/m |
+| Saddle | lumped mass | 500 kg at each column top (saddle casting, clamp, tower head fittings) |
+
+The deck surface carried by the girders (half each), per metre of bridge: timber boards 3.8 × 0.16 × 571.2 = 347.3 kg; two fascia boards 2 × 0.26 × 0.14 × 571.2 = 41.6 kg; two railings, each a 76.1 × 3.6 tube (6.4 kg/m), five 24 mm bars (3.55 kg/m each) and a 48.3 × 4 post (4.4 kg/m × 1.15 m) every 7/6 m, 57.0 kg; fixings 10 kg: 455.8 kg/m. With the girders, crossbeams and bracing the deck weighs 775 kg/m; with the cables and hangers the span carries 821.6 kg/m. The whole structure weighs 441.1 kN.
+
+### Form-finding
+
+The cables are cut so that, under dead load, the deck is level at every hanger, the main cables pass through the drawn midspan height and the hangers hang plumb:
+
+1. The deck's hanger forces: the frame alone with each girder held vertically at every hanger, a continuous grillage on level supports. Its support reactions are the hanger tensions (half of each hanger's weight acts on the deck).
+2. Each main cable is the funicular polygon of those forces, half of each hanger's weight and its own weight between the saddles: `y_j = chord − M_j / H`, with `M_j` the simple-beam moment of the point loads and `H` chosen so that the midspan point is at 14.0 − 6.8 = 7.2 m. Each backstay's force balances `H` along the bridge, so that the towers stand plumb.
+3. Every segment is cut to the unstressed length that gives its force at its target chord, `L₀ = l / (1 + T / EA)`.
+4. The towers shorten by 0.48 mm and the backstays, which run outwards to z = ±4.3 m, pull the saddles 0.25 mm sideways: the structure is solved, the saddle targets are moved to where the saddles went (down and sideways; along the bridge they stay plumb) and steps 2 and 3 are repeated. Four passes take the deck level to 5.8·10⁻⁸ m and the midspan height to 6·10⁻⁸ m; about 0.3 s.
+
+### Hand numbers under dead load
+
+| Quantity | Model | Hand | |
+|---|---|---|---|
+| Horizontal cable tension `H`, each cable | 129.79 kN | parabola `w L² / 8 f` with `w` = cable load / L = 3.93 kN/m: 127.43 kN | +1.9 %: the end hangers carry 13 % more (the end panels of a continuous deck), so the load is not uniform |
+| Tension at the towers (end segment) | 153.81 kN | `√(H² + V²)`, V = half the cable load: 153.81 kN; parabola `H √(1 + 16 (f/L)²)`: 151.82 kN | 2·10⁻⁸; +1.3 % |
+| Midspan hanger | 4.4598 kN | one panel of deck: (girder + half crossbeam + half bracing) g s + half its own weight = 4.4598 kN | 2·10⁻⁸ |
+| End hanger | 5.06 kN | | 1.13 × the midspan hanger |
+| Backstay | 166.7 kN | | 6.9 % of its breaking force; the main cables are the most used strands |
+
+Utilisations under dead load: main cable 6.9 %, hangers 1.4 % at most, girders below 1 %.
+
+### Deflection theory
+
+A point load against the linearised deflection theory of a suspension bridge with a stiffening deck pinned at both ends (Timoshenko 1930; Bleich): `EI v'''' − H v'' = p − (8f/L²) h`, with the extra horizontal force `h` from the cable's compatibility `h (L_e / EA + 2 / k_s) = (8f/L²) ∫ v dx` per cable, `L_e = L (1 + 8 (f/L)²)` and `k_s` the longitudinal stiffness of a saddle (backstay axial along the bridge, 12.89 MN/m, plus the column as a cantilever, 0.34 MN/m). Fourier sine series, 600 terms; EI of both girders, H of both cables.
+
+| 20 kN (half on each girder) | Model | Theory | Difference |
+|---|---|---|---|
+| at midspan: deflection | 10.973 mm | 10.733 mm | +2.2 % |
+| at midspan: extra cable force (both) | 23.446 kN | 23.463 kN | −0.07 % |
+| at the quarter point: deflection | 18.181 mm | 18.625 mm | −2.4 % |
+| at the quarter point: extra cable force | 16.696 kN | 16.760 kN | −0.38 % |
+| down and up at the quarter points: deflection | 29.225 mm | 30.210 mm | −3.3 % (h = 0 to first order; the model's 25 N) |
+
+The theory spreads inextensible hangers into a membrane; the model has 35 elastic hangers per cable on a grillage and portal towers.
+
+### Frequencies
+
+| Mode | Eigenvalue solve | Closed form | |
+|---|---|---|---|
+| 1: first antisymmetric vertical | 1.4148 Hz | tensioned beam, `f = √((EI k⁴ + H k²) / m) / 2π`, `k = 2π / L`, m = 821.6 kg/m: 1.4054 Hz | +0.67 % |
+| 2: first torsion | 1.4996 Hz | | |
+| 3 to 6: cable sway and torsion | 1.62 to 2.20 Hz | | |
+| 7: first symmetric vertical | 2.2502 Hz | | |
+
+The antisymmetric mode needs no change of cable length, which is why the string-and-beam closed form holds for it; the symmetric mode stretches the cables and the backstays and is stiffer. The lowest mode, 1.41 Hz, lies in the band of walking pace (1.6 to 2.4 Hz is the usual first band, 1.25 to 2.3 Hz in some guides): a real bridge of this kind would need a pedestrian comfort check, which this model does not make.
+
+## Time stepping
+
+`SiSuspensionBridge` steps at 120 Hz. Each step the coupling solves the whole cable network together with the frame: instead of a proxy mass per attached node, the cable solver sees the frame's response on all 74 attached nodes at once (saddles and hanger feet), `S = (h² G / 2)⁻¹` with `G` the translational blocks of the frame's interface operator, and holds them towards where the frame would put them without the cables, `x* = x + h (v + Δv_free / 2)`. That is consistent with the frame's midpoint rule, so the cables end the step exactly where the frame puts their ends. The cable step is backward Euler, solved by Newton's method with a direct factorisation that is kept from step to step (three to four iterations). The frame's midpoint operator is factorised once. On the default bridge a step takes 5 to 9 ms in Node on a shared 4-core machine; building the model about 1 s.
+
+Two coupling schemes were tried first and rejected, with the numbers that ruled them out:
+
+- **The coupling's proxy per attached node with the proximal cable solver.** The proximal solver's Gauss–Seidel projections need about 16 substeps and 30 to 40 iterations per substep on these stiff steel chains (k h²/m ≈ 1000 at 120 Hz), 34 ms a step. Worse, the 35 hanger feet of one network are coupled through the deck with last step's impulses, and a saddle, where a main cable and a backstay meet at an angle, gets one isotropic proxy mass for a column that is stiff vertically and soft along the bridge: the time-stepped model then sat 3 to 11 % off its statics at rest.
+- **The joint step with `S = (h² G)⁻¹`, `x* = x + h (v + Δv_free)`** (an Euler step for the frame's ends) agreed with the statics at rest but grew unstable without damping (a released antisymmetric oscillation doubled in about a second), because the frame's midpoint rule moves an attached node only half as far within the step.
+
+### Loads and events
+
+- **Crowd:** a uniform pressure on whole panels, half the width on each girder, as consistent nodal loads (`setCrowd`, any time). The Studio puts it on the east half (panels 18 to 36) and builds it up at 0.5 kN/m² per second.
+- **Wind:** a uniform lateral load on the deck in N/m, half on each girder (`setWind`, any time).
+- **Hanger failure:** `failHanger(segment)` (or `failures: [{segment, time}]`). The hanger's link is released in the cable solver: from that step on it carries nothing, and its two halves of weight stay where they were. A hanger also fails by itself when its tension exceeds its minimum breaking force (`ruptureAt`, default 1). It is not drawn swinging.
+- **Service vehicle:** `vehicle: {mass, speed, start}`, a 2.0 × 1.2 × 1.0 m rigid body pinned to the two centreline nodes it stands between. It needs a Box3D world and adds 37 attached nodes to the interface (about three times the step cost), so the Studio does not use it.
+
+### Validation
+
+All numbers are measured by `tests/physics/si-suspension.test.mjs` on the default bridge at 120 Hz; time-stepped readings are means over half a second after a damped settle.
+
+| Check | Expected | Measured | Tolerance and why |
+|---|---|---|---|
+| Form-finding: deck level at the hangers | 0 | 5.8·10⁻⁸ m | 10⁻⁶ m |
+| … midspan cable height | 7.2 m | 7.19999994 m | 10⁻⁶ m |
+| … hangers plumb | 0 | 0.23 mm | 0.5 mm: the backstays pull the saddles 0.25 mm sideways and the main cable follows |
+| Dead load, statics: vertical reactions | weight 441.06 kN | error 3·10⁻¹⁴ | 10⁻⁹ |
+| Main cable `H` against the parabola | 127.43 kN | 129.79 kN (+1.9 %) | 3 %: non-uniform load (above) |
+| Tower tension against `√(H² + V²)` | 153.81 kN | 2·10⁻⁸ | 10⁻⁶ |
+| … against the parabola | 151.82 kN | +1.3 % | 3 % |
+| Midspan hanger against one panel of deck | 4.4598 kN | 2·10⁻⁸ | 10⁻⁵ |
+| Point load: deflection (midspan, quarter, antisymmetric) | deflection theory | +2.2 %, −2.4 %, −3.3 % | 5 %: membrane of inextensible hangers in the theory |
+| … extra cable force (midspan, quarter) | deflection theory | −0.07 %, −0.38 % | 1 % |
+| First antisymmetric vertical mode | tensioned beam, 1.4054 Hz | 1.4148 Hz (+0.67 %) | 2 % |
+| … time-stepped, released, undamped | eigenvalue solve, 1.4148 Hz | 1.4143 Hz (−0.03 %) | 0.2 %: `(ω h)²/12` of the midpoint rule and the cables' implicit Euler |
+| Crowd 3 kN/m² on the west half, time-stepped against statics | 0 | tension 3·10⁻¹¹, deflection 10⁻¹³ m | 10⁻⁶, 10⁻⁷ m: the solvers' stopping tolerances |
+| … reactions | weight + crowd | error 4·10⁻¹³ | 10⁻⁶ |
+| Symmetry: crowds on the west and east thirds | mirror images | statics 5·10⁻¹², time-stepped 8·10⁻¹³ | 10⁻⁹, 10⁻⁶ |
+| Hanger failure (hanger 12 of the upstream cable), 3 s later | static re-solve without it | 7.9·10⁻⁷; deck 2·10⁻⁹ m | 10⁻⁴, 10⁻⁶ m |
+| … its neighbours | | +49.6 % each (statics +49.6 %) | between +40 and +60 % |
+| … reactions | weight | error 1.6·10⁻⁷ | 10⁻⁵ |
+| Wind 1.5 kN/m: midspan lateral deflection | statics, 4.7707 mm | equal to 10⁻¹² | 10⁻⁶ |
+| … lateral reactions | 63 kN | error 10⁻¹³ | 10⁻⁶ |
+| Parked 2 t service vehicle (Box3D rigid body) | statics with its weight by the lever rule | 5·10⁻⁹ | 10⁻⁶ |
+| Determinism: crowd changed mid-run, wind, a failing hanger | bit-identical | identical, 20,472 bytes | exact |
+| Newton cable backend against the proximal one (hanging chain with a tip mass) | the same backward-Euler step | 10⁻⁸ m after 60 ticks | 10⁻⁷ m |
+| Frame direct solver against conjugate gradients | the same equations | equal to 10⁻⁹ | 10⁻⁹ relative |
+
+## In the Studio
+
+`src/studio/si-bridge-study.ts` adapts the model to the Studio's runtime contract (fixed 120 Hz steps, the worker protocol, snapshots of the drawn particles): each snapshot's deck particles are the girder nodes, its cable particles the main cable points and saddles, and a hanger's link is marked broken when that hanger has failed. The Three.js scene reads those positions every frame (`world.ts` is unchanged apart from what reads the snapshot: the same towers, timber deck, river and ecology). The SI readings travel in `snapshot.si`.
+
+- **Controls:** crowd 0 to 5 kN/m² on the east half (the EN 1991-2 crowd for this span, 2 + 120 / (L + 30), is 3.7 kN/m²), hangers cut on the upstream cable 0 to 6 (from midspan outwards), wind 0 to 2 kN/m. The prepared load cases are in these units.
+- **Readouts:** deck drop in mm, hangers failed of 70, largest hanger and main cable tensions in kN; in Analyze → Inspect the crowd, wind, midspan deflection, hanger and main cable tension against breaking, girder stress in MPa against yield, tower utilisation and saddle movement, and a hanger map by span; Experiments scans the crowd, the hangers lost or the wind, in mm and kN.
+- **Footer:** "SI model · validated solvers" with a link to this document, in place of "Comparative model · not calibrated" (the other studies keep theirs).
+- **Not supported:** resuming a saved run (the coupling's state has no checkpoint; Export evidence holds the recorded response), the service vehicle, and drawing a failed hanger hanging.
+
+Under a 3 kN/m² crowd on the east half the deck drops about 130 mm; cutting the three midspan hangers of one cable raises the largest hanger tension from 7 to 19.5 kN, 5 % of its breaking force. The bridge does not progress to a collapse under these loads: its hangers are close together and strong, and that is what the model says.
+
+The earlier authored model (`FailureSimulation('bridge')`, position-based, normalised units) is still in `src/studio/physics.ts` for the tests that freeze its behaviour; the Studio no longer uses it for the bridge.
+
+## Limits of the suspension model
+
+- No contact; pedestrians are a pressure on whole panels.
+- Linear beams: no buckling of the columns, girders or bracing (the bracing is linear and carries compression), no yielding.
+- The cables are fixed to the saddles; there is no slip, no bending of strands and no clamp slip.
+- Wind is static; no vortex shedding, flutter, buffeting or pedestrian lock-in.
+- A failed hanger stops carrying load at once and is not drawn; a main cable does not fail.
+- The timber boards are mass only; crossbeam eccentricity and bearing flexibility are left out.
+- No checkpoint of the coupled state.
+- Most time-stepped references are the model's own statics; the independent ones are the parabola, the hanger share, the deflection theory and the tensioned-beam frequency.

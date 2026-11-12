@@ -273,7 +273,9 @@ export interface SiFormFinding {
  * stiffness are in it); segment weights lumped half and half on their ends, as the cable solver does.
  * Newton's method with the full tangent. Builds the unstressed lengths by form-finding. */
 export class SiSuspensionStatics {
-  readonly layout:SiSuspensionLayout;readonly gravity:number;readonly windLoad:number;
+  readonly layout:SiSuspensionLayout;readonly gravity:number;
+  /** Lateral load on the deck, N per metre along +z (setWindLoad changes it). */
+  windLoad:number;
   readonly frameNodes:number;readonly pointCount:number;readonly size:number;
   readonly elements:FrameElementMatrices[];
   readonly restLengths:Float64Array;
@@ -283,6 +285,7 @@ export class SiSuspensionStatics {
   readonly memberLoads:Float64Array;
   /** The same for the weight alone (form-finding is for the dead load). */
   readonly weightLoads:Float64Array;
+  private readonly weightElements:Float64Array;
   /** Lumped masses on frame nodes (the saddles), kg per node. */
   readonly pointMasses:Float64Array;
   private forming=false;
@@ -294,7 +297,10 @@ export class SiSuspensionStatics {
   private readonly freeIndex:Int32Array;private readonly freeDofs:Int32Array;private readonly first:Int32Array;
   private readonly K:EnvelopeMatrix;private readonly T:EnvelopeMatrix;
 
-  constructor(layout:SiSuspensionLayout,options:{readonly gravity?:number;readonly windLoad?:number}={}) {
+  /** Consistent nodal loads and element shares of a unit lateral load on the girders (1 N/m along +z). */
+  private readonly unitWind:Float64Array;private readonly unitWindElements:Float64Array;
+  /** `formFrom`: a statics of the same layout and gravity whose form-finding (unstressed lengths) is reused. */
+  constructor(layout:SiSuspensionLayout,options:{readonly gravity?:number;readonly windLoad?:number;readonly formFrom?:SiSuspensionStatics}={}) {
     this.layout=layout;this.gravity=options.gravity??SI_SUSPENSION_GRAVITY;this.windLoad=options.windLoad??0;
     if(!Number.isFinite(this.gravity)||!Number.isFinite(this.windLoad))throw new RangeError('gravity and windLoad must be finite.');
     this.frameNodes=layout.positions.length/3;this.pointCount=layout.points.length/3;this.size=6*this.frameNodes+3*this.pointCount;
@@ -316,23 +322,39 @@ export class SiSuspensionStatics {
     this.K=new EnvelopeMatrix(n,first);this.T=new EnvelopeMatrix(n,first);
     const fsize=6*this.frameNodes;
     this.memberLoads=new Float64Array(fsize);this.weightLoads=new Float64Array(fsize);this.elementLoads=new Float64Array(12*this.elements.length);
+    this.unitWind=new Float64Array(fsize);this.unitWindElements=new Float64Array(12*this.elements.length);
+    this.weightElements=new Float64Array(12*this.elements.length);
     const acceleration=new Float64Array(12),share=new Float64Array(12);
     this.elements.forEach((e,index)=>{
       for(let i=0;i<12;i++){const a=this.freeIndex[e.dofs[i]];if(a<0)continue;for(let j=0;j<=i;j++){const b=this.freeIndex[e.dofs[j]];if(b>=0)this.K.add(a,b,e.stiffness[12*i+j]);}}
       // A uniform load q per metre is the consistent mass matrix times q / (rho A). Wind goes to the girders, half each.
-      const wind=layout.members[index]==='girder'?this.windLoad/2/(e.definition.density*e.definition.area):0;
-      for(let j=0;j<12;j++)acceleration[j]=j%6===1?-this.gravity:j%6===2?wind:0;
-      for(let i=0;i<12;i++){
-        let sum=0,weight=0;for(let j=0;j<12;j++){sum+=e.massMatrix[12*i+j]*acceleration[j];if(j%6===1)weight+=e.massMatrix[12*i+j]*acceleration[j];}
-        this.memberLoads[e.dofs[i]]+=sum;this.weightLoads[e.dofs[i]]+=weight;share[i]=sum;
+      for(const [field,nodal,target] of [['weight',this.weightLoads,this.weightElements],['wind',this.unitWind,this.unitWindElements]] as const){
+        const wind=field==='wind'&&layout.members[index]==='girder'?.5/(e.definition.density*e.definition.area):0;
+        for(let j=0;j<12;j++)acceleration[j]=field==='weight'?(j%6===1?-this.gravity:0):(j%6===2?wind:0);
+        for(let i=0;i<12;i++){let sum=0;for(let j=0;j<12;j++)sum+=e.massMatrix[12*i+j]*acceleration[j];nodal[e.dofs[i]]+=sum;share[i]=sum;}
+        for(let i=0;i<12;i++){let v=0;for(let j=0;j<3;j++)v+=e.basis[3*(i%3)+j]*share[i-i%3+j];target[12*index+i]=v;}
       }
-      for(let i=0;i<12;i++){let v=0;for(let j=0;j<3;j++)v+=e.basis[3*(i%3)+j]*share[i-i%3+j];this.elementLoads[12*index+i]=v;}
     });
+    this.setWindLoad(this.windLoad,false);
     this.pointMasses=new Float64Array(this.frameNodes);
     if(!(layout.params.saddleMass>=0))throw new RangeError('saddleMass must be zero or more.');
-    for(const t of layout.towers)for(const node of t.saddles){this.pointMasses[node]+=layout.params.saddleMass;this.memberLoads[6*node+1]-=layout.params.saddleMass*this.gravity;this.weightLoads[6*node+1]-=layout.params.saddleMass*this.gravity;}
+    for(const t of layout.towers)for(const node of t.saddles){this.pointMasses[node]+=layout.params.saddleMass;this.weightLoads[6*node+1]-=layout.params.saddleMass*this.gravity;}
+    this.setWindLoad(this.windLoad,false);
     this.restLengths=new Float64Array(layout.segments.length);
-    const found=this.formFind();this.form=found.form;this.dead=found.state;
+    const template=options.formFrom;
+    if(template){
+      if(template.layout!==layout||template.gravity!==this.gravity)throw new RangeError('formFrom needs a statics of the same layout and gravity.');
+      this.restLengths.set(template.restLengths);this.form=template.form;
+      this.dead=this.windLoad===0?template.dead:this.solve({},template.dead.displacements);
+    }else{const found=this.formFind();this.form=found.form;this.dead=found.state;}
+  }
+  /** Change the lateral load on the deck (N/m along +z). The dead state is not re-solved unless `resolve`. */
+  setWindLoad(q:number,resolve=false):void {
+    if(!Number.isFinite(q))throw new RangeError('The wind load must be finite.');
+    this.windLoad=q;
+    for(let j=0;j<this.memberLoads.length;j++)this.memberLoads[j]=this.weightLoads[j]+q*this.unitWind[j];
+    for(let j=0;j<this.elementLoads.length;j++)this.elementLoads[j]=this.weightElements[j]+q*this.unitWindElements[j];
+    if(resolve)(this as {dead:SiSuspensionState}).dead=this.solve({},this.dead.displacements);
   }
 
   /** Global degrees of freedom of a segment end (three translations). */
@@ -655,8 +677,10 @@ export interface SiSuspensionOptions {
   readonly damping?:number;
   /** Mass-proportional damping rate of the cables, 1/s. Default 0.1. */
   readonly cableDamping?:number;
-  /** Lateral load on the deck, N per metre along +z, fixed for the run. Default 0. */
+  /** Lateral load on the deck, N per metre along +z, at the start (setWind() changes it). Default 0. */
   readonly windLoad?:number;
+  /** A statics of this layout to use (its form-finding is not repeated): build one per bridge with `formFrom`. */
+  readonly statics?:SiSuspensionStatics;
   /** Pedestrian crowd at the start (setCrowd() changes it). */
   readonly crowd?:SiSuspensionCrowd|null;
   readonly vehicle?:SiSuspensionVehicle|null;
@@ -750,7 +774,9 @@ export class SiSuspensionBridge {
     const g=world.gravity();
     if(!(g[0]===0&&g[2]===0&&g[1]<0))throw new RangeError('The bridge needs a world with gravity straight down.');
     this.world=world;this.layout=layout;this.dt=1/hz;this.subSteps=subSteps;this.gravity=-g[1];
-    const statics=this.statics=new SiSuspensionStatics(layout,{gravity:this.gravity,windLoad:options.windLoad??0});
+    const statics=this.statics=options.statics??new SiSuspensionStatics(layout,{gravity:this.gravity,windLoad:options.windLoad??0});
+    if(statics.layout!==layout||statics.gravity!==this.gravity)throw new RangeError('The statics must be of this layout and of the world\'s gravity.');
+    if(options.statics&&options.windLoad!==undefined&&options.windLoad!==statics.windLoad)statics.setWindLoad(options.windLoad,true);
     this.crowd=options.crowd??null;this.ruptureAt=options.ruptureAt??1;
     if(!(this.ruptureAt>0))throw new RangeError('ruptureAt must be positive.');
     const vehicle=options.vehicle??null;
@@ -846,6 +872,12 @@ export class SiSuspensionBridge {
     const f=Float64Array.from(this.baseLoads);
     if(this.crowd)this.statics.crowdLoad(this.crowd.pressure,this.crowd.from,this.crowd.to,f);
     this.applied=f;return f;
+  }
+  /** Change the lateral load on the deck (N/m along +z) from the next step on. */
+  setWind(q:number):void {
+    this.statics.setWindLoad(q);
+    for(let j=0;j<this.baseLoads.length;j++)this.baseLoads[j]=this.statics.memberLoads[j]-this.statics.weightLoads[j];
+    this.frame.setLoads(this.frameLoads());
   }
   /** Change the pedestrian crowd from the next step on (null removes it). */
   setCrowd(crowd:SiSuspensionCrowd|null):void {

@@ -1,7 +1,8 @@
 import {
-  FailureSimulation, FIXED_DT, STUDIO_CHECKPOINT_BACKEND, STUDIO_SCALED_CHECKPOINT_BACKEND, STUDIO_CANOPY_CONTACT_BACKEND, STUDIO_PRESS_SI_BACKEND, STUDIO_CANOPY_SI_BACKEND,
+  FailureSimulation, FIXED_DT, STUDIO_CHECKPOINT_BACKEND, STUDIO_SCALED_CHECKPOINT_BACKEND, STUDIO_CANOPY_CONTACT_BACKEND, STUDIO_PRESS_SI_BACKEND, STUDIO_CANOPY_SI_BACKEND, STUDIO_SI_BRIDGE_BACKEND,
   type FailureEvent, type Snapshot, type StudioCheckpoint, type StudyId, type StudioBackend,
 } from '../studio/physics.ts';
+import { SiBridgeStudy } from '../studio/si-bridge-study.ts';
 import { METALS, PRESS_TOOLS, type PressSettings } from '../studio/press-settings.ts';
 import {
   EngineError, finite, integer, onlyKeys, record, validateTickBatch,
@@ -30,24 +31,32 @@ export const STUDIO_CANOPY_SI_CAPABILITIES: EngineCapabilities = Object.freeze({
   ...STUDIO_CAPABILITIES, checkpoint: false,
   models: Object.freeze([Object.freeze({id:STUDIO_CANOPY_SI_BACKEND,name:'SI canopy: calibrated cloth, orthotropic fabric, edge cables, tearing',implementation:'javascript',calibration:'uncalibrated-physical'})]),
 });
+/** The bridge study on the SI suspension model: physical units, no resumable checkpoint. */
+export const STUDIO_SI_BRIDGE_CAPABILITIES: EngineCapabilities = Object.freeze({
+  ...STUDIO_CAPABILITIES, checkpoint: false,
+  models: Object.freeze([Object.freeze({id:STUDIO_SI_BRIDGE_BACKEND,name:'SI suspension footbridge: frame elements, Newton cable network, joint coupling',implementation:'javascript',calibration:'uncalibrated-physical'})]),
+});
 export function studioCapabilitiesForBackend(backend:StudioBackend):EngineCapabilities {
   if(backend===STUDIO_CANOPY_SI_BACKEND)return STUDIO_CANOPY_SI_CAPABILITIES;
+  if(backend===STUDIO_SI_BRIDGE_BACKEND)return STUDIO_SI_BRIDGE_CAPABILITIES;
   if(backend===STUDIO_CANOPY_CONTACT_BACKEND)return STUDIO_CANOPY_CONTACT_CAPABILITIES;
   if(backend===STUDIO_PRESS_SI_BACKEND)return STUDIO_PRESS_SI_CAPABILITIES;
   return backend===STUDIO_SCALED_CHECKPOINT_BACKEND?STUDIO_SCALED_CAPABILITIES:STUDIO_CAPABILITIES;
 }
 export function resolveStudioBackend(options:StudioCreateOptions):StudioBackend {
   const backend=options.backend??(options.initialCheckpoint===undefined?STUDIO_CHECKPOINT_BACKEND:record(options.initialCheckpoint,'checkpoint').backend);
-  if(backend!==STUDIO_CHECKPOINT_BACKEND&&backend!==STUDIO_SCALED_CHECKPOINT_BACKEND&&backend!==STUDIO_CANOPY_CONTACT_BACKEND&&backend!==STUDIO_PRESS_SI_BACKEND&&backend!==STUDIO_CANOPY_SI_BACKEND)throw new EngineError('INVALID_PAYLOAD','Unknown Studio numerical backend.');
+  if(backend!==STUDIO_CHECKPOINT_BACKEND&&backend!==STUDIO_SCALED_CHECKPOINT_BACKEND&&backend!==STUDIO_CANOPY_CONTACT_BACKEND&&backend!==STUDIO_PRESS_SI_BACKEND&&backend!==STUDIO_CANOPY_SI_BACKEND&&backend!==STUDIO_SI_BRIDGE_BACKEND)throw new EngineError('INVALID_PAYLOAD','Unknown Studio numerical backend.');
   if(backend===STUDIO_CANOPY_CONTACT_BACKEND&&options.study!=='canopy')throw new EngineError('INVALID_PAYLOAD','Canopy contact backend requires a canopy study.');
   if(backend===STUDIO_PRESS_SI_BACKEND&&options.study!=='plate')throw new EngineError('INVALID_PAYLOAD','SI press backend requires the plate study.');
   if(backend===STUDIO_CANOPY_SI_BACKEND&&options.study!=='canopy')throw new EngineError('INVALID_PAYLOAD','SI canopy backend requires the canopy study.');
+  if(backend===STUDIO_SI_BRIDGE_BACKEND&&options.study!=='bridge')throw new EngineError('INVALID_PAYLOAD','The SI backend requires the bridge study.');
   return backend;
 }
 export const STUDIO_SAMPLE_TICKS = 12;
 export const STUDIO_MAX_LIVE_LOANS = 3;
 
-export interface StudioControls { targetLoad?: number; strength?: number; wind?: number; damping?: number }
+/** For the SI bridge: targetLoad is the crowd in kN/m^2, wind the lateral load in kN/m, cuts the number of hangers cut. */
+export interface StudioControls { targetLoad?: number; strength?: number; wind?: number; damping?: number; cuts?: number }
 export interface StudioCreateOptions {
   study: StudyId;
   /** A checkpoint restores its own numerical backend unless an explicit matching one is requested. */
@@ -77,12 +86,13 @@ export interface StudioStepResult extends StudioStepData { release(): void }
 
 export function validateStudioControls(value: unknown): StudioControls {
   const source = record(value, 'controls');
-  onlyKeys(source, ['targetLoad', 'strength', 'wind', 'damping'], 'controls');
+  onlyKeys(source, ['targetLoad', 'strength', 'wind', 'damping', 'cuts'], 'controls');
   const out: StudioControls = {};
   if ('targetLoad' in source) out.targetLoad = finite(source.targetLoad, 'targetLoad', 0, 100);
   if ('strength' in source) out.strength = finite(source.strength, 'strength', .000001, 100);
   if ('wind' in source) out.wind = finite(source.wind, 'wind', -100, 100);
   if ('damping' in source) out.damping = finite(source.damping, 'damping', 0, 1);
+  if ('cuts' in source) out.cuts = integer(source.cuts, 'cuts', 0, 12);
   return out;
 }
 
@@ -92,10 +102,11 @@ export function validateStudioOptions(value: unknown): StudioCreateOptions {
   if (source.study !== 'canopy' && source.study !== 'plate' && source.study !== 'bridge') throw new EngineError('INVALID_PAYLOAD', 'Unknown Studio study.');
   const result: StudioCreateOptions = { study: source.study };
   if(source.backend!==undefined){
-    if(source.backend!==STUDIO_CHECKPOINT_BACKEND&&source.backend!==STUDIO_SCALED_CHECKPOINT_BACKEND&&source.backend!==STUDIO_CANOPY_CONTACT_BACKEND&&source.backend!==STUDIO_PRESS_SI_BACKEND&&source.backend!==STUDIO_CANOPY_SI_BACKEND)throw new EngineError('INVALID_PAYLOAD','Unknown Studio numerical backend.');
+    if(source.backend!==STUDIO_CHECKPOINT_BACKEND&&source.backend!==STUDIO_SCALED_CHECKPOINT_BACKEND&&source.backend!==STUDIO_CANOPY_CONTACT_BACKEND&&source.backend!==STUDIO_PRESS_SI_BACKEND&&source.backend!==STUDIO_CANOPY_SI_BACKEND&&source.backend!==STUDIO_SI_BRIDGE_BACKEND)throw new EngineError('INVALID_PAYLOAD','Unknown Studio numerical backend.');
     if(source.backend===STUDIO_PRESS_SI_BACKEND&&source.study!=='plate')throw new EngineError('INVALID_PAYLOAD','SI press backend requires the plate study.');
     if(source.backend===STUDIO_CANOPY_SI_BACKEND&&source.study!=='canopy')throw new EngineError('INVALID_PAYLOAD','SI canopy backend requires the canopy study.');
     if(source.backend===STUDIO_CANOPY_CONTACT_BACKEND&&source.study!=='canopy')throw new EngineError('INVALID_PAYLOAD','Canopy contact backend requires a canopy study.');
+    if(source.backend===STUDIO_SI_BRIDGE_BACKEND&&source.study!=='bridge')throw new EngineError('INVALID_PAYLOAD','The SI backend requires the bridge study.');
     result.backend=source.backend;
   }
   if (source.controls !== undefined) result.controls = validateStudioControls(source.controls);
@@ -132,6 +143,7 @@ export function cloneStudioSnapshot(snapshot: Snapshot): Snapshot {
     ...snapshot, positions: snapshot.positions.slice(), strains: snapshot.strains.slice(), broken: snapshot.broken.slice(),
     response: { ...snapshot.response },
     ...(snapshot.press ? { press: { ...snapshot.press, settings: { ...snapshot.press.settings } } } : {}),
+    ...(snapshot.si ? { si: { ...snapshot.si, hangers: snapshot.si.hangers.slice() } } : {}),
   };
 }
 
@@ -163,7 +175,8 @@ export class StudioRuntime implements EngineRuntime<StudioStepRequest, StudioSte
       const scene = record(data.scene, 'checkpoint.scene');
       press = validateStudioOptions({ study: valid.study, press: scene.constructionPress }).press;
     }
-    const simulation = new FailureSimulation(valid.study, press, backend);
+    if (backend === STUDIO_SI_BRIDGE_BACKEND && checkpoint !== undefined) throw new EngineError('UNSUPPORTED_BACKEND', 'The SI bridge has no resumable checkpoint.');
+    const simulation = backend === STUDIO_SI_BRIDGE_BACKEND ? new SiBridgeStudy() : new FailureSimulation(valid.study, press, backend);
     if (checkpoint !== undefined) simulation.restoreCheckpoint(checkpoint);
     if (valid.controls) Object.assign(simulation, valid.controls);
     return simulation;

@@ -170,17 +170,19 @@ export const LOAD_PRESETS:LoadPreset[] = [
     ['limit','Slow perforation',2.8,.8,0,.25,'Quarter speed inspection of the first opening edges.'],
     ['ultimate','Maximum drive pressure',5,1.4,0,1,'Use 100 percent of the model drive capacity.'],
   ]),
+  // The bridge study runs on the SI model: target is the crowd in kN/m^2 on the east half, strength the number of
+  // hangers cut on the upstream cable (0 to 6), wind the lateral load on the deck in kN/m.
   ...recipes('bridge',[
-    ['service','Service crossing',.8,1,.1,1,'A modest asymmetric deck load in light wind.'],
-    ['wind','Crosswind crossing',1.2,1.3,1.7,1,'Observe coupled deck and cable movement in crosswind.'],
-    ['heavy','Heavy crossing',2.2,1.6,.25,1,'Explore load redistribution through the cable system.'],
-    ['collapse','Progressive collapse',4,1,.25,1,'Trace cable rupture, support loss and falling deck sections.'],
-    ['fragile','Weak connections',3,.5,.6,.5,'Inspect early connection losses at half speed.'],
-    ['reinforced','Reinforced crossing',4,1.9,.25,1,'Repeat the overload with stronger cable connections.'],
-    ['gentle','Quiet crossing',.45,1.2,0,.5,'Read the unloaded silhouette and initial deck movement.'],
-    ['gust','Wind dominated deck',.8,1.1,2,.5,'High lateral forcing with a moderate asymmetric load.'],
-    ['limit','Slow connection loss',2.7,.8,.3,.25,'Quarter speed makes the evolving load path easier to inspect.'],
-    ['ultimate','Maximum deck load',5,1.5,.6,1,'Explore the upper load range with stronger connections.'],
+    ['service','Service crowd',1,0,.2,1,'A light crowd of 1 kN/m² on the east half in a light breeze.'],
+    ['wind','Windy crossing',1,0,1.5,1,'A lateral wind of 1.5 kN/m on the deck with a light crowd.'],
+    ['heavy','Dense crowd',3.7,0,.3,1,'The EN 1991-2 crowd for this span, 2 + 120 / (L + 30) = 3.7 kN/m², on the east half.'],
+    ['collapse','Hanger loss under crowd',3.7,4,.3,1,'Four hangers of the upstream cable cut at midspan under a dense crowd; watch the load move.'],
+    ['fragile','Single hanger loss',2,1,.3,.5,'One hanger cut at midspan, at half speed: its neighbours take its load.'],
+    ['reinforced','Six hangers lost',3.7,6,.3,1,'Six adjacent hangers of one cable lost under a dense crowd.'],
+    ['gentle','Empty deck',0,0,0,.5,'Dead load only: the form-found shape of the bridge.'],
+    ['gust','Strong wind',.8,0,2,.5,'A lateral wind of 2 kN/m with a light crowd.'],
+    ['limit','Slow hanger loss',2.5,3,.3,.25,'Three hangers cut at quarter speed to follow the redistribution.'],
+    ['ultimate','Maximum crowd, two hangers lost',5,2,.6,1,'The EN 1991-2 upper crowd value, 5 kN/m², on the east half with two hangers cut.'],
   ]),
 ];
 export const CAMERA_PRESETS = [
@@ -257,12 +259,12 @@ export const SCENE_SETUPS:SceneSetup[]=[
     ['reference','Reference crossing','StudiCraft','Inspect','weathered','reference-daylight','service','reference','valley-stream','Riveted near tower, wooded banks and running water, composed from the original image.'],
     ['woodland','Woodland crossing','Material Forge','Explore','cloudrest','daylight','service','hero','valley-stream','Weathered timber, a clear stream and a modest crossing load.'],
     ['alpine','Alpine load path','Commander Academy','Inspect','alpine','winter','heavy','oblique','valley-alpine','Pale boards and cool granite make the cable network easy to read.'],
-    ['autumn','Autumn connection loss','StudiCraft','Failure','amber','afternoon','collapse','hero','valley-autumn','Amber bank cover frames the progressive loss of deck support.'],
+    ['autumn','Autumn connection loss','StudiCraft','Failure','amber','afternoon','collapse','hero','valley-autumn','Amber bank cover frames the loss of four hangers under a dense crowd.'],
     ['wetland','Wetland crosswind','Material Forge','Explore','driftwood','mist','gust','reverse','valley-marsh','Quiet water contrasts with the wind-driven deck movement.'],
-    ['saddle','At the cable saddle','Commander Academy','Inspect','cloudrest','crosslight','limit','connection','valley-stream','Quarter speed inspection of the cable near a fixed tower saddle.'],
+    ['saddle','At the cable saddle','Commander Academy','Inspect','cloudrest','crosslight','limit','connection','valley-stream','Quarter speed inspection of the cable near a tower saddle while three hangers are cut.'],
     ['dawn','First light crossing','StudiCraft','Explore','limed','dawn','gentle','wide','valley-alpine','A wide valley view with a small initial crossing load.'],
-    ['overload','Timber overload','HouseBuilder','Failure','red-cedar','golden','ultimate','elevation','valley-autumn','Warm boards and a low profile reveal the loss of deck continuity.'],
-    ['moon','Moonlit collapse','StudiCraft','Failure','silver-pine','moonlight','fragile','hero','valley-stream','Pale planks remain legible as weakened connections begin to fail.'],
+    ['overload','Timber overload','HouseBuilder','Failure','red-cedar','golden','ultimate','elevation','valley-autumn','Warm boards and a low profile show the deck under the maximum crowd with two hangers lost.'],
+    ['moon','Moonlit collapse','StudiCraft','Failure','silver-pine','moonlight','fragile','hero','valley-stream','Pale planks remain legible as one hanger is cut and its neighbours take its load.'],
   ]),
 ];
 export function setupFor(study:StudyId,id?:string|null):SceneSetup|undefined {return SCENE_SETUPS.find(p=>p.study===study&&p.id===id);}

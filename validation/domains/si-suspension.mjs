@@ -53,6 +53,8 @@ export default defineCases('si-suspension', FILE, [
     reference: {formula: 'h (L_e / EA + 2 / k_s) = (8 f / L^2) integral v dx per cable', value: null}, tolerance: relative(0.01), measure: async () => { const r = await measurePoint('mid'); return {value: r.h, reference: r.hTheory}; }},
   {id: 'si-suspension.point.quarter', test: T.point, title: '20 kN at the quarter point: deck deflection', quantity: 'deflection under the load', unit: 'm',
     reference: {formula: 'the same theory', value: null}, tolerance: relative(0.05), measure: async () => { const r = await measurePoint('quarter'); return {value: r.deflection, reference: r.theory}; }},
+  {id: 'si-suspension.point.quarterCable', test: T.point, title: '20 kN at the quarter point: extra horizontal cable force', quantity: 'h, both cables', unit: 'N',
+    reference: {formula: 'the same compatibility condition', value: null}, tolerance: relative(0.01), measure: async () => { const r = await measurePoint('quarter'); return {value: r.h, reference: r.hTheory}; }},
   {id: 'si-suspension.point.antisymmetric', test: T.point, title: '20 kN down and up at the quarter points', quantity: 'deflection under the load', unit: 'm',
     reference: {formula: 'the same theory, h = 0 (the cable keeps its length)', value: null}, tolerance: relative(0.05), measure: async () => { const r = await measurePoint('antisymmetric'); return {value: r.deflection, reference: r.theory}; }},
 

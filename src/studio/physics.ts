@@ -34,6 +34,24 @@ export interface Snapshot {
   /** A revision can decrease on replay. The identity encodes the complete broken mask, not just its count. */
   topologyVersion: number; topologyIdentity: string;
   punchY: number; response: Response; press?: PressTelemetry;
+  /** The SI bridge's readings (src/studio/si-bridge-study.ts); bridge study on the SI backend only. */
+  si?: SiBridgeReadout;
+}
+/** SI readings of the suspension footbridge for one snapshot. Lengths in mm, forces in kN, stresses in MPa,
+ * utilisations as fractions of the stated strengths (minimum breaking force for strands, yield for steel). */
+export interface SiBridgeReadout {
+  /** Crowd on the deck now, kN/m^2, and wind on the deck, kN/m. */
+  crowd: number; wind: number;
+  /** Hangers that have failed. */
+  hangersFailed: number;
+  /** Midspan deflection from the dead-load shape (down positive), the largest anywhere, and the largest sideways movement, mm. */
+  midspan: number; drop: number; lateral: number;
+  maxHanger: number; hangerUtilisation: number; maxMain: number; mainUtilisation: number;
+  girderStress: number; girderUtilisation: number; towerUtilisation: number;
+  /** Saddle displacement along the bridge (largest of the four), mm. */
+  saddle: number;
+  /** Hanger tensions, kN: side 0 stations 1..35, then side 1. */
+  hangers: number[];
 }
 
 export const STUDIO_CHECKPOINT_VERSION = 1;
@@ -44,7 +62,9 @@ export const STUDIO_CANOPY_CONTACT_BACKEND = 'studio-pbd-canopy-ccd-js-v1';
 export const STUDIO_PRESS_SI_BACKEND = 'studio-press-brake-si-v1';
 /** Canopy on the calibrated cloth: orthotropic fabric, edge cables, tearing, SI loads (src/studio/canopy-si.ts). */
 export const STUDIO_CANOPY_SI_BACKEND = 'studio-canopy-cloth-si-v1';
-export type StudioBackend = typeof STUDIO_CHECKPOINT_BACKEND | typeof STUDIO_SCALED_CHECKPOINT_BACKEND | typeof STUDIO_CANOPY_CONTACT_BACKEND | typeof STUDIO_PRESS_SI_BACKEND | typeof STUDIO_CANOPY_SI_BACKEND;
+/** The bridge study on the SI suspension model (src/engine/si-suspension.ts). The PBD topology is kept for drawing. */
+export const STUDIO_SI_BRIDGE_BACKEND = 'studio-si-suspension-v1';
+export type StudioBackend = typeof STUDIO_CHECKPOINT_BACKEND | typeof STUDIO_SCALED_CHECKPOINT_BACKEND | typeof STUDIO_CANOPY_CONTACT_BACKEND | typeof STUDIO_PRESS_SI_BACKEND | typeof STUDIO_CANOPY_SI_BACKEND | typeof STUDIO_SI_BRIDGE_BACKEND;
 /** JSON-safe, full precision solver state. Render snapshots intentionally cannot resume the solver. */
 export interface StudioCheckpoint {
   format: 'box3d-studio-checkpoint'; version: typeof STUDIO_CHECKPOINT_VERSION;
@@ -249,8 +269,9 @@ export class FailureSimulation {
   get activeConstraintCount(): number { return this.activeConstraintLength; }
 
   constructor(id: StudyId, press:Partial<PressSettings>={}, backend:StudioBackend=STUDIO_CHECKPOINT_BACKEND) {
-    if(backend!==STUDIO_CHECKPOINT_BACKEND&&backend!==STUDIO_SCALED_CHECKPOINT_BACKEND&&backend!==STUDIO_CANOPY_CONTACT_BACKEND&&backend!==STUDIO_PRESS_SI_BACKEND&&backend!==STUDIO_CANOPY_SI_BACKEND)throw new RangeError('Unknown Studio numerical backend');
+    if(backend!==STUDIO_CHECKPOINT_BACKEND&&backend!==STUDIO_SCALED_CHECKPOINT_BACKEND&&backend!==STUDIO_CANOPY_CONTACT_BACKEND&&backend!==STUDIO_PRESS_SI_BACKEND&&backend!==STUDIO_CANOPY_SI_BACKEND&&backend!==STUDIO_SI_BRIDGE_BACKEND)throw new RangeError('Unknown Studio numerical backend');
     if(backend===STUDIO_CANOPY_SI_BACKEND&&id!=='canopy')throw new RangeError('SI canopy backend requires the canopy study');
+    if(backend===STUDIO_SI_BRIDGE_BACKEND&&id!=='bridge')throw new RangeError('The SI backend is the bridge study only');
     if(backend===STUDIO_CANOPY_CONTACT_BACKEND&&id!=='canopy')throw new RangeError('Canopy contact backend requires a canopy study');
     if(backend===STUDIO_PRESS_SI_BACKEND&&id!=='plate')throw new RangeError('SI press backend requires the plate study');
     this.backend=backend;

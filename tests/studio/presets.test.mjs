@@ -32,7 +32,20 @@ check('every finish uses a compatible payload and valid surface response',()=>{
   for(const p of FINISH_PRESETS){assert.ok(PACKS[p.pack]);assert.ok(p.roughness>=0&&p.roughness<=1);assert.ok(p.metalness>=0&&p.metalness<=1);if(p.study!=='plate')assert.equal(p.metalness,0);}
 });
 const recipeOutcomes=new Map();
+const {SiBridgeStudy}=await import('../../src/studio/si-bridge-study.ts');
 for(const p of LOAD_PRESETS){
+  // The bridge study runs on the SI model: crowd in kN/m^2, hangers cut, wind in kN/m.
+  if(p.study==='bridge'){
+    check(`${p.id}: SI recipe gives a finite response with the stated hangers cut`,()=>{
+      assert.ok(p.target>=0&&p.target<=5);assert.ok(Number.isInteger(p.strength)&&p.strength>=0&&p.strength<=6);assert.ok(p.wind>=0&&p.wind<=2);
+      const s=new SiBridgeStudy({targetLoad:p.target,wind:p.wind,cuts:p.strength});
+      for(let i=0;i<1/FIXED_DT;i++)s.step();
+      const snap=s.snapshot();assert.ok(snap.positions.every(Number.isFinite));
+      assert.equal(snap.si.hangersFailed,p.strength);assert.ok(snap.si.hangerUtilisation<1&&snap.si.girderUtilisation<1);
+      recipeOutcomes.set(p.id,{broken:snap.response.broken,deflection:snap.response.deflection});
+    });
+    continue;
+  }
   check(`${p.id}: recipe produces finite solver history with attached fixtures`,()=>{
     assert.ok(p.target>=0&&p.target<=5);assert.ok(p.strength>=.4&&p.strength<=2);assert.ok(p.wind>=0&&p.wind<=2);
     const s=new FailureSimulation(p.study);s.targetLoad=p.target;s.strength=p.strength;s.wind=p.wind;
@@ -41,7 +54,7 @@ for(const p of LOAD_PRESETS){
     for(const n of s.nodes)if(n.inverseMass===0)assert.deepEqual(n.p,n.rest);
     recipeOutcomes.set(p.id,{broken:s.brokenCount,deflection:s.snapshot().response.deflection});
     if(p.id.endsWith('-service'))assert.equal(s.brokenCount,0);
-    if(['canopy-tear','plate-fracture','bridge-collapse'].includes(p.id))assert.ok(s.brokenCount>5);
+    if(['canopy-tear','plate-fracture'].includes(p.id))assert.ok(s.brokenCount>5);
   });
 }
 console.log(`\n${checks}/${checks} PASS — preset contracts, provenance and solver integration`);
