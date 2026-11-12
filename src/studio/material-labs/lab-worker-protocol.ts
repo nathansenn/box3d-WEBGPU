@@ -1,7 +1,7 @@
 import {createModel,DT,type LabFrame,type LabModel} from './models';
 import type {LabId,LabSettings} from './catalog';
 
-/** Live stepping of the flow labs (liquid, granular) off the main thread; one model and one generation per worker. */
+/** Live stepping of the flow labs (liquid, granular) and the elastomer lab off the main thread; one model and one generation per worker. */
 export type LabWorkerRequest={type:'reset';generation:number;lab:LabId;settings:Partial<LabSettings>}|{type:'step';generation:number;request:number;ticks:number;release:boolean};
 export type LabWorkerResponse={type:'frame';generation:number;request:number;frame:LabFrame;cpuMs:number}|{type:'error';generation:number;request:number;message:string};
 export const LAB_WORKER_MAX_TICKS=8;
@@ -14,7 +14,7 @@ export function labWorkerHandler():(message:LabWorkerRequest)=>LabWorkerResponse
       if(!Number.isSafeInteger(message.generation)||message.generation<0)throw new Error('Invalid lab worker generation');
       if(message.type==='reset'){
         if(message.generation<=generation)return null;
-        if(message.lab!=='liquid'&&message.lab!=='granular')throw new Error('The flow worker runs the liquid and granular labs only');
+        if(message.lab!=='liquid'&&message.lab!=='granular'&&message.lab!=='rubber')throw new Error('The lab worker runs the liquid, granular and elastomer labs only');
         const start=performance.now();model=createModel(message.lab,message.settings);generation=message.generation;lastRequest=0;
         return {type:'frame',generation,request:0,frame:model.snapshot(),cpuMs:performance.now()-start};
       }

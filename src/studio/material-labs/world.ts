@@ -236,7 +236,9 @@ export class MaterialLabWorld {
     this.piston=this.cylinder(rubber?.095:.2,1,[0,1,0],'chrome',this.actuator);this.housingEnd=height-.3;
     if(rubber){
       this.cylinder(.66,.09,[0,.745,0],'steel');this.cylinder(.88,.21,[0,.895,0]);this.cylinder(.88,.21,[0,.105,0],'chrome',this.actuator);
-      const g=new T.CylinderGeometry((this.model as RubberModel).radius,(this.model as RubberModel).radius,(this.model as RubberModel).initialHeight,72,32,false);this.rubberRest=(g.getAttribute('position').array as Float32Array).slice();this.specimen=this.mesh(g,this.tint,[0,0,0]);this.specimen.frustumCulled=false;
+      // The specimen is the boundary of the tetrahedral solid: its nodes move with the model, its triangles are the solid's outer faces.
+      const solid=(this.model as RubberModel).solid,g=new T.BufferGeometry();g.setAttribute('position',new T.BufferAttribute(new Float32Array(solid.nodeCount*3),3).setUsage(T.DynamicDrawUsage));g.setIndex(Array.from((this.model as RubberModel).surface));
+      this.rubberRest=new Float32Array(0);this.specimen=this.mesh(g,this.tint,[0,0,0]);this.specimen.frustumCulled=false;
       this.trayRack();this.box([.28,.19,.22],[1.3,1.6,.25],'black',.02);this.rod([1.01,1.6,-.1],[1.3,1.6,.25],.025,'steel');this.hose([[1.25,1.6,.2],[1.55,2.4,.2],[1.3,3.65,0]],.028);
     }else{
       this.box([2.5,.13,1.7],[0,.765,0],'steel',.02);this.tray(2.7,1.9,.95);this.box([1.9,.19,1.9],[0,.095,0],'chrome',.016,this.actuator);this.buildPieces(false);
@@ -279,11 +281,9 @@ export class MaterialLabWorld {
     }
     if(m.id==='concrete'){this.actuator.position.y=f.actuator;this.updatePieces(f,false);}
     if(m.id==='rubber'&&this.specimen&&this.rubberRest){
-      const g=this.specimen.geometry,p=g.getAttribute('position'),height=f.positions[0],radius=f.positions[1],rubber=m as RubberModel;
-      // Normalize the bulge profile so the radial shape does not invent volume.
-      const b=f.positions[2]*.16,norm=Math.sqrt(1+4*b/3+8*b*b/15);
-      for(let i=0;i<p.count;i++){const y=this.rubberRest[i*3+1]/rubber.initialHeight+.5,scale=radius/rubber.radius*(1+b*4*y*(1-y))/norm;p.setXYZ(i,this.rubberRest[i*3]*scale,1+y*height,this.rubberRest[i*3+2]*scale);}
-      p.needsUpdate=true;g.computeVertexNormals();this.actuator.position.y=f.actuator;
+      const g=this.specimen.geometry,p=g.getAttribute('position');
+      if(f.positions.length===p.array.length){(p.array as Float32Array).set(f.positions);p.needsUpdate=true;g.computeVertexNormals();}
+      this.actuator.position.y=f.actuator;
     }
     if(m.id==='liquid'||m.id==='granular')this.actuator.position.y=f.actuator;
     if(this.piston){const h=Math.max(.1,this.housingEnd-f.actuator-.21);this.piston.scale.y=h;this.piston.position.y=.21+h/2;}

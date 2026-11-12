@@ -6,7 +6,7 @@ The Engineering Studio's material labs (`index.html?studio=glass`, `concrete`, `
 |---|---|---|
 | Glass impact (`GI–02`) | **SI** since 2026-11-12 | Kirchhoff plate with brittle fracture, `src/engine/plate.ts` (new); lab model `src/studio/material-labs/glass-si.ts` |
 | Concrete crush (`CC–03`) | still the authored bond lattice ("not calibrated") | — |
-| Elastomer lab (`EL–04`) | still the authored spring-damper ("not calibrated") | material law ready: viscoelastic tetrahedral solid (`config.viscoelastic`) |
+| Elastomer lab (`EL–04`) | **SI** since 2026-11-12 | viscoelastic Neo-Hookean tetrahedral solid (`config.viscoelastic`) with `SolidContact` welds; lab model `src/studio/material-labs/rubber-si.ts` |
 
 ## Glass impact
 
@@ -116,12 +116,58 @@ Below 1 the lab plays slower than real time while it computes; the recorded run 
 - Fragments do not collide with each other, the frame or the pendulum; they do not bounce; they slide with glass-on-glass friction.
 - The pendulum passes through the cracked region; nodes it has passed are ignored.
 
-## Concrete crush and Elastomer lab
+## Elastomer lab
 
-Not converted yet. They keep their authored models and the "Comparative model · not calibrated" label.
+### The model (`src/studio/material-labs/rubber-si.ts`)
 
-- **Elastomer lab.** Its material law now exists: the tetrahedral solid takes a Prony series (`config.viscoelastic`), validated against the standard linear solid's creep, relaxation and recovery, also through `SolidContact` ([`SOLID_MECHANICS.md`](SOLID_MECHANICS.md#viscoelasticity)). What remains is the lab model: a cylinder mesh between a kinematic top platen and a fixed base through `SolidContact`, sourced moduli and Prony parameters for the eight elastomers and foams (none are in the library yet), a compressible law for the foams, a worker, a renderer that draws the tetrahedral surface, and SI tests.
-- **Concrete crush.** Needs compressive crushing: cohesive fracture has no friction on closed cracks and no compression failure, so a scoped damage-plasticity model validated against f_c and the EC2 parabola, platens as constraints or rigid bodies, sourced values for the eight mixes (the library has C30/37 only, without a fracture energy), and the lab wiring. Reinforcement as embedded bars was not attempted. The cube is bulky, so the tetrahedral solid suits it.
+- **Specimen.** A cylinder of radius 0.58 m × scale and height 0.86 m × scale (the rig's dimensions, in metres), 625 tetrahedra (a 5 × 5 × 5 box mesh whose square section is mapped onto the disc), Neo-Hookean (`src/engine/solid.ts`) with a Prony series (`config.viscoelastic`, [`SOLID_MECHANICS.md`](SOLID_MECHANICS.md#viscoelasticity)), gravity on, backward Euler at 1/30 s, mass damping 2 /s.
+- **Platens.** Steel platens bonded to both end faces (welds of `SolidContact`, [`SOLID_CONTACT.md`](SOLID_CONTACT.md)), as in a bonded compression test piece. The top platen is kinematic: it compresses at the set rate to the target, holds for the set time (the force relaxes), then follows the specimen with no load: its velocity is the force it feels over a damper of time constant 0.05 s on the specimen's instantaneous stiffness, capped at the loading rate, so the specimen recovers by its own creep recovery. (Releasing the weld at full load instead snapped a 65 %-compressed gel inside out in one step; the zero-load platen avoids that.)
+- **Readouts.** Compression (%), platen force (kN, signed), retained volume (%); the status line gives the long-term and instantaneous moduli, the peak force and, unloaded, how much compression is still to recover.
+- **Worker.** The lab steps in the shared lab worker (`lab-worker-protocol.ts`, extended to the elastomer lab).
+
+| Profile | E long-term | Poisson's ratio | Density | Prony branches (time: ratio) | Source |
+|---|---|---|---|---|---|
+| Natural rubber | 1.5 MPa | 0.49 | 922 kg/m³ | 0.3 s: 0.44, 3 s: 0.42, 30 s: 0.22, 300 s: 0.13 | E and density from the library (`natural-rubber`, pure gum); spectrum of a filled rubber blend (F2) from Andena, Cotta Ramusino, Tagliabue, Zalaffi, *A visco-hyperelastic numerical model for the dynamic behaviour of rubbers*, Constitutive Models for Rubber XII (2023), Table 1, 4 terms (g = 0.20, 0.19, 0.10, 0.06, g_inf = 0.45), used as a proxy: a pure-gum rubber relaxes less |
+| Neoprene | 4 MPa | 0.49 | 1230 kg/m³ | the F2 spectrum | **unverified** typical values |
+| Polyurethane | 10 MPa | 0.49 | 1200 kg/m³ | the F2 spectrum | **unverified** |
+| EPDM | 5 MPa | 0.49 | 1150 kg/m³ | 0.3 s: 0.76, 3 s: 0.67, 30 s: 0.36, 300 s: 0.24 | **unverified** (a stronger spectrum than F2) |
+| Silicone | 1.5 MPa | 0.49 | 1150 kg/m³ | 0.3 s: 0.067, 3 s: 0.044 | **unverified** |
+| Soft gel | 0.1 MPa | 0.49 | 1000 kg/m³ | 1 s: 0.67, 10 s: 0.56 | **unverified** |
+| Open-cell foam | 0.1 MPa | 0 | 30 kg/m³ | 0.3 s: 0.2, 3 s: 0.13 | **unverified**; compressible Neo-Hookean |
+| Memory foam | 0.03 MPa | 0 | 50 kg/m³ | 2 s: 1.8, 20 s: 1.2 | **unverified**; compressible Neo-Hookean |
+
+Poisson's ratio 0.49 instead of rubber's 0.4999 (the library's value is 0.5): near-incompressible linear tetrahedra lock (below).
+
+### Validation
+
+- The viscoelastic law: the six `solid.viscoelastic.*` rows ([`SOLID_MECHANICS.md`](SOLID_MECHANICS.md#viscoelasticity)).
+- **Bonded compression of the lab's cylinder** (`tests/studio/rubber-si.test.mjs`, row `solid.bonded-compression`): at 1 % strain the apparent modulus is 2.60 MPa against 1.71 MPa from the bonded-block closed form `1 / E_c = 1 / (E (1 + 2 S²)) + 1 / K`, shape factor `S = R / (2H)` = 0.34, `K = E / (3 (1 − 2ν))`: **+52 %, volumetric locking**. Measured on the same geometry: 8 cells across give +30 %; ν = 0.45 gives +51 % (5 cells), ν = 0.499 gives +205 % (5 cells) and +62 % (8 cells). The forces the lab shows are therefore about 1.5 times too high; shapes and times are less affected.
+- Lab checks (same file, in `test:studio:materials`, 40 s): library values reach the model; the silicone cycle's force relaxes during the hold and the unloaded specimen recovers to under 5 % with the platen force under 2 % of the peak and every step converged; foam (ν = 0) loses volume where rubber keeps it; bit-identical repeats.
+
+### Presets (12 to 24 s programs) and real time
+
+| Preset | Peak force | Still compressed at the end | Real-time factor | Worst tick (ms) |
+|---|---|---|---|---|
+| Silicone recovery (50 %) | 4.9 MN | 0.3 % | 1.15 | 215 |
+| Rubber rebound (natural) | 8.7 MN | 1.9 % | 1.31 | 174 |
+| Foam collapse (75 %) | 0.22 MN | 1.6 % (volume 98 %) | 2.97 | 35 |
+| Memory-foam creep | 0.06 MN | 20.7 % (slow recovery) | 4.79 | 22 |
+| Firm polyurethane | 41 MN | 2.7 % | 1.26 | 97 |
+| Soft gel (65 %) | 1.3 MN | 18.5 % | 0.73 | 729 |
+| Neoprene hold | 22 MN | 7.1 % | 1.56 | 94 |
+| EPDM comparison | 16 MN | 2.2 % | 1.36 | 74 |
+
+Node 22 on the shared 4-core sandbox, single runs. In headless Chromium serving the built site the worker reported 1.32 times real time for the silicone cycle. The forces are those of a 1.16 m wide specimen (the rig's scale), not of a standard 29 mm test piece.
+
+### Limits
+
+- Volumetric locking (above): about 1.5 times too stiff in bonded compression; incompressibility is approximated by ν = 0.49, so rubber loses up to 7 % volume at 50 % compression where a real one loses a fraction of a percent.
+- The Prony model is stress-based (not objective under large rotation while an overstress remains); one spectrum, borrowed from a filled blend, stands for natural rubber, neoprene and polyurethane; the other spectra and most moduli are unverified.
+- Foams are compressible Neo-Hookean solids: no cell buckling plateau, no densification, no permanent set. Mullins softening, heat build-up, platen friction (the platens are bonded) and rate effects beyond the Prony series are not modelled.
+
+## Concrete crush
+
+Not converted yet. It keeps its authored model and the "Comparative model · not calibrated" label. It needs compressive crushing: cohesive fracture has no friction on closed cracks and no compression failure, so a scoped damage-plasticity model validated against f_c and the EC2 parabola, platens as constraints or rigid bodies, sourced values for the eight mixes (the library has C30/37 only, without a fracture energy), and the lab wiring. Reinforcement as embedded bars was not attempted. The cube is bulky, so the tetrahedral solid suits it.
 
 ## Reproduce
 
@@ -129,5 +175,6 @@ Not converted yet. They keep their authored models and the "Comparative model ·
 npm run test:plate
 node --test tests/studio/material-labs.test.mjs       # the Studio's labs, glass in SI (about 4 minutes)
 node --import ./scripts/register-typescript.mjs --test tests/studio/glass-worker.test.mjs
+node --test tests/studio/rubber-si.test.mjs           # the elastomer lab
 node scripts/validation-report.mjs --only plate
 ```

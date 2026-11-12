@@ -5,8 +5,10 @@ import {bedDatum,bedElevation,bedRelief,channelCenter,liquidOutlets,rimHeight} f
 import {LABS,materialFor,normalizeSettings,type LabId,type LabSettings,type MaterialProfile} from './catalog';
 import {LabModel,DT,random,clamp,copyFrame,type LabFrame,type V3,type Piece} from './lab-model';
 import {GlassModel} from './glass-si';
+import {RubberModel} from './rubber-si';
 export * from './lab-model';
 export {GlassModel} from './glass-si';
+export {RubberModel} from './rubber-si';
 
 /**
  * The liquid lab. Flume: the validated free-surface solver in SI (FlumeSI: 3D incompressible liquid with viscosity, a
@@ -192,25 +194,6 @@ export class ConcreteModel extends LabModel {
   }
 }
 
-export class RubberModel extends LabModel {
-  private strain=0;private velocity=0;private permanent=0;
-  readonly initialHeight:number;readonly radius:number;
-  constructor(p:Partial<LabSettings>={}){super('rubber',p);this.initialHeight=.86*this.settings.size;this.radius=.58*this.settings.size;this.allocate(1);this.frame.positions[0]=this.initialHeight;this.frame.positions[1]=this.radius;this.frame.actuator=1+this.initialHeight;this.frame.metrics=[0,100,0];}
-  step(dt=DT):void {
-    const f=this.frame,p=this.settings;f.time+=dt;
-    const peak=p.load/100,tRamp=peak/(p.rate/100),releaseAt=tRamp+p.damping;
-    const unloading=this.released||f.time>releaseAt;
-    const target=unloading?this.permanent:Math.min(peak,f.time*p.rate/100);
-    const k=65*this.material.strength,d=3+this.material.damping*17;
-    this.velocity+=(k*(target-this.strain)-d*this.velocity)*dt;this.strain=clamp(this.strain+this.velocity*dt,0,.86);
-    if(this.material.retention<.7)this.permanent=Math.max(this.permanent,(this.strain-.25)*.35*(1-this.material.retention));
-    const height=this.initialHeight*(1-this.strain),volumeRatio=1-this.strain*(1-this.material.retention)*.85;
-    const radius=this.radius*Math.sqrt(volumeRatio/(1-this.strain));
-    f.positions[0]=height;f.positions[1]=radius;f.positions[2]=this.strain;f.actuator=1+height;
-    f.phase=unloading?(Math.abs(this.strain-this.permanent)<.008?'Recovered':'Recovering'):f.time<tRamp?'Compressing':'Holding · creep';
-    f.metrics=[this.strain*100,volumeRatio*100,this.permanent*100];
-  }
-}
 
 /**
  * The granular lab: the discrete element solver in SI (GranularTray, granular-si.ts). Positions are drawn ten times
@@ -241,4 +224,4 @@ export class GranularModel extends LabModel {
 export function createModel(id:LabId,p:Partial<LabSettings>={}):LabModel {
   return id==='liquid'?new LiquidModel(p):id==='glass'?new GlassModel(p):id==='concrete'?new ConcreteModel(p):id==='rubber'?new RubberModel(p):new GranularModel(p);
 }
-export const METRIC_LABELS:Record<LabId,[string,string,string]>={liquid:['Peak depth · m','Peak speed · m/s','Fluid volume · m³'],glass:['Peak contact force · kN','Peak surface stress · MPa','Out-of-plane · mm'],concrete:['Compression · %','Broken bonds · %','Peak local strain · %'],rubber:['Compression · %','Retained volume · %','Permanent set · %'],granular:['Runout · m','Pile height · m','Grains behind gate']};
+export const METRIC_LABELS:Record<LabId,[string,string,string]>={liquid:['Peak depth · m','Peak speed · m/s','Fluid volume · m³'],glass:['Peak contact force · kN','Peak surface stress · MPa','Out-of-plane · mm'],concrete:['Compression · %','Broken bonds · %','Peak local strain · %'],rubber:['Compression · %','Platen force · kN','Retained volume · %'],granular:['Runout · m','Pile height · m','Grains behind gate']};

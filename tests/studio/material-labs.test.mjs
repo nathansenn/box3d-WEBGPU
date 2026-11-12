@@ -11,6 +11,8 @@ registerHooks({resolve(s,c,next){
 const {LABS,LAB_IDS,MATERIALS,normalizeSettings,readSettings,writeSettings}=await import('../../src/studio/material-labs/catalog.ts');
 const {createModel,DT}=await import('../../src/studio/material-labs/models.ts');
 const receipts=[],glassResults={};const GLASS_SECONDS=3;
+// Rubber: the first 1.5 s of the program here; full programs are in tests/studio/rubber-si.test.mjs.
+const RUBBER_SECONDS=1.5;
 const {glassSpec}=await import('../../src/studio/material-labs/glass-si.ts');
 const {materialProperty}=await import('../../src/engine/materials.ts');
 const run=(m,seconds)=>{for(let step=0;step<Math.ceil(seconds/DT);step++)m.step(DT);return m;};
@@ -30,7 +32,7 @@ for(const id of LAB_IDS){
     test(`${id} / ${experiment.name}: full program stays finite and contains its specimen`,()=>{
       const settings=normalizeSettings(id,{...LABS[id].defaults,...experiment.settings}),model=createModel(id,settings),t=performance.now();
       // Glass: the impact, the cracking and the fall of the first pieces happen in the first 3 s of the 12 s program.
-      run(model,id==='glass'?GLASS_SECONDS:duration(id,settings));finite(model);
+      run(model,id==='glass'?GLASS_SECONDS:id==='rubber'?RUBBER_SECONDS:duration(id,settings));finite(model);
       if(id==='liquid'){
         assert.ok(Math.abs(model.frame.hydraulics.residual)<1e-8,'sources, storage and sinks balance');
         assert.ok([...model.h].every(h=>h>=0),'nonnegative water depths');
@@ -45,7 +47,7 @@ for(const id of LAB_IDS){
         glassResults[experiment.id]={broken,force,stress,travel,retained:model.retained,pieces:model.fragmentCount,detached:model.fragments.length,throw:model.throwDistance,substeps:model.substeps,cpuMs:performance.now()-t};
       }
       if(id==='concrete')assert.ok(model.frame.metrics[1]>=0&&model.frame.metrics[1]<=100);
-      if(id==='rubber'){assert.ok(model.frame.positions[0]>0);assert.ok(model.frame.metrics[1]>0&&model.frame.metrics[1]<=100);}
+      if(id==='rubber'){const [compression,force,volume]=model.frame.metrics;assert.ok(compression>0&&compression<100&&force>=0&&volume>0&&volume<=100.01,'SI readouts: %, kN, %');}
       receipts.push({study:id,experiment:experiment.id,simulatedSeconds:model.frame.time,cpuMs:Math.round((performance.now()-t)*100)/100,phase:model.frame.phase,metrics:[...model.frame.metrics]});
     });
   }
@@ -84,11 +86,6 @@ test('concrete: modest loading stays intact; weaker bonds fail earlier and stay 
   const low=run(createModel('concrete',{load:3,rate:1}),12),weak=run(createModel('concrete',{material:'aged'}),12),strong=run(createModel('concrete',{material:'high-strength'}),12);
   assert.equal(low.frame.metrics[1],0);assert.ok(weak.frame.metrics[1]>strong.frame.metrics[1]+10);
   const count=weak.bonds.filter(b=>b.broken).length;weak.release();run(weak,8);assert.ok(weak.bonds.filter(b=>b.broken).length>=count);
-});
-test('rubber: elastic recovery and foam permanent set are distinct',()=>{
-  const elastic=run(createModel('rubber'),18),foam=run(createModel('rubber',{material:'foam',load:75}),18);
-  assert.ok(elastic.frame.metrics[0]<.1);assert.ok(elastic.frame.metrics[1]>99.9);assert.ok(foam.frame.metrics[2]>5);assert.ok(foam.frame.metrics[0]>elastic.frame.metrics[0]+5);
-  const held=run(createModel('rubber',{damping:8}),6);assert.ok(held.frame.metrics[0]>40);
 });
 after(()=>{
   const paths=['src/studio/material-labs/catalog.ts','src/studio/material-labs/models.ts','src/studio/material-labs/glass-si.ts','src/engine/plate.ts'];

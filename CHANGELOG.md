@@ -1,5 +1,12 @@
 # Changelog
 
+## Unreleased — 2026-11-12 — Elastomer lab in SI units
+
+- **Studio (`src/studio/material-labs/rubber-si.ts`):** the elastomer lab runs a 625-element viscoelastic Neo-Hookean cylinder (`config.viscoelastic`) between bonded steel platens (`SolidContact` welds) in the shared lab worker. The platen compresses at the set rate, holds while the force relaxes, then follows the specimen with no load so it recovers by its own creep recovery. The renderer draws the solid's boundary from its nodes; the readouts are compression (%), platen force (kN) and retained volume (%); the material panel shows long-term and instantaneous moduli and relaxation times; the "not calibrated" label is replaced by a link to `docs/STUDIO_MATERIAL_LABS.md`.
+- **Values:** natural rubber's modulus and density from the library; a filled rubber's 4-term Prony spectrum from Andena et al. (Constitutive Models for Rubber XII, 2023, Table 1); the other moduli and spectra are typical figures marked unverified. Foams are compressible Neo-Hookean (ν = 0).
+- **Measured:** real-time factor 0.73 (soft gel) to 4.8 (memory foam) over the 18 to 24 s programs, 1.15 for the default silicone cycle (1.32 in the browser's worker). Bonded compression of the lab's mesh is 52 % stiffer than the bonded-block closed form (volumetric locking at ν = 0.49), stated in the lab and as validation row `solid.bonded-compression`.
+- **Tests:** `tests/studio/rubber-si.test.mjs` (5 tests, 40 s, in `test:studio:materials`); `material-labs.test.mjs` runs the first 1.5 s of each elastomer preset.
+
 ## Unreleased — 2026-11-12 — Canopy study on the calibrated cloth, woven fabric and tearing
 
 - **Cloth (`src/engine/cloth.ts`, `docs/CLOTH.md`):** an orthotropic membrane for woven fabric (`material.orthotropic`: warp and weft stiffness, shear and nu in N/m, the warp direction turned into each triangle), tension-only edge cables (`cables`, `cableTensions()`) and strength-based tearing (`material.strength`: a triangle tears after a converged step when the stress along a yarn reaches its strength; `tornCount`, `tornMask`, `yarnStress()`, `setStrength()`). All of it is in `saveState()`. The isotropic path is unchanged.

@@ -5,8 +5,8 @@
  "generatedBy": "node scripts/validation-report.mjs",
  "digits": 9,
  "totals": {
-  "cases": 524,
-  "passed": 524,
+  "cases": 525,
+  "passed": 525,
   "failed": 0,
   "domains": 20
  },
@@ -261,8 +261,8 @@
     "No two-way coupling to the rigid-body, water, cable or frame solvers, and no contact with rigid bodies. The one-way thermal and dead-load links are in the simulation domain.",
     "Uniform states are exact, so the tension, shear, pressure and rubber rows say nothing about accuracy under stress gradients."
    ],
-   "cases": 41,
-   "passed": 41
+   "cases": 42,
+   "passed": 42
   },
   {
    "id": "solid-contact",
@@ -12266,6 +12266,35 @@
     "measured": "0.002418515",
     "error": "-1.39%",
     "tolerance": "±3%"
+   }
+  },
+  {
+   "id": "solid.bonded-compression",
+   "domain": "solid",
+   "title": "Bonded rubber cylinder of the Studio elastomer lab, small strain",
+   "quantity": "apparent compression modulus of the lab's 625-element cylinder (R 0.58 m, H 0.86 m, nu 0.49) between bonded platens at 1 % strain",
+   "unit": "Pa",
+   "formula": "1 / E_c = 1 / (E (1 + 2 S^2)) + 1 / K, S = R / (2 H), K = E / (3 (1 - 2 nu))",
+   "reference": 1714840.54,
+   "measured": 2600037.61,
+   "error": 885197.068,
+   "relativeError": 0.516197889,
+   "tolerance": {
+    "kind": "relative",
+    "value": 0.6
+   },
+   "pass": true,
+   "note": "Shown on purpose: near-incompressible linear tetrahedra lock, and this mesh is 52 % too stiff (30 % with 8 cells across, 1.6 to 3 times at nu = 0.499). The Studio states it.",
+   "source": {
+    "file": "tests/studio/rubber-si.test.mjs",
+    "test": "bonded compression at small strain: the lab mesh is stiffer than the bonded-block closed form by a stated factor (volumetric locking)",
+    "url": "https://github.com/nathansenn/box3d-WEBGPU/blob/main/tests/studio/rubber-si.test.mjs"
+   },
+   "text": {
+    "reference": "1714841 Pa",
+    "measured": "2600038",
+    "error": "+51.6%",
+    "tolerance": "±60%"
    }
   },
   {

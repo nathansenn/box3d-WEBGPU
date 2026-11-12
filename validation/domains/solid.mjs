@@ -376,4 +376,15 @@ export const viscoelastic = defineCases('solid', VFILE, [
   {id: 'solid.viscoelastic.contact', title: 'Viscoelastic cube on a plane through SolidContact', quantity: 'settlement of the top face after 16 tau under its own weight (E = 20 kPa long-term, 4x instantaneous)', unit: 'm', test: VT.contact,
     reference: {formula: 'rho g L^2 / (2 E) (fully relaxed)', value: 1000 * 9.81 * 0.01 / (2 * 2e4)}, tolerance: relative(0.03),
     note: 'Lumped weights on 2 cells; the contact springs sink the base by a small extra depth.', measure: async () => (await veContact()).settlement},
+  {id: 'solid.bonded-compression', file: 'tests/studio/rubber-si.test.mjs', title: 'Bonded rubber cylinder of the Studio elastomer lab, small strain', quantity: 'apparent compression modulus of the lab\'s 625-element cylinder (R 0.58 m, H 0.86 m, nu 0.49) between bonded platens at 1 % strain', unit: 'Pa', test: 'bonded compression at small strain: the lab mesh is stiffer than the bonded-block closed form by a stated factor (volumetric locking)',
+    reference: {formula: '1 / E_c = 1 / (E (1 + 2 S^2)) + 1 / K, S = R / (2 H), K = E / (3 (1 - 2 nu))', value: null}, tolerance: relative(0.6),
+    note: 'Shown on purpose: near-incompressible linear tetrahedra lock, and this mesh is 52 % too stiff (30 % with 8 cells across, 1.6 to 3 times at nu = 0.499). The Studio states it.',
+    measure: async () => {
+      const {SolidBody} = await solid(), {cylinderMesh, RUBBER_BASE} = await import(new URL('../../src/studio/material-labs/rubber-si.ts', import.meta.url).href);
+      const R = 0.58, H = 0.86, E = 1.5e6, nu = 0.49, S = R / (2 * H), K = E / (3 * (1 - 2 * nu));
+      const b = new SolidBody({mesh: cylinderMesh(R, H, 5, 5), material: {youngModulus: E, poissonRatio: nu, density: 1000}, config: {model: 'linear', tolerance: 1e-9}});
+      b.constrain(b.selectNodes((x, y) => y < RUBBER_BASE + 1e-9)); const top = b.selectNodes((x, y) => y > RUBBER_BASE + H - 1e-9); b.constrain(top, [0, -0.01 * H, 0]);
+      const r = b.solveStatic(); let F = 0; for (const n of top) F += r.reactions[3 * n + 1];
+      return {value: -F / (Math.PI * R * R) / 0.01, reference: 1 / (1 / (E * (1 + 2 * S * S)) + 1 / K)};
+    }},
 ]);
