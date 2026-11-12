@@ -2070,7 +2070,7 @@ import type { FractureLaw, FractureModel } from './solid-fracture.js';
 import type { HeatMaterial } from './heat.js';
 import type { GranularMaterial } from './granular.js';
 export declare const MATERIAL_LIBRARY_ID = "box3d-materials";
-export declare const MATERIAL_LIBRARY_VERSION = "1.2.0";
+export declare const MATERIAL_LIBRARY_VERSION = "1.3.0";
 export declare const MATERIAL_SOURCES_ACCESSED = "2026-11-12";
 export type MaterialSourceKind = 'standard' | 'government' | 'manufacturer' | 'peer-reviewed' | 'textbook' | 'last-resort';
 export interface MaterialSource {
@@ -2082,7 +2082,7 @@ export interface MaterialSource {
     readonly note?: string;
 }
 export declare const MATERIAL_SOURCES: Readonly<Record<string, MaterialSource>>;
-export type MaterialPropertyName = 'density' | 'youngModulus' | 'poissonRatio' | 'shearModulus' | 'yieldStrength' | 'tensileStrength' | 'compressiveStrength' | 'flexuralStrength' | 'fractureToughness' | 'fractureEnergy' | 'thermalConductivity' | 'specificHeat' | 'thermalExpansion' | 'viscosity' | 'soundSpeed';
+export type MaterialPropertyName = 'density' | 'youngModulus' | 'poissonRatio' | 'shearModulus' | 'yieldStrength' | 'tensileStrength' | 'compressiveStrength' | 'flexuralStrength' | 'fractureToughness' | 'fractureEnergy' | 'elongationAtBreak' | 'thermalConductivity' | 'specificHeat' | 'thermalExpansion' | 'viscosity' | 'soundSpeed';
 export declare const MATERIAL_PROPERTY_UNITS: Readonly<Record<MaterialPropertyName, string>>;
 export interface MaterialValue {
     readonly value: number;
@@ -2134,6 +2134,7 @@ export interface SolidMaterialOptions extends MaterialOptions {
     readonly thermalExpansion?: number | null;
 }
 export declare function solidMaterial(id: string, options?: SolidMaterialOptions): SolidMaterial;
+export declare function plasticMaterial(id: string, options?: SolidMaterialOptions): SolidMaterial;
 export type StressState = 'plane-strain' | 'plane-stress';
 export declare function fractureEnergyFromToughness(toughness: number, youngModulus: number, poissonRatio: number, state?: StressState): number;
 export interface FractureLawOptions extends MaterialOptions {
@@ -4536,7 +4537,7 @@ export declare class FractureBody {
     readonly mass: number;
     readonly lambda: number;
     readonly mu: number;
-    readonly material: Readonly<Required<SolidMaterial>>;
+    readonly material: Readonly<Required<Pick<SolidMaterial, 'youngModulus' | 'poissonRatio' | 'density' | 'thermalExpansion'>>>;
     readonly law: Readonly<Required<FractureLaw>>;
     readonly interiorFaceCount: number;
     readonly boundaryFaceCount: number;
@@ -4799,13 +4800,17 @@ import { type StateObject, type StateValue } from './checkpoint.js';
 import { type TetMesh } from './solid-mesh.js';
 export { boxMesh, boxNode, boundaryFaces, tetVolume, SOLID_MAX_NODES, SOLID_MAX_TETS, type TetMesh, type BoxMeshOptions } from './solid-mesh.js';
 export declare const SOLID_SOLVER_ID = "solid-tet-corot-js-f64-v1";
-export type SolidModel = 'linear' | 'corotational' | 'neo-hookean';
+export declare const SOLID_PLASTIC_SOLVER_ID = "solid-tet-j2-js-f64-v1";
+export type SolidModel = 'linear' | 'corotational' | 'neo-hookean' | 'green-lagrange';
 export type SolidIntegrator = 'backward-euler' | 'midpoint' | 'explicit';
 export interface SolidMaterial {
     youngModulus: number;
     poissonRatio: number;
     density: number;
     thermalExpansion?: number;
+    yieldStress?: number;
+    hardeningModulus?: number;
+    failureStrain?: number;
 }
 export interface SolidConfig {
     model?: SolidModel;
@@ -4880,13 +4885,14 @@ export interface SolidKernel {
     holdDampingTangent(): void;
     dampingProduct(x: Float64Array, out: Float64Array): void;
     advance(converged: boolean): void;
+    commit(): void;
 }
 export declare function symmetricEigenvalues(t: ArrayLike<number>, offset: number, out: Float64Array | number[], outOffset: number): void;
 export declare function vonMisesStress(t: ArrayLike<number>, offset?: number): number;
 export declare class SolidBody {
     saveState(): StateObject;
     restoreState(state: StateValue): void;
-    readonly solver = "solid-tet-corot-js-f64-v1";
+    readonly solver: string;
     readonly model: SolidModel;
     readonly integrator: SolidIntegrator;
     readonly dt: number;
@@ -4902,6 +4908,7 @@ export declare class SolidBody {
     readonly lambda: number;
     readonly mu: number;
     readonly material: Readonly<Required<SolidMaterial>>;
+    readonly plastic: boolean;
     readonly stats: SolidSolveStats;
     private readonly massDamping;
     private readonly stiffnessDamping;
@@ -4951,6 +4958,15 @@ export declare class SolidBody {
     private relaxed;
     private reporting;
     readonly viscoelasticScale: number;
+    private readonly ep;
+    private readonly alpha;
+    private readonly eroded;
+    private readonly ptan;
+    private readonly T;
+    private storeMode;
+    private storedOnly;
+    private erodedTotal;
+    private plasticWorkTotal;
     private cm;
     private cd;
     private reference;
@@ -4983,6 +4999,7 @@ export declare class SolidBody {
     private piola;
     private commitViscous;
     private piolaElastic;
+    private constitutive;
     private tangent;
     private tangentElastic;
     private scatter;
@@ -5013,6 +5030,12 @@ export declare class SolidBody {
     strains(out?: Float64Array<ArrayBuffer>): Float64Array;
     private tensors;
     private tensorsNow;
+    private commitPlastic;
+    equivalentPlasticStrain(out?: Float64Array<ArrayBuffer>): Float64Array;
+    plasticStrains(out?: Float64Array<ArrayBuffer>): Float64Array;
+    get plasticWork(): number;
+    get erodedCount(): number;
+    get erodedMask(): Uint8Array;
     vonMises(out?: Float64Array<ArrayBuffer>): Float64Array;
     principalStresses(out?: Float64Array<ArrayBuffer>): Float64Array;
     failedElements(options: {

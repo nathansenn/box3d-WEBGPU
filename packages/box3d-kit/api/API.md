@@ -3044,6 +3044,14 @@ export declare const SOLID_MAX_NODES = 200000, SOLID_MAX_TETS = 1000000;
 export declare const SOLID_MAX_NODES = 200000, SOLID_MAX_TETS = 1000000;
 ```
 
+### SOLID_PLASTIC_SOLVER_ID · const
+
+Solver id of a body with a yield stress: J2 plasticity on the same element.
+
+```ts
+export declare const SOLID_PLASTIC_SOLVER_ID = "solid-tet-j2-js-f64-v1";
+```
+
 ### SOLID_SOLVER_ID · const
 
 ```ts
@@ -3056,7 +3064,7 @@ export declare const SOLID_SOLVER_ID = "solid-tet-corot-js-f64-v1";
 export declare class SolidBody {
   saveState(): StateObject;
   restoreState(state: StateValue): void;
-  readonly solver = "solid-tet-corot-js-f64-v1";
+  readonly solver: string;
   readonly model: SolidModel;
   readonly integrator: SolidIntegrator;
   readonly dt: number;
@@ -3072,6 +3080,7 @@ export declare class SolidBody {
   readonly lambda: number;
   readonly mu: number;
   readonly material: Readonly<Required<SolidMaterial>>;
+  readonly plastic: boolean;
   readonly stats: SolidSolveStats;
   readonly viscoelasticScale: number;
   selectNodes(predicate: (x: number, y: number, z: number) => boolean): Uint32Array;
@@ -3102,6 +3111,11 @@ export declare class SolidBody {
   reactions(out?: Float64Array<ArrayBuffer>): Float64Array;
   stresses(out?: Float64Array<ArrayBuffer>): Float64Array;
   strains(out?: Float64Array<ArrayBuffer>): Float64Array;
+  equivalentPlasticStrain(out?: Float64Array<ArrayBuffer>): Float64Array;
+  plasticStrains(out?: Float64Array<ArrayBuffer>): Float64Array;
+  get plasticWork(): number;
+  get erodedCount(): number;
+  get erodedMask(): Uint8Array;
   vonMises(out?: Float64Array<ArrayBuffer>): Float64Array;
   principalStresses(out?: Float64Array<ArrayBuffer>): Float64Array;
   failedElements(options: { criterion: SolidFailureCriterion; strength: number; }): Uint32Array;
@@ -3191,6 +3205,7 @@ export interface SolidKernel {
     holdDampingTangent(): void;
     dampingProduct(x: Float64Array, out: Float64Array): void;
     advance(converged: boolean): void;
+    commit(): void;
 }
 ```
 
@@ -3202,6 +3217,9 @@ export interface SolidMaterial {
     poissonRatio: number;
     density: number;
     thermalExpansion?: number;
+    yieldStress?: number;
+    hardeningModulus?: number;
+    failureStrain?: number;
 }
 ```
 
@@ -3220,10 +3238,12 @@ export interface SolidMode {
 ### SolidModel · type
 
 `linear`: small-strain Hooke. `corotational`: Hooke on the stretch left after removing each
-element's rotation. `neo-hookean`: compressible Neo-Hookean rubber.
+element's rotation. `neo-hookean`: compressible Neo-Hookean rubber. `green-lagrange`: Hooke on the
+Green-Lagrange strain (St Venant-Kirchhoff): exact under rotation, for small elastic strain; the model
+that carries J2 plasticity through large rotations.
 
 ```ts
-export type SolidModel = 'linear' | 'corotational' | 'neo-hookean';
+export type SolidModel = 'linear' | 'corotational' | 'neo-hookean' | 'green-lagrange';
 ```
 
 ### SolidSolveStats · interface
@@ -7007,7 +7027,7 @@ export declare class FractureBody {
   readonly mass: number;
   readonly lambda: number;
   readonly mu: number;
-  readonly material: Readonly<Required<SolidMaterial>>;
+  readonly material: Readonly<Required<Pick<SolidMaterial, 'youngModulus' | 'poissonRatio' | 'density' | 'thermalExpansion'>>>;
   readonly law: Readonly<Required<FractureLaw>>;
   readonly interiorFaceCount: number;
   readonly boundaryFaceCount: number;
@@ -9071,7 +9091,7 @@ export declare const MATERIAL_LIBRARY_ID = "box3d-materials";
 Semver of the data: a changed value is a minor release, a removed material or property a major one.
 
 ```ts
-export declare const MATERIAL_LIBRARY_VERSION = "1.2.0";
+export declare const MATERIAL_LIBRARY_VERSION = "1.3.0";
 ```
 
 ### MATERIAL_PROPERTY_UNITS · const
@@ -9167,7 +9187,7 @@ export declare function materialProperty(id: string, property: MaterialPropertyN
 ### MaterialPropertyName · type
 
 ```ts
-export type MaterialPropertyName = 'density' | 'youngModulus' | 'poissonRatio' | 'shearModulus' | 'yieldStrength' | 'tensileStrength' | 'compressiveStrength' | 'flexuralStrength' | 'fractureToughness' | 'fractureEnergy' | 'thermalConductivity' | 'specificHeat' | 'thermalExpansion' | 'viscosity' | 'soundSpeed';
+export type MaterialPropertyName = 'density' | 'youngModulus' | 'poissonRatio' | 'shearModulus' | 'yieldStrength' | 'tensileStrength' | 'compressiveStrength' | 'flexuralStrength' | 'fractureToughness' | 'fractureEnergy' | 'elongationAtBreak' | 'thermalConductivity' | 'specificHeat' | 'thermalExpansion' | 'viscosity' | 'soundSpeed';
 ```
 
 ### MATERIALS · const
@@ -9219,6 +9239,20 @@ export interface MaterialValue {
     readonly derived?: string;
     readonly reason?: string;
 }
+```
+
+### plasticMaterial · function
+
+The input of an elastic-plastic `SolidBody` (J2 with linear isotropic hardening): E, nu, rho as `solidMaterial`, plus
+ - yieldStress = the library's yield strength;
+ - hardeningModulus H from a bilinear fit through (f_y / E, f_y) and (A, f_u), A the elongation at break: the tangent
+   E_t = (f_u - f_y) / (A - f_y / E) and H = E E_t / (E - E_t). Engineering values, so this is a coarse fit that ignores
+   necking and the difference between true and engineering stress;
+ - failureStrain = A - f_u / E, the plastic strain at the end of that line (the elements erode there).
+Needs yield strength, tensile strength and elongation at break in the library (an unverified one needs allowUnverified).
+
+```ts
+export declare function plasticMaterial(id: string, options?: SolidMaterialOptions): SolidMaterial;
 ```
 
 ### rigidMaterial · function

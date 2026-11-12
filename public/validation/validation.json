@@ -5,8 +5,8 @@
  "generatedBy": "node scripts/validation-report.mjs",
  "digits": 9,
  "totals": {
-  "cases": 511,
-  "passed": 511,
+  "cases": 517,
+  "passed": 517,
   "failed": 0,
   "domains": 20
  },
@@ -246,8 +246,8 @@
   {
    "id": "solid",
    "title": "Deformable solids",
-   "summary": "The patch test, uniaxial tension, shear and bulk moduli, a hanging bar, the cantilever locking table, axial and bending frequencies with observed orders, a stress wave, energy and damping, large-strain rubber and thermal eigenstrain.",
-   "solver": "`src/engine/solid.ts`: linear tetrahedra with linear, corotational and Neo-Hookean models; static, midpoint, backward-Euler and explicit integration, float64",
+   "summary": "The patch test, uniaxial tension, shear and bulk moduli, a hanging bar, the cantilever locking table, axial and bending frequencies with observed orders, a stress wave, energy and damping, large-strain rubber and thermal eigenstrain. Plasticity: the uniaxial bilinear cycle, the elastic-plastic moment and springback of a beam, and a press-brake air bend against the beam limit load and elastic springback.",
+   "solver": "`src/engine/solid.ts`: linear tetrahedra with linear, corotational, Neo-Hookean and Green-Lagrange models, J2 plasticity with linear isotropic hardening and ductile erosion (linear and Green-Lagrange); static, midpoint, backward-Euler and explicit integration, float64. The press brake (`src/engine/press-brake.ts`) bends a plane-strain section of sheet with rigid punch and die through `SolidContact`",
    "docs": [
     "docs/SOLID_MECHANICS.md"
    ],
@@ -256,11 +256,13 @@
     "Near-incompressibility: at nu = 0.4999 the four-cell cantilever is 29% too stiff. There is no mixed or higher-order element.",
     "With nu = 0.3 a clamped root also restrains Poisson contraction, which beam theory ignores: the 3-D limit sits about 1.2% below the Timoshenko reference.",
     "Viscoelasticity is a stress-based Prony series: checked for uniaxial creep, relaxation and recovery at small strain and for a uniform Neo-Hookean stretch; it is not objective under large rotation while an overstress remains, and no measured rubber was fitted. Contact and self-contact, plasticity, anisotropy, and more than one material per body. Crack growth is a separate solver on the linear model of this element (the fracture domain); `SolidBody` itself only flags elements above a strength.",
+    "Plasticity is small-strain J2 (additive in the Green-Lagrange strain for large rotations), isotropic linear hardening only: no kinematic hardening, rate dependence, necking or anisotropy. Linear tetrahedra lock under plastic incompressibility: fully plastic bending is 3.2% (3-D) to 6.6% (plane strain, 4 cells) too strong. Ductile erosion uses one failure strain, independent of stress triaxiality, and the press brake's limit load is 1.23 times beam theory.",
+    "Self-contact, plasticity combined with viscoelasticity (refused), anisotropy, and more than one material per body. Crack growth is a separate solver on the linear model of this element (the fracture domain); `SolidBody` erodes plastic elements at a failure strain but has no crack-growth law of its own.",
     "No two-way coupling to the rigid-body, water, cable or frame solvers, and no contact with rigid bodies. The one-way thermal and dead-load links are in the simulation domain.",
     "Uniform states are exact, so the tension, shear, pressure and rubber rows say nothing about accuracy under stress gradients."
    ],
-   "cases": 35,
-   "passed": 35
+   "cases": 41,
+   "passed": 41
   },
   {
    "id": "solid-contact",
@@ -11723,6 +11725,177 @@
     "measured": "-1.92e8",
     "error": "+4.45e-14 rel.",
     "tolerance": "±1e-10 rel."
+   }
+  },
+  {
+   "id": "solid.plastic.hardening",
+   "domain": "solid",
+   "title": "J2 plasticity: uniaxial stress on the hardening branch",
+   "quantity": "axial stress of a bar stretched to 0.6% (sigma_y 250 MPa, H 2 GPa, linear model)",
+   "unit": "Pa",
+   "formula": "sigma = sigma_y + E H / (E + H) (eps - sigma_y / E)",
+   "reference": 259405941,
+   "measured": 259405941,
+   "error": -0.00285807252,
+   "relativeError": -1.10177605e-11,
+   "tolerance": {
+    "kind": "relative",
+    "value": 1e-9
+   },
+   "pass": true,
+   "source": {
+    "file": "tests/engine/solid-plasticity.test.mjs",
+    "test": "uniaxial cycle, linear model: hardening branch, elastic unloading and reverse yield match the bilinear law exactly",
+    "url": "https://github.com/nathansenn/box3d-WEBGPU/blob/main/tests/engine/solid-plasticity.test.mjs"
+   },
+   "text": {
+    "reference": "2.594059e8 Pa",
+    "measured": "2.594059e8",
+    "error": "-1.1e-11 rel.",
+    "tolerance": "±1e-9 rel."
+   }
+  },
+  {
+   "id": "solid.plastic.reverse-yield",
+   "domain": "solid",
+   "title": "J2 plasticity: reverse yield after unloading",
+   "quantity": "axial stress after unloading from 0.6% to 0.3% strain",
+   "unit": "Pa",
+   "formula": "sigma = -(sigma_y + H p), p from the bilinear law",
+   "reference": -260209783,
+   "measured": -260209783,
+   "error": 0.0386388302,
+   "relativeError": 1.48491074e-10,
+   "tolerance": {
+    "kind": "relative",
+    "value": 1e-9
+   },
+   "pass": true,
+   "source": {
+    "file": "tests/engine/solid-plasticity.test.mjs",
+    "test": "uniaxial cycle, linear model: hardening branch, elastic unloading and reverse yield match the bilinear law exactly",
+    "url": "https://github.com/nathansenn/box3d-WEBGPU/blob/main/tests/engine/solid-plasticity.test.mjs"
+   },
+   "text": {
+    "reference": "-2.602098e8 Pa",
+    "measured": "-2.602098e8",
+    "error": "+1.48e-10 rel.",
+    "tolerance": "±1e-9 rel."
+   }
+  },
+  {
+   "id": "solid.plastic.moment",
+   "domain": "solid",
+   "title": "Elastic-plastic bending moment at 8 times the yield curvature",
+   "quantity": "end moment of a 10 x 10 mm beam in pure bending, 16 x 8 x 2 cells, perfectly plastic",
+   "unit": "N m",
+   "formula": "M = b (E k c^3 / 3 ... ) = M_y (3 / 2)(1 - (k_y / k)^2 / 3)",
+   "reference": 62.1744792,
+   "measured": 64.1734832,
+   "error": 1.99900401,
+   "relativeError": 0.0321515199,
+   "tolerance": {
+    "kind": "relative",
+    "value": 0.04
+   },
+   "pass": true,
+   "note": "Linear tetrahedra are too strong in bending: 3.2% here, from shear and plastic-incompressibility locking.",
+   "source": {
+    "file": "tests/engine/solid-plasticity.test.mjs",
+    "test": "pure bending: elastic-plastic moment-curvature of a rectangular section, and springback after release",
+    "url": "https://github.com/nathansenn/box3d-WEBGPU/blob/main/tests/engine/solid-plasticity.test.mjs"
+   },
+   "text": {
+    "reference": "62.17448 N m",
+    "measured": "64.17348",
+    "error": "+3.22%",
+    "tolerance": "±4%"
+   }
+  },
+  {
+   "id": "solid.plastic.springback",
+   "domain": "solid",
+   "title": "Springback of a plastically bent beam",
+   "quantity": "curvature recovered at mid-length when the end moment is released",
+   "unit": "1/m",
+   "formula": "dk = M(k) / (E I), k the curvature reached at mid-length",
+   "reference": 0.372710758,
+   "measured": 0.373988607,
+   "error": 0.00127784949,
+   "relativeError": 0.0034285286,
+   "tolerance": {
+    "kind": "relative",
+    "value": 0.01
+   },
+   "pass": true,
+   "source": {
+    "file": "tests/engine/solid-plasticity.test.mjs",
+    "test": "pure bending: elastic-plastic moment-curvature of a rectangular section, and springback after release",
+    "url": "https://github.com/nathansenn/box3d-WEBGPU/blob/main/tests/engine/solid-plasticity.test.mjs"
+   },
+   "text": {
+    "reference": "0.3727108 1/m",
+    "measured": "0.3739886",
+    "error": "+0.343%",
+    "tolerance": "±1%"
+   }
+  },
+  {
+   "id": "solid.press-brake.limit",
+   "domain": "solid",
+   "title": "Press brake: three-point air bend at the limit load",
+   "quantity": "punch force of a 2 mm S355 sheet (perfectly plastic) over an 8 t die, divided by the beam-theory limit load",
+   "unit": "1",
+   "formula": "F / (4 M_p' / V) = 1, M_p' = (2 / sqrt 3) sigma_y t^2 / 4 (plane strain)",
+   "reference": 1,
+   "measured": 1.22769949,
+   "error": 0.227699489,
+   "relativeError": 0.227699489,
+   "tolerance": {
+    "kind": "upper",
+    "value": 0.35
+   },
+   "pass": true,
+   "note": "Measured 1.23 times beam theory: a short section under a punch of radius t, and 4 cells through the thickness are 6.6% too strong in plastic plane-strain bending.",
+   "source": {
+    "file": "tests/engine/press-brake.test.mjs",
+    "test": "three-point air bend, S355, 2 mm, die opening 8 t: limit load, equilibrium of punch and die, and elastic springback",
+    "url": "https://github.com/nathansenn/box3d-WEBGPU/blob/main/tests/engine/press-brake.test.mjs"
+   },
+   "text": {
+    "reference": "1",
+    "measured": "1.227699",
+    "error": "+0.228",
+    "tolerance": "at most 0.35 above the reference"
+   }
+  },
+  {
+   "id": "solid.press-brake.springback",
+   "domain": "solid",
+   "title": "Press brake: elastic springback of the bend depth",
+   "quantity": "bend depth recovered when the punch retracts",
+   "unit": "m",
+   "formula": "d = F V^3 / (48 E' I), E' = E / (1 - nu^2)",
+   "reference": 0.0000697849662,
+   "measured": 0.0000627135478,
+   "error": -0.00000707141831,
+   "relativeError": -0.101331543,
+   "tolerance": {
+    "kind": "relative",
+    "value": 0.12
+   },
+   "pass": true,
+   "note": "Measured 0.90 of the beam value: the elastic bending stiffness of four cells through the thickness.",
+   "source": {
+    "file": "tests/engine/press-brake.test.mjs",
+    "test": "three-point air bend, S355, 2 mm, die opening 8 t: limit load, equilibrium of punch and die, and elastic springback",
+    "url": "https://github.com/nathansenn/box3d-WEBGPU/blob/main/tests/engine/press-brake.test.mjs"
+   },
+   "text": {
+    "reference": "6.978497e-5 m",
+    "measured": "6.271355e-5",
+    "error": "-10.1%",
+    "tolerance": "±12%"
    }
   },
   {
