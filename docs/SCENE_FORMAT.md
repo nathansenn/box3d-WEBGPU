@@ -1,6 +1,6 @@
 # Scene format (`box3d-scene`, versions 1 and 2)
 
-A scene file is plain JSON that says how to build a scene: the world settings, the rigid bodies and the joints, and optionally water basins, cables and frames coupled to those bodies ([Coupled sections](#coupled-sections-water-cables-frames)). It can be validated, loaded, saved, diffed, hashed and packed into a share link. The code is `src/engine/scene-format.ts`, published by the kit as `box3d-webgpu-kit/scene` (`packages/box3d-kit/src/scene.ts`) and used by the Physics Lab ([In the Physics Lab](#in-the-physics-lab)); the tests are `packages/box3d-kit/test/v12-scene.test.mjs`, for the coupled sections `packages/box3d-kit/test/v14-simulation.test.mjs`, and for version 2 `packages/box3d-kit/test/v17-compound.test.mjs`.
+A scene file is plain JSON that says how to build a scene: the world settings, the rigid bodies and the joints, and optionally water basins, cables, frames, cloths and sets of grains coupled to those bodies ([Coupled sections](#coupled-sections-water-cables-frames), [Cloths and grains](#coupled-sections-cloths-and-grains)). It can be validated, loaded, saved, diffed, hashed and packed into a share link. The code is `src/engine/scene-format.ts`, published by the kit as `box3d-webgpu-kit/scene` (`packages/box3d-kit/src/scene.ts`) and used by the Physics Lab ([In the Physics Lab](#in-the-physics-lab)); the tests are `packages/box3d-kit/test/v12-scene.test.mjs`, for the coupled sections `packages/box3d-kit/test/v14-simulation.test.mjs`, and for version 2 `packages/box3d-kit/test/v17-compound.test.mjs`.
 
 Version 2 adds two things to version 1 and changes nothing else: a body may be a **compound** of several shapes, and a body may state its **mass data** (mass, centre of mass, inertia tensor). A file that uses neither is a version 1 file. [Versioning](#versioning) has the rules.
 
@@ -82,6 +82,8 @@ A key that is not listed here is an error, everywhere except inside `userData` a
 | `water` | array of basins | no | absent | See [Coupled sections](#coupled-sections-water-cables-frames). Needs a Simulation to run. |
 | `cables` | array of cables | no | absent | |
 | `frames` | array of frames | no | absent | |
+| `cloths` | array of cloths | no | absent | See [Cloths and grains](#coupled-sections-cloths-and-grains). |
+| `grains` | array of grain sets | no | absent | |
 | `meta` | object | no | | `title`, `description`, `author`, `created`: strings. `created` must be a date `Date.parse` accepts. |
 | `extensions` | object | no | | Any JSON. Preserved by load, save, canonicalize and links; ignored otherwise. |
 
@@ -301,9 +303,60 @@ One linear beam frame per entry ([`FRAME_MECHANICS.md`](FRAME_MECHANICS.md)). At
 
 After the bodies and joints: every frame, then every cable, in file order; one structure coupling that is handed all of them; the cables' attachments, cable by cable in file order; the frames' attachments; then each basin and its bodies. The order is part of the format: it fixes the bits of a run. `loadScene` returns the basins, cables, frames, the coupling and the live attachment reports next to the bodies and joints ([`SIMULATION.md`](SIMULATION.md#scenes)).
 
+### Coupled sections: cloths and grains
+
+Two more optional arrays, added on 2026-11-11 under the same rules as `water`, `cables` and `frames` (see [Versioning](#versioning)). Ids share the namespace of bodies and joints. Numbers are float64. Both solvers take the world's `step` and `gravity`.
+
+#### `cloths`
+
+One cloth per entry, solved together with the rigid bodies it touches ([`CLOTH.md`](CLOTH.md); `ClothCoupling` and `clothSubsystem`, couple stage, order 150). Backward Euler, at the world's step. At most 16 cloths of at most 16,384 nodes and 32,768 triangles.
+
+| Key | Type | Required | Default | Notes |
+|---|---|---|---|---|
+| `id` | string | yes | | |
+| `nodes` | `[x, y, z, ...]` | yes | | 3 or more nodes, m. A save writes the current ones. |
+| `restNodes` | `[x, y, z, ...]` | no | `nodes` | The stress-free shape. A save of a moved cloth writes it, so a resumed cloth keeps its rest shape. |
+| `triangles` | `[a, b, c, ...]` | yes | | Node indices, three different ones per triangle, consistently oriented (the solver refuses a mesh that is not, or an edge shared by three triangles). |
+| `velocities` | `[x, y, z, ...]` | no | zero | m/s. |
+| `material` | object | yes | | `arealDensity` (kg/m², > 0), `youngModulus` (Pa, ≥ 0), `thickness` (m), `poissonRatio` (−0.99 to 0.499), and optionally `membrane` (`"stvk"` or `"spring"`), `bending` (`"koiter"`, `"hinge"` or `"none"`), `bendingStiffness` (N m). |
+| `pinned` | node indices, ascending | no | none | Held where they are. |
+| `extraMass` | one number per node | no | zero | kg. |
+| `drag` | number ≥ 0 | no | 0 | 1/s. |
+| `maxNewtonIterations`, `residualTolerance`, `forceTolerance`, `maxCgIterations`, `cgTolerance` | number | no | 60, 1e-6, 0, 600, 1e-2 | The solver's. |
+| `contact` | `{offset?, stiffness?, skin?}` | no | the solver's | |
+| `selfCollision` | `{thickness, stiffness?, capacity?}` | no | off | |
+| `bodies` | array | no | `[]` | `{body, friction?, collide?, twoWay?, inertia?}`: a box, sphere or capsule body the cloth touches. A dynamic body is pushed by the cloth unless `twoWay` is false. A body may be listed once per cloth. |
+| `planes` | array | no | `[]` | `{normal, point?, friction?}`: a fixed half space the cloth cannot enter that is not a body (for example the ground). |
+| `attachments` | array | no | `[]` | `{node, body, localPoint?}`: a free node fixed to a point of one of the cloth's `bodies`. |
+
+#### `grains`
+
+One set of spherical grains by the discrete element method per entry ([`GRANULAR.md`](GRANULAR.md); `GranularCoupling` and `granularSubsystem`, couple stage, order 160). At most 8 sets of at most 65,536 grains and 256 fixed walls.
+
+| Key | Type | Required | Default | Notes |
+|---|---|---|---|---|
+| `id` | string | yes | | |
+| `material` | object | yes | | `density` (kg/m³), `restitution` (0.05 to 1), `friction`, optionally `rollingFriction`; `youngModulus` and `poissonRatio` are required by the Hertz law. |
+| `law` | `"hertz"` or `"linear"` | no | `"hertz"` | |
+| `normalStiffness` | N/m | with `linear` only | | Required by the linear law, refused with Hertz. |
+| `tangentialStiffnessRatio`, `tangentialDamping`, `skin` | number | no | 2/7, 1, the solver's | |
+| `substeps` | integer 1..4096 | yes | | Grain steps in one world step: the grains step at `world.step / substeps`. The scene is refused when the build finds that step above the solver's stability limit (`Scene grains "<id>": ... critical time`). |
+| `bounds` | `{min, max}` | no | none | Grains that leave this box are removed (and counted in the events). |
+| `positions` | `[x, y, z, ...]` | yes | | One triple per grain. A save writes the grains that are left. |
+| `radii` | one number per grain | yes | | m. |
+| `velocities`, `angularVelocities` | `[x, y, z, ...]` | no | zero | |
+| `walls` | array | no | `[]` | `{shape, position?, rotation?, friction?, rollingFriction?, restitution?}`: fixed walls only the grains feel. `shape` is `plane` (`normal`), `box`, `sphere`, `capsule`, `cylinder` (`radius`, `from`, `to`, `axis?`), `annulus` (`innerRadius`, `outerRadius`, `offset?`, `axis?`) or `frustum` (`r0`, `z0`, `r1`, `z1`, `axis?`), as `Granular.addWall` takes them. |
+| `bodies` | array | no | `[]` | `{body, friction?, rollingFriction?, restitution?, twoWay?, inertia?}`: a box, sphere or capsule body the grains touch and, when it is dynamic, push. |
+
+Build order, after the frames, cables and their attachments: every cloth in file order (its bodies, planes, then attachments), then every grain set in file order (its walls, then its bodies, then the grains), then the basins. A dynamic body that a cloth or grains push and that no cable or frame carries is counted in the ledger's `rigid` entry. As for the other sections, a body named here cannot be a compound or have an off-origin `massData.center`.
+
+A save writes each cloth's node positions and velocities (and its `restNodes`) and each grain set's live grains with their velocities and spins. Not saved: the cloth's contact state and the support-load estimate of the coupling (both rebuilt in the first steps), and the grains' contact history (tangential springs), which restarts from zero. A resumed run therefore starts from bit-identical fields and then differs slightly, as for the other sections; two loads of the same saved scene stay bit-identical (`tests/physics/lab-coupled-scenes.test.mjs`).
+
+Heat solvers, deformable solids and fracture bodies are not in the scene format.
+
 ### Canonical form of the sections
 
-A section that is absent or empty is left out of the normal form, so a scene of rigid bodies and joints has the canonical text and `sceneHash` it has always had. Inside a section, a value equal to its default is left out (`solver: "proximal"`, `substeps: 1`, `density: 1000`, an all-zero `eta`, `velocities`, `fixed`, …), and `-0` is written as `0`. Order is kept, because it is the build order.
+A section that is absent or empty is left out of the normal form (this holds for `cloths` and `grains` too), so a scene of rigid bodies and joints has the canonical text and `sceneHash` it has always had. Inside a section, a value equal to its default is left out (`solver: "proximal"`, `substeps: 1`, `density: 1000`, an all-zero `eta`, `velocities`, `fixed`, …), and `-0` is written as `0`. Order is kept, because it is the build order.
 
 ## Validation
 
@@ -427,7 +480,7 @@ The Lab (`lab.html`) opens scene files with this module. Nothing is installed; a
 
 | How | What opens |
 |---|---|
-| `lab.html?example=<name>` | An example scene: `pendulum-wave`, `newtons-cradle`, `domino-run`, `terrain-car`, `ragdoll`. |
+| `lab.html?example=<name>` | An example scene: `pendulum-wave`, `newtons-cradle`, `domino-run`, `terrain-car`, `ragdoll`, and the coupled ones: `moored-buoy`, `cable-stayed-deck`, `buoy-and-crates`, `trampoline`, `hopper-seesaw`, `suspended-platform`. |
 | `lab.html?scene=b3s1…` | A share link from `encodeSceneLink`. `#scene=…` in the fragment works too. |
 | `lab.html?scene=%7B…%7D` | The scene JSON itself, URL-encoded, up to 65,536 characters. |
 | The **Scenes** panel, bottom right: **Open file…**, or drop a file anywhere on the page | A scene file (`.json`), or geometry (`.obj`, `.stl`, `.glb`, `.gltf`; drop a `.gltf` together with its `.bin`). |
@@ -454,7 +507,19 @@ For the browser console and for tests the page has `box3dLab.sceneState()` (titl
 
 A scene can be built and changed in the page: **New scene** and **Edit** in the panel, or `lab.html?edit=1`, open the scene editor ([`SCENE_EDITOR.md`](SCENE_EDITOR.md)). While it is open, Copy share link and Download save the edited scene (its initial state), and Reset returns to it.
 
-Not in the Lab yet: scenes with `water`, `cables` or `frames` (the Lab refuses them with a message; it has no Simulation), choosing the scale of imported geometry by hand, importing one body per object of a file, and textures or colours from the geometry file. The Studio does not read scenes.
+**Coupled scenes.** The Lab builds every scene with `loadSimulationScene` (`loadLabScene` in `src/lab/scene-host.ts`; the host takes forces and impulses, which the couplings need) and steps a scene with coupled sections through its `Simulation`: each fixed step runs the couple stage, the rigid step, the post stage and the events, as [`SIMULATION.md`](SIMULATION.md) describes. Play, Pause, Step and Reset work as for a rigid scene; a rigid-only scene is stepped as before (its Simulation has no subsystems). `src/lab/coupled-scene.ts` draws the other solvers with the Lab renderer's existing streams, without a new render pass:
+
+| Solver | Drawn as |
+|---|---|
+| Water basin | One mesh row: the free surface as a height field over the basin (a vertex per cell corner, the mean of the cells around it, at most 16,384 quads; a larger basin is drawn at every n-th cell) with four sides to the floor, in the translucent material, and a wire grid on the surface in the line stream. |
+| Cable, frame | Segments of the rope stream (straight square tubes between node positions; a frame element as thick as its section area, a cable 1/300 of the scene's size, 5 mm to 5 cm). At most 4,096 nodes and segments are drawn. |
+| Cloth | One mesh row: the triangles from the node positions after every step, smooth normals, both sides. |
+| Grains | One sphere row per grain. A grain that left its bounds keeps its row with no size. |
+| Grain walls | Boxes, spheres and capsules as rows of those shapes; cylinders, rings and cones as mesh rows; all translucent. Plane walls are not drawn. |
+
+A panel at the bottom left shows the clock and the measured cost of a step, the step order, the energy ledger by subsystem (total and balance, with the parts on hover) and the latest events: world contacts and each subsystem's events, with body handles shown as scene ids. `box3dLab.sceneState()` also reports `simulationTick`, `stateHash` (a hash of every body transform and every solver's fields, `coupledStateHash`), the energy entries and what is drawn; `box3dLab.coupledReadout()` returns what the panel shows, and `box3dLab.setPaused(flag)` pauses the clock. Copy share link and Download save the scene as it is, with the solvers' fields ([Save and resume](#save-and-resume)); a link opened in a fresh page gives the same scene hash and, after the same number of steps, the same state hash (checked by `scripts/coupled-scenes-browser-check.mjs`). The editor does not open a coupled scene. A saved coupled scene carries every field, so its link is long: the hopper's is 3,526 characters at the start and 20,395 after 3 s (150 grains with positions, velocities and spins), the buoy and crates' 11,258 after 3 s. That fits the address bar (up to 32,768 characters), but some servers refuse a request line that long (Node's default limit is 16 KB); send the file for those.
+
+Not in the Lab yet: choosing the scale of imported geometry by hand, importing one body per object of a file, and textures or colours from the geometry file. The Studio does not read scenes.
 
 ## Limits
 
@@ -474,6 +539,8 @@ Not in the Lab yet: scenes with `water`, `cables` or `frames` (the Lab refuses t
 | Water basins / cells in one basin | 8 / 65,536 |
 | Cables / nodes in one cable | 1,024 / 16,384 |
 | Frames / nodes / elements in one frame | 64 / 4,096 / 8,192 |
+| Cloths / nodes / triangles in one cloth | 16 / 16,384 / 32,768 |
+| Grain sets / grains / fixed walls in one set / grain steps per world step | 8 / 65,536 / 256 / 4,096 |
 | Equations of all frame attachments (3 per pinned, 6 per clamped) | 96 |
 | One `userData`, or `extensions` | 65,536 characters of JSON, 32 levels deep |
 | A `meta` string | 4,096 characters |
@@ -493,6 +560,7 @@ A world has room for 4,096 bodies unless it was created with a larger `capacity`
 - Within a version the schema is closed: unknown keys are errors. That keeps typos from being silently ignored and keeps canonical text and hashes well defined.
 - Additive data that a version 1 reader may ignore goes in `extensions` (scene-wide) or `userData` (per body or joint). Use a key you own, for example your tool's name.
 - The `water`, `cables` and `frames` sections were added to version 1 without a new number. They are optional, a scene without them is byte for byte the scene it was (same canonical text, same `sceneHash`), and a reader from before them does not misread a scene that has them: it rejects it with `/water: unknown key "water"`, because the schema is closed. A reader cannot tell from the version alone whether it can run a file; `sceneHasCoupling(scene)` says whether a scene needs a Simulation.
+- The `cloths` and `grains` sections were added the same way on 2026-11-11, without a new number: optional, absent from the normal form when empty (the example hashes are unchanged; `tests/physics/lab-scenes.test.mjs` and the kit test pin them), and rejected by an earlier reader as `unknown key "cloths"` or `unknown key "grains"`. `sceneHasCoupling` counts them.
 - Any change that an earlier reader would misread, such as a new required key, a new shape kind, a changed default or a changed meaning, gets a new `version`. A later reader keeps reading the earlier versions. Version 2 was made for the new shape kind; `massData` went with it because a version 1 reader that ignored it would simulate another body.
 - Share links have their own version in the prefix (`b3s1`). A new compression or framing gets a new prefix; version 1 links stay readable.
 - Canonical text and `sceneHash` are defined by the scene version. They are stable for versions 1 and 2.
@@ -510,11 +578,17 @@ A world has room for 4,096 bodies unless it was created with a larger `capacity`
 | `terrainCarScene()` | A chassis on four wheel joints with suspension and motors, on a height field. No ground slab. |
 | `ragdollScene()` | A capsule torso, a sphere head and 8 capsule limbs on 9 spherical joints with cone and twist limits. |
 
-`COUPLED_EXAMPLE_SCENES` maps two more names to scenes with coupled sections. They are kept out of `EXAMPLE_SCENES` because a loader without a Simulation, such as the Lab's, cannot open them.
+`COUPLED_EXAMPLE_SCENES` maps six more names to scenes with coupled sections. They are kept out of `EXAMPLE_SCENES` because a loader without a Simulation (the core `loadScene`) cannot open them; the Lab opens all of them.
 
 | Function | Contents |
 |---|---|
 | `mooredBuoyScene()` | A sphere floating in an 8 m × 8 m basin, held under its free waterline by a compliant cable to the bed. At rest the cable carries the buoyancy minus the weight (1337 N); released to the side it swings back and settles. |
 | `cableStayedDeckScene()` | An 8 m steel deck on a pin and a roller, two stays from a tower top, a ball pinned to the deck. Stay tensions and deflection match hand statics to 1.4e-4. |
+| `buoyAndCratesScene()` | The moored buoy released 0.4 m off its line, with three wooden crates dropped into the basin: water, a cable and four floating bodies. |
+| `trampolineScene()` | A 2 m cloth of 81 nodes held along its edges between four posts, with a 6.8 kg ball and a box dropped on it. 1/120 s step. |
+| `hopperSeesawScene()` | 150 beads of 6 mm radius (linear contact law, 12 grain steps per 1/240 s world step) run out of a conical hopper into a tray on a hinged plank and tip it against a 24 kg counterweight. |
+| `suspendedPlatformScene()` | A platform on four compliant cables from four posts, loaded by four boxes that fall on it one after another. |
+
+Cost of one simulation step, measured once on this sandbox (4 shared cores, Node 22; in the browser, headless Chromium with software WebGPU, stepping only): moored buoy 0.18 ms (browser 0.19 ms), cable-stayed deck 0.47 (0.55), buoy and crates 0.20 (0.78), suspended platform 0.10 (0.32), hopper 1.5 (1.9) against a 4.17 ms real-time budget; the trampoline 4.8 to 5.7 ms in node and 8.8 ms in the browser against its 8.33 ms budget, so it is about real time in node and runs at about 0.9 times real time in that browser. The cloth is the limit: about 100 nodes in real time ([`CLOTH.md`](CLOTH.md#cost)); grains, about 100 to 250 soft beads ([`GRANULAR.md`](GRANULAR.md#cost)). Larger cloths or more grains run slower than real time: the Lab then takes the steps it can in a frame and drops the rest of the time, as it does for any scene.
 
 Two engine behaviours showed up while building the cradle and are worth knowing when you write scenes: restitution is not applied to slow impacts (a 0.44 m/s impact passed on 23% of its speed, a 1.85 m/s impact 99.6%), and balls that touch at rest do not pass the impulse cleanly, so the scene leaves a 2 mm gap.

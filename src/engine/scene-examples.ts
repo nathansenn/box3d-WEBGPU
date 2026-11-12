@@ -227,8 +227,176 @@ export function cableStayedDeckScene(options: {loadNode?: number; ballRadius?: n
   };
 }
 
+/**
+ * The moored buoy released 0.4 m to the side, with `crates` wooden boxes dropped into the same basin: the buoy
+ * swings back on its cable while the crates make waves, bob and drift. Water, a cable and floating bodies in one scene.
+ */
+export function buoyAndCratesScene(options: {offset?: number; crates?: number} = {}): Scene {
+  const {offset = 0.4, crates = 3} = options, base = mooredBuoyScene({offset});
+  const bodies: SceneBody[] = [...base.bodies], floating = [...(base.water![0].bodies ?? [])];
+  for (let k = 0; k < crates; k++) {
+    const angle = 2.2 + 2.1 * k, r = 1.9 + 0.35 * k, half = round(0.22 + 0.04 * k);
+    bodies.push({id: `crate-${k}`, shape: {kind: 'box', halfExtents: [half, half, half]}, position: [round(r * Math.cos(angle), 3), round(3.6 + 0.5 * k, 3), round(r * Math.sin(angle), 3)],
+      rotationEuler: [12 * k, 25 * k, 8], density: 450 + 80 * k, neverSleeps: true, color: 0xB98A4E});
+    floating.push({body: `crate-${k}`, linearDrag: 60, angularDrag: 4});
+  }
+  return {...base, bodies, water: [{...base.water![0], bodies: floating}],
+    meta: {title: 'Buoy and crates', description: `A moored buoy released ${offset} m off its line, and ${crates} crates dropped into the basin.`}};
+}
+
+/** A rectangle of (nx + 1) x (ny + 1) cloth nodes from `origin` along +x and -z, every cell cut the same way, normals up: node (i, j) is i + (nx + 1) j. */
+function clothSheet(nx: number, ny: number, width: number, depth: number, origin: readonly [number, number, number]): {nodes: number[]; triangles: number[]; node: (i: number, j: number) => number} {
+  const nodes: number[] = [], triangles: number[] = [], node = (i: number, j: number): number => i + (nx + 1) * j;
+  for (let j = 0; j <= ny; j++) for (let i = 0; i <= nx; i++) nodes.push(round(origin[0] + width * i / nx), origin[1], round(origin[2] - depth * j / ny));
+  for (let j = 0; j < ny; j++) for (let i = 0; i < nx; i++) {
+    const a = node(i, j), b = node(i + 1, j), c = node(i + 1, j + 1), d = node(i, j + 1);
+    triangles.push(a, b, c, a, c, d);
+  }
+  return {nodes, triangles, node};
+}
+
+/**
+ * A trampoline: a square cloth of `cells` x `cells` cells and side `side`, held along its four edges at height
+ * `height` between four posts, with a ball and a box dropped on it. The cloth and the two bodies are solved together
+ * (docs/CLOTH.md), so the bodies bounce, settle into the sag and are carried by it.
+ */
+export function trampolineScene(options: {cells?: number; side?: number; height?: number; ballRadius?: number; ballDensity?: number} = {}): Scene {
+  const {cells = 8, side = 2, height = 1, ballRadius = 0.3, ballDensity = 60} = options;
+  const sheet = clothSheet(cells, cells, side, side, [-side / 2, height, side / 2]), pinned: number[] = [];
+  for (let j = 0; j <= cells; j++) for (let i = 0; i <= cells; i++) if (i === 0 || j === 0 || i === cells || j === cells) pinned.push(sheet.node(i, j));
+  const post = 0.04, rail = side / 2 + post, bodies: SceneBody[] = [];
+  for (const [k, [sx, sz]] of ([[-1, -1], [1, -1], [1, 1], [-1, 1]] as const).entries()) {
+    bodies.push({id: `post-${k}`, shape: {kind: 'box', halfExtents: [post, height / 2, post]}, type: 'static', position: [sx * rail, height / 2, sz * rail], color: 0x59616B});
+  }
+  for (const [k, [sx, sz]] of ([[0, -1], [1, 0], [0, 1], [-1, 0]] as const).entries()) {
+    bodies.push({id: `rail-${k}`, shape: {kind: 'box', halfExtents: sx === 0 ? [rail + post, post, post] : [post, post, rail + post]}, type: 'static', position: [sx * rail, height, sz * rail], color: 0x59616B});
+  }
+  bodies.push(
+    {id: 'ball', shape: {kind: 'sphere', radius: ballRadius}, position: [-0.3, round(height + ballRadius + 0.9), 0.1], density: ballDensity, neverSleeps: true, color: 0xD9412B},
+    {id: 'box', shape: {kind: 'box', halfExtents: [0.18, 0.18, 0.18]}, position: [0.45, round(height + 0.18 + 1.5), -0.3], rotationEuler: [0, 20, 0], density: 120, neverSleeps: true, color: 0x2F7FD1},
+  );
+  return {
+    ...header, world: {gravity: [0, -G, 0], ground: true, seed: 1, step: 1 / 120, subSteps: 4},
+    materials: {}, joints: [], bodies,
+    cloths: [{
+      id: 'sheet', nodes: sheet.nodes, triangles: sheet.triangles, pinned,
+      material: {arealDensity: 0.3, youngModulus: 5e6, thickness: 1e-3, poissonRatio: 0.3, bendingStiffness: 1e-3},
+      drag: 0.8, contact: {stiffness: 2e5},
+      bodies: [{body: 'ball', friction: 0.4}, {body: 'box', friction: 0.4}],
+    }],
+    meta: {title: 'Trampoline', description: `A ${side} m cloth of ${(cells + 1) * (cells + 1)} nodes held along its edges, with a ball and a box dropped on it.`},
+  };
+}
+
+/**
+ * A hopper over a see-saw: `count` beads fill a conical hopper and run out of its orifice into a tray on one end of a
+ * plank that turns on a hinge; a counterweight sits on the other end. When enough beads have landed the plank tips.
+ * The beads are soft spheres by the discrete element method (docs/GRANULAR.md), linear contact law; the hopper is a
+ * fixed wall that only the beads feel, the plank, the tray walls and the counterweight are rigid bodies.
+ */
+export function hopperSeesawScene(options: {count?: number; radius?: number; orifice?: number; counterweight?: number} = {}): Scene {
+  const {count = 150, radius = 0.03, orifice = 0.13, counterweight = 24} = options;
+  const density = 2500, mass = density * 4 / 3 * Math.PI * radius ** 3, stiffness = round(4000 * mass * G / (2 * radius), 0);
+  // The hopper: a cone from the orifice up to a bin, on the axis x = hopperX.
+  const hopperX = 0.55, outlet = 1.55, coneTop = 1.95, binRadius = 0.42, binTop = 2.75;
+  const positions: number[] = [], radii: number[] = [];
+  let seed = 7;
+  const random = (): number => { seed = (Math.imul(seed, 1664525) + 1013904223) >>> 0; return seed / 4294967296; };
+  const pitch = 2.3 * radius;
+  for (let layer = 0; radii.length < count && layer < 64; layer++) {
+    const y = coneTop + 0.06 + layer * pitch, reach = binRadius - 1.4 * radius;
+    for (let ix = -8; ix <= 8 && radii.length < count; ix++) for (let iz = -8; iz <= 8 && radii.length < count; iz++) {
+      const x = ix * pitch + (layer % 2) * pitch / 2, z = iz * pitch + (layer % 2) * pitch / 2;
+      if (Math.hypot(x, z) > reach) continue;
+      positions.push(round(hopperX + x + 0.1 * radius * (random() - 0.5)), round(y), round(z + 0.1 * radius * (random() - 0.5)));
+      radii.push(round(radius * (0.9 + 0.2 * random())));
+    }
+  }
+  // The see-saw: a plank on a hinge about z at the origin of x, a tray of three low walls and an end wall under the hopper, a counterweight at the other end.
+  const pivotY = 0.55, plankHalf: [number, number, number] = [1.05, 0.025, 0.3], wall = 0.02, rim = 0.11, trayHalf = 0.34;
+  const lean = 0.19, cos = Math.cos(lean), sin = Math.sin(lean), q: [number, number, number, number] = [0, 0, round(Math.sin(lean / 2), 9), round(Math.cos(lean / 2), 9)];
+  // A point given in the plank's own axes, in the world, for the plank leaning by `lean` about z (counterweight end down).
+  const at = (x: number, y: number, z: number): [number, number, number] => [round(x * cos - y * sin), round(pivotY + x * sin + y * cos), z];
+  // Two stops hold the plank at +-lean: their tops are just under the plank's underside at x = +-0.95.
+  const stopTop = round(pivotY - 0.95 * sin - plankHalf[1] * cos - 0.004, 4);
+  const weightHalf = 0.13, weightDensity = round(counterweight / (8 * weightHalf ** 3), 3);
+  const parts: {id: string; half: [number, number, number]; local: [number, number, number]}[] = [
+    {id: 'tray-end', half: [wall, rim, plankHalf[2]], local: [hopperX + trayHalf + wall, plankHalf[1] + rim, 0]},
+    {id: 'tray-inner', half: [wall, rim, plankHalf[2]], local: [hopperX - trayHalf - wall, plankHalf[1] + rim, 0]},
+    {id: 'tray-front', half: [trayHalf, rim, wall], local: [hopperX, plankHalf[1] + rim, plankHalf[2] - wall]},
+    {id: 'tray-back', half: [trayHalf, rim, wall], local: [hopperX, plankHalf[1] + rim, -plankHalf[2] + wall]},
+  ];
+  const bodies: SceneBody[] = [
+    {id: 'fulcrum', shape: {kind: 'box', halfExtents: [0.06, (pivotY - 0.03) / 2, 0.34]}, type: 'static', position: [0, (pivotY - 0.03) / 2, 0], color: 0x59616B, filter: {categoryBits: '2', maskBits: '0'}},
+    {id: 'stop-left', shape: {kind: 'box', halfExtents: [0.08, stopTop / 2, 0.3]}, type: 'static', position: [-0.95, stopTop / 2, 0], color: 0x59616B},
+    {id: 'stop-right', shape: {kind: 'box', halfExtents: [0.08, stopTop / 2, 0.3]}, type: 'static', position: [0.95, stopTop / 2, 0], color: 0x59616B},
+    {id: 'plank', shape: {kind: 'box', halfExtents: plankHalf}, position: at(0, 0, 0), rotation: q, density: 500, neverSleeps: true, color: 0xB98A4E},
+    ...parts.map((part): SceneBody => ({id: part.id, shape: {kind: 'box', halfExtents: part.half}, position: at(...part.local), rotation: q, density: 500, neverSleeps: true, color: 0x8C6A3F})),
+    {id: 'counterweight', shape: {kind: 'box', halfExtents: [weightHalf, weightHalf, weightHalf]}, position: at(-0.85, plankHalf[1] + weightHalf + 0.002, 0), rotation: q, density: weightDensity, friction: 0.9, neverSleeps: true, color: 0x3F4650},
+  ];
+  const joints: SceneJoint[] = [
+    {id: 'hinge', type: 'revolute', bodyA: null, bodyB: 'plank', frameA: {position: [0, pivotY, 0]}, frameB: {position: [0, 0, 0]}},
+    ...parts.map((part): SceneJoint => ({id: `weld-${part.id}`, type: 'weld', bodyA: 'plank', bodyB: part.id, frameA: {position: part.local}, frameB: {position: [0, 0, 0]}})),
+  ];
+  return {
+    ...header, world: {gravity: [0, -G, 0], ground: true, seed: 1, step: 1 / 240, subSteps: 4},
+    materials: {}, bodies, joints,
+    grains: [{
+      id: 'beads', material: {density, restitution: 0.3, friction: 0.5, rollingFriction: 0.05}, law: 'linear', normalStiffness: stiffness, substeps: 12,
+      bounds: {min: [-6, -0.5, -6], max: [6, 6, 6]},
+      positions, radii,
+      walls: [
+        {shape: {kind: 'frustum', r0: orifice, z0: outlet, r1: binRadius, z1: coneTop}, position: [hopperX, 0, 0]},
+        {shape: {kind: 'cylinder', radius: binRadius, from: coneTop, to: binTop}, position: [hopperX, 0, 0]},
+        {shape: {kind: 'plane', normal: [0, 1, 0]}},
+      ],
+      bodies: [{body: 'plank'}, ...parts.map(part => ({body: part.id})), {body: 'counterweight'}],
+    }],
+    meta: {title: 'Hopper and see-saw', description: `${radii.length} beads of ${Math.round(2000 * radius)} mm run out of a hopper into a tray on a see-saw and tip it against a ${counterweight} kg counterweight.`},
+  };
+}
+
+/**
+ * A platform hung on four cables from fixed anchors, loaded by `boxes` boxes that fall on it one after another.
+ * The cables are tension-only and compliant (docs/COMPLIANT_CABLE.md), coupled two-way to the platform, and hang from
+ * the tops of four posts; the boxes are
+ * ordinary rigid bodies, so the platform swings, tilts and stretches its cables under them.
+ */
+export function suspendedPlatformScene(options: {boxes?: number; axialRigidity?: number; drop?: number} = {}): Scene {
+  const {boxes = 4, axialRigidity = 4e5, drop = 1.2} = options;
+  const half: [number, number, number] = [0.9, 0.05, 0.6], deckY = 1.2, anchorY = 3.6, spread = 0.35, lineDensity = 0.05;
+  const cables = ([[-1, -1], [1, -1], [1, 1], [-1, 1]] as const).map(([sx, sz], k) => {
+    const corner: [number, number, number] = [sx * (half[0] - 0.05), half[1], sz * (half[2] - 0.05)], anchor = [sx * (half[0] - 0.05 + spread), anchorY, sz * (half[2] - 0.05 + spread)];
+    const end = [corner[0], deckY + corner[1], corner[2]], length = Math.hypot(anchor[0] - end[0], anchor[1] - end[1], anchor[2] - end[2]), rest = round(length - 0.004), node = lineDensity * rest / 2;
+    return {
+      id: `cable-${k}`, nodes: [...anchor, ...end].map(v => round(v)), masses: [round(node), round(node)], pinned: [1, 0],
+      segments: [{a: 0, b: 1, restLength: rest, compliance: rest / axialRigidity}], maxIterations: 64, residualTolerance: 1e-12, forceTolerance: 1e-9, drag: 0.4,
+      attachments: [{node: 1, body: 'platform', localPoint: corner}],
+    };
+  });
+  const bodies: SceneBody[] = [
+    {id: 'platform', shape: {kind: 'box', halfExtents: half}, position: [0, deckY, 0], density: 300, friction: 0.8, neverSleeps: true, color: 0xB98A4E},
+    // A post under each anchor, from the ground to just above the cable's fixed end.
+    ...cables.map((cable, k): SceneBody => ({id: `post-${k}`, shape: {kind: 'box', halfExtents: [0.05, round((cable.nodes[1] + 0.08) / 2), 0.05]}, type: 'static', position: [cable.nodes[0], round((cable.nodes[1] + 0.08) / 2), cable.nodes[2]], color: 0x59616B})),
+  ];
+  for (let k = 0; k < boxes; k++) {
+    const size = round(0.14 + 0.02 * (k % 3));
+    bodies.push({id: `load-${k}`, shape: {kind: 'box', halfExtents: [size, size, size]}, position: [round(-0.45 + 0.3 * k), round(deckY + half[1] + size + drop + 1.6 * k), round(0.2 * ((k % 2) * 2 - 1))],
+      rotationEuler: [0, 17 * k, 0], density: 700, friction: 0.8, neverSleeps: true, color: [0xD9412B, 0x2F7FD1, 0x3FA34D, 0xE2A31D][k % 4]});
+  }
+  return {
+    ...header, world: {gravity: [0, -G, 0], ground: true, seed: 1, step: 1 / 240, subSteps: 4},
+    materials: {}, joints: [], bodies, cables,
+    meta: {title: 'Suspended platform', description: `A platform on four compliant cables, loaded by ${boxes} falling boxes.`},
+  };
+}
+
 /** The coupled examples by name, each called with its defaults. Load them with a Simulation (`loadSimulationScene`, the kit's `loadScene`). */
 export const COUPLED_EXAMPLE_SCENES: {readonly [name: string]: () => Scene} = Object.freeze({
   'moored-buoy': () => mooredBuoyScene(),
   'cable-stayed-deck': () => cableStayedDeckScene(),
+  'buoy-and-crates': () => buoyAndCratesScene(),
+  trampoline: () => trampolineScene(),
+  'hopper-seesaw': () => hopperSeesawScene(),
+  'suspended-platform': () => suspendedPlatformScene(),
 });

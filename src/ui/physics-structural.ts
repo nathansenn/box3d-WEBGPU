@@ -466,6 +466,10 @@ const SI_DEMO_ENTRIES = [
   { id: 'example:domino-run', title: 'Domino run (scene file)', detail: '12 boxes, the first one leaning · example scene, SI units' },
   { id: 'example:terrain-car', title: 'Car on terrain (scene file)', detail: 'Wheel joints with suspension on a height field · example scene, SI units' },
   { id: 'example:ragdoll', title: 'Ragdoll (scene file)', detail: 'Capsules on spherical joints with cone limits · example scene, SI units' },
+  { id: 'example:buoy-and-crates', title: 'Buoy and crates (coupled scene)', detail: 'A moored buoy and floating crates in a shallow-water basin · water and cable solvers, SI units' },
+  { id: 'example:trampoline', title: 'Trampoline (coupled scene)', detail: 'A ball and a box on a cloth of 81 nodes · cloth solved with the bodies, SI units' },
+  { id: 'example:hopper-seesaw', title: 'Hopper and see-saw (coupled scene)', detail: '150 beads run out of a hopper and tip a see-saw · discrete elements, SI units' },
+  { id: 'example:suspended-platform', title: 'Suspended platform (coupled scene)', detail: 'A platform on four compliant cables under falling boxes · cable solver, SI units' },
   { id: 'open-file', title: 'Open file…', detail: 'A scene (.json) or geometry (.obj, .stl, .glb, .gltf) · you can also drop a file on the page' },
 ] as const;
 

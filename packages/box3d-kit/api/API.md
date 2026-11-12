@@ -4077,6 +4077,18 @@ export declare function weldVertices(mesh: MeshLike, tolerance?: number): Triang
 
 ## `box3d-webgpu-kit/scene`
 
+### buoyAndCratesScene · function
+
+The moored buoy released 0.4 m to the side, with `crates` wooden boxes dropped into the same basin: the buoy
+swings back on its cable while the crates make waves, bob and drift. Water, a cable and floating bodies in one scene.
+
+```ts
+export declare function buoyAndCratesScene(options?: {
+    offset?: number;
+    crates?: number;
+}): Scene;
+```
+
 ### cableStayedDeckScene · function
 
 A small cable-stayed deck: an 8 m steel beam of 8 elements on a pin and a
@@ -4194,6 +4206,22 @@ export declare const EXAMPLE_SCENES: {
 };
 ```
 
+### hopperSeesawScene · function
+
+A hopper over a see-saw: `count` beads fill a conical hopper and run out of its orifice into a tray on one end of a
+plank that turns on a hinge; a counterweight sits on the other end. When enough beads have landed the plank tips.
+The beads are soft spheres by the discrete element method (docs/GRANULAR.md), linear contact law; the hopper is a
+fixed wall that only the beads feel, the plank, the tray walls and the counterweight are rigid bodies.
+
+```ts
+export declare function hopperSeesawScene(options?: {
+    count?: number;
+    radius?: number;
+    orifice?: number;
+    counterweight?: number;
+}): Scene;
+```
+
 ### LoadedScene · interface
 
 ```ts
@@ -4208,6 +4236,8 @@ export interface LoadedScene {
     readonly frames: Map<string, FrameRuntime>;
     readonly structure: StructureCoupling<Body> | null;
     readonly attachments: Map<string, StructureAttachment>;
+    readonly cloths: Map<string, ClothCoupling<Body>>;
+    readonly grains: Map<string, GranularCoupling<Body>>;
 }
 ```
 
@@ -4226,7 +4256,7 @@ the scene needs more than it has.
   the scene's settings with none of the scene's bodies in it, and the error
   names the offending id.
 
-The scene's `water`, `cables` and `frames` sections are built after the
+The scene's `water`, `cables`, `frames`, `cloths` and `grains` sections are built after the
 joints, and the result carries a ready `simulation` that steps the world
 and all of them. A rigid-only scene builds exactly what it always did.
 
@@ -4355,6 +4385,8 @@ export interface Scene {
     readonly water?: readonly SceneWater[];
     readonly cables?: readonly SceneCable[];
     readonly frames?: readonly SceneFrameSection[];
+    readonly cloths?: readonly SceneCloth[];
+    readonly grains?: readonly SceneGrains[];
     readonly meta?: SceneMeta;
     readonly extensions?: {
         readonly [key: string]: unknown;
@@ -4395,6 +4427,13 @@ export declare const SCENE_LIMITS: Readonly<{
     frameNodes: 4096;
     frameElements: 8192;
     frameBodyEquations: 96;
+    cloths: 16;
+    clothNodes: 16384;
+    clothTriangles: 32768;
+    grainSets: 8;
+    grains: 65536;
+    grainWalls: 256;
+    grainSubsteps: 4096;
     problems: 100;
     linkChars: 1048576;
     linkSceneBytes: 4194304;
@@ -4553,6 +4592,96 @@ export interface SceneCableSegment {
 }
 ```
 
+### SceneCloth · interface
+
+A cloth coupled two-way to rigid bodies (docs/CLOTH.md). It steps with the world's step and gravity, backward Euler. Numbers are float64.
+
+```ts
+export interface SceneCloth {
+    readonly id: string;
+    readonly nodes: readonly number[];
+    readonly restNodes?: readonly number[];
+    readonly triangles: readonly number[];
+    readonly velocities?: readonly number[];
+    readonly material: SceneClothMaterial;
+    readonly pinned?: readonly number[];
+    readonly extraMass?: readonly number[];
+    readonly drag?: number;
+    readonly maxNewtonIterations?: number;
+    readonly residualTolerance?: number;
+    readonly forceTolerance?: number;
+    readonly maxCgIterations?: number;
+    readonly cgTolerance?: number;
+    readonly contact?: {
+        readonly offset?: number;
+        readonly stiffness?: number;
+        readonly skin?: number;
+    };
+    readonly selfCollision?: {
+        readonly thickness: number;
+        readonly stiffness?: number;
+        readonly capacity?: number;
+    };
+    readonly bodies?: readonly SceneClothBody[];
+    readonly planes?: readonly SceneClothPlane[];
+    readonly attachments?: readonly SceneClothAttachment[];
+}
+```
+
+### SceneClothAttachment · interface
+
+A cloth node fixed to a point of one of the cloth's `bodies`.
+
+```ts
+export interface SceneClothAttachment {
+    readonly node: number;
+    readonly body: string;
+    readonly localPoint?: SceneVec3;
+}
+```
+
+### SceneClothBody · interface
+
+A box, sphere or capsule body the cloth collides with and, when it is dynamic, pushes.
+
+```ts
+export interface SceneClothBody {
+    readonly body: string;
+    readonly friction?: number;
+    readonly collide?: boolean;
+    readonly twoWay?: boolean;
+    readonly inertia?: SceneInertia;
+}
+```
+
+### SceneClothMaterial · interface
+
+Material of a cloth (docs/CLOTH.md).
+
+```ts
+export interface SceneClothMaterial {
+    readonly arealDensity: number;
+    readonly youngModulus: number;
+    readonly thickness: number;
+    readonly poissonRatio: number;
+    readonly membrane?: 'stvk' | 'spring';
+    readonly bending?: 'koiter' | 'hinge' | 'none';
+    readonly bendingStiffness?: number;
+}
+```
+
+### SceneClothPlane · interface
+
+A fixed half space the cloth cannot enter: everything behind `normal` through `point` (default the origin).
+
+```ts
+export interface SceneClothPlane {
+    readonly normal: SceneVec3;
+    readonly point?: SceneVec3;
+    readonly friction?: number;
+}
+```
+
 ### SceneCompoundChild · interface
 
 One shape of a compound body (scene version 2).
@@ -4599,6 +4728,8 @@ export interface SceneCoupledSections {
     readonly water?: readonly SceneWater[];
     readonly cables?: readonly SceneCable[];
     readonly frames?: readonly SceneFrameSection[];
+    readonly cloths?: readonly SceneCloth[];
+    readonly grains?: readonly SceneGrains[];
 }
 ```
 
@@ -4677,9 +4808,121 @@ export interface SceneFrameSection {
 }
 ```
 
+### SceneGrainBody · interface
+
+A box, sphere or capsule body the grains collide with and, when it is dynamic, push.
+
+```ts
+export interface SceneGrainBody {
+    readonly body: string;
+    readonly friction?: number;
+    readonly rollingFriction?: number;
+    readonly restitution?: number;
+    readonly twoWay?: boolean;
+    readonly inertia?: SceneInertia;
+}
+```
+
+### SceneGrainMaterial · interface
+
+Material of a set of grains (docs/GRANULAR.md).
+
+```ts
+export interface SceneGrainMaterial {
+    readonly density: number;
+    readonly youngModulus?: number;
+    readonly poissonRatio?: number;
+    readonly restitution: number;
+    readonly friction: number;
+    readonly rollingFriction?: number;
+}
+```
+
+### SceneGrains · interface
+
+A set of spherical grains by the discrete element method, coupled two-way to rigid bodies (docs/GRANULAR.md). Numbers are float64.
+
+```ts
+export interface SceneGrains {
+    readonly id: string;
+    readonly material: SceneGrainMaterial;
+    readonly law?: 'hertz' | 'linear';
+    readonly normalStiffness?: number;
+    readonly tangentialStiffnessRatio?: number;
+    readonly tangentialDamping?: number;
+    readonly skin?: number;
+    readonly substeps: number;
+    readonly bounds?: {
+        readonly min: SceneVec3;
+        readonly max: SceneVec3;
+    };
+    readonly positions: readonly number[];
+    readonly radii: readonly number[];
+    readonly velocities?: readonly number[];
+    readonly angularVelocities?: readonly number[];
+    readonly walls?: readonly SceneGrainWall[];
+    readonly bodies?: readonly SceneGrainBody[];
+}
+```
+
+### SceneGrainWall · interface
+
+A fixed wall that only the grains feel. It is not a rigid body: nothing else collides with it.
+
+```ts
+export interface SceneGrainWall {
+    readonly shape: SceneGrainWallShape;
+    readonly position?: SceneVec3;
+    readonly rotation?: SceneQuat;
+    readonly friction?: number;
+    readonly rollingFriction?: number;
+    readonly restitution?: number;
+}
+```
+
+### SceneGrainWallShape · type
+
+The shape of a fixed wall of a grain set: the shapes of `Granular.addWall`.
+
+```ts
+export type SceneGrainWallShape = {
+    readonly kind: 'plane';
+    readonly normal: SceneVec3;
+} | {
+    readonly kind: 'box';
+    readonly halfExtents: SceneVec3;
+} | {
+    readonly kind: 'sphere';
+    readonly radius: number;
+} | {
+    readonly kind: 'capsule';
+    readonly radius: number;
+    readonly halfLength: number;
+} | {
+    readonly kind: 'cylinder';
+    readonly radius: number;
+    readonly from: number;
+    readonly to: number;
+    readonly axis?: SceneVec3;
+} | {
+    readonly kind: 'annulus';
+    readonly innerRadius: number;
+    readonly outerRadius: number;
+    readonly offset?: number;
+    readonly axis?: SceneVec3;
+} | {
+    readonly kind: 'frustum';
+    readonly r0: number;
+    readonly z0: number;
+    readonly r1: number;
+    readonly z1: number;
+    readonly axis?: SceneVec3;
+};
+```
+
 ### sceneHasCoupling · function
 
-True when a scene has a water basin, a cable or a frame: it then needs a Simulation, not just a rigid world.
+True when a scene has a water basin, a cable, a frame, a cloth or a set of grains: it then needs a Simulation, not just a rigid world.
 
 ```ts
 export declare function sceneHasCoupling(scene: SceneCoupledSections): boolean;
@@ -4964,6 +5207,21 @@ export declare function sceneWorldOptions(scene: Scene): {
 };
 ```
 
+### suspendedPlatformScene · function
+
+A platform hung on four cables from fixed anchors, loaded by `boxes` boxes that fall on it one after another.
+The cables are tension-only and compliant (docs/COMPLIANT_CABLE.md), coupled two-way to the platform, and hang from
+the tops of four posts; the boxes are
+ordinary rigid bodies, so the platform swings, tilts and stretches its cables under them.
+
+```ts
+export declare function suspendedPlatformScene(options?: {
+    boxes?: number;
+    axialRigidity?: number;
+    drop?: number;
+}): Scene;
+```
+
 ### terrainCarScene · function
 
 A four-wheel car on wheel joints (suspension spring, travel limits, spin
@@ -4974,6 +5232,22 @@ the terrain is the floor.
 export declare function terrainCarScene(options?: {
     speed?: number;
     bump?: number;
+}): Scene;
+```
+
+### trampolineScene · function
+
+A trampoline: a square cloth of `cells` x `cells` cells and side `side`, held along its four edges at height
+`height` between four posts, with a ball and a box dropped on it. The cloth and the two bodies are solved together
+(docs/CLOTH.md), so the bodies bounce, settle into the sag and are carried by it.
+
+```ts
+export declare function trampolineScene(options?: {
+    cells?: number;
+    side?: number;
+    height?: number;
+    ballRadius?: number;
+    ballDensity?: number;
 }): Scene;
 ```
 
@@ -4991,11 +5265,12 @@ export declare function validateScene(scene: unknown): SceneProblem[];
 
 ### buildSceneSimulation · function
 
-Build the water, cable and frame sections of a scene whose bodies and joints `builder` has already
-built, and return the Simulation that steps them. Build order: frames, then cables (file order),
-one StructureCoupling with the cables' attachments (cable by cable, in file order) and then the
-frames' attachments; then the basins and their bodies. A rigid-only scene gives a Simulation with
-no subsystems, whose step is `world.step()`. On a failure the world is reset and the error names the id.
+Build the coupled sections of a scene whose bodies and joints `builder` has already built, and
+return the Simulation that steps them. Build order: frames, then cables (file order), one
+StructureCoupling with the cables' attachments (cable by cable, in file order) and then the
+frames' attachments; then the cloths, then the grain sets, then the basins and their bodies. A
+rigid-only scene gives a Simulation with no subsystems, whose step is `world.step()`. On a
+failure the world is reset and the error names the id.
 
 ```ts
 export declare function buildSceneSimulation<W extends SimulationSceneWorld>(world: W, builder: SceneBuilder<W>, scene: Scene): LoadedSimulationScene<W>;

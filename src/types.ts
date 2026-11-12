@@ -49,6 +49,12 @@ export type GeneralSceneOptions = {
    * runs its own solvers beside the rigid world steps them here (the SI bridge, src/lab/si-bridge-scene.ts). */
   readonly beforeStep?: () => void;
   readonly afterStep?: () => void;
+  /**
+   * With `step` and `subSteps` set: called once per fixed step INSTEAD of stepping the general world. The callee
+   * must advance that world by exactly one step of `step` seconds itself. A coupled scene passes its Simulation's
+   * step here, which runs its couple stage, the rigid step and its post stage in order (docs/SIMULATION.md).
+   */
+  readonly stepWith?: () => void;
 };
 
 export type InstanceGeometry = {

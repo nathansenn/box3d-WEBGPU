@@ -84,7 +84,9 @@ import {
 import { loadBestPhysicsBackend } from './physics/wasm';
 import { buildMechanismsScene, MECHANISMS_DEFAULT_SEED, MECHANISMS_SCENE_ID, MECHANISMS_SCENE_TITLE, type MechanismsScene } from './engine/mechanisms-scene.ts';
 import { encodeSceneLink, sceneHash, type Scene, type SceneProblem } from './engine/scene-format.ts';
-import { exactTransformHash, loadLabScene, sceneStepsPerLabTick, type LabLoadedScene } from './lab/scene-host.ts';
+import { disposeLabScene, exactTransformHash, loadLabScene, sceneStepsPerLabTick, type LabLoadedScene } from './lab/scene-host.ts';
+import { CoupledSceneView, sceneIsCoupled } from './lab/coupled-scene.ts';
+import { createCoupledPanel, type CoupledPanel } from './lab/coupled-panel.ts';
 import {
   EXAMPLE_SCENE_TITLES, LAB_SCENE_LIMITS, parseSceneRequest, problemLines, quoteForDisplay, readLabFile, resolveSceneRequest,
   sceneCameraFrame, sceneFileName, sceneSummary, type LabFile, type SceneRead,
@@ -392,6 +394,16 @@ let editorLinesVersion = 1;
 // The cable-stayed bridge (lab.html?si=bridge): the model with its drawn bodies, and its panel.
 let siBridge: SiBridgeScene | null = null;
 let siBridgePanel: SiBridgePanel | null = null;
+// A coupled scene (water, cables, frames, cloths, grains) is stepped through its Simulation and drawn through this view.
+let coupledView: CoupledSceneView | null = null;
+let coupledPanel: CoupledPanel | null = null;
+function clearCoupledView(): void {
+  if (!coupledView) return;
+  coupledPanel?.attach(null);
+  coupledView.dispose();
+  disposeLabScene(coupledView.loaded);
+  coupledView = null;
+}
 const SI_DEMO_HOST_LAB_ID = 'titan-hauler-crash';
 let engineRuntime:WorkbenchRuntime;
 const engineTimings=new StageTimings(['step','staging','renderCpu','frame']);
@@ -1376,6 +1388,7 @@ function labSceneSourceText(read: LabSceneRead): string {
 function createRigidScene(scene: ScenePreset, stress: number, sceneSeed: number): number {
   siDemoScene = null;
   labScene = null;
+  clearCoupledView();
   if (siBridge) { siBridgePanel?.attach(null); siBridge.dispose(); siBridge = null; }
   if (siDemo) {
     if (backend.createGeneralScene) {
@@ -1397,10 +1410,16 @@ function createRigidScene(scene: ScenePreset, stress: number, sceneSeed: number)
           const { read, link } = siDemo;
           const world = read.scene.world ?? {};
           let loaded: LabLoadedScene | null = null;
+          // A coupled scene takes each fixed step through its Simulation: couple stage, rigid step, post stage, events.
+          const coupled = sceneIsCoupled(read.scene);
           const count = backend.createGeneralScene((native) => { loaded = loadLabScene(native, read.scene); },
-            { step: world.step, subSteps: world.subSteps, stepsPerTick: sceneStepsPerLabTick(world.step ?? 1 / 60) });
+            { step: world.step, subSteps: world.subSteps, stepsPerTick: sceneStepsPerLabTick(world.step ?? 1 / 60), ...(coupled ? { stepWith: () => coupledView?.step() } : {}) });
           labScene = { read, loaded: loaded!, link };
-          return count;
+          if (coupled) {
+            coupledView = new CoupledSceneView(loaded!, backend);
+            coupledPanel?.attach(coupledView, read.title);
+          }
+          return coupled ? coupledView!.rowCount : count;
         }
         return backend.createGeneralScene((world) => { siDemoScene = buildMechanismsScene(world, sceneSeed); });
       } catch (error) {
@@ -1658,6 +1677,13 @@ function labSceneState(): Record<string, unknown> {
     exactHash: native ? exactTransformHash(native) : null,
     drawnMeshes: renderer?.bodyMeshInfo() ?? null,
     shapes: renderer?.instanceShapeInfo() ?? null,
+    // Coupled scenes: the Simulation's clock, a hash of every solver's state, and what is drawn besides the bodies.
+    coupled: coupledView !== null,
+    simulationTick: labScene ? labScene.loaded.simulation.tick : 0,
+    stateHash: coupledView ? coupledView.stateHash() : native ? exactTransformHash(native).toString(16).padStart(8, '0') : null,
+    coupledDraw: coupledView?.drawInfo() ?? null,
+    energy: coupledView ? labScene!.loaded.simulation.energy().entries.map(entry => ({ id: entry.id, total: entry.total, balance: entry.balance })) : null,
+    events: coupledView ? coupledView.eventTotal() : 0,
   };
 }
 
@@ -2614,9 +2640,9 @@ function loadScene(scene: ScenePreset, stressOverride?: number, keepCinematic = 
   syncScenePanel();
   soft.createScene(scene, stress, seed);
   renderer.invalidateDynamicCaches();
-  renderer.uploadInstances(backend, count);
+  renderer.uploadInstances(coupledView ?? backend, count);
   const softFrame = soft.buildFrame(false);
-  renderer.uploadRopeGrid(softFrame.ropeGrid, count);
+  renderer.uploadRopeGrid(coupledView ? coupledView.ropeGrid : softFrame.ropeGrid, count);
   renderer.uploadSurface(softFrame.surface);
   beginEngineeringRun(stress);
   if (!keepCinematic) stopCinematic(false);
@@ -2647,9 +2673,9 @@ function reloadSceneWithCurrentStress(): void {
   effects.setStageProps(siDemo ? [] : stagePrimitivesForScene(currentScene));
   soft.createScene(currentScene, stress, seed);
   renderer.invalidateDynamicCaches();
-  renderer.uploadInstances(backend, count);
+  renderer.uploadInstances(coupledView ?? backend, count);
   const softFrame = soft.buildFrame(false);
-  renderer.uploadRopeGrid(softFrame.ropeGrid, count);
+  renderer.uploadRopeGrid(coupledView ? coupledView.ropeGrid : softFrame.ropeGrid, count);
   renderer.uploadSurface(softFrame.surface);
   beginEngineeringRun(stress);
   stopCinematic(false);
@@ -4443,6 +4469,7 @@ async function runStateTests(): Promise<void> {
 
   siDemo = null;
   labScene = null;
+  clearCoupledView();
   if (siBridge) { siBridgePanel?.attach(null); siBridge.dispose(); siBridge = null; }
   syncScenePanel();
   backend.createScene(restoreScene, restoreStress, seed);
@@ -4528,6 +4555,7 @@ async function main(): Promise<void> {
   });
   sceneEditor = createSceneEditor(createEditorHost(scenePanel.editorMount));
   const editorRequested = editRequested(window.location.search);
+  coupledPanel = createCoupledPanel();
   siBridgePanel = createSiBridgePanel({
     onRestart: (settings) => loadSiBridge(settings),
     onPause: togglePause,
@@ -4556,6 +4584,10 @@ async function main(): Promise<void> {
       return labSceneState();
     },
     sceneJson: currentLabSceneJson,
+    /** Pause or resume the Lab's clock as the Pause button does; returns whether it is paused. For tests that compare hashes at a tick. */
+    setPaused: (flag: boolean) => { if (paused !== !!flag) togglePause(); return paused; },
+    /** Coupled scenes: the readout the panel shows (clock, step cost, energy ledger, latest events), or null. */
+    coupledReadout: () => coupledView?.readout() ?? null,
     /** The scene editor, for the console and for tests: its state, where a body is on the page, the recorded CSV, the last copied link. */
     editorState: () => sceneEditor?.state() ?? null,
     editorScreenPosition: (id: string) => sceneEditor?.screenPosition(id) ?? null,
@@ -4648,8 +4680,13 @@ async function main(): Promise<void> {
 
     // The scene editor tints the selection in the instance colour stream and draws its frame, the joints and the ruler as lines.
     sceneEditor?.frame(now);
-    const overlayLines = sceneEditor?.active ? editorLines : engineeringInspectionLines;
-    const overlayVersion = sceneEditor?.active ? (editorLinesVersion ^ 0x5ce4e) >>> 0 : engineeringInspectionVersion;
+    // A coupled scene draws its cloths, basins, grains and grain walls as rows after the bodies, its cables and frames as ropes,
+    // and a wire grid on its water surfaces as overlay lines.
+    const coupled = siDemo && labScene ? coupledView : null;
+    coupled?.sync();
+    coupledPanel?.refresh(now);
+    const overlayLines = sceneEditor?.active ? editorLines : coupled ? coupled.overlayLines : engineeringInspectionLines;
+    const overlayVersion = sceneEditor?.active ? (editorLinesVersion ^ 0x5ce4e) >>> 0 : coupled ? (coupled.overlayVersion ^ 0xc0b1ed) >>> 0 : engineeringInspectionVersion;
     const softFrame = soft.buildFrame(debugEnabled);
     // Engineering soft-body workspaces use an isolated specimen cell. The
     // backend's combinatorial rigid recipe still advances for deterministic
@@ -4661,9 +4698,9 @@ async function main(): Promise<void> {
     const bridge = siDemo ? siBridge : null;
     if (bridge?.sync()) backend.syncTransforms();
     if (bridge) siBridgePanel?.refresh(now);
-    const rigidCount = isolateReducedOrderSpecimen ? 0 : bridge ? bridge.drawnRows(backend.bodyCount()) : backend.bodyCount();
-    let uploadedBytes = renderer.uploadInstances(backend, rigidCount);
-    const ropeGrid = bridge ? bridge.ropeGrid : softFrame.ropeGrid;
+    const rigidCount = isolateReducedOrderSpecimen ? 0 : bridge ? bridge.drawnRows(backend.bodyCount()) : coupled ? coupled.rowCount : backend.bodyCount();
+    let uploadedBytes = renderer.uploadInstances(coupled ?? backend, rigidCount);
+    const ropeGrid = bridge ? bridge.ropeGrid : coupled ? coupled.ropeGrid : softFrame.ropeGrid;
     const ropeCount = ropeGrid?.segmentCount ?? 0;
     uploadedBytes += renderer.uploadRopeGrid(ropeGrid, rigidCount);
     const softCpuBase = rigidCount + ropeCount;

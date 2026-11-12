@@ -7,11 +7,18 @@
  * with the same values to the same native world, so a scene loaded here has
  * the same exactHash and replay hash, step for step, as the kit's loadScene
  * (tests/physics/lab-scenes.test.mjs checks this for every example scene).
+ *
+ * The host also takes forces and impulses, which is what the couplings of a
+ * coupled scene (water, cables, frames, cloths, grains) need from a world, so
+ * `loadLabScene` builds every scene with `loadSimulationScene` and returns a
+ * ready Simulation. For a scene of rigid bodies and joints the Simulation has
+ * no subsystems and its step is this host's step.
  */
 import type {
-  NativeBodyDescriptor, NativeBodyHandle, NativeBodyState, NativeJointDescriptor, NativeJointHandle, NativeWorldBackend,
+  NativeBodyDescriptor, NativeBodyHandle, NativeBodyState, NativeJointDescriptor, NativeJointHandle, NativeWorldBackend, NativeWorldEvent,
 } from '../engine/native-world.ts';
-import { loadScene, normalizeScene, sceneWorldOptions, type LoadedScene, type Scene, type SceneHost, type SceneVec3 } from '../engine/scene-format.ts';
+import { normalizeScene, sceneWorldOptions, type Scene, type SceneHost, type SceneVec3 } from '../engine/scene-format.ts';
+import { loadSimulationScene, type LoadedSimulationScene } from '../engine/simulation.ts';
 
 export class LabSceneHost implements SceneHost {
   readonly native: NativeWorldBackend;
@@ -47,8 +54,27 @@ export class LabSceneHost implements SceneHost {
   gravity(): [number, number, number] { return this.native.gravity(); }
   bodyCount(): number { return this.native.bodyCount(); }
 
+  /** Force in newtons acting over the next step, at a world-space point or at the centre of mass. The values the kit's PhysicsWorld passes. */
+  applyForce(body: NativeBodyHandle, force: SceneVec3, point?: SceneVec3): void {
+    this.native.applyToBody(body, 'force', [force[0], force[1], force[2]], point ? [point[0], point[1], point[2]] : undefined);
+  }
+  applyTorque(body: NativeBodyHandle, torque: SceneVec3): void { this.native.applyToBody(body, 'torque', [torque[0], torque[1], torque[2]]); }
+  /** Impulse in N s at the centre of mass, applied to the velocity at once. */
+  applyImpulse(body: NativeBodyHandle, impulse: SceneVec3): void { this.native.applyBodyImpulse(body, impulse[0], impulse[1], impulse[2]); }
+  applyAngularImpulse(body: NativeBodyHandle, impulse: SceneVec3): void { this.native.applyToBody(body, 'angular-impulse', [impulse[0], impulse[1], impulse[2]]); }
+
+  private readonly eventListeners = new Set<(event: NativeWorldEvent) => void>();
+  /** Contact, hit and sensor events of each step, as the kit's PhysicsWorld.onEvent delivers them. Read only while someone listens. */
+  onEvent(listener: (event: NativeWorldEvent) => void): () => void {
+    this.eventListeners.add(listener);
+    return () => { this.eventListeners.delete(listener); };
+  }
+
   /** Advance by exactly one of the scene's fixed steps. */
-  step(): void { this.native.step(this.loop.step, this.subSteps); this.tick++; }
+  step(): void {
+    this.native.step(this.loop.step, this.subSteps); this.tick++;
+    if (this.eventListeners.size > 0 && this.native.supportsGeneralBodies) for (const event of this.native.collectEvents().events) for (const listener of this.eventListeners) listener(event);
+  }
   /** FNV-1a over the exact float32 bits of every transform: the kit's PhysicsWorld.exactHash(). */
   exactHash(): number { return exactTransformHash(this.native); }
   replayHash(): number { return this.native.replayHash(); }
@@ -85,15 +111,24 @@ export function sceneStepsPerLabTick(step: number): number {
   return Math.max(1, Math.round(LAB_TICK_SECONDS / step));
 }
 
-export type LabLoadedScene = LoadedScene<LabSceneHost>;
+export type LabLoadedScene = LoadedSimulationScene<LabSceneHost>;
 
 /**
- * Validate a scene and build it in `native`, which is reset first. An invalid
- * scene throws SceneValidationError before the world is touched. If the engine
- * refuses a body or joint, the world is left reset and empty and the error
- * names the id.
+ * Validate a scene and build it in `native`, which is reset first: bodies and
+ * joints, then the coupled sections, with a Simulation that steps all of it
+ * (`loaded.simulation.step()`; for a rigid-only scene that is the host's step).
+ * An invalid scene throws SceneValidationError before the world is touched. If
+ * the engine refuses a body, a joint or a coupled section, the world is left
+ * reset and empty and the error names the id.
  */
 export function loadLabScene(native: NativeWorldBackend, scene: unknown): LabLoadedScene {
   const normal: Scene = normalizeScene(scene);
-  return loadScene(new LabSceneHost(native, sceneWorldOptions(normal)), normal);
+  return loadSimulationScene(new LabSceneHost(native, sceneWorldOptions(normal)), normal);
+}
+
+/** Release the solvers of a loaded scene (cables and frames hold native memory). The world is the caller's. */
+export function disposeLabScene(loaded: LabLoadedScene): void {
+  for (const cable of loaded.cables.values()) try { cable.destroy(); } catch { /* already released */ }
+  for (const frame of loaded.frames.values()) try { frame.destroy(); } catch { /* already released */ }
+  loaded.simulation.dispose();
 }

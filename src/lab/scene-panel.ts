@@ -7,7 +7,7 @@
  * textContent; nothing here builds markup from input.
  */
 import './scene-panel.css';
-import { EXAMPLE_SCENE_NAMES, EXAMPLE_SCENE_TITLES } from './scene-loading.ts';
+import { COUPLED_EXAMPLE_NAMES, COUPLED_EXAMPLE_TITLES, EXAMPLE_SCENE_NAMES, EXAMPLE_SCENE_TITLES } from './scene-loading.ts';
 
 export interface ScenePanelCallbacks {
   onFiles(files: File[]): void;
@@ -124,10 +124,15 @@ export function createScenePanel(callbacks: ScenePanelCallbacks): ScenePanel {
   const placeholder = element('option', '', 'Example scenes…');
   placeholder.value = '';
   examples.append(placeholder);
-  for (const name of EXAMPLE_SCENE_NAMES) {
-    const option = element('option', '', EXAMPLE_SCENE_TITLES[name] ?? name);
-    option.value = name;
-    examples.append(option);
+  for (const [label, names, titles] of [['Rigid bodies and joints', EXAMPLE_SCENE_NAMES, EXAMPLE_SCENE_TITLES], ['Coupled: water, cables, cloth, grains', COUPLED_EXAMPLE_NAMES, COUPLED_EXAMPLE_TITLES]] as const) {
+    const group = document.createElement('optgroup');
+    group.label = label;
+    for (const name of names) {
+      const option = element('option', '', titles[name] ?? name);
+      option.value = name;
+      group.append(option);
+    }
+    examples.append(group);
   }
   examples.addEventListener('change', () => {
     const name = examples.value;

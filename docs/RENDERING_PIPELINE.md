@@ -201,6 +201,10 @@ Surface caching combines:
 
 An unchanged cloth or water surface, rope grid, rigid/effect/debug stream, and soft-instance frame should report zero additional uploaded bytes. The v1.11 target tests assert this behavior through the actual renderer class.
 
+### Coupled scenes in the Lab
+
+A scene with water, cables, frames, a cloth or grains (`src/lab/coupled-scene.ts`) is drawn without a new pass. `CoupledSceneView` is an `InstanceBufferSource`: a copy of the world's rows followed by its own rows, so the shape plan above covers both. A cloth and a water surface are each one row of kind 4 (own geometry) whose triangle list (`writeTwoSidedMesh`, `writeWaterMesh`) is rebuilt after each simulation step; a new geometry object makes `uploadBodyMeshes` upload it again. Water and grain walls use the translucent material (colour alpha −4), so they are drawn in the transparent part of the main pass. Grains are sphere rows. Cables and frame elements go to the compact rope stream; the water surface's wire grid goes to the overlay line stream. Uploading the meshes every step is the cost: about 24 bytes per vertex, 6 vertices per cloth triangle side (the 81-node trampoline: 128 triangles, 18 kB a step).
+
 ### Scene editor overlay
 
 The Lab's scene editor ([`SCENE_EDITOR.md`](SCENE_EDITOR.md)) adds no pass, pipeline or buffer. A selected body is tinted by writing its row of the rigid instance colour stream in the WASM heap; `WasmPhysicsBackend.markGeneralColorsEdited()` then adds one to the colour version the renderer compares, so the colour stream is uploaded again on that frame and not on the following ones. The shape plan and the body meshes are keyed on the native world's own shape version and are not rebuilt. The selection frame, the joint anchors and axes and the ruler go through the existing line stream in place of the engineering inspection lines, and are restaged when the selection, the document or the simulation tick changes, and on every frame while the simulation plays or a body is dragged. The cost was not measured separately: a selection change uploads 16 bytes per body of the scene once.

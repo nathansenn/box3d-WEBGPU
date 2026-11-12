@@ -16,7 +16,7 @@ import {
 } from '../engine/geometry.ts';
 import type { NativeBodyDescriptor } from '../engine/native-world.ts';
 import {
-  EXAMPLE_SCENES, SCENE_LIMITS, SCENE_LINK_PREFIX, SceneValidationError, decodeSceneLink, normalizeScene, validateScene,
+  COUPLED_EXAMPLE_SCENES, EXAMPLE_SCENES, SCENE_LIMITS, SCENE_LINK_PREFIX, SceneValidationError, decodeSceneLink, normalizeScene, validateScene,
   type Scene, type SceneBody, type SceneJoint, type SceneProblem,
 } from '../engine/scene-format.ts';
 
@@ -43,6 +43,20 @@ export const EXAMPLE_SCENE_TITLES: { readonly [name: string]: string } = Object.
   ragdoll: 'Ragdoll',
 });
 export const EXAMPLE_SCENE_NAMES: readonly string[] = Object.freeze(Object.keys(EXAMPLE_SCENES));
+/** The coupled examples: scenes with water, cables, frames, cloths or grains, which the Lab steps through a Simulation. */
+export const COUPLED_EXAMPLE_TITLES: { readonly [name: string]: string } = Object.freeze({
+  'moored-buoy': 'Moored buoy',
+  'cable-stayed-deck': 'Cable-stayed deck',
+  'buoy-and-crates': 'Buoy and crates',
+  trampoline: 'Trampoline',
+  'hopper-seesaw': 'Hopper and see-saw',
+  'suspended-platform': 'Suspended platform',
+});
+export const COUPLED_EXAMPLE_NAMES: readonly string[] = Object.freeze(Object.keys(COUPLED_EXAMPLE_SCENES));
+/** Every example `?example=<name>` opens: the rigid ones, then the coupled ones. */
+export const LAB_EXAMPLE_SCENES: { readonly [name: string]: () => Scene } = Object.freeze({ ...EXAMPLE_SCENES, ...COUPLED_EXAMPLE_SCENES });
+export const LAB_EXAMPLE_TITLES: { readonly [name: string]: string } = Object.freeze({ ...EXAMPLE_SCENE_TITLES, ...COUPLED_EXAMPLE_TITLES });
+export const LAB_EXAMPLE_NAMES: readonly string[] = Object.freeze(Object.keys(LAB_EXAMPLE_SCENES));
 
 /** Where the scene on screen came from. */
 export type LabSceneSource =
@@ -79,7 +93,7 @@ export function quoteForDisplay(text: string, max = 80): string {
 /**
  * The scene a Lab address asks for, or null when it asks for none.
  *
- *   ?example=<name>        one of EXAMPLE_SCENE_NAMES
+ *   ?example=<name>        one of LAB_EXAMPLE_NAMES
  *   ?scene=b3s1...         a share link from encodeSceneLink
  *   ?scene={...}           the scene JSON itself, URL-encoded, for small scenes
  *
@@ -107,8 +121,8 @@ export function parseSceneRequest(search: string, hash = ''): LabSceneRequest | 
     }
     const example = params.get('example');
     if (example !== null) {
-      if (Object.hasOwn(EXAMPLE_SCENES, example)) return { kind: 'example', name: example };
-      return { kind: 'error', title: 'Unknown example scene', message: `There is no example called "${quoteForDisplay(example, 64)}". The examples are: ${EXAMPLE_SCENE_NAMES.join(', ')}.` };
+      if (Object.hasOwn(LAB_EXAMPLE_SCENES, example)) return { kind: 'example', name: example };
+      return { kind: 'error', title: 'Unknown example scene', message: `There is no example called "${quoteForDisplay(example, 64)}". The examples are: ${LAB_EXAMPLE_NAMES.join(', ')}.` };
     }
   }
   return null;
@@ -133,8 +147,8 @@ export function resolveSceneRequest(request: LabSceneRequest): SceneRead {
   switch (request.kind) {
     case 'error': return fail(request.title, request.message);
     case 'example': {
-      if (!Object.hasOwn(EXAMPLE_SCENES, request.name)) return fail('Unknown example scene', `There is no example called "${quoteForDisplay(request.name, 64)}".`);
-      return validated(EXAMPLE_SCENES[request.name]!(), { kind: 'example', name: request.name }, EXAMPLE_SCENE_TITLES[request.name] ?? request.name, 'The example scene is not valid');
+      if (!Object.hasOwn(LAB_EXAMPLE_SCENES, request.name)) return fail('Unknown example scene', `There is no example called "${quoteForDisplay(request.name, 64)}".`);
+      return validated(LAB_EXAMPLE_SCENES[request.name]!(), { kind: 'example', name: request.name }, LAB_EXAMPLE_TITLES[request.name] ?? request.name, 'The example scene is not valid');
     }
     case 'json': return readSceneText(request.text, { kind: 'json' }, 'Scene from the address');
     case 'link': {
@@ -434,7 +448,18 @@ export function sceneSummary(scene: Scene): string {
   const joints = scene.joints ?? [], types = [...new Set(joints.map(joint => joint.type))];
   const world = scene.world ?? {}, g = world.gravity ?? [0, -9.81, 0];
   return `${scene.bodies.length} ${scene.bodies.length === 1 ? 'body' : 'bodies'} (${kinds.join(', ') || 'none'}) · ${joints.length} ${joints.length === 1 ? 'joint' : 'joints'}` +
-    `${types.length ? ` (${types.join(', ')})` : ''} · gravity ${digits(Math.hypot(g[0], g[1], g[2]))} m/s² · ${world.ground === false ? 'no ground slab' : 'ground slab'}`;
+    `${types.length ? ` (${types.join(', ')})` : ''}${coupledSummary(scene)} · gravity ${digits(Math.hypot(g[0], g[1], g[2]))} m/s² · ${world.ground === false ? 'no ground slab' : 'ground slab'}`;
+}
+
+/** " · 1 basin (256 cells) · 4 cables …" for a coupled scene, or nothing. */
+function coupledSummary(scene: Scene): string {
+  const parts: string[] = [], count = (n: number, one: string, many: string): string => `${n} ${n === 1 ? one : many}`;
+  if (scene.water?.length) parts.push(`${count(scene.water.length, 'basin', 'basins')} (${scene.water.reduce((sum, basin) => sum + basin.cols * basin.rows, 0)} cells)`);
+  if (scene.cables?.length) parts.push(`${count(scene.cables.length, 'cable', 'cables')} (${scene.cables.reduce((sum, cable) => sum + cable.masses.length, 0)} nodes)`);
+  if (scene.frames?.length) parts.push(`${count(scene.frames.length, 'frame', 'frames')} (${scene.frames.reduce((sum, frame) => sum + frame.elements.length, 0)} elements)`);
+  if (scene.cloths?.length) parts.push(`${count(scene.cloths.length, 'cloth', 'cloths')} (${scene.cloths.reduce((sum, cloth) => sum + cloth.nodes.length / 3, 0)} nodes)`);
+  if (scene.grains?.length) parts.push(`${scene.grains.reduce((sum, set) => sum + set.radii.length, 0)} grains`);
+  return parts.length ? ` · ${parts.join(' · ')}` : '';
 }
 
 export interface SceneFrame { readonly target: [number, number, number]; readonly distance: number }
@@ -486,6 +511,22 @@ export function sceneCameraFrame(scene: Scene): SceneFrame {
       }
     }
   }
+  // The coupled sections: a basin and a frame are counted like fixed scenery, cables, cloths and grains like bodies that move.
+  const point = (boxes: readonly Box[], x: number, y: number, z: number): void => {
+    for (const box of boxes) {
+      if (x < box.min[0]!) box.min[0] = x; if (y < box.min[1]!) box.min[1] = y; if (z < box.min[2]!) box.min[2] = z;
+      if (x > box.max[0]!) box.max[0] = x; if (y > box.max[1]!) box.max[1] = y; if (z > box.max[2]!) box.max[2] = z;
+    }
+  };
+  const points = (boxes: readonly Box[], values: readonly number[]): void => { for (let i = 0; i + 2 < values.length; i += 3) point(boxes, values[i]!, values[i + 1]!, values[i + 2]!); };
+  for (const basin of scene.water ?? []) {
+    const [ox, oy, oz] = basin.origin;
+    point([all], ox, oy, oz); point([all], ox + basin.cols * basin.dx, oy + basin.restDepth, oz + basin.rows * basin.dz);
+  }
+  for (const frame of scene.frames ?? []) points([all], frame.nodes);
+  for (const cable of scene.cables ?? []) points([all, moving], cable.nodes);
+  for (const cloth of scene.cloths ?? []) points([all, moving], cloth.nodes);
+  for (const set of scene.grains ?? []) points([all, moving], set.positions);
   const has = (box: Box): boolean => box.max[0]! >= box.min[0]!;
   if (!has(all)) return { target: [0, 1, 0], distance: 8 };
   const sizeOf = (box: Box): number => Math.hypot(box.max[0]! - box.min[0]!, box.max[1]! - box.min[1]!, box.max[2]! - box.min[2]!);

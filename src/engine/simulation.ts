@@ -30,7 +30,9 @@ import {CompliantCableRuntime} from './compliant-cable.ts';
 import {FrameRuntime} from './frame-runtime.ts';
 import type {HeatSolver} from './heat.ts';
 import type {SolidBody} from './solid.ts';
-import {normalizeScene,sceneHasCoupling,SceneBuilder,type Scene,type SceneBody,type SceneCable,type SceneCoupledSections,type SceneFrameSection,type SceneHost,type SceneInertia,type SceneWater} from './scene-format.ts';
+import {Cloth,ClothCoupling,clothSubsystem,type ClothShape} from './cloth.ts';
+import {Granular,GranularCoupling,granularSubsystem,type GranularShape} from './granular.ts';
+import {normalizeScene,sceneHasCoupling,SceneBuilder,type Scene,type SceneBody,type SceneCable,type SceneCloth,type SceneCoupledSections,type SceneFrameSection,type SceneGrains,type SceneHost,type SceneInertia,type SceneWater} from './scene-format.ts';
 import type {NativeBodyHandle,NativeJointHandle} from './native-world.ts';
 
 /** The order of one step. `rigid` and `events` belong to the Simulation; subsystems choose one of the other three. */
@@ -566,6 +568,10 @@ export interface LoadedSimulationScene<W extends SimulationSceneWorld=Simulation
   readonly structure:StructureCoupling<Body>|null;
   /** Live attachment reports, keyed '<cable or frame id>:<index in its attachments>'. */
   readonly attachments:Map<string,StructureAttachment>;
+  /** By cloth id. Each is registered under its id (`clothSubsystem`). */
+  readonly cloths:Map<string,ClothCoupling<Body>>;
+  /** By grain-set id. Each is registered under its id (`granularSubsystem`). */
+  readonly grains:Map<string,GranularCoupling<Body>>;
 }
 
 const named=(kind:string,id:string,error:unknown):EngineError=>
@@ -581,21 +587,29 @@ function shapeInertia(body:SceneBody,explicit:SceneInertia|undefined):StructureI
 }
 
 /**
- * Build the water, cable and frame sections of a scene whose bodies and joints `builder` has already
- * built, and return the Simulation that steps them. Build order: frames, then cables (file order),
- * one StructureCoupling with the cables' attachments (cable by cable, in file order) and then the
- * frames' attachments; then the basins and their bodies. A rigid-only scene gives a Simulation with
- * no subsystems, whose step is `world.step()`. On a failure the world is reset and the error names the id.
+ * Build the coupled sections of a scene whose bodies and joints `builder` has already built, and
+ * return the Simulation that steps them. Build order: frames, then cables (file order), one
+ * StructureCoupling with the cables' attachments (cable by cable, in file order) and then the
+ * frames' attachments; then the cloths, then the grain sets, then the basins and their bodies. A
+ * rigid-only scene gives a Simulation with no subsystems, whose step is `world.step()`. On a
+ * failure the world is reset and the error names the id.
  */
 export function buildSceneSimulation<W extends SimulationSceneWorld>(world:W,builder:SceneBuilder<W>,scene:Scene):LoadedSimulationScene<W> {
   const bodies=builder.bodies(),joints=builder.joints(),step=world.loop.step,g=scene.world?.gravity??[0,-9.81,0];
   const gravity:[number,number,number]=[g[0],g[1],g[2]];
   const descriptions=new Map<string,SceneBody>(scene.bodies.map(body=>[body.id,body]));
   const water=new Map<string,WaterCoupling<Body>>(),cables=new Map<string,CompliantCableRuntime>(),frames=new Map<string,FrameRuntime>(),attachments=new Map<string,StructureAttachment>();
+  const cloths=new Map<string,ClothCoupling<Body>>(),grains=new Map<string,GranularCoupling<Body>>();
   const carried=new Set<Body>();
   let structure:StructureCoupling<Body>|null=null;
   const simulation=new Simulation<W,Body>(world);
-  if(!sceneHasCoupling(scene))return {bodies,joints,builder,scene,simulation,water,cables,frames,structure,attachments};
+  if(!sceneHasCoupling(scene))return {bodies,joints,builder,scene,simulation,water,cables,frames,structure,attachments,cloths,grains};
+  // A dynamic body that a cloth or grains push is counted in the ledger's 'rigid' entry, unless the structure coupling already counts it.
+  const track=(id:string):void=>{
+    const body=bodies.get(id)!,description=descriptions.get(id)!;
+    if(carried.has(body)||world.getState(body).type!=='dynamic')return;
+    simulation.trackBody(body,description.lockRotation?{kind:'locked'}:shapeInertia(description,undefined),{gravityScale:description.gravityScale});
+  };
   const attachOptions=(id:string,att:{inertia?:SceneInertia;localPoint?:readonly [number,number,number]})=>{
     const description=descriptions.get(id)!;
     return {inertia:shapeInertia(description,att.inertia),...(att.localPoint?{localPoint:att.localPoint}:{}),...(description.gravityScale!==undefined?{gravityScale:description.gravityScale}:{})};
@@ -644,6 +658,53 @@ export function buildSceneSimulation<W extends SimulationSceneWorld>(world:W,bui
       }
       simulation.add(structureSubsystem<W,Body>(coupling,{id:'structure',bodies:carried}));
     }
+    for(const c of scene.cloths??[]){
+      try{
+        const cloth=new Cloth({
+          positions:c.nodes as number[],triangles:c.triangles as number[],...(c.restNodes?{restPositions:c.restNodes as number[]}:{}),...(c.velocities?{velocities:c.velocities as number[]}:{}),
+          material:c.material,...(c.pinned?{pinned:c.pinned as number[]}:{}),...(c.extraMass?{extraMass:c.extraMass as number[]}:{}),
+          config:{dt:step,gravity,...(c.drag!==undefined?{drag:c.drag}:{}),...(c.maxNewtonIterations!==undefined?{maxNewtonIterations:c.maxNewtonIterations}:{}),...(c.residualTolerance!==undefined?{residualTolerance:c.residualTolerance}:{}),
+            ...(c.forceTolerance!==undefined?{forceTolerance:c.forceTolerance}:{}),...(c.maxCgIterations!==undefined?{maxCgIterations:c.maxCgIterations}:{}),...(c.cgTolerance!==undefined?{cgTolerance:c.cgTolerance}:{})},
+          ...(c.contact?{contact:c.contact}:{}),...(c.selfCollision?{selfCollision:c.selfCollision}:{}),
+        });
+        const coupling=new ClothCoupling<Body>(world,cloth);
+        for(const entry of c.bodies??[]){
+          const description=descriptions.get(entry.body)!;
+          coupling.addBody(bodies.get(entry.body)!,{shape:description.shape as ClothShape,...(entry.friction!==undefined?{friction:entry.friction}:{}),...(entry.collide!==undefined?{collide:entry.collide}:{}),...(entry.twoWay!==undefined?{twoWay:entry.twoWay}:{}),
+            ...(entry.inertia?{inertia:entry.inertia as StructureInertia}:description.lockRotation?{inertia:{kind:'locked'} as StructureInertia}:{}),...(description.gravityScale!==undefined?{gravityScale:description.gravityScale}:{})});
+        }
+        for(const plane of c.planes??[])coupling.addPlane({normal:[plane.normal[0],plane.normal[1],plane.normal[2]],...(plane.point?{point:[plane.point[0],plane.point[1],plane.point[2]] as const}:{}),...(plane.friction!==undefined?{friction:plane.friction}:{})});
+        for(const att of c.attachments??[])coupling.attach(att.node,bodies.get(att.body)!,att.localPoint);
+        cloths.set(c.id,coupling);
+        simulation.add(clothSubsystem<W,Body>(coupling,{id:c.id}));
+        for(const entry of c.bodies??[])if(entry.twoWay!==false)track(entry.body);
+      }catch(error){throw named('cloth',c.id,error);}
+    }
+    for(const set of scene.grains??[]){
+      try{
+        const count=set.radii.length,m=set.material,linear=set.law==='linear';
+        const dem=new Granular({
+          material:{density:m.density,restitution:m.restitution,friction:m.friction,...(m.youngModulus!==undefined?{youngModulus:m.youngModulus}:{}),...(m.poissonRatio!==undefined?{poissonRatio:m.poissonRatio}:{}),...(m.rollingFriction!==undefined?{rollingFriction:m.rollingFriction}:{})},
+          config:{dt:step/set.substeps,capacity:Math.max(1,count),gravity,law:linear?'linear':'hertz',...(linear?{normalStiffness:set.normalStiffness,...(set.tangentialStiffnessRatio!==undefined?{tangentialStiffnessRatio:set.tangentialStiffnessRatio}:{})}:{}),
+            ...(set.tangentialDamping!==undefined?{tangentialDamping:set.tangentialDamping}:{}),...(set.skin!==undefined?{skin:set.skin}:{}),...(set.bounds?{bounds:set.bounds}:{})},
+        });
+        // Fixed walls first, then the bodies, then the grains: wall indices are then the same whatever the grain count.
+        for(const wall of set.walls??[])dem.addWall({shape:wall.shape as GranularShape,type:'static',...(wall.position?{position:wall.position}:{}),...(wall.rotation?{rotation:wall.rotation}:{}),
+          ...(wall.friction!==undefined?{friction:wall.friction}:{}),...(wall.rollingFriction!==undefined?{rollingFriction:wall.rollingFriction}:{}),...(wall.restitution!==undefined?{restitution:wall.restitution}:{})});
+        const coupling=new GranularCoupling<Body>(world,dem);
+        for(const entry of set.bodies??[]){
+          const description=descriptions.get(entry.body)!;
+          coupling.addBody(bodies.get(entry.body)!,{shape:description.shape as GranularShape,...(entry.friction!==undefined?{friction:entry.friction}:{}),...(entry.rollingFriction!==undefined?{rollingFriction:entry.rollingFriction}:{}),
+            ...(entry.restitution!==undefined?{restitution:entry.restitution}:{}),...(entry.twoWay!==undefined?{twoWay:entry.twoWay}:{}),
+            ...(entry.inertia?{inertia:entry.inertia as StructureInertia}:description.lockRotation?{inertia:{kind:'locked'} as StructureInertia}:{}),...(description.gravityScale!==undefined?{gravityScale:description.gravityScale}:{})});
+        }
+        for(let i=0;i<count;i++)dem.addGrain([set.positions[3*i],set.positions[3*i+1],set.positions[3*i+2]],set.radii[i],
+          set.velocities?[set.velocities[3*i],set.velocities[3*i+1],set.velocities[3*i+2]]:undefined,set.angularVelocities?[set.angularVelocities[3*i],set.angularVelocities[3*i+1],set.angularVelocities[3*i+2]]:undefined);
+        grains.set(set.id,coupling);
+        simulation.add(granularSubsystem<W,Body>(coupling,{id:set.id}));
+        for(const entry of set.bodies??[])if(entry.twoWay!==false)track(entry.body);
+      }catch(error){throw named('grains',set.id,error);}
+    }
     for(const basin of scene.water??[]){
       try{
         const coupling=new WaterCouplingClass<Body>(world,{cols:basin.cols,rows:basin.rows,dx:basin.dx,dz:basin.dz,restDepth:basin.restDepth,origin:[basin.origin[0],basin.origin[1],basin.origin[2]],
@@ -653,7 +714,7 @@ export function buildSceneSimulation<W extends SimulationSceneWorld>(world:W,bui
         for(const entry of basin.bodies??[]){
           const body=bodies.get(entry.body)!,description=descriptions.get(entry.body)!;
           coupling.attach(body,description.shape as CouplingShape,{dragCoefficient:entry.dragCoefficient,referenceArea:entry.referenceArea,linearDrag:entry.linearDrag,angularDrag:entry.angularDrag});
-          if(!carried.has(body))simulation.trackBody(body,shapeInertia(description,undefined),{gravityScale:description.gravityScale});
+          if(!carried.has(body))simulation.trackBody(body,shapeInertia(description,undefined),{gravityScale:description.gravityScale});   // replaces the entry a cloth or grain set made for the same body
         }
         water.set(basin.id,coupling);
         // A body that floats and hangs on a cable or a frame: the interface solve counts the water's force on it.
@@ -673,8 +734,19 @@ export function buildSceneSimulation<W extends SimulationSceneWorld>(world:W,bui
     water:scene.water?.map((basin:SceneWater)=>{const w=water.get(basin.id)!;return {...basin,eta:Array.from(w.eta),u:Array.from(w.u),v:Array.from(w.v)};}),
     cables:scene.cables?.map((c:SceneCable)=>{const views=cables.get(c.id)!.couplingViews();return {...c,nodes:Array.from(views.positions),velocities:Array.from(views.velocities)};}),
     frames:scene.frames?.map((f:SceneFrameSection)=>{const views=frames.get(f.id)!.couplingViews();return {...f,displacements:Array.from(views.displacements),velocities:Array.from(views.velocities)};}),
+    // A cloth keeps its stress-free shape; a grain set keeps the grains that have not left its bounds.
+    cloths:scene.cloths?.map((c:SceneCloth)=>{const cloth=cloths.get(c.id)!.cloth;return {...c,nodes:Array.from(cloth.positions),restNodes:c.restNodes??c.nodes,velocities:Array.from(cloth.velocities)};}),
+    grains:scene.grains?.map((set:SceneGrains)=>{
+      const dem=grains.get(set.id)!.granular,positions:number[]=[],radii:number[]=[],velocities:number[]=[],angular:number[]=[];
+      for(let i=0;i<dem.grainCount;i++){
+        if(!dem.alive[i])continue;
+        radii.push(dem.radii[i]);
+        for(let k=0;k<3;k++){positions.push(dem.positions[3*i+k]);velocities.push(dem.velocities[3*i+k]);angular.push(dem.angularVelocities[3*i+k]);}
+      }
+      return {...set,positions,radii,velocities,angularVelocities:angular};
+    }),
   });
-  return {bodies,joints,builder,scene,simulation,water,cables,frames,structure,attachments};
+  return {bodies,joints,builder,scene,simulation,water,cables,frames,structure,attachments,cloths,grains};
 }
 
 /**

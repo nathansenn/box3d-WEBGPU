@@ -135,8 +135,8 @@ Each adapter calls the module's own `step` and nothing else. No module's numeric
 | rigid → solid | **One-way link** (`deadLoadLink`): a body's weight becomes a dead load on solid nodes. |
 | rigid ↔ solid | Two-way, through `SolidCoupling` and `solidContactSubsystem` ([`SOLID_CONTACT.md`](SOLID_CONTACT.md)): contact with friction against boxes, spheres, capsules and planes, and welds. The adapter lives in the solid-contact module. Node against body only; no solid ↔ solid contact. Solids are not in the scene format. |
 | solid → heat, water ↔ solid, water ↔ cable or frame | Not modelled. |
-| rigid ↔ cloth | Two-way, through `ClothCoupling` and `clothSubsystem` ([`CLOTH.md`](CLOTH.md)): contact with friction, attachments. The adapter lives in the cloth module, not in `simulation.ts`. A cloth and a cable, a frame or water on the same body do not know of each other, as above. Cloth is not in the scene format. |
-| rigid ↔ grains | Two-way, through `GranularCoupling` and `granularSubsystem` ([`GRANULAR.md`](GRANULAR.md)): the grains take a whole number of their own steps inside each rigid step, with the bodies they touch moving alongside, and hand the world the mean force. The adapter lives in the granular module. Grains and a cloth, a cable or water on the same body do not know of each other, as above. Grains are not in the scene format. |
+| rigid ↔ cloth | Two-way, through `ClothCoupling` and `clothSubsystem` ([`CLOTH.md`](CLOTH.md)): contact with friction, attachments. The adapter lives in the cloth module, not in `simulation.ts`. A cloth and a cable, a frame or water on the same body do not know of each other, as above. A scene file can describe a cloth (`cloths`, [`SCENE_FORMAT.md`](SCENE_FORMAT.md#coupled-sections-cloths-and-grains)). |
+| rigid ↔ grains | Two-way, through `GranularCoupling` and `granularSubsystem` ([`GRANULAR.md`](GRANULAR.md)): the grains take a whole number of their own steps inside each rigid step, with the bodies they touch moving alongside, and hand the world the mean force. The adapter lives in the granular module. Grains and a cloth, a cable or water on the same body do not know of each other, as above. A scene file can describe grain sets (`grains`). |
 | the app's cloth, rope and granular scenes, GPU water | Not in the loop yet. |
 
 ### Water and structure together
@@ -205,7 +205,7 @@ The weight `m g` of a rigid body is put on solid nodes as a dead load. With `fac
 
 ## Scenes
 
-The `box3d-scene` format ([`SCENE_FORMAT.md`](SCENE_FORMAT.md#coupled-sections-water-cables-frames)) has three optional top-level sections, `water`, `cables` and `frames`. **The version stays 1**: the sections are optional and additive, a scene without them has the canonical text and hash it always had (the five example hashes are pinned in the test), and a reader that predates them rejects a scene that has them with `unknown key "water"` rather than misreading it.
+The `box3d-scene` format ([`SCENE_FORMAT.md`](SCENE_FORMAT.md#coupled-sections-water-cables-frames)) has five optional top-level sections: `water`, `cables` and `frames`, and since 2026-11-11 `cloths` and `grains` ([`SCENE_FORMAT.md`](SCENE_FORMAT.md#coupled-sections-cloths-and-grains)). **The version stays 1**: the sections are optional and additive, a scene without them has the canonical text and hash it always had (the five example hashes are pinned in the test), and a reader that predates them rejects a scene that has them with `unknown key "water"` rather than misreading it.
 
 `loadScene(world, scene)` of `box3d-webgpu-kit/scene` builds them and returns a ready Simulation next to what it returned before:
 
@@ -215,22 +215,28 @@ The `box3d-scene` format ([`SCENE_FORMAT.md`](SCENE_FORMAT.md#coupled-sections-w
  water,                 // Map<basin id, WaterCoupling>; each is a subsystem under its id
  cables, frames,        // Map<id, CompliantCableRuntime>, Map<id, FrameRuntime>
  structure,             // the one StructureCoupling that holds them (subsystem 'structure'), or null
- attachments}           // Map<'<cable or frame id>:<index>', StructureAttachment>: live force, tension, gap
+ attachments,           // Map<'<cable or frame id>:<index>', StructureAttachment>: live force, tension, gap
+ cloths, grains}        // Map<id, ClothCoupling>, Map<id, GranularCoupling>; each a subsystem under its id
 ```
 
-Build order, which is part of the format because it fixes the bits: bodies and joints as before; every frame, then every cable, in file order; one `StructureCoupling` that is handed all of them, then the cables' attachments (cable by cable, in file order), then the frames' attachments; then each basin and its bodies. Cables and frames take the world's step and the scene's gravity. An invalid scene leaves the world untouched; a section the engine refuses leaves it reset and empty, and the error starts with `Scene cable "<id>":`, `Scene frame "<id>":` or `Scene water "<id>":`.
+Build order, which is part of the format because it fixes the bits: bodies and joints as before; every frame, then every cable, in file order; one `StructureCoupling` that is handed all of them, then the cables' attachments (cable by cable, in file order), then the frames' attachments; then each cloth (its bodies, planes and attachments), then each grain set (walls, bodies, grains); then each basin and its bodies. A dynamic body that a cloth or grains push is tracked in the `rigid` ledger entry unless the structure coupling counts it. Cables and frames take the world's step and the scene's gravity. An invalid scene leaves the world untouched; a section the engine refuses leaves it reset and empty, and the error starts with `Scene cable "<id>":`, `Scene frame "<id>":` or `Scene water "<id>":`.
 
 `saveScene` writes the sections back with the fields the solvers hold: the basin's `eta`, `u` and `v`, each cable's node positions and velocities, each frame's displacements and velocities. Not saved: the structure coupling's own state (last step's interface impulses and the pending half kick, so the saved velocity of a body resting on a frame is off by about `g dt / 2`), the cable solver's multipliers, and one step of displaced volume (the first step after a load takes a wet body as part of the starting state). A resumed run starts from bit-identical fields and then differs slightly; the measured drift is in the table below.
 
-The Physics Lab builds scenes through a host with no solvers for these sections, so the core `loadScene` of `src/engine/scene-format.ts` **refuses** a scene that has them (`INVALID_STATE`, world untouched) instead of building its rigid part and dropping the rest. Heat solvers and solids are not in the scene format.
+The core `loadScene` of `src/engine/scene-format.ts` builds rigid bodies and joints only, so it **refuses** a scene that has any of these sections (`INVALID_STATE`, world untouched) instead of building its rigid part and dropping the rest. The Physics Lab builds every scene with `loadSimulationScene` through its own host (`src/lab/scene-host.ts`, which takes forces and impulses like the kit's PhysicsWorld) and steps a coupled scene through the returned Simulation, one `simulation.step()` per fixed step ([`SCENE_FORMAT.md`](SCENE_FORMAT.md#in-the-physics-lab)). Heat solvers, solids and fracture bodies are not in the scene format.
 
-Two example scenes (`COUPLED_EXAMPLE_SCENES`; they are kept out of `EXAMPLE_SCENES`, which every rigid-only loader can open):
+Six example scenes (`COUPLED_EXAMPLE_SCENES`; they are kept out of `EXAMPLE_SCENES`, which every rigid-only loader can open; the Lab opens all of them with `lab.html?example=<name>`):
 
 | Function | Contents |
 |---|---|
 | `mooredBuoyScene()` | A sphere (R = 0.4 m, 300 kg/m³) floating in an 8 m × 8 m basin 3 m deep, held under its free waterline by one compliant cable (2.75 m, `EA` = 5·10⁴ N) from an anchor on the bed. Options: `offset`, `linearDrag`, `waterDrag`, `lineDensity`, … |
 | `cableStayedDeckScene()` | The span of the structure-coupling validation: an 8 m steel deck of 8 elements on a pin and a roller, two stays from a tower top 3 m above midspan, a 14.1 kg ball pinned to deck node `loadNode`. |
+| `buoyAndCratesScene()` | The moored buoy released 0.4 m off its line and three crates dropped into the basin. |
+| `trampolineScene()` | A ball and a box dropped on a cloth of 81 nodes held along its edges. 1/120 s. |
+| `hopperSeesawScene()` | 150 beads run out of a conical hopper into a tray on a hinged plank and tip it against a counterweight. |
+| `suspendedPlatformScene()` | A platform on four compliant cables, loaded by four falling boxes. |
 
+These four are demonstrations of the coupled loop, not validation cases: they have no closed-form answer. What is checked for them (`tests/physics/lab-coupled-scenes.test.mjs`, in `npm run test:assets`) is that two runs are bit-identical, that a save reopened from its share link starts from the saved fields bit for bit and runs the same twice, and that the parts are drawn.
 ## Validation
 
 `packages/box3d-kit/test/v14-simulation.test.mjs`, run by `npm run test:kit`; 240 Hz and 4 sub-steps unless stated. Tolerances are derived in the test file next to each check. The cases are also in the [validation report](VALIDATION.md) (domain "One stepping loop").
@@ -290,13 +296,13 @@ Two loads of the same scene, one of them from a share link, stay bit-identical f
 - **Contact between rigid bodies and deformable solids** is in a module of its own ([`SOLID_CONTACT.md`](SOLID_CONTACT.md)), node against body, with its limits stated there. Two solids do not collide with each other.
 - **Water and structure on one body:** the water's force is in the structure coupling's interface solve through `linkWaterToStructure`; its hydrostatic stiffness is not, and a floating body on a frame has no closed-form check (above).
 - **Links are one-way** and the thermal link needs co-located box grids. General mesh-to-grid interpolation, thermoelastic feedback and heat from a rigid contact are open.
-- **Heat and solids are not in the scene format.** A coupled scene describes rigid bodies, joints, basins, cables and frames.
+- **Heat, solids and fracture are not in the scene format.** A coupled scene describes rigid bodies, joints, basins, cables, frames, cloths and grain sets. Their adapters have no scene section, and a solid has no contact with rigid bodies to show in the Lab.
 - **A save is not a checkpoint.** The structure coupling has no checkpoint; see the drift table.
 - **The rigid ledger entry covers tracked bodies only**, and assumes the body's position is its centre of mass.
 - A subsystem that throws in the middle of a step leaves the step half done; the world's tick then no longer matches and the next `step()` refuses. Build a new Simulation from a saved scene.
 - The world rejects `applyForce` while recording, so a Simulation with a water or structure coupling cannot run under `startRecording()`.
 - **Forces too small for a float32.** The rigid world works in float32 and refuses a nonzero force or torque component below the smallest float32 (about 1.4·10⁻⁴⁵). Round-off of the interface solve can leave one, so the coupling hands over an exact zero for such a component. (Fixed 2026-11-11; before that a cable attached off a floating body's centre threw on its first step.)
-- The Physics Lab and the Studio do not run coupled scenes.
+- The Physics Lab runs and draws coupled scenes (since 2026-11-11); the Studio does not.
 
 ## Reproduce
 

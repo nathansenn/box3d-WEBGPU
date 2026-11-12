@@ -461,7 +461,7 @@ test('scene format: rigid-only scenes keep their hashes and load as before; load
 });
 
 test('scene format: the coupled sections validate with paths, normalise, hash and survive a share link', async () => {
-  assert.deepEqual(Object.keys(COUPLED_EXAMPLE_SCENES), ['moored-buoy', 'cable-stayed-deck']);
+  assert.deepEqual(Object.keys(COUPLED_EXAMPLE_SCENES), ['moored-buoy', 'cable-stayed-deck', 'buoy-and-crates', 'trampoline', 'hopper-seesaw', 'suspended-platform']);
   for (const [name, make] of Object.entries(COUPLED_EXAMPLE_SCENES)) {
     const scene = make(), normal = normalizeScene(scene);
     assert.deepEqual(validateScene(scene), [], name);
@@ -472,7 +472,7 @@ test('scene format: the coupled sections validate with paths, normalise, hash an
     assert.equal(sceneHash(viaLink), sceneHash(scene), `${name}: lossless through a compressed link`);
     assert.equal(sceneHash(decodeSceneLink(encodeSceneLinkSync(scene))), sceneHash(scene), `${name}: lossless through a stored link`);
     const defaults = copy(scene);
-    for (const cable of defaults.cables ?? []) Object.assign(cable, {solver: 'proximal', substeps: 1, drag: 0, velocities: new Array(cable.nodes.length).fill(0)});
+    for (const cable of defaults.cables ?? []) Object.assign(cable, {solver: 'proximal', substeps: 1, drag: cable.drag ?? 0, velocities: new Array(cable.nodes.length).fill(0)});
     for (const frame of defaults.frames ?? []) Object.assign(frame, {maxIterations: 1024, forceTolerance: 1e-9, pointMasses: new Array(frame.nodes.length / 3).fill(0)});
     for (const basin of defaults.water ?? []) Object.assign(basin, {density: 1000, eta: new Array(basin.cols * basin.rows).fill(0)});
     assert.equal(sceneHash(defaults), sceneHash(scene), `${name}: writing a default out does not change the hash`);

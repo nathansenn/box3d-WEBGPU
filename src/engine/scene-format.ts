@@ -8,8 +8,9 @@
  * docs/SCENE_FORMAT.md. Version 2 adds compound shapes and explicit mass data;
  * a scene that uses neither is a version 1 scene, as it always was.
  *
- * A scene may also carry three optional coupled sections: `water` basins with
- * the bodies that float in them, `cables` and `frames` with their attachments.
+ * A scene may also carry optional coupled sections: `water` basins with the
+ * bodies that float in them, `cables` and `frames` with their attachments,
+ * `cloths` and `grains` with the bodies they touch.
  * This module validates, normalises, hashes and links them; BUILDING them is
  * the job of simulation.ts (`loadSimulationScene`, the kit's `loadScene`),
  * which returns one Simulation that steps everything in the right order.
@@ -87,6 +88,15 @@ export const SCENE_LIMITS = Object.freeze({
   frameElements: 8192,
   /** Equations of all frame <-> body attachments together: 3 per pinned, 6 per clamped. */
   frameBodyEquations: 96,
+  /** Cloths in one scene, and nodes and triangles in one cloth. */
+  cloths: 16,
+  clothNodes: 16384,
+  clothTriangles: 32768,
+  /** Grain sets in one scene, grains and fixed walls in one set, and the most grain steps in one world step. */
+  grainSets: 8,
+  grains: 65536,
+  grainWalls: 256,
+  grainSubsteps: 4096,
   /** Problems `validateScene` lists before it stops. */
   problems: 100,
   /** Characters in a share link. */
@@ -382,11 +392,158 @@ export interface SceneFrameSection {
   readonly attachments?: readonly SceneFrameAttachment[];
 }
 
+/** Material of a cloth (docs/CLOTH.md). */
+export interface SceneClothMaterial {
+  /** kg/m^2. */
+  readonly arealDensity: number;
+  /** Pa. The membrane stiffness is youngModulus * thickness. */
+  readonly youngModulus: number;
+  /** m. */
+  readonly thickness: number;
+  readonly poissonRatio: number;
+  /** Default 'stvk'. */
+  readonly membrane?: 'stvk' | 'spring';
+  /** Default 'koiter'. */
+  readonly bending?: 'koiter' | 'hinge' | 'none';
+  /** N m. Default: that of a plate of this modulus and thickness. */
+  readonly bendingStiffness?: number;
+}
+/** A box, sphere or capsule body the cloth collides with and, when it is dynamic, pushes. */
+export interface SceneClothBody {
+  readonly body: string;
+  /** Coulomb coefficient between the body and the cloth. Default 0. */
+  readonly friction?: number;
+  /** Default true. False: the body is only a carrier for attachments. */
+  readonly collide?: boolean;
+  /** Default true. False: the cloth feels the body but does not push it. */
+  readonly twoWay?: boolean;
+  readonly inertia?: SceneInertia;
+}
+/** A cloth node fixed to a point of one of the cloth's `bodies`. */
+export interface SceneClothAttachment {
+  readonly node: number;
+  readonly body: string;
+  /** In body axes. Default: where the node is when the scene is built. */
+  readonly localPoint?: SceneVec3;
+}
+/** A fixed half space the cloth cannot enter: everything behind `normal` through `point` (default the origin). */
+export interface SceneClothPlane {
+  readonly normal: SceneVec3;
+  readonly point?: SceneVec3;
+  readonly friction?: number;
+}
+/** A cloth coupled two-way to rigid bodies (docs/CLOTH.md). It steps with the world's step and gravity, backward Euler. Numbers are float64. */
+export interface SceneCloth {
+  readonly id: string;
+  /** x, y, z per node, metres. A save writes the current ones. */
+  readonly nodes: readonly number[];
+  /** The stress-free shape, x, y, z per node. Default: `nodes`. A save of a deformed cloth writes it. */
+  readonly restNodes?: readonly number[];
+  /** Three node indices per triangle, consistently oriented. */
+  readonly triangles: readonly number[];
+  readonly velocities?: readonly number[];
+  readonly material: SceneClothMaterial;
+  /** Indices of nodes held where they are, ascending. */
+  readonly pinned?: readonly number[];
+  /** kg per node, added to the cloth's own mass. */
+  readonly extraMass?: readonly number[];
+  /** Mass-proportional damping, 1/s. Default 0. */
+  readonly drag?: number;
+  /** Defaults 60, 1e-6, 0, 600, 1e-2 (the solver's). */
+  readonly maxNewtonIterations?: number;
+  readonly residualTolerance?: number;
+  readonly forceTolerance?: number;
+  readonly maxCgIterations?: number;
+  readonly cgTolerance?: number;
+  /** Contact with bodies and planes: distance kept from a surface (m), penalty stiffness (N/m per node), search margin (m). Defaults are the solver's. */
+  readonly contact?: {readonly offset?: number; readonly stiffness?: number; readonly skin?: number};
+  /** Self-collision; off when absent. */
+  readonly selfCollision?: {readonly thickness: number; readonly stiffness?: number; readonly capacity?: number};
+  readonly bodies?: readonly SceneClothBody[];
+  readonly planes?: readonly SceneClothPlane[];
+  readonly attachments?: readonly SceneClothAttachment[];
+}
+
+/** Material of a set of grains (docs/GRANULAR.md). */
+export interface SceneGrainMaterial {
+  /** kg/m^3. */
+  readonly density: number;
+  /** Pa and Poisson ratio: required by the 'hertz' law. */
+  readonly youngModulus?: number;
+  readonly poissonRatio?: number;
+  /** Normal restitution, 0.05 to 1. */
+  readonly restitution: number;
+  readonly friction: number;
+  /** Default 0. */
+  readonly rollingFriction?: number;
+}
+/** The shape of a fixed wall of a grain set: the shapes of `Granular.addWall`. */
+export type SceneGrainWallShape =
+  | {readonly kind: 'plane'; readonly normal: SceneVec3}
+  | {readonly kind: 'box'; readonly halfExtents: SceneVec3}
+  | {readonly kind: 'sphere'; readonly radius: number}
+  | {readonly kind: 'capsule'; readonly radius: number; readonly halfLength: number}
+  | {readonly kind: 'cylinder'; readonly radius: number; readonly from: number; readonly to: number; readonly axis?: SceneVec3}
+  | {readonly kind: 'annulus'; readonly innerRadius: number; readonly outerRadius: number; readonly offset?: number; readonly axis?: SceneVec3}
+  | {readonly kind: 'frustum'; readonly r0: number; readonly z0: number; readonly r1: number; readonly z1: number; readonly axis?: SceneVec3};
+/** A fixed wall that only the grains feel. It is not a rigid body: nothing else collides with it. */
+export interface SceneGrainWall {
+  readonly shape: SceneGrainWallShape;
+  /** Default the origin. */
+  readonly position?: SceneVec3;
+  /** Default identity. */
+  readonly rotation?: SceneQuat;
+  /** Defaults: the grain material's. */
+  readonly friction?: number;
+  readonly rollingFriction?: number;
+  readonly restitution?: number;
+}
+/** A box, sphere or capsule body the grains collide with and, when it is dynamic, push. */
+export interface SceneGrainBody {
+  readonly body: string;
+  readonly friction?: number;
+  readonly rollingFriction?: number;
+  readonly restitution?: number;
+  /** Default true. False: the grains feel the body but do not push it. */
+  readonly twoWay?: boolean;
+  readonly inertia?: SceneInertia;
+}
+/** A set of spherical grains by the discrete element method, coupled two-way to rigid bodies (docs/GRANULAR.md). Numbers are float64. */
+export interface SceneGrains {
+  readonly id: string;
+  readonly material: SceneGrainMaterial;
+  /** Default 'hertz'. */
+  readonly law?: 'hertz' | 'linear';
+  /** N/m; required by the 'linear' law and not allowed with 'hertz'. */
+  readonly normalStiffness?: number;
+  /** Linear law: tangential over normal stiffness. Default 2/7. */
+  readonly tangentialStiffnessRatio?: number;
+  /** Default 1. */
+  readonly tangentialDamping?: number;
+  /** Neighbour-list margin, m. Default: the solver's. */
+  readonly skin?: number;
+  /** Grain steps in one world step: the grains step at world.step / substeps. */
+  readonly substeps: number;
+  /** Grains that leave this box are removed. */
+  readonly bounds?: {readonly min: SceneVec3; readonly max: SceneVec3};
+  /** x, y, z per grain, metres. A save writes the grains that are still there. */
+  readonly positions: readonly number[];
+  /** m per grain. */
+  readonly radii: readonly number[];
+  readonly velocities?: readonly number[];
+  /** rad/s, x, y, z per grain. */
+  readonly angularVelocities?: readonly number[];
+  readonly walls?: readonly SceneGrainWall[];
+  readonly bodies?: readonly SceneGrainBody[];
+}
+
 /** The optional coupled sections of a scene. */
 export interface SceneCoupledSections {
   readonly water?: readonly SceneWater[];
   readonly cables?: readonly SceneCable[];
   readonly frames?: readonly SceneFrameSection[];
+  readonly cloths?: readonly SceneCloth[];
+  readonly grains?: readonly SceneGrains[];
 }
 
 export interface Scene {
@@ -405,6 +562,10 @@ export interface Scene {
   readonly cables?: readonly SceneCable[];
   /** Frames and their attachments to bodies. */
   readonly frames?: readonly SceneFrameSection[];
+  /** Cloths and the bodies they touch or are attached to. */
+  readonly cloths?: readonly SceneCloth[];
+  /** Sets of grains, their fixed walls and the bodies they touch. */
+  readonly grains?: readonly SceneGrains[];
   readonly meta?: SceneMeta;
   /** Preserved and ignored by this module. */
   readonly extensions?: {readonly [key: string]: unknown};
@@ -1055,6 +1216,225 @@ function checkFrameSection(c: Checker, frame: unknown, path: string, ctx: Couple
   }
 }
 
+const CLOTH_KEYS = ['id', 'nodes', 'restNodes', 'triangles', 'velocities', 'material', 'pinned', 'extraMass', 'drag', 'maxNewtonIterations', 'residualTolerance', 'forceTolerance',
+  'maxCgIterations', 'cgTolerance', 'contact', 'selfCollision', 'bodies', 'planes', 'attachments'];
+const CLOTH_MATERIAL_KEYS = ['arealDensity', 'youngModulus', 'thickness', 'poissonRatio', 'membrane', 'bending', 'bendingStiffness'];
+const GRAIN_KEYS = ['id', 'material', 'law', 'normalStiffness', 'tangentialStiffnessRatio', 'tangentialDamping', 'skin', 'substeps', 'bounds', 'positions', 'radii', 'velocities',
+  'angularVelocities', 'walls', 'bodies'];
+const GRAIN_MATERIAL_KEYS = ['density', 'youngModulus', 'poissonRatio', 'restitution', 'friction', 'rollingFriction'];
+const GRAIN_WALL_SHAPES: Record<string, readonly [readonly string[], readonly string[]]> = {
+  plane: [['kind', 'normal'], ['kind', 'normal']], box: [['kind', 'halfExtents'], ['kind', 'halfExtents']], sphere: [['kind', 'radius'], ['kind', 'radius']],
+  capsule: [['kind', 'radius', 'halfLength'], ['kind', 'radius', 'halfLength']], cylinder: [['kind', 'radius', 'from', 'to', 'axis'], ['kind', 'radius', 'from', 'to']],
+  annulus: [['kind', 'innerRadius', 'outerRadius', 'offset', 'axis'], ['kind', 'innerRadius', 'outerRadius']], frustum: [['kind', 'r0', 'z0', 'r1', 'z1', 'axis'], ['kind', 'r0', 'z0', 'r1', 'z1']],
+};
+
+/** The `body` of a cloth or grain collider: a box, sphere or capsule body whose position is its centre of mass. Returns the id when it is usable. */
+function checkColliderBody(c: Checker, entry: Obj, path: string, ctx: CoupledContext, what: string): string | null {
+  const ref = entry.body;
+  if (typeof ref !== 'string') { c.add(`${path}/body`, `must be a body id, got ${typeName(ref)}`); return null; }
+  if (ctx.shapes) {
+    if (!ctx.shapes.has(ref)) { c.add(`${path}/body`, `unknown body id ${show(ref)}`); return null; }
+    const kind = ctx.shapes.get(ref);
+    if (kind !== null && !WET_SHAPES.includes(kind!)) c.add(`${path}/body`, `a ${kind} body cannot touch ${what}: it couples boxes, spheres and capsules only`);
+    else if (ctx.stated.get(ref) === true) c.add(`${path}/body`, `a body whose massData has a centre off its origin cannot touch ${what}: the coupling takes a body's position as its centre of mass`);
+  }
+  if (entry.inertia !== undefined) checkInertia(c, entry.inertia, `${path}/inertia`);
+  return ref;
+}
+
+const unitLike = (c: Checker, value: unknown, path: string): void => {
+  if (c.realTuple(value, path, 3) && !(Math.hypot(value[0], value[1], value[2]) > 1e-9)) c.add(path, 'must not be the zero vector');
+};
+
+function checkCloth(c: Checker, cloth: unknown, path: string, ctx: CoupledContext): void {
+  if (!c.object(cloth, path, CLOTH_KEYS, ['id', 'nodes', 'triangles', 'material'])) return;
+  let count = -1;
+  if (cloth.nodes !== undefined) {
+    if (!Array.isArray(cloth.nodes)) c.add(`${path}/nodes`, `must be an array of numbers, got ${typeName(cloth.nodes)}`);
+    else if (cloth.nodes.length % 3 !== 0 || cloth.nodes.length < 9 || cloth.nodes.length > 3 * SCENE_LIMITS.clothNodes) c.add(`${path}/nodes`, `must hold x, y, z for 3 to ${SCENE_LIMITS.clothNodes} nodes, got ${cloth.nodes.length} numbers`);
+    else if (c.reals(cloth.nodes, `${path}/nodes`, cloth.nodes.length, -1e9, 1e9)) count = cloth.nodes.length / 3;
+  }
+  if (count > 0) {
+    if (cloth.restNodes !== undefined) c.reals(cloth.restNodes, `${path}/restNodes`, 3 * count, -1e9, 1e9);
+    if (cloth.velocities !== undefined) c.reals(cloth.velocities, `${path}/velocities`, 3 * count, -1e9, 1e9);
+    if (cloth.extraMass !== undefined) c.reals(cloth.extraMass, `${path}/extraMass`, count, 0, 1e9);
+  }
+  if (cloth.triangles !== undefined) {
+    const t: unknown = cloth.triangles;
+    if (!Array.isArray(t)) c.add(`${path}/triangles`, `must be an array of node indices, got ${typeName(t)}`);
+    else if (t.length % 3 !== 0 || t.length < 3 || t.length > 3 * SCENE_LIMITS.clothTriangles) c.add(`${path}/triangles`, `must hold three node indices for 1 to ${SCENE_LIMITS.clothTriangles} triangles, got ${t.length} numbers`);
+    else {
+      c.geometryValues += t.length;
+      for (let i = 0; i < t.length; i++) {
+        const v: unknown = t[i];
+        if (typeof v !== 'number' || !Number.isInteger(v) || v < 0 || (count > 0 && v >= count)) { c.add(`${path}/triangles/${i}`, `must be a node index${count > 0 ? ` below ${count}` : ''}, got ${show(v)}`); break; }
+        if (i % 3 === 2 && (t[i] === t[i - 1] || t[i] === t[i - 2] || t[i - 1] === t[i - 2])) { c.add(`${path}/triangles/${i - 2}`, 'a triangle needs three different nodes'); break; }
+      }
+    }
+  }
+  const m: unknown = cloth.material;
+  if (m !== undefined && c.object(m, `${path}/material`, CLOTH_MATERIAL_KEYS, ['arealDensity', 'youngModulus', 'thickness', 'poissonRatio'])) {
+    if (m.arealDensity !== undefined) c.real(m.arealDensity, `${path}/material/arealDensity`, 1e-9, 1e6);
+    if (m.youngModulus !== undefined) c.real(m.youngModulus, `${path}/material/youngModulus`, 0, 1e13);
+    if (m.thickness !== undefined) c.real(m.thickness, `${path}/material/thickness`, 1e-7, 10);
+    if (m.poissonRatio !== undefined) c.real(m.poissonRatio, `${path}/material/poissonRatio`, -0.99, 0.499);
+    if (m.membrane !== undefined && m.membrane !== 'stvk' && m.membrane !== 'spring') c.add(`${path}/material/membrane`, `must be 'stvk' or 'spring', got ${show(m.membrane)}`);
+    if (m.bending !== undefined && m.bending !== 'koiter' && m.bending !== 'hinge' && m.bending !== 'none') c.add(`${path}/material/bending`, `must be 'koiter', 'hinge' or 'none', got ${show(m.bending)}`);
+    if (m.bendingStiffness !== undefined) c.real(m.bendingStiffness, `${path}/material/bendingStiffness`, 0, 1e12);
+  }
+  const held = new Set<number>();
+  if (cloth.pinned !== undefined) {
+    const list: unknown = cloth.pinned;
+    if (!Array.isArray(list)) c.add(`${path}/pinned`, `must be an array of node indices, got ${typeName(list)}`);
+    else if (list.length > SCENE_LIMITS.clothNodes) c.add(`${path}/pinned`, `holds ${list.length} entries; the limit is ${SCENE_LIMITS.clothNodes}`);
+    else for (let i = 0; i < list.length; i++) {
+      const v: unknown = list[i];
+      if (typeof v !== 'number' || !Number.isInteger(v) || v < 0 || (count > 0 && v >= count)) { c.add(`${path}/pinned/${i}`, `must be a node index${count > 0 ? ` below ${count}` : ''}, got ${show(v)}`); break; }
+      if (i > 0 && v <= (list[i - 1] as number)) { c.add(`${path}/pinned/${i}`, 'node indices must be ascending, each listed once'); break; }
+      held.add(v);
+    }
+  }
+  if (cloth.drag !== undefined) c.real(cloth.drag, `${path}/drag`, 0, 1e6);
+  if (cloth.maxNewtonIterations !== undefined) c.real(cloth.maxNewtonIterations, `${path}/maxNewtonIterations`, 1, 10000, true);
+  if (cloth.maxCgIterations !== undefined) c.real(cloth.maxCgIterations, `${path}/maxCgIterations`, 1, 1e6, true);
+  if (cloth.residualTolerance !== undefined) c.real(cloth.residualTolerance, `${path}/residualTolerance`, 0, 1);
+  if (cloth.forceTolerance !== undefined) c.real(cloth.forceTolerance, `${path}/forceTolerance`, 0, 1e9);
+  if (cloth.cgTolerance !== undefined) c.real(cloth.cgTolerance, `${path}/cgTolerance`, 1e-14, 0.5);
+  if (cloth.contact !== undefined && c.object(cloth.contact, `${path}/contact`, ['offset', 'stiffness', 'skin'])) {
+    for (const key of ['offset', 'stiffness', 'skin']) if (cloth.contact[key] !== undefined) c.real(cloth.contact[key], `${path}/contact/${key}`, 0, 1e12);
+  }
+  if (cloth.selfCollision !== undefined && c.object(cloth.selfCollision, `${path}/selfCollision`, ['thickness', 'stiffness', 'capacity'], ['thickness'])) {
+    if (cloth.selfCollision.thickness !== undefined) c.positive(cloth.selfCollision.thickness, `${path}/selfCollision/thickness`, 10);
+    if (cloth.selfCollision.stiffness !== undefined) c.real(cloth.selfCollision.stiffness, `${path}/selfCollision/stiffness`, 0, 1e12);
+    if (cloth.selfCollision.capacity !== undefined) c.real(cloth.selfCollision.capacity, `${path}/selfCollision/capacity`, 1, 1e7, true);
+  }
+  const touched = new Set<string>();
+  if (cloth.bodies !== undefined) {
+    if (!Array.isArray(cloth.bodies)) c.add(`${path}/bodies`, `must be an array, got ${typeName(cloth.bodies)}`);
+    else for (let i = 0; i < cloth.bodies.length && !c.stopped; i++) {
+      const entry: unknown = cloth.bodies[i], at = `${path}/bodies/${i}`;
+      if (!c.object(entry, at, ['body', 'friction', 'collide', 'twoWay', 'inertia'], ['body'])) continue;
+      if (entry.body !== undefined) {
+        const ref = checkColliderBody(c, entry, at, ctx, 'a cloth');
+        if (ref !== null) { if (touched.has(ref)) c.add(`${at}/body`, `body ${show(ref)} is listed twice`); touched.add(ref); }
+      }
+      if (entry.friction !== undefined) c.real(entry.friction, `${at}/friction`, 0, 100);
+      for (const key of ['collide', 'twoWay']) if (entry[key] !== undefined) c.boolean(entry[key], `${at}/${key}`);
+    }
+  }
+  if (cloth.planes !== undefined) {
+    if (!Array.isArray(cloth.planes)) c.add(`${path}/planes`, `must be an array, got ${typeName(cloth.planes)}`);
+    else if (cloth.planes.length > 64) c.add(`${path}/planes`, `holds ${cloth.planes.length} planes; the limit is 64`);
+    else for (let i = 0; i < cloth.planes.length && !c.stopped; i++) {
+      const plane: unknown = cloth.planes[i], at = `${path}/planes/${i}`;
+      if (!c.object(plane, at, ['normal', 'point', 'friction'], ['normal'])) continue;
+      if (plane.normal !== undefined) unitLike(c, plane.normal, `${at}/normal`);
+      if (plane.point !== undefined) c.realTuple(plane.point, `${at}/point`, 3);
+      if (plane.friction !== undefined) c.real(plane.friction, `${at}/friction`, 0, 100);
+    }
+  }
+  if (cloth.attachments !== undefined) {
+    if (!Array.isArray(cloth.attachments)) c.add(`${path}/attachments`, `must be an array, got ${typeName(cloth.attachments)}`);
+    else {
+      const used = new Set<number>();
+      for (let i = 0; i < cloth.attachments.length && !c.stopped; i++) {
+        const att: unknown = cloth.attachments[i], at = `${path}/attachments/${i}`;
+        if (!c.object(att, at, ['node', 'body', 'localPoint'], ['node', 'body'])) continue;
+        if (att.node !== undefined && c.real(att.node, `${at}/node`, 0, count > 0 ? count - 1 : Infinity, true)) {
+          if (used.has(att.node)) c.add(`${at}/node`, `node ${att.node} is already attached`);
+          else if (held.has(att.node)) c.add(`${at}/node`, `node ${att.node} is pinned: attach a free node`);
+          used.add(att.node);
+        }
+        if (att.body !== undefined) {
+          if (typeof att.body !== 'string') c.add(`${at}/body`, `must be a body id, got ${typeName(att.body)}`);
+          else if (!touched.has(att.body)) c.add(`${at}/body`, `body ${show(att.body)} is not in this cloth's bodies: list it there first`);
+        }
+        if (att.localPoint !== undefined) c.realTuple(att.localPoint, `${at}/localPoint`, 3);
+      }
+    }
+  }
+}
+
+function checkGrains(c: Checker, set: unknown, path: string, ctx: CoupledContext): void {
+  if (!c.object(set, path, GRAIN_KEYS, ['id', 'material', 'substeps', 'positions', 'radii'])) return;
+  const hertz = set.law === undefined || set.law === 'hertz';
+  if (set.law !== undefined && set.law !== 'hertz' && set.law !== 'linear') c.add(`${path}/law`, `must be 'hertz' or 'linear', got ${show(set.law)}`);
+  const m: unknown = set.material;
+  if (m !== undefined && c.object(m, `${path}/material`, GRAIN_MATERIAL_KEYS, hertz ? ['density', 'youngModulus', 'poissonRatio', 'restitution', 'friction'] : ['density', 'restitution', 'friction'])) {
+    if (m.density !== undefined) c.real(m.density, `${path}/material/density`, 1e-6, 1e9);
+    if (m.youngModulus !== undefined) c.real(m.youngModulus, `${path}/material/youngModulus`, 1e-6, 1e15);
+    if (m.poissonRatio !== undefined) c.real(m.poissonRatio, `${path}/material/poissonRatio`, -0.99, 0.4999);
+    if (m.restitution !== undefined) c.real(m.restitution, `${path}/material/restitution`, 0.05, 1);
+    if (m.friction !== undefined) c.real(m.friction, `${path}/material/friction`, 0, 1e6);
+    if (m.rollingFriction !== undefined) c.real(m.rollingFriction, `${path}/material/rollingFriction`, 0, 1e6);
+  }
+  if (hertz) { if (set.normalStiffness !== undefined) c.add(`${path}/normalStiffness`, "belongs to the 'linear' law"); }
+  else if (set.normalStiffness === undefined) c.add(`${path}/normalStiffness`, "is required by the 'linear' law");
+  else c.real(set.normalStiffness, `${path}/normalStiffness`, 1e-12, 1e30);
+  if (set.tangentialStiffnessRatio !== undefined) c.real(set.tangentialStiffnessRatio, `${path}/tangentialStiffnessRatio`, 1e-6, 1e3);
+  if (set.tangentialDamping !== undefined) c.real(set.tangentialDamping, `${path}/tangentialDamping`, 0, 1e3);
+  if (set.skin !== undefined) c.real(set.skin, `${path}/skin`, 1e-12, 1e6);
+  if (set.substeps !== undefined) c.real(set.substeps, `${path}/substeps`, 1, SCENE_LIMITS.grainSubsteps, true);
+  if (set.bounds !== undefined && c.object(set.bounds, `${path}/bounds`, ['min', 'max'], ['min', 'max'])) {
+    const lo = set.bounds.min, hi = set.bounds.max;
+    if (lo !== undefined && hi !== undefined && c.realTuple(lo, `${path}/bounds/min`, 3) && c.realTuple(hi, `${path}/bounds/max`, 3) && !(hi[0] > lo[0] && hi[1] > lo[1] && hi[2] > lo[2])) c.add(`${path}/bounds/max`, 'must exceed bounds.min on every axis');
+  }
+  let count = -1;
+  if (set.radii !== undefined) {
+    if (!Array.isArray(set.radii)) c.add(`${path}/radii`, `must be an array of numbers, got ${typeName(set.radii)}`);
+    else if (set.radii.length > SCENE_LIMITS.grains) c.add(`${path}/radii`, `holds ${set.radii.length} grains; the limit is ${SCENE_LIMITS.grains}`);
+    else if (c.reals(set.radii, `${path}/radii`, set.radii.length, 1e-9, 1e6)) count = set.radii.length;
+  }
+  if (count >= 0) for (const key of ['positions', 'velocities', 'angularVelocities']) if (set[key] !== undefined) c.reals(set[key], `${path}/${key}`, 3 * count, -1e9, 1e9);
+  if (set.walls !== undefined) {
+    if (!Array.isArray(set.walls)) c.add(`${path}/walls`, `must be an array, got ${typeName(set.walls)}`);
+    else if (set.walls.length > SCENE_LIMITS.grainWalls) c.add(`${path}/walls`, `holds ${set.walls.length} walls; the limit is ${SCENE_LIMITS.grainWalls}`);
+    else for (let i = 0; i < set.walls.length && !c.stopped; i++) {
+      const wall: unknown = set.walls[i], at = `${path}/walls/${i}`;
+      if (!c.object(wall, at, ['shape', 'position', 'rotation', 'friction', 'rollingFriction', 'restitution'], ['shape'])) continue;
+      const shape: unknown = wall.shape;
+      if (shape !== undefined) {
+        if (!isObject(shape)) c.add(`${at}/shape`, `must be an object, got ${typeName(shape)}`);
+        else if (typeof shape.kind !== 'string' || !Object.hasOwn(GRAIN_WALL_SHAPES, shape.kind)) c.add(`${at}/shape/kind`, `must be 'plane', 'box', 'sphere', 'capsule', 'cylinder', 'annulus' or 'frustum', got ${show(shape.kind)}`);
+        else if (c.object(shape, `${at}/shape`, GRAIN_WALL_SHAPES[shape.kind][0], GRAIN_WALL_SHAPES[shape.kind][1])) {
+          const sp = `${at}/shape`;
+          if (shape.normal !== undefined) unitLike(c, shape.normal, `${sp}/normal`);
+          if (shape.axis !== undefined) unitLike(c, shape.axis, `${sp}/axis`);
+          if (shape.halfExtents !== undefined && c.realTuple(shape.halfExtents, `${sp}/halfExtents`, 3)) for (let k = 0; k < 3; k++) if (!(shape.halfExtents[k] >= 1e-9)) c.add(`${sp}/halfExtents/${k}`, `must be > 0, got ${shape.halfExtents[k]}`);
+          if (shape.radius !== undefined) c.real(shape.radius, `${sp}/radius`, 1e-9, 1e9);
+          if (shape.halfLength !== undefined) c.real(shape.halfLength, `${sp}/halfLength`, 0, 1e9);
+          for (const key of ['innerRadius', 'outerRadius', 'r0', 'r1']) if (shape[key] !== undefined) c.real(shape[key], `${sp}/${key}`, 0, 1e9);
+          for (const key of ['from', 'to', 'offset', 'z0', 'z1']) if (shape[key] !== undefined) c.real(shape[key], `${sp}/${key}`, -1e9, 1e9);
+          if (shape.kind === 'cylinder' && shape.from === shape.to) c.add(`${sp}/to`, 'must differ from `from`');
+          if (shape.kind === 'annulus' && shape.innerRadius === shape.outerRadius) c.add(`${sp}/outerRadius`, 'must differ from innerRadius');
+          if (shape.kind === 'frustum' && shape.r0 === shape.r1 && shape.z0 === shape.z1) c.add(`${sp}/z1`, 'the generating line needs two different ends');
+        }
+      }
+      if (wall.position !== undefined) c.realTuple(wall.position, `${at}/position`, 3);
+      if (wall.rotation !== undefined && c.realTuple(wall.rotation, `${at}/rotation`, 4) && Math.abs(Math.hypot(wall.rotation[0], wall.rotation[1], wall.rotation[2], wall.rotation[3]) - 1) > 1e-3) c.add(`${at}/rotation`, 'must be a unit quaternion [x, y, z, w]');
+      for (const key of ['friction', 'rollingFriction']) if (wall[key] !== undefined) c.real(wall[key], `${at}/${key}`, 0, 1e6);
+      if (wall.restitution !== undefined) c.real(wall.restitution, `${at}/restitution`, 0.05, 1);
+    }
+  }
+  if (set.bodies !== undefined) {
+    if (!Array.isArray(set.bodies)) c.add(`${path}/bodies`, `must be an array, got ${typeName(set.bodies)}`);
+    else {
+      const touched = new Set<string>();
+      for (let i = 0; i < set.bodies.length && !c.stopped; i++) {
+        const entry: unknown = set.bodies[i], at = `${path}/bodies/${i}`;
+        if (!c.object(entry, at, ['body', 'friction', 'rollingFriction', 'restitution', 'twoWay', 'inertia'], ['body'])) continue;
+        if (entry.body !== undefined) {
+          const ref = checkColliderBody(c, entry, at, ctx, 'grains');
+          if (ref !== null) { if (touched.has(ref)) c.add(`${at}/body`, `body ${show(ref)} is listed twice`); touched.add(ref); }
+        }
+        for (const key of ['friction', 'rollingFriction']) if (entry[key] !== undefined) c.real(entry[key], `${at}/${key}`, 0, 1e6);
+        if (entry.restitution !== undefined) c.real(entry.restitution, `${at}/restitution`, 0.05, 1);
+        if (entry.twoWay !== undefined) c.boolean(entry.twoWay, `${at}/twoWay`);
+      }
+    }
+  }
+}
+
 /**
  * Check a scene completely, before anything is built. Returns every problem
  * found (at most SCENE_LIMITS.problems), each with a JSON-pointer path; an
@@ -1071,7 +1451,7 @@ export function validateScene(scene: unknown): SceneProblem[] {
     return c.problems;
   }
   c.version = scene.version;
-  c.object(scene, '', ['format', 'version', 'units', 'world', 'materials', 'bodies', 'joints', 'water', 'cables', 'frames', 'meta', 'extensions'], ['bodies']);
+  c.object(scene, '', ['format', 'version', 'units', 'world', 'materials', 'bodies', 'joints', 'water', 'cables', 'frames', 'cloths', 'grains', 'meta', 'extensions'], ['bodies']);
   if (scene.units !== undefined && scene.units !== 'SI') c.add('/units', `must be 'SI', got ${show(scene.units)}`);
   if (scene.world !== undefined) checkWorld(c, scene.world, '/world');
   const materials = scene.materials === undefined ? new Set<string>() : checkMaterials(c, scene.materials, '/materials');
@@ -1099,7 +1479,7 @@ export function validateScene(scene: unknown): SceneProblem[] {
   }
   const shapeValues = c.geometryValues;
   if (shapeValues > SCENE_LIMITS.geometryValues) c.add('/bodies', `the shapes hold ${c.geometryValues} numbers together; the limit is ${SCENE_LIMITS.geometryValues}`);
-  if (scene.water !== undefined || scene.cables !== undefined || scene.frames !== undefined) {
+  if (scene.water !== undefined || scene.cables !== undefined || scene.frames !== undefined || scene.cloths !== undefined || scene.grains !== undefined) {
     const shapes = new Map<string, string | null>();
     if (bodiesOk) for (const body of scene.bodies as unknown[]) if (isObject(body) && typeof body.id === 'string' && bodyIds.has(body.id)) shapes.set(body.id, isObject(body.shape) && typeof body.shape.kind === 'string' ? body.shape.kind : null);
     const world = isObject(scene.world) ? scene.world : {}, step = typeof world.step === 'number' && world.step > 0 && world.step <= 1 / 30 ? world.step : 1 / 60;
@@ -1107,7 +1487,7 @@ export function validateScene(scene: unknown): SceneProblem[] {
     const stated = new Map<string, boolean>();
     if (bodiesOk) for (const body of scene.bodies as unknown[]) if (isObject(body) && typeof body.id === 'string' && isObject(body.massData)) stated.set(body.id, Array.isArray(body.massData.center) && body.massData.center.some(v => v !== 0));
     const ctx: CoupledContext = {shapes: bodiesOk ? shapes : null, stated, step, gravity: Math.max(0, -gy), wet: new Map(), frameNodes: new Map(), frameEquations: 0};
-    const section = (key: 'water' | 'cables' | 'frames', limit: number, each: (item: unknown, path: string) => void): void => {
+    const section = (key: 'water' | 'cables' | 'frames' | 'cloths' | 'grains', limit: number, each: (item: unknown, path: string) => void): void => {
       const list = scene[key];
       if (list === undefined) return;
       if (!Array.isArray(list)) c.add(`/${key}`, `must be an array, got ${typeName(list)}`);
@@ -1118,6 +1498,8 @@ export function validateScene(scene: unknown): SceneProblem[] {
     if (Array.isArray(scene.frames)) for (const frame of scene.frames) if (isObject(frame) && typeof frame.id === 'string') ctx.frameNodes.set(frame.id, frameNodeCount(frame));
     section('frames', SCENE_LIMITS.frames, (item, path) => checkFrameSection(c, item, path, ctx));
     section('cables', SCENE_LIMITS.cables, (item, path) => checkCable(c, item, path, ctx));
+    section('cloths', SCENE_LIMITS.cloths, (item, path) => checkCloth(c, item, path, ctx));
+    section('grains', SCENE_LIMITS.grainSets, (item, path) => checkGrains(c, item, path, ctx));
     section('water', SCENE_LIMITS.waterBasins, (item, path) => checkWater(c, item, path, ctx));
     if (ctx.frameEquations > SCENE_LIMITS.frameBodyEquations) c.add('/frames', `the frame attachments need ${ctx.frameEquations} equations (3 per pinned, 6 per clamped); the limit is ${SCENE_LIMITS.frameBodyEquations}`);
     if (c.geometryValues > SCENE_LIMITS.geometryValues && shapeValues <= SCENE_LIMITS.geometryValues) c.add('', `the scene's arrays hold ${c.geometryValues} numbers together; the limit is ${SCENE_LIMITS.geometryValues}`);
@@ -1313,18 +1695,87 @@ function normalFrameSection(frame: SceneFrameSection): SceneFrameSection {
   return out as unknown as SceneFrameSection;
 }
 
+function normalCloth(cloth: SceneCloth): SceneCloth {
+  const out: Obj = {id: cloth.id, nodes: vec(cloth.nodes), triangles: [...cloth.triangles]}, m = cloth.material;
+  if (cloth.restNodes && cloth.restNodes.some((v, i) => v !== cloth.nodes[i])) out.restNodes = vec(cloth.restNodes);
+  if (!allZero(cloth.velocities)) out.velocities = vec(cloth.velocities!);
+  const material: Obj = {arealDensity: m.arealDensity, youngModulus: zero(m.youngModulus), thickness: m.thickness, poissonRatio: zero(m.poissonRatio)};
+  if (m.membrane === 'spring') material.membrane = 'spring';
+  if (m.bending !== undefined && m.bending !== 'koiter') material.bending = m.bending;
+  if (m.bendingStiffness !== undefined) material.bendingStiffness = zero(m.bendingStiffness);
+  out.material = material;
+  if (cloth.pinned && cloth.pinned.length > 0) out.pinned = [...cloth.pinned];
+  if (!allZero(cloth.extraMass)) out.extraMass = vec(cloth.extraMass!);
+  if (cloth.drag) out.drag = cloth.drag;
+  for (const [key, standard] of [['maxNewtonIterations', 60], ['residualTolerance', 1e-6], ['forceTolerance', 0], ['maxCgIterations', 600], ['cgTolerance', 1e-2]] as const) if (cloth[key] !== undefined && cloth[key] !== standard) out[key] = zero(cloth[key]!);
+  if (cloth.contact) { const contact: Obj = {}; for (const key of ['offset', 'stiffness', 'skin'] as const) if (cloth.contact[key] !== undefined) contact[key] = zero(cloth.contact[key]!); if (Object.keys(contact).length > 0) out.contact = contact; }
+  if (cloth.selfCollision) { const self: Obj = {thickness: cloth.selfCollision.thickness}; if (cloth.selfCollision.stiffness !== undefined) self.stiffness = zero(cloth.selfCollision.stiffness); if (cloth.selfCollision.capacity !== undefined) self.capacity = cloth.selfCollision.capacity; out.selfCollision = self; }
+  if (cloth.bodies && cloth.bodies.length > 0) out.bodies = cloth.bodies.map(entry => {
+    const one: Obj = {body: entry.body};
+    if (entry.friction) one.friction = entry.friction;
+    if (entry.collide === false) one.collide = false;
+    if (entry.twoWay === false) one.twoWay = false;
+    if (entry.inertia) one.inertia = normalInertia(entry.inertia);
+    return one;
+  });
+  if (cloth.planes && cloth.planes.length > 0) out.planes = cloth.planes.map(plane => {
+    const one: Obj = {normal: vec(plane.normal)};
+    if (plane.point && !isZero(plane.point)) one.point = vec(plane.point);
+    if (plane.friction) one.friction = plane.friction;
+    return one;
+  });
+  if (cloth.attachments && cloth.attachments.length > 0) out.attachments = cloth.attachments.map(att => ({node: att.node, body: att.body, ...(att.localPoint ? {localPoint: vec(att.localPoint)} : {})}));
+  return out as unknown as SceneCloth;
+}
+
+function normalGrains(set: SceneGrains): SceneGrains {
+  const m = set.material, hertz = set.law !== 'linear';
+  const material: Obj = {density: m.density, restitution: m.restitution, friction: zero(m.friction)};
+  if (hertz) { material.youngModulus = m.youngModulus; material.poissonRatio = zero(m.poissonRatio!); }
+  if (m.rollingFriction) material.rollingFriction = m.rollingFriction;
+  const out: Obj = {id: set.id, material};
+  if (!hertz) { out.law = 'linear'; out.normalStiffness = set.normalStiffness; if (set.tangentialStiffnessRatio !== undefined && set.tangentialStiffnessRatio !== 2 / 7) out.tangentialStiffnessRatio = set.tangentialStiffnessRatio; }
+  if (set.tangentialDamping !== undefined && set.tangentialDamping !== 1) out.tangentialDamping = zero(set.tangentialDamping);
+  if (set.skin !== undefined) out.skin = set.skin;
+  out.substeps = set.substeps;
+  if (set.bounds) out.bounds = {min: vec(set.bounds.min), max: vec(set.bounds.max)};
+  out.positions = vec(set.positions); out.radii = [...set.radii];
+  if (!allZero(set.velocities)) out.velocities = vec(set.velocities!);
+  if (!allZero(set.angularVelocities)) out.angularVelocities = vec(set.angularVelocities!);
+  const surface = (from: {friction?: number; rollingFriction?: number; restitution?: number}, one: Obj): void => {
+    for (const key of ['friction', 'rollingFriction', 'restitution'] as const) if (from[key] !== undefined) one[key] = zero(from[key]!);
+  };
+  if (set.walls && set.walls.length > 0) out.walls = set.walls.map(wall => {
+    const one: Obj = {shape: clone(wall.shape)};
+    if (wall.position && !isZero(wall.position)) one.position = vec(wall.position);
+    if (wall.rotation && !isIdentity(wall.rotation)) one.rotation = vec(wall.rotation);
+    surface(wall, one);
+    return one;
+  });
+  if (set.bodies && set.bodies.length > 0) out.bodies = set.bodies.map(entry => {
+    const one: Obj = {body: entry.body};
+    surface(entry, one);
+    if (entry.twoWay === false) one.twoWay = false;
+    if (entry.inertia) one.inertia = normalInertia(entry.inertia);
+    return one;
+  });
+  return out as unknown as SceneGrains;
+}
+
 /** The coupled sections of a scene in normal form; a section that is absent or empty is left out. */
 function normalCoupled(scene: SceneCoupledSections): SceneCoupledSections {
   return {
     ...(scene.water && scene.water.length > 0 ? {water: scene.water.map(normalWater)} : {}),
     ...(scene.cables && scene.cables.length > 0 ? {cables: scene.cables.map(normalCable)} : {}),
     ...(scene.frames && scene.frames.length > 0 ? {frames: scene.frames.map(normalFrameSection)} : {}),
+    ...(scene.cloths && scene.cloths.length > 0 ? {cloths: scene.cloths.map(normalCloth)} : {}),
+    ...(scene.grains && scene.grains.length > 0 ? {grains: scene.grains.map(normalGrains)} : {}),
   };
 }
 
-/** True when a scene has a water basin, a cable or a frame: it then needs a Simulation, not just a rigid world. */
+/** True when a scene has a water basin, a cable, a frame, a cloth or a set of grains: it then needs a Simulation, not just a rigid world. */
 export function sceneHasCoupling(scene: SceneCoupledSections): boolean {
-  return (scene.water?.length ?? 0) + (scene.cables?.length ?? 0) + (scene.frames?.length ?? 0) > 0;
+  return (scene.water?.length ?? 0) + (scene.cables?.length ?? 0) + (scene.frames?.length ?? 0) + (scene.cloths?.length ?? 0) + (scene.grains?.length ?? 0) > 0;
 }
 
 function clone<T>(value: T): T {
@@ -1780,7 +2231,7 @@ export class SceneBuilder<W extends SceneHost = SceneHost> {
   private readonly materialMap = new Map<string, SceneMaterial>();
   private readonly bodyMap = new Map<string, {description: SceneBody; handle: Body}>();
   private readonly jointMap = new Map<string, {description: SceneJoint; handle: Joint}>();
-  /** @internal The scene's water, cable and frame sections as they were described (normal form). This module carries them; simulation.ts builds them. */
+  /** @internal The scene's coupled sections (water, cables, frames, cloths, grains) as they were described (normal form). This module carries them; simulation.ts builds them. */
   coupledSections: SceneCoupledSections = {};
   /** @internal Set by simulation.ts: the same sections with the solvers' current state, for a save. */
   coupledCapture: (() => SceneCoupledSections) | null = null;
@@ -1940,6 +2391,8 @@ export class SceneBuilder<W extends SceneHost = SceneHost> {
       water: coupled.water?.map(basin => ({...basin, bodies: basin.bodies?.filter(entry => has(entry.body))})),
       cables: coupled.cables?.map(cable => ({...cable, attachments: cable.attachments?.filter(att => has(att.body))})),
       frames: coupled.frames?.map(frame => ({...frame, attachments: frame.attachments?.filter(att => has(att.body))})),
+      cloths: coupled.cloths?.map(cloth => ({...cloth, bodies: cloth.bodies?.filter(entry => has(entry.body)), attachments: cloth.attachments?.filter(att => has(att.body))})),
+      grains: coupled.grains?.map(set => ({...set, bodies: set.bodies?.filter(entry => has(entry.body))})),
       meta: options.meta ?? this.meta, extensions: this.extensions,
     });
   }
@@ -1978,13 +2431,13 @@ export class SceneBuilder<W extends SceneHost = SceneHost> {
  * - If the engine refuses a body or joint part-way, the world is left reset to
  *   the scene's settings with none of the scene's bodies in it, and the error
  *   names the offending id.
- * - A scene with `water`, `cables` or `frames` throws EngineError('INVALID_STATE')
+ * - A scene with `water`, `cables`, `frames`, `cloths` or `grains` throws EngineError('INVALID_STATE')
  *   and the world is not touched: this loader has no solvers for them.
  */
 export function loadScene<W extends SceneHost>(world: W, scene: unknown): LoadedScene<W> {
   const normal = normalizeScene(scene);
   if (sceneHasCoupling(normal)) {
-    throw new EngineError('INVALID_STATE', 'This scene has water, cable or frame sections. This loader builds rigid bodies and joints only and would drop them: ' +
+    throw new EngineError('INVALID_STATE', 'This scene has coupled sections (water, cables, frames, cloths or grains). This loader builds rigid bodies and joints only and would drop them: ' +
       'load the scene with loadSimulationScene (simulation.ts; the kit\'s loadScene), which returns a Simulation that steps every solver.');
   }
   const builder = new SceneBuilder<W>(world, {world: normal.world, materials: normal.materials, meta: normal.meta, extensions: normal.extensions}).populate(normal);
@@ -2002,4 +2455,4 @@ export function saveScene<W extends SceneHost>(world: W, handles: SceneBuilder<W
   return builder.toJSON(options);
 }
 
-export {pendulumWaveScene, newtonsCradleScene, dominoRunScene, terrainCarScene, ragdollScene, EXAMPLE_SCENES, mooredBuoyScene, cableStayedDeckScene, COUPLED_EXAMPLE_SCENES} from './scene-examples.ts';
+export {pendulumWaveScene, newtonsCradleScene, dominoRunScene, terrainCarScene, ragdollScene, EXAMPLE_SCENES, mooredBuoyScene, cableStayedDeckScene, buoyAndCratesScene, trampolineScene, hopperSeesawScene, suspendedPlatformScene, COUPLED_EXAMPLE_SCENES} from './scene-examples.ts';
