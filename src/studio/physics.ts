@@ -6,6 +6,7 @@ import {CanopyContactSolver,CANOPY_CONTACT,type CanopyContactStats} from './cano
 import {canopyRig} from './canopy-rig.ts';
 import { scaledNorm3 } from './norm3.ts';
 import { normalizePress, metalFor, sheetThickness, toolHeightAt, type PressSettings } from './press-settings.ts';
+import { StudioPressSI, PRESS_RATED_FORCE } from './press-si.ts';
 export type StudyId = 'canopy' | 'plate' | 'bridge';
 export type Vec = [number, number, number];
 export type LinkKind = 'warp' | 'weft' | 'shear' | 'bend' | 'cable' | 'hanger' | 'deck' | 'crossbeam';
@@ -38,7 +39,9 @@ export const STUDIO_CHECKPOINT_VERSION = 1;
 export const STUDIO_CHECKPOINT_BACKEND = 'studio-pbd-js-v1';
 export const STUDIO_SCALED_CHECKPOINT_BACKEND = 'studio-pbd-scaled-norm3-js-v1';
 export const STUDIO_CANOPY_CONTACT_BACKEND = 'studio-pbd-canopy-ccd-js-v1';
-export type StudioBackend = typeof STUDIO_CHECKPOINT_BACKEND | typeof STUDIO_SCALED_CHECKPOINT_BACKEND | typeof STUDIO_CANOPY_CONTACT_BACKEND;
+/** Metal press on the SI press brake: J2 solid, rigid punch and die (src/studio/press-si.ts). */
+export const STUDIO_PRESS_SI_BACKEND = 'studio-press-brake-si-v1';
+export type StudioBackend = typeof STUDIO_CHECKPOINT_BACKEND | typeof STUDIO_SCALED_CHECKPOINT_BACKEND | typeof STUDIO_CANOPY_CONTACT_BACKEND | typeof STUDIO_PRESS_SI_BACKEND;
 /** JSON-safe, full precision solver state. Render snapshots intentionally cannot resume the solver. */
 export interface StudioCheckpoint {
   format: 'box3d-studio-checkpoint'; version: typeof STUDIO_CHECKPOINT_VERSION;
@@ -126,6 +129,7 @@ function readCheckpoint(value: unknown): StudioCheckpoint {
   checkpointAssert(record(data),'record');
   checkpointAssert(data.format==='box3d-studio-checkpoint','format');
   checkpointAssert(data.version===STUDIO_CHECKPOINT_VERSION,'version');
+  if(data.backend===STUDIO_PRESS_SI_BACKEND)throw new RangeError('Invalid Studio checkpoint: an SI press run is exported as evidence and cannot be resumed; set up the press again to repeat it');
   checkpointAssert(data.backend===STUDIO_CHECKPOINT_BACKEND||data.backend===STUDIO_SCALED_CHECKPOINT_BACKEND||data.backend===STUDIO_CANOPY_CONTACT_BACKEND,'backend');
   checkpointAssert(data.study==='canopy'||data.study==='plate'||data.study==='bridge','study');
   checkpointAssert(data.backend!==STUDIO_CANOPY_CONTACT_BACKEND||data.study==='canopy','canopy contact backend study');
@@ -230,12 +234,16 @@ export class FailureSimulation {
   private canopyFaces: [number,number,number][]=[];
   private canopyFacesVersion=-1;
   get canopyContactStats():Readonly<CanopyContactStats>|undefined {return this.canopyContact?.stats;}
+  /** The SI press model (plate study on STUDIO_PRESS_SI_BACKEND). */
+  pressSI?:StudioPressSI;
+  private linkSection?:Float64Array;private siPlastic=0;private siEroded=0;
 
   get activeConstraintCount(): number { return this.activeConstraintLength; }
 
   constructor(id: StudyId, press:Partial<PressSettings>={}, backend:StudioBackend=STUDIO_CHECKPOINT_BACKEND) {
-    if(backend!==STUDIO_CHECKPOINT_BACKEND&&backend!==STUDIO_SCALED_CHECKPOINT_BACKEND&&backend!==STUDIO_CANOPY_CONTACT_BACKEND)throw new RangeError('Unknown Studio numerical backend');
+    if(backend!==STUDIO_CHECKPOINT_BACKEND&&backend!==STUDIO_SCALED_CHECKPOINT_BACKEND&&backend!==STUDIO_CANOPY_CONTACT_BACKEND&&backend!==STUDIO_PRESS_SI_BACKEND)throw new RangeError('Unknown Studio numerical backend');
     if(backend===STUDIO_CANOPY_CONTACT_BACKEND&&id!=='canopy')throw new RangeError('Canopy contact backend requires a canopy study');
+    if(backend===STUDIO_PRESS_SI_BACKEND&&id!=='plate')throw new RangeError('SI press backend requires the plate study');
     this.backend=backend;
     // Select once so saved legacy runs keep the original hot loop.
     if(backend===STUDIO_SCALED_CHECKPOINT_BACKEND)this.step=this.stepScaledNorm3;
@@ -256,6 +264,53 @@ export class FailureSimulation {
       this.canopyBackup={nodes:new Float64Array(this.nodes.length*7),links:new Float64Array(this.links.length*2)};
       this.collide=()=>{this.canopyContact!.floor();};
       this.step=this.stepCanopyContact;
+    }
+    if(backend===STUDIO_PRESS_SI_BACKEND){
+      this.pressSI=new StudioPressSI(this.press,this.config.supportY,this.punchY);this.punchY=this.pressSI.punchY;
+      // Section coordinate (m) of both ends of every link, across the bend line.
+      const a=this.press.angle*Math.PI/180,c=Math.cos(a),s=Math.sin(a);this.linkSection=new Float64Array(2*this.links.length);
+      this.links.forEach((e,i)=>{for(const [k,n] of [[0,e.a],[1,e.b]] as const){const r=this.nodes[n].rest;this.linkSection![2*i+k]=(r[0]*c-r[2]*s)*.1;}});
+      this.step=this.stepPressSI;this.placeSheetSI();
+    }
+  }
+
+  /** Plate on the SI press brake: the ram cycle and the solved section drawn on the sheet's nodes. */
+  private stepPressSI(dt=FIXED_DT):void {
+    if(!(dt>0)||dt>.025||!Number.isFinite(dt))throw new RangeError('Use fixed simulation steps <= 0.025 s');
+    const si=this.pressSI!;this.time+=dt;
+    si.advance(dt,Math.max(0,this.targetLoad*20));
+    this.punchY=si.punchY;this.load=si.force/1000;this.pressCycle=si.cycle;
+    this.contactCount=si.brake.punchContacts;this.ramVelocity=si.cycle==='Approach'||si.cycle==='Forming'?-si.speed*10:si.cycle==='Retracting'?si.speed*10:0;
+    this.placeSheetSI();
+    let plastic=0;for(const v of si.brake.body.equivalentPlasticStrain())plastic=Math.max(plastic,v);
+    this.siPlastic=plastic;
+    if(plastic>0&&!this.firstYield){this.firstYield=true;this.events.push({time:this.time,type:'yield',message:`Yield at ${(si.material.yieldStress!/1e6).toFixed(0)} MPa · permanent set begins`,connection:0});}
+    const eroded=si.brake.body.erodedCount;
+    if(eroded>0&&this.siEroded===0)this.events.push({time:this.time,type:'break',message:`Ductile crack · plastic strain reached ${(si.material.failureStrain!*100).toFixed(1)}%`,connection:0});
+    this.siEroded=eroded;
+    // Links that cross a column cracked through the thickness break.
+    const cracks=si.crackedIntervals();
+    if(cracks.length){
+      const ls=this.linkSection!;
+      for(let i=0;i<this.links.length;i++){
+        if(this.links[i].broken)continue;
+        const a=ls[2*i],b=ls[2*i+1],lo=Math.min(a,b),hi=Math.max(a,b);
+        for(const [from,to] of cracks)if((lo<=to&&hi>=from)||(lo<=-from&&hi>=-to)){this.breakLink(i,true);break;}
+      }
+      this.rebuildActiveConstraints();
+    }
+    this.peakDeflection=Math.max(this.peakDeflection,this.deflection());
+  }
+  private placeSheetSI():void {
+    const si=this.pressSI!,a=this.press.angle*Math.PI/180,c=Math.cos(a),s=Math.sin(a),point:[number,number]=[0,0];
+    this.maxStrain=0;
+    for(const n of this.nodes){
+      const u=(n.rest[0]*c-n.rest[2]*s),v=(n.rest[0]*s+n.rest[2]*c),sec=Math.abs(u)*.1;
+      si.sectionPoint(sec,point);
+      const uu=Math.sign(u)*point[0]*10,y=this.config.supportY+point[1]*10;
+      n.prev[0]=n.p[0];n.prev[1]=n.p[1];n.prev[2]=n.p[2];
+      n.p[0]=uu*c+v*s;n.p[1]=y;n.p[2]=-uu*s+v*c;
+      n.strain=si.plasticAt(sec);this.maxStrain=Math.max(this.maxStrain,n.strain);
     }
   }
 
@@ -665,11 +720,13 @@ export class FailureSimulation {
   response(): Response {
     let damage=0,plastic=0;
     for(const e of this.links) { damage=Math.max(damage,e.damage);plastic=Math.max(plastic,e.plastic); }
+    if(this.pressSI){damage=this.siEroded/this.pressSI.brake.body.tetCount;plastic=this.siPlastic;}
     return {time:this.time,load:this.load,deflection:this.deflection(),strain:this.maxStrain,
-      broken:this.brokenCount,damage,plastic,
+      broken:this.pressSI?this.siEroded:this.brokenCount,damage,plastic,
       phase:this.responsePhase(damage)};
   }
   private responsePhase(damage: number): string {
+    if(this.pressSI)return this.brokenCount?'Cracked through':this.siEroded?'Cracking':this.firstYield?'Plastic deformation':this.load>0?'Elastic response':'Ready';
     return this.collapseRecorded?(this.id==='plate'?'Perforated':'Collapsed'):this.brokenCount?'Fracturing':this.firstYield?'Plastic deformation':damage>.05?'Damage accumulating':this.load>.02?'Elastic response':'Ready';
   }
   activeIndices(): number[] {
@@ -725,11 +782,13 @@ export class FailureSimulation {
     target.punchY=this.punchY;
     const r=target.response;
     r.time=this.time;r.load=this.load;r.deflection=deflection;r.strain=this.maxStrain;
-    r.broken=this.brokenCount;r.damage=damage;r.plastic=plastic;r.phase=this.responsePhase(damage);
+    if(this.pressSI){r.broken=this.siEroded;damage=this.siEroded/this.pressSI.brake.body.tetCount;plastic=this.siPlastic;}
+    else r.broken=this.brokenCount;
+    r.damage=damage;r.plastic=plastic;r.phase=this.responsePhase(damage);
     if(target.press) {
       const p=target.press;copyPress(p.settings,this.press);
       p.travel=Math.max(0,(3.85-this.punchY)*100);p.velocity=Math.max(0,-this.ramVelocity*100);
-      p.pressure=this.load*20;p.contacts=this.contactCount;p.cycle=this.pressCycle;
+      p.pressure=this.pressSI?this.pressSI.force/PRESS_RATED_FORCE*100:this.load*20;p.contacts=this.contactCount;p.cycle=this.pressCycle;
     }
     return target;
   }

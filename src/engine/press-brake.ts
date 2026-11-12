@@ -8,7 +8,8 @@
  * linear isotropic hardening; elements erode at the failure strain, which is how a crack opens). The punch and the
  * die shoulders are rigid cylinders (capsules along the depth) in `SolidContact`, penalty contact with Coulomb
  * friction; the punch is kinematic and moves at the velocity it is given; each step is a backward-Euler step of
- * the sheet with its real mass, which at press speeds is quasi-static.
+ * the sheet with its real mass, which at press speeds is quasi-static. The sheet has no weight: once the punch has
+ * left, nothing holds it down, so read shapes relative to the shoulders (as `deflection` does).
  *
  * Forces are reported for the whole sheet width: the section's force per metre of depth times `width`.
  * See docs/STUDIO_METAL_PRESS.md for the closed forms it is validated against and its limits.
@@ -43,6 +44,8 @@ export interface PressBrakeOptions {
   readonly dt?:number;
   /** Solve tolerance (SolidBody `tolerance`). Default 1e-6. */
   readonly tolerance?:number;
+  /** Newton iterations per solve before a step is accepted unconverged (counted in `contact.stats.unconvergedSteps`). Default 100. */
+  readonly maxNewtonIterations?:number;
 }
 
 const near=(a:number,b:number,s:number)=>Math.abs(a-b)<=1e-9*s;
@@ -77,7 +80,7 @@ export class PressBrake {
     this.thickness=t;this.width=options.width;this.dieOpening=V;this.dieRadius=rd;this.punchRadius=rp;this.halfLength=V/2+over;this.dt=options.dt??1/60;
     const dz=this.depth=Math.max(this.halfLength/nx,t/ny);
     this.body=new SolidBody({mesh:boxMesh({size:[this.halfLength,t,dz],cells:[nx,ny,1]}),material:options.material,
-      config:{model:'green-lagrange',dt:this.dt,tolerance:options.tolerance??1e-6,maxNewtonIterations:100}});
+      config:{model:'green-lagrange',dt:this.dt,tolerance:options.tolerance??1e-6,maxNewtonIterations:options.maxNewtonIterations??100}});
     const b=this.body,X=b.referencePositions,L=this.halfLength;
     b.constrain(b.selectNodes(x=>near(x,0,L)),[0,null,null]);
     b.constrain(b.selectNodes(()=>true),[null,null,0]);

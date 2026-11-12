@@ -125,6 +125,10 @@ Contact is node against body, on the solid's surface nodes.
 
 JavaScript on one thread. A resting contact step of the 125-node pad takes about 1 ms; the sliding box on a 153-node slab 18 ms (three friction passes); the 4913-node Hertz solve 4 s. No performance claim is made.
 
+## Plastic solids
+
+An elastic-plastic `SolidBody` (J2, docs/SOLID_MECHANICS.md) works here unchanged: the contact solve uses the body's consistent tangent, every `step()` commits the plastic state through `kernel().advance()`, and `solveStatic()` commits it once at the end (`kernel().commit()`). `src/engine/press-brake.ts` bends sheet between a punch and die this way; its validation is in docs/STUDIO_METAL_PRESS.md.
+
 ## Limits
 
 - **Hertz is 7 % to 16 % too stiff on the meshes in the gate** and converges slowly; linear tetrahedra with node-against-surface contact are the cause. Pressure distributions inside a contact are not checked.

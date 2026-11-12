@@ -847,6 +847,8 @@ export class SolidContact {
       if(ok&&moved<=tolerance*Math.max(scale,this.elementSize*1e-3)){converged=true;break;}
     }
     this.staticMode=false;this.warm=false;solid.velocities.fill(0);
+    // A plastic solid keeps the state this solve reached as one increment from where it started.
+    k.commit();
     return {converged,passes,residual:this.stats.residual,change};
   }
 

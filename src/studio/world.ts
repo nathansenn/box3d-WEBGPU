@@ -15,6 +15,7 @@ import { DEFAULT_RIVER, normalizeRiver, type RiverSettings } from './river-setti
 import { StudioMaterials } from './materials';
 import {pressAttachment,updatePlateShell,PRESS_FRAME_POINTS} from './press-tooling';
 import {sheetThickness,type PressSettings} from './press-settings';
+import {pressGeometry} from './press-si';
 import {pressStrainHue,sheetRimEdge,PressSectionSampler,type SectionAxis} from './press-inspection';
 import { skyTexture, studioEnvironment, riverNormals } from './lighting';
 import { watchDeviceLoss, framesSettled, initWebGL } from './device-loss';
@@ -51,6 +52,8 @@ export class StudioWorld {
   private pressToolKey='';
   private pressPiston?:T.Mesh;
   private pressClamps?:T.Group;
+  /** Air-bending die of the SI press: a block with two shoulders along the bend line. */
+  private pressDie?:T.Group;private pressDieKey='';
   private plateShell?:T.Mesh<T.BufferGeometry,T.MeshStandardMaterial>;
   private pressNeedle?:T.Group;
   private pressHead?:T.Group;
@@ -227,7 +230,7 @@ export class StudioWorld {
     this.pineMaterial=undefined;this.grassMaterial=undefined;
     this.woodlandLeaves=[];
     this.stitches=undefined;this.panelSeams=undefined;this.plateEdges=undefined;this.pressSection=undefined;this.deckBolts=undefined;this.cableClamps=undefined;
-    this.plateShell=undefined;this.pressTool=undefined;this.pressToolKey='';this.pressPiston=undefined;this.pressClamps=undefined;this.pressNeedle=undefined;this.pressHead=undefined;
+    this.plateShell=undefined;this.pressTool=undefined;this.pressToolKey='';this.pressDie=undefined;this.pressDieKey='';this.pressPiston=undefined;this.pressClamps=undefined;this.pressNeedle=undefined;this.pressHead=undefined;
     this.prepareModelStorage();this.lastSnapshot=undefined;
     const outdoor=sim.id==='bridge';
     this.controls.maxDistance=outdoor?260:110;
@@ -434,6 +437,8 @@ export class StudioWorld {
     }
     for(const z of [-2.32,2.32]) this.box([5.22,.15,.48],[0,y-.075,z],'steel',.025);
     this.pressClamps=new T.Group();this.pressClamps.userData.dynamic=true;this.root.add(this.pressClamps);
+    // The SI press bends in air over a die; the perimeter clamps of the authored model are not part of it.
+    this.pressClamps.visible=!this.sim.pressSI;
     for(const x of [-2.64,2.64])for(const z of [-2.2,2.2]) {
       this.cyl(.075,.8,[x,3.1,z],'chrome');this.box([.48,.12,.4],[x,3.21,z],'black',.025,this.pressClamps);
       this.cyl(.11,.12,[x,3.32,z],'bolt',.11,this.pressClamps);
@@ -479,6 +484,22 @@ export class StudioWorld {
     this.box([3.3,.16,1.2],[-5.6,1.62,-3.8],'steel',.035);
     for(const x of [-7,-4.2])for(const z of [-4.25,-3.35])this.box([.1,1.5,.1],[x,.78,z],'black');
     for(let i=0;i<5;i++){this.cyl(.2+i*.018,.24,[-6.8+i*.6,1.82,-3.8],'chrome');this.cyl(.1,.28,[-6.8+i*.6,2.08,-3.8],'steel');}
+  }
+
+  /** Die of the SI press for these settings: shoulders of the model's radius at half the die opening, along the bend line. */
+  private setPressDie(p:PressSettings):void {
+    if(!this.sim.pressSI)return;
+    const key=[p.thickness,p.tool,p.toolScale,p.angle].join(':');if(this.pressDieKey===key)return;
+    if(this.pressDie){this.pressDie.traverse(o=>{if(o instanceof T.Mesh)o.geometry.dispose();});this.root.remove(this.pressDie);}
+    const g=pressGeometry(p),die=this.pressDie=new T.Group(),y=STUDIES.plate.supportY,half=g.dieOpening/2*10,r=g.dieRadius*10,length=4.9,height=y-1.6;
+    die.name='press-die';die.userData.dynamic=true;
+    for(const side of [-1,1]){
+      const shoulder=this.cyl(r,length,[side*half,y-r,0],'pressChrome',r,die);shoulder.rotation.x=Math.PI/2;
+      // The die body under each shoulder, stepped down to the bed.
+      this.box([Math.max(.06,2*r),height-r,length],[side*half,1.6+(height-r)/2,0],'black',0,die);
+    }
+    this.box([g.dieOpening*10+4*r+.5,.12,length+.2],[0,1.66,0],'steel',0,die);
+    die.rotation.y=p.angle*Math.PI/180;this.root.add(die);this.pressDieKey=key;
   }
 
   private setPressTool(p:PressSettings):void {
@@ -813,11 +834,11 @@ export class StudioWorld {
       this.panelSeams.instanceMatrix.needsUpdate=true;this.stitches.instanceMatrix.needsUpdate=true;
     }
     if(sim.id==='plate'){
-      const settings=snapshot.press?.settings??sim.press;this.setPressTool(settings);this.ram.position.y=snapshot.punchY;
+      const settings=snapshot.press?.settings??sim.press;this.setPressTool(settings);this.setPressDie(settings);this.ram.position.y=snapshot.punchY;
       this.updatePressSection(snapshot);
       if(this.pressPiston){const bottom=1.5*settings.toolScale,top=6.15-snapshot.punchY;this.pressPiston.position.y=(bottom+top)/2;this.pressPiston.scale.y=Math.max(.01,top-bottom);}
       if(this.pressClamps)this.pressClamps.position.y=sheetThickness(settings);
-      if(this.pressNeedle)this.pressNeedle.rotation.y=-2.2+(snapshot.press?.pressure??0)/100*4.4;
+      if(this.pressNeedle)this.pressNeedle.rotation.y=-2.2+Math.min(100,snapshot.press?.pressure??0)/100*4.4;
     }
     if(this.linksMesh) {
       for(let i=0;i<sim.links.length;i++) {
