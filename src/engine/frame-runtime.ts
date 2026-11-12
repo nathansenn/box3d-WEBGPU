@@ -1,11 +1,15 @@
 import {EngineError,finite,integer,onlyKeys,record,validateTickBatch,type EngineCapabilities,type EngineRuntime,type FixedTickCommand,type FixedTickStep} from './contracts.ts';
 import {captureFields,restoreFields,type FieldOptions,type StateObject,type StateValue} from './checkpoint.ts';
 import {frameElementMatrices,frameTransverseSlope,type FrameElement,type FrameElementMatrices} from './frame-element.ts';
+import {EnvelopeMatrix} from './envelope-matrix.ts';
 
 export const FRAME_BACKEND='frame-eb-midpoint-js-f64-v1';
 export interface FrameConfig {
   dt:number;substeps:number;maxIterations:number;drag:number;gravity:readonly [number,number,number];
   forceTolerance:number;momentTolerance:number;impulseTolerance:number;angularImpulseTolerance:number;
+  /** Linear solver: preconditioned conjugate gradients ('cg', the default) or a Cholesky factor of the
+   * operator, formed once per operator and kept ('direct'). Both solve the same equations. */
+  solver?:'cg'|'direct';
 }
 export interface FrameDefinition {
   config:FrameConfig;positions:ArrayLike<number>;elements:readonly FrameElement[];
@@ -51,10 +55,12 @@ function array(value:unknown,count:number,label:string,min=-1e100,max=1e100):Flo
   return Float64Array.from(value,(v,i)=>zero(finite(v,`${label}[${i}]`,min,max)));
 }
 function configuration(value:unknown):FrameConfig {
-  const c=record(value,'config');onlyKeys(c,['dt','substeps','maxIterations','drag','gravity','forceTolerance','momentTolerance','impulseTolerance','angularImpulseTolerance'],'config');
+  const c=record(value,'config');onlyKeys(c,['dt','substeps','maxIterations','drag','gravity','forceTolerance','momentTolerance','impulseTolerance','angularImpulseTolerance','solver'],'config');
+  if(c.solver!==undefined&&c.solver!=='cg'&&c.solver!=='direct')throw new EngineError('INVALID_PAYLOAD','Unknown frame solver.');
   const gravity=Object.freeze(Array.from(array(c.gravity,3,'gravity',-1e5,1e5))) as unknown as readonly [number,number,number];
   return Object.freeze({dt:finite(c.dt,'dt',1e-6,1/30),substeps:integer(c.substeps,'substeps',1,16),maxIterations:integer(c.maxIterations,'maxIterations',1,1024),drag:zero(finite(c.drag,'drag',0,1000)),gravity,
-    forceTolerance:finite(c.forceTolerance,'forceTolerance',1e-14,1),momentTolerance:finite(c.momentTolerance,'momentTolerance',1e-14,1),impulseTolerance:finite(c.impulseTolerance,'impulseTolerance',1e-16,1),angularImpulseTolerance:finite(c.angularImpulseTolerance,'angularImpulseTolerance',1e-16,1)});
+    forceTolerance:finite(c.forceTolerance,'forceTolerance',1e-14,1),momentTolerance:finite(c.momentTolerance,'momentTolerance',1e-14,1),impulseTolerance:finite(c.impulseTolerance,'impulseTolerance',1e-16,1),angularImpulseTolerance:finite(c.angularImpulseTolerance,'angularImpulseTolerance',1e-16,1),
+    ...(c.solver===undefined?{}:{solver:c.solver as 'cg'|'direct'})});
 }
 const work=():Work=>({matrixProducts:0,elementVisits:0});
 
@@ -117,8 +123,34 @@ export class FrameRuntime implements EngineRuntime<FrameStepRequest,FrameSnapsho
   private norms(values:Float64Array,scale=1):[number,number]{
     let force=0,moment=0;for(let i=0;i<values.length;i+=6){let f=0,t=0;for(let k=0;k<6;k++)if(!this.fixed[i+k]){const q=values[i+k]*scale;if(k<3)f+=q*q;else t+=q*q;}force=Math.max(force,Math.sqrt(f));moment=Math.max(moment,Math.sqrt(t));}return [force,moment];
   }
+  /** Cholesky factors of m M + k K on the free degrees of freedom, by (m, k); 'direct' solver only. */
+  private factors=new Map<string,{dofs:Int32Array;matrix:EnvelopeMatrix;b:Float64Array}|null>();
+  private factorFor(m:number,k:number){
+    const key=`${m}:${k}`;if(this.factors.has(key))return this.factors.get(key)!;
+    const size=this.u.length,index=new Int32Array(size).fill(-1),dofs:number[]=[];
+    for(let j=0;j<size;j++)if(!this.fixed[j]){index[j]=dofs.length;dofs.push(j);}
+    const n=dofs.length,first=Int32Array.from({length:n},(_,i)=>i);
+    for(const e of this.elements){let lo=Infinity;for(const d of e.dofs)if(index[d]>=0)lo=Math.min(lo,index[d]);for(const d of e.dofs)if(index[d]>=0&&lo<first[index[d]])first[index[d]]=lo;}
+    const A=new EnvelopeMatrix(n,first);
+    for(const e of this.elements)for(let i=0;i<12;i++){const a=index[e.dofs[i]];if(a<0)continue;for(let j=0;j<=i;j++){const b=index[e.dofs[j]];if(b>=0)A.add(a,b,m*e.massMatrix[12*i+j]+k*e.stiffness[12*i+j]);}}
+    if(m!==0)for(let i=0;i<this.pointMass.length;i++)for(let j=0;j<6;j++){const a=index[6*i+j];if(a>=0)A.add(a,a,m*(j<3?this.pointMass[i]:this.pointInertia[3*i+j-3]));}
+    let entry:{dofs:Int32Array;matrix:EnvelopeMatrix;b:Float64Array}|null;
+    try{A.factor();entry={dofs:Int32Array.from(dofs),matrix:A,b:new Float64Array(n)};}catch{entry=null;}
+    this.factors.set(key,entry);return entry;
+  }
   private solve(m:number,k:number,rhs:Float64Array,x:Float64Array,scale:number,forceTolerance:number,momentTolerance:number,counter:Work):SolveStats{
     const r=this.residual,z=this.preconditioned,p=this.direction,ap=this.ap;let iterations=0,reason:SolveStats['reason']='iteration-limit';
+    if(this.config.solver==='direct'){
+      const f=this.factorFor(m,k),refresh=()=>{this.multiply(m,k,x,ap,counter);for(let j=0;j<x.length;j++)r[j]=this.fixed[j]?0:rhs[j]-ap[j];return this.norms(r,scale);};
+      if(!f){x.fill(0);const [forceResidual,momentResidual]=refresh();return {iterations:0,converged:false,forceResidual,momentResidual,reason:'singular-or-indefinite'};}
+      const back=(source:Float64Array,add:boolean)=>{const b=f.b,dofs=f.dofs;for(let a=0;a<dofs.length;a++)b[a]=source[dofs[a]];f.matrix.solve(b);if(!add)x.fill(0);for(let a=0;a<dofs.length;a++)x[dofs[a]]+=b[a];};
+      back(rhs,false);let [forceResidual,momentResidual]=refresh();
+      // One step of iterative refinement removes what round-off left.
+      if(!(forceResidual<=forceTolerance&&momentResidual<=momentTolerance)){back(r,true);[forceResidual,momentResidual]=refresh();iterations++;}
+      if(!x.every(Number.isFinite)||!Number.isFinite(forceResidual)||!Number.isFinite(momentResidual))throw new EngineError('NUMERICAL_FAILURE','Nonfinite frame linear solve.');
+      const converged=forceResidual<=forceTolerance&&momentResidual<=momentTolerance;
+      return {iterations:iterations+1,converged,forceResidual,momentResidual,reason:converged?'converged':'iteration-limit'};
+    }
     for(let j=0;j<x.length;j++)if(this.fixed[j])x[j]=0;
     const refresh=()=>{this.multiply(m,k,x,ap,counter);for(let j=0;j<x.length;j++)r[j]=this.fixed[j]?0:rhs[j]-ap[j];return this.norms(r,scale);};
     let [forceResidual,momentResidual]=refresh(),rz=0,restart=true;
@@ -247,6 +279,12 @@ export class FrameRuntime implements EngineRuntime<FrameStepRequest,FrameSnapsho
     }catch(error){if(error instanceof EngineError&&error.code==='NUMERICAL_FAILURE')this.failed=true;throw error;}
     this.reactionTime=this.tick*this.config.dt+.5*h;this.currentTick++;
   }
+  /** Replace the applied nodal loads (N and N m, six per node) from the next tick or substep on. The
+   * loads are constant over a tick, as those given at construction are. */
+  setLoads(forces:ArrayLike<number>):void {
+    this.alive();if(this.coupledOpen)throw new EngineError('INVALID_PAYLOAD','Loads cannot change inside a coupled tick.');
+    this.forces.set(array(forces,this.u.length,'forces',-1e12,1e12));
+  }
   /** Static analysis is pure: it does not reset, settle or advance the runtime. */
   solveStatic(forces?:ArrayLike<number>):FrameStaticSolution{
     this.alive();this.checkWork(1);const applied=forces===undefined?this.forces:array(forces,this.u.length,'static forces',-1e12,1e12),rhs=Float64Array.from(applied,(v,j)=>v+this.gravityForce[j]),solution=new Float64Array(this.u.length),counter=work();
@@ -305,5 +343,5 @@ export class FrameRuntime implements EngineRuntime<FrameStepRequest,FrameSnapsho
   saveState():StateObject {return captureFields(this,STATE_FIELDS);}
   /** Put back a state from `saveState()` of a runtime with the same definition. */
   restoreState(state:StateValue):void {restoreFields(this,state,STATE_FIELDS);}
-  destroy():void{if(this.disposed)return;this.disposed=true;this.elements=[];this.fixed=new Uint8Array();for(const key of ['initial','pointMass','pointInertia','u','v','forces','gravityForce','diagonalMass','diagonalStiffness','reactions','supportImpulse','appliedImpulse','dragImpulse','rhs','mid','product','temp','residual','direction','preconditioned','ap'] as const)this[key]=new Float64Array();}
+  destroy():void{if(this.disposed)return;this.disposed=true;this.elements=[];this.factors.clear();this.fixed=new Uint8Array();for(const key of ['initial','pointMass','pointInertia','u','v','forces','gravityForce','diagonalMass','diagonalStiffness','reactions','supportImpulse','appliedImpulse','dragImpulse','rhs','mid','product','temp','residual','direction','preconditioned','ap'] as const)this[key]=new Float64Array();}
 }

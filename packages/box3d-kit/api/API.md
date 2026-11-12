@@ -2026,7 +2026,7 @@ export interface CableConfig {
     substeps: number;
     maxIterations: number;
     residualTolerance: number; drag: number;
-    gravity: readonly [number, number, number]; solver?: 'proximal'; forceTolerance?: number;
+    gravity: readonly [number, number, number]; solver?: 'proximal' | 'newton'; forceTolerance?: number;
 }
 ```
 
@@ -2118,6 +2118,10 @@ export declare class CompliantCableRuntime implements EngineRuntime<CableStepReq
   readonly backend: CableBackend;
   get tick(): number;
   step(request: CableStepRequest): CableSnapshot;
+  releaseLink(index: number): void;
+  isReleased(index: number): boolean;
+  coupleNodes(nodes: Int32Array, stiffness: Float64Array, targets: Float64Array, positions: Float64Array, velocities: Float64Array, version: number): void;
+  coupledForce: Float64Array<ArrayBuffer>;
   advance(): void;
   couplingViews(): { positions: Float64Array; velocities: Float64Array; masses: Float64Array; pinned: Uint8Array; };
   driveNode(node: number, px: number, py: number, pz: number, vx: number, vy: number, vz: number, mass: number, fx: number, fy: number, fz: number): void;
@@ -2143,6 +2147,12 @@ export declare function hangingCableDefinition(input: {
     axialRigidity: number;
     config: CableConfig;
 }): CableDefinition;
+```
+
+### NEWTON_CABLE_BACKEND · const
+
+```ts
+export declare const NEWTON_CABLE_BACKEND = "cable-newton-js-f64-v1";
 ```
 
 ### PROXIMAL_CABLE_BACKEND · const
@@ -2493,6 +2503,7 @@ export interface FrameConfig {
     momentTolerance: number;
     impulseTolerance: number;
     angularImpulseTolerance: number;
+    solver?: 'cg' | 'direct';
 }
 ```
 
@@ -2601,6 +2612,7 @@ export declare class FrameRuntime implements EngineRuntime<FrameStepRequest, Fra
   solveCoupledOperator(dof: number, out: Float64Array): boolean;
   beginCoupledTick(): Float64Array;
   finishCoupledTick(extra: Float64Array): void;
+  setLoads(forces: ArrayLike<number>): void;
   solveStatic(forces?: ArrayLike<number>): FrameStaticSolution;
   inspect(): FrameSnapshot;
   checkpoint(): FrameCheckpoint;

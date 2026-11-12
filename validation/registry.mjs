@@ -11,6 +11,7 @@ import rigid from './domains/rigid.mjs';
 import waterCoupling from './domains/water-coupling.mjs';
 import structureCoupling from './domains/structure-coupling.mjs';
 import siBridge from './domains/si-bridge.mjs';
+import siSuspension from './domains/si-suspension.mjs';
 import geometry from './domains/geometry.mjs';
 import scene from './domains/scene.mjs';
 import simulation from './domains/simulation.mjs';
@@ -85,6 +86,22 @@ export const DOMAINS = [
       'The reference for most rows is a second solver in the same file that shares the element matrices and the stay law. Only the propped span, the lateral frequency, the Rayleigh estimates and the wind beam are independent hand results.',
       'Section properties are hand estimates for a plausible steel footbridge, not a designed or surveyed bridge, and nothing is calibrated against measurements.',
       'The amplification rows bound the factor; they do not compare it with a moving-load solution. Damping is the model\'s own (about 1 % of critical in the first vertical mode at 120 Hz) plus what is set.',
+    ],
+  },
+  {
+    id: 'si-suspension', title: 'Suspension footbridge (SI model of the Studio bridge)', needsKit: false,
+    solver: '`src/engine/si-suspension.ts`: frame elements for the deck grillage and the portal towers, one Newton cable network for the main cables, backstays and hangers solved together with the frame each step by `StructureCoupling`, and a rigid body for an optional service vehicle; 120 Hz',
+    summary: 'The Engineering Studio\'s 42 m footbridge: form-finding, the main cable against the parabola, the hangers against the continuous deck, point loads against the deflection theory, the first antisymmetric mode, the time-stepped model against its statics, symmetry, a hanger failure, wind, a parked vehicle and repeatability.',
+    docs: ['docs/SI_BRIDGE.md'],
+    notValidated: [
+      'Contact: nothing rests on the deck surface. Pedestrians are a distributed load on whole panels; the service vehicle is a rigid body pinned to two centreline nodes, as in the cable-stayed scene.',
+      'Linear beams: no buckling of columns, girders or bracing (the plan bracing is linear and carries compression), no yielding, no geometric stiffness of the beams. The utilisations are linear-elastic indicators, not a design check.',
+      'Saddles are fixed to the column tops: the cable does not slip over them. The cables are axial and tension-only with exact geometry; there is no bending of strands and no clamp slip.',
+      'Aerodynamics: wind is a static lateral load fixed for a run. No vortex shedding, flutter, buffeting or pedestrian lock-in, although the first vertical mode (1.41 Hz) is in the band of walking pace.',
+      'A failed hanger stops carrying load at once; it is not drawn swinging. The rupture of a main cable is not modelled.',
+      'The timber boards are mass only; their stiffness, the eccentricity of the crossbeams and the bearings\' flexibility are left out.',
+      'Sections are table values of rolled sections and hand estimates of the strands for a plausible footbridge of the Studio\'s look. Nothing is calibrated against a designed or measured bridge.',
+      'Most time-stepped rows compare with the model\'s own statics. The independent references are the parabola, the hanger share, the deflection theory and the tensioned-beam frequency.',
     ],
   },
   {
@@ -316,7 +333,7 @@ export const DOMAINS = [
   },
 ];
 
-export const CASES = [...rigid, ...waterCoupling, ...structureCoupling, ...siBridge, ...geometry, ...scene, ...simulation, ...robot, ...cloth, ...granular, ...fluid, ...heat, ...solid, ...solidViscoelastic, ...solidContact, ...fracture, ...plate, ...frame, ...cable, ...closedWater, ...materials];
+export const CASES = [...rigid, ...waterCoupling, ...structureCoupling, ...siBridge, ...siSuspension, ...geometry, ...scene, ...simulation, ...robot, ...cloth, ...granular, ...fluid, ...heat, ...solid, ...solidViscoelastic, ...solidContact, ...fracture, ...plate, ...frame, ...cable, ...closedWater, ...materials];
 
 /** Cases of the given domains (all when `only` is empty), in registry order. */
 export function selectCases(only = []) {

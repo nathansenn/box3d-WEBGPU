@@ -26,6 +26,8 @@ export const CORE = [
   // Optional modules (subpath exports ./cable, ./water, ./coupling, ./frame, ./heat, ./solid). Self-contained apart from contracts.ts
   // and checkpoint.ts.
   {from: 'src/engine/compliant-cable.ts', rewrites: []},
+  // The envelope Cholesky used by the cable runtime's Newton solver and the frame runtime's direct solver.
+  {from: 'src/engine/envelope-matrix.ts', rewrites: []},
   {from: 'src/engine/linear-water.ts', rewrites: []},
   {from: 'src/engine/closed-water.ts', rewrites: []},
   {from: 'src/engine/water-coupling.ts', rewrites: []},

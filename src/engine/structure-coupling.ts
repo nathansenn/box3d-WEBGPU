@@ -166,6 +166,10 @@ class FrameCarrier<B> {
   W=new Float64Array(0);P=new Float64Array(0);Waug=new Float64Array(0);
   lam=new Float64Array(0);d0=new Float64Array(0);pd0=new Float64Array(0);dv=new Float64Array(0);rider=new Float64Array(0);
   readonly extra:Float64Array;mid:Float64Array;readonly frame:FrameRuntime;
+  /** P and Waug are out of date: rebuilt once, at the start of the next step, however many attachments changed. */
+  dirty=false;
+  /** Counts rebuilds, so that what is derived from Waug knows when it is stale. */
+  version=0;
   constructor(frame:FrameRuntime){this.frame=frame;this.views=frame.couplingViews();this.extra=new Float64Array(this.views.displacements.length);this.mid=this.extra;}
   slot(node:number):number {
     let s=this.slots.indexOf(node);if(s>=0)return s;
@@ -177,10 +181,11 @@ class FrameCarrier<B> {
     // A^-1 is symmetric; remove the CG round-off so the interface matrix is too.
     for(let a=0;a<n;a++)for(let b=a+1;b<n;b++)W[a*n+b]=W[b*n+a]=.5*(W[a*n+b]+W[b*n+a]);
     this.W=W;this.lam=new Float64Array(n);this.d0=new Float64Array(n);this.pd0=new Float64Array(n);this.dv=new Float64Array(n);this.rider=new Float64Array(n);
-    this.rebuild();return s;
+    this.dirty=true;return s;
   }
-  /** Recompute P and Waug for the current cable end masses. Called when attachments change, never in step(). */
+  /** Recompute P and Waug for the current cable end masses. Called by step() when attachments have changed since. */
   rebuild():void {
+    this.dirty=false;this.version++;
     const n=this.lam.length,W=this.W,rider=this.rider,A=new Float64Array(n*n),P=new Float64Array(n*n);
     rider.fill(0);for(const a of this.atts)if(a.kind==='cable-frame')for(let k=0;k<3;k++)rider[6*a.slot+k]+=a.nodeMass;
     for(let i=0;i<n;i++)for(let j=0;j<n;j++){A[i*n+j]=(i===j?1:0)+W[i*n+j]*rider[j];P[i*n+j]=i===j?1:0;}
@@ -200,6 +205,9 @@ class FrameCarrier<B> {
 }
 class CableCarrier<B> {
   readonly atts:Attachment<B>[]=[];
+  /** Joint solve with the frame (Newton cables whose attachments are all on one frame): the frame's stiffness S = (h^2 G / 2)^-1
+   * on the attached nodes, G the translational blocks of Waug, kept until the frame is rebuilt or the attachments change. */
+  joint:{key:string;nodes:Int32Array;S:Float64Array;targets:Float64Array;positions:Float64Array;velocities:Float64Array;version:number}|null=null;
   readonly views:ReturnType<CompliantCableRuntime['couplingViews']>;
   readonly edges:{a:number;b:number}[];readonly cable:CompliantCableRuntime;
   constructor(cable:CompliantCableRuntime){this.cable=cable;this.views=cable.couplingViews();this.edges=cable.checkpoint().definition.constraints.map(e=>({a:e.a,b:e.b}));}
@@ -315,7 +323,7 @@ export class StructureCoupling<B> {
   }
   private register(att:Attachment<B>):StructureAttachment {
     this.attachments.push(att);att.cable?.atts.push(att);att.frame?.atts.push(att);att.body?.atts.push(att);
-    if(att.kind==='cable-frame')att.frame!.rebuild();
+    if(att.kind==='cable-frame')att.frame!.dirty=true;
     if(att.kind==='frame-body'){
       this.frameBody.push(att);let n=0;for(const a of this.frameBody)n+=a.rows;
       if(n>MAX_UNKNOWNS){this.detach(att);fail(`At most ${MAX_UNKNOWNS} frame <-> body constraint equations are supported.`);}
@@ -370,7 +378,7 @@ export class StructureCoupling<B> {
     this.attachments.splice(index,1);att.attached=false;
     const drop=(list:Attachment<B>[]|undefined)=>{if(!list)return;const i=list.indexOf(att);if(i>=0)list.splice(i,1);};
     drop(att.cable?.atts);drop(att.frame?.atts);drop(att.body?.atts);drop(this.frameBody);
-    if(att.kind==='cable-frame')att.frame!.rebuild();
+    if(att.kind==='cable-frame')att.frame!.dirty=true;
     if(att.cable){const n=att.cableNode,p=att.cable.views.positions,v=att.cable.views.velocities;att.cable.cable.driveNode(n,p[3*n],p[3*n+1],p[3*n+2],v[3*n],v[3*n+1],v[3*n+2],att.nodeMass,0,0,0);}
     const body=att.body;
     if(body&&body.atts.length===0){
@@ -483,14 +491,14 @@ export class StructureCoupling<B> {
    * velocity change of every interface degree of freedom, riders included: dv = P d0 + Waug lam. With `slot`
    * only that node's six rows of dv are formed (the same sums, so the same bits): a caller that asks about one
    * attachment reads no others, and a frame with many attached nodes would otherwise pay n^2 per attachment. */
-  private frameResponse(frame:FrameCarrier<B>,exclude:Attachment<B>|null,skipFrameBody:boolean,slot=-1):void {
+  private frameResponse(frame:FrameCarrier<B>,exclude:Attachment<B>|null,skipFrameBody:boolean,slot=-1,excludeCable:CableCarrier<B>|null=null):void {
     const lam=frame.lam,n=lam.length,h=this.dt,Waug=frame.Waug,dv=frame.dv,pd0=frame.pd0,first=slot<0?0:6*slot,last=slot<0?n:first+6;
     lam.fill(0);
     for(const a of frame.atts){
       const base=6*a.slot;
       if(a.kind==='cable-frame'){
         const gc=a.cable!.cable.config.gravity,hm=h*a.nodeMass;
-        for(let k=0;k<3;k++)lam[base+k]+=hm*gc[k]+(a===exclude?0:a.Jc[k]);
+        for(let k=0;k<3;k++)lam[base+k]+=hm*gc[k]+(a===exclude||(excludeCable!==null&&a.cable===excludeCable)?0:a.Jc[k]);
       }else if(!skipFrameBody&&a!==exclude)for(let k=0;k<a.rows;k++)lam[base+k]-=a.J[k];
     }
     for(let i=first;i<last;i++){let sum=pd0[i];const row=i*n;for(let b=0;b<n;b++)sum+=Waug[row+b]*lam[b];dv[i]=sum;}
@@ -503,6 +511,62 @@ export class StructureCoupling<B> {
     }
     const frame=att.frame!;this.frameResponse(frame,exclude,skipFrameBody,att.slot);
     for(let k=0;k<6;k++)out[k]=frame.dv[6*att.slot+k];
+  }
+
+  /** A Newton cable whose attached nodes are all on one frame is solved together with that frame: the cable sees,
+   * instead of a proxy mass per node, the frame's full response on all its attached nodes at once, and their free motion
+   * without any of this cable's pull. The frame's midpoint rule moves a node by h (v + dv / 2) with dv = dv_free + G J and
+   * J = h F the cable's impulse (G: the translational blocks of Waug, riders included), so the cable sees the nodes held at
+   * x* = x + h (v + dv_free / 2) by the stiffness S = (h^2 G / 2)^-1, and its end positions are exactly where the frame puts
+   * them. The cable's implicit step is then the implicit step of cable and frame together for this tick (the frame being
+   * linear): a stiff network on a soft frame needs no small steps and has no lag between its own attachments. Returns false
+   * for any other cable, which keeps the proxy scheme. */
+  private jointStep(cc:CableCarrier<B>,h:number):boolean {
+    if(this.scheme!=='implicit'||cc.cable.config.solver!=='newton'||cc.cable.config.substeps!==1||cc.atts.length===0)return false;
+    const frame=cc.atts[0].frame;
+    if(!frame||cc.atts.some(a=>a.kind!=='cable-frame'||a.frame!==frame))return false;
+    const m=cc.atts.length,key=cc.atts.map(a=>a.id).join(',');
+    let joint=cc.joint;
+    if(!joint||joint.key!==key||joint.version!==frame.version){
+      // G: translational blocks of Waug among this cable's attached nodes; S = (h^2 G)^-1 by Cholesky.
+      const size=frame.lam.length,W=frame.Waug,N=3*m,A=new Float64Array(N*N);
+      for(let i=0;i<m;i++)for(let j=0;j<m;j++)for(let r=0;r<3;r++)for(let c=0;c<3;c++)A[(3*i+r)*N+3*j+c]=h*h/2*W[(6*cc.atts[i].slot+r)*size+6*cc.atts[j].slot+c];
+      for(let c=0;c<N;c++){
+        let d=A[c*N+c];for(let k=0;k<c;k++)d-=A[c*N+k]*A[c*N+k];
+        if(!(d>0))throw new EngineError('NUMERICAL_FAILURE','The frame response on a cable\'s attached nodes is not positive definite.');
+        const root=Math.sqrt(d);A[c*N+c]=root;
+        for(let r=c+1;r<N;r++){let sum=A[r*N+c];for(let k=0;k<c;k++)sum-=A[r*N+k]*A[c*N+k];A[r*N+c]=sum/root;}
+      }
+      const S=new Float64Array(N*N),col=new Float64Array(N);
+      for(let j=0;j<N;j++){
+        col.fill(0);col[j]=1;
+        for(let r=0;r<N;r++){let sum=col[r];for(let k=0;k<r;k++)sum-=A[r*N+k]*col[k];col[r]=sum/A[r*N+r];}
+        for(let r=N-1;r>=0;r--){let sum=col[r];for(let k=r+1;k<N;k++)sum-=A[k*N+r]*col[k];col[r]=sum/A[r*N+r];}
+        for(let r=0;r<N;r++)S[r*N+j]=col[r];
+      }
+      for(let r=0;r<N;r++)for(let c=r+1;c<N;c++)S[r*N+c]=S[c*N+r]=.5*(S[r*N+c]+S[c*N+r]);
+      joint=cc.joint={key,nodes:Int32Array.from(cc.atts,a=>a.cableNode),S,targets:new Float64Array(N),positions:new Float64Array(N),velocities:new Float64Array(N),version:frame.version};
+    }
+    const {rest,displacements:u,velocities:fv}=frame.views,p=cc.views.positions,t=this.t6b;
+    cc.atts.forEach((att,i)=>{
+      const n=att.frameNode;
+      this.frameResponse(frame,null,false,att.slot,cc);
+      for(let k=0;k<6;k++)t[k]=frame.dv[6*att.slot+k];
+      for(let k=0;k<3;k++){
+        const x=rest[3*n+k]+u[6*n+k];att.v0[k]=fv[6*n+k];att.dvFree[k]=t[k];
+        // The frame's midpoint rule moves the node by h (v + dv / 2): the cable sees it where the frame will put it.
+        joint!.positions[3*i+k]=x;joint!.velocities[3*i+k]=fv[6*n+k];joint!.targets[3*i+k]=x+h*(fv[6*n+k]+t[k]/2);
+      }
+      att.gap=Math.hypot(p[3*att.cableNode]-joint!.positions[3*i],p[3*att.cableNode+1]-joint!.positions[3*i+1],p[3*att.cableNode+2]-joint!.positions[3*i+2]);
+    });
+    cc.cable.coupleNodes(joint.nodes,joint.S,joint.targets,joint.positions,joint.velocities,joint.version*1e6+cc.atts.length);
+    cc.cable.advance();
+    const F=cc.cable.coupledForce;
+    cc.atts.forEach((att,i)=>{
+      for(let k=0;k<3;k++)att.Jc[k]=h*F[3*i+k];
+      att.tension=Math.hypot(F[3*i],F[3*i+1],F[3*i+2]);att.effectiveMass=NaN;
+    });
+    return true;
   }
 
   /** Advance every cable and frame by one fixed step and give the bodies this step's interface forces.
@@ -522,6 +586,7 @@ export class StructureCoupling<B> {
     }
     // 2. Frames: midpoint velocity under their own loads only, and what it does to the interface (d0 = v_end - v, P d0 with riders).
     for(const frame of this.frames){
+      if(frame.dirty)frame.rebuild();
       const mid=frame.mid=frame.frame.beginCoupledTick(),v=frame.views.velocities,n=frame.lam.length,d0=frame.d0,P=frame.P;
       for(let a=0;a<n;a++){const dof=6*frame.slots[(a-a%6)/6]+a%6;d0[a]=2*(mid[dof]-v[dof]);}
       for(let i=0;i<n;i++){let sum=0;const row=i*n;for(let b=0;b<n;b++)sum+=P[row+b]*d0[b];frame.pd0[i]=sum;}
@@ -529,6 +594,7 @@ export class StructureCoupling<B> {
 
     // 3. Cables, in the order they were added. Each attached node becomes a proxy of its carrier point.
     for(const cc of this.cables){
+      if(this.jointStep(cc,h))continue;
       const p=cc.views.positions,vel=cc.views.velocities,config=cc.cable.config,gc=config.gravity;
       for(const att of cc.atts){
         const node=att.cableNode,v0=att.v0,pos=this.p3,Gm=this.G3,free=att.dvFree;let w=0;

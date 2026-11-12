@@ -562,7 +562,8 @@ import { type EngineCapabilities, type EngineRuntime, type FixedTickCommand, typ
 import { type StateObject, type StateValue } from './checkpoint.js';
 export declare const COMPLIANT_CABLE_BACKEND = "cable-xpbd-js-f64-v1";
 export declare const PROXIMAL_CABLE_BACKEND = "cable-proximal-js-f64-v2";
-type CableBackend = typeof COMPLIANT_CABLE_BACKEND | typeof PROXIMAL_CABLE_BACKEND;
+export declare const NEWTON_CABLE_BACKEND = "cable-newton-js-f64-v1";
+type CableBackend = typeof COMPLIANT_CABLE_BACKEND | typeof PROXIMAL_CABLE_BACKEND | typeof NEWTON_CABLE_BACKEND;
 export interface CableConstraint {
     a: number;
     b: number;
@@ -576,7 +577,7 @@ export interface CableConfig {
     residualTolerance: number;
     drag: number;
     gravity: readonly [number, number, number];
-    solver?: 'proximal';
+    solver?: 'proximal' | 'newton';
     forceTolerance?: number;
 }
 export interface CableDefinition {
@@ -701,6 +702,14 @@ export declare class CompliantCableRuntime implements EngineRuntime<CableStepReq
     private residual;
     private substep;
     private solveProximal;
+    private newton?;
+    private couple?;
+    private released?;
+    releaseLink(index: number): void;
+    isReleased(index: number): boolean;
+    coupleNodes(nodes: Int32Array, stiffness: Float64Array, targets: Float64Array, positions: Float64Array, velocities: Float64Array, version: number): void;
+    private solveNewton;
+    coupledForce: Float64Array<ArrayBuffer>;
     advance(): void;
     couplingViews(): {
         positions: Float64Array;
@@ -770,6 +779,19 @@ export declare function validateTickBatch<C extends FixedTickCommand>(tick: numb
     ticks: number;
     commands: C[];
 };
+
+// ==== core/envelope-matrix.d.ts ====
+export declare class EnvelopeMatrix {
+    readonly n: number;
+    readonly first: Int32Array;
+    readonly a: Float64Array;
+    constructor(n: number, first: Int32Array);
+    add(i: number, j: number, value: number): void;
+    copyFrom(other: EnvelopeMatrix): void;
+    factor(): void;
+    solve(x: Float64Array): void;
+    multiply(x: Float64Array, y: Float64Array): void;
+}
 
 // ==== core/fluid.d.ts ====
 import { type StateObject, type StateValue } from './checkpoint.js';
@@ -1254,6 +1276,7 @@ export interface FrameConfig {
     momentTolerance: number;
     impulseTolerance: number;
     angularImpulseTolerance: number;
+    solver?: 'cg' | 'direct';
 }
 export interface FrameDefinition {
     config: FrameConfig;
@@ -1410,6 +1433,8 @@ export declare class FrameRuntime implements EngineRuntime<FrameStepRequest, Fra
     private multiply;
     private dot;
     private norms;
+    private factors;
+    private factorFor;
     private solve;
     private command;
     step(request: FrameStepRequest): FrameSnapshot;
@@ -1425,6 +1450,7 @@ export declare class FrameRuntime implements EngineRuntime<FrameStepRequest, Fra
     solveCoupledOperator(dof: number, out: Float64Array): boolean;
     beginCoupledTick(): Float64Array;
     finishCoupledTick(extra: Float64Array): void;
+    setLoads(forces: ArrayLike<number>): void;
     solveStatic(forces?: ArrayLike<number>): FrameStaticSolution;
     private positions;
     private localDisplacement;
@@ -5247,6 +5273,7 @@ export declare class StructureCoupling<B> {
     private bodyTwist;
     private frameResponse;
     private freeDv;
+    private jointStep;
     step(): void;
     private solveSymmetric;
     diagnostics(): StructureDiagnostics;

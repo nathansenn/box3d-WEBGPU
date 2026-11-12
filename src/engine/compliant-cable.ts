@@ -1,11 +1,13 @@
 import {EngineError,finite,integer,onlyKeys,record,validateTickBatch,type EngineCapabilities,type EngineRuntime,type FixedTickCommand,type FixedTickStep} from './contracts.ts';
 import {captureFields,restoreFields,type FieldOptions,type StateObject,type StateValue} from './checkpoint.ts';
+import {EnvelopeMatrix} from './envelope-matrix.ts';
 
 export const COMPLIANT_CABLE_BACKEND='cable-xpbd-js-f64-v1';
 export const PROXIMAL_CABLE_BACKEND='cable-proximal-js-f64-v2';
-type CableBackend=typeof COMPLIANT_CABLE_BACKEND|typeof PROXIMAL_CABLE_BACKEND;
+export const NEWTON_CABLE_BACKEND='cable-newton-js-f64-v1';
+type CableBackend=typeof COMPLIANT_CABLE_BACKEND|typeof PROXIMAL_CABLE_BACKEND|typeof NEWTON_CABLE_BACKEND;
 export interface CableConstraint {a:number;b:number;restLength:number;/** Metres per newton; zero is inextensible. */ compliance:number}
-export interface CableConfig {dt:number;substeps:number;maxIterations:number;residualTolerance:number;/** Mass-proportional velocity damping, inverse seconds. */ drag:number;gravity:readonly [number,number,number];/** Omit to retain the original XPBD backend. */ solver?:'proximal';/** Required for proximal solves, in newtons. */ forceTolerance?:number}
+export interface CableConfig {dt:number;substeps:number;maxIterations:number;residualTolerance:number;/** Mass-proportional velocity damping, inverse seconds. */ drag:number;gravity:readonly [number,number,number];/** Omit to retain the original XPBD backend. 'newton' solves the same implicit step as 'proximal' by Newton's method with a direct solve (elastic links only). */ solver?:'proximal'|'newton';/** Required for proximal and Newton solves, in newtons. */ forceTolerance?:number}
 export interface CableDefinition {
   config:CableConfig; positions:ArrayLike<number>; masses:ArrayLike<number>;
   pinned?:ArrayLike<number>; velocities?:ArrayLike<number>; forces?:ArrayLike<number>; constraints:readonly CableConstraint[];
@@ -50,11 +52,12 @@ function numbers(value:unknown,count:number,label:string,min=-1e100,max=1e100):F
 }
 function config(value:unknown):CableConfig {
   const c=record(value,'config');onlyKeys(c,['dt','substeps','maxIterations','residualTolerance','drag','gravity','solver','forceTolerance'],'config');
-  if(c.solver!==undefined&&c.solver!=='proximal')throw new EngineError('INVALID_PAYLOAD','Unknown cable solver.');
+  if(c.solver!==undefined&&c.solver!=='proximal'&&c.solver!=='newton')throw new EngineError('INVALID_PAYLOAD','Unknown cable solver.');
   if(c.solver===undefined&&c.forceTolerance!==undefined)throw new EngineError('INVALID_PAYLOAD','Force tolerance requires the proximal solver.');
-  return Object.freeze({dt:finite(c.dt,'dt',1e-6,1/30),substeps:integer(c.substeps,'substeps',1,16),maxIterations:integer(c.maxIterations,'maxIterations',1,c.solver==='proximal'?4096:256),
+  return Object.freeze({dt:finite(c.dt,'dt',1e-6,1/30),substeps:integer(c.substeps,'substeps',1,16),maxIterations:integer(c.maxIterations,'maxIterations',1,c.solver!==undefined?4096:256),
     residualTolerance:canonicalZero(finite(c.residualTolerance,'residualTolerance',0,1e-2)),drag:canonicalZero(finite(c.drag,'drag',0,1000)),gravity:Object.freeze(vector(c.gravity,'gravity')),
-    ...(c.solver==='proximal'?{solver:'proximal' as const,forceTolerance:canonicalZero(finite(c.forceTolerance,'forceTolerance',0,1))}:{})});
+    ...(c.solver==='proximal'?{solver:'proximal' as const,forceTolerance:canonicalZero(finite(c.forceTolerance,'forceTolerance',0,1))}:{}),
+    ...(c.solver==='newton'?{solver:'newton' as const,forceTolerance:canonicalZero(finite(c.forceTolerance,'forceTolerance',0,1))}:{})});
 }
 
 /** SI, tension-only axial cables. Fixed anchors exchange reactions with an external support.
@@ -85,7 +88,7 @@ export class CompliantCableRuntime implements EngineRuntime<CableStepRequest,Cab
   constructor(input:CableDefinition) {
     const d=record(input,'definition');onlyKeys(d,['config','positions','masses','pinned','velocities','forces','constraints'],'definition');
     this.config=config(d.config);
-    this.backend=this.config.solver==='proximal'?PROXIMAL_CABLE_BACKEND:COMPLIANT_CABLE_BACKEND;
+    this.backend=this.config.solver==='proximal'?PROXIMAL_CABLE_BACKEND:this.config.solver==='newton'?NEWTON_CABLE_BACKEND:COMPLIANT_CABLE_BACKEND;
     const count=integer((d.masses as ArrayLike<number>)?.length,'node count',1,MAX_NODES);
     this.mass=numbers(d.masses,count,'masses',1e-9,1e12);
     this.initial=numbers(d.positions,count*3,'positions',-1e9,1e9);this.p=this.initial.slice();
@@ -106,6 +109,10 @@ export class CompliantCableRuntime implements EngineRuntime<CableStepRequest,Cab
       return Object.freeze({a,b,restLength,compliance});
     }));
     if(this.edges.length*this.config.substeps*(this.config.maxIterations+(this.config.solver?1:0))>MAX_PROJECTIONS_PER_BATCH)throw new EngineError('WORK_LIMIT','One tick exceeds the bounded CPU projection budget.');
+    if(this.config.solver==='newton'){
+      if(this.edges.some(e=>e.compliance===0))throw new EngineError('INVALID_PAYLOAD','The Newton cable solver needs elastic links (compliance > 0).');
+      if(count-this.pinned.reduce((a,b)=>a+b,0)>2048)throw new EngineError('WORK_LIMIT','The Newton cable solver takes at most 2048 free nodes.');
+    }
     this.invMass=Float64Array.from(this.mass,(m,i)=>this.pinned[i]?0:1/m);
     this.lambda=new Float64Array(this.edges.length);this.previous=new Float64Array(count*3);this.predicted=new Float64Array(count*3);this.forceResidual=new Float64Array(count*3);
     this.vectorMultipliers=new Float64Array(this.config.solver?this.edges.length*3:0);this.supportImpulse=new Float64Array(this.config.solver?count*3:0);
@@ -161,11 +168,12 @@ export class CompliantCableRuntime implements EngineRuntime<CableStepRequest,Cab
       this.p[j]+=h*damping*(this.v[j]+h*(gravity[k]+this.force[j]*this.invMass[i]));
     }
     this.predicted.set(this.p);
-    const proximal=this.config.solver==='proximal';
+    const proximal=this.config.solver==='proximal',newton=this.config.solver==='newton',vector=proximal||newton;
     let residual=0,iterations=0,implicitResidual=0,constraintForceResidual=0;
     if(proximal)({residual,iterations,implicitResidual,constraintForceResidual}=this.solveProximal(h,damping));
+    else if(newton)({residual,iterations,implicitResidual,constraintForceResidual}=this.solveNewton(h,damping));
     else residual=this.residual(alphaScale);
-    while(!proximal&&iterations<maxIterations&&residual>residualTolerance) {
+    while(!vector&&iterations<maxIterations&&residual>residualTolerance) {
       for(let j=0;j<this.edges.length;j++) {
         const e=this.edges[j],a=e.a*3,b=e.b*3,dx=this.p[b]-this.p[a],dy=this.p[b+1]-this.p[a+1],dz=this.p[b+2]-this.p[a+2],length=Math.hypot(dx,dy,dz);
         const wa=this.invMass[e.a]*damping,wb=this.invMass[e.b]*damping,alpha=e.compliance*alphaScale,denominator=wa+wb+alpha;
@@ -182,7 +190,7 @@ export class CompliantCableRuntime implements EngineRuntime<CableStepRequest,Cab
     if(!Number.isFinite(residual)||!this.p.every(Number.isFinite)){this.p.set(this.previous);this.failed=true;throw new EngineError('NUMERICAL_FAILURE','Cable projection produced a nonfinite state.');}
     // XPBD neglects gradient variation in the inertial equation. Report that
     // approximation separately from the constitutive/complementarity residual.
-    if(!proximal){
+    if(!vector){
     for(let i=0;i<this.mass.length;i++)for(let k=0;k<3;k++)this.forceResidual[3*i+k]=this.mass[i]/damping*(this.p[3*i+k]-this.predicted[3*i+k])*alphaScale;
     for(let j=0;j<this.edges.length;j++) {
       const e=this.edges[j],a=3*e.a,b=3*e.b,length=Math.hypot(this.p[b]-this.p[a],this.p[b+1]-this.p[a+1],this.p[b+2]-this.p[a+2]);
@@ -195,7 +203,7 @@ export class CompliantCableRuntime implements EngineRuntime<CableStepRequest,Cab
       // Gravity is accounted for by gravitational potential energy, not twice as work.
       this.externalWork+=this.force[j]*dx;
       this.dragDissipation+=drag*this.mass[i]*this.v[j]**2*h;
-      if(proximal){
+      if(vector){
         const applied=h*(this.force[j]+this.mass[i]*gravity[k]);this.appliedImpulse[k]+=applied;
         this.dragImpulse[k]-=h*drag*this.mass[i]*this.v[j];
         if(this.pinned[i])this.supportImpulse[j]-=applied;
@@ -203,7 +211,7 @@ export class CompliantCableRuntime implements EngineRuntime<CableStepRequest,Cab
     }
     this.maxResidual=Math.max(this.maxResidual,residual);this.maxIterationsUsed=Math.max(this.maxIterationsUsed,iterations);
     this.maxConstraintForceResidual=Math.max(this.maxConstraintForceResidual,constraintForceResidual);
-    if(residual>residualTolerance||(proximal&&Math.max(implicitResidual,constraintForceResidual)>this.config.forceTolerance!))this.unconvergedSubsteps++;
+    if(residual>residualTolerance||(vector&&Math.max(implicitResidual,constraintForceResidual)>this.config.forceTolerance!))this.unconvergedSubsteps++;
   }
   /** Exact vector block minimizations of the convex implicit-step dual.
    * Remove an edge's previous vector correction before its radial proximal solve.
@@ -274,6 +282,140 @@ export class CompliantCableRuntime implements EngineRuntime<CableStepRequest,Cab
     }
     return {residual,iterations,implicitResidual,constraintForceResidual};
   }
+  /** The same backward-Euler step as solveProximal, solved in the primal: minimise
+   *   sum_free m (1 + r h) / (2 h^2) |x - p*|^2 + sum_links max(|xb - xa| - L, 0)^2 / (2 alpha)
+   * by Newton's method. The Hessian is the mass term plus, for each taut link, (1 / alpha) ((1 - L/l) I + (L/l) n n^T)
+   * (axial and geometric stiffness); it is factorised directly (free nodes in Cuthill-McKee order, envelope
+   * Cholesky) and the factor is kept while it still converges well. A backtracking line search on the same function
+   * keeps every step a descent step when links go slack or taut. It stops when the largest implicit force residual
+   * is below forceTolerance. Elastic links only.
+   *
+   * Coupled nodes (coupleNodes(), for structure-coupling.ts): their inertia term is replaced, for one tick, by
+   * (1/2) (x - x*)^T S (x - x*) over all of them together: S is the stiffness with which a carrier resists moving
+   * those nodes from where it would go without this cable (x*), so the cable and its carrier are solved as one. */
+  private newton?:{index:Int32Array;coupled:Int32Array;matrix:EnvelopeMatrix;step:Float64Array;saved:Float64Array;version:number;valid:boolean};
+  private couple?:{nodes:Int32Array;stiffness:Float64Array;targets:Float64Array;version:number};
+  private released?:Uint8Array;
+  /** Newton backend: from the next tick on, link `index` carries nothing, as if it had been cut (its two nodes and
+   * their masses stay). Not part of checkpoints. */
+  releaseLink(index:number):void {
+    this.alive();if(this.config.solver!=='newton')throw new EngineError('INVALID_PAYLOAD','Only the Newton cable solver can release a link.');
+    if(!(Number.isInteger(index)&&index>=0&&index<this.edges.length))throw new EngineError('INVALID_PAYLOAD','Link index out of range.');
+    (this.released??=new Uint8Array(this.edges.length))[index]=1;if(this.newton)this.newton.valid=false;
+  }
+  isReleased(index:number):boolean {return this.released?.[index]===1;}
+  /** Coupling hook (Newton backend, one substep): for the next advance() only, the given free nodes start at
+   * `positions` with `velocities` and, instead of their own inertia, are held towards `targets` by the dense
+   * symmetric positive definite `stiffness` (3m x 3m, N/m, m = nodes.length). `version` must change whenever the
+   * node list or the stiffness changes. */
+  coupleNodes(nodes:Int32Array,stiffness:Float64Array,targets:Float64Array,positions:Float64Array,velocities:Float64Array,version:number):void {
+    this.alive();
+    if(this.config.solver!=='newton'||this.config.substeps!==1)throw new EngineError('INVALID_PAYLOAD','Coupled nodes need the Newton solver with one substep.');
+    const m=nodes.length;
+    if(stiffness.length!==9*m*m||targets.length!==3*m||positions.length!==3*m||velocities.length!==3*m)throw new EngineError('INVALID_PAYLOAD','Coupled node arrays have the wrong length.');
+    for(let i=0;i<m;i++){
+      const node=nodes[i];if(!(node>=0&&node<this.mass.length)||this.pinned[node])throw new EngineError('INVALID_PAYLOAD','Coupled nodes must be free cable nodes.');
+      for(let k=0;k<3;k++){this.p[3*node+k]=positions[3*i+k];this.v[3*node+k]=velocities[3*i+k];}
+    }
+    this.couple={nodes,stiffness,targets,version};
+  }
+  private solveNewton(h:number,damping:number):{residual:number;iterations:number;implicitResidual:number;constraintForceResidual:number} {
+    const scale=1/(h*h),count=this.mass.length,couple=this.couple,version=couple?couple.version:-1;
+    if(couple)for(let i=0;i<couple.nodes.length;i++){const node=couple.nodes[i];for(let k=0;k<3;k++)this.p[3*node+k]=this.predicted[3*node+k]=couple.targets[3*i+k];}
+    if(!this.newton||this.newton.version!==version){
+      // Cuthill-McKee order of the free nodes keeps the factor's envelope narrow for chains and trees; coupled nodes go last.
+      const neighbours:number[][]=Array.from({length:count},()=>[]),isCoupled=new Uint8Array(count);
+      if(couple)for(const node of couple.nodes)isCoupled[node]=1;
+      for(const e of this.edges)if(!this.pinned[e.a]&&!this.pinned[e.b]){neighbours[e.a].push(e.b);neighbours[e.b].push(e.a);}
+      const index=new Int32Array(count).fill(-1);let next=0;
+      const free=Array.from({length:count},(_,i)=>i).filter(i=>!this.pinned[i]&&!isCoupled[i]).sort((a,b)=>neighbours[a].length-neighbours[b].length||a-b);
+      for(const start of free){
+        if(index[start]>=0)continue;
+        const queue=[start];index[start]=next++;
+        for(let head=0;head<queue.length;head++)for(const j of [...neighbours[queue[head]]].sort((a,b)=>neighbours[a].length-neighbours[b].length||a-b))if(index[j]<0&&!isCoupled[j]){index[j]=next++;queue.push(j);}
+      }
+      const coupled=couple?Int32Array.from(couple.nodes,node=>{index[node]=next++;return node;}):new Int32Array(0);
+      const n=3*next,first=Int32Array.from({length:n},(_,i)=>i-i%3);
+      for(const e of this.edges){
+        const a=index[e.a],b=index[e.b];if(a<0||b<0)continue;
+        const lo=3*Math.min(a,b);for(const node of [a,b])for(let k=0;k<3;k++)first[3*node+k]=Math.min(first[3*node+k],lo);
+      }
+      if(couple){const lo=3*index[coupled[0]];for(const node of coupled)for(let k=0;k<3;k++)first[3*index[node]+k]=Math.min(first[3*index[node]+k],lo);}
+      this.newton={index,coupled,matrix:new EnvelopeMatrix(n,first),step:new Float64Array(n),saved:new Float64Array(this.p.length),version,valid:false};
+    }
+    const state=this.newton,{index,matrix,step,saved}=state,a=matrix.a,n=matrix.n,lambda=this.lambda,m=couple?couple.nodes.length:0,released=this.released;
+    const isCoupled=(i:number)=>couple!==undefined&&index[i]>=n/3-m;
+    const coupledForce=new Float64Array(3*m),scratch=new Float64Array(3*m);
+    const gradient=():number=>{
+      for(let i=0;i<count;i++)for(let k=0;k<3;k++)this.forceResidual[3*i+k]=isCoupled(i)?0:this.mass[i]/damping*(this.p[3*i+k]-this.predicted[3*i+k])*scale;
+      if(couple){
+        const S=couple.stiffness,d=scratch;
+        for(let i=0;i<m;i++)for(let k=0;k<3;k++)d[3*i+k]=this.p[3*couple.nodes[i]+k]-couple.targets[3*i+k];
+        for(let r=0;r<3*m;r++){let sum=0;const row=r*3*m;for(let c=0;c<3*m;c++)sum+=S[row+c]*d[c];coupledForce[r]=sum;this.forceResidual[3*couple.nodes[(r-r%3)/3]+r%3]+=sum;}
+      }
+      for(let j=0;j<this.edges.length;j++){
+        const e=this.edges[j],ea=3*e.a,eb=3*e.b,dx=this.p[eb]-this.p[ea],dy=this.p[eb+1]-this.p[ea+1],dz=this.p[eb+2]-this.p[ea+2],length=Math.hypot(dx,dy,dz);
+        const tension=released?.[j]?0:Math.max(length-e.restLength,0)/e.compliance;lambda[j]=canonicalZero(-tension/scale);
+        if(length>0&&tension>0){const f=tension/length;this.forceResidual[ea]-=f*dx;this.forceResidual[ea+1]-=f*dy;this.forceResidual[ea+2]-=f*dz;this.forceResidual[eb]+=f*dx;this.forceResidual[eb+1]+=f*dy;this.forceResidual[eb+2]+=f*dz;}
+        this.residualEvaluations++;
+      }
+      let worst=0;for(let i=0;i<count;i++)if(!this.pinned[i])worst=Math.max(worst,Math.hypot(this.forceResidual[3*i],this.forceResidual[3*i+1],this.forceResidual[3*i+2]));
+      return worst;
+    };
+    const assemble=()=>{
+      a.fill(0);
+      for(let i=0;i<count;i++){const r=index[i];if(r<0||isCoupled(i))continue;const mass=this.mass[i]/damping*scale;for(let k=0;k<3;k++)a[(3*r+k)*n+3*r+k]+=mass;}
+      if(couple){const S=couple.stiffness,base=n-3*m;for(let r=0;r<3*m;r++)for(let c=0;c<=r;c++)a[(base+r)*n+base+c]+=S[r*3*m+c];}
+      for(let j=0;j<this.edges.length;j++){
+        const e=this.edges[j],ea=3*e.a,eb=3*e.b,dx=this.p[eb]-this.p[ea],dy=this.p[eb+1]-this.p[ea+1],dz=this.p[eb+2]-this.p[ea+2],length=Math.hypot(dx,dy,dz);
+        if(released?.[j]||!(length>e.restLength))continue;
+        const d=[dx/length,dy/length,dz/length],ratio=e.restLength/length,stiff=1/e.compliance,ia=index[e.a],ib=index[e.b];
+        for(let r=0;r<3;r++)for(let c=0;c<3;c++){
+          const value=stiff*((r===c?1-ratio:0)+ratio*d[r]*d[c]);
+          if(ia>=0&&c<=r)a[(3*ia+r)*n+3*ia+c]+=value;
+          if(ib>=0&&c<=r)a[(3*ib+r)*n+3*ib+c]+=value;
+          if(ia>=0&&ib>=0){const hi=Math.max(ia,ib),lo=Math.min(ia,ib);a[(3*hi+r)*n+3*lo+c]-=value;}
+        }
+      }
+      matrix.factor();state.valid=fresh=true;assemblies++;
+    };
+    let implicit=gradient(),iterations=0,fresh=false,assemblies=0;
+    // The factor is kept from step to step and refreshed when it stops converging fast.
+    if(!state.valid)assemble();
+    while(iterations<this.config.maxIterations&&implicit>this.config.forceTolerance!){
+      for(let i=0;i<count;i++){const r=index[i];if(r<0)continue;for(let k=0;k<3;k++)step[3*r+k]=-this.forceResidual[3*i+k];}
+      matrix.solve(step);
+      // Take the Newton step; halve it while it would more than double the residual (a link going slack or taut).
+      saved.set(this.p);
+      let t=1,nextResidual=Infinity;
+      for(let tries=0;tries<12;tries++,t/=2){
+        for(let i=0;i<count;i++){const r=index[i];if(r<0)continue;for(let k=0;k<3;k++)this.p[3*i+k]=saved[3*i+k]+t*step[3*r+k];}
+        nextResidual=gradient();if(nextResidual<=2*implicit)break;
+      }
+      this.constraintProjections+=this.edges.length;iterations++;
+      if(!(nextResidual<implicit)){
+        // No progress: go back and refresh the factor at the current geometry (links may have gone slack or taut).
+        this.p.set(saved);implicit=gradient();
+        if(fresh||assemblies>=8)break;
+        assemble();continue;
+      }
+      // Slow progress: the kept factor is out of date; refresh it.
+      const slow=!(nextResidual<.1*implicit);implicit=nextResidual;fresh=false;
+      if(slow&&assemblies<8&&implicit>this.config.forceTolerance!)assemble();
+    }
+    if(!Number.isFinite(implicit)||!this.p.every(Number.isFinite)){this.p.set(this.previous);this.failed=true;throw new EngineError('NUMERICAL_FAILURE','Cable Newton solve produced a nonfinite state.');}
+    for(let j=0;j<this.edges.length;j++){
+      const e=this.edges[j],ea=3*e.a,eb=3*e.b,dx=this.p[eb]-this.p[ea],dy=this.p[eb+1]-this.p[ea+1],dz=this.p[eb+2]-this.p[ea+2],length=Math.hypot(dx,dy,dz);
+      const tension=released?.[j]?0:Math.max(length-e.restLength,0)/e.compliance;if(!(length>0)||tension===0)continue;
+      for(let k=0;k<3;k++){const impulse=h*tension*(k===0?dx:k===1?dy:dz)/length;if(this.pinned[e.a])this.supportImpulse[ea+k]-=impulse;if(this.pinned[e.b])this.supportImpulse[eb+k]+=impulse;}
+    }
+    if(couple)this.coupledForce=coupledForce;
+    this.couple=undefined;
+    return {residual:0,iterations,implicitResidual:implicit,constraintForceResidual:0};
+  }
+  /** After an advance() with coupled nodes: S (x - x*) at the end of the step, three per coupled node in the order
+   * given, N. At the answer it is the pull of the cable's links on those nodes. */
+  coupledForce=new Float64Array(0);
   // ---- Coupling hooks (structure-coupling.ts). Additions only: step() and its numerics are untouched. ----
   /** One tick with no commands, no validation and no snapshot. The same per-tick sequence as step(). */
   advance():void {
@@ -329,7 +471,7 @@ export class CompliantCableRuntime implements EngineRuntime<CableStepRequest,Cab
   }
   static fromCheckpoint(value:unknown):CompliantCableRuntime {
     const c=record(value,'checkpoint');onlyKeys(c,['format','version','backend','definition','state'],'checkpoint');
-    if(c.format!=='box3d-compliant-cable'||!((c.version===1&&c.backend===COMPLIANT_CABLE_BACKEND)||(c.version===2&&c.backend===PROXIMAL_CABLE_BACKEND)))throw new EngineError('INVALID_PAYLOAD','Unsupported cable checkpoint.');
+    if(c.format!=='box3d-compliant-cable'||!((c.version===1&&c.backend===COMPLIANT_CABLE_BACKEND)||(c.version===2&&(c.backend===PROXIMAL_CABLE_BACKEND||c.backend===NEWTON_CABLE_BACKEND))))throw new EngineError('INVALID_PAYLOAD','Unsupported cable checkpoint.');
     const runtime=new CompliantCableRuntime(c.definition as CableDefinition);
     try {
       if(runtime.backend!==c.backend)throw new EngineError('INVALID_PAYLOAD','Checkpoint solver and backend disagree.');
