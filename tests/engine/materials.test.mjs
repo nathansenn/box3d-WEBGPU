@@ -55,7 +55,7 @@ test('the library covers the materials and properties it promises, and counts it
   for (const id of ids.filter(id => M.material(id).category === 'fluid')) for (const property of ['density', 'viscosity']) assert.ok(M.materialValue(id, property), `${id}.${property}`);
   for (const id of ['glass-beads', 'sand-quartz']) for (const property of ['density', 'youngModulus', 'poissonRatio']) assert.ok(M.materialValue(id, property), `${id}.${property}`);
   const rows = M.materialAudit(), unverified = rows.filter(row => row.source === 'unverified');
-  assert.equal(rows.length, 214, 'values in the library (docs/MATERIALS.md and the validation domain quote this count)');
+  assert.equal(rows.length, 228, 'values in the library (docs/MATERIALS.md and the validation domain quote this count)');
   assert.equal(unverified.length, 7, 'unverified values (docs/MATERIALS.md lists them)');
   assert.deepEqual(unverified.filter(row => row.kind !== 'pair').map(row => `${row.subject}.${row.property}`), ['honey.density'], 'every material property has a source except the density of honey; the rest are contact coefficients');
 });

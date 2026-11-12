@@ -11,6 +11,8 @@ import {watchDeviceLoss,framesSettled,initWebGL} from '../device-loss';
 import {LABS,type LabId} from './catalog';
 import {GlassModel,GranularModel,LiquidModel,RubberModel,type LabFrame,type LabModel,type V3,random} from './models';
 
+/** Triangles of a prism over an n-gon: bottom vertices 0..n-1, top n..2n-1. */
+const prismFaces=(n:number):number[]=>{const out:number[]=[];for(let k=1;k<n-1;k++)out.push(0,k+1,k,n,n+k,n+k+1);for(let a=0;a<n;a++){const b=(a+1)%n;out.push(a,b,n+b,a,n+b,n+a);}return out;};
 const UP=new T.Vector3(0,1,0),faces=[0,2,1,0,3,2,4,5,6,4,6,7,0,1,5,0,5,4,3,7,6,3,6,2,1,2,6,1,6,5,0,4,7,0,7,3];
 export type LabView='hero'|'detail'|'top';
 export class MaterialLabWorld {
@@ -23,7 +25,7 @@ export class MaterialLabWorld {
   private liquidSection=3;private sectionVisible=false;
   private water?:T.Mesh<T.BufferGeometry>;private waterSides?:T.Mesh<T.BufferGeometry>;private foam?:T.InstancedMesh;
   private dummy=new T.Object3D();private color=new T.Color();private localVertices=new Float32Array();private ranges:number[]=[];
-  private rubberRest?:Float32Array;private labels:T.Texture[]=[];private view:LabView='hero';private disposed=false;private recovering=false;private recovery?:Promise<void>;
+  private rubberRest?:Float32Array;private paneRest?:Float32Array;private labels:T.Texture[]=[];private view:LabView='hero';private disposed=false;private recovering=false;private recovery?:Promise<void>;
   /** Called after a lost WebGPU device has been replaced by the WebGL renderer. */
   onBackendChange?:()=>void;
   private tint:T.MeshPhysicalMaterial;private ripple=riverNormals();private lastFrame?:LabFrame;private rotate=false;private key=new T.DirectionalLight('#fff1d7',3.6);
@@ -146,7 +148,7 @@ export class MaterialLabWorld {
     this.hydraulics?.dispose();this.hydraulics=undefined;
     const shared=new Set(Object.values(this.materials));
     this.rig.traverse(o=>{if(o instanceof T.Mesh||o instanceof T.LineSegments){o.geometry.dispose();for(const material of Array.isArray(o.material)?o.material:[o.material])if(material!==this.tint&&!shared.has(material)&&this.extraMaterials.has(material)){const texture=(material as T.MeshBasicMaterial).map;if(texture instanceof T.CanvasTexture){texture.dispose();this.labels=this.labels.filter(t=>t!==texture);}material.dispose();this.extraMaterials.delete(material);}}});this.rig.clear();this.model=model;this.actuator=new T.Group();this.rig.add(this.actuator);
-    this.specimen=undefined;this.intactPane=undefined;this.piston=undefined;this.grains=undefined;this.water=undefined;this.waterSides=undefined;this.cracks=undefined;this.foam=undefined;this.rubberRest=undefined;
+    this.specimen=undefined;this.intactPane=undefined;this.paneRest=undefined;this.piston=undefined;this.grains=undefined;this.water=undefined;this.waterSides=undefined;this.cracks=undefined;this.foam=undefined;this.rubberRest=undefined;
     this.tint.dispose();this.extraMaterials.delete(this.tint);
     const id=model.id,p=model.material;
     this.tint=this.own(new T.MeshPhysicalMaterial({color:p.color,roughness:id==='glass'?(p.id==='frosted'?.55:.08):id==='liquid'?.12:id==='rubber'?.47:.85,metalness:id==='granular'&&p.id==='steel'?.8:0,
@@ -218,7 +220,9 @@ export class MaterialLabWorld {
     this.cylinder(.15,.3,[m.impactX,r.pivotY+.02,0],'steel').rotation.z=Math.PI/2;
     this.buildPieces(true);
     const paneMaterial=this.own(this.tint.clone());paneMaterial.transmission=.82;paneMaterial.opacity=1;paneMaterial.ior=1.5;paneMaterial.thickness=m.settings.size/1000;paneMaterial.envMapIntensity=1.25;
-    this.intactPane=this.mesh(new T.BoxGeometry(m.panelWidth,m.panelHeight,m.settings.size/1000),paneMaterial,[0,m.panelCenterY,0]);this.intactPane.castShadow=false;
+    // The intact pane bends with the plate: one vertex column per node on both faces.
+    this.intactPane=this.mesh(new T.BoxGeometry(m.panelWidth,m.panelHeight,m.settings.size/1000,m.plate.cx,m.plate.cy,1),paneMaterial,[0,m.panelCenterY,0]);this.intactPane.castShadow=false;
+    this.paneRest=(this.intactPane.geometry.getAttribute('position').array as Float32Array).slice();
   }
   private buildPressRig():void {
     const rubber=this.model.id==='rubber',width=rubber?2.5:3.4,depth=rubber?1.65:2.7,height=rubber?3.75:4.9;
@@ -248,14 +252,14 @@ export class MaterialLabWorld {
     const thickness=this.model.settings.size/1000;
     for(const piece of this.model.pieces){this.ranges.push(local.length/3);const tone=.98+rng()*.035;
       const verts=glass?[...piece.vertices.map(p=>[p[0],p[1],-thickness/2] as V3),...piece.vertices.map(p=>[p[0],p[1],thickness/2] as V3)]:piece.vertices;
-      const indices=glass?[0,2,1,3,4,5,0,1,4,0,4,3,1,2,5,1,5,4,2,0,3,2,3,5]:faces;
+      const indices=glass?prismFaces(piece.vertices.length):faces;
       for(let j=0;j<indices.length;j++){const v=verts[indices[j]];local.push(...v);if(glass)uv.push(v[0],v[1]);else{const start=Math.floor(j/3)*3,a=new T.Vector3(...verts[indices[start]]),b=new T.Vector3(...verts[indices[start+1]]),c=new T.Vector3(...verts[indices[start+2]]),n=b.sub(a).cross(c.sub(a));const x=v[0]+piece.center[0],y=v[1]+piece.center[1],z=v[2]+piece.center[2];if(Math.abs(n.y)>Math.max(Math.abs(n.x),Math.abs(n.z)))uv.push(x,z);else if(Math.abs(n.x)>Math.abs(n.z))uv.push(z,y);else uv.push(x,y);}colors.push(tone,tone,tone);}
     }
     this.ranges.push(local.length/3);this.localVertices=Float32Array.from(local);
     const g=new T.BufferGeometry();g.setAttribute('position',new T.BufferAttribute(new Float32Array(local.length),3).setUsage(T.DynamicDrawUsage));g.setAttribute('uv',new T.BufferAttribute(Float32Array.from(uv),2));
     if(!glass){g.setAttribute('color',new T.BufferAttribute(Float32Array.from(colors),3));this.tint.vertexColors=true;}
     this.specimen=this.mesh(g,this.tint,[0,0,0]);this.specimen.frustumCulled=false;this.specimen.castShadow=!glass;
-    if(glass){const edges=new T.BufferGeometry();edges.setAttribute('position',new T.BufferAttribute(new Float32Array(this.model.pieces.length*18),3).setUsage(T.DynamicDrawUsage));this.cracks=new T.LineSegments(edges,this.own(new T.LineBasicMaterial({color:'#b5dad4',transparent:true,opacity:.35})));this.cracks.frustumCulled=false;this.rig.add(this.cracks);}
+    if(glass){const edges=new T.BufferGeometry();edges.setAttribute('position',new T.BufferAttribute(new Float32Array((this.model as GlassModel).plate.bondCount*12),3).setUsage(T.DynamicDrawUsage));this.cracks=new T.LineSegments(edges,this.own(new T.LineBasicMaterial({color:'#e9f6f2',transparent:true,opacity:.7})));this.cracks.frustumCulled=false;this.rig.add(this.cracks);}
   }
   update(f:LabFrame):void {
     this.lastFrame=f;const m=this.model;
@@ -264,6 +268,11 @@ export class MaterialLabWorld {
     if(m.id==='glass'){
       this.actuator.rotation.x=-f.actuator;const fractured=f.damage.some(d=>d>0);
       if(this.intactPane)this.intactPane.visible=!fractured;this.specimen!.visible=fractured;if(this.cracks)this.cracks.visible=fractured;
+      if(!fractured&&this.intactPane&&this.paneRest){
+        const plate=(m as GlassModel).plate,p=this.intactPane.geometry.getAttribute('position'),rest=this.paneRest;
+        for(let k=0;k<p.count;k++){const i=Math.round((rest[3*k]+(m as GlassModel).panelWidth/2)/plate.hx),j=Math.round((rest[3*k+1]+(m as GlassModel).panelHeight/2)/plate.hy);p.setZ(k,rest[3*k+2]+(f.positions[3*(j*plate.nx+i)+2]||0));}
+        p.needsUpdate=true;this.intactPane.geometry.computeVertexNormals();
+      }
       // The intact pane is a separate mesh. Build fragment poses only when visible,
       // including the first fractured frame after live stepping or replay.
       if(fractured)this.updatePieces(f,true);
@@ -284,7 +293,15 @@ export class MaterialLabWorld {
     for(let i=0;i<this.model.pieces.length;i++){
       this.dummy.position.fromArray(f.positions,i*3);this.dummy.rotation.set(f.rotations[i*3],f.rotations[i*3+1],f.rotations[i*3+2]);this.dummy.scale.set(1,1,1);this.dummy.updateMatrix();const e=this.dummy.matrix.elements;
       for(let j=this.ranges[i];j<this.ranges[i+1];j++){const x=this.localVertices[j*3],y=this.localVertices[j*3+1],z=this.localVertices[j*3+2];positions.setXYZ(j,e[0]*x+e[4]*y+e[8]*z+e[12],e[1]*x+e[5]*y+e[9]*z+e[13],e[2]*x+e[6]*y+e[10]*z+e[14]);}
-      if(glass&&f.damage[i]&&edges){const first=this.ranges[i];for(let a=0;a<3;a++)for(const b of [a,(a+1)%3])edges.setXYZ(edgeCount++,positions.getX(first+b),positions.getY(first+b),positions.getZ(first+b)+.004);}
+    }
+    if(glass&&edges&&f.cracks){
+      // A broken bond is the edge two tiles share: the +x edge (corners 1, 2) or the +y edge (corners 2, 3) of its first node,
+      // drawn on both faces of that node's tile as it moves now.
+      const plate=(this.model as GlassModel).plate,xBonds=plate.cx*plate.ny,n=this.model.pieces[0].vertices.length,corner=(node:number,k:number,face:number)=>this.ranges[node]+(face?n+k:k);
+      for(let b=0;b<plate.bondCount;b++){
+        if(!f.cracks[b])continue;const [p]=plate.bondNodes(b),pair=b<xBonds?[1,2]:[2,3];
+        for(const face of [0,1])for(const k of pair){const j=corner(p,k,face);edges.setXYZ(edgeCount++,positions.getX(j),positions.getY(j),positions.getZ(j)+(face?.0015:-.0015));}
+      }
     }
     positions.needsUpdate=true;g.computeVertexNormals();if(edges&&this.cracks){edges.needsUpdate=true;this.cracks.geometry.setDrawRange(0,edgeCount);}
   }

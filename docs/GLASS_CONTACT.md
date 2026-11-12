@@ -1,5 +1,9 @@
 # Glass contact mechanics
 
+## 2026-11-12: the Studio's glass lab no longer runs this scene
+
+The glass impact lab now runs in SI units on a Kirchhoff plate with brittle fracture ([`STUDIO_MATERIAL_LABS.md`](STUDIO_MATERIAL_LABS.md)). The convex-contact glass scene below is kept, unchanged, as `ConvexGlassModel` in `src/studio/material-labs/glass-convex.ts`: it remains the qualification scene of `src/engine/convex-contact.ts` (`tests/studio/glass-*.test.mjs`, `tests/studio/material-collision.test.mjs`, `scripts/glass-collision-qualify.mjs`). `tests/studio/material-labs.test.mjs` now tests the SI lab and runs in the Studio gate.
+
 ## 2026-11-11: persistent pairs; 1.5–1.8× faster with identical results
 
 The fractured-pane step is faster, and still far from real time. Every accepted state is unchanged: all eight presets match the previous source bit for bit over all 11,520 ticks (position, rotation, linear and angular velocity of every body, and the contact statistics, compared after every tick). The backend name stays `convex-contact-sat-js-f64-v5`.

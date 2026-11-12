@@ -22,6 +22,7 @@ import solidContact from './domains/solid-contact.mjs';
 import heat from './domains/heat.mjs';
 import solid from './domains/solid.mjs';
 import fracture from './domains/fracture.mjs';
+import plate from './domains/plate.mjs';
 import frame from './domains/frame.mjs';
 import cable from './domains/cable.mjs';
 import closedWater from './domains/closed-water.mjs';
@@ -246,6 +247,19 @@ export const DOMAINS = [
     ],
   },
   {
+    id: 'plate', title: 'Thin plates with brittle fracture', needsKit: false,
+    solver: '`src/engine/plate.ts`: Kirchhoff bending on a regular grid (finite-difference curvatures, energy-consistent forces), explicit symplectic Euler, cracks as broken bonds between nodes, float64',
+    summary: 'A simply supported pane under uniform pressure against the Navier series (deflection, moment, order), its first mode against the grid\'s exact frequency and Kirchhoff theory, energy of the explicit step, and the pressure of the first crack, with and without a surface prestress, against the Navier stress.',
+    docs: ['docs/STUDIO_MATERIAL_LABS.md'],
+    notValidated: [
+      'Linear plate theory: deflections well above the thickness stiffen a real pane by membrane action, which is not modelled; the Studio\'s impacts reach several thicknesses.',
+      'Crack paths follow the grid (bonds along x and y, 0.1 m in the Studio): a crack at 45 degrees is a staircase, and nothing finer than a cell is resolved. Once a bond breaks the crack runs, which is right for glass (l_ch of a fraction of a millimetre) and wrong for tougher materials.',
+      'The strength check reads the moment at a bond\'s middle. A point load on one node gives a mesh-dependent peak (the Kirchhoff point-load moment is logarithmically singular): onset under a hard impactor depends on the cell size. Hertzian contact stresses and cone cracks are not modelled.',
+      'Tempered glass dicing is a front that breaks every bond it reaches; its speed and the fragment size quoted by the Studio are inputs from the literature, not results.',
+      'Bridging layers (PVB, wire mesh) are strings with the in-plane displacement neglected; they never tear. No impact validation: the contact with the pendulum is a penalty spring and dashpot, and fragments fall as rigid bodies that do not collide with each other.',
+    ],
+  },
+  {
     id: 'frame', title: 'Frames (beam finite elements)', needsKit: false,
     solver: '`src/engine/frame-runtime.ts`: Euler-Bernoulli elements with cubic Hermite bending, consistent mass, implicit midpoint, float64',
     summary: 'Cantilever compliance in all six directions, self-weight deflection, an exact discrete oscillator, the first bending mode and the temporal order.',
@@ -292,7 +306,7 @@ export const DOMAINS = [
     docs: ['docs/MATERIALS.md'],
     notValidated: [
       'The values themselves: each row checks that a library value reaches a solver in the right unit and role, with the reference computed from the same value. Whether 6061-T6 really has E = 68.9 GPa is the source\'s claim (docs/MATERIALS.md cites it), not something measured here.',
-      'Source quality varies: standards and NIST data, manufacturers\' typical values ("not for design"), and for several friction pairs only The Engineering ToolBox, marked as a last resort. 6 of the 208 values are unverified (no source opened) and are refused by the helpers unless allowUnverified is set.',
+      'Source quality varies: standards and NIST data, manufacturers\' typical values ("not for design"), and for several friction pairs only The Engineering ToolBox, marked as a last resort. 6 of the 228 values are unverified (no source opened) and are refused by the helpers unless allowUnverified is set.',
       'Friction and restitution are properties of a pair, a surface finish and a speed. The rigid world applies one coefficient to sticking and sliding, mixes two bodies as sqrt(f_a f_b) and max(e_a, e_b), and does not apply restitution to slow impacts; the library records the measured speed but no solver uses it.',
       'Temperature dependence: each value holds at the stated temperature (mostly 20 to 25 °C); only the steel, concrete and wood formulas the sources give were evaluated, at 20 °C.',
       'Anisotropy and variability: wood is orthotropic and is given along the grain; rubber, polymers and wood vary with grade, moisture, rate and cross-linking well beyond the ranges here; grain-scale moduli of beads and sand are back-calculated from contact tests.',
@@ -300,7 +314,7 @@ export const DOMAINS = [
   },
 ];
 
-export const CASES = [...rigid, ...waterCoupling, ...structureCoupling, ...siBridge, ...geometry, ...scene, ...simulation, ...robot, ...cloth, ...granular, ...fluid, ...heat, ...solid, ...solidContact, ...fracture, ...frame, ...cable, ...closedWater, ...materials];
+export const CASES = [...rigid, ...waterCoupling, ...structureCoupling, ...siBridge, ...geometry, ...scene, ...simulation, ...robot, ...cloth, ...granular, ...fluid, ...heat, ...solid, ...solidContact, ...fracture, ...plate, ...frame, ...cable, ...closedWater, ...materials];
 
 /** Cases of the given domains (all when `only` is empty), in registry order. */
 export function selectCases(only = []) {

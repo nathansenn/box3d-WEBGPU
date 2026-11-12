@@ -63,7 +63,6 @@ test('workflows stay read-only: none can write to the repository, commit or push
 // .test-build suites, runner scripts that hand files to `node --test`, and test files imported by a
 // reached test. A file that must stay out of every gate goes in UNWIRED_TESTS with the reason.
 const UNWIRED_TESTS={
-  'tests/studio/material-labs.test.mjs':'fails and is too slow for a gate (measured 2026-11-11): the laminated pane travels 645 mm against 757 mm for annealed, so the retention assertion (below 30%) fails on unchanged physics, and the file needs 36 minutes because a fractured-glass step still takes 0.09 to 0.8 s; see docs/GLASS_CONTACT.md',
   'tests/qualification/cable-evidence.test.mjs':'needs benchmarks/results/engine-100x/runs/compliant-cable-accuracy-20260910-04, evidence that is not in the repository',
   'tests/qualification/frame-evidence.test.mjs':'needs benchmarks/results/engine-100x/runs/frame-accuracy-20260911-04, evidence that is not in the repository',
   'tests/qualification/native-capacity-check.test.mjs':'needs benchmarks/results/engine-100x/native-capacity-renderer-metal-direct-20260910-01.json, evidence that is not in the repository',
@@ -122,7 +121,7 @@ test('every test file runs in a gate or is listed in UNWIRED_TESTS with a reason
   for(const file of ['tests/unit.test.ts','tests/autoplay.test.ts','tests/round5-worker.test.py','tests/assets/ktx2-header.test.mjs','tests/engine/worker.test.mjs','scripts/test-collision.mjs'])assert.ok(pr.has(file),`${file} runs in the pull-request gate`);
   for(const file of ['tests/studio/failure.test.mjs','tests/studio/press-lab.test.mjs'])assert.ok(studio.has(file)&&!pr.has(file),`${file} runs in the Studio gate`);
   assert.ok(release.has('tests/engine/harness.test.mjs')&&!pr.has('tests/engine/harness.test.mjs'),'the engine suite runs in the release gate');
-  assert.ok(!release.has('tests/studio/material-labs.test.mjs'),'an unwired file is seen as unwired');
+  assert.ok(!release.has('tests/qualification/cable-evidence.test.mjs'),'an unwired file is seen as unwired');
   const problems=[];
   for(const file of all)if(!release.has(file)&&!(file in UNWIRED_TESTS))problems.push(`${file}: no gate runs it; add it to an npm script that scripts/validate-release.mjs runs, or to UNWIRED_TESTS with the reason`);
   for(const [file,reason] of Object.entries(UNWIRED_TESTS)){

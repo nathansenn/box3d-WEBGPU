@@ -23,7 +23,7 @@ import type {GranularMaterial} from './granular.ts';
 
 export const MATERIAL_LIBRARY_ID = 'box3d-materials';
 /** Semver of the data: a changed value is a minor release, a removed material or property a major one. */
-export const MATERIAL_LIBRARY_VERSION = '1.1.0';
+export const MATERIAL_LIBRARY_VERSION = '1.2.0';
 /** The date the sources were opened and read. */
 export const MATERIAL_SOURCES_ACCESSED = '2026-11-12';
 
@@ -144,6 +144,11 @@ export const MATERIAL_SOURCES: Readonly<Record<string, MaterialSource>> = deepFr
   'zou-2024': {id: 'zou-2024', kind: 'peer-reviewed', author: 'Z. Zou et al.',
     title: 'Experimental study of the restitution coefficient of spherical particles, J. Phys.: Conf. Ser. 2730 (2024) 012008, Table 1',
     url: 'https://iopscience.iop.org/article/10.1088/1742-6596/2730/1/012008/pdf'},
+  'schott-borofloat-33': {id: 'schott-borofloat-33', kind: 'manufacturer', author: 'SCHOTT AG (distributed by Edmund Optics)',
+    title: 'BOROFLOAT 33 - Technical Data (optical properties datasheet, 140827_schott_b33_opt_en)', url: 'https://www.edmundoptics.com/ViewDocument/schott-borofloat-technical-data-sheet-english.pdf'},
+  'agc-stratobel-pvb': {id: 'agc-stratobel-pvb', kind: 'manufacturer', author: 'AGC Glass Europe (H. Lefèvre)',
+    title: 'Material properties of PVB interlayers, Stratobel and Stratobel Strong laminated glass, 20 July 2022', url: 'https://www.agc-yourglass.com/sites/default/files/2022-10/Material%20Properties%20of%20PVB%200722_EN_0.pdf',
+    note: 'Relaxation moduli for load resistance design (EN 16612 / EN 16613); the shortest duration tabulated for standard PVB is 3 s.'},
 } satisfies Record<string, MaterialSource>);
 
 export type MaterialPropertyName =
@@ -323,6 +328,30 @@ export const MATERIALS: Readonly<Record<string, MaterialEntry>> = deepFreeze({
       specificHeat: v(880, 'ct-soda-lime', '0,88 kJ/(kg K)', 'room temperature'),
       thermalExpansion: v(8.3e-6, 'ct-soda-lime', '8,3 * 10^-6 °C', 'room temperature')},
     notes: ['The strength of glass is set by its surface flaws, not by a material constant; 41 MPa is the sheet\'s figure for annealed glass in bending.']},
+  'soda-lime-glass-toughened': {id: 'soda-lime-glass-toughened', name: 'Soda-lime glass, thermally toughened', category: 'glass', grade: 'float soda-lime-silica glass, thermally toughened (tempered)', isotropic: true,
+    properties: {
+      density: v(2500, 'ct-soda-lime', '2 500 kg/m3 (@ 18 °C)', '18 °C; toughening does not change the glass'),
+      youngModulus: v(72e9, 'ct-soda-lime', '72 GPa', 'room temperature'),
+      shearModulus: v(30e9, 'ct-soda-lime', '30 GPa', 'room temperature'),
+      poissonRatio: v(0.23, 'ct-soda-lime', '0,23', 'room temperature'),
+      flexuralStrength: v(165e6, 'ct-soda-lime', 'flexural strength, annealed: 41 MPa (heat-strengthened 83, toughened 165)', 'thermally toughened'),
+      fractureToughness: v(0.75e6, 'salem-jenkins-2018', 'soda lime silicate 0.75 ± 0.04 (35/73) in air; 0.79 ± 0.02 in dry N2 (MPa√m, ASTM C1421)', 'in air at 35% RH and 73 °F; toughening adds residual stress, not toughness',
+        {uncertainty: 0.04e6, range: [0.71e6, 0.81e6], derived: 'range: air mean minus one deviation to dry mean plus one deviation'})},
+    notes: ['Toughening puts the surfaces in compression. The difference between the toughened and annealed flexural strengths of the same sheet, 165 - 41 = 124 MPa, is the surface compression a crack must first overcome.']},
+  'borosilicate-glass': {id: 'borosilicate-glass', name: 'Borosilicate glass (BOROFLOAT 33)', category: 'glass', grade: 'SCHOTT BOROFLOAT 33 float borosilicate glass', isotropic: true,
+    properties: {
+      density: v(2230, 'schott-borofloat-33', 'Density (25 °C) 2.23 g/cm3', '25 °C'),
+      youngModulus: v(64e9, 'schott-borofloat-33', 'Young\'s Modulus (according to DIN 13316) 64 kN/mm2', 'room temperature'),
+      poissonRatio: v(0.2, 'schott-borofloat-33', 'Poisson\'s Ratio µ (according to DIN 13316) 0.2', 'room temperature'),
+      flexuralStrength: v(25e6, 'schott-borofloat-33', 'Bending Strength (according to DIN 52292 T 1) 25 MPa', 'DIN 52292 part 1'),
+      thermalExpansion: v(3.25e-6, 'schott-borofloat-33', 'Linear Thermal Expansion (C.T.E.) alpha(20 - 300 °C) 3.25 x 10-6 K-1', 'mean, 20 to 300 °C')},
+    notes: ['25 MPa is the datasheet\'s bending strength, lower than the 41 MPa of the annealed soda-lime sheet in this library; both are set by surface flaws.']},
+  'pvb-interlayer': {id: 'pvb-interlayer', name: 'PVB interlayer (Stratobel)', category: 'polymer', grade: 'standard PVB of AGC Stratobel laminated glass, nominal 0.76 mm (xx.2)', isotropic: true,
+    properties: {
+      density: v(1070, 'agc-stratobel-pvb', 'Density at 23 °C ASTM D792: Stratobel 1070 kg/m3', '23 °C'),
+      youngModulus: v(33e6, 'agc-stratobel-pvb', 'Wind gust (other areas), 3 sec., 0 °C to 20 °C: Young\'s modulus E 33 MPa (Stratobel)', 'relaxation modulus for a 3 s load at 0 to 20 °C; shorter loads are stiffer', {range: [2.5e6, 33e6], derived: 'range: 2.5 MPa (3 s, 0 to 35 °C) to 33 MPa (3 s, 0 to 20 °C)'}),
+      poissonRatio: v(0.5, 'agc-stratobel-pvb', 'Poisson\'s ratio at 23 °C and 50% RH ASTM D638: Stratobel 0.5', '23 °C, 50% RH')},
+    notes: ['A viscoelastic polymer: its modulus falls by orders of magnitude with load duration and temperature (the source tabulates 0.19 to 33 MPa for standard PVB). An impact lasts milliseconds, shorter than the shortest tabulated duration, so 33 MPa is a lower bound there.']},
   'concrete-c30-37': {id: 'concrete-c30-37', name: 'Concrete C30/37', category: 'concrete', grade: 'normal-weight concrete, strength class C30/37 (EN 1992-1-1), siliceous or calcareous aggregate', isotropic: true,
     properties: {
       density: v(2400, 'en1992-1-2', '2300 kg/m3 (siliceous concrete with 3% moisture, EN 1992-1-2 3.3.2 figure); ≈ 2500 kg/m3 for reinforced concrete (design aid)', 'plain normal-weight concrete',

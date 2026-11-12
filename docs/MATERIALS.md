@@ -1,12 +1,12 @@
 # Material library
 
-`src/engine/materials.ts`, published by the kit as `box3d-webgpu-kit/materials`: engineering materials in SI units, each value with the conditions it holds for, the figure exactly as it was read in its source, the conversion when it was not read in SI, a range where sources disagree or state one, and a numbered citation below. Library version `1.0.0` (`MATERIAL_LIBRARY_VERSION`); the sources were opened on 2026-11-12.
+`src/engine/materials.ts`, published by the kit as `box3d-webgpu-kit/materials`: engineering materials in SI units, each value with the conditions it holds for, the figure exactly as it was read in its source, the conversion when it was not read in SI, a range where sources disagree or state one, and a numbered citation below. Library version `1.2.0` (`MATERIAL_LIBRARY_VERSION`); the sources were opened on 2026-11-12.
 
 This is roadmap Phase 4, "a calibrated material library with sources". *Calibrated* here means traceable: every number can be followed to a page that was opened and read. It does not mean that the project measured anything. The values are typical or nominal figures for a named grade; real samples differ.
 
 ## What is in it
 
-24 materials, 31 contact-pair entries, 36 sources, **214 values: 207 from a source, 7 unverified**.
+27 materials, 31 contact-pair entries, 38 sources, **228 values: 221 from a source, 7 unverified**.
 
 | Material (`id`) | Grade and conditions | Density | E, ν, G | Strength | K_IC / G_c | k, c_p, α |
 |---|---|---|---|---|---|---|
@@ -16,6 +16,8 @@ This is roadmap Phase 4, "a calibrated material library with sources". *Calibrat
 | Copper C11000 (`copper-c11000`) | ETP, annealed | 8910 | 117 GPa, 0.328, 44.1 GPa | 69 / 221 MPa (to 303 / 331 hard) | — | 391, 385, 16.9e-6 |
 | Grey cast iron (`cast-iron-gjl-250`) | EN-GJL-250 | 7200 | 103–118 GPa, 0.26 | Rp0.1 165–228, Rm 250–350 MPa | 15.2 MPa√m | 48.5 (100 °C), 460, 11.7e-6 |
 | Soda-lime glass (`soda-lime-glass`) | annealed sheet | 2500 | 72 GPa, 0.23, 30 GPa | flexural 41 MPa | 0.75 ± 0.04 MPa√m | 0.937, 880, 8.3e-6 |
+| Soda-lime glass, toughened (`soda-lime-glass-toughened`) | thermally toughened sheet | 2500 | 72 GPa, 0.23, 30 GPa | flexural 165 MPa | 0.75 ± 0.04 MPa√m | — |
+| Borosilicate glass (`borosilicate-glass`) | SCHOTT BOROFLOAT 33 | 2230 | 64 GPa, 0.2 | bending 25 MPa | — | —, —, 3.25e-6 (20–300 °C) |
 | Concrete C30/37 (`concrete-c30-37`) | normal weight, 28 days | 2400 (2300–2500) | 32.8 GPa, 0.2 | f_cm 38, f_ctm 2.9 MPa | — | 1.64 (1.33–1.95), 900, 10e-6 |
 | Granite (`granite-barre`) | Barre granite, intact | 2659 | 72.4 GPa, 0.22, 29.7 GPa | UCS 234.5, tensile 7.6 MPa | — | 2.37 |
 | Northern red oak (`oak-red-northern`), loblolly pine (`pine-loblolly`) | clear wood, 12% moisture, along the grain | 706, 571 | 13.75 / 13.53 GPa, ν_LR 0.350 / 0.328, G_LR 1.22 / 1.11 GPa | MOR 99 / 88, compression 46.6 / 49.2 MPa | 0.22–0.55 MPa√m (crack along the grain) | 0.31 / 0.26, 1620, 3.8e-6 |
@@ -24,6 +26,7 @@ This is roadmap Phase 4, "a calibrated material library with sources". *Calibrat
 | Nylon 66 (`nylon-66`) | Zytel 101L, dry (conditioned) | 1140 | 3.1 (1.4) GPa, 0.37 (0.43) | yield 82 (55) MPa | — | 0.24, —, 100e-6 |
 | PTFE (`ptfe`) | unfilled | 2160 | 0.55 GPa | tensile 26.9 MPa | — | 0.245, —, 135e-6 |
 | Natural rubber (`natural-rubber`) | pure-gum vulcanizate; rubber hydrocarbon | 922 | 1.5 (1–2) MPa, 0.5, E/3 | — | — | —, 1880, 223e-6 |
+| PVB interlayer (`pvb-interlayer`) | AGC Stratobel, 0.76 mm | 1070 | 33 MPa (3 s, 0–20 °C; 2.5–33), 0.5 | — | — | — |
 | Ice (`ice`) | polycrystalline, about −10 °C | 919 | 9.3 GPa, 0.33 | — | 0.1 MPa√m, G_c 1 J/m² | 2.30, 2000 |
 | Water (`water`) | 20 °C, 1 atm | 998.2 | — | — | — | 0.598, 4184; μ 1.0016 mPa s, c 1482 m/s |
 | Air (`air`) | 20 °C, 1 atm | 1.204 | — | — | — | 0.0251, 1007; μ 1.825e-5 Pa s |
@@ -215,6 +218,35 @@ float / sheet soda-lime-silica glass, annealed.
 
 *Note:* The strength of glass is set by its surface flaws, not by a material constant; 41 MPa is the sheet's figure for annealed glass in bending.
 
+### Soda-lime glass, thermally toughened (`soda-lime-glass-toughened`)
+
+float soda-lime-silica glass, thermally toughened (tempered).
+
+| Property | Value | Range | Conditions | Read in the source | Source |
+|---|---|---|---|---|---|
+| Density (kg/m^3) | 2500 |  | 18 °C; toughening does not change the glass | 2 500 kg/m3 (@ 18 °C) | [8] |
+| Young's modulus (GPa) | 72 |  | room temperature | 72 GPa | [8] |
+| Shear modulus (GPa) | 30 |  | room temperature | 30 GPa | [8] |
+| Poisson's ratio (1) | 0.23 |  | room temperature | 0,23 | [8] |
+| Flexural strength (MPa) | 165 |  | thermally toughened | flexural strength, annealed: 41 MPa (heat-strengthened 83, toughened 165) | [8] |
+| Fracture toughness K_IC (MPa√m) | 0.75 ± 0.04 | 0.71 – 0.81 | in air at 35% RH and 73 °F; toughening adds residual stress, not toughness | soda lime silicate 0.75 ± 0.04 (35/73) in air; 0.79 ± 0.02 in dry N2 (MPa√m, ASTM C1421) | [9] |
+
+*Note:* Toughening puts the surfaces in compression. The difference between the toughened and annealed flexural strengths of the same sheet, 165 - 41 = 124 MPa, is the surface compression a crack must first overcome.
+
+### Borosilicate glass (BOROFLOAT 33) (`borosilicate-glass`)
+
+SCHOTT BOROFLOAT 33 float borosilicate glass.
+
+| Property | Value | Range | Conditions | Read in the source | Source |
+|---|---|---|---|---|---|
+| Density (kg/m^3) | 2230 |  | 25 °C | Density (25 °C) 2.23 g/cm3 | [37] |
+| Young's modulus (GPa) | 64 |  | room temperature | Young's Modulus (according to DIN 13316) 64 kN/mm2 | [37] |
+| Poisson's ratio (1) | 0.2 |  | room temperature | Poisson's Ratio µ (according to DIN 13316) 0.2 | [37] |
+| Flexural strength (MPa) | 25 |  | DIN 52292 part 1 | Bending Strength (according to DIN 52292 T 1) 25 MPa | [37] |
+| Thermal expansion (1e-6/K) | 3.25 |  | mean, 20 to 300 °C | Linear Thermal Expansion (C.T.E.) alpha(20 - 300 °C) 3.25 x 10-6 K-1 | [37] |
+
+*Note:* 25 MPa is the datasheet's bending strength, lower than the 41 MPa of the annealed soda-lime sheet in this library; both are set by surface flaws.
+
 ### Concrete C30/37 (`concrete-c30-37`)
 
 normal-weight concrete, strength class C30/37 (EN 1992-1-1), siliceous or calcareous aggregate.
@@ -365,6 +397,18 @@ pure-gum (unfilled) vulcanizate for the stiffness; rubber hydrocarbon for densit
 
 *Note:* Thermal conductivity was not found in an opened source. Filled compounds are denser and stiffer than these values.
 
+### PVB interlayer (Stratobel) (`pvb-interlayer`)
+
+standard PVB of AGC Stratobel laminated glass, nominal 0.76 mm (xx.2).
+
+| Property | Value | Range | Conditions | Read in the source | Source |
+|---|---|---|---|---|---|
+| Density (kg/m^3) | 1070 |  | 23 °C | Density at 23 °C ASTM D792: Stratobel 1070 kg/m3 | [38] |
+| Young's modulus (GPa) | 0.033 | 0.0025 – 0.033 | relaxation modulus for a 3 s load at 0 to 20 °C; shorter loads are stiffer | Wind gust (other areas), 3 sec., 0 °C to 20 °C: Young's modulus E 33 MPa (Stratobel) *(range: 2.5 MPa (3 s, 0 to 35 °C) to 33 MPa (3 s, 0 to 20 °C))* | [38] |
+| Poisson's ratio (1) | 0.5 |  | 23 °C, 50% RH | Poisson's ratio at 23 °C and 50% RH ASTM D638: Stratobel 0.5 | [38] |
+
+*Note:* A viscoelastic polymer: its modulus falls by orders of magnitude with load duration and temperature (the source tabulates 0.19 to 33 MPa for standard PVB). An impact lasts milliseconds, shorter than the shortest tabulated duration, so 33 MPa is a lower bound there. The solver helpers cap Poisson's ratio at 0.4999.
+
 ### Ice (freshwater, polycrystalline) (`ice`)
 
 pristine terrestrial ice Ih, about 3 mm grains; thermal values at -10 °C.
@@ -411,8 +455,8 @@ anhydrous glycerol (100% by weight), 20 °C, 1 atm.
 
 | Property | Value | Range | Conditions | Read in the source | Source |
 |---|---|---|---|---|---|
-| Density (kg/m^3) | 1261.1 |  | 100% glycerol, 20 °C | 100 w/w %: 1.26108 at 20 °C (g/cm3) | [34] |
-| Viscosity (mPa s) | 1412 |  | 100% glycerol, 20 °C | 100% glycerol, 20 °C: 1412 centipoise (Table V) | [33] |
+| Density (kg/m^3) | 1261.1 |  | 100% glycerol, 20 °C | 100 w/w %: 1.26108 at 20 °C (g/cm3) | [38] |
+| Viscosity (mPa s) | 1412 |  | 100% glycerol, 20 °C | 100% glycerol, 20 °C: 1412 centipoise (Table V) | [37] |
 
 A few percent of water lowers the viscosity sharply: 99% glycerol is 1150 cP and 95% is 523 cP at 20 °C in the same table.
 
@@ -535,6 +579,8 @@ All opened on 2026-11-12.
 34. `volk-kahler-2018` — A. Volk, C. J. Kähler (supplementary material), tabulating N. Bosart and A. O. Snoddy (1928), *Density model for aqueous glycerol solutions, Exp. Fluids 59 (2018) 75, doi:10.1007/s00348-018-2527-y, Electronic Supplementary Material 2, Table 1 "Measured densities of aqueous glycerol solutions (Bosart and Snoddy 1928)"*. <https://media.springernature.com/original/springer-static/esm/art%3A10.1007%2Fs00348-018-2527-y/MediaObjects/348_2018_2527_MOESM2_ESM.pdf>. Kind: peer-reviewed.
 35. `brock-2008` — J. Brock, M. R. Nogueira, C. Zakrzevski, F. de Castilhos Corazza, M. L. Corazza, J. V. de Oliveira, *Determinação experimental da viscosidade e condutividade térmica de óleos vegetais (Experimental measurements of viscosity and thermal conductivity of vegetable oils), Ciênc. Tecnol. Aliment. 28 (2008) 564-570, Tables 2 and 3*. <https://www.redalyc.org/pdf/3959/395940088010.pdf>. Kind: peer-reviewed.
 36. `rodriguez-navarro-2022` — H. Rodriguez-Navarro, D. Vivanco-Pezantes, *Influence of temperature on the rheological behavior of industrialized honey, Agroindustrial Science 12 (2022) 7-14, doi:10.17268/agroind.sci.2022.01.01*. <https://revistas.unitru.edu.pe/index.php/agroindscience/article/download/4359/6544?inline=1>. Kind: peer-reviewed.
+37. `schott-borofloat-33` — SCHOTT AG (distributed by Edmund Optics), *BOROFLOAT 33 - Technical Data (optical properties datasheet, 140827_schott_b33_opt_en)*. <https://www.edmundoptics.com/ViewDocument/schott-borofloat-technical-data-sheet-english.pdf>. Kind: manufacturer.
+38. `agc-stratobel-pvb` — AGC Glass Europe (H. Lefèvre), *Material properties of PVB interlayers, Stratobel and Stratobel Strong laminated glass, 20 July 2022*. <https://www.agc-yourglass.com/sites/default/files/2022-10/Material%20Properties%20of%20PVB%200722_EN_0.pdf>. Kind: manufacturer. Relaxation moduli for load resistance design (EN 16612 / EN 16613); the shortest duration tabulated for standard PVB is 3 s.
 
 ## Unverified values
 

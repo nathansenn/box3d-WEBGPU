@@ -6,7 +6,7 @@ Source: `src/engine/solid-fracture.ts`. Kit import: `box3d-webgpu-kit/fracture`.
 
 **Read this first.** A cohesive crack can only follow element faces, so its path depends on the mesh. Where the crack should run along a mesh plane, the results below match closed-form fracture mechanics. Where it should not, the crack is a staircase with too much area ([Mesh dependence](#mesh-dependence)). This is the known limit of the method, not a bug to be fixed by refinement.
 
-The Studio's concrete, glass and impact studies do not use this solver yet; they run the normalized lattice of [`MATERIAL_FRACTURE.md`](MATERIAL_FRACTURE.md).
+The Studio's concrete and impact studies do not use this solver yet; they run the normalized lattice of [`MATERIAL_FRACTURE.md`](MATERIAL_FRACTURE.md). The glass impact lab does not use it either: tetrahedra lock in the bending of a thin pane (measured in [`STUDIO_MATERIAL_LABS.md`](STUDIO_MATERIAL_LABS.md)), so it runs a Kirchhoff plate with brittle fracture (`src/engine/plate.ts`).
 
 ## The solid
 
