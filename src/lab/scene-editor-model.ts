@@ -9,7 +9,7 @@
  * (tests/physics/scene-editor.test.mjs).
  *
  * A scene with coupled sections (water, cables, frames, cloths, grains, solids,
- * heat, fluids) opens too. Its rigid bodies and joints are edited as in any
+ * heat, fluids, shallow water) opens too. Its rigid bodies and joints are edited as in any
  * scene; the sections are carried through every command unchanged (the same
  * objects, so the canonical text of each section is the text it had), listed
  * read-only with their key values (`coupledSections`), and a few values that
@@ -762,7 +762,7 @@ export function sceneIds(scene: Scene): Set<string> {
 // ---------------------------------------------------------------------------
 
 export type CoupledSectionKey = keyof SceneCoupledSections;
-export const COUPLED_SECTION_KEYS: readonly CoupledSectionKey[] = Object.freeze(['water', 'cables', 'frames', 'cloths', 'grains', 'solids', 'heat', 'fluids'] as CoupledSectionKey[]);
+export const COUPLED_SECTION_KEYS: readonly CoupledSectionKey[] = Object.freeze(['water', 'cables', 'frames', 'cloths', 'grains', 'solids', 'heat', 'fluids', 'shallowWater'] as CoupledSectionKey[]);
 type Entry = { readonly id: string; readonly [key: string]: unknown };
 
 /** A value of a section the editor may set on its own. `key` is a path of object keys ('material.youngModulus'); 'count' of a grain set keeps its first N grains. */
@@ -777,6 +777,7 @@ export const COUPLED_EDITS: { readonly [K in CoupledSectionKey]-?: readonly Coup
   solids: [{ key: 'material.youngModulus', label: "Young's modulus", unit: 'Pa', min: 0 }, { key: 'material.poissonRatio', label: "Poisson's ratio", unit: '', min: -0.99 }, { key: 'material.density', label: 'Density', unit: 'kg/m³', min: 0 }],
   heat: [{ key: 'material.conductivity', label: 'Conductivity', unit: 'W/(m K)', min: 0 }, { key: 'material.specificHeat', label: 'Specific heat', unit: 'J/(kg K)', min: 0 }],
   fluids: [{ key: 'viscosity', label: 'Viscosity', unit: 'Pa s', min: 0, kind: 'flow' }, { key: 'density', label: 'Density', unit: 'kg/m³', min: 0 }],
+  shallowWater: [{ key: 'manning', label: "Manning's n", unit: 's/m^(1/3)', min: 0 }, { key: 'rain', label: 'Rain', unit: 'm/s', min: 0 }],
 });
 
 const valueAt = (entry: Entry, key: string): unknown => key.split('.').reduce<unknown>((at, part) => (at !== null && typeof at === 'object' ? (at as { [k: string]: unknown })[part] : undefined), entry);
@@ -847,6 +848,12 @@ export function coupledSections(scene: Scene): CoupledOutlineEntry[] {
           const cells = e.cells[0] * e.cells[1] * e.cells[2];
           if (e.kind === 'free-surface') { kind = 'Fluid (free-surface tank)'; details.push(`${e.cells.join(' × ')} cells of ${n4(e.spacing)} m (${cells}), ${n4(e.density)} kg/m³`, `${(e.liquid ?? []).length} liquid ${(e.liquid ?? []).length === 1 ? 'box' : 'boxes'}${e.positions ? `, ${e.positions.length / 3} saved particles` : ''}`); }
           else { kind = 'Fluid (flow)'; details.push(`${e.cells.join(' × ')} cells of ${n4(e.spacing)} m (${cells}), ${n4(e.density)} kg/m³, μ ${n4(e.viscosity)} Pa s`, `Obstacles: ${list(bodies)}`); }
+          break;
+        }
+        case 'shallowWater': {
+          kind = 'Shallow water';
+          const dx = typeof e.spacing === 'number' ? e.spacing : e.spacing[0], dz = typeof e.spacing === 'number' ? e.spacing : e.spacing[1];
+          details.push(`${e.cells[0]} × ${e.cells[1]} cells of ${n4(dx)} × ${n4(dz)} m, Manning n ${typeof e.manning === 'number' ? n4(e.manning) : e.manning ? 'per cell' : '0'}${e.soil ? ', infiltrating soil' : ''}${e.rain ? `, rain ${n4(e.rain * 3.6e6)} mm/h` : ''}`, `Floating: ${list(bodies)}`);
           break;
         }
       }

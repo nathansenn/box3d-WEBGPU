@@ -2,7 +2,7 @@
 // restoreCheckpoint(), resumeSimulation, and RemoteWorld through a worker.
 //
 // The property is bit-identity. For every example scene (rigid and coupled) and for a coupled set-up of every solver
-// family (cloth, grains, volumetric fluid, solid contact, fracture, heat, water, cables and frames): run N steps,
+// family (cloth, grains, volumetric fluid, shallow water, solid contact, fracture, heat, water, cables and frames): run N steps,
 // checkpoint, run M more and take the checkpoint A; in a fresh world (and, for the scenes, a fresh process) resume the
 // first checkpoint, run M steps and take B; A and B must be the same bytes. A checkpoint holds every field every solver
 // steps from, the rigid world's contact and solver state, the clocks and the event cursors, so equal bytes mean equal
@@ -31,6 +31,7 @@ import {SolidBody, boxMesh} from 'box3d-webgpu-kit/solid';
 import {SolidCoupling, solidContactSubsystem} from 'box3d-webgpu-kit/solid-contact';
 import {quenchedPlate, fractureSubsystem} from 'box3d-webgpu-kit/fracture';
 import {HeatSolver} from 'box3d-webgpu-kit/heat';
+import {ShallowWater, ShallowWaterCoupling, shallowWaterSubsystem} from 'box3d-webgpu-kit/shallow-water';
 
 const G = 9.81;
 const same = (a, b) => a.length === b.length && a.every((v, i) => v === b[i]);
@@ -185,6 +186,15 @@ const SETUPS = {
     const plate = quenchedPlate({dt: world.loop.step});
     return createSimulation(world).add(heatSubsystem(plate.heat)).add(thermalSolidLink(plate.heat, plate.body, {reference: plate.reference})).add(fractureSubsystem(plate.body));
   },
+  // Shallow water on a slope with an inflow, rain, infiltration, friction and a floating box.
+  async 'shallow-water'(world) {
+    const water = new ShallowWater({cells: [24, 16], spacing: 0.1, bed: (x, z) => 0.05 * (2.4 - x) + 0.02 * Math.sin(3 * z), level: 0.2, dt: world.loop.step, manning: 0.02, rain: 1e-4,
+      soil: {conductivity: 1e-6, suction: 0.1, moistureDeficit: 0.3}, boundaries: {xMin: {type: 'inflow', discharge: 0.02}, xMax: 'open'}});
+    const box = world.createBody({shape: {kind: 'box', halfExtents: [0.1, 0.04, 0.08]}, position: [1.6, 0.25, 0.8], density: 500, neverSleeps: true});
+    const coupling = new ShallowWaterCoupling(world, water);
+    coupling.addBody(box, {shape: {kind: 'box', halfExtents: [0.1, 0.04, 0.08]}});
+    return createSimulation(world).add(shallowWaterSubsystem(coupling)).trackBody(box, {kind: 'box', halfExtents: [0.1, 0.04, 0.08]});
+  },
   async 'heat-solid'(world) {
     const solid = new SolidBody({mesh: boxMesh({size: [0.3, 0.05, 0.05], cells: [6, 1, 1]}), material: {youngModulus: 7e10, poissonRatio: 0.33, density: 2700, thermalExpansion: 2.3e-5}, config: {model: 'linear', dt: world.loop.step}});
     solid.constrain(solid.selectNodes(x => x < 1e-9), [0, 0, 0]);
@@ -195,8 +205,8 @@ const SETUPS = {
       .add(deadLoadLink(body, solid, {faces: solid.selectFaces((cx, cy, cz, nx, ny) => ny > 0.99)}));
   },
 };
-const SETUP_STEPS = {cloth: [100, 60], grains: [60, 40], fluid: [15, 15], 'solid-contact': [120, 60], 'plastic-solid-contact': [40, 30], 'concrete-solid-contact': [40, 30], fracture: [230, 60], 'heat-solid': [80, 80]};
-const SETUP_WORLD = {fluid: () => newWorld([0, -G, 0], 1 / 120), fracture: () => newWorld([0, -G, 0], 2e-3)};
+const SETUP_STEPS = {cloth: [100, 60], grains: [60, 40], fluid: [15, 15], 'solid-contact': [120, 60], 'plastic-solid-contact': [40, 30], 'concrete-solid-contact': [40, 30], fracture: [230, 60], 'heat-solid': [80, 80], 'shallow-water': [90, 60]};
+const SETUP_WORLD = {fluid: () => newWorld([0, -G, 0], 1 / 120), 'shallow-water': () => newWorld([0, -G, 0], 1 / 60), fracture: () => newWorld([0, -G, 0], 2e-3)};
 
 test('a coupled set-up of every solver family resumes bit for bit', async t => {
   const rows = [];

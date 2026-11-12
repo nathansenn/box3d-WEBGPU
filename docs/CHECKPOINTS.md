@@ -116,6 +116,7 @@ its state in private `#` fields and has an explicit list instead.
 | Grains | Grains (positions, velocities, spins, radii, the alive flags), the tangential springs of every grain-grain and grain-wall contact, the neighbour lists, the walls' states and impulse ledgers, energy ledgers, statistics, and the coupling's records. |
 | Fluid | Every field of `Fluid`: velocities, pressure (the projection's warm start), the advection history (Adams–Bashforth), obstacles and their masks and motion, ledgers, statistics and work vectors, and the coupling's records. A scene's `fluids` section builds either a flow (`fluidSubsystem`) or a free-surface tank (`freeSurfaceSubsystem`, whose checkpoint holds every field of the `FreeSurfaceFluid`: particles and their affine velocities, grid, pressure, the viscous solve's vectors, the voxelised obstacles with their position, velocity and force, and the time step, which `setTimeStep` can change). |
 | Links | `thermalSolidLink`: the last heat step handed over. `deadLoadLink`: the weight last applied. `reactionLoadLink`: each body's velocity before the step and the support force last applied. |
+| Shallow water | Every field of `ShallowWater`: depths, discharges, bed, Manning n and soil per cell, infiltrated depths, the volume ledger, sides, clock, the length of the last substep (the leading half of the friction uses it), statistics and work arrays; and the coupling's records of each body (the displaced volume per cell, whether it has been seen). |
 | Event cursors | The cloth, grain, fluid, free-surface and solid-contact adapters' counters that decide when they emit `unconverged`, `grains-removed`, `overlap`, `cfl-exceeded` and `unstable-step`. |
 | Simulation | Tick, the `update()` accumulator, the world's tick. Between steps its event queues are empty. |
 
@@ -149,14 +150,14 @@ engine has), and every later step gives the same bits as the run it came from.
 
 Measured:
 
-- `packages/box3d-kit/test/v19-checkpoint.test.mjs` (kit gate, 7 tests, about 170 s on a shared 4-core machine): for each of the 19 example
-  scenes (5 rigid, 14 coupled, four of them volumetric fluid), N steps (60 to 300), checkpoint, M more steps; in a fresh world, resume the
+- `packages/box3d-kit/test/v19-checkpoint.test.mjs` (kit gate, 7 tests, about 170 s on a shared 4-core machine): for each of the 21 example
+  scenes (5 rigid, 16 coupled, four of them volumetric fluid, two shallow water), N steps (60 to 300), checkpoint, M more steps; in a fresh world, resume the
   checkpoint and take the same M steps: the whole checkpoint afterwards (every solver and the rigid world) is the
   same bytes, and so is the rigid transform hash. Restoring and checkpointing again gives the same bytes. Nine of
   the scenes (two of them fluid) are also resumed in a fresh Node process, with the same result. For one coupled set-up of each solver
   family, built by hand (cloth with self-contact and an attachment, grains under a block, the volumetric fluid with
   an obstacle and a sphere, solid contact with an impact, an elastic-plastic block dented by a heavy sphere, the quenched plate across the onset of cracking with 178
-  crack events before the checkpoint and 66 after, heat with a solid and both links): the same bytes, and the same
+  crack events before the checkpoint and 66 after, heat with a solid and both links, shallow water on a slope with an inflow, rain, infiltration, friction and a floating box): the same bytes, and the same
   events after the checkpoint. The free-surface fluid, with viscosity, no-slip walls, a moving obstacle and a time step changed mid-run, is restored bit for bit. `tests/engine/solid-plasticity.test.mjs` and `tests/engine/press-brake.test.mjs` resume a plastic bar across the onset of erosion and a press brake mid-stroke from `saveState()` to the same bytes. A world checkpoint keeps handles (also with a body added after the build) and
   the fixed-step accumulator; `RemoteWorld` restores in its worker. Refused, with nothing changed: another scene, a
   flipped bit, another format version, a truncated file, a world checkpoint where a simulation one is expected, a

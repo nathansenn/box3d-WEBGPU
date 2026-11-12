@@ -2211,7 +2211,7 @@ import type { FractureLaw, FractureModel } from './solid-fracture.js';
 import type { HeatMaterial } from './heat.js';
 import type { GranularMaterial } from './granular.js';
 export declare const MATERIAL_LIBRARY_ID = "box3d-materials";
-export declare const MATERIAL_LIBRARY_VERSION = "1.5.0";
+export declare const MATERIAL_LIBRARY_VERSION = "1.6.0";
 export declare const MATERIAL_SOURCES_ACCESSED = "2026-11-12";
 export type MaterialSourceKind = 'standard' | 'government' | 'manufacturer' | 'peer-reviewed' | 'textbook' | 'last-resort';
 export interface MaterialSource {
@@ -2260,6 +2260,29 @@ export interface ContactPairEntry {
 }
 export declare const MATERIALS: Readonly<Record<string, MaterialEntry>>;
 export declare const CONTACT_PAIRS: readonly ContactPairEntry[];
+export interface SurfaceRoughnessEntry {
+    readonly id: string;
+    readonly name: string;
+    readonly manning: MaterialValue;
+}
+export declare const SURFACE_ROUGHNESS: Readonly<Record<string, SurfaceRoughnessEntry>>;
+export interface SoilInfiltrationEntry {
+    readonly id: string;
+    readonly name: string;
+    readonly totalPorosity: MaterialValue;
+    readonly effectivePorosity: MaterialValue;
+    readonly suction: MaterialValue;
+    readonly conductivity: MaterialValue;
+}
+export declare const SOIL_INFILTRATION: Readonly<Record<string, SoilInfiltrationEntry>>;
+export declare function manningCoefficient(id: string): number;
+export declare function greenAmptSoil(id: string, options?: {
+    readonly initialSaturation?: number;
+}): {
+    conductivity: number;
+    suction: number;
+    moistureDeficit: number;
+};
 export interface MaterialOptions {
     readonly allowUnverified?: boolean;
 }
@@ -2371,7 +2394,7 @@ export interface ShearConsistency {
 }
 export declare function shearConsistency(id: string): ShearConsistency | null;
 export interface MaterialAuditRow {
-    readonly kind: 'property' | 'pair';
+    readonly kind: 'property' | 'pair' | 'surface' | 'soil';
     readonly subject: string;
     readonly property: string;
     readonly value: number;
@@ -3272,6 +3295,13 @@ export declare function damBreakScene(options?: {
     depth?: number;
     height?: number;
 }): Scene;
+export declare function damBreakValleyScene(options?: {
+    depth?: number;
+    crates?: number;
+}): Scene;
+export declare function riverBendScene(options?: {
+    discharge?: number;
+}): Scene;
 export declare const COUPLED_EXAMPLE_SCENES: {
     readonly [name: string]: () => Scene;
 };
@@ -3352,6 +3382,9 @@ export declare const SCENE_LIMITS: Readonly<{
     fluidParticles: 262144;
     fluidSubsteps: 64;
     fluidLiquid: 16;
+    shallowWater: 4;
+    shallowWaterCells: 262144;
+    shallowWaterSubsteps: 64;
     solidRegions: 64;
     solidCracks: 60000;
     problems: 100;
@@ -3904,6 +3937,49 @@ export interface SceneFluid {
     readonly velocities?: readonly number[];
     readonly affine?: readonly number[];
 }
+export type SceneShallowWaterSide = 'wall' | 'open' | {
+    readonly type: 'inflow';
+    readonly discharge: number;
+    readonly depth?: number;
+    readonly span?: readonly [number, number];
+} | {
+    readonly type: 'stage';
+    readonly level: number;
+};
+export interface SceneShallowWaterBody {
+    readonly body: string;
+    readonly dragCoefficient?: number;
+    readonly referenceArea?: number;
+}
+export interface SceneShallowWater {
+    readonly id: string;
+    readonly cells: readonly [number, number];
+    readonly spacing: number | readonly [number, number];
+    readonly origin?: readonly [number, number];
+    readonly bed?: readonly number[];
+    readonly level?: number;
+    readonly depth?: readonly number[];
+    readonly qx?: readonly number[];
+    readonly qz?: readonly number[];
+    readonly infiltrated?: readonly number[];
+    readonly manning?: number | readonly number[];
+    readonly soil?: {
+        readonly conductivity: number;
+        readonly suction: number;
+        readonly moistureDeficit: number;
+    };
+    readonly rain?: number;
+    readonly boundaries?: {
+        readonly xMin?: SceneShallowWaterSide;
+        readonly xMax?: SceneShallowWaterSide;
+        readonly zMin?: SceneShallowWaterSide;
+        readonly zMax?: SceneShallowWaterSide;
+    };
+    readonly density?: number;
+    readonly substeps?: number;
+    readonly order?: 1 | 2;
+    readonly bodies?: readonly SceneShallowWaterBody[];
+}
 export interface SceneCoupledSections {
     readonly water?: readonly SceneWater[];
     readonly cables?: readonly SceneCable[];
@@ -3913,6 +3989,7 @@ export interface SceneCoupledSections {
     readonly solids?: readonly SceneSolid[];
     readonly heat?: readonly SceneHeat[];
     readonly fluids?: readonly SceneFluid[];
+    readonly shallowWater?: readonly SceneShallowWater[];
 }
 export interface Scene {
     readonly format: 'box3d-scene';
@@ -3932,6 +4009,7 @@ export interface Scene {
     readonly solids?: readonly SceneSolid[];
     readonly heat?: readonly SceneHeat[];
     readonly fluids?: readonly SceneFluid[];
+    readonly shallowWater?: readonly SceneShallowWater[];
     readonly meta?: SceneMeta;
     readonly extensions?: {
         readonly [key: string]: unknown;
@@ -4023,7 +4101,285 @@ export declare function loadScene<W extends SceneHost>(world: W, scene: unknown)
 export declare function saveScene<W extends SceneHost>(world: W, handles: SceneBuilder<W> | {
     readonly builder: SceneBuilder<W>;
 }, options?: SaveSceneOptions): Scene;
-export { pendulumWaveScene, newtonsCradleScene, dominoRunScene, terrainCarScene, ragdollScene, EXAMPLE_SCENES, mooredBuoyScene, cableStayedDeckScene, buoyAndCratesScene, trampolineScene, hopperSeesawScene, suspendedPlatformScene, rubberPadScene, notchedBeamScene, quenchedPlateScene, heatedBarScene, sphereSettlingScene, cavityFlowScene, flowPastCylinderScene, damBreakScene, COUPLED_EXAMPLE_SCENES } from './scene-examples.js';
+export { pendulumWaveScene, newtonsCradleScene, dominoRunScene, terrainCarScene, ragdollScene, EXAMPLE_SCENES, mooredBuoyScene, cableStayedDeckScene, buoyAndCratesScene, trampolineScene, hopperSeesawScene, suspendedPlatformScene, rubberPadScene, notchedBeamScene, quenchedPlateScene, heatedBarScene, sphereSettlingScene, cavityFlowScene, flowPastCylinderScene, damBreakScene, damBreakValleyScene, riverBendScene, COUPLED_EXAMPLE_SCENES } from './scene-examples.js';
+
+// ==== core/shallow-water.d.ts ====
+import { type StateObject, type StateValue } from './checkpoint.js';
+import type { Subsystem } from './simulation.js';
+export declare const SHALLOW_WATER_SOLVER_ID = "shallow-water-hr-muscl-hll-js-f64-v1";
+export declare const SHALLOW_WATER_COUPLING_BACKEND = "rigid-shallow-water-coupling-js-f64-v1";
+export declare const SHALLOW_WATER_GRAVITY = 9.81;
+export type ShallowWaterSide = 'wall'
+ | 'open'
+ | {
+    readonly type: 'inflow';
+    readonly discharge: number;
+    readonly depth?: number;
+    readonly span?: readonly [number, number];
+}
+ | {
+    readonly type: 'stage';
+    readonly level: number;
+};
+export interface ShallowWaterBoundaries {
+    readonly xMin?: ShallowWaterSide;
+    readonly xMax?: ShallowWaterSide;
+    readonly zMin?: ShallowWaterSide;
+    readonly zMax?: ShallowWaterSide;
+}
+export interface GreenAmptSoil {
+    readonly conductivity: number;
+    readonly suction: number;
+    readonly moistureDeficit: number;
+}
+export interface ShallowWaterOptions {
+    readonly cells: readonly [number, number];
+    readonly spacing: number | readonly [number, number];
+    readonly origin?: readonly [number, number];
+    readonly bed?: ArrayLike<number> | ((x: number, z: number) => number);
+    readonly depth?: ArrayLike<number> | ((x: number, z: number, bed: number) => number);
+    readonly level?: number | ((x: number, z: number) => number);
+    readonly velocity?: readonly [number, number] | ((x: number, z: number) => readonly [number, number]);
+    readonly manning?: number | ArrayLike<number>;
+    readonly viscosity?: number;
+    readonly soil?: GreenAmptSoil | readonly (GreenAmptSoil | null)[];
+    readonly rain?: number | ((time: number) => number);
+    readonly solid?: ArrayLike<number>;
+    readonly boundaries?: ShallowWaterBoundaries;
+    readonly gravity?: number;
+    readonly density?: number;
+    readonly dt?: number;
+    readonly cfl?: number;
+    readonly order?: 1 | 2;
+    readonly dryDepth?: number;
+    readonly maxSubsteps?: number;
+}
+export interface ShallowWaterStats {
+    substeps: number;
+    totalSubsteps: number;
+    courant: number;
+    maxWaveSpeed: number;
+    wetCells: number;
+}
+export interface ShallowWaterLedger {
+    inflow: number;
+    rain: number;
+    infiltrated: number;
+    sources: number;
+    clipped: number;
+    displaced: number;
+}
+export declare class ShallowWater {
+    readonly solver = "shallow-water-hr-muscl-hll-js-f64-v1";
+    readonly nx: number;
+    readonly nz: number;
+    readonly dx: number;
+    readonly dz: number;
+    readonly origin: readonly [number, number];
+    readonly gravity: number;
+    readonly density: number;
+    readonly cfl: number;
+    readonly order: 1 | 2;
+    readonly dryDepth: number;
+    readonly maxSubsteps: number;
+    readonly bed: Float64Array;
+    readonly h: Float64Array;
+    readonly qx: Float64Array;
+    readonly qz: Float64Array;
+    readonly manning: Float64Array;
+    readonly infiltrated: Float64Array;
+    readonly soilK: Float64Array;
+    readonly soilS: Float64Array;
+    readonly solid: Uint8Array;
+    readonly ledger: ShallowWaterLedger;
+    readonly viscosity: number;
+    readonly rainVelocity: Float64Array<ArrayBuffer>;
+    readonly stats: ShallowWaterStats;
+    readonly initialVolume: number;
+    dt: number;
+    time: number;
+    steps: number;
+    private rainRate;
+    private readonly sides;
+    private readonly hasSoil;
+    private readonly hasSolid;
+    private readonly hasManning;
+    private readonly h0;
+    private readonly qx0;
+    private readonly qz0;
+    private readonly rh;
+    private readonly rx;
+    private readonly rz;
+    private readonly u;
+    private readonly v;
+    private readonly sh;
+    private readonly se;
+    private readonly su;
+    private readonly sv;
+    private rateX;
+    private rateZ;
+    private boundaryFlux;
+    private lastSub;
+    readonly sourceMomentum: Float64Array<ArrayBuffer>;
+    constructor(options: ShallowWaterOptions);
+    saveState(): StateObject;
+    restoreState(state: StateValue): void;
+    get cells(): number;
+    rainAt(time?: number): number;
+    setRain(rain: number | ((time: number) => number)): void;
+    setBoundary(key: keyof ShallowWaterBoundaries, value: ShallowWaterSide): void;
+    private spanWidth;
+    setTimeStep(dt: number): void;
+    volume(): number;
+    volumeError(): number;
+    addVolume(c: number, volume: number, u?: number, v?: number): void;
+    removeVolume(c: number, volume: number): number;
+    cellAt(x: number, z: number): number;
+    level(c: number): number;
+    velocity(c: number): [number, number];
+    froude(c: number): number;
+    levelAt(x: number, z: number): number;
+    depthAt(x: number, z: number): number;
+    private bilinear;
+    dischargeX(x: number): number;
+    kineticEnergy(): number;
+    potentialEnergy(): number;
+    maxDepth(): number;
+    maxSpeed(minimum?: number): number;
+    momentum(): [number, number];
+    stableTimeStep(): number;
+    bedChanged(): void;
+    step(count?: number): void;
+    advance(duration: number): void;
+    private countWet;
+    private substep;
+    private clip;
+    private sources;
+    private friction;
+    private residual;
+    private edgeSlope;
+    private boundaryFace;
+    private readonly ghostOut;
+    private ghost;
+    private readonly flux;
+    private face;
+}
+export declare function greenAmptStep(F: number, available: number, K: number, S: number, dt: number): number;
+export declare function ritterDamBreak(x: number, t: number, { depth, dam, gravity }: {
+    depth: number;
+    dam: number;
+    gravity?: number;
+}): [number, number];
+export declare function stokerMiddleCelerity(left: number, right: number, gravity?: number): number;
+export declare function stokerDamBreak(x: number, t: number, { left, right, dam, gravity }: {
+    left: number;
+    right: number;
+    dam: number;
+    gravity?: number;
+}): [number, number];
+export declare const thackerBed: (x: number, z: number, { h0, a, centre }: {
+    h0: number;
+    a: number;
+    centre: readonly [number, number];
+}) => number;
+export declare function thackerDepth(x: number, z: number, t: number, { h0, a, r0, centre, gravity }: {
+    h0: number;
+    a: number;
+    r0: number;
+    centre: readonly [number, number];
+    gravity?: number;
+}): number;
+export declare const thackerFrequency: (h0: number, a: number, gravity?: number) => number;
+export declare const bumpBed: (x: number) => number;
+export declare function bernoulliDepth(z: number, q: number, energy: number, branch: 'sub' | 'super', gravity?: number): number;
+export declare function bumpSteadyDepth(x: number, kind: 'subcritical' | 'transcritical' | 'shock', gravity?: number): number;
+export declare function bumpShockPosition(gravity?: number): number;
+export declare const laminarFilmDepth: (q: number, nu: number, slope: number, gravity?: number) => number;
+export declare const manningNormalDepth: (q: number, n: number, slope: number) => number;
+export declare function kinematicWaveOutflow(t: number, { length, rain, slope, manning }: {
+    length: number;
+    rain: number;
+    slope: number;
+    manning: number;
+}): number;
+export declare const kinematicEquilibriumTime: ({ length, rain, slope, manning }: {
+    length: number;
+    rain: number;
+    slope: number;
+    manning: number;
+}) => number;
+export declare function greenAmptCumulative(t: number, rain: number, soil: GreenAmptSoil): number;
+export declare const greenAmptPondingTime: (rain: number, soil: GreenAmptSoil) => number;
+export type ShallowWaterShape = {
+    readonly kind: 'box';
+    readonly halfExtents: readonly [number, number, number];
+} | {
+    readonly kind: 'sphere';
+    readonly radius: number;
+};
+export interface ShallowWaterWorld<B> {
+    gravity(): readonly number[];
+    getState(body: B): {
+        readonly position: readonly number[];
+        readonly rotation: readonly number[];
+        readonly linearVelocity: readonly number[];
+        readonly angularVelocity: readonly number[];
+        readonly mass: number;
+        readonly type: string;
+    };
+    applyForce(body: B, force: readonly [number, number, number], point?: readonly [number, number, number]): void;
+    applyTorque(body: B, torque: readonly [number, number, number]): void;
+    isAlive?(body: B): boolean;
+    readonly loop?: {
+        readonly step: number;
+    };
+}
+export interface ShallowWaterBodyOptions {
+    readonly shape: ShallowWaterShape;
+    readonly dragCoefficient?: number;
+    readonly referenceArea?: number;
+    readonly angularDrag?: number;
+}
+export interface ShallowWaterBodyReport {
+    readonly volume: number;
+    submergedVolume: number;
+    submergedFraction: number;
+    readonly centre: Float64Array;
+    readonly buoyancy: Float64Array;
+    readonly drag: Float64Array;
+}
+export declare class ShallowWaterCoupling<B> {
+    readonly backend = "rigid-shallow-water-coupling-js-f64-v1";
+    readonly world: ShallowWaterWorld<B>;
+    readonly water: ShallowWater;
+    readonly dt: number;
+    private readonly entries;
+    readonly impulseOnBodies: Float64Array<ArrayBuffer>;
+    readonly impulseOnWater: Float64Array<ArrayBuffer>;
+    steps: number;
+    private readonly rot;
+    private readonly corners;
+    private readonly distance;
+    private readonly polygon;
+    private readonly clipOut;
+    constructor(world: ShallowWaterWorld<B>, water: ShallowWater, options?: {
+        readonly step?: number;
+    });
+    saveState(): StateObject;
+    restoreState(state: StateValue): void;
+    addBody(body: B, options: ShallowWaterBodyOptions): ShallowWaterBodyReport;
+    report(body: B): ShallowWaterBodyReport | null;
+    get bodyCount(): number;
+    step(): void;
+    private release;
+    private exchangeVolume;
+    private clip;
+}
+export declare const SHALLOW_WATER_SUBSYSTEM_ORDER = 190;
+export declare function shallowWaterSubsystem<W, B>(target: ShallowWater | ShallowWaterCoupling<B>, options?: {
+    readonly id?: string;
+    readonly order?: number;
+}): Subsystem<W, B>;
 
 // ==== core/simulation.d.ts ====
 import type { WaterCoupling, CouplingWorld } from './water-coupling.js';
@@ -4037,6 +4393,7 @@ import { SolidCoupling } from './solid-contact.js';
 import { ClothCoupling } from './cloth.js';
 import { GranularCoupling } from './granular.js';
 import { Fluid, FluidCoupling, FreeSurfaceFluid } from './fluid.js';
+import { ShallowWater, ShallowWaterCoupling } from './shallow-water.js';
 import { SceneBuilder, type Scene, type SceneHost } from './scene-format.js';
 import { type StateValue } from './checkpoint.js';
 import type { NativeBodyHandle, NativeJointHandle } from './native-world.js';
@@ -4293,6 +4650,11 @@ export interface LoadedSimulationScene<W extends SimulationSceneWorld = Simulati
     readonly solids: Map<string, SceneSolidRuntime<Body>>;
     readonly heat: Map<string, HeatSolver>;
     readonly fluids: Map<string, SceneFluidRuntime<Body>>;
+    readonly shallowWater: Map<string, SceneShallowWaterRuntime<Body>>;
+}
+export interface SceneShallowWaterRuntime<B> {
+    readonly water: ShallowWater;
+    readonly coupling: ShallowWaterCoupling<B> | null;
 }
 export type SceneFluidRuntime<B> = {
     readonly kind: 'flow';
@@ -5932,7 +6294,7 @@ import type { CompliantCableRuntime } from './core/compliant-cable.js';
 import type { FrameRuntime } from './core/frame-runtime.js';
 import type { ClothCoupling } from './core/cloth.js';
 import type { GranularCoupling } from './core/granular.js';
-import type { SceneFluidRuntime, SceneSolidRuntime } from './core/simulation.js';
+import type { SceneFluidRuntime, SceneShallowWaterRuntime, SceneSolidRuntime } from './core/simulation.js';
 import type { HeatSolver } from './core/heat.js';
 import type { Body, BodyOptions, Joint, PhysicsWorld } from './world.js';
 export * from './core/scene-format.js';
@@ -5953,6 +6315,7 @@ export interface LoadedScene {
     readonly solids: Map<string, SceneSolidRuntime<Body>>;
     readonly heat: Map<string, HeatSolver>;
     readonly fluids: Map<string, SceneFluidRuntime<Body>>;
+    readonly shallowWater: Map<string, SceneShallowWaterRuntime<Body>>;
 }
 export declare class SceneBuilder extends CoreSceneBuilder<PhysicsWorld> {
     readonly world: PhysicsWorld;
@@ -6022,6 +6385,9 @@ export declare function saveSession(log: ReplayLog, savedAt?: string): SavedSess
 export declare function loadSession(world: PhysicsWorld, saved: unknown, options?: {
     allowOtherBuild?: boolean;
 }): ReplayReport;
+
+// ==== shallow-water.d.ts ====
+export * from './core/shallow-water.js';
 
 // ==== shared-frames.d.ts ====
 export declare function sharedMemoryAvailable(): boolean;

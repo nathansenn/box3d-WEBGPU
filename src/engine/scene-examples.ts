@@ -583,6 +583,74 @@ export function damBreakScene(options: {width?: number; depth?: number; height?:
   };
 }
 
+/** Bed heights of a valley at cell centres, x fastest: a V across z on a steady slope along x, rounded to the millimetre. */
+function valleyBed(nx: number, nz: number, dx: number, slope: number, side: number, centre: (x: number) => number, floor = 0): number[] {
+  const out: number[] = [];
+  for (let k = 0; k < nz; k++) for (let i = 0; i < nx; i++) {
+    const x = (i + 0.5) * dx, z = (k + 0.5) * dx;
+    out.push(round(floor + slope * (nx * dx - x) + side * Math.abs(z - centre(x)), 3));
+  }
+  return out;
+}
+/** A static height field under a shallow-water bed, so that bodies rest on the terrain where it is dry. Its vertices sit on the cell centres. */
+function terrainUnder(id: string, bed: readonly number[], nx: number, nz: number, dx: number): SceneBody {
+  return {id, type: 'static', shape: {kind: 'heightfield', heights: [...bed], countX: nx, countZ: nz, spacing: [dx, dx]}, position: [round(dx / 2), 0, round(dx / 2)], friction: 0.8, color: 0x8A7A5C};
+}
+
+/**
+ * A dam break down a valley (shallow water, docs/SHALLOW_WATER.md): a reservoir 2 m deep behind a dam at x = 6 m lets go
+ * into a dry valley 30 m long that falls 1 in 100 and has 1 in 4 sides; Manning n 0.03 (Chow 1959, earth channel), an
+ * open outlet at the far end, and three crates afloat in the reservoir that ride the flood. The terrain is also a height
+ * field of the rigid world, so the crates ground where the water leaves them.
+ */
+export function damBreakValleyScene(options: {depth?: number; crates?: number} = {}): Scene {
+  const {depth = 2, crates = 3} = options, nx = 96, nz = 32, dx = 0.3125, dam = 6;
+  const bed = valleyBed(nx, nz, dx, 0.01, 0.25, () => nz * dx / 2);
+  const level = round(bed[Math.floor(dam / dx) + nx * (nz >> 1)]! + depth, 3);
+  const depthField = bed.map((b, c) => ((c % nx) + 0.5) * dx < dam ? round(Math.max(0, level - b), 4) : 0);
+  const bodies: SceneBody[] = [terrainUnder('valley', bed, nx, nz, dx)];
+  const floating: {body: string}[] = [];
+  for (let k = 0; k < crates; k++) {
+    const id = `crate-${k}`, half = round(0.3 + 0.05 * k, 3);
+    bodies.push({id, shape: {kind: 'box', halfExtents: [half, round(half * 0.6, 3), half]}, position: [round(2.2 + 1.3 * k, 3), round(level + 0.05, 3), round(nz * dx / 2 + (k - 1) * 1.4, 3)],
+      rotationEuler: [0, 20 * k, 0], density: 450 + 60 * k, neverSleeps: true, color: 0xB98A4E});
+    floating.push({body: id});
+  }
+  return {
+    ...header, world: {gravity: [0, -G, 0], ground: true, seed: 1, step: 1 / 60, subSteps: 4},
+    materials: {}, joints: [], bodies,
+    shallowWater: [{id: 'valley-water', cells: [nx, nz], spacing: dx, bed, depth: depthField, manning: 0.03, boundaries: {xMax: 'open'}, bodies: floating}],
+    meta: {title: 'Dam break down a valley', description: `A ${depth} m reservoir released into a dry valley (shallow water, Manning n 0.03, open outlet), with ${crates} floating crates.`},
+  };
+}
+
+/**
+ * A river bend (shallow water): a channel that meanders down a 1 in 200 floodplain, fed 1.2 m^3/s at the upstream end,
+ * with banks 0.5 m high, grass on the floodplain (n 0.035) and a clean channel (n 0.03) (Chow 1959, natural streams and
+ * floodplains, normal values), an open outlet, and a log floating down it.
+ */
+export function riverBendScene(options: {discharge?: number} = {}): Scene {
+  const {discharge = 1.2} = options, nx = 120, nz = 48, dx = 0.25, width = 1.6, bank = 0.5;
+  const centre = (x: number): number => nz * dx / 2 + 2.6 * Math.sin(x * 2 * Math.PI / 24);
+  const bed: number[] = [], manning: number[] = [];
+  for (let k = 0; k < nz; k++) for (let i = 0; i < nx; i++) {
+    const x = (i + 0.5) * dx, z = (k + 0.5) * dx, off = Math.abs(z - centre(x)), t = Math.max(0, Math.min(1, (off - width / 2) / 0.6));
+    bed.push(round(0.005 * (nx * dx - x) + bank * t * t * (3 - 2 * t) + 0.02 * Math.max(0, off - width / 2 - 0.6), 3));
+    manning.push(off < width / 2 + 0.3 ? 0.03 : 0.035);
+  }
+  // The channel starts filled to half its bank height.
+  const depth = bed.map((b, c) => { const x = ((c % nx) + 0.5) * dx; return round(Math.max(0, 0.005 * (nx * dx - x) + 0.25 - b), 4); });
+  const k0 = Math.floor(centre(dx / 2) / dx), span: [number, number] = [round(centre(0) - width / 2 - 0.3, 3), round(centre(0) + width / 2 + 0.3, 3)];
+  return {
+    ...header, world: {gravity: [0, -G, 0], ground: true, seed: 1, step: 1 / 60, subSteps: 4},
+    materials: {}, joints: [],
+    bodies: [terrainUnder('floodplain', bed, nx, nz, dx),
+      {id: 'log', shape: {kind: 'box', halfExtents: [0.6, 0.12, 0.12]}, position: [2, round(bed[k0 * nx + 8]! + 0.3, 3), round(centre(2), 3)], density: 600, neverSleeps: true, color: 0x7A5230}],
+    shallowWater: [{id: 'river', cells: [nx, nz], spacing: dx, bed, depth, manning, boundaries: {xMin: {type: 'inflow', discharge, span}, xMax: 'open'}, bodies: [{body: 'log'}]}],
+    meta: {title: 'River bend', description: `A meandering channel fed ${discharge} m³/s at its upstream end, with a floating log (shallow water, Manning n 0.03 in the channel, 0.035 on the floodplain).`},
+  };
+}
+
 export const COUPLED_EXAMPLE_SCENES: {readonly [name: string]: () => Scene} = Object.freeze({
   'moored-buoy': () => mooredBuoyScene(),
   'cable-stayed-deck': () => cableStayedDeckScene(),
@@ -598,4 +666,6 @@ export const COUPLED_EXAMPLE_SCENES: {readonly [name: string]: () => Scene} = Ob
   'cavity-flow': () => cavityFlowScene(),
   'flow-past-cylinder': () => flowPastCylinderScene(),
   'dam-break': () => damBreakScene(),
+  'dam-break-valley': () => damBreakValleyScene(),
+  'river-bend': () => riverBendScene(),
 });

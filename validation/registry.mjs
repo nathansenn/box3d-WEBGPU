@@ -19,6 +19,7 @@ import robot from './domains/robot.mjs';
 import cloth from './domains/cloth.mjs';
 import granular from './domains/granular.mjs';
 import fluid from './domains/fluid.mjs';
+import shallowWater from './domains/shallow-water.mjs';
 import solidContact from './domains/solid-contact.mjs';
 import heat from './domains/heat.mjs';
 import solid, {viscoelastic as solidViscoelastic} from './domains/solid.mjs';
@@ -206,6 +207,20 @@ export const DOMAINS = [
     ],
   },
   {
+    id: 'shallow-water', title: 'Shallow water on terrain: dam breaks, steady flows, rain and infiltration', needsKit: true,
+    solver: '`box3d-webgpu-kit/shallow-water`: the 2D Saint-Venant equations by finite volumes, hydrostatic reconstruction (Audusse et al. 2004), MUSCL with minmod, HLL, Heun in time, wetting and drying, Manning friction (split, backward Euler), rain, Green-Ampt infiltration, inflow, open and stage sides, float64; rigid bodies coupled by buoyancy and drag',
+    summary: 'A lake at rest over a bumpy, partly emerged bed; Ritter\'s and Stoker\'s dam breaks; Thacker\'s oscillating paraboloid; the subcritical, transcritical and shock flows over the Goutal-Maurel bump (SWASHES); Manning\'s normal depth; rain on a slope against the kinematic wave; Green-Ampt against its closed form; the volume budget; repeatability; a floating box and a sphere in a current.',
+    docs: ['docs/SHALLOW_WATER.md'],
+    notValidated: [
+      'Shallow water only: no vertical accelerations (no dispersion, no breaking, no flow over a vertical step), hydrostatic pressure, depth-averaged velocity. No turbulence model beyond bed friction, no Coriolis force, no wind stress.',
+      'Steep thin films: the hydrostatic reconstruction loses accuracy where the bed rises by more than the depth over one cell; the rain-on-slope hydrograph is 4% off the kinematic wave at 400 cells (7% at 200). Wet-dry fronts are first order.',
+      'Manning friction is split from the transport and applied by backward Euler: the normal depth is off by O(dt), -2.5e-4 to -1.3e-3 in the cases here. Manning n values are tabulated ranges (Chow 1959); no case is compared with a measured flood or flume.',
+      'Green-Ampt is the one-layer, uniform-initial-moisture model with no redistribution after rain, no crusting and no macropores; the parameters are texture-class means with wide scatter (Rawls et al. 1983 give one standard deviation of a factor of three on the suction head).',
+      'Coupling: boxes and spheres only; buoyancy reads the water plane one cell outside the body; drag is a coefficient on the depth-averaged relative velocity, not hydrodynamics; the body exerts no pressure on the water (its displaced volume is a volume source). Only resting and drifting cases are checked.',
+      'Cost: about 3 million cell-substeps per second on one loaded thread of this machine; no GPU or WASM version.',
+    ],
+  },
+  {
     id: 'heat', title: 'Heat conduction', needsKit: false,
     solver: '`src/engine/heat.ts`: finite volumes on a structured grid, backward Euler, Crank-Nicolson or explicit, float64',
     summary: 'Steady slabs and composite walls, sources, convection and radiation boundaries, temperature-dependent conductivity, the erfc and Fourier-series transients with their observed orders, a 2-D plate, an energy audit and the explicit stability limit.',
@@ -335,7 +350,7 @@ export const DOMAINS = [
   },
 ];
 
-export const CASES = [...rigid, ...waterCoupling, ...structureCoupling, ...siBridge, ...siSuspension, ...geometry, ...scene, ...simulation, ...robot, ...cloth, ...granular, ...fluid, ...heat, ...solid, ...solidViscoelastic, ...solidConcrete, ...solidContact, ...fracture, ...plate, ...frame, ...cable, ...closedWater, ...materials];
+export const CASES = [...rigid, ...waterCoupling, ...structureCoupling, ...siBridge, ...siSuspension, ...geometry, ...scene, ...simulation, ...robot, ...cloth, ...granular, ...fluid, ...shallowWater, ...heat, ...solid, ...solidViscoelastic, ...solidConcrete, ...solidContact, ...fracture, ...plate, ...frame, ...cable, ...closedWater, ...materials];
 
 /** Cases of the given domains (all when `only` is empty), in registry order. */
 export function selectCases(only = []) {

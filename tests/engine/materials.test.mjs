@@ -13,6 +13,8 @@ const refuses = (make, pattern) => assert.throws(make, error => error instanceof
 const values = () => [
   ...Object.values(M.MATERIALS).flatMap(entry => Object.entries(entry.properties).map(([property, value]) => [`${entry.id}.${property}`, value])),
   ...M.CONTACT_PAIRS.flatMap(pair => ['staticFriction', 'kineticFriction', 'friction', 'restitution'].filter(key => pair[key]).map(key => [`${pair.a}/${pair.b}/${pair.condition}.${key}`, pair[key]])),
+  ...Object.values(M.SURFACE_ROUGHNESS).map(entry => [`surface ${entry.id}.manning`, entry.manning]),
+  ...Object.values(M.SOIL_INFILTRATION).flatMap(entry => ['totalPorosity', 'effectivePorosity', 'suction', 'conductivity'].map(key => [`soil ${entry.id}.${key}`, entry[key]])),
 ];
 
 test('every value has a source that exists, the figure read, conditions, and a range that holds it', () => {
@@ -56,7 +58,7 @@ test('the library covers the materials and properties it promises, and counts it
   for (const id of ids.filter(id => M.material(id).category === 'fluid')) for (const property of ['density', 'viscosity']) assert.ok(M.materialValue(id, property), `${id}.${property}`);
   for (const id of ['glass-beads', 'sand-quartz']) for (const property of ['density', 'youngModulus', 'poissonRatio']) assert.ok(M.materialValue(id, property), `${id}.${property}`);
   const rows = M.materialAudit(), unverified = rows.filter(row => row.source === 'unverified');
-  assert.equal(rows.length, 274, 'values in the library (docs/MATERIALS.md and the validation domain quote this count)');
+  assert.equal(rows.length, 332, 'values in the library (docs/MATERIALS.md and the validation domain quote this count)');
   assert.equal(unverified.length, 10, 'unverified values (docs/MATERIALS.md lists them)');
   assert.deepEqual(unverified.filter(row => row.kind !== 'pair').map(row => `${row.subject}.${row.property}`).sort(), ['concrete-lc25-28.fractureEnergy', 'honey.density', 'pvc-polyester-fabric.membraneShearStiffness', 'structural-steel-s355.elongationAtBreak'],
     'every material property has a source except the density of honey, the fabric\'s shear stiffness, the S355 elongation and the fracture energy of lightweight concrete; the rest are contact coefficients');
@@ -184,4 +186,22 @@ test('two natural-rubber spheres and two glass beads stay in contact for the Her
 test('two glass beads rebound at the library restitution', async () => {
   const r = await S.headOn('glass-beads', {fraction: 0.01});
   assert.ok(Math.abs(r.rebound - 0.926) <= 1e-3, `rebound ${r.rebound}`);
+});
+
+test('bed roughness and soils: Manning n from Chow (1959) and Green-Ampt parameters from Rawls et al. (1983) reach shallow water', () => {
+  assert.equal(M.manningCoefficient('short-grass'), 0.030);
+  assert.equal(M.manningCoefficient('smooth-steel'), 0.012);
+  assert.equal(Object.keys(M.SURFACE_ROUGHNESS).length, 14);
+  assert.equal(Object.keys(M.SOIL_INFILTRATION).length, 11);
+  // Table 2, loam: K 0.34 cm/h, psi 8.89 cm, theta_e 0.434.
+  const loam = M.greenAmptSoil('loam', {initialSaturation: 0.3});
+  close(loam.conductivity, 0.34 / 100 / 3600, 1e-12, 'K');
+  close(loam.suction, 0.0889, 1e-12, 'psi');
+  close(loam.moistureDeficit, 0.434 * 0.7, 1e-12, 'eta');
+  for (const entry of Object.values(M.SOIL_INFILTRATION)) assert.ok(entry.effectivePorosity.value < entry.totalPorosity.value, `${entry.id}: effective below total porosity`);
+  // Coarser soils conduct faster (the class means fall from sand to clay).
+  const k = ['sand', 'loamy-sand', 'sandy-loam', 'loam', 'clay'].map(id => M.SOIL_INFILTRATION[id].conductivity.value);
+  for (let i = 1; i < k.length; i++) assert.ok(k[i] < k[i - 1]);
+  refuses(() => M.manningCoefficient('ice'), /Unknown surface/);
+  refuses(() => M.greenAmptSoil('loam', {initialSaturation: 1}), /initialSaturation/);
 });

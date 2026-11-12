@@ -39,3 +39,41 @@ test('the Studio runtime runs the SI canopy and refuses to resume its checkpoint
   const step=runtime.step({ticks:12});assert.equal(step.capabilities.models[0].id,STUDIO_CANOPY_SI_BACKEND);step.release();
   assert.throws(()=>FailureSimulation.fromCheckpoint(runtime.exportCheckpoint()),/cannot be resumed/);
 });
+
+test('EN 1991-1-4 wind on the canopy: peak velocity pressure, Table 7.6, the applied resultant equals c_f q_p A at d/4 from the windward edge',async()=>{
+  const {peakVelocityPressure,canopyNetPressure,canopyZone,EN1991_TABLE_7_6}=await import('../../src/studio/canopy-si.ts');
+  // 4.3-4.10 at z = 10 m in terrain II: c_r = 0.19 ln(200), I_v = 1 / ln(200), c_e = (1 + 7 I_v) c_r^2.
+  const at10=peakVelocityPressure(26,10),L=Math.log(200);
+  close(at10.cr,.19*L,1e-12,'c_r');close(at10.Iv,1/L,1e-12,'I_v');close(at10.exposure,(1+7/L)*(.19*L)**2,1e-12,'c_e');
+  close(at10.qp,at10.exposure*.5*1.25*26*26,1e-12,'q_p = c_e q_b');
+  assert.ok(Math.abs(at10.exposure-2.35)<.01,`c_e(10 m, II) ${at10.exposure} (EN Figure 4.2 reads about 2.35; read from memory)`);
+  // Below z_min (2 m in terrain II) the profile is held at z_min.
+  close(peakVelocityPressure(20,1).qp,peakVelocityPressure(20,2).qp,1e-15,'z < z_min');
+  assert.deepEqual(EN1991_TABLE_7_6[0].min0,[-.5,-.6,-1.3,-1.4]);
+  const sim=make(0,1,2),c=sim.canopySI,q=peakVelocityPressure(30,c.height).qp,A=c.area.reduce((a,b)=>a+b,0);
+  console.log(`# canopy at ${c.height.toFixed(2)} m, plan ${c.plan.d.toFixed(2)} x ${c.plan.b.toFixed(2)} m: v_b 30 m/s gives q_p ${q.toFixed(0)} Pa (gust factor 1 + 7 I_v = ${(1+7*peakVelocityPressure(30,c.height).Iv).toFixed(3)})`);
+  for(const windCase of ['max','min0','min1']){
+    const p=canopyNetPressure('force',windCase,q,{x:c.planX,z:c.planZ,area:c.area},c.plan),cf=EN1991_TABLE_7_6[0][windCase][0];
+    let F=0,M=0;for(let i=0;i<p.length;i++){F+=p[i]*c.area[i];M+=p[i]*c.area[i]*(c.planX[i]-c.plan.x0);}
+    close(F,cf*q*A,1e-12,`${windCase}: resultant = c_f q_p A`);close(M/F,c.plan.d/4,1e-12,`${windCase}: centre d/4 from the windward edge`);
+    const local=canopyNetPressure('local',windCase,q,{x:c.planX,z:c.planZ,area:c.area},c.plan);let FL=0;for(let i=0;i<p.length;i++)FL+=local[i]*c.area[i];
+    console.log(`# ${windCase}: c_f ${cf} -> ${(F/1e3).toFixed(2)} kN; zone envelope c_p,net gives ${(FL/1e3).toFixed(2)} kN (${(FL/F).toFixed(2)} x, the local maxima of all directions at once)`);
+    assert.ok(Math.abs(FL)>Math.abs(F),'the local envelope exceeds the overall force');
+  }
+  // Zone areas of the key plan: B 20%, C 16%, A 64%.
+  let a=0,b=0,cc=0;const N=400;for(let i=0;i<N;i++)for(let j=0;j<N;j++){const z=canopyZone((i+.5)/N,(j+.5)/N);if(z==='A')a++;else if(z==='B')b++;else cc++;}
+  close(a/N/N,.64,1e-12,'A');close(b/N/N,.2,1e-12,'B');close(cc/N/N,.16,1e-12,'C');
+});
+
+test('the canopy under EN uplift: the nodal wind forces are the field, and at rest the posts carry the weight less the uplift',()=>{
+  const sim=make(0,1,1),c=sim.canopySI,weight=c.cloth.masses.reduce((s,m)=>s+m,0)*9.81;
+  // Let the pressure ramp up (1 kPa/s) and the sheet settle, then solve the static equilibrium under the held loads.
+  for(let i=0;i<120*3;i++)sim.step();
+  close(c.windPressure,c.windTarget,1e-12,'ramped to the target');
+  const {force,centre}=c.windResultant(),q=c.windPressure,A=c.area.reduce((s,a)=>s+a,0);
+  close(force,.5*q*A,1e-12,'uplift = |c_f| q_p A (c_f = -0.5, empty canopy)');close(centre,c.plan.d/4,1e-9,'centre at d/4');
+  c.cloth.solveStatic();
+  console.log(`# v_b 15 m/s: q_p ${q.toFixed(0)} Pa, uplift ${(force/1e3).toFixed(2)} kN, weight ${(weight/1e3).toFixed(2)} kN, post reaction ${(c.supportReaction()/1e3).toFixed(2)} kN, rise ${((Math.max(...Array.from({length:c.settled.length},(_,i)=>c.cloth.positions[3*i+1]-c.settled[i]))))*1e3|0} mm`);
+  close(c.supportReaction(),weight-force,2e-3,'static: reaction = weight - uplift');
+  assert.equal(c.cloth.tornCount,0);
+});

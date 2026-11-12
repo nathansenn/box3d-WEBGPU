@@ -4283,6 +4283,20 @@ export declare function damBreakScene(options?: {
 }): Scene;
 ```
 
+### damBreakValleyScene · function
+
+A dam break down a valley (shallow water, docs/SHALLOW_WATER.md): a reservoir 2 m deep behind a dam at x = 6 m lets go
+into a dry valley 30 m long that falls 1 in 100 and has 1 in 4 sides; Manning n 0.03 (Chow 1959, earth channel), an
+open outlet at the far end, and three crates afloat in the reservoir that ride the flood. The terrain is also a height
+field of the rigid world, so the crates ground where the water leaves them.
+
+```ts
+export declare function damBreakValleyScene(options?: {
+    depth?: number;
+    crates?: number;
+}): Scene;
+```
+
 ### decodeSceneLink · function
 
 Unpack a share link into a validated scene. Accepts the bare string or any
@@ -4421,6 +4435,7 @@ export interface LoadedScene {
     readonly solids: Map<string, SceneSolidRuntime<Body>>;
     readonly heat: Map<string, HeatSolver>;
     readonly fluids: Map<string, SceneFluidRuntime<Body>>;
+    readonly shallowWater: Map<string, SceneShallowWaterRuntime<Body>>;
 }
 ```
 
@@ -4439,7 +4454,7 @@ the scene needs more than it has.
   the scene's settings with none of the scene's bodies in it, and the error
   names the offending id.
 
-The scene's `water`, `cables`, `frames`, `cloths`, `grains`, `solids`, `heat` and `fluids` sections are built after the
+The scene's `water`, `cables`, `frames`, `cloths`, `grains`, `solids`, `heat`, `fluids` and `shallowWater` sections are built after the
 joints, and the result carries a ready `simulation` that steps the world
 and all of them. A rigid-only scene builds exactly what it always did.
 
@@ -4562,6 +4577,18 @@ export declare function ragdollScene(options?: {
 }): Scene;
 ```
 
+### riverBendScene · function
+
+A river bend (shallow water): a channel that meanders down a 1 in 200 floodplain, fed 1.2 m^3/s at the upstream end,
+with banks 0.5 m high, grass on the floodplain (n 0.035) and a clean channel (n 0.03) (Chow 1959, natural streams and
+floodplains, normal values), an open outlet, and a log floating down it.
+
+```ts
+export declare function riverBendScene(options?: {
+    discharge?: number;
+}): Scene;
+```
+
 ### rubberPadScene · function
 
 A rubber pad under a dropped box: a neo-Hookean pad (E = 1.5 MPa, nu = 0.45) welded along its base to a
@@ -4617,6 +4644,7 @@ export interface Scene {
     readonly solids?: readonly SceneSolid[];
     readonly heat?: readonly SceneHeat[];
     readonly fluids?: readonly SceneFluid[];
+    readonly shallowWater?: readonly SceneShallowWater[];
     readonly meta?: SceneMeta;
     readonly extensions?: {
         readonly [key: string]: unknown;
@@ -4675,6 +4703,9 @@ export declare const SCENE_LIMITS: Readonly<{
     fluidParticles: 262144;
     fluidSubsteps: 64;
     fluidLiquid: 16;
+    shallowWater: 4;
+    shallowWaterCells: 262144;
+    shallowWaterSubsteps: 64;
     solidRegions: 64;
     solidCracks: 60000;
     problems: 100;
@@ -4976,6 +5007,7 @@ export interface SceneCoupledSections {
     readonly solids?: readonly SceneSolid[];
     readonly heat?: readonly SceneHeat[];
     readonly fluids?: readonly SceneFluid[];
+    readonly shallowWater?: readonly SceneShallowWater[];
 }
 ```
 
@@ -5251,7 +5283,7 @@ export type SceneGrainWallShape = {
 
 ### sceneHasCoupling · function
 
-True when a scene has a water basin, a cable, a frame, a cloth, a set of grains, a solid, a heat grid or a fluid: it then needs a Simulation, not just a rigid world.
+True when a scene has a water basin, a cable, a frame, a cloth, a set of grains, a solid, a heat grid, a fluid or shallow water: it then needs a Simulation, not just a rigid world.
 
 ```ts
 export declare function sceneHasCoupling(scene: SceneCoupledSections): boolean;
@@ -5472,6 +5504,74 @@ export interface SceneProblem {
 
 ```ts
 export type SceneQuat = readonly [number, number, number, number];
+```
+
+### SceneShallowWater · interface
+
+Shallow water on terrain (docs/SHALLOW_WATER.md): the Saint-Venant equations on `cells` = [nx, nz] cells of `spacing`
+metres in plan, from `origin` = [x, z]; world y is up, so gravity must point down. Numbers are float64.
+The bed is `bed` (nx * nz heights at cell centres, x fastest; default 0). The water starts from `depth` (nx * nz
+values), or from a flat `level` filled over the bed, or dry. Friction is Manning's n, infiltration Green-Ampt.
+Saved state: `depth`, `qx`, `qz` (discharge per width, m^2/s) and `infiltrated` (m) per cell.
+
+```ts
+export interface SceneShallowWater {
+    readonly id: string;
+    readonly cells: readonly [number, number];
+    readonly spacing: number | readonly [number, number];
+    readonly origin?: readonly [number, number];
+    readonly bed?: readonly number[];
+    readonly level?: number;
+    readonly depth?: readonly number[];
+    readonly qx?: readonly number[];
+    readonly qz?: readonly number[];
+    readonly infiltrated?: readonly number[];
+    readonly manning?: number | readonly number[];
+    readonly soil?: {
+        readonly conductivity: number;
+        readonly suction: number;
+        readonly moistureDeficit: number;
+    };
+    readonly rain?: number;
+    readonly boundaries?: {
+        readonly xMin?: SceneShallowWaterSide;
+        readonly xMax?: SceneShallowWaterSide;
+        readonly zMin?: SceneShallowWaterSide;
+        readonly zMax?: SceneShallowWaterSide;
+    };
+    readonly density?: number;
+    readonly substeps?: number;
+    readonly order?: 1 | 2;
+    readonly bodies?: readonly SceneShallowWaterBody[];
+}
+```
+
+### SceneShallowWaterBody · interface
+
+A body floating in shallow water (a dynamic box or sphere).
+
+```ts
+export interface SceneShallowWaterBody {
+    readonly body: string;
+    readonly dragCoefficient?: number;
+    readonly referenceArea?: number;
+}
+```
+
+### SceneShallowWaterSide · type
+
+A side of a shallow-water grid. An inflow brings `discharge` m^3/s, spread by width over the side or over the cells whose centres lie in `span` (world z for an x side, world x for a z side).
+
+```ts
+export type SceneShallowWaterSide = 'wall' | 'open' | {
+    readonly type: 'inflow';
+    readonly discharge: number;
+    readonly depth?: number;
+    readonly span?: readonly [number, number];
+} | {
+    readonly type: 'stage';
+    readonly level: number;
+};
 ```
 
 ### SceneShape · type
@@ -5816,7 +5916,7 @@ Build the coupled sections of a scene whose bodies and joints `builder` has alre
 return the Simulation that steps them. Build order: frames, then cables (file order), one
 StructureCoupling with the cables' attachments (cable by cable, in file order) and then the
 frames' attachments; then the cloths, then the grain sets, then the solids (supports, saved state,
-contact, welds, loads), then the heat grids and their links to the solids, then the fluids (flows and their bodies, tanks), then the basins and their bodies. A
+contact, welds, loads), then the heat grids and their links to the solids, then the fluids (flows and their bodies, tanks), then the shallow water (and its floating bodies), then the basins and their bodies. A
 rigid-only scene gives a Simulation with no subsystems, whose step is `world.step()`. On a
 failure the world is reset and the error names the id.
 
@@ -6017,6 +6117,17 @@ export type SceneFluidRuntime<B> = {
     readonly kind: 'free-surface';
     readonly surface: FreeSurfaceFluid;
 };
+```
+
+### SceneShallowWaterRuntime · interface
+
+Shallow water of a scene as built: the grid and its coupling to the bodies, or null when it has none.
+
+```ts
+export interface SceneShallowWaterRuntime<B> {
+    readonly water: ShallowWater;
+    readonly coupling: ShallowWaterCoupling<B> | null;
+}
 ```
 
 ### SceneSolidRuntime · interface
@@ -8769,6 +8880,481 @@ export declare function taylorGreenVelocity(x: number, y: number, t: number, { s
 }): [number, number, number];
 ```
 
+## `box3d-webgpu-kit/shallow-water`
+
+### bernoulliDepth · function
+
+Depth of steady 1D frictionless flow of discharge q (m^2/s) over a bed z from Bernoulli, h^3 + (z - C) h^2 + q^2 / (2g) = 0
+with C = q^2/(2 g h_ref^2) + h_ref + z_ref (SWASHES eq. 8 and sec. 3.1.3-3.1.5). `branch` 'sub' takes the root above the
+critical depth, 'super' the one below. Returns NaN when the energy is too low for a root.
+
+```ts
+export declare function bernoulliDepth(z: number, q: number, energy: number, branch: 'sub' | 'super', gravity?: number): number;
+```
+
+### bumpBed · const
+
+The bed of the Goutal and Maurel (1997) bump cases as given in SWASHES (sec. 3.1): 0.2 - 0.05 (x - 10)^2 on 8 < x < 12 m.
+
+```ts
+export declare const bumpBed: (x: number) => number;
+```
+
+### bumpShockPosition · function
+
+Position of the hydraulic jump in the 'shock' bump case: q^2 (1/h1 - 1/h2) + g/2 (h1^2 - h2^2) = 0 (SWASHES eq. 10).
+
+```ts
+export declare function bumpShockPosition(gravity?: number): number;
+```
+
+### bumpSteadyDepth · function
+
+Steady depth over the bump for the three SWASHES flowing cases: 'subcritical' (q 4.42, h_L 2), 'transcritical' (q 1.53),
+'shock' (q 0.18, h_L 0.33, hydraulic jump located by Rankine-Hugoniot). Domain 0 to 25 m.
+
+```ts
+export declare function bumpSteadyDepth(x: number, kind: 'subcritical' | 'transcritical' | 'shock', gravity?: number): number;
+```
+
+### greenAmptCumulative · function
+
+Cumulative Green-Ampt infiltration under a constant rain r (m/s) on a soil (K, psi, eta) with no runoff: before ponding all
+the rain enters (F = r t) until F_p = K S / (r - K), S = psi eta, which follows from setting the rate of Rawls et al. eq. 1,
+f = K (1 + S / F), equal to r; after it F solves eq. 2 between F_p and F: F - F_p - S ln((F + S)/(F_p + S)) = K (t - t_p).
+When r <= K the soil never ponds and F = r t. Returns F, m.
+
+```ts
+export declare function greenAmptCumulative(t: number, rain: number, soil: GreenAmptSoil): number;
+```
+
+### greenAmptPondingTime · const
+
+Ponding time of Green-Ampt under constant rain r > K: t_p = K S / (r (r - K)).
+
+```ts
+export declare const greenAmptPondingTime: (rain: number, soil: GreenAmptSoil) => number;
+```
+
+### GreenAmptSoil · interface
+
+Green-Ampt infiltration parameters (Rawls, Brakensiek and Miller 1983, eqs. 1 and 2). SI units.
+
+```ts
+export interface GreenAmptSoil {
+    readonly conductivity: number;
+    readonly suction: number;
+    readonly moistureDeficit: number;
+}
+```
+
+### greenAmptStep · function
+
+Depth infiltrated over dt by Green-Ampt from a cumulative depth F with `available` water on the surface (m): the
+ponded-capacity integral F2 - F - S ln((F2 + S) / (F + S)) = K dt (Rawls et al. 1983, eq. 2, between F and F2), solved by
+safeguarded Newton, capped by the water there is. S = psi * eta, m; K, m/s.
+
+```ts
+export declare function greenAmptStep(F: number, available: number, K: number, S: number, dt: number): number;
+```
+
+### kinematicEquilibriumTime · const
+
+```ts
+export declare const kinematicEquilibriumTime: ({ length, rain, slope, manning }: {
+    length: number;
+    rain: number;
+    slope: number;
+    manning: number;
+}) => number;
+```
+
+### kinematicWaveOutflow · function
+
+Kinematic wave on a plane under constant rainfall excess r from t = 0 (WEPP technical documentation, ch. 4, eqs. 4.4.1-
+4.4.10, with Manning: alpha = sqrt(S) / n, m = 5/3): outflow per unit width at the foot of a plane of length L, m^2/s.
+Rising limb q = alpha (r t)^m until t_e = (L / (alpha r^(m-1)))^(1/m), then r L.
+
+```ts
+export declare function kinematicWaveOutflow(t: number, { length, rain, slope, manning }: {
+    length: number;
+    rain: number;
+    slope: number;
+    manning: number;
+}): number;
+```
+
+### laminarFilmDepth · const
+
+Depth of a steady laminar film on an incline of slope S carrying q per width: q = g S h^3 / (3 nu) (Poiseuille film; the
+standard result, written from memory).
+
+```ts
+export declare const laminarFilmDepth: (q: number, nu: number, slope: number, gravity?: number) => number;
+```
+
+### manningNormalDepth · const
+
+Manning normal depth of a wide channel (unit width): q = (1/n) h^(5/3) sqrt(S)  =>  h = (n q / sqrt(S))^(3/5).
+
+```ts
+export declare const manningNormalDepth: (q: number, n: number, slope: number) => number;
+```
+
+### ritterDamBreak · function
+
+Ritter's dry dam break on a flat frictionless bed (SWASHES, Delestre et al. 2013, sec. 4.1.2): [h, u] at x, t.
+
+```ts
+export declare function ritterDamBreak(x: number, t: number, { depth, dam, gravity }: {
+    depth: number;
+    dam: number;
+    gravity?: number;
+}): [number, number];
+```
+
+### SHALLOW_WATER_COUPLING_BACKEND · const
+
+```ts
+export declare const SHALLOW_WATER_COUPLING_BACKEND = "rigid-shallow-water-coupling-js-f64-v1";
+```
+
+### SHALLOW_WATER_GRAVITY · const
+
+Standard gravity used when none is given, m/s^2.
+
+```ts
+export declare const SHALLOW_WATER_GRAVITY = 9.81;
+```
+
+### SHALLOW_WATER_SOLVER_ID · const
+
+```ts
+export declare const SHALLOW_WATER_SOLVER_ID = "shallow-water-hr-muscl-hll-js-f64-v1";
+```
+
+### SHALLOW_WATER_SUBSYSTEM_ORDER · const
+
+Where shallow water runs: coupled, in the couple stage after the fluid (180) and before the water basin (200); bare, in the post stage after the free-surface tank (520).
+
+```ts
+export declare const SHALLOW_WATER_SUBSYSTEM_ORDER = 190;
+```
+
+### ShallowWater · class
+
+```ts
+export declare class ShallowWater {
+  readonly solver = "shallow-water-hr-muscl-hll-js-f64-v1";
+  readonly nx: number;
+  readonly nz: number;
+  readonly dx: number;
+  readonly dz: number;
+  readonly origin: readonly [number, number];
+  readonly gravity: number;
+  readonly density: number;
+  readonly cfl: number;
+  readonly order: 1 | 2;
+  readonly dryDepth: number;
+  readonly maxSubsteps: number;
+  readonly bed: Float64Array;
+  readonly h: Float64Array;
+  readonly qx: Float64Array;
+  readonly qz: Float64Array;
+  readonly manning: Float64Array;
+  readonly infiltrated: Float64Array;
+  readonly soilK: Float64Array;
+  readonly soilS: Float64Array;
+  readonly solid: Uint8Array;
+  readonly ledger: ShallowWaterLedger;
+  readonly viscosity: number;
+  readonly rainVelocity: Float64Array<ArrayBuffer>;
+  readonly stats: ShallowWaterStats;
+  readonly initialVolume: number;
+  dt: number;
+  time: number;
+  steps: number;
+  readonly sourceMomentum: Float64Array<ArrayBuffer>;
+  saveState(): StateObject;
+  restoreState(state: StateValue): void;
+  get cells(): number;
+  rainAt(time?: number): number;
+  setRain(rain: number | ((time: number) => number)): void;
+  setBoundary(key: keyof ShallowWaterBoundaries, value: ShallowWaterSide): void;
+  setTimeStep(dt: number): void;
+  volume(): number;
+  volumeError(): number;
+  addVolume(c: number, volume: number, u?: number, v?: number): void;
+  removeVolume(c: number, volume: number): number;
+  cellAt(x: number, z: number): number;
+  level(c: number): number;
+  velocity(c: number): [number, number];
+  froude(c: number): number;
+  levelAt(x: number, z: number): number;
+  depthAt(x: number, z: number): number;
+  dischargeX(x: number): number;
+  kineticEnergy(): number;
+  potentialEnergy(): number;
+  maxDepth(): number;
+  maxSpeed(minimum?: number): number;
+  momentum(): [number, number];
+  stableTimeStep(): number;
+  bedChanged(): void;
+  step(count?: number): void;
+  advance(duration: number): void;
+}
+```
+
+### ShallowWaterBodyOptions · interface
+
+```ts
+export interface ShallowWaterBodyOptions {
+    readonly shape: ShallowWaterShape;
+    readonly dragCoefficient?: number;
+    readonly referenceArea?: number;
+    readonly angularDrag?: number;
+}
+```
+
+### ShallowWaterBodyReport · interface
+
+Live per-body results of the last step.
+
+```ts
+export interface ShallowWaterBodyReport {
+    readonly volume: number;
+    submergedVolume: number;
+    submergedFraction: number;
+    readonly centre: Float64Array;
+    readonly buoyancy: Float64Array;
+    readonly drag: Float64Array;
+}
+```
+
+### ShallowWaterBoundaries · interface
+
+```ts
+export interface ShallowWaterBoundaries {
+    readonly xMin?: ShallowWaterSide;
+    readonly xMax?: ShallowWaterSide;
+    readonly zMin?: ShallowWaterSide;
+    readonly zMax?: ShallowWaterSide;
+}
+```
+
+### ShallowWaterCoupling · class
+
+Two-way coupling of rigid bodies with a ShallowWater. Call `step()` immediately before `world.step()`; it advances the
+water by the rigid step. For each body: the local water plane (level and slope, bilinear between cell centres, read one
+cell outside the body's footprint), the exact volume of the shape below it and its centroid, the buoyant force rho g V along the
+plane's normal at the centre of buoyancy, and a drag C_d A rho |w| w / 2 on the velocity w of the body relative to the
+depth-averaged water, scaled by the submerged fraction. The reaction of the horizontal force goes into the water's
+momentum over the footprint; the change of the displaced volume per cell goes in (or out) as a volume source, so
+that a body floating in a lake raises its level; what a body displaces when it is first seen is part of the starting
+water. Explicit: the water feels the body's forces of the same step.
+
+```ts
+export declare class ShallowWaterCoupling<B> {
+  readonly backend = "rigid-shallow-water-coupling-js-f64-v1";
+  readonly world: ShallowWaterWorld<B>;
+  readonly water: ShallowWater;
+  readonly dt: number;
+  readonly impulseOnBodies: Float64Array<ArrayBuffer>;
+  readonly impulseOnWater: Float64Array<ArrayBuffer>;
+  steps: number;
+  saveState(): StateObject;
+  restoreState(state: StateValue): void;
+  addBody(body: B, options: ShallowWaterBodyOptions): ShallowWaterBodyReport;
+  report(body: B): ShallowWaterBodyReport | null;
+  get bodyCount(): number;
+  step(): void;
+}
+```
+
+### ShallowWaterLedger · interface
+
+Signed volume budget since construction, m^3. volume() - initialVolume = inflow + rain - infiltrated + clipped, to round-off.
+
+```ts
+export interface ShallowWaterLedger {
+    inflow: number;
+    rain: number;
+    infiltrated: number;
+    sources: number;
+    clipped: number;
+    displaced: number;
+}
+```
+
+### ShallowWaterOptions · interface
+
+```ts
+export interface ShallowWaterOptions {
+    readonly cells: readonly [number, number];
+    readonly spacing: number | readonly [number, number];
+    readonly origin?: readonly [number, number];
+    readonly bed?: ArrayLike<number> | ((x: number, z: number) => number);
+    readonly depth?: ArrayLike<number> | ((x: number, z: number, bed: number) => number);
+    readonly level?: number | ((x: number, z: number) => number);
+    readonly velocity?: readonly [number, number] | ((x: number, z: number) => readonly [number, number]);
+    readonly manning?: number | ArrayLike<number>;
+    readonly viscosity?: number;
+    readonly soil?: GreenAmptSoil | readonly (GreenAmptSoil | null)[];
+    readonly rain?: number | ((time: number) => number);
+    readonly solid?: ArrayLike<number>;
+    readonly boundaries?: ShallowWaterBoundaries;
+    readonly gravity?: number;
+    readonly density?: number;
+    readonly dt?: number;
+    readonly cfl?: number;
+    readonly order?: 1 | 2;
+    readonly dryDepth?: number;
+    readonly maxSubsteps?: number;
+}
+```
+
+### ShallowWaterShape · type
+
+```ts
+export type ShallowWaterShape = {
+    readonly kind: 'box';
+    readonly halfExtents: readonly [number, number, number];
+} | {
+    readonly kind: 'sphere';
+    readonly radius: number;
+};
+```
+
+### ShallowWaterSide · type
+
+A side of the domain.
+
+```ts
+export type ShallowWaterSide = 'wall'
+| 'open'
+| {
+    readonly type: 'inflow';
+    readonly discharge: number;
+    readonly depth?: number;
+    readonly span?: readonly [number, number];
+}
+| {
+    readonly type: 'stage';
+    readonly level: number;
+};
+```
+
+### ShallowWaterStats · interface
+
+What a step did, for diagnostics and events.
+
+```ts
+export interface ShallowWaterStats {
+    substeps: number;
+    totalSubsteps: number;
+    courant: number;
+    maxWaveSpeed: number;
+    wetCells: number;
+}
+```
+
+### shallowWaterSubsystem · function
+
+Shallow water as a subsystem of the one stepping loop (simulation.ts).
+ - A `ShallowWaterCoupling`: couple stage, order 190; its step is the rigid step.
+ - A bare `ShallowWater`: post stage, order 530; its dt may be the step, a whole fraction of it or a whole multiple.
+Every step is split into CFL-limited substeps; a step that would need more than `maxSubsteps` throws
+UNSTABLE_TIME_STEP. Energy: kinetic plus potential energy of the water (rho g (h^2/2 + h b) per area); `exchanged` is 0:
+the energy carried by inflows, rain and infiltration is not booked, so the balance moves with them as well as falling
+with friction and shocks. Events at the end of a step: 'wet-cells' {wet, before} when the number of wet cells changes by
+more than 10%, 'substeps' {substeps} when a step first needs more than 100 substeps.
+
+```ts
+export declare function shallowWaterSubsystem<W, B>(target: ShallowWater | ShallowWaterCoupling<B>, options?: {
+    readonly id?: string;
+    readonly order?: number;
+}): Subsystem<W, B>;
+```
+
+### ShallowWaterWorld · interface
+
+The part of a rigid world the coupling uses. The kit's PhysicsWorld satisfies it.
+
+```ts
+export interface ShallowWaterWorld<B> {
+    gravity(): readonly number[];
+    getState(body: B): {
+        readonly position: readonly number[];
+        readonly rotation: readonly number[];
+        readonly linearVelocity: readonly number[];
+        readonly angularVelocity: readonly number[];
+        readonly mass: number;
+        readonly type: string;
+    };
+    applyForce(body: B, force: readonly [number, number, number], point?: readonly [number, number, number]): void;
+    applyTorque(body: B, torque: readonly [number, number, number]): void;
+    isAlive?(body: B): boolean;
+    readonly loop?: {
+        readonly step: number;
+    };
+}
+```
+
+### stokerDamBreak · function
+
+Stoker's wet dam break on a flat frictionless bed (SWASHES, sec. 4.1.1): [h, u] at x, t.
+
+```ts
+export declare function stokerDamBreak(x: number, t: number, { left, right, dam, gravity }: {
+    left: number;
+    right: number;
+    dam: number;
+    gravity?: number;
+}): [number, number];
+```
+
+### stokerMiddleCelerity · function
+
+cm of Stoker's wet dam break: the root of -8 g hr cm^2 (sqrt(g hl) - cm)^2 + (cm^2 - g hr)^2 (cm^2 + g hr) = 0 between sqrt(g hr) and sqrt(g hl).
+
+```ts
+export declare function stokerMiddleCelerity(left: number, right: number, gravity?: number): number;
+```
+
+### thackerBed · const
+
+Thacker's radially symmetric oscillating paraboloid (SWASHES, sec. 4.2.2): the bed z(r) = -h0 (1 - r^2/a^2), measured from the centre (cx, cz).
+
+```ts
+export declare const thackerBed: (x: number, z: number, { h0, a, centre }: {
+    h0: number;
+    a: number;
+    centre: readonly [number, number];
+}) => number;
+```
+
+### thackerDepth · function
+
+The depth of Thacker's paraboloid at (x, z, t); A = (a^2 - r0^2) / (a^2 + r0^2), omega = sqrt(8 g h0) / a.
+
+```ts
+export declare function thackerDepth(x: number, z: number, t: number, { h0, a, r0, centre, gravity }: {
+    h0: number;
+    a: number;
+    r0: number;
+    centre: readonly [number, number];
+    gravity?: number;
+}): number;
+```
+
+### thackerFrequency · const
+
+Thacker's angular frequency sqrt(8 g h0) / a, rad/s.
+
+```ts
+export declare const thackerFrequency: (h0: number, a: number, gravity?: number) => number;
+```
+
 ## `box3d-webgpu-kit/solid-contact`
 
 ### SOLID_CONTACT_SOLVER_ID · const
@@ -9235,6 +9821,22 @@ export interface GrainMaterialOptions extends MaterialOptions {
 }
 ```
 
+### greenAmptSoil · function
+
+Green-Ampt inputs of a soil texture class for shallow-water.ts: K (m/s), psi (m) and the available porosity
+eta = theta_e (1 - S_e), where S_e is the effective saturation the soil starts at (Rawls et al. 1983: eta is the
+effective porosity minus the initial water content). Default S_e = 0.3, an assumption, not a value of the source.
+
+```ts
+export declare function greenAmptSoil(id: string, options?: {
+    readonly initialSaturation?: number;
+}): {
+    conductivity: number;
+    suction: number;
+    moistureDeficit: number;
+};
+```
+
 ### heatMaterial · function
 
 The input of `HeatSolver` (heat.ts): conductivity k, density rho and specific heat c_p.
@@ -9251,6 +9853,14 @@ export interface HeatMaterialOptions extends MaterialOptions {
     readonly density?: number;
     readonly specificHeat?: number;
 }
+```
+
+### manningCoefficient · function
+
+Manning's n of a surface of the roughness table, s/m^(1/3). Throws for an unknown id.
+
+```ts
+export declare function manningCoefficient(id: string): number;
 ```
 
 ### material · function
@@ -9272,7 +9882,7 @@ export declare const MATERIAL_LIBRARY_ID = "box3d-materials";
 Semver of the data: a changed value is a minor release, a removed material or property a major one.
 
 ```ts
-export declare const MATERIAL_LIBRARY_VERSION = "1.5.0";
+export declare const MATERIAL_LIBRARY_VERSION = "1.6.0";
 ```
 
 ### MATERIAL_PROPERTY_UNITS · const
@@ -9311,7 +9921,7 @@ export declare function materialAudit(): MaterialAuditRow[];
 
 ```ts
 export interface MaterialAuditRow {
-    readonly kind: 'property' | 'pair';
+    readonly kind: 'property' | 'pair' | 'surface' | 'soil';
     readonly subject: string;
     readonly property: string;
     readonly value: number;
@@ -9487,6 +10097,29 @@ export interface ShearConsistency {
 }
 ```
 
+### SOIL_INFILTRATION · const
+
+Green-Ampt parameters of the eleven USDA texture classes. Ranges are one standard deviation (Rawls et al. 1983).
+
+```ts
+export declare const SOIL_INFILTRATION: Readonly<Record<string, SoilInfiltrationEntry>>;
+```
+
+### SoilInfiltrationEntry · interface
+
+Green-Ampt parameters of a soil texture class (Rawls et al. 1983, Table 2, the class rows). SI units.
+
+```ts
+export interface SoilInfiltrationEntry {
+    readonly id: string;
+    readonly name: string;
+    readonly totalPorosity: MaterialValue;
+    readonly effectivePorosity: MaterialValue;
+    readonly suction: MaterialValue;
+    readonly conductivity: MaterialValue;
+}
+```
+
 ### solidMaterial · function
 
 The input of `SolidBody` and `FractureBody` (solid.ts): E, nu, rho and, when the library has it, the linear
@@ -9521,6 +10154,26 @@ Plane strain (a thick body: G_c = K^2 (1 - nu^2) / E) or plane stress (a thin sh
 
 ```ts
 export type StressState = 'plane-strain' | 'plane-stress';
+```
+
+### SURFACE_ROUGHNESS · const
+
+Manning's n of surfaces and channels, the "normal" value of Chow's (1959) table with its minimum and maximum as the range.
+
+```ts
+export declare const SURFACE_ROUGHNESS: Readonly<Record<string, SurfaceRoughnessEntry>>;
+```
+
+### SurfaceRoughnessEntry · interface
+
+A surface a shallow flow runs over, with its Manning coefficient n (s/m^(1/3)).
+
+```ts
+export interface SurfaceRoughnessEntry {
+    readonly id: string;
+    readonly name: string;
+    readonly manning: MaterialValue;
+}
 ```
 
 ### thermalDiffusivity · function

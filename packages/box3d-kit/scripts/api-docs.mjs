@@ -30,6 +30,7 @@ const ENTRIES = [
   ['box3d-webgpu-kit/cloth', 'dist/cloth.d.ts'],
   ['box3d-webgpu-kit/granular', 'dist/granular.d.ts'],
   ['box3d-webgpu-kit/fluid', 'dist/fluid.d.ts'],
+  ['box3d-webgpu-kit/shallow-water', 'dist/shallow-water.d.ts'],
   ['box3d-webgpu-kit/solid-contact', 'dist/solid-contact.d.ts'],
   ['box3d-webgpu-kit/materials', 'dist/materials.d.ts'],
 ];

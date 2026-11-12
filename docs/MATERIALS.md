@@ -1,12 +1,12 @@
 # Material library
 
-`src/engine/materials.ts`, published by the kit as `box3d-webgpu-kit/materials`: engineering materials in SI units, each value with the conditions it holds for, the figure exactly as it was read in its source, the conversion when it was not read in SI, a range where sources disagree or state one, and a numbered citation below. Library version `1.5.0` (`MATERIAL_LIBRARY_VERSION`); the sources were opened on 2026-11-12.
+`src/engine/materials.ts`, published by the kit as `box3d-webgpu-kit/materials`: engineering materials in SI units, each value with the conditions it holds for, the figure exactly as it was read in its source, the conversion when it was not read in SI, a range where sources disagree or state one, and a numbered citation below. Library version `1.6.0` (`MATERIAL_LIBRARY_VERSION`); the sources were opened on 2026-11-12.
 
 This is roadmap Phase 4, "a calibrated material library with sources". *Calibrated* here means traceable: every number can be followed to a page that was opened and read. It does not mean that the project measured anything. The values are typical or nominal figures for a named grade; real samples differ.
 
 ## What is in it
 
-32 materials, 31 contact-pair entries, 44 sources, **274 values: 264 from a source, 10 unverified**.
+32 materials, 31 contact-pair entries, 14 bed-roughness rows, 11 soil classes, 47 sources, **332 values: 322 from a source, 10 unverified**.
 
 | Material (`id`) | Grade and conditions | Density | E, ν, G | Strength | K_IC / G_c | k, c_p, α |
 |---|---|---|---|---|---|---|
@@ -42,7 +42,7 @@ This is roadmap Phase 4, "a calibrated material library with sources". *Calibrat
 
 Units: kg/m³, W/(m K), J/(kg K), 1/K. The full tables with every condition, the figure read and the citation are below.
 
-Where the values come from, counted per value: standards and design aids that tabulate them 26, government laboratories and agencies (NIST, NBS, USDA Forest Products Laboratory, Lawrence Livermore) 35, manufacturers' and distributors' datasheets 76, peer-reviewed papers 24, an open textbook and a university course table 22, and **The Engineering ToolBox and Webmineral, marked as last resort, 24** (20 friction coefficients, ice's density, conductivity and specific heat, quartz's density). Two kinds of secondary copy are used and named as such: the Eurocode clauses were read in design aids (Eurocode Applied, Dlubal) except EN 1992-1-2, which was read in a copy of the standard; Wikipedia was not used.
+Where the values come from, counted per value: standards and design aids that tabulate them 26, government laboratories and agencies (NIST, NBS, USDA Forest Products Laboratory, Lawrence Livermore) 35, manufacturers' and distributors' datasheets 76, peer-reviewed papers 68 (44 of them Rawls et al.'s soil table), an open textbook, a university course table and two reproductions of Chow's Manning table 36, and **The Engineering ToolBox and Webmineral, marked as last resort, 24** (20 friction coefficients, ice's density, conductivity and specific heat, quartz's density). Two kinds of secondary copy are used and named as such: the Eurocode clauses were read in design aids (Eurocode Applied, Dlubal) except EN 1992-1-2, which was read in a copy of the standard; Wikipedia was not used.
 
 ## Unverified values
 
@@ -69,6 +69,41 @@ Concrete for the concrete law of the solid (`concreteMaterial(id)`, docs/SOLID_M
 
 Woven fabric (`category: 'fabric'`, `isotropic: false`): `pvc-polyester-fabric` carries its stiffness and strength per unit width along the warp and the weft, in N/m, as a fabric is tested (`membraneStiffnessWarp`, `membraneStiffnessWeft`, `membraneShearStiffness`, `membranePoissonRatio`, `tensileStrengthWarp`, `tensileStrengthWeft`), its areal density in kg/m² and a tear strength in N. The stiffness is that of Ambroziak's biaxial 1:1 tests at small strain (first loading); his uniaxial tests give 600, 800 and 440 kN/m in successive strain ranges (the range in the entry). `fabricMaterial(id, {warpDirection})` builds the input of `Cloth` (docs/CLOTH.md): areal density, the orthotropic membrane and the tearing strengths; it needs `allowUnverified` (or `shear`) because the shear stiffness is unverified. The canopy study uses it (docs/STUDIO_CANOPY.md).
 
+## Bed roughness and soils
+
+For shallow water ([SHALLOW_WATER.md](SHALLOW_WATER.md)) the library has two tables beside the materials, added in 1.6.0 (3 sources, 58 values, none unverified):
+
+- `SURFACE_ROUGHNESS`: Manning's n (s/m^(1/3)) of 14 surfaces and channels, the "normal" value of Chow's table (V. T. Chow, *Open-Channel Hydraulics*, McGraw-Hill 1959) with its minimum and maximum as the range, read in two reproductions: UN-SPIDER's Appendix I (natural streams, floodplains, excavated and lined channels) and V. M. Ponce's Table 5-4 (San Diego State University; the metal and glass rows the first leaves out). Chow's book itself was not opened. `manningCoefficient(id)` returns n.
+- `SOIL_INFILTRATION`: Green-Ampt parameters of the 11 USDA texture classes from Rawls, Brakensiek and Miller, *Green-Ampt infiltration parameters from soils data*, J. Hydraul. Eng. 109(1) (1983) 62-70, Table 2 (the class rows, all horizons): total porosity, effective porosity (with one standard deviation as the range), the wetting-front suction head (antilog of the log mean, the range one standard deviation) and the Green-Ampt hydraulic conductivity K (half the saturated conductivity, after Bouwer, as the paper says). `greenAmptSoil(id, {initialSaturation})` returns the solver's inputs, the available porosity being theta_e (1 − S_e); the default S_e = 0.3 is an assumption, not a value of the source.
+
+| Surface (`id`) | n (min–max) | Row read |
+|---|---|---|
+| `smooth-steel` | 0.012 (0.011–0.014) | Ponce B-1 a.1, smooth steel surface, unpainted |
+| `painted-steel` | 0.013 (0.012–0.017) | Ponce B-1 a.2, painted |
+| `glass` | 0.010 (0.009–0.013) | Ponce A-2 b, glass (closed conduit flowing partly full) |
+| `glazed-brick` | 0.013 (0.011–0.015) | Chow 5.f.1 |
+| `asphalt-smooth`, `asphalt-rough` | 0.013, 0.016 (no maximum given) | Chow 5.i.1, 5.i.2 |
+| `concrete-float`, `concrete-unfinished` | 0.015 (0.013–0.016), 0.017 (0.014–0.020) | Chow 5.c.2, 5.c.4 |
+| `gravel`, `earth-channel` | 0.025 (0.022–0.030), 0.022 (0.018–0.025) | Chow 4.a.3, 4.a.2 |
+| `clean-stream` | 0.030 (0.025–0.033) | Chow 1.a, main channel clean and straight |
+| `short-grass`, `high-grass`, `bare-field` | 0.030 (0.025–0.035), 0.035 (0.030–0.050), 0.030 (0.020–0.040) | Chow 3.a.1, 3.a.2, 3.b.1 (floodplains) |
+
+| Soil (`id`) | Total porosity | Effective porosity | Suction head psi, cm | K, cm/h | Samples |
+|---|---|---|---|---|---|
+| `sand` | 0.437 | 0.417 | 4.95 (0.97–25.36) | 11.78 | 762 |
+| `loamy-sand` | 0.437 | 0.401 | 6.13 (1.35–27.94) | 2.99 | 338 |
+| `sandy-loam` | 0.453 | 0.412 | 11.01 (2.67–45.47) | 1.09 | 666 |
+| `loam` | 0.463 | 0.434 | 8.89 (1.33–59.38) | 0.34 | 383 |
+| `silt-loam` | 0.501 | 0.486 | 16.68 (2.92–95.39) | 0.65 | 1206 |
+| `sandy-clay-loam` | 0.398 | 0.330 | 21.85 (4.42–108.0) | 0.15 | 498 |
+| `clay-loam` | 0.464 | 0.309 | 20.88 (4.79–91.10) | 0.10 | 366 |
+| `silty-clay-loam` | 0.471 | 0.432 | 27.30 (5.67–131.50) | 0.10 | 689 |
+| `sandy-clay` | 0.430 | 0.321 | 23.90 (4.08–140.2) | 0.06 | 45 |
+| `silty-clay` | 0.479 | 0.423 | 29.22 (6.13–139.4) | 0.05 | 127 |
+| `clay` | 0.475 | 0.385 | 31.63 (6.39–156.5) | 0.03 | 291 |
+
+The library stores psi in m and K in m/s (cm / 100, cm/h / 360000). The scatter is large: one standard deviation spans a factor of 2 to 5 either side of psi. The Studio's river, rain and surface beds use these tables ([STUDIO_FLOW_LABS.md](STUDIO_FLOW_LABS.md#liquid-river-rain-table-surface-runoff)).
+
 ## Using it
 
 ```ts
@@ -89,7 +124,8 @@ materialValue('soda-lime-glass', 'fractureToughness');                          
 - **Friction in the rigid world:** Box3D has one Coulomb coefficient per contact for sticking and sliding, and mixes two bodies as √(f_a f_b) for friction and max(e_a, e_b) for restitution. `contactPair` and `rigidMaterial` give the **static** coefficient by default, so that what holds still in reality holds still; sliding then dissipates μ_s / μ_k times too much (2× for steel on steel). Pass `use: 'kinetic'` for sliding problems. To get a pair's value between two different materials, give both bodies the pair's numbers, or install a friction callback.
 - **Restitution** belongs to a pair, a size and an impact speed. The library records the speed of the measurement (`impactSpeed`); no solver uses it, and Box3D does not apply restitution to slow impacts at all ([SCENE_FORMAT.md](SCENE_FORMAT.md#example-scenes)).
 - **Wood** is orthotropic and is stored along the grain (`isotropic: false`); `solidMaterial` uses those values as isotropic, which is right only for loads along the grain. Table 5-1 of the Wood Handbook gives the ratios E_T / E_L and E_R / E_L for an orthotropic model.
-- **Audit:** `materialAudit()` lists every value with its source; `shearConsistency(id)` compares a stated G with E / (2 (1 + ν)).
+- **Shallow water:** `manningCoefficient('short-grass')` gives n; `greenAmptSoil('loam', {initialSaturation: 0.3})` gives `{conductivity, suction, moistureDeficit}` for `ShallowWater`'s `soil`.
+- **Audit:** `materialAudit()` lists every value with its source (kinds `property`, `pair`, `surface`, `soil`); `shearConsistency(id)` compares a stated G with E / (2 (1 + ν)).
 
 ## Internal consistency
 
@@ -99,7 +135,7 @@ For the isotropic entries that state E, ν and G, the stated G against E / (2 (1
 
 The `materials` domain of [VALIDATION.md](VALIDATION.md) (15 cases) runs solvers with library values and compares each with the closed form in which the value enters, with the reference computed from the library's own number: the four consistency rows above and a check that no disagreement is unflagged; an aluminium bar in tension (F L / (E A), to 1e-9); a steel cantilever (Timoshenko, 3.7% stiff at 8 cells through the thickness, the element's known bending error); a heated stainless bar (α ΔT L, to 1e-9); a centre-cracked glass plate failing at K_IC / (Y √(π a)) (3.5% low, the same as the concrete-like plate of the fracture domain); a copper bar cooling with τ = L² / (π² α) (to 4e-4); Hertz contact durations of rubber spheres and glass beads (to 2e-5); the glass beads' restitution (to 1e-5); and in the rigid world a steel block sliding to v₀² / (2 μ_k g) and a steel ball rebounding to e² h (2% low at 240 Hz). These check that the values reach the solvers in the right units and roles. They do not check the values against experiments.
 
-Tests: `tests/engine/materials.test.mjs` (12 tests, in `npm run test:engine`) checks that every value has a listed source, the figure read and conditions, that every listed source is cited, the recorded unit conversions, the helpers and their refusals, and the solver cases; `packages/box3d-kit/test/v18-materials.test.mjs` (3 tests, in the kit gate) checks the published subpath and the rigid cases.
+Tests: `tests/engine/materials.test.mjs` (13 tests, in `npm run test:engine`) checks that every value has a listed source, the figure read and conditions, that every listed source is cited, the recorded unit conversions, the helpers and their refusals, and the solver cases; `packages/box3d-kit/test/v18-materials.test.mjs` (3 tests, in the kit gate) checks the published subpath and the rigid cases.
 
 ## Adding a material or a value
 
@@ -665,6 +701,9 @@ All opened on 2026-11-12.
 42. `sucharda-2020` — O. Sucharda, *Identification of Fracture Mechanic Properties of Concrete and Analysis of Shear Capacity of Reinforced Concrete Beams without Transverse Reinforcement, Materials 13 (2020) 2788, doi:10.3390/ma13122788, equation 14 and Table 6*. <https://pmc.ncbi.nlm.nih.gov/articles/PMC7344630/>. Kind: peer-reviewed. Quotes the fib Model Code 2010 fracture energy G_F = 73 f_c^0.18 (N/m, f_c in MPa); the Model Code itself was not opened.
 43. `syalons-aloxalon-96` — International Syalons (Newcastle) Ltd, *Alumina: Aloxalon 96 (96% Al2O3) property table*. <https://syalons.com/materials/alumina/>. Kind: manufacturer.
 44. `morgan-al600` — Morgan Advanced Materials, *AL600 data sheet (96% Al2O3 alumina)*. <https://morgantechnicalceramics.com/media/2296/al600.pdf>. Kind: manufacturer.
+45. `chow-1959-unspider` — V. T. Chow, Open-Channel Hydraulics (McGraw-Hill, 1959), as reproduced by UN-SPIDER, *Appendix I: Surface Roughness and Manning's n Table (Chow, 1959), minimum, normal and maximum values*. <https://www.un-spider.org/sites/default/files/Table_Surface_roughness_Manning_n_Chow_1959.pdf>. Kind: textbook. A reproduction; Chow's book itself was not opened.
+46. `ponce-chow-manning` — V. M. Ponce, San Diego State University (online Open-channel hydraulics), after Chow (1959), *Table 5-4: Recommended range of values of Manning's n*. <https://ponce.sdsu.edu/open_channel_hydraulics_05_manningsntable.html>. Kind: textbook. Gives the metal and glass rows.
+47. `rawls-1983` — W. J. Rawls, D. L. Brakensiek, N. Miller, *Green-Ampt infiltration parameters from soils data, J. Hydraul. Eng. 109(1) (1983) 62-70, Table 2 and equations 1 and 2*. <https://dnrftp.state.co.us/DWR/DamSafety/HydrologyGuidelines_doNOTdelete/Guidelines_References/Rawls%20et%20al%20Green-Ampt%20Infiltration%20parameters%20from%20soils%20data%20ASCE%201983.pdf>. Kind: peer-reviewed. A scan hosted by the Colorado Division of Water Resources.
 
 ## Unverified values
 
