@@ -225,7 +225,7 @@ export class StudioRuntime implements EngineRuntime<StudioStepRequest, StudioSte
     let completionReason: StudioStepData['completionReason'] = null;
     const completed = () => {
       if (this.simulation.id === 'plate' && this.simulation.pressCycle === 'Complete') return 'press-complete' as const;
-      if (valid.stopAtTime !== undefined && this.simulation.time >= valid.stopAtTime - 1e-9) return 'time-limit' as const;
+      if (valid.stopAtTime !== undefined && this.simulation.time >= valid.stopAtTime) return 'time-limit' as const;
       return null;
     };
     for (let i = 0; i < valid.ticks; i++) {
