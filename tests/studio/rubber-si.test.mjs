@@ -17,14 +17,21 @@ test('SI values: natural rubber from the library; the filled spectrum from Anden
   for(const id of ['foam','memory-foam'])assert.equal(rubberSpec(id).poissonRatio,0);
 });
 
-test('bonded compression at small strain: the lab mesh is stiffer than the bonded-block closed form by a stated factor (volumetric locking)',()=>{
-  const R=.58,H=.86,E=1.5e6,nu=.49,S=R/(2*H),K=E/(3*(1-2*nu));
-  const b=new SolidBody({mesh:cylinderMesh(R,H,5,5),material:{youngModulus:E,poissonRatio:nu,density:1000},config:{model:'linear',tolerance:1e-9}});
-  b.constrain(b.selectNodes((x,y)=>y<RUBBER_BASE+1e-9));const top=b.selectNodes((x,y)=>y>RUBBER_BASE+H-1e-9);b.constrain(top,[0,-.01*H,0]);
-  const r=b.solveStatic();let F=0;for(const n of top)F+=r.reactions[3*n+1];
-  const apparent=-F/(Math.PI*R*R)/.01,theory=1/(1/(E*(1+2*S*S))+1/K);
-  console.log('# bonded compression',JSON.stringify({apparent,theory,ratio:apparent/theory}));
-  assert.ok(apparent/theory>1&&apparent/theory<1.6,`${apparent/theory}`);
+test('bonded compression at small strain: the lab mesh against the bonded-block closed form and the converged 3-D solution, tet4-nodal and tet4',()=>{
+  // Closed form (Gent and Lindley, with bulk compliance; quoted as Eq. (2) in Koblar, Škofic, Boltežar, Strojniški vestnik 60
+  // (2014) 506-511): 1 / E_c = 1 / (E (1 + 2 S^2)) + 1 / K, S = R / (2 H) = 0.34. It assumes parabolic bulging; for this tall
+  // specimen the converged 3-D linear solution is 1.12 times it (Richardson extrapolation of both elements, 16 and 24 cells across:
+  // docs/STUDIO_MATERIAL_LABS.md).
+  const R=.58,H=.86,E=1.5e6,nu=.49,S=R/(2*H),K=E/(3*(1-2*nu)),theory=1/(1/(E*(1+2*S*S))+1/K);
+  const apparent=element=>{
+    const b=new SolidBody({mesh:cylinderMesh(R,H,5,5),material:{youngModulus:E,poissonRatio:nu,density:1000},config:{model:'linear',tolerance:1e-9,element,linearSolver:'ldl'}});
+    b.constrain(b.selectNodes((x,y)=>y<RUBBER_BASE+1e-9));const top=b.selectNodes((x,y)=>y>RUBBER_BASE+H-1e-9);b.constrain(top,[0,-.01*H,0]);
+    const r=b.solveStatic();let F=0;for(const n of top)F+=r.reactions[3*n+1];return -F/(Math.PI*R*R)/.01;
+  };
+  const nodal=apparent('tet4-nodal')/theory,standard=apparent('tet4')/theory;
+  console.log('# bonded compression / closed form',JSON.stringify({nodal,standard,nodalOverConverged:nodal/1.12,standardOverConverged:standard/1.12}));
+  // Measured 1.286 (tet4-nodal, the lab's element) and 1.516 (tet4): 15 % and 35 % above the converged solution.
+  assert.ok(nodal>1.12&&nodal<1.31,`${nodal}`);assert.ok(standard>nodal+.2,`${standard}`);
 });
 
 test('silicone cycle: the force relaxes during the hold; unloaded, the bonded specimen recovers; volume is nearly kept',()=>{

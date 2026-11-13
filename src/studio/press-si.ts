@@ -79,6 +79,7 @@ export class StudioPressSI {
     // About a quarter of the thickness of punch travel per solve keeps the contact and the hinge resolved.
     this.modelDt=Math.min(1/30,PRESS_STEP_TRAVEL*g.thickness/this.speed);
     this.brake=new PressBrake({material:this.material,thickness:g.thickness,width:g.width,dieOpening:g.dieOpening,dieRadius:g.dieRadius,punchRadius:g.punchRadius,friction:.1,dt:this.modelDt,maxNewtonIterations:40,
+      element:'tet4-nodal',linearSolver:'ldl',
       cells:{thickness:PRESS_SECTION_CELLS,length:Math.max(16,Math.min(40,Math.ceil((g.dieOpening*.75)/(1.5*g.thickness))))}});
     this.startY=startY;this.contactY=supportY+(g.thickness+.02*g.thickness)/UNIT;this.punchY=startY;
     this.section=new Float64Array(2*this.brake.midRow.length);this.readSection();

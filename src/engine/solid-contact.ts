@@ -24,6 +24,7 @@
 import {EngineError} from './contracts.ts';
 import {captureFields,checkpointError,eachElement,holder,restoreFields,type FieldHandler,type FieldOptions,type StateObject,type StateValue} from './checkpoint.ts';
 import {SolidBody,type SolidKernel} from './solid.ts';
+import type {SparseLDL} from './sparse-ldl.ts';
 import {principalMoments,type StructureInertia} from './structure-coupling.ts';
 import type {Subsystem} from './simulation.ts';
 
@@ -170,7 +171,7 @@ const weldMap:FieldHandler={
 };
 /** What an exact checkpoint of a SolidContact holds: every field but the solid (saved by whoever owns it), its kernel (part of
  * the solid) and the views into its own work vectors; the bodies it holds keep their identity. */
-const CONTACT_FIELDS:FieldOptions={label:'SolidContact',skip:['solid','k','views'],nested:{bodies:eachElement({label:'SolidContact body'}),welded:weldMap}};
+const CONTACT_FIELDS:FieldOptions={label:'SolidContact',skip:['solid','k','views','ldl'],nested:{bodies:eachElement({label:'SolidContact body'}),welded:weldMap}};
 /** What an exact checkpoint of a SolidCoupling holds: the solid, the contact solver and the coupled bodies' records. */
 const SOLID_COUPLING_FIELDS:FieldOptions={label:'SolidCoupling',skip:['world','byBody'],nested:{solid:holder,contact:holder,list:eachElement({label:'SolidCoupling body'})}};
 
@@ -218,6 +219,9 @@ export class SolidContact {
   private blocks=new Float64Array(0);private readonly m6=new Float64Array(36);private readonly v6=new Float64Array(6);
   private cm=0;private cd=0;private reference=0;private referenceInertia=0;private h=0;private staticMode=false;private fext:Float64Array;
   private readonly sn=[0,0,0];private all=false;private warm=false;
+  /** The solid's sparse factorization with the springs' node blocks (`linearSolver: 'ldl'`): formed at the first Newton iteration
+   * of a solve and again after an inner solve that needed more than a few iterations. */
+  private ldl:SparseLDL|null=null;private readonly k9=new Float64Array(9);
 
   constructor(solid:SolidBody,options:SolidContactOptions={}) {
     if(!(solid instanceof SolidBody))throw new TypeError('SolidContact needs a SolidBody.');
@@ -415,6 +419,9 @@ export class SolidContact {
       for(let j=0;j<nb;j++){
         const b=this.bodies[j],c=s*nb+j;this.cand[c]=0;this.act[c]=0;this.fmode[c]=0;
         if(!b.collide){this.fHas[c]=0;this.cForce[c]=0;continue;}
+        // A node welded to this body is held by its weld: no contact spring against the same body. (Without this, a welded node
+        // on the surface of a box was put in contact with the far face of the box, through the whole box.)
+        const weld=this.welded.get(surface[s]);if(weld!==undefined&&this.wBody[weld]===j){this.fHas[c]=0;this.cForce[c]=0;continue;}
         const R=b.R,dx=px-b.x[0],dy=py-b.x[1],dz=pz-b.x[2],lx=R[0]*dx+R[3]*dy+R[6]*dz,ly=R[1]*dx+R[4]*dy+R[7]*dz,lz=R[2]*dx+R[5]*dy+R[8]*dz;
         let d=this.sdf(b,lx,ly,lz);
         // A body's face can only press on a node whose own surface is turned towards it. Without this test the side of a
@@ -601,6 +608,8 @@ export class SolidContact {
   /** Diagonal of H for the nodes, and the inverse of each solved body's 6x6 block. */
   private precondition(kScale:number,mScale:number):void {
     const k=this.k,n3=this.n3,nb=this.bodies.length,mass=this.solid.nodalMass,diag=this.diag,kd=k.stiffnessDiagonal,surface=this.surfaceNodes,blocks=this.blocks,K=[0,0,0,0,0,0,0,0,0];
+    let L:SparseLDL|null=null;
+    if(k.linearSolver==='ldl'&&k.factorDue(kScale,mScale))L=k.assembleTangent(kScale,mScale);
     for(let j=0;j<n3;j++)diag[j]=kScale*kd[j]+mScale*mass[(j-j%3)/3];
     blocks.fill(0);const scale=this.bodyScale();
     for(let j=0;j<nb;j++){
@@ -613,20 +622,26 @@ export class SolidContact {
       const j=c%nb,s=(c-j)/nb,i=3*surface[s],o=3*c,ks=this.kc[c],live=this.bodies[j].solved,nx=this.cn[o],ny=this.cn[o+1],nz=this.cn[o+2];
       if(this.act[c]){
         diag[i]+=ks*nx*nx;diag[i+1]+=ks*ny*ny;diag[i+2]+=ks*nz*nz;
-        if(live){K[0]=ks*nx*nx;K[1]=K[3]=ks*nx*ny;K[2]=K[6]=ks*nx*nz;K[4]=ks*ny*ny;K[5]=K[7]=ks*ny*nz;K[8]=ks*nz*nz;this.addBlock(j,K,this.cr[o],this.cr[o+1],this.cr[o+2]);}
+        if(live||L){K[0]=ks*nx*nx;K[1]=K[3]=ks*nx*ny;K[2]=K[6]=ks*nx*nz;K[4]=ks*ny*ny;K[5]=K[7]=ks*ny*nz;K[8]=ks*nz*nz;}
+        if(L)L.addNodeBlock(i/3,K);
+        if(live)this.addBlock(j,K,this.cr[o],this.cr[o+1],this.cr[o+2]);
       }
       if(mode!==0){
         // Stick: k (1 - n n^T). Slip: (cap / |s|) (1 - n n^T - e e^T).
         const f=mode===1?ks:this.fcap[c]/this.fsl[c],ex=mode===1?0:this.fs[o],ey=mode===1?0:this.fs[o+1],ez=mode===1?0:this.fs[o+2];
         K[0]=f*(1-nx*nx-ex*ex);K[1]=K[3]=-f*(nx*ny+ex*ey);K[2]=K[6]=-f*(nx*nz+ex*ez);K[4]=f*(1-ny*ny-ey*ey);K[5]=K[7]=-f*(ny*nz+ey*ez);K[8]=f*(1-nz*nz-ez*ez);
         diag[i]+=K[0];diag[i+1]+=K[4];diag[i+2]+=K[8];
+        if(L)L.addNodeBlock(i/3,K);
         if(live)this.addBlock(j,K,this.fr[o],this.fr[o+1],this.fr[o+2]);
       }
     }
     for(let w=0;w<this.wNode.length;w++){
       const i=3*this.wNode[w],j=this.wBody[w],ks=this.wK[w];diag[i]+=ks;diag[i+1]+=ks;diag[i+2]+=ks;
+      if(L){const m=this.k9;m.fill(0);m[0]=m[4]=m[8]=ks;L.addNodeBlock(i/3,m);}
       if(this.bodies[j].solved){K[0]=K[4]=K[8]=ks;K[1]=K[2]=K[3]=K[5]=K[6]=K[7]=0;this.addBlock(j,K,this.wr[3*w],this.wr[3*w+1],this.wr[3*w+2]);}
     }
+    if(L)k.factorize(kScale,mScale);
+    this.ldl=k.factorization();
     // Invert each block in place (Gauss-Jordan; the block is symmetric positive definite). A body that cannot turn keeps a unit rotation block.
     const a=this.m6;
     for(let j=0;j<nb;j++){
@@ -647,7 +662,8 @@ export class SolidContact {
   }
   private applyPreconditioner(r:Float64Array,z:Float64Array):void {
     const n3=this.n3,diag=this.diag,blocks=this.blocks;
-    for(let j=0;j<n3;j++)z[j]=r[j]/diag[j];
+    if(this.ldl)this.ldl.solve(r,z);
+    else for(let j=0;j<n3;j++)z[j]=r[j]/diag[j];
     for(let j=0;j<this.bodies.length;j++){
       const o=n3+6*j,bo=36*j;
       for(let a=0;a<6;a++){let s=0;for(let c=0;c<6;c++)s+=blocks[bo+6*a+c]*r[o+c];z[o+a]=s;}
@@ -694,7 +710,7 @@ export class SolidContact {
       iterations++;st.newtonIterations++;
       this.precondition(kScale,mScale);
       const inner=this.conjugateGradient(this.G,Math.max(.1*tolerance,Math.min(.1,Math.sqrt(residual/reference))*residual),kScale,mScale);
-      st.linearIterations+=Math.abs(inner);
+      st.linearIterations+=Math.abs(inner);if(k.linearSolver==='ldl')k.innerDone(Math.abs(inner));
       const x=this.cgX;let slope=0;for(let j=0;j<size;j++)slope+=this.G[j]*x[j];
       if(!(slope<0))break;
       let accepted=false,trialPhi=0,trialResidual=0;

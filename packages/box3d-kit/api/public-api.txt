@@ -4974,6 +4974,8 @@ export declare class SolidContact {
     private readonly sn;
     private all;
     private warm;
+    private ldl;
+    private readonly k9;
     constructor(solid: SolidBody, options?: SolidContactOptions);
     private makeViews;
     addBody(options: SolidContactBodyOptions): number;
@@ -5486,6 +5488,7 @@ export declare function boundaryFaces(mesh: TetMesh): Uint32Array;
 import { type StateObject, type StateValue } from './checkpoint.js';
 import { type TetMesh } from './solid-mesh.js';
 import { type ConcreteLaw, type ConcreteLawInput } from './concrete-law.js';
+import { SparseLDL } from './sparse-ldl.js';
 export { buildConcreteLaw, ec2CompressionStress, type ConcreteLaw, type ConcreteLawInput } from './concrete-law.js';
 export { boxMesh, boxNode, boundaryFaces, tetVolume, SOLID_MAX_NODES, SOLID_MAX_TETS, type TetMesh, type BoxMeshOptions } from './solid-mesh.js';
 export declare const SOLID_SOLVER_ID = "solid-tet-corot-js-f64-v1";
@@ -5493,6 +5496,8 @@ export declare const SOLID_PLASTIC_SOLVER_ID = "solid-tet-j2-js-f64-v1";
 export declare const SOLID_CONCRETE_SOLVER_ID = "solid-tet-dp-rankine-js-f64-v1";
 export type SolidModel = 'linear' | 'corotational' | 'neo-hookean' | 'green-lagrange';
 export type SolidIntegrator = 'backward-euler' | 'midpoint' | 'explicit';
+export type SolidElement = 'tet4' | 'tet4-nodal';
+export type SolidLinearSolver = 'cg' | 'ldl';
 export interface SolidMaterial {
     youngModulus: number;
     poissonRatio: number;
@@ -5521,6 +5526,8 @@ export interface SolidConfig {
             readonly time: number;
         }[];
     };
+    element?: SolidElement;
+    linearSolver?: SolidLinearSolver;
 }
 export interface SolidDefinition {
     mesh: TetMesh | {
@@ -5577,9 +5584,17 @@ export interface SolidKernel {
     dampingProduct(x: Float64Array, out: Float64Array): void;
     advance(converged: boolean): void;
     commit(): void;
+    readonly linearSolver: SolidLinearSolver;
+    assembleTangent(kScale: number, mScale: number): SparseLDL;
+    factorDue(kScale: number, mScale: number): boolean;
+    innerDone(iterations: number): void;
+    factorize(kScale: number, mScale: number): void;
+    factorization(): SparseLDL | null;
 }
 export declare function symmetricEigenvalues(t: ArrayLike<number>, offset: number, out: Float64Array | number[], outOffset: number): void;
 export declare function vonMisesStress(t: ArrayLike<number>, offset?: number): number;
+export declare const LDL_REFACTOR_ITERATIONS = 8;
+export declare const LDL_INDEFINITE_SKIP = 3;
 export declare class SolidBody {
     saveState(): StateObject;
     restoreState(state: StateValue): void;
@@ -5587,6 +5602,8 @@ export declare class SolidBody {
     readonly model: SolidModel;
     readonly integrator: SolidIntegrator;
     readonly dt: number;
+    readonly element: SolidElement;
+    readonly linearSolver: SolidLinearSolver;
     readonly nodeCount: number;
     readonly tetCount: number;
     readonly referencePositions: Float64Array;
@@ -5666,6 +5683,38 @@ export declare class SolidBody {
     private readonly cstrain;
     private readonly cmat;
     private kDiagonalFirst;
+    private readonly avg;
+    private elemLambda;
+    private readonly bulkNodal;
+    private nW;
+    private nT;
+    private nU1;
+    private nU2;
+    private nU2Old;
+    private nD;
+    private eG;
+    private eP;
+    private eD;
+    private vol;
+    private readonly G9;
+    private ldl;
+    private ldlValid;
+    private ldlLast;
+    private ldlK;
+    private ldlM;
+    private ldlEroded;
+    private ldlFactorizations;
+    private ldlSkip;
+    private ldlFresh;
+    private ldlValues;
+    private ldlD;
+    private nodeElementStart;
+    private nodeElements;
+    private mark;
+    private ringVector;
+    private ringStart;
+    private ringNodes;
+    private keScratch;
     private readonly T;
     private storeMode;
     private storedOnly;
@@ -5712,9 +5761,21 @@ export declare class SolidBody {
     private scatter;
     private elastic;
     private stiffness;
+    private live;
+    private elasticNodal;
+    private stiffnessNodal;
+    private volumeChange;
+    private addVolumeTangent;
     private norm;
     private objective;
     private conjugateGradient;
+    private factoredGradient;
+    private ensureLdl;
+    private adoptFactor;
+    private factorDue;
+    private innerDone;
+    private factorize;
+    private assemble;
     private minimise;
     private applyConstraints;
     solveStatic(options?: {
@@ -5723,6 +5784,7 @@ export declare class SolidBody {
     step(count?: number): void;
     private accelerate;
     explicitLimit(): SolidExplicitLimit;
+    private explicitBound;
     fundamentalMode(options?: {
         maxIterations?: number;
         tolerance?: number;
@@ -5755,6 +5817,40 @@ export declare class SolidBody {
         criterion: SolidFailureCriterion;
         strength: number;
     }): Uint32Array;
+}
+
+// ==== core/sparse-ldl.d.ts ====
+export declare class SparseLDL {
+    readonly nodes: number;
+    readonly size: number;
+    readonly position: Int32Array;
+    readonly order: Int32Array;
+    readonly columnStart: Int32Array;
+    readonly rows: Int32Array;
+    readonly values: Float64Array;
+    readonly D: Float64Array;
+    modified: number;
+    private readonly upperStart;
+    private readonly upperNodes;
+    private readonly rowStart;
+    private readonly rowColumn;
+    private readonly rowEntry;
+    private readonly work;
+    private readonly scratch;
+    private readonly fixed;
+    constructor(nodes: number, adjacency: (node: number, visit: (other: number) => void) => void);
+    get entries(): number;
+    begin(fixed: Uint8Array): void;
+    private find;
+    addBlock(a: number, b: number, M: ArrayLike<number>, offset?: number): void;
+    addDiagonal(node: number, value: number): void;
+    addNodeBlock(node: number, M: ArrayLike<number>, offset?: number): void;
+    factor(): void;
+    shift: number;
+    private saved;
+    private savedD;
+    private factorOnce;
+    solve(r: ArrayLike<number>, z: Float64Array): void;
 }
 
 // ==== core/structure-coupling.d.ts ====

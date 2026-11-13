@@ -3110,6 +3110,22 @@ Ascending (and descending) branch of EN 1992-1-1 (3.14): sigma / f_cm = (k eta -
 export declare function ec2CompressionStress(strain: number, fcm: number, peakStrain: number, secantModulus: number): number;
 ```
 
+### LDL_INDEFINITE_SKIP · const
+
+Newton iterations that use the diagonal preconditioner after a factorization met an indefinite tangent.
+
+```ts
+export declare const LDL_INDEFINITE_SKIP = 3;
+```
+
+### LDL_REFACTOR_ITERATIONS · const
+
+Inner iterations above which the next Newton iteration forms a new factorization (`linearSolver: 'ldl'`).
+
+```ts
+export declare const LDL_REFACTOR_ITERATIONS = 8;
+```
+
 ### SOLID_CONCRETE_SOLVER_ID · const
 
 Solver id of a body with a concrete law: Drucker-Prager and Rankine composite plasticity with crack-band softening.
@@ -3154,6 +3170,8 @@ export declare class SolidBody {
   readonly model: SolidModel;
   readonly integrator: SolidIntegrator;
   readonly dt: number;
+  readonly element: SolidElement;
+  readonly linearSolver: SolidLinearSolver;
   readonly nodeCount: number;
   readonly tetCount: number;
   readonly referencePositions: Float64Array;
@@ -3235,6 +3253,8 @@ export interface SolidConfig {
             readonly time: number;
         }[];
     };
+    element?: SolidElement;
+    linearSolver?: SolidLinearSolver;
 }
 ```
 
@@ -3249,6 +3269,18 @@ export interface SolidDefinition {
     material: SolidMaterial;
     config?: SolidConfig;
 }
+```
+
+### SolidElement · type
+
+`tet4`: the four-node tetrahedron, everything per element (locks when the material is nearly incompressible, elastically or
+plastically). `tet4-nodal`: the same nodes and shape functions with the volumetric strain averaged over the elements around each
+node: for every law that splits into a deviatoric and a volumetric energy the volumetric energy is evaluated at the nodes from
+the nodal volume change (averaged nodal pressure, Bonet and Burton 1998); for the pressure-dependent concrete law the element's
+volumetric strain is replaced by the average of its nodes' (nodally averaged B-bar). See docs/SOLID_MECHANICS.md.
+
+```ts
+export type SolidElement = 'tet4' | 'tet4-nodal';
 ```
 
 ### SolidExplicitLimit · interface
@@ -3298,7 +3330,24 @@ export interface SolidKernel {
     dampingProduct(x: Float64Array, out: Float64Array): void;
     advance(converged: boolean): void;
     commit(): void;
+    readonly linearSolver: SolidLinearSolver;
+    assembleTangent(kScale: number, mScale: number): SparseLDL;
+    factorDue(kScale: number, mScale: number): boolean;
+    innerDone(iterations: number): void;
+    factorize(kScale: number, mScale: number): void;
+    factorization(): SparseLDL | null;
 }
+```
+
+### SolidLinearSolver · type
+
+Inner solver of each Newton step: conjugate gradients preconditioned by the stiffness diagonal (`cg`), or by a sparse LDLᵀ
+factorization of the assembled tangent (`ldl`, sparse-ldl.ts), kept across Newton iterations and steps and formed again when an
+inner solve needed more than LDL_REFACTOR_ITERATIONS. Both multiply by the exact tangent and stop at the same tolerance; `ldl`
+takes far fewer iterations on stiff or nearly incompressible problems. Meant for meshes of up to a few thousand nodes.
+
+```ts
+export type SolidLinearSolver = 'cg' | 'ldl';
 ```
 
 ### SolidMaterial · interface

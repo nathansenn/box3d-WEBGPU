@@ -113,17 +113,17 @@ test('pure bending: elastic-plastic moment-curvature of a rectangular section, a
 });
 
 /** Plane-strain quarter of a thick-walled cylinder, inner radius a, outer b = 2a, pressure on the bore. */
-function cylinder(nr=8,nt=8){
+function cylinder(nr=8,nt=8,element='tet4'){
   const a=.05,b=.1,mesh=boxMesh({size:[1,1,.005],cells:[nr,nt,1]}),P=mesh.positions;
   for(let i=0;i<P.length;i+=3){const r=a+(b-a)*P[i],t=P[i+1]*Math.PI/2;P[i]=r*Math.cos(t);P[i+1]=r*Math.sin(t);}
-  const body=new SolidBody({mesh,material:{youngModulus:E,poissonRatio:NU,density:7850,yieldStress:SY},config:{model:'linear',maxNewtonIterations:200}}),n9=(x,y)=>Math.abs(x-y)<1e-9;
+  const body=new SolidBody({mesh,material:{youngModulus:E,poissonRatio:NU,density:7850,yieldStress:SY},config:{model:'linear',maxNewtonIterations:200,element,linearSolver:element==='tet4'?'cg':'ldl'}}),n9=(x,y)=>Math.abs(x-y)<1e-9;
   body.constrain(body.selectNodes((x,y)=>n9(y,0)),[null,0,null]);body.constrain(body.selectNodes(x=>n9(x,0)),[0,null,null]);body.constrain(body.selectNodes(()=>true),[null,null,0]);
   const bore=body.selectFaces((cx,cy,cz,nx,ny,nz)=>Math.hypot(cx,cy)<a*1.01&&Math.abs(nz)<.5),outer=body.selectNodes((x,y)=>n9(Math.hypot(x,y),b));
   return {body,a,b,load(p){body.clearSurfaceLoads();body.addPressure(bore,p);const r=body.solveStatic();const u=body.displacements,X=body.referencePositions;let ur=0;for(const n of outer)ur+=(u[3*n]*X[3*n]+u[3*n+1]*X[3*n+1])/b;return {result:r,outer:ur/outer.length,yielded:body.equivalentPlasticStrain().filter(v=>v>0).length};}};
 }
 
-test('thick-walled cylinder under internal pressure (plane strain): first yield and the Hill collapse pressure',()=>{
-  const c=cylinder(),k2=c.a**2/(c.b**2-c.a**2);
+test('thick-walled cylinder under internal pressure (plane strain): first yield and the Hill collapse pressure',()=>{for(const element of ['tet4','tet4-nodal']){
+  const c=cylinder(8,8,element),k2=c.a**2/(c.b**2-c.a**2);
   // Lame stresses at the bore: sigma_r = -p, sigma_theta = p (1 + 2 k2), sigma_z = 2 nu p k2; first yield where their von Mises value is sigma_y.
   const st=1+2*k2,sz=2*NU*k2,vm=Math.sqrt(.5*((-1-st)**2+(st-sz)**2+(sz+1)**2)),py=SY/vm,pL=2/Math.sqrt(3)*SY*Math.log(c.b/c.a);
   const elastic=c.load(.97*py);assert.equal(elastic.yielded,0,'no element yields below first yield');
@@ -132,11 +132,11 @@ test('thick-walled cylinder under internal pressure (plane strain): first yield 
   // Element stresses are read at centroids, a little outside the bore: yield shows within 6% above py.
   assert.ok(c.load(1.06*py).yielded>0);
   const before=c.load(.98*pL),after=c.load(1.02*pL);
-  console.log(`# cylinder: py ${(py/1e6).toFixed(2)} MPa, pL ${(pL/1e6).toFixed(2)} MPa; outer displacement at 0.98 pL ${before.outer.toExponential(3)} m, at 1.02 pL ${after.outer.toExponential(3)} m`);
+  console.log(`# cylinder ${element}: Lame outer displacement ${(elastic.outer/((1+NU)*.97*py*c.a**2/(E*(c.b**2-c.a**2))*((1-2*NU)*c.b+c.b))-1).toExponential(2)}; py ${(py/1e6).toFixed(2)} MPa, pL ${(pL/1e6).toFixed(2)} MPa; outer displacement at 0.98 pL ${before.outer.toExponential(3)} m, at 1.02 pL ${after.outer.toExponential(3)} m`);
   // Hill: the wall is fully plastic at pL = (2 / sqrt 3) sigma_y ln(b / a). Below it the displacement stays elastic in size; 2% above it the wall flows.
   assert.ok(before.result.converged&&before.outer<5*elastic.outer,'contained flow below pL');
   assert.ok(after.outer>50*before.outer||!after.result.converged,'collapse above pL');
-});
+}});
 
 test('ductile erosion: an element whose equivalent plastic strain reaches failureStrain stops carrying load',()=>{
   const bar=uniaxialBar('linear',{hardeningModulus:2e9,failureStrain:.01},[4,1,1]);

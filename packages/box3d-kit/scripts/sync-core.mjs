@@ -37,6 +37,8 @@ export const CORE = [
   {from: 'src/engine/solid-mesh.ts', rewrites: []},
   // The concrete law of the solid (Drucker-Prager and Rankine with crack-band softening). Imports contracts.ts only.
   {from: 'src/engine/concrete-law.ts', rewrites: []},
+  // Sparse LDLᵀ factorization: the solid's optional preconditioner (linearSolver: 'ldl'). Self-contained.
+  {from: 'src/engine/sparse-ldl.ts', rewrites: []},
   {from: 'src/engine/solid.ts', rewrites: []},
   // ./structure: cables and frames <-> rigid bodies. Imports contracts.ts, checkpoint.ts and only types from the cable and frame modules.
   {from: 'src/engine/structure-coupling.ts', rewrites: []},
