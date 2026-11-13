@@ -44,7 +44,7 @@ Both labs step in the flow worker (`src/studio/material-labs/liquid-study-worker
 | Reservoir | **reservoir depth** (m) behind the gate; downstream 0.008 m + 0.6 m × **downstream fill** |
 | Bed slope | the bed slope setting, as a tilt of gravity |
 | Liquid | density and dynamic viscosity at 20 °C from the table below, the viscosity multiplied by the **viscosity multiplier** |
-| Time step | at most 1/60 s and a Courant number of 0.8, adaptive |
+| Time step | fixed blocks of 1/60 s, each in substeps of a Courant number of at most 0.8 (adaptive); the page's frames (1/120 s ticks, batched) accumulate until a block is due, so a run does not depend on how frames were batched |
 | Readouts | peak depth (m): the largest column depth; peak speed (m/s): the largest depth-averaged horizontal speed of a column holding at least 1 cm; fluid volume (m³): the particles' volume, which the solver conserves exactly |
 
 The drawn surface is the solver's: each column's depth is the number of particles in its cells, a cell counting as full at its seeded share (eight) and partly full below it, interpolated to the scene's 84 × 28 grid. Particles that crowd against the end wall after the surge therefore do not raise the drawn surface above the cells they fill.
@@ -96,6 +96,7 @@ See [`MATERIALS.md`](MATERIALS.md) for the library entries with the figures as r
 | Obstacle | a cylinder 54 mm across and 60 mm high with a cap |
 | Grains | spheres of the **grain diameter** (7 to 16 mm), radii 0.96 to 1 of it |
 | Contacts | linear springs k_n = 4000 m g / d (the solver's validated bulk stiffness), k_t = (2/7) k_n, restitution and friction of the material (friction × the **contact friction** setting), rolling resistance; time step 17% of the impact time (the solver refuses above 20%) |
+| Threads | opt-in: `?threads=n` on a cross-origin isolated page steps the contacts on up to 4 helper threads (`granular-parallel.ts`); the result is the same to the bit with any number. Off by default: in headless Chromium on this loaded sandbox the tray ran at 0.09× real time with 4 threads against 0.22× with one ([`GRANULAR.md`](GRANULAR.md#cost)) |
 | Readouts | runout (m): leading edge of the farthest grain past the gate face; pile height (m): the highest grain top; grains behind gate: how many are still behind the gate face |
 
 **Coarse-graining.** The grains are stand-ins: 7 to 16 mm spheres for real grains of 0.2 to 2 mm (sand) or 1 to 3 mm (glass beads), 5 to 50 times larger. What the lab compares with experiments does not depend on the grain size for cohesionless grains: the angle of repose (Makse et al. 1998 found it the same for spherical glass beads of different sizes) and runout over column length against aspect ratio (Lajeunesse et al. 2005 found the same scaling for 1.15 and 3 mm beads). Times scale with sqrt(length / g) and are those of the apparatus. What changes with the grain size, and is therefore not that of the real material: the number of grains across the flow (six to twenty here, thousands in reality), the discreteness of the front, and the contact stiffness (the springs are about a thousand times softer than glass).
@@ -130,6 +131,29 @@ Sources: H. E. Huppert (1982), read from https://scispace.com/pdf/the-propagatio
 The collapse runs use 10 mm library beads in a channel six grains wide with side-wall friction tan 12.5° and a rough floor (friction and rolling resistance tan 24.8°), the angles Lajeunesse et al. list for their channel; their channel was 15 to 39 beads wide. In a ten-grain channel the same three runs gave −26%, +16% and +33%: the measured runout rises faster than linearly with a in both widths, which is the main disagreement with the experiment. The flume as a whole (6 m tank, surge past posts) is not compared with an experiment; it rests on the solver cases above and on the dam break and sloshing cases of [`FLUID.md`](FLUID.md).
 
 ## Real time
+
+### After the speed work (2026-11-12)
+
+CPU time of one process for one second of each prepared flume experiment and half a second of each tray experiment (after its 0.3 s settle), driven in 1/120 s frames as the tests do, fastest of 2 (flume) or 3 (tray) runs (`node scripts/bench-fluid.mjs --repeat 2`, `node scripts/bench-granular.mjs --seconds 0.5 --repeat 3`). Both columns were measured the same way in the same hour, the "before" from the sources of commit 5fc530d; the sandbox's load average was 9 to 16 on 4 cores, so all factors are lower bounds.
+
+| Lab | Experiment | Before (× real time) | After (× real time) | Speed-up | Same bits? |
+|---|---|---:|---:|---:|---|
+| Flume | Clear-water release | 0.39 | 0.59 | 1.5 | no: 1/60 s blocks |
+| | Oil through the gate | 0.43 | 0.90 | 2.1 | no |
+| | Honey creep | 0.33 | 1.02 | 3.1 | no |
+| | Deep reservoir | 0.49 | 1.35 | 2.8 | no |
+| | Slow gate lift | 0.56 | 1.42 | 2.6 | no |
+| | Reflected wave | 0.42 | 1.02 | 2.4 | no |
+| | Blue tracer | 0.59 | 1.45 | 2.4 | no |
+| | Slurry front | 0.39 | 0.77 | 2.0 | no |
+| | Brine, ink, gel, coolant (the other flume cards) | 0.31 to 0.49 | 0.82 to 1.31 | 2.2 to 2.7 | no |
+| Tray | the eight experiments, one thread | 0.48 to 0.64 (gravel 3.2) | 0.47 to 0.62 (gravel 3.3) | 0.9 to 1.0 | yes |
+
+What changed in the flume: (1) the solver, the same to the bit and 1.1 to 1.3 times faster on its own ([`FLUID.md`](FLUID.md#free-surface-same-bits-less-work-2026-11-12)); (2) the flume's solver now runs in fixed 1/60 s blocks. Before, each batch of frames was one solver step split by the Courant limit, so a page that sent 1/120 s frames ran twice as many solver steps as one that batched two, and the run depended on the batching (which follows the machine's speed). The block size is the solver step the flume always allowed (`FLUME_SOLVER_STEP`); this is a deliberate re-baseline of the flume's runs (their hashes changed), and every flume test still passes (`npm run test:studio:liquid`, 165 tests: volume exact, gate lift, determinism, honey slower than water, the thresholds). In a browser that already batched two ticks per frame the gain is the solver's 1.1 to 1.3 alone. (3) The scene's depth sampling no longer allocates per cell.
+
+The tray is unchanged on one thread: its step is the same to the bit (pinned per experiment in `tests/engine/accel-exactness.test.mjs`). Its gain is to come from the helper threads, which give the same bits; their speed-up could not be measured on this loaded machine (see [`GRANULAR.md`](GRANULAR.md#cost)), so the tray's factor in the browser is still about half of real time on one core here. The grain counts were not raised: neither lab is clearly faster than real time on this machine.
+
+### Before the speed work
 
 Measured with `node` on the solver alone (no drawing), one thread of this 4-core sandbox while other jobs ran (load average 8 to 12, so these are lower bounds), for the first seconds of each prepared experiment. A value below 1 means the lab plays slower than real time.
 

@@ -20,6 +20,17 @@ import {exportRunFrames} from './run-export';
 import {glassSpec} from './glass-si';
 import {rubberSpec} from './rubber-si';
 import {concreteSpec,ec2Curve} from './concrete-si';
+import {planThreading} from '../../physics/threading';
+/**
+ * Helper threads for the granular tray's contacts, opt-in: `?threads=n` asks for n (at most 4) on a cross-origin
+ * isolated page. Off by default: the speed-up is unmeasured on an idle machine and was negative on a loaded one
+ * (docs/GRANULAR.md, "Cost"). The results are the same to the bit with any number.
+ */
+function granularThreads():number {
+  if(!/^\d+$/.test(new URLSearchParams(location.search).get('threads')?.trim()??''))return 1;
+  const plan=planThreading({search:location.search,crossOriginIsolated:globalThis.crossOriginIsolated===true,sharedArrayBuffer:typeof SharedArrayBuffer==='function',hardwareConcurrency:navigator.hardwareConcurrency});
+  return plan.use?Math.min(4,plan.workers):1;
+}
 
 const FLOW_LABS:readonly LabId[]=['liquid','granular'];
 /** Labs stepped in the shared lab worker (lab-worker-protocol.ts). */
@@ -148,7 +159,7 @@ export async function bootMaterialLab(id:LabId):Promise<void>{
       if(playback<0){world.update(glassPresentation?.sample(performance.now())??frame);sync(frame);}
       if(LabWorkerClient)$('#renderer-status').textContent=solverStatus();
     },failure=(message:string)=>{physicsError=`${message}. Reset the experiment to retry.`;running=false;snapGlass();sync(model.frame);};
-    try{solverWorker=GlassWorkerClient?new GlassWorkerClient(settings,receive,failure):new LabWorkerClient!(id,settings,receive,failure);}
+    try{solverWorker=GlassWorkerClient?new GlassWorkerClient(settings,receive,failure):new LabWorkerClient!(id,settings,receive,failure,undefined,id==='granular'?granularThreads():1);}
     catch{physicsError=(GlassWorkerClient?'Glass collision':'Flow solver')+' worker could not start. Reset the experiment to retry.';running=false;}
   }
   startGlassWorker();

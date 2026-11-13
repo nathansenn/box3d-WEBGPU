@@ -865,6 +865,43 @@ export declare class EnvelopeMatrix {
     multiply(x: Float64Array, y: Float64Array): void;
 }
 
+// ==== core/fluid-multigrid.d.ts ====
+export interface MultigridOptions {
+    readonly sweeps?: number;
+    readonly overCorrection?: number;
+    readonly coarsest?: number;
+    readonly coarseSweeps?: number;
+}
+interface Level {
+    readonly nx: number;
+    readonly ny: number;
+    readonly nz: number;
+    readonly n: number;
+    readonly nb: Int32Array;
+    readonly w: Float64Array;
+    readonly diag: Float64Array;
+    readonly red: Int32Array;
+    readonly black: Int32Array;
+    readonly x: Float64Array;
+    readonly b: Float64Array;
+    readonly r: Float64Array;
+    readonly parent: Int32Array;
+}
+export declare class PoissonMultigrid {
+    readonly levels: Level[];
+    readonly sweeps: number;
+    readonly overCorrection: number;
+    readonly coarseSweeps: number;
+    readonly singular: boolean;
+    constructor(dims: readonly [number, number, number], nbr: Int32Array, diag: Float64Array, singular: boolean, options?: MultigridOptions);
+    private static sweep;
+    private static forward;
+    private static backward;
+    private cycle;
+    apply(r: Float64Array, z: Float64Array): void;
+}
+export {};
+
 // ==== core/fluid.d.ts ====
 import { type StateObject, type StateValue } from './checkpoint.js';
 import type { Subsystem } from './simulation.js';
@@ -928,7 +965,9 @@ export interface FluidOptions {
     readonly maxIterations?: number;
     readonly cflLimit?: number;
     readonly allowUnstable?: boolean;
+    readonly pressureSolver?: 'mic' | 'multigrid';
 }
+export declare function setFluidPressureSolverDefault(solver: 'mic' | 'multigrid'): 'mic' | 'multigrid';
 export interface FluidStats {
     steps: number;
     pressureIterations: number;
@@ -1043,6 +1082,8 @@ export declare class Fluid {
     private obstaclesDirty;
     private ledgerRate;
     private boundaryRate;
+    readonly pressureSolver: 'mic' | 'multigrid';
+    private readonly multigrid;
     constructor(options: FluidOptions);
     private sideVelocity;
     faceIndex(f: number): [number, number, number];
@@ -1198,6 +1239,9 @@ export declare class FreeSurfaceFluid {
     private readonly Ad;
     private readonly p2;
     private readonly scratch;
+    private readonly cellList;
+    private readonly cellMask;
+    private readonly dilateA;
     constructor(options: FreeSurfaceOptions);
     setTimeStep(dt: number): void;
     addObstacle(options: FreeSurfaceObstacleOptions): number;
@@ -1671,10 +1715,96 @@ export declare function parseGLTF(json: string | object, buffers?: GLTFBuffers):
 export declare function parseGLB(data: BinaryLike, buffers?: GLTFBuffers): TriangleMesh[];
 export {};
 
+// ==== core/granular-kernels.d.ts ====
+export declare const HN = 13;
+export declare const PLANE = 0, BOX = 1, SPHERE = 2, CAPSULE = 3, REVOLVED = 4;
+export declare const STATIC = 0, KINEMATIC = 1, DYNAMIC = 2;
+export declare const WALL_STRIDE = 33;
+export declare const W_SHAPE = 0, W_TYPE = 1, W_R = 2, W_X = 11, W_V = 14, W_W = 17, W_DIM = 20, W_CURVED = 27, W_MASS = 28, W_ALPHA = 29, W_MU = 30, W_MUR = 31, W_REACH = 32;
+export declare const PAIR_OUT = 16;
+export declare const WALL_OUT = 18;
+export declare const L_EN = 0, L_PD = 1, L_ET1 = 2, L_PT1 = 3, L_ET2 = 4, L_PT2 = 5, L_RATIO = 6;
+export declare const P_H = 0, P_HERTZ = 1, P_KHERTZ = 2, P_KMINDLIN = 3, P_KN = 4, P_KT = 5, P_ALPHA = 6, P_TDAMP = 7, P_MU = 8, P_MUR = 9, P_MOVE = 10, P_WALLS = 11, P_KICK = 12, P_GX = 13, P_GY = 14, P_GZ = 15, P_COUNT = 16;
+export interface DemContext {
+    x: Float64Array;
+    v: Float64Array;
+    w: Float64Array;
+    r: Float64Array;
+    m: Float64Array;
+    pairStart: Int32Array;
+    pairJ: Int32Array;
+    pairH: Float64Array;
+    pairOn: Uint8Array;
+    pairOut: Float64Array;
+    wallStart: Int32Array;
+    wallW: Int32Array;
+    wallH: Float64Array;
+    wallOn: Uint8Array;
+    wallSlack: Float64Array;
+    wallOut: Float64Array;
+    walls: Float64Array;
+    moves: Float64Array;
+    params: Float64Array;
+    f: Float64Array;
+    t: Float64Array;
+    revStart: Int32Array;
+    revK: Int32Array;
+    alive: Uint8Array;
+    invMass: Float64Array;
+    invInertia: Float64Array;
+}
+export declare const DEM_ARRAYS: {
+    readonly x: "f64";
+    readonly v: "f64";
+    readonly w: "f64";
+    readonly r: "f64";
+    readonly m: "f64";
+    readonly pairStart: "i32";
+    readonly pairJ: "i32";
+    readonly pairH: "f64";
+    readonly pairOn: "u8";
+    readonly pairOut: "f64";
+    readonly wallStart: "i32";
+    readonly wallW: "i32";
+    readonly wallH: "f64";
+    readonly wallOn: "u8";
+    readonly wallSlack: "f64";
+    readonly wallOut: "f64";
+    readonly walls: "f64";
+    readonly moves: "f64";
+    readonly params: "f64";
+    readonly f: "f64";
+    readonly t: "f64";
+    readonly revStart: "i32";
+    readonly revK: "i32";
+    readonly alive: "u8";
+    readonly invMass: "f64";
+    readonly invInertia: "f64";
+};
+export type DemArrayName = keyof typeof DEM_ARRAYS;
+export declare function demWallDistance(T: Float64Array, b: number, px: number, py: number, pz: number, G: Float64Array): number;
+export interface DemScratch {
+    readonly S: Float64Array;
+    readonly G: Float64Array;
+}
+export declare const demScratch: () => DemScratch;
+export declare function demContacts(c: DemContext, i0: number, i1: number, scratch: DemScratch): void;
+export declare function demGather(c: DemContext, q0: number, q1: number): void;
+export interface DemExecutor {
+    readonly threads: number;
+    share<T extends Float64Array | Int32Array | Uint8Array>(array: T): T;
+    run(task: 'contacts' | 'gather', context: DemContext, n: number): void;
+    dispose(): void;
+}
+export declare const SUM_EN = 0, SUM_ET = 1, SUM_PD = 2, SUM_PT = 3, SUM_CONTACTS = 4, SUM_WALL_CONTACTS = 5, SUM_OVERLAP = 6, SUM_EXCHANGE = 7, SUM_WALLS = 8, WALL_SUM = 8;
+export declare function demSerial(c: DemContext, n: number, scratch: DemScratch, sums: Float64Array, terms: Float64Array): void;
+
 // ==== core/granular.d.ts ====
 import { type StateObject, type StateValue } from './checkpoint.js';
 import { type StructureInertia } from './structure-coupling.js';
 import type { Subsystem } from './simulation.js';
+import { type DemExecutor } from './granular-kernels.js';
+export type { DemExecutor } from './granular-kernels.js';
 export declare const GRANULAR_SOLVER_ID = "granular-dem-soft-sphere-verlet-js-f64-v1";
 export declare const GRANULAR_COUPLING_BACKEND = "rigid-granular-coupling-subcycled-js-f64-v1";
 export declare const GRANULAR_MAX_GRAINS: number;
@@ -1799,6 +1929,7 @@ export declare function granularLattice(options: {
 export declare class Granular {
     saveState(): StateObject;
     restoreState(state: StateValue): void;
+    private forgetSlack;
     readonly solver = "granular-dem-soft-sphere-verlet-js-f64-v1";
     readonly dt: number;
     readonly capacity: number;
@@ -1858,6 +1989,19 @@ export declare class Granular {
     private cellOf;
     private dirty;
     private fresh;
+    private wallSlack;
+    private grainMove;
+    private pairOut;
+    private wallOut;
+    private wallTable;
+    private readonly params;
+    private revStart;
+    private revK;
+    private readonly scratch;
+    private sums;
+    private readonly terms;
+    private context;
+    private executor;
     private readonly S;
     private readonly gn;
     private readonly gc;
@@ -1916,10 +2060,17 @@ export declare class Granular {
     private growPairs;
     private growWalls;
     private rebuild;
+    private reverseLists;
     private moved;
     private wallDistance;
-    private kernel;
+    private packWalls;
+    private demContext;
+    useExecutor(executor: DemExecutor | null): void;
+    get threads(): number;
     private computeForces;
+    private wallMoves;
+    private moveScratch;
+    private kick;
     private prepare;
     step(count?: number): void;
 }
