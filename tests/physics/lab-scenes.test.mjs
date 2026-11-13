@@ -15,7 +15,7 @@ import {
 } from '../../src/engine/scene-format.ts';
 import {LabSceneHost, exactTransformHash, loadLabScene, sceneStepsPerLabTick} from '../../src/lab/scene-host.ts';
 import {
-  EXAMPLE_SCENE_NAMES, EXAMPLE_SCENE_TITLES, LAB_SCENE_LIMITS, chooseImportScale, detectFileKind, importGeometry, parseSceneRequest, planImportBody,
+  EXAMPLE_SCENE_NAMES, EXAMPLE_SCENE_TITLES, LAB_EXAMPLE_NAMES, LAB_SCENE_LIMITS, chooseImportScale, detectFileKind, importGeometry, parseSceneRequest, planImportBody,
   problemLines, quoteForDisplay, readLabFile, readSceneText, resolveSceneRequest, sceneCameraFrame, sceneFileName, sceneSummary, shortFloat32,
 } from '../../src/lab/scene-loading.ts';
 import {bracketObj, gemMesh, halfPipeObj, meshToGlb, meshToObj, showcaseScene, stlBinary, torusMesh} from './lab-scene-fixtures.mjs';
@@ -36,7 +36,10 @@ test('the address says which scene to open', async () => {
     assert.equal(request.kind, 'error', name);
     assert.match(request.message, /pendulum-wave, newtons-cradle, domino-run, terrain-car, ragdoll/);
   }
-  assert.equal(parseSceneRequest(`?example=${'x'.repeat(5000)}`).message.length < 400, true, 'a long name is not echoed in full');
+  // The message lists every example name (it grows with the examples); the requested name is cut to 64 characters.
+  const long = parseSceneRequest(`?example=${'x'.repeat(5000)}`).message;
+  assert.equal(long.includes('x'.repeat(65)), false, 'a long name is not echoed in full');
+  assert.equal(long.length < 200 + LAB_EXAMPLE_NAMES.join(', ').length, true, 'nothing else is long');
   const link = await encodeSceneLink(EXAMPLE_SCENES['domino-run']());
   assert.deepEqual(parseSceneRequest(`?scene=${link}`), {kind: 'link', text: link});
   assert.deepEqual(parseSceneRequest(`?example=ragdoll&scene=${link}`), {kind: 'link', text: link}, 'scene wins over example');

@@ -11,7 +11,8 @@
  *
  * The helpers build the inputs of the solvers from an entry: `solidMaterial` (solid.ts),
  * `fractureLaw` (solid-fracture.ts), `heatMaterial` (heat.ts), `grainMaterial` (granular.ts) and
- * `contactPair` / `rigidMaterial` for the rigid world's friction and restitution.
+ * `contactPair` / `rigidMaterial` for the rigid world's friction and restitution, and `manningCoefficient` /
+ * `greenAmptSoil` for shallow water (shallow-water.ts) from the bed-roughness and soil tables.
  *
  * Nothing here runs a solver; the module only imports types.
  */
@@ -23,7 +24,7 @@ import type {GranularMaterial} from './granular.ts';
 
 export const MATERIAL_LIBRARY_ID = 'box3d-materials';
 /** Semver of the data: a changed value is a minor release, a removed material or property a major one. */
-export const MATERIAL_LIBRARY_VERSION = '1.5.0';
+export const MATERIAL_LIBRARY_VERSION = '1.6.0';
 /** The date the sources were opened and read. */
 export const MATERIAL_SOURCES_ACCESSED = '2026-11-12';
 
@@ -167,6 +168,18 @@ export const MATERIAL_SOURCES: Readonly<Record<string, MaterialSource>> = deepFr
     title: 'Alumina: Aloxalon 96 (96% Al2O3) property table', url: 'https://syalons.com/materials/alumina/'},
   'morgan-al600': {id: 'morgan-al600', kind: 'manufacturer', author: 'Morgan Advanced Materials',
     title: 'AL600 data sheet (96% Al2O3 alumina)', url: 'https://morgantechnicalceramics.com/media/2296/al600.pdf'},
+  'chow-1959-unspider': {id: 'chow-1959-unspider', kind: 'textbook', author: 'V. T. Chow, Open-Channel Hydraulics (McGraw-Hill, 1959), as reproduced by UN-SPIDER',
+    title: 'Appendix I: Surface Roughness and Manning\'s n Table (Chow, 1959), minimum, normal and maximum values',
+    url: 'https://www.un-spider.org/sites/default/files/Table_Surface_roughness_Manning_n_Chow_1959.pdf',
+    note: 'A reproduction of Chow\'s table for natural streams, floodplains, excavated and lined channels; Chow\'s book itself was not opened.'},
+  'ponce-chow-manning': {id: 'ponce-chow-manning', kind: 'textbook', author: 'V. M. Ponce, San Diego State University (online Open-channel hydraulics), after Chow (1959)',
+    title: 'Table 5-4: Recommended range of values of Manning\'s n (closed conduits flowing partly full; lined or built-up channels)',
+    url: 'https://ponce.sdsu.edu/open_channel_hydraulics_05_manningsntable.html',
+    note: 'Gives the rows for metal and glass that the UN-SPIDER reproduction leaves out.'},
+  'rawls-1983': {id: 'rawls-1983', kind: 'peer-reviewed', author: 'W. J. Rawls, D. L. Brakensiek, N. Miller',
+    title: 'Green-Ampt infiltration parameters from soils data, J. Hydraul. Eng. 109(1) (1983) 62-70, Table 2 (texture-class rows) and equations 1 and 2',
+    url: 'https://dnrftp.state.co.us/DWR/DamSafety/HydrologyGuidelines_doNOTdelete/Guidelines_References/Rawls%20et%20al%20Green-Ampt%20Infiltration%20parameters%20from%20soils%20data%20ASCE%201983.pdf',
+    note: 'A scan hosted by the Colorado Division of Water Resources. The suction head is the antilog of the log mean; its range is one standard deviation. K is the Green-Ampt conductivity, half the saturated conductivity (Bouwer).'},
 } satisfies Record<string, MaterialSource>);
 
 export type MaterialPropertyName =
@@ -698,6 +711,83 @@ export const CONTACT_PAIRS: readonly ContactPairEntry[] = deepFreeze([
 // Lookup
 // ---------------------------------------------------------------------------------------------------------------
 
+// ---------------------------------------------------------------------------------------------------------------
+// Bed roughness and soils for shallow water (shallow-water.ts)
+// ---------------------------------------------------------------------------------------------------------------
+
+/** A surface a shallow flow runs over, with its Manning coefficient n (s/m^(1/3)). */
+export interface SurfaceRoughnessEntry {readonly id: string; readonly name: string; readonly manning: MaterialValue}
+const n3 = (normal: number, min: number, max: number | null, source: string, row: string, conditions: string): MaterialValue =>
+  v(normal, source, `${row}: minimum ${min.toFixed(3)}, normal ${normal.toFixed(3)}${max === null ? '' : `, maximum ${max.toFixed(3)}`}`, conditions,
+    max === null ? (min < normal ? {range: [min, normal]} : {}) : {range: [min, max]});
+/** Manning's n of surfaces and channels, the "normal" value of Chow's (1959) table with its minimum and maximum as the range. */
+export const SURFACE_ROUGHNESS: Readonly<Record<string, SurfaceRoughnessEntry>> = deepFreeze({
+  'smooth-steel': {id: 'smooth-steel', name: 'Smooth steel, unpainted', manning: n3(0.012, 0.011, 0.014, 'ponce-chow-manning', 'B-1 a.1 Smooth steel surface, unpainted', 'lined channel, smooth steel surface')},
+  'painted-steel': {id: 'painted-steel', name: 'Smooth steel, painted', manning: n3(0.013, 0.012, 0.017, 'ponce-chow-manning', 'B-1 a.2 Smooth steel surface, painted', 'lined channel, painted steel')},
+  'glass': {id: 'glass', name: 'Glass', manning: n3(0.010, 0.009, 0.013, 'ponce-chow-manning', 'A-2 b. Glass', 'closed conduit flowing partly full (the only glass row of the table)')},
+  'glazed-brick': {id: 'glazed-brick', name: 'Glazed brick', manning: n3(0.013, 0.011, 0.015, 'chow-1959-unspider', '5.f.1 Brick, glazed', 'lined channel')},
+  'asphalt-smooth': {id: 'asphalt-smooth', name: 'Asphalt, smooth', manning: n3(0.013, 0.013, null, 'chow-1959-unspider', '5.i.1 Asphalt, smooth', 'lined channel; no maximum given')},
+  'asphalt-rough': {id: 'asphalt-rough', name: 'Asphalt, rough', manning: n3(0.016, 0.016, null, 'chow-1959-unspider', '5.i.2 Asphalt, rough', 'lined channel; no maximum given')},
+  'concrete-float': {id: 'concrete-float', name: 'Concrete, float finish', manning: n3(0.015, 0.013, 0.016, 'chow-1959-unspider', '5.c.2 Concrete, float finish', 'lined channel')},
+  'concrete-unfinished': {id: 'concrete-unfinished', name: 'Concrete, unfinished', manning: n3(0.017, 0.014, 0.020, 'chow-1959-unspider', '5.c.4 Concrete, unfinished', 'lined channel')},
+  'gravel': {id: 'gravel', name: 'Earth channel, gravel, uniform section, clean', manning: n3(0.025, 0.022, 0.030, 'chow-1959-unspider', '4.a.3 Earth, straight and uniform: gravel, uniform section, clean', 'excavated channel')},
+  'earth-channel': {id: 'earth-channel', name: 'Earth channel, clean, after weathering', manning: n3(0.022, 0.018, 0.025, 'chow-1959-unspider', '4.a.2 Earth, straight and uniform: clean, after weathering', 'excavated channel')},
+  'clean-stream': {id: 'clean-stream', name: 'Natural stream, clean and straight', manning: n3(0.030, 0.025, 0.033, 'chow-1959-unspider', '1.a Main channels: clean, straight, full stage, no rifts or deep pools', 'minor stream, top width at flood stage < 100 ft')},
+  'short-grass': {id: 'short-grass', name: 'Floodplain pasture, short grass', manning: n3(0.030, 0.025, 0.035, 'chow-1959-unspider', '3.a.1 Pasture, no brush: short grass', 'floodplain')},
+  'high-grass': {id: 'high-grass', name: 'Floodplain pasture, high grass', manning: n3(0.035, 0.030, 0.050, 'chow-1959-unspider', '3.a.2 Pasture, no brush: high grass', 'floodplain')},
+  'bare-field': {id: 'bare-field', name: 'Cultivated area, no crop', manning: n3(0.030, 0.020, 0.040, 'chow-1959-unspider', '3.b.1 Cultivated areas: no crop', 'floodplain')},
+} satisfies Record<string, SurfaceRoughnessEntry>);
+
+/** Green-Ampt parameters of a soil texture class (Rawls et al. 1983, Table 2, the class rows). SI units. */
+export interface SoilInfiltrationEntry {
+  readonly id: string; readonly name: string;
+  readonly totalPorosity: MaterialValue; readonly effectivePorosity: MaterialValue;
+  /** Wetting-front capillary pressure head psi, m. */
+  readonly suction: MaterialValue;
+  /** Green-Ampt hydraulic conductivity K, m/s (half the saturated conductivity). */
+  readonly conductivity: MaterialValue;
+}
+const soil = (id: string, name: string, row: string, phi: [number, number, number], eff: [number, number, number], psiCm: [number, number, number], kCmH: number, samples: number): SoilInfiltrationEntry => {
+  const c = `${name}, all horizons (${samples} samples)`;
+  return {id, name,
+    totalPorosity: v(phi[0], 'rawls-1983', `${row}: total porosity ${phi[0].toFixed(3)} (${phi[1].toFixed(3)}-${phi[2].toFixed(3)}) cm3/cm3`, c, {range: [phi[1], phi[2]]}),
+    effectivePorosity: v(eff[0], 'rawls-1983', `${row}: effective porosity ${eff[0].toFixed(3)} (${eff[1].toFixed(3)}-${eff[2].toFixed(3)}) cm3/cm3`, c, {range: [eff[1], eff[2]]}),
+    suction: v(psiCm[0] / 100, 'rawls-1983', `${row}: wetted front capillary pressure ${psiCm[0]} (${psiCm[1]}-${psiCm[2]}) cm`, c, {range: [psiCm[1] / 100, psiCm[2] / 100], derived: 'cm / 100'}),
+    conductivity: v(kCmH / 100 / 3600, 'rawls-1983', `${row}: hydraulic conductivity ${kCmH} cm/h`, c, {derived: 'cm/h / 360000'}),
+  };
+};
+/** Green-Ampt parameters of the eleven USDA texture classes. Ranges are one standard deviation (Rawls et al. 1983). */
+export const SOIL_INFILTRATION: Readonly<Record<string, SoilInfiltrationEntry>> = deepFreeze({
+  'sand': soil('sand', 'Sand', 'Sand', [0.437, 0.374, 0.500], [0.417, 0.354, 0.480], [4.95, 0.97, 25.36], 11.78, 762),
+  'loamy-sand': soil('loamy-sand', 'Loamy sand', 'Loamy sand', [0.437, 0.363, 0.506], [0.401, 0.329, 0.473], [6.13, 1.35, 27.94], 2.99, 338),
+  'sandy-loam': soil('sandy-loam', 'Sandy loam', 'Sandy loam', [0.453, 0.351, 0.555], [0.412, 0.283, 0.541], [11.01, 2.67, 45.47], 1.09, 666),
+  'loam': soil('loam', 'Loam', 'Loam', [0.463, 0.375, 0.551], [0.434, 0.334, 0.534], [8.89, 1.33, 59.38], 0.34, 383),
+  'silt-loam': soil('silt-loam', 'Silt loam', 'Silt loam', [0.501, 0.420, 0.582], [0.486, 0.394, 0.578], [16.68, 2.92, 95.39], 0.65, 1206),
+  'sandy-clay-loam': soil('sandy-clay-loam', 'Sandy clay loam', 'Sandy clay loam', [0.398, 0.332, 0.464], [0.330, 0.235, 0.425], [21.85, 4.42, 108.0], 0.15, 498),
+  'clay-loam': soil('clay-loam', 'Clay loam', 'Clay loam', [0.464, 0.409, 0.519], [0.309, 0.279, 0.501], [20.88, 4.79, 91.10], 0.10, 366),
+  'silty-clay-loam': soil('silty-clay-loam', 'Silty clay loam', 'Silty clay loam', [0.471, 0.418, 0.524], [0.432, 0.347, 0.517], [27.30, 5.67, 131.50], 0.10, 689),
+  'sandy-clay': soil('sandy-clay', 'Sandy clay', 'Sandy clay', [0.430, 0.370, 0.490], [0.321, 0.207, 0.435], [23.90, 4.08, 140.2], 0.06, 45),
+  'silty-clay': soil('silty-clay', 'Silty clay', 'Silty clay', [0.479, 0.425, 0.533], [0.423, 0.334, 0.512], [29.22, 6.13, 139.4], 0.05, 127),
+  'clay': soil('clay', 'Clay', 'Clay', [0.475, 0.427, 0.523], [0.385, 0.269, 0.501], [31.63, 6.39, 156.5], 0.03, 291),
+} satisfies Record<string, SoilInfiltrationEntry>);
+
+/** Manning's n of a surface of the roughness table, s/m^(1/3). Throws for an unknown id. */
+export function manningCoefficient(id: string): number {
+  if (typeof id !== 'string' || !Object.hasOwn(SURFACE_ROUGHNESS, id)) throw new EngineError('INVALID_PAYLOAD', `Unknown surface "${String(id)}". Known: ${Object.keys(SURFACE_ROUGHNESS).join(', ')}.`);
+  return SURFACE_ROUGHNESS[id]!.manning.value;
+}
+/**
+ * Green-Ampt inputs of a soil texture class for shallow-water.ts: K (m/s), psi (m) and the available porosity
+ * eta = theta_e (1 - S_e), where S_e is the effective saturation the soil starts at (Rawls et al. 1983: eta is the
+ * effective porosity minus the initial water content). Default S_e = 0.3, an assumption, not a value of the source.
+ */
+export function greenAmptSoil(id: string, options: {readonly initialSaturation?: number} = {}): {conductivity: number; suction: number; moistureDeficit: number} {
+  if (typeof id !== 'string' || !Object.hasOwn(SOIL_INFILTRATION, id)) throw new EngineError('INVALID_PAYLOAD', `Unknown soil "${String(id)}". Known: ${Object.keys(SOIL_INFILTRATION).join(', ')}.`);
+  const s = SOIL_INFILTRATION[id]!, se = options.initialSaturation ?? 0.3;
+  if (!(se >= 0 && se < 1)) throw new EngineError('INVALID_PAYLOAD', 'initialSaturation must be in [0, 1).');
+  return {conductivity: s.conductivity.value, suction: s.suction.value, moistureDeficit: s.effectivePorosity.value * (1 - se)};
+}
+
 export interface MaterialOptions {
   /** Accept values marked `source: 'unverified'`. Default false: such a value is refused. */
   readonly allowUnverified?: boolean;
@@ -1042,7 +1132,7 @@ export function shearConsistency(id: string): ShearConsistency | null {
 }
 
 export interface MaterialAuditRow {
-  readonly kind: 'property' | 'pair';
+  readonly kind: 'property' | 'pair' | 'surface' | 'soil';
   readonly subject: string;
   readonly property: string;
   readonly value: number;
@@ -1059,5 +1149,8 @@ export function materialAudit(): MaterialAuditRow[] {
     const value = pair[key];
     if (value) rows.push({kind: 'pair', subject: `${pair.a}/${pair.b} (${pair.condition})`, property: key, value: value.value, source: value.source, ...(value.reason ? {reason: value.reason} : {})});
   }
+  for (const entry of Object.values(SURFACE_ROUGHNESS)) rows.push({kind: 'surface', subject: entry.id, property: 'manning', value: entry.manning.value, source: entry.manning.source});
+  for (const entry of Object.values(SOIL_INFILTRATION)) for (const key of ['totalPorosity', 'effectivePorosity', 'suction', 'conductivity'] as const)
+    rows.push({kind: 'soil', subject: entry.id, property: key, value: entry[key].value, source: entry[key].source});
   return rows;
 }

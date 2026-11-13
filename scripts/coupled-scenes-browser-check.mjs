@@ -36,9 +36,9 @@ const {chromium} = playwright;
 
 const output = path.resolve(process.argv[2] ?? process.env.BOX3D_QA_OUTPUT ?? path.join(os.tmpdir(), 'box3d-coupled-scenes'));
 fs.mkdirSync(output, {recursive: true});
-const EXAMPLES = (process.argv[3] ?? 'buoy-and-crates,trampoline,hopper-seesaw,suspended-platform,moored-buoy,cable-stayed-deck,rubber-pad,notched-beam,quenched-plate,heated-bar,sphere-settling,cavity-flow,flow-past-cylinder,dam-break').split(',');
+const EXAMPLES = (process.argv[3] ?? 'buoy-and-crates,trampoline,hopper-seesaw,suspended-platform,moored-buoy,cable-stayed-deck,rubber-pad,notched-beam,quenched-plate,heated-bar,sphere-settling,cavity-flow,flow-past-cylinder,dam-break,dam-break-valley,river-bend').split(',');
 /** Lab ticks to advance before the first capture, and after reopening a link. */
-const FIRST = {'hopper-seesaw': 180, trampoline: 90, 'rubber-pad': 60, 'notched-beam': 60, 'quenched-plate': 150, 'heated-bar': 300, 'sphere-settling': 45, 'cavity-flow': 300, 'flow-past-cylinder': 300, 'dam-break': 40}, SHARE_TICKS = 30;
+const FIRST = {'hopper-seesaw': 180, trampoline: 90, 'rubber-pad': 60, 'notched-beam': 60, 'quenched-plate': 150, 'heated-bar': 300, 'sphere-settling': 45, 'cavity-flow': 300, 'flow-past-cylinder': 300, 'dam-break': 40, 'dam-break-valley': 120, 'river-bend': 120}, SHARE_TICKS = 30;
 /** Fluids: the fields captured. */
 const FLUID_VIEWS = {'sphere-settling': ['speed', 'pressure'], 'cavity-flow': ['speed', 'pressure'], 'flow-past-cylinder': ['speed', 'pressure'], 'dam-break': ['speed', 'pressure']};
 /** Solids: the fields captured and the displacement scale for each. */

@@ -64,6 +64,10 @@
       "types": "./dist/fluid.d.ts",
       "default": "./dist/fluid.js"
     },
+    "./shallow-water": {
+      "types": "./dist/shallow-water.d.ts",
+      "default": "./dist/shallow-water.js"
+    },
     "./materials": {
       "types": "./dist/materials.d.ts",
       "default": "./dist/materials.js"

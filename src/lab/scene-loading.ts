@@ -59,6 +59,8 @@ export const COUPLED_EXAMPLE_TITLES: { readonly [name: string]: string } = Objec
   'cavity-flow': 'Lid-driven cavity',
   'flow-past-cylinder': 'Flow past a cylinder',
   'dam-break': 'Dam break',
+  'dam-break-valley': 'Dam break down a valley',
+  'river-bend': 'River bend',
 });
 export const COUPLED_EXAMPLE_NAMES: readonly string[] = Object.freeze(Object.keys(COUPLED_EXAMPLE_SCENES));
 /** Every example `?example=<name>` opens: the rigid ones, then the coupled ones. */
@@ -475,6 +477,7 @@ function coupledSummary(scene: Scene): string {
       ? `a free-surface tank (${cells} cells${fluid.positions ? `, ${fluid.positions.length / 3} particles` : ''})`
       : `a flow (${cells} cells${fluid.bodies?.length ? `, ${count(fluid.bodies.length, 'body', 'bodies')} in it` : ''})`);
   }
+  for (const water of scene.shallowWater ?? []) parts.push(`shallow water (${water.cells[0] * water.cells[1]} cells${water.bodies?.length ? `, ${count(water.bodies.length, 'floating body', 'floating bodies')}` : ''})`);
   return parts.length ? ` · ${parts.join(' · ')}` : '';
 }
 
@@ -553,6 +556,13 @@ export function sceneCameraFrame(scene: Scene): SceneFrame {
     point([all], ox, oy, oz); point([all], ox + basin.cols * basin.dx, oy + basin.restDepth, oz + basin.rows * basin.dz);
   }
   for (const frame of scene.frames ?? []) points([all], frame.nodes);
+  // Shallow water is the scenery and what the scene is about: its plan and its bed, seen from above at an angle.
+  const shallowBox = empty();
+  for (const water of scene.shallowWater ?? []) {
+    const o = water.origin ?? [0, 0], dx = typeof water.spacing === 'number' ? water.spacing : water.spacing[0], dz = typeof water.spacing === 'number' ? water.spacing : water.spacing[1];
+    let lo = 0, hi = 0; for (const b of water.bed ?? []) { if (b < lo) lo = b; if (b > hi) hi = b; }
+    points([all, shallowBox], [o[0], lo, o[1], o[0] + water.cells[0] * dx, hi + 1, o[1] + water.cells[1] * dz]);
+  }
   for (const cable of scene.cables ?? []) points([all, moving], cable.nodes);
   for (const cloth of scene.cloths ?? []) points([all, moving], cloth.nodes);
   for (const set of scene.grains ?? []) points([all, moving], set.positions);
@@ -567,6 +577,10 @@ export function sceneCameraFrame(scene: Scene): SceneFrame {
   }
   const has = (box: Box): boolean => box.max[0]! >= box.min[0]!;
   if (!has(all)) return { target: [0, 1, 0], distance: 8 };
+  if (has(shallowBox)) {
+    const extent = Math.max(shallowBox.max[0]! - shallowBox.min[0]!, shallowBox.max[2]! - shallowBox.min[2]!);
+    return { target: [(shallowBox.min[0]! + shallowBox.max[0]!) / 2, shallowBox.min[1]!, (shallowBox.min[2]! + shallowBox.max[2]!) / 2], distance: Math.min(400, Math.max(1, 0.85 * extent)), yaw: 0.6, pitch: 0.7 };
+  }
   if (has(fluidBox) && !has(solidBox)) {
     const extent = Math.max(fluidBox.max[0]! - fluidBox.min[0]!, fluidBox.max[1]! - fluidBox.min[1]!, fluidBox.max[2]! - fluidBox.min[2]!);
     const flow = (scene.fluids ?? []).some(fluid => fluid.kind !== 'free-surface');

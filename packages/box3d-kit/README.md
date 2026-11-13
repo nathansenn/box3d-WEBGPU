@@ -469,6 +469,7 @@ camera.follow(hero.state.position);
 | `box3d-webgpu-kit/cloth` | Calibrated cloth: a membrane and plate with real material parameters, implicit integration, contact and friction against rigid bodies, self-collision, and two-way coupling to the rigid world (see below). |
 | `box3d-webgpu-kit/granular` | Granular media by the discrete element method: spherical grains with Hertz or linear contact, friction, rolling resistance, silo and hopper walls, and two-way coupling to the rigid world (see below). |
 | `box3d-webgpu-kit/fluid` | Volumetric incompressible flow: the Navier–Stokes equations on a staggered grid with walls, inflows, outflows and periodic sides, fixed and moving obstacles, two-way coupling to the rigid world, and a free-surface tank of liquid particles (see below). |
+| `box3d-webgpu-kit/shallow-water` | Depth-averaged water on terrain: dam breaks, rivers and floods with Manning friction, rain and Green-Ampt infiltration, inflow, outflow and stage sides, and floating rigid bodies (see below). |
 | `box3d-webgpu-kit/materials` | A material library with sources: steels, aluminium, copper, cast iron, glass, concrete, granite, wood, polymers, rubber, ice, water, air, glass beads and sand, each value with its conditions and citation, and helpers that build the inputs of the solvers above (see below). |
 | `box3d-webgpu-kit/simulation` | One stepping loop: a `Simulation` that steps the world, the water and structure couplings, heat and solids in a fixed order, with one clock, energy ledger and event stream (see below). |
 
@@ -782,6 +783,29 @@ Sides are `'no-slip'` (a wall, moving along itself if you give it a velocity), `
 - **Time step:** with explicit viscosity at most `h^2 / (2 d nu)`; the Courant number must stay below `cflLimit` (1). A step above either is refused (`UNSTABLE_TIME_STEP`); `fluid.maxTimeStep()` gives both. The coupling is explicit: keep the rigid step below the body's response time (about `m / (6 pi mu r)` for a sphere).
 - **Accuracy:** `test/v18-fluid.test.mjs` checks it against closed forms and published data; the repository's `docs/FLUID.md` has the table. The lid-driven cavity within 0.8% (Re 100) and 1.5% (Re 400) of Ghia et al. on the centre lines, Taylor–Green decay at second order, water at rest to round-off, a sphere's drag 7.5% low at 2.4 cells per radius and 3.3% at 3.6, a dam break within 7.4% of Martin & Moyce, sloshing frequency within 0.5%.
 - **Limits, measured:** about 0.3 to 0.9 million cell-steps per second on one thread (a 16³ grid in 5 ms, 32³ in 53 ms), so about 10,000 cells per 60 Hz frame. No turbulence model. The free surface has no viscosity, surface tension or bodies.
+
+### Shallow water on terrain: floods, rivers, rain
+
+`ShallowWater` solves the depth-averaged Saint-Venant equations over a bed of any shape, wet or dry. This releases a reservoir down a sloping valley with grass on it, lets it rain on a loam soil and floats a crate:
+
+```ts
+import {ShallowWater, ShallowWaterCoupling, shallowWaterSubsystem} from 'box3d-webgpu-kit/shallow-water';
+import {manningCoefficient, greenAmptSoil} from 'box3d-webgpu-kit/materials';
+import {createSimulation} from 'box3d-webgpu-kit/simulation';
+
+const water = new ShallowWater({cells: [96, 32], spacing: 0.3125, bed: (x, z) => 0.01 * (30 - x) + 0.25 * Math.abs(z - 5),
+  depth: (x, z, bed) => (x < 6 ? Math.max(0, 2.24 - bed) : 0), manning: manningCoefficient('short-grass'),
+  soil: greenAmptSoil('loam'), rain: 50 / 1000 / 3600, dt: 1 / 60, boundaries: {xMax: 'open'}});
+const crate = world.createBody({shape: {kind: 'box', halfExtents: [0.3, 0.2, 0.3]}, position: [2, 2.3, 5], density: 450, neverSleeps: true});
+const coupling = new ShallowWaterCoupling(world, water);
+coupling.addBody(crate, {shape: {kind: 'box', halfExtents: [0.3, 0.2, 0.3]}});
+createSimulation(world).add(shallowWaterSubsystem(coupling)).step();
+water.depthAt(10, 5); water.velocity(water.cellAt(10, 5)); water.froude(water.cellAt(10, 5)); water.volumeError();
+```
+
+- **Method:** hydrostatic reconstruction (well-balanced: a lake at rest stays at rest to round-off), MUSCL with minmod, HLL, Heun; wetting and drying with non-negative depths; Manning and laminar film friction by backward Euler; rain; Green-Ampt infiltration; sides `'wall'`, `'open'`, `{type: 'inflow', discharge}`, `{type: 'stage', level}`; CFL substeps inside every step. Float64 and deterministic, exact checkpoints.
+- **Accuracy:** `test/v20-shallow-water.test.mjs` against the SWASHES benchmarks and closed forms (dam breaks, Thacker's bowl, the Goutal-Maurel bump flows, Manning normal depth, the kinematic wave, Green-Ampt); the repository's `docs/SHALLOW_WATER.md` has the table.
+- **Limits, measured:** about 2 to 3 million cell-substeps per second on one (loaded) thread; no dispersion or breaking; boxes and spheres float.
 
 ### Materials with sources
 

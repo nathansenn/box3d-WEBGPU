@@ -440,9 +440,41 @@ Build order: after the heat grids and before the basins, in file order; a flow a
 
 A save writes a flow's face velocities and pressures and a tank's particles (positions, velocities and affine matrices). A tank's state is complete: a reopened save runs on bit for bit as the original would have (checked over 30 steps). A flow's is not: its Adams–Bashforth history, its energy ledger and the momentum inside its obstacles are not saved, so the first step after a load advects by forward Euler, and the run then differs slightly from the run that was saved; two loads of one save stay bit-identical. To continue a flow exactly, save a checkpoint instead ([`CHECKPOINTS.md`](CHECKPOINTS.md)): it holds the advection history, the ledgers and the obstacles' state, and a run resumed from it is bit-identical. A save of a flow of 4,320 cells is about 160,000 characters of share link; the dam-break tank's 1,440 particles about 250,000.
 
+### Coupled section: shallow water
+
+One more optional array, `shallowWater`, added on 2026-11-12 under the same rules (see [Versioning](#versioning)). Ids share the namespace of bodies and joints. Numbers are float64. The solver is that of [`SHALLOW_WATER.md`](SHALLOW_WATER.md): depth-averaged water on a bed, in plan along world x and z, with world y up; the world's gravity must point straight down.
+
+#### `shallowWater`
+
+Each entry is a grid of `cells` = [nx, nz] cells of `spacing` metres from `origin` = [x, z]. With `bodies` it is a `ShallowWaterCoupling` registered as `shallowWaterSubsystem` in the couple stage, order 190, stepping once per world step (in its own CFL substeps); without, a bare `ShallowWater` in the post stage, order 530, at the world step divided by `substeps`.
+
+| Key | Type | Required | Default | Notes |
+|---|---|---|---|---|
+| `id` | string | yes | | |
+| `cells` | `[nx, nz]` integers | yes | | At least 1 each; at most 262,144 together. |
+| `spacing` | number > 0 or `[dx, dz]` | yes | | Cell size, m. |
+| `origin` | `[x, z]` | no | `[0, 0]` | The corner with the smallest coordinates. |
+| `bed` | nx nz numbers | no | all 0 | Bed heights at the cell centres (world y), m, x fastest. |
+| `level` | number | no | | A flat starting water level (world y), m; depth = max(0, level − bed). Not with `depth`. |
+| `depth` | nx nz numbers ≥ 0 | no | dry | Starting (or saved) depth per cell, m. |
+| `qx`, `qz` | nx nz numbers | no | 0 | Saved discharges per unit width, m²/s. Need `depth`. |
+| `infiltrated` | nx nz numbers ≥ 0 | no | 0 | Saved infiltrated depth per cell, m. |
+| `manning` | number or nx nz numbers | no | 0 | Manning's n, s/m^(1/3) ([`MATERIALS.md`](MATERIALS.md#bed-roughness-and-soils) has sourced values). |
+| `soil` | `{conductivity, suction, moistureDeficit}` | no | sealed | Green-Ampt K (m/s), psi (m) and available porosity (1) on every cell. |
+| `rain` | number ≥ 0 | no | 0 | m/s. |
+| `boundaries` | object | no | a wall on every side | Keys `xMin`, `xMax`, `zMin`, `zMax`; each `"wall"`, `"open"`, `{type: "inflow", discharge, depth?, span?}` (m³/s; `span` [from, to] limits it to the cells of the side whose centres lie there) or `{type: "stage", level}`. |
+| `density` | number > 0 | no | 1000 | kg/m³, for forces and energies. |
+| `substeps` | integer 1..64 | no | 1 | Solver steps per world step; a grid with bodies must use 1. |
+| `order` | 1 or 2 | no | 2 | |
+| `bodies` | array | no | `[]` | `{body, dragCoefficient?, referenceArea?}`: a box or sphere body whose position is its centre of mass, at most once per grid. |
+
+What validation checks beyond the types: gravity not straight down; `level` and `depth` together; `qx`/`qz` without `depth`; arrays of the wrong length; an inflow without a discharge or a `span` with to ≤ from; a stage without a level; `substeps` above 1 with bodies; a body that is missing, listed twice, a capsule, hull, mesh, height field or compound, or that has an off-origin `massData.center`. The solver refuses, when the scene is built, an inflow `span` that holds no cell centre (`Scene shallow water "<id>": ...`).
+
+Build order: after the fluids and before the basins, in file order. A body that is in the water when the scene starts is part of the starting water: what it displaces then is not added (so a scene's `level` or `depth` is the water with the bodies in it); later changes of what it displaces are. A save writes `depth`, `qx`, `qz` and `infiltrated` (and drops `level`). Without bodies that is the whole state: a reopened save runs on bit for bit (checked over 30 steps). With bodies the rigid world's contact state is not in a scene save, as for every section; use a checkpoint ([`CHECKPOINTS.md`](CHECKPOINTS.md)) to continue exactly. A dynamic body the water carries is counted in the ledger's `rigid` entry.
+
 ### Canonical form of the sections
 
-A section that is absent or empty is left out of the normal form (this holds for `cloths`, `grains`, `solids`, `heat` and `fluids` too), so a scene of rigid bodies and joints has the canonical text and `sceneHash` it has always had. Inside a section, a value equal to its default is left out (`solver: "proximal"`, `substeps: 1`, `density: 1000`, an all-zero `eta`, `velocities`, `fixed`, …), and `-0` is written as `0`. Order is kept, because it is the build order. For a fluid: `kind: "flow"`, `substeps: 1`, `gravity: true`, `advection: "central"`, `diffusion: "explicit"`, `particlesPerAxis: 2`, a zero `origin` or `velocity`, a plain `"no-slip"` side (also written as a wall with zero velocity), and saved flow fields that are all zero on a flow with no starting velocity are left out.
+A section that is absent or empty is left out of the normal form (this holds for `cloths`, `grains`, `solids`, `heat`, `fluids` and `shallowWater` too), so a scene of rigid bodies and joints has the canonical text and `sceneHash` it has always had. Inside a section, a value equal to its default is left out (`solver: "proximal"`, `substeps: 1`, `density: 1000`, an all-zero `eta`, `velocities`, `fixed`, …), and `-0` is written as `0`. Order is kept, because it is the build order. For a fluid: `kind: "flow"`, `substeps: 1`, `gravity: true`, `advection: "central"`, `diffusion: "explicit"`, `particlesPerAxis: 2`, a zero `origin` or `velocity`, a plain `"no-slip"` side (also written as a wall with zero velocity), and saved flow fields that are all zero on a flow with no starting velocity are left out. For shallow water: `order: 2`, `substeps: 1`, `density: 1000`, `rain: 0`, a zero `origin`, an all-zero `bed`, `infiltrated`, `qx` and `qz`, a `"wall"` side, a `manning` of 0, and a soil with zero conductivity are left out; a `manning` array with one value throughout is written as that number, and `spacing` `[d, d]` as `d`.
 
 ## Validation
 
@@ -656,6 +688,7 @@ A world has room for 4,096 bodies unless it was created with a larger `capacity`
 - The `cloths` and `grains` sections were added the same way on 2026-11-11, without a new number: optional, absent from the normal form when empty (the example hashes are unchanged; `tests/physics/lab-scenes.test.mjs` and the kit test pin them), and rejected by an earlier reader as `unknown key "cloths"` or `unknown key "grains"`. `sceneHasCoupling` counts them.
 - The `solids` and `heat` sections were added the same way on 2026-11-12: optional, absent from the normal form when empty (the example hashes, rigid and coupled, are unchanged), rejected by an earlier reader as `unknown key "solids"` or `unknown key "heat"`, and counted by `sceneHasCoupling`.
 - The `fluids` section was added the same way, also on 2026-11-12: optional, absent from the normal form when empty (every earlier example hash, rigid and coupled, is unchanged; `tests/physics/lab-scenes.test.mjs` pins the rigid ones), rejected by an earlier reader as `unknown key "fluids"`, and counted by `sceneHasCoupling`.
+- The `shallowWater` section was added the same way, also on 2026-11-12: optional, absent from the normal form when empty (every earlier example hash is unchanged), rejected by an earlier reader as `unknown key "shallowWater"`, and counted by `sceneHasCoupling`.
 - Any change that an earlier reader would misread, such as a new required key, a new shape kind, a changed default or a changed meaning, gets a new `version`. A later reader keeps reading the earlier versions. Version 2 was made for the new shape kind; `massData` went with it because a version 1 reader that ignored it would simulate another body.
 - Share links have their own version in the prefix (`b3s1`). A new compression or framing gets a new prefix; version 1 links stay readable.
 - Canonical text and `sceneHash` are defined by the scene version. They are stable for versions 1 and 2.
@@ -673,7 +706,7 @@ A world has room for 4,096 bodies unless it was created with a larger `capacity`
 | `terrainCarScene()` | A chassis on four wheel joints with suspension and motors, on a height field. No ground slab. |
 | `ragdollScene()` | A capsule torso, a sphere head and 8 capsule limbs on 9 spherical joints with cone and twist limits. |
 
-`COUPLED_EXAMPLE_SCENES` maps fourteen more names to scenes with coupled sections. They are kept out of `EXAMPLE_SCENES` because a loader without a Simulation (the core `loadScene`) cannot open them; the Lab opens all of them.
+`COUPLED_EXAMPLE_SCENES` maps sixteen more names to scenes with coupled sections. They are kept out of `EXAMPLE_SCENES` because a loader without a Simulation (the core `loadScene`) cannot open them; the Lab opens all of them.
 
 | Function | Contents |
 |---|---|

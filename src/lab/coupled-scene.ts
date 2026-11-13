@@ -25,6 +25,9 @@
  *     coarse sub-grid of the slice and the edges of the box are lines of the line stream. A
  *     free-surface tank is one sphere row per particle, coloured continuously on the same ramp, and
  *     the edges of its tank as lines.
+ *   - Shallow water: two mesh rows each: the bed as an opaque height field (drawn once), and the water as a
+ *     translucent height field at the level h + b of every wet cell (deeper than WET_DEPTH), its corners the
+ *     mean level of the wet cells around them, rebuilt after every step; the line stream gets a wire grid on it.
  *
  * `CoupledSceneView` is an `InstanceBufferSource`: it holds a copy of the world's rows followed
  * by its own, so the renderer's shape plan (boxes, spheres, capsules, own geometry) covers both.
@@ -37,6 +40,7 @@
 import type { NativeBodyHandle } from '../engine/native-world.ts';
 import type { Scene, SceneFluid, SceneGrainWall, SceneHeat, SceneSolid } from '../engine/scene-format.ts';
 import type { SceneFluidRuntime, SceneSolidRuntime, SimulationEnergy, SimulationEvent } from '../engine/simulation.ts';
+import type { ShallowWater } from '../engine/shallow-water.ts';
 import { FractureBody } from '../engine/solid-fracture.ts';
 import { vonMisesStress } from '../engine/solid.ts';
 import type { DebugLine, GpuSegmentGridFrame, InstanceBufferSource, InstanceGeometry } from '../types';
@@ -46,7 +50,9 @@ const KIND_BOX = 0, KIND_SPHERE = 1, KIND_CAPSULE = 2, KIND_MESH = 4;
 /** Instance colour alpha: 1 is the plain opaque material, -4 the renderer's translucent one (src/webgpu/renderer.ts). */
 const OPAQUE = 1, TRANSLUCENT = -4;
 const WATER_COLOR = [0.16, 0.52, 0.78], CLOTH_COLOR = [0.24, 0.55, 0.50], GRAIN_COLORS = [[0.83, 0.66, 0.36], [0.62, 0.72, 0.80], [0.74, 0.50, 0.42]], WALL_COLOR = [0.70, 0.78, 0.84];
-const CABLE_COLOR = [0.88, 0.89, 0.90], FRAME_COLOR = [0.76, 0.30, 0.20];
+const CABLE_COLOR = [0.88, 0.89, 0.90], FRAME_COLOR = [0.76, 0.30, 0.20], TERRAIN_COLOR = [0.55, 0.49, 0.38];
+/** A shallow-water cell is drawn wet above this depth, m. */
+export const WET_DEPTH = 1e-3;
 /** Limits of the renderer's rope stream (MAX_ROPE_NODES and MAX_ROPE_SEGMENTS in src/webgpu/renderer.ts). */
 export const COUPLED_DRAW_LIMITS = Object.freeze({ lineNodes: 4096, lineSegments: 4096, waterQuads: 16384, events: 64, waterGridLines: 48 });
 const ROUND = 32;
@@ -54,7 +60,7 @@ const ROUND = 32;
 /** Does this scene need the coupled view: has it a section that is not rigid bodies and joints? */
 export function sceneIsCoupled(scene: Scene): boolean {
   return (scene.water?.length ?? 0) + (scene.cables?.length ?? 0) + (scene.frames?.length ?? 0) + (scene.cloths?.length ?? 0) + (scene.grains?.length ?? 0) +
-    (scene.solids?.length ?? 0) + (scene.heat?.length ?? 0) + (scene.fluids?.length ?? 0) > 0;
+    (scene.solids?.length ?? 0) + (scene.heat?.length ?? 0) + (scene.fluids?.length ?? 0) + (scene.shallowWater?.length ?? 0) > 0;
 }
 
 // ---------------------------------------------------------------------------
@@ -102,6 +108,7 @@ export function coupledStateHash(loaded: LabLoadedScene): string {
     if (runtime.kind === 'flow') { const f = runtime.flow; h.bytes(f.u); h.bytes(f.v); h.bytes(f.w); h.bytes(f.p); }
     else { const t = runtime.surface, n = t.count; h.word(n); h.bytes(t.positions.subarray(0, 3 * n)); h.bytes(t.velocities.subarray(0, 3 * n)); h.bytes(t.affine.subarray(0, 9 * n)); }
   }
+  for (const water of scene.shallowWater ?? []) { const w = loaded.shallowWater.get(water.id)!.water; h.bytes(w.h); h.bytes(w.qx); h.bytes(w.qz); h.bytes(w.infiltrated); }
   return h.digest();
 }
 
@@ -193,6 +200,55 @@ export function writeWaterMesh(
     side(xAt(nx), zAt(j + 1), h(nx, j + 1), xAt(nx), zAt(j), h(nx, j), 1, 0);
   }
   return o;
+}
+
+/** How a shallow-water grid is sampled for drawing: every `stride`-th cell, at most COUPLED_DRAW_LIMITS.waterQuads quads. */
+export function shallowDrawGrid(nx: number, nz: number): { stride: number; nx: number; nz: number } {
+  let stride = 1;
+  while (Math.ceil(nx / stride) * Math.ceil(nz / stride) > COUPLED_DRAW_LIMITS.waterQuads) stride++;
+  return { stride, nx: Math.ceil(nx / stride), nz: Math.ceil(nz / stride) };
+}
+/**
+ * A shallow-water grid as a triangle list over the sampled cells: `what` 'bed' draws the terrain (every cell), 'water' the
+ * free surface over the wet cells only. Each quad spans one sampled block; a corner takes the mean height of the
+ * (wet, for the water) blocks around it. `heights` is scratch of `(gx + 1) * (gz + 1)` floats. Returns the floats written.
+ */
+export function writeShallowMesh(water: Pick<ShallowWater, 'h' | 'bed' | 'nx' | 'nz' | 'dx' | 'dz' | 'origin'>, what: 'bed' | 'water', grid: { stride: number; nx: number; nz: number }, heights: Float32Array, wet: Uint8Array, out: Float32Array): number {
+  const { stride, nx: gx, nz: gz } = grid, h = water.h, b = water.bed, nx = water.nx, nz = water.nz, ox = water.origin[0], oz = water.origin[1];
+  // The sampled block (i, j) reads its first cell.
+  const cell = (i: number, j: number): number => Math.min(nx - 1, i * stride) + nx * Math.min(nz - 1, j * stride);
+  for (let j = 0; j < gz; j++) for (let i = 0; i < gx; i++) wet[i + gx * j] = what === 'bed' || h[cell(i, j)]! > WET_DEPTH ? 1 : 0;
+  for (let j = 0; j <= gz; j++) for (let i = 0; i <= gx; i++) {
+    let sum = 0, count = 0;
+    for (let bj = j - 1; bj <= j; bj++) for (let bi = i - 1; bi <= i; bi++) if (bi >= 0 && bi < gx && bj >= 0 && bj < gz && wet[bi + gx * bj]) { const c = cell(bi, bj); sum += what === 'bed' ? b[c]! : h[c]! + b[c]!; count++; }
+    heights[i + (gx + 1) * j] = count > 0 ? sum / count : NaN;
+  }
+  const xAt = (i: number): number => ox + Math.min(nx, i * stride) * water.dx, zAt = (j: number): number => oz + Math.min(nz, j * stride) * water.dz;
+  const H = (i: number, j: number): number => heights[i + (gx + 1) * j]!;
+  let o = 0;
+  const put = (i: number, j: number): void => {
+    const y = H(i, j);
+    // Normal from the neighbouring corners that have a height.
+    const hx0 = i > 0 && Number.isFinite(H(i - 1, j)) ? H(i - 1, j) : y, hx1 = i < gx && Number.isFinite(H(i + 1, j)) ? H(i + 1, j) : y;
+    const hz0 = j > 0 && Number.isFinite(H(i, j - 1)) ? H(i, j - 1) : y, hz1 = j < gz && Number.isFinite(H(i, j + 1)) ? H(i, j + 1) : y;
+    const sx = (hx0 - hx1) / (2 * stride * water.dx), sz = (hz0 - hz1) / (2 * stride * water.dz), length = Math.hypot(sx, 1, sz);
+    out[o++] = xAt(i); out[o++] = y + (what === 'water' ? 1e-3 : 0); out[o++] = zAt(j); out[o++] = sx / length; out[o++] = 1 / length; out[o++] = sz / length;
+  };
+  for (let j = 0; j < gz; j++) for (let i = 0; i < gx; i++) {
+    if (!wet[i + gx * j]) continue;
+    put(i, j); put(i, j + 1); put(i + 1, j + 1);
+    put(i, j); put(i + 1, j + 1); put(i + 1, j);
+  }
+  return o;
+}
+
+/** What the panel shows about each shallow-water grid. */
+export interface ShallowWaterViewInfo {
+  readonly id: string; readonly cells: number; readonly wetCells: number;
+  /** m^3; and volume less start, inflow and rain plus infiltrated (round-off). */
+  readonly volume: number; readonly volumeError: number;
+  readonly maxDepth: number; readonly maxSpeed: number; readonly maxFroude: number;
+  readonly infiltrated: number; readonly substeps: number; readonly courant: number;
 }
 
 function rotate(q: readonly number[] | undefined, v: readonly [number, number, number]): [number, number, number] {
@@ -548,6 +604,7 @@ export class CoupledSceneView implements InstanceBufferSource {
   private fluidField: FluidField = 'speed';
   private fluidDirty = true;
   private arrowCount = 0;
+  private readonly shallowGrids: { readonly water: ShallowWater; readonly grid: { stride: number; nx: number; nz: number }; readonly heights: Float32Array }[] = [];
 
   constructor(loaded: LabLoadedScene, base: InstanceBufferSource) {
     this.loaded = loaded;
@@ -602,6 +659,19 @@ export class CoupledSceneView implements InstanceBufferSource {
         this.tanks.push({ id: description.id, radius: 0.6 * tank.h / tank.perAxis, count: tank.count, runtime, range: [0, 1] });
         this.particleRows += tank.count;
       }
+    }
+    for (const description of scene.shallowWater ?? []) {
+      const water = loaded.shallowWater.get(description.id)!.water, grid = shallowDrawGrid(water.nx, water.nz);
+      if (grid.stride > 1) notes.push(`Shallow water "${description.id}" is drawn every ${grid.stride} cells.`);
+      const floats = grid.nx * grid.nz * 6 * 6, wet = new Uint8Array(grid.nx * grid.nz);
+      const bedHeights = new Float32Array((grid.nx + 1) * (grid.nz + 1)), terrain = new Float32Array(floats);
+      const count = writeShallowMesh(water, 'bed', grid, bedHeights, wet, terrain);
+      this.meshRows.push({ geometry: { vertices: terrain, vertexCount: count / 6 }, color: TERRAIN_COLOR, alpha: OPAQUE, update: null });
+      const heights = new Float32Array((grid.nx + 1) * (grid.nz + 1)), surface = new Float32Array(floats);
+      const row: MeshRow = { geometry: { vertices: surface, vertexCount: 0 }, color: WATER_COLOR, alpha: TRANSLUCENT, update: null };
+      (row as { update: () => void }).update = () => { row.geometry = { vertices: surface, vertexCount: writeShallowMesh(water, 'water', grid, heights, wet, surface) / 6 }; };
+      this.meshRows.push(row);
+      this.shallowGrids.push({ water, grid, heights });
     }
     let planes = 0;
     (scene.grains ?? []).forEach((set, index) => {
@@ -701,6 +771,17 @@ export class CoupledSceneView implements InstanceBufferSource {
   }
   /** Has the scene fluids to colour? */
   get hasFluids(): boolean { return this.fluidDraws.length > 0; }
+  /** Has the scene shallow water? */
+  get hasShallowWater(): boolean { return this.shallowGrids.length > 0; }
+  /** Per shallow-water grid: volume and its budget, the largest depth, speed and Froude number, the substeps of the last step. */
+  shallowWaterView(): ShallowWaterViewInfo[] {
+    return (this.loaded.scene.shallowWater ?? []).map(description => {
+      const w = this.loaded.shallowWater.get(description.id)!.water;
+      let froude = 0; for (let c = 0; c < w.cells; c++) if (w.h[c]! > WET_DEPTH) froude = Math.max(froude, w.froude(c));
+      return { id: description.id, cells: w.cells, wetCells: w.stats.wetCells, volume: w.volume(), volumeError: w.volumeError(), maxDepth: w.maxDepth(), maxSpeed: w.maxSpeed(WET_DEPTH), maxFroude: froude,
+        infiltrated: w.ledger.infiltrated, substeps: w.stats.substeps, courant: w.stats.courant };
+    });
+  }
   /** The field and, per fluid, the range of the colour ramp as last drawn, the solver's Courant number and iterations, and the coupled bodies. */
   fluidView(): { field: FluidField; fluids: FluidViewInfo[] } {
     const unit = this.fluidField === 'speed' ? 'm/s' : 'Pa';
@@ -787,7 +868,7 @@ export class CoupledSceneView implements InstanceBufferSource {
     }
     for (const tank of this.tanks) row = this.writeTank(tank, row, fluidsChanged);
     if (this.ropeGrid) { for (const write of this.lines) write(); this.ropeGrid.frameVersion = (this.ropeGrid.frameVersion + 1) >>> 0; }
-    if ((moved && this.waterGrids.length > 0) || (fluidsChanged && this.fluidDraws.length > 0)) this.buildOverlay();
+    if ((moved && (this.waterGrids.length > 0 || this.shallowGrids.length > 0)) || (fluidsChanged && this.fluidDraws.length > 0)) this.buildOverlay();
     this.fluidDirty = false;
     this.frames = (this.frames + 1) >>> 0;
     this.colors = (this.colors + 1) >>> 0;
@@ -837,6 +918,16 @@ export class CoupledSceneView implements InstanceBufferSource {
       const si = every(g.nx), sj = every(g.nz);
       for (let j = 0; j <= g.nz; j += sj) for (let i = 0; i < g.nx; i++) line(g.x(i), h(i, j), g.z(j), g.x(i + 1), h(i + 1, j), g.z(j));
       for (let i = 0; i <= g.nx; i += si) for (let j = 0; j < g.nz; j++) line(g.x(i), h(i, j), g.z(j), g.x(i), h(i, j + 1), g.z(j + 1));
+    }
+    for (const g of this.shallowGrids) {
+      const { stride, nx, nz } = g.grid, w = g.water, ox = w.origin[0], oz = w.origin[1];
+      const H = (i: number, j: number): number => g.heights[i + (nx + 1) * j]! + 0.004;
+      const x = (i: number): number => ox + Math.min(w.nx, i * stride) * w.dx, z = (j: number): number => oz + Math.min(w.nz, j * stride) * w.dz;
+      const every = (count: number): number => Math.max(1, Math.ceil(count / COUPLED_DRAW_LIMITS.waterGridLines));
+      const si = every(nx), sj = every(nz);
+      // Only between corners that are both on wet water (a dry corner has no height).
+      for (let j = 0; j <= nz; j += sj) for (let i = 0; i < nx; i++) { const a = H(i, j), b = H(i + 1, j); if (Number.isFinite(a) && Number.isFinite(b)) line(x(i), a, z(j), x(i + 1), b, z(j)); }
+      for (let i = 0; i <= nx; i += si) for (let j = 0; j < nz; j++) { const a = H(i, j), b = H(i, j + 1); if (Number.isFinite(a) && Number.isFinite(b)) line(x(i), a, z(j), x(i), b, z(j + 1)); }
     }
     let arrows = 0;
     const v = [0, 0, 0];

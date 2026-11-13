@@ -35,7 +35,8 @@ import {SolidCoupling,solidContactSubsystem,type SolidContactShape} from './soli
 import {Cloth,ClothCoupling,clothSubsystem,type ClothShape} from './cloth.ts';
 import {Granular,GranularCoupling,granularSubsystem,type GranularShape} from './granular.ts';
 import {Fluid,FluidCoupling,FreeSurfaceFluid,fluidSubsystem,freeSurfaceSubsystem,type FluidBoundaries,type FluidShape,type FluidWorld} from './fluid.ts';
-import {canonicalize,normalizeScene,sceneHasCoupling,sceneHash,SceneBuilder,type Scene,type SceneBody,type SceneCable,type SceneCloth,type SceneCoupledSections,type SceneFluid,type SceneFrameSection,type SceneGrains,type SceneHeat,type SceneHost,type SceneInertia,type SceneSolid,type SceneSolidRegion,type SceneWater} from './scene-format.ts';
+import {ShallowWater,ShallowWaterCoupling,shallowWaterSubsystem,type ShallowWaterBoundaries,type ShallowWaterShape,type ShallowWaterWorld} from './shallow-water.ts';
+import {canonicalize,normalizeScene,sceneHasCoupling,sceneHash,SceneBuilder,type Scene,type SceneBody,type SceneCable,type SceneCloth,type SceneCoupledSections,type SceneFluid,type SceneFrameSection,type SceneGrains,type SceneHeat,type SceneHost,type SceneInertia,type SceneSolid,type SceneSolidRegion,type SceneShallowWater,type SceneWater} from './scene-format.ts';
 import {CHECKPOINT_VERSION,checkpointError,readCheckpoint,writeCheckpoint,type StateObject,type StateValue} from './checkpoint.ts';
 import type {NativeBodyHandle,NativeJointHandle} from './native-world.ts';
 
@@ -783,6 +784,23 @@ export interface LoadedSimulationScene<W extends SimulationSceneWorld=Simulation
   readonly heat:Map<string,HeatSolver>;
   /** By fluid id. Each is registered under its id: `fluidSubsystem` (of the coupling when the flow has bodies), `freeSurfaceSubsystem` for a tank. */
   readonly fluids:Map<string,SceneFluidRuntime<Body>>;
+  /** By shallow-water id. Each is registered under its id (`shallowWaterSubsystem`, of the coupling when it has bodies). */
+  readonly shallowWater:Map<string,SceneShallowWaterRuntime<Body>>;
+}
+/** Shallow water of a scene as built: the grid and its coupling to the bodies, or null when it has none. */
+export interface SceneShallowWaterRuntime<B> {readonly water:ShallowWater;readonly coupling:ShallowWaterCoupling<B>|null}
+
+/** The grid of a scene's shallow water as its description gives it (its saved state included), with no bodies. */
+function sceneShallowWater(desc:SceneShallowWater,step:number,gravity:readonly [number,number,number]):ShallowWater {
+  const boundaries:{[key:string]:unknown}={};
+  for(const [key,side] of Object.entries(desc.boundaries??{}))boundaries[key]=typeof side==='string'?side:{...side};
+  const water=new ShallowWater({cells:[desc.cells[0],desc.cells[1]],spacing:typeof desc.spacing==='number'?desc.spacing:[desc.spacing[0],desc.spacing[1]],
+    ...(desc.origin?{origin:[desc.origin[0],desc.origin[1]]}:{}),...(desc.bed?{bed:desc.bed}:{}),...(desc.depth?{depth:desc.depth}:desc.level!==undefined?{level:desc.level}:{}),
+    ...(desc.manning!==undefined?{manning:desc.manning}:{}),...(desc.soil?{soil:{...desc.soil}}:{}),...(desc.rain!==undefined?{rain:desc.rain}:{}),
+    boundaries:boundaries as ShallowWaterBoundaries,gravity:-gravity[1],...(desc.density!==undefined?{density:desc.density}:{}),dt:step/(desc.substeps??1),...(desc.order?{order:desc.order}:{})});
+  if(desc.qx)water.qx.set(desc.qx);if(desc.qz)water.qz.set(desc.qz);
+  if(desc.infiltrated)water.infiltrated.set(desc.infiltrated);
+  return water;
 }
 /** A fluid of a scene as built: a flow (with its coupling to the bodies, or null when it has none) or a free-surface tank. */
 export type SceneFluidRuntime<B>=
@@ -884,7 +902,7 @@ function shapeInertia(body:SceneBody,explicit:SceneInertia|undefined):StructureI
  * return the Simulation that steps them. Build order: frames, then cables (file order), one
  * StructureCoupling with the cables' attachments (cable by cable, in file order) and then the
  * frames' attachments; then the cloths, then the grain sets, then the solids (supports, saved state,
- * contact, welds, loads), then the heat grids and their links to the solids, then the fluids (flows and their bodies, tanks), then the basins and their bodies. A
+ * contact, welds, loads), then the heat grids and their links to the solids, then the fluids (flows and their bodies, tanks), then the shallow water (and its floating bodies), then the basins and their bodies. A
  * rigid-only scene gives a Simulation with no subsystems, whose step is `world.step()`. On a
  * failure the world is reset and the error names the id.
  */
@@ -894,11 +912,12 @@ export function buildSceneSimulation<W extends SimulationSceneWorld>(world:W,bui
   const descriptions=new Map<string,SceneBody>(scene.bodies.map(body=>[body.id,body]));
   const water=new Map<string,WaterCoupling<Body>>(),cables=new Map<string,CompliantCableRuntime>(),frames=new Map<string,FrameRuntime>(),attachments=new Map<string,StructureAttachment>();
   const cloths=new Map<string,ClothCoupling<Body>>(),grains=new Map<string,GranularCoupling<Body>>(),solids=new Map<string,SceneSolidRuntime<Body>>(),heats=new Map<string,HeatSolver>(),fluids=new Map<string,SceneFluidRuntime<Body>>();
+  const shallow=new Map<string,SceneShallowWaterRuntime<Body>>();
   const carried=new Set<Body>();
   let structure:StructureCoupling<Body>|null=null;
   const simulation=new Simulation<W,Body>(world);
   simulation.setSceneSource(()=>({sceneHash:sceneHash(scene),scene:canonicalize(scene)}));
-  if(!sceneHasCoupling(scene))return {bodies,joints,builder,scene,simulation,water,cables,frames,structure,attachments,cloths,grains,solids,heat:heats,fluids};
+  if(!sceneHasCoupling(scene))return {bodies,joints,builder,scene,simulation,water,cables,frames,structure,attachments,cloths,grains,solids,heat:heats,fluids,shallowWater:shallow};
   // A dynamic body that a cloth or grains push is counted in the ledger's 'rigid' entry, unless the structure coupling already counts it.
   const track=(id:string):void=>{
     const body=bodies.get(id)!,description=descriptions.get(id)!;
@@ -1072,6 +1091,20 @@ export function buildSceneSimulation<W extends SimulationSceneWorld>(world:W,bui
         for(const entry of desc.bodies??[])if(entry.twoWay!==false)track(entry.body);
       }catch(error){throw named('fluid',desc.id,error);}
     }
+    for(const desc of scene.shallowWater??[]){
+      try{
+        const sw=sceneShallowWater(desc,step,gravity);
+        let coupling:ShallowWaterCoupling<Body>|null=null;
+        if(desc.bodies?.length){
+          coupling=new ShallowWaterCoupling<Body>(world as unknown as ShallowWaterWorld<Body>,sw);
+          for(const entry of desc.bodies)coupling.addBody(bodies.get(entry.body)!,{shape:descriptions.get(entry.body)!.shape as ShallowWaterShape,
+            ...(entry.dragCoefficient!==undefined?{dragCoefficient:entry.dragCoefficient}:{}),...(entry.referenceArea!==undefined?{referenceArea:entry.referenceArea}:{})});
+        }
+        shallow.set(desc.id,{water:sw,coupling});
+        simulation.add(shallowWaterSubsystem<W,Body>(coupling??sw,{id:desc.id}));
+        for(const entry of desc.bodies??[])track(entry.body);
+      }catch(error){throw named('shallow water',desc.id,error);}
+    }
     for(const basin of scene.water??[]){
       try{
         const coupling=new WaterCouplingClass<Body>(world,{cols:basin.cols,rows:basin.rows,dx:basin.dx,dz:basin.dz,restDepth:basin.restDepth,origin:[basin.origin[0],basin.origin[1],basin.origin[2]],
@@ -1126,8 +1159,13 @@ export function buildSceneSimulation<W extends SimulationSceneWorld>(world:W,bui
       const state=runtime.flow.getState();
       return {...desc,u:Array.from(state.u),v:Array.from(state.v),w:Array.from(state.w),pressure:Array.from(state.pressure)};
     }),
+    // Shallow water writes its depths, discharges and infiltrated depths (the level it started from is then not needed).
+    shallowWater:scene.shallowWater?.map((desc:SceneShallowWater)=>{
+      const w=shallow.get(desc.id)!.water,{level:_level,...rest}=desc;
+      return {...rest,depth:Array.from(w.h),qx:Array.from(w.qx),qz:Array.from(w.qz),infiltrated:Array.from(w.infiltrated)};
+    }),
   });
-  return {bodies,joints,builder,scene,simulation,water,cables,frames,structure,attachments,cloths,grains,solids,heat:heats,fluids};
+  return {bodies,joints,builder,scene,simulation,water,cables,frames,structure,attachments,cloths,grains,solids,heat:heats,fluids,shallowWater:shallow};
 }
 
 /**

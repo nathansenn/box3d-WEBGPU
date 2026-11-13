@@ -6,7 +6,7 @@
  * a 3D incompressible liquid with viscosity, a lifting gate and two posts, in metres, kilograms and seconds.
  * See docs/STUDIO_FLOW_LABS.md.
  */
-import {materialValue} from '../../engine/materials';
+import {materialValue,manningCoefficient,greenAmptSoil,SURFACE_ROUGHNESS,SOIL_INFILTRATION} from '../../engine/materials';
 import {FreeSurfaceFluid} from '../../engine/fluid';
 
 export interface LiquidSI {readonly density:number;readonly viscosity:number;readonly library?:string;readonly verified:boolean;readonly note:string;}
@@ -146,3 +146,33 @@ export class FlumeSI {
   peakSpeed():number {let m=0;for(let c=0;c<this.columns.length;c++)if(this.columns[c]>.01)m=Math.max(m,Math.hypot(this.columnU[c],this.columnW[c]));return m;}
   volume():number {return this.fluid.particleVolume();}
 }
+
+// -------------------------------------------------------------------------------------------------------------------------
+// The beds of the river, rain and surface rigs.
+// -------------------------------------------------------------------------------------------------------------------------
+
+/** SI values of a Studio bed for the shallow-water solver: Manning's n and, for a soil, its Green-Ampt parameters. */
+export interface SurfaceSI {
+  readonly manning:number;
+  /** The SURFACE_ROUGHNESS row n is read from, or none for an unverified estimate. */
+  readonly roughness?:string;
+  /** The SOIL_INFILTRATION class and the Green-Ampt inputs (K m/s, psi m, available porosity), or none for a sealed bed. */
+  readonly soilClass?:string;readonly soil?:{conductivity:number;suction:number;moistureDeficit:number};
+  readonly verified:boolean;readonly note:string;
+}
+/** Soils start at 30% effective saturation (an assumption: the source tabulates porosity, not the starting moisture). */
+const SOIL_SATURATION=.3;
+const bed=(roughness:string,why='',soilClass?:string):SurfaceSI=>{
+  const r=SURFACE_ROUGHNESS[roughness]!,s=soilClass?SOIL_INFILTRATION[soilClass]!:null;
+  return {manning:manningCoefficient(roughness),roughness,...(soilClass?{soilClass,soil:greenAmptSoil(soilClass,{initialSaturation:SOIL_SATURATION})}:{}),verified:true,
+    note:`Manning n ${r.manning.value} (${r.name}, Chow 1959)${why?`; ${why}`:''}${s?`; Green-Ampt ${s.name.toLowerCase()} (Rawls et al. 1983): K ${(s.conductivity.value*3.6e5).toFixed(2)} cm/h, psi ${(s.suction.value*100).toFixed(1)} cm, starting at ${SOIL_SATURATION*100}% saturation`:'; sealed'}.`};
+};
+/** Each Studio bed's SI values. Concrete and asphalt are taken as sealed: the soil table has no pavement. */
+export const SURFACE_SI:Readonly<Record<string,SurfaceSI>>={
+  steel:bed('smooth-steel'),glass:bed('glass','the table gives glass only for a conduit flowing partly full'),tile:bed('glazed-brick','glazed tile taken as glazed brick'),
+  epoxy:bed('painted-steel','a sealed epoxy coat taken as a painted smooth surface'),asphalt:bed('asphalt-rough'),concrete:bed('concrete-float'),
+  gravel:bed('gravel','gravel drains like the coarsest class of the soil table, sand (a lower bound: gravel is coarser)','sand'),
+  rubber:{manning:.02,verified:false,note:'Manning n 0.020 is an unverified estimate for a textured rubber mat (no source opened); sealed.'},
+  loam:bed('bare-field','','loam'),clay:bed('bare-field','','clay'),
+};
+export const surfaceSI=(id:string):SurfaceSI=>SURFACE_SI[id]??SURFACE_SI.steel;

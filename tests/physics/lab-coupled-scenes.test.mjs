@@ -11,7 +11,9 @@
 //    the same nodes, interfaces and fields, the reaction load at rest, the colour bands and the events;
 //  - fluids: validation paths, normal form, the build, a save of a flow and of a free-surface tank reopened from its
 //    link with the same fields (a tank then runs on bit for bit like the original), the slice in colour bands, the
-//    arrows and the particles, the settling ball's terminal velocity and the cylinder's drag.
+//    arrows and the particles, the settling ball's terminal velocity and the cylinder's drag;
+//  - shallow water: validation paths, normal form, the build with floating bodies, a save reopened from its link with
+//    the same fields that runs on bit for bit, the bed and water rows, the panel's readouts and the volume budget.
 import assert from 'node:assert/strict';
 import test from 'node:test';
 import {readFile} from 'node:fs/promises';
@@ -21,11 +23,11 @@ import {NativeWorldPool} from '../../src/engine/native-world.ts';
 import {
   COUPLED_EXAMPLE_SCENES, EXAMPLE_SCENES, canonicalize, decodeSceneLink, encodeSceneLink, encodeSceneLinkSync, loadScene, normalizeScene, sceneHash,
   sceneHasCoupling, trampolineScene, hopperSeesawScene, validateScene, rubberPadScene, notchedBeamScene, quenchedPlateScene, heatedBarScene,
-  sphereSettlingScene, cavityFlowScene, flowPastCylinderScene, damBreakScene,
+  sphereSettlingScene, cavityFlowScene, flowPastCylinderScene, damBreakScene, damBreakValleyScene, riverBendScene,
 } from '../../src/engine/scene-format.ts';
 import {FractureBody} from '../../src/engine/solid-fracture.ts';
 import {exactTransformHash, loadLabScene} from '../../src/lab/scene-host.ts';
-import {CoupledSceneView, FLUID_BANDS, SOLID_BANDS, boundaryFaceElements, coupledStateHash, flowSlice, fluidBand, grainWallMesh, rampColor, sceneIsCoupled, sliceValues, solidBand, waterDrawGrid, writeTwoSidedMesh, writeWaterMesh} from '../../src/lab/coupled-scene.ts';
+import {CoupledSceneView, FLUID_BANDS, SOLID_BANDS, boundaryFaceElements, coupledStateHash, flowSlice, fluidBand, grainWallMesh, rampColor, sceneIsCoupled, shallowDrawGrid, sliceValues, solidBand, waterDrawGrid, writeShallowMesh, writeTwoSidedMesh, writeWaterMesh} from '../../src/lab/coupled-scene.ts';
 import {COUPLED_EXAMPLE_NAMES, LAB_EXAMPLE_NAMES, parseSceneRequest, resolveSceneRequest, sceneCameraFrame, sceneSummary} from '../../src/lab/scene-loading.ts';
 
 const artifact = resolve(process.env.BOX3D_WORLD_ARTIFACT_DIR ?? 'public/box3d');
@@ -35,7 +37,8 @@ const pool = new NativeWorldPool(await factory({wasmBinary: await readFile(resol
 const withWorld = run => { const world = pool.createWorld(); try { world.retainBodyShapes(true); return run(world); } finally { world.destroy(); } };
 /** Steps of each example in the repeat test: about one second, fewer for the slow ones. */
 const STEPS = {'moored-buoy': 240, 'cable-stayed-deck': 240, 'buoy-and-crates': 360, trampoline: 150, 'hopper-seesaw': 360, 'suspended-platform': 480,
-  'rubber-pad': 90, 'notched-beam': 180, 'quenched-plate': 150, 'heated-bar': 120, 'sphere-settling': 120, 'cavity-flow': 120, 'flow-past-cylinder': 120, 'dam-break': 60};
+  'rubber-pad': 90, 'notched-beam': 180, 'quenched-plate': 150, 'heated-bar': 120, 'sphere-settling': 120, 'cavity-flow': 120, 'flow-past-cylinder': 120, 'dam-break': 60,
+  'dam-break-valley': 120, 'river-bend': 120};
 const copy = value => JSON.parse(JSON.stringify(value));
 
 /** Load a scene as the Lab does, step it `steps` times through the view, and report. */
@@ -52,7 +55,7 @@ function run(scene, steps, after) {
 
 test('the Lab opens every coupled example by name, after the rigid ones', () => {
   assert.deepEqual(COUPLED_EXAMPLE_NAMES, ['moored-buoy', 'cable-stayed-deck', 'buoy-and-crates', 'trampoline', 'hopper-seesaw', 'suspended-platform', 'rubber-pad', 'notched-beam', 'quenched-plate', 'heated-bar',
-    'sphere-settling', 'cavity-flow', 'flow-past-cylinder', 'dam-break']);
+    'sphere-settling', 'cavity-flow', 'flow-past-cylinder', 'dam-break', 'dam-break-valley', 'river-bend']);
   assert.deepEqual(LAB_EXAMPLE_NAMES, [...Object.keys(EXAMPLE_SCENES), ...COUPLED_EXAMPLE_NAMES]);
   for (const name of COUPLED_EXAMPLE_NAMES) {
     const request = parseSceneRequest(`?example=${name}`);
@@ -61,7 +64,7 @@ test('the Lab opens every coupled example by name, after the rigid ones', () => 
     assert.equal(read.ok, true, name);
     assert.equal(sceneHash(read.scene), sceneHash(COUPLED_EXAMPLE_SCENES[name]()));
     assert.equal(sceneIsCoupled(read.scene), true);
-    assert.match(sceneSummary(read.scene), /basin|cable|frame|cloth|grains|solid|a flow|free-surface tank/);
+    assert.match(sceneSummary(read.scene), /basin|cable|frame|cloth|grains|solid|a flow|free-surface tank|shallow water/);
     const frame = sceneCameraFrame(read.scene);
     assert.ok(frame.distance >= 0.3 && frame.distance < 40 && frame.target.every(Number.isFinite), `${name}: ${JSON.stringify(frame)}`);
   }
@@ -485,4 +488,63 @@ test('the settling ball reaches a terminal velocity; the cylinder feels a steady
   const cylinder = run(flowPastCylinderScene(), 240, loaded => Array.from(loaded.fluids.get('channel').coupling.force(loaded.bodies.get('cylinder'))));
   const [fx, fy] = cylinder.extra, perLength = fx / (0.02 / 6), cd = perLength / (0.5 * 1000 * 0.04 ** 2 * 0.02);
   assert.ok(cd > 2 && cd < 3.5 && Math.abs(fy) < 0.05 * fx, `drag coefficient ${cd} (unbounded flow at Re 20: about 2; the channel blocks 19%), lift ${fy} N`);
+});
+
+test('shallow water: validation paths, normal form and the build', () => {
+  const problems = (make, edit) => { const scene = make(); edit(scene); return validateScene(scene).map(p => `${p.path}: ${p.message}`).join('\n'); };
+  assert.match(problems(damBreakValleyScene, s => { s.shallowWater[0].bed.pop(); }), /\/shallowWater\/0\/bed: must hold exactly 3072 numbers/);
+  assert.match(problems(damBreakValleyScene, s => { s.shallowWater[0].boundaries.xMin = {type: 'inflow'}; }), /\/shallowWater\/0\/boundaries\/xMin\/discharge: is required/);
+  assert.match(problems(damBreakValleyScene, s => { s.shallowWater[0].level = 1; }), /\/shallowWater\/0\/level: give `level` or `depth`, not both/);
+  assert.match(problems(damBreakValleyScene, s => { s.world.gravity = [1, -9.81, 0]; }), /\/shallowWater\/0: shallow water needs gravity straight down/);
+  assert.match(problems(damBreakValleyScene, s => { s.shallowWater[0].bodies.push({body: 'valley-water'}); }), /\/shallowWater\/0\/bodies\/3\/body: unknown body id/);
+  assert.match(problems(damBreakValleyScene, s => { s.shallowWater[0].order = 3; }), /\/shallowWater\/0\/order: must be 1 or 2/);
+  assert.match(problems(riverBendScene, s => { s.shallowWater[0].boundaries.xMin.span = [5, 4]; }), /span: must be \[from, to\] with to > from/);
+  // Defaults written out do not change the hash.
+  const river = riverBendScene(), d = copy(river);
+  Object.assign(d.shallowWater[0], {order: 2, substeps: 1, density: 1000, origin: [0, 0], rain: 0});
+  Object.assign(d.shallowWater[0].boundaries, {zMin: 'wall'});
+  assert.equal(sceneHash(d), sceneHash(river));
+  withWorld(world => {
+    const loaded = loadLabScene(world, damBreakValleyScene()), runtime = loaded.shallowWater.get('valley-water');
+    assert.ok(runtime.coupling && runtime.coupling.bodyCount === 3);
+    assert.deepEqual(loaded.simulation.order().map(row => row.id), ['valley-water', 'world', 'events']);
+    assert.equal(runtime.water.nx * runtime.water.nz, 3072);
+    const bare = copy(riverBendScene()); delete bare.shallowWater[0].bodies; bare.bodies.pop();
+    const plain = loadLabScene(world, bare);
+    assert.deepEqual(plain.simulation.order().map(row => row.id), ['world', 'river', 'events'], 'without bodies it runs in the post stage');
+  });
+});
+
+test('shallow water: a save after N steps reopens from its link with the same fields and runs on bit for bit; drawn as bed and water', async () => {
+  const fields = loaded => [...loaded.shallowWater.values()].map(({water}) => ({h: Array.from(water.h), qx: Array.from(water.qx, x => x + 0), qz: Array.from(water.qz, x => x + 0)}));
+  for (const [name, steps] of [['dam-break-valley', 60], ['river-bend', 45]]) {
+    const original = run(COUPLED_EXAMPLE_SCENES[name](), steps, fields);
+    const link = await encodeSceneLink(original.saved), reopened = decodeSceneLink(link);
+    assert.equal(sceneHash(reopened), sceneHash(original.saved));
+    assert.ok(link.length < 1_048_576, `${name}: the link fits (${link.length} characters)`);
+    assert.deepEqual(withWorld(world => fields(loadLabScene(world, reopened))), original.extra, `${name}: the solver starts from the saved fields, bit for bit`);
+    const a = run(reopened, 30), b = run(decodeSceneLink(link), 30);
+    assert.equal(b.final, a.final, `${name}: two fresh openings of the link stay identical`);
+    assert.equal(original.draw.meshRows, 2, `${name}: a bed row and a water row`);
+  }
+  // Without floating bodies the save holds the whole state: the reopened run continues exactly.
+  const bare = copy(riverBendScene()); delete bare.shallowWater[0].bodies; bare.bodies.pop();
+  const longer = run(bare, 75), resumed = run(decodeSceneLink(await encodeSceneLink(run(bare, 45).saved)), 30);
+  assert.equal(resumed.final, longer.final, 'river without the log: 45 steps, save, reopen, 30 steps = 75 steps');
+  // The view: water only over wet cells, readouts with a closed volume budget.
+  withWorld(world => {
+    const loaded = loadLabScene(world, damBreakValleyScene()), view = new CoupledSceneView(loaded, world);
+    for (let i = 0; i < 60; i++) view.step();
+    view.sync();
+    const info = view.shallowWaterView()[0];
+    assert.equal(view.hasShallowWater, true);
+    assert.ok(info.maxDepth > 1 && info.maxSpeed > 0.5 && info.wetCells > 0 && info.wetCells < info.cells, JSON.stringify(info));
+    assert.ok(Math.abs(info.volumeError) < 1e-10 * info.volume, 'volume budget');
+    view.dispose();
+  });
+  const water = {h: new Float64Array([0, 0.1, 0.2, 0]), bed: new Float64Array([1, 1, 1, 2]), nx: 2, nz: 2, dx: 0.5, dz: 0.5, origin: [0, 0]};
+  const grid = shallowDrawGrid(2, 2), out = new Float32Array(2 * 2 * 36), heights = new Float32Array(9), wet = new Uint8Array(4);
+  assert.equal(writeShallowMesh(water, 'bed', grid, heights, wet, out), 4 * 36, 'the bed covers every cell');
+  assert.equal(writeShallowMesh(water, 'water', grid, heights, wet, out), 2 * 36, 'the water covers the two wet cells');
+  assert.equal(shallowDrawGrid(512, 512).stride, 4);
 });

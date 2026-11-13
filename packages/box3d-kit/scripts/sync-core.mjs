@@ -46,7 +46,7 @@ export const CORE = [
   {from: 'src/engine/scene-examples.ts', rewrites: []},
   {from: 'src/engine/geometry.ts', rewrites: []},
   // ./simulation: the one stepping loop, the adapters for the modules above and the builder of coupled scenes.
-  // Imports checkpoint.ts, the water, structure, cable, frame, cloth, granular, heat, solid, solid-contact, fracture and fluid
+  // Imports checkpoint.ts, the water, structure, cable, frame, cloth, granular, heat, solid, solid-contact, fracture, fluid and shallow-water
   // modules, scene-format (for a checkpoint's scene) and types from native-world.
   {from: 'src/engine/simulation.ts', rewrites: []},
   // ./robot: URDF and MJCF import. Imports contracts.ts, geometry.ts and types from native-world.ts and scene-format.ts.
@@ -68,6 +68,9 @@ export const CORE = [
   {from: 'src/engine/fluid.ts', rewrites: []},
   // The multigrid preconditioner of ./fluid's pressure solve (pressureSolver: 'multigrid'). Imports nothing.
   {from: 'src/engine/fluid-multigrid.ts', rewrites: []},
+  // ./shallow-water: the Saint-Venant equations on terrain, rain, infiltration and coupling to rigid bodies. Imports
+  // contracts.ts, checkpoint.ts and the Subsystem type from simulation.ts.
+  {from: 'src/engine/shallow-water.ts', rewrites: []},
   // ./solid-contact: contact, friction and welds between a tetrahedral solid and rigid bodies. Imports contracts.ts, checkpoint.ts,
   // solid.ts, principalMoments from structure-coupling.ts and the Subsystem type from simulation.ts.
   {from: 'src/engine/solid-contact.ts', rewrites: []},
