@@ -15,7 +15,7 @@
  * See docs/STUDIO_METAL_PRESS.md for the closed forms it is validated against and its limits.
  */
 import {EngineError} from './contracts.ts';
-import {SolidBody,boxMesh,type SolidMaterial} from './solid.ts';
+import {SolidBody,boxMesh,type SolidMaterial,type SolidElement,type SolidLinearSolver} from './solid.ts';
 import {SolidContact} from './solid-contact.ts';
 import {captureFields,restoreFields,holder,type FieldOptions,type StateObject,type StateValue} from './checkpoint.ts';
 
@@ -46,6 +46,10 @@ export interface PressBrakeOptions {
   readonly tolerance?:number;
   /** Newton iterations per solve before a step is accepted unconverged (counted in `contact.stats.unconvergedSteps`). Default 100. */
   readonly maxNewtonIterations?:number;
+  /** Element of the sheet (solid.ts): `tet4` (default) or `tet4-nodal` (averaged nodal pressure: no plastic-incompressibility locking). */
+  readonly element?:SolidElement;
+  /** Inner linear solver (solid.ts): `cg` (default) or `ldl` (sparse factorization preconditioner). */
+  readonly linearSolver?:SolidLinearSolver;
 }
 
 const near=(a:number,b:number,s:number)=>Math.abs(a-b)<=1e-9*s;
@@ -80,7 +84,7 @@ export class PressBrake {
     this.thickness=t;this.width=options.width;this.dieOpening=V;this.dieRadius=rd;this.punchRadius=rp;this.halfLength=V/2+over;this.dt=options.dt??1/60;
     const dz=this.depth=Math.max(this.halfLength/nx,t/ny);
     this.body=new SolidBody({mesh:boxMesh({size:[this.halfLength,t,dz],cells:[nx,ny,1]}),material:options.material,
-      config:{model:'green-lagrange',dt:this.dt,tolerance:options.tolerance??1e-6,maxNewtonIterations:options.maxNewtonIterations??100}});
+      config:{model:'green-lagrange',dt:this.dt,tolerance:options.tolerance??1e-6,maxNewtonIterations:options.maxNewtonIterations??100,element:options.element??'tet4',linearSolver:options.linearSolver??'cg'}});
     const b=this.body,X=b.referencePositions,L=this.halfLength;
     b.constrain(b.selectNodes(x=>near(x,0,L)),[0,null,null]);
     b.constrain(b.selectNodes(()=>true),[null,null,0]);

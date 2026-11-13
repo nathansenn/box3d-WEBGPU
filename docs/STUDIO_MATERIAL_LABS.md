@@ -120,7 +120,7 @@ Below 1 the lab plays slower than real time while it computes; the recorded run 
 
 ### The model (`src/studio/material-labs/rubber-si.ts`)
 
-- **Specimen.** A cylinder of radius 0.58 m × scale and height 0.86 m × scale (the rig's dimensions, in metres), 625 tetrahedra (a 5 × 5 × 5 box mesh whose square section is mapped onto the disc), Neo-Hookean (`src/engine/solid.ts`) with a Prony series (`config.viscoelastic`, [`SOLID_MECHANICS.md`](SOLID_MECHANICS.md#viscoelasticity)), gravity on, backward Euler at 1/30 s, mass damping 2 /s.
+- **Specimen.** A cylinder of radius 0.58 m × scale and height 0.86 m × scale (the rig's dimensions, in metres), 625 tetrahedra (a 5 × 5 × 5 box mesh whose square section is mapped onto the disc) with the averaged nodal pressure element (`tet4-nodal`, [`SOLID_MECHANICS.md`](SOLID_MECHANICS.md#averaged-nodal-pressure-element-tet4-nodal)) and the sparse LDLᵀ preconditioner (`linearSolver: 'ldl'`), Neo-Hookean (`src/engine/solid.ts`) with a Prony series (`config.viscoelastic`, [`SOLID_MECHANICS.md`](SOLID_MECHANICS.md#viscoelasticity)), gravity on, backward Euler at 1/30 s, mass damping 2 /s.
 - **Platens.** Steel platens bonded to both end faces (welds of `SolidContact`, [`SOLID_CONTACT.md`](SOLID_CONTACT.md)), as in a bonded compression test piece. The top platen is kinematic: it compresses at the set rate to the target, holds for the set time (the force relaxes), then follows the specimen with no load: its velocity is the force it feels over a damper of time constant 0.05 s on the specimen's instantaneous stiffness, capped at the loading rate, so the specimen recovers by its own creep recovery. (Releasing the weld at full load instead snapped a 65 %-compressed gel inside out in one step; the zero-load platen avoids that.)
 - **Readouts.** Compression (%), platen force (kN, signed), retained volume (%); the status line gives the long-term and instantaneous moduli, the peak force and, unloaded, how much compression is still to recover.
 - **Worker.** The lab steps in the shared lab worker (`lab-worker-protocol.ts`, extended to the elastomer lab).
@@ -136,32 +136,34 @@ Below 1 the lab plays slower than real time while it computes; the recorded run 
 | Open-cell foam | 0.1 MPa | 0 | 30 kg/m³ | 0.3 s: 0.2, 3 s: 0.13 | **unverified**; compressible Neo-Hookean |
 | Memory foam | 0.03 MPa | 0 | 50 kg/m³ | 2 s: 1.8, 20 s: 1.2 | **unverified**; compressible Neo-Hookean |
 
-Poisson's ratio 0.49 instead of rubber's 0.4999 (the library's value is 0.5): near-incompressible linear tetrahedra lock (below).
+Poisson's ratio 0.49 instead of rubber's 0.4999 (the library's value is 0.5): even with the nodal element the coarse mesh stiffens as ν nears 0.5 (below: 1.29 times the closed form at 0.49, 1.61 at 0.4999).
 
 ### Validation
 
 - The viscoelastic law: the six `solid.viscoelastic.*` rows ([`SOLID_MECHANICS.md`](SOLID_MECHANICS.md#viscoelasticity)).
-- **Bonded compression of the lab's cylinder** (`tests/studio/rubber-si.test.mjs`, row `solid.bonded-compression`): at 1 % strain the apparent modulus is 2.60 MPa against 1.71 MPa from the bonded-block closed form `1 / E_c = 1 / (E (1 + 2 S²)) + 1 / K`, shape factor `S = R / (2H)` = 0.34, `K = E / (3 (1 − 2ν))`: **+52 %, volumetric locking**. Measured on the same geometry: 8 cells across give +30 %; ν = 0.45 gives +51 % (5 cells), ν = 0.499 gives +205 % (5 cells) and +62 % (8 cells). The forces the lab shows are therefore about 1.5 times too high; shapes and times are less affected.
+- **Bonded compression of the lab's cylinder** (`tests/studio/rubber-si.test.mjs`, row `solid.bonded-compression`): at 1 % strain the apparent modulus is 2.20 MPa with the lab's `tet4-nodal` element (2.60 MPa with `tet4` before 2026-11-12) against 1.71 MPa from the bonded-block closed form `1 / E_c = 1 / (E (1 + 2 S²)) + 1 / K` (Gent and Lindley, quoted as Eq. 2 in Koblar, Škofic, Boltežar, Strojniški vestnik 60 (2014) 506-511), shape factor `S = R / (2H)` = 0.34, `K = E / (3 (1 − 2ν))`: **+29 % (was +52 %)**. The closed form assumes parabolic bulging and is not the 3-D answer for this tall specimen: refining both elements (tet4-nodal 8, 12, 16 cells across: +20.4, +16.6, +15.0 %; tet4 8, 16, 24 cells: +29.9, +18.1, +15.4 %) and extrapolating gives **1.12 times the closed form (1.92 MPa)**, so the lab mesh is **15 % too stiff** (35 % with tet4). At ν = 0.4999 the lab mesh gives 1.61 times the closed form with tet4-nodal against 18.2 with tet4. The lab's forces fell by 25 to 37 % with the change (table below); shapes and times are less affected.
 - Lab checks (same file, in `test:studio:materials`, 40 s): library values reach the model; the silicone cycle's force relaxes during the hold and the unloaded specimen recovers to under 5 % with the platen force under 2 % of the peak and every step converged; foam (ν = 0) loses volume where rubber keeps it; bit-identical repeats.
 
 ### Presets (12 to 24 s programs) and real time
 
-| Preset | Peak force | Still compressed at the end | Real-time factor | Worst tick (ms) |
-|---|---|---|---|---|
-| Silicone recovery (50 %) | 4.9 MN | 0.3 % | 1.15 | 215 |
-| Rubber rebound (natural) | 8.7 MN | 1.9 % | 1.31 | 174 |
-| Foam collapse (75 %) | 0.22 MN | 1.6 % (volume 98 %) | 2.97 | 35 |
-| Memory-foam creep | 0.06 MN | 20.7 % (slow recovery) | 4.79 | 22 |
-| Firm polyurethane | 41 MN | 2.7 % | 1.26 | 97 |
-| Soft gel (65 %) | 1.3 MN | 18.5 % | 0.73 | 729 |
-| Neoprene hold | 22 MN | 7.1 % | 1.56 | 94 |
-| EPDM comparison | 16 MN | 2.2 % | 1.36 | 74 |
+| Preset | Peak force (before → after) | Still compressed at the end | Real-time factor (before → after) |
+|---|---|---|---|
+| Silicone recovery (50 %) | 4.91 → 3.43 MN | 0.3 % | 1.67 → 3.52 |
+| Rubber rebound (natural) | 8.72 → 6.10 MN | 1.6 % | 1.56 → 2.18 |
+| Foam collapse (75 %) | 0.216 → 0.214 MN | 0.8 % | 3.83 → 4.66 |
+| Memory-foam creep | 0.057 → 0.056 MN | 0 % (slow recovery) | 5.63 → 5.10 |
+| Firm polyurethane | 41.4 → 30.0 MN | 2.4 % | 1.55 → 2.49 |
+| Soft gel (65 %) | 1.32 → 0.84 MN | 16.5 % | 0.94 → 2.24 |
+| Neoprene hold | 22.1 → 15.4 MN | 6.2 % | 1.71 → 3.05 |
+| EPDM comparison | 15.6 → 11.7 MN | 2.0 % | 1.56 → 2.71 |
 
-Node 22 on the shared 4-core sandbox, single runs. In headless Chromium serving the built site the worker reported 1.32 times real time for the silicone cycle. The forces are those of a 1.16 m wide specimen (the rig's scale), not of a standard 29 mm test piece.
+"Before" is tet4 with the diagonal-preconditioned conjugate gradients, "after" tet4-nodal with the sparse LDLᵀ preconditioner and the contact fix (welded nodes no longer meet their own platen: [`SOLID_CONTACT.md`](SOLID_CONTACT.md)); the 18 s lab program, model seconds over CPU seconds, measured back to back on each preset (`node scripts/fem-preset-benchmark.mjs rubber`, load average 10 to 15 from other jobs). The ν = 0.49 presets lose 25 to 36 % of their force with the locking; the foams (ν = 0) keep theirs within 1 % and the memory foam runs 9 % slower (the averaged element's extra pass buys nothing at ν = 0).
+
+Before this change, in headless Chromium serving the built site, the worker reported 1.32 times real time for the silicone cycle (not re-measured in the browser). The forces are those of a 1.16 m wide specimen (the rig's scale), not of a standard 29 mm test piece.
 
 ### Limits
 
-- Volumetric locking (above): about 1.5 times too stiff in bonded compression; incompressibility is approximated by ν = 0.49, so rubber loses up to 7 % volume at 50 % compression where a real one loses a fraction of a percent.
+- Mesh stiffness (above): 15 % too stiff in bonded compression against the converged solution (the 5-cell mesh; 8 cells would give about 7 % and cost about 20 times more per factorization); incompressibility is approximated by ν = 0.49, so rubber loses up to 7 % volume at 50 % compression where a real one loses a fraction of a percent.
 - The Prony model is stress-based (not objective under large rotation while an overstress remains); one spectrum, borrowed from a filled blend, stands for natural rubber, neoprene and polyurethane; the other spectra and most moduli are unverified.
 - Foams are compressible Neo-Hookean solids: no cell buckling plateau, no densification, no permanent set. Mullins softening, heat build-up, platen friction (the platens are bonded) and rate effects beyond the Prony series are not modelled.
 
@@ -246,6 +248,8 @@ The programs run to the set travel at the set rate; Node 22 on the shared 4-core
 | Fibre bridging | 45.0 MPa | 2.87 ‰ | stopped | 1 | 0.44 |
 | Low-strain comparison (1.5 ‰) | 38.3 MPa | 1.50 ‰ | holding | 0 | 6.0 |
 | Ceramic comparison (alumina, 100 mm, 7.5 ‰ at 1 ‰/s) | 1940 MPa | 5.77 ‰ | stopped: shattered | 345 | 2.0 |
+
+Since 2026-11-12 the lab's solid uses the sparse LDLᵀ preconditioner (`linearSolver: 'ldl'`; the element stays `tet4`, because the concrete law's pressure-dependent yield does not split for the averaged nodal pressure element: [`SOLID_MECHANICS.md`](SOLID_MECHANICS.md#averaged-nodal-pressure-element-tet4-nodal)). Results are unchanged to the printed digits (peaks, strains, stops; the ceramic sheds 331 elements instead of 345). Real-time factor over the first 14 s of each program, model over CPU seconds, before → after, measured back to back (`node scripts/fem-preset-benchmark.mjs concrete`, load average 10 to 15): cube compression 0.45 → 0.53, reinforced core 0.46 → 0.53, high strength 1.32 → 1.46, lightweight 0.73 → 0.85, weathered 0.45 → 0.47, fibre 0.46 → 0.51, low strain 6.6 → 6.3, ceramic 2.4 → 2.3. The gain is small because the conjugate gradients were not the cost here: 70 % of the time is the concrete law's return mapping and its finite-difference tangent (six extra return mappings per yielded element per Newton iteration), in `concrete-law.ts`, which this change does not touch.
 
 The cost is in the softening: below the peak a step takes 20 to 60 ms, after it up to a second (Newton converges linearly while elements soften), and the step that finds no equilibrium took up to 16 s before the iteration limit was lowered (40 Newton iterations per friction pass now). In headless Chromium (SwiftShader WebGPU) serving the built site, the cube-crush preset at 1 ‰/s reached the same result as Node (45.0 MPa at 2.87 ‰, stopped at 7.2 ‰ with 2 elements spalled, 21.45 MPa at the stop); the worker reported 0.6 to 0.9 times real time before the peak and 0.15 to 0.5 times while softening, and 5.7 to 12.5 times for the low-strain preset. The page itself advanced only 7.3 s of the program in 450 s there, because software rendering limits how many steps are requested per frame; that figure says nothing about a hardware GPU. The fibre mix peaks like the plain one: before the peak the cube does not crack in tension, and the fibres act only once it does.
 

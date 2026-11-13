@@ -376,15 +376,50 @@ export const viscoelastic = defineCases('solid', VFILE, [
   {id: 'solid.viscoelastic.contact', title: 'Viscoelastic cube on a plane through SolidContact', quantity: 'settlement of the top face after 16 tau under its own weight (E = 20 kPa long-term, 4x instantaneous)', unit: 'm', test: VT.contact,
     reference: {formula: 'rho g L^2 / (2 E) (fully relaxed)', value: 1000 * 9.81 * 0.01 / (2 * 2e4)}, tolerance: relative(0.03),
     note: 'Lumped weights on 2 cells; the contact springs sink the base by a small extra depth.', measure: async () => (await veContact()).settlement},
-  {id: 'solid.bonded-compression', file: 'tests/studio/rubber-si.test.mjs', title: 'Bonded rubber cylinder of the Studio elastomer lab, small strain', quantity: 'apparent compression modulus of the lab\'s 625-element cylinder (R 0.58 m, H 0.86 m, nu 0.49) between bonded platens at 1 % strain', unit: 'Pa', test: 'bonded compression at small strain: the lab mesh is stiffer than the bonded-block closed form by a stated factor (volumetric locking)',
-    reference: {formula: '1 / E_c = 1 / (E (1 + 2 S^2)) + 1 / K, S = R / (2 H), K = E / (3 (1 - 2 nu))', value: null}, tolerance: relative(0.6),
-    note: 'Shown on purpose: near-incompressible linear tetrahedra lock, and this mesh is 52 % too stiff (30 % with 8 cells across, 1.6 to 3 times at nu = 0.499). The Studio states it.',
+  {id: 'solid.bonded-compression', file: 'tests/studio/rubber-si.test.mjs', title: 'Bonded rubber cylinder of the Studio elastomer lab, small strain', quantity: 'apparent compression modulus of the lab\'s 625-element cylinder (R 0.58 m, H 0.86 m, nu 0.49, tet4-nodal) between bonded platens at 1 % strain', unit: 'Pa', test: 'bonded compression at small strain: the lab mesh against the bonded-block closed form and the converged 3-D solution, tet4-nodal and tet4',
+    reference: {formula: '1 / E_c = 1 / (E (1 + 2 S^2)) + 1 / K, S = R / (2 H), K = E / (3 (1 - 2 nu)) (Gent and Lindley, as quoted in Koblar et al. 2014, Eq. 2)', value: null}, tolerance: relative(0.35),
+    note: 'tet4-nodal (the lab\'s element) 29 % above the closed form, tet4 52 %. The closed form assumes parabolic bulging: for this tall specimen (S = 0.34) the converged 3-D solution is 1.12 times it (Richardson from 16 and 24 cells across with both elements), so the lab mesh is 15 % too stiff with tet4-nodal and 35 % with tet4.',
     measure: async () => {
       const {SolidBody} = await solid(), {cylinderMesh, RUBBER_BASE} = await import(new URL('../../src/studio/material-labs/rubber-si.ts', import.meta.url).href);
       const R = 0.58, H = 0.86, E = 1.5e6, nu = 0.49, S = R / (2 * H), K = E / (3 * (1 - 2 * nu));
-      const b = new SolidBody({mesh: cylinderMesh(R, H, 5, 5), material: {youngModulus: E, poissonRatio: nu, density: 1000}, config: {model: 'linear', tolerance: 1e-9}});
+      const b = new SolidBody({mesh: cylinderMesh(R, H, 5, 5), material: {youngModulus: E, poissonRatio: nu, density: 1000}, config: {model: 'linear', tolerance: 1e-9, element: 'tet4-nodal', linearSolver: 'ldl'}});
       b.constrain(b.selectNodes((x, y) => y < RUBBER_BASE + 1e-9)); const top = b.selectNodes((x, y) => y > RUBBER_BASE + H - 1e-9); b.constrain(top, [0, -0.01 * H, 0]);
       const r = b.solveStatic(); let F = 0; for (const n of top) F += r.reactions[3 * n + 1];
       return {value: -F / (Math.PI * R * R) / 0.01, reference: 1 / (1 / (E * (1 + 2 * S * S)) + 1 / K)};
+    }},
+  {id: 'solid.nodal.patch', file: 'tests/engine/solid-nodal.test.mjs', title: 'Averaged nodal pressure element: near-incompressible patch test', quantity: 'largest displacement error over the largest displacement, uniform strain on an irregular 3 x 3 x 3 mesh, nu = 0.4999, green-lagrange model, tet4-nodal', unit: '1',
+    test: 'near-incompressible patch test (nu = 0.4999): a uniform strain is reproduced on an irregular mesh by every model of tet4-nodal',
+    reference: {formula: 'u = A X (a linear field is in the element space)', value: 0}, tolerance: absolute(1e-8),
+    measure: async () => {
+      const {SolidBody, boxMesh, boxNode} = await solid(), A = [1.0e-3, 2.0e-4, -3.0e-4, 4.0e-4, -2.0e-3, 5.0e-4, -1.0e-4, 3.0e-4, 1.5e-3], size = [1.2, 0.9, 0.7], cells = [3, 3, 3];
+      const body = new SolidBody({mesh: jitter(boxNode, boxMesh({size, cells}), cells, size), material: {...steel, poissonRatio: 0.4999}, config: {model: 'green-lagrange', element: 'tet4-nodal', linearSolver: 'ldl', tolerance: 1e-13}}), X = body.referencePositions;
+      const field = n => [0, 1, 2].map(i => A[3 * i] * X[3 * n] + A[3 * i + 1] * X[3 * n + 1] + A[3 * i + 2] * X[3 * n + 2]);
+      for (const n of body.selectNodes((x, y, z) => near(x, 0) || near(x, size[0]) || near(y, 0) || near(y, size[1]) || near(z, 0) || near(z, size[2]))) body.constrain([n], field(n));
+      const r = body.solveStatic(); let error = 0, scale = 0;
+      for (let n = 0; n < body.nodeCount; n++) { const f = field(n); for (let i = 0; i < 3; i++) { error = Math.max(error, Math.abs(r.displacements[3 * n + i] - f[i])); scale = Math.max(scale, Math.abs(f[i])); } }
+      return error / scale;
+    }},
+  {id: 'solid.nodal.cook', file: 'tests/engine/solid-nodal.test.mjs', title: "Cook's membrane, nearly incompressible, tet4-nodal", quantity: 'vertical displacement of the corner (48, 60), 32 x 32 cells in plane strain, E = 250, nu = 0.4999, shear 6.25 per unit length', unit: '1',
+    test: "Cook's membrane, nearly incompressible: the tip deflection converges to the reference 7.769 (Sukumar et al. 2023)",
+    reference: {formula: 'reference solution 7.769 (Sukumar et al., arXiv:2304.04941, Cook\'s membrane section)', value: 7.769}, tolerance: relative(0.05),
+    note: 'Converges from below: 0.54, 0.78, 0.91, 0.96 of the reference at 4, 8, 16, 32 cells (tet4: 0.42, 0.57, 0.78, 0.90). Linear tetrahedra stay stiff in bending.',
+    measure: async () => {
+      const {SolidBody, boxMesh} = await solid(), n = 32, mesh = boxMesh({size: [1, 1, 48 / n], cells: [n, n, 1]}), p = mesh.positions;
+      for (let i = 0; i < p.length; i += 3) { const s = p[i], t = p[i + 1]; p[i] = 48 * s; p[i + 1] = 44 * s + t * (44 + 16 * s - 44 * s); }
+      const b = new SolidBody({mesh, material: {youngModulus: 250, poissonRatio: 0.4999, density: 1}, config: {model: 'linear', element: 'tet4-nodal', linearSolver: 'ldl', tolerance: 1e-11}});
+      b.constrain(b.selectNodes(x => x < 1e-9)); b.constrain(b.selectNodes(() => true), [null, null, 0]); b.addTraction(b.selectFaces((cx, cy, cz, nx) => nx > 0.99), [0, 6.25, 0]);
+      const r = b.solveStatic(), tip = b.selectNodes((x, y) => near(x, 48) && near(y, 60)); let v = 0; for (const k of tip) v += r.displacements[3 * k + 1] / tip.length; return v;
+    }},
+  {id: 'solid.nodal.plastic-bending', file: 'tests/engine/solid-nodal.test.mjs', title: 'Plane-strain fully plastic bending, tet4-nodal, 4 cells through the depth', quantity: 'end moment at 16 k_y over the elastic-perfectly-plastic closed form, minus 1', unit: '1',
+    test: 'plastic incompressibility: plane-strain pure bending at 16 k_y with tet4-nodal against tet4',
+    reference: {formula: "M = M_p' (1 - (k_y / k)^2 / 3), M_p' = (2 / sqrt 3) sigma_y h^2 / 4", value: 0}, tolerance: upper(0.055),
+    note: 'tet4-nodal 4.8 % (8 cells 1.3 %), tet4 6.8 % (2.0 %): the plastic-incompressibility part is removed; the bending error of linear tetrahedra remains.',
+    measure: async () => {
+      const {SolidBody, boxMesh} = await solid(), E = 200e9, NU = 0.3, SY = 250e6, h = 0.01, L = 0.02, ny = 4, dz = h / ny;
+      const b = new SolidBody({mesh: boxMesh({size: [L, h, dz], cells: [2 * ny, ny, 1]}), material: {youngModulus: E, poissonRatio: NU, density: 7850, yieldStress: SY}, config: {model: 'linear', element: 'tet4-nodal', linearSolver: 'ldl', maxNewtonIterations: 200}});
+      b.constrain(b.selectNodes(x => near(x, 0)), [0, null, null]); b.constrain(b.selectNodes(() => true), [null, null, 0]); b.constrain(b.selectNodes((x, y) => near(x, 0) && near(y, h / 2)), [0, 0, null]);
+      const end = b.selectNodes(x => near(x, L)), X = b.referencePositions, sy = 2 / Math.sqrt(3) * SY, ky = 2 * sy / (E / (1 - NU * NU) * h); let M = 0;
+      for (let s = 1; s <= 8; s++) { const k = 16 * ky * s / 8; for (const n of end) b.constrain([n], [-k * L * (X[3 * n + 1] - h / 2), null, null]); const r = b.solveStatic(); M = 0; for (const n of end) M -= r.reactions[3 * n] * (X[3 * n + 1] - h / 2); }
+      return M / dz / (sy * h * h / 4 * (1 - 1 / (3 * 256))) - 1;
     }},
 ]);

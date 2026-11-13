@@ -2,6 +2,7 @@ import {EngineError,finite,integer,onlyKeys,record} from './contracts.ts';
 import {captureFields,restoreFields,type FieldOptions,type StateObject,type StateValue} from './checkpoint.ts';
 import {boundaryFaces,tetVolume,SOLID_MAX_NODES,SOLID_MAX_TETS,type TetMesh} from './solid-mesh.ts';
 import {buildConcreteLaw,ConcreteReturn,concreteDamage,tableValue,type ConcreteLaw,type ConcreteLawInput} from './concrete-law.ts';
+import {SparseLDL} from './sparse-ldl.ts';
 export {buildConcreteLaw,ec2CompressionStress,type ConcreteLaw,type ConcreteLawInput} from './concrete-law.ts';
 export {boxMesh,boxNode,boundaryFaces,tetVolume,SOLID_MAX_NODES,SOLID_MAX_TETS,type TetMesh,type BoxMeshOptions} from './solid-mesh.ts';
 
@@ -16,6 +17,17 @@ export const SOLID_CONCRETE_SOLVER_ID='solid-tet-dp-rankine-js-f64-v1';
  * that carries J2 plasticity through large rotations. */
 export type SolidModel='linear'|'corotational'|'neo-hookean'|'green-lagrange';
 export type SolidIntegrator='backward-euler'|'midpoint'|'explicit';
+/** `tet4`: the four-node tetrahedron, everything per element (locks when the material is nearly incompressible, elastically or
+ * plastically). `tet4-nodal`: the same nodes and shape functions with the volumetric strain averaged over the elements around each
+ * node: for every law that splits into a deviatoric and a volumetric energy the volumetric energy is evaluated at the nodes from
+ * the nodal volume change (averaged nodal pressure, Bonet and Burton 1998); for the pressure-dependent concrete law the element's
+ * volumetric strain is replaced by the average of its nodes' (nodally averaged B-bar). See docs/SOLID_MECHANICS.md. */
+export type SolidElement='tet4'|'tet4-nodal';
+/** Inner solver of each Newton step: conjugate gradients preconditioned by the stiffness diagonal (`cg`), or by a sparse LDLᵀ
+ * factorization of the assembled tangent (`ldl`, sparse-ldl.ts), kept across Newton iterations and steps and formed again when an
+ * inner solve needed more than LDL_REFACTOR_ITERATIONS. Both multiply by the exact tangent and stop at the same tolerance; `ldl`
+ * takes far fewer iterations on stiff or nearly incompressible problems. Meant for meshes of up to a few thousand nodes. */
+export type SolidLinearSolver='cg'|'ldl';
 export interface SolidMaterial {
   /** Young's modulus E in Pa. */
   youngModulus:number;
@@ -59,6 +71,10 @@ export interface SolidConfig {
    * adds `ratio` times the elastic stress, relaxing with time constant `time` (s), so in one dimension the relaxation
    * modulus is E(t) = E (1 + sum ratio_i exp(-t / time_i)). Backward Euler only. Default: none (elastic). */
   viscoelastic?:{readonly branches:readonly {readonly ratio:number;readonly time:number}[]};
+  /** Element formulation. Default `tet4`. */
+  element?:SolidElement;
+  /** Inner linear solver of Newton's method. Default `cg`. */
+  linearSolver?:SolidLinearSolver;
 }
 export interface SolidDefinition {mesh:TetMesh|{positions:ArrayLike<number>;tets:ArrayLike<number>};material:SolidMaterial;config?:SolidConfig}
 export interface SolidSolveStats {
@@ -108,6 +124,19 @@ export interface SolidKernel {
   advance(converged:boolean):void;
   /** Commits the plastic state of the present displacements (a static solve by the outside solver). */
   commit():void;
+  /** `ldl` when the body asks for a factorized preconditioner. */
+  readonly linearSolver:SolidLinearSolver;
+  /** Assembles kScale K + mScale M (K the tangent kept by the last `energy(..., true)`, M the lumped mass) into the body's sparse
+   * matrix and returns it unfactored, so the caller can add its own node blocks before `factor()`. */
+  assembleTangent(kScale:number,mScale:number):SparseLDL;
+  /** Whether a new factorization is due before an inner solve with these scales. */
+  factorDue(kScale:number,mScale:number):boolean;
+  /** Reports an inner solve's iteration count (it decides when to form the factorization again). */
+  innerDone(iterations:number):void;
+  /** Factors what `assembleTangent` (plus the caller's blocks) assembled, and keeps it for later solves. */
+  factorize(kScale:number,mScale:number):void;
+  /** The kept factorization, or null. */
+  factorization():SparseLDL|null;
 }
 
 const MIN_J=1e-6;
@@ -174,7 +203,11 @@ export function vonMisesStress(t:ArrayLike<number>,offset=0):number {
  */
 /** What an exact checkpoint of a SolidBody holds: every field it has (displacements, velocities, loads, constraints, the
  * integrator's history, the corotational frames, the plastic and concrete state). The concrete return mapping is scratch. */
-const SOLID_FIELDS:FieldOptions={label:'SolidBody',skip:['creturn']};
+const SOLID_FIELDS:FieldOptions={label:'SolidBody',skip:['creturn','ldl','nW','nT','nU1','nU2','nU2Old','nD','eG','eP','eD','ringStart','ringNodes','nodeElementStart','nodeElements','mark','ringVector','keScratch']};
+/** Inner iterations above which the next Newton iteration forms a new factorization (`linearSolver: 'ldl'`). */
+export const LDL_REFACTOR_ITERATIONS=8;
+/** Newton iterations that use the diagonal preconditioner after a factorization met an indefinite tangent. */
+export const LDL_INDEFINITE_SKIP=3;
 
 export class SolidBody {
   /** Everything a later step reads, as a state tree (checkpoint.ts), for exact checkpoints. */
@@ -184,6 +217,7 @@ export class SolidBody {
 
   readonly solver:string=SOLID_SOLVER_ID;
   readonly model:SolidModel;readonly integrator:SolidIntegrator;readonly dt:number;
+  readonly element:SolidElement;readonly linearSolver:SolidLinearSolver;
   readonly nodeCount:number;readonly tetCount:number;
   /** Reference node positions (x, y, z per node, m). */
   readonly referencePositions:Float64Array;
@@ -221,6 +255,31 @@ export class SolidBody {
   readonly concreteLaw:ConcreteLaw|null=null;private readonly kappaT:Float64Array=new Float64Array(0);private readonly strengthFactor:Float64Array=new Float64Array(0);private readonly ctan:Float64Array=new Float64Array(0);private readonly ctrial:Float64Array=new Float64Array(0);private readonly cdirty:Uint8Array=new Uint8Array(0);
   private readonly creturn:ConcreteReturn|null=null;private readonly cbase=new Float64Array(13);private readonly cstrain=new Float64Array(6);private readonly cmat=new Float64Array(36);
   private kDiagonalFirst:Float64Array|null=null;
+  // ---- Nodally averaged element (`tet4-nodal`) ----
+  /** 0: per-element volumetric strain (tet4). 1: volumetric energy at the nodes (averaged nodal pressure, tet4-nodal). */
+  private readonly avg:number=0;
+  /** Lame lambda the element laws use: lambda for tet4 and B-bar; for the averaged nodal pressure lambda - K (the deviatoric
+   * part only) or 0 for Neo-Hookean, whose volumetric term lambda/2 ln^2 J moves to the nodes. */
+  private elemLambda:number;
+  /** Modulus of the nodal volumetric energy: K = lambda + 2 mu / 3 (U = K/2 theta^2) or lambda for Neo-Hookean (U = lambda/2 ln^2 J). */
+  private readonly bulkNodal:number=0;
+  /** Per node: weight (a quarter of each live element's volume), the weighted volumetric measure, U', U'' (and U'' kept for the
+   * damping tangent), and the tangent passes' scratch. */
+  private nW=new Float64Array(0);private nT=new Float64Array(0);private nU1=new Float64Array(0);private nU2=new Float64Array(0);private nU2Old=new Float64Array(0);private nD=new Float64Array(0);
+  /** Per element: d theta_e / d H (9), the element stress (9), d theta_e of the tangent pass. */
+  private eG=new Float64Array(0);private eP=new Float64Array(0);private eD=new Float64Array(0);
+  /** Set by piolaElastic for the averaged passes: theta_e and d theta_e / d H. */
+  private vol=0;private readonly G9=new Float64Array(9);
+  /** Sparse factorization (`linearSolver: 'ldl'`), built on first use, and its bookkeeping. */
+  private ldl:SparseLDL|null=null;
+  /** The factorization is kept across Newton iterations and steps and formed again when an inner solve needed more than
+   * LDL_REFACTOR_ITERATIONS, when the scales of K and M change or an element erodes. Its numbers are state (a resumed run must
+   * precondition with the same factor to repeat bit for bit), so they live in these arrays, which the factorization shares. */
+  private ldlValid=false;private ldlLast=0;private ldlK=0;private ldlM=0;private ldlEroded=0;private ldlFactorizations=0;
+  /** Inner solves left that use the diagonal instead of the factorization, and whether the factorization is fresh and shifted. */
+  private ldlSkip=0;private ldlFresh=false;
+  private ldlValues:Float64Array=new Float64Array(0);private ldlD:Float64Array=new Float64Array(0);
+  private nodeElementStart=new Int32Array(0);private nodeElements=new Int32Array(0);private mark=new Int32Array(0);private ringVector=new Float64Array(0);private ringStart=new Int32Array(0);private ringNodes=new Int32Array(0);private keScratch=new Float64Array(0);
   private readonly T=new Float64Array(6);private storeMode=0;private storedOnly=false;private erodedTotal=0;private plasticWorkTotal=0;
   private cm=0;private cd=0;private reference=0;private referenceInertia=0;private loadScale=1;private accelerationValid=false;private steps=0;private unconverged=0;private limit:SolidExplicitLimit|null=null;
 
@@ -240,11 +299,15 @@ export class SolidBody {
       yieldStress:plastic&&!concrete?finite(m.yieldStress,'yieldStress',1e-6,1e13):Infinity,hardeningModulus:m.hardeningModulus===undefined?0:finite(m.hardeningModulus,'hardeningModulus',0,1e13),
       failureStrain:m.failureStrain===undefined?Infinity:m.failureStrain===Infinity?Infinity:finite(m.failureStrain,'failureStrain',1e-9,1e3),...(concrete?{concrete:m.concrete as ConcreteLawInput}:{})});
     if(plastic)this.solver=concrete?SOLID_CONCRETE_SOLVER_ID:SOLID_PLASTIC_SOLVER_ID;
-    this.lambda=E*nu/((1+nu)*(1-2*nu));this.mu=E/(2*(1+nu));
-    const c=d.config===undefined?{}:record(d.config,'config');onlyKeys(c,['model','dt','integrator','massDamping','stiffnessDamping','gravity','tolerance','forceTolerance','maxNewtonIterations','maxLinearIterations','explicitSafety','viscoelastic'],'config');
+    this.lambda=E*nu/((1+nu)*(1-2*nu));this.mu=E/(2*(1+nu));this.elemLambda=this.lambda;
+    const c=d.config===undefined?{}:record(d.config,'config');onlyKeys(c,['model','dt','integrator','massDamping','stiffnessDamping','gravity','tolerance','forceTolerance','maxNewtonIterations','maxLinearIterations','explicitSafety','viscoelastic','element','linearSolver'],'config');
     const model=c.model===undefined?'corotational':c.model,integrator=c.integrator===undefined?'backward-euler':c.integrator;
     if(model!=='linear'&&model!=='corotational'&&model!=='neo-hookean'&&model!=='green-lagrange')throw new EngineError('INVALID_PAYLOAD','Unknown solid model.');
     if(integrator!=='backward-euler'&&integrator!=='midpoint'&&integrator!=='explicit')throw new EngineError('INVALID_PAYLOAD','Unknown solid integrator.');
+    const element=c.element===undefined?'tet4':c.element,linearSolver=c.linearSolver===undefined?'cg':c.linearSolver;
+    if(element!=='tet4'&&element!=='tet4-nodal')throw new EngineError('INVALID_PAYLOAD','Unknown solid element: tet4 or tet4-nodal.');
+    if(linearSolver!=='cg'&&linearSolver!=='ldl')throw new EngineError('INVALID_PAYLOAD','Unknown linear solver: cg or ldl.');
+    this.element=element;this.linearSolver=linearSolver;
     if(c.viscoelastic!==undefined){
       const ve=record(c.viscoelastic,'viscoelastic');onlyKeys(ve,['branches'],'viscoelastic');
       if(integrator!=='backward-euler')throw new EngineError('INVALID_PAYLOAD','A viscoelastic solid needs the backward-euler integrator.');
@@ -255,7 +318,14 @@ export class SolidBody {
     if(concrete&&c.viscoelastic!==undefined)throw new EngineError('INVALID_PAYLOAD','A solid is either viscoelastic or has a concrete law, not both.');
     if(plastic&&integrator==='midpoint')throw new EngineError('INVALID_PAYLOAD','Plasticity needs the backward-euler or explicit integrator: the midpoint rule extrapolates past the state it solved.');
     if(plastic&&c.viscoelastic!==undefined)throw new EngineError('INVALID_PAYLOAD','A solid is either viscoelastic or plastic, not both: the Prony branches relax the total strain, and J2 needs them to act on the elastic strain, which this version does not model.');
-    this.model=model;this.integrator=integrator;this.dt=c.dt===undefined?1/240:finite(c.dt,'dt',1e-12,10);
+    this.model=model;this.integrator=integrator;
+    if(element==='tet4-nodal'){
+      // The pressure-dependent concrete law does not split into a deviatoric and a volumetric energy, and an element strain whose
+      // volumetric part is averaged from the nodes (B-bar) admits spurious soft modes (measured: Cook's membrane 2.5 times too
+      // flexible at nu = 0.3), so the concrete law keeps the tet4 element.
+      if(concrete)throw new EngineError('INVALID_PAYLOAD','The concrete law needs the tet4 element: its pressure-dependent yield does not split into the deviatoric and volumetric energies tet4-nodal averages.');
+      this.avg=1;this.bulkNodal=model==='neo-hookean'?this.lambda:this.lambda+2*this.mu/3;this.elemLambda=model==='neo-hookean'?0:this.lambda-this.bulkNodal;
+    }this.dt=c.dt===undefined?1/240:finite(c.dt,'dt',1e-12,10);
     this.massDamping=c.massDamping===undefined?0:zero(finite(c.massDamping,'massDamping',0,1e6));this.stiffnessDamping=c.stiffnessDamping===undefined?0:zero(finite(c.stiffnessDamping,'stiffnessDamping',0,1e3));
     this.gravity=c.gravity===undefined?new Float64Array(3):numbers(c.gravity,3,'gravity',-1e5,1e5);
     this.tolerance=c.tolerance===undefined?1e-10:finite(c.tolerance,'tolerance',0,1e-2);this.forceTolerance=c.forceTolerance===undefined?0:finite(c.forceTolerance,'forceTolerance',0,1e12);
@@ -301,6 +371,10 @@ export class SolidBody {
     if(concrete){
       this.concreteLaw=buildConcreteLaw(m.concrete,E,nu,total/tetCount);this.kappaT=new Float64Array(tetCount);this.strengthFactor=new Float64Array(tetCount).fill(1);this.ctan=new Float64Array(21*tetCount);this.ctrial=new Float64Array(6*tetCount);this.cdirty=new Uint8Array(tetCount).fill(2);
       this.creturn=new ConcreteReturn(this.concreteLaw,this.lambda,this.mu);
+    }
+    if(this.avg){
+      const f=()=>new Float64Array(nodeCount),g=(k:number)=>new Float64Array(k*tetCount);
+      this.nW=f();this.nT=f();this.nU1=f();this.nU2=f();this.nU2Old=f();this.nD=f();this.eG=g(9);this.eP=g(9);this.eD=g(1);
     }
     if(integrator==='explicit'&&this.dt>this.explicitSafety*this.explicitLimit().criticalTimeStep){
       const limit=this.explicitLimit();
@@ -436,8 +510,14 @@ export class SolidBody {
   private commitViscous(u:Float64Array,relaxed=false):void {
     if(!this.veBranches.length)return;
     const nb=this.veBranches.length,P=this.P,hist=this.veHist,prev=this.vePrev,C=this.veC;
+    if(this.avg){
+      // The elastic stress of every element at once (the averaged passes leave it in eP).
+      const keep=this.relaxed;this.relaxed=true;
+      try{if(!(this.elastic(u,null,null)<Infinity))throw new EngineError('NUMERICAL_FAILURE','An element is inverted.');}finally{this.relaxed=keep;}
+    }
     for(let e=0;e<this.tetCount;e++){
-      this.gradient(e,u);if(!(this.piolaElastic(e,null)<Infinity))throw new EngineError('NUMERICAL_FAILURE','An element is inverted.');
+      if(this.avg)for(let q=0;q<9;q++)P[q]=this.eP[9*e+q];
+      else{this.gradient(e,u);if(!(this.piolaElastic(e,null)<Infinity))throw new EngineError('NUMERICAL_FAILURE','An element is inverted.');}
       const o=9*e;
       for(let q=0;q<9;q++){
         const delta=relaxed?0:P[q]-prev[o+q];let c=0;
@@ -449,9 +529,10 @@ export class SolidBody {
     }
   }
   private piolaElastic(e:number,lin:Float64Array|null):number {
-    const H=this.H,P=this.P,mu=this.mu,la=this.lambda,th=this.loadScale*this.theta[e];
+    const H=this.H,P=this.P,mu=this.mu,la=this.elemLambda,th=this.loadScale*this.theta[e];
     if(this.model==='linear'){
       const exx=H[0]-th,eyy=H[4]-th,ezz=H[8]-th,exy=.5*(H[1]+H[3]),exz=.5*(H[2]+H[6]),eyz=.5*(H[5]+H[7]),tr=exx+eyy+ezz;
+      if(this.avg)this.vol=tr;
       if(this.plastic){
         if(this.eroded[e]){P.fill(0);return 0;}
         const w=this.constitutive(e,exx,eyy,ezz,eyz,exz,exy,lin!==null),T=this.T;
@@ -468,6 +549,7 @@ export class SolidBody {
       if(!(F[0]*(F[4]*F[8]-F[5]*F[7])+F[1]*(F[5]*F[6]-F[3]*F[8])+F[2]*(F[3]*F[7]-F[4]*F[6])>MIN_J))return Infinity;
       // Green-Lagrange strain E = (H + H^T + H^T H) / 2, less the thermal strain.
       const exx=H[0]+.5*(H[0]*H[0]+H[3]*H[3]+H[6]*H[6])-th,eyy=H[4]+.5*(H[1]*H[1]+H[4]*H[4]+H[7]*H[7])-th,ezz=H[8]+.5*(H[2]*H[2]+H[5]*H[5]+H[8]*H[8])-th;
+      if(this.avg)this.vol=exx+eyy+ezz;
       const exy=.5*(H[1]+H[3]+H[0]*H[1]+H[3]*H[4]+H[6]*H[7]),exz=.5*(H[2]+H[6]+H[0]*H[2]+H[3]*H[5]+H[6]*H[8]),eyz=.5*(H[5]+H[7]+H[1]*H[2]+H[4]*H[5]+H[7]*H[8]);
       let w:number,sxx:number,syy:number,szz:number,syz:number,sxz:number,sxy:number;
       if(this.plastic){w=this.constitutive(e,exx,eyy,ezz,eyz,exz,exy,lin!==null);const T=this.T;sxx=T[0];syy=T[1];szz=T[2];syz=T[3];sxz=T[4];sxy=T[5];}
@@ -475,6 +557,7 @@ export class SolidBody {
       // First Piola-Kirchhoff stress P = F S (S the second Piola-Kirchhoff stress, here sxx..sxy).
       for(let i=0;i<3;i++){const a=F[3*i],b=F[3*i+1],c=F[3*i+2];P[3*i]=a*sxx+b*sxy+c*sxz;P[3*i+1]=a*sxy+b*syy+c*syz;P[3*i+2]=a*sxz+b*syz+c*szz;}
       if(lin){for(let q=0;q<9;q++)lin[o+q]=F[q];lin[o+9]=sxx;lin[o+10]=syy;lin[o+11]=szz;lin[o+12]=syz;lin[o+13]=sxz;lin[o+14]=sxy;}
+      if(this.avg){const G=this.G9;for(let q=0;q<9;q++)G[q]=F[q];}
       return w;
     }
     if(this.model==='corotational'){
@@ -500,6 +583,7 @@ export class SolidBody {
         lin[o+9]=i0/det;lin[o+10]=(gxx*gzz-gxz*gxz)/det;lin[o+11]=(gxx*gyy-gxy*gxy)/det;lin[o+12]=(gxy*gxz-gxx*gyz)/det;lin[o+13]=i2/det;lin[o+14]=i1/det;
         lin[o+15]=la*tr-2*mu*(1+th);
       }
+      if(this.avg){this.vol=tr;const G=this.G9;for(let q=0;q<9;q++)G[q]=R[q];}
       return mu*(exx*exx+eyy*eyy+ezz*ezz+2*(exy*exy+exz*exz+eyz*eyz))+.5*la*tr*tr;
     }
     // Neo-Hookean on the elastic part Fe = F / (1 + theta) = I + He. F holds He from here on.
@@ -521,6 +605,11 @@ export class SolidBody {
     }
     for(let i=0;i<3;i++)for(let j=0;j<3;j++)P[3*i+j]=k*(this.B[3*i]*R[3*j]+this.B[3*i+1]*R[3*j+1]+this.B[3*i+2]*R[3*j+2]);
     if(lin){for(let q=0;q<9;q++)lin[o+q]=R[q];lin[o+9]=logJ;lin[o+10]=k;}
+    if(this.avg){
+      // The volumetric measure is J of Fe, and its gradient d J / d H = k J Fe^-T.
+      const J=1+J1,G=this.G9;this.vol=J;if(lin)lin[o+11]=J;
+      for(let i=0;i<3;i++)for(let j=0;j<3;j++)G[3*i+j]=k*J*R[3*j+i];
+    }
     // W = mu/2 (|Fe|^2 - 3) - mu ln J + lambda/2 ln^2 J, with |Fe|^2 - 3 = 2 tr He + |He|^2.
     return mu*(.5*norm+(F[0]+F[4]+F[8]-J1)-(logJ-J1))+.5*la*logJ*logJ;
   }
@@ -530,7 +619,7 @@ export class SolidBody {
    * derivative is the stress. With `store` keeps the tangent data; with storeMode 2 commits the state. */
   private constitutive(e:number,xx:number,yy:number,zz:number,yz:number,xz:number,xy:number,store:boolean):number {
     if(this.creturn)return this.concreteConstitutive(e,xx,yy,zz,yz,xz,xy,store);
-    const mu=this.mu,la=this.lambda,Hm=this.material.hardeningModulus,ep=this.ep,o=6*e,tr=xx+yy+zz,m=tr/3;
+    const mu=this.mu,la=this.elemLambda,Hm=this.material.hardeningModulus,ep=this.ep,o=6*e,tr=xx+yy+zz,m=tr/3;
     // Trial deviatoric elastic strain dev(eps) - eps_p.
     let dxx=xx-m-ep[o],dyy=yy-m-ep[o+1],dzz=zz-m-ep[o+2],dyz=yz-ep[o+3],dxz=xz-ep[o+4],dxy=xy-ep[o+5];
     const norm=Math.sqrt(dxx*dxx+dyy*dyy+dzz*dzz+2*(dyz*dyz+dxz*dxz+dxy*dxy)),q=3*mu*Math.sqrt(2/3)*norm;
@@ -615,7 +704,7 @@ export class SolidBody {
     if(this.veBranches.length&&!this.relaxed){const P=this.P,s=this.viscoelasticScale;for(let q=0;q<9;q++)P[q]*=s;}
   }
   private tangentElastic(e:number,model:SolidModel,lin:Float64Array,plastic=false):void {
-    const H=this.H,P=this.P,mu=this.mu,la=this.lambda,o=16*e;
+    const H=this.H,P=this.P,mu=this.mu,la=this.elemLambda,o=16*e;
     if(this.plastic&&this.eroded[e]){P.fill(0);return;}
     if(model==='linear'){
       const tr=la*(H[0]+H[4]+H[8]),xy=mu*(H[1]+H[3]),xz=mu*(H[2]+H[6]),yz=mu*(H[5]+H[7]);
@@ -686,6 +775,7 @@ export class SolidBody {
   }
   /** Strain energy of the displacement field u; fills `fint` with the internal nodal forces. Infinity when an element is inverted. */
   private elastic(u:Float64Array,fint:Float64Array|null,lin:Float64Array|null):number {
+    if(this.avg)return this.elasticNodal(u,fint,lin);
     let energy=0;if(fint)fint.fill(0);
     for(let e=0;e<this.tetCount;e++){
       this.gradient(e,u);const w=this.piola(e,lin);
@@ -696,10 +786,108 @@ export class SolidBody {
   }
   /** out = K x with the tangent stiffness of `model` linearised with `lin`. */
   private stiffness(model:SolidModel,lin:Float64Array,x:Float64Array,out:Float64Array,plastic=false):void {
+    if(this.avg){this.stiffnessNodal(model,lin,x,out,plastic);return;}
     out.fill(0);
     for(let e=0;e<this.tetCount;e++){this.gradient(e,x);this.tangent(e,model,lin,plastic);this.scatter(e,out);}
   }
 
+  // ---- Nodally averaged element (tet4-nodal) ----
+
+  private live(e:number):boolean {return !(this.plastic&&this.eroded[e]);}
+  /** Averaged nodal pressure: the energy of every element's deviatoric law (element lambda `elemLambda`) plus the volumetric
+   * energy sum_n W_n U(theta_n) at the nodes, theta_n the average of the elements' volumetric measure theta_e weighted by a quarter
+   * of their volume W_n. Its gradient adds pi_e G_e to each element's stress, pi_e the mean of U'(theta_n) over its four nodes and
+   * G_e = d theta_e / d H. Viscoelastic bodies scale the whole elastic energy, as for tet4. */
+  private elasticNodal(u:Float64Array,fint:Float64Array|null,lin:Float64Array|null):number {
+    const nW=this.nW,nT=this.nT,nU1=this.nU1,V=this.elementVolume,t=this.tets,eG=this.eG,eP=this.eP,P=this.P,G=this.G9,model=this.model;
+    nW.fill(0);nT.fill(0);let energy=0;
+    for(let e=0;e<this.tetCount;e++){
+      if(!this.live(e))continue;
+      this.gradient(e,u);const w=this.piolaElastic(e,lin);
+      if(!(w<Infinity))return Infinity;
+      energy+=V[e]*w;const o=9*e;for(let q=0;q<9;q++)eP[o+q]=P[q];
+      if(model!=='linear')for(let q=0;q<9;q++)eG[o+q]=G[q];
+      const theta=this.vol,wq=V[e]/4;
+      for(let q=0;q<4;q++){const n=t[4*e+q];nW[n]+=wq;nT[n]+=wq*theta;}
+    }
+    const K=this.bulkNodal,nh=model==='neo-hookean';let nodal=0;
+    for(let n=0;n<this.nodeCount;n++){
+      const W=nW[n];if(!(W>0)){nU1[n]=0;if(lin)this.nU2[n]=0;continue;}
+      const theta=nT[n]/W;
+      if(nh){
+        if(!(theta>MIN_J))return Infinity;
+        const l=Math.log(theta);nodal+=W*.5*K*l*l;nU1[n]=K*l/theta;if(lin)this.nU2[n]=K*(1-l)/(theta*theta);
+      }else{nodal+=W*.5*K*theta*theta;nU1[n]=K*theta;if(lin)this.nU2[n]=K;}
+    }
+    energy+=nodal;
+    const ve=this.veBranches.length>0&&!this.relaxed,reporting=this.reporting,scale=this.viscoelasticScale,C=this.veC,H=this.H,nb=this.veBranches.length,hist=this.veHist;
+    let linear=0;if(fint)fint.fill(0);
+    for(let e=0;e<this.tetCount;e++){
+      if(!this.live(e))continue;
+      const o=9*e,pi=(nU1[t[4*e]]+nU1[t[4*e+1]]+nU1[t[4*e+2]]+nU1[t[4*e+3]])/4;
+      if(model==='linear'){for(let q=0;q<9;q++)P[q]=eP[o+q];P[0]+=pi;P[4]+=pi;P[8]+=pi;}
+      else for(let q=0;q<9;q++)P[q]=eP[o+q]+pi*eG[o+q];
+      for(let q=0;q<9;q++)eP[o+q]=P[q];
+      if(lin){const l=16*e;if(model==='green-lagrange')lin[l+15]=pi;else if(model==='corotational')lin[l+15]+=pi;else if(model==='neo-hookean')lin[l+12]=pi;}
+      if(ve){
+        if(reporting){for(let i=0;i<nb;i++){const h=9*(nb*e+i);for(let q=0;q<9;q++)P[q]+=hist[h+q];}}
+        else{this.gradient(e,u);for(let q=0;q<9;q++){P[q]=scale*P[q]+C[o+q];linear+=V[e]*C[o+q]*H[q];}}
+      }
+      if(fint)this.scatter(e,fint);
+    }
+    return ve&&!reporting?scale*energy+linear:energy;
+  }
+  /** Product with the tangent of elasticNodal: each element's own tangent (deviatoric law, plus pi_e dG_e) and d pi_e G_e, with
+   * d pi_e the mean over the element's nodes of U''(theta_n) d theta_n. */
+  private stiffnessNodal(model:SolidModel,lin:Float64Array,x:Float64Array,out:Float64Array,plastic:boolean):void {
+    const nW=this.nW,nD=this.nD,eD=this.eD,V=this.elementVolume,t=this.tets,H=this.H,P=this.P,own=model===this.model;
+    const U2=lin===this.linOld?this.nU2Old:this.nU2,K=this.bulkNodal;
+    nW.fill(0);nD.fill(0);
+    for(let e=0;e<this.tetCount;e++){
+      if(!this.live(e))continue;
+      this.gradient(e,x);const d=this.volumeChange(e,model,lin);eD[e]=d;const wq=V[e]/4;
+      for(let q=0;q<4;q++){const n=t[4*e+q];nW[n]+=wq;nD[n]+=wq*d;}
+    }
+    for(let n=0;n<this.nodeCount;n++)nD[n]=nW[n]>0?(own&&model==='neo-hookean'?U2[n]:K)*nD[n]/nW[n]:0;
+    out.fill(0);
+    for(let e=0;e<this.tetCount;e++){
+      if(!this.live(e))continue;
+      this.gradient(e,x);this.tangentElastic(e,model,lin,plastic);
+      const dpi=(nD[t[4*e]]+nD[t[4*e+1]]+nD[t[4*e+2]]+nD[t[4*e+3]])/4;
+      this.addVolumeTangent(e,model,lin,dpi);
+      if(this.veBranches.length&&!this.relaxed){const s=this.viscoelasticScale;for(let q=0;q<9;q++)P[q]*=s;}
+      this.scatter(e,out);
+    }
+    void H;
+  }
+  /** d theta_e = G_e : dH of element e for the increment in H, from the data `lin` keeps. */
+  private volumeChange(e:number,model:SolidModel,lin:Float64Array):number {
+    const H=this.H,o=16*e;
+    if(model==='linear')return H[0]+H[4]+H[8];
+    if(model==='neo-hookean'){
+      // k J tr(Fe^-1 dH); lin holds Fe^-1, k and J.
+      let s=0;for(let i=0;i<3;i++)for(let j=0;j<3;j++)s+=lin[o+3*i+j]*H[3*j+i];
+      return lin[o+10]*lin[o+11]*s;
+    }
+    // green-lagrange: F : dH; corotational: R : dH (lin holds F or R).
+    let s=0;for(let q=0;q<9;q++)s+=lin[o+q]*H[q];return s;
+  }
+  /** Adds the volumetric terms of the averaged nodal pressure to the tangent product in P: pi_e dG_e + dpi G_e (corotational:
+   * pi_e dR is already in the element's spin term, its coefficient lin[15] holding pi_e). */
+  private addVolumeTangent(e:number,model:SolidModel,lin:Float64Array,dpi:number):void {
+    const H=this.H,P=this.P,o=16*e;
+    if(model==='linear'){P[0]+=dpi;P[4]+=dpi;P[8]+=dpi;return;}
+    if(model==='green-lagrange'){const pi=lin[o+15];for(let q=0;q<9;q++)P[q]+=pi*H[q]+dpi*lin[o+q];return;}
+    if(model==='corotational'){for(let q=0;q<9;q++)P[q]+=dpi*lin[o+q];return;}
+    // Neo-Hookean: G = k J Fe^-T; dG = k J (tr(B) Fe^-T - (B Fe^-1)^T), B = k Fe^-1 dH.
+    const k=lin[o+10],J=lin[o+11],pi=lin[o+12],B=this.B;
+    for(let i=0;i<3;i++)for(let j=0;j<3;j++)B[3*i+j]=k*(lin[o+3*i]*H[j]+lin[o+3*i+1]*H[3+j]+lin[o+3*i+2]*H[6+j]);
+    const tr=B[0]+B[4]+B[8],a=pi*k*J,b=dpi*k*J;
+    for(let i=0;i<3;i++)for(let j=0;j<3;j++){
+      const rt=lin[o+3*j+i],bf=B[3*j]*lin[o+i]+B[3*j+1]*lin[o+3+i]+B[3*j+2]*lin[o+6+i];
+      P[3*i+j]+=a*(tr*rt-bf)+b*rt;
+    }
+  }
   // ---- Solver ----
 
   private norm(a:Float64Array):number {let s=0;for(let j=0;j<a.length;j++)s+=a[j]*a[j];return Math.sqrt(s);}
@@ -721,7 +909,8 @@ export class SolidBody {
   }
   /** Preconditioned conjugate gradients for (kScale K + mScale M) x = -g on the free components.
    * Stops early on a direction of non-positive curvature. Returns the iteration count, negative when it stopped that way. */
-  private conjugateGradient(model:SolidModel,lin:Float64Array,kScale:number,mScale:number,g:Float64Array,target:number,plastic=false):number {
+  private conjugateGradient(model:SolidModel,lin:Float64Array,kScale:number,mScale:number,g:Float64Array,target:number,plastic=false,ldl:SparseLDL|null=null):number {
+    if(ldl)return this.factoredGradient(model,lin,kScale,mScale,g,target,plastic,ldl);
     const {x,r,z,p,ap,fixed,kDiagonal,nodalMass}=this,size=x.length;let rz=0,iterations=0;
     for(let j=0;j<size;j++){x[j]=0;r[j]=fixed[j]?0:-g[j];z[j]=p[j]=r[j]/(kScale*kDiagonal[j]+mScale*nodalMass[(j-j%3)/3]);rz+=r[j]*z[j];}
     while(iterations<this.maxLinear&&this.norm(r)>target){
@@ -734,6 +923,133 @@ export class SolidBody {
       for(let j=0;j<size;j++)p[j]=z[j]+ratio*p[j];
     }
     return iterations;
+  }
+  /** The same conjugate gradients preconditioned by the sparse factorization. */
+  private factoredGradient(model:SolidModel,lin:Float64Array,kScale:number,mScale:number,g:Float64Array,target:number,plastic:boolean,ldl:SparseLDL):number {
+    const {x,r,z,p,ap,fixed,nodalMass}=this,size=x.length;let rz=0,iterations=0;
+    for(let j=0;j<size;j++){x[j]=0;r[j]=fixed[j]?0:-g[j];}
+    ldl.solve(r,z);
+    for(let j=0;j<size;j++){p[j]=z[j];rz+=r[j]*z[j];}
+    while(iterations<this.maxLinear&&this.norm(r)>target){
+      this.stiffness(model,lin,p,ap,plastic);let curvature=0;
+      for(let j=0;j<size;j++){ap[j]=fixed[j]?0:kScale*ap[j]+mScale*nodalMass[(j-j%3)/3]*p[j];curvature+=p[j]*ap[j];}
+      if(!(curvature>0)||!Number.isFinite(curvature)){if(iterations===0)x.set(z);return -iterations-1;}
+      const step=rz/curvature;
+      for(let j=0;j<size;j++){x[j]+=step*p[j];r[j]-=step*ap[j];}
+      ldl.solve(r,z);let next=0;for(let j=0;j<size;j++)next+=r[j]*z[j];
+      const ratio=next/rz;rz=next;iterations++;
+      for(let j=0;j<size;j++)p[j]=z[j]+ratio*p[j];
+    }
+    return iterations;
+  }
+  /** Node to element lists, the ring of each node (the nodes of the elements around it) and the sparse structure: nodes that share
+   * an element, or for the averaged nodal pressure nodes in the rings of a common node. */
+  private ensureLdl():SparseLDL {
+    if(this.ldl){if(this.ldlValues!==this.ldl.values)this.adoptFactor(this.ldl);return this.ldl;}
+    const N=this.nodeCount,t=this.tets,start=this.nodeElementStart=new Int32Array(N+1);
+    for(let e=0;e<this.tetCount;e++)for(let q=0;q<4;q++)start[t[4*e+q]+1]++;
+    for(let n=0;n<N;n++)start[n+1]+=start[n];
+    const fill=start.slice(0,N),list=this.nodeElements=new Int32Array(4*this.tetCount);
+    for(let e=0;e<this.tetCount;e++)for(let q=0;q<4;q++)list[fill[t[4*e+q]]++]=e;
+    const mark=this.mark=new Int32Array(N).fill(-1),rings:number[][]=[];let longest=0;
+    for(let n=0;n<N;n++){
+      const ring:number[]=[];
+      for(let k=start[n];k<start[n+1];k++)for(let q=0;q<4;q++){const m=t[4*list[k]+q];if(mark[m]!==n){mark[m]=n;ring.push(m);}}
+      ring.sort((a,b)=>a-b);rings.push(ring);longest=Math.max(longest,ring.length);
+    }
+    mark.fill(-1);
+    const ringStart=this.ringStart=new Int32Array(N+1);for(let n=0;n<N;n++)ringStart[n+1]=ringStart[n]+rings[n].length;
+    const ringNodes=this.ringNodes=new Int32Array(ringStart[N]);for(let n=0;n<N;n++)ringNodes.set(rings[n],ringStart[n]);
+    this.ringVector=new Float64Array(3*longest);this.keScratch=new Float64Array(153);
+    const wide=this.avg>0;
+    const L=this.ldl=new SparseLDL(N,(a,visit)=>{
+      for(let k=ringStart[a];k<ringStart[a+1];k++){
+        const m=ringNodes[k];visit(m);
+        if(wide)for(let j=ringStart[m];j<ringStart[m+1];j++)visit(ringNodes[j]);
+      }
+    });
+    this.adoptFactor(L);
+    return L;
+  }
+  /** A restored body brings the factor's numbers in ldlValues / ldlD: copy them into the factorization (or drop the factor when
+   * they do not fit it), then share its arrays again. */
+  private adoptFactor(L:SparseLDL):void {
+    if(this.ldlValues.length===L.values.length&&this.ldlD.length===L.D.length){L.values.set(this.ldlValues);L.D.set(this.ldlD);}
+    else this.ldlValid=false;
+    this.ldlValues=L.values;this.ldlD=L.D;
+  }
+  /** Whether a new factorization is due before an inner solve with these scales, after one of `last` iterations. */
+  private factorDue(kScale:number,mScale:number,last:number):boolean {
+    if(this.ldlSkip>0){this.ldlSkip--;return false;}
+    return !this.ldlValid||last>LDL_REFACTOR_ITERATIONS||kScale!==this.ldlK||mScale!==this.ldlM||this.erodedTotal!==this.ldlEroded;
+  }
+  /** Records an inner solve of `iterations`. A fresh factorization of an indefinite tangent (shifted) that still needed more
+   * than twice LDL_REFACTOR_ITERATIONS is a poor preconditioner there: the next LDL_INDEFINITE_SKIP inner solves use the
+   * stiffness diagonal, as `cg` does, before a new factorization is tried. */
+  private innerDone(iterations:number):void {
+    if(this.ldlFresh&&iterations>2*LDL_REFACTOR_ITERATIONS){this.ldlValid=false;this.ldlSkip=LDL_INDEFINITE_SKIP;}
+    this.ldlFresh=false;this.ldlLast=iterations;
+  }
+  /** Factors the assembled matrix and records what it was formed for. */
+  private factorize(kScale:number,mScale:number):void {
+    const L=this.ensureLdl();
+    if(L.values!==this.ldlValues)throw new EngineError('INTERNAL','The factorization lost its arrays.');
+    L.factor();this.ldlK=kScale;this.ldlM=mScale;this.ldlEroded=this.erodedTotal;this.ldlFactorizations++;
+    this.ldlValid=true;this.ldlFresh=L.shift>0;
+  }
+  /** Assembles kScale K + mScale M into the sparse matrix (unfactored), K the tangent of `lin`, exactly. */
+  private assemble(kScale:number,mScale:number,lin:Float64Array,plastic:boolean):SparseLDL {
+    const L=this.ensureLdl(),K=this.keScratch,M=this.B,H=this.H,P=this.P,g=this.grad,V=this.elementVolume,t=this.tets,model=this.model;
+    const ve=this.veBranches.length>0&&!this.relaxed?this.viscoelasticScale:1;
+    L.begin(this.fixed);
+    for(let e=0;e<this.tetCount;e++){
+      if(!this.live(e))continue;
+      const o=12*e,scale=kScale*V[e];
+      for(let c=0;c<12;c++){
+        const qc=(c-c%3)/3,i=c%3;H.fill(0);H[3*i]=g[o+3*qc];H[3*i+1]=g[o+3*qc+1];H[3*i+2]=g[o+3*qc+2];
+        if(this.avg===0)this.tangent(e,model,lin,plastic);
+        else{
+          // The element's own part of the averaged nodal pressure tangent (pi_e dG_e); d pi_e G_e is assembled per node below.
+          this.tangentElastic(e,model,lin,plastic);this.addVolumeTangent(e,model,lin,0);
+          if(ve!==1)for(let q=0;q<9;q++)P[q]*=ve;
+        }
+        for(let q=0;q<4;q++){const gx=g[o+3*q],gy=g[o+3*q+1],gz=g[o+3*q+2];for(let k=0;k<3;k++)K[12*(3*q+k)+c]=scale*(P[3*k]*gx+P[3*k+1]*gy+P[3*k+2]*gz);}
+      }
+      for(let qa=0;qa<4;qa++)for(let qb=0;qb<4;qb++){
+        const na=t[4*e+qa],nb=t[4*e+qb];if(na>nb)continue;
+        for(let p=0;p<3;p++)for(let r=0;r<3;r++)M[3*p+r]=K[12*(3*qa+p)+3*qb+r];
+        L.addBlock(na,nb,M);
+      }
+    }
+    if(mScale>0)for(let n=0;n<this.nodeCount;n++)L.addDiagonal(n,mScale*this.nodalMass[n]);
+    if(this.avg){
+      // sum_n (U''_n / W_n) v_n v_n^T, v_n = sum over the elements e around n of (V_e / 4) d theta_e / d u.
+      const nW=this.nW,mark=this.mark,v=this.ringVector,rs=this.ringStart,rn=this.ringNodes,es=this.nodeElementStart,el=this.nodeElements,G=this.G9,nh=model==='neo-hookean';
+      for(let n=0;n<this.nodeCount;n++){
+        if(!(nW[n]>0))continue;
+        const r0=rs[n],r1=rs[n+1];for(let k=r0;k<r1;k++)mark[rn[k]]=k-r0;
+        v.fill(0,0,3*(r1-r0));
+        for(let k=es[n];k<es[n+1];k++){
+          const e=el[k];if(!this.live(e))continue;
+          const l=16*e,o=12*e,wq=V[e]/4;
+          if(model==='linear'){G.fill(0);G[0]=G[4]=G[8]=1;}
+          else if(nh){const kJ=lin[l+10]*lin[l+11];for(let i=0;i<3;i++)for(let j=0;j<3;j++)G[3*i+j]=kJ*lin[l+3*j+i];}
+          else for(let q=0;q<9;q++)G[q]=lin[l+q];
+          for(let q=0;q<4;q++){
+            const m=3*mark[t[4*e+q]],gx=g[o+3*q],gy=g[o+3*q+1],gz=g[o+3*q+2];
+            for(let i=0;i<3;i++)v[m+i]+=wq*(G[3*i]*gx+G[3*i+1]*gy+G[3*i+2]*gz);
+          }
+        }
+        const c=kScale*ve*(nh?this.nU2[n]:this.bulkNodal)/nW[n];
+        for(let a=r0;a<r1;a++)for(let b=a;b<r1;b++){
+          const ia=3*(a-r0),ib=3*(b-r0);
+          for(let p=0;p<3;p++)for(let r=0;r<3;r++)M[3*p+r]=c*v[ia+p]*v[ib+r];
+          L.addBlock(rn[a],rn[b],M);
+        }
+        for(let k=r0;k<r1;k++)mark[rn[k]]=-1;
+      }
+    }
+    return L;
   }
   /** Newton's method on the incremental potential, starting from the current displacements. */
   private minimise():void {
@@ -750,8 +1066,13 @@ export class SolidBody {
       if(residual<=tolerance){st.converged=true;st.reason='converged';break;}
       if(st.newtonIterations>=this.maxNewton)break;
       st.newtonIterations++;
-      const inner=this.conjugateGradient(this.model,this.lin,kScale,mScale,this.g,linear?.1*tolerance:Math.max(.1*tolerance,Math.min(.1,Math.sqrt(residual/reference))*residual),this.plastic);
-      st.linearIterations+=Math.abs(inner);
+      let ldl:SparseLDL|null=null;
+      if(this.linearSolver==='ldl'){
+        if(this.factorDue(kScale,mScale,this.ldlLast)){this.assemble(kScale,mScale,this.lin,this.plastic);this.factorize(kScale,mScale);}
+        ldl=this.ldlValid?this.ensureLdl():null;
+      }
+      const inner=this.conjugateGradient(this.model,this.lin,kScale,mScale,this.g,linear?.1*tolerance:Math.max(.1*tolerance,Math.min(.1,Math.sqrt(residual/reference))*residual),this.plastic,ldl);
+      st.linearIterations+=Math.abs(inner);if(this.linearSolver==='ldl')this.innerDone(Math.abs(inner));else this.ldlLast=Math.abs(inner);
       if(inner<0&&linear){st.reason='singular-or-indefinite';break;}
       const x=this.x;let slope=0;for(let j=0;j<size;j++)slope+=this.g[j]*x[j];
       if(!(slope<0)){st.reason='singular-or-indefinite';break;}
@@ -810,7 +1131,7 @@ export class SolidBody {
         this.cm=1/(tau*tau);this.cd=damped?1/tau:0;
         for(let j=0;j<size;j++){this.u0[j]=u[j];this.target[j]=u[j]+tau*v[j];const mv=this.cm*this.nodalMass[(j-j%3)/3]*tau*v[j];inertia+=mv*mv;}
         this.referenceInertia=Math.sqrt(inertia);
-        if(this.linOld.length>0){if(!(this.elastic(u,null,this.lin)<Infinity))throw new EngineError('NUMERICAL_FAILURE','An element is inverted.');this.linOld.set(this.lin);}
+        if(this.linOld.length>0){if(!(this.elastic(u,null,this.lin)<Infinity))throw new EngineError('NUMERICAL_FAILURE','An element is inverted.');this.linOld.set(this.lin);this.nU2Old.set(this.nU2);}
         this.minimise();if(!this.stats.converged)this.unconverged++;
         this.commitViscous(u);
         if(this.integrator==='midpoint')for(let j=0;j<size;j++){const mid=(u[j]-this.u0[j])/tau;u[j]=2*u[j]-this.u0[j];v[j]=2*mid-v[j];}
@@ -834,6 +1155,11 @@ export class SolidBody {
    * ratio xi at omega_max the limit is (2 / omega_max) (sqrt(1 + xi^2) - xi). */
   explicitLimit():SolidExplicitLimit {
     if(this.limit)return this.limit;
+    // The bound uses the tet4 element with the full lambda: the averaged element's energy is never above it (Jensen), so the bound holds.
+    const keep=this.elemLambda;this.elemLambda=this.lambda;
+    try{return this.explicitBound();}finally{this.elemLambda=keep;}
+  }
+  private explicitBound():SolidExplicitLimit {
     const x=new Float64Array(12),y=new Float64Array(12),g=this.grad,H=this.H,P=this.P;let largest=0,altitude=Infinity;
     for(let e=0;e<this.tetCount;e++){
       const o=12*e,V=this.elementVolume[e];let value=0;
@@ -896,11 +1222,17 @@ export class SolidBody {
       holdDampingTangent(){
         if(self.linOld.length===0)return;
         if(!(self.elastic(self.u,null,self.lin)<Infinity))throw new EngineError('NUMERICAL_FAILURE','An element is inverted.');
-        self.linOld.set(self.lin);
+        self.linOld.set(self.lin);self.nU2Old.set(self.nU2);
       },
       dampingProduct(x,out){self.stiffness(self.model,self.linOld,x,out);},
       advance(converged){self.steps++;if(!converged)self.unconverged++;self.accelerationValid=false;self.commitViscous(self.u);if(self.plastic)self.commitPlastic();},
       commit(){if(self.plastic)self.commitPlastic();},
+      linearSolver:this.linearSolver,
+      assembleTangent(kScale,mScale){return self.assemble(kScale,mScale,self.lin,self.plastic);},
+      factorDue(kScale,mScale){return self.factorDue(kScale,mScale,self.ldlLast);},
+      innerDone(iterations){self.innerDone(iterations);},
+      factorize(kScale,mScale){self.factorize(kScale,mScale);},
+      factorization(){return self.linearSolver==='ldl'&&self.ldlValid?self.ensureLdl():null;},
     };
   }
 
@@ -943,9 +1275,14 @@ export class SolidBody {
   }
   private tensorsNow(stress:Float64Array|null,strain:Float64Array|null):void {
     const H=this.H,P=this.P,F=this.F,R=this.R;
+    if(this.avg&&!(this.elastic(this.u,null,null)<Infinity))throw new EngineError('NUMERICAL_FAILURE','An element is inverted.');
     for(let e=0;e<this.tetCount;e++){
       const o=6*e;this.gradient(e,this.u);
-      if(!(this.piola(e,null)<Infinity))throw new EngineError('NUMERICAL_FAILURE',`Element ${e} is inverted.`);
+      if(this.avg){
+        // The averaged passes leave each element's elastic stress in eP; add the viscoelastic overstress as piola() does.
+        if(!this.live(e))P.fill(0);else for(let q=0;q<9;q++)P[q]=this.eP[9*e+q];
+        if(this.veBranches.length&&!this.relaxed){const nb=this.veBranches.length;for(let i=0;i<nb;i++){const h=9*(nb*e+i);for(let q=0;q<9;q++)P[q]+=this.veHist[h+q];}}
+      }else if(!(this.piola(e,null)<Infinity))throw new EngineError('NUMERICAL_FAILURE',`Element ${e} is inverted.`);
       if(this.model==='linear'){
         if(stress){stress[o]=P[0];stress[o+1]=P[4];stress[o+2]=P[8];stress[o+3]=P[5];stress[o+4]=P[2];stress[o+5]=P[1];}
         if(strain){strain[o]=H[0];strain[o+1]=H[4];strain[o+2]=H[8];strain[o+3]=.5*(H[5]+H[7]);strain[o+4]=.5*(H[2]+H[6]);strain[o+5]=.5*(H[1]+H[3]);}
@@ -971,7 +1308,12 @@ export class SolidBody {
     const limit=this.material.failureStrain;let eroded=0;
     this.storeMode=2;
     try{
-      for(let e=0;e<this.tetCount;e++){
+      if(this.avg){
+        // The averaged element commits every element in one pass of its energy, then erodes.
+        if(!(this.elastic(this.u,null,null)<Infinity))throw new EngineError('NUMERICAL_FAILURE','An element is inverted.');
+        this.storeMode=0;const law=this.concreteLaw;
+        for(let e=0;e<this.tetCount;e++)if(!this.eroded[e]&&(law?this.alpha[e]>=law.kappaCrushed||this.kappaT[e]>=law.kappaErode:this.alpha[e]>=limit)){this.eroded[e]=1;eroded++;}
+      }else for(let e=0;e<this.tetCount;e++){
         if(this.eroded[e])continue;
         this.gradient(e,this.u);
         if(!(this.piola(e,null)<Infinity))throw new EngineError('NUMERICAL_FAILURE',`Element ${e} is inverted.`);
