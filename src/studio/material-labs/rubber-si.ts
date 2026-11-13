@@ -53,7 +53,7 @@ export class RubberModel extends LabModel {
   constructor(p:Partial<LabSettings>={}){
     super('rubber',p);const s=this.settings;this.spec=rubberSpec(this.material.id);this.radius=.58*s.size;this.initialHeight=.86*s.size;
     this.solid=new SolidBody({mesh:cylinderMesh(this.radius,this.initialHeight,5,5),material:{youngModulus:this.spec.youngModulus,poissonRatio:this.spec.poissonRatio,density:this.spec.density},
-      config:{model:'neo-hookean',dt:RUBBER_DT,gravity:[0,-G,0],massDamping:2,tolerance:1e-7,maxLinearIterations:4000,viscoelastic:{branches:this.spec.branches}}});
+      config:{model:'neo-hookean',dt:RUBBER_DT,gravity:[0,-G,0],massDamping:2,tolerance:1e-7,maxLinearIterations:4000,viscoelastic:{branches:this.spec.branches},element:'tet4-nodal',linearSolver:'ldl'}});
     const friction=contactPair('natural-rubber','concrete-c30-37').friction??.8;
     this.contact=new SolidContact(this.solid,{gravity:[0,-G,0]});
     this.contact.addBody({shape:{kind:'plane',normal:[0,1,0]},type:'static',position:[0,RUBBER_BASE,0],rotation:[0,0,0,1],friction});

@@ -12,7 +12,8 @@
  * bodies that float in them, `cables` and `frames` with their attachments,
  * `cloths` and `grains` with the bodies they touch, `solids` (with their
  * contacts, welds, loads and fracture), `heat` grids in them, and `fluids`
- * (flows with bodies as obstacles, and free-surface tanks).
+ * (flows with bodies as obstacles, and free-surface tanks), and `shallowWater`
+ * (depth-averaged water on terrain with rain, infiltration and floating bodies).
  * This module validates, normalises, hashes and links them; BUILDING them is
  * the job of simulation.ts (`loadSimulationScene`, the kit's `loadScene`),
  * which returns one Simulation that steps everything in the right order.
@@ -113,6 +114,10 @@ export const SCENE_LIMITS = Object.freeze({
   fluidParticles: 262144,
   fluidSubsteps: 64,
   fluidLiquid: 16,
+  /** Shallow-water grids in one scene, cells in one grid, solver steps in one world step. */
+  shallowWater: 4,
+  shallowWaterCells: 262144,
+  shallowWaterSubsteps: 64,
   /** Regions (supports, welds, loads, notches, interfaces) of one solid, and saved interfaces of one solid. */
   solidRegions: 64,
   solidCracks: 60000,
@@ -745,6 +750,59 @@ export interface SceneFluid {
   readonly affine?: readonly number[];
 }
 
+/** A side of a shallow-water grid. */
+/** A side of a shallow-water grid. An inflow brings `discharge` m^3/s, spread by width over the side or over the cells whose centres lie in `span` (world z for an x side, world x for a z side). */
+export type SceneShallowWaterSide = 'wall' | 'open' | {readonly type: 'inflow'; readonly discharge: number; readonly depth?: number; readonly span?: readonly [number, number]} | {readonly type: 'stage'; readonly level: number};
+/** A body floating in shallow water (a dynamic box or sphere). */
+export interface SceneShallowWaterBody {
+  readonly body: string;
+  /** Quadratic drag coefficient on the velocity relative to the water. Default 1.05 for a box, 0.47 for a sphere. */
+  readonly dragCoefficient?: number;
+  /** m^2. Default the cross-section of the sphere of the body's volume. */
+  readonly referenceArea?: number;
+}
+/**
+ * Shallow water on terrain (docs/SHALLOW_WATER.md): the Saint-Venant equations on `cells` = [nx, nz] cells of `spacing`
+ * metres in plan, from `origin` = [x, z]; world y is up, so gravity must point down. Numbers are float64.
+ * The bed is `bed` (nx * nz heights at cell centres, x fastest; default 0). The water starts from `depth` (nx * nz
+ * values), or from a flat `level` filled over the bed, or dry. Friction is Manning's n, infiltration Green-Ampt.
+ * Saved state: `depth`, `qx`, `qz` (discharge per width, m^2/s) and `infiltrated` (m) per cell.
+ */
+export interface SceneShallowWater {
+  readonly id: string;
+  readonly cells: readonly [number, number];
+  /** Cell size, m: one number, or [dx, dz]. */
+  readonly spacing: number | readonly [number, number];
+  /** World x and z of the minimum corner, m. Default [0, 0]. */
+  readonly origin?: readonly [number, number];
+  /** Bed heights at the cell centres, m. */
+  readonly bed?: readonly number[];
+  /** A flat starting water level, m (world y). */
+  readonly level?: number;
+  /** Starting (or saved) depth per cell, m. */
+  readonly depth?: readonly number[];
+  /** Saved discharges per unit width, m^2/s. Need `depth`. */
+  readonly qx?: readonly number[];
+  readonly qz?: readonly number[];
+  /** Saved infiltrated depth per cell, m. */
+  readonly infiltrated?: readonly number[];
+  /** Manning's n, s/m^(1/3): one value or one per cell. Default 0. */
+  readonly manning?: number | readonly number[];
+  /** Green-Ampt soil: conductivity K (m/s), suction head psi (m), moisture deficit (1). Default sealed. */
+  readonly soil?: {readonly conductivity: number; readonly suction: number; readonly moistureDeficit: number};
+  /** Rain, m/s. Default 0. */
+  readonly rain?: number;
+  /** Default: a wall on every side. */
+  readonly boundaries?: {readonly xMin?: SceneShallowWaterSide; readonly xMax?: SceneShallowWaterSide; readonly zMin?: SceneShallowWaterSide; readonly zMax?: SceneShallowWaterSide};
+  /** kg/m^3. Default 1000. */
+  readonly density?: number;
+  /** Solver steps in one world step (each split into CFL substeps of its own). Default 1. Bodies need 1. */
+  readonly substeps?: number;
+  /** 2 (default) or 1. */
+  readonly order?: 1 | 2;
+  readonly bodies?: readonly SceneShallowWaterBody[];
+}
+
 /** The optional coupled sections of a scene. */
 export interface SceneCoupledSections {
   readonly water?: readonly SceneWater[];
@@ -755,6 +813,7 @@ export interface SceneCoupledSections {
   readonly solids?: readonly SceneSolid[];
   readonly heat?: readonly SceneHeat[];
   readonly fluids?: readonly SceneFluid[];
+  readonly shallowWater?: readonly SceneShallowWater[];
 }
 
 export interface Scene {
@@ -783,6 +842,8 @@ export interface Scene {
   readonly heat?: readonly SceneHeat[];
   /** Volumetric fluids: flows with bodies as obstacles, and free-surface tanks. */
   readonly fluids?: readonly SceneFluid[];
+  /** Shallow water on terrain, with the bodies that float in it. */
+  readonly shallowWater?: readonly SceneShallowWater[];
   readonly meta?: SceneMeta;
   /** Preserved and ignored by this module. */
   readonly extensions?: {readonly [key: string]: unknown};
@@ -2008,6 +2069,71 @@ function checkFluid(c: Checker, fluid: unknown, path: string, ctx: CoupledContex
   }
 }
 
+const SHALLOW_KEYS = ['id', 'cells', 'spacing', 'origin', 'bed', 'level', 'depth', 'qx', 'qz', 'infiltrated', 'manning', 'soil', 'rain', 'boundaries', 'density', 'substeps', 'order', 'bodies'];
+const SHALLOW_SIDES = ['xMin', 'xMax', 'zMin', 'zMax'] as const;
+function checkShallowWater(c: Checker, water: unknown, path: string, ctx: CoupledContext, gravity: readonly number[]): void {
+  if (!c.object(water, path, SHALLOW_KEYS, ['id', 'cells', 'spacing'])) return;
+  if (gravity[0] !== 0 || gravity[2] !== 0 || !(gravity[1] < 0)) c.add(path, 'shallow water needs gravity straight down (0, -g, 0): its bed and level are world y');
+  let n = 0;
+  if (c.realTuple(water.cells, `${path}/cells`, 2)) {
+    const ok = c.real(water.cells[0], `${path}/cells/0`, 1, SCENE_LIMITS.shallowWaterCells, true) && c.real(water.cells[1], `${path}/cells/1`, 1, SCENE_LIMITS.shallowWaterCells, true);
+    if (ok) { const total = water.cells[0] * water.cells[1]; if (total > SCENE_LIMITS.shallowWaterCells) c.add(`${path}/cells`, `holds ${total} cells; the limit is ${SCENE_LIMITS.shallowWaterCells}`); else n = total; }
+  }
+  if (typeof water.spacing === 'number') c.positive(water.spacing, `${path}/spacing`, 1e4);
+  else if (c.realTuple(water.spacing, `${path}/spacing`, 2)) for (let k = 0; k < 2; k++) c.positive(water.spacing[k], `${path}/spacing/${k}`, 1e4);
+  if (water.origin !== undefined) c.realTuple(water.origin, `${path}/origin`, 2);
+  if (n > 0) {
+    if (water.bed !== undefined) c.reals(water.bed, `${path}/bed`, n, -1e6, 1e6);
+    if (water.depth !== undefined) c.reals(water.depth, `${path}/depth`, n, 0, 1e6);
+    for (const key of ['qx', 'qz']) if (water[key] !== undefined) { if (water.depth === undefined) c.add(`${path}/${key}`, 'needs the saved `depth`'); c.reals(water[key], `${path}/${key}`, n, -1e6, 1e6); }
+    if (water.infiltrated !== undefined) c.reals(water.infiltrated, `${path}/infiltrated`, n, 0, 1e6);
+    if (water.manning !== undefined && typeof water.manning !== 'number') c.reals(water.manning, `${path}/manning`, n, 0, 10);
+  }
+  if (water.level !== undefined) { c.real(water.level, `${path}/level`, -1e6, 1e6); if (water.depth !== undefined) c.add(`${path}/level`, 'give `level` or `depth`, not both'); }
+  if (typeof water.manning === 'number') c.real(water.manning, `${path}/manning`, 0, 10);
+  if (water.soil !== undefined && c.object(water.soil, `${path}/soil`, ['conductivity', 'suction', 'moistureDeficit'], ['conductivity', 'suction', 'moistureDeficit'])) {
+    c.real(water.soil.conductivity, `${path}/soil/conductivity`, 0, 1); c.real(water.soil.suction, `${path}/soil/suction`, 0, 100); c.real(water.soil.moistureDeficit, `${path}/soil/moistureDeficit`, 0, 1);
+  }
+  if (water.rain !== undefined) c.real(water.rain, `${path}/rain`, 0, 1);
+  if (water.density !== undefined) c.positive(water.density, `${path}/density`, 1e5);
+  const substeps = water.substeps === undefined ? 1 : c.real(water.substeps, `${path}/substeps`, 1, SCENE_LIMITS.shallowWaterSubsteps, true) ? water.substeps : 0;
+  if (water.order !== undefined && water.order !== 1 && water.order !== 2) c.add(`${path}/order`, `must be 1 or 2, got ${show(water.order)}`);
+  if (water.boundaries !== undefined && c.object(water.boundaries, `${path}/boundaries`, [...SHALLOW_SIDES])) {
+    for (const key of SHALLOW_SIDES) {
+      const side: unknown = water.boundaries[key], at = `${path}/boundaries/${key}`;
+      if (side === undefined || side === 'wall' || side === 'open') continue;
+      if (!isObject(side)) { c.add(at, `must be 'wall', 'open', {type: 'inflow', discharge} or {type: 'stage', level}, got ${show(side)}`); continue; }
+      if (side.type === 'inflow') {
+        if (c.object(side, at, ['type', 'discharge', 'depth', 'span'], ['type', 'discharge'])) {
+          if (side.discharge !== undefined) c.real(side.discharge, `${at}/discharge`, 0, 1e9); if (side.depth !== undefined) c.positive(side.depth, `${at}/depth`, 1e6);
+          if (side.span !== undefined && c.realTuple(side.span, `${at}/span`, 2) && !(side.span[1] > side.span[0])) c.add(`${at}/span`, 'must be [from, to] with to > from');
+        }
+      } else if (side.type === 'stage') {
+        if (c.object(side, at, ['type', 'level'], ['type', 'level']) && side.level !== undefined) c.real(side.level, `${at}/level`, -1e6, 1e6);
+      } else c.add(`${at}/type`, `must be 'inflow' or 'stage', got ${show(side.type)}`);
+    }
+  }
+  if (water.bodies !== undefined) {
+    if (!Array.isArray(water.bodies)) c.add(`${path}/bodies`, `must be an array, got ${typeName(water.bodies)}`);
+    else if (water.bodies.length > 64) c.add(`${path}/bodies`, `holds ${water.bodies.length} bodies; the limit is 64`);
+    else {
+      if (water.bodies.length > 0 && substeps > 1) c.add(`${path}/substeps`, 'a grid with bodies steps once per world step (it splits the step into CFL substeps itself)');
+      const listed = new Set<string>();
+      for (let i = 0; i < water.bodies.length && !c.stopped; i++) {
+        const entry: unknown = water.bodies[i], at = `${path}/bodies/${i}`;
+        if (!c.object(entry, at, ['body', 'dragCoefficient', 'referenceArea'], ['body'])) continue;
+        const ref = checkColliderBody(c, entry, at, ctx, 'shallow water');
+        if (ref !== null) {
+          if (listed.has(ref)) c.add(`${at}/body`, `body ${show(ref)} is listed twice`); listed.add(ref);
+          if (ctx.shapes?.get(ref) === 'capsule') c.add(`${at}/body`, 'shallow water couples boxes and spheres only');
+        }
+        if (entry.dragCoefficient !== undefined) c.real(entry.dragCoefficient, `${at}/dragCoefficient`, 0, 100);
+        if (entry.referenceArea !== undefined) c.positive(entry.referenceArea, `${at}/referenceArea`, 1e8);
+      }
+    }
+  }
+}
+
 /**
  * Check a scene completely, before anything is built. Returns every problem
  * found (at most SCENE_LIMITS.problems), each with a JSON-pointer path; an
@@ -2024,7 +2150,7 @@ export function validateScene(scene: unknown): SceneProblem[] {
     return c.problems;
   }
   c.version = scene.version;
-  c.object(scene, '', ['format', 'version', 'units', 'world', 'materials', 'bodies', 'joints', 'water', 'cables', 'frames', 'cloths', 'grains', 'solids', 'heat', 'fluids', 'meta', 'extensions'], ['bodies']);
+  c.object(scene, '', ['format', 'version', 'units', 'world', 'materials', 'bodies', 'joints', 'water', 'cables', 'frames', 'cloths', 'grains', 'solids', 'heat', 'fluids', 'shallowWater', 'meta', 'extensions'], ['bodies']);
   if (scene.units !== undefined && scene.units !== 'SI') c.add('/units', `must be 'SI', got ${show(scene.units)}`);
   if (scene.world !== undefined) checkWorld(c, scene.world, '/world');
   const materials = scene.materials === undefined ? new Set<string>() : checkMaterials(c, scene.materials, '/materials');
@@ -2052,7 +2178,7 @@ export function validateScene(scene: unknown): SceneProblem[] {
   }
   const shapeValues = c.geometryValues;
   if (shapeValues > SCENE_LIMITS.geometryValues) c.add('/bodies', `the shapes hold ${c.geometryValues} numbers together; the limit is ${SCENE_LIMITS.geometryValues}`);
-  if (scene.water !== undefined || scene.cables !== undefined || scene.frames !== undefined || scene.cloths !== undefined || scene.grains !== undefined || scene.solids !== undefined || scene.heat !== undefined || scene.fluids !== undefined) {
+  if (scene.water !== undefined || scene.cables !== undefined || scene.frames !== undefined || scene.cloths !== undefined || scene.grains !== undefined || scene.solids !== undefined || scene.heat !== undefined || scene.fluids !== undefined || scene.shallowWater !== undefined) {
     const shapes = new Map<string, string | null>();
     if (bodiesOk) for (const body of scene.bodies as unknown[]) if (isObject(body) && typeof body.id === 'string' && bodyIds.has(body.id)) shapes.set(body.id, isObject(body.shape) && typeof body.shape.kind === 'string' ? body.shape.kind : null);
     const world = isObject(scene.world) ? scene.world : {}, step = typeof world.step === 'number' && world.step > 0 && world.step <= 1 / 30 ? world.step : 1 / 60;
@@ -2060,7 +2186,7 @@ export function validateScene(scene: unknown): SceneProblem[] {
     const stated = new Map<string, boolean>();
     if (bodiesOk) for (const body of scene.bodies as unknown[]) if (isObject(body) && typeof body.id === 'string' && isObject(body.massData)) stated.set(body.id, Array.isArray(body.massData.center) && body.massData.center.some(v => v !== 0));
     const ctx: CoupledContext = {shapes: bodiesOk ? shapes : null, stated, step, gravity: Math.max(0, -gy), wet: new Map(), frameNodes: new Map(), frameEquations: 0};
-    const section = (key: 'water' | 'cables' | 'frames' | 'cloths' | 'grains' | 'solids' | 'heat' | 'fluids', limit: number, each: (item: unknown, path: string) => void): void => {
+    const section = (key: 'water' | 'cables' | 'frames' | 'cloths' | 'grains' | 'solids' | 'heat' | 'fluids' | 'shallowWater', limit: number, each: (item: unknown, path: string) => void): void => {
       const list = scene[key];
       if (list === undefined) return;
       if (!Array.isArray(list)) c.add(`/${key}`, `must be an array, got ${typeName(list)}`);
@@ -2079,6 +2205,7 @@ export function validateScene(scene: unknown): SceneProblem[] {
     section('water', SCENE_LIMITS.waterBasins, (item, path) => checkWater(c, item, path, ctx));
     const gravity = Array.isArray(world.gravity) && world.gravity.length === 3 && world.gravity.every(v => typeof v === 'number' && Number.isFinite(v)) ? world.gravity as number[] : [0, -9.81, 0];
     section('fluids', SCENE_LIMITS.fluids, (item, path) => checkFluid(c, item, path, ctx, gravity));
+    section('shallowWater', SCENE_LIMITS.shallowWater, (item, path) => checkShallowWater(c, item, path, ctx, gravity));
     if (ctx.frameEquations > SCENE_LIMITS.frameBodyEquations) c.add('/frames', `the frame attachments need ${ctx.frameEquations} equations (3 per pinned, 6 per clamped); the limit is ${SCENE_LIMITS.frameBodyEquations}`);
     if (c.geometryValues > SCENE_LIMITS.geometryValues && shapeValues <= SCENE_LIMITS.geometryValues) c.add('', `the scene's arrays hold ${c.geometryValues} numbers together; the limit is ${SCENE_LIMITS.geometryValues}`);
   }
@@ -2448,6 +2575,37 @@ function normalFluid(fluid: SceneFluid): SceneFluid {
   return out as unknown as SceneFluid;
 }
 
+function normalShallowWater(water: SceneShallowWater): SceneShallowWater {
+  const out: Obj = {id: water.id, cells: [...water.cells], spacing: typeof water.spacing === 'number' ? water.spacing : (water.spacing[0] === water.spacing[1] ? water.spacing[0] : [...water.spacing])};
+  if (water.origin && !isZero(water.origin)) out.origin = vec(water.origin);
+  if (water.bed && !allZero(water.bed)) out.bed = vec(water.bed);
+  if (water.depth) {
+    out.depth = vec(water.depth);
+    if (!allZero(water.qx) || !allZero(water.qz)) { out.qx = vec(water.qx ?? water.depth.map(() => 0)); out.qz = vec(water.qz ?? water.depth.map(() => 0)); }
+  } else if (water.level !== undefined) out.level = zero(water.level);
+  if (water.infiltrated && !allZero(water.infiltrated)) out.infiltrated = vec(water.infiltrated);
+  if (water.manning !== undefined) {
+    if (typeof water.manning === 'number') { if (water.manning !== 0) out.manning = water.manning; }
+    else { const m = water.manning; if (!allZero(m)) out.manning = m.every(v => v === m[0]) ? m[0] : vec(m); }
+  }
+  if (water.soil && water.soil.conductivity > 0) out.soil = {conductivity: water.soil.conductivity, suction: zero(water.soil.suction), moistureDeficit: zero(water.soil.moistureDeficit)};
+  if (water.rain !== undefined && water.rain !== 0) out.rain = water.rain;
+  const sides: Obj = {};
+  for (const key of SHALLOW_SIDES) {
+    const side = water.boundaries?.[key];
+    if (side === undefined || side === 'wall') continue;
+    if (typeof side === 'string') sides[key] = side;
+    else if (side.type === 'inflow') sides[key] = {type: 'inflow', discharge: zero(side.discharge), ...(side.depth !== undefined ? {depth: side.depth} : {}), ...(side.span ? {span: vec(side.span)} : {})};
+    else sides[key] = {type: 'stage', level: zero(side.level)};
+  }
+  if (Object.keys(sides).length > 0) out.boundaries = sides;
+  if (water.density !== undefined && water.density !== 1000) out.density = water.density;
+  if (water.substeps !== undefined && water.substeps !== 1) out.substeps = water.substeps;
+  if (water.order === 1) out.order = 1;
+  if (water.bodies && water.bodies.length > 0) out.bodies = water.bodies.map(entry => ({body: entry.body, ...(entry.dragCoefficient !== undefined ? {dragCoefficient: entry.dragCoefficient} : {}), ...(entry.referenceArea !== undefined ? {referenceArea: entry.referenceArea} : {})}));
+  return out as unknown as SceneShallowWater;
+}
+
 /** The coupled sections of a scene in normal form; a section that is absent or empty is left out. */
 function normalCoupled(scene: SceneCoupledSections): SceneCoupledSections {
   return {
@@ -2459,12 +2617,13 @@ function normalCoupled(scene: SceneCoupledSections): SceneCoupledSections {
     ...(scene.solids && scene.solids.length > 0 ? {solids: scene.solids.map(normalSolid)} : {}),
     ...(scene.heat && scene.heat.length > 0 ? {heat: scene.heat.map(normalHeat)} : {}),
     ...(scene.fluids && scene.fluids.length > 0 ? {fluids: scene.fluids.map(normalFluid)} : {}),
+    ...(scene.shallowWater && scene.shallowWater.length > 0 ? {shallowWater: scene.shallowWater.map(normalShallowWater)} : {}),
   };
 }
 
-/** True when a scene has a water basin, a cable, a frame, a cloth, a set of grains, a solid, a heat grid or a fluid: it then needs a Simulation, not just a rigid world. */
+/** True when a scene has a water basin, a cable, a frame, a cloth, a set of grains, a solid, a heat grid, a fluid or shallow water: it then needs a Simulation, not just a rigid world. */
 export function sceneHasCoupling(scene: SceneCoupledSections): boolean {
-  return (scene.water?.length ?? 0) + (scene.cables?.length ?? 0) + (scene.frames?.length ?? 0) + (scene.cloths?.length ?? 0) + (scene.grains?.length ?? 0) + (scene.solids?.length ?? 0) + (scene.heat?.length ?? 0) + (scene.fluids?.length ?? 0) > 0;
+  return (scene.water?.length ?? 0) + (scene.cables?.length ?? 0) + (scene.frames?.length ?? 0) + (scene.cloths?.length ?? 0) + (scene.grains?.length ?? 0) + (scene.solids?.length ?? 0) + (scene.heat?.length ?? 0) + (scene.fluids?.length ?? 0) + (scene.shallowWater?.length ?? 0) > 0;
 }
 
 function clone<T>(value: T): T {
@@ -3086,6 +3245,7 @@ export class SceneBuilder<W extends SceneHost = SceneHost> {
         welds: solid.welds?.filter(w => has(w.body)), loads: solid.loads?.filter(w => has(w.body))})),
       heat: coupled.heat,
       fluids: coupled.fluids?.map(fluid => (fluid.bodies ? {...fluid, bodies: fluid.bodies.filter(entry => has(entry.body))} : fluid)),
+      shallowWater: coupled.shallowWater?.map(water => (water.bodies ? {...water, bodies: water.bodies.filter(entry => has(entry.body))} : water)),
       meta: options.meta ?? this.meta, extensions: this.extensions,
     });
   }
@@ -3130,7 +3290,7 @@ export class SceneBuilder<W extends SceneHost = SceneHost> {
 export function loadScene<W extends SceneHost>(world: W, scene: unknown): LoadedScene<W> {
   const normal = normalizeScene(scene);
   if (sceneHasCoupling(normal)) {
-    throw new EngineError('INVALID_STATE', 'This scene has coupled sections (water, cables, frames, cloths, grains, solids, heat or fluids). This loader builds rigid bodies and joints only and would drop them: ' +
+    throw new EngineError('INVALID_STATE', 'This scene has coupled sections (water, cables, frames, cloths, grains, solids, heat, fluids or shallow water). This loader builds rigid bodies and joints only and would drop them: ' +
       'load the scene with loadSimulationScene (simulation.ts; the kit\'s loadScene), which returns a Simulation that steps every solver.');
   }
   const builder = new SceneBuilder<W>(world, {world: normal.world, materials: normal.materials, meta: normal.meta, extensions: normal.extensions}).populate(normal);
@@ -3148,4 +3308,4 @@ export function saveScene<W extends SceneHost>(world: W, handles: SceneBuilder<W
   return builder.toJSON(options);
 }
 
-export {pendulumWaveScene, newtonsCradleScene, dominoRunScene, terrainCarScene, ragdollScene, EXAMPLE_SCENES, mooredBuoyScene, cableStayedDeckScene, buoyAndCratesScene, trampolineScene, hopperSeesawScene, suspendedPlatformScene, rubberPadScene, notchedBeamScene, quenchedPlateScene, heatedBarScene, sphereSettlingScene, cavityFlowScene, flowPastCylinderScene, damBreakScene, COUPLED_EXAMPLE_SCENES} from './scene-examples.ts';
+export {pendulumWaveScene, newtonsCradleScene, dominoRunScene, terrainCarScene, ragdollScene, EXAMPLE_SCENES, mooredBuoyScene, cableStayedDeckScene, buoyAndCratesScene, trampolineScene, hopperSeesawScene, suspendedPlatformScene, rubberPadScene, notchedBeamScene, quenchedPlateScene, heatedBarScene, sphereSettlingScene, cavityFlowScene, flowPastCylinderScene, damBreakScene, damBreakValleyScene, riverBendScene, COUPLED_EXAMPLE_SCENES} from './scene-examples.ts';

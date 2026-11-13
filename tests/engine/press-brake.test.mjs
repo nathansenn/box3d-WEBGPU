@@ -71,3 +71,21 @@ test('the press brake resumes from a checkpoint bit for bit mid-stroke',async()=
   assert.ok(a.maxPlasticStrain>0);
   assert.deepEqual(encodeState(b.saveState()),expected);assert.equal(b.punchForce,a.punchForce);
 });
+
+test('the Studio\'s element and solver (tet4-nodal, ldl): the same air bend, limit load and springback, and an exact resume',async()=>{
+  const material={...S355,hardeningModulus:0,failureStrain:Infinity},{Ep,Mp,I}=plane(material),rows=[];
+  for(const element of ['tet4','tet4-nodal']){
+    const {pb,loaded,unloaded}=run({material,friction:0,element,linearSolver:'ldl'},.8*t,16,10),V=pb.dieOpening;
+    rows.push({element,limit:loaded.force/(4*Mp/V),springback:(loaded.deflection-unloaded.deflection)/(loaded.force*V**3/(48*Ep*I)),die:loaded.die/loaded.force});
+  }
+  console.log(`# air bend, 4 cells: ${rows.map(r=>`${r.element}: limit ${r.limit.toFixed(4)} x beam theory, springback ${r.springback.toFixed(4)} of F V^3 / (48 E' I)`).join('; ')}`);
+  // Measured: tet4 1.228 / 0.899 (as above, with ldl), tet4-nodal 1.231 / 0.925. The limit load of this short span is set by the
+  // bending of four linear tetrahedra through the thickness and the punch, not by locking (eight cells: 1.167 with either element).
+  const nodal=rows[1];assert.ok(nodal.limit>1&&nodal.limit<1.35,`${nodal.limit}`);assert.ok(Math.abs(nodal.springback-1)<.1,`${nodal.springback}`);
+  assert.ok(Math.abs(nodal.die-1)<.01,'equilibrium');assert.ok(Math.abs(rows[0].limit-1.2277)<.01,'ldl gives the cg result within the solve tolerance');
+  const {encodeState,decodeState}=await import('../../src/engine/checkpoint.ts');
+  const make=()=>{const pb=new PressBrake({material:S355,thickness:t,width:1,dt:1/60,cells:{thickness:2,length:12},element:'tet4-nodal',linearSolver:'ldl'});pb.setPunchSpeed(.05*t*60);return pb;};
+  const a=make();for(let i=0;i<6;i++)a.step();const saved=encodeState(a.saveState());for(let i=0;i<4;i++)a.step();
+  const b=make();b.restoreState(decodeState(saved));for(let i=0;i<4;i++)b.step();
+  assert.ok(a.maxPlasticStrain>0);assert.deepEqual(encodeState(b.saveState()),encodeState(a.saveState()));
+});

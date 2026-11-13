@@ -12,7 +12,7 @@
  * The contacts are linear springs with k_n = 4000 m g / d, the stiffness of the solver's validated bulk cases (soft: an
  * overlap of about 0.3% of a diameter under a column of ten grains; real glass is about a thousand times stiffer).
  */
-import {Granular,granularLattice,type GranularMaterial} from '../../engine/granular';
+import {Granular,granularLattice,type DemExecutor,type GranularMaterial} from '../../engine/granular';
 import {grainMaterial} from '../../engine/materials';
 
 export interface GrainSI {readonly material:GranularMaterial;readonly verified:boolean;readonly note:string;readonly library?:string;}
@@ -34,6 +34,12 @@ export const grainSI=(id:string):GrainSI=>GRAIN_SI[id]??GRAIN_SI.sand;
 export const TRAY={scale:10,halfLength:.285,halfWidth:.085,gateX:-.115,gateThickness:.01,columnStart:-.275,obstacle:{x:.1,radius:.027,height:.06},floorModelY:.58};
 export interface TraySettings {diameter:number;fill:number;opening:number;liftSpeed:number;frictionScale:number;seed:number;}
 export const STIFFNESS_FACTOR=4000;
+/**
+ * Threads the trays built from now on step their contacts on (granular-parallel.ts), or null for one thread. The
+ * results are the same to the bit either way; the flow worker sets it when the page is cross-origin isolated.
+ */
+let trayExecutor:DemExecutor|null=null;
+export function useTrayExecutor(executor:DemExecutor|null):void {trayExecutor=executor;}
 
 export class GranularTray {
   readonly solver:Granular;readonly gate:number;readonly count:number;readonly radius:number;readonly dt:number;readonly settings:TraySettings;readonly grain:GrainSI;
@@ -58,6 +64,7 @@ export class GranularTray {
     g.addWall({shape:{kind:'annulus',innerRadius:0,outerRadius:o.radius,offset:o.height},position:[o.x,0,0]});
     this.gate=g.addWall({shape:{kind:'box',halfExtents:[TRAY.gateThickness/2,.2,TRAY.halfWidth]},type:'kinematic',position:[TRAY.gateX,.2,0]});
     g.addGrains(lattice.positions,lattice.radii);
+    if(trayExecutor)g.useExecutor(trayExecutor);
     // Let the column settle behind the closed gate for 0.3 s before the experiment's clock starts, so that it starts as a
     // poured, disordered packing (a lattice column of frictional spheres stands like a wall).
     g.step(Math.round(.3/this.dt));

@@ -43,6 +43,7 @@
 import {EngineError} from './contracts.ts';
 import {captureFields,checkpointError,eachElement,holder,restoreFields,type FieldOptions,type StateObject,type StateValue} from './checkpoint.ts';
 import type {Subsystem} from './simulation.ts';
+import {PoissonMultigrid} from './fluid-multigrid.ts';
 
 export const FLUID_SOLVER_ID='fluid-mac-projection-mic-pcg-js-f64-v1';
 export const FLUID_COUPLING_BACKEND='rigid-fluid-coupling-fictitious-domain-js-f64-v1';
@@ -108,6 +109,19 @@ export interface FluidOptions {
   readonly cflLimit?:number;
   /** Accept a time step above the explicit viscous limit or a starting Courant number above cflLimit, with stats.unstable raised, instead of refusing. */
   readonly allowUnstable?:boolean;
+  /**
+   * Preconditioner of the conjugate-gradient pressure solve. 'mic' (default): MIC(0), whose iteration count grows with
+   * the grid's width. 'multigrid': a geometric multigrid V-cycle (fluid-multigrid.ts), whose count stays near constant;
+   * the same stopping tolerance, other iterates (results agree to that tolerance, not to the bit). The default for new
+   * fluids can be changed with setFluidPressureSolverDefault.
+   */
+  readonly pressureSolver?:'mic'|'multigrid';
+}
+let pressureSolverDefault:'mic'|'multigrid'='mic';
+/** The pressure preconditioner of fluids built without `pressureSolver` from now on (validation runs use it to run every case with multigrid). Returns the previous default. */
+export function setFluidPressureSolverDefault(solver:'mic'|'multigrid'):'mic'|'multigrid' {
+  if(solver!=='mic'&&solver!=='multigrid')throw new EngineError('INVALID_PAYLOAD',"pressureSolver is 'mic' or 'multigrid'.");
+  const before=pressureSolverDefault;pressureSolverDefault=solver;return before;
 }
 export interface FluidStats {
   steps:number;
@@ -212,7 +226,8 @@ export function fluidShapeVolume(s:FluidShape):number {
 /** Incompressible Navier-Stokes on a staggered grid. See the file header and docs/FLUID.md. */
 /** What an exact checkpoint of a Fluid holds: every field (velocities, pressure, obstacles and their motion, the
  * pressure solver's warm start, ledgers and statistics). */
-const FLUID_FIELDS:FieldOptions={label:'Fluid'};
+/** The pressure preconditioner is configuration, not state (and checkpoints keep the bytes of a solver without it). */
+const FLUID_FIELDS:FieldOptions={label:'Fluid',skip:['pressureSolver','multigrid']};
 /** What an exact checkpoint of a FluidCoupling holds: the fluid and the coupled bodies' records. */
 const FLUID_COUPLING_FIELDS:FieldOptions={label:'FluidCoupling',skip:['world','byBody'],nested:{fluid:holder,list:eachElement({label:'FluidCoupling body'})}};
 
@@ -258,6 +273,8 @@ export class Fluid {
   private readonly solidFaces:number[][]=[[],[],[]];
   private readonly obstacles:Obstacle[]=[];
   private obstaclesDirty=true;private ledgerRate=-1;private boundaryRate=-1;
+  /** The pressure preconditioner (FluidOptions.pressureSolver) and, for 'multigrid', its levels. */
+  readonly pressureSolver:'mic'|'multigrid';private readonly multigrid:PoissonMultigrid|null=null;
 
   constructor(options:FluidOptions) {
     if(!options||typeof options!=='object')fail('Fluid needs options.');
@@ -385,6 +402,9 @@ export class Fluid {
       this.diag[c]=diag;
     }
     this.singular=!dirichlet;
+    this.pressureSolver=options.pressureSolver??pressureSolverDefault;
+    if(this.pressureSolver!=='mic'&&this.pressureSolver!=='multigrid')fail("pressureSolver is 'mic' or 'multigrid'.");
+    if(this.pressureSolver==='multigrid')this.multigrid=new PoissonMultigrid([this.nx,this.ny,this.nz],this.nbr,this.diag,this.singular);
     for(let c=0;c<N;c++){const i=c%this.nx,j=Math.floor(c/this.nx)%this.ny,k=Math.floor(c/(this.nx*this.ny));this.lowMask[c]=(i>0&&this.plus[3*(c-1)]?1:0)|(j>0&&this.plus[3*(c-this.nx)+1]?2:0)|(k>0&&this.plus[3*(c-this.nx*this.ny)+2]?4:0);}
     this.buildPreconditioner();
     // Gradient faces: unknown and outflow faces, with the cells on either side (or -1 for the p = 0 side of an outflow).
@@ -905,8 +925,8 @@ export class Fluid {
     let rmax=0;for(let c=0;c<N;c++){const m=Math.abs(r[c]);if(m>rmax)rmax=m;}
     let it=0;
     if(rmax>tol){
-      const zbuf=z;
-      this.applyPreconditioner(r,zbuf);
+      const zbuf=z,mg=this.multigrid;
+      if(mg)mg.apply(r,zbuf);else this.applyPreconditioner(r,zbuf);
       let rz=0;for(let c=0;c<N;c++){d[c]=zbuf[c];rz+=r[c]*zbuf[c];}
       const Ad=this.wq;
       for(;it<this.maxIterations;it++){
@@ -916,7 +936,7 @@ export class Fluid {
         const alpha=rz/dAd;rmax=0;
         for(let c=0;c<N;c++){phi[c]+=alpha*d[c];r[c]-=alpha*Ad[c];const m=Math.abs(r[c]);if(m>rmax)rmax=m;}
         if(rmax<=tol){it++;break;}
-        this.applyPreconditioner(r,zbuf);
+        if(mg)mg.apply(r,zbuf);else this.applyPreconditioner(r,zbuf);
         let rzNew=0;for(let c=0;c<N;c++)rzNew+=r[c]*zbuf[c];
         const beta=rzNew/rz;rz=rzNew;
         for(let c=0;c<N;c++)d[c]=zbuf[c]+beta*d[c];
@@ -1170,7 +1190,7 @@ const insideShape=(s:FluidShape,dx:number,dy:number,dz:number):boolean=>{
  */
 /** What an exact checkpoint of a FreeSurfaceFluid holds: every field (grid velocities, pressure, particles and their affine velocities, the
  * viscous solve's vectors, the voxelised obstacles and their motion and forces, the time step), with the obstacles as a list of fixed length. */
-const FREE_SURFACE_FIELDS:FieldOptions={label:'FreeSurfaceFluid',nested:{obstacles:eachElement({label:'FreeSurfaceFluid obstacle'})}};
+const FREE_SURFACE_FIELDS:FieldOptions={label:'FreeSurfaceFluid',skip:['cellList','cellMask','dilateA'],nested:{obstacles:eachElement({label:'FreeSurfaceFluid obstacle'})}};
 
 export class FreeSurfaceFluid {
   /** Everything a later step reads, as a state tree (checkpoint.ts), for exact checkpoints. */
@@ -1204,6 +1224,8 @@ export class FreeSurfaceFluid {
   private readonly fixed:[Uint8Array,Uint8Array,Uint8Array];private readonly fixedValue:[Float64Array,Float64Array,Float64Array];
   private readonly owner:Int32Array;private readonly obstacles:FreeSurfaceObstacle[]=[];private solidDirty=false;
   private readonly cellsTotal:number;private readonly phi:Float64Array;private readonly near:Uint8Array;private readonly b:Float64Array;private readonly r:Float64Array;private readonly z:Float64Array;private readonly d:Float64Array;private readonly q:Float64Array;private readonly pre:Float64Array;private readonly diag:Float64Array;private readonly Ad:Float64Array;private readonly p2:Float64Array;private readonly scratch:[Float64Array,Float64Array,Float64Array];
+  /** Work space of the pressure solve (derived each call, not state): the liquid cells and their liquid-neighbour masks. */
+  private readonly cellList:Int32Array;private readonly cellMask:Uint8Array;private readonly dilateA:Uint8Array;
 
   constructor(options:FreeSurfaceOptions) {
     if(!options||typeof options!=='object')fail('FreeSurfaceFluid needs options.');
@@ -1233,7 +1255,7 @@ export class FreeSurfaceFluid {
     this.vel=f64();this.weight=f64();this.scratch=f64();this.fixedValue=f64();this.valid=u8();this.fixed=u8();
     const N=this.cellsTotal;
     this.p=new Float64Array(N);this.liquid=new Uint8Array(N);this.solid=new Uint8Array(N);this.owner=new Int32Array(N).fill(-1);this.phi=new Float64Array(N);this.near=new Uint8Array(N);
-    this.b=new Float64Array(N);this.r=new Float64Array(N);this.z=new Float64Array(N);this.d=new Float64Array(N);this.q=new Float64Array(N);this.pre=new Float64Array(N);this.diag=new Float64Array(N);this.Ad=new Float64Array(N);this.p2=new Float64Array(N);
+    this.b=new Float64Array(N);this.r=new Float64Array(N);this.z=new Float64Array(N);this.d=new Float64Array(N);this.q=new Float64Array(N);this.pre=new Float64Array(N);this.diag=new Float64Array(N);this.Ad=new Float64Array(N);this.p2=new Float64Array(N);this.cellList=new Int32Array(N);this.cellMask=new Uint8Array(N);this.dilateA=new Uint8Array(N);
     this.positions=new Float64Array(0);this.velocities=new Float64Array(0);this.affine=new Float64Array(0);
     this.particleMass=this.density*this.h**3/(this.perAxis**(this.flat?2:3));
     this.classify();
@@ -1490,46 +1512,58 @@ export class FreeSurfaceFluid {
 
   /** Solve A x = b over the liquid cells (diag and b set), MIC(0)-preconditioned conjugate gradients, until max |r| <= tol. Returns the iterations. */
   private solvePoisson(p:Float64Array,tol:number):number {
-    const b=this.b,diag=this.diag,pre=this.pre,r=this.r,z=this.z,d=this.d,q=this.q,L=this.liquid,nx=this.nx,ny=this.ny,nz=this.nz,N=this.cellsTotal,flat=this.flat,sy=nx,sz=nx*ny;
-    let liquid=0;for(let c=0;c<N;c++)liquid+=L[c];
+    const b=this.b,diag=this.diag,pre=this.pre,r=this.r,z=this.z,d=this.d,L=this.liquid,nx=this.nx,ny=this.ny,nz=this.nz,N=this.cellsTotal,flat=this.flat,sy=nx,sz=nx*ny;
+    // The liquid cells in index order, with a mask of their liquid neighbours (bit 0: -x, 1: +x, 2: -y, 3: +y, 4: -z,
+    // 5: +z). Every loop below visits these cells only, in the order the full sweeps did; the other cells' entries are
+    // zero in every vector and were only ever added as zeros, so the sums and the results are the same to the bit.
+    const list=this.cellList,mask=this.cellMask;
+    let liquid=0;
+    for(let k=0,c=0;k<nz;k++)for(let j=0;j<ny;j++)for(let i=0;i<nx;i++,c++){
+      if(!L[c])continue;
+      let m=0;
+      if(i>0&&L[c-1])m|=1;if(i<nx-1&&L[c+1])m|=2;
+      if(j>0&&L[c-sy])m|=4;if(j<ny-1&&L[c+sy])m|=8;
+      if(!flat){if(k>0&&L[c-sz])m|=16;if(k<nz-1&&L[c+sz])m|=32;}
+      mask[c]=m;list[liquid++]=c;
+    }
     p.fill(0);
     // MIC(0): for each lower liquid neighbour m, subtract pre[m]^2 (1 + 0.97 (number of m's other upper liquid neighbours)).
-    const up=(c:number,i:number,j:number,k:number,skip:number):number=>(skip!==0&&i<nx-1&&L[c+1]===1?1:0)+(skip!==1&&j<ny-1&&L[c+sy]===1?1:0)+(skip!==2&&!flat&&k<nz-1&&L[c+sz]===1?1:0);
-    for(let k=0,c=0;k<nz;k++)for(let j=0;j<ny;j++)for(let i=0;i<nx;i++,c++){
-      if(!L[c]){pre[c]=0;continue;}
+    pre.fill(0);
+    for(let q=0;q<liquid;q++){
+      const c=list[q],mc=mask[c];
       let e=diag[c];
-      if(i>0&&L[c-1]===1){const m=c-1;e-=pre[m]*pre[m]*(1+.97*up(m,i-1,j,k,0));}
-      if(j>0&&L[c-sy]===1){const m=c-sy;e-=pre[m]*pre[m]*(1+.97*up(m,i,j-1,k,1));}
-      if(!flat&&k>0&&L[c-sz]===1){const m=c-sz;e-=pre[m]*pre[m]*(1+.97*up(m,i,j,k-1,2));}
+      if(mc&1){const m=c-1,u=mask[m];e-=pre[m]*pre[m]*(1+.97*(((u>>3)&1)+((u>>5)&1)));}
+      if(mc&4){const m=c-sy,u=mask[m];e-=pre[m]*pre[m]*(1+.97*(((u>>1)&1)+((u>>5)&1)));}
+      if(mc&16){const m=c-sz,u=mask[m];e-=pre[m]*pre[m]*(1+.97*(((u>>1)&1)+((u>>3)&1)));}
       if(e<.25*diag[c])e=diag[c];
       pre[c]=e>0?1/Math.sqrt(e):0;
     }
     const applyA=(x:Float64Array,out:Float64Array)=>{
-      for(let k=0,c=0;k<nz;k++)for(let j=0;j<ny;j++)for(let i=0;i<nx;i++,c++){
-        if(!L[c]){out[c]=0;continue;}
+      for(let q=0;q<liquid;q++){
+        const c=list[q],m=mask[c];
         let s=diag[c]*x[c];
-        if(i>0&&L[c-1])s-=x[c-1];if(i<nx-1&&L[c+1])s-=x[c+1];
-        if(j>0&&L[c-sy])s-=x[c-sy];if(j<ny-1&&L[c+sy])s-=x[c+sy];
-        if(!flat){if(k>0&&L[c-sz])s-=x[c-sz];if(k<nz-1&&L[c+sz])s-=x[c+sz];}
+        if(m&1)s-=x[c-1];if(m&2)s-=x[c+1];
+        if(m&4)s-=x[c-sy];if(m&8)s-=x[c+sy];
+        if(m&16)s-=x[c-sz];if(m&32)s-=x[c+sz];
         out[c]=s;
       }
     };
     const tmp=this.q;
     const precondition=(rr:Float64Array,out:Float64Array)=>{
-      for(let k=0,c=0;k<nz;k++)for(let j=0;j<ny;j++)for(let i=0;i<nx;i++,c++){
-        if(!L[c]){tmp[c]=0;continue;}
+      for(let q=0;q<liquid;q++){
+        const c=list[q],m=mask[c];
         let t=rr[c];
-        if(i>0&&L[c-1])t+=pre[c-1]*tmp[c-1];
-        if(j>0&&L[c-sy])t+=pre[c-sy]*tmp[c-sy];
-        if(!flat&&k>0&&L[c-sz])t+=pre[c-sz]*tmp[c-sz];
+        if(m&1)t+=pre[c-1]*tmp[c-1];
+        if(m&4)t+=pre[c-sy]*tmp[c-sy];
+        if(m&16)t+=pre[c-sz]*tmp[c-sz];
         tmp[c]=t*pre[c];
       }
-      for(let k=nz-1,c=N-1;k>=0;k--)for(let j=ny-1;j>=0;j--)for(let i=nx-1;i>=0;i--,c--){
-        if(!L[c]){out[c]=0;continue;}
+      for(let q=liquid-1;q>=0;q--){
+        const c=list[q],m=mask[c];
         let t=tmp[c];
-        if(i<nx-1&&L[c+1])t+=pre[c]*out[c+1];
-        if(j<ny-1&&L[c+sy])t+=pre[c]*out[c+sy];
-        if(!flat&&k<nz-1&&L[c+sz])t+=pre[c]*out[c+sz];
+        if(m&2)t+=pre[c]*out[c+1];
+        if(m&8)t+=pre[c]*out[c+sy];
+        if(m&32)t+=pre[c]*out[c+sz];
         out[c]=t*pre[c];
       }
     };
@@ -1538,19 +1572,21 @@ export class FreeSurfaceFluid {
     let it=0;
     if(rmax>tol&&liquid>0){
       const Ad=this.Ad;
+      // The full sweeps left zeros in the other cells of these work vectors: so do these (checkpoints hold them).
+      tmp.fill(0);z.fill(0);d.fill(0);Ad.fill(0);
       precondition(r,z);
-      let rz=0;for(let c=0;c<N;c++){d[c]=z[c];rz+=r[c]*z[c];}
+      let rz=0;for(let q=0;q<liquid;q++){const c=list[q];d[c]=z[c];rz+=r[c]*z[c];}
       for(;it<this.maxIterations;it++){
         applyA(d,Ad);
-        let dAd=0;for(let c=0;c<N;c++)dAd+=d[c]*Ad[c];
+        let dAd=0;for(let q=0;q<liquid;q++){const c=list[q];dAd+=d[c]*Ad[c];}
         if(!(dAd>0))break;
         const alpha=rz/dAd;rmax=0;
-        for(let c=0;c<N;c++){p[c]+=alpha*d[c];r[c]-=alpha*Ad[c];const a=Math.abs(r[c]);if(a>rmax)rmax=a;}
+        for(let q=0;q<liquid;q++){const c=list[q];p[c]+=alpha*d[c];r[c]-=alpha*Ad[c];const a=Math.abs(r[c]);if(a>rmax)rmax=a;}
         if(rmax<=tol){it++;break;}
         precondition(r,z);
-        let rzNew=0;for(let c=0;c<N;c++)rzNew+=r[c]*z[c];
+        let rzNew=0;for(let q=0;q<liquid;q++){const c=list[q];rzNew+=r[c]*z[c];}
         const beta=rzNew/rz;rz=rzNew;
-        for(let c=0;c<N;c++)d[c]=z[c]+beta*d[c];
+        for(let q=0;q<liquid;q++){const c=list[q];d[c]=z[c]+beta*d[c];}
       }
       if(rmax>tol)this.stats.unconverged++;
     }
@@ -1570,13 +1606,15 @@ export class FreeSurfaceFluid {
     // spacing), so that a flat surface lies half a spacing above the top particles, where seeding put it. Only particles
     // in cells with an empty cell among their 27 neighbours can be the nearest to one.
     const phi=this.phi,near=this.near,X=this.positions,o=this.origin,radius=h/(2*this.perAxis);
-    phi.fill(Infinity);near.fill(0);
-    for(let k=0,c=0;k<nz;k++)for(let j=0;j<ny;j++)for(let i=0;i<nx;i++,c++){
-      if(L[c]||S[c])continue;
-      for(let dk=flat?0:-1;dk<=(flat?0:1);dk++){const kk=k+dk;if(kk<0||kk>=nz)continue;
-        for(let dj=-1;dj<=1;dj++){const jj=j+dj;if(jj<0||jj>=ny)continue;
-          for(let di=-1;di<=1;di++){const ii=i+di;if(ii<0||ii>=nx)continue;near[ii+nx*(jj+ny*kk)]=1;}}}
-    }
+    phi.fill(Infinity);
+    // near[c] = 1 when an empty cell lies in c's 3 x 3 x 3 block (3 x 3 when flat): the empty cells dilated by one cell
+    // along x, then y, then z.
+    {const A=this.dilateA,B=near;
+      for(let c=0;c<N;c++)A[c]=L[c]||S[c]?0:1;
+      for(let k=0,c=0;k<nz;k++)for(let j=0;j<ny;j++)for(let i=0;i<nx;i++,c++)B[c]=A[c]|(i>0?A[c-1]:0)|(i<nx-1?A[c+1]:0);
+      for(let k=0,c=0;k<nz;k++)for(let j=0;j<ny;j++)for(let i=0;i<nx;i++,c++)A[c]=B[c]|(j>0?B[c-sy]:0)|(j<ny-1?B[c+sy]:0);
+      if(flat)B.set(A);
+      else for(let k=0,c=0;k<nz;k++)for(let j=0;j<ny;j++)for(let i=0;i<nx;i++,c++)B[c]=A[c]|(k>0?A[c-sz]:0)|(k<nz-1?A[c+sz]:0);}
     for(let pI=0;pI<this.count;pI++){
       const x=X[3*pI],y=X[3*pI+1],zp=X[3*pI+2];
       const ci=Math.floor((x-o[0])/h),cj=Math.floor((y-o[1])/h),ck=flat?0:Math.floor((zp-o[2])/h);

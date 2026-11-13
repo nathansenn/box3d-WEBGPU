@@ -58,6 +58,8 @@ simulation.step();
  │                                           solid with the bodies it touches or is welded to, applies its forces
  │                 180  fluid coupling       (`fluidSubsystem` of box3d-webgpu-kit/fluid) takes the fluid's own steps
  │                                           to t + dt with the bodies as moving obstacles, applies the mean force
+ │                 190  shallow water        (`shallowWaterSubsystem` of box3d-webgpu-kit/shallow-water, with bodies)
+ │                                           buoyancy and drag on the bodies, then the water's CFL substeps to t + dt
  │                 200  water coupling       reads the bodies at t, applies buoyancy and drag,
  │                                           advances the water to t + dt
  │
@@ -68,6 +70,7 @@ simulation.step();
  │                 300  solids               their own steps to t + dt
  │                 510  fluid                a flow without bodies: its own steps to t + dt
  │                 520  free surface         (`freeSurfaceSubsystem`) a free-surface tank: its own steps to t + dt
+ │                 530  shallow water        a grid without bodies: its own steps (each in CFL substeps) to t + dt
  │
  └─ events         finish on every subsystem; world events, then subsystem events, to onEvent listeners;
                    then onStep listeners
@@ -145,6 +148,7 @@ Each adapter calls the module's own `step` and nothing else. No module's numeric
 | solid → heat, water ↔ solid, water ↔ cable or frame | Not modelled. |
 | rigid ↔ cloth | Two-way, through `ClothCoupling` and `clothSubsystem` ([`CLOTH.md`](CLOTH.md)): contact with friction, attachments. The adapter lives in the cloth module, not in `simulation.ts`. A cloth and a cable, a frame or water on the same body do not know of each other, as above. A scene file can describe a cloth (`cloths`, [`SCENE_FORMAT.md`](SCENE_FORMAT.md#coupled-sections-cloths-and-grains)). |
 | rigid ↔ grains | Two-way, through `GranularCoupling` and `granularSubsystem` ([`GRANULAR.md`](GRANULAR.md)): the grains take a whole number of their own steps inside each rigid step, with the bodies they touch moving alongside, and hand the world the mean force. The adapter lives in the granular module. Grains and a cloth, a cable or water on the same body do not know of each other, as above. A scene file can describe grain sets (`grains`). |
+| rigid ↔ shallow water | Two-way, through `ShallowWaterCoupling` and `shallowWaterSubsystem` ([`SHALLOW_WATER.md`](SHALLOW_WATER.md)): boxes and spheres float by the exact volume below the local water plane and feel drag on their velocity relative to the depth-averaged water; the water gets the reaction as momentum and the displaced volume as a source. Explicit, forces at the half-step pose. In the scene format's `shallowWater` section. |
 | rigid ↔ volumetric fluid | Two-way, through `FluidCoupling` and `fluidSubsystem` ([`FLUID.md`](FLUID.md)): bodies are moving obstacles of the fluid's grid, the fluid takes a whole number of its own steps inside each rigid step and hands each body the mean force and torque (buoyancy included). Explicit: the body sees the fluid one step late. A bare `Fluid` runs in the post stage. The free-surface option is not coupled (`freeSurfaceSubsystem` runs a tank in the post stage). Both are in the scene format's `fluids` section ([`SCENE_FORMAT.md`](SCENE_FORMAT.md#fluids)). A fluid does not know of the height-field water, cloth, cables or grains on the same body. |
 | the app's cloth, rope and granular scenes, GPU water | Not in the loop yet. |
 
@@ -232,10 +236,11 @@ The `box3d-scene` format ([`SCENE_FORMAT.md`](SCENE_FORMAT.md#coupled-sections-w
  cloths, grains,        // Map<id, ClothCoupling>, Map<id, GranularCoupling>; each a subsystem under its id
  solids,                // Map<id, {body, coupling, heat}>: SolidBody or FractureBody, its SolidCoupling or null, its HeatSolver or null
  heat,                  // Map<id, HeatSolver>; each a subsystem under its id, with its link to the solid as '<id>:solid'
- fluids}                // Map<id, {kind: 'flow', flow, coupling} | {kind: 'free-surface', surface}>; each a subsystem under its id
+ fluids,                // Map<id, {kind: 'flow', flow, coupling} | {kind: 'free-surface', surface}>; each a subsystem under its id
+ shallowWater}          // Map<id, {water, coupling}>; each a subsystem under its id
 ```
 
-Build order, which is part of the format because it fixes the bits: bodies and joints as before; every frame, then every cable, in file order; one `StructureCoupling` that is handed all of them, then the cables' attachments (cable by cable, in file order), then the frames' attachments; then each cloth (its bodies, planes and attachments), then each grain set (walls, bodies, grains); then each solid (mesh, notches and interfaces, saved cracks, supports, saved state, contact, welds, the `<id>:loads` link), then each heat grid with its `<id>:solid` link; then each fluid (a flow with its `FluidCoupling` and bodies, or a bare `Fluid`; a free-surface tank); then each basin and its bodies. A dynamic body that a cloth, grains or a flow push is tracked in the `rigid` ledger entry unless the structure coupling counts it. Cables and frames take the world's step and the scene's gravity. An invalid scene leaves the world untouched; a section the engine refuses leaves it reset and empty, and the error starts with `Scene cable "<id>":`, `Scene frame "<id>":` `Scene water "<id>":`, `Scene solid "<id>":`, `Scene heat "<id>":` or `Scene fluid "<id>":`.
+Build order, which is part of the format because it fixes the bits: bodies and joints as before; every frame, then every cable, in file order; one `StructureCoupling` that is handed all of them, then the cables' attachments (cable by cable, in file order), then the frames' attachments; then each cloth (its bodies, planes and attachments), then each grain set (walls, bodies, grains); then each solid (mesh, notches and interfaces, saved cracks, supports, saved state, contact, welds, the `<id>:loads` link), then each heat grid with its `<id>:solid` link; then each fluid (a flow with its `FluidCoupling` and bodies, or a bare `Fluid`; a free-surface tank); then each shallow-water grid (with its `ShallowWaterCoupling` and bodies, or bare); then each basin and its bodies. A dynamic body that a cloth, grains or a flow push is tracked in the `rigid` ledger entry unless the structure coupling counts it. Cables and frames take the world's step and the scene's gravity. An invalid scene leaves the world untouched; a section the engine refuses leaves it reset and empty, and the error starts with `Scene cable "<id>":`, `Scene frame "<id>":` `Scene water "<id>":`, `Scene solid "<id>":`, `Scene heat "<id>":` or `Scene fluid "<id>":`.
 
 `saveScene` writes the sections back with the fields the solvers hold: the basin's `eta`, `u` and `v`, each cable's node positions and velocities, each frame's displacements and velocities, each solid's displacements, velocities and interfaces, each heat grid's temperatures, each flow's face velocities and pressures and each tank's particles. Not saved: the structure coupling's own state (last step's interface impulses and the pending half kick, so the saved velocity of a body resting on a frame is off by about `g dt / 2`), the cable solver's multipliers, and one step of displaced volume (the first step after a load takes a wet body as part of the starting state). A run resumed from a saved scene starts from bit-identical fields and then differs slightly; the measured drift is in the table below. A checkpoint (`simulation.checkpoint()`, [`CHECKPOINTS.md`](CHECKPOINTS.md)) holds all of that state, and a run resumed from it is bit-identical.
 

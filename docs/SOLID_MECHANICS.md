@@ -34,7 +34,7 @@ It plugs into the shared stepping loop (`solidSubsystem`, [`SIMULATION.md`](SIMU
 
 **Loads and constraints.** Prescribed displacement components at nodes (Dirichlet), point forces, uniform tractions and pressure on boundary faces, gravity. All loads are dead loads: tractions and pressure keep the direction and area of the reference shape. That is exact at small strain and an approximation for pressure at large deformation.
 
-**Solver.** Statics and the implicit integrators minimise one incremental potential by Newton's method. Each Newton step solves its linear system with conjugate gradients, preconditioned by the diagonal of the reference stiffness plus the mass term. Products with the tangent stiffness are formed element by element; no global matrix is stored. For the finite-strain models the inner solve stops on a direction of non-positive curvature and a backtracking line search on the potential follows. A solve converges when the 2-norm of the unbalanced nodal forces is at most `tolerance` (default 1e-10) times the largest internal, external or inertial force norm seen during that solve. Statics can raise loads, prescribed displacements and temperature in equal load steps.
+**Solver.** Statics and the implicit integrators minimise one incremental potential by Newton's method. Each Newton step solves its linear system with conjugate gradients, preconditioned by the diagonal of the reference stiffness plus the mass term (`linearSolver: 'cg'`, the default) or by a sparse factorization of the assembled tangent (`linearSolver: 'ldl'`, section Linear solver). Products with the tangent stiffness are formed element by element; with `cg` no global matrix is stored. For the finite-strain models the inner solve stops on a direction of non-positive curvature and a backtracking line search on the potential follows. A solve converges when the 2-norm of the unbalanced nodal forces is at most `tolerance` (default 1e-10) times the largest internal, external or inertial force norm seen during that solve. Statics can raise loads, prescribed displacements and temperature in equal load steps.
 
 **Integrators.**
 
@@ -56,6 +56,62 @@ Rayleigh damping is `C = massDamping * M + stiffnessDamping * K`. For the finite
 
 **Failure.** `failedElements({criterion, strength})` returns the elements whose largest principal stress (`max-principal`, brittle) or von Mises stress (`von-mises`, yield) is above a strength. This is post-processing only. An elastic body does not yield, soften or crack; a plastic one yields and erodes (see Plasticity). Crack propagation is a separate body type on this element's linear model, `FractureBody`: see [`SOLID_FRACTURE.md`](SOLID_FRACTURE.md).
 
+## Averaged nodal pressure element (`tet4-nodal`)
+
+`config.element: 'tet4-nodal'` (default `tet4`) removes most of the volumetric locking of the four-node tetrahedron, elastic (rubber, `nu` near 0.5) and plastic (isochoric J2 flow), with the same nodes, shape functions, lumped mass, loads, contact and outputs. Source: `src/engine/solid.ts` (`elasticNodal`, `stiffnessNodal`); validation `tests/engine/solid-nodal.test.mjs` in `npm run test:solid`.
+
+**Formulation.** Each law is split into a deviatoric energy, evaluated per element as before, and a volumetric energy evaluated at the nodes (the averaged nodal pressure of Bonet and Burton, 1998, written here as an energy):
+
+    W = sum_e V_e W_dev(H_e) + sum_n W_n U(theta_n),   theta_n = sum_(e at n) (V_e / 4) theta_e / W_n,   W_n = sum_(e at n) V_e / 4
+
+| Model | Element energy (`W_dev`) | Volumetric measure `theta_e` | `U` at the nodes |
+|---|---|---|---|
+| `linear` | Hooke with `lambda - K` (`mu eps:eps - mu/3 tr(eps)^2`, the deviatoric part) | `tr(eps)` less the thermal strain | `K/2 theta^2`, `K = lambda + 2 mu / 3` |
+| `corotational` | the same on the Biot strain | `tr(S - I)` less the thermal strain | `K/2 theta^2` |
+| `green-lagrange` (and J2) | the same on the Green-Lagrange strain; J2's radial return acts on the deviator only, as before | `tr(E)` less the thermal strain | `K/2 theta^2` |
+| `neo-hookean` | `mu/2 (I_C - 3) - mu ln J` (the law with `lambda = 0`) | `J` of the elastic part | `lambda/2 ln^2 theta` |
+
+The internal force is the exact gradient: each element's stress gains `pi_e G_e`, with `G_e = d theta_e / d H` and `pi_e` the mean of `U'(theta_n)` over its four nodes. The tangent is exact too: the element's own tangent, `pi_e dG_e`, and `d pi_e G_e` with `d pi_e` the mean over its nodes of `U''(theta_n) d theta_n` (two passes over the elements per product). Central differences confirm both in every regime the element takes: the four elastic models at `nu` = 0.3 and 0.49 with thermal strain, J2 on the linear and Green-Lagrange models from a plastic state turned 29°, and the viscoelastic Neo-Hookean body (tangent and gradient agree to 1e-9 to 1e-11). A uniform state gives every node the elements' own `theta`, so uniform states, the patch test and the uniform-state rows of section Validation (measured with tet4) are unchanged. Viscoelastic branches scale the whole elastic energy as for `tet4`; `stresses()` reports the element stress with `pi_e G_e`.
+
+**Why this element.** It keeps the element's nodes, its variational structure (one energy, exact gradient and tangent, so Newton's method, the line search and the plastic return are unchanged) and everything that couples to nodes: `SolidContact`, welds, lumped mass, the Studio meshes and drawing. A mixed u-p element needs pressure unknowns and an indefinite system the minimisation does not have; a stabilised P1/P1 element needs a tuned parameter; quadratic tetrahedra (T10) would remove the bending error too but change the mesh, the lumped mass (corner masses of T10 need special lumping), contact and every Studio mesh. The nodal volume constraint gives one constraint per node against three unknowns per node, where per-element constraints give five to six per node (constraint counting in the manner of Hughes' constraint ratio; recalled, not re-read for this).
+
+**Rejected: nodally averaged B-bar.** Replacing each element's volumetric strain by the mean of its nodes' averaged strain (which a pressure-dependent law would need) admits spurious soft modes: Cook's membrane at `nu` = 0.3 came out 2.5 times too flexible (22.96 against about 9.1 at 32 cells) and does not converge to the right answer. It is not in the code. **The concrete law therefore keeps `tet4`**: its Drucker-Prager yield depends on the pressure, so it does not split into the two energies; `element: 'tet4-nodal'` with `concrete` is refused (INVALID_PAYLOAD). Concrete is compressible (`nu` = 0.2), so elastic volumetric locking does not arise; locking of its dilatant plastic flow remains.
+
+**Explicit limit.** By Jensen's inequality `sum_n W_n theta_n^2 <= sum_e V_e theta_e^2`, so the element's energy never exceeds `tet4`'s and the per-element bound of `explicitLimit()` (computed with `tet4`) still holds.
+
+**Cost.** Two passes over the elements per energy and per tangent product instead of one (about 2 to 3 times the work per conjugate-gradient iteration), and a sparse matrix with a wider stencil (nodes within two element rings) when `ldl` is used.
+
+### Validation of `tet4-nodal`
+
+`tests/engine/solid-nodal.test.mjs` (in `npm run test:solid`), the press-brake test, the plasticity test and `tests/studio/rubber-si.test.mjs`; rows `solid.nodal.*` and `solid.bonded-compression` in [`VALIDATION.md`](VALIDATION.md).
+
+| Check | Reference | tet4-nodal | tet4 | Tolerance |
+|---|---|---|---|---|
+| Patch test, irregular mesh, `nu` = 0.4999, four models | `u = A X`, uniform stress | displacement error 1e-15 to 3.5e-13, stress spread below 6e-13 | — | 1e-8, 1e-6 |
+| Gradient and tangent, every regime | central differences | 1e-9 to 1e-11 | — | 2e-6 |
+| Cook's membrane, `nu` = 0.4999, plane strain, tip deflection over 7.769 (reference of N. Sukumar et al., arXiv:2304.04941, Cook's membrane section), 4 / 8 / 16 / 32 cells per side | 1 | 0.536, 0.778, 0.907, 0.959 | 0.415, 0.571, 0.785, 0.904 | within 5 % at 32 cells, from below |
+| Bonded rubber cylinder of the elastomer lab (5 cells across, `nu` = 0.49), apparent modulus over the Gent-Lindley closed form `1/E_c = 1/(E(1+2S^2)) + 1/K` (quoted as Eq. 2 in Koblar, Škofic, Boltežar, Strojniški vestnik 60 (2014) 506-511) | 1.12 (converged 3-D solution, below) | 1.286 | 1.516 | 1.12 to 1.31 |
+| Same, 8 / 12 / 16 cells across | | 1.204, 1.166, 1.150 | 1.299, —, 1.181 (24 cells: 1.154) | measured |
+| Same at `nu` = 0.4999, 5 / 8 / 12 / 16 cells | | 1.605, 1.297, 1.182, 1.138 | 18.2 (5 cells), 3.90 (8) | measured |
+| Plane-strain pure bending, perfectly plastic, at 16 k_y, M over `M_p' (1 - (k_y/k)^2/3)`, 2 / 4 / 8 cells through the depth | 1 | 1.183, 1.048, 1.013 | 1.234, 1.068, 1.020 | below tet4; 1.055 and 1.016 at 4 and 8 cells |
+| Press-brake air bend (4 cells, S355, V = 8 t): limit load over 4 M_p'/V; springback over F V^3 / (48 E' I) | 1 | 1.231; 0.925 | 1.228; 0.899 | 1.0 to 1.35; ±10 % |
+| Thick cylinder (Hill), 8 x 8 cells: Lamé outer displacement at 0.97 p_y; collapse | Lamé; p_L = 200.09 MPa | -0.96 %; contained at 0.98 p_L, collapse at 1.02 p_L | -1.05 %; the same | 1.5 %; ±2 % |
+| Cantilever, 4 cells, tip error against Timoshenko at `nu` = 0.3, 0.45, 0.49, 0.499, 0.4999 | 0 | -9.6, -14.2, -17.8, -21.5, -23.0 % | -12.5, -17.2, -22.0, -27.3, -29.3 % | softer than tet4 at every `nu` |
+| Checkpoint: a viscoelastic tet4-nodal body in contact (ldl) and the press brake (tet4-nodal, ldl) resume bit for bit | | pass | | exact |
+
+**The bonded block reference.** The closed form assumes the bulging faces stay parabolic; for this tall specimen (shape factor `S = R / (2 H)` = 0.34) it is not the 3-D answer. Richardson extrapolation of both elements (tet4-nodal from 8, 12 and 16 cells, observed order 1.5; tet4 from 8, 16 and 24 cells) gives 1.12 times the closed form for both, so the lab mesh is 15 % too stiff with tet4-nodal and 35 % with tet4 (the elastomer lab's forces were 52 % above the closed form before). Koblar et al. (Table 2, quadratic FE at `nu` = 0.4999) find the closed form within 1 to 3 % for S = 0.25 to 0.5 in their dynamic set-up; at `nu` = 0.4999 the extrapolation here gives about 1.07 (uncertain by a few percent).
+
+**What it does not fix.** Linear tetrahedra are still too stiff in bending (shear locking), and that is what remains in the plastic bending and press-brake rows: the press-brake limit load is not changed by the element (1.23 at 4 cells, 1.167 at 8 cells with either element); the earlier docs put its excess on plastic-incompressibility locking, which the measurements above do not support. In the 4-cell cantilever the nodal pressure relieves part of the locking as `nu` approaches 0.5, not all of it. Convergence in the bonded block is slow (order about 1.5), because the bonded edge is singular.
+
+## Linear solver (`linearSolver: 'ldl'`)
+
+`src/engine/sparse-ldl.ts`. The tangent `kScale K + mScale M` is assembled into a sparse symmetric matrix of 3 x 3 node blocks (each element's 12 x 12 matrix from twelve products of its own tangent, and for `tet4-nodal` the per-node term `(U''_n / W_n) v_n v_n^T`, exact, so the structure holds the nodes within two element rings), ordered by minimum degree on the node graph (explicit elimination, ties to the lowest node index), and factored as L D Lᵀ, left-looking. It preconditions the same conjugate gradients, which still multiply by the exact tangent and stop at the same tolerance, so the answer is that of `cg` within the solve tolerance (measured: 5e-12 to 9e-12 of the largest displacement on a plastic bar) and Newton's method is unchanged.
+
+- **Reuse.** The factorization is kept across Newton iterations and time steps and formed again only when an inner solve needed more than 8 iterations, the scales of K and M change, or an element erodes (a stale factor costs iterations, never accuracy). Its numbers are part of `saveState()`, so a resumed run preconditions with the same factor and repeats bit for bit (asserted).
+- **Indefinite tangents** (softening, the geometric stiffness of a compressed sheet, strongly distorted finite-strain elements): the diagonal is raised by 1e-6, 1e-4, 1e-2 or 1 times itself (Levenberg-Marquardt) until no pivot needs resetting (the last attempt resets what it must), so the preconditioner stays positive definite; the conjugate gradients still stop at negative curvature of the true tangent. When a fresh shifted factorization still needs more than 16 inner iterations, the next 3 inner solves use the stiffness diagonal (as `cg`) before a new factorization is tried. Measured on the press's cracking V bend: resetting pivots alone sent the radius bend astray (two steps accepted unconverged, the sheet folded through itself); coarse shifts alone (1e-2 upwards) took 26,000 inner iterations; this policy 27,500 inner iterations and 120 factorizations on the V bend (51,600 with tet4 and `cg`), and 10,200 inner iterations and 200 factorizations over 1,830 Newton iterations on the radius bend (818,000 inner iterations over 2,290 Newton iterations with tet4 and `cg`).
+- **`SolidContact`** adds its contact, friction and weld springs as node blocks before factoring; dynamic rigid bodies keep their 6 x 6 block preconditioner.
+- **Cost.** One factorization of the lab meshes takes about 10 ms (216 nodes, tet4), 30 ms (216 nodes, tet4-nodal) and 600 ms (729 nodes, tet4-nodal); the ordering is formed once per body. Meant for the Studio's meshes (hundreds to a few thousand nodes); larger meshes keep `cg`.
+
 ## Plasticity
 
 A material with `yieldStress` (Pa) makes the `linear` and `green-lagrange` models elastic-plastic (solver id `solid-tet-j2-js-f64-v1`):
@@ -71,7 +127,7 @@ A material with `yieldStress` (Pa) makes the `linear` and `green-lagrange` model
 
 ### Plasticity validation
 
-`tests/engine/solid-plasticity.test.mjs` (9 tests, about 2 s) and `tests/engine/press-brake.test.mjs` (3 tests, about 25 s), both in `npm run test:solid`. E = 200 GPa, nu = 0.3, sigma_y = 250 MPa unless stated.
+`tests/engine/solid-plasticity.test.mjs` (9 tests, about 2 s) and `tests/engine/press-brake.test.mjs` (5 tests, about 40 s), both in `npm run test:solid`. E = 200 GPa, nu = 0.3, sigma_y = 250 MPa unless stated.
 
 | Check | Expected | Measured | Tolerance and why |
 |---|---|---|---|
@@ -87,7 +143,7 @@ A material with `yieldStress` (Pa) makes the `linear` and `green-lagrange` model
 | Explicit and backward-Euler dynamics | The state is committed every step; reset clears it | p > 0 after the stretch, 0 after reset | exact |
 | Press brake, see docs/STUDIO_METAL_PRESS.md | Limit load and springback of a three-point air bend; cracking of 6061-T6 over a tight radius | 1.23 × beam theory; springback 0.90 of `F V^3 / (48 E' I)` | 1.0 to 1.35; 12% |
 
-Not modelled: see the last bullet above. Plastic-incompressibility locking (no mixed or averaged-pressure element) is measured: 3.2% in 3-D bending at 8 cells through the depth, 6.6% (4 cells) and 1.8% (8 cells) in plane-strain bending at 16 k_y.
+Not modelled: see the last bullet above. Plastic bending is too strong with tet4: 3.2% in 3-D bending at 8 cells through the depth, 6.8% (4 cells) and 2.0% (8 cells) in plane-strain bending at 16 k_y; `tet4-nodal` removes the plastic-incompressibility part (4.8% and 1.3%), and the rest is the bending error of linear tetrahedra.
 
 ## Concrete law
 
@@ -183,11 +239,11 @@ Cost: one elastic stress evaluation per element per step to commit the history, 
 |---|---|---|---|---|---|---|
 | Tip error | -12.3% | -12.5% | -17.2% | -22.0% | -27.3% | -29.3% |
 
-The conjugate-gradient iteration count rises with it (125 at 0.3, about 2,500 at 0.4999). Uniform states, including hydrostatic ones, stay exact at any `nu`. Rubber at `nu = 0.45` is about 5 percentage points stiffer in bending than `nu = 0` on that mesh; `nu` above 0.49 needs a mixed or higher-order element, which this version does not have. `nu` is limited to 0.4999.
+The conjugate-gradient iteration count rises with it (125 at 0.3, about 2,500 at 0.4999). Uniform states, including hydrostatic ones, stay exact at any `nu`. Rubber at `nu = 0.45` is about 5 percentage points stiffer in bending than `nu = 0` on that mesh; `nu` above 0.49 needs `element: 'tet4-nodal'` (section Averaged nodal pressure element: tip error -17.8 % at 0.49 and -23.0 % at 0.4999 on the same mesh) or a finer mesh. `nu` is limited to 0.4999.
 
-**Not modelled.** Contact between two solids and self-contact (contact with rigid bodies is in [`SOLID_CONTACT.md`](SOLID_CONTACT.md), node against body, backward Euler only); plasticity beyond what the Plasticity section lists (and plasticity combined with viscoelasticity); viscoelasticity with a rotation-objective finite-strain split (the Prony model above is stress-based); crack propagation in `SolidBody` itself (beyond the concrete law's smeared cracks; its strength checks only flag elements; [`SOLID_FRACTURE.md`](SOLID_FRACTURE.md) describes the fracture solver built on the linear model); follower pressure; anisotropy; more than one material per body; higher-order or mixed elements; two-way coupling to the water, cable or frame solvers (the rigid world is coupled through `SolidCoupling`; the one-way links of [`SIMULATION.md`](SIMULATION.md) remain); checkpoints.
+**Not modelled.** Contact between two solids and self-contact (contact with rigid bodies is in [`SOLID_CONTACT.md`](SOLID_CONTACT.md), node against body, backward Euler only); plasticity beyond what the Plasticity section lists (and plasticity combined with viscoelasticity); viscoelasticity with a rotation-objective finite-strain split (the Prony model above is stress-based); crack propagation in `SolidBody` itself (beyond the concrete law's smeared cracks; its strength checks only flag elements; [`SOLID_FRACTURE.md`](SOLID_FRACTURE.md) describes the fracture solver built on the linear model); follower pressure; anisotropy; more than one material per body; higher-order or mixed elements (`tet4-nodal` averages the volumetric strain at the nodes; the concrete law keeps tet4); two-way coupling to the water, cable or frame solvers (the rigid world is coupled through `SolidCoupling`; the one-way links of [`SIMULATION.md`](SIMULATION.md) remain); checkpoints.
 
-**Other limits.** Up to 200,000 nodes and 1,000,000 elements. The explicit stability limit is that of the reference shape. The midpoint rule conserves energy exactly only for the linear model. Backward Euler damps high modes strongly at large time steps. The stress of a rotated element is accurate to about 1e-16 `E` in absolute terms, so the relative precision of very small strains under large rotation is limited. JavaScript on one thread: the 10,000-unknown cantilever solves in about half a second, and no performance claim is made.
+**Other limits.** Up to 200,000 nodes and 1,000,000 elements. The explicit stability limit is that of the reference shape. The midpoint rule conserves energy exactly only for the linear model. Backward Euler damps high modes strongly at large time steps. The stress of a rotated element is accurate to about 1e-16 `E` in absolute terms, so the relative precision of very small strains under large rotation is limited. JavaScript on one thread: the 10,000-unknown cantilever solves in about half a second with `cg`. The Studio's measured speed-ups from `ldl` are in [`STUDIO_METAL_PRESS.md`](STUDIO_METAL_PRESS.md) and [`STUDIO_MATERIAL_LABS.md`](STUDIO_MATERIAL_LABS.md).
 
 ## Reproduce
 

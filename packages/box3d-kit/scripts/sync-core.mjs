@@ -37,6 +37,8 @@ export const CORE = [
   {from: 'src/engine/solid-mesh.ts', rewrites: []},
   // The concrete law of the solid (Drucker-Prager and Rankine with crack-band softening). Imports contracts.ts only.
   {from: 'src/engine/concrete-law.ts', rewrites: []},
+  // Sparse LDLᵀ factorization: the solid's optional preconditioner (linearSolver: 'ldl'). Self-contained.
+  {from: 'src/engine/sparse-ldl.ts', rewrites: []},
   {from: 'src/engine/solid.ts', rewrites: []},
   // ./structure: cables and frames <-> rigid bodies. Imports contracts.ts, checkpoint.ts and only types from the cable and frame modules.
   {from: 'src/engine/structure-coupling.ts', rewrites: []},
@@ -46,7 +48,7 @@ export const CORE = [
   {from: 'src/engine/scene-examples.ts', rewrites: []},
   {from: 'src/engine/geometry.ts', rewrites: []},
   // ./simulation: the one stepping loop, the adapters for the modules above and the builder of coupled scenes.
-  // Imports checkpoint.ts, the water, structure, cable, frame, cloth, granular, heat, solid, solid-contact, fracture and fluid
+  // Imports checkpoint.ts, the water, structure, cable, frame, cloth, granular, heat, solid, solid-contact, fracture, fluid and shallow-water
   // modules, scene-format (for a checkpoint's scene) and types from native-world.
   {from: 'src/engine/simulation.ts', rewrites: []},
   // ./robot: URDF and MJCF import. Imports contracts.ts, geometry.ts and types from native-world.ts and scene-format.ts.
@@ -58,11 +60,19 @@ export const CORE = [
   // structure-coupling.ts and the Subsystem type from simulation.ts.
   {from: 'src/engine/cloth.ts', rewrites: []},
   // ./granular: discrete-element grains and their coupling to rigid bodies. Imports contracts.ts, checkpoint.ts, principalMoments from
-  // structure-coupling.ts and the Subsystem type from simulation.ts.
+  // structure-coupling.ts, granular-kernels.ts and the Subsystem type from simulation.ts.
   {from: 'src/engine/granular.ts', rewrites: []},
-  // ./fluid: incompressible flow on a staggered grid and its coupling to rigid bodies. Imports contracts.ts, checkpoint.ts and the
-  // Subsystem type from simulation.ts.
+  // The contact kernels of ./granular as functions of a range of grains over typed arrays (granular.ts runs them; the app's
+  // granular-parallel.ts runs them on several threads). Imports nothing.
+  {from: 'src/engine/granular-kernels.ts', rewrites: []},
+  // ./fluid: incompressible flow on a staggered grid and its coupling to rigid bodies. Imports contracts.ts, checkpoint.ts,
+  // fluid-multigrid.ts and the Subsystem type from simulation.ts.
   {from: 'src/engine/fluid.ts', rewrites: []},
+  // The multigrid preconditioner of ./fluid's pressure solve (pressureSolver: 'multigrid'). Imports nothing.
+  {from: 'src/engine/fluid-multigrid.ts', rewrites: []},
+  // ./shallow-water: the Saint-Venant equations on terrain, rain, infiltration and coupling to rigid bodies. Imports
+  // contracts.ts, checkpoint.ts and the Subsystem type from simulation.ts.
+  {from: 'src/engine/shallow-water.ts', rewrites: []},
   // ./solid-contact: contact, friction and welds between a tetrahedral solid and rigid bodies. Imports contracts.ts, checkpoint.ts,
   // solid.ts, principalMoments from structure-coupling.ts and the Subsystem type from simulation.ts.
   {from: 'src/engine/solid-contact.ts', rewrites: []},

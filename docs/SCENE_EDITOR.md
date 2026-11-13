@@ -109,12 +109,13 @@ A scene with coupled sections opens like any other (until 2026-11-12 the editor 
 
 - **Bodies and joints** are edited exactly as in a rigid scene: add, move, turn, resize, retype, give a material, duplicate, delete, join.
 - **The sections are carried unchanged.** Every command builds the new scene from the old one with the sections as the same values, so their canonical text is the text they had, through edits, undo, redo, autosave, Download and Copy share link (`tests/physics/scene-editor.test.mjs` checks it on every coupled example: open, move a body, rename, undo, redo, save as a link, compare each section's canonical text).
-- **The outline lists them read-only** under the bodies and joints, one box each: its id and kind (water basin, cable, frame, cloth, grains, solid, heat grid, fluid flow or free-surface tank) and its key values (grid and cell size, rest depth, node and element counts, material, grain count and contact law, mesh and model, viscosity and density) and the bodies it names.
+- **The outline lists them read-only** under the bodies and joints, one box each: its id and kind (water basin, cable, frame, cloth, grains, solid, heat grid, fluid flow or free-surface tank, shallow water) and its key values (grid and cell size, rest depth, node and element counts, material, grain count and contact law, mesh and model, viscosity and density, Manning n, soil and rain) and the bodies it names.
 - **A few values can be set** in that box, each one a command that goes through `validateScene` and the scratch build like any other, and is undone the same way:
 
 | Section | Values |
 |---|---|
 | Water basin | water level (rest depth) |
+| Shallow water | Manning's n (a single value; a grid with n per cell shows none), rain (m/s) |
 | Cloth | areal density, Young's modulus, thickness |
 | Grains | the grain count (keeps the first N; the editor does not add grains, because it does not know where they go), friction, restitution |
 | Solid | Young's modulus, Poisson's ratio, density |

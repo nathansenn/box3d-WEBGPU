@@ -1,7 +1,12 @@
 import {materialFor,normalizeSettings,type LabId,type LabSettings,type MaterialProfile} from './catalog';
 export type V3=[number,number,number];
 export interface Piece {center:V3;vertices:V3[];radius:number;}
-export interface HydraulicFrame {inlet:number;rainRate:number;outlet:number;added:number;rained:number;drained:number;absorbed:number;residual:number;wetArea:number;meanFilm:number;head:number;reynolds:number;supplyOn:boolean;floodArea:number;coverage:number;meanSpeed:number;overflow:number;overflowRate:number;}
+export interface HydraulicFrame {
+  /** Which model made the frame: 'si' (the flume's free-surface solver, or the shallow-water solver of the river, rain and surface rigs) or 'authored' (the pipe bench's depth model). */
+  solver?:'si'|'authored';
+  /** Discharge through the section x = 0 (the middle of the bed), m^3/s; largest Froude number of a cell deeper than 1 mm. Shallow-water rigs only. */
+  discharge?:number;froude?:number;
+  inlet:number;rainRate:number;outlet:number;added:number;rained:number;drained:number;absorbed:number;residual:number;wetArea:number;meanFilm:number;head:number;reynolds:number;supplyOn:boolean;floodArea:number;coverage:number;meanSpeed:number;overflow:number;overflowRate:number;}
 export interface LabFrame {hydraulics?:HydraulicFrame;cracks?:Uint8Array;
   /** Concrete lab: the recorded stress-strain curve, [strain %, stress MPa] pairs. */
   curve?:Float32Array;status?:string;time:number;positions:Float32Array;rotations:Float32Array;damage:Uint8Array;actuator:number;phase:string;metrics:[number,number,number];collisions?:{impacts:number;contacts:number;sweptContacts:number;unresolvedSweeps:number};}

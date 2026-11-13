@@ -1,5 +1,5 @@
 import {frictionFactor} from './liquid-si';
-/** Lab controls in SI. The flume and the pipe friction use SI liquid properties (liquid-si.ts); bed drag, infiltration and damping of the depth model are authored. */
+/** Lab controls in SI. The flume, the pipe friction and the river, rain and surface rigs (shallow water) use SI properties (liquid-si.ts); bed drag, infiltration and damping of the pipe bench's depth model are authored. */
 export const LIQUID_RIGS=[
   {id:'flume',name:'Release flume',icon:'waves',note:'Reservoir release, reflected waves and obstacle wakes.'},
   {id:'pipes',name:'Pipe flow bench',icon:'pipe',note:'Pump delivery, bore restriction and interchangeable outlets.'},
@@ -17,6 +17,8 @@ export const SURFACES=[
   {id:'concrete',name:'Concrete',color:'#b1ad9f',drag:1.6,absorb:1.1,roughness:.93,note:'Rough porous slab · some water enters the bed.'},
   {id:'gravel',name:'River gravel',color:'#9b9581',drag:2.4,absorb:2.2,roughness:1,note:'Strong drag with permeable bed storage.'},
   {id:'rubber',name:'Textured rubber',color:'#343f3d',drag:3.8,absorb:0,roughness:.95,note:'High liquid-flow resistance on a sealed surface.'},
+  {id:'loam',name:'Bare loam soil',color:'#6e5a3f',drag:2,absorb:1.5,roughness:1,note:'Bare field soil · water soaks in (Green-Ampt, loam).'},
+  {id:'clay',name:'Bare clay soil',color:'#8a6a4c',drag:2,absorb:.3,roughness:1,note:'Bare field soil · water soaks in slowly (Green-Ampt, clay).'},
 ] as const;
 export const PIPE_TOOLS=[
   {id:'straight',name:'Straight outlet',loss:.4,note:'Low-loss single discharge.'},

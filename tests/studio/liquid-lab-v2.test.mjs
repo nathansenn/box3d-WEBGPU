@@ -38,9 +38,10 @@ test('supply cutoff stops both inputs, allows drainage, and replay snapshots rem
   const m=run(new LiquidModel({rig:'pipes',rain:150,slope:4,fill:20}),3),snapshot=m.snapshot(),saved=structuredClone(snapshot),added=m.frame.hydraulics.added,rained=m.frame.hydraulics.rained,drained=m.frame.hydraulics.drained;
   m.release();run(m,3);assert.equal(m.frame.hydraulics.added,added);assert.equal(m.frame.hydraulics.rained,rained);assert.ok(m.frame.hydraulics.drained>drained);assert.equal(m.frame.hydraulics.inlet,0);assert.equal(m.frame.hydraulics.rainRate,0);assert.deepEqual(snapshot,saved);
 });
-test('film drag, absorption and viscosity produce different observable responses',()=>{
-  const p={rig:'surface',surface:'glass',slope:6,fill:10,inflow:0},smooth=run(new LiquidModel(p),3),rough=run(new LiquidModel({...p,surface:'rubber'}),3),porous=run(new LiquidModel({...p,surface:'concrete'}),3),honey=run(new LiquidModel({...p,material:'honey'}),3);
-  assert.ok(smooth.frame.metrics[1]>rough.frame.metrics[1]*2);assert.ok(smooth.frame.metrics[1]>honey.frame.metrics[1]*1.5);assert.ok(porous.frame.hydraulics.absorbed>0);assert.equal(smooth.frame.hydraulics.absorbed,0);
+test('bed friction, infiltration and viscosity produce different observable responses (SI shallow water)',()=>{
+  // Manning n 0.010 (glass) against 0.020 (rubber, unverified); gravel infiltrates as Green-Ampt sand, glass is sealed; honey's laminar film friction.
+  const p={rig:'surface',surface:'glass',slope:6,fill:10,inflow:0},smooth=run(new LiquidModel(p),3),rough=run(new LiquidModel({...p,surface:'rubber'}),3),porous=run(new LiquidModel({...p,surface:'gravel'}),3),honey=run(new LiquidModel({...p,material:'honey'}),3);
+  assert.ok(smooth.frame.metrics[1]>rough.frame.metrics[1]*1.3);assert.ok(smooth.frame.metrics[1]>honey.frame.metrics[1]*1.5);assert.ok(porous.frame.hydraulics.absorbed>0);assert.equal(smooth.frame.hydraulics.absorbed,0);
 });
 test('determinism, dry rain, blocked outlet, zero demand and step validation',()=>{
   for(const p of [{rig:'rain',rain:0,fill:0},{rig:'surface',inflow:0,fill:0},{rig:'river',inflow:80,bore:200,drain:0,slope:12,fill:80}]){const a=run(new LiquidModel(p),2),b=run(new LiquidModel(p),2);assert.deepEqual(a.snapshot(),b.snapshot());assert.ok(Math.abs(a.frame.hydraulics.residual)<1e-8);}

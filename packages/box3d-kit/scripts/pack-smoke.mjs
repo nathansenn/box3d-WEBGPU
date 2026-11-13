@@ -14,7 +14,7 @@ const sh = (cmd, args, cwd) => execFileSync(cmd, args, {cwd, encoding: 'utf8', s
 
 // Size budgets (bytes). Raise deliberately, in review, never silently.
 const BUDGET = {wasm: 512 * 1024, wasmGzip: 210 * 1024, wasmBrotli: 180 * 1024, glue: 24 * 1024, coreJsGzip: 40 * 1024, modulesJsGzip: 24 * 1024, singleGzip: 280 * 1024, packed: 600 * 1024};
-const OPTIONAL = ['cable.js', 'water.js', 'coupling.js', 'frame.js', 'compliant-cable.js', 'linear-water.js', 'closed-water.js', 'water-coupling.js', 'frame-element.js', 'frame-runtime.js', 'envelope-matrix.js', 'heat.js', 'gameplay.js', 'geometry.js', 'solid.js', 'solid-mesh.js', 'concrete-law.js', 'scene.js', 'scene-format.js', 'scene-examples.js', 'structure.js', 'structure-coupling.js', 'robot.js', 'robot-import.js', 'fracture.js', 'solid-fracture.js', 'cloth.js', 'solid-contact.js', 'granular.js', 'materials.js', 'fluid.js'];
+const OPTIONAL = ['cable.js', 'water.js', 'coupling.js', 'frame.js', 'compliant-cable.js', 'linear-water.js', 'closed-water.js', 'water-coupling.js', 'frame-element.js', 'frame-runtime.js', 'envelope-matrix.js', 'heat.js', 'gameplay.js', 'geometry.js', 'solid.js', 'solid-mesh.js', 'concrete-law.js', 'scene.js', 'scene-format.js', 'scene-examples.js', 'structure.js', 'structure-coupling.js', 'robot.js', 'robot-import.js', 'fracture.js', 'solid-fracture.js', 'cloth.js', 'solid-contact.js', 'granular.js', 'materials.js', 'fluid.js', 'shallow-water.js'];
 const jsFiles = () => readdirSync(join(pkg, 'dist'), {recursive: true}).map(String).filter(f => f.endsWith('.js'));
 const gzipOf = files => gzipSync(Buffer.concat(files.map(f => readFileSync(join(pkg, 'dist', f)))), {level: 9}).length;
 const size = {

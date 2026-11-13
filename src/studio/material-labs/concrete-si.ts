@@ -92,7 +92,7 @@ export class ConcreteModel extends LabModel {
     super('concrete',p);const s=this.settings;this.edge=s.size/1000;const a=this.edge,prism=options.shape==='prism';
     this.spec=concreteSpec(this.material.id,a);this.height=prism?2*a:a;this.area=a*a;
     this.solid=new SolidBody({mesh:boxMesh({size:[a,this.height,a],cells:[CONCRETE_CELLS,prism?2*CONCRETE_CELLS:CONCRETE_CELLS,CONCRETE_CELLS],origin:[-a/2,0,-a/2]}),material:this.spec.material,
-      config:{model:'green-lagrange',dt:CONCRETE_DT,gravity:[0,-9.81,0],massDamping:2,tolerance:1e-6,maxNewtonIterations:40,maxLinearIterations:4000}});
+      config:{model:'green-lagrange',dt:CONCRETE_DT,gravity:[0,-9.81,0],massDamping:2,tolerance:1e-6,maxNewtonIterations:40,maxLinearIterations:4000,linearSolver:'ldl'}});
     // A seeded scatter of element strength: where the cube cracks first.
     const rng=random(s.seed),f=new Float64Array(this.solid.tetCount);
     for(let e=0;e<f.length;e++){const u=Math.max(1e-9,rng()),v=rng();f[e]=Math.max(.5,1+this.spec.scatter*Math.sqrt(-2*Math.log(u))*Math.cos(2*Math.PI*v));}

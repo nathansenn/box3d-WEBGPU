@@ -19,6 +19,7 @@ import robot from './domains/robot.mjs';
 import cloth from './domains/cloth.mjs';
 import granular from './domains/granular.mjs';
 import fluid from './domains/fluid.mjs';
+import shallowWater from './domains/shallow-water.mjs';
 import solidContact from './domains/solid-contact.mjs';
 import heat from './domains/heat.mjs';
 import solid, {viscoelastic as solidViscoelastic} from './domains/solid.mjs';
@@ -206,6 +207,20 @@ export const DOMAINS = [
     ],
   },
   {
+    id: 'shallow-water', title: 'Shallow water on terrain: dam breaks, steady flows, rain and infiltration', needsKit: true,
+    solver: '`box3d-webgpu-kit/shallow-water`: the 2D Saint-Venant equations by finite volumes, hydrostatic reconstruction (Audusse et al. 2004), MUSCL with minmod, HLL, Heun in time, wetting and drying, Manning friction (split, backward Euler), rain, Green-Ampt infiltration, inflow, open and stage sides, float64; rigid bodies coupled by buoyancy and drag',
+    summary: 'A lake at rest over a bumpy, partly emerged bed; Ritter\'s and Stoker\'s dam breaks; Thacker\'s oscillating paraboloid; the subcritical, transcritical and shock flows over the Goutal-Maurel bump (SWASHES); Manning\'s normal depth; rain on a slope against the kinematic wave; Green-Ampt against its closed form; the volume budget; repeatability; a floating box and a sphere in a current.',
+    docs: ['docs/SHALLOW_WATER.md'],
+    notValidated: [
+      'Shallow water only: no vertical accelerations (no dispersion, no breaking, no flow over a vertical step), hydrostatic pressure, depth-averaged velocity. No turbulence model beyond bed friction, no Coriolis force, no wind stress.',
+      'Steep thin films: the hydrostatic reconstruction loses accuracy where the bed rises by more than the depth over one cell; the rain-on-slope hydrograph is 4% off the kinematic wave at 400 cells (7% at 200). Wet-dry fronts are first order.',
+      'Manning friction is split from the transport and applied by backward Euler: the normal depth is off by O(dt), -2.5e-4 to -1.3e-3 in the cases here. Manning n values are tabulated ranges (Chow 1959); no case is compared with a measured flood or flume.',
+      'Green-Ampt is the one-layer, uniform-initial-moisture model with no redistribution after rain, no crusting and no macropores; the parameters are texture-class means with wide scatter (Rawls et al. 1983 give one standard deviation of a factor of three on the suction head).',
+      'Coupling: boxes and spheres only; buoyancy reads the water plane one cell outside the body; drag is a coefficient on the depth-averaged relative velocity, not hydrodynamics; the body exerts no pressure on the water (its displaced volume is a volume source). Only resting and drifting cases are checked.',
+      'Cost: about 3 million cell-substeps per second on one loaded thread of this machine; no GPU or WASM version.',
+    ],
+  },
+  {
     id: 'heat', title: 'Heat conduction', needsKit: false,
     solver: '`src/engine/heat.ts`: finite volumes on a structured grid, backward Euler, Crank-Nicolson or explicit, float64',
     summary: 'Steady slabs and composite walls, sources, convection and radiation boundaries, temperature-dependent conductivity, the erfc and Fourier-series transients with their observed orders, a 2-D plate, an energy audit and the explicit stability limit.',
@@ -226,10 +241,10 @@ export const DOMAINS = [
     docs: ['docs/SOLID_MECHANICS.md'],
     notValidated: [
       'Bending is where this element is weak, and the table shows it: one cell through the thickness is three times too stiff, four cells 12%, eight cells 3.4%. Bending frequencies are 5% to 6% high at four cells.',
-      'Near-incompressibility: at nu = 0.4999 the four-cell cantilever is 29% too stiff. There is no mixed or higher-order element.',
+      'Near-incompressibility: at nu = 0.4999 the four-cell cantilever is 29% too stiff with tet4 and 23% with tet4-nodal (averaged nodal pressure), against 12.5% and 9.6% at nu = 0.3: the nodal element relieves part of the locking in bending, not all. There is no higher-order element. The concrete law keeps tet4.',
       'With nu = 0.3 a clamped root also restrains Poisson contraction, which beam theory ignores: the 3-D limit sits about 1.2% below the Timoshenko reference.',
       'Viscoelasticity is a stress-based Prony series: checked for uniaxial creep, relaxation and recovery at small strain and for a uniform Neo-Hookean stretch; it is not objective under large rotation while an overstress remains, and no measured rubber was fitted. Contact and self-contact, plasticity, anisotropy, and more than one material per body. Crack growth is a separate solver on the linear model of this element (the fracture domain); `SolidBody` itself only flags elements above a strength.',
-      'Plasticity is small-strain J2 (additive in the Green-Lagrange strain for large rotations), isotropic linear hardening only: no kinematic hardening, rate dependence, necking or anisotropy. Linear tetrahedra lock under plastic incompressibility: fully plastic bending is 3.2% (3-D) to 6.6% (plane strain, 4 cells) too strong. Ductile erosion uses one failure strain, independent of stress triaxiality, and the press brake\'s limit load is 1.23 times beam theory.',
+      'Plasticity is small-strain J2 (additive in the Green-Lagrange strain for large rotations), isotropic linear hardening only: no kinematic hardening, rate dependence, necking or anisotropy. Fully plastic bending is 3.2% (3-D) to 6.8% (plane strain, 4 cells) too strong with tet4 and 4.8% with tet4-nodal: what remains is the bending error of linear tetrahedra. Ductile erosion uses one failure strain, independent of stress triaxiality, and the press brake\'s limit load is 1.23 times beam theory.',
       'Self-contact, plasticity combined with viscoelasticity (refused), anisotropy, and more than one material per body. Crack growth is a separate solver on the linear model of this element (the fracture domain); `SolidBody` erodes plastic elements at a failure strain but has no crack-growth law of its own.',
       'No two-way coupling to the rigid-body, water, cable or frame solvers, and no contact with rigid bodies. The one-way thermal and dead-load links are in the simulation domain.',
       'Concrete: compressive softening does not stay in one element layer. In a prism the crushed band is restrained across by its neighbours (associated flow dilates it), so the post-peak energy of a 5, 10 and 20-cell bar grows with refinement instead of staying G_c A; only the tensile crack band is mesh objective here. Confinement raises the strength by m = 1.41 sigma_3, not the 2.5 to 5 of EN 1992-1-1 3.1.9; the equal-biaxial ratio 1.16 is quoted, not read. Cracks unload elastically (plasticity, not damage) and do not close; no rate, size (beyond the crack band), creep, shrinkage or reinforcement.',
@@ -335,7 +350,7 @@ export const DOMAINS = [
   },
 ];
 
-export const CASES = [...rigid, ...waterCoupling, ...structureCoupling, ...siBridge, ...siSuspension, ...geometry, ...scene, ...simulation, ...robot, ...cloth, ...granular, ...fluid, ...heat, ...solid, ...solidViscoelastic, ...solidConcrete, ...solidContact, ...fracture, ...plate, ...frame, ...cable, ...closedWater, ...materials];
+export const CASES = [...rigid, ...waterCoupling, ...structureCoupling, ...siBridge, ...siSuspension, ...geometry, ...scene, ...simulation, ...robot, ...cloth, ...granular, ...fluid, ...shallowWater, ...heat, ...solid, ...solidViscoelastic, ...solidConcrete, ...solidContact, ...fracture, ...plate, ...frame, ...cable, ...closedWater, ...materials];
 
 /** Cases of the given domains (all when `only` is empty), in registry order. */
 export function selectCases(only = []) {

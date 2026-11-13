@@ -44,11 +44,11 @@ const output = path.resolve(process.argv[2] ?? process.env.BOX3D_QA_OUTPUT ?? pa
 fs.mkdirSync(output, {recursive: true});
 const RIGID = ['pendulum-wave', 'newtons-cradle', 'domino-run', 'terrain-car', 'ragdoll'];
 const COUPLED = ['buoy-and-crates', 'trampoline', 'hopper-seesaw', 'suspended-platform', 'moored-buoy', 'cable-stayed-deck', 'rubber-pad', 'notched-beam', 'quenched-plate', 'heated-bar',
-  'sphere-settling', 'cavity-flow', 'flow-past-cylinder', 'dam-break'];
+  'sphere-settling', 'cavity-flow', 'flow-past-cylinder', 'dam-break', 'dam-break-valley', 'river-bend'];
 const EXAMPLES = process.argv[3] ? process.argv[3].split(',') : [...RIGID, ...COUPLED];
 const RECIPES = process.argv[4] ? process.argv[4].split(',').filter(Boolean) : ['tsunami-flume', 'tempest-flag', 'sky-crane-cable', 'titan-bend-dent'];
 /** The Lab tick both renderers step to before the capture. */
-const TICK = {'hopper-seesaw': 180, 'quenched-plate': 150, 'heated-bar': 300, 'rubber-pad': 60, 'notched-beam': 60, trampoline: 90, 'sphere-settling': 45, 'cavity-flow': 240, 'flow-past-cylinder': 240, 'dam-break': 40};
+const TICK = {'hopper-seesaw': 180, 'quenched-plate': 150, 'heated-bar': 300, 'rubber-pad': 60, 'notched-beam': 60, trampoline: 90, 'sphere-settling': 45, 'cavity-flow': 240, 'flow-past-cylinder': 240, 'dam-break': 40, 'dam-break-valley': 120, 'river-bend': 120};
 const VIEWPORT = {width: 1280, height: 800};
 
 const root = path.resolve('dist');

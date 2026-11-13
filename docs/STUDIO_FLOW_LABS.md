@@ -23,12 +23,12 @@ Values marked "from memory" were not checked against a source opened while writi
 |---|---|---|---|
 | Liquid, Flume | `FreeSurfaceFluid` ([`FLUID.md`](FLUID.md)): 3D incompressible liquid with a free surface, viscosity, a lifting gate and two posts | SI | validated solver; the flume itself is not compared with an experiment |
 | Liquid, Pipes | pump delivery by Darcy–Weisbach with the liquid's SI viscosity (laminar exact, turbulent by the Colebrook correlation); the channel the pipe fills is the depth-averaged model | SI | friction law checked; outlet and valve loss coefficients and the channel are authored |
-| Liquid, River | depth-averaged model over the shaped bed | SI dimensions, authored bed drag and damping | authored, labelled as such |
-| Liquid, Rain | depth-averaged model with rain, infiltration and drainage | as above | authored |
-| Liquid, Surface | depth-averaged film on a substrate | as above | authored |
+| Liquid, River | `ShallowWater` ([`SHALLOW_WATER.md`](SHALLOW_WATER.md)): the Saint-Venant equations over the shaped bed, Manning friction of the bed, pump outlets as sources, a weir outlet | SI | validated solver; the river itself is not compared with a flume |
+| Liquid, Rain | the same with rain and Green-Ampt infiltration of soils | SI | validated solver; Manning n and soil parameters from the material library |
+| Liquid, Surface | the same: films of the liquid on a bed, with laminar film friction from its SI viscosity | SI | validated solver; the laminar film term is checked only through the solver (not against a film experiment) |
 | Granular, all experiments | `Granular` ([`GRANULAR.md`](GRANULAR.md)): discrete element spheres with friction and rolling resistance, coarse-grained | SI | validated solver; glass beads checked against measured repose and column-collapse runout |
 
-The validated basin of [`WATER_COUPLING.md`](WATER_COUPLING.md) (linear waves in a closed basin) covers none of the river, rain or surface tabs: they need a sloping, partly dry bed, inflow, outflow and infiltration, which it does not have. The volumetric fluid has no inflow or outflow with a free surface. Those three tabs therefore keep the authored depth-averaged model, and the footer says so.
+The river, rain and surface tabs run the shallow-water solver, which has the sloping, partly dry bed, rain, infiltration, inflow and outflow they need; the footer says "SI shallow water" for them. The pipe bench keeps the authored depth-averaged channel under its SI pipe law, and the footer says so.
 
 Both labs step in the flow worker (`src/studio/material-labs/liquid-study-worker.ts`, which also runs the liquid lab's three-case comparisons), so the page stays responsive whatever the solver costs. The worker runs free toward wall time in 1/120 s ticks, records the history samples itself and publishes its newest frame at most every 33 ms; the scene draws the newest frame, so the drawing rate does not limit the solver ([`ENGINEERING-STUDIO.md`](ENGINEERING-STUDIO.md#scheduling-the-solver-runs-free-of-the-renderer)). The footer shows the solver's measured speed as a multiple of real time.
 
@@ -44,7 +44,7 @@ Both labs step in the flow worker (`src/studio/material-labs/liquid-study-worker
 | Reservoir | **reservoir depth** (m) behind the gate; downstream 0.008 m + 0.6 m × **downstream fill** |
 | Bed slope | the bed slope setting, as a tilt of gravity |
 | Liquid | density and dynamic viscosity at 20 °C from the table below, the viscosity multiplied by the **viscosity multiplier** |
-| Time step | at most 1/60 s and a Courant number of 0.8, adaptive |
+| Time step | fixed blocks of 1/60 s, each in substeps of a Courant number of at most 0.8 (adaptive); the page's frames (1/120 s ticks, batched) accumulate until a block is due, so a run does not depend on how frames were batched |
 | Readouts | peak depth (m): the largest column depth; peak speed (m/s): the largest depth-averaged horizontal speed of a column holding at least 1 cm; fluid volume (m³): the particles' volume, which the solver conserves exactly |
 
 The drawn surface is the solver's: each column's depth is the number of particles in its cells, a cell counting as full at its seeded share (eight) and partly full below it, interpolated to the scene's 84 × 28 grid. Particles that crowd against the end wall after the surge therefore do not raise the drawn surface above the cells they fill.
@@ -68,7 +68,38 @@ The laminar and turbulent forms and the Re 2300 / 4000 bounds were read in the c
 
 ## Liquid: river, rain table, surface runoff
 
-A conservative finite-volume depth-averaged model (hydrostatic reconstruction after Audusse et al. 2004) over the bed the scene draws, with explicit rain, infiltration and drainage, and a recorded volume balance. Its dimensions, rain rates and volumes are in SI. Its bed drag per substrate, infiltration rates and viscous damping are authored and not calibrated, and it does not use the SI viscosity. These tabs are labelled "authored depth model" in the footer.
+`LiquidModel` (`src/studio/material-labs/models.ts`) builds a `ShallowWater` on the scene's grid and bed, in metres:
+
+| | |
+|---|---|
+| Grid | 84 × 28 cells of 0.0714 × 0.0714 m over the 6 m × 2 m table, x from −3 to 3 m, z from −1 to 1 m; the river's two rocks and nothing else are solid cells |
+| Bed | `bedElevation` of `liquid-terrain.ts` in metres: the datum falls at the **bed slope**; the river channel has banks of the **bank height**, the rain and surface tables the **surface shape** with its **relief** |
+| Bed friction | Manning n of the **surface material** from the library table `SURFACE_ROUGHNESS` (Chow 1959; below) |
+| Film friction | 3 nu u / h with the liquid's SI kinematic viscosity (times the viscosity multiplier): laminar film flow, what makes honey creep where water runs |
+| Infiltration | Green-Ampt for the soils and gravel (`SOIL_INFILTRATION`, Rawls et al. 1983), starting at 30% effective saturation (an assumption); the other beds are sealed |
+| Supply | the pump delivery (pipe law above, times the supply program) as volume sources over the cells under each outlet; the jets fall vertically and bring no horizontal momentum |
+| Rain | the **rain intensity** (mm/h) times the storm program, on every cell, arriving with the **rain drift** as horizontal velocity (its momentum enters with it) |
+| Outlet | the far edge's cells drain over a broad-crested weir, q = sqrt(g) (2H/3)^(3/2) = 1.705 H^(3/2) per width (critical flow over the crest), times the **outlet opening** |
+| Rim | water that rises above the rim of an edge cell overflows (booked as overflow) |
+| Time step | the solver's own CFL substeps inside each 1/120 s tick |
+| Readouts | peak depth (m), peak depth-averaged speed (m/s), volume (m³); the water balance (supplied, rain, collected, overflow, infiltrated, all m³, shown in L); discharge through the middle section x = 0 (m³/s); the largest Froude number; the balance error (round-off) |
+
+Beds (`SURFACE_SI`, `src/studio/material-labs/liquid-si.ts`):
+
+| Studio bed | Manning n | Row read | Infiltration |
+|---|---|---|---|
+| Brushed steel | 0.012 | smooth steel, unpainted (Chow, via Ponce, Table 5-4 B-1 a.1) | sealed |
+| Polished glass | 0.010 | glass (A-2 b; the table gives glass only for a conduit flowing partly full) | sealed |
+| Glazed tile | 0.013 | brick, glazed (5.f.1; tile taken as glazed brick) | sealed |
+| Sealed epoxy | 0.013 | smooth steel, painted (B-1 a.2; a coat taken as paint) | sealed |
+| Asphalt | 0.016 | asphalt, rough (5.i.2) | sealed (the soil table has no pavement) |
+| Concrete | 0.015 | concrete, float finish (5.c.2) | sealed |
+| River gravel | 0.025 | earth channel, gravel, uniform section, clean (4.a.3) | Green-Ampt sand (K 11.78 cm/h, psi 4.95 cm): a lower bound, gravel is coarser |
+| Textured rubber | 0.020 | **unverified estimate** | sealed |
+| Bare loam soil | 0.030 | cultivated area, no crop (3.b.1) | Green-Ampt loam (K 0.34 cm/h, psi 8.89 cm, theta_e 0.434) |
+| Bare clay soil | 0.030 | the same | Green-Ampt clay (K 0.03 cm/h, psi 31.63 cm, theta_e 0.385) |
+
+The solver's cases ([`SHALLOW_WATER.md`](SHALLOW_WATER.md)) are what these tabs rest on: the lake at rest to round-off, the dam breaks, Thacker's bowl, the flows over a bump, Manning's normal depth, rain on a slope against the kinematic wave, and Green-Ampt against its closed form. Manning's n is a turbulent-flow coefficient; for films a few millimetres deep it is extrapolated, and the laminar film term (written from the Nusselt film, from memory) carries viscous liquids. The prepared experiments' wording (rates in mm/h and L/s, depths in mm) is SI.
 
 ## Liquid properties
 
@@ -96,6 +127,7 @@ See [`MATERIALS.md`](MATERIALS.md) for the library entries with the figures as r
 | Obstacle | a cylinder 54 mm across and 60 mm high with a cap |
 | Grains | spheres of the **grain diameter** (7 to 16 mm), radii 0.96 to 1 of it |
 | Contacts | linear springs k_n = 4000 m g / d (the solver's validated bulk stiffness), k_t = (2/7) k_n, restitution and friction of the material (friction × the **contact friction** setting), rolling resistance; time step 17% of the impact time (the solver refuses above 20%) |
+| Threads | opt-in: `?threads=n` on a cross-origin isolated page steps the contacts on up to 4 helper threads (`granular-parallel.ts`); the result is the same to the bit with any number. Off by default: in headless Chromium on this loaded sandbox the tray ran at 0.09× real time with 4 threads against 0.22× with one ([`GRANULAR.md`](GRANULAR.md#cost)) |
 | Readouts | runout (m): leading edge of the farthest grain past the gate face; pile height (m): the highest grain top; grains behind gate: how many are still behind the gate face |
 
 **Coarse-graining.** The grains are stand-ins: 7 to 16 mm spheres for real grains of 0.2 to 2 mm (sand) or 1 to 3 mm (glass beads), 5 to 50 times larger. What the lab compares with experiments does not depend on the grain size for cohesionless grains: the angle of repose (Makse et al. 1998 found it the same for spherical glass beads of different sizes) and runout over column length against aspect ratio (Lajeunesse et al. 2005 found the same scaling for 1.15 and 3 mm beads). Times scale with sqrt(length / g) and are those of the apparatus. What changes with the grain size, and is therefore not that of the real material: the number of grains across the flow (six to twenty here, thousands in reality), the discreteness of the front, and the contact stiffness (the springs are about a thousand times softer than glass).
@@ -131,6 +163,29 @@ The collapse runs use 10 mm library beads in a channel six grains wide with side
 
 ## Real time
 
+### After the speed work (2026-11-12)
+
+CPU time of one process for one second of each prepared flume experiment and half a second of each tray experiment (after its 0.3 s settle), driven in 1/120 s frames as the tests do, fastest of 2 (flume) or 3 (tray) runs (`node scripts/bench-fluid.mjs --repeat 2`, `node scripts/bench-granular.mjs --seconds 0.5 --repeat 3`). Both columns were measured the same way in the same hour, the "before" from the sources of commit 5fc530d; the sandbox's load average was 9 to 16 on 4 cores, so all factors are lower bounds.
+
+| Lab | Experiment | Before (× real time) | After (× real time) | Speed-up | Same bits? |
+|---|---|---:|---:|---:|---|
+| Flume | Clear-water release | 0.39 | 0.59 | 1.5 | no: 1/60 s blocks |
+| | Oil through the gate | 0.43 | 0.90 | 2.1 | no |
+| | Honey creep | 0.33 | 1.02 | 3.1 | no |
+| | Deep reservoir | 0.49 | 1.35 | 2.8 | no |
+| | Slow gate lift | 0.56 | 1.42 | 2.6 | no |
+| | Reflected wave | 0.42 | 1.02 | 2.4 | no |
+| | Blue tracer | 0.59 | 1.45 | 2.4 | no |
+| | Slurry front | 0.39 | 0.77 | 2.0 | no |
+| | Brine, ink, gel, coolant (the other flume cards) | 0.31 to 0.49 | 0.82 to 1.31 | 2.2 to 2.7 | no |
+| Tray | the eight experiments, one thread | 0.48 to 0.64 (gravel 3.2) | 0.47 to 0.62 (gravel 3.3) | 0.9 to 1.0 | yes |
+
+What changed in the flume: (1) the solver, the same to the bit and 1.1 to 1.3 times faster on its own ([`FLUID.md`](FLUID.md#free-surface-same-bits-less-work-2026-11-12)); (2) the flume's solver now runs in fixed 1/60 s blocks. Before, each batch of frames was one solver step split by the Courant limit, so a page that sent 1/120 s frames ran twice as many solver steps as one that batched two, and the run depended on the batching (which follows the machine's speed). The block size is the solver step the flume always allowed (`FLUME_SOLVER_STEP`); this is a deliberate re-baseline of the flume's runs (their hashes changed), and every flume test still passes (`npm run test:studio:liquid`, 165 tests: volume exact, gate lift, determinism, honey slower than water, the thresholds). In a browser that already batched two ticks per frame the gain is the solver's 1.1 to 1.3 alone. (3) The scene's depth sampling no longer allocates per cell.
+
+The tray is unchanged on one thread: its step is the same to the bit (pinned per experiment in `tests/engine/accel-exactness.test.mjs`). Its gain is to come from the helper threads, which give the same bits; their speed-up could not be measured on this loaded machine (see [`GRANULAR.md`](GRANULAR.md#cost)), so the tray's factor in the browser is still about half of real time on one core here. The grain counts were not raised: neither lab is clearly faster than real time on this machine.
+
+### Before the speed work
+
 Measured with `node` on the solver alone (no drawing), one thread of this 4-core sandbox while other jobs ran (load average 8 to 12, so these are lower bounds), for the first seconds of each prepared experiment. A value below 1 means the lab plays slower than real time.
 
 | Lab | Experiment | Solver size | Real-time factor | Load average |
@@ -156,7 +211,8 @@ In the browser the solver runs in the worker and the footer shows its live facto
 
 - `tests/studio/liquid-si.test.mjs`: the liquid properties (library values and verification flags), the friction law (laminar exact, Colebrook residual, Blasius within 2%, Hagen–Poiseuille head of honey), the flume (volume exact, gate lift = speed × time, determinism, honey slower than water, the viscosity and no-slip thresholds), the worker protocol.
 - `tests/studio/granular-si.test.mjs`: the grain materials, the tray (SI radius and the × 10 drawing, mass kept, gate lift, grains past the gate), beads against crushed stone, determinism, the worker.
-- `tests/studio/liquid-lab-v2..v5.test.mjs`: the authored tabs and the analysis and notebook workflow, with the pipe cases in SI; flume presets run one second there.
+- `tests/studio/liquid-lab-v2..v5.test.mjs`: every prepared experiment (budget closed, depths non-negative), the river, rain and surface tabs on the shallow-water solver against SI values (the lake at rest over each shaped bed, rain volume, Manning speeds of glass and rubber, Green-Ampt into gravel and loam, viscous films slower), and the analysis and notebook workflow; flume presets run one second there.
+- `tests/studio/liquid-si.test.mjs` also checks the beds' SI values against the library and the Studio's river channel against the solver.
 - Solver cases: `packages/box3d-kit/test/v18-fluid.test.mjs` and `v17-granular.test.mjs`.
 
 All run in the Studio gate (`npm run test:studio:liquid`).
@@ -165,7 +221,7 @@ All run in the Studio gate (`npm run test:studio:liquid`).
 
 - Flume: a 0.125 m grid (two cells across the posts' radius, the gate quantised to 0.125 m steps of opening), no surface tension, no turbulence model, no wall friction for water and oil (boundary layers below the grid), no force on the posts or gate in the readouts, splash volume of the cells varies (the particles' volume is exact). A thin viscous layer with two particles per axis runs a few percent slow ([`FLUID.md`](FLUID.md)).
 - Pipes: hydraulically smooth pipe, authored fitting and valve losses, no transient (water hammer) or two-phase flow.
-- River, rain, surface: authored, as above.
+- River, rain, surface: the limits of [`SHALLOW_WATER.md`](SHALLOW_WATER.md); in addition the 0.071 m grid is coarse for millimetre films on the shaped beds (the bed rises more than the film over a cell), the outlet weir is the ideal broad-crested one (discharge coefficient 1), the pipe jets bring no momentum, soils start at an assumed 30% saturation, and no tab is compared with a measured flume or plot.
 - Granular: spheres only, coarse-grained, soft contacts; rolling resistance stands in for shape (fitted for glass beads only); runout within 30% of one experiment's scaling over a = 0.5 to 2 with a trend steeper than linear; no cohesion, moisture, breakage or segregation of sizes; no comparison for sand or the other grains.
 - Real time: below 1 for both labs on this machine; see the table.
 - Granular stability: the solver's step check does not account for damping; with the tray's step a restitution of 0.1 blew a pile apart, so the damp-sand stand-in uses 0.3. The largest overlap in the prepared experiments is about 10% of a radius, during the settling of the column before the clock starts.
