@@ -24,7 +24,7 @@ import type {GranularMaterial} from './granular.ts';
 
 export const MATERIAL_LIBRARY_ID = 'box3d-materials';
 /** Semver of the data: a changed value is a minor release, a removed material or property a major one. */
-export const MATERIAL_LIBRARY_VERSION = '1.6.0';
+export const MATERIAL_LIBRARY_VERSION = '1.7.0';
 /** The date the sources were opened and read. */
 export const MATERIAL_SOURCES_ACCESSED = '2026-11-12';
 
@@ -157,7 +157,7 @@ export const MATERIAL_SOURCES: Readonly<Record<string, MaterialSource>> = deepFr
     title: 'Material properties of PVB interlayers, Stratobel and Stratobel Strong laminated glass, 20 July 2022', url: 'https://www.agc-yourglass.com/sites/default/files/2022-10/Material%20Properties%20of%20PVB%200722_EN_0.pdf',
     note: 'Relaxation moduli for load resistance design (EN 16612 / EN 16613); the shortest duration tabulated for standard PVB is 3 s.'},
   'en1992-1-1': {id: 'en1992-1-1', kind: 'standard', author: 'CEN (BS EN 1992-1-1:2004)',
-    title: 'Eurocode 2: Design of concrete structures, Part 1-1: General rules and rules for buildings: Table 3.1, 3.1.5 (expression 3.14), 3.1.9 and section 11 (Tables 11.1 and 11.3.1)',
+    title: 'Eurocode 2: Design of concrete structures, Part 1-1: General rules and rules for buildings: Table 3.1, 3.1.5 (expression 3.14), 3.1.9, 3.2 (3.2.2, 3.2.7), Annex C (Table C.1) and section 11 (Tables 11.1 and 11.3.1)',
     url: 'https://www.phd.eng.br/wp-content/uploads/2015/12/en.1992.1.1.2004.pdf',
     note: 'A scanned copy of the standard; read through its text layer, where Table 11.3.1 is partly garbled.'},
   'sucharda-2020': {id: 'sucharda-2020', kind: 'peer-reviewed', author: 'O. Sucharda',
@@ -295,6 +295,14 @@ export const MATERIALS: Readonly<Record<string, MaterialEntry>> = deepFreeze({
       elongationAtBreak: unverified(0.22, 'S355, EN 10025-2 minimum A (L0 = 5.65 sqrt(S0)), 3 < t <= 40 mm, longitudinal',
         'The opened design aid gives no elongation and EN 10025-2 itself was not opened; 22% is the standard\'s minimum as remembered, not read.')},
     notes: ['No fracture toughness: none was found in an opened source; structural steel is ductile at room temperature and its toughness depends on the grade\'s Charpy class.']},
+  'reinforcing-steel-b500b': {id: 'reinforcing-steel-b500b', name: 'Reinforcing steel B500B', category: 'metal', grade: 'ribbed weldable bars, f_yk = 500 MPa, ductility class B (EN 1992-1-1 Annex C; the B500B designation is EN 10080\'s, not opened)', isotropic: true,
+    properties: {
+      density: v(7850, 'en1992-1-1', '3.2.7 (3): The mean value of density may be assumed to be 7850 kg/m3', 'reinforcing steel, design'),
+      youngModulus: v(200e9, 'en1992-1-1', '3.2.7 (4): The design value of the modulus of elasticity, Es may be assumed to be 200 GPa', 'reinforcing steel, design'),
+      yieldStrength: v(500e6, 'en1992-1-1', 'Table C.1: Characteristic yield strength f_yk or f_0,2k (MPa) 400 to 600', 'characteristic (5 % fractile); the 500 grade', {range: [400e6, 600e6], derived: 'the 500 MPa grade within the Table C.1 range'}),
+      tensileStrength: v(540e6, 'en1992-1-1', 'Table C.1: Minimum value of k = (f_t/f_y)k >= 1,08 (Class B)', 'characteristic minimum for class B', {derived: '1.08 x 500 MPa'}),
+      ultimateStrain: v(0.05, 'en1992-1-1', 'Table C.1: Characteristic strain at maximum force, eps_uk (%) >= 5,0 (Class B)', 'characteristic minimum for class B, strain at maximum force', {derived: 'per cent / 100'})},
+    notes: ['Characteristic values, as EN 1992-1-1 states them, not means. The idealised diagram of 3.2.7 (2) a) rises from f_yk at f_yk / E_s to k f_yk at eps_uk: a hardening modulus of (k - 1) f_yk / (eps_uk - f_yk / E_s) = 842 MPa.']},
   'structural-steel-s235': {id: 'structural-steel-s235', name: 'Structural steel S235', category: 'metal', grade: 'EN 10025-2 S235, thickness up to 40 mm', isotropic: true,
     properties: {...steelCommon('S235'),
       yieldStrength: v(235e6, 'ec3-design-properties', 'f_y = 235 MPa', 'S235, EN 10025-2, t <= 40 mm (nominal)'),

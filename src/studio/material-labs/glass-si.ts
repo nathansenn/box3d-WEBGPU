@@ -11,10 +11,14 @@ const G=9.81;
 export const GLASS_CELLS:[number,number]=[26,20];
 /** Nominal PVB interlayer of a laminate, m (Stratobel xx.2, AGC sheet). */
 export const PVB_THICKNESS=.76e-3;
-/** Wired glass: steel wire of 0.46 mm on a 12.5 mm square mesh. Typical figures, not read in an opened source (unverified). */
-export const WIRE={diameter:.46e-3,pitch:12.5e-3};
-/** Speed of the dicing front in toughened glass, m/s. Of the order of the terminal crack speed of soda-lime glass; not read in an opened source (unverified). */
-export const DICING_SPEED=1500;
+/** Wired glass: a square steel wire mesh of 1/2 inch (12.7 mm), as AGC's wired patterned glass sheet states ("The
+ * dimensions of each wire mesh element is 1/2" x 1/2"", AGC InfoSheet 2023 Wired); EN 572-6 is summarised as 12.5 or 25 mm
+ * meshes (not opened). Wire diameter 0.46 mm: no opened source gives it (unverified). */
+export const WIRE={diameter:.46e-3,pitch:12.7e-3};
+/** Speed of the fragmentation front in thermally toughened soda-lime glass, m/s: 1466 m/s within 1 %, measured with
+ * high-speed cameras by Nielsen, Olesen and Stang, "The fracture process of tempered soda-lime-silica glass", Exp. Mech.
+ * 49 (2009) 855-870, as stated on DTU's tempered-glass research page (the paper itself was not opened). */
+export const DICING_SPEED=1466;
 /** Fragments in a 50 mm x 50 mm square per MPa of surface compression, thin toughened glass: 0.8 to 1.2 (Efferz et al. 2024, Glass Struct. Eng.). */
 export const FRAGMENTS_PER_MPA=1;
 /** Rubber of the clamp pads (natural rubber, library) and their geometry from the rig: 24 mm thick, 210 mm tall, 55 mm over the pane edge. */
