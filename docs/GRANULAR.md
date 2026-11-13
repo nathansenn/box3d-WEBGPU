@@ -127,7 +127,7 @@ A **kinematic** wall moves with the velocities it is given (`setWallVelocity`), 
 
 ## Neighbour search
 
-A uniform grid with cells of the largest grain diameter plus the skin (`config.skin`, half the smallest radius by default) over the bounding box of the live grains, filled by a counting sort. Each grain lists the grains of higher index within `r_i + r_j + skin`, and the walls within `r + skin` (a moving wall is always listed). The list is rebuilt when any grain has moved half the skin since the last build. Grains are visited in index order and cells in a fixed order, forces are summed in that order, and nothing depends on time or on a random number, so a run repeats bit for bit. A step uses only `+`, `−`, `×`, `÷` and the square root, which IEEE 754 rounds identically on every machine; that it gives the same bits on another machine or JavaScript engine has not been tried.
+A uniform grid with cells of the largest grain diameter plus the skin (`config.skin`, half the smallest radius by default) over the bounding box of the live grains, filled by a counting sort. Each grain lists the grains of higher index within `r_i + r_j + skin`, and the walls within `r + skin` (a moving wall is always listed). The list is rebuilt when any grain has moved half the skin since the last build. A listed wall is not measured again while it is certainly out of reach: each wall candidate keeps a lower bound of its gap (the distance less the radius at its last measurement, less a margin of 1e-12 of the coordinates for rounding), from which each step subtracts the farthest any grain moved (the largest |v|₁ h) and the farthest any point of that wall's surface moved (its translation, plus 2 |q − q'| times the radius of a sphere holding the surface for a turn; a turning plane is measured every step). While the bound is positive the candidate gets exactly what a measured gap gives (no force, no history), so the results do not change; a kinematic gate far above the grains is then not measured every step. Grains are visited in index order and cells in a fixed order, forces are summed in that order, and nothing depends on time or on a random number, so a run repeats bit for bit. A step uses only `+`, `−`, `×`, `÷` and the square root, which IEEE 754 rounds identically on every machine; that it gives the same bits on another machine or JavaScript engine has not been tried.
 
 `granularLattice({min, max, radius: [r0, r1], jitter, seed, inside})` makes a starting arrangement: a cubic lattice with radii drawn uniformly and centres moved by a seeded generator.
 
@@ -267,7 +267,29 @@ So about 2 million grain-steps per second (between 1.5 and 2.6 in these six runs
 
 Memory is about 2.4 kB per bead as allocated: 0.2 kB of state, and room for eight neighbour-list entries and two wall entries per bead at 109 bytes each (thirteen float64 of history), twice, for the carry-over at a rebuild. The lists grow when a packing needs more.
 
-Nothing is parallel and nothing is on the GPU. The roadmap's "granular on GPU" item is open.
+### Threads, and what changed since the table above (2026-11-12)
+
+The contact loop is split in two (`src/engine/granular-kernels.ts`): `demContacts` evaluates every pair and wall candidate of a range of grains into that contact's own slots (force, the two torques, the ledger terms), and `demGather` adds, for each grain, the contributions of the pairs where it is the second grain (in list order), then its own pairs, then its walls: the order in which the single loop added them. The ledger sums are taken afterwards over the pairs in list order, then the walls. Nothing is summed across ranges, so the forces, histories, ledgers and wall loads are the single loop's to the bit whatever the ranges are. `GranularThreads` (`src/engine/granular-parallel.ts`) runs the ranges on helper threads over shared memory (`SharedArrayBuffer`, `Atomics`): `granular.useExecutor(await GranularThreads.create(4, spawnGranularWorker))`, or `nodeGranularWorker` in Node. Runs of grains of about equal work (pairs plus wall candidates) go to the threads; the calling thread takes the first run, then the ordered sums; the neighbour-list rebuild, the integration and the walls stay on the calling thread. On one thread the solver keeps the single loop (`demSerial`, the original arithmetic). The calling thread blocks on `Atomics.wait`, so it must be a worker or Node (`GranularThreads.available()`), and a page needs cross-origin isolation (COOP/COEP) for shared memory.
+
+Checked: `tests/engine/granular-parallel.test.mjs` (in `npm run test:accel`): the Studio tray on 1, 2 and 3 threads, and a Hertz case with rolling resistance, a dynamic sphere, a turning kinematic box and grains leaving the bounds on 3 threads, give the serial result to the bit (positions, velocities, spins, forces, torques, ledgers, statistics, wall loads); a save taken while threaded restores into a one-thread solver and runs on the same. `tests/engine/accel-exactness.test.mjs` pins the state of every Studio tray experiment after 0.4 s to hashes taken from the solver before this work (commit 5fc530d). The checkpoint format is unchanged (the new work arrays are not saved; a restore rebuilds them).
+
+Studio tray, 0.5 s of each prepared experiment after the 0.3 s settle, CPU time of one process (`node scripts/bench-granular.mjs --seconds 0.5 --repeat 3`, fastest of three; this 4-core sandbox was shared with other jobs, load average 9 to 16, so the numbers are lower bounds and differences under 10% are noise):
+
+| Experiment | Grains | Before: ms, × real time | After, one thread: ms, × real time | State |
+|---|---:|---:|---:|---|
+| Sand avalanche | 792 | 944, 0.53 | 1009, 0.50 | same bits |
+| Glass-bead runout | 792 | 903, 0.55 | 999, 0.50 | same bits |
+| Coarse gravel (16 mm) | 270 | 155, 3.2 | 152, 3.3 | same bits |
+| Crushed-stone pile | 792 | 780, 0.64 | 842, 0.59 | same bits |
+| Metered discharge | 792 | 891, 0.56 | 1020, 0.49 | same bits |
+| Polymer pellets | 792 | 1041, 0.48 | 1024, 0.49 | same bits |
+| Steel shot | 792 | 1020, 0.49 | 1062, 0.47 | same bits |
+| Damped pile | 792 | 832, 0.60 | 806, 0.62 | same bits |
+| Lab `hopper-seesaw` (150 grains, coupled) | 150 | 188, 2.7 | 179, 2.8 | same Lab state hash |
+
+So on one thread the solver is as fast as before within the noise of this machine (the skipped wall measurements, about a tenth of the time in the tray, roughly pay for the ordered sums), and gives the same bits. The gain is meant to come from the threads: in a profile of the split path on one thread, `demContacts` and `demGather` take about 70% of a tray step, which bounds four threads at about 2× (Amdahl) before synchronisation (two waits per step, about 5,000 steps per simulated second). **The threaded speed-up was not measured:** every attempt here ran with the load average between 9 and 31 on 4 cores, where two to four spinning threads were slower than one. In headless Chromium (served with COOP/COEP, three helper workers started, no errors) the Studio tray read 0.09× real time with `?threads=4` against 0.22× with one thread, at a load average above 20. The Studio therefore uses threads only when asked (`?threads=n`). Measure on an idle machine with `node scripts/bench-granular.mjs --threads 4` (wall time) before turning them on by default.
+
+Nothing is on the GPU. The roadmap's "granular on GPU" item is open: Node's Dawn (`webgpu` package) offers only the null backend here, which does not run shaders, and a float32 step could only be compared with this solver statistically, not to the bit.
 
 ## Limits
 

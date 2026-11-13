@@ -7811,6 +7811,19 @@ export interface ClothWorld<B> {
 
 ## `box3d-webgpu-kit/granular`
 
+### DemExecutor · interface
+
+Something that runs a kernel over ranges of grains on several threads and returns when all are done (granular-parallel.ts).
+
+```ts
+export interface DemExecutor {
+    readonly threads: number;
+    share<T extends Float64Array | Int32Array | Uint8Array>(array: T): T;
+    run(task: 'contacts' | 'gather', context: DemContext, n: number): void;
+    dispose(): void;
+}
+```
+
 ### Granular · class
 
 ```ts
@@ -7876,6 +7889,8 @@ export declare class Granular {
   linearMomentum(out?: number[] | Float64Array): number[] | Float64Array;
   angularMomentum(out?: number[] | Float64Array): number[] | Float64Array;
   coordination(): number;
+  useExecutor(executor: DemExecutor | null): void;
+  get threads(): number;
   step(count?: number): void;
 }
 ```
@@ -8304,6 +8319,7 @@ export declare class Fluid {
   workByBodies: number;
   workByBoundaries: number;
   workByForces: number;
+  readonly pressureSolver: 'mic' | 'multigrid';
   faceIndex(f: number): [number, number, number];
   facePosition(c: number, f: number): [number, number, number];
   index(i: number, j: number, k: number): number;
@@ -8491,6 +8507,7 @@ export interface FluidOptions {
     readonly maxIterations?: number;
     readonly cflLimit?: number;
     readonly allowUnstable?: boolean;
+    readonly pressureSolver?: 'mic' | 'multigrid';
 }
 ```
 
@@ -8747,6 +8764,14 @@ Plane Poiseuille flow between walls at 0 and H driven by a body acceleration G: 
 
 ```ts
 export declare const poiseuilleVelocity: (y: number, height: number, acceleration: number, nu: number) => number;
+```
+
+### setFluidPressureSolverDefault · function
+
+The pressure preconditioner of fluids built without `pressureSolver` from now on (validation runs use it to run every case with multigrid). Returns the previous default.
+
+```ts
+export declare function setFluidPressureSolverDefault(solver: 'mic' | 'multigrid'): 'mic' | 'multigrid';
 ```
 
 ### sloshingFrequency · const

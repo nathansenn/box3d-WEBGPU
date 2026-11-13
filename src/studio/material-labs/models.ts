@@ -54,12 +54,13 @@ export class LiquidModel extends LabModel {
   }
   /** Liquid volume, m^3: the solver particles' volume in the flume (exact), the depth field's elsewhere. */
   volume():number {if(this.flume)return this.flume.volume();let total=0;for(const h of this.h)total+=h;return total*this.dx*this.dz;}
+  private readonly sampled=new Float64Array(3);
   /** Depth and depth-averaged velocity of the flume solver at each cell of this grid (zero inside the posts). */
   private fromFlume():void {
     const f=this.flume!;
     for(let z=0;z<this.nz;z++)for(let x=0;x<this.nx;x++){
       const i=z*this.nx+x;if(this.solid[i]){this.h[i]=this.qx[i]=this.qz[i]=0;continue;}
-      const [d,u,w]=f.sample((x+.5)*this.dx-3,(z+.5)*this.dz-1);this.h[i]=d;this.qx[i]=d*u;this.qz[i]=d*w;
+      const s=this.sampled;f.sampleInto((x+.5)*this.dx-3,(z+.5)*this.dz-1,s);const d=s[0];this.h[i]=d;this.qx[i]=d*s[1];this.qz[i]=d*s[2];
     }
   }
   private supplyOn(time=this.frame.time):boolean {return !this.released&&(this.liquid.cutoff===0||time<this.liquid.cutoff-1e-10);}

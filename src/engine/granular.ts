@@ -41,6 +41,13 @@ import {EngineError} from './contracts.ts';
 import {captureFields,checkpointError,eachElement,holder,restoreFields,type FieldOptions,type StateObject,type StateValue} from './checkpoint.ts';
 import {principalMoments,type StructureInertia} from './structure-coupling.ts';
 import type {Subsystem} from './simulation.ts';
+import {HN,PLANE,BOX,SPHERE,CAPSULE,REVOLVED,STATIC,KINEMATIC,DYNAMIC,WALL_STRIDE,W_SHAPE,W_TYPE,W_R,W_X,W_V,W_W,W_DIM,W_CURVED,W_MASS,W_ALPHA,W_MU,W_MUR,W_REACH,
+  PAIR_OUT,WALL_OUT,L_EN,L_PD,L_ET1,L_PT1,L_ET2,L_PT2,L_RATIO,P_H,P_HERTZ,P_KHERTZ,P_KMINDLIN,P_KN,P_KT,P_ALPHA,P_TDAMP,P_MU,P_MUR,P_MOVE,P_WALLS,P_COUNT,
+  P_KICK,P_GX,P_GY,P_GZ,SUM_EN,SUM_ET,SUM_PD,SUM_PT,SUM_CONTACTS,SUM_WALL_CONTACTS,SUM_OVERLAP,SUM_EXCHANGE,SUM_WALLS,WALL_SUM,demSerial,demScratch,type DemContext,type DemExecutor} from './granular-kernels.ts';
+export type {DemExecutor} from './granular-kernels.ts';
+/** The fields the contact kernels read or write, which live in shared memory when an executor runs them on several threads. */
+const SHARED_FIELDS=['positions','velocities','angularVelocities','radii','masses','pairStart','pairJ','pairH','pairOn','pairOut','wallStart','wallW','wallH','wallOn','wallSlack','wallOut',
+  'wallTable','params','forces','torques','revStart','revK','alive','invMass','invInertia'] as const;
 
 export const GRANULAR_SOLVER_ID='granular-dem-soft-sphere-verlet-js-f64-v1';
 export const GRANULAR_COUPLING_BACKEND='rigid-granular-coupling-subcycled-js-f64-v1';
@@ -241,11 +248,9 @@ export function granularLattice(options:{readonly min:GranularVec3;readonly max:
 // Walls.
 // -------------------------------------------------------------------------------------------------
 
-// Numbers kept per contact: tangential displacement (3), rolling rotation (3), and the last step's dissipative normal force (1),
-// tangential force (3) and rolling moment (3), which make the energy ledger second order in the time step.
-const HN=13;
-const PLANE=0,BOX=1,SPHERE=2,CAPSULE=3,REVOLVED=4;
-const STATIC=0,KINEMATIC=1,DYNAMIC=2;
+// Numbers kept per contact (HN = 13, granular-kernels.ts): tangential displacement (3), rolling rotation (3), and the last
+// step's dissipative normal force (1), tangential force (3) and rolling moment (3), which make the energy ledger second
+// order in the time step.
 
 class Wall {
   shape=PLANE;type=STATIC;enabled=true;
@@ -262,6 +267,9 @@ class Wall {
   /** Load from outside the grains (supports, joints), N and N m, held constant over a step. */
   readonly external=new Float64Array(6);
   friction=0;rollingFriction=0;alpha=0;curved=0;
+  /** Not state (rebuilt after a restore): the pose at the last force evaluation and the radius of a sphere about the
+   * wall position that holds the whole surface (Infinity for a plane), which bound how far the surface moved since. */
+  readonly seenX=new Float64Array(3);readonly seenQ=new Float64Array(4);seen=false;reach=Infinity;
   refresh():void {
     const q=this.q,l=Math.sqrt(q[0]*q[0]+q[1]*q[1]+q[2]*q[2]+q[3]*q[3])||1,x=q[0]/l,y=q[1]/l,z=q[2]/l,w=q[3]/l,R=this.R;
     q[0]=x;q[1]=y;q[2]=z;q[3]=w;
@@ -289,9 +297,13 @@ class Wall {
 // The solver.
 // -------------------------------------------------------------------------------------------------
 
+/** Fields that only make a step cheaper and are rebuilt after a restore: not part of a checkpoint (whose bytes stay those
+ * of a solver without them). */
+const GRANULAR_DERIVED=['wallSlack','grainMove','pairOut','wallOut','wallTable','params','revStart','revK','scratch','context','moveScratch','executor','sums','terms'],WALL_DERIVED=['seenX','seenQ','seen','reach'];
+
 /** What an exact checkpoint of a Granular holds: every field (grains, the tangential springs of every contact, the
  * neighbour lists, ledgers and statistics); the walls keep their identity. */
-const GRANULAR_FIELDS:FieldOptions={label:'Granular',nested:{walls:eachElement({label:'Granular wall'})}};
+const GRANULAR_FIELDS:FieldOptions={label:'Granular',skip:GRANULAR_DERIVED,nested:{walls:eachElement({label:'Granular wall',skip:WALL_DERIVED})}};
 /** What an exact checkpoint of a GranularCoupling holds: the grain set and the coupled bodies' records. */
 const GRANULAR_COUPLING_FIELDS:FieldOptions={label:'GranularCoupling',skip:['world','byBody'],nested:{granular:holder,list:eachElement({label:'GranularCoupling body'})}};
 
@@ -299,7 +311,16 @@ export class Granular {
   /** Everything a later step reads, as a state tree (checkpoint.ts), for exact checkpoints. */
   saveState():StateObject {return captureFields(this,GRANULAR_FIELDS);}
   /** Put back a state from `saveState()` of a grain set built the same way (same material, settings and walls; the grains themselves are restored). */
-  restoreState(state:StateValue):void {restoreFields(this,state,GRANULAR_FIELDS);}
+  restoreState(state:StateValue):void {
+    restoreFields(this,state,GRANULAR_FIELDS);
+    // The restored lists may be longer than the work space.
+    const pairs=this.pairJ.length,cands=this.wallW.length;
+    if(this.pairOut.length<PAIR_OUT*pairs){this.pairOut=new Float64Array(PAIR_OUT*pairs);this.revK=new Int32Array(pairs);}
+    if(this.wallOut.length<WALL_OUT*cands){this.wallOut=new Float64Array(WALL_OUT*cands);this.wallSlack=new Float64Array(cands);}
+    this.reverseLists();this.forgetSlack();
+  }
+  /** Measure every wall candidate at the next force evaluation. */
+  private forgetSlack():void {this.wallSlack.fill(-Infinity);this.grainMove=0;for(const wall of this.walls)wall.seen=false;}
 
   readonly solver=GRANULAR_SOLVER_ID;
   readonly dt:number;readonly capacity:number;readonly law:'hertz'|'linear';
@@ -337,6 +358,22 @@ export class Granular {
   private oldWallStart:Int32Array;private oldWallW:Int32Array;private oldWallH:Float64Array;private oldWallOn:Uint8Array;
   private cellStart=new Int32Array(1);private cellItems:Int32Array;private cellOf:Int32Array;
   private dirty=true;private fresh=false;
+  /**
+   * Wall candidates far from their wall are not measured every step. For each candidate, a lower bound of
+   * (distance to the wall - radius) when it was last measured, less how far the grain and the wall could have moved
+   * since; while it stays positive the grain cannot touch the wall and the candidate is skipped, exactly as a measured
+   * gap would be (no force, history already zero). -Infinity: measure. `grainMove` is the largest distance any grain
+   * moved since the last force evaluation (an upper bound).
+   */
+  private wallSlack:Float64Array;private grainMove=0;
+  /**
+   * The contacts are evaluated by `demContacts` (granular-kernels.ts) into per-contact contributions, then summed here in
+   * the order of a single loop over the pairs (grain by grain) and then the wall candidates. For each grain, the pairs
+   * where it is the second grain, in list order (revStart, revK: built with the lists), come before its own: that is
+   * when a single loop added them. Derived, not state.
+   */
+  private pairOut:Float64Array;private wallOut:Float64Array;private wallTable=new Float64Array(0);private readonly params=new Float64Array(P_COUNT);
+  private revStart:Int32Array;private revK:Int32Array;private readonly scratch=demScratch();private sums=new Float64Array(0);private readonly terms=new Float64Array(8);private context:DemContext|null=null;private executor:DemExecutor|null=null;
   // Scratch of the contact kernel: normal, relative velocity, relative spin in; force, tangential force, rolling moment out.
   private readonly S=new Float64Array(18);
   private readonly gn=new Float64Array(3);private readonly gc=new Float64Array(3);
@@ -384,6 +421,9 @@ export class Granular {
     const wallGuess=Math.max(64,2*C);
     this.wallW=new Int32Array(wallGuess);this.wallH=new Float64Array(HN*wallGuess);this.wallOn=new Uint8Array(wallGuess);
     this.oldWallW=new Int32Array(wallGuess);this.oldWallH=new Float64Array(HN*wallGuess);this.oldWallOn=new Uint8Array(wallGuess);
+    this.wallSlack=new Float64Array(wallGuess).fill(-Infinity);
+    this.pairOut=new Float64Array(PAIR_OUT*guess);this.wallOut=new Float64Array(WALL_OUT*wallGuess);
+    this.revStart=new Int32Array(C+1);this.revK=new Int32Array(guess);
     this.cellItems=new Int32Array(C);this.cellOf=new Int32Array(C);
   }
 
@@ -472,6 +512,8 @@ export class Granular {
       for(let k=0;k<3;k++)wall.invInertia[k]=moments?1/moments[k]:0;
       wall.gravityScale=num(options.gravityScale??1,'gravityScale',-1e6,1e6);
     }
+    wall.reach=wall.shape===PLANE?Infinity:wall.shape===BOX?Math.sqrt(d[0]*d[0]+d[1]*d[1]+d[2]*d[2]):wall.shape===SPHERE?d[0]:wall.shape===CAPSULE?d[0]+d[1]:
+      Math.max(Math.sqrt(d[3]*d[3]+d[4]*d[4]),Math.sqrt(d[5]*d[5]+d[6]*d[6]));
     wall.friction=num(options.friction??this.material.friction,'friction',0,1e6);
     wall.rollingFriction=num(options.rollingFriction??this.material.rollingFriction,'rollingFriction',0,1e6);
     wall.alpha=options.restitution===undefined?this.alpha:granularDampingCoefficient(options.restitution,this.law);
@@ -572,12 +614,14 @@ export class Granular {
     while(size<need)size*=2;
     const J=new Int32Array(size),H=new Float64Array(HN*size),on=new Uint8Array(size);
     J.set(this.pairJ);H.set(this.pairH);on.set(this.pairOn);this.pairJ=J;this.pairH=H;this.pairOn=on;
+    if(this.revK.length<size){this.revK=new Int32Array(size);this.pairOut=new Float64Array(PAIR_OUT*size);}
   }
   private growWalls(need:number):void {
     let size=this.wallW.length;if(need<=size)return;
     while(size<need)size*=2;
     const W=new Int32Array(size),H=new Float64Array(HN*size),on=new Uint8Array(size);
     W.set(this.wallW);H.set(this.wallH);on.set(this.wallOn);this.wallW=W;this.wallH=H;this.wallOn=on;
+    if(this.wallSlack.length<size){const slack=new Float64Array(size);slack.set(this.wallSlack);this.wallSlack=slack;this.wallOut=new Float64Array(WALL_OUT*size);}
   }
   private rebuild():void {
     const n=this.n,x=this.positions,r=this.radii,alive=this.alive;
@@ -680,7 +724,19 @@ export class Granular {
       }
     }
     wallStart[n]=wc;
+    this.reverseLists();this.forgetSlack();
     this.built.set(x.subarray(0,3*n));this.builtCount=n;this.dirty=false;this.stats.rebuilds++;
+  }
+  /** For each grain, the pairs where it is the second grain, in list order (a stable counting sort of the pairs by j). */
+  private reverseLists():void {
+    const n=this.n,start=this.revStart,K=this.revK,J=this.pairJ,total=this.pairStart[n];
+    start.fill(0,0,n+1);
+    for(let k=0;k<total;k++)start[J[k]+1]++;
+    for(let g=0;g<n;g++)start[g+1]+=start[g];
+    for(let k=0;k<total;k++)K[start[J[k]]++]=k;
+    // Each start was moved to the end of its run, the start of the next: shift back.
+    for(let g=n;g>0;g--)start[g]=start[g-1];
+    start[0]=0;
   }
   private moved():boolean {
     const x=this.positions,b=this.built,limit=.25*this.skin*this.skin,n=this.n,alive=this.alive;
@@ -746,121 +802,97 @@ export class Granular {
 
   // ---- forces ----
 
-  /**
-   * One contact. In S: the normal from the other body to grain i, the velocity of i's contact point relative to the
-   * other's, and the relative spin. Out: the force on i, its tangential part and the rolling moment on i. Returns F_n.
-   */
-  private kernel(H:Float64Array,o:number,delta:number,Rs:number,ms:number,alpha:number,mu:number,mur:number,h:number):number {
-    const S=this.S,nx=S[0],ny=S[1],nz=S[2];
-    const vn=S[3]*nx+S[4]*ny+S[5]*nz;
-    let Fe:number,cn:number,kt:number;
-    if(this.hertz){
-      const sq=Math.sqrt(delta),kH=this.kHertz*Math.sqrt(Rs);
-      Fe=kH*delta*sq;this.eNormal+=.4*Fe*delta;cn=alpha*Math.sqrt(ms*kH*sq);kt=this.kMindlin*Math.sqrt(Rs)*sq;
-    }else{Fe=this.kn*delta;this.eNormal+=.5*Fe*delta;cn=alpha*Math.sqrt(ms*this.kn);kt=this.kt;}
-    let Fn=Fe-cn*vn;if(Fn<0)Fn=0;
-    // Work is booked with the mean of this step's and the last step's force, as velocity Verlet does it.
-    const Fd=Fn-Fe;this.pDamp-=.5*(Fd+H[o+6])*vn;H[o+6]=Fd;
-    const vtx=S[3]-vn*nx,vty=S[4]-vn*ny,vtz=S[5]-vn*nz;
-    let ftx=0,fty=0,ftz=0;
-    if(mu>0&&Fn>0){
-      // Turn the stored displacement into the tangent plane, keeping its length, then add this step's slip.
-      let sx=H[o],sy=H[o+1],sz=H[o+2];
-      const dot=sx*nx+sy*ny+sz*nz;
-      if(dot!==0){
-        const before=sx*sx+sy*sy+sz*sz;sx-=dot*nx;sy-=dot*ny;sz-=dot*nz;
-        const after=sx*sx+sy*sy+sz*sz;
-        if(after>0){const s=Math.sqrt(before/after);sx*=s;sy*=s;sz*=s;}
-      }
-      sx+=vtx*h;sy+=vty*h;sz+=vtz*h;
-      const ct=this.tangentialDamping*alpha*Math.sqrt(ms*kt);
-      ftx=-kt*sx-ct*vtx;fty=-kt*sy-ct*vty;ftz=-kt*sz-ct*vtz;
-      const cap=mu*Fn,f2=ftx*ftx+fty*fty+ftz*ftz;
-      if(f2>cap*cap){const s=cap/Math.sqrt(f2);ftx*=s;fty*=s;ftz*=s;sx=-ftx/kt;sy=-fty/kt;sz=-ftz/kt;}
-      H[o]=sx;H[o+1]=sy;H[o+2]=sz;
-      this.eTangent+=.5*kt*(sx*sx+sy*sy+sz*sz);
-    }else{H[o]=0;H[o+1]=0;H[o+2]=0;}
-    this.pTangent+=.5*((ftx+H[o+7])*vtx+(fty+H[o+8])*vty+(ftz+H[o+9])*vtz);H[o+7]=ftx;H[o+8]=fty;H[o+9]=ftz;
-    let mx=0,my=0,mz=0;
-    if(mur>0&&Fn>0){
-      const wn=S[6]*nx+S[7]*ny+S[8]*nz,wx=S[6]-wn*nx,wy=S[7]-wn*ny,wz=S[8]-wn*nz;
-      let sx=H[o+3],sy=H[o+4],sz=H[o+5];
-      const dot=sx*nx+sy*ny+sz*nz;
-      if(dot!==0){
-        const before=sx*sx+sy*sy+sz*sz;sx-=dot*nx;sy-=dot*ny;sz-=dot*nz;
-        const after=sx*sx+sy*sy+sz*sz;
-        if(after>0){const s=Math.sqrt(before/after);sx*=s;sy*=s;sz*=s;}
-      }
-      sx+=wx*h;sy+=wy*h;sz+=wz*h;
-      const kr=kt*Rs*Rs;
-      mx=-kr*sx;my=-kr*sy;mz=-kr*sz;
-      const cap=mur*Rs*Fn,m2=mx*mx+my*my+mz*mz;
-      if(m2>cap*cap){const s=cap/Math.sqrt(m2);mx*=s;my*=s;mz*=s;sx=-mx/kr;sy=-my/kr;sz=-mz/kr;}
-      H[o+3]=sx;H[o+4]=sy;H[o+5]=sz;
-      this.eTangent+=.5*kr*(sx*sx+sy*sy+sz*sz);
-      this.pTangent+=.5*((mx+H[o+10])*wx+(my+H[o+11])*wy+(mz+H[o+12])*wz);H[o+10]=mx;H[o+11]=my;H[o+12]=mz;
-    }else{H[o+3]=0;H[o+4]=0;H[o+5]=0;H[o+10]=0;H[o+11]=0;H[o+12]=0;}
-    S[9]=Fn*nx+ftx;S[10]=Fn*ny+fty;S[11]=Fn*nz+ftz;S[12]=ftx;S[13]=fty;S[14]=ftz;S[15]=mx;S[16]=my;S[17]=mz;
-    return Fn;
+  /** Copy the walls into the table the contact kernels read. */
+  private packWalls():Float64Array {
+    const walls=this.walls;
+    if(this.wallTable.length<WALL_STRIDE*walls.length)this.wallTable=new Float64Array(WALL_STRIDE*walls.length);
+    const T=this.wallTable;
+    for(let k=0;k<walls.length;k++){
+      const wall=walls[k],b=WALL_STRIDE*k;
+      T[b+W_SHAPE]=wall.shape;T[b+W_TYPE]=wall.type;
+      for(let q=0;q<9;q++)T[b+W_R+q]=wall.R[q];
+      for(let q=0;q<3;q++){T[b+W_X+q]=wall.x[q];T[b+W_V+q]=wall.v[q];T[b+W_W+q]=wall.w[q];}
+      for(let q=0;q<7;q++)T[b+W_DIM+q]=wall.dim[q];
+      T[b+W_CURVED]=wall.curved;T[b+W_MASS]=wall.mass;T[b+W_ALPHA]=wall.alpha;T[b+W_MU]=wall.friction;T[b+W_MUR]=wall.rollingFriction;
+      T[b+W_REACH]=wall.reach<Infinity?wall.reach:0;
+    }
+    return T;
   }
-  /** Contact forces at the present positions, with the histories advanced by h (0: evaluate only). */
-  private computeForces(h:number):void {
-    const n=this.n,x=this.positions,v=this.velocities,w=this.angularVelocities,r=this.radii,m=this.masses,f=this.forces,t=this.torques,alive=this.alive;
-    const S=this.S,alpha=this.alpha,mu=this.material.friction,mur=this.material.rollingFriction,walls=this.walls;
-    f.fill(0,0,3*n);t.fill(0,0,3*n);
-    this.eNormal=0;this.eTangent=0;this.pDamp=0;this.pTangent=0;
-    let contacts=0,wallContacts=0,overlap=0,exchange=0;
-    for(let k=0;k<walls.length;k++){const wall=walls[k];wall.force.fill(0);wall.torque.fill(0);wall.normalLoad=0;wall.contacts=0;}
-    const pairStart=this.pairStart,pairJ=this.pairJ,pairH=this.pairH,pairOn=this.pairOn;
-    for(let i=0;i<n;i++){
-      const s=pairStart[i],e=pairStart[i+1];if(s===e)continue;
-      const a=3*i,px=x[a],py=x[a+1],pz=x[a+2],ri=r[i];
-      for(let k=s;k<e;k++){
-        const j=pairJ[k],b=3*j,dx=px-x[b],dy=py-x[b+1],dz=pz-x[b+2],sum=ri+r[j],d2=dx*dx+dy*dy+dz*dz;
-        if(d2>=sum*sum){if(pairOn[k]){pairOn[k]=0;pairH.fill(0,HN*k,HN*k+HN);}continue;}
-        const dist=Math.sqrt(d2),delta=sum-dist,nx=dx/dist,ny=dy/dist,nz=dz/dist,rj=r[j];
-        // Lever arms to the middle of the overlap.
-        const la=ri-.5*delta,lb=rj-.5*delta;
-        const sx=la*w[a]+lb*w[b],sy=la*w[a+1]+lb*w[b+1],sz=la*w[a+2]+lb*w[b+2];
-        S[0]=nx;S[1]=ny;S[2]=nz;
-        S[3]=v[a]-v[b]-(sy*nz-sz*ny);S[4]=v[a+1]-v[b+1]-(sz*nx-sx*nz);S[5]=v[a+2]-v[b+2]-(sx*ny-sy*nx);
-        S[6]=w[a]-w[b];S[7]=w[a+1]-w[b+1];S[8]=w[a+2]-w[b+2];
-        const mi=m[i],mj=m[j];
-        this.kernel(pairH,HN*k,delta,ri*rj/sum,mi*mj/(mi+mj),alpha,mu,mur,h);
-        pairOn[k]=1;contacts++;
-        const ratio=delta/(ri<rj?ri:rj);if(ratio>overlap)overlap=ratio;
-        f[a]+=S[9];f[a+1]+=S[10];f[a+2]+=S[11];f[b]-=S[9];f[b+1]-=S[10];f[b+2]-=S[11];
-        const cx=ny*S[14]-nz*S[13],cy=nz*S[12]-nx*S[14],cz=nx*S[13]-ny*S[12];
-        t[a]+=S[15]-la*cx;t[a+1]+=S[16]-la*cy;t[a+2]+=S[17]-la*cz;
-        t[b]-=S[15]+lb*cx;t[b+1]-=S[16]+lb*cy;t[b+2]-=S[17]+lb*cz;
+  /** The arrays the contact kernels work on (refreshed: the lists are swapped and grown). */
+  private demContext(moves:Float64Array):DemContext {
+    const c=this.context??={} as DemContext,T=this.packWalls();
+    if(this.executor){
+      // Helper threads see shared memory only: move (once) whatever is not there yet. Values are copied unchanged.
+      const self=this as unknown as Record<string,Float64Array|Int32Array|Uint8Array>,ex=this.executor;
+      for(const key of SHARED_FIELDS){const a=self[key];if(!(a.buffer instanceof SharedArrayBuffer))self[key]=ex.share(a);}
+      if(!(moves.buffer instanceof SharedArrayBuffer))moves=this.moveScratch=ex.share(moves);
+    }
+    c.x=this.positions;c.v=this.velocities;c.w=this.angularVelocities;c.r=this.radii;c.m=this.masses;
+    c.pairStart=this.pairStart;c.pairJ=this.pairJ;c.pairH=this.pairH;c.pairOn=this.pairOn;c.pairOut=this.pairOut;
+    c.wallStart=this.wallStart;c.wallW=this.wallW;c.wallH=this.wallH;c.wallOn=this.wallOn;c.wallSlack=this.wallSlack;c.wallOut=this.wallOut;
+    c.walls=this.wallTable;c.moves=moves;c.params=this.params;
+    c.f=this.forces;c.t=this.torques;c.revStart=this.revStart;c.revK=this.revK;c.alive=this.alive;c.invMass=this.invMass;c.invInertia=this.invInertia;
+    void T;return c;
+  }
+  /**
+   * Run the contact kernels on several threads (granular-parallel.ts) or, with null, on this one. The results are the
+   * same to the bit either way and for any number of threads: each thread evaluates whole contacts into their own
+   * slots and every sum is still taken in one fixed order. The live arrays (positions, velocities, ...) move to shared
+   * memory on the next step: read them from the solver again after this call rather than keeping old references.
+   */
+  useExecutor(executor:DemExecutor|null):void {
+    this.executor=executor;this.context=null;
+    // Move the live arrays now, so that a step already under way (step(count) holds them) keeps writing where they live.
+    if(executor){const self=this as unknown as Record<string,Float64Array|Int32Array|Uint8Array>;for(const key of SHARED_FIELDS){const a=self[key];if(!(a.buffer instanceof SharedArrayBuffer))self[key]=executor.share(a);}}
+  }
+  /** The executor the contacts run on, if any. */
+  get threads():number {return this.executor?this.executor.threads:1;}
+  /** Contact forces at the present positions, with the histories advanced by h (0: evaluate only); with `kick`, the closing half kick of the step too. */
+  private computeForces(h:number,kick=false):void {
+    const n=this.n,walls=this.walls,P=this.params;
+    P[P_H]=h;P[P_HERTZ]=this.hertz?1:0;P[P_KHERTZ]=this.kHertz;P[P_KMINDLIN]=this.kMindlin;P[P_KN]=this.kn;P[P_KT]=this.kt;P[P_ALPHA]=this.alpha;
+    P[P_TDAMP]=this.tangentialDamping;P[P_MU]=this.material.friction;P[P_MUR]=this.material.rollingFriction;P[P_MOVE]=this.grainMove;P[P_WALLS]=walls.length;
+    P[P_GX]=this.gravity[0];P[P_GY]=this.gravity[1];P[P_GZ]=this.gravity[2];
+    const ctx=this.demContext(this.wallMoves());
+    this.grainMove=0;
+    let eNormal:number,eTangent:number,pDamp:number,pTangent:number,contacts:number,wallContacts:number,overlap:number,exchange:number;
+    if(!this.executor){
+      // One thread: the single loop, summing as it goes.
+      const sums=this.sums.length>=SUM_WALLS+WALL_SUM*walls.length?this.sums:(this.sums=new Float64Array(SUM_WALLS+WALL_SUM*walls.length));
+      demSerial(ctx,n,this.scratch,sums,this.terms);
+      eNormal=sums[SUM_EN];eTangent=sums[SUM_ET];pDamp=sums[SUM_PD];pTangent=sums[SUM_PT];contacts=sums[SUM_CONTACTS];wallContacts=sums[SUM_WALL_CONTACTS];overlap=sums[SUM_OVERLAP];exchange=sums[SUM_EXCHANGE];
+      for(let k=0;k<walls.length;k++){
+        const wall=walls[k],q=SUM_WALLS+WALL_SUM*k;
+        for(let d=0;d<3;d++){wall.force[d]=sums[q+d];wall.torque[d]=sums[q+3+d];}
+        wall.normalLoad=sums[q+6];wall.contacts=sums[q+7];
+      }
+      if(kick)this.kick(h);
+    }else{
+      // Several threads: each contact into its own slot, then the sums in the single loop's order.
+      this.executor.run('contacts',ctx,n);
+      ctx.params[P_KICK]=kick?1:0;
+      this.executor.run('gather',ctx,n);
+      const pairOn=this.pairOn,PO=this.pairOut,total=this.pairStart[n],wallStart=this.wallStart,wallW=this.wallW,wallOn=this.wallOn,WO=this.wallOut,cands=wallStart[n];
+      eNormal=0;eTangent=0;pDamp=0;pTangent=0;contacts=0;wallContacts=0;overlap=0;exchange=0;
+      for(let k=0;k<total;k++){
+        if(!pairOn[k])continue;
+        const l=PAIR_OUT*k+9;
+        eNormal+=PO[l+L_EN];pDamp-=PO[l+L_PD];eTangent+=PO[l+L_ET1];pTangent+=PO[l+L_PT1];eTangent+=PO[l+L_ET2];pTangent+=PO[l+L_PT2];
+        contacts++;const ratio=PO[l+L_RATIO];if(ratio>overlap)overlap=ratio;
+      }
+      for(let k=0;k<walls.length;k++){const wall=walls[k];wall.force.fill(0);wall.torque.fill(0);wall.normalLoad=0;wall.contacts=0;}
+      for(let k=0;k<cands;k++){
+        if(!wallOn[k])continue;
+        const o=WALL_OUT*k,l=o+11,wall=walls[wallW[k]],F=wall.force,T=wall.torque;
+        eNormal+=WO[l+L_EN];pDamp-=WO[l+L_PD];eTangent+=WO[l+L_ET1];pTangent+=WO[l+L_PT1];eTangent+=WO[l+L_ET2];pTangent+=WO[l+L_PT2];
+        wallContacts++;wall.contacts++;wall.normalLoad+=WO[o+9];
+        const ratio=WO[l+L_RATIO];if(ratio>overlap)overlap=ratio;
+        F[0]-=WO[o];F[1]-=WO[o+1];F[2]-=WO[o+2];
+        T[0]-=WO[o+6];T[1]-=WO[o+7];T[2]-=WO[o+8];
+        if(wall.type!==STATIC)exchange+=WO[o+10];
       }
     }
-    const wallStart=this.wallStart,wallW=this.wallW,wallH=this.wallH,wallOn=this.wallOn,gn=this.gn,gc=this.gc;
-    for(let i=0;i<n;i++){
-      const s=wallStart[i],e=wallStart[i+1];if(s===e)continue;
-      const a=3*i,px=x[a],py=x[a+1],pz=x[a+2],ri=r[i],mi=m[i];
-      for(let k=s;k<e;k++){
-        const wall=walls[wallW[k]],dist=this.wallDistance(wall,px,py,pz);
-        if(dist>=ri){if(wallOn[k]){wallOn[k]=0;wallH.fill(0,HN*k,HN*k+HN);}continue;}
-        const delta=ri-dist,nx=gn[0],ny=gn[1],nz=gn[2],la=dist;
-        // Velocity of the wall at the contact point.
-        const o=wall.x,ox=gc[0]-o[0],oy=gc[1]-o[1],oz=gc[2]-o[2],wv=wall.v,ww=wall.w;
-        const ux=wv[0]+ww[1]*oz-ww[2]*oy,uy=wv[1]+ww[2]*ox-ww[0]*oz,uz=wv[2]+ww[0]*oy-ww[1]*ox;
-        S[0]=nx;S[1]=ny;S[2]=nz;
-        S[3]=v[a]-la*(w[a+1]*nz-w[a+2]*ny)-ux;S[4]=v[a+1]-la*(w[a+2]*nx-w[a]*nz)-uy;S[5]=v[a+2]-la*(w[a]*ny-w[a+1]*nx)-uz;
-        S[6]=w[a]-ww[0];S[7]=w[a+1]-ww[1];S[8]=w[a+2]-ww[2];
-        const Fn=this.kernel(wallH,HN*k,delta,wall.curved>0?ri*wall.curved/(ri+wall.curved):ri,wall.type===DYNAMIC?mi*wall.mass/(mi+wall.mass):mi,wall.alpha,wall.friction,wall.rollingFriction,h);
-        wallOn[k]=1;wallContacts++;wall.contacts++;wall.normalLoad+=Fn;
-        const ratio=delta/ri;if(ratio>overlap)overlap=ratio;
-        f[a]+=S[9];f[a+1]+=S[10];f[a+2]+=S[11];
-        const cx=ny*S[14]-nz*S[13],cy=nz*S[12]-nx*S[14],cz=nx*S[13]-ny*S[12];
-        t[a]+=S[15]-la*cx;t[a+1]+=S[16]-la*cy;t[a+2]+=S[17]-la*cz;
-        const F=wall.force,T=wall.torque;
-        F[0]-=S[9];F[1]-=S[10];F[2]-=S[11];
-        T[0]-=S[15]+oy*S[11]-oz*S[10];T[1]-=S[16]+oz*S[9]-ox*S[11];T[2]-=S[17]+ox*S[10]-oy*S[9];
-        if(wall.type!==STATIC)exchange+=S[9]*ux+S[10]*uy+S[11]*uz+S[15]*ww[0]+S[16]*ww[1]+S[17]*ww[2];
-      }
-    }
+    this.eNormal=eNormal;this.eTangent=eTangent;this.pDamp=pDamp;this.pTangent=pTangent;
     const st=this.stats;st.contacts=contacts;st.wallContacts=wallContacts;st.overlap=overlap;if(overlap>st.maxOverlap)st.maxOverlap=overlap;
     if(h>0){
       this.dissipatedDamping+=this.pDamp*h;
@@ -868,6 +900,46 @@ export class Granular {
       this.externalWork+=exchange*h;
     }
     this.eTangentBefore=this.eTangent;
+  }
+  /**
+   * For each wall, an upper bound of how far any point of its surface moved since the last force evaluation: the
+   * translation plus, for a turn, 2 |q - q'| times the radius that holds the surface (a point at distance rho from the
+   * centre moves 2 rho sin(theta / 2) <= 2 rho |q - q'| for unit quaternions with q . q' >= 0). Infinity for a wall
+   * not seen yet or a plane that turned. Records the present pose.
+   */
+  private wallMoves():Float64Array {
+    const walls=this.walls;
+    if(this.moveScratch.length<walls.length)this.moveScratch=new Float64Array(walls.length);
+    const out=this.moveScratch;
+    for(let k=0;k<walls.length;k++){
+      const wall=walls[k],X=wall.x,Q=wall.q,sx=wall.seenX,sq=wall.seenQ;
+      let move=Infinity;
+      if(wall.seen){
+        const dx=X[0]-sx[0],dy=X[1]-sx[1],dz=X[2]-sx[2];
+        move=Math.sqrt(dx*dx+dy*dy+dz*dz);
+        if(Q[0]!==sq[0]||Q[1]!==sq[1]||Q[2]!==sq[2]||Q[3]!==sq[3]){
+          const sign=Q[0]*sq[0]+Q[1]*sq[1]+Q[2]*sq[2]+Q[3]*sq[3]<0?-1:1;
+          const a=Q[0]-sign*sq[0],b=Q[1]-sign*sq[1],c=Q[2]-sign*sq[2],e=Q[3]-sign*sq[3];
+          move+=2*wall.reach*Math.sqrt(a*a+b*b+c*c+e*e);
+        }
+        move=move*(1+1e-9)+1e-12*(Math.abs(X[0])+Math.abs(X[1])+Math.abs(X[2]));
+        if(!(move<Infinity))move=Infinity;
+      }
+      out[k]=move;
+      sx[0]=X[0];sx[1]=X[1];sx[2]=X[2];sq[0]=Q[0];sq[1]=Q[1];sq[2]=Q[2];sq[3]=Q[3];wall.seen=true;
+    }
+    return out;
+  }
+  private moveScratch:Float64Array=new Float64Array(0);
+  /** The closing half kick of velocity Verlet on the grains. */
+  private kick(h:number):void {
+    const n=this.n,hh=.5*h,g=this.gravity,gx=g[0],gy=g[1],gz=g[2],v=this.velocities,w=this.angularVelocities,f=this.forces,t=this.torques,alive=this.alive,invMass=this.invMass,invInertia=this.invInertia;
+    for(let i=0;i<n;i++){
+      if(!alive[i])continue;
+      const a=3*i,im=invMass[i]*hh,ii=invInertia[i]*hh;
+      v[a]+=f[a]*im+gx*hh;v[a+1]+=f[a+1]*im+gy*hh;v[a+2]+=f[a+2]*im+gz*hh;
+      w[a]+=t[a]*ii;w[a+1]+=t[a+1]*ii;w[a+2]+=t[a+2]*ii;
+    }
   }
   /** Make the neighbour list and the forces match the present state without advancing it. */
   private prepare():void {
@@ -884,14 +956,17 @@ export class Granular {
     const invMass=this.invMass,invInertia=this.invInertia,walls=this.walls,bounds=this.bounds,gx=g[0],gy=g[1],gz=g[2];
     for(let stepIndex=0;stepIndex<count;stepIndex++){
       this.prepare();
-      const n=this.n;
+      const n=this.n;let fastest=0;
       for(let i=0;i<n;i++){
         if(!alive[i])continue;
         const a=3*i,im=invMass[i]*hh,ii=invInertia[i]*hh;
         v[a]+=f[a]*im+gx*hh;v[a+1]+=f[a+1]*im+gy*hh;v[a+2]+=f[a+2]*im+gz*hh;
         w[a]+=t[a]*ii;w[a+1]+=t[a+1]*ii;w[a+2]+=t[a+2]*ii;
         x[a]+=v[a]*h;x[a+1]+=v[a+1]*h;x[a+2]+=v[a+2]*h;
+        const speed=Math.abs(v[a])+Math.abs(v[a+1])+Math.abs(v[a+2]);if(speed>fastest)fastest=speed;
       }
+      // No grain moved farther than its velocity's 1-norm times h (plus rounding, which the slack's margin covers).
+      this.grainMove+=fastest*h*(1+1e-9);if(!(this.grainMove<Infinity))this.grainMove=Infinity;
       for(let k=0;k<walls.length;k++){
         const wall=walls[k];
         const F=wall.force,T=wall.torque,P=wall.impulse,L=wall.angularImpulse;
@@ -913,13 +988,7 @@ export class Granular {
         }
       }
       if(this.dirty||this.moved())this.rebuild();
-      this.computeForces(h);this.fresh=true;
-      for(let i=0;i<n;i++){
-        if(!alive[i])continue;
-        const a=3*i,im=invMass[i]*hh,ii=invInertia[i]*hh;
-        v[a]+=f[a]*im+gx*hh;v[a+1]+=f[a+1]*im+gy*hh;v[a+2]+=f[a+2]*im+gz*hh;
-        w[a]+=t[a]*ii;w[a+1]+=t[a+1]*ii;w[a+2]+=t[a+2]*ii;
-      }
+      this.computeForces(h,true);this.fresh=true;
       for(let k=0;k<walls.length;k++){
         const wall=walls[k],F=wall.force,T=wall.torque,P=wall.impulse,L=wall.angularImpulse;
         P[0]+=hh*F[0];P[1]+=hh*F[1];P[2]+=hh*F[2];L[0]+=hh*T[0];L[1]+=hh*T[1];L[2]+=hh*T[2];

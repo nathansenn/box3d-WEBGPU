@@ -86,9 +86,22 @@ export class FlumeSI {
   /** Gate lift at a time, m. */
   lift(time:number,released=false):number {return this.settings.pulse||released?FLUME.height*2:Math.min(this.settings.lift,time*this.settings.liftSpeed);}
   private gatePosition(lift:number):[number,number,number] {return [FLUME.gateX,FLUME.height+lift,0];}
-  /** Advance by dt seconds in substeps of at most 1/60 s and a Courant number of 0.8. */
+  /**
+   * Advance by dt seconds. The solver runs in fixed blocks of 1/60 s (each in substeps of a Courant number of at most
+   * 0.8), whatever dt the caller batches: a run is then the same however the page grouped its frames, and a 1/120 s
+   * frame costs half a block instead of a whole solver step. Time that does not fill a block waits for the next call
+   * (the solver lags the caller by less than 1/60 s).
+   */
   step(dt:number,released=false):void {
-    const h=FLUME.cell;let left=dt;
+    this.pending+=dt;
+    while(this.pending>=FLUME_SOLVER_STEP-1e-12){this.block(released);this.pending-=FLUME_SOLVER_STEP;}
+    this.measure();
+  }
+  /** Time the caller has passed that the solver has not run yet, s (below 1/60). */
+  private pending=0;
+  /** One block of 1/60 s in substeps of at most 1/60 s and a Courant number of 0.8. */
+  private block(released:boolean):void {
+    const h=FLUME.cell;let left=FLUME_SOLVER_STEP;
     while(left>1e-12){
       const limit=Math.min(FLUME_SOLVER_STEP,.8*h/Math.max(this.lastSpeed,1e-6)),n=Math.ceil(left/limit-1e-9),sub=left/n;
       const lift=this.lift(this.time+sub,released),moving=!released&&!this.settings.pulse&&lift<this.settings.lift;
@@ -96,7 +109,6 @@ export class FlumeSI {
       this.fluid.setTimeStep(sub);this.fluid.step();this.time+=sub;left-=sub;
       this.lastSpeed=this.fluid.stats.cfl*h/sub;
     }
-    this.measure();
   }
   /**
    * Column depths and mean horizontal velocities from the particles. A cell counts as full when it holds its seeded share of
@@ -106,7 +118,7 @@ export class FlumeSI {
   private measure():void {
     const f=this.fluid,h=f.h,nx=f.nx,ny=f.ny,nz=f.nz,X=f.positions,V=f.velocities,share=f.perAxis**3,count=this.cellCount??=new Uint16Array(nx*ny*nz);
     this.columns.fill(0);this.columnU.fill(0);this.columnW.fill(0);count.fill(0);
-    const n=new Float64Array(nx*nz);
+    const n=this.columnCount??=new Float64Array(nx*nz);n.fill(0);
     for(let p=0;p<f.count;p++){
       const i=Math.min(nx-1,Math.max(0,Math.floor((X[3*p]+3)/h))),j=Math.min(ny-1,Math.max(0,Math.floor(X[3*p+1]/h))),k=Math.min(nz-1,Math.max(0,Math.floor((X[3*p+2]+1)/h))),c=k*nx+i;
       count[i+nx*(j+ny*k)]++;n[c]++;this.columnU[c]+=V[3*p];this.columnW[c]+=V[3*p+2];
@@ -116,13 +128,18 @@ export class FlumeSI {
       this.columns[c]=d*h;if(n[c]>0){this.columnU[c]/=n[c];this.columnW[c]/=n[c];}
     }
   }
-  private cellCount?:Uint16Array;
+  private cellCount?:Uint16Array;private columnCount?:Float64Array;
   /** Bilinear depth and velocity at a plan position (x in [-3, 3], z in [-1, 1]), from the column fields. */
-  sample(x:number,z:number):[number,number,number] {
+  sample(x:number,z:number):[number,number,number] {const out:[number,number,number]=[0,0,0];this.sampleInto(x,z,out);return out;}
+  /** `sample` into `out` (depth, u, w) without allocating: the same arithmetic in the same order. */
+  sampleInto(x:number,z:number,out:number[]|Float64Array):void {
     const f=this.fluid,h=f.h,nx=f.nx,nz=f.nz,sx=Math.min(nx-1,Math.max(0,(x+3)/h-.5)),sz=Math.min(nz-1,Math.max(0,(z+1)/h-.5));
-    const i=Math.min(nx-2,Math.floor(sx)),k=Math.min(nz-2,Math.floor(sz)),fx=sx-i,fz=sz-k;let d=0,u=0,w=0;
-    for(const [di,dk,wt] of [[0,0,(1-fx)*(1-fz)],[1,0,fx*(1-fz)],[0,1,(1-fx)*fz],[1,1,fx*fz]] as const){const c=(k+dk)*nx+i+di;d+=wt*this.columns[c];u+=wt*this.columnU[c]*this.columns[c];w+=wt*this.columnW[c]*this.columns[c];}
-    return [d,d>1e-9?u/d:0,d>1e-9?w/d:0];
+    const i=Math.min(nx-2,Math.floor(sx)),k=Math.min(nz-2,Math.floor(sz)),fx=sx-i,fz=sz-k,C=this.columns,U=this.columnU,W=this.columnW;let d=0,u=0,w=0;
+    for(let q=0;q<4;q++){
+      const di=q&1,dk=q>>1,wt=q===0?(1-fx)*(1-fz):q===1?fx*(1-fz):q===2?(1-fx)*fz:fx*fz,c=(k+dk)*nx+i+di;
+      d+=wt*C[c];u+=wt*U[c]*C[c];w+=wt*W[c]*C[c];
+    }
+    out[0]=d;out[1]=d>1e-9?u/d:0;out[2]=d>1e-9?w/d:0;
   }
   peakDepth():number {let m=0;for(const d of this.columns)m=Math.max(m,d);return m;}
   /** Largest depth-averaged horizontal speed of a column holding at least 1 cm of liquid, m/s. */

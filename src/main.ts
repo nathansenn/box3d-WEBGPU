@@ -1,3 +1,4 @@
+import {setFluidPressureSolverDefault} from './engine/fluid';
 import '@fontsource/barlow-condensed/latin-500.css';
 import '@fontsource/barlow-condensed/latin-600.css';
 import '@fontsource/barlow-condensed/latin-700.css';
@@ -422,6 +423,9 @@ let engineRuntime:WorkbenchRuntime;
 const engineTimings=new StageTimings(['step','staging','renderCpu','frame']);
 const renderGovernor=new FrameBudgetGovernor();
 const adaptiveRendering=new URLSearchParams(location.search).get('adaptive')==='1';
+// `?pressure=multigrid`: the Lab's volumetric flows solve their pressure with the multigrid preconditioner instead of
+// MIC(0) (docs/FLUID.md, "Cost"): the same tolerance, other bits, fewer iterations on large grids.
+if(new URLSearchParams(location.search).get('pressure')==='multigrid')setFluidPressureSolverDefault('multigrid');
 let simulationLagSeconds=0;
 let rendererRecovering=false;
 let rendererFailed=false;

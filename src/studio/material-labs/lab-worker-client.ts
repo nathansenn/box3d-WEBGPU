@@ -8,7 +8,8 @@ export class LabWorkerClient {
   private pending=0;private releasePending=false;private sentAt=0;private sentTicks=0;private costPerTick=0;
   /** Solver CPU time over simulated time of the last batches (below 1: faster than real time). */
   cpuPerSimulated=0;
-  constructor(lab:LabId,settings:LabSettings,private receive:(frame:LabFrame)=>void,private failure:(message:string)=>void,private clock=()=>performance.now()){
+  /** `threads`: helper threads the granular tray may step its contacts on (1: none; the results are the same either way). */
+  constructor(lab:LabId,settings:LabSettings,private receive:(frame:LabFrame)=>void,private failure:(message:string)=>void,private clock=()=>performance.now(),threads=1){
     this.worker=new Worker(new URL('./liquid-study-worker.ts',import.meta.url),{type:'module',name:'BOX3D flow solver'});
     this.worker.onmessage=(event:MessageEvent<LabWorkerResponse>)=>{
       if(this.disposed)return;const response=event.data;
@@ -23,7 +24,7 @@ export class LabWorkerClient {
     };
     this.worker.onerror=event=>{event.preventDefault();this.fail(event.message||'Flow solver worker failed');};
     this.worker.onmessageerror=()=>this.fail('Flow solver frame could not be decoded');
-    this.send({type:'reset',generation:0,lab,settings});
+    this.send({type:'reset',generation:0,lab,settings,...(threads>1?{threads}:{})});
   }
   get ready():boolean {return this.initialized&&!this.disposed;}
   /** Batches aim at about 50 ms of solver work. */

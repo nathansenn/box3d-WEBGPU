@@ -235,6 +235,26 @@ Measured with `node packages/box3d-kit/scripts/bench-fluid.mjs` (Node 22.23, one
 
 So about 10,000 cells (a 21³ box) keep up with a 60 Hz loop at one fluid step per frame on this machine; the pressure solve's iteration count grows with the grid (22 at 16³, 50 at 48³), so the throughput per cell falls on larger grids. Implicit viscosity adds three conjugate-gradient solves per step.
 
+### Multigrid pressure preconditioner (opt-in, 2026-11-12)
+
+`pressureSolver: 'multigrid'` (or `setFluidPressureSolverDefault('multigrid')` for every fluid built after it; the Lab: `lab.html?pressure=multigrid`) preconditions the same conjugate-gradient projection with a geometric multigrid V-cycle instead of MIC(0) (`src/engine/fluid-multigrid.ts`). Each coarser level joins 2 × 2 × 2 blocks of cells and takes the Galerkin product P^T A P of the piecewise-constant prolongation, so walls, `p = 0` outflow sides and periodic sides carry over exactly and every level stays symmetric; two red-black Gauss-Seidel sweeps before the coarse correction and the same updates in reverse order after it make the V-cycle symmetric (checked: <M a, b> = <a, M b> to 1e-12 relative); the coarse correction is scaled by 2 (piecewise-constant prolongation under-corrects; 1, 1.4, 1.6, 1.8, 2 and 2.2 were tried on a closed 32³ and 64³ Poisson problem and 2 gave the fewest iterations, 8 at both sizes); the coarsest level (at most 64 cells) gets 20 symmetric sweeps; a singular problem (no outflow) has the mean removed. The stopping test is unchanged, so the result agrees with MIC(0)'s to the pressure tolerance, not to the bit; repeat runs and checkpoint resumes are bit-identical; a checkpoint does not record the preconditioner. MIC(0) stays the default: every existing hash and checkpoint is unchanged (pinned in `tests/engine/accel-exactness.test.mjs`).
+
+Lid-driven box as above, wall time of one thread while the sandbox's load average was 9 to 13 (lower bounds; the iteration counts are exact):
+
+| Grid | MIC(0): ms per step, iterations | Multigrid: ms per step, iterations | Step speed-up | max \|u_mg − u_mic\| / max \|u\| |
+|---|---:|---:|---:|---:|
+| 16³ | 6.6, 23 | 6.0, 5.3 | 1.1 | 1.0e-11 |
+| 32³ | 66, 39 | 44, 6.0 | 1.5 | 4.5e-12 |
+| 48³ | 359, 54 | 203, 6.0 | 1.8 | 1.8e-11 |
+| 24³, sphere, inflow and outflow | 28, 35 | 20, 7.1 | 1.4 | 2.0e-11 |
+| 40³, sphere, inflow and outflow | 198, 54 | 106, 8.3 | 1.9 | 2.9e-11 |
+
+The multigrid count stays at 5 to 8 while MIC(0)'s grows with the width (20, 25, 40 at 8³, 16³, 32³ in `tests/engine/fluid-multigrid.test.mjs`), so the gain grows with the grid: at the Lab's sizes (1,440 to 4,320 cells) it is nothing, at 10 to 30 times those cells it is 1.5 to 1.9 times the whole step. Every case of the fluid validation domain passes with it (`node scripts/validate-fluid-multigrid.mjs`: 36 of 36 within their tolerances; the largest changes are the projection's divergence, 6.4e-11 → 5.6e-11, the channel's mass balance, -6.2e-11 → -1.5e-11, the coupling's third law, 9.0e-16 → 4.4e-15 against 1e-12, and the Taylor-Green order, 2.1868571 → 2.1868569; the free-surface cases do not use it and do not change).
+
+### Free surface: same bits, less work (2026-11-12)
+
+The free-surface pressure solve now visits only the liquid cells (a list with a mask of liquid neighbours, built per solve, in index order: the sums are the full sweeps' sums, since the other cells only ever added zeros), and the "near an empty cell" mask is a separable dilation (three passes) instead of a 3 × 3 × 3 stamp per empty cell. The state and the checkpoint bytes are unchanged (A/B against the previous solver on four Studio flume presets, and pinned in `tests/engine/accel-exactness.test.mjs`). One second of the Studio flume, CPU time, fastest of three: clear-water release 918 → 704 ms, honey 1544 → 1386, reflected wave 1228 → 1044, slurry 1500 → 1246 (1.1 to 1.3 times).
+
 ## Limits
 
 - No turbulence model. Central differences are for resolved flow; at cell Reynolds numbers above a few they oscillate, and `upwind` is first order. No case is above Re 400.

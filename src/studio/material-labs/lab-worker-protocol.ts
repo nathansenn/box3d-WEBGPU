@@ -2,7 +2,7 @@ import {createModel,DT,type LabFrame,type LabModel} from './models';
 import type {LabId,LabSettings} from './catalog';
 
 /** Live stepping of the flow labs (liquid, granular), the elastomer and the concrete labs off the main thread; one model and one generation per worker. */
-export type LabWorkerRequest={type:'reset';generation:number;lab:LabId;settings:Partial<LabSettings>}|{type:'step';generation:number;request:number;ticks:number;release:boolean};
+export type LabWorkerRequest={type:'reset';generation:number;lab:LabId;settings:Partial<LabSettings>;threads?:number}|{type:'step';generation:number;request:number;ticks:number;release:boolean};
 export type LabWorkerResponse={type:'frame';generation:number;request:number;frame:LabFrame;cpuMs:number}|{type:'error';generation:number;request:number;message:string};
 export const LAB_WORKER_MAX_TICKS=8;
 export const isLabWorkerRequest=(value:unknown):value is LabWorkerRequest=>typeof value==='object'&&value!==null&&((value as {type?:unknown}).type==='reset'||(value as {type?:unknown}).type==='step');
