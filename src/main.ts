@@ -1,3 +1,4 @@
+import {setFluidPressureSolverDefault} from './engine/fluid';
 import '@fontsource/barlow-condensed/latin-500.css';
 import '@fontsource/barlow-condensed/latin-600.css';
 import '@fontsource/barlow-condensed/latin-700.css';
@@ -82,7 +83,26 @@ import {
   type WorkbenchParameterId,
 } from './workbench/registry';
 import { loadBestPhysicsBackend } from './physics/wasm';
+import { buildMechanismsScene, MECHANISMS_DEFAULT_SEED, MECHANISMS_SCENE_ID, MECHANISMS_SCENE_TITLE, type MechanismsScene } from './engine/mechanisms-scene.ts';
+import { encodeSceneLink, sceneHash, type Scene, type SceneProblem } from './engine/scene-format.ts';
+import { checkpointInfo, readCheckpoint, writeCheckpoint, type StateObject } from './engine/checkpoint.ts';
+import { simulationCheckpointInfo } from './engine/simulation.ts';
+import { disposeLabScene, exactTransformHash, loadLabScene, sceneStepsPerLabTick, type LabLoadedScene } from './lab/scene-host.ts';
+import { CoupledSceneView, sceneIsCoupled } from './lab/coupled-scene.ts';
+import { createCoupledPanel, type CoupledPanel } from './lab/coupled-panel.ts';
+import {
+  EXAMPLE_SCENE_TITLES, LAB_SCENE_LIMITS, parseSceneRequest, problemLines, quoteForDisplay, readLabFile, readSceneText, resolveSceneRequest,
+  sceneCameraFrame, sceneFileName, sceneSummary, type LabFile, type SceneRead,
+} from './lab/scene-loading.ts';
+import { createScenePanel, type ScenePanel } from './lab/scene-panel.ts';
+import { createSceneEditor, editRequested, type SceneEditor, type SceneEditorHost } from './lab/scene-editor.ts';
+import { emptyScene } from './lab/scene-editor-model.ts';
+import { SI_BRIDGE_ID, SI_BRIDGE_TITLE } from './engine/si-bridge.ts';
+import { SiBridgeScene, SI_BRIDGE_SCENE_DEFAULTS, SI_BRIDGE_SCENE_STEP, type SiBridgeSceneSettings } from './lab/si-bridge-scene.ts';
+import { createSiBridgePanel, SI_BRIDGE_PLOTTED_STAY, type SiBridgePanel } from './lab/si-bridge-panel.ts';
 import { WebGPURenderer } from './webgpu/renderer';
+import { WebGL2LabRenderer } from './webgl/lab-renderer.ts';
+import { fallbackReason, rendererAfterLoss, rendererCandidates, rendererLabel, rendererRequest, selectRenderer, type LabRenderer, type LabRendererKind } from './webgl/renderer-selection.ts';
 import { SOFT_RENDER_INSTANCE_BUDGET, SoftSimulationSuite, type SoftSimulationFrame } from './soft/simulations';
 import { initializeSoftKernelRuntime } from './soft/kernels';
 import {
@@ -282,6 +302,7 @@ type Ui = {
   runtimeSeed: HTMLElement;
   runtimeSolver: HTMLElement;
   runtimeFidelity: HTMLElement;
+  runtimeRenderer: HTMLElement;
   hash: HTMLElement;
   qualityStat: HTMLElement;
   warning: HTMLElement;
@@ -354,11 +375,57 @@ const effects = new CinematicEffects();
 const cameraMatrixCache = new CameraMatrixCache();
 let soft: SoftSimulationSuite;
 let backend: PhysicsBackend;
-let renderer: WebGPURenderer;
+let renderer: LabRenderer;
+// Which renderer draws (src/webgl/renderer-selection.ts): WebGPU, or WebGL2 when WebGPU is missing, fails to start,
+// is lost, or `?renderer=webgl2` asks for it. The simulation never reads it.
+const requestedRenderer = rendererRequest(location.search);
+let rendererKind: LabRendererKind = 'webgpu';
+let rendererNote: string | null = null;
+let rendererSwitches = 0;
+// The SI demo is not one of the 800 recipes: it replaces the rigid world of a host recipe
+// with one built through the general rigid-body API. Null while a recipe is showing.
+// It is either the Mechanisms demo or a scene in the box3d-scene format (an example, a share
+// link, a scene file or imported geometry: src/lab/scene-loading.ts).
+const SI_SCENE_ID = 'scene';
+type LabSceneRead = Extract<SceneRead, { readonly ok: true }>;
+type SiDemoRequest =
+  | { readonly id: typeof MECHANISMS_SCENE_ID; readonly seed: number }
+  | { readonly id: typeof SI_BRIDGE_ID; readonly seed: number; readonly settings: SiBridgeSceneSettings }
+  | { readonly id: typeof SI_SCENE_ID; readonly seed: number; readonly read: LabSceneRead; readonly link: string | null };
+let siDemo: SiDemoRequest | null = null;
+let siDemoScene: MechanismsScene | null = null;
+// The scene file on screen: what was read, and the SceneBuilder that built it and can save it.
+let labScene: { readonly read: LabSceneRead; readonly loaded: LabLoadedScene; link: string | null } | null = null;
+let labSceneFailure: unknown = null;
+let scenePanel: ScenePanel | null = null;
+// The scene editor (lab.html?edit=1): its document is the scene on screen while `editorRead` is what was loaded.
+let sceneEditor: SceneEditor | null = null;
+let editorRead: LabSceneRead | null = null;
+let editorLines: readonly DebugLine[] = [];
+let editorLinesVersion = 1;
+// The cable-stayed bridge (lab.html?si=bridge): the model with its drawn bodies, and its panel.
+let siBridge: SiBridgeScene | null = null;
+let siBridgePanel: SiBridgePanel | null = null;
+// A coupled scene (water, cables, frames, cloths, grains, solids, heat) is stepped through its Simulation and drawn through this view.
+let coupledView: CoupledSceneView | null = null;
+let coupledPanel: CoupledPanel | null = null;
+/** The editor's lines over a coupled scene's own, rebuilt when either changes. */
+let mergedOverlay: { editor: number; coupled: number; lines: readonly DebugLine[]; version: number } = { editor: -1, coupled: -1, lines: [], version: 0 };
+function clearCoupledView(): void {
+  if (!coupledView) return;
+  coupledPanel?.attach(null);
+  coupledView.dispose();
+  disposeLabScene(coupledView.loaded);
+  coupledView = null;
+}
+const SI_DEMO_HOST_LAB_ID = 'titan-hauler-crash';
 let engineRuntime:WorkbenchRuntime;
 const engineTimings=new StageTimings(['step','staging','renderCpu','frame']);
 const renderGovernor=new FrameBudgetGovernor();
 const adaptiveRendering=new URLSearchParams(location.search).get('adaptive')==='1';
+// `?pressure=multigrid`: the Lab's volumetric flows solve their pressure with the multigrid preconditioner instead of
+// MIC(0) (docs/FLUID.md, "Cost"): the same tolerance, other bits, fewer iterations on large grids.
+if(new URLSearchParams(location.search).get('pressure')==='multigrid')setFluidPressureSolverDefault('multigrid');
 let simulationLagSeconds=0;
 let rendererRecovering=false;
 let rendererFailed=false;
@@ -866,6 +933,7 @@ function getUi(): Ui {
     runtimeSeed: byId('runtime-seed'),
     runtimeSolver: byId('runtime-solver'),
     runtimeFidelity: byId('runtime-fidelity'),
+    runtimeRenderer: byId('runtime-renderer'),
     hash: byId('hash'),
     qualityStat: byId('quality-stat'),
     warning: byId('warning'),
@@ -939,6 +1007,20 @@ function cloneRig(value: CameraRig): CameraRig {
 }
 
 function frameCameraForWorkspace(workspace: EngineeringWorkspaceId = engineeringWorkspaces?.getWorkspace() ?? 'test'): void {
+  if (siDemo && siDemoScene) {
+    // The SI demo is metre-scaled and authored for its own view; the host recipe's framing does not fit it.
+    camera = cloneRig({ ...siDemoScene.camera, target: [...siDemoScene.camera.target] });
+    return;
+  }
+  if (siDemo && siBridge) {
+    camera = cloneRig({ ...siBridge.camera, target: [...siBridge.camera.target] });
+    return;
+  }
+  if (siDemo && labScene) {
+    const frame = sceneCameraFrame(labScene.read.scene);
+    camera = cloneRig({ yaw: frame.yaw ?? 0.72, pitch: frame.pitch ?? 0.3, distance: frame.distance, target: frame.target });
+    return;
+  }
   camera = cloneRig(currentScene.camera);
   if (workspace === 'test' && currentScene.materialDemoId === 'metal-square-punch-forming') {
     // Preserve the authored low three-quarter view: it exposes the press bed
@@ -1284,6 +1366,511 @@ function updateSceneText(): void {
           : 'projectile';
   }
   syncLabCapabilities(matchedLab);
+  if (siDemo && siDemoScene) {
+    ui.sceneTitle.textContent = MECHANISMS_SCENE_TITLE;
+    ui.sceneSubtitle.textContent = 'Spheres, capsules and joints built with the general rigid-body API in SI units.';
+    ui.sceneDetails.textContent = `${siDemoScene.bodyCount} bodies · ${siDemoScene.jointCount} joints · revolute, weld, spherical (cone limit) and wheel · gravity 9.81 m/s²`;
+    ui.viewportHudTitle.textContent = MECHANISMS_SCENE_TITLE;
+    ui.runtimeSeed.textContent = `0x${seed.toString(16)}`;
+  }
+  if (siDemo && siBridge) {
+    const { layout, settings } = siBridge;
+    ui.sceneTitle.textContent = SI_BRIDGE_TITLE;
+    ui.sceneSubtitle.textContent = 'Beam elements, stays and a vehicle on the validated frame and cable solvers, coupled both ways, in SI units.';
+    ui.sceneDetails.textContent = `${layout.length} m deck · ${layout.towers.length} towers · ${layout.stays.length} stays · ${layout.elements.length} beam elements · vehicle ${settings.vehicleMass > 0 ? `${settings.vehicleMass / 1000} t at ${settings.vehicleSpeed} m/s` : 'none'} · wind ${settings.windLoad / 1000} kN/m`;
+    ui.viewportHudTitle.textContent = SI_BRIDGE_TITLE;
+    ui.runtimeSeed.textContent = `0x${seed.toString(16)}`;
+  }
+  if (siDemo && labScene) {
+    const { read } = labScene;
+    ui.sceneTitle.textContent = read.title;
+    ui.sceneSubtitle.textContent = labSceneSourceText(read);
+    ui.sceneDetails.textContent = sceneSummary(read.scene);
+    ui.viewportHudTitle.textContent = read.title;
+    ui.runtimeSeed.textContent = `0x${seed.toString(16)}`;
+  }
+}
+
+function labSceneSourceText(read: LabSceneRead): string {
+  switch (read.source.kind) {
+    case 'example': return 'Example scene in the box3d-scene format, SI units.';
+    case 'link': return 'Scene from a share link, SI units.';
+    case 'json': return 'Scene from the address, SI units.';
+    case 'file': return `Scene file ${read.source.name}, SI units.`;
+    case 'geometry': return `Geometry imported from ${read.source.name} into a default SI scene.`;
+    case 'editor': return 'Scene from the editor, SI units.';
+  }
+}
+
+/** Build the rigid world of the scene being loaded: the SI demo when one is requested, the recipe otherwise. */
+function createRigidScene(scene: ScenePreset, stress: number, sceneSeed: number): number {
+  siDemoScene = null;
+  labScene = null;
+  clearCoupledView();
+  if (siBridge) { siBridgePanel?.attach(null); siBridge.dispose(); siBridge = null; }
+  if (siDemo) {
+    if (backend.createGeneralScene) {
+      try {
+        if (siDemo.id === SI_BRIDGE_ID) {
+          // The bridge steps its own solvers around every fixed step of the rigid world.
+          const { settings } = siDemo;
+          let built: SiBridgeScene | null = null;
+          const count = backend.createGeneralScene((world) => { built = new SiBridgeScene(world, settings, sceneSeed); }, {
+            step: 1 / SI_BRIDGE_SCENE_STEP.hz, subSteps: SI_BRIDGE_SCENE_STEP.subSteps, stepsPerTick: SI_BRIDGE_SCENE_STEP.stepsPerTick,
+            beforeStep: () => siBridge?.beforeStep(), afterStep: () => siBridge?.afterStep(),
+          });
+          siBridge = built;
+          siBridgePanel?.attach(siBridge);
+          return count;
+        }
+        if (siDemo.id === SI_SCENE_ID) {
+          // The scene was validated when it was read. Its own step and sub-step count are used for every tick.
+          const { read, link } = siDemo;
+          const world = read.scene.world ?? {};
+          let loaded: LabLoadedScene | null = null;
+          // A coupled scene takes each fixed step through its Simulation: couple stage, rigid step, post stage, events.
+          const coupled = sceneIsCoupled(read.scene);
+          const count = backend.createGeneralScene((native) => { loaded = loadLabScene(native, read.scene); },
+            { step: world.step, subSteps: world.subSteps, stepsPerTick: sceneStepsPerLabTick(world.step ?? 1 / 60), ...(coupled ? { stepWith: () => coupledView?.step() } : {}) });
+          labScene = { read, loaded: loaded!, link };
+          if (coupled) {
+            coupledView = new CoupledSceneView(loaded!, backend);
+            coupledPanel?.attach(coupledView, read.title);
+          }
+          return coupled ? coupledView!.rowCount : count;
+        }
+        return backend.createGeneralScene((world) => { siDemoScene = buildMechanismsScene(world, sceneSeed); });
+      } catch (error) {
+        labSceneFailure = error;
+        console.warn('[SI demo] The scene could not be built.', error);
+      }
+    }
+    siDemo = null;
+  }
+  return backend.createScene(scene, stress, sceneSeed);
+}
+
+function reportSceneError(title: string, problems: readonly SceneProblem[]): void {
+  const { lines, more } = problemLines(problems);
+  const kept = labScene ? `Nothing was loaded: “${labScene.read.title}” is still on screen.` : 'Nothing was loaded: the scene on screen is unchanged.';
+  scenePanel?.showError(title, lines, more, kept);
+  appendLog(`Scene not loaded. ${title}: ${lines[0] ?? ''}`);
+}
+
+/**
+ * Show a scene that was read from the address, a file or the examples. An invalid scene is
+ * reported and nothing changes. A valid scene is first built in a scratch world: if the engine
+ * refuses a body or joint there (geometry it cannot use), that is reported and nothing changes
+ * either. Only then is the world on screen replaced.
+ */
+function openLabScene(read: SceneRead, link: string | null = null): boolean {
+  if (!read.ok) { reportSceneError(read.title, read.problems); return false; }
+  if (!backend.createGeneralScene) {
+    reportSceneError('Scenes need the native Box3D engine', [{ path: '', message: 'This page is running the preview backend, which has only boxes. The native WebAssembly engine did not load.' }]);
+    return false;
+  }
+  try {
+    backend.checkGeneralScene?.((native) => { loadLabScene(native, read.scene); });
+  } catch (error) {
+    reportSceneError(`${read.title} could not be built`, [{ path: '', message: quoteForDisplay(error instanceof Error ? error.message : String(error), 400) }]);
+    return false;
+  }
+  const host = getWorkbenchLab(SI_DEMO_HOST_LAB_ID) ?? WORKBENCH_LABS[0];
+  const previous = siDemo;
+  labSceneFailure = null;
+  loadWorkbenchLab(host, { id: SI_SCENE_ID, seed: (read.scene.world?.seed ?? 1) >>> 0, read, link });
+  if (labScene?.read !== read) {
+    const failure: unknown = labSceneFailure;
+    if (failure === null) {
+      reportSceneError(`${read.title} was not loaded`, [{ path: '', message: 'A test run owns the simulation. Complete or abort it, then open the scene again.' }]);
+      return false;
+    }
+    // The scratch build succeeded, so this is not expected; show the previous scene again from its start.
+    if (previous) loadWorkbenchLab(host, previous);
+    syncScenePanel();
+    reportSceneError(`${read.title} could not be built`, [{ path: '', message: quoteForDisplay(failure instanceof Error ? failure.message : String(failure), 400) }]);
+    return false;
+  }
+  scenePanel?.clearError();
+  syncScenePanel();
+  scenePanel?.setStatus('');
+  labStepsBefore = 0;
+  return true;
+}
+
+function syncScenePanel(): void {
+  if (!scenePanel) return;
+  // A recipe, a demo or another scene replaced the editor's scene: the editor has nothing to edit.
+  if (sceneEditor?.active && !(siDemo?.id === SI_SCENE_ID && labScene && labScene.read === editorRead)) sceneEditor.detached();
+  if (siDemo && labScene) scenePanel.showScene({ title: labScene.read.title, summary: `${labSceneSourceText(labScene.read)} ${sceneSummary(labScene.read.scene)}`, notes: labScene.read.notes });
+  else scenePanel.showNoScene();
+}
+
+/** Open a scene that was read from a file or the examples: in the editor when it is open, on its own otherwise. */
+function openSceneRead(read: SceneRead): void {
+  if (read.ok && sceneEditor?.active) {
+    scenePanel?.clearError();
+    if (!sceneEditor.replace(read.scene)) reportSceneError(`${read.title} was not opened in the editor`, [{ path: '', message: sceneEditor.state().message }]);
+    else if (read.notes.length > 0) scenePanel?.setStatus(read.notes.join(' '));
+    return;
+  }
+  openLabScene(read);
+}
+
+function openExampleScene(name: string): void {
+  openSceneRead(resolveSceneRequest({ kind: 'example', name }));
+}
+
+/**
+ * The scene editor's view of the page. The editor's scene is shown like any other scene file; an edit
+ * rebuilds the rigid world from the document and leaves the camera and the host lab alone.
+ */
+function createEditorHost(mount: HTMLElement): SceneEditorHost {
+  const messageOf = (error: unknown): string => quoteForDisplay(error instanceof Error ? error.message : String(error), 400);
+  return {
+    // A getter: the canvas is replaced when a lost WebGPU device hands over to WebGL2.
+    get canvas() { return ui.canvas; },
+    mount,
+    camera: () => camera,
+    lookAt(target, distance) {
+      camera.target = [target[0], target[1], target[2]];
+      if (distance !== undefined && Number.isFinite(distance)) camera.distance = clamp(distance, 0.4, 400);
+    },
+    checkScene(scene) {
+      if (!backend.checkGeneralScene) return 'Scenes need the native Box3D engine, which did not load.';
+      try { backend.checkGeneralScene((native) => { loadLabScene(native, scene); }); return null; } catch (error) { return messageOf(error); }
+    },
+    showScene(scene, frame) {
+      const read: LabSceneRead = { ok: true, scene, source: { kind: 'editor' }, title: scene.meta?.title ? quoteForDisplay(scene.meta.title, 96) : 'Untitled scene', notes: [] };
+      // A share link in the address stays only while it still describes this scene.
+      const link = labScene && labScene.read.scene === scene ? labScene.link : null;
+      editorRead = read;
+      if (frame || !(siDemo?.id === SI_SCENE_ID && labScene)) return openLabScene(read, link) ? null : 'the reason is shown in the Scenes panel';
+      siDemo = { id: SI_SCENE_ID, seed: (scene.world?.seed ?? 1) >>> 0, read, link };
+      seed = siDemo.seed;
+      labSceneFailure = null;
+      reloadSceneWithCurrentStress();
+      syncSiDemoUrl();
+      if ((labScene as { readonly read: LabSceneRead } | null)?.read !== read) {
+        const failure: unknown = labSceneFailure;
+        syncScenePanel();
+        return failure === null ? 'the world was not rebuilt' : messageOf(failure);
+      }
+      syncScenePanel();
+      return null;
+    },
+    world: () => (siDemo?.id === SI_SCENE_ID && labScene && labScene.read === editorRead ? { native: labScene.loaded.builder.world.native, bodies: labScene.loaded.bodies } : null),
+    setPlaying(playing) {
+      if (paused === !playing) return;
+      paused = !playing;
+      if (playing) simulationAccumulator = 0;
+      ui.pause.textContent = paused ? 'Resume' : 'Pause';
+    },
+    isPlaying: () => !paused,
+    stepOnce() {
+      engineRuntime.step({ ticks: 1, subSteps: solverSubSteps, captureTelemetry: false });
+      sceneEditor?.afterStep();
+    },
+    ticks: () => engineRuntime?.tick ?? 0,
+    transformsEdited() { backend.syncTransforms(); },
+    colorsEdited() { backend.markGeneralColorsEdited?.(); },
+    setLines(lines) { editorLines = lines; editorLinesVersion = (editorLinesVersion + 1) >>> 0; },
+    activeChanged(active) {
+      scenePanel?.setEditing(active);
+      const url = new URL(window.location.href);
+      if (active === (url.searchParams.get('edit') === '1')) return;
+      if (active) url.searchParams.set('edit', '1'); else url.searchParams.delete('edit');
+      window.history.replaceState(null, '', url);
+    },
+  };
+}
+
+async function openSceneFiles(files: readonly File[]): Promise<void> {
+  if (files.length === 0) return;
+  scenePanel?.expand();
+  // A .gltf may come with its .bin; every other file is opened on its own, and the first one that is not a buffer wins.
+  const main = files.find(file => !/\.bin$/i.test(file.name)) ?? files[0]!;
+  const tooLarge = files.find(file => file.size > LAB_SCENE_LIMITS.fileBytes);
+  if (tooLarge) {
+    reportSceneError(`${quoteForDisplay(tooLarge.name, 96)} is too large`, [{ path: '', message: `The file has ${tooLarge.size} bytes; the Lab reads files up to ${LAB_SCENE_LIMITS.fileBytes} bytes.` }]);
+    return;
+  }
+  scenePanel?.setStatus(`Reading ${quoteForDisplay(main.name, 96)}…`);
+  let read: SceneRead;
+  try {
+    const loaded: LabFile[] = [];
+    for (const file of files) loaded.push({ name: file.name, bytes: new Uint8Array(await file.arrayBuffer()) });
+    const mainFile = loaded[files.indexOf(main)]!;
+    read = readLabFile(mainFile, { scaleToFit: scenePanel?.scaleToFit() ?? true, companions: loaded.filter(file => file !== mainFile) });
+  } catch (error) {
+    read = { ok: false, title: `${quoteForDisplay(main.name, 96)} could not be read`, problems: [{ path: '', message: error instanceof Error ? error.message : String(error) }] };
+  }
+  scenePanel?.setStatus('');
+  openSceneRead(read);
+}
+
+/** The scene on screen as it is now: the SceneBuilder's descriptions with each body's current pose and velocity. */
+function currentLabSceneJson(): Scene | null {
+  // While the editor is open, the scene is its document: the initial state, whatever the simulation has reached.
+  const edited = sceneEditor?.active ? sceneEditor.scene() : null;
+  if (edited) return edited;
+  return siDemo && labScene ? labScene.loaded.builder.toJSON() : null;
+}
+
+async function copyLabSceneLink(): Promise<void> {
+  const scene = currentLabSceneJson();
+  if (!scene || !labScene) return;
+  try {
+    const link = await encodeSceneLink(scene);
+    const url = new URL(window.location.href);
+    for (const key of ['si', 'seed', 'example', 'scene']) url.searchParams.delete(key);
+    url.hash = '';
+    url.searchParams.set('scene', link);
+    // The copied link opens the scene for viewing; this page's own address keeps the editor open.
+    const editing = url.searchParams.get('edit') === '1';
+    url.searchParams.delete('edit');
+    let copied = false;
+    try { await navigator.clipboard.writeText(url.href); copied = true; } catch { /* no clipboard permission: the address bar still carries the link */ }
+    lastCopiedSceneLink = url.href;
+    const shareLength = url.href.length;
+    if (editing) url.searchParams.set('edit', '1');
+    if (link.length <= LAB_SCENE_LIMITS.addressLinkChars) {
+      labScene.link = link;
+      if (siDemo?.id === SI_SCENE_ID) siDemo = { ...siDemo, link };
+      window.history.replaceState(null, '', url);
+      scenePanel?.setStatus(copied
+        ? `Share link copied (${shareLength} characters). It opens ${editing ? 'the edited scene' : 'this scene as it is now'}.`
+        : `The clipboard is not available, so the share link is in the address bar (${url.href.length} characters). Copy it from there.`);
+    } else {
+      scenePanel?.setStatus(copied
+        ? `Share link copied (${shareLength} characters). It is too long for the address bar here, and some apps cut long links: for a scene this size, send the downloaded file.`
+        : `The link has ${url.href.length} characters and the clipboard is not available. Download the scene file instead.`);
+    }
+  } catch (error) {
+    reportSceneError('This scene cannot be shared as a link', [{ path: '', message: `${quoteForDisplay(error instanceof Error ? error.message : String(error), 300)} Download the scene file instead.` }]);
+  }
+}
+
+// The last link Copy share link produced, for tests and the console (`box3dLab.lastShareLink()`): the clipboard is not readable everywhere.
+let lastCopiedSceneLink: string | null = null;
+
+function downloadLabScene(): void {
+  const scene = currentLabSceneJson();
+  if (!scene || !labScene) return;
+  const blob = new Blob([`${JSON.stringify(scene, null, 1)}\n`], { type: 'application/json' });
+  const href = URL.createObjectURL(blob);
+  const anchor = document.createElement('a');
+  anchor.href = href;
+  anchor.download = sceneFileName(labScene.read.title);
+  document.body.append(anchor);
+  anchor.click();
+  anchor.remove();
+  setTimeout(() => URL.revokeObjectURL(href), 10_000);
+  scenePanel?.setStatus(`Saved ${anchor.download} (${blob.size} bytes): the scene as it is now.`);
+}
+
+// Exact checkpoints (docs/CHECKPOINTS.md). A Lab checkpoint is the Simulation's checkpoint (which carries the scene) with the
+// scene's title and the steps taken before it, so that a fresh page shows the same title and step count after loading it.
+const LAB_CHECKPOINT_KIND = 'lab-checkpoint';
+// Scene steps taken before this page loaded the checkpoint the scene on screen resumed from (0 for a scene opened afresh).
+let labStepsBefore = 0;
+function labSceneSteps(): number {
+  return labStepsBefore + (engineRuntime?.tick ?? 0) * (labScene ? sceneStepsPerLabTick(labScene.read.scene.world?.step ?? 1 / 60) : 1);
+}
+
+/** The Lab checkpoint of the running simulation, or null without a scene file on screen. */
+function labCheckpointBytes(): Uint8Array | null {
+  if (!siDemo || !labScene) return null;
+  const simulation = labScene.loaded.simulation.checkpoint();
+  return writeCheckpoint(LAB_CHECKPOINT_KIND, { title: labScene.read.title, steps: labSceneSteps(), simulation });
+}
+
+function saveLabCheckpoint(): void {
+  let bytes: Uint8Array | null;
+  try { bytes = labCheckpointBytes(); } catch (error) {
+    reportSceneError('No checkpoint was saved', [{ path: '', message: quoteForDisplay(error instanceof Error ? error.message : String(error), 300) }]);
+    return;
+  }
+  if (!bytes || !labScene) return;
+  const blob = new Blob([bytes as Uint8Array<ArrayBuffer>], { type: 'application/octet-stream' });
+  const href = URL.createObjectURL(blob);
+  const anchor = document.createElement('a');
+  anchor.href = href;
+  anchor.download = sceneFileName(labScene.read.title).replace(/\.json$/, `-step-${labSceneSteps()}.b3ck`);
+  document.body.append(anchor);
+  anchor.click();
+  anchor.remove();
+  setTimeout(() => URL.revokeObjectURL(href), 10_000);
+  scenePanel?.setStatus(`Saved ${anchor.download} (${blob.size} bytes, SHA-256 ${checkpointInfo(bytes).hash.slice(0, 12)}…): the complete state at step ${labSceneSteps()}. Load checkpoint resumes it, here or in a fresh page.`);
+}
+
+/** Resume a checkpoint: a Lab checkpoint, or a bare Simulation checkpoint (the kit's simulation.checkpoint()). */
+async function loadLabCheckpoint(file: File): Promise<void> {
+  scenePanel?.expand();
+  const fail = (title: string, error: unknown): void => reportSceneError(title, [{ path: '', message: quoteForDisplay(error instanceof Error ? error.message : String(error), 400) }]);
+  if (file.size > LAB_SCENE_LIMITS.fileBytes) { fail(`${quoteForDisplay(file.name, 96)} is too large`, `The file has ${file.size} bytes; the Lab reads files up to ${LAB_SCENE_LIMITS.fileBytes} bytes.`); return; }
+  let simulation: Uint8Array, title: string, steps: number, scene: string;
+  try {
+    const bytes = new Uint8Array(await file.arrayBuffer());
+    if (checkpointInfo(bytes).kind === LAB_CHECKPOINT_KIND) {
+      const state = readCheckpoint(bytes, LAB_CHECKPOINT_KIND) as StateObject;
+      if (!(state.simulation instanceof Uint8Array) || typeof state.title !== 'string' || typeof state.steps !== 'number') throw new Error('The Lab checkpoint is malformed.');
+      simulation = state.simulation; title = state.title; steps = state.steps;
+    } else { simulation = bytes; title = file.name.replace(/\.b3ck$/i, ''); steps = -1; }
+    const info = simulationCheckpointInfo(simulation);
+    if (info.scene === null) throw new Error('This checkpoint does not carry the scene it was taken from, so the Lab cannot rebuild it.');
+    scene = info.scene;
+    if (steps < 0) steps = info.tick;
+  } catch (error) { fail(`${quoteForDisplay(file.name, 96)} is not a checkpoint the Lab can resume`, error); return; }
+  const text = readSceneText(scene, { kind: 'file', name: file.name }, title);
+  const read: SceneRead = text.ok ? { ...text, title } : text;
+  // The checkpoint resumes a running simulation; the editor edits initial states, so it is closed.
+  if (sceneEditor?.active) sceneEditor.close();
+  if (!openLabScene(read)) return;
+  try {
+    labScene!.loaded.simulation.restore(simulation);
+  } catch (error) {
+    fail(`${quoteForDisplay(file.name, 96)} could not be restored`, error);
+    scenePanel?.setStatus(`The scene of the checkpoint is on screen from its start; its state was not restored.`);
+    return;
+  }
+  labStepsBefore = steps - (engineRuntime?.tick ?? 0) * sceneStepsPerLabTick(labScene!.read.scene.world?.step ?? 1 / 60);
+  // The solvers were restored in place; the view of a coupled scene is built again so that it reads their arrays afresh.
+  if (coupledView) {
+    const loaded = coupledView.loaded;
+    coupledPanel?.attach(null);
+    coupledView.dispose();
+    coupledView = new CoupledSceneView(loaded, backend);
+    coupledPanel?.attach(coupledView, labScene!.read.title);
+  }
+  backend.syncTransforms();
+  scenePanel?.setStatus(`Resumed ${quoteForDisplay(file.name, 96)} at step ${steps}: the run continues exactly where it was saved.`);
+}
+
+function resetLabScene(): void {
+  if (sceneEditor?.active) { sceneEditor.reset(); return; }
+  if (!siDemo || !labScene) return;
+  const { read, link } = labScene;
+  if (openLabScene(read, link)) scenePanel?.setStatus('Scene reloaded from its start.');
+}
+
+/** Read-only view of the loaded scene for the console and for tests: `box3dLab.sceneState()`. */
+function labSceneState(): Record<string, unknown> {
+  const native = siDemo && labScene ? labScene.loaded.builder.world.native : null;
+  return {
+    loaded: native !== null,
+    editing: sceneEditor?.active ?? false,
+    title: labScene?.read.title ?? null,
+    source: labScene?.read.source.kind ?? null,
+    sceneHash: labScene ? sceneHash(labScene.read.scene) : null,
+    bodies: native ? native.bodyCount() : 0,
+    sceneBodies: labScene?.read.scene.bodies.length ?? 0,
+    joints: labScene?.read.scene.joints?.length ?? 0,
+    kinds: native ? native.bodyKinds() : [],
+    tick: engineRuntime?.tick ?? 0,
+    // One Lab tick is this many of the scene's own fixed steps; `steps` is how many it has taken.
+    stepsPerTick: labScene ? sceneStepsPerLabTick(labScene.read.scene.world?.step ?? 1 / 60) : 1,
+    steps: labStepsBefore + (engineRuntime?.tick ?? 0) * (labScene ? sceneStepsPerLabTick(labScene.read.scene.world?.step ?? 1 / 60) : 1),
+    replayHash: native ? native.replayHash() : null,
+    exactHash: native ? exactTransformHash(native) : null,
+    drawnMeshes: renderer?.bodyMeshInfo() ?? null,
+    shapes: renderer?.instanceShapeInfo() ?? null,
+    // Coupled scenes: the Simulation's clock, a hash of every solver's state, and what is drawn besides the bodies.
+    coupled: coupledView !== null,
+    simulationTick: labScene ? labScene.loaded.simulation.tick : 0,
+    stateHash: coupledView ? coupledView.stateHash() : native ? exactTransformHash(native).toString(16).padStart(8, '0') : null,
+    coupledDraw: coupledView?.drawInfo() ?? null,
+    energy: coupledView ? labScene!.loaded.simulation.energy().entries.map(entry => ({ id: entry.id, total: entry.total, balance: entry.balance })) : null,
+    events: coupledView ? coupledView.eventTotal() : 0,
+    solidView: coupledView?.hasSolids ? coupledView.solidView() : null,
+    fluidView: coupledView?.hasFluids ? coupledView.fluidView() : null,
+  };
+}
+
+/** Open the Mechanisms SI demo: lab.html?si=mechanisms&seed=N, or its entry at the end of the laboratory catalog. */
+function loadMechanismsDemo(demoSeed: number = MECHANISMS_DEFAULT_SEED): void {
+  // The demo borrows a rigid lab for its panels and controls and replaces that lab's rigid world.
+  const host = getWorkbenchLab(SI_DEMO_HOST_LAB_ID) ?? WORKBENCH_LABS[0];
+  loadWorkbenchLab(host, { id: MECHANISMS_SCENE_ID, seed: demoSeed >>> 0 });
+  if (!siDemo && currentLab === host) {
+    setLog(backend.createGeneralScene
+      ? 'The Mechanisms SI demo could not be built (see the console); the host recipe is shown instead.'
+      : 'The Mechanisms SI demo needs the native Box3D WASM backend; the preview backend has only boxes, so the host recipe is shown instead.');
+  }
+}
+
+/** Open the cable-stayed bridge: lab.html?si=bridge, or its entry among the SI scenes of the laboratory catalog. */
+function loadSiBridge(settings: SiBridgeSceneSettings = SI_BRIDGE_SCENE_DEFAULTS): void {
+  const host = getWorkbenchLab(SI_DEMO_HOST_LAB_ID) ?? WORKBENCH_LABS[0];
+  loadWorkbenchLab(host, { id: SI_BRIDGE_ID, seed: 1, settings });
+  if (!siBridge && currentLab === host) {
+    setLog(backend.createGeneralScene
+      ? 'The cable-stayed bridge could not be built (see the console); the host recipe is shown instead.'
+      : 'The cable-stayed bridge needs the native Box3D WASM backend; the preview backend has only boxes, so the host recipe is shown instead.');
+  }
+}
+
+/** Read-only view of the bridge for the console and for tests: `box3dLab.bridgeState()`. */
+function siBridgeState(): Record<string, unknown> | null {
+  if (!siDemo || !siBridge) return null;
+  const { model, layout, settings } = siBridge, o = model.out;
+  return {
+    time: o.time, tick: o.tick, midspanDeflection: o.midspanDeflection, maxStayTension: o.maxStayTension, maxStayUtilisation: o.maxStayUtilisation,
+    plottedStay: SI_BRIDGE_PLOTTED_STAY, stayTension: Array.from(o.stayTension), towerBase: Array.from(o.towerBase), deckUtilisation: o.deckUtilisation, towerUtilisation: o.towerUtilisation,
+    vehicleX: o.vehicleX, vehicleMass: model.vehicle?.mass ?? 0, totalReaction: [...o.totalReaction], totalWeight: model.totalWeight(), energy: model.energy(),
+    failed: [...model.failed], exaggeration: siBridge.exaggeration, settings, length: layout.length, stays: layout.stays.length, elements: layout.elements.length,
+    bodies: backend.bodyCount(), drawnRows: siBridge.drawnRows(backend.bodyCount()), dt: model.dt, subSteps: model.subSteps,
+  };
+}
+
+/**
+ * Keep the address shareable: ?si=mechanisms&seed=N while the Mechanisms demo shows,
+ * ?example=<name> for an example scene, ?scene=<link> for a scene opened from a link (or
+ * whose link was copied), and none of them once a recipe is loaded.
+ */
+function syncSiDemoUrl(): void {
+  const url = new URL(window.location.href);
+  const shown = url.searchParams.get('si');
+  if (siDemo?.id === SI_SCENE_ID || url.searchParams.has('example') || url.searchParams.has('scene') || /(?:^#|&)(?:scene|example)=/.test(url.hash)) {
+    const before = url.href;
+    for (const key of ['si', 'seed', 'example', 'scene']) url.searchParams.delete(key);
+    if (/(?:^#|&)(?:scene|example)=/.test(url.hash)) url.hash = '';
+    if (siDemo?.id === SI_SCENE_ID) {
+      const source = siDemo.read.source;
+      if (source.kind === 'example') url.searchParams.set('example', source.name);
+      else if (siDemo.link !== null && siDemo.link.length <= LAB_SCENE_LIMITS.addressLinkChars) url.searchParams.set('scene', siDemo.link);
+    }
+    if (siDemo?.id === MECHANISMS_SCENE_ID) {
+      url.searchParams.set('si', siDemo.id);
+      url.searchParams.set('seed', String(siDemo.seed));
+    }
+    if (siDemo?.id === SI_BRIDGE_ID) url.searchParams.set('si', siDemo.id);
+    if (url.href !== before) window.history.replaceState(null, '', url);
+    return;
+  }
+  if (siDemo?.id === SI_BRIDGE_ID) {
+    // The bridge has no seed: its address is just ?si=bridge.
+    if (shown === siDemo.id && !url.searchParams.has('seed')) return;
+    url.searchParams.set('si', siDemo.id);
+    url.searchParams.delete('seed');
+  } else if (siDemo) {
+    if (shown === siDemo.id && url.searchParams.get('seed') === String(siDemo.seed)) return;
+    url.searchParams.set('si', siDemo.id);
+    url.searchParams.set('seed', String(siDemo.seed));
+  } else {
+    if (shown === null) return;
+    url.searchParams.delete('si');
+    url.searchParams.delete('seed');
+  }
+  window.history.replaceState(null, '', url);
+}
+
+function siDemoRequestFromUrl(): number | null {
+  const params = new URLSearchParams(window.location.search);
+  if (params.get('si') !== MECHANISMS_SCENE_ID) return null;
+  const text = params.get('seed');
+  const parsed = text === null ? MECHANISMS_DEFAULT_SEED : Number(text);
+  return Number.isInteger(parsed) && parsed >= 0 && parsed <= 0xffffffff ? parsed : MECHANISMS_DEFAULT_SEED;
 }
 
 function labSupports(mode: WorkbenchForceMode, lab: WorkbenchLabDefinition | null = currentLab): boolean {
@@ -1430,7 +2017,7 @@ function findWorkbenchLabForScene(scene: ScenePreset): WorkbenchLabDefinition | 
   }) ?? null;
 }
 
-function loadWorkbenchLab(lab: WorkbenchLabDefinition): void {
+function loadWorkbenchLab(lab: WorkbenchLabDefinition, si: typeof siDemo = null): void {
   const screen = conceptScreenForWorkbenchLab(lab);
   if (workspaceSwitchBlocked(ENGINEERING_CONCEPT_VIEWS[screen].workspace)) return;
   currentLab = lab;
@@ -1442,10 +2029,10 @@ function loadWorkbenchLab(lab: WorkbenchLabDefinition): void {
   forceTargetU = recipe?.strikeCenter[0] ?? 0.5;
   forceTargetV = recipe ? 1 - recipe.strikeCenter[1] : 0.5;
   updateForceReticle();
-  loadScene(resolveWorkbenchLabScene(lab));
+  loadScene(resolveWorkbenchLabScene(lab), undefined, false, si);
   applyConceptScreen(screen);
   frameCameraForWorkspace(ENGINEERING_CONCEPT_VIEWS[screen].workspace);
-  engineeringWorkspaces?.setProvenance('solver', `${lab.fidelity} · normalized model`);
+  engineeringWorkspaces?.setProvenance('solver', siDemo ? 'General rigid-body API · SI units' : `${lab.fidelity} · normalized model`);
   syncActiveLabChrome();
   if (engineeringWorkspaces) {
     for (const label of engineeringWorkspaces.root.querySelectorAll<HTMLElement>('[data-eng-test]')) {
@@ -2079,6 +2666,8 @@ function startAutoplayPlayback(workspace: EngineeringWorkspaceId): boolean {
 
 function autoplayLoadedSimulation(): boolean {
   if (cinematicPlaying || autoplayingLoadedSimulation) return engineeringRunIsPlaying();
+  // A scene being edited stays at its initial state until Play is pressed in the editor.
+  if (sceneEditor?.active) return false;
   if (!demoIntentFromSearch(window.location.search).autoplay) return false;
   if (engineeringSession && !engineeringSession.consumeAutoplayOnOpen()) {
     return engineeringRunIsPlaying();
@@ -2132,8 +2721,9 @@ function scheduleAutoplayLoadedSimulation(): void {
   });
 }
 
-function loadScene(scene: ScenePreset, stressOverride?: number, keepCinematic = false): void {
+function loadScene(scene: ScenePreset, stressOverride?: number, keepCinematic = false, si: typeof siDemo = null): void {
   currentScene = scene;
+  siDemo = si;
   const matchingLab = findWorkbenchLabForScene(scene);
   if (matchingLab) currentLab = matchingLab;
   camera = cloneRig(scene.camera);
@@ -2141,15 +2731,18 @@ function loadScene(scene: ScenePreset, stressOverride?: number, keepCinematic = 
   resetTelemetryTraces();
   const stress = clampStress(stressOverride ?? scene.defaultStress);
   ui.stress.value = String(stress);
-  seed = seedForScene(scene);
+  seed = si ? si.seed : seedForScene(scene);
   effects.clear(seed ^ 0xa11ce);
-  effects.setStageProps(stagePrimitivesForScene(scene));
-  const count = backend.createScene(scene, stress, seed);
+  const count = createRigidScene(scene, stress, seed);
+  // The host recipe's set dressing does not belong to the SI demo.
+  effects.setStageProps(siDemo ? [] : stagePrimitivesForScene(scene));
+  syncSiDemoUrl();
+  syncScenePanel();
   soft.createScene(scene, stress, seed);
   renderer.invalidateDynamicCaches();
-  renderer.uploadInstances(backend, count);
+  renderer.uploadInstances(coupledView ?? backend, count);
   const softFrame = soft.buildFrame(false);
-  renderer.uploadRopeGrid(softFrame.ropeGrid, count);
+  renderer.uploadRopeGrid(coupledView ? coupledView.ropeGrid : softFrame.ropeGrid, count);
   renderer.uploadSurface(softFrame.surface);
   beginEngineeringRun(stress);
   if (!keepCinematic) stopCinematic(false);
@@ -2158,7 +2751,13 @@ function loadScene(scene: ScenePreset, stressOverride?: number, keepCinematic = 
   renderEngineeringInspection();
   frameCameraForWorkspace();
   updateStats(0, 0, 0, 0, 0, softFrame);
-  setLog(`Loaded ${sceneLabel(scene)} · ${scene.category} · ${scene.family}/${scene.variant} · seed 0x${seed.toString(16)}.`);
+  setLog(siDemo && siBridge
+    ? `Loaded ${SI_BRIDGE_TITLE} · ${siBridge.layout.stays.length} stays, ${siBridge.layout.elements.length} beam elements, SI units.`
+    : siDemo && labScene
+    ? `Loaded ${labScene.read.title} · ${sceneSummary(labScene.read.scene)}.`
+    : siDemo && siDemoScene
+    ? `Loaded ${MECHANISMS_SCENE_TITLE} · ${siDemoScene.bodyCount} bodies, ${siDemoScene.jointCount} joints, SI units · seed 0x${seed.toString(16)}.`
+    : `Loaded ${sceneLabel(scene)} · ${scene.category} · ${scene.family}/${scene.variant} · seed 0x${seed.toString(16)}.`);
   if (!keepCinematic) {
     engineeringSession?.setAutoplayOnOpen(true);
     scheduleAutoplayLoadedSimulation();
@@ -2169,19 +2768,19 @@ function reloadSceneWithCurrentStress(): void {
   simulationAccumulator = 0;simulationLagSeconds=0;engineTimings.reset();engineRuntime?.resetClock();
   resetTelemetryTraces();
   effects.clear(seed ^ 0xa11ce);
-  effects.setStageProps(stagePrimitivesForScene(currentScene));
   const stress = clampStress(Number(ui.stress.value));
-  const count = backend.createScene(currentScene, stress, seed);
+  const count = createRigidScene(currentScene, stress, seed);
+  effects.setStageProps(siDemo ? [] : stagePrimitivesForScene(currentScene));
   soft.createScene(currentScene, stress, seed);
   renderer.invalidateDynamicCaches();
-  renderer.uploadInstances(backend, count);
+  renderer.uploadInstances(coupledView ?? backend, count);
   const softFrame = soft.buildFrame(false);
-  renderer.uploadRopeGrid(softFrame.ropeGrid, count);
+  renderer.uploadRopeGrid(coupledView ? coupledView.ropeGrid : softFrame.ropeGrid, count);
   renderer.uploadSurface(softFrame.surface);
   beginEngineeringRun(stress);
   stopCinematic(false);
   updateSceneText();
-  setLog(`Reloaded ${sceneLabel(currentScene)} at stress ${ui.stress.value}, seed 0x${seed.toString(16)}.`);
+  setLog(siDemo && siBridge ? `Reloaded ${SI_BRIDGE_TITLE} from its start.` : siDemo && labScene ? `Reloaded ${labScene.read.title} from its start.` : siDemo ? `Reloaded ${MECHANISMS_SCENE_TITLE}, seed 0x${seed.toString(16)}.` : `Reloaded ${sceneLabel(currentScene)} at stress ${ui.stress.value}, seed 0x${seed.toString(16)}.`);
   if (!autoplayingLoadedSimulation) {
     engineeringSession?.setAutoplayOnOpen(true);
     scheduleAutoplayLoadedSimulation();
@@ -2896,6 +3495,12 @@ function initializeEngineeringWorkspaceShell(initialWorkspace: EngineeringWorksp
       onLabChange: (labId) => {
         loadMaterialLabSelection(labId);
       },
+      onSiDemoSelect: (demoId) => {
+        if (demoId === MECHANISMS_SCENE_ID) loadMechanismsDemo();
+        else if (demoId === SI_BRIDGE_ID) loadSiBridge();
+        else if (demoId === 'open-file') scenePanel?.openFileDialog();
+        else if (demoId.startsWith('example:') && Object.hasOwn(EXAMPLE_SCENE_TITLES, demoId.slice(8))) openExampleScene(demoId.slice(8));
+      },
       onControlChange: applyMaterialLabControlChange,
       onMaterialPresetChange: (presetId) => {
         if (!isMaterialLabPresetId(presetId) || !engineeringSession) return;
@@ -2936,9 +3541,43 @@ function initializeEngineeringWorkspaceShell(initialWorkspace: EngineeringWorksp
   }
 }
 
-function bindControls(): void {
+const boundCanvases = new WeakSet<HTMLCanvasElement>();
+let canvasControlsReady = false;
+
+/**
+ * Put a fresh canvas element where the 3D canvas is and return it. A canvas that has held a WebGPU
+ * context (or a lost WebGL context) cannot give a new WebGL2 one. Its attributes (id, classes, ARIA,
+ * data-*) are copied, the pointer handlers are bound again, and the focus moves with it.
+ */
+function replaceCanvas(): HTMLCanvasElement {
+  const old = ui.canvas, fresh = document.createElement('canvas');
+  for (const attribute of Array.from(old.attributes)) if (attribute.name !== 'width' && attribute.name !== 'height') fresh.setAttribute(attribute.name, attribute.value);
+  const focused = document.activeElement === old;
+  old.replaceWith(fresh);
+  ui.canvas = fresh;
+  if (canvasControlsReady) bindCanvasControls();
+  if (focused) fresh.focus({ preventScroll: true });
+  return fresh;
+}
+
+/** The active renderer in the status bar and on the canvas (data-renderer), for people and for tests. */
+function showRendererStatus(): void {
+  const name = rendererKind === 'webgpu' ? 'WebGPU' : 'WebGL2';
+  ui.runtimeRenderer.textContent = name;
+  ui.runtimeRenderer.title = rendererLabel(rendererKind, rendererNote);
+  ui.canvas.dataset.renderer = rendererKind;
+  ui.canvas.setAttribute('aria-label', `Interactive Box3D ${name} physics viewport`);
+}
+
+/** The camera, force tool and editor pointer handlers on the 3D canvas; bound again when the canvas is replaced. */
+function bindCanvasControls(): void {
+  if (boundCanvases.has(ui.canvas)) return;
+  boundCanvases.add(ui.canvas);
+  canvasControlsReady = true;
   ui.canvas.addEventListener('pointerdown', (event) => {
     if (cinematicPlaying) stopCinematic();
+    // The scene editor selects and drags bodies; a press on empty space falls through to the camera.
+    if (sceneEditor?.active && sceneEditor.pointerDown(event)) return;
     if (forceToolEnabled && event.button === 0) {
       forceDragging = true;
       updateForceTargetFromPointer(event);
@@ -2952,6 +3591,7 @@ function bindControls(): void {
   });
 
   ui.canvas.addEventListener('pointermove', (event) => {
+    if (sceneEditor?.active && sceneEditor.pointerMove(event)) return;
     if (forceDragging) {
       updateForceTargetFromPointer(event);
       return;
@@ -2966,6 +3606,7 @@ function bindControls(): void {
   });
 
   const releasePointer = (event: PointerEvent): void => {
+    sceneEditor?.pointerUp(event);
     isDragging = false;
     forceDragging = false;
     try { ui.canvas.releasePointerCapture(event.pointerId); } catch { /* ignored */ }
@@ -2976,8 +3617,14 @@ function bindControls(): void {
   ui.canvas.addEventListener('wheel', (event) => {
     event.preventDefault();
     if (cinematicPlaying) stopCinematic();
-    camera.distance = clamp(camera.distance + event.deltaY * 0.018, 7, 120);
+    // A scene file is in metres and may be a 20 cm part or a 100 m terrain: zoom in proportion, with wider limits.
+    if (siDemo && (labScene || siBridge)) camera.distance = clamp(camera.distance * Math.exp(event.deltaY * 0.0015), 0.4, 400);
+    else camera.distance = clamp(camera.distance + event.deltaY * 0.018, 7, 120);
   }, { passive: false });
+}
+
+function bindControls(): void {
+  bindCanvasControls();
 
   const filterButtons = Array.from(document.querySelectorAll<HTMLButtonElement>('[data-lab-filter]'));
   for (const button of document.querySelectorAll<HTMLButtonElement>('[data-library-mode]')) {
@@ -3195,8 +3842,12 @@ function bindControls(): void {
   ui.runTurboQuant.addEventListener('click', runTurboQuantBrowserProbe);
   ui.captureFrame.addEventListener('click', captureCurrentFrame);
 
+  window.addEventListener('keyup', (event) => { sceneEditor?.keyUp(event); });
   window.addEventListener('keydown', (event) => {
     const target = event.target;
+    // While a scene is being edited the keys are the editor's (Delete, undo, nudges, Escape);
+    // the Lab's single-key shortcuts are off, so typing a name or pressing an arrow cannot load another lab.
+    if (sceneEditor?.active) { sceneEditor.keyDown(event); return; }
     if (
       event.defaultPrevented || event.isComposing || event.repeat || event.metaKey || event.ctrlKey || event.altKey ||
       (target instanceof Element && target.closest(
@@ -3952,6 +4603,11 @@ async function runStateTests(): Promise<void> {
   const effectFrame = effects.buildFrame(quality.effectBudget);
   const effectsFinite = effectFrame.count > 0 && isFiniteArray(effectFrame.matrices) && isFiniteArray(effectFrame.colors);
 
+  siDemo = null;
+  labScene = null;
+  clearCoupledView();
+  if (siBridge) { siBridgePanel?.attach(null); siBridge.dispose(); siBridge = null; }
+  syncScenePanel();
   backend.createScene(restoreScene, restoreStress, seed);
   soft.createScene(restoreScene, restoreStress, seed);
   renderer.invalidateDynamicCaches();
@@ -3972,9 +4628,17 @@ async function main(): Promise<void> {
   startupProgress('Loading physics and soft kernels');
   const physicsPromise = loadBestPhysicsBackend();
   const softRuntimePromise = initializeSoftKernelRuntime();
-  const rendererPromise = physicsPromise.then(({ backend: selectedBackend }) =>
-    WebGPURenderer.create(ui.canvas, selectedBackend.maxBodies + SOFT_RENDER_INSTANCE_BUDGET + MAX_EFFECT_INSTANCES, {onStartupProgress:startupProgress}));
-  const [loaded, softRuntime, loadedRenderer] = await Promise.all([
+  // WebGPU when the browser has it and it starts; otherwise, or with ?renderer=webgl2, WebGL2.
+  let webgpuTried = false;
+  const rendererPromise = physicsPromise.then(({ backend: selectedBackend }) => {
+    const capacity = selectedBackend.maxBodies + SOFT_RENDER_INSTANCE_BUDGET + MAX_EFFECT_INSTANCES;
+    return selectRenderer<LabRenderer>(rendererCandidates(requestedRenderer, typeof navigator !== 'undefined' && !!navigator.gpu), {
+      webgpu: () => { webgpuTried = true; return WebGPURenderer.create(ui.canvas, capacity, {onStartupProgress:startupProgress}); },
+      // A failed WebGPU start may have taken the canvas's context: draw WebGL2 on a fresh canvas then.
+      webgl2: () => WebGL2LabRenderer.create(webgpuTried ? replaceCanvas() : ui.canvas, capacity, {onStartupProgress:startupProgress}),
+    });
+  });
+  const [loaded, softRuntime, selection] = await Promise.all([
     physicsPromise,
     softRuntimePromise,
     rendererPromise,
@@ -3982,15 +4646,32 @@ async function main(): Promise<void> {
   backend = loaded.backend;
   soft = new SoftSimulationSuite(softRuntime.module);
   engineRuntime=createWorkbenchRuntime({backend,soft,softKernelVariant:softRuntime.available?softRuntime.variant:'javascript'});
-  renderer = loadedRenderer;
+  renderer = selection.renderer;
+  rendererKind = selection.kind;
+  rendererNote = fallbackReason(selection, requestedRenderer);
+  for (const attempt of selection.attempts) console.warn(`[Lab] ${rendererLabel(attempt.kind)} did not start: ${attempt.error}`);
+  showRendererStatus();
+  /**
+   * A lost device or context: draw on with a new renderer (WebGL2 unless the page forced WebGPU) on a fresh canvas.
+   * The scene, its clock and the camera are CPU state and are left as they are; only the drawing restarts.
+   */
   function watchRendererLoss():void {
     stopRendererLoss();stopRendererLoss=renderer.onDeviceLost(info=>{
       if(rendererRecovering||frameDisposed)return;rendererRecovering=true;rendererFailed=false;
-      ui.warning.textContent=`Graphics device lost: ${info.message||info.reason}. Recreating graphics from the current CPU simulation state.`;
+      const lostKind=rendererKind,next=rendererAfterLoss(lostKind,requestedRenderer);
+      ui.warning.textContent=`Graphics ${lostKind==='webgpu'?'device':'context'} lost: ${info.message||info.reason}. Drawing the current simulation state with ${rendererLabel(next)}.`;
+      console.warn(`[Lab] ${rendererLabel(lostKind)} lost (${info.message||info.reason}); continuing on ${rendererLabel(next)}.`);
       renderer.dispose();
-      void WebGPURenderer.create(ui.canvas,backend.maxBodies+SOFT_RENDER_INSTANCE_BUDGET+MAX_EFFECT_INSTANCES).then(replacement=>{
-        if(frameDisposed){replacement.dispose();return;}renderer=replacement;renderer.invalidateDynamicCaches();rendererRecovering=false;simulationAccumulator=0;watchRendererLoss();
-        ui.warning.textContent='Graphics recovered. Simulation state and recorded results were preserved.';
+      const capacity=backend.maxBodies+SOFT_RENDER_INSTANCE_BUDGET+MAX_EFFECT_INSTANCES;
+      // A canvas that had a WebGPU or lost WebGL context cannot take a new one: replace the element.
+      const canvas=replaceCanvas();
+      const created:Promise<LabRenderer>=next==='webgpu'?WebGPURenderer.create(canvas,capacity):WebGL2LabRenderer.create(canvas,capacity);
+      void created.then(replacement=>{
+        if(frameDisposed){replacement.dispose();return;}
+        renderer=replacement;rendererKind=next;rendererSwitches++;
+        rendererNote=lostKind==='webgpu'&&next==='webgl2'?'WebGPU device lost':lostKind==='webgl2'?'WebGL2 context restarted':'WebGPU device recreated';
+        renderer.invalidateDynamicCaches();rendererRecovering=false;simulationAccumulator=0;watchRendererLoss();showRendererStatus();
+        ui.warning.textContent=`Graphics recovered on ${rendererLabel(next)}. Simulation state, clock, camera and recorded results were preserved.`;
       }).catch(error=>{rendererRecovering=false;rendererFailed=true;paused=true;ui.warning.textContent=`Graphics recovery failed: ${error instanceof Error?error.message:String(error)}. Reload to initialize a new graphics device.`;});
     });
   }
@@ -3999,9 +4680,10 @@ async function main(): Promise<void> {
   const rigidThreading = backend.threading;
   ui.canvas.dataset.physicsThreads = String(rigidThreading?.workers ?? 1);
   if (rigidThreading?.reason) ui.canvas.dataset.physicsThreadsReason = rigidThreading.reason;
+  const drawing = rendererKind === 'webgpu' ? 'GPU surface reconstruction, compute-expanded rope rendering' : `the WebGL2 renderer${rendererNote ? ` (${rendererNote})` : ''}`;
   ui.warning.textContent = loaded.warning
-    ? `Preview backend active: ${loaded.warning} ${softBackend}; GPU surface reconstruction, compute-expanded rope rendering, and deterministic material fracture are active. Build Box3D WASM for native rigid-body fidelity.`
-    : `Native Box3D WASM rigid-body backend loaded${rigidThreading?.mode === 'threads' ? ` on ${rigidThreading.workers} threads` : ''} with ${softBackend}, GPU surface reconstruction, compute-expanded rope rendering, and deterministic material fracture.`;
+    ? `Preview backend active: ${loaded.warning} ${softBackend}; ${drawing}, and deterministic material fracture are active. Build Box3D WASM for native rigid-body fidelity.`
+    : `Native Box3D WASM rigid-body backend loaded${rigidThreading?.mode === 'threads' ? ` on ${rigidThreading.workers} threads` : ''} with ${softBackend}, ${drawing}, and deterministic material fracture.`;
   ui.warning.classList.toggle('native', !loaded.warning);
 
   const boot = resolveBootConcept();
@@ -4017,8 +4699,88 @@ async function main(): Promise<void> {
   ui.quality.value = quality.id;
   ui.speed.value = '1';
   initializeEngineeringWorkspaceShell(boot.workspace);
+  // Read the requests first: loading the boot recipe clears the SI parameters from the address.
+  const siRequest = siDemoRequestFromUrl();
+  const siBridgeRequested = new URLSearchParams(window.location.search).get('si') === SI_BRIDGE_ID;
+  const sceneRequest = parseSceneRequest(window.location.search, window.location.hash);
+  scenePanel = createScenePanel({
+    onFiles: (files) => { void openSceneFiles(files); },
+    onExample: openExampleScene,
+    onCopyLink: () => { void copyLabSceneLink(); },
+    onDownload: downloadLabScene,
+    onSaveCheckpoint: saveLabCheckpoint,
+    onLoadCheckpoint: (file) => { void loadLabCheckpoint(file); },
+    onReset: resetLabScene,
+    onNewScene: () => { if (sceneEditor?.active) sceneEditor.replace(emptyScene()); else sceneEditor?.open(); },
+    onEdit: () => {
+      if (sceneEditor?.active) { sceneEditor.close(); scenePanel?.setStatus('Editing stopped. The scene stays on screen.'); }
+      else if (siDemo && labScene) sceneEditor?.open(labScene.read.scene);
+    },
+  });
+  sceneEditor = createSceneEditor(createEditorHost(scenePanel.editorMount));
+  const editorRequested = editRequested(window.location.search);
+  coupledPanel = createCoupledPanel();
+  siBridgePanel = createSiBridgePanel({
+    onRestart: (settings) => loadSiBridge(settings),
+    onPause: togglePause,
+    isPaused: () => paused,
+  });
+  Object.defineProperty(window, 'box3dLab', { configurable: true, value: Object.freeze({
+    sceneState: labSceneState,
+    bridgeState: siBridgeState,
+    /** Bridge only: step it, without waiting for frames, until it has taken `tick` of its own fixed steps; then report its state. */
+    stepBridgeTo: (tick: number) => {
+      if (siDemo && siBridge && Number.isInteger(tick)) {
+        const target = Math.min(tick, siBridge.model.out.tick + 200000);
+        while (siBridge.model.out.tick < target) { engineRuntime.step({ ticks: 1, subSteps: solverSubSteps, captureTelemetry: false }); siBridgePanel?.sample(); }
+      }
+      return siBridgeState();
+    },
+    /** Bridge only: fail a stay, or set the drawing exaggeration, as the panel's controls do. */
+    failBridgeStay: (index: number) => (siDemo && siBridge ? siBridge.failStay(index) : false),
+    setBridgeExaggeration: (factor: number) => { if (siDemo && siBridge) siBridge.exaggeration = factor; return siBridgeState(); },
+    /** Step the loaded scene, without waiting for frames, until it has taken `tick` steps; then report its state. */
+    stepSceneTo: (tick: number) => {
+      if (siDemo && labScene && Number.isInteger(tick)) {
+        const target = Math.min(tick, engineRuntime.tick + 100000);
+        while (engineRuntime.tick < target) engineRuntime.step({ ticks: 1, subSteps: solverSubSteps, captureTelemetry: false });
+      }
+      return labSceneState();
+    },
+    sceneJson: currentLabSceneJson,
+    /** Pause or resume the Lab's clock as the Pause button does; returns whether it is paused. For tests that compare hashes at a tick. */
+    setPaused: (flag: boolean) => { if (paused !== !!flag) togglePause(); return paused; },
+    /** Coupled scenes: the readout the panel shows (clock, step cost, energy ledger, latest events), or null. */
+    coupledReadout: () => coupledView?.readout() ?? null,
+    /** Solids: colour by 'stress', 'temperature' or 'damage' and draw displacements times `scale`; returns the view, or null without a coupled scene. */
+    setSolidView: (options: { field?: 'stress' | 'temperature' | 'damage'; scale?: number }) => coupledView ? coupledView.setSolidView(options) : null,
+    /** Fluids: colour by 'speed' or 'pressure'; returns the field, or null without a coupled scene. */
+    setFluidView: (options: { field?: 'speed' | 'pressure' }) => coupledView ? coupledView.setFluidView(options) : null,
+    /** The scene editor, for the console and for tests: its state, where a body is on the page, the recorded CSV, the last copied link. */
+    editorState: () => sceneEditor?.state() ?? null,
+    editorScreenPosition: (id: string) => sceneEditor?.screenPosition(id) ?? null,
+    editorCsv: () => sceneEditor?.csv() ?? '',
+    lastShareLink: () => lastCopiedSceneLink,
+    /** The renderer that draws ('webgpu' or 'webgl2'), what the address asked for, why, how often a loss replaced it, and the camera. */
+    rendererInfo: () => ({ kind: rendererKind, requested: requestedRenderer, note: rendererNote, switches: rendererSwitches, recovering: rendererRecovering, failed: rendererFailed,
+      camera: { yaw: camera.yaw, pitch: camera.pitch, distance: camera.distance, target: [...camera.target] } }),
+    /** For tests: lose the graphics device as a driver reset would (WebGPU: destroy the device; WebGL2: WEBGL_lose_context). */
+    simulateGraphicsLoss: () => {
+      if (renderer instanceof WebGPURenderer) { (renderer.device as GPUDevice & { destroy?(): void }).destroy?.(); return true; }
+      return renderer instanceof WebGL2LabRenderer ? renderer.simulateContextLoss() : false;
+    },
+  }) });
   loadScene(currentScene);
   applyConceptScreen(boot.screen);
+  if (sceneRequest !== null) {
+    const read = resolveSceneRequest(sceneRequest);
+    // A scene that came in the address stays in the address, as a share link of the scene that was read.
+    const opened = openLabScene(read, sceneRequest.kind !== 'example' && read.ok ? await encodeSceneLink(read.scene) : null);
+    // lab.html?example=<name>&edit=1 and ?scene=<link>&edit=1 open that scene in the editor.
+    if (opened && editorRequested && labScene) sceneEditor.open(labScene.read.scene);
+  } else if (editorRequested) sceneEditor.open();
+  else if (siBridgeRequested) loadSiBridge();
+  else if (siRequest !== null) loadMechanismsDemo(siRequest);
   ui.solverSubsteps.value = String(solverSubSteps);
   updateForceControlLabels();
 
@@ -4059,6 +4821,8 @@ async function main(): Promise<void> {
       while (simulationAccumulator >= fixedStep && steps < 8) {
         engineRuntime.step({ticks:1,subSteps:solverSubSteps,captureTelemetry:false});
         recordEngineeringFixedStep();
+        if (siDemo && siBridge) siBridgePanel?.sample();
+        sceneEditor?.afterStep();
         simulationAccumulator -= fixedStep;
         steps++;
       }
@@ -4090,16 +4854,36 @@ async function main(): Promise<void> {
       studioMode,
     });
 
+    // The scene editor tints the selection in the instance colour stream and draws its frame, the joints and the ruler as lines.
+    sceneEditor?.frame(now);
+    // A coupled scene draws its cloths, basins, grains and grain walls as rows after the bodies, its cables and frames as ropes,
+    // and a wire grid on its water surfaces as overlay lines.
+    const coupled = siDemo && labScene ? coupledView : null;
+    coupled?.sync();
+    coupledPanel?.refresh(now);
+    // While the editor is open on a coupled scene, its lines are drawn over the scene's own (water grid, fluid boxes and arrows).
+    const editingCoupled = sceneEditor?.active && coupled && coupled.overlayLines.length > 0;
+    if (editingCoupled && (mergedOverlay.editor !== editorLinesVersion || mergedOverlay.coupled !== coupled.overlayVersion)) {
+      mergedOverlay = { editor: editorLinesVersion, coupled: coupled.overlayVersion, lines: [...coupled.overlayLines, ...editorLines], version: (mergedOverlay.version + 1) >>> 0 };
+    }
+    const overlayLines = editingCoupled ? mergedOverlay.lines : sceneEditor?.active ? editorLines : coupled ? coupled.overlayLines : engineeringInspectionLines;
+    const overlayVersion = editingCoupled ? (mergedOverlay.version ^ 0x3e7ed) >>> 0 : sceneEditor?.active ? (editorLinesVersion ^ 0x5ce4e) >>> 0 : coupled ? (coupled.overlayVersion ^ 0xc0b1ed) >>> 0 : engineeringInspectionVersion;
     const softFrame = soft.buildFrame(debugEnabled);
     // Engineering soft-body workspaces use an isolated specimen cell. The
     // backend's combinatorial rigid recipe still advances for deterministic
     // provenance, but its unrelated preview props are not composited over the
     // press, crash rail, or cantilever fixture.
     const isolateReducedOrderSpecimen = studioMode && softFrame.kind !== 'none';
-    const rigidCount = isolateReducedOrderSpecimen ? 0 : backend.bodyCount();
-    let uploadedBytes = renderer.uploadInstances(backend, rigidCount);
-    const ropeCount = softFrame.ropeGrid?.segmentCount ?? 0;
-    uploadedBytes += renderer.uploadRopeGrid(softFrame.ropeGrid, rigidCount);
+    // The bridge moves its drawn members to where the model is (also while paused: the exaggeration may change),
+    // draws its stays through the rope stream, and leaves the model's own vehicle body out of the draw.
+    const bridge = siDemo ? siBridge : null;
+    if (bridge?.sync()) backend.syncTransforms();
+    if (bridge) siBridgePanel?.refresh(now);
+    const rigidCount = isolateReducedOrderSpecimen ? 0 : bridge ? bridge.drawnRows(backend.bodyCount()) : coupled ? coupled.rowCount : backend.bodyCount();
+    let uploadedBytes = renderer.uploadInstances(coupled ?? backend, rigidCount);
+    const ropeGrid = bridge ? bridge.ropeGrid : coupled ? coupled.ropeGrid : softFrame.ropeGrid;
+    const ropeCount = ropeGrid?.segmentCount ?? 0;
+    uploadedBytes += renderer.uploadRopeGrid(ropeGrid, rigidCount);
     const softCpuBase = rigidCount + ropeCount;
     uploadedBytes += renderer.uploadSoftInstances(
       softFrame.matrices,
@@ -4127,10 +4911,10 @@ async function main(): Promise<void> {
       buildDebugLines,
       softFrame.debugLines,
       effectFrame.debugLines,
-      engineeringInspectionLines,
-      engineeringInspectionVersion,
+      overlayLines,
+      overlayVersion,
     );
-    const inspectionLineVersion = Math.imul(engineeringInspectionVersion, 0x27d4eb2d);
+    const inspectionLineVersion = Math.imul(overlayVersion, 0x27d4eb2d);
     const lineFrameVersion = debugEnabled
       ? (Math.imul(backendFrameVersion, 0x9e3779b1) ^ Math.imul(softFrame.frameVersion, 0x85ebca6b) ^ effectFrame.frameVersion ^ inspectionLineVersion ^ 0x80000000) >>> 0
       : (effectFrame.frameVersion ^ inspectionLineVersion) >>> 0;

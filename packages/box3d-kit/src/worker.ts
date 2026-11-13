@@ -15,7 +15,10 @@
  */
 import {EngineError} from './core/contracts.js';
 import type {LoadBox3DOptions} from './loader.js';
-import type {BodyPose, QueryOptions, ReplayLog, ReplayReport, RecordingOptions, SpawnBoxOptions, Vec3, Vec3Like, WorldOptions, WorldStats} from './world.js';
+import type {
+  BodyKind, BodyMassData, BodyOptions, BodyPose, BodyState, BodyType, MassDataOptions, JointOptions, JointState, QuatLike, QueryOptions, ReplayLog, ReplayReport, RecordingOptions,
+  ResetOptions, SpawnBoxOptions, Vec3, Vec3Like, WorldEvent, WorldOptions, WorldStats,
+} from './world.js';
 import type {PhysicsWorld} from './world.js';
 import type {InstanceSource} from './three.js';
 import {SharedFrameReader, SharedFrameWriter, sharedMemoryAvailable} from './shared-frames.js';
@@ -35,6 +38,11 @@ function listen(endpoint: MessageEndpoint, handler: (data: unknown) => void): vo
 }
 
 export interface RemoteBody { readonly token: bigint }
+export interface RemoteJoint { readonly token: bigint }
+/** JointOptions with the bodies as remote handles. */
+export type RemoteJointOptions = Omit<JointOptions, 'bodyA' | 'bodyB'> & {readonly bodyA: RemoteBody | null; readonly bodyB: RemoteBody | null};
+/** A WorldEvent with the bodies as remote handles. */
+export type RemoteWorldEvent = Omit<WorldEvent, 'bodyA' | 'bodyB'> & {readonly bodyA: RemoteBody | null; readonly bodyB: RemoteBody | null};
 export interface RemoteCastHit {
   readonly body: RemoteBody;
   readonly point: Vec3;
@@ -57,11 +65,15 @@ export type RemoteWorldOptions = WorldOptions & Omit<LoadBox3DOptions, 'factory'
    * browsers means a cross-origin isolated page (COOP/COEP headers).
    */
   readonly sharedMemory?: boolean | 'auto';
+  /** Start in SI units with this gravity (m/s^2) instead of the classic arena. */
+  readonly gravity?: readonly [number, number, number];
+  /** false starts with no ground. Implies an SI world. */
+  readonly ground?: boolean;
 };
 
 interface Request { id: number; method: string; args: unknown[] }
 type Response = {id: number; ok: true; result: unknown; frame?: FramePayload} | {id: number; ok: false; code: string; message: string};
-interface FramePayload { count: number; transformVersion: number; colorVersion: number; matrices?: Float32Array; colors?: Float32Array; shared?: true }
+interface FramePayload { count: number; transformVersion: number; colorVersion: number; matrices?: Float32Array; colors?: Float32Array; shared?: true; kinds?: BodyKind[] }
 
 // ───────────────────────── worker side ─────────────────────────
 
@@ -73,6 +85,17 @@ export function serveWorld(endpoint: MessageEndpoint): void {
   let shared: SharedFrameWriter | null = null;
   let timer: ReturnType<typeof setInterval> | null = null;
   const bodies = new Map<bigint, ReturnType<PhysicsWorld['bodyAt']>>();
+  const joints = new Map<bigint, ReturnType<PhysicsWorld['createJoint']>>();
+  // Events wait here until the main thread asks for them.
+  let queued: RemoteWorldEvent[] = [], queuedDropped = 0, unsubscribe: (() => void) | null = null;
+  // Row shapes travel with the next frame after anything that can change them.
+  let kindsDirty = true;
+  const joint = (ref: unknown) => {
+    const token = (ref as RemoteJoint | null)?.token;
+    const found = typeof token === 'bigint' ? joints.get(token) : undefined;
+    if (!found) throw new EngineError('STALE_JOINT', 'Unknown or destroyed joint.');
+    return found;
+  };
 
   const remember = (body: ReturnType<PhysicsWorld['bodyAt']> | null): RemoteBody | null => {
     if (!body) return null;
@@ -108,7 +131,14 @@ export function serveWorld(endpoint: MessageEndpoint): void {
     }
     return {payload, transfer};
   };
-  const forget = () => { bodies.clear(); sentColorVersion = -1; sentColorCount = -1; };
+  const forget = () => { bodies.clear(); joints.clear(); queued = []; queuedDropped = 0; kindsDirty = true; sentColorVersion = -1; sentColorCount = -1; };
+  const listenForEvents = () => {
+    unsubscribe?.();
+    unsubscribe = live().onEvent(event => {
+      if (queued.length >= 65536) { queuedDropped++; return; }
+      queued.push({...event, bodyA: remember(event.bodyA), bodyB: remember(event.bodyB)});
+    });
+  };
   const stop = () => { if (timer !== null) clearInterval(timer); timer = null; };
 
   const methods: Record<string, (...args: any[]) => unknown> = {
@@ -119,17 +149,64 @@ export function serveWorld(endpoint: MessageEndpoint): void {
       world = await createWorld(options);
       interpolateFrames = options.interpolateFrames ?? true;
       forget();
+      unsubscribe = null;
       const wantShared = options.sharedMemory ?? 'auto';
       if (wantShared === true && !sharedMemoryAvailable()) throw new EngineError('UNSUPPORTED_BACKEND', 'SharedArrayBuffer is unavailable: serve the page cross-origin isolated (COOP/COEP) or pass sharedMemory: false.');
       shared = wantShared !== false && sharedMemoryAvailable() ? new SharedFrameWriter(world.native.maxBodies) : null;
       return {capacity: world.native.maxBodies, step: world.loop.step, subSteps: world.subSteps, seed: world.seed, shared: shared?.buffer ?? null};
     },
-    spawnBox: (options: SpawnBoxOptions) => remember(live().spawnBox(options)),
+    spawnBox: (options: SpawnBoxOptions) => { kindsDirty = true; return remember(live().spawnBox(options)); },
     destroyBody: (ref: RemoteBody) => {
       const body = bodies.get(ref?.token);
       if (!body) return false;
       bodies.delete(ref.token);
+      kindsDirty = true;
       return live().destroyBody(body);
+    },
+    reset: (options?: ResetOptions) => { live().reset(options); forget(); if (unsubscribe) listenForEvents(); },
+    setGravity: (gravity: Vec3Like) => live().setGravity(gravity),
+    gravity: () => live().gravity(),
+    createBody: (options: BodyOptions) => { kindsDirty = true; return remember(live().createBody(options)); },
+    getState: (ref: RemoteBody) => live().getState(lookup(ref)),
+    setMassData: (ref: RemoteBody, data: MassDataOptions) => live().setMassData(lookup(ref), data),
+    resetMassData: (ref: RemoteBody) => live().resetMassData(lookup(ref)),
+    getMassData: (ref: RemoteBody) => live().getMassData(lookup(ref)),
+    setTransform: (ref: RemoteBody, position: Vec3Like, rotation?: QuatLike) => live().setTransform(lookup(ref), position, rotation),
+    setVelocity: (ref: RemoteBody, linear: Vec3Like, angular?: Vec3Like) => live().setVelocity(lookup(ref), linear, angular),
+    moveKinematic: (ref: RemoteBody, position: Vec3Like, rotation?: QuatLike, seconds?: number) => live().moveKinematic(lookup(ref), position, rotation, seconds),
+    setBodyType: (ref: RemoteBody, type: BodyType) => live().setBodyType(lookup(ref), type),
+    setAwake: (ref: RemoteBody, awake: boolean) => live().setAwake(lookup(ref), awake),
+    setGravityScale: (ref: RemoteBody, scale: number) => live().setGravityScale(lookup(ref), scale),
+    setDamping: (ref: RemoteBody, linear: number, angular: number) => live().setDamping(lookup(ref), linear, angular),
+    setCollisionFilter: (ref: RemoteBody, categoryBits: bigint, maskBits: bigint, groupIndex?: number) => live().setCollisionFilter(lookup(ref), categoryBits, maskBits, groupIndex),
+    applyForce: (ref: RemoteBody, force: Vec3Like, point?: Vec3Like) => live().applyForce(lookup(ref), force, point),
+    applyTorque: (ref: RemoteBody, torque: Vec3Like) => live().applyTorque(lookup(ref), torque),
+    applyImpulseAt: (ref: RemoteBody, impulse: Vec3Like, point: Vec3Like) => live().applyImpulseAt(lookup(ref), impulse, point),
+    applyAngularImpulse: (ref: RemoteBody, impulse: Vec3Like) => live().applyAngularImpulse(lookup(ref), impulse),
+    createJoint: (options: RemoteJointOptions): RemoteJoint => {
+      const made = live().createJoint({...options, bodyA: options.bodyA ? lookup(options.bodyA) : null, bodyB: options.bodyB ? lookup(options.bodyB) : null});
+      joints.set(made.token, made);
+      return {token: made.token};
+    },
+    destroyJoint: (ref: RemoteJoint) => {
+      const found = joints.get(ref?.token);
+      if (!found) return false;
+      joints.delete(ref.token);
+      return live().destroyJoint(found);
+    },
+    isJointAlive: (ref: RemoteJoint) => { const found = joints.get(ref?.token); return !!found && live().isJointAlive(found); },
+    setJointMotor: (ref: RemoteJoint, motor: {speed: number; maxForce: number} | null) => live().setJointMotor(joint(ref), motor),
+    setJointLimits: (ref: RemoteJoint, limits: {lower: number; upper: number} | null) => live().setJointLimits(joint(ref), limits),
+    setJointSpring: (ref: RemoteJoint, spring: {hertz: number; dampingRatio: number; target?: number} | null) => live().setJointSpring(joint(ref), spring),
+    setJointStiffness: (ref: RemoteJoint, hertz: number, dampingRatio?: number) => live().setJointStiffness(joint(ref), hertz, dampingRatio),
+    setJointSteering: (ref: RemoteJoint, steering: {angle: number; hertz: number; dampingRatio: number; maxTorque: number} | null) => live().setJointSteering(joint(ref), steering),
+    getJointState: (ref: RemoteJoint) => live().getJointState(joint(ref)),
+    /** Start collecting events (first call) and hand over everything collected since the last call. */
+    takeEvents: () => {
+      if (!unsubscribe) listenForEvents();
+      const result = {events: queued, dropped: queuedDropped};
+      queued = []; queuedDropped = 0;
+      return result;
     },
     isAlive: (ref: RemoteBody) => { const body = bodies.get(ref?.token); return !!body && live().isAlive(body); },
     applyImpulse: (ref: RemoteBody, impulse: Vec3Like) => live().applyImpulse(lookup(ref), impulse),
@@ -144,6 +221,8 @@ export function serveWorld(endpoint: MessageEndpoint): void {
     resetArena: (seed?: number) => { live().resetArena(seed); forget(); },
     loadPreset: (id: number, stress?: number, seed?: number) => { const n = live().loadPreset(id, stress, seed); forget(); return n; },
     stats: () => live().stats(),
+    checkpoint: () => live().checkpoint(),
+    restoreCheckpoint: (bytes: Uint8Array) => { live().restoreCheckpoint(bytes); kindsDirty = true; sentColorVersion = -1; },
     exactHash: () => live().exactHash(),
     replayHash: () => live().replayHash(),
     startRecording: (options?: RecordingOptions) => { live().startRecording(options); forget(); },
@@ -169,9 +248,10 @@ export function serveWorld(endpoint: MessageEndpoint): void {
       }, 1000 / rate);
     },
     stop: () => { stop(); if (world) frame(null); },
-    dispose: () => { stop(); world?.dispose(); world = null; shared = null; forget(); },
+    dispose: () => { stop(); unsubscribe?.(); unsubscribe = null; world?.dispose(); world = null; shared = null; forget(); },
   };
-  const withFrame = new Set(['init', 'update', 'step', 'spawnBox', 'destroyBody', 'resetArena', 'loadPreset', 'startRecording', 'replay', 'replayDetailed', 'explode', 'applyImpulse']);
+  const withFrame = new Set(['init', 'update', 'step', 'spawnBox', 'destroyBody', 'resetArena', 'loadPreset', 'startRecording', 'replay', 'replayDetailed', 'explode', 'applyImpulse',
+    'reset', 'createBody', 'setTransform', 'setBodyType', 'restoreCheckpoint']);
 
   listen(endpoint, async data => {
     const {id, method, args} = data as Request;
@@ -185,6 +265,7 @@ export function serveWorld(endpoint: MessageEndpoint): void {
         const alpha = method === 'update' ? (result as {alpha: number}).alpha : null;
         const f = frame(alpha);
         response.frame = f.payload;
+        if (kindsDirty) { f.payload.kinds = world.bodyKinds(); kindsDirty = false; }
         transfer = f.transfer;
       }
     } catch (error) {
@@ -210,6 +291,7 @@ export class RemoteWorld implements InstanceSource {
   private readonly userData = new Map<bigint, unknown>();
   private disposed = false;
   private shared: SharedFrameReader | null = null;
+  private kinds: BodyKind[] = [];
   /** True when frames arrive through shared memory (see RemoteWorldOptions.sharedMemory). */
   get usesSharedMemory(): boolean { return this.shared !== null; }
 
@@ -223,6 +305,7 @@ export class RemoteWorld implements InstanceSource {
     this.pending.delete(response.id);
     if (!response.ok) { waiter.reject(new EngineError(response.code, response.message)); return; }
     const frame = response.frame;
+    if (frame?.kinds) this.kinds = frame.kinds;
     if (frame && !frame.shared && frame.matrices) {
       this.count = frame.count;
       this.frameMatrices = frame.matrices;
@@ -269,6 +352,8 @@ export class RemoteWorld implements InstanceSource {
   colorVersion(): number { this.sync(); return this.colorRevision; }
   matrices(): Float32Array { this.sync(); return this.frameMatrices.subarray(0, this.count * 16); }
   colors(): Float32Array { this.sync(); return this.frameColors.subarray(0, this.count * 4); }
+  /** Shape of every row, as of the last call that could change it. */
+  bodyKinds(): readonly BodyKind[] { return this.kinds; }
 
   /**
    * Let the worker step on its own clock at `hz` (default: the physics rate)
@@ -301,8 +386,48 @@ export class RemoteWorld implements InstanceSource {
   overlapSphere(center: Vec3Like, radius: number, options?: QueryOptions): Promise<RemoteBody[]> { return this.call('overlapSphere', center, radius, options); }
   overlapBox(center: Vec3Like, halfExtents: Vec3Like, options?: QueryOptions): Promise<RemoteBody[]> { return this.call('overlapBox', center, halfExtents, options); }
   resetArena(seed?: number): Promise<void> { this.userData.clear(); return this.call('resetArena', seed); }
+  /** Replace the world with an empty SI one; see PhysicsWorld.reset. */
+  reset(options?: ResetOptions): Promise<void> { this.userData.clear(); return this.call('reset', options); }
+  setGravity(gravity: Vec3Like): Promise<void> { return this.call('setGravity', gravity); }
+  gravity(): Promise<[number, number, number]> { return this.call('gravity'); }
+  createBody(options: BodyOptions): Promise<RemoteBody | null> { return this.call('createBody', options); }
+  getState(body: RemoteBody): Promise<BodyState> { return this.call('getState', body); }
+  /** See PhysicsWorld.setMassData. */
+  setMassData(body: RemoteBody, data: MassDataOptions): Promise<void> { return this.call('setMassData', body, data); }
+  resetMassData(body: RemoteBody): Promise<void> { return this.call('resetMassData', body); }
+  getMassData(body: RemoteBody): Promise<BodyMassData> { return this.call('getMassData', body); }
+  setTransform(body: RemoteBody, position: Vec3Like, rotation?: QuatLike): Promise<void> { return this.call('setTransform', body, position, rotation); }
+  setVelocity(body: RemoteBody, linear: Vec3Like, angular?: Vec3Like): Promise<void> { return this.call('setVelocity', body, linear, angular); }
+  moveKinematic(body: RemoteBody, position: Vec3Like, rotation?: QuatLike, seconds?: number): Promise<void> { return this.call('moveKinematic', body, position, rotation, seconds); }
+  setBodyType(body: RemoteBody, type: BodyType): Promise<void> { return this.call('setBodyType', body, type); }
+  setAwake(body: RemoteBody, awake: boolean): Promise<void> { return this.call('setAwake', body, awake); }
+  setGravityScale(body: RemoteBody, scale: number): Promise<void> { return this.call('setGravityScale', body, scale); }
+  setDamping(body: RemoteBody, linear: number, angular: number): Promise<void> { return this.call('setDamping', body, linear, angular); }
+  setCollisionFilter(body: RemoteBody, categoryBits: bigint, maskBits: bigint, groupIndex?: number): Promise<void> { return this.call('setCollisionFilter', body, categoryBits, maskBits, groupIndex); }
+  applyForce(body: RemoteBody, force: Vec3Like, point?: Vec3Like): Promise<void> { return this.call('applyForce', body, force, point); }
+  applyTorque(body: RemoteBody, torque: Vec3Like): Promise<void> { return this.call('applyTorque', body, torque); }
+  applyImpulseAt(body: RemoteBody, impulse: Vec3Like, point: Vec3Like): Promise<void> { return this.call('applyImpulseAt', body, impulse, point); }
+  applyAngularImpulse(body: RemoteBody, impulse: Vec3Like): Promise<void> { return this.call('applyAngularImpulse', body, impulse); }
+  createJoint(options: RemoteJointOptions): Promise<RemoteJoint> { return this.call('createJoint', options); }
+  destroyJoint(joint: RemoteJoint): Promise<boolean> { return this.call('destroyJoint', joint); }
+  isJointAlive(joint: RemoteJoint): Promise<boolean> { return this.call('isJointAlive', joint); }
+  setJointMotor(joint: RemoteJoint, motor: {speed: number; maxForce: number} | null): Promise<void> { return this.call('setJointMotor', joint, motor); }
+  setJointLimits(joint: RemoteJoint, limits: {lower: number; upper: number} | null): Promise<void> { return this.call('setJointLimits', joint, limits); }
+  setJointSpring(joint: RemoteJoint, spring: {hertz: number; dampingRatio: number; target?: number} | null): Promise<void> { return this.call('setJointSpring', joint, spring); }
+  setJointStiffness(joint: RemoteJoint, hertz: number, dampingRatio?: number): Promise<void> { return this.call('setJointStiffness', joint, hertz, dampingRatio); }
+  setJointSteering(joint: RemoteJoint, steering: {angle: number; hertz: number; dampingRatio: number; maxTorque: number} | null): Promise<void> { return this.call('setJointSteering', joint, steering); }
+  getJointState(joint: RemoteJoint): Promise<JointState> { return this.call('getJointState', joint); }
+  /**
+   * Contact and sensor events since the last call. The first call starts
+   * collection in the worker and returns nothing, so call it once at set-up.
+   */
+  takeEvents(): Promise<{events: RemoteWorldEvent[]; dropped: number}> { return this.call('takeEvents'); }
   loadPreset(id: number, stress?: number, seed?: number): Promise<number> { this.userData.clear(); return this.call('loadPreset', id, stress, seed); }
   stats(): Promise<WorldStats> { return this.call('stats'); }
+  /** An exact checkpoint of the worker's world; see PhysicsWorld.checkpoint. */
+  checkpoint(): Promise<Uint8Array> { return this.call('checkpoint'); }
+  /** Put back a checkpoint in the worker's world; see PhysicsWorld.restoreCheckpoint. Resolves once the restored transforms have arrived. */
+  restoreCheckpoint(bytes: Uint8Array): Promise<void> { return this.call('restoreCheckpoint', bytes); }
   exactHash(): Promise<number> { return this.call('exactHash'); }
   replayHash(): Promise<number> { return this.call('replayHash'); }
   startRecording(options?: RecordingOptions): Promise<void> { this.userData.clear(); return this.call('startRecording', options); }

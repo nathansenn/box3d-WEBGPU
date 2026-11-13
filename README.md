@@ -4,13 +4,35 @@ A browser-native 3D physics showcase combining **Box3D rigid bodies**, determini
 
 The current tree preserves the **800 deterministic capability-scene catalog** and expands the director from 34 to **68 hero demonstrations**. Thirty-four recipe-driven material programs add thirteen metal-forming tests, ten architectural-glass fracture tests, ten reinforced-concrete failure tests, and the combined **Apex Materials Proving Ground**. The ten-scene signature set and its exactly **100 runtime-authored AAA improvements** remain unchanged. The material-realism pass keeps the authoritative simulations intact while replacing exposed solver grids with curvature-following skins, giving cold-formed metal restrained coating flakes and procedural environment reflections, separating glass into a two-sided blended Fresnel pass, and rendering concrete dust as translucent media around physical aggregate, spall, and persistent reinforcement. Native Box3D WebAssembly artifacts, SIMD/scalar soft-system kernels, Poliigon-derived GPU material atlases, and the source-frozen v1.13 1,000-case optimization audit remain included.
 
+**Validation.** [docs/VALIDATION.md](docs/VALIDATION.md) lists 592 textbook cases across twenty-two solver domains (rigid bodies and joints, bodies in water, cables and frames carrying bodies, the SI cable-stayed bridge scene, the SI suspension footbridge of the Studio, the one stepping loop with coupled scenes, geometry import, scene files, robot import, calibrated cloth, granular media, volumetric fluid, shallow water on terrain, heat, deformable solids, solids in contact with rigid bodies, fracture of solids, thin plates, frames, cables, closed-basin water, and the material library in the solvers): for each, the closed-form reference, the measured value, the error and the tolerance, plus what is not validated. The numbers are measured by `node scripts/validation-report.mjs`, not typed, and the same report is served with the site at `<site>/validation/`. It covers the numerical solvers; the Studio's authored models are not part of it (the liquid flume, the river, rain and surface tabs and the granular tray run validated solvers: docs/STUDIO_FLOW_LABS.md). Material values with their sources are in [docs/MATERIALS.md](docs/MATERIALS.md) (`box3d-webgpu-kit/materials`).
+
 > This is an AAA-style capability lab and engine foundation. It is not a claim that the numerical Box3D solver runs on WebGPU or that every subsystem of a commercial game engine is complete.
 
 ## Engineering Studio (the shipped page)
 
-`index.html` opens the **BOX3D Engineering Studio**: a suspension bridge, canopy and metal press, plus liquid, glass, concrete, elastomer and granular labs (`/?studio=bridge`, `canopy`, `plate`, `liquid`, `glass`, `concrete`, `rubber`, `granular`). Studies use authored, uncalibrated models for comparison, not engineering predictions. See [docs/ENGINEERING-STUDIO.md](docs/ENGINEERING-STUDIO.md). The capability lab described below remains in the source (`src/main.ts`) and its tests, and is available independently at [`lab.html`](lab.html). Both pages link to each other; Studio remains the default.
+`index.html` opens the **BOX3D Engineering Studio**: a suspension bridge, canopy and metal press, plus liquid, glass, concrete, elastomer and granular labs (`/?studio=bridge`, `canopy`, `plate`, `liquid`, `glass`, `concrete`, `rubber`, `granular`). The suspension bridge runs on an SI model on the validated frame and cable solvers (crowd in kN/m², wind in kN/m, hanger loss; readouts in mm, kN and MPa; [docs/SI_BRIDGE.md](docs/SI_BRIDGE.md#suspension-footbridge-the-studio-bridge)); the liquid and granular labs run on the SI flow solvers (the river, rain and surface tabs on the shallow-water solver) ([docs/STUDIO_FLOW_LABS.md](docs/STUDIO_FLOW_LABS.md)), the glass, elastomer and concrete labs on the SI plate, viscoelastic solid and concrete damage-plasticity solid ([docs/STUDIO_MATERIAL_LABS.md](docs/STUDIO_MATERIAL_LABS.md); the concrete lab's reinforced preset runs as plain concrete and says so), the metal press on the SI press brake ([docs/STUDIO_METAL_PRESS.md](docs/STUDIO_METAL_PRESS.md)) and the canopy on the calibrated cloth with EN 1991-1-4 wind ([docs/STUDIO_CANOPY.md](docs/STUDIO_CANOPY.md)). See [docs/ENGINEERING-STUDIO.md](docs/ENGINEERING-STUDIO.md). The capability lab described below remains in the source (`src/main.ts`) and its tests, and is available independently at [`lab.html`](lab.html). Both pages link to each other; Studio remains the default.
 
 [Merge benchmarks (2026-11-01)](docs/BENCHMARKS_MERGE_20261101.md) compare this integration with the previous `main` on a CPU host and an NVIDIA L4 GPU: renderer correctness and GPU time, native engine, soft bodies, water, Studio solvers, material labs, threaded engine and build size.
+
+## Cable-stayed bridge in SI units
+
+[`lab.html?si=bridge`](lab.html?si=bridge) is a 120 m cable-stayed bridge on the validated solvers, in real units: beam elements for the deck and towers, compliant cables for the 16 stays, a rigid body for the vehicle, coupled both ways. The stays are pretensioned so that the deck is level under dead load; a vehicle crosses; a stay can be failed; the deflection can be drawn up to 100 times larger. The panel shows midspan deflection, stay tensions, the tower base moment, utilisation ratios and energy with SI units. It is checked against statics, a hand solution, influence lines and its own frequencies ([docs/SI_BRIDGE.md](docs/SI_BRIDGE.md)). It has no contact between wheels and deck, no buckling or yielding and no aerodynamics beyond a static wind load, and its ratios are linear-elastic indicators, not a design check. The Studio's suspension-bridge study runs on a sibling SI model in the same document: the Studio's 42 m footbridge with form-found main cables, 70 hangers and portal towers, validated against the parabola, the deflection theory and its own statics.
+
+## Open a scene
+
+The Physics Lab (`lab.html`) opens rigid-body scenes in SI units from a link or a file. Nothing is installed.
+
+- Examples: [`lab.html?example=pendulum-wave`](lab.html?example=pendulum-wave), [`newtons-cradle`](lab.html?example=newtons-cradle), [`domino-run`](lab.html?example=domino-run), [`terrain-car`](lab.html?example=terrain-car), [`ragdoll`](lab.html?example=ragdoll). They are also listed under "SI scenes" at the end of the laboratory catalog.
+- Coupled scenes (rigid bodies with water, cables, cloth, grains, solids or heat, stepped in one loop with an energy and event readout): [`lab.html?example=buoy-and-crates`](lab.html?example=buoy-and-crates), [`trampoline`](lab.html?example=trampoline), [`hopper-seesaw`](lab.html?example=hopper-seesaw), [`suspended-platform`](lab.html?example=suspended-platform), [`moored-buoy`](lab.html?example=moored-buoy), [`cable-stayed-deck`](lab.html?example=cable-stayed-deck). Deformable solids, fracture and heat, coloured by stress, temperature or damage: [`rubber-pad`](lab.html?example=rubber-pad) (solid contact), [`notched-beam`](lab.html?example=notched-beam) (a drop hammer cracks a notched beam), [`quenched-plate`](lab.html?example=quenched-plate) (thermal shock), [`heated-bar`](lab.html?example=heated-bar) (temperature ramp); the rubber pad runs at about 0.05 times real time while the box lands, the quenched plate at about 0.6 once cracked, the others in real time. Volumetric fluid, drawn as a slice coloured by speed or pressure with velocity arrows, or as particles: [`sphere-settling`](lab.html?example=sphere-settling) (a ball settling through syrup to its terminal velocity), [`cavity-flow`](lab.html?example=cavity-flow) (lid-driven cavity, Re 100), [`flow-past-cylinder`](lab.html?example=flow-past-cylinder) (Re 20, two-dimensional), [`dam-break`](lab.html?example=dam-break) (free surface); measured at 1.1 to 3.1 times real time in node and 0.3 to 2.6 times in a software-rendered browser on a loaded machine (the ball and the dam break slowest). See [`docs/SCENE_FORMAT.md`](docs/SCENE_FORMAT.md#in-the-physics-lab).
+- A share link: `lab.html?scene=b3s1…`. The link carries the whole scene; **Copy share link** in the Scenes panel makes one from whatever scene is on screen, as it is at that moment.
+- A file: **Open file…** in the Scenes panel, or drop it on the page. A scene file is `.json` ([format](docs/SCENE_FORMAT.md)); geometry is `.obj`, `.stl`, `.glb` or `.gltf` and becomes one body on the ground. A closed mesh becomes a dynamic body (a convex hull, or several welded hulls when it is concave and has at most 5,000 triangles), anything else a static mesh, and the panel says which and why. A file in millimetres is read as millimetres; the rule is in [docs/SCENE_FORMAT.md](docs/SCENE_FORMAT.md#in-the-physics-lab).
+- **Download scene (.json)** saves the scene on screen, and **Reset** loads it again from its start.
+
+An invalid file or link is reported in the panel with the validator's list of problems, and the scene on screen stays as it is. Hulls, meshes and height fields are drawn from their own geometry ([docs/RENDERING_PIPELINE.md](docs/RENDERING_PIPELINE.md)). This was checked in headless Chromium with software WebGPU, not on a real GPU.
+
+## Build a scene
+
+[`lab.html?edit=1`](lab.html?edit=1) opens the scene editor on an empty SI scene; **Edit** in the Scenes panel opens it on the scene on screen, and [`lab.html?example=domino-run&edit=1`](lab.html?example=domino-run&edit=1) on an example. Add boxes, spheres, capsules, wedges, cylinders, cones, a ramp or a terrain; click a body to select it, drag it over the ground or type its position, rotation and size; give it a material (steel, aluminium, concrete, wood, rubber, ice, glass: typical handbook values with their sources, not calibrated data) or your own density, friction and restitution; join two selected bodies with any of the six joint types; choose the gravity of the Earth, the Moon or Mars. Every edit is checked by the scene format's validator before it is applied and can be undone. Play, pause, step and reset the result, plot a body's position, velocity or energy and export it as CSV, measure a distance, then copy a share link or download the scene. It also opens coupled scenes ([`lab.html?example=sphere-settling&edit=1`](lab.html?example=sphere-settling&edit=1)): their bodies are edited as usual, their water, cables, cloths, grains, solids, heat and fluids are kept as they are and listed, and a few of their values (water level, cloth and solid material, grain count, fluid viscosity) can be set. The editor has no 3D gizmo (rotation is typed) and has been seen in software rendering only. See [docs/SCENE_EDITOR.md](docs/SCENE_EDITOR.md).
 
 ## Runtime catalog (generated)
 
@@ -124,7 +146,7 @@ Box3D remains authoritative for rigid bodies. Cloth, rope, and water numerical s
 Requirements:
 
 - Node.js `^20.19.0` or `>=22.12.0`; CI uses Node 22.
-- A current desktop browser with WebGPU support.
+- A current desktop browser. The Physics Lab (`lab.html`) draws with WebGPU when the browser has it and with WebGL2 otherwise (`?renderer=webgl2` forces WebGL2); see Runtime path below. Both renderers were checked in headless Chromium with software rendering only, not in Safari, Firefox or on phones.
 - `localhost` or HTTPS. Opening `index.html` directly is not supported.
 
 ```bash
@@ -181,12 +203,12 @@ The application degrades by capability instead of refusing to start:
 | Rigid physics | native Box3D C17 WebAssembly | deterministic TypeScript preview | backend badge |
 | Cloth, rope, water kernels | SIMD WebAssembly | scalar WebAssembly, then JavaScript | soft-kernel telemetry |
 | Material failure | deterministic TypeScript beam lattice | same deterministic path | material telemetry panel |
-| Rendering | WebGPU HDR frame graph | no non-WebGPU renderer | startup diagnostics |
+| Rendering (Lab) | WebGPU HDR frame graph | WebGL2 renderer: when WebGPU is missing or fails to start, with `?renderer=webgl2`, or after a lost WebGPU device (no reload) | status bar **Renderer** |
 | Material-noise texture | KTX2 BC4 | KTX2 R8, then procedural R8 | renderer diagnostics |
 | AAA material atlas | KTX2 ASTC 6×6 | KTX2 RGBA8, then deterministic procedural atlas | renderer diagnostics |
 | Remote state | raw full-precision streams | optional TurboQuant transport | TurboQuant probe |
 
-`Deterministic Preview` means only the rigid-body backend has fallen back. Cloth, rope, water, and material specimens remain active. A WebGPU initialization failure is terminal because this project intentionally exercises WebGPU rather than hiding errors behind a WebGL renderer.
+`Deterministic Preview` means only the rigid-body backend has fallen back. Cloth, rope, water, and material specimens remain active. The Lab's WebGL2 renderer draws the same bodies, surfaces, ropes and overlays with the same passes, without the material textures (atlas materials are flat), with isotropic metal highlights and without GPU timing; the physics is the same on both (equal state hashes). `?renderer=webgpu` keeps the old behaviour: WebGPU only, and a lost device is recreated on WebGPU. Details in [docs/RENDERING_PIPELINE.md](docs/RENDERING_PIPELINE.md#webgl2-fallback-lab). The Studio has its own fallback to three.js's WebGL backend after a device loss.
 
 ## What you can simulate
 
@@ -596,6 +618,10 @@ src/soft/material-simulation.ts deterministic bending, plasticity, damage, and f
 src/soft/combined-material-simulation.ts bounded three-rig Apex material composition
 src/soft/kernels.ts             SIMD → scalar → JavaScript kernel selection
 src/webgpu/renderer.ts          frame graph, GPU surfaces, rope/material compute, HDR/post
+src/webgpu/body-geometry.ts     render meshes of hull, mesh, height-field and compound bodies
+src/engine/scene-format.ts      scene files: validator, canonical form, share links, builder (the kit's /scene)
+src/engine/geometry.ts          OBJ, STL and glTF import, convex hulls and decomposition (the kit's /geometry)
+src/lab/                        the Lab's scene loading: address and file reading, geometry import, scene panel
 src/assets/ktx2.ts              ASTC/RGBA8 material atlases, BC4/R8 noise, fallbacks
 src/compression/turboquant.ts   optional remote-state codec
 wasm/box3d_web.c                native Box3D application bridge
@@ -628,7 +654,9 @@ docs/                           architecture, rendering, demo, and test guides
 - [AAA showcase guide](docs/AAA_SHOWCASE.md)
 - [Demo runbook](docs/DEMO_GUIDE.md)
 - [v1.13 benchmark matrix](docs/V1.13_1000_BENCHMARK_MATRIX.md)
-- [Complete validation report](VALIDATION_REPORT.md)
+- [Scene format](docs/SCENE_FORMAT.md) and [scene editor](docs/SCENE_EDITOR.md)
+- [Solver validation against textbook cases, with measured errors](docs/VALIDATION.md) (regenerate with `npm run validation:report`)
+- [Release validation report (gates and builds of earlier releases)](VALIDATION_REPORT.md)
 - [Release history](CHANGELOG.md)
 
 ## License and attribution
@@ -641,8 +669,8 @@ This project is licensed under the MIT License. Upstream Box3D remains under its
 
 | Command | What it runs | Where it runs |
 | --- | --- | --- |
-| `npm run validate:pr` | Core and engineering suites, packaged native and soft runtimes, the sparse-upload and dirty-tracking tests, release contracts, catalog counts, soft soaks, rope batching, native WASM, the 100-case material gate, both builds, Railway staging, `npm audit` | Every pull request (the required check) and every push to `main` |
-| `npm run validate:studio` | The five Studio suites (about 15 minutes) | Pushes to `main` and manual runs |
+| `npm run validate:pr` | Core and engineering suites, packaged native and soft runtimes, the sparse-upload and dirty-tracking tests, the qualification oracles, threaded determinism, release contracts (including the check that every test file runs in a gate), the solver validation check (`npm run validation:check`: every case of `validation/` rerun and compared with the published `docs/VALIDATION.md`), catalog counts, soft soaks, rope batching, native WASM, the 100-case material gate, both builds, Railway staging, `npm audit` | Every pull request (the required check) and every push to `main` |
+| `npm run validate:studio` | The eight Studio suites: failure, presets, river, reference, press, bridge, liquid and material-run suites (about 15 minutes) | Pushes to `main` and manual runs |
 | `npm run test:engine` | The engine suite. Its harness test needs Node 24. | Every CI run, reported without blocking |
 | `npm run test:browser:release` | Both applications in software-rendered Chromium | Every CI run, reported without blocking |
 | `npm run validate:release` | All of the above, with the engine suite and browser acceptance required | Before a release |

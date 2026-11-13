@@ -1,0 +1,1156 @@
+/**
+ * A calibrated library of engineering materials with sources. SI units throughout.
+ * See docs/MATERIALS.md for the table, the citations and how to add a material.
+ *
+ * Every property value carries the conditions it holds for (temperature, grade, temper, moisture), the
+ * figure exactly as it was read in the source (`read`), how it was converted or derived when it was not
+ * read in SI (`derived`), a range where the sources disagree or state one, and the id of the source it
+ * came from. A value that no opened source gave is marked `source: 'unverified'` with a reason; the
+ * helpers refuse such a value unless `allowUnverified` is set, so that nothing unsourced enters a solver
+ * by accident.
+ *
+ * The helpers build the inputs of the solvers from an entry: `solidMaterial` (solid.ts),
+ * `fractureLaw` (solid-fracture.ts), `heatMaterial` (heat.ts), `grainMaterial` (granular.ts) and
+ * `contactPair` / `rigidMaterial` for the rigid world's friction and restitution, and `manningCoefficient` /
+ * `greenAmptSoil` for shallow water (shallow-water.ts) from the bed-roughness and soil tables.
+ *
+ * Nothing here runs a solver; the module only imports types.
+ */
+import {EngineError} from './contracts.ts';
+import type {SolidMaterial} from './solid.ts';
+import type {FractureLaw, FractureModel} from './solid-fracture.ts';
+import type {HeatMaterial} from './heat.ts';
+import type {GranularMaterial} from './granular.ts';
+
+export const MATERIAL_LIBRARY_ID = 'box3d-materials';
+/** Semver of the data: a changed value is a minor release, a removed material or property a major one. */
+export const MATERIAL_LIBRARY_VERSION = '1.6.0';
+/** The date the sources were opened and read. */
+export const MATERIAL_SOURCES_ACCESSED = '2026-11-12';
+
+export type MaterialSourceKind =
+  | 'standard'        // a standard, or a design aid that tabulates a standard's clauses
+  | 'government'      // a government laboratory or agency report or database
+  | 'manufacturer'    // a producer's or distributor's datasheet
+  | 'peer-reviewed'   // a journal or conference paper
+  | 'textbook'        // an open textbook or university course material
+  | 'last-resort';    // an engineering data website, used only where nothing better was found
+
+export interface MaterialSource {
+  readonly id: string;
+  readonly title: string;
+  readonly author: string;
+  readonly kind: MaterialSourceKind;
+  readonly url: string;
+  readonly note?: string;
+}
+
+/** Every source a value was read from. Each URL was opened on MATERIAL_SOURCES_ACCESSED. */
+export const MATERIAL_SOURCES: Readonly<Record<string, MaterialSource>> = deepFreeze({
+  'ec3-design-properties': {id: 'ec3-design-properties', kind: 'standard', author: 'Eurocode Applied (design aid)',
+    title: 'Eurocode 3 Table of design material properties for structural steel (EN 1993-1-1:2005+AC2:2009, 3.2.1 and 3.2.6)',
+    url: 'https://cdn.eurocodeapplied.com/design/en1993/steel-design-properties',
+    note: 'A design aid that tabulates the clauses of EN 1993-1-1; the standard itself was not opened.'},
+  'dlubal-en1993-1-2': {id: 'dlubal-en1993-1-2', kind: 'standard', author: 'Dlubal Software (knowledge base)',
+    title: 'Structural Fire Design According to DIN EN 1993-1-2 (Thermal Material Properties)',
+    url: 'https://www.dlubal.com/en-US/support-and-learning/support/knowledge-base/001496',
+    note: 'Quotes the EN 1993-1-2:2005+AC:2009 formulas for carbon steel; the standard itself was not opened.'},
+  'asm-304': {id: 'asm-304', kind: 'manufacturer', author: 'Aerospace Specification Metals (ASM material data sheet)',
+    title: 'AISI Type 304 Stainless Steel', url: 'https://www.aerospacemetals.com/wp-content/uploads/2023/07/AISI-Type-304-Stainless-Steel.pdf'},
+  'asm-6061-t6': {id: 'asm-6061-t6', kind: 'manufacturer', author: 'Aerospace Specification Metals (ASM material data sheet; data from the Aluminum Association, "AA; Typical", not for design)',
+    title: 'Aluminum 6061-T6; 6061-T651', url: 'https://www.aerospacemetals.com/wp-content/uploads/2023/06/Aluminum-6061-T6-6061-T651.pdf'},
+  'nist-cryo-6061': {id: 'nist-cryo-6061', kind: 'government', author: 'NIST Cryogenic Technologies Group',
+    title: 'Material Properties: 6061-T6 Aluminum (UNS A96061)', url: 'https://trc.nist.gov/cryogenics/materials/6061%20Aluminum/6061_T6Aluminum_rev.htm',
+    note: 'Curve fits for 1 to 300 K; the values here are the fits evaluated at 293.15 K (the Young\'s modulus fit is stated to 295 K).'},
+  'cda-c11000': {id: 'cda-c11000', kind: 'manufacturer', author: 'Copper Development Association',
+    title: 'C11000 Electrolytic Tough Pitch (ETP) copper: properties', url: 'https://alloys.copper.org/alloy/C11000'},
+  'ke-en1561': {id: 'ke-en1561', kind: 'manufacturer', author: 'Kemptener Eisengießerei Adam Hönig AG',
+    title: 'KE factory standard based on EN 1561, cast iron with lamellar graphite (material table)', url: 'https://www.ke-ag.de/wp-content/uploads/2018/10/Werkstofftabelle-GJLver2018.pdf'},
+  'ct-soda-lime': {id: 'ct-soda-lime', kind: 'manufacturer', author: 'Continental Trade Sp. z o.o.',
+    title: 'Soda-lime glass properties (information sheet)', url: 'https://www.continentaltrade.com.pl/en/download/WhfvdEYg1jSqsBXM5x9dRJnJfIPvp1gO/soda-lime-glass-properties.pdf'},
+  'salem-jenkins-2018': {id: 'salem-jenkins-2018', kind: 'peer-reviewed', author: 'J. A. Salem (NASA Glenn), M. G. Jenkins',
+    title: 'Applying ASTM International C1421 to glasses and optical ceramics, Ceramic Engineering and Science Proceedings (42nd ICACC), 2018, Table 4',
+    url: 'https://ntrs.nasa.gov/api/citations/20180005170/downloads/20180005170.pdf'},
+  'ec2-design-properties': {id: 'ec2-design-properties', kind: 'standard', author: 'Eurocode Applied (design aid)',
+    title: 'Table of concrete design properties (fcd, fctm, Ecm, fctd), Eurocode 2 (EN 1992-1-1:2004+AC2:2010, 3.1.2 and 3.1.3)',
+    url: 'https://eurocodeapplied.com/design/en1992/concrete-design-properties',
+    note: 'A design aid that tabulates EN 1992-1-1 Table 3.1; the standard itself was not opened.'},
+  'en1992-1-2': {id: 'en1992-1-2', kind: 'standard', author: 'CEN (BS EN 1992-1-2:2004)',
+    title: 'Eurocode 2: Design of concrete structures, Part 1-2: Structural fire design, clauses 3.3.2 and 3.3.3',
+    url: 'https://www.phd.eng.br/wp-content/uploads/2015/12/en.1992.1.2.2004.pdf'},
+  'ucrl-15151': {id: 'ucrl-15151', kind: 'government', author: 'Willard Owens Associates for Lawrence Livermore Laboratory',
+    title: 'UCRL-15151, Geoscience parameter data base handbook: granites and basalts, Table 1-5 "Intact properties of Barre Granite" (from Office of Waste Isolation, 1978)',
+    url: 'https://www.osti.gov/servlets/purl/5719576', note: 'A scanned report; the heat capacity and the expansion coefficient in the same table are not legible and were not used.'},
+  'wood-handbook-ch5': {id: 'wood-handbook-ch5', kind: 'government', author: 'D. E. Kretschmann, USDA Forest Products Laboratory',
+    title: 'Mechanical Properties of Wood, chapter 5 of the Wood Handbook, FPL-GTR-190 (2010), Tables 5-1, 5-2 and 5-3a',
+    url: 'https://research.fs.usda.gov/download/treesearch/37427.pdf'},
+  'wood-handbook-ch4': {id: 'wood-handbook-ch4', kind: 'government', author: 'S. V. Glass, S. L. Zelinka, USDA Forest Products Laboratory',
+    title: 'Moisture Relations and Physical Properties of Wood, chapter 4 of the Wood Handbook, FPL-GTR-190 (2010), equations 4-15 to 4-18',
+    url: 'https://research.fs.usda.gov/download/treesearch/37428.pdf'},
+  'evonik-plexiglas': {id: 'evonik-plexiglas', kind: 'manufacturer', author: 'Evonik Industries AG',
+    title: 'Technical Information PLEXIGLAS GS/XT (211-1), September 2011', url: 'https://igepa.ee/wp-content/uploads/2017/06/211-1-PLEXIGLAS-GS-XT-en.pdf'},
+  'basf-terluran-gp35': {id: 'basf-terluran-gp35', kind: 'manufacturer', author: 'BASF SE',
+    title: 'Product Information Terluran GP-35 (ABS)', url: 'https://static.chipdip.ru/lib/299/DOC015299117.pdf'},
+  'dupont-zytel-101l': {id: 'dupont-zytel-101l', kind: 'manufacturer', author: 'DuPont',
+    title: 'Zytel 101L NC010 nylon resin (PA66) datasheet', url: 'https://quickparts.com/wp-content/uploads/2023/04/zytel%C2%AE-101l-nc010-gb.pdf'},
+  'ambroziak-2020': {id: 'ambroziak-2020', kind: 'peer-reviewed', author: 'A. Ambroziak',
+    title: 'Characterization study on mechanical properties of polyester coated fabric, Archives of Civil Engineering 66(2) (2020) 105-118, doi:10.24425/ace.2020.131799, Tables 2 and 3',
+    url: 'https://ace.il.pw.edu.pl/pdf-185228-105926?filename=Characterization+Study+on.pdf',
+    note: 'Tests on Precontraint 1302 S2 (PVC-coated polyester, PVDF back): uniaxial and biaxial tensile tests; quotes the manufacturer for weight and thickness.'},
+  'sioen-b6657': {id: 'sioen-b6657', kind: 'manufacturer', author: 'Sioen Industries (Sioline)',
+    title: 'B6657 architectural membrane, Type III PVC-coated polyester: technical data', url: 'https://sioline.com/en/products/b6657'},
+  'proplas-ptfe': {id: 'proplas-ptfe', kind: 'manufacturer', author: 'Professional Plastics (distributor)',
+    title: 'Typical properties of PTFE', url: 'https://www.professionalplastics.com/professionalplastics/content/downloads/Teflon_PTFE.pdf'},
+  'nbs-rp717': {id: 'nbs-rp717', kind: 'government', author: 'N. Bekkedahl, National Bureau of Standards',
+    title: 'Forms of rubber as indicated by temperature-volume relationship, J. Res. NBS 13 (1934) 411, RP717',
+    url: 'https://nvlpubs.nist.gov/nistpubs/jres/13/jresv13n3p411_A2b.pdf'},
+  'nbs-rp844': {id: 'nbs-rp844', kind: 'government', author: 'N. Bekkedahl, H. Matheson, National Bureau of Standards',
+    title: 'Heat capacity, entropy, and free energy of rubber hydrocarbon, J. Res. NBS 15 (1935) 503, RP844',
+    url: 'https://nvlpubs.nist.gov/nistpubs/jres/15/jresv15n5p503_A1b.pdf'},
+  'wood-1977-rubber': {id: 'wood-1977-rubber', kind: 'peer-reviewed', author: 'L. A. Wood, National Bureau of Standards',
+    title: 'Uniaxial Extension and Compression in Stress-Strain Relations of Rubber, J. Res. NBS 82 (1977) 57-63, doi:10.6028/jres.082.005',
+    url: 'https://pmc.ncbi.nlm.nih.gov/articles/PMC6751957'},
+  'schulson-renshaw-2022': {id: 'schulson-renshaw-2022', kind: 'peer-reviewed', author: 'E. M. Schulson, C. E. Renshaw',
+    title: 'Fracture, Friction, and Permeability of Ice, Annu. Rev. Earth Planet. Sci. 50 (2022) 323-343', url: 'https://par.nsf.gov/servlets/purl/10334531'},
+  'etb-ice': {id: 'etb-ice', kind: 'last-resort', author: 'The Engineering ToolBox',
+    title: 'Ice - Thermal Properties', url: 'https://www.engineeringtoolbox.com/ice-thermal-properties-d_576.html'},
+  'nist-webbook-water': {id: 'nist-webbook-water', kind: 'government', author: 'NIST Chemistry WebBook, SRD 69 (E. W. Lemmon, M. O. McLinden, D. G. Friend)',
+    title: 'Thermophysical Properties of Fluid Systems: water, isobar 0.101325 MPa, 293.15 K',
+    url: 'https://webbook.nist.gov/cgi/fluid.cgi?Action=Data&Wide=on&ID=C7732185&Type=IsoBar&Digits=6&P=0.101325&THigh=293.15&TLow=293.15&TInc=1&RefState=DEF&TUnit=K&PUnit=MPa&DUnit=kg%2Fm3&HUnit=kJ%2Fkg&WUnit=m%2Fs&VisUnit=Pa*s&STUnit=N%2Fm'},
+  'segur-oberstar-1951': {id: 'segur-oberstar-1951', kind: 'peer-reviewed', author: 'J. B. Segur, H. E. Oberstar',
+    title: 'Viscosity of Glycerol and Its Aqueous Solutions, Ind. Eng. Chem. 43 (1951) 2117-2120, doi:10.1021/ie50501a040, Table V',
+    url: 'https://faculty.ksu.edu.sa/sites/default/files/viscocity_of_glycerol.pdf', note: 'A scanned copy of the journal article.'},
+  'volk-kahler-2018': {id: 'volk-kahler-2018', kind: 'peer-reviewed', author: 'A. Volk, C. J. Kähler (supplementary material), tabulating N. Bosart and A. O. Snoddy (1928)',
+    title: 'Density model for aqueous glycerol solutions, Exp. Fluids 59 (2018) 75, doi:10.1007/s00348-018-2527-y, Electronic Supplementary Material 2, Table 1 "Measured densities of aqueous glycerol solutions (Bosart and Snoddy 1928)"',
+    url: 'https://media.springernature.com/original/springer-static/esm/art%3A10.1007%2Fs00348-018-2527-y/MediaObjects/348_2018_2527_MOESM2_ESM.pdf'},
+  'brock-2008': {id: 'brock-2008', kind: 'peer-reviewed', author: 'J. Brock, M. R. Nogueira, C. Zakrzevski, F. de Castilhos Corazza, M. L. Corazza, J. V. de Oliveira',
+    title: 'Determinação experimental da viscosidade e condutividade térmica de óleos vegetais (Experimental measurements of viscosity and thermal conductivity of vegetable oils), Ciênc. Tecnol. Aliment. 28 (2008) 564-570, Tables 2 and 3',
+    url: 'https://www.redalyc.org/pdf/3959/395940088010.pdf'},
+  'rodriguez-navarro-2022': {id: 'rodriguez-navarro-2022', kind: 'peer-reviewed', author: 'H. Rodriguez-Navarro, D. Vivanco-Pezantes',
+    title: 'Influence of temperature on the rheological behavior of industrialized honey, Agroindustrial Science 12 (2022) 7-14, doi:10.17268/agroind.sci.2022.01.01',
+    url: 'https://revistas.unitru.edu.pe/index.php/agroindscience/article/download/4359/6544?inline=1'},
+  'cengel-a9-air': {id: 'cengel-a9-air', kind: 'textbook', author: 'Y. A. Çengel, Table A-9, as posted by J. M. Cimbala for Penn State ME 420',
+    title: 'Table A-9: Properties of air at 1 atm pressure', url: 'https://www.me.psu.edu/cimbala/me420/Links/Table_A_9_CC_Properties_of_Air.pdf'},
+  'tang-2019': {id: 'tang-2019', kind: 'peer-reviewed', author: 'H. Tang, R. Song, Y. Dong, X. Song',
+    title: 'Measurement of Restitution and Friction Coefficients for Granular Particles and Discrete Element Simulation for the Tests of Glass Beads, Materials 12 (2019) 3170, doi:10.3390/ma12193170, Tables 3 and 5',
+    url: 'https://www.ebi.ac.uk/europepmc/webservices/rest/PMC6803946/fullTextXML'},
+  'sandeep-2018': {id: 'sandeep-2018', kind: 'peer-reviewed', author: 'C. S. Sandeep, K. Senetakis',
+    title: 'Effect of Young\'s Modulus and Surface Roughness on the Inter-Particle Friction of Granular Materials, Materials 11 (2018) 217, doi:10.3390/ma11020217, Table 1',
+    url: 'https://www.ebi.ac.uk/europepmc/webservices/rest/PMC5848914/fullTextXML'},
+  'sandeep-2020': {id: 'sandeep-2020', kind: 'peer-reviewed', author: 'C. S. Sandeep, L. Luo, K. Senetakis',
+    title: 'Effect of Grain Size and Surface Roughness on the Normal Coefficient of Restitution of Single Grains, Materials 13 (2020) 814, doi:10.3390/ma13040814, Tables 1 and 2',
+    url: 'https://www.ebi.ac.uk/europepmc/webservices/rest/PMC7079616/fullTextXML'},
+  'webmineral-quartz': {id: 'webmineral-quartz', kind: 'last-resort', author: 'Webmineral (D. Barthelmy)',
+    title: 'Quartz Mineral Data', url: 'https://www.webmineral.com/data/Quartz.shtml'},
+  'openstax-up1': {id: 'openstax-up1', kind: 'textbook', author: 'OpenStax (Rice University), University Physics Volume 1',
+    title: '6.2 Friction, Table 6.1 "Approximate Coefficients of Static and Kinetic Friction"', url: 'https://openstax.org/books/university-physics-volume-1/pages/6-2-friction',
+    note: 'The text states that the values are approximate, to one or two digits.'},
+  'etb-friction': {id: 'etb-friction', kind: 'last-resort', author: 'The Engineering ToolBox',
+    title: 'Friction and Friction Coefficients for various Materials', url: 'https://www.engineeringtoolbox.com/friction-coefficients-d_778.html',
+    note: 'Gives no primary reference for its rows.'},
+  'zou-2024': {id: 'zou-2024', kind: 'peer-reviewed', author: 'Z. Zou et al.',
+    title: 'Experimental study of the restitution coefficient of spherical particles, J. Phys.: Conf. Ser. 2730 (2024) 012008, Table 1',
+    url: 'https://iopscience.iop.org/article/10.1088/1742-6596/2730/1/012008/pdf'},
+  'schott-borofloat-33': {id: 'schott-borofloat-33', kind: 'manufacturer', author: 'SCHOTT AG (distributed by Edmund Optics)',
+    title: 'BOROFLOAT 33 - Technical Data (optical properties datasheet, 140827_schott_b33_opt_en)', url: 'https://www.edmundoptics.com/ViewDocument/schott-borofloat-technical-data-sheet-english.pdf'},
+  'agc-stratobel-pvb': {id: 'agc-stratobel-pvb', kind: 'manufacturer', author: 'AGC Glass Europe (H. Lefèvre)',
+    title: 'Material properties of PVB interlayers, Stratobel and Stratobel Strong laminated glass, 20 July 2022', url: 'https://www.agc-yourglass.com/sites/default/files/2022-10/Material%20Properties%20of%20PVB%200722_EN_0.pdf',
+    note: 'Relaxation moduli for load resistance design (EN 16612 / EN 16613); the shortest duration tabulated for standard PVB is 3 s.'},
+  'en1992-1-1': {id: 'en1992-1-1', kind: 'standard', author: 'CEN (BS EN 1992-1-1:2004)',
+    title: 'Eurocode 2: Design of concrete structures, Part 1-1: General rules and rules for buildings: Table 3.1, 3.1.5 (expression 3.14), 3.1.9 and section 11 (Tables 11.1 and 11.3.1)',
+    url: 'https://www.phd.eng.br/wp-content/uploads/2015/12/en.1992.1.1.2004.pdf',
+    note: 'A scanned copy of the standard; read through its text layer, where Table 11.3.1 is partly garbled.'},
+  'sucharda-2020': {id: 'sucharda-2020', kind: 'peer-reviewed', author: 'O. Sucharda',
+    title: 'Identification of Fracture Mechanic Properties of Concrete and Analysis of Shear Capacity of Reinforced Concrete Beams without Transverse Reinforcement, Materials 13 (2020) 2788, doi:10.3390/ma13122788, equation 14 and Table 6',
+    url: 'https://pmc.ncbi.nlm.nih.gov/articles/PMC7344630/',
+    note: 'Quotes the fib Model Code 2010 fracture energy G_F = 73 f_c^0.18 (N/m, f_c in MPa); the Model Code itself was not opened.'},
+  'syalons-aloxalon-96': {id: 'syalons-aloxalon-96', kind: 'manufacturer', author: 'International Syalons (Newcastle) Ltd',
+    title: 'Alumina: Aloxalon 96 (96% Al2O3) property table', url: 'https://syalons.com/materials/alumina/'},
+  'morgan-al600': {id: 'morgan-al600', kind: 'manufacturer', author: 'Morgan Advanced Materials',
+    title: 'AL600 data sheet (96% Al2O3 alumina)', url: 'https://morgantechnicalceramics.com/media/2296/al600.pdf'},
+  'chow-1959-unspider': {id: 'chow-1959-unspider', kind: 'textbook', author: 'V. T. Chow, Open-Channel Hydraulics (McGraw-Hill, 1959), as reproduced by UN-SPIDER',
+    title: 'Appendix I: Surface Roughness and Manning\'s n Table (Chow, 1959), minimum, normal and maximum values',
+    url: 'https://www.un-spider.org/sites/default/files/Table_Surface_roughness_Manning_n_Chow_1959.pdf',
+    note: 'A reproduction of Chow\'s table for natural streams, floodplains, excavated and lined channels; Chow\'s book itself was not opened.'},
+  'ponce-chow-manning': {id: 'ponce-chow-manning', kind: 'textbook', author: 'V. M. Ponce, San Diego State University (online Open-channel hydraulics), after Chow (1959)',
+    title: 'Table 5-4: Recommended range of values of Manning\'s n (closed conduits flowing partly full; lined or built-up channels)',
+    url: 'https://ponce.sdsu.edu/open_channel_hydraulics_05_manningsntable.html',
+    note: 'Gives the rows for metal and glass that the UN-SPIDER reproduction leaves out.'},
+  'rawls-1983': {id: 'rawls-1983', kind: 'peer-reviewed', author: 'W. J. Rawls, D. L. Brakensiek, N. Miller',
+    title: 'Green-Ampt infiltration parameters from soils data, J. Hydraul. Eng. 109(1) (1983) 62-70, Table 2 (texture-class rows) and equations 1 and 2',
+    url: 'https://dnrftp.state.co.us/DWR/DamSafety/HydrologyGuidelines_doNOTdelete/Guidelines_References/Rawls%20et%20al%20Green-Ampt%20Infiltration%20parameters%20from%20soils%20data%20ASCE%201983.pdf',
+    note: 'A scan hosted by the Colorado Division of Water Resources. The suction head is the antilog of the log mean; its range is one standard deviation. K is the Green-Ampt conductivity, half the saturated conductivity (Bouwer).'},
+} satisfies Record<string, MaterialSource>);
+
+export type MaterialPropertyName =
+  | 'density' | 'youngModulus' | 'poissonRatio' | 'shearModulus'
+  | 'yieldStrength' | 'tensileStrength' | 'compressiveStrength' | 'flexuralStrength'
+  | 'fractureToughness' | 'fractureEnergy' | 'elongationAtBreak' | 'peakStrain' | 'ultimateStrain'
+  | 'arealDensity' | 'membraneStiffnessWarp' | 'membraneStiffnessWeft' | 'membraneShearStiffness' | 'membranePoissonRatio'
+  | 'tensileStrengthWarp' | 'tensileStrengthWeft' | 'tearStrength'
+  | 'thermalConductivity' | 'specificHeat' | 'thermalExpansion'
+  | 'viscosity' | 'soundSpeed';
+
+/** The SI unit of each property. */
+export const MATERIAL_PROPERTY_UNITS: Readonly<Record<MaterialPropertyName, string>> = Object.freeze({
+  density: 'kg/m^3', youngModulus: 'Pa', poissonRatio: '1', shearModulus: 'Pa',
+  yieldStrength: 'Pa', tensileStrength: 'Pa', compressiveStrength: 'Pa', flexuralStrength: 'Pa',
+  fractureToughness: 'Pa m^0.5', fractureEnergy: 'J/m^2', elongationAtBreak: '1', peakStrain: '1', ultimateStrain: '1',
+  arealDensity: 'kg/m^2', membraneStiffnessWarp: 'N/m', membraneStiffnessWeft: 'N/m', membraneShearStiffness: 'N/m', membranePoissonRatio: '1',
+  tensileStrengthWarp: 'N/m', tensileStrengthWeft: 'N/m', tearStrength: 'N',
+  thermalConductivity: 'W/(m K)', specificHeat: 'J/(kg K)', thermalExpansion: '1/K',
+  viscosity: 'Pa s', soundSpeed: 'm/s',
+});
+
+export interface MaterialValue {
+  /** The value in SI units (MATERIAL_PROPERTY_UNITS). */
+  readonly value: number;
+  /** Low and high ends where the sources disagree or one states a range. */
+  readonly range?: readonly [number, number];
+  /** Plus or minus this much (one standard deviation, or the stated scatter), in SI units. */
+  readonly uncertainty?: number;
+  /** Temperature, grade, temper, moisture, orientation, test method. */
+  readonly conditions: string;
+  /** A MATERIAL_SOURCES id, or 'unverified'. */
+  readonly source: string;
+  /** Additional sources that gave the range. */
+  readonly also?: readonly string[];
+  /** The figure exactly as read in the source, with its unit. Empty for an unverified value. */
+  readonly read: string;
+  /** How the SI value follows from what was read, when it is not the same number. */
+  readonly derived?: string;
+  /** Why a value is unverified. */
+  readonly reason?: string;
+}
+
+export type MaterialCategory = 'metal' | 'glass' | 'ceramic' | 'stone' | 'concrete' | 'wood' | 'polymer' | 'elastomer' | 'ice' | 'fluid' | 'granular' | 'fabric';
+
+export interface MaterialEntry {
+  readonly id: string;
+  readonly name: string;
+  readonly category: MaterialCategory;
+  /** Grade, temper, species, the conditions that hold for the whole entry. */
+  readonly grade: string;
+  /** False for wood: the elastic values are along the grain and the shear modulus is G_LR. */
+  readonly isotropic: boolean;
+  readonly properties: Readonly<Partial<Record<MaterialPropertyName, MaterialValue>>>;
+  /** Known disagreements inside the entry, kept as the sources state them. */
+  readonly flags?: readonly string[];
+  readonly notes?: readonly string[];
+}
+
+export type ContactCondition = 'dry' | 'lubricated' | 'wet';
+
+export interface ContactPairEntry {
+  readonly a: string;
+  readonly b: string;
+  readonly condition: ContactCondition;
+  /** Coefficient of static friction. */
+  readonly staticFriction?: MaterialValue;
+  /** Coefficient of kinetic (sliding) friction. */
+  readonly kineticFriction?: MaterialValue;
+  /** A coefficient the source does not call static or kinetic. */
+  readonly friction?: MaterialValue;
+  /** Normal coefficient of restitution, with the impact speed in its conditions and in `impactSpeed`. */
+  readonly restitution?: MaterialValue;
+  /** Impact speeds, m/s, at which the restitution was measured; null when the source does not state them. */
+  readonly impactSpeed?: readonly [number, number] | null;
+}
+
+const UNVERIFIED = 'unverified';
+const CARRIED = 'No source was opened for this value. It is the scene editor\'s earlier typical value, written from memory (docs/SCENE_EDITOR.md before the library), kept so that the editor keeps a value for it.';
+
+function deepFreeze<T>(value: T): T {
+  if (value && typeof value === 'object' && !Object.isFrozen(value)) {
+    Object.freeze(value);
+    for (const key of Object.keys(value as object)) deepFreeze((value as Record<string, unknown>)[key]);
+  }
+  return value;
+}
+
+type V = MaterialValue;
+const v = (value: number, source: string, read: string, conditions: string, extra: Partial<V> = {}): V => ({value, source, read, conditions, ...extra});
+const unverified = (value: number, conditions: string, reason: string, extra: Partial<V> = {}): V => ({value, source: UNVERIFIED, read: '', conditions, reason, ...extra});
+
+const KSI = 6.894757e6, PSI = 6894.757;
+
+const steelCommon = (grade: string): Partial<Record<MaterialPropertyName, V>> => ({
+  density: v(7850, 'ec3-design-properties', 'rho ≈ 7850 kg/m3', `${grade}, EN 1993-1-1 3.2.6 design value`),
+  youngModulus: v(210e9, 'ec3-design-properties', 'E = 210000 MPa', `${grade}, EN 1993-1-1 3.2.6`),
+  poissonRatio: v(0.3, 'ec3-design-properties', 'nu = 0.30', `${grade}, elastic range, EN 1993-1-1 3.2.6`),
+  shearModulus: v(81e9, 'ec3-design-properties', 'G = E / [2 (1 + nu)] ≈ 81000 MPa', `${grade}, EN 1993-1-1 3.2.6`),
+  thermalExpansion: v(12e-6, 'ec3-design-properties', 'alpha = 12 x 10^-6 1/K', `${grade}, EN 1993-1-1 3.2.6, for T <= 100 °C`),
+  thermalConductivity: v(53.334, 'dlubal-en1993-1-2', 'lambda_a = 54 - 3.33 x 10^-2 theta_a W/(m K), 20 °C <= theta_a < 800 °C', 'carbon steel at 20 °C, EN 1993-1-2',
+    {derived: 'evaluated at theta_a = 20 °C'}),
+  specificHeat: v(439.8, 'dlubal-en1993-1-2', 'c_a = 425 + 7.73 x 10^-1 theta_a - 1.69 x 10^-3 theta_a^2 + 2.22 x 10^-6 theta_a^3 J/(kg K), 20 °C <= theta_a < 600 °C',
+    'carbon steel at 20 °C, EN 1993-1-2', {derived: 'evaluated at theta_a = 20 °C: 425 + 15.46 - 0.676 + 0.018'}),
+});
+
+/** The library's materials, by id. */
+export const MATERIALS: Readonly<Record<string, MaterialEntry>> = deepFreeze({
+  'structural-steel-s355': {id: 'structural-steel-s355', name: 'Structural steel S355', category: 'metal', grade: 'EN 10025-2 S355, thickness up to 40 mm', isotropic: true,
+    properties: {...steelCommon('S355'),
+      yieldStrength: v(355e6, 'ec3-design-properties', 'f_y = 355 MPa', 'S355, EN 10025-2, t <= 40 mm (nominal)'),
+      tensileStrength: v(490e6, 'ec3-design-properties', 'f_u = 490 MPa', 'S355, EN 10025-2, t <= 40 mm (nominal)'),
+      elongationAtBreak: unverified(0.22, 'S355, EN 10025-2 minimum A (L0 = 5.65 sqrt(S0)), 3 < t <= 40 mm, longitudinal',
+        'The opened design aid gives no elongation and EN 10025-2 itself was not opened; 22% is the standard\'s minimum as remembered, not read.')},
+    notes: ['No fracture toughness: none was found in an opened source; structural steel is ductile at room temperature and its toughness depends on the grade\'s Charpy class.']},
+  'structural-steel-s235': {id: 'structural-steel-s235', name: 'Structural steel S235', category: 'metal', grade: 'EN 10025-2 S235, thickness up to 40 mm', isotropic: true,
+    properties: {...steelCommon('S235'),
+      yieldStrength: v(235e6, 'ec3-design-properties', 'f_y = 235 MPa', 'S235, EN 10025-2, t <= 40 mm (nominal)'),
+      tensileStrength: v(360e6, 'ec3-design-properties', 'f_u = 360 MPa', 'S235, EN 10025-2, t <= 40 mm (nominal)')}},
+  'stainless-304': {id: 'stainless-304', name: 'Stainless steel 304', category: 'metal', grade: 'AISI 304 (UNS S30400), annealed', isotropic: true,
+    properties: {
+      density: v(8000, 'asm-304', '8 g/cc', 'room temperature'),
+      youngModulus: v(196.5e9, 'asm-304', '193 - 200 GPa', 'room temperature', {range: [193e9, 200e9], derived: 'middle of the stated range'}),
+      poissonRatio: v(0.29, 'asm-304', '0.29', 'room temperature'),
+      shearModulus: v(86e9, 'asm-304', '86 GPa', 'room temperature'),
+      yieldStrength: v(215e6, 'asm-304', '215 MPa at 0.2% offset', 'annealed, room temperature'),
+      tensileStrength: v(505e6, 'asm-304', '505 MPa', 'annealed, room temperature'),
+      thermalConductivity: v(16.2, 'asm-304', '16.2 W/m-K at 0-100 °C', '0 to 100 °C'),
+      specificHeat: v(500, 'asm-304', '0.5 J/g-°C from 0-100 °C', '0 to 100 °C'),
+      thermalExpansion: v(17.3e-6, 'asm-304', '17.3 µm/m-°C, from 0-100 °C', 'mean, 0 to 100 °C')},
+    flags: ['The sheet\'s shear modulus, 86 GPa, is 11% to 15% above E / (2 (1 + nu)) = 74.8 to 77.5 GPa from its own E and nu. Both are kept as stated; solidMaterial uses E and nu.']},
+  'aluminium-6061-t6': {id: 'aluminium-6061-t6', name: 'Aluminium 6061-T6', category: 'metal', grade: 'AA 6061-T6 / T651 (UNS A96061)', isotropic: true,
+    properties: {
+      density: v(2700, 'asm-6061-t6', '2.7 g/cc (AA; Typical)', 'room temperature'),
+      youngModulus: v(68.9e9, 'asm-6061-t6', '68.9 GPa (AA; Typical; average of tension and compression)', 'room temperature',
+        {range: [68.9e9, 70.35e9], also: ['nist-cryo-6061'], derived: 'NIST fit E(T) = 77.71221 + 1.030646e-2 T - 2.9241e-4 T^2 + 8.9936e-7 T^3 - 1.0709e-9 T^4 GPa gives 70.35 GPa at 293.15 K'}),
+      poissonRatio: v(0.33, 'asm-6061-t6', '0.33 (estimated from trends in similar Al alloys)', 'room temperature'),
+      shearModulus: v(26e9, 'asm-6061-t6', '26 GPa (estimated from similar Al alloys)', 'room temperature'),
+      yieldStrength: v(276e6, 'asm-6061-t6', '276 MPa (AA; Typical)', 'T6, room temperature'),
+      tensileStrength: v(310e6, 'asm-6061-t6', '310 MPa (AA; Typical)', 'T6, room temperature'),
+      elongationAtBreak: v(0.12, 'asm-6061-t6', 'Elongation at Break 12 % (AA; Typical; 1/16 in. (1.6 mm) Thickness); 17 % (1/2 in. (12.7 mm) Diameter)', 'T6 sheet 1.6 mm, room temperature; 17% for 12.7 mm bar', {range: [0.12, 0.17]}),
+      fractureToughness: v(29e6, 'asm-6061-t6', '29 MPa-m^1/2 (K_IC; TL orientation)', 'T6, TL orientation'),
+      thermalConductivity: v(167, 'asm-6061-t6', '167 W/m-K (AA; Typical at 77 °F)', '25 °C',
+        {range: [154.4, 167], also: ['nist-cryo-6061'], derived: 'NIST log-polynomial fit evaluated at 293.15 K gives 154.4 W/(m K) (fit error 0.5%)'}),
+      specificHeat: v(896, 'asm-6061-t6', '0.896 J/g-°C', 'room temperature',
+        {range: [896, 943], also: ['nist-cryo-6061'], derived: 'NIST log-polynomial fit evaluated at 293.15 K gives 943 J/(kg K) (fit error 5%)'}),
+      thermalExpansion: v(23.6e-6, 'asm-6061-t6', '23.6 µm/m-°C (AA; Typical; average over 68-212 °F)', 'mean, 20 to 100 °C')}},
+  'copper-c11000': {id: 'copper-c11000', name: 'Copper C11000 (ETP)', category: 'metal', grade: 'C11000 electrolytic tough pitch, annealed (OS050) unless stated', isotropic: true,
+    properties: {
+      density: v(8910, 'cda-c11000', 'specific gravity 8.91; density 0.322 lb/cu in at 68 °F (actual 0.321 - 0.323)', '20 °C',
+        {range: [8885, 8941], derived: '0.321 and 0.323 lb/in^3 x 27679.9'}),
+      youngModulus: v(117.21e9, 'cda-c11000', 'modulus of elasticity in tension 17000 ksi', 'room temperature', {derived: '17000 ksi x 6.894757 MPa/ksi'}),
+      shearModulus: v(44.126e9, 'cda-c11000', 'modulus of rigidity 6400 ksi', 'room temperature', {derived: '6400 ksi x 6.894757 MPa/ksi'}),
+      poissonRatio: v(0.328, 'cda-c11000', 'derived from the two moduli above', 'room temperature', {derived: 'nu = E / (2 G) - 1 = 117.21 / 88.25 - 1'}),
+      yieldStrength: v(68.95e6, 'cda-c11000', 'YS-0.5% Ext 10 ksi (flat, OS050, typical); 44 ksi for hard (H04) rod', 'annealed OS050; up to hard H04',
+        {range: [68.95e6, 303.4e6], derived: 'ksi x 6.894757 MPa/ksi'}),
+      tensileStrength: v(220.6e6, 'cda-c11000', 'tensile strength 32 ksi (flat, OS050, typical); 48 ksi for hard (H04) rod', 'annealed OS050; up to hard H04',
+        {range: [220.6e6, 330.9e6], derived: 'ksi x 6.894757 MPa/ksi'}),
+      thermalConductivity: v(391.1, 'cda-c11000', '226 Btu/ sq ft/ ft hr/ °F at 68 °F', '20 °C', {derived: '226 x 1.730735 W/(m K) per Btu/(ft h °F)'}),
+      specificHeat: v(385.2, 'cda-c11000', '0.092 Btu/ lb /°F at 68 °F', '20 °C', {derived: '0.092 x 4186.8 J/(kg K) per Btu/(lb °F)'}),
+      thermalExpansion: v(16.92e-6, 'cda-c11000', '9.4 x 10^-6 per °F (68 - 212 °F)', 'mean, 20 to 100 °C', {derived: '9.4e-6 x 1.8'})}},
+  'cast-iron-gjl-250': {id: 'cast-iron-gjl-250', name: 'Grey cast iron EN-GJL-250', category: 'metal', grade: 'EN-GJL-250 (EN-JL-1040; comparable ASTM A48 class 35/40), pearlitic, separately cast 30 mm specimen', isotropic: true,
+    properties: {
+      density: v(7200, 'ke-en1561', '7,20 g/cm3', 'room temperature'),
+      youngModulus: v(110.5e9, 'ke-en1561', 'E (load-dependent) 103 - 118 kN/mm2', 'room temperature, depends on the load', {range: [103e9, 118e9], derived: 'middle of the stated range'}),
+      poissonRatio: v(0.26, 'ke-en1561', '0,26', 'room temperature'),
+      yieldStrength: v(196.5e6, 'ke-en1561', 'Rp0,1 165 - 228 N/mm2 (0.1% elastic limit)', '0.1% proof stress', {range: [165e6, 228e6], derived: 'middle of the stated range'}),
+      tensileStrength: v(300e6, 'ke-en1561', 'Rm 250 - 350 N/mm2', 'separately cast 30 mm specimen', {range: [250e6, 350e6], derived: 'middle of the stated range'}),
+      compressiveStrength: v(840e6, 'ke-en1561', 'sigma_dB 840 N/mm2', 'room temperature'),
+      fractureToughness: v(15.18e6, 'ke-en1561', 'K_IC 480 N/mm^3/2', 'room temperature', {derived: '480 N/mm^1.5 x 31622.8 (Pa m^0.5 per N mm^-1.5)'}),
+      thermalConductivity: v(48.5, 'ke-en1561', 'lambda (100 - 500 °C) 48,5 - 44,5 W/(m K)', '100 °C (44.5 at 500 °C)', {range: [44.5, 48.5]}),
+      specificHeat: v(460, 'ke-en1561', 'c 20° - 200° C = 460 J/(kg K)', 'mean, 20 to 200 °C'),
+      thermalExpansion: v(11.7e-6, 'ke-en1561', 'alpha 20° - 200° C = 11,7 µm/(m K)', 'mean, 20 to 200 °C')}},
+  'soda-lime-glass': {id: 'soda-lime-glass', name: 'Soda-lime glass', category: 'glass', grade: 'float / sheet soda-lime-silica glass, annealed', isotropic: true,
+    properties: {
+      density: v(2500, 'ct-soda-lime', '2 500 kg/m3 (@ 18 °C)', '18 °C'),
+      youngModulus: v(72e9, 'ct-soda-lime', '72 GPa', 'room temperature'),
+      shearModulus: v(30e9, 'ct-soda-lime', '30 GPa', 'room temperature'),
+      poissonRatio: v(0.23, 'ct-soda-lime', '0,23', 'room temperature'),
+      flexuralStrength: v(41e6, 'ct-soda-lime', 'flexural strength, annealed: 41 MPa (heat-strengthened 83, toughened 165)', 'annealed'),
+      fractureToughness: v(0.75e6, 'salem-jenkins-2018', 'soda lime silicate 0.75 ± 0.04 (35/73) in air; 0.79 ± 0.02 in dry N2 (MPa√m, ASTM C1421)', 'in air at 35% RH and 73 °F; 0.79 MPa√m dry',
+        {uncertainty: 0.04e6, range: [0.71e6, 0.81e6], derived: 'range: air mean minus one deviation to dry mean plus one deviation'}),
+      thermalConductivity: v(0.937, 'ct-soda-lime', '0,937 W/(m K)', 'room temperature'),
+      specificHeat: v(880, 'ct-soda-lime', '0,88 kJ/(kg K)', 'room temperature'),
+      thermalExpansion: v(8.3e-6, 'ct-soda-lime', '8,3 * 10^-6 °C', 'room temperature')},
+    notes: ['The strength of glass is set by its surface flaws, not by a material constant; 41 MPa is the sheet\'s figure for annealed glass in bending.']},
+  'soda-lime-glass-toughened': {id: 'soda-lime-glass-toughened', name: 'Soda-lime glass, thermally toughened', category: 'glass', grade: 'float soda-lime-silica glass, thermally toughened (tempered)', isotropic: true,
+    properties: {
+      density: v(2500, 'ct-soda-lime', '2 500 kg/m3 (@ 18 °C)', '18 °C; toughening does not change the glass'),
+      youngModulus: v(72e9, 'ct-soda-lime', '72 GPa', 'room temperature'),
+      shearModulus: v(30e9, 'ct-soda-lime', '30 GPa', 'room temperature'),
+      poissonRatio: v(0.23, 'ct-soda-lime', '0,23', 'room temperature'),
+      flexuralStrength: v(165e6, 'ct-soda-lime', 'flexural strength, annealed: 41 MPa (heat-strengthened 83, toughened 165)', 'thermally toughened'),
+      fractureToughness: v(0.75e6, 'salem-jenkins-2018', 'soda lime silicate 0.75 ± 0.04 (35/73) in air; 0.79 ± 0.02 in dry N2 (MPa√m, ASTM C1421)', 'in air at 35% RH and 73 °F; toughening adds residual stress, not toughness',
+        {uncertainty: 0.04e6, range: [0.71e6, 0.81e6], derived: 'range: air mean minus one deviation to dry mean plus one deviation'})},
+    notes: ['Toughening puts the surfaces in compression. The difference between the toughened and annealed flexural strengths of the same sheet, 165 - 41 = 124 MPa, is the surface compression a crack must first overcome.']},
+  'borosilicate-glass': {id: 'borosilicate-glass', name: 'Borosilicate glass (BOROFLOAT 33)', category: 'glass', grade: 'SCHOTT BOROFLOAT 33 float borosilicate glass', isotropic: true,
+    properties: {
+      density: v(2230, 'schott-borofloat-33', 'Density (25 °C) 2.23 g/cm3', '25 °C'),
+      youngModulus: v(64e9, 'schott-borofloat-33', 'Young\'s Modulus (according to DIN 13316) 64 kN/mm2', 'room temperature'),
+      poissonRatio: v(0.2, 'schott-borofloat-33', 'Poisson\'s Ratio µ (according to DIN 13316) 0.2', 'room temperature'),
+      flexuralStrength: v(25e6, 'schott-borofloat-33', 'Bending Strength (according to DIN 52292 T 1) 25 MPa', 'DIN 52292 part 1'),
+      thermalExpansion: v(3.25e-6, 'schott-borofloat-33', 'Linear Thermal Expansion (C.T.E.) alpha(20 - 300 °C) 3.25 x 10-6 K-1', 'mean, 20 to 300 °C')},
+    notes: ['25 MPa is the datasheet\'s bending strength, lower than the 41 MPa of the annealed soda-lime sheet in this library; both are set by surface flaws.']},
+  'pvb-interlayer': {id: 'pvb-interlayer', name: 'PVB interlayer (Stratobel)', category: 'polymer', grade: 'standard PVB of AGC Stratobel laminated glass, nominal 0.76 mm (xx.2)', isotropic: true,
+    properties: {
+      density: v(1070, 'agc-stratobel-pvb', 'Density at 23 °C ASTM D792: Stratobel 1070 kg/m3', '23 °C'),
+      youngModulus: v(33e6, 'agc-stratobel-pvb', 'Wind gust (other areas), 3 sec., 0 °C to 20 °C: Young\'s modulus E 33 MPa (Stratobel)', 'relaxation modulus for a 3 s load at 0 to 20 °C; shorter loads are stiffer', {range: [2.5e6, 33e6], derived: 'range: 2.5 MPa (3 s, 0 to 35 °C) to 33 MPa (3 s, 0 to 20 °C)'}),
+      poissonRatio: v(0.5, 'agc-stratobel-pvb', 'Poisson\'s ratio at 23 °C and 50% RH ASTM D638: Stratobel 0.5', '23 °C, 50% RH')},
+    notes: ['A viscoelastic polymer: its modulus falls by orders of magnitude with load duration and temperature (the source tabulates 0.19 to 33 MPa for standard PVB). An impact lasts milliseconds, shorter than the shortest tabulated duration, so 33 MPa is a lower bound there.']},
+  'concrete-c30-37': {id: 'concrete-c30-37', name: 'Concrete C30/37', category: 'concrete', grade: 'normal-weight concrete, strength class C30/37 (EN 1992-1-1), siliceous or calcareous aggregate', isotropic: true,
+    properties: {
+      density: v(2400, 'en1992-1-2', '2300 kg/m3 (siliceous concrete with 3% moisture, EN 1992-1-2 3.3.2 figure); ≈ 2500 kg/m3 for reinforced concrete (design aid)', 'plain normal-weight concrete',
+        {range: [2300, 2500], also: ['ec2-design-properties'], derived: 'middle of the two figures read'}),
+      youngModulus: v(32.837e9, 'ec2-design-properties', 'E_cm = 32837 MPa (C30/37)', 'secant modulus at 28 days, quartzite-type aggregate'),
+      poissonRatio: v(0.2, 'ec2-design-properties', 'nu = 0.2 (uncracked concrete), clause 3.1.3(4)', 'uncracked'),
+      compressiveStrength: v(38e6, 'ec2-design-properties', 'f_cm = 38 MPa (f_ck = 30 MPa)', 'mean cylinder strength at 28 days; characteristic 30 MPa', {range: [30e6, 38e6]}),
+      tensileStrength: v(2.9e6, 'ec2-design-properties', 'f_ctm = 2.90 MPa', 'mean axial tensile strength at 28 days'),
+      peakStrain: v(0.0022, 'en1992-1-1', 'Table 3.1: eps_c1 (per mille) 2,2 (C30/37); eps_c1 = 0,7 f_cm^0,31 < 2,8', 'strain at the peak of the 3.1.5 curve (short-term uniaxial)', {derived: 'per mille / 1000'}),
+      ultimateStrain: v(0.0035, 'en1992-1-1', 'Table 3.1: eps_cu1 (per mille) 3,5 for f_ck <= 50 MPa', 'nominal ultimate strain of the 3.1.5 curve', {derived: 'per mille / 1000'}),
+      fractureEnergy: v(140.5, 'sucharda-2020', 'G_F = 73 f_c^0.18 (fib Model Code 2010), N/m', 'mean tensile fracture energy from f_cm = 38 MPa', {derived: '73 x 38^0.18 = 140.5 N/m'}),
+      thermalConductivity: v(1.642, 'en1992-1-2', 'upper limit lambda_c = 2 - 0,2451 (theta/100) + 0,0107 (theta/100)^2 W/m K; lower limit 1,36 - 0,136 (theta/100) + 0,0057 (theta/100)^2', '20 °C',
+        {range: [1.333, 1.951], derived: 'both limits evaluated at 20 °C; the value is their mean'}),
+      specificHeat: v(900, 'en1992-1-2', 'c_p(theta) = 900 J/kg K for 20 °C <= theta <= 100 °C', 'dry concrete (moisture 0%), 20 to 100 °C'),
+      thermalExpansion: v(10e-6, 'ec2-design-properties', 'alpha = 10 x 10^-6 1/K, clause 3.1.3(5)', 'design value')},
+    notes: ['The fracture energy is the fib Model Code 2010 formula as quoted in a paper (the Model Code was not opened). fractureLaw uses it, with the tensile strength, when no toughness is passed.']},
+  'concrete-c20-25': {id: 'concrete-c20-25', name: 'Concrete C20/25', category: 'concrete', grade: 'normal-weight concrete, strength class C20/25 (EN 1992-1-1), quartzite aggregate', isotropic: true,
+    properties: {
+      density: v(2400, 'en1992-1-2', '2300 kg/m3 (siliceous concrete with 3% moisture, EN 1992-1-2 3.3.2 figure); ≈ 2500 kg/m3 for reinforced concrete (design aid)', 'plain normal-weight concrete',
+        {range: [2300, 2500], also: ['ec2-design-properties'], derived: 'middle of the two figures read'}),
+      youngModulus: v(29.962e9, 'ec2-design-properties', 'E_cm = 29962 MPa (C20/25)', 'secant modulus at 28 days, quartzite aggregate', {range: [29.962e9, 30e9], also: ['en1992-1-1'], derived: 'Table 3.1 rounds it to 30 GPa'}),
+      poissonRatio: v(0.2, 'en1992-1-1', '3.1.3 (4): Poisson\'s ratio may be taken equal to 0,2 for uncracked concrete', 'uncracked'),
+      compressiveStrength: v(28e6, 'en1992-1-1', 'Table 3.1: f_cm (MPa) 28 (f_ck 20); f_cm = f_ck + 8', 'mean cylinder strength at 28 days; characteristic 20 MPa', {range: [20e6, 28e6]}),
+      tensileStrength: v(2.21e6, 'ec2-design-properties', 'f_ctm = 2.21 MPa (C20/25)', 'mean axial tensile strength at 28 days', {range: [2.2e6, 2.21e6], also: ['en1992-1-1'], derived: 'Table 3.1 gives 2,2'}),
+      peakStrain: v(0.0020, 'en1992-1-1', 'Table 3.1: eps_c1 (per mille) 2,0 (C20/25)', 'strain at the peak of the 3.1.5 curve', {derived: 'per mille / 1000'}),
+      ultimateStrain: v(0.0035, 'en1992-1-1', 'Table 3.1: eps_cu1 (per mille) 3,5 for f_ck <= 50 MPa', 'nominal ultimate strain of the 3.1.5 curve', {derived: 'per mille / 1000'}),
+      fractureEnergy: v(133.0, 'sucharda-2020', 'G_F = 73 f_c^0.18 (fib Model Code 2010), N/m', 'mean tensile fracture energy from f_cm = 28 MPa', {derived: '73 x 28^0.18 = 133.0 N/m'})}},
+  'concrete-c60-75': {id: 'concrete-c60-75', name: 'Concrete C60/75', category: 'concrete', grade: 'high-strength normal-weight concrete, strength class C60/75 (EN 1992-1-1), quartzite aggregate', isotropic: true,
+    properties: {
+      density: v(2400, 'en1992-1-2', '2300 kg/m3 (siliceous concrete with 3% moisture, EN 1992-1-2 3.3.2 figure); ≈ 2500 kg/m3 for reinforced concrete (design aid)', 'plain normal-weight concrete',
+        {range: [2300, 2500], also: ['ec2-design-properties'], derived: 'middle of the two figures read'}),
+      youngModulus: v(39.1e9, 'ec2-design-properties', 'E_cm = 39100 MPa (C60/75)', 'secant modulus at 28 days, quartzite aggregate', {also: ['en1992-1-1']}),
+      poissonRatio: v(0.2, 'en1992-1-1', '3.1.3 (4): Poisson\'s ratio may be taken equal to 0,2 for uncracked concrete', 'uncracked'),
+      compressiveStrength: v(68e6, 'en1992-1-1', 'Table 3.1: f_cm (MPa) 68 (f_ck 60); f_cm = f_ck + 8', 'mean cylinder strength at 28 days; characteristic 60 MPa', {range: [60e6, 68e6]}),
+      tensileStrength: v(4.35e6, 'ec2-design-properties', 'f_ctm = 4.35 MPa (C60/75)', 'mean axial tensile strength at 28 days', {range: [4.35e6, 4.4e6], also: ['en1992-1-1'], derived: 'Table 3.1 gives 4,4'}),
+      peakStrain: v(0.0026, 'en1992-1-1', 'Table 3.1: eps_c1 (per mille) 2,6 (C60/75)', 'strain at the peak of the 3.1.5 curve', {derived: 'per mille / 1000'}),
+      ultimateStrain: v(0.0030, 'en1992-1-1', 'Table 3.1: eps_cu1 (per mille) 3,0 (C60/75); 2,8 + 27 [(98 - f_cm)/100]^4 for f_ck >= 50 MPa', 'nominal ultimate strain of the 3.1.5 curve', {derived: 'per mille / 1000'}),
+      fractureEnergy: v(156.0, 'sucharda-2020', 'G_F = 73 f_c^0.18 (fib Model Code 2010), N/m', 'mean tensile fracture energy from f_cm = 68 MPa', {derived: '73 x 68^0.18 = 156.0 N/m'})}},
+  'concrete-lc25-28': {id: 'concrete-lc25-28', name: 'Lightweight aggregate concrete LC25/28', category: 'concrete', grade: 'lightweight aggregate concrete LC25/28, density class 1,8 (oven-dry 1601 to 1800 kg/m3), sanded (EN 1992-1-1 section 11)', isotropic: true,
+    properties: {
+      density: v(1850, 'en1992-1-1', 'Table 11.1: density class 1,8, density 1601-1800 kg/m3; design density, plain concrete 1850', 'design density of plain LWAC of density class 1,8'),
+      youngModulus: v(21.07e9, 'en1992-1-1', '11.3.2 (1): E_lcm = E_cm (Table 3.1) x eta_E, eta_E = (rho/2200)^2', 'secant modulus, rho = 1800 kg/m3 (upper limit of class 1,8)',
+        {also: ['ec2-design-properties'], derived: 'E_cm of C25/30, 31476 MPa (design aid), x (1800/2200)^2 = 0.6694'}),
+      poissonRatio: v(0.2, 'en1992-1-1', '3.1.3 (4): Poisson\'s ratio may be taken equal to 0,2 for uncracked concrete (section 11 changes nothing)', 'uncracked'),
+      compressiveStrength: v(33e6, 'en1992-1-1', 'Table 11.3.1: f_lck 25, f_lck,cube 28, f_lcm = f_lck + 8 (MPa)', 'mean cylinder strength at 28 days; characteristic 25 MPa', {range: [25e6, 33e6]}),
+      tensileStrength: v(2.28e6, 'en1992-1-1', '11.3.1 (3): f_lctm = f_ctm x eta_1, eta_1 = 0,40 + 0,60 rho/2200 (rho the upper limit of the class)', 'mean axial tensile strength, rho = 1800 kg/m3',
+        {also: ['ec2-design-properties'], derived: 'f_ctm of C25/30, 2.56 MPa (design aid), x 0.8909'}),
+      peakStrain: v(0.00164, 'en1992-1-1', 'Table 11.3.1: eps_lc1 = k f_lcm / (E_lci eta_E), k = 1,1 for sanded lightweight aggregate concrete (partly garbled in the scan)', 'strain at the peak, sanded LWAC',
+        {derived: 'E_lci taken as the tangent modulus 1.05 E_cm = 33050 MPa of C25/30: 1.1 x 33 / (33050 x 0.6694); this reading of the garbled formula was not confirmed'}),
+      ultimateStrain: v(0.00164, 'en1992-1-1', 'Table 11.3.1: eps_lcu1 = eps_lc1', 'nominal ultimate strain: no descending branch'),
+      fractureEnergy: unverified(137, 'the normal-weight formula 73 f_lcm^0.18 N/m applied to f_lcm = 33 MPa', 'The Model Code formula read (as quoted) is for normal-weight concrete; no lightweight figure was found in an opened source.')}},
+  'alumina-96': {id: 'alumina-96', name: 'Alumina 96%', category: 'ceramic', grade: 'sintered 96% Al2O3 technical ceramic (Aloxalon 96; Morgan AL600 for the range)', isotropic: true,
+    properties: {
+      density: v(3750, 'syalons-aloxalon-96', 'Density 3.75 g/cc', 'fired, fully dense', {range: [3720, 3750], also: ['morgan-al600'], derived: 'AL600: bulk density 3.72 g/cm3'}),
+      youngModulus: v(330e9, 'syalons-aloxalon-96', 'Young\'s Modulus 330 GPa', 'room temperature'),
+      poissonRatio: v(0.22, 'syalons-aloxalon-96', 'Poisson\'s Ratio 0.22', 'room temperature'),
+      compressiveStrength: v(2000e6, 'syalons-aloxalon-96', 'Compressive Strength >2000 MPa', 'room temperature; a lower bound as printed', {range: [2000e6, 2070e6], also: ['morgan-al600'], derived: 'AL600: >2070 MPa; both sheets print a lower bound'}),
+      flexuralStrength: v(300e6, 'syalons-aloxalon-96', 'Flexural strength 300 MPa (3-point MOR at 20°C)', '3-point bending, 20 °C', {range: [300e6, 365e6], also: ['morgan-al600'], derived: 'AL600: 365 MPa'}),
+      fractureToughness: v(3.5e6, 'syalons-aloxalon-96', 'Fracture Toughness K1c 3.5 MPa m½', 'room temperature'),
+      thermalConductivity: v(25.6, 'morgan-al600', 'Thermal Conductivity 25.6 W/m.K', 'room temperature'),
+      thermalExpansion: v(6.4e-6, 'morgan-al600', 'Thermal Expansion Coefficient 25-200°C 6.4 10-6/°C', 'mean, 25 to 200 °C')},
+    notes: ['No tensile strength: the sheets give the flexural strength, which is higher than the direct tensile strength of a ceramic.']},
+  'granite-barre': {id: 'granite-barre', name: 'Granite (Barre)', category: 'stone', grade: 'Barre granite (Vermont), intact laboratory specimen', isotropic: true,
+    properties: {
+      density: v(2659.3, 'ucrl-15151', 'unit weight 2659.3 kg/m3', 'intact, natural moisture'),
+      youngModulus: v(72.4e9, 'ucrl-15151', 'Young\'s modulus 72.4 GPa', 'intact'),
+      poissonRatio: v(0.22, 'ucrl-15151', 'Poisson\'s ratio 0.22', 'intact'),
+      shearModulus: v(29.7e9, 'ucrl-15151', 'shear modulus 29.7 GPa', 'intact'),
+      compressiveStrength: v(234.5e6, 'ucrl-15151', 'uniaxial compressive strength 234.5 MPa', 'intact'),
+      tensileStrength: v(7.6e6, 'ucrl-15151', 'tensile strength 7.6 MPa', 'intact'),
+      thermalConductivity: v(2.37, 'ucrl-15151', 'thermal conductivity 2.37 W/m °K', 'room temperature')},
+    notes: ['Heat capacity and expansion coefficient are in the same table but not legible in the scanned copy; fracture toughness was not found in an opened source.']},
+  'oak-red-northern': {id: 'oak-red-northern', name: 'Northern red oak, along the grain', category: 'wood', grade: 'Quercus rubra, clear straight-grained, 12% moisture content', isotropic: false,
+    properties: {
+      density: v(705.6, 'wood-handbook-ch5', 'specific gravity 0.63 at 12% (oven-dry mass, volume at 12%)', '12% moisture content',
+        {also: ['wood-handbook-ch4'], derived: 'rho = G_12 (1 + 0.12) x 1000 kg/m3 (Table 4-6a gives 694 and 717 for G = 0.62 and 0.64)'}),
+      youngModulus: v(13.75e9, 'wood-handbook-ch5', 'modulus of elasticity 12,500 MPa (static bending); "to correct for shear deflection, the modulus can be increased by 10%"', 'E_L, 12% moisture content',
+        {range: [12.5e9, 13.75e9], derived: '12.5 GPa x 1.10'}),
+      poissonRatio: v(0.350, 'wood-handbook-ch5', 'mu_LR 0.350, mu_LT 0.448 (Table 5-2, oak, red)', 'nu_LR, about 12% moisture content', {range: [0.350, 0.448]}),
+      shearModulus: v(1.224e9, 'wood-handbook-ch5', 'G_LR / E_L = 0.089 (Table 5-1, oak, red)', 'G_LR, about 12% moisture content', {derived: '0.089 x 13.75 GPa'}),
+      flexuralStrength: v(99e6, 'wood-handbook-ch5', 'modulus of rupture 99,000 kPa', '12% moisture content, clear specimen'),
+      compressiveStrength: v(46.6e6, 'wood-handbook-ch5', 'compression parallel to grain 46,600 kPa', '12% moisture content, clear specimen'),
+      fractureToughness: v(0.385e6, 'wood-handbook-ch5', 'mode I fracture toughness 220 to 550 kPa m^1/2 (all species)', 'crack along the grain (TL, RL), 10 to 12% moisture content',
+        {range: [0.22e6, 0.55e6], derived: 'middle of the stated range'}),
+      thermalConductivity: v(0.309, 'wood-handbook-ch4', 'k = G_x (B + C x) + A, A = 0.01864, B = 0.1941, C = 0.004064 (across the grain); along the grain greater by a factor of 1.5 to 2.8, average about 1.8', 'along the grain, 12% moisture, about 24 °C',
+        {range: [0.257, 0.481], derived: 'across 0.1716 W/(m K) at G = 0.63, x = 12, times 1.8 (1.5 to 2.8)'}),
+      specificHeat: v(1620, 'wood-handbook-ch4', 'c_p0 = 0.1031 + 0.003867 T; c_p,x = (c_p0 + c_pw x/100)/(1 + x/100) + A_c; A_c = x (b1 + b2 T + b3 x), b1 = -0.06191, b2 = 2.36e-4, b3 = -1.33e-4', '12% moisture content, 293.15 K',
+        {derived: 'evaluated at T = 293.15 K, x = 12, c_pw = 4.18 kJ/(kg K): 1.620 kJ/(kg K)'}),
+      thermalExpansion: v(3.8e-6, 'wood-handbook-ch4', 'parallel-to-grain values have ranged from about 3.1 to 4.5 x 10^-6 K^-1', 'along the grain, oven-dry wood', {range: [3.1e-6, 4.5e-6], derived: 'middle of the stated range'})},
+    notes: ['Orthotropic: E_T / E_L = 0.082 and E_R / E_L = 0.154 (Table 5-1). solidMaterial uses the along-grain values as if isotropic, which is right only for loads along the grain.']},
+  'pine-loblolly': {id: 'pine-loblolly', name: 'Loblolly pine (southern pine), along the grain', category: 'wood', grade: 'Pinus taeda, clear straight-grained, 12% moisture content', isotropic: false,
+    properties: {
+      density: v(571.2, 'wood-handbook-ch5', 'specific gravity 0.51 at 12%', '12% moisture content', {also: ['wood-handbook-ch4'], derived: 'rho = G_12 (1 + 0.12) x 1000 kg/m3'}),
+      youngModulus: v(13.53e9, 'wood-handbook-ch5', 'modulus of elasticity 12,300 MPa (static bending), +10% for shear deflection', 'E_L, 12% moisture content', {range: [12.3e9, 13.53e9], derived: '12.3 GPa x 1.10'}),
+      poissonRatio: v(0.328, 'wood-handbook-ch5', 'mu_LR 0.328, mu_LT 0.292 (Table 5-2, pine, loblolly)', 'nu_LR, about 12% moisture content', {range: [0.292, 0.328]}),
+      shearModulus: v(1.109e9, 'wood-handbook-ch5', 'G_LR / E_L = 0.082 (Table 5-1, pine, loblolly)', 'G_LR, about 12% moisture content', {derived: '0.082 x 13.53 GPa'}),
+      flexuralStrength: v(88e6, 'wood-handbook-ch5', 'modulus of rupture 88,000 kPa', '12% moisture content, clear specimen'),
+      compressiveStrength: v(49.2e6, 'wood-handbook-ch5', 'compression parallel to grain 49,200 kPa', '12% moisture content, clear specimen'),
+      fractureToughness: v(0.385e6, 'wood-handbook-ch5', 'mode I fracture toughness 220 to 550 kPa m^1/2 (all species)', 'crack along the grain (TL, RL), 10 to 12% moisture content',
+        {range: [0.22e6, 0.55e6], derived: 'middle of the stated range'}),
+      thermalConductivity: v(0.2565, 'wood-handbook-ch4', 'k = G_x (B + C x) + A across the grain; along the grain 1.5 to 2.8 times, average about 1.8', 'along the grain, 12% moisture, about 24 °C',
+        {range: [0.2138, 0.399], derived: 'across 0.1425 W/(m K) at G = 0.51, x = 12, times 1.8 (1.5 to 2.8)'}),
+      specificHeat: v(1620, 'wood-handbook-ch4', 'equations 4-16a, 4-17, 4-18 (independent of species)', '12% moisture content, 293.15 K', {derived: 'evaluated at T = 293.15 K, x = 12'}),
+      thermalExpansion: v(3.8e-6, 'wood-handbook-ch4', 'parallel-to-grain values about 3.1 to 4.5 x 10^-6 K^-1', 'along the grain, oven-dry wood', {range: [3.1e-6, 4.5e-6], derived: 'middle of the stated range'})},
+    notes: ['Orthotropic: E_T / E_L = 0.078 and E_R / E_L = 0.113 (Table 5-1).']},
+  'pmma': {id: 'pmma', name: 'PMMA (cast acrylic)', category: 'polymer', grade: 'PLEXIGLAS GS (cast), 23 °C and 50% RH', isotropic: true,
+    properties: {
+      density: v(1190, 'evonik-plexiglas', '1.19 g/cm3 (ISO 1183)', '23 °C'),
+      youngModulus: v(3.3e9, 'evonik-plexiglas', 'modulus of elasticity E_t (short-term value) 3300 MPa (ISO 527-2/1B/1)', 'short-term, 23 °C'),
+      poissonRatio: v(0.37, 'evonik-plexiglas', 'Poisson\'s ratio 0.37 (5% per min, up to 2% dilatation, 23 °C)', '23 °C'),
+      shearModulus: v(1.7e9, 'evonik-plexiglas', 'dynamic shear modulus G at approx. 10 Hz 1700 MPa (ISO 537)', 'dynamic, about 10 Hz, 23 °C'),
+      tensileStrength: v(80e6, 'evonik-plexiglas', 'tensile strength 80 MPa at 23 °C (110 at -40 °C, 40 at 70 °C)', '23 °C'),
+      flexuralStrength: v(115e6, 'evonik-plexiglas', 'flexural strength 115 MPa (ISO 178)', '23 °C'),
+      compressiveStrength: v(110e6, 'evonik-plexiglas', 'compressive yield stress 110 MPa (ISO 604)', '23 °C'),
+      thermalConductivity: v(0.19, 'evonik-plexiglas', '0.19 W/mK (DIN 52612)', 'room temperature'),
+      specificHeat: v(1470, 'evonik-plexiglas', '1.47 J/gK', 'room temperature'),
+      thermalExpansion: v(70e-6, 'evonik-plexiglas', '7 x 10^-5 1/K for 0 - 50 °C', 'mean, 0 to 50 °C')},
+    flags: ['The dynamic shear modulus (10 Hz) is 41% above E / (2 (1 + nu)) = 1.20 GPa from the short-term tensile modulus: PMMA is viscoelastic and the two are measured at different rates.']},
+  'abs': {id: 'abs', name: 'ABS', category: 'polymer', grade: 'Terluran GP-35, general purpose injection moulding grade, 23 °C', isotropic: true,
+    properties: {
+      density: v(1040, 'basf-terluran-gp35', '1040 kg/m3 (ISO 1183)', '23 °C'),
+      youngModulus: v(2.3e9, 'basf-terluran-gp35', 'tensile modulus 2300 MPa (ISO 527-1/-2)', '23 °C'),
+      yieldStrength: v(44e6, 'basf-terluran-gp35', 'yield stress, 50 mm/min, 44 MPa', '23 °C, 50 mm/min'),
+      flexuralStrength: v(65e6, 'basf-terluran-gp35', 'flexural strength 65 MPa (ISO 178)', '23 °C'),
+      thermalConductivity: v(0.17, 'basf-terluran-gp35', 'thermal conductivity 0.17 W/(m K) (DIN 52612-1)', 'room temperature'),
+      thermalExpansion: v(95e-6, 'basf-terluran-gp35', 'coefficient of linear thermal expansion, longitudinal (23-80) °C, 0.8 - 1.1 E-4/°C', 'mean, 23 to 80 °C',
+        {range: [80e-6, 110e-6], derived: 'middle of the stated range'})},
+    notes: ['No Poisson\'s ratio or specific heat in the opened datasheet: solidMaterial and heatMaterial need them as overrides.']},
+  'nylon-66': {id: 'nylon-66', name: 'Nylon 66 (PA66)', category: 'polymer', grade: 'Zytel 101L NC010, unreinforced, dry as moulded (conditioned values in the ranges)', isotropic: true,
+    properties: {
+      density: v(1140, 'dupont-zytel-101l', 'density 1140 kg/m3 (ISO 1183)', 'dry, 23 °C'),
+      youngModulus: v(3.1e9, 'dupont-zytel-101l', 'tensile modulus 3100 / 1400 MPa (dry / conditioned, ISO 527-1/-2)', 'dry as moulded, 23 °C; 1.4 GPa conditioned', {range: [1.4e9, 3.1e9]}),
+      poissonRatio: v(0.37, 'dupont-zytel-101l', 'Poisson\'s ratio 0.37 / 0.43 (dry / conditioned)', 'dry; 0.43 conditioned', {range: [0.37, 0.43]}),
+      yieldStrength: v(82e6, 'dupont-zytel-101l', 'yield stress, 50 mm/min, 82 / 55 MPa (dry / conditioned)', 'dry; 55 MPa conditioned', {range: [55e6, 82e6]}),
+      thermalConductivity: v(0.24, 'dupont-zytel-101l', 'thermal conductivity 0.24 W/(m K) (ISO 22007-2)', 'solid'),
+      thermalExpansion: v(100e-6, 'dupont-zytel-101l', 'coeff. of linear therm. expansion, parallel 100 E-6/K (normal 110)', 'parallel to flow', {range: [100e-6, 110e-6]})},
+    notes: ['No specific heat of the solid in the opened datasheet (only of the melt): heatMaterial needs it as an override.']},
+  'pvc-polyester-fabric': {id: 'pvc-polyester-fabric', name: 'PVC-coated polyester fabric', category: 'fabric', grade: 'architectural membrane, PES HT yarns with PVC coating and PVDF finish (Precontraint 1302 S2 as tested by Ambroziak 2020); warp and weft as stated', isotropic: false,
+    properties: {
+      arealDensity: v(1.35, 'ambroziak-2020', 'total weight 1350 (g/m2) (given by the manufacturer)', 'Precontraint 1302'),
+      density: v(1324, 'ambroziak-2020', 'total thickness 1.02 (mm), total weight 1350 (g/m2) (given by the manufacturer)', 'Precontraint 1302, coated fabric as a whole', {derived: '1.35 kg/m2 / 1.02e-3 m'}),
+      membraneStiffnessWarp: v(1225e3, 'ambroziak-2020', 'Table 3, biaxial 1:1, F1 = 1225±20 kN/m for 0 to 0.015 strain', 'biaxial 1:1 loading, first region (strain up to 1.5%)',
+        {range: [440e3, 1600e3], derived: 'uniaxial regions 600, 800 and 440 kN/m and biaxial 1600 kN/m above 1.5% strain (same table) give the range'}),
+      membraneStiffnessWeft: v(1000e3, 'ambroziak-2020', 'Table 3, biaxial 1:1, F2 = 1000±15 kN/m for 0 to 0.011 strain', 'biaxial 1:1 loading, first region (strain up to 1.1%)',
+        {range: [420e3, 1950e3], derived: 'uniaxial regions 600, 1100 and 420 kN/m and biaxial 1950 kN/m above 1.1% strain give the range'}),
+      membranePoissonRatio: v(0.35, 'ambroziak-2020', 'the Poisson\'s ratio nu12 is specified equal to 0.35', 'assumed in the paper\'s identification, not measured'),
+      membraneShearStiffness: unverified(30e3, 'in-plane shear of the coated weave, small strain',
+        'Not in the opened sources; 30 kN/m is a recalled order of magnitude for PVC-polyester (a few percent of the tensile stiffness). The membrane deflections of the canopy depend on it only weakly.'),
+      tensileStrengthWarp: v(165.5e3, 'ambroziak-2020', 'Table 2, uniaxial, warp 165.5±0.5 kN/m (stress at failure)', 'uniaxial strip test', {uncertainty: 0.5e3, also: ['sioen-b6657'], range: [110e3, 165.5e3],
+        derived: 'the Type III B6657 states 5500 N/5cm (110 kN/m) warp'}),
+      tensileStrengthWeft: v(122e3, 'ambroziak-2020', 'Table 2, uniaxial, weft 122±2 kN/m', 'uniaxial strip test', {uncertainty: 2e3, also: ['sioen-b6657'], range: [100e3, 122e3],
+        derived: 'the Type III B6657 states 5000 N/5cm (100 kN/m) weft'}),
+      tearStrength: v(800, 'sioen-b6657', 'Tear strength, warp/weft (DIN 53363 : 2003): 800 N / 800 N', 'Type III B6657 (1150 g/m2), trapezoid tear')},
+    flags: ['The stiffness is that of the first loading at small strain; coated fabrics stiffen and take a permanent set on cycling, and their response is nonlinear. One linear orthotropic law is a simplification.',
+      'Tear strength is of the Type III B6657, the other values of Precontraint 1302: the entry mixes two fabrics of the same family; the tear value is not used by the solver.']},
+  'ptfe': {id: 'ptfe', name: 'PTFE', category: 'polymer', grade: 'unfilled PTFE, 23 °C', isotropic: true,
+    properties: {
+      density: v(2160, 'proplas-ptfe', '2.16 g/cm3 (ASTM D792)', '23 °C'),
+      youngModulus: v(551.6e6, 'proplas-ptfe', 'tensile modulus 80,000 psi (ASTM D638)', '23 °C', {derived: '80000 psi x 6894.757 Pa/psi'}),
+      tensileStrength: v(26.89e6, 'proplas-ptfe', 'tensile strength 3,900 psi (ASTM D638)', '23 °C', {derived: '3900 psi x 6894.757 Pa/psi'}),
+      compressiveStrength: v(24.13e6, 'proplas-ptfe', 'compressive strength 3,500 psi (ASTM D695)', '23 °C', {derived: '3500 psi x 6894.757 Pa/psi'}),
+      thermalConductivity: v(0.2452, 'proplas-ptfe', '1.70 BTU-in/ft2-hr-°F; 5.86 x 10^-4 cal/cm-sec-°C (ASTM C177)', '23 °C', {derived: '5.86e-4 x 418.4'}),
+      thermalExpansion: v(135e-6, 'proplas-ptfe', '7.5 x 10^-5 in./in./°F (ASTM D696)', 'around 23 °C', {derived: '7.5e-5 x 1.8'})},
+    notes: ['No Poisson\'s ratio or specific heat in the opened datasheet: solidMaterial and heatMaterial need them as overrides.']},
+  'natural-rubber': {id: 'natural-rubber', name: 'Natural rubber', category: 'elastomer', grade: 'pure-gum (unfilled) vulcanizate for the stiffness; rubber hydrocarbon for density, expansion and heat capacity', isotropic: true,
+    properties: {
+      density: v(921.7, 'nbs-rp717', 'taking the density to be 0.921 7 at that temperature (dilatometer sample of rubber hydrocarbon)', 'unvulcanized rubber hydrocarbon, near room temperature (the temperature is not legible in the scanned copy)'),
+      youngModulus: v(1.5e6, 'wood-1977-rubber', '1, 1.5, and 2 MPa respectively, normal values for a pure-gum vulcanizate at different increasing degrees of cross-linking', 'small strain, pure-gum vulcanizate', {range: [1e6, 2e6]}),
+      shearModulus: v(0.5e6, 'wood-1977-rubber', 'Young\'s modulus "will be equal to 3G where G is the shear modulus"', 'small strain', {range: [0.333e6, 0.667e6], derived: 'G = E / 3'}),
+      poissonRatio: v(0.5, 'wood-1977-rubber', 'E = 3G (incompressible)', 'small strain', {derived: 'E = 2 G (1 + nu) with E = 3 G gives nu = 0.5; the solver helpers use 0.4999, the largest value the solvers accept'}),
+      specificHeat: v(1880, 'nbs-rp844', 'At 298.1 °K the heat capacity of the rubber is 1.880 ± 0.002 j/g/°C', 'rubber hydrocarbon, 298.1 K', {uncertainty: 2}),
+      thermalExpansion: v(223e-6, 'nbs-rp717', 'volume coefficient of expansion (amorphous I form, -72 to +85 °C) = 0.00067 + 0.0000007 (t - 25)', 'linear, 25 °C', {derived: 'one third of the volume coefficient 6.7e-4 at 25 °C'})},
+    notes: ['Thermal conductivity was not found in an opened source. Filled compounds are denser and stiffer than these values.']},
+  'ice': {id: 'ice', name: 'Ice (freshwater, polycrystalline)', category: 'ice', grade: 'pristine terrestrial ice Ih, about 3 mm grains; thermal values at -10 °C', isotropic: true,
+    properties: {
+      density: v(918.9, 'etb-ice', '918.9 kg/m3 at -10 °C (916.2 at 0 °C, 920.0 at -30 °C)', '-10 °C', {range: [916.2, 920.0]}),
+      youngModulus: v(9.3e9, 'schulson-renshaw-2022', 'Young\'s modulus E = 9.3 GPa (Gammon et al. 1983) under terrestrial conditions', 'terrestrial conditions'),
+      poissonRatio: v(0.33, 'schulson-renshaw-2022', 'Poisson\'s ratio = 0.33 (Gammon et al. 1983)', 'terrestrial conditions'),
+      fractureToughness: v(0.1e6, 'schulson-renshaw-2022', 'K_Ic = 0.1 MPa m^1/2 for pristine, terrestrial ice of ∼3-mm grain size; 0.14 at -173 °C', 'about 3 mm grains, near -10 °C', {range: [0.1e6, 0.14e6]}),
+      fractureEnergy: v(1, 'schulson-renshaw-2022', 'G_c = K_Ic^2 (1 - nu^2) / E ... giving G_c = 1 J m^-2', 'plane strain, from the values above'),
+      thermalConductivity: v(2.30, 'etb-ice', '2.30 W/mK at -10 °C (2.22 at 0 °C)', '-10 °C', {range: [2.22, 2.50]}),
+      specificHeat: v(2000, 'etb-ice', '2.000 kJ/kgK at -10 °C (2.050 at 0 °C)', '-10 °C', {range: [1882, 2050]})},
+    notes: ['No tensile strength in an opened source: fractureLaw needs `strength` for ice.']},
+  'water': {id: 'water', name: 'Water at 20 °C', category: 'fluid', grade: 'liquid water, 293.15 K, 0.101325 MPa (IAPWS-95 via NIST)', isotropic: true,
+    properties: {
+      density: v(998.207, 'nist-webbook-water', '998.207 kg/m3', '293.15 K, 0.101325 MPa'),
+      specificHeat: v(4184.05, 'nist-webbook-water', 'Cp 4.18405 J/g*K', '293.15 K, 0.101325 MPa'),
+      thermalConductivity: v(0.598012, 'nist-webbook-water', 'therm. cond. 0.598012 W/m*K', '293.15 K, 0.101325 MPa'),
+      viscosity: v(1.0016e-3, 'nist-webbook-water', 'viscosity 0.00100160 Pa*s', '293.15 K, 0.101325 MPa'),
+      soundSpeed: v(1482.35, 'nist-webbook-water', 'sound spd. 1482.35 m/s', '293.15 K, 0.101325 MPa')}},
+  'air': {id: 'air', name: 'Air at 20 °C', category: 'fluid', grade: 'dry air, 20 °C, 1 atm', isotropic: true,
+    properties: {
+      density: v(1.204, 'cengel-a9-air', 'rho 1.204 kg/m3 at 20 °C', '20 °C, 1 atm'),
+      specificHeat: v(1007, 'cengel-a9-air', 'c_p 1007 J/kg K at 20 °C', '20 °C, 1 atm'),
+      thermalConductivity: v(0.02514, 'cengel-a9-air', 'k 0.02514 W/m K at 20 °C', '20 °C, 1 atm'),
+      viscosity: v(1.825e-5, 'cengel-a9-air', 'mu 1.825 x 10^-5 kg/m s at 20 °C', '20 °C, 1 atm')}},
+  'glycerol': {id: 'glycerol', name: 'Glycerol at 20 °C', category: 'fluid', grade: 'anhydrous glycerol (100% by weight), 20 °C, 1 atm', isotropic: true,
+    properties: {
+      density: v(1261.08, 'volk-kahler-2018', '100 w/w %: 1.26108 at 20 °C (g/cm3)', '100% glycerol, 20 °C', {derived: 'g/cm3 times 1000'}),
+      viscosity: v(1.412, 'segur-oberstar-1951', '100% glycerol, 20 °C: 1412 centipoise (Table V)', '100% glycerol, 20 °C', {derived: '1 cP = 1e-3 Pa s'})},
+    notes: ['A few percent of water lowers the viscosity sharply: 99% glycerol is 1150 cP and 95% is 523 cP at 20 °C in the same table.']},
+  'olive-oil': {id: 'olive-oil', name: 'Olive oil (refined)', category: 'fluid', grade: 'refined olive oil (Salada brand), viscosity at 20 °C, density at 25 °C', isotropic: true,
+    properties: {
+      density: v(879, 'brock-2008', 'Oliva: ρ 0,879 ± 0,003 g/cm3 at 25 ± 1 °C (Tabela 2)', '25 °C (not 20 °C)', {uncertainty: 3, derived: 'g/cm3 times 1000'}),
+      viscosity: v(79.7e-3, 'brock-2008', 'Oliva, T 20,0 °C: 79,7 mPa.s (Tabela 3)', '20 °C, constant shear rate', {derived: '1 mPa s = 1e-3 Pa s'})}},
+  'honey': {id: 'honey', name: 'Honey (industrialized)', category: 'fluid', grade: 'industrialized bee honey, 20.8 to 24.4% water, 73.6 to 77.3 °Brix, 20 °C', isotropic: true,
+    properties: {
+      density: unverified(1420, '20 °C, about 17 to 18% water', 'The opened source measured the specific gravity but its table was not readable; 1420 kg/m3 is a typical figure recalled, not read. A honey with 22% water, as in the viscosity source, is lighter (about 1.38 to 1.40).'),
+      viscosity: v(7.43, 'rodriguez-navarro-2022', 'mean absolute viscosity at 20 ºC (7430 mPa∙s); Newtonian', '20 °C, Brookfield RVDV-E viscometer, mean of the samples', {derived: '1 mPa s = 1e-3 Pa s'})},
+    notes: ['Honey viscosity depends strongly on water content and temperature: 2636 mPa s at 30 °C in the same source.']},
+  'glass-beads': {id: 'glass-beads', name: 'Glass beads', category: 'granular', grade: 'solid glass spheres of about 2 to 4 mm', isotropic: true,
+    properties: {
+      density: v(2500, 'tang-2019', 'density of glass beads rho 2500 kg/m3 (Table 5)', 'beads of 2 mm', {range: [2500, 2600], also: ['sandeep-2020'], derived: 'Sandeep et al. 2020 Table 1: 2.60 t/m3'}),
+      youngModulus: v(46.2e9, 'tang-2019', 'Young\'s modulus of glass beads E 46.2 GPa (Table 5, DEM input; the paper does not say how it was obtained)', 'DEM input',
+        {range: [46.2e9, 65e9], also: ['sandeep-2018'], derived: 'Sandeep and Senetakis 2018: 58 ± 7 GPa back-calculated from grain-contact tests'}),
+      poissonRatio: v(0.245, 'tang-2019', 'Poisson\'s ratio of glass beads 0.245 (Table 5)', 'DEM input', {range: [0.245, 0.30], also: ['sandeep-2018'], derived: 'Sandeep and Senetakis 2018 use 0.30 from the literature'})},
+    notes: ['Grain-scale moduli back-calculated from contact tests depend on surface roughness; they are not the bulk modulus of the glass.']},
+  'sand-quartz': {id: 'sand-quartz', name: 'Quartz sand', category: 'granular', grade: 'Leighton Buzzard quartz sand grains, 1.18 to 2.36 mm', isotropic: true,
+    properties: {
+      density: v(2650, 'webmineral-quartz', 'Specific Gravity of Quartz = 2.65 gm/cc; density 2.6 - 2.65, average = 2.62', 'quartz mineral (grain density, not bulk density)', {range: [2600, 2650]}),
+      youngModulus: v(52e9, 'sandeep-2018', 'Young\'s modulus E 52 ± 12 GPa (LBS, back-calculated from Hertz fits of grain contacts)', 'grain-scale, back-calculated', {uncertainty: 12e9}),
+      poissonRatio: v(0.25, 'sandeep-2018', 'Poisson\'s ratio 0.25 (LBS; based on the literature)', 'assumed by the source')},
+    notes: ['No restitution for quartz grains in an opened source: grainMaterial needs `restitution` for sand.']},
+} satisfies Record<string, MaterialEntry>);
+
+/** Friction and restitution between pairs of library materials (order of a and b does not matter). */
+export const CONTACT_PAIRS: readonly ContactPairEntry[] = deepFreeze([
+  {a: 'structural-steel-s355', b: 'structural-steel-s355', condition: 'dry',
+    staticFriction: v(0.6, 'openstax-up1', 'steel on steel (dry) mu_s 0.6', 'dry', {range: [0.5, 0.8], also: ['etb-friction'], derived: 'range from the ToolBox: steel on steel, clean and dry, 0.5 - 0.8 static'}),
+    kineticFriction: v(0.3, 'openstax-up1', 'steel on steel (dry) mu_k 0.3', 'dry', {range: [0.3, 0.42], also: ['etb-friction'], derived: 'ToolBox: 0.42 kinetic'}),
+    restitution: v(0.56, 'zou-2024', 'case 1-2, steel particle on steel plate, falling height 500 and 1000 mm: e_n 0.56', 'steel ball on a 10 mm steel plate, impact 3.1 to 4.4 m/s'),
+    impactSpeed: [3.13, 4.43]},
+  {a: 'structural-steel-s355', b: 'structural-steel-s355', condition: 'lubricated',
+    staticFriction: v(0.05, 'openstax-up1', 'steel on steel (oiled) mu_s 0.05', 'oiled', {range: [0.05, 0.23], also: ['etb-friction'], derived: 'ToolBox: 0.11 lard to 0.23 light mineral oil, static'}),
+    kineticFriction: v(0.03, 'openstax-up1', 'steel on steel (oiled) mu_k 0.03', 'oiled', {range: [0.03, 0.084], also: ['etb-friction'], derived: 'ToolBox: 0.081 castor oil, 0.084 lard'})},
+  {a: 'aluminium-6061-t6', b: 'structural-steel-s355', condition: 'dry',
+    staticFriction: v(0.61, 'etb-friction', 'Aluminum / Mild Steel, clean and dry: static 0.61', 'clean and dry'),
+    kineticFriction: v(0.47, 'etb-friction', 'Aluminum / Mild Steel, clean and dry: kinetic 0.47', 'clean and dry')},
+  {a: 'aluminium-6061-t6', b: 'aluminium-6061-t6', condition: 'dry',
+    staticFriction: v(1.2, 'etb-friction', 'Aluminum / Aluminum, clean and dry: static 1.05 - 1.35', 'clean and dry', {range: [1.05, 1.35], derived: 'middle of the stated range'}),
+    kineticFriction: v(0.4, 'etb-friction', 'Aluminum / Aluminum, clean and dry: kinetic 0.4', 'clean and dry')},
+  {a: 'copper-c11000', b: 'structural-steel-s355', condition: 'dry',
+    staticFriction: v(0.53, 'etb-friction', 'Copper / Steel, clean and dry: static 0.53', 'clean and dry'),
+    kineticFriction: v(0.36, 'etb-friction', 'Copper / Steel, clean and dry: kinetic 0.36', 'clean and dry')},
+  {a: 'cast-iron-gjl-250', b: 'cast-iron-gjl-250', condition: 'dry',
+    staticFriction: v(1.1, 'etb-friction', 'Cast Iron / Cast Iron, clean and dry: static 1.1', 'clean and dry'),
+    kineticFriction: v(0.15, 'etb-friction', 'Cast Iron / Cast Iron, clean and dry: kinetic 0.15', 'clean and dry')},
+  {a: 'cast-iron-gjl-250', b: 'structural-steel-s355', condition: 'dry',
+    staticFriction: v(0.4, 'etb-friction', 'Cast iron / Steel, clean and dry: static 0.4', 'clean and dry'),
+    kineticFriction: v(0.23, 'etb-friction', 'Cast iron / Steel, clean and dry: kinetic 0.23', 'clean and dry')},
+  {a: 'soda-lime-glass', b: 'soda-lime-glass', condition: 'dry',
+    staticFriction: v(0.95, 'etb-friction', 'Glass / Glass, clean and dry: static 0.9 - 1.0', 'clean and dry', {range: [0.9, 1.0], derived: 'middle of the stated range'}),
+    kineticFriction: v(0.4, 'etb-friction', 'Glass / Glass, clean and dry: kinetic 0.4', 'clean and dry')},
+  {a: 'soda-lime-glass', b: 'soda-lime-glass', condition: 'lubricated',
+    staticFriction: v(0.35, 'etb-friction', 'Glass / Glass, grease: static 0.1 - 0.6', 'greased', {range: [0.1, 0.6], derived: 'middle of the stated range'}),
+    kineticFriction: v(0.105, 'etb-friction', 'Glass / Glass, grease: kinetic 0.09 - 0.12', 'greased', {range: [0.09, 0.12], derived: 'middle of the stated range'})},
+  {a: 'soda-lime-glass', b: 'structural-steel-s355', condition: 'dry',
+    restitution: v(0.71, 'zou-2024', 'case 5-6, glass particle on steel plate, falling height 500 and 1000 mm: e_n 0.71', 'glass ball on a 10 mm steel plate, impact 3.1 to 4.4 m/s'),
+    impactSpeed: [3.13, 4.43]},
+  {a: 'glass-beads', b: 'glass-beads', condition: 'dry',
+    friction: v(0.12, 'sandeep-2018', 'inter-particle friction (µ) 0.12 ± 0.02 (glass balls, 2 mm, normal force 1-5 N)', 'grain on grain, dry, 1 to 5 N',
+      {uncertainty: 0.02, range: [0.10, 0.16], also: ['tang-2019'], derived: 'Tang et al. 2019 use mu_s 0.16 between beads (Table 5)'}),
+    restitution: v(0.926, 'tang-2019', 'average restitution coefficient, collision material glass bead: 0.926 (Table 3); 0.94 in Table 6', 'bead on bead, slant-plate flat throw; impact speed not stated', {range: [0.926, 0.94]}),
+    impactSpeed: null},
+  {a: 'glass-beads', b: 'granite-barre', condition: 'dry',
+    restitution: v(0.95, 'sandeep-2020', 'glass balls on a granite block: 0.92 - 0.97 (smooth, 2, 3 and 4 mm; 0.95 for 3 mm at every height)', '3 mm smooth glass ball on granite, 1.74 to 2.43 m/s',
+      {range: [0.92, 0.97]}), impactSpeed: [1.74, 2.43]},
+  {a: 'sand-quartz', b: 'sand-quartz', condition: 'dry',
+    friction: v(0.19, 'sandeep-2018', 'inter-particle friction (µ) 0.19 ± 0.04 (Leighton Buzzard sand)', 'grain on grain, dry, 1 to 5 N', {uncertainty: 0.04, range: [0.15, 0.23]})},
+  {a: 'oak-red-northern', b: 'oak-red-northern', condition: 'dry',
+    staticFriction: v(0.62, 'etb-friction', 'Oak / Oak (parallel grain), clean and dry: static 0.62', 'clean and dry, sliding along the grain'),
+    kineticFriction: v(0.48, 'etb-friction', 'Oak / Oak (parallel grain), clean and dry: kinetic 0.48', 'clean and dry, sliding along the grain')},
+  {a: 'pine-loblolly', b: 'pine-loblolly', condition: 'dry',
+    staticFriction: v(0.5, 'openstax-up1', 'wood on wood mu_s 0.5', 'dry; species not stated'),
+    kineticFriction: v(0.3, 'openstax-up1', 'wood on wood mu_k 0.3', 'dry; species not stated')},
+  {a: 'pine-loblolly', b: 'structural-steel-s355', condition: 'dry',
+    staticFriction: v(0.5, 'openstax-up1', 'metal on wood mu_s 0.5', 'dry'),
+    kineticFriction: v(0.3, 'openstax-up1', 'metal on wood mu_k 0.3', 'dry', {range: [0.3, 0.5], also: ['wood-handbook-ch4'],
+      derived: 'Wood Handbook: kinetic friction of smooth, dry wood against hard, smooth surfaces commonly 0.3 to 0.5'})},
+  {a: 'natural-rubber', b: 'concrete-c30-37', condition: 'dry',
+    staticFriction: v(1.0, 'openstax-up1', 'rubber on dry concrete mu_s 1.0', 'dry'),
+    kineticFriction: v(0.7, 'openstax-up1', 'rubber on dry concrete mu_k 0.7', 'dry', {range: [0.6, 0.85], also: ['etb-friction'], derived: 'ToolBox: rubber on dry concrete 0.6 - 0.85'})},
+  {a: 'natural-rubber', b: 'concrete-c30-37', condition: 'wet',
+    staticFriction: v(0.6, 'openstax-up1', 'rubber on wet concrete mu_s 0.5-0.7', 'wet', {range: [0.5, 0.7], derived: 'middle of the stated range'}),
+    kineticFriction: v(0.4, 'openstax-up1', 'rubber on wet concrete mu_k 0.3-0.5', 'wet', {range: [0.3, 0.5], derived: 'middle of the stated range'})},
+  {a: 'ptfe', b: 'structural-steel-s355', condition: 'dry',
+    staticFriction: v(0.04, 'openstax-up1', 'Teflon on steel mu_s 0.04', 'dry', {range: [0.04, 0.2], also: ['etb-friction'], derived: 'ToolBox: PTFE on steel 0.05 - 0.2'}),
+    kineticFriction: v(0.04, 'openstax-up1', 'Teflon on steel mu_k 0.04', 'dry')},
+  {a: 'ptfe', b: 'ptfe', condition: 'dry',
+    staticFriction: v(0.04, 'etb-friction', 'PTFE / PTFE, clean and dry: static 0.04', 'clean and dry'),
+    kineticFriction: v(0.04, 'etb-friction', 'PTFE / PTFE, clean and dry: kinetic 0.04', 'clean and dry')},
+  {a: 'ice', b: 'ice', condition: 'dry',
+    staticFriction: v(0.1, 'openstax-up1', 'ice on ice mu_s 0.1', 'temperature and speed not stated', {range: [0.1, 0.6], also: ['etb-friction', 'schulson-renshaw-2022'],
+      derived: 'ToolBox: 0.1 at 0 °C, 0.3 at -12 °C; Schulson and Renshaw: about 0.6 at -10 °C after short holds at 1e-6 to 1e-4 m/s, rising with hold time'}),
+    kineticFriction: v(0.03, 'openstax-up1', 'ice on ice mu_k 0.03', 'temperature and speed not stated', {range: [0.02, 0.035], also: ['etb-friction'],
+      derived: 'ToolBox: 0.02 at 0 °C, 0.035 at -12 °C. Slow dry sliding at -10 °C is far higher: mu_k = 0.9 V^0.07 (V in m/s; Schulson and Renshaw)'})},
+  {a: 'ice', b: 'structural-steel-s355', condition: 'dry',
+    staticFriction: v(0.04, 'openstax-up1', 'steel on ice mu_s 0.04', 'temperature not stated'),
+    kineticFriction: v(0.02, 'openstax-up1', 'steel on ice mu_k 0.02', 'temperature not stated')},
+  {a: 'pmma', b: 'pmma', condition: 'dry',
+    friction: v(0.8, 'evonik-plexiglas', 'coefficient of friction mu, plastic / plastic 0.8', 'not stated whether static or kinetic')},
+  {a: 'pmma', b: 'structural-steel-s355', condition: 'dry',
+    friction: v(0.5, 'evonik-plexiglas', 'coefficient of friction mu, plastic / steel 0.5; steel / plastic 0.45', 'not stated whether static or kinetic', {range: [0.45, 0.5]})},
+  {a: 'nylon-66', b: 'nylon-66', condition: 'dry',
+    staticFriction: v(0.2, 'etb-friction', 'Nylon / Nylon, clean and dry: static 0.15 - 0.25', 'clean and dry', {range: [0.15, 0.25], derived: 'middle of the stated range'})},
+  {a: 'nylon-66', b: 'structural-steel-s355', condition: 'dry',
+    staticFriction: v(0.4, 'etb-friction', 'Nylon / Steel, clean and dry: static 0.4', 'clean and dry')},
+  // Values the scene editor needs and no opened source gave: kept, marked unverified.
+  {a: 'aluminium-6061-t6', b: 'aluminium-6061-t6', condition: 'dry', restitution: unverified(0.5, 'compact body on a hard surface at about 1 m/s', CARRIED), impactSpeed: [1, 1]},
+  {a: 'concrete-c30-37', b: 'concrete-c30-37', condition: 'dry',
+    staticFriction: unverified(0.6, 'cast against hardened concrete, not roughened', 'The editor\'s earlier table cited ACI 318 shear-friction coefficients; that code was not opened here.'),
+    restitution: unverified(0.2, 'compact body on a hard surface at about 1 m/s', CARRIED), impactSpeed: [1, 1]},
+  {a: 'natural-rubber', b: 'natural-rubber', condition: 'dry', restitution: unverified(0.8, 'compact body on a hard surface at about 1 m/s', CARRIED), impactSpeed: [1, 1]},
+  {a: 'ice', b: 'ice', condition: 'dry', restitution: unverified(0.3, 'compact body on a hard surface at about 1 m/s', CARRIED), impactSpeed: [1, 1]},
+  {a: 'pine-loblolly', b: 'pine-loblolly', condition: 'dry', restitution: unverified(0.45, 'compact body on a hard surface at about 1 m/s', CARRIED), impactSpeed: [1, 1]},
+] satisfies ContactPairEntry[]);
+
+// ---------------------------------------------------------------------------------------------------------------
+// Lookup
+// ---------------------------------------------------------------------------------------------------------------
+
+// ---------------------------------------------------------------------------------------------------------------
+// Bed roughness and soils for shallow water (shallow-water.ts)
+// ---------------------------------------------------------------------------------------------------------------
+
+/** A surface a shallow flow runs over, with its Manning coefficient n (s/m^(1/3)). */
+export interface SurfaceRoughnessEntry {readonly id: string; readonly name: string; readonly manning: MaterialValue}
+const n3 = (normal: number, min: number, max: number | null, source: string, row: string, conditions: string): MaterialValue =>
+  v(normal, source, `${row}: minimum ${min.toFixed(3)}, normal ${normal.toFixed(3)}${max === null ? '' : `, maximum ${max.toFixed(3)}`}`, conditions,
+    max === null ? (min < normal ? {range: [min, normal]} : {}) : {range: [min, max]});
+/** Manning's n of surfaces and channels, the "normal" value of Chow's (1959) table with its minimum and maximum as the range. */
+export const SURFACE_ROUGHNESS: Readonly<Record<string, SurfaceRoughnessEntry>> = deepFreeze({
+  'smooth-steel': {id: 'smooth-steel', name: 'Smooth steel, unpainted', manning: n3(0.012, 0.011, 0.014, 'ponce-chow-manning', 'B-1 a.1 Smooth steel surface, unpainted', 'lined channel, smooth steel surface')},
+  'painted-steel': {id: 'painted-steel', name: 'Smooth steel, painted', manning: n3(0.013, 0.012, 0.017, 'ponce-chow-manning', 'B-1 a.2 Smooth steel surface, painted', 'lined channel, painted steel')},
+  'glass': {id: 'glass', name: 'Glass', manning: n3(0.010, 0.009, 0.013, 'ponce-chow-manning', 'A-2 b. Glass', 'closed conduit flowing partly full (the only glass row of the table)')},
+  'glazed-brick': {id: 'glazed-brick', name: 'Glazed brick', manning: n3(0.013, 0.011, 0.015, 'chow-1959-unspider', '5.f.1 Brick, glazed', 'lined channel')},
+  'asphalt-smooth': {id: 'asphalt-smooth', name: 'Asphalt, smooth', manning: n3(0.013, 0.013, null, 'chow-1959-unspider', '5.i.1 Asphalt, smooth', 'lined channel; no maximum given')},
+  'asphalt-rough': {id: 'asphalt-rough', name: 'Asphalt, rough', manning: n3(0.016, 0.016, null, 'chow-1959-unspider', '5.i.2 Asphalt, rough', 'lined channel; no maximum given')},
+  'concrete-float': {id: 'concrete-float', name: 'Concrete, float finish', manning: n3(0.015, 0.013, 0.016, 'chow-1959-unspider', '5.c.2 Concrete, float finish', 'lined channel')},
+  'concrete-unfinished': {id: 'concrete-unfinished', name: 'Concrete, unfinished', manning: n3(0.017, 0.014, 0.020, 'chow-1959-unspider', '5.c.4 Concrete, unfinished', 'lined channel')},
+  'gravel': {id: 'gravel', name: 'Earth channel, gravel, uniform section, clean', manning: n3(0.025, 0.022, 0.030, 'chow-1959-unspider', '4.a.3 Earth, straight and uniform: gravel, uniform section, clean', 'excavated channel')},
+  'earth-channel': {id: 'earth-channel', name: 'Earth channel, clean, after weathering', manning: n3(0.022, 0.018, 0.025, 'chow-1959-unspider', '4.a.2 Earth, straight and uniform: clean, after weathering', 'excavated channel')},
+  'clean-stream': {id: 'clean-stream', name: 'Natural stream, clean and straight', manning: n3(0.030, 0.025, 0.033, 'chow-1959-unspider', '1.a Main channels: clean, straight, full stage, no rifts or deep pools', 'minor stream, top width at flood stage < 100 ft')},
+  'short-grass': {id: 'short-grass', name: 'Floodplain pasture, short grass', manning: n3(0.030, 0.025, 0.035, 'chow-1959-unspider', '3.a.1 Pasture, no brush: short grass', 'floodplain')},
+  'high-grass': {id: 'high-grass', name: 'Floodplain pasture, high grass', manning: n3(0.035, 0.030, 0.050, 'chow-1959-unspider', '3.a.2 Pasture, no brush: high grass', 'floodplain')},
+  'bare-field': {id: 'bare-field', name: 'Cultivated area, no crop', manning: n3(0.030, 0.020, 0.040, 'chow-1959-unspider', '3.b.1 Cultivated areas: no crop', 'floodplain')},
+} satisfies Record<string, SurfaceRoughnessEntry>);
+
+/** Green-Ampt parameters of a soil texture class (Rawls et al. 1983, Table 2, the class rows). SI units. */
+export interface SoilInfiltrationEntry {
+  readonly id: string; readonly name: string;
+  readonly totalPorosity: MaterialValue; readonly effectivePorosity: MaterialValue;
+  /** Wetting-front capillary pressure head psi, m. */
+  readonly suction: MaterialValue;
+  /** Green-Ampt hydraulic conductivity K, m/s (half the saturated conductivity). */
+  readonly conductivity: MaterialValue;
+}
+const soil = (id: string, name: string, row: string, phi: [number, number, number], eff: [number, number, number], psiCm: [number, number, number], kCmH: number, samples: number): SoilInfiltrationEntry => {
+  const c = `${name}, all horizons (${samples} samples)`;
+  return {id, name,
+    totalPorosity: v(phi[0], 'rawls-1983', `${row}: total porosity ${phi[0].toFixed(3)} (${phi[1].toFixed(3)}-${phi[2].toFixed(3)}) cm3/cm3`, c, {range: [phi[1], phi[2]]}),
+    effectivePorosity: v(eff[0], 'rawls-1983', `${row}: effective porosity ${eff[0].toFixed(3)} (${eff[1].toFixed(3)}-${eff[2].toFixed(3)}) cm3/cm3`, c, {range: [eff[1], eff[2]]}),
+    suction: v(psiCm[0] / 100, 'rawls-1983', `${row}: wetted front capillary pressure ${psiCm[0]} (${psiCm[1]}-${psiCm[2]}) cm`, c, {range: [psiCm[1] / 100, psiCm[2] / 100], derived: 'cm / 100'}),
+    conductivity: v(kCmH / 100 / 3600, 'rawls-1983', `${row}: hydraulic conductivity ${kCmH} cm/h`, c, {derived: 'cm/h / 360000'}),
+  };
+};
+/** Green-Ampt parameters of the eleven USDA texture classes. Ranges are one standard deviation (Rawls et al. 1983). */
+export const SOIL_INFILTRATION: Readonly<Record<string, SoilInfiltrationEntry>> = deepFreeze({
+  'sand': soil('sand', 'Sand', 'Sand', [0.437, 0.374, 0.500], [0.417, 0.354, 0.480], [4.95, 0.97, 25.36], 11.78, 762),
+  'loamy-sand': soil('loamy-sand', 'Loamy sand', 'Loamy sand', [0.437, 0.363, 0.506], [0.401, 0.329, 0.473], [6.13, 1.35, 27.94], 2.99, 338),
+  'sandy-loam': soil('sandy-loam', 'Sandy loam', 'Sandy loam', [0.453, 0.351, 0.555], [0.412, 0.283, 0.541], [11.01, 2.67, 45.47], 1.09, 666),
+  'loam': soil('loam', 'Loam', 'Loam', [0.463, 0.375, 0.551], [0.434, 0.334, 0.534], [8.89, 1.33, 59.38], 0.34, 383),
+  'silt-loam': soil('silt-loam', 'Silt loam', 'Silt loam', [0.501, 0.420, 0.582], [0.486, 0.394, 0.578], [16.68, 2.92, 95.39], 0.65, 1206),
+  'sandy-clay-loam': soil('sandy-clay-loam', 'Sandy clay loam', 'Sandy clay loam', [0.398, 0.332, 0.464], [0.330, 0.235, 0.425], [21.85, 4.42, 108.0], 0.15, 498),
+  'clay-loam': soil('clay-loam', 'Clay loam', 'Clay loam', [0.464, 0.409, 0.519], [0.309, 0.279, 0.501], [20.88, 4.79, 91.10], 0.10, 366),
+  'silty-clay-loam': soil('silty-clay-loam', 'Silty clay loam', 'Silty clay loam', [0.471, 0.418, 0.524], [0.432, 0.347, 0.517], [27.30, 5.67, 131.50], 0.10, 689),
+  'sandy-clay': soil('sandy-clay', 'Sandy clay', 'Sandy clay', [0.430, 0.370, 0.490], [0.321, 0.207, 0.435], [23.90, 4.08, 140.2], 0.06, 45),
+  'silty-clay': soil('silty-clay', 'Silty clay', 'Silty clay', [0.479, 0.425, 0.533], [0.423, 0.334, 0.512], [29.22, 6.13, 139.4], 0.05, 127),
+  'clay': soil('clay', 'Clay', 'Clay', [0.475, 0.427, 0.523], [0.385, 0.269, 0.501], [31.63, 6.39, 156.5], 0.03, 291),
+} satisfies Record<string, SoilInfiltrationEntry>);
+
+/** Manning's n of a surface of the roughness table, s/m^(1/3). Throws for an unknown id. */
+export function manningCoefficient(id: string): number {
+  if (typeof id !== 'string' || !Object.hasOwn(SURFACE_ROUGHNESS, id)) throw new EngineError('INVALID_PAYLOAD', `Unknown surface "${String(id)}". Known: ${Object.keys(SURFACE_ROUGHNESS).join(', ')}.`);
+  return SURFACE_ROUGHNESS[id]!.manning.value;
+}
+/**
+ * Green-Ampt inputs of a soil texture class for shallow-water.ts: K (m/s), psi (m) and the available porosity
+ * eta = theta_e (1 - S_e), where S_e is the effective saturation the soil starts at (Rawls et al. 1983: eta is the
+ * effective porosity minus the initial water content). Default S_e = 0.3, an assumption, not a value of the source.
+ */
+export function greenAmptSoil(id: string, options: {readonly initialSaturation?: number} = {}): {conductivity: number; suction: number; moistureDeficit: number} {
+  if (typeof id !== 'string' || !Object.hasOwn(SOIL_INFILTRATION, id)) throw new EngineError('INVALID_PAYLOAD', `Unknown soil "${String(id)}". Known: ${Object.keys(SOIL_INFILTRATION).join(', ')}.`);
+  const s = SOIL_INFILTRATION[id]!, se = options.initialSaturation ?? 0.3;
+  if (!(se >= 0 && se < 1)) throw new EngineError('INVALID_PAYLOAD', 'initialSaturation must be in [0, 1).');
+  return {conductivity: s.conductivity.value, suction: s.suction.value, moistureDeficit: s.effectivePorosity.value * (1 - se)};
+}
+
+export interface MaterialOptions {
+  /** Accept values marked `source: 'unverified'`. Default false: such a value is refused. */
+  readonly allowUnverified?: boolean;
+}
+
+/** The ids of the library's materials, in library order. */
+export function materialIds(): string[] { return Object.keys(MATERIALS); }
+
+/** The entry of one material. Throws EngineError INVALID_PAYLOAD for an unknown id. */
+export function material(id: string): MaterialEntry {
+  if (typeof id !== 'string' || !Object.hasOwn(MATERIALS, id)) throw new EngineError('INVALID_PAYLOAD', `Unknown material "${String(id)}". Known: ${materialIds().join(', ')}.`);
+  return MATERIALS[id]!;
+}
+
+/** One property with its source and conditions, or null when the library has none. */
+export function materialValue(id: string, property: MaterialPropertyName): MaterialValue | null {
+  return material(id).properties[property] ?? null;
+}
+
+function accept(value: MaterialValue, label: string, options: MaterialOptions): number {
+  if (value.source === UNVERIFIED && !options.allowUnverified) throw new EngineError('INVALID_PAYLOAD', `${label} is unverified (${value.reason ?? 'no source'}); pass allowUnverified: true to use it.`);
+  return value.value;
+}
+
+/** The SI value of one property. Throws when the library has none, or when it is unverified and not allowed. */
+export function materialProperty(id: string, property: MaterialPropertyName, options: MaterialOptions = {}): number {
+  const value = materialValue(id, property);
+  if (!value) throw new EngineError('INVALID_PAYLOAD', `The library has no ${property} for "${id}".`);
+  return accept(value, `${id}.${property}`, options);
+}
+
+function optional(id: string, property: MaterialPropertyName, override: number | undefined, options: MaterialOptions): number {
+  if (override !== undefined) return override;
+  return materialProperty(id, property, options);
+}
+
+// ---------------------------------------------------------------------------------------------------------------
+// Solver inputs
+// ---------------------------------------------------------------------------------------------------------------
+
+/** The largest Poisson's ratio the solid and granular solvers accept. */
+export const SOLVER_POISSON_LIMIT = 0.4999;
+
+export interface SolidMaterialOptions extends MaterialOptions {
+  readonly youngModulus?: number;
+  readonly poissonRatio?: number;
+  readonly density?: number;
+  /** Leave the thermal expansion out (it is included when the library has it). */
+  readonly thermalExpansion?: number | null;
+}
+
+/**
+ * The input of `SolidBody` and `FractureBody` (solid.ts): E, nu, rho and, when the library has it, the linear
+ * expansion coefficient. Poisson's ratio is capped at SOLVER_POISSON_LIMIT. Overrides replace library values.
+ */
+export function solidMaterial(id: string, options: SolidMaterialOptions = {}): SolidMaterial {
+  const entry = material(id);
+  const out: {youngModulus: number; poissonRatio: number; density: number; thermalExpansion?: number} = {
+    youngModulus: optional(id, 'youngModulus', options.youngModulus, options),
+    poissonRatio: Math.min(SOLVER_POISSON_LIMIT, optional(id, 'poissonRatio', options.poissonRatio, options)),
+    density: optional(id, 'density', options.density, options),
+  };
+  if (options.thermalExpansion !== null) {
+    if (options.thermalExpansion !== undefined) out.thermalExpansion = options.thermalExpansion;
+    else if (entry.properties.thermalExpansion) out.thermalExpansion = accept(entry.properties.thermalExpansion, `${id}.thermalExpansion`, options);
+  }
+  return out;
+}
+
+/**
+ * The input of an elastic-plastic `SolidBody` (J2 with linear isotropic hardening): E, nu, rho as `solidMaterial`, plus
+ *  - yieldStress = the library's yield strength;
+ *  - hardeningModulus H from a bilinear fit through (f_y / E, f_y) and (A, f_u), A the elongation at break: the tangent
+ *    E_t = (f_u - f_y) / (A - f_y / E) and H = E E_t / (E - E_t). Engineering values, so this is a coarse fit that ignores
+ *    necking and the difference between true and engineering stress;
+ *  - failureStrain = A - f_u / E, the plastic strain at the end of that line (the elements erode there).
+ * Needs yield strength, tensile strength and elongation at break in the library (an unverified one needs allowUnverified).
+ */
+export function plasticMaterial(id: string, options: SolidMaterialOptions = {}): SolidMaterial {
+  const base = solidMaterial(id, options), E = base.youngModulus;
+  const fy = materialProperty(id, 'yieldStrength', options), fu = materialProperty(id, 'tensileStrength', options), A = materialProperty(id, 'elongationAtBreak', options);
+  const Et = Math.max(0, (fu - fy) / (A - fy / E)), H = Et >= E ? 0 : E * Et / (E - Et);
+  return {...base, yieldStress: fy, hardeningModulus: H, failureStrain: Math.max(1e-6, A - fu / E)};
+}
+
+/**
+ * The material of a `Cloth` (cloth.ts) for a woven fabric: areal density, the orthotropic membrane (warp along
+ * `warpDirection`) and the tearing strengths along warp and weft, all from the library. `youngModulus` and `thickness`
+ * only set the cloth's contact stiffness and offset here: E t is the mean of the warp and weft stiffnesses, t 1 mm.
+ * The fabric's shear stiffness is unverified in the library, so this needs `allowUnverified` unless `shear` is given.
+ */
+export function fabricMaterial(id: string, options: MaterialOptions & {readonly warpDirection: readonly [number, number, number]; readonly shear?: number; readonly bendingStiffness?: number}) {
+  const warp = materialProperty(id, 'membraneStiffnessWarp', options), weft = materialProperty(id, 'membraneStiffnessWeft', options), t = 1e-3;
+  return {
+    arealDensity: materialProperty(id, 'arealDensity', options), youngModulus: (warp + weft) / 2 / t, thickness: t, poissonRatio: materialProperty(id, 'membranePoissonRatio', options),
+    bending: 'none' as const, ...(options.bendingStiffness !== undefined ? {bending: 'koiter' as const, bendingStiffness: options.bendingStiffness} : {}),
+    orthotropic: {warp, weft, shear: options.shear ?? materialProperty(id, 'membraneShearStiffness', options), poissonRatio: materialProperty(id, 'membranePoissonRatio', options), warpDirection: options.warpDirection},
+    strength: {warp: materialProperty(id, 'tensileStrengthWarp', options), weft: materialProperty(id, 'tensileStrengthWeft', options)},
+  };
+}
+
+/** Plane strain (a thick body: G_c = K^2 (1 - nu^2) / E) or plane stress (a thin sheet: G_c = K^2 / E). */
+export type StressState = 'plane-strain' | 'plane-stress';
+
+/** Irwin's relation between the fracture toughness K_IC (Pa m^0.5) and the energy release rate G_c (J/m^2). */
+export function fractureEnergyFromToughness(toughness: number, youngModulus: number, poissonRatio: number, state: StressState = 'plane-strain'): number {
+  return toughness * toughness * (state === 'plane-strain' ? 1 - poissonRatio * poissonRatio : 1) / youngModulus;
+}
+
+export interface ConcreteMaterialOptions extends SolidMaterialOptions {
+  readonly compressiveStrength?: number;
+  readonly tensileStrength?: number;
+  readonly peakStrain?: number;
+  readonly ultimateStrain?: number;
+  readonly fractureEnergy?: number;
+}
+
+/**
+ * The input of a `SolidBody` with the concrete law (concrete-law.ts): E, nu, rho as `solidMaterial`, and `concrete` from
+ * the library's f_cm (compressiveStrength), f_ctm (tensileStrength), eps_c1 (peakStrain), eps_cu1 (ultimateStrain) and
+ * G_f (fractureEnergy). Without a peak strain (a ceramic) the material is elastic up to f_cm (elasticLimit 1, eps_c1 =
+ * f_cm / E); without a fracture energy G_f comes from K_IC by Irwin's relation in plane strain. The law's other inputs
+ * (friction, crushing energy, band width) keep their defaults unless the caller adds them.
+ */
+export function concreteMaterial(id: string, options: ConcreteMaterialOptions = {}): SolidMaterial {
+  const entry = material(id), base = solidMaterial(id, {...options, thermalExpansion: options.thermalExpansion === undefined ? null : options.thermalExpansion});
+  const fc = optional(id, 'compressiveStrength', options.compressiveStrength, options), ft = optional(id, 'tensileStrength', options.tensileStrength, options);
+  const brittle = options.peakStrain === undefined && !entry.properties.peakStrain;
+  const peak = brittle ? fc / base.youngModulus : optional(id, 'peakStrain', options.peakStrain, options);
+  const ultimate = brittle ? peak : optional(id, 'ultimateStrain', options.ultimateStrain, options);
+  const energy = options.fractureEnergy ?? (entry.properties.fractureEnergy ? materialProperty(id, 'fractureEnergy', options)
+    : fractureEnergyFromToughness(materialProperty(id, 'fractureToughness', options), base.youngModulus, base.poissonRatio));
+  return {...base, concrete: {compressiveStrength: fc, tensileStrength: ft, peakStrain: peak, ultimateStrain: ultimate, fractureEnergy: energy, ...(brittle ? {elasticLimit: 1} : {})}};
+}
+
+export interface FractureLawOptions extends MaterialOptions {
+  readonly model?: FractureModel;
+  /** sigma_c, Pa. Default: the library's tensile strength, else its flexural strength. */
+  readonly strength?: number;
+  /** G_c, J/m^2. Default: from K_IC by Irwin's relation in `state`, else the library's fracture energy. */
+  readonly toughness?: number;
+  /** Default 'plane-strain': K_IC is a plane-strain property, measured on thick specimens. */
+  readonly state?: StressState;
+}
+
+/**
+ * The fracture law of `FractureBody` (solid-fracture.ts): `strength` sigma_c and `toughness` G_c.
+ * G_c comes from K_IC: K_IC^2 (1 - nu^2) / E in plane strain (the default, the state K_IC is measured in), or
+ * K_IC^2 / E in plane stress for a thin sheet; the cohesive law then dissipates G_c per unit crack area.
+ * When the library has no K_IC, its fracture energy is used. Throws when either value is missing.
+ */
+export function fractureLaw(id: string, options: FractureLawOptions = {}): FractureLaw {
+  const entry = material(id), state = options.state ?? 'plane-strain';
+  let toughness = options.toughness;
+  if (toughness === undefined) {
+    if (entry.properties.fractureToughness) {
+      const K = accept(entry.properties.fractureToughness, `${id}.fractureToughness`, options);
+      toughness = fractureEnergyFromToughness(K, materialProperty(id, 'youngModulus', options), Math.min(SOLVER_POISSON_LIMIT, materialProperty(id, 'poissonRatio', options)), state);
+    } else if (entry.properties.fractureEnergy) toughness = accept(entry.properties.fractureEnergy, `${id}.fractureEnergy`, options);
+    else throw new EngineError('INVALID_PAYLOAD', `The library has no fracture toughness or fracture energy for "${id}"; pass toughness.`);
+  }
+  let strength = options.strength;
+  if (strength === undefined) {
+    const value = entry.properties.tensileStrength ?? entry.properties.flexuralStrength;
+    if (!value) throw new EngineError('INVALID_PAYLOAD', `The library has no tensile or flexural strength for "${id}"; pass strength.`);
+    strength = accept(value, `${id}.strength`, options);
+  }
+  return {model: options.model ?? 'cohesive', strength, toughness};
+}
+
+export interface HeatMaterialOptions extends MaterialOptions {
+  readonly conductivity?: number;
+  readonly density?: number;
+  readonly specificHeat?: number;
+}
+
+/** The input of `HeatSolver` (heat.ts): conductivity k, density rho and specific heat c_p. */
+export function heatMaterial(id: string, options: HeatMaterialOptions = {}): HeatMaterial {
+  return {
+    conductivity: optional(id, 'thermalConductivity', options.conductivity, options),
+    density: optional(id, 'density', options.density, options),
+    specificHeat: optional(id, 'specificHeat', options.specificHeat, options),
+  };
+}
+
+/** Thermal diffusivity k / (rho c_p), m^2/s. */
+export function thermalDiffusivity(id: string, options: MaterialOptions = {}): number {
+  const m = heatMaterial(id, options);
+  return m.conductivity! / (m.density * m.specificHeat);
+}
+
+export interface ContactPairValues {
+  readonly a: string;
+  readonly b: string;
+  readonly condition: ContactCondition;
+  readonly staticFriction: number | null;
+  readonly kineticFriction: number | null;
+  /** The one Coulomb coefficient the rigid world applies to both sticking and sliding (see `contactPair`). */
+  readonly friction: number | null;
+  readonly restitution: number | null;
+  readonly impactSpeed: readonly [number, number] | null;
+  readonly entries: readonly ContactPairEntry[];
+}
+
+export interface ContactPairOptions extends MaterialOptions {
+  /** Which coefficient becomes `friction`: 'static' (default) or 'kinetic'. */
+  readonly use?: 'static' | 'kinetic';
+}
+
+/** Every pair entry for a and b in this condition (either order). */
+export function contactPairEntries(a: string, b: string, condition: ContactCondition = 'dry'): ContactPairEntry[] {
+  material(a); material(b);
+  return CONTACT_PAIRS.filter(pair => pair.condition === condition && ((pair.a === a && pair.b === b) || (pair.a === b && pair.b === a)));
+}
+
+/**
+ * Friction and restitution between two library materials, in either order, for a condition ('dry' by default).
+ * The rigid world has one Coulomb coefficient per contact for sticking and sliding alike; `friction` is the static
+ * coefficient by default (what holds still in reality holds still; sliding then dissipates mu_s / mu_k times too
+ * much), or the kinetic one with `use: 'kinetic'`, or the source's unqualified coefficient when it gives neither.
+ * Box3D mixes two bodies' coefficients as sqrt(f_a f_b) for friction and max(e_a, e_b) for restitution, so to get
+ * this pair's value between bodies of different materials, give both bodies these numbers (or set a friction callback).
+ * Throws when the library has no entry for the pair.
+ */
+export function contactPair(a: string, b: string, condition: ContactCondition = 'dry', options: ContactPairOptions = {}): ContactPairValues {
+  const entries = contactPairEntries(a, b, condition);
+  if (!entries.length) throw new EngineError('INVALID_PAYLOAD', `The library has no ${condition} contact entry for "${a}" and "${b}".`);
+  const pick = (key: 'staticFriction' | 'kineticFriction' | 'friction' | 'restitution'): MaterialValue | null => {
+    let found: MaterialValue | null = null;
+    for (const entry of entries) if (entry[key] && (!found || (found.source === UNVERIFIED && entry[key]!.source !== UNVERIFIED))) found = entry[key]!;
+    return found;
+  };
+  const read = (value: MaterialValue | null, label: string): number | null => value === null ? null : (value.source === UNVERIFIED && !options.allowUnverified ? null : accept(value, label, options));
+  const label = `${a}/${b} (${condition})`;
+  const staticFriction = read(pick('staticFriction'), `${label} static friction`), kineticFriction = read(pick('kineticFriction'), `${label} kinetic friction`);
+  const plain = read(pick('friction'), `${label} friction`), restitutionValue = pick('restitution');
+  const restitution = read(restitutionValue, `${label} restitution`);
+  const preferred = options.use === 'kinetic' ? kineticFriction ?? staticFriction : staticFriction ?? kineticFriction;
+  const holder = restitution === null ? null : entries.find(entry => entry.restitution === restitutionValue);
+  return {a, b, condition, staticFriction, kineticFriction, friction: preferred ?? plain, restitution, impactSpeed: holder?.impactSpeed ?? null, entries};
+}
+
+export interface RigidMaterialValues {
+  readonly density: number;
+  readonly friction: number;
+  readonly restitution: number;
+  /** The pairs the two coefficients were taken from. */
+  readonly frictionPair: readonly [string, string, ContactCondition];
+  readonly restitutionPair: readonly [string, string, ContactCondition];
+  /** Which of the three values are unverified. */
+  readonly unverified: readonly ('density' | 'friction' | 'restitution')[];
+}
+
+export interface RigidMaterialOptions extends MaterialOptions {
+  /** The pair whose friction is used. Default: the material on itself, dry. */
+  readonly frictionPair?: readonly [string, string, ContactCondition?];
+  /** The pair whose restitution is used. Default: the material on itself (any condition). */
+  readonly restitutionPair?: readonly [string, string, ContactCondition?];
+  readonly use?: 'static' | 'kinetic';
+}
+
+/** The density, friction and restitution of one rigid body made of a library material (a `SceneMaterial`). */
+export function rigidMaterial(id: string, options: RigidMaterialOptions = {}): RigidMaterialValues {
+  const unverifiedKeys: ('density' | 'friction' | 'restitution')[] = [];
+  const densityValue = materialValue(id, 'density');
+  if (!densityValue) throw new EngineError('INVALID_PAYLOAD', `The library has no density for "${id}".`);
+  if (densityValue.source === UNVERIFIED) unverifiedKeys.push('density');
+  const density = accept(densityValue, `${id}.density`, options);
+  const coefficient = (pair: readonly [string, string, ContactCondition?] | undefined, key: 'friction' | 'restitution'): [number, readonly [string, string, ContactCondition]] => {
+    const conditions: ContactCondition[] = pair?.[2] ? [pair[2]] : key === 'friction' ? ['dry'] : ['dry', 'wet', 'lubricated'];
+    const [a, b] = pair ? [pair[0], pair[1]] : [id, id];
+    for (const condition of conditions) {
+      const entries = contactPairEntries(a, b, condition);
+      if (!entries.length) continue;
+      const strict = contactPair(a, b, condition, {...options, allowUnverified: false});
+      const loose = contactPair(a, b, condition, {...options, allowUnverified: true});
+      const value = key === 'friction' ? strict.friction ?? loose.friction : strict.restitution ?? loose.restitution;
+      if (value === null) continue;
+      if ((key === 'friction' ? strict.friction : strict.restitution) === null) {
+        if (!options.allowUnverified) throw new EngineError('INVALID_PAYLOAD', `The ${key} of ${a}/${b} (${condition}) is unverified; pass allowUnverified: true to use it.`);
+        unverifiedKeys.push(key);
+      }
+      return [value, [a, b, condition]];
+    }
+    throw new EngineError('INVALID_PAYLOAD', `The library has no ${key} for ${a}/${b}; pass ${key}Pair.`);
+  };
+  const [friction, frictionPair] = coefficient(options.frictionPair, 'friction');
+  const [restitution, restitutionPair] = coefficient(options.restitutionPair, 'restitution');
+  return {density, friction, restitution, frictionPair, restitutionPair, unverified: unverifiedKeys};
+}
+
+export interface GrainMaterialOptions extends MaterialOptions {
+  readonly restitution?: number;
+  readonly friction?: number;
+  readonly rollingFriction?: number;
+  readonly youngModulus?: number;
+  readonly poissonRatio?: number;
+  readonly density?: number;
+}
+
+/**
+ * The input of `Granular` (granular.ts) for the Hertz law: density, E, nu (capped at SOLVER_POISSON_LIMIT), and
+ * the grain-on-grain friction and restitution of the material on itself. Throws when the library has no friction
+ * or restitution for the material on itself and none is passed.
+ */
+export function grainMaterial(id: string, options: GrainMaterialOptions = {}): GranularMaterial {
+  const self = contactPairEntries(id, id, 'dry').length ? contactPair(id, id, 'dry', {...options, use: 'kinetic'}) : null;
+  const friction = options.friction ?? self?.friction ?? null, restitution = options.restitution ?? self?.restitution ?? null;
+  if (friction === null) throw new EngineError('INVALID_PAYLOAD', `The library has no grain-on-grain friction for "${id}"; pass friction.`);
+  if (restitution === null) throw new EngineError('INVALID_PAYLOAD', `The library has no grain-on-grain restitution for "${id}"; pass restitution.`);
+  return {
+    density: optional(id, 'density', options.density, options),
+    youngModulus: optional(id, 'youngModulus', options.youngModulus, options),
+    poissonRatio: Math.min(SOLVER_POISSON_LIMIT, optional(id, 'poissonRatio', options.poissonRatio, options)),
+    restitution, friction,
+    ...(options.rollingFriction === undefined ? {} : {rollingFriction: options.rollingFriction}),
+  };
+}
+
+// ---------------------------------------------------------------------------------------------------------------
+// Audit
+// ---------------------------------------------------------------------------------------------------------------
+
+export interface ShearConsistency {
+  readonly id: string;
+  /** G as the source states it, Pa. */
+  readonly stated: number;
+  /** E / (2 (1 + nu)) from the stated E and nu, Pa. */
+  readonly isotropic: number;
+  /** stated / isotropic - 1. */
+  readonly relative: number;
+  /** True when the entry flags the disagreement. */
+  readonly flagged: boolean;
+}
+
+/** For an isotropic entry with E, nu and G: how far the stated G is from E / (2 (1 + nu)). Null otherwise. */
+export function shearConsistency(id: string): ShearConsistency | null {
+  const entry = material(id), {youngModulus: E, poissonRatio: nu, shearModulus: G} = entry.properties;
+  if (!entry.isotropic || !E || !nu || !G) return null;
+  const isotropic = E.value / (2 * (1 + nu.value));
+  return {id, stated: G.value, isotropic, relative: G.value / isotropic - 1, flagged: (entry.flags ?? []).some(flag => /shear modulus/i.test(flag))};
+}
+
+export interface MaterialAuditRow {
+  readonly kind: 'property' | 'pair' | 'surface' | 'soil';
+  readonly subject: string;
+  readonly property: string;
+  readonly value: number;
+  readonly source: string;
+  readonly reason?: string;
+}
+
+/** Every value in the library, one row each, in library order. */
+export function materialAudit(): MaterialAuditRow[] {
+  const rows: MaterialAuditRow[] = [];
+  for (const entry of Object.values(MATERIALS)) for (const [property, value] of Object.entries(entry.properties) as [MaterialPropertyName, MaterialValue][])
+    rows.push({kind: 'property', subject: entry.id, property, value: value.value, source: value.source, ...(value.reason ? {reason: value.reason} : {})});
+  for (const pair of CONTACT_PAIRS) for (const key of ['staticFriction', 'kineticFriction', 'friction', 'restitution'] as const) {
+    const value = pair[key];
+    if (value) rows.push({kind: 'pair', subject: `${pair.a}/${pair.b} (${pair.condition})`, property: key, value: value.value, source: value.source, ...(value.reason ? {reason: value.reason} : {})});
+  }
+  for (const entry of Object.values(SURFACE_ROUGHNESS)) rows.push({kind: 'surface', subject: entry.id, property: 'manning', value: entry.manning.value, source: entry.manning.source});
+  for (const entry of Object.values(SOIL_INFILTRATION)) for (const key of ['totalPorosity', 'effectivePorosity', 'suction', 'conductivity'] as const)
+    rows.push({kind: 'soil', subject: entry.id, property: key, value: entry[key].value, source: entry[key].source});
+  return rows;
+}

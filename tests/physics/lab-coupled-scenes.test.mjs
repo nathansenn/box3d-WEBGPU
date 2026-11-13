@@ -1,0 +1,550 @@
+// Coupled scenes in the Physics Lab: the code path the page uses (loadLabScene, which builds every scene with
+// loadSimulationScene, and CoupledSceneView, which steps it through its Simulation and builds the rows the renderer
+// draws), run in node against the real WASM world. What is checked:
+//  - the cloth and grain sections of the scene format: validation with paths, normal form, hash, share links;
+//  - each coupled example runs the same, bit for bit, twice;
+//  - a save at step N (what Copy share link and Download write), reopened from its link in a fresh world, has the
+//    same scene hash, starts from the same solver fields, and two such reopenings stay identical;
+//  - what is drawn: rows, meshes and rope segments;
+//  - rigid scenes are unchanged: their Simulation has no subsystems and steps exactly like the world;
+//  - solids, fracture and heat: validation paths, the build, a save of a cracked solid reopened from its link with
+//    the same nodes, interfaces and fields, the reaction load at rest, the colour bands and the events;
+//  - fluids: validation paths, normal form, the build, a save of a flow and of a free-surface tank reopened from its
+//    link with the same fields (a tank then runs on bit for bit like the original), the slice in colour bands, the
+//    arrows and the particles, the settling ball's terminal velocity and the cylinder's drag;
+//  - shallow water: validation paths, normal form, the build with floating bodies, a save reopened from its link with
+//    the same fields that runs on bit for bit, the bed and water rows, the panel's readouts and the volume budget.
+import assert from 'node:assert/strict';
+import test from 'node:test';
+import {readFile} from 'node:fs/promises';
+import {resolve} from 'node:path';
+import {pathToFileURL} from 'node:url';
+import {NativeWorldPool} from '../../src/engine/native-world.ts';
+import {
+  COUPLED_EXAMPLE_SCENES, EXAMPLE_SCENES, canonicalize, decodeSceneLink, encodeSceneLink, encodeSceneLinkSync, loadScene, normalizeScene, sceneHash,
+  sceneHasCoupling, trampolineScene, hopperSeesawScene, validateScene, rubberPadScene, notchedBeamScene, quenchedPlateScene, heatedBarScene,
+  sphereSettlingScene, cavityFlowScene, flowPastCylinderScene, damBreakScene, damBreakValleyScene, riverBendScene,
+} from '../../src/engine/scene-format.ts';
+import {FractureBody} from '../../src/engine/solid-fracture.ts';
+import {exactTransformHash, loadLabScene} from '../../src/lab/scene-host.ts';
+import {CoupledSceneView, FLUID_BANDS, SOLID_BANDS, boundaryFaceElements, coupledStateHash, flowSlice, fluidBand, grainWallMesh, rampColor, sceneIsCoupled, shallowDrawGrid, sliceValues, solidBand, waterDrawGrid, writeShallowMesh, writeTwoSidedMesh, writeWaterMesh} from '../../src/lab/coupled-scene.ts';
+import {COUPLED_EXAMPLE_NAMES, LAB_EXAMPLE_NAMES, parseSceneRequest, resolveSceneRequest, sceneCameraFrame, sceneSummary} from '../../src/lab/scene-loading.ts';
+
+const artifact = resolve(process.env.BOX3D_WORLD_ARTIFACT_DIR ?? 'public/box3d');
+const {default: factory} = await import(pathToFileURL(resolve(artifact, 'box3d.js')));
+const pool = new NativeWorldPool(await factory({wasmBinary: await readFile(resolve(artifact, 'box3d.wasm'))}));
+
+const withWorld = run => { const world = pool.createWorld(); try { world.retainBodyShapes(true); return run(world); } finally { world.destroy(); } };
+/** Steps of each example in the repeat test: about one second, fewer for the slow ones. */
+const STEPS = {'moored-buoy': 240, 'cable-stayed-deck': 240, 'buoy-and-crates': 360, trampoline: 150, 'hopper-seesaw': 360, 'suspended-platform': 480,
+  'rubber-pad': 90, 'notched-beam': 180, 'quenched-plate': 150, 'heated-bar': 120, 'sphere-settling': 120, 'cavity-flow': 120, 'flow-past-cylinder': 120, 'dam-break': 60,
+  'dam-break-valley': 120, 'river-bend': 120};
+const copy = value => JSON.parse(JSON.stringify(value));
+
+/** Load a scene as the Lab does, step it `steps` times through the view, and report. */
+function run(scene, steps, after) {
+  return withWorld(world => {
+    const loaded = loadLabScene(world, scene), view = new CoupledSceneView(loaded, world), hashes = [];
+    for (let i = 1; i <= steps; i++) { view.step(); if (i % 60 === 0) hashes.push(view.stateHash()); }
+    view.sync();
+    const out = {hashes, final: view.stateHash(), tick: loaded.simulation.tick, saved: loaded.builder.toJSON(), draw: view.drawInfo(), rows: view.rowCount, bodies: world.bodyCount(), events: view.eventTotal(), extra: after?.(loaded, view)};
+    view.dispose();
+    return out;
+  });
+}
+
+test('the Lab opens every coupled example by name, after the rigid ones', () => {
+  assert.deepEqual(COUPLED_EXAMPLE_NAMES, ['moored-buoy', 'cable-stayed-deck', 'buoy-and-crates', 'trampoline', 'hopper-seesaw', 'suspended-platform', 'rubber-pad', 'notched-beam', 'quenched-plate', 'heated-bar',
+    'sphere-settling', 'cavity-flow', 'flow-past-cylinder', 'dam-break', 'dam-break-valley', 'river-bend']);
+  assert.deepEqual(LAB_EXAMPLE_NAMES, [...Object.keys(EXAMPLE_SCENES), ...COUPLED_EXAMPLE_NAMES]);
+  for (const name of COUPLED_EXAMPLE_NAMES) {
+    const request = parseSceneRequest(`?example=${name}`);
+    assert.deepEqual(request, {kind: 'example', name});
+    const read = resolveSceneRequest(request);
+    assert.equal(read.ok, true, name);
+    assert.equal(sceneHash(read.scene), sceneHash(COUPLED_EXAMPLE_SCENES[name]()));
+    assert.equal(sceneIsCoupled(read.scene), true);
+    assert.match(sceneSummary(read.scene), /basin|cable|frame|cloth|grains|solid|a flow|free-surface tank|shallow water/);
+    const frame = sceneCameraFrame(read.scene);
+    assert.ok(frame.distance >= 0.3 && frame.distance < 40 && frame.target.every(Number.isFinite), `${name}: ${JSON.stringify(frame)}`);
+  }
+  for (const make of Object.values(EXAMPLE_SCENES)) assert.equal(sceneIsCoupled(normalizeScene(make())), false);
+});
+
+test('cloth and grain sections: valid examples, normal form, hash and links', async () => {
+  for (const [name, make] of Object.entries(COUPLED_EXAMPLE_SCENES)) {
+    const scene = make(), normal = normalizeScene(scene);
+    assert.deepEqual(validateScene(scene), [], name);
+    assert.equal(normal.version, 1, `${name}: the sections are additive; the lowest version that holds the scene is kept`);
+    assert.equal(sceneHasCoupling(normal), true);
+    assert.equal(canonicalize(normal), canonicalize(scene), `${name}: normalising twice changes nothing`);
+    assert.equal(sceneHash(decodeSceneLink(await encodeSceneLink(scene))), sceneHash(scene), `${name}: compressed link`);
+    assert.equal(sceneHash(decodeSceneLink(encodeSceneLinkSync(scene))), sceneHash(scene), `${name}: stored link`);
+  }
+  // Defaults written out do not change the hash.
+  const t = trampolineScene(), d = copy(t);
+  Object.assign(d.cloths[0], {maxNewtonIterations: 60, cgTolerance: 1e-2, restNodes: d.cloths[0].nodes, velocities: new Array(d.cloths[0].nodes.length).fill(0)});
+  Object.assign(d.cloths[0].material, {membrane: 'stvk', bending: 'koiter'});
+  d.cloths[0].bodies[0].collide = true;
+  assert.equal(sceneHash(d), sceneHash(t));
+  const h = hopperSeesawScene(), e = copy(h);
+  Object.assign(e.grains[0], {tangentialDamping: 1, velocities: new Array(e.grains[0].positions.length).fill(0)});
+  assert.equal(sceneHash(e), sceneHash(h));
+});
+
+test('cloth and grain sections: problems are reported with their paths and nothing is built', () => {
+  const problems = (make, edit) => { const scene = make(); edit(scene); return validateScene(scene).map(p => `${p.path}: ${p.message}`).join('\n'); };
+  assert.match(problems(trampolineScene, s => { s.cloths[0].triangles[4] = 9999; }), /\/cloths\/0\/triangles\/4: must be a node index below 81/);
+  assert.match(problems(trampolineScene, s => { s.cloths[0].tear = true; }), /\/cloths\/0\/tear: unknown key "tear"/);
+  assert.match(problems(trampolineScene, s => { s.cloths[0].attachments = [{node: 40, body: 'post-0'}]; }), /\/cloths\/0\/attachments\/0\/body: body "post-0" is not in this cloth's bodies/);
+  assert.match(problems(trampolineScene, s => { s.cloths[0].attachments = [{node: 0, body: 'ball'}]; }), /attachments\/0\/node: node 0 is pinned/);
+  assert.match(problems(trampolineScene, s => { s.cloths[0].bodies.push({body: 'nobody'}); }), /\/cloths\/0\/bodies\/2\/body: unknown body id "nobody"/);
+  assert.match(problems(trampolineScene, s => { s.cloths[0].pinned = [3, 2]; }), /\/cloths\/0\/pinned\/1: node indices must be ascending/);
+  assert.match(problems(trampolineScene, s => { s.cloths[0].id = 'ball'; }), /\/cloths\/0\/id: duplicate id "ball"/);
+  assert.match(problems(hopperSeesawScene, s => { delete s.grains[0].normalStiffness; }), /\/grains\/0\/normalStiffness: is required by the 'linear' law/);
+  assert.match(problems(hopperSeesawScene, s => { s.grains[0].law = 'hertz'; }), /\/grains\/0\/material\/youngModulus: is required/);
+  assert.match(problems(hopperSeesawScene, s => { s.grains[0].radii.pop(); }), /\/grains\/0\/positions: must hold exactly/);
+  assert.match(problems(hopperSeesawScene, s => { s.grains[0].walls[0].shape.kind = 'torus'; }), /\/grains\/0\/walls\/0\/shape\/kind: must be 'plane'/);
+  assert.match(problems(hopperSeesawScene, s => { s.grains[0].substeps = 0; }), /\/grains\/0\/substeps/);
+  // An unstable grain step is refused when the scene is built, with the set's id, and the world is left reset to the scene's settings.
+  withWorld(world => {
+    const scene = hopperSeesawScene(); scene.grains[0].substeps = 1;
+    assert.throws(() => loadLabScene(world, scene), /Scene grains "beads":.*critical time/);
+    assert.equal(world.bodyCount(), 1, 'reset to the scene settings: only the ground slab');
+  });
+});
+
+test('the core loader still refuses a coupled scene; the Lab loader builds it with a Simulation', () => {
+  withWorld(world => {
+    for (const make of Object.values(COUPLED_EXAMPLE_SCENES)) assert.throws(() => loadScene({}, make()), /has coupled sections.*loadSimulationScene/);
+    const loaded = loadLabScene(world, trampolineScene());
+    assert.equal(loaded.cloths.size, 1);
+    assert.deepEqual(loaded.simulation.order().map(row => row.id), ['sheet', 'world', 'events']);
+    const hopper = loadLabScene(world, hopperSeesawScene());
+    assert.equal(hopper.grains.get('beads').substeps, 12);
+    assert.deepEqual(hopper.simulation.order().map(row => row.id), ['beads', 'world', 'events']);
+  });
+});
+
+test('rigid scenes are untouched: the Lab Simulation of a rigid scene has no subsystems and steps like the world', () => {
+  for (const name of ['domino-run', 'ragdoll']) {
+    const a = withWorld(world => { const loaded = loadLabScene(world, EXAMPLE_SCENES[name]()); assert.equal(loaded.simulation.subsystems().length, 0); for (let i = 0; i < 120; i++) loaded.simulation.step(); return exactTransformHash(world); });
+    const b = withWorld(world => { const loaded = loadLabScene(world, EXAMPLE_SCENES[name]()); for (let i = 0; i < 120; i++) loaded.builder.world.step(); return exactTransformHash(world); });
+    assert.equal(a, b, name);
+  }
+});
+
+for (const name of Object.keys(COUPLED_EXAMPLE_SCENES)) {
+  test(`${name}: two runs through the Lab's code path are bit-identical, and the scene is drawn`, () => {
+    const steps = STEPS[name], first = run(COUPLED_EXAMPLE_SCENES[name](), steps), second = run(COUPLED_EXAMPLE_SCENES[name](), steps);
+    assert.equal(first.tick, steps);
+    assert.deepEqual(second.hashes, first.hashes);
+    assert.equal(second.final, first.final);
+    assert.equal(sceneHash(second.saved), sceneHash(first.saved));
+    assert.equal(first.rows, first.bodies + first.draw.meshRows + first.draw.wallRows + first.draw.grainRows + first.draw.particleRows);
+    const scene = normalizeScene(COUPLED_EXAMPLE_SCENES[name]());
+    assert.equal(first.draw.meshRows > 0 || first.draw.lineSegments > 0 || first.draw.grainRows > 0 || first.draw.particleRows > 0, true);
+    if (scene.fluids) assert.equal(first.draw.fluidRows + first.draw.particleRows > 0, true);
+    if (scene.cloths) assert.equal(first.draw.meshVertices >= scene.cloths[0].triangles.length * 2, true);
+    if (scene.cables) assert.equal(first.draw.lineSegments, scene.cables.reduce((n, c) => n + c.segments.length, 0) + (scene.frames ?? []).reduce((n, f) => n + f.elements.length, 0));
+    if (scene.grains) assert.equal(first.draw.grainRows, scene.grains[0].radii.length);
+    if (scene.solids) { assert.equal(first.draw.solidRows, SOLID_BANDS * scene.solids.length); assert.ok(first.draw.solidTriangles > 0 && first.draw.meshVertices === 3 * first.draw.solidTriangles + (scene.cloths ? 0 : 0)); }
+  });
+}
+
+test('a save after N steps reopens from its share link with the same scene hash and the same fields, and runs the same twice', async () => {
+  for (const [name, steps] of [['buoy-and-crates', 240], ['trampoline', 120], ['hopper-seesaw', 300], ['suspended-platform', 360]]) {
+    const original = run(COUPLED_EXAMPLE_SCENES[name](), steps, loaded => ({
+      cloth: [...loaded.cloths.values()].map(c => Array.from(c.cloth.positions)),
+      grains: [...loaded.grains.values()].map(g => Array.from(g.granular.positions.subarray(0, 3 * g.granular.grainCount))),
+      water: [...loaded.water.values()].map(w => Array.from(w.eta)),
+    }));
+    const link = await encodeSceneLink(original.saved), reopened = decodeSceneLink(link);
+    assert.equal(sceneHash(reopened), sceneHash(original.saved), `${name}: the link carries the saved scene`);
+    const fields = withWorld(world => {
+      const loaded = loadLabScene(world, reopened);
+      return {
+        cloth: [...loaded.cloths.values()].map(c => Array.from(c.cloth.positions)),
+        grains: [...loaded.grains.values()].map(g => Array.from(g.granular.positions.subarray(0, 3 * g.granular.grainCount))),
+        water: [...loaded.water.values()].map(w => Array.from(w.eta)),
+      };
+    });
+    assert.deepEqual(fields, original.extra, `${name}: the solvers start from the saved fields, bit for bit`);
+    const a = run(reopened, 120), b = run(decodeSceneLink(link), 120);
+    assert.deepEqual(b.hashes, a.hashes, `${name}: two fresh openings of the link stay identical`);
+    assert.equal(b.final, a.final);
+  }
+});
+
+test('drawing helpers: water surface, cloth mesh and grain walls', () => {
+  // A flat basin: every top normal points up, the surface is at the rest depth, the sides reach the floor.
+  const grid = waterDrawGrid(4, 3), out = new Float32Array(grid.floats), heights = new Float32Array((grid.nx + 1) * (grid.nz + 1));
+  const floats = writeWaterMesh(new Float32Array(12), 4, 3, 0.5, 0.5, 2, [1, 0, -1], grid, heights, out);
+  assert.equal(floats, grid.floats);
+  for (let v = 0; v < 4 * 3 * 6; v++) { assert.equal(out[6 * v + 1], 2); assert.equal(out[6 * v + 4], 1); }
+  let lowest = Infinity; for (let v = 0; v < floats / 6; v++) lowest = Math.min(lowest, out[6 * v + 1]); assert.equal(lowest, 0);
+  assert.equal(waterDrawGrid(512, 512).stride, 4);
+  // A cloth triangle is written on both sides with opposite normals.
+  const mesh = new Float32Array(36), normals = new Float32Array(9);
+  assert.equal(writeTwoSidedMesh([0, 0, 0, 1, 0, 0, 0, 0, -1], [0, 1, 2], normals, mesh), 36);
+  assert.deepEqual([mesh[3], mesh[4], mesh[5]], [0, 1, 0]);
+  assert.deepEqual([mesh[21], mesh[22], mesh[23]], [-0, -1, -0]);
+  // A cone wall is a closed band of triangles around its axis at the wall's position.
+  const cone = grainWallMesh({shape: {kind: 'frustum', r0: 0.1, z0: 1, r1: 0.4, z1: 2}, position: [0.5, 0, 0]});
+  assert.ok(cone && cone.length === 32 * 4 * 3 * 6);
+  let ys = [Infinity, -Infinity]; for (let v = 0; v < cone.length / 6; v++) { ys = [Math.min(ys[0], cone[6 * v + 1]), Math.max(ys[1], cone[6 * v + 1])]; }
+  assert.deepEqual(ys, [1, 2]);
+  assert.equal(grainWallMesh({shape: {kind: 'plane', normal: [0, 1, 0]}}), null);
+});
+
+test('the state hash covers the solver fields, not only the bodies', () => {
+  withWorld(world => {
+    const loaded = loadLabScene(world, trampolineScene()), before = coupledStateHash(loaded);
+    loaded.cloths.get('sheet').cloth.velocities[30] += 1e-9;
+    assert.notEqual(coupledStateHash(loaded), before);
+  });
+});
+
+test('the event stream carries world contacts and subsystem events, with scene ids', () => {
+  const platform = run(COUPLED_EXAMPLE_SCENES['suspended-platform'](), 600, (loaded, view) => view.readout().events);
+  assert.ok(platform.events > 0);
+  assert.ok(platform.extra.some(e => e.source === 'world' && e.type === 'contact-begin' && /bodyA (platform|load-\d)/.test(e.detail)), JSON.stringify(platform.extra));
+  const hopper = run(COUPLED_EXAMPLE_SCENES['hopper-seesaw'](), 360, (loaded, view) => view.readout().events);
+  assert.ok(hopper.extra.some(e => e.source === 'beads' && /^contact-(begin|end)$/.test(e.type) && /body (plank|tray-|counterweight)/.test(e.detail)), JSON.stringify(hopper.extra));
+});
+
+// ---------------------------------------------------------------------------
+// Solids, fracture and heat
+// ---------------------------------------------------------------------------
+
+test('solid and heat sections: problems are reported with their paths', () => {
+  const problems = (make, edit) => { const scene = make(); edit(scene); return validateScene(scene).map(p => `${p.path}: ${p.message}`).join('\n'); };
+  assert.match(problems(rubberPadScene, s => { s.solids[0].mesh.box.cells = [0, 2, 2]; }), /\/solids\/0\/mesh\/box\/cells\/0: must be >= 1/);
+  assert.match(problems(rubberPadScene, s => { s.solids[0].mesh.box.cells = [100, 100, 100]; }), /\/solids\/0\/mesh\/box\/cells: make 1030301 nodes/);
+  assert.match(problems(rubberPadScene, s => { s.solids[0].mesh = {positions: [0, 0, 0, 1, 0, 0, 0, 1, 0, 0, 0, 1], tets: [0, 1, 2, 7]}; }), /\/solids\/0\/mesh\/tets\/3: must be a node index below 4/);
+  assert.match(problems(rubberPadScene, s => { s.solids[0].material.poissonRatio = 0.5; }), /\/solids\/0\/material\/poissonRatio: must be <= 0.4999/);
+  assert.match(problems(rubberPadScene, s => { s.solids[0].integrator = 'explicit'; }), /\/solids\/0\/integrator: a solid in contact uses 'backward-euler'/);
+  assert.match(problems(rubberPadScene, s => { s.solids[0].contact.bodies.push({body: 'nobody'}); }), /\/solids\/0\/contact\/bodies\/2\/body: unknown body id "nobody"/);
+  assert.match(problems(rubberPadScene, s => { s.solids[0].welds[0].body = 'box2'; }), /\/solids\/0\/welds\/0\/body: body "box2" is not in this solid's contact.bodies/);
+  assert.match(problems(rubberPadScene, s => { s.solids[0].welds[0].max = [-2, 0, 0]; }), /\/solids\/0\/welds\/0\/max: must not be below min/);
+  assert.match(problems(rubberPadScene, s => { s.solids[0].displacements = [0, 0]; }), /\/solids\/0\/displacements: must hold exactly 729 numbers, got 2/);
+  assert.match(problems(rubberPadScene, s => { s.solids[0].id = 'box'; }), /\/solids\/0\/id: duplicate id "box"/);
+  assert.match(problems(rubberPadScene, s => { s.solids[0].fracture = {strength: 1e6, toughness: 10}; }), /\/solids\/0\/model: a solid with fracture is 'linear'[\s\S]*\/solids\/0\/contact: a solid with fracture has no contact/);
+  assert.match(problems(notchedBeamScene, s => { s.solids[0].fracture.toughness = -1; }), /\/solids\/0\/fracture\/toughness: must be >= 1e-12/);
+  assert.match(problems(notchedBeamScene, s => { s.solids[0].fracture.insertion = 'always'; }), /\/solids\/0\/fracture\/insertion: must be 'on-demand' or 'manual'/);
+  assert.match(problems(notchedBeamScene, s => { s.solids[0].cracks = [{face: 3, history: [1, 2]}]; }), /\/solids\/0\/cracks\/0\/history: must hold exactly 3 numbers/);
+  assert.match(problems(notchedBeamScene, s => { s.solids[0].loads[0].body = 'ghost'; }), /\/solids\/0\/loads\/0\/body: unknown body id "ghost"/);
+  assert.match(problems(heatedBarScene, s => { s.solids[0].cracks = []; }), /\/solids\/0\/cracks: belongs to a solid with fracture/);
+  assert.match(problems(heatedBarScene, s => { s.heat[0].solid = 'nothing'; }), /\/heat\/0\/solid: unknown solid id "nothing"/);
+  assert.match(problems(heatedBarScene, s => { s.solids[0].mesh = {positions: [0, 0, 0, 1, 0, 0, 0, 1, 0, 0, 0, 1], tets: [0, 1, 2, 3]}; delete s.solids[0].supports; }), /\/heat\/0\/solid: solid "bar" needs a box mesh/);
+  assert.match(problems(heatedBarScene, s => { s.heat.push({...s.heat[0], id: 'second'}); }), /\/heat\/1\/solid: solid "bar" already has a heat grid/);
+  assert.match(problems(heatedBarScene, s => { s.heat[0].temperature = [300, 301]; }), /\/heat\/0\/temperature: must hold exactly 40 numbers[\s\S]*\/heat\/0\/reference: is required when the temperature is given per cell/);
+  assert.match(problems(heatedBarScene, s => { s.heat[0].boundaries[0].type = 'glow'; }), /\/heat\/0\/boundaries\/0\/type: must be 'temperature', 'flux', 'convection' or 'radiation'/);
+  assert.match(problems(heatedBarScene, s => { s.heat[0].boundaries[0].region = {min: [0, 0, 0], max: [10, 0, 0]}; }), /\/heat\/0\/boundaries\/0\/region\/max\/0: must be <= 9/);
+  assert.match(problems(quenchedPlateScene, s => { s.heat[0].scheme = 'leapfrog'; }), /\/heat\/0\/scheme: must be 'backward-euler'/);
+  // A solid the solver refuses is reported with its id, and the world is left reset.
+  withWorld(world => {
+    const scene = notchedBeamScene(); scene.solids[0].integrator = 'explicit';
+    assert.throws(() => loadLabScene(world, scene), /Scene solid "beam":/);
+    assert.equal(world.bodyCount(), 1, 'reset to the scene settings: only the ground slab');
+  });
+  // Defaults written out do not change the hash, and rigid scenes keep theirs (pinned in lab-scenes.test.mjs).
+  const pad = rubberPadScene(), d = copy(pad);
+  Object.assign(d.solids[0], {integrator: 'backward-euler', substeps: 1, massDamping: 0, gravity: true, displacements: new Array(729).fill(0)});
+  Object.assign(d.solids[0].contact.bodies[0], {twoWay: true, collide: true});
+  assert.equal(sceneHash(d), sceneHash(pad));
+  const bar = heatedBarScene(), e = copy(bar);
+  Object.assign(e.heat[0], {scheme: 'backward-euler', substeps: 1, reference: e.heat[0].temperature});
+  e.solids[0].supports[0].axes = [true, true, true];
+  assert.equal(sceneHash(e), sceneHash(bar));
+});
+
+test('solids are built as their sections say: subsystems, contact, welds, loads, fracture and the thermal link', () => {
+  withWorld(world => {
+    const pad = loadLabScene(world, rubberPadScene()), runtime = pad.solids.get('pad');
+    assert.deepEqual(pad.simulation.order().map(row => row.id), ['pad', 'world', 'events']);
+    assert.ok(runtime.coupling && runtime.coupling.contact.weldCount === 81, `81 welded nodes, got ${runtime.coupling?.contact.weldCount}`);
+    const beam = loadLabScene(world, notchedBeamScene()), body = beam.solids.get('beam').body;
+    assert.ok(body instanceof FractureBody);
+    assert.deepEqual(beam.simulation.order().map(row => row.id), ['world', 'beam:loads', 'beam', 'events']);
+    const area = body.crackArea();
+    assert.ok(Math.abs(area.precrack - 0.025 * 0.05) < 1e-12 && Math.abs(area.cohesive - 0.075 * 0.05) < 1e-12, JSON.stringify(area));
+    const plate = loadLabScene(world, quenchedPlateScene());
+    assert.deepEqual(plate.simulation.order().map(row => row.id), ['world', 'plate-heat', 'plate-heat:solid', 'plate', 'events']);
+    assert.equal(plate.heat.get('plate-heat').cells, 60);
+    assert.equal(plate.solids.get('plate').heat, plate.heat.get('plate-heat'));
+  });
+});
+
+test('a cracked solid saved after N steps reopens from its link with the same nodes, interfaces and fields; heat and contact too', async () => {
+  for (const [name, steps] of [['quenched-plate', 150], ['notched-beam', 180], ['rubber-pad', 70], ['heated-bar', 120]]) {
+    const original = run(COUPLED_EXAMPLE_SCENES[name](), steps, loaded => ({
+      solids: [...loaded.solids.values()].map(s => ({nodes: s.body.nodeCount, cracks: s.body instanceof FractureBody ? s.body.crackState().length : 0, area: s.body instanceof FractureBody ? s.body.crackArea() : null,
+        positions: Array.from(s.body.referencePositions, (x, i) => x + s.body.displacements[i]).map((v, i, all) => i % 3 === 0 ? `${all[i]},${all[i + 1]},${all[i + 2]}` : null).filter(Boolean).sort()})),
+      heat: [...loaded.heat.values()].map(h => Array.from(h.temperature)),
+    }));
+    if (name === 'quenched-plate') assert.ok(original.extra.solids[0].cracks > 20 && original.extra.solids[0].nodes > 154, `the plate has cracked: ${original.extra.solids[0].cracks} interfaces, ${original.extra.solids[0].nodes} nodes`);
+    if (name === 'notched-beam') assert.ok(original.extra.solids[0].area.open > 0, 'the beam has cracked');
+    const link = await encodeSceneLink(original.saved), reopened = decodeSceneLink(link);
+    assert.equal(sceneHash(reopened), sceneHash(original.saved), `${name}: the link carries the saved scene`);
+    const fields = withWorld(world => {
+      const loaded = loadLabScene(world, reopened);
+      for (const [id, s] of loaded.solids) {
+        const saved = original.saved.solids.find(entry => entry.id === id);
+        assert.deepEqual(Array.from(s.body.displacements), saved.displacements ?? new Array(3 * s.body.nodeCount).fill(0), `${name}: the solid starts from the saved displacements`);
+        assert.deepEqual(Array.from(s.body.velocities), saved.velocities ?? new Array(3 * s.body.nodeCount).fill(0));
+      }
+      return {
+        solids: [...loaded.solids.values()].map(s => ({nodes: s.body.nodeCount, cracks: s.body instanceof FractureBody ? s.body.crackState().length : 0, area: s.body instanceof FractureBody ? s.body.crackArea() : null,
+          positions: Array.from(s.body.referencePositions, (x, i) => x + s.body.displacements[i]).map((v, i, all) => i % 3 === 0 ? `${all[i]},${all[i + 1]},${all[i + 2]}` : null).filter(Boolean).sort()})),
+        heat: [...loaded.heat.values()].map(h => Array.from(h.temperature)),
+      };
+    });
+    assert.deepEqual(fields, original.extra, `${name}: same node count, interfaces, crack area, node positions bit for bit and temperatures`);
+    const a = run(reopened, 30), b = run(decodeSceneLink(link), 30);
+    assert.equal(b.final, a.final, `${name}: two fresh openings of the link stay identical`);
+  }
+});
+
+test('the reaction load carries the weight of the body at rest; contact and crack events reach the readout', () => {
+  const beam = run(notchedBeamScene(), 720, (loaded, view) => ({support: loaded.simulation.get('beam:loads').diagnostics().loads[0].support, mass: loaded.builder.world.getState(loaded.bodies.get('weight')).mass, events: view.readout().events,
+    sag: Math.max(...Array.from(loaded.solids.get('beam').body.displacements, Math.abs)), open: loaded.solids.get('beam').body.crackArea().open}));
+  assert.ok(beam.extra.sag < 1e-4 && beam.extra.open > 0, `the cracked beam stays on its supports: largest displacement ${beam.extra.sag} m, open crack area ${beam.extra.open} m^2`);
+  const weight = beam.extra.mass * 9.81;
+  assert.ok(Math.abs(beam.extra.support[1] - weight) < 1e-3 * weight, `support ${beam.extra.support[1]} N against the weight ${weight} N`);
+  const pad = run(rubberPadScene(), 70, (loaded, view) => view.readout().events);
+  assert.ok(pad.extra.some(e => e.source === 'pad' && e.type === 'contact-begin' && /body box/.test(e.detail)), JSON.stringify(pad.extra));
+  const plate = run(quenchedPlateScene(), 120, (loaded, view) => view.readout().events);
+  assert.ok(plate.extra.some(e => e.source === 'plate' && e.type === 'crack' && /kind (initiated|opened)/.test(e.detail)), JSON.stringify(plate.extra));
+});
+
+test('solids are coloured in bands of the chosen field, and cracks are drawn as two surfaces', () => {
+  assert.deepEqual(rampColor(0).map(v => +v.toFixed(2)), [0.16, 0.29, 0.78]);
+  assert.deepEqual(rampColor(1).map(v => +v.toFixed(2)), [0.86, 0.2, 0.16]);
+  assert.equal(solidBand(0, 0, 1), 0); assert.equal(solidBand(1, 0, 1), SOLID_BANDS - 1); assert.equal(solidBand(0.5, 0, 1), 4); assert.equal(solidBand(NaN, 0, 1), 0);
+  // Each boundary face of a two-tetrahedron mesh belongs to the element that holds it.
+  assert.deepEqual(Array.from(boundaryFaceElements([0, 1, 2, 1, 2, 4], [0, 1, 2, 3, 1, 2, 3, 4], null)), [0, 1]);
+  withWorld(world => {
+    const loaded = loadLabScene(world, quenchedPlateScene()), view = new CoupledSceneView(loaded, world);
+    for (let i = 0; i < 150; i++) view.step();
+    for (const field of ['stress', 'temperature', 'damage']) {
+      view.setSolidView({field, scale: 100}); assert.equal(view.sync(), true);
+      const info = view.drawInfo(), solid = view.solidView().solids[0];
+      assert.ok(info.crackFaces > 0 && info.solidTriangles === loaded.solids.get('plate').body.faces.length / 3 + 2 * info.crackFaces, JSON.stringify(info));
+      assert.equal(info.meshVertices, 3 * info.solidTriangles);
+      if (field === 'temperature') assert.deepEqual([solid.min, solid.max], [300, 600]);
+      if (field === 'damage') assert.equal(solid.peak, 1);
+      // An empty band is drawn with no size, never as the unit box a mesh row without geometry would be.
+      for (let row = view.rowCount - SOLID_BANDS; row < view.rowCount; row++) {
+        const geometry = view.shapeGeometry(row);
+        if (geometry === null) assert.deepEqual(Array.from(view.HEAPF32.subarray(16 * row, 16 * row + 16)), new Array(16).fill(0));
+      }
+    }
+    assert.throws(() => view.setSolidView({field: 'colour'}), /Unknown solid field/);
+    view.dispose();
+  });
+});
+
+// ---------------------------------------------------------------------------
+// Fluids
+// ---------------------------------------------------------------------------
+
+test('fluid sections: problems are reported with their paths', () => {
+  const problems = (make, edit) => { const scene = make(); edit(scene); return validateScene(scene).map(p => `${p.path}: ${p.message}`).join('\n'); };
+  assert.match(problems(cavityFlowScene, s => { s.fluids[0].cells = [16, 0, 16]; }), /\/fluids\/0\/cells\/1: must be >= 1/);
+  assert.match(problems(cavityFlowScene, s => { s.fluids[0].cells = [128, 128, 128]; }), /\/fluids\/0\/cells: holds 2097152 cells; the limit is 262144/);
+  assert.match(problems(cavityFlowScene, s => { delete s.fluids[0].viscosity; }), /\/fluids\/0\/viscosity: is required for a flow/);
+  assert.match(problems(cavityFlowScene, s => { s.fluids[0].viscosity = 50; }), /\/fluids\/0\/substeps: the fluid step 0.01667 s is above the explicit viscous limit/);
+  assert.match(problems(cavityFlowScene, s => { s.fluids[0].boundaries.yMax.velocity = [0.1, 0.2, 0]; }), /\/fluids\/0\/boundaries\/yMax\/velocity\/1: a wall cannot move along its normal/);
+  assert.match(problems(cavityFlowScene, s => { s.fluids[0].boundaries.yMax.velocity = [5, 0, 0]; }), /\/fluids\/0\/substeps: the walls, inflows and starting velocity give a Courant number of 13\.33/);
+  assert.match(problems(cavityFlowScene, s => { s.fluids[0].boundaries.xMin = 'periodic'; }), /\/fluids\/0\/boundaries\/xMax: axis x: periodic must be set on both sides/);
+  assert.match(problems(cavityFlowScene, s => { s.fluids[0].boundaries.xMin = 'leaky'; }), /\/fluids\/0\/boundaries\/xMin: must be 'no-slip', 'free-slip', 'outflow', 'periodic'/);
+  assert.match(problems(cavityFlowScene, s => { s.fluids[0].boundaries.xMax = 'outflow'; }), /\/fluids\/0\/boundaries\/xMax: an outflow side holds p = 0 all over, so gravity must not act along it \(here y\)/);
+  assert.match(problems(cavityFlowScene, s => { s.fluids[0].u = [0, 0]; }), /\/fluids\/0\/u: must hold exactly 4352 numbers, got 2/);
+  assert.match(problems(cavityFlowScene, s => { s.fluids[0].u = [0, 0]; }), /\/fluids\/0\/v: is required with the other saved face velocities/);
+  assert.match(problems(cavityFlowScene, s => { s.fluids[0].liquid = []; }), /\/fluids\/0\/liquid: belongs to a free-surface tank/);
+  assert.match(problems(cavityFlowScene, s => { s.fluids[0].kind = 'gas'; }), /\/fluids\/0\/kind: must be 'flow' or 'free-surface'/);
+  assert.match(problems(sphereSettlingScene, s => { s.fluids[0].bodies.push({body: 'ghost'}); }), /\/fluids\/0\/bodies\/1\/body: unknown body id "ghost"/);
+  assert.match(problems(sphereSettlingScene, s => { s.fluids[0].bodies.push({body: 'ball'}); }), /\/fluids\/0\/bodies\/1\/body: body "ball" is listed twice/);
+  assert.match(problems(sphereSettlingScene, s => { s.fluids[0].id = 'ball'; }), /\/fluids\/0\/id: duplicate id "ball"/);
+  assert.match(problems(sphereSettlingScene, s => { s.bodies[0].shape = {kind: 'hull', points: [0, 0, 0, 0.1, 0, 0, 0, 0.1, 0, 0, 0, 0.1]}; }), /\/fluids\/0\/bodies\/0\/body: a hull body cannot touch a fluid/);
+  assert.match(problems(damBreakScene, s => { delete s.fluids[0].liquid; }), /\/fluids\/0\/liquid: is required: a free-surface tank starts from boxes of liquid/);
+  assert.match(problems(damBreakScene, s => { s.fluids[0].liquid[0].max = [-0.4, 1, 1]; }), /\/fluids\/0\/liquid\/0\/max: must exceed min on every axis/);
+  assert.match(problems(damBreakScene, s => { s.fluids[0].viscosity = 1; }), /\/fluids\/0\/viscosity: belongs to a flow, not to a free-surface tank/);
+  assert.match(problems(damBreakScene, s => { s.fluids[0].cells = [1, 12, 6]; }), /\/fluids\/0\/cells\/0: must be >= 2/);
+  assert.match(problems(damBreakScene, s => { s.fluids[0].positions = [0, 0, 0]; s.fluids[0].velocities = [1, 2]; }), /\/fluids\/0\/velocities: must hold exactly 3 numbers, got 2/);
+  assert.match(problems(damBreakScene, s => { s.fluids[0].affine = [0]; }), /\/fluids\/0\/affine: needs `positions`/);
+  assert.match(problems(damBreakScene, s => { s.fluids = [1, 2, 3, 4, 5]; }), /\/fluids: holds 5 entries; the limit is 4/);
+  // A fluid the solver refuses when it is built is reported with its id, and the world is left reset.
+  withWorld(world => {
+    const scene = sphereSettlingScene(); scene.bodies[0].linearVelocity = [0, -40, 0];
+    assert.throws(() => loadLabScene(world, scene), /Scene fluid "syrup":.*fluid step/);
+    assert.equal(world.bodyCount(), 1, 'reset to the scene settings: only the ground slab');
+  });
+  // Defaults written out do not change the hash; rigid scenes and the coupled examples from before keep theirs.
+  const cavity = cavityFlowScene(), d = copy(cavity);
+  Object.assign(d.fluids[0], {kind: 'flow', substeps: 1, gravity: true, advection: 'central', diffusion: 'explicit', origin: d.fluids[0].origin, velocity: [0, 0, 0],
+    u: new Array(17 * 16 * 16).fill(0), v: new Array(17 * 16 * 16).fill(0), w: new Array(17 * 16 * 16).fill(0), pressure: new Array(4096).fill(0)});
+  Object.assign(d.fluids[0].boundaries, {xMin: 'no-slip', zMax: {type: 'no-slip', velocity: [0, 0, 0]}});
+  assert.equal(sceneHash(d), sceneHash(cavity));
+  const dam = damBreakScene(), e = copy(dam);
+  Object.assign(e.fluids[0], {particlesPerAxis: 2});
+  e.fluids[0].liquid[0].velocity = [0, 0, 0];
+  assert.equal(sceneHash(e), sceneHash(dam));
+});
+
+test('fluids are built as their sections say: a coupled flow in the couple stage, a bare flow and a tank in the post stage', () => {
+  withWorld(world => {
+    const settle = loadLabScene(world, sphereSettlingScene()), runtime = settle.fluids.get('syrup');
+    assert.equal(runtime.kind, 'flow');
+    assert.ok(runtime.coupling && runtime.coupling.substeps === 1 && runtime.flow.obstacleCount === 1);
+    assert.deepEqual(settle.simulation.order().map(row => row.id), ['syrup', 'world', 'events']);
+    // At rest the pressure is hydrostatic (zero mean in a closed box).
+    const p = runtime.flow.p, rho = 1380, g = 9.81, h = 0.01;
+    assert.ok(Math.abs((p[0] - p[12 * 29]) - rho * g * 29 * h) < 1e-9 * rho * g, 'hydrostatic start');
+    const cavity = loadLabScene(world, cavityFlowScene());
+    assert.deepEqual(cavity.simulation.order().map(row => row.id), ['world', 'cavity', 'events']);
+    assert.equal(cavity.fluids.get('cavity').coupling, null);
+    const cylinder = loadLabScene(world, flowPastCylinderScene()), channel = cylinder.fluids.get('channel').flow;
+    assert.deepEqual(Array.from(channel.gravity), [0, 0, 0]);
+    assert.ok(channel.maxDivergence() * channel.h / 0.04 < 1e-9, 'the starting velocity is made divergence-free');
+    const dam = loadLabScene(world, damBreakScene()), tank = dam.fluids.get('tank').surface;
+    assert.deepEqual(dam.simulation.order().map(row => row.id), ['world', 'tank', 'events']);
+    assert.equal(tank.count, 6 * 10 * 3 * 8, 'eight particles in each of the 6 x 10 x 3 cells of the column');
+    assert.equal(tank.dt, 1 / 120);
+  });
+});
+
+test('a flow and a free-surface tank saved after N steps reopen from their links with the same fields', async () => {
+  const fields = loaded => [...loaded.fluids.values()].map(runtime => runtime.kind === 'flow'
+    ? (({u, v, w, pressure}) => ({u: Array.from(u, x => x + 0), v: Array.from(v, x => x + 0), w: Array.from(w, x => x + 0), pressure: Array.from(pressure, x => x + 0)}))(runtime.flow.getState())
+    : {positions: Array.from(runtime.surface.positions, x => x + 0), velocities: Array.from(runtime.surface.velocities, x => x + 0), affine: Array.from(runtime.surface.affine, x => x + 0)});
+  for (const [name, steps] of [['sphere-settling', 90], ['flow-past-cylinder', 60], ['dam-break', 45]]) {
+    const original = run(COUPLED_EXAMPLE_SCENES[name](), steps, fields);
+    const link = await encodeSceneLink(original.saved), reopened = decodeSceneLink(link);
+    assert.equal(sceneHash(reopened), sceneHash(original.saved), `${name}: the link carries the saved scene`);
+    assert.ok(link.length < 1_048_576, `${name}: the link fits the link limit (${link.length} characters)`);
+    assert.deepEqual(withWorld(world => fields(loadLabScene(world, reopened))), original.extra, `${name}: the solvers start from the saved fields, bit for bit (-0 read as 0)`);
+    const a = run(reopened, 30), b = run(decodeSceneLink(link), 30);
+    assert.deepEqual(b.hashes, a.hashes); assert.equal(b.final, a.final, `${name}: two fresh openings of the link stay identical`);
+  }
+  // A tank's state is its particles: reopened, it runs on exactly as the original would have.
+  const longer = run(damBreakScene(), 75), reopened = run(decodeSceneLink(await encodeSceneLink(run(damBreakScene(), 45).saved)), 30);
+  assert.equal(reopened.final, longer.final, 'dam-break: 45 steps, save, reopen, 30 steps = 75 steps');
+});
+
+test('fluids are drawn: the slice in colour bands without the body, arrows, the box edges and one sphere per particle', () => {
+  assert.equal(fluidBand(0, 0, 1), 0); assert.equal(fluidBand(1, 0, 1), FLUID_BANDS - 1); assert.equal(fluidBand(NaN, 0, 1), -1);
+  withWorld(world => {
+    const loaded = loadLabScene(world, sphereSettlingScene()), view = new CoupledSceneView(loaded, world);
+    for (let i = 0; i < 30; i++) view.step();
+    view.sync();
+    const flow = loaded.fluids.get('syrup').flow, slice = flowSlice(flow), values = new Float64Array(slice.nx * slice.ny);
+    assert.deepEqual([slice.nx, slice.ny, slice.z, slice.stride], [12, 30, 0, 3]);
+    const range = sliceValues(flow, slice, 'speed', values);
+    const inside = Array.from(values).filter(Number.isNaN).length;
+    assert.ok(inside >= 12 && inside <= 24, `the cells of the slice inside the ball are left out: ${inside}`);
+    assert.equal(range.min, 0);
+    const info = view.drawInfo();
+    assert.equal(info.fluidRows, FLUID_BANDS);
+    assert.equal(info.meshVertices, 12 * (12 * 30 - inside), 'two triangles a side for every cell outside the ball');
+    assert.ok(info.arrows > 4, `arrows around the ball: ${info.arrows}`);
+    const ball = view.fluidView().fluids[0].bodies[0];
+    assert.ok(ball.id === 'ball' && ball.speed > 0.1 && ball.force[1] > 0, JSON.stringify(ball));
+    assert.deepEqual(view.setFluidView({field: 'pressure'}), {field: 'pressure'});
+    assert.equal(view.sync(), true);
+    assert.equal(view.fluidView().fluids[0].unit, 'Pa');
+    assert.throws(() => view.setFluidView({field: 'vorticity'}), /Unknown fluid field/);
+    view.dispose();
+    // A fluid at rest has one pressure once the hydrostatic part is taken off: the slice is one band.
+    const still = cavityFlowScene({lidSpeed: 0}), rest = loadLabScene(world, still), restFlow = rest.fluids.get('cavity').flow;
+    for (let i = 0; i < 5; i++) rest.simulation.step();
+    const restSlice = flowSlice(restFlow), restValues = new Float64Array(restSlice.nx * restSlice.ny);
+    sliceValues(restFlow, restSlice, 'pressure', restValues);
+    const spread = Math.max(...restValues) - Math.min(...restValues);
+    assert.ok(spread < 1e-9 * 900 * 9.81 * 0.1, `the pressure less its hydrostatic part is uniform at rest: spread ${spread} Pa`);
+    const dam = loadLabScene(world, damBreakScene()), damView = new CoupledSceneView(dam, world);
+    for (let i = 0; i < 20; i++) damView.step();
+    damView.sync();
+    const damInfo = damView.drawInfo(), tank = dam.fluids.get('tank').surface;
+    assert.equal(damInfo.particleRows, tank.count);
+    assert.equal(damView.rowCount, world.bodyCount() + tank.count);
+    const last = damView.rowCount - 1, m = damView.HEAPF32.subarray(16 * last, 16 * last + 16);
+    assert.deepEqual([m[12], m[13], m[14]], [Math.fround(tank.positions[3 * tank.count - 3]), Math.fround(tank.positions[3 * tank.count - 2]), Math.fround(tank.positions[3 * tank.count - 1])]);
+    assert.equal(damView.overlayLines.length, 12, 'the twelve edges of the tank');
+    damView.dispose();
+  });
+});
+
+test('the settling ball reaches a terminal velocity; the cylinder feels a steady drag with no lift', () => {
+  const ball = run(sphereSettlingScene(), 150, (loaded, view) => {
+    const world = loaded.builder.world, handle = loaded.bodies.get('ball');
+    return {v: world.getState(handle).linearVelocity[1], y: world.getState(handle).position[1]};
+  });
+  const early = run(sphereSettlingScene(), 90, loaded => loaded.builder.world.getState(loaded.bodies.get('ball')).linearVelocity[1]);
+  // Stokes's velocity in an unbounded fluid is 0.447 m/s; the walls of the column slow the ball to about a third of it.
+  assert.ok(ball.extra.v < -0.13 && ball.extra.v > -0.17, `terminal velocity ${ball.extra.v} m/s`);
+  assert.ok(Math.abs(early.extra - ball.extra.v) < 0.01 * Math.abs(ball.extra.v), `steady between 0.75 s and 1.25 s: ${early.extra} and ${ball.extra.v}`);
+  const cylinder = run(flowPastCylinderScene(), 240, loaded => Array.from(loaded.fluids.get('channel').coupling.force(loaded.bodies.get('cylinder'))));
+  const [fx, fy] = cylinder.extra, perLength = fx / (0.02 / 6), cd = perLength / (0.5 * 1000 * 0.04 ** 2 * 0.02);
+  assert.ok(cd > 2 && cd < 3.5 && Math.abs(fy) < 0.05 * fx, `drag coefficient ${cd} (unbounded flow at Re 20: about 2; the channel blocks 19%), lift ${fy} N`);
+});
+
+test('shallow water: validation paths, normal form and the build', () => {
+  const problems = (make, edit) => { const scene = make(); edit(scene); return validateScene(scene).map(p => `${p.path}: ${p.message}`).join('\n'); };
+  assert.match(problems(damBreakValleyScene, s => { s.shallowWater[0].bed.pop(); }), /\/shallowWater\/0\/bed: must hold exactly 3072 numbers/);
+  assert.match(problems(damBreakValleyScene, s => { s.shallowWater[0].boundaries.xMin = {type: 'inflow'}; }), /\/shallowWater\/0\/boundaries\/xMin\/discharge: is required/);
+  assert.match(problems(damBreakValleyScene, s => { s.shallowWater[0].level = 1; }), /\/shallowWater\/0\/level: give `level` or `depth`, not both/);
+  assert.match(problems(damBreakValleyScene, s => { s.world.gravity = [1, -9.81, 0]; }), /\/shallowWater\/0: shallow water needs gravity straight down/);
+  assert.match(problems(damBreakValleyScene, s => { s.shallowWater[0].bodies.push({body: 'valley-water'}); }), /\/shallowWater\/0\/bodies\/3\/body: unknown body id/);
+  assert.match(problems(damBreakValleyScene, s => { s.shallowWater[0].order = 3; }), /\/shallowWater\/0\/order: must be 1 or 2/);
+  assert.match(problems(riverBendScene, s => { s.shallowWater[0].boundaries.xMin.span = [5, 4]; }), /span: must be \[from, to\] with to > from/);
+  // Defaults written out do not change the hash.
+  const river = riverBendScene(), d = copy(river);
+  Object.assign(d.shallowWater[0], {order: 2, substeps: 1, density: 1000, origin: [0, 0], rain: 0});
+  Object.assign(d.shallowWater[0].boundaries, {zMin: 'wall'});
+  assert.equal(sceneHash(d), sceneHash(river));
+  withWorld(world => {
+    const loaded = loadLabScene(world, damBreakValleyScene()), runtime = loaded.shallowWater.get('valley-water');
+    assert.ok(runtime.coupling && runtime.coupling.bodyCount === 3);
+    assert.deepEqual(loaded.simulation.order().map(row => row.id), ['valley-water', 'world', 'events']);
+    assert.equal(runtime.water.nx * runtime.water.nz, 3072);
+    const bare = copy(riverBendScene()); delete bare.shallowWater[0].bodies; bare.bodies.pop();
+    const plain = loadLabScene(world, bare);
+    assert.deepEqual(plain.simulation.order().map(row => row.id), ['world', 'river', 'events'], 'without bodies it runs in the post stage');
+  });
+});
+
+test('shallow water: a save after N steps reopens from its link with the same fields and runs on bit for bit; drawn as bed and water', async () => {
+  const fields = loaded => [...loaded.shallowWater.values()].map(({water}) => ({h: Array.from(water.h), qx: Array.from(water.qx, x => x + 0), qz: Array.from(water.qz, x => x + 0)}));
+  for (const [name, steps] of [['dam-break-valley', 60], ['river-bend', 45]]) {
+    const original = run(COUPLED_EXAMPLE_SCENES[name](), steps, fields);
+    const link = await encodeSceneLink(original.saved), reopened = decodeSceneLink(link);
+    assert.equal(sceneHash(reopened), sceneHash(original.saved));
+    assert.ok(link.length < 1_048_576, `${name}: the link fits (${link.length} characters)`);
+    assert.deepEqual(withWorld(world => fields(loadLabScene(world, reopened))), original.extra, `${name}: the solver starts from the saved fields, bit for bit`);
+    const a = run(reopened, 30), b = run(decodeSceneLink(link), 30);
+    assert.equal(b.final, a.final, `${name}: two fresh openings of the link stay identical`);
+    assert.equal(original.draw.meshRows, 2, `${name}: a bed row and a water row`);
+  }
+  // Without floating bodies the save holds the whole state: the reopened run continues exactly.
+  const bare = copy(riverBendScene()); delete bare.shallowWater[0].bodies; bare.bodies.pop();
+  const longer = run(bare, 75), resumed = run(decodeSceneLink(await encodeSceneLink(run(bare, 45).saved)), 30);
+  assert.equal(resumed.final, longer.final, 'river without the log: 45 steps, save, reopen, 30 steps = 75 steps');
+  // The view: water only over wet cells, readouts with a closed volume budget.
+  withWorld(world => {
+    const loaded = loadLabScene(world, damBreakValleyScene()), view = new CoupledSceneView(loaded, world);
+    for (let i = 0; i < 60; i++) view.step();
+    view.sync();
+    const info = view.shallowWaterView()[0];
+    assert.equal(view.hasShallowWater, true);
+    assert.ok(info.maxDepth > 1 && info.maxSpeed > 0.5 && info.wetCells > 0 && info.wetCells < info.cells, JSON.stringify(info));
+    assert.ok(Math.abs(info.volumeError) < 1e-10 * info.volume, 'volume budget');
+    view.dispose();
+  });
+  const water = {h: new Float64Array([0, 0.1, 0.2, 0]), bed: new Float64Array([1, 1, 1, 2]), nx: 2, nz: 2, dx: 0.5, dz: 0.5, origin: [0, 0]};
+  const grid = shallowDrawGrid(2, 2), out = new Float32Array(2 * 2 * 36), heights = new Float32Array(9), wet = new Uint8Array(4);
+  assert.equal(writeShallowMesh(water, 'bed', grid, heights, wet, out), 4 * 36, 'the bed covers every cell');
+  assert.equal(writeShallowMesh(water, 'water', grid, heights, wet, out), 2 * 36, 'the water covers the two wet cells');
+  assert.equal(shallowDrawGrid(512, 512).stride, 4);
+});

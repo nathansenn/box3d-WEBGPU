@@ -16,8 +16,23 @@ const ENTRIES = [
   ['box3d-webgpu-kit/worker', 'dist/worker.d.ts'],
   ['box3d-webgpu-kit/cable', 'dist/cable.d.ts'],
   ['box3d-webgpu-kit/water', 'dist/water.d.ts'],
+  ['box3d-webgpu-kit/coupling', 'dist/coupling.d.ts'],
   ['box3d-webgpu-kit/frame', 'dist/frame.d.ts'],
+  ['box3d-webgpu-kit/heat', 'dist/heat.d.ts'],
+  ['box3d-webgpu-kit/solid', 'dist/solid.d.ts'],
+  ['box3d-webgpu-kit/structure', 'dist/structure.d.ts'],
   ['box3d-webgpu-kit/gameplay', 'dist/gameplay.d.ts'],
+  ['box3d-webgpu-kit/geometry', 'dist/geometry.d.ts'],
+  ['box3d-webgpu-kit/scene', 'dist/scene.d.ts'],
+  ['box3d-webgpu-kit/simulation', 'dist/simulation.d.ts'],
+  ['box3d-webgpu-kit/robot', 'dist/robot.d.ts'],
+  ['box3d-webgpu-kit/fracture', 'dist/fracture.d.ts'],
+  ['box3d-webgpu-kit/cloth', 'dist/cloth.d.ts'],
+  ['box3d-webgpu-kit/granular', 'dist/granular.d.ts'],
+  ['box3d-webgpu-kit/fluid', 'dist/fluid.d.ts'],
+  ['box3d-webgpu-kit/shallow-water', 'dist/shallow-water.d.ts'],
+  ['box3d-webgpu-kit/solid-contact', 'dist/solid-contact.d.ts'],
+  ['box3d-webgpu-kit/materials', 'dist/materials.d.ts'],
 ];
 
 function kindOf(decl) {

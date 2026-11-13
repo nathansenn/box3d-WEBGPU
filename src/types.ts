@@ -1,5 +1,6 @@
 import type { Mat4, Vec3 } from './math';
 import type { ScenePreset } from './scenes';
+import type { NativeWorldBackend } from './engine/native-world.ts';
 
 export type InstanceBufferSource = {
   readonly HEAPF32: Float32Array;
@@ -11,6 +12,54 @@ export type InstanceBufferSource = {
   _b3w_colors_ptr(): number | bigint;
   _b3w_body_count(): number;
   _b3w_max_bodies(): number;
+  /**
+   * Optional shape stream. A source without these two methods has only boxes.
+   * `shapeVersion` changes whenever a row's shape may have changed (a body was
+   * created or destroyed, or the scene was replaced). The renderer compares it
+   * only on frames whose transforms or colours changed, and calls `shapeKinds`
+   * only when it differs.
+   */
+  shapeVersion?(): number;
+  /**
+   * One byte per active row: 0 box, 1 sphere, 2 capsule, 3 hull, 4 mesh, 5 height field, 6 compound
+   * (src/webgpu/instance-shapes.ts).
+   * Null when every row is a box. The array may be reused by the next call.
+   */
+  shapeKinds?(): Uint8Array | null;
+  /**
+   * Optional. The render mesh of the hull, mesh, height-field or compound body at `row`
+   * (kinds 3 to 6), in the body's own frame: position.xyz, normal.xyz per
+   * vertex, three vertices per triangle (src/webgpu/body-geometry.ts). Null when
+   * the source has none for that row, which is then drawn as a box. The same
+   * object must be returned for the same body until it is destroyed: the
+   * renderer uploads a mesh once per object. Called only when shapeVersion changes.
+   */
+  shapeGeometry?(row: number): InstanceGeometry | null;
+};
+
+/**
+ * A scene file states its own fixed step. With `step` and `subSteps` set, every step() of the
+ * general scene takes `stepsPerTick` (default 1) steps of exactly that size, whatever it is called with.
+ */
+export type GeneralSceneOptions = {
+  readonly step?: number;
+  readonly subSteps?: number;
+  readonly stepsPerTick?: number;
+  /** Called before and after every fixed step of the general world (with `step` and `subSteps` set): a scene that
+   * runs its own solvers beside the rigid world steps them here (the SI bridge, src/lab/si-bridge-scene.ts). */
+  readonly beforeStep?: () => void;
+  readonly afterStep?: () => void;
+  /**
+   * With `step` and `subSteps` set: called once per fixed step INSTEAD of stepping the general world. The callee
+   * must advance that world by exactly one step of `step` seconds itself. A coupled scene passes its Simulation's
+   * step here, which runs its couple stage, the rigid step and its post stage in order (docs/SIMULATION.md).
+   */
+  readonly stepWith?: () => void;
+};
+
+export type InstanceGeometry = {
+  readonly vertices: Float32Array;
+  readonly vertexCount: number;
 };
 
 /** How the native backend uses its worker pool (docs/THREADED_ENGINE.md). Results never depend on it. */
@@ -39,6 +88,20 @@ export type PhysicsBackend = InstanceBufferSource & {
   bodyCount(): number;
   dynamicCount(): number;
   replayHash(): number;
+  /**
+   * Optional. Replace the rigid world with one built through the general SI API
+   * (resetWorld, createBody, createJoint). Returns the body count. The next
+   * createScene() call returns to the recipe world. If `build` throws, the general
+   * world is abandoned and the backend shows the recipe world again.
+   */
+  createGeneralScene?(build: (world: NativeWorldBackend) => void, options?: GeneralSceneOptions): number;
+  /**
+   * Optional. Run `build` in a scratch world that is thrown away, so a scene the engine refuses
+   * is found before createGeneralScene replaces what is on screen. Throws what `build` throws.
+   */
+  checkGeneralScene?(build: (world: NativeWorldBackend) => void): void;
+  /** Optional. The colour stream of the general world was written from JavaScript: count it as a colour change. */
+  markGeneralColorsEdited?(): void;
   destroy(): void;
 };
 

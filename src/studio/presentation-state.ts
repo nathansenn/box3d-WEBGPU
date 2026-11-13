@@ -8,6 +8,8 @@ export function copySnapshotInto(target:Snapshot,source:Snapshot):Snapshot {
   Object.assign(target.response,source.response);
   if(source.press){if(!target.press)target.press={...source.press,settings:{...source.press.settings}};else{const settings=target.press.settings;Object.assign(target.press,source.press);target.press.settings=settings;Object.assign(settings,source.press.settings);}}
   else target.press=undefined;
+  if(source.si){if(!target.si)target.si={...source.si,hangers:source.si.hangers.slice()};else{const hangers=target.si.hangers;Object.assign(target.si,source.si);target.si.hangers=hangers;for(let i=0;i<hangers.length;i++)hangers[i]=source.si.hangers[i];}}
+  else target.si=undefined;
   return target;
 }
 

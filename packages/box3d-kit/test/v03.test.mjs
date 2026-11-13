@@ -212,7 +212,7 @@ test('WorldScheduler keeps within budget, rotates fairly and preserves each worl
 
 test('importing every entry point is SSR-safe: no window/document access at import time', () => {
   const out = execFileSync(process.execPath, ['--input-type=module', '-e',
-    "await import('box3d-webgpu-kit'); await import('box3d-webgpu-kit/three'); await import('box3d-webgpu-kit/worker'); await import('box3d-webgpu-kit/babylon'); await import('box3d-webgpu-kit/single'); await import('box3d-webgpu-kit/cable'); await import('box3d-webgpu-kit/water'); await import('box3d-webgpu-kit/frame'); await import('box3d-webgpu-kit/gameplay'); console.log(typeof window, typeof document)"],
+    "await import('box3d-webgpu-kit'); await import('box3d-webgpu-kit/three'); await import('box3d-webgpu-kit/worker'); await import('box3d-webgpu-kit/babylon'); await import('box3d-webgpu-kit/single'); await import('box3d-webgpu-kit/cable'); await import('box3d-webgpu-kit/water'); await import('box3d-webgpu-kit/frame'); await import('box3d-webgpu-kit/gameplay'); await import('box3d-webgpu-kit/geometry'); console.log(typeof window, typeof document)"],
     {cwd: fileURLToPath(new URL('..', import.meta.url)), encoding: 'utf8'}).trim();
   assert.equal(out, 'undefined undefined');
   const dist = fileURLToPath(new URL('../dist/', import.meta.url));

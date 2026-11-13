@@ -12,7 +12,7 @@
   },
   "bridge": {
     "source": "wasm/box3d_web.c",
-    "sha256": "4af722adcf8f4c4afda8054e98aa6d21a1132e04fbe70ce39197b54c152f80d7",
+    "sha256": "552b6d8310c6675ba7ac97ee68c261eb2731e5384fc14c499729b443ad4229c9",
     "lazyReplayHash": true,
     "sleepingWorldTransformCache": true,
     "independentColorRevision": true,
@@ -20,49 +20,28 @@
     "conservativeExplosionMissRejection": true,
     "cachedBoxHullConstruction": true,
     "boxHullCacheEntries": 8,
-    "deterministicDoubleBuild": true,
+    "deterministicDoubleBuild": false,
     "rendererMaterialTags": true,
     "signatureSetDressing": 10,
     "materialFailurePresentation": true,
     "concreteReinforcementRig": true,
-    "glassFractureStage": true
+    "glassFractureStage": true,
+    "checkpointSource": "wasm/box3d_snapshot.c",
+    "checkpointSha256": "03977116507d81714586eaf799852af6dfbd601ef5acabb9de8b16f1326d1cf0"
   },
   "artifacts": {
     "box3d.js": {
-      "bytes": 18281,
-      "sha256": "4d333c433879de72e6b4b28ecccc7fabacf18544b07a15e30a40d7ad5af83b5d"
+      "bytes": 22469,
+      "sha256": "49f7dac3586f7d8d6fed0c85dad4ff6d146b296d1fb9e34861e318247879f959"
     },
     "box3d.wasm": {
-      "bytes": 460156,
-      "sha256": "c477056688657904f779c20d4c2a98bfded0642ce69188ba4be910264c17d390"
+      "bytes": 623498,
+      "sha256": "025bca44cfe3af849d7cad28387f0c5afe99fff1ee2252e4d75b5d6e4d32d009"
     }
   },
   "validation": {
-    "status": "pass",
-    "catalogScenes": 800,
-    "catalogExactComparisons": 20800,
-    "independentWorlds": 16,
-    "interleavedExactComparisons": 1920,
-    "bodyCapacities": [
-      4096,
-      16384,
-      65536
-    ],
-    "engineTests": 186,
-    "queryFaultArtifactTests": 10,
-    "queryOracleAuditTests": 5,
-    "spatialQueryInputs": 5888,
-    "spatialQueryHits": 15292,
-    "exactBatchSerialResults": true,
-    "renderer": "physical Metal: 10 lifecycle cases, exact full stream and copied-stream pixels; zero uncaptured errors",
-    "nativePublicSoak": "pass",
-    "doubleBuild": "identical JS/WASM in two independent build directories",
-    "evidence": [
-      "benchmarks/results/engine-100x/runs/native-queries-geometry-20260910-04/result.json",
-      "benchmarks/results/engine-100x/runs/native-queries-worlds-20260910-02/result.json",
-      "benchmarks/results/engine-100x/native-queries-renderer-metal-direct-20260910-02.json"
-    ],
-    "scope": "Spatial-query functionality, ownership and bounded storage; existing native state and lifecycle regressions. No query throughput, FPS, whole-engine 100x, contact-event or release claim."
+    "status": "not_run",
+    "reason": "Native source or artifact changed. Run qualification before adding acceptance evidence."
   },
   "nativeWorlds": {
     "apiVersion": 1,
@@ -123,17 +102,17 @@
     "bridge": "wasm/box3d_web.c compiled unchanged; b3CreateWorld and b3World_Step renamed per source",
     "sources": {
       "threadsSha256": "5785c8eb105440000ad2520149a6ebf6f6317dca3d4b5724011972861c57f2cb",
-      "bridgeSha256": "4af722adcf8f4c4afda8054e98aa6d21a1132e04fbe70ce39197b54c152f80d7",
-      "cmakeSha256": "79b7d1b209174b6651f9789e305bb2c4bd85eeb1e77d02810fc83f55c6e8023f"
+      "bridgeSha256": "552b6d8310c6675ba7ac97ee68c261eb2731e5384fc14c499729b443ad4229c9",
+      "cmakeSha256": "aa7a56ebc972ef8aaae0a7a4154bc454645f1b001b440e01ebf6af08c5ce1c33"
     },
     "artifacts": {
       "box3d-mt.js": {
-        "bytes": 33569,
-        "sha256": "6ab89071a86681adb60cc227d310a882a493d22ce98b070b76a36eba61e0aa99"
+        "bytes": 37757,
+        "sha256": "02ddb4df56d3ee2bf9ba21d166caedf33f5e48b521bf987670bcf909264ce8dd"
       },
       "box3d-mt.wasm": {
-        "bytes": 470198,
-        "sha256": "da3f927a74ca4b676a6101bacd1b546cf1ed193e780c45c510769704b871ede8"
+        "bytes": 630911,
+        "sha256": "40597bda42ba6149eb667e4f7d5d892861d7e783a53d8ffc26605754f15ffb3f"
       }
     },
     "build": {
@@ -150,29 +129,8 @@
     },
     "execution": "one shared scheduler; worlds step one at a time on the calling thread, widening past an awake-body threshold",
     "validation": {
-      "status": "pass",
-      "catalogScenes": 800,
-      "exactComparisons": 3322,
-      "workerCounts": [
-        1,
-        2,
-        4,
-        8
-      ],
-      "engagementChecks": 8292,
-      "adaptivePolicyChecks": 480,
-      "adaptiveThresholdCrossings": {
-        "up": 2,
-        "down": 1
-      },
-      "interleavedWorlds": 4,
-      "noPoolModule": "exact state on one worker",
-      "catalogDigest": "5ca95b82535a6c5f",
-      "oracle": "the shipped single-threaded artifact recorded under artifacts",
-      "evidence": [
-        "benchmarks/results/engine-100x/runs/threaded-engine-20261001-01/determinism.json"
-      ],
-      "scope": "Exact equality of the pthread artifact with the single-threaded artifact (matrix and colour streams, replay hash) at every tested worker count, across mid-run worker-count changes, awake-body threshold crossings, interleaved native worlds and a module without a worker pool. No speedup, FPS, whole-engine 100x, browser-stability or release claim; speedups are measured separately in docs/THREADED_ENGINE.md."
+      "status": "not_run",
+      "reason": "Threaded source or artifact changed. Run npm run test:threaded before adding acceptance evidence."
     }
   }
 }

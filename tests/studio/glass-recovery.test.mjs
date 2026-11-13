@@ -1,10 +1,12 @@
 import '../../scripts/register-typescript.mjs';
 import test from 'node:test';
 import assert from 'node:assert/strict';
-const {GlassModel,DT}=await import('../../src/studio/material-labs/models.ts');
+const {ConvexGlassModel:GlassModel}=await import('../../src/studio/material-labs/glass-convex.ts');
+const {DT}=await import('../../src/studio/material-labs/lab-model.ts');
 const {ContactResolutionError}=await import('../../src/engine/convex-contact.ts');
-const {glassWorkerHandler}=await import('../../src/studio/material-labs/glass-worker-protocol.ts');
 
+// The convex-contact glass scene (glass-convex.ts), kept as the qualification scene of the swept contact world.
+// The Studio's glass lab and its worker run the SI plate model; their recovery is tested in glass-worker.test.mjs.
 // A controlled pre-fracture state makes a release occur inside the rejected tick.
 function primed(substepForces){const m=new GlassModel();m.substepForces=substepForces;m.impactAt=0;m.severity=2.4;m.frame.time=.17;return m;}
 function state(m){
@@ -25,25 +27,4 @@ for(const substepForces of [true,false])for(const intervals of [1,3])test(`glass
   assert.deepEqual(state(a),before);assert.equal(a.collisionWorld.externalForces,forces);
   a.collisionWorld.contactProvider=provider;a.step(DT*intervals);b.step(DT*intervals);
   assert.deepEqual(state(a),state(b));assert.ok(a.frame.damage.some(Boolean));
-});
-
-test('the worker reports collision rejection without publishing a failed frame and resets cleanly',()=>{
-  const handle=glassWorkerHandler(),settings={size:24,load:25,rate:.4};
-  const first=handle({type:'reset',generation:0,settings}),originalStep=GlassModel.prototype.step;let attempted;
-  try{
-    GlassModel.prototype.step=function(dt){
-      attempted=this;const provider=this.collisionWorld.contactProvider;
-      this.collisionWorld.contactProvider=h=>{
-        if(!h)return provider(h);const a=this.pendulum,b=this.shardBodies[0];
-        return [{a,b,normal:[0,0,1],points:[{a:a.position,b:b.position,gap:1}],poseA:a.pose,poseB:b.pose,time:0,iterations:48,converged:false}];
-      };
-      try{return originalStep.call(this,dt);}finally{this.collisionWorld.contactProvider=provider;}
-    };
-    const rejected=handle({type:'step',generation:0,request:1,ticks:1,release:false});
-    assert.equal(rejected.type,'error');assert.match(rejected.message,/Collision sweep.*rolled back/);assert.equal('frame' in rejected,false);
-    assert.deepEqual(attempted.snapshot(),first.frame);
-  }finally{GlassModel.prototype.step=originalStep;}
-  const fresh=handle({type:'reset',generation:1,settings});assert.equal(fresh.type,'frame');assert.equal(fresh.frame.time,0);
-  const next=handle({type:'step',generation:1,request:1,ticks:1,release:false}),direct=new GlassModel(settings);direct.step();
-  assert.equal(next.type,'frame');assert.deepEqual(next.frame,direct.snapshot());
 });

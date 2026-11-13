@@ -56,9 +56,15 @@ endif()
 
 add_subdirectory("${BOX3D_ROOT}" "${CMAKE_BINARY_DIR}/box3d-upstream" EXCLUDE_FROM_ALL)
 
-add_executable(box3d_web box3d_web.c)
+add_executable(box3d_web box3d_web.c box3d_snapshot.c)
 target_link_libraries(box3d_web PRIVATE box3d::box3d)
 target_include_directories(box3d_web PRIVATE "${BOX3D_ROOT}/include")
+# Exact checkpoints: box3d_snapshot.c (only that file) wraps Box3D's internal world snapshot.
+# It reads Box3D's structs, so it is compiled with the flags Box3D's own sources get.
+set_source_files_properties(box3d_snapshot.c PROPERTIES INCLUDE_DIRECTORIES "${BOX3D_ROOT}/src" COMPILE_OPTIONS "-msse2")
+if(BOX3D_DISABLE_SIMD)
+  set_source_files_properties(box3d_snapshot.c PROPERTIES COMPILE_DEFINITIONS "BOX3D_DISABLE_SIMD")
+endif()
 target_compile_options(box3d_web PRIVATE -O3 -flto)
 
 if(NOT BOX3D_DISABLE_SIMD)
@@ -72,6 +78,12 @@ set(B3W_EXPORTED_FUNCTIONS
 
 option(B3W_CAPACITY_TESTING "Enable allocation-failure injection in a test-only artifact" OFF)
 string(REPLACE "]" ",'_b3w_world_query_reserve','_b3w_world_query_inputs_ptr','_b3w_world_query_status_ptr','_b3w_world_query_hits_ptr','_b3w_world_query_version','_b3w_world_query_storage_bytes','_b3w_world_query_batch']" B3W_EXPORTED_FUNCTIONS "${B3W_EXPORTED_FUNCTIONS}")
+
+# General rigid-body extension: shapes, setters, joints, events.
+string(REPLACE "]" ",'_b3w_world_reset','_b3w_world_set_gravity','_b3w_world_get_gravity','_b3w_world_create_body','_b3w_world_copy_body_kinds','_b3w_world_create_hull_body','_b3w_world_create_mesh_body','_b3w_world_create_heightfield_body','_b3w_world_get_body_state','_b3w_world_set_body_transform','_b3w_world_set_body_velocity','_b3w_world_set_body_target','_b3w_world_set_body_type','_b3w_world_set_body_awake','_b3w_world_set_body_gravity_scale','_b3w_world_set_body_damping','_b3w_world_set_body_filter','_b3w_world_apply_body','_b3w_world_apply_body_at','_b3w_world_create_joint','_b3w_world_joint_valid','_b3w_world_destroy_joint','_b3w_world_joint_set_motor','_b3w_world_joint_set_limits','_b3w_world_joint_set_spring','_b3w_world_joint_set_steering','_b3w_world_joint_set_tuning','_b3w_world_get_joint_state','_b3w_world_collect_events','_b3w_world_events_ptr','_b3w_world_event_total','_b3w_world_create_compound_body','_b3w_world_set_body_mass_data','_b3w_world_get_body_mass_data','_b3w_world_reset_body_mass_data']" B3W_EXPORTED_FUNCTIONS "${B3W_EXPORTED_FUNCTIONS}")
+
+# Exact checkpoints: the world's body table and Box3D's complete snapshot (box3d_snapshot.c).
+string(REPLACE "]" ",'_b3w_world_checkpoint','_b3w_world_checkpoint_ptr','_b3w_world_checkpoint_free','_b3w_world_restore']" B3W_EXPORTED_FUNCTIONS "${B3W_EXPORTED_FUNCTIONS}")
 
 option(B3W_QUERY_TESTING "Enable query allocation/version fault injection in a test-only artifact" OFF)
 if(B3W_QUERY_TESTING)

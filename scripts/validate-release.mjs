@@ -34,11 +34,21 @@ function pullRequestGate(){
   // Test the shipped artifacts here. Rebuilding with a pinned clang is a separate release-toolchain gate.
   run(process.execPath,['scripts/soft-kernel-test.mjs']);
   run(process.execPath,['scripts/soft-kernel-integration-test.cjs']);
-  for(const name of ['test:webgpu','test:collision','test:assets','test:release-contracts','catalog:check','test:soft-soak:all','test:rope-batching','test:native-wasm','test:material:100','build','build:pages','stage:railway'])gate(name);
+  for(const name of ['test:webgpu','test:collision','test:assets','test:qualification','test:heat','test:solid','test:fracture','test:plate','test:accel','test:threaded','test:release-contracts','test:validation','validation:check','catalog:check','test:soft-soak:all','test:rope-batching','test:native-wasm','test:kit','test:material:100','build','build:pages','stage:railway'])gate(name);
   run(npm,['audit','--audit-level=moderate']);
 }
+// test:solid is the closed-form validation of the tetrahedral solid solver; it runs on the gate's Node, unlike the rest of the engine suite.
+// test:accel pins the granular and fluid states the speed work must keep, the threaded granular step against the serial one,
+// and the multigrid pressure preconditioner (docs/GRANULAR.md and docs/FLUID.md, "Cost").
+// test:plate is the validation of the Kirchhoff plate with brittle fracture (the Studio's glass lab) against plate theory.
+// test:fracture is the validation of fracture on that solver (cohesive interfaces, crack band, fragments) against closed-form fracture mechanics.
+// validation:check reruns the validation registry (validation/) and fails when a case misses its tolerance or when the
+// published numbers (docs/VALIDATION.md, public/validation/validation.json) no longer match; test:validation tests the registry.
+// test:kit covers the embeddable kit, including its closed-form physics validation. The kit's
+// upstream-suites file is left to the engine gate: it needs the baseline archives that the
+// engine suite needs.
 function studioGate(){
-  for(const name of ['test:studio','test:studio:presets','test:studio:river','test:studio:reference','test:studio:press'])gate(name);
+  for(const name of ['test:studio','test:studio:presets','test:studio:river','test:studio:reference','test:studio:press','test:studio:bridge','test:studio:liquid','test:studio:materials'])gate(name);
 }
 function reportedGates(){
   gate('test:engine');gate('test:browser:release');

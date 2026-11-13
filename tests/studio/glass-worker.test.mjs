@@ -77,3 +77,15 @@ test('dense work reduces batch delivery delay and recovers without changing fixe
     assert.equal(client.maxBatchTicks,4);client.dispose();
   }finally{globalThis.Worker=original;}
 });
+
+test('a failed SI step reports an error without a frame, and a reset starts the same specimen again',()=>{
+  const handle=glassWorkerHandler(),first=handle({type:'reset',generation:0,settings}),original=GlassModel.prototype.step;
+  try{
+    GlassModel.prototype.step=function(){throw new Error('Plate step 1 s exceeds the stability limit');};
+    const rejected=handle({type:'step',generation:0,request:1,ticks:1,release:false});
+    assert.equal(rejected.type,'error');assert.match(rejected.message,/stability limit/);assert.equal('frame' in rejected,false);
+  }finally{GlassModel.prototype.step=original;}
+  const fresh=handle({type:'reset',generation:1,settings});assert.equal(fresh.type,'frame');assert.deepEqual(fresh.frame,first.frame);
+  const next=handle({type:'step',generation:1,request:1,ticks:1,release:false}),direct=new GlassModel(settings);direct.step();
+  assert.deepEqual(next.frame,direct.snapshot());
+});

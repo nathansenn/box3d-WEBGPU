@@ -15,8 +15,11 @@ import { DEFAULT_RIVER, normalizeRiver, type RiverSettings } from './river-setti
 import { StudioMaterials } from './materials';
 import {pressAttachment,updatePlateShell,PRESS_FRAME_POINTS} from './press-tooling';
 import {sheetThickness,type PressSettings} from './press-settings';
+import {pressGeometry} from './press-si';
+import {hangingLength} from './si-bridge-study';
 import {pressStrainHue,sheetRimEdge,PressSectionSampler,type SectionAxis} from './press-inspection';
 import { skyTexture, studioEnvironment, riverNormals } from './lighting';
+import { watchDeviceLoss, framesSettled, initWebGL } from './device-loss';
 import { finishFor, lightingFor, surroundingsFor, type FinishPreset, type LightingPreset, type CameraPreset, type SurroundingPreset } from './presets';
 import { RoundedBoxGeometry } from 'three/addons/geometries/RoundedBoxGeometry.js';
 import { mergeGeometries } from 'three/addons/utils/BufferGeometryUtils.js';
@@ -50,6 +53,8 @@ export class StudioWorld {
   private pressToolKey='';
   private pressPiston?:T.Mesh;
   private pressClamps?:T.Group;
+  /** Air-bending die of the SI press: a block with two shoulders along the bend line. */
+  private pressDie?:T.Group;private pressDieKey='';
   private plateShell?:T.Mesh<T.BufferGeometry,T.MeshStandardMaterial>;
   private pressNeedle?:T.Group;
   private pressHead?:T.Group;
@@ -90,6 +95,9 @@ export class StudioWorld {
   private readonly pointA:Vec=[0,0,0];
   private readonly pointB:Vec=[0,0,0];
   private readonly neutralLinkColor=new T.Color('#c1c9c9');
+  /** Failed and cut hangers, drawn hanging from their clamps. */
+  private readonly failedLinkColor=new T.Color('#d9653b');
+  private readonly hangingScratch:Vec=[0,0,0];
   private readonly boltLocal=new T.Matrix4();
   private readonly boltWorld=new T.Matrix4();
   private deckFrameStorage?:DeckFrameStorage;
@@ -118,10 +126,12 @@ export class StudioWorld {
   private cameraLayout='';
   private disposed=false;
   private graphicsLost?: (message:string)=>void;
+  private lossMessage?: string;
 
-  constructor(private host: HTMLElement, simulation: FailureSimulation) {
+  /** `forceWebGL` rebuilds the scene on WebGL after a WebGPU device has been lost. */
+  constructor(private host: HTMLElement, simulation: FailureSimulation, forceWebGL=false) {
     this.sim=simulation;
-    this.renderer=this.createRenderer();
+    this.renderer=this.createRenderer(forceWebGL);
     this.controls=new OrbitControls(this.camera,this.renderer.domElement);
     this.configureControls();
     this.scene.add(this.root);
@@ -131,13 +141,16 @@ export class StudioWorld {
 
   private createRenderer(forceWebGL=false):T.WebGPURenderer {
     const renderer=new T.WebGPURenderer({antialias:true,alpha:false,forceWebGL});
-    const reportLoss=renderer.onDeviceLost.bind(renderer);
-    renderer.onDeviceLost=info=>{if(this.disposed)return;reportLoss(info);this.graphicsLost?.(info.message);};
+    renderer.onDeviceLost=info=>this.reportLoss(renderer,info.message);
     renderer.setPixelRatio(Math.min(window.devicePixelRatio,1.75));
     renderer.toneMapping=T.ACESFilmicToneMapping;renderer.toneMappingExposure=.94;
     renderer.shadowMap.enabled=true;renderer.shadowMap.type=T.PCFShadowMap;
     renderer.domElement.setAttribute('aria-label','Interactive 3D simulation. Drag to orbit, scroll to zoom.');
     renderer.domElement.setAttribute('role','img');this.host.append(renderer.domElement);return renderer;
+  }
+  private reportLoss(renderer:T.WebGPURenderer,message:string):void {
+    if(this.disposed||renderer!==this.renderer||this.lossMessage!==undefined)return;
+    this.lossMessage=message;this.graphicsLost?.(message);
   }
   private configureControls():void {
     this.controls.enableDamping=true;this.controls.dampingFactor=.075;
@@ -154,9 +167,24 @@ export class StudioWorld {
       // A stalled native adapter must not leave the studio on a permanent spinner.
       progress('Preparing compatible graphics');this.controls.dispose();first.domElement.remove();
       void initializing.then(()=>first.dispose()).catch(()=>{});
-      this.renderer=this.createRenderer(true);this.controls=new OrbitControls(this.camera,this.renderer.domElement);this.configureControls();
-      await this.renderer.init();
+      this.renderer=await initWebGL(()=>this.createRenderer(true));this.controls=new OrbitControls(this.camera,this.renderer.domElement);this.configureControls();
     } finally {if(timer)clearTimeout(timer);}
+    watchDeviceLoss(first,message=>this.reportLoss(first,message));
+    // Under software rendering Chromium can destroy a WebGPU device whose canvas it cannot present, at its first frame.
+    // Find out with an empty frame now, before the scene is built: otherwise the whole scene (the bridge's valley and
+    // woodland take minutes there) is built twice, once for the lost device and again on WebGL.
+    if(this.renderer===first&&(first.backend as unknown as {isWebGPUBackend?:boolean}).isWebGPUBackend){
+      progress('Checking the graphics device');
+      try{first.render(new T.Scene(),this.camera);}catch{/* A device lost during the probe reports through the loss callback. */}
+      await framesSettled(first);
+      if(this.lossMessage!==undefined&&!this.disposed){
+        console.warn(`The WebGPU device was lost on its first frame (${this.lossMessage}). Starting on the WebGL renderer.`);
+        progress('Preparing compatible graphics');this.controls.dispose();first.domElement.remove();this.lossMessage=undefined;
+        this.renderer=await initWebGL(()=>this.createRenderer(true));this.controls=new OrbitControls(this.camera,this.renderer.domElement);this.configureControls();
+        try{first.dispose();}catch{/* The lost device's resources are already gone. */}
+      }
+    }
+    const renderer=this.renderer;if(renderer!==first)watchDeviceLoss(renderer,message=>this.reportLoss(renderer,message));
     progress('Loading surfaces and lighting');
     this.interiorEnvironment=studioEnvironment(this.renderer);
     this.environmentGenerator=new T.PMREMGenerator(this.renderer);
@@ -221,7 +249,7 @@ export class StudioWorld {
     this.pineMaterial=undefined;this.grassMaterial=undefined;
     this.woodlandLeaves=[];
     this.stitches=undefined;this.panelSeams=undefined;this.plateEdges=undefined;this.pressSection=undefined;this.deckBolts=undefined;this.cableClamps=undefined;
-    this.plateShell=undefined;this.pressTool=undefined;this.pressToolKey='';this.pressPiston=undefined;this.pressClamps=undefined;this.pressNeedle=undefined;this.pressHead=undefined;
+    this.plateShell=undefined;this.pressTool=undefined;this.pressToolKey='';this.pressDie=undefined;this.pressDieKey='';this.pressPiston=undefined;this.pressClamps=undefined;this.pressNeedle=undefined;this.pressHead=undefined;
     this.prepareModelStorage();this.lastSnapshot=undefined;
     const outdoor=sim.id==='bridge';
     this.controls.maxDistance=outdoor?260:110;
@@ -428,6 +456,8 @@ export class StudioWorld {
     }
     for(const z of [-2.32,2.32]) this.box([5.22,.15,.48],[0,y-.075,z],'steel',.025);
     this.pressClamps=new T.Group();this.pressClamps.userData.dynamic=true;this.root.add(this.pressClamps);
+    // The SI press bends in air over a die; the perimeter clamps of the authored model are not part of it.
+    this.pressClamps.visible=!this.sim.pressSI;
     for(const x of [-2.64,2.64])for(const z of [-2.2,2.2]) {
       this.cyl(.075,.8,[x,3.1,z],'chrome');this.box([.48,.12,.4],[x,3.21,z],'black',.025,this.pressClamps);
       this.cyl(.11,.12,[x,3.32,z],'bolt',.11,this.pressClamps);
@@ -473,6 +503,22 @@ export class StudioWorld {
     this.box([3.3,.16,1.2],[-5.6,1.62,-3.8],'steel',.035);
     for(const x of [-7,-4.2])for(const z of [-4.25,-3.35])this.box([.1,1.5,.1],[x,.78,z],'black');
     for(let i=0;i<5;i++){this.cyl(.2+i*.018,.24,[-6.8+i*.6,1.82,-3.8],'chrome');this.cyl(.1,.28,[-6.8+i*.6,2.08,-3.8],'steel');}
+  }
+
+  /** Die of the SI press for these settings: shoulders of the model's radius at half the die opening, along the bend line. */
+  private setPressDie(p:PressSettings):void {
+    if(!this.sim.pressSI)return;
+    const key=[p.thickness,p.tool,p.toolScale,p.angle].join(':');if(this.pressDieKey===key)return;
+    if(this.pressDie){this.pressDie.traverse(o=>{if(o instanceof T.Mesh)o.geometry.dispose();});this.root.remove(this.pressDie);}
+    const g=pressGeometry(p),die=this.pressDie=new T.Group(),y=STUDIES.plate.supportY,half=g.dieOpening/2*10,r=g.dieRadius*10,length=4.9,height=y-1.6;
+    die.name='press-die';die.userData.dynamic=true;
+    for(const side of [-1,1]){
+      const shoulder=this.cyl(r,length,[side*half,y-r,0],'pressChrome',r,die);shoulder.rotation.x=Math.PI/2;
+      // The die body under each shoulder, stepped down to the bed.
+      this.box([Math.max(.06,2*r),height-r,length],[side*half,1.6+(height-r)/2,0],'black',0,die);
+    }
+    this.box([g.dieOpening*10+4*r+.5,.12,length+.2],[0,1.66,0],'steel',0,die);
+    die.rotation.y=p.angle*Math.PI/180;this.root.add(die);this.pressDieKey=key;
   }
 
   private setPressTool(p:PressSettings):void {
@@ -765,7 +811,7 @@ export class StudioWorld {
     const sim=this.sim;
     for(let i=0;i<this.positionScratch.length;i++){const p=this.positionScratch[i];p[0]=snapshot.positions[i*3];p[1]=snapshot.positions[i*3+1];p[2]=snapshot.positions[i*3+2];}
     const p=(i:number):Vec=>this.positionScratch[i];
-    const colorFor=(strain:number)=>this.strainColor.setHSL(sim.id==='plate'?pressStrainHue(strain,snapshot.press?.settings??sim.press,sim.strength):.52-Math.min(1,strain/(sim.config.threshold*sim.strength))*.52,.84,.52);
+    const colorFor=(strain:number)=>this.strainColor.setHSL(sim.id==='plate'?pressStrainHue(strain,snapshot.press?.settings??sim.press,sim.strength):(sim.canopySI?.52-Math.min(1,strain)*.52:.52-Math.min(1,strain/(sim.config.threshold*sim.strength))*.52),.84,.52);
     if(this.surface) {
       const g=this.surface.geometry;
       (g.getAttribute('position').array as Float32Array).set(snapshot.positions);g.getAttribute('position').needsUpdate=true;
@@ -807,15 +853,21 @@ export class StudioWorld {
       this.panelSeams.instanceMatrix.needsUpdate=true;this.stitches.instanceMatrix.needsUpdate=true;
     }
     if(sim.id==='plate'){
-      const settings=snapshot.press?.settings??sim.press;this.setPressTool(settings);this.ram.position.y=snapshot.punchY;
+      const settings=snapshot.press?.settings??sim.press;this.setPressTool(settings);this.setPressDie(settings);this.ram.position.y=snapshot.punchY;
       this.updatePressSection(snapshot);
       if(this.pressPiston){const bottom=1.5*settings.toolScale,top=6.15-snapshot.punchY;this.pressPiston.position.y=(bottom+top)/2;this.pressPiston.scale.y=Math.max(.01,top-bottom);}
       if(this.pressClamps)this.pressClamps.position.y=sheetThickness(settings);
-      if(this.pressNeedle)this.pressNeedle.rotation.y=-2.2+(snapshot.press?.pressure??0)/100*4.4;
+      if(this.pressNeedle)this.pressNeedle.rotation.y=-2.2+Math.min(100,snapshot.press?.pressure??0)/100*4.4;
     }
     if(this.linksMesh) {
       for(let i=0;i<sim.links.length;i++) {
-        const e=sim.links[i],visible=!snapshot.broken[i]&&(e.kind==='cable'||e.kind==='hanger');
+        const e=sim.links[i],length=snapshot.broken[i]&&e.kind==='hanger'?hangingLength(sim,i):0;
+        if(length>0){
+          // A failed or cut SI hanger carries nothing and hangs from its cable clamp (link end b) at its unstressed length.
+          const top=p(e.b),bottom=this.hangingScratch;bottom[0]=top[0];bottom[1]=top[1]-length;bottom[2]=top[2];
+          this.instanceRod(this.linksMesh,i,top,bottom,.026,true);this.linksMesh.setColorAt(i,this.failedLinkColor);continue;
+        }
+        const visible=!snapshot.broken[i]&&(e.kind==='cable'||e.kind==='hanger');
         this.instanceRod(this.linksMesh,i,p(e.a),p(e.b),e.kind==='cable'?.075:e.kind==='hanger'?.026:e.kind==='crossbeam'?.08:.05,visible);
         this.linksMesh.setColorAt(i,responseMode?colorFor(Math.max(snapshot.strains[e.a],snapshot.strains[e.b])):this.neutralLinkColor);
       }
@@ -997,7 +1049,10 @@ export class StudioWorld {
     this.controls.update();if(this.pipeline)this.pipeline.render();else this.renderer.render(this.scene,this.camera);
   }
   cameraState():object {return {position:this.camera.position.toArray(),target:this.controls.target.toArray(),fov:this.camera.fov};}
-  onGraphicsLost(callback:(message:string)=>void):void {this.graphicsLost=callback;}
+  /** Draws one frame and reports whether the graphics device outlived it. */
+  async survivesFirstFrame():Promise<boolean> {this.render(performance.now()/1000);await framesSettled(this.renderer);return this.lossMessage===undefined;}
+  /** A loss that arrived before the listener is delivered to it at once. */
+  onGraphicsLost(callback:(message:string)=>void):void {this.graphicsLost=callback;if(this.lossMessage!==undefined)callback(this.lossMessage);}
   presentationState():object {return {finish:this.currentFinish.id,lighting:this.look.id,surroundings:this.surroundings.id,camera:this.cameraPreset,quality:this.renderQuality,exposure:this.renderer.toneMappingExposure,river:this.sim.id==='bridge'?{...this.riverSettings,affectsStructure:false}:null};}
   riverTime():number {return this.water?.clock.value??0;}
   metrics():{fps:number;drawCalls:number;triangles:number;objects:number;textures:number} {

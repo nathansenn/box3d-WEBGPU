@@ -5,6 +5,8 @@ export {loadBox3D, type LoadBox3DOptions, type Box3DModuleFactory} from './loade
 export {BUILD_INFO, type BuildInfo} from './core/build-info.js';
 export {
   PhysicsWorld, toVec3, leakReporting, type Body, type BodyPose, type Vec3, type Vec3Like, type WorldOptions, type SpawnBoxOptions,
+  toQuat, axisRotation, type Joint, type BodyType, type BodyState, type BodyOptions, type ShapeOptions, type ConvexShapeOptions, type CompoundShapeOptions, type MassDataOptions, type BodyMassData, type QuatLike,
+  type BodyKind, type JointType, type JointState, type JointOptions, type JointFrame, type ResetOptions, type WorldEvent,
   type QueryOptions, type RaycastOptions, type WorldStats, type ReplayLog, type ReplayCommand,
   type RecordingOptions, type ReplayReport,
 } from './world.js';
@@ -25,6 +27,8 @@ export {
   NativeWorldPool, NativeWorldBackend, NATIVE_WORLD_API_VERSION,
   type NativeBodyHandle, type NativeSpatialQuery, type NativeQueryResult, type NativeQueryCastHit,
   type NativeQueryBodyHit, type NativeQueryFilter, type NativeBodyCapacityInfo,
+  type NativeJointHandle, type NativeBodyDescriptor, type NativeBodyShape, type NativeConvexShape, type NativeCompoundChild, type NativeMassData, type NativeBodyMassState, type NativeBodyKind, type NativeBodyState, type NativeBodyType,
+  type NativeJointDescriptor, type NativeJointState, type NativeJointType, type NativeJointFrame, type NativeWorldEvent, type NativeQuaternion,
 } from './core/native-world.js';
 export type {InstanceBufferSource, PhysicsBackend} from './backend-types.js';
 
@@ -32,14 +36,21 @@ export type {InstanceBufferSource, PhysicsBackend} from './backend-types.js';
 export type EngineErrorCode =
   | 'INVALID_PAYLOAD' | 'INVALID_BACKEND' | 'UNSUPPORTED_BACKEND' | 'DISPOSED' | 'STALE_BODY'
   | 'WORLD_CAPACITY' | 'ALLOCATION_FAILED' | 'STALE_QUERY' | 'QUERY_VERSION_EXHAUSTED' | 'INVALID_STATE' | 'INTERNAL'
-  | 'WASM_UNAVAILABLE' | 'INTEGRITY_MISMATCH' | 'INCOMPATIBLE_SAVE';
+  | 'WASM_UNAVAILABLE' | 'INTEGRITY_MISMATCH' | 'INCOMPATIBLE_SAVE' | 'STALE_JOINT' | 'UNSUPPORTED_JOINT'
+  // Raised by the optional solver modules (cable, frame, solid).
+  | 'NUMERICAL_FAILURE' | 'WORK_LIMIT' | 'UNSTABLE_TIME_STEP';
 
 /**
  * One-call setup: load the WASM module and return an empty arena world.
  * The world owns its module; `world.dispose()` releases both.
  * For several worlds sharing one module, use `loadBox3D()` + `new PhysicsWorld(pool)`.
  */
-export async function createWorld(options: WorldOptions & LoadBox3DOptions = {}): Promise<PhysicsWorld> {
+export async function createWorld(options: WorldOptions & LoadBox3DOptions & {
+  /** Start in SI units with this gravity (m/s^2) instead of the classic arena's -10. */
+  readonly gravity?: readonly [number, number, number];
+  /** false starts with no ground at all. Implies an SI world. */
+  readonly ground?: boolean;
+} = {}): Promise<PhysicsWorld> {
   const world = new PhysicsWorld(await loadBox3D(options), options, true);
-  return world.resetArena();
+  return options.gravity !== undefined || options.ground !== undefined ? world.reset({gravity: options.gravity, ground: options.ground}) : world.resetArena();
 }

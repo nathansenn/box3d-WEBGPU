@@ -74,6 +74,20 @@ function queryBits(value: unknown,label: string): bigint {
   return value;
 }
 
+// The ten floats the bridge reads: mass, centre, Ixx, Iyy, Izz, Ixy, Ixz, Iyz.
+function massDataValues(data: NativeMassData): number[] {
+  if(!data||typeof data!=='object')throw new EngineError('INVALID_PAYLOAD','massData must be {mass, center?, inertia}.');
+  const center=data.center??[0,0,0],inertia=data.inertia;
+  if(!Array.isArray(inertia)||inertia.length!==6)throw new EngineError('INVALID_PAYLOAD','massData.inertia must be [Ixx, Iyy, Izz, Ixy, Ixz, Iyz].');
+  if(!Array.isArray(center)||center.length!==3)throw new EngineError('INVALID_PAYLOAD','massData.center must be [x, y, z].');
+  const values=[finite(data.mass,'mass',Number.MIN_VALUE),finite(center[0],'centre of mass x'),finite(center[1],'centre of mass y'),finite(center[2],'centre of mass z'),
+    finite(inertia[0],'Ixx',Number.MIN_VALUE),finite(inertia[1],'Iyy',Number.MIN_VALUE),finite(inertia[2],'Izz',Number.MIN_VALUE),finite(inertia[3],'Ixy'),finite(inertia[4],'Ixz'),finite(inertia[5],'Iyz')];
+  // The bridge's own test, on the float32 values it will hold, so that nothing is created and then refused.
+  const [xx,yy,zz,xy,xz,yz]=values.slice(4).map(Math.fround) as [number,number,number,number,number,number],det=xx*(yy*zz-yz*yz)-xy*(xy*zz-yz*xz)+xz*(xy*yz-yy*xz);
+  if(!(xx*yy-xy*xy>0)||!(det>0)||!(Math.fround(det)>0))throw new EngineError('INVALID_PAYLOAD','massData.inertia must be a positive-definite tensor that float32 can hold.');
+  return values;
+}
+
 function finite(value: unknown, label: string, min=-Infinity, max=Infinity): number {
   const number=finiteNumber(value,label,min,max),converted=Math.fround(number);
   if(!Number.isFinite(converted)||(number!==0&&converted===0))throw new EngineError('INVALID_PAYLOAD',`${label} must fit a nonzero float32 value or be zero.`);
@@ -126,7 +140,221 @@ export interface NativeWorldModule {
   _b3w_world_query_version?(world: number): number;
   _b3w_world_query_storage_bytes?(world: number): number;
   _b3w_world_query_batch?(world: number, count: number, version: number): number;
+  /** Optional general rigid-body extension (shapes, setters, joints, events); all exports must be present together. */
+  _malloc?(bytes: number): number | bigint;
+  _free?(pointer: number | bigint): void;
+  _b3w_world_reset?(world: number, seed: number, flags: number, gx: number, gy: number, gz: number): number;
+  _b3w_world_set_gravity?(world: number, x: number, y: number, z: number): number;
+  _b3w_world_get_gravity?(world: number, out: number | bigint): number;
+  _b3w_world_create_body?(world: number, descriptor: number | bigint): bigint;
+  _b3w_world_copy_body_kinds?(world: number, out: number | bigint, capacity: number): number;
+  /** Optional geometry shapes; all three exports must be present together, with the general-body extension. */
+  _b3w_world_create_hull_body?(world: number, descriptor: number | bigint, points: number | bigint, count: number): bigint;
+  _b3w_world_create_mesh_body?(world: number, descriptor: number | bigint, vertices: number | bigint, vertexCount: number, indices: number | bigint, triangleCount: number): bigint;
+  _b3w_world_create_heightfield_body?(world: number, descriptor: number | bigint, heights: number | bigint, countX: number, countZ: number, sx: number, sy: number, sz: number): bigint;
+  _b3w_world_get_body_state?(world: number, body: bigint, out: number | bigint): number;
+  _b3w_world_set_body_transform?(world: number, body: bigint, x: number, y: number, z: number, qx: number, qy: number, qz: number, qw: number): number;
+  _b3w_world_set_body_velocity?(world: number, body: bigint, vx: number, vy: number, vz: number, wx: number, wy: number, wz: number): number;
+  _b3w_world_set_body_target?(world: number, body: bigint, x: number, y: number, z: number, qx: number, qy: number, qz: number, qw: number, dt: number): number;
+  _b3w_world_set_body_type?(world: number, body: bigint, type: number): number;
+  _b3w_world_set_body_awake?(world: number, body: bigint, awake: number): number;
+  _b3w_world_set_body_gravity_scale?(world: number, body: bigint, scale: number): number;
+  _b3w_world_set_body_damping?(world: number, body: bigint, linear: number, angular: number): number;
+  _b3w_world_set_body_filter?(world: number, body: bigint, categoryBits: bigint, maskBits: bigint, groupIndex: number): number;
+  _b3w_world_apply_body?(world: number, body: bigint, mode: number, x: number, y: number, z: number): number;
+  _b3w_world_apply_body_at?(world: number, body: bigint, mode: number, x: number, y: number, z: number, px: number, py: number, pz: number): number;
+  _b3w_world_create_joint?(world: number, descriptor: number | bigint): bigint;
+  _b3w_world_joint_valid?(world: number, joint: bigint): number;
+  _b3w_world_destroy_joint?(world: number, joint: bigint): number;
+  _b3w_world_joint_set_motor?(world: number, joint: bigint, enable: number, speed: number, maxForce: number): number;
+  _b3w_world_joint_set_limits?(world: number, joint: bigint, enable: number, lower: number, upper: number): number;
+  _b3w_world_joint_set_spring?(world: number, joint: bigint, enable: number, hertz: number, dampingRatio: number, target: number): number;
+  _b3w_world_joint_set_steering?(world: number, joint: bigint, enable: number, angle: number, hertz: number, dampingRatio: number, maxTorque: number): number;
+  /** Optional: joint stiffness. Absent in artifacts built before it was added. */
+  _b3w_world_joint_set_tuning?(world: number, joint: bigint, hertz: number, dampingRatio: number): number;
+  _b3w_world_get_joint_state?(world: number, joint: bigint, out: number | bigint): number;
+  _b3w_world_collect_events?(world: number): number;
+  _b3w_world_events_ptr?(world: number): number | bigint;
+  _b3w_world_event_total?(world: number): number;
+  /** Optional compound shapes and explicit mass data; all four exports must be present together, with the general-body extension. */
+  _b3w_world_create_compound_body?(world: number, descriptor: number | bigint, shapes: number | bigint, count: number, points: number | bigint, pointCount: number): bigint;
+  _b3w_world_set_body_mass_data?(world: number, body: bigint, values: number | bigint): number;
+  _b3w_world_get_body_mass_data?(world: number, body: bigint, out: number | bigint): number;
+  _b3w_world_reset_body_mass_data?(world: number, body: bigint): number;
+  /** Optional exact checkpoints; all four exports must be present together. */
+  _b3w_world_checkpoint?(world: number): number;
+  _b3w_world_checkpoint_ptr?(world: number): number | bigint;
+  _b3w_world_checkpoint_free?(world: number): number;
+  _b3w_world_restore?(world: number, data: number | bigint, size: number): number;
 }
+
+const GENERAL_EXPORTS = ['reset','set_gravity','get_gravity','create_body','copy_body_kinds','get_body_state','set_body_transform',
+  'set_body_velocity','set_body_target','set_body_type','set_body_awake','set_body_gravity_scale','set_body_damping','set_body_filter',
+  'apply_body','apply_body_at','create_joint','joint_valid','destroy_joint','joint_set_motor','joint_set_limits','joint_set_spring',
+  'joint_set_steering','get_joint_state','collect_events','events_ptr','event_total'] as const;
+
+const JOINT_OWNER: unique symbol = Symbol('Box3D native joint owner');
+/** World-owned opaque joint reference. A joint dies with either of its bodies. */
+export interface NativeJointHandle {
+  readonly token: bigint;
+  readonly [JOINT_OWNER]: object;
+}
+export type NativeQuaternion = readonly [number, number, number, number];
+/** The shapes a compound body may hold: the convex ones. */
+export type NativeConvexShape =
+  { readonly kind: 'box'; readonly halfExtents: NativeQueryVector } |
+  { readonly kind: 'sphere'; readonly radius: number } |
+  { readonly kind: 'capsule'; readonly radius: number; readonly halfLength: number } |
+  { readonly kind: 'hull'; readonly points: ArrayLike<number> };
+/** One shape of a compound body, placed in the body's frame. */
+export interface NativeCompoundChild {
+  readonly shape: NativeConvexShape;
+  /** The shape's origin in the body frame. Default [0, 0, 0]. */
+  readonly position?: NativeQueryVector;
+  /** The shape's orientation in the body frame, [x, y, z, w]. Default identity. A capsule's axis is the shape's local Y. */
+  readonly rotation?: NativeQuaternion;
+  /** kg/m^3. Default: the body's. Zero gives a shape that collides and adds no mass. */
+  readonly density?: number;
+  /** Default: the body's. */
+  readonly friction?: number;
+  /** Default: the body's. */
+  readonly restitution?: number;
+}
+/** Most shapes one compound body may hold. */
+export const NATIVE_COMPOUND_LIMIT = 64;
+/**
+ * Mass, centre of mass and inertia of a body. `center` is in the body frame. `inertia` is the
+ * tensor about the centre of mass in body axes, as [Ixx, Iyy, Izz, Ixy, Ixz, Iyz] in kg m^2 (the
+ * matrix entries, so a product of inertia is minus the integral of x y dm).
+ */
+export interface NativeMassData {
+  readonly mass: number;
+  readonly center?: NativeQueryVector;
+  readonly inertia: readonly [number, number, number, number, number, number];
+}
+export interface NativeBodyMassState {
+  mass: number;
+  center: [number, number, number];
+  inertia: [number, number, number, number, number, number];
+  /** True when the values were set with setBodyMassData (or `massData`), false when they come from the shapes. */
+  explicit: boolean;
+  /** Shapes on the body: 1, or the number of children of a compound. */
+  shapeCount: number;
+}
+export type NativeBodyShape =
+  { readonly kind: 'box'; readonly halfExtents: NativeQueryVector } |
+  { readonly kind: 'sphere'; readonly radius: number } |
+  /** The capsule axis is the body's local Y; halfLength excludes the round caps. */
+  { readonly kind: 'capsule'; readonly radius: number; readonly halfLength: number } |
+  /** Convex hull of 4..4096 body-local points (x, y, z, x, y, z, ...). Box3D keeps at most 64 hull vertices. */
+  { readonly kind: 'hull'; readonly points: ArrayLike<number> } |
+  /**
+   * 1..64 convex shapes on one body, each at its own pose in the body frame with its own density,
+   * friction and restitution. The body's mass, centre of mass and inertia are the sum over the
+   * shapes (parallel-axis theorem); overlapping shapes count twice. The body's position is the
+   * origin of that frame, which need not be the centre of mass.
+   */
+  { readonly kind: 'compound'; readonly shapes: readonly NativeCompoundChild[] } |
+  /** Static triangle mesh, body-local: vertices (x, y, z, ...) and counter-clockwise index triples. Always a static body. */
+  { readonly kind: 'mesh'; readonly vertices: ArrayLike<number>; readonly indices: ArrayLike<number> } |
+  /** Static terrain: countX by countZ heights (index x + z * countX) on a grid of spacing[0] by spacing[1]
+   * metres, starting at the body position and extending along +x and +z. Always a static body.
+   */
+  { readonly kind: 'heightfield'; readonly heights: ArrayLike<number>; readonly countX: number; readonly countZ: number; readonly spacing: readonly [number, number] };
+export type NativeBodyKind = 'box' | 'sphere' | 'capsule' | 'hull' | 'mesh' | 'heightfield' | 'compound';
+export type NativeBodyType = 'static' | 'kinematic' | 'dynamic';
+export interface NativeBodyDescriptor {
+  readonly shape: NativeBodyShape;
+  /** Default 'dynamic'. */
+  readonly type?: NativeBodyType;
+  readonly position: NativeQueryVector;
+  /** Unit quaternion [x, y, z, w]; default identity. */
+  readonly rotation?: NativeQuaternion;
+  readonly linearVelocity?: NativeQueryVector;
+  readonly angularVelocity?: NativeQueryVector;
+  /** kg/m^3 in a metre-scaled world. Default 1000. */
+  readonly density?: number;
+  /** Default 0.6. */
+  readonly friction?: number;
+  /** Default 0. */
+  readonly restitution?: number;
+  /** 0xRRGGBB. Default 0xB8C0CC. */
+  readonly color?: number;
+  /** Continuous collision against other dynamic bodies, for small fast objects. */
+  readonly bullet?: boolean;
+  /** Detects overlaps (sensor events) without colliding. */
+  readonly sensor?: boolean;
+  /** Report 'hit' events with point, normal and approach speed. */
+  readonly hitEvents?: boolean;
+  readonly neverSleeps?: boolean;
+  readonly lockRotation?: boolean;
+  readonly linearDamping?: number;
+  readonly angularDamping?: number;
+  /** Multiplier on world gravity; default 1. */
+  readonly gravityScale?: number;
+  readonly filter?: { readonly categoryBits?: bigint; readonly maskBits?: bigint; readonly groupIndex?: number };
+  /**
+   * Mass, centre of mass and inertia tensor to use instead of the ones the shape and density give
+   * (setBodyMassData). They act while the body is dynamic.
+   */
+  readonly massData?: NativeMassData;
+}
+export interface NativeBodyState {
+  position: [number, number, number];
+  rotation: [number, number, number, number];
+  linearVelocity: [number, number, number];
+  angularVelocity: [number, number, number];
+  mass: number;
+  awake: boolean;
+  type: NativeBodyType;
+}
+export type NativeJointType = 'weld' | 'revolute' | 'spherical' | 'prismatic' | 'distance' | 'wheel';
+export interface NativeJointFrame { readonly position?: NativeQueryVector; readonly rotation?: NativeQuaternion }
+/** Frames are local to each body. Revolute and wheel joints turn about the frame's z axis;
+ * prismatic and wheel-suspension travel is along frame A's x axis. A null body is the fixed world.
+ */
+export interface NativeJointDescriptor {
+  readonly type: NativeJointType;
+  readonly bodyA: NativeBodyHandle | null;
+  readonly bodyB: NativeBodyHandle | null;
+  readonly frameA?: NativeJointFrame;
+  readonly frameB?: NativeJointFrame;
+  readonly collideConnected?: boolean;
+  /** Angle (rad), translation (m) or length (m) limits; spherical: twist limits. */
+  readonly limits?: { readonly lower: number; readonly upper: number };
+  /** speed in rad/s or m/s; maxForce is a torque (N·m) for angular motors. */
+  readonly motor?: { readonly speed: number; readonly maxForce: number };
+  /** Spring towards `target` (angle or translation). On a weld joint it softens the weld. */
+  readonly spring?: { readonly hertz: number; readonly dampingRatio: number; readonly target?: number };
+  /** Distance joints: rest length in metres (required). */
+  readonly length?: number;
+  /** Spherical joints: cone limit half-angle in radians. */
+  readonly coneAngle?: number;
+  /** How stiffly the joint holds its bodies together. Default 60 Hz with damping ratio 2. */
+  readonly stiffness?: { readonly hertz: number; readonly dampingRatio?: number };
+}
+export interface NativeJointState {
+  type: NativeJointType;
+  /** Revolute angle, prismatic translation or distance length; 0 for the others. */
+  value: number;
+  force: [number, number, number];
+  torque: [number, number, number];
+}
+export interface NativeWorldEvent {
+  readonly kind: 'contact-begin' | 'contact-end' | 'hit' | 'sensor-begin' | 'sensor-end';
+  /** Null when the body no longer exists. For sensor events A is the sensor and B the visitor. */
+  readonly bodyA: NativeBodyHandle | null;
+  readonly bodyB: NativeBodyHandle | null;
+  /** Hits only. */
+  readonly point?: NativeQueryVector;
+  readonly normal?: NativeQueryVector;
+  readonly approachSpeed?: number;
+}
+const BODY_KINDS = ['box','sphere','capsule','hull','mesh','heightfield','compound'] as const;
+const SHAPE_DESC_BYTES=80;
+const BODY_TYPES = ['static','kinematic','dynamic'] as const;
+const JOINT_TYPES = ['weld','revolute','spherical','prismatic','distance','wheel'] as const;
+const EVENT_KINDS = ['contact-begin','contact-end','hit','sensor-begin','sensor-end'] as const;
 
 export interface NativeBodyCapacityInfo {
   capacity: number;
@@ -158,6 +386,15 @@ export function assertNativeWorldModule(value: unknown): asserts value is Native
   }
   const queryExports=[mod._b3w_world_query_reserve,mod._b3w_world_query_inputs_ptr,mod._b3w_world_query_status_ptr,
     mod._b3w_world_query_hits_ptr,mod._b3w_world_query_version,mod._b3w_world_query_storage_bytes,mod._b3w_world_query_batch];
+  const generalExports=GENERAL_EXPORTS.map(name=>mod[`_b3w_world_${name}`]);
+  if(generalExports.some(value=>value!==undefined)&&(!generalExports.every(value=>typeof value==='function')||
+    typeof mod._malloc!=='function'||typeof mod._free!=='function'||!bodyExports.every(value=>typeof value==='function'))) {
+    throw new EngineError('UNSUPPORTED_BACKEND','The native general-body extension requires all of its exports, malloc/free and body lifecycle support.');
+  }
+  const compoundExports=[mod._b3w_world_create_compound_body,mod._b3w_world_set_body_mass_data,mod._b3w_world_get_body_mass_data,mod._b3w_world_reset_body_mass_data];
+  if(compoundExports.some(value=>value!==undefined)&&(!compoundExports.every(value=>typeof value==='function')||!generalExports.every(value=>typeof value==='function'))) {
+    throw new EngineError('UNSUPPORTED_BACKEND','The native compound-shape and mass-data extension requires all four of its exports and the general-body extension.');
+  }
   if(queryExports.some(value=>value!==undefined)&&(!queryExports.every(value=>typeof value==='function')||!bodyExports.every(value=>typeof value==='function'))) {
     throw new EngineError('UNSUPPORTED_BACKEND','The native spatial-query extension requires all query and body lifecycle exports.');
   }
@@ -182,6 +419,16 @@ export class NativeWorldBackend implements PhysicsBackend {
   private disposed=false;
   // References retain this tiny identity marker, never the world/module itself.
   private readonly bodyOwner={};
+  // Replaced whenever the world is rebuilt, so joints of an earlier scene can never alias new ones.
+  private jointOwner={};
+  // One 128-byte scratch block for descriptors and small outputs, allocated on first use.
+  private scratch=0;
+  // Shape kinds last read from the bridge, keyed by shapeVersion() and the body count.
+  private kindRows: Uint8Array | null=null;
+  private kindRowsVersion=-1;
+  private kindRowsCount=-1;
+  // Geometry of hull, mesh and height-field bodies by token, kept only after retainBodyShapes(true).
+  private retainedShapes: Map<bigint, NativeBodyShape> | null=null;
 
   constructor(module: unknown, onDispose?: () => void) {
     assertNativeWorldModule(module);this.mod=module;this.onDispose=onDispose;
@@ -299,6 +546,7 @@ export class NativeWorldBackend implements PhysicsBackend {
     const token=this.bodyToken(body),status=this.mod._b3w_world_destroy_body!(this.handle,token);
     if(status===0)return false;
     if(status!==1)throw new EngineError('DISPOSED','The native context rejected body destruction.');
+    this.retainedShapes?.delete(token);
     return true;
   }
   applyBodyImpulse(body: NativeBodyHandle,x: number,y: number,z: number): void {
@@ -312,6 +560,492 @@ export class NativeWorldBackend implements PhysicsBackend {
     finite(vx,'impulse x');finite(vy,'impulse y');finite(vz,'impulse z');finite(size,'half-size',Number.MIN_VALUE);
     const token=this.mod._b3w_world_launch_projectile_handle!(this.handle,x,y,z,vx,vy,vz,size);
     return token===0n?null:this.wrapBody(token);
+  }
+
+  /** True when the artifact has the general-body extension: shapes, setters, joints and events. */
+  get supportsGeneralBodies(): boolean { this.assertAlive();return typeof this.mod._b3w_world_create_body==='function'; }
+  private general(): DataView {
+    this.assertAlive();
+    if(!this.supportsGeneralBodies)throw new EngineError('UNSUPPORTED_BACKEND','box3d.wasm lacks the general-body extension; rebuild with npm run build:wasm.');
+    if(this.scratch===0) {
+      const pointer=Number(this.mod._malloc!(128));
+      if(!Number.isSafeInteger(pointer)||pointer<=0||pointer%8!==0)throw new EngineError('ALLOCATION_FAILED','Native scratch allocation failed.');
+      this.scratch=pointer;
+    }
+    // Memory growth replaces the buffer, so build the view per call.
+    return new DataView(this.mod.HEAPF32.buffer,this.scratch,128);
+  }
+  private wrapJoint(token: bigint): NativeJointHandle {
+    return Object.freeze({token:BigInt.asUintN(64,token),[JOINT_OWNER]:this.jointOwner});
+  }
+  private jointToken(joint: NativeJointHandle): bigint {
+    if(!joint||typeof joint!=='object'||joint[JOINT_OWNER]!==this.jointOwner||typeof joint.token!=='bigint'||joint.token<1n) {
+      throw new EngineError('INVALID_PAYLOAD','Joint reference must belong to this exact world instance.');
+    }
+    return joint.token;
+  }
+  private bodyStatus(status: number | undefined): void {
+    if(status===0)throw new EngineError('STALE_BODY','This native body has been destroyed or belongs to a previous scene.');
+    if(status===-2)throw new EngineError('INVALID_PAYLOAD','The native bridge rejected the values.');
+    if(status!==1)throw new EngineError('DISPOSED','The native context rejected this operation.');
+  }
+  private jointStatus(status: number | undefined): void {
+    if(status===0)throw new EngineError('STALE_JOINT','This joint has been destroyed, or one of its bodies has.');
+    if(status===-2)throw new EngineError('UNSUPPORTED_JOINT','This joint type does not support that setting.');
+    if(status===-3)throw new EngineError('INVALID_PAYLOAD','The native bridge rejected the values.');
+    if(status!==1)throw new EngineError('DISPOSED','The native context rejected this operation.');
+  }
+
+  /** Replace the world with an empty one. `ground` adds the static 88 m slab whose top is y = 0. */
+  resetWorld(options: {seed?: number; ground?: boolean; gravity?: NativeQueryVector}={}): void {
+    this.general();
+    const seed=integer(options.seed??1,'seed',0,0xFFFFFFFF),g=options.gravity??[0,-9.81,0];
+    finite(g[0],'gravity x');finite(g[1],'gravity y');finite(g[2],'gravity z');
+    this.accepted(this.mod._b3w_world_reset!(this.handle,seed,options.ground===false?0:1,g[0],g[1],g[2]));
+    this.jointOwner={};this.retainedShapes?.clear();
+  }
+  setGravity(x: number,y: number,z: number): void {
+    this.general();finite(x,'gravity x');finite(y,'gravity y');finite(z,'gravity z');
+    this.accepted(this.mod._b3w_world_set_gravity!(this.handle,x,y,z));
+  }
+  gravity(): [number, number, number] {
+    const view=this.general();
+    this.accepted(this.mod._b3w_world_get_gravity!(this.handle,this.scratch));
+    return [view.getFloat32(0,true),view.getFloat32(4,true),view.getFloat32(8,true)];
+  }
+
+  /** Create a body. Returns null when the world is at body capacity. */
+  createBody(descriptor: NativeBodyDescriptor): NativeBodyHandle | null {
+    const view=this.general(),shape=descriptor.shape,kind=BODY_KINDS.indexOf(shape?.kind),type=BODY_TYPES.indexOf(descriptor.type??'dynamic');
+    if(kind<0)throw new EngineError('INVALID_PAYLOAD',"shape.kind must be 'box', 'sphere', 'capsule', 'hull', 'mesh', 'heightfield' or 'compound'.");
+    if(kind>=3&&typeof this.mod._b3w_world_create_hull_body!=='function')throw new EngineError('UNSUPPORTED_BACKEND','box3d.wasm lacks hull, mesh and height-field shapes; rebuild with npm run build:wasm.');
+    if((shape.kind==='compound'||descriptor.massData!==undefined)&&!this.supportsCompoundBodies)throw new EngineError('UNSUPPORTED_BACKEND','box3d.wasm lacks compound shapes and explicit mass data; rebuild with npm run build:wasm.');
+    if(type<0)throw new EngineError('INVALID_PAYLOAD',"type must be 'static', 'kinematic' or 'dynamic'.");
+    const vector=(value: NativeQueryVector | undefined,label: string,fallback: NativeQueryVector): NativeQueryVector=>{
+      const v=value??fallback;finite(v[0],`${label} x`);finite(v[1],`${label} y`);finite(v[2],`${label} z`);return v;
+    };
+    const size: [number, number, number]=shape.kind==='box'?[finite(shape.halfExtents[0],'half extent x',1e-4),finite(shape.halfExtents[1],'half extent y',1e-4),finite(shape.halfExtents[2],'half extent z',1e-4)]:
+      shape.kind==='sphere'?[finite(shape.radius,'radius',1e-4),0,0]:shape.kind==='capsule'?[finite(shape.radius,'radius',1e-4),finite(shape.halfLength,'capsule half length',0.0025),0]:[1,1,1];
+    // Validate caller geometry completely before anything is written to the heap.
+    let floats: Float32Array | null=null,ints: Int32Array | null=null;
+    const density=finite(descriptor.density??1000,'density',0),friction=finite(descriptor.friction??0.6,'friction',0),restitution=finite(descriptor.restitution??0,'restitution',0);
+    const children=shape.kind==='compound'?this.compoundChildren(shape.shapes,density,friction,restitution):null;
+    const massValues=descriptor.massData===undefined?null:massDataValues(descriptor.massData);
+    if(shape.kind==='hull') {
+      integer(shape.points?.length,'hull point values',12,4096*3);
+      if(shape.points.length%3!==0)throw new EngineError('INVALID_PAYLOAD','hull points must be x, y, z triples.');
+      floats=Float32Array.from(shape.points,(v,i)=>finite(v,`hull point value ${i}`));
+    }else if(shape.kind==='mesh') {
+      integer(shape.vertices?.length,'mesh vertex values',9,1048576*3);integer(shape.indices?.length,'mesh index count',3,2097152*3);
+      if(shape.vertices.length%3!==0||shape.indices.length%3!==0)throw new EngineError('INVALID_PAYLOAD','mesh vertices and indices must come in triples.');
+      floats=Float32Array.from(shape.vertices,(v,i)=>finite(v,`mesh vertex value ${i}`));
+      const vertexCount=floats.length/3;
+      ints=Int32Array.from(shape.indices,(v,i)=>integer(v,`mesh index ${i}`,0,vertexCount-1));
+    }else if(shape.kind==='heightfield') {
+      integer(shape.countX,'height-field countX',2,4096);integer(shape.countZ,'height-field countZ',2,4096);
+      if(shape.heights?.length!==shape.countX*shape.countZ)throw new EngineError('INVALID_PAYLOAD','heights must hold countX * countZ values.');
+      finite(shape.spacing?.[0],'height-field x spacing',1e-4);finite(shape.spacing?.[1],'height-field z spacing',1e-4);
+      floats=Float32Array.from(shape.heights,(v,i)=>finite(v,`height ${i}`));
+    }
+    const position=vector(descriptor.position,'position',[0,0,0]),rotation=descriptor.rotation??[0,0,0,1];
+    for(let i=0;i<4;i++)finite(rotation[i],'rotation');
+    const linear=vector(descriptor.linearVelocity,'linear velocity',[0,0,0]),angular=vector(descriptor.angularVelocity,'angular velocity',[0,0,0]);
+    const filter=descriptor.filter;
+    if(filter&&(filter.categoryBits===undefined)!==(filter.maskBits===undefined))throw new EngineError('INVALID_PAYLOAD','filter needs both categoryBits and maskBits, or neither.');
+    for(let i=0;i<128;i+=4)view.setUint32(i,0,true);
+    view.setUint32(0,kind,true);view.setUint32(4,type,true);
+    for(let i=0;i<3;i++){view.setFloat32(8+i*4,position[i],true);view.setFloat32(36+i*4,linear[i],true);view.setFloat32(48+i*4,angular[i],true);view.setFloat32(60+i*4,size[i],true);}
+    for(let i=0;i<4;i++)view.setFloat32(20+i*4,rotation[i],true);
+    view.setFloat32(72,density,true);
+    view.setFloat32(76,friction,true);
+    view.setFloat32(80,restitution,true);
+    view.setUint32(84,integer(descriptor.color??0xB8C0CC,'color',0,0xFFFFFFFF),true);
+    view.setUint32(88,(descriptor.bullet?1:0)|(descriptor.sensor?2:0)|(descriptor.hitEvents?4:0)|(descriptor.neverSleeps?8:0)|(descriptor.lockRotation?16:0),true);
+    view.setFloat32(92,finite(descriptor.linearDamping??0,'linear damping',0),true);
+    view.setFloat32(96,finite(descriptor.angularDamping??0,'angular damping',0),true);
+    const gravityScale=finite(descriptor.gravityScale??1,'gravity scale');
+    view.setFloat32(100,gravityScale===0?0:gravityScale,true);
+    view.setBigUint64(104,BigInt.asUintN(64,filter?.categoryBits??0n),true);view.setBigUint64(112,BigInt.asUintN(64,filter?.maskBits??0n),true);
+    view.setInt32(120,integer(filter?.groupIndex??0,'filter group',-0x80000000,0x7FFFFFFF),true);
+    const full=this.bodyCount()>=this.maxBodies;
+    let token: bigint;
+    if(children!==null) {
+      // One block holds the child descriptors, then every hull child's points. malloc may grow the heap, so views are taken after it.
+      const pointFloats=children.reduce((sum,child)=>sum+(child.points?.length??0),0),bytes=children.length*SHAPE_DESC_BYTES+pointFloats*4,pointer=Number(this.mod._malloc!(bytes));
+      if(!Number.isSafeInteger(pointer)||pointer<=0||pointer%4!==0)throw new EngineError('ALLOCATION_FAILED','Native geometry allocation failed.');
+      try {
+        const block=new DataView(this.mod.HEAPF32.buffer,pointer,bytes),points=new Float32Array(this.mod.HEAPF32.buffer,pointer+children.length*SHAPE_DESC_BYTES,pointFloats);
+        let offset=0;
+        children.forEach((child,index)=>{
+          const at=index*SHAPE_DESC_BYTES;
+          for(let i=0;i<SHAPE_DESC_BYTES;i+=4)block.setUint32(at+i,0,true);
+          block.setUint32(at,child.kind,true);
+          for(let i=0;i<3;i++){block.setFloat32(at+8+i*4,child.position[i],true);block.setFloat32(at+36+i*4,child.size[i],true);}
+          for(let i=0;i<4;i++)block.setFloat32(at+20+i*4,child.rotation[i],true);
+          block.setFloat32(at+48,child.density,true);block.setFloat32(at+52,child.friction,true);block.setFloat32(at+56,child.restitution,true);
+          if(child.points){block.setInt32(at+60,offset/3,true);block.setInt32(at+64,child.points.length/3,true);points.set(child.points,offset);offset+=child.points.length;}
+        });
+        token=this.mod._b3w_world_create_compound_body!(this.handle,this.scratch,pointer,children.length,pointer+children.length*SHAPE_DESC_BYTES,pointFloats/3);
+      }finally{this.mod._free!(pointer);}
+    }
+    else if(floats===null)token=this.mod._b3w_world_create_body!(this.handle,this.scratch);
+    else {
+      // One block holds the floats, then the indices. malloc may grow the heap, so views are taken after it.
+      const bytes=floats.byteLength+(ints?.byteLength??0),pointer=Number(this.mod._malloc!(bytes));
+      if(!Number.isSafeInteger(pointer)||pointer<=0||pointer%4!==0)throw new EngineError('ALLOCATION_FAILED','Native geometry allocation failed.');
+      try {
+        new Float32Array(this.mod.HEAPF32.buffer,pointer,floats.length).set(floats);
+        if(ints)new Int32Array(this.mod.HEAPF32.buffer,pointer+floats.byteLength,ints.length).set(ints);
+        token=shape.kind==='hull'?this.mod._b3w_world_create_hull_body!(this.handle,this.scratch,pointer,floats.length/3):
+          shape.kind==='mesh'?this.mod._b3w_world_create_mesh_body!(this.handle,this.scratch,pointer,floats.length/3,pointer+floats.byteLength,ints!.length/3):
+          shape.kind==='heightfield'?this.mod._b3w_world_create_heightfield_body!(this.handle,this.scratch,pointer,shape.countX,shape.countZ,shape.spacing[0],1,shape.spacing[1]):0n;
+      }finally{this.mod._free!(pointer);}
+    }
+    if(token===0n) {
+      if(full)return null;
+      throw new EngineError('INVALID_PAYLOAD','The native bridge rejected the body descriptor.');
+    }
+    const body=this.wrapBody(token);
+    // The descriptor cannot carry a zero gravity scale (zero means "default"), so apply it afterwards.
+    if(gravityScale===0)this.bodyStatus(this.mod._b3w_world_set_body_gravity_scale!(this.handle,body.token,0));
+    if(massValues!==null) {
+      // The values were checked before the body was made; if the bridge still refuses them, the body does not stay.
+      try{this.writeMassData(body.token,massValues);}catch(error){this.mod._b3w_world_destroy_body!(this.handle,body.token);throw error;}
+    }
+    if(this.retainedShapes&&children) {
+      // Validated copies, so later changes to the caller's arrays do not show.
+      this.retainedShapes.set(body.token,Object.freeze({kind:'compound' as const,shapes:Object.freeze(children.map(child=>Object.freeze({shape:child.shape,position:child.position,rotation:child.rotation,
+        density:child.density,friction:child.friction,restitution:child.restitution})))}));
+    }
+    if(this.retainedShapes&&floats) {
+      // `floats` and `ints` are this call's own validated copies, so later changes to the caller's arrays do not show.
+      const kept: NativeBodyShape=shape.kind==='hull'?{kind:'hull',points:floats}:
+        shape.kind==='mesh'?{kind:'mesh',vertices:floats,indices:ints!}:
+        shape.kind==='heightfield'?{kind:'heightfield',heights:floats,countX:shape.countX,countZ:shape.countZ,spacing:[shape.spacing[0],shape.spacing[1]]}:shape;
+      this.retainedShapes.set(body.token,Object.freeze(kept));
+    }
+    return body;
+  }
+  /** True when the artifact has compound shapes and explicit mass data. */
+  get supportsCompoundBodies(): boolean { this.assertAlive();return typeof this.mod._b3w_world_create_compound_body==='function'; }
+  // Checks every child of a compound and returns plain copies: the kind code, the pose, the size
+  // triple the bridge reads, the material with the body's values filled in, and hull points.
+  private compoundChildren(list: readonly NativeCompoundChild[],density: number,friction: number,restitution: number) {
+    if(!Array.isArray(list))throw new EngineError('INVALID_PAYLOAD','A compound shape needs a `shapes` array.');
+    integer(list.length,'compound shape count',1,NATIVE_COMPOUND_LIMIT);
+    let pointValues=0;
+    return list.map((child,index)=>{
+      const label=`compound shape ${index}`,shape=child?.shape,kind=shape?(['box','sphere','capsule','hull'] as const).indexOf(shape.kind):-1;
+      if(kind<0)throw new EngineError('INVALID_PAYLOAD',`${label}: shape.kind must be 'box', 'sphere', 'capsule' or 'hull'.`);
+      const p=child.position??[0,0,0],q=child.rotation??[0,0,0,1];
+      const position: [number, number, number]=[finite(p[0],`${label} position x`),finite(p[1],`${label} position y`),finite(p[2],`${label} position z`)];
+      const raw=[finite(q[0],`${label} rotation`),finite(q[1],`${label} rotation`),finite(q[2],`${label} rotation`),finite(q[3],`${label} rotation`)],length=Math.hypot(raw[0],raw[1],raw[2],raw[3]);
+      if(!(length>1e-6))throw new EngineError('INVALID_PAYLOAD',`${label}: rotation must be a non-zero quaternion.`);
+      const rotation: [number, number, number, number]=[raw[0]/length,raw[1]/length,raw[2]/length,raw[3]/length];
+      let size: [number, number, number],points: Float32Array | null=null,kept: NativeConvexShape;
+      if(shape.kind==='box'){size=[finite(shape.halfExtents?.[0],`${label} half extent x`,1e-4),finite(shape.halfExtents?.[1],`${label} half extent y`,1e-4),finite(shape.halfExtents?.[2],`${label} half extent z`,1e-4)];kept={kind:'box',halfExtents:[size[0],size[1],size[2]]};}
+      else if(shape.kind==='sphere'){size=[finite(shape.radius,`${label} radius`,1e-4),0,0];kept={kind:'sphere',radius:size[0]};}
+      else if(shape.kind==='capsule'){size=[finite(shape.radius,`${label} radius`,1e-4),finite(shape.halfLength,`${label} capsule half length`,0.0025),0];kept={kind:'capsule',radius:size[0],halfLength:size[1]};}
+      else {
+        integer(shape.points?.length,`${label} hull point values`,12,4096*3);
+        if(shape.points.length%3!==0)throw new EngineError('INVALID_PAYLOAD',`${label}: hull points must be x, y, z triples.`);
+        points=Float32Array.from(shape.points,(v,i)=>finite(v,`${label} hull point value ${i}`));
+        pointValues+=points.length;
+        if(pointValues>4096*3*NATIVE_COMPOUND_LIMIT)throw new EngineError('INVALID_PAYLOAD','A compound body holds too many hull points.');
+        size=[1,1,1];kept={kind:'hull',points};
+      }
+      return {kind,shape:Object.freeze(kept),position,rotation,size,points,density:finite(child.density??density,`${label} density`,0),
+        friction:finite(child.friction??friction,`${label} friction`,0),restitution:finite(child.restitution??restitution,`${label} restitution`,0)};
+    });
+  }
+  private writeMassData(token: bigint,values: readonly number[]): void {
+    const view=this.general();
+    for(let i=0;i<10;i++)view.setFloat32(i*4,values[i]!,true);
+    const status=this.mod._b3w_world_set_body_mass_data!(this.handle,token,this.scratch);
+    if(status===-2)throw new EngineError('INVALID_PAYLOAD','Mass data needs a positive mass and a symmetric positive-definite inertia tensor that float32 can hold.');
+    this.bodyStatus(status);
+  }
+  /**
+   * Replace the mass, centre of mass and inertia tensor the body's shapes and densities give. The
+   * body's velocity at its origin and its pose are unchanged. The values stay, also across
+   * setBodyType, until resetBodyMassData; they act while the body is dynamic. A body created with
+   * `lockRotation` keeps no inertia. The shapes still decide how the body collides.
+   */
+  setBodyMassData(body: NativeBodyHandle,data: NativeMassData): void {
+    const token=this.bodyToken(body);this.general();
+    if(!this.supportsCompoundBodies)throw new EngineError('UNSUPPORTED_BACKEND','box3d.wasm lacks explicit mass data; rebuild with npm run build:wasm.');
+    this.writeMassData(token,massDataValues(data));
+  }
+  /** Back to the mass, centre of mass and inertia of the body's shapes. */
+  resetBodyMassData(body: NativeBodyHandle): void {
+    const token=this.bodyToken(body);this.general();
+    if(!this.supportsCompoundBodies)throw new EngineError('UNSUPPORTED_BACKEND','box3d.wasm lacks explicit mass data; rebuild with npm run build:wasm.');
+    this.bodyStatus(this.mod._b3w_world_reset_body_mass_data!(this.handle,token));
+  }
+  /** Mass, centre of mass (body frame) and inertia tensor (about that centre, body axes) as the solver holds them. A static or kinematic body reports zeros. */
+  bodyMassData(body: NativeBodyHandle): NativeBodyMassState {
+    const token=this.bodyToken(body),view=this.general();
+    if(!this.supportsCompoundBodies)throw new EngineError('UNSUPPORTED_BACKEND','box3d.wasm lacks explicit mass data; rebuild with npm run build:wasm.');
+    this.bodyStatus(this.mod._b3w_world_get_body_mass_data!(this.handle,token,this.scratch));
+    const f=(i: number)=>view.getFloat32(i*4,true);
+    return {mass:f(0),center:[f(1),f(2),f(3)],inertia:[f(4),f(5),f(6),f(7),f(8),f(9)],explicit:f(10)!==0,shapeCount:f(11)};
+  }
+  /**
+   * Keep the geometry of every hull, mesh, height-field and compound body created from now on, so that a
+   * renderer can draw it (`bodyShape`). Off by default: a world that is not drawn this way holds
+   * no copies. Turning it off drops what was kept.
+   */
+  retainBodyShapes(enabled=true): void {
+    this.assertAlive();
+    if(enabled)this.retainedShapes??=new Map();else this.retainedShapes=null;
+  }
+  /**
+   * The geometry the body at render row `row` was created with, when it is a hull, mesh, height
+   * field or compound created after retainBodyShapes(true); null otherwise. The same object is returned for
+   * the same body until it is destroyed, whatever row it moves to. Its arrays must not be changed.
+   */
+  bodyShape(row: number): NativeBodyShape | null {
+    this.assertAlive();
+    if(!this.retainedShapes||this.retainedShapes.size===0||!this.supportsBodyLifecycle)return null;
+    integer(row,'body index',0,this.bodyCount()-1);
+    return this.retainedShapes.get(BigInt.asUintN(64,this.mod._b3w_world_body_handle!(this.handle,row)))??null;
+  }
+  /** Shape kind of every render row, in row order. Rows move when a body is destroyed. */
+  bodyKinds(): NativeBodyKind[] {
+    this.general();
+    return Array.from(this.readKinds(),kind=>BODY_KINDS[kind]??'box');
+  }
+  private readKinds(): Uint8Array {
+    const count=this.bodyCount();
+    if(count===0)return new Uint8Array(0);
+    const pointer=Number(this.mod._malloc!(count));
+    if(!Number.isSafeInteger(pointer)||pointer<=0)throw new EngineError('ALLOCATION_FAILED','Native scratch allocation failed.');
+    try {
+      const written=this.mod._b3w_world_copy_body_kinds!(this.handle,pointer,count);
+      if(written!==count)throw new EngineError('INVALID_BACKEND','Native body kinds are out of step with the body count.');
+      return new Uint8Array(this.mod.HEAPF32.buffer,pointer,count).slice();
+    }finally{this.mod._free!(pointer);}
+  }
+  /** Version of the shape-kind rows for renderers. The bridge raises its colour version on every
+   * body creation, destruction and scene replacement, which are the only events that change a kind.
+   */
+  shapeVersion(): number { return this.colorVersion(); }
+  /** One byte per render row (0 box, 1 sphere, 2 capsule, 3 hull, 4 mesh, 5 height field, 6 compound), or null when every row is a box.
+   * Read from the bridge once per shapeVersion(); the same array is returned until it changes.
+   */
+  shapeKinds(): Uint8Array | null {
+    this.assertAlive();
+    if(!this.supportsGeneralBodies)return null;
+    const version=this.shapeVersion(),count=this.bodyCount();
+    if(version!==this.kindRowsVersion||count!==this.kindRowsCount) {
+      const rows=this.readKinds();
+      this.kindRows=rows.some(kind=>kind!==0)?rows:null;this.kindRowsVersion=version;this.kindRowsCount=count;
+    }
+    return this.kindRows;
+  }
+  bodyState(body: NativeBodyHandle): NativeBodyState {
+    const token=this.bodyToken(body),view=this.general();
+    this.bodyStatus(this.mod._b3w_world_get_body_state!(this.handle,token,this.scratch));
+    const f=(i: number)=>view.getFloat32(i*4,true);
+    return {position:[f(0),f(1),f(2)],rotation:[f(3),f(4),f(5),f(6)],linearVelocity:[f(7),f(8),f(9)],angularVelocity:[f(10),f(11),f(12)],
+      mass:f(13),awake:f(14)!==0,type:BODY_TYPES[f(15)]??'dynamic'};
+  }
+  /** Teleport. For a moving kinematic body prefer setBodyTarget, which keeps contacts stable. */
+  setBodyTransform(body: NativeBodyHandle,position: NativeQueryVector,rotation: NativeQuaternion=[0,0,0,1]): void {
+    const token=this.bodyToken(body);this.general();
+    for(let i=0;i<3;i++)finite(position[i],'position');for(let i=0;i<4;i++)finite(rotation[i],'rotation');
+    this.bodyStatus(this.mod._b3w_world_set_body_transform!(this.handle,token,position[0],position[1],position[2],rotation[0],rotation[1],rotation[2],rotation[3]));
+  }
+  setBodyVelocity(body: NativeBodyHandle,linear: NativeQueryVector,angular: NativeQueryVector=[0,0,0]): void {
+    const token=this.bodyToken(body);this.general();
+    for(let i=0;i<3;i++){finite(linear[i],'linear velocity');finite(angular[i],'angular velocity');}
+    this.bodyStatus(this.mod._b3w_world_set_body_velocity!(this.handle,token,linear[0],linear[1],linear[2],angular[0],angular[1],angular[2]));
+  }
+  /** Set a kinematic body's velocity so that it reaches the pose after `seconds`. */
+  setBodyTarget(body: NativeBodyHandle,position: NativeQueryVector,rotation: NativeQuaternion,seconds: number): void {
+    const token=this.bodyToken(body);this.general();
+    for(let i=0;i<3;i++)finite(position[i],'position');for(let i=0;i<4;i++)finite(rotation[i],'rotation');finite(seconds,'seconds',Number.MIN_VALUE);
+    this.bodyStatus(this.mod._b3w_world_set_body_target!(this.handle,token,position[0],position[1],position[2],rotation[0],rotation[1],rotation[2],rotation[3],seconds));
+  }
+  setBodyType(body: NativeBodyHandle,type: NativeBodyType): void {
+    const token=this.bodyToken(body),code=BODY_TYPES.indexOf(type);this.general();
+    if(code<0)throw new EngineError('INVALID_PAYLOAD',"type must be 'static', 'kinematic' or 'dynamic'.");
+    this.bodyStatus(this.mod._b3w_world_set_body_type!(this.handle,token,code));
+  }
+  setBodyAwake(body: NativeBodyHandle,awake: boolean): void {
+    const token=this.bodyToken(body);this.general();
+    this.bodyStatus(this.mod._b3w_world_set_body_awake!(this.handle,token,awake?1:0));
+  }
+  setBodyGravityScale(body: NativeBodyHandle,scale: number): void {
+    const token=this.bodyToken(body);this.general();finite(scale,'gravity scale');
+    this.bodyStatus(this.mod._b3w_world_set_body_gravity_scale!(this.handle,token,scale));
+  }
+  setBodyDamping(body: NativeBodyHandle,linear: number,angular: number): void {
+    const token=this.bodyToken(body);this.general();finite(linear,'linear damping',0);finite(angular,'angular damping',0);
+    this.bodyStatus(this.mod._b3w_world_set_body_damping!(this.handle,token,linear,angular));
+  }
+  /** A body collides with another when each one's categoryBits intersects the other's maskBits. */
+  setBodyFilter(body: NativeBodyHandle,categoryBits: bigint,maskBits: bigint,groupIndex=0): void {
+    const token=this.bodyToken(body);this.general();integer(groupIndex,'filter group',-0x80000000,0x7FFFFFFF);
+    this.bodyStatus(this.mod._b3w_world_set_body_filter!(this.handle,token,BigInt.asUintN(64,categoryBits),BigInt.asUintN(64,maskBits),groupIndex));
+  }
+  /** Forces and torques act over the next step; impulses change velocity at once. `point` is in world space. */
+  applyToBody(body: NativeBodyHandle,mode: 'force' | 'torque' | 'impulse' | 'angular-impulse',value: NativeQueryVector,point?: NativeQueryVector): void {
+    const token=this.bodyToken(body),code=(['force','torque','impulse','angular-impulse'] as const).indexOf(mode);this.general();
+    if(code<0)throw new EngineError('INVALID_PAYLOAD','Unknown apply mode.');
+    for(let i=0;i<3;i++)finite(value[i],mode);
+    if(point===undefined){this.bodyStatus(this.mod._b3w_world_apply_body!(this.handle,token,code,value[0],value[1],value[2]));return;}
+    if(mode!=='force'&&mode!=='impulse')throw new EngineError('INVALID_PAYLOAD','Only a force or an impulse can be applied at a point.');
+    for(let i=0;i<3;i++)finite(point[i],'point');
+    this.bodyStatus(this.mod._b3w_world_apply_body_at!(this.handle,token,mode==='force'?0:1,value[0],value[1],value[2],point[0],point[1],point[2]));
+  }
+
+  createJoint(descriptor: NativeJointDescriptor): NativeJointHandle {
+    const view=this.general(),type=JOINT_TYPES.indexOf(descriptor.type);
+    if(type<0)throw new EngineError('INVALID_PAYLOAD','Unknown joint type.');
+    const a=descriptor.bodyA===null?0n:this.bodyToken(descriptor.bodyA),b=descriptor.bodyB===null?0n:this.bodyToken(descriptor.bodyB);
+    if(a===b)throw new EngineError('INVALID_PAYLOAD','A joint needs two different bodies.');
+    const {limits,motor,spring}=descriptor;
+    if(limits){finite(limits.lower,'lower limit');finite(limits.upper,'upper limit',limits.lower);}
+    if(motor){finite(motor.speed,'motor speed');finite(motor.maxForce,'motor max force',0);}
+    if(spring){finite(spring.hertz,'spring hertz',0);finite(spring.dampingRatio,'spring damping ratio',0);finite(spring.target??0,'spring target');}
+    if(descriptor.type==='distance')finite(descriptor.length,'distance joint length',Number.MIN_VALUE);
+    if(descriptor.coneAngle!==undefined)finite(descriptor.coneAngle,'cone angle',0,Math.PI);
+    if(descriptor.stiffness){finite(descriptor.stiffness.hertz,'joint stiffness hertz',Number.MIN_VALUE);finite(descriptor.stiffness.dampingRatio??2,'joint stiffness damping ratio',0);}
+    for(let i=0;i<128;i+=4)view.setUint32(i,0,true);
+    view.setUint32(0,type,true);
+    view.setUint32(4,(descriptor.collideConnected?1:0)|(limits?2:0)|(motor?4:0)|(spring?8:0)|(descriptor.coneAngle!==undefined?16:0),true);
+    view.setBigUint64(8,a,true);view.setBigUint64(16,b,true);
+    [descriptor.frameA,descriptor.frameB].forEach((frame,side)=>{
+      const p=frame?.position??[0,0,0],q=frame?.rotation??[0,0,0,1],base=24+side*28;
+      for(let i=0;i<3;i++)view.setFloat32(base+i*4,finite(p[i],'frame position'),true);
+      for(let i=0;i<4;i++)view.setFloat32(base+12+i*4,finite(q[i],'frame rotation'),true);
+    });
+    view.setFloat32(80,limits?.lower??0,true);view.setFloat32(84,limits?.upper??0,true);
+    view.setFloat32(88,motor?.speed??0,true);view.setFloat32(92,motor?.maxForce??0,true);
+    view.setFloat32(96,spring?.hertz??0,true);view.setFloat32(100,spring?.dampingRatio??0,true);
+    view.setFloat32(104,descriptor.type==='distance'?descriptor.length!:spring?.target??0,true);
+    view.setFloat32(108,descriptor.coneAngle??0,true);
+    view.setFloat32(112,descriptor.stiffness?.hertz??0,true);view.setFloat32(116,descriptor.stiffness?descriptor.stiffness.dampingRatio??2:0,true);
+    const token=this.mod._b3w_world_create_joint!(this.handle,this.scratch);
+    if(token===0n)throw new EngineError('INVALID_PAYLOAD','The native bridge rejected the joint: check that both bodies are alive.');
+    return this.wrapJoint(token);
+  }
+  /** False once the joint, or either of its bodies, has been destroyed. */
+  jointAlive(joint: NativeJointHandle): boolean {
+    const token=this.jointToken(joint);this.general();
+    return this.mod._b3w_world_joint_valid!(this.handle,token)===1;
+  }
+  destroyJoint(joint: NativeJointHandle): boolean {
+    const token=this.jointToken(joint);this.general();
+    const status=this.mod._b3w_world_destroy_joint!(this.handle,token);
+    if(status===0)return false;
+    this.jointStatus(status);return true;
+  }
+  /** Pass null to switch the motor off. Revolute, prismatic, distance and wheel (spin) joints. */
+  setJointMotor(joint: NativeJointHandle,motor: {speed: number; maxForce: number} | null): void {
+    const token=this.jointToken(joint);this.general();
+    if(motor){finite(motor.speed,'motor speed');finite(motor.maxForce,'motor max force',0);}
+    this.jointStatus(this.mod._b3w_world_joint_set_motor!(this.handle,token,motor?1:0,motor?.speed??0,motor?.maxForce??0));
+  }
+  /** Pass null to remove the limits. Not available on weld joints. */
+  setJointLimits(joint: NativeJointHandle,limits: {lower: number; upper: number} | null): void {
+    const token=this.jointToken(joint);this.general();
+    if(limits){finite(limits.lower,'lower limit');finite(limits.upper,'upper limit',limits.lower);}
+    this.jointStatus(this.mod._b3w_world_joint_set_limits!(this.handle,token,limits?1:0,limits?.lower??0,limits?.upper??0));
+  }
+  /** Pass null to switch the spring off. */
+  setJointSpring(joint: NativeJointHandle,spring: {hertz: number; dampingRatio: number; target?: number} | null): void {
+    const token=this.jointToken(joint);this.general();
+    if(spring){finite(spring.hertz,'spring hertz',0);finite(spring.dampingRatio,'spring damping ratio',0);finite(spring.target??0,'spring target');}
+    this.jointStatus(this.mod._b3w_world_joint_set_spring!(this.handle,token,spring?1:0,spring?.hertz??0,spring?.dampingRatio??0,spring?.target??0));
+  }
+  /** How stiffly the joint holds its bodies together (Box3D's default: 60 Hz, damping ratio 2).
+   * A higher frequency sags less under load; keep it well below the sub-step rate.
+   */
+  setJointStiffness(joint: NativeJointHandle,hertz: number,dampingRatio=2): void {
+    const token=this.jointToken(joint);this.general();
+    finite(hertz,'joint stiffness hertz',Number.MIN_VALUE);finite(dampingRatio,'joint stiffness damping ratio',0);
+    if(typeof this.mod._b3w_world_joint_set_tuning!=='function')throw new EngineError('UNSUPPORTED_BACKEND','box3d.wasm lacks joint stiffness; rebuild with npm run build:wasm.');
+    this.jointStatus(this.mod._b3w_world_joint_set_tuning(this.handle,token,hertz,dampingRatio));
+  }
+  /** Wheel joints only. Pass null to switch steering off. */
+  setJointSteering(joint: NativeJointHandle,steering: {angle: number; hertz: number; dampingRatio: number; maxTorque: number} | null): void {
+    const token=this.jointToken(joint);this.general();
+    if(steering){finite(steering.angle,'steering angle');finite(steering.hertz,'steering hertz',0);finite(steering.dampingRatio,'steering damping ratio',0);finite(steering.maxTorque,'steering max torque',0);}
+    this.jointStatus(this.mod._b3w_world_joint_set_steering!(this.handle,token,steering?1:0,steering?.angle??0,steering?.hertz??0,steering?.dampingRatio??0,steering?.maxTorque??0));
+  }
+  jointState(joint: NativeJointHandle): NativeJointState {
+    const token=this.jointToken(joint),view=this.general();
+    this.jointStatus(this.mod._b3w_world_get_joint_state!(this.handle,token,this.scratch));
+    const f=(i: number)=>view.getFloat32(i*4,true);
+    return {type:JOINT_TYPES[f(1)]??'weld',value:f(0),force:[f(2),f(3),f(4)],torque:[f(5),f(6),f(7)]};
+  }
+
+  /** Contact and sensor events of the most recent step. Call once after each step.
+   * `dropped` counts events that did not fit the 65,536-event buffer.
+   */
+  collectEvents(): {events: NativeWorldEvent[]; dropped: number} {
+    this.general();
+    const count=this.mod._b3w_world_collect_events!(this.handle);
+    if(count<0)throw new EngineError('DISPOSED','The native context rejected event collection.');
+    const total=this.mod._b3w_world_event_total!(this.handle),events: NativeWorldEvent[]=[];
+    if(count===0)return {events,dropped:Math.max(0,total)};
+    const pointer=Number(this.mod._b3w_world_events_ptr!(this.handle));
+    if(!Number.isSafeInteger(pointer)||pointer<=0||pointer+count*56>this.mod.HEAPF32.byteLength)throw new EngineError('INVALID_BACKEND','Native event buffer is outside the module heap.');
+    const view=new DataView(this.mod.HEAPF32.buffer,pointer,count*56);
+    const body=(offset: number)=>{const token=view.getBigUint64(offset,true);return token===0n?null:this.wrapBody(token);};
+    for(let i=0;i<count;i++) {
+      const o=i*56,kind=EVENT_KINDS[view.getUint32(o,true)];
+      if(kind===undefined)throw new EngineError('INVALID_BACKEND','Native event kind is unknown.');
+      const bodyA=body(o+8),bodyB=body(o+16);
+      events.push(kind==='hit'?{kind,bodyA,bodyB,point:[view.getFloat32(o+24,true),view.getFloat32(o+28,true),view.getFloat32(o+32,true)],
+        normal:[view.getFloat32(o+36,true),view.getFloat32(o+40,true),view.getFloat32(o+44,true)],approachSpeed:view.getFloat32(o+48,true)}:{kind,bodyA,bodyB});
+    }
+    return {events,dropped:Math.max(0,total-count)};
+  }
+
+  /** True when the artifact can write and restore exact checkpoints of a world (docs/CHECKPOINTS.md). */
+  get supportsCheckpoints(): boolean { this.assertAlive();return typeof this.mod._b3w_world_restore==='function'&&typeof this.mod._b3w_world_checkpoint==='function'; }
+  /**
+   * The complete state of this world: its body table (handles, render rows and streams, shape kinds, mass data set by
+   * hand) and Box3D's own snapshot of everything a step reads (contacts with their manifolds and warm-start impulses,
+   * the constraint graph, islands and sleep timers, joints and their impulses, the broad phase). `restoreCheckpoint`
+   * of these bytes in a world of the same artifact makes every later step bit-identical to this world's.
+   */
+  checkpoint(): Uint8Array {
+    this.assertAlive();
+    if(!this.supportsCheckpoints)throw new EngineError('UNSUPPORTED_BACKEND','box3d.wasm lacks exact checkpoints; rebuild with npm run build:wasm.');
+    const size=this.mod._b3w_world_checkpoint!(this.handle);
+    if(size===-1)throw new EngineError('INVALID_STATE','The native world has no simulation to checkpoint.');
+    if(size<0)throw new EngineError('ALLOCATION_FAILED','The native checkpoint could not be allocated.');
+    try {
+      const pointer=Number(this.mod._b3w_world_checkpoint_ptr!(this.handle));
+      if(!Number.isSafeInteger(pointer)||pointer<=0||pointer+size>this.mod.HEAPF32.buffer.byteLength)throw new EngineError('INVALID_BACKEND','Native checkpoint is outside the module heap.');
+      return new Uint8Array(this.mod.HEAPF32.buffer,pointer,size).slice();
+    }finally{this.mod._b3w_world_checkpoint_free!(this.handle);}
+  }
+  /**
+   * Replace this world's state with a checkpoint from `checkpoint()`. Body and joint handles keep their meaning when
+   * the world was built the same way as the one the checkpoint was taken from. Bytes that are not a checkpoint of this
+   * artifact's format are refused and change nothing.
+   */
+  restoreCheckpoint(bytes: Uint8Array): void {
+    this.assertAlive();
+    if(!this.supportsCheckpoints)throw new EngineError('UNSUPPORTED_BACKEND','box3d.wasm lacks exact checkpoints; rebuild with npm run build:wasm.');
+    if(!(bytes instanceof Uint8Array)||bytes.length===0)throw new EngineError('INVALID_PAYLOAD','A native checkpoint is a non-empty Uint8Array.');
+    const pointer=Number(this.mod._malloc!(bytes.length));
+    if(!Number.isSafeInteger(pointer)||pointer<=0)throw new EngineError('ALLOCATION_FAILED','Native scratch allocation failed.');
+    let status: number;
+    try {
+      new Uint8Array(this.mod.HEAPF32.buffer,pointer,bytes.length).set(bytes);
+      status=this.mod._b3w_world_restore!(this.handle,pointer,bytes.length);
+    }finally{this.mod._free!(pointer);}
+    if(status===-2)throw new EngineError('INVALID_PAYLOAD','These bytes are not a native world checkpoint of this build.');
+    if(status===-3)throw new EngineError('ALLOCATION_FAILED','The native checkpoint could not be restored: out of memory. The world is unchanged.');
+    if(status===-4)throw new EngineError('INVALID_PAYLOAD','Box3D refused the world snapshot; the world was reset to an empty one.');
+    if(status!==1)throw new EngineError('DISPOSED','The native context rejected the restore.');
+    this.refreshStreams(true);
   }
 
   get supportsSpatialQueries(): boolean { this.assertAlive();return typeof this.mod._b3w_world_query_batch==='function'; }
@@ -429,6 +1163,7 @@ export class NativeWorldBackend implements PhysicsBackend {
     this.assertAlive();integer(scene?.id,'scene ID',0,799);finite(stressScale,'stress scale',1,5);integer(seed,'seed',0,0xFFFFFFFF);
     const count=this.mod._b3w_world_create_scene(this.handle,scene.id,stressScale,seed);
     if(count<0)throw new EngineError('DISPOSED','Native scene creation rejected this context.');
+    this.jointOwner={};this.retainedShapes?.clear();
     return count;
   }
   step(dt: number, subSteps: number): void {
@@ -459,11 +1194,14 @@ export class NativeWorldBackend implements PhysicsBackend {
     return count===0?0:this.mod._b3w_world_spawn_rain(this.handle,count,spread,height);
   }
   /** Empty this specimen while retaining its context, buffers and generation. */
-  clear(): void { this.assertAlive();this.accepted(this.mod._b3w_world_clear(this.handle)); }
+  clear(): void { this.assertAlive();this.accepted(this.mod._b3w_world_clear(this.handle));this.jointOwner={};this.retainedShapes?.clear(); }
   destroy(): void {
     if(this.disposed)return;
     this.disposed=true;
-    try{if(this.mod._b3w_world_valid(this.handle)===1)this.mod._b3w_world_destroy(this.handle);}
+    try {
+      if(this.scratch!==0){this.mod._free?.(this.scratch);this.scratch=0;}
+      if(this.mod._b3w_world_valid(this.handle)===1)this.mod._b3w_world_destroy(this.handle);
+    }
     finally{this.onDispose?.();}
   }
 }

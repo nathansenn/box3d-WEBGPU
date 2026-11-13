@@ -6,14 +6,18 @@ import '@fontsource/ibm-plex-mono/latin-400.css';
 import '@phosphor-icons/web/regular';
 import './studio.css';
 import './reference-workspace.css';
-import { FailureSimulation, FIXED_DT, STUDIES, STUDIO_SCALED_CHECKPOINT_BACKEND, STUDIO_CANOPY_CONTACT_BACKEND, type StudyId, type Snapshot } from './physics';
+import { FailureSimulation, FIXED_DT, STUDIES, STUDIO_SCALED_CHECKPOINT_BACKEND, STUDIO_CANOPY_SI_BACKEND, STUDIO_PRESS_SI_BACKEND, type StudyId, type Snapshot } from './physics';
+import { siPress, PRESS_RATED_FORCE, PRESS_SI_NOTE } from './press-si';
+import { CANOPY_NOTE, CANOPY_SNOW_PER_LOAD, CANOPY_WIND_PER_UNIT } from './canopy-si';
+import { SiBridgeStudy, SI_BRIDGE_MAX_CUTS, SI_BRIDGE_SCOPE } from './si-bridge-study';
 import { StudioWorld } from './world';
 import { createStudioClient, type StudioClient } from '../engine/studio-client';
+import type { StudioRunRequest } from '../engine/studio-run';
 import type { StudioStepResult } from '../engine/studio-runtime';
 import { FixedFrameClock, StageTimings } from '../perf/frame-clock';
 import { RecordingRing } from '../perf/recording-ring';
 import { copySnapshotInto, interpolateSnapshotInto } from './presentation-state';
-import { MAX_CHECKPOINT_FILE_BYTES, parseStudioCheckpointFile } from './checkpoint-file';
+import { MAX_CHECKPOINT_FILE_BYTES, packStudioCheckpoint, readStudioCheckpointFile } from './checkpoint-file';
 import { PresetBrowser, type PresetActions } from './preset-browser';
 import { SceneDesk } from './scene-desk';
 import { BridgeReviewView, type BridgeReviewState } from './bridge-review-view';
@@ -22,17 +26,20 @@ import { PressWorkbench } from './press-workbench';
 import { pressPressureAt,pressDriveAt } from './press-inspection';
 import { pressDriveFor,pressDriveCommands,readPressDriveEnvelope,type PressDriveId } from './press-program';
 import { makePressRun,pressRunPoint,type PressRun } from './press-runs';
-import { DEFAULT_PRESS,readPress,writePress,normalizePress,metalFor,type PressSettings } from './press-settings';
+import { SI_DEFAULT_PRESS,readPress,writePress,normalizePress,metalFor,type PressSettings } from './press-settings';
 import { readRiver, writeRiver, riverProfile, normalizeRiver, type RiverSettings } from './river-settings';
 import { finishFor, lightingFor, loadFor, setupFor, surroundingsFor, SURROUNDING_PRESETS, PACKS, camerasFor, type CameraPreset } from './presets';
 
 const icon=(name:string)=>`<i class="ph ph-${name}" aria-hidden="true"></i>`;
+const backendFor=(study:StudyId)=>study==='canopy'?STUDIO_CANOPY_SI_BACKEND:study==='plate'?STUDIO_PRESS_SI_BACKEND:STUDIO_SCALED_CHECKPOINT_BACKEND;
+/** Ram force limit, kN, of a target-load setting (pressure percent / 20). */
+const forceLimit=(target:number)=>target*20/100*PRESS_RATED_FORCE/1000;
 const base=import.meta.env.BASE_URL;
 const pressReference=new URL('../../docs/design/press-lab-v4-20260911/mockup.png',import.meta.url).href;
 const details={
-  canopy:{family:'Membrane studies',specimen:'Woven membrane',material:'Ivory · plain weave',mechanism:'Strain → tear propagation',supports:'4 corner anchors',load:'Uniform pressure',icon:'grid-four',label:'Membrane response',dimension:'10.0 × 8.0',program:'Pressure ramp',description:'Distributed pressure and crosswind tension the woven surface. Connections tear when their accumulated strain damage reaches the rupture limit.'},
-  plate:{family:'Material studies',specimen:'Metal sheet',material:'Selectable alloy · solid sheet',mechanism:'Yield → dent → perforation',supports:'Pinned perimeter · 4 edges',load:'Pressure limited ram',icon:'square-half',label:'Plate response',dimension:'5.2 × 4.4',program:'Controlled press stroke',description:'A pressure limited ram drives the selected tool into a sheet. Metal, thickness, contact shape and speed affect the response. Plastic extension leaves a permanent dent; excessive strain opens a fracture.'},
-  bridge:{family:'Cable studies',specimen:'Suspension footbridge',material:'Steel cable · timber deck',mechanism:'Rupture → support loss → collapse',supports:'2 towers · 4 cable saddles',load:'Asymmetric deck load',icon:'bridge',label:'Cable response',dimension:'42.0 × 3.8',program:'Deck overload',description:'The deck transfers gravity and applied load through hangers to paired main cables. Broken connections stop carrying load and unsupported deck sections fall.'},
+  canopy:{family:'Membrane studies',specimen:'PVC-coated polyester',material:'Library fabric · warp along the span',mechanism:'Yarn stress → tearing',supports:'4 corner posts · edge cables',load:'Snow on plan · wind',icon:'grid-four',label:'Membrane response',dimension:'10.0 × 8.0 m',program:'Snow load ramp',description:'A pretensioned PVC-coated polyester canopy on four corner posts with steel edge cables carries its weight, a snow load on its plan area and wind. The fabric is an orthotropic membrane with library stiffness and strength; triangles tear when the stress along a yarn reaches its strength.'},
+  plate:{family:'Material studies',specimen:'Metal sheet',material:'S355 or 6061-T6 · library data',mechanism:'Yield → springback → ductile crack',supports:'Air-bending die · 2 shoulders',load:'Ram force limit',icon:'square-half',label:'Bend response',dimension:'520 × 440 mm',program:'Press-brake stroke',description:'A punch bends the sheet in air between two die shoulders. The sheet is an elastic-plastic finite-element section in SI units (J2 plasticity, library steel or aluminium); elements whose plastic strain reaches the failure strain erode, which opens a crack along the bend.'},
+  bridge:{family:'Cable studies',specimen:'Suspension footbridge',material:'Steel strands · steel girders · timber deck',mechanism:'Hanger loss → load redistribution',supports:'2 portal towers · 4 saddles · 4 anchorages',load:'Crowd on the east half · wind',icon:'bridge',label:'Cable response',dimension:'42.0 × 3.8 m',program:'Crowd and hanger loss',description:'A 42 m suspension footbridge in SI units. The timber deck rests on steel girders hung from two 50 mm main cables by 70 hangers; the cables pass over portal towers to ground anchorages. A crowd (kN/m²) on the east half and a lateral wind (kN/m) load it; cut hangers stop carrying load and their neighbours take it.'},
 };
 
 export async function bootStudio(requested:string):Promise<void> {
@@ -49,7 +56,7 @@ export async function bootStudio(requested:string):Promise<void> {
   let bridgeReview:BridgeReviewView|undefined,pauseOnBridgeBreak=initialQuery.get('pauseBreak')==='1';
   let reviewMode:'inspect'|'experiments'=initialQuery.get('analysis')==='inspect'?'inspect':'experiments';
   let bridgePointsCache:{key:string;points:BridgePoint[]}|undefined;
-  let pressSettings=readPress(initialQuery,{...DEFAULT_PRESS,pressure:recipe.target*20}),pressWorkbench:PressWorkbench|undefined;
+  let pressSettings=siPress(readPress(initialQuery,SI_DEFAULT_PRESS)),pressWorkbench:PressWorkbench|undefined;
   let pressDrive:PressDriveId=pressDriveFor(initialQuery.get('drive')).id;
   type Look={finish:string;lighting:string;surroundings:string;camera:CameraPreset;river:RiverSettings};
   const lookHistory:Look[]=[];
@@ -62,8 +69,14 @@ export async function bootStudio(requested:string):Promise<void> {
   }
   function setRiver(settings:RiverSettings):void {rememberLook();riverSettings=normalizeRiver(settings);activeSetup=undefined;world.setRiver(riverSettings);syncPresentation();updateUrl();}
   let presetBrowser:PresetBrowser;
-  let sim=new FailureSimulation(id,pressSettings,id==='canopy'?STUDIO_CANOPY_CONTACT_BACKEND:STUDIO_SCALED_CHECKPOINT_BACKEND);
-  function collisionLabel():string {return sim.backend===STUDIO_CANOPY_CONTACT_BACKEND?'Fabric + supports + floor':id==='plate'?'Punch + bed':'Ground contact';}
+  // The bridge study runs on the SI suspension model; the other studies on their own backends.
+  const makeSim=(study:StudyId):FailureSimulation=>study==='bridge'?new SiBridgeStudy():new FailureSimulation(study,pressSettings,backendFor(study));
+  let sim=makeSim(id);
+  /** Hand the third control to the model: connection strength, or for the SI bridge the number of hangers cut. */
+  const applyStrength=():void=>{if(sim instanceof SiBridgeStudy)sim.cuts=Math.round(strength);else sim.strength=strength;};
+  const strengthLabel=()=>id==='bridge'?`${Math.round(strength)} of 70`:strength.toFixed(2)+'×';
+  const controlValues=()=>id==='bridge'?{targetLoad:sim.targetLoad,wind,cuts:Math.round(strength)}:{targetLoad:sim.targetLoad,strength,wind};
+  function collisionLabel():string {return sim.backend===STUDIO_CANOPY_SI_BACKEND?'Fabric + floor':id==='plate'?'Punch + bed':'Ground contact';}
   let replaying=false,replayTime=0,runEnd=30;
   let running=false,loading=true,frames=new RecordingRing(sim.snapshot()),playback=-1;
   let liveSnapshot=sim.createSnapshotTarget(),previousSnapshot=sim.createSnapshotTarget(),presentationSnapshot=sim.createSnapshotTarget();
@@ -72,13 +85,19 @@ export async function bootStudio(requested:string):Promise<void> {
   let exporting=false;
   let importing=false,historyStartTime=0;
   let graphicsRecovering=false,graphicsFailed=false;
-  const clock=new FixedFrameClock(FIXED_DT,12),timings=new StageTimings(['step','transport','snapshot','geometry','renderCpu','frame']);
+  // The solver runs free in its worker (studio-run.ts); this clock only measures display time for replay.
+  const clockFor=(_study:StudyId)=>new FixedFrameClock(FIXED_DT,12);
+  /** Simulated seconds the free runs dropped from their wall-clock schedule (solver slower than real time), and how often. */
+  let runLag=0,runOverloads=0,lagBase=0,overloadBase=0;
+  /** The run parameters the worker has; a change of speed or controls is sent as an update, of the rest restarts the run. */
+  let runKey='',runSpeed=0,runControls='';
+  let clock=clockFor(id);const timings=new StageTimings(['step','transport','snapshot','geometry','renderCpu','frame']);
   let speed=recipe.speed,accumulator=0,lastTime=0,lastUi=0,nextSample=.1,runNumber=1;
   let responseMode=false,program=recipe.target<=.8?'service':'failure',target=recipe.target,strength=recipe.strength,wind=recipe.wind;
   let customLoad=initialQuery.get('custom')==='1';
   if(customLoad){
     const bounded=(key:string,fallback:number,min:number,max:number)=>{const raw=initialQuery.get(key),n=raw===null?NaN:Number(raw);return Number.isFinite(n)?Math.max(min,Math.min(max,n)):fallback;};
-    target=bounded('target',target,0,5);strength=bounded('strength',strength,.4,2);wind=id==='plate'?0:bounded('wind',wind,0,2);speed=bounded('speed',speed,.25,2);if(![.25,.5,1,2].includes(speed))speed=1;program=target<=.8?'service':'failure';
+    target=bounded('target',target,0,5);strength=id==='bridge'?Math.round(bounded('strength',strength,0,SI_BRIDGE_MAX_CUTS)):bounded('strength',strength,.4,2);wind=id==='plate'?0:bounded('wind',wind,0,2);speed=bounded('speed',speed,.25,2);if(![.25,.5,1,2].includes(speed))speed=1;program=target<=.8?'service':'failure';
   }
   if(id==='plate'){target=pressSettings.pressure/20;if(!initialQuery.has('finish')&&!activeSetup)finish=finishFor(id,metalFor(pressSettings.metal).finish);}
   if(activeSetup&&(customLoad||activeSetup.finish!==finish.id||activeSetup.lighting!==lighting.id||activeSetup.load!==recipe.id||activeSetup.camera!==cameraPreset||activeSetup.surroundings!==surroundings.id))activeSetup=undefined;
@@ -125,17 +144,19 @@ export async function bootStudio(requested:string):Promise<void> {
     pressDrive=next;markCustomLoad();reset();syncControls();updateUrl();return true;
   }
   async function applyPress(p:PressSettings,steady=false):Promise<void> {
-    const next=normalizePress(p);
+    const next=siPress(normalizePress(p));
     if(next.metal!==pressSettings.metal){const f=finishFor('plate',metalFor(next.metal).finish);await world.applyFinish(f);finish=f;}
     pressSettings=next;if(steady)pressDrive='steady';target=next.pressure/20;strength=1;program='failure';customLoad=true;activeSetup=undefined;
     reset();syncControls();updateUrl();
   }
   function changePressPressure(pressure:number):boolean {
     if(id!=='plate'||playback>=0||loading||exporting||importing||graphicsFailed)return false;
-    pressDrive='steady';pressSettings=normalizePress({...pressSettings,pressure});target=pressSettings.pressure/20;
+    pressDrive='steady';pressSettings=siPress(normalizePress({...pressSettings,pressure}));target=pressSettings.pressure/20;
     sim.targetLoad=target;markCustomLoad();recordSettings();syncControls();updateUrl();updateUi();
     return true;
   }
+  function targetText():string {return id==='plate'?forceLimit(target).toFixed(0):id==='canopy'?(target*CANOPY_SNOW_PER_LOAD/1000).toFixed(2):target.toFixed(2);}
+  function windText():string {return id==='canopy'?`${(wind*CANOPY_WIND_PER_UNIT).toFixed(0)} m/s`:wind.toFixed(2);}
   function markCustomLoad():void {customLoad=true;activeSetup=undefined;setText('#recipe-label','Custom load case');syncPresentation();}
   let world:StudioWorld;
   let queuedCapture=false,queuedComparison=false;
@@ -156,17 +177,17 @@ export async function bootStudio(requested:string):Promise<void> {
         </nav>
         <div class="header-actions"><button class="reference-toggle" data-action="workspace" aria-label="Reference workspace" aria-pressed="${referenceWorkspace}" title="Toggle reference workspace">${icon('layout')}<span>Reference</span></button><button class="preset-launch" data-action="presets" aria-label="Open preset library">${icon('swatches')}<span>Presets</span></button><button class="icon-button" data-action="compare" aria-label="Compare reference" title="Compare reference">${icon('squares-four')}</button><button class="icon-button" data-action="export" aria-label="Export run data" title="Export run data">${icon('export')}</button><button class="primary run-button" data-action="run" disabled>${icon('play')}<span>Run simulation</span></button></div>
       </header>
-      <div class="studio-breadcrumb"><div><a href="?workbench=1" class="library-link">${icon('caret-left')}<span>All experiments</span></a><span class="slash">/</span><span>${d.family}</span><span class="slash">/</span><strong>${STUDIES[id].title}</strong></div><span class="model-badge"><b></b>Reduced model<span class="badge-extra"> · PBD</span></span></div>
+      <div class="studio-breadcrumb"><div><a href="?workbench=1" class="library-link">${icon('caret-left')}<span>All experiments</span></a><span class="slash">/</span><span>${d.family}</span><span class="slash">/</span><strong>${STUDIES[id].title}</strong></div><span class="model-badge"><b></b>${id==='plate'||id==='canopy'?'SI model':'Reduced model'}<span class="badge-extra"> · ${id==='plate'?'J2 FEM':id==='canopy'?'Membrane FEM':'PBD'}</span></span></div>
       <main class="studio-layout">
         <nav class="reference-rail" aria-label="Studio workflow"><button data-action="presets" aria-label="Browse experiments">${icon('flask')}<span>Labs</span></button><button data-reference-tab="environment" aria-label="Edit the scene">${icon('sliders-horizontal')}<span>Scene</span></button><button data-reference-tab="test" aria-label="Edit the load">${icon('waveform')}<span>Test</span></button><button data-action="compare" aria-label="Compare with the image">${icon('squares-four')}<span>Compare</span></button></nav>
         <aside class="reference-outline" aria-label="Specimen inspection"><div><strong>${id==='bridge'?'Suspension cable study':id==='canopy'?'Canopy load study':'Plate forming study'}</strong><span>STUDY 0${['canopy','plate','bridge'].indexOf(id)+1}</span></div><button data-reference-camera="${id==='bridge'?'river-hero':'reference'}">${icon('frame-corners')}<span>${id==='bridge'?'River crossing':'Reference view'}</span>${icon('caret-right')}</button>${id==='bridge'?`<button data-reference-camera="approach">${icon('path')}<span>Road & open portals</span>${icon('caret-right')}</button><button data-reference-camera="bearing">${icon('nut')}<span>Abutment & steelwork</span>${icon('caret-right')}</button>`:''}<button data-reference-camera="connection">${icon('link')}<span>${id==='bridge'?'Cable connections':'Support connections'}</span>${icon('caret-right')}</button><button data-reference-tab="test">${icon('arrow-down')}<span>Load & failure</span>${icon('caret-right')}</button></aside>
         <aside class="study-outline" aria-label="Study setup">
           <div class="outline-heading"><span>STUDY 0${(['canopy','plate','bridge'] as string[]).indexOf(id)+1}</span><button class="icon-button" data-action="fit" aria-label="Fit study">${icon('crosshair')}</button></div>
-          <div class="outline-title">${STUDIES[id].title}</div><p class="outline-subtitle">${id==='plate'?'24 metals · 36 attachment setups · controlled forming':STUDIES[id].subtitle}</p>
-          <button class="setup-shortcut" data-action="presets">${icon('cube')}<span id="setup-label">${activeSetup?.name??'Choose a scene setup'}</span>${icon('caret-right')}</button><section class="tree-section"><h2>SPECIMEN</h2><div class="tree-row selected">${icon(d.icon)}<span>${d.specimen}</span><span class="tree-dot"></span></div><div class="tree-detail">${d.dimension}<span>model units</span></div></section>
-          <section class="tree-section"><h2>SUPPORTS</h2>${(id==='canopy'?['Corner A','Corner B','Corner C','Corner D']:id==='plate'?['Left edge','Right edge','Front edge','Back edge']:['West tower','East tower','Cable anchors','Deck hangers']).map(x=>`<div class="tree-row">${icon('anchor-simple')}<span>${x}</span><span class="tree-status">${x==='Deck hangers'?'Linked':'Fixed'}</span></div>`).join('')}</section>
+          <div class="outline-title">${STUDIES[id].title}</div><p class="outline-subtitle">${id==='plate'?'Press brake · SI · J2 plasticity':STUDIES[id].subtitle}</p>
+          <button class="setup-shortcut" data-action="presets">${icon('cube')}<span id="setup-label">${activeSetup?.name??'Choose a scene setup'}</span>${icon('caret-right')}</button><section class="tree-section"><h2>SPECIMEN</h2><div class="tree-row selected">${icon(d.icon)}<span>${d.specimen}</span><span class="tree-dot"></span></div><div class="tree-detail">${d.dimension}<span>${id==='plate'||id==='canopy'?'SI':id==='bridge'?'SI units':'model units'}</span></div></section>
+          <section class="tree-section"><h2>SUPPORTS</h2>${(id==='canopy'?['Corner A','Corner B','Corner C','Corner D']:id==='plate'?['Left die shoulder','Right die shoulder','Front edge','Back edge']:['West tower','East tower','Cable anchors','Deck hangers']).map(x=>`<div class="tree-row">${icon('anchor-simple')}<span>${x}</span><span class="tree-status">${x==='Deck hangers'?'Linked':x.endsWith(' edge')&&id==='plate'?'Free':'Fixed'}</span></div>`).join('')}</section>
           <section class="tree-section"><h2>LOAD CASE</h2><div class="tree-row accented">${icon('arrow-down')}<span>${d.load}</span></div>${id!=='plate'?`<div class="tree-row">${icon('wind')}<span>Crosswind</span><span class="tree-status" id="wind-summary">0.25</span></div>`:''}</section>
-          <section class="tree-section response-tree"><h2>RESPONSE</h2><div class="tree-row">${icon('waveform')}<span>${d.label}</span><span class="tree-dot cyan"></span></div><div class="tree-row">${icon('git-branch')}<span>Broken connections</span><span class="mono" id="tree-broken">0</span></div></section>
+          <section class="tree-section response-tree"><h2>RESPONSE</h2><div class="tree-row">${icon('waveform')}<span>${d.label}</span><span class="tree-dot cyan"></span></div><div class="tree-row">${icon('git-branch')}<span>${id==='plate'?'Eroded elements':id==='canopy'?'Torn triangles':'Broken connections'}</span><span class="mono" id="tree-broken">0</span></div></section>
           <div class="outline-bottom"><label for="theme">Workspace</label><select id="theme" aria-label="Workspace treatment"><option value="precision" ${theme==='precision'?'selected':''}>Precision Studio</option><option value="atelier" ${theme==='atelier'?'selected':''}>Research Atelier</option><option value="observatory" ${theme==='observatory'?'selected':''}>Field Observatory</option></select><a href="?workbench=1">${icon('flask')} Open full workbench ${icon('arrow-up-right')}</a></div>
         </aside>
         <section class="viewport-wrap" aria-label="Simulation viewport">
@@ -182,22 +203,22 @@ export async function bootStudio(requested:string):Promise<void> {
         <aside class="load-inspector" aria-label="Load inspector">
           <div class="inspector-heading"><h2>Load case</h2><span class="mono">R<span id="run-number">${runNumber}</span></span><button class="icon-button close-inspector" data-action="inspector" aria-label="Close load settings">${icon('x')}</button></div>
           <div class="inspector-scroll"><label class="field-label" for="program">Load program</label><select id="program"><option value="failure" ${program==='failure'?'selected':''}>Ramp to failure</option><option value="service" ${program==='service'?'selected':''}>Service load</option></select>
-          <button class="recipe-shortcut" data-action="loads">${icon('waveform')}<span id="recipe-label">${recipe.name}</span>${icon('caret-right')}</button><div class="load-readout"><div><span class="field-label">Target load</span><output id="target-output">${target.toFixed(2)}</output><span class="unit-label">normalized</span></div><div class="load-symbol">${icon(id==='plate'?'arrows-in-line-vertical':'arrow-down')}</div></div>
+          <button class="recipe-shortcut" data-action="loads">${icon('waveform')}<span id="recipe-label">${recipe.name}</span>${icon('caret-right')}</button><div class="load-readout"><div><span class="field-label">${id==='plate'?'Ram force limit':id==='canopy'?'Load on plan':id==='bridge'?'Crowd load':'Target load'}</span><output id="target-output">${targetText()}</output><span class="unit-label">${id==='plate'?'kN':id==='canopy'?'kPa':id==='bridge'?'kN/m² · east half':'normalized'}</span></div><div class="load-symbol">${icon(id==='plate'?'arrows-in-line-vertical':'arrow-down')}</div></div>
           <input type="range" id="load" aria-label="Target load" min="0" max="5" step=".05" value="${target}"><div class="range-labels"><span>0.00</span><span>5.00</span></div>
           <div class="inspector-divider"></div><h3>Material & failure</h3>
           <button class="material-card" data-action="finishes" aria-label="Choose specimen finish"><div class="material-swatch ${id}" id="finish-swatch" style="background-image:url('${base}studio/materials/${PACKS[finish.pack].base}');background-color:${finish.color}"></div><div><strong>${d.specimen}</strong><span id="finish-description">${finish.name}</span></div>${icon('caret-right')}</button>
-          <label class="slider-label" for="strength"><span>Connection strength</span><output id="strength-output">${strength.toFixed(2)}×</output></label><input type="range" id="strength" aria-label="Connection strength" min=".4" max="2" step=".05" value="${strength}">
-          ${id!=='plate'?'<label class="slider-label" for="wind"><span>Crosswind</span><output id="wind-output">0.25</output></label><input type="range" id="wind" aria-label="Crosswind" min="0" max="2" step=".05" value=".25">':''}
-          <dl class="material-properties"><div><dt>Failure mode</dt><dd>${id==='canopy'?'Tensile tearing':id==='plate'?'Ductile fracture':'Connection rupture'}</dd></div><div><dt>Integration</dt><dd>120 Hz · 12 iterations</dd></div><div><dt>Collision</dt><dd id="collision-label">${collisionLabel()}</dd></div></dl>
-          <div class="mobile-workspace"><label class="field-label" for="theme-mobile">Workspace treatment</label><select id="theme-mobile"><option value="precision" ${theme==='precision'?'selected':''}>Precision Studio</option><option value="atelier" ${theme==='atelier'?'selected':''}>Research Atelier</option><option value="observatory" ${theme==='observatory'?'selected':''}>Field Observatory</option></select></div><details class="model-details"><summary>How this study works ${icon('info')}</summary><p>${d.description}</p><p>Dimensions, stiffness and failure thresholds are authored model values. Results are comparative and not calibrated to a physical specimen.</p></details>
+          ${id==='bridge'?`<label class="slider-label" for="strength"><span>Hangers cut · upstream cable</span><output id="strength-output">${strengthLabel()}</output></label><input type="range" id="strength" aria-label="Hangers cut" min="0" max="${SI_BRIDGE_MAX_CUTS}" step="1" value="${Math.round(strength)}">`:`<label class="slider-label" for="strength"><span>Connection strength</span><output id="strength-output">${strengthLabel()}</output></label><input type="range" id="strength" aria-label="Connection strength" min=".4" max="2" step=".05" value="${strength}">`}
+          ${id!=='plate'?'<label class="slider-label" for="wind"><span>'+(id==='bridge'?'Wind on the deck · kN/m':'Crosswind')+'</span><output id="wind-output">0.25</output></label><input type="range" id="wind" aria-label="Crosswind" min="0" max="2" step=".05" value=".25">':''}
+          <dl class="material-properties"><div><dt>Failure mode</dt><dd>${id==='canopy'?'Yarn strength · tearing':id==='plate'?'Ductile erosion':id==='bridge'?'Hanger loss':'Connection rupture'}</dd></div><div><dt>Integration</dt><dd>${id==='plate'?'Backward Euler · Newton':id==='canopy'?'60 Hz backward Euler · Newton':id==='bridge'?'120 Hz · frame + Newton cables':'120 Hz · 12 iterations'}</dd></div><div><dt>Collision</dt><dd id="collision-label">${collisionLabel()}</dd></div></dl>
+          <div class="mobile-workspace"><label class="field-label" for="theme-mobile">Workspace treatment</label><select id="theme-mobile"><option value="precision" ${theme==='precision'?'selected':''}>Precision Studio</option><option value="atelier" ${theme==='atelier'?'selected':''}>Research Atelier</option><option value="observatory" ${theme==='observatory'?'selected':''}>Field Observatory</option></select></div><details class="model-details"><summary>How this study works ${icon('info')}</summary><p>${d.description}</p><p>${id==='plate'?PRESS_SI_NOTE:id==='canopy'?CANOPY_NOTE:id==='bridge'?`${SI_BRIDGE_SCOPE} <a href="https://github.com/nathansenn/box3d-WEBGPU/blob/main/docs/SI_BRIDGE.md" target="_blank" rel="noopener">docs/SI_BRIDGE.md</a>`:'Dimensions, stiffness and failure thresholds are authored model values. Results are comparative and not calibrated to a physical specimen.'}</p></details>
           <div class="presentation-controls"><h3>Presentation</h3><div><label for="surroundings">Surroundings</label><select id="surroundings">${SURROUNDING_PRESETS.filter(p=>p.habitat===(id==='bridge'?'valley':'hall')).map(p=>`<option value="${p.id}" ${surroundings.id===p.id?'selected':''}>${p.name}</option>`).join('')}</select></div><div><label for="camera-preset">Camera</label><select id="camera-preset">${camerasFor(id).map(p=>`<option value="${p.id}" ${cameraPreset===p.id?'selected':''}>${p.name}</option>`).join('')}</select></div><div><label for="render-quality">Quality</label><select id="render-quality"><option value="ultra" ${quality==='ultra'?'selected':''}>Ultra · full resolution</option><option value="balanced" ${quality==='balanced'?'selected':''}>Balanced</option></select></div></div>
-          </div><div class="result-stats"><div><span>Deflection</span><strong id="stat-deflection">0.000</strong><small>model units</small></div><div><span>Connections lost</span><strong id="stat-broken">0</strong><small id="stat-total">of ${sim.links.length}</small></div></div>
+          </div><div class="result-stats"><div><span>${id==='plate'?'Bend depth':id==='bridge'?'Deck drop':'Deflection'}</span><strong id="stat-deflection">0.000</strong><small>${id==='plate'||id==='canopy'||id==='bridge'?'mm':'model units'}</small></div><div><span>${id==='plate'?'Eroded elements':id==='canopy'?'Torn triangles':id==='bridge'?'Hangers failed':'Connections lost'}</span><strong id="stat-broken">0</strong><small id="stat-total">of ${sim.pressSI?sim.pressSI.brake.body.tetCount:sim.canopySI?sim.faces.length:id==='bridge'?70:sim.links.length}</small></div>${id==='bridge'?'<div><span>Largest hanger</span><strong id="stat-hanger">0.0</strong><small>kN</small></div><div><span>Main cable</span><strong id="stat-main">0</strong><small>kN</small></div>':''}</div>
           <button data-action="unload" class="secondary full-width">${icon('arrow-up')} Release load</button><button data-action="run" class="primary full-width inspector-run" disabled>${icon('play')}<span>Run simulation</span></button>
         </aside>
         <section class="timeline-bar" aria-label="Simulation playback"><button class="play-control" data-action="run" aria-label="Run or pause simulation" disabled>${icon('play')}</button><button class="icon-button" data-action="reset" disabled aria-label="Reset simulation" title="Reset simulation">${icon('arrow-counter-clockwise')}</button><span class="mono" id="clock">0.00 s</span><div class="timeline-track"><input type="range" id="scrub" aria-label="Replay recorded history" min="0" max="0" step="1" value="0"><div class="timeline-labels"><span>0 s</span><span id="history-state">LIVE HISTORY</span><span id="recorded-duration">0.0 s recorded</span></div></div><button class="live-button" data-action="live" title="Return to the latest simulation state">Live</button><select id="speed" aria-label="Playback speed"><option value="0.25">0.25×</option><option value="0.5">0.5×</option><option value="1" selected>1.0×</option><option value="2">2.0×</option></select><button class="icon-button" data-action="capture" aria-label="Capture viewport" title="Capture viewport">${icon('camera')}</button></section>
-        <section class="response-panel" aria-label="Response history"><div class="chart-area"><div class="chart-heading"><h2>Response history</h2><div class="chart-legend"><span><b class="teal"></b>Deflection</span><span><b class="orange"></b>Applied load</span></div><span class="chart-units">model units / normalized load</span></div><canvas id="response-chart" aria-label="Recorded deflection and applied load over model time" role="img"></canvas></div><div class="event-area"><div class="chart-heading"><h2>Failure events</h2><span class="event-count" id="event-count">0</span></div><ol id="event-list"><li class="empty-events">Run a study to trace how failure develops.<span>Every event comes from the solver.</span></li></ol></div></section>
+        <section class="response-panel" aria-label="Response history"><div class="chart-area"><div class="chart-heading"><h2>Response history</h2><div class="chart-legend"><span><b class="teal"></b>${id==='plate'?'Bend depth':'Deflection'}</span><span><b class="orange"></b>${id==='plate'?'Punch force':id==='canopy'?'Load on plan':'Applied load'}</span></div><span class="chart-units">${id==='plate'?'mm / kN':id==='canopy'?'m / kPa':id==='bridge'?'deck drop mm · crowd kN/m² (right)':'model units / normalized load'}</span></div><canvas id="response-chart" aria-label="Recorded deflection and applied load over model time" role="img"></canvas></div><div class="event-area"><div class="chart-heading"><h2>Failure events</h2><span class="event-count" id="event-count">0</span></div><ol id="event-list"><li class="empty-events">Run a study to trace how failure develops.<span>Every event comes from the solver.</span></li></ol></div></section>
       </main>
-      <footer class="studio-footer"><span><b class="footer-dot"></b><span id="engine-label">Initializing renderer</span><span class="footer-extra" id="render-metrics"> · Local session</span></span><span>Comparative model · not calibrated</span><button data-action="export">Export evidence ${icon('arrow-up-right')}</button></footer>
+      <footer class="studio-footer"><span><b class="footer-dot"></b><span id="engine-label">Initializing renderer</span><span class="footer-extra" id="render-metrics"> · Local session</span></span>${id==='plate'?`<span class="model-statement">SI press brake · J2 solid, rigid tools · <a href="https://github.com/nathansenn/box3d-WEBGPU/blob/main/docs/STUDIO_METAL_PRESS.md" target="_blank" rel="noopener">what is modelled</a></span>`:id==='canopy'?`<span class="model-statement">SI membrane · library fabric, edge cables, tearing · <a href="https://github.com/nathansenn/box3d-WEBGPU/blob/main/docs/STUDIO_CANOPY.md" target="_blank" rel="noopener">what is modelled</a></span>`:id==='bridge'?`<span class="si-scope" title="${SI_BRIDGE_SCOPE}">SI model · validated solvers · <a href="https://github.com/nathansenn/box3d-WEBGPU/blob/main/docs/SI_BRIDGE.md" target="_blank" rel="noopener">what is modelled</a></span>`:'<span>Comparative model · not calibrated</span>'}<button data-action="export">Export evidence ${icon('arrow-up-right')}</button></footer>
       <div class="toast" role="status" hidden></div>
       <dialog class="comparison-dialog"><div class="dialog-heading"><div><strong>Design reference</strong><span>Selected visual direction · generated concept</span></div><button data-action="close-compare" class="icon-button" aria-label="Close reference">${icon('x')}</button></div><div class="reference-picker">${id==='bridge'?`<label for="reference-image">Visual target</label><select id="reference-image"><option value="experiments">Experiment scans · new concept</option><option value="review">Failure inspection · previous concept</option><option value="corrected-hero">Corrected crossing · critic revision</option><option value="corrected-approach">Open portals · critic revision</option><option value="hero">Earlier crossing concept</option><option value="detail">Abutment & steelwork · new concept</option><option value="original">Original studio concept</option></select><button data-action="align-reference">Match camera</button>`:''}</div><div class="reference-comparison-grid"><figure><figcaption id="reference-caption">${id==='bridge'?'Experiment scans · generated visual target':id==='plate'?'Press lab V4 · generated visual target':'Original image · visual direction'}</figcaption><img id="reference-target" src="${id==='plate'?pressReference:`${base}studio/references/${id==='bridge'?'bridge-v5-experiments':id}.png`}" alt="Selected ${STUDIES[id].theme} generated interface and scene reference"></figure><figure><figcaption id="comparison-live-caption">Current geometry · preparing capture</figcaption><img id="comparison-live" alt="Current live simulation geometry from the selected camera"></figure></div><p>The live scene is rebuilt as geometry. This image is a visual reference; its example values are not simulation results.</p></dialog>`;
     bind();
@@ -205,7 +226,7 @@ export async function bootStudio(requested:string):Promise<void> {
       state:()=>({study:id,finish:finish.id,lighting:lighting.id,load:customLoad?'':recipe.id,camera:cameraPreset,surroundings:surroundings.id,setup:activeSetup?.id}),
       finish:async p=>{await world.applyFinish(p);rememberLook();finish=p;activeSetup=undefined;syncPresentation();updateUrl();},
       lighting:p=>{rememberLook();world.setLighting(p);lighting=p;activeSetup=undefined;syncPresentation();updateUrl();},
-      load:p=>{recipe=p;customLoad=false;activeSetup=undefined;target=p.target;strength=p.strength;wind=p.wind;speed=p.speed;program=target<=.8?'service':'failure';if(id==='plate'){pressDrive='steady';pressSettings=normalizePress({...pressSettings,pressure:target*20});}reset();syncControls();updateUrl();},
+      load:p=>{recipe=p;customLoad=false;activeSetup=undefined;target=p.target;strength=p.strength;wind=p.wind;speed=p.speed;program=target<=.8?'service':'failure';if(id==='plate'){pressDrive='steady';pressSettings=siPress(normalizePress({...pressSettings,pressure:target*20}));}reset();syncControls();updateUrl();},
       camera:p=>{rememberLook();cameraPreset=p;world.setCamera(p);activeSetup=undefined;syncPresentation();updateUrl();},
       surroundings:p=>{rememberLook();surroundings=p;world.setSurroundings(p);activeSetup=undefined;syncPresentation();updateUrl();},
       setup:async p=>{
@@ -216,7 +237,7 @@ export async function bootStudio(requested:string):Promise<void> {
         finish=f;lighting=l;recipe=r;surroundings=e;cameraPreset=p.camera;activeSetup=p;customLoad=false;
         if(p.water){riverSettings=readRiver(new URLSearchParams(),p.water);world.setRiver(riverSettings);}
         target=r.target;strength=r.strength;wind=r.wind;speed=r.speed;program=target<=.8?'service':'failure';
-        if(id==='plate'){pressDrive='steady';pressSettings=normalizePress({...pressSettings,pressure:target*20});}world.setLighting(l);world.setSurroundings(e);world.setCamera(cameraPreset);reset();syncControls();updateUrl();
+        if(id==='plate'){pressDrive='steady';pressSettings=siPress(normalizePress({...pressSettings,pressure:target*20}));}world.setLighting(l);world.setSurroundings(e);world.setCamera(cameraPreset);reset();syncControls();updateUrl();
       },
     };
     presetBrowser=new PresetBrowser(root,presetActions);
@@ -256,12 +277,12 @@ export async function bootStudio(requested:string):Promise<void> {
   }
   function syncControls():void {
     for(const [selector,value] of [['#load',target],['#strength',strength],['#wind',wind],['#speed',speed],['#program',program]] as const){const input=root.querySelector<HTMLInputElement>(selector);if(input)input.value=String(value);}
-    pressWorkbench?.sync(pressSettings);pressWorkbench?.syncDrive(pressDrive);setText('#target-output',target.toFixed(2));setText('#strength-output',strength.toFixed(2)+'×');setText('#wind-output',wind.toFixed(2));setText('#wind-summary',wind.toFixed(2));setText('#recipe-label',customLoad?'Custom load case':recipe.name);syncPresentation();
+    pressWorkbench?.sync(pressSettings);pressWorkbench?.syncDrive(pressDrive);setText('#target-output',targetText());setText('#strength-output',strengthLabel());setText('#wind-output',windText());setText('#wind-summary',windText());setText('#recipe-label',customLoad?'Custom load case':recipe.name);syncPresentation();
   }
   function reset():void {
     if(loading||importing||graphicsFailed)return;
     delete root.dataset.bridgeAutoPause;
-    historyStartTime=0;running=false;replaying=false;runEnd=id==='plate'?Math.max(30,(70+pressSettings.stroke)/pressSettings.strikeSpeed+pressSettings.hold+12):30;settingsHistory=[];sim=new FailureSimulation(id,pressSettings,id==='canopy'?STUDIO_CANOPY_CONTACT_BACKEND:STUDIO_SCALED_CHECKPOINT_BACKEND);sim.targetLoad=0;sim.strength=strength;sim.wind=wind;
+    historyStartTime=0;running=false;replaying=false;runEnd=id==='plate'?Math.max(30,(70+pressSettings.stroke)/pressSettings.strikeSpeed+pressSettings.hold+12):30;settingsHistory=[];sim=makeSim(id);sim.targetLoad=0;applyStrength();sim.wind=wind;
     frames=new RecordingRing(sim.snapshot());liveSnapshot=sim.createSnapshotTarget();previousSnapshot=sim.createSnapshotTarget();presentationSnapshot=sim.createSnapshotTarget();playback=-1;nextSample=.1;accumulator=0;runNumber++;
     recordSettings();reportCache=undefined;
     world.resetModel(sim);restartRuntime();setText('#run-number',String(runNumber));updateUi();
@@ -277,23 +298,24 @@ export async function bootStudio(requested:string):Promise<void> {
     if(next===id||loading||importing||root.dataset.deskBusy==='true')return;
     historyStartTime=0;
     customLoad=false;activeSetup=undefined;lookHistory.length=0;root.classList.remove('scene-focus','inspector-open','response-open');
-    running=false;replaying=false;loading=true;runEnd=30;settingsHistory=[];id=next;theme=STUDIES[id].theme;finish=finishFor(id);lighting=lightingFor(id==='plate'?'softbox':'daylight');recipe=loadFor(id);surroundings=surroundingsFor(id);cameraPreset='hero';sim=new FailureSimulation(id,pressSettings,id==='canopy'?STUDIO_CANOPY_CONTACT_BACKEND:STUDIO_SCALED_CHECKPOINT_BACKEND);sim.targetLoad=0;
+    running=false;replaying=false;loading=true;runEnd=30;settingsHistory=[];id=next;clock=clockFor(id);theme=STUDIES[id].theme;finish=finishFor(id);lighting=lightingFor(id==='plate'?'softbox':'daylight');recipe=loadFor(id);surroundings=surroundingsFor(id);cameraPreset='hero';sim=makeSim(id);sim.targetLoad=0;
     frames=new RecordingRing(sim.snapshot());liveSnapshot=sim.createSnapshotTarget();previousSnapshot=sim.createSnapshotTarget();presentationSnapshot=sim.createSnapshotTarget();playback=-1;target=recipe.target;strength=recipe.strength;wind=recipe.wind;program='failure';speed=recipe.speed;responseMode=false;nextSample=.1;accumulator=0;
     if(id==='plate'){target=pressSettings.pressure/20;strength=1;runEnd=Math.max(30,(70+pressSettings.stroke)/pressSettings.strikeSpeed+pressSettings.hold+12);}
     recordSettings();reportCache=undefined;
     // Preserve the one initialized GPU renderer across navigation.
     const canvas=world.renderer.domElement;markup();root.querySelector('#scene-host')!.append(canvas);
-    world.attach(root.querySelector<HTMLElement>('#scene-host')!);sim.strength=strength;sim.wind=wind;restartRuntime();await world.changeStudy(sim);world.setLighting(lighting);world.setSurroundings(surroundings);world.setRiver(riverSettings);world.setAutoRotate(autoRotate);world.setQuality(quality);world.resize();updateUrl();ready();
+    world.attach(root.querySelector<HTMLElement>('#scene-host')!);applyStrength();sim.wind=wind;restartRuntime();await world.changeStudy(sim);world.setLighting(lighting);world.setSurroundings(surroundings);world.setRiver(riverSettings);world.setAutoRotate(autoRotate);world.setQuality(quality);world.resize();updateUrl();ready();
   }
   function download(filename:string,blob:Blob):void {const url=URL.createObjectURL(blob),a=document.createElement('a');a.href=url;a.download=filename;a.click();setTimeout(()=>URL.revokeObjectURL(url),1000);}
   async function exportRun():Promise<void> {
     if(exporting||importing)return;exporting=true;
     const exportGeneration=generation,wasRunning=running;running=false;
-    try{await pendingTask;const checkpoint=await client?.exportCheckpoint();if(exportGeneration!==generation||disposed)return;
-    const payload={checkpoint,schema:'box3d.failure-studio.v2',study:id,createdAt:new Date().toISOString(),model:'Reduced position-based dynamics; authored normalized coefficients; not calibrated',
-      source:'src/studio/physics.ts',settings:{target,strength,wind,program,fixedStep:FIXED_DT,...(id==='plate'?{press:pressSettings,pressureProgram:{schema:'press-drive-v1',id:pressDrive,limit:pressSettings.pressure}}:{})},camera:world.cameraState(),presentation:world.presentationState(),preset:{setup:activeSetup?.id??null,load:recipe.id,modified:customLoad,playbackSpeed:speed,appearanceAffectsPhysics:false},
+    // Every study exports its exact checkpoint (SI solver state gzip-packed), so the run resumes bit for bit on import.
+    try{await settleRun();const live=await client?.exportCheckpoint();const checkpoint=live?await packStudioCheckpoint(live):null;if(exportGeneration!==generation||disposed)return;
+    const payload={checkpoint,schema:'box3d.failure-studio.v2',study:id,createdAt:new Date().toISOString(),model:id==='plate'?'SI press brake: plane-strain J2 tetrahedral solid with rigid punch and die (src/engine/press-brake.ts); see docs/STUDIO_METAL_PRESS.md':id==='canopy'?'SI canopy: calibrated cloth with an orthotropic library fabric, edge cables and tearing (src/studio/canopy-si.ts); see docs/STUDIO_CANOPY.md':id==='bridge'?`SI suspension footbridge (src/engine/si-suspension.ts). ${SI_BRIDGE_SCOPE}`:'Reduced position-based dynamics; authored normalized coefficients; not calibrated',
+      source:id==='bridge'?'src/engine/si-suspension.ts, src/studio/si-bridge-study.ts':'src/studio/physics.ts',...(id==='bridge'?{units:{time:'s',load:'kN/m² crowd on the east half',wind:'kN/m',strength:'hangers cut',deflection:'m',si:'mm, kN, MPa, fractions of stated strengths'}}:{}),settings:{target,strength,wind,program,fixedStep:FIXED_DT,...(id==='plate'?{press:pressSettings,pressureProgram:{schema:'press-drive-v1',id:pressDrive,limit:pressSettings.pressure}}:{})},camera:world.cameraState(),presentation:world.presentationState(),preset:{setup:activeSetup?.id??null,load:recipe.id,modified:customLoad,playbackSpeed:speed,appearanceAffectsPhysics:false},
       topology:{nodes:sim.nodes.map(n=>({rest:n.rest,fixed:n.inverseMass===0})),links:sim.links.map(e=>({a:e.a,b:e.b,kind:e.kind,rest:e.original,threshold:e.threshold}))},
-      settingsHistory,events:sim.events,samples:frames.map(f=>({...f.response,...(f.press?{press:f.press,punchY:f.punchY}:{})})),finalPositions:Array.from(liveSnapshot.positions),brokenLinks:Array.from(liveSnapshot.broken).flatMap((broken,i)=>broken?[i]:[]),capabilities:client?.capabilities,transport:{mode:client?.mode,fallbackReason:client?.fallbackReason??null},timings:timings.inspect(),clock:{lagSeconds:clock.lagSeconds,overloads:clock.overloads},recording:{capacity:frames.capacity,evicted:frames.evicted,startTime:historyStartTime,completeGeometryHistory:frames.evicted===0&&historyStartTime===0}};
+      settingsHistory,events:sim.events,samples:frames.map(f=>({...f.response,...(f.press?{press:f.press,punchY:f.punchY}:{}),...(f.si?{si:f.si}:{})})),finalPositions:Array.from(liveSnapshot.positions),brokenLinks:Array.from(liveSnapshot.broken).flatMap((broken,i)=>broken?[i]:[]),capabilities:client?.capabilities,transport:{mode:client?.mode,fallbackReason:client?.fallbackReason??null},timings:timings.inspect(),clock:{lagSeconds:runLag,overloads:runOverloads,schedule:'free-run'},recording:{capacity:frames.capacity,evicted:frames.evicted,startTime:historyStartTime,completeGeometryHistory:frames.evicted===0&&historyStartTime===0}};
     download(`box3d-${id}-R${runNumber}.json`,new Blob([JSON.stringify(payload,null,2)],{type:'application/json'}));toast('Run data and failure topology exported.');
     }finally{exporting=false;if(exportGeneration===generation&&!disposed)running=wasRunning;}
   }
@@ -301,7 +323,7 @@ export async function bootStudio(requested:string):Promise<void> {
   async function importRun(file:File):Promise<void> {
     if(importing||exporting||loading)return;
     if(file.size>MAX_CHECKPOINT_FILE_BYTES)throw new RangeError('Saved run exceeds the 16 MiB import limit.');
-    const fileText=await file.text(),candidate=parseStudioCheckpointFile(fileText);
+    const fileText=await file.text(),candidate=await readStudioCheckpointFile(fileText);
     const envelope=JSON.parse(fileText) as {settings?:{pressureProgram?:unknown}},savedProgram=envelope.settings?.pressureProgram;
     const driveEnvelope=readPressDriveEnvelope(savedProgram);
     if(savedProgram!==undefined&&!driveEnvelope)throw new RangeError('Saved pressure program is invalid or unsupported.');
@@ -310,8 +332,8 @@ export async function bootStudio(requested:string):Promise<void> {
     const wasRunning=running;running=false;replaying=false;clock.reset();
     let replacement:StudioClient|undefined,previousClient:StudioClient|undefined,committed=false;
     try{
-      await pendingTask;
-      replacement=await createStudioClient({study:candidate.id,initialCheckpoint:candidate.exportCheckpoint()},{mode:initialQuery.get('simulation')==='sync'?'sync':'auto'});
+      await settleRun();
+      replacement=await createStudioClient({study:candidate.id,initialCheckpoint:candidate.exportCheckpoint()},{mode:initialQuery.get('simulation')==='sync'?'sync':'auto',...(id==='plate'?{timeoutMs:120000}:{})});
       if(disposed)return;
       await world.changeStudy(candidate);
       if(disposed)return;
@@ -322,7 +344,7 @@ export async function bootStudio(requested:string):Promise<void> {
       liveSnapshot=sim.createSnapshotTarget();previousSnapshot=sim.createSnapshotTarget();presentationSnapshot=sim.createSnapshotTarget();
       frames=new RecordingRing(sim.snapshot());historyStartTime=sim.time;playback=-1;runEnd=Math.max(30,sim.time+30);runNumber++;
       recordSettings();reportCache=undefined;
-      clock.reset(true);timings.reset();receivedAt=0;delete root.dataset.simulationError;
+      clock.reset(true);resetRunLag();timings.reset();receivedAt=0;delete root.dataset.simulationError;
       const canvas=world.renderer.domElement;markup();root.querySelector('#scene-host')!.append(canvas);world.attach(root.querySelector<HTMLElement>('#scene-host')!);
       world.setLighting(lighting);world.setSurroundings(surroundings);world.setRiver(riverSettings);world.setAutoRotate(autoRotate);world.setQuality(quality);world.setCamera(cameraPreset);world.update(liveSnapshot,responseMode);
       setText('.timeline-labels>span:first-child',historyStartTime.toFixed(1)+' s');
@@ -381,10 +403,10 @@ export async function bootStudio(requested:string):Promise<void> {
       if(a==='fullscreen') {if(document.fullscreenElement)void document.exitFullscreen();else void root.querySelector<HTMLElement>('.viewport-wrap')!.requestFullscreen().catch(()=>toast('Fullscreen is unavailable in this browser.'));}
     });
     root.querySelectorAll<HTMLSelectElement>('#theme,#theme-mobile').forEach(select=>select.onchange=()=>{theme=select.value;root.dataset.theme=theme;root.querySelectorAll<HTMLSelectElement>('#theme,#theme-mobile').forEach(s=>s.value=theme);updateUrl();requestAnimationFrame(()=>world.resize());});
-    root.querySelector<HTMLSelectElement>('#program')!.onchange=e=>{markCustomLoad();program=(e.target as HTMLSelectElement).value;target=program==='service'?.8:4;root.querySelector<HTMLInputElement>('#load')!.value=String(target);setText('#target-output',target.toFixed(2));if(running)sim.targetLoad=target;recordSettings();updateUrl();};
-    root.querySelector<HTMLInputElement>('#load')!.oninput=e=>{markCustomLoad();target=Number((e.target as HTMLInputElement).value);setText('#target-output',target.toFixed(2));if(running)sim.targetLoad=target;recordSettings();updateUrl();};
-    root.querySelector<HTMLInputElement>('#strength')!.oninput=e=>{markCustomLoad();strength=Number((e.target as HTMLInputElement).value);sim.strength=strength;setText('#strength-output',strength.toFixed(2)+'×');recordSettings();updateUrl();};
-    const w=root.querySelector<HTMLInputElement>('#wind');if(w)w.oninput=()=>{markCustomLoad();wind=Number(w.value);sim.wind=wind;setText('#wind-output',wind.toFixed(2));setText('#wind-summary',wind.toFixed(2));recordSettings();updateUrl();};
+    root.querySelector<HTMLSelectElement>('#program')!.onchange=e=>{markCustomLoad();program=(e.target as HTMLSelectElement).value;target=program==='service'?.8:4;root.querySelector<HTMLInputElement>('#load')!.value=String(target);setText('#target-output',targetText());if(running)sim.targetLoad=target;recordSettings();updateUrl();};
+    root.querySelector<HTMLInputElement>('#load')!.oninput=e=>{markCustomLoad();target=Number((e.target as HTMLInputElement).value);setText('#target-output',targetText());if(running)sim.targetLoad=target;recordSettings();updateUrl();};
+    root.querySelector<HTMLInputElement>('#strength')!.oninput=e=>{markCustomLoad();strength=Number((e.target as HTMLInputElement).value);applyStrength();setText('#strength-output',strengthLabel());recordSettings();updateUrl();};
+    const w=root.querySelector<HTMLInputElement>('#wind');if(w)w.oninput=()=>{markCustomLoad();wind=Number(w.value);sim.wind=wind;setText('#wind-output',windText());setText('#wind-summary',windText());recordSettings();updateUrl();};
     root.querySelector<HTMLSelectElement>('#camera-preset')!.onchange=e=>{rememberLook();cameraPreset=(e.target as HTMLSelectElement).value as CameraPreset;world.setCamera(cameraPreset);activeSetup=undefined;syncPresentation();updateUrl();};
     root.querySelector<HTMLSelectElement>('#surroundings')!.onchange=e=>{rememberLook();surroundings=surroundingsFor(id,(e.target as HTMLSelectElement).value);world.setSurroundings(surroundings);activeSetup=undefined;syncPresentation();updateUrl();};
     root.querySelector<HTMLSelectElement>('#render-quality')!.onchange=e=>{quality=(e.target as HTMLSelectElement).value as 'ultra'|'balanced';world.setQuality(quality);syncPresentation();updateUrl();};
@@ -403,11 +425,12 @@ export async function bootStudio(requested:string):Promise<void> {
     bridgeReview?.update();
     setText('#phase-label',playback>=0?(replaying?'Replaying history':'Recorded history'):running?r.phase:sim.time===0?'Ready to simulate':'Paused · '+r.phase);
     setText('#viewport-time',r.time.toFixed(2)+' s');setText('#clock',r.time.toFixed(2)+' s');
-    setText('#stat-deflection',id==='plate'?(r.deflection*100).toFixed(1)+' mm':r.deflection.toFixed(3));setText('#stat-broken',String(r.broken));setText('#tree-broken',String(r.broken));
+    setText('#stat-deflection',id==='plate'?(r.deflection*100).toFixed(2):id==='canopy'?(r.deflection*1000).toFixed(0):id==='bridge'?(r.deflection*1e3).toFixed(1):r.deflection.toFixed(3));
+    if(visible.si){setText('#stat-hanger',visible.si.maxHanger.toFixed(1));setText('#stat-main',visible.si.maxMain.toFixed(0));setText('#stat-total',`of 70 · ${visible.si.hangersCut} cut`);}setText('#stat-broken',String(r.broken));setText('#tree-broken',String(r.broken));
     root.dataset.phase=r.phase.toLowerCase().replaceAll(' ','-');root.dataset.running=String(running||replaying);
     setText('#collision-label',collisionLabel());root.dataset.numericalBackend=client?.capabilities.models[0]?.id??sim.backend;
-    root.dataset.simulationMode=client?.mode??'initializing';root.dataset.simulationLag=clock.lagSeconds.toFixed(3);root.dataset.simulationOverloads=String(clock.overloads);root.dataset.engineTimings=JSON.stringify(timings.inspect());
-    if(clock.lagSeconds>.25)setText('#engine-label',`${client?.mode==='worker'?'Worker':'Simulation'} · ${clock.lagSeconds.toFixed(1)} s behind wall time`);
+    root.dataset.simulationMode=client?.mode??'initializing';root.dataset.simulationLag=runLag.toFixed(3);root.dataset.simulationOverloads=String(runOverloads);root.dataset.simulationSchedule='free-run';root.dataset.engineTimings=JSON.stringify(timings.inspect());
+    if(runLag>.25)setText('#engine-label',`${client?.mode==='worker'?'Worker':'Simulation'} · ${runLag.toFixed(1)} s behind wall time`);
     else if(!loading&&!graphicsFailed&&world){const backend=(world.renderer.backend as unknown as {isWebGPUBackend?:boolean}).isWebGPUBackend?'WebGPU':'WebGL 2';setText('#engine-label',backend+' renderer'+(client?.mode==='worker'?' · worker':''));}
     root.querySelectorAll<HTMLButtonElement>('[data-action="run"]').forEach(b=>{
       b.disabled=loading||exporting||importing||graphicsFailed||root.dataset.deskBusy==='true';
@@ -436,21 +459,29 @@ export async function bootStudio(requested:string):Promise<void> {
     const c=canvas.getContext('2d')!;c.setTransform(dpr,0,0,dpr,0,0);c.clearRect(0,0,w,h);
     const light=theme==='atelier',muted=light?'#7b817e':'#8b9594',line=light?'#e1e4df':'#303b3c';
     const left=36,right=w-12,top=10,bottom=h-25;
-    const maxT=Math.max(10,frames.at(-1)?.response.time??0),maxY=Math.max(1,...frames.map(f=>Math.max(f.response.deflection,f.response.load)))*1.12;
+    // The press plots its bend depth in mm and its punch force in kN, the canopy its load in kPa; the SI bridge its deck drop
+    // in mm on the left axis and the crowd in kN/m² on its own right-hand axis (0 to 5); the other studies plot model units.
+    const value=(f:Snapshot,key:'load'|'deflection')=>id==='plate'&&key==='deflection'?f.response.deflection*100:id==='canopy'&&key==='load'?f.response.load*CANOPY_SNOW_PER_LOAD/1000:f.response[key];
+    const maxT=Math.max(10,frames.at(-1)?.response.time??0),bridge=id==='bridge';
+    const maxY=bridge?Math.max(10,...frames.map(f=>f.response.deflection*1e3))*1.12:Math.max(1,...frames.map(f=>Math.max(value(f,'deflection'),value(f,'load'))))*1.12;
+    const series=(f:Snapshot,key:'load'|'deflection')=>bridge?(key==='deflection'?f.response.deflection*1e3:f.response.load*maxY/5/1.12):value(f,key);
     c.font='10px "IBM Plex Mono", monospace';c.lineWidth=1;c.textAlign='right';
     const ticks=h<80?2:4;
-    for(let i=0;i<ticks;i++){const y=bottom-(bottom-top)*i/(ticks-1);c.strokeStyle=line;c.beginPath();c.moveTo(left,y);c.lineTo(right,y);c.stroke();c.fillStyle=muted;c.fillText((maxY*i/(ticks-1)).toFixed(1),left-9,y+3);}
+    for(let i=0;i<ticks;i++){const y=bottom-(bottom-top)*i/(ticks-1);c.strokeStyle=line;c.beginPath();c.moveTo(left,y);c.lineTo(right,y);c.stroke();c.fillStyle=muted;c.fillText((maxY*i/(ticks-1)).toFixed(bridge?0:1),left-9,y+3);if(bridge){c.textAlign='left';c.fillText((5*i/(ticks-1)).toFixed(1),right-24,y-3);c.textAlign='right';}}
     c.textAlign='center';for(let i=0;i<=4;i++){const x=left+(right-left)*i/4;c.fillStyle=muted;c.fillText((maxT*i/4).toFixed(1)+' s',x,h-7);}
-    for(const [key,color] of [['load','#f7893a'],['deflection','#48c4c4']] as const){c.beginPath();c.strokeStyle=color;c.lineWidth=1.7;frames.forEach((f,i)=>{const x=left+(right-left)*f.response.time/maxT,y=bottom-(bottom-top)*f.response[key]/maxY;if(i===0)c.moveTo(x,y);else c.lineTo(x,y);});c.stroke();}
+    for(const [key,color] of [['load','#f7893a'],['deflection','#48c4c4']] as const){c.beginPath();c.strokeStyle=color;c.lineWidth=1.7;frames.forEach((f,i)=>{const x=left+(right-left)*f.response.time/maxT,y=bottom-(bottom-top)*series(f,key)/maxY;if(i===0)c.moveTo(x,y);else c.lineTo(x,y);});c.stroke();}
     if(cursor>0){const x=left+(right-left)*cursor/maxT;c.setLineDash([3,4]);c.strokeStyle=muted;c.beginPath();c.moveTo(x,top);c.lineTo(x,bottom);c.stroke();c.setLineDash([]);}
   }
 
   markup();root.inert=true;updateUrl();
-  sim.targetLoad=0;sim.strength=strength;sim.wind=wind;if(id==='plate')runEnd=Math.max(30,(70+pressSettings.stroke)/pressSettings.strikeSpeed+pressSettings.hold+12);
+  sim.targetLoad=0;applyStrength();sim.wind=wind;if(id==='plate')runEnd=Math.max(30,(70+pressSettings.stroke)/pressSettings.strikeSpeed+pressSettings.hold+12);
   try{
-    client=await createStudioClient({study:id,press:pressSettings,backend:sim.backend,controls:{targetLoad:sim.targetLoad,strength,wind}},{mode:initialQuery.get('simulation')==='sync'?'sync':'auto'});clientReady=true;
-    world=new StudioWorld(root.querySelector<HTMLElement>('#scene-host')!,sim);
-    await world.init(message=>setText('.scene-loading>span:last-child',message));await world.applyFinish(finish);world.setLighting(lighting);world.setSurroundings(surroundings);world.setRiver(riverSettings);world.setAutoRotate(autoRotate);world.setQuality(quality);world.setCamera(cameraPreset);world.onGraphicsLost(message=>{void recoverGraphics(message);});ready();
+    client=await createStudioClient({study:id,press:pressSettings,backend:sim.backend,controls:controlValues()},{mode:initialQuery.get('simulation')==='sync'?'sync':'auto',...(id==='plate'?{timeoutMs:120000}:{})});clientReady=true;
+    const present=async():Promise<void>=>{await world.init(message=>setText('.scene-loading>span:last-child',message));await world.applyFinish(finish);world.setLighting(lighting);world.setSurroundings(surroundings);world.setRiver(riverSettings);world.setAutoRotate(autoRotate);world.setQuality(quality);world.setCamera(cameraPreset);};
+    world=new StudioWorld(root.querySelector<HTMLElement>('#scene-host')!,sim);await present();
+    // A WebGPU device the browser cannot present is lost by its first frame. Start on WebGL instead.
+    if(!await world.survivesFirstFrame()){console.warn('The WebGPU device was lost on its first frame. Starting on the WebGL renderer.');world.dispose();world=new StudioWorld(root.querySelector<HTMLElement>('#scene-host')!,sim,true);await present();}
+    world.onGraphicsLost(message=>{void recoverGraphics(message);});ready();
   }catch(error){root.inert=false;throw error;}
   async function recoverGraphics(message:string):Promise<void> {
     if(graphicsRecovering||disposed)return;
@@ -458,8 +489,10 @@ export async function bootStudio(requested:string):Promise<void> {
     root.dataset.graphicsRecovery='recovering';setText('#engine-label','Recovering graphics');toast('Graphics device lost. Restoring the current experiment.');
     const position=world.camera.position.clone(),targetPosition=world.controls.target.clone(),fov=world.camera.fov;
     try{
-      await pendingTask;if(disposed)return;
-      world.dispose();world=new StudioWorld(root.querySelector<HTMLElement>('#scene-host')!,sim);
+      await settleRun();if(disposed)return;
+      // The lost device may be one the browser cannot present, so the replacement uses WebGL.
+      console.warn(`Graphics device lost (${message}). Rebuilding the scene on the WebGL renderer.`);
+      world.dispose();world=new StudioWorld(root.querySelector<HTMLElement>('#scene-host')!,sim,true);
       await world.init();await world.applyFinish(finish);
       if(disposed){world.dispose();return;}
       world.setLighting(lighting);world.setSurroundings(surroundings);world.setRiver(riverSettings);world.setAutoRotate(autoRotate);world.setQuality(quality);world.setCamera(cameraPreset);
@@ -470,10 +503,10 @@ export async function bootStudio(requested:string):Promise<void> {
     finally{graphicsRecovering=false;clock.reset();}
   }
   function restartRuntime():void {
-    const epoch=++generation;pending=false;clientReady=false;clock.reset(true);timings.reset();receivedAt=0;
+    const epoch=++generation;pending=false;clientReady=false;clock.reset(true);resetRunLag();timings.reset();receivedAt=0;
     if(!client)return;
-    const options={study:id,press:pressSettings,backend:sim.backend,controls:{targetLoad:sim.targetLoad,strength,wind}};
-    const resetOperation=client.diagnostics().failed?client.destroy().then(()=>createStudioClient(options,{mode:initialQuery.get('simulation')==='sync'?'sync':'auto'})).then(async replacement=>{if(epoch!==generation||disposed){await replacement.destroy();throw new Error('Reset superseded');}client=replacement;return replacement.inspect();}):client.reset(options);
+    const options={study:id,press:pressSettings,backend:sim.backend,controls:controlValues()};
+    const resetOperation=client.diagnostics().failed?client.destroy().then(()=>createStudioClient(options,{mode:initialQuery.get('simulation')==='sync'?'sync':'auto',...(id==='plate'?{timeoutMs:120000}:{})})).then(async replacement=>{if(epoch!==generation||disposed){await replacement.destroy();throw new Error('Reset superseded');}client=replacement;return replacement.inspect();}):client.reset(options);
     void resetOperation.then(result=>{
       try{if(epoch!==generation||disposed)return;copySnapshotInto(liveSnapshot,result.liveSnapshot);copySnapshotInto(previousSnapshot,liveSnapshot);clientReady=true;delete root.dataset.simulationError;}
       finally{result.release();}
@@ -483,41 +516,71 @@ export async function bootStudio(requested:string):Promise<void> {
     running=false;clientReady=false;root.dataset.simulationError=error instanceof Error?error.message:String(error);
     toast('Simulation paused: '+root.dataset.simulationError+'. Reset to recover.');updateUi();
   }
-  function acceptStep(result:StudioStepResult,sentAt:number,epoch:number):void {
+  function resetRunLag():void {runLag=runOverloads=lagBase=overloadBase=0;runKey='';}
+  /** Accepts a run frame or a pause frame: the newest state for drawing, its recording samples and events. */
+  function acceptStep(result:StudioStepResult,epoch:number):void {
     try{
       if(epoch!==generation||disposed)return;
       const start=performance.now();copySnapshotInto(previousSnapshot,liveSnapshot);copySnapshotInto(liveSnapshot,result.liveSnapshot);
       sim.time=liveSnapshot.response.time;sim.load=liveSnapshot.response.load;sim.punchY=liveSnapshot.punchY;
       if(liveSnapshot.press)sim.pressCycle=liveSnapshot.press.cycle;
       sim.events.push(...result.eventDelta);receivedAt=performance.now();
-      timings.sample('snapshot',receivedAt-start);timings.sample('step',result.simMs);timings.sample('transport',Math.max(0,receivedAt-sentAt-result.simMs));
+      if(result.run){runLag=lagBase+result.run.lagSeconds;runOverloads=overloadBase+result.run.overloads;if(!result.run.running){lagBase=runLag;overloadBase=runOverloads;}}
+      timings.sample('snapshot',receivedAt-start);if(result.completedTicks)timings.sample('step',result.simMs/result.completedTicks*12);
       for(const sample of result.recordingSamples)frames.push(sample.snapshot);
-      if(id==='bridge'&&shouldPauseBridge(pauseOnBridgeBreak,previousSnapshot,liveSnapshot)){
+      if(id==='bridge'&&(result.run?.stopReason==='first-rupture'||shouldPauseBridge(pauseOnBridgeBreak,previousSnapshot,liveSnapshot))&&running){
         if(frames.at(-1)?.response.time!==sim.time){const sample=sim.createSnapshotTarget();copySnapshotInto(sample,liveSnapshot);frames.push(sample);}
         running=false;clock.reset();root.dataset.bridgeAutoPause='first-rupture';
         toast(`First rupture detected. Paused at ${sim.time.toFixed(2)} s; select a milestone to inspect the recorded geometry.`);updateUi();
-      }else if(result.completed||sim.time>=runEnd){
+      }else if(running&&(result.completed||sim.time>=runEnd-1e-9)){
         if(frames.at(-1)?.response.time!==sim.time){const final=sim.createSnapshotTarget();copySnapshotInto(final,liveSnapshot);frames.push(final);}
         running=false;clock.reset();if(!graphicsRecovering)world.update(liveSnapshot,responseMode);toast('Run recorded. Scrub the timeline to replay the failure.');updateUi();
       }
-    }finally{result.release();if(epoch===generation){pending=false;if(!running&&playback<0&&!disposed&&!graphicsRecovering)world.update(liveSnapshot,responseMode);}}
+    }finally{result.release();if(epoch===generation&&!running&&playback<0&&!disposed&&!graphicsRecovering)world.update(liveSnapshot,responseMode);}
+  }
+  /** What the worker's free run needs; a change of anything but speed and controls restarts the run. */
+  function runRequest():StudioRunRequest {
+    return {speed,stopAtTime:runEnd,maxLagSeconds:.25,controls:controlValues(),
+      ...(id==='plate'&&pressDrive!=='steady'?{pressDrive:{id:pressDrive,limit:pressSettings.pressure}}:{}),
+      ...(id==='bridge'&&pauseOnBridgeBreak?{stopOnFirstRupture:true}:{})};
+  }
+  /** Pauses the worker's run (if any) and accepts its last frame; resolves once the solver is idle. */
+  async function settleRun():Promise<void> {
+    await pendingTask?.catch(()=>{});
+    if(!client?.running||disposed)return;
+    const epoch=generation;pending=true;
+    pendingTask=client.pause().then(result=>acceptStep(result,epoch)).catch(error=>{if(epoch===generation&&!disposed)simulationError(error);}).finally(()=>{if(epoch===generation)pending=false;});
+    await pendingTask;
+  }
+  /** Keeps the worker's free run in step with the Studio: started when the Studio runs, paused when it stops. The solver is
+   * never driven from this frame loop: it advances toward wall time on its own and this loop draws its newest frame. */
+  function driveRun():void {
+    if(!client||!clientReady||pending||disposed)return;
+    const want=running&&!exporting&&!importing&&playback<0&&!graphicsRecovering&&!graphicsFailed;
+    const epoch=generation,live=client.running;
+    if(want&&live){
+      const request=runRequest(),{speed:wanted,controls,...rest}=request,key=JSON.stringify(rest),values=JSON.stringify(controls);
+      if(key!==runKey){void settleRun();return;}
+      if(wanted!==runSpeed||values!==runControls){client.updateRun({...(wanted!==runSpeed?{speed:wanted}:{}),...(values!==runControls?{controls}:{})});runSpeed=wanted;runControls=values;}
+      return;
+    }
+    if(want&&!live){
+      const request=runRequest(),{speed:wanted,controls,...rest}=request;
+      runKey=JSON.stringify(rest);runSpeed=wanted;runControls=JSON.stringify(controls);pending=true;
+      pendingTask=client.run(request,{frame:result=>acceptStep(result,epoch),error:error=>{if(epoch===generation&&!disposed)simulationError(error);}})
+        .catch(error=>{if(epoch===generation&&!disposed)simulationError(error);}).finally(()=>{if(epoch===generation)pending=false;});
+      return;
+    }
+    if(!want&&live)void settleRun();
   }
   function animate(now:number):void {
     if(disposed)return;
     if(graphicsRecovering||graphicsFailed){clock.advance(now,speed,false);animationId=requestAnimationFrame(animate);return;}
-    const frameStart=performance.now(),elapsed=Math.min(.05,clock.advance(now,speed,running));
-    if(running&&!exporting&&clientReady&&client&&!pending){
-      const ticks=clock.takeSteps();
-      if(ticks>0){
-        pending=true;const epoch=generation,sentAt=performance.now();
-        const commands=id==='plate'&&pressDrive!=='steady'?pressDriveCommands(pressDrive,client.tick,ticks,pressSettings.pressure,{strength,wind}):[{tick:client.tick+1,type:'controls' as const,values:{targetLoad:sim.targetLoad,strength,wind}}];
-        pendingTask=client.step({ticks,commands,stopAtTime:runEnd})
-          .then(result=>acceptStep(result,sentAt,epoch)).catch(error=>{if(epoch===generation&&!disposed){pending=false;simulationError(error);}});
-      }
-    }
+    const frameStart=performance.now(),elapsed=Math.min(.05,clock.advance(now,speed,false));
+    driveRun();
     if(running&&receivedAt>0){
       const geometryStart=performance.now(),interval=Math.max(FIXED_DT,liveSnapshot.response.time-previousSnapshot.response.time);
-      interpolateSnapshotInto(presentationSnapshot,previousSnapshot,liveSnapshot,(now-receivedAt)/(interval*1000));world.update(presentationSnapshot,responseMode);timings.sample('geometry',performance.now()-geometryStart);
+      interpolateSnapshotInto(presentationSnapshot,previousSnapshot,liveSnapshot,(now-receivedAt)*speed/(interval*1000));world.update(presentationSnapshot,responseMode);timings.sample('geometry',performance.now()-geometryStart);
     }
     if(replaying){replayTime+=elapsed*speed;while(playback<frames.length-1&&frames.at(playback+1)!.response.time<=replayTime)playback++;world.update(frames.at(playback)!,responseMode);if(playback===frames.length-1){replaying=false;updateUi();}}
     // The full collection obscures the scene. Keep its last frame while browsing;

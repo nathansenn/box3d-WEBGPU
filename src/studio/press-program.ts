@@ -1,5 +1,5 @@
-import {FIXED_DT} from './physics';
-import type {StudioCommand,StudioControls} from '../engine/studio-runtime';
+import {FIXED_DT} from './physics.ts';
+import type {StudioCommand,StudioControls} from '../engine/studio-runtime.ts';
 
 export type PressDriveId='steady'|'soft-start'|'two-stage'|'pulse';
 export const PRESS_DRIVES:{id:PressDriveId;name:string;description:string}[]=[

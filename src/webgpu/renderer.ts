@@ -1,13 +1,18 @@
 import type { Mat4 } from '../math';
 import { WaterSurfacePlanner, type WaterSurfaceDescription, type WaterSurfacePlan } from './water-surface-plan';
 import { GpuInstanceVisibility, INSTANCE_MATERIAL_WGSL, classifyInstanceMaterialMask } from './instance-visibility';
-import type { DebugLine, DynamicSurfaceFrame, InstanceBufferSource, RopeGridFrame, SceneUniformState } from '../types';
+import type { DebugLine, DynamicSurfaceFrame, InstanceBufferSource, InstanceGeometry, RopeGridFrame, SceneUniformState } from '../types';
 import { planSparseRecordUpload, type DirtyRecordSpan, type SparseUploadOptions } from './sparse-upload';
 import { GpuPassTimer, type GpuPassTimestampWrites, type GpuTimingInfo, type GpuTimingOptions } from './gpu-timing.js';
+import { fillLineVertexData } from '../webgl/lab-streams.ts';
 import { InstancePartition, partitionVertexBindings, partitionVertexEntry } from './instance-partition.js';
 import { ResidentWaterSurface, type ResidentWaterOptions } from './resident-water-surface.js';
 import { GpuStartupBudget, type GpuStartupOptions } from './startup-budget.js';
 import type { GpuLinearWater } from './linear-water.ts';
+import {
+  capsulesBelow, cylinderVertexCount, cylinderVertexData, forEachBoxRun, forEachRun, geometryRowsBelow, hemisphereVertexCount,
+  planInstanceShapes, sphereVertexCount, sphereVertexData, writeCapsuleCaps, type InstanceShapePlan,
+} from './instance-shapes.ts';
 import {
   loadMaterialAtlasTexture,
   loadMaterialNoiseTexture,
@@ -16,6 +21,9 @@ import {
 } from '../assets/ktx2.js';
 
 const CUBE_VERTEX_COUNT = 36;
+const SPHERE_VERTEX_COUNT = sphereVertexCount();
+const HEMISPHERE_VERTEX_COUNT = hemisphereVertexCount();
+const CYLINDER_VERTEX_COUNT = cylinderVertexCount();
 const INSTANCE_CAPACITY_TIERS = [4096,16384,65536,131072,262144,524288,1048576] as const;
 const MAX_INSTANCE_CAPACITY = 1048576;
 const MAX_DEBUG_LINE_VERTICES = 131072;
@@ -1702,29 +1710,6 @@ function writeByteBuffer(
   queue.writeBuffer(buffer, offset, data.buffer as unknown as BufferSource, data.byteOffset + sourceByteOffset, safeCount);
 }
 
-function fillLineVertexData(lines: readonly DebugLine[], maxVertices: number, out: Float32Array): number {
-  const maxFloats = Math.min(out.length, Math.min(maxVertices, lines.length * 2) * 7);
-  let cursor = 0;
-  for (let i = 0; i < lines.length && cursor + 14 <= maxFloats; i++) {
-    const line = lines[i];
-    out[cursor++] = line.ax;
-    out[cursor++] = line.ay;
-    out[cursor++] = line.az;
-    out[cursor++] = line.r;
-    out[cursor++] = line.g;
-    out[cursor++] = line.b;
-    out[cursor++] = line.a;
-    out[cursor++] = line.bx;
-    out[cursor++] = line.by;
-    out[cursor++] = line.bz;
-    out[cursor++] = line.r;
-    out[cursor++] = line.g;
-    out[cursor++] = line.b;
-    out[cursor++] = line.a;
-  }
-  return cursor;
-}
-
 function instanceVertexBuffers(): GPUVertexBufferLayout[] {
   return [
     {
@@ -1876,6 +1861,28 @@ export class WebGPURenderer {
   private rigidFrameVersion = -1;
   private rigidColorVersion = -1;
   private rigidHasTransparentMaterial = false;
+  // Sphere and capsule rows (src/webgpu/instance-shapes.ts). A source that reports no shape
+  // kinds leaves all of this null: its frames take the original single cube draw, and the
+  // meshes, cap streams and fallback pipelines below are never created.
+  private shapePlan: InstanceShapePlan | null = null;
+  private rigidShapeVersion: number | undefined = undefined;
+  private sphereVertexBuffer: GPUBuffer | null = null;
+  private cylinderVertexBuffer: GPUBuffer | null = null;
+  private capMatrixBuffer: GPUBuffer | null = null;
+  private capColorBuffer: GPUBuffer | null = null;
+  private capCapacity = 0;
+  private capMatrixScratch = new Float32Array(0);
+  private capColorScratch = new Float32Array(0);
+  // Hull, mesh and height-field bodies: one vertex buffer holds every body's own geometry,
+  // and each geometry row of the plan draws its range with the row as the instance.
+  private bodyMeshBuffer: GPUBuffer | null = null;
+  private bodyMeshCapacity = 0;
+  private bodyMeshRanges = new Map<InstanceGeometry, { first: number; count: number }>();
+  /** [firstVertex, vertexCount] per plan.geometryRows entry. */
+  private bodyMeshDraws = new Uint32Array(0);
+  private bodyMeshVertices = 0;
+  private readonly createDirectSolidPipelines: (sampleCount: 1 | 4) => VisibilityPipelineSet;
+  private readonly directSolidPipelines: [VisibilityPipelineSet | null, VisibilityPipelineSet | null] = [null, null];
   private effectMatrixIdentity: ArrayBufferLike | null = null;
   private effectColorIdentity: ArrayBufferLike | null = null;
   private effectMatrixByteOffset = -1;
@@ -2053,6 +2060,7 @@ export class WebGPURenderer {
     gpuTiming: GpuTimingOptions;
     instancePartition: InstancePartition | null;
     prepareVisibility: (capacity: number, matrices: GPUBuffer, colors: GPUBuffer) => Promise<VisibilityResources>;
+    createDirectSolidPipelines: (sampleCount: 1 | 4) => VisibilityPipelineSet;
   }) {
     this.canvas = args.canvas;
     this.device = args.device;
@@ -2062,6 +2070,7 @@ export class WebGPURenderer {
     this.gpuTimer = new GpuPassTimer(args.device, args.gpuTiming);
     this.instancePartition = args.instancePartition;
     this.prepareVisibility = args.prepareVisibility;
+    this.createDirectSolidPipelines = args.createDirectSolidPipelines;
     this.shadowPipeline = args.shadowPipeline;
     this.surfaceShadowPipeline = args.surfaceShadowPipeline;
     this.gpuClothShadowPipeline = args.gpuClothShadowPipeline;
@@ -2654,6 +2663,27 @@ export class WebGPURenderer {
       ],
     });
 
+    // A renderer created with instance partitioning compiles its solid pipelines for
+    // vertex pulling only. Sphere and capsule rows are drawn with per-run direct draws,
+    // so such a renderer compiles the two direct pipelines the first time a frame needs
+    // them. A renderer without partitioning already has them and never calls this.
+    const createDirectSolidPipelines = (sampleCount: 1 | 4): VisibilityPipelineSet => ({
+      solid: device.createRenderPipeline({
+        ...solidDescriptor,
+        label: `Direct opaque pipeline for shaped instances (${sampleCount}x)`,
+        layout: sceneLayout,
+        vertex: { module: solidModule, entryPoint: 'vsMain', buffers: instanceVertexBuffers() },
+        multisample: { count: sampleCount },
+      }),
+      transparentSolid: device.createRenderPipeline({
+        ...transparentSolidDescriptor,
+        label: `Direct transparent pipeline for shaped instances (${sampleCount}x)`,
+        layout: sceneLayout,
+        vertex: { module: solidModule, entryPoint: 'vsTransparent', buffers: instanceVertexBuffers() },
+        multisample: { count: sampleCount },
+      }),
+    });
+
     // Indirect pipelines and visibility scratch buffers are created only when
     // requested. The established direct path pays no extra pipeline startup cost.
     // Buffers are passed in because capacity growth can replace them.
@@ -2786,6 +2816,7 @@ export class WebGPURenderer {
       gpuTiming,
       instancePartition,
       prepareVisibility,
+      createDirectSolidPipelines,
     });
     renderer.resize();
     await renderer.setRenderingOptimizations(options.optimizations ?? {});
@@ -3216,6 +3247,20 @@ export class WebGPURenderer {
       this.rigidHasTransparentMaterial = containsTransparentMaterial(source.HEAPF32, colorStart, safeCount);
       this.instancePartition?.invalidate();
     }
+    // Shape kinds change only when a body is created or destroyed, which also changes the
+    // colour stream or the count, so this runs on changed frames only. A source without
+    // shapeVersion() has only boxes.
+    const shapeVersion = source.shapeVersion?.();
+    let meshBytes = 0;
+    if (shapeVersion === undefined) {
+      this.shapePlan = null;
+    } else if (!layoutMatches || shapeVersion !== this.rigidShapeVersion) {
+      const geometry = source.shapeGeometry ? (row: number): boolean => source.shapeGeometry!(row) !== null : undefined;
+      this.shapePlan = planInstanceShapes(source.shapeKinds?.() ?? null, safeCount, geometry);
+      if (this.shapePlan && this.shapePlan.geometryRows.length > 0) meshBytes = this.uploadBodyMeshes(this.shapePlan, source);
+    }
+    this.rigidShapeVersion = shapeVersion;
+    const capBytes = (this.shapePlan ? this.uploadShapeStreams(this.shapePlan, source.HEAPF32, matrixStart, colorStart) : 0) + meshBytes;
     this.rigidSourceIdentity = source;
     this.rigidHeapIdentity = heapIdentity;
     this.rigidHeapByteOffset = heap.byteOffset;
@@ -3224,10 +3269,132 @@ export class WebGPURenderer {
     this.rigidCount = safeCount;
     this.rigidFrameVersion = frameVersion;
     this.rigidColorVersion = colorVersion;
-    const bytes = matrixBytes + colorBytes;
+    const bytes = matrixBytes + colorBytes + capBytes;
     if (bytes > 0) this.shadowContentGeneration++;
     this.lastUploadedBytes = bytes;
     return bytes;
+  }
+
+  /** Create the round meshes on first use and write the cap instances of every capsule row. */
+  private uploadShapeStreams(plan: InstanceShapePlan, heap: Float32Array, matrixStart: number, colorStart: number): number {
+    if (!this.sphereVertexBuffer || !this.cylinderVertexBuffer) {
+      const sphere = sphereVertexData(), cylinder = cylinderVertexData();
+      this.sphereVertexBuffer = this.device.createBuffer({ label: 'AAA sphere vertices', size: sphere.byteLength, usage: GPUBufferUsage.VERTEX | GPUBufferUsage.COPY_DST });
+      writeFloatBuffer(this.device.queue, this.sphereVertexBuffer, 0, sphere);
+      this.cylinderVertexBuffer = this.device.createBuffer({ label: 'AAA open cylinder vertices', size: cylinder.byteLength, usage: GPUBufferUsage.VERTEX | GPUBufferUsage.COPY_DST });
+      writeFloatBuffer(this.device.queue, this.cylinderVertexBuffer, 0, cylinder);
+    }
+    const caps = plan.capsuleCount * 2;
+    if (caps === 0) return 0;
+    if (caps > this.capCapacity || !this.capMatrixBuffer || !this.capColorBuffer) {
+      let capacity = Math.max(64, this.capCapacity);
+      while (capacity < caps) capacity *= 2;
+      this.capMatrixBuffer?.destroy();
+      this.capColorBuffer?.destroy();
+      this.capMatrixBuffer = this.device.createBuffer({ label: 'AAA capsule cap matrices', size: capacity * 64, usage: GPUBufferUsage.VERTEX | GPUBufferUsage.COPY_DST });
+      this.capColorBuffer = this.device.createBuffer({ label: 'AAA capsule cap colors/material tags', size: capacity * 16, usage: GPUBufferUsage.VERTEX | GPUBufferUsage.COPY_DST });
+      this.capMatrixScratch = new Float32Array(capacity * 16);
+      this.capColorScratch = new Float32Array(capacity * 4);
+      this.capCapacity = capacity;
+    }
+    writeCapsuleCaps(heap, matrixStart, heap, colorStart, plan.capsuleRows, this.capMatrixScratch, this.capColorScratch);
+    writeFloatBuffer(this.device.queue, this.capMatrixBuffer, 0, this.capMatrixScratch, caps * 16);
+    writeFloatBuffer(this.device.queue, this.capColorBuffer, 0, this.capColorScratch, caps * 4);
+    return caps * 80;
+  }
+
+  /**
+   * Put the render mesh of every geometry row in the shared body-mesh buffer and record each
+   * row's vertex range. A mesh is identified by its object: while the set of meshes is the one
+   * already uploaded (bodies only moved between rows), nothing is written.
+   */
+  private uploadBodyMeshes(plan: InstanceShapePlan, source: InstanceBufferSource): number {
+    const rows = plan.geometryRows;
+    const meshes: InstanceGeometry[] = [];
+    let known = this.bodyMeshBuffer !== null;
+    for (let k = 0; k < rows.length; k++) {
+      const mesh = source.shapeGeometry!(rows[k]!)!;
+      meshes.push(mesh);
+      if (!this.bodyMeshRanges.has(mesh)) known = false;
+    }
+    let bytes = 0;
+    if (!known) {
+      const ranges = new Map<InstanceGeometry, { first: number; count: number }>();
+      let total = 0;
+      for (const mesh of meshes) {
+        if (ranges.has(mesh)) continue;
+        const count = Math.min(mesh.vertexCount, Math.floor(mesh.vertices.length / 6));
+        ranges.set(mesh, { first: total, count });
+        total += count;
+      }
+      if (total > this.bodyMeshCapacity || !this.bodyMeshBuffer) {
+        let capacity = Math.max(1024, this.bodyMeshCapacity);
+        while (capacity < total) capacity *= 2;
+        this.bodyMeshBuffer?.destroy();
+        this.bodyMeshBuffer = this.device.createBuffer({ label: 'AAA body geometry vertices (hulls, meshes, height fields)', size: capacity * 24, usage: GPUBufferUsage.VERTEX | GPUBufferUsage.COPY_DST });
+        this.bodyMeshCapacity = capacity;
+      }
+      for (const [mesh, range] of ranges) {
+        if (range.count === 0) continue;
+        writeFloatBuffer(this.device.queue, this.bodyMeshBuffer, range.first * 24, mesh.vertices, range.count * 6);
+        bytes += range.count * 24;
+      }
+      this.bodyMeshRanges = ranges;
+      this.bodyMeshVertices = total;
+    }
+    if (this.bodyMeshDraws.length < rows.length * 2) this.bodyMeshDraws = new Uint32Array(rows.length * 2);
+    for (let k = 0; k < rows.length; k++) {
+      const range = this.bodyMeshRanges.get(meshes[k]!)!;
+      this.bodyMeshDraws[k * 2] = range.first;
+      this.bodyMeshDraws[k * 2 + 1] = range.count;
+    }
+    return bytes;
+  }
+
+  /** Hull, mesh and height-field bodies drawn with their own geometry, and the vertices held for them. */
+  bodyMeshInfo(): Readonly<{ bodies: number; vertices: number }> {
+    const bodies = this.shapePlan?.geometryRows.length ?? 0;
+    return { bodies, vertices: bodies > 0 ? this.bodyMeshVertices : 0 };
+  }
+
+  /**
+   * Direct draws for a frame with sphere or capsule rows. The caller has set the pipeline,
+   * the cube mesh in slot 0 and the instance streams in slots 1 and 2. Boxes are drawn per
+   * run of consecutive box rows; spheres use the sphere mesh on their own rows; a capsule is
+   * the open cylinder on its row plus two hemispheres from the cap streams.
+   */
+  private drawShapedInstances(pass: GPURenderPassEncoder, plan: InstanceShapePlan, instanceCount: number): void {
+    forEachBoxRun(plan, instanceCount, (start, length) => pass.draw(CUBE_VERTEX_COUNT, length, 0, start));
+    if (plan.sphereCount > 0) {
+      pass.setVertexBuffer(0, this.sphereVertexBuffer!);
+      forEachRun(plan.sphereRuns, instanceCount, (start, length) => pass.draw(SPHERE_VERTEX_COUNT, length, 0, start));
+    }
+    // Before the capsule caps, which replace the instance streams in slots 1 and 2.
+    const geometryRows = geometryRowsBelow(plan, instanceCount);
+    if (geometryRows > 0) {
+      pass.setVertexBuffer(0, this.bodyMeshBuffer!);
+      const rows = plan.geometryRows, draws = this.bodyMeshDraws;
+      for (let k = 0; k < geometryRows; k++) {
+        if (draws[k * 2 + 1]! > 0) pass.draw(draws[k * 2 + 1]!, 1, draws[k * 2]!, rows[k]!);
+      }
+    }
+    const capsules = capsulesBelow(plan, instanceCount);
+    if (capsules > 0) {
+      pass.setVertexBuffer(0, this.cylinderVertexBuffer!);
+      forEachRun(plan.capsuleRuns, instanceCount, (start, length) => pass.draw(CYLINDER_VERTEX_COUNT, length, 0, start));
+      pass.setVertexBuffer(0, this.sphereVertexBuffer!);
+      pass.setVertexBuffer(1, this.capMatrixBuffer!);
+      pass.setVertexBuffer(2, this.capColorBuffer!);
+      pass.draw(HEMISPHERE_VERTEX_COUNT, capsules * 2);
+    }
+  }
+
+  /** Shapes the current rigid stream draws. `mode` is 'boxes' while every row is a box. */
+  instanceShapeInfo(): Readonly<{ mode: 'boxes' | 'direct-shapes'; spheres: number; capsules: number; boxRuns: number }> {
+    const plan = this.shapePlan;
+    return plan
+      ? { mode: 'direct-shapes', spheres: plan.sphereCount, capsules: plan.capsuleCount, boxRuns: plan.boxRuns.length / 2 }
+      : { mode: 'boxes', spheres: 0, capsules: 0, boxRuns: 1 };
   }
 
   uploadEffects(matrices: Float32Array, colors: Float32Array, baseInstance: number, count: number, frameVersion: number): number {
@@ -3874,8 +4041,16 @@ export class WebGPURenderer {
 
     // Instance lists: GPU visibility lists when enabled and prepared, otherwise the
     // material partition when the renderer was created with it, otherwise direct draws.
-    const visible = this.optimizations.computeVisibility ? this.visibilityResources : null;
-    const partition = visible ? null : this.instancePartition;
+    // Both lists cover every instance as a cube, so a frame with sphere or capsule rows
+    // falls back to direct draws; the lists are used again once the rows are all boxes.
+    const shapes = this.shapePlan;
+    const visible = this.optimizations.computeVisibility && !shapes ? this.visibilityResources : null;
+    const partition = visible || shapes ? null : this.instancePartition;
+    let directSolid: VisibilityPipelineSet = this.mainPipelines;
+    if (shapes && this.instancePartition) {
+      const slot = this.sampleCount === 1 ? 0 : 1;
+      directSolid = this.directSolidPipelines[slot] ??= this.createDirectSolidPipelines(this.sampleCount);
+    }
     const expandRopes = this.ropeGridActive && ropeDispatchPending && this.ropeGridSegmentCount > 0;
     if (expandRopes) this.instancePartition?.invalidate();
     const partitionChanged = partition?.needsUpdate(safeCount) ?? false;
@@ -3958,7 +4133,8 @@ export class WebGPURenderer {
           shadowPass.setPipeline(this.shadowPipeline);
           shadowPass.setVertexBuffer(1, this.matrixBuffer);
           shadowPass.setVertexBuffer(2, this.colorBuffer);
-          shadowPass.draw(CUBE_VERTEX_COUNT, safeCount);
+          if (shapes) this.drawShapedInstances(shadowPass, shapes, safeCount);
+          else shadowPass.draw(CUBE_VERTEX_COUNT, safeCount);
           counters.lastSubmittedInstances.shadow = safeCount;
         }
       }
@@ -4013,10 +4189,11 @@ export class WebGPURenderer {
         (mainPass as IndirectRenderPassEncoder).drawIndirect(partition.indirectBuffer, 0);
         counters.lastSubmittedInstances.opaque = null;
       } else {
-        mainPass.setPipeline(this.mainPipelines.solid);
+        mainPass.setPipeline(directSolid.solid);
         mainPass.setVertexBuffer(1, this.matrixBuffer);
         mainPass.setVertexBuffer(2, this.colorBuffer);
-        mainPass.draw(CUBE_VERTEX_COUNT, safeCount);
+        if (shapes) this.drawShapedInstances(mainPass, shapes, safeCount);
+        else mainPass.draw(CUBE_VERTEX_COUNT, safeCount);
         counters.lastSubmittedInstances.opaque = safeCount;
       }
     }
@@ -4072,10 +4249,11 @@ export class WebGPURenderer {
         (mainPass as IndirectRenderPassEncoder).drawIndirect(partition.indirectBuffer, 16);
         counters.lastSubmittedInstances.transparent = null;
       } else {
-        mainPass.setPipeline(this.mainPipelines.transparentSolid);
+        mainPass.setPipeline(directSolid.transparentSolid);
         mainPass.setVertexBuffer(1, this.matrixBuffer);
         mainPass.setVertexBuffer(2, this.colorBuffer);
-        mainPass.draw(CUBE_VERTEX_COUNT, safeCount);
+        if (shapes) this.drawShapedInstances(mainPass, shapes, safeCount);
+        else mainPass.draw(CUBE_VERTEX_COUNT, safeCount);
         counters.lastSubmittedInstances.transparent = safeCount;
       }
     }
@@ -4182,6 +4360,7 @@ export class WebGPURenderer {
       'surfaceVertexBuffer', 'surfaceIndexBuffer', 'clothPositionBuffer',
       'clothRestPositionBuffer', 'clothParamsBuffer', 'waterEtaBuffer',
       'waterUBuffer', 'waterVBuffer', 'waterParamsBuffer',
+      'sphereVertexBuffer', 'cylinderVertexBuffer', 'capMatrixBuffer', 'capColorBuffer', 'bodyMeshBuffer',
     ] as const;
     const textures = [
       'shadowTexture', 'materialNoiseTexture', 'materialAtlasAlbedoTexture',
@@ -4207,6 +4386,12 @@ export class WebGPURenderer {
       'materialAtlasSampler', 'depthView', 'msaaView', 'hdrView',
     ] as const;
     for (const field of references) (this[field] as unknown) = null;
+    this.shapePlan = null;
+    this.bodyMeshRanges = new Map();
+    this.bodyMeshCapacity = 0;
+    this.bodyMeshVertices = 0;
+    this.directSolidPipelines[0] = null;
+    this.directSolidPipelines[1] = null;
     this.surfaceMaterial = null;
     this.surfacePath = null;
     this.surfaceVertexCount = 0;

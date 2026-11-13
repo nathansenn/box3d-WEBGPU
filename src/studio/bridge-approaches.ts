@@ -51,7 +51,10 @@ export function roadRibbon(side:number):T.BufferGeometry {
 
 /** Seeded gravel, fine aggregate and feathered duff shoulders; no image-source pixels. */
 function roadTexture():T.CanvasTexture {
-  const canvas=document.createElement('canvas');canvas.width=canvas.height=512;const c=canvas.getContext('2d')!;
+  const canvas=document.createElement('canvas');canvas.width=canvas.height=512;
+  // Rastered on the CPU: an accelerated canvas defers the 18,000 grains to the texture upload, where a software GPU
+  // spends seconds on them (2.7 s against 0.1 s measured in headless Chromium with SwiftShader).
+  const c=canvas.getContext('2d',{willReadFrequently:true})!;
   const pixels=c.createImageData(512,512);
   for(let y=0;y<512;y++)for(let x=0;x<512;x++){
     const edge=Math.abs(x/511*2-1),grain=noise(x+y*512),mottle=Math.sin(x*.029+Math.sin(y*.042))*5;

@@ -59,7 +59,8 @@ test('readable report escapes user text and has no scripts or remote resource re
 test('one and two completed cases can be preserved after cancellation',()=>{
   const r=clone();r.results=r.results.slice(0,1);r.review=defaultReview(r.results);const parsed=validateReport(r);assert.equal(parsed.complete,false);assert.equal(parsed.review.baseline,0);assert.deepEqual(parseReport(JSON.stringify(parsed)),parsed);
 });
-for(const preset of LABS.liquid.experiments)test(`complete preset report: ${preset.id}`,()=>{
+// Flume presets run the 3D free-surface solver: the fresh flume case below and tests/studio/liquid-si.test.mjs cover them.
+for(const preset of LABS.liquid.experiments.filter(e=>(e.settings.rig??'flume')!=='flume'))test(`complete preset report: ${preset.id}`,()=>{
   const settings=normalizeSettings('liquid',preset.settings),key=studyParameters(settings)[0],result=finish(runStudyCase(settings,0,key.key,3));
   const report=createReport([result],key,preset.name);assert.equal(report.results[0].samples[0].time,0);close(report.results[0].samples.at(-1).time,18);assert.deepEqual(parseReport(JSON.stringify(report)).results[0].settings,settings);
 });
