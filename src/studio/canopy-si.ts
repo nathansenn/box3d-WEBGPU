@@ -9,6 +9,14 @@
  */
 import {Cloth,CLOTH_SOLVER_ID} from '../engine/cloth.ts';
 import {fabricMaterial} from '../engine/materials.ts';
+import type {StateObject} from '../engine/checkpoint.ts';
+
+/** The form-found cloth state per set-up: the static solve takes 1 to 2 s (more in a loaded browser), and every reset
+ * and the page's drawing copy repeat it. The cloth's exact state (Cloth.saveState) is reused, so a canopy built from the
+ * cache is bit-identical to one that solved again. */
+const formFound=new Map<string,StateObject>();
+/** Forget the cached form-found states (tests compare a cached build with a fresh solve). */
+export function clearCanopyFormCache():void {formFound.clear();}
 
 export const CANOPY_SI_MODEL=CLOTH_SOLVER_ID;
 /** Uniform load on the plan area per unit of target load, Pa (the slider's 0 to 5 is 0 to 50 kPa: snow loads are 0.5 to 3 kPa, the rest is a test to failure). */
@@ -52,8 +60,9 @@ export class StudioCanopySI {
       const a=triangles[t],b=triangles[t+1],c=triangles[t+2],A=Math.abs((positions[3*b]-positions[3*a])*(positions[3*c+2]-positions[3*a+2])-(positions[3*c]-positions[3*a])*(positions[3*b+2]-positions[3*a+2]))/2;
       this.area[a]+=A/3;this.area[b]+=A/3;this.area[c]+=A/3;
     }
-    // Form finding: the pretensioned sheet under its own weight.
-    this.cloth.solveStatic();
+    // Form finding: the pretensioned sheet under its own weight (once per set-up and realm, see formFound).
+    const key=JSON.stringify([cols,rows,dt,strengthScale,floorY,triangles.length,Array.from(positions)]),found=formFound.get(key);
+    if(found)this.cloth.restoreState(found);else{this.cloth.solveStatic();formFound.set(key,this.cloth.saveState());}
     this.settled=Float64Array.from({length:n},(_,i)=>this.cloth.positions[3*i+1]);
   }
   /** Snow load on the plan area, Pa, and wind speed along x, m/s. Applied from the next step. */

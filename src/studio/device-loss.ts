@@ -15,7 +15,11 @@ export function watchDeviceLoss(renderer:T.WebGPURenderer,onLost:(message:string
   // WebGPU resolves popErrorScope with null on a lost device. Chromium rejects the scopes that were
   // open when it dropped the device, and three.js leaves those rejections unhandled.
   const pop=device.popErrorScope.bind(device);
-  device.popErrorScope=()=>pop().catch(error=>Promise.race([lost.then(()=>null),new Promise<never>((_,reject)=>setTimeout(()=>reject(error),1000))]));
+  // When the browser drops the WebGPU instance itself ("Instance dropped in popErrorScope", seen when a page
+  // returns from the Physics Lab under software rendering), the device's lost promise can stay pending: such a scope
+  // can report nothing, so it resolves as "no error" and the loss, when it is reported, takes the recovery path.
+  device.popErrorScope=()=>pop().catch(error=>/instance dropped|instance reference/i.test(String((error as {message?:unknown})?.message??error))?null
+    :Promise.race([lost.then(()=>null),new Promise<never>((_,reject)=>setTimeout(()=>reject(error),1000))]));
 }
 
 /**

@@ -4,9 +4,12 @@ import type {LabSettings} from './catalog';
 export type GlassWorkerRequest={type:'reset';generation:number;settings:Partial<LabSettings>}|{type:'step';generation:number;request:number;ticks:number;release:boolean};
 export type GlassWorkerResponse={type:'frame';generation:number;request:number;frame:LabFrame}|{type:'error';generation:number;request:number;message:string};
 /** One model and one generation per worker. Frames own their transferable buffers. */
-export function glassWorkerHandler(): (message:GlassWorkerRequest)=>GlassWorkerResponse|null {
+export function glassWorkerHandler(): (message:GlassWorkerRequest)=>GlassWorkerResponse|null {return glassWorkerState().handle;}
+/** The handler and its current model and generation (the free run, lab-run.ts, steps that model). */
+export function glassWorkerState():{handle:(message:GlassWorkerRequest)=>GlassWorkerResponse|null;current():{model:GlassModel;generation:number}|undefined} {
   let model:GlassModel|undefined,generation=-1,lastRequest=0;
-  return message=>{
+  const current=()=>model?{model,generation}:undefined;
+  return {current,handle:message=>{
     const request=message.type==='step'?message.request:0;
     try{
       if(!Number.isSafeInteger(message.generation)||message.generation<0)throw new Error('Invalid glass worker generation');
@@ -24,5 +27,5 @@ export function glassWorkerHandler(): (message:GlassWorkerRequest)=>GlassWorkerR
       for(let i=0;i<message.ticks;i++)model.step(DT);lastRequest=request;
       return {type:'frame',generation,request,frame:model.snapshot()};
     }catch(error){return {type:'error',generation:message.generation,request,message:error instanceof Error?error.message:'Glass simulation failed'};}
-  };
+  }};
 }

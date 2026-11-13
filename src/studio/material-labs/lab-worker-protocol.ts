@@ -6,9 +6,12 @@ export type LabWorkerRequest={type:'reset';generation:number;lab:LabId;settings:
 export type LabWorkerResponse={type:'frame';generation:number;request:number;frame:LabFrame;cpuMs:number}|{type:'error';generation:number;request:number;message:string};
 export const LAB_WORKER_MAX_TICKS=8;
 export const isLabWorkerRequest=(value:unknown):value is LabWorkerRequest=>typeof value==='object'&&value!==null&&((value as {type?:unknown}).type==='reset'||(value as {type?:unknown}).type==='step');
-export function labWorkerHandler():(message:LabWorkerRequest)=>LabWorkerResponse|null {
+export function labWorkerHandler():(message:LabWorkerRequest)=>LabWorkerResponse|null {return labWorkerState().handle;}
+/** The handler and its current model and generation (the free run, lab-run.ts, steps that model). */
+export function labWorkerState():{handle:(message:LabWorkerRequest)=>LabWorkerResponse|null;current():{model:LabModel;generation:number}|undefined} {
   let model:LabModel|undefined,generation=-1,lastRequest=0;
-  return message=>{
+  const current=()=>model?{model,generation}:undefined;
+  return {current,handle:message=>{
     const request=message.type==='step'?message.request:0;
     try{
       if(!Number.isSafeInteger(message.generation)||message.generation<0)throw new Error('Invalid lab worker generation');
@@ -28,5 +31,5 @@ export function labWorkerHandler():(message:LabWorkerRequest)=>LabWorkerResponse
       model.step(message.ticks*DT);lastRequest=request;
       return {type:'frame',generation,request,frame:model.snapshot(),cpuMs:performance.now()-start};
     }catch(error){return {type:'error',generation:message.generation,request,message:error instanceof Error?error.message:'Simulation failed'};}
-  };
+  }};
 }

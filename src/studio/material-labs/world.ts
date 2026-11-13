@@ -49,6 +49,20 @@ export class MaterialLabWorld {
     catch{this.controls.dispose();first.domElement.remove();void initializing.then(()=>first.dispose()).catch(()=>{});this.renderer=this.makeRenderer(true);this.controls=new OrbitControls(this.camera,this.renderer.domElement);this.setupControls();await this.renderer.init();}
     finally{if(timeout)clearTimeout(timeout);}
     if(this.disposed)return;
+    // Software rendering can destroy a WebGPU device at its first frame. Find out with an empty frame before building
+    // the apparatus, so the scene is not built for a lost device and then again on WebGL.
+    if(this.backend==='WebGPU'){
+      const probe=this.renderer;let lost=false;
+      // Also guards three.js's error scopes on the probed device (its rejections are otherwise unhandled when the device is dropped).
+      watchDeviceLoss(probe,()=>{lost=true;});
+      try{probe.render(new T.Scene(),this.camera);}catch{lost=true;}
+      await framesSettled(probe);
+      if(lost&&!this.disposed){
+        console.warn('The WebGPU device was lost on its first frame. Starting on the WebGL renderer.');
+        this.controls.dispose();probe.domElement.remove();try{probe.dispose();}catch{/* its device is already gone */}
+        this.renderer=await initWebGL(()=>this.makeRenderer(true));this.controls=new OrbitControls(this.camera,this.renderer.domElement);this.setupControls();
+      }
+    }
     stage('Loading metal and surface textures');await this.library.init('plate');if(this.disposed)return;stage('Preparing the laboratory environment');
     try{
       this.panorama=await new T.TextureLoader().loadAsync(`${import.meta.env.BASE_URL}studio/references/material-labs/hall-panorama.png`);this.panorama.colorSpace=T.SRGBColorSpace;this.panorama.mapping=T.EquirectangularReflectionMapping;

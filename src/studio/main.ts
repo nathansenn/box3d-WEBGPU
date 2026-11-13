@@ -12,11 +12,12 @@ import { CANOPY_NOTE, CANOPY_SNOW_PER_LOAD, CANOPY_WIND_PER_UNIT } from './canop
 import { SiBridgeStudy, SI_BRIDGE_MAX_CUTS, SI_BRIDGE_SCOPE } from './si-bridge-study';
 import { StudioWorld } from './world';
 import { createStudioClient, type StudioClient } from '../engine/studio-client';
+import type { StudioRunRequest } from '../engine/studio-run';
 import type { StudioStepResult } from '../engine/studio-runtime';
 import { FixedFrameClock, StageTimings } from '../perf/frame-clock';
 import { RecordingRing } from '../perf/recording-ring';
 import { copySnapshotInto, interpolateSnapshotInto } from './presentation-state';
-import { MAX_CHECKPOINT_FILE_BYTES, parseStudioCheckpointFile } from './checkpoint-file';
+import { MAX_CHECKPOINT_FILE_BYTES, packStudioCheckpoint, readStudioCheckpointFile } from './checkpoint-file';
 import { PresetBrowser, type PresetActions } from './preset-browser';
 import { SceneDesk } from './scene-desk';
 import { BridgeReviewView, type BridgeReviewState } from './bridge-review-view';
@@ -84,8 +85,12 @@ export async function bootStudio(requested:string):Promise<void> {
   let exporting=false;
   let importing=false,historyStartTime=0;
   let graphicsRecovering=false,graphicsFailed=false;
-  // The SI press solves a finite-element step per tick: at most two ticks per request keep a worker request well inside its timeout.
-  const clockFor=(study:StudyId)=>new FixedFrameClock(FIXED_DT,study==='plate'?2:12);
+  // The solver runs free in its worker (studio-run.ts); this clock only measures display time for replay.
+  const clockFor=(_study:StudyId)=>new FixedFrameClock(FIXED_DT,12);
+  /** Simulated seconds the free runs dropped from their wall-clock schedule (solver slower than real time), and how often. */
+  let runLag=0,runOverloads=0,lagBase=0,overloadBase=0;
+  /** The run parameters the worker has; a change of speed or controls is sent as an update, of the rest restarts the run. */
+  let runKey='',runSpeed=0,runControls='';
   let clock=clockFor(id);const timings=new StageTimings(['step','transport','snapshot','geometry','renderCpu','frame']);
   let speed=recipe.speed,accumulator=0,lastTime=0,lastUi=0,nextSample=.1,runNumber=1;
   let responseMode=false,program=recipe.target<=.8?'service':'failure',target=recipe.target,strength=recipe.strength,wind=recipe.wind;
@@ -305,12 +310,12 @@ export async function bootStudio(requested:string):Promise<void> {
   async function exportRun():Promise<void> {
     if(exporting||importing)return;exporting=true;
     const exportGeneration=generation,wasRunning=running;running=false;
-    // The SI bridge has no resumable checkpoint in the Studio: its export is the recorded response.
-    try{await pendingTask;const checkpoint=id==='bridge'?null:await client?.exportCheckpoint();if(exportGeneration!==generation||disposed)return;
+    // Every study exports its exact checkpoint (SI solver state gzip-packed), so the run resumes bit for bit on import.
+    try{await settleRun();const live=await client?.exportCheckpoint();const checkpoint=live?await packStudioCheckpoint(live):null;if(exportGeneration!==generation||disposed)return;
     const payload={checkpoint,schema:'box3d.failure-studio.v2',study:id,createdAt:new Date().toISOString(),model:id==='plate'?'SI press brake: plane-strain J2 tetrahedral solid with rigid punch and die (src/engine/press-brake.ts); see docs/STUDIO_METAL_PRESS.md':id==='canopy'?'SI canopy: calibrated cloth with an orthotropic library fabric, edge cables and tearing (src/studio/canopy-si.ts); see docs/STUDIO_CANOPY.md':id==='bridge'?`SI suspension footbridge (src/engine/si-suspension.ts). ${SI_BRIDGE_SCOPE}`:'Reduced position-based dynamics; authored normalized coefficients; not calibrated',
       source:id==='bridge'?'src/engine/si-suspension.ts, src/studio/si-bridge-study.ts':'src/studio/physics.ts',...(id==='bridge'?{units:{time:'s',load:'kN/m² crowd on the east half',wind:'kN/m',strength:'hangers cut',deflection:'m',si:'mm, kN, MPa, fractions of stated strengths'}}:{}),settings:{target,strength,wind,program,fixedStep:FIXED_DT,...(id==='plate'?{press:pressSettings,pressureProgram:{schema:'press-drive-v1',id:pressDrive,limit:pressSettings.pressure}}:{})},camera:world.cameraState(),presentation:world.presentationState(),preset:{setup:activeSetup?.id??null,load:recipe.id,modified:customLoad,playbackSpeed:speed,appearanceAffectsPhysics:false},
       topology:{nodes:sim.nodes.map(n=>({rest:n.rest,fixed:n.inverseMass===0})),links:sim.links.map(e=>({a:e.a,b:e.b,kind:e.kind,rest:e.original,threshold:e.threshold}))},
-      settingsHistory,events:sim.events,samples:frames.map(f=>({...f.response,...(f.press?{press:f.press,punchY:f.punchY}:{}),...(f.si?{si:f.si}:{})})),finalPositions:Array.from(liveSnapshot.positions),brokenLinks:Array.from(liveSnapshot.broken).flatMap((broken,i)=>broken?[i]:[]),capabilities:client?.capabilities,transport:{mode:client?.mode,fallbackReason:client?.fallbackReason??null},timings:timings.inspect(),clock:{lagSeconds:clock.lagSeconds,overloads:clock.overloads},recording:{capacity:frames.capacity,evicted:frames.evicted,startTime:historyStartTime,completeGeometryHistory:frames.evicted===0&&historyStartTime===0}};
+      settingsHistory,events:sim.events,samples:frames.map(f=>({...f.response,...(f.press?{press:f.press,punchY:f.punchY}:{}),...(f.si?{si:f.si}:{})})),finalPositions:Array.from(liveSnapshot.positions),brokenLinks:Array.from(liveSnapshot.broken).flatMap((broken,i)=>broken?[i]:[]),capabilities:client?.capabilities,transport:{mode:client?.mode,fallbackReason:client?.fallbackReason??null},timings:timings.inspect(),clock:{lagSeconds:runLag,overloads:runOverloads,schedule:'free-run'},recording:{capacity:frames.capacity,evicted:frames.evicted,startTime:historyStartTime,completeGeometryHistory:frames.evicted===0&&historyStartTime===0}};
     download(`box3d-${id}-R${runNumber}.json`,new Blob([JSON.stringify(payload,null,2)],{type:'application/json'}));toast('Run data and failure topology exported.');
     }finally{exporting=false;if(exportGeneration===generation&&!disposed)running=wasRunning;}
   }
@@ -318,7 +323,7 @@ export async function bootStudio(requested:string):Promise<void> {
   async function importRun(file:File):Promise<void> {
     if(importing||exporting||loading)return;
     if(file.size>MAX_CHECKPOINT_FILE_BYTES)throw new RangeError('Saved run exceeds the 16 MiB import limit.');
-    const fileText=await file.text(),candidate=parseStudioCheckpointFile(fileText);
+    const fileText=await file.text(),candidate=await readStudioCheckpointFile(fileText);
     const envelope=JSON.parse(fileText) as {settings?:{pressureProgram?:unknown}},savedProgram=envelope.settings?.pressureProgram;
     const driveEnvelope=readPressDriveEnvelope(savedProgram);
     if(savedProgram!==undefined&&!driveEnvelope)throw new RangeError('Saved pressure program is invalid or unsupported.');
@@ -327,7 +332,7 @@ export async function bootStudio(requested:string):Promise<void> {
     const wasRunning=running;running=false;replaying=false;clock.reset();
     let replacement:StudioClient|undefined,previousClient:StudioClient|undefined,committed=false;
     try{
-      await pendingTask;
+      await settleRun();
       replacement=await createStudioClient({study:candidate.id,initialCheckpoint:candidate.exportCheckpoint()},{mode:initialQuery.get('simulation')==='sync'?'sync':'auto',...(id==='plate'?{timeoutMs:120000}:{})});
       if(disposed)return;
       await world.changeStudy(candidate);
@@ -339,7 +344,7 @@ export async function bootStudio(requested:string):Promise<void> {
       liveSnapshot=sim.createSnapshotTarget();previousSnapshot=sim.createSnapshotTarget();presentationSnapshot=sim.createSnapshotTarget();
       frames=new RecordingRing(sim.snapshot());historyStartTime=sim.time;playback=-1;runEnd=Math.max(30,sim.time+30);runNumber++;
       recordSettings();reportCache=undefined;
-      clock.reset(true);timings.reset();receivedAt=0;delete root.dataset.simulationError;
+      clock.reset(true);resetRunLag();timings.reset();receivedAt=0;delete root.dataset.simulationError;
       const canvas=world.renderer.domElement;markup();root.querySelector('#scene-host')!.append(canvas);world.attach(root.querySelector<HTMLElement>('#scene-host')!);
       world.setLighting(lighting);world.setSurroundings(surroundings);world.setRiver(riverSettings);world.setAutoRotate(autoRotate);world.setQuality(quality);world.setCamera(cameraPreset);world.update(liveSnapshot,responseMode);
       setText('.timeline-labels>span:first-child',historyStartTime.toFixed(1)+' s');
@@ -424,8 +429,8 @@ export async function bootStudio(requested:string):Promise<void> {
     if(visible.si){setText('#stat-hanger',visible.si.maxHanger.toFixed(1));setText('#stat-main',visible.si.maxMain.toFixed(0));setText('#stat-total',`of 70 · ${visible.si.hangersCut} cut`);}setText('#stat-broken',String(r.broken));setText('#tree-broken',String(r.broken));
     root.dataset.phase=r.phase.toLowerCase().replaceAll(' ','-');root.dataset.running=String(running||replaying);
     setText('#collision-label',collisionLabel());root.dataset.numericalBackend=client?.capabilities.models[0]?.id??sim.backend;
-    root.dataset.simulationMode=client?.mode??'initializing';root.dataset.simulationLag=clock.lagSeconds.toFixed(3);root.dataset.simulationOverloads=String(clock.overloads);root.dataset.engineTimings=JSON.stringify(timings.inspect());
-    if(clock.lagSeconds>.25)setText('#engine-label',`${client?.mode==='worker'?'Worker':'Simulation'} · ${clock.lagSeconds.toFixed(1)} s behind wall time`);
+    root.dataset.simulationMode=client?.mode??'initializing';root.dataset.simulationLag=runLag.toFixed(3);root.dataset.simulationOverloads=String(runOverloads);root.dataset.simulationSchedule='free-run';root.dataset.engineTimings=JSON.stringify(timings.inspect());
+    if(runLag>.25)setText('#engine-label',`${client?.mode==='worker'?'Worker':'Simulation'} · ${runLag.toFixed(1)} s behind wall time`);
     else if(!loading&&!graphicsFailed&&world){const backend=(world.renderer.backend as unknown as {isWebGPUBackend?:boolean}).isWebGPUBackend?'WebGPU':'WebGL 2';setText('#engine-label',backend+' renderer'+(client?.mode==='worker'?' · worker':''));}
     root.querySelectorAll<HTMLButtonElement>('[data-action="run"]').forEach(b=>{
       b.disabled=loading||exporting||importing||graphicsFailed||root.dataset.deskBusy==='true';
@@ -484,7 +489,7 @@ export async function bootStudio(requested:string):Promise<void> {
     root.dataset.graphicsRecovery='recovering';setText('#engine-label','Recovering graphics');toast('Graphics device lost. Restoring the current experiment.');
     const position=world.camera.position.clone(),targetPosition=world.controls.target.clone(),fov=world.camera.fov;
     try{
-      await pendingTask;if(disposed)return;
+      await settleRun();if(disposed)return;
       // The lost device may be one the browser cannot present, so the replacement uses WebGL.
       console.warn(`Graphics device lost (${message}). Rebuilding the scene on the WebGL renderer.`);
       world.dispose();world=new StudioWorld(root.querySelector<HTMLElement>('#scene-host')!,sim,true);
@@ -498,7 +503,7 @@ export async function bootStudio(requested:string):Promise<void> {
     finally{graphicsRecovering=false;clock.reset();}
   }
   function restartRuntime():void {
-    const epoch=++generation;pending=false;clientReady=false;clock.reset(true);timings.reset();receivedAt=0;
+    const epoch=++generation;pending=false;clientReady=false;clock.reset(true);resetRunLag();timings.reset();receivedAt=0;
     if(!client)return;
     const options={study:id,press:pressSettings,backend:sim.backend,controls:controlValues()};
     const resetOperation=client.diagnostics().failed?client.destroy().then(()=>createStudioClient(options,{mode:initialQuery.get('simulation')==='sync'?'sync':'auto',...(id==='plate'?{timeoutMs:120000}:{})})).then(async replacement=>{if(epoch!==generation||disposed){await replacement.destroy();throw new Error('Reset superseded');}client=replacement;return replacement.inspect();}):client.reset(options);
@@ -511,41 +516,71 @@ export async function bootStudio(requested:string):Promise<void> {
     running=false;clientReady=false;root.dataset.simulationError=error instanceof Error?error.message:String(error);
     toast('Simulation paused: '+root.dataset.simulationError+'. Reset to recover.');updateUi();
   }
-  function acceptStep(result:StudioStepResult,sentAt:number,epoch:number):void {
+  function resetRunLag():void {runLag=runOverloads=lagBase=overloadBase=0;runKey='';}
+  /** Accepts a run frame or a pause frame: the newest state for drawing, its recording samples and events. */
+  function acceptStep(result:StudioStepResult,epoch:number):void {
     try{
       if(epoch!==generation||disposed)return;
       const start=performance.now();copySnapshotInto(previousSnapshot,liveSnapshot);copySnapshotInto(liveSnapshot,result.liveSnapshot);
       sim.time=liveSnapshot.response.time;sim.load=liveSnapshot.response.load;sim.punchY=liveSnapshot.punchY;
       if(liveSnapshot.press)sim.pressCycle=liveSnapshot.press.cycle;
       sim.events.push(...result.eventDelta);receivedAt=performance.now();
-      timings.sample('snapshot',receivedAt-start);timings.sample('step',result.simMs);timings.sample('transport',Math.max(0,receivedAt-sentAt-result.simMs));
+      if(result.run){runLag=lagBase+result.run.lagSeconds;runOverloads=overloadBase+result.run.overloads;if(!result.run.running){lagBase=runLag;overloadBase=runOverloads;}}
+      timings.sample('snapshot',receivedAt-start);if(result.completedTicks)timings.sample('step',result.simMs/result.completedTicks*12);
       for(const sample of result.recordingSamples)frames.push(sample.snapshot);
-      if(id==='bridge'&&shouldPauseBridge(pauseOnBridgeBreak,previousSnapshot,liveSnapshot)){
+      if(id==='bridge'&&(result.run?.stopReason==='first-rupture'||shouldPauseBridge(pauseOnBridgeBreak,previousSnapshot,liveSnapshot))&&running){
         if(frames.at(-1)?.response.time!==sim.time){const sample=sim.createSnapshotTarget();copySnapshotInto(sample,liveSnapshot);frames.push(sample);}
         running=false;clock.reset();root.dataset.bridgeAutoPause='first-rupture';
         toast(`First rupture detected. Paused at ${sim.time.toFixed(2)} s; select a milestone to inspect the recorded geometry.`);updateUi();
-      }else if(result.completed||sim.time>=runEnd){
+      }else if(running&&(result.completed||sim.time>=runEnd-1e-9)){
         if(frames.at(-1)?.response.time!==sim.time){const final=sim.createSnapshotTarget();copySnapshotInto(final,liveSnapshot);frames.push(final);}
         running=false;clock.reset();if(!graphicsRecovering)world.update(liveSnapshot,responseMode);toast('Run recorded. Scrub the timeline to replay the failure.');updateUi();
       }
-    }finally{result.release();if(epoch===generation){pending=false;if(!running&&playback<0&&!disposed&&!graphicsRecovering)world.update(liveSnapshot,responseMode);}}
+    }finally{result.release();if(epoch===generation&&!running&&playback<0&&!disposed&&!graphicsRecovering)world.update(liveSnapshot,responseMode);}
+  }
+  /** What the worker's free run needs; a change of anything but speed and controls restarts the run. */
+  function runRequest():StudioRunRequest {
+    return {speed,stopAtTime:runEnd,maxLagSeconds:.25,controls:controlValues(),
+      ...(id==='plate'&&pressDrive!=='steady'?{pressDrive:{id:pressDrive,limit:pressSettings.pressure}}:{}),
+      ...(id==='bridge'&&pauseOnBridgeBreak?{stopOnFirstRupture:true}:{})};
+  }
+  /** Pauses the worker's run (if any) and accepts its last frame; resolves once the solver is idle. */
+  async function settleRun():Promise<void> {
+    await pendingTask?.catch(()=>{});
+    if(!client?.running||disposed)return;
+    const epoch=generation;pending=true;
+    pendingTask=client.pause().then(result=>acceptStep(result,epoch)).catch(error=>{if(epoch===generation&&!disposed)simulationError(error);}).finally(()=>{if(epoch===generation)pending=false;});
+    await pendingTask;
+  }
+  /** Keeps the worker's free run in step with the Studio: started when the Studio runs, paused when it stops. The solver is
+   * never driven from this frame loop: it advances toward wall time on its own and this loop draws its newest frame. */
+  function driveRun():void {
+    if(!client||!clientReady||pending||disposed)return;
+    const want=running&&!exporting&&!importing&&playback<0&&!graphicsRecovering&&!graphicsFailed;
+    const epoch=generation,live=client.running;
+    if(want&&live){
+      const request=runRequest(),{speed:wanted,controls,...rest}=request,key=JSON.stringify(rest),values=JSON.stringify(controls);
+      if(key!==runKey){void settleRun();return;}
+      if(wanted!==runSpeed||values!==runControls){client.updateRun({...(wanted!==runSpeed?{speed:wanted}:{}),...(values!==runControls?{controls}:{})});runSpeed=wanted;runControls=values;}
+      return;
+    }
+    if(want&&!live){
+      const request=runRequest(),{speed:wanted,controls,...rest}=request;
+      runKey=JSON.stringify(rest);runSpeed=wanted;runControls=JSON.stringify(controls);pending=true;
+      pendingTask=client.run(request,{frame:result=>acceptStep(result,epoch),error:error=>{if(epoch===generation&&!disposed)simulationError(error);}})
+        .catch(error=>{if(epoch===generation&&!disposed)simulationError(error);}).finally(()=>{if(epoch===generation)pending=false;});
+      return;
+    }
+    if(!want&&live)void settleRun();
   }
   function animate(now:number):void {
     if(disposed)return;
     if(graphicsRecovering||graphicsFailed){clock.advance(now,speed,false);animationId=requestAnimationFrame(animate);return;}
-    const frameStart=performance.now(),elapsed=Math.min(.05,clock.advance(now,speed,running));
-    if(running&&!exporting&&clientReady&&client&&!pending){
-      const ticks=clock.takeSteps();
-      if(ticks>0){
-        pending=true;const epoch=generation,sentAt=performance.now();
-        const commands=id==='plate'&&pressDrive!=='steady'?pressDriveCommands(pressDrive,client.tick,ticks,pressSettings.pressure,{strength,wind}):[{tick:client.tick+1,type:'controls' as const,values:controlValues()}];
-        pendingTask=client.step({ticks,commands,stopAtTime:runEnd})
-          .then(result=>acceptStep(result,sentAt,epoch)).catch(error=>{if(epoch===generation&&!disposed){pending=false;simulationError(error);}});
-      }
-    }
+    const frameStart=performance.now(),elapsed=Math.min(.05,clock.advance(now,speed,false));
+    driveRun();
     if(running&&receivedAt>0){
       const geometryStart=performance.now(),interval=Math.max(FIXED_DT,liveSnapshot.response.time-previousSnapshot.response.time);
-      interpolateSnapshotInto(presentationSnapshot,previousSnapshot,liveSnapshot,(now-receivedAt)/(interval*1000));world.update(presentationSnapshot,responseMode);timings.sample('geometry',performance.now()-geometryStart);
+      interpolateSnapshotInto(presentationSnapshot,previousSnapshot,liveSnapshot,(now-receivedAt)*speed/(interval*1000));world.update(presentationSnapshot,responseMode);timings.sample('geometry',performance.now()-geometryStart);
     }
     if(replaying){replayTime+=elapsed*speed;while(playback<frames.length-1&&frames.at(playback+1)!.response.time<=replayTime)playback++;world.update(frames.at(playback)!,responseMode);if(playback===frames.length-1){replaying=false;updateUi();}}
     // The full collection obscures the scene. Keep its last frame while browsing;

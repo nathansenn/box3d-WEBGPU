@@ -24,16 +24,16 @@ export const STUDIO_CANOPY_CONTACT_CAPABILITIES: EngineCapabilities = Object.fre
   models: Object.freeze([Object.freeze({id:STUDIO_CANOPY_CONTACT_BACKEND,name:'Canopy PBD with continuous surface contacts',implementation:'javascript',calibration:'authored-comparative'})]),
 });
 export const STUDIO_PRESS_SI_CAPABILITIES: EngineCapabilities = Object.freeze({
-  ...STUDIO_CAPABILITIES, checkpoint: false,
+  ...STUDIO_CAPABILITIES,
   models: Object.freeze([Object.freeze({id:STUDIO_PRESS_SI_BACKEND,name:'SI press brake: plane-strain J2 tetrahedral solid, rigid punch and die',implementation:'javascript',calibration:'uncalibrated-physical'})]),
 });
 export const STUDIO_CANOPY_SI_CAPABILITIES: EngineCapabilities = Object.freeze({
-  ...STUDIO_CAPABILITIES, checkpoint: false,
+  ...STUDIO_CAPABILITIES,
   models: Object.freeze([Object.freeze({id:STUDIO_CANOPY_SI_BACKEND,name:'SI canopy: calibrated cloth, orthotropic fabric, edge cables, tearing',implementation:'javascript',calibration:'uncalibrated-physical'})]),
 });
-/** The bridge study on the SI suspension model: physical units, no resumable checkpoint. */
+/** The bridge study on the SI suspension model, in physical units. Its checkpoint carries the SI model's exact state. */
 export const STUDIO_SI_BRIDGE_CAPABILITIES: EngineCapabilities = Object.freeze({
-  ...STUDIO_CAPABILITIES, checkpoint: false,
+  ...STUDIO_CAPABILITIES,
   models: Object.freeze([Object.freeze({id:STUDIO_SI_BRIDGE_BACKEND,name:'SI suspension footbridge: frame elements, Newton cable network, joint coupling',implementation:'javascript',calibration:'uncalibrated-physical'})]),
 });
 export function studioCapabilitiesForBackend(backend:StudioBackend):EngineCapabilities {
@@ -81,6 +81,27 @@ export interface StudioStepData {
   completionReason: 'press-complete' | 'time-limit' | null;
   simMs: number;
   capabilities: EngineCapabilities;
+  /** Present on frames of a free run (studio-run.ts). */
+  run?: StudioRunState;
+}
+/** Fixed ticks advanced without a live snapshot. */
+export interface StudioAdvance {
+  startTick: number; tick: number; completedTicks: number;
+  recordingSamples: StudioRecordingSample[]; eventDelta: FailureEvent[];
+  completionReason: StudioStepData['completionReason'];
+  /** The first hanger or link failed during this advance (only when asked to stop on it). */
+  ruptured: boolean;
+  simMs: number;
+}
+/** State of a free run carried by each of its frames. */
+export interface StudioRunState {
+  /** False on the frame that ends the run: completion, time limit, first rupture, or a pause. */
+  running: boolean;
+  stopReason: 'press-complete' | 'time-limit' | 'first-rupture' | 'pause' | null;
+  /** Simulated seconds the run dropped from its wall-clock schedule because the solver could not keep up. */
+  lagSeconds: number;
+  overloads: number;
+  speed: number;
 }
 export interface StudioStepResult extends StudioStepData { release(): void }
 
@@ -161,6 +182,8 @@ export class StudioRuntime implements EngineRuntime<StudioStepRequest, StudioSte
   constructor(options: StudioCreateOptions) {
     this.simulation = this.construct(options);
     this.currentTick = Math.round(this.simulation.time / FIXED_DT);
+    // Events a checkpoint brought along are history the caller already has, not this run's delta.
+    this.eventCursor = this.simulation.events.length;
   }
   get tick(): number { return this.currentTick; }
 
@@ -175,7 +198,6 @@ export class StudioRuntime implements EngineRuntime<StudioStepRequest, StudioSte
       const scene = record(data.scene, 'checkpoint.scene');
       press = validateStudioOptions({ study: valid.study, press: scene.constructionPress }).press;
     }
-    if (backend === STUDIO_SI_BRIDGE_BACKEND && checkpoint !== undefined) throw new EngineError('UNSUPPORTED_BACKEND', 'The SI bridge has no resumable checkpoint.');
     const simulation = backend === STUDIO_SI_BRIDGE_BACKEND ? new SiBridgeStudy() : new FailureSimulation(valid.study, press, backend);
     if (checkpoint !== undefined) simulation.restoreCheckpoint(checkpoint);
     if (valid.controls) Object.assign(simulation, valid.controls);
@@ -191,49 +213,74 @@ export class StudioRuntime implements EngineRuntime<StudioStepRequest, StudioSte
     return this.simulation.createSnapshotTarget();
   }
 
-  step(request: StudioStepRequest): StudioStepResult {
+  /** Fixed ticks without a live snapshot: the free-running loop (studio-run.ts) publishes snapshots on its own cadence. */
+  advance(request: StudioStepRequest, options: { stopOnFirstRupture?: boolean } = {}): StudioAdvance {
     this.assertAlive();
-    const valid = validateStudioStep(this.tick, request);
-    // Acquire first: backpressure must never partially advance a rejected batch.
-    const target = this.acquire();
+    return this.advanceValid(validateStudioStep(this.tick, request), options);
+  }
+  private advanceValid(valid: StudioStepRequest & { commands: StudioCommand[] }, options: { stopOnFirstRupture?: boolean } = {}): StudioAdvance {
     const start = performance.now(), startTick = this.tick;
     const samples: StudioRecordingSample[] = [];
-    let commandIndex = 0;
+    let commandIndex = 0, ruptured = false;
     let completionReason: StudioStepData['completionReason'] = null;
     const completed = () => {
       if (this.simulation.id === 'plate' && this.simulation.pressCycle === 'Complete') return 'press-complete' as const;
-      if (valid.stopAtTime !== undefined && this.simulation.time >= valid.stopAtTime) return 'time-limit' as const;
+      if (valid.stopAtTime !== undefined && this.simulation.time >= valid.stopAtTime - 1e-9) return 'time-limit' as const;
       return null;
     };
-    try {
-      for (let i = 0; i < valid.ticks; i++) {
-        if ((completionReason = completed())) break;
-        const next = this.tick + 1;
-        while (valid.commands[commandIndex]?.tick === next) Object.assign(this.simulation, valid.commands[commandIndex++].values);
-        this.simulation.step(FIXED_DT);
-        this.currentTick++;
-        if (this.tick % STUDIO_SAMPLE_TICKS === 0) samples.push({ tick: this.tick, snapshot: this.simulation.snapshot() });
-      }
-      completionReason = completed();
-      this.simulation.snapshotInto(target);
-    } catch (error) {
-      this.pool.push(target);
-      throw error;
+    for (let i = 0; i < valid.ticks; i++) {
+      if ((completionReason = completed())) break;
+      const next = this.tick + 1, intact = this.simulation.snapshotBroken() === 0;
+      while (valid.commands[commandIndex]?.tick === next) Object.assign(this.simulation, valid.commands[commandIndex++].values);
+      this.simulation.step(FIXED_DT);
+      this.currentTick++;
+      if (this.tick % STUDIO_SAMPLE_TICKS === 0) samples.push({ tick: this.tick, snapshot: this.simulation.snapshot() });
+      if (options.stopOnFirstRupture && intact && this.simulation.snapshotBroken() > 0) { ruptured = true; break; }
     }
+    completionReason = completed();
     const eventDelta = this.simulation.events.slice(this.eventCursor).map(event => ({ ...event }));
     this.eventCursor = this.simulation.events.length;
+    return { startTick, tick: this.tick, completedTicks: this.tick - startTick, recordingSamples: samples, eventDelta, completionReason, ruptured, simMs: performance.now() - start };
+  }
+  /** A live snapshot of the current state carrying an advance (or several merged ones). Throws BACKPRESSURE without changing anything. */
+  capture(advance: Omit<StudioAdvance, 'ruptured'>, run?: StudioRunState): StudioStepResult {
+    this.assertAlive();
+    if (advance.tick !== this.tick) throw new EngineError('INVALID_PAYLOAD', 'A capture must describe the current tick.');
+    const target = this.acquire();
+    try { this.simulation.snapshotInto(target); } catch (error) { this.pool.push(target); throw error; }
+    return this.loan(advance, target, run);
+  }
+  private loan(advance: Omit<StudioAdvance, 'ruptured'>, target: Snapshot, run?: StudioRunState): StudioStepResult {
     const epoch = this.loanEpoch;
     let released = false;
     return {
-      tick: this.tick, completedTicks: this.tick - startTick, liveSnapshot: target,
-      recordingSamples: samples, eventDelta, completed: completionReason !== null, completionReason,
-      simMs: performance.now() - start, capabilities: this.capabilities,
+      tick: advance.tick, completedTicks: advance.completedTicks, liveSnapshot: target,
+      recordingSamples: advance.recordingSamples, eventDelta: advance.eventDelta, completed: advance.completionReason !== null, completionReason: advance.completionReason,
+      simMs: advance.simMs, capabilities: this.capabilities, ...(run ? { run } : {}),
       release: () => {
         if (released) return;
         released = true;
         if (!this.disposed && this.loanEpoch === epoch) this.pool.push(target);
       },
     };
+  }
+  /** True while a live snapshot can be lent without BACKPRESSURE. */
+  get canLend(): boolean { return !this.disposed && (this.pool.length > 0 || this.allocated < STUDIO_MAX_LIVE_LOANS); }
+
+  step(request: StudioStepRequest): StudioStepResult {
+    this.assertAlive();
+    const valid = validateStudioStep(this.tick, request);
+    // Acquire first: backpressure must never partially advance a rejected batch.
+    const target = this.acquire();
+    let advance: StudioAdvance;
+    try {
+      advance = this.advanceValid(valid);
+      this.simulation.snapshotInto(target);
+    } catch (error) {
+      this.pool.push(target);
+      throw error;
+    }
+    return this.loan(advance, target);
   }
   inspect(): StudioStepResult { return this.step({ ticks: 0 }); }
   exportCheckpoint(): StudioCheckpoint { this.assertAlive(); return this.simulation.exportCheckpoint(); }
@@ -242,7 +289,7 @@ export class StudioRuntime implements EngineRuntime<StudioStepRequest, StudioSte
     const next = this.construct(options);
     this.simulation = next;
     this.currentTick = Math.round(next.time / FIXED_DT);
-    this.eventCursor = 0;
+    this.eventCursor = next.events.length;
     this.pool = [];
     this.allocated = 0;
     this.loanEpoch++;

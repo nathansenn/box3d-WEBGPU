@@ -9,7 +9,8 @@
  * upstream cable (z < 0), from midspan outwards. A hanger also fails by itself when its tension exceeds its minimum
  * breaking force.
  */
-import { FailureSimulation, FIXED_DT, STUDIES, STUDIO_SI_BRIDGE_BACKEND, type Snapshot, type SiBridgeReadout, type StudioCheckpoint } from './physics.ts';
+import { FailureSimulation, FIXED_DT, STUDIES, STUDIO_SI_BRIDGE_BACKEND, registerSiBridgeStudy, type Snapshot, type SiBridgeReadout } from './physics.ts';
+import type { StateObject, StateValue } from '../engine/checkpoint.ts';
 import { SiSuspensionBridge, SiSuspensionStatics, structureOnlyWorld, suspensionLayout, type SiSuspensionLayout } from '../engine/si-suspension.ts';
 
 /** Crowd build-up, kN/m^2 per second. */
@@ -76,6 +77,8 @@ export class SiBridgeStudy extends FailureSimulation {
     Object.assign(this, controls);
   }
 
+  /** Unstressed length (m) of the SI hanger drawn by link `link`, or 0 for a link that is not an SI hanger. */
+  hangerLength(link: number): number { const segment = this.segmentOfLink[link] ?? -1; return segment >= 0 ? form().statics.restLengths[segment] : 0; }
   /** Hanger segment cut by the n-th cut. */
   cutSegment(n: number): number { return this.layout.hangers[0][SI_BRIDGE_CUT_ORDER[n]]; }
 
@@ -109,7 +112,11 @@ export class SiBridgeStudy extends FailureSimulation {
       this.events.push({ time: this.time, type: 'yield', message: 'A member reaches its stated strength (linear-elastic indicator)', connection: 0 });
     }
     this.brokenCount = this.model.failed.length; this.topologyVersion = this.brokenCount;
-    for (let i = 0; i < this.links.length; i++) this.links[i].broken = this.segmentOfLink[i] >= 0 && this.model.isFailed(this.segmentOfLink[i]);
+    for (let i = 0; i < this.links.length; i++) {
+      const broken = this.segmentOfLink[i] >= 0 && this.model.isFailed(this.segmentOfLink[i]);
+      // A failed hanger is a broken link with full damage, as the Studio's checkpoint requires.
+      if (broken && !this.links[i].broken) { this.links[i].broken = true; this.links[i].damage = 1; }
+    }
   }
   hangerLabel(segment: number): string { const s = this.layout.segments[segment]; return `${s.side === 0 ? 'U' : 'D'}${s.station}`; }
 
@@ -184,10 +191,22 @@ export class SiBridgeStudy extends FailureSimulation {
     for (let side = 0; side < 2; side++) for (let j = 1; j < N; j++) si.hangers[side * (N - 1) + j - 1] = out.tension[L.hangers[side][j]] / 1e3;
     return target;
   }
-  override exportCheckpoint(): StudioCheckpoint {
-    throw new RangeError('The SI bridge has no resumable checkpoint in the Studio (its checkpoint format does not carry the model); export the recorded response instead.');
+  /** The SI model's exact state (SiSuspensionBridge.saveState) and this adapter's counters. A checkpoint builds the model. */
+  protected override saveSIState(): StateObject {
+    return { model: this.model.saveState(), cuts: this.cuts, cut: this.cut, cutCount: this.cutCount, appliedCrowd: this.appliedCrowd, appliedWind: this.appliedWind, yielded: this.yielded,
+      failedSeen: Int32Array.from([...this.failedSeen].sort((a, b) => a - b)) };
   }
-  override restoreCheckpoint(): void {
-    throw new RangeError('The SI bridge has no resumable checkpoint.');
+  protected override restoreSIState(value: StateValue): void {
+    const s = value as Record<string, StateValue>;
+    if (!s || typeof s !== 'object' || !('model' in s) || !(s.failedSeen instanceof Int32Array) || typeof s.yielded !== 'boolean' ||
+      !['cuts', 'cut', 'cutCount', 'appliedCrowd', 'appliedWind'].every(key => typeof s[key] === 'number') || Object.keys(s).length !== 8) throw new RangeError('Invalid Studio checkpoint: si.bridge');
+    this.model.restoreState(s.model);
+    this.cuts = s.cuts as number; this.cut = s.cut as number; this.cutCount = s.cutCount as number;
+    this.appliedCrowd = s.appliedCrowd as number; this.appliedWind = s.appliedWind as number; this.yielded = s.yielded as boolean;
+    this.failedSeen.clear(); for (const segment of s.failedSeen) this.failedSeen.add(segment);
+    this.brokenCount = this.model.failed.length; this.topologyVersion = this.brokenCount;
   }
 }
+registerSiBridgeStudy(() => new SiBridgeStudy());
+/** Length at which a failed hanger is drawn hanging from its clamp: its unstressed length in the SI model, 0 if the study is not the SI bridge. */
+export const hangingLength = (sim: FailureSimulation, link: number): number => sim instanceof SiBridgeStudy ? sim.hangerLength(link) : 0;

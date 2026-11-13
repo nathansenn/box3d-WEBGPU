@@ -6,6 +6,7 @@ import {FailureSimulation,STUDIO_PRESS_SI_BACKEND} from '../../src/studio/physic
 import {pressGeometry,siPress,SI_PRESS_EXPERIMENTS,PRESS_RATED_FORCE} from '../../src/studio/press-si.ts';
 import {normalizePress} from '../../src/studio/press-settings.ts';
 import {createStudioRuntime} from '../../src/engine/studio-runtime.ts';
+import {assertExactResume} from './fixtures/studio-resume.mjs';
 
 const settings=p=>siPress(normalizePress({metal:'structural-steel-s355',tool:'bead',thickness:2,pressure:40,strikeSpeed:25,stroke:8,hold:.2,...p}));
 function run(p,seconds){
@@ -48,10 +49,10 @@ test('the force limit stops the ram (pressure limited) and is a percentage of th
   assert.ok(cycles.has('Pressure limited'));assert.ok(si.peakForce>=si.pressureLimit&&si.peakForce<1.5*si.pressureLimit,`${si.peakForce}`);
 });
 
-test('the Studio runtime runs the SI backend and refuses to resume an SI checkpoint',()=>{
+test('the Studio runtime runs the SI backend, and its checkpoint resumes the press bit for bit',async()=>{
   const runtime=createStudioRuntime({study:'plate',backend:STUDIO_PRESS_SI_BACKEND,press:settings({}),controls:{targetLoad:2}});
   const step=runtime.step({ticks:30});assert.equal(step.liveSnapshot.study,'plate');step.release();
-  assert.equal(step.capabilities.models[0].id,STUDIO_PRESS_SI_BACKEND);
-  const checkpoint=runtime.exportCheckpoint();
-  assert.throws(()=>FailureSimulation.fromCheckpoint(checkpoint),/cannot be resumed/);
+  assert.equal(step.capabilities.models[0].id,STUDIO_PRESS_SI_BACKEND);assert.equal(step.capabilities.checkpoint,true);
+  for(let i=0;i<4;i++)runtime.step({ticks:60}).release();
+  await assertExactResume(runtime,{study:'plate'},90);
 });

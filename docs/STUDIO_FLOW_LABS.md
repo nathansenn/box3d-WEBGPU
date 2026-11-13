@@ -30,7 +30,7 @@ Values marked "from memory" were not checked against a source opened while writi
 
 The validated basin of [`WATER_COUPLING.md`](WATER_COUPLING.md) (linear waves in a closed basin) covers none of the river, rain or surface tabs: they need a sloping, partly dry bed, inflow, outflow and infiltration, which it does not have. The volumetric fluid has no inflow or outflow with a free surface. Those three tabs therefore keep the authored depth-averaged model, and the footer says so.
 
-Both labs step in the flow worker (`src/studio/material-labs/liquid-study-worker.ts`, which also runs the liquid lab's three-case comparisons), so the page stays responsive whatever the solver costs. The worker returns a frame per batch of 1/120 s ticks (at most eight), the scene draws it, and the footer shows the solver's measured speed as a multiple of real time.
+Both labs step in the flow worker (`src/studio/material-labs/liquid-study-worker.ts`, which also runs the liquid lab's three-case comparisons), so the page stays responsive whatever the solver costs. The worker runs free toward wall time in 1/120 s ticks, records the history samples itself and publishes its newest frame at most every 33 ms; the scene draws the newest frame, so the drawing rate does not limit the solver ([`ENGINEERING-STUDIO.md`](ENGINEERING-STUDIO.md#scheduling-the-solver-runs-free-of-the-renderer)). The footer shows the solver's measured speed as a multiple of real time.
 
 ## Liquid: flume
 

@@ -16,6 +16,7 @@ import { StudioMaterials } from './materials';
 import {pressAttachment,updatePlateShell,PRESS_FRAME_POINTS} from './press-tooling';
 import {sheetThickness,type PressSettings} from './press-settings';
 import {pressGeometry} from './press-si';
+import {hangingLength} from './si-bridge-study';
 import {pressStrainHue,sheetRimEdge,PressSectionSampler,type SectionAxis} from './press-inspection';
 import { skyTexture, studioEnvironment, riverNormals } from './lighting';
 import { watchDeviceLoss, framesSettled, initWebGL } from './device-loss';
@@ -94,6 +95,9 @@ export class StudioWorld {
   private readonly pointA:Vec=[0,0,0];
   private readonly pointB:Vec=[0,0,0];
   private readonly neutralLinkColor=new T.Color('#c1c9c9');
+  /** Failed and cut hangers, drawn hanging from their clamps. */
+  private readonly failedLinkColor=new T.Color('#d9653b');
+  private readonly hangingScratch:Vec=[0,0,0];
   private readonly boltLocal=new T.Matrix4();
   private readonly boltWorld=new T.Matrix4();
   private deckFrameStorage?:DeckFrameStorage;
@@ -165,7 +169,22 @@ export class StudioWorld {
       void initializing.then(()=>first.dispose()).catch(()=>{});
       this.renderer=await initWebGL(()=>this.createRenderer(true));this.controls=new OrbitControls(this.camera,this.renderer.domElement);this.configureControls();
     } finally {if(timer)clearTimeout(timer);}
-    const renderer=this.renderer;watchDeviceLoss(renderer,message=>this.reportLoss(renderer,message));
+    watchDeviceLoss(first,message=>this.reportLoss(first,message));
+    // Under software rendering Chromium can destroy a WebGPU device whose canvas it cannot present, at its first frame.
+    // Find out with an empty frame now, before the scene is built: otherwise the whole scene (the bridge's valley and
+    // woodland take minutes there) is built twice, once for the lost device and again on WebGL.
+    if(this.renderer===first&&(first.backend as unknown as {isWebGPUBackend?:boolean}).isWebGPUBackend){
+      progress('Checking the graphics device');
+      try{first.render(new T.Scene(),this.camera);}catch{/* A device lost during the probe reports through the loss callback. */}
+      await framesSettled(first);
+      if(this.lossMessage!==undefined&&!this.disposed){
+        console.warn(`The WebGPU device was lost on its first frame (${this.lossMessage}). Starting on the WebGL renderer.`);
+        progress('Preparing compatible graphics');this.controls.dispose();first.domElement.remove();this.lossMessage=undefined;
+        this.renderer=await initWebGL(()=>this.createRenderer(true));this.controls=new OrbitControls(this.camera,this.renderer.domElement);this.configureControls();
+        try{first.dispose();}catch{/* The lost device's resources are already gone. */}
+      }
+    }
+    const renderer=this.renderer;if(renderer!==first)watchDeviceLoss(renderer,message=>this.reportLoss(renderer,message));
     progress('Loading surfaces and lighting');
     this.interiorEnvironment=studioEnvironment(this.renderer);
     this.environmentGenerator=new T.PMREMGenerator(this.renderer);
@@ -842,7 +861,13 @@ export class StudioWorld {
     }
     if(this.linksMesh) {
       for(let i=0;i<sim.links.length;i++) {
-        const e=sim.links[i],visible=!snapshot.broken[i]&&(e.kind==='cable'||e.kind==='hanger');
+        const e=sim.links[i],length=snapshot.broken[i]&&e.kind==='hanger'?hangingLength(sim,i):0;
+        if(length>0){
+          // A failed or cut SI hanger carries nothing and hangs from its cable clamp (link end b) at its unstressed length.
+          const top=p(e.b),bottom=this.hangingScratch;bottom[0]=top[0];bottom[1]=top[1]-length;bottom[2]=top[2];
+          this.instanceRod(this.linksMesh,i,top,bottom,.026,true);this.linksMesh.setColorAt(i,this.failedLinkColor);continue;
+        }
+        const visible=!snapshot.broken[i]&&(e.kind==='cable'||e.kind==='hanger');
         this.instanceRod(this.linksMesh,i,p(e.a),p(e.b),e.kind==='cable'?.075:e.kind==='hanger'?.026:e.kind==='crossbeam'?.08:.05,visible);
         this.linksMesh.setColorAt(i,responseMode?colorFor(Math.max(snapshot.strains[e.a],snapshot.strains[e.b])):this.neutralLinkColor);
       }

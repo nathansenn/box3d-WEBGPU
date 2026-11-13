@@ -2,6 +2,7 @@ import './liquid.css';
 import {LiquidAnalysisWorkspace} from './liquid-analysis-view';
 import {liquidPanel,liquidSwitcher,liquidInspection,updateLiquidTelemetry} from './liquid-panel';
 import {LIQUID_RIGS,type LiquidDisplay} from './liquid-config';
+import type {LabRunOptions,LabRunState} from './lab-run';
 import '@fontsource/inter/latin-400.css';
 import '@fontsource/inter/latin-500.css';
 import '@fontsource/inter/latin-600.css';
@@ -38,7 +39,9 @@ export async function bootMaterialLab(id:LabId):Promise<void>{
   let experiment=candidate&&candidateSettings&&Object.keys(settings).every(k=>settings[k as keyof LabSettings]===candidateSettings[k as keyof LabSettings])?candidate.id:'',tab:'setup'|'material'|'test'|'analyze'='setup',history:LabFrame[]=[model.snapshot()],view:LabView='hero';
   let world:MaterialLabWorld;let end=lab.duration;
   const workflow=id==='liquid'?['setup','material','test','analyze'] as const:['setup','material','test'] as const;
-  let solverWorker:{readonly maxBatchTicks:number;step(ticks:number):boolean;release():void;dispose():void;cpuPerSimulated?:number}|undefined,physicsError='';
+  let solverWorker:{readonly running:boolean;run(options:LabRunOptions):boolean;pause():void;setSpeed(speed:number):void;release():void;dispose():void;cpuPerSimulated?:number}|undefined,physicsError='';
+  /** Speed and end time of the worker's free run; another end time restarts it. */
+  let runSpeed=0,runEnd=0,pendingDraw=false;
   const glassPresentation=id==='glass'?new GlassPresentation():undefined;
   let manualEvents:RunEvent[]=[];
   root.className='material-studio';root.dataset.study=id;root.dataset.renderReady='false';document.title=`BOX3D — ${lab.title}`;
@@ -140,12 +143,15 @@ export async function bootMaterialLab(id:LabId):Promise<void>{
   const {LabWorkerClient}=WORKER_LABS.includes(id)?await import('./lab-worker-client'):{LabWorkerClient:undefined};if(disposed)return;
   function startGlassWorker():void {
     if((!GlassWorkerClient&&!LabWorkerClient)||disposed)return;
-    const receive=(frame:LabFrame)=>{
+    const receive=(frame:LabFrame,samples?:LabFrame[],run?:LabRunState)=>{
       if(disposed)return;model.frame=frame;
       glassPresentation?.receive(frame,performance.now(),running&&playback<0&&!programFinished(frame.time));
-      if(frame.time>=nextSample||programFinished(frame.time)){history.push(model.snapshot());nextSample=frame.time+Math.max(.06,end/300);}
-      if(programFinished(frame.time))running=false;
-      if(playback<0){world.update(glassPresentation?.sample(performance.now())??frame);sync(frame);}
+      // The free run records its history in the worker at the same cadence, so no sample depends on how fast the page draws.
+      if(samples&&run){history.push(...samples);if(Number.isFinite(run.nextSample))nextSample=run.nextSample;}
+      else if(frame.time>=nextSample||programFinished(frame.time)){history.push(model.snapshot());nextSample=frame.time+Math.max(.06,end/300);}
+      if(programFinished(frame.time)||run?.stopReason==='end')running=false;
+      // A free run delivers frames faster than software rendering draws: the newest is drawn once per animation frame.
+      if(playback<0){if(run?.running)pendingDraw=true;else{world.update(glassPresentation?.sample(performance.now())??frame);sync(frame);}}
       if(LabWorkerClient)$('#renderer-status').textContent=solverStatus();
     },failure=(message:string)=>{physicsError=`${message}. Reset the experiment to retry.`;running=false;snapGlass();sync(model.frame);};
     try{solverWorker=GlassWorkerClient?new GlassWorkerClient(settings,receive,failure):new LabWorkerClient!(id,settings,receive,failure);}
@@ -153,18 +159,25 @@ export async function bootMaterialLab(id:LabId):Promise<void>{
   }
   startGlassWorker();
   ready=true;end=duration();root.dataset.renderReady='true';$('.lab-loading').remove();$('#renderer-status').textContent=solverStatus();writeUrl();sync(model.frame);
+  /** The worker runs free toward wall time (lab-run.ts); this keeps its run started, paused and at the chosen speed. */
+  function driveRun():void {
+    if(!solverWorker)return;
+    const want=running&&playback<0&&!document.hidden&&!physicsError&&!programFinished(model.frame.time);
+    if(want&&!solverWorker.running){if(solverWorker.run({speed,end,maxLag:.25,sampleEvery:Math.max(.06,end/300),nextSample})){runSpeed=speed;runEnd=end;}}
+    else if(solverWorker.running&&(!want||end!==runEnd))solverWorker.pause();
+    else if(want&&speed!==runSpeed){solverWorker.setSpeed(speed);runSpeed=speed;}
+  }
   function animate(now:number):void {
     if(disposed)return;animation=requestAnimationFrame(animate);const delta=previous?Math.min(.05,(now-previous)/1000):0;previous=now;
+    driveRun();
     if(running&&!document.hidden){
       accumulator+=delta*speed;
       if(playback>=0){while(playback<history.length-1&&accumulator>=history[playback+1].time-history[playback].time){accumulator-=history[playback+1].time-history[playback].time;playback++;}if(playback===history.length-1)running=false;world.update(history[playback]);}
-      else if(solverWorker){
-        accumulator=Math.min(accumulator,.1);
-        const ticks=Math.min(solverWorker.maxBatchTicks,Math.floor(accumulator/DT),Math.max(0,Math.ceil((end-model.frame.time)/DT-1e-7)));
-        if(ticks>0&&solverWorker.step(ticks))accumulator-=ticks*DT;
-      }
+      else if(solverWorker)accumulator=0;
       else if(!physicsError){let steps=0;while(accumulator>=DT&&steps++<12){model.step(id==='liquid'?Math.min(DT,end-model.frame.time):DT);accumulator-=DT;if(model.frame.time>=nextSample){history.push(model.snapshot());nextSample=model.frame.time+Math.max(.06,end/300);}if(programFinished(model.frame.time)){running=false;history.push(model.snapshot());break;}}world.update(model.frame);}
     }
+    if(pendingDraw&&playback<0&&!glassPresentation){world.update(model.frame);}
+    pendingDraw=false;
     if(running&&playback<0){const display=glassPresentation?.sample(now);if(display)world.update(display);}
     if(now-lastUi>100){sync(playback>=0?history[playback]:model.frame);lastUi=now;}world.render();
   }

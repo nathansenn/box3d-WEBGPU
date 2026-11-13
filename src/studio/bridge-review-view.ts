@@ -48,7 +48,7 @@ export class BridgeReviewView {
         <div class="br-baseline-meta"></div><label class="br-name">Run label<input maxlength="60" placeholder="e.g. Strong cables / crosswind" aria-label="Baseline run name"></label>
         <div class="br-actions"><button data-br-save>Save baseline</button><button data-br-load>Load starting setup</button><button data-br-export>Export review</button><button data-br-clear>Clear baseline</button></div>
         <p class="br-storage" role="status">${invalid?'An incompatible or damaged saved baseline was ignored.':this.memoryOnly?'Browser storage is unavailable; baselines stay in this session.':'Baselines stay in this browser. Saving again replaces the previous one.'}</p>
-      </section><p class="br-boundary">${esc(SI_BRIDGE_SCOPE)} Saved baselines contain response samples and load settings; Export evidence holds the recorded run (the SI model has no resumable checkpoint).</p></div><div id="bridge-experiments" hidden></div>`;
+      </section><p class="br-boundary">${esc(SI_BRIDGE_SCOPE)} Saved baselines contain response samples and load settings; Export evidence holds the recorded run and the SI model's exact checkpoint, which Resume saved run continues bit for bit.</p></div><div id="bridge-experiments" hidden></div>`;
     const setMode=(mode:'inspect'|'experiments')=>{
       host.querySelector<HTMLElement>('#bridge-inspect')!.hidden=mode!=='inspect';
       host.querySelector<HTMLElement>('#bridge-experiments')!.hidden=mode!=='experiments';

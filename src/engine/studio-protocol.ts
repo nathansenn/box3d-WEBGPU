@@ -1,21 +1,31 @@
 import { EngineError, finite, integer, onlyKeys, record, type EngineCapabilities } from './contracts.ts';
 import { FIXED_DT, type Snapshot } from '../studio/physics.ts';
 import { STUDIO_CAPABILITIES, validateStudioOptions, type StudioCreateOptions, type StudioStepData, type StudioStepRequest } from './studio-runtime.ts';
+import { STUDIO_RUN_MAX_UNPUBLISHED_TICKS, validateStudioRun, validateStudioRunUpdate, type StudioRunRequest, type StudioRunUpdate } from './studio-run.ts';
 import type { StudioSharedDescriptor, StudioSharedTicket } from './studio-shared.ts';
 
 export const STUDIO_PROTOCOL_VERSION = 1;
+export type StudioSnapshotOp = 'step' | 'inspect' | 'reset' | 'run' | 'pause';
+/** Ticks and recording samples one snapshot may carry: a stepped batch, or the frames of a free run. */
+export const STUDIO_STEP_LIMITS = Object.freeze({ ticks: 120, samples: 10 });
+export const STUDIO_RUN_LIMITS = Object.freeze({ ticks: STUDIO_RUN_MAX_UNPUBLISHED_TICKS + 64, samples: Math.ceil((STUDIO_RUN_MAX_UNPUBLISHED_TICKS + 64) / 12) + 1 });
 export interface StudioBuffers { positions: Float32Array; strains: Float32Array; broken: Uint8Array }
 interface Envelope { v: 1; id: number; generation: number }
 export type StudioWorkerRequest = Envelope & (
   | { type: 'create' | 'reset'; options: StudioCreateOptions; snapshots?: 'transfer' | 'shared' }
   | { type: 'step'; request: StudioStepRequest }
-  | { type: 'inspect' | 'checkpoint' | 'dispose' }
+  /** Starts a free run (studio-run.ts); its frames carry this request's id. */
+  | { type: 'run'; request: StudioRunRequest }
+  /** Changes the active run (id: that run's id); applied at its next tick. */
+  | { type: 'run-update'; update: StudioRunUpdate }
+  | { type: 'inspect' | 'checkpoint' | 'dispose' | 'pause' }
   | { type: 'recycle'; loanId: number; buffers: StudioBuffers }
 );
 export type StudioWorkerResponse = Envelope & (
   | { type: 'ready'; tick: number; capabilities: typeof STUDIO_CAPABILITIES; shared?: StudioSharedDescriptor }
-  | { type: 'snapshot'; op: 'step' | 'inspect' | 'reset'; data: StudioStepData; loanId: number }
-  | { type: 'shared-snapshot'; op: 'step' | 'inspect' | 'reset'; data: Omit<StudioStepData, 'liveSnapshot'> & { liveSnapshot: Omit<Snapshot, keyof StudioBuffers> }; ticket: StudioSharedTicket; shared?: StudioSharedDescriptor }
+  | { type: 'running'; tick: number }
+  | { type: 'snapshot'; op: StudioSnapshotOp; data: StudioStepData; loanId: number }
+  | { type: 'shared-snapshot'; op: StudioSnapshotOp; data: Omit<StudioStepData, 'liveSnapshot'> & { liveSnapshot: Omit<Snapshot, keyof StudioBuffers> }; ticket: StudioSharedTicket; shared?: StudioSharedDescriptor }
   | { type: 'checkpoint'; checkpoint: unknown }
   | { type: 'disposed' }
   | { type: 'error'; code: string; message: string }
@@ -56,7 +66,13 @@ export function validateStudioWorkerRequest(value: unknown): StudioWorkerRequest
       onlyKeys(m, [...envelope, 'request'], 'message');
       record(m.request, 'request'); // Tick-dependent full validation is performed by the runtime before mutation.
       return { ...base, type: m.type, request: m.request as unknown as StudioStepRequest };
-    case 'inspect': case 'checkpoint': case 'dispose':
+    case 'run':
+      onlyKeys(m, [...envelope, 'request'], 'message');
+      return { ...base, type: m.type, request: validateStudioRun(m.request) };
+    case 'run-update':
+      onlyKeys(m, [...envelope, 'update'], 'message');
+      return { ...base, type: m.type, update: validateStudioRunUpdate(m.update) };
+    case 'inspect': case 'checkpoint': case 'dispose': case 'pause':
       onlyKeys(m, envelope, 'message');
       return { ...base, type: m.type };
     case 'recycle':
@@ -107,18 +123,24 @@ export function validateStudioSnapshot(value: unknown, shared?: StudioBuffers): 
   return s as unknown as Snapshot;
 }
 
-export function validateStudioStepData(value: unknown, shared?: StudioBuffers, expectedCapabilities:EngineCapabilities=STUDIO_CAPABILITIES): StudioStepData {
+export function validateStudioStepData(value: unknown, shared?: StudioBuffers, expectedCapabilities:EngineCapabilities=STUDIO_CAPABILITIES, limits: { ticks: number; samples: number } = STUDIO_STEP_LIMITS): StudioStepData {
   const d = record(value, 'result');
-  onlyKeys(d, ['tick', 'completedTicks', 'liveSnapshot', 'recordingSamples', 'eventDelta', 'completed', 'completionReason', 'simMs', 'capabilities'], 'result');
+  onlyKeys(d, ['tick', 'completedTicks', 'liveSnapshot', 'recordingSamples', 'eventDelta', 'completed', 'completionReason', 'simMs', 'capabilities', 'run'], 'result');
   const tick = integer(d.tick, 'tick');
-  integer(d.completedTicks, 'completedTicks', 0, 120);
+  integer(d.completedTicks, 'completedTicks', 0, limits.ticks);
+  if (d.run !== undefined) {
+    const run = record(d.run, 'result.run');
+    onlyKeys(run, ['running', 'stopReason', 'lagSeconds', 'overloads', 'speed'], 'result.run');
+    if (typeof run.running !== 'boolean' || ![null, 'press-complete', 'time-limit', 'first-rupture', 'pause'].includes(run.stopReason as null) || run.running !== (run.stopReason === null)) throw new EngineError('INVALID_PAYLOAD', 'Invalid run state.');
+    finite(run.lagSeconds, 'run.lagSeconds', 0); integer(run.overloads, 'run.overloads', 0); finite(run.speed, 'run.speed', 0, 16);
+  }
   finite(d.simMs, 'simMs', 0);
   if (typeof d.completed !== 'boolean' || ![null, 'press-complete', 'time-limit'].includes(d.completionReason as null)) throw new EngineError('INVALID_PAYLOAD', 'Invalid completion state.');
   if (d.completed !== (d.completionReason !== null)) throw new EngineError('INVALID_PAYLOAD', 'Completion fields disagree.');
   if (JSON.stringify(d.capabilities) !== JSON.stringify(expectedCapabilities)) throw new EngineError('MODEL_MISMATCH', 'Worker model capabilities do not match Studio.');
   const snapshot = validateStudioSnapshot(d.liveSnapshot, shared);
   if (Math.abs(snapshot.response.time / FIXED_DT - tick) > Math.max(.00001, tick * 1e-10)) throw new EngineError('INVALID_PAYLOAD', 'Snapshot time does not match its fixed tick.');
-  if (!Array.isArray(d.recordingSamples) || d.recordingSamples.length > 10) throw new EngineError('INVALID_PAYLOAD', 'Invalid recording samples.');
+  if (!Array.isArray(d.recordingSamples) || d.recordingSamples.length > limits.samples) throw new EngineError('INVALID_PAYLOAD', 'Invalid recording samples.');
   let previousTick = -1;
   for (const value of d.recordingSamples) {
     const sample = record(value, 'sample');

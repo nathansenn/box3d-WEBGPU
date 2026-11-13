@@ -96,9 +96,14 @@ test('the first-failure pause fires once when a returned worker batch first cont
     const resumed=runtime.step({ticks:12});assert.equal(shouldPauseBridge(true,before,resumed.liveSnapshot),false);resumed.release();
   }finally{runtime.destroy();}
 });
-test('the SI study has no resumable checkpoint and says so',()=>{
-  const runtime=createStudioRuntime({study:'bridge',backend:STUDIO_SI_BRIDGE_BACKEND});
-  try{assert.throws(()=>runtime.exportCheckpoint(),/no resumable checkpoint/);assert.equal(runtime.capabilities.checkpoint,false);assert.equal(runtime.capabilities.models[0].calibration,'uncalibrated-physical');}
+test('the SI study resumes from its checkpoint bit for bit, cut and ruptured hangers included',async()=>{
+  const {assertExactResume}=await import('./fixtures/studio-resume.mjs');
+  const runtime=createStudioRuntime({study:'bridge',backend:STUDIO_SI_BRIDGE_BACKEND,controls:{targetLoad:4,wind:.5,cuts:2}});
+  try{
+    assert.equal(runtime.capabilities.checkpoint,true);assert.equal(runtime.capabilities.models[0].calibration,'uncalibrated-physical');
+    const r=runtime.step({ticks:120});assert.equal(r.liveSnapshot.si.hangersCut,2);r.release();
+    await assertExactResume(runtime,{study:'bridge'},36);
+  }
   finally{runtime.destroy();}
   assert.throws(()=>createStudioRuntime({study:'canopy',backend:STUDIO_SI_BRIDGE_BACKEND}),/bridge study/);
 });

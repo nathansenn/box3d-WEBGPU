@@ -47,7 +47,7 @@ The membrane and its new options are validated in `tests/engine/cloth-fabric.tes
 
 ## Real time
 
-Measured on one core of this sandbox (Node 22, shared 4-core machine): the form finding takes 1 to 2 s at start; then 0.36 to 1.3 seconds of model time per second of computation (`StudioCanopySI.realTimeFactor`), about 1 (real time) for loads up to tens of kPa and lower while a tear runs and the torn fabric hits the floor (steps then take up to 60 Newton iterations and some stop unconverged; they do not tear). In headless Chromium on SwiftShader the renderer, not the solver, limits the frame rate.
+Measured on one core of this sandbox (Node 22, shared 4-core machine): the form finding takes 1 to 2 s at start; then 0.36 to 1.3 seconds of model time per second of computation (`StudioCanopySI.realTimeFactor`), about 1 (real time) for loads up to tens of kPa and lower while a tear runs and the torn fabric hits the floor (steps then take up to 60 Newton iterations and some stop unconverged; they do not tear). In headless Chromium on SwiftShader the renderer limits the frame rate, not the model: the cloth runs free in the Studio's worker toward wall time ([`ENGINEERING-STUDIO.md`](ENGINEERING-STUDIO.md#scheduling-the-solver-runs-free-of-the-renderer)). A saved run resumes exactly, torn fabric included: its checkpoint carries the cloth's state ([`ENGINEERING-STUDIO.md`](ENGINEERING-STUDIO.md#saved-runs-resume-exactly)).
 
 ## Limits
 

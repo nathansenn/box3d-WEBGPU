@@ -36,6 +36,74 @@ The metal press runs the SI press brake ([`STUDIO_METAL_PRESS.md`](STUDIO_METAL_
 
 Fixed test fixtures, bridge towers, terrain, and buildings are scenery/support boundaries. They do not themselves fail. Cloth self-collision, detached-fragment self-collision, volume-preserving sheet fracture and hydraulics are not modeled. The river does not load the bridge. The original native Box3D/WASM workbench remains separate; the canopy and plate studies use the CPU PBD failure core with the Three.js WebGPU renderer. The bridge study runs on the SI suspension model (`src/engine/si-suspension.ts`, [SI_BRIDGE.md](SI_BRIDGE.md#suspension-footbridge-the-studio-bridge)) in the same worker and renderer: its hangers fail by being cut or by exceeding their breaking force, and nothing falls into the river. The PBD bridge with its falling pieces and river splashes remains in `src/studio/physics.ts` for its frozen tests only.
 
+## Scheduling: the solver runs free of the renderer
+
+Every study's solver runs in its own worker and advances on its own schedule, toward wall-clock time; the page draws
+the newest state the worker has published. Drawing speed no longer limits the model: before this, the page asked the
+worker for at most 12 ticks (the press 2, the material labs 4 to 8) per drawn frame and waited for the answer, so under
+software rendering (about 0.5 frames per second) a study advanced a few hundredths of a second of model time per wall
+second whatever its solver cost.
+
+- **Studio studies (canopy, press, bridge):** `src/engine/studio-run.ts` (`StudioRunLoop`), started by `client.run()`,
+  paused by `client.pause()`, changed by `client.updateRun()` (`src/engine/studio-client.ts`, protocol in
+  `studio-protocol.ts`, worker side in `studio-dispatcher.ts`). **Material labs (liquid, granular, elastomer, concrete,
+  glass):** `src/studio/material-labs/lab-run.ts` (`LabRunLoop`, `LabRunChannel`), routed in both lab workers by
+  `lab-run-host.ts`.
+- **Pacing** (`src/perf/free-run.ts`, `FreeRunPacer`): the worker steps whole fixed ticks (1/120 s) until it reaches
+  speed × wall time, never ahead of it. A backlog larger than 0.25 s of model time is dropped from the schedule (the
+  model then runs slower than real time) and reported: `data-simulation-lag` and the footer ("Worker · 12.9 s behind
+  wall time") give the simulated seconds dropped, and the export carries them (`clock.lagSeconds`, `clock.overloads`).
+- **Publication:** the worker works in slices of about 24 ms, then handles messages, and publishes its newest state at
+  most every 33 ms. A Studio frame is a live snapshot loan (at most three outstanding); a lab frame waits for the page to
+  acknowledge the two before it. While the page holds every loan the worker keeps stepping and keeps every recording
+  sample and event (up to 1,200 ticks, or 5 s of a lab), then waits; nothing is dropped.
+- **Determinism:** every tick is the same fixed step as before; controls and the press pressure programme are applied
+  at exact ticks; recording samples are taken every 12 ticks in the worker (labs: at their history cadence, in the
+  worker). A run's result depends on its start state and on the ticks at which controls changed, not on frame rate or
+  slicing (`tests/engine/studio-run.test.mjs`: a free run equals fixed stepping tick for tick, in the sync, worker and
+  shared-memory transports; `tests/studio/lab-run.test.mjs` for the labs). The material labs now step 1/120 s at a time
+  in the worker; they used to step a whole batch (up to 8/120 s) in one call, whose sub-stepping depended on the batch.
+- **Pause, step, replay, export:** pausing stops the worker at its current tick and returns that state; the run's
+  first rupture can stop it at the exact tick (bridge "pause on first rupture"); export pauses first.
+
+Measured model seconds per wall second in headless Chromium on SwiftShader, built site, 30 s from **Run**, the old and
+the new build alternated study by study on this shared 4-core machine at load average 20 to 30 (other jobs running;
+the numbers are lower bounds and say nothing about a real GPU):
+
+| Study | Before (driven by drawn frames) | After (free run) | Frames per second (after) | Solver alone in Node (model s per CPU s) |
+| --- | --- | --- | --- | --- |
+| Bridge (SI) | 0.026 | 0.29 | 0.5 | 2.0 to 2.5 |
+| Metal press (SI) | 0.044 | 0.40 | 0.6 | 1.75 (approach included) |
+| Canopy (SI cloth) | 0.001 | 0.053 | 0.5 | 0.55 |
+| Liquid (flume) | 0.0045 | 0.087 | 0.5 | 0.46 |
+| Granular | 0.0034 | 0.15 | 0.6 | 0.68 |
+| Concrete | 0.0023 | 0.25 | 0.4 | 20 |
+| Elastomer | 0.0032 | 0.29 | 0.9 | 0.55 |
+| Glass | 0.0023 | 0.49 (reached its 12 s end) | 0.7 | 1.06 |
+
+The after column is the solver on what CPU the loaded machine left it; the ratio to the before column (10 to 200) is
+the scheduling change. The last column is the solver alone, `StudioRuntime.step` or `model.step(1/120)` in Node 22 on the
+same machine (load average about 10): where it is below 1 the study is slower than real time even with a free worker,
+and the footer says so. Script: a Playwright page per study, **Run**, then the scene time read every second for 30 s.
+
+Release browser test (`npm run test:browser:release`) on this sandbox after these changes, load average 11 to 25 from
+other jobs: concrete, rubber and the Physics Lab pass; the canopy and press now export (they failed with "no download"
+before); the failures left are time limits: boots over 90 s (plate, bridge), page screenshots over 15 s after reset
+(liquid, granular, canopy: a single drawn frame took up to 66 s), and one glass run whose replay check failed and passed
+on a rerun. These were not fixed by raising limits and are not shown to pass three times in a row.
+
+## Saved runs resume exactly
+
+Every Studio study exports its exact checkpoint, and **Resume saved run** continues it bit for bit. The SI studies'
+checkpoints (`STUDIO_PRESS_SI_BACKEND`, `STUDIO_CANOPY_SI_BACKEND`, `STUDIO_SI_BRIDGE_BACKEND`) carry the solver state in
+`si`: a `checkpoint.ts` container of the press brake's `saveState()` (`PressBrake`), the cloth's (`Cloth`) or the
+suspension bridge's (`SiSuspensionBridge`), with the adapter's fields captured by the field walker (a field neither saved
+nor excluded refuses the checkpoint). In a file the container is gzip-packed (`siGzip`, `checkpoint-file.ts`): the whole
+checkpoint is 1.3 MB for the press, 2.1 MB for the canopy and 4.8 MB for the bridge (11.9 MB unpacked, most of it the
+frame's dense interface operators), under the 16 MiB import limit. Tests: `tests/studio/press-si.test.mjs`, `canopy-si.test.mjs` (also after tearing) and
+`bridge-review.test.mjs` export, write, read back and resume, then compare the next ticks, their samples and events, and
+the next checkpoint with the uninterrupted run; a checkpoint missing a solver field is refused.
+
 ## Implementation and checks
 
 - `src/studio/physics.ts`: shared, dependency-free model, dimensions, cameras, topology, damage, plasticity, events and snapshots.

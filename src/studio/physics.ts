@@ -3,6 +3,7 @@
  * Failure is driven by connection strain/damage, never by the animation clock.
  */
 import {CanopyContactSolver,CANOPY_CONTACT,type CanopyContactStats} from './canopy-contact.ts';
+import {captureFields,restoreFields,holder,writeCheckpoint as writeStateCheckpoint,readCheckpoint as readStateCheckpoint,type FieldOptions,type StateObject,type StateValue} from '../engine/checkpoint.ts';
 import {canopyRig} from './canopy-rig.ts';
 import { scaledNorm3 } from './norm3.ts';
 import { normalizePress, metalFor, sheetThickness, toolHeightAt, type PressSettings } from './press-settings.ts';
@@ -74,6 +75,8 @@ export interface StudioCheckpoint {
   press: PressSettings;
   controls: { load: number; targetLoad: number; strength: number; damping: number; wind: number };
   nodes: Particle[]; links: Link[]; faces: Face[]; supports: number[];
+  /** SI backends: the SI solver's exact state (checkpoint.ts container, base64), see SI_STATE_KIND. */
+  si?: string;
   state: {
     time: number; punchY: number; topologyVersion: number; maxStrain: number;
     peakDeflection: number; brokenCount: number; yieldedCount: number;
@@ -146,6 +149,23 @@ function overlaps(a: ArrayBufferView, b: ArrayBufferView): boolean {
   return a.buffer===b.buffer && a.byteOffset<b.byteOffset+b.byteLength && b.byteOffset<a.byteOffset+a.byteLength;
 }
 
+/** The SI backends: their checkpoints carry the SI solver's exact state in `si`. */
+export const STUDIO_SI_BACKENDS: readonly StudioBackend[] = [STUDIO_PRESS_SI_BACKEND, STUDIO_CANOPY_SI_BACKEND, STUDIO_SI_BRIDGE_BACKEND];
+/** Kind of the checkpoint.ts container held (base64) in an SI Studio checkpoint's `si`. */
+export const SI_STATE_KIND = 'box3d-studio-si';
+const toBase64 = (bytes: Uint8Array): string => { let text = ''; for (let i = 0; i < bytes.length; i += 0x8000) text += String.fromCharCode(...bytes.subarray(i, i + 0x8000)); return btoa(text); };
+function fromBase64(text: string): Uint8Array {
+  let binary: string;
+  try { binary = atob(text); } catch { throw new RangeError('Invalid Studio checkpoint: si is not base64'); }
+  const out = new Uint8Array(binary.length); for (let i = 0; i < binary.length; i++) out[i] = binary.charCodeAt(i); return out;
+}
+/** Fields of the press adapter that are state; the rest is its configuration, rebuilt from the scene. */
+const PRESS_SI_FIELDS: FieldOptions = { label: 'StudioPressSI', skip: ['geometry', 'material', 'speed', 'modelDt', 'press', 'supportY', 'startY', 'contactY', 'solveSeconds'], nested: { brake: holder } };
+const CANOPY_SI_FIELDS: FieldOptions = { label: 'StudioCanopySI', skip: ['corners', 'settled', 'dt', 'baseStrength', 'solveSeconds'], nested: { cloth: holder } };
+let siBridgeFactory: (() => FailureSimulation) | undefined;
+/** si-bridge-study.ts registers its class here (it extends FailureSimulation, so this module cannot import it). */
+export function registerSiBridgeStudy(factory: () => FailureSimulation): void { siBridgeFactory = factory; }
+
 /** Clone first so validation and application operate on the same owned, plain data. */
 function readCheckpoint(value: unknown): StudioCheckpoint {
   let data: unknown;
@@ -153,10 +173,14 @@ function readCheckpoint(value: unknown): StudioCheckpoint {
   checkpointAssert(record(data),'record');
   checkpointAssert(data.format==='box3d-studio-checkpoint','format');
   checkpointAssert(data.version===STUDIO_CHECKPOINT_VERSION,'version');
-  if(data.backend===STUDIO_PRESS_SI_BACKEND||data.backend===STUDIO_CANOPY_SI_BACKEND)throw new RangeError('Invalid Studio checkpoint: an SI run is exported as evidence and cannot be resumed; set up the study again to repeat it');
-  checkpointAssert(data.backend===STUDIO_CHECKPOINT_BACKEND||data.backend===STUDIO_SCALED_CHECKPOINT_BACKEND||data.backend===STUDIO_CANOPY_CONTACT_BACKEND,'backend');
+  checkpointAssert(data.backend===STUDIO_CHECKPOINT_BACKEND||data.backend===STUDIO_SCALED_CHECKPOINT_BACKEND||data.backend===STUDIO_CANOPY_CONTACT_BACKEND||STUDIO_SI_BACKENDS.includes(data.backend as StudioBackend),'backend');
   checkpointAssert(data.study==='canopy'||data.study==='plate'||data.study==='bridge','study');
   checkpointAssert(data.backend!==STUDIO_CANOPY_CONTACT_BACKEND||data.study==='canopy','canopy contact backend study');
+  checkpointAssert(data.backend!==STUDIO_CANOPY_SI_BACKEND||data.study==='canopy','SI canopy backend study');
+  checkpointAssert(data.backend!==STUDIO_PRESS_SI_BACKEND||data.study==='plate','SI press backend study');
+  checkpointAssert(data.backend!==STUDIO_SI_BRIDGE_BACKEND||data.study==='bridge','SI bridge backend study');
+  // An SI run resumes only with its solver's state; a legacy run has none.
+  checkpointAssert(STUDIO_SI_BACKENDS.includes(data.backend as StudioBackend)?typeof data.si==='string'&&data.si.length>0&&data.si.length<16*1024*1024:data.si===undefined,'si');
   const c=data as unknown as StudioCheckpoint;
   checkpointAssert(record(c.scene),'scene');
   validatePress(c.scene.constructionPress,'scene.constructionPress');
@@ -197,7 +221,9 @@ function readCheckpoint(value: unknown): StudioCheckpoint {
   checkpointAssert(integer(s.yieldedCount,0,c.links.length)&&s.yieldedCount===yielded,'state.yieldedCount');
   checkpointAssert(integer(s.contactCount,0,c.nodes.length*13),'state.contactCount');
   checkpointAssert(PRESS_CYCLES.includes(s.pressCycle),'state.pressCycle');
-  checkpointAssert(typeof s.firstYield==='boolean'&&s.firstYield===(yielded>0),'state.firstYield');
+  // SI backends report yield and failure from their solvers, not from the drawn links' plastic strain and breaks.
+  const si=STUDIO_SI_BACKENDS.includes(c.backend);
+  checkpointAssert(typeof s.firstYield==='boolean'&&(si||s.firstYield===(yielded>0)),'state.firstYield');
   checkpointAssert(typeof s.collapseRecorded==='boolean','state.collapseRecorded');
   checkpointAssert(Array.isArray(c.events),'events');
   let eventTime=0,yieldEvents=0,collapseEvents=0;
@@ -205,12 +231,12 @@ function readCheckpoint(value: unknown): StudioCheckpoint {
     checkpointAssert(record(e)&&finite(e.time,eventTime,s.time)&&typeof e.message==='string','event time/message');
     checkpointAssert(e.type==='yield'||e.type==='break'||e.type==='collapse','event type');
     checkpointAssert(e.type==='collapse'?e.connection===-1:integer(e.connection,0,c.links.length-1),'event connection');
-    if(e.type==='yield'){checkpointAssert(c.links[e.connection].plastic>0,'yield event state');yieldEvents++;}
-    if(e.type==='break')checkpointAssert(c.links[e.connection].broken,'break event state');
+    if(e.type==='yield'){checkpointAssert(si||c.links[e.connection].plastic>0,'yield event state');yieldEvents++;}
+    if(e.type==='break')checkpointAssert(si||c.links[e.connection].broken,'break event state');
     if(e.type==='collapse')collapseEvents++;
     eventTime=e.time;
   }
-  checkpointAssert(yieldEvents===(s.firstYield?1:0)&&collapseEvents===(s.collapseRecorded?1:0),'event flags');
+  checkpointAssert((si?yieldEvents<=1:yieldEvents===(s.firstYield?1:0))&&collapseEvents===(s.collapseRecorded?1:0),'event flags');
   return c;
 }
 
@@ -781,12 +807,14 @@ export class FailureSimulation {
     }
     return max;
   }
+  /** The failure count a snapshot reports (response.broken): torn cloth links, eroded press elements, or broken links. */
+  snapshotBroken(): number {return this.canopySI?this.canopySI.cloth.tornCount:this.pressSI?this.siEroded:this.brokenCount;}
   response(): Response {
     let damage=0,plastic=0;
     for(const e of this.links) { damage=Math.max(damage,e.damage);plastic=Math.max(plastic,e.plastic); }
     if(this.pressSI){damage=this.siEroded/this.pressSI.brake.body.tetCount;plastic=this.siPlastic;}
     return {time:this.time,load:this.load,deflection:this.deflection(),strain:this.maxStrain,
-      broken:this.canopySI?this.canopySI.cloth.tornCount:this.pressSI?this.siEroded:this.brokenCount,damage,plastic,
+      broken:this.snapshotBroken(),damage,plastic,
       phase:this.responsePhase(damage)};
   }
   private responsePhase(damage: number): string {
@@ -875,16 +903,47 @@ export class FailureSimulation {
         pressCycle:this.pressCycle,ramVelocity:this.ramVelocity,holdElapsed:this.holdElapsed,contactCount:this.contactCount,
         ramBefore:this.ramBefore,collapseRecorded:this.collapseRecorded,firstYield:this.firstYield},
       events:this.events.map(e=>({...e})),
+      ...(STUDIO_SI_BACKENDS.includes(this.backend)?{si:toBase64(writeStateCheckpoint(SI_STATE_KIND,{backend:this.backend,state:this.saveSIState()}))}:{}),
     };
+  }
+  /** The SI solver and adapter state an SI checkpoint carries (checkpoint.ts field walker: unknown fields throw). */
+  protected saveSIState(): StateObject {
+    if(this.pressSI)return {press:captureFields(this.pressSI,PRESS_SI_FIELDS),siPlastic:this.siPlastic,siEroded:this.siEroded};
+    if(this.canopySI)return {canopy:captureFields(this.canopySI,CANOPY_SI_FIELDS),canopyOwed:this.canopyOwed,canopyTorn:this.canopyTorn,canopyUse:this.canopyUse.slice()};
+    throw new RangeError('This Studio backend has no SI state');
+  }
+  protected restoreSIState(value: StateValue): void {
+    const s=value as Record<string,StateValue>;
+    if(this.pressSI){
+      checkpointAssert(s&&typeof s==='object'&&typeof s.siPlastic==='number'&&typeof s.siEroded==='number'&&'press' in s,'si.press');
+      restoreFields(this.pressSI,s.press,PRESS_SI_FIELDS);this.siPlastic=s.siPlastic as number;this.siEroded=s.siEroded as number;return;
+    }
+    if(this.canopySI){
+      checkpointAssert(s&&typeof s==='object'&&typeof s.canopyOwed==='number'&&typeof s.canopyTorn==='number'&&s.canopyUse instanceof Float64Array&&s.canopyUse.length===this.canopyUse.length&&'canopy' in s,'si.canopy');
+      restoreFields(this.canopySI,s.canopy,CANOPY_SI_FIELDS);this.canopyOwed=s.canopyOwed as number;this.canopyTorn=s.canopyTorn as number;this.canopyUse.set(s.canopyUse as Float64Array);return;
+    }
+    throw new RangeError('This Studio backend has no SI state');
+  }
+  /** Decodes and checks an SI checkpoint's solver state before anything is written. */
+  private readSIState(c: StudioCheckpoint): StateValue|undefined {
+    if(c.si===undefined)return undefined;
+    const tree=readStateCheckpoint(fromBase64(c.si),SI_STATE_KIND) as {backend?:unknown;state?:StateValue};
+    checkpointAssert(tree&&typeof tree==='object'&&tree.backend===this.backend&&tree.state!==undefined,'si.backend');
+    return tree.state;
   }
 
   /** Restore compatible Studio state atomically. Use fromCheckpoint to construct the matching specimen. */
-  restoreCheckpoint(value: unknown): void { this.applyCheckpoint(readCheckpoint(value)); }
+  restoreCheckpoint(value: unknown): void {
+    const checkpoint=readCheckpoint(value),si=this.readSIState(checkpoint);
+    this.applyCheckpoint(checkpoint);
+    if(si!==undefined)this.restoreSIState(si);
+  }
 
   static fromCheckpoint(value: unknown): FailureSimulation {
     const checkpoint=readCheckpoint(value);
-    const simulation=new FailureSimulation(checkpoint.study,checkpoint.scene.constructionPress,checkpoint.backend);
-    simulation.applyCheckpoint(checkpoint);
+    if(checkpoint.backend===STUDIO_SI_BRIDGE_BACKEND&&!siBridgeFactory)throw new RangeError('Invalid Studio checkpoint: import src/studio/si-bridge-study.ts to restore an SI bridge run');
+    const simulation=checkpoint.backend===STUDIO_SI_BRIDGE_BACKEND?siBridgeFactory!():new FailureSimulation(checkpoint.study,checkpoint.scene.constructionPress,checkpoint.backend);
+    simulation.restoreCheckpoint(checkpoint);
     return simulation;
   }
 
