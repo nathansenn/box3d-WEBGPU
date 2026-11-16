@@ -16,6 +16,11 @@ import {GpuGranular,GranularRunner,demMemory,type GpuGranularSnapshot} from './g
 import {GranularF32,readDemWall,type DemSetup,type DemStats} from './granular-f32.ts';
 import {GRANULAR_SETUPS,sandAvalanche} from './granular-setups.ts';
 import type {GranularCaseRun} from './granular-cases.ts';
+import {Fluid} from '../fluid.ts';
+import {GpuFluid,FluidRunner} from './fluid-gpu.ts';
+import {FluidF32} from './fluid-f32.ts';
+import {FLUID_SETUPS,cavity3d} from './fluid-setups.ts';
+import type {FluidCaseRun} from './fluid-cases.ts';
 
 function fnv(...arrays:ArrayBufferView[]):string {
   let a=0x811c9dc5,b=0xcbf29ce4;
@@ -216,20 +221,113 @@ async function granularBenchmark(sizes:readonly number[],steps:number,cpuLimit:n
   return rows;
 }
 
+// ---- incompressible flow ----------------------------------------------------------------------------------------------
+export interface FluidAgreement {name:string;steps:number;cells:number;
+  /** Largest velocity difference over the largest speed; largest pressure difference over the largest |p|. */
+  gpuVsF32:{velocity:number;pressure:number};gpuVsF64:{velocity:number;pressure:number};
+  /** Largest relative divergence the GPU left (max |div u| h / max |u|). */
+  divergence:number;pressureIterations:number;viscousIterations:number;repeat:{identical:boolean;hash:string}}
+function fluidDifference(a:{u:ArrayLike<number>;v:ArrayLike<number>;w:ArrayLike<number>;p:ArrayLike<number>},b:{u:ArrayLike<number>;v:ArrayLike<number>;w:ArrayLike<number>;p:ArrayLike<number>}):{velocity:number;pressure:number} {
+  let dv=0,top=0,dp=0,ptop=0;
+  for(const k of ['u','v','w'] as const){const x=a[k],y=b[k];for(let i=0;i<y.length;i++){dv=Math.max(dv,Math.abs(x[i]-y[i]));top=Math.max(top,Math.abs(y[i]));}}
+  for(let i=0;i<b.p.length;i++){dp=Math.max(dp,Math.abs(a.p[i]-b.p[i]));ptop=Math.max(ptop,Math.abs(b.p[i]));}
+  return {velocity:dv/Math.max(top,1e-300),pressure:ptop>0?dp/ptop:dp};
+}
+async function fluidAgreement(compute:GpuCompute,progress:(text:string)=>void):Promise<FluidAgreement[]> {
+  const out:FluidAgreement[]=[];
+  for(const [name,make] of Object.entries(FLUID_SETUPS)){
+    progress(`fluid: agreement on "${name}"`);
+    const {fluid,steps}=make();
+    const run=async()=>{const gpu=await GpuFluid.create(compute,make().fluid);await gpu.step(steps);const s=await gpu.read(),stats={...gpu.stats};gpu.destroy();return {s,stats};};
+    const a=await run(),b=await run();
+    const r=new FluidF32(make().fluid);r.step(steps);
+    const f64=make().fluid;f64.step(steps);
+    out.push({name,steps,cells:fluid.cells,gpuVsF32:fluidDifference(a.s,{u:r.velocity(0),v:r.velocity(1),w:r.velocity(2),p:r.pressure()}),gpuVsF64:fluidDifference(a.s,{u:f64.u,v:f64.v,w:f64.w,p:f64.p}),
+      divergence:a.stats.divergence,pressureIterations:a.stats.pressureIterations,viscousIterations:a.stats.viscousIterations,
+      repeat:{identical:fnv(a.s.u,a.s.v,a.s.w,a.s.p)===fnv(b.s.u,b.s.v,b.s.w,b.s.p),hash:fnv(a.s.u,a.s.v,a.s.w,a.s.p)}});
+  }
+  return out;
+}
+async function fluidDeviceLoss():Promise<DeviceLossResult> {
+  const compute=await acquireGpuCompute({label:'box3d device-loss check'}),{fluid}=FLUID_SETUPS['taylor-green']();
+  const runner=await FluidRunner.create(fluid,compute,{snapshotEvery:5}),before=runner.backend;
+  await runner.step(12);
+  compute.device.destroy();await compute.device.lost;
+  await runner.step(8);
+  const reference=FLUID_SETUPS['taylor-green']().fluid;reference.step(20);
+  const d=fluidDifference(fluid,reference);
+  return {backendBefore:before,backendAfter:runner.backend,reason:runner.fallback?.reason??'',stepsRerun:runner.fallback?.stepsRerun??-1,resumedFrom:runner.fallback?.resumedFrom??-1,time:runner.time,steps:runner.steps,vsF64:d.velocity};
+}
+function fluidCasesOnGpu(compute:GpuCompute,options:{only?:readonly string[];quick?:boolean},progress:(text:string)=>void):Promise<FluidCaseRun> {
+  if(typeof SharedArrayBuffer==='undefined'||!(globalThis as {crossOriginIsolated?:boolean}).crossOriginIsolated)return Promise.reject(new EngineError('GPU_UNAVAILABLE','The fluid closed-form cases need a cross-origin isolated page (SharedArrayBuffer).'));
+  const worker=new Worker(new URL('./fluid-scenario-worker.ts',import.meta.url),{type:'module'});
+  const solvers=new Map<number,{gpu:GpuFluid;control:Int32Array;vel:Float32Array;pressure:Float32Array;stats:Float64Array;message:Uint8Array}>();
+  return new Promise<FluidCaseRun>((resolve,reject)=>{
+    const finish=(work:()=>void):void=>{for(const e of solvers.values())e.gpu.destroy();solvers.clear();worker.terminate();work();};
+    let chain=Promise.resolve();
+    const handle=async(data:Record<string,any>):Promise<void>=>{
+      const id=data.id as number;
+      if(data.op==='destroy'){solvers.get(id)?.gpu.destroy();solvers.delete(id);return;}
+      let entry=solvers.get(id);const B=data.buffers as Record<string,SharedArrayBuffer>|undefined;
+      const control=entry?entry.control:new Int32Array(B!.control),message=entry?entry.message:new Uint8Array(B!.message);
+      try{
+        if(data.op==='create'){
+          const gpu=await GpuFluid.create(compute,data.source,{velocity:data.velocity,pressure:data.pressure,time:data.time},data.options);
+          entry={gpu,control,message,vel:new Float32Array(B!.vel),pressure:new Float32Array(B!.pressure),stats:new Float64Array(B!.stats)};solvers.set(id,entry);
+        }else if(data.op==='load')entry!.gpu.load(data.velocity,data.pressure);
+        else if(data.op==='step')await entry!.gpu.step(data.count as number);
+        else if(data.op==='project')await entry!.gpu.project();
+        const e=entry!,s=await e.gpu.read(),P=e.gpu.padded;
+        e.vel.set(s.u,0);e.vel.set(s.v,P);e.vel.set(s.w,2*P);e.pressure.set(s.p);
+        const st=e.gpu.stats;e.stats[0]=st.pressureIterations;e.stats[1]=st.viscousIterations;e.stats[2]=st.divergence;e.stats[3]=st.unconverged;
+        Atomics.store(control,0,1);
+      }catch(error){const text=new TextEncoder().encode(error instanceof Error?error.message:String(error)).slice(0,2000);message.set(text);Atomics.store(control,1,text.length);Atomics.store(control,0,2);}
+      Atomics.notify(control,0);
+    };
+    worker.onmessage=(event:MessageEvent):void=>{
+      const data=event.data as Record<string,any>;
+      if(data.type==='progress')progress(`fluid: closed-form set-up "${data.name}"`);
+      else if(data.type==='done')finish(()=>resolve(data.result as FluidCaseRun));
+      else if(data.type==='failed')finish(()=>reject(new Error(data.message as string)));
+      else if(data.type==='fluid')chain=chain.then(()=>handle(data));
+    };
+    worker.onerror=(event):void=>finish(()=>reject(new Error(`The fluid worker failed: ${event.message}`)));
+    worker.postMessage({type:'run',only:options.only,quick:options.quick});
+  });
+}
+/** A cubic lid-driven cavity, n^3 cells, backward Euler: ms per step on the GPU and on the float64 solver. */
+async function fluidBenchmark(compute:GpuCompute,sizes:readonly number[],steps:number,cpuLimit:number,progress:(text:string)=>void):Promise<BenchRow[]> {
+  const rows:BenchRow[]=[];
+  for(const n of sizes){
+    progress(`fluid: timing ${n}^3`);
+    let gpu:GpuFluid;
+    try{gpu=await GpuFluid.create(compute,cavity3d(n));}
+    catch(error){rows.push({backend:`fluid (skipped: ${error instanceof Error?error.message:String(error)})`,size:`${n}^3`,elements:n**3,steps:0,substeps:0,msPerStep:NaN,elementUpdatesPerSecond:NaN,cpuMsPerStep:null,speedup:null});continue;}
+    await gpu.step(3);
+    const t0=performance.now();await gpu.step(steps);const ms=(performance.now()-t0)/steps,it=gpu.stats.pressureIterations;
+    gpu.destroy();
+    let cpu:number|null=null;
+    if(n**3<=cpuLimit){const f=cavity3d(n);f.step(3);const c0=performance.now();f.step(Math.max(2,Math.min(steps,4)));cpu=(performance.now()-c0)/Math.max(2,Math.min(steps,4));}
+    rows.push({backend:`fluid (cavity, ${it} pressure iterations a step)`,size:`${n}^3`,elements:n**3,steps,substeps:steps,msPerStep:ms,elementUpdatesPerSecond:n**3/(ms/1000),cpuMsPerStep:cpu,speedup:cpu===null?null:cpu/ms});
+  }
+  return rows;
+}
+
 export interface GpuValidationReport {
   info:GpuComputeInfo;userAgent:string;
   shallowWater:{cases:GpuCaseRow[];runs:Record<string,unknown>;agreement:ShallowWaterAgreement[];deviceLoss:DeviceLossResult}|null;
   granular:{cases:GpuCaseRow[];runs:Record<string,unknown>;agreement:GranularAgreement[];deviceLoss:DeviceLossResult;casesSkipped:string|null}|null;
+  fluid:{cases:GpuCaseRow[];runs:Record<string,unknown>;agreement:FluidAgreement[];deviceLoss:DeviceLossResult;casesSkipped:string|null}|null;
   seconds:number;
 }
 export interface GpuProbeOptions {readonly only?:readonly string[];readonly progress?:(text:string)=>void;
   /** false: skip the closed-form cases. 'quick': the granular cases that take seconds only. */
-  readonly cases?:boolean|'quick';readonly shallowWater?:boolean;readonly granular?:boolean}
+  readonly cases?:boolean|'quick';readonly shallowWater?:boolean;readonly granular?:boolean;readonly fluid?:boolean}
 
 async function validate(options:GpuProbeOptions={}):Promise<GpuValidationReport> {
   const progress=options.progress??(()=>{}),started=performance.now();
   const compute=await acquireGpuCompute({label:'box3d compute validation'});
-  let shallowWater:GpuValidationReport['shallowWater']=null,granular:GpuValidationReport['granular']=null;
+  let shallowWater:GpuValidationReport['shallowWater']=null,granular:GpuValidationReport['granular']=null,fluid:GpuValidationReport['fluid']=null;
   if(options.shallowWater!==false){
     const agreement=await shallowWaterAgreement(compute,progress);
     const cases=options.cases===false?{rows:[],runs:{}}:await runShallowWaterCases(swScenarios,gpuBackend(compute),{only:options.only,progress:name=>progress(`shallow water: closed-form set-up "${name}"`)});
@@ -243,18 +341,28 @@ async function validate(options:GpuProbeOptions={}):Promise<GpuValidationReport>
     progress('grains: device loss');
     granular={cases:cases.rows,runs:cases.runs,agreement,deviceLoss:await granularDeviceLoss(),casesSkipped};
   }
+  if(options.fluid!==false){
+    const agreement=await fluidAgreement(compute,progress);
+    let cases:FluidCaseRun={rows:[],runs:{}},casesSkipped:string|null=null;
+    if(options.cases!==false){try{cases=await fluidCasesOnGpu(compute,{only:options.only,quick:options.cases==='quick'},progress);}catch(error){if(error instanceof EngineError&&error.code==='GPU_UNAVAILABLE')casesSkipped=error.message;else throw error;}}
+    progress('fluid: device loss');
+    fluid={cases:cases.rows,runs:cases.runs,agreement,deviceLoss:await fluidDeviceLoss(),casesSkipped};
+  }
   compute.destroy();
-  return {info:compute.info,userAgent:navigator.userAgent,shallowWater,granular,seconds:(performance.now()-started)/1000};
+  return {info:compute.info,userAgent:navigator.userAgent,shallowWater,granular,fluid,seconds:(performance.now()-started)/1000};
 }
-async function benchmark(options:{readonly shallowWater?:readonly number[];readonly grains?:readonly number[];readonly steps?:number;readonly cpuLimit?:number;readonly progress?:(text:string)=>void}={}):Promise<{info:GpuComputeInfo;rows:BenchRow[]}> {
+async function benchmark(options:{readonly shallowWater?:readonly number[];readonly grains?:readonly number[];readonly fluid?:readonly number[];readonly steps?:number;readonly cpuLimit?:number;readonly progress?:(text:string)=>void}={}):Promise<{info:GpuComputeInfo;rows:BenchRow[]}> {
   const compute=await acquireGpuCompute({label:'box3d compute timing',storageBytes:0}),progress=options.progress??(()=>{});
   const rows=await shallowWaterBenchmark(compute,options.shallowWater??[256,512,1024],options.steps??30,options.cpuLimit??262144,progress);
   compute.destroy();compute.device.destroy();
   rows.push(...await granularBenchmark(options.grains??[10000,100000],options.steps??30,Math.min(options.cpuLimit??262144,100000),progress));
+  const fluidCompute=await acquireGpuCompute({label:'box3d fluid timing'});
+  rows.push(...await fluidBenchmark(fluidCompute,options.fluid??[16,32,64],Math.max(2,Math.min(options.steps??30,10)),Math.min(options.cpuLimit??262144,40000),progress));
+  fluidCompute.destroy();fluidCompute.device.destroy();
   return {info:compute.info,rows};
 }
 
-const api={supported:gpuComputeSupported,acquire:acquireGpuCompute,validate,benchmark,setups:SHALLOW_WATER_SETUPS,grainSetups:GRANULAR_SETUPS,floodValley,sandAvalanche,GpuShallowWater,ShallowWater,ShallowWaterF32,ShallowWaterRunner,GpuGranular,GranularF32,GranularRunner,Granular,EngineError};
+const api={supported:gpuComputeSupported,acquire:acquireGpuCompute,validate,benchmark,setups:SHALLOW_WATER_SETUPS,grainSetups:GRANULAR_SETUPS,floodValley,sandAvalanche,GpuShallowWater,ShallowWater,ShallowWaterF32,ShallowWaterRunner,GpuGranular,GranularF32,GranularRunner,Granular,GpuFluid,FluidF32,FluidRunner,Fluid,fluidSetups:FLUID_SETUPS,EngineError};
 export type GpuProbeApi=typeof api;
 declare global {interface Window {box3dGpu?:GpuProbeApi}}
 
@@ -284,11 +392,13 @@ function start():void {
   valid.onclick=()=>guard(async()=>{
     const report=await validate({progress:say});
     const tol=(t:{kind:string;value:number}):string=>`${t.kind==='upper'?'≤':t.kind==='lower'?'≥':t.kind==='absolute'?'±':'± rel'} ${number(t.value)}`;
-    const rows=[...(report.shallowWater?.cases??[]),...(report.granular?.cases??[])];
+    const rows=[...(report.shallowWater?.cases??[]),...(report.granular?.cases??[]),...(report.fluid?.cases??[])];
     tables.prepend(table(`Closed forms on ${describe(report.info)}`,['case','value','reference','tolerance','float64 tolerance',''],
       rows.map(r=>[`${r.id.split('.')[0]}: ${r.title}`,number(r.value,4),number(r.reference,4),tol(r.tolerance),tol(r.float64),{text:r.pass?'pass':'MISS',cls:r.pass?'pass':'fail'}])));
     if(report.shallowWater)tables.prepend(table('Shallow water, GPU against the CPU',['set-up','cells','steps','depth vs float32','discharge vs float32','depth vs float64','volume budget','repeat run'],
       report.shallowWater.agreement.map(a=>[a.name,String(a.cells),String(a.steps),number(a.gpuVsF32.depth),number(a.gpuVsF32.discharge),number(a.gpuVsF64.depth),number(a.volumeRelative),{text:a.repeat.identical?'identical':'DIFFERS',cls:a.repeat.identical?'pass':'fail'}])));
+    if(report.fluid)tables.prepend(table('Incompressible flow, GPU against the CPU',['set-up','cells','steps','velocity vs float32','velocity vs float64','divergence left','repeat run'],
+      report.fluid.agreement.map(a=>[a.name,String(a.cells),String(a.steps),number(a.gpuVsF32.velocity),number(a.gpuVsF64.velocity),number(a.divergence),{text:a.repeat.identical?'identical':'DIFFERS',cls:a.repeat.identical?'pass':'fail'}])));
     if(report.granular)tables.prepend(table('Grains, GPU against the CPU',['set-up','grains','steps','position vs float32 (radii)','position vs float64 (radii)','momentum balance','repeat run'],
       report.granular.agreement.map(a=>[a.name,String(a.grains),String(a.steps),number(a.gpuVsF32.position),number(a.gpuVsF64.position),number(a.momentumRelative),{text:a.repeat.identical?'identical':'DIFFERS',cls:a.repeat.identical?'pass':'fail'}])));
     say(`Validated in ${number(report.seconds)} s.${report.granular?.casesSkipped?` ${report.granular.casesSkipped}`:''}`);

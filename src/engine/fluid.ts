@@ -136,6 +136,12 @@ export interface FluidStats {
   /** True when the solver was accepted above a stability limit (allowUnstable). */
   unstable:boolean;
 }
+/** One velocity component in `Fluid.backendDescription()`. Indices are padded; ghost entries are x[dst] = a x[src] + b. */
+export interface FluidBackendComponent {unknown:Int32Array;copies:Int32Array;outflows:Int32Array;fixedFaces:Int32Array;fixedValues:Float64Array;
+  ghostDst:Int32Array;ghostSrc:Int32Array;ghostA:Float64Array;ghostB:Float64Array;ghostPasses:number[];
+  gradFace:Int32Array;gradLow:Int32Array;gradHigh:Int32Array;gradWL:Float64Array;gradWH:Float64Array;wallSpeed:number}
+export interface FluidBackendDescription {cells:[number,number,number];padded:[number,number,number];size:number;stride:[number,number,number];es:[number,number,number];activeAxes:number;singular:boolean;
+  components:FluidBackendComponent[];cellPad:Int32Array;nbr:Int32Array;diag:Float64Array}
 export interface FluidTimeStepLimits {
   /** Explicit diffusion limit h^2 / (2 d nu), d the number of active axes; Infinity for implicit diffusion. */
   readonly viscous:number;
@@ -426,6 +432,29 @@ export class Fluid {
     }
     for(let c=0;c<3;c++){const f=this.fixedFaces[c],val=this.fixedValues[c],x=this.vel[c];for(let q=0;q<f.length;q++)x[f[q]]=val[q];}
     this.fillAll();
+  }
+
+  /**
+   * The tables a backend that mirrors this solver needs (src/engine/gpu/fluid-gpu.ts), as copies: padded sizes and the
+   * stencil strides, per component the unknown faces, the periodic copies, the outflow pairs, the fixed faces and their
+   * values, the ghost fills (destination, source, a, b: x[dst] = a x[src] + b) with the number of entries of each of the
+   * three passes, and the faces the pressure gradient acts on; per cell its padded index, its six neighbours (-1 wall,
+   * -2 the p = 0 side of an outflow, -3 itself along a one-cell periodic axis) and the diagonal of the pressure operator.
+   * The largest |value| of the fixed faces and of the ghosts' b / 2 per component (the walls' and inflows' speeds).
+   */
+  backendDescription():FluidBackendDescription {
+    if(this.obstacles.length>0)fail('A fluid with obstacles has no backend description: obstacles run on this solver only.');
+    const n=[this.nx,this.ny,this.nz],components=[0,1,2].map(c=>{
+      // The ghost entries were pushed in passes over the axes d = 0, 1, 2; the counts follow the loops of the constructor.
+      const passes=[0,1,2].map(d=>d===c?(n[(c+1)%3]+2)*(n[(c+2)%3]+2):this.es[d]===0?0:2*(n[(d+1)%3]+2)*(n[(d+2)%3]+2));
+      if(passes[0]+passes[1]+passes[2]!==this.ghostDst[c].length)fail('Internal: the ghost passes do not add up.');
+      let wallSpeed=0;for(const v of this.fixedValues[c])wallSpeed=Math.max(wallSpeed,Math.abs(v));for(const b of this.ghostB[c])wallSpeed=Math.max(wallSpeed,Math.abs(.5*b));
+      return {unknown:Int32Array.from(this.unknown[c]),copies:Int32Array.from(this.copies[c]),outflows:Int32Array.from(this.outflows[c]),fixedFaces:Int32Array.from(this.fixedFaces[c]),fixedValues:Float64Array.from(this.fixedValues[c]),
+        ghostDst:Int32Array.from(this.ghostDst[c]),ghostSrc:Int32Array.from(this.ghostSrc[c]),ghostA:Float64Array.from(this.ghostA[c]),ghostB:Float64Array.from(this.ghostB[c]),ghostPasses:passes,
+        gradFace:Int32Array.from(this.gradFace[c]),gradLow:Int32Array.from(this.gradLow[c]),gradHigh:Int32Array.from(this.gradHigh[c]),gradWL:Float64Array.from(this.gradWL[c]),gradWH:Float64Array.from(this.gradWH[c]),wallSpeed};
+    });
+    return {cells:[this.nx,this.ny,this.nz],padded:[this.NX,this.NY,this.NZ],size:this.size,stride:[...this.stride] as [number,number,number],es:[...this.es] as [number,number,number],activeAxes:this.activeAxes,singular:this.singular,
+      components,cellPad:Int32Array.from(this.cellPad),nbr:Int32Array.from(this.nbr),diag:Float64Array.from(this.diag)};
   }
 
   private sideVelocity(side:Side,x:number,y:number,z:number):FluidVec3 {

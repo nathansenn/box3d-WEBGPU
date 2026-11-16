@@ -12,7 +12,7 @@
 //   --only       restrict the closed-form set-ups (names as in src/engine/gpu/shallow-water-cases.ts and granular-cases.ts).
 //   --no-cases   skip the closed-form cases (agreement, repeatability and device loss only: about a minute).
 //   --quick      of the granular closed-form cases, only the ones that take seconds (no Janssen, Beverloo, repose).
-//   --no-granular, --no-shallow-water   leave a backend out.
+//   --no-granular, --no-shallow-water, --no-fluid   leave a backend out.
 //   --dist=path  serve this copy of the built site instead of ./dist (so that a rebuild cannot disturb a long run).
 //   --showcase   instead: open the Lab's examples at scale (lab.html?example=sand-avalanche-100k, flood-valley-1m) at
 //                small sizes (3000 grains, 96 x 96 cells; with --hardware the real ones; --showcase-sizes=grains,cells),
@@ -133,14 +133,15 @@ try {
   } else if (bench) {
     const sizes = (value('sizes') ?? (hardware ? '256,512,1024,2048' : '64,128,256')).split(',').map(Number), steps = Number(value('steps') ?? (hardware ? 60 : 6));
     const grains = (value('grains') ?? (hardware ? '10000,100000,400000,1000000' : '2000,8000')).split(',').map(Number);
-    const result = await page.evaluate(options => window.box3dGpu.benchmark({...options, progress: text => console.log('[gpu] ' + text)}), {shallowWater: sizes, grains, steps, cpuLimit: hardware ? 262144 : 65536});
+    const fluid = (value('fluid') ?? (hardware ? '32,64,96' : '16,24')).split(',').map(Number);
+    const result = await page.evaluate(options => window.box3dGpu.benchmark({...options, progress: text => console.log('[gpu] ' + text)}), {shallowWater: sizes, grains, fluid, steps, cpuLimit: hardware ? 262144 : 65536});
     const adapter = `${result.info.vendor} ${result.info.architecture} ${result.info.device} ${result.info.description}`.replace(/\s+/g, ' ').trim();
     console.log(`\nAdapter: ${adapter}${result.info.software ? '  (SOFTWARE ADAPTER: these timings are not those of a GPU)' : ''}\n`);
     print(['backend', 'size', 'substeps', 'ms/step', 'element updates/s', 'CPU ms/step', 'GPU/CPU'], result.rows.map(r => [r.backend, r.size, r.substeps, number(r.msPerStep), number(r.elementUpdatesPerSecond), number(r.cpuMsPerStep), r.speedup === null ? '-' : number(r.speedup) + ' x']));
     fs.writeFileSync(path.join(output, hardware ? 'gpu-compute-bench-hardware.json' : 'gpu-compute-bench-software.json'), JSON.stringify({adapter, software: result.info.software, hardwareFlag: hardware, ...result}, null, 2));
   } else {
     const only = value('only')?.split(',');
-    const report = await page.evaluate(options => window.box3dGpu.validate({...options, progress: text => console.log('[gpu] ' + text)}), {only, cases: flag('no-cases') ? false : flag('quick') ? 'quick' : true, granular: !flag('no-granular'), shallowWater: !flag('no-shallow-water')});
+    const report = await page.evaluate(options => window.box3dGpu.validate({...options, progress: text => console.log('[gpu] ' + text)}), {only, cases: flag('no-cases') ? false : flag('quick') ? 'quick' : true, granular: !flag('no-granular'), shallowWater: !flag('no-shallow-water'), fluid: !flag('no-fluid')});
     const adapter = `${report.info.vendor} ${report.info.architecture} ${report.info.device} ${report.info.description}`.replace(/\s+/g, ' ').trim();
     console.log(`\nAdapter: ${adapter}${report.info.software ? '  (software adapter)' : ''}; ${number(report.seconds)} s\n`);
     const tol = t => `${t.kind === 'upper' ? '<=' : t.kind === 'lower' ? '>=' : t.kind === 'absolute' ? '+-' : '+- rel'} ${number(t.value)}`;
@@ -151,7 +152,7 @@ try {
       for (const r of section.cases) if (!r.pass) failures.push(`${r.id}: ${r.value} against ${r.reference} (${tol(r.tolerance)})`);
       if (section.agreement?.length) {
         console.log(`${name}: GPU against the CPU`);
-        print(['set-up', 'elements', 'steps', 'vs float32', 'vs float64', 'conservation', 'repeat'], section.agreement.map(a => [a.name, a.cells ?? a.grains, a.steps, number(a.gpuVsF32.depth ?? a.gpuVsF32.position), number(a.gpuVsF64.depth ?? a.gpuVsF64.position), number(a.volumeRelative ?? a.momentumRelative), a.repeat.identical ? 'identical' : 'DIFFERS']));
+        print(['set-up', 'elements', 'steps', 'vs float32', 'vs float64', 'conservation / divergence', 'repeat'], section.agreement.map(a => [a.name, a.cells ?? a.grains, a.steps, number(a.gpuVsF32.depth ?? a.gpuVsF32.position ?? a.gpuVsF32.velocity), number(a.gpuVsF64.depth ?? a.gpuVsF64.position ?? a.gpuVsF64.velocity), number(a.volumeRelative ?? a.momentumRelative ?? a.divergence), a.repeat.identical ? 'identical' : 'DIFFERS']));
         console.log('');
         for (const a of section.agreement) if (!a.repeat.identical) failures.push(`${name} ${a.name}: a repeated run differs`);
       }

@@ -255,12 +255,18 @@ The multigrid count stays at 5 to 8 while MIC(0)'s grows with the width (20, 25,
 
 The free-surface pressure solve now visits only the liquid cells (a list with a mask of liquid neighbours, built per solve, in index order: the sums are the full sweeps' sums, since the other cells only ever added zeros), and the "near an empty cell" mask is a separable dilation (three passes) instead of a 3 × 3 × 3 stamp per empty cell. The state and the checkpoint bytes are unchanged (A/B against the previous solver on four Studio flume presets, and pinned in `tests/engine/accel-exactness.test.mjs`). One second of the Studio flume, CPU time, fastest of three: clear-water release 918 → 704 ms, honey 1544 → 1386, reflected wave 1228 → 1044, slurry 1500 → 1246 (1.1 to 1.3 times).
 
-### On the GPU
+### On the GPU (2026-11-16)
 
-Nothing of this solver is on the GPU. The compute framework and the two backends that exist (shallow water and grains)
-are in [`GPU_COMPUTE.md`](GPU_COMPUTE.md); a pressure solve in compute shaders (red-black Gauss-Seidel or
-Jacobi-preconditioned conjugate gradients, later multigrid), validated against the cavity, Poiseuille and dam-break
-rows above through a float32 CPU reference as those two are, is the next backend and has not been started.
+`src/engine/gpu/fluid-gpu.ts` runs this solver's projection method without obstacles as WebGPU compute dispatches in
+float32, opt-in; this solver stays the reference ([`GPU_COMPUTE.md`](GPU_COMPUTE.md)). The pressure and implicit viscous
+solves are conjugate gradients with the Jacobi preconditioner (MIC(0) does not run in parallel; a multigrid V-cycle on
+the GPU was not written), stopped on the GPU. Checked through a float32 CPU reference of the same program that runs this
+document's set-ups unchanged (`npm run test:gpu`) and, with the shaders running, on SwiftShader: 17 rows pass, 13 with
+this solver's tolerance; float32 needs 3e-6 instead of 1.5e-10 for the divergence left, 5e-4 instead of 1e-6 (relative)
+for the Poiseuille profile, 2e-4 instead of 1e-7 for Couette and 1e-5 instead of 1e-8 for the channel's mass; the cavity
+matches Ghia as this solver does (within 1e-5 of the lid speed of its errors). **Its speed on a real GPU has not been
+measured.** Obstacles and coupled bodies, the energy ledger, checkpoints and the free surface are not on the GPU, and
+the scene format and the Lab's fluid scenes still run this solver.
 
 ## Limits
 
