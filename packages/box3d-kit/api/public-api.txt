@@ -64,6 +64,8 @@ export interface BuildInfo {
     readonly wasmSha256: string;
     readonly wasmBytes: number;
     readonly glueSha256: string;
+    readonly threadedWasmSha256: string;
+    readonly threadedWasmBytes: number;
 }
 export declare const BUILD_INFO: BuildInfo;
 
@@ -7054,7 +7056,7 @@ export declare function capabilities(): Capabilities;
 // ==== index.d.ts ====
 import { type LoadBox3DOptions } from './loader.js';
 import { PhysicsWorld, type WorldOptions } from './world.js';
-export { loadBox3D, type LoadBox3DOptions, type Box3DModuleFactory } from './loader.js';
+export { loadBox3D, box3dThreading, type LoadBox3DOptions, type Box3DModuleFactory, type Box3DThreading } from './loader.js';
 export { BUILD_INFO, type BuildInfo } from './core/build-info.js';
 export { PhysicsWorld, toVec3, leakReporting, type Body, type BodyPose, type Vec3, type Vec3Like, type WorldOptions, type SpawnBoxOptions, toQuat, axisRotation, type Joint, type BodyType, type BodyState, type BodyOptions, type ShapeOptions, type ConvexShapeOptions, type CompoundShapeOptions, type MassDataOptions, type BodyMassData, type QuatLike, type BodyKind, type JointType, type JointState, type JointOptions, type JointFrame, type ResetOptions, type WorldEvent, type QueryOptions, type RaycastOptions, type WorldStats, type ReplayLog, type ReplayCommand, type RecordingOptions, type ReplayReport, type WorldSettings, type BodyFlags, type JointDetails, type JointDrive, type JointThresholds, type RayBatch, type StepProfile, type DebugDrawOptions, type DebugDrawLines, type MoverPlane, type CapsuleMoveOptions, type CapsuleMoveResult, type ContactStats, } from './world.js';
 export { convertMatrices, convertVector, toBox3DFrame, type UpAxis } from './axes.js';
@@ -7121,6 +7123,7 @@ import { NativeWorldPool } from './core/native-world.js';
 export type Box3DModuleFactory = (options?: {
     locateFile?: (path: string, prefix: string) => string;
     wasmBinary?: ArrayBuffer | Uint8Array;
+    b3wPoolSize?: number;
 }) => Promise<unknown>;
 export interface LoadBox3DOptions {
     readonly moduleUrl?: string | URL;
@@ -7128,7 +7131,15 @@ export interface LoadBox3DOptions {
     readonly wasmBinary?: ArrayBuffer | Uint8Array;
     readonly factory?: Box3DModuleFactory;
     readonly integrity?: boolean | string;
+    readonly threads?: number;
+    readonly threadThreshold?: number;
 }
+export interface Box3DThreading {
+    readonly threads: number;
+    readonly threshold: number;
+    lastStepThreads(): number;
+}
+export declare function box3dThreading(pool: NativeWorldPool): Box3DThreading;
 export declare function loadBox3D(options?: LoadBox3DOptions): Promise<NativeWorldPool>;
 
 // ==== loop.d.ts ====
@@ -7632,6 +7643,7 @@ export declare function connectWorld(endpoint: MessageEndpoint, options?: Remote
 // ==== world.d.ts ====
 import type { NativeBodyHandle, NativeBodyKind, NativeBodyMassState, NativeBodyState, NativeBodyType, NativeJointHandle, NativeJointState, NativeJointType, NativeQueryCastHit, NativeQueryFilter, NativeWorldBackend, NativeWorldEvent, NativeWorldPool, NativeBodyFlags, NativeDebugDrawOptions, NativeDebugLines, NativeJointDetails, NativeJointDrive, NativeJointThresholds, NativeMoverPlane, NativeRayBatch, NativeStepProfile, NativeWorldSettings, NativeContactStats } from './core/native-world.js';
 import { FixedStepLoop, type FixedStepOptions, type FixedStepResult } from './loop.js';
+import { type Box3DThreading } from './loader.js';
 export type Vec3 = readonly [number, number, number];
 export type Vec3Like = Vec3 | {
     readonly x: number;
@@ -7938,6 +7950,7 @@ export declare class PhysicsWorld {
     readonly subSteps: number;
     readonly seed: number;
     private ownedPool;
+    private readonly threadingInfo;
     private readonly jointStiffnessOption;
     private readonly contactStiffnessOption;
     private readonly userData;
@@ -8087,6 +8100,7 @@ export declare class PhysicsWorld {
     colors(): Float32Array;
     bodyCount(): number;
     awakeCount(): number;
+    get threading(): Box3DThreading;
     get tick(): number;
     replayHash(): number;
     exactHash(): number;

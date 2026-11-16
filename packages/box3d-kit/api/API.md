@@ -124,7 +124,28 @@ Emscripten MODULARIZE/EXPORT_ES6 factory exported by box3d.js.
 export type Box3DModuleFactory = (options?: {
     locateFile?: (path: string, prefix: string) => string;
     wasmBinary?: ArrayBuffer | Uint8Array;
+    b3wPoolSize?: number;
 }) => Promise<unknown>;
+```
+
+### box3dThreading · function
+
+How the worlds of a pool from `loadBox3D` are stepped: on how many threads, and from how many awake bodies.
+
+```ts
+export declare function box3dThreading(pool: NativeWorldPool): Box3DThreading;
+```
+
+### Box3DThreading · interface
+
+How a pool's worlds are stepped.
+
+```ts
+export interface Box3DThreading {
+    readonly threads: number;
+    readonly threshold: number;
+    lastStepThreads(): number;
+}
 ```
 
 ### boxOutlines · function
@@ -155,6 +176,8 @@ export interface BuildInfo {
     readonly wasmSha256: string;
     readonly wasmBytes: number;
     readonly glueSha256: string;
+    readonly threadedWasmSha256: string;
+    readonly threadedWasmBytes: number;
 }
 ```
 
@@ -675,6 +698,8 @@ export interface LoadBox3DOptions {
     readonly wasmBinary?: ArrayBuffer | Uint8Array;
     readonly factory?: Box3DModuleFactory;
     readonly integrity?: boolean | string;
+    readonly threads?: number;
+    readonly threadThreshold?: number;
 }
 ```
 
@@ -1619,6 +1644,7 @@ export declare class PhysicsWorld {
   colors(): Float32Array;
   bodyCount(): number;
   awakeCount(): number;
+  get threading(): Box3DThreading;
   get tick(): number;
   replayHash(): number;
   exactHash(): number;

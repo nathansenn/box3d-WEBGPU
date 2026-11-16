@@ -6,6 +6,7 @@ import type {
   NativeJointThresholds, NativeMoverPlane, NativeRayBatch, NativeStepProfile, NativeWorldSettings, NativeContactStats,
 } from './core/native-world.js';
 import {FixedStepLoop, type FixedStepOptions, type FixedStepResult} from './loop.js';
+import {box3dThreading, type Box3DThreading} from './loader.js';
 
 export type Vec3 = readonly [number, number, number];
 /** A tuple, a plain {x, y, z} object or a three.js Vector3: all accepted wherever a vector is taken. */
@@ -366,6 +367,7 @@ export class PhysicsWorld {
   readonly subSteps: number;
   readonly seed: number;
   private ownedPool: NativeWorldPool | null;
+  private readonly threadingInfo: Box3DThreading;
   // The jointStiffness and contactStiffness options, as given (resolved against the step when used).
   private readonly jointStiffnessOption: WorldOptions['jointStiffness'];
   private readonly contactStiffnessOption: WorldOptions['contactStiffness'];
@@ -392,6 +394,7 @@ export class PhysicsWorld {
   constructor(pool: NativeWorldPool, options: WorldOptions = {}, ownPool = false) {
     this.native = pool.createWorld();
     this.ownedPool = ownPool ? pool : null;
+    this.threadingInfo = box3dThreading(pool);
     try {
       if (!this.native.supportsBodyLifecycle) throw new EngineError('UNSUPPORTED_BACKEND', 'box3d.wasm lacks body handles; rebuild with npm run build:wasm.');
       this.loop = new FixedStepLoop(options);
@@ -927,6 +930,11 @@ export class PhysicsWorld {
 
   bodyCount(): number { return this.native.bodyCount(); }
   awakeCount(): number { return this.native.awakeCount(); }
+  /**
+   * How this world is stepped: `threads` (1 unless the module was loaded with `threads`), the awake-body `threshold`
+   * from which they are used, and `lastStepThreads()`. The simulation is the same at every thread count.
+   */
+  get threading(): Box3DThreading { return this.threadingInfo; }
   /** Fixed steps since the last reset. */
   get tick(): number { return this.tickCount; }
   /** Order-sensitive FNV hash of every transform quantized to 1 mm. Cheap desync detector; see exactHash(). */

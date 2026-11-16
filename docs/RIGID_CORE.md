@@ -3,8 +3,7 @@
 The rigid-body engine is Box3D v0.1.0 compiled to WebAssembly behind a small C bridge (`wasm/box3d_web.c`). This
 document covers what the bridge exposes beyond bodies, shapes and the six basic joints: scene queries, the capsule
 character, continuous collision, vehicles, motor and breakable joints, world controls, the step profile, debug
-drawing, and five example scenes. Stress tests at scale (tall stacks, piles of thousands of bodies) and a
-thread-count option for the kit are not done yet; see [Not done](#not-done). Bodies, shapes, joints and events are in
+drawing, five example scenes, and what was measured at scale and on several threads (section 9). Bodies, shapes, joints and events are in
 [`packages/box3d-kit/README.md`](../packages/box3d-kit/README.md); exact checkpoints are in
 [`CHECKPOINTS.md`](CHECKPOINTS.md); the scene format is in [`SCENE_FORMAT.md`](SCENE_FORMAT.md).
 
@@ -566,11 +565,47 @@ What is exposed instead is declarative and travels in checkpoints: category and 
 body (`filter`, `setCollisionFilter`), `collideConnected` per joint, and the **filter joint** (`type: 'filter'`),
 which switches off collision between two chosen bodies and does nothing else.
 
-## Not done
+## 9. Scale and threads
 
-- **Scale.** No stress test of a 20-row pyramid, a 5,000-body pile, a 1,000-hull pile or a ragdoll pile is in the
-  repository yet, and no single- versus multi-threaded step times of them were measured. The rows above are of
-  scenes with at most a few hundred bodies.
-- **Threads in the kit.** `loadBox3D` and `createWorld` load only the single-threaded artifact. The pthread
-  artifact (`public/box3d/box3d-mt.*`, [`THREADED_ENGINE.md`](THREADED_ENGINE.md)) is used by the Lab only.
+`packages/box3d-kit/test/v22-rigid-scale.test.mjs`, at 1/60 s and 4 sub-steps (one thread unless stated). Measured
+under load 9 to 21 on 4 CPUs; step times are reported, never asserted.
 
+| Scene | What is required | Measured |
+|---|---|---|
+| Pyramid of 0.5 m boxes, 20 rows (210 boxes) | top within 20 linear slops of (n − ½) a; no box drifts 2 cm or tilts 0.02 rad; asleep within 10 s; every layer carries the weight above it; 590 contact pairs | top 9.7228 m of 9.75 m; drift 7.4 mm; tilt 0.0038 rad; asleep at 1.07 s; contact forces 1.011 × m g n (n+1)(n+2)/6 (lateral side forces of a statically indeterminate pyramid add the rest); 590 pairs |
+| 5,000 spheres, boxes and capsules dropped into a pit, 10 s | finite, inside the pit, never faster than free fall from the top, kinetic energy left < 10⁻⁴ of what the fall released, overlap at the end < 2 cm, during impacts < 25 cm | 0.42 J of 7.28 MJ; overlap 7.7 mm at the end, 14.6 cm during the first impacts; 4,986 bodies still awake (jitter of a few cm/s keeps one big island awake); median step 54–59 ms |
+| 1,000 convex hulls (8 to 16 random points), 10 s | the same, and asleep | 0 J left; overlap 6.0 mm, 15.9 cm during impacts; all asleep; median step 13–16 ms while awake |
+| 60 ragdolls (600 bodies, 540 spherical joints with cone and twist limits), 10 s | the same with overlap at the end < 8 cm; joints never open 5 cm, within 2 cm at the end | 2.5 J of 289 kJ left; joints 3.2 cm at worst, 1.3 cm at the end; overlap 6.3 cm at the end; still jittering (a limb wedged between a wall, the floor and its neighbours moves at up to 0.54 m/s without going anywhere) |
+| The same at 8 sub-steps with `jointStiffness` and `contactStiffness` `'match-substeps'` | overlap < 2 cm, joints within 5 mm | overlap 1.0 cm, joints 3.0 mm, 15 J left |
+
+The overlaps during the first impacts come from bodies arriving at up to 7 m/s (12 cm per step) against soft
+contacts that push out at 3 m/s; they are gone within a second.
+
+### Threads
+
+`loadBox3D({threads: n})` and `createWorld({threads: n})` (n = 2 to 32) load the pthread artifact
+(`box3d-mt.js`, `box3d-mt.wasm`, shipped in the package) with n − 1 workers; a world uses them from
+`threadThreshold` awake bodies on (default 384). `world.threading` reports `threads`, `threshold` and
+`lastStepThreads()`. It needs `SharedArrayBuffer`: Node, or a cross-origin isolated page; elsewhere loading fails
+with `UNSUPPORTED_BACKEND` rather than falling back to one thread without saying so. `BUILD_INFO.threadedWasmSha256`
+identifies the artifact.
+
+**Deterministic across thread counts:** a 1,500-body pile gives the same `exactHash` and `replayHash` on 1, 2 and
+4 threads at steps 1, 60, 120 and 240, and on the pthread artifact held below its threshold (test, in child
+processes, because the artifact's workers can keep a Node process alive). [`THREADED_ENGINE.md`](THREADED_ENGINE.md)
+has the wider evidence (the 800-scene catalog at 1, 2, 4 and 8 workers).
+
+**Speed** (`node scripts/rigid-scale-benchmark.mjs --threads=1,2,4 --seconds=3 --repeat=2`, 180 steps, load 17 to
+21 on 4 CPUs): 5,000 bodies 57.5 ms per step on one thread, 91.4 ms on two, 157.5 ms on four; 1,500 bodies 16.4,
+25.3 and 31.5 ms; 1,000 hulls 20.3, 22.7 and 19.6 ms. On this oversubscribed machine extra threads are slower,
+because the solver's spin barriers wait on threads the operating system has not scheduled; THREADED_ENGINE.md
+measured 1.4 to 2.8 times faster with 4 to 8 workers on 4,096 to 16,384 awake bodies on 32 CPUs. Use threads where
+there are idle cores, and measure.
+
+### Limits
+
+- The package grows by the pthread artifact: about 295 KB gzipped (`box3d-mt.wasm` 728,864 bytes, 284,461 gzipped;
+  `box3d-mt.js` 39,130 bytes). The single-threaded path does not load it.
+- Large piles do not fall asleep within 10 s at the default settings; their kinetic energy does vanish.
+- Ragdoll piles at 4 sub-steps hold limbs a few centimetres into each other under load; 8 sub-steps with
+  `'match-substeps'` bring that to about a centimetre.

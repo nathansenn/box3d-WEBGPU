@@ -1,7 +1,7 @@
 import {loadBox3D, type LoadBox3DOptions} from './loader.js';
 import {PhysicsWorld, type WorldOptions} from './world.js';
 
-export {loadBox3D, type LoadBox3DOptions, type Box3DModuleFactory} from './loader.js';
+export {loadBox3D, box3dThreading, type LoadBox3DOptions, type Box3DModuleFactory, type Box3DThreading} from './loader.js';
 export {BUILD_INFO, type BuildInfo} from './core/build-info.js';
 export {
   PhysicsWorld, toVec3, leakReporting, type Body, type BodyPose, type Vec3, type Vec3Like, type WorldOptions, type SpawnBoxOptions,

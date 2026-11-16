@@ -5,8 +5,8 @@
  "generatedBy": "node scripts/validation-report.mjs",
  "digits": 9,
  "totals": {
-  "cases": 699,
-  "passed": 699,
+  "cases": 702,
+  "passed": 702,
   "failed": 0,
   "domains": 23
  },
@@ -34,7 +34,7 @@
   {
    "id": "rigid-core",
    "title": "Rigid core: queries, character, continuous collision, vehicles, joints and examples",
-   "summary": "Ray, sweep and overlap queries against closed forms, and the batched ray call. The capsule character: speed, slope limit, step height, stairs, jump, thin walls, moving platforms, force-limited pushing and exact resume. Continuous collision: a fast ball against a thin wall with the setting off and on, and the bullet flag against a free plate. A wheel-joint vehicle: static sag, heave frequency and damping, top speed against drag, the Ackermann turning circle and braking distance. Motor, parallel and filter joints, joint events and breakable welds. World settings, the area-weighted explosion, contact statistics and debug-draw counts. Five example scenes played by their roles: stairs and a jump on the obstacle course, the sag and circle of the scene-file car, ray lengths of the scanner, bullets through thin plates, and the support shear and moments of the breakable bridge against the statics of a built-in beam of rigid links.",
+   "summary": "Ray, sweep and overlap queries against closed forms, and the batched ray call. The capsule character: speed, slope limit, step height, stairs, jump, thin walls, moving platforms, force-limited pushing and exact resume. Continuous collision: a fast ball against a thin wall with the setting off and on, and the bullet flag against a free plate. A wheel-joint vehicle: static sag, heave frequency and damping, top speed against drag, the Ackermann turning circle and braking distance. Motor, parallel and filter joints, joint events and breakable welds. World settings, the area-weighted explosion, contact statistics and debug-draw counts. Five example scenes played by their roles: stairs and a jump on the obstacle course, the sag and circle of the scene-file car, ray lengths of the scanner, bullets through thin plates, and the support shear and moments of the breakable bridge against the statics of a built-in beam of rigid links. Joint and contact stiffness that follow the sub-steps (the caps of Box3D, and the 1 / f^2 fall of the static error). A pyramid of boxes 20 rows high: contact pairs, top height, weight carried.",
    "solver": "Box3D compiled to WebAssembly, through `box3d-webgpu-kit` (float32 state, 240 Hz, 4 sub-steps unless a row says otherwise)",
    "docs": [
     "docs/RIGID_CORE.md"
@@ -49,10 +49,10 @@
     "Breaking is checked for a weld under a slowly growing static load. A joint breaks on the force or torque of a sub-step, so a short impact can break a joint whose mean load over the step is below its threshold; impact breaking has no reference row.",
     "One build on one machine; no cross-device determinism matrix.",
     "The example scenes are checked at a few closed-form points (stairs, jump, sag, ray lengths, the bridge at rest); the rest of what they do (a lap of the course, the wreck of the bridge) is asserted as ranges and as determinism, not against a reference.",
-    "Stacks and piles of many bodies are not covered by this domain yet, and neither are step times on several threads."
+    "Piles of thousands of bodies are checked for stability (containment, energy, overlap) in packages/box3d-kit/test/v22-rigid-scale.test.mjs, not against a reference: only the pyramid has closed-form rows. Step times are measured by scripts/rigid-scale-benchmark.mjs and never asserted."
    ],
-   "cases": 107,
-   "passed": 107
+   "cases": 110,
+   "passed": 110
   },
   {
    "id": "water-coupling",
@@ -4675,6 +4675,92 @@
     "measured": "1.401435",
     "error": "+0.401",
     "tolerance": "not below the reference"
+   }
+  },
+  {
+   "id": "rigid-core.scale.pyramid-pairs",
+   "domain": "rigid-core",
+   "title": "Pyramid of 20 rows: contact pairs",
+   "quantity": "touching pairs of a 210-box pyramid at rest",
+   "unit": "pairs",
+   "formula": "N = n (n + 1) / 2 (under each box) + n (n - 1) (each box on the two below it)",
+   "reference": 590,
+   "measured": 590,
+   "error": 0,
+   "relativeError": 0,
+   "tolerance": {
+    "kind": "absolute",
+    "value": 0
+   },
+   "pass": true,
+   "source": {
+    "file": "packages/box3d-kit/test/v22-rigid-scale.test.mjs",
+    "test": "a pyramid of boxes 20 rows high stands: 210 boxes, top within 20 slops of (rows - 1/2) side, contacts carrying m g n (n + 1)(n + 2) / 6",
+    "url": "https://github.com/nathansenn/box3d-WEBGPU/blob/main/packages/box3d-kit/test/v22-rigid-scale.test.mjs"
+   },
+   "text": {
+    "reference": "590 pairs",
+    "measured": "590",
+    "error": "0",
+    "tolerance": "±0"
+   }
+  },
+  {
+   "id": "rigid-core.scale.pyramid-top",
+   "domain": "rigid-core",
+   "title": "Pyramid of 20 rows: height of the top box",
+   "quantity": "centre height of the top 0.5 m box after 10 s",
+   "unit": "m",
+   "formula": "y = (n - 1/2) a, less up to one linear slop per resting contact below it",
+   "reference": 9.75,
+   "measured": 9.722826,
+   "error": -0.027173996,
+   "relativeError": -0.00278707651,
+   "tolerance": {
+    "kind": "absolute",
+    "value": 0.1
+   },
+   "pass": true,
+   "note": "Each of the 19 contacts under the top box may sink by up to one linear slop (5 mm).",
+   "source": {
+    "file": "packages/box3d-kit/test/v22-rigid-scale.test.mjs",
+    "test": "a pyramid of boxes 20 rows high stands: 210 boxes, top within 20 slops of (rows - 1/2) side, contacts carrying m g n (n + 1)(n + 2) / 6",
+    "url": "https://github.com/nathansenn/box3d-WEBGPU/blob/main/packages/box3d-kit/test/v22-rigid-scale.test.mjs"
+   },
+   "text": {
+    "reference": "9.75 m",
+    "measured": "9.722826",
+    "error": "-0.0272",
+    "tolerance": "±0.1"
+   }
+  },
+  {
+   "id": "rigid-core.scale.pyramid-weight",
+   "domain": "rigid-core",
+   "title": "Pyramid of 20 rows: weight carried by the contacts",
+   "quantity": "sum of the normal forces of all contacts over m g n (n + 1)(n + 2) / 6",
+   "unit": "1",
+   "formula": "every layer carries the weight above it: ratio >= 1",
+   "reference": 1,
+   "measured": 1.01114985,
+   "error": 0.0111498545,
+   "relativeError": 0.0111498545,
+   "tolerance": {
+    "kind": "lower",
+    "value": 0.001
+   },
+   "pass": true,
+   "note": "A pyramid of boxes is statically indeterminate: the side contacts between neighbours carry lateral forces that statics does not fix, which add about 1% here. The test bounds the ratio between 0.999 and 1.03.",
+   "source": {
+    "file": "packages/box3d-kit/test/v22-rigid-scale.test.mjs",
+    "test": "a pyramid of boxes 20 rows high stands: 210 boxes, top within 20 slops of (rows - 1/2) side, contacts carrying m g n (n + 1)(n + 2) / 6",
+    "url": "https://github.com/nathansenn/box3d-WEBGPU/blob/main/packages/box3d-kit/test/v22-rigid-scale.test.mjs"
+   },
+   "text": {
+    "reference": "1",
+    "measured": "1.01115",
+    "error": "+0.0111",
+    "tolerance": "at most 0.001 below the reference"
    }
   },
   {

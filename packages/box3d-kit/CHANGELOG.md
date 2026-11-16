@@ -9,6 +9,8 @@
 
 ## Unreleased
 
+- **Threads:** `loadBox3D({threads, threadThreshold})`, `createWorld({threads})`, `world.threading`, `box3dThreading(pool)`, type `Box3DThreading`; `BUILD_INFO.threadedWasmSha256` and `threadedWasmBytes`. The package now ships `wasm/box3d-mt.js` and `wasm/box3d-mt.wasm` (about 295 KB gzipped). Same state at every thread count. `test/v22-rigid-scale.test.mjs` (6 tests in the gate): a 20-row pyramid and piles of 5,000 bodies, 1,000 hulls and 60 ragdolls.
+
 - **`jointStiffness` and `contactStiffness` world options** (`'match-substeps'` or numbers), and `world.jointDefaults()` / `world.contactDefaults()`: joints and contacts as stiff as Box3D allows at the sub-step count. At 8 sub-steps a heavy-ended chain stretches 0.94 % instead of 3.69 % and a 1:100 stack overlaps 14.5 mm instead of 59.1 mm. Opt-in; nothing changes without them.
 
 - **Hull cache and capacity** (new WASM): bodies made of the same hull points share one hull computation (1,000 hull bodies of four shapes: 6.1–6.8 ms instead of 10.4–10.9 ms), and `capacity` is also passed to Box3D as the world's capacity. Same results, hash for hash.

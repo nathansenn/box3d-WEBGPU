@@ -1282,3 +1282,155 @@ export async function heavyStack(K, {ratio = 100, subSteps = 8, seconds = 3, opt
     return {deepest, settings: world.settings(), defaults: world.contactDefaults()};
   } finally { world.dispose(); }
 }
+
+// ---------------------------------------------------------------------------------------------------
+// Scale: a tall pyramid and piles of thousands of bodies. Each builds into a world it is given (so that
+// the same scene can be built in a single-threaded and in a threaded world) and returns what a test
+// needs to say "stable": speeds, heights, overlap, containment, sleep. `clock` (performance.now) is
+// passed in by the callers that time steps; nothing here reads a clock by itself.
+// ---------------------------------------------------------------------------------------------------
+
+/** World settings of the scale scenes: 60 Hz with 4 sub-steps, as a game would run them. */
+export const SCALE_STEP = {step: 1 / 60, subSteps: 4};
+
+/**
+ * A pyramid of boxes `rows` high (rows (rows + 1) / 2 boxes, 0.5 m cubes, row k has rows - k of them) on the ground.
+ * Returns the height of the top box against (rows - 1/2) side, the drift of the base, the largest speed and overlap
+ * after `seconds`, when it fell asleep, and the force its contacts carry against m g rows (rows + 1) (rows + 2) / 6.
+ */
+export async function boxPyramid(K, {rows = 20, seconds = 10, worldOptions = {}} = {}) {
+  const world = await K.createWorld({...SCALE_STEP, gravity: [0, -G, 0], ground: true, ...worldOptions});
+  try {
+    const side = 0.5, boxes = [];
+    for (let k = 0; k < rows; k++) for (let i = 0; i < rows - k; i++) {
+      boxes.push({row: k, x0: (i - (rows - k - 1) / 2) * side, body: world.createBody({shape: {kind: 'box', halfExtents: [side / 2, side / 2, side / 2]}, position: [(i - (rows - k - 1) / 2) * side, side / 2 + k * side, 0], density: 1000, friction: 0.6})});
+    }
+    const steps = Math.round(seconds / world.loop.step), mass = world.getState(boxes[0].body).mass;
+    let asleepAt = null, fastestLate = 0, force = null;
+    for (let i = 0; i < steps; i++) {
+      world.step();
+      if (i >= steps / 2) for (const box of boxes) { const v = world.getState(box.body).linearVelocity; fastestLate = Math.max(fastestLate, Math.hypot(v[0], v[1], v[2])); }
+      // The force its contacts carry, read once it has settled and before it sleeps (sleeping bodies report no contacts).
+      if (i === Math.round(1.5 / world.loop.step)) force = world.contactStats();
+      if (asleepAt === null && world.awakeCount() === 0) asleepAt = (i + 1) * world.loop.step;
+    }
+    const top = world.getState(boxes[boxes.length - 1].body), stats = force;
+    let drift = 0, tilt = 0, sunk = 0;
+    for (const box of boxes) {
+      const s = world.getState(box.body);
+      drift = Math.max(drift, Math.hypot(s.position[0] - box.x0, s.position[2]));
+      tilt = Math.max(tilt, 2 * Math.acos(Math.min(1, Math.abs(s.rotation[3]))));
+      sunk = Math.max(sunk, side / 2 + box.row * side - s.position[1]);
+    }
+    return {rows, boxes: boxes.length, topHeight: top.position[1], exactTopHeight: (rows - 0.5) * side, sunk, drift, tilt, fastestLate, asleepAt,
+      normalForce: stats.totalNormalForce, exactNormalForce: mass * G * rows * (rows + 1) * (rows + 2) / 6, deepest: stats.deepestPenetration, pairs: stats.pairs, exactPairs: rows * (rows + 1) / 2 + rows * (rows - 1),
+      hash: world.exactHash(), tick: world.tick};
+  } finally { world.dispose(); }
+}
+
+/** A pit: a floor and four walls, `half` metres to each wall, `height` metres high. */
+function pit(world, half, height) {
+  const t = 0.5;
+  world.createBody({shape: {kind: 'box', halfExtents: [half + t, t, half + t]}, type: 'static', position: [0, -t, 0], friction: 0.6});
+  for (const [x, z] of [[1, 0], [-1, 0], [0, 1], [0, -1]]) world.createBody({shape: {kind: 'box', halfExtents: x ? [t, height / 2, half + t] : [half + t, height / 2, t]}, type: 'static', position: [x * (half + t), height / 2, z * (half + t)], friction: 0.6});
+}
+
+/** `count` convex hulls, each of `points` random points in a 0.35 m ball (deterministic). */
+function hullShapes(count, seed = 7) {
+  const next = random(seed), shapes = [];
+  for (let k = 0; k < count; k++) {
+    const n = 8 + Math.floor(next() * 9), points = [];
+    for (let i = 0; i < n; i++) { const u = 2 * next() - 1, phi = 2 * Math.PI * next(), r = 0.2 + 0.15 * next(), s = Math.sqrt(1 - u * u); points.push(r * s * Math.cos(phi), r * u, r * s * Math.sin(phi)); }
+    shapes.push({kind: 'hull', points});
+  }
+  return shapes;
+}
+
+/**
+ * Build a pile in `world`: `count` bodies on a jittered lattice above a pit, falling in. `kind` is 'mixed' (spheres,
+ * boxes and capsules in turn) or 'hull' (random convex hulls). Returns the handles and the pit's size.
+ */
+export function buildPile(world, {count = 5000, kind = 'mixed', seed = 3} = {}) {
+  const perLayer = Math.ceil(Math.sqrt(count / 6)), spacing = 0.85, half = perLayer * spacing / 2 + 0.3, layers = Math.ceil(count / (perLayer * perLayer));
+  const height = layers * spacing + 3;
+  pit(world, half, height);
+  const next = random(seed), bodies = [], hulls = kind === 'hull' ? hullShapes(Math.min(count, 64)) : null;
+  for (let i = 0; i < count; i++) {
+    const layer = Math.floor(i / (perLayer * perLayer)), cell = i % (perLayer * perLayer), ix = cell % perLayer, iz = Math.floor(cell / perLayer);
+    const position = [(ix - (perLayer - 1) / 2) * spacing + 0.1 * (next() - 0.5), 0.6 + layer * spacing, (iz - (perLayer - 1) / 2) * spacing + 0.1 * (next() - 0.5)];
+    const shape = hulls ? hulls[i % hulls.length] : [{kind: 'sphere', radius: 0.3}, {kind: 'box', halfExtents: [0.28, 0.2, 0.24]}, {kind: 'capsule', radius: 0.18, halfLength: 0.2}][i % 3];
+    bodies.push(world.createBody({shape, position, density: 800, friction: 0.5, rotation: axisAngle([next() - 0.5, next() - 0.5, next() - 0.5 + 1e-3], next() * Math.PI)}));
+  }
+  if (bodies.some(body => body === null)) throw new Error(`buildPile: the world holds fewer than ${count} bodies; give it a capacity`);
+  return {bodies, half, height, layers};
+}
+
+/**
+ * Run a pile for `seconds` and say whether it is stable: every body finite and inside the pit, the fastest body ever
+ * against free fall from the top of the lattice, the deepest overlap and the fastest body at the end, and how many
+ * are asleep. `clock` (optional) times the steps: the result then has the median and the worst step in ms.
+ */
+export function runPile(world, built, {seconds = 8, clock = null, each = null} = {}) {
+  const {bodies, half, height} = built, steps = Math.round(seconds / world.loop.step), times = [];
+  const start = bodies.map(body => { const s = world.getState(body); return {mass: s.mass, y: s.position[1]}; });
+  let fastestEver = 0, deepestEver = 0;
+  for (let i = 0; i < steps; i++) {
+    const t0 = clock ? clock() : 0;
+    world.step();
+    if (clock) times.push(clock() - t0);
+    if (i % 15 === 14) {
+      for (let b = 0; b < bodies.length; b += 7) { const v = world.getState(bodies[b]).linearVelocity; fastestEver = Math.max(fastestEver, Math.hypot(v[0], v[1], v[2])); }
+      deepestEver = Math.max(deepestEver, world.contactStats().deepestPenetration);
+    }
+    each?.(i);
+  }
+  // Energy: what the fall released (m g times the drop of each body) against the kinetic energy left at the end.
+  let outside = 0, bad = 0, fastest = 0, top = 0, centre = 0, released = 0, kinetic = 0;
+  for (const [i, body] of bodies.entries()) {
+    const s = world.getState(body), p = s.position, v = s.linearVelocity;
+    if (![...p, ...v, ...s.rotation].every(Number.isFinite)) { bad++; continue; }
+    // A body origin may lie a little outside its own hull, so "below the floor" means half a metre below it.
+    if (Math.abs(p[0]) > half || Math.abs(p[2]) > half || p[1] < -0.5 || p[1] > height + 1) outside++;
+    fastest = Math.max(fastest, Math.hypot(v[0], v[1], v[2])); top = Math.max(top, p[1]); centre += p[1];
+    released += start[i].mass * G * (start[i].y - p[1]); kinetic += 0.5 * s.mass * (v[0] * v[0] + v[1] * v[1] + v[2] * v[2]);
+  }
+  const stats = world.contactStats(), sorted = [...times].sort((a, b) => a - b);
+  return {count: bodies.length, outside, bad, fastest, fastestEver, freeFall: Math.sqrt(2 * G * height), deepest: stats.deepestPenetration, deepestEver, pairs: stats.pairs, awake: world.awakeCount(),
+    top, meanHeight: centre / bodies.length, released, kinetic, hash: world.exactHash(), tick: world.tick,
+    ...(clock ? {medianStepMs: sorted[Math.floor(sorted.length / 2)], worstStepMs: sorted[sorted.length - 1], meanStepMs: times.reduce((a, b) => a + b, 0) / times.length} : {})};
+}
+
+/** One pile in a fresh world: build, run, dispose. */
+export async function pile(K, {count = 5000, kind = 'mixed', seconds = 8, clock = null, worldOptions = {}} = {}) {
+  const world = await K.createWorld({...SCALE_STEP, gravity: [0, -G, 0], ground: false, capacity: Math.max(4096, count + 64), ...worldOptions});
+  try { return runPile(world, buildPile(world, {count, kind}), {seconds, clock}); } finally { world.dispose(); }
+}
+
+/**
+ * A pile of ragdolls: `count` copies of the ragdoll example (10 bodies on 9 spherical joints with cone and twist
+ * limits each) dropped into a pit. Besides the pile's own numbers: the worst separation of any joint, ever.
+ */
+export async function ragdollPile(K, {count = 60, seconds = 8, worldOptions = {}} = {}) {
+  const world = await K.createWorld({...SCALE_STEP, gravity: [0, -G, 0], ground: false, capacity: Math.max(4096, count * 10 + 64), ...worldOptions});
+  try {
+    const perLayer = 4, spacing = 1.1, half = perLayer * spacing / 2 + 0.3, layers = Math.ceil(count / (perLayer * perLayer)), height = layers * 2.3 + 3;
+    pit(world, half, height);
+    const template = K.EXAMPLE_SCENES.ragdoll(), bodies = [], joints = [], next = random(11);
+    for (let r = 0; r < count; r++) {
+      const layer = Math.floor(r / (perLayer * perLayer)), cell = r % (perLayer * perLayer);
+      const offset = [(cell % perLayer - (perLayer - 1) / 2) * spacing, 0.3 + layer * 2.3, (Math.floor(cell / perLayer) - (perLayer - 1) / 2) * spacing], spin = [next() - 0.5, 2 * (next() - 0.5), next() - 0.5];
+      const ids = new Map();
+      for (const body of template.bodies) {
+        const material = template.materials[body.material];
+        const handle = world.createBody({shape: body.shape, position: [body.position[0] + offset[0], body.position[1] + offset[1], body.position[2] + offset[2]], density: material.density, friction: material.friction, restitution: material.restitution, angularVelocity: spin});
+        ids.set(body.id, handle); bodies.push(handle);
+      }
+      for (const joint of template.joints) joints.push(world.createJoint({type: joint.type, bodyA: ids.get(joint.bodyA), bodyB: ids.get(joint.bodyB), frameA: joint.frameA, frameB: joint.frameB, coneAngle: joint.coneAngle, limits: joint.limits}));
+    }
+    let worstSeparation = 0;
+    const result = runPile(world, {bodies, half, height}, {seconds, each: i => { if (i % 10 === 9) for (let j = 0; j < joints.length; j += 3) worstSeparation = Math.max(worstSeparation, world.getJointDetails(joints[j]).linearSeparation); }});
+    let endSeparation = 0;
+    for (const joint of joints) endSeparation = Math.max(endSeparation, world.getJointDetails(joint).linearSeparation);
+    return {...result, ragdolls: count, joints: joints.length, worstSeparation, endSeparation};
+  } finally { world.dispose(); }
+}

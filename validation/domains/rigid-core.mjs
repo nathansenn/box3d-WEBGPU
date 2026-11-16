@@ -387,4 +387,19 @@ const exampleCases = defineCases('rigid-core', EXAMPLES, [
     reference: {formula: 'ratio >= 1: a weld breaks only at or over a threshold', value: 1}, tolerance: lower(0), measure: async () => (await bridgeBreak()).weakestBreak},
 ]);
 
-export default [...cases, ...characterCases, ...ccdCases, ...vehicleCases, ...jointCases, ...controlCases, ...exampleCases];
+const SCALE = 'packages/box3d-kit/test/v22-rigid-scale.test.mjs';
+const TS = {pyramid: 'a pyramid of boxes 20 rows high stands: 210 boxes, top within 20 slops of (rows - 1/2) side, contacts carrying m g n (n + 1)(n + 2) / 6'};
+const pyramid = () => run('scale/pyramid', (S, K) => S.boxPyramid(K, {rows: 20}));
+const scaleCases = defineCases('rigid-core', SCALE, [
+  {id: 'rigid-core.scale.pyramid-pairs', title: 'Pyramid of 20 rows: contact pairs', quantity: 'touching pairs of a 210-box pyramid at rest', unit: 'pairs', test: TS.pyramid,
+    reference: {formula: 'N = n (n + 1) / 2 (under each box) + n (n - 1) (each box on the two below it)', value: 590}, tolerance: absolute(0), measure: async () => (await pyramid()).pairs},
+  {id: 'rigid-core.scale.pyramid-top', title: 'Pyramid of 20 rows: height of the top box', quantity: 'centre height of the top 0.5 m box after 10 s', unit: 'm', test: TS.pyramid,
+    reference: {formula: 'y = (n - 1/2) a, less up to one linear slop per resting contact below it', value: 9.75}, tolerance: absolute(20 * SLOP),
+    note: 'Each of the 19 contacts under the top box may sink by up to one linear slop (5 mm).', measure: async () => (await pyramid()).topHeight},
+  {id: 'rigid-core.scale.pyramid-weight', title: 'Pyramid of 20 rows: weight carried by the contacts', quantity: 'sum of the normal forces of all contacts over m g n (n + 1)(n + 2) / 6', unit: '1', test: TS.pyramid,
+    reference: {formula: 'every layer carries the weight above it: ratio >= 1', value: 1}, tolerance: lower(0.001),
+    note: 'A pyramid of boxes is statically indeterminate: the side contacts between neighbours carry lateral forces that statics does not fix, which add about 1% here. The test bounds the ratio between 0.999 and 1.03.',
+    measure: async () => { const r = await pyramid(); return r.normalForce / r.exactNormalForce; }},
+]);
+
+export default [...cases, ...characterCases, ...ccdCases, ...vehicleCases, ...jointCases, ...controlCases, ...exampleCases, ...scaleCases];
