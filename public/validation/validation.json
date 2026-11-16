@@ -5,8 +5,8 @@
  "generatedBy": "node scripts/validation-report.mjs",
  "digits": 9,
  "totals": {
-  "cases": 681,
-  "passed": 681,
+  "cases": 694,
+  "passed": 694,
   "failed": 0,
   "domains": 23
  },
@@ -33,8 +33,8 @@
   },
   {
    "id": "rigid-core",
-   "title": "Rigid core: queries, character, continuous collision, vehicles, joints and piles",
-   "summary": "Ray, sweep and overlap queries against closed forms, and the batched ray call. The capsule character: speed, slope limit, step height, stairs, jump, thin walls, moving platforms, force-limited pushing and exact resume. Continuous collision: a fast ball against a thin wall with the setting off and on, and the bullet flag against a free plate. A wheel-joint vehicle: static sag, heave frequency and damping, top speed against drag, the Ackermann turning circle and braking distance. Motor, parallel and filter joints, joint events and breakable welds. World settings, the area-weighted explosion, contact statistics and debug-draw counts.",
+   "title": "Rigid core: queries, character, continuous collision, vehicles, joints and examples",
+   "summary": "Ray, sweep and overlap queries against closed forms, and the batched ray call. The capsule character: speed, slope limit, step height, stairs, jump, thin walls, moving platforms, force-limited pushing and exact resume. Continuous collision: a fast ball against a thin wall with the setting off and on, and the bullet flag against a free plate. A wheel-joint vehicle: static sag, heave frequency and damping, top speed against drag, the Ackermann turning circle and braking distance. Motor, parallel and filter joints, joint events and breakable welds. World settings, the area-weighted explosion, contact statistics and debug-draw counts. Five example scenes played by their roles: stairs and a jump on the obstacle course, the sag and circle of the scene-file car, ray lengths of the scanner, bullets through thin plates, and the support shear and moments of the breakable bridge against the statics of a built-in beam of rigid links.",
    "solver": "Box3D compiled to WebAssembly, through `box3d-webgpu-kit` (float32 state, 240 Hz, 4 sub-steps unless a row says otherwise)",
    "docs": [
     "docs/RIGID_CORE.md"
@@ -47,10 +47,12 @@
     "Continuous collision is checked for spheres against boxes. Fast rotation (a spinning thin bar) is not swept by Box3D and is not checked; kinematic bodies are not swept against static ones.",
     "The vehicle has rigid sphere wheels with Coulomb friction: no tyre model (slip curves, camber, load sensitivity), no drivetrain (gears, differential, engine curve), no anti-roll bars. Handling at speed, roll-over and jumps are not checked against references.",
     "Breaking is checked for a weld under a slowly growing static load. A joint breaks on the force or torque of a sub-step, so a short impact can break a joint whose mean load over the step is below its threshold; impact breaking has no reference row.",
-    "One build on one machine; no cross-device determinism matrix."
+    "One build on one machine; no cross-device determinism matrix.",
+    "The example scenes are checked at a few closed-form points (stairs, jump, sag, ray lengths, the bridge at rest); the rest of what they do (a lap of the course, the wreck of the bridge) is asserted as ranges and as determinism, not against a reference.",
+    "Stacks and piles of many bodies are not covered by this domain yet, and neither are step times on several threads."
    ],
-   "cases": 89,
-   "passed": 89
+   "cases": 102,
+   "passed": 102
   },
   {
    "id": "water-coupling",
@@ -4160,6 +4162,376 @@
     "measured": "1152",
     "error": "0",
     "tolerance": "±0"
+   }
+  },
+  {
+   "id": "rigid-core.example.course-stairs",
+   "domain": "rigid-core",
+   "title": "Example, obstacle course: four stairs of 0.2 m",
+   "quantity": "height of the character's feet on the deck, walking its route",
+   "unit": "m",
+   "formula": "h = 4 x 0.2",
+   "reference": 0.8,
+   "measured": 0.800018649,
+   "error": 0.0000186491013,
+   "relativeError": 0.0000233113766,
+   "tolerance": {
+    "kind": "absolute",
+    "value": 0.001
+   },
+   "pass": true,
+   "source": {
+    "file": "packages/box3d-kit/test/v21-rigid-examples.test.mjs",
+    "test": "obstacle course: the character walks its route up the stairs, down the ramp, pushes the crate, rides the platform, is stopped by the steep slope, jumps, and comes round",
+    "url": "https://github.com/nathansenn/box3d-WEBGPU/blob/main/packages/box3d-kit/test/v21-rigid-examples.test.mjs"
+   },
+   "text": {
+    "reference": "0.8 m",
+    "measured": "0.8000186",
+    "error": "+1.86e-5",
+    "tolerance": "±0.001"
+   }
+  },
+  {
+   "id": "rigid-core.example.course-jump",
+   "domain": "rigid-core",
+   "title": "Example, obstacle course: the jump on the route",
+   "quantity": "apex of a 5 m/s jump taken while walking",
+   "unit": "m",
+   "formula": "h = v^2 / (2 g)",
+   "reference": 1.27420999,
+   "measured": 1.2742009,
+   "error": -0.00000909258952,
+   "relativeError": -0.00000713586426,
+   "tolerance": {
+    "kind": "relative",
+    "value": 0.001
+   },
+   "pass": true,
+   "source": {
+    "file": "packages/box3d-kit/test/v21-rigid-examples.test.mjs",
+    "test": "obstacle course: the character walks its route up the stairs, down the ramp, pushes the crate, rides the platform, is stopped by the steep slope, jumps, and comes round",
+    "url": "https://github.com/nathansenn/box3d-WEBGPU/blob/main/packages/box3d-kit/test/v21-rigid-examples.test.mjs"
+   },
+   "text": {
+    "reference": "1.27421 m",
+    "measured": "1.274201",
+    "error": "-7.14e-6 rel.",
+    "tolerance": "±0.1%"
+   }
+  },
+  {
+   "id": "rigid-core.example.vehicle-sag",
+   "domain": "rigid-core",
+   "title": "Example, vehicle: static sag of the scene-file car",
+   "quantity": "mean suspension compression at rest (1,200 kg on four 60 kN/m springs set through suspensionJointSpring)",
+   "unit": "m",
+   "formula": "x = m g / (4 k)",
+   "reference": 0.04905,
+   "measured": 0.0490143588,
+   "error": -0.0000356412187,
+   "relativeError": -0.000726630351,
+   "tolerance": {
+    "kind": "relative",
+    "value": 0.005
+   },
+   "pass": true,
+   "source": {
+    "file": "packages/box3d-kit/test/v21-rigid-examples.test.mjs",
+    "test": "vehicle on terrain: static sag m g / (4 k), a cruise at the set speed on the Ackermann circle, and the pedals",
+    "url": "https://github.com/nathansenn/box3d-WEBGPU/blob/main/packages/box3d-kit/test/v21-rigid-examples.test.mjs"
+   },
+   "text": {
+    "reference": "0.04905 m",
+    "measured": "0.04901436",
+    "error": "-0.0727%",
+    "tolerance": "±0.5%"
+   }
+  },
+  {
+   "id": "rigid-core.example.vehicle-circle",
+   "domain": "rigid-core",
+   "title": "Example, vehicle: autopilot circle on the terrain",
+   "quantity": "mean speed over mean yaw rate at 6 m/s, steering 0.25 rad, over 20 s of rolling terrain",
+   "unit": "m",
+   "formula": "R = L / tan(delta), L = 2.6 m",
+   "reference": 10.1824251,
+   "measured": 10.2079618,
+   "error": 0.0255366689,
+   "relativeError": 0.0025079162,
+   "tolerance": {
+    "kind": "relative",
+    "value": 0.05
+   },
+   "pass": true,
+   "note": "On terrain with bumps of +-0.2 m; the flat-ground rows are rigid-core.vehicle.turning and rigid-core.vehicle.ackermann.",
+   "source": {
+    "file": "packages/box3d-kit/test/v21-rigid-examples.test.mjs",
+    "test": "vehicle on terrain: static sag m g / (4 k), a cruise at the set speed on the Ackermann circle, and the pedals",
+    "url": "https://github.com/nathansenn/box3d-WEBGPU/blob/main/packages/box3d-kit/test/v21-rigid-examples.test.mjs"
+   },
+   "text": {
+    "reference": "10.18243 m",
+    "measured": "10.20796",
+    "error": "+0.251%",
+    "tolerance": "±5%"
+   }
+  },
+  {
+   "id": "rigid-core.example.laser-ground",
+   "domain": "rigid-core",
+   "title": "Example, laser scanner: where pitched rays meet the ground",
+   "quantity": "worst error of the length of the rays pitched 0.12 rad down from 1.25 m that hit the ground",
+   "unit": "m",
+   "formula": "d = h / sin(p): error 0",
+   "reference": 0,
+   "measured": 8.44518125e-7,
+   "error": 8.44518125e-7,
+   "relativeError": null,
+   "tolerance": {
+    "kind": "absolute",
+    "value": 0.00001
+   },
+   "pass": true,
+   "source": {
+    "file": "packages/box3d-kit/test/v21-rigid-examples.test.mjs",
+    "test": "laser scanner: 96 rays in one call per step end on the spheres, on the ground at h / sin(pitch), or at the end of their range",
+    "url": "https://github.com/nathansenn/box3d-WEBGPU/blob/main/packages/box3d-kit/test/v21-rigid-examples.test.mjs"
+   },
+   "text": {
+    "reference": "0 m",
+    "measured": "8.445181e-7",
+    "error": "+8.45e-7",
+    "tolerance": "±1e-5"
+   }
+  },
+  {
+   "id": "rigid-core.example.laser-spheres",
+   "domain": "rigid-core",
+   "title": "Example, laser scanner: hit points on the spheres",
+   "quantity": "worst distance of a hit point on the two static spheres from their surfaces",
+   "unit": "m",
+   "formula": "| |p - c| - r | = 0",
+   "reference": 0,
+   "measured": 1.92988948e-7,
+   "error": 1.92988948e-7,
+   "relativeError": null,
+   "tolerance": {
+    "kind": "absolute",
+    "value": 0.0001
+   },
+   "pass": true,
+   "source": {
+    "file": "packages/box3d-kit/test/v21-rigid-examples.test.mjs",
+    "test": "laser scanner: 96 rays in one call per step end on the spheres, on the ground at h / sin(pitch), or at the end of their range",
+    "url": "https://github.com/nathansenn/box3d-WEBGPU/blob/main/packages/box3d-kit/test/v21-rigid-examples.test.mjs"
+   },
+   "text": {
+    "reference": "0 m",
+    "measured": "1.929889e-7",
+    "error": "+1.93e-7",
+    "tolerance": "±0.0001"
+   }
+  },
+  {
+   "id": "rigid-core.example.bullet-momentum",
+   "domain": "rigid-core",
+   "title": "Example, bullets: momentum through the bullet impact",
+   "quantity": "momentum of ball and plate in the step after a 150 m/s bullet met a free plate",
+   "unit": "N s",
+   "formula": "p = m v before the impact",
+   "reference": 1058.59108,
+   "measured": 1048.48873,
+   "error": -10.1023472,
+   "relativeError": -0.00954320078,
+   "tolerance": {
+    "kind": "relative",
+    "value": 0.02
+   },
+   "pass": true,
+   "note": "The plate stands on the ground with friction 0.6, which takes about 1% during the step of the impact.",
+   "source": {
+    "file": "packages/box3d-kit/test/v21-rigid-examples.test.mjs",
+    "test": "bullets and plates at 60 Hz: an ordinary ball passes five free plates, a bullet stops at the first, a static wall stops an ordinary ball",
+    "url": "https://github.com/nathansenn/box3d-WEBGPU/blob/main/packages/box3d-kit/test/v21-rigid-examples.test.mjs"
+   },
+   "text": {
+    "reference": "1058.591 N s",
+    "measured": "1048.489",
+    "error": "-0.954%",
+    "tolerance": "±2%"
+   }
+  },
+  {
+   "id": "rigid-core.example.bullet-tunnel",
+   "domain": "rigid-core",
+   "title": "Example, bullets: an ordinary ball through five free plates",
+   "quantity": "plates (of five, 2 cm thick) that noticed a 150 m/s ball without the bullet flag, 2.5 m per step",
+   "unit": "plates",
+   "formula": "none: two moving bodies are not swept without the bullet flag",
+   "reference": 0,
+   "measured": 0,
+   "error": 0,
+   "relativeError": null,
+   "tolerance": {
+    "kind": "absolute",
+    "value": 0
+   },
+   "pass": true,
+   "source": {
+    "file": "packages/box3d-kit/test/v21-rigid-examples.test.mjs",
+    "test": "bullets and plates at 60 Hz: an ordinary ball passes five free plates, a bullet stops at the first, a static wall stops an ordinary ball",
+    "url": "https://github.com/nathansenn/box3d-WEBGPU/blob/main/packages/box3d-kit/test/v21-rigid-examples.test.mjs"
+   },
+   "text": {
+    "reference": "0 plates",
+    "measured": "0",
+    "error": "0",
+    "tolerance": "±0"
+   }
+  },
+  {
+   "id": "rigid-core.example.bridge-shear",
+   "domain": "rigid-core",
+   "title": "Example, breakable bridge at rest: support shear",
+   "quantity": "vertical force on an end weld of eight 135 kg planks",
+   "unit": "N",
+   "formula": "V = w L / 2",
+   "reference": 5297.4,
+   "measured": 5297.47803,
+   "error": 0.0780273437,
+   "relativeError": 0.0000147293661,
+   "tolerance": {
+    "kind": "relative",
+    "value": 0.0001
+   },
+   "pass": true,
+   "note": "Statics: half the weight on each support of a symmetric span.",
+   "source": {
+    "file": "packages/box3d-kit/test/v21-rigid-examples.test.mjs",
+    "test": "breakable bridge at rest: support shear w L / 2 and moments of a built-in beam of 8 links, w l^2 (n^2 - 1) / 12 at the supports",
+    "url": "https://github.com/nathansenn/box3d-WEBGPU/blob/main/packages/box3d-kit/test/v21-rigid-examples.test.mjs"
+   },
+   "text": {
+    "reference": "5297.4 N",
+    "measured": "5297.478",
+    "error": "+1.47e-5 rel.",
+    "tolerance": "±0.01%"
+   }
+  },
+  {
+   "id": "rigid-core.example.bridge-support-moment",
+   "domain": "rigid-core",
+   "title": "Example, breakable bridge at rest: support moment",
+   "quantity": "torque on an end weld",
+   "unit": "N m",
+   "formula": "M = w l^2 (n^2 - 1) / 12, n = 8 links of l = 1 m",
+   "reference": 6952.8375,
+   "measured": 6952.62354,
+   "error": -0.213964844,
+   "relativeError": -0.0000307737444,
+   "tolerance": {
+    "kind": "relative",
+    "value": 0.001
+   },
+   "pass": true,
+   "note": "Statics of n rigid links on n + 1 soft welds between two fixed ends (derived in docs/RIGID_CORE.md, section 8): the rotations of the welds add up to zero, and a Box3D joint spring acts on the joint's effective inertia, so the two end welds are twice as stiff as the others. As n grows the support moment tends to the w L^2 / 12 of a continuous built-in beam.",
+   "source": {
+    "file": "packages/box3d-kit/test/v21-rigid-examples.test.mjs",
+    "test": "breakable bridge at rest: support shear w L / 2 and moments of a built-in beam of 8 links, w l^2 (n^2 - 1) / 12 at the supports",
+    "url": "https://github.com/nathansenn/box3d-WEBGPU/blob/main/packages/box3d-kit/test/v21-rigid-examples.test.mjs"
+   },
+   "text": {
+    "reference": "6952.837 N m",
+    "measured": "6952.624",
+    "error": "-3.08e-5 rel.",
+    "tolerance": "±0.1%"
+   }
+  },
+  {
+   "id": "rigid-core.example.bridge-mid-moment",
+   "domain": "rigid-core",
+   "title": "Example, breakable bridge at rest: mid-span moment",
+   "quantity": "torque on the middle weld",
+   "unit": "N m",
+   "formula": "M = V L / 2 - w L^2 / 8 - M_support",
+   "reference": 3641.9625,
+   "measured": 3641.82007,
+   "error": -0.142431641,
+   "relativeError": -0.0000391084863,
+   "tolerance": {
+    "kind": "relative",
+    "value": 0.001
+   },
+   "pass": true,
+   "note": "Statics of n rigid links on n + 1 soft welds between two fixed ends (derived in docs/RIGID_CORE.md, section 8): the rotations of the welds add up to zero, and a Box3D joint spring acts on the joint's effective inertia, so the two end welds are twice as stiff as the others. As n grows the support moment tends to the w L^2 / 12 of a continuous built-in beam.",
+   "source": {
+    "file": "packages/box3d-kit/test/v21-rigid-examples.test.mjs",
+    "test": "breakable bridge at rest: support shear w L / 2 and moments of a built-in beam of 8 links, w l^2 (n^2 - 1) / 12 at the supports",
+    "url": "https://github.com/nathansenn/box3d-WEBGPU/blob/main/packages/box3d-kit/test/v21-rigid-examples.test.mjs"
+   },
+   "text": {
+    "reference": "3641.963 N m",
+    "measured": "3641.82",
+    "error": "-3.91e-5 rel.",
+    "tolerance": "±0.1%"
+   }
+  },
+  {
+   "id": "rigid-core.example.bridge-break-time",
+   "domain": "rigid-core",
+   "title": "Example, breakable bridge: when the first weld breaks",
+   "quantity": "time of the first joint-break event, block dropped 2 m",
+   "unit": "s",
+   "formula": "t = sqrt(2 h / g)",
+   "reference": 0.638550857,
+   "measured": 0.641666667,
+   "error": 0.00311580985,
+   "relativeError": 0.00487950148,
+   "tolerance": {
+    "kind": "absolute",
+    "value": 0.00833333333
+   },
+   "pass": true,
+   "note": "Within two steps of 1/240 s: the contact begins in the step the block arrives.",
+   "source": {
+    "file": "packages/box3d-kit/test/v21-rigid-examples.test.mjs",
+    "test": "breakable bridge: intact until the block lands, then the welds that were overloaded break and report what they carried",
+    "url": "https://github.com/nathansenn/box3d-WEBGPU/blob/main/packages/box3d-kit/test/v21-rigid-examples.test.mjs"
+   },
+   "text": {
+    "reference": "0.6385509 s",
+    "measured": "0.6416667",
+    "error": "+0.00312",
+    "tolerance": "±0.008333"
+   }
+  },
+  {
+   "id": "rigid-core.example.bridge-break-load",
+   "domain": "rigid-core",
+   "title": "Example, breakable bridge: load of the weakest weld that broke",
+   "quantity": "largest of force / force threshold and torque / torque threshold, least over the welds that broke",
+   "unit": "ratio",
+   "formula": "ratio >= 1: a weld breaks only at or over a threshold",
+   "reference": 1,
+   "measured": 1.40143489,
+   "error": 0.401434889,
+   "relativeError": 0.401434889,
+   "tolerance": {
+    "kind": "lower",
+    "value": 0
+   },
+   "pass": true,
+   "source": {
+    "file": "packages/box3d-kit/test/v21-rigid-examples.test.mjs",
+    "test": "breakable bridge: intact until the block lands, then the welds that were overloaded break and report what they carried",
+    "url": "https://github.com/nathansenn/box3d-WEBGPU/blob/main/packages/box3d-kit/test/v21-rigid-examples.test.mjs"
+   },
+   "text": {
+    "reference": "1 ratio",
+    "measured": "1.401435",
+    "error": "+0.401",
+    "tolerance": "not below the reference"
    }
   },
   {

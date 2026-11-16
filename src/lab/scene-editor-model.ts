@@ -570,6 +570,11 @@ export function jointTraits(type: SceneJointType): JointTraits {
     case 'prismatic': return { limits: 'length', motor: 'linear', spring: 'length', coneAngle: false, length: false, axis: 'x', axisLabel: 'Slide axis' };
     case 'distance': return { limits: 'length', motor: 'linear', spring: 'none-target', coneAngle: false, length: true, axis: null, axisLabel: '' };
     case 'wheel': return { limits: 'length', motor: 'angular', spring: 'length', coneAngle: false, length: false, axis: 'z', axisLabel: 'Axle axis' };
+    // Scene version 3 joints: the editor shows and keeps them (their drive, spring torque limit, thresholds and steering are
+    // carried untouched); it has no fields for those settings yet.
+    case 'motor': return { limits: null, motor: null, spring: null, coneAngle: false, length: false, axis: null, axisLabel: '' };
+    case 'parallel': return { limits: null, motor: null, spring: 'none-target', coneAngle: false, length: false, axis: 'z', axisLabel: 'Aligned axis' };
+    case 'filter': return { limits: null, motor: null, spring: null, coneAngle: false, length: false, axis: null, axisLabel: '' };
   }
 }
 

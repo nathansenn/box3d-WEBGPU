@@ -58,7 +58,7 @@ const sample = () => ({
 test('the module is listed, and the sample scene and every example validate', () => {
   assert.ok(capabilities().modules.includes('scene'));
   assert.equal(SCENE_FORMAT, 'box3d-scene');
-  assert.equal(SCENE_VERSION, 2, 'the newest version this build reads; scenes without compound shapes or massData are still written as version 1');
+  assert.equal(SCENE_VERSION, 3, 'the newest version this build reads (3 since the rigid core: joint thresholds, motor, parallel and filter joints); scenes without compound shapes or massData are still written as version 1');
   assert.deepEqual(validateScene(sample()), []);
   assert.deepEqual(Object.keys(EXAMPLE_SCENES), ['pendulum-wave', 'newtons-cradle', 'domino-run', 'terrain-car', 'ragdoll']);
   for (const [name, make] of Object.entries(EXAMPLE_SCENES)) {
@@ -127,8 +127,8 @@ const MALFORMED = [
   ['a scene that is an array', () => [], '', /got array/],
   ['a missing format', s => { delete s.format; }, '/format', /must be 'box3d-scene', got nothing/],
   ['a wrong format', s => { s.format = 'gltf'; }, '/format', /got "gltf"/],
-  ['a newer version', s => { s.version = 3; }, '/version', /unsupported scene version 3; this build reads versions 1 and 2/],
-  ['a version of the wrong type', s => { s.version = '1'; }, '/version', /must be the integer 1 or 2, got "1"/],
+  ['a newer version', s => { s.version = 4; }, '/version', /unsupported scene version 4; this build reads versions 1, 2 and 3/],
+  ['a version of the wrong type', s => { s.version = '1'; }, '/version', /must be the integer 1, 2 or 3, got "1"/],
   ['an unknown top-level key', s => { s.camera = {}; }, '/camera', /unknown key "camera"/],
   ['units other than SI', s => { s.units = 'imperial'; }, '/units', /must be 'SI', got "imperial"/],
   ['no bodies', s => { delete s.bodies; delete s.joints; }, '/bodies', /is required/],

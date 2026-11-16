@@ -3,6 +3,7 @@
  * plain-JSON scene; pass it to loadScene, encodeSceneLink or JSON.stringify.
  */
 import type {Scene, SceneBody, SceneJoint} from './scene-format.ts';
+import {suspensionJointSpring} from './vehicle.ts';
 
 const G = 9.81;
 const round = (value: number, digits = 6): number => { const v = Number(value.toFixed(digits)); return v === 0 ? 0 : v; };
@@ -155,6 +156,200 @@ export const EXAMPLE_SCENES: {readonly [name: string]: () => Scene} = Object.fre
   'domino-run': () => dominoRunScene(),
   'terrain-car': () => terrainCarScene(),
   ragdoll: () => ragdollScene(),
+});
+
+// ---------------------------------------------------------------------------
+// Rigid-core examples (docs/RIGID_CORE.md): a character on an obstacle course, a car to drive, a ray-cast scanner,
+// bullets and thin plates, a bridge that breaks. They are plain scenes of bodies and joints. What makes three of them
+// interactive is `userData` on a body or a joint with a `role` ('character', 'platform', 'vehicle', 'wheel', 'laser'):
+// the scene format carries userData and never reads it; the Physics Lab (src/lab/rigid-play.ts) does, and attaches a
+// CapsuleCharacterController, a Vehicle or a batch of rays to it. Without the Lab they still load and run as scenes.
+// Kept out of EXAMPLE_SCENES so that the list every older test and table knows stays what it was.
+// ---------------------------------------------------------------------------
+
+/**
+ * An obstacle course for the capsule character: four stairs up to a deck, a 25 degree ramp back down, a crate to push,
+ * a ledge onto a slab, a platform that drifts sideways under the walker, and a 60 degree slope and a wall it cannot
+ * climb. The body 'hero' is the character: a kinematic capsule that collides with nothing (the controller moves it and
+ * does the colliding), with the controller's settings and a walking route in its userData.
+ */
+export function obstacleCourseScene(options: {speed?: number} = {}): Scene {
+  const {speed = 2.5} = options;
+  const slab = (id: string, x0: number, x1: number, top: number, halfWidth = 1.2, extra: Partial<SceneBody> = {}): SceneBody => ({
+    id, shape: {kind: 'box', halfExtents: [round((x1 - x0) / 2), round(top / 2), halfWidth]}, type: 'static', position: [round((x0 + x1) / 2), round(top / 2), 0], color: 0x8C8F99, ...extra});
+  const bodies: SceneBody[] = [];
+  // Four stairs of 0.2 m, each a slab reaching to the end of the deck (x = 8).
+  for (let k = 1; k <= 4; k++) bodies.push(slab(`stair-${k}`, 3 + (k - 1) * 0.5, 8, k * 0.2));
+  // The ramp down from the deck: top face from (8, 0.8) to the ground, 25 degrees.
+  const rampAngle = 25 * Math.PI / 180, rampLength = round(0.8 / Math.sin(rampAngle), 4), half = 0.1;
+  bodies.push({id: 'ramp', shape: {kind: 'box', halfExtents: [round(rampLength / 2, 4), half, 1.2]}, type: 'static',
+    position: [round(8 + (rampLength / 2) * Math.cos(rampAngle) - half * Math.sin(rampAngle), 4), round(0.8 - (rampLength / 2) * Math.sin(rampAngle) - half * Math.cos(rampAngle), 4), 0],
+    rotation: [0, 0, round(-Math.sin(rampAngle / 2), 9), round(Math.cos(rampAngle / 2), 9)], color: 0x8C8F99});
+  bodies.push({id: 'crate', shape: {kind: 'box', halfExtents: [0.3, 0.3, 0.3]}, position: [11.6, 0.3, 0], density: 120, friction: 0.5, color: 0xC98A3A});
+  bodies.push(slab('ledge', 14, 16, 0.3));
+  bodies.push({id: 'platform', shape: {kind: 'box', halfExtents: [2, 0.15, 1.6]}, type: 'kinematic', position: [18, 0.15, 0], color: 0x3D7DD8,
+    userData: {role: 'platform', axis: [0, 0, 1], amplitude: 0.9, period: 6}});
+  bodies.push(slab('landing', 20, 21.5, 0.3));
+  // What the character cannot climb: a 60 degree slope and a wall taller than a step.
+  const steep = 60 * Math.PI / 180;
+  bodies.push({id: 'steep-slope', shape: {kind: 'box', halfExtents: [1.2, 0.1, 1.2]}, type: 'static', position: [round(23.5 + 1.2 * Math.cos(steep), 4), round(1.2 * Math.sin(steep) - 0.1, 4), 0],
+    rotation: [0, 0, round(Math.sin(steep / 2), 9), round(Math.cos(steep / 2), 9)], color: 0xB0564A});
+  bodies.push({id: 'wall', shape: {kind: 'box', halfExtents: [0.05, 0.4, 3]}, type: 'static', position: [26.5, 0.4, 2], color: 0xB0564A});
+  bodies.push({
+    id: 'hero', shape: {kind: 'capsule', radius: 0.3, halfLength: 0.6}, type: 'kinematic', position: [0, 0.9, 0], color: 0xF2C14E,
+    filter: {categoryBits: '2', maskBits: '0'},
+    userData: {role: 'character', radius: 0.3, height: 1.8, speed, jump: 5, maxSlopeDegrees: 45, stepHeight: 0.35, maxPushForce: 600,
+      // Up the stairs and down the ramp; push the crate; round it and up the ledge; across the platform and the landing; at the
+      // steep slope (given up: [24.6, 0] cannot be reached); back along z = 4 with a jump on the way.
+      route: [[9, 0], [12.6, 0], [12.6, 0.85], [14.6, 0.85], [15.5, 0], [18, 0], [20.75, 0], [23, 0], [24.6, 0], [23, 0], [23, 4], [12, 4, 1], [0, 4], [0, 0]]},
+  });
+  return {
+    ...header, world: {gravity: [0, -G, 0], ground: true, seed: 1, step: 1 / 240, subSteps: 4}, materials: {}, bodies, joints: [],
+    meta: {title: 'Character: obstacle course', description: 'A capsule character on stairs, a ramp, a ledge and a moving platform, pushing a crate. In the Lab: W A S D or the arrow keys walk, Space jumps; left alone it walks its route.'},
+  };
+}
+
+/**
+ * A car to drive on rolling terrain: a 1,200 kg chassis on four wheel joints with a physical suspension (60 kN/m and
+ * 5 kN s/m per wheel, turned into each joint's own frequency by suspensionJointSpring), steering on the front wheels,
+ * on a 128 m square of terrain. The chassis' userData says how to drive it and the joints' userData which wheel each
+ * is; SceneRoles adopts them as a Vehicle. Left alone it holds 6 m/s on half lock: a circle of about
+ * wheelbase / tan(0.25 rad) = 10 m radius. Scene version 3 (wheel steering).
+ */
+export function vehicleTerrainScene(options: {bump?: number} = {}): Scene {
+  const {bump = 0.22} = options;
+  const count = 65, spacing = 2, origin = -64, heights: number[] = [];
+  for (let z = 0; z < count; z++) for (let x = 0; x < count; x++) {
+    const px = origin + x * spacing, pz = origin + z * spacing, flat = Math.min(1, Math.hypot(px, pz) / 6);   // level where the car starts
+    heights.push(round(bump * flat * (Math.sin(px * 0.45) * Math.cos(pz * 0.38) + 0.6 * Math.sin(px * 0.17 + pz * 0.23)) + bump * 1.6, 4));
+  }
+  const half: [number, number, number] = [1.6, 0.25, 0.75], mass = 1200, wheelMass = 20, radius = 0.35, stiffness = 60000, damping = 5000;
+  const volume = 8 * half[0] * half[1] * half[2], inertia = [mass / 3 * (half[1] ** 2 + half[2] ** 2), mass / 3 * (half[0] ** 2 + half[2] ** 2), mass / 3 * (half[0] ** 2 + half[1] ** 2), 0, 0, 0];
+  const up: [number, number, number, number] = [0, 0, Math.SQRT1_2, Math.SQRT1_2], ground = bump * 1.6, y = round(ground + radius + half[1] + 0.02, 4);
+  const bodies: SceneBody[] = [
+    {id: 'terrain', shape: {kind: 'heightfield', heights, countX: count, countZ: count, spacing: [spacing, spacing]}, position: [origin, 0, origin], friction: 1, color: 0x6B8E4E},
+    {id: 'car', shape: {kind: 'box', halfExtents: half}, position: [0, y, 0], density: round(mass / volume, 6), friction: 0.5, color: 0xD9412B, neverSleeps: true,
+      userData: {role: 'vehicle', maxDriveTorque: 350, maxBrakeTorque: 1500, maxSteerAngle: 0.5, maxWheelSpeed: 120, dragArea: 0.8, stiffness, damping, autopilot: {throttle: 0.5, steer: 0.5, speed: 6}}},
+  ];
+  const joints: SceneJoint[] = [];
+  for (const [name, x, z] of [['front-left', 1.3, -0.8], ['front-right', 1.3, 0.8], ['rear-left', -1.3, -0.8], ['rear-right', -1.3, 0.8]] as const) {
+    const local: [number, number, number] = [x, -half[1], z], spring = suspensionJointSpring({stiffness, damping, chassisMass: mass, chassisInertia: inertia, wheelMass, wheelPosition: local});
+    const steered = x > 0;
+    bodies.push({id: `wheel-${name}`, shape: {kind: 'sphere', radius}, position: [x, round(y - half[1], 4), z], density: round(wheelMass / (4 / 3 * Math.PI * radius ** 3), 4), friction: 1, color: 0x20242C, neverSleeps: true});
+    joints.push({
+      id: `axle-${name}`, type: 'wheel', bodyA: 'car', bodyB: `wheel-${name}`, frameA: {position: local, rotation: up}, frameB: {rotation: up},
+      spring: {hertz: round(spring.hertz, 6), dampingRatio: round(spring.dampingRatio, 6)}, limits: {lower: -0.25, upper: 0.25}, motor: {speed: 0, maxForce: 0},
+      steering: {angle: 0, hertz: steered ? 8 : 30, dampingRatio: 1, maxTorque: 100000, limits: steered ? {lower: -1.5, upper: 1.5} : {lower: 0, upper: 0}},
+      userData: {role: 'wheel', position: local, radius, steered, driven: true},
+    });
+  }
+  return {
+    ...header, version: 3, world: {gravity: [0, -G, 0], ground: false, seed: 1, step: 1 / 240, subSteps: 4}, materials: {}, bodies, joints,
+    meta: {title: 'Vehicle: drive on terrain', description: 'A 1,200 kg car on four wheel joints with a 60 kN/m suspension and Ackermann steering. In the Lab: W and S or the up and down arrows drive, A and D or left and right steer, Space brakes; left alone it circles at 6 m/s.'},
+  };
+}
+
+/**
+ * A ray-cast scanner among assorted bodies: the 'scanner' body's userData asks the Lab for a fan of rays, turning
+ * slowly, cast in one batched call per step and drawn as beams to their hit points. A swinging pendulum and a ball
+ * cross the beams.
+ */
+export function laserScannerScene(options: {rays?: number; range?: number} = {}): Scene {
+  const {rays = 96, range = 16} = options;
+  const bodies: SceneBody[] = [
+    {id: 'scanner', shape: {kind: 'box', halfExtents: [0.2, 0.6, 0.2]}, type: 'static', position: [0, 0.6, 0], color: 0x30343C,
+      userData: {role: 'laser', origin: [0, 1.25, 0], rays, range, spin: 0.35, pitch: [0, -0.12]}},
+  ];
+  const ring: [string, SceneBody['shape'], number][] = [
+    ['pillar', {kind: 'box', halfExtents: [0.4, 1.2, 0.4]}, 1.2], ['ball', {kind: 'sphere', radius: 0.8}, 0.8], ['drum', {kind: 'capsule', radius: 0.5, halfLength: 0.7}, 1.2],
+    ['slab', {kind: 'box', halfExtents: [1.4, 0.9, 0.15]}, 0.9], ['gem', {kind: 'hull', points: [0, 1.1, 0, 0.8, 0, 0.5, -0.8, 0, 0.5, 0, 0, -0.9, 0, -1.1, 0]}, 1.1], ['post', {kind: 'capsule', radius: 0.25, halfLength: 1}, 1.25],
+    ['block', {kind: 'box', halfExtents: [0.7, 0.7, 0.7]}, 0.7], ['dome', {kind: 'sphere', radius: 1.3}, 0.6],
+  ];
+  ring.forEach(([id, shape, height], i) => {
+    const angle = i / ring.length * 2 * Math.PI, distance = 5.5 + 2.2 * (i % 3);
+    bodies.push({id, shape, type: 'static', position: [round(distance * Math.cos(angle), 4), height, round(distance * Math.sin(angle), 4)], rotationEuler: [0, round(-angle * 180 / Math.PI + 20 * i, 3), 0], color: [0x4E8FD9, 0xD98A4E, 0x6FBF73, 0xC75D9A][i % 4]});
+  });
+  // Moving targets: a pendulum swinging through the beams and a ball rolling across the floor.
+  bodies.push({id: 'bob', shape: {kind: 'sphere', radius: 0.35}, position: [3.2, 1.25, 2.2], density: 2000, color: 0xF2C14E, neverSleeps: true});
+  bodies.push({id: 'roller', shape: {kind: 'sphere', radius: 0.45}, position: [-9, 0.45, -3.5], linearVelocity: [2.2, 0, 1.2], friction: 0.9, color: 0xF2C14E});
+  // The hinge turns about its frame's z axis; turn that onto world x so that the bob swings in the y-z plane.
+  const aim: [number, number, number, number] = [0, Math.SQRT1_2, 0, Math.SQRT1_2];
+  const joints: SceneJoint[] = [{id: 'string', type: 'revolute', bodyA: null, bodyB: 'bob', frameA: {position: [3.2, 4.5, 0], rotation: aim}, frameB: {position: [0, 3.25, -2.2], rotation: aim}}];
+  return {
+    ...header, world: {gravity: [0, -G, 0], ground: true, seed: 1, step: 1 / 240, subSteps: 4}, materials: {}, bodies, joints,
+    meta: {title: 'Ray casts: laser scanner', description: `A fan of ${rays} rays, ${range} m long, cast in one engine call per step and drawn to their hit points; a pendulum and a ball move through them.`},
+  };
+}
+
+/**
+ * Continuous collision in three lanes, at 60 Hz: steel balls at 150 m/s (2.5 m per step) against rows of thin plates.
+ * Lane 1: free plates and an ordinary ball, which passes through all of them (two moving bodies are not swept).
+ * Lane 2: the same with `bullet: true` on the ball, which hits the first plate. Lane 3: a thin static wall, which
+ * stops an ordinary ball (moving bodies are swept against static ones).
+ */
+export function bulletPlatesScene(options: {speed?: number} = {}): Scene {
+  const {speed = 150} = options;
+  const bodies: SceneBody[] = [];
+  const lanes: [string, number, boolean, boolean][] = [['plain', -3, false, false], ['bullet', 0, true, false], ['static', 3, false, true]];
+  for (const [lane, z, bullet, fixed] of lanes) {
+    // Plates at x.1: a ball that starts at 0.3 ends its steps at 2.8, 5.3, 7.8, 10.3, never within a plate's reach.
+    for (let k = 0; k < (fixed ? 1 : 5); k++) {
+      bodies.push({id: `plate-${lane}-${k}`, shape: {kind: 'box', halfExtents: [0.01, 0.6, 0.6]}, ...(fixed ? {type: 'static' as const} : {}), position: [6.1 + k, 0.6, z], density: 2700, friction: 0.6, color: fixed ? 0x8C8F99 : 0x4E8FD9});
+    }
+    bodies.push({id: `ball-${lane}`, shape: {kind: 'sphere', radius: 0.06}, position: [0.3, 0.6, z], linearVelocity: [speed, 0, 0], density: 7800, color: bullet ? 0xF2C14E : 0xE5484D, ...(bullet ? {bullet: true} : {}), neverSleeps: true});
+  }
+  bodies.push({id: 'backstop', shape: {kind: 'box', halfExtents: [0.5, 1.5, 5]}, type: 'static', position: [16, 1.5, 0], color: 0x50545C});
+  return {
+    ...header, world: {gravity: [0, -G, 0], ground: true, seed: 1, step: 1 / 60, subSteps: 4}, materials: {}, bodies, joints: [],
+    meta: {title: 'Continuous collision: bullets and thin plates', description: `Balls at ${speed} m/s, ${round(speed / 60, 2)} m per step. Red through free plates (not swept), yellow with the bullet flag (stopped), red against a thin static wall (stopped).`},
+  };
+}
+
+/**
+ * A plank bridge whose welds break: eight 135 kg planks welded end to end between two abutments, a 300 kg block
+ * dropped onto the middle from 2 m. Scene version 3 (joint thresholds).
+ *
+ * At rest the bridge is a beam built in at both ends, made of n rigid links on n + 1 soft welds. The shear at a
+ * support is half the weight, w L / 2. The moments follow from the welds' rotations adding up to zero; a Box3D
+ * joint spring acts on the joint's own effective inertia, so the two end welds (plank to abutment) are twice as stiff
+ * as the others (plank to plank), which gives a support moment of w l^2 (n^2 - 1) / 12 (the continuous beam's
+ * w L^2 / 12 as n grows). Here: 5,297 N and 6,953 N m; packages/box3d-kit/test/v21-rigid-examples.test.mjs measures both. Every weld breaks
+ * at six times that shear or three times that moment, so the bridge carries itself with a margin and not the block.
+ */
+export function breakableBridgeScene(options: {blockMass?: number; drop?: number} = {}): Scene {
+  const {blockMass = 300, drop = 2} = options;
+  const planks = 8, length = 1, thick = 0.15, width = 1.5, deck = 2, span = planks * length, density = 600;
+  const mass = density * length * thick * width, weight = mass * G;
+  const moment = weight * length * (planks * planks - 1) / 12, shear = weight * planks / 2;
+  const thresholds = {force: round(6 * shear, 0), torque: round(3 * moment, 0), breakable: true};
+  const bodies: SceneBody[] = [
+    {id: 'abutment-left', shape: {kind: 'box', halfExtents: [1, deck / 2, 1.2]}, type: 'static', position: [-span / 2 - 1, deck / 2, 0], color: 0x70747C},
+    {id: 'abutment-right', shape: {kind: 'box', halfExtents: [1, deck / 2, 1.2]}, type: 'static', position: [span / 2 + 1, deck / 2, 0], color: 0x70747C},
+  ];
+  const joints: SceneJoint[] = [];
+  for (let k = 0; k < planks; k++) {
+    const x = round(-span / 2 + (k + 0.5) * length);
+    bodies.push({id: `plank-${k}`, shape: {kind: 'box', halfExtents: [length / 2, thick / 2, width / 2]}, position: [x, round(deck - thick / 2), 0], density, friction: 0.7, color: 0xB8894F});
+    const previous = k === 0 ? 'abutment-left' : `plank-${k - 1}`;
+    joints.push({id: `weld-${k}`, type: 'weld', bodyA: previous, bodyB: `plank-${k}`, frameA: {position: k === 0 ? [1, round(deck / 2 - thick / 2), 0] : [length / 2, 0, 0]}, frameB: {position: [-length / 2, 0, 0]},
+      stiffness: {hertz: 120}, thresholds});
+  }
+  joints.push({id: `weld-${planks}`, type: 'weld', bodyA: `plank-${planks - 1}`, bodyB: 'abutment-right', frameA: {position: [length / 2, 0, 0]}, frameB: {position: [-1, round(deck / 2 - thick / 2), 0]}, stiffness: {hertz: 120}, thresholds});
+  const side = Math.cbrt(blockMass / 2500) / 2;
+  bodies.push({id: 'block', shape: {kind: 'box', halfExtents: [round(side, 4), round(side, 4), round(side, 4)]}, position: [0.3, round(deck + drop + side, 4), 0], density: 2500, friction: 0.6, color: 0x4A4F59});
+  return {
+    ...header, version: 3, world: {gravity: [0, -G, 0], ground: true, seed: 1, step: 1 / 240, subSteps: 8}, materials: {}, bodies, joints,
+    meta: {title: 'Breakable bridge', description: `Eight planks on welds that break at ${thresholds.force} N or ${thresholds.torque} N m: six times the shear and three times the moment the bridge's own weight puts on its supports. A ${blockMass} kg block falls ${drop} m onto it.`},
+  };
+}
+
+/** The rigid-core examples by name, each called with its defaults. */
+export const RIGID_CORE_EXAMPLE_SCENES: {readonly [name: string]: () => Scene} = Object.freeze({
+  'obstacle-course': () => obstacleCourseScene(),
+  'vehicle-terrain': () => vehicleTerrainScene(),
+  'laser-scanner': () => laserScannerScene(),
+  'bullet-plates': () => bulletPlatesScene(),
+  'breakable-bridge': () => breakableBridgeScene(),
 });
 
 // ---------------------------------------------------------------------------

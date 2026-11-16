@@ -121,7 +121,6 @@ export interface CapsuleCharacterState {
     readonly onSteepSlope: boolean;
 }
 export declare class CapsuleCharacterController {
-    private readonly world;
     readonly radius: number;
     readonly halfLength: number;
     readonly stepHeight: number;
@@ -143,6 +142,7 @@ export declare class CapsuleCharacterController {
     private steppedFlag;
     private stepping;
     private wanted;
+    private readonly world;
     constructor(world: CharacterHost, options: CapsuleCharacterOptions);
     get state(): CapsuleCharacterState;
     teleport(position: CharacterVec3): void;
@@ -3715,6 +3715,26 @@ export declare function ragdollScene(options?: {
 export declare const EXAMPLE_SCENES: {
     readonly [name: string]: () => Scene;
 };
+export declare function obstacleCourseScene(options?: {
+    speed?: number;
+}): Scene;
+export declare function vehicleTerrainScene(options?: {
+    bump?: number;
+}): Scene;
+export declare function laserScannerScene(options?: {
+    rays?: number;
+    range?: number;
+}): Scene;
+export declare function bulletPlatesScene(options?: {
+    speed?: number;
+}): Scene;
+export declare function breakableBridgeScene(options?: {
+    blockMass?: number;
+    drop?: number;
+}): Scene;
+export declare const RIGID_CORE_EXAMPLE_SCENES: {
+    readonly [name: string]: () => Scene;
+};
 export declare function mooredBuoyScene(options?: {
     radius?: number;
     density?: number;
@@ -3838,7 +3858,7 @@ export interface SceneHost {
     bodyCount(): number;
 }
 export declare const SCENE_FORMAT = "box3d-scene";
-export declare const SCENE_VERSION = 2;
+export declare const SCENE_VERSION = 3;
 export declare const SCENE_VERSIONS: readonly number[];
 export declare const SCENE_LIMITS: Readonly<{
     bodies: 65536;
@@ -3892,7 +3912,7 @@ export declare const SCENE_LIMITS: Readonly<{
 export type SceneVec3 = readonly [number, number, number];
 export type SceneQuat = readonly [number, number, number, number];
 export type SceneBodyType = 'static' | 'kinematic' | 'dynamic';
-export type SceneJointType = 'weld' | 'revolute' | 'spherical' | 'prismatic' | 'distance' | 'wheel';
+export type SceneJointType = 'weld' | 'revolute' | 'spherical' | 'prismatic' | 'distance' | 'wheel' | 'motor' | 'parallel' | 'filter';
 export interface SceneWorld {
     readonly gravity?: SceneVec3;
     readonly ground?: boolean;
@@ -4026,6 +4046,38 @@ export interface SceneJoint {
     readonly stiffness?: {
         readonly hertz: number;
         readonly dampingRatio?: number;
+    };
+    readonly thresholds?: {
+        readonly force?: number;
+        readonly torque?: number;
+        readonly breakable?: boolean;
+    };
+    readonly drive?: {
+        readonly linearVelocity?: SceneVec3;
+        readonly angularVelocity?: SceneVec3;
+        readonly maxForce?: number;
+        readonly maxTorque?: number;
+        readonly linearSpring?: {
+            readonly hertz: number;
+            readonly dampingRatio: number;
+            readonly maxForce: number;
+        };
+        readonly angularSpring?: {
+            readonly hertz: number;
+            readonly dampingRatio: number;
+            readonly maxTorque: number;
+        };
+    };
+    readonly maxTorque?: number;
+    readonly steering?: {
+        readonly angle: number;
+        readonly hertz: number;
+        readonly dampingRatio: number;
+        readonly maxTorque: number;
+        readonly limits?: {
+            readonly lower: number;
+            readonly upper: number;
+        };
     };
     readonly userData?: {
         readonly [key: string]: unknown;
@@ -4491,7 +4543,7 @@ export interface SceneCoupledSections {
 }
 export interface Scene {
     readonly format: 'box3d-scene';
-    readonly version: 1 | 2;
+    readonly version: 1 | 2 | 3;
     readonly units?: 'SI';
     readonly world?: SceneWorld;
     readonly materials?: {
@@ -4599,7 +4651,104 @@ export declare function loadScene<W extends SceneHost>(world: W, scene: unknown)
 export declare function saveScene<W extends SceneHost>(world: W, handles: SceneBuilder<W> | {
     readonly builder: SceneBuilder<W>;
 }, options?: SaveSceneOptions): Scene;
-export { pendulumWaveScene, newtonsCradleScene, dominoRunScene, terrainCarScene, ragdollScene, EXAMPLE_SCENES, mooredBuoyScene, cableStayedDeckScene, buoyAndCratesScene, trampolineScene, hopperSeesawScene, suspendedPlatformScene, rubberPadScene, notchedBeamScene, quenchedPlateScene, heatedBarScene, sphereSettlingScene, cavityFlowScene, flowPastCylinderScene, damBreakScene, damBreakValleyScene, riverBendScene, COUPLED_EXAMPLE_SCENES } from './scene-examples.js';
+export { pendulumWaveScene, newtonsCradleScene, dominoRunScene, terrainCarScene, ragdollScene, EXAMPLE_SCENES, mooredBuoyScene, cableStayedDeckScene, buoyAndCratesScene, trampolineScene, hopperSeesawScene, suspendedPlatformScene, rubberPadScene, notchedBeamScene, quenchedPlateScene, heatedBarScene, sphereSettlingScene, cavityFlowScene, flowPastCylinderScene, damBreakScene, damBreakValleyScene, riverBendScene, COUPLED_EXAMPLE_SCENES, obstacleCourseScene, vehicleTerrainScene, laserScannerScene, bulletPlatesScene, breakableBridgeScene, RIGID_CORE_EXAMPLE_SCENES } from './scene-examples.js';
+
+// ==== core/scene-roles.d.ts ====
+import { CapsuleCharacterController, type CapsuleCharacterState, type CharacterHost } from './character-controller.js';
+import { Vehicle, type VehicleHost, type VehicleState } from './vehicle.js';
+import type { NativeBodyHandle, NativeJointHandle, NativeQueryFilter, NativeRayBatch } from './native-world.js';
+import type { StateObject, StateValue } from './checkpoint.js';
+import type { Subsystem } from './simulation.js';
+type Body = NativeBodyHandle;
+type Joint = NativeJointHandle;
+type V3 = [number, number, number];
+export interface SceneRolesHost extends VehicleHost {
+    readonly native: CharacterHost['native'] & {
+        castRayBatch(rays: ArrayLike<number>, filter?: NativeQueryFilter): NativeRayBatch;
+    };
+    isAlive(body: Body): boolean;
+    applyImpulseAt(body: Body, impulse: readonly [number, number, number], point: readonly [number, number, number]): void;
+    gravity(): [number, number, number];
+    moveKinematic(body: Body, position: readonly [number, number, number], rotation?: readonly [number, number, number, number], seconds?: number): void;
+}
+export interface SceneRolesSource {
+    readonly scene: {
+        readonly bodies: readonly {
+            readonly id: string;
+            readonly userData?: {
+                readonly [key: string]: unknown;
+            };
+        }[];
+        readonly joints?: readonly {
+            readonly id: string;
+            readonly bodyA: string | null;
+            readonly bodyB: string | null;
+            readonly userData?: {
+                readonly [key: string]: unknown;
+            };
+        }[];
+    };
+    readonly bodies: ReadonlyMap<string, Body>;
+    readonly joints: ReadonlyMap<string, Joint>;
+}
+export interface SceneRolesInput {
+    readonly move?: readonly [number, number];
+    readonly jump?: boolean;
+    readonly throttle?: number;
+    readonly steer?: number;
+    readonly brake?: number;
+}
+export interface SceneLaserBeam {
+    readonly from: V3;
+    readonly to: V3;
+    readonly body: Body | null;
+}
+export interface SceneRolesState {
+    readonly time: number;
+    readonly character: (CapsuleCharacterState & {
+        readonly waypoint: number;
+        readonly laps: number;
+    }) | null;
+    readonly vehicle: VehicleState | null;
+    readonly platforms: number;
+    readonly lasers: {
+        readonly rays: number;
+        readonly hits: number;
+    }[];
+}
+export declare function sceneHasRoles(scene: SceneRolesSource['scene']): boolean;
+export declare class SceneRoles {
+    private readonly world;
+    private readonly characterRole;
+    private readonly platformRoles;
+    private readonly vehicleRole;
+    private readonly laserRoles;
+    private tick;
+    constructor(world: SceneRolesHost, loaded: SceneRolesSource);
+    get active(): boolean;
+    get character(): CapsuleCharacterController | null;
+    get characterBody(): Body | null;
+    get vehicle(): Vehicle | null;
+    get time(): number;
+    update(input?: SceneRolesInput | null): void;
+    private castLaser;
+    beams(): readonly SceneLaserBeam[];
+    get state(): SceneRolesState;
+    saveState(): StateObject;
+    restoreState(state: StateValue): void;
+}
+export declare function sceneRolesSubsystem<W, B>(roles: SceneRoles, input?: () => SceneRolesInput | null, dt?: number): Subsystem<W, B>;
+export declare function attachSceneRoles<W extends SceneRolesHost>(loaded: SceneRolesSource & {
+    readonly builder: {
+        readonly world: W;
+    };
+    readonly simulation: {
+        add(subsystem: Subsystem<W, Body>): unknown;
+    };
+}, options?: {
+    readonly input?: () => SceneRolesInput | null;
+}): SceneRoles;
+export {};
 
 // ==== core/shallow-water.d.ts ====
 import { type StateObject, type StateValue } from './checkpoint.js';
@@ -6443,7 +6592,6 @@ export interface VehicleState {
     readonly wheels: readonly VehicleWheelState[];
 }
 export declare class Vehicle {
-    private readonly world;
     readonly chassis: Body;
     readonly wheels: readonly Body[];
     readonly joints: readonly Joint[];
@@ -6466,7 +6614,29 @@ export declare class Vehicle {
     private throttle;
     private steer;
     private brake;
+    private readonly world;
     constructor(world: VehicleHost, options: VehicleOptions);
+    static adopt(world: VehicleHost, parts: {
+        readonly chassis: Body;
+        readonly wheels: readonly {
+            readonly body: Body;
+            readonly joint: Joint;
+            readonly position: VehicleVec3;
+            readonly radius: number;
+            readonly steered?: boolean;
+            readonly driven?: boolean;
+            readonly braked?: boolean;
+        }[];
+        readonly maxSteerAngle?: number;
+        readonly steeringHertz?: number;
+        readonly maxDriveTorque?: number;
+        readonly maxWheelSpeed?: number;
+        readonly maxBrakeTorque?: number;
+        readonly dragArea?: number;
+        readonly airDensity?: number;
+        readonly stiffness?: number;
+        readonly damping?: number;
+    }): Vehicle;
     ackermann(delta: number): number[];
     update(controls: VehicleControls, dt?: number): void;
     get state(): VehicleState;
@@ -6474,6 +6644,18 @@ export declare class Vehicle {
     saveState(): StateObject;
     restoreState(state: StateValue): void;
 }
+export declare function suspensionJointSpring(options: {
+    readonly stiffness: number;
+    readonly damping: number;
+    readonly chassisMass: number;
+    readonly chassisInertia: readonly number[];
+    readonly centerOfMass?: readonly number[];
+    readonly wheelMass: number;
+    readonly wheelPosition: readonly number[];
+}): {
+    hertz: number;
+    dampingRatio: number;
+};
 export {};
 
 // ==== core/water-coupling.d.ts ====
@@ -6707,7 +6889,8 @@ export declare class TriggerSet<T = unknown> {
     private state;
 }
 export { CapsuleCharacterController, type CapsuleCharacterOptions, type CapsuleCharacterInput, type CapsuleCharacterState, type CharacterHost, type CharacterVec3 } from './core/character-controller.js';
-export { Vehicle, type VehicleOptions, type VehicleWheelOptions, type VehicleControls, type VehicleState, type VehicleWheelState, type VehicleHost, type VehicleVec3, type VehicleQuat } from './core/vehicle.js';
+export { Vehicle, suspensionJointSpring, type VehicleOptions, type VehicleWheelOptions, type VehicleControls, type VehicleState, type VehicleWheelState, type VehicleHost, type VehicleVec3, type VehicleQuat } from './core/vehicle.js';
+export { SceneRoles, sceneHasRoles, sceneRolesSubsystem, attachSceneRoles, type SceneRolesHost, type SceneRolesSource, type SceneRolesInput, type SceneRolesState, type SceneLaserBeam } from './core/scene-roles.js';
 export interface CharacterOptions {
     readonly position: Vec3Like;
     readonly halfExtents?: Vec3Like;

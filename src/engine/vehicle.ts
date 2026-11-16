@@ -168,7 +168,11 @@ export class Vehicle {
   private steer = 0;
   private brake = 0;
 
-  constructor(private readonly world: VehicleHost, options: VehicleOptions) {
+  // Declared, not a parameter property: Node runs this file with its types stripped (tests/physics), which leaves those out.
+  private readonly world: VehicleHost;
+
+  constructor(world: VehicleHost, options: VehicleOptions) {
+    this.world = world;
     const half = toVec3(options.chassisHalfExtents), position = toVec3(options.position), rotation = toQuat(options.rotation ?? [0, 0, 0, 1]);
     const mass = options.chassisMass, wheelMass = options.wheelMass ?? 20, defaultRadius = options.wheelRadius ?? 0.35, n = options.wheels?.length ?? 0;
     this.maxSteerAngle = options.maxSteerAngle ?? 0.6;
@@ -206,7 +210,7 @@ export class Vehicle {
       const data = world.getMassData(chassis)!, c = toVec3(options.centerOfMass), i = data.inertia;
       world.setMassData(chassis, {mass: data.mass, center: c, inertia: [i[0]!, i[1]!, i[2]!, i[3]!, i[4]!, i[5]!]});
     }
-    const massData = world.getMassData(chassis)!, inverseInertia = invert(massData.inertia), com = massData.center;
+    const massData = world.getMassData(chassis)!, com = massData.center;
     const wheels: Body[] = [], joints: Joint[] = [];
     options.wheels.forEach((wheel, i) => {
       const local = toVec3(wheel.position), radius = this.layout[i].radius, at = rotate(rotation, local);
@@ -214,13 +218,8 @@ export class Vehicle {
       const body = world.createBody({shape: {kind: 'sphere', radius}, position: [position[0] + at[0], position[1] + at[1], position[2] + at[2]], rotation,
         density: wheelMass / volumeOfSphere, friction: options.wheelFriction ?? 1, color: options.wheelColor ?? 0x20242C, neverSleeps: true});
       if (!body) throw new EngineError('WORLD_CAPACITY', 'The world has no room for the vehicle.');
-      // Box3D's joint springs are stated as a frequency of the joint's own effective mass, not of the chassis. Along
-      // the suspension axis `a` at the wheel, that mass is 1 / (1/M + 1/m + (r x a) . I^-1 (r x a)); the frequency
-      // and damping ratio below give the physical stiffness and damping asked for.
-      const r = [local[0] - com[0], local[1] - com[1], local[2] - com[2]], ra = [-r[2], 0, r[0]];   // r x (0, 1, 0)
-      const inertiaTerm = ra[0] * (inverseInertia[0][0] * ra[0] + inverseInertia[0][2] * ra[2]) + ra[2] * (inverseInertia[2][0] * ra[0] + inverseInertia[2][2] * ra[2]);
-      const effective = 1 / (1 / massData.mass + 1 / wheelMass + inertiaTerm);
-      const hertz = Math.sqrt(this.stiffness / effective) / (2 * Math.PI), dampingRatio = this.damping / (2 * Math.sqrt(this.stiffness * effective));
+      const {hertz, dampingRatio} = suspensionJointSpring({stiffness: this.stiffness, damping: this.damping, chassisMass: massData.mass, chassisInertia: massData.inertia,
+        centerOfMass: com, wheelMass, wheelPosition: local});
       const steered = this.layout[i].steered;
       joints.push(world.createJoint({type: 'wheel', bodyA: chassis, bodyB: body, frameA: {position: local, rotation: FRAME}, frameB: {rotation: FRAME},
         spring: {hertz, dampingRatio}, limits: {lower: -travel, upper: travel}, motor: {speed: 0, maxForce: 0},
@@ -233,6 +232,32 @@ export class Vehicle {
     this.sentMotor = new Array(n).fill(0);
     this.sentTorque = new Array(n).fill(0);
     this.sentSteer = new Array(n).fill(0);
+  }
+
+  /**
+   * A vehicle over bodies and joints that already exist (a scene file's car, say): the chassis, and per wheel its
+   * body, its wheel joint and where it sits in the chassis frame. Controls, state and drag work as on a vehicle this
+   * class built; the suspension is whatever the joints were given (see suspensionJointSpring).
+   */
+  static adopt(world: VehicleHost, parts: {
+    readonly chassis: Body;
+    readonly wheels: readonly {readonly body: Body; readonly joint: Joint; readonly position: VehicleVec3; readonly radius: number; readonly steered?: boolean; readonly driven?: boolean; readonly braked?: boolean}[];
+    readonly maxSteerAngle?: number; readonly steeringHertz?: number; readonly maxDriveTorque?: number; readonly maxWheelSpeed?: number; readonly maxBrakeTorque?: number;
+    readonly dragArea?: number; readonly airDensity?: number; readonly stiffness?: number; readonly damping?: number;
+  }): Vehicle {
+    if (!parts || !Array.isArray(parts.wheels) || parts.wheels.length < 2 || parts.wheels.length > 16) throw new EngineError('INVALID_PAYLOAD', 'A vehicle needs 2 to 16 wheels.');
+    const layout = parts.wheels.map(wheel => { const p = toVec3(wheel.position); return {x: p[0], z: p[2], radius: wheel.radius, steered: wheel.steered ?? p[0] > 0, driven: wheel.driven ?? true, braked: wheel.braked ?? true}; });
+    const xs = layout.map(w => w.x), zs = layout.map(w => w.z), n = layout.length;
+    const fields = {world, chassis: parts.chassis, wheels: parts.wheels.map(wheel => wheel.body), joints: parts.wheels.map(wheel => wheel.joint),
+      wheelbase: Math.max(...xs) - Math.min(...xs), track: Math.max(...zs) - Math.min(...zs), stiffness: parts.stiffness ?? NaN, damping: parts.damping ?? NaN,
+      maxSteerAngle: parts.maxSteerAngle ?? 0.6, maxDriveTorque: parts.maxDriveTorque ?? 400, maxWheelSpeed: parts.maxWheelSpeed ?? 200, maxBrakeTorque: parts.maxBrakeTorque ?? 1500,
+      dragArea: parts.dragArea ?? 0, airDensity: parts.airDensity ?? 1.225, layout, rearX: Math.min(...xs), steeringHertz: parts.steeringHertz ?? 8,
+      sentMotor: new Array<number>(n).fill(NaN), sentTorque: new Array<number>(n).fill(NaN), sentSteer: new Array<number>(n).fill(NaN), throttle: 0, steer: 0, brake: 0};
+    const numbers = [fields.maxSteerAngle, fields.maxDriveTorque, fields.maxWheelSpeed, fields.maxBrakeTorque, fields.dragArea, fields.airDensity, fields.steeringHertz, ...xs, ...zs, ...layout.map(w => w.radius)];
+    if (!numbers.every(Number.isFinite) || !(fields.maxSteerAngle > 0 && fields.maxSteerAngle < 1.4) || fields.dragArea < 0 || layout.some(w => !(w.radius > 0))) {
+      throw new EngineError('INVALID_PAYLOAD', 'Vehicle.adopt: wheel positions and radii and the limits must be finite, and maxSteerAngle below 1.4 rad.');
+    }
+    return Object.assign(Object.create(Vehicle.prototype) as Vehicle, fields);
   }
 
   /** Steering angles of the wheels for a bicycle angle `delta`: every steered wheel's axle line passes through one turning centre on the rear axle line. */
@@ -285,6 +310,22 @@ export class Vehicle {
   /** The vehicle's own state (the last controls and what was sent to the joints). Its bodies and joints are in the world's checkpoint. */
   saveState(): StateObject { return captureFields(this, FIELDS); }
   restoreState(state: StateValue): void { restoreFields(this, state, FIELDS); }
+}
+
+/**
+ * The spring setting of a wheel joint that gives a physical suspension. Box3D states a joint spring as a frequency
+ * of the joint's own effective mass, not of the chassis: along the suspension axis `a` (the chassis' up axis) at a
+ * wheel at `r` from the chassis' centre of mass, that mass is 1 / (1/M + 1/m + (r x a) . I^-1 (r x a)). The returned
+ * frequency and damping ratio make the joint a spring of `stiffness` N/m with a damper of `damping` N s/m.
+ * `chassisInertia` is [Ixx, Iyy, Izz, Ixy, Ixz, Iyz] about the centre of mass, in chassis axes.
+ */
+export function suspensionJointSpring(options: {readonly stiffness: number; readonly damping: number; readonly chassisMass: number; readonly chassisInertia: readonly number[];
+  readonly centerOfMass?: readonly number[]; readonly wheelMass: number; readonly wheelPosition: readonly number[]}): {hertz: number; dampingRatio: number} {
+  const com = options.centerOfMass ?? [0, 0, 0], p = options.wheelPosition, inverse = invert(options.chassisInertia);
+  const r = [p[0]! - com[0]!, p[1]! - com[1]!, p[2]! - com[2]!], ra = [-r[2]!, 0, r[0]!];   // r x (0, 1, 0)
+  const inertiaTerm = ra[0]! * (inverse[0]![0]! * ra[0]! + inverse[0]![2]! * ra[2]!) + ra[2]! * (inverse[2]![0]! * ra[0]! + inverse[2]![2]! * ra[2]!);
+  const effective = 1 / (1 / options.chassisMass + 1 / options.wheelMass + inertiaTerm);
+  return {hertz: Math.sqrt(options.stiffness / effective) / (2 * Math.PI), dampingRatio: options.damping / (2 * Math.sqrt(options.stiffness * effective))};
 }
 
 const FIELDS = {label: 'Vehicle', skip: ['world', 'chassis', 'wheels', 'joints', 'wheelbase', 'track', 'stiffness', 'damping', 'maxSteerAngle', 'maxDriveTorque', 'maxWheelSpeed',

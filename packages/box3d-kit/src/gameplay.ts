@@ -172,7 +172,9 @@ function diff<T>(world: PhysicsWorld, trigger: TriggerState<T>, found: Body[], o
 
 export {CapsuleCharacterController, type CapsuleCharacterOptions, type CapsuleCharacterInput, type CapsuleCharacterState, type CharacterHost, type CharacterVec3} from './core/character-controller.js';
 
-export {Vehicle, type VehicleOptions, type VehicleWheelOptions, type VehicleControls, type VehicleState, type VehicleWheelState, type VehicleHost, type VehicleVec3, type VehicleQuat} from './core/vehicle.js';
+export {Vehicle, suspensionJointSpring, type VehicleOptions, type VehicleWheelOptions, type VehicleControls, type VehicleState, type VehicleWheelState, type VehicleHost, type VehicleVec3, type VehicleQuat} from './core/vehicle.js';
+/** What makes a scene file playable: `userData.role` on bodies and joints ('character', 'platform', 'vehicle', 'wheel', 'laser'). */
+export {SceneRoles, sceneHasRoles, sceneRolesSubsystem, attachSceneRoles, type SceneRolesHost, type SceneRolesSource, type SceneRolesInput, type SceneRolesState, type SceneLaserBeam} from './core/scene-roles.js';
 
 export interface CharacterOptions {
   /** Centre of the character box. */

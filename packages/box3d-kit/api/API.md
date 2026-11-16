@@ -4186,6 +4186,25 @@ export interface StructureWorld<B> {
 
 ## `box3d-webgpu-kit/gameplay`
 
+### attachSceneRoles · function
+
+Attach the roles of a loaded scene and register them with its Simulation: from then on `loaded.simulation.step()`
+plays the scene (and `simulation.checkpoint()` holds the roles' state). Returns the roles; when the scene has none,
+nothing is registered and `roles.active` is false.
+
+```ts
+export declare function attachSceneRoles<W extends SceneRolesHost>(loaded: SceneRolesSource & {
+    readonly builder: {
+        readonly world: W;
+    };
+    readonly simulation: {
+        add(subsystem: Subsystem<W, Body>): unknown;
+    };
+}, options?: {
+    readonly input?: () => SceneRolesInput | null;
+}): SceneRoles;
+```
+
 ### CapsuleCharacterController · class
 
 A capsule character: `move(input, dt)` once per fixed step, before or after `world.step()`.
@@ -4379,6 +4398,149 @@ Gravity of the native world, fixed by the shipped bridge (the cable and water mo
 export declare const NATIVE_GRAVITY: readonly [number, number, number];
 ```
 
+### sceneHasRoles · function
+
+True when a scene has a body or a joint with one of the roles this module plays.
+
+```ts
+export declare function sceneHasRoles(scene: SceneRolesSource['scene']): boolean;
+```
+
+### SceneLaserBeam · interface
+
+```ts
+export interface SceneLaserBeam {
+    readonly from: V3;
+    readonly to: V3;
+    readonly body: Body | null;
+}
+```
+
+### SceneRoles · class
+
+```ts
+export declare class SceneRoles {
+  get active(): boolean;
+  get character(): CapsuleCharacterController | null;
+  get characterBody(): Body | null;
+  get vehicle(): Vehicle | null;
+  get time(): number;
+  update(input?: SceneRolesInput | null): void;
+  beams(): readonly SceneLaserBeam[];
+  get state(): SceneRolesState;
+  saveState(): StateObject;
+  restoreState(state: StateValue): void;
+}
+```
+
+### SceneRolesHost · interface
+
+What the roles need from a world: the kit's PhysicsWorld and the Lab's scene host both have it.
+
+```ts
+export interface SceneRolesHost extends VehicleHost {
+    readonly native: CharacterHost['native'] & {
+        castRayBatch(rays: ArrayLike<number>, filter?: NativeQueryFilter): NativeRayBatch;
+    };
+    isAlive(body: Body): boolean;
+    applyImpulseAt(body: Body, impulse: readonly [number, number, number], point: readonly [number, number, number]): void;
+    gravity(): [number, number, number];
+    moveKinematic(body: Body, position: readonly [number, number, number], rotation?: readonly [number, number, number, number], seconds?: number): void;
+}
+```
+
+### SceneRolesInput · interface
+
+What a player asks for in one step. Every field is optional; absent ones are zero.
+
+```ts
+export interface SceneRolesInput {
+    readonly move?: readonly [number, number];
+    readonly jump?: boolean;
+    readonly throttle?: number;
+    readonly steer?: number;
+    readonly brake?: number;
+}
+```
+
+### SceneRolesSource · interface
+
+The part of a loaded scene the roles read.
+
+```ts
+export interface SceneRolesSource {
+    readonly scene: {
+        readonly bodies: readonly {
+            readonly id: string;
+            readonly userData?: {
+                readonly [key: string]: unknown;
+            };
+        }[];
+        readonly joints?: readonly {
+            readonly id: string;
+            readonly bodyA: string | null;
+            readonly bodyB: string | null;
+            readonly userData?: {
+                readonly [key: string]: unknown;
+            };
+        }[];
+    };
+    readonly bodies: ReadonlyMap<string, Body>;
+    readonly joints: ReadonlyMap<string, Joint>;
+}
+```
+
+### SceneRolesState · interface
+
+```ts
+export interface SceneRolesState {
+    readonly time: number;
+    readonly character: (CapsuleCharacterState & {
+        readonly waypoint: number;
+        readonly laps: number;
+    }) | null;
+    readonly vehicle: VehicleState | null;
+    readonly platforms: number;
+    readonly lasers: {
+        readonly rays: number;
+        readonly hits: number;
+    }[];
+}
+```
+
+### sceneRolesSubsystem · function
+
+The roles as a Simulation subsystem (simulation.ts): they act in the pre-couple stage of every step, before any
+coupling and before the rigid step, and their state is part of `simulation.checkpoint()`. `input` is asked once per
+step; `null` lets the scene play itself.
+
+```ts
+export declare function sceneRolesSubsystem<W, B>(roles: SceneRoles, input?: () => SceneRolesInput | null, dt?: number): Subsystem<W, B>;
+```
+
+### suspensionJointSpring · function
+
+The spring setting of a wheel joint that gives a physical suspension. Box3D states a joint spring as a frequency
+of the joint's own effective mass, not of the chassis: along the suspension axis `a` (the chassis' up axis) at a
+wheel at `r` from the chassis' centre of mass, that mass is 1 / (1/M + 1/m + (r x a) . I^-1 (r x a)). The returned
+frequency and damping ratio make the joint a spring of `stiffness` N/m with a damper of `damping` N s/m.
+`chassisInertia` is [Ixx, Iyy, Izz, Ixy, Ixz, Iyz] about the centre of mass, in chassis axes.
+
+```ts
+export declare function suspensionJointSpring(options: {
+    readonly stiffness: number;
+    readonly damping: number;
+    readonly chassisMass: number;
+    readonly chassisInertia: readonly number[];
+    readonly centerOfMass?: readonly number[];
+    readonly wheelMass: number;
+    readonly wheelPosition: readonly number[];
+}): {
+    hertz: number;
+    dampingRatio: number;
+};
+```
+
 ### Trigger · interface
 
 ```ts
@@ -4469,6 +4631,7 @@ export declare class Vehicle {
   readonly maxBrakeTorque: number;
   readonly dragArea: number;
   readonly airDensity: number;
+  static adopt(world: VehicleHost, parts: { readonly chassis: Body; readonly wheels: readonly { readonly body: Body; readonly joint: Joint; readonly position: VehicleVec3; readonly radius: number; readonly steered?: boolean; readonly driven?: boolean; readonly braked?: boolean; }[]; readonly maxSteerAngle?: number; readonly steeringHertz?: number; readonly maxDriveTorque?: number; readonly maxWheelSpeed?: number; readonly maxBrakeTorque?: number; readonly dragArea?: number; readonly airDensity?: number; readonly stiffness?: number; readonly damping?: number; }): Vehicle;
   ackermann(delta: number): number[];
   update(controls: VehicleControls, dt?: number): void;
   get state(): VehicleState;
@@ -5063,6 +5226,38 @@ export declare function weldVertices(mesh: MeshLike, tolerance?: number): Triang
 
 ## `box3d-webgpu-kit/scene`
 
+### breakableBridgeScene · function
+
+A plank bridge whose welds break: eight 135 kg planks welded end to end between two abutments, a 300 kg block
+dropped onto the middle from 2 m. Scene version 3 (joint thresholds).
+
+At rest the bridge is a beam built in at both ends, made of n rigid links on n + 1 soft welds. The shear at a
+support is half the weight, w L / 2. The moments follow from the welds' rotations adding up to zero; a Box3D
+joint spring acts on the joint's own effective inertia, so the two end welds (plank to abutment) are twice as stiff
+as the others (plank to plank), which gives a support moment of w l^2 (n^2 - 1) / 12 (the continuous beam's
+w L^2 / 12 as n grows). Here: 5,297 N and 6,953 N m; packages/box3d-kit/test/v21-rigid-examples.test.mjs measures both. Every weld breaks
+at six times that shear or three times that moment, so the bridge carries itself with a margin and not the block.
+
+```ts
+export declare function breakableBridgeScene(options?: {
+    blockMass?: number;
+    drop?: number;
+}): Scene;
+```
+
+### bulletPlatesScene · function
+
+Continuous collision in three lanes, at 60 Hz: steel balls at 150 m/s (2.5 m per step) against rows of thin plates.
+Lane 1: free plates and an ordinary ball, which passes through all of them (two moving bodies are not swept).
+Lane 2: the same with `bullet: true` on the ball, which hits the first plate. Lane 3: a thin static wall, which
+stops an ordinary ball (moving bodies are swept against static ones).
+
+```ts
+export declare function bulletPlatesScene(options?: {
+    speed?: number;
+}): Scene;
+```
+
 ### buoyAndCratesScene · function
 
 The moored buoy released 0.4 m to the side, with `crates` wooden boxes dropped into the same basin: the buoy
@@ -5277,6 +5472,19 @@ export declare function hopperSeesawScene(options?: {
 }): Scene;
 ```
 
+### laserScannerScene · function
+
+A ray-cast scanner among assorted bodies: the 'scanner' body's userData asks the Lab for a fan of rays, turning
+slowly, cast in one batched call per step and drawn as beams to their hit points. A swinging pendulum and a ball
+cross the beams.
+
+```ts
+export declare function laserScannerScene(options?: {
+    rays?: number;
+    range?: number;
+}): Scene;
+```
+
 ### LoadedScene · interface
 
 ```ts
@@ -5393,6 +5601,19 @@ export declare function notchedBeamScene(options?: {
 }): Scene;
 ```
 
+### obstacleCourseScene · function
+
+An obstacle course for the capsule character: four stairs up to a deck, a 25 degree ramp back down, a crate to push,
+a ledge onto a slab, a platform that drifts sideways under the walker, and a 60 degree slope and a wall it cannot
+climb. The body 'hero' is the character: a kinematic capsule that collides with nothing (the controller moves it and
+does the colliding), with the controller's settings and a walking route in its userData.
+
+```ts
+export declare function obstacleCourseScene(options?: {
+    speed?: number;
+}): Scene;
+```
+
 ### pendulumWaveScene · function
 
 A pendulum wave: `count` spheres on revolute joints whose lengths are chosen
@@ -5436,6 +5657,16 @@ metres above the ground with a slight forward tumble.
 export declare function ragdollScene(options?: {
     height?: number;
 }): Scene;
+```
+
+### RIGID_CORE_EXAMPLE_SCENES · const
+
+The rigid-core examples by name, each called with its defaults.
+
+```ts
+export declare const RIGID_CORE_EXAMPLE_SCENES: {
+    readonly [name: string]: () => Scene;
+};
 ```
 
 ### riverBendScene · function
@@ -5489,7 +5720,7 @@ export interface SaveSceneOptions {
 ```ts
 export interface Scene {
     readonly format: 'box3d-scene';
-    readonly version: 1 | 2;
+    readonly version: 1 | 2 | 3;
     readonly units?: 'SI';
     readonly world?: SceneWorld;
     readonly materials?: {
@@ -5588,12 +5819,14 @@ export declare const SCENE_LINK_PREFIX = "b3s1";
 The newest scene version this build reads and writes. A scene that needs nothing newer than version 1 is written as version 1.
 
 ```ts
-export declare const SCENE_VERSION = 2;
+export declare const SCENE_VERSION = 3;
 ```
 
 ### SCENE_VERSIONS · const
 
-Every scene version this build reads. Version 2 adds compound shapes and `massData`; nothing else differs.
+Every scene version this build reads. Version 2 adds compound shapes and `massData`; version 3 adds the joint
+types 'motor', 'parallel' and 'filter' and the joint settings `thresholds`, `drive`, `maxTorque` and `steering`.
+Nothing else differs.
 
 ```ts
 export declare const SCENE_VERSIONS: readonly number[];
@@ -6296,6 +6529,38 @@ export interface SceneJoint {
         readonly hertz: number;
         readonly dampingRatio?: number;
     };
+    readonly thresholds?: {
+        readonly force?: number;
+        readonly torque?: number;
+        readonly breakable?: boolean;
+    };
+    readonly drive?: {
+        readonly linearVelocity?: SceneVec3;
+        readonly angularVelocity?: SceneVec3;
+        readonly maxForce?: number;
+        readonly maxTorque?: number;
+        readonly linearSpring?: {
+            readonly hertz: number;
+            readonly dampingRatio: number;
+            readonly maxForce: number;
+        };
+        readonly angularSpring?: {
+            readonly hertz: number;
+            readonly dampingRatio: number;
+            readonly maxTorque: number;
+        };
+    };
+    readonly maxTorque?: number;
+    readonly steering?: {
+        readonly angle: number;
+        readonly hertz: number;
+        readonly dampingRatio: number;
+        readonly maxTorque: number;
+        readonly limits?: {
+            readonly lower: number;
+            readonly upper: number;
+        };
+    };
     readonly userData?: {
         readonly [key: string]: unknown;
     };
@@ -6313,7 +6578,7 @@ export type SceneJointInput = Omit<SceneJoint, 'id'>;
 ### SceneJointType · type
 
 ```ts
-export type SceneJointType = 'weld' | 'revolute' | 'spherical' | 'prismatic' | 'distance' | 'wheel';
+export type SceneJointType = 'weld' | 'revolute' | 'spherical' | 'prismatic' | 'distance' | 'wheel' | 'motor' | 'parallel' | 'filter';
 ```
 
 ### SceneMassData · interface
@@ -6767,6 +7032,20 @@ empty list means the scene is valid. Never throws, whatever it is given.
 
 ```ts
 export declare function validateScene(scene: unknown): SceneProblem[];
+```
+
+### vehicleTerrainScene · function
+
+A car to drive on rolling terrain: a 1,200 kg chassis on four wheel joints with a physical suspension (60 kN/m and
+5 kN s/m per wheel, turned into each joint's own frequency by suspensionJointSpring), steering on the front wheels,
+on a 128 m square of terrain. The chassis' userData says how to drive it and the joints' userData which wheel each
+is; SceneRoles adopts them as a Vehicle. Left alone it holds 6 m/s on half lock: a circle of about
+wheelbase / tan(0.25 rad) = 10 m radius. Scene version 3 (wheel steering).
+
+```ts
+export declare function vehicleTerrainScene(options?: {
+    bump?: number;
+}): Scene;
 ```
 
 ## `box3d-webgpu-kit/simulation`

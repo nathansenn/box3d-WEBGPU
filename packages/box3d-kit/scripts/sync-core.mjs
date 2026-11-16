@@ -24,6 +24,8 @@ export const CORE = [
   {from: 'src/engine/character-controller.ts', rewrites: []},
   // ./gameplay: the wheel-joint vehicle. Imports contracts.ts, checkpoint.ts and types from native-world.ts.
   {from: 'src/engine/vehicle.ts', rewrites: []},
+  // ./gameplay: the roles of a scene file (character, platform, vehicle, laser). Imports the two above.
+  {from: 'src/engine/scene-roles.ts', rewrites: []},
   // Exact checkpoints: state trees, their encoding and the self-checking container. Imports contracts.ts only; the world,
   // the solvers and the Simulation use it.
   {from: 'src/engine/checkpoint.ts', rewrites: []},

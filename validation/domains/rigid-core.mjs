@@ -1,5 +1,5 @@
 // The rigid core beyond bodies and joints (docs/RIGID_CORE.md): scene queries, the capsule character, continuous
-// collision, the wheel-joint vehicle, motor and breakable joints, world controls, and stacks and piles, against
+// collision, the wheel-joint vehicle, motor and breakable joints, world controls and five example scenes, against
 // closed forms. The set-ups are the ones the test files assert on: packages/box3d-kit/test/rigid-core-scenarios.mjs,
 // run here through the built kit. SI units, 240 Hz, 4 sub-steps unless a row says otherwise.
 import {pathToFileURL} from 'node:url';
@@ -15,8 +15,8 @@ const T = {
 };
 
 const modules = () => memo('rigid-core/modules', async () => {
-  const [S, index, gameplay] = await Promise.all([import(pathToFileURL(path.join(ROOT, 'packages/box3d-kit/test/rigid-core-scenarios.mjs')).href), kit('index'), kit('gameplay')]);
-  return {S, K: {...index, ...gameplay}};
+  const [S, index, gameplay, scene] = await Promise.all([import(pathToFileURL(path.join(ROOT, 'packages/box3d-kit/test/rigid-core-scenarios.mjs')).href), kit('index'), kit('gameplay'), kit('scene')]);
+  return {S, K: {...index, ...gameplay, ...scene}};
 });
 /** Runs one scenario once, whatever number of rows read it. */
 const run = (key, call) => memo(`rigid-core/${key}`, async () => { const {S, K} = await modules(); return call(S, K); });
@@ -319,4 +319,55 @@ const controlCases = defineCases('rigid-core', CONTROLS, [
     reference: {formula: 'N = 192 x 3 lines x 2', value: 1152}, tolerance: absolute(0), measure: async () => (await introspection()).contactVertices},
 ]);
 
-export default [...cases, ...characterCases, ...ccdCases, ...vehicleCases, ...jointCases, ...controlCases];
+const EXAMPLES = 'packages/box3d-kit/test/v21-rigid-examples.test.mjs';
+const TE = {
+  course: 'obstacle course: the character walks its route up the stairs, down the ramp, pushes the crate, rides the platform, is stopped by the steep slope, jumps, and comes round',
+  vehicle: 'vehicle on terrain: static sag m g / (4 k), a cruise at the set speed on the Ackermann circle, and the pedals',
+  laser: 'laser scanner: 96 rays in one call per step end on the spheres, on the ground at h / sin(pitch), or at the end of their range',
+  bullets: 'bullets and plates at 60 Hz: an ordinary ball passes five free plates, a bullet stops at the first, a static wall stops an ordinary ball',
+  rest: 'breakable bridge at rest: support shear w L / 2 and moments of a built-in beam of 8 links, w l^2 (n^2 - 1) / 12 at the supports',
+  broken: 'breakable bridge: intact until the block lands, then the welds that were overloaded break and report what they carried',
+};
+const course = () => run('example/course', (S, K) => S.exampleCourse(K));
+const exampleCar = () => run('example/vehicle', (S, K) => S.exampleVehicle(K));
+const laser = () => run('example/laser', (S, K) => S.exampleLaser(K));
+const bullets = () => run('example/bullets', (S, K) => S.exampleBullets(K));
+const bridgeRest = () => run('example/bridge-rest', (S, K) => S.exampleBridgeAtRest(K));
+const bridgeBreak = () => run('example/bridge-break', (S, K) => S.exampleBridgeBreak(K));
+const BEAM = 'Statics of n rigid links on n + 1 soft welds between two fixed ends (derived in docs/RIGID_CORE.md, section 8): the rotations of the welds add up to zero, and a Box3D joint spring acts on the joint\'s effective inertia, so the two end welds are twice as stiff as the others. As n grows the support moment tends to the w L^2 / 12 of a continuous built-in beam.';
+const exampleCases = defineCases('rigid-core', EXAMPLES, [
+  {id: 'rigid-core.example.course-stairs', title: 'Example, obstacle course: four stairs of 0.2 m', quantity: 'height of the character\'s feet on the deck, walking its route', unit: 'm', test: TE.course,
+    reference: {formula: 'h = 4 x 0.2', value: 0.8}, tolerance: absolute(1e-3), measure: async () => (await course()).deckFeet},
+  {id: 'rigid-core.example.course-jump', title: 'Example, obstacle course: the jump on the route', quantity: 'apex of a 5 m/s jump taken while walking', unit: 'm', test: TE.course,
+    reference: {formula: 'h = v^2 / (2 g)', value: 25 / (2 * G)}, tolerance: relative(1e-3), measure: async () => (await course()).apex},
+  {id: 'rigid-core.example.vehicle-sag', title: 'Example, vehicle: static sag of the scene-file car', quantity: 'mean suspension compression at rest (1,200 kg on four 60 kN/m springs set through suspensionJointSpring)', unit: 'm', test: TE.vehicle,
+    reference: {formula: 'x = m g / (4 k)', value: 1200 * G / (4 * 60000)}, tolerance: relative(5e-3), measure: async () => (await exampleCar()).sag},
+  {id: 'rigid-core.example.vehicle-circle', title: 'Example, vehicle: autopilot circle on the terrain', quantity: 'mean speed over mean yaw rate at 6 m/s, steering 0.25 rad, over 20 s of rolling terrain', unit: 'm', test: TE.vehicle,
+    reference: {formula: 'R = L / tan(delta), L = 2.6 m', value: 2.6 / Math.tan(0.25)}, tolerance: relative(0.05),
+    note: 'On terrain with bumps of +-0.2 m; the flat-ground rows are rigid-core.vehicle.turning and rigid-core.vehicle.ackermann.', measure: async () => (await exampleCar()).radius},
+  {id: 'rigid-core.example.laser-ground', title: 'Example, laser scanner: where pitched rays meet the ground', quantity: 'worst error of the length of the rays pitched 0.12 rad down from 1.25 m that hit the ground', unit: 'm', test: TE.laser,
+    reference: {formula: 'd = h / sin(p): error 0', value: 0}, tolerance: absolute(1e-5), measure: async () => (await laser()).groundRangeError},
+  {id: 'rigid-core.example.laser-spheres', title: 'Example, laser scanner: hit points on the spheres', quantity: 'worst distance of a hit point on the two static spheres from their surfaces', unit: 'm', test: TE.laser,
+    reference: {formula: '| |p - c| - r | = 0', value: 0}, tolerance: absolute(1e-4), measure: async () => (await laser()).sphereError},
+  {id: 'rigid-core.example.bullet-momentum', title: 'Example, bullets: momentum through the bullet impact', quantity: 'momentum of ball and plate in the step after a 150 m/s bullet met a free plate', unit: 'N s', test: TE.bullets,
+    reference: {formula: 'p = m v before the impact', value: null}, tolerance: relative(0.02), note: 'The plate stands on the ground with friction 0.6, which takes about 1% during the step of the impact.',
+    measure: async () => { const r = await bullets(); return {value: r.momentumAfter, reference: r.momentumBefore}; }},
+  {id: 'rigid-core.example.bullet-tunnel', title: 'Example, bullets: an ordinary ball through five free plates', quantity: 'plates (of five, 2 cm thick) that noticed a 150 m/s ball without the bullet flag, 2.5 m per step', unit: 'plates', test: TE.bullets,
+    reference: {formula: 'none: two moving bodies are not swept without the bullet flag', value: 0}, tolerance: absolute(0), measure: async () => (await bullets()).plainPlatesMoved},
+  {id: 'rigid-core.example.bridge-shear', title: 'Example, breakable bridge at rest: support shear', quantity: 'vertical force on an end weld of eight 135 kg planks', unit: 'N', test: TE.rest,
+    reference: {formula: 'V = w L / 2', value: null}, tolerance: relative(1e-4), note: 'Statics: half the weight on each support of a symmetric span.',
+    measure: async () => { const r = await bridgeRest(); return {value: r.shear, reference: r.exactShear}; }},
+  {id: 'rigid-core.example.bridge-support-moment', title: 'Example, breakable bridge at rest: support moment', quantity: 'torque on an end weld', unit: 'N m', test: TE.rest,
+    reference: {formula: 'M = w l^2 (n^2 - 1) / 12, n = 8 links of l = 1 m', value: null}, tolerance: relative(1e-3), note: BEAM,
+    measure: async () => { const r = await bridgeRest(); return {value: r.supportMoment, reference: r.exactSupportMoment}; }},
+  {id: 'rigid-core.example.bridge-mid-moment', title: 'Example, breakable bridge at rest: mid-span moment', quantity: 'torque on the middle weld', unit: 'N m', test: TE.rest,
+    reference: {formula: 'M = V L / 2 - w L^2 / 8 - M_support', value: null}, tolerance: relative(1e-3), note: BEAM,
+    measure: async () => { const r = await bridgeRest(); return {value: r.midMoment, reference: r.exactMidMoment}; }},
+  {id: 'rigid-core.example.bridge-break-time', title: 'Example, breakable bridge: when the first weld breaks', quantity: 'time of the first joint-break event, block dropped 2 m', unit: 's', test: TE.broken,
+    reference: {formula: 't = sqrt(2 h / g)', value: Math.sqrt(2 * 2 / G)}, tolerance: absolute(2 / 240), note: 'Within two steps of 1/240 s: the contact begins in the step the block arrives.',
+    measure: async () => (await bridgeBreak()).firstBreakSeconds},
+  {id: 'rigid-core.example.bridge-break-load', title: 'Example, breakable bridge: load of the weakest weld that broke', quantity: 'largest of force / force threshold and torque / torque threshold, least over the welds that broke', unit: 'ratio', test: TE.broken,
+    reference: {formula: 'ratio >= 1: a weld breaks only at or over a threshold', value: 1}, tolerance: lower(0), measure: async () => (await bridgeBreak()).weakestBreak},
+]);
+
+export default [...cases, ...characterCases, ...ccdCases, ...vehicleCases, ...jointCases, ...controlCases, ...exampleCases];

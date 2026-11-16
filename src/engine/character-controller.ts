@@ -141,7 +141,11 @@ export class CapsuleCharacterController {
   // The velocity the last move asked for, before anything stopped it.
   private wanted: [number, number, number] = [0, 0, 0];
 
-  constructor(private readonly world: CharacterHost, options: CapsuleCharacterOptions) {
+  // Declared, not a parameter property: Node runs this file with its types stripped (tests/physics), which leaves those out.
+  private readonly world: CharacterHost;
+
+  constructor(world: CharacterHost, options: CapsuleCharacterOptions) {
+    this.world = world;
     this.pos = toVec3(options.position);
     this.radius = options.radius ?? 0.3;
     const height = options.height ?? 1.8;

@@ -1070,3 +1070,171 @@ export async function introspection(K) {
       finite, colours, low, high, top: 6 * half, unchanged: world.exactHash() === before, awake: world.awakeCount()};
   } finally { world.dispose(); }
 }
+
+// ---------------------------------------------------------------------------------------------------
+// The rigid-core example scenes (box3d-webgpu-kit/scene: RIGID_CORE_EXAMPLE_SCENES) played by their roles
+// (box3d-webgpu-kit/gameplay: attachSceneRoles). `K` also has the scene module here.
+// ---------------------------------------------------------------------------------------------------
+
+/** A world with an example scene loaded and its roles attached; `input.value` is what the player asks for (null: the scene plays itself). */
+export async function openExample(K, scene) {
+  const world = await K.createWorld(K.sceneWorldOptions(K.normalizeScene(scene)));
+  const loaded = K.loadScene(world, scene), input = {value: null};
+  const roles = K.attachSceneRoles(loaded, {input: () => input.value});
+  const play = (seconds, each) => { const n = Math.round(seconds / world.loop.step); for (let i = 0; i < n; i++) { loaded.simulation.step(); each?.(i); } };
+  return {world, ...loaded, roles, input, play};
+}
+
+/** The obstacle course walked by its route: one lap, with what the walker did on the way. */
+export async function exampleCourse(K) {
+  const e = await openExample(K, K.RIGID_CORE_EXAMPLE_SCENES['obstacle-course']());
+  try {
+    const {world, bodies, roles} = e, crate = bodies.get('crate'), platform = bodies.get('platform'), crate0 = world.getState(crate).position[0];
+    let deckFeet = [], ledgeFeet = [], rode = 0, furthest = -Infinity, apex = 0, airborne = 0, stepped = 0, lapSeconds = null, slipOnPlatform = 0;
+    for (let i = 0; i < 40 * 240 && lapSeconds === null; i++) {
+      e.simulation.step();
+      const s = roles.state.character, [x, , z] = s.position;
+      if (x > 5.2 && x < 7.8 && Math.abs(z) < 0.5) deckFeet.push(s.feet);
+      if (x > 14.6 && x < 15.7 && Math.abs(z) < 1) ledgeFeet.push(s.feet);
+      if (s.groundBody && s.groundBody.token === platform.token) { rode++; slipOnPlatform = Math.max(slipOnPlatform, Math.abs(s.feet - 0.3)); }
+      furthest = Math.max(furthest, x);
+      if (!s.grounded) { airborne++; apex = Math.max(apex, s.feet); }
+      if (s.stepped) stepped++;
+      if (s.laps >= 1) lapSeconds = (i + 1) / 240;
+    }
+    const mean = values => values.reduce((a, b) => a + b, 0) / values.length;
+    return {lapSeconds, deckFeet: mean(deckFeet), deckFeetSpread: Math.max(...deckFeet) - Math.min(...deckFeet), ledgeFeet: mean(ledgeFeet), cratePushed: world.getState(crate).position[0] - crate0,
+      rodePlatformSeconds: rode / 240, platformFeetError: slipOnPlatform, furthest, slopeFoot: 23.5, apex, exactApex: 25 / (2 * G), airborneSeconds: airborne / 240, stepped, hash: world.exactHash()};
+  } finally { e.world.dispose(); }
+}
+
+/** The car of the vehicle example: its sag at rest, then its autopilot circle on the terrain, then pedals. */
+export async function exampleVehicle(K) {
+  const scene = K.RIGID_CORE_EXAMPLE_SCENES['vehicle-terrain'](), e = await openExample(K, scene);
+  try {
+    const {roles, input} = e, data = scene.bodies.find(body => body.id === 'car').userData;
+    input.value = {brake: 1};
+    e.play(2);
+    const rest = roles.state.vehicle, sag = rest.wheels.reduce((a, w) => a + w.suspension, 0) / 4, restSpeed = rest.speed;
+    input.value = null;
+    e.play(10);
+    let speed = 0, yaw = 0, n = 0, minUp = 1, far = 0, fastest = 0;
+    e.play(20, () => { const v = roles.state.vehicle; speed += v.forwardSpeed; yaw += v.yawRate; n++; fastest = Math.max(fastest, v.forwardSpeed);
+      minUp = Math.min(minUp, 1 - 2 * (v.rotation[0] ** 2 + v.rotation[2] ** 2)); far = Math.max(far, Math.hypot(v.position[0], v.position[2])); });
+    const wheelbase = 2.6, delta = data.autopilot.steer * data.maxSteerAngle;
+    // Pedals: straighten up and brake to a stop, then full throttle for 3 s, then the brake.
+    input.value = {brake: 1}; e.play(3);
+    const stopped = roles.state.vehicle.speed;
+    input.value = {throttle: 1}; e.play(3);
+    const driven = roles.state.vehicle.forwardSpeed;
+    input.value = {throttle: -1}; e.play(6);
+    const reversed = roles.state.vehicle.forwardSpeed;
+    return {sag, exactSag: 1200 * G / (4 * data.stiffness), restSpeed, cruise: speed / n, cruiseSetting: data.autopilot.speed, fastest, radius: speed / yaw, exactRadius: wheelbase / Math.tan(delta), minUp, far,
+      stopped, driven, reversed, hash: e.world.exactHash()};
+  } finally { e.world.dispose(); }
+}
+
+/** The scanner: after 2 s, every beam's end against the closed form of what it hit (two spheres, the ground) and the count of rays that hit nothing. */
+export async function exampleLaser(K) {
+  const scene = K.RIGID_CORE_EXAMPLE_SCENES['laser-scanner'](), e = await openExample(K, scene);
+  try {
+    e.play(2);
+    const {world, bodies, roles} = e, ids = new Map([...bodies].map(([id, body]) => [body.token, id])), data = scene.bodies.find(body => body.id === 'scanner').userData;
+    const beams = roles.beams(), counts = {}, origin = data.origin;
+    let sphereError = 0, groundError = 0, rangeError = 0, groundRangeError = 0, misses = 0;
+    for (const [i, beam] of beams.entries()) {
+      const reach = Math.hypot(beam.to[0] - origin[0], beam.to[1] - origin[1], beam.to[2] - origin[2]);
+      if (!beam.body) { misses++; rangeError = Math.max(rangeError, Math.abs(reach - data.range)); continue; }
+      const id = ids.get(beam.body.token) ?? 'ground';
+      counts[id] = (counts[id] ?? 0) + 1;
+      // The two static spheres. (The pendulum bob and the rolling ball have moved on by a step since the rays were cast.)
+      if (id === 'ball' || id === 'dome') {
+        const c = world.getState(bodies.get(id)).position, r = scene.bodies.find(body => body.id === id).shape.radius;
+        sphereError = Math.max(sphereError, Math.abs(Math.hypot(beam.to[0] - c[0], beam.to[1] - c[1], beam.to[2] - c[2]) - r));
+      }
+      if (id === 'ground') {
+        groundError = Math.max(groundError, Math.abs(beam.to[1]));
+        // A ray pitched down by p from a height h reaches the ground h / sin(p) away.
+        groundRangeError = Math.max(groundRangeError, Math.abs(reach - origin[1] / Math.sin(-data.pitch[i % data.pitch.length])));
+      }
+    }
+    return {rays: beams.length, hits: roles.state.lasers[0].hits, misses, counts, sphereError, groundError, rangeError, groundRangeError, groundReach: origin[1] / Math.sin(0.12)};
+  } finally { e.world.dispose(); }
+}
+
+/** Bullets and plates: where the three balls are after each of 12 steps at 60 Hz, which plates moved, and the momentum of the bullet lane. */
+export async function exampleBullets(K) {
+  const scene = K.RIGID_CORE_EXAMPLE_SCENES['bullet-plates'](), e = await openExample(K, scene);
+  try {
+    const {world, bodies} = e, state = id => world.getState(bodies.get(id)), lanes = ['plain', 'bullet', 'static'];
+    const mb = state('ball-bullet').mass, mp = state('plate-bullet-0').mass, before = mb * 150;
+    let after = null, plainPlatesMoved = 0;
+    const track = [];
+    for (let i = 0; i < 12; i++) {
+      e.simulation.step();
+      track.push(lanes.map(lane => state(`ball-${lane}`).position[0]));
+      // The first step after the bullet met its plate.
+      if (after === null && state('plate-bullet-0').linearVelocity[0] > 1) after = mb * state('ball-bullet').linearVelocity[0] + mp * state('plate-bullet-0').linearVelocity[0];
+      // A plate the ball had touched would move at metres per second; standing plates settle at millimetres per second.
+      if (i === 5) for (let k = 0; k < 5; k++) plainPlatesMoved += Math.hypot(...state(`plate-plain-${k}`).linearVelocity) > 0.05 ? 1 : 0;
+    }
+    return {track, plainAtStep4: track[3][0], plainEnd: track[11][0], bulletEnd: track[11][1], staticEnd: track[11][2], plateX: 6.1, lastPlateX: 10.1, backstopFace: 15.5, plainPlatesMoved,
+      momentumBefore: before, momentumAfter: after, masses: [mb, mp], travelPerStep: 150 / 60};
+  } finally { e.world.dispose(); }
+}
+
+/** The bridge at rest (the block held 200 m up): the reactions of its welds against the built-in beam of n links. */
+export async function exampleBridgeAtRest(K) {
+  const e = await openExample(K, K.breakableBridgeScene({drop: 200}));
+  try {
+    const {world, joints} = e, events = [];
+    world.onEvent(event => { if (event.kind === 'joint-break' || event.kind === 'joint-overload') events.push(event); });
+    e.play(2);
+    const n = 8, l = 1, w = 600 * 1 * 0.15 * 1.5 * G / l, weld = k => world.getJointState(joints.get(`weld-${k}`));
+    const exactSupport = w * l * l * (n * n - 1) / 12, exactShear = w * n * l / 2;
+    return {shear: Math.abs(weld(0).force[1]), exactShear, supportMoment: Math.abs(weld(0).torque[2]), exactSupportMoment: exactSupport, farSupportMoment: Math.abs(weld(8).torque[2]),
+      // M(x) = -M0 + V x - w x^2 / 2 at mid-span.
+      midMoment: Math.abs(weld(4).torque[2]), exactMidMoment: -exactSupport + exactShear * (n * l / 2) - w * (n * l / 2) ** 2 / 2, continuousSupportMoment: w * (n * l) ** 2 / 12,
+      midShear: Math.abs(weld(4).force[1]), alive: [...joints.values()].filter(joint => world.isJointAlive(joint)).length, events: events.length,
+      thresholds: world.getJointDetails(joints.get('weld-0'))};
+  } finally { e.world.dispose(); }
+}
+
+/** The bridge as the example has it: intact until the block lands, then which welds broke and what they carried. */
+export async function exampleBridgeBreak(K) {
+  const scene = K.RIGID_CORE_EXAMPLE_SCENES['breakable-bridge'](), e = await openExample(K, scene);
+  try {
+    const {world, bodies, joints} = e, breaks = [], thresholds = scene.joints[0].thresholds;
+    const idOf = token => [...joints].find(([, joint]) => joint.token === token)?.[0];
+    world.onEvent(event => { if (event.kind === 'joint-break') breaks.push({id: idOf(event.joint.token), tick: world.tick, force: Math.hypot(...event.force), torque: Math.hypot(...event.torque)}); });
+    const alive = () => [...joints].filter(([, joint]) => world.isJointAlive(joint)).map(([id]) => id);
+    // The block falls 2 m: it lands after sqrt(2 h / g) = 0.639 s.
+    e.play(0.6);
+    const aliveBefore = alive().length, breaksBefore = breaks.length;
+    e.play(3.4);
+    const block = world.getState(bodies.get('block')), side = scene.bodies.find(body => body.id === 'block').shape.halfExtents[1];
+    return {aliveBefore, breaksBefore, aliveAfter: alive(), breaks, thresholds, landing: Math.sqrt(2 * 2 / G), firstBreakSeconds: breaks.length ? breaks[0].tick / 240 : null,
+      weakestBreak: Math.min(...breaks.map(b => Math.max(b.force / thresholds.force, b.torque / thresholds.torque))), blockY: block.position[1], blockRest: side, blockSpeed: Math.hypot(...block.linearVelocity),
+      midPlankY: world.getState(bodies.get('plank-4')).position[1], hash: world.exactHash(),
+      // A scene saved now holds the welds that are left, and no others.
+      savedJoints: K.saveScene(world, e).joints.map(joint => joint.id)};
+  } finally { e.world.dispose(); }
+}
+
+/**
+ * Checkpoint of a played example: run `first` seconds, take `simulation.checkpoint()` (the world and the roles), run
+ * `then` seconds; then restore the checkpoint into a freshly loaded copy and run the same `then` seconds.
+ */
+export async function exampleCheckpoint(K, name, first, then) {
+  const scene = K.RIGID_CORE_EXAMPLE_SCENES[name](), a = await openExample(K, scene), b = await openExample(K, scene);
+  try {
+    a.play(first);
+    const bytes = a.simulation.checkpoint(), at = a.world.exactHash();
+    a.play(then);
+    b.simulation.restore(bytes);
+    const restored = b.world.exactHash();
+    b.play(then);
+    const text = roles => JSON.stringify(roles.state, (key, value) => typeof value === 'bigint' ? String(value) : value);
+    return {bytes: bytes.length, restoredSame: restored === at, hashA: a.world.exactHash(), hashB: b.world.exactHash(), rolesSame: text(a.roles) === text(b.roles), tick: a.world.tick, moved: at !== a.world.exactHash()};
+  } finally { a.world.dispose(); b.world.dispose(); }
+}

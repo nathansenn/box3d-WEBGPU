@@ -3,7 +3,8 @@
 The rigid-body engine is Box3D v0.1.0 compiled to WebAssembly behind a small C bridge (`wasm/box3d_web.c`). This
 document covers what the bridge exposes beyond bodies, shapes and the six basic joints: scene queries, the capsule
 character, continuous collision, vehicles, motor and breakable joints, world controls, the step profile, debug
-drawing, and what was measured at scale. Bodies, shapes, joints and events are in
+drawing, and five example scenes. Stress tests at scale (tall stacks, piles of thousands of bodies) and a
+thread-count option for the kit are not done yet; see [Not done](#not-done). Bodies, shapes, joints and events are in
 [`packages/box3d-kit/README.md`](../packages/box3d-kit/README.md); exact checkpoints are in
 [`CHECKPOINTS.md`](CHECKPOINTS.md); the scene format is in [`SCENE_FORMAT.md`](SCENE_FORMAT.md).
 
@@ -385,6 +386,117 @@ Counts are exact for a known scene: 50 shapes give 50 × 12 edges = 1,200 bound 
 give 192 × 3 lines = 1,152 vertices (registry rows). Shapes themselves are not drawn by this call (the renderers
 draw them); text labels (body names, contact features) are dropped.
 
+## 8. Examples and scene roles
+
+Five scene files show the rigid core. `RIGID_CORE_EXAMPLE_SCENES` (`box3d-webgpu-kit/scene`) has them by name and
+the Lab opens them with `lab.html?example=<name>` or from the Scenes panel. They are plain scenes of bodies and
+joints; two use scene version 3 ([`SCENE_FORMAT.md`](SCENE_FORMAT.md#joints-version-3)).
+
+| Name | What it shows | Played by |
+|---|---|---|
+| `obstacle-course` | The capsule character: four stairs of 0.2 m, a 25° ramp, a 26 kg crate to push, a ledge, a platform that moves sideways under it, a 60° slope and a 0.8 m wall it cannot climb. | role `character`, `platform` |
+| `vehicle-terrain` | A 1,200 kg car on four wheel joints, 60 kN/m and 5 kN·s/m per wheel, Ackermann steering, on 128 m × 128 m of rolling terrain. | role `vehicle`, `wheel` |
+| `laser-scanner` | 96 rays in one `castRayBatch` call per step, turning at 0.35 rad/s, drawn to their hit points among static bodies, a pendulum and a rolling ball. | role `laser` |
+| `bullet-plates` | Continuous collision in three lanes at 60 Hz: a 150 m/s ball (2.5 m per step) passes five free 2 cm plates; with `bullet: true` it hits the first; without it, a thin static wall still stops it. | nothing: it is physics only |
+| `breakable-bridge` | Eight planks on nine breakable welds; a 300 kg block dropped 2 m breaks the span. | nothing: joint thresholds |
+
+### Scene roles
+
+What makes the first three playable is `userData.role` on a body or a joint, read by `SceneRoles`
+(`src/engine/scene-roles.ts`, exported by `box3d-webgpu-kit/gameplay`). The scene format carries `userData` and
+never reads it, so a file with roles is an ordinary scene to any other reader. The roles and their settings are
+listed in [`SCENE_FORMAT.md`](SCENE_FORMAT.md#scene-roles).
+
+```js
+import {createWorld} from 'box3d-webgpu-kit';
+import {loadScene, sceneWorldOptions, RIGID_CORE_EXAMPLE_SCENES} from 'box3d-webgpu-kit/scene';
+import {attachSceneRoles} from 'box3d-webgpu-kit/gameplay';
+
+const scene = RIGID_CORE_EXAMPLE_SCENES['obstacle-course']();
+const world = await createWorld(sceneWorldOptions(scene));
+const loaded = loadScene(world, scene);
+let input = null;                                   // null: the scene plays itself (route, autopilot)
+const roles = attachSceneRoles(loaded, {input: () => input});
+// each fixed step:
+input = {move: [1, 0], jump: false};                // or {throttle, steer, brake} for a car
+loaded.simulation.step();                           // the roles act, then the world steps
+roles.state.character.position;                     // roles.character is the CapsuleCharacterController
+```
+
+The roles are a subsystem of the scene's Simulation (stage `pre-couple`): they act before every rigid step, and
+`loaded.simulation.checkpoint()` holds their state (the controller, the route progress, the clock that moves
+platforms and turns scanners) beside the world's. A checkpoint taken while a scene is played resumes bit for bit
+(tested mid-push on the course, mid-circle in the car, with the bullet in its plate, and across the break of the
+bridge). A simulation without the roles refuses such a checkpoint (`CHECKPOINT_MISMATCH`).
+
+### In the Lab
+
+`src/lab/rigid-play.ts` gives a played scene the keyboard:
+
+| Scene | Keys |
+|---|---|
+| A character | W A S D or the arrow keys walk, relative to the camera; Space jumps. |
+| A car | W and S (or up and down) are throttle and reverse, A and D (or left and right) steer, Space brakes. |
+
+Left alone the scene plays itself; after a key, the player keeps control until nothing has been pressed for 4 s.
+While such a scene is open these keys do not trigger the Lab's own shortcuts (Space, D, the arrows); the others
+still do. The camera follows the character or the car. A scanner's beams are overlay lines on both renderers.
+The Lab steps a scene with roles through its Simulation, so **Save checkpoint** and **Load checkpoint** resume a
+played scene exactly, and the Lab and the kit give equal `exactHash` and `replayHash` for all five scenes at 0, 1,
+240 and 1,200 steps (kit test).
+
+### The breakable bridge, at rest
+
+The bridge is a beam built in at both ends, made of n = 8 rigid links of length l on n + 1 soft welds, under its
+own weight w per metre (135 kg per plank: w = 1,324.35 N/m). By symmetry each support carries half the weight,
+V = w L / 2 = 5,297.4 N. The moments follow from compatibility: the rotations of the welds must add up to zero.
+A weld turns by M / k under a moment M, and a Box3D joint spring is stated as a frequency of the joint's own
+effective inertia, so its stiffness is proportional to (1/I_A + 1/I_B)⁻¹: a weld between two planks has half the
+stiffness of a weld between a plank and a fixed abutment. With M(x) = −M₀ + V x − w x² / 2 at the welds x = 0, l,
+…, n l and the two end welds counted at half weight,
+
+  M₀ = w l² (n² − 1) / 12 = 6,952.8 N·m for n = 8,
+
+which tends to the continuous beam's w L² / 12 (7,063.2 N·m) as n grows; the mid-span moment is
+V L / 2 − w L² / 8 − M₀ = 3,642.0 N·m. The welds break at 6 V (31,784 N) or 3 M₀ (20,859 N·m).
+
+This closed form is derived here, not taken from a table; the limit n → ∞ is the textbook value. It depends on
+Box3D's convention for joint springs, which section 4 measured independently on wheel joints.
+
+### Measured
+
+| Case | Reference | Measured | Tolerance |
+|---|---|---|---|
+| Course: feet on the deck after four stairs | 0.8 m | 0.80002 m | 1 mm |
+| Course: jump on the route | v² / 2g = 1.27421 m | 1.27420 m | 0.1% |
+| Course: one lap of the route | (no closed form) | 24.98 s; crate pushed 1.84 m; 1.61 s on the platform; stopped 0.23 m before the foot of the 60° slope | asserted as ranges |
+| Vehicle: static sag of the scene-file car | m g / 4k = 0.04905 m | 0.04901 m | 0.5% |
+| Vehicle: autopilot circle on the terrain | L / tan δ = 10.18 m | 10.21 m (mean speed 6.16 m/s over mean yaw rate) | 5% |
+| Scanner: length of pitched rays to the ground | h / sin p = 10.4417 m | worst error 8 × 10⁻⁷ m | 10⁻⁵ m |
+| Scanner: hit points on the two static spheres | on the surface | worst 1.9 × 10⁻⁷ m off | 10⁻⁴ m |
+| Bullets: free plates that noticed an ordinary 150 m/s ball | 0 of 5 | 0 | exact |
+| Bullets: momentum through the bullet impact | 1,058.6 N·s | 1,048.5 N·s (−0.95%) | 2% |
+| Bridge at rest: support shear | w L / 2 = 5,297.4 N | 5,297.5 N | 0.01% |
+| Bridge at rest: support moment | w l² (n² − 1) / 12 = 6,952.8 N·m | 6,952.6 N·m | 0.1% |
+| Bridge at rest: mid-span moment | 3,642.0 N·m | 3,641.8 N·m | 0.1% |
+| Bridge: first weld breaks | √(2h / g) = 0.6386 s | 0.6417 s (the step after) | 2 steps |
+| Bridge: weakest weld that broke | ≥ 1 × its threshold | 1.40 | lower bound |
+
+Seven of the nine welds break in the step the block lands; the two end welds stay, each holding one plank as a
+cantilever. A scene saved after the break holds those two welds and no others.
+
+### Limits
+
+- Roles are for examples and small games: one character and one vehicle per scene, a platform moves on a sine,
+  and the route walker steers straight at its next point (it does not plan around obstacles; the example's route
+  is laid out so that it does not need to).
+- The player's keys are input, not state: a checkpoint restores the scene, not which keys were held.
+- The bullet's momentum row loses about 1% to ground friction in the step of the impact; it is not a statement
+  about the solver's conservation in free flight (section 3 has that).
+- The bridge's welds all see the impact in one step, because the planks are rigid: which welds break depends on
+  the step size as well as on the block. The example is deterministic, not mesh-converged.
+- The vehicle circle is measured on bumpy ground and so only to 5%; the flat-ground rows are in section 4.
+
 ## Custom filter and pre-solve callbacks: not exposed
 
 Box3D can call the application for every candidate pair (`b3World_SetCustomFilterCallback`) and for every touching
@@ -401,3 +513,12 @@ contact before it is solved (`b3World_SetPreSolveCallback`). The bridge does not
 What is exposed instead is declarative and travels in checkpoints: category and mask bits and group indices per
 body (`filter`, `setCollisionFilter`), `collideConnected` per joint, and the **filter joint** (`type: 'filter'`),
 which switches off collision between two chosen bodies and does nothing else.
+
+## Not done
+
+- **Scale.** No stress test of a 20-row pyramid, a 5,000-body pile, a 1,000-hull pile or a ragdoll pile is in the
+  repository yet, and no single- versus multi-threaded step times of them were measured. The rows above are of
+  scenes with at most a few hundred bodies.
+- **Threads in the kit.** `loadBox3D` and `createWorld` load only the single-threaded artifact. The pthread
+  artifact (`public/box3d/box3d-mt.*`, [`THREADED_ENGINE.md`](THREADED_ENGINE.md)) is used by the Lab only.
+
