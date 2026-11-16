@@ -6,8 +6,10 @@
   "description": "Box3D WebGPU AAA Physics Lab with native Box3D WASM, Poliigon-derived KTX2 materials, GPU cloth/rope/water, 800 deterministic recipes, 68 cinematic demos, and 34 authored metal, glass, concrete, and combined material programs.",
   "scripts": {
     "dev": "vite --host 127.0.0.1",
-    "build": "vite build",
-    "build:pages": "VITE_BASE_PATH=./ vite build",
+    "build": "node scripts/build-docs.mjs && vite build",
+    "build:pages": "node scripts/build-docs.mjs && VITE_BASE_PATH=./ vite build",
+    "docs:build": "node scripts/build-docs.mjs",
+    "docs:check": "node scripts/build-docs.mjs --check",
     "preview": "vite preview --host 127.0.0.1",
     "fetch:box3d": "bash ./scripts/fetch-box3d.sh",
     "build:wasm": "bash ./scripts/build-wasm.sh",

@@ -13,6 +13,7 @@ list_source_files() {
     ! -path './.anchor/*' \
     ! -path './node_modules/*' \
     ! -path './dist/*' \
+    ! -path './public/docs/*' \
     ! -path './build/*' \
     ! -path './third_party/*' \
     ! -path './.test-build/*' \

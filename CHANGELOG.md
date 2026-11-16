@@ -1,5 +1,13 @@
 # Changelog
 
+## Unreleased — 2026-11-16 — Documentation site
+
+- **`scripts/build-docs.mjs` writes `public/docs/` (`npm run build` runs it first; not committed, excluded from the source manifest):** 67 static pages with no framework: getting started (the Lab and the kit), ten concept guides (`docs/site/`), a page per solver from the existing documents, the full API reference from the kit's generated `api/API.md` (828 symbols in 24 entry points) with client-side search (press `/`), an examples gallery (the 21 Lab examples, each with its scene file, an "Open in the Lab" link and the validation domains it relates to), errors, robustness, stability policy, roadmap and both changelogs. Light and dark from the system setting; no horizontal scrolling at 390 px on any page (checked in Chromium).
+- **`npm run docs:check` in `validate:pr`:** builds in memory and fails on a link or anchor that does not resolve (2,767 KiB of output checked), a page without exactly one `h1`, an inline script or style (the pages carry the same policy as the validation page), an API symbol missing from the reference, or a rise in the number of public symbols without a description.
+- **TSDoc:** 63 public symbols of the kit's main entry gained descriptions (all 127 exports of `box3d-webgpu-kit` now have one). 280 symbols of the other entry points still show their declaration only; the check holds that number as a ceiling.
+- **Links:** the Lab's top bar and the validation page link to the docs.
+
+
 ## Unreleased — 2026-11-16 — One error taxonomy, docs/ERRORS.md and diagnose()
 
 - **Error taxonomy (docs/ERRORS.md, written from the code by `scripts/errors-doc.mjs`):** `ENGINE_ERRORS` lists the 42 codes with what each means and what to do; `EngineError` gains `details` (`path`, `value`, `expected`) and `fix`; `isEngineError`, `explainError`. The central checks now say what they got: "radius must be finite and within [0.0001, 1000]; got -1. Pass a finite number within [0.0001, 1000]." A test fails when a code is thrown that is not listed, when the page drifts, or when a new built-in `RangeError` or `TypeError` appears in a shipped file (42 remain in 12 engine files, listed).
