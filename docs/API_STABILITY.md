@@ -49,10 +49,11 @@ now: `RaycastOptions` (use `QueryOptions`).
 ## Supported platforms
 
 - Node.js 20 or later; current Chrome, Edge, Firefox and Safari. ES modules only.
-- WebAssembly with `BigInt` integration (64-bit handles). No threads or SIMD are required.
+- WebAssembly with `BigInt` integration (64-bit handles). No threads or SIMD are required; `loadBox3D({threads})`
+  loads the separate pthread build (`wasm/box3d-mt.*`), which needs a cross-origin isolated page.
 - Bundlers: tested with Vite, and without a bundler from a static path by a plain `<script type="module">`. The
   package is side-effect free (`sideEffects: false`); the main entry loads no solver module, and a bundle that uses
-  only the rigid world is 27.9 KiB of gzip. webpack 5 is not tested here (it is not installed in this repository);
+  only the rigid world is 37.6 KiB of gzip. webpack 5 is not tested here (it is not installed in this repository);
   the package uses only standard ES modules and `new URL(file, import.meta.url)` for its WebAssembly, which webpack 5
   supports.
 - three.js and Babylon.js are optional peers of the `/three` and `/babylon` adapters; nothing else is needed at run

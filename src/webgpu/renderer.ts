@@ -35,6 +35,9 @@ const SCENE_UNIFORM_BYTES = SCENE_UNIFORM_FLOATS * Float32Array.BYTES_PER_ELEMEN
 const DEFAULT_SHADOW_MAP_SIZE: 1024 | 2048 = 2048;
 const DEFAULT_SAMPLE_COUNT: 1 | 4 = 4;
 const HDR_FORMAT: GPUTextureFormat = 'rgba16float';
+/** A draw from simulation buffers inside the main pass. Bind group 0 (the scene uniforms) is set before `draw`. */
+export interface SimulationLayer { readonly blended: boolean; draw(pass: GPURenderPassEncoder, sampleCount: 1 | 4): void; destroy(): void }
+export interface SimulationLayerTarget { readonly device: GPUDevice; readonly sceneBindGroupLayout: GPUBindGroupLayout; readonly colorFormat: GPUTextureFormat; readonly depthFormat: GPUTextureFormat; readonly sceneUniformStruct: string }
 // At 4x MSAA the resolved HDR color, multisampled HDR color, and depth target
 // consume roughly 56 bytes per rendered pixel. Cap Ultra at a 1440p-class
 // framebuffer so high-DPI/5K displays cannot allocate hundreds of MiB per
@@ -3992,6 +3995,14 @@ export class WebGPURenderer {
   waterPlanningStats() { return this.waterSurfacePlanner.stats(); }
 
 
+  /** What a layer needs to build pipelines for this renderer's main pass (scene uniforms in bind group 0). */
+  simulationLayerTarget(): SimulationLayerTarget {
+    return { device: this.device, sceneBindGroupLayout: this.sceneBindGroupLayout, colorFormat: HDR_FORMAT, depthFormat: 'depth24plus', sceneUniformStruct };
+  }
+  /** Draw these layers in the main pass after the scene, every frame, until replaced. The caller owns and destroys them. */
+  setSimulationLayers(layers: readonly SimulationLayer[]): void { this.simulationLayers = [...layers]; }
+  private simulationLayers: SimulationLayer[] = [];
+
   /** An optional output view supports offscreen rendering through the same passes.
    * It must use this renderer's canvas format, viewport size, and sample count 1. */
   render(instanceCount: number, debugLines: readonly DebugLine[], lineFrameVersion?: number,
@@ -4263,6 +4274,11 @@ export class WebGPURenderer {
       mainPass.setBindGroup(0, this.sceneBindGroup);
       mainPass.setVertexBuffer(0, this.lineBuffer);
       mainPass.draw(lineFloatCount / 7, 1);
+    }
+    // Layers drawn straight from simulation buffers (src/webgpu/simulation-layers.ts): opaque ones first, then blended.
+    for (const blended of [false, true]) for (const layer of this.simulationLayers) if (layer.blended === blended) {
+      mainPass.setBindGroup(0, this.sceneBindGroup);
+      layer.draw(mainPass, this.sampleCount);
     }
     mainPass.end();
 

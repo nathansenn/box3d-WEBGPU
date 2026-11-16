@@ -64,8 +64,101 @@ export interface BuildInfo {
     readonly wasmSha256: string;
     readonly wasmBytes: number;
     readonly glueSha256: string;
+    readonly threadedWasmSha256: string;
+    readonly threadedWasmBytes: number;
 }
 export declare const BUILD_INFO: BuildInfo;
+
+// ==== core/character-controller.d.ts ====
+import { type StateObject, type StateValue } from './checkpoint.js';
+import type { NativeBodyHandle, NativeBodyState, NativeMoverInput, NativeMoverResult, NativeQueryResult, NativeSpatialQuery } from './native-world.js';
+type Body = NativeBodyHandle;
+type Vec3 = readonly [number, number, number];
+export type CharacterVec3 = Vec3 | {
+    readonly x: number;
+    readonly y: number;
+    readonly z: number;
+};
+export interface CharacterHost {
+    readonly native: {
+        moverMove(input: NativeMoverInput): NativeMoverResult;
+        queryBatch(queries: readonly NativeSpatialQuery[]): NativeQueryResult[];
+        bodyIndex(body: Body): number | null;
+        bodyHandle(index: number): Body;
+        bodyCount(): number;
+    };
+    getState(body: Body): NativeBodyState;
+    isAlive(body: Body): boolean;
+    applyImpulseAt(body: Body, impulse: Vec3, point: Vec3): void;
+    gravity(): [number, number, number];
+}
+export interface CapsuleCharacterOptions {
+    readonly position: CharacterVec3;
+    readonly radius?: number;
+    readonly height?: number;
+    readonly maxSlopeDegrees?: number;
+    readonly stepHeight?: number;
+    readonly snapDistance?: number;
+    readonly gravity?: number;
+    readonly maxPushForce?: number;
+    readonly ignoreBody?: Body;
+    readonly filter?: {
+        readonly categoryBits?: bigint;
+        readonly maskBits?: bigint;
+    };
+}
+export interface CapsuleCharacterInput {
+    readonly velocity: CharacterVec3;
+    readonly jump?: number;
+}
+export interface CapsuleCharacterState {
+    readonly position: readonly [number, number, number];
+    readonly feet: number;
+    readonly velocity: readonly [number, number, number];
+    readonly grounded: boolean;
+    readonly groundNormal: readonly [number, number, number] | null;
+    readonly groundBody: Body | null;
+    readonly pushed: readonly Body[];
+    readonly stepped: boolean;
+    readonly onSteepSlope: boolean;
+}
+export declare class CapsuleCharacterController {
+    readonly radius: number;
+    readonly halfLength: number;
+    readonly stepHeight: number;
+    readonly snapDistance: number;
+    readonly gravity: number;
+    readonly maxPushForce: number;
+    readonly maxSlopeDegrees: number;
+    private readonly minGroundY;
+    private readonly ignoreBody;
+    private readonly categoryBits;
+    private readonly maskBits;
+    private pos;
+    private vel;
+    private verticalSpeed;
+    private inherited;
+    private ground;
+    private steep;
+    private pushedBodies;
+    private steppedFlag;
+    private stepping;
+    private wanted;
+    private readonly world;
+    constructor(world: CharacterHost, options: CapsuleCharacterOptions);
+    get state(): CapsuleCharacterState;
+    teleport(position: CharacterVec3): void;
+    move(input: CapsuleCharacterInput, dt: number): CapsuleCharacterState;
+    private slide;
+    private tryStep;
+    private probe;
+    private velocityAt;
+    private push;
+    saveState(): StateObject;
+    restoreState(state: StateValue): void;
+    private fieldOptions;
+}
+export {};
 
 // ==== core/checkpoint.d.ts ====
 import { EngineError } from './contracts.js';
@@ -743,20 +836,31 @@ export interface ConcreteLawInput {
     readonly ultimateStrain: number;
     readonly fractureEnergy: number;
     readonly crushingEnergy?: number;
+    readonly meridian?: readonly number[];
     readonly friction?: number;
+    readonly dilatancy?: number;
+    readonly biaxialRatio?: number;
     readonly elasticLimit?: number;
     readonly bandWidth?: number;
     readonly tensionSoftening?: readonly number[];
+    readonly nonlocalLength?: number;
     readonly erosionOpening?: number;
 }
 export interface ConcreteLaw {
-    readonly input: Readonly<Required<Omit<ConcreteLawInput, 'tensionSoftening' | 'bandWidth'>> & {
+    readonly input: Readonly<Required<Omit<ConcreteLawInput, 'tensionSoftening' | 'bandWidth' | 'friction' | 'meridian' | 'nonlocalLength'>> & {
         tensionSoftening: readonly number[];
+        meridian: readonly number[];
     }>;
     readonly youngModulus: number;
     readonly poissonRatio: number;
     readonly friction: number;
+    readonly dilatancy: number;
+    readonly eccentricity: number;
+    readonly mx: Float64Array;
+    readonly my: Float64Array;
     readonly bandWidth: number;
+    readonly nonlocalLength: number;
+    readonly compressionBand: number;
     readonly referenceLength: number;
     readonly compressionEnergyFactor: number;
     readonly tensionEnergyFactor: number;
@@ -769,10 +873,21 @@ export interface ConcreteLaw {
     readonly kappaPeak: number;
     readonly kappaCrushed: number;
     readonly kappaErode: number;
+    readonly axialFlow: number;
     readonly uniaxialStrain: Float64Array;
     readonly uniaxialStress: Float64Array;
 }
 export declare const DEFAULT_FRICTION: number;
+export declare const DEFAULT_DILATANCY: number;
+export declare const EN1992_MERIDIAN: readonly number[];
+export declare const en1992Confined: (x: number) => number;
+export declare const NONLOCAL_BAND = 1;
+export declare function meridianValue(law: {
+    mx: Float64Array;
+    my: Float64Array;
+}, xi: number): number;
+export declare function lodeFactor(theta: number, e: number, out: Float64Array | number[]): void;
+export declare function lodeFactor2(theta: number, e: number, out: Float64Array | number[]): void;
 export declare function ec2CompressionStress(strain: number, fcm: number, peakStrain: number, secantModulus: number): number;
 export declare function buildConcreteLaw(input: unknown, youngModulus: number, poissonRatio: number, meanVolume: number): ConcreteLaw;
 export declare function tableValue(x: Float64Array, y: Float64Array, at: number): number;
@@ -789,23 +904,87 @@ export declare class ConcreteReturn {
     private readonly a;
     private readonly b;
     private readonly order;
+    private cf;
+    private cs;
     readonly law: ConcreteLaw;
     readonly lambda: number;
     readonly mu: number;
     constructor(law: ConcreteLaw, lambda: number, mu: number);
-    map(t: ArrayLike<number>, kc0: number, kt0: number, f?: number): void;
+    lHint: number;
+    map(t: ArrayLike<number>, kc0: number, kt0: number, f?: number, xn?: number, kbar?: number): void;
+    private kx;
+    private ky;
+    private ki;
+    private readonly fx;
+    private readonly fy;
+    private readonly fi;
+    private mapNow;
     private readonly g;
     private readonly bp;
     private readonly gp;
     private readonly s3;
     private dpBlock;
+    private readonly wwState;
+    private wwRho;
+    private wwTh0;
+    private wwLast;
+    private wwDeviator;
     private rkBlock;
+    private compressionWork;
+    private floor;
+    private kv;
+    private ksolve;
     private tensorFinish;
     private finish;
 }
 export declare function jacobi(t: ArrayLike<number>, ev: Float64Array, V: Float64Array): void;
 export declare function largestEigenvalue(xx: number, yy: number, zz: number, yz: number, xz: number, xy: number): number;
 export declare function concreteDamage(law: ConcreteLaw, kappaC: number, kappaT: number): number;
+export declare class ConcreteNonlocal {
+    readonly start: Uint32Array;
+    readonly index: Uint32Array;
+    readonly weight: Float64Array;
+    constructor(positions: ArrayLike<number>, tets: ArrayLike<number>, volumes: ArrayLike<number>, length: number);
+    average(kappa: ArrayLike<number>, out: Float64Array): void;
+}
+export interface ReinforcementBarInput {
+    readonly points: readonly number[];
+    readonly area: number;
+    readonly youngModulus: number;
+    readonly yieldStress: number;
+    readonly hardeningModulus?: number;
+}
+export interface ReinforcementInput {
+    readonly bars: readonly ReinforcementBarInput[];
+}
+export declare class ConcreteReinforcement {
+    readonly segmentCount: number;
+    readonly bar: Uint32Array;
+    readonly ends: Uint32Array;
+    readonly D: Float64Array;
+    readonly length: Float64Array;
+    readonly area: Float64Array;
+    readonly E: Float64Array;
+    readonly sy: Float64Array;
+    readonly H: Float64Array;
+    readonly nodes: Uint32Array;
+    readonly weights: Float64Array;
+    readonly points: Float64Array;
+    private readonly tS;
+    private readonly tE;
+    private readonly tg;
+    constructor(input: unknown, X: ArrayLike<number>, tets: ArrayLike<number>, meanSize: number);
+    private delta;
+    private scatter;
+    private strain;
+    energy(linear: boolean, u: ArrayLike<number>, fint: Float64Array | null, ep: Float64Array, alpha: Float64Array, store: boolean, commit?: boolean, storedOnly?: boolean): number;
+    tangent(linear: boolean, x: ArrayLike<number>, out: Float64Array): void;
+    private segmentNodes;
+    couplings(visit: (a: number, b: number) => void): void;
+    assembleTangent(linear: boolean, scale: number, add: (a: number, b: number, M: Float64Array) => void): void;
+    diagonal(kd: Float64Array): void;
+    forces(linear: boolean, u: ArrayLike<number>, ep: Float64Array, alpha: Float64Array, force: Float64Array, strain: Float64Array): void;
+}
 
 // ==== core/contracts.d.ts ====
 export interface ModelIdentity {
@@ -923,6 +1102,34 @@ export declare const ENGINE_ERRORS: {
     readonly INTEGRITY_MISMATCH: {
         readonly meaning: "The loaded box3d.wasm is not the file this package was built with.";
         readonly fix: "Serve the box3d.wasm from the same package version, without rewriting proxies.";
+    };
+    readonly GPU_UNAVAILABLE: {
+        readonly meaning: "No WebGPU adapter or device for compute, or this device is too small for the job (the message names the limit).";
+        readonly fix: "Use the CPU solver (the GPU backends are optional), a smaller grid or fewer grains, or a device with larger buffer and dispatch limits.";
+    };
+    readonly GPU_DEVICE_LOST: {
+        readonly meaning: "The WebGPU device was lost, or the GPU backend was destroyed, while it held the state.";
+        readonly fix: "The backends fall back to the CPU solver where they can; otherwise build the backend again from the CPU solver.";
+    };
+    readonly GPU_OUT_OF_MEMORY: {
+        readonly meaning: "The WebGPU device ran out of memory for a buffer or a dispatch (the message has the label).";
+        readonly fix: "Use fewer cells or grains, or the CPU solver.";
+    };
+    readonly GPU_VALIDATION: {
+        readonly meaning: "WebGPU rejected a buffer, pipeline or dispatch the backend made (the message has the label and the reason).";
+        readonly fix: "This is a bug in the backend or the browser: report it with the message.";
+    };
+    readonly GPU_SHADER: {
+        readonly meaning: "A compute shader did not compile or name a snippet that exists (the message has the line).";
+        readonly fix: "This is a bug in the backend: report it with the message.";
+    };
+    readonly GPU_LAYOUT: {
+        readonly meaning: "A GPU buffer layout does not fit the data it was asked to hold.";
+        readonly fix: "This is a bug in the backend: report it with the message.";
+    };
+    readonly GPU_CAPACITY: {
+        readonly meaning: "A fixed-size GPU table overflowed during a step (for grains: a hash bucket was full), so contacts were missed.";
+        readonly fix: "Build the backend with more slots (the message names the setting), or use the CPU solver.";
     };
     readonly SHARED_UNAVAILABLE: {
         readonly meaning: "SharedArrayBuffer is not available (the page is not cross-origin isolated).";
@@ -2119,6 +2326,43 @@ export interface GranularLattice {
     radii: Float64Array;
     count: number;
 }
+export interface GranularBackendWall {
+    shape: number;
+    type: number;
+    enabled: boolean;
+    dim: number[];
+    position: number[];
+    rotation: number[];
+    linearVelocity: number[];
+    angularVelocity: number[];
+    mass: number;
+    invInertia: number[];
+    gravityScale: number;
+    external: number[];
+    alpha: number;
+    friction: number;
+    rollingFriction: number;
+    curved: number;
+    force: number[];
+    torque: number[];
+    impulse: number[];
+    angularImpulse: number[];
+}
+export interface GranularBackendDescription {
+    hertz: boolean;
+    kHertz: number;
+    kMindlin: number;
+    kn: number;
+    kt: number;
+    alpha: number;
+    tangentialDamping: number;
+    friction: number;
+    rollingFriction: number;
+    bounds: number[] | null;
+    rMin: number;
+    rMax: number;
+    walls: GranularBackendWall[];
+}
 export declare const HERTZ_DURATION_FACTOR = 2.94327518432;
 export declare const granularEffectiveModulus: (youngModulus: number, poissonRatio: number) => number;
 export declare const granularEffectiveShearModulus: (youngModulus: number, poissonRatio: number) => number;
@@ -2253,7 +2497,16 @@ export declare class Granular {
     wallAngularImpulse(index: number): Float64Array;
     wallNormalLoad(index: number): number;
     wallContacts(index: number): number;
+    setWallLoads(index: number, loads: {
+        readonly force: ArrayLike<number>;
+        readonly torque: ArrayLike<number>;
+        readonly impulse: ArrayLike<number>;
+        readonly angularImpulse: ArrayLike<number>;
+        readonly normalLoad: number;
+        readonly contacts: number;
+    }): void;
     resetWallImpulses(index?: number): void;
+    backendDescription(): GranularBackendDescription;
     mass(): number;
     kineticEnergy(): number;
     gravitationalEnergy(): number;
@@ -2344,6 +2597,8 @@ export declare class GranularCoupling<B> {
     force(body: B): Float64Array;
     torque(body: B): Float64Array;
     step(): void;
+    begin(): void;
+    finish(): void;
     contactChanges(each: (body: B, index: number, touching: boolean) => void): void;
     diagnostics(): GranularCouplingDiagnostics;
 }
@@ -2570,7 +2825,7 @@ import type { FractureLaw, FractureModel } from './solid-fracture.js';
 import type { HeatMaterial } from './heat.js';
 import type { GranularMaterial } from './granular.js';
 export declare const MATERIAL_LIBRARY_ID = "box3d-materials";
-export declare const MATERIAL_LIBRARY_VERSION = "1.6.0";
+export declare const MATERIAL_LIBRARY_VERSION = "1.7.0";
 export declare const MATERIAL_SOURCES_ACCESSED = "2026-11-12";
 export type MaterialSourceKind = 'standard' | 'government' | 'manufacturer' | 'peer-reviewed' | 'textbook' | 'last-resort';
 export interface MaterialSource {
@@ -2800,6 +3055,16 @@ export type NativeSpatialQuery = NativeQueryBase & ({
 } | {
     readonly kind: 'box-overlap' | 'aabb-candidates';
     readonly halfExtents: NativeQueryVector;
+} |
+{
+    readonly kind: 'capsule-cast';
+    readonly translation: NativeQueryVector;
+    readonly radius: number;
+    readonly halfLength: number;
+} | {
+    readonly kind: 'capsule-overlap';
+    readonly radius: number;
+    readonly halfLength: number;
 });
 export interface NativeQueryBodyHit {
     readonly body: NativeBodyHandle;
@@ -2816,10 +3081,10 @@ export type NativeQueryResult = {
     readonly totalHits: number;
     readonly overflow: boolean;
 } & ({
-    readonly kind: 'ray' | 'sphere-cast' | 'box-cast';
+    readonly kind: 'ray' | 'sphere-cast' | 'box-cast' | 'capsule-cast';
     readonly hits: readonly NativeQueryCastHit[];
 } | {
-    readonly kind: 'sphere-overlap' | 'box-overlap' | 'aabb-candidates';
+    readonly kind: 'sphere-overlap' | 'box-overlap' | 'aabb-candidates' | 'capsule-overlap';
     readonly hits: readonly NativeQueryBodyHit[];
 });
 export declare const NATIVE_WORLD_EXTENT: 100000;
@@ -2914,6 +3179,20 @@ export interface NativeWorldModule {
     _b3w_world_set_body_mass_data?(world: number, body: bigint, values: number | bigint): number;
     _b3w_world_get_body_mass_data?(world: number, body: bigint, out: number | bigint): number;
     _b3w_world_reset_body_mass_data?(world: number, body: bigint): number;
+    _b3w_world_joint_set_values?(world: number, joint: bigint, what: number, values: number | bigint, count: number): number;
+    _b3w_world_joint_get_values?(world: number, joint: bigint, out: number | bigint): number;
+    _b3w_world_cast_rays?(world: number, rays: number | bigint, count: number, categoryBits: bigint, maskBits: bigint, bodyTypes: number, ignoreBody: bigint, outHits: number | bigint, outBodies: number | bigint): number;
+    _b3w_world_mover_move?(world: number, input: number | bigint, output: number | bigint): number;
+    _b3w_world_set_param?(world: number, id: number, a: number, b: number, c: number): number;
+    _b3w_world_get_params?(world: number, out: number | bigint): number;
+    _b3w_world_set_body_flag?(world: number, body: bigint, what: number, value: number): number;
+    _b3w_world_get_body_flags?(world: number, body: bigint, out: number | bigint): number;
+    _b3w_world_explode_area?(world: number, x: number, y: number, z: number, radius: number, falloff: number, impulsePerArea: number, maskBits: bigint): number;
+    _b3w_world_profile?(world: number, outProfile: number | bigint, outCounters: number | bigint): number;
+    _b3w_world_contact_stats?(world: number, out: number | bigint): number;
+    _b3w_world_debug_draw?(world: number, flags: number, jointScale: number, forceScale: number, bounds: number | bigint): number;
+    _b3w_world_debug_ptr?(world: number): number | bigint;
+    _b3w_world_debug_total?(world: number): number;
     _b3w_world_checkpoint?(world: number): number;
     _b3w_world_checkpoint_ptr?(world: number): number | bigint;
     _b3w_world_checkpoint_free?(world: number): number;
@@ -3029,7 +3308,38 @@ export interface NativeBodyState {
     awake: boolean;
     type: NativeBodyType;
 }
-export type NativeJointType = 'weld' | 'revolute' | 'spherical' | 'prismatic' | 'distance' | 'wheel';
+export type NativeJointType = 'weld' | 'revolute' | 'spherical' | 'prismatic' | 'distance' | 'wheel' | 'motor' | 'parallel' | 'filter';
+export interface NativeJointDrive {
+    readonly linearVelocity?: NativeQueryVector;
+    readonly angularVelocity?: NativeQueryVector;
+    readonly maxForce?: number;
+    readonly maxTorque?: number;
+    readonly linearSpring?: {
+        readonly hertz: number;
+        readonly dampingRatio: number;
+        readonly maxForce: number;
+    };
+    readonly angularSpring?: {
+        readonly hertz: number;
+        readonly dampingRatio: number;
+        readonly maxTorque: number;
+    };
+}
+export interface NativeJointThresholds {
+    readonly force?: number;
+    readonly torque?: number;
+    readonly breakable?: boolean;
+}
+export interface NativeJointSteering {
+    readonly angle: number;
+    readonly hertz: number;
+    readonly dampingRatio: number;
+    readonly maxTorque: number;
+    readonly limits?: {
+        readonly lower: number;
+        readonly upper: number;
+    };
+}
 export interface NativeJointFrame {
     readonly position?: NativeQueryVector;
     readonly rotation?: NativeQuaternion;
@@ -3060,6 +3370,45 @@ export interface NativeJointDescriptor {
         readonly hertz: number;
         readonly dampingRatio?: number;
     };
+    readonly thresholds?: NativeJointThresholds;
+    readonly drive?: NativeJointDrive;
+    readonly maxTorque?: number;
+    readonly steering?: NativeJointSteering;
+}
+export interface NativeJointDetails {
+    type: NativeJointType;
+    linearSeparation: number;
+    angularSeparation: number;
+    forceThreshold: number;
+    torqueThreshold: number;
+    breakable: boolean;
+    stiffness: {
+        hertz: number;
+        dampingRatio: number;
+    };
+    angle?: number;
+    motorForce?: number;
+    motorTorque?: [number, number, number];
+    motorSpeed?: number;
+    lowerLimit?: number;
+    upperLimit?: number;
+    translation?: number;
+    speed?: number;
+    length?: number;
+    restLength?: number;
+    coneAngle?: number;
+    coneLimit?: number;
+    spinSpeed?: number;
+    spinTorque?: number;
+    steeringAngle?: number;
+    steeringTorque?: number;
+    targetSteeringAngle?: number;
+    suspension?: number;
+    linearVelocity?: [number, number, number];
+    angularVelocity?: [number, number, number];
+    springHertz?: number;
+    springDampingRatio?: number;
+    maxTorque?: number;
 }
 export interface NativeJointState {
     type: NativeJointType;
@@ -3068,12 +3417,120 @@ export interface NativeJointState {
     torque: [number, number, number];
 }
 export interface NativeWorldEvent {
-    readonly kind: 'contact-begin' | 'contact-end' | 'hit' | 'sensor-begin' | 'sensor-end';
+    readonly kind: 'contact-begin' | 'contact-end' | 'hit' | 'sensor-begin' | 'sensor-end' | 'joint-overload' | 'joint-break';
     readonly bodyA: NativeBodyHandle | null;
     readonly bodyB: NativeBodyHandle | null;
+    readonly joint?: NativeJointHandle;
+    readonly force?: NativeQueryVector;
+    readonly torque?: NativeQueryVector;
     readonly point?: NativeQueryVector;
     readonly normal?: NativeQueryVector;
     readonly approachSpeed?: number;
+}
+export interface NativeRayBatch {
+    readonly count: number;
+    readonly hitCount: number;
+    readonly fractions: Float32Array;
+    readonly points: Float32Array;
+    readonly normals: Float32Array;
+    readonly triangles: Int32Array;
+    readonly bodies: (NativeBodyHandle | null)[];
+}
+export interface NativeMoverInput {
+    readonly position: NativeQueryVector;
+    readonly radius: number;
+    readonly halfLength: number;
+    readonly translation: NativeQueryVector;
+    readonly wallBelowNormalY?: number;
+    readonly iterations?: number;
+    readonly tolerance?: number;
+    readonly bodies?: {
+        readonly static?: boolean;
+        readonly kinematic?: boolean;
+        readonly dynamic?: boolean;
+    };
+    readonly categoryBits?: bigint;
+    readonly maskBits?: bigint;
+    readonly ignoreBody?: NativeBodyHandle;
+}
+export interface NativeMoverPlane {
+    readonly normal: NativeQueryVector;
+    readonly point: NativeQueryVector;
+    readonly push: number;
+    readonly body: NativeBodyHandle;
+    readonly bodyType: NativeBodyType;
+    readonly wall: boolean;
+}
+export interface NativeMoverResult {
+    readonly position: [number, number, number];
+    readonly planes: NativeMoverPlane[];
+    readonly iterations: number;
+}
+export interface NativeWorldSettings {
+    sleeping: boolean;
+    continuous: boolean;
+    speculative: boolean;
+    warmStarting: boolean;
+    restitutionThreshold: number;
+    hitEventThreshold: number;
+    contactHertz: number;
+    contactDampingRatio: number;
+    contactPushSpeed: number;
+    maximumLinearSpeed: number;
+    contactRecycleDistance: number;
+}
+export interface NativeBodyFlags {
+    bullet: boolean;
+    sleepEnabled: boolean;
+    sleepThreshold: number;
+    locks: {
+        linearX: boolean;
+        linearY: boolean;
+        linearZ: boolean;
+        angularX: boolean;
+        angularY: boolean;
+        angularZ: boolean;
+    };
+}
+declare const PROFILE_STAGES: readonly ["step", "pairs", "collide", "solve", "solverSetup", "constraints", "prepareConstraints", "integrateVelocities", "warmStart", "solveImpulses", "integratePositions", "relaxImpulses", "applyRestitution", "storeImpulses", "splitIslands", "transforms", "sensorHits", "jointEvents", "hitEvents", "refit", "bullets", "sleepIslands", "sensors"];
+declare const PROFILE_COUNTERS: readonly ["bodies", "shapes", "contacts", "joints", "islands", "stackBytes", "arenaBytes", "staticTreeHeight", "treeHeight", "satCalls", "satCacheHits", "allocatedBytes", "tasks", "awakeContacts", "recycledContacts", "awakeBodies"];
+export type NativeProfileStage = typeof PROFILE_STAGES[number];
+export type NativeProfileCounter = typeof PROFILE_COUNTERS[number];
+export interface NativeStepProfile {
+    readonly milliseconds: Readonly<Record<NativeProfileStage, number>>;
+    readonly counters: Readonly<Record<NativeProfileCounter, number>>;
+}
+export interface NativeContactStats {
+    pairs: number;
+    points: number;
+    deepestPenetration: number;
+    meanPenetration: number;
+    largestImpulse: number;
+    totalImpulse: number;
+}
+export interface NativeDebugDrawOptions {
+    readonly joints?: boolean;
+    readonly jointExtras?: boolean;
+    readonly bounds?: boolean;
+    readonly mass?: boolean;
+    readonly contacts?: boolean;
+    readonly contactNormals?: boolean;
+    readonly contactForces?: boolean;
+    readonly frictionForces?: boolean;
+    readonly islands?: boolean;
+    readonly graphColors?: boolean;
+    readonly jointScale?: number;
+    readonly forceScale?: number;
+    readonly region?: {
+        readonly min: NativeQueryVector;
+        readonly max: NativeQueryVector;
+    };
+}
+export interface NativeDebugLines {
+    readonly positions: Float32Array;
+    readonly colors: Float32Array;
+    readonly vertexCount: number;
+    readonly truncated: boolean;
 }
 export interface NativeBodyCapacityInfo {
     capacity: number;
@@ -3097,10 +3554,13 @@ export declare class NativeWorldBackend implements PhysicsBackend {
     private readonly bodyOwner;
     private jointOwner;
     private scratch;
+    private wideScratch;
     private kindRows;
     private kindRowsVersion;
     private kindRowsCount;
     private retainedShapes;
+    private readonly largeConvex;
+    private readonly largeRowsByCheckpoint;
     constructor(module: unknown, onDispose?: () => void);
     private validateStream;
     private refreshStreams;
@@ -3167,6 +3627,52 @@ export declare class NativeWorldBackend implements PhysicsBackend {
     setBodyFilter(body: NativeBodyHandle, categoryBits: bigint, maskBits: bigint, groupIndex?: number): void;
     applyToBody(body: NativeBodyHandle, mode: 'force' | 'torque' | 'impulse' | 'angular-impulse', value: NativeQueryVector, point?: NativeQueryVector): void;
     createJoint(descriptor: NativeJointDescriptor): NativeJointHandle;
+    get supportsRigidCore(): boolean;
+    private rigid;
+    private wide;
+    private writeJointValues;
+    private applySteering;
+    setJointDrive(joint: NativeJointHandle, drive: NativeJointDrive): void;
+    setJointThresholds(joint: NativeJointHandle, thresholds: NativeJointThresholds | null): void;
+    setJointSteeringLimits(joint: NativeJointHandle, limits: {
+        lower: number;
+        upper: number;
+    } | null): void;
+    setJointTargetRotation(joint: NativeJointHandle, rotation: NativeQuaternion): void;
+    setJointAngularMotor(joint: NativeJointHandle, motor: {
+        velocity: NativeQueryVector;
+        maxTorque: number;
+    } | null): void;
+    setJointParallelSpring(joint: NativeJointHandle, spring: {
+        hertz: number;
+        dampingRatio: number;
+        maxTorque: number;
+    }): void;
+    setJointConeLimit(joint: NativeJointHandle, angle: number | null): void;
+    setJointCollideConnected(joint: NativeJointHandle, collide: boolean): void;
+    jointDetails(joint: NativeJointHandle): NativeJointDetails;
+    castRayBatch(rays: ArrayLike<number>, filter?: NativeQueryFilter): NativeRayBatch;
+    moverMove(input: NativeMoverInput): NativeMoverResult;
+    worldSettings(): NativeWorldSettings;
+    setWorldSettings(settings: Partial<NativeWorldSettings>): void;
+    private setBodyFlag;
+    setBodyBullet(body: NativeBodyHandle, bullet: boolean): void;
+    setBodySleep(body: NativeBodyHandle, options: {
+        enabled?: boolean;
+        threshold?: number;
+    }): void;
+    setBodyMotionLocks(body: NativeBodyHandle, locks: Partial<NativeBodyFlags['locks']>): void;
+    bodyFlags(body: NativeBodyHandle): NativeBodyFlags;
+    explodeArea(options: {
+        center: NativeQueryVector;
+        radius: number;
+        falloff?: number;
+        impulsePerArea: number;
+        maskBits?: bigint;
+    }): void;
+    profile(): NativeStepProfile;
+    contactStats(): NativeContactStats;
+    debugLines(options?: NativeDebugDrawOptions): NativeDebugLines;
     jointAlive(joint: NativeJointHandle): boolean;
     destroyJoint(joint: NativeJointHandle): boolean;
     setJointMotor(joint: NativeJointHandle, motor: {
@@ -3197,6 +3703,7 @@ export declare class NativeWorldBackend implements PhysicsBackend {
     get supportsCheckpoints(): boolean;
     checkpoint(): Uint8Array;
     restoreCheckpoint(bytes: Uint8Array): void;
+    private relearnLargeConvex;
     get supportsSpatialQueries(): boolean;
     spatialQueryInfo(): {
         supported: boolean;
@@ -3208,6 +3715,14 @@ export declare class NativeWorldBackend implements PhysicsBackend {
     private validateQuery;
     private queryStatus;
     queryBatch(queries: readonly NativeSpatialQuery[]): NativeQueryResult[];
+    castRays(origins: Float32Array, translations: Float32Array, fractions: Float32Array, options?: {
+        filter?: NativeQueryFilter;
+        points?: Float32Array;
+        normals?: Float32Array;
+        bodies?: BigUint64Array;
+    }): number;
+    private castRaysClosest;
+    bodyFromToken(token: bigint): NativeBodyHandle;
     createScene(scene: Pick<ScenePreset, 'id'>, stressScale: number, seed: number): number;
     step(dt: number, subSteps: number): void;
     syncTransforms(): void;
@@ -3589,6 +4104,26 @@ export declare function ragdollScene(options?: {
 export declare const EXAMPLE_SCENES: {
     readonly [name: string]: () => Scene;
 };
+export declare function obstacleCourseScene(options?: {
+    speed?: number;
+}): Scene;
+export declare function vehicleTerrainScene(options?: {
+    bump?: number;
+}): Scene;
+export declare function laserScannerScene(options?: {
+    rays?: number;
+    range?: number;
+}): Scene;
+export declare function bulletPlatesScene(options?: {
+    speed?: number;
+}): Scene;
+export declare function breakableBridgeScene(options?: {
+    blockMass?: number;
+    drop?: number;
+}): Scene;
+export declare const RIGID_CORE_EXAMPLE_SCENES: {
+    readonly [name: string]: () => Scene;
+};
 export declare function mooredBuoyScene(options?: {
     radius?: number;
     density?: number;
@@ -3712,7 +4247,7 @@ export interface SceneHost {
     bodyCount(): number;
 }
 export declare const SCENE_FORMAT = "box3d-scene";
-export declare const SCENE_VERSION = 2;
+export declare const SCENE_VERSION = 3;
 export declare const SCENE_VERSIONS: readonly number[];
 export declare const SCENE_LIMITS: Readonly<{
     bodies: 65536;
@@ -3766,7 +4301,7 @@ export declare const SCENE_LIMITS: Readonly<{
 export type SceneVec3 = readonly [number, number, number];
 export type SceneQuat = readonly [number, number, number, number];
 export type SceneBodyType = 'static' | 'kinematic' | 'dynamic';
-export type SceneJointType = 'weld' | 'revolute' | 'spherical' | 'prismatic' | 'distance' | 'wheel';
+export type SceneJointType = 'weld' | 'revolute' | 'spherical' | 'prismatic' | 'distance' | 'wheel' | 'motor' | 'parallel' | 'filter';
 export interface SceneWorld {
     readonly gravity?: SceneVec3;
     readonly ground?: boolean;
@@ -3900,6 +4435,38 @@ export interface SceneJoint {
     readonly stiffness?: {
         readonly hertz: number;
         readonly dampingRatio?: number;
+    };
+    readonly thresholds?: {
+        readonly force?: number;
+        readonly torque?: number;
+        readonly breakable?: boolean;
+    };
+    readonly drive?: {
+        readonly linearVelocity?: SceneVec3;
+        readonly angularVelocity?: SceneVec3;
+        readonly maxForce?: number;
+        readonly maxTorque?: number;
+        readonly linearSpring?: {
+            readonly hertz: number;
+            readonly dampingRatio: number;
+            readonly maxForce: number;
+        };
+        readonly angularSpring?: {
+            readonly hertz: number;
+            readonly dampingRatio: number;
+            readonly maxTorque: number;
+        };
+    };
+    readonly maxTorque?: number;
+    readonly steering?: {
+        readonly angle: number;
+        readonly hertz: number;
+        readonly dampingRatio: number;
+        readonly maxTorque: number;
+        readonly limits?: {
+            readonly lower: number;
+            readonly upper: number;
+        };
     };
     readonly userData?: {
         readonly [key: string]: unknown;
@@ -4365,7 +4932,7 @@ export interface SceneCoupledSections {
 }
 export interface Scene {
     readonly format: 'box3d-scene';
-    readonly version: 1 | 2;
+    readonly version: 1 | 2 | 3;
     readonly units?: 'SI';
     readonly world?: SceneWorld;
     readonly materials?: {
@@ -4473,7 +5040,104 @@ export declare function loadScene<W extends SceneHost>(world: W, scene: unknown)
 export declare function saveScene<W extends SceneHost>(world: W, handles: SceneBuilder<W> | {
     readonly builder: SceneBuilder<W>;
 }, options?: SaveSceneOptions): Scene;
-export { pendulumWaveScene, newtonsCradleScene, dominoRunScene, terrainCarScene, ragdollScene, EXAMPLE_SCENES, mooredBuoyScene, cableStayedDeckScene, buoyAndCratesScene, trampolineScene, hopperSeesawScene, suspendedPlatformScene, rubberPadScene, notchedBeamScene, quenchedPlateScene, heatedBarScene, sphereSettlingScene, cavityFlowScene, flowPastCylinderScene, damBreakScene, damBreakValleyScene, riverBendScene, COUPLED_EXAMPLE_SCENES } from './scene-examples.js';
+export { pendulumWaveScene, newtonsCradleScene, dominoRunScene, terrainCarScene, ragdollScene, EXAMPLE_SCENES, mooredBuoyScene, cableStayedDeckScene, buoyAndCratesScene, trampolineScene, hopperSeesawScene, suspendedPlatformScene, rubberPadScene, notchedBeamScene, quenchedPlateScene, heatedBarScene, sphereSettlingScene, cavityFlowScene, flowPastCylinderScene, damBreakScene, damBreakValleyScene, riverBendScene, COUPLED_EXAMPLE_SCENES, obstacleCourseScene, vehicleTerrainScene, laserScannerScene, bulletPlatesScene, breakableBridgeScene, RIGID_CORE_EXAMPLE_SCENES } from './scene-examples.js';
+
+// ==== core/scene-roles.d.ts ====
+import { CapsuleCharacterController, type CapsuleCharacterState, type CharacterHost } from './character-controller.js';
+import { Vehicle, type VehicleHost, type VehicleState } from './vehicle.js';
+import type { NativeBodyHandle, NativeJointHandle, NativeQueryFilter, NativeRayBatch } from './native-world.js';
+import type { StateObject, StateValue } from './checkpoint.js';
+import type { Subsystem } from './simulation.js';
+type Body = NativeBodyHandle;
+type Joint = NativeJointHandle;
+type V3 = [number, number, number];
+export interface SceneRolesHost extends VehicleHost {
+    readonly native: CharacterHost['native'] & {
+        castRayBatch(rays: ArrayLike<number>, filter?: NativeQueryFilter): NativeRayBatch;
+    };
+    isAlive(body: Body): boolean;
+    applyImpulseAt(body: Body, impulse: readonly [number, number, number], point: readonly [number, number, number]): void;
+    gravity(): [number, number, number];
+    moveKinematic(body: Body, position: readonly [number, number, number], rotation?: readonly [number, number, number, number], seconds?: number): void;
+}
+export interface SceneRolesSource {
+    readonly scene: {
+        readonly bodies: readonly {
+            readonly id: string;
+            readonly userData?: {
+                readonly [key: string]: unknown;
+            };
+        }[];
+        readonly joints?: readonly {
+            readonly id: string;
+            readonly bodyA: string | null;
+            readonly bodyB: string | null;
+            readonly userData?: {
+                readonly [key: string]: unknown;
+            };
+        }[];
+    };
+    readonly bodies: ReadonlyMap<string, Body>;
+    readonly joints: ReadonlyMap<string, Joint>;
+}
+export interface SceneRolesInput {
+    readonly move?: readonly [number, number];
+    readonly jump?: boolean;
+    readonly throttle?: number;
+    readonly steer?: number;
+    readonly brake?: number;
+}
+export interface SceneLaserBeam {
+    readonly from: V3;
+    readonly to: V3;
+    readonly body: Body | null;
+}
+export interface SceneRolesState {
+    readonly time: number;
+    readonly character: (CapsuleCharacterState & {
+        readonly waypoint: number;
+        readonly laps: number;
+    }) | null;
+    readonly vehicle: VehicleState | null;
+    readonly platforms: number;
+    readonly lasers: {
+        readonly rays: number;
+        readonly hits: number;
+    }[];
+}
+export declare function sceneHasRoles(scene: SceneRolesSource['scene']): boolean;
+export declare class SceneRoles {
+    private readonly world;
+    private readonly characterRole;
+    private readonly platformRoles;
+    private readonly vehicleRole;
+    private readonly laserRoles;
+    private tick;
+    constructor(world: SceneRolesHost, loaded: SceneRolesSource);
+    get active(): boolean;
+    get character(): CapsuleCharacterController | null;
+    get characterBody(): Body | null;
+    get vehicle(): Vehicle | null;
+    get time(): number;
+    update(input?: SceneRolesInput | null): void;
+    private castLaser;
+    beams(): readonly SceneLaserBeam[];
+    get state(): SceneRolesState;
+    saveState(): StateObject;
+    restoreState(state: StateValue): void;
+}
+export declare function sceneRolesSubsystem<W, B>(roles: SceneRoles, input?: () => SceneRolesInput | null, dt?: number): Subsystem<W, B>;
+export declare function attachSceneRoles<W extends SceneRolesHost>(loaded: SceneRolesSource & {
+    readonly builder: {
+        readonly world: W;
+    };
+    readonly simulation: {
+        add(subsystem: Subsystem<W, Body>): unknown;
+    };
+}, options?: {
+    readonly input?: () => SceneRolesInput | null;
+}): SceneRoles;
+export {};
 
 // ==== core/shallow-water.d.ts ====
 import { type StateObject, type StateValue } from './checkpoint.js';
@@ -4602,6 +5266,15 @@ export declare class ShallowWater {
     setBoundary(key: keyof ShallowWaterBoundaries, value: ShallowWaterSide): void;
     private spanWidth;
     setTimeStep(dt: number): void;
+    sideStates(): {
+        kind: 0 | 1 | 2 | 3;
+        discharge: number;
+        depth: number;
+        level: number;
+        lo: number;
+        hi: number;
+        width: number;
+    }[];
     volume(): number;
     volumeError(): number;
     addVolume(c: number, volume: number, u?: number, v?: number): void;
@@ -5711,9 +6384,9 @@ export declare function boundaryFaces(mesh: TetMesh): Uint32Array;
 // ==== core/solid.d.ts ====
 import { type StateObject, type StateValue } from './checkpoint.js';
 import { type TetMesh } from './solid-mesh.js';
-import { type ConcreteLaw, type ConcreteLawInput } from './concrete-law.js';
+import { ConcreteReinforcement, type ReinforcementInput, type ConcreteLaw, type ConcreteLawInput } from './concrete-law.js';
 import { SparseLDL } from './sparse-ldl.js';
-export { buildConcreteLaw, ec2CompressionStress, type ConcreteLaw, type ConcreteLawInput } from './concrete-law.js';
+export { buildConcreteLaw, ec2CompressionStress, type ConcreteLaw, type ConcreteLawInput, type ReinforcementInput, type ReinforcementBarInput } from './concrete-law.js';
 export { boxMesh, boxNode, boundaryFaces, tetVolume, SOLID_MAX_NODES, SOLID_MAX_TETS, type TetMesh, type BoxMeshOptions } from './solid-mesh.js';
 export declare const SOLID_SOLVER_ID = "solid-tet-corot-js-f64-v1";
 export declare const SOLID_PLASTIC_SOLVER_ID = "solid-tet-j2-js-f64-v1";
@@ -5760,6 +6433,7 @@ export interface SolidDefinition {
     };
     material: SolidMaterial;
     config?: SolidConfig;
+    reinforcement?: ReinforcementInput;
 }
 export interface SolidSolveStats {
     converged: boolean;
@@ -5901,7 +6575,17 @@ export declare class SolidBody {
     private readonly strengthFactor;
     private readonly ctan;
     private readonly ctrial;
+    private readonly ctrialStress;
+    private readonly ctrialKappa;
     private readonly cdirty;
+    private readonly cpressure;
+    private readonly cpressureLast;
+    private readonly kbar;
+    private readonly cnonlocal;
+    readonly rebar: ConcreteReinforcement | null;
+    private readonly rebarDiagonal;
+    private readonly barEp;
+    private readonly barAlpha;
     private readonly creturn;
     private readonly cbase;
     private readonly cstrain;
@@ -6029,6 +6713,10 @@ export declare class SolidBody {
     equivalentPlasticStrain(out?: Float64Array<ArrayBuffer>): Float64Array;
     plasticStrains(out?: Float64Array<ArrayBuffer>): Float64Array;
     get plasticWork(): number;
+    reinforcementForces(): {
+        force: Float64Array;
+        strain: Float64Array;
+    };
     damage(out?: Float64Array<ArrayBuffer>): Float64Array;
     setStrengthFactors(factors: ArrayLike<number>): void;
     crackOpening(out?: Float64Array<ArrayBuffer>): Float64Array;
@@ -6219,6 +6907,172 @@ export declare class StructureCoupling<B> {
     private solveSymmetric;
     diagnostics(): StructureDiagnostics;
 }
+
+// ==== core/vehicle.d.ts ====
+import { type StateObject, type StateValue } from './checkpoint.js';
+import type { NativeBodyDescriptor, NativeBodyHandle, NativeBodyMassState, NativeBodyState, NativeJointDescriptor, NativeJointDetails, NativeJointHandle, NativeMassData } from './native-world.js';
+type Body = NativeBodyHandle;
+type Joint = NativeJointHandle;
+type Vec3 = readonly [number, number, number];
+type Quat = readonly [number, number, number, number];
+export type VehicleVec3 = Vec3 | {
+    readonly x: number;
+    readonly y: number;
+    readonly z: number;
+};
+export type VehicleQuat = Quat | {
+    readonly x: number;
+    readonly y: number;
+    readonly z: number;
+    readonly w: number;
+};
+export interface VehicleHost {
+    readonly loop: {
+        readonly step: number;
+    };
+    createBody(options: NativeBodyDescriptor): Body | null;
+    createJoint(options: NativeJointDescriptor): Joint;
+    destroyBody(body: Body): boolean;
+    getState(body: Body): NativeBodyState;
+    getMassData(body: Body): NativeBodyMassState | {
+        readonly mass: number;
+        readonly center: readonly number[];
+        readonly inertia: readonly number[];
+    } | null;
+    setMassData(body: Body, data: NativeMassData): void;
+    applyForce(body: Body, force: Vec3, point?: Vec3): void;
+    setJointMotor(joint: Joint, motor: {
+        speed: number;
+        maxForce: number;
+    } | null): void;
+    setJointSteering(joint: Joint, steering: {
+        angle: number;
+        hertz: number;
+        dampingRatio: number;
+        maxTorque: number;
+    } | null): void;
+    getJointDetails(joint: Joint): NativeJointDetails;
+}
+export interface VehicleWheelOptions {
+    readonly position: VehicleVec3;
+    readonly radius?: number;
+    readonly steered?: boolean;
+    readonly driven?: boolean;
+    readonly braked?: boolean;
+}
+export interface VehicleOptions {
+    readonly position: VehicleVec3;
+    readonly rotation?: VehicleQuat;
+    readonly chassisHalfExtents: VehicleVec3;
+    readonly chassisMass: number;
+    readonly centerOfMass?: VehicleVec3;
+    readonly wheels: readonly VehicleWheelOptions[];
+    readonly wheelRadius?: number;
+    readonly wheelMass?: number;
+    readonly wheelFriction?: number;
+    readonly suspension: ({
+        readonly stiffness: number;
+        readonly damping: number;
+    } | {
+        readonly frequency: number;
+        readonly dampingRatio: number;
+    }) & {
+        readonly travel?: number;
+    };
+    readonly maxSteerAngle?: number;
+    readonly steeringHertz?: number;
+    readonly maxDriveTorque?: number;
+    readonly maxWheelSpeed?: number;
+    readonly maxBrakeTorque?: number;
+    readonly dragArea?: number;
+    readonly airDensity?: number;
+    readonly color?: number;
+    readonly wheelColor?: number;
+}
+export interface VehicleControls {
+    readonly throttle?: number;
+    readonly steer?: number;
+    readonly brake?: number;
+}
+export interface VehicleWheelState {
+    readonly suspension: number;
+    readonly spinSpeed: number;
+    readonly steeringAngle: number;
+}
+export interface VehicleState {
+    readonly position: readonly [number, number, number];
+    readonly rotation: readonly [number, number, number, number];
+    readonly forwardSpeed: number;
+    readonly speed: number;
+    readonly yawRate: number;
+    readonly wheels: readonly VehicleWheelState[];
+}
+export declare class Vehicle {
+    readonly chassis: Body;
+    readonly wheels: readonly Body[];
+    readonly joints: readonly Joint[];
+    readonly wheelbase: number;
+    readonly track: number;
+    readonly stiffness: number;
+    readonly damping: number;
+    readonly maxSteerAngle: number;
+    readonly maxDriveTorque: number;
+    readonly maxWheelSpeed: number;
+    readonly maxBrakeTorque: number;
+    readonly dragArea: number;
+    readonly airDensity: number;
+    private readonly layout;
+    private readonly rearX;
+    private readonly steeringHertz;
+    private sentMotor;
+    private sentTorque;
+    private sentSteer;
+    private throttle;
+    private steer;
+    private brake;
+    private readonly world;
+    constructor(world: VehicleHost, options: VehicleOptions);
+    static adopt(world: VehicleHost, parts: {
+        readonly chassis: Body;
+        readonly wheels: readonly {
+            readonly body: Body;
+            readonly joint: Joint;
+            readonly position: VehicleVec3;
+            readonly radius: number;
+            readonly steered?: boolean;
+            readonly driven?: boolean;
+            readonly braked?: boolean;
+        }[];
+        readonly maxSteerAngle?: number;
+        readonly steeringHertz?: number;
+        readonly maxDriveTorque?: number;
+        readonly maxWheelSpeed?: number;
+        readonly maxBrakeTorque?: number;
+        readonly dragArea?: number;
+        readonly airDensity?: number;
+        readonly stiffness?: number;
+        readonly damping?: number;
+    }): Vehicle;
+    ackermann(delta: number): number[];
+    update(controls: VehicleControls, dt?: number): void;
+    get state(): VehicleState;
+    destroy(): void;
+    saveState(): StateObject;
+    restoreState(state: StateValue): void;
+}
+export declare function suspensionJointSpring(options: {
+    readonly stiffness: number;
+    readonly damping: number;
+    readonly chassisMass: number;
+    readonly chassisInertia: readonly number[];
+    readonly centerOfMass?: readonly number[];
+    readonly wheelMass: number;
+    readonly wheelPosition: readonly number[];
+}): {
+    hertz: number;
+    dampingRatio: number;
+};
+export {};
 
 // ==== core/water-coupling.d.ts ====
 import { type LinearWaterArrays, type LinearWaterConfig } from './linear-water.js';
@@ -6450,6 +7304,9 @@ export declare class TriggerSet<T = unknown> {
     dispose(): void;
     private state;
 }
+export { CapsuleCharacterController, type CapsuleCharacterOptions, type CapsuleCharacterInput, type CapsuleCharacterState, type CharacterHost, type CharacterVec3 } from './core/character-controller.js';
+export { Vehicle, suspensionJointSpring, type VehicleOptions, type VehicleWheelOptions, type VehicleControls, type VehicleState, type VehicleWheelState, type VehicleHost, type VehicleVec3, type VehicleQuat } from './core/vehicle.js';
+export { SceneRoles, sceneHasRoles, sceneRolesSubsystem, attachSceneRoles, type SceneRolesHost, type SceneRolesSource, type SceneRolesInput, type SceneRolesState, type SceneLaserBeam } from './core/scene-roles.js';
 export interface CharacterOptions {
     readonly position: Vec3Like;
     readonly halfExtents?: Vec3Like;
@@ -6612,9 +7469,9 @@ export declare function capabilities(): Capabilities;
 // ==== index.d.ts ====
 import { type LoadBox3DOptions } from './loader.js';
 import { PhysicsWorld, type WorldOptions } from './world.js';
-export { loadBox3D, type LoadBox3DOptions, type Box3DModuleFactory } from './loader.js';
+export { loadBox3D, box3dThreading, type LoadBox3DOptions, type Box3DModuleFactory, type Box3DThreading } from './loader.js';
 export { BUILD_INFO, type BuildInfo } from './core/build-info.js';
-export { PhysicsWorld, toVec3, leakReporting, type Body, type BodyPose, type Vec3, type Vec3Like, type WorldOptions, type SpawnBoxOptions, toQuat, axisRotation, type Joint, type BodyType, type BodyState, type BodyOptions, type ShapeOptions, type ConvexShapeOptions, type CompoundShapeOptions, type MassDataOptions, type BodyMassData, type QuatLike, type BodyKind, type JointType, type JointState, type JointOptions, type JointFrame, type ResetOptions, type WorldEvent, type QueryOptions, type RaycastOptions, type WorldStats, type ReplayLog, type ReplayCommand, type RecordingOptions, type ReplayReport, } from './world.js';
+export { PhysicsWorld, toVec3, leakReporting, type Body, type BodyPose, type Vec3, type Vec3Like, type WorldOptions, type SpawnBoxOptions, toQuat, axisRotation, type Joint, type BodyType, type BodyState, type BodyOptions, type ShapeOptions, type ConvexShapeOptions, type CompoundShapeOptions, type MassDataOptions, type BodyMassData, type QuatLike, type BodyKind, type JointType, type JointState, type JointOptions, type JointFrame, type ResetOptions, type WorldEvent, type QueryOptions, type RaycastOptions, type WorldStats, type ReplayLog, type ReplayCommand, type RecordingOptions, type ReplayReport, type WorldSettings, type BodyFlags, type JointDetails, type JointDrive, type JointThresholds, type RayBatch, type StepProfile, type DebugDrawOptions, type DebugDrawLines, type MoverPlane, type CapsuleMoveOptions, type CapsuleMoveResult, type ContactStats, } from './world.js';
 export { convertMatrices, convertVector, toBox3DFrame, type UpAxis } from './axes.js';
 export { writeInstances, lastUploadRange, INSTANCE_WGSL, type GpuQueueLike, type GpuBufferLike, type WriteInstancesOptions, type UploadRange } from './gpu.js';
 export { spawnBoxes, applyImpulses, BodyRing, detectEnvironment, capabilities, LICENSE_NOTICE, type EnvironmentReport, type Capabilities } from './helpers.js';
@@ -6628,7 +7485,7 @@ export { WorldScheduler, type SchedulableWorld, type SchedulerOptions, type Sche
 export type { InstanceSource } from './three.js';
 export { FixedStepLoop, pauseOnHidden, type FixedStepOptions, type FixedStepResult } from './loop.js';
 export { EngineError, ENGINE_ERRORS, RIGID_LIMITS, isEngineError, explainError, type EngineErrorCode, type EngineErrorDetails, type DiagnosticFinding } from './core/contracts.js';
-export { NativeWorldPool, NativeWorldBackend, NATIVE_WORLD_API_VERSION, type NativeBodyHandle, type NativeSpatialQuery, type NativeQueryResult, type NativeQueryCastHit, type NativeQueryBodyHit, type NativeQueryFilter, type NativeBodyCapacityInfo, type NativeJointHandle, type NativeBodyDescriptor, type NativeBodyShape, type NativeConvexShape, type NativeCompoundChild, type NativeMassData, type NativeBodyMassState, type NativeBodyKind, type NativeBodyState, type NativeBodyType, type NativeJointDescriptor, type NativeJointState, type NativeJointType, type NativeJointFrame, type NativeWorldEvent, type NativeQuaternion, } from './core/native-world.js';
+export { NativeWorldPool, NativeWorldBackend, NATIVE_WORLD_API_VERSION, type NativeBodyHandle, type NativeSpatialQuery, type NativeQueryResult, type NativeQueryCastHit, type NativeQueryBodyHit, type NativeQueryFilter, type NativeBodyCapacityInfo, type NativeJointHandle, type NativeBodyDescriptor, type NativeBodyShape, type NativeConvexShape, type NativeCompoundChild, type NativeMassData, type NativeBodyMassState, type NativeBodyKind, type NativeBodyState, type NativeBodyType, type NativeJointDescriptor, type NativeJointState, type NativeJointType, type NativeJointFrame, type NativeWorldEvent, type NativeQuaternion, type NativeJointDrive, type NativeJointThresholds, type NativeJointSteering, type NativeJointDetails, type NativeRayBatch, type NativeMoverInput, type NativeMoverPlane, type NativeMoverResult, type NativeWorldSettings, type NativeBodyFlags, type NativeStepProfile, type NativeProfileStage, type NativeProfileCounter, type NativeDebugDrawOptions, type NativeDebugLines, type NativeContactStats, } from './core/native-world.js';
 export type { InstanceBufferSource, PhysicsBackend } from './backend-types.js';
 export declare function createWorld(options?: WorldOptions & LoadBox3DOptions & {
     readonly gravity?: readonly [number, number, number];
@@ -6678,6 +7535,7 @@ import { NativeWorldPool } from './core/native-world.js';
 export type Box3DModuleFactory = (options?: {
     locateFile?: (path: string, prefix: string) => string;
     wasmBinary?: ArrayBuffer | Uint8Array;
+    b3wPoolSize?: number;
 }) => Promise<unknown>;
 export interface LoadBox3DOptions {
     readonly moduleUrl?: string | URL;
@@ -6685,7 +7543,15 @@ export interface LoadBox3DOptions {
     readonly wasmBinary?: ArrayBuffer | Uint8Array;
     readonly factory?: Box3DModuleFactory;
     readonly integrity?: boolean | string;
+    readonly threads?: number;
+    readonly threadThreshold?: number;
 }
+export interface Box3DThreading {
+    readonly threads: number;
+    readonly threshold: number;
+    lastStepThreads(): number;
+}
+export declare function box3dThreading(pool: NativeWorldPool): Box3DThreading;
 export declare function loadBox3D(options?: LoadBox3DOptions): Promise<NativeWorldPool>;
 
 // ==== loop.d.ts ====
@@ -6966,7 +7832,8 @@ export * from './core/closed-water.js';
 
 // ==== worker.d.ts ====
 import type { LoadBox3DOptions } from './loader.js';
-import type { BodyKind, BodyMassData, BodyOptions, BodyPose, BodyState, BodyType, MassDataOptions, JointOptions, JointState, QuatLike, QueryOptions, ReplayLog, ReplayReport, RecordingOptions, ResetOptions, SpawnBoxOptions, Vec3, Vec3Like, WorldEvent, WorldOptions, WorldStats } from './world.js';
+import type { BodyKind, BodyMassData, BodyOptions, BodyPose, BodyState, BodyType, MassDataOptions, JointOptions, JointState, QuatLike, QueryOptions, ReplayLog, ReplayReport, RecordingOptions, ResetOptions, SpawnBoxOptions, Vec3, Vec3Like, WorldEvent, WorldOptions, WorldStats, BodyFlags, CapsuleMoveOptions, ContactStats, DebugDrawLines, DebugDrawOptions, JointDetails, JointDrive, JointThresholds, StepProfile, WorldSettings } from './world.js';
+import type { NativeQueryFilter } from './core/native-world.js';
 import type { InstanceSource } from './three.js';
 export interface MessageEndpoint {
     postMessage(message: unknown, transfer?: Transferable[]): void;
@@ -6986,10 +7853,38 @@ export type RemoteJointOptions = Omit<JointOptions, 'bodyA' | 'bodyB'> & {
     readonly bodyA: RemoteBody | null;
     readonly bodyB: RemoteBody | null;
 };
-export type RemoteWorldEvent = Omit<WorldEvent, 'bodyA' | 'bodyB'> & {
+export type RemoteWorldEvent = Omit<WorldEvent, 'bodyA' | 'bodyB' | 'joint'> & {
     readonly bodyA: RemoteBody | null;
     readonly bodyB: RemoteBody | null;
+    readonly joint?: RemoteJoint;
 };
+export type RemoteQueryFilter = Omit<NativeQueryFilter, 'ignoreBody'> & {
+    readonly ignoreBody?: RemoteBody;
+};
+export interface RemoteRayBatch {
+    readonly count: number;
+    readonly hitCount: number;
+    readonly fractions: Float32Array;
+    readonly points: Float32Array;
+    readonly normals: Float32Array;
+    readonly triangles: Int32Array;
+    readonly bodies: (RemoteBody | null)[];
+}
+export type RemoteCapsuleMoveOptions = Omit<CapsuleMoveOptions, 'ignoreBody'> & {
+    readonly ignoreBody?: RemoteBody;
+};
+export interface RemoteCapsuleMoveResult {
+    readonly position: [number, number, number];
+    readonly iterations: number;
+    readonly planes: {
+        readonly normal: Vec3;
+        readonly point: Vec3;
+        readonly push: number;
+        readonly body: RemoteBody;
+        readonly bodyType: BodyType;
+        readonly wall: boolean;
+    }[];
+}
 export interface RemoteCastHit {
     readonly body: RemoteBody;
     readonly point: Vec3;
@@ -7097,6 +7992,49 @@ export declare class RemoteWorld implements InstanceSource {
         maxTorque: number;
     } | null): Promise<void>;
     getJointState(joint: RemoteJoint): Promise<JointState>;
+    getJointDetails(joint: RemoteJoint): Promise<JointDetails>;
+    setJointDrive(joint: RemoteJoint, drive: JointDrive): Promise<void>;
+    setJointThresholds(joint: RemoteJoint, thresholds: JointThresholds | null): Promise<void>;
+    setJointSteeringLimits(joint: RemoteJoint, limits: {
+        lower: number;
+        upper: number;
+    } | null): Promise<void>;
+    setJointTargetRotation(joint: RemoteJoint, rotation: QuatLike): Promise<void>;
+    setJointAngularMotor(joint: RemoteJoint, motor: {
+        velocity: Vec3Like;
+        maxTorque: number;
+    } | null): Promise<void>;
+    setJointParallelSpring(joint: RemoteJoint, spring: {
+        hertz: number;
+        dampingRatio: number;
+        maxTorque: number;
+    }): Promise<void>;
+    setJointConeLimit(joint: RemoteJoint, angle: number | null): Promise<void>;
+    setJointCollideConnected(joint: RemoteJoint, collide: boolean): Promise<void>;
+    settings(): Promise<WorldSettings>;
+    configure(settings: Partial<WorldSettings>): Promise<void>;
+    setBullet(body: RemoteBody, bullet: boolean): Promise<void>;
+    setSleep(body: RemoteBody, options: {
+        enabled?: boolean;
+        threshold?: number;
+    }): Promise<void>;
+    setMotionLocks(body: RemoteBody, locks: Partial<BodyFlags['locks']>): Promise<void>;
+    getBodyFlags(body: RemoteBody): Promise<BodyFlags>;
+    explodeArea(options: {
+        center: Vec3Like;
+        radius: number;
+        falloff?: number;
+        impulsePerArea: number;
+        maskBits?: bigint;
+    }): Promise<void>;
+    profile(): Promise<StepProfile>;
+    contactStats(): Promise<ContactStats>;
+    debugLines(options?: DebugDrawOptions): Promise<DebugDrawLines>;
+    capsuleCast(origin: Vec3Like, radius: number, halfLength: number, translation: Vec3Like, options?: QueryOptions): Promise<RemoteCastHit | null>;
+    raycastAll(origin: Vec3Like, translation: Vec3Like, options?: QueryOptions): Promise<RemoteCastHit[]>;
+    overlapCapsule(center: Vec3Like, radius: number, halfLength: number, options?: QueryOptions): Promise<RemoteBody[]>;
+    raycastBatch(rays: ArrayLike<number>, filter?: RemoteQueryFilter): Promise<RemoteRayBatch>;
+    moveCapsule(options: RemoteCapsuleMoveOptions): Promise<RemoteCapsuleMoveResult>;
     takeEvents(): Promise<{
         events: RemoteWorldEvent[];
         dropped: number;
@@ -7119,8 +8057,9 @@ export declare function connectWorld(endpoint: MessageEndpoint, options?: Remote
 
 // ==== world.d.ts ====
 import { type DiagnosticFinding } from './core/contracts.js';
-import type { NativeBodyHandle, NativeBodyKind, NativeBodyMassState, NativeBodyState, NativeBodyType, NativeJointHandle, NativeJointState, NativeJointType, NativeQueryCastHit, NativeQueryFilter, NativeWorldBackend, NativeWorldEvent, NativeWorldPool } from './core/native-world.js';
+import type { NativeBodyHandle, NativeBodyKind, NativeBodyMassState, NativeBodyState, NativeBodyType, NativeJointHandle, NativeJointState, NativeJointType, NativeQueryCastHit, NativeQueryFilter, NativeWorldBackend, NativeWorldEvent, NativeWorldPool, NativeBodyFlags, NativeDebugDrawOptions, NativeDebugLines, NativeJointDetails, NativeJointDrive, NativeJointThresholds, NativeMoverPlane, NativeRayBatch, NativeStepProfile, NativeWorldSettings, NativeContactStats } from './core/native-world.js';
 import { FixedStepLoop, type FixedStepOptions, type FixedStepResult } from './loop.js';
+import { type Box3DThreading } from './loader.js';
 export type Vec3 = readonly [number, number, number];
 export type Vec3Like = Vec3 | {
     readonly x: number;
@@ -7135,6 +8074,50 @@ export type BodyState = NativeBodyState;
 export type JointType = NativeJointType;
 export type JointState = NativeJointState;
 export type WorldEvent = NativeWorldEvent;
+export type WorldSettings = NativeWorldSettings;
+export type BodyFlags = NativeBodyFlags;
+export type JointDetails = NativeJointDetails;
+export type JointDrive = Omit<NativeJointDrive, 'linearVelocity' | 'angularVelocity'> & {
+    readonly linearVelocity?: Vec3Like;
+    readonly angularVelocity?: Vec3Like;
+};
+export type JointThresholds = NativeJointThresholds;
+export type RayBatch = NativeRayBatch;
+export type StepProfile = NativeStepProfile;
+export type ContactStats = NativeContactStats & {
+    readonly totalNormalForce: number;
+    readonly largestNormalForce: number;
+};
+export type DebugDrawOptions = Omit<NativeDebugDrawOptions, 'region'> & {
+    readonly region?: {
+        readonly min: Vec3Like;
+        readonly max: Vec3Like;
+    };
+};
+export type DebugDrawLines = NativeDebugLines;
+export type MoverPlane = NativeMoverPlane;
+export interface CapsuleMoveOptions {
+    readonly position: Vec3Like;
+    readonly radius: number;
+    readonly halfLength: number;
+    readonly translation: Vec3Like;
+    readonly maxSlopeDegrees?: number;
+    readonly iterations?: number;
+    readonly tolerance?: number;
+    readonly bodies?: {
+        readonly static?: boolean;
+        readonly kinematic?: boolean;
+        readonly dynamic?: boolean;
+    };
+    readonly categoryBits?: bigint;
+    readonly maskBits?: bigint;
+    readonly ignoreBody?: Body;
+}
+export interface CapsuleMoveResult {
+    readonly position: [number, number, number];
+    readonly planes: MoverPlane[];
+    readonly iterations: number;
+}
 export type QuatLike = readonly [number, number, number, number] | {
     readonly x: number;
     readonly y: number;
@@ -7259,6 +8242,19 @@ export interface JointOptions {
         readonly hertz: number;
         readonly dampingRatio?: number;
     };
+    readonly thresholds?: JointThresholds;
+    readonly drive?: JointDrive;
+    readonly maxTorque?: number;
+    readonly steering?: {
+        readonly angle: number;
+        readonly hertz: number;
+        readonly dampingRatio: number;
+        readonly maxTorque: number;
+        readonly limits?: {
+            readonly lower: number;
+            readonly upper: number;
+        };
+    };
 }
 export interface ResetOptions {
     readonly ground?: boolean;
@@ -7277,6 +8273,15 @@ export interface WorldOptions extends FixedStepOptions {
     readonly capacity?: number;
     readonly interpolate?: boolean;
     readonly strict?: boolean;
+    readonly jointStiffness?: 'match-substeps' | {
+        readonly hertz: number;
+        readonly dampingRatio?: number;
+    };
+    readonly contactStiffness?: 'match-substeps' | {
+        readonly hertz?: number;
+        readonly dampingRatio?: number;
+        readonly pushSpeed?: number;
+    };
 }
 export interface SpawnBoxOptions {
     readonly position: Vec3Like;
@@ -7363,6 +8368,9 @@ export declare class PhysicsWorld {
     readonly subSteps: number;
     readonly seed: number;
     private ownedPool;
+    private readonly threadingInfo;
+    private readonly jointStiffnessOption;
+    private readonly contactStiffnessOption;
     private readonly userData;
     private tickCount;
     private lastStepMs;
@@ -7382,6 +8390,7 @@ export declare class PhysicsWorld {
     private nonFiniteTick;
     private readonly jointInfo;
     private jointPruneAt;
+    private rayTokens;
     constructor(pool: NativeWorldPool, options?: WorldOptions, ownPool?: boolean);
     resetArena(seed?: number): this;
     loadPreset(id: number, stress?: number, seed?: number): number;
@@ -7432,6 +8441,44 @@ export declare class PhysicsWorld {
         maxTorque: number;
     } | null): void;
     getJointState(joint: Joint): JointState;
+    getJointDetails(joint: Joint): JointDetails;
+    setJointDrive(joint: Joint, options: JointDrive): void;
+    setJointThresholds(joint: Joint, thresholds: JointThresholds | null): void;
+    setJointSteeringLimits(joint: Joint, limits: {
+        lower: number;
+        upper: number;
+    } | null): void;
+    setJointTargetRotation(joint: Joint, rotation: QuatLike): void;
+    setJointAngularMotor(joint: Joint, motor: {
+        velocity: Vec3Like;
+        maxTorque: number;
+    } | null): void;
+    setJointParallelSpring(joint: Joint, spring: {
+        hertz: number;
+        dampingRatio: number;
+        maxTorque: number;
+    }): void;
+    setJointConeLimit(joint: Joint, angle: number | null): void;
+    setJointCollideConnected(joint: Joint, collide: boolean): void;
+    settings(): WorldSettings;
+    configure(settings: Partial<WorldSettings>): void;
+    setBullet(body: Body, bullet: boolean): void;
+    setSleep(body: Body, options: {
+        enabled?: boolean;
+        threshold?: number;
+    }): void;
+    setMotionLocks(body: Body, locks: Partial<BodyFlags['locks']>): void;
+    getBodyFlags(body: Body): BodyFlags;
+    explodeArea(options: {
+        center: Vec3Like;
+        radius: number;
+        falloff?: number;
+        impulsePerArea: number;
+        maskBits?: bigint;
+    }): void;
+    profile(): StepProfile;
+    contactStats(): ContactStats;
+    debugLines(options?: DebugDrawOptions): DebugDrawLines;
     onEvent(listener: (event: WorldEvent) => void): () => void;
     get droppedEvents(): number;
     bodyKinds(): BodyKind[];
@@ -7456,8 +8503,19 @@ export declare class PhysicsWorld {
     private overlap;
     private static common;
     raycast(origin: Vec3Like, translation: Vec3Like, options?: QueryOptions): NativeQueryCastHit | null;
+    castRays(origins: Float32Array, translations: Float32Array, fractions: Float32Array, options?: {
+        readonly filter?: NativeQueryFilter;
+        readonly points?: Float32Array;
+        readonly normals?: Float32Array;
+        readonly bodies?: (Body | null)[];
+    }): number;
     sphereCast(origin: Vec3Like, radius: number, translation: Vec3Like, options?: QueryOptions): NativeQueryCastHit | null;
     boxCast(origin: Vec3Like, halfExtents: Vec3Like, translation: Vec3Like, options?: QueryOptions): NativeQueryCastHit | null;
+    capsuleCast(origin: Vec3Like, radius: number, halfLength: number, translation: Vec3Like, options?: QueryOptions): NativeQueryCastHit | null;
+    raycastAll(origin: Vec3Like, translation: Vec3Like, options?: QueryOptions): NativeQueryCastHit[];
+    raycastBatch(rays: ArrayLike<number>, filter?: NativeQueryFilter): RayBatch;
+    overlapCapsule(center: Vec3Like, radius: number, halfLength: number, options?: QueryOptions): Body[];
+    moveCapsule(options: CapsuleMoveOptions): CapsuleMoveResult;
     overlapSphere(center: Vec3Like, radius: number, options?: QueryOptions | number): Body[];
     overlapBox(center: Vec3Like, halfExtents: Vec3Like, options?: QueryOptions): Body[];
     getPose(body: Body, out?: BodyPose): BodyPose | null;
@@ -7465,6 +8523,7 @@ export declare class PhysicsWorld {
     colors(): Float32Array;
     bodyCount(): number;
     awakeCount(): number;
+    get threading(): Box3DThreading;
     get tick(): number;
     replayHash(): number;
     exactHash(): number;
@@ -7473,6 +8532,15 @@ export declare class PhysicsWorld {
     stats(): WorldStats;
     diagnose(): DiagnosticFinding[];
     startRecording(options?: RecordingOptions): void;
+    jointDefaults(): {
+        hertz: number;
+        dampingRatio: number;
+    } | null;
+    contactDefaults(): {
+        contactHertz: number;
+        contactDampingRatio: number;
+        contactPushSpeed: number;
+    } | null;
     stopRecording(): ReplayLog;
     get isRecording(): boolean;
     checkpoint(): Uint8Array;

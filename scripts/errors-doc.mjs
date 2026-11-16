@@ -9,7 +9,7 @@ const GROUPS = [
   ['What you passed', ['INVALID_PAYLOAD', 'INVALID_STATE']],
   ['What the object you called still is', ['DISPOSED', 'STALE_BODY', 'STALE_JOINT', 'STALE_QUERY', 'STALE_GENERATION', 'STALE_REQUEST', 'STALE_SNAPSHOT']],
   ['Limits', ['WORLD_CAPACITY', 'ALLOCATION_FAILED', 'WORK_LIMIT', 'QUERY_VERSION_EXHAUSTED', 'SEQUENCE_EXHAUSTED', 'BACKPRESSURE', 'BUSY']],
-  ['What the platform or the build can do', ['UNSUPPORTED_BACKEND', 'UNSUPPORTED_JOINT', 'INVALID_BACKEND', 'WASM_UNAVAILABLE', 'INTEGRITY_MISMATCH', 'SHARED_UNAVAILABLE']],
+  ['What the platform or the build can do', ['UNSUPPORTED_BACKEND', 'UNSUPPORTED_JOINT', 'INVALID_BACKEND', 'WASM_UNAVAILABLE', 'GPU_UNAVAILABLE', 'GPU_DEVICE_LOST', 'GPU_OUT_OF_MEMORY', 'GPU_VALIDATION', 'GPU_SHADER', 'GPU_LAYOUT', 'GPU_CAPACITY', 'INTEGRITY_MISMATCH', 'SHARED_UNAVAILABLE']],
   ['Files and saved state', ['INCOMPATIBLE_SAVE', 'CHECKPOINT_MISMATCH', 'MODEL_MISMATCH']],
   ['Numerics', ['UNSTABLE_TIME_STEP', 'NUMERICAL_FAILURE', 'SOLVER_NOT_CONVERGED', 'SOLVER_BREAKDOWN', 'SINGULAR_STEADY']],
   ['Workers', ['NOT_RUNNING', 'NOT_CREATED', 'RESET', 'INVALID_RESPONSE', 'INVALID_LOAN', 'WORKER_ERROR', 'WORKER_MESSAGE_ERROR', 'WORKER_SEND_ERROR', 'WORKER_TIMEOUT', 'WORKER_RECYCLE_ERROR', 'RUNTIME_ERROR']],
@@ -24,7 +24,7 @@ const R = RIGID_LIMITS;
 const ranges = `| Quantity | Accepted | Unit |
 | --- | --- | --- |
 | Positions, static geometry (mesh vertices, height fields), joint lengths | within ${R.extent} of the origin | m |
-| Half extents, radii and hull points of convex shapes; a frame's distance from its body | at most ${R.shape} (at least 0.0001; capsule half length at least 0.0025) | m |
+| Half extents, radii and hull points of a dynamic body's convex shapes; a frame's distance from its body | at most ${R.shape} (at least 0.0001; capsule half length at least 0.0025); a static or kinematic body's convex shapes within ${R.extent}, and such a body cannot be made dynamic | m |
 | Linear and angular velocity | at most ${R.speed} | m/s, rad/s |
 | Gravity; a body's gravity scale | at most ${R.gravity} | m/s^2 |
 | Forces, torques, impulses, motor forces, explosion strength | at most ${R.force} | N, N m, N s |

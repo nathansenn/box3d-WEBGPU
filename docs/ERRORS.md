@@ -87,6 +87,13 @@ test lists them by file so that the number can only go down.
 | `UNSUPPORTED_JOINT` | That joint type does not take that setting. | See the joint feature table in the kit README: for example only revolute, prismatic, distance and wheel joints have motors. |
 | `INVALID_BACKEND` | The WASM module answered with something outside its contract. | The artifact and the JavaScript do not match: rebuild or reinstall so that both come from the same version, and report it if they already do. |
 | `WASM_UNAVAILABLE` | WebAssembly could not be loaded or instantiated here. | Check that box3d.wasm is served (the message has the URL and reason) and that the runtime supports WebAssembly. |
+| `GPU_UNAVAILABLE` | No WebGPU adapter or device for compute, or this device is too small for the job (the message names the limit). | Use the CPU solver (the GPU backends are optional), a smaller grid or fewer grains, or a device with larger buffer and dispatch limits. |
+| `GPU_DEVICE_LOST` | The WebGPU device was lost, or the GPU backend was destroyed, while it held the state. | The backends fall back to the CPU solver where they can; otherwise build the backend again from the CPU solver. |
+| `GPU_OUT_OF_MEMORY` | The WebGPU device ran out of memory for a buffer or a dispatch (the message has the label). | Use fewer cells or grains, or the CPU solver. |
+| `GPU_VALIDATION` | WebGPU rejected a buffer, pipeline or dispatch the backend made (the message has the label and the reason). | This is a bug in the backend or the browser: report it with the message. |
+| `GPU_SHADER` | A compute shader did not compile or name a snippet that exists (the message has the line). | This is a bug in the backend: report it with the message. |
+| `GPU_LAYOUT` | A GPU buffer layout does not fit the data it was asked to hold. | This is a bug in the backend: report it with the message. |
+| `GPU_CAPACITY` | A fixed-size GPU table overflowed during a step (for grains: a hash bucket was full), so contacts were missed. | Build the backend with more slots (the message names the setting), or use the CPU solver. |
 | `INTEGRITY_MISMATCH` | The loaded box3d.wasm is not the file this package was built with. | Serve the box3d.wasm from the same package version, without rewriting proxies. |
 | `SHARED_UNAVAILABLE` | SharedArrayBuffer is not available (the page is not cross-origin isolated). | Send COOP and COEP headers, or use the copying transport. |
 
@@ -142,7 +149,7 @@ turn every body they touch into NaN. Each range is far wider than physical use i
 | Quantity | Accepted | Unit |
 | --- | --- | --- |
 | Positions, static geometry (mesh vertices, height fields), joint lengths | within 100000 of the origin | m |
-| Half extents, radii and hull points of convex shapes; a frame's distance from its body | at most 1000 (at least 0.0001; capsule half length at least 0.0025) | m |
+| Half extents, radii and hull points of a dynamic body's convex shapes; a frame's distance from its body | at most 1000 (at least 0.0001; capsule half length at least 0.0025); a static or kinematic body's convex shapes within 100000, and such a body cannot be made dynamic | m |
 | Linear and angular velocity | at most 1000000 | m/s, rad/s |
 | Gravity; a body's gravity scale | at most 1000000 | m/s^2 |
 | Forces, torques, impulses, motor forces, explosion strength | at most 1000000000000 | N, N m, N s |
@@ -157,8 +164,10 @@ turn every body they touch into NaN. Each range is far wider than physical use i
 Where the limits come from:
 
 - 100 km is Box3D's own sanity limit (`B3_HUGE` in `box3d/constants.h`).
-- Convex shapes stop at 1 km because Box3D's step does not return for a cube of about 5 km half extent resting in
-  another box (native defect ND-1, docs/ROBUSTNESS.md).
+- The convex shapes of a dynamic body stop at 1 km because Box3D's step does not return for a dynamic box of about
+  1.5 km half extent (or a dynamic hull cube of about 100 km) resting on another body (native defect ND-1,
+  docs/ROBUSTNESS.md). Static and kinematic bodies step normally with boxes up to 100 km, so their convex shapes may
+  reach 100 km; a body with a shape beyond 1 km cannot be made dynamic.
 - The others were set by the misuse fuzzer: the largest values at which the world stayed finite for every call it
   tried, rounded down to a power of ten.
 
@@ -187,7 +196,7 @@ the limits but close, or costly. An empty list means none of these rules is brok
 | `far-from-origin` | world | a body is more than 16 km from the origin | Box3D `constants.h`: "positions greater than about 16km have precision problems" |
 | `tiny-shape` | world | a box, sphere or capsule is thinner than 1 cm | Box3D rests contacts up to 5 mm apart (`B3_LINEAR_SLOP`) |
 | `mass-ratio` | world | two dynamic bodies on one joint differ in mass by more than 10 to 1 | the usual rule of thumb for iterative solvers; not measured here |
-| `joint-frequency` | world | a joint spring or stiffness is above one eighth of the sub-step rate | the ratio at which Box3D caps its own contact softness (`physics_world.c`: `0.125 * inv_h`) |
+| `joint-frequency` | world | a joint spring or stiffness is above a quarter of the sub-step rate | where Box3D caps a joint's stiffness (`joint.c`: `0.25 * inv_h`); `jointStiffness: 'match-substeps'` sits at the cap |
 | `joint-lever` | world | a joint frame is more than 50 radii of gyration from its body's centre of mass | found by the fuzzers: none of 240 random programs within 40 diverged, about one in 60 did with frames up to 300 away |
 | `fast-small-body` | world | a body without `bullet` moves more than its smallest half extent per step | geometry: it can pass through other moving bodies between steps |
 | `cfl` | fluid, free surface, shallow water | the step is above 80 % of the CFL or explicit viscous limit, or the shallow water needs more than half of its `maxSubsteps` | the solver's own `maxTimeStep()` / `stableTimeStep()` at the current state |

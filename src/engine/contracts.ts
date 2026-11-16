@@ -63,6 +63,13 @@ export const ENGINE_ERRORS = {
   INVALID_BACKEND: {meaning: 'The WASM module answered with something outside its contract.', fix: 'The artifact and the JavaScript do not match: rebuild or reinstall so that both come from the same version, and report it if they already do.'},
   WASM_UNAVAILABLE: {meaning: 'WebAssembly could not be loaded or instantiated here.', fix: 'Check that box3d.wasm is served (the message has the URL and reason) and that the runtime supports WebAssembly.'},
   INTEGRITY_MISMATCH: {meaning: 'The loaded box3d.wasm is not the file this package was built with.', fix: 'Serve the box3d.wasm from the same package version, without rewriting proxies.'},
+  GPU_UNAVAILABLE: {meaning: 'No WebGPU adapter or device for compute, or this device is too small for the job (the message names the limit).', fix: 'Use the CPU solver (the GPU backends are optional), a smaller grid or fewer grains, or a device with larger buffer and dispatch limits.'},
+  GPU_DEVICE_LOST: {meaning: 'The WebGPU device was lost, or the GPU backend was destroyed, while it held the state.', fix: 'The backends fall back to the CPU solver where they can; otherwise build the backend again from the CPU solver.'},
+  GPU_OUT_OF_MEMORY: {meaning: 'The WebGPU device ran out of memory for a buffer or a dispatch (the message has the label).', fix: 'Use fewer cells or grains, or the CPU solver.'},
+  GPU_VALIDATION: {meaning: 'WebGPU rejected a buffer, pipeline or dispatch the backend made (the message has the label and the reason).', fix: 'This is a bug in the backend or the browser: report it with the message.'},
+  GPU_SHADER: {meaning: 'A compute shader did not compile or name a snippet that exists (the message has the line).', fix: 'This is a bug in the backend: report it with the message.'},
+  GPU_LAYOUT: {meaning: 'A GPU buffer layout does not fit the data it was asked to hold.', fix: 'This is a bug in the backend: report it with the message.'},
+  GPU_CAPACITY: {meaning: 'A fixed-size GPU table overflowed during a step (for grains: a hash bucket was full), so contacts were missed.', fix: 'Build the backend with more slots (the message names the setting), or use the CPU solver.'},
   SHARED_UNAVAILABLE: {meaning: 'SharedArrayBuffer is not available (the page is not cross-origin isolated).', fix: 'Send COOP and COEP headers, or use the copying transport.'},
   // Files and saved state.
   INCOMPATIBLE_SAVE: {meaning: 'A saved session came from another WASM build or native interface version.', fix: 'Replay it with the build recorded in the file; replays are exact only on the build that made them.'},
@@ -181,9 +188,11 @@ export const RIGID_LIMITS = Object.freeze({
    */
   extent: 1e5,
   /**
-   * m: the half extents, radii and hull points of convex shapes. Box3D's step does not return when a cube with half
-   * extents of about 5 km or more rests in another box (tests/fuzz/native-defects.test.mjs), so convex shapes stop at 1 km.
-   * Larger scenery is a static mesh or a height field.
+   * m: the half extents, radii and hull points of the convex shapes of a dynamic body. Box3D's step does not return
+   * when a dynamic box with half extents of about 1.5 km or more (or a dynamic hull cube of about 100 km) rests on
+   * another body (native defect ND-1, tests/fuzz/native-defects.test.mjs), so a dynamic body's convex shapes stop at
+   * 1 km. Static and kinematic bodies step normally with boxes up to 100 km, so theirs may reach `extent`; a body
+   * with such a shape cannot be made dynamic.
    */
   shape:1e3,
   /** m/s and rad/s: body velocities. */

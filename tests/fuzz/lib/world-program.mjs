@@ -1,7 +1,7 @@
 // Random valid programs for the rigid world, and the invariants every step must keep (docs/ROBUSTNESS.md).
 //
 // "Valid" includes the stability rules world.diagnose() states: the programs keep the masses of jointed bodies within
-// 10 to 1 and joint frequencies below one eighth of the sub-step rate, and the fuzzers assert that diagnose() has no
+// 10 to 1 and joint frequencies at most a quarter of the sub-step rate, and the fuzzers assert that diagnose() has no
 // warning for what they built. A set-up that breaks those rules may diverge; that is what the rules are for.
 //
 // A program is a list of operations drawn from a seeded stream. Operations name bodies by render row at the moment they
@@ -17,7 +17,10 @@ const HULLS = [
   [-0.5, -0.3, -0.4, 0.5, -0.3, -0.4, 0.5, -0.3, 0.4, -0.5, -0.3, 0.4, -0.5, 0.3, -0.4, -0.5, 0.3, 0.4],
   [-0.4, -0.4, -0.4, 0.4, -0.4, -0.4, 0.4, 0.4, -0.4, -0.4, 0.4, -0.4, -0.4, -0.4, 0.4, 0.4, -0.4, 0.4, 0.4, 0.4, 0.2, -0.4, 0.4, 0.4, 0.2, 0.4, 0.4],
 ];
-const JOINT_TYPES = ['weld', 'revolute', 'spherical', 'prismatic', 'distance', 'wheel'];
+// The rigid core's motor, parallel and filter joints with the six older types; thresholds, breaking, drives, steering
+// and the newer setters are drawn below.
+const JOINT_TYPES = ['weld', 'revolute', 'spherical', 'prismatic', 'distance', 'wheel', 'motor', 'parallel', 'filter'];
+const LIMITED = ['revolute', 'spherical', 'prismatic', 'distance', 'wheel'], MOTORED = ['revolute', 'prismatic', 'wheel'], SPRUNG = ['weld', 'revolute', 'spherical', 'prismatic', 'distance', 'wheel', 'parallel'];
 
 export function randomConvex(r, scale = 1) {
   const kind = r.pick(['box', 'sphere', 'capsule', 'hull']);
@@ -183,6 +186,16 @@ export class WorldSession {
       else world.resetMassData(body);
       return this.count('tune');
     }
+    if (roll < 0.915) {
+      // The rigid core's body settings: bullets, sleep, motion locks.
+      const row = this.rowOfType('dynamic'); if (row < 0) return;
+      const body = world.bodyAt(row), kind = r.int(0, 2);
+      if (kind === 0) world.setBullet(body, r.bool());
+      else if (kind === 1) world.setSleep(body, {enabled: r.bool(0.8), threshold: r.real(0.01, 0.2)});
+      else if (!this.isJointed(row)) world.setMotionLocks(body, {linearX: r.bool(0.2), linearY: r.bool(0.1), linearZ: r.bool(0.2), angularX: r.bool(0.2), angularY: r.bool(0.2), angularZ: r.bool(0.2)});
+      return this.count('flags');
+    }
+    if (roll < 0.925) { world.explodeArea({center: [r.real(-4, 4), r.real(0, 4), r.real(-4, 4)], radius: r.real(0.5, 4), falloff: r.real(0, 2), impulsePerArea: r.real(-20, 60)}); return this.count('explodeArea'); }
     if (roll < 0.93) { world.explode([r.real(-4, 4), r.real(0, 4), r.real(-4, 4)], r.real(0, 300), r.real(0.5, 6)); return this.count('explode'); }
     if (roll < 0.95) { world.setGravity([r.real(-3, 3), r.real(-20, 2), r.real(-3, 3)]); return this.count('gravity'); }
     return this.query();
@@ -228,12 +241,18 @@ export class WorldSession {
       const from = parentState ? parentState.position : anchor, d = Math.hypot(anchor[0] - from[0], anchor[1] - from[1], anchor[2] - from[2]);
       options.length = Math.max(0.05, d);
       if (r.bool(0.4)) options.limits = {lower: Math.max(0.01, options.length * 0.5), upper: options.length * 1.5};
-    } else if (type !== 'weld' && r.bool(0.4)) options.limits = {lower: -r.real(0.05, 1), upper: r.real(0.05, 1)};
-    if (['revolute', 'prismatic', 'wheel'].includes(type) && r.bool(0.35)) options.motor = {speed: r.real(-4, 4), maxForce: r.real(0, 200)};
-    if (r.bool(0.3)) options.spring = {hertz: r.real(0.5, 12), dampingRatio: r.real(0, 2), ...(type !== 'weld' && type !== 'distance' && r.bool() ? {target: r.real(-0.3, 0.3)} : {})};
+    } else if (LIMITED.includes(type) && r.bool(0.4)) options.limits = {lower: -r.real(0.05, 1), upper: r.real(0.05, 1)};
+    if (MOTORED.includes(type) && r.bool(0.35)) options.motor = {speed: r.real(-4, 4), maxForce: r.real(0, 200)};
+    if (SPRUNG.includes(type) && r.bool(type === 'parallel' ? 0.8 : 0.3)) options.spring = {hertz: r.real(0.5, 12), dampingRatio: r.real(0, 2), ...(!['weld', 'distance', 'parallel'].includes(type) && r.bool() ? {target: r.real(-0.3, 0.3)} : {})};
     if (type === 'spherical' && r.bool(0.4)) options.coneAngle = r.real(0.1, 1.2);
-    // One eighth of the sub-step rate (4 sub-steps at 60 Hz: 30 Hz) is the most a joint frequency may be.
-    if (r.bool(0.2)) options.stiffness = {hertz: r.real(10, 30), dampingRatio: r.real(0.5, 3)};
+    if (type === 'parallel' && r.bool(0.6)) options.maxTorque = r.real(0, 200);
+    if (type === 'motor') options.drive = randomDrive(r);
+    if (type === 'wheel' && r.bool(0.4)) options.steering = randomSteering(r);
+    // Joint events, and joints that break: a breaking joint is removed by the step, and the bookkeeping follows it.
+    if (r.bool(0.25)) options.thresholds = {force: r.real(50, 5e4), ...(r.bool() ? {torque: r.real(20, 2e4)} : {}), breakable: r.bool(0.5)};
+    // A quarter of the sub-step rate (4 sub-steps at 60 Hz: 60 Hz) is where Box3D caps a joint's stiffness; the programs
+    // stay at half of it.
+    if (type !== 'filter' && r.bool(0.2)) options.stiffness = {hertz: r.real(10, 30), dampingRatio: r.real(0.5, 3)};
     if (r.bool(0.2)) options.collideConnected = true;
     const joint = world.createJoint(options);
     this.joints.push({joint, type, child: childRow, parent: parentRow});
@@ -255,11 +274,18 @@ export class WorldSession {
   tuneJoint() {
     const {world, r} = this, alive = this.liveJoints();
     if (!alive.length) return;
-    const {joint, type} = r.pick(alive), kind = r.int(0, 3);
+    const {joint, type} = r.pick(alive), kind = r.int(0, 7);
     if (kind === 0 && ['revolute', 'prismatic', 'wheel', 'distance'].includes(type)) world.setJointMotor(joint, r.bool(0.3) ? null : {speed: r.real(-4, 4), maxForce: r.real(0, 200)});
-    else if (kind === 1 && type !== 'weld') world.setJointLimits(joint, r.bool(0.3) ? null : type === 'distance' ? {lower: r.real(0.05, 1), upper: r.real(1, 4)} : {lower: -r.real(0.05, 1), upper: r.real(0.05, 1)});
-    else if (kind === 2) world.setJointSpring(joint, r.bool(0.3) ? null : {hertz: r.real(0.5, 12), dampingRatio: r.real(0, 2)});
-    else world.setJointStiffness(joint, r.real(10, 30), r.real(0.5, 3));
+    else if (kind === 1 && LIMITED.includes(type)) world.setJointLimits(joint, r.bool(0.3) ? null : type === 'distance' ? {lower: r.real(0.05, 1), upper: r.real(1, 4)} : {lower: -r.real(0.05, 1), upper: r.real(0.05, 1)});
+    else if (kind === 2 && SPRUNG.includes(type) && type !== 'parallel') world.setJointSpring(joint, r.bool(0.3) ? null : {hertz: r.real(0.5, 12), dampingRatio: r.real(0, 2)});
+    else if (kind === 3 && type === 'motor') world.setJointDrive(joint, randomDrive(r));
+    else if (kind === 3 && type === 'parallel') world.setJointParallelSpring(joint, {hertz: r.real(0.5, 12), dampingRatio: r.real(0, 2), maxTorque: r.real(0, 200)});
+    else if (kind === 3 && type === 'wheel') { if (r.bool()) world.setJointSteering(joint, r.bool(0.3) ? null : randomSteering(r)); else world.setJointSteeringLimits(joint, r.bool(0.3) ? null : {lower: -r.real(0.05, 0.6), upper: r.real(0.05, 0.6)}); }
+    else if (kind === 3 && type === 'spherical') { const pick = r.int(0, 2); if (pick === 0) world.setJointConeLimit(joint, r.bool(0.3) ? null : r.real(0.1, 1.2)); else if (pick === 1) world.setJointAngularMotor(joint, r.bool(0.3) ? null : {velocity: r.vec3(-2, 2), maxTorque: r.real(0, 50)}); else world.setJointTargetRotation(joint, r.quat()); }
+    else if (kind === 4) world.setJointThresholds(joint, r.bool(0.3) ? null : {force: r.real(50, 5e4), torque: r.real(20, 2e4), breakable: r.bool(0.4)});
+    else if (kind === 5) world.setJointCollideConnected(joint, r.bool());
+    else if (kind === 6) { const details = world.getJointDetails(joint); for (const [key, value] of Object.entries(details)) for (const n of [value].flat()) if (typeof n === 'number' && !Number.isFinite(n)) throw new Error(`joint details ${key} is not finite: ${JSON.stringify(details)}`); }
+    else if (type !== 'filter') world.setJointStiffness(joint, r.real(10, 30), r.real(0.5, 3));
     const state = world.getJointState(joint);
     for (const value of [state.value, ...state.force, ...state.torque]) if (!Number.isFinite(value)) throw new Error(`joint state is not finite: ${JSON.stringify(state)}`);
     this.count('tuneJoint');
@@ -275,12 +301,36 @@ export class WorldSession {
     }
     for (const body of world.overlapSphere([r.real(-5, 5), r.real(0, 5), r.real(-5, 5)], r.real(0.5, 4), {limit: r.int(1, 64)})) alive(body);
     for (const body of world.overlapBox([r.real(-5, 5), r.real(0, 5), r.real(-5, 5)], [r.real(0.5, 3), r.real(0.5, 3), r.real(0.5, 3)])) alive(body);
+    // The rigid core's queries: capsules, every hit along a ray, and batches, which must agree with single rays.
+    const capsule = world.capsuleCast(origin, r.real(0.1, 0.5), r.real(0.05, 0.6), [0, -20, 0]);
+    if (capsule) alive(capsule.body);
+    for (const body of world.overlapCapsule([r.real(-5, 5), r.real(0, 5), r.real(-5, 5)], r.real(0.2, 2), r.real(0.05, 1))) alive(body);
+    let last = -1;
+    for (const hit of world.raycastAll(origin, [r.real(-2, 2), -20, r.real(-2, 2)], {limit: r.int(1, 16)})) { alive(hit.body); if (!(hit.fraction >= last)) throw new Error('raycastAll hits are not nearest first'); last = hit.fraction; }
+    const rays = r.int(1, 8), origins = new Float32Array(rays * 3), translations = new Float32Array(rays * 3), fractions = new Float32Array(rays), bodies = [];
+    for (let i = 0; i < rays; i++) { origins.set([r.real(-6, 6), r.real(4, 12), r.real(-6, 6)], i * 3); translations.set([r.real(-2, 2), -20, r.real(-2, 2)], i * 3); }
+    world.castRays(origins, translations, fractions, {bodies});
+    for (let i = 0; i < rays; i++) {
+      const single = world.raycast(Array.from(origins.subarray(i * 3, i * 3 + 3)), Array.from(translations.subarray(i * 3, i * 3 + 3)));
+      if ((single === null) !== (fractions[i] < 0) || (single && (single.fraction !== fractions[i] || single.body.token !== bodies[i]?.token))) throw new Error(`castRays ray ${i} (${fractions[i]}) differs from raycast (${single?.fraction ?? 'miss'})`);
+    }
     this.count('query');
   }
 
   step(count = 1) {
     for (let i = 0; i < count; i++) { this.world.step(); this.steps++; checkInvariants(this.world, this.graveyard); }
   }
+}
+
+/** A motor joint's drive: small target velocities, bounded forces, and sometimes springs. */
+export function randomDrive(r) {
+  return {linearVelocity: r.vec3(-1, 1), angularVelocity: r.vec3(-1, 1), maxForce: r.real(0, 100), maxTorque: r.real(0, 50),
+    ...(r.bool(0.4) ? {linearSpring: {hertz: r.real(0.5, 12), dampingRatio: r.real(0, 2), maxForce: r.real(0, 200)}} : {}),
+    ...(r.bool(0.4) ? {angularSpring: {hertz: r.real(0.5, 12), dampingRatio: r.real(0, 2), maxTorque: r.real(0, 100)}} : {})};
+}
+/** A wheel joint's steering, sometimes limited. */
+export function randomSteering(r) {
+  return {angle: r.real(-0.5, 0.5), hertz: r.real(1, 12), dampingRatio: r.real(0.2, 2), maxTorque: r.real(0, 200), ...(r.bool() ? {limits: {lower: -r.real(0.1, 0.6), upper: r.real(0.1, 0.6)}} : {})};
 }
 
 /** What must hold after every step. Throws with the row and the value at fault. */

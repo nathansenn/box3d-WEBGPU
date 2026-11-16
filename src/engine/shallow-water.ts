@@ -293,6 +293,9 @@ export class ShallowWater {
     state.width=cells*size;
   }
   setTimeStep(dt:number):void {this.dt=num(dt,'dt',1e-9,1e4);}
+  /** The four sides (xMin, xMax, zMin, zMax) as numbers, for a backend that mirrors this solver: kind 0 wall, 1 open, 2 inflow,
+   *  3 stage; discharge m^3/s; depth m (0: not imposed); level m; the inflow span [lo, hi] and the width it covers, m. Copies. */
+  sideStates():{kind:0|1|2|3;discharge:number;depth:number;level:number;lo:number;hi:number;width:number}[] {return this.sides.map(s=>({...s}));}
 
   /** Water volume over the domain, m^3. */
   volume():number {let s=0;const h=this.h;for(let c=0;c<h.length;c++)s+=h[c];return s*this.dx*this.dz;}

@@ -1,16 +1,17 @@
 # Material library
 
-`src/engine/materials.ts`, published by the kit as `box3d-webgpu-kit/materials`: engineering materials in SI units, each value with the conditions it holds for, the figure exactly as it was read in its source, the conversion when it was not read in SI, a range where sources disagree or state one, and a numbered citation below. Library version `1.6.0` (`MATERIAL_LIBRARY_VERSION`); the sources were opened on 2026-11-12.
+`src/engine/materials.ts`, published by the kit as `box3d-webgpu-kit/materials`: engineering materials in SI units, each value with the conditions it holds for, the figure exactly as it was read in its source, the conversion when it was not read in SI, a range where sources disagree or state one, and a numbered citation below. Library version `1.7.0` (`MATERIAL_LIBRARY_VERSION`); the sources were opened on 2026-11-12.
 
 This is roadmap Phase 4, "a calibrated material library with sources". *Calibrated* here means traceable: every number can be followed to a page that was opened and read. It does not mean that the project measured anything. The values are typical or nominal figures for a named grade; real samples differ.
 
 ## What is in it
 
-32 materials, 31 contact-pair entries, 14 bed-roughness rows, 11 soil classes, 47 sources, **332 values: 322 from a source, 10 unverified**.
+33 materials, 31 contact-pair entries, 14 bed-roughness rows, 11 soil classes, 47 sources, **337 values: 327 from a source, 10 unverified**.
 
 | Material (`id`) | Grade and conditions | Density | E, ν, G | Strength | K_IC / G_c | k, c_p, α |
 |---|---|---|---|---|---|---|
 | Structural steel S355 (`structural-steel-s355`), S235 (`structural-steel-s235`) | EN 10025-2, t ≤ 40 mm | 7850 | 210 GPa, 0.30, 81 GPa | f_y 355 / 235, f_u 490 / 360 MPa | — | 53.3, 440, 12e-6 (20 °C) |
+| Reinforcing steel B500B (`reinforcing-steel-b500b`) | ribbed bars, class B, characteristic | 7850 | 200 GPa | f_yk 500, k f_yk 540 MPa; eps_uk 5 % | — | — |
 | Stainless 304 (`stainless-304`) | annealed | 8000 | 193–200 GPa, 0.29, 86 GPa (flagged) | 215 / 505 MPa | — | 16.2, 500, 17.3e-6 |
 | Aluminium 6061-T6 (`aluminium-6061-t6`) | T6 / T651 | 2700 | 68.9 (–70.4) GPa, 0.33, 26 GPa | 276 / 310 MPa | 29 MPa√m | 167 (154–167), 896 (–943), 23.6e-6 |
 | Copper C11000 (`copper-c11000`) | ETP, annealed | 8910 | 117 GPa, 0.328, 44.1 GPa | 69 / 221 MPa (to 303 / 331 hard) | — | 391, 385, 16.9e-6 |
@@ -65,7 +66,7 @@ Not in the library because no opened source gave them (the helpers then ask for 
 
 Elongation at break (`elongationAtBreak`, a fraction) is in the library for 6061-T6 (12% for 1.6 mm sheet, 17% for 12.7 mm bar; ASM / Aluminum Association typical, read in the datasheet) and, unverified, for S355. `plasticMaterial(id)` turns yield strength, tensile strength and elongation into the inputs of the elastic-plastic solid (docs/SOLID_MECHANICS.md): the yield stress, a linear hardening modulus from a straight line through (f_y / E, f_y) and (A, f_u), and a failure strain A - f_u / E at which elements erode. That fit uses engineering values and ignores necking; it is coarse. For 6061-T6 it gives H = 0.29 GPa and a failure strain of 0.116; for S355 (with `allowUnverified`) H = 0.62 GPa and 0.218.
 
-Concrete for the concrete law of the solid (`concreteMaterial(id)`, docs/SOLID_MECHANICS.md#concrete-law): C20/25, C30/37 and C60/75 carry the EN 1992-1-1 Table 3.1 strain at the peak (`peakStrain`, eps_c1) and nominal ultimate strain (`ultimateStrain`, eps_cu1), read in a scanned copy of the standard, and the fib Model Code 2010 fracture energy G_F = 73 f_cm^0.18 N/m as quoted by Sucharda (2020). LC25/28 (density class 1.8, sanded) follows section 11: E and f_ctm of C25/30 times eta_E = (rho / 2200)^2 and eta_1 = 0.40 + 0.60 rho / 2200 with rho = 1800 kg/m³; its eps_lc1 = k f_lcm / (E_lci eta_E) with k = 1.1 reads E_lci as 1.05 E_cm, because the scan of Table 11.3.1 is garbled there. Alumina 96% (`category: 'ceramic'`) is a technical ceramic from two datasheets; it has no tensile strength (the sheets give the flexural strength) and `concreteMaterial` makes it elastic to the peak and takes G_f from K_IC. Library 1.5.0 adds these 4 materials, 4 sources and 35 values (1 unverified).
+Concrete for the concrete law of the solid (`concreteMaterial(id)`, docs/SOLID_MECHANICS.md#concrete-law): C20/25, C30/37 and C60/75 carry the EN 1992-1-1 Table 3.1 strain at the peak (`peakStrain`, eps_c1) and nominal ultimate strain (`ultimateStrain`, eps_cu1), read in a scanned copy of the standard, and the fib Model Code 2010 fracture energy G_F = 73 f_cm^0.18 N/m as quoted by Sucharda (2020). LC25/28 (density class 1.8, sanded) follows section 11: E and f_ctm of C25/30 times eta_E = (rho / 2200)^2 and eta_1 = 0.40 + 0.60 rho / 2200 with rho = 1800 kg/m³; its eps_lc1 = k f_lcm / (E_lci eta_E) with k = 1.1 reads E_lci as 1.05 E_cm, because the scan of Table 11.3.1 is garbled there. Alumina 96% (`category: 'ceramic'`) is a technical ceramic from two datasheets; it has no tensile strength (the sheets give the flexural strength) and `concreteMaterial` makes it elastic to the peak and takes G_f from K_IC. Library 1.5.0 adds these 4 materials, 4 sources and 35 values (1 unverified). Library 1.7.0 adds B500B reinforcing steel for the solid's embedded bars (docs/SOLID_MECHANICS.md#concrete-law): E_s, the density, f_yk = 500 MPa, the class-B minimum k = f_t / f_y = 1.08 and eps_uk = 5 %, read in EN 1992-1-1 3.2.7 and Annex C Table C.1 (characteristic values, not means; the B500B name is EN 10080's, which was not opened); 5 values.
 
 Woven fabric (`category: 'fabric'`, `isotropic: false`): `pvc-polyester-fabric` carries its stiffness and strength per unit width along the warp and the weft, in N/m, as a fabric is tested (`membraneStiffnessWarp`, `membraneStiffnessWeft`, `membraneShearStiffness`, `membranePoissonRatio`, `tensileStrengthWarp`, `tensileStrengthWeft`), its areal density in kg/m² and a tear strength in N. The stiffness is that of Ambroziak's biaxial 1:1 tests at small strain (first loading); his uniaxial tests give 600, 800 and 440 kN/m in successive strain ranges (the range in the entry). `fabricMaterial(id, {warpDirection})` builds the input of `Cloth` (docs/CLOTH.md): areal density, the orthotropic membrane and the tearing strengths; it needs `allowUnverified` (or `shear`) because the shear stiffness is unverified. The canopy study uses it (docs/STUDIO_CANOPY.md).
 
@@ -164,6 +165,20 @@ EN 10025-2 S355, thickness up to 40 mm.
 | Tensile strength (MPa) | 490 |  | S355, EN 10025-2, t <= 40 mm (nominal) | f_u = 490 MPa | [1] |
 
 *Note:* No fracture toughness: none was found in an opened source; structural steel is ductile at room temperature and its toughness depends on the grade's Charpy class.
+
+### Reinforcing steel B500B (`reinforcing-steel-b500b`)
+
+ribbed weldable bars, f_yk = 500 MPa, ductility class B (EN 1992-1-1 Annex C; the B500B designation is EN 10080's, not opened).
+
+| Property | Value | Range | Conditions | Read in the source | Source |
+|---|---|---|---|---|---|
+| Density (kg/m^3) | 7850 |  | reinforcing steel, design | 3.2.7 (3): The mean value of density may be assumed to be 7850 kg/m3 | [41] |
+| Young's modulus (GPa) | 200 |  | reinforcing steel, design | 3.2.7 (4): The design value of the modulus of elasticity, Es may be assumed to be 200 GPa | [41] |
+| Yield strength (MPa) | 500 | 400 – 600 | characteristic (5 % fractile); the 500 grade | Table C.1: Characteristic yield strength f_yk or f_0,2k (MPa) 400 to 600 *(the 500 MPa grade within the Table C.1 range)* | [41] |
+| Tensile strength (MPa) | 540 |  | characteristic minimum for class B | Table C.1: Minimum value of k = (f_t/f_y)k >= 1,08 (Class B) *(1.08 x 500 MPa)* | [41] |
+| Nominal ultimate strain (per mille) | 50 |  | characteristic minimum for class B, strain at maximum force | Table C.1: Characteristic strain at maximum force, eps_uk (%) >= 5,0 (Class B) *(per cent / 100)* | [41] |
+
+*Note:* Characteristic values, as EN 1992-1-1 states them, not means. The idealised diagram of 3.2.7 (2) a) rises from f_yk at f_yk / E_s to k f_yk at eps_uk: a hardening modulus of (k - 1) f_yk / (eps_uk - f_yk / E_s) = 842 MPa.
 
 ### Structural steel S235 (`structural-steel-s235`)
 
@@ -697,7 +712,7 @@ All opened on 2026-11-12.
 38. `agc-stratobel-pvb` — AGC Glass Europe (H. Lefèvre), *Material properties of PVB interlayers, Stratobel and Stratobel Strong laminated glass, 20 July 2022*. <https://www.agc-yourglass.com/sites/default/files/2022-10/Material%20Properties%20of%20PVB%200722_EN_0.pdf>. Kind: manufacturer. Relaxation moduli for load resistance design (EN 16612 / EN 16613); the shortest duration tabulated for standard PVB is 3 s.
 39. `ambroziak-2020` — A. Ambroziak, *Characterization study on mechanical properties of polyester coated fabric, Archives of Civil Engineering 66(2) (2020) 105-118, doi:10.24425/ace.2020.131799, Tables 2 and 3*. <https://ace.il.pw.edu.pl/pdf-185228-105926?filename=Characterization+Study+on.pdf>
 40. `sioen-b6657` — Sioen Industries (Sioline), *B6657 architectural membrane, Type III PVC-coated polyester: technical data*. <https://sioline.com/en/products/b6657>
-41. `en1992-1-1` — CEN (BS EN 1992-1-1:2004), *Eurocode 2: Design of concrete structures, Part 1-1: General rules and rules for buildings: Table 3.1, 3.1.5 (expression 3.14), 3.1.9 and section 11 (Tables 11.1 and 11.3.1)*. <https://www.phd.eng.br/wp-content/uploads/2015/12/en.1992.1.1.2004.pdf>. Kind: standard. A scanned copy of the standard; read through its text layer, where Table 11.3.1 is partly garbled.
+41. `en1992-1-1` — CEN (BS EN 1992-1-1:2004), *Eurocode 2: Design of concrete structures, Part 1-1: General rules and rules for buildings: Table 3.1, 3.1.5 (expression 3.14), 3.1.9, 3.2 (3.2.2, 3.2.7), Annex C (Table C.1) and section 11 (Tables 11.1 and 11.3.1)*. <https://www.phd.eng.br/wp-content/uploads/2015/12/en.1992.1.1.2004.pdf>. Kind: standard. A scanned copy of the standard; read through its text layer, where Table 11.3.1 is partly garbled.
 42. `sucharda-2020` — O. Sucharda, *Identification of Fracture Mechanic Properties of Concrete and Analysis of Shear Capacity of Reinforced Concrete Beams without Transverse Reinforcement, Materials 13 (2020) 2788, doi:10.3390/ma13122788, equation 14 and Table 6*. <https://pmc.ncbi.nlm.nih.gov/articles/PMC7344630/>. Kind: peer-reviewed. Quotes the fib Model Code 2010 fracture energy G_F = 73 f_c^0.18 (N/m, f_c in MPa); the Model Code itself was not opened.
 43. `syalons-aloxalon-96` — International Syalons (Newcastle) Ltd, *Alumina: Aloxalon 96 (96% Al2O3) property table*. <https://syalons.com/materials/alumina/>. Kind: manufacturer.
 44. `morgan-al600` — Morgan Advanced Materials, *AL600 data sheet (96% Al2O3 alumina)*. <https://morgantechnicalceramics.com/media/2296/al600.pdf>. Kind: manufacturer.

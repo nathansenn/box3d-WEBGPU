@@ -17,7 +17,7 @@ world.createBody({shape: {kind: 'heightfield', heights, countX, countZ, spacing:
 
 | Kind | Body types | Notes |
 | --- | --- | --- |
-| `box`, `sphere`, `capsule` | static, kinematic, dynamic | sizes from 0.1 mm (capsule half length from 2.5 mm) to 1 km |
+| `box`, `sphere`, `capsule` | static, kinematic, dynamic | sizes from 0.1 mm (capsule half length from 2.5 mm) to 1 km on a dynamic body, 100 km on a static or kinematic one |
 | `hull` | static, kinematic, dynamic | 4 or more points with volume; Box3D keeps at most 64 hull vertices |
 | `compound` | static, kinematic, dynamic | 1 to 64 convex shapes; mass, centre of mass and inertia are summed |
 | `mesh` | static | counter-clockwise triangles; for scenery |

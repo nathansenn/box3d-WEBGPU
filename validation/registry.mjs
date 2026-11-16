@@ -8,6 +8,7 @@
 // `notValidated` is drawn from the limits sections of the documents listed in `docs`. Keep it honest:
 // a line belongs here when a reader could otherwise assume the cases above cover it.
 import rigid from './domains/rigid.mjs';
+import rigidCore from './domains/rigid-core.mjs';
 import waterCoupling from './domains/water-coupling.mjs';
 import structureCoupling from './domains/structure-coupling.mjs';
 import siBridge from './domains/si-bridge.mjs';
@@ -45,6 +46,24 @@ export const DOMAINS = [
       'Compound bodies: a body holds at most 64 convex shapes (box, sphere, capsule, hull); overlapping shapes count their overlap twice in mass and inertia. Contact of a compound is checked at rest and at tipping only, not in stacks or impacts. Triangle meshes and height fields are static only and cannot be part of a compound.',
       'Explicit mass data replace the numbers, not the shapes: nothing checks that a stated tensor is physically possible for the collision shape (the triangle inequality of the principal moments is not required), and a body with partly locked rotation is not covered.',
       'One build on one machine. The cross-device determinism matrix is a separate roadmap item; the kit records identical hashes on arm64 Node and Bun only.',
+    ],
+  },
+  {
+    id: 'rigid-core', title: 'Rigid core: queries, character, continuous collision, vehicles, joints and examples', needsKit: true,
+    solver: 'Box3D compiled to WebAssembly, through `box3d-webgpu-kit` (float32 state, 240 Hz, 4 sub-steps unless a row says otherwise)',
+    summary: 'Ray, sweep and overlap queries against closed forms, and the batched ray call. The capsule character: speed, slope limit, step height, stairs, jump, thin walls, moving platforms, force-limited pushing and exact resume. Continuous collision: a fast ball against a thin wall with the setting off and on, and the bullet flag against a free plate. A wheel-joint vehicle: static sag, heave frequency and damping, top speed against drag, the Ackermann turning circle and braking distance. Motor, parallel and filter joints, joint events and breakable welds. World settings, the area-weighted explosion, contact statistics and debug-draw counts. Five example scenes played by their roles: stairs and a jump on the obstacle course, the sag and circle of the scene-file car, ray lengths of the scanner, bullets through thin plates, and the support shear and moments of the breakable bridge against the statics of a built-in beam of rigid links. Joint and contact stiffness that follow the sub-steps (the caps of Box3D, and the 1 / f^2 fall of the static error). A pyramid of boxes 20 rows high: contact pairs, top height, weight carried.',
+    docs: ['docs/RIGID_CORE.md'],
+    notValidated: [
+      'Queries against triangle meshes, height fields, hulls and compounds have no closed-form row: they are covered by the bit-for-bit agreement of batched and single rays only.',
+      'Sweeps are checked from a separated start. A sweep that starts overlapping reports fraction 0 with a zero normal, which is behaviour inherited from Box3D and not a time of impact.',
+      'Box and capsule query shapes are axis aligned (the capsule upright). Rotated query shapes are not exposed.',
+      'The character is checked on boxes and ramps. Triangle-mesh and height-field ground, rotating platforms, crouching, swimming and ladders are not covered; a dynamic body the character stands on does not feel its weight.',
+      'Continuous collision is checked for spheres against boxes. Fast rotation (a spinning thin bar) is not swept by Box3D and is not checked; kinematic bodies are not swept against static ones.',
+      'The vehicle has rigid sphere wheels with Coulomb friction: no tyre model (slip curves, camber, load sensitivity), no drivetrain (gears, differential, engine curve), no anti-roll bars. Handling at speed, roll-over and jumps are not checked against references.',
+      'Breaking is checked for a weld under a slowly growing static load. A joint breaks on the force or torque of a sub-step, so a short impact can break a joint whose mean load over the step is below its threshold; impact breaking has no reference row.',
+      'One build on one machine; no cross-device determinism matrix.',
+      'The example scenes are checked at a few closed-form points (stairs, jump, sag, ray lengths, the bridge at rest); the rest of what they do (a lap of the course, the wreck of the bridge) is asserted as ranges and as determinism, not against a reference.',
+      'Piles of thousands of bodies are checked for stability (containment, energy, overlap) in packages/box3d-kit/test/v22-rigid-scale.test.mjs, not against a reference: only the pyramid has closed-form rows. Step times are measured by scripts/rigid-scale-benchmark.mjs and never asserted.',
     ],
   },
   {
@@ -236,8 +255,8 @@ export const DOMAINS = [
   },
   {
     id: 'solid', title: 'Deformable solids', needsKit: false,
-    solver: '`src/engine/solid.ts`: linear tetrahedra with linear, corotational, Neo-Hookean and Green-Lagrange models, J2 plasticity with linear isotropic hardening and ductile erosion (linear and Green-Lagrange), a concrete law (Drucker-Prager and Rankine composite plasticity with crack-band softening, `src/engine/concrete-law.ts`); static, midpoint, backward-Euler and explicit integration, float64. The press brake (`src/engine/press-brake.ts`) bends a plane-strain section of sheet with rigid punch and die through `SolidContact`',
-    summary: 'The patch test, uniaxial tension, shear and bulk moduli, a hanging bar, the cantilever locking table, axial and bending frequencies with observed orders, a stress wave, energy and damping, large-strain rubber and thermal eigenstrain. Plasticity: the uniaxial bilinear cycle, the elastic-plastic moment and springback of a beam, and a press-brake air bend against the beam limit load and elastic springback. Concrete: the EN 1992-1-1 (3.14) curve to f_cm, eps_c1 and eps_cu1, f_ctm and G_f on three meshes, G_c per unit area of a crushed band, the Drucker-Prager confinement closed form, and the Studio cube against a slenderness-2 prism.',
+    solver: '`src/engine/solid.ts`: linear tetrahedra with linear, corotational, Neo-Hookean and Green-Lagrange models, J2 plasticity with linear isotropic hardening and ductile erosion (linear and Green-Lagrange), a concrete law (EN 1992-1-1 3.1.9 meridian on a Willam-Warnke section with non-associated flow, Rankine in tension, crack-band softening, an optional nonlocal average, embedded reinforcing bars with perfect bond, `src/engine/concrete-law.ts`); static, midpoint, backward-Euler and explicit integration, float64. The press brake (`src/engine/press-brake.ts`) bends a plane-strain section of sheet with rigid punch and die through `SolidContact`',
+    summary: 'The patch test, uniaxial tension, shear and bulk moduli, a hanging bar, the cantilever locking table, axial and bending frequencies with observed orders, a stress wave, energy and damping, large-strain rubber and thermal eigenstrain. Plasticity: the uniaxial bilinear cycle, the elastic-plastic moment and springback of a beam, and a press-brake air bend against the beam limit load and elastic springback. Concrete: the EN 1992-1-1 (3.14) curve to f_cm, eps_c1 and eps_cu1, f_ctm and G_f on three meshes, G_c per unit area of a crushed band, the EN 1992-1-1 3.1.9 confinement gain, the equal-biaxial strength, the dilatancy of the potential, a reinforced tie against the series model, and the cracking and yield moments of a reinforced beam.',
     docs: ['docs/SOLID_MECHANICS.md'],
     notValidated: [
       'Bending is where this element is weak, and the table shows it: one cell through the thickness is three times too stiff, four cells 12%, eight cells 3.4%. Bending frequencies are 5% to 6% high at four cells.',
@@ -247,7 +266,7 @@ export const DOMAINS = [
       'Plasticity is small-strain J2 (additive in the Green-Lagrange strain for large rotations), isotropic linear hardening only: no kinematic hardening, rate dependence, necking or anisotropy. Fully plastic bending is 3.2% (3-D) to 6.8% (plane strain, 4 cells) too strong with tet4 and 4.8% with tet4-nodal: what remains is the bending error of linear tetrahedra. Ductile erosion uses one failure strain, independent of stress triaxiality, and the press brake\'s limit load is 1.23 times beam theory.',
       'Self-contact, plasticity combined with viscoelasticity (refused), anisotropy, and more than one material per body. Crack growth is a separate solver on the linear model of this element (the fracture domain); `SolidBody` erodes plastic elements at a failure strain but has no crack-growth law of its own.',
       'No two-way coupling to the rigid-body, water, cable or frame solvers, and no contact with rigid bodies. The one-way thermal and dead-load links are in the simulation domain.',
-      'Concrete: compressive softening does not stay in one element layer. In a prism the crushed band is restrained across by its neighbours (associated flow dilates it), so the post-peak energy of a 5, 10 and 20-cell bar grows with refinement instead of staying G_c A; only the tensile crack band is mesh objective here. Confinement raises the strength by m = 1.41 sigma_3, not the 2.5 to 5 of EN 1992-1-1 3.1.9; the equal-biaxial ratio 1.16 is quoted, not read. Cracks unload elastically (plasticity, not damage) and do not close; no rate, size (beyond the crack band), creep, shrinkage or reinforcement.',
+      'Concrete: compressive softening is not mesh objective with the local law: a crushed layer cannot expand sideways without its neighbours, so the softening spreads (post-peak energy of a 0.2 m prism 26 to 119 J against 13.7 J; 42.6 J on 10 x 2 x 2 and 20 x 4 x 4 cubic cells, still carrying load at 6 per mille). The optional nonlocal average (`nonlocalLength`) localises and converges on those two meshes (31.0 and 28.2 J, 9 % apart) but dissipates about twice G_c A: its band width is not calibrated, and the zone forms at the loaded end, not at the weaker middle cell. The section through the EN 1992-1-1 meridian and Kupfer\'s equal-biaxial point overshoots Kupfer\'s 1.27 f_c at sigma_2 / sigma_1 = 0.5 (1.39 f_c). The confinement and dilatancy work with the pressure of the last committed step (an error of the order of one step). Imran and Pantazopoulou\'s triaxial data were not opened. The cube-to-cylinder and slenderness rows hold for a platen friction of 0.2, a calibrated input of another model of the compression test (Stredulova and Elias 2023), not a measurement: with 0.57, inside the range measured for steel plate on concrete or grout (0.43 to 0.70, Gomez et al. 2011), the cube is 1.43 times the 150 x 300 mm cylinder (60.0 and 41.9 MPa) against 37 / 30 = 1.23. Cracks unload elastically (plasticity, not damage) and do not close; no rate, size (beyond the crack band), creep or shrinkage. Bars have perfect bond (no slip, no dowel action, no rupture); tension stiffening then depends on the cell size.',
       'Uniform states are exact, so the tension, shear, pressure and rubber rows say nothing about accuracy under stress gradients.',
     ],
   },
@@ -285,10 +304,10 @@ export const DOMAINS = [
   {
     id: 'plate', title: 'Thin plates with brittle fracture', needsKit: false,
     solver: '`src/engine/plate.ts`: Kirchhoff bending on a regular grid (finite-difference curvatures, energy-consistent forces), explicit symplectic Euler, cracks as broken bonds between nodes, float64',
-    summary: 'A simply supported pane under uniform pressure against the Navier series (deflection, moment, order), its first mode against the grid\'s exact frequency and Kirchhoff theory, energy of the explicit step, and the pressure of the first crack, with and without a surface prestress, against the Navier stress.',
+    summary: 'A simply supported pane under uniform pressure against the Navier series (deflection, moment, order), its first mode against the grid\'s exact frequency and Kirchhoff theory, energy of the explicit step, the pressure of the first crack, with and without a surface prestress, against the Navier stress, and the von Karman plate against Levy\'s large-deflection tables (edges held and edges free to move, edge tension, mesh).',
     docs: ['docs/STUDIO_MATERIAL_LABS.md'],
     notValidated: [
-      'Linear plate theory: deflections well above the thickness stiffen a real pane by membrane action, which is not modelled; the Studio\'s impacts reach several thicknesses.',
+      'Membrane action (von Karman, `membrane: true`) is validated for the intact plate against Levy (NACA Report 737); across cracks the cells carry no membrane force, and the bridging layers are strings with the in-plane motion neglected. In-plane inertia is neglected.',
       'Crack paths follow the grid (bonds along x and y, 0.1 m in the Studio): a crack at 45 degrees is a staircase, and nothing finer than a cell is resolved. Once a bond breaks the crack runs, which is right for glass (l_ch of a fraction of a millimetre) and wrong for tougher materials.',
       'The strength check reads the moment at a bond\'s middle. A point load on one node gives a mesh-dependent peak (the Kirchhoff point-load moment is logarithmically singular): onset under a hard impactor depends on the cell size. Hertzian contact stresses and cone cracks are not modelled.',
       'Tempered glass dicing is a front that breaks every bond it reaches; its speed and the fragment size quoted by the Studio are inputs from the literature, not results.',
@@ -350,7 +369,7 @@ export const DOMAINS = [
   },
 ];
 
-export const CASES = [...rigid, ...waterCoupling, ...structureCoupling, ...siBridge, ...siSuspension, ...geometry, ...scene, ...simulation, ...robot, ...cloth, ...granular, ...fluid, ...shallowWater, ...heat, ...solid, ...solidViscoelastic, ...solidConcrete, ...solidContact, ...fracture, ...plate, ...frame, ...cable, ...closedWater, ...materials];
+export const CASES = [...rigid, ...rigidCore, ...waterCoupling, ...structureCoupling, ...siBridge, ...siSuspension, ...geometry, ...scene, ...simulation, ...robot, ...cloth, ...granular, ...fluid, ...shallowWater, ...heat, ...solid, ...solidViscoelastic, ...solidConcrete, ...solidContact, ...fracture, ...plate, ...frame, ...cable, ...closedWater, ...materials];
 
 /** Cases of the given domains (all when `only` is empty), in registry order. */
 export function selectCases(only = []) {

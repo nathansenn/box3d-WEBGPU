@@ -390,7 +390,8 @@ const compoundScene = () => ({
 });
 
 test('scene format version 2: compound shapes and massData validate, canonicalise, travel in share links and load the same everywhere', async t => {
-  assert.deepEqual([SCENE_VERSION, [...SCENE_VERSIONS], SCENE_LIMITS.compoundShapes], [2, [1, 2], 64]);
+  // Version 3 (joint thresholds and the motor, parallel and filter joints) came with the rigid core; a compound scene is still version 2.
+  assert.deepEqual([SCENE_VERSION, [...SCENE_VERSIONS], SCENE_LIMITS.compoundShapes], [3, [1, 2, 3], 64]);
   const scene = compoundScene();
   assert.deepEqual(validateScene(scene), []);
   const normal = normalizeScene(scene), text = canonicalize(scene);
@@ -419,7 +420,7 @@ test('scene format version 2: compound shapes and massData validate, canonicalis
     '/bodies/1/massData: massData needs scene version 2; this scene declares version 1',
     '/bodies/2/massData: massData needs scene version 2; this scene declares version 1',
   ]);
-  assert.deepEqual(problems(s => { s.version = 3; }), ['/version: unsupported scene version 3; this build reads versions 1 and 2']);
+  assert.deepEqual(problems(s => { s.version = 4; }), ['/version: unsupported scene version 4; this build reads versions 1, 2 and 3']);
   // Every rule of the two additions, by path.
   assert.deepEqual(problems(s => { s.bodies[0].shape.shapes = []; }), ['/bodies/0/shape/shapes: a compound holds 1 to 64 shapes, got 0']);
   assert.deepEqual(problems(s => { s.bodies[0].shape.shapes = Array.from({length: 65}, () => ({shape: {kind: 'sphere', radius: 0.1}})); }), ['/bodies/0/shape/shapes: a compound holds 1 to 64 shapes, got 65']);

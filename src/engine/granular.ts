@@ -145,6 +145,11 @@ export interface GranularStats {
   unstable:boolean;
 }
 export interface GranularLattice {positions:Float64Array;radii:Float64Array;count:number}
+/** What `Granular.backendDescription()` returns. Wall shape: 0 plane, 1 box, 2 sphere, 3 capsule, 4 shell of revolution; type: 0 static, 1 kinematic, 2 dynamic; `dim` as in the solver (plane: normal; box: half extents; sphere: radius; capsule: radius, half length; shell: axis, r0, z0, r1, z1). */
+export interface GranularBackendWall {shape:number;type:number;enabled:boolean;dim:number[];position:number[];rotation:number[];linearVelocity:number[];angularVelocity:number[];mass:number;invInertia:number[];gravityScale:number;external:number[];
+  alpha:number;friction:number;rollingFriction:number;curved:number;force:number[];torque:number[];impulse:number[];angularImpulse:number[]}
+/** What `Granular.backendDescription()` returns: the contact law's constants as the solver derived them, the bounds, the radius range and every wall. */
+export interface GranularBackendDescription {hertz:boolean;kHertz:number;kMindlin:number;kn:number;kt:number;alpha:number;tangentialDamping:number;friction:number;rollingFriction:number;bounds:number[]|null;rMin:number;rMax:number;walls:GranularBackendWall[]}
 
 const fail=(message:string):never=>{throw new EngineError('INVALID_PAYLOAD',message);};
 const num=(value:unknown,label:string,min:number,max:number):number=>{
@@ -566,8 +571,27 @@ export class Granular {
   wallNormalLoad(index:number):number {return this.wall(index).normalLoad;}
   /** Grains touching the wall at the last force evaluation. */
   wallContacts(index:number):number {return this.wall(index).contacts;}
+  /** For a backend that evaluates the contacts elsewhere (src/engine/gpu/): put its results for a wall where `wallForce`, `wallImpulse`, `wallNormalLoad` and `wallContacts` read them. */
+  setWallLoads(index:number,loads:{readonly force:ArrayLike<number>;readonly torque:ArrayLike<number>;readonly impulse:ArrayLike<number>;readonly angularImpulse:ArrayLike<number>;readonly normalLoad:number;readonly contacts:number}):void {
+    const wall=this.wall(index);
+    for(let k=0;k<3;k++){wall.force[k]=loads.force[k];wall.torque[k]=loads.torque[k];wall.impulse[k]=loads.impulse[k];wall.angularImpulse[k]=loads.angularImpulse[k];}
+    wall.normalLoad=loads.normalLoad;wall.contacts=loads.contacts;
+  }
   resetWallImpulses(index?:number):void {
     for(let k=0;k<this.walls.length;k++)if(index===undefined||index===k){this.walls[k].impulse.fill(0);this.walls[k].angularImpulse.fill(0);}
+  }
+
+  /**
+   * The numbers a backend that mirrors this solver needs (src/engine/gpu/granular-gpu.ts): the contact-law constants as
+   * the solver derived them, the bounds, the radius range, and every wall with its shape numbers and present state.
+   * Copies; nothing here is live.
+   */
+  backendDescription():GranularBackendDescription {
+    return {hertz:this.hertz,kHertz:this.kHertz,kMindlin:this.kMindlin,kn:this.kn,kt:this.kt,alpha:this.alpha,tangentialDamping:this.tangentialDamping,friction:this.material.friction,rollingFriction:this.material.rollingFriction,
+      bounds:this.bounds?Array.from(this.bounds):null,rMin:this.rMin,rMax:this.rMax,
+      walls:this.walls.map(w=>({shape:w.shape,type:w.type,enabled:w.enabled,dim:Array.from(w.dim),position:Array.from(w.x),rotation:Array.from(w.q),linearVelocity:Array.from(w.v),angularVelocity:Array.from(w.w),
+        mass:w.mass,invInertia:Array.from(w.invInertia),gravityScale:w.gravityScale,external:Array.from(w.external),alpha:w.alpha,friction:w.friction,rollingFriction:w.rollingFriction,curved:w.curved,
+        force:Array.from(w.force),torque:Array.from(w.torque),impulse:Array.from(w.impulse),angularImpulse:Array.from(w.angularImpulse)}))};
   }
 
   // ---- diagnostics ----
@@ -1101,8 +1125,14 @@ export class GranularCoupling<B> {
   force(body:B):Float64Array {return this.entry(body).force;}
   torque(body:B):Float64Array {return this.entry(body).torque;}
   /** Advance the grains through one rigid step against the bodies as they are now and hand the bodies the grains' forces. */
-  step():void {
-    const world=this.world,dem=this.granular,h=this.dt,g=dem.gravity,load=this.load,out=this.out;
+  step():void {this.begin();this.granular.step(this.substeps);this.finish();}
+  /**
+   * The first half of `step()`: copy the bodies in as walls (pose, velocities, mass, the estimated support load) and zero
+   * the wall impulses. A backend that advances the grains elsewhere calls this, takes `substeps` grain steps, writes the
+   * walls' impulses back (`Granular.setWallLoads`) and calls `finish()`.
+   */
+  begin():void {
+    const world=this.world,dem=this.granular,h=this.dt,g=dem.gravity,load=this.load;
     for(let i=0;i<this.list.length;i++){
       const e=this.list[i];
       if(world.isAlive&&!world.isAlive(e.body)){dem.setWallEnabled(e.index,false);continue;}
@@ -1123,7 +1153,10 @@ export class GranularCoupling<B> {
       e.seen=true;
     }
     dem.resetWallImpulses();
-    dem.step(this.substeps);
+  }
+  /** The second half of `step()`: hand each body the mean force and torque of the grain steps. */
+  finish():void {
+    const world=this.world,dem=this.granular,h=this.dt,out=this.out;
     for(let i=0;i<this.list.length;i++){
       const e=this.list[i];
       const P=dem.wallImpulse(e.index),L=dem.wallAngularImpulse(e.index);

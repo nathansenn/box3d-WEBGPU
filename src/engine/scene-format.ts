@@ -6,7 +6,10 @@
  * BUILD a scene (world settings, bodies, joints) and, optionally, the pose and
  * velocity each body had when it was saved. The format is documented in
  * docs/SCENE_FORMAT.md. Version 2 adds compound shapes and explicit mass data;
- * a scene that uses neither is a version 1 scene, as it always was.
+ * version 3 adds motor, parallel and filter joints, joint thresholds (events and
+ * breakable joints) and wheel steering. A scene is written as the lowest
+ * version that can hold it, so a scene that uses none of these is a version 1
+ * scene, as it always was.
  *
  * A scene may also carry optional coupled sections: `water` basins with the
  * bodies that float in them, `cables` and `frames` with their attachments,
@@ -55,9 +58,13 @@ export interface SceneHost {
 
 export const SCENE_FORMAT = 'box3d-scene';
 /** The newest scene version this build reads and writes. A scene that needs nothing newer than version 1 is written as version 1. */
-export const SCENE_VERSION = 2;
-/** Every scene version this build reads. Version 2 adds compound shapes and `massData`; nothing else differs. */
-export const SCENE_VERSIONS: readonly number[] = Object.freeze([1, 2]);
+export const SCENE_VERSION = 3;
+/**
+ * Every scene version this build reads. Version 2 adds compound shapes and `massData`; version 3 adds the joint
+ * types 'motor', 'parallel' and 'filter' and the joint settings `thresholds`, `drive`, `maxTorque` and `steering`.
+ * Nothing else differs.
+ */
+export const SCENE_VERSIONS: readonly number[] = Object.freeze([1, 2, 3]);
 
 /** Hard limits a scene file must respect. `validateScene` reports each one by path. */
 export const SCENE_LIMITS = Object.freeze({
@@ -132,7 +139,7 @@ export const SCENE_LIMITS = Object.freeze({
 export type SceneVec3 = readonly [number, number, number];
 export type SceneQuat = readonly [number, number, number, number];
 export type SceneBodyType = 'static' | 'kinematic' | 'dynamic';
-export type SceneJointType = 'weld' | 'revolute' | 'spherical' | 'prismatic' | 'distance' | 'wheel';
+export type SceneJointType = 'weld' | 'revolute' | 'spherical' | 'prismatic' | 'distance' | 'wheel' | 'motor' | 'parallel' | 'filter';
 
 export interface SceneWorld {
   /** m/s^2. Default [0, -9.81, 0]. */
@@ -262,6 +269,21 @@ export interface SceneJoint {
   readonly coneAngle?: number;
   /** How stiffly the joint holds its bodies together. Default 60 Hz with damping ratio 2. */
   readonly stiffness?: {readonly hertz: number; readonly dampingRatio?: number};
+  /**
+   * Scene version 3: the joint reports an event in every step in which it carries at least this force (N) or torque
+   * (N m), and with `breakable` it is destroyed at the end of that step. Any joint type.
+   */
+  readonly thresholds?: {readonly force?: number; readonly torque?: number; readonly breakable?: boolean};
+  /** Scene version 3, motor joints: velocity targets with force limits, and springs that pull frame B onto frame A. */
+  readonly drive?: {
+    readonly linearVelocity?: SceneVec3; readonly angularVelocity?: SceneVec3; readonly maxForce?: number; readonly maxTorque?: number;
+    readonly linearSpring?: {readonly hertz: number; readonly dampingRatio: number; readonly maxForce: number};
+    readonly angularSpring?: {readonly hertz: number; readonly dampingRatio: number; readonly maxTorque: number};
+  };
+  /** Scene version 3, parallel joints: the largest torque the spring may use (N m). */
+  readonly maxTorque?: number;
+  /** Scene version 3, wheel joints: steer about frame A's x axis towards `angle` (rad), optionally limited. */
+  readonly steering?: {readonly angle: number; readonly hertz: number; readonly dampingRatio: number; readonly maxTorque: number; readonly limits?: {readonly lower: number; readonly upper: number}};
   readonly userData?: {readonly [key: string]: unknown};
 }
 
@@ -818,8 +840,8 @@ export interface SceneCoupledSections {
 
 export interface Scene {
   readonly format: 'box3d-scene';
-  /** 2 when a body has a compound shape or `massData`; 1 otherwise. */
-  readonly version: 1 | 2;
+  /** 3 when a joint is of type 'motor', 'parallel' or 'filter' or has `thresholds`, `drive`, `maxTorque` or `steering`; else 2 when a body has a compound shape or `massData`; 1 otherwise. */
+  readonly version: 1 | 2 | 3;
   /** Metres, kilograms, seconds, radians. Default and only value: 'SI'. */
   readonly units?: 'SI';
   readonly world?: SceneWorld;
@@ -873,7 +895,10 @@ const ID_PATTERN = /^[A-Za-z0-9_.:-]+$/;
 const BITS_PATTERN = /^(0|[1-9][0-9]{0,19})$/;
 const MAX_U64 = 0xFFFFFFFFFFFFFFFFn;
 const BODY_TYPES = ['static', 'kinematic', 'dynamic'];
-const JOINT_TYPES = ['weld', 'revolute', 'spherical', 'prismatic', 'distance', 'wheel'];
+const JOINT_TYPES = ['weld', 'revolute', 'spherical', 'prismatic', 'distance', 'wheel', 'motor', 'parallel', 'filter'];
+/** Joint types and settings that need scene version 3. */
+const JOINT_TYPES_V3 = ['motor', 'parallel', 'filter'];
+const JOINT_KEYS_V3 = ['thresholds', 'drive', 'maxTorque', 'steering'];
 const SHAPE_KEYS: Record<string, readonly string[]> = {
   box: ['kind', 'halfExtents'], sphere: ['kind', 'radius'], capsule: ['kind', 'radius', 'halfLength'], hull: ['kind', 'points'],
   mesh: ['kind', 'vertices', 'indices'], heightfield: ['kind', 'heights', 'countX', 'countZ', 'spacing'], compound: ['kind', 'shapes'],
@@ -882,11 +907,12 @@ const CONVEX_KINDS = ['box', 'sphere', 'capsule', 'hull'];
 const CHILD_KEYS = ['shape', 'position', 'rotation', 'rotationEuler', 'density', 'friction', 'restitution'];
 const BODY_KEYS = ['id', 'shape', 'type', 'position', 'rotation', 'rotationEuler', 'linearVelocity', 'angularVelocity', 'material', 'density', 'friction', 'restitution',
   'color', 'bullet', 'sensor', 'hitEvents', 'neverSleeps', 'lockRotation', 'linearDamping', 'angularDamping', 'gravityScale', 'filter', 'massData', 'userData'];
-const JOINT_KEYS = ['id', 'type', 'bodyA', 'bodyB', 'frameA', 'frameB', 'collideConnected', 'limits', 'motor', 'spring', 'length', 'coneAngle', 'stiffness', 'userData'];
+const JOINT_KEYS = ['id', 'type', 'bodyA', 'bodyB', 'frameA', 'frameB', 'collideConnected', 'limits', 'motor', 'spring', 'length', 'coneAngle', 'stiffness', 'thresholds', 'drive', 'maxTorque', 'steering', 'userData'];
 /** Which optional settings each joint type takes (the table in the kit README). */
 const JOINT_FEATURES: Record<string, readonly string[]> = {
   weld: ['spring'], revolute: ['limits', 'motor', 'spring'], spherical: ['limits', 'spring', 'coneAngle'],
-  prismatic: ['limits', 'motor', 'spring'], distance: ['limits', 'motor', 'spring', 'length'], wheel: ['limits', 'motor', 'spring'],
+  prismatic: ['limits', 'motor', 'spring'], distance: ['limits', 'motor', 'spring', 'length'], wheel: ['limits', 'motor', 'spring', 'steering'],
+  motor: ['drive'], parallel: ['spring', 'maxTorque'], filter: [],
 };
 const FLAGS = ['bullet', 'sensor', 'hitEvents', 'neverSleeps', 'lockRotation'] as const;
 
@@ -1088,7 +1114,7 @@ function spansVolume(p: readonly number[]): boolean {
   return false;
 }
 
-function checkShape(c: Checker, shape: unknown, path: string, child = false): string | null {
+function checkShape(c: Checker, shape: unknown, path: string, child = false, reach: number = R.shape): string | null {
   if (!isObject(shape)) { c.add(path, `must be an object, got ${typeName(shape)}`); return null; }
   const kind = shape.kind;
   if (child && (typeof kind !== 'string' || !CONVEX_KINDS.includes(kind))) {
@@ -1109,23 +1135,23 @@ function checkShape(c: Checker, shape: unknown, path: string, child = false): st
     else for (let i = 0; i < list.length && !c.stopped; i++) {
       const one = list[i], here = `${at}/${i}`;
       if (!c.object(one, here, CHILD_KEYS, ['shape'])) continue;
-      if (one.shape !== undefined) checkShape(c, one.shape, `${here}/shape`, true);
-      if (one.position !== undefined) c.tuple(one.position, `${here}/position`, 3, -R.shape, R.shape);
+      if (one.shape !== undefined) checkShape(c, one.shape, `${here}/shape`, true, reach);
+      if (one.position !== undefined) c.tuple(one.position, `${here}/position`, 3, -reach, reach);
       checkRotation(c, one, here);
       checkMaterialValues(c, one, here);
     }
     return kind;
   }
-  // The size limits are the rigid world's (RIGID_LIMITS in contracts.ts): a convex shape reaches at most 1 km from
-  // its body's origin, static geometry at most 100 km.
-  if (kind === 'box') { if (shape.halfExtents !== undefined) c.tuple(shape.halfExtents, `${path}/halfExtents`, 3, 1e-4, R.shape); }
-  else if (kind === 'sphere') { if (shape.radius !== undefined) c.number(shape.radius, `${path}/radius`, 1e-4, R.shape); }
+  // The size limits are the rigid world's (RIGID_LIMITS in contracts.ts): a convex shape of a dynamic body reaches at
+  // most 1 km from its body's origin (native defect ND-1), of a static or kinematic body 100 km, as static geometry does.
+  if (kind === 'box') { if (shape.halfExtents !== undefined) c.tuple(shape.halfExtents, `${path}/halfExtents`, 3, 1e-4, reach); }
+  else if (kind === 'sphere') { if (shape.radius !== undefined) c.number(shape.radius, `${path}/radius`, 1e-4, reach); }
   else if (kind === 'capsule') {
-    if (shape.radius !== undefined) c.number(shape.radius, `${path}/radius`, 1e-4, R.shape);
-    if (shape.halfLength !== undefined) c.number(shape.halfLength, `${path}/halfLength`, 0.0025, R.shape);
+    if (shape.radius !== undefined) c.number(shape.radius, `${path}/radius`, 1e-4, reach);
+    if (shape.halfLength !== undefined) c.number(shape.halfLength, `${path}/halfLength`, 0.0025, reach);
   } else if (kind === 'hull') {
     const points = shape.points, at = `${path}/points`;
-    if (points !== undefined && c.numbersWithin(points, at, R.shape)) {
+    if (points !== undefined && c.numbersWithin(points, at, reach)) {
       if (points.length % 3 !== 0) c.add(at, `must hold x, y, z triples; ${points.length} numbers is not a multiple of 3`);
       else if (points.length < 12) c.add(at, `a hull needs at least 4 points, got ${points.length / 3}`);
       else if (points.length > SCENE_LIMITS.hullPoints * 3) c.add(at, `holds ${points.length / 3} points; the limit is ${SCENE_LIMITS.hullPoints}`);
@@ -1182,7 +1208,9 @@ function checkBits(c: Checker, value: unknown, path: string): void {
 
 function checkBody(c: Checker, body: unknown, path: string, materials: ReadonlySet<string>): void {
   if (!c.object(body, path, BODY_KEYS, ['id', 'shape', 'position'])) return;
-  const kind = body.shape === undefined ? null : checkShape(c, body.shape, `${path}/shape`);
+  // A dynamic body (the default) keeps its convex shapes within RIGID_LIMITS.shape; a static or kinematic one may reach the extent.
+  const reach = body.type === 'static' || body.type === 'kinematic' ? R.extent : R.shape;
+  const kind = body.shape === undefined ? null : checkShape(c, body.shape, `${path}/shape`, false, reach);
   if (body.type !== undefined) {
     if (typeof body.type !== 'string' || !BODY_TYPES.includes(body.type)) c.add(`${path}/type`, `must be 'static', 'kinematic' or 'dynamic', got ${show(body.type)}`);
     else if ((kind === 'mesh' || kind === 'heightfield') && body.type !== 'static') c.add(`${path}/type`, `a ${kind} body is always static, got ${show(body.type)}`);
@@ -1245,7 +1273,12 @@ function checkFrame(c: Checker, frame: unknown, path: string, reach: number): vo
 function checkJoint(c: Checker, joint: unknown, path: string, hasBody: ((id: string) => boolean) | null): void {
   if (!c.object(joint, path, JOINT_KEYS, ['id', 'type', 'bodyA', 'bodyB'])) return;
   const type = typeof joint.type === 'string' && JOINT_TYPES.includes(joint.type) ? joint.type : null;
-  if (joint.type !== undefined && type === null) c.add(`${path}/type`, `must be 'weld', 'revolute', 'spherical', 'prismatic', 'distance' or 'wheel', got ${show(joint.type)}`);
+  // The message names the types of the version the scene declares, so that a version 1 file is told what a version 1 file may hold.
+  if (joint.type !== undefined && type === null) c.add(`${path}/type`, `must be 'weld', 'revolute', 'spherical', 'prismatic', 'distance'${c.version < 3 ? " or 'wheel'" : ", 'wheel', 'motor', 'parallel' or 'filter'"}, got ${show(joint.type)}`);
+  if (c.version < 3) {
+    if (type !== null && JOINT_TYPES_V3.includes(type)) c.add(`${path}/type`, `a '${type}' joint needs scene version 3; this scene declares version ${c.version}`);
+    for (const key of JOINT_KEYS_V3) if (joint[key] !== undefined) c.add(`${path}/${key}`, `${key} needs scene version 3; this scene declares version ${c.version}`);
+  }
   for (const side of ['bodyA', 'bodyB']) {
     const ref = joint[side];
     if (ref === undefined || ref === null) continue;
@@ -1256,7 +1289,7 @@ function checkJoint(c: Checker, joint: unknown, path: string, hasBody: ((id: str
   if (joint.frameA !== undefined) checkFrame(c, joint.frameA, `${path}/frameA`, joint.bodyA === null ? R.extent : R.shape);
   if (joint.frameB !== undefined) checkFrame(c, joint.frameB, `${path}/frameB`, joint.bodyB === null ? R.extent : R.shape);
   if (joint.collideConnected !== undefined) c.boolean(joint.collideConnected, `${path}/collideConnected`);
-  if (type) for (const feature of ['limits', 'motor', 'spring', 'length', 'coneAngle']) {
+  if (type) for (const feature of ['limits', 'motor', 'spring', 'length', 'coneAngle', 'drive', 'maxTorque', 'steering']) {
     if (joint[feature] !== undefined && !JOINT_FEATURES[type].includes(feature)) c.add(`${path}/${feature}`, `a ${type} joint does not take ${feature}`);
   }
   const {limits, motor, spring} = joint;
@@ -1280,6 +1313,36 @@ function checkJoint(c: Checker, joint: unknown, path: string, hasBody: ((id: str
     const stiffness = joint.stiffness as {hertz?: unknown; dampingRatio?: unknown};
     c.number(stiffness.hertz, `${path}/stiffness/hertz`, 1e-6, R.hertz);
     if (stiffness.dampingRatio !== undefined) c.number(stiffness.dampingRatio, `${path}/stiffness/dampingRatio`, 0, R.hertz);
+  }
+  const {thresholds, drive, steering} = joint;
+  if (thresholds !== undefined && c.object(thresholds, `${path}/thresholds`, ['force', 'torque', 'breakable'])) {
+    const force = thresholds.force !== undefined && c.number(thresholds.force, `${path}/thresholds/force`, 0, R.force) ? thresholds.force as number : 0;
+    const torque = thresholds.torque !== undefined && c.number(thresholds.torque, `${path}/thresholds/torque`, 0, R.force) ? thresholds.torque as number : 0;
+    if (thresholds.breakable !== undefined && c.boolean(thresholds.breakable, `${path}/thresholds/breakable`) && thresholds.breakable && !(force > 0) && !(torque > 0)) {
+      c.add(`${path}/thresholds/breakable`, 'a breakable joint needs a force or a torque threshold greater than 0');
+    }
+  }
+  if (drive !== undefined && c.object(drive, `${path}/drive`, ['linearVelocity', 'angularVelocity', 'maxForce', 'maxTorque', 'linearSpring', 'angularSpring'])) {
+    if (drive.linearVelocity !== undefined) c.tuple(drive.linearVelocity, `${path}/drive/linearVelocity`, 3, -R.speed, R.speed);
+    if (drive.angularVelocity !== undefined) c.tuple(drive.angularVelocity, `${path}/drive/angularVelocity`, 3, -R.speed, R.speed);
+    if (drive.maxForce !== undefined) c.number(drive.maxForce, `${path}/drive/maxForce`, 0, R.force);
+    if (drive.maxTorque !== undefined) c.number(drive.maxTorque, `${path}/drive/maxTorque`, 0, R.force);
+    for (const [name, limit] of [['linearSpring', 'maxForce'], ['angularSpring', 'maxTorque']] as const) {
+      const spring = drive[name];
+      if (spring !== undefined && c.object(spring, `${path}/drive/${name}`, ['hertz', 'dampingRatio', limit], ['hertz', 'dampingRatio', limit])) {
+        for (const key of ['hertz', 'dampingRatio', limit]) if (spring[key] !== undefined) c.number(spring[key], `${path}/drive/${name}/${key}`, 0, key === limit ? R.force : R.hertz);
+      }
+    }
+  }
+  if (joint.maxTorque !== undefined) c.number(joint.maxTorque, `${path}/maxTorque`, 0, R.force);
+  if (steering !== undefined && c.object(steering, `${path}/steering`, ['angle', 'hertz', 'dampingRatio', 'maxTorque', 'limits'], ['angle', 'hertz', 'dampingRatio', 'maxTorque'])) {
+    if (steering.angle !== undefined) c.number(steering.angle, `${path}/steering/angle`, -1e6, 1e6);
+    for (const key of ['hertz', 'dampingRatio', 'maxTorque']) if (steering[key] !== undefined) c.number(steering[key], `${path}/steering/${key}`, 0, key === 'maxTorque' ? R.force : R.hertz);
+    const limits = steering.limits;
+    if (limits !== undefined && c.object(limits, `${path}/steering/limits`, ['lower', 'upper'], ['lower', 'upper'])) {
+      const lower = limits.lower !== undefined && c.number(limits.lower, `${path}/steering/limits/lower`, -1e6, 1e6), upper = limits.upper !== undefined && c.number(limits.upper, `${path}/steering/limits/upper`, -1e6, 1e6);
+      if (lower && upper && (limits.upper as number) < (limits.lower as number)) c.add(`${path}/steering/limits/upper`, `must be >= lower (${limits.lower}), got ${limits.upper}`);
+    }
   }
   if (joint.userData !== undefined) c.freeForm(joint.userData, `${path}/userData`);
 }
@@ -2169,8 +2232,8 @@ export function validateScene(scene: unknown): SceneProblem[] {
   if (scene.format !== SCENE_FORMAT) { c.add('/format', `must be '${SCENE_FORMAT}', got ${scene.format === undefined ? 'nothing' : show(scene.format)}`); return c.problems; }
   if (typeof scene.version !== 'number' || !SCENE_VERSIONS.includes(scene.version)) {
     c.add('/version', Number.isInteger(scene.version) && (scene.version as number) > 0
-      ? `unsupported scene version ${scene.version}; this build reads versions ${SCENE_VERSIONS.join(' and ')}`
-      : `must be the integer ${SCENE_VERSIONS.join(' or ')}, got ${scene.version === undefined ? 'nothing' : show(scene.version)}`);
+      ? `unsupported scene version ${scene.version}; this build reads versions ${SCENE_VERSIONS.slice(0, -1).join(', ')} and ${SCENE_VERSIONS[SCENE_VERSIONS.length - 1]}`
+      : `must be the integer ${SCENE_VERSIONS.slice(0, -1).join(', ')} or ${SCENE_VERSIONS[SCENE_VERSIONS.length - 1]}, got ${scene.version === undefined ? 'nothing' : show(scene.version)}`);
     return c.problems;
   }
   c.version = scene.version;
@@ -2353,9 +2416,35 @@ function normalJoint(joint: SceneJoint): SceneJoint {
   if (joint.length !== undefined) out.length = joint.length;
   if (joint.coneAngle !== undefined) out.coneAngle = zero(joint.coneAngle);
   if (joint.stiffness) out.stiffness = {hertz: joint.stiffness.hertz, ...(joint.stiffness.dampingRatio !== undefined && joint.stiffness.dampingRatio !== 2 ? {dampingRatio: zero(joint.stiffness.dampingRatio)} : {})};
+  // Version 3 settings. A threshold of 0 is no threshold, and a block that says nothing is left out.
+  if (joint.thresholds) {
+    const t: Obj = {};
+    if (joint.thresholds.force) t.force = joint.thresholds.force;
+    if (joint.thresholds.torque) t.torque = joint.thresholds.torque;
+    if (joint.thresholds.breakable) t.breakable = true;
+    if (Object.keys(t).length > 0) out.thresholds = t;
+  }
+  if (joint.drive) {
+    const d = joint.drive, drive: Obj = {};
+    if (!allZero(d.linearVelocity)) drive.linearVelocity = vec(d.linearVelocity!);
+    if (!allZero(d.angularVelocity)) drive.angularVelocity = vec(d.angularVelocity!);
+    if (d.maxForce) drive.maxForce = d.maxForce;
+    if (d.maxTorque) drive.maxTorque = d.maxTorque;
+    if (d.linearSpring) drive.linearSpring = {hertz: zero(d.linearSpring.hertz), dampingRatio: zero(d.linearSpring.dampingRatio), maxForce: zero(d.linearSpring.maxForce)};
+    if (d.angularSpring) drive.angularSpring = {hertz: zero(d.angularSpring.hertz), dampingRatio: zero(d.angularSpring.dampingRatio), maxTorque: zero(d.angularSpring.maxTorque)};
+    out.drive = drive;
+  }
+  if (joint.maxTorque !== undefined) out.maxTorque = zero(joint.maxTorque);
+  if (joint.steering) {
+    const st = joint.steering;
+    out.steering = {angle: zero(st.angle), hertz: zero(st.hertz), dampingRatio: zero(st.dampingRatio), maxTorque: zero(st.maxTorque), ...(st.limits ? {limits: {lower: zero(st.limits.lower), upper: zero(st.limits.upper)}} : {})};
+  }
   if (joint.userData !== undefined) out.userData = clone(joint.userData);
   return out as unknown as SceneJoint;
 }
+
+/** True when a joint in normal form needs scene version 3. */
+const jointNeedsV3 = (joint: SceneJoint): boolean => JOINT_TYPES_V3.includes(joint.type) || JOINT_KEYS_V3.some(key => (joint as unknown as Obj)[key] !== undefined);
 
 const allZero = (v: readonly number[] | undefined): boolean => v === undefined || v.every(x => x === 0);
 
@@ -2675,11 +2764,11 @@ function normalize(scene: Scene): Scene {
   }
   const meta: Obj = {};
   for (const key of ['title', 'description', 'author', 'created'] as const) if (scene.meta?.[key] !== undefined) meta[key] = scene.meta[key];
-  const bodies = scene.bodies.map(normalBody);
+  const bodies = scene.bodies.map(normalBody), joints = (scene.joints ?? []).map(normalJoint);
   return {
-    // The lowest version that can hold the scene, so that a scene without version 2 features has the text and hash it always had.
-    format: SCENE_FORMAT, version: bodies.some(body => body.shape.kind === 'compound' || body.massData !== undefined) ? 2 : 1, units: 'SI', world: worldOf(scene.world), materials,
-    bodies, joints: (scene.joints ?? []).map(normalJoint),
+    // The lowest version that can hold the scene, so that a scene without version 2 or 3 features has the text and hash it always had.
+    format: SCENE_FORMAT, version: joints.some(jointNeedsV3) ? 3 : bodies.some(body => body.shape.kind === 'compound' || body.massData !== undefined) ? 2 : 1, units: 'SI', world: worldOf(scene.world), materials,
+    bodies, joints,
     // Left out when absent or empty, so that a rigid-only scene has the canonical text and hash it always had.
     ...normalCoupled(scene),
     ...(Object.keys(meta).length > 0 ? {meta: meta as SceneMeta} : {}),
@@ -3191,6 +3280,9 @@ export class SceneBuilder<W extends SceneHost = SceneHost> {
     const options: NativeJointDescriptor = {
       type: description.type, bodyA: body(description.bodyA), bodyB: body(description.bodyB), frameA: description.frameA, frameB: description.frameB,
       collideConnected: description.collideConnected, limits: description.limits, motor: description.motor, spring: description.spring, length: description.length, coneAngle: description.coneAngle, stiffness: description.stiffness,
+      // Version 3 settings: named only when the scene has them, so that a host of an older artifact is asked for nothing new.
+      ...(description.thresholds ? {thresholds: description.thresholds} : {}), ...(description.drive ? {drive: description.drive} : {}),
+      ...(description.maxTorque !== undefined ? {maxTorque: description.maxTorque} : {}), ...(description.steering ? {steering: description.steering} : {}),
     };
     let handle: Joint;
     try { handle = this.world.createJoint(options); } catch (error) { throw named('joint', description.id, error); }
@@ -3343,4 +3435,5 @@ export function saveScene<W extends SceneHost>(world: W, handles: SceneBuilder<W
   return builder.toJSON(options);
 }
 
-export {pendulumWaveScene, newtonsCradleScene, dominoRunScene, terrainCarScene, ragdollScene, EXAMPLE_SCENES, mooredBuoyScene, cableStayedDeckScene, buoyAndCratesScene, trampolineScene, hopperSeesawScene, suspendedPlatformScene, rubberPadScene, notchedBeamScene, quenchedPlateScene, heatedBarScene, sphereSettlingScene, cavityFlowScene, flowPastCylinderScene, damBreakScene, damBreakValleyScene, riverBendScene, COUPLED_EXAMPLE_SCENES} from './scene-examples.ts';
+export {pendulumWaveScene, newtonsCradleScene, dominoRunScene, terrainCarScene, ragdollScene, EXAMPLE_SCENES, mooredBuoyScene, cableStayedDeckScene, buoyAndCratesScene, trampolineScene, hopperSeesawScene, suspendedPlatformScene, rubberPadScene, notchedBeamScene, quenchedPlateScene, heatedBarScene, sphereSettlingScene, cavityFlowScene, flowPastCylinderScene, damBreakScene, damBreakValleyScene, riverBendScene, COUPLED_EXAMPLE_SCENES,
+  obstacleCourseScene, vehicleTerrainScene, laserScannerScene, bulletPlatesScene, breakableBridgeScene, RIGID_CORE_EXAMPLE_SCENES} from './scene-examples.ts';

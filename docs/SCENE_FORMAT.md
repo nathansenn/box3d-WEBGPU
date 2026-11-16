@@ -1,8 +1,8 @@
-# Scene format (`box3d-scene`, versions 1 and 2)
+# Scene format (`box3d-scene`, versions 1, 2 and 3)
 
-A scene file is plain JSON that says how to build a scene: the world settings, the rigid bodies and the joints, and optionally water basins, cables, frames, cloths, sets of grains, deformable solids and heat grids coupled to those bodies ([Coupled sections](#coupled-sections-water-cables-frames), [Cloths and grains](#coupled-sections-cloths-and-grains), [Solids and heat](#coupled-sections-solids-and-heat)). It can be validated, loaded, saved, diffed, hashed and packed into a share link. The code is `src/engine/scene-format.ts`, published by the kit as `box3d-webgpu-kit/scene` (`packages/box3d-kit/src/scene.ts`) and used by the Physics Lab ([In the Physics Lab](#in-the-physics-lab)); the tests are `packages/box3d-kit/test/v12-scene.test.mjs`, for the coupled sections `packages/box3d-kit/test/v14-simulation.test.mjs`, and for version 2 `packages/box3d-kit/test/v17-compound.test.mjs`.
+A scene file is plain JSON that says how to build a scene: the world settings, the rigid bodies and the joints, and optionally water basins, cables, frames, cloths, sets of grains, deformable solids and heat grids coupled to those bodies ([Coupled sections](#coupled-sections-water-cables-frames), [Cloths and grains](#coupled-sections-cloths-and-grains), [Solids and heat](#coupled-sections-solids-and-heat)). It can be validated, loaded, saved, diffed, hashed and packed into a share link. The code is `src/engine/scene-format.ts`, published by the kit as `box3d-webgpu-kit/scene` (`packages/box3d-kit/src/scene.ts`) and used by the Physics Lab ([In the Physics Lab](#in-the-physics-lab)); the tests are `packages/box3d-kit/test/v12-scene.test.mjs`, for the coupled sections `packages/box3d-kit/test/v14-simulation.test.mjs`, for version 2 `packages/box3d-kit/test/v17-compound.test.mjs`, and for version 3 `packages/box3d-kit/test/v22-rigid-joints.test.mjs` and `v22-rigid-examples.test.mjs`.
 
-Version 2 adds two things to version 1 and changes nothing else: a body may be a **compound** of several shapes, and a body may state its **mass data** (mass, centre of mass, inertia tensor). A file that uses neither is a version 1 file. [Versioning](#versioning) has the rules.
+Version 2 adds two things to version 1 and changes nothing else: a body may be a **compound** of several shapes, and a body may state its **mass data** (mass, centre of mass, inertia tensor). A file that uses neither is a version 1 file. Version 3 adds joint settings and three joint types ([Joints: version 3](#joints-version-3)): thresholds that report and break a joint, steering on wheel joints, and the motor, parallel and filter joints. A file that uses none of them keeps the version it had. [Versioning](#versioning) has the rules.
 
 The native solver cannot serialise its internal state. A scene file therefore describes how to **build** a scene, and may also carry the pose and velocity each body had when it was saved. [Save and resume](#save-and-resume) lists exactly what that does and does not restore.
 
@@ -198,7 +198,7 @@ The body's `color`, flags (`sensor`, `hitEvents`, …) and `filter` apply to eve
 | Key | Type | Required | Notes |
 |---|---|---|---|
 | `id` | string | yes | Same rule and same namespace as body ids. |
-| `type` | `"weld"`, `"revolute"`, `"spherical"`, `"prismatic"`, `"distance"`, `"wheel"` | yes | |
+| `type` | `"weld"`, `"revolute"`, `"spherical"`, `"prismatic"`, `"distance"`, `"wheel"`; in version 3 also `"motor"`, `"parallel"`, `"filter"` | yes | |
 | `bodyA`, `bodyB` | body id or `null` | yes | `null` is the fixed world. They must differ, and not both be `null`. |
 | `frameA`, `frameB` | `{position?, rotation?, rotationEuler?}` | no | Local to each body. Default: origin, identity. |
 | `collideConnected` | boolean | no | Default `false`. |
@@ -208,7 +208,11 @@ The body's `color`, flags (`sensor`, `hitEvents`, …) and `filter` apply to eve
 | `length` | number > 0 | distance joints | Rest length in metres. |
 | `coneAngle` | number in [0, π] | no | Spherical joints: cone half-angle. |
 | `stiffness` | `{hertz, dampingRatio?}` | no | How stiffly the joint holds its bodies together. Default 60 Hz with damping ratio 2. |
-| `userData` | object | no | |
+| `thresholds` | `{force?, torque?, breakable?}` | no | Version 3. See below. |
+| `drive` | object | motor joints | Version 3. See below. |
+| `maxTorque` | number ≥ 0 | no | Version 3, parallel joints: the largest torque the spring may use (N·m). |
+| `steering` | `{angle?, hertz?, dampingRatio?, maxTorque?, limits?}` | no | Version 3, wheel joints. See below. |
+| `userData` | object | no | Carried and never read by the format. `SceneRoles` reads `role` ([Scene roles](#scene-roles)). |
 
 Revolute and wheel joints turn about the frame's z axis. Prismatic travel and wheel suspension run along frame A's x axis. A spherical joint's cone is about the frame's z axis.
 
@@ -223,7 +227,26 @@ Which optional settings a joint type takes (anything else is an error):
 | `distance` | `length`, `limits`, `motor`, `spring` |
 | `wheel` | `limits`, `motor`, `spring` |
 
-Wheel steering (`setJointSteering`) is a runtime call, not part of `JointOptions`, and is not in the format.
+In versions 1 and 2 wheel steering is a runtime call only (`setJointSteering`); version 3 has it in the file.
+
+### Joints: version 3
+
+Version 3 is version 2 plus the following, on joints only. A file that declares version 1 or 2 and uses any of it is refused (`thresholds needs scene version 3; this scene declares version 2`).
+
+| Key | On | Fields | Meaning |
+|---|---|---|---|
+| `thresholds` | any joint | `force` (N, ≥ 0), `torque` (N·m, ≥ 0), `breakable` (boolean) | In every step in which the joint carries at least `force` or `torque` it reports a `joint-overload` event. With `breakable: true` it is destroyed at the end of that step and reports `joint-break` instead, with the force and torque it carried. 0 or absent is no threshold. |
+| `steering` | `wheel` | `angle` (rad), `hertz`, `dampingRatio`, `maxTorque` (N·m), `limits: {lower, upper}` (rad) | Steers the wheel about frame A's x axis (the suspension axis) towards `angle` with a spring. |
+| `drive` | `motor` | `linearVelocity`, `angularVelocity` (vectors in frame A), `maxVelocityForce`, `maxVelocityTorque`, `linearHertz`, `linearDampingRatio`, `angularHertz`, `angularDampingRatio`, `maxSpringForce`, `maxSpringTorque` | A motor joint holds a relative velocity with a bounded force, and/or pulls frame B onto frame A with bounded springs. |
+| `maxTorque` | `parallel` | number ≥ 0 | Bound on the spring of a parallel joint. |
+
+| Type (version 3) | What it does | Takes |
+|---|---|---|
+| `motor` | Drives body B relative to body A: a velocity target, a position target, or both, each with a force limit. | `drive` |
+| `parallel` | Keeps frame B's z axis parallel to frame A's with a spring; the bodies are otherwise free. | `spring`, `maxTorque` |
+| `filter` | Does nothing but stop its two bodies from colliding. Removing it restores the collision. | |
+
+`docs/RIGID_CORE.md`, section 5, has what each was measured against.
 
 ### Rotations
 
@@ -598,7 +621,7 @@ The Lab (`lab.html`) opens scene files with this module. Nothing is installed; a
 
 | How | What opens |
 |---|---|
-| `lab.html?example=<name>` | An example scene: `pendulum-wave`, `newtons-cradle`, `domino-run`, `terrain-car`, `ragdoll`, and the coupled ones: `moored-buoy`, `cable-stayed-deck`, `buoy-and-crates`, `trampoline`, `hopper-seesaw`, `suspended-platform`, `rubber-pad`, `notched-beam`, `quenched-plate`, `heated-bar`, `sphere-settling`, `cavity-flow`, `flow-past-cylinder`, `dam-break`. |
+| `lab.html?example=<name>` | An example scene: `pendulum-wave`, `newtons-cradle`, `domino-run`, `terrain-car`, `ragdoll`; the rigid-core ones: `obstacle-course`, `vehicle-terrain`, `laser-scanner`, `bullet-plates`, `breakable-bridge` (the first two take the keyboard, see [`docs/RIGID_CORE.md`](RIGID_CORE.md#8-examples-and-scene-roles)); and the coupled ones: `moored-buoy`, `cable-stayed-deck`, `buoy-and-crates`, `trampoline`, `hopper-seesaw`, `suspended-platform`, `rubber-pad`, `notched-beam`, `quenched-plate`, `heated-bar`, `sphere-settling`, `cavity-flow`, `flow-past-cylinder`, `dam-break`. |
 | `lab.html?scene=b3s1…` | A share link from `encodeSceneLink`. `#scene=…` in the fragment works too. |
 | `lab.html?scene=%7B…%7D` | The scene JSON itself, URL-encoded, up to 65,536 characters. |
 | The **Scenes** panel, bottom right: **Open file…**, or drop a file anywhere on the page | A scene file (`.json`), or geometry (`.obj`, `.stl`, `.glb`, `.gltf`; drop a `.gltf` together with its `.bin`). |
@@ -678,10 +701,11 @@ A world has room for 4,096 bodies unless it was created with a larger `capacity`
 ## Versioning
 
 - `version` is an integer. This document describes versions 1 and 2.
-- A reader accepts exactly the versions it knows. This build reads 1 and 2 and rejects any other number with `unsupported scene version N; this build reads versions 1 and 2`; a reader from before version 2 rejects a version 2 file with `unsupported scene version 2; this build reads version 1 only`. Neither guesses.
+- A reader accepts exactly the versions it knows. This build reads 1, 2 and 3 and rejects any other number with `unsupported scene version N; this build reads versions 1, 2 and 3`; a reader from before version 2 rejects a version 2 file with `unsupported scene version 2; this build reads version 1 only`. Neither guesses.
 - **Version 2** is version 1 plus the `compound` shape kind and the body key `massData`. Nothing else differs: every version 1 file is read as before, and gives the same canonical text and `sceneHash` as before (the kit test pins the hashes of the five example scenes from before version 2).
+- **Version 3** is version 2 plus the joint keys `thresholds`, `drive`, `maxTorque` and `steering` and the joint types `motor`, `parallel` and `filter` ([Joints: version 3](#joints-version-3)). Nothing else differs, and every version 1 and version 2 file keeps its canonical text and hash. It was made because a reader that ignored a breakable weld or a motor joint would simulate another mechanism.
 - A version 2 feature in a file that declares version 1 is an error (`a 'compound' shape needs scene version 2; this scene declares version 1`), so that a version 1 reader is never handed a file it would reject for a reason it cannot name.
-- The normal form, and so the canonical text, a save and a share link, carries the lowest version that can hold the scene. A file that declares version 2 and uses neither feature is the version 1 scene: same text, same hash.
+- The normal form, and so the canonical text, a save and a share link, carries the lowest version that can hold the scene. A file that declares version 2 and uses neither feature is the version 1 scene: same text, same hash; a file that declares version 3 and uses no version 3 joint setting is the version 2 or version 1 scene it would otherwise be.
 - Within a version the schema is closed: unknown keys are errors. That keeps typos from being silently ignored and keeps canonical text and hashes well defined.
 - Additive data that a version 1 reader may ignore goes in `extensions` (scene-wide) or `userData` (per body or joint). Use a key you own, for example your tool's name.
 - The `water`, `cables` and `frames` sections were added to version 1 without a new number. They are optional, a scene without them is byte for byte the scene it was (same canonical text, same `sceneHash`), and a reader from before them does not misread a scene that has them: it rejects it with `/water: unknown key "water"`, because the schema is closed. A reader cannot tell from the version alone whether it can run a file; `sceneHasCoupling(scene)` says whether a scene needs a Simulation.
@@ -705,6 +729,30 @@ A world has room for 4,096 bodies unless it was created with a larger `capacity`
 | `dominoRunScene()` | 12 boxes; the first leans past its tipping point. |
 | `terrainCarScene()` | A chassis on four wheel joints with suspension and motors, on a height field. No ground slab. |
 | `ragdollScene()` | A capsule torso, a sphere head and 8 capsule limbs on 9 spherical joints with cone and twist limits. |
+
+`RIGID_CORE_EXAMPLE_SCENES` maps five more names to rigid scenes that show the rigid core ([`docs/RIGID_CORE.md`, section 8](RIGID_CORE.md#8-examples-and-scene-roles)). Three of them are played through roles ([Scene roles](#scene-roles)). They are kept out of `EXAMPLE_SCENES` so that the list older code and tables know stays what it was; the Lab opens all of them.
+
+| Function | Version | Contents |
+|---|---|---|
+| `obstacleCourseScene()` | 1 | A kinematic capsule (`role: 'character'`) and a course: four stairs, a ramp, a crate to push, a ledge, a moving platform (`role: 'platform'`), a 60° slope and a wall it cannot climb. |
+| `vehicleTerrainScene()` | 3 | A 1,200 kg chassis (`role: 'vehicle'`) on four wheel joints (`role: 'wheel'`) with steering, on a 128 m height field. |
+| `laserScannerScene()` | 1 | A scanner (`role: 'laser'`) among eight static bodies, a pendulum and a rolling ball. |
+| `bulletPlatesScene()` | 1 | Three lanes at 60 Hz: 150 m/s balls against thin free plates without and with `bullet: true`, and against a thin static wall. |
+| `breakableBridgeScene()` | 3 | Eight planks on nine welds with `thresholds` and `breakable: true`, and a 300 kg block 2 m above them. |
+
+### Scene roles
+
+`userData.role` on a body or a joint is read by `SceneRoles` (`src/engine/scene-roles.ts`, exported by `box3d-webgpu-kit/gameplay`), never by the format: a file with roles is an ordinary scene to every other reader. `attachSceneRoles(loaded, {input})` attaches them to a loaded scene and registers them with its Simulation, so `loaded.simulation.step()` plays the scene and `simulation.checkpoint()` holds their state.
+
+| `role` | On | Other `userData` fields | What is attached |
+|---|---|---|---|
+| `character` | a kinematic capsule body (at most one) | `radius`, `height`, `speed`, `jump`, `maxSlopeDegrees`, `stepHeight`, `maxPushForce`, `route: [[x, z] or [x, z, 1], ...]` | A `CapsuleCharacterController`; the body is moved to where the controller is. Without input it walks `route` (a third element of 1 jumps at that point; a point it cannot reach is given up after twice the time the leg should take, plus 2 s). |
+| `platform` | a kinematic body | `axis`, `amplitude` (m), `period` (s) | A sinusoidal travel about where the body was loaded. |
+| `vehicle` | a chassis body (at most one) | `maxDriveTorque`, `maxBrakeTorque`, `maxSteerAngle`, `maxWheelSpeed`, `dragArea`, `stiffness`, `damping`, `autopilot: {throttle, steer, brake, speed}` | A `Vehicle` over the body and the wheel joints from it. Without input: the autopilot's pedals, with the throttle let go above `speed`. |
+| `wheel` | a wheel joint whose `bodyA` is the vehicle | `position` (in the chassis frame), `radius`, `steered`, `driven`, `braked` | One wheel of the vehicle. |
+| `laser` | any body | `origin`, `rays`, `range`, `spin` (rad/s), `pitch: [rad, ...]` | A fan of `rays` rays about the vertical through `origin`, cast in one `castRayBatch` call per step; `roles.beams()` has where each ended. |
+
+Settings that cannot be used (a character on a body that is not kinematic, a vehicle with fewer than two wheels) throw `INVALID_PAYLOAD` naming the body or joint, before anything is attached.
 
 `COUPLED_EXAMPLE_SCENES` maps sixteen more names to scenes with coupled sections. They are kept out of `EXAMPLE_SCENES` because a loader without a Simulation (the core `loadScene`) cannot open them; the Lab opens all of them.
 

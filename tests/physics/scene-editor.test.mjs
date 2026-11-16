@@ -52,7 +52,7 @@ test('a new document is an empty, valid SI scene with the ground slab', () => {
   assert.deepEqual([doc.canUndo, doc.canRedo, doc.undoLabel, doc.revision], [false, false, null, 0]);
   assert.equal(doc.undo(), null);
   assert.equal(doc.redo(), null);
-  assert.throws(() => new SceneDocument({format: 'box3d-scene', version: 3, bodies: []}), /unsupported scene version/);
+  assert.throws(() => new SceneDocument({format: 'box3d-scene', version: 4, bodies: []}), /unsupported scene version/);
   assert.throws(() => new SceneDocument(EXAMPLE_SCENES['pendulum-wave'](), {historyLimit: 0}), RangeError);
   const withWater = {...emptyScene(), water: [{id: 'w', cols: 4, rows: 4, dx: 1, dz: 1, restDepth: 1, origin: [0, 0, 0]}]};
   assert.deepEqual(validateScene(withWater), []);

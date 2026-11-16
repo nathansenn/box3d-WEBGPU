@@ -24,7 +24,7 @@ const world = await createWorld({
 ## Numbers and their ranges
 
 The rigid world holds single-precision numbers. Positions stay within 100 km of the origin and are precise to about a
-millimetre within 16 km; convex shapes are at most 1 km across a half extent and at least 0.1 mm. Values outside the
+millimetre within 16 km; the convex shapes of a dynamic body are at most 1 km across a half extent (of a static or kinematic body 100 km) and at least 0.1 mm. Values outside the
 [accepted ranges](../../reference/errors.html) are refused with `INVALID_PAYLOAD`, the field named in the message.
 
 Model at human scale: a shape thinner than a centimetre is below the 5 mm contact tolerance and will not rest

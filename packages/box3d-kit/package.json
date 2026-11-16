@@ -110,6 +110,8 @@
     },
     "./wasm/box3d.js": "./wasm/box3d.js",
     "./wasm/box3d.wasm": "./wasm/box3d.wasm",
+    "./wasm/box3d-mt.js": "./wasm/box3d-mt.js",
+    "./wasm/box3d-mt.wasm": "./wasm/box3d-mt.wasm",
     "./package.json": "./package.json"
   },
   "files": [

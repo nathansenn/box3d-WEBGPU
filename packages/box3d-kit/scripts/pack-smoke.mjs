@@ -38,19 +38,31 @@ const SOLVERS = ['compliant-cable', 'linear-water', 'closed-water', 'water-coupl
   'scene-format', 'scene-examples', 'geometry', 'simulation', 'robot-import', 'solid-fracture', 'cloth', 'granular', 'granular-kernels', 'fluid', 'fluid-multigrid', 'shallow-water', 'solid-contact', 'materials'].map(name => `core/${name}.js`);
 // Budgets in bytes of gzip (level 9), set from the measured sizes of 1.0.0-rc.1 with about 15 % of headroom, rounded up to
 // a kibibyte. Raise one deliberately, in review, with the measurement in the commit message; never silently.
+// Raised with the rigid-core merge (measured then, KiB): box3d.wasm 704.2 raw (was under 700), main entry 75.3 (58.8: the
+// queries, mover, joint events, world controls, profile and debug draw), worker 81.4 (63.9), gameplay 83.7 (32.5: Vehicle
+// and CapsuleCharacterController), solid 65.8 (54.0: the concrete law), scene-format 80.4 (62.7: the example scenes and
+// the vehicle's suspension helper), dist/single.js 412.3 gzip (it was 411.3 of 412 before the concrete speed-up and the
+// von Karman plate of bf0b767). The pthread artifact is new and has budgets of its own (mt*).
 const KiB = 1024;
+// The tarball: both WebAssembly builds and everything else. Measured 1,434 KiB at rc.1 and 1,915.7 KiB after the
+// rigid-core merge, of which the pthread artifact is about 290 KiB compressed.
+const PACKED_BUDGET = 2194 * KiB;
 const BUDGET = {
-  wasm: 700 * KiB, wasmGzip: 275 * KiB, wasmBrotli: 210 * KiB, glue: 26 * KiB, singleGzip: 412 * KiB, packed: 1650 * KiB,
-  /** A Vite bundle of a program that uses only createWorld, createBody and step. Measured 27.9 KiB. */
-  rigidBundle: 33 * KiB,
-  // Measured (KiB): main 58.8, three 2.0, babylon 0.9, worker 63.9, gameplay 32.5, cable 24.2, water 2.7, coupling 24.6, frame 22.9,
-  // structure 27.4, heat 24.2, solid 54.0, fracture 113.9, solid-contact 91.3, cloth 62.4, granular 56.2, fluid 49.2, shallow-water 32.7,
-  // materials 34.0, geometry 28.0, scene-format 62.7, robot 64.0, and scene 388.3 and simulation 387.0, which load every solver.
+  wasm: 810 * KiB, wasmGzip: 275 * KiB, wasmBrotli: 210 * KiB, glue: 26 * KiB, singleGzip: 475 * KiB, packed: PACKED_BUDGET,
+  // box3d-mt.{js,wasm}: loaded only by loadBox3D({threads: 2 or more}), never by an import, so in no entry's closure.
+  // Measured 711.8 KiB raw, 279.5 gzip, 213.1 brotli, glue 38.2.
+  mtWasm: 819 * KiB, mtWasmGzip: 322 * KiB, mtWasmBrotli: 246 * KiB, mtGlue: 44 * KiB,
+  /** A Vite bundle of a program that uses only createWorld, createBody and step. Measured 27.9 KiB, 37.6 after the rigid-core merge. */
+  rigidBundle: 43 * KiB,
+  // Measured after the rigid-core merge (KiB): main 75.3, three 2.0, babylon 0.9, worker 81.4, gameplay 83.7, cable 24.7, water 2.7,
+  // coupling 25.1, frame 23.4, structure 27.9, heat 24.7, solid 65.8, fracture 124.2, solid-contact 102.9, cloth 63.0, granular 57.4,
+  // fluid 49.7, shallow-water 33.4, materials 35.0, geometry 28.6, scene-format 80.4, robot 64.3, and scene 411.6 and simulation
+  // 410.3, which load every solver.
   entry: {
-    '.': 68 * KiB, './three': 3 * KiB, './babylon': 2 * KiB, './worker': 74 * KiB, './gameplay': 38 * KiB,
+    '.': 85 * KiB, './three': 3 * KiB, './babylon': 2 * KiB, './worker': 92 * KiB, './gameplay': 95 * KiB,
     './cable': 28 * KiB, './water': 4 * KiB, './coupling': 29 * KiB, './frame': 27 * KiB, './structure': 32 * KiB, './heat': 28 * KiB,
-    './solid': 63 * KiB, './fracture': 131 * KiB, './solid-contact': 105 * KiB, './cloth': 72 * KiB, './granular': 65 * KiB, './fluid': 57 * KiB, './shallow-water': 38 * KiB,
-    './materials': 40 * KiB, './geometry': 33 * KiB, './scene-format': 72 * KiB, './robot': 74 * KiB, './scene': 447 * KiB, './simulation': 446 * KiB,
+    './solid': 75 * KiB, './fracture': 131 * KiB, './solid-contact': 105 * KiB, './cloth': 72 * KiB, './granular': 65 * KiB, './fluid': 57 * KiB, './shallow-water': 38 * KiB,
+    './materials': 40 * KiB, './geometry': 33 * KiB, './scene-format': 92 * KiB, './robot': 74 * KiB, './scene': 447 * KiB, './simulation': 446 * KiB,
   },
 };
 const size = {
@@ -59,6 +71,10 @@ const size = {
   wasmBrotli: brotliCompressSync(readFileSync(join(pkg, 'wasm/box3d.wasm'))).length,
   glue: readFileSync(join(pkg, 'wasm/box3d.js')).length,
   singleGzip: gzipSync(readFileSync(join(pkg, 'dist/single.js')), {level: 9}).length,
+  mtWasm: readFileSync(join(pkg, 'wasm/box3d-mt.wasm')).length,
+  mtWasmGzip: gzipSync(readFileSync(join(pkg, 'wasm/box3d-mt.wasm')), {level: 9}).length,
+  mtWasmBrotli: brotliCompressSync(readFileSync(join(pkg, 'wasm/box3d-mt.wasm'))).length,
+  mtGlue: readFileSync(join(pkg, 'wasm/box3d-mt.js')).length,
 };
 const entrySize = Object.fromEntries(entries.map(entry => [entry.name, gzipOf(closure(entry.file))]));
 const measureOnly = process.argv.includes('--measure');
@@ -68,9 +84,10 @@ if (measureOnly) {
 }
 {
   const core = closure('index.js'), pulled = core.filter(file => SOLVERS.includes(file));
-  // The format-only scene entry loads the format, its examples and the error table, and nothing else.
+  // The format-only scene entry loads the format, its examples, the error table, and the rigid helpers the examples use
+  // (the vehicle's suspension spring and the state encoder it brings), and no solver.
   const format = closure('scene-format.js').filter(file => file.startsWith('core/')).sort().join(' ');
-  if (format !== 'core/contracts.js core/scene-examples.js core/scene-format.js') throw new Error(`box3d-webgpu-kit/scene-format loads ${format}`);
+  if (format !== 'core/checkpoint.js core/contracts.js core/scene-examples.js core/scene-format.js core/vehicle.js') throw new Error(`box3d-webgpu-kit/scene-format loads ${format}`);
   if (pulled.length) throw new Error(`the main entry reaches solver modules: ${pulled.join(', ')}. \`import {PhysicsWorld} from 'box3d-webgpu-kit'\` must not load them.`);
   const unlisted = entries.filter(entry => !(entry.name in BUDGET.entry));
   if (unlisted.length) throw new Error(`no size budget for ${unlisted.map(e => e.name).join(', ')}`);
@@ -81,6 +98,7 @@ try {
   const [packed] = JSON.parse(sh('npm', ['pack', '--json', '--ignore-scripts', '--pack-destination', work], pkg));
   const files = packed.files.map(f => f.path);
   size.packed = packed.size;
+  if (measureOnly) console.log(`${'packed'.padEnd(26)} ${(packed.size / KiB).toFixed(1).padStart(8)} KiB`);
   const over = [...Object.entries(size).filter(([k, v]) => v > BUDGET[k]).map(([k, v]) => `${k} ${v} > ${BUDGET[k]}`), ...Object.entries(entrySize).filter(([k, v]) => v > BUDGET.entry[k]).map(([k, v]) => `import '${k}' ${v} > ${BUDGET.entry[k]}`)];
   if (over.length && !measureOnly) throw new Error(`size budget exceeded (bytes): ${over.join(', ')}`);
   for (const required of ['dist/index.js', 'dist/index.d.ts', 'dist/three.js', 'dist/worker.js', 'dist/worker.d.ts', 'dist/babylon.js', 'dist/core/build-info.js', 'dist/shared-frames.js', 'dist/session.js', 'dist/inspector.js', 'api/API.md', 'CHANGELOG.md', 'dist/single.js', 'dist/cable.js', 'dist/water.js', 'dist/coupling.js', 'dist/frame.js', 'dist/heat.js', 'dist/gameplay.js', 'bin/box3d-kit.mjs', 'templates/three/main.js', 'wasm/box3d.js', 'wasm/box3d.wasm', 'LICENSE', 'wasm/BOX3D_LICENSE.txt', 'THIRD_PARTY_NOTICES.md', 'dist/geometry.js', 'dist/solid.js', 'dist/scene.js', 'dist/robot.js', 'dist/robot.d.ts', 'dist/core/robot-import.js', 'dist/fracture.js', 'dist/fracture.d.ts', 'dist/core/solid-fracture.js', 'dist/cloth.js', 'dist/solid-contact.js', 'dist/cloth.d.ts', 'dist/core/cloth.js']) {

@@ -113,6 +113,19 @@ branches on wet and dry faces do not vectorise without masking, and the JavaScri
 scalar native loop. The Lab's two examples (3,072 and 5,760 cells) run at 4 and 4 times real time in node; the
 Studio's 84 x 28 grid runs its presets at 0.2 to 1.7 s of CPU per simulated second under that load.
 
+### On the GPU (2026-11-16)
+
+`src/engine/gpu/shallow-water-gpu.ts` is a WebGPU compute backend of this scheme in float32, opt-in; this solver stays
+the reference ([`GPU_COMPUTE.md`](GPU_COMPUTE.md)). One cell is one invocation that gathers its four face fluxes; the
+substep count of a step comes from a measuring pass (32 bytes read back) or from the face speeds of an earlier step; the
+depth takes every increment with a per-cell carry, so the volume is conserved to the rounding of the increments.
+Checked through a float32 CPU reference of the same algorithm that runs this document's set-ups unchanged
+(`npm run test:gpu`) and, with the shaders running, in headless Chromium on SwiftShader: 22 of the rows above pass, 18
+with this solver's tolerance; float32 needs 2e-5 m/s and 5e-7 m for the lake at rest (measured 6e-6 and 4e-8) and 1e-6
+for the volume budget (measured 4e-8). A million cells take 64 MB. **Its speed on a real GPU has not been measured**
+(this machine has none; the command is in GPU_COMPUTE.md). Coupled bodies, point sources and checkpoints are not on the
+GPU, and the scene format and the Studio's river tabs still run this solver.
+
 ## Limits
 
 - Shallow water only: hydrostatic pressure, depth-averaged velocity, no vertical acceleration (no dispersion, no

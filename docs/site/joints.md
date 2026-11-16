@@ -33,8 +33,9 @@ second argument.
 These are the rules `world.diagnose()` checks ([the table](../../reference/errors.html)):
 
 - Keep the masses on a joint within about 10 to 1.
-- Keep a joint's spring or `stiffness` frequency below one eighth of the sub-step rate (30 Hz at 60 Hz with 4
-  sub-steps). Raise `subSteps` for stiffer joints.
+- Keep a joint's spring or `stiffness` frequency at or below a quarter of the sub-step rate (60 Hz at 60 Hz with 4
+  sub-steps), where Box3D caps a joint's stiffness. Raise `subSteps` for stiffer joints, with `jointStiffness:
+  'match-substeps'` or a per-joint `stiffness`.
 - Put each frame near its body: within 50 radii of gyration of the centre of mass.
 - Do not ask one body to satisfy joints that contradict each other.
 

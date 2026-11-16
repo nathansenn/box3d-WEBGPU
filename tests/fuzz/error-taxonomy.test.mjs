@@ -87,11 +87,11 @@ test('world.diagnose() names each rule with its numbers, and is empty for a soun
     world.createJoint({type: 'spherical', bodyA: heavy, bodyB: light, frameA: {position: [0, 0.6, 0]}});
     let found = world.diagnose().find(f => f.rule === 'mass-ratio');
     assert.equal(found.severity, 'warning'); assert.ok(found.numbers.ratio > 1000 && found.numbers.limit === 10, JSON.stringify(found.numbers)); assert.match(found.message, /ratio of \d+\.\d to 1/);
-    // joint frequency: 60 Hz x 4 sub-steps resolves 30 Hz
+    // joint frequency: 60 Hz x 4 sub-steps, Box3D caps a joint at 60 Hz (joint.c: 0.25 / h)
     const c = world.createBody({shape: {kind: 'box', halfExtents: [0.4, 0.4, 0.4]}, position: [6, 0.4, 0]});
     world.createJoint({type: 'weld', bodyA: null, bodyB: c, frameA: {position: [6, 0.4, 0]}, stiffness: {hertz: 100}});
     found = world.diagnose().find(f => f.rule === 'joint-frequency');
-    assert.deepEqual({hertz: found.numbers.hertz, limit: found.numbers.limit, rate: found.numbers.subStepRate}, {hertz: 100, limit: 30, rate: 240});
+    assert.deepEqual({hertz: found.numbers.hertz, limit: found.numbers.limit, rate: found.numbers.subStepRate}, {hertz: 100, limit: 60, rate: 240});
     // joint lever: a frame 30 m from a 0.4 m box
     const d = world.createBody({shape: {kind: 'box', halfExtents: [0.4, 0.4, 0.4]}, position: [9, 0.4, 0]}), e = world.createBody({shape: {kind: 'box', halfExtents: [0.4, 0.4, 0.4]}, position: [9, 30, 0]});
     world.createJoint({type: 'distance', bodyA: d, bodyB: e, frameA: {position: [0, 29.6, 0]}, length: 1});

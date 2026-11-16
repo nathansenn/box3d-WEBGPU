@@ -32,6 +32,15 @@ const FILES = [
   'test/v18-fluid.test.mjs',
   'test/v19-checkpoint.test.mjs',
   'test/v20-shallow-water.test.mjs',
+  'test/v22-rigid-queries.test.mjs',
+  'test/v22-rigid-character.test.mjs',
+  'test/v22-rigid-ccd.test.mjs',
+  'test/v22-rigid-vehicle.test.mjs',
+  'test/v22-rigid-joints.test.mjs',
+  'test/v22-rigid-controls.test.mjs',
+  'test/v22-rigid-examples.test.mjs',
+  'test/v22-rigid-scale.test.mjs',
+  'test/v21-ray-batch.test.mjs',
 ];
 const tests = spawnSync(process.execPath, ['--test', ...FILES], {stdio: 'inherit'});
 const clean = spawnSync(process.platform === 'win32' ? 'npm.cmd' : 'npm', ['run', 'clean'], {stdio: 'inherit'});

@@ -27,7 +27,8 @@ Even with cells about as wide as the plate is thick the tetrahedra are four to t
 ### The plate (`src/engine/plate.ts`, solver id `plate-kirchhoff-fd-explicit-js-f64-v1`)
 
 - **Bending.** Kirchhoff plate in the x-y plane, deflection `w` along z, flexural rigidity `D = E t³ / (12 (1 − ν²))`. Nodes on a regular grid. The energy is a sum of finite-difference curvatures: per node `½ D A (κxx² + κyy² + 2ν κxx κyy)` with `κxx` from the node and its two x-neighbours, per cell `D (1 − ν) κxy² hx hy` with `κxy` from its four corners. Forces are the exact gradient of that energy, assembled as a 5 × 5 stencil per node. For a simply supported plate the sine modes are exact eigenvectors of this grid, so its frequencies are known in closed form (`plateGridFrequency`).
-- **Supports.** Nodes held at `w = 0`, springs to `w = 0`, and springs on the difference of two nodes (a clamp's rotational restraint).
+- **Membrane action (`membrane: true`, von Kármán; on in the lab since 2026-11-16).** Each node also has in-plane displacements u, v. On each intact cell the membrane strains `u_x + w_x²/2`, `v_y + w_y²/2`, `u_y + v_x + w_x w_y` (bilinear interpolation, 2 × 2 Gauss points) carry the forces `N = E t / (1 − ν²) (...)`, so a deflection of the order of the thickness stretches the middle surface and stiffens the plate. The in-plane displacements are in equilibrium at every step (their inertia is neglected, their waves are some 30 times faster than the bending of interest): one solve with a banded Cholesky factor of the in-plane stiffness, formed again after each crack; with `tieInPlane` (straight edges free to move) conjugate gradients instead. The membrane forces on w are the exact gradient of the membrane energy at in-plane equilibrium; the stability limit adds a bound on the membrane tangent; the fracture check reads the surface stress `N / t ± 6 M / t²` (the larger principal stress of either face). A plate flat to 1e-4 of its thickness skips the in-plane solve. `relax()` finds the nonlinear static deflection by dynamic relaxation with kinetic damping.
+- **Supports.** Nodes held at `w = 0`, springs to `w = 0`, and springs on the difference of two nodes (a clamp's rotational restraint); in plane, `holdInPlane` and `tieInPlane`.
 - **Time.** Explicit symplectic Euler, lumped mass `ρ t A` per node (plus an added areal mass for an interlayer). The step is limited by a Gershgorin bound on `M⁻¹K` including supports, contact springs the caller declares and bridging membranes; a step above it is refused. Mass damping and caller dashpots are taken implicitly. The step length must stay constant: symplectic Euler gains energy when it changes from one step to the next (seen as a blow-up when a remainder step closed each frame), so the lab splits each 1/120 s tick into equal sub-steps.
 - **Fracture.** A crack is a broken bond between two neighbouring nodes; every curvature term that spans it is dropped, so no moment or shear crosses it. After each step, every intact bond whose mid-point principal surface stress `6 |M| / t²` (the mean of its two nodes' moments) minus the surface prestress reaches the strength breaks, if that principal direction is within 45° of the bond. Pieces are the groups of nodes joined by a shared curvature term; a piece is handed to the lab when it is free.
 - **Toughened glass.** A surface prestress `σ_p` raises the stress the bending must reach to `σ_c + σ_p`. After the first crack, a dicing front breaks every bond within `v_d (t − t₀)` of the origin.
@@ -40,9 +41,9 @@ Even with cells about as wide as the plate is thick the tetrahedra are four to t
 | Pane | 2.6 m × 2.0 m, thickness 3–24 mm (control), 26 × 20 cells of 0.1 m | the rig (`glass-rig.ts`) |
 | Annealed, frosted, bronze glass | E 72 GPa, ν 0.23, ρ 2500 kg/m³, flexural strength 41 MPa | `soda-lime-glass` (Continental Trade sheet) |
 | Toughened (tempered) | strength 41 MPa plus a surface compression of 165 − 41 = **124 MPa** (toughened minus annealed flexural strength of the same sheet) | `soda-lime-glass-toughened` (new entry, same sheet). ASTM C1048 requires at least 69 MPa (Efferz et al. 2024) |
-| Dicing | front at 1500 m/s; about **1 fragment per MPa** in a 50 mm square: ≈ 124 for 124 MPa | 1500 m/s **unverified** (the order of the terminal crack speed of soda-lime glass, not read in a source). 0.8–1.2 fragments per MPa for thin glass, EN 12150 minimum 40: Efferz, Thiele, Schuster, Schuler, Siebert, Schneider, *Relation between edge stress, bending strength, surface stress and fracture pattern of thermally toughened glass*, Glass Struct. Eng. (2024), doi 10.1007/s40940-024-00269-w |
+| Dicing | front at **1466 m/s**; about **1 fragment per MPa** in a 50 mm square: ≈ 124 for 124 MPa | 1466 m/s within 1 %: Nielsen, Olesen and Stang, *The fracture process of tempered soda-lime-silica glass*, Exp. Mech. 49 (2009) 855–870, high-speed cameras, as stated on DTU's tempered-glass research page (<https://www.cse.byg.dtu.dk/research/tempered-glass>; the paper itself was not opened). 0.8–1.2 fragments per MPa for thin glass, EN 12150 minimum 40: Efferz, Thiele, Schuster, Schuler, Siebert, Schneider, *Relation between edge stress, bending strength, surface stress and fracture pattern of thermally toughened glass*, Glass Struct. Eng. (2024), doi 10.1007/s40940-024-00269-w |
 | Laminated | annealed plies bending as one section; 0.76 mm PVB, E 33 MPa, ρ 1070 kg/m³: membrane 25.1 kN/m, +0.81 kg/m² | `pvb-interlayer` (new entry): AGC, *Material properties of PVB interlayers, Stratobel*, 2022 — 33 MPa is the 3 s, 0–20 °C value, the shortest tabulated |
-| Wired | annealed plus a steel mesh of 0.46 mm wire at 12.5 mm: membrane 2.79 MN/m | E of `structural-steel-s235`; mesh geometry **unverified** (typical, not read) |
+| Wired | annealed plus a steel mesh of 0.46 mm wire at 12.7 mm: membrane 2.75 MN/m | E of `structural-steel-s235`; mesh 1/2 in × 1/2 in from AGC's wired glass sheet (*InfoSheet 2023 Wired*: "The dimensions of each wire mesh element is 1/2” × 1/2”"); EN 572-6 is summarised as 12.5 or 25 mm meshes (not opened); wire diameter **unverified** |
 | Borosilicate | E 64 GPa, ν 0.2, ρ 2230 kg/m³, bending strength 25 MPa | `borosilicate-glass` (new entry): SCHOTT BOROFLOAT 33 datasheet |
 | Acrylic | E 3.3 GPa, ν 0.37, ρ 1190 kg/m³, flexural strength 115 MPa (treated as brittle) | `pmma` (Evonik PLEXIGLAS GS) |
 | Clamp pads | 6 natural-rubber pads (E 1.5 MPa), 24 mm thick, 210 mm tall, 55 mm over the pane edge, both faces: 1.44 MN/m per pad, rotation 363 N m/rad, × the "Clamp pad stiffness" control | `natural-rubber` |
@@ -74,8 +75,17 @@ The 2.6 m × 2.0 m × 8 mm soda-lime pane, simply supported on all edges.
 | A cut line through a free plate | two pieces; masses and momenta sum; spin from the velocity gradient | to 10⁻¹³ | 10⁻¹³ |
 | Bridging tie on the same cut | one piece | one piece | exact |
 | Determinism of a cracking run | bit-identical | identical | bit equality |
+| Von Kármán, square plate, edges held in plane (ν = 0.316, 16 × 16 cells), w_center / h at p a⁴ / (E h⁴) = 14.78, 51.4, 132.0, 278.5 | Levy, NACA Report 737 (1942), Table 9 (scan opened on NTRS): 0.485, 0.952, 1.402, 1.846 (true value 1.827 to 1.846) | 0.4844, 0.9513, 1.4012, 1.8406 (−0.29 % at the largest; linear theory 12.22) | 1 % |
+| The same, average edge tension, −p_x a² / (E h²) | Table 10: 0.451, 1.816, 4.12, 7.38 | 0.466, 1.866, 4.21, 7.50 (+1.6 to +3.3 %) | 4 % |
+| Von Kármán, straight edges free to move, w_center / h at 12.1 … 497 (8 loads) | Levy, Table 6: 0.486 … 3.600 (true value at 247: 2.704 to 2.743) | within 0.69 % at all eight (−0.69 % at 497, the largest; 2.7397 at 247) | 1 % |
+| Mesh, edges held, p a⁴ / (E h⁴) = 278.5 | converged | 1.8555, 1.8406, 1.8369 on 8, 16, 32 cells | 1.5 % (8 against 32 cells) |
+| Small load (10⁻³) | the linear plate | within 10⁻⁶ | 10⁻⁶ |
+| Forces against central differences of the energy | exact gradient | 2.1·10⁻⁸ | 10⁻⁵ |
+| Free vibration at two thicknesses | bounded energy oscillation, falling with the step, no drift | 2.1 % at 0.2 of the limit, 1.1 % at 0.1, the same in both halves of the run | — |
+| Fracture check with membrane stress | membrane plus bending at the centre | sees ≥ 97.4 MPa where bending alone gives 54.2 MPa; cracks at a strength between the two | exact |
+| Checkpoint of a cracking von Kármán plate | bit-identical, in-plane state included | identical | bit equality |
 
-**Not validated:** the impact itself (contact force history, rebound), crack paths and fragment counts, the dicing front and fragment size (inputs), the membranes' strength (they never tear), fragment trajectories. No plate model can be checked against the Studio's real pendulum: there is no test of that rig.
+**Not validated:** von Kármán with a crack or a bridging layer (the membrane acts on intact cells only; the bridging tie is still a string with in-plane motion neglected), the impact itself (contact force history, rebound), crack paths and fragment counts, the dicing front and fragment size (inputs), the membranes' strength (they never tear), fragment trajectories. No plate model can be checked against the Studio's real pendulum: there is no test of that rig.
 
 ### What the presets give (first 3 s; `tests/studio/material-labs.test.mjs`)
 
@@ -89,6 +99,21 @@ The 2.6 m × 2.0 m × 8 mm soda-lime pane, simply supported on all edges.
 | Wired retention | cracks; held by the mesh; sag 32–44 mm |
 
 The earlier authored test asked laminated travel to be below 30 % of annealed. Measured instead of forced: the laminate's 0.40 m sag against 5.8 m for the farthest annealed fragment (6.9 %), and against 6.6 mm for the annealed glass that stays in the frame. The old "thick panel" preset (25 kg from 0.4 m, 98 J on 24 mm) **breaks** in this model (67 MPa), so the preset was changed to 20 J; a hard 25 kg sphere at 2.8 m/s on 24 mm glass is also likely to break real glass (Hertzian stress), which the plate does not model.
+
+**With membrane action (2026-11-16)**, first 3 s, against the linear plate (same settings, Node 22, load about 12):
+
+| Preset | Peak force (kN) linear → von Kármán | Peak stress (MPa) | Largest deflection (mm) | Pieces | Real-time factor |
+|---|---|---|---|---|---|
+| Radial impact | 12.4 → 12.4 | 105.8 → 111.3 | 25.6 → 23.0 | 28 → 24 | 0.83 → 0.22 |
+| Tempered breakup | 11.0 → 30.6 | 256 → 304 | 25.9 → 74.0 | 567 → 567 | 0.68 → 0.71 |
+| Laminated retention | 10.4 → 18.9 | 121.0 → 121.7 | 622 → 589 | 1 → 1 | 0.86 → 0.057 |
+| Thick panel | 22.31 → 22.31 | 35.2 → 35.3 | 3.0 → 3.0 | intact | 0.32 → 0.082 |
+| Off-centre strike | 9.5 → 10.1 | 105.8 → 111.3 | 16.4 → 18.0 | 21 → 21 | 1.00 → 0.26 |
+| Frosted fracture | 10.9 → 13.3 | 106.2 → 111.8 | 28.1 → 26.0 | 30 → 31 | 0.87 → 0.24 |
+| Wired retention | 18.0 → 20.7 | 115.0 → 117.8 | 209 → 208 | 1 → 1 | 0.48 → 0.10 |
+| Acrylic comparison | 1.34 → 2.73 | 30.9 → 30.6 | 365 → 210 | intact | 2.35 → 0.32 |
+
+The acrylic sheet, deflected 45 thicknesses by the linear plate, is held to 26 thicknesses by its membrane, at twice the force; the tempered pane, stiffer, takes almost three times the force. The cost is the in-plane solve at every sub-step and, once the pane sags, a smaller stable step (the laminate takes 4.7 times the sub-steps: 87,280 against 18,720 in 3 s). Profiled on 2026-11-16: the banded Cholesky factor is formed only when a cell cracks, and the solve is direct (one forward and one back substitution per sub-step), so there is no iteration to warm-start; conjugate gradients, warm-started from the last field, run only with edges tied straight, which the lab does not use. What was removed, with the state unchanged to the bit on all eight presets: the load pass of the in-plane solve computed the full membrane energy (now only its gradient), the back substitution read the factor across rows (now a transposed copy read in order), and the fracture check allocated an array per bond and evaluated every bond (now a bound |s_x| + |s_y| + |s_xy| skips the bonds that cannot crack or raise the peak). Measured old and new back to back (3 s, Node, load about 12): 1.03 to 1.35 times faster, the lab at 0.09 to 0.64 times real time (radial impact 0.29, laminate 0.087, thick panel 0.12, acrylic 0.42), against 0.3 to 2.4 for the linear plate. What remains is the in-plane solve itself (about a third of the time) and the smaller step; a sparse factor with nested dissection, or a lab control that turns membrane action off, would be the next steps.
 
 ### Real time
 
@@ -109,11 +134,12 @@ Below 1 the lab plays slower than real time while it computes; the recorded run 
 
 ### Limits
 
-- Linear plate theory: a real pane deflected by several thicknesses stiffens as a membrane; here it does not.
+- Membrane action is in the unbroken cells (von Kármán, validated against Levy above); a cracked cell carries no membrane force, and the PVB and wire bridging stay strings with the in-plane motion neglected. In-plane inertia is neglected.
 - The bob loads one to four nodes, so the peak stress under it depends on the grid (the point-load moment of a Kirchhoff plate is logarithmically singular), and with 0.1 m cells and a 4.6 m/s strike the stress jumps by tens of MPa per sub-step: the "peak stress" readout overshoots the strength by up to 2.5× on the step the glass breaks. Hertzian contact cracks are not modelled.
-- Cracks follow the 0.1 m grid (staircases at 45°); the irregular tile outlines are drawn, not computed. Glass fragments finer than a cell are not resolved.
+- Cracks follow the 0.1 m grid (staircases at 45°); the irregular tile outlines are drawn, not computed. Glass fragments finer than a cell are not resolved. A grid twice as fine (52 × 40, `new GlassModel(settings, {cells: [52, 40]})`) gives 2.6 to 3.8 times more pieces, but runs 13 to 24 times slower (radial impact 0.011 times real time with membrane action, 0.061 without; the explicit step falls with the square of the cell size), so the lab keeps 0.1 m; no adaptive refinement.
 - Laminates bend as one section before breaking (an upper bound on their stiffness); after it, the PVB is a string at its 3 s modulus (a lower bound for an impact) that never tears; in-plane displacement is neglected, so the edges act as if held in-plane. The sag is therefore uncertain by a large factor.
-- Fragments do not collide with each other, the frame or the pendulum; they do not bounce; they slide with glass-on-glass friction.
+- Fragments do not collide with each other, the frame or the pendulum; they do not bounce; they slide with glass-on-glass friction. (Not done on 2026-11-16: the glass worker has no Box3D world, and no polygon contact was written and validated.)
+- A shard that hangs from the pane by a hinge (a row of nodes joined to the rest through one node) has no bending stiffness against its rotation; since 2026-11-16 such shards are found (`PlateBody.heldNodes`) and handed off as falling pieces. Before, with membrane action the edge strike's hinged shard swung 12 m out of the frame.
 - The pendulum passes through the cracked region; nodes it has passed are ignored.
 
 ## Elastomer lab
@@ -173,16 +199,17 @@ Before this change, in headless Chromium serving the built site, the worker repo
 
 Composite plasticity on the J2 structure of the solid (Green-Lagrange strain, return mapping from the committed state, erosion), described in [`SOLID_MECHANICS.md`](SOLID_MECHANICS.md#concrete-law):
 
-- **Compression:** associated Drucker-Prager `q + beta p = k(kappa_c)`. Elastic to 0.4 f_cm (E_cm is the secant modulus to 0.4 f_cm); then k follows EN 1992-1-1 3.1.5, expression (3.14) (`sigma_c / f_cm = (k eta - eta^2) / (1 + (k - 2) eta)`, `eta = eps_c / eps_c1`, `k = 1.05 E_cm |eps_c1| / f_cm`) to f_cm at eps_c1 and down to eps_cu1, then a straight tail to zero. After the peak the stress is a function of the plastic displacement across a band of width h (the element size): crack band. The tail is set so that a crushed band dissipates G_c = f_cm w_d / 2 per unit area, w_d = 0.5 mm, the plastic displacement that ends compressive softening in the ATENA model (after van Mier), read in A. Pizzocchero, *Calibration and validation of ATENA concrete material model with respect to experimental data*, MSc thesis, Padova 2015 ([PDF](https://thesis.unipd.it/retrieve/a9f59e86-598b-4002-9b82-ac5013317d92/Alessio_Pizzocchero.pdf)), not in van Mier's papers. For C30/37 an element of h = L_c = 0.118 m follows (3.14) exactly to eps_cu1.
-- **Friction parameter.** beta = 0.364 gives the equal-biaxial strength 1.16 f_c (Kupfer, Hilsdorf and Rüsch 1969, as widely quoted; the paper was not opened). Under lateral pressure the law gains `m = (1 + 2 beta / 3) / (1 - beta / 3)` = 1.41 per unit of lateral stress. EN 1992-1-1 3.1.9, (3.24) and (3.25), gives 5 at low and 2.5 at higher confinement: the law gains less. Fitting beta to (3.25) (beta = 1.44) gives a 150 mm cube 2.5 times f_cm through the associated dilatancy; beta = 0.6 gives 1.28 times and beta = 1.0 1.58 times (measured, the lab's mesh and friction).
+- **Compression:** `q r(theta) = k(kappa_c) Psi(xi / f_cm)`. The meridian Psi is EN 1992-1-1 3.1.9 ((3.24) and (3.25), opened in the scanned standard); r(theta) the Willam-Warnke section with the equal-biaxial strength 1.16 f_c (Kupfer, Hilsdorf and Rüsch 1969, abstract opened). Elastic to 0.4 f_cm, then k follows EN 1992-1-1 (3.14) to f_cm at eps_c1 and eps_cu1 in uniaxial compression, then a tail of area G_c = f_cm × 0.5 mm / 2 on the crack band.
+- **Non-associated flow:** plastic potential `q r(theta) + psi p` with psi = tan 30° (Isakov 2025 review of concrete damaged plasticity parameters), each step solved as an associated problem with the pressure of the last step (no unsymmetric solver). Under lateral pressure the law gains EN 1992-1-1's 1.25 and 1.625 f_cm at 0.05 and 0.2 f_cm within 0.4 %.
 - **Tension:** Rankine on each principal stress, linear softening in the crack opening w = kappa_t h with the area G_f = 73 f_cm^0.18 N/m (fib Model Code 2010, quoted in Sucharda 2020; the Model Code was not opened).
+- **Reinforcement:** truss bars embedded in the tetrahedra with perfect bond, B500B steel (E_s 200 GPa, f_yk 500 MPa, k 1.08, eps_uk 5 %: EN 1992-1-1 3.2.7 and Table C.1), elastic-plastic with the hardening of the inclined branch of 3.2.7 (2) a) (842 MPa).
 - **Damage** shown in the lab is the strength lost: `1 - k / k_peak` after the compressive peak, `1 - f_t / f_t0` in tension. Unloading is elastic (plasticity, not secant damage); cracks do not close.
 - **Erosion.** An element erodes when its compressive strength reaches zero (crushed) or its crack is 1 mm wide. In the lab an element left without a face neighbour (hanging by an edge or a corner) is removed too (`SolidBody.erode`).
 
 ### The lab model (`src/studio/material-labs/concrete-si.ts`)
 
 - **Specimen.** The 150 mm cube of EN 12390-3 (control: 100 or 150 mm), 5 × 5 × 5 cells of 5 tetrahedra (625 elements, band width 30 mm), drawn **eight times larger** (a 150 mm cube is drawn 1.2 m wide in the rig). A seeded scatter of element strength (normal, coefficient of variation 8 %, 15 % for the weathered mix, 5 % for C60/75 and ceramic) decides where it cracks; the specimen seed control changes it.
-- **Platens.** A static steel plane below and a kinematic steel box above through `SolidContact` with Coulomb friction 0.57 (control 0 to 0.6): the dry static coefficient of rolled steel plate on concrete cast against it, Rabbat and Russell, J. Struct. Eng. 111(3) (1985), as read in a search summary of the paper, **unverified** for a machined platen. The contact step starts from the free motion (`predictor: 'velocity'`) so the solve follows the loading path.
+- **Platens.** A static steel plane below and a kinematic steel box above through `SolidContact` with Coulomb friction 0.2 (control 0 to 0.6). 0.2 is the coefficient Středulová and Eliáš use between steel platens and concrete in their model of the compression test ("based on previous calibration ... a commonly considered value for contact of steel and concrete": *On the effect of friction in testing of small-scale concrete cylinders*, Engineering Mechanics 2023, Milovy, p. 239, [PDF](https://engmechy.it.cas.cz/improc/2023/239.pdf), opened): a calibrated model input, **not a measurement**. Measured coefficients of steel plate on concrete or grout cast against it are higher: 0.43 to 0.70 in the studies reviewed by Gomez, Kanvinde and Deierlein (AISC Engineering Journal 2011, [PDF](https://ej.aisc.org/index.php/engj/article/download/1021/1020), opened: Rabbat and Russell 1985, Baltay and Gjelsvik 1990, Cook and Klingner 1992 with a mean of 0.43 from 44 tests, Nagae et al. 2006 with 0.52, their own 0.46 at up to 2.7 MPa), none of them on a machined platen at 30 to 60 MPa. The lab used 0.57 until 2026-11-16; see the cube-to-cylinder rows below for what each value gives. The contact step starts from the free motion (`predictor: 'velocity'`) so the solve follows the loading path.
 - **Program.** Displacement control: the platen moves down at the set rate (‰ of the edge per second) to the set travel and holds. Backward Euler at 1/30 s. The test is quasi-static: the law has no rate effect and the cube's inertia is negligible at these platen speeds, so the simulated test runs faster than the EN 12390-3 rate (0.6 MPa/s) and gives the same curve. After the peak, a step that finds no equilibrium (the cube gives way faster than the platen moves) is undone and the machine stops there, as testing machines stop on a load drop; it also stops when the load falls below 30 % of the peak.
 - **Readouts.** Stress (MPa, platen force over the loaded area), strain (% of the edge), platen force (kN); a stress-strain chart of the run against the EN 1992-1-1 (3.14) cylinder curve of the mix; the status line gives the peak and how many elements spalled. Colour: grey to red by the strength lost; spalled elements are removed.
 - **Material panel.** f_cm, f_ctm, E, ν, ρ, eps_c1 / eps_cu1 and G_f as the model uses them, and what is sourced.
@@ -192,7 +219,7 @@ Composite plasticity on the J2 structure of the solid (Green-Lagrange strain, re
 |---|---|---|
 | Standard | C30/37: f_cm 38, f_ctm 2.9 MPa, E_cm 32.8 GPa, eps_c1 2.2 ‰, eps_cu1 3.5 ‰, G_f 141 N/m | library (`concrete-c30-37`), EN 1992-1-1 Table 3.1, fib MC2010 G_f |
 | High strength | C60/75: 68 / 4.35 MPa, 39.1 GPa, 2.6 / 3.0 ‰, 156 N/m | library (`concrete-c60-75`) |
-| Reinforced | **plain C30/37: bars are not modelled** | **authored, unverified**: the preset says so |
+| Reinforced | C30/37 with four 10 mm corner bars (axes on a square of 0.6 a, ending a / 15 short of the loaded faces) and 6 mm square links at a third and two thirds of the height, B500B, perfect bond; the bars are drawn as dark lines through the concrete and the status line gives the most stressed bar in % of f_yk | concrete and steel: library; the bar layout is **authored** |
 | Fibre | C30/37 matrix with a fibre tension softening (half f_t at 0.05 mm, 0.3 f_t at 2.5 mm, zero at 5 mm; G_f ≈ 4 kJ/m²) | matrix: library; fibre softening **unverified** |
 | Lightweight | LC25/28, density class 1.8, sanded: f_lcm 33, f_lctm 2.28 MPa, E_lcm 21.1 GPa, eps_lc1 = eps_lcu1 = 1.64 ‰, 1850 kg/m³ | library (`concrete-lc25-28`, EN 1992-1-1 section 11); eps_lc1 from a garbled scan (stated), G_f **unverified** |
 | Mortar | C20/25: 28 / 2.21 MPa, 30.0 GPa, 2.0 / 3.5 ‰, 133 N/m | library (`concrete-c20-25`); the mapping of a mortar onto a concrete class is **unverified** |
@@ -207,59 +234,63 @@ Composite plasticity on the J2 structure of the solid (Green-Lagrange strain, re
 
 ### Validation
 
-Engine rows (`tests/engine/solid-concrete.test.mjs` in `npm run test:solid`; rows `solid.concrete.*` of [`VALIDATION.md`](VALIDATION.md)):
+Engine rows (`tests/engine/solid-concrete.test.mjs` in `npm run test:solid`; rows `solid.concrete.*` of [`VALIDATION.md`](VALIDATION.md); details in [`SOLID_MECHANICS.md`](SOLID_MECHANICS.md#concrete-validation)):
 
 | Check | Reference | Measured | Tolerance |
 |---|---|---|---|
-| One cell, h = L_c, uniaxial compression: peak | f_cm = 38 MPa (Table 3.1) | 37.92 MPa | 0.5 % |
-| Strain at the peak | eps_c1 = 2.2 ‰ | 2.20 ‰ | 2 % |
-| Largest difference from (3.14), 0 to eps_cu1 | 0 | 2.3 % of f_cm, near 0.4 f_cm where E_cm is a secant | 3 % of f_cm |
-| Stress at eps_cu1 = 3.5 ‰ | (3.14): 24.65 MPa | 24.69 MPa | 2 % |
-| Tension, bar with a 2 % weaker middle cell: peak | 0.98 f_ctm = 2.84 MPa | 2.82 MPa | 2 % |
-| Energy to break that bar in tension, 5, 10, 20 cells | 0.98 G_f A | 0.99987, 0.99987, 0.99988 of it | 1 %: the tensile crack band is mesh objective |
-| One crushed cell of h = 120, 60, 30 mm: plastic work after the peak per unit area | G_c = 9.5 kJ/m² | within 2 % for each h | 2 % |
-| Lateral pressure 0.05 and 0.2 f_cm, then axial compression | f_cm + m sigma_3, m = 1.41 | the closed form within 0.5 %: 1.068 and 1.279 f_cm | 0.5 %; EN 1992-1-1 (3.24) / (3.25) give 1.250 and 1.625 f_cm |
-| Return mapping, every regime (elastic, Drucker-Prager, Rankine, corner, strength factor 0.9) | the stress is the derivative of the returned energy | central differences agree | 1e-6 |
-| Checkpoint: a cracked, crushed bar resumes from `saveState()` | bit-identical | bit-identical; also a struck concrete block in the kit's checkpoint test (`concrete-solid-contact`) | exact |
+| One cell, h = L_c, uniaxial compression: peak, strain at the peak | f_cm = 38 MPa, eps_c1 = 2.2 ‰ (Table 3.1) | 37.92 MPa, 2.20 ‰ | 0.5 %, 2 % |
+| Largest difference from (3.14), 0 to eps_cu1; stress at eps_cu1 | 0; 24.65 MPa | 2.3 % of f_cm; 24.64 MPa | 3 % of f_cm; 2 % |
+| Energy to break a bar in tension, 5, 10, 20 cells | 0.98 G_f A | 0.9999 of it on each | 1 % |
+| One crushed cell of h = 120, 60, 30 mm: plastic work after the peak per unit area | G_c = 9.5 kJ/m² | within 2 % | 2 % |
+| Lateral pressure 0.05 and 0.2 f_cm, then axial compression | EN 1992-1-1 (3.24), (3.25): 1.250, 1.625 f_cm | 1.2469, 1.6199 f_cm | 1 % |
+| Equal biaxial compression | 1.16 f_c (Kupfer et al. 1969) | 1.1585 f_cm | 1 % (fitted) |
+| Plastic volume change per kappa_c | psi = tan 30° (potential), below the meridian slope 1.71 | psi to 1e-15 | 1e-9 |
+| Reinforced tie through cracking to yield | one-dimensional series model | 1.6 % of A_s f_y | 3 % |
+| Reinforced beam: cracking moment; yield moment | 1993 N m; 4515 N m (hand) | 1950 to 2112 N m; 4553 N m | 6 %; 5 % |
+| Return mapping in every regime; checkpoint resume (local, nonlocal, reinforced) | derivative of the energy; bit-identical | pass | 1e-6; exact |
 
-**Not mesh objective in compression.** A prism of 5, 10 and 20 cells (0.2 m, middle cell 10 % weaker) dissipates 26, 54 and 119 J after the peak against 0.9 G_c A = 13.7 J. The crushed band does not stay one cell thick: its plastic flow expands it sideways (associated Drucker-Prager; the same happens with beta = 0, where the flow is isochoric), its elastic neighbours restrain that, and the softening spreads to the next cells. Only the tensile crack band is objective here; the single-cell rows above check the regularisation formula, not localisation.
+Misses: Kupfer's 1.27 f_c at sigma_2 / sigma_1 = 0.5 (the law gives 1.39), and compressive softening is not mesh objective (SOLID_MECHANICS.md, mesh study).
 
-Studio rows (`tests/studio/concrete-si.test.mjs` in `npm run test:studio:materials`, 6 tests, about 90 s):
+Studio rows (`tests/studio/concrete-si.test.mjs` in `npm run test:studio:materials`, 8 tests; the cube, cylinder and short-cylinder runs take 3, 9 and 3 minutes of CPU on the loaded shared machine):
 
 | Check | Reference | Measured |
 |---|---|---|
-| Cube with frictionless platens | f_cm at eps_c1 | 37.80 MPa at 2.30 ‰ |
-| Cube with friction 0.57 over a 150 × 150 × 300 mm prism (slenderness 2, the cylinder's) with the same platens | f_ck,cube / f_ck = 37 / 30 = 1.233 (Table 3.1) | 45.02 / 38.55 MPa = **1.168**, 5 % below (row `solid.concrete.cube-cylinder`, tolerance 10 %) |
-| Default program | peak above f_cm, softening, spalling, machine stop | 45.0 MPa at 2.87 ‰; stopped at 7.2 ‰ with 2 elements spalled |
+| Cube with frictionless platens | f_cm at eps_c1 | 37.55 MPa at 2.20 ‰ |
+| Cube against the 150 × 300 mm cylinder (O-grid, 1260 tetrahedra), platen friction 0.2 (row `solid.concrete.cube-cylinder`) | f_ck,cube / f_ck = 37 / 30 = 1.233 (EN 1992-1-1 Table 3.1) | 49.15 / 40.84 MPa = **1.204** (-2.4 %, tolerance 5 %); every step of both converges |
+| A 150 × 150 mm cylinder against the 150 × 300 mm one, friction 0.2 (row `solid.concrete.cylinder-slenderness`) | 1.17: the slenderness-1 correction of ČSN EN 12390-3/Z1 as quoted by Středulová and Eliáš (2023), who measure and compute about 1.23 on 50 mm cylinders | 47.53 / 40.84 MPa = **1.164** (-0.5 % of 1.17, tolerance 3 %; 5 % below their 1.23) |
+| The same cube and cylinder at friction 0.57 (not a row) | 1.233 | 60.02 / 41.88 MPa = 1.433, a miss (+16 %) |
+| Default program (friction 0.2) | peak above f_cm (EN 1992-1-1's mean cube strength is about 38 × 37 / 30 = 46.9 MPa), softening | 49.15 MPa (1.29 f_cm) at 2.63 ‰ at 1 ‰/s; then stable softening to 25.7 MPa at 8 ‰ with every step in equilibrium: the machine does not stop and no element spalls within the program |
+| Reinforced core at 1.2 ‰ | stiffer than plain; corner bars in compression | 849 kN against 775 kN; 36 of 84 bar segments in compression, the most stressed at 50 % of f_yk |
+| Cylinder mesh | volume of the 12-sided prism; no flat element | exact to 1e-12; smallest volume over the cube of the longest edge 0.05 or more |
 
-A square prism stands for the cylinder: the mapped cylinder mesh (as in the elastomer lab) did not converge in its first contact step against the stiff steel platen, and this was not resolved.
+**The cube-to-cylinder ratio depends on the platen friction, and the row is conditional on it.** With the EN 1992-1-1 3.1.9 meridian, platen friction confines the 5-cell cube strongly: 1.58 f_cm at friction 0.57 against 1.29 f_cm at 0.2, while the cylinder (slenderness 2) gains 10 % and 7 %. The measured friction coefficients opened for steel on concrete (0.43 to 0.70, above) would make the cube 1.4 times the cylinder; the code's 37 / 30 is met within 2.4 % with 0.2, the value another model of the same test was calibrated to, and that value also gives the slenderness correction of ČSN EN 12390-3/Z1 within 0.5 %. So the row `solid.concrete.cube-cylinder`, withdrawn on 2026-11-12, is back with friction 0.2, and says so: it does not show that a machined platen has a friction of 0.2, only that the law and the lab reproduce the two ratios with a friction a published compression-test model uses. The first version compared the cube with a square prism (1.17) because the mapped cylinder mesh of the elastomer lab did not converge at its first contact; the O-grid mesh (`cylinderMeshOgrid`: an inner square and four blended blocks, triangular prisms split by node order so neighbours agree) converges from the first step.
 
 ### Presets and real time
 
-The programs run to the set travel at the set rate; Node 22 on the shared 4-core sandbox, single runs, the whole program including the hold after a stop.
+Re-measured with platen friction 0.2, the `ldl` preconditioner and the faster return mapping of 2026-11-16 (`node scripts/fem-preset-benchmark.mjs concrete`: the first 14 s of each program at its own rate, Node 22, single runs on the shared 4-core machine at a load average of about 12):
 
-| Preset | Peak stress | at | End | Spalled | Real-time factor |
-|---|---|---|---|---|---|
-| Cube compression (C30/37, 8 ‰ at 0.5 ‰/s) | 45.0 MPa | 2.87 ‰ | stopped at 7.2 ‰ | 2 | 0.37 |
-| Reinforced core (plain C30/37) | 45.0 MPa | 2.87 ‰ | stopped at 7.2 ‰ | 2 | 0.37 |
-| High-strength cube (C60/75, 6 ‰) | 77.4 MPa | 3.07 ‰ | softening | 0 | 1.25 |
-| Lightweight crush (LC25/28) | 35.8 MPa | 2.30 ‰ | stopped | 2 | 0.36 |
-| Weathered spall (C20/25) | 33.3 MPa | 2.60 ‰ | stopped | 1 | 0.44 |
-| Fibre bridging | 45.0 MPa | 2.87 ‰ | stopped | 1 | 0.44 |
-| Low-strain comparison (1.5 ‰) | 38.3 MPa | 1.50 ‰ | holding | 0 | 6.0 |
-| Ceramic comparison (alumina, 100 mm, 7.5 ‰ at 1 ‰/s) | 1940 MPa | 5.77 ‰ | stopped: shattered | 345 | 2.0 |
+| Preset | Peak stress | at | State at 14 s | Spalled | Real-time factor | Worst tick |
+|---|---|---|---|---|---|---|
+| Cube compression (C30/37, 0.5 ‰/s) | 49.1 MPa | 2.75 ‰ | softening, no stop | 0 | 0.23 | 0.71 s |
+| Reinforced core (C30/37, B500B bars) | 58.5 MPa | 3.53 ‰ | softening, no stop | 0 | 0.23 | 0.91 s |
+| High-strength cube (C60/75) | 87.6 MPa | 3.27 ‰ | softening, no stop | 0 | 0.35 | 0.64 s |
+| Lightweight crush (LC25/28) | 41.3 MPa | 2.42 ‰ | softening, no stop | 0 | 0.26 | 0.63 s |
+| Weathered spall (C20/25) | 35.7 MPa | 2.50 ‰ | softening, no stop | 0 | 0.19 | 0.90 s |
+| Fibre bridging | 49.1 MPa | 2.75 ‰ | softening, no stop | 0 | 0.24 | 0.70 s |
+| Low-strain comparison (1.5 ‰) | 40.5 MPa | 1.50 ‰ | holding | 0 | 1.15 | 0.40 s |
+| Ceramic comparison (alumina) | 2062 MPa | 6.20 ‰ | stopped: no equilibrium past the peak | 229 | 3.3 | 3.3 s |
 
-Since 2026-11-12 the lab's solid uses the sparse LDLᵀ preconditioner (`linearSolver: 'ldl'`; the element stays `tet4`, because the concrete law's pressure-dependent yield does not split for the averaged nodal pressure element: [`SOLID_MECHANICS.md`](SOLID_MECHANICS.md#averaged-nodal-pressure-element-tet4-nodal)). Results are unchanged to the printed digits (peaks, strains, stops; the ceramic sheds 331 elements instead of 345). Real-time factor over the first 14 s of each program, model over CPU seconds, before → after, measured back to back (`node scripts/fem-preset-benchmark.mjs concrete`, load average 10 to 15): cube compression 0.45 → 0.53, reinforced core 0.46 → 0.53, high strength 1.32 → 1.46, lightweight 0.73 → 0.85, weathered 0.45 → 0.47, fibre 0.46 → 0.51, low strain 6.6 → 6.3, ceramic 2.4 → 2.3. The gain is small because the conjugate gradients were not the cost here: 70 % of the time is the concrete law's return mapping and its finite-difference tangent (six extra return mappings per yielded element per Newton iteration), in `concrete-law.ts`, which this change does not touch.
+**Speed.** The same peaks and strains as before the change, to the printed digits. A profile of the cube across its peak (`--cpu-prof`) put 88 % of the time in the Willam-Warnke deviatoric return: its Lode-angle Newton used a finite-difference r'' (three section evaluations per iteration) and a stopping test tighter than the rounding of its own residual, so most returns bisected down to 1e-16 (26 iterations on average). With the exact r'', a stopping test at that rounding and a warm start from the previous multiplier of the same trial it takes 2.1 iterations; the finite-difference tangent reuses the base return of the evaluation and brackets the six perturbed multipliers. The first 3.5 s of the cube at 1 ‰/s (through the peak), old and new interleaved on the same machine: 128.0 and 130.6 s of CPU before, 14.5 and 14.0 s after, **9.0 times faster**, with the same Newton and inner iteration counts (3287 and 12,583) and the same peak (49.1488 MPa) and end stress (48.3308 MPa); the state agrees to rounding, not to the bit. The 14 s cube program: 606 s of CPU before (load 17 to 20) and 61 s after (load about 12). Still below real time after the peak (0.19 to 0.35): the remaining cost is the finite-difference tangent (six returns per yielded element and Newton iteration, half the time) and about 30 Newton iterations per step while elements soften; an analytic tangent is the next step.
 
-The cost is in the softening: below the peak a step takes 20 to 60 ms, after it up to a second (Newton converges linearly while elements soften), and the step that finds no equilibrium took up to 16 s before the iteration limit was lowered (40 Newton iterations per friction pass now). In headless Chromium (SwiftShader WebGPU) serving the built site, the cube-crush preset at 1 ‰/s reached the same result as Node (45.0 MPa at 2.87 ‰, stopped at 7.2 ‰ with 2 elements spalled, 21.45 MPa at the stop); the worker reported 0.6 to 0.9 times real time before the peak and 0.15 to 0.5 times while softening, and 5.7 to 12.5 times for the low-strain preset. The page itself advanced only 7.3 s of the program in 450 s there, because software rendering limits how many steps are requested per frame; that figure says nothing about a hardware GPU. The fibre mix peaks like the plain one: before the peak the cube does not crack in tension, and the fibres act only once it does.
+With the first law (2026-11-12) the cube peaked at 45.0 MPa and the machine stopped at 7.2 ‰ with 2 elements spalled, at 0.37 to 0.53 times real time; with this law and friction 0.57 it peaked at 60.0 MPa and stopped at 7.4 ‰. With friction 0.2 no preset loses equilibrium within its program, so none ends in a machine stop or a spalled element: the "spalling" of the preset names is not reached. In headless Chromium (SwiftShader) an earlier build of the reinforced core drew its bars through the concrete and ran without console errors (captures `reinforced-ready.png`, `reinforced-running.png`); the page was not re-captured for this change.
 
 ### Limits
 
-- Compressive softening is not mesh objective in a prism (above); the 5-cell cube cannot resolve the cones of a crushed cube or splitting cracks finer than 30 mm.
-- Confinement: m = 1.41 against 2.5 to 5 in EN 1992-1-1 3.1.9; associated flow overstates dilatancy, which is why beta cannot be raised to fit 3.1.9.
+- Compressive softening is not mesh objective (see SOLID_MECHANICS.md, mesh study); the 5-cell cube cannot resolve the cones of a crushed cube or splitting cracks finer than 30 mm.
+- The platen friction 0.2 is a calibrated input of another model, not a measured coefficient; with the measured steel-on-concrete values (0.43 to 0.70) the cube would be about 1.4 times the cylinder instead of 1.23.
+- Kupfer's biaxial strength at sigma_2 / sigma_1 = 0.5 is overestimated (1.39 against 1.27 f_c).
 - Cracks unload elastically and keep their opening (plasticity, not damage); no crack closure, friction on cracks, aggregate interlock, creep, shrinkage, rate or size effects beyond the crack band.
-- Reinforcement is not modelled (the preset says so); the fibre softening, the mortar and weathered mappings and the ceramic's tensile strength and friction are unverified.
-- After the peak the cube fails abruptly at about 7 ‰ in every concrete mix: the test stops there, so the post-failure rubble is not shown.
+- Bars have perfect bond: no slip, no dowel action, no rupture at eps_uk; the bar layout of the reinforced preset is authored. The fibre softening, the mortar and weathered mappings and the ceramic's tensile strength and friction are unverified.
 
 ## Reproduce
 
@@ -268,7 +299,7 @@ npm run test:plate
 node --test tests/studio/material-labs.test.mjs       # the Studio's labs, glass in SI (about 4 minutes)
 node --import ./scripts/register-typescript.mjs --test tests/studio/glass-worker.test.mjs
 node --test tests/studio/rubber-si.test.mjs           # the elastomer lab
-node --test tests/studio/concrete-si.test.mjs         # the concrete lab (about 90 s)
+node --test tests/studio/concrete-si.test.mjs         # the concrete lab (several minutes)
 node --test tests/engine/solid-concrete.test.mjs      # the concrete law
 node scripts/validation-report.mjs --only plate
 ```

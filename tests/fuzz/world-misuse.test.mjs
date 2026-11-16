@@ -21,7 +21,7 @@ test.after(() => { world.dispose(); other.dispose(); });
 
 // One scene with every kind of thing a call can name. build() makes it again after a call that resets the world:
 // a reset starts a new generation of handles, so a checkpoint restored afterwards does not bring the old handles back.
-let box, ball, mover, post, wheelBody, dead, hinge, wheel, deadJoint, base;
+let box, ball, mover, post, wheelBody, crate, slab, dead, hinge, wheel, deadJoint, motorJoint, ballJoint, parallelJoint, base;
 const foreign = other.createBody({shape: {kind: 'sphere', radius: 0.3}, position: [0, 1, 0]});
 const foreignJoint = other.createJoint({type: 'weld', bodyA: foreign, bodyB: null});
 const handles = new Map();
@@ -36,6 +36,12 @@ function build() {
   world.destroyBody(dead);
   hinge = world.createJoint({type: 'revolute', bodyA: post, bodyB: box, frameA: {position: [0, 1, 0]}, limits: {lower: -1, upper: 1}, motor: {speed: 1, maxForce: 10}, spring: {hertz: 2, dampingRatio: 0.5}});
   wheel = world.createJoint({type: 'wheel', bodyA: box, bodyB: wheelBody, frameA: {position: [0, -0.5, 0]}});
+  // The rigid core's joints, each on a body of its own so that no body carries joints that contradict each other (ND-2).
+  crate = world.createBody({shape: {kind: 'box', halfExtents: [0.3, 0.3, 0.3]}, position: [-4, 1.5, -3]});
+  slab = world.createBody({shape: {kind: 'box', halfExtents: [0.5, 0.1, 0.5]}, position: [4, 0.6, -3]});
+  motorJoint = world.createJoint({type: 'motor', bodyA: post, bodyB: ball, drive: {linearVelocity: [0, 0, 0], maxForce: 20, angularSpring: {hertz: 2, dampingRatio: 0.7, maxTorque: 5}}});
+  ballJoint = world.createJoint({type: 'spherical', bodyA: null, bodyB: crate, frameA: {position: [-4, 2, -3]}, frameB: {position: [0, 0.5, 0]}, coneAngle: 0.8});
+  parallelJoint = world.createJoint({type: 'parallel', bodyA: null, bodyB: slab, frameA: {position: [4, 0.6, -3]}, spring: {hertz: 2, dampingRatio: 0.7}, maxTorque: 20});
   deadJoint = world.createJoint({type: 'weld', bodyA: box, bodyB: ball});
   world.destroyJoint(deadJoint);
   for (let i = 0; i < 5; i++) world.step();
@@ -43,8 +49,11 @@ function build() {
   const bodyHostiles = [['a destroyed body', dead], ['a body of another world', foreign], ['a joint in place of a body', hinge]];
   const jointHostiles = [['a destroyed joint', deadJoint], ['a joint of another world', foreignJoint], ['a body in place of a joint', box]];
   handles.clear();
-  for (const h of [box, ball, mover, post, wheelBody]) handles.set(h, bodyHostiles);
-  for (const h of [hinge, wheel]) handles.set(h, jointHostiles);
+  for (const h of [box, ball, mover, post, wheelBody, crate, slab]) handles.set(h, bodyHostiles);
+  for (const h of [hinge, wheel, motorJoint, ballJoint, parallelJoint]) handles.set(h, jointHostiles);
+  // The first restore of a checkpoint can rewrite a few bytes of it (native defect ND-6: the physical state is the
+  // same), so the baseline is a checkpoint that has been through one restore; from there restores are byte-exact.
+  world.restoreCheckpoint(world.checkpoint());
   base = world.checkpoint();
 }
 build();
@@ -121,6 +130,11 @@ const ROWS = {
     // (tests/fuzz/native-defects.test.mjs), where joints that cannot all hold give NaN. It is left out here by name.
     {args: () => [jointOptions('wheel', {limits: {lower: -0.2, upper: 0.2}, spring: {hertz: 4, dampingRatio: 0.7}, motor: {speed: 3, maxForce: 20}})], known: /bodyB = null/},
     {args: () => [{type: 'revolute', bodyA: null, bodyB: box}]},
+    // The rigid core's joint types and settings (scene format version 3).
+    {args: () => [jointOptions('motor', {drive: {linearVelocity: [0.5, 0, 0], angularVelocity: [0, 0.5, 0], maxForce: 50, maxTorque: 20, linearSpring: {hertz: 2, dampingRatio: 0.7, maxForce: 40}, angularSpring: {hertz: 2, dampingRatio: 0.7, maxTorque: 10}}, thresholds: {force: 1e4, torque: 1e4, breakable: true}})]},
+    {args: () => [jointOptions('parallel', {spring: {hertz: 3, dampingRatio: 0.5}, maxTorque: 30})]},
+    {args: () => [jointOptions('filter')]},
+    {args: () => [{type: 'wheel', bodyA: box, bodyB: ball, frameA: {position: [0, -0.5, 0]}, steering: {angle: 0.2, hertz: 5, dampingRatio: 0.7, maxTorque: 50, limits: {lower: -0.5, upper: 0.5}}, thresholds: {force: 5e3}}]},
   ],
   isJointAlive: [{deadOk: true, args: () => [hinge]}],
   destroyJoint: [{deadOk: true, args: () => [hinge]}],
@@ -130,6 +144,35 @@ const ROWS = {
   setJointStiffness: [{args: () => [hinge, 40, 1.5], hints: {positive: /^1$/}}],
   setJointSteering: [{args: () => [wheel, {angle: 0.2, hertz: 5, dampingRatio: 0.7, maxTorque: 50}]}],
   getJointState: [{args: () => [hinge]}],
+  getJointDetails: [{args: () => [hinge]}, {args: () => [motorJoint]}, {args: () => [wheel]}],
+  setJointDrive: [{args: () => [motorJoint, {linearVelocity: [0.5, 0, 0], angularVelocity: [0, 0.5, 0], maxForce: 50, maxTorque: 20, linearSpring: {hertz: 2, dampingRatio: 0.7, maxForce: 40}, angularSpring: {hertz: 2, dampingRatio: 0.7, maxTorque: 10}}]}],
+  setJointThresholds: [{args: () => [hinge, {force: 1e5, torque: 1e5, breakable: false}]}],
+  setJointSteeringLimits: [{args: () => [wheel, {lower: -0.4, upper: 0.4}]}],
+  setJointTargetRotation: [{args: () => [ballJoint, [0, 0.0998334, 0, 0.9950042]]}],
+  setJointAngularMotor: [{args: () => [ballJoint, {velocity: [0, 1, 0], maxTorque: 5}]}],
+  setJointParallelSpring: [{args: () => [parallelJoint, {hertz: 2, dampingRatio: 0.5, maxTorque: 10}]}],
+  setJointConeLimit: [{args: () => [ballJoint, 0.6]}],
+  setJointCollideConnected: [{args: () => [hinge, true]}],
+  settings: [{args: () => []}],
+  // Only settings whose valid values keep the world stable: switching off speculative contacts or warm starting is
+  // Box3D's own test feature and not a misuse.
+  configure: [{args: () => [{sleeping: true, continuous: true, restitutionThreshold: 1, hitEventThreshold: 1, contactHertz: 30, contactDampingRatio: 10, contactPushSpeed: 3, maximumLinearSpeed: 400, contactRecycleDistance: 0.01}]}],
+  setBullet: [{args: () => [ball, true]}],
+  setSleep: [{args: () => [box, {enabled: true, threshold: 0.05}]}],
+  setMotionLocks: [{args: () => [box, {linearX: false, angularY: true}]}],
+  getBodyFlags: [{args: () => [box]}],
+  explodeArea: [{args: () => [{center: [0, 1, 0], radius: 3, falloff: 1, impulsePerArea: 2, maskBits: 0xffffn}]}],
+  profile: [{args: () => []}], contactStats: [{args: () => []}], jointDefaults: [{args: () => []}], contactDefaults: [{args: () => []}],
+  debugLines: [{args: () => [{joints: true, bounds: true, contacts: true, contactForces: true, jointScale: 0.5, forceScale: 0.01, region: {min: [-5, -1, -5], max: [5, 5, 5]}}]}],
+  // `bodies` is an output list: whatever it holds is overwritten.
+  castRays: [{args: () => [new Float32Array([0, 10, 0, 2, 10, 0]), new Float32Array([0, -20, 0, 0, -20, 0]), new Float32Array(2), {points: new Float32Array(6), normals: new Float32Array(6), bodies: []}], hints: {lenient: /^3\.bodies(\.|$)/}}],
+  capsuleCast: [{args: () => [[0, 10, 0], 0.3, 0.5, [0, -20, 0], {limit: 1}], hints: {positive: /^[12]$|limit$/, integer: /limit$/}}],
+  raycastAll: [{args: () => [[0, 10, 0], [0, -20, 0], {limit: 8}], hints: {positive: /limit$/, integer: /limit$/}}],
+  // An empty list is a batch of no rays.
+  raycastBatch: [{args: () => [[0, 10, 0, 0, -20, 0, 2, 10, 0, 0, -20, 0], {bodies: 'all', maskBits: 0xffffn}], hints: {lenient: /^0$/}}],
+  overlapCapsule: [{args: () => [[0, 1, 0], 1, 0.5, {limit: 8}], hints: {positive: /^[12]$|limit$/, integer: /limit$/}}],
+  moveCapsule: [{args: () => [{position: [-6, 1, 0], radius: 0.3, halfLength: 0.5, translation: [1, 0, 0], maxSlopeDegrees: 45, iterations: 5, tolerance: 0.01, bodies: {static: true, kinematic: true, dynamic: true}, categoryBits: 1n, maskBits: 0xffffn, ignoreBody: mover}],
+    hints: {positive: /radius$|halfLength$|iterations$/, integer: /iterations$/}}],
   onEvent: [{args: () => [() => {}], undo: off => off()}],
   onStep: [{args: () => [() => {}], undo: off => off()}],
   bodyKinds: [{args: () => []}],
@@ -258,7 +301,8 @@ test('a disposed world refuses every call with DISPOSED', async () => {
   const body = gone.createBody({shape: {kind: 'sphere', radius: 0.3}, position: [0, 1, 0]});
   gone.dispose();
   for (const [name, rows] of Object.entries(ROWS)) {
-    if (['onEvent', 'onStep', 'getUserData', 'interpolatedMatrices'].includes(name)) continue; // listeners and plain maps: nothing native to refuse
+    // Listeners, plain maps and the stored world options: nothing native to refuse.
+    if (['onEvent', 'onStep', 'getUserData', 'interpolatedMatrices', 'jointDefaults', 'contactDefaults'].includes(name)) continue;
     const args = name === 'gravity' || rows[0].args().length === 0 ? [] : rows[0].args().map(arg => handles.has(arg) ? body : arg);
     assert.throws(() => gone[name](...args), error => tax.problem(error) === null && ['DISPOSED', 'INVALID_PAYLOAD'].includes(error.code), `${name} on a disposed world`);
   }

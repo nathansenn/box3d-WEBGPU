@@ -1876,20 +1876,21 @@ function checkRanges(scene: Scene): Scene {
   const R = RIGID_LIMITS;
   const out = (owner: string, what: string, value: number, range: string): never => bad(`Robot ${owner}: ${what} is ${value}; the rigid world takes ${range}. The file's units are probably not SI, or the value is damaged.`);
   const within = (owner: string, what: string, values: readonly number[] | undefined, limit: number, min = -limit): void => { for (const v of values ?? []) if (!(v >= min && v <= limit)) out(owner, what, v, `${min} to ${limit}`); };
-  const convex = (owner: string, shape: {readonly kind: string; readonly halfExtents?: readonly number[]; readonly radius?: number; readonly halfLength?: number; readonly points?: readonly number[]}): void => {
-    if (shape.kind === 'box') within(owner, 'a box half extent', shape.halfExtents, R.shape, 1e-4);
-    else if (shape.kind === 'sphere') within(owner, 'a sphere radius', [shape.radius!], R.shape, 1e-4);
-    else if (shape.kind === 'capsule') { within(owner, 'a capsule radius', [shape.radius!], R.shape, 1e-4); within(owner, 'a capsule half length', [shape.halfLength!], R.shape, 0.0025); }
-    else if (shape.kind === 'hull') within(owner, 'a hull point', shape.points, R.shape);
+  // A dynamic link's convex shapes stop at RIGID_LIMITS.shape (native defect ND-1); a static or kinematic one may reach the extent.
+  const convex = (owner: string, shape: {readonly kind: string; readonly halfExtents?: readonly number[]; readonly radius?: number; readonly halfLength?: number; readonly points?: readonly number[]}, reach: number): void => {
+    if (shape.kind === 'box') within(owner, 'a box half extent', shape.halfExtents, reach, 1e-4);
+    else if (shape.kind === 'sphere') within(owner, 'a sphere radius', [shape.radius!], reach, 1e-4);
+    else if (shape.kind === 'capsule') { within(owner, 'a capsule radius', [shape.radius!], reach, 1e-4); within(owner, 'a capsule half length', [shape.halfLength!], reach, 0.0025); }
+    else if (shape.kind === 'hull') within(owner, 'a hull point', shape.points, reach);
   };
   for (const body of scene.bodies) {
-    const owner = `link "${body.id}"`;
+    const owner = `link "${body.id}"`, reach = body.type === 'static' || body.type === 'kinematic' ? R.extent : R.shape;
     within(owner, 'a position', body.position, R.extent);
     if (body.density !== undefined && !(body.density === 0 || (body.density >= R.densityMin && body.density <= R.density))) out(owner, 'the density', body.density, `0 or ${R.densityMin} to ${R.density} kg/m^3`);
     within(owner, 'the friction', body.friction === undefined ? [] : [body.friction], 1e6, 0); within(owner, 'the restitution', body.restitution === undefined ? [] : [body.restitution], 1e6, 0);
     within(owner, 'a velocity', [...(body.linearVelocity ?? []), ...(body.angularVelocity ?? [])], R.speed);
-    if (body.shape.kind === 'compound') for (const child of body.shape.shapes) { within(owner, 'a shape position', child.position, R.shape); convex(owner, child.shape); if (child.density !== undefined && !(child.density === 0 || (child.density >= R.densityMin && child.density <= R.density))) out(owner, 'a shape density', child.density, `0 or ${R.densityMin} to ${R.density} kg/m^3`); }
-    else convex(owner, body.shape as Parameters<typeof convex>[1]);
+    if (body.shape.kind === 'compound') for (const child of body.shape.shapes) { within(owner, 'a shape position', child.position, reach); convex(owner, child.shape, reach); if (child.density !== undefined && !(child.density === 0 || (child.density >= R.densityMin && child.density <= R.density))) out(owner, 'a shape density', child.density, `0 or ${R.densityMin} to ${R.density} kg/m^3`); }
+    else convex(owner, body.shape as Parameters<typeof convex>[1], reach);
     const data = body.massData;
     if (data) {
       within(owner, 'the mass', [data.mass], R.massMax, R.massMin);

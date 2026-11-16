@@ -154,6 +154,16 @@ uint8_t* b3w_snapshot_capture(b3WorldId worldId, int* outSize)
 	return out;
 }
 
+void b3w_snapshot_tuning(b3WorldId worldId, float* out4)
+{
+	const b3World* world = b3GetWorldFromId(worldId);
+	if (world == NULL) return;
+	out4[0] = world->contactHertz;
+	out4[1] = world->contactDampingRatio;
+	out4[2] = world->contactSpeed;
+	out4[3] = world->enableSpeculative ? 1.0f : 0.0f;
+}
+
 void b3w_snapshot_release(void* holderPointer)
 {
 	B3WSnapshotHolder* holder = (B3WSnapshotHolder*)holderPointer;

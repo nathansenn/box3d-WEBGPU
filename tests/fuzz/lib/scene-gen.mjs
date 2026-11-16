@@ -50,21 +50,27 @@ export function randomScene(r, options = {}) {
     const parent = r.bool(0.6) ? r.pick(bodies) : null;
     if (parent && (parent === child || descends(joints, parent.id, child.id))) continue;
     held.add(child.id);
-    const type = r.pick(['weld', 'revolute', 'spherical', 'prismatic', 'distance', 'wheel']);
+    // Version 3 adds motor, parallel and filter joints, thresholds, drives, maxTorque and steering.
+    const type = r.pick(['weld', 'revolute', 'spherical', 'prismatic', 'distance', 'wheel', 'motor', 'parallel', 'filter']);
     const local = (body, point) => body ? rotate(conj(body.rotation ?? [0, 0, 0, 1]), [point[0] - body.position[0], point[1] - body.position[1], point[2] - body.position[2]]).map(round) : point;
     const anchor = child.position, from = type === 'distance' && parent ? parent.position : anchor;
     const joint = {id: `j${i}`, type, bodyA: parent ? parent.id : null, bodyB: child.id, frameA: {position: local(parent, from)}, frameB: {position: local(child, anchor)}};
     if (type === 'distance') joint.length = round(Math.max(0.05, Math.hypot(anchor[0] - from[0], anchor[1] - from[1], anchor[2] - from[2])));
-    else if (type !== 'weld' && r.bool(0.4)) joint.limits = {lower: round(-r.real(0.05, 1)), upper: round(r.real(0.05, 1))};
+    else if (!['weld', 'motor', 'parallel', 'filter'].includes(type) && r.bool(0.4)) joint.limits = {lower: round(-r.real(0.05, 1)), upper: round(r.real(0.05, 1))};
     if (['revolute', 'prismatic', 'wheel'].includes(type) && r.bool(0.3)) joint.motor = {speed: round(r.real(-3, 3)), maxForce: round(r.real(0, 100))};
-    if (r.bool(0.25)) joint.spring = {hertz: round(r.real(0.5, 10)), dampingRatio: round(r.real(0, 2))};
+    if (!['motor', 'filter'].includes(type) && r.bool(0.25)) joint.spring = {hertz: round(r.real(0.5, 10)), dampingRatio: round(r.real(0, 2))};
+    if (type === 'motor') joint.drive = {linearVelocity: [round(r.real(-1, 1)), 0, 0], maxForce: round(r.real(0, 100)), ...(r.bool() ? {angularSpring: {hertz: round(r.real(0.5, 10)), dampingRatio: round(r.real(0, 2)), maxTorque: round(r.real(0, 50))}} : {})};
+    if (type === 'parallel' && r.bool(0.6)) joint.maxTorque = round(r.real(0, 100));
+    if (type === 'wheel' && r.bool(0.3)) joint.steering = {angle: round(r.real(-0.4, 0.4)), hertz: round(r.real(1, 10)), dampingRatio: round(r.real(0.2, 2)), maxTorque: round(r.real(0, 100)), ...(r.bool() ? {limits: {lower: round(-r.real(0.1, 0.5)), upper: round(r.real(0.1, 0.5))}} : {})};
+    if (r.bool(0.15)) joint.thresholds = {force: round(r.real(50, 5e4)), ...(r.bool() ? {torque: round(r.real(20, 2e4))} : {}), breakable: r.bool()};
     if (type === 'spherical' && r.bool(0.4)) joint.coneAngle = round(r.real(0.1, 1.2));
-    if (r.bool(0.2)) joint.stiffness = {hertz: round(r.real(20, 90)), dampingRatio: round(r.real(0.5, 3))};
+    if (type !== 'filter' && r.bool(0.2)) joint.stiffness = {hertz: round(r.real(20, 90)), dampingRatio: round(r.real(0.5, 3))};
     if (r.bool(0.2)) joint.collideConnected = true;
     joints.push(joint);
   }
   const needsV2 = bodies.some(b => b.shape.kind === 'compound' || b.massData);
-  const scene = {format: 'box3d-scene', version: needsV2 || r.bool() ? 2 : 1, bodies};
+  const needsV3 = joints.some(j => ['motor', 'parallel', 'filter'].includes(j.type) || j.thresholds || j.drive || j.maxTorque !== undefined || j.steering);
+  const scene = {format: 'box3d-scene', version: needsV3 ? 3 : needsV2 || r.bool() ? 2 : 1, bodies};
   if (r.bool(0.7)) scene.world = {...(r.bool() ? {gravity: [0, round(r.real(-20, -1)), 0]} : {}), ...(r.bool() ? {ground: r.bool(0.8)} : {}), ...(r.bool() ? {seed: r.int(0, 0xffffffff)} : {}), ...(r.bool(0.3) ? {step: r.pick([1 / 60, 1 / 120, 1 / 90])} : {}), ...(r.bool(0.3) ? {subSteps: r.int(1, 8)} : {})};
   if (names.length) scene.materials = materials;
   if (joints.length) scene.joints = joints;

@@ -473,6 +473,13 @@ for (const file of ['validation/registry.mjs', 'validation/report.mjs', 'scripts
 }
 assert.equal(releasePackage.scripts['validation:check'], 'node scripts/validation-report.mjs --check', 'validation:check must rerun the registry and compare the published numbers');
 assert.doesNotMatch(read('public/validation/index.html'), /<script(?![^>]*\bsrc=)|<style|\son\w+=|https?:\/\/(?!github\.com\/nathansenn\/box3d-WEBGPU)/i, 'the validation page must stay free of inline code and third-party requests');
+// The public engine comparison: the harness, its report generator and the published files travel together, and the page is as closed as the validation page.
+for (const file of ['benchmarks/engines/run.mjs', 'benchmarks/engines/child.mjs', 'benchmarks/engines/scenes.mjs', 'benchmarks/engines/report.mjs', 'benchmarks/engines/package.json', 'benchmarks/engines/package-lock.json', 'docs/BENCHMARKS_ENGINES.md',
+  'public/benchmarks/index.html', 'public/benchmarks/benchmarks.css', 'public/benchmarks/benchmarks.js', 'public/benchmarks/benchmarks.json', 'tests/benchmarks/engine-comparison.test.mjs']) {
+  assert.ok(fs.existsSync(path.join(root, file)), `missing ${file}`);
+}
+assert.ok(sharedReleaseGate.includes("'test:bench:engines'"), 'Release gates must run the engine-comparison smoke test');
+assert.doesNotMatch(read('public/benchmarks/index.html'), /<script(?![^>]*\bsrc=)|<style|\sstyle=|\son\w+=|https?:\/\/(?!github\.com\/nathansenn\/box3d-WEBGPU)/i, 'the engine comparison page must stay free of inline code and third-party requests');
 assert.ok(sharedReleaseGate.lastIndexOf("gate('verify:source')") > sharedReleaseGate.indexOf("gate('verify:source')"), 'Source integrity must be verified before and after validation');
 
 for (const releaseDocument of [

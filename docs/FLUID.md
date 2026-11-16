@@ -255,6 +255,13 @@ The multigrid count stays at 5 to 8 while MIC(0)'s grows with the width (20, 25,
 
 The free-surface pressure solve now visits only the liquid cells (a list with a mask of liquid neighbours, built per solve, in index order: the sums are the full sweeps' sums, since the other cells only ever added zeros), and the "near an empty cell" mask is a separable dilation (three passes) instead of a 3 × 3 × 3 stamp per empty cell. The state and the checkpoint bytes are unchanged (A/B against the previous solver on four Studio flume presets, and pinned in `tests/engine/accel-exactness.test.mjs`). One second of the Studio flume, CPU time, fastest of three: clear-water release 918 → 704 ms, honey 1544 → 1386, reflected wave 1228 → 1044, slurry 1500 → 1246 (1.1 to 1.3 times).
 
+### On the GPU
+
+Nothing of this solver is on the GPU. The compute framework and the two backends that exist (shallow water and grains)
+are in [`GPU_COMPUTE.md`](GPU_COMPUTE.md); a pressure solve in compute shaders (red-black Gauss-Seidel or
+Jacobi-preconditioned conjugate gradients, later multigrid), validated against the cavity, Poiseuille and dam-break
+rows above through a float32 CPU reference as those two are, is the next backend and has not been started.
+
 ## Limits
 
 - No turbulence model. Central differences are for resolved flow; at cell Reynolds numbers above a few they oscillate, and `upwind` is first order. No case is above Re 400.
