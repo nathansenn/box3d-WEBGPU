@@ -84,6 +84,7 @@ typedef struct {
   void* userTaskContext;
   bool enableSleep;
   bool enableContinuous;
+  struct { int staticShapeCount, dynamicShapeCount, staticBodyCount, dynamicBodyCount, contactCount; } capacity;
 } b3WorldDef;
 typedef struct { int bodyCount, shapeCount, contactCount, jointCount, islandCount, stackUsed, arenaCapacity, staticTreeHeight, treeHeight, satCallCount, satCacheHitCount, byteCount, taskCount, awakeContactCount, recycledContactCount; } b3Counters;
 typedef struct { float step, pairs, collide, solve, solverSetup, constraints, prepareConstraints, integrateVelocities, warmStart, solveImpulses, integratePositions, relaxImpulses, applyRestitution, storeImpulses, splitIslands, transforms, sensorHits, jointEvents, hitEvents, refit, bullets, sleepIslands, sensors; } b3Profile;

@@ -366,6 +366,25 @@ The explosion matches its formula to float32: a sphere of radius 0.2 m takes `P 
 `P A / m`. The contact statistics of 16 stacks of three boxes report 48 pairs, 192 points and a total normal force
 of 117,720 N, which is 16 × (3 + 2 + 1) box weights to 6 digits, with the deepest overlap at 1.1 mm.
 
+### Building large scenes
+
+- **Hull cache.** The bridge keeps the last 32 hulls it computed, keyed by the exact bits of their points, per world
+  context (`b3w_world_create_hull_body` and the hull children of compounds). A scene that makes many bodies of one
+  shape computes that hull once: 1,000 hull bodies of four shapes are created in 6.1 to 6.8 ms instead of 10.4 to
+  10.9 ms (best of 41, load 8.5 on 4 CPUs); with 1,000 different shapes nothing changes (13.9 to 15.9 ms). A cached
+  hull is the hull `b3CreateHull` computes, so nothing simulated changes (`v22-rigid-controls`: the same pile, hash for
+  hash, with its hulls computed or cached).
+- **Capacity.** `capacity` (`createWorld({capacity})`, `reserveBodyCapacity`) is also handed to Box3D as the world's
+  capacity when the world is (re)set: that many dynamic bodies and shapes and four contacts per body, so its arrays
+  do not grow while a large scene is built. It changes no result (same test, at 20,000 and 65,536). On the engine
+  comparison's piles it made no measurable difference to construction at this machine's load (boxes-10k 257.6 ms
+  before, 263.5 after; spheres-5k 108.5 and 100.6 before, 101.4 and 93.0 after; one or two passes each), and it
+  moves the module's memory both ways (boxes-10k 85.1 to 91.0 MB, spheres-5k 45.5 to 37.0 MB, because arrays sized
+  once are not doubled past what they need).
+- A string formatted in every step (the profile's `__vfprintf_internal`) is Box3D's own: `solver.c` names each
+  solver task with `snprintf("solve[%d]")`, also with one worker. It is 1 sample in 2,221 of the 1,000-hull pile
+  and is in the pinned upstream, which this repository does not patch.
+
 ## 7. Debug draw
 
 `world.debugLines(options)` runs Box3D's own debug drawing (`b3World_Draw`) and returns line segments: `positions`

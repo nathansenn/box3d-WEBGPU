@@ -100,6 +100,18 @@ typedef struct B3WHullCacheEntry
     int valid;
 } B3WHullCacheEntry;
 
+// Hulls of point clouds, keyed by the exact float bits of the points: a scene that makes many bodies of one shape
+// computes its hull once. b3CreateHull is deterministic, so a cached hull is the hull it would compute again.
+#define B3W_POINT_HULL_CACHE 32
+typedef struct B3WPointHull
+{
+    uint64_t key;
+    int count;
+    float* points;
+    b3HullData* hull;
+    uint32_t stamp;
+} B3WPointHull;
+
 // Simulation state is passed explicitly to every stateful helper. The registry
 // owns lifetimes only; there is no shared selected/current simulation context.
 typedef struct B3WContext
@@ -125,6 +137,11 @@ typedef struct B3WContext
     B3WHullCacheEntry hullCache[B3W_HULL_CACHE_CAPACITY];
     int cachedHullLast;
     uint32_t hullCacheStamp;
+    B3WPointHull pointHulls[B3W_POINT_HULL_CACHE];
+    uint32_t pointHullStamp;
+    // Bodies the application said to expect (b3w_world_reserve); 0 when it said nothing. Passed to Box3D as the
+    // world's capacity at the next reset, so a large scene is built without its arrays growing.
+    int expectedBodies;
     B3WQueryArena queries;
     // General-body extension. All of it stays zero for worlds
     // that only use the scene recipes, so their streams and hashes are unchanged.
@@ -662,6 +679,60 @@ static const b3BoxHull* b3w_ctx_get_box_hull(B3WContext* ctx, float hx, float hy
     entry->valid = 1;
     ctx->cachedHullLast = replacement;
     return &entry->hull;
+}
+
+static uint64_t b3w_point_key(const float* points, int count)
+{
+    uint64_t h = 1469598103934665603ull ^ (uint64_t)(uint32_t)count;
+    const uint8_t* bytes = (const uint8_t*)points;
+    for (size_t k = 0; k < (size_t)count * 3u * sizeof(float); ++k) { h ^= bytes[k]; h *= 1099511628211ull; }
+    return h;
+}
+
+// The hull of `count` points (xyz floats), from the cache or computed and cached. NULL when Box3D refuses the cloud.
+// The cache owns the hull: a shape made from it keeps its own copy.
+static const b3HullData* b3w_ctx_point_hull(B3WContext* ctx, const float* points, int count)
+{
+    const uint64_t key = b3w_point_key(points, count);
+    const size_t bytes = (size_t)count * 3u * sizeof(float);
+    ctx->pointHullStamp += 1u;
+    int slot = 0;
+    for (int i = 0; i < B3W_POINT_HULL_CACHE; ++i)
+    {
+        B3WPointHull* entry = ctx->pointHulls + i;
+        if (entry->hull != NULL && entry->key == key && entry->count == count && memcmp(entry->points, points, bytes) == 0)
+        {
+            entry->stamp = ctx->pointHullStamp;
+            return entry->hull;
+        }
+        // The slot to fill on a miss: an empty one, else the least recently used.
+        const B3WPointHull* best = ctx->pointHulls + slot;
+        if (best->hull != NULL && (entry->hull == NULL || entry->stamp < best->stamp)) slot = i;
+    }
+    // Box3D refuses a hull with more than 255 half-edges, which an all-triangle hull reaches near 44 vertices.
+    // Ask for fewer vertices until it accepts, so a dense rounded cloud works.
+    static const int budgets[] = { 64, 44, 32, 24, 16, 8 };
+    b3HullData* hull = NULL;
+    for (int i = 0; i < 6 && hull == NULL; ++i) hull = b3CreateHull((const b3Vec3*)points, count, budgets[i]);
+    if (hull == NULL) return NULL;
+    float* copy = (float*)malloc(bytes);
+    if (copy == NULL) { b3DestroyHull(hull); return NULL; }
+    memcpy(copy, points, bytes);
+    B3WPointHull* entry = ctx->pointHulls + slot;
+    if (entry->hull != NULL) b3DestroyHull(entry->hull);
+    free(entry->points);
+    *entry = (B3WPointHull){ .key = key, .count = count, .points = copy, .hull = hull, .stamp = ctx->pointHullStamp };
+    return hull;
+}
+
+static void b3w_ctx_free_point_hulls(B3WContext* ctx)
+{
+    for (int i = 0; i < B3W_POINT_HULL_CACHE; ++i)
+    {
+        if (ctx->pointHulls[i].hull != NULL) b3DestroyHull(ctx->pointHulls[i].hull);
+        free(ctx->pointHulls[i].points);
+        ctx->pointHulls[i] = (B3WPointHull){ 0 };
+    }
 }
 
 static int b3w_ctx_add_box_ex(B3WContext* ctx, b3BodyType type, float x, float y, float z, float hx, float hy, float hz, uint32_t color, float density, float friction, float restitution)
@@ -1796,6 +1867,7 @@ B3W_EXPORT int b3w_world_destroy(uint32_t handle)
     B3WContext* ctx = b3w_lookup_context(handle);
     if (ctx == NULL) return 0;
     b3w_ctx_destroy(ctx);
+    b3w_ctx_free_point_hulls(ctx);
     free(ctx->bufferBlock);
     free(ctx->queries.block);
     free(ctx->kinds);
@@ -1864,7 +1936,10 @@ B3W_EXPORT int b3w_world_max_bodies(uint32_t handle)
 B3W_EXPORT int b3w_world_reserve(uint32_t handle, int requested)
 {
     B3WContext* ctx = b3w_lookup_context(handle);
-    return ctx != NULL ? b3w_ctx_reserve(ctx, requested) : -1;
+    if (ctx == NULL) return -1;
+    const int capacity = b3w_ctx_reserve(ctx, requested);
+    if (capacity > 0 && requested > ctx->expectedBodies) ctx->expectedBodies = requested;
+    return capacity;
 }
 
 B3W_EXPORT uint32_t b3w_world_buffer_version(uint32_t handle)
@@ -2194,6 +2269,16 @@ B3W_EXPORT int b3w_world_reset(uint32_t handle, uint32_t seed, uint32_t flags, f
     worldDef.workerCount = 1;
     worldDef.enableSleep = true;
     worldDef.enableContinuous = true;
+    if (ctx->expectedBodies > 0)
+    {
+        // Only the sizes Box3D reserves its arrays with: what is simulated does not depend on them.
+        const int n = ctx->expectedBodies;
+        worldDef.capacity.dynamicBodyCount = n;
+        worldDef.capacity.dynamicShapeCount = n;
+        worldDef.capacity.staticBodyCount = 64;
+        worldDef.capacity.staticShapeCount = 64;
+        worldDef.capacity.contactCount = n <= 65536 ? 4 * n : 262144;
+    }
     ctx->world = b3CreateWorld(&worldDef);
     if ((flags & 1u) != 0u) b3w_ctx_add_box_ex(ctx, b3_staticBody, 0.0f, -1.0f, 0.0f, 44.0f, 1.0f, 44.0f, 0x162033u, 0.0f, 0.86f, 0.02f);
     return 1;
@@ -2224,7 +2309,7 @@ B3W_EXPORT int b3w_world_get_gravity(uint32_t handle, float* out3)
 // b3HeightFieldData. Their render rows are unscaled: the caller draws its own geometry.
 typedef struct B3WGeometry { int slot; uint32_t kind; void* data; } B3WGeometry;
 // Kind 6 (compound): `geometry` is a B3WCompound, whose hulls are already built in the body frame.
-typedef struct B3WCompound { const B3WShapeDesc* shapes; int count; b3HullData** hulls; } B3WCompound;
+typedef struct B3WCompound { const B3WShapeDesc* shapes; int count; const b3HullData* const* hulls; } B3WCompound;
 
 static void b3w_ctx_free_geometry(B3WContext* ctx, int slot)
 {
@@ -2382,15 +2467,9 @@ B3W_EXPORT uint64_t b3w_world_create_hull_body(uint32_t handle, const B3WBodyDes
     B3WContext* ctx = b3w_lookup_context(handle);
     if (ctx == NULL || B3_IS_NULL(ctx->world) || desc == NULL || points == NULL || count < 4 || count > 4096) return 0u;
     for (int i = 0; i < count * 3; ++i) if (!isfinite(points[i])) return 0u;
-    // Box3D refuses a hull with more than 255 half-edges, which an all-triangle hull reaches
-    // near 44 vertices. Ask for fewer vertices until it accepts, so a dense rounded cloud works.
-    static const int budgets[] = { 64, 44, 32, 24, 16, 8 };
-    b3HullData* hull = NULL;
-    for (int i = 0; i < 6 && hull == NULL; ++i) hull = b3CreateHull((const b3Vec3*)points, count, budgets[i]);
+    const b3HullData* hull = b3w_ctx_point_hull(ctx, points, count);
     if (hull == NULL) return 0u;
-    uint64_t body = b3w_ctx_create_general(ctx, desc, 3u, hull);
-    b3DestroyHull(hull); // the shape keeps its own copy
-    return body;
+    return b3w_ctx_create_general(ctx, desc, 3u, (void*)(uintptr_t)hull); // the shape keeps its own copy
 }
 
 // Static triangle mesh: `vertexCount` xyz floats and `triangleCount` index triples, body-local.
@@ -2479,7 +2558,7 @@ B3W_EXPORT uint64_t b3w_world_create_compound_body(uint32_t handle, const B3WBod
         }
     }
     // Build every hull in the body frame before the body exists, so a refused hull leaves nothing behind.
-    b3HullData* hulls[B3W_COMPOUND_LIMIT] = { 0 };
+    const b3HullData* hulls[B3W_COMPOUND_LIMIT] = { 0 };
     int ok = 1;
     for (int i = 0; i < count && ok != 0; ++i)
     {
@@ -2494,8 +2573,7 @@ B3W_EXPORT uint64_t b3w_world_create_compound_body(uint32_t handle, const B3WBod
             b3Vec3 p = b3w_rotate(q, (b3Vec3){ source[k * 3], source[k * 3 + 1], source[k * 3 + 2] });
             moved[k] = (b3Vec3){ p.x + child->position[0], p.y + child->position[1], p.z + child->position[2] };
         }
-        static const int budgets[] = { 64, 44, 32, 24, 16, 8 };
-        for (int b = 0; b < 6 && hulls[i] == NULL; ++b) hulls[i] = b3CreateHull(moved, child->pointCount, budgets[b]);
+        hulls[i] = b3w_ctx_point_hull(ctx, (const float*)moved, child->pointCount);
         free(moved);
         if (hulls[i] == NULL) ok = 0;
     }
@@ -2508,8 +2586,7 @@ B3W_EXPORT uint64_t b3w_world_create_compound_body(uint32_t handle, const B3WBod
         fixed.density = 0.0f; fixed.friction = 0.0f; fixed.restitution = 0.0f;
         body = b3w_ctx_create_general(ctx, &fixed, 6u, &compound);
     }
-    for (int i = 0; i < count; ++i) if (hulls[i] != NULL) b3DestroyHull(hulls[i]); // each shape keeps its own copy
-    return body;
+    return body; // the hulls belong to the cache; each shape keeps its own copy
 }
 
 

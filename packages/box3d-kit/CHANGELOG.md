@@ -9,6 +9,8 @@
 
 ## Unreleased
 
+- **Hull cache and capacity** (new WASM): bodies made of the same hull points share one hull computation (1,000 hull bodies of four shapes: 6.1–6.8 ms instead of 10.4–10.9 ms), and `capacity` is also passed to Box3D as the world's capacity. Same results, hash for hash.
+
 - **`castRays` stops each ray at its nearest hit** (new WASM): 100,000 rays against 10,000 bodies in 336–361 ms instead of 1,662–1,739 ms, with the same hits. Ties at the same fraction go to the smaller body handle, then triangle and child, in `raycast`, `castRays` and `raycastBatch` alike.
 
 - **Scene format version 3, five example scenes and scene roles.** `box3d-webgpu-kit/scene`: joints take `thresholds`, `steering`, `drive` and `maxTorque`, and the types `motor`, `parallel` and `filter`; `SCENE_VERSION` is 3 and `SCENE_VERSIONS` `[1, 2, 3]` (older files keep their text and hash). New `RIGID_CORE_EXAMPLE_SCENES` with `obstacleCourseScene`, `vehicleTerrainScene`, `laserScannerScene`, `bulletPlatesScene` and `breakableBridgeScene`. `box3d-webgpu-kit/gameplay`: `SceneRoles`, `attachSceneRoles`, `sceneRolesSubsystem`, `sceneHasRoles` (types `SceneRolesHost`, `SceneRolesSource`, `SceneRolesInput`, `SceneRolesState`, `SceneLaserBeam`) play a scene from `userData.role`; `Vehicle.adopt` makes a vehicle of bodies and joints that exist; `suspensionJointSpring` turns N/m and N s/m into a wheel joint's spring. `test/v22-rigid-examples.test.mjs` (10 tests in the gate).

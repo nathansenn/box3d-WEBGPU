@@ -1,5 +1,11 @@
 # Changelog
 
+## Unreleased — 2026-11-16 — Rigid core: hull cache and world capacity in the bridge
+
+- **Bridge** (`wasm/box3d_web.c`, both WASM files and `BUILD_PROVENANCE.json` rebuilt; API version 1): a 32-entry cache of computed hulls per world context, keyed by the exact bits of the points, for hull bodies and the hull children of compounds; and `b3w_world_reserve(n)` (the kit's `capacity`) is passed to `b3CreateWorld` as the world's capacity at the next reset. Neither changes a result: the engine comparison's hulls-1k, boxes-10k and spheres-5k end in the same `stateHash` before and after, and `v22-rigid-controls` builds one hull pile with its hulls computed, cached and under two capacities, hash for hash. No existing hash changed.
+- **Measured** (load 8.5 to 9.3 on 4 CPUs): 1,000 hull bodies of four shapes created in 6.1 to 6.8 ms instead of 10.4 to 10.9 ms (best of 41 passes, alternating artifacts); 1,000 different shapes unchanged (13.9 to 15.9 ms). Capacity gave no measurable construction gain on boxes-10k (257.6 ms before, 263.5 after, one pass) or spheres-5k (108.5 and 100.6 before, 101.4 and 93.0 after).
+- The `__vfprintf_internal` frame in the hull pile's profile is Box3D's `snprintf("solve[%d]")` in `solver.c`, which names the solver task every step; it is upstream and was left alone (1 sample in 2,221).
+
 ## Unreleased — 2026-11-16 — Rigid core: castRays stops each ray at its nearest hit, 4.9 times faster on 10,000 bodies
 
 - **Bridge** (`wasm/box3d_web.c`, both WASM files and `BUILD_PROVENANCE.json` rebuilt): the closest-hit ray call `b3w_world_cast_rays` orders hits exactly as the query path sorts them (fraction, then body handle, triangle, compound child; it kept the first hit visited for one body before) and clips each ray just beyond its best hit so far instead of at it, so a hit at the same fraction is still compared and a ray that starts on a surface no longer ends the cast. It also skips a stale body slot as the query path does. World API version 1; no simulation state, replay or scene hash changes (queries do not step the world).

@@ -239,7 +239,10 @@ export interface WorldOptions extends FixedStepOptions {
   readonly subSteps?: number;
   /** Deterministic seed for presets and scattered spawns. Default 1. */
   readonly seed?: number;
-  /** Reserve this many bodies up front (4,096..65,536) so growth never stalls gameplay. */
+  /**
+   * Reserve this many bodies up front (4,096..65,536) so growth never stalls gameplay. Box3D is told the same number
+   * when the world is (re)set, so its own arrays are sized for it too; what is simulated does not change.
+   */
   readonly capacity?: number;
   /** Keep the previous step's transforms for render interpolation. Default true. */
   readonly interpolate?: boolean;

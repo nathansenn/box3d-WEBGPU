@@ -101,3 +101,28 @@ test('settings and flags refuse bad values and are recorded for replay', async (
     assert.equal(twin.settings().contactPushSpeed, 1, 'and leaves the same settings');
   } finally { world.dispose(); twin.dispose(); }
 });
+
+test('hull cache and capacity: a hull pile gives the same state whether its hulls come from the cache or not, and whatever capacity was reserved', async () => {
+  let a = 3; const rnd = () => { a = (a + 0x6D2B79F5) >>> 0; let t = a; t = Math.imul(t ^ (t >>> 15), t | 1); t ^= t + Math.imul(t ^ (t >>> 7), t | 61); return ((t ^ (t >>> 14)) >>> 0) / 4294967296; };
+  const cloud = () => { const p = []; for (let i = 0; i < 14; i++) { const u = 2 * rnd() - 1, f = 2 * Math.PI * rnd(), s = Math.sqrt(1 - u * u), r = 0.25 + 0.1 * rnd(); p.push(r * s * Math.cos(f), r * u, r * s * Math.sin(f)); } return p; };
+  const shapes = Array.from({length: 6}, cloud), others = Array.from({length: 40}, cloud);
+  const pile = async ({capacity, warm}) => {
+    const world = await K.createWorld({step: 1 / 60, subSteps: 4, gravity: [0, -9.81, 0], ground: true, ...(capacity ? {capacity} : {})});
+    try {
+      // warm: fill the bridge's 32-entry hull cache with other shapes, then reset the world (the cache belongs to the
+      // native context and survives), so that every hull of the pile is computed again. Without warm the pile's own
+      // shapes are created first and then reset away, so that its hulls come from the cache. Both worlds are reset once.
+      for (const [i, points] of (warm ? others : shapes).entries()) world.createBody({shape: {kind: 'hull', points}, position: [100 + 2 * i, 5, 0]});
+      world.reset({gravity: [0, -9.81, 0], ground: true});
+      const bodies = [];
+      for (let i = 0; i < 300; i++) bodies.push(world.createBody({shape: {kind: 'hull', points: shapes[i % shapes.length]}, position: [(i % 10) * 0.8 - 4, 0.5 + Math.floor(i / 100) * 0.8, (Math.floor(i / 10) % 10) * 0.8 - 4]}));
+      const mass = world.getState(bodies[7]).mass;
+      for (let i = 0; i < 120; i++) world.step();
+      return {hash: world.exactHash(), replay: world.replayHash(), mass};
+    } finally { world.dispose(); }
+  };
+  const plain = await pile({}), warmed = await pile({warm: true}), large = await pile({capacity: 20000}), both = await pile({capacity: 65536, warm: true});
+  assert.deepEqual(warmed, plain, 'hulls computed again or taken from the cache: the same pile');
+  assert.deepEqual(large, plain, 'a reserved capacity of 20,000 bodies (passed to Box3D as its world capacity) changes nothing');
+  assert.deepEqual(both, plain, 'nor does 65,536 with a cold cache');
+});
