@@ -1,0 +1,17 @@
+{
+  "name": "box3d-webgpu-engine-comparison",
+  "version": "1.0.0",
+  "private": true,
+  "type": "module",
+  "description": "Benchmark-only dependencies for benchmarks/engines: the other web physics engines this project is measured against. Never imported by the shipped app or the kit.",
+  "license": "MIT",
+  "devDependencies": {
+    "@babylonjs/havok": "1.3.14",
+    "@dimforge/rapier3d-compat": "0.21.0",
+    "@dimforge/rapier3d-simd-compat": "0.21.0",
+    "ammojs-typed": "1.1.0",
+    "cannon-es": "0.20.0",
+    "jolt-physics": "1.1.1",
+    "physx-js-webidl": "2.9.1"
+  }
+}

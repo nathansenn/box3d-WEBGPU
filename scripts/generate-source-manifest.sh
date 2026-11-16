@@ -12,6 +12,7 @@ list_source_files() {
     ! -path './.git/*' \
     ! -path './.anchor/*' \
     ! -path './node_modules/*' \
+    ! -path './benchmarks/engines/node_modules/*' \
     ! -path './dist/*' \
     ! -path './build/*' \
     ! -path './third_party/*' \

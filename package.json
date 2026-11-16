@@ -139,7 +139,10 @@
     "catalog:check": "node scripts/catalog-counts.mjs",
     "catalog:sync": "node scripts/catalog-counts.mjs --write",
     "stage:railway": "node scripts/stage-railway.mjs",
-    "bench:contact-budget": "node scripts/contact-budget.mjs"
+    "bench:contact-budget": "node scripts/contact-budget.mjs",
+    "bench:engines": "node benchmarks/engines/run.mjs",
+    "bench:engines:report": "node benchmarks/engines/report.mjs",
+    "test:bench:engines": "node --test tests/benchmarks/engine-comparison.test.mjs"
   },
   "devDependencies": {
     "@types/three": "0.185.4",
