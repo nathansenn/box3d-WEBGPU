@@ -7,6 +7,7 @@
 
 #include "box3d_snapshot.h"
 
+#include <float.h>
 #include <math.h>
 #include <stdint.h>
 #include <stdlib.h>
@@ -56,7 +57,7 @@ typedef struct B3WQueryInput
     uint32_t bodyTypes; // bit 0 static, bit 1 dynamic
     float origin[3];
     float translation[3];
-    float extent[3]; // sphere radius in x; box half extents
+    float extent[3]; // sphere radius in x; box half extents; capsule radius in x and half length (along Y) in y
     uint32_t reserved;
     uint64_t categoryBits;
     uint64_t maskBits;
@@ -147,6 +148,20 @@ typedef struct B3WContext
     void* snapshotHolder;
     uint8_t* checkpoint;
     int checkpointSize;
+    // Rigid-core extension. All of it stays zero for worlds that do not use it.
+    // Per joint index: (generation << 8) | flags; flag bit 0 means the joint is destroyed when its
+    // force or torque threshold is exceeded. Saved in checkpoints.
+    uint32_t* jointFlags;
+    int jointFlagCapacity;
+    // Joints that exceeded a threshold in the most recent step (b3w_ctx_after_step).
+    struct B3WJointRecord* jointRecords;
+    int jointRecordCount;
+    int jointRecordCapacity;
+    // Line vertices written by the last b3w_world_debug_draw: x, y, z, 0xRRGGBB as a float.
+    float* debugVertices;
+    int debugCount;
+    int debugCapacity;
+    int debugTotal;
 } B3WContext;
 
 // The compatibility world retains fixed arrays and stable offsets. Explicit
@@ -424,7 +439,7 @@ static int b3w_ctx_query_batch(B3WContext* ctx, int count, uint32_t version)
     for (int i = 0; i < count; ++i)
     {
         const B3WQueryInput* q = arena->inputs + i;
-        if (q->kind > 5u || q->bodyTypes > 3u || q->reserved != 0u || q->padding != 0u ||
+        if (q->kind > 7u || q->bodyTypes > 3u || q->reserved != 0u || q->padding != 0u ||
             q->limit < 1u || q->limit > B3W_QUERY_HITS_PER_INPUT) return -2;
         for (int k = 0; k < 3; ++k)
         {
@@ -435,6 +450,7 @@ static int b3w_ctx_query_batch(B3WContext* ctx, int count, uint32_t version)
         if ((q->kind == 1u || q->kind == 3u) && q->extent[0] <= 0.0f) return -2;
         if ((q->kind == 2u || q->kind == 4u || q->kind == 5u) &&
             (q->extent[0] <= 0.0f || q->extent[1] <= 0.0f || q->extent[2] <= 0.0f)) return -2;
+        if ((q->kind == 6u || q->kind == 7u) && (q->extent[0] <= 0.0f || q->extent[2] != 0.0f)) return -2;
         if (q->ignoreBody != 0u && b3w_ctx_body_index(ctx, q->ignoreBody) < 0) return -5;
         required += q->limit;
     }
@@ -447,7 +463,8 @@ static int b3w_ctx_query_batch(B3WContext* ctx, int count, uint32_t version)
         b3QueryFilter filter = b3DefaultQueryFilter(); filter.categoryBits = q->categoryBits; filter.maskBits = q->maskBits;
         const b3Pos origin = {q->origin[0],q->origin[1],q->origin[2]};
         const b3Vec3 translation = {q->translation[0],q->translation[1],q->translation[2]};
-        const int zeroCast = q->kind <= 2u && translation.x == 0.0f && translation.y == 0.0f && translation.z == 0.0f;
+        const int isCast = q->kind <= 2u || q->kind == 6u;
+        const int zeroCast = isCast && translation.x == 0.0f && translation.y == 0.0f && translation.z == 0.0f;
         if (B3_IS_NON_NULL(ctx->world) && q->bodyTypes != 0u && !zeroCast)
         {
             b3Vec3 points[8] = {{0}};
@@ -458,7 +475,16 @@ static int b3w_ctx_query_batch(B3WContext* ctx, int count, uint32_t version)
                 for (int j = 0; j < 8; ++j) points[j] = (b3Vec3){ (j & 1) ? q->extent[0] : -q->extent[0],
                     (j & 2) ? q->extent[1] : -q->extent[1], (j & 4) ? q->extent[2] : -q->extent[2] };
             }
+            if (q->kind == 6u || q->kind == 7u)
+            {
+                // Upright capsule: two centres on the Y axis.
+                proxy.count = 2;
+                points[0] = (b3Vec3){ 0.0f, -q->extent[1], 0.0f };
+                points[1] = (b3Vec3){ 0.0f, q->extent[1], 0.0f };
+            }
             if (q->kind == 0u) b3World_CastRay(ctx->world, origin, translation, filter, b3w_query_cast_callback, &visit);
+            else if (q->kind == 6u) b3World_CastShape(ctx->world, origin, &proxy, translation, filter, b3w_query_cast_callback, &visit);
+            else if (q->kind == 7u) b3World_OverlapShape(ctx->world, origin, &proxy, filter, b3w_query_overlap_callback, &visit);
             else if (q->kind <= 2u) b3World_CastShape(ctx->world, origin, &proxy, translation, filter, b3w_query_cast_callback, &visit);
             else if (q->kind <= 4u) b3World_OverlapShape(ctx->world, origin, &proxy, filter, b3w_query_overlap_callback, &visit);
             else
@@ -742,6 +768,10 @@ static void b3w_ctx_destroy_world(B3WContext* ctx)
     b3w_snapshot_release(ctx->snapshotHolder);
     ctx->snapshotHolder = NULL;
     ctx->massOverrideCount = 0;
+    if (ctx->jointFlags != NULL) memset(ctx->jointFlags, 0, (size_t)ctx->jointFlagCapacity * sizeof(uint32_t));
+    ctx->jointRecordCount = 0;
+    ctx->debugCount = 0;
+    ctx->debugTotal = 0;
 
     if (ctx->kinds != NULL) memset(ctx->kinds, 0, (size_t)ctx->bodyCount);
     ctx->anchor = b3_nullBodyId;
@@ -1513,8 +1543,12 @@ static void b3w_ctx_sync_transforms(B3WContext* ctx)
     ctx->transformVersion += 1u;
 }
 
+static void b3w_ctx_after_step(B3WContext* ctx);
+
 static void b3w_ctx_step(B3WContext* ctx, float dt, int subSteps)
 {
+    // Joint events describe one step only.
+    ctx->jointRecordCount = 0;
     if (B3_IS_NULL(ctx->world) || !isfinite(dt) || dt <= 0.0f)
     {
         return;
@@ -1531,6 +1565,7 @@ static void b3w_ctx_step(B3WContext* ctx, float dt, int subSteps)
         return;
     }
     b3World_Step(ctx->world, dt, subSteps);
+    b3w_ctx_after_step(ctx);
 
     // If the step began awake, perform the same full synchronization used by
     // the baseline. This deliberately includes the step where the last bodies
@@ -1768,6 +1803,9 @@ B3W_EXPORT int b3w_world_destroy(uint32_t handle)
     free(ctx->geometry);
     free(ctx->massOverrides);
     free(ctx->checkpoint);
+    free(ctx->jointFlags);
+    free(ctx->jointRecords);
+    free(ctx->debugVertices);
     free(ctx);
     B3WContextSlot* slot = &g_contextSlots[(handle & B3W_CONTEXT_SLOT_MASK) - 1u];
     slot->context = NULL;
@@ -2045,8 +2083,8 @@ typedef struct B3WBodyDesc
 
 typedef struct B3WJointDesc
 {
-    uint32_t type; // 0 weld, 1 revolute, 2 spherical, 3 prismatic, 4 distance, 5 wheel
-    uint32_t flags; // 1 collide connected, 2 limit, 4 motor, 8 spring, 16 cone limit (spherical)
+    uint32_t type; // 0 weld, 1 revolute, 2 spherical, 3 prismatic, 4 distance, 5 wheel, 6 motor, 7 parallel, 8 filter
+    uint32_t flags; // 1 collide connected, 2 limit, 4 motor, 8 spring, 16 cone limit (spherical), 32 breaks at its thresholds
     uint64_t bodyA, bodyB; // 0 attaches to the fixed world anchor
     float framePositionA[3], frameRotationA[4];
     float framePositionB[3], frameRotationB[4];
@@ -2056,18 +2094,18 @@ typedef struct B3WJointDesc
     float target; // spring target angle / translation, or distance length
     float coneAngle; // spherical cone limit
     float constraintHertz, constraintDampingRatio; // how stiffly the joint holds its bodies together; 0 hertz keeps Box3D's default (60 Hz, ratio 2)
-    float reserved[2];
+    float forceThreshold, torqueThreshold; // joint events (and breaking) above this constraint force (N) or torque (N m); 0 means none
 } B3WJointDesc;
 
 typedef struct B3WEvent
 {
-    uint32_t kind; // 0 contact begin, 1 contact end, 2 hit, 3 sensor begin, 4 sensor end
-    uint32_t reserved;
-    uint64_t bodyA, bodyB; // for sensor events A is the sensor, B the visitor
-    float point[3];
-    float normal[3];
+    uint32_t kind; // 0 contact begin, 1 contact end, 2 hit, 3 sensor begin, 4 sensor end, 5 joint over its threshold, 6 joint broke
+    uint32_t reserved; // joint events: low 32 bits of the joint handle
+    uint64_t bodyA, bodyB; // for sensor events A is the sensor, B the visitor; for joint events the joint's bodies (0 for the world anchor)
+    float point[3]; // joint events: the constraint force (N)
+    float normal[3]; // joint events: the constraint torque (N m)
     float speed; // approach speed for hits
-    uint32_t padding;
+    uint32_t padding; // joint events: high 32 bits of the joint handle
 } B3WEvent;
 
 // One child shape of a compound body (kind 6), in the body's own frame.
@@ -2763,11 +2801,41 @@ static int b3w_ctx_joint_body(B3WContext* ctx, uint64_t handle, b3BodyId* out)
     return 1;
 }
 
+// Records a joint's flags by its index, with the generation that owns them. Returns 0 when memory ran out and
+// the flags could not be stored (only possible for non-zero flags).
+static int b3w_ctx_set_joint_flags(B3WContext* ctx, b3JointId joint, uint32_t flags)
+{
+    const int index = joint.index1 - 1;
+    if (index < 0) return 0;
+    if (index >= ctx->jointFlagCapacity)
+    {
+        if (flags == 0u) return 1;
+        int capacity = ctx->jointFlagCapacity == 0 ? 64 : ctx->jointFlagCapacity;
+        while (capacity <= index) capacity *= 2;
+        uint32_t* list = (uint32_t*)realloc(ctx->jointFlags, (size_t)capacity * sizeof(uint32_t));
+        if (list == NULL) return 0;
+        memset(list + ctx->jointFlagCapacity, 0, (size_t)(capacity - ctx->jointFlagCapacity) * sizeof(uint32_t));
+        ctx->jointFlags = list;
+        ctx->jointFlagCapacity = capacity;
+    }
+    ctx->jointFlags[index] = flags == 0u ? 0u : ((uint32_t)joint.generation << 8) | (flags & 0xFFu);
+    return 1;
+}
+
+static uint32_t b3w_ctx_get_joint_flags(const B3WContext* ctx, b3JointId joint)
+{
+    const int index = joint.index1 - 1;
+    if (index < 0 || index >= ctx->jointFlagCapacity) return 0u;
+    const uint32_t entry = ctx->jointFlags[index];
+    return (entry >> 8) == (uint32_t)joint.generation ? (entry & 0xFFu) : 0u;
+}
+
 B3W_EXPORT uint64_t b3w_world_create_joint(uint32_t handle, const B3WJointDesc* desc)
 {
     B3WContext* ctx = b3w_lookup_context(handle);
-    if (ctx == NULL || B3_IS_NULL(ctx->world) || desc == NULL || desc->type > 5u) return 0u;
+    if (ctx == NULL || B3_IS_NULL(ctx->world) || desc == NULL || desc->type > 8u) return 0u;
     if (desc->bodyA == desc->bodyB) return 0u;
+    if (!isfinite(desc->forceThreshold) || !isfinite(desc->torqueThreshold) || desc->forceThreshold < 0.0f || desc->torqueThreshold < 0.0f) return 0u;
     if (!b3w_finite3(desc->framePositionA) || !b3w_finite3(desc->framePositionB)) return 0u;
     const float scalars[10] = { desc->lower, desc->upper, desc->motorSpeed, desc->maxMotor, desc->hertz, desc->dampingRatio, desc->target, desc->coneAngle, desc->constraintHertz, desc->constraintDampingRatio };
     for (int i = 0; i < 10; ++i) if (!isfinite(scalars[i])) return 0u;
@@ -2783,6 +2851,8 @@ B3W_EXPORT uint64_t b3w_world_create_joint(uint32_t handle, const B3WJointDesc* 
     (def).base.localFrameA = (b3Transform){ { desc->framePositionA[0], desc->framePositionA[1], desc->framePositionA[2] }, b3w_quat(desc->frameRotationA) }; \
     (def).base.localFrameB = (b3Transform){ { desc->framePositionB[0], desc->framePositionB[1], desc->framePositionB[2] }, b3w_quat(desc->frameRotationB) }; \
     (def).base.collideConnected = (desc->flags & 1u) != 0u; \
+    if (desc->forceThreshold > 0.0f) (def).base.forceThreshold = desc->forceThreshold; \
+    if (desc->torqueThreshold > 0.0f) (def).base.torqueThreshold = desc->torqueThreshold; \
     if (desc->constraintHertz > 0.0f) { (def).base.constraintHertz = desc->constraintHertz; (def).base.constraintDampingRatio = desc->constraintDampingRatio; }
     switch (desc->type)
     {
@@ -2841,7 +2911,7 @@ B3W_EXPORT uint64_t b3w_world_create_joint(uint32_t handle, const B3WJointDesc* 
             joint = b3CreateDistanceJoint(ctx->world, &def);
             break;
         }
-        default:
+        case 5u:
         {
             b3WheelJointDef def = b3DefaultWheelJointDef();
             B3W_JOINT_BASE(def)
@@ -2851,9 +2921,36 @@ B3W_EXPORT uint64_t b3w_world_create_joint(uint32_t handle, const B3WJointDesc* 
             joint = b3CreateWheelJoint(ctx->world, &def);
             break;
         }
+        case 6u:
+        {
+            // Created idle (no velocity, no spring, no force); b3w_world_joint_set_values(what 0) gives it its drive.
+            b3MotorJointDef def = b3DefaultMotorJointDef();
+            B3W_JOINT_BASE(def)
+            joint = b3CreateMotorJoint(ctx->world, &def);
+            break;
+        }
+        case 7u:
+        {
+            b3ParallelJointDef def = b3DefaultParallelJointDef();
+            B3W_JOINT_BASE(def)
+            if (spring) { def.hertz = desc->hertz; def.dampingRatio = desc->dampingRatio; }
+            if (motor) def.maxTorque = desc->maxMotor;
+            joint = b3CreateParallelJoint(ctx->world, &def);
+            break;
+        }
+        default:
+        {
+            b3FilterJointDef def = b3DefaultFilterJointDef();
+            B3W_JOINT_BASE(def)
+            joint = b3CreateFilterJoint(ctx->world, &def);
+            break;
+        }
     }
 #undef B3W_JOINT_BASE
-    return B3_IS_NULL(joint) ? 0u : b3StoreJointId(joint);
+    if (B3_IS_NULL(joint)) return 0u;
+    // A joint index may have belonged to an earlier joint; its flags never carry over.
+    b3w_ctx_set_joint_flags(ctx, joint, (desc->flags & 32u) != 0u ? 1u : 0u);
+    return b3StoreJointId(joint);
 }
 
 #define B3W_JOINT(ctxName, idName) \
@@ -2872,6 +2969,7 @@ B3W_EXPORT int b3w_world_joint_valid(uint32_t worldHandle, uint64_t jointHandle)
 B3W_EXPORT int b3w_world_destroy_joint(uint32_t worldHandle, uint64_t jointHandle)
 {
     B3W_JOINT(ctx, id)
+    b3w_ctx_set_joint_flags(ctx, id, 0u);
     b3DestroyJoint(id, true);
     return 1;
 }
@@ -2970,6 +3068,9 @@ B3W_EXPORT int b3w_world_get_joint_state(uint32_t worldHandle, uint64_t jointHan
         case b3_prismaticJoint: code = 3.0f; value = b3PrismaticJoint_GetTranslation(id); break;
         case b3_distanceJoint: code = 4.0f; value = b3DistanceJoint_GetCurrentLength(id); break;
         case b3_wheelJoint: code = 5.0f; break;
+        case b3_motorJoint: code = 6.0f; break;
+        case b3_parallelJoint: code = 7.0f; break;
+        case b3_filterJoint: code = 8.0f; break;
         default: break;
     }
     b3Vec3 force = b3Joint_GetConstraintForce(id), torque = b3Joint_GetConstraintTorque(id);
@@ -3005,6 +3106,18 @@ static B3WEvent* b3w_ctx_push_event(B3WContext* ctx)
     memset(event, 0, sizeof(B3WEvent));
     return event;
 }
+
+// A joint that exceeded its force or torque threshold in the most recent step.
+typedef struct B3WJointRecord
+{
+    uint64_t joint; // b3StoreJointId
+    b3BodyId bodyA, bodyB;
+    float force[3], torque[3];
+    uint32_t broke;
+    uint32_t padding;
+} B3WJointRecord;
+
+static void b3w_ctx_write_joint_event(B3WContext* ctx, B3WEvent* event, const struct B3WJointRecord* record);
 
 // Copies the contact and sensor events of the most recent step into the
 // world's event buffer and returns how many were stored. Call once after each
@@ -3062,6 +3175,13 @@ B3W_EXPORT int b3w_world_collect_events(uint32_t handle)
         event->bodyA = b3w_ctx_shape_body_handle(ctx, sensors.endEvents[i].sensorShapeId);
         event->bodyB = b3w_ctx_shape_body_handle(ctx, sensors.endEvents[i].visitorShapeId);
     }
+    for (int i = 0; i < ctx->jointRecordCount; ++i)
+    {
+        B3WEvent* event = b3w_ctx_push_event(ctx);
+        if (event == NULL) continue;
+        const struct B3WJointRecord* record = ctx->jointRecords + i;
+        b3w_ctx_write_joint_event(ctx, event, record);
+    }
     return ctx->eventCount;
 }
 
@@ -3075,6 +3195,781 @@ B3W_EXPORT int b3w_world_event_total(uint32_t handle)
 {
     B3WContext* ctx = b3w_lookup_context(handle);
     return ctx != NULL ? ctx->eventTotal : -1;
+}
+
+// ---------------------------------------------------------------------------
+// Rigid-core extension (optional; the world API version stays 1).
+//
+// Joint events and breakable joints, batched closest-hit rays, the capsule
+// character mover, world and body controls, Box3D's radial explosion, step
+// profile and counters, and debug-draw lines. Nothing here runs for a world
+// that does not call it, except the joint-event check after each step, which
+// costs one call when no joint has a threshold.
+// ---------------------------------------------------------------------------
+
+#define B3W_JOINT_RECORD_LIMIT 65536
+
+static uint64_t b3w_ctx_native_body_handle(B3WContext* ctx, b3BodyId body)
+{
+    if (ctx->bodySlots == NULL || !b3Body_IsValid(body)) return 0u;
+    uintptr_t slot1 = (uintptr_t)b3Body_GetUserData(body);
+    if (slot1 == 0u || slot1 > (uintptr_t)ctx->slotsUsed) return 0u;
+    const B3WBodySlot* slot = ctx->bodySlots + slot1 - 1u;
+    return slot->denseIndex >= 0 ? (slot->generation << B3W_BODY_SLOT_BITS) | (uint64_t)slot1 : 0u;
+}
+
+// Copies the joints Box3D reported over their force or torque threshold in the step just taken, then destroys
+// the ones flagged as breakable. Box3D's event array is invalid once a joint is destroyed, hence the copy.
+static void b3w_ctx_after_step(B3WContext* ctx)
+{
+    b3JointEvents events = b3World_GetJointEvents(ctx->world);
+    if (events.count <= 0) return;
+    int count = events.count > B3W_JOINT_RECORD_LIMIT ? B3W_JOINT_RECORD_LIMIT : events.count;
+    if (count > ctx->jointRecordCapacity)
+    {
+        B3WJointRecord* list = (B3WJointRecord*)realloc(ctx->jointRecords, (size_t)count * sizeof(B3WJointRecord));
+        if (list == NULL) count = ctx->jointRecordCapacity;
+        else { ctx->jointRecords = list; ctx->jointRecordCapacity = count; }
+    }
+    // Breaking must not depend on whether the record buffer could grow: every reported joint is examined.
+    for (int i = 0; i < events.count; ++i)
+    {
+        const b3JointId id = events.jointEvents[i].jointId;
+        if (i >= count) continue;
+        B3WJointRecord* record = ctx->jointRecords + i;
+        memset(record, 0, sizeof(*record));
+        record->joint = b3StoreJointId(id);
+        record->bodyA = b3Joint_GetBodyA(id);
+        record->bodyB = b3Joint_GetBodyB(id);
+        const b3Vec3 force = b3Joint_GetConstraintForce(id), torque = b3Joint_GetConstraintTorque(id);
+        record->force[0] = force.x; record->force[1] = force.y; record->force[2] = force.z;
+        record->torque[0] = torque.x; record->torque[1] = torque.y; record->torque[2] = torque.z;
+        record->broke = (b3w_ctx_get_joint_flags(ctx, id) & 1u) != 0u ? 1u : 0u;
+    }
+    ctx->jointRecordCount = count;
+    // Second pass over our own copy (and over any events that did not fit, straight from the flags table).
+    const int total = events.count;
+    b3JointId* overflow = NULL;
+    int overflowCount = 0;
+    if (total > count)
+    {
+        overflow = (b3JointId*)malloc((size_t)(total - count) * sizeof(b3JointId));
+        if (overflow != NULL) for (int i = count; i < total; ++i) overflow[overflowCount++] = events.jointEvents[i].jointId;
+    }
+    for (int i = 0; i < count; ++i)
+    {
+        if (ctx->jointRecords[i].broke == 0u) continue;
+        const b3JointId id = b3LoadJointId(ctx->jointRecords[i].joint);
+        b3w_ctx_set_joint_flags(ctx, id, 0u);
+        if (b3Joint_IsValid(id)) b3DestroyJoint(id, true);
+    }
+    for (int i = 0; i < overflowCount; ++i)
+    {
+        if ((b3w_ctx_get_joint_flags(ctx, overflow[i]) & 1u) == 0u) continue;
+        b3w_ctx_set_joint_flags(ctx, overflow[i], 0u);
+        if (b3Joint_IsValid(overflow[i])) b3DestroyJoint(overflow[i], true);
+    }
+    free(overflow);
+}
+
+static void b3w_ctx_write_joint_event(B3WContext* ctx, B3WEvent* event, const struct B3WJointRecord* record)
+{
+    event->kind = record->broke != 0u ? 6u : 5u;
+    event->reserved = (uint32_t)(record->joint & 0xFFFFFFFFu);
+    event->padding = (uint32_t)(record->joint >> 32);
+    event->bodyA = b3w_ctx_native_body_handle(ctx, record->bodyA);
+    event->bodyB = b3w_ctx_native_body_handle(ctx, record->bodyB);
+    for (int k = 0; k < 3; ++k) { event->point[k] = record->force[k]; event->normal[k] = record->torque[k]; }
+}
+
+// what 0: motor joint drive, 14 values: linear velocity (3, m/s, in frame A), angular velocity (3, rad/s),
+//         max velocity force (N), max velocity torque (N m), linear spring hertz, damping ratio, max spring force (N),
+//         angular spring hertz, damping ratio, max spring torque (N m). The springs pull frame B onto frame A.
+// what 1: thresholds, 3 values: force (N), torque (N m), breakable (0/1). A threshold of 0 removes it.
+// what 2: wheel steering limits, 3 values: enable, lower (rad), upper (rad).
+// what 3: spherical joint spring target rotation, 4 values: x, y, z, w.
+// what 4: spherical joint motor, 5 values: enable, angular velocity (3, rad/s), max torque (N m).
+// what 5: parallel joint, 3 values: spring hertz, damping ratio, max torque (N m).
+// what 6: spherical cone limit, 2 values: enable, half angle (rad).
+// what 7: collide connected, 1 value: 0/1.
+// Returns 1; 0 for a dead joint; -2 when the joint type does not take that setting; -3 for bad values.
+B3W_EXPORT int b3w_world_joint_set_values(uint32_t worldHandle, uint64_t jointHandle, uint32_t what, const float* v, int count)
+{
+    B3W_JOINT(ctx, id)
+    static const int counts[8] = { 14, 3, 3, 4, 5, 3, 2, 1 };
+    if (what > 7u || v == NULL || count != counts[what]) return -3;
+    for (int i = 0; i < count; ++i) if (!isfinite(v[i])) return -3;
+    const b3JointType type = b3Joint_GetType(id);
+    switch (what)
+    {
+        case 0u:
+            if (type != b3_motorJoint) return -2;
+            if (v[6] < 0.0f || v[7] < 0.0f || v[8] < 0.0f || v[9] < 0.0f || v[10] < 0.0f || v[11] < 0.0f || v[12] < 0.0f || v[13] < 0.0f) return -3;
+            b3MotorJoint_SetLinearVelocity(id, (b3Vec3){ v[0], v[1], v[2] });
+            b3MotorJoint_SetAngularVelocity(id, (b3Vec3){ v[3], v[4], v[5] });
+            b3MotorJoint_SetMaxVelocityForce(id, v[6]);
+            b3MotorJoint_SetMaxVelocityTorque(id, v[7]);
+            b3MotorJoint_SetLinearHertz(id, v[8]);
+            b3MotorJoint_SetLinearDampingRatio(id, v[9]);
+            b3MotorJoint_SetMaxSpringForce(id, v[10]);
+            b3MotorJoint_SetAngularHertz(id, v[11]);
+            b3MotorJoint_SetAngularDampingRatio(id, v[12]);
+            b3MotorJoint_SetMaxSpringTorque(id, v[13]);
+            break;
+        case 1u:
+            if (v[0] < 0.0f || v[1] < 0.0f) return -3;
+            b3Joint_SetForceThreshold(id, v[0] > 0.0f ? v[0] : FLT_MAX);
+            b3Joint_SetTorqueThreshold(id, v[1] > 0.0f ? v[1] : FLT_MAX);
+            if (b3w_ctx_set_joint_flags(ctx, id, v[2] != 0.0f ? 1u : 0u) == 0) return -3;
+            break;
+        case 2u:
+            if (type != b3_wheelJoint) return -2;
+            if (v[1] > v[2]) return -3;
+            b3WheelJoint_SetSteeringLimits(id, v[1], v[2]);
+            b3WheelJoint_EnableSteeringLimit(id, v[0] != 0.0f);
+            break;
+        case 3u:
+            if (type != b3_sphericalJoint) return -2;
+            b3SphericalJoint_SetTargetRotation(id, b3w_quat(v));
+            break;
+        case 4u:
+            if (type != b3_sphericalJoint) return -2;
+            if (v[4] < 0.0f) return -3;
+            b3SphericalJoint_EnableMotor(id, v[0] != 0.0f);
+            b3SphericalJoint_SetMotorVelocity(id, (b3Vec3){ v[1], v[2], v[3] });
+            b3SphericalJoint_SetMaxMotorTorque(id, v[4]);
+            break;
+        case 5u:
+            if (type != b3_parallelJoint) return -2;
+            if (v[0] < 0.0f || v[1] < 0.0f || v[2] < 0.0f) return -3;
+            b3ParallelJoint_SetSpringHertz(id, v[0]);
+            b3ParallelJoint_SetSpringDampingRatio(id, v[1]);
+            b3ParallelJoint_SetMaxTorque(id, v[2]);
+            break;
+        case 6u:
+            if (type != b3_sphericalJoint) return -2;
+            if (v[1] < 0.0f || v[1] > 3.14159274f) return -3;
+            b3SphericalJoint_SetConeLimit(id, v[1]);
+            b3SphericalJoint_EnableConeLimit(id, v[0] != 0.0f);
+            break;
+        default:
+            b3Joint_SetCollideConnected(id, v[0] != 0.0f);
+            break;
+    }
+    b3Joint_WakeBodies(id);
+    return 1;
+}
+
+// out24: [0] type code, [1] linear separation error (m), [2] angular separation error (rad),
+// [3] force threshold (0 when none), [4] torque threshold (0 when none), [5] breakable (0/1),
+// [6] constraint tuning hertz, [7] damping ratio, then by type from [8]:
+//   revolute  angle, motor torque, lower limit, upper limit, motor speed
+//   prismatic translation, speed, motor force, lower limit, upper limit
+//   distance  current length, motor force, rest length, min length, max length
+//   spherical twist angle, motor torque x y z, cone angle now, cone limit
+//   wheel     spin speed (rad/s), spin torque, steering angle, steering torque, target steering angle,
+//             suspension translation (m, along frame A's x axis), lower and upper suspension limits
+//   motor     linear velocity x y z, angular velocity x y z
+B3W_EXPORT int b3w_world_joint_get_values(uint32_t worldHandle, uint64_t jointHandle, float* out24)
+{
+    B3W_JOINT(ctx, id)
+    if (out24 == NULL) return -3;
+    memset(out24, 0, 24u * sizeof(float));
+    const b3JointType type = b3Joint_GetType(id);
+    float* o = out24 + 8;
+    float code = -1.0f;
+    switch (type)
+    {
+        case b3_weldJoint: code = 0.0f; break;
+        case b3_revoluteJoint:
+            code = 1.0f;
+            o[0] = b3RevoluteJoint_GetAngle(id); o[1] = b3RevoluteJoint_GetMotorTorque(id);
+            o[2] = b3RevoluteJoint_GetLowerLimit(id); o[3] = b3RevoluteJoint_GetUpperLimit(id); o[4] = b3RevoluteJoint_GetMotorSpeed(id);
+            break;
+        case b3_sphericalJoint:
+        {
+            code = 2.0f;
+            b3Vec3 t = b3SphericalJoint_GetMotorTorque(id);
+            o[0] = b3SphericalJoint_GetTwistAngle(id); o[1] = t.x; o[2] = t.y; o[3] = t.z;
+            o[4] = b3SphericalJoint_GetConeAngle(id); o[5] = b3SphericalJoint_GetConeLimit(id);
+            break;
+        }
+        case b3_prismaticJoint:
+            code = 3.0f;
+            o[0] = b3PrismaticJoint_GetTranslation(id); o[1] = b3PrismaticJoint_GetSpeed(id); o[2] = b3PrismaticJoint_GetMotorForce(id);
+            o[3] = b3PrismaticJoint_GetLowerLimit(id); o[4] = b3PrismaticJoint_GetUpperLimit(id);
+            break;
+        case b3_distanceJoint:
+            code = 4.0f;
+            o[0] = b3DistanceJoint_GetCurrentLength(id); o[1] = b3DistanceJoint_GetMotorForce(id); o[2] = b3DistanceJoint_GetLength(id);
+            o[3] = b3DistanceJoint_GetMinLength(id); o[4] = b3DistanceJoint_GetMaxLength(id);
+            break;
+        case b3_wheelJoint:
+        {
+            code = 5.0f;
+            o[0] = b3WheelJoint_GetSpinSpeed(id); o[1] = b3WheelJoint_GetSpinTorque(id);
+            o[2] = b3WheelJoint_GetSteeringAngle(id); o[3] = b3WheelJoint_GetSteeringTorque(id); o[4] = b3WheelJoint_GetTargetSteeringAngle(id);
+            // Suspension travel: frame B's origin measured from frame A's origin along frame A's x axis.
+            const b3BodyId a = b3Joint_GetBodyA(id), b = b3Joint_GetBodyB(id);
+            const b3Transform fa = b3Joint_GetLocalFrameA(id), fb = b3Joint_GetLocalFrameB(id);
+            const b3Pos pa = b3Body_GetWorldPoint(a, fa.p), pb = b3Body_GetWorldPoint(b, fb.p);
+            const b3Vec3 axis = b3Body_GetWorldVector(a, b3w_rotate(fa.q, (b3Vec3){ 1.0f, 0.0f, 0.0f }));
+            o[5] = (float)(pb.x - pa.x) * axis.x + (float)(pb.y - pa.y) * axis.y + (float)(pb.z - pa.z) * axis.z;
+            o[6] = b3WheelJoint_GetLowerSuspensionLimit(id); o[7] = b3WheelJoint_GetUpperSuspensionLimit(id);
+            break;
+        }
+        case b3_motorJoint:
+        {
+            code = 6.0f;
+            b3Vec3 lv = b3MotorJoint_GetLinearVelocity(id), av = b3MotorJoint_GetAngularVelocity(id);
+            o[0] = lv.x; o[1] = lv.y; o[2] = lv.z; o[3] = av.x; o[4] = av.y; o[5] = av.z;
+            break;
+        }
+        case b3_parallelJoint: code = 7.0f; o[0] = b3ParallelJoint_GetSpringHertz(id); o[1] = b3ParallelJoint_GetSpringDampingRatio(id); o[2] = b3ParallelJoint_GetMaxTorque(id); break;
+        case b3_filterJoint: code = 8.0f; break;
+        default: break;
+    }
+    out24[0] = code;
+    out24[1] = b3Joint_GetLinearSeparation(id);
+    out24[2] = b3Joint_GetAngularSeparation(id);
+    const float forceThreshold = b3Joint_GetForceThreshold(id), torqueThreshold = b3Joint_GetTorqueThreshold(id);
+    out24[3] = forceThreshold < FLT_MAX ? forceThreshold : 0.0f;
+    out24[4] = torqueThreshold < FLT_MAX ? torqueThreshold : 0.0f;
+    out24[5] = (b3w_ctx_get_joint_flags(ctx, id) & 1u) != 0u ? 1.0f : 0.0f;
+    b3Joint_GetConstraintTuning(id, out24 + 6, out24 + 7);
+    return 1;
+}
+
+// --- Batched closest-hit rays: one call for many rays. ---
+
+typedef struct B3WRayVisit
+{
+    B3WContext* ctx;
+    uint32_t bodyTypes;
+    uint64_t ignoreBody;
+    uint64_t body;
+    float fraction;
+    float point[3], normal[3];
+    int triangle, child;
+} B3WRayVisit;
+
+static float b3w_ray_closest_callback(b3ShapeId shape, b3Pos p, b3Vec3 n, float fraction, uint64_t material, int triangle, int child, void* user)
+{
+    (void)material;
+    B3WRayVisit* visit = (B3WRayVisit*)user;
+    B3WContext* ctx = visit->ctx;
+    const b3BodyId body = b3Shape_GetBody(shape);
+    const uintptr_t slot1 = (uintptr_t)b3Body_GetUserData(body);
+    if (slot1 == 0u || slot1 > (uintptr_t)ctx->slotsUsed) return -1.0f;
+    const int index = ctx->bodySlots[slot1 - 1u].denseIndex;
+    if (index < 0 || index >= ctx->bodyCount) return -1.0f;
+    const uint64_t token = b3w_ctx_body_handle(ctx, index);
+    if (token == visit->ignoreBody || (visit->bodyTypes & (ctx->bodies[index].dynamic ? 2u : 1u)) == 0u) return -1.0f;
+    // Equal fractions: keep the smaller body token, so the answer does not depend on tree order.
+    if (fraction > visit->fraction || (fraction == visit->fraction && visit->body != 0u && token >= visit->body)) return visit->fraction;
+    visit->body = token;
+    visit->fraction = fraction;
+    visit->point[0] = (float)p.x; visit->point[1] = (float)p.y; visit->point[2] = (float)p.z;
+    visit->normal[0] = n.x; visit->normal[1] = n.y; visit->normal[2] = n.z;
+    visit->triangle = triangle; visit->child = child;
+    return fraction;
+}
+
+// rays: `count` (1..65536) rays of 6 floats (origin xyz, translation xyz). outHits: 8 floats per ray
+// (fraction, or -1 for a miss; point xyz; normal xyz; triangle index or -1). outBodies: one body handle per ray
+// (0 for a miss). bodyTypes: bit 0 static, bit 1 moving. Returns the number of rays that hit, -1 for an unknown
+// or empty world, -2 for bad input, -5 for a stale ignored body. Nothing is written before every ray is checked.
+B3W_EXPORT int b3w_world_cast_rays(uint32_t handle, const float* rays, int count, uint64_t categoryBits, uint64_t maskBits,
+    uint32_t bodyTypes, uint64_t ignoreBody, float* outHits, uint64_t* outBodies)
+{
+    B3WContext* ctx = b3w_lookup_context(handle);
+    if (ctx == NULL || B3_IS_NULL(ctx->world) || ctx->bodySlots == NULL) return -1;
+    if (rays == NULL || outHits == NULL || outBodies == NULL || count < 1 || count > 65536 || bodyTypes > 3u) return -2;
+    for (int i = 0; i < count * 6; ++i) if (!isfinite(rays[i]) || fabsf(rays[i]) > 1000000.0f) return -2;
+    if (ignoreBody != 0u && b3w_ctx_body_index(ctx, ignoreBody) < 0) return -5;
+    b3QueryFilter filter = b3DefaultQueryFilter();
+    filter.categoryBits = categoryBits; filter.maskBits = maskBits;
+    int hits = 0;
+    for (int i = 0; i < count; ++i)
+    {
+        const float* r = rays + i * 6;
+        float* out = outHits + i * 8;
+        B3WRayVisit visit = { .ctx = ctx, .bodyTypes = bodyTypes, .ignoreBody = ignoreBody, .fraction = 1.0f, .triangle = -1, .child = -1 };
+        if (bodyTypes != 0u && (r[3] != 0.0f || r[4] != 0.0f || r[5] != 0.0f))
+        {
+            b3World_CastRay(ctx->world, (b3Pos){ r[0], r[1], r[2] }, (b3Vec3){ r[3], r[4], r[5] }, filter, b3w_ray_closest_callback, &visit);
+        }
+        outBodies[i] = visit.body;
+        if (visit.body == 0u) { out[0] = -1.0f; for (int k = 1; k < 7; ++k) out[k] = 0.0f; out[7] = -1.0f; continue; }
+        out[0] = visit.fraction;
+        out[1] = visit.point[0]; out[2] = visit.point[1]; out[3] = visit.point[2];
+        out[4] = visit.normal[0]; out[5] = visit.normal[1]; out[6] = visit.normal[2];
+        out[7] = (float)visit.triangle;
+        hits += 1;
+    }
+    return hits;
+}
+
+// --- Capsule character mover (b3World_CollideMover, b3SolvePlanes, b3World_CastMover). ---
+
+#define B3W_MOVER_PLANES 16
+typedef struct B3WMoverInput
+{
+    float origin[3]; // centre of the upright capsule
+    float radius, halfLength; // half the distance between the cap centres
+    float delta[3]; // wanted translation
+    float minGroundY; // with flag 1: a plane whose normal has 0 < y < minGroundY is treated as a vertical wall
+    float tolerance; // stop iterating when a move is shorter than this (m)
+    uint32_t flags; // 1 steep planes act as walls
+    uint32_t iterations; // 1..16
+    uint32_t bodyTypes; // bit 0 static, bit 1 kinematic, bit 2 dynamic
+    uint32_t reserved;
+    uint64_t categoryBits, maskBits, ignoreBody;
+} B3WMoverInput;
+typedef struct B3WMoverPlane
+{
+    float normal[3], offset; // as Box3D returned it (before any wall treatment), relative to the capsule centre at the last iteration
+    float point[3]; // closest point on the shape, world space
+    float push; // how far the plane solver pushed along the normal (m)
+    uint64_t body;
+    uint32_t bodyType; // 0 static, 1 kinematic, 2 dynamic
+    uint32_t flags; // 1 treated as a wall
+} B3WMoverPlane;
+typedef struct B3WMoverOutput
+{
+    float position[3];
+    float fraction; // of the last cast
+    uint32_t iterations, planeCount, solverIterations, reserved;
+    B3WMoverPlane planes[B3W_MOVER_PLANES];
+} B3WMoverOutput;
+_Static_assert(sizeof(B3WMoverInput) == 80, "Mover input ABI must be 80 bytes");
+_Static_assert(sizeof(B3WMoverPlane) == 48, "Mover plane ABI must be 48 bytes");
+_Static_assert(sizeof(B3WMoverOutput) == 32 + B3W_MOVER_PLANES * 48, "Mover output ABI must be 800 bytes");
+
+typedef struct B3WMoverVisit
+{
+    B3WContext* ctx;
+    const B3WMoverInput* input;
+    b3CollisionPlane planes[B3W_MOVER_PLANES];
+    B3WMoverPlane records[B3W_MOVER_PLANES];
+    int count;
+} B3WMoverVisit;
+
+// 0 when the mover ignores this shape; else the body handle, with its Box3D type in *type.
+static uint64_t b3w_mover_body(B3WMoverVisit* visit, b3ShapeId shape, uint32_t* type)
+{
+    const b3BodyId body = b3Shape_GetBody(shape);
+    const uint64_t token = b3w_ctx_native_body_handle(visit->ctx, body);
+    if (token == 0u || token == visit->input->ignoreBody || b3Shape_IsSensor(shape)) return 0u;
+    const b3BodyType t = b3Body_GetType(body);
+    *type = t == b3_staticBody ? 0u : t == b3_kinematicBody ? 1u : 2u;
+    return (visit->input->bodyTypes & (1u << *type)) != 0u ? token : 0u;
+}
+
+static bool b3w_mover_filter(b3ShapeId shape, void* user)
+{
+    uint32_t type = 0u;
+    return b3w_mover_body((B3WMoverVisit*)user, shape, &type) != 0u;
+}
+
+static bool b3w_mover_planes(b3ShapeId shape, const b3PlaneResult* results, int planeCount, void* user)
+{
+    B3WMoverVisit* visit = (B3WMoverVisit*)user;
+    uint32_t type = 0u;
+    const uint64_t body = b3w_mover_body(visit, shape, &type);
+    if (body == 0u) return true;
+    for (int i = 0; i < planeCount && visit->count < B3W_MOVER_PLANES; ++i)
+    {
+        const b3Plane plane = results[i].plane;
+        if (!isfinite(plane.normal.x) || !isfinite(plane.normal.y) || !isfinite(plane.normal.z) || !isfinite(plane.offset)) continue;
+        B3WMoverPlane* record = visit->records + visit->count;
+        memset(record, 0, sizeof(*record));
+        record->normal[0] = plane.normal.x; record->normal[1] = plane.normal.y; record->normal[2] = plane.normal.z;
+        record->offset = plane.offset;
+        record->point[0] = results[i].point.x; record->point[1] = results[i].point.y; record->point[2] = results[i].point.z;
+        record->body = body;
+        record->bodyType = type;
+        b3CollisionPlane* solver = visit->planes + visit->count;
+        *solver = (b3CollisionPlane){ .plane = plane, .pushLimit = FLT_MAX, .push = 0.0f, .clipVelocity = true };
+        if ((visit->input->flags & 1u) != 0u && plane.normal.y > 0.0f && plane.normal.y < visit->input->minGroundY)
+        {
+            const float h = sqrtf(plane.normal.x * plane.normal.x + plane.normal.z * plane.normal.z);
+            if (h > 1.0e-6f)
+            {
+                solver->plane.normal = (b3Vec3){ plane.normal.x / h, 0.0f, plane.normal.z / h };
+                record->flags = 1u;
+            }
+        }
+        visit->count += 1;
+    }
+    return true;
+}
+
+// Moves an upright capsule by `delta`, sliding along what it meets: up to `iterations` rounds of gathering the
+// collision planes around the capsule, solving for the closest allowed translation, and casting the capsule along it
+// so that it cannot pass through thin geometry. Reads the world only. Returns 1; -1 for an unknown or empty world;
+// -2 for bad input; -5 for a stale ignored body.
+B3W_EXPORT int b3w_world_mover_move(uint32_t handle, const B3WMoverInput* in, B3WMoverOutput* out)
+{
+    B3WContext* ctx = b3w_lookup_context(handle);
+    if (ctx == NULL || B3_IS_NULL(ctx->world) || ctx->bodySlots == NULL) return -1;
+    if (in == NULL || out == NULL) return -2;
+    if (!b3w_finite3(in->origin) || !b3w_finite3(in->delta) || !isfinite(in->radius) || !isfinite(in->halfLength) ||
+        !isfinite(in->minGroundY) || !isfinite(in->tolerance)) return -2;
+    if (!(in->radius > 0.0f) || !(in->halfLength >= 0.0025f) || in->tolerance < 0.0f || in->iterations < 1u || in->iterations > 16u ||
+        in->bodyTypes > 7u || in->flags > 1u || in->reserved != 0u) return -2;
+    for (int k = 0; k < 3; ++k) if (fabsf(in->origin[k]) > 1000000.0f || fabsf(in->delta[k]) > 1000000.0f) return -2;
+    if (in->ignoreBody != 0u && b3w_ctx_body_index(ctx, in->ignoreBody) < 0) return -5;
+
+    static B3WMoverVisit visit; // 1.3 kB of planes; the bridge runs one call at a time
+    visit.ctx = ctx; visit.input = in; visit.count = 0;
+    b3QueryFilter filter = b3DefaultQueryFilter();
+    filter.categoryBits = in->categoryBits; filter.maskBits = in->maskBits;
+    const b3Capsule capsule = { { 0.0f, -in->halfLength, 0.0f }, { 0.0f, in->halfLength, 0.0f }, in->radius };
+    b3Pos p = { in->origin[0], in->origin[1], in->origin[2] };
+    const b3Vec3 target = { in->origin[0] + in->delta[0], in->origin[1] + in->delta[1], in->origin[2] + in->delta[2] };
+    b3Pos planeOrigin = p;
+    float fraction = 1.0f;
+    uint32_t iterations = 0u, solverIterations = 0u;
+    for (uint32_t i = 0; i < in->iterations; ++i)
+    {
+        iterations += 1u;
+        visit.count = 0;
+        planeOrigin = p;
+        if (in->bodyTypes != 0u) b3World_CollideMover(ctx->world, p, &capsule, filter, b3w_mover_planes, &visit);
+        const b3Vec3 targetDelta = { target.x - (float)p.x, target.y - (float)p.y, target.z - (float)p.z };
+        const b3PlaneSolverResult solved = b3SolvePlanes(targetDelta, visit.planes, visit.count);
+        solverIterations += (uint32_t)solved.iterationCount;
+        b3Vec3 d = solved.delta;
+        fraction = 1.0f;
+        if (in->bodyTypes != 0u && (d.x != 0.0f || d.y != 0.0f || d.z != 0.0f))
+        {
+            fraction = b3World_CastMover(ctx->world, p, &capsule, d, filter, b3w_mover_filter, &visit);
+        }
+        d.x *= fraction; d.y *= fraction; d.z *= fraction;
+        p = (b3Pos){ (float)p.x + d.x, (float)p.y + d.y, (float)p.z + d.z };
+        if (d.x * d.x + d.y * d.y + d.z * d.z < in->tolerance * in->tolerance) break;
+    }
+    memset(out, 0, sizeof(*out));
+    out->position[0] = (float)p.x; out->position[1] = (float)p.y; out->position[2] = (float)p.z;
+    out->fraction = fraction;
+    out->iterations = iterations;
+    out->solverIterations = solverIterations;
+    out->planeCount = (uint32_t)visit.count;
+    for (int i = 0; i < visit.count; ++i)
+    {
+        B3WMoverPlane* record = visit.records + i;
+        record->point[0] += (float)planeOrigin.x; record->point[1] += (float)planeOrigin.y; record->point[2] += (float)planeOrigin.z;
+        record->push = visit.planes[i].push;
+        out->planes[i] = *record;
+    }
+    return 1;
+}
+
+// --- World and body controls. ---
+
+// id 0 sleeping (a: 0/1), 1 continuous collision (a), 2 speculative contact margin (a), 3 warm starting (a),
+// 4 restitution threshold (a, m/s), 5 hit-event threshold (a, m/s), 6 contact tuning (a hertz, b damping ratio,
+// c push-out speed m/s), 7 maximum linear speed (a, m/s), 8 contact recycle distance (a, m).
+// Returns 1; -1 for an unknown or empty world; -2 for an unknown id or a bad value.
+B3W_EXPORT int b3w_world_set_param(uint32_t handle, uint32_t id, float a, float b, float c)
+{
+    B3WContext* ctx = b3w_lookup_context(handle);
+    if (ctx == NULL || B3_IS_NULL(ctx->world)) return -1;
+    if (!isfinite(a) || !isfinite(b) || !isfinite(c)) return -2;
+    switch (id)
+    {
+        case 0u: b3World_EnableSleeping(ctx->world, a != 0.0f); break;
+        case 1u: b3World_EnableContinuous(ctx->world, a != 0.0f); break;
+        case 2u: b3World_EnableSpeculative(ctx->world, a != 0.0f); break;
+        case 3u: b3World_EnableWarmStarting(ctx->world, a != 0.0f); break;
+        case 4u: if (a < 0.0f) return -2; b3World_SetRestitutionThreshold(ctx->world, a); break;
+        case 5u: if (a < 0.0f) return -2; b3World_SetHitEventThreshold(ctx->world, a); break;
+        case 6u: if (a < 0.0f || b < 0.0f || c < 0.0f) return -2; b3World_SetContactTuning(ctx->world, a, b, c); break;
+        case 7u: if (!(a > 0.0f)) return -2; b3World_SetMaximumLinearSpeed(ctx->world, a); break;
+        case 8u: if (a < 0.0f) return -2; b3World_SetContactRecycleDistance(ctx->world, a); break;
+        default: return -2;
+    }
+    // A sleeping island must meet the new rule on its next step.
+    for (int i = 0; i < ctx->dynamicCount; ++i) b3Body_SetAwake(ctx->bodies[ctx->dynamicIndices[i]].id, true);
+    return 1;
+}
+
+// out12: sleeping, continuous, speculative, warm starting, restitution threshold, hit-event threshold,
+// contact hertz, contact damping ratio, contact push-out speed, maximum linear speed, contact recycle distance, 0.
+B3W_EXPORT int b3w_world_get_params(uint32_t handle, float* out12)
+{
+    B3WContext* ctx = b3w_lookup_context(handle);
+    if (ctx == NULL || B3_IS_NULL(ctx->world) || out12 == NULL) return -1;
+    float tuning[4] = { 0.0f, 0.0f, 0.0f, 1.0f };
+    b3w_snapshot_tuning(ctx->world, tuning);
+    out12[0] = b3World_IsSleepingEnabled(ctx->world) ? 1.0f : 0.0f;
+    out12[1] = b3World_IsContinuousEnabled(ctx->world) ? 1.0f : 0.0f;
+    out12[2] = tuning[3];
+    out12[3] = b3World_IsWarmStartingEnabled(ctx->world) ? 1.0f : 0.0f;
+    out12[4] = b3World_GetRestitutionThreshold(ctx->world);
+    out12[5] = b3World_GetHitEventThreshold(ctx->world);
+    out12[6] = tuning[0]; out12[7] = tuning[1]; out12[8] = tuning[2];
+    out12[9] = b3World_GetMaximumLinearSpeed(ctx->world);
+    out12[10] = b3World_GetContactRecycleDistance(ctx->world);
+    out12[11] = 0.0f;
+    return 1;
+}
+
+// what 0 bullet (0/1), 1 may sleep (0/1), 2 sleep threshold (m/s), 3 motion locks (bits: 1 linear x, 2 linear y,
+// 4 linear z, 8 angular x, 16 angular y, 32 angular z). Returns 1; 0 for a dead body; -2 for bad input.
+B3W_EXPORT int b3w_world_set_body_flag(uint32_t worldHandle, uint64_t bodyHandle, uint32_t what, float value)
+{
+    B3W_BODY(ctx, index)
+    if (!isfinite(value) || what > 3u) return -2;
+    b3BodyId id = ctx->bodies[index].id;
+    if (what == 0u) b3Body_SetBullet(id, value != 0.0f);
+    else if (what == 1u) b3Body_EnableSleep(id, value != 0.0f);
+    else if (what == 2u) { if (value < 0.0f) return -2; b3Body_SetSleepThreshold(id, value); }
+    else
+    {
+        if (value < 0.0f || value > 63.0f) return -2;
+        const uint32_t bits = (uint32_t)value;
+        b3MotionLocks locks = { (bits & 1u) != 0u, (bits & 2u) != 0u, (bits & 4u) != 0u, (bits & 8u) != 0u, (bits & 16u) != 0u, (bits & 32u) != 0u };
+        b3Body_SetMotionLocks(id, locks);
+        // Box3D derives the inverse inertia of a locked body from its mass data; put an explicit one back.
+        const B3WMassOverride* mass = b3w_ctx_find_mass(ctx, ctx->bodies[index].slot);
+        if (mass != NULL) b3w_ctx_apply_mass(ctx, index, &mass->data);
+    }
+    b3Body_SetAwake(id, true);
+    return 1;
+}
+
+// out4: bullet, may sleep, sleep threshold, motion-lock bits.
+B3W_EXPORT int b3w_world_get_body_flags(uint32_t worldHandle, uint64_t bodyHandle, float* out4)
+{
+    B3W_BODY(ctx, index)
+    if (out4 == NULL) return -2;
+    b3BodyId id = ctx->bodies[index].id;
+    const b3MotionLocks locks = b3Body_GetMotionLocks(id);
+    out4[0] = b3Body_IsBullet(id) ? 1.0f : 0.0f;
+    out4[1] = b3Body_IsSleepEnabled(id) ? 1.0f : 0.0f;
+    out4[2] = b3Body_GetSleepThreshold(id);
+    out4[3] = (float)((locks.linearX ? 1 : 0) | (locks.linearY ? 2 : 0) | (locks.linearZ ? 4 : 0) | (locks.angularX ? 8 : 0) | (locks.angularY ? 16 : 0) | (locks.angularZ ? 32 : 0));
+    return 1;
+}
+
+// Box3D's explosion: an impulse on every sphere, capsule and hull shape within radius + falloff, proportional to
+// the shape area facing the centre (impulsePerArea, N s / m^2; negative pulls inwards), fading linearly to zero
+// across the falloff distance. Returns 1; -1 for an unknown or empty world; -2 for bad values.
+B3W_EXPORT int b3w_world_explode_area(uint32_t handle, float x, float y, float z, float radius, float falloff, float impulsePerArea, uint64_t maskBits)
+{
+    B3WContext* ctx = b3w_lookup_context(handle);
+    if (ctx == NULL || B3_IS_NULL(ctx->world)) return -1;
+    if (!isfinite(x) || !isfinite(y) || !isfinite(z) || !isfinite(radius) || !isfinite(falloff) || !isfinite(impulsePerArea) || radius < 0.0f || falloff < 0.0f) return -2;
+    b3ExplosionDef def = b3DefaultExplosionDef();
+    def.maskBits = maskBits;
+    def.position = (b3Pos){ x, y, z };
+    def.radius = radius;
+    def.falloff = falloff;
+    def.impulsePerArea = impulsePerArea;
+    b3World_Explode(ctx->world, &def);
+    return 1;
+}
+
+// outProfile: 23 floats, milliseconds of the most recent step by stage, in b3Profile order (step, pairs, collide,
+// solve, solverSetup, constraints, prepareConstraints, integrateVelocities, warmStart, solveImpulses,
+// integratePositions, relaxImpulses, applyRestitution, storeImpulses, splitIslands, transforms, sensorHits,
+// jointEvents, hitEvents, refit, bullets, sleepIslands, sensors).
+// outCounters: 16 ints: bodies, shapes, contacts, joints, islands, stack bytes used, arena capacity, static tree
+// height, dynamic tree height, SAT calls, SAT cache hits, bytes allocated, tasks, awake contacts, recycled
+// contacts, awake bodies. Returns 1, or -1 for an unknown or empty world.
+B3W_EXPORT int b3w_world_profile(uint32_t handle, float* outProfile, int32_t* outCounters)
+{
+    B3WContext* ctx = b3w_lookup_context(handle);
+    if (ctx == NULL || B3_IS_NULL(ctx->world) || outProfile == NULL || outCounters == NULL) return -1;
+    const b3Profile p = b3World_GetProfile(ctx->world);
+    const float values[23] = { p.step, p.pairs, p.collide, p.solve, p.solverSetup, p.constraints, p.prepareConstraints, p.integrateVelocities,
+        p.warmStart, p.solveImpulses, p.integratePositions, p.relaxImpulses, p.applyRestitution, p.storeImpulses, p.splitIslands, p.transforms,
+        p.sensorHits, p.jointEvents, p.hitEvents, p.refit, p.bullets, p.sleepIslands, p.sensors };
+    memcpy(outProfile, values, sizeof(values));
+    const b3Counters c = b3World_GetCounters(ctx->world);
+    const int32_t counters[16] = { c.bodyCount, c.shapeCount, c.contactCount, c.jointCount, c.islandCount, c.stackUsed, c.arenaCapacity,
+        c.staticTreeHeight, c.treeHeight, c.satCallCount, c.satCacheHitCount, c.byteCount, c.taskCount, c.awakeContactCount,
+        c.recycledContactCount, b3World_GetAwakeBodyCount(ctx->world) };
+    memcpy(outCounters, counters, sizeof(counters));
+    return 1;
+}
+
+// --- Debug draw: Box3D's own drawing of joints, contacts, bounds, mass centres and islands, as line vertices. ---
+
+#define B3W_DEBUG_VERTEX_LIMIT 1048576
+
+static void b3w_debug_vertex(B3WContext* ctx, float x, float y, float z, uint32_t color)
+{
+    ctx->debugTotal += 1;
+    if (ctx->debugCount >= ctx->debugCapacity)
+    {
+        if (ctx->debugCapacity >= B3W_DEBUG_VERTEX_LIMIT) return;
+        const int capacity = ctx->debugCapacity == 0 ? 4096 : ctx->debugCapacity * 4;
+        float* list = (float*)realloc(ctx->debugVertices, (size_t)capacity * 4u * sizeof(float));
+        if (list == NULL) return;
+        ctx->debugVertices = list;
+        ctx->debugCapacity = capacity;
+    }
+    float* v = ctx->debugVertices + (size_t)ctx->debugCount * 4u;
+    v[0] = x; v[1] = y; v[2] = z; v[3] = (float)(color & 0xFFFFFFu);
+    ctx->debugCount += 1;
+}
+
+static void b3w_debug_line(B3WContext* ctx, b3Vec3 a, b3Vec3 b, uint32_t color)
+{
+    // Keep pairs whole: a line is added only when both of its ends fit.
+    if (ctx->debugCount + 2 > B3W_DEBUG_VERTEX_LIMIT) { ctx->debugTotal += 2; return; }
+    const int before = ctx->debugCount;
+    b3w_debug_vertex(ctx, a.x, a.y, a.z, color);
+    b3w_debug_vertex(ctx, b.x, b.y, b.z, color);
+    if (ctx->debugCount != before + 2) ctx->debugCount = before;
+}
+
+static void b3w_debug_circle(B3WContext* ctx, b3Vec3 c, b3Vec3 u, b3Vec3 v, float radius, uint32_t color)
+{
+    b3Vec3 previous = { c.x + u.x * radius, c.y + u.y * radius, c.z + u.z * radius };
+    for (int i = 1; i <= 16; ++i)
+    {
+        const float angle = (float)i * (6.28318531f / 16.0f), ca = cosf(angle) * radius, sa = sinf(angle) * radius;
+        const b3Vec3 next = { c.x + u.x * ca + v.x * sa, c.y + u.y * ca + v.y * sa, c.z + u.z * ca + v.z * sa };
+        b3w_debug_line(ctx, previous, next, color);
+        previous = next;
+    }
+}
+
+static bool b3w_debug_shape(void* userShape, b3WorldTransform transform, b3HexColor color, void* context)
+{
+    (void)userShape; (void)transform; (void)color; (void)context;
+    return true;
+}
+static void b3w_debug_segment(b3Pos p1, b3Pos p2, b3HexColor color, void* context)
+{
+    b3w_debug_line((B3WContext*)context, (b3Vec3){ (float)p1.x, (float)p1.y, (float)p1.z }, (b3Vec3){ (float)p2.x, (float)p2.y, (float)p2.z }, (uint32_t)color);
+}
+static void b3w_debug_transform(b3WorldTransform xf, void* context)
+{
+    B3WContext* ctx = (B3WContext*)context;
+    const b3Vec3 o = { (float)xf.p.x, (float)xf.p.y, (float)xf.p.z };
+    const float s = 0.15f;
+    const b3Vec3 x = b3w_rotate(xf.q, (b3Vec3){ s, 0.0f, 0.0f }), y = b3w_rotate(xf.q, (b3Vec3){ 0.0f, s, 0.0f }), z = b3w_rotate(xf.q, (b3Vec3){ 0.0f, 0.0f, s });
+    b3w_debug_line(ctx, o, (b3Vec3){ o.x + x.x, o.y + x.y, o.z + x.z }, 0xFF4040u);
+    b3w_debug_line(ctx, o, (b3Vec3){ o.x + y.x, o.y + y.y, o.z + y.z }, 0x40FF40u);
+    b3w_debug_line(ctx, o, (b3Vec3){ o.x + z.x, o.y + z.y, o.z + z.z }, 0x4080FFu);
+}
+static void b3w_debug_point(b3Pos p, float size, b3HexColor color, void* context)
+{
+    B3WContext* ctx = (B3WContext*)context;
+    const float h = 0.004f * (size > 0.0f ? size : 1.0f);
+    const b3Vec3 c = { (float)p.x, (float)p.y, (float)p.z };
+    b3w_debug_line(ctx, (b3Vec3){ c.x - h, c.y, c.z }, (b3Vec3){ c.x + h, c.y, c.z }, (uint32_t)color);
+    b3w_debug_line(ctx, (b3Vec3){ c.x, c.y - h, c.z }, (b3Vec3){ c.x, c.y + h, c.z }, (uint32_t)color);
+    b3w_debug_line(ctx, (b3Vec3){ c.x, c.y, c.z - h }, (b3Vec3){ c.x, c.y, c.z + h }, (uint32_t)color);
+}
+static void b3w_debug_sphere(b3Pos p, float radius, b3HexColor color, float alpha, void* context)
+{
+    (void)alpha;
+    B3WContext* ctx = (B3WContext*)context;
+    const b3Vec3 c = { (float)p.x, (float)p.y, (float)p.z };
+    const b3Vec3 x = { 1.0f, 0.0f, 0.0f }, y = { 0.0f, 1.0f, 0.0f }, z = { 0.0f, 0.0f, 1.0f };
+    b3w_debug_circle(ctx, c, x, y, radius, (uint32_t)color);
+    b3w_debug_circle(ctx, c, y, z, radius, (uint32_t)color);
+    b3w_debug_circle(ctx, c, z, x, radius, (uint32_t)color);
+}
+static void b3w_debug_capsule(b3Pos p1, b3Pos p2, float radius, b3HexColor color, float alpha, void* context)
+{
+    b3w_debug_sphere(p1, radius, color, alpha, context);
+    b3w_debug_sphere(p2, radius, color, alpha, context);
+    b3w_debug_segment(p1, p2, color, context);
+}
+static void b3w_debug_box_edges(B3WContext* ctx, const b3Vec3* corners, uint32_t color)
+{
+    static const int edges[12][2] = { {0,1},{2,3},{4,5},{6,7},{0,2},{1,3},{4,6},{5,7},{0,4},{1,5},{2,6},{3,7} };
+    for (int i = 0; i < 12; ++i) b3w_debug_line(ctx, corners[edges[i][0]], corners[edges[i][1]], color);
+}
+static void b3w_debug_bounds(b3AABB aabb, b3HexColor color, void* context)
+{
+    b3Vec3 corners[8];
+    for (int i = 0; i < 8; ++i) corners[i] = (b3Vec3){ (i & 1) ? aabb.upperBound.x : aabb.lowerBound.x, (i & 2) ? aabb.upperBound.y : aabb.lowerBound.y, (i & 4) ? aabb.upperBound.z : aabb.lowerBound.z };
+    b3w_debug_box_edges((B3WContext*)context, corners, (uint32_t)color);
+}
+static void b3w_debug_box(b3Vec3 extents, b3WorldTransform xf, b3HexColor color, void* context)
+{
+    b3Vec3 corners[8];
+    for (int i = 0; i < 8; ++i)
+    {
+        const b3Vec3 local = { (i & 1) ? extents.x : -extents.x, (i & 2) ? extents.y : -extents.y, (i & 4) ? extents.z : -extents.z };
+        const b3Vec3 r = b3w_rotate(xf.q, local);
+        corners[i] = (b3Vec3){ (float)xf.p.x + r.x, (float)xf.p.y + r.y, (float)xf.p.z + r.z };
+    }
+    b3w_debug_box_edges((B3WContext*)context, corners, (uint32_t)color);
+}
+static void b3w_debug_string(b3Pos p, const char* s, b3HexColor color, void* context)
+{
+    (void)p; (void)s; (void)color; (void)context;
+}
+
+// flags: 1 joints, 2 joint extras (frames, limits), 4 shape bounds, 8 mass centres, 16 contact points,
+// 32 contact normals, 64 contact forces, 128 friction forces, 256 islands, 512 colour contacts by solver colour.
+// bounds6 (may be NULL): lower xyz and upper xyz of the region to draw. Writes line vertices (pairs) into a
+// buffer the world owns (b3w_world_debug_ptr: x, y, z, 0xRRGGBB as a float) and returns how many it holds;
+// b3w_world_debug_total reports how many there were, so a caller can tell when the 1,048,576-vertex limit cut it.
+// Reads the world only. -1 for an unknown or empty world, -2 for bad input.
+B3W_EXPORT int b3w_world_debug_draw(uint32_t handle, uint32_t flags, float jointScale, float forceScale, const float* bounds6)
+{
+    B3WContext* ctx = b3w_lookup_context(handle);
+    if (ctx == NULL || B3_IS_NULL(ctx->world)) return -1;
+    if (flags > 1023u || !isfinite(jointScale) || !isfinite(forceScale) || jointScale < 0.0f || forceScale < 0.0f) return -2;
+    b3DebugDraw draw = b3DefaultDebugDraw();
+    draw.DrawShapeFcn = b3w_debug_shape;
+    draw.DrawSegmentFcn = b3w_debug_segment;
+    draw.DrawTransformFcn = b3w_debug_transform;
+    draw.DrawPointFcn = b3w_debug_point;
+    draw.DrawSphereFcn = b3w_debug_sphere;
+    draw.DrawCapsuleFcn = b3w_debug_capsule;
+    draw.DrawBoundsFcn = b3w_debug_bounds;
+    draw.DrawBoxFcn = b3w_debug_box;
+    draw.DrawStringFcn = b3w_debug_string;
+    draw.context = ctx;
+    draw.drawingBounds = (b3AABB){ { -1.0e6f, -1.0e6f, -1.0e6f }, { 1.0e6f, 1.0e6f, 1.0e6f } };
+    if (bounds6 != NULL)
+    {
+        for (int i = 0; i < 6; ++i) if (!isfinite(bounds6[i])) return -2;
+        if (bounds6[0] > bounds6[3] || bounds6[1] > bounds6[4] || bounds6[2] > bounds6[5]) return -2;
+        draw.drawingBounds = (b3AABB){ { bounds6[0], bounds6[1], bounds6[2] }, { bounds6[3], bounds6[4], bounds6[5] } };
+    }
+    if (jointScale > 0.0f) draw.jointScale = jointScale;
+    if (forceScale > 0.0f) draw.forceScale = forceScale;
+    draw.drawShapes = false;
+    draw.drawBodyNames = false;
+    draw.drawContactFeatures = false;
+    draw.drawJoints = (flags & 1u) != 0u;
+    draw.drawJointExtras = (flags & 2u) != 0u;
+    draw.drawBounds = (flags & 4u) != 0u;
+    draw.drawMass = (flags & 8u) != 0u;
+    draw.drawContacts = (flags & 16u) != 0u;
+    draw.drawContactNormals = (flags & 32u) != 0u;
+    draw.drawContactForces = (flags & 64u) != 0u;
+    draw.drawFrictionForces = (flags & 128u) != 0u;
+    draw.drawIslands = (flags & 256u) != 0u;
+    draw.drawGraphColors = (flags & 512u) != 0u;
+    ctx->debugCount = 0;
+    ctx->debugTotal = 0;
+    b3World_Draw(ctx->world, &draw, UINT64_MAX);
+    return ctx->debugCount;
+}
+
+B3W_EXPORT uintptr_t b3w_world_debug_ptr(uint32_t handle)
+{
+    B3WContext* ctx = b3w_lookup_context(handle);
+    return ctx != NULL ? (uintptr_t)ctx->debugVertices : 0u;
+}
+
+B3W_EXPORT int b3w_world_debug_total(uint32_t handle)
+{
+    B3WContext* ctx = b3w_lookup_context(handle);
+    return ctx != NULL ? ctx->debugTotal : -1;
 }
 
 // ---------------------------------------------------------------------------
@@ -3120,9 +4015,24 @@ B3W_EXPORT int b3w_world_checkpoint(uint32_t handle)
     B3WCheckpointHeader h;
     memset(&h, 0, sizeof(h));
     h.magic = B3W_CHECKPOINT_MAGIC; h.version = B3W_CHECKPOINT_VERSION; h.flags = ctx->kinds != NULL ? 1u : 0u;
+    // Joint flags (breakable joints): only the entries of live joints, so that equal states give equal bytes.
+    int jointFlagCount = 0;
+    {
+        const uint16_t world0 = (uint16_t)(ctx->world.index1 - 1);
+        for (int i = 0; i < ctx->jointFlagCapacity; ++i)
+        {
+            const uint32_t entry = ctx->jointFlags[i];
+            if (entry == 0u) continue;
+            const b3JointId id = { i + 1, world0, (uint16_t)(entry >> 8) };
+            if (!b3Joint_IsValid(id)) { ctx->jointFlags[i] = 0u; continue; }
+            jointFlagCount = i + 1;
+        }
+    }
+    if (jointFlagCount > 0) h.flags |= 4u;
+    const size_t jointBytes = jointFlagCount > 0 ? 4u + (size_t)jointFlagCount * sizeof(uint32_t) : 0u;
     h.bodyCount = ctx->bodyCount; h.dynamicCount = ctx->dynamicCount; h.slotsUsed = ctx->slotsUsed; h.freeSlot = ctx->freeSlot;
     h.capacity = ctx->capacity; h.massOverrideCount = ctx->massOverrideCount; h.rng = ctx->rng; h.anchor = ctx->anchor;
-    const size_t table = b3w_checkpoint_table_bytes(&h), total = sizeof(h) + table + 4u + (size_t)snapshotSize;
+    const size_t table = b3w_checkpoint_table_bytes(&h), total = sizeof(h) + table + jointBytes + 4u + (size_t)snapshotSize;
     uint8_t* out = total <= 0x7FFFFFFFu ? (uint8_t*)malloc(total) : NULL;
     if (out == NULL) { free(snapshot); return -3; }
     uint8_t* p = out;
@@ -3134,6 +4044,12 @@ B3W_EXPORT int b3w_world_checkpoint(uint32_t handle)
     memcpy(p, ctx->colors, (size_t)h.bodyCount * 4u * sizeof(float)); p += (size_t)h.bodyCount * 4u * sizeof(float);
     if ((h.flags & 1u) != 0u) { memcpy(p, ctx->kinds, (size_t)h.bodyCount); p += h.bodyCount; }
     memcpy(p, ctx->massOverrides, (size_t)h.massOverrideCount * sizeof(struct B3WMassOverride)); p += (size_t)h.massOverrideCount * sizeof(struct B3WMassOverride);
+    if (jointFlagCount > 0)
+    {
+        const int32_t count32 = jointFlagCount;
+        memcpy(p, &count32, 4u); p += 4;
+        memcpy(p, ctx->jointFlags, (size_t)jointFlagCount * sizeof(uint32_t)); p += (size_t)jointFlagCount * sizeof(uint32_t);
+    }
     const uint32_t size32 = (uint32_t)snapshotSize;
     memcpy(p, &size32, 4u); p += 4;
     memcpy(p, snapshot, (size_t)snapshotSize);
@@ -3172,7 +4088,7 @@ B3W_EXPORT int b3w_world_restore(uint32_t handle, const uint8_t* data, int size)
     if (data == NULL || size < B3W_CHECKPOINT_HEADER + 4) return -2;
     B3WCheckpointHeader h;
     memcpy(&h, data, sizeof(h));
-    if (h.magic != B3W_CHECKPOINT_MAGIC || h.version != B3W_CHECKPOINT_VERSION || (h.flags & ~1u) != 0u) return -2;
+    if (h.magic != B3W_CHECKPOINT_MAGIC || h.version != B3W_CHECKPOINT_VERSION || (h.flags & ~5u) != 0u) return -2;
     if (h.bodyCount < 0 || h.dynamicCount < 0 || h.dynamicCount > h.bodyCount || h.slotsUsed < h.bodyCount || h.massOverrideCount < 0) return -2;
     if (h.capacity < 1 || h.capacity > B3W_BODY_CAPACITY_LIMIT || h.slotsUsed > h.capacity || h.freeSlot < -1 || h.freeSlot >= h.slotsUsed) return -2;
     const size_t table = b3w_checkpoint_table_bytes(&h);
@@ -3186,6 +4102,15 @@ B3W_EXPORT int b3w_world_restore(uint32_t handle, const uint8_t* data, int size)
     const uint8_t* kinds = NULL;
     if ((h.flags & 1u) != 0u) { kinds = p; p += h.bodyCount; }
     const uint8_t* massOverrides = p; p += (size_t)h.massOverrideCount * sizeof(struct B3WMassOverride);
+    const uint8_t* jointFlags = NULL;
+    int32_t jointFlagCount = 0;
+    if ((h.flags & 4u) != 0u)
+    {
+        if ((size_t)(data + size - p) < 8u) return -2;
+        memcpy(&jointFlagCount, p, 4u); p += 4;
+        if (jointFlagCount < 1 || jointFlagCount > 16777216 || (size_t)(data + size - p) < (size_t)jointFlagCount * sizeof(uint32_t) + 4u) return -2;
+        jointFlags = p; p += (size_t)jointFlagCount * sizeof(uint32_t);
+    }
     uint32_t snapshotSize;
     memcpy(&snapshotSize, p, 4u); p += 4;
     if ((uint64_t)snapshotSize != (uint64_t)(data + size - p)) return -2;
@@ -3210,6 +4135,14 @@ B3W_EXPORT int b3w_world_restore(uint32_t handle, const uint8_t* data, int size)
         if (list == NULL) return -3;
         ctx->massOverrides = list;
         ctx->massOverrideCapacity = h.massOverrideCount;
+    }
+    if (jointFlagCount > ctx->jointFlagCapacity)
+    {
+        uint32_t* list = (uint32_t*)realloc(ctx->jointFlags, (size_t)jointFlagCount * sizeof(uint32_t));
+        if (list == NULL) return -3;
+        memset(list + ctx->jointFlagCapacity, 0, (size_t)(jointFlagCount - ctx->jointFlagCapacity) * sizeof(uint32_t));
+        ctx->jointFlags = list;
+        ctx->jointFlagCapacity = jointFlagCount;
     }
 
     void* holder = b3w_snapshot_restore(ctx->world, p, (int)snapshotSize);
@@ -3300,6 +4233,9 @@ B3W_EXPORT int b3w_world_restore(uint32_t handle, const uint8_t* data, int size)
         ctx->bodies[i].id.world0 = world0;
         b3Body_SetUserData(ctx->bodies[i].id, (void*)(uintptr_t)(ctx->bodies[i].slot + 1));
     }
+    if (ctx->jointFlags != NULL) memset(ctx->jointFlags, 0, (size_t)ctx->jointFlagCapacity * sizeof(uint32_t));
+    if (jointFlags != NULL) memcpy(ctx->jointFlags, jointFlags, (size_t)jointFlagCount * sizeof(uint32_t));
+    ctx->jointRecordCount = 0;
     ctx->eventCount = 0;
     ctx->eventTotal = 0;
     ctx->hashDirty = 1;

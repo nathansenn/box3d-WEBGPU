@@ -32,7 +32,10 @@ export type NativeSpatialQuery = NativeQueryBase & (
   { readonly kind: 'sphere-cast'; readonly translation: NativeQueryVector; readonly radius: number } |
   { readonly kind: 'box-cast'; readonly translation: NativeQueryVector; readonly halfExtents: NativeQueryVector } |
   { readonly kind: 'sphere-overlap'; readonly radius: number } |
-  { readonly kind: 'box-overlap' | 'aabb-candidates'; readonly halfExtents: NativeQueryVector }
+  { readonly kind: 'box-overlap' | 'aabb-candidates'; readonly halfExtents: NativeQueryVector } |
+  /** An upright capsule (axis along world Y; halfLength is half the distance between the cap centres), swept. Needs the rigid-core extension. */
+  { readonly kind: 'capsule-cast'; readonly translation: NativeQueryVector; readonly radius: number; readonly halfLength: number } |
+  { readonly kind: 'capsule-overlap'; readonly radius: number; readonly halfLength: number }
 );
 export interface NativeQueryBodyHit { readonly body: NativeBodyHandle }
 export interface NativeQueryCastHit extends NativeQueryBodyHit {
@@ -51,11 +54,12 @@ export type NativeQueryResult = {
   readonly totalHits: number;
   readonly overflow: boolean;
 } & (
-  { readonly kind: 'ray' | 'sphere-cast' | 'box-cast'; readonly hits: readonly NativeQueryCastHit[] } |
-  { readonly kind: 'sphere-overlap' | 'box-overlap' | 'aabb-candidates'; readonly hits: readonly NativeQueryBodyHit[] }
+  { readonly kind: 'ray' | 'sphere-cast' | 'box-cast' | 'capsule-cast'; readonly hits: readonly NativeQueryCastHit[] } |
+  { readonly kind: 'sphere-overlap' | 'box-overlap' | 'aabb-candidates' | 'capsule-overlap'; readonly hits: readonly NativeQueryBodyHit[] }
 );
 
-const QUERY_KINDS = ['ray','sphere-cast','box-cast','sphere-overlap','box-overlap','aabb-candidates'] as const;
+const QUERY_KINDS = ['ray','sphere-cast','box-cast','sphere-overlap','box-overlap','aabb-candidates','capsule-cast','capsule-overlap'] as const;
+const QUERY_IS_CAST = [true,true,true,false,false,false,true,false] as const;
 const QUERY_BODY_TYPES = {all:3, static:1, dynamic:2, none:0} as const;
 const QUERY_INPUT_BYTES=80, QUERY_STATUS_BYTES=16, QUERY_HIT_BYTES=56;
 const QUERY_MAX_BYTES=128*96+32768*56;
@@ -85,6 +89,22 @@ function massDataValues(data: NativeMassData): number[] {
   // The bridge's own test, on the float32 values it will hold, so that nothing is created and then refused.
   const [xx,yy,zz,xy,xz,yz]=values.slice(4).map(Math.fround) as [number,number,number,number,number,number],det=xx*(yy*zz-yz*yz)-xy*(xy*zz-yz*xz)+xz*(xy*yz-yy*xz);
   if(!(xx*yy-xy*xy>0)||!(det>0)||!(Math.fround(det)>0))throw new EngineError('INVALID_PAYLOAD','massData.inertia must be a positive-definite tensor that float32 can hold.');
+  return values;
+}
+
+// The 14 floats of a motor joint's drive, in the bridge's order.
+function driveList(drive: NativeJointDrive): number[] {
+  if(!drive||typeof drive!=='object')throw new EngineError('INVALID_PAYLOAD','drive must be an object.');
+  const lv=drive.linearVelocity??[0,0,0],av=drive.angularVelocity??[0,0,0],ls=drive.linearSpring,as=drive.angularSpring;
+  return [finite(lv[0],'drive linear velocity x'),finite(lv[1],'drive linear velocity y'),finite(lv[2],'drive linear velocity z'),
+    finite(av[0],'drive angular velocity x'),finite(av[1],'drive angular velocity y'),finite(av[2],'drive angular velocity z'),
+    finite(drive.maxForce??0,'drive max force',0),finite(drive.maxTorque??0,'drive max torque',0),
+    finite(ls?.hertz??0,'drive linear spring hertz',0),finite(ls?.dampingRatio??0,'drive linear spring damping ratio',0),finite(ls?.maxForce??0,'drive linear spring max force',0),
+    finite(as?.hertz??0,'drive angular spring hertz',0),finite(as?.dampingRatio??0,'drive angular spring damping ratio',0),finite(as?.maxTorque??0,'drive angular spring max torque',0)];
+}
+function steeringList(steering: NativeJointSteering): number[] {
+  const values=[finite(steering.angle,'steering angle'),finite(steering.hertz,'steering hertz',0),finite(steering.dampingRatio,'steering damping ratio',0),finite(steering.maxTorque,'steering max torque',0)];
+  if(steering.limits){finite(steering.limits.lower,'lower steering limit');finite(steering.limits.upper,'upper steering limit',steering.limits.lower);}
   return values;
 }
 
@@ -181,6 +201,22 @@ export interface NativeWorldModule {
   _b3w_world_set_body_mass_data?(world: number, body: bigint, values: number | bigint): number;
   _b3w_world_get_body_mass_data?(world: number, body: bigint, out: number | bigint): number;
   _b3w_world_reset_body_mass_data?(world: number, body: bigint): number;
+  /** Optional rigid-core extension (joint values and events, batched rays, the capsule mover, world and body
+   * controls, Box3D's explosion, step profile, debug-draw lines); all thirteen exports must be present together,
+   * with the general-body extension. */
+  _b3w_world_joint_set_values?(world: number, joint: bigint, what: number, values: number | bigint, count: number): number;
+  _b3w_world_joint_get_values?(world: number, joint: bigint, out: number | bigint): number;
+  _b3w_world_cast_rays?(world: number, rays: number | bigint, count: number, categoryBits: bigint, maskBits: bigint, bodyTypes: number, ignoreBody: bigint, outHits: number | bigint, outBodies: number | bigint): number;
+  _b3w_world_mover_move?(world: number, input: number | bigint, output: number | bigint): number;
+  _b3w_world_set_param?(world: number, id: number, a: number, b: number, c: number): number;
+  _b3w_world_get_params?(world: number, out: number | bigint): number;
+  _b3w_world_set_body_flag?(world: number, body: bigint, what: number, value: number): number;
+  _b3w_world_get_body_flags?(world: number, body: bigint, out: number | bigint): number;
+  _b3w_world_explode_area?(world: number, x: number, y: number, z: number, radius: number, falloff: number, impulsePerArea: number, maskBits: bigint): number;
+  _b3w_world_profile?(world: number, outProfile: number | bigint, outCounters: number | bigint): number;
+  _b3w_world_debug_draw?(world: number, flags: number, jointScale: number, forceScale: number, bounds: number | bigint): number;
+  _b3w_world_debug_ptr?(world: number): number | bigint;
+  _b3w_world_debug_total?(world: number): number;
   /** Optional exact checkpoints; all four exports must be present together. */
   _b3w_world_checkpoint?(world: number): number;
   _b3w_world_checkpoint_ptr?(world: number): number | bigint;
@@ -192,6 +228,9 @@ const GENERAL_EXPORTS = ['reset','set_gravity','get_gravity','create_body','copy
   'set_body_velocity','set_body_target','set_body_type','set_body_awake','set_body_gravity_scale','set_body_damping','set_body_filter',
   'apply_body','apply_body_at','create_joint','joint_valid','destroy_joint','joint_set_motor','joint_set_limits','joint_set_spring',
   'joint_set_steering','get_joint_state','collect_events','events_ptr','event_total'] as const;
+
+const RIGID_EXPORTS = ['joint_set_values','joint_get_values','cast_rays','mover_move','set_param','get_params','set_body_flag','get_body_flags',
+  'explode_area','profile','debug_draw','debug_ptr','debug_total'] as const;
 
 const JOINT_OWNER: unique symbol = Symbol('Box3D native joint owner');
 /** World-owned opaque joint reference. A joint dies with either of its bodies. */
@@ -308,7 +347,33 @@ export interface NativeBodyState {
   awake: boolean;
   type: NativeBodyType;
 }
-export type NativeJointType = 'weld' | 'revolute' | 'spherical' | 'prismatic' | 'distance' | 'wheel';
+export type NativeJointType = 'weld' | 'revolute' | 'spherical' | 'prismatic' | 'distance' | 'wheel' | 'motor' | 'parallel' | 'filter';
+/** What a motor joint does: hold a relative velocity with a bounded force, and/or pull frame B onto frame A with bounded springs. */
+export interface NativeJointDrive {
+  /** Wanted velocity of body B relative to body A, in frame A (m/s). Default [0, 0, 0]. */
+  readonly linearVelocity?: NativeQueryVector;
+  /** Wanted angular velocity of body B relative to body A (rad/s). Default [0, 0, 0]. */
+  readonly angularVelocity?: NativeQueryVector;
+  /** Largest force the velocity drive may use (N). Default 0: no linear velocity drive. */
+  readonly maxForce?: number;
+  /** Largest torque the velocity drive may use (N m). Default 0: no angular velocity drive. */
+  readonly maxTorque?: number;
+  /** Spring that pulls frame B's origin onto frame A's. */
+  readonly linearSpring?: { readonly hertz: number; readonly dampingRatio: number; readonly maxForce: number };
+  /** Spring that turns frame B onto frame A. */
+  readonly angularSpring?: { readonly hertz: number; readonly dampingRatio: number; readonly maxTorque: number };
+}
+/** A joint reports a 'joint-overload' event in every step in which its constraint force or torque is at or above a
+ * threshold; with `breakable` it is destroyed at the end of that step and reports 'joint-break' instead.
+ */
+export interface NativeJointThresholds {
+  /** Constraint force in newtons. Omit or 0 for none. */
+  readonly force?: number;
+  /** Constraint torque in newton metres. Omit or 0 for none. */
+  readonly torque?: number;
+  readonly breakable?: boolean;
+}
+export interface NativeJointSteering { readonly angle: number; readonly hertz: number; readonly dampingRatio: number; readonly maxTorque: number; readonly limits?: { readonly lower: number; readonly upper: number } }
 export interface NativeJointFrame { readonly position?: NativeQueryVector; readonly rotation?: NativeQuaternion }
 /** Frames are local to each body. Revolute and wheel joints turn about the frame's z axis;
  * prismatic and wheel-suspension travel is along frame A's x axis. A null body is the fixed world.
@@ -332,6 +397,58 @@ export interface NativeJointDescriptor {
   readonly coneAngle?: number;
   /** How stiffly the joint holds its bodies together. Default 60 Hz with damping ratio 2. */
   readonly stiffness?: { readonly hertz: number; readonly dampingRatio?: number };
+  /** Force and torque thresholds for joint events, and breaking. Needs the rigid-core extension. */
+  readonly thresholds?: NativeJointThresholds;
+  /** Motor joints: the drive. Without it the joint does nothing until setJointDrive. */
+  readonly drive?: NativeJointDrive;
+  /** Parallel joints: the largest torque the spring may use (N m). */
+  readonly maxTorque?: number;
+  /** Wheel joints: steer about frame A's x axis. */
+  readonly steering?: NativeJointSteering;
+}
+/** Everything the solver holds about one joint. Fields that do not apply to the joint's type are absent. */
+export interface NativeJointDetails {
+  type: NativeJointType;
+  /** How far the joint is from holding its bodies together: metres and radians. */
+  linearSeparation: number;
+  angularSeparation: number;
+  /** 0 when there is none. */
+  forceThreshold: number;
+  torqueThreshold: number;
+  breakable: boolean;
+  stiffness: { hertz: number; dampingRatio: number };
+  /** Revolute: angle (rad). Spherical: twist angle. */
+  angle?: number;
+  /** Revolute, prismatic, distance: the motor's torque or force in the last step. Spherical: its torque vector. */
+  motorForce?: number;
+  motorTorque?: [number, number, number];
+  motorSpeed?: number;
+  lowerLimit?: number;
+  upperLimit?: number;
+  /** Prismatic: travel (m) and its rate (m/s). */
+  translation?: number;
+  speed?: number;
+  /** Distance: current and rest length (m). */
+  length?: number;
+  restLength?: number;
+  /** Spherical: the swing angle now and its limit (rad). */
+  coneAngle?: number;
+  coneLimit?: number;
+  /** Wheel. */
+  spinSpeed?: number;
+  spinTorque?: number;
+  steeringAngle?: number;
+  steeringTorque?: number;
+  targetSteeringAngle?: number;
+  /** Wheel: suspension travel along frame A's x axis (m). */
+  suspension?: number;
+  /** Motor. */
+  linearVelocity?: [number, number, number];
+  angularVelocity?: [number, number, number];
+  /** Parallel. */
+  springHertz?: number;
+  springDampingRatio?: number;
+  maxTorque?: number;
 }
 export interface NativeJointState {
   type: NativeJointType;
@@ -341,10 +458,15 @@ export interface NativeJointState {
   torque: [number, number, number];
 }
 export interface NativeWorldEvent {
-  readonly kind: 'contact-begin' | 'contact-end' | 'hit' | 'sensor-begin' | 'sensor-end';
-  /** Null when the body no longer exists. For sensor events A is the sensor and B the visitor. */
+  readonly kind: 'contact-begin' | 'contact-end' | 'hit' | 'sensor-begin' | 'sensor-end' | 'joint-overload' | 'joint-break';
+  /** Null when the body no longer exists. For sensor events A is the sensor and B the visitor; for joint events they
+   * are the joint's bodies, null for the fixed world. */
   readonly bodyA: NativeBodyHandle | null;
   readonly bodyB: NativeBodyHandle | null;
+  /** Joint events only: the joint (already destroyed for 'joint-break'), and the force (N) and torque (N m) it carried. */
+  readonly joint?: NativeJointHandle;
+  readonly force?: NativeQueryVector;
+  readonly torque?: NativeQueryVector;
   /** Hits only. */
   readonly point?: NativeQueryVector;
   readonly normal?: NativeQueryVector;
@@ -353,8 +475,133 @@ export interface NativeWorldEvent {
 const BODY_KINDS = ['box','sphere','capsule','hull','mesh','heightfield','compound'] as const;
 const SHAPE_DESC_BYTES=80;
 const BODY_TYPES = ['static','kinematic','dynamic'] as const;
-const JOINT_TYPES = ['weld','revolute','spherical','prismatic','distance','wheel'] as const;
-const EVENT_KINDS = ['contact-begin','contact-end','hit','sensor-begin','sensor-end'] as const;
+const JOINT_TYPES = ['weld','revolute','spherical','prismatic','distance','wheel','motor','parallel','filter'] as const;
+const EVENT_KINDS = ['contact-begin','contact-end','hit','sensor-begin','sensor-end','joint-overload','joint-break'] as const;
+
+/** One batch of closest-hit rays. Arrays are indexed by ray; a miss has fraction -1 and a null body. */
+export interface NativeRayBatch {
+  readonly count: number;
+  readonly hitCount: number;
+  /** Fraction of the translation at the hit, or -1. */
+  readonly fractions: Float32Array;
+  /** x, y, z per ray. */
+  readonly points: Float32Array;
+  readonly normals: Float32Array;
+  /** Triangle index for mesh and height-field hits, else -1. */
+  readonly triangles: Int32Array;
+  readonly bodies: (NativeBodyHandle | null)[];
+}
+export interface NativeMoverInput {
+  /** Centre of the upright capsule. */
+  readonly position: NativeQueryVector;
+  readonly radius: number;
+  /** Half the distance between the cap centres. */
+  readonly halfLength: number;
+  /** Wanted translation. */
+  readonly translation: NativeQueryVector;
+  /** Planes steeper than this slope act as vertical walls: pass cos(maxSlope). Omit to slide on every plane. */
+  readonly wallBelowNormalY?: number;
+  /** Rounds of collide, solve and cast, 1..16. Default 5. */
+  readonly iterations?: number;
+  /** Stop when a round moves less than this (m). Default 0.01. */
+  readonly tolerance?: number;
+  readonly bodies?: { readonly static?: boolean; readonly kinematic?: boolean; readonly dynamic?: boolean };
+  readonly categoryBits?: bigint;
+  readonly maskBits?: bigint;
+  readonly ignoreBody?: NativeBodyHandle;
+}
+export interface NativeMoverPlane {
+  /** Unit normal pointing from the shape towards the capsule. */
+  readonly normal: NativeQueryVector;
+  /** Closest point on the shape, world space. */
+  readonly point: NativeQueryVector;
+  /** How far the solver pushed the capsule along the normal (m); 0 when the plane did not constrain the move. */
+  readonly push: number;
+  readonly body: NativeBodyHandle;
+  readonly bodyType: NativeBodyType;
+  /** True when the plane was treated as a vertical wall (wallBelowNormalY). */
+  readonly wall: boolean;
+}
+export interface NativeMoverResult {
+  readonly position: [number, number, number];
+  /** Collision planes around the capsule at the start of the last round. At most 16. */
+  readonly planes: NativeMoverPlane[];
+  readonly iterations: number;
+}
+/** World-wide solver settings. Every one is part of a checkpoint. */
+export interface NativeWorldSettings {
+  /** Bodies at rest stop being simulated. Default true. */
+  sleeping: boolean;
+  /** Continuous collision of dynamic bodies against static ones (and of bullets against everything). Default true. */
+  continuous: boolean;
+  /** Contacts are created a margin before shapes touch. Default true. Box3D marks switching it off as a test feature. */
+  speculative: boolean;
+  /** Start each solve from the previous step's impulses. Default true; off costs stability. */
+  warmStarting: boolean;
+  /** Approach speed below which restitution is ignored (m/s). Default 1. */
+  restitutionThreshold: number;
+  /** Approach speed above which a 'hit' event is reported (m/s). Default 1. */
+  hitEventThreshold: number;
+  /** Contact stiffness (Hz; capped at one eighth of the sub-step rate), damping ratio, and the largest speed at
+   * which overlap is pushed out (m/s). Defaults 30, 10, 3. */
+  contactHertz: number;
+  contactDampingRatio: number;
+  contactPushSpeed: number;
+  /** Speed limit of every body (m/s). Default 400. */
+  maximumLinearSpeed: number;
+  /** Contact points closer than this to their place in the previous step keep their impulses (m). */
+  contactRecycleDistance: number;
+}
+export interface NativeBodyFlags {
+  bullet: boolean;
+  sleepEnabled: boolean;
+  /** Speed below which the body may fall asleep (m/s). */
+  sleepThreshold: number;
+  locks: { linearX: boolean; linearY: boolean; linearZ: boolean; angularX: boolean; angularY: boolean; angularZ: boolean };
+}
+const PROFILE_STAGES = ['step','pairs','collide','solve','solverSetup','constraints','prepareConstraints','integrateVelocities','warmStart','solveImpulses',
+  'integratePositions','relaxImpulses','applyRestitution','storeImpulses','splitIslands','transforms','sensorHits','jointEvents','hitEvents','refit',
+  'bullets','sleepIslands','sensors'] as const;
+const PROFILE_COUNTERS = ['bodies','shapes','contacts','joints','islands','stackBytes','arenaBytes','staticTreeHeight','treeHeight','satCalls','satCacheHits',
+  'allocatedBytes','tasks','awakeContacts','recycledContacts','awakeBodies'] as const;
+export type NativeProfileStage = typeof PROFILE_STAGES[number];
+export type NativeProfileCounter = typeof PROFILE_COUNTERS[number];
+/** Box3D's own timing of the most recent step, by stage (milliseconds), and the sizes it worked on. */
+export interface NativeStepProfile {
+  readonly milliseconds: Readonly<Record<NativeProfileStage, number>>;
+  readonly counters: Readonly<Record<NativeProfileCounter, number>>;
+}
+export interface NativeDebugDrawOptions {
+  readonly joints?: boolean;
+  /** Joint frames and limits. */
+  readonly jointExtras?: boolean;
+  /** Axis-aligned bounds of every shape. */
+  readonly bounds?: boolean;
+  /** Centres of mass, with body axes. */
+  readonly mass?: boolean;
+  readonly contacts?: boolean;
+  readonly contactNormals?: boolean;
+  readonly contactForces?: boolean;
+  readonly frictionForces?: boolean;
+  readonly islands?: boolean;
+  /** Colour contact points by the solver colour of their constraint. */
+  readonly graphColors?: boolean;
+  /** Length scale of joint drawings (m). Default 1. */
+  readonly jointScale?: number;
+  /** Metres drawn per newton for force arrows. */
+  readonly forceScale?: number;
+  /** Draw only what lies in this box. */
+  readonly region?: { readonly min: NativeQueryVector; readonly max: NativeQueryVector };
+}
+/** Line segments: vertex pairs. `positions` holds x, y, z per vertex and `colors` r, g, b in 0..1. */
+export interface NativeDebugLines {
+  readonly positions: Float32Array;
+  readonly colors: Float32Array;
+  readonly vertexCount: number;
+  /** True when the world had more than 1,048,576 vertices to draw and the rest were dropped. */
+  readonly truncated: boolean;
+}
+const DEBUG_FLAGS: readonly (keyof NativeDebugDrawOptions)[] = ['joints','jointExtras','bounds','mass','contacts','contactNormals','contactForces','frictionForces','islands','graphColors'];
 
 export interface NativeBodyCapacityInfo {
   capacity: number;
@@ -395,6 +642,10 @@ export function assertNativeWorldModule(value: unknown): asserts value is Native
   if(compoundExports.some(value=>value!==undefined)&&(!compoundExports.every(value=>typeof value==='function')||!generalExports.every(value=>typeof value==='function'))) {
     throw new EngineError('UNSUPPORTED_BACKEND','The native compound-shape and mass-data extension requires all four of its exports and the general-body extension.');
   }
+  const rigidExports=RIGID_EXPORTS.map(name=>mod[`_b3w_world_${name}`]);
+  if(rigidExports.some(value=>value!==undefined)&&(!rigidExports.every(value=>typeof value==='function')||!generalExports.every(value=>typeof value==='function'))) {
+    throw new EngineError('UNSUPPORTED_BACKEND','The native rigid-core extension requires all thirteen of its exports and the general-body extension.');
+  }
   if(queryExports.some(value=>value!==undefined)&&(!queryExports.every(value=>typeof value==='function')||!bodyExports.every(value=>typeof value==='function'))) {
     throw new EngineError('UNSUPPORTED_BACKEND','The native spatial-query extension requires all query and body lifecycle exports.');
   }
@@ -423,6 +674,8 @@ export class NativeWorldBackend implements PhysicsBackend {
   private jointOwner={};
   // One 128-byte scratch block for descriptors and small outputs, allocated on first use.
   private scratch=0;
+  // One 1024-byte block for the mover and the step profile, allocated on first use.
+  private wideScratch=0;
   // Shape kinds last read from the bridge, keyed by shapeVersion() and the body count.
   private kindRows: Uint8Array | null=null;
   private kindRowsVersion=-1;
@@ -912,9 +1165,17 @@ export class NativeWorldBackend implements PhysicsBackend {
     if(descriptor.type==='distance')finite(descriptor.length,'distance joint length',Number.MIN_VALUE);
     if(descriptor.coneAngle!==undefined)finite(descriptor.coneAngle,'cone angle',0,Math.PI);
     if(descriptor.stiffness){finite(descriptor.stiffness.hertz,'joint stiffness hertz',Number.MIN_VALUE);finite(descriptor.stiffness.dampingRatio??2,'joint stiffness damping ratio',0);}
+    const thresholds=descriptor.thresholds,parallelTorque=descriptor.type==='parallel'&&descriptor.maxTorque!==undefined?finite(descriptor.maxTorque,'parallel joint max torque',0):undefined;
+    const extended=type>=6||thresholds!==undefined||descriptor.drive!==undefined||descriptor.steering!==undefined;
+    if(extended&&!this.supportsRigidCore)throw new EngineError('UNSUPPORTED_BACKEND','box3d.wasm lacks motor, parallel and filter joints, joint thresholds and steering limits; rebuild with npm run build:wasm.');
+    if(descriptor.drive!==undefined&&descriptor.type!=='motor')throw new EngineError('INVALID_PAYLOAD','Only a motor joint takes a drive.');
+    if(descriptor.steering!==undefined&&descriptor.type!=='wheel')throw new EngineError('INVALID_PAYLOAD','Only a wheel joint steers.');
+    const forceThreshold=finite(thresholds?.force??0,'joint force threshold',0),torqueThreshold=finite(thresholds?.torque??0,'joint torque threshold',0);
+    if(thresholds?.breakable&&forceThreshold===0&&torqueThreshold===0)throw new EngineError('INVALID_PAYLOAD','A breakable joint needs a force or a torque threshold.');
+    const driveValues=descriptor.drive===undefined?null:driveList(descriptor.drive),steeringValues=descriptor.steering===undefined?null:steeringList(descriptor.steering);
     for(let i=0;i<128;i+=4)view.setUint32(i,0,true);
     view.setUint32(0,type,true);
-    view.setUint32(4,(descriptor.collideConnected?1:0)|(limits?2:0)|(motor?4:0)|(spring?8:0)|(descriptor.coneAngle!==undefined?16:0),true);
+    view.setUint32(4,(descriptor.collideConnected?1:0)|(limits?2:0)|(motor||parallelTorque!==undefined?4:0)|(spring?8:0)|(descriptor.coneAngle!==undefined?16:0)|(thresholds?.breakable?32:0),true);
     view.setBigUint64(8,a,true);view.setBigUint64(16,b,true);
     [descriptor.frameA,descriptor.frameB].forEach((frame,side)=>{
       const p=frame?.position??[0,0,0],q=frame?.rotation??[0,0,0,1],base=24+side*28;
@@ -922,14 +1183,287 @@ export class NativeWorldBackend implements PhysicsBackend {
       for(let i=0;i<4;i++)view.setFloat32(base+12+i*4,finite(q[i],'frame rotation'),true);
     });
     view.setFloat32(80,limits?.lower??0,true);view.setFloat32(84,limits?.upper??0,true);
-    view.setFloat32(88,motor?.speed??0,true);view.setFloat32(92,motor?.maxForce??0,true);
+    view.setFloat32(88,motor?.speed??0,true);view.setFloat32(92,parallelTorque??motor?.maxForce??0,true);
     view.setFloat32(96,spring?.hertz??0,true);view.setFloat32(100,spring?.dampingRatio??0,true);
     view.setFloat32(104,descriptor.type==='distance'?descriptor.length!:spring?.target??0,true);
     view.setFloat32(108,descriptor.coneAngle??0,true);
     view.setFloat32(112,descriptor.stiffness?.hertz??0,true);view.setFloat32(116,descriptor.stiffness?descriptor.stiffness.dampingRatio??2:0,true);
+    view.setFloat32(120,forceThreshold,true);view.setFloat32(124,torqueThreshold,true);
     const token=this.mod._b3w_world_create_joint!(this.handle,this.scratch);
     if(token===0n)throw new EngineError('INVALID_PAYLOAD','The native bridge rejected the joint: check that both bodies are alive.');
-    return this.wrapJoint(token);
+    const joint=this.wrapJoint(token);
+    // Checked before the joint was made; if the bridge still refuses them, the joint does not stay.
+    try {
+      if(driveValues!==null)this.writeJointValues(joint.token,0,driveValues);
+      if(steeringValues!==null)this.applySteering(joint.token,descriptor.steering!);
+    }catch(error){this.mod._b3w_world_destroy_joint!(this.handle,joint.token);throw error;}
+    return joint;
+  }
+  /** True when the artifact has the rigid-core extension: motor, parallel and filter joints, joint events and breaking,
+   * batched rays, capsule queries, the character mover, world and body controls, the step profile and debug lines. */
+  get supportsRigidCore(): boolean { this.assertAlive();return typeof this.mod._b3w_world_mover_move==='function'; }
+  private rigid(): DataView {
+    const view=this.general();
+    if(!this.supportsRigidCore)throw new EngineError('UNSUPPORTED_BACKEND','box3d.wasm lacks the rigid-core extension; rebuild with npm run build:wasm.');
+    return view;
+  }
+  private wide(): number {
+    this.rigid();
+    if(this.wideScratch===0) {
+      const pointer=Number(this.mod._malloc!(1024));
+      if(!Number.isSafeInteger(pointer)||pointer<=0||pointer%8!==0)throw new EngineError('ALLOCATION_FAILED','Native scratch allocation failed.');
+      this.wideScratch=pointer;
+    }
+    return this.wideScratch;
+  }
+  private writeJointValues(token: bigint,what: number,values: readonly number[]): void {
+    const view=this.rigid();
+    values.forEach((value,i)=>view.setFloat32(i*4,value,true));
+    this.jointStatus(this.mod._b3w_world_joint_set_values!(this.handle,token,what,this.scratch,values.length));
+  }
+  private applySteering(token: bigint,steering: NativeJointSteering): void {
+    this.jointStatus(this.mod._b3w_world_joint_set_steering!(this.handle,token,1,steering.angle,steering.hertz,steering.dampingRatio,steering.maxTorque));
+    if(steering.limits)this.writeJointValues(token,2,[1,steering.limits.lower,steering.limits.upper]);
+  }
+  /** Motor joints: replace the drive. */
+  setJointDrive(joint: NativeJointHandle,drive: NativeJointDrive): void { this.writeJointValues(this.jointToken(joint),0,driveList(drive)); }
+  /** Force and torque thresholds for joint events, and whether the joint breaks at them. Pass null to remove them. */
+  setJointThresholds(joint: NativeJointHandle,thresholds: NativeJointThresholds | null): void {
+    const force=finite(thresholds?.force??0,'joint force threshold',0),torque=finite(thresholds?.torque??0,'joint torque threshold',0);
+    if(thresholds?.breakable&&force===0&&torque===0)throw new EngineError('INVALID_PAYLOAD','A breakable joint needs a force or a torque threshold.');
+    this.writeJointValues(this.jointToken(joint),1,[force,torque,thresholds?.breakable?1:0]);
+  }
+  /** Wheel joints: limit the steering angle. Pass null to remove the limit. */
+  setJointSteeringLimits(joint: NativeJointHandle,limits: {lower: number; upper: number} | null): void {
+    if(limits){finite(limits.lower,'lower steering limit');finite(limits.upper,'upper steering limit',limits.lower);}
+    this.writeJointValues(this.jointToken(joint),2,[limits?1:0,limits?.lower??0,limits?.upper??0]);
+  }
+  /** Spherical joints: the orientation of frame B in frame A that the spring pulls towards. */
+  setJointTargetRotation(joint: NativeJointHandle,rotation: NativeQuaternion): void {
+    const q=[finite(rotation[0],'target rotation'),finite(rotation[1],'target rotation'),finite(rotation[2],'target rotation'),finite(rotation[3],'target rotation')];
+    if(!(Math.hypot(q[0],q[1],q[2],q[3])>1e-6))throw new EngineError('INVALID_PAYLOAD','target rotation must be a non-zero quaternion.');
+    this.writeJointValues(this.jointToken(joint),3,q);
+  }
+  /** Spherical joints: turn body B relative to body A at an angular velocity (rad/s) with a bounded torque. Pass null to switch it off. */
+  setJointAngularMotor(joint: NativeJointHandle,motor: {velocity: NativeQueryVector; maxTorque: number} | null): void {
+    const v=motor?.velocity??[0,0,0];
+    this.writeJointValues(this.jointToken(joint),4,[motor?1:0,finite(v[0],'motor velocity x'),finite(v[1],'motor velocity y'),finite(v[2],'motor velocity z'),finite(motor?.maxTorque??0,'motor max torque',0)]);
+  }
+  /** Parallel joints: the spring that keeps the two z axes aligned, and the largest torque it may use. */
+  setJointParallelSpring(joint: NativeJointHandle,spring: {hertz: number; dampingRatio: number; maxTorque: number}): void {
+    this.writeJointValues(this.jointToken(joint),5,[finite(spring.hertz,'spring hertz',0),finite(spring.dampingRatio,'spring damping ratio',0),finite(spring.maxTorque,'max torque',0)]);
+  }
+  /** Spherical joints: limit the swing to a cone of this half angle (rad). Pass null to remove the limit. */
+  setJointConeLimit(joint: NativeJointHandle,angle: number | null): void {
+    this.writeJointValues(this.jointToken(joint),6,[angle===null?0:1,angle===null?0:finite(angle,'cone angle',0,Math.PI)]);
+  }
+  /** Whether the two bodies of the joint collide with each other. */
+  setJointCollideConnected(joint: NativeJointHandle,collide: boolean): void { this.writeJointValues(this.jointToken(joint),7,[collide?1:0]); }
+  /** Everything the solver holds about one joint: separation errors, thresholds, and the values of its type. */
+  jointDetails(joint: NativeJointHandle): NativeJointDetails {
+    const token=this.jointToken(joint),view=this.rigid();
+    this.jointStatus(this.mod._b3w_world_joint_get_values!(this.handle,token,this.scratch));
+    const f=(i: number)=>view.getFloat32(i*4,true),type=JOINT_TYPES[f(0)]??'weld';
+    const out: NativeJointDetails={type,linearSeparation:f(1),angularSeparation:f(2),forceThreshold:f(3),torqueThreshold:f(4),breakable:f(5)!==0,stiffness:{hertz:f(6),dampingRatio:f(7)}};
+    if(type==='revolute')Object.assign(out,{angle:f(8),motorForce:f(9),lowerLimit:f(10),upperLimit:f(11),motorSpeed:f(12)});
+    else if(type==='prismatic')Object.assign(out,{translation:f(8),speed:f(9),motorForce:f(10),lowerLimit:f(11),upperLimit:f(12)});
+    else if(type==='distance')Object.assign(out,{length:f(8),motorForce:f(9),restLength:f(10),lowerLimit:f(11),upperLimit:f(12)});
+    else if(type==='spherical')Object.assign(out,{angle:f(8),motorTorque:[f(9),f(10),f(11)],coneAngle:f(12),coneLimit:f(13)});
+    else if(type==='wheel')Object.assign(out,{spinSpeed:f(8),spinTorque:f(9),steeringAngle:f(10),steeringTorque:f(11),targetSteeringAngle:f(12),suspension:f(13),lowerLimit:f(14),upperLimit:f(15)});
+    else if(type==='motor')Object.assign(out,{linearVelocity:[f(8),f(9),f(10)],angularVelocity:[f(11),f(12),f(13)]});
+    else if(type==='parallel')Object.assign(out,{springHertz:f(8),springDampingRatio:f(9),maxTorque:f(10)});
+    return out;
+  }
+
+  /**
+   * Closest hit of each of up to 65,536 rays in one call. `rays` holds origin x, y, z and translation x, y, z per
+   * ray (the translation is the whole displacement, not a direction). When two bodies are hit at the same fraction
+   * the one with the smaller handle is reported. Reads the world only.
+   */
+  castRayBatch(rays: ArrayLike<number>,filter: NativeQueryFilter={}): NativeRayBatch {
+    this.rigid();
+    if(!rays||!Number.isSafeInteger(rays.length)||rays.length%6!==0||rays.length>65536*6)throw new EngineError('INVALID_PAYLOAD','rays must hold 6 numbers per ray, for at most 65,536 rays.');
+    const count=rays.length/6;
+    onlyKeys(filter as Record<string, unknown>,['bodies','categoryBits','maskBits','ignoreBody'],'filter');
+    const bodies=filter.bodies??'all';
+    if(typeof bodies!=='string'||!Object.hasOwn(QUERY_BODY_TYPES,bodies))throw new EngineError('INVALID_PAYLOAD','filter.bodies is not supported.');
+    const category=queryBits(filter.categoryBits??0xFFFFFFFFFFFFFFFFn,'filter.categoryBits'),mask=queryBits(filter.maskBits??0xFFFFFFFFFFFFFFFFn,'filter.maskBits');
+    const ignore=filter.ignoreBody===undefined?0n:this.bodyToken(filter.ignoreBody);
+    const empty: NativeRayBatch={count,hitCount:0,fractions:new Float32Array(count).fill(-1),points:new Float32Array(count*3),normals:new Float32Array(count*3),triangles:new Int32Array(count).fill(-1),bodies:new Array<NativeBodyHandle | null>(count).fill(null)};
+    if(count===0)return empty;
+    const input=new Float32Array(count*6);
+    for(let i=0;i<input.length;i++)input[i]=finite(rays[i],`rays[${i}]`,-1e6,1e6);
+    // Layout: body handles (8 bytes each), then the rays, then the hit records.
+    const bytes=count*(8+24+32),pointer=Number(this.mod._malloc!(bytes));
+    if(!Number.isSafeInteger(pointer)||pointer<=0||pointer%8!==0)throw new EngineError('ALLOCATION_FAILED','Native ray buffer allocation failed.');
+    try {
+      const raysAt=pointer+count*8,hitsAt=raysAt+count*24;
+      new Float32Array(this.mod.HEAPF32.buffer,raysAt,count*6).set(input);
+      const status=this.mod._b3w_world_cast_rays!(this.handle,raysAt,count,category,mask,QUERY_BODY_TYPES[bodies as keyof typeof QUERY_BODY_TYPES],ignore,hitsAt,pointer);
+      if(status===-5)throw new EngineError('STALE_BODY','The ignored body has been destroyed or belongs to a previous scene.');
+      if(status===-2)throw new EngineError('INVALID_PAYLOAD','The native bridge rejected the rays.');
+      if(status<0)throw new EngineError('DISPOSED','The native context rejected the ray batch.');
+      // The query may have grown the heap: take the views after it.
+      const hits=new Float32Array(this.mod.HEAPF32.buffer,hitsAt,count*8),tokens=new BigUint64Array(this.mod.HEAPF32.buffer,pointer,count);
+      for(let i=0;i<count;i++) {
+        const o=i*8,token=tokens[i];
+        if(token===0n)continue;
+        empty.fractions[i]=hits[o];
+        empty.points[i*3]=hits[o+1];empty.points[i*3+1]=hits[o+2];empty.points[i*3+2]=hits[o+3];
+        empty.normals[i*3]=hits[o+4];empty.normals[i*3+1]=hits[o+5];empty.normals[i*3+2]=hits[o+6];
+        empty.triangles[i]=hits[o+7];
+        empty.bodies[i]=this.wrapBody(token);
+      }
+      return {...empty,hitCount:status};
+    }finally{this.mod._free!(pointer);}
+  }
+
+  /**
+   * Move an upright capsule by `translation`, sliding along what it meets, without passing through thin geometry:
+   * Box3D's character mover (collision planes, plane solver, mover cast). Reads the world only; a controller applies
+   * the result and pushes bodies itself.
+   */
+  moverMove(input: NativeMoverInput): NativeMoverResult {
+    const pointer=this.wide();
+    const position=queryVector(input.position,'mover position'),translation=queryVector(input.translation,'mover translation');
+    const radius=finite(input.radius,'mover radius',1e-4,1e6),halfLength=finite(input.halfLength,'mover half length',0.0025,1e6);
+    const wall=input.wallBelowNormalY===undefined?null:finite(input.wallBelowNormalY,'wallBelowNormalY',0,1);
+    const iterations=integer(input.iterations??5,'mover iterations',1,16),tolerance=finite(input.tolerance??0.01,'mover tolerance',0,1e6);
+    const kinds=input.bodies??{},bodyTypes=(kinds.static===false?0:1)|(kinds.kinematic===false?0:2)|(kinds.dynamic===false?0:4);
+    const category=queryBits(input.categoryBits??0xFFFFFFFFFFFFFFFFn,'mover categoryBits'),mask=queryBits(input.maskBits??0xFFFFFFFFFFFFFFFFn,'mover maskBits');
+    const ignore=input.ignoreBody===undefined?0n:this.bodyToken(input.ignoreBody);
+    let view=new DataView(this.mod.HEAPF32.buffer,pointer,1024);
+    for(let i=0;i<80;i+=4)view.setUint32(i,0,true);
+    for(let i=0;i<3;i++){view.setFloat32(i*4,position[i],true);view.setFloat32(20+i*4,translation[i],true);}
+    view.setFloat32(12,radius,true);view.setFloat32(16,halfLength,true);
+    view.setFloat32(32,wall??0,true);view.setFloat32(36,tolerance,true);
+    view.setUint32(40,wall===null?0:1,true);view.setUint32(44,iterations,true);view.setUint32(48,bodyTypes,true);
+    view.setBigUint64(56,category,true);view.setBigUint64(64,mask,true);view.setBigUint64(72,ignore,true);
+    const status=this.mod._b3w_world_mover_move!(this.handle,pointer,pointer+80);
+    if(status===-5)throw new EngineError('STALE_BODY','The ignored body has been destroyed or belongs to a previous scene.');
+    if(status===-2)throw new EngineError('INVALID_PAYLOAD','The native bridge rejected the mover input.');
+    if(status!==1)throw new EngineError('DISPOSED','The native context rejected the mover.');
+    view=new DataView(this.mod.HEAPF32.buffer,pointer+80,800);
+    const planeCount=view.getUint32(20,true),planes: NativeMoverPlane[]=[];
+    if(planeCount>16)throw new EngineError('INVALID_BACKEND','Native mover returned an invalid plane count.');
+    for(let i=0;i<planeCount;i++) {
+      const o=32+i*48,f=(k: number)=>view.getFloat32(o+k*4,true);
+      planes.push({normal:[f(0),f(1),f(2)],point:[f(4),f(5),f(6)],push:f(7),body:this.wrapBody(view.getBigUint64(o+32,true)),
+        bodyType:BODY_TYPES[view.getUint32(o+40,true)]??'static',wall:view.getUint32(o+44,true)!==0});
+    }
+    return {position:[view.getFloat32(0,true),view.getFloat32(4,true),view.getFloat32(8,true)],planes,iterations:view.getUint32(16,true)};
+  }
+
+  /** The world-wide solver settings. A new or reset world has Box3D's defaults. */
+  worldSettings(): NativeWorldSettings {
+    const view=this.rigid();
+    this.accepted(this.mod._b3w_world_get_params!(this.handle,this.scratch));
+    const f=(i: number)=>view.getFloat32(i*4,true);
+    return {sleeping:f(0)!==0,continuous:f(1)!==0,speculative:f(2)!==0,warmStarting:f(3)!==0,restitutionThreshold:f(4),hitEventThreshold:f(5),
+      contactHertz:f(6),contactDampingRatio:f(7),contactPushSpeed:f(8),maximumLinearSpeed:f(9),contactRecycleDistance:f(10)};
+  }
+  /** Change some world-wide solver settings. Every dynamic body is woken, so that the new rule applies from the next step. */
+  setWorldSettings(settings: Partial<NativeWorldSettings>): void {
+    this.rigid();
+    onlyKeys(settings as Record<string, unknown>,['sleeping','continuous','speculative','warmStarting','restitutionThreshold','hitEventThreshold',
+      'contactHertz','contactDampingRatio','contactPushSpeed','maximumLinearSpeed','contactRecycleDistance'],'settings');
+    const calls: [number,number,number,number][]=[];
+    (['sleeping','continuous','speculative','warmStarting'] as const).forEach((key,id)=>{
+      const value=settings[key];
+      if(value===undefined)return;
+      if(typeof value!=='boolean')throw new EngineError('INVALID_PAYLOAD',`settings.${key} must be a boolean.`);
+      calls.push([id,value?1:0,0,0]);
+    });
+    if(settings.restitutionThreshold!==undefined)calls.push([4,finite(settings.restitutionThreshold,'restitution threshold',0),0,0]);
+    if(settings.hitEventThreshold!==undefined)calls.push([5,finite(settings.hitEventThreshold,'hit-event threshold',0),0,0]);
+    if(settings.contactHertz!==undefined||settings.contactDampingRatio!==undefined||settings.contactPushSpeed!==undefined) {
+      const now=this.worldSettings();
+      calls.push([6,finite(settings.contactHertz??now.contactHertz,'contact hertz',0),finite(settings.contactDampingRatio??now.contactDampingRatio,'contact damping ratio',0),
+        finite(settings.contactPushSpeed??now.contactPushSpeed,'contact push speed',0)]);
+    }
+    if(settings.maximumLinearSpeed!==undefined)calls.push([7,finite(settings.maximumLinearSpeed,'maximum linear speed',Number.MIN_VALUE),0,0]);
+    if(settings.contactRecycleDistance!==undefined)calls.push([8,finite(settings.contactRecycleDistance,'contact recycle distance',0),0,0]);
+    for(const [id,a,b,c] of calls) {
+      const status=this.mod._b3w_world_set_param!(this.handle,id,a,b,c);
+      if(status===-2)throw new EngineError('INVALID_PAYLOAD','The native bridge rejected the world setting.');
+      this.accepted(status);
+    }
+  }
+  private setBodyFlag(body: NativeBodyHandle,what: number,value: number): void {
+    const token=this.bodyToken(body);this.rigid();
+    this.bodyStatus(this.mod._b3w_world_set_body_flag!(this.handle,token,what,value));
+  }
+  /** Continuous collision against other moving bodies, for a small fast body. Costs more than the default. */
+  setBodyBullet(body: NativeBodyHandle,bullet: boolean): void { this.setBodyFlag(body,0,bullet?1:0); }
+  /** Whether the body may fall asleep, and below what speed (m/s). */
+  setBodySleep(body: NativeBodyHandle,options: {enabled?: boolean; threshold?: number}): void {
+    if(options.threshold!==undefined)this.setBodyFlag(body,2,finite(options.threshold,'sleep threshold',0));
+    if(options.enabled!==undefined)this.setBodyFlag(body,1,options.enabled?1:0);
+  }
+  /** Stop the body from translating along, or turning about, chosen world axes. */
+  setBodyMotionLocks(body: NativeBodyHandle,locks: Partial<NativeBodyFlags['locks']>): void {
+    this.setBodyFlag(body,3,(locks.linearX?1:0)|(locks.linearY?2:0)|(locks.linearZ?4:0)|(locks.angularX?8:0)|(locks.angularY?16:0)|(locks.angularZ?32:0));
+  }
+  bodyFlags(body: NativeBodyHandle): NativeBodyFlags {
+    const token=this.bodyToken(body),view=this.rigid();
+    this.bodyStatus(this.mod._b3w_world_get_body_flags!(this.handle,token,this.scratch));
+    const bits=view.getFloat32(12,true);
+    return {bullet:view.getFloat32(0,true)!==0,sleepEnabled:view.getFloat32(4,true)!==0,sleepThreshold:view.getFloat32(8,true),
+      locks:{linearX:(bits&1)!==0,linearY:(bits&2)!==0,linearZ:(bits&4)!==0,angularX:(bits&8)!==0,angularY:(bits&16)!==0,angularZ:(bits&32)!==0}};
+  }
+  /**
+   * Box3D's explosion: an impulse on every sphere, capsule and hull within `radius + falloff` of the centre,
+   * proportional to the shape area that faces it (`impulsePerArea`, N s per m^2; negative pulls inwards) and fading
+   * linearly to zero across `falloff`. Meshes and height fields are not affected.
+   */
+  explodeArea(options: {center: NativeQueryVector; radius: number; falloff?: number; impulsePerArea: number; maskBits?: bigint}): void {
+    this.rigid();
+    const c=queryVector(options.center,'explosion centre');
+    const status=this.mod._b3w_world_explode_area!(this.handle,c[0],c[1],c[2],finite(options.radius,'explosion radius',0),finite(options.falloff??0,'explosion falloff',0),
+      finite(options.impulsePerArea,'impulse per area'),queryBits(options.maskBits??0xFFFFFFFFFFFFFFFFn,'explosion maskBits'));
+    if(status===-2)throw new EngineError('INVALID_PAYLOAD','The native bridge rejected the explosion.');
+    this.accepted(status);
+  }
+  /** Box3D's timing of the most recent step by stage, and the sizes it worked on. Wall-clock, so not reproducible. */
+  profile(): NativeStepProfile {
+    const pointer=this.wide();
+    this.accepted(this.mod._b3w_world_profile!(this.handle,pointer,pointer+96));
+    const floats=new Float32Array(this.mod.HEAPF32.buffer,pointer,23),ints=new Int32Array(this.mod.HEAPF32.buffer,pointer+96,16);
+    const milliseconds={} as Record<NativeProfileStage, number>,counters={} as Record<NativeProfileCounter, number>;
+    PROFILE_STAGES.forEach((name,i)=>{milliseconds[name]=floats[i];});
+    PROFILE_COUNTERS.forEach((name,i)=>{counters[name]=ints[i];});
+    return {milliseconds,counters};
+  }
+  /**
+   * Box3D's own debug drawing as line segments: joints, shape bounds, centres of mass, contact points with their
+   * normals and forces, and islands. Returns owned copies. Reads the world only.
+   */
+  debugLines(options: NativeDebugDrawOptions={}): NativeDebugLines {
+    this.rigid();
+    let flags=0;
+    DEBUG_FLAGS.forEach((key,bit)=>{if(options[key])flags|=1<<bit;});
+    const jointScale=finite(options.jointScale??0,'joint scale',0),forceScale=finite(options.forceScale??0,'force scale',0);
+    let bounds=0;
+    if(options.region) {
+      const min=queryVector(options.region.min,'region.min'),max=queryVector(options.region.max,'region.max'),view=this.general();
+      for(let i=0;i<3;i++){if(min[i]>max[i])throw new EngineError('INVALID_PAYLOAD','region.min must not exceed region.max.');view.setFloat32(i*4,min[i],true);view.setFloat32(12+i*4,max[i],true);}
+      bounds=this.scratch;
+    }
+    const count=this.mod._b3w_world_debug_draw!(this.handle,flags,jointScale,forceScale,bounds);
+    if(count===-2)throw new EngineError('INVALID_PAYLOAD','The native bridge rejected the debug-draw options.');
+    if(count<0)throw new EngineError('DISPOSED','The native context rejected debug drawing.');
+    const total=this.mod._b3w_world_debug_total!(this.handle),positions=new Float32Array(count*3),colors=new Float32Array(count*3);
+    if(count>0) {
+      const pointer=Number(this.mod._b3w_world_debug_ptr!(this.handle));
+      if(!Number.isSafeInteger(pointer)||pointer<=0||pointer%4!==0||pointer+count*16>this.mod.HEAPF32.byteLength)throw new EngineError('INVALID_BACKEND','Native debug-draw buffer is outside the module heap.');
+      const source=new Float32Array(this.mod.HEAPF32.buffer,pointer,count*4);
+      for(let i=0;i<count;i++) {
+        const rgb=source[i*4+3];
+        positions[i*3]=source[i*4];positions[i*3+1]=source[i*4+1];positions[i*3+2]=source[i*4+2];
+        colors[i*3]=((rgb>>16)&255)/255;colors[i*3+1]=((rgb>>8)&255)/255;colors[i*3+2]=(rgb&255)/255;
+      }
+    }
+    return {positions,colors,vertexCount:count,truncated:total>count};
   }
   /** False once the joint, or either of its bodies, has been destroyed. */
   jointAlive(joint: NativeJointHandle): boolean {
@@ -999,6 +1533,12 @@ export class NativeWorldBackend implements PhysicsBackend {
       const o=i*56,kind=EVENT_KINDS[view.getUint32(o,true)];
       if(kind===undefined)throw new EngineError('INVALID_BACKEND','Native event kind is unknown.');
       const bodyA=body(o+8),bodyB=body(o+16);
+      if(kind==='joint-overload'||kind==='joint-break') {
+        const token=(BigInt(view.getUint32(o+52,true))<<32n)|BigInt(view.getUint32(o+4,true));
+        events.push({kind,bodyA,bodyB,joint:this.wrapJoint(token),force:[view.getFloat32(o+24,true),view.getFloat32(o+28,true),view.getFloat32(o+32,true)],
+          torque:[view.getFloat32(o+36,true),view.getFloat32(o+40,true),view.getFloat32(o+44,true)]});
+        continue;
+      }
       events.push(kind==='hit'?{kind,bodyA,bodyB,point:[view.getFloat32(o+24,true),view.getFloat32(o+28,true),view.getFloat32(o+32,true)],
         normal:[view.getFloat32(o+36,true),view.getFloat32(o+40,true),view.getFloat32(o+44,true)],approachSpeed:view.getFloat32(o+48,true)}:{kind,bodyA,bodyB});
     }
@@ -1062,13 +1602,16 @@ export class NativeWorldBackend implements PhysicsBackend {
   private validateQuery(value: unknown,index: number): ValidatedQuery {
     const label=`queries[${index}]`,q=record(value,label),kind=QUERY_KINDS.indexOf(q.kind as typeof QUERY_KINDS[number]);
     if(kind<0)throw new EngineError('INVALID_PAYLOAD',`${label}.kind is not supported.`);
-    const keys=['kind','origin','limit','filter'];
-    if(kind<=2)keys.push('translation');
-    if(kind===1||kind===3)keys.push('radius');
+    const keys=['kind','origin','limit','filter'],isCast=QUERY_IS_CAST[kind];
+    if(kind>=6&&!this.supportsRigidCore)throw new EngineError('UNSUPPORTED_BACKEND','box3d.wasm lacks capsule queries; rebuild with npm run build:wasm.');
+    if(isCast)keys.push('translation');
+    if(kind===1||kind===3||kind>=6)keys.push('radius');
+    if(kind>=6)keys.push('halfLength');
     if(kind===2||kind===4||kind===5)keys.push('halfExtents');
     onlyKeys(q,keys,label);
-    const origin=queryVector(q.origin,`${label}.origin`),translation=kind<=2?queryVector(q.translation,`${label}.translation`):[0,0,0];
+    const origin=queryVector(q.origin,`${label}.origin`),translation=isCast?queryVector(q.translation,`${label}.translation`):[0,0,0];
     const extent=kind===1||kind===3?[finite(q.radius,`${label}.radius`,Number.MIN_VALUE,1e6),0,0]:
+      kind>=6?[finite(q.radius,`${label}.radius`,Number.MIN_VALUE,1e6),finite(q.halfLength,`${label}.halfLength`,0.0025,1e6),0]:
       kind===2||kind===4||kind===5?queryVector(q.halfExtents,`${label}.halfExtents`,true):[0,0,0];
     const limit=integer(q.limit===undefined?32:q.limit,`${label}.limit`,1,256);
     const filter=q.filter===undefined?{}:record(q.filter,`${label}.filter`);
@@ -1143,7 +1686,7 @@ export class NativeWorldBackend implements PhysicsBackend {
         const point=[view.getFloat32(h+16,true),view.getFloat32(h+20,true),view.getFloat32(h+24,true)] as const;
         const normal=[view.getFloat32(h+28,true),view.getFloat32(h+32,true),view.getFloat32(h+36,true)] as const;
         const previous=hits[j-1];
-        if(flags!==Number(q.kind<=2)||!Number.isFinite(fraction)||fraction<0||fraction>1||!point.every(Number.isFinite)||!normal.every(Number.isFinite)||
+        if(flags!==Number(QUERY_IS_CAST[q.kind])||!Number.isFinite(fraction)||fraction<0||fraction>1||!point.every(Number.isFinite)||!normal.every(Number.isFinite)||
           triangleIndex< -1||childIndex< -1||token===0n||(token&0x1FFFFn)===0n||(token&0x1FFFFn)>65536n||(token>>17n)===0n||
           (previous&&(previous.fraction>fraction||(previous.fraction===fraction&&(previous.body.token>token||
             (previous.body.token===token&&(previous.triangleIndex>triangleIndex||(previous.triangleIndex===triangleIndex&&previous.childIndex>=childIndex)))))))) {
@@ -1152,7 +1695,7 @@ export class NativeWorldBackend implements PhysicsBackend {
         hits.push({body:this.wrapBody(token),point,normal,fraction,material:view.getBigUint64(h+8,true),triangleIndex,childIndex});
       }
       const common={totalHits:total,overflow:Boolean(overflow)},kind=QUERY_KINDS[q.kind];
-      if(kind==='ray'||kind==='sphere-cast'||kind==='box-cast')output.push({...common,kind,hits});
+      if(kind==='ray'||kind==='sphere-cast'||kind==='box-cast'||kind==='capsule-cast')output.push({...common,kind,hits});
       else output.push({...common,kind,hits:hits.map(hit=>({body:hit.body}))});
       offset+=q.limit;
     }
@@ -1277,6 +1820,7 @@ export class NativeWorldBackend implements PhysicsBackend {
     this.disposed=true;
     try {
       if(this.scratch!==0){this.mod._free?.(this.scratch);this.scratch=0;}
+      if(this.wideScratch!==0){this.mod._free?.(this.wideScratch);this.wideScratch=0;}
       if(this.mod._b3w_world_valid(this.handle)===1)this.mod._b3w_world_destroy(this.handle);
     }
     finally{this.onDispose?.();}

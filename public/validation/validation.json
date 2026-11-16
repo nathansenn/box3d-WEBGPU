@@ -5,10 +5,10 @@
  "generatedBy": "node scripts/validation-report.mjs",
  "digits": 9,
  "totals": {
-  "cases": 592,
-  "passed": 592,
+  "cases": 613,
+  "passed": 613,
   "failed": 0,
-  "domains": 22
+  "domains": 23
  },
  "domains": [
   {
@@ -30,6 +30,23 @@
    ],
    "cases": 42,
    "passed": 42
+  },
+  {
+   "id": "rigid-core",
+   "title": "Rigid core: queries, character, continuous collision, vehicles, joints and piles",
+   "summary": "Ray, sweep and overlap queries against closed forms, and the batched ray call.",
+   "solver": "Box3D compiled to WebAssembly, through `box3d-webgpu-kit` (float32 state, 240 Hz, 4 sub-steps unless a row says otherwise)",
+   "docs": [
+    "docs/RIGID_CORE.md"
+   ],
+   "notValidated": [
+    "Queries against triangle meshes, height fields, hulls and compounds have no closed-form row: they are covered by the bit-for-bit agreement of batched and single rays only.",
+    "Sweeps are checked from a separated start. A sweep that starts overlapping reports fraction 0 with a zero normal, which is behaviour inherited from Box3D and not a time of impact.",
+    "Box and capsule query shapes are axis aligned (the capsule upright). Rotated query shapes are not exposed.",
+    "One build on one machine; no cross-device determinism matrix."
+   ],
+   "cases": 21,
+   "passed": 21
   },
   {
    "id": "water-coupling",
@@ -1622,6 +1639,601 @@
    },
    "text": {
     "reference": "0",
+    "measured": "0",
+    "error": "0",
+    "tolerance": "±0"
+   }
+  },
+  {
+   "id": "rigid-core.ray.sphere.point",
+   "domain": "rigid-core",
+   "title": "Ray against a sphere: hit point",
+   "quantity": "largest distance between the reported and the exact hit point, 2,000 rays from every side",
+   "unit": "m",
+   "formula": "p = o + t d with t = (-b - sqrt(b^2 - a c)) / a, a = d.d, b = (o - c).d, c = |o - c|^2 - R^2",
+   "reference": 0,
+   "measured": 0.00000317207839,
+   "error": 0.00000317207839,
+   "relativeError": null,
+   "tolerance": {
+    "kind": "upper",
+    "value": 0.00005
+   },
+   "pass": true,
+   "note": "Float32 positions 6 m from the shape; rays within 2 mm of grazing the shape or of ending on it are left out.",
+   "source": {
+    "file": "packages/box3d-kit/test/v21-rigid-queries.test.mjs",
+    "test": "rays against a sphere, an oriented box and an oriented capsule: hit points and normals match the closed forms",
+    "url": "https://github.com/nathansenn/box3d-WEBGPU/blob/main/packages/box3d-kit/test/v21-rigid-queries.test.mjs"
+   },
+   "text": {
+    "reference": "0 m",
+    "measured": "3.172078e-6",
+    "error": "+3.17e-6",
+    "tolerance": "at most 5e-5 above the reference"
+   }
+  },
+  {
+   "id": "rigid-core.ray.sphere.normal",
+   "domain": "rigid-core",
+   "title": "Ray against a sphere: surface normal",
+   "quantity": "largest difference between the reported and the exact unit normal",
+   "unit": "1",
+   "formula": "n = outward unit normal of the surface at the hit point",
+   "reference": 0,
+   "measured": 0.00000385961599,
+   "error": 0.00000385961599,
+   "relativeError": null,
+   "tolerance": {
+    "kind": "upper",
+    "value": 0.0001
+   },
+   "pass": true,
+   "source": {
+    "file": "packages/box3d-kit/test/v21-rigid-queries.test.mjs",
+    "test": "rays against a sphere, an oriented box and an oriented capsule: hit points and normals match the closed forms",
+    "url": "https://github.com/nathansenn/box3d-WEBGPU/blob/main/packages/box3d-kit/test/v21-rigid-queries.test.mjs"
+   },
+   "text": {
+    "reference": "0",
+    "measured": "3.859616e-6",
+    "error": "+3.86e-6",
+    "tolerance": "at most 0.0001 above the reference"
+   }
+  },
+  {
+   "id": "rigid-core.ray.sphere.agreement",
+   "domain": "rigid-core",
+   "title": "Ray against a sphere: hit or miss",
+   "quantity": "rays on which the engine and the closed form disagree about hitting",
+   "unit": "rays",
+   "formula": "hit exactly when the closed form has a root in [0, 1]",
+   "reference": 0,
+   "measured": 0,
+   "error": 0,
+   "relativeError": null,
+   "tolerance": {
+    "kind": "absolute",
+    "value": 0
+   },
+   "pass": true,
+   "source": {
+    "file": "packages/box3d-kit/test/v21-rigid-queries.test.mjs",
+    "test": "rays against a sphere, an oriented box and an oriented capsule: hit points and normals match the closed forms",
+    "url": "https://github.com/nathansenn/box3d-WEBGPU/blob/main/packages/box3d-kit/test/v21-rigid-queries.test.mjs"
+   },
+   "text": {
+    "reference": "0 rays",
+    "measured": "0",
+    "error": "0",
+    "tolerance": "±0"
+   }
+  },
+  {
+   "id": "rigid-core.ray.box.point",
+   "domain": "rigid-core",
+   "title": "Ray against an oriented box: hit point",
+   "quantity": "largest distance between the reported and the exact hit point, 2,000 rays from every side",
+   "unit": "m",
+   "formula": "slab method in the box frame: t = max over axes of the entry times",
+   "reference": 0,
+   "measured": 0.0000169486618,
+   "error": 0.0000169486618,
+   "relativeError": null,
+   "tolerance": {
+    "kind": "upper",
+    "value": 0.00005
+   },
+   "pass": true,
+   "note": "Float32 positions 6 m from the shape; rays within 2 mm of grazing the shape or of ending on it are left out.",
+   "source": {
+    "file": "packages/box3d-kit/test/v21-rigid-queries.test.mjs",
+    "test": "rays against a sphere, an oriented box and an oriented capsule: hit points and normals match the closed forms",
+    "url": "https://github.com/nathansenn/box3d-WEBGPU/blob/main/packages/box3d-kit/test/v21-rigid-queries.test.mjs"
+   },
+   "text": {
+    "reference": "0 m",
+    "measured": "1.694866e-5",
+    "error": "+1.69e-5",
+    "tolerance": "at most 5e-5 above the reference"
+   }
+  },
+  {
+   "id": "rigid-core.ray.box.normal",
+   "domain": "rigid-core",
+   "title": "Ray against an oriented box: surface normal",
+   "quantity": "largest difference between the reported and the exact unit normal",
+   "unit": "1",
+   "formula": "n = outward unit normal of the surface at the hit point",
+   "reference": 0,
+   "measured": 3.00986052e-8,
+   "error": 3.00986052e-8,
+   "relativeError": null,
+   "tolerance": {
+    "kind": "upper",
+    "value": 0.0001
+   },
+   "pass": true,
+   "source": {
+    "file": "packages/box3d-kit/test/v21-rigid-queries.test.mjs",
+    "test": "rays against a sphere, an oriented box and an oriented capsule: hit points and normals match the closed forms",
+    "url": "https://github.com/nathansenn/box3d-WEBGPU/blob/main/packages/box3d-kit/test/v21-rigid-queries.test.mjs"
+   },
+   "text": {
+    "reference": "0",
+    "measured": "3.009861e-8",
+    "error": "+3.01e-8",
+    "tolerance": "at most 0.0001 above the reference"
+   }
+  },
+  {
+   "id": "rigid-core.ray.box.agreement",
+   "domain": "rigid-core",
+   "title": "Ray against an oriented box: hit or miss",
+   "quantity": "rays on which the engine and the closed form disagree about hitting",
+   "unit": "rays",
+   "formula": "hit exactly when the closed form has a root in [0, 1]",
+   "reference": 0,
+   "measured": 0,
+   "error": 0,
+   "relativeError": null,
+   "tolerance": {
+    "kind": "absolute",
+    "value": 0
+   },
+   "pass": true,
+   "source": {
+    "file": "packages/box3d-kit/test/v21-rigid-queries.test.mjs",
+    "test": "rays against a sphere, an oriented box and an oriented capsule: hit points and normals match the closed forms",
+    "url": "https://github.com/nathansenn/box3d-WEBGPU/blob/main/packages/box3d-kit/test/v21-rigid-queries.test.mjs"
+   },
+   "text": {
+    "reference": "0 rays",
+    "measured": "0",
+    "error": "0",
+    "tolerance": "±0"
+   }
+  },
+  {
+   "id": "rigid-core.ray.capsule.point",
+   "domain": "rigid-core",
+   "title": "Ray against an oriented capsule: hit point",
+   "quantity": "largest distance between the reported and the exact hit point, 2,000 rays from every side",
+   "unit": "m",
+   "formula": "first root among the side cylinder (|y| <= h) and the two cap spheres",
+   "reference": 0,
+   "measured": 0.0000280770356,
+   "error": 0.0000280770356,
+   "relativeError": null,
+   "tolerance": {
+    "kind": "upper",
+    "value": 0.00005
+   },
+   "pass": true,
+   "note": "Float32 positions 6 m from the shape; rays within 2 mm of grazing the shape or of ending on it are left out.",
+   "source": {
+    "file": "packages/box3d-kit/test/v21-rigid-queries.test.mjs",
+    "test": "rays against a sphere, an oriented box and an oriented capsule: hit points and normals match the closed forms",
+    "url": "https://github.com/nathansenn/box3d-WEBGPU/blob/main/packages/box3d-kit/test/v21-rigid-queries.test.mjs"
+   },
+   "text": {
+    "reference": "0 m",
+    "measured": "2.807704e-5",
+    "error": "+2.81e-5",
+    "tolerance": "at most 5e-5 above the reference"
+   }
+  },
+  {
+   "id": "rigid-core.ray.capsule.normal",
+   "domain": "rigid-core",
+   "title": "Ray against an oriented capsule: surface normal",
+   "quantity": "largest difference between the reported and the exact unit normal",
+   "unit": "1",
+   "formula": "n = outward unit normal of the surface at the hit point",
+   "reference": 0,
+   "measured": 0.00000882049355,
+   "error": 0.00000882049355,
+   "relativeError": null,
+   "tolerance": {
+    "kind": "upper",
+    "value": 0.0001
+   },
+   "pass": true,
+   "source": {
+    "file": "packages/box3d-kit/test/v21-rigid-queries.test.mjs",
+    "test": "rays against a sphere, an oriented box and an oriented capsule: hit points and normals match the closed forms",
+    "url": "https://github.com/nathansenn/box3d-WEBGPU/blob/main/packages/box3d-kit/test/v21-rigid-queries.test.mjs"
+   },
+   "text": {
+    "reference": "0",
+    "measured": "8.820494e-6",
+    "error": "+8.82e-6",
+    "tolerance": "at most 0.0001 above the reference"
+   }
+  },
+  {
+   "id": "rigid-core.ray.capsule.agreement",
+   "domain": "rigid-core",
+   "title": "Ray against an oriented capsule: hit or miss",
+   "quantity": "rays on which the engine and the closed form disagree about hitting",
+   "unit": "rays",
+   "formula": "hit exactly when the closed form has a root in [0, 1]",
+   "reference": 0,
+   "measured": 0,
+   "error": 0,
+   "relativeError": null,
+   "tolerance": {
+    "kind": "absolute",
+    "value": 0
+   },
+   "pass": true,
+   "source": {
+    "file": "packages/box3d-kit/test/v21-rigid-queries.test.mjs",
+    "test": "rays against a sphere, an oriented box and an oriented capsule: hit points and normals match the closed forms",
+    "url": "https://github.com/nathansenn/box3d-WEBGPU/blob/main/packages/box3d-kit/test/v21-rigid-queries.test.mjs"
+   },
+   "text": {
+    "reference": "0 rays",
+    "measured": "0",
+    "error": "0",
+    "tolerance": "±0"
+   }
+  },
+  {
+   "id": "rigid-core.sweep.box-face",
+   "domain": "rigid-core",
+   "title": "Box sweep onto a face: gap at the reported impact",
+   "quantity": "gap y0 + f dy - half height at the reported fraction, 300 slanted sweeps (the one furthest from 5 mm)",
+   "unit": "m",
+   "formula": "gap = +linear slop (a flat shape is stopped 5 mm short)",
+   "reference": 0.005,
+   "measured": 0.00494626164,
+   "error": -0.0000537383556,
+   "relativeError": -0.0107476711,
+   "tolerance": {
+    "kind": "absolute",
+    "value": 0.0002
+   },
+   "pass": true,
+   "note": "Box3D stops a swept shape without a radius one linear slop before the surface, so the reported fraction is early by 5 mm along the normal.",
+   "source": {
+    "file": "packages/box3d-kit/test/v21-rigid-queries.test.mjs",
+    "test": "sweeps: at the reported time of impact a flat shape is one linear slop short and a rounded one at most one slop inside",
+    "url": "https://github.com/nathansenn/box3d-WEBGPU/blob/main/packages/box3d-kit/test/v21-rigid-queries.test.mjs"
+   },
+   "text": {
+    "reference": "0.005 m",
+    "measured": "0.004946262",
+    "error": "-5.37e-5",
+    "tolerance": "±0.0002"
+   }
+  },
+  {
+   "id": "rigid-core.sweep.sphere-face",
+   "domain": "rigid-core",
+   "title": "Sphere sweep onto a face: gap at the reported impact",
+   "quantity": "gap y0 + f dy - r at the reported fraction (deepest of 300 slanted sweeps)",
+   "unit": "m",
+   "formula": "gap = -linear slop (a rounded shape is stopped 5 mm inside)",
+   "reference": -0.005,
+   "measured": -0.00500041246,
+   "error": -4.12464142e-7,
+   "relativeError": -0.0000824928284,
+   "tolerance": {
+    "kind": "absolute",
+    "value": 0.0002
+   },
+   "pass": true,
+   "note": "Box3D lets a swept shape with a radius encroach by its linear slop, so the reported fraction is late by 5 mm along the normal. Add or subtract the slop if you need the touching time.",
+   "source": {
+    "file": "packages/box3d-kit/test/v21-rigid-queries.test.mjs",
+    "test": "sweeps: at the reported time of impact a flat shape is one linear slop short and a rounded one at most one slop inside",
+    "url": "https://github.com/nathansenn/box3d-WEBGPU/blob/main/packages/box3d-kit/test/v21-rigid-queries.test.mjs"
+   },
+   "text": {
+    "reference": "-0.005 m",
+    "measured": "-0.005000412",
+    "error": "-4.12e-7",
+    "tolerance": "±0.0002"
+   }
+  },
+  {
+   "id": "rigid-core.sweep.capsule-face",
+   "domain": "rigid-core",
+   "title": "Capsule sweep onto a face: gap at the reported impact",
+   "quantity": "gap y0 + f dy - h - r at the reported fraction (deepest of 300 slanted sweeps)",
+   "unit": "m",
+   "formula": "gap = -linear slop",
+   "reference": -0.005,
+   "measured": -0.00500042737,
+   "error": -4.27365303e-7,
+   "relativeError": -0.0000854730606,
+   "tolerance": {
+    "kind": "absolute",
+    "value": 0.0002
+   },
+   "pass": true,
+   "source": {
+    "file": "packages/box3d-kit/test/v21-rigid-queries.test.mjs",
+    "test": "sweeps: at the reported time of impact a flat shape is one linear slop short and a rounded one at most one slop inside",
+    "url": "https://github.com/nathansenn/box3d-WEBGPU/blob/main/packages/box3d-kit/test/v21-rigid-queries.test.mjs"
+   },
+   "text": {
+    "reference": "-0.005 m",
+    "measured": "-0.005000427",
+    "error": "-4.27e-7",
+    "tolerance": "±0.0002"
+   }
+  },
+  {
+   "id": "rigid-core.sweep.sphere-sphere",
+   "domain": "rigid-core",
+   "title": "Sphere sweep onto a sphere: deepest gap at the reported impact",
+   "quantity": "gap |o + f d - c| - (R + r) at the reported fraction, 300 off-centre sweeps (deepest)",
+   "unit": "m",
+   "formula": "gap >= -linear slop",
+   "reference": -0.005,
+   "measured": -0.00500016129,
+   "error": -1.61285586e-7,
+   "relativeError": -0.0000322571171,
+   "tolerance": {
+    "kind": "lower",
+    "value": 0.0002
+   },
+   "pass": true,
+   "note": "Onto a curved surface the encroachment is between 3.8 mm and 5 mm, depending on how far off centre the sweep is.",
+   "source": {
+    "file": "packages/box3d-kit/test/v21-rigid-queries.test.mjs",
+    "test": "sweeps: at the reported time of impact a flat shape is one linear slop short and a rounded one at most one slop inside",
+    "url": "https://github.com/nathansenn/box3d-WEBGPU/blob/main/packages/box3d-kit/test/v21-rigid-queries.test.mjs"
+   },
+   "text": {
+    "reference": "-0.005 m",
+    "measured": "-0.005000161",
+    "error": "-1.61e-7",
+    "tolerance": "at most 0.0002 below the reference"
+   }
+  },
+  {
+   "id": "rigid-core.sweep.sphere-sphere-early",
+   "domain": "rigid-core",
+   "title": "Sphere sweep onto a sphere: never reported before touching",
+   "quantity": "shallowest gap over the same 300 sweeps",
+   "unit": "m",
+   "formula": "gap <= 0",
+   "reference": 0,
+   "measured": -0.00376742777,
+   "error": -0.00376742777,
+   "relativeError": null,
+   "tolerance": {
+    "kind": "upper",
+    "value": 0
+   },
+   "pass": true,
+   "source": {
+    "file": "packages/box3d-kit/test/v21-rigid-queries.test.mjs",
+    "test": "sweeps: at the reported time of impact a flat shape is one linear slop short and a rounded one at most one slop inside",
+    "url": "https://github.com/nathansenn/box3d-WEBGPU/blob/main/packages/box3d-kit/test/v21-rigid-queries.test.mjs"
+   },
+   "text": {
+    "reference": "0 m",
+    "measured": "-0.003767428",
+    "error": "-0.00377",
+    "tolerance": "not above the reference"
+   }
+  },
+  {
+   "id": "rigid-core.sweep.capsule-sphere",
+   "domain": "rigid-core",
+   "title": "Capsule sweep onto a sphere: deepest gap at the reported impact",
+   "quantity": "gap between the lower cap and the sphere at the reported fraction (deepest of 300)",
+   "unit": "m",
+   "formula": "gap = |cap centre - c| - (R + r) >= -linear slop",
+   "reference": -0.005,
+   "measured": -0.00500016355,
+   "error": -1.6355288e-7,
+   "relativeError": -0.000032710576,
+   "tolerance": {
+    "kind": "lower",
+    "value": 0.0002
+   },
+   "pass": true,
+   "source": {
+    "file": "packages/box3d-kit/test/v21-rigid-queries.test.mjs",
+    "test": "sweeps: at the reported time of impact a flat shape is one linear slop short and a rounded one at most one slop inside",
+    "url": "https://github.com/nathansenn/box3d-WEBGPU/blob/main/packages/box3d-kit/test/v21-rigid-queries.test.mjs"
+   },
+   "text": {
+    "reference": "-0.005 m",
+    "measured": "-0.005000164",
+    "error": "-1.64e-7",
+    "tolerance": "at most 0.0002 below the reference"
+   }
+  },
+  {
+   "id": "rigid-core.overlap.sphere",
+   "domain": "rigid-core",
+   "title": "Sphere overlap: count on a lattice",
+   "quantity": "spheres of a 7 x 7 x 7 lattice (r = 0.1 m, 1 m apart) overlapping a 2.42 m query sphere",
+   "unit": "bodies",
+   "formula": "N = #{lattice points with |p - q| <= R + r}",
+   "reference": 67,
+   "measured": 67,
+   "error": 0,
+   "relativeError": 0,
+   "tolerance": {
+    "kind": "absolute",
+    "value": 0
+   },
+   "pass": true,
+   "source": {
+    "file": "packages/box3d-kit/test/v21-rigid-queries.test.mjs",
+    "test": "overlaps: sphere, box, capsule and broad-phase counts on a lattice equal the counts of lattice points, with and without a mask",
+    "url": "https://github.com/nathansenn/box3d-WEBGPU/blob/main/packages/box3d-kit/test/v21-rigid-queries.test.mjs"
+   },
+   "text": {
+    "reference": "67 bodies",
+    "measured": "67",
+    "error": "0",
+    "tolerance": "±0"
+   }
+  },
+  {
+   "id": "rigid-core.overlap.box",
+   "domain": "rigid-core",
+   "title": "Box overlap: count on a lattice",
+   "quantity": "lattice spheres overlapping a 3.46 x 1.9 x 4.66 m query box",
+   "unit": "bodies",
+   "formula": "N = #{lattice points within r of the box}",
+   "reference": 40,
+   "measured": 40,
+   "error": 0,
+   "relativeError": 0,
+   "tolerance": {
+    "kind": "absolute",
+    "value": 0
+   },
+   "pass": true,
+   "source": {
+    "file": "packages/box3d-kit/test/v21-rigid-queries.test.mjs",
+    "test": "overlaps: sphere, box, capsule and broad-phase counts on a lattice equal the counts of lattice points, with and without a mask",
+    "url": "https://github.com/nathansenn/box3d-WEBGPU/blob/main/packages/box3d-kit/test/v21-rigid-queries.test.mjs"
+   },
+   "text": {
+    "reference": "40 bodies",
+    "measured": "40",
+    "error": "0",
+    "tolerance": "±0"
+   }
+  },
+  {
+   "id": "rigid-core.overlap.capsule",
+   "domain": "rigid-core",
+   "title": "Capsule overlap: count on a lattice",
+   "quantity": "lattice spheres overlapping an upright query capsule (r = 1.27 m, half length 1.6 m)",
+   "unit": "bodies",
+   "formula": "N = #{lattice points within R + r of the axis segment}",
+   "reference": 30,
+   "measured": 30,
+   "error": 0,
+   "relativeError": 0,
+   "tolerance": {
+    "kind": "absolute",
+    "value": 0
+   },
+   "pass": true,
+   "source": {
+    "file": "packages/box3d-kit/test/v21-rigid-queries.test.mjs",
+    "test": "overlaps: sphere, box, capsule and broad-phase counts on a lattice equal the counts of lattice points, with and without a mask",
+    "url": "https://github.com/nathansenn/box3d-WEBGPU/blob/main/packages/box3d-kit/test/v21-rigid-queries.test.mjs"
+   },
+   "text": {
+    "reference": "30 bodies",
+    "measured": "30",
+    "error": "0",
+    "tolerance": "±0"
+   }
+  },
+  {
+   "id": "rigid-core.overlap.mask",
+   "domain": "rigid-core",
+   "title": "Sphere overlap with a category mask",
+   "quantity": "lattice spheres of category 2 (every other layer) overlapping the query sphere",
+   "unit": "bodies",
+   "formula": "N = #{odd-layer lattice points with |p - q| <= R + r}",
+   "reference": 33,
+   "measured": 33,
+   "error": 0,
+   "relativeError": 0,
+   "tolerance": {
+    "kind": "absolute",
+    "value": 0
+   },
+   "pass": true,
+   "source": {
+    "file": "packages/box3d-kit/test/v21-rigid-queries.test.mjs",
+    "test": "overlaps: sphere, box, capsule and broad-phase counts on a lattice equal the counts of lattice points, with and without a mask",
+    "url": "https://github.com/nathansenn/box3d-WEBGPU/blob/main/packages/box3d-kit/test/v21-rigid-queries.test.mjs"
+   },
+   "text": {
+    "reference": "33 bodies",
+    "measured": "33",
+    "error": "0",
+    "tolerance": "±0"
+   }
+  },
+  {
+   "id": "rigid-core.overlap.bounds",
+   "domain": "rigid-core",
+   "title": "Broad-phase candidates: count on a lattice",
+   "quantity": "lattice spheres whose bounds meet the query box",
+   "unit": "bodies",
+   "formula": "N = #{lattice points with |p_k - q_k| <= h_k + r on every axis}",
+   "reference": 40,
+   "measured": 40,
+   "error": 0,
+   "relativeError": 0,
+   "tolerance": {
+    "kind": "absolute",
+    "value": 0
+   },
+   "pass": true,
+   "source": {
+    "file": "packages/box3d-kit/test/v21-rigid-queries.test.mjs",
+    "test": "overlaps: sphere, box, capsule and broad-phase counts on a lattice equal the counts of lattice points, with and without a mask",
+    "url": "https://github.com/nathansenn/box3d-WEBGPU/blob/main/packages/box3d-kit/test/v21-rigid-queries.test.mjs"
+   },
+   "text": {
+    "reference": "40 bodies",
+    "measured": "40",
+    "error": "0",
+    "tolerance": "±0"
+   }
+  },
+  {
+   "id": "rigid-core.ray.batch",
+   "domain": "rigid-core",
+   "title": "Batched rays equal single rays",
+   "quantity": "rays of 4,096 whose batched answer differs in any bit from the single-ray answer",
+   "unit": "rays",
+   "formula": "raycastBatch(rays)[i] = raycast(rays[i])",
+   "reference": 0,
+   "measured": 0,
+   "error": 0,
+   "relativeError": null,
+   "tolerance": {
+    "kind": "absolute",
+    "value": 0
+   },
+   "pass": true,
+   "note": "Boxes, spheres, capsules, hulls, a triangle mesh and a height field; static and moving bodies.",
+   "source": {
+    "file": "packages/box3d-kit/test/v21-rigid-queries.test.mjs",
+    "test": "raycastBatch: 4,096 rays in one call agree bit for bit with 4,096 single raycasts, on every shape kind",
+    "url": "https://github.com/nathansenn/box3d-WEBGPU/blob/main/packages/box3d-kit/test/v21-rigid-queries.test.mjs"
+   },
+   "text": {
+    "reference": "0 rays",
     "measured": "0",
     "error": "0",
     "tolerance": "±0"

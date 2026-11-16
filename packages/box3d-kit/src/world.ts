@@ -2,7 +2,8 @@ import {EngineError} from './core/contracts.js';
 import {checkpointError, readCheckpoint, writeCheckpoint, type StateObject} from './core/checkpoint.js';
 import type {
   NativeBodyHandle, NativeBodyKind, NativeBodyMassState, NativeBodyState, NativeConvexShape, NativeBodyType, NativeJointHandle, NativeJointState, NativeJointType, NativeQueryCastHit, NativeQueryFilter,
-  NativeSpatialQuery, NativeWorldBackend, NativeWorldEvent, NativeWorldPool,
+  NativeSpatialQuery, NativeWorldBackend, NativeWorldEvent, NativeWorldPool, NativeBodyFlags, NativeDebugDrawOptions, NativeDebugLines, NativeJointDetails, NativeJointDrive,
+  NativeJointThresholds, NativeMoverPlane, NativeRayBatch, NativeStepProfile, NativeWorldSettings,
 } from './core/native-world.js';
 import {FixedStepLoop, type FixedStepOptions, type FixedStepResult} from './loop.js';
 
@@ -24,6 +25,35 @@ export type BodyState = NativeBodyState;
 export type JointType = NativeJointType;
 export type JointState = NativeJointState;
 export type WorldEvent = NativeWorldEvent;
+/** World-wide solver settings; see PhysicsWorld.configure(). */
+export type WorldSettings = NativeWorldSettings;
+export type BodyFlags = NativeBodyFlags;
+export type JointDetails = NativeJointDetails;
+/** What a motor joint does; see JointOptions.drive. */
+export type JointDrive = Omit<NativeJointDrive, 'linearVelocity' | 'angularVelocity'> & {readonly linearVelocity?: Vec3Like; readonly angularVelocity?: Vec3Like};
+export type JointThresholds = NativeJointThresholds;
+export type RayBatch = NativeRayBatch;
+export type StepProfile = NativeStepProfile;
+export type DebugDrawOptions = Omit<NativeDebugDrawOptions, 'region'> & {readonly region?: {readonly min: Vec3Like; readonly max: Vec3Like}};
+export type DebugDrawLines = NativeDebugLines;
+export type MoverPlane = NativeMoverPlane;
+/** An upright capsule to move through the world; see PhysicsWorld.moveCapsule(). */
+export interface CapsuleMoveOptions {
+  readonly position: Vec3Like;
+  readonly radius: number;
+  /** Half the distance between the cap centres. */
+  readonly halfLength: number;
+  readonly translation: Vec3Like;
+  /** Planes steeper than this many degrees from horizontal act as vertical walls. Omit to slide on every plane. */
+  readonly maxSlopeDegrees?: number;
+  readonly iterations?: number;
+  readonly tolerance?: number;
+  readonly bodies?: {readonly static?: boolean; readonly kinematic?: boolean; readonly dynamic?: boolean};
+  readonly categoryBits?: bigint;
+  readonly maskBits?: bigint;
+  readonly ignoreBody?: Body;
+}
+export interface CapsuleMoveResult { readonly position: [number, number, number]; readonly planes: MoverPlane[]; readonly iterations: number }
 /** Unit quaternion as [x, y, z, w] or {x, y, z, w} (a three.js Quaternion works). */
 export type QuatLike = readonly [number, number, number, number] | {readonly x: number; readonly y: number; readonly z: number; readonly w: number};
 
@@ -150,6 +180,17 @@ export interface JointOptions {
    * rate (steps per second x subSteps).
    */
   readonly stiffness?: {readonly hertz: number; readonly dampingRatio?: number};
+  /**
+   * Report a 'joint-overload' event in every step in which the joint carries at least this force (N) or torque
+   * (N m); with `breakable: true` the joint is destroyed at the end of that step and reports 'joint-break'.
+   */
+  readonly thresholds?: JointThresholds;
+  /** Motor joints: hold a relative velocity with a bounded force, and/or pull frame B onto frame A with bounded springs. */
+  readonly drive?: JointDrive;
+  /** Parallel joints: the largest torque the spring may use (N·m). */
+  readonly maxTorque?: number;
+  /** Wheel joints: steer about frame A's x axis towards `angle`, optionally limited. */
+  readonly steering?: {readonly angle: number; readonly hertz: number; readonly dampingRatio: number; readonly maxTorque: number; readonly limits?: {readonly lower: number; readonly upper: number}};
 }
 
 export interface ResetOptions {
@@ -279,7 +320,10 @@ const now = () => globalThis.performance?.now() ?? Date.now();
 /** The methods a 'call' replay command may name. */
 const REPLAYABLE = new Set(['setGravity', 'createBody', 'setTransform', 'setVelocity', 'moveKinematic', 'setBodyType', 'setAwake', 'setGravityScale',
   'setDamping', 'setCollisionFilter', 'applyForce', 'applyTorque', 'applyImpulseAt', 'applyAngularImpulse', 'createJoint', 'destroyJoint',
-  'setJointMotor', 'setJointLimits', 'setJointSpring', 'setJointSteering', 'setJointStiffness', 'setMassData', 'resetMassData']);
+  'setJointMotor', 'setJointLimits', 'setJointSpring', 'setJointSteering', 'setJointStiffness', 'setMassData', 'resetMassData',
+  'setJointDrive', 'setJointThresholds', 'setJointSteeringLimits', 'setJointTargetRotation', 'setJointAngularMotor', 'setJointParallelSpring', 'setJointConeLimit',
+  'setJointCollideConnected', 'configure', 'setBullet', 'setSleep', 'setMotionLocks', 'explodeArea']);
+const drive = (d: JointDrive): NativeJointDrive => ({...d, linearVelocity: d?.linearVelocity ? toVec3(d.linearVelocity) : undefined, angularVelocity: d?.angularVelocity ? toVec3(d.angularVelocity) : undefined});
 
 /**
  * Game-facing wrapper around one isolated native Box3D world.
@@ -489,7 +533,7 @@ export class PhysicsWorld {
   createJoint(options: JointOptions): Joint {
     this.general('createJoint', [options]);
     const frame = (f?: JointFrame) => f ? {position: f.position ? toVec3(f.position) : undefined, rotation: f.rotation ? toQuat(f.rotation) : undefined} : undefined;
-    const joint = this.native.createJoint({...options, frameA: frame(options.frameA), frameB: frame(options.frameB)});
+    const joint = this.native.createJoint({...options, frameA: frame(options.frameA), frameB: frame(options.frameB), drive: options.drive ? drive(options.drive) : undefined});
     if (this.recording || this.replayCheck) this.jointLog.push(joint);
     return joint;
   }
@@ -510,6 +554,63 @@ export class PhysicsWorld {
   }
   /** Joint angle, travel or length, and the force and torque it is carrying. */
   getJointState(joint: Joint): JointState { return this.native.jointState(joint); }
+  /** Everything the solver holds about a joint: separation errors, thresholds, limits, motor output, wheel spin, steering and suspension travel. */
+  getJointDetails(joint: Joint): JointDetails { return this.native.jointDetails(joint); }
+  /** Motor joints: replace the drive (velocity targets, force limits and springs). */
+  setJointDrive(joint: Joint, options: JointDrive): void { this.general('setJointDrive', [joint, options]); this.native.setJointDrive(joint, drive(options)); }
+  /** Force and torque thresholds for joint events, and whether the joint breaks at them. Pass null to remove them. */
+  setJointThresholds(joint: Joint, thresholds: JointThresholds | null): void { this.general('setJointThresholds', [joint, thresholds]); this.native.setJointThresholds(joint, thresholds); }
+  /** Wheel joints: limit the steering angle. Pass null to remove the limit. */
+  setJointSteeringLimits(joint: Joint, limits: {lower: number; upper: number} | null): void { this.general('setJointSteeringLimits', [joint, limits]); this.native.setJointSteeringLimits(joint, limits); }
+  /** Spherical joints: the orientation of frame B in frame A that the joint's spring pulls towards. */
+  setJointTargetRotation(joint: Joint, rotation: QuatLike): void { this.general('setJointTargetRotation', [joint, rotation]); this.native.setJointTargetRotation(joint, toQuat(rotation)); }
+  /** Spherical joints: turn body B relative to body A at `velocity` (rad/s) with at most `maxTorque`. Pass null to switch it off. */
+  setJointAngularMotor(joint: Joint, motor: {velocity: Vec3Like; maxTorque: number} | null): void {
+    this.general('setJointAngularMotor', [joint, motor]); this.native.setJointAngularMotor(joint, motor ? {velocity: toVec3(motor.velocity), maxTorque: motor.maxTorque} : null);
+  }
+  /** Parallel joints: the spring that keeps the two frames' z axes aligned, and the largest torque it may use. */
+  setJointParallelSpring(joint: Joint, spring: {hertz: number; dampingRatio: number; maxTorque: number}): void { this.general('setJointParallelSpring', [joint, spring]); this.native.setJointParallelSpring(joint, spring); }
+  /** Spherical joints: limit the swing to a cone of this half angle (rad). Pass null to remove the limit. */
+  setJointConeLimit(joint: Joint, angle: number | null): void { this.general('setJointConeLimit', [joint, angle]); this.native.setJointConeLimit(joint, angle); }
+  /** Whether the two bodies of a joint collide with each other. */
+  setJointCollideConnected(joint: Joint, collide: boolean): void { this.general('setJointCollideConnected', [joint, collide]); this.native.setJointCollideConnected(joint, collide); }
+
+  /** The world-wide solver settings: sleeping, continuous collision, contact tuning, thresholds and the speed limit. */
+  settings(): WorldSettings { return this.native.worldSettings(); }
+  /**
+   * Change world-wide solver settings. They last until the next reset() or preset and are part of a checkpoint.
+   * Every dynamic body is woken so that the new rule applies from the next step.
+   */
+  configure(settings: Partial<WorldSettings>): void { this.general('configure', [settings]); this.native.setWorldSettings(settings); }
+  /** Continuous collision against other moving bodies for this body: for small fast things that must not pass through thin dynamic ones. */
+  setBullet(body: Body, bullet: boolean): void { this.general('setBullet', [body, bullet]); this.native.setBodyBullet(body, bullet); }
+  /** Whether the body may fall asleep, and below what speed (m/s). */
+  setSleep(body: Body, options: {enabled?: boolean; threshold?: number}): void { this.general('setSleep', [body, options]); this.native.setBodySleep(body, options); }
+  /** Stop the body from translating along, or turning about, chosen world axes (a 2D body: lock linearZ, angularX and angularY). */
+  setMotionLocks(body: Body, locks: Partial<BodyFlags['locks']>): void { this.general('setMotionLocks', [body, locks]); this.native.setBodyMotionLocks(body, locks); }
+  /** Bullet flag, sleep settings and motion locks of a body. */
+  getBodyFlags(body: Body): BodyFlags { return this.native.bodyFlags(body); }
+  /**
+   * Box3D's explosion: an impulse on every sphere, capsule and hull within `radius + falloff`, proportional to the
+   * shape area facing the centre (`impulsePerArea`, N·s per m^2; negative pulls inwards), fading to zero across
+   * `falloff`. Unlike explode(), which pushes each body's centre, this one spins what it hits off-centre.
+   */
+  explodeArea(options: {center: Vec3Like; radius: number; falloff?: number; impulsePerArea: number; maskBits?: bigint}): void {
+    this.general('explodeArea', [options]); this.native.explodeArea({...options, center: toVec3(options.center)});
+  }
+  /**
+   * Box3D's own timing of the most recent step by stage (milliseconds: pairs, collide, solve and its parts,
+   * continuous collision, sleeping, sensors) and the sizes it worked on (bodies, shapes, contacts, joints, islands,
+   * tree heights, awake bodies). Wall-clock numbers: they differ from run to run and are not part of a checkpoint.
+   */
+  profile(): StepProfile { return this.native.profile(); }
+  /**
+   * Box3D's own debug drawing as line segments (vertex pairs with a colour each): joints, shape bounds, centres of
+   * mass, contact points, normals and forces, and islands. Draw it with LineSegments in three.js or any line pipeline.
+   */
+  debugLines(options: DebugDrawOptions = {}): DebugDrawLines {
+    return this.native.debugLines({...options, region: options.region ? {min: toVec3(options.region.min), max: toVec3(options.region.max)} : undefined});
+  }
 
   /**
    * Call `listener(event)` for every contact and sensor event, after the step
@@ -677,7 +778,7 @@ export class PhysicsWorld {
 
   private cast(query: NativeSpatialQuery): NativeQueryCastHit[] {
     const [result] = this.native.queryBatch([query]);
-    return result.kind === 'ray' || result.kind === 'sphere-cast' || result.kind === 'box-cast' ? [...result.hits] : [];
+    return result.kind === 'ray' || result.kind === 'sphere-cast' || result.kind === 'box-cast' || result.kind === 'capsule-cast' ? [...result.hits] : [];
   }
   private overlap(query: NativeSpatialQuery): Body[] {
     return this.native.queryBatch([query])[0].hits.map(hit => hit.body);
@@ -717,6 +818,34 @@ export class PhysicsWorld {
   /** Closest hit of an axis-aligned box swept along translation, or null. */
   boxCast(origin: Vec3Like, halfExtents: Vec3Like, translation: Vec3Like, options: QueryOptions = {}): NativeQueryCastHit | null {
     return this.cast({kind: 'box-cast', origin: toVec3(origin), halfExtents: toVec3(halfExtents), translation: toVec3(translation), ...PhysicsWorld.common(options, 1)})[0] ?? null;
+  }
+  /** Closest hit of an upright capsule (axis along world Y) swept along translation, or null. */
+  capsuleCast(origin: Vec3Like, radius: number, halfLength: number, translation: Vec3Like, options: QueryOptions = {}): NativeQueryCastHit | null {
+    return this.cast({kind: 'capsule-cast', origin: toVec3(origin), radius, halfLength, translation: toVec3(translation), ...PhysicsWorld.common(options, 1)})[0] ?? null;
+  }
+  /** Every hit along origin -> origin + translation, nearest first (up to `limit`, default 32). */
+  raycastAll(origin: Vec3Like, translation: Vec3Like, options: QueryOptions = {}): NativeQueryCastHit[] {
+    return this.cast({kind: 'ray', origin: toVec3(origin), translation: toVec3(translation), ...PhysicsWorld.common(options, 32)});
+  }
+  /**
+   * Closest hit of each of up to 65,536 rays in one call into the engine: a lidar sweep, a visibility fan, bullet
+   * traces. `rays` holds origin x, y, z and translation x, y, z per ray. Results come back as flat arrays indexed
+   * by ray; a miss has fraction -1 and a null body.
+   */
+  raycastBatch(rays: ArrayLike<number>, filter?: NativeQueryFilter): RayBatch { return this.native.castRayBatch(rays, filter); }
+  /** Bodies whose shapes overlap an upright capsule. */
+  overlapCapsule(center: Vec3Like, radius: number, halfLength: number, options: QueryOptions = {}): Body[] {
+    return this.overlap({kind: 'capsule-overlap', origin: toVec3(center), radius, halfLength, ...PhysicsWorld.common(options, 32)});
+  }
+  /**
+   * Move an upright capsule by `translation`, sliding along what it meets and never passing through thin geometry
+   * (Box3D's character mover). Returns where it ends up and the surfaces around it. Reads the world only:
+   * CapsuleCharacterController in `box3d-webgpu-kit/gameplay` builds walking, slopes, steps and pushing on it.
+   */
+  moveCapsule(options: CapsuleMoveOptions): CapsuleMoveResult {
+    const {maxSlopeDegrees, ...rest} = options;
+    return this.native.moverMove({...rest, position: toVec3(options.position), translation: toVec3(options.translation),
+      wallBelowNormalY: maxSlopeDegrees === undefined ? undefined : Math.cos(maxSlopeDegrees * Math.PI / 180)});
   }
   /** Bodies whose shapes overlap a sphere. */
   overlapSphere(center: Vec3Like, radius: number, options: QueryOptions | number = {}): Body[] {

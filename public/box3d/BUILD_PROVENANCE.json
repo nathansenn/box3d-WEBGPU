@@ -12,7 +12,7 @@
   },
   "bridge": {
     "source": "wasm/box3d_web.c",
-    "sha256": "552b6d8310c6675ba7ac97ee68c261eb2731e5384fc14c499729b443ad4229c9",
+    "sha256": "349edacb590bf73b0026cca413c35e13b7228959db5b8300fdafd77a6f766dbb",
     "lazyReplayHash": true,
     "sleepingWorldTransformCache": true,
     "independentColorRevision": true,
@@ -27,16 +27,16 @@
     "concreteReinforcementRig": true,
     "glassFractureStage": true,
     "checkpointSource": "wasm/box3d_snapshot.c",
-    "checkpointSha256": "03977116507d81714586eaf799852af6dfbd601ef5acabb9de8b16f1326d1cf0"
+    "checkpointSha256": "9086c685b987d7d7084cf09e2599af781a57eb7b377ec4ac9b53e827f49a625b"
   },
   "artifacts": {
     "box3d.js": {
-      "bytes": 22469,
-      "sha256": "49f7dac3586f7d8d6fed0c85dad4ff6d146b296d1fb9e34861e318247879f959"
+      "bytes": 23739,
+      "sha256": "369f15adfd27713198b66dba7cdc4ea4626bd0f2aad6b4f0d8cbbf8664892fc0"
     },
     "box3d.wasm": {
-      "bytes": 623498,
-      "sha256": "025bca44cfe3af849d7cad28387f0c5afe99fff1ee2252e4d75b5d6e4d32d009"
+      "bytes": 718353,
+      "sha256": "ffae0ef419b443d832bfecce1419f8f681a15758e4d95ab9a2744ac41a967db6"
     }
   },
   "validation": {
@@ -81,12 +81,58 @@
         "box-cast",
         "sphere-overlap",
         "box-overlap",
-        "aabb-candidates"
+        "aabb-candidates",
+        "capsule-cast",
+        "capsule-overlap"
       ],
       "results": "owned copies with world-scoped stable body references",
       "contactEvents": false,
       "impulseStreams": false,
       "independentShapeReferences": false
+    },
+    "rigidCore": {
+      "exports": [
+        "b3w_world_joint_set_values",
+        "b3w_world_joint_get_values",
+        "b3w_world_cast_rays",
+        "b3w_world_mover_move",
+        "b3w_world_set_param",
+        "b3w_world_get_params",
+        "b3w_world_set_body_flag",
+        "b3w_world_get_body_flags",
+        "b3w_world_explode_area",
+        "b3w_world_profile",
+        "b3w_world_debug_draw",
+        "b3w_world_debug_ptr",
+        "b3w_world_debug_total"
+      ],
+      "jointTypes": [
+        "weld",
+        "revolute",
+        "spherical",
+        "prismatic",
+        "distance",
+        "wheel",
+        "motor",
+        "parallel",
+        "filter"
+      ],
+      "jointEvents": "joints over a force or torque threshold are reported after each step; breakable ones are destroyed then",
+      "batchedRays": {
+        "maxRaysPerCall": 65536,
+        "result": "closest hit per ray; equal fractions resolve to the smaller body handle"
+      },
+      "characterMover": {
+        "shape": "upright capsule",
+        "maxPlanes": 16,
+        "maxIterations": 16
+      },
+      "debugDraw": {
+        "maxVertices": 1048576,
+        "format": "line vertex pairs: x, y, z, 0xRRGGBB as float32"
+      },
+      "checkpoint": "joint flags travel in the bridge checkpoint (header flag bit 2); world settings and thresholds are part of Box3D's snapshot",
+      "customFilterAndPreSolveCallbacks": false
     }
   },
   "build": {
@@ -102,17 +148,17 @@
     "bridge": "wasm/box3d_web.c compiled unchanged; b3CreateWorld and b3World_Step renamed per source",
     "sources": {
       "threadsSha256": "5785c8eb105440000ad2520149a6ebf6f6317dca3d4b5724011972861c57f2cb",
-      "bridgeSha256": "552b6d8310c6675ba7ac97ee68c261eb2731e5384fc14c499729b443ad4229c9",
-      "cmakeSha256": "aa7a56ebc972ef8aaae0a7a4154bc454645f1b001b440e01ebf6af08c5ce1c33"
+      "bridgeSha256": "349edacb590bf73b0026cca413c35e13b7228959db5b8300fdafd77a6f766dbb",
+      "cmakeSha256": "3e552b61e1936bb60807fee4536e8c3f28b116b6e9315b62edd4195c3e274423"
     },
     "artifacts": {
       "box3d-mt.js": {
-        "bytes": 37757,
-        "sha256": "02ddb4df56d3ee2bf9ba21d166caedf33f5e48b521bf987670bcf909264ce8dd"
+        "bytes": 39027,
+        "sha256": "0530796a365482d6f2234c79a87e5da1608136bde9ff1b30997f9f56a0081526"
       },
       "box3d-mt.wasm": {
-        "bytes": 630911,
-        "sha256": "40597bda42ba6149eb667e4f7d5d892861d7e783a53d8ffc26605754f15ffb3f"
+        "bytes": 726098,
+        "sha256": "326d58c5787d17020692e23e01be17f9f6cd691ce04bb181e3b95d053b88a952"
       }
     },
     "build": {

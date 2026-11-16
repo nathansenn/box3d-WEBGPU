@@ -9,6 +9,8 @@ export {
   type BodyKind, type JointType, type JointState, type JointOptions, type JointFrame, type ResetOptions, type WorldEvent,
   type QueryOptions, type RaycastOptions, type WorldStats, type ReplayLog, type ReplayCommand,
   type RecordingOptions, type ReplayReport,
+  type WorldSettings, type BodyFlags, type JointDetails, type JointDrive, type JointThresholds, type RayBatch, type StepProfile, type DebugDrawOptions, type DebugDrawLines,
+  type MoverPlane, type CapsuleMoveOptions, type CapsuleMoveResult,
 } from './world.js';
 export {convertMatrices, convertVector, toBox3DFrame, type UpAxis} from './axes.js';
 export {writeInstances, lastUploadRange, INSTANCE_WGSL, type GpuQueueLike, type GpuBufferLike, type WriteInstancesOptions, type UploadRange} from './gpu.js';
@@ -29,6 +31,9 @@ export {
   type NativeQueryBodyHit, type NativeQueryFilter, type NativeBodyCapacityInfo,
   type NativeJointHandle, type NativeBodyDescriptor, type NativeBodyShape, type NativeConvexShape, type NativeCompoundChild, type NativeMassData, type NativeBodyMassState, type NativeBodyKind, type NativeBodyState, type NativeBodyType,
   type NativeJointDescriptor, type NativeJointState, type NativeJointType, type NativeJointFrame, type NativeWorldEvent, type NativeQuaternion,
+  type NativeJointDrive, type NativeJointThresholds, type NativeJointSteering, type NativeJointDetails, type NativeRayBatch, type NativeMoverInput, type NativeMoverPlane,
+  type NativeMoverResult, type NativeWorldSettings, type NativeBodyFlags, type NativeStepProfile, type NativeProfileStage, type NativeProfileCounter,
+  type NativeDebugDrawOptions, type NativeDebugLines,
 } from './core/native-world.js';
 export type {InstanceBufferSource, PhysicsBackend} from './backend-types.js';
 

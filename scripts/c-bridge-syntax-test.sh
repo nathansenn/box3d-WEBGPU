@@ -56,7 +56,7 @@ typedef struct { b3Vec3 p; b3Quat q; } b3Transform;
 typedef struct { b3Vec3 cx, cy, cz; } b3Matrix3;
 typedef struct { float mass; b3Vec3 center; b3Matrix3 inertia; } b3MassData;
 typedef enum { b3_parallelJoint, b3_distanceJoint, b3_filterJoint, b3_motorJoint, b3_prismaticJoint, b3_revoluteJoint, b3_sphericalJoint, b3_weldJoint, b3_wheelJoint } b3JointType;
-typedef struct { b3BodyId bodyIdA, bodyIdB; b3Transform localFrameA, localFrameB; float constraintHertz, constraintDampingRatio; bool collideConnected; } b3JointDef;
+typedef struct { b3BodyId bodyIdA, bodyIdB; b3Transform localFrameA, localFrameB; float forceThreshold, torqueThreshold, constraintHertz, constraintDampingRatio; bool collideConnected; } b3JointDef;
 typedef struct { b3JointDef base; float linearHertz, angularHertz, linearDampingRatio, angularDampingRatio; } b3WeldJointDef;
 typedef struct { b3JointDef base; float targetAngle; bool enableSpring; float hertz, dampingRatio; bool enableLimit; float lowerAngle, upperAngle; bool enableMotor; float maxMotorTorque, motorSpeed; } b3RevoluteJointDef;
 typedef struct { b3JointDef base; bool enableSpring; float hertz, dampingRatio; bool enableConeLimit; float coneAngle; bool enableTwistLimit; float lowerTwistAngle, upperTwistAngle; bool enableMotor; float maxMotorTorque; } b3SphericalJointDef;
@@ -85,13 +85,43 @@ typedef struct {
   bool enableSleep;
   bool enableContinuous;
 } b3WorldDef;
-typedef struct { int bodyCount; int shapeCount; int contactCount; } b3Counters;
+typedef struct { int bodyCount, shapeCount, contactCount, jointCount, islandCount, stackUsed, arenaCapacity, staticTreeHeight, treeHeight, satCallCount, satCacheHitCount, byteCount, taskCount, awakeContactCount, recycledContactCount; } b3Counters;
+typedef struct { float step, pairs, collide, solve, solverSetup, constraints, prepareConstraints, integrateVelocities, warmStart, solveImpulses, integratePositions, relaxImpulses, applyRestitution, storeImpulses, splitIslands, transforms, sensorHits, jointEvents, hitEvents, refit, bullets, sleepIslands, sensors; } b3Profile;
 typedef struct { uint64_t categoryBits, maskBits; uint64_t id; const char* name; } b3QueryFilter;
 typedef struct { b3Vec3 lowerBound, upperBound; } b3AABB;
 typedef struct { const b3Vec3* points; int count; float radius; } b3ShapeProxy;
 typedef struct { int nodeVisits, leafVisits; } b3TreeStats;
 typedef bool b3OverlapResultFcn(b3ShapeId, void*);
 typedef float b3CastResultFcn(b3ShapeId, b3Pos, b3Vec3, float, uint64_t, int, int, void*);
+typedef struct { b3JointDef base; b3Vec3 linearVelocity; float maxVelocityForce; b3Vec3 angularVelocity; float maxVelocityTorque, linearHertz, linearDampingRatio, maxSpringForce, angularHertz, angularDampingRatio, maxSpringTorque; } b3MotorJointDef;
+typedef struct { b3JointDef base; float hertz, dampingRatio, maxTorque; } b3ParallelJointDef;
+typedef struct { b3JointDef base; } b3FilterJointDef;
+typedef struct { b3JointId jointId; void* userData; } b3JointEvent;
+typedef struct { b3JointEvent* jointEvents; int count; } b3JointEvents;
+typedef struct { uint64_t maskBits; b3Pos position; float radius, falloff, impulsePerArea; } b3ExplosionDef;
+typedef struct { b3Vec3 normal; float offset; } b3Plane;
+typedef struct { b3Plane plane; b3Vec3 point; } b3PlaneResult;
+typedef struct { b3Plane plane; float pushLimit, push; bool clipVelocity; } b3CollisionPlane;
+typedef struct { b3Vec3 delta; int iterationCount; } b3PlaneSolverResult;
+typedef bool b3PlaneResultFcn(b3ShapeId, const b3PlaneResult*, int, void*);
+typedef bool b3MoverFilterFcn(b3ShapeId, void*);
+typedef int b3HexColor;
+typedef struct {
+  bool (*DrawShapeFcn)(void*, b3WorldTransform, b3HexColor, void*);
+  void (*DrawSegmentFcn)(b3Pos, b3Pos, b3HexColor, void*);
+  void (*DrawTransformFcn)(b3WorldTransform, void*);
+  void (*DrawPointFcn)(b3Pos, float, b3HexColor, void*);
+  void (*DrawSphereFcn)(b3Pos, float, b3HexColor, float, void*);
+  void (*DrawCapsuleFcn)(b3Pos, b3Pos, float, b3HexColor, float, void*);
+  void (*DrawBoundsFcn)(b3AABB, b3HexColor, void*);
+  void (*DrawBoxFcn)(b3Vec3, b3WorldTransform, b3HexColor, void*);
+  void (*DrawStringFcn)(b3Pos, const char*, b3HexColor, void*);
+  b3AABB drawingBounds; float forceScale, jointScale;
+  bool drawShapes, drawJoints, drawJointExtras, drawBounds, drawMass, drawBodyNames, drawContacts;
+  int drawAnchorA;
+  bool drawGraphColors, drawContactFeatures, drawContactNormals, drawContactForces, drawFrictionForces, drawIslands;
+  void* context;
+} b3DebugDraw;
 
 #define B3_IS_NULL(id) ((id).index1 == 0)
 #define B3_IS_NON_NULL(id) ((id).index1 != 0)
@@ -210,6 +240,80 @@ B3W_STUB_RANGE(b3RevoluteJoint_SetLimits) B3W_STUB_RANGE(b3PrismaticJoint_SetLim
 float b3RevoluteJoint_GetAngle(b3JointId joint);
 float b3PrismaticJoint_GetTranslation(b3JointId joint);
 float b3DistanceJoint_GetCurrentLength(b3JointId joint);
+// Rigid-core extension.
+b3MotorJointDef b3DefaultMotorJointDef(void);
+b3ParallelJointDef b3DefaultParallelJointDef(void);
+b3FilterJointDef b3DefaultFilterJointDef(void);
+b3ExplosionDef b3DefaultExplosionDef(void);
+b3DebugDraw b3DefaultDebugDraw(void);
+b3JointId b3CreateMotorJoint(b3WorldId world, const b3MotorJointDef* def);
+b3JointId b3CreateParallelJoint(b3WorldId world, const b3ParallelJointDef* def);
+b3JointId b3CreateFilterJoint(b3WorldId world, const b3FilterJointDef* def);
+b3JointEvents b3World_GetJointEvents(b3WorldId world);
+b3BodyId b3Joint_GetBodyA(b3JointId joint);
+b3BodyId b3Joint_GetBodyB(b3JointId joint);
+b3Transform b3Joint_GetLocalFrameA(b3JointId joint);
+b3Transform b3Joint_GetLocalFrameB(b3JointId joint);
+void b3Joint_SetCollideConnected(b3JointId joint, bool flag);
+float b3Joint_GetLinearSeparation(b3JointId joint);
+float b3Joint_GetAngularSeparation(b3JointId joint);
+void b3Joint_GetConstraintTuning(b3JointId joint, float* hertz, float* dampingRatio);
+B3W_STUB_FLOAT(b3Joint_SetForceThreshold) B3W_STUB_FLOAT(b3Joint_SetTorqueThreshold)
+B3W_STUB_FLOAT(b3MotorJoint_SetMaxVelocityForce) B3W_STUB_FLOAT(b3MotorJoint_SetMaxVelocityTorque) B3W_STUB_FLOAT(b3MotorJoint_SetLinearHertz) B3W_STUB_FLOAT(b3MotorJoint_SetLinearDampingRatio)
+B3W_STUB_FLOAT(b3MotorJoint_SetMaxSpringForce) B3W_STUB_FLOAT(b3MotorJoint_SetAngularHertz) B3W_STUB_FLOAT(b3MotorJoint_SetAngularDampingRatio) B3W_STUB_FLOAT(b3MotorJoint_SetMaxSpringTorque)
+B3W_STUB_FLOAT(b3ParallelJoint_SetSpringHertz) B3W_STUB_FLOAT(b3ParallelJoint_SetSpringDampingRatio) B3W_STUB_FLOAT(b3ParallelJoint_SetMaxTorque)
+B3W_STUB_FLOAT(b3SphericalJoint_SetMaxMotorTorque) B3W_STUB_FLOAT(b3SphericalJoint_SetConeLimit)
+B3W_STUB_ENABLE(b3SphericalJoint_EnableMotor) B3W_STUB_ENABLE(b3SphericalJoint_EnableConeLimit) B3W_STUB_ENABLE(b3WheelJoint_EnableSteeringLimit)
+B3W_STUB_RANGE(b3WheelJoint_SetSteeringLimits)
+void b3MotorJoint_SetLinearVelocity(b3JointId joint, b3Vec3 velocity);
+void b3MotorJoint_SetAngularVelocity(b3JointId joint, b3Vec3 velocity);
+b3Vec3 b3MotorJoint_GetLinearVelocity(b3JointId joint);
+b3Vec3 b3MotorJoint_GetAngularVelocity(b3JointId joint);
+void b3SphericalJoint_SetTargetRotation(b3JointId joint, b3Quat rotation);
+void b3SphericalJoint_SetMotorVelocity(b3JointId joint, b3Vec3 velocity);
+b3Vec3 b3SphericalJoint_GetMotorTorque(b3JointId joint);
+#define B3W_STUB_GET(name) float name(b3JointId joint);
+B3W_STUB_GET(b3Joint_GetForceThreshold) B3W_STUB_GET(b3Joint_GetTorqueThreshold)
+B3W_STUB_GET(b3RevoluteJoint_GetMotorTorque) B3W_STUB_GET(b3RevoluteJoint_GetLowerLimit) B3W_STUB_GET(b3RevoluteJoint_GetUpperLimit) B3W_STUB_GET(b3RevoluteJoint_GetMotorSpeed)
+B3W_STUB_GET(b3PrismaticJoint_GetSpeed) B3W_STUB_GET(b3PrismaticJoint_GetMotorForce) B3W_STUB_GET(b3PrismaticJoint_GetLowerLimit) B3W_STUB_GET(b3PrismaticJoint_GetUpperLimit)
+B3W_STUB_GET(b3DistanceJoint_GetMotorForce) B3W_STUB_GET(b3DistanceJoint_GetLength) B3W_STUB_GET(b3DistanceJoint_GetMinLength) B3W_STUB_GET(b3DistanceJoint_GetMaxLength)
+B3W_STUB_GET(b3SphericalJoint_GetTwistAngle) B3W_STUB_GET(b3SphericalJoint_GetConeAngle) B3W_STUB_GET(b3SphericalJoint_GetConeLimit)
+B3W_STUB_GET(b3WheelJoint_GetSpinSpeed) B3W_STUB_GET(b3WheelJoint_GetSpinTorque) B3W_STUB_GET(b3WheelJoint_GetSteeringAngle) B3W_STUB_GET(b3WheelJoint_GetSteeringTorque)
+B3W_STUB_GET(b3WheelJoint_GetTargetSteeringAngle) B3W_STUB_GET(b3WheelJoint_GetLowerSuspensionLimit) B3W_STUB_GET(b3WheelJoint_GetUpperSuspensionLimit)
+B3W_STUB_GET(b3ParallelJoint_GetSpringHertz) B3W_STUB_GET(b3ParallelJoint_GetSpringDampingRatio) B3W_STUB_GET(b3ParallelJoint_GetMaxTorque)
+bool b3Body_IsValid(b3BodyId body);
+b3Pos b3Body_GetWorldPoint(b3BodyId body, b3Vec3 localPoint);
+b3Vec3 b3Body_GetWorldVector(b3BodyId body, b3Vec3 localVector);
+void b3Body_SetBullet(b3BodyId body, bool flag);
+bool b3Body_IsBullet(b3BodyId body);
+void b3Body_EnableSleep(b3BodyId body, bool flag);
+bool b3Body_IsSleepEnabled(b3BodyId body);
+void b3Body_SetSleepThreshold(b3BodyId body, float threshold);
+float b3Body_GetSleepThreshold(b3BodyId body);
+void b3Body_SetMotionLocks(b3BodyId body, b3MotionLocks locks);
+bool b3Shape_IsSensor(b3ShapeId shape);
+void b3World_CollideMover(b3WorldId, b3Pos, const b3Capsule*, b3QueryFilter, b3PlaneResultFcn*, void*);
+float b3World_CastMover(b3WorldId, b3Pos, const b3Capsule*, b3Vec3, b3QueryFilter, b3MoverFilterFcn*, void*);
+b3PlaneSolverResult b3SolvePlanes(b3Vec3 targetDelta, b3CollisionPlane* planes, int count);
+void b3World_EnableSleeping(b3WorldId world, bool flag);
+bool b3World_IsSleepingEnabled(b3WorldId world);
+void b3World_EnableContinuous(b3WorldId world, bool flag);
+bool b3World_IsContinuousEnabled(b3WorldId world);
+void b3World_EnableSpeculative(b3WorldId world, bool flag);
+void b3World_EnableWarmStarting(b3WorldId world, bool flag);
+bool b3World_IsWarmStartingEnabled(b3WorldId world);
+void b3World_SetRestitutionThreshold(b3WorldId world, float value);
+float b3World_GetRestitutionThreshold(b3WorldId world);
+void b3World_SetHitEventThreshold(b3WorldId world, float value);
+float b3World_GetHitEventThreshold(b3WorldId world);
+void b3World_SetContactTuning(b3WorldId world, float hertz, float dampingRatio, float contactSpeed);
+void b3World_SetMaximumLinearSpeed(b3WorldId world, float speed);
+float b3World_GetMaximumLinearSpeed(b3WorldId world);
+void b3World_SetContactRecycleDistance(b3WorldId world, float distance);
+float b3World_GetContactRecycleDistance(b3WorldId world);
+void b3World_Explode(b3WorldId world, const b3ExplosionDef* def);
+b3Profile b3World_GetProfile(b3WorldId world);
+void b3World_Draw(b3WorldId world, b3DebugDraw* draw, uint64_t maskBits);
 #endif
 STUB
 

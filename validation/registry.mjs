@@ -8,6 +8,7 @@
 // `notValidated` is drawn from the limits sections of the documents listed in `docs`. Keep it honest:
 // a line belongs here when a reader could otherwise assume the cases above cover it.
 import rigid from './domains/rigid.mjs';
+import rigidCore from './domains/rigid-core.mjs';
 import waterCoupling from './domains/water-coupling.mjs';
 import structureCoupling from './domains/structure-coupling.mjs';
 import siBridge from './domains/si-bridge.mjs';
@@ -45,6 +46,18 @@ export const DOMAINS = [
       'Compound bodies: a body holds at most 64 convex shapes (box, sphere, capsule, hull); overlapping shapes count their overlap twice in mass and inertia. Contact of a compound is checked at rest and at tipping only, not in stacks or impacts. Triangle meshes and height fields are static only and cannot be part of a compound.',
       'Explicit mass data replace the numbers, not the shapes: nothing checks that a stated tensor is physically possible for the collision shape (the triangle inequality of the principal moments is not required), and a body with partly locked rotation is not covered.',
       'One build on one machine. The cross-device determinism matrix is a separate roadmap item; the kit records identical hashes on arm64 Node and Bun only.',
+    ],
+  },
+  {
+    id: 'rigid-core', title: 'Rigid core: queries, character, continuous collision, vehicles, joints and piles', needsKit: true,
+    solver: 'Box3D compiled to WebAssembly, through `box3d-webgpu-kit` (float32 state, 240 Hz, 4 sub-steps unless a row says otherwise)',
+    summary: 'Ray, sweep and overlap queries against closed forms, and the batched ray call.',
+    docs: ['docs/RIGID_CORE.md'],
+    notValidated: [
+      'Queries against triangle meshes, height fields, hulls and compounds have no closed-form row: they are covered by the bit-for-bit agreement of batched and single rays only.',
+      'Sweeps are checked from a separated start. A sweep that starts overlapping reports fraction 0 with a zero normal, which is behaviour inherited from Box3D and not a time of impact.',
+      'Box and capsule query shapes are axis aligned (the capsule upright). Rotated query shapes are not exposed.',
+      'One build on one machine; no cross-device determinism matrix.',
     ],
   },
   {
@@ -350,7 +363,7 @@ export const DOMAINS = [
   },
 ];
 
-export const CASES = [...rigid, ...waterCoupling, ...structureCoupling, ...siBridge, ...siSuspension, ...geometry, ...scene, ...simulation, ...robot, ...cloth, ...granular, ...fluid, ...shallowWater, ...heat, ...solid, ...solidViscoelastic, ...solidConcrete, ...solidContact, ...fracture, ...plate, ...frame, ...cable, ...closedWater, ...materials];
+export const CASES = [...rigid, ...rigidCore, ...waterCoupling, ...structureCoupling, ...siBridge, ...siSuspension, ...geometry, ...scene, ...simulation, ...robot, ...cloth, ...granular, ...fluid, ...shallowWater, ...heat, ...solid, ...solidViscoelastic, ...solidConcrete, ...solidContact, ...fracture, ...plate, ...frame, ...cable, ...closedWater, ...materials];
 
 /** Cases of the given domains (all when `only` is empty), in registry order. */
 export function selectCases(only = []) {
