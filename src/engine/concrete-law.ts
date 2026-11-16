@@ -144,7 +144,15 @@ export function lodeFactor(theta:number,e:number,out:Float64Array|number[]):void
   const dN=8*a*u,dD=2*a+(S>0?b*4*a*u/S:0);
   out[0]=N/D;out[1]=-Math.sin(theta)*(dN*D-N*dD)/(D*D);
 }
-const LF=new Float64Array(2),LF2=new Float64Array(2);
+/** r(theta), r'(theta) and r''(theta) of the same section into out[0..2] (the Newton step of the deviatoric return). */
+export function lodeFactor2(theta:number,e:number,out:Float64Array|number[]):void {
+  if(e>=1){out[0]=1;out[1]=0;out[2]=0;return;}
+  const a=1-e*e,b=2*e-1,u=Math.cos(theta),v=Math.sin(theta),S=Math.sqrt(Math.max(0,4*a*u*u+5*e*e-4*e)),N=4*a*u*u+b*b,D=2*a*u+b*S;
+  const Su=S>0?4*a*u/S:0,Nu=8*a*u,Du=2*a+b*Su,Suu=S>0?4*a*(S-u*Su)/(S*S):0,Duu=b*Suu;
+  const ru=(Nu*D-N*Du)/(D*D),ruu=(8*a*D-N*Duu)/(D*D)-2*Du*(Nu*D-N*Du)/(D*D*D);
+  out[0]=N/D;out[1]=-v*ru;out[2]=-u*ru+v*v*ruu;
+}
+const LF=new Float64Array(2),LF3=new Float64Array(3);
 
 /** Ascending (and descending) branch of EN 1992-1-1 (3.14): sigma / f_cm = (k eta - eta^2) / (1 + (k - 2) eta). */
 export function ec2CompressionStress(strain:number,fcm:number,peakStrain:number,secantModulus:number):number {
@@ -346,7 +354,12 @@ export class ConcreteReturn {
   /** Return mapping of the trial elastic strain t [xx, yy, zz, yz, xz, xy] (tensor shear) from kappa_c0, kappa_t0, for
    * an element whose strengths (and so fracture energies) are f times the law's and whose committed mean pressure is xi_n
    * (Pa, compression positive: minus the mean stress of the last committed state). */
+  /** A compression multiplier the caller expects within 1e-4 of itself (the base point of a finite-difference tangent), or -1:
+   * the regula falsi of the compression return then starts from a bracket around it when that bracket holds the root. */
+  lHint=-1;
   map(t:ArrayLike<number>,kc0:number,kt0:number,f=1,xn=0,kbar=-1):void {
+    // The Lode-angle warm start lives within one call: a result never depends on an earlier call.
+    this.wwRho=-1;
     // Nonlocal: the compressive strength of the step is k(kappa_bar) of the committed average, constant within the step.
     if(kbar>=0){this.fy[0]=tableValue(this.law.kx,this.law.ky,kbar);this.kx=this.fx;this.ky=this.fy;this.ki=this.fi;kc0=0;}
     else{this.kx=this.law.kx;this.ky=this.law.ky;this.ki=this.law.kint;}
@@ -439,8 +452,15 @@ export class ConcreteReturn {
       this.wwDeviator(rho,th0,2*mu*l*SQ15,e,state);
       return SQ15*state[0]*state[2]+psi*(p-K*psi*l)-(cf*this.kv(kc0+l)+cs);
     };
-    let lo=0,Rlo=R(0),hi=Rlo/(3*mu+K*psi*psi),Rhi=R(hi);
-    for(let k=0;k<200&&Rhi>0;k++){lo=hi;Rlo=Rhi;hi*=2;Rhi=R(hi);}
+    let lo=0,Rlo=0,hi=0,Rhi=0,bracketed=false;
+    if(this.lHint>0){
+      const a0=this.lHint*(1-1e-4),a1=this.lHint*(1+1e-4),R0=R(a0);
+      if(R0>0){const R1=R(a1);if(R1<0){lo=a0;Rlo=R0;hi=a1;Rhi=R1;bracketed=true;}}
+    }
+    if(!bracketed){
+      lo=0;Rlo=R(0);hi=Rlo/(3*mu+K*psi*psi);Rhi=R(hi);
+      for(let k=0;k<200&&Rhi>0;k++){lo=hi;Rlo=Rhi;hi*=2;Rhi=R(hi);}
+    }
     // Illinois regula falsi on [lo, hi].
     let l=hi,side=0;
     for(let k=0;k<200;k++){
@@ -457,26 +477,35 @@ export class ConcreteReturn {
     return l;
   }
   private readonly wwState=new Float64Array(3);
+  /** The Lode angle of the last deviatoric return of the present trial (rho, theta_tr): the start of the next one. */
+  private wwRho=-1;private wwTh0=-1;private wwLast=0;
   /** Deviatoric return on the Willam-Warnke section for the step t = 2 mu lambda sqrt(3/2) from (rho, theta) of the
-   * trial: out = [rho, theta, r(theta)]. theta solves rho_tr sin(theta_tr - theta) = t r'(theta) on [theta_tr, pi/3]. */
+   * trial: out = [rho, theta, r(theta)]. theta solves h(theta) = rho_tr sin(theta_tr - theta) - t r'(theta) = 0 on
+   * [theta_tr, pi/3] by Newton's method with the exact r'' (safeguarded by bisection), started from the root of the last
+   * call with the same trial, until h is at the rounding of its terms. */
   private wwDeviator(rho:number,th0:number,t:number,e:number,out:Float64Array):void {
-    let th=th0;
+    let th=th0,fresh=false;
     if(t>0&&th0<THIRD_PI&&rho>0){
       let lo=th0,hi=THIRD_PI;
+      if(rho===this.wwRho&&th0===this.wwTh0&&this.wwLast>lo&&this.wwLast<hi)th=this.wwLast;
       for(let k=0;k<100;k++){
-        lodeFactor(th,e,LF);const h=rho*Math.sin(th0-th)-t*LF[1];
-        if(h===0)break;
+        lodeFactor2(th,e,LF3);const sn=rho*Math.sin(th0-th),h=sn-t*LF3[1];
+        // h is known to the rounding of rho sin(theta_tr - theta): about rho times the spacing of doubles near theta.
+        // r(theta) of lodeFactor2 is lodeFactor's to the bit (the same expression): kept when the loop stops at this theta.
+        fresh=true;
+        if(h===0||Math.abs(h)<=1e-15*(rho+Math.abs(t*LF3[1])))break;
         if(h>0)lo=th;else hi=th;
-        const d=1e-7;lodeFactor(th+d,e,LF2);const r2p=LF2[1];lodeFactor(th-d,e,LF2);const r2=(r2p-LF2[1])/(2*d);
-        const dh=-rho*Math.cos(th0-th)-t*r2;
+        const dh=-rho*Math.cos(th0-th)-t*LF3[2];
         let next=dh<0?th-h/dh:.5*(lo+hi);
+        if(next===th)break;
         if(!(next>lo&&next<hi))next=.5*(lo+hi);
-        if(Math.abs(next-th)<=1e-16*THIRD_PI||hi-lo<=1e-16){th=next;break;}
-        th=next;
+        if(hi-lo<=1e-16)break;
+        th=next;fresh=false;
       }
+      this.wwRho=rho;this.wwTh0=th0;this.wwLast=th;
     }
-    lodeFactor(th,e,LF);
-    out[0]=Math.max(0,rho*Math.cos(th0-th)-t*LF[0]);out[1]=th;out[2]=LF[0];
+    let r:number;if(fresh)r=LF3[0];else{lodeFactor(th,e,LF);r=LF[0];}
+    out[0]=Math.max(0,rho*Math.cos(th0-th)-t*r);out[1]=th;out[2]=r;
   }
   /** Rankine return of the strain ev - a into the plastic part out (principal, >= 0); returns the kappa_t increment. */
   private rkBlock(ev:Float64Array,a:Float64Array,out:Float64Array,kt0:number,f0:number,f:number,scaleE:number):number {

@@ -887,6 +887,7 @@ export declare function meridianValue(law: {
     my: Float64Array;
 }, xi: number): number;
 export declare function lodeFactor(theta: number, e: number, out: Float64Array | number[]): void;
+export declare function lodeFactor2(theta: number, e: number, out: Float64Array | number[]): void;
 export declare function ec2CompressionStress(strain: number, fcm: number, peakStrain: number, secantModulus: number): number;
 export declare function buildConcreteLaw(input: unknown, youngModulus: number, poissonRatio: number, meanVolume: number): ConcreteLaw;
 export declare function tableValue(x: Float64Array, y: Float64Array, at: number): number;
@@ -909,6 +910,7 @@ export declare class ConcreteReturn {
     readonly lambda: number;
     readonly mu: number;
     constructor(law: ConcreteLaw, lambda: number, mu: number);
+    lHint: number;
     map(t: ArrayLike<number>, kc0: number, kt0: number, f?: number, xn?: number, kbar?: number): void;
     private kx;
     private ky;
@@ -923,6 +925,9 @@ export declare class ConcreteReturn {
     private readonly s3;
     private dpBlock;
     private readonly wwState;
+    private wwRho;
+    private wwTh0;
+    private wwLast;
     private wwDeviator;
     private rkBlock;
     private compressionWork;
@@ -6315,6 +6320,8 @@ export declare class SolidBody {
     private readonly strengthFactor;
     private readonly ctan;
     private readonly ctrial;
+    private readonly ctrialStress;
+    private readonly ctrialKappa;
     private readonly cdirty;
     private readonly cpressure;
     private readonly cpressureLast;

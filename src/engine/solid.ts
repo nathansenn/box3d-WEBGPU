@@ -255,7 +255,7 @@ export class SolidBody {
   /** Committed plastic strain per element [xx, yy, zz, yz, xz, xy] (tensor shear), equivalent plastic strain, erosion flags. */
   private readonly ep:Float64Array;private readonly alpha:Float64Array;private readonly eroded:Uint8Array;private readonly ptan:Float64Array;
   /** Concrete law (constant), crack strain kappa_t per element, and the stored symmetric 6 x 6 tangent per element (21 values). */
-  readonly concreteLaw:ConcreteLaw|null=null;private readonly kappaT:Float64Array=new Float64Array(0);private readonly strengthFactor:Float64Array=new Float64Array(0);private readonly ctan:Float64Array=new Float64Array(0);private readonly ctrial:Float64Array=new Float64Array(0);private readonly cdirty:Uint8Array=new Uint8Array(0);
+  readonly concreteLaw:ConcreteLaw|null=null;private readonly kappaT:Float64Array=new Float64Array(0);private readonly strengthFactor:Float64Array=new Float64Array(0);private readonly ctan:Float64Array=new Float64Array(0);private readonly ctrial:Float64Array=new Float64Array(0);private readonly ctrialStress:Float64Array=new Float64Array(0);private readonly ctrialKappa:Float64Array=new Float64Array(0);private readonly cdirty:Uint8Array=new Uint8Array(0);
   /** Concrete: the mean pressure (Pa, compression positive) that sets each element's strength in the next step, extrapolated
    * linearly from the last two committed states (cpressureLast holds the last one). */
   private readonly cpressure:Float64Array=new Float64Array(0);private readonly cpressureLast:Float64Array=new Float64Array(0);
@@ -379,7 +379,7 @@ export class SolidBody {
     const stride=model==='linear'&&!plastic?0:16;this.lin=new Float64Array(stride*tetCount);this.linOld=new Float64Array(this.stiffnessDamping>0?stride*tetCount:0);
     this.ep=new Float64Array(plastic?6*tetCount:0);this.alpha=new Float64Array(plastic?tetCount:0);this.eroded=new Uint8Array(plastic?tetCount:0);this.ptan=new Float64Array(plastic&&!concrete?PT*tetCount:0);
     if(concrete){
-      this.concreteLaw=buildConcreteLaw(m.concrete,E,nu,total/tetCount);this.kappaT=new Float64Array(tetCount);this.strengthFactor=new Float64Array(tetCount).fill(1);this.ctan=new Float64Array(21*tetCount);this.ctrial=new Float64Array(6*tetCount);this.cdirty=new Uint8Array(tetCount).fill(2);this.cpressure=new Float64Array(tetCount);this.cpressureLast=new Float64Array(tetCount);
+      this.concreteLaw=buildConcreteLaw(m.concrete,E,nu,total/tetCount);this.kappaT=new Float64Array(tetCount);this.strengthFactor=new Float64Array(tetCount).fill(1);this.ctan=new Float64Array(21*tetCount);this.ctrial=new Float64Array(6*tetCount);this.ctrialStress=new Float64Array(6*tetCount);this.ctrialKappa=new Float64Array(tetCount);this.cdirty=new Uint8Array(tetCount).fill(2);this.cpressure=new Float64Array(tetCount);this.cpressureLast=new Float64Array(tetCount);
       if(this.concreteLaw.nonlocalLength>0){this.kbar=new Float64Array(tetCount);this.cnonlocal=new ConcreteNonlocal(X,tets,vol,this.concreteLaw.nonlocalLength);}
       this.creturn=new ConcreteReturn(this.concreteLaw,this.lambda,this.mu);
     }
@@ -675,7 +675,7 @@ export class SolidBody {
     base[6]=R.dKappaC;base[7]=R.dKappaT;base[8]=R.energy;base[9]=R.elastic;const yielded=R.yielded;
     if(store){
       // The tangent is formed when a product first needs it (concreteTangent): line-search trials that are not kept cost nothing.
-      if(yielded){const c=this.ctrial;for(let q=0;q<6;q++)c[o+q]=t[q];this.cdirty[e]=1;}
+      if(yielded){const c=this.ctrial,cs=this.ctrialStress;for(let q=0;q<6;q++){c[o+q]=t[q];cs[o+q]=T[q];}this.ctrialKappa[e]=base[6];this.cdirty[e]=1;}
       else{this.cdirty[e]=2;}
     }
     if(this.storeMode===2){
@@ -693,14 +693,18 @@ export class SolidBody {
     if(flag===2){
       M.fill(0);for(let i=0;i<3;i++){for(let j=0;j<3;j++)M[6*i+j]=la;M[7*i]+=2*mu;M[6*(i+3)+i+3]=mu;}
     }else{
+      // The base point is the return the evaluation that stored the trial strain already made (ctrialStress); the six
+      // perturbed returns start their compression search around its multiplier.
       const R=this.creturn!,t=this.cstrain,o=6*e,kc0=this.alpha[e],kt0=this.kappaT[e],f=this.strengthFactor[e],base=this.cbase;
-      for(let q=0;q<6;q++)t[q]=this.ctrial[o+q];
-      const xn=this.cpressure[e],kb=this.cnonlocal?this.kbar[e]:-1;R.map(t,kc0,kt0,f,xn,kb);for(let q=0;q<6;q++)base[q]=R.stress[q];
-      const d=1e-9;
-      for(let j=0;j<6;j++){
-        const keep=t[j];t[j]+=j<3?d:d/2;R.map(t,kc0,kt0,f,xn,kb);t[j]=keep;
-        for(let i=0;i<6;i++)M[6*i+j]=(R.stress[i]-base[i])/d;
-      }
+      for(let q=0;q<6;q++){t[q]=this.ctrial[o+q];base[q]=this.ctrialStress[o+q];}
+      const xn=this.cpressure[e],kb=this.cnonlocal?this.kbar[e]:-1;
+      const d=1e-9;R.lHint=this.ctrialKappa[e];
+      try{
+        for(let j=0;j<6;j++){
+          const keep=t[j];t[j]+=j<3?d:d/2;R.map(t,kc0,kt0,f,xn,kb);t[j]=keep;
+          for(let i=0;i<6;i++)M[6*i+j]=(R.stress[i]-base[i])/d;
+        }
+      }finally{R.lHint=-1;}
       for(let i=0;i<6;i++)for(let j=i+1;j<6;j++){const v=.5*(M[6*i+j]+M[6*j+i]);M[6*i+j]=M[6*j+i]=v;}
     }
     for(let i=0,k=0;i<6;i++)for(let j=i;j<6;j++)c[s+k++]=M[6*i+j];
