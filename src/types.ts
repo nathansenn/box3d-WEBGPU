@@ -100,6 +100,8 @@ export type PhysicsBackend = InstanceBufferSource & {
    * is found before createGeneralScene replaces what is on screen. Throws what `build` throws.
    */
   checkGeneralScene?(build: (world: NativeWorldBackend) => void): void;
+  /** The world of the general scene on screen (a scene file, an example, an SI demo), or null while a recipe runs. For read-only use: queries and debug draw. */
+  generalNative?(): NativeWorldBackend | null;
   /** Optional. The colour stream of the general world was written from JavaScript: count it as a colour change. */
   markGeneralColorsEdited?(): void;
   destroy(): void;

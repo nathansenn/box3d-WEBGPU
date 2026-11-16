@@ -8,6 +8,7 @@
 // `notValidated` is drawn from the limits sections of the documents listed in `docs`. Keep it honest:
 // a line belongs here when a reader could otherwise assume the cases above cover it.
 import rigid from './domains/rigid.mjs';
+import rigidCore from './domains/rigid-core.mjs';
 import waterCoupling from './domains/water-coupling.mjs';
 import structureCoupling from './domains/structure-coupling.mjs';
 import siBridge from './domains/si-bridge.mjs';
@@ -45,6 +46,24 @@ export const DOMAINS = [
       'Compound bodies: a body holds at most 64 convex shapes (box, sphere, capsule, hull); overlapping shapes count their overlap twice in mass and inertia. Contact of a compound is checked at rest and at tipping only, not in stacks or impacts. Triangle meshes and height fields are static only and cannot be part of a compound.',
       'Explicit mass data replace the numbers, not the shapes: nothing checks that a stated tensor is physically possible for the collision shape (the triangle inequality of the principal moments is not required), and a body with partly locked rotation is not covered.',
       'One build on one machine. The cross-device determinism matrix is a separate roadmap item; the kit records identical hashes on arm64 Node and Bun only.',
+    ],
+  },
+  {
+    id: 'rigid-core', title: 'Rigid core: queries, character, continuous collision, vehicles, joints and examples', needsKit: true,
+    solver: 'Box3D compiled to WebAssembly, through `box3d-webgpu-kit` (float32 state, 240 Hz, 4 sub-steps unless a row says otherwise)',
+    summary: 'Ray, sweep and overlap queries against closed forms, and the batched ray call. The capsule character: speed, slope limit, step height, stairs, jump, thin walls, moving platforms, force-limited pushing and exact resume. Continuous collision: a fast ball against a thin wall with the setting off and on, and the bullet flag against a free plate. A wheel-joint vehicle: static sag, heave frequency and damping, top speed against drag, the Ackermann turning circle and braking distance. Motor, parallel and filter joints, joint events and breakable welds. World settings, the area-weighted explosion, contact statistics and debug-draw counts. Five example scenes played by their roles: stairs and a jump on the obstacle course, the sag and circle of the scene-file car, ray lengths of the scanner, bullets through thin plates, and the support shear and moments of the breakable bridge against the statics of a built-in beam of rigid links. Joint and contact stiffness that follow the sub-steps (the caps of Box3D, and the 1 / f^2 fall of the static error). A pyramid of boxes 20 rows high: contact pairs, top height, weight carried.',
+    docs: ['docs/RIGID_CORE.md'],
+    notValidated: [
+      'Queries against triangle meshes, height fields, hulls and compounds have no closed-form row: they are covered by the bit-for-bit agreement of batched and single rays only.',
+      'Sweeps are checked from a separated start. A sweep that starts overlapping reports fraction 0 with a zero normal, which is behaviour inherited from Box3D and not a time of impact.',
+      'Box and capsule query shapes are axis aligned (the capsule upright). Rotated query shapes are not exposed.',
+      'The character is checked on boxes and ramps. Triangle-mesh and height-field ground, rotating platforms, crouching, swimming and ladders are not covered; a dynamic body the character stands on does not feel its weight.',
+      'Continuous collision is checked for spheres against boxes. Fast rotation (a spinning thin bar) is not swept by Box3D and is not checked; kinematic bodies are not swept against static ones.',
+      'The vehicle has rigid sphere wheels with Coulomb friction: no tyre model (slip curves, camber, load sensitivity), no drivetrain (gears, differential, engine curve), no anti-roll bars. Handling at speed, roll-over and jumps are not checked against references.',
+      'Breaking is checked for a weld under a slowly growing static load. A joint breaks on the force or torque of a sub-step, so a short impact can break a joint whose mean load over the step is below its threshold; impact breaking has no reference row.',
+      'One build on one machine; no cross-device determinism matrix.',
+      'The example scenes are checked at a few closed-form points (stairs, jump, sag, ray lengths, the bridge at rest); the rest of what they do (a lap of the course, the wreck of the bridge) is asserted as ranges and as determinism, not against a reference.',
+      'Piles of thousands of bodies are checked for stability (containment, energy, overlap) in packages/box3d-kit/test/v22-rigid-scale.test.mjs, not against a reference: only the pyramid has closed-form rows. Step times are measured by scripts/rigid-scale-benchmark.mjs and never asserted.',
     ],
   },
   {
@@ -350,7 +369,7 @@ export const DOMAINS = [
   },
 ];
 
-export const CASES = [...rigid, ...waterCoupling, ...structureCoupling, ...siBridge, ...siSuspension, ...geometry, ...scene, ...simulation, ...robot, ...cloth, ...granular, ...fluid, ...shallowWater, ...heat, ...solid, ...solidViscoelastic, ...solidConcrete, ...solidContact, ...fracture, ...plate, ...frame, ...cable, ...closedWater, ...materials];
+export const CASES = [...rigid, ...rigidCore, ...waterCoupling, ...structureCoupling, ...siBridge, ...siSuspension, ...geometry, ...scene, ...simulation, ...robot, ...cloth, ...granular, ...fluid, ...shallowWater, ...heat, ...solid, ...solidViscoelastic, ...solidConcrete, ...solidContact, ...fracture, ...plate, ...frame, ...cable, ...closedWater, ...materials];
 
 /** Cases of the given domains (all when `only` is empty), in registry order. */
 export function selectCases(only = []) {

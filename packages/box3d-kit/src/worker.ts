@@ -18,7 +18,9 @@ import type {LoadBox3DOptions} from './loader.js';
 import type {
   BodyKind, BodyMassData, BodyOptions, BodyPose, BodyState, BodyType, MassDataOptions, JointOptions, JointState, QuatLike, QueryOptions, ReplayLog, ReplayReport, RecordingOptions,
   ResetOptions, SpawnBoxOptions, Vec3, Vec3Like, WorldEvent, WorldOptions, WorldStats,
+  BodyFlags, CapsuleMoveOptions, ContactStats, DebugDrawLines, DebugDrawOptions, JointDetails, JointDrive, JointThresholds, StepProfile, WorldSettings,
 } from './world.js';
+import type {NativeQueryFilter} from './core/native-world.js';
 import type {PhysicsWorld} from './world.js';
 import type {InstanceSource} from './three.js';
 import {SharedFrameReader, SharedFrameWriter, sharedMemoryAvailable} from './shared-frames.js';
@@ -41,8 +43,26 @@ export interface RemoteBody { readonly token: bigint }
 export interface RemoteJoint { readonly token: bigint }
 /** JointOptions with the bodies as remote handles. */
 export type RemoteJointOptions = Omit<JointOptions, 'bodyA' | 'bodyB'> & {readonly bodyA: RemoteBody | null; readonly bodyB: RemoteBody | null};
-/** A WorldEvent with the bodies as remote handles. */
-export type RemoteWorldEvent = Omit<WorldEvent, 'bodyA' | 'bodyB'> & {readonly bodyA: RemoteBody | null; readonly bodyB: RemoteBody | null};
+/** A WorldEvent with the bodies and the joint as remote handles. */
+export type RemoteWorldEvent = Omit<WorldEvent, 'bodyA' | 'bodyB' | 'joint'> & {readonly bodyA: RemoteBody | null; readonly bodyB: RemoteBody | null; readonly joint?: RemoteJoint};
+/** A query filter with the ignored body as a remote handle. */
+export type RemoteQueryFilter = Omit<NativeQueryFilter, 'ignoreBody'> & {readonly ignoreBody?: RemoteBody};
+/** raycastBatch() results with the bodies as remote handles. */
+export interface RemoteRayBatch {
+  readonly count: number;
+  readonly hitCount: number;
+  readonly fractions: Float32Array;
+  readonly points: Float32Array;
+  readonly normals: Float32Array;
+  readonly triangles: Int32Array;
+  readonly bodies: (RemoteBody | null)[];
+}
+export type RemoteCapsuleMoveOptions = Omit<CapsuleMoveOptions, 'ignoreBody'> & {readonly ignoreBody?: RemoteBody};
+export interface RemoteCapsuleMoveResult {
+  readonly position: [number, number, number];
+  readonly iterations: number;
+  readonly planes: {readonly normal: Vec3; readonly point: Vec3; readonly push: number; readonly body: RemoteBody; readonly bodyType: BodyType; readonly wall: boolean}[];
+}
 export interface RemoteCastHit {
   readonly body: RemoteBody;
   readonly point: Vec3;
@@ -136,7 +156,9 @@ export function serveWorld(endpoint: MessageEndpoint): void {
     unsubscribe?.();
     unsubscribe = live().onEvent(event => {
       if (queued.length >= 65536) { queuedDropped++; return; }
-      queued.push({...event, bodyA: remember(event.bodyA), bodyB: remember(event.bodyB)});
+      // A broken joint is gone: forget it, so that later calls report it as stale.
+      if (event.kind === 'joint-break' && event.joint) joints.delete(event.joint.token);
+      queued.push({...event, bodyA: remember(event.bodyA), bodyB: remember(event.bodyB), joint: event.joint ? {token: event.joint.token} : undefined});
     });
   };
   const stop = () => { if (timer !== null) clearInterval(timer); timer = null; };
@@ -201,6 +223,36 @@ export function serveWorld(endpoint: MessageEndpoint): void {
     setJointStiffness: (ref: RemoteJoint, hertz: number, dampingRatio?: number) => live().setJointStiffness(joint(ref), hertz, dampingRatio),
     setJointSteering: (ref: RemoteJoint, steering: {angle: number; hertz: number; dampingRatio: number; maxTorque: number} | null) => live().setJointSteering(joint(ref), steering),
     getJointState: (ref: RemoteJoint) => live().getJointState(joint(ref)),
+    getJointDetails: (ref: RemoteJoint) => live().getJointDetails(joint(ref)),
+    setJointDrive: (ref: RemoteJoint, drive: JointDrive) => live().setJointDrive(joint(ref), drive),
+    setJointThresholds: (ref: RemoteJoint, thresholds: JointThresholds | null) => live().setJointThresholds(joint(ref), thresholds),
+    setJointSteeringLimits: (ref: RemoteJoint, limits: {lower: number; upper: number} | null) => live().setJointSteeringLimits(joint(ref), limits),
+    setJointTargetRotation: (ref: RemoteJoint, rotation: QuatLike) => live().setJointTargetRotation(joint(ref), rotation),
+    setJointAngularMotor: (ref: RemoteJoint, motor: {velocity: Vec3Like; maxTorque: number} | null) => live().setJointAngularMotor(joint(ref), motor),
+    setJointParallelSpring: (ref: RemoteJoint, spring: {hertz: number; dampingRatio: number; maxTorque: number}) => live().setJointParallelSpring(joint(ref), spring),
+    setJointConeLimit: (ref: RemoteJoint, angle: number | null) => live().setJointConeLimit(joint(ref), angle),
+    setJointCollideConnected: (ref: RemoteJoint, collide: boolean) => live().setJointCollideConnected(joint(ref), collide),
+    settings: () => live().settings(),
+    configure: (settings: Partial<WorldSettings>) => live().configure(settings),
+    setBullet: (ref: RemoteBody, bullet: boolean) => live().setBullet(lookup(ref), bullet),
+    setSleep: (ref: RemoteBody, options: {enabled?: boolean; threshold?: number}) => live().setSleep(lookup(ref), options),
+    setMotionLocks: (ref: RemoteBody, locks: Partial<BodyFlags['locks']>) => live().setMotionLocks(lookup(ref), locks),
+    getBodyFlags: (ref: RemoteBody) => live().getBodyFlags(lookup(ref)),
+    explodeArea: (options: {center: Vec3Like; radius: number; falloff?: number; impulsePerArea: number; maskBits?: bigint}) => live().explodeArea(options),
+    profile: () => live().profile(),
+    contactStats: () => live().contactStats(),
+    debugLines: (options?: DebugDrawOptions) => live().debugLines(options),
+    capsuleCast: (o: Vec3Like, r: number, h: number, t: Vec3Like, q?: QueryOptions) => hit(live().capsuleCast(o, r, h, t, q)),
+    raycastAll: (o: Vec3Like, t: Vec3Like, q?: QueryOptions) => live().raycastAll(o, t, q).map(h => hit(h)!),
+    overlapCapsule: (c: Vec3Like, r: number, h: number, q?: QueryOptions) => live().overlapCapsule(c, r, h, q).map(remember),
+    raycastBatch: (rays: ArrayLike<number>, filter?: RemoteQueryFilter): RemoteRayBatch => {
+      const batch = live().raycastBatch(rays, filter ? {...filter, ignoreBody: filter.ignoreBody ? lookup(filter.ignoreBody) : undefined} : undefined);
+      return {...batch, bodies: batch.bodies.map(remember)};
+    },
+    moveCapsule: (options: RemoteCapsuleMoveOptions): RemoteCapsuleMoveResult => {
+      const result = live().moveCapsule({...options, ignoreBody: options.ignoreBody ? lookup(options.ignoreBody) : undefined});
+      return {position: result.position, iterations: result.iterations, planes: result.planes.map(plane => ({...plane, body: remember(plane.body)!}))};
+    },
     /** Start collecting events (first call) and hand over everything collected since the last call. */
     takeEvents: () => {
       if (!unsubscribe) listenForEvents();
@@ -251,7 +303,7 @@ export function serveWorld(endpoint: MessageEndpoint): void {
     dispose: () => { stop(); unsubscribe?.(); unsubscribe = null; world?.dispose(); world = null; shared = null; forget(); },
   };
   const withFrame = new Set(['init', 'update', 'step', 'spawnBox', 'destroyBody', 'resetArena', 'loadPreset', 'startRecording', 'replay', 'replayDetailed', 'explode', 'applyImpulse',
-    'reset', 'createBody', 'setTransform', 'setBodyType', 'restoreCheckpoint']);
+    'reset', 'createBody', 'setTransform', 'setBodyType', 'restoreCheckpoint', 'explodeArea']);
 
   listen(endpoint, async data => {
     const {id, method, args} = data as Request;
@@ -417,6 +469,37 @@ export class RemoteWorld implements InstanceSource {
   setJointStiffness(joint: RemoteJoint, hertz: number, dampingRatio?: number): Promise<void> { return this.call('setJointStiffness', joint, hertz, dampingRatio); }
   setJointSteering(joint: RemoteJoint, steering: {angle: number; hertz: number; dampingRatio: number; maxTorque: number} | null): Promise<void> { return this.call('setJointSteering', joint, steering); }
   getJointState(joint: RemoteJoint): Promise<JointState> { return this.call('getJointState', joint); }
+  getJointDetails(joint: RemoteJoint): Promise<JointDetails> { return this.call('getJointDetails', joint); }
+  setJointDrive(joint: RemoteJoint, drive: JointDrive): Promise<void> { return this.call('setJointDrive', joint, drive); }
+  setJointThresholds(joint: RemoteJoint, thresholds: JointThresholds | null): Promise<void> { return this.call('setJointThresholds', joint, thresholds); }
+  setJointSteeringLimits(joint: RemoteJoint, limits: {lower: number; upper: number} | null): Promise<void> { return this.call('setJointSteeringLimits', joint, limits); }
+  setJointTargetRotation(joint: RemoteJoint, rotation: QuatLike): Promise<void> { return this.call('setJointTargetRotation', joint, rotation); }
+  setJointAngularMotor(joint: RemoteJoint, motor: {velocity: Vec3Like; maxTorque: number} | null): Promise<void> { return this.call('setJointAngularMotor', joint, motor); }
+  setJointParallelSpring(joint: RemoteJoint, spring: {hertz: number; dampingRatio: number; maxTorque: number}): Promise<void> { return this.call('setJointParallelSpring', joint, spring); }
+  setJointConeLimit(joint: RemoteJoint, angle: number | null): Promise<void> { return this.call('setJointConeLimit', joint, angle); }
+  setJointCollideConnected(joint: RemoteJoint, collide: boolean): Promise<void> { return this.call('setJointCollideConnected', joint, collide); }
+  /** See PhysicsWorld.settings and configure. */
+  settings(): Promise<WorldSettings> { return this.call('settings'); }
+  configure(settings: Partial<WorldSettings>): Promise<void> { return this.call('configure', settings); }
+  setBullet(body: RemoteBody, bullet: boolean): Promise<void> { return this.call('setBullet', body, bullet); }
+  setSleep(body: RemoteBody, options: {enabled?: boolean; threshold?: number}): Promise<void> { return this.call('setSleep', body, options); }
+  setMotionLocks(body: RemoteBody, locks: Partial<BodyFlags['locks']>): Promise<void> { return this.call('setMotionLocks', body, locks); }
+  getBodyFlags(body: RemoteBody): Promise<BodyFlags> { return this.call('getBodyFlags', body); }
+  /** See PhysicsWorld.explodeArea. */
+  explodeArea(options: {center: Vec3Like; radius: number; falloff?: number; impulsePerArea: number; maskBits?: bigint}): Promise<void> { return this.call('explodeArea', options); }
+  /** Box3D's timing of the worker's most recent step; see PhysicsWorld.profile. */
+  profile(): Promise<StepProfile> { return this.call('profile'); }
+  /** Contact pairs, points, overlap and impulses of the worker's world; see PhysicsWorld.contactStats. */
+  contactStats(): Promise<ContactStats> { return this.call('contactStats'); }
+  /** Debug-draw line segments of the worker's world; see PhysicsWorld.debugLines. */
+  debugLines(options?: DebugDrawOptions): Promise<DebugDrawLines> { return this.call('debugLines', options); }
+  capsuleCast(origin: Vec3Like, radius: number, halfLength: number, translation: Vec3Like, options?: QueryOptions): Promise<RemoteCastHit | null> { return this.call('capsuleCast', origin, radius, halfLength, translation, options); }
+  raycastAll(origin: Vec3Like, translation: Vec3Like, options?: QueryOptions): Promise<RemoteCastHit[]> { return this.call('raycastAll', origin, translation, options); }
+  overlapCapsule(center: Vec3Like, radius: number, halfLength: number, options?: QueryOptions): Promise<RemoteBody[]> { return this.call('overlapCapsule', center, radius, halfLength, options); }
+  /** Closest hit of many rays in one round trip; see PhysicsWorld.raycastBatch. */
+  raycastBatch(rays: ArrayLike<number>, filter?: RemoteQueryFilter): Promise<RemoteRayBatch> { return this.call('raycastBatch', rays, filter); }
+  /** See PhysicsWorld.moveCapsule. */
+  moveCapsule(options: RemoteCapsuleMoveOptions): Promise<RemoteCapsuleMoveResult> { return this.call('moveCapsule', options); }
   /**
    * Contact and sensor events since the last call. The first call starts
    * collection in the worker and returns nothing, so call it once at set-up.

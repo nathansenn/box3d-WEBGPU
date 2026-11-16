@@ -14,5 +14,7 @@ int b3w_snapshot_check(const uint8_t* data, int size);
  * refusal that got past the header the world is unusable and must be destroyed. */
 void* b3w_snapshot_restore(b3WorldId world, const uint8_t* data, int size);
 void b3w_snapshot_release(void* holder);
+/** The world settings Box3D has no getter for. out4: contact hertz, contact damping ratio, contact push-out speed, speculative margin on (0/1). */
+void b3w_snapshot_tuning(b3WorldId world, float* out4);
 
 #endif

@@ -143,6 +143,8 @@ class WasmPhysicsBackend implements PhysicsBackend {
     }
   }
 
+  generalNative(): NativeWorldBackend | null { return this.general; }
+
   createGeneralScene(build: (world: NativeWorldBackend) => void, options: GeneralSceneOptions = {}): number {
     this.generalPool ??= new NativeWorldPool(this.mod);
     const world = this.generalWorld ??= this.generalPool.createWorld();

@@ -85,6 +85,10 @@ string(REPLACE "]" ",'_b3w_world_reset','_b3w_world_set_gravity','_b3w_world_get
 # Exact checkpoints: the world's body table and Box3D's complete snapshot (box3d_snapshot.c).
 string(REPLACE "]" ",'_b3w_world_checkpoint','_b3w_world_checkpoint_ptr','_b3w_world_checkpoint_free','_b3w_world_restore']" B3W_EXPORTED_FUNCTIONS "${B3W_EXPORTED_FUNCTIONS}")
 
+# Rigid-core extension: joint values and events, batched rays, the capsule mover, world and body controls,
+# Box3D's explosion, step profile and counters, and debug-draw lines.
+string(REPLACE "]" ",'_b3w_world_joint_set_values','_b3w_world_joint_get_values','_b3w_world_cast_rays','_b3w_world_mover_move','_b3w_world_set_param','_b3w_world_get_params','_b3w_world_set_body_flag','_b3w_world_get_body_flags','_b3w_world_explode_area','_b3w_world_profile','_b3w_world_contact_stats','_b3w_world_debug_draw','_b3w_world_debug_ptr','_b3w_world_debug_total']" B3W_EXPORTED_FUNCTIONS "${B3W_EXPORTED_FUNCTIONS}")
+
 option(B3W_QUERY_TESTING "Enable query allocation/version fault injection in a test-only artifact" OFF)
 if(B3W_QUERY_TESTING)
   target_compile_definitions(box3d_web PRIVATE B3W_QUERY_TESTING=1)

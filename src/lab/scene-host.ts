@@ -15,7 +15,8 @@
  * no subsystems and its step is this host's step.
  */
 import type {
-  NativeBodyDescriptor, NativeBodyHandle, NativeBodyState, NativeJointDescriptor, NativeJointHandle, NativeWorldBackend, NativeWorldEvent,
+  NativeBodyDescriptor, NativeBodyHandle, NativeBodyMassState, NativeBodyState, NativeJointDescriptor, NativeJointDetails, NativeJointHandle, NativeJointState, NativeMassData,
+  NativeWorldBackend, NativeWorldEvent,
 } from '../engine/native-world.ts';
 import { normalizeScene, sceneWorldOptions, type Scene, type SceneHost, type SceneVec3 } from '../engine/scene-format.ts';
 import { loadSimulationScene, type LoadedSimulationScene } from '../engine/simulation.ts';
@@ -51,7 +52,19 @@ export class LabSceneHost implements SceneHost {
   isJointAlive(joint: NativeJointHandle): boolean { return this.native.jointAlive(joint); }
   destroyJoint(joint: NativeJointHandle): boolean { return this.native.destroyJoint(joint); }
   getState(body: NativeBodyHandle): NativeBodyState { return this.native.bodyState(body); }
-  getMassData(body: NativeBodyHandle): { readonly center: readonly number[] } | null { return this.native.supportsCompoundBodies ? this.native.bodyMassData(body) : null; }
+  getMassData(body: NativeBodyHandle): NativeBodyMassState | null { return this.native.supportsCompoundBodies ? this.native.bodyMassData(body) : null; }
+  setMassData(body: NativeBodyHandle, data: NativeMassData): void { this.native.setBodyMassData(body, data); }
+  // What a character and a vehicle need from a world (src/engine/character-controller.ts, vehicle.ts): the calls of the
+  // kit's PhysicsWorld with the same names, forwarding the same values.
+  setVelocity(body: NativeBodyHandle, linear: SceneVec3, angular: SceneVec3 = [0, 0, 0]): void { this.native.setBodyVelocity(body, [linear[0], linear[1], linear[2]], [angular[0], angular[1], angular[2]]); }
+  moveKinematic(body: NativeBodyHandle, position: SceneVec3, rotation: readonly [number, number, number, number] = [0, 0, 0, 1], seconds = this.loop.step): void {
+    this.native.setBodyTarget(body, [position[0], position[1], position[2]], rotation, seconds);
+  }
+  applyImpulseAt(body: NativeBodyHandle, impulse: SceneVec3, point: SceneVec3): void { this.native.applyToBody(body, 'impulse', [impulse[0], impulse[1], impulse[2]], [point[0], point[1], point[2]]); }
+  setJointMotor(joint: NativeJointHandle, motor: { speed: number; maxForce: number } | null): void { this.native.setJointMotor(joint, motor); }
+  setJointSteering(joint: NativeJointHandle, steering: { angle: number; hertz: number; dampingRatio: number; maxTorque: number } | null): void { this.native.setJointSteering(joint, steering); }
+  getJointState(joint: NativeJointHandle): NativeJointState { return this.native.jointState(joint); }
+  getJointDetails(joint: NativeJointHandle): NativeJointDetails { return this.native.jointDetails(joint); }
   gravity(): [number, number, number] { return this.native.gravity(); }
   bodyCount(): number { return this.native.bodyCount(); }
 

@@ -16,7 +16,7 @@ import {
 } from '../engine/geometry.ts';
 import type { NativeBodyDescriptor } from '../engine/native-world.ts';
 import {
-  COUPLED_EXAMPLE_SCENES, EXAMPLE_SCENES, SCENE_LIMITS, SCENE_LINK_PREFIX, SceneValidationError, decodeSceneLink, normalizeScene, validateScene,
+  COUPLED_EXAMPLE_SCENES, EXAMPLE_SCENES, RIGID_CORE_EXAMPLE_SCENES, SCENE_LIMITS, SCENE_LINK_PREFIX, SceneValidationError, decodeSceneLink, normalizeScene, validateScene,
   type Scene, type SceneBody, type SceneJoint, type SceneProblem, type SceneSolid,
 } from '../engine/scene-format.ts';
 
@@ -43,6 +43,15 @@ export const EXAMPLE_SCENE_TITLES: { readonly [name: string]: string } = Object.
   ragdoll: 'Ragdoll',
 });
 export const EXAMPLE_SCENE_NAMES: readonly string[] = Object.freeze(Object.keys(EXAMPLE_SCENES));
+/** The rigid-core examples (docs/RIGID_CORE.md): rigid scenes whose bodies and joints carry roles that the Lab plays (src/lab/rigid-play.ts). */
+export const RIGID_CORE_EXAMPLE_TITLES: { readonly [name: string]: string } = Object.freeze({
+  'obstacle-course': 'Character: obstacle course',
+  'vehicle-terrain': 'Vehicle: drive on terrain',
+  'laser-scanner': 'Ray casts: laser scanner',
+  'bullet-plates': 'Continuous collision: bullets and thin plates',
+  'breakable-bridge': 'Breakable bridge',
+});
+export const RIGID_CORE_EXAMPLE_NAMES: readonly string[] = Object.freeze(Object.keys(RIGID_CORE_EXAMPLE_SCENES));
 /** The coupled examples: scenes with water, cables, frames, cloths, grains, solids, heat or fluids, which the Lab steps through a Simulation. */
 export const COUPLED_EXAMPLE_TITLES: { readonly [name: string]: string } = Object.freeze({
   'moored-buoy': 'Moored buoy',
@@ -63,9 +72,9 @@ export const COUPLED_EXAMPLE_TITLES: { readonly [name: string]: string } = Objec
   'river-bend': 'River bend',
 });
 export const COUPLED_EXAMPLE_NAMES: readonly string[] = Object.freeze(Object.keys(COUPLED_EXAMPLE_SCENES));
-/** Every example `?example=<name>` opens: the rigid ones, then the coupled ones. */
-export const LAB_EXAMPLE_SCENES: { readonly [name: string]: () => Scene } = Object.freeze({ ...EXAMPLE_SCENES, ...COUPLED_EXAMPLE_SCENES });
-export const LAB_EXAMPLE_TITLES: { readonly [name: string]: string } = Object.freeze({ ...EXAMPLE_SCENE_TITLES, ...COUPLED_EXAMPLE_TITLES });
+/** Every example `?example=<name>` opens: the rigid ones, the rigid-core ones, then the coupled ones. */
+export const LAB_EXAMPLE_SCENES: { readonly [name: string]: () => Scene } = Object.freeze({ ...EXAMPLE_SCENES, ...RIGID_CORE_EXAMPLE_SCENES, ...COUPLED_EXAMPLE_SCENES });
+export const LAB_EXAMPLE_TITLES: { readonly [name: string]: string } = Object.freeze({ ...EXAMPLE_SCENE_TITLES, ...RIGID_CORE_EXAMPLE_TITLES, ...COUPLED_EXAMPLE_TITLES });
 export const LAB_EXAMPLE_NAMES: readonly string[] = Object.freeze(Object.keys(LAB_EXAMPLE_SCENES));
 
 /** Where the scene on screen came from. */

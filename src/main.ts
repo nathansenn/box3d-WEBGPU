@@ -88,6 +88,9 @@ import { encodeSceneLink, sceneHash, type Scene, type SceneProblem } from './eng
 import { checkpointInfo, readCheckpoint, writeCheckpoint, type StateObject } from './engine/checkpoint.ts';
 import { simulationCheckpointInfo } from './engine/simulation.ts';
 import { disposeLabScene, exactTransformHash, loadLabScene, sceneStepsPerLabTick, type LabLoadedScene } from './lab/scene-host.ts';
+import { RigidDebugOverlay, parseRigidDebugParam, rigidDebugParam, type RigidDebugState } from './lab/rigid-debug.ts';
+import { PLAY_KEYS, RigidPlay } from './lab/rigid-play.ts';
+import { sceneHasRoles } from './engine/scene-roles.ts';
 import { CoupledSceneView, sceneIsCoupled } from './lab/coupled-scene.ts';
 import { createCoupledPanel, type CoupledPanel } from './lab/coupled-panel.ts';
 import {
@@ -412,6 +415,21 @@ let coupledView: CoupledSceneView | null = null;
 let coupledPanel: CoupledPanel | null = null;
 /** The editor's lines over a coupled scene's own, rebuilt when either changes. */
 let mergedOverlay: { editor: number; coupled: number; lines: readonly DebugLine[]; version: number } = { editor: -1, coupled: -1, lines: [], version: 0 };
+// Rigid debug draw (lab.html?debug=1 and the switch in the Scenes panel): Box3D's own drawing of the general scene on
+// screen, appended to whatever overlay lines the frame already has (src/lab/rigid-debug.ts).
+let rigidDebug: RigidDebugState = parseRigidDebugParam(new URLSearchParams(window.location.search).get('debug'));
+const rigidDebugOverlay = new RigidDebugOverlay();
+let rigidDebugMerged: { base: number; debug: number; lines: readonly DebugLine[]; version: number } = { base: -1, debug: -1, lines: [], version: 0 };
+// A scene file whose bodies and joints carry roles (a character, a vehicle, platforms, a ray-cast scanner): the keys and the beams.
+let rigidPlay: RigidPlay | null = null;
+let rigidPlayMerged: { base: number; play: number; lines: readonly DebugLine[]; version: number } = { base: -1, play: -1, lines: [], version: 0 };
+const PLAY_HINTS = { character: 'W A S D or the arrow keys walk, Space jumps; left alone it walks its route.', vehicle: 'W and S drive, A and D steer, Space brakes; left alone it circles.', watch: '' } as const;
+function setRigidDebug(state: RigidDebugState): void {
+  rigidDebug = state;
+  const url = new URL(window.location.href), value = rigidDebugParam(state);
+  if (value === null) url.searchParams.delete('debug'); else url.searchParams.set('debug', value);
+  window.history.replaceState(window.history.state, '', url);
+}
 function clearCoupledView(): void {
   if (!coupledView) return;
   coupledPanel?.attach(null);
@@ -1024,7 +1042,11 @@ function frameCameraForWorkspace(workspace: EngineeringWorkspaceId = engineering
   }
   if (siDemo && labScene) {
     const frame = sceneCameraFrame(labScene.read.scene);
-    camera = cloneRig({ yaw: frame.yaw ?? 0.72, pitch: frame.pitch ?? 0.3, distance: frame.distance, target: frame.target });
+    // A scene that is played is framed on its character or car (the frame loop then follows it), not on the whole course or terrain.
+    const follow = rigidPlay?.follow();
+    camera = follow
+      ? cloneRig({ yaw: 1.9, pitch: 0.32, distance: Math.min(frame.distance, rigidPlay!.kind === 'vehicle' ? 15 : 9.5), target: follow })
+      : cloneRig({ yaw: frame.yaw ?? 0.72, pitch: frame.pitch ?? 0.3, distance: frame.distance, target: frame.target });
     return;
   }
   camera = cloneRig(currentScene.camera);
@@ -1412,6 +1434,7 @@ function labSceneSourceText(read: LabSceneRead): string {
 function createRigidScene(scene: ScenePreset, stress: number, sceneSeed: number): number {
   siDemoScene = null;
   labScene = null;
+  rigidPlay = null;
   clearCoupledView();
   if (siBridge) { siBridgePanel?.attach(null); siBridge.dispose(); siBridge = null; }
   if (siDemo) {
@@ -1436,9 +1459,17 @@ function createRigidScene(scene: ScenePreset, stress: number, sceneSeed: number)
           let loaded: LabLoadedScene | null = null;
           // A coupled scene takes each fixed step through its Simulation: couple stage, rigid step, post stage, events.
           const coupled = sceneIsCoupled(read.scene);
-          const count = backend.createGeneralScene((native) => { loaded = loadLabScene(native, read.scene); },
-            { step: world.step, subSteps: world.subSteps, stepsPerTick: sceneStepsPerLabTick(world.step ?? 1 / 60), ...(coupled ? { stepWith: () => coupledView?.step() } : {}) });
+          // A scene with roles (src/engine/scene-roles.ts) is stepped through its Simulation too: the roles act before every rigid step.
+          const playable = sceneHasRoles(read.scene);
+          let play: RigidPlay | null = null;
+          const count = backend.createGeneralScene((native) => {
+            loaded = loadLabScene(native, read.scene);
+            // Roles the Lab cannot use (a character on a body that is not kinematic, say) leave a plain scene, with the reason in the console.
+            if (playable) try { play = new RigidPlay(loaded); } catch (error) { console.warn('[scene roles] The scene plays without its roles.', error); }
+          }, { step: world.step, subSteps: world.subSteps, stepsPerTick: sceneStepsPerLabTick(world.step ?? 1 / 60),
+            ...(coupled ? { stepWith: () => coupledView?.step() } : playable ? { stepWith: () => labScene?.loaded.simulation.step() } : {}) });
           labScene = { read, loaded: loaded!, link };
+          rigidPlay = (play as RigidPlay | null)?.roles.active ? play : null;
           if (coupled) {
             coupledView = new CoupledSceneView(loaded!, backend);
             coupledPanel?.attach(coupledView, read.title);
@@ -2763,7 +2794,7 @@ function loadScene(scene: ScenePreset, stressOverride?: number, keepCinematic = 
   setLog(siDemo && siBridge
     ? `Loaded ${SI_BRIDGE_TITLE} · ${siBridge.layout.stays.length} stays, ${siBridge.layout.elements.length} beam elements, SI units.`
     : siDemo && labScene
-    ? `Loaded ${labScene.read.title} · ${sceneSummary(labScene.read.scene)}.`
+    ? `Loaded ${labScene.read.title} · ${sceneSummary(labScene.read.scene)}.${rigidPlay?.takesKeys ? ` ${PLAY_HINTS[rigidPlay.kind]}` : ''}`
     : siDemo && siDemoScene
     ? `Loaded ${MECHANISMS_SCENE_TITLE} · ${siDemoScene.bodyCount} bodies, ${siDemoScene.jointCount} joints, SI units · seed 0x${seed.toString(16)}.`
     : `Loaded ${sceneLabel(scene)} · ${scene.category} · ${scene.family}/${scene.variant} · seed 0x${seed.toString(16)}.`);
@@ -3851,12 +3882,20 @@ function bindControls(): void {
   ui.runTurboQuant.addEventListener('click', runTurboQuantBrowserProbe);
   ui.captureFrame.addEventListener('click', captureCurrentFrame);
 
-  window.addEventListener('keyup', (event) => { sceneEditor?.keyUp(event); });
+  window.addEventListener('keyup', (event) => { sceneEditor?.keyUp(event); rigidPlay?.keyUp(event.code); });
+  window.addEventListener('blur', () => { rigidPlay?.releaseAll(); });
   window.addEventListener('keydown', (event) => {
     const target = event.target;
     // While a scene is being edited the keys are the editor's (Delete, undo, nudges, Escape);
     // the Lab's single-key shortcuts are off, so typing a name or pressing an arrow cannot load another lab.
     if (sceneEditor?.active) { sceneEditor.keyDown(event); return; }
+    // A playable scene (a character or a car) takes W A S D, the arrows and Space, held keys included, instead of the Lab's shortcuts.
+    if (rigidPlay?.takesKeys && siDemo && labScene && Object.hasOwn(PLAY_KEYS, event.code) && !event.defaultPrevented && !event.isComposing && !event.metaKey && !event.ctrlKey && !event.altKey &&
+      !(target instanceof Element && target.closest('input, textarea, select, button, [contenteditable="true"], [role="textbox"], [role="slider"]'))) {
+      rigidPlay.keyDown(event.code);
+      event.preventDefault();
+      return;
+    }
     if (
       event.defaultPrevented || event.isComposing || event.repeat || event.metaKey || event.ctrlKey || event.altKey ||
       (target instanceof Element && target.closest(
@@ -4616,6 +4655,7 @@ async function runStateTests(): Promise<void> {
 
   siDemo = null;
   labScene = null;
+  rigidPlay = null;
   clearCoupledView();
   if (siBridge) { siBridgePanel?.attach(null); siBridge.dispose(); siBridge = null; }
   syncScenePanel();
@@ -4729,7 +4769,9 @@ async function main(): Promise<void> {
       if (sceneEditor?.active) { sceneEditor.close(); scenePanel?.setStatus('Editing stopped. The scene stays on screen.'); }
       else if (siDemo && labScene) sceneEditor?.open(labScene.read.scene);
     },
+    onDebugDraw: setRigidDebug,
   });
+  scenePanel.setDebugDraw(rigidDebug, rigidDebug.enabled ? 'on from the address (?debug=)' : '');
   sceneEditor = createSceneEditor(createEditorHost(scenePanel.editorMount));
   const editorRequested = editRequested(window.location.search);
   coupledPanel = createCoupledPanel();
@@ -4764,6 +4806,14 @@ async function main(): Promise<void> {
     stepGpuShowcase: (steps: number) => (gpuShowcase && Number.isInteger(steps) && steps > 0 ? gpuShowcase.advance(Math.min(steps, 100000)) : Promise.resolve()).then(labSceneState),
     pauseGpuShowcase: (pause: boolean) => { gpuShowcasePaused = pause === true; return labSceneState(); },
     sceneJson: currentLabSceneJson,
+    /** A playable scene (roles on its bodies and joints): what is played and where the character or the car is; null otherwise. */
+    playState: () => (siDemo && labScene && rigidPlay ? rigidPlay.state() : null),
+    /** Hold or release one of the play keys ('KeyW', 'ArrowLeft', 'Space', ...) as the keyboard would. */
+    playKey: (code: string, down: boolean) => (rigidPlay ? (down ? rigidPlay.keyDown(code) : rigidPlay.keyUp(code)) : false),
+    /** Rigid debug draw: the layers that are on, and how many lines the last frame drew of how many the engine reported. */
+    rigidDebug: () => ({ param: rigidDebugParam(rigidDebug), enabled: rigidDebug.enabled, layers: { ...rigidDebug.layers }, lines: rigidDebugOverlay.lines.length, vertices: rigidDebugOverlay.vertexCount, truncated: rigidDebugOverlay.truncated }),
+    /** Set the debug draw as `?debug=<value>` would ('1', 'all', 'contacts,joints', '0'); the panel's switches follow. */
+    setRigidDebug: (value: string) => { setRigidDebug(parseRigidDebugParam(value)); scenePanel?.setDebugDraw(rigidDebug); return rigidDebugParam(rigidDebug); },
     /** Pause or resume the Lab's clock as the Pause button does; returns whether it is paused. For tests that compare hashes at a tick. */
     setPaused: (flag: boolean) => { if (paused !== !!flag) togglePause(); return paused; },
     /** Coupled scenes: the readout the panel shows (clock, step cost, energy ledger, latest events), or null. */
@@ -4902,8 +4952,35 @@ async function main(): Promise<void> {
     if (editingCoupled && (mergedOverlay.editor !== editorLinesVersion || mergedOverlay.coupled !== coupled.overlayVersion)) {
       mergedOverlay = { editor: editorLinesVersion, coupled: coupled.overlayVersion, lines: [...coupled.overlayLines, ...editorLines], version: (mergedOverlay.version + 1) >>> 0 };
     }
-    const overlayLines = editingCoupled ? mergedOverlay.lines : sceneEditor?.active ? editorLines : coupled ? coupled.overlayLines : engineeringInspectionLines;
-    const overlayVersion = editingCoupled ? (mergedOverlay.version ^ 0x3e7ed) >>> 0 : sceneEditor?.active ? (editorLinesVersion ^ 0x5ce4e) >>> 0 : coupled ? (coupled.overlayVersion ^ 0xc0b1ed) >>> 0 : engineeringInspectionVersion;
+    const baseOverlayLines0 = editingCoupled ? mergedOverlay.lines : sceneEditor?.active ? editorLines : coupled ? coupled.overlayLines : engineeringInspectionLines;
+    const baseOverlayVersion0 = editingCoupled ? (mergedOverlay.version ^ 0x3e7ed) >>> 0 : sceneEditor?.active ? (editorLinesVersion ^ 0x5ce4e) >>> 0 : coupled ? (coupled.overlayVersion ^ 0xc0b1ed) >>> 0 : engineeringInspectionVersion;
+    // A playable scene: walking is relative to the camera, the camera follows the character or the car, and a scanner's beams are lines.
+    const play = siDemo && labScene && !sceneEditor?.active ? rigidPlay : null;
+    let playBase = baseOverlayLines0, playBaseVersion = baseOverlayVersion0;
+    if (play) {
+      play.cameraYaw = camera.yaw;
+      const follow = play.follow();
+      if (follow) {
+        // Eased towards it frame by frame; a jump of more than 6 m (many steps taken at once, a checkpoint resumed) is taken at once.
+        const ease = Math.hypot(follow[0] - camera.target[0], follow[1] - camera.target[1], follow[2] - camera.target[2]) > 6 ? 1 : 0.12;
+        for (let axis = 0; axis < 3; axis++) camera.target[axis] = camera.target[axis]! + (follow[axis]! - camera.target[axis]!) * ease;
+      }
+      const beams = play.beamLines();
+      if (beams.length > 0) {
+        if (rigidPlayMerged.base !== baseOverlayVersion0 || rigidPlayMerged.play !== play.version) rigidPlayMerged = { base: baseOverlayVersion0, play: play.version, lines: [...baseOverlayLines0, ...beams], version: (rigidPlayMerged.version + 1) >>> 0 };
+        playBase = rigidPlayMerged.lines; playBaseVersion = (rigidPlayMerged.version ^ 0x1a5e7) >>> 0;
+      }
+    }
+    const baseOverlayLines = playBase, baseOverlayVersion = playBaseVersion;
+    ui.canvas.dataset.rigidPlay = play ? play.kind : '';
+    // Rigid debug draw: asked of the engine again only when the bodies have moved or the layers changed.
+    const debugLines = rigidDebugOverlay.update(rigidDebug.enabled && siDemo ? backend.generalNative?.() ?? null : null, rigidDebug, backend.frameVersion());
+    if (debugLines.length > 0 && (rigidDebugMerged.base !== baseOverlayVersion || rigidDebugMerged.debug !== rigidDebugOverlay.version)) {
+      rigidDebugMerged = { base: baseOverlayVersion, debug: rigidDebugOverlay.version, lines: [...baseOverlayLines, ...debugLines], version: (rigidDebugMerged.version + 1) >>> 0 };
+    }
+    const overlayLines = debugLines.length > 0 ? rigidDebugMerged.lines : baseOverlayLines;
+    const overlayVersion = debugLines.length > 0 ? (rigidDebugMerged.version ^ 0xdeb06) >>> 0 : baseOverlayVersion;
+    ui.canvas.dataset.rigidDebugLines = String(debugLines.length);
     const softFrame = soft.buildFrame(debugEnabled);
     // Engineering soft-body workspaces use an isolated specimen cell. The
     // backend's combinatorial rigid recipe still advances for deterministic

@@ -5,10 +5,10 @@
  "generatedBy": "node scripts/validation-report.mjs",
  "digits": 9,
  "totals": {
-  "cases": 598,
-  "passed": 598,
+  "cases": 708,
+  "passed": 708,
   "failed": 0,
-  "domains": 22
+  "domains": 23
  },
  "domains": [
   {
@@ -30,6 +30,29 @@
    ],
    "cases": 42,
    "passed": 42
+  },
+  {
+   "id": "rigid-core",
+   "title": "Rigid core: queries, character, continuous collision, vehicles, joints and examples",
+   "summary": "Ray, sweep and overlap queries against closed forms, and the batched ray call. The capsule character: speed, slope limit, step height, stairs, jump, thin walls, moving platforms, force-limited pushing and exact resume. Continuous collision: a fast ball against a thin wall with the setting off and on, and the bullet flag against a free plate. A wheel-joint vehicle: static sag, heave frequency and damping, top speed against drag, the Ackermann turning circle and braking distance. Motor, parallel and filter joints, joint events and breakable welds. World settings, the area-weighted explosion, contact statistics and debug-draw counts. Five example scenes played by their roles: stairs and a jump on the obstacle course, the sag and circle of the scene-file car, ray lengths of the scanner, bullets through thin plates, and the support shear and moments of the breakable bridge against the statics of a built-in beam of rigid links. Joint and contact stiffness that follow the sub-steps (the caps of Box3D, and the 1 / f^2 fall of the static error). A pyramid of boxes 20 rows high: contact pairs, top height, weight carried.",
+   "solver": "Box3D compiled to WebAssembly, through `box3d-webgpu-kit` (float32 state, 240 Hz, 4 sub-steps unless a row says otherwise)",
+   "docs": [
+    "docs/RIGID_CORE.md"
+   ],
+   "notValidated": [
+    "Queries against triangle meshes, height fields, hulls and compounds have no closed-form row: they are covered by the bit-for-bit agreement of batched and single rays only.",
+    "Sweeps are checked from a separated start. A sweep that starts overlapping reports fraction 0 with a zero normal, which is behaviour inherited from Box3D and not a time of impact.",
+    "Box and capsule query shapes are axis aligned (the capsule upright). Rotated query shapes are not exposed.",
+    "The character is checked on boxes and ramps. Triangle-mesh and height-field ground, rotating platforms, crouching, swimming and ladders are not covered; a dynamic body the character stands on does not feel its weight.",
+    "Continuous collision is checked for spheres against boxes. Fast rotation (a spinning thin bar) is not swept by Box3D and is not checked; kinematic bodies are not swept against static ones.",
+    "The vehicle has rigid sphere wheels with Coulomb friction: no tyre model (slip curves, camber, load sensitivity), no drivetrain (gears, differential, engine curve), no anti-roll bars. Handling at speed, roll-over and jumps are not checked against references.",
+    "Breaking is checked for a weld under a slowly growing static load. A joint breaks on the force or torque of a sub-step, so a short impact can break a joint whose mean load over the step is below its threshold; impact breaking has no reference row.",
+    "One build on one machine; no cross-device determinism matrix.",
+    "The example scenes are checked at a few closed-form points (stairs, jump, sag, ray lengths, the bridge at rest); the rest of what they do (a lap of the course, the wreck of the bridge) is asserted as ranges and as determinism, not against a reference.",
+    "Piles of thousands of bodies are checked for stability (containment, energy, overlap) in packages/box3d-kit/test/v22-rigid-scale.test.mjs, not against a reference: only the pyramid has closed-form rows. Step times are measured by scripts/rigid-scale-benchmark.mjs and never asserted."
+   ],
+   "cases": 110,
+   "passed": 110
   },
   {
    "id": "water-coupling",
@@ -1625,6 +1648,3119 @@
     "measured": "0",
     "error": "0",
     "tolerance": "±0"
+   }
+  },
+  {
+   "id": "rigid-core.ray.sphere.point",
+   "domain": "rigid-core",
+   "title": "Ray against a sphere: hit point",
+   "quantity": "largest distance between the reported and the exact hit point, 2,000 rays from every side",
+   "unit": "m",
+   "formula": "p = o + t d with t = (-b - sqrt(b^2 - a c)) / a, a = d.d, b = (o - c).d, c = |o - c|^2 - R^2",
+   "reference": 0,
+   "measured": 0.00000317207839,
+   "error": 0.00000317207839,
+   "relativeError": null,
+   "tolerance": {
+    "kind": "upper",
+    "value": 0.00005
+   },
+   "pass": true,
+   "note": "Float32 positions 6 m from the shape; rays within 2 mm of grazing the shape or of ending on it are left out.",
+   "source": {
+    "file": "packages/box3d-kit/test/v22-rigid-queries.test.mjs",
+    "test": "rays against a sphere, an oriented box and an oriented capsule: hit points and normals match the closed forms",
+    "url": "https://github.com/nathansenn/box3d-WEBGPU/blob/main/packages/box3d-kit/test/v22-rigid-queries.test.mjs"
+   },
+   "text": {
+    "reference": "0 m",
+    "measured": "3.172078e-6",
+    "error": "+3.17e-6",
+    "tolerance": "at most 5e-5 above the reference"
+   }
+  },
+  {
+   "id": "rigid-core.ray.sphere.normal",
+   "domain": "rigid-core",
+   "title": "Ray against a sphere: surface normal",
+   "quantity": "largest difference between the reported and the exact unit normal",
+   "unit": "1",
+   "formula": "n = outward unit normal of the surface at the hit point",
+   "reference": 0,
+   "measured": 0.00000385961599,
+   "error": 0.00000385961599,
+   "relativeError": null,
+   "tolerance": {
+    "kind": "upper",
+    "value": 0.0001
+   },
+   "pass": true,
+   "source": {
+    "file": "packages/box3d-kit/test/v22-rigid-queries.test.mjs",
+    "test": "rays against a sphere, an oriented box and an oriented capsule: hit points and normals match the closed forms",
+    "url": "https://github.com/nathansenn/box3d-WEBGPU/blob/main/packages/box3d-kit/test/v22-rigid-queries.test.mjs"
+   },
+   "text": {
+    "reference": "0",
+    "measured": "3.859616e-6",
+    "error": "+3.86e-6",
+    "tolerance": "at most 0.0001 above the reference"
+   }
+  },
+  {
+   "id": "rigid-core.ray.sphere.agreement",
+   "domain": "rigid-core",
+   "title": "Ray against a sphere: hit or miss",
+   "quantity": "rays on which the engine and the closed form disagree about hitting",
+   "unit": "rays",
+   "formula": "hit exactly when the closed form has a root in [0, 1]",
+   "reference": 0,
+   "measured": 0,
+   "error": 0,
+   "relativeError": null,
+   "tolerance": {
+    "kind": "absolute",
+    "value": 0
+   },
+   "pass": true,
+   "source": {
+    "file": "packages/box3d-kit/test/v22-rigid-queries.test.mjs",
+    "test": "rays against a sphere, an oriented box and an oriented capsule: hit points and normals match the closed forms",
+    "url": "https://github.com/nathansenn/box3d-WEBGPU/blob/main/packages/box3d-kit/test/v22-rigid-queries.test.mjs"
+   },
+   "text": {
+    "reference": "0 rays",
+    "measured": "0",
+    "error": "0",
+    "tolerance": "±0"
+   }
+  },
+  {
+   "id": "rigid-core.ray.box.point",
+   "domain": "rigid-core",
+   "title": "Ray against an oriented box: hit point",
+   "quantity": "largest distance between the reported and the exact hit point, 2,000 rays from every side",
+   "unit": "m",
+   "formula": "slab method in the box frame: t = max over axes of the entry times",
+   "reference": 0,
+   "measured": 0.0000169486618,
+   "error": 0.0000169486618,
+   "relativeError": null,
+   "tolerance": {
+    "kind": "upper",
+    "value": 0.00005
+   },
+   "pass": true,
+   "note": "Float32 positions 6 m from the shape; rays within 2 mm of grazing the shape or of ending on it are left out.",
+   "source": {
+    "file": "packages/box3d-kit/test/v22-rigid-queries.test.mjs",
+    "test": "rays against a sphere, an oriented box and an oriented capsule: hit points and normals match the closed forms",
+    "url": "https://github.com/nathansenn/box3d-WEBGPU/blob/main/packages/box3d-kit/test/v22-rigid-queries.test.mjs"
+   },
+   "text": {
+    "reference": "0 m",
+    "measured": "1.694866e-5",
+    "error": "+1.69e-5",
+    "tolerance": "at most 5e-5 above the reference"
+   }
+  },
+  {
+   "id": "rigid-core.ray.box.normal",
+   "domain": "rigid-core",
+   "title": "Ray against an oriented box: surface normal",
+   "quantity": "largest difference between the reported and the exact unit normal",
+   "unit": "1",
+   "formula": "n = outward unit normal of the surface at the hit point",
+   "reference": 0,
+   "measured": 3.00986052e-8,
+   "error": 3.00986052e-8,
+   "relativeError": null,
+   "tolerance": {
+    "kind": "upper",
+    "value": 0.0001
+   },
+   "pass": true,
+   "source": {
+    "file": "packages/box3d-kit/test/v22-rigid-queries.test.mjs",
+    "test": "rays against a sphere, an oriented box and an oriented capsule: hit points and normals match the closed forms",
+    "url": "https://github.com/nathansenn/box3d-WEBGPU/blob/main/packages/box3d-kit/test/v22-rigid-queries.test.mjs"
+   },
+   "text": {
+    "reference": "0",
+    "measured": "3.009861e-8",
+    "error": "+3.01e-8",
+    "tolerance": "at most 0.0001 above the reference"
+   }
+  },
+  {
+   "id": "rigid-core.ray.box.agreement",
+   "domain": "rigid-core",
+   "title": "Ray against an oriented box: hit or miss",
+   "quantity": "rays on which the engine and the closed form disagree about hitting",
+   "unit": "rays",
+   "formula": "hit exactly when the closed form has a root in [0, 1]",
+   "reference": 0,
+   "measured": 0,
+   "error": 0,
+   "relativeError": null,
+   "tolerance": {
+    "kind": "absolute",
+    "value": 0
+   },
+   "pass": true,
+   "source": {
+    "file": "packages/box3d-kit/test/v22-rigid-queries.test.mjs",
+    "test": "rays against a sphere, an oriented box and an oriented capsule: hit points and normals match the closed forms",
+    "url": "https://github.com/nathansenn/box3d-WEBGPU/blob/main/packages/box3d-kit/test/v22-rigid-queries.test.mjs"
+   },
+   "text": {
+    "reference": "0 rays",
+    "measured": "0",
+    "error": "0",
+    "tolerance": "±0"
+   }
+  },
+  {
+   "id": "rigid-core.ray.capsule.point",
+   "domain": "rigid-core",
+   "title": "Ray against an oriented capsule: hit point",
+   "quantity": "largest distance between the reported and the exact hit point, 2,000 rays from every side",
+   "unit": "m",
+   "formula": "first root among the side cylinder (|y| <= h) and the two cap spheres",
+   "reference": 0,
+   "measured": 0.0000280770356,
+   "error": 0.0000280770356,
+   "relativeError": null,
+   "tolerance": {
+    "kind": "upper",
+    "value": 0.00005
+   },
+   "pass": true,
+   "note": "Float32 positions 6 m from the shape; rays within 2 mm of grazing the shape or of ending on it are left out.",
+   "source": {
+    "file": "packages/box3d-kit/test/v22-rigid-queries.test.mjs",
+    "test": "rays against a sphere, an oriented box and an oriented capsule: hit points and normals match the closed forms",
+    "url": "https://github.com/nathansenn/box3d-WEBGPU/blob/main/packages/box3d-kit/test/v22-rigid-queries.test.mjs"
+   },
+   "text": {
+    "reference": "0 m",
+    "measured": "2.807704e-5",
+    "error": "+2.81e-5",
+    "tolerance": "at most 5e-5 above the reference"
+   }
+  },
+  {
+   "id": "rigid-core.ray.capsule.normal",
+   "domain": "rigid-core",
+   "title": "Ray against an oriented capsule: surface normal",
+   "quantity": "largest difference between the reported and the exact unit normal",
+   "unit": "1",
+   "formula": "n = outward unit normal of the surface at the hit point",
+   "reference": 0,
+   "measured": 0.00000882049355,
+   "error": 0.00000882049355,
+   "relativeError": null,
+   "tolerance": {
+    "kind": "upper",
+    "value": 0.0001
+   },
+   "pass": true,
+   "source": {
+    "file": "packages/box3d-kit/test/v22-rigid-queries.test.mjs",
+    "test": "rays against a sphere, an oriented box and an oriented capsule: hit points and normals match the closed forms",
+    "url": "https://github.com/nathansenn/box3d-WEBGPU/blob/main/packages/box3d-kit/test/v22-rigid-queries.test.mjs"
+   },
+   "text": {
+    "reference": "0",
+    "measured": "8.820494e-6",
+    "error": "+8.82e-6",
+    "tolerance": "at most 0.0001 above the reference"
+   }
+  },
+  {
+   "id": "rigid-core.ray.capsule.agreement",
+   "domain": "rigid-core",
+   "title": "Ray against an oriented capsule: hit or miss",
+   "quantity": "rays on which the engine and the closed form disagree about hitting",
+   "unit": "rays",
+   "formula": "hit exactly when the closed form has a root in [0, 1]",
+   "reference": 0,
+   "measured": 0,
+   "error": 0,
+   "relativeError": null,
+   "tolerance": {
+    "kind": "absolute",
+    "value": 0
+   },
+   "pass": true,
+   "source": {
+    "file": "packages/box3d-kit/test/v22-rigid-queries.test.mjs",
+    "test": "rays against a sphere, an oriented box and an oriented capsule: hit points and normals match the closed forms",
+    "url": "https://github.com/nathansenn/box3d-WEBGPU/blob/main/packages/box3d-kit/test/v22-rigid-queries.test.mjs"
+   },
+   "text": {
+    "reference": "0 rays",
+    "measured": "0",
+    "error": "0",
+    "tolerance": "±0"
+   }
+  },
+  {
+   "id": "rigid-core.sweep.box-face",
+   "domain": "rigid-core",
+   "title": "Box sweep onto a face: gap at the reported impact",
+   "quantity": "gap y0 + f dy - half height at the reported fraction, 300 slanted sweeps (the one furthest from 5 mm)",
+   "unit": "m",
+   "formula": "gap = +linear slop (a flat shape is stopped 5 mm short)",
+   "reference": 0.005,
+   "measured": 0.00494626164,
+   "error": -0.0000537383556,
+   "relativeError": -0.0107476711,
+   "tolerance": {
+    "kind": "absolute",
+    "value": 0.0002
+   },
+   "pass": true,
+   "note": "Box3D stops a swept shape without a radius one linear slop before the surface, so the reported fraction is early by 5 mm along the normal.",
+   "source": {
+    "file": "packages/box3d-kit/test/v22-rigid-queries.test.mjs",
+    "test": "sweeps: at the reported time of impact a flat shape is one linear slop short and a rounded one at most one slop inside",
+    "url": "https://github.com/nathansenn/box3d-WEBGPU/blob/main/packages/box3d-kit/test/v22-rigid-queries.test.mjs"
+   },
+   "text": {
+    "reference": "0.005 m",
+    "measured": "0.004946262",
+    "error": "-5.37e-5",
+    "tolerance": "±0.0002"
+   }
+  },
+  {
+   "id": "rigid-core.sweep.sphere-face",
+   "domain": "rigid-core",
+   "title": "Sphere sweep onto a face: gap at the reported impact",
+   "quantity": "gap y0 + f dy - r at the reported fraction (deepest of 300 slanted sweeps)",
+   "unit": "m",
+   "formula": "gap = -linear slop (a rounded shape is stopped 5 mm inside)",
+   "reference": -0.005,
+   "measured": -0.00500041246,
+   "error": -4.12464142e-7,
+   "relativeError": -0.0000824928284,
+   "tolerance": {
+    "kind": "absolute",
+    "value": 0.0002
+   },
+   "pass": true,
+   "note": "Box3D lets a swept shape with a radius encroach by its linear slop, so the reported fraction is late by 5 mm along the normal. Add or subtract the slop if you need the touching time.",
+   "source": {
+    "file": "packages/box3d-kit/test/v22-rigid-queries.test.mjs",
+    "test": "sweeps: at the reported time of impact a flat shape is one linear slop short and a rounded one at most one slop inside",
+    "url": "https://github.com/nathansenn/box3d-WEBGPU/blob/main/packages/box3d-kit/test/v22-rigid-queries.test.mjs"
+   },
+   "text": {
+    "reference": "-0.005 m",
+    "measured": "-0.005000412",
+    "error": "-4.12e-7",
+    "tolerance": "±0.0002"
+   }
+  },
+  {
+   "id": "rigid-core.sweep.capsule-face",
+   "domain": "rigid-core",
+   "title": "Capsule sweep onto a face: gap at the reported impact",
+   "quantity": "gap y0 + f dy - h - r at the reported fraction (deepest of 300 slanted sweeps)",
+   "unit": "m",
+   "formula": "gap = -linear slop",
+   "reference": -0.005,
+   "measured": -0.00500042737,
+   "error": -4.27365303e-7,
+   "relativeError": -0.0000854730606,
+   "tolerance": {
+    "kind": "absolute",
+    "value": 0.0002
+   },
+   "pass": true,
+   "source": {
+    "file": "packages/box3d-kit/test/v22-rigid-queries.test.mjs",
+    "test": "sweeps: at the reported time of impact a flat shape is one linear slop short and a rounded one at most one slop inside",
+    "url": "https://github.com/nathansenn/box3d-WEBGPU/blob/main/packages/box3d-kit/test/v22-rigid-queries.test.mjs"
+   },
+   "text": {
+    "reference": "-0.005 m",
+    "measured": "-0.005000427",
+    "error": "-4.27e-7",
+    "tolerance": "±0.0002"
+   }
+  },
+  {
+   "id": "rigid-core.sweep.sphere-sphere",
+   "domain": "rigid-core",
+   "title": "Sphere sweep onto a sphere: deepest gap at the reported impact",
+   "quantity": "gap |o + f d - c| - (R + r) at the reported fraction, 300 off-centre sweeps (deepest)",
+   "unit": "m",
+   "formula": "gap >= -linear slop",
+   "reference": -0.005,
+   "measured": -0.00500016129,
+   "error": -1.61285586e-7,
+   "relativeError": -0.0000322571171,
+   "tolerance": {
+    "kind": "lower",
+    "value": 0.0002
+   },
+   "pass": true,
+   "note": "Onto a curved surface the encroachment is between 3.8 mm and 5 mm, depending on how far off centre the sweep is.",
+   "source": {
+    "file": "packages/box3d-kit/test/v22-rigid-queries.test.mjs",
+    "test": "sweeps: at the reported time of impact a flat shape is one linear slop short and a rounded one at most one slop inside",
+    "url": "https://github.com/nathansenn/box3d-WEBGPU/blob/main/packages/box3d-kit/test/v22-rigid-queries.test.mjs"
+   },
+   "text": {
+    "reference": "-0.005 m",
+    "measured": "-0.005000161",
+    "error": "-1.61e-7",
+    "tolerance": "at most 0.0002 below the reference"
+   }
+  },
+  {
+   "id": "rigid-core.sweep.sphere-sphere-early",
+   "domain": "rigid-core",
+   "title": "Sphere sweep onto a sphere: never reported before touching",
+   "quantity": "shallowest gap over the same 300 sweeps",
+   "unit": "m",
+   "formula": "gap <= 0",
+   "reference": 0,
+   "measured": -0.00376742777,
+   "error": -0.00376742777,
+   "relativeError": null,
+   "tolerance": {
+    "kind": "upper",
+    "value": 0
+   },
+   "pass": true,
+   "source": {
+    "file": "packages/box3d-kit/test/v22-rigid-queries.test.mjs",
+    "test": "sweeps: at the reported time of impact a flat shape is one linear slop short and a rounded one at most one slop inside",
+    "url": "https://github.com/nathansenn/box3d-WEBGPU/blob/main/packages/box3d-kit/test/v22-rigid-queries.test.mjs"
+   },
+   "text": {
+    "reference": "0 m",
+    "measured": "-0.003767428",
+    "error": "-0.00377",
+    "tolerance": "not above the reference"
+   }
+  },
+  {
+   "id": "rigid-core.sweep.capsule-sphere",
+   "domain": "rigid-core",
+   "title": "Capsule sweep onto a sphere: deepest gap at the reported impact",
+   "quantity": "gap between the lower cap and the sphere at the reported fraction (deepest of 300)",
+   "unit": "m",
+   "formula": "gap = |cap centre - c| - (R + r) >= -linear slop",
+   "reference": -0.005,
+   "measured": -0.00500016355,
+   "error": -1.6355288e-7,
+   "relativeError": -0.000032710576,
+   "tolerance": {
+    "kind": "lower",
+    "value": 0.0002
+   },
+   "pass": true,
+   "source": {
+    "file": "packages/box3d-kit/test/v22-rigid-queries.test.mjs",
+    "test": "sweeps: at the reported time of impact a flat shape is one linear slop short and a rounded one at most one slop inside",
+    "url": "https://github.com/nathansenn/box3d-WEBGPU/blob/main/packages/box3d-kit/test/v22-rigid-queries.test.mjs"
+   },
+   "text": {
+    "reference": "-0.005 m",
+    "measured": "-0.005000164",
+    "error": "-1.64e-7",
+    "tolerance": "at most 0.0002 below the reference"
+   }
+  },
+  {
+   "id": "rigid-core.overlap.sphere",
+   "domain": "rigid-core",
+   "title": "Sphere overlap: count on a lattice",
+   "quantity": "spheres of a 7 x 7 x 7 lattice (r = 0.1 m, 1 m apart) overlapping a 2.42 m query sphere",
+   "unit": "bodies",
+   "formula": "N = #{lattice points with |p - q| <= R + r}",
+   "reference": 67,
+   "measured": 67,
+   "error": 0,
+   "relativeError": 0,
+   "tolerance": {
+    "kind": "absolute",
+    "value": 0
+   },
+   "pass": true,
+   "source": {
+    "file": "packages/box3d-kit/test/v22-rigid-queries.test.mjs",
+    "test": "overlaps: sphere, box, capsule and broad-phase counts on a lattice equal the counts of lattice points, with and without a mask",
+    "url": "https://github.com/nathansenn/box3d-WEBGPU/blob/main/packages/box3d-kit/test/v22-rigid-queries.test.mjs"
+   },
+   "text": {
+    "reference": "67 bodies",
+    "measured": "67",
+    "error": "0",
+    "tolerance": "±0"
+   }
+  },
+  {
+   "id": "rigid-core.overlap.box",
+   "domain": "rigid-core",
+   "title": "Box overlap: count on a lattice",
+   "quantity": "lattice spheres overlapping a 3.46 x 1.9 x 4.66 m query box",
+   "unit": "bodies",
+   "formula": "N = #{lattice points within r of the box}",
+   "reference": 40,
+   "measured": 40,
+   "error": 0,
+   "relativeError": 0,
+   "tolerance": {
+    "kind": "absolute",
+    "value": 0
+   },
+   "pass": true,
+   "source": {
+    "file": "packages/box3d-kit/test/v22-rigid-queries.test.mjs",
+    "test": "overlaps: sphere, box, capsule and broad-phase counts on a lattice equal the counts of lattice points, with and without a mask",
+    "url": "https://github.com/nathansenn/box3d-WEBGPU/blob/main/packages/box3d-kit/test/v22-rigid-queries.test.mjs"
+   },
+   "text": {
+    "reference": "40 bodies",
+    "measured": "40",
+    "error": "0",
+    "tolerance": "±0"
+   }
+  },
+  {
+   "id": "rigid-core.overlap.capsule",
+   "domain": "rigid-core",
+   "title": "Capsule overlap: count on a lattice",
+   "quantity": "lattice spheres overlapping an upright query capsule (r = 1.27 m, half length 1.6 m)",
+   "unit": "bodies",
+   "formula": "N = #{lattice points within R + r of the axis segment}",
+   "reference": 30,
+   "measured": 30,
+   "error": 0,
+   "relativeError": 0,
+   "tolerance": {
+    "kind": "absolute",
+    "value": 0
+   },
+   "pass": true,
+   "source": {
+    "file": "packages/box3d-kit/test/v22-rigid-queries.test.mjs",
+    "test": "overlaps: sphere, box, capsule and broad-phase counts on a lattice equal the counts of lattice points, with and without a mask",
+    "url": "https://github.com/nathansenn/box3d-WEBGPU/blob/main/packages/box3d-kit/test/v22-rigid-queries.test.mjs"
+   },
+   "text": {
+    "reference": "30 bodies",
+    "measured": "30",
+    "error": "0",
+    "tolerance": "±0"
+   }
+  },
+  {
+   "id": "rigid-core.overlap.mask",
+   "domain": "rigid-core",
+   "title": "Sphere overlap with a category mask",
+   "quantity": "lattice spheres of category 2 (every other layer) overlapping the query sphere",
+   "unit": "bodies",
+   "formula": "N = #{odd-layer lattice points with |p - q| <= R + r}",
+   "reference": 33,
+   "measured": 33,
+   "error": 0,
+   "relativeError": 0,
+   "tolerance": {
+    "kind": "absolute",
+    "value": 0
+   },
+   "pass": true,
+   "source": {
+    "file": "packages/box3d-kit/test/v22-rigid-queries.test.mjs",
+    "test": "overlaps: sphere, box, capsule and broad-phase counts on a lattice equal the counts of lattice points, with and without a mask",
+    "url": "https://github.com/nathansenn/box3d-WEBGPU/blob/main/packages/box3d-kit/test/v22-rigid-queries.test.mjs"
+   },
+   "text": {
+    "reference": "33 bodies",
+    "measured": "33",
+    "error": "0",
+    "tolerance": "±0"
+   }
+  },
+  {
+   "id": "rigid-core.overlap.bounds",
+   "domain": "rigid-core",
+   "title": "Broad-phase candidates: count on a lattice",
+   "quantity": "lattice spheres whose bounds meet the query box",
+   "unit": "bodies",
+   "formula": "N = #{lattice points with |p_k - q_k| <= h_k + r on every axis}",
+   "reference": 40,
+   "measured": 40,
+   "error": 0,
+   "relativeError": 0,
+   "tolerance": {
+    "kind": "absolute",
+    "value": 0
+   },
+   "pass": true,
+   "source": {
+    "file": "packages/box3d-kit/test/v22-rigid-queries.test.mjs",
+    "test": "overlaps: sphere, box, capsule and broad-phase counts on a lattice equal the counts of lattice points, with and without a mask",
+    "url": "https://github.com/nathansenn/box3d-WEBGPU/blob/main/packages/box3d-kit/test/v22-rigid-queries.test.mjs"
+   },
+   "text": {
+    "reference": "40 bodies",
+    "measured": "40",
+    "error": "0",
+    "tolerance": "±0"
+   }
+  },
+  {
+   "id": "rigid-core.ray.batch",
+   "domain": "rigid-core",
+   "title": "Batched rays equal single rays",
+   "quantity": "rays of 4,096 whose batched answer differs in any bit from the single-ray answer",
+   "unit": "rays",
+   "formula": "raycastBatch(rays)[i] = raycast(rays[i])",
+   "reference": 0,
+   "measured": 0,
+   "error": 0,
+   "relativeError": null,
+   "tolerance": {
+    "kind": "absolute",
+    "value": 0
+   },
+   "pass": true,
+   "note": "Boxes, spheres, capsules, hulls, a triangle mesh and a height field; static and moving bodies.",
+   "source": {
+    "file": "packages/box3d-kit/test/v22-rigid-queries.test.mjs",
+    "test": "raycastBatch: 4,096 rays in one call agree bit for bit with 4,096 single raycasts, on every shape kind",
+    "url": "https://github.com/nathansenn/box3d-WEBGPU/blob/main/packages/box3d-kit/test/v22-rigid-queries.test.mjs"
+   },
+   "text": {
+    "reference": "0 rays",
+    "measured": "0",
+    "error": "0",
+    "tolerance": "±0"
+   }
+  },
+  {
+   "id": "rigid-core.character.speed",
+   "domain": "rigid-core",
+   "title": "Character: speed on flat ground",
+   "quantity": "mean speed over 3 s of walking, commanded 3 m/s",
+   "unit": "m/s",
+   "formula": "v = commanded speed",
+   "reference": 3,
+   "measured": 2.99997807,
+   "error": -0.0000219345093,
+   "relativeError": -0.00000731150309,
+   "tolerance": {
+    "kind": "relative",
+    "value": 0.001
+   },
+   "pass": true,
+   "source": {
+    "file": "packages/box3d-kit/test/v22-rigid-character.test.mjs",
+    "test": "flat ground: the character walks at the commanded speed, stays grounded and keeps its feet on the floor",
+    "url": "https://github.com/nathansenn/box3d-WEBGPU/blob/main/packages/box3d-kit/test/v22-rigid-character.test.mjs"
+   },
+   "text": {
+    "reference": "3 m/s",
+    "measured": "2.999978",
+    "error": "-7.31e-6 rel.",
+    "tolerance": "±0.1%"
+   }
+  },
+  {
+   "id": "rigid-core.character.feet",
+   "domain": "rigid-core",
+   "title": "Character: feet on the floor",
+   "quantity": "highest position of the feet above the floor while walking",
+   "unit": "m",
+   "formula": "y = 0",
+   "reference": 0,
+   "measured": 1.59740448e-7,
+   "error": 1.59740448e-7,
+   "relativeError": null,
+   "tolerance": {
+    "kind": "absolute",
+    "value": 0.001
+   },
+   "pass": true,
+   "note": "The capsule rests one linear slop (5 mm) inside the floor; the reported feet height adds it back.",
+   "source": {
+    "file": "packages/box3d-kit/test/v22-rigid-character.test.mjs",
+    "test": "flat ground: the character walks at the commanded speed, stays grounded and keeps its feet on the floor",
+    "url": "https://github.com/nathansenn/box3d-WEBGPU/blob/main/packages/box3d-kit/test/v22-rigid-character.test.mjs"
+   },
+   "text": {
+    "reference": "0 m",
+    "measured": "1.597404e-7",
+    "error": "+1.6e-7",
+    "tolerance": "±0.001"
+   }
+  },
+  {
+   "id": "rigid-core.character.slope-climbed",
+   "domain": "rigid-core",
+   "title": "Character: steepest ramp climbed",
+   "quantity": "steepest ramp climbed with maxSlopeDegrees 45, scanned in 0.5 degree steps",
+   "unit": "deg",
+   "formula": "theta <= maxSlopeDegrees",
+   "reference": 45,
+   "measured": 44.5,
+   "error": -0.5,
+   "relativeError": -0.0111111111,
+   "tolerance": {
+    "kind": "absolute",
+    "value": 0.75
+   },
+   "pass": true,
+   "source": {
+    "file": "packages/box3d-kit/test/v22-rigid-character.test.mjs",
+    "test": "slope limit: ramps below maxSlopeDegrees are climbed at the commanded speed along the ramp, steeper ones are walls",
+    "url": "https://github.com/nathansenn/box3d-WEBGPU/blob/main/packages/box3d-kit/test/v22-rigid-character.test.mjs"
+   },
+   "text": {
+    "reference": "45 deg",
+    "measured": "44.5",
+    "error": "-0.5",
+    "tolerance": "±0.75"
+   }
+  },
+  {
+   "id": "rigid-core.character.slope-refused",
+   "domain": "rigid-core",
+   "title": "Character: shallowest ramp refused",
+   "quantity": "shallowest ramp not climbed with maxSlopeDegrees 45",
+   "unit": "deg",
+   "formula": "theta >= maxSlopeDegrees",
+   "reference": 45,
+   "measured": 45,
+   "error": 0,
+   "relativeError": 0,
+   "tolerance": {
+    "kind": "absolute",
+    "value": 0.75
+   },
+   "pass": true,
+   "source": {
+    "file": "packages/box3d-kit/test/v22-rigid-character.test.mjs",
+    "test": "slope limit: ramps below maxSlopeDegrees are climbed at the commanded speed along the ramp, steeper ones are walls",
+    "url": "https://github.com/nathansenn/box3d-WEBGPU/blob/main/packages/box3d-kit/test/v22-rigid-character.test.mjs"
+   },
+   "text": {
+    "reference": "45 deg",
+    "measured": "45",
+    "error": "0",
+    "tolerance": "±0.75"
+   }
+  },
+  {
+   "id": "rigid-core.character.slope-limit-30",
+   "domain": "rigid-core",
+   "title": "Character: steepest ramp climbed at a 30 degree limit",
+   "quantity": "steepest ramp climbed with maxSlopeDegrees 30",
+   "unit": "deg",
+   "formula": "theta <= maxSlopeDegrees",
+   "reference": 30,
+   "measured": 29.5,
+   "error": -0.5,
+   "relativeError": -0.0166666667,
+   "tolerance": {
+    "kind": "absolute",
+    "value": 0.75
+   },
+   "pass": true,
+   "source": {
+    "file": "packages/box3d-kit/test/v22-rigid-character.test.mjs",
+    "test": "slope limit: ramps below maxSlopeDegrees are climbed at the commanded speed along the ramp, steeper ones are walls",
+    "url": "https://github.com/nathansenn/box3d-WEBGPU/blob/main/packages/box3d-kit/test/v22-rigid-character.test.mjs"
+   },
+   "text": {
+    "reference": "30 deg",
+    "measured": "29.5",
+    "error": "-0.5",
+    "tolerance": "±0.75"
+   }
+  },
+  {
+   "id": "rigid-core.character.slope-speed",
+   "domain": "rigid-core",
+   "title": "Character: speed along a 42 degree ramp",
+   "quantity": "speed along the ramp, commanded 2 m/s",
+   "unit": "m/s",
+   "formula": "v = commanded speed, along the surface",
+   "reference": 2,
+   "measured": 1.9999813,
+   "error": -0.0000186977757,
+   "relativeError": -0.00000934888787,
+   "tolerance": {
+    "kind": "relative",
+    "value": 0.002
+   },
+   "pass": true,
+   "source": {
+    "file": "packages/box3d-kit/test/v22-rigid-character.test.mjs",
+    "test": "slope limit: ramps below maxSlopeDegrees are climbed at the commanded speed along the ramp, steeper ones are walls",
+    "url": "https://github.com/nathansenn/box3d-WEBGPU/blob/main/packages/box3d-kit/test/v22-rigid-character.test.mjs"
+   },
+   "text": {
+    "reference": "2 m/s",
+    "measured": "1.999981",
+    "error": "-9.35e-6 rel.",
+    "tolerance": "±0.2%"
+   }
+  },
+  {
+   "id": "rigid-core.character.step-climbed",
+   "domain": "rigid-core",
+   "title": "Character: tallest ledge stepped onto",
+   "quantity": "tallest ledge climbed with stepHeight 0.35 m, scanned in 5 mm steps",
+   "unit": "m",
+   "formula": "h <= stepHeight",
+   "reference": 0.35,
+   "measured": 0.35,
+   "error": 0,
+   "relativeError": 0,
+   "tolerance": {
+    "kind": "absolute",
+    "value": 0.006
+   },
+   "pass": true,
+   "source": {
+    "file": "packages/box3d-kit/test/v22-rigid-character.test.mjs",
+    "test": "step height: ledges up to stepHeight are stepped onto, taller ones block, and stairs are walked up and down",
+    "url": "https://github.com/nathansenn/box3d-WEBGPU/blob/main/packages/box3d-kit/test/v22-rigid-character.test.mjs"
+   },
+   "text": {
+    "reference": "0.35 m",
+    "measured": "0.35",
+    "error": "0",
+    "tolerance": "±0.006"
+   }
+  },
+  {
+   "id": "rigid-core.character.step-refused",
+   "domain": "rigid-core",
+   "title": "Character: lowest ledge refused",
+   "quantity": "lowest ledge not climbed with stepHeight 0.35 m",
+   "unit": "m",
+   "formula": "h > stepHeight",
+   "reference": 0.35,
+   "measured": 0.355,
+   "error": 0.005,
+   "relativeError": 0.0142857143,
+   "tolerance": {
+    "kind": "absolute",
+    "value": 0.011
+   },
+   "pass": true,
+   "source": {
+    "file": "packages/box3d-kit/test/v22-rigid-character.test.mjs",
+    "test": "step height: ledges up to stepHeight are stepped onto, taller ones block, and stairs are walked up and down",
+    "url": "https://github.com/nathansenn/box3d-WEBGPU/blob/main/packages/box3d-kit/test/v22-rigid-character.test.mjs"
+   },
+   "text": {
+    "reference": "0.35 m",
+    "measured": "0.355",
+    "error": "+0.005",
+    "tolerance": "±0.011"
+   }
+  },
+  {
+   "id": "rigid-core.character.step-limit-20",
+   "domain": "rigid-core",
+   "title": "Character: tallest ledge stepped onto at a 0.2 m step height",
+   "quantity": "tallest ledge climbed with stepHeight 0.2 m",
+   "unit": "m",
+   "formula": "h <= stepHeight",
+   "reference": 0.2,
+   "measured": 0.2,
+   "error": 0,
+   "relativeError": 0,
+   "tolerance": {
+    "kind": "absolute",
+    "value": 0.006
+   },
+   "pass": true,
+   "source": {
+    "file": "packages/box3d-kit/test/v22-rigid-character.test.mjs",
+    "test": "step height: ledges up to stepHeight are stepped onto, taller ones block, and stairs are walked up and down",
+    "url": "https://github.com/nathansenn/box3d-WEBGPU/blob/main/packages/box3d-kit/test/v22-rigid-character.test.mjs"
+   },
+   "text": {
+    "reference": "0.2 m",
+    "measured": "0.2",
+    "error": "0",
+    "tolerance": "±0.006"
+   }
+  },
+  {
+   "id": "rigid-core.character.stairs",
+   "domain": "rigid-core",
+   "title": "Character: top of a flight of stairs",
+   "quantity": "height reached on five stairs of 0.2 m",
+   "unit": "m",
+   "formula": "y = n rise",
+   "reference": 1,
+   "measured": 1.0000001,
+   "error": 1.00135803e-7,
+   "relativeError": 1.00135803e-7,
+   "tolerance": {
+    "kind": "absolute",
+    "value": 0.002
+   },
+   "pass": true,
+   "source": {
+    "file": "packages/box3d-kit/test/v22-rigid-character.test.mjs",
+    "test": "step height: ledges up to stepHeight are stepped onto, taller ones block, and stairs are walked up and down",
+    "url": "https://github.com/nathansenn/box3d-WEBGPU/blob/main/packages/box3d-kit/test/v22-rigid-character.test.mjs"
+   },
+   "text": {
+    "reference": "1 m",
+    "measured": "1",
+    "error": "+1e-7",
+    "tolerance": "±0.002"
+   }
+  },
+  {
+   "id": "rigid-core.character.stairs-down",
+   "domain": "rigid-core",
+   "title": "Character: grounded down the stairs",
+   "quantity": "steps of the way down five stairs spent in the air",
+   "unit": "steps",
+   "formula": "grounded on every step",
+   "reference": 0,
+   "measured": 0,
+   "error": 0,
+   "relativeError": null,
+   "tolerance": {
+    "kind": "absolute",
+    "value": 0
+   },
+   "pass": true,
+   "source": {
+    "file": "packages/box3d-kit/test/v22-rigid-character.test.mjs",
+    "test": "step height: ledges up to stepHeight are stepped onto, taller ones block, and stairs are walked up and down",
+    "url": "https://github.com/nathansenn/box3d-WEBGPU/blob/main/packages/box3d-kit/test/v22-rigid-character.test.mjs"
+   },
+   "text": {
+    "reference": "0 steps",
+    "measured": "0",
+    "error": "0",
+    "tolerance": "±0"
+   }
+  },
+  {
+   "id": "rigid-core.character.jump-apex",
+   "domain": "rigid-core",
+   "title": "Character: apex of a jump",
+   "quantity": "height gained by a 5 m/s jump",
+   "unit": "m",
+   "formula": "h = v^2 / (2 g)",
+   "reference": 1.27420999,
+   "measured": 1.2742008,
+   "error": -0.00000919272533,
+   "relativeError": -0.00000721445084,
+   "tolerance": {
+    "kind": "absolute",
+    "value": 0.001
+   },
+   "pass": true,
+   "note": "The vertical move of each step uses the mean of the speeds at its two ends, which is exact for constant gravity.",
+   "source": {
+    "file": "packages/box3d-kit/test/v22-rigid-character.test.mjs",
+    "test": "jump: the apex is v^2 / (2 g) and the flight lasts 2 v / g",
+    "url": "https://github.com/nathansenn/box3d-WEBGPU/blob/main/packages/box3d-kit/test/v22-rigid-character.test.mjs"
+   },
+   "text": {
+    "reference": "1.27421 m",
+    "measured": "1.274201",
+    "error": "-9.19e-6",
+    "tolerance": "±0.001"
+   }
+  },
+  {
+   "id": "rigid-core.character.jump-time",
+   "domain": "rigid-core",
+   "title": "Character: air time of a jump",
+   "quantity": "time from take-off to landing, 5 m/s jump",
+   "unit": "s",
+   "formula": "t = 2 v / g",
+   "reference": 1.01936799,
+   "measured": 1.01666667,
+   "error": -0.00270132518,
+   "relativeError": -0.00265,
+   "tolerance": {
+    "kind": "absolute",
+    "value": 0.00416666667
+   },
+   "pass": true,
+   "note": "Landing is detected at a step, so the time is known to one step (1/240 s).",
+   "source": {
+    "file": "packages/box3d-kit/test/v22-rigid-character.test.mjs",
+    "test": "jump: the apex is v^2 / (2 g) and the flight lasts 2 v / g",
+    "url": "https://github.com/nathansenn/box3d-WEBGPU/blob/main/packages/box3d-kit/test/v22-rigid-character.test.mjs"
+   },
+   "text": {
+    "reference": "1.019368 s",
+    "measured": "1.016667",
+    "error": "-0.0027",
+    "tolerance": "±0.004167"
+   }
+  },
+  {
+   "id": "rigid-core.character.thin-wall",
+   "domain": "rigid-core",
+   "title": "Character: a 1 cm wall at up to 300 m/s",
+   "quantity": "furthest the capsule got past the near face of the wall, at 10, 50, 100 and 300 m/s (60 Hz moves)",
+   "unit": "m",
+   "formula": "x <= linear slop",
+   "reference": 0.005,
+   "measured": 0.00500016212,
+   "error": 1.62124634e-7,
+   "relativeError": 0.0000324249267,
+   "tolerance": {
+    "kind": "upper",
+    "value": 0.0001
+   },
+   "pass": true,
+   "note": "At 300 m/s one move is 5 m, five hundred times the wall thickness. The mover casts every translation; it stops one linear slop inside the face.",
+   "source": {
+    "file": "packages/box3d-kit/test/v22-rigid-character.test.mjs",
+    "test": "thin walls: a 1 cm wall stops the character at 10 to 300 m/s, 5 m per step at the top speed",
+    "url": "https://github.com/nathansenn/box3d-WEBGPU/blob/main/packages/box3d-kit/test/v22-rigid-character.test.mjs"
+   },
+   "text": {
+    "reference": "0.005 m",
+    "measured": "0.005000162",
+    "error": "+1.62e-7",
+    "tolerance": "at most 0.0001 above the reference"
+   }
+  },
+  {
+   "id": "rigid-core.character.platform",
+   "domain": "rigid-core",
+   "title": "Character: carried by a moving platform",
+   "quantity": "speed of a standing character on a kinematic platform moving at 1.5 m/s along x",
+   "unit": "m/s",
+   "formula": "v = platform velocity",
+   "reference": 1.5,
+   "measured": 1.49998897,
+   "error": -0.0000110268593,
+   "relativeError": -0.00000735123952,
+   "tolerance": {
+    "kind": "relative",
+    "value": 0.001
+   },
+   "pass": true,
+   "source": {
+    "file": "packages/box3d-kit/test/v22-rigid-character.test.mjs",
+    "test": "moving platforms: a standing character takes the velocity of the kinematic body under it, sideways and upwards",
+    "url": "https://github.com/nathansenn/box3d-WEBGPU/blob/main/packages/box3d-kit/test/v22-rigid-character.test.mjs"
+   },
+   "text": {
+    "reference": "1.5 m/s",
+    "measured": "1.499989",
+    "error": "-7.35e-6 rel.",
+    "tolerance": "±0.1%"
+   }
+  },
+  {
+   "id": "rigid-core.character.elevator",
+   "domain": "rigid-core",
+   "title": "Character: lifted by a rising platform",
+   "quantity": "height gained in 2 s on a platform rising at 1 m/s",
+   "unit": "m",
+   "formula": "dy = v t",
+   "reference": 1.99999094,
+   "measured": 1.99999118,
+   "error": 2.38418579e-7,
+   "relativeError": 1.1920983e-7,
+   "tolerance": {
+    "kind": "relative",
+    "value": 0.001
+   },
+   "pass": true,
+   "source": {
+    "file": "packages/box3d-kit/test/v22-rigid-character.test.mjs",
+    "test": "moving platforms: a standing character takes the velocity of the kinematic body under it, sideways and upwards",
+    "url": "https://github.com/nathansenn/box3d-WEBGPU/blob/main/packages/box3d-kit/test/v22-rigid-character.test.mjs"
+   },
+   "text": {
+    "reference": "1.999991 m",
+    "measured": "1.999991",
+    "error": "+1.19e-7 rel.",
+    "tolerance": "±0.1%"
+   }
+  },
+  {
+   "id": "rigid-core.character.push-light",
+   "domain": "rigid-core",
+   "title": "Character: pushing a box below the force limit",
+   "quantity": "speed of a box of half the limit mass, pushed by a character walking at 1.5 m/s",
+   "unit": "m/s",
+   "formula": "v = walking speed, for m < F / (mu g)",
+   "reference": 1.5,
+   "measured": 1.48726583,
+   "error": -0.0127341747,
+   "relativeError": -0.00848944982,
+   "tolerance": {
+    "kind": "relative",
+    "value": 0.02
+   },
+   "pass": true,
+   "note": "maxPushForce 400 N, friction 0.5: the limit mass is 81.5 kg. Friction slows the box by mu g dt each step before the next push, hence the 0.9% lag.",
+   "source": {
+    "file": "packages/box3d-kit/test/v22-rigid-character.test.mjs",
+    "test": "pushing: a box lighter than maxPushForce / (mu g) is pushed at walking speed, a heavier one stops the character",
+    "url": "https://github.com/nathansenn/box3d-WEBGPU/blob/main/packages/box3d-kit/test/v22-rigid-character.test.mjs"
+   },
+   "text": {
+    "reference": "1.5 m/s",
+    "measured": "1.487266",
+    "error": "-0.849%",
+    "tolerance": "±2%"
+   }
+  },
+  {
+   "id": "rigid-core.character.push-heavy",
+   "domain": "rigid-core",
+   "title": "Character: stopped by a box above the force limit",
+   "quantity": "speed of a box of twice the limit mass under the same push",
+   "unit": "m/s",
+   "formula": "v = 0, for m > F / (mu g)",
+   "reference": 0,
+   "measured": 0.0012588501,
+   "error": 0.0012588501,
+   "relativeError": null,
+   "tolerance": {
+    "kind": "absolute",
+    "value": 0.015
+   },
+   "pass": true,
+   "source": {
+    "file": "packages/box3d-kit/test/v22-rigid-character.test.mjs",
+    "test": "pushing: a box lighter than maxPushForce / (mu g) is pushed at walking speed, a heavier one stops the character",
+    "url": "https://github.com/nathansenn/box3d-WEBGPU/blob/main/packages/box3d-kit/test/v22-rigid-character.test.mjs"
+   },
+   "text": {
+    "reference": "0 m/s",
+    "measured": "0.00125885",
+    "error": "+0.00126",
+    "tolerance": "±0.015"
+   }
+  },
+  {
+   "id": "rigid-core.character.checkpoint",
+   "domain": "rigid-core",
+   "title": "Character: exact resume from a checkpoint",
+   "quantity": "steps of 1,150 after a restore that differ in any bit (world hash, character position, ground)",
+   "unit": "steps",
+   "formula": "restored run = uninterrupted run",
+   "reference": 0,
+   "measured": 0,
+   "error": 0,
+   "relativeError": null,
+   "tolerance": {
+    "kind": "absolute",
+    "value": 0
+   },
+   "pass": true,
+   "source": {
+    "file": "packages/box3d-kit/test/v22-rigid-character.test.mjs",
+    "test": "checkpoint: the world checkpoint and the character state resume a walk bit for bit (a step, a platform ride, a jump, pushing)",
+    "url": "https://github.com/nathansenn/box3d-WEBGPU/blob/main/packages/box3d-kit/test/v22-rigid-character.test.mjs"
+   },
+   "text": {
+    "reference": "0 steps",
+    "measured": "0",
+    "error": "0",
+    "tolerance": "±0"
+   }
+  },
+  {
+   "id": "rigid-core.ccd.wall-on",
+   "domain": "rigid-core",
+   "title": "Continuous collision on: balls through a thin wall",
+   "quantity": "5 cm balls of 120 that end beyond a 2 cm static wall, 15 to 240 m/s at 60 Hz (0.25 to 4 m per step)",
+   "unit": "balls",
+   "formula": "none passes",
+   "reference": 0,
+   "measured": 0,
+   "error": 0,
+   "relativeError": null,
+   "tolerance": {
+    "kind": "absolute",
+    "value": 0
+   },
+   "pass": true,
+   "source": {
+    "file": "packages/box3d-kit/test/v22-rigid-ccd.test.mjs",
+    "test": "a 5 cm ball against a 2 cm wall at 60 Hz: discrete stepping loses the shots the window model predicts, continuous collision loses none",
+    "url": "https://github.com/nathansenn/box3d-WEBGPU/blob/main/packages/box3d-kit/test/v22-rigid-ccd.test.mjs"
+   },
+   "text": {
+    "reference": "0 balls",
+    "measured": "0",
+    "error": "0",
+    "tolerance": "±0"
+   }
+  },
+  {
+   "id": "rigid-core.ccd.wall-off",
+   "domain": "rigid-core",
+   "title": "Continuous collision off: balls through the same wall",
+   "quantity": "balls of 120 that end beyond the wall with the setting off",
+   "unit": "balls",
+   "formula": "N = sum over speeds of 24 (1 - (r + margin + thickness / 2) / (v dt)), margin = 4 linear slops",
+   "reference": 110,
+   "measured": 110,
+   "error": 0,
+   "relativeError": 0,
+   "tolerance": {
+    "kind": "absolute",
+    "value": 3
+   },
+   "pass": true,
+   "note": "A discrete step stops the ball only if it ends with the centre between r + 2 cm before the near face (Box3D makes contacts 2 cm ahead) and the wall mid-plane. The start positions are spread evenly over one step of travel.",
+   "source": {
+    "file": "packages/box3d-kit/test/v22-rigid-ccd.test.mjs",
+    "test": "a 5 cm ball against a 2 cm wall at 60 Hz: discrete stepping loses the shots the window model predicts, continuous collision loses none",
+    "url": "https://github.com/nathansenn/box3d-WEBGPU/blob/main/packages/box3d-kit/test/v22-rigid-ccd.test.mjs"
+   },
+   "text": {
+    "reference": "110 balls",
+    "measured": "110",
+    "error": "0",
+    "tolerance": "±3"
+   }
+  },
+  {
+   "id": "rigid-core.ccd.bullet",
+   "domain": "rigid-core",
+   "title": "Bullet against a free plate: common speed",
+   "quantity": "speed of plate and ball after a 0.88 kg ball at 150 m/s hits a 160 kg plate, 2 cm thick (2.5 m per step)",
+   "unit": "m/s",
+   "formula": "v = m u / (m + M), no restitution",
+   "reference": 0.822489489,
+   "measured": 0.82248956,
+   "error": 7.04816905e-8,
+   "relativeError": 8.569312e-8,
+   "tolerance": {
+    "kind": "relative",
+    "value": 0.001
+   },
+   "pass": true,
+   "source": {
+    "file": "packages/box3d-kit/test/v22-rigid-ccd.test.mjs",
+    "test": "the bullet flag: a ball passes through a thin free plate without it and is stopped with it, and momentum is conserved",
+    "url": "https://github.com/nathansenn/box3d-WEBGPU/blob/main/packages/box3d-kit/test/v22-rigid-ccd.test.mjs"
+   },
+   "text": {
+    "reference": "0.8224895 m/s",
+    "measured": "0.8224896",
+    "error": "+8.57e-8 rel.",
+    "tolerance": "±0.1%"
+   }
+  },
+  {
+   "id": "rigid-core.ccd.bullet-momentum",
+   "domain": "rigid-core",
+   "title": "Bullet against a free plate: momentum",
+   "quantity": "total momentum after the impact",
+   "unit": "kg m/s",
+   "formula": "p = m u",
+   "reference": 132.323885,
+   "measured": 132.323896,
+   "error": 0.0000112866658,
+   "relativeError": 8.52957557e-8,
+   "tolerance": {
+    "kind": "relative",
+    "value": 0.0001
+   },
+   "pass": true,
+   "source": {
+    "file": "packages/box3d-kit/test/v22-rigid-ccd.test.mjs",
+    "test": "the bullet flag: a ball passes through a thin free plate without it and is stopped with it, and momentum is conserved",
+    "url": "https://github.com/nathansenn/box3d-WEBGPU/blob/main/packages/box3d-kit/test/v22-rigid-ccd.test.mjs"
+   },
+   "text": {
+    "reference": "132.3239 kg m/s",
+    "measured": "132.3239",
+    "error": "+8.53e-8 rel.",
+    "tolerance": "±0.01%"
+   }
+  },
+  {
+   "id": "rigid-core.ccd.no-bullet",
+   "domain": "rigid-core",
+   "title": "Without the bullet flag the ball passes the free plate",
+   "quantity": "speed of the plate after the same shot without the flag",
+   "unit": "m/s",
+   "formula": "v = 0 (the ball is never in contact)",
+   "reference": 0,
+   "measured": 0,
+   "error": 0,
+   "relativeError": null,
+   "tolerance": {
+    "kind": "absolute",
+    "value": 0.000001
+   },
+   "pass": true,
+   "note": "Continuous collision covers dynamic bodies against static ones. Between two moving bodies it runs only when one is a bullet.",
+   "source": {
+    "file": "packages/box3d-kit/test/v22-rigid-ccd.test.mjs",
+    "test": "the bullet flag: a ball passes through a thin free plate without it and is stopped with it, and momentum is conserved",
+    "url": "https://github.com/nathansenn/box3d-WEBGPU/blob/main/packages/box3d-kit/test/v22-rigid-ccd.test.mjs"
+   },
+   "text": {
+    "reference": "0 m/s",
+    "measured": "0",
+    "error": "0",
+    "tolerance": "±1e-6"
+   }
+  },
+  {
+   "id": "rigid-core.vehicle.sag",
+   "domain": "rigid-core",
+   "title": "Vehicle: static sag",
+   "quantity": "spring compression of a 1,200 kg chassis on four 60 kN/m springs",
+   "unit": "m",
+   "formula": "s = M g / (4 k)",
+   "reference": 0.04905,
+   "measured": 0.0490501598,
+   "error": 1.59752369e-7,
+   "relativeError": 0.00000325692903,
+   "tolerance": {
+    "kind": "relative",
+    "value": 0.001
+   },
+   "pass": true,
+   "source": {
+    "file": "packages/box3d-kit/test/v22-rigid-vehicle.test.mjs",
+    "test": "static sag: each spring is compressed by its wheel load over the stiffness, M g / (4 k), and by the axle loads when the centre of mass is forward",
+    "url": "https://github.com/nathansenn/box3d-WEBGPU/blob/main/packages/box3d-kit/test/v22-rigid-vehicle.test.mjs"
+   },
+   "text": {
+    "reference": "0.04905 m",
+    "measured": "0.04905016",
+    "error": "+3.26e-6 rel.",
+    "tolerance": "±0.1%"
+   }
+  },
+  {
+   "id": "rigid-core.vehicle.sag-front",
+   "domain": "rigid-core",
+   "title": "Vehicle: front sag with the centre of mass 0.4 m forward",
+   "quantity": "front spring compression, wheelbase 2.6 m",
+   "unit": "m",
+   "formula": "s = M g (1/2 + x / L) / (2 k)",
+   "reference": 0.0641423077,
+   "measured": 0.0642194748,
+   "error": 0.0000771671002,
+   "relativeError": 0.00120306086,
+   "tolerance": {
+    "kind": "relative",
+    "value": 0.005
+   },
+   "pass": true,
+   "note": "The chassis pitches by 0.012 rad, which the statics of the formula leave out.",
+   "source": {
+    "file": "packages/box3d-kit/test/v22-rigid-vehicle.test.mjs",
+    "test": "static sag: each spring is compressed by its wheel load over the stiffness, M g / (4 k), and by the axle loads when the centre of mass is forward",
+    "url": "https://github.com/nathansenn/box3d-WEBGPU/blob/main/packages/box3d-kit/test/v22-rigid-vehicle.test.mjs"
+   },
+   "text": {
+    "reference": "0.06414231 m",
+    "measured": "0.06421947",
+    "error": "+0.12%",
+    "tolerance": "±0.5%"
+   }
+  },
+  {
+   "id": "rigid-core.vehicle.sag-rear",
+   "domain": "rigid-core",
+   "title": "Vehicle: rear sag with the centre of mass 0.4 m forward",
+   "quantity": "rear spring compression",
+   "unit": "m",
+   "formula": "s = M g (1/2 - x / L) / (2 k)",
+   "reference": 0.0339576923,
+   "measured": 0.0338609964,
+   "error": -0.0000966959421,
+   "relativeError": -0.00284754162,
+   "tolerance": {
+    "kind": "relative",
+    "value": 0.005
+   },
+   "pass": true,
+   "source": {
+    "file": "packages/box3d-kit/test/v22-rigid-vehicle.test.mjs",
+    "test": "static sag: each spring is compressed by its wheel load over the stiffness, M g / (4 k), and by the axle loads when the centre of mass is forward",
+    "url": "https://github.com/nathansenn/box3d-WEBGPU/blob/main/packages/box3d-kit/test/v22-rigid-vehicle.test.mjs"
+   },
+   "text": {
+    "reference": "0.03395769 m",
+    "measured": "0.033861",
+    "error": "-0.285%",
+    "tolerance": "±0.5%"
+   }
+  },
+  {
+   "id": "rigid-core.vehicle.heave",
+   "domain": "rigid-core",
+   "title": "Vehicle: heave frequency",
+   "quantity": "bounce frequency of a 1,200 kg chassis on four undamped 60 kN/m springs",
+   "unit": "Hz",
+   "formula": "f = sqrt(4 k / M) / (2 pi)",
+   "reference": 2.25079079,
+   "measured": 2.2331525,
+   "error": -0.0176382911,
+   "relativeError": -0.00783648628,
+   "tolerance": {
+    "kind": "relative",
+    "value": 0.015
+   },
+   "pass": true,
+   "note": "The tyre contact is a stiff spring in series with the suspension (Box3D contacts are soft constraints), which lowers the frequency by 0.8% here.",
+   "source": {
+    "file": "packages/box3d-kit/test/v22-rigid-vehicle.test.mjs",
+    "test": "heave: the chassis bounces at sqrt(4 k / M) / (2 pi), and dampers give zeta = 4 c / (2 sqrt(4 k M))",
+    "url": "https://github.com/nathansenn/box3d-WEBGPU/blob/main/packages/box3d-kit/test/v22-rigid-vehicle.test.mjs"
+   },
+   "text": {
+    "reference": "2.250791 Hz",
+    "measured": "2.233153",
+    "error": "-0.784%",
+    "tolerance": "±1.5%"
+   }
+  },
+  {
+   "id": "rigid-core.vehicle.heave-soft",
+   "domain": "rigid-core",
+   "title": "Vehicle: heave frequency of a soft car",
+   "quantity": "bounce frequency of an 800 kg chassis on four undamped 20 kN/m springs",
+   "unit": "Hz",
+   "formula": "f = sqrt(4 k / M) / (2 pi)",
+   "reference": 1.59154943,
+   "measured": 1.58901636,
+   "error": -0.00253307137,
+   "relativeError": -0.00159157568,
+   "tolerance": {
+    "kind": "relative",
+    "value": 0.015
+   },
+   "pass": true,
+   "source": {
+    "file": "packages/box3d-kit/test/v22-rigid-vehicle.test.mjs",
+    "test": "heave: the chassis bounces at sqrt(4 k / M) / (2 pi), and dampers give zeta = 4 c / (2 sqrt(4 k M))",
+    "url": "https://github.com/nathansenn/box3d-WEBGPU/blob/main/packages/box3d-kit/test/v22-rigid-vehicle.test.mjs"
+   },
+   "text": {
+    "reference": "1.591549 Hz",
+    "measured": "1.589016",
+    "error": "-0.159%",
+    "tolerance": "±1.5%"
+   }
+  },
+  {
+   "id": "rigid-core.vehicle.damping",
+   "domain": "rigid-core",
+   "title": "Vehicle: suspension damping ratio",
+   "quantity": "damping ratio of the bounce with four 2 kN s/m dampers, from the logarithmic decrement",
+   "unit": "1",
+   "formula": "zeta = 4 c / (2 sqrt(4 k M))",
+   "reference": 0.23570226,
+   "measured": 0.247156534,
+   "error": 0.0114542731,
+   "relativeError": 0.0485963652,
+   "tolerance": {
+    "kind": "absolute",
+    "value": 0.02
+   },
+   "pass": true,
+   "note": "The implicit integration of the spring adds a damping ratio of about 0.018 at 240 Hz with 4 sub-steps (measured with the dampers at zero).",
+   "source": {
+    "file": "packages/box3d-kit/test/v22-rigid-vehicle.test.mjs",
+    "test": "heave: the chassis bounces at sqrt(4 k / M) / (2 pi), and dampers give zeta = 4 c / (2 sqrt(4 k M))",
+    "url": "https://github.com/nathansenn/box3d-WEBGPU/blob/main/packages/box3d-kit/test/v22-rigid-vehicle.test.mjs"
+   },
+   "text": {
+    "reference": "0.2357023",
+    "measured": "0.2471565",
+    "error": "+0.0115",
+    "tolerance": "±0.02"
+   }
+  },
+  {
+   "id": "rigid-core.vehicle.top-speed",
+   "domain": "rigid-core",
+   "title": "Vehicle: top speed against drag",
+   "quantity": "steady speed with 40 N m on each of four wheels, CdA = 1.2 m^2 (approached from below)",
+   "unit": "m/s",
+   "formula": "v = sqrt(8 tau / (R rho CdA))",
+   "reference": 24.9391875,
+   "measured": 24.9879977,
+   "error": 0.048810292,
+   "relativeError": 0.00195717251,
+   "tolerance": {
+    "kind": "relative",
+    "value": 0.01
+   },
+   "pass": true,
+   "note": "The wheels roll on a slightly smaller radius than R (the contact sinks by millimetres), so the thrust tau / R is a little higher and the speed 0.2% to 0.4% above the formula.",
+   "source": {
+    "file": "packages/box3d-kit/test/v22-rigid-vehicle.test.mjs",
+    "test": "top speed: drive torque against drag balances at sqrt(8 tau / (R rho CdA)), approached from below and from above",
+    "url": "https://github.com/nathansenn/box3d-WEBGPU/blob/main/packages/box3d-kit/test/v22-rigid-vehicle.test.mjs"
+   },
+   "text": {
+    "reference": "24.93919 m/s",
+    "measured": "24.988",
+    "error": "+0.196%",
+    "tolerance": "±1%"
+   }
+  },
+  {
+   "id": "rigid-core.vehicle.top-speed-above",
+   "domain": "rigid-core",
+   "title": "Vehicle: top speed, approached from above",
+   "quantity": "the same car started 5% above the balance speed, after 45 s",
+   "unit": "m/s",
+   "formula": "v = sqrt(8 tau / (R rho CdA))",
+   "reference": 24.9391875,
+   "measured": 25.0127783,
+   "error": 0.0735908244,
+   "relativeError": 0.00295081083,
+   "tolerance": {
+    "kind": "relative",
+    "value": 0.01
+   },
+   "pass": true,
+   "source": {
+    "file": "packages/box3d-kit/test/v22-rigid-vehicle.test.mjs",
+    "test": "top speed: drive torque against drag balances at sqrt(8 tau / (R rho CdA)), approached from below and from above",
+    "url": "https://github.com/nathansenn/box3d-WEBGPU/blob/main/packages/box3d-kit/test/v22-rigid-vehicle.test.mjs"
+   },
+   "text": {
+    "reference": "24.93919 m/s",
+    "measured": "25.01278",
+    "error": "+0.295%",
+    "tolerance": "±1%"
+   }
+  },
+  {
+   "id": "rigid-core.vehicle.turning",
+   "domain": "rigid-core",
+   "title": "Vehicle: turning radius",
+   "quantity": "radius of the rear axle path at 3 m/s with a 0.25 rad bicycle angle, wheelbase 2.6 m (speed over yaw rate)",
+   "unit": "m",
+   "formula": "R = L / tan(delta)",
+   "reference": 10.1824251,
+   "measured": 10.1849409,
+   "error": 0.00251573365,
+   "relativeError": 0.000247066255,
+   "tolerance": {
+    "kind": "relative",
+    "value": 0.01
+   },
+   "pass": true,
+   "note": "Lateral acceleration 0.88 m/s^2; at higher speeds the tyres slip and the circle widens.",
+   "source": {
+    "file": "packages/box3d-kit/test/v22-rigid-vehicle.test.mjs",
+    "test": "turning circle: at low speed the rear axle turns about L / tan(delta), with Ackermann angles on the front wheels",
+    "url": "https://github.com/nathansenn/box3d-WEBGPU/blob/main/packages/box3d-kit/test/v22-rigid-vehicle.test.mjs"
+   },
+   "text": {
+    "reference": "10.18243 m",
+    "measured": "10.18494",
+    "error": "+0.0247%",
+    "tolerance": "±1%"
+   }
+  },
+  {
+   "id": "rigid-core.vehicle.turning-path",
+   "domain": "rigid-core",
+   "title": "Vehicle: turning radius of the path",
+   "quantity": "radius of the circle fitted to the rear axle path over 20 s",
+   "unit": "m",
+   "formula": "R = L / tan(delta)",
+   "reference": 10.1824251,
+   "measured": 10.1847382,
+   "error": 0.00231307536,
+   "relativeError": 0.000227163503,
+   "tolerance": {
+    "kind": "relative",
+    "value": 0.01
+   },
+   "pass": true,
+   "source": {
+    "file": "packages/box3d-kit/test/v22-rigid-vehicle.test.mjs",
+    "test": "turning circle: at low speed the rear axle turns about L / tan(delta), with Ackermann angles on the front wheels",
+    "url": "https://github.com/nathansenn/box3d-WEBGPU/blob/main/packages/box3d-kit/test/v22-rigid-vehicle.test.mjs"
+   },
+   "text": {
+    "reference": "10.18243 m",
+    "measured": "10.18474",
+    "error": "+0.0227%",
+    "tolerance": "±1%"
+   }
+  },
+  {
+   "id": "rigid-core.vehicle.ackermann",
+   "domain": "rigid-core",
+   "title": "Vehicle: inner wheel angle",
+   "quantity": "steering angle of the inner front wheel, track 1.6 m",
+   "unit": "rad",
+   "formula": "atan(L / (L / tan(delta) - T / 2))",
+   "reference": 0.270330381,
+   "measured": 0.270291775,
+   "error": -0.0000386053636,
+   "relativeError": -0.000142808084,
+   "tolerance": {
+    "kind": "absolute",
+    "value": 0.002
+   },
+   "pass": true,
+   "source": {
+    "file": "packages/box3d-kit/test/v22-rigid-vehicle.test.mjs",
+    "test": "turning circle: at low speed the rear axle turns about L / tan(delta), with Ackermann angles on the front wheels",
+    "url": "https://github.com/nathansenn/box3d-WEBGPU/blob/main/packages/box3d-kit/test/v22-rigid-vehicle.test.mjs"
+   },
+   "text": {
+    "reference": "0.2703304 rad",
+    "measured": "0.2702918",
+    "error": "-3.86e-5",
+    "tolerance": "±0.002"
+   }
+  },
+  {
+   "id": "rigid-core.vehicle.braking",
+   "domain": "rigid-core",
+   "title": "Vehicle: braking distance with locked wheels",
+   "quantity": "stopping distance from 20 m/s on a road of friction 0.8",
+   "unit": "m",
+   "formula": "d = v^2 / (2 mu g)",
+   "reference": 25.4738716,
+   "measured": 25.421041,
+   "error": -0.052830631,
+   "relativeError": -0.00207391447,
+   "tolerance": {
+    "kind": "relative",
+    "value": 0.01
+   },
+   "pass": true,
+   "source": {
+    "file": "packages/box3d-kit/test/v22-rigid-vehicle.test.mjs",
+    "test": "braking: with locked wheels the car stops in v^2 / (2 mu g)",
+    "url": "https://github.com/nathansenn/box3d-WEBGPU/blob/main/packages/box3d-kit/test/v22-rigid-vehicle.test.mjs"
+   },
+   "text": {
+    "reference": "25.47387 m",
+    "measured": "25.42104",
+    "error": "-0.207%",
+    "tolerance": "±1%"
+   }
+  },
+  {
+   "id": "rigid-core.vehicle.checkpoint",
+   "domain": "rigid-core",
+   "title": "Vehicle: exact resume from a checkpoint",
+   "quantity": "steps of 1,500 of a drive over a height field that differ in any bit after a restore",
+   "unit": "steps",
+   "formula": "restored run = uninterrupted run",
+   "reference": 0,
+   "measured": 0,
+   "error": 0,
+   "relativeError": null,
+   "tolerance": {
+    "kind": "absolute",
+    "value": 0
+   },
+   "pass": true,
+   "source": {
+    "file": "packages/box3d-kit/test/v22-rigid-vehicle.test.mjs",
+    "test": "terrain and checkpoints: a drive over a height field stays upright, and the world checkpoint with the vehicle state resumes it bit for bit",
+    "url": "https://github.com/nathansenn/box3d-WEBGPU/blob/main/packages/box3d-kit/test/v22-rigid-vehicle.test.mjs"
+   },
+   "text": {
+    "reference": "0 steps",
+    "measured": "0",
+    "error": "0",
+    "tolerance": "±0"
+   }
+  },
+  {
+   "id": "rigid-core.joint.break-force",
+   "domain": "rigid-core",
+   "title": "Breakable weld: breaking force",
+   "quantity": "load on a weld (weight plus a force growing at 60 N/s) in the step it broke, threshold 500 N",
+   "unit": "N",
+   "formula": "F = force threshold",
+   "reference": 500,
+   "measured": 500.35,
+   "error": 0.35,
+   "relativeError": 0.0007,
+   "tolerance": {
+    "kind": "absolute",
+    "value": 0.75
+   },
+   "pass": true,
+   "note": "The load grows by 0.25 N per step; the weld breaks in the first step in which the solver sees the threshold reached.",
+   "source": {
+    "file": "packages/box3d-kit/test/v22-rigid-joints.test.mjs",
+    "test": "a breakable weld breaks when the force, or the torque, it carries reaches its threshold",
+    "url": "https://github.com/nathansenn/box3d-WEBGPU/blob/main/packages/box3d-kit/test/v22-rigid-joints.test.mjs"
+   },
+   "text": {
+    "reference": "500 N",
+    "measured": "500.35",
+    "error": "+0.35",
+    "tolerance": "±0.75"
+   }
+  },
+  {
+   "id": "rigid-core.joint.break-force-held",
+   "domain": "rigid-core",
+   "title": "Breakable weld: whole below the threshold",
+   "quantity": "load the weld carried one step before it broke",
+   "unit": "N",
+   "formula": "F < force threshold + two ramp steps",
+   "reference": 500,
+   "measured": 500.1,
+   "error": 0.1,
+   "relativeError": 0.0002,
+   "tolerance": {
+    "kind": "upper",
+    "value": 0.5
+   },
+   "pass": true,
+   "source": {
+    "file": "packages/box3d-kit/test/v22-rigid-joints.test.mjs",
+    "test": "a breakable weld breaks when the force, or the torque, it carries reaches its threshold",
+    "url": "https://github.com/nathansenn/box3d-WEBGPU/blob/main/packages/box3d-kit/test/v22-rigid-joints.test.mjs"
+   },
+   "text": {
+    "reference": "500 N",
+    "measured": "500.1",
+    "error": "+0.1",
+    "tolerance": "at most 0.5 above the reference"
+   }
+  },
+  {
+   "id": "rigid-core.joint.break-torque",
+   "domain": "rigid-core",
+   "title": "Breakable weld: breaking torque",
+   "quantity": "moment about a weld holding a block 0.5 m to the side, in the step it broke, threshold 100 N m",
+   "unit": "N m",
+   "formula": "M = (m g + F) a = torque threshold",
+   "reference": 100,
+   "measured": 100.05,
+   "error": 0.05,
+   "relativeError": 0.0005,
+   "tolerance": {
+    "kind": "absolute",
+    "value": 0.375
+   },
+   "pass": true,
+   "source": {
+    "file": "packages/box3d-kit/test/v22-rigid-joints.test.mjs",
+    "test": "a breakable weld breaks when the force, or the torque, it carries reaches its threshold",
+    "url": "https://github.com/nathansenn/box3d-WEBGPU/blob/main/packages/box3d-kit/test/v22-rigid-joints.test.mjs"
+   },
+   "text": {
+    "reference": "100 N m",
+    "measured": "100.05",
+    "error": "+0.05",
+    "tolerance": "±0.375"
+   }
+  },
+  {
+   "id": "rigid-core.joint.reaction",
+   "domain": "rigid-core",
+   "title": "Weld: reported reaction force",
+   "quantity": "force the weld reports one step before it broke, against the load it carried",
+   "unit": "N",
+   "formula": "F = m g + applied force",
+   "reference": 500.1,
+   "measured": 500.100037,
+   "error": 0.0000366210937,
+   "relativeError": 7.32275419e-8,
+   "tolerance": {
+    "kind": "relative",
+    "value": 0.002
+   },
+   "pass": true,
+   "source": {
+    "file": "packages/box3d-kit/test/v22-rigid-joints.test.mjs",
+    "test": "a breakable weld breaks when the force, or the torque, it carries reaches its threshold",
+    "url": "https://github.com/nathansenn/box3d-WEBGPU/blob/main/packages/box3d-kit/test/v22-rigid-joints.test.mjs"
+   },
+   "text": {
+    "reference": "500.1 N",
+    "measured": "500.1",
+    "error": "+7.32e-8 rel.",
+    "tolerance": "±0.2%"
+   }
+  },
+  {
+   "id": "rigid-core.joint.overload-events",
+   "domain": "rigid-core",
+   "title": "Joint events: one per step over the threshold",
+   "quantity": "joint-overload events while a weld carries 2.5 weights against a threshold of 2 for 120 steps",
+   "unit": "events",
+   "formula": "N = steps over the threshold",
+   "reference": 120,
+   "measured": 120,
+   "error": 0,
+   "relativeError": 0,
+   "tolerance": {
+    "kind": "absolute",
+    "value": 0
+   },
+   "pass": true,
+   "source": {
+    "file": "packages/box3d-kit/test/v22-rigid-joints.test.mjs",
+    "test": "a threshold without `breakable` reports joint-overload in every step it is exceeded, and the joint stays",
+    "url": "https://github.com/nathansenn/box3d-WEBGPU/blob/main/packages/box3d-kit/test/v22-rigid-joints.test.mjs"
+   },
+   "text": {
+    "reference": "120 events",
+    "measured": "120",
+    "error": "0",
+    "tolerance": "±0"
+   }
+  },
+  {
+   "id": "rigid-core.joint.overload-quiet",
+   "domain": "rigid-core",
+   "title": "Joint events: none below the threshold",
+   "quantity": "joint-overload events in the 240 steps the weld carries one weight",
+   "unit": "events",
+   "formula": "N = 0",
+   "reference": 0,
+   "measured": 0,
+   "error": 0,
+   "relativeError": null,
+   "tolerance": {
+    "kind": "absolute",
+    "value": 0
+   },
+   "pass": true,
+   "source": {
+    "file": "packages/box3d-kit/test/v22-rigid-joints.test.mjs",
+    "test": "a threshold without `breakable` reports joint-overload in every step it is exceeded, and the joint stays",
+    "url": "https://github.com/nathansenn/box3d-WEBGPU/blob/main/packages/box3d-kit/test/v22-rigid-joints.test.mjs"
+   },
+   "text": {
+    "reference": "0 events",
+    "measured": "0",
+    "error": "0",
+    "tolerance": "±0"
+   }
+  },
+  {
+   "id": "rigid-core.joint.motor-ramp",
+   "domain": "rigid-core",
+   "title": "Motor joint: time to reach the velocity target",
+   "quantity": "time for a 65 kg body to reach 3 m/s under a 200 N velocity drive",
+   "unit": "s",
+   "formula": "t = m v / F",
+   "reference": 0.98174778,
+   "measured": 0.983333333,
+   "error": 0.00158555349,
+   "relativeError": 0.0016150314,
+   "tolerance": {
+    "kind": "absolute",
+    "value": 0.00833333333
+   },
+   "pass": true,
+   "source": {
+    "file": "packages/box3d-kit/test/v22-rigid-joints.test.mjs",
+    "test": "motor joint: velocity drives ramp at F / m and torque / I and hold their targets; springs oscillate at their frequency",
+    "url": "https://github.com/nathansenn/box3d-WEBGPU/blob/main/packages/box3d-kit/test/v22-rigid-joints.test.mjs"
+   },
+   "text": {
+    "reference": "0.9817478 s",
+    "measured": "0.9833333",
+    "error": "+0.00159",
+    "tolerance": "±0.008333"
+   }
+  },
+  {
+   "id": "rigid-core.joint.motor-speed",
+   "domain": "rigid-core",
+   "title": "Motor joint: held velocity",
+   "quantity": "speed 3 s after the target was reached",
+   "unit": "m/s",
+   "formula": "v = target",
+   "reference": 3,
+   "measured": 3,
+   "error": 0,
+   "relativeError": 0,
+   "tolerance": {
+    "kind": "relative",
+    "value": 0.0001
+   },
+   "pass": true,
+   "source": {
+    "file": "packages/box3d-kit/test/v22-rigid-joints.test.mjs",
+    "test": "motor joint: velocity drives ramp at F / m and torque / I and hold their targets; springs oscillate at their frequency",
+    "url": "https://github.com/nathansenn/box3d-WEBGPU/blob/main/packages/box3d-kit/test/v22-rigid-joints.test.mjs"
+   },
+   "text": {
+    "reference": "3 m/s",
+    "measured": "3",
+    "error": "0%",
+    "tolerance": "±0.01%"
+   }
+  },
+  {
+   "id": "rigid-core.joint.motor-spin",
+   "domain": "rigid-core",
+   "title": "Motor joint: time to reach the spin target",
+   "quantity": "time for a sphere to reach 4 rad/s under a 3 N m drive",
+   "unit": "s",
+   "formula": "t = I w / tau, I = 2 m r^2 / 5",
+   "reference": 2.18166173,
+   "measured": 2.18333333,
+   "error": 0.00167160034,
+   "relativeError": 0.000766205098,
+   "tolerance": {
+    "kind": "absolute",
+    "value": 0.00833333333
+   },
+   "pass": true,
+   "source": {
+    "file": "packages/box3d-kit/test/v22-rigid-joints.test.mjs",
+    "test": "motor joint: velocity drives ramp at F / m and torque / I and hold their targets; springs oscillate at their frequency",
+    "url": "https://github.com/nathansenn/box3d-WEBGPU/blob/main/packages/box3d-kit/test/v22-rigid-joints.test.mjs"
+   },
+   "text": {
+    "reference": "2.181662 s",
+    "measured": "2.183333",
+    "error": "+0.00167",
+    "tolerance": "±0.008333"
+   }
+  },
+  {
+   "id": "rigid-core.joint.motor-spring",
+   "domain": "rigid-core",
+   "title": "Motor joint: spring period",
+   "quantity": "period of a body on an undamped 1.5 Hz linear spring, mean over 6 s",
+   "unit": "s",
+   "formula": "T = 1 / f",
+   "reference": 0.666666667,
+   "measured": 0.666696092,
+   "error": 0.0000294256035,
+   "relativeError": 0.0000441384053,
+   "tolerance": {
+    "kind": "relative",
+    "value": 0.002
+   },
+   "pass": true,
+   "note": "The spring is integrated implicitly: the period holds, the amplitude falls to 63% in 6 s (a numerical damping ratio of 0.008).",
+   "source": {
+    "file": "packages/box3d-kit/test/v22-rigid-joints.test.mjs",
+    "test": "motor joint: velocity drives ramp at F / m and torque / I and hold their targets; springs oscillate at their frequency",
+    "url": "https://github.com/nathansenn/box3d-WEBGPU/blob/main/packages/box3d-kit/test/v22-rigid-joints.test.mjs"
+   },
+   "text": {
+    "reference": "0.6666667 s",
+    "measured": "0.6666961",
+    "error": "+4.41e-5 rel.",
+    "tolerance": "±0.2%"
+   }
+  },
+  {
+   "id": "rigid-core.joint.motor-critical",
+   "domain": "rigid-core",
+   "title": "Motor joint: critically damped return",
+   "quantity": "displacement one period after release from 0.4 m, damping ratio 1",
+   "unit": "m",
+   "formula": "x = x0 (1 + w t) exp(-w t), w = 2 pi f",
+   "reference": 0.00544037259,
+   "measured": 0.00586434873,
+   "error": 0.000423976142,
+   "relativeError": 0.0779314533,
+   "tolerance": {
+    "kind": "absolute",
+    "value": 0.002
+   },
+   "pass": true,
+   "source": {
+    "file": "packages/box3d-kit/test/v22-rigid-joints.test.mjs",
+    "test": "motor joint: velocity drives ramp at F / m and torque / I and hold their targets; springs oscillate at their frequency",
+    "url": "https://github.com/nathansenn/box3d-WEBGPU/blob/main/packages/box3d-kit/test/v22-rigid-joints.test.mjs"
+   },
+   "text": {
+    "reference": "0.005440373 m",
+    "measured": "0.005864349",
+    "error": "+0.000424",
+    "tolerance": "±0.002"
+   }
+  },
+  {
+   "id": "rigid-core.joint.motor-sag",
+   "domain": "rigid-core",
+   "title": "Motor joint: spring sag under gravity",
+   "quantity": "sag of a 512 kg body on a 2 Hz spring",
+   "unit": "m",
+   "formula": "s = g / (2 pi f)^2, whatever the mass",
+   "reference": 0.0621225507,
+   "measured": 0.0621185303,
+   "error": -0.00000402044727,
+   "relativeError": -0.0000647180005,
+   "tolerance": {
+    "kind": "relative",
+    "value": 0.002
+   },
+   "pass": true,
+   "source": {
+    "file": "packages/box3d-kit/test/v22-rigid-joints.test.mjs",
+    "test": "motor joint spring under gravity: the sag is g / (2 pi f)^2 whatever the mass",
+    "url": "https://github.com/nathansenn/box3d-WEBGPU/blob/main/packages/box3d-kit/test/v22-rigid-joints.test.mjs"
+   },
+   "text": {
+    "reference": "0.06212255 m",
+    "measured": "0.06211853",
+    "error": "-6.47e-5 rel.",
+    "tolerance": "±0.2%"
+   }
+  },
+  {
+   "id": "rigid-core.joint.parallel",
+   "domain": "rigid-core",
+   "title": "Parallel joint: swing period",
+   "quantity": "period of a ball released 0.2 rad from the aligned axis on an undamped 1 Hz spring",
+   "unit": "s",
+   "formula": "T = 1 / f",
+   "reference": 1,
+   "measured": 0.999014616,
+   "error": -0.000985383996,
+   "relativeError": -0.000985383996,
+   "tolerance": {
+    "kind": "relative",
+    "value": 0.003
+   },
+   "pass": true,
+   "source": {
+    "file": "packages/box3d-kit/test/v22-rigid-joints.test.mjs",
+    "test": "parallel joint: a tilted body swings about the aligned axis at the spring frequency",
+    "url": "https://github.com/nathansenn/box3d-WEBGPU/blob/main/packages/box3d-kit/test/v22-rigid-joints.test.mjs"
+   },
+   "text": {
+    "reference": "1 s",
+    "measured": "0.9990146",
+    "error": "-0.0985%",
+    "tolerance": "±0.3%"
+   }
+  },
+  {
+   "id": "rigid-core.joint.filter",
+   "domain": "rigid-core",
+   "title": "Filter joint: overlapping bodies do not collide",
+   "quantity": "distance between two overlapping 1 m boxes after 1 s with a filter joint",
+   "unit": "m",
+   "formula": "d = initial distance",
+   "reference": 0.4,
+   "measured": 0.400000006,
+   "error": 5.96046446e-9,
+   "relativeError": 1.49011611e-8,
+   "tolerance": {
+    "kind": "absolute",
+    "value": 0.000001
+   },
+   "pass": true,
+   "source": {
+    "file": "packages/box3d-kit/test/v22-rigid-joints.test.mjs",
+    "test": "filter joint: the two bodies pass through each other, and collide again as soon as it is removed",
+    "url": "https://github.com/nathansenn/box3d-WEBGPU/blob/main/packages/box3d-kit/test/v22-rigid-joints.test.mjs"
+   },
+   "text": {
+    "reference": "0.4 m",
+    "measured": "0.4",
+    "error": "+5.96e-9",
+    "tolerance": "±1e-6"
+   }
+  },
+  {
+   "id": "rigid-core.joint.filter-removed",
+   "domain": "rigid-core",
+   "title": "Filter joint: collision resumes on removal",
+   "quantity": "distance 1 s after the joint is removed, against two boxes that never had one",
+   "unit": "m",
+   "formula": "d = distance without the joint",
+   "reference": 1.29138747,
+   "measured": 1.29138747,
+   "error": 0,
+   "relativeError": 0,
+   "tolerance": {
+    "kind": "absolute",
+    "value": 0.001
+   },
+   "pass": true,
+   "source": {
+    "file": "packages/box3d-kit/test/v22-rigid-joints.test.mjs",
+    "test": "filter joint: the two bodies pass through each other, and collide again as soon as it is removed",
+    "url": "https://github.com/nathansenn/box3d-WEBGPU/blob/main/packages/box3d-kit/test/v22-rigid-joints.test.mjs"
+   },
+   "text": {
+    "reference": "1.291387 m",
+    "measured": "1.291387",
+    "error": "0",
+    "tolerance": "±0.001"
+   }
+  },
+  {
+   "id": "rigid-core.joint.checkpoint-break",
+   "domain": "rigid-core",
+   "title": "Checkpoint: a weld breaks at the same tick after a restore",
+   "quantity": "tick at which a loaded breakable weld broke in a world restored 736 ticks earlier",
+   "unit": "ticks",
+   "formula": "tick of the uninterrupted run",
+   "reference": 1216,
+   "measured": 1216,
+   "error": 0,
+   "relativeError": 0,
+   "tolerance": {
+    "kind": "absolute",
+    "value": 0
+   },
+   "pass": true,
+   "source": {
+    "file": "packages/box3d-kit/test/v22-rigid-joints.test.mjs",
+    "test": "checkpoints and replay hold breakable flags, thresholds, drives, bullets and world settings: a weld breaks at the same tick after a restore",
+    "url": "https://github.com/nathansenn/box3d-WEBGPU/blob/main/packages/box3d-kit/test/v22-rigid-joints.test.mjs"
+   },
+   "text": {
+    "reference": "1216 ticks",
+    "measured": "1216",
+    "error": "0",
+    "tolerance": "±0"
+   }
+  },
+  {
+   "id": "rigid-core.joint.checkpoint",
+   "domain": "rigid-core",
+   "title": "Checkpoint: joints, thresholds, drives and settings resume exactly",
+   "quantity": "steps of 1,440 after a restore that differ in any bit",
+   "unit": "steps",
+   "formula": "restored run = uninterrupted run",
+   "reference": 0,
+   "measured": 0,
+   "error": 0,
+   "relativeError": null,
+   "tolerance": {
+    "kind": "absolute",
+    "value": 0
+   },
+   "pass": true,
+   "source": {
+    "file": "packages/box3d-kit/test/v22-rigid-joints.test.mjs",
+    "test": "checkpoints and replay hold breakable flags, thresholds, drives, bullets and world settings: a weld breaks at the same tick after a restore",
+    "url": "https://github.com/nathansenn/box3d-WEBGPU/blob/main/packages/box3d-kit/test/v22-rigid-joints.test.mjs"
+   },
+   "text": {
+    "reference": "0 steps",
+    "measured": "0",
+    "error": "0",
+    "tolerance": "±0"
+   }
+  },
+  {
+   "id": "rigid-core.explosion.sphere",
+   "domain": "rigid-core",
+   "title": "Explosion: speed given to a sphere",
+   "quantity": "speed of a 0.2 m sphere inside the radius, 50 N s/m^2",
+   "unit": "m/s",
+   "formula": "v = P pi r^2 / m",
+   "reference": 0.187499995,
+   "measured": 0.1875,
+   "error": 5.21766266e-9,
+   "relativeError": 2.7827535e-8,
+   "tolerance": {
+    "kind": "relative",
+    "value": 0.00001
+   },
+   "pass": true,
+   "source": {
+    "file": "packages/box3d-kit/test/v22-rigid-controls.test.mjs",
+    "test": "explosion: a sphere takes P pi r^2 / m, half of it half way across the falloff, nothing beyond; a box takes P times its facing area",
+    "url": "https://github.com/nathansenn/box3d-WEBGPU/blob/main/packages/box3d-kit/test/v22-rigid-controls.test.mjs"
+   },
+   "text": {
+    "reference": "0.1875 m/s",
+    "measured": "0.1875",
+    "error": "+2.78e-8 rel.",
+    "tolerance": "±1e-5 rel."
+   }
+  },
+  {
+   "id": "rigid-core.explosion.falloff",
+   "domain": "rigid-core",
+   "title": "Explosion: half way across the falloff",
+   "quantity": "speed of the same sphere with its surface half way across the falloff",
+   "unit": "m/s",
+   "formula": "v = (1/2) P pi r^2 / m",
+   "reference": 0.0937499974,
+   "measured": 0.09375,
+   "error": 2.60883133e-9,
+   "relativeError": 2.7827535e-8,
+   "tolerance": {
+    "kind": "relative",
+    "value": 0.00001
+   },
+   "pass": true,
+   "source": {
+    "file": "packages/box3d-kit/test/v22-rigid-controls.test.mjs",
+    "test": "explosion: a sphere takes P pi r^2 / m, half of it half way across the falloff, nothing beyond; a box takes P times its facing area",
+    "url": "https://github.com/nathansenn/box3d-WEBGPU/blob/main/packages/box3d-kit/test/v22-rigid-controls.test.mjs"
+   },
+   "text": {
+    "reference": "0.09375 m/s",
+    "measured": "0.09375",
+    "error": "+2.78e-8 rel.",
+    "tolerance": "±1e-5 rel."
+   }
+  },
+  {
+   "id": "rigid-core.explosion.box",
+   "domain": "rigid-core",
+   "title": "Explosion: speed given to a box face-on",
+   "quantity": "speed of a box showing a 0.6 x 0.8 m face",
+   "unit": "m/s",
+   "formula": "v = P A / m",
+   "reference": 0.24999998,
+   "measured": 0.249999985,
+   "error": 4.96705216e-9,
+   "relativeError": 1.98682102e-8,
+   "tolerance": {
+    "kind": "relative",
+    "value": 0.00001
+   },
+   "pass": true,
+   "source": {
+    "file": "packages/box3d-kit/test/v22-rigid-controls.test.mjs",
+    "test": "explosion: a sphere takes P pi r^2 / m, half of it half way across the falloff, nothing beyond; a box takes P times its facing area",
+    "url": "https://github.com/nathansenn/box3d-WEBGPU/blob/main/packages/box3d-kit/test/v22-rigid-controls.test.mjs"
+   },
+   "text": {
+    "reference": "0.25 m/s",
+    "measured": "0.25",
+    "error": "+1.99e-8 rel.",
+    "tolerance": "±1e-5 rel."
+   }
+  },
+  {
+   "id": "rigid-core.settings.restitution",
+   "domain": "rigid-core",
+   "title": "Restitution above the threshold: bounce height",
+   "quantity": "bounce of a ball dropped 0.2 m with restitution 0.5 (lands at 1.98 m/s, threshold 1 m/s)",
+   "unit": "m",
+   "formula": "h = e^2 h0",
+   "reference": 0.05,
+   "measured": 0.0485349089,
+   "error": -0.00146509111,
+   "relativeError": -0.0293018222,
+   "tolerance": {
+    "kind": "relative",
+    "value": 0.05
+   },
+   "pass": true,
+   "note": "At 240 Hz the ball lands up to one step before or after the ground plane, which is 3% of this small drop.",
+   "source": {
+    "file": "packages/box3d-kit/test/v22-rigid-controls.test.mjs",
+    "test": "world settings: sleeping, restitution and hit thresholds, the speed limit and motion locks do what they say",
+    "url": "https://github.com/nathansenn/box3d-WEBGPU/blob/main/packages/box3d-kit/test/v22-rigid-controls.test.mjs"
+   },
+   "text": {
+    "reference": "0.05 m",
+    "measured": "0.04853491",
+    "error": "-2.93%",
+    "tolerance": "±5%"
+   }
+  },
+  {
+   "id": "rigid-core.settings.restitution-off",
+   "domain": "rigid-core",
+   "title": "Restitution below the threshold: no bounce",
+   "quantity": "bounce of the same drop with the threshold at 3 m/s",
+   "unit": "m",
+   "formula": "h = 0",
+   "reference": 0,
+   "measured": 0,
+   "error": 0,
+   "relativeError": null,
+   "tolerance": {
+    "kind": "absolute",
+    "value": 0.0001
+   },
+   "pass": true,
+   "source": {
+    "file": "packages/box3d-kit/test/v22-rigid-controls.test.mjs",
+    "test": "world settings: sleeping, restitution and hit thresholds, the speed limit and motion locks do what they say",
+    "url": "https://github.com/nathansenn/box3d-WEBGPU/blob/main/packages/box3d-kit/test/v22-rigid-controls.test.mjs"
+   },
+   "text": {
+    "reference": "0 m",
+    "measured": "0",
+    "error": "0",
+    "tolerance": "±0.0001"
+   }
+  },
+  {
+   "id": "rigid-core.settings.hit-speed",
+   "domain": "rigid-core",
+   "title": "Hit event: approach speed",
+   "quantity": "approach speed reported for a 0.2 m drop",
+   "unit": "m/s",
+   "formula": "v = sqrt(2 g h)",
+   "reference": 1.98090888,
+   "measured": 1.96199834,
+   "error": -0.0189105388,
+   "relativeError": -0.0095463951,
+   "tolerance": {
+    "kind": "relative",
+    "value": 0.02
+   },
+   "pass": true,
+   "source": {
+    "file": "packages/box3d-kit/test/v22-rigid-controls.test.mjs",
+    "test": "world settings: sleeping, restitution and hit thresholds, the speed limit and motion locks do what they say",
+    "url": "https://github.com/nathansenn/box3d-WEBGPU/blob/main/packages/box3d-kit/test/v22-rigid-controls.test.mjs"
+   },
+   "text": {
+    "reference": "1.980909 m/s",
+    "measured": "1.961998",
+    "error": "-0.955%",
+    "tolerance": "±2%"
+   }
+  },
+  {
+   "id": "rigid-core.settings.speed-limit",
+   "domain": "rigid-core",
+   "title": "Maximum linear speed",
+   "quantity": "speed of a body after an impulse of 1e6 N s with the limit at 20 m/s",
+   "unit": "m/s",
+   "formula": "v = limit",
+   "reference": 20,
+   "measured": 19.9999981,
+   "error": -0.00000190734863,
+   "relativeError": -9.53674316e-8,
+   "tolerance": {
+    "kind": "relative",
+    "value": 0.00001
+   },
+   "pass": true,
+   "source": {
+    "file": "packages/box3d-kit/test/v22-rigid-controls.test.mjs",
+    "test": "world settings: sleeping, restitution and hit thresholds, the speed limit and motion locks do what they say",
+    "url": "https://github.com/nathansenn/box3d-WEBGPU/blob/main/packages/box3d-kit/test/v22-rigid-controls.test.mjs"
+   },
+   "text": {
+    "reference": "20 m/s",
+    "measured": "20",
+    "error": "-9.54e-8 rel.",
+    "tolerance": "±1e-5 rel."
+   }
+  },
+  {
+   "id": "rigid-core.settings.push-speed",
+   "domain": "rigid-core",
+   "title": "Contact push-out speed",
+   "quantity": "fastest speed at which a ball embedded 0.3 m in the ground is pushed out, setting 0.5 m/s",
+   "unit": "m/s",
+   "formula": "v = contactPushSpeed",
+   "reference": 0.5,
+   "measured": 0.49799037,
+   "error": -0.0020096302,
+   "relativeError": -0.00401926041,
+   "tolerance": {
+    "kind": "relative",
+    "value": 0.01
+   },
+   "pass": true,
+   "source": {
+    "file": "packages/box3d-kit/test/v22-rigid-controls.test.mjs",
+    "test": "contact push-out speed: an embedded ball leaves the ground at the set speed and no faster",
+    "url": "https://github.com/nathansenn/box3d-WEBGPU/blob/main/packages/box3d-kit/test/v22-rigid-controls.test.mjs"
+   },
+   "text": {
+    "reference": "0.5 m/s",
+    "measured": "0.4979904",
+    "error": "-0.402%",
+    "tolerance": "±1%"
+   }
+  },
+  {
+   "id": "rigid-core.settings.push-speed-default",
+   "domain": "rigid-core",
+   "title": "Contact push-out speed, default",
+   "quantity": "the same at the default setting of 3 m/s",
+   "unit": "m/s",
+   "formula": "v = contactPushSpeed",
+   "reference": 3,
+   "measured": 2.99799085,
+   "error": -0.00200915337,
+   "relativeError": -0.000669717789,
+   "tolerance": {
+    "kind": "relative",
+    "value": 0.01
+   },
+   "pass": true,
+   "source": {
+    "file": "packages/box3d-kit/test/v22-rigid-controls.test.mjs",
+    "test": "contact push-out speed: an embedded ball leaves the ground at the set speed and no faster",
+    "url": "https://github.com/nathansenn/box3d-WEBGPU/blob/main/packages/box3d-kit/test/v22-rigid-controls.test.mjs"
+   },
+   "text": {
+    "reference": "3 m/s",
+    "measured": "2.997991",
+    "error": "-0.067%",
+    "tolerance": "±1%"
+   }
+  },
+  {
+   "id": "rigid-core.stats.normal-force",
+   "domain": "rigid-core",
+   "title": "Contact statistics: force carried by 16 stacks of three boxes",
+   "quantity": "sum of the normal forces of all contact points",
+   "unit": "N",
+   "formula": "F = 16 (3 + 2 + 1) m g",
+   "reference": 117720,
+   "measured": 117719.905,
+   "error": -0.0952148438,
+   "relativeError": -8.08824701e-7,
+   "tolerance": {
+    "kind": "relative",
+    "value": 0.001
+   },
+   "pass": true,
+   "source": {
+    "file": "packages/box3d-kit/test/v22-rigid-controls.test.mjs",
+    "test": "profile, counters, contact statistics and debug lines of a known scene are exact",
+    "url": "https://github.com/nathansenn/box3d-WEBGPU/blob/main/packages/box3d-kit/test/v22-rigid-controls.test.mjs"
+   },
+   "text": {
+    "reference": "117720 N",
+    "measured": "117719.9",
+    "error": "-8.09e-7 rel.",
+    "tolerance": "±0.1%"
+   }
+  },
+  {
+   "id": "rigid-core.stats.contacts",
+   "domain": "rigid-core",
+   "title": "Counters: contacts of 16 stacks of three boxes",
+   "quantity": "contact pairs the solver holds",
+   "unit": "pairs",
+   "formula": "N = 16 x 3",
+   "reference": 48,
+   "measured": 48,
+   "error": 0,
+   "relativeError": 0,
+   "tolerance": {
+    "kind": "absolute",
+    "value": 0
+   },
+   "pass": true,
+   "source": {
+    "file": "packages/box3d-kit/test/v22-rigid-controls.test.mjs",
+    "test": "profile, counters, contact statistics and debug lines of a known scene are exact",
+    "url": "https://github.com/nathansenn/box3d-WEBGPU/blob/main/packages/box3d-kit/test/v22-rigid-controls.test.mjs"
+   },
+   "text": {
+    "reference": "48 pairs",
+    "measured": "48",
+    "error": "0",
+    "tolerance": "±0"
+   }
+  },
+  {
+   "id": "rigid-core.stats.penetration",
+   "domain": "rigid-core",
+   "title": "Resting contacts: deepest overlap",
+   "quantity": "deepest contact overlap of the stacks at rest",
+   "unit": "m",
+   "formula": "depth <= linear slop",
+   "reference": 0.005,
+   "measured": 0.00110280514,
+   "error": -0.00389719486,
+   "relativeError": -0.779438972,
+   "tolerance": {
+    "kind": "upper",
+    "value": 0
+   },
+   "pass": true,
+   "source": {
+    "file": "packages/box3d-kit/test/v22-rigid-controls.test.mjs",
+    "test": "profile, counters, contact statistics and debug lines of a known scene are exact",
+    "url": "https://github.com/nathansenn/box3d-WEBGPU/blob/main/packages/box3d-kit/test/v22-rigid-controls.test.mjs"
+   },
+   "text": {
+    "reference": "0.005 m",
+    "measured": "0.001102805",
+    "error": "-0.0039",
+    "tolerance": "not above the reference"
+   }
+  },
+  {
+   "id": "rigid-core.debug.bounds",
+   "domain": "rigid-core",
+   "title": "Debug draw: bounds",
+   "quantity": "line vertices for the bounds of 50 shapes",
+   "unit": "vertices",
+   "formula": "N = 50 x 12 edges x 2",
+   "reference": 1200,
+   "measured": 1200,
+   "error": 0,
+   "relativeError": 0,
+   "tolerance": {
+    "kind": "absolute",
+    "value": 0
+   },
+   "pass": true,
+   "source": {
+    "file": "packages/box3d-kit/test/v22-rigid-controls.test.mjs",
+    "test": "profile, counters, contact statistics and debug lines of a known scene are exact",
+    "url": "https://github.com/nathansenn/box3d-WEBGPU/blob/main/packages/box3d-kit/test/v22-rigid-controls.test.mjs"
+   },
+   "text": {
+    "reference": "1200 vertices",
+    "measured": "1200",
+    "error": "0",
+    "tolerance": "±0"
+   }
+  },
+  {
+   "id": "rigid-core.stiffness.joint-cap",
+   "domain": "rigid-core",
+   "title": "jointStiffness match-substeps: joint frequency",
+   "quantity": "stiffness of a joint created at 1/60 s and 8 sub-steps",
+   "unit": "Hz",
+   "formula": "f = (1/4) x sub-step rate",
+   "reference": 120,
+   "measured": 120,
+   "error": 0,
+   "relativeError": 0,
+   "tolerance": {
+    "kind": "absolute",
+    "value": 0
+   },
+   "pass": true,
+   "source": {
+    "file": "packages/box3d-kit/test/v22-rigid-controls.test.mjs",
+    "test": "jointStiffness and contactStiffness: match-substeps sets the caps of Box3D, the defaults change nothing, and the static error falls as 1 / f^2",
+    "url": "https://github.com/nathansenn/box3d-WEBGPU/blob/main/packages/box3d-kit/test/v22-rigid-controls.test.mjs"
+   },
+   "text": {
+    "reference": "120 Hz",
+    "measured": "120",
+    "error": "0",
+    "tolerance": "±0"
+   }
+  },
+  {
+   "id": "rigid-core.stiffness.contact-cap",
+   "domain": "rigid-core",
+   "title": "contactStiffness match-substeps: contact frequency",
+   "quantity": "contact hertz in force at 1/60 s and 8 sub-steps",
+   "unit": "Hz",
+   "formula": "f = (1/8) x sub-step rate",
+   "reference": 60,
+   "measured": 60,
+   "error": 0,
+   "relativeError": 0,
+   "tolerance": {
+    "kind": "absolute",
+    "value": 0
+   },
+   "pass": true,
+   "source": {
+    "file": "packages/box3d-kit/test/v22-rigid-controls.test.mjs",
+    "test": "jointStiffness and contactStiffness: match-substeps sets the caps of Box3D, the defaults change nothing, and the static error falls as 1 / f^2",
+    "url": "https://github.com/nathansenn/box3d-WEBGPU/blob/main/packages/box3d-kit/test/v22-rigid-controls.test.mjs"
+   },
+   "text": {
+    "reference": "60 Hz",
+    "measured": "60",
+    "error": "0",
+    "tolerance": "±0"
+   }
+  },
+  {
+   "id": "rigid-core.stiffness.chain",
+   "domain": "rigid-core",
+   "title": "Joint stiffness: stretch of a heavy-ended chain at twice the frequency",
+   "quantity": "stretch of 60 links under a 100x end mass at 8 sub-steps, 120 Hz",
+   "unit": "1",
+   "formula": "e(120 Hz) = e(60 Hz) / 4",
+   "reference": 0.00922406272,
+   "measured": 0.00941288297,
+   "error": 0.000188820247,
+   "relativeError": 0.0204703993,
+   "tolerance": {
+    "kind": "relative",
+    "value": 0.05
+   },
+   "pass": true,
+   "note": "A soft constraint (Box3D's soft step) holds a static load with an error proportional to 1 / f^2, all else equal: twice the frequency, a quarter of the error. At 16 sub-steps (240 Hz) the measured stretch is 28% above e/16: another error than the joint spring dominates there, so it has no row.",
+   "source": {
+    "file": "packages/box3d-kit/test/v22-rigid-controls.test.mjs",
+    "test": "jointStiffness and contactStiffness: match-substeps sets the caps of Box3D, the defaults change nothing, and the static error falls as 1 / f^2",
+    "url": "https://github.com/nathansenn/box3d-WEBGPU/blob/main/packages/box3d-kit/test/v22-rigid-controls.test.mjs"
+   },
+   "text": {
+    "reference": "0.009224063",
+    "measured": "0.009412883",
+    "error": "+2.05%",
+    "tolerance": "±5%"
+   }
+  },
+  {
+   "id": "rigid-core.stiffness.stack-8",
+   "domain": "rigid-core",
+   "title": "Contact stiffness: overlap under a 100x heavier box at twice the frequency",
+   "quantity": "deepest overlap of four light boxes under a heavy one, 8 sub-steps, 60 Hz",
+   "unit": "m",
+   "formula": "d(60 Hz) = d(30 Hz) / 4",
+   "reference": 0.0147850309,
+   "measured": 0.0144706368,
+   "error": -0.000314394012,
+   "relativeError": -0.021264346,
+   "tolerance": {
+    "kind": "relative",
+    "value": 0.05
+   },
+   "pass": true,
+   "note": "A soft constraint (Box3D's soft step) holds a static load with an error proportional to 1 / f^2, all else equal: twice the frequency, a quarter of the error.",
+   "source": {
+    "file": "packages/box3d-kit/test/v22-rigid-controls.test.mjs",
+    "test": "jointStiffness and contactStiffness: match-substeps sets the caps of Box3D, the defaults change nothing, and the static error falls as 1 / f^2",
+    "url": "https://github.com/nathansenn/box3d-WEBGPU/blob/main/packages/box3d-kit/test/v22-rigid-controls.test.mjs"
+   },
+   "text": {
+    "reference": "0.01478503 m",
+    "measured": "0.01447064",
+    "error": "-2.13%",
+    "tolerance": "±5%"
+   }
+  },
+  {
+   "id": "rigid-core.stiffness.stack-16",
+   "domain": "rigid-core",
+   "title": "Contact stiffness: the same at four times the frequency",
+   "quantity": "deepest overlap at 16 sub-steps, 120 Hz",
+   "unit": "m",
+   "formula": "d(120 Hz) = d(30 Hz) / 16",
+   "reference": 0.0036937343,
+   "measured": 0.00359910727,
+   "error": -0.0000946270302,
+   "relativeError": -0.0256182558,
+   "tolerance": {
+    "kind": "relative",
+    "value": 0.05
+   },
+   "pass": true,
+   "note": "A soft constraint (Box3D's soft step) holds a static load with an error proportional to 1 / f^2, all else equal: twice the frequency, a quarter of the error.",
+   "source": {
+    "file": "packages/box3d-kit/test/v22-rigid-controls.test.mjs",
+    "test": "jointStiffness and contactStiffness: match-substeps sets the caps of Box3D, the defaults change nothing, and the static error falls as 1 / f^2",
+    "url": "https://github.com/nathansenn/box3d-WEBGPU/blob/main/packages/box3d-kit/test/v22-rigid-controls.test.mjs"
+   },
+   "text": {
+    "reference": "0.003693734 m",
+    "measured": "0.003599107",
+    "error": "-2.56%",
+    "tolerance": "±5%"
+   }
+  },
+  {
+   "id": "rigid-core.debug.contacts",
+   "domain": "rigid-core",
+   "title": "Debug draw: contact points",
+   "quantity": "line vertices for 192 contact points",
+   "unit": "vertices",
+   "formula": "N = 192 x 3 lines x 2",
+   "reference": 1152,
+   "measured": 1152,
+   "error": 0,
+   "relativeError": 0,
+   "tolerance": {
+    "kind": "absolute",
+    "value": 0
+   },
+   "pass": true,
+   "source": {
+    "file": "packages/box3d-kit/test/v22-rigid-controls.test.mjs",
+    "test": "profile, counters, contact statistics and debug lines of a known scene are exact",
+    "url": "https://github.com/nathansenn/box3d-WEBGPU/blob/main/packages/box3d-kit/test/v22-rigid-controls.test.mjs"
+   },
+   "text": {
+    "reference": "1152 vertices",
+    "measured": "1152",
+    "error": "0",
+    "tolerance": "±0"
+   }
+  },
+  {
+   "id": "rigid-core.example.course-stairs",
+   "domain": "rigid-core",
+   "title": "Example, obstacle course: four stairs of 0.2 m",
+   "quantity": "height of the character's feet on the deck, walking its route",
+   "unit": "m",
+   "formula": "h = 4 x 0.2",
+   "reference": 0.8,
+   "measured": 0.800018649,
+   "error": 0.0000186491013,
+   "relativeError": 0.0000233113766,
+   "tolerance": {
+    "kind": "absolute",
+    "value": 0.001
+   },
+   "pass": true,
+   "source": {
+    "file": "packages/box3d-kit/test/v22-rigid-examples.test.mjs",
+    "test": "obstacle course: the character walks its route up the stairs, down the ramp, pushes the crate, rides the platform, is stopped by the steep slope, jumps, and comes round",
+    "url": "https://github.com/nathansenn/box3d-WEBGPU/blob/main/packages/box3d-kit/test/v22-rigid-examples.test.mjs"
+   },
+   "text": {
+    "reference": "0.8 m",
+    "measured": "0.8000186",
+    "error": "+1.86e-5",
+    "tolerance": "±0.001"
+   }
+  },
+  {
+   "id": "rigid-core.example.course-jump",
+   "domain": "rigid-core",
+   "title": "Example, obstacle course: the jump on the route",
+   "quantity": "apex of a 5 m/s jump taken while walking",
+   "unit": "m",
+   "formula": "h = v^2 / (2 g)",
+   "reference": 1.27420999,
+   "measured": 1.2742009,
+   "error": -0.00000909258952,
+   "relativeError": -0.00000713586426,
+   "tolerance": {
+    "kind": "relative",
+    "value": 0.001
+   },
+   "pass": true,
+   "source": {
+    "file": "packages/box3d-kit/test/v22-rigid-examples.test.mjs",
+    "test": "obstacle course: the character walks its route up the stairs, down the ramp, pushes the crate, rides the platform, is stopped by the steep slope, jumps, and comes round",
+    "url": "https://github.com/nathansenn/box3d-WEBGPU/blob/main/packages/box3d-kit/test/v22-rigid-examples.test.mjs"
+   },
+   "text": {
+    "reference": "1.27421 m",
+    "measured": "1.274201",
+    "error": "-7.14e-6 rel.",
+    "tolerance": "±0.1%"
+   }
+  },
+  {
+   "id": "rigid-core.example.vehicle-sag",
+   "domain": "rigid-core",
+   "title": "Example, vehicle: static sag of the scene-file car",
+   "quantity": "mean suspension compression at rest (1,200 kg on four 60 kN/m springs set through suspensionJointSpring)",
+   "unit": "m",
+   "formula": "x = m g / (4 k)",
+   "reference": 0.04905,
+   "measured": 0.0490143588,
+   "error": -0.0000356412187,
+   "relativeError": -0.000726630351,
+   "tolerance": {
+    "kind": "relative",
+    "value": 0.005
+   },
+   "pass": true,
+   "source": {
+    "file": "packages/box3d-kit/test/v22-rigid-examples.test.mjs",
+    "test": "vehicle on terrain: static sag m g / (4 k), a cruise at the set speed on the Ackermann circle, and the pedals",
+    "url": "https://github.com/nathansenn/box3d-WEBGPU/blob/main/packages/box3d-kit/test/v22-rigid-examples.test.mjs"
+   },
+   "text": {
+    "reference": "0.04905 m",
+    "measured": "0.04901436",
+    "error": "-0.0727%",
+    "tolerance": "±0.5%"
+   }
+  },
+  {
+   "id": "rigid-core.example.vehicle-circle",
+   "domain": "rigid-core",
+   "title": "Example, vehicle: autopilot circle on the terrain",
+   "quantity": "mean speed over mean yaw rate at 6 m/s, steering 0.25 rad, over 20 s of rolling terrain",
+   "unit": "m",
+   "formula": "R = L / tan(delta), L = 2.6 m",
+   "reference": 10.1824251,
+   "measured": 10.2079618,
+   "error": 0.0255366689,
+   "relativeError": 0.0025079162,
+   "tolerance": {
+    "kind": "relative",
+    "value": 0.05
+   },
+   "pass": true,
+   "note": "On terrain with bumps of +-0.2 m; the flat-ground rows are rigid-core.vehicle.turning and rigid-core.vehicle.ackermann.",
+   "source": {
+    "file": "packages/box3d-kit/test/v22-rigid-examples.test.mjs",
+    "test": "vehicle on terrain: static sag m g / (4 k), a cruise at the set speed on the Ackermann circle, and the pedals",
+    "url": "https://github.com/nathansenn/box3d-WEBGPU/blob/main/packages/box3d-kit/test/v22-rigid-examples.test.mjs"
+   },
+   "text": {
+    "reference": "10.18243 m",
+    "measured": "10.20796",
+    "error": "+0.251%",
+    "tolerance": "±5%"
+   }
+  },
+  {
+   "id": "rigid-core.example.laser-ground",
+   "domain": "rigid-core",
+   "title": "Example, laser scanner: where pitched rays meet the ground",
+   "quantity": "worst error of the length of the rays pitched 0.12 rad down from 1.25 m that hit the ground",
+   "unit": "m",
+   "formula": "d = h / sin(p): error 0",
+   "reference": 0,
+   "measured": 8.44518125e-7,
+   "error": 8.44518125e-7,
+   "relativeError": null,
+   "tolerance": {
+    "kind": "absolute",
+    "value": 0.00001
+   },
+   "pass": true,
+   "source": {
+    "file": "packages/box3d-kit/test/v22-rigid-examples.test.mjs",
+    "test": "laser scanner: 96 rays in one call per step end on the spheres, on the ground at h / sin(pitch), or at the end of their range",
+    "url": "https://github.com/nathansenn/box3d-WEBGPU/blob/main/packages/box3d-kit/test/v22-rigid-examples.test.mjs"
+   },
+   "text": {
+    "reference": "0 m",
+    "measured": "8.445181e-7",
+    "error": "+8.45e-7",
+    "tolerance": "±1e-5"
+   }
+  },
+  {
+   "id": "rigid-core.example.laser-spheres",
+   "domain": "rigid-core",
+   "title": "Example, laser scanner: hit points on the spheres",
+   "quantity": "worst distance of a hit point on the two static spheres from their surfaces",
+   "unit": "m",
+   "formula": "| |p - c| - r | = 0",
+   "reference": 0,
+   "measured": 1.92988948e-7,
+   "error": 1.92988948e-7,
+   "relativeError": null,
+   "tolerance": {
+    "kind": "absolute",
+    "value": 0.0001
+   },
+   "pass": true,
+   "source": {
+    "file": "packages/box3d-kit/test/v22-rigid-examples.test.mjs",
+    "test": "laser scanner: 96 rays in one call per step end on the spheres, on the ground at h / sin(pitch), or at the end of their range",
+    "url": "https://github.com/nathansenn/box3d-WEBGPU/blob/main/packages/box3d-kit/test/v22-rigid-examples.test.mjs"
+   },
+   "text": {
+    "reference": "0 m",
+    "measured": "1.929889e-7",
+    "error": "+1.93e-7",
+    "tolerance": "±0.0001"
+   }
+  },
+  {
+   "id": "rigid-core.example.bullet-momentum",
+   "domain": "rigid-core",
+   "title": "Example, bullets: momentum through the bullet impact",
+   "quantity": "momentum of ball and plate in the step after a 150 m/s bullet met a free plate",
+   "unit": "N s",
+   "formula": "p = m v before the impact",
+   "reference": 1058.59108,
+   "measured": 1048.48873,
+   "error": -10.1023472,
+   "relativeError": -0.00954320078,
+   "tolerance": {
+    "kind": "relative",
+    "value": 0.02
+   },
+   "pass": true,
+   "note": "The plate stands on the ground with friction 0.6, which takes about 1% during the step of the impact.",
+   "source": {
+    "file": "packages/box3d-kit/test/v22-rigid-examples.test.mjs",
+    "test": "bullets and plates at 60 Hz: an ordinary ball passes five free plates, a bullet stops at the first, a static wall stops an ordinary ball",
+    "url": "https://github.com/nathansenn/box3d-WEBGPU/blob/main/packages/box3d-kit/test/v22-rigid-examples.test.mjs"
+   },
+   "text": {
+    "reference": "1058.591 N s",
+    "measured": "1048.489",
+    "error": "-0.954%",
+    "tolerance": "±2%"
+   }
+  },
+  {
+   "id": "rigid-core.example.bullet-tunnel",
+   "domain": "rigid-core",
+   "title": "Example, bullets: an ordinary ball through five free plates",
+   "quantity": "plates (of five, 2 cm thick) that noticed a 150 m/s ball without the bullet flag, 2.5 m per step",
+   "unit": "plates",
+   "formula": "none: two moving bodies are not swept without the bullet flag",
+   "reference": 0,
+   "measured": 0,
+   "error": 0,
+   "relativeError": null,
+   "tolerance": {
+    "kind": "absolute",
+    "value": 0
+   },
+   "pass": true,
+   "source": {
+    "file": "packages/box3d-kit/test/v22-rigid-examples.test.mjs",
+    "test": "bullets and plates at 60 Hz: an ordinary ball passes five free plates, a bullet stops at the first, a static wall stops an ordinary ball",
+    "url": "https://github.com/nathansenn/box3d-WEBGPU/blob/main/packages/box3d-kit/test/v22-rigid-examples.test.mjs"
+   },
+   "text": {
+    "reference": "0 plates",
+    "measured": "0",
+    "error": "0",
+    "tolerance": "±0"
+   }
+  },
+  {
+   "id": "rigid-core.example.bridge-shear",
+   "domain": "rigid-core",
+   "title": "Example, breakable bridge at rest: support shear",
+   "quantity": "vertical force on an end weld of eight 135 kg planks",
+   "unit": "N",
+   "formula": "V = w L / 2",
+   "reference": 5297.4,
+   "measured": 5297.47803,
+   "error": 0.0780273437,
+   "relativeError": 0.0000147293661,
+   "tolerance": {
+    "kind": "relative",
+    "value": 0.0001
+   },
+   "pass": true,
+   "note": "Statics: half the weight on each support of a symmetric span.",
+   "source": {
+    "file": "packages/box3d-kit/test/v22-rigid-examples.test.mjs",
+    "test": "breakable bridge at rest: support shear w L / 2 and moments of a built-in beam of 8 links, w l^2 (n^2 - 1) / 12 at the supports",
+    "url": "https://github.com/nathansenn/box3d-WEBGPU/blob/main/packages/box3d-kit/test/v22-rigid-examples.test.mjs"
+   },
+   "text": {
+    "reference": "5297.4 N",
+    "measured": "5297.478",
+    "error": "+1.47e-5 rel.",
+    "tolerance": "±0.01%"
+   }
+  },
+  {
+   "id": "rigid-core.example.bridge-support-moment",
+   "domain": "rigid-core",
+   "title": "Example, breakable bridge at rest: support moment",
+   "quantity": "torque on an end weld",
+   "unit": "N m",
+   "formula": "M = w l^2 (n^2 - 1) / 12, n = 8 links of l = 1 m",
+   "reference": 6952.8375,
+   "measured": 6952.62354,
+   "error": -0.213964844,
+   "relativeError": -0.0000307737444,
+   "tolerance": {
+    "kind": "relative",
+    "value": 0.001
+   },
+   "pass": true,
+   "note": "Statics of n rigid links on n + 1 soft welds between two fixed ends (derived in docs/RIGID_CORE.md, section 8): the rotations of the welds add up to zero, and a Box3D joint spring acts on the joint's effective inertia, so the two end welds are twice as stiff as the others. As n grows the support moment tends to the w L^2 / 12 of a continuous built-in beam.",
+   "source": {
+    "file": "packages/box3d-kit/test/v22-rigid-examples.test.mjs",
+    "test": "breakable bridge at rest: support shear w L / 2 and moments of a built-in beam of 8 links, w l^2 (n^2 - 1) / 12 at the supports",
+    "url": "https://github.com/nathansenn/box3d-WEBGPU/blob/main/packages/box3d-kit/test/v22-rigid-examples.test.mjs"
+   },
+   "text": {
+    "reference": "6952.837 N m",
+    "measured": "6952.624",
+    "error": "-3.08e-5 rel.",
+    "tolerance": "±0.1%"
+   }
+  },
+  {
+   "id": "rigid-core.example.bridge-mid-moment",
+   "domain": "rigid-core",
+   "title": "Example, breakable bridge at rest: mid-span moment",
+   "quantity": "torque on the middle weld",
+   "unit": "N m",
+   "formula": "M = V L / 2 - w L^2 / 8 - M_support",
+   "reference": 3641.9625,
+   "measured": 3641.82007,
+   "error": -0.142431641,
+   "relativeError": -0.0000391084863,
+   "tolerance": {
+    "kind": "relative",
+    "value": 0.001
+   },
+   "pass": true,
+   "note": "Statics of n rigid links on n + 1 soft welds between two fixed ends (derived in docs/RIGID_CORE.md, section 8): the rotations of the welds add up to zero, and a Box3D joint spring acts on the joint's effective inertia, so the two end welds are twice as stiff as the others. As n grows the support moment tends to the w L^2 / 12 of a continuous built-in beam.",
+   "source": {
+    "file": "packages/box3d-kit/test/v22-rigid-examples.test.mjs",
+    "test": "breakable bridge at rest: support shear w L / 2 and moments of a built-in beam of 8 links, w l^2 (n^2 - 1) / 12 at the supports",
+    "url": "https://github.com/nathansenn/box3d-WEBGPU/blob/main/packages/box3d-kit/test/v22-rigid-examples.test.mjs"
+   },
+   "text": {
+    "reference": "3641.963 N m",
+    "measured": "3641.82",
+    "error": "-3.91e-5 rel.",
+    "tolerance": "±0.1%"
+   }
+  },
+  {
+   "id": "rigid-core.example.bridge-break-time",
+   "domain": "rigid-core",
+   "title": "Example, breakable bridge: when the first weld breaks",
+   "quantity": "time of the first joint-break event, block dropped 2 m",
+   "unit": "s",
+   "formula": "t = sqrt(2 h / g)",
+   "reference": 0.638550857,
+   "measured": 0.641666667,
+   "error": 0.00311580985,
+   "relativeError": 0.00487950148,
+   "tolerance": {
+    "kind": "absolute",
+    "value": 0.00833333333
+   },
+   "pass": true,
+   "note": "Within two steps of 1/240 s: the contact begins in the step the block arrives.",
+   "source": {
+    "file": "packages/box3d-kit/test/v22-rigid-examples.test.mjs",
+    "test": "breakable bridge: intact until the block lands, then the welds that were overloaded break and report what they carried",
+    "url": "https://github.com/nathansenn/box3d-WEBGPU/blob/main/packages/box3d-kit/test/v22-rigid-examples.test.mjs"
+   },
+   "text": {
+    "reference": "0.6385509 s",
+    "measured": "0.6416667",
+    "error": "+0.00312",
+    "tolerance": "±0.008333"
+   }
+  },
+  {
+   "id": "rigid-core.example.bridge-break-load",
+   "domain": "rigid-core",
+   "title": "Example, breakable bridge: load of the weakest weld that broke",
+   "quantity": "largest of force / force threshold and torque / torque threshold, least over the welds that broke",
+   "unit": "ratio",
+   "formula": "ratio >= 1: a weld breaks only at or over a threshold",
+   "reference": 1,
+   "measured": 1.40143489,
+   "error": 0.401434889,
+   "relativeError": 0.401434889,
+   "tolerance": {
+    "kind": "lower",
+    "value": 0
+   },
+   "pass": true,
+   "source": {
+    "file": "packages/box3d-kit/test/v22-rigid-examples.test.mjs",
+    "test": "breakable bridge: intact until the block lands, then the welds that were overloaded break and report what they carried",
+    "url": "https://github.com/nathansenn/box3d-WEBGPU/blob/main/packages/box3d-kit/test/v22-rigid-examples.test.mjs"
+   },
+   "text": {
+    "reference": "1 ratio",
+    "measured": "1.401435",
+    "error": "+0.401",
+    "tolerance": "not below the reference"
+   }
+  },
+  {
+   "id": "rigid-core.scale.pyramid-pairs",
+   "domain": "rigid-core",
+   "title": "Pyramid of 20 rows: contact pairs",
+   "quantity": "touching pairs of a 210-box pyramid at rest",
+   "unit": "pairs",
+   "formula": "N = n (n + 1) / 2 (under each box) + n (n - 1) (each box on the two below it)",
+   "reference": 590,
+   "measured": 590,
+   "error": 0,
+   "relativeError": 0,
+   "tolerance": {
+    "kind": "absolute",
+    "value": 0
+   },
+   "pass": true,
+   "source": {
+    "file": "packages/box3d-kit/test/v22-rigid-scale.test.mjs",
+    "test": "a pyramid of boxes 20 rows high stands: 210 boxes, top within 20 slops of (rows - 1/2) side, contacts carrying m g n (n + 1)(n + 2) / 6",
+    "url": "https://github.com/nathansenn/box3d-WEBGPU/blob/main/packages/box3d-kit/test/v22-rigid-scale.test.mjs"
+   },
+   "text": {
+    "reference": "590 pairs",
+    "measured": "590",
+    "error": "0",
+    "tolerance": "±0"
+   }
+  },
+  {
+   "id": "rigid-core.scale.pyramid-top",
+   "domain": "rigid-core",
+   "title": "Pyramid of 20 rows: height of the top box",
+   "quantity": "centre height of the top 0.5 m box after 10 s",
+   "unit": "m",
+   "formula": "y = (n - 1/2) a, less up to one linear slop per resting contact below it",
+   "reference": 9.75,
+   "measured": 9.722826,
+   "error": -0.027173996,
+   "relativeError": -0.00278707651,
+   "tolerance": {
+    "kind": "absolute",
+    "value": 0.1
+   },
+   "pass": true,
+   "note": "Each of the 19 contacts under the top box may sink by up to one linear slop (5 mm).",
+   "source": {
+    "file": "packages/box3d-kit/test/v22-rigid-scale.test.mjs",
+    "test": "a pyramid of boxes 20 rows high stands: 210 boxes, top within 20 slops of (rows - 1/2) side, contacts carrying m g n (n + 1)(n + 2) / 6",
+    "url": "https://github.com/nathansenn/box3d-WEBGPU/blob/main/packages/box3d-kit/test/v22-rigid-scale.test.mjs"
+   },
+   "text": {
+    "reference": "9.75 m",
+    "measured": "9.722826",
+    "error": "-0.0272",
+    "tolerance": "±0.1"
+   }
+  },
+  {
+   "id": "rigid-core.scale.pyramid-weight",
+   "domain": "rigid-core",
+   "title": "Pyramid of 20 rows: weight carried by the contacts",
+   "quantity": "sum of the normal forces of all contacts over m g n (n + 1)(n + 2) / 6",
+   "unit": "1",
+   "formula": "every layer carries the weight above it: ratio >= 1",
+   "reference": 1,
+   "measured": 1.01114985,
+   "error": 0.0111498545,
+   "relativeError": 0.0111498545,
+   "tolerance": {
+    "kind": "lower",
+    "value": 0.001
+   },
+   "pass": true,
+   "note": "A pyramid of boxes is statically indeterminate: the side contacts between neighbours carry lateral forces that statics does not fix, which add about 1% here. The test bounds the ratio between 0.999 and 1.03.",
+   "source": {
+    "file": "packages/box3d-kit/test/v22-rigid-scale.test.mjs",
+    "test": "a pyramid of boxes 20 rows high stands: 210 boxes, top within 20 slops of (rows - 1/2) side, contacts carrying m g n (n + 1)(n + 2) / 6",
+    "url": "https://github.com/nathansenn/box3d-WEBGPU/blob/main/packages/box3d-kit/test/v22-rigid-scale.test.mjs"
+   },
+   "text": {
+    "reference": "1",
+    "measured": "1.01115",
+    "error": "+0.0111",
+    "tolerance": "at most 0.001 below the reference"
    }
   },
   {
