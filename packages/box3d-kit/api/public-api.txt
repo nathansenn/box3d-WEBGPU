@@ -979,6 +979,37 @@ export interface FluidStats {
     unconverged: number;
     unstable: boolean;
 }
+export interface FluidBackendComponent {
+    unknown: Int32Array;
+    copies: Int32Array;
+    outflows: Int32Array;
+    fixedFaces: Int32Array;
+    fixedValues: Float64Array;
+    ghostDst: Int32Array;
+    ghostSrc: Int32Array;
+    ghostA: Float64Array;
+    ghostB: Float64Array;
+    ghostPasses: number[];
+    gradFace: Int32Array;
+    gradLow: Int32Array;
+    gradHigh: Int32Array;
+    gradWL: Float64Array;
+    gradWH: Float64Array;
+    wallSpeed: number;
+}
+export interface FluidBackendDescription {
+    cells: [number, number, number];
+    padded: [number, number, number];
+    size: number;
+    stride: [number, number, number];
+    es: [number, number, number];
+    activeAxes: number;
+    singular: boolean;
+    components: FluidBackendComponent[];
+    cellPad: Int32Array;
+    nbr: Int32Array;
+    diag: Float64Array;
+}
 export interface FluidTimeStepLimits {
     readonly viscous: number;
     readonly advective: number;
@@ -1085,6 +1116,7 @@ export declare class Fluid {
     readonly pressureSolver: 'mic' | 'multigrid';
     private readonly multigrid;
     constructor(options: FluidOptions);
+    backendDescription(): FluidBackendDescription;
     private sideVelocity;
     faceIndex(f: number): [number, number, number];
     facePosition(c: number, f: number): [number, number, number];

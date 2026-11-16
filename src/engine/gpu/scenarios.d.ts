@@ -7,3 +7,7 @@ declare module '*/granular-scenarios.mjs' {
   const scenarios: Record<string, (...args: any[]) => any>;
   export = scenarios;
 }
+declare module '*/fluid-scenarios.mjs' {
+  const scenarios: Record<string, (...args: any[]) => any>;
+  export = scenarios;
+}

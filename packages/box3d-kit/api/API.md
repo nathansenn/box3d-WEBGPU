@@ -8533,6 +8533,7 @@ export declare class Fluid {
   workByBoundaries: number;
   workByForces: number;
   readonly pressureSolver: 'mic' | 'multigrid';
+  backendDescription(): FluidBackendDescription;
   faceIndex(f: number): [number, number, number];
   facePosition(c: number, f: number): [number, number, number];
   index(i: number, j: number, k: number): number;
@@ -8594,6 +8595,49 @@ Where the fluid runs inside the couple stage of a Simulation: after the grains (
 
 ```ts
 export declare const FLUID_SUBSYSTEM_ORDER = 180;
+```
+
+### FluidBackendComponent · interface
+
+One velocity component in `Fluid.backendDescription()`. Indices are padded; ghost entries are x[dst] = a x[src] + b.
+
+```ts
+export interface FluidBackendComponent {
+    unknown: Int32Array;
+    copies: Int32Array;
+    outflows: Int32Array;
+    fixedFaces: Int32Array;
+    fixedValues: Float64Array;
+    ghostDst: Int32Array;
+    ghostSrc: Int32Array;
+    ghostA: Float64Array;
+    ghostB: Float64Array;
+    ghostPasses: number[];
+    gradFace: Int32Array;
+    gradLow: Int32Array;
+    gradHigh: Int32Array;
+    gradWL: Float64Array;
+    gradWH: Float64Array;
+    wallSpeed: number;
+}
+```
+
+### FluidBackendDescription · interface
+
+```ts
+export interface FluidBackendDescription {
+    cells: [number, number, number];
+    padded: [number, number, number];
+    size: number;
+    stride: [number, number, number];
+    es: [number, number, number];
+    activeAxes: number;
+    singular: boolean;
+    components: FluidBackendComponent[];
+    cellPad: Int32Array;
+    nbr: Int32Array;
+    diag: Float64Array;
+}
 ```
 
 ### FluidBodyOptions · interface

@@ -16,7 +16,8 @@ Updated 2026-11-16.
 | Coupling grains to rigid bodies (`GpuGranularCoupling`) | done on the CPU with per-wall sums reduced on the GPU; latency 0 or 1 rigid step |
 | Drawing from the simulation buffers (`src/webgpu/simulation-layers.ts`) | done: grains as shaded quads from the position buffer, terrain and water surface from the state and bed buffers |
 | Lab examples at scale (`lab.html?example=sand-avalanche-100k`, `flood-valley-1m`) | done, with a CPU example as the fall back; seen on SwiftShader at small sizes only |
-| Incompressible flow on the MAC grid, free surface (APIC), cloth | **not done** on the GPU |
+| Incompressible flow on the MAC grid (`fluid-gpu.ts`) | done without obstacles: 17 closed-form rows pass on the GPU (SwiftShader), 13 with the float64 tolerance; the GPU gives the float32 reference's bits |
+| Free surface (APIC), cloth, obstacles in the flow | **not done** on the GPU |
 | Shallow water with coupled rigid bodies or point sources on the GPU | **not done** (the float64 solver has both) |
 | `backend: 'gpu'` in the scene format; the Studio's granular tray and river tabs on the GPU | **not done**: the Simulation loop and the Studio solvers are synchronous and float64; see "Not done" |
 | Speed on a real GPU | **not measured**: this machine has no GPU. The command is below |
@@ -44,7 +45,7 @@ that replays those states (`shallow-water-validation.ts`). For grains the set-up
 worker that blocks on a shared buffer while the page drives the device (`scenario-worker.ts`).
 
 ```
-npm run test:gpu                                             # the gate: 34 tests and a Dawn script, about 6 minutes
+npm run test:gpu                                             # the gate: 40 tests and a Dawn script, about 8 minutes
 npm run build && node scripts/gpu-compute-browser-check.mjs out          # the shaders, on SwiftShader: about 100 minutes
 npm run build && node scripts/gpu-compute-browser-check.mjs out --quick  # without Janssen, Beverloo and repose
 ```
@@ -267,6 +268,94 @@ The four repose slopes are 19.7, 19.8, 26.0 and 36.5 degrees for (0.2, 0), (0.5,
 solver gives 22, 26, 27 and 35 with about 2 degrees of noise each. 989 beads (Janssen), 2603 beads (Beverloo) and 480
 beads (repose); no history slot or bucket overflowed. Glass-bead repose and the column collapse were not run on the GPU.
 
+## Incompressible flow on the GPU
+
+The float64 solver's projection method ([`FLUID.md`](FLUID.md)) without obstacles, in float32 (`fluid-gpu.ts`):
+ghost fills for every kind of side (walls, sliding walls, free slip, inflow, outflow, periodic); central or upwind
+advection with Adams-Bashforth 2; the predictor with grad p^n, gravity, a body force and the explicit part of the
+viscosity; the implicit part (Crank-Nicolson or backward Euler) by conjugate gradients, component by component; the
+projection by conjugate gradients; the pressure update.
+
+The algorithm is written once as a program of kernel calls (`fluid-program.ts`, a generator) and the kernels twice
+(`fluid-kernels.ts`: WGSL, and TypeScript in float32). The GPU runs the program as dispatches; `FluidF32` runs the same
+program kernel by kernel on the CPU. In the gate, `GpuFluid` is also driven through a stand-in device that executes each
+dispatch with the float32 kernels: it gives the reference's bits, so the encoding (order, parameter blocks, clears,
+offsets, readbacks) is the program's.
+
+What differs from the float64 solver, by design:
+
+- **Preconditioner.** Jacobi (the diagonal) for the pressure and the viscous solves; the float64 solver uses MIC(0) or
+  a multigrid V-cycle for the pressure. MIC is a sequential triangular solve and does not run in parallel; a multigrid
+  V-cycle on the GPU was not written. Iterations at the float32 tolerances: 6 (Taylor-Green, 32^2), 48 (cubic cavity,
+  16^3), 65 (open channel, 48 x 12) per projection.
+- **The solves stop on the GPU.** The tests of the float64 solver (max |r| against the tolerance, a breakdown, the
+  iteration limit) run in a one-invocation kernel; the host reads 64 scalars (256 bytes) every 16 iterations. A device
+  whose scalars never report a stopped solve is refused (`GPU_VALIDATION`) after the iteration limit, not looped on.
+- **Pressure tolerance.** max |div u| h / max |u| <= 2e-6 (the float64 solver: 1e-10). The velocity is resolved to 6e-8
+  of itself and a divergence is a difference of six such numbers; measured 1.6e-6 to 2.0e-6.
+- **Viscous stopping rule.** max |r| <= max(1e-6 max |r_0|, 2^-25 (1 + 12 k) max |b|), k = theta dt nu / h^2. The
+  float64 rule, a fraction of max |b|, freezes a float32 run short of its steady state: near the steady state a step's
+  change is below 1e-6 of b and a solve with nothing to do leaves the state unchanged (Couette stopped at 4.9e-5 of the
+  wall speed that way). The floor is half the rounding of b - M x.
+- No obstacles or coupled bodies, no energy ledger (dissipation), no checkpoints.
+
+Memory (`fluidMemory()`): about 140 bytes of floats and 70 of indices per padded cell: 40 MB + 20 MB for 64^3, 132 MB +
+68 MB for 96^3 (just above WebGPU's default largest binding of 128 MB, so a device must grant more), 311 MB + 161 MB for
+128^3.
+
+### Results
+
+The rows are the float64 solver's (domain `fluid`) that the backend covers. Two set-ups are new because the float64
+ones hold an obstacle: the projection of a random field (the same set-up without its capsule) and the tank at rest
+(without its sphere). Measured on the float32 reference in the gate and on the GPU (SwiftShader, 47 minutes) in the
+browser: the same digits.
+
+| Case | Measured | Reference | Tolerance | float64 tolerance |
+|---|---|---|---|---|
+| Projection: divergence left (random field, walls / periodic / outflow, no capsule) | 1.80e-6 | 0 | <= 3e-6 | <= 1.5e-10 |
+| Taylor-Green: decay rate, 32^2 | 0.039887 1/s | 0.04 | 5e-3 relative | same |
+| Taylor-Green: order between 32 and 64 | 2.17 | 2 | +- 0.3 | same |
+| Taylor-Green: velocity error | 5.54e-5 | 0 | <= 1e-4 | same |
+| Plane Poiseuille: profile error | 3.9061e-3 | 3.9063e-3 | 5e-4 relative | 1e-6 relative |
+| Plane Couette: profile error | 6.0e-5 | 0 | <= 2e-4 | <= 1e-7 |
+| Square duct: flow rate, 16^2 | 1.1414e-6 m^3/s | 1.1246e-6 | 2 % | same |
+| Square duct: order between 8 and 16 | 1.90 | 2 | +- 0.3 | same |
+| Channel, inflow and outflow: pressure gradient | -17.815 Pa/m | -18 | 2 % | same |
+| Channel: outlet profile | 5.2e-3 | 0 | <= 0.01 | same |
+| Channel: mass | 4.7e-6 | 0 | +- 1e-5 | +- 1e-8 |
+| Lid-driven cavity, Re 100: u (Ghia) | 2.24e-3 | 0 | <= 5e-3 | same |
+| Lid-driven cavity, Re 100: v | 8.25e-3 | 0 | <= 1.2e-2 | same |
+| Lid-driven cavity, Re 400: u | 1.33e-2 | 0 | <= 2.5e-2 | same |
+| Lid-driven cavity, Re 400: v | 1.48e-2 | 0 | <= 2.5e-2 | same |
+| Water at rest (no sphere): largest speed over g dt | 0 | 0 | <= 1e-12 | same |
+| Water at rest: pressure head | 1839.375 Pa | 1839.375 | 1e-9 relative | same |
+
+The float64 solver gives 2.237e-3 / 8.244e-3 (Re 100) and 1.335e-2 / 1.483e-2 (Re 400) on the cavity: the float32
+backend is within 1e-5 of the lid speed of it. Where float32 forces a looser tolerance:
+
+| Row | float64 | float32 | Measured | Why |
+|---|---|---|---|---|
+| Projection divergence | 1.5e-10 | 3e-6 | 1.8e-6 | the projection stops at 2e-6; velocities carry 6e-8 of rounding each |
+| Poiseuille profile | 1e-6 relative | 5e-4 relative | 3.9e-5 relative | the Laplacian of a float32 profile is rounded to 12 x 6e-8 \|u\| / h^2; the steady state carries that over the smallest eigenvalue: about 2e-5 of the centre-line speed, against a measured deviation of 3.9e-3 of it |
+| Couette profile | 1e-7 | 2e-4 | 6.0e-5 | the same: 12 x 6e-8 (H / h)^2 / pi^2 = 1.9e-5 of the wall speed at 16 cells, and the steady-state rule stops when a step changes less than that |
+| Channel mass | 1e-8 | 1e-5 | 4.7e-6 | a flow rate is a sum of 12 face velocities, and the projection leaves 2e-6 of divergence per cell |
+
+The Taylor-Green energy ledger, Stokes drag, buoyancy, the coupling rows and the free-surface rows are not covered.
+
+GPU against the CPU (SwiftShader):
+
+| Set-up | Cells | Steps | Velocity, GPU vs float32 | Velocity, GPU vs float64 | Divergence left | Repeat run |
+|---|---|---|---|---|---|---|
+| Taylor-Green, explicit, central | 1024 | 20 | 0 (identical) | 1.3e-6 | 1.9e-6 | identical bytes |
+| Cubic lid-driven cavity, backward Euler | 4096 | 12 | 0 (identical) | 3.9e-7 | 1.9e-6 | identical bytes |
+| Open channel, Crank-Nicolson, upwind, inflow and outflow | 576 | 20 | 0 (identical) | 5.6e-6 | 2.0e-6 | identical bytes |
+
+Differences over the largest speed. Device destroyed after 12 of 20 steps with a snapshot every 5: the run finishes on
+the CPU (2 steps run again; the Adams-Bashforth history restarts) and ends 3.4e-7 from a float64 run.
+
+On SwiftShader a step of the 48^2 cavity at Re 400 took about 1 s (1450 steps in 25 minutes): numbers for the record,
+not for a GPU.
+
 ## Coupling grains to rigid bodies
 
 The rigid world stays on the CPU. `GpuGranularCoupling` wraps the float64 solver's `GranularCoupling` on the `Granular`
@@ -375,9 +464,8 @@ SwiftShader result; the closed-form rows have margin for that.
 
 ## Not done
 
-- **Incompressible flow** (`fluid.ts`: MAC advection, pressure solve) and the **free surface** (APIC) on the GPU. A
-  red-black or Jacobi-preconditioned pressure solve in compute shaders, validated against the cavity, Poiseuille and
-  dam-break rows, is the next backend.
+- **Obstacles in the GPU fluid** (the fictitious domain, forces on bodies, coupling), a **multigrid** pressure
+  preconditioner on the GPU, and the **free surface** (APIC) on the GPU.
 - **`backend: 'gpu'` on scene sections.** `Simulation.step()` and every subsystem are synchronous and their state is
   checkpointed bit for bit; a GPU backend's results arrive asynchronously and in float32. Wiring one in needs an
   asynchronous subsystem stage (or the coupling pattern above generalised) and a decision on checkpoints. The Lab

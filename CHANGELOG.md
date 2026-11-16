@@ -1,5 +1,11 @@
 # Changelog
 
+## Unreleased — 2026-11-16 — Incompressible flow on the GPU, validated against the CPU solver
+
+- **Backend (`src/engine/gpu/fluid-*.ts`, solver id `fluid-mac-projection-jacobi-pcg-webgpu-f32-v1`):** the projection method of `fluid.ts` without obstacles in float32: every kind of side, central or upwind advection with Adams-Bashforth 2, explicit, Crank-Nicolson or backward-Euler viscosity, the pressure projection; conjugate gradients with the Jacobi preconditioner, stopped on the GPU (64 scalars read every 16 iterations; a device that never reports a stopped solve is refused). The algorithm is one program of kernel calls run by the GPU and by `FluidF32` (the same kernels in float32 on the CPU). `FluidRunner` falls back to the float64 solver on device loss. `Fluid.backendDescription()` is new.
+- **Validated (`npm run test:gpu`, 6 more tests; `scripts/gpu-compute-browser-check.mjs` on SwiftShader):** 17 closed-form rows pass on the GPU with the float32 reference's digits, 13 with the float64 tolerance; looser for float32: divergence left 1.5e-10 -> 3e-6 (measured 1.8e-6), Poiseuille profile 1e-6 -> 5e-4 relative (3.9e-5), Couette 1e-7 -> 2e-4 (6.0e-5), channel mass 1e-8 -> 1e-5 (4.7e-6). The cavity matches Ghia within 1e-5 of the float64 solver's errors. GPU against the reference: identical bytes on three set-ups (2D explicit, 3D implicit, open channel); repeated runs identical; a destroyed device falls back to the CPU. A stand-in device that runs the float32 kernels makes `GpuFluid` reproduce the reference's bits in the gate.
+- **Not done:** obstacles and coupled bodies in the GPU flow, a multigrid preconditioner on the GPU, the free surface, real-GPU timing.
+
 ## Unreleased — 2026-11-16 — GPU compute backends for shallow water and grains, validated against the CPU solvers
 
 - **Framework (`src/engine/gpu/compute.ts`, `layout.ts`, `wgsl.ts`):** device acquisition with limit checks (`GPU_UNAVAILABLE` with the reason), struct layouts shared between TypeScript and WGSL from one definition, a WGSL preprocessor (`#include`, `#define`, `#if`), shader and validation errors as `EngineError` with the compiler's line, ordered dispatch lists, readback with `mapAsync`, device loss as `GPU_DEVICE_LOST`. The runners keep a snapshot every N steps and carry on with the float64 solver when the device is lost.
