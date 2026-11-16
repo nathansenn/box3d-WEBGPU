@@ -6333,6 +6333,139 @@ export declare class StructureCoupling<B> {
     diagnostics(): StructureDiagnostics;
 }
 
+// ==== core/vehicle.d.ts ====
+import { type StateObject, type StateValue } from './checkpoint.js';
+import type { NativeBodyDescriptor, NativeBodyHandle, NativeBodyMassState, NativeBodyState, NativeJointDescriptor, NativeJointDetails, NativeJointHandle, NativeMassData } from './native-world.js';
+type Body = NativeBodyHandle;
+type Joint = NativeJointHandle;
+type Vec3 = readonly [number, number, number];
+type Quat = readonly [number, number, number, number];
+export type VehicleVec3 = Vec3 | {
+    readonly x: number;
+    readonly y: number;
+    readonly z: number;
+};
+export type VehicleQuat = Quat | {
+    readonly x: number;
+    readonly y: number;
+    readonly z: number;
+    readonly w: number;
+};
+export interface VehicleHost {
+    readonly loop: {
+        readonly step: number;
+    };
+    createBody(options: NativeBodyDescriptor): Body | null;
+    createJoint(options: NativeJointDescriptor): Joint;
+    destroyBody(body: Body): boolean;
+    getState(body: Body): NativeBodyState;
+    getMassData(body: Body): NativeBodyMassState | {
+        readonly mass: number;
+        readonly center: readonly number[];
+        readonly inertia: readonly number[];
+    } | null;
+    setMassData(body: Body, data: NativeMassData): void;
+    applyForce(body: Body, force: Vec3, point?: Vec3): void;
+    setJointMotor(joint: Joint, motor: {
+        speed: number;
+        maxForce: number;
+    } | null): void;
+    setJointSteering(joint: Joint, steering: {
+        angle: number;
+        hertz: number;
+        dampingRatio: number;
+        maxTorque: number;
+    } | null): void;
+    getJointDetails(joint: Joint): NativeJointDetails;
+}
+export interface VehicleWheelOptions {
+    readonly position: VehicleVec3;
+    readonly radius?: number;
+    readonly steered?: boolean;
+    readonly driven?: boolean;
+    readonly braked?: boolean;
+}
+export interface VehicleOptions {
+    readonly position: VehicleVec3;
+    readonly rotation?: VehicleQuat;
+    readonly chassisHalfExtents: VehicleVec3;
+    readonly chassisMass: number;
+    readonly centerOfMass?: VehicleVec3;
+    readonly wheels: readonly VehicleWheelOptions[];
+    readonly wheelRadius?: number;
+    readonly wheelMass?: number;
+    readonly wheelFriction?: number;
+    readonly suspension: ({
+        readonly stiffness: number;
+        readonly damping: number;
+    } | {
+        readonly frequency: number;
+        readonly dampingRatio: number;
+    }) & {
+        readonly travel?: number;
+    };
+    readonly maxSteerAngle?: number;
+    readonly steeringHertz?: number;
+    readonly maxDriveTorque?: number;
+    readonly maxWheelSpeed?: number;
+    readonly maxBrakeTorque?: number;
+    readonly dragArea?: number;
+    readonly airDensity?: number;
+    readonly color?: number;
+    readonly wheelColor?: number;
+}
+export interface VehicleControls {
+    readonly throttle?: number;
+    readonly steer?: number;
+    readonly brake?: number;
+}
+export interface VehicleWheelState {
+    readonly suspension: number;
+    readonly spinSpeed: number;
+    readonly steeringAngle: number;
+}
+export interface VehicleState {
+    readonly position: readonly [number, number, number];
+    readonly rotation: readonly [number, number, number, number];
+    readonly forwardSpeed: number;
+    readonly speed: number;
+    readonly yawRate: number;
+    readonly wheels: readonly VehicleWheelState[];
+}
+export declare class Vehicle {
+    private readonly world;
+    readonly chassis: Body;
+    readonly wheels: readonly Body[];
+    readonly joints: readonly Joint[];
+    readonly wheelbase: number;
+    readonly track: number;
+    readonly stiffness: number;
+    readonly damping: number;
+    readonly maxSteerAngle: number;
+    readonly maxDriveTorque: number;
+    readonly maxWheelSpeed: number;
+    readonly maxBrakeTorque: number;
+    readonly dragArea: number;
+    readonly airDensity: number;
+    private readonly layout;
+    private readonly rearX;
+    private readonly steeringHertz;
+    private sentMotor;
+    private sentTorque;
+    private sentSteer;
+    private throttle;
+    private steer;
+    private brake;
+    constructor(world: VehicleHost, options: VehicleOptions);
+    ackermann(delta: number): number[];
+    update(controls: VehicleControls, dt?: number): void;
+    get state(): VehicleState;
+    destroy(): void;
+    saveState(): StateObject;
+    restoreState(state: StateValue): void;
+}
+export {};
+
 // ==== core/water-coupling.d.ts ====
 import { type LinearWaterArrays, type LinearWaterConfig } from './linear-water.js';
 import { type StateObject, type StateValue } from './checkpoint.js';
@@ -6564,6 +6697,7 @@ export declare class TriggerSet<T = unknown> {
     private state;
 }
 export { CapsuleCharacterController, type CapsuleCharacterOptions, type CapsuleCharacterInput, type CapsuleCharacterState, type CharacterHost, type CharacterVec3 } from './core/character-controller.js';
+export { Vehicle, type VehicleOptions, type VehicleWheelOptions, type VehicleControls, type VehicleState, type VehicleWheelState, type VehicleHost, type VehicleVec3, type VehicleQuat } from './core/vehicle.js';
 export interface CharacterOptions {
     readonly position: Vec3Like;
     readonly halfExtents?: Vec3Like;

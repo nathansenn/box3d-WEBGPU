@@ -167,4 +167,56 @@ const ccdCases = defineCases('rigid-core', CCD, [
     note: 'Continuous collision covers dynamic bodies against static ones. Between two moving bodies it runs only when one is a bullet.', measure: async () => (await bulletShot()).plain.plateSpeed},
 ]);
 
-export default [...cases, ...characterCases, ...ccdCases];
+const VEHICLE = 'packages/box3d-kit/test/v21-rigid-vehicle.test.mjs';
+const TV = {
+  sag: 'static sag: each spring is compressed by its wheel load over the stiffness, M g / (4 k), and by the axle loads when the centre of mass is forward',
+  heave: 'heave: the chassis bounces at sqrt(4 k / M) / (2 pi), and dampers give zeta = 4 c / (2 sqrt(4 k M))',
+  top: 'top speed: drive torque against drag balances at sqrt(8 tau / (R rho CdA)), approached from below and from above',
+  turn: 'turning circle: at low speed the rear axle turns about L / tan(delta), with Ackermann angles on the front wheels',
+  brake: 'braking: with locked wheels the car stops in v^2 / (2 mu g)',
+  terrain: 'terrain and checkpoints: a drive over a height field stays upright, and the world checkpoint with the vehicle state resumes it bit for bit',
+};
+const sag = () => run('vehicle/sag', (S, K) => S.vehicleSag(K));
+const heave = (key, options) => run(`vehicle/heave/${key}`, (S, K) => S.vehicleHeave(K, options));
+const topSpeed = () => run('vehicle/top', (S, K) => S.vehicleTopSpeed(K));
+const turning = () => run('vehicle/turn', (S, K) => S.vehicleTurning(K, {delta: 0.25, speed: 3}));
+const braking = () => run('vehicle/brake', (S, K) => S.vehicleBraking(K));
+const terrain = () => run('vehicle/terrain', (S, K) => S.vehicleTerrainCheckpoint(K));
+const vehicleCases = defineCases('rigid-core', VEHICLE, [
+  {id: 'rigid-core.vehicle.sag', title: 'Vehicle: static sag', quantity: 'spring compression of a 1,200 kg chassis on four 60 kN/m springs', unit: 'm', test: TV.sag,
+    reference: {formula: 's = M g / (4 k)', value: 1200 * G / (4 * 60000)}, tolerance: relative(1e-3), measure: async () => (await sag()).even[0]},
+  {id: 'rigid-core.vehicle.sag-front', title: 'Vehicle: front sag with the centre of mass 0.4 m forward', quantity: 'front spring compression, wheelbase 2.6 m', unit: 'm', test: TV.sag,
+    reference: {formula: 's = M g (1/2 + x / L) / (2 k)', value: 1200 * G * (0.5 + 0.4 / 2.6) / (2 * 60000)}, tolerance: relative(5e-3),
+    note: 'The chassis pitches by 0.012 rad, which the statics of the formula leave out.', measure: async () => (await sag()).nose[0]},
+  {id: 'rigid-core.vehicle.sag-rear', title: 'Vehicle: rear sag with the centre of mass 0.4 m forward', quantity: 'rear spring compression', unit: 'm', test: TV.sag,
+    reference: {formula: 's = M g (1/2 - x / L) / (2 k)', value: 1200 * G * (0.5 - 0.4 / 2.6) / (2 * 60000)}, tolerance: relative(5e-3), measure: async () => (await sag()).nose[2]},
+  {id: 'rigid-core.vehicle.heave', title: 'Vehicle: heave frequency', quantity: 'bounce frequency of a 1,200 kg chassis on four undamped 60 kN/m springs', unit: 'Hz', test: TV.heave,
+    reference: {formula: 'f = sqrt(4 k / M) / (2 pi)', value: Math.sqrt(4 * 60000 / 1200) / (2 * Math.PI)}, tolerance: relative(0.015),
+    note: 'The tyre contact is a stiff spring in series with the suspension (Box3D contacts are soft constraints), which lowers the frequency by 0.8% here.',
+    measure: async () => (await heave('stiff', {})).frequency},
+  {id: 'rigid-core.vehicle.heave-soft', title: 'Vehicle: heave frequency of a soft car', quantity: 'bounce frequency of an 800 kg chassis on four undamped 20 kN/m springs', unit: 'Hz', test: TV.heave,
+    reference: {formula: 'f = sqrt(4 k / M) / (2 pi)', value: Math.sqrt(4 * 20000 / 800) / (2 * Math.PI)}, tolerance: relative(0.015), measure: async () => (await heave('soft', {mass: 800, stiffness: 20000})).frequency},
+  {id: 'rigid-core.vehicle.damping', title: 'Vehicle: suspension damping ratio', quantity: 'damping ratio of the bounce with four 2 kN s/m dampers, from the logarithmic decrement', unit: '1', test: TV.heave,
+    reference: {formula: 'zeta = 4 c / (2 sqrt(4 k M))', value: 4 * 2000 / (2 * Math.sqrt(4 * 60000 * 1200))}, tolerance: absolute(0.02),
+    note: 'The implicit integration of the spring adds a damping ratio of about 0.018 at 240 Hz with 4 sub-steps (measured with the dampers at zero).',
+    measure: async () => (await heave('damped', {damping: 2000})).zeta},
+  {id: 'rigid-core.vehicle.top-speed', title: 'Vehicle: top speed against drag', quantity: 'steady speed with 40 N m on each of four wheels, CdA = 1.2 m^2 (approached from below)', unit: 'm/s', test: TV.top,
+    reference: {formula: 'v = sqrt(8 tau / (R rho CdA))', value: Math.sqrt(8 * 40 / (0.35 * 1.225 * 1.2))}, tolerance: relative(0.01),
+    note: 'The wheels roll on a slightly smaller radius than R (the contact sinks by millimetres), so the thrust tau / R is a little higher and the speed 0.2% to 0.4% above the formula.',
+    measure: async () => (await topSpeed()).below},
+  {id: 'rigid-core.vehicle.top-speed-above', title: 'Vehicle: top speed, approached from above', quantity: 'the same car started 5% above the balance speed, after 45 s', unit: 'm/s', test: TV.top,
+    reference: {formula: 'v = sqrt(8 tau / (R rho CdA))', value: Math.sqrt(8 * 40 / (0.35 * 1.225 * 1.2))}, tolerance: relative(0.01), measure: async () => (await topSpeed()).above},
+  {id: 'rigid-core.vehicle.turning', title: 'Vehicle: turning radius', quantity: 'radius of the rear axle path at 3 m/s with a 0.25 rad bicycle angle, wheelbase 2.6 m (speed over yaw rate)', unit: 'm', test: TV.turn,
+    reference: {formula: 'R = L / tan(delta)', value: 2.6 / Math.tan(0.25)}, tolerance: relative(0.01), note: 'Lateral acceleration 0.88 m/s^2; at higher speeds the tyres slip and the circle widens.',
+    measure: async () => (await turning()).radius},
+  {id: 'rigid-core.vehicle.turning-path', title: 'Vehicle: turning radius of the path', quantity: 'radius of the circle fitted to the rear axle path over 20 s', unit: 'm', test: TV.turn,
+    reference: {formula: 'R = L / tan(delta)', value: 2.6 / Math.tan(0.25)}, tolerance: relative(0.01), measure: async () => (await turning()).fitted},
+  {id: 'rigid-core.vehicle.ackermann', title: 'Vehicle: inner wheel angle', quantity: 'steering angle of the inner front wheel, track 1.6 m', unit: 'rad', test: TV.turn,
+    reference: {formula: 'atan(L / (L / tan(delta) - T / 2))', value: Math.atan(2.6 / (2.6 / Math.tan(0.25) - 0.8))}, tolerance: absolute(2e-3), measure: async () => (await turning()).angles[0]},
+  {id: 'rigid-core.vehicle.braking', title: 'Vehicle: braking distance with locked wheels', quantity: 'stopping distance from 20 m/s on a road of friction 0.8', unit: 'm', test: TV.brake,
+    reference: {formula: 'd = v^2 / (2 mu g)', value: null}, tolerance: relative(0.01), measure: async () => { const r = await braking(); return {value: r.distance, reference: r.exact}; }},
+  {id: 'rigid-core.vehicle.checkpoint', title: 'Vehicle: exact resume from a checkpoint', quantity: 'steps of 1,500 of a drive over a height field that differ in any bit after a restore', unit: 'steps', test: TV.terrain,
+    reference: {formula: 'restored run = uninterrupted run', value: 0}, tolerance: absolute(0), measure: async () => (await terrain()).mismatches},
+]);
+
+export default [...cases, ...characterCases, ...ccdCases, ...vehicleCases];

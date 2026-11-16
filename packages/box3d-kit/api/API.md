@@ -4423,6 +4423,168 @@ export type TriggerShape = {
 };
 ```
 
+### Vehicle · class
+
+```ts
+export declare class Vehicle {
+  readonly chassis: Body;
+  readonly wheels: readonly Body[];
+  readonly joints: readonly Joint[];
+  readonly wheelbase: number;
+  readonly track: number;
+  readonly stiffness: number;
+  readonly damping: number;
+  readonly maxSteerAngle: number;
+  readonly maxDriveTorque: number;
+  readonly maxWheelSpeed: number;
+  readonly maxBrakeTorque: number;
+  readonly dragArea: number;
+  readonly airDensity: number;
+  ackermann(delta: number): number[];
+  update(controls: VehicleControls, dt?: number): void;
+  get state(): VehicleState;
+  destroy(): void;
+  saveState(): StateObject;
+  restoreState(state: StateValue): void;
+}
+```
+
+### VehicleControls · interface
+
+```ts
+export interface VehicleControls {
+    readonly throttle?: number;
+    readonly steer?: number;
+    readonly brake?: number;
+}
+```
+
+### VehicleHost · interface
+
+What a vehicle needs from a world. The kit's PhysicsWorld has exactly these members; the Physics Lab's scene host has them too.
+
+```ts
+export interface VehicleHost {
+    readonly loop: {
+        readonly step: number;
+    };
+    createBody(options: NativeBodyDescriptor): Body | null;
+    createJoint(options: NativeJointDescriptor): Joint;
+    destroyBody(body: Body): boolean;
+    getState(body: Body): NativeBodyState;
+    getMassData(body: Body): NativeBodyMassState | {
+        readonly mass: number;
+        readonly center: readonly number[];
+        readonly inertia: readonly number[];
+    } | null;
+    setMassData(body: Body, data: NativeMassData): void;
+    applyForce(body: Body, force: Vec3, point?: Vec3): void;
+    setJointMotor(joint: Joint, motor: {
+        speed: number;
+        maxForce: number;
+    } | null): void;
+    setJointSteering(joint: Joint, steering: {
+        angle: number;
+        hertz: number;
+        dampingRatio: number;
+        maxTorque: number;
+    } | null): void;
+    getJointDetails(joint: Joint): NativeJointDetails;
+}
+```
+
+### VehicleOptions · interface
+
+```ts
+export interface VehicleOptions {
+    readonly position: VehicleVec3;
+    readonly rotation?: VehicleQuat;
+    readonly chassisHalfExtents: VehicleVec3;
+    readonly chassisMass: number;
+    readonly centerOfMass?: VehicleVec3;
+    readonly wheels: readonly VehicleWheelOptions[];
+    readonly wheelRadius?: number;
+    readonly wheelMass?: number;
+    readonly wheelFriction?: number;
+    readonly suspension: ({
+        readonly stiffness: number;
+        readonly damping: number;
+    } | {
+        readonly frequency: number;
+        readonly dampingRatio: number;
+    }) & {
+        readonly travel?: number;
+    };
+    readonly maxSteerAngle?: number;
+    readonly steeringHertz?: number;
+    readonly maxDriveTorque?: number;
+    readonly maxWheelSpeed?: number;
+    readonly maxBrakeTorque?: number;
+    readonly dragArea?: number;
+    readonly airDensity?: number;
+    readonly color?: number;
+    readonly wheelColor?: number;
+}
+```
+
+### VehicleQuat · type
+
+```ts
+export type VehicleQuat = Quat | {
+    readonly x: number;
+    readonly y: number;
+    readonly z: number;
+    readonly w: number;
+};
+```
+
+### VehicleState · interface
+
+```ts
+export interface VehicleState {
+    readonly position: readonly [number, number, number];
+    readonly rotation: readonly [number, number, number, number];
+    readonly forwardSpeed: number;
+    readonly speed: number;
+    readonly yawRate: number;
+    readonly wheels: readonly VehicleWheelState[];
+}
+```
+
+### VehicleVec3 · type
+
+A tuple or an {x, y, z} object (a three.js Vector3 works).
+
+```ts
+export type VehicleVec3 = Vec3 | {
+    readonly x: number;
+    readonly y: number;
+    readonly z: number;
+};
+```
+
+### VehicleWheelOptions · interface
+
+```ts
+export interface VehicleWheelOptions {
+    readonly position: VehicleVec3;
+    readonly radius?: number;
+    readonly steered?: boolean;
+    readonly driven?: boolean;
+    readonly braked?: boolean;
+}
+```
+
+### VehicleWheelState · interface
+
+```ts
+export interface VehicleWheelState {
+    readonly suspension: number;
+    readonly spinSpeed: number;
+    readonly steeringAngle: number;
+}
+```
+
 ## `box3d-webgpu-kit/geometry`
 
 ### BinaryLike · type

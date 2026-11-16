@@ -202,6 +202,79 @@ and the momentum is conserved to 9e-8 of its value.
 - Kinematic bodies are not swept against static ones.
 - Checked for spheres against boxes.
 
+## 4. Vehicles
+
+Box3D's wheel joint (`b3WheelJoint`, 36 functions) holds a wheel on a chassis with exactly what a car corner needs:
+travel along one axis of the chassis with a spring, a damper and limits; free spin about the axle with a motor; and
+steering about the travel axis with a spring, a torque limit and limits. So the vehicle is built from wheel joints
+rather than from ray casts: the wheels are real bodies with mass and inertia that collide with everything.
+
+`Vehicle` (`box3d-webgpu-kit/gameplay`; source `src/engine/vehicle.ts`) builds a chassis box, one sphere per wheel
+and one wheel joint per wheel, and turns pedals and a steering wheel into joint settings:
+
+```js
+import {Vehicle} from 'box3d-webgpu-kit/gameplay';
+
+const car = new Vehicle(world, {
+  position: [0, 0.6, 0], chassisHalfExtents: [1.6, 0.25, 0.75], chassisMass: 1200,
+  wheels: [{position: [1.3, -0.25, -0.8]}, {position: [1.3, -0.25, 0.8]}, {position: [-1.3, -0.25, -0.8]}, {position: [-1.3, -0.25, 0.8]}],
+  wheelRadius: 0.35, wheelMass: 20,
+  suspension: {stiffness: 60000, damping: 4000, travel: 0.2},     // N/m and N s/m per wheel
+  maxDriveTorque: 400, maxBrakeTorque: 1500, maxSteerAngle: 0.6, dragArea: 0.7,
+});
+world.onStep(() => car.update({throttle: keys.up - keys.down, steer: keys.left - keys.right, brake: keys.space}));
+```
+
+Chassis axes: +x forward, +y up, +z right. `steer` > 0 turns left.
+
+- **Suspension in physical units.** Box3D states a joint spring as a frequency of *the joint's own effective mass*
+  (`1 / (1/M + 1/m + (r × a) · I⁻¹ (r × a))` for a wheel of mass `m` at `r` from the chassis' centre of mass, travel
+  axis `a`), not of the chassis. With a 20 kg wheel under a 1,200 kg chassis that mass is about 19 kg, so a "2 Hz"
+  wheel joint is a spring of 3 kN/m, not the 12 kN/m a 300 kg corner needs. `Vehicle` takes the stiffness (N/m) and
+  damping (N s/m) you mean and computes the joint's frequency and damping ratio for each wheel; or it takes the
+  bounce `frequency` and `dampingRatio` of the chassis on its springs.
+- **Steering** follows Ackermann geometry: for a bicycle angle δ the wheels steer so that every axle line passes
+  through one point on the rear axle line, at `R = L / tan δ` from the centre line.
+- **Drive and brake.** The throttle sets each driven wheel's motor to `maxWheelSpeed` with a torque limit of
+  `throttle × maxDriveTorque`; the brake sets the motor to zero speed with `brake × maxBrakeTorque`.
+- **Drag** is `ρ CdA v² / 2` against the chassis' velocity, applied each step.
+- `update()` talks to the joints only when a setting changes, so a recording of a drive stays small. The vehicle's
+  own state (the last controls) saves with `saveState()`; its bodies and joints are in the world's checkpoint.
+
+`world.getJointDetails(joint)` reports a wheel joint's spin speed and torque, steering angle and torque, and
+suspension travel; `setJointSteeringLimits` limits the steering angle.
+
+### Measured
+
+| Quantity | Closed form | Measured | Held to |
+|---|---|---|---|
+| Static sag, 1,200 kg on 4 × 60 kN/m | M g / (4 k) = 49.050 mm | 49.050 mm | 0.1% |
+| Front / rear sag with the centre of mass 0.4 m forward | M g (½ ± x/L) / (2 k) = 64.14 / 33.96 mm | 64.22 / 33.86 mm | 0.5% |
+| Heave frequency, 1,200 kg on 4 × 60 kN/m | √(4k/M)/(2π) = 2.2508 Hz | 2.2332 Hz (−0.8%) | 1.5% |
+| Heave frequency, 800 kg on 4 × 20 kN/m | 1.5915 Hz | 1.5890 Hz (−0.2%) | 1.5% |
+| Damping ratio with 4 × 2 kN s/m | 4c / (2√(4kM)) = 0.2357 | 0.2472 | ± 0.02 |
+| Top speed, 4 × 40 N m against CdA = 1.2 m² | √(8τ/(R ρ CdA)) = 24.939 m/s | 24.988 from below, 25.013 from above | 1% |
+| The same at 4 × 80 N m, 0.8 m² / 4 × 20 N m, 2 m² | 43.196 / 13.660 m/s | 43.33…43.36 / 13.67…13.69 m/s | 1% |
+| Turning radius at 3 m/s, δ = 0.25 rad, L = 2.6 m | L / tan δ = 10.1824 m | 10.1849 m (speed over yaw rate), 10.1847 m (circle fit) | 1% |
+| Turning radius at 2 m/s, δ = 0.4 rad | 6.1496 m | 6.1506 m | 1% |
+| Inner front wheel angle, track 1.6 m | atan(L / (R − T/2)) = 0.27033 rad | 0.27029 rad | ± 0.002 rad |
+| Braking from 20 m/s with locked wheels, μ = 0.8 | v² / (2 μ g) = 25.474 m | 25.421 m in 2.546 s (exact 2.548 s) | 1% |
+| Drive over a height field, restored from a checkpoint half way | identical | 0 of 1,500 steps differ in any bit | 0 |
+
+Why the small misses: the tyre contact is itself a stiff spring in series with the suspension (lower frequency);
+the integrator of the joint spring is implicit and adds a damping ratio of 0.010 to 0.018 at 240 Hz with 4 sub-steps
+(measured with the dampers at zero); and a wheel rolls on a radius a little smaller than `R` because its contact
+sinks by millimetres, so the thrust `τ / R` is a little higher (top speed +0.2% to +0.4%; wheel slip 0.4% to 1%).
+
+### Limits
+
+- Wheels are rigid spheres with Coulomb friction. There is no tyre model (slip curves, camber, load sensitivity,
+  relaxation), no drivetrain (gears, differential, engine curve), no anti-roll bars, no aerodynamic lift.
+- Validated at low lateral acceleration (0.88 m/s²). Cornering at the limit, roll-over and jumps behave as rigid
+  bodies with friction do and are not checked against vehicle data.
+- A sphere wheel is as wide as it is tall; give the chassis and other bodies room for it.
+- 2 to 16 wheels. Tracked vehicles and trailers are joints you add yourself.
+
 ## Custom filter and pre-solve callbacks: not exposed
 
 Box3D can call the application for every candidate pair (`b3World_SetCustomFilterCallback`) and for every touching

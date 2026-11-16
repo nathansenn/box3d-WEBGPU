@@ -22,6 +22,8 @@ export const CORE = [
   {from: 'src/engine/contracts.ts', rewrites: []},
   // ./gameplay: the capsule character on Box3D's mover. Imports contracts.ts, checkpoint.ts and types from native-world.ts.
   {from: 'src/engine/character-controller.ts', rewrites: []},
+  // ./gameplay: the wheel-joint vehicle. Imports contracts.ts, checkpoint.ts and types from native-world.ts.
+  {from: 'src/engine/vehicle.ts', rewrites: []},
   // Exact checkpoints: state trees, their encoding and the self-checking container. Imports contracts.ts only; the world,
   // the solvers and the Simulation use it.
   {from: 'src/engine/checkpoint.ts', rewrites: []},

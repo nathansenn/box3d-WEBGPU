@@ -35,6 +35,7 @@ const FILES = [
   'test/v21-rigid-queries.test.mjs',
   'test/v21-rigid-character.test.mjs',
   'test/v21-rigid-ccd.test.mjs',
+  'test/v21-rigid-vehicle.test.mjs',
   'test/v21-ray-batch.test.mjs',
 ];
 const tests = spawnSync(process.execPath, ['--test', ...FILES], {stdio: 'inherit'});

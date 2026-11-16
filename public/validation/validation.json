@@ -5,8 +5,8 @@
  "generatedBy": "node scripts/validation-report.mjs",
  "digits": 9,
  "totals": {
-  "cases": 637,
-  "passed": 637,
+  "cases": 650,
+  "passed": 650,
   "failed": 0,
   "domains": 23
  },
@@ -34,7 +34,7 @@
   {
    "id": "rigid-core",
    "title": "Rigid core: queries, character, continuous collision, vehicles, joints and piles",
-   "summary": "Ray, sweep and overlap queries against closed forms, and the batched ray call. The capsule character: speed, slope limit, step height, stairs, jump, thin walls, moving platforms, force-limited pushing and exact resume. Continuous collision: a fast ball against a thin wall with the setting off and on, and the bullet flag against a free plate.",
+   "summary": "Ray, sweep and overlap queries against closed forms, and the batched ray call. The capsule character: speed, slope limit, step height, stairs, jump, thin walls, moving platforms, force-limited pushing and exact resume. Continuous collision: a fast ball against a thin wall with the setting off and on, and the bullet flag against a free plate. A wheel-joint vehicle: static sag, heave frequency and damping, top speed against drag, the Ackermann turning circle and braking distance.",
    "solver": "Box3D compiled to WebAssembly, through `box3d-webgpu-kit` (float32 state, 240 Hz, 4 sub-steps unless a row says otherwise)",
    "docs": [
     "docs/RIGID_CORE.md"
@@ -45,10 +45,11 @@
     "Box and capsule query shapes are axis aligned (the capsule upright). Rotated query shapes are not exposed.",
     "The character is checked on boxes and ramps. Triangle-mesh and height-field ground, rotating platforms, crouching, swimming and ladders are not covered; a dynamic body the character stands on does not feel its weight.",
     "Continuous collision is checked for spheres against boxes. Fast rotation (a spinning thin bar) is not swept by Box3D and is not checked; kinematic bodies are not swept against static ones.",
+    "The vehicle has rigid sphere wheels with Coulomb friction: no tyre model (slip curves, camber, load sensitivity), no drivetrain (gears, differential, engine curve), no anti-roll bars. Handling at speed, roll-over and jumps are not checked against references.",
     "One build on one machine; no cross-device determinism matrix."
    ],
-   "cases": 45,
-   "passed": 45
+   "cases": 58,
+   "passed": 58
   },
   {
    "id": "water-coupling",
@@ -2918,6 +2919,375 @@
     "measured": "0",
     "error": "0",
     "tolerance": "±1e-6"
+   }
+  },
+  {
+   "id": "rigid-core.vehicle.sag",
+   "domain": "rigid-core",
+   "title": "Vehicle: static sag",
+   "quantity": "spring compression of a 1,200 kg chassis on four 60 kN/m springs",
+   "unit": "m",
+   "formula": "s = M g / (4 k)",
+   "reference": 0.04905,
+   "measured": 0.0490501598,
+   "error": 1.59752369e-7,
+   "relativeError": 0.00000325692903,
+   "tolerance": {
+    "kind": "relative",
+    "value": 0.001
+   },
+   "pass": true,
+   "source": {
+    "file": "packages/box3d-kit/test/v21-rigid-vehicle.test.mjs",
+    "test": "static sag: each spring is compressed by its wheel load over the stiffness, M g / (4 k), and by the axle loads when the centre of mass is forward",
+    "url": "https://github.com/nathansenn/box3d-WEBGPU/blob/main/packages/box3d-kit/test/v21-rigid-vehicle.test.mjs"
+   },
+   "text": {
+    "reference": "0.04905 m",
+    "measured": "0.04905016",
+    "error": "+3.26e-6 rel.",
+    "tolerance": "±0.1%"
+   }
+  },
+  {
+   "id": "rigid-core.vehicle.sag-front",
+   "domain": "rigid-core",
+   "title": "Vehicle: front sag with the centre of mass 0.4 m forward",
+   "quantity": "front spring compression, wheelbase 2.6 m",
+   "unit": "m",
+   "formula": "s = M g (1/2 + x / L) / (2 k)",
+   "reference": 0.0641423077,
+   "measured": 0.0642194748,
+   "error": 0.0000771671002,
+   "relativeError": 0.00120306086,
+   "tolerance": {
+    "kind": "relative",
+    "value": 0.005
+   },
+   "pass": true,
+   "note": "The chassis pitches by 0.012 rad, which the statics of the formula leave out.",
+   "source": {
+    "file": "packages/box3d-kit/test/v21-rigid-vehicle.test.mjs",
+    "test": "static sag: each spring is compressed by its wheel load over the stiffness, M g / (4 k), and by the axle loads when the centre of mass is forward",
+    "url": "https://github.com/nathansenn/box3d-WEBGPU/blob/main/packages/box3d-kit/test/v21-rigid-vehicle.test.mjs"
+   },
+   "text": {
+    "reference": "0.06414231 m",
+    "measured": "0.06421947",
+    "error": "+0.12%",
+    "tolerance": "±0.5%"
+   }
+  },
+  {
+   "id": "rigid-core.vehicle.sag-rear",
+   "domain": "rigid-core",
+   "title": "Vehicle: rear sag with the centre of mass 0.4 m forward",
+   "quantity": "rear spring compression",
+   "unit": "m",
+   "formula": "s = M g (1/2 - x / L) / (2 k)",
+   "reference": 0.0339576923,
+   "measured": 0.0338609964,
+   "error": -0.0000966959421,
+   "relativeError": -0.00284754162,
+   "tolerance": {
+    "kind": "relative",
+    "value": 0.005
+   },
+   "pass": true,
+   "source": {
+    "file": "packages/box3d-kit/test/v21-rigid-vehicle.test.mjs",
+    "test": "static sag: each spring is compressed by its wheel load over the stiffness, M g / (4 k), and by the axle loads when the centre of mass is forward",
+    "url": "https://github.com/nathansenn/box3d-WEBGPU/blob/main/packages/box3d-kit/test/v21-rigid-vehicle.test.mjs"
+   },
+   "text": {
+    "reference": "0.03395769 m",
+    "measured": "0.033861",
+    "error": "-0.285%",
+    "tolerance": "±0.5%"
+   }
+  },
+  {
+   "id": "rigid-core.vehicle.heave",
+   "domain": "rigid-core",
+   "title": "Vehicle: heave frequency",
+   "quantity": "bounce frequency of a 1,200 kg chassis on four undamped 60 kN/m springs",
+   "unit": "Hz",
+   "formula": "f = sqrt(4 k / M) / (2 pi)",
+   "reference": 2.25079079,
+   "measured": 2.2331525,
+   "error": -0.0176382911,
+   "relativeError": -0.00783648628,
+   "tolerance": {
+    "kind": "relative",
+    "value": 0.015
+   },
+   "pass": true,
+   "note": "The tyre contact is a stiff spring in series with the suspension (Box3D contacts are soft constraints), which lowers the frequency by 0.8% here.",
+   "source": {
+    "file": "packages/box3d-kit/test/v21-rigid-vehicle.test.mjs",
+    "test": "heave: the chassis bounces at sqrt(4 k / M) / (2 pi), and dampers give zeta = 4 c / (2 sqrt(4 k M))",
+    "url": "https://github.com/nathansenn/box3d-WEBGPU/blob/main/packages/box3d-kit/test/v21-rigid-vehicle.test.mjs"
+   },
+   "text": {
+    "reference": "2.250791 Hz",
+    "measured": "2.233153",
+    "error": "-0.784%",
+    "tolerance": "±1.5%"
+   }
+  },
+  {
+   "id": "rigid-core.vehicle.heave-soft",
+   "domain": "rigid-core",
+   "title": "Vehicle: heave frequency of a soft car",
+   "quantity": "bounce frequency of an 800 kg chassis on four undamped 20 kN/m springs",
+   "unit": "Hz",
+   "formula": "f = sqrt(4 k / M) / (2 pi)",
+   "reference": 1.59154943,
+   "measured": 1.58901636,
+   "error": -0.00253307137,
+   "relativeError": -0.00159157568,
+   "tolerance": {
+    "kind": "relative",
+    "value": 0.015
+   },
+   "pass": true,
+   "source": {
+    "file": "packages/box3d-kit/test/v21-rigid-vehicle.test.mjs",
+    "test": "heave: the chassis bounces at sqrt(4 k / M) / (2 pi), and dampers give zeta = 4 c / (2 sqrt(4 k M))",
+    "url": "https://github.com/nathansenn/box3d-WEBGPU/blob/main/packages/box3d-kit/test/v21-rigid-vehicle.test.mjs"
+   },
+   "text": {
+    "reference": "1.591549 Hz",
+    "measured": "1.589016",
+    "error": "-0.159%",
+    "tolerance": "±1.5%"
+   }
+  },
+  {
+   "id": "rigid-core.vehicle.damping",
+   "domain": "rigid-core",
+   "title": "Vehicle: suspension damping ratio",
+   "quantity": "damping ratio of the bounce with four 2 kN s/m dampers, from the logarithmic decrement",
+   "unit": "1",
+   "formula": "zeta = 4 c / (2 sqrt(4 k M))",
+   "reference": 0.23570226,
+   "measured": 0.247156534,
+   "error": 0.0114542731,
+   "relativeError": 0.0485963652,
+   "tolerance": {
+    "kind": "absolute",
+    "value": 0.02
+   },
+   "pass": true,
+   "note": "The implicit integration of the spring adds a damping ratio of about 0.018 at 240 Hz with 4 sub-steps (measured with the dampers at zero).",
+   "source": {
+    "file": "packages/box3d-kit/test/v21-rigid-vehicle.test.mjs",
+    "test": "heave: the chassis bounces at sqrt(4 k / M) / (2 pi), and dampers give zeta = 4 c / (2 sqrt(4 k M))",
+    "url": "https://github.com/nathansenn/box3d-WEBGPU/blob/main/packages/box3d-kit/test/v21-rigid-vehicle.test.mjs"
+   },
+   "text": {
+    "reference": "0.2357023",
+    "measured": "0.2471565",
+    "error": "+0.0115",
+    "tolerance": "±0.02"
+   }
+  },
+  {
+   "id": "rigid-core.vehicle.top-speed",
+   "domain": "rigid-core",
+   "title": "Vehicle: top speed against drag",
+   "quantity": "steady speed with 40 N m on each of four wheels, CdA = 1.2 m^2 (approached from below)",
+   "unit": "m/s",
+   "formula": "v = sqrt(8 tau / (R rho CdA))",
+   "reference": 24.9391875,
+   "measured": 24.9879977,
+   "error": 0.048810292,
+   "relativeError": 0.00195717251,
+   "tolerance": {
+    "kind": "relative",
+    "value": 0.01
+   },
+   "pass": true,
+   "note": "The wheels roll on a slightly smaller radius than R (the contact sinks by millimetres), so the thrust tau / R is a little higher and the speed 0.2% to 0.4% above the formula.",
+   "source": {
+    "file": "packages/box3d-kit/test/v21-rigid-vehicle.test.mjs",
+    "test": "top speed: drive torque against drag balances at sqrt(8 tau / (R rho CdA)), approached from below and from above",
+    "url": "https://github.com/nathansenn/box3d-WEBGPU/blob/main/packages/box3d-kit/test/v21-rigid-vehicle.test.mjs"
+   },
+   "text": {
+    "reference": "24.93919 m/s",
+    "measured": "24.988",
+    "error": "+0.196%",
+    "tolerance": "±1%"
+   }
+  },
+  {
+   "id": "rigid-core.vehicle.top-speed-above",
+   "domain": "rigid-core",
+   "title": "Vehicle: top speed, approached from above",
+   "quantity": "the same car started 5% above the balance speed, after 45 s",
+   "unit": "m/s",
+   "formula": "v = sqrt(8 tau / (R rho CdA))",
+   "reference": 24.9391875,
+   "measured": 25.0127783,
+   "error": 0.0735908244,
+   "relativeError": 0.00295081083,
+   "tolerance": {
+    "kind": "relative",
+    "value": 0.01
+   },
+   "pass": true,
+   "source": {
+    "file": "packages/box3d-kit/test/v21-rigid-vehicle.test.mjs",
+    "test": "top speed: drive torque against drag balances at sqrt(8 tau / (R rho CdA)), approached from below and from above",
+    "url": "https://github.com/nathansenn/box3d-WEBGPU/blob/main/packages/box3d-kit/test/v21-rigid-vehicle.test.mjs"
+   },
+   "text": {
+    "reference": "24.93919 m/s",
+    "measured": "25.01278",
+    "error": "+0.295%",
+    "tolerance": "±1%"
+   }
+  },
+  {
+   "id": "rigid-core.vehicle.turning",
+   "domain": "rigid-core",
+   "title": "Vehicle: turning radius",
+   "quantity": "radius of the rear axle path at 3 m/s with a 0.25 rad bicycle angle, wheelbase 2.6 m (speed over yaw rate)",
+   "unit": "m",
+   "formula": "R = L / tan(delta)",
+   "reference": 10.1824251,
+   "measured": 10.1849409,
+   "error": 0.00251573365,
+   "relativeError": 0.000247066255,
+   "tolerance": {
+    "kind": "relative",
+    "value": 0.01
+   },
+   "pass": true,
+   "note": "Lateral acceleration 0.88 m/s^2; at higher speeds the tyres slip and the circle widens.",
+   "source": {
+    "file": "packages/box3d-kit/test/v21-rigid-vehicle.test.mjs",
+    "test": "turning circle: at low speed the rear axle turns about L / tan(delta), with Ackermann angles on the front wheels",
+    "url": "https://github.com/nathansenn/box3d-WEBGPU/blob/main/packages/box3d-kit/test/v21-rigid-vehicle.test.mjs"
+   },
+   "text": {
+    "reference": "10.18243 m",
+    "measured": "10.18494",
+    "error": "+0.0247%",
+    "tolerance": "±1%"
+   }
+  },
+  {
+   "id": "rigid-core.vehicle.turning-path",
+   "domain": "rigid-core",
+   "title": "Vehicle: turning radius of the path",
+   "quantity": "radius of the circle fitted to the rear axle path over 20 s",
+   "unit": "m",
+   "formula": "R = L / tan(delta)",
+   "reference": 10.1824251,
+   "measured": 10.1847382,
+   "error": 0.00231307536,
+   "relativeError": 0.000227163503,
+   "tolerance": {
+    "kind": "relative",
+    "value": 0.01
+   },
+   "pass": true,
+   "source": {
+    "file": "packages/box3d-kit/test/v21-rigid-vehicle.test.mjs",
+    "test": "turning circle: at low speed the rear axle turns about L / tan(delta), with Ackermann angles on the front wheels",
+    "url": "https://github.com/nathansenn/box3d-WEBGPU/blob/main/packages/box3d-kit/test/v21-rigid-vehicle.test.mjs"
+   },
+   "text": {
+    "reference": "10.18243 m",
+    "measured": "10.18474",
+    "error": "+0.0227%",
+    "tolerance": "±1%"
+   }
+  },
+  {
+   "id": "rigid-core.vehicle.ackermann",
+   "domain": "rigid-core",
+   "title": "Vehicle: inner wheel angle",
+   "quantity": "steering angle of the inner front wheel, track 1.6 m",
+   "unit": "rad",
+   "formula": "atan(L / (L / tan(delta) - T / 2))",
+   "reference": 0.270330381,
+   "measured": 0.270291775,
+   "error": -0.0000386053636,
+   "relativeError": -0.000142808084,
+   "tolerance": {
+    "kind": "absolute",
+    "value": 0.002
+   },
+   "pass": true,
+   "source": {
+    "file": "packages/box3d-kit/test/v21-rigid-vehicle.test.mjs",
+    "test": "turning circle: at low speed the rear axle turns about L / tan(delta), with Ackermann angles on the front wheels",
+    "url": "https://github.com/nathansenn/box3d-WEBGPU/blob/main/packages/box3d-kit/test/v21-rigid-vehicle.test.mjs"
+   },
+   "text": {
+    "reference": "0.2703304 rad",
+    "measured": "0.2702918",
+    "error": "-3.86e-5",
+    "tolerance": "±0.002"
+   }
+  },
+  {
+   "id": "rigid-core.vehicle.braking",
+   "domain": "rigid-core",
+   "title": "Vehicle: braking distance with locked wheels",
+   "quantity": "stopping distance from 20 m/s on a road of friction 0.8",
+   "unit": "m",
+   "formula": "d = v^2 / (2 mu g)",
+   "reference": 25.4738716,
+   "measured": 25.421041,
+   "error": -0.052830631,
+   "relativeError": -0.00207391447,
+   "tolerance": {
+    "kind": "relative",
+    "value": 0.01
+   },
+   "pass": true,
+   "source": {
+    "file": "packages/box3d-kit/test/v21-rigid-vehicle.test.mjs",
+    "test": "braking: with locked wheels the car stops in v^2 / (2 mu g)",
+    "url": "https://github.com/nathansenn/box3d-WEBGPU/blob/main/packages/box3d-kit/test/v21-rigid-vehicle.test.mjs"
+   },
+   "text": {
+    "reference": "25.47387 m",
+    "measured": "25.42104",
+    "error": "-0.207%",
+    "tolerance": "±1%"
+   }
+  },
+  {
+   "id": "rigid-core.vehicle.checkpoint",
+   "domain": "rigid-core",
+   "title": "Vehicle: exact resume from a checkpoint",
+   "quantity": "steps of 1,500 of a drive over a height field that differ in any bit after a restore",
+   "unit": "steps",
+   "formula": "restored run = uninterrupted run",
+   "reference": 0,
+   "measured": 0,
+   "error": 0,
+   "relativeError": null,
+   "tolerance": {
+    "kind": "absolute",
+    "value": 0
+   },
+   "pass": true,
+   "source": {
+    "file": "packages/box3d-kit/test/v21-rigid-vehicle.test.mjs",
+    "test": "terrain and checkpoints: a drive over a height field stays upright, and the world checkpoint with the vehicle state resumes it bit for bit",
+    "url": "https://github.com/nathansenn/box3d-WEBGPU/blob/main/packages/box3d-kit/test/v21-rigid-vehicle.test.mjs"
+   },
+   "text": {
+    "reference": "0 steps",
+    "measured": "0",
+    "error": "0",
+    "tolerance": "±0"
    }
   },
   {

@@ -51,7 +51,7 @@ export const DOMAINS = [
   {
     id: 'rigid-core', title: 'Rigid core: queries, character, continuous collision, vehicles, joints and piles', needsKit: true,
     solver: 'Box3D compiled to WebAssembly, through `box3d-webgpu-kit` (float32 state, 240 Hz, 4 sub-steps unless a row says otherwise)',
-    summary: 'Ray, sweep and overlap queries against closed forms, and the batched ray call. The capsule character: speed, slope limit, step height, stairs, jump, thin walls, moving platforms, force-limited pushing and exact resume. Continuous collision: a fast ball against a thin wall with the setting off and on, and the bullet flag against a free plate.',
+    summary: 'Ray, sweep and overlap queries against closed forms, and the batched ray call. The capsule character: speed, slope limit, step height, stairs, jump, thin walls, moving platforms, force-limited pushing and exact resume. Continuous collision: a fast ball against a thin wall with the setting off and on, and the bullet flag against a free plate. A wheel-joint vehicle: static sag, heave frequency and damping, top speed against drag, the Ackermann turning circle and braking distance.',
     docs: ['docs/RIGID_CORE.md'],
     notValidated: [
       'Queries against triangle meshes, height fields, hulls and compounds have no closed-form row: they are covered by the bit-for-bit agreement of batched and single rays only.',
@@ -59,6 +59,7 @@ export const DOMAINS = [
       'Box and capsule query shapes are axis aligned (the capsule upright). Rotated query shapes are not exposed.',
       'The character is checked on boxes and ramps. Triangle-mesh and height-field ground, rotating platforms, crouching, swimming and ladders are not covered; a dynamic body the character stands on does not feel its weight.',
       'Continuous collision is checked for spheres against boxes. Fast rotation (a spinning thin bar) is not swept by Box3D and is not checked; kinematic bodies are not swept against static ones.',
+      'The vehicle has rigid sphere wheels with Coulomb friction: no tyre model (slip curves, camber, load sensitivity), no drivetrain (gears, differential, engine curve), no anti-roll bars. Handling at speed, roll-over and jumps are not checked against references.',
       'One build on one machine; no cross-device determinism matrix.',
     ],
   },

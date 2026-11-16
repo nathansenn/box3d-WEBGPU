@@ -9,6 +9,8 @@
 
 ## Unreleased
 
+- **`box3d-webgpu-kit/gameplay`: `Vehicle`**, a chassis on Box3D wheel joints: suspension in N/m and N s/m (or as the chassis' bounce frequency and damping ratio), Ackermann steering, throttle, brake, drag, `state` (speed, yaw rate, per-wheel suspension travel, spin and steering angle), `saveState()` / `restoreState()`. Types `VehicleOptions`, `VehicleWheelOptions`, `VehicleControls`, `VehicleState`, `VehicleWheelState`, `VehicleHost`. `test/v21-rigid-vehicle.test.mjs` (7 tests) runs in the gate.
+
 - **Continuous collision:** `world.configure({continuous})` and `world.setBullet(body, flag)` are covered by `test/v21-rigid-ccd.test.mjs` (3 tests in the gate): a fast ball against a thin wall with the setting off (tunnels, as often as a window model predicts) and on (never), and the bullet flag against a free plate (momentum conserved).
 
 - **`box3d-webgpu-kit/gameplay`: `CapsuleCharacterController`**, a capsule character on Box3D's character mover: commanded speed along walkable ground, `maxSlopeDegrees`, `stepHeight`, stairs, jumps, moving platforms, pushing limited by `maxPushForce`, no tunnelling at any speed, `saveState()` / `restoreState()`. Types `CapsuleCharacterOptions`, `CapsuleCharacterInput`, `CapsuleCharacterState`, `CharacterHost`, `CharacterVec3`. The box `CharacterController` is unchanged. `test/v21-rigid-character.test.mjs` (11 tests) runs in the gate.

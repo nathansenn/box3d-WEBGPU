@@ -539,3 +539,183 @@ export async function bulletAgainstDynamic(K, {speed = 150} = {}) {
   };
   return {plain: await shoot(false), bullet: await shoot(true), speed};
 }
+
+// ---------------------------------------------------------------------------------------------------
+// Vehicle (box3d-webgpu-kit/gameplay, Vehicle): a chassis on four wheel joints. `K` also has the class.
+// ---------------------------------------------------------------------------------------------------
+
+const CAR = {half: [1.6, 0.25, 0.75], wheelX: 1.3, wheelZ: 0.8, radius: 0.35, wheelMass: 20};
+const flatRoad = (world, friction = 1) => world.createBody({shape: {kind: 'box', halfExtents: [2000, 0.5, 2000]}, type: 'static', position: [0, -0.5, 0], friction});
+function newCar(K, world, options = {}) {
+  const {mass = 1200, stiffness = 60000, damping = 4000, position = [0, CAR.radius + CAR.half[1], 0], ...rest} = options;
+  return new K.Vehicle(world, {position, chassisHalfExtents: CAR.half, chassisMass: mass, wheelRadius: CAR.radius, wheelMass: CAR.wheelMass,
+    wheels: [{position: [CAR.wheelX, -CAR.half[1], -CAR.wheelZ]}, {position: [CAR.wheelX, -CAR.half[1], CAR.wheelZ]}, {position: [-CAR.wheelX, -CAR.half[1], -CAR.wheelZ]}, {position: [-CAR.wheelX, -CAR.half[1], CAR.wheelZ]}],
+    suspension: {stiffness, damping, travel: 0.3}, ...rest});
+}
+const drive = (world, car, controls, seconds, each) => { const n = Math.round(seconds * HZ); for (let i = 0; i < n; i++) { car.update(typeof controls === 'function' ? controls(i) : controls); world.step(); each?.(i); } };
+
+/**
+ * Static sag. A car at rest compresses each spring by the load on its wheel over the stiffness: M g / (4 k) with the
+ * centre of mass in the middle, and M g (1/2 +- x / L) / (2 k) per axle with it x in front of the middle.
+ */
+export async function vehicleSag(K) {
+  const world = await newWorld(K);
+  try {
+    flatRoad(world);
+    const mass = 1200, stiffness = 60000, shift = 0.4, L = 2 * CAR.wheelX;
+    const even = newCar(K, world, {mass, stiffness}), nose = newCar(K, world, {mass, stiffness, position: [0, CAR.radius + CAR.half[1], 20], centerOfMass: [shift, 0, 0]});
+    drive(world, even, {}, 5, () => nose.update({}));
+    const sag = car => car.state.wheels.map(wheel => wheel.suspension);
+    return {even: sag(even), exact: mass * G / (4 * stiffness), nose: sag(nose), exactFront: mass * G * (0.5 + shift / L) / (2 * stiffness), exactRear: mass * G * (0.5 - shift / L) / (2 * stiffness),
+      stiffness: even.stiffness, wheelbase: even.wheelbase, track: even.track, speed: even.state.speed};
+  } finally { world.dispose(); }
+}
+
+/**
+ * Heave. A car pushed down and released bounces on its four springs at f = sqrt(4 k / M) / (2 pi) (the wheels stay on
+ * the road, so M is the chassis mass), and with dampers of c each the bounce decays at zeta = 4 c / (2 sqrt(4 k M)).
+ */
+export async function vehicleHeave(K, {mass = 1200, stiffness = 60000, damping = 0} = {}) {
+  const world = await newWorld(K);
+  try {
+    flatRoad(world);
+    const car = newCar(K, world, {mass, stiffness, damping: Math.max(damping, 1500)});
+    drive(world, car, {}, 4);
+    // Settled with damping; now the dampers of the run under test, and a downward kick.
+    const run2 = async () => {
+      const w2 = await newWorld(K);
+      try {
+        flatRoad(w2);
+        const rest = car.state.position[1];
+        const car2 = newCar(K, w2, {mass, stiffness, damping, position: [0, rest, 0]});
+        // Place the wheels where the settled car has them, so that the run starts at rest.
+        const y0 = w2.getState(car2.chassis).position[1];
+        w2.setVelocity(car2.chassis, [0, -0.25, 0]);
+        const ys = [];
+        drive(w2, car2, {}, 6, () => ys.push(w2.getState(car2.chassis).position[1]));
+        return {ys, y0};
+      } finally { w2.dispose(); }
+    };
+    const {ys} = await run2();
+    const mean = ys.slice(-HZ).reduce((a, b) => a + b, 0) / HZ, centred = ys.map(y => y - mean);
+    const crossings = [], peaks = [];
+    for (let i = 1; i < centred.length; i++) if (centred[i - 1] < 0 && centred[i] >= 0) crossings.push((i - 1 + centred[i - 1] / (centred[i - 1] - centred[i])) / HZ);
+    for (let i = 1; i < centred.length - 1; i++) if (centred[i] > centred[i - 1] && centred[i] >= centred[i + 1] && centred[i] > 1e-5) peaks.push(centred[i]);
+    const period = (crossings.at(-1) - crossings[0]) / (crossings.length - 1);
+    // Logarithmic decrement over the first few peaks.
+    const used = Math.min(peaks.length - 1, 4), decrement = used > 0 ? Math.log(peaks[0] / peaks[used]) / used : 0, zeta = decrement / Math.hypot(2 * Math.PI, decrement);
+    return {frequency: 1 / period, exact: Math.sqrt(4 * stiffness / mass) / (2 * Math.PI), zeta, exactZeta: 4 * damping / (2 * Math.sqrt(4 * stiffness * mass)), peaks: peaks.slice(0, 6), cycles: crossings.length - 1};
+  } finally { world.dispose(); }
+}
+
+/**
+ * Top speed. Four driven wheels with a torque limit tau each push with 4 tau / R; drag is rho CdA v^2 / 2. The car is
+ * started below and above the balance speed sqrt(8 tau / (R rho CdA)) and must settle on it from both sides.
+ */
+export async function vehicleTopSpeed(K, {torque = 40, dragArea = 1.2, mass = 240, seconds = 45} = {}) {
+  const exact = Math.sqrt(8 * torque / (CAR.radius * 1.225 * dragArea));
+  const from = async factor => {
+    const world = await newWorld(K);
+    try {
+      flatRoad(world);
+      const car = newCar(K, world, {mass, stiffness: 30000, damping: 3000, maxDriveTorque: torque, maxWheelSpeed: 400, dragArea});
+      drive(world, car, {}, 2);
+      const v = factor * exact;
+      world.setVelocity(car.chassis, [v, 0, 0]);
+      for (const wheel of car.wheels) world.setVelocity(wheel, [v, 0, 0], [0, 0, -v / CAR.radius]);
+      drive(world, car, {throttle: 1}, seconds);
+      const s = car.state;
+      return {speed: s.forwardSpeed, spin: s.wheels.map(wheel => wheel.spinSpeed), sideways: Math.abs(s.position[2])};
+    } finally { world.dispose(); }
+  };
+  const below = await from(0.95), above = await from(1.05);
+  return {exact, below: below.speed, above: above.speed, slip: below.spin.map(w => w * CAR.radius / below.speed - 1), sideways: Math.max(below.sideways, above.sideways), torque, dragArea};
+}
+
+/**
+ * Turning circle. At low speed a car with its steering at the bicycle angle delta turns about a point on its rear
+ * axle line at R = L / tan(delta) (Ackermann geometry: every wheel's axle passes through that point).
+ */
+export async function vehicleTurning(K, {delta = 0.25, speed = 3} = {}) {
+  const world = await newWorld(K);
+  try {
+    flatRoad(world);
+    const car = newCar(K, world, {maxSteerAngle: 0.5, maxDriveTorque: 400});
+    drive(world, car, {}, 2);
+    const steer = delta / car.maxSteerAngle;
+    // Hold the speed with the throttle, turn left for 4 s to settle, then measure over one more lap or 20 s.
+    const control = () => ({steer, throttle: Math.max(-1, Math.min(1, (speed - car.state.forwardSpeed) * 0.8))});
+    drive(world, car, control, 6);
+    const radii = [], xs = [], zs = [];
+    drive(world, car, control, 20, () => {
+      const s = world.getState(car.chassis), q = s.rotation, w = s.angularVelocity, v = s.linearVelocity;
+      // Velocity of the middle of the rear axle: v + w x r, with r from the chassis origin to it.
+      const fwd = [1 - 2 * (q[1] * q[1] + q[2] * q[2]), 2 * (q[0] * q[1] + q[3] * q[2]), 2 * (q[0] * q[2] - q[3] * q[1])], r = fwd.map(c => -c * CAR.wheelX);
+      const vr = [v[0] + w[1] * r[2] - w[2] * r[1], v[1] + w[2] * r[0] - w[0] * r[2], v[2] + w[0] * r[1] - w[1] * r[0]];
+      radii.push(Math.hypot(vr[0], vr[2]) / Math.abs(w[1]));
+      xs.push(s.position[0] + r[0]); zs.push(s.position[2] + r[2]);
+    });
+    // Circle through the rear-axle path by least squares (Kasa fit).
+    const n = xs.length, mx = xs.reduce((a, b) => a + b, 0) / n, mz = zs.reduce((a, b) => a + b, 0) / n;
+    let suu = 0, svv = 0, suv = 0, suuu = 0, svvv = 0, suvv = 0, svuu = 0;
+    for (let i = 0; i < n; i++) { const u = xs[i] - mx, v = zs[i] - mz; suu += u * u; svv += v * v; suv += u * v; suuu += u * u * u; svvv += v * v * v; suvv += u * v * v; svuu += v * u * u; }
+    const det = suu * svv - suv * suv, uc = (svv * (suuu + suvv) - suv * (svvv + svuu)) / (2 * det), vc = (suu * (svvv + svuu) - suv * (suuu + suvv)) / (2 * det);
+    const fitted = Math.sqrt(uc * uc + vc * vc + (suu + svv) / n);
+    const state = car.state;
+    return {radius: radii.reduce((a, b) => a + b, 0) / radii.length, fitted, exact: car.wheelbase / Math.tan(delta), speed: state.forwardSpeed, yawRate: state.yawRate,
+      angles: state.wheels.map(wheel => wheel.steeringAngle), ackermann: car.ackermann(delta), lateral: speed * speed / (car.wheelbase / Math.tan(delta))};
+  } finally { world.dispose(); }
+}
+
+/** Braking with locked wheels on a road of friction mu: the car stops in v^2 / (2 mu g). */
+export async function vehicleBraking(K, {speed = 20, mu = 0.8} = {}) {
+  const world = await newWorld(K);
+  try {
+    flatRoad(world, mu);
+    // Tyre friction mu too: Box3D mixes the two coefficients as sqrt(mu1 mu2).
+    const car = newCar(K, world, {wheelFriction: mu, maxBrakeTorque: 4000});
+    drive(world, car, {}, 2);
+    world.setVelocity(car.chassis, [speed, 0, 0]);
+    for (const wheel of car.wheels) world.setVelocity(wheel, [speed, 0, 0], [0, 0, -speed / CAR.radius]);
+    drive(world, car, {}, 0.25);
+    const x0 = car.state.position[0], v0 = car.state.forwardSpeed;
+    let stoppedAt = null, locked = 0, steps = 0;
+    drive(world, car, {brake: 1}, 8, i => { const s = car.state; if (s.speed > 1) { steps++; if (Math.max(...s.wheels.map(wheel => Math.abs(wheel.spinSpeed))) < 0.5) locked++; } if (stoppedAt === null && s.speed < 0.01) stoppedAt = (i + 1) * DT; });
+    return {distance: car.state.position[0] - x0, exact: v0 * v0 / (2 * mu * G), v0, stoppedAt, exactTime: v0 / (mu * G), lockedFraction: locked / steps, sideways: Math.abs(car.state.position[2])};
+  } finally { world.dispose(); }
+}
+
+/**
+ * A drive over rough height-field terrain with a checkpoint half way: the car must stay upright and on the ground,
+ * and a second world restored from the checkpoint, with the vehicle's saved state, must match it bit for bit.
+ */
+export async function vehicleTerrainCheckpoint(K) {
+  const build = async () => {
+    const world = await newWorld(K);
+    const n = 129, heights = [];
+    for (let z = 0; z < n; z++) for (let x = 0; x < n; x++) heights.push(0.18 * Math.sin(x * 0.55) * Math.cos(z * 0.4) + 0.1 * Math.sin(x * 0.21 + z * 0.33));
+    world.createBody({shape: {kind: 'heightfield', heights, countX: n, countZ: n, spacing: [1, 1]}, position: [-16, 0, -64], friction: 1});
+    const car = newCar(K, world, {position: [0, 1.1, 0], maxDriveTorque: 500, dragArea: 0.8});
+    return {world, car};
+  };
+  const controls = i => ({throttle: i < 1500 ? 0.6 : 0.2, steer: 0.35 * Math.sin(i / 300), brake: i > 2200 ? 0.5 : 0});
+  const a = await build(), b = await build();
+  try {
+    const half = 900, total = 2400;
+    let minUp = 1, maxHeight = -Infinity;
+    const watch = () => { const s = a.car.state, q = s.rotation; minUp = Math.min(minUp, 1 - 2 * (q[0] * q[0] + q[2] * q[2])); maxHeight = Math.max(maxHeight, s.position[1]); };
+    drive(a.world, a.car, controls, half / HZ, watch);
+    const bytes = a.world.checkpoint(), saved = JSON.parse(JSON.stringify(a.car.saveState()));
+    drive(b.world, b.car, {throttle: -1, steer: 1}, 0.5);
+    b.world.restoreCheckpoint(bytes);
+    b.car.restoreState(saved);
+    let mismatches = 0;
+    for (let i = half; i < total; i++) {
+      a.car.update(controls(i)); b.car.update(controls(i));
+      a.world.step(); b.world.step(); watch();
+      if (a.world.exactHash() !== b.world.exactHash()) mismatches++;
+    }
+    const s = a.car.state;
+    return {mismatches, steps: total - half, minUp, maxHeight, travelled: Math.hypot(s.position[0], s.position[2]), end: s.position, savedKeys: Object.keys(saved).sort()};
+  } finally { a.world.dispose(); b.world.dispose(); }
+}
