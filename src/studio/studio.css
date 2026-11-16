@@ -58,3 +58,7 @@ input[type=range]{appearance:none;-webkit-appearance:none;background:transparent
 @media(max-width:560px){.studio-header{gap:0}}
 /* Saved experiments remain accessible where secondary header actions collapse. */
 @media(max-width:760px){.header-actions>.icon-button.resume-run{display:inline-flex;width:36px;height:36px}}
+/* Keyboard focus is always visible: a fallback for every control that has no focus style of its own (:where keeps
+   it below any specific rule). Animations stop for people who ask for reduced motion. */
+:where(a,button,input,select,textarea,summary,[tabindex]:not([tabindex="-1"]),[role=button],[role=tab],[role=slider]):focus-visible{outline:2px solid var(--accent,#ff9b43);outline-offset:2px}
+@media(prefers-reduced-motion:reduce){*,*::before,*::after{animation-duration:.01ms!important;animation-iteration-count:1!important}}

@@ -1,5 +1,11 @@
 # Changelog
 
+## Unreleased — 2026-11-16 — Keyboard focus, reduced motion and scene errors that say what to do
+
+- **Lab:** when the engine refuses to build a scene, the scene panel shows the engine's message and, for an `EngineError`, what its code says to do (`explainError`, docs/ERRORS.md). Every control without a focus style of its own gets a visible focus ring (a `:where` fallback, below any specific rule).
+- **Studio:** the same focus fallback in `src/studio/studio.css`; animations stop under `prefers-reduced-motion` (transitions already did).
+- **Not done:** no audit of tab order or of the canvas interactions with a screen reader; the Studio's scene-load failures still use their own messages.
+
 ## Unreleased — 2026-11-16 — Kit 1.0 release-candidate readiness: honest size budgets, tree-shaking and static-path checks, notices
 
 - **Sizes (`packages/box3d-kit/scripts/pack-smoke.mjs`, `npm --prefix packages/box3d-kit run test:pack`, now in `validate:pr`):** the old budgets counted solver files as "core" from a stale list and failed. Each entry point is now measured as the gzip of everything it loads through static imports, with a budget per entry set from the measurement plus about 15 %: the main entry 58.8 KiB (18 files, no solver module, asserted), `/fluid` 49.2, `/cloth` 62.4, `/fracture` 113.9, `/scene` 388.3 and `/simulation` 387.0 (both load every solver). A rigid-only Vite bundle is 27.9 KiB and holds no solver code (asserted by solver id), and the package files load from a static path by a plain `<script type="module">` in Chromium where one is available (a box falls and rests at y = 0.50).
