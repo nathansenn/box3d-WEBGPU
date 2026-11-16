@@ -67,6 +67,97 @@ export interface BuildInfo {
 }
 export declare const BUILD_INFO: BuildInfo;
 
+// ==== core/character-controller.d.ts ====
+import { type StateObject, type StateValue } from './checkpoint.js';
+import type { NativeBodyHandle, NativeBodyState, NativeMoverInput, NativeMoverResult, NativeQueryResult, NativeSpatialQuery } from './native-world.js';
+type Body = NativeBodyHandle;
+type Vec3 = readonly [number, number, number];
+export type CharacterVec3 = Vec3 | {
+    readonly x: number;
+    readonly y: number;
+    readonly z: number;
+};
+export interface CharacterHost {
+    readonly native: {
+        moverMove(input: NativeMoverInput): NativeMoverResult;
+        queryBatch(queries: readonly NativeSpatialQuery[]): NativeQueryResult[];
+        bodyIndex(body: Body): number | null;
+        bodyHandle(index: number): Body;
+        bodyCount(): number;
+    };
+    getState(body: Body): NativeBodyState;
+    isAlive(body: Body): boolean;
+    applyImpulseAt(body: Body, impulse: Vec3, point: Vec3): void;
+    gravity(): [number, number, number];
+}
+export interface CapsuleCharacterOptions {
+    readonly position: CharacterVec3;
+    readonly radius?: number;
+    readonly height?: number;
+    readonly maxSlopeDegrees?: number;
+    readonly stepHeight?: number;
+    readonly snapDistance?: number;
+    readonly gravity?: number;
+    readonly maxPushForce?: number;
+    readonly ignoreBody?: Body;
+    readonly filter?: {
+        readonly categoryBits?: bigint;
+        readonly maskBits?: bigint;
+    };
+}
+export interface CapsuleCharacterInput {
+    readonly velocity: CharacterVec3;
+    readonly jump?: number;
+}
+export interface CapsuleCharacterState {
+    readonly position: readonly [number, number, number];
+    readonly feet: number;
+    readonly velocity: readonly [number, number, number];
+    readonly grounded: boolean;
+    readonly groundNormal: readonly [number, number, number] | null;
+    readonly groundBody: Body | null;
+    readonly pushed: readonly Body[];
+    readonly stepped: boolean;
+    readonly onSteepSlope: boolean;
+}
+export declare class CapsuleCharacterController {
+    private readonly world;
+    readonly radius: number;
+    readonly halfLength: number;
+    readonly stepHeight: number;
+    readonly snapDistance: number;
+    readonly gravity: number;
+    readonly maxPushForce: number;
+    readonly maxSlopeDegrees: number;
+    private readonly minGroundY;
+    private readonly ignoreBody;
+    private readonly categoryBits;
+    private readonly maskBits;
+    private pos;
+    private vel;
+    private verticalSpeed;
+    private inherited;
+    private ground;
+    private steep;
+    private pushedBodies;
+    private steppedFlag;
+    private stepping;
+    private wanted;
+    constructor(world: CharacterHost, options: CapsuleCharacterOptions);
+    get state(): CapsuleCharacterState;
+    teleport(position: CharacterVec3): void;
+    move(input: CapsuleCharacterInput, dt: number): CapsuleCharacterState;
+    private slide;
+    private tryStep;
+    private probe;
+    private velocityAt;
+    private push;
+    saveState(): StateObject;
+    restoreState(state: StateValue): void;
+    private fieldOptions;
+}
+export {};
+
 // ==== core/checkpoint.d.ts ====
 import { EngineError } from './contracts.js';
 export type TypedArray = Float64Array | Float32Array | Int32Array | Uint32Array | Int16Array | Uint16Array | Int8Array | Uint8Array | Uint8ClampedArray | BigInt64Array | BigUint64Array;
@@ -6472,6 +6563,7 @@ export declare class TriggerSet<T = unknown> {
     dispose(): void;
     private state;
 }
+export { CapsuleCharacterController, type CapsuleCharacterOptions, type CapsuleCharacterInput, type CapsuleCharacterState, type CharacterHost, type CharacterVec3 } from './core/character-controller.js';
 export interface CharacterOptions {
     readonly position: Vec3Like;
     readonly halfExtents?: Vec3Like;

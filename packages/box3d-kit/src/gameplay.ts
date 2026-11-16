@@ -170,6 +170,8 @@ function diff<T>(world: PhysicsWorld, trigger: TriggerState<T>, found: Body[], o
   }
 }
 
+export {CapsuleCharacterController, type CapsuleCharacterOptions, type CapsuleCharacterInput, type CapsuleCharacterState, type CharacterHost, type CharacterVec3} from './core/character-controller.js';
+
 export interface CharacterOptions {
   /** Centre of the character box. */
   readonly position: Vec3Like;
@@ -211,6 +213,10 @@ export interface CharacterState {
 }
 
 /**
+ * The first character controller of this package, on box casts. CapsuleCharacterController (same module) is
+ * the one to use with a current WASM build: a capsule on Box3D's character mover, with moving platforms and
+ * force-limited pushing. This one is kept for callers that have it.
+ *
  * A kinematic box character that walks, slides along walls, climbs steps,
  * respects a slope limit and sticks to the ground on the way down, using
  * box casts against the world.

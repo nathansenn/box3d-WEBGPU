@@ -80,6 +80,87 @@ One `raycastBatch` call for 4,096 rays took 18 ms against 134 ms for 4,096 `rayc
 - Queries against meshes, height fields, hulls and compounds have no closed-form row; they are covered by the
   bit-for-bit agreement of the batched and single calls.
 
+## 2. Character controller
+
+`CapsuleCharacterController` (`box3d-webgpu-kit/gameplay`; source `src/engine/character-controller.ts`) is a capsule
+moved by Box3D's character mover, the way the upstream character sample does it: gather the collision planes around
+the capsule (`b3World_CollideMover`), solve for the closest allowed translation (`b3SolvePlanes`), and cast the
+capsule along it (`b3World_CastMover`). The bridge runs up to 16 such rounds in one call
+(`PhysicsWorld.moveCapsule`, which is also usable on its own).
+
+```js
+import {CapsuleCharacterController} from 'box3d-webgpu-kit/gameplay';
+
+const character = new CapsuleCharacterController(world, {
+  position: [0, 0.9, 0], radius: 0.3, height: 1.8,
+  maxSlopeDegrees: 50, stepHeight: 0.35, maxPushForce: 800,
+});
+world.onStep(() => {
+  const state = character.move({velocity: [input.x * 4, 0, input.z * 4], jump: input.jump ? 5 : 0}, world.loop.step);
+  playerMesh.position.set(...state.position);
+});
+```
+
+What it does, and where each rule comes from:
+
+- **Walking.** On walkable ground the wanted velocity is turned into the ground plane and kept at the wanted speed,
+  so the character moves at that speed *along* a slope. After each move it looks `snapDistance` below its feet and
+  stays on the ground down slopes and stairs.
+- **Slope limit.** A surface steeper than `maxSlopeDegrees` is a wall while the character stands on walkable ground
+  (the bridge turns such planes vertical before the plane solver sees them), and a slide when it is in the air
+  (pushing into it does not climb it).
+- **Steps.** When a wall stops it, the character rises by `stepHeight`, moves one radius forwards and looks down. If
+  walkable ground is there, higher than where it stood, it takes its move at that height; until the capsule itself
+  stands on the ledge, the ledge under its leading foot carries it. While raised, anything that is not level is a
+  wall, which is what makes the limit sharp: a ledge 5 mm higher than `stepHeight` is refused.
+- **Jumping and falling.** In the air the vertical move of a step uses the mean of the speeds at its two ends, which
+  is exact for constant gravity.
+- **Moving platforms.** The character takes the velocity of the body under its feet at the point it stands on
+  (`v + ω × r`), kinematic or dynamic, and keeps the horizontal part when it leaves.
+- **Pushing.** A dynamic body in the way gets the impulse that brings its contact point up to the character's speed,
+  limited to `maxPushForce × dt`, through `applyImpulseAt`. A box needs `μ m g` to slide, so boxes lighter than
+  `maxPushForce / (μ g)` are pushed at walking speed and heavier ones stop the character.
+- **Thin geometry.** Every translation is cast, so no speed gets the capsule through a wall.
+
+The character is not a body: other bodies do not collide with it (give it a kinematic body to push things that
+fall on it, and pass that body as `ignoreBody`), and a dynamic body it stands on does not feel its weight. Its own
+state (`saveState()` / `restoreState()`) is ten fields; with the world's checkpoint it resumes a walk bit for bit.
+A recording of the world holds the character's pushes, so a replay reproduces the world without the character.
+
+### Measured
+
+| Quantity | Measured | Held to |
+|---|---|---|
+| Speed on flat ground, commanded 3 m/s | 2.99998 m/s | 0.1% |
+| Steepest ramp climbed / shallowest refused, limit 45° (0.5° scan) | 44.5° / 45° | limit ± 0.75° |
+| The same at a 30° limit | 29.5° / 30° | limit ± 0.75° |
+| Speed along a 42° ramp, commanded 2 m/s | 2.0000 m/s | 0.2% |
+| Tallest ledge stepped onto / lowest refused, `stepHeight` 0.35 m (5 mm scan) | 0.350 m / 0.355 m | 0.35 m ± 6 mm / ± 11 mm |
+| The same at 0.2 m | 0.200 m / 0.205 m | |
+| Five stairs of 0.2 m up and down | top at 1.000 m, 0 of 385 steps of the way down in the air | 2 mm, 0 |
+| Apex of a 5 m/s jump: v²/(2g) = 1.27421 m | 1.27420 m | 1 mm |
+| Air time: 2v/g = 1.0194 s | 1.0167 s | one step (1/240 s) |
+| A 1 cm wall at 10, 50, 100 and 300 m/s (5 m per move at the top speed) | 5.00 mm past the near face at every speed | ≤ Box3D's 5 mm slop |
+| Carried by a platform moving at (1.5, 0.5) m/s | (1.49999, 0.50000) m/s, slip 0 | 0.1% |
+| On a platform rising at 1 m/s for 2 s | 1.99999 m with the platform's 1.99999 m | 0.1% |
+| Pushing, limit 400 N and μ = 0.5 (limit mass 81.5 kg): a 40.8 kg box | 1.487 m/s at a 1.5 m/s walk | 2% |
+| The same push on a 163 kg box | 0.0013 m/s | ≤ 0.015 m/s |
+| Resume from a checkpoint (a step, a platform ride, a jump, 68 pushes) | 0 of 1,150 later steps differ in any bit | 0 |
+
+### Limits
+
+- The capsule is upright and does not crouch. Its round bottom rides over bumps lower than
+  `radius × (1 − cos(maxSlope))` (10.7 cm with the defaults) whatever `stepHeight` is.
+- A step needs one radius of standing room on the ledge.
+- A ramp exactly at the limit is on the edge of float32: it is refused, and the capsule may creep a few centimetres
+  up its foot.
+- A platform that moves away sideways faster than the character can follow in one step is left behind; a rising
+  platform is followed with one step of lag (4 mm at 1 m/s and 240 Hz).
+- Checked on boxes and ramps. Triangle-mesh and height-field ground work through the same queries but have no
+  validation row.
+- The older `CharacterController` (a box on box casts, no platforms, impulse pushing without a force limit) is
+  unchanged and still exported.
+
 ## Custom filter and pre-solve callbacks: not exposed
 
 Box3D can call the application for every candidate pair (`b3World_SetCustomFilterCallback`) and for every touching

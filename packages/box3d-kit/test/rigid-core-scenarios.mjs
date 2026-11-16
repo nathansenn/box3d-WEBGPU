@@ -259,3 +259,223 @@ export async function batchAgreement(K, {count = 4096, seed = 5} = {}) {
     return {count, hits, hitCount: batch.hitCount, mismatches, triangleHits, batchMs, singleMs};
   } finally { world.dispose(); }
 }
+
+// ---------------------------------------------------------------------------------------------------
+// Capsule character (box3d-webgpu-kit/gameplay, CapsuleCharacterController). `K` also has the class.
+// ---------------------------------------------------------------------------------------------------
+
+const CHARACTER = {radius: 0.3, height: 1.8};
+const standing = y => y + CHARACTER.height / 2 - LINEAR_SLOP;   // centre of a character standing on a surface at height y
+/** Steps the character and the world together for `seconds`, calling `each(state, step)` after each step. */
+function walk(world, character, input, seconds, each) {
+  const n = Math.round(seconds * HZ);
+  for (let i = 0; i < n; i++) {
+    const state = character.move(typeof input === 'function' ? input(i) : input, DT);
+    world.step();
+    each?.(state, i);
+  }
+  return character.state;
+}
+
+/** Flat ground: the speed held over 3 s of walking, the height of the feet, and whether the character stayed grounded. */
+export async function characterFlat(K) {
+  const world = await newWorld(K, {ground: true});
+  try {
+    const character = new K.CapsuleCharacterController(world, {...CHARACTER, position: [0, standing(0) + 0.3, 0]});
+    walk(world, character, {velocity: [0, 0, 0]}, 1);
+    const landedFeet = character.state.feet, start = character.state.position[0];
+    let airborne = 0, feetMin = Infinity, feetMax = -Infinity;
+    const end = walk(world, character, {velocity: [3, 0, 0]}, 3, s => { if (!s.grounded) airborne++; feetMin = Math.min(feetMin, s.feet); feetMax = Math.max(feetMax, s.feet); });
+    return {speed: (end.position[0] - start) / 3, commanded: 3, landedFeet, feetMin, feetMax, airborne, drift: Math.abs(end.position[2])};
+  } finally { world.dispose(); }
+}
+
+/** A ramp of `degrees` rising along +x from x = 2: how far up it the character gets in 4 s of walking at 2 m/s, and its speed along the ramp. */
+export async function characterSlope(K, degrees, maxSlopeDegrees = 45) {
+  const world = await newWorld(K, {ground: true});
+  try {
+    const angle = degrees * Math.PI / 180, length = 12, thick = 0.5;
+    // A slab whose top face passes through (2, 0, 0) and rises at `angle`.
+    const centre = [2 + (length / 2) * Math.cos(angle) + (thick / 2) * Math.sin(angle), (length / 2) * Math.sin(angle) - (thick / 2) * Math.cos(angle), 0];
+    world.createBody({shape: {kind: 'box', halfExtents: [length / 2, thick / 2, 3]}, type: 'static', position: centre, rotation: [0, 0, Math.sin(angle / 2), Math.cos(angle / 2)]});
+    const character = new K.CapsuleCharacterController(world, {...CHARACTER, position: [0, standing(0), 0], maxSlopeDegrees});
+    walk(world, character, {velocity: [0, 0, 0]}, 0.25);
+    walk(world, character, {velocity: [2, 0, 0]}, 2);
+    const a = character.state.position;
+    const b = walk(world, character, {velocity: [2, 0, 0]}, 2).position;
+    return {degrees, climbed: b[1] - standing(0), alongSpeed: Math.hypot(b[0] - a[0], b[1] - a[1]) / 2, grounded: character.state.grounded, x: b[0]};
+  } finally { world.dispose(); }
+}
+
+/** The steepest ramp climbed and the shallowest refused, scanning in half-degree steps around the limit. */
+export async function characterSlopeLimit(K, maxSlopeDegrees = 45) {
+  let steepestClimbed = -Infinity, shallowestRefused = Infinity;
+  const rows = [];
+  for (let degrees = maxSlopeDegrees - 3; degrees <= maxSlopeDegrees + 3 + 1e-9; degrees += 0.5) {
+    const r = await characterSlope(K, degrees, maxSlopeDegrees);
+    rows.push(r);
+    // 4 s at 2 m/s along a ramp gains about 7 sin(angle) m; a refused ramp gains almost nothing.
+    if (r.climbed > 1) steepestClimbed = Math.max(steepestClimbed, degrees); else shallowestRefused = Math.min(shallowestRefused, degrees);
+  }
+  return {maxSlopeDegrees, steepestClimbed, shallowestRefused, rows};
+}
+
+/** A ledge of `height` across the path: does the character get onto it within 3 s at 2 m/s? */
+export async function characterStep(K, height, stepHeight = 0.35) {
+  const world = await newWorld(K, {ground: true});
+  try {
+    world.createBody({shape: {kind: 'box', halfExtents: [3, height / 2, 3]}, type: 'static', position: [5, height / 2, 0]});
+    const character = new K.CapsuleCharacterController(world, {...CHARACTER, position: [0, standing(0), 0], stepHeight});
+    walk(world, character, {velocity: [0, 0, 0]}, 0.25);
+    let stepped = false;
+    const end = walk(world, character, {velocity: [2, 0, 0]}, 3, s => { stepped ||= s.stepped; });
+    return {height, onTop: end.feet > height - 0.02 && end.position[0] > 2.5, feet: end.feet, x: end.position[0], stepped};
+  } finally { world.dispose(); }
+}
+
+/** The tallest ledge climbed and the lowest refused, scanning in 5 mm steps around the step height. */
+export async function characterStepLimit(K, stepHeight = 0.35) {
+  let tallestClimbed = -Infinity, lowestRefused = Infinity;
+  for (let k = -8; k <= 8; k++) {
+    const height = stepHeight + k * 0.005, r = await characterStep(K, height, stepHeight);
+    if (r.onTop) tallestClimbed = Math.max(tallestClimbed, height); else lowestRefused = Math.min(lowestRefused, height);
+  }
+  return {stepHeight, tallestClimbed, lowestRefused};
+}
+
+/** A jump from flat ground: apex above the standing height, and the time back to the ground. */
+export async function characterJump(K, launch = 5) {
+  const world = await newWorld(K, {ground: true});
+  try {
+    const character = new K.CapsuleCharacterController(world, {...CHARACTER, position: [0, standing(0), 0]});
+    walk(world, character, {velocity: [0, 0, 0]}, 0.25);
+    const base = character.state.position[1];
+    let apex = 0, landedAt = null;
+    walk(world, character, i => ({velocity: [0, 0, 0], jump: i === 0 ? launch : 0}), 2, (s, i) => { apex = Math.max(apex, s.position[1] - base); if (landedAt === null && i > 2 && s.grounded) landedAt = (i + 1) * DT; });
+    return {apex, exactApex: launch * launch / (2 * G), airTime: landedAt, exactAirTime: 2 * launch / G, launch};
+  } finally { world.dispose(); }
+}
+
+/** Thin walls: a 1 cm wall in the path of a character asked to move at up to 300 m/s. Returns how far past the wall's near face it ever got. */
+export async function characterThinWall(K) {
+  const world = await newWorld(K, {ground: true});
+  try {
+    const thickness = 0.01, face = 3;
+    world.createBody({shape: {kind: 'box', halfExtents: [thickness / 2, 2, 4]}, type: 'static', position: [face + thickness / 2, 2, 0]});
+    const speeds = [10, 50, 100, 300], result = [];
+    for (const speed of speeds) {
+      const character = new K.CapsuleCharacterController(world, {...CHARACTER, position: [0, standing(0), 0]});
+      let furthest = -Infinity;
+      // 60 Hz character steps: 5 m per step at 300 m/s, five hundred times the wall's thickness.
+      for (let i = 0; i < 60; i++) { const s = character.move({velocity: [speed, 0, 0]}, 1 / 60); furthest = Math.max(furthest, s.position[0] + CHARACTER.radius - face); }
+      result.push({speed, pastFace: furthest});
+    }
+    return {thickness, result, worst: Math.max(...result.map(r => r.pastFace))};
+  } finally { world.dispose(); }
+}
+
+/** A kinematic platform moving at constant velocity carries a standing character; then an elevator lifts it. */
+export async function characterPlatform(K) {
+  const world = await newWorld(K, {ground: true});
+  try {
+    const top = 1, v = [1.5, 0, 0.5];
+    const platform = world.createBody({shape: {kind: 'box', halfExtents: [3, 0.25, 3]}, type: 'kinematic', position: [0, top - 0.25, 0]});
+    const character = new K.CapsuleCharacterController(world, {...CHARACTER, position: [0, standing(top), 0]});
+    walk(world, character, {velocity: [0, 0, 0]}, 0.25);
+    world.setVelocity(platform, v);
+    // Let it take up the platform's motion, then measure over 2 s.
+    walk(world, character, {velocity: [0, 0, 0]}, 0.5);
+    const a = character.state.position, pa = world.getState(platform).position;
+    const end = walk(world, character, {velocity: [0, 0, 0]}, 2), pb = world.getState(platform).position;
+    const carried = [(end.position[0] - a[0]) / 2, (end.position[2] - a[2]) / 2];
+    const slip = Math.hypot((end.position[0] - a[0]) - (pb[0] - pa[0]), (end.position[2] - a[2]) - (pb[2] - pa[2]));
+    // Now up at 1 m/s.
+    world.setVelocity(platform, [0, 1, 0]);
+    walk(world, character, {velocity: [0, 0, 0]}, 0.5);
+    const y0 = character.state.position[1], p0 = world.getState(platform).position[1];
+    let lostGround = 0;
+    const up = walk(world, character, {velocity: [0, 0, 0]}, 2, s => { if (!s.grounded) lostGround++; });
+    const rise = up.position[1] - y0, platformRise = world.getState(platform).position[1] - p0;
+    return {carried, platformVelocity: [v[0], v[2]], slip, rise, platformRise, lostGround, standingError: up.feet - (world.getState(platform).position[1] + 0.25)};
+  } finally { world.dispose(); }
+}
+
+/**
+ * Pushing: a box of mass m with friction mu rests in the path. The character pushes with at most F. Boxes with
+ * mu m g < F are pushed along at the walking speed; heavier ones stop the character.
+ */
+export async function characterPush(K, massRatio, {force = 400, mu = 0.5, speed = 1.5} = {}) {
+  const world = await newWorld(K, {ground: false});
+  try {
+    world.createBody({shape: {kind: 'box', halfExtents: [20, 0.5, 5]}, type: 'static', position: [0, -0.5, 0], friction: mu});
+    const limitMass = force / (mu * G), mass = massRatio * limitMass, half = [0.5, 0.5, 0.5];
+    const box = world.createBody({shape: {kind: 'box', halfExtents: half}, position: [2, 0.5, 0], density: mass / 1, friction: mu, lockRotation: true});
+    const character = new K.CapsuleCharacterController(world, {...CHARACTER, position: [0, standing(0), 0], maxPushForce: force});
+    walk(world, character, {velocity: [0, 0, 0]}, 0.5);
+    walk(world, character, {velocity: [speed, 0, 0]}, 2);
+    const b0 = world.getState(box).position[0], c0 = character.state.position[0];
+    walk(world, character, {velocity: [speed, 0, 0]}, 2);
+    const b1 = world.getState(box).position[0], c1 = character.state.position[0];
+    return {massRatio, mass: world.getState(box).mass, limitMass, boxSpeed: (b1 - b0) / 2, characterSpeed: (c1 - c0) / 2, speed};
+  } finally { world.dispose(); }
+}
+
+/** A flight of `count` stairs up, a landing, and the same flight down: the height reached, and how many steps of the way down were spent in the air. */
+export async function characterStairs(K, {count = 5, rise = 0.2, tread = 0.5} = {}) {
+  const world = await newWorld(K, {ground: true});
+  try {
+    // Solid blocks: stair k (1..count) is a slab from x = 2 + (k - 1) tread to the far end, k rises high.
+    const far = 2 + (2 * count + 3) * tread;
+    for (let k = 1; k <= count; k++) {
+      const x0 = 2 + (k - 1) * tread, x1 = far - (k - 1) * tread;
+      world.createBody({shape: {kind: 'box', halfExtents: [(x1 - x0) / 2, rise / 2, 2]}, type: 'static', position: [(x0 + x1) / 2, (k - 0.5) * rise, 0]});
+    }
+    const character = new K.CapsuleCharacterController(world, {...CHARACTER, position: [0, standing(0), 0]});
+    walk(world, character, {velocity: [0, 0, 0]}, 0.25);
+    let top = 0, airborneDown = 0, stepsDown = 0, steps = 0;
+    const middle = (2 + far) / 2;
+    walk(world, character, {velocity: [2, 0, 0]}, (far + 2) / 2, s => {
+      top = Math.max(top, s.feet);
+      if (s.stepped) steps++;
+      if (s.position[0] > middle + tread && s.position[0] < far + 0.3) { stepsDown++; if (!s.grounded) airborneDown++; }
+    });
+    return {top, expectedTop: count * rise, endFeet: character.state.feet, endX: character.state.position[0], far, airborneDown, stepsDown, steps, count};
+  } finally { world.dispose(); }
+}
+
+/**
+ * The character's own state in a checkpoint: a walk over a ledge, onto a moving platform and into a box it pushes,
+ * interrupted half way. A second world and character, built the same way, take the world's checkpoint and the
+ * character's saved state and go on. Returns how many later steps differ in any bit of the character's position or
+ * of the world's hash.
+ */
+export async function characterCheckpoint(K) {
+  const build = async () => {
+    const world = await newWorld(K, {ground: true});
+    // A ledge to step onto, a platform drifting sideways to ride, and a box to push.
+    world.createBody({shape: {kind: 'box', halfExtents: [1, 0.15, 3]}, type: 'static', position: [3, 0.15, 0]});
+    const platform = world.createBody({shape: {kind: 'box', halfExtents: [1.5, 0.15, 4]}, type: 'kinematic', position: [5.55, 0.15, 0], linearVelocity: [0, 0, 0.3]});
+    world.createBody({shape: {kind: 'box', halfExtents: [0.3, 0.3, 0.3]}, position: [8.6, 0.3, 1.1], density: 150, friction: 0.4});
+    const character = new K.CapsuleCharacterController(world, {...CHARACTER, position: [0, standing(0), 0]});
+    return {world, character, platform};
+  };
+  const input = i => ({velocity: [2, 0, 0.3 * Math.sin(i / 50)], jump: i === 600 ? 4 : 0});
+  const a = await build(), b = await build();
+  try {
+    const half = 150, total = 1300;
+    for (let i = 0; i < half; i++) { a.character.move(input(i), DT); a.world.step(); }
+    const worldBytes = a.world.checkpoint(), saved = JSON.parse(JSON.stringify(a.character.saveState()));
+    // The second pair has its own history first.
+    for (let i = 0; i < 77; i++) { b.character.move({velocity: [0, 0, 1]}, DT); b.world.step(); }
+    b.world.restoreCheckpoint(worldBytes);
+    b.character.restoreState(saved);
+    let mismatches = 0, pushes = 0, stepped = 0;
+    for (let i = half; i < total; i++) {
+      const sa = a.character.move(input(i), DT), sb = b.character.move(input(i), DT);
+      a.world.step(); b.world.step();
+      pushes += sa.pushed.length; if (sa.stepped) stepped++;
+      if (a.world.exactHash() !== b.world.exactHash() || sa.position.some((v, k) => v !== sb.position[k]) || sa.grounded !== sb.grounded || (sa.groundBody?.token ?? 0n) !== (sb.groundBody?.token ?? 0n)) mismatches++;
+    }
+    return {mismatches, steps: total - half, pushes, stepped, end: a.character.state.position, savedKeys: Object.keys(saved).sort()};
+  } finally { a.world.dispose(); b.world.dispose(); }
+}

@@ -51,12 +51,13 @@ export const DOMAINS = [
   {
     id: 'rigid-core', title: 'Rigid core: queries, character, continuous collision, vehicles, joints and piles', needsKit: true,
     solver: 'Box3D compiled to WebAssembly, through `box3d-webgpu-kit` (float32 state, 240 Hz, 4 sub-steps unless a row says otherwise)',
-    summary: 'Ray, sweep and overlap queries against closed forms, and the batched ray call.',
+    summary: 'Ray, sweep and overlap queries against closed forms, and the batched ray call. The capsule character: speed, slope limit, step height, stairs, jump, thin walls, moving platforms, force-limited pushing and exact resume.',
     docs: ['docs/RIGID_CORE.md'],
     notValidated: [
       'Queries against triangle meshes, height fields, hulls and compounds have no closed-form row: they are covered by the bit-for-bit agreement of batched and single rays only.',
       'Sweeps are checked from a separated start. A sweep that starts overlapping reports fraction 0 with a zero normal, which is behaviour inherited from Box3D and not a time of impact.',
       'Box and capsule query shapes are axis aligned (the capsule upright). Rotated query shapes are not exposed.',
+      'The character is checked on boxes and ramps. Triangle-mesh and height-field ground, rotating platforms, crouching, swimming and ladders are not covered; a dynamic body the character stands on does not feel its weight.',
       'One build on one machine; no cross-device determinism matrix.',
     ],
   },

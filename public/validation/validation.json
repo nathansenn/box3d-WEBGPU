@@ -5,8 +5,8 @@
  "generatedBy": "node scripts/validation-report.mjs",
  "digits": 9,
  "totals": {
-  "cases": 613,
-  "passed": 613,
+  "cases": 632,
+  "passed": 632,
   "failed": 0,
   "domains": 23
  },
@@ -34,7 +34,7 @@
   {
    "id": "rigid-core",
    "title": "Rigid core: queries, character, continuous collision, vehicles, joints and piles",
-   "summary": "Ray, sweep and overlap queries against closed forms, and the batched ray call.",
+   "summary": "Ray, sweep and overlap queries against closed forms, and the batched ray call. The capsule character: speed, slope limit, step height, stairs, jump, thin walls, moving platforms, force-limited pushing and exact resume.",
    "solver": "Box3D compiled to WebAssembly, through `box3d-webgpu-kit` (float32 state, 240 Hz, 4 sub-steps unless a row says otherwise)",
    "docs": [
     "docs/RIGID_CORE.md"
@@ -43,10 +43,11 @@
     "Queries against triangle meshes, height fields, hulls and compounds have no closed-form row: they are covered by the bit-for-bit agreement of batched and single rays only.",
     "Sweeps are checked from a separated start. A sweep that starts overlapping reports fraction 0 with a zero normal, which is behaviour inherited from Box3D and not a time of impact.",
     "Box and capsule query shapes are axis aligned (the capsule upright). Rotated query shapes are not exposed.",
+    "The character is checked on boxes and ramps. Triangle-mesh and height-field ground, rotating platforms, crouching, swimming and ladders are not covered; a dynamic body the character stands on does not feel its weight.",
     "One build on one machine; no cross-device determinism matrix."
    ],
-   "cases": 21,
-   "passed": 21
+   "cases": 40,
+   "passed": 40
   },
   {
    "id": "water-coupling",
@@ -2234,6 +2235,543 @@
    },
    "text": {
     "reference": "0 rays",
+    "measured": "0",
+    "error": "0",
+    "tolerance": "±0"
+   }
+  },
+  {
+   "id": "rigid-core.character.speed",
+   "domain": "rigid-core",
+   "title": "Character: speed on flat ground",
+   "quantity": "mean speed over 3 s of walking, commanded 3 m/s",
+   "unit": "m/s",
+   "formula": "v = commanded speed",
+   "reference": 3,
+   "measured": 2.99997807,
+   "error": -0.0000219345093,
+   "relativeError": -0.00000731150309,
+   "tolerance": {
+    "kind": "relative",
+    "value": 0.001
+   },
+   "pass": true,
+   "source": {
+    "file": "packages/box3d-kit/test/v21-rigid-character.test.mjs",
+    "test": "flat ground: the character walks at the commanded speed, stays grounded and keeps its feet on the floor",
+    "url": "https://github.com/nathansenn/box3d-WEBGPU/blob/main/packages/box3d-kit/test/v21-rigid-character.test.mjs"
+   },
+   "text": {
+    "reference": "3 m/s",
+    "measured": "2.999978",
+    "error": "-7.31e-6 rel.",
+    "tolerance": "±0.1%"
+   }
+  },
+  {
+   "id": "rigid-core.character.feet",
+   "domain": "rigid-core",
+   "title": "Character: feet on the floor",
+   "quantity": "highest position of the feet above the floor while walking",
+   "unit": "m",
+   "formula": "y = 0",
+   "reference": 0,
+   "measured": 1.59740448e-7,
+   "error": 1.59740448e-7,
+   "relativeError": null,
+   "tolerance": {
+    "kind": "absolute",
+    "value": 0.001
+   },
+   "pass": true,
+   "note": "The capsule rests one linear slop (5 mm) inside the floor; the reported feet height adds it back.",
+   "source": {
+    "file": "packages/box3d-kit/test/v21-rigid-character.test.mjs",
+    "test": "flat ground: the character walks at the commanded speed, stays grounded and keeps its feet on the floor",
+    "url": "https://github.com/nathansenn/box3d-WEBGPU/blob/main/packages/box3d-kit/test/v21-rigid-character.test.mjs"
+   },
+   "text": {
+    "reference": "0 m",
+    "measured": "1.597404e-7",
+    "error": "+1.6e-7",
+    "tolerance": "±0.001"
+   }
+  },
+  {
+   "id": "rigid-core.character.slope-climbed",
+   "domain": "rigid-core",
+   "title": "Character: steepest ramp climbed",
+   "quantity": "steepest ramp climbed with maxSlopeDegrees 45, scanned in 0.5 degree steps",
+   "unit": "deg",
+   "formula": "theta <= maxSlopeDegrees",
+   "reference": 45,
+   "measured": 44.5,
+   "error": -0.5,
+   "relativeError": -0.0111111111,
+   "tolerance": {
+    "kind": "absolute",
+    "value": 0.75
+   },
+   "pass": true,
+   "source": {
+    "file": "packages/box3d-kit/test/v21-rigid-character.test.mjs",
+    "test": "slope limit: ramps below maxSlopeDegrees are climbed at the commanded speed along the ramp, steeper ones are walls",
+    "url": "https://github.com/nathansenn/box3d-WEBGPU/blob/main/packages/box3d-kit/test/v21-rigid-character.test.mjs"
+   },
+   "text": {
+    "reference": "45 deg",
+    "measured": "44.5",
+    "error": "-0.5",
+    "tolerance": "±0.75"
+   }
+  },
+  {
+   "id": "rigid-core.character.slope-refused",
+   "domain": "rigid-core",
+   "title": "Character: shallowest ramp refused",
+   "quantity": "shallowest ramp not climbed with maxSlopeDegrees 45",
+   "unit": "deg",
+   "formula": "theta >= maxSlopeDegrees",
+   "reference": 45,
+   "measured": 45,
+   "error": 0,
+   "relativeError": 0,
+   "tolerance": {
+    "kind": "absolute",
+    "value": 0.75
+   },
+   "pass": true,
+   "source": {
+    "file": "packages/box3d-kit/test/v21-rigid-character.test.mjs",
+    "test": "slope limit: ramps below maxSlopeDegrees are climbed at the commanded speed along the ramp, steeper ones are walls",
+    "url": "https://github.com/nathansenn/box3d-WEBGPU/blob/main/packages/box3d-kit/test/v21-rigid-character.test.mjs"
+   },
+   "text": {
+    "reference": "45 deg",
+    "measured": "45",
+    "error": "0",
+    "tolerance": "±0.75"
+   }
+  },
+  {
+   "id": "rigid-core.character.slope-limit-30",
+   "domain": "rigid-core",
+   "title": "Character: steepest ramp climbed at a 30 degree limit",
+   "quantity": "steepest ramp climbed with maxSlopeDegrees 30",
+   "unit": "deg",
+   "formula": "theta <= maxSlopeDegrees",
+   "reference": 30,
+   "measured": 29.5,
+   "error": -0.5,
+   "relativeError": -0.0166666667,
+   "tolerance": {
+    "kind": "absolute",
+    "value": 0.75
+   },
+   "pass": true,
+   "source": {
+    "file": "packages/box3d-kit/test/v21-rigid-character.test.mjs",
+    "test": "slope limit: ramps below maxSlopeDegrees are climbed at the commanded speed along the ramp, steeper ones are walls",
+    "url": "https://github.com/nathansenn/box3d-WEBGPU/blob/main/packages/box3d-kit/test/v21-rigid-character.test.mjs"
+   },
+   "text": {
+    "reference": "30 deg",
+    "measured": "29.5",
+    "error": "-0.5",
+    "tolerance": "±0.75"
+   }
+  },
+  {
+   "id": "rigid-core.character.slope-speed",
+   "domain": "rigid-core",
+   "title": "Character: speed along a 42 degree ramp",
+   "quantity": "speed along the ramp, commanded 2 m/s",
+   "unit": "m/s",
+   "formula": "v = commanded speed, along the surface",
+   "reference": 2,
+   "measured": 1.9999813,
+   "error": -0.0000186977757,
+   "relativeError": -0.00000934888787,
+   "tolerance": {
+    "kind": "relative",
+    "value": 0.002
+   },
+   "pass": true,
+   "source": {
+    "file": "packages/box3d-kit/test/v21-rigid-character.test.mjs",
+    "test": "slope limit: ramps below maxSlopeDegrees are climbed at the commanded speed along the ramp, steeper ones are walls",
+    "url": "https://github.com/nathansenn/box3d-WEBGPU/blob/main/packages/box3d-kit/test/v21-rigid-character.test.mjs"
+   },
+   "text": {
+    "reference": "2 m/s",
+    "measured": "1.999981",
+    "error": "-9.35e-6 rel.",
+    "tolerance": "±0.2%"
+   }
+  },
+  {
+   "id": "rigid-core.character.step-climbed",
+   "domain": "rigid-core",
+   "title": "Character: tallest ledge stepped onto",
+   "quantity": "tallest ledge climbed with stepHeight 0.35 m, scanned in 5 mm steps",
+   "unit": "m",
+   "formula": "h <= stepHeight",
+   "reference": 0.35,
+   "measured": 0.35,
+   "error": 0,
+   "relativeError": 0,
+   "tolerance": {
+    "kind": "absolute",
+    "value": 0.006
+   },
+   "pass": true,
+   "source": {
+    "file": "packages/box3d-kit/test/v21-rigid-character.test.mjs",
+    "test": "step height: ledges up to stepHeight are stepped onto, taller ones block, and stairs are walked up and down",
+    "url": "https://github.com/nathansenn/box3d-WEBGPU/blob/main/packages/box3d-kit/test/v21-rigid-character.test.mjs"
+   },
+   "text": {
+    "reference": "0.35 m",
+    "measured": "0.35",
+    "error": "0",
+    "tolerance": "±0.006"
+   }
+  },
+  {
+   "id": "rigid-core.character.step-refused",
+   "domain": "rigid-core",
+   "title": "Character: lowest ledge refused",
+   "quantity": "lowest ledge not climbed with stepHeight 0.35 m",
+   "unit": "m",
+   "formula": "h > stepHeight",
+   "reference": 0.35,
+   "measured": 0.355,
+   "error": 0.005,
+   "relativeError": 0.0142857143,
+   "tolerance": {
+    "kind": "absolute",
+    "value": 0.011
+   },
+   "pass": true,
+   "source": {
+    "file": "packages/box3d-kit/test/v21-rigid-character.test.mjs",
+    "test": "step height: ledges up to stepHeight are stepped onto, taller ones block, and stairs are walked up and down",
+    "url": "https://github.com/nathansenn/box3d-WEBGPU/blob/main/packages/box3d-kit/test/v21-rigid-character.test.mjs"
+   },
+   "text": {
+    "reference": "0.35 m",
+    "measured": "0.355",
+    "error": "+0.005",
+    "tolerance": "±0.011"
+   }
+  },
+  {
+   "id": "rigid-core.character.step-limit-20",
+   "domain": "rigid-core",
+   "title": "Character: tallest ledge stepped onto at a 0.2 m step height",
+   "quantity": "tallest ledge climbed with stepHeight 0.2 m",
+   "unit": "m",
+   "formula": "h <= stepHeight",
+   "reference": 0.2,
+   "measured": 0.2,
+   "error": 0,
+   "relativeError": 0,
+   "tolerance": {
+    "kind": "absolute",
+    "value": 0.006
+   },
+   "pass": true,
+   "source": {
+    "file": "packages/box3d-kit/test/v21-rigid-character.test.mjs",
+    "test": "step height: ledges up to stepHeight are stepped onto, taller ones block, and stairs are walked up and down",
+    "url": "https://github.com/nathansenn/box3d-WEBGPU/blob/main/packages/box3d-kit/test/v21-rigid-character.test.mjs"
+   },
+   "text": {
+    "reference": "0.2 m",
+    "measured": "0.2",
+    "error": "0",
+    "tolerance": "±0.006"
+   }
+  },
+  {
+   "id": "rigid-core.character.stairs",
+   "domain": "rigid-core",
+   "title": "Character: top of a flight of stairs",
+   "quantity": "height reached on five stairs of 0.2 m",
+   "unit": "m",
+   "formula": "y = n rise",
+   "reference": 1,
+   "measured": 1.0000001,
+   "error": 1.00135803e-7,
+   "relativeError": 1.00135803e-7,
+   "tolerance": {
+    "kind": "absolute",
+    "value": 0.002
+   },
+   "pass": true,
+   "source": {
+    "file": "packages/box3d-kit/test/v21-rigid-character.test.mjs",
+    "test": "step height: ledges up to stepHeight are stepped onto, taller ones block, and stairs are walked up and down",
+    "url": "https://github.com/nathansenn/box3d-WEBGPU/blob/main/packages/box3d-kit/test/v21-rigid-character.test.mjs"
+   },
+   "text": {
+    "reference": "1 m",
+    "measured": "1",
+    "error": "+1e-7",
+    "tolerance": "±0.002"
+   }
+  },
+  {
+   "id": "rigid-core.character.stairs-down",
+   "domain": "rigid-core",
+   "title": "Character: grounded down the stairs",
+   "quantity": "steps of the way down five stairs spent in the air",
+   "unit": "steps",
+   "formula": "grounded on every step",
+   "reference": 0,
+   "measured": 0,
+   "error": 0,
+   "relativeError": null,
+   "tolerance": {
+    "kind": "absolute",
+    "value": 0
+   },
+   "pass": true,
+   "source": {
+    "file": "packages/box3d-kit/test/v21-rigid-character.test.mjs",
+    "test": "step height: ledges up to stepHeight are stepped onto, taller ones block, and stairs are walked up and down",
+    "url": "https://github.com/nathansenn/box3d-WEBGPU/blob/main/packages/box3d-kit/test/v21-rigid-character.test.mjs"
+   },
+   "text": {
+    "reference": "0 steps",
+    "measured": "0",
+    "error": "0",
+    "tolerance": "±0"
+   }
+  },
+  {
+   "id": "rigid-core.character.jump-apex",
+   "domain": "rigid-core",
+   "title": "Character: apex of a jump",
+   "quantity": "height gained by a 5 m/s jump",
+   "unit": "m",
+   "formula": "h = v^2 / (2 g)",
+   "reference": 1.27420999,
+   "measured": 1.2742008,
+   "error": -0.00000919272533,
+   "relativeError": -0.00000721445084,
+   "tolerance": {
+    "kind": "absolute",
+    "value": 0.001
+   },
+   "pass": true,
+   "note": "The vertical move of each step uses the mean of the speeds at its two ends, which is exact for constant gravity.",
+   "source": {
+    "file": "packages/box3d-kit/test/v21-rigid-character.test.mjs",
+    "test": "jump: the apex is v^2 / (2 g) and the flight lasts 2 v / g",
+    "url": "https://github.com/nathansenn/box3d-WEBGPU/blob/main/packages/box3d-kit/test/v21-rigid-character.test.mjs"
+   },
+   "text": {
+    "reference": "1.27421 m",
+    "measured": "1.274201",
+    "error": "-9.19e-6",
+    "tolerance": "±0.001"
+   }
+  },
+  {
+   "id": "rigid-core.character.jump-time",
+   "domain": "rigid-core",
+   "title": "Character: air time of a jump",
+   "quantity": "time from take-off to landing, 5 m/s jump",
+   "unit": "s",
+   "formula": "t = 2 v / g",
+   "reference": 1.01936799,
+   "measured": 1.01666667,
+   "error": -0.00270132518,
+   "relativeError": -0.00265,
+   "tolerance": {
+    "kind": "absolute",
+    "value": 0.00416666667
+   },
+   "pass": true,
+   "note": "Landing is detected at a step, so the time is known to one step (1/240 s).",
+   "source": {
+    "file": "packages/box3d-kit/test/v21-rigid-character.test.mjs",
+    "test": "jump: the apex is v^2 / (2 g) and the flight lasts 2 v / g",
+    "url": "https://github.com/nathansenn/box3d-WEBGPU/blob/main/packages/box3d-kit/test/v21-rigid-character.test.mjs"
+   },
+   "text": {
+    "reference": "1.019368 s",
+    "measured": "1.016667",
+    "error": "-0.0027",
+    "tolerance": "±0.004167"
+   }
+  },
+  {
+   "id": "rigid-core.character.thin-wall",
+   "domain": "rigid-core",
+   "title": "Character: a 1 cm wall at up to 300 m/s",
+   "quantity": "furthest the capsule got past the near face of the wall, at 10, 50, 100 and 300 m/s (60 Hz moves)",
+   "unit": "m",
+   "formula": "x <= linear slop",
+   "reference": 0.005,
+   "measured": 0.00500016212,
+   "error": 1.62124634e-7,
+   "relativeError": 0.0000324249267,
+   "tolerance": {
+    "kind": "upper",
+    "value": 0.0001
+   },
+   "pass": true,
+   "note": "At 300 m/s one move is 5 m, five hundred times the wall thickness. The mover casts every translation; it stops one linear slop inside the face.",
+   "source": {
+    "file": "packages/box3d-kit/test/v21-rigid-character.test.mjs",
+    "test": "thin walls: a 1 cm wall stops the character at 10 to 300 m/s, 5 m per step at the top speed",
+    "url": "https://github.com/nathansenn/box3d-WEBGPU/blob/main/packages/box3d-kit/test/v21-rigid-character.test.mjs"
+   },
+   "text": {
+    "reference": "0.005 m",
+    "measured": "0.005000162",
+    "error": "+1.62e-7",
+    "tolerance": "at most 0.0001 above the reference"
+   }
+  },
+  {
+   "id": "rigid-core.character.platform",
+   "domain": "rigid-core",
+   "title": "Character: carried by a moving platform",
+   "quantity": "speed of a standing character on a kinematic platform moving at 1.5 m/s along x",
+   "unit": "m/s",
+   "formula": "v = platform velocity",
+   "reference": 1.5,
+   "measured": 1.49998897,
+   "error": -0.0000110268593,
+   "relativeError": -0.00000735123952,
+   "tolerance": {
+    "kind": "relative",
+    "value": 0.001
+   },
+   "pass": true,
+   "source": {
+    "file": "packages/box3d-kit/test/v21-rigid-character.test.mjs",
+    "test": "moving platforms: a standing character takes the velocity of the kinematic body under it, sideways and upwards",
+    "url": "https://github.com/nathansenn/box3d-WEBGPU/blob/main/packages/box3d-kit/test/v21-rigid-character.test.mjs"
+   },
+   "text": {
+    "reference": "1.5 m/s",
+    "measured": "1.499989",
+    "error": "-7.35e-6 rel.",
+    "tolerance": "±0.1%"
+   }
+  },
+  {
+   "id": "rigid-core.character.elevator",
+   "domain": "rigid-core",
+   "title": "Character: lifted by a rising platform",
+   "quantity": "height gained in 2 s on a platform rising at 1 m/s",
+   "unit": "m",
+   "formula": "dy = v t",
+   "reference": 1.99999094,
+   "measured": 1.99999118,
+   "error": 2.38418579e-7,
+   "relativeError": 1.1920983e-7,
+   "tolerance": {
+    "kind": "relative",
+    "value": 0.001
+   },
+   "pass": true,
+   "source": {
+    "file": "packages/box3d-kit/test/v21-rigid-character.test.mjs",
+    "test": "moving platforms: a standing character takes the velocity of the kinematic body under it, sideways and upwards",
+    "url": "https://github.com/nathansenn/box3d-WEBGPU/blob/main/packages/box3d-kit/test/v21-rigid-character.test.mjs"
+   },
+   "text": {
+    "reference": "1.999991 m",
+    "measured": "1.999991",
+    "error": "+1.19e-7 rel.",
+    "tolerance": "±0.1%"
+   }
+  },
+  {
+   "id": "rigid-core.character.push-light",
+   "domain": "rigid-core",
+   "title": "Character: pushing a box below the force limit",
+   "quantity": "speed of a box of half the limit mass, pushed by a character walking at 1.5 m/s",
+   "unit": "m/s",
+   "formula": "v = walking speed, for m < F / (mu g)",
+   "reference": 1.5,
+   "measured": 1.48726583,
+   "error": -0.0127341747,
+   "relativeError": -0.00848944982,
+   "tolerance": {
+    "kind": "relative",
+    "value": 0.02
+   },
+   "pass": true,
+   "note": "maxPushForce 400 N, friction 0.5: the limit mass is 81.5 kg. Friction slows the box by mu g dt each step before the next push, hence the 0.9% lag.",
+   "source": {
+    "file": "packages/box3d-kit/test/v21-rigid-character.test.mjs",
+    "test": "pushing: a box lighter than maxPushForce / (mu g) is pushed at walking speed, a heavier one stops the character",
+    "url": "https://github.com/nathansenn/box3d-WEBGPU/blob/main/packages/box3d-kit/test/v21-rigid-character.test.mjs"
+   },
+   "text": {
+    "reference": "1.5 m/s",
+    "measured": "1.487266",
+    "error": "-0.849%",
+    "tolerance": "±2%"
+   }
+  },
+  {
+   "id": "rigid-core.character.push-heavy",
+   "domain": "rigid-core",
+   "title": "Character: stopped by a box above the force limit",
+   "quantity": "speed of a box of twice the limit mass under the same push",
+   "unit": "m/s",
+   "formula": "v = 0, for m > F / (mu g)",
+   "reference": 0,
+   "measured": 0.0012588501,
+   "error": 0.0012588501,
+   "relativeError": null,
+   "tolerance": {
+    "kind": "absolute",
+    "value": 0.015
+   },
+   "pass": true,
+   "source": {
+    "file": "packages/box3d-kit/test/v21-rigid-character.test.mjs",
+    "test": "pushing: a box lighter than maxPushForce / (mu g) is pushed at walking speed, a heavier one stops the character",
+    "url": "https://github.com/nathansenn/box3d-WEBGPU/blob/main/packages/box3d-kit/test/v21-rigid-character.test.mjs"
+   },
+   "text": {
+    "reference": "0 m/s",
+    "measured": "0.00125885",
+    "error": "+0.00126",
+    "tolerance": "±0.015"
+   }
+  },
+  {
+   "id": "rigid-core.character.checkpoint",
+   "domain": "rigid-core",
+   "title": "Character: exact resume from a checkpoint",
+   "quantity": "steps of 1,150 after a restore that differ in any bit (world hash, character position, ground)",
+   "unit": "steps",
+   "formula": "restored run = uninterrupted run",
+   "reference": 0,
+   "measured": 0,
+   "error": 0,
+   "relativeError": null,
+   "tolerance": {
+    "kind": "absolute",
+    "value": 0
+   },
+   "pass": true,
+   "source": {
+    "file": "packages/box3d-kit/test/v21-rigid-character.test.mjs",
+    "test": "checkpoint: the world checkpoint and the character state resume a walk bit for bit (a step, a platform ride, a jump, pushing)",
+    "url": "https://github.com/nathansenn/box3d-WEBGPU/blob/main/packages/box3d-kit/test/v21-rigid-character.test.mjs"
+   },
+   "text": {
+    "reference": "0 steps",
     "measured": "0",
     "error": "0",
     "tolerance": "±0"

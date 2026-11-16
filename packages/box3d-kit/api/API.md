@@ -4157,7 +4157,86 @@ export interface StructureWorld<B> {
 
 ## `box3d-webgpu-kit/gameplay`
 
+### CapsuleCharacterController · class
+
+A capsule character: `move(input, dt)` once per fixed step, before or after `world.step()`.
+
+- Walks at the wanted speed along walkable ground, and stays on it down slopes and stairs.
+- Slopes steeper than `maxSlopeDegrees` are walls from below and slides from above.
+- Ledges up to `stepHeight` are stepped onto. The round bottom also rides over bumps lower than
+  radius * (1 - cos(maxSlope)) whatever `stepHeight` is.
+- Rides kinematic and dynamic bodies it stands on (it takes their velocity at its feet) and keeps their
+  horizontal velocity when it leaves them.
+- Pushes dynamic bodies with at most `maxPushForce`; heavier ones block it.
+- Never passes through thin geometry, at any speed: every translation is cast.
+
+```ts
+export declare class CapsuleCharacterController {
+  readonly radius: number;
+  readonly halfLength: number;
+  readonly stepHeight: number;
+  readonly snapDistance: number;
+  readonly gravity: number;
+  readonly maxPushForce: number;
+  readonly maxSlopeDegrees: number;
+  get state(): CapsuleCharacterState;
+  teleport(position: CharacterVec3): void;
+  move(input: CapsuleCharacterInput, dt: number): CapsuleCharacterState;
+  saveState(): StateObject;
+  restoreState(state: StateValue): void;
+}
+```
+
+### CapsuleCharacterInput · interface
+
+```ts
+export interface CapsuleCharacterInput {
+    readonly velocity: CharacterVec3;
+    readonly jump?: number;
+}
+```
+
+### CapsuleCharacterOptions · interface
+
+```ts
+export interface CapsuleCharacterOptions {
+    readonly position: CharacterVec3;
+    readonly radius?: number;
+    readonly height?: number;
+    readonly maxSlopeDegrees?: number;
+    readonly stepHeight?: number;
+    readonly snapDistance?: number;
+    readonly gravity?: number;
+    readonly maxPushForce?: number;
+    readonly ignoreBody?: Body;
+    readonly filter?: {
+        readonly categoryBits?: bigint;
+        readonly maskBits?: bigint;
+    };
+}
+```
+
+### CapsuleCharacterState · interface
+
+```ts
+export interface CapsuleCharacterState {
+    readonly position: readonly [number, number, number];
+    readonly feet: number;
+    readonly velocity: readonly [number, number, number];
+    readonly grounded: boolean;
+    readonly groundNormal: readonly [number, number, number] | null;
+    readonly groundBody: Body | null;
+    readonly pushed: readonly Body[];
+    readonly stepped: boolean;
+    readonly onSteepSlope: boolean;
+}
+```
+
 ### CharacterController · class
+
+The first character controller of this package, on box casts. CapsuleCharacterController (same module) is
+the one to use with a current WASM build: a capsule on Box3D's character mover, with moving platforms and
+force-limited pushing. This one is kept for callers that have it.
 
 A kinematic box character that walks, slides along walls, climbs steps,
 respects a slope limit and sticks to the ground on the way down, using
@@ -4181,6 +4260,27 @@ export declare class CharacterController {
   get state(): CharacterState;
   teleport(position: Vec3Like): void;
   move(input: CharacterMoveInput, dt: number): CharacterState;
+}
+```
+
+### CharacterHost · interface
+
+What a character needs from a world. The kit's PhysicsWorld has exactly these members; the Physics Lab's scene
+host has them too.
+
+```ts
+export interface CharacterHost {
+    readonly native: {
+        moverMove(input: NativeMoverInput): NativeMoverResult;
+        queryBatch(queries: readonly NativeSpatialQuery[]): NativeQueryResult[];
+        bodyIndex(body: Body): number | null;
+        bodyHandle(index: number): Body;
+        bodyCount(): number;
+    };
+    getState(body: Body): NativeBodyState;
+    isAlive(body: Body): boolean;
+    applyImpulseAt(body: Body, impulse: Vec3, point: Vec3): void;
+    gravity(): [number, number, number];
 }
 ```
 
@@ -4220,6 +4320,18 @@ export interface CharacterState {
     readonly pushed: readonly Body[];
     readonly stuck: boolean;
 }
+```
+
+### CharacterVec3 · type
+
+A tuple or an {x, y, z} object (a three.js Vector3 works).
+
+```ts
+export type CharacterVec3 = Vec3 | {
+    readonly x: number;
+    readonly y: number;
+    readonly z: number;
+};
 ```
 
 ### MAX_QUERY_HITS · const

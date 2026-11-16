@@ -9,6 +9,8 @@
 
 ## Unreleased
 
+- **`box3d-webgpu-kit/gameplay`: `CapsuleCharacterController`**, a capsule character on Box3D's character mover: commanded speed along walkable ground, `maxSlopeDegrees`, `stepHeight`, stairs, jumps, moving platforms, pushing limited by `maxPushForce`, no tunnelling at any speed, `saveState()` / `restoreState()`. Types `CapsuleCharacterOptions`, `CapsuleCharacterInput`, `CapsuleCharacterState`, `CharacterHost`, `CharacterVec3`. The box `CharacterController` is unchanged. `test/v21-rigid-character.test.mjs` (11 tests) runs in the gate.
+
 - **Rigid core, part 1: queries and the engine surface behind the rest.** New WASM (see `BUILD_INFO`); replay logs and `exactHash()` values of scenes that use only earlier calls are unchanged.
   - `PhysicsWorld`: `raycastBatch(rays, filter?)` (closest hit of up to 65,536 rays in one engine call, results as flat arrays), `raycastAll`, `capsuleCast`, `overlapCapsule`, `moveCapsule` (Box3D's character mover), `settings()` / `configure()`, `setBullet`, `setSleep`, `setMotionLocks`, `getBodyFlags`, `explodeArea`, `profile()`, `debugLines()`, `getJointDetails` and the joint setters `setJointDrive`, `setJointThresholds`, `setJointSteeringLimits`, `setJointTargetRotation`, `setJointAngularMotor`, `setJointParallelSpring`, `setJointConeLimit`, `setJointCollideConnected`.
   - Joint types `'motor'`, `'parallel'` and `'filter'`; `JointOptions.thresholds` (joint events, breakable joints), `drive`, `maxTorque`, `steering`. Events `'joint-overload'` and `'joint-break'`.
