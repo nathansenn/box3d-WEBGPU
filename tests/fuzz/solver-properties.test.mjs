@@ -191,6 +191,7 @@ test('shallow water: volume is conserved in a closed basin, a mirrored dam gives
 });
 
 test('fluid: periodic flow keeps its momentum and stays divergence-free, a mirrored field stays mirrored, an unstable step is refused', () => {
+  let checked = 0;
   const PERIODIC = 'periodic', allPeriodic = {xMin: PERIODIC, xMax: PERIODIC, yMin: PERIODIC, yMax: PERIODIC, zMin: PERIODIC, zMax: PERIODIC};
   for (const seed of seeds(2, 30)) {
     const r = rng(seed), n = r.pick([6, 8]), h = r.real(0.01, 0.1), L = n * h, U = r.real(0.01, 0.2), density = r.log(1, 1500), viscosity = density * r.log(1e-6, 1e-3) * 100;
@@ -198,10 +199,12 @@ test('fluid: periodic flow keeps its momentum and stays divergence-free, a mirro
     // A divergence-free field: u = U sin(k y + p), v = U sin(k z + p), w = U sin(k x + p).
     const field = (x, y, z) => [U * Math.sin(k * y + phase), U * Math.sin(k * z + phase), U * Math.sin(k * x + phase)];
     const mirror = (x, y, z) => { const [u, v, w] = field(L - x, y, z); return [-u, v, w]; };
-    const dt = 0.2 * h / (2 * U);
+    // Within both limits: 0.2 of the advective (CFL) step and 0.8 of the explicit viscous one, h^2 / (6 nu).
+    const dt = Math.min(0.2 * h / (2 * U), 0.8 * h * h / (6 * viscosity / density));
     const build = velocity => { const f = new Fluid({cells: [n, n, n], spacing: h, density, viscosity, dt, gravity: [0, 0, 0], boundaries: allPeriodic}); f.setVelocity(velocity); f.project(); return f; };
     let a, b;
     try { a = build(field); b = build(mirror); } catch (error) { typed(error, `fluid seed ${seed}`); continue; }
+    checked++;
     const p0 = a.momentum(), e0 = a.kineticEnergy();
     for (let step = 0; step < 6; step++) { a.step(); b.step(); }
     const p1 = a.momentum(), massScale = density * L ** 3 * U;
@@ -209,12 +212,14 @@ test('fluid: periodic flow keeps its momentum and stays divergence-free, a mirro
     assert.ok(a.maxDivergence() * h / U < 1e-5, `fluid seed ${seed}: divergence ${a.maxDivergence()} 1/s`);
     assert.ok(a.kineticEnergy() <= e0 * (1 + 1e-9), `fluid seed ${seed}: kinetic energy rose from ${e0} to ${a.kineticEnergy()} with no forcing`);
     for (let sample = 0; sample < 20; sample++) {
-      const x = r.real(0, L), y = r.real(0, L), z = r.real(0, L), va = a.velocityAt([x, y, z]), vb = b.velocityAt([L - x, y, z]);
+      const x = r.real(0, L), y = r.real(0, L), z = r.real(0, L), va = a.velocityAt(x, y, z), vb = b.velocityAt(L - x, y, z);
       close(vb[0], -va[0], 1e-7 * U, `fluid seed ${seed}: mirrored u`); close(vb[1], va[1], 1e-7 * U, `fluid seed ${seed}: mirrored v`); close(vb[2], va[2], 1e-7 * U, `fluid seed ${seed}: mirrored w`);
     }
     assert.throws(() => { const f = new Fluid({cells: [n, n, n], spacing: h, density, viscosity, dt: 50 * h / U, gravity: [0, 0, 0], boundaries: allPeriodic}); f.setVelocity(field); f.project(); f.step(); },
       error => { typed(error, 'fluid CFL'); return error.code === 'UNSTABLE_TIME_STEP'; }, `fluid seed ${seed}: a step of 50 cells per step must be refused`);
   }
+  // Every seed now picks a stable step, so none may be skipped: the properties above were checked on each.
+  assert.equal(checked, seeds(2, 30).length, 'fluid: every seed built a field');
 });
 
 test('grains: collisions conserve momentum, the ledger closes, a mirrored collision is the mirror image, a step above the critical one is refused', () => {

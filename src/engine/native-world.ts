@@ -761,7 +761,10 @@ export class NativeWorldBackend implements PhysicsBackend {
     }
     if(token===0n) {
       if(full)return null;
-      throw new EngineError('INVALID_PAYLOAD','The native bridge rejected the body descriptor.');
+      // Every value was checked above, so what Box3D refuses here is the geometry itself.
+      throw new EngineError('INVALID_PAYLOAD',shape.kind==='mesh'?'Box3D could not build this triangle mesh: its triangles have no area, or it has none it can use. Check the vertices and the winding.':
+        shape.kind==='hull'||shape.kind==='compound'?'Box3D could not build a convex hull from these points: they lie in a plane or on a line. A hull needs four or more points with volume.':
+        shape.kind==='heightfield'?'Box3D could not build this height field from the heights given.':'Box3D refused this body although every value is in range. This is unexpected: please report it with the options you passed.');
     }
     const body=this.wrapBody(token);
     if(type===2&&massValues===null&&shape.kind!=='mesh'&&shape.kind!=='heightfield') {

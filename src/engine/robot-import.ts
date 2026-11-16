@@ -1886,6 +1886,8 @@ function checkRanges(scene: Scene): Scene {
     const owner = `link "${body.id}"`;
     within(owner, 'a position', body.position, R.extent);
     if (body.density !== undefined && !(body.density === 0 || (body.density >= R.densityMin && body.density <= R.density))) out(owner, 'the density', body.density, `0 or ${R.densityMin} to ${R.density} kg/m^3`);
+    within(owner, 'the friction', body.friction === undefined ? [] : [body.friction], 1e6, 0); within(owner, 'the restitution', body.restitution === undefined ? [] : [body.restitution], 1e6, 0);
+    within(owner, 'a velocity', [...(body.linearVelocity ?? []), ...(body.angularVelocity ?? [])], R.speed);
     if (body.shape.kind === 'compound') for (const child of body.shape.shapes) { within(owner, 'a shape position', child.position, R.shape); convex(owner, child.shape); if (child.density !== undefined && !(child.density === 0 || (child.density >= R.densityMin && child.density <= R.density))) out(owner, 'a shape density', child.density, `0 or ${R.densityMin} to ${R.density} kg/m^3`); }
     else convex(owner, body.shape as Parameters<typeof convex>[1]);
     const data = body.massData;

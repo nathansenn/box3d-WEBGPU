@@ -221,6 +221,9 @@ test('hostile geometry files: lying counts, enormous indices, external reference
   // OBJ
   mustRefuse('OBJ: NaN coordinate', () => parseOBJ('v NaN 0 0\nv 1 0 0\nv 0 1 0\nf 1 2 3\n'));
   mustRefuse('OBJ: infinite coordinate', () => parseOBJ('v 1e999 0 0\nv 1 0 0\nv 0 1 0\nf 1 2 3\n'));
+  // Found by the long run (seed 20261116, round 830): finite as a double, infinite in the mesh's single precision.
+  mustRefuse('OBJ: a coordinate beyond float32', () => parseOBJ('v 1e39 0 0\nv 1 0 0\nv 0 1 0\nf 1 2 3\n'));
+  mustRefuse('STL: an ASCII coordinate beyond float32', () => parseSTL(asciiSTL.replace('vertex 1 0 0', 'vertex -4e38 0 0')));
   mustRefuse('OBJ: index far beyond the vertices', () => parseOBJ('v 0 0 0\nv 1 0 0\nv 0 1 0\nf 1 2 99999999999\n'));
   mustRefuse('OBJ: index zero', () => parseOBJ('v 0 0 0\nv 1 0 0\nv 0 1 0\nf 0 1 2\n'));
   mustRefuse('OBJ: negative index before the first vertex', () => parseOBJ('v 0 0 0\nv 1 0 0\nv 0 1 0\nf -1 -2 -9\n'));
@@ -390,6 +393,8 @@ test(`URDF and MJCF: example robots mutated ${ROUNDS} times each parse to a vali
     refused('a chain deeper than the scene can hold stably is still a valid tree', urdf(link('l0') + Array.from({length: 4200}, (_, i) => link(`l${i + 1}`) + joint(`j${i}`, `l${i}`, `l${i + 1}`)).join('')));
     refused('an MJCF include', '<mujoco><include file="/etc/passwd"/><worldbody><body><geom type="sphere" size="0.1"/></body></worldbody></mujoco>', parseMJCF);
     refused('an MJCF body nested 100 deep', `<mujoco><worldbody>${'<body><joint type="hinge"/><geom type="sphere" size="0.1"/>'.repeat(100)}${'</body>'.repeat(100)}</worldbody></mujoco>`, parseMJCF);
+    // Found by the long run (seed 20261116, round 5545): a friction of -2147483649 reached the scene.
+    refused('an MJCF geom with a negative friction', '<mujoco><worldbody><body><geom type="sphere" size="0.1" friction="-2147483649 0.005 0.0001"/></body></worldbody></mujoco>', parseMJCF);
     refused('an MJCF geom of NaN size', '<mujoco><worldbody><body><geom type="sphere" size="NaN"/></body></worldbody></mujoco>', parseMJCF);
     refused('an MJCF mesh that was not supplied', '<mujoco><asset><mesh name="m" file="../../secret.stl"/></asset><worldbody><body><geom type="mesh" mesh="m"/></body></worldbody></mujoco>', parseMJCF);
     refused('a URDF handed to the MJCF parser', urdf(link('a')), parseMJCF);

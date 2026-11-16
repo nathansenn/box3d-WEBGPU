@@ -8,8 +8,15 @@
 //   - in the scenes whose only energy flows are in the ledger (CLOSED below) the balance never rises above its starting
 //     value by more than 0.5 % of the largest energy seen: energy is lost to drag and damping, never made;
 //   - a checkpoint restored into the scene it came from reproduces the state bit for bit;
-//   - after the first tenth of the run the WASM heap does not grow at all, and the JavaScript heap (after a collection)
-//     grows by less than 48 MiB.
+//   - in the ten-minute run, the memory a full teardown leaves in use in the WASM heap rises by less than 1 MiB between
+//     the teardown after the first quarter and the one at the end, and the JavaScript heap (after a collection) grows
+//     by less than 48 MiB over the same span.
+// A teardown disposes every scene and destroys every world; what is still allocated after it is the module's own
+// memory plus anything leaked. Memory in use is the heap size less the free memory a probe finds by taking 64 KiB
+// blocks until the heap would have to grow (and then freeing them). Neither the heap's size nor the memory in use while
+// running is a leak measure: Box3D keeps its arrays at their largest size (an emptied churn world kept 10.5 MiB) and
+// so do the solvers' scratch arrays, so both rise in steps as rarer peaks come by (in one ten-minute run the heap grew
+// 16 -> 24 MiB at about 609 s; docs/ROBUSTNESS.md). The gate's four seconds only report the numbers.
 import assert from 'node:assert/strict';
 import test from 'node:test';
 import {COUPLED_EXAMPLE_SCENES} from '../../src/engine/scene-format.ts';
@@ -38,8 +45,9 @@ function scan(value, path) {
 test(`soak: ${SECONDS} s of mixed coupled scenes in one WASM instance`, {timeout: (SECONDS + 300) * 1000}, async () => {
   const pool = await nativePool(), r = rng(20261116), names = [...CLOSED, ...OPEN];
   const slots = names.map(name => { const world = pool.createWorld(); world.retainBodyShapes(true); return {name, world, loaded: null, start: null, scale: 0, steps: 0, worstRise: 0}; });
-  const churn = pool.createWorld();
+  let churn = pool.createWorld();
   churn.resetWorld({ground: true});
+  const mod = churn.mod;
   const load = slot => {
     if (slot.loaded) disposeLabScene(slot.loaded);
     slot.loaded = loadLabScene(slot.world, COUPLED_EXAMPLE_SCENES[slot.name]());
@@ -62,7 +70,31 @@ test(`soak: ${SECONDS} s of mixed coupled scenes in one WASM instance`, {timeout
     try { scan(tree.subsystems, 'subsystems'); } catch (error) { assert.fail(`${slot.name} after ${slot.steps} steps: ${error.message}`); }
     return {bytes, text: Buffer.from(encodeState(tree.subsystems)).toString('base64')};
   };
-  const heap = () => { globalThis.gc?.(); return {wasm: churn.HEAPF32.buffer.byteLength, js: process.memoryUsage().heapUsed + process.memoryUsage().arrayBuffers}; };
+  const inUse = () => {
+    const size = mod.HEAPF32.buffer.byteLength, blocks = [];
+    while (mod.HEAPF32.buffer.byteLength === size && blocks.length < 65536) { const block = mod._malloc(65536); if (!block) break; blocks.push(block); }
+    const grew = mod.HEAPF32.buffer.byteLength !== size;
+    for (const block of blocks) mod._free(block);
+    // The block that made the heap grow did not fit in the old heap.
+    return size - (blocks.length - (grew ? 1 : 0)) * 65536;
+  };
+  // Dispose every scene and destroy every world, measure, then build them again (the soak goes on from fresh scenes).
+  const teardown = rebuild => {
+    const running = inUse();
+    for (const slot of slots) {
+      // A disposed scene leaves its rigid bodies to the world's owner (scene-host.ts); destroying the world frees them.
+      disposeLabScene(slot.loaded); slot.loaded = null;
+      slot.world.destroy();
+    }
+    churn.destroy();
+    globalThis.gc?.();
+    const measured = {running, used: inUse(), wasm: mod.HEAPF32.buffer.byteLength, js: process.memoryUsage().heapUsed + process.memoryUsage().arrayBuffers};
+    if (rebuild) {
+      for (const slot of slots) { slot.world = pool.createWorld(); slot.world.retainBodyShapes(true); load(slot); }
+      churn = pool.createWorld(); churn.resetWorld({ground: true});
+    } else slots.length = 0;
+    return measured;
+  };
   for (const slot of slots) load(slot);
   const began = performance.now(), end = began + SECONDS * 1000;
   let settled = null, rounds = 0, restores = 0, reloads = 0, churned = 0;
@@ -84,19 +116,23 @@ test(`soak: ${SECONDS} s of mixed coupled scenes in one WASM instance`, {timeout
         restores++;
       }
       if (rounds % 40 === 0) { load(r.pick(slots)); reloads++; }
-      if (settled === null && performance.now() - began > SECONDS * 100) settled = heap();
+      if (settled === null && performance.now() - began > SECONDS * 250) settled = teardown(true);
     }
     for (const slot of slots) digest(slot);
-    const last = heap();
+    const worst = slots.filter(s => CLOSED.includes(s.name)).map(s => `${s.name} ${(s.worstRise * 100).toFixed(4)} %`).join(', ');
+    const coupled = slots.reduce((n, s) => n + s.steps, 0);
+    const last = teardown(false);
     settled ??= last;
     const grownJs = (last.js - settled.js) / 2 ** 20;
-    console.log(`soak: ${((performance.now() - began) / 1000).toFixed(0)} s, ${rounds} rounds, ${slots.reduce((n, s) => n + s.steps, 0)} coupled steps, ${churned} rigid bodies churned, ${restores} restores, ${reloads} reloads; ` +
-      `WASM heap ${settled.wasm >> 20} -> ${last.wasm >> 20} MiB, JS heap ${(settled.js / 2 ** 20).toFixed(0)} -> ${(last.js / 2 ** 20).toFixed(0)} MiB${globalThis.gc ? '' : ' (no --expose-gc: not collected)'}; ` +
-      `largest ledger rise ${slots.filter(s => CLOSED.includes(s.name)).map(s => `${s.name} ${(s.worstRise * 100).toFixed(4)} %`).join(', ')}`);
-    assert.equal(last.wasm, settled.wasm, 'the WASM heap grew after the first tenth of the run');
-    if (globalThis.gc && process.env.FUZZ_SOAK) assert.ok(grownJs < 48, `the JavaScript heap grew by ${grownJs.toFixed(1)} MiB after the first tenth of the run`);
+    const mib = bytes => (bytes / 2 ** 20).toFixed(1);
+    console.log(`soak: ${((performance.now() - began) / 1000).toFixed(0)} s, ${rounds} rounds, ${coupled} coupled steps, ${churned} rigid bodies churned, ${restores} restores, ${reloads} reloads; ` +
+      `WASM heap ${settled.wasm >> 20} -> ${last.wasm >> 20} MiB, in use while running ${mib(settled.running)} -> ${mib(last.running)} MiB, after a teardown ${mib(settled.used)} -> ${mib(last.used)} MiB; ` +
+      `JS heap ${(settled.js / 2 ** 20).toFixed(0)} -> ${(last.js / 2 ** 20).toFixed(0)} MiB${globalThis.gc ? '' : ' (no --expose-gc: not collected)'}; largest ledger rise ${worst}`);
+    const grownWasm = (last.used - settled.used) / 2 ** 20;
+    if (process.env.FUZZ_SOAK) assert.ok(grownWasm < 1, `a teardown left ${grownWasm.toFixed(2)} MiB more in use in the WASM heap at the end than after the first quarter`);
+    if (globalThis.gc && process.env.FUZZ_SOAK) assert.ok(grownJs < 48, `the JavaScript heap grew by ${grownJs.toFixed(1)} MiB after the first quarter of the run`);
   } finally {
     for (const slot of slots) { if (slot.loaded) disposeLabScene(slot.loaded); slot.world.destroy(); }
-    churn.destroy();
+    if (slots.length > 0) churn.destroy();
   }
 });

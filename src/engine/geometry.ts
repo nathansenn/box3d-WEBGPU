@@ -1042,7 +1042,8 @@ export function parseOBJ(text: string): TriangleMesh[] {
       if (tokens.length < 4) bad(`OBJ line ${line}: a vertex needs x, y and z.`);
       for (let k = 1; k <= 3; k++) {
         const value = Number(tokens[k]);
-        if (!Number.isFinite(value)) bad(`OBJ line ${line}: vertex coordinate '${tokens[k]}' is not a finite number.`);
+        // Meshes hold single precision: 1e39 is a finite double and an infinite float32.
+        if (!Number.isFinite(Math.fround(value))) bad(`OBJ line ${line}: vertex coordinate '${tokens[k].slice(0, 40)}' is not a finite single-precision number.`);
         positions.push(value);
       }
       if (positions.length / 3 > GEOMETRY_LIMITS.maxVertices) bad(`OBJ has more than ${GEOMETRY_LIMITS.maxVertices} vertices.`);
@@ -1156,7 +1157,7 @@ function parseAsciiSTL(text: string): TriangleMesh {
       if (++corners > 3) bad(`STL line ${line}: a facet has more than three vertices.`);
       for (let k = 1; k <= 3; k++) {
         const value = Number(tokens[k]);
-        if (!Number.isFinite(value)) bad(`STL line ${line}: vertex coordinate '${tokens[k]}' is not a finite number.`);
+        if (!Number.isFinite(Math.fround(value))) bad(`STL line ${line}: vertex coordinate '${tokens[k].slice(0, 40)}' is not a finite single-precision number.`);
         soup.push(value);
       }
       if (soup.length / 9 > GEOMETRY_LIMITS.maxTriangles) bad(`STL has more than ${GEOMETRY_LIMITS.maxTriangles} triangles.`);

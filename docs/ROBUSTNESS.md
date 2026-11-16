@@ -60,7 +60,19 @@ rigid world beside them in which bodies of every kind are created and destroyed.
 - In the four closed scenes the balance never rises above its start by more than 0.5 % of the largest energy seen.
   Measured over 25 s of simulated time: 0 for the buoy, the deck and the crates, 0.095 % for the hopper.
 - Every 15th round a scene is checkpointed, stepped and restored: the state is the checkpointed one bit for bit.
-- After the first tenth of the run the WASM heap does not grow; the JavaScript heap, collected, grows by less than 48 MiB.
+- After the first quarter of the ten-minute run and at its end everything is torn down (every scene disposed, every
+  world destroyed); the memory then still in use in the WASM heap rises by less than 1 MiB from the first teardown to
+  the second, and the JavaScript heap, collected, grows by less than 48 MiB. Memory in use is the heap size less the
+  free memory a probe finds by taking 64 KiB blocks until the heap would have to grow. Measured: 0.9 -> 1.0 MiB after
+  a teardown over 600 s (11,991 rounds, 209,352 coupled steps, 71,946 churned bodies, 799 restores, 299 reloads).
+  The heap's size is not the measure: in an earlier run it grew once, 16 to 24 MiB at about 609 s, while probes at
+  rounds 500, 3000, 6000 and 9000 found 7.7, 12.3, 12.4 and 12.1 MiB in use; Box3D's pools and the solvers' scratch
+  arrays keep their largest size, and the churn world's 40 random bodies can hold large meshes. While running, the
+  memory in use rose in steps from 13.1 to 21.1 MiB, 14.3 MiB of it in the churn world, all of it returned by the
+  teardown. A churn world alone for 40,000 rounds (240,000 bodies made and destroyed) held 7.7 MiB until about round
+  8,000 and 10.4 to 10.5 MiB from then on; emptied it kept 10.5 MiB (Box3D keeps its arrays at their largest size),
+  destroyed it left 1.0 MiB. A long-lived world therefore holds its high-water mark, not a growing total. The gate's
+  four seconds only report the numbers.
 
 Observed in the same measurement, and not a defect: the ledger balance of the suspended platform rises by 39 % of its
 scale when the boxes land (their energy is not tracked), and the river bend's by 78 % (the inflow adds water whose
@@ -84,6 +96,10 @@ All in TypeScript. Severity: what a caller who meets it suffers.
 | B-10 | low | `granularLattice`, `clothGrid`, `convexHull`, `toHullShape`, `weldVertices`, `spawnRobot`, `new Cloth`, `new ShallowWater`: `null` or missing options threw `TypeError` from inside; grain gravity of 1e30 gave NaN | argument checks at the top of each |
 | B-11 | low | `shallow-water.ts` threw the code `INVALID_ARGUMENT`, which no other module uses | `INVALID_PAYLOAD` |
 | B-12 | low | The kit's helpers threw `RangeError` and `TypeError` (`FixedStepLoop`, `spawnBoxes`, `applyImpulses`, `BodyRing`, `writeInstances`, `mountInspector`, worker endpoints) | `EngineError` with the offending value |
+| B-13 | medium | OBJ and ASCII STL coordinates that are finite as doubles but beyond single precision (`1e39`) were accepted, and became infinite vertices in Box3D's float32 mesh. Found by `npm run fuzz:long` | the parsers refuse a coordinate whose float32 value is not finite (`geometry.ts`) |
+| B-14 | low | `robotToScene` passed on a negative or enormous friction or restitution (an MJCF `friction="-2147483649"`) and velocities beyond the speed limit, giving a scene `validateScene` rejects; same class as B-8. Found by `npm run fuzz:long` | `checkRanges` checks friction, restitution and velocities (`robot-import.ts`) |
+| B-15 | medium (tests) | The fluid property test in `solver-properties.test.mjs` checked nothing in the gate: both gate seeds chose a step above the explicit viscous limit and were skipped as refused, and its mirror comparison called `velocityAt([x, y, z])` instead of `velocityAt(x, y, z)`, which `fuzz:long` exposed as NaN | the step is chosen within both limits, the call fixed, and the test fails if any seed is skipped |
+| B-16 | low | When Box3D's own builders refused a mesh, hull or height field, the message was "The native bridge rejected the body descriptor" | the message names the geometry and what is wrong with it |
 
 Behaviour that changed as a result, and the tests updated for it: positions beyond 100 km, convex shapes beyond 1 km,
 densities between 0 and 0.001 kg/m^3 and the other values outside `RIGID_LIMITS` are now refused where they were
