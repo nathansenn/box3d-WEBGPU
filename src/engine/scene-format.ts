@@ -24,7 +24,7 @@
  * src/lab/scene-host.ts. The builder talks to a world through `SceneHost`, the
  * few members of the kit's PhysicsWorld it needs.
  */
-import {EngineError} from './contracts.ts';
+import {EngineError, RIGID_LIMITS as R} from './contracts.ts';
 import type {NativeBodyDescriptor, NativeBodyHandle, NativeBodyState, NativeJointDescriptor, NativeJointHandle} from './native-world.ts';
 
 type Body = NativeBodyHandle;
@@ -964,12 +964,23 @@ class Checker {
     for (let i = 0; i < length; i++) if (!this.real(value[i], `${path}/${i}`)) ok = false;
     return ok;
   }
-  tuple(value: unknown, path: string, length: number, min = -Infinity): value is number[] {
+  tuple(value: unknown, path: string, length: number, min = -Infinity, max = Infinity): value is number[] {
     if (!Array.isArray(value)) return this.add(path, `must be an array of ${length} numbers, got ${typeName(value)}`);
     if (value.length !== length) return this.add(path, `must hold exactly ${length} numbers, got ${value.length}`);
     let ok = true;
-    for (let i = 0; i < length; i++) if (!this.number(value[i], `${path}/${i}`, min)) ok = false;
+    for (let i = 0; i < length; i++) if (!this.number(value[i], `${path}/${i}`, min, max)) ok = false;
     return ok;
+  }
+  /** `numbers`, each within [-limit, limit]; reports only the first one outside. */
+  numbersWithin(value: unknown, path: string, limit: number): value is number[] {
+    if (!this.numbers(value, path)) return false;
+    for (let i = 0; i < value.length; i++) if (value[i] < -limit || value[i] > limit) return this.number(value[i], `${path}/${i}`, -limit, limit);
+    return true;
+  }
+  /** A density in kg/m^3: 0 for a massless shape, or within the range a float32 mass can be built from. */
+  density(value: unknown, path: string): boolean {
+    if (!this.number(value, path, 0, R.density)) return false;
+    return value === 0 || value >= R.densityMin || this.add(path, `must be 0 or within [${R.densityMin}, ${R.density}] kg/m^3, got ${value}`);
   }
   quaternion(value: unknown, path: string): boolean {
     if (!this.tuple(value, path, 4)) return false;
@@ -989,6 +1000,8 @@ class Checker {
     if (typeof value !== 'string') return this.add(path, `must be a string, got ${typeName(value)}`);
     if (value.length === 0 || value.length > SCENE_LIMITS.idLength) return this.add(path, `${what} must be 1 to ${SCENE_LIMITS.idLength} characters, got ${value.length}`);
     if (!ID_PATTERN.test(value)) return this.add(path, `${what} may hold only letters, digits and _ . : -, got ${show(value)}`);
+    // An id becomes a key of plain objects (the materials table, saved scenes); this one would name their prototype instead.
+    if (value === '__proto__') return this.add(path, `${what} must not be "__proto__"`);
     return true;
   }
   /** A flat array of finite float32 numbers; reports only the first bad element. */
@@ -1024,7 +1037,7 @@ class Checker {
 
 function checkWorld(c: Checker, world: unknown, path: string): void {
   if (!c.object(world, path, ['gravity', 'ground', 'seed', 'step', 'subSteps'])) return;
-  if (world.gravity !== undefined) c.tuple(world.gravity, `${path}/gravity`, 3);
+  if (world.gravity !== undefined) c.tuple(world.gravity, `${path}/gravity`, 3, -R.gravity, R.gravity);
   if (world.ground !== undefined) c.boolean(world.ground, `${path}/ground`);
   if (world.seed !== undefined) c.number(world.seed, `${path}/seed`, 0, 0xFFFFFFFF, true);
   if (world.step !== undefined && c.number(world.step, `${path}/step`) && !(world.step > 0 && world.step <= 1 / 30)) c.add(`${path}/step`, `must be in (0, 1/30] seconds, got ${world.step}`);
@@ -1032,9 +1045,9 @@ function checkWorld(c: Checker, world: unknown, path: string): void {
 }
 
 function checkMaterialValues(c: Checker, value: Obj, path: string): void {
-  if (value.density !== undefined) c.number(value.density, `${path}/density`, 0);
-  if (value.friction !== undefined) c.number(value.friction, `${path}/friction`, 0);
-  if (value.restitution !== undefined) c.number(value.restitution, `${path}/restitution`, 0);
+  if (value.density !== undefined) c.density(value.density, `${path}/density`);
+  if (value.friction !== undefined) c.number(value.friction, `${path}/friction`, 0, 1e6);
+  if (value.restitution !== undefined) c.number(value.restitution, `${path}/restitution`, 0, 1e6);
   if (value.color !== undefined) c.number(value.color, `${path}/color`, 0, 0xFFFFFFFF, true);
 }
 
@@ -1097,20 +1110,22 @@ function checkShape(c: Checker, shape: unknown, path: string, child = false): st
       const one = list[i], here = `${at}/${i}`;
       if (!c.object(one, here, CHILD_KEYS, ['shape'])) continue;
       if (one.shape !== undefined) checkShape(c, one.shape, `${here}/shape`, true);
-      if (one.position !== undefined) c.tuple(one.position, `${here}/position`, 3);
+      if (one.position !== undefined) c.tuple(one.position, `${here}/position`, 3, -R.shape, R.shape);
       checkRotation(c, one, here);
       checkMaterialValues(c, one, here);
     }
     return kind;
   }
-  if (kind === 'box') { if (shape.halfExtents !== undefined) c.tuple(shape.halfExtents, `${path}/halfExtents`, 3, 1e-4); }
-  else if (kind === 'sphere') { if (shape.radius !== undefined) c.number(shape.radius, `${path}/radius`, 1e-4); }
+  // The size limits are the rigid world's (RIGID_LIMITS in contracts.ts): a convex shape reaches at most 1 km from
+  // its body's origin, static geometry at most 100 km.
+  if (kind === 'box') { if (shape.halfExtents !== undefined) c.tuple(shape.halfExtents, `${path}/halfExtents`, 3, 1e-4, R.shape); }
+  else if (kind === 'sphere') { if (shape.radius !== undefined) c.number(shape.radius, `${path}/radius`, 1e-4, R.shape); }
   else if (kind === 'capsule') {
-    if (shape.radius !== undefined) c.number(shape.radius, `${path}/radius`, 1e-4);
-    if (shape.halfLength !== undefined) c.number(shape.halfLength, `${path}/halfLength`, 0.0025);
+    if (shape.radius !== undefined) c.number(shape.radius, `${path}/radius`, 1e-4, R.shape);
+    if (shape.halfLength !== undefined) c.number(shape.halfLength, `${path}/halfLength`, 0.0025, R.shape);
   } else if (kind === 'hull') {
     const points = shape.points, at = `${path}/points`;
-    if (points !== undefined && c.numbers(points, at)) {
+    if (points !== undefined && c.numbersWithin(points, at, R.shape)) {
       if (points.length % 3 !== 0) c.add(at, `must hold x, y, z triples; ${points.length} numbers is not a multiple of 3`);
       else if (points.length < 12) c.add(at, `a hull needs at least 4 points, got ${points.length / 3}`);
       else if (points.length > SCENE_LIMITS.hullPoints * 3) c.add(at, `holds ${points.length / 3} points; the limit is ${SCENE_LIMITS.hullPoints}`);
@@ -1119,7 +1134,7 @@ function checkShape(c: Checker, shape: unknown, path: string, child = false): st
   } else if (kind === 'mesh') {
     const vertices = shape.vertices, indices = shape.indices;
     let vertexCount = -1;
-    if (vertices !== undefined && c.numbers(vertices, `${path}/vertices`)) {
+    if (vertices !== undefined && c.numbersWithin(vertices, `${path}/vertices`, R.extent)) {
       if (vertices.length % 3 !== 0) c.add(`${path}/vertices`, `must hold x, y, z triples; ${vertices.length} numbers is not a multiple of 3`);
       else if (vertices.length < 9) c.add(`${path}/vertices`, `a mesh needs at least 3 vertices, got ${vertices.length / 3}`);
       else if (vertices.length > SCENE_LIMITS.meshVertices * 3) c.add(`${path}/vertices`, `holds ${vertices.length / 3} vertices; the limit is ${SCENE_LIMITS.meshVertices}`);
@@ -1143,8 +1158,11 @@ function checkShape(c: Checker, shape: unknown, path: string, child = false): st
   } else {
     const okX = shape.countX !== undefined && c.number(shape.countX, `${path}/countX`, 2, SCENE_LIMITS.heightfieldSide, true);
     const okZ = shape.countZ !== undefined && c.number(shape.countZ, `${path}/countZ`, 2, SCENE_LIMITS.heightfieldSide, true);
-    if (shape.spacing !== undefined) c.tuple(shape.spacing, `${path}/spacing`, 2, 1e-4);
-    if (shape.heights !== undefined && c.numbers(shape.heights, `${path}/heights`) && okX && okZ && shape.heights.length !== (shape.countX as number) * (shape.countZ as number)) {
+    if (shape.spacing !== undefined && c.tuple(shape.spacing, `${path}/spacing`, 2, 1e-4, R.extent)) {
+      const counts = [okX ? shape.countX as number : 2, okZ ? shape.countZ as number : 2];
+      for (let i = 0; i < 2; i++) if (shape.spacing[i] * counts[i] > R.extent) c.add(`${path}/spacing/${i}`, `the grid would be ${shape.spacing[i] * counts[i]} m long; the limit is ${R.extent} m`);
+    }
+    if (shape.heights !== undefined && c.numbersWithin(shape.heights, `${path}/heights`, R.extent) && okX && okZ && shape.heights.length !== (shape.countX as number) * (shape.countZ as number)) {
       c.add(`${path}/heights`, `must hold countX * countZ = ${(shape.countX as number) * (shape.countZ as number)} values, got ${shape.heights.length}`);
     }
   }
@@ -1169,19 +1187,19 @@ function checkBody(c: Checker, body: unknown, path: string, materials: ReadonlyS
     if (typeof body.type !== 'string' || !BODY_TYPES.includes(body.type)) c.add(`${path}/type`, `must be 'static', 'kinematic' or 'dynamic', got ${show(body.type)}`);
     else if ((kind === 'mesh' || kind === 'heightfield') && body.type !== 'static') c.add(`${path}/type`, `a ${kind} body is always static, got ${show(body.type)}`);
   }
-  if (body.position !== undefined) c.tuple(body.position, `${path}/position`, 3);
+  if (body.position !== undefined) c.tuple(body.position, `${path}/position`, 3, -R.extent, R.extent);
   checkRotation(c, body, path);
-  if (body.linearVelocity !== undefined) c.tuple(body.linearVelocity, `${path}/linearVelocity`, 3);
-  if (body.angularVelocity !== undefined) c.tuple(body.angularVelocity, `${path}/angularVelocity`, 3);
+  if (body.linearVelocity !== undefined) c.tuple(body.linearVelocity, `${path}/linearVelocity`, 3, -R.speed, R.speed);
+  if (body.angularVelocity !== undefined) c.tuple(body.angularVelocity, `${path}/angularVelocity`, 3, -R.speed, R.speed);
   if (body.material !== undefined) {
     if (typeof body.material !== 'string') c.add(`${path}/material`, `must be a string, got ${typeName(body.material)}`);
     else if (!materials.has(body.material)) c.add(`${path}/material`, `unknown material ${show(body.material)}`);
   }
   checkMaterialValues(c, body, path);
   for (const flag of FLAGS) if (body[flag] !== undefined) c.boolean(body[flag], `${path}/${flag}`);
-  if (body.linearDamping !== undefined) c.number(body.linearDamping, `${path}/linearDamping`, 0);
-  if (body.angularDamping !== undefined) c.number(body.angularDamping, `${path}/angularDamping`, 0);
-  if (body.gravityScale !== undefined) c.number(body.gravityScale, `${path}/gravityScale`);
+  if (body.linearDamping !== undefined) c.number(body.linearDamping, `${path}/linearDamping`, 0, R.hertz);
+  if (body.angularDamping !== undefined) c.number(body.angularDamping, `${path}/angularDamping`, 0, R.hertz);
+  if (body.gravityScale !== undefined) c.number(body.gravityScale, `${path}/gravityScale`, -R.gravity, R.gravity);
   const filter = body.filter;
   if (filter !== undefined && c.object(filter, `${path}/filter`, ['categoryBits', 'maskBits', 'groupIndex'])) {
     if (filter.categoryBits !== undefined) checkBits(c, filter.categoryBits, `${path}/filter/categoryBits`);
@@ -1194,10 +1212,15 @@ function checkBody(c: Checker, body: unknown, path: string, materials: ReadonlyS
     if (c.version < 2) c.add(at, 'massData needs scene version 2; this scene declares version 1');
     else if (kind === 'mesh' || kind === 'heightfield') c.add(at, `a ${kind} body is always static and takes no massData`);
     else if (c.object(data, at, ['mass', 'center', 'inertia'], ['mass', 'inertia'])) {
-      if (data.mass !== undefined && c.number(data.mass, `${at}/mass`, 0) && !(data.mass > 0)) c.add(`${at}/mass`, 'must be > 0, got 0');
-      if (data.center !== undefined) c.tuple(data.center, `${at}/center`, 3);
-      if (data.inertia !== undefined && c.tuple(data.inertia, `${at}/inertia`, 6) && !positiveDefinite(data.inertia)) {
-        c.add(`${at}/inertia`, 'must be a positive-definite tensor [Ixx, Iyy, Izz, Ixy, Ixz, Iyz] that float32 can invert');
+      const massOk = data.mass !== undefined && c.number(data.mass, `${at}/mass`, 0, R.massMax) && (data.mass > 0 || c.add(`${at}/mass`, 'must be > 0, got 0')) && (data.mass >= R.massMin || c.add(`${at}/mass`, `must be at least ${R.massMin} kg, got ${data.mass}`));
+      if (data.center !== undefined) c.tuple(data.center, `${at}/center`, 3, -R.extent, R.extent);
+      if (data.inertia !== undefined && c.tuple(data.inertia, `${at}/inertia`, 6)) {
+        if (!positiveDefinite(data.inertia)) c.add(`${at}/inertia`, 'must be a positive-definite tensor [Ixx, Iyy, Izz, Ixy, Ixz, Iyz] that float32 can invert');
+        else if (massOk) {
+          // The radius of gyration sqrt(I / m) lies between 10 micrometres and the world extent (the native world's rule).
+          const mass = data.mass as number, low = mass * 1e-10, high = mass * R.extent * R.extent;
+          for (let i = 0; i < 6; i++) if (Math.abs(data.inertia[i]) > high || (i < 3 && data.inertia[i] < low)) { c.add(`${at}/inertia/${i}`, `must lie within [${low}, ${high}] kg m^2 for a mass of ${mass} kg (a radius of gyration between 1e-5 m and ${R.extent} m), got ${data.inertia[i]}`); break; }
+        }
       }
     }
   }
@@ -1211,9 +1234,10 @@ function positiveDefinite(inertia: readonly number[]): boolean {
   return xx > 0 && xx * yy - xy * xy > 0 && det > 0 && Math.fround(det) > 0;
 }
 
-function checkFrame(c: Checker, frame: unknown, path: string): void {
+/** `reach`: how far the frame's origin may be from its body's origin (a shape's reach), or from the world origin on the fixed world. */
+function checkFrame(c: Checker, frame: unknown, path: string, reach: number): void {
   if (!c.object(frame, path, ['position', 'rotation', 'rotationEuler'])) return;
-  if (frame.position !== undefined) c.tuple(frame.position, `${path}/position`, 3);
+  if (frame.position !== undefined) c.tuple(frame.position, `${path}/position`, 3, -reach, reach);
   checkRotation(c, frame, path);
 }
 
@@ -1229,33 +1253,33 @@ function checkJoint(c: Checker, joint: unknown, path: string, hasBody: ((id: str
     else if (hasBody && !hasBody(ref)) c.add(`${path}/${side}`, `unknown body id ${show(ref)}`);
   }
   if (joint.bodyA !== undefined && joint.bodyA === joint.bodyB) c.add(`${path}/bodyB`, joint.bodyA === null ? 'bodyA and bodyB cannot both be the world (null)' : `a joint needs two different bodies; both are ${show(joint.bodyA)}`);
-  if (joint.frameA !== undefined) checkFrame(c, joint.frameA, `${path}/frameA`);
-  if (joint.frameB !== undefined) checkFrame(c, joint.frameB, `${path}/frameB`);
+  if (joint.frameA !== undefined) checkFrame(c, joint.frameA, `${path}/frameA`, joint.bodyA === null ? R.extent : R.shape);
+  if (joint.frameB !== undefined) checkFrame(c, joint.frameB, `${path}/frameB`, joint.bodyB === null ? R.extent : R.shape);
   if (joint.collideConnected !== undefined) c.boolean(joint.collideConnected, `${path}/collideConnected`);
   if (type) for (const feature of ['limits', 'motor', 'spring', 'length', 'coneAngle']) {
     if (joint[feature] !== undefined && !JOINT_FEATURES[type].includes(feature)) c.add(`${path}/${feature}`, `a ${type} joint does not take ${feature}`);
   }
   const {limits, motor, spring} = joint;
   if (limits !== undefined && c.object(limits, `${path}/limits`, ['lower', 'upper'], ['lower', 'upper'])) {
-    const lower = limits.lower !== undefined && c.number(limits.lower, `${path}/limits/lower`), upper = limits.upper !== undefined && c.number(limits.upper, `${path}/limits/upper`);
+    const lower = limits.lower !== undefined && c.number(limits.lower, `${path}/limits/lower`, -1e6, 1e6), upper = limits.upper !== undefined && c.number(limits.upper, `${path}/limits/upper`, -1e6, 1e6);
     if (lower && upper && (limits.upper as number) < (limits.lower as number)) c.add(`${path}/limits/upper`, `must be >= lower (${limits.lower}), got ${limits.upper}`);
   }
   if (motor !== undefined && c.object(motor, `${path}/motor`, ['speed', 'maxForce'], ['speed', 'maxForce'])) {
-    if (motor.speed !== undefined) c.number(motor.speed, `${path}/motor/speed`);
-    if (motor.maxForce !== undefined) c.number(motor.maxForce, `${path}/motor/maxForce`, 0);
+    if (motor.speed !== undefined) c.number(motor.speed, `${path}/motor/speed`, -R.speed, R.speed);
+    if (motor.maxForce !== undefined) c.number(motor.maxForce, `${path}/motor/maxForce`, 0, R.force);
   }
   if (spring !== undefined && c.object(spring, `${path}/spring`, ['hertz', 'dampingRatio', 'target'], ['hertz', 'dampingRatio'])) {
-    if (spring.hertz !== undefined) c.number(spring.hertz, `${path}/spring/hertz`, 0);
-    if (spring.dampingRatio !== undefined) c.number(spring.dampingRatio, `${path}/spring/dampingRatio`, 0);
-    if (spring.target !== undefined) c.number(spring.target, `${path}/spring/target`);
+    if (spring.hertz !== undefined) c.number(spring.hertz, `${path}/spring/hertz`, 0, R.hertz);
+    if (spring.dampingRatio !== undefined) c.number(spring.dampingRatio, `${path}/spring/dampingRatio`, 0, R.hertz);
+    if (spring.target !== undefined) c.number(spring.target, `${path}/spring/target`, -1e6, 1e6);
   }
-  if (joint.length !== undefined) { if (c.number(joint.length, `${path}/length`) && !(joint.length > 0)) c.add(`${path}/length`, `must be > 0, got ${joint.length}`); }
+  if (joint.length !== undefined) { if (c.number(joint.length, `${path}/length`, -Infinity, R.extent) && !(joint.length > 0)) c.add(`${path}/length`, `must be > 0, got ${joint.length}`); else if (typeof joint.length === 'number' && joint.length > 0 && joint.length < 1e-6) c.add(`${path}/length`, `must be at least 1e-6 m, got ${joint.length}`); }
   else if (type === 'distance') c.add(`${path}/length`, 'is required on a distance joint');
   if (joint.coneAngle !== undefined) c.number(joint.coneAngle, `${path}/coneAngle`, 0, Math.PI);
   if (joint.stiffness !== undefined && c.object(joint.stiffness, `${path}/stiffness`, ['hertz', 'dampingRatio'], ['hertz'])) {
     const stiffness = joint.stiffness as {hertz?: unknown; dampingRatio?: unknown};
-    if (c.number(stiffness.hertz, `${path}/stiffness/hertz`) && !((stiffness.hertz as number) > 0)) c.add(`${path}/stiffness/hertz`, `must be > 0, got ${String(stiffness.hertz)}`);
-    if (stiffness.dampingRatio !== undefined) c.number(stiffness.dampingRatio, `${path}/stiffness/dampingRatio`, 0);
+    c.number(stiffness.hertz, `${path}/stiffness/hertz`, 1e-6, R.hertz);
+    if (stiffness.dampingRatio !== undefined) c.number(stiffness.dampingRatio, `${path}/stiffness/dampingRatio`, 0, R.hertz);
   }
   if (joint.userData !== undefined) c.freeForm(joint.userData, `${path}/userData`);
 }
@@ -2235,6 +2259,7 @@ const isIdentity = (q: readonly number[]): boolean => q[0] === 0 && q[1] === 0 &
 
 /** Degrees about X, Y, Z to a quaternion, q = qx qy qz (a vector is turned about Z first, then Y, then X: the three.js 'XYZ' order). */
 export function eulerToQuaternion(degrees: SceneVec3): [number, number, number, number] {
+  if (!Array.isArray(degrees) || degrees.length !== 3 || ![0, 1, 2].every(i => typeof degrees[i] === 'number' && Number.isFinite(degrees[i]))) throw new EngineError('INVALID_PAYLOAD', 'eulerToQuaternion takes [x, y, z] in degrees: three finite numbers.');
   const k = Math.PI / 360, c1 = Math.cos(degrees[0] * k), c2 = Math.cos(degrees[1] * k), c3 = Math.cos(degrees[2] * k);
   const s1 = Math.sin(degrees[0] * k), s2 = Math.sin(degrees[1] * k), s3 = Math.sin(degrees[2] * k);
   return [zero(s1 * c2 * c3 + c1 * s2 * s3), zero(c1 * s2 * c3 - s1 * c2 * s3), zero(c1 * c2 * s3 + s1 * s2 * c3), zero(c1 * c2 * c3 - s1 * s2 * s3)];
@@ -2626,9 +2651,19 @@ export function sceneHasCoupling(scene: SceneCoupledSections): boolean {
   return (scene.water?.length ?? 0) + (scene.cables?.length ?? 0) + (scene.frames?.length ?? 0) + (scene.cloths?.length ?? 0) + (scene.grains?.length ?? 0) + (scene.solids?.length ?? 0) + (scene.heat?.length ?? 0) + (scene.fluids?.length ?? 0) + (scene.shallowWater?.length ?? 0) > 0;
 }
 
+/**
+ * Set an own, enumerable property, whatever the key. `out[key] = value` with the key "__proto__" (which JSON.parse makes
+ * an ordinary own key) would replace the object's prototype instead: the key would vanish from the saved scene and the
+ * copy would inherit whatever the file put there.
+ */
+function setOwn(out: Obj, key: string, value: unknown): void {
+  if (key === '__proto__') Object.defineProperty(out, key, {value, enumerable: true, writable: true, configurable: true});
+  else out[key] = value;
+}
+
 function clone<T>(value: T): T {
   if (Array.isArray(value)) return value.map(clone) as unknown as T;
-  if (value !== null && typeof value === 'object') { const out: Obj = {}; for (const key of Object.keys(value)) out[key] = clone((value as Obj)[key]); return out as T; }
+  if (value !== null && typeof value === 'object') { const out: Obj = {}; for (const key of Object.keys(value)) setOwn(out, key, clone((value as Obj)[key])); return out as T; }
   return (typeof value === 'number' ? zero(value) : value) as T;
 }
 
@@ -3020,7 +3055,7 @@ function plain(value: unknown): unknown {
     return typeof object.w === 'number' ? [object.x, object.y, object.z, object.w] : [object.x, object.y, object.z];
   }
   const out: Obj = {};
-  for (const key of keys) if (object[key] !== undefined) out[key] = key === 'userData' ? object[key] : plain(object[key]);
+  for (const key of keys) if (object[key] !== undefined) setOwn(out, key, key === 'userData' ? object[key] : plain(object[key]));
   return out;
 }
 

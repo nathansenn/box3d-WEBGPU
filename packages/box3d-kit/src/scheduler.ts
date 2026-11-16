@@ -6,8 +6,10 @@
  */
 import type {FixedStepResult} from './loop.js';
 
+/** Anything a WorldScheduler can drive: an object with update(frameSeconds). */
 export interface SchedulableWorld { update(frameSeconds: number): FixedStepResult }
 
+/** The time budget of one scheduler frame and its clock. */
 export interface SchedulerOptions {
   /** Stop starting new worlds once this many milliseconds were spent. Default 8. At least one world always runs. */
   readonly budgetMs?: number;
@@ -15,6 +17,7 @@ export interface SchedulerOptions {
   readonly now?: () => number;
 }
 
+/** What one scheduler frame did: worlds updated, worlds deferred to the next frame, steps taken and milliseconds spent. */
 export interface SchedulerFrame {
   readonly updated: number;
   readonly deferred: number;
@@ -22,6 +25,7 @@ export interface SchedulerFrame {
   readonly elapsedMs: number;
 }
 
+/** Steps many worlds within a time budget per frame. Worlds that did not fit are deferred, keep the time they are owed and go first in the next frame, so none starves. */
 export class WorldScheduler<W extends SchedulableWorld = SchedulableWorld> {
   readonly budgetMs: number;
   private readonly now: () => number;

@@ -22,7 +22,8 @@ const KUHN=[0,1,3,7, 0,1,5,7, 0,2,3,7, 0,2,6,7, 0,4,5,7, 0,4,6,7];
 
 function triple(value:unknown,label:string,min:number,max:number,whole=false):[number,number,number] {
   if(!Array.isArray(value)||value.length!==3)throw new EngineError('INVALID_PAYLOAD',`${label} needs three components.`);
-  return value.map((v,i)=>whole?integer(v,`${label}[${i}]`,min,max):finite(v,`${label}[${i}]`,min,max)) as [number,number,number];
+  // Array.from visits the holes of a sparse array (as undefined), which map would skip and leave as NaN.
+  return Array.from(value,(v,i)=>whole?integer(v,`${label}[${i}]`,min,max):finite(v,`${label}[${i}]`,min,max)) as [number,number,number];
 }
 
 /** Signed volume of the tetrahedron (a, b, c, d): positive when d lies on the side of the normal of a→b→c. */

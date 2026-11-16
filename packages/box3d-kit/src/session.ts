@@ -9,6 +9,7 @@ import {BUILD_INFO} from './core/build-info.js';
 import {NATIVE_WORLD_API_VERSION} from './core/native-world.js';
 import type {PhysicsWorld, ReplayLog, ReplayReport} from './world.js';
 
+/** A replay log together with the identity of the build that recorded it, as saveSession() writes it. loadSession() refuses one from another build. */
 export interface SavedSession {
   readonly format: 'box3d-kit-session';
   readonly version: 1;

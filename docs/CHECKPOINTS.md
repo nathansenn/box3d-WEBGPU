@@ -170,6 +170,18 @@ Measured:
   hopper-seesaw, rubber-pad, quenched-plate, sphere-settling and dam-break in headless Chromium with software WebGPU: the same transform hash and
   the same state hash of every solver 30 Lab ticks later, no console error.
 
+### Handles after a restore
+
+- A body handle is valid after a restore when the world was built the same way as the checkpoint's. When a body was
+  destroyed between the checkpoint and the restore, the bridge still pairs the world's handle table with the
+  checkpoint's rows by position, and a destroy moves the last row: kept handles can then name other bodies and the
+  destroyed body's handle stays dead (native defect ND-3, docs/ROBUSTNESS.md). The physical state is exact. After
+  any restore that follows a destroy, read handles again with `bodyAt(row)`.
+- A joint handle made after a checkpoint is invalid once that checkpoint is restored, and becomes valid again when a
+  later joint receives the same Box3D id: discard such handles on restore.
+- The world's checkpoint bytes include its handle table, so two worlds with different histories can hold equal
+  physical states in different bytes. Compare body states, not checkpoint bytes, across worlds.
+
 ### Limits
 
 - **Same build.** A checkpoint names the format version, not the build. The Box3D snapshot checks its own struct

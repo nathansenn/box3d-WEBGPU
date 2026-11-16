@@ -4,6 +4,7 @@
  */
 import {convertMatrices, type UpAxis} from './axes.js';
 import type {InstanceSource} from './three.js';
+import {EngineError} from './core/contracts.js';
 
 /** Structural subset of GPUQueue. */
 export interface GpuQueueLike {
@@ -12,6 +13,7 @@ export interface GpuQueueLike {
 /** Structural subset of GPUBuffer. */
 export interface GpuBufferLike { readonly size: number }
 
+/** Options of writeInstances(): the byte offset in the GPU buffer, interpolation, and whether to upload only when the transforms changed. */
 export interface WriteInstancesOptions {
   /** Byte offset into `buffer`; must be a multiple of 4. Default 0. */
   readonly offset?: number;
@@ -50,7 +52,7 @@ let scratch = new Float32Array(0);
  */
 export function writeInstances(source: InstanceSource, queue: GpuQueueLike, buffer: GpuBufferLike, options: WriteInstancesOptions = {}): number {
   const offset = options.offset ?? 0;
-  if (offset % 4 !== 0) throw new RangeError('offset must be a multiple of 4 bytes.');
+  if (offset % 4 !== 0) throw new EngineError('INVALID_PAYLOAD', `offset must be a multiple of 4 bytes; got ${String(offset)}.`);
   const fit = Math.max(0, Math.floor((buffer.size - offset) / 64));
   const count = Math.min(source.bodyCount(), fit);
   const transform = source.transformVersion(), color = source.colorVersion(), alpha = options.alpha;

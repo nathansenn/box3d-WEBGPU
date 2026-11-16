@@ -42,7 +42,7 @@ export const SHALLOW_WATER_COUPLING_BACKEND='rigid-shallow-water-coupling-js-f64
 /** Standard gravity used when none is given, m/s^2. */
 export const SHALLOW_WATER_GRAVITY=9.81;
 
-const fail=(message:string):never=>{throw new EngineError('INVALID_ARGUMENT',message);};
+const fail=(message:string):never=>{throw new EngineError('INVALID_PAYLOAD',message);};
 function num(value:unknown,what:string,min:number,max:number):number {
   if(typeof value!=='number'||!Number.isFinite(value)||value<min||value>max)fail(`${what} must be a number in [${min}, ${max}] (got ${String(value)}).`);
   return value as number;
@@ -226,6 +226,7 @@ export class ShallowWater {
     this.h=new Float64Array(n);this.qx=new Float64Array(n);this.qz=new Float64Array(n);
     {
       const d=options.depth,arr=field(d,'depth'),level=options.level;
+      if(level!==undefined&&typeof level!=='function')num(level,'level',-1e6,1e6);
       for(let k=0,c=0;k<nz;k++)for(let i=0;i<nx;i++,c++){
         const x=cx(i),z=cz(k);let depth=0;
         if(arr)depth=arr[c];else if(typeof d==='function')depth=d(x,z,this.bed[c]);
@@ -236,7 +237,8 @@ export class ShallowWater {
       }
     }
     this.manning=new Float64Array(n);
-    {const m=options.manning;if(typeof m==='number')this.manning.fill(num(m,'manning',0,10));else if(m!==undefined){const arr=field(m,'manning')!;for(let c=0;c<n;c++)this.manning[c]=num(arr[c],'manning',0,10);}}
+    {const m=options.manning;if(typeof m==='number')this.manning.fill(num(m,'manning',0,10));else if(m!==undefined&&m!==null){
+      if(typeof m!=='object')fail('manning must be a number, or one value per cell.');const arr=field(m,'manning')!;for(let c=0;c<n;c++)this.manning[c]=num(arr[c],'manning',0,10);}}
     this.viscosity=num(options.viscosity??0,'viscosity',0,10);
     this.hasManning=this.manning.some(x=>x>0)||this.viscosity>0;
     this.soilK=new Float64Array(n);this.soilS=new Float64Array(n);this.infiltrated=new Float64Array(n);
@@ -258,6 +260,7 @@ export class ShallowWater {
     if(typeof rain==='number')num(rain,'rain',0,1);else if(typeof rain!=='function')fail('rain must be a number (m/s) or a function of time.');
     this.rainRate=rain;
     const b=options.boundaries??{};
+    if(typeof b!=='object'||Array.isArray(b))fail('boundaries must be {xMin?, xMax?, zMin?, zMax?}.');
     for(const key of Object.keys(b))if(!(SIDES as readonly string[]).includes(key))fail(`Unknown side "${key}": use xMin, xMax, zMin, zMax.`);
     this.sides=SIDES.map(key=>side(b[key],key));
     this.sides.forEach((state,index)=>this.spanWidth(state,index));
@@ -1025,6 +1028,11 @@ export function shallowWaterSubsystem<W,B>(target:ShallowWater|ShallowWaterCoupl
   return {
     id,kind:coupling?'shallow-water-coupling':'shallow-water',stage:coupling?'couple':'post',order:options.order??(coupling?SHALLOW_WATER_SUBSYSTEM_ORDER:530),
     timeStep:{dt:coupling?coupling.dt:water.dt,rule:coupling?'equal':'commensurate'},
+    diagnose(){
+      const stable=water.stableTimeStep(),needed=Number.isFinite(stable)?Math.ceil(water.dt/stable):1,ratio=needed/water.maxSubsteps;
+      return ratio>0.5?[{severity:ratio>1?'warning' as const:'note' as const,rule:'cfl',subject:id,numbers:{dt:water.dt,stable,needed,maxSubsteps:water.maxSubsteps},
+        message:`The shallow water needs ${needed} of its own steps of ${stable} s (CFL ${water.cfl} at the fastest wave now) in each step of ${water.dt} s; it takes at most ${water.maxSubsteps}. Use a smaller step, coarser cells or a larger maxSubsteps.`}]:[];
+    },
     step(ctx){if(coupling)coupling.step();else water.step(ctx.substeps);},
     checkpoint(){return {state:(coupling??water).saveState(),wet,heavy};},
     restore(state){

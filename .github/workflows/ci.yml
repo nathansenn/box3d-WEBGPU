@@ -15,7 +15,8 @@ jobs:
     # The required check. Same name as before so existing branch rules keep matching.
     name: Typecheck, test, and build
     runs-on: ubuntu-24.04
-    timeout-minutes: 40
+    # The gate gained the fuzzers, the pack smoke test and the documentation check (about four minutes).
+    timeout-minutes: 50
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4

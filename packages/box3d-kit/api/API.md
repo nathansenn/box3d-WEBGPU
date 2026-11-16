@@ -24,17 +24,23 @@ export declare function axisRotation(axisLike: Vec3Like, from?: 'x' | 'z'): [num
 
 ### Body · type
 
+An opaque handle to a body of one world. It never names another body, even after this one is destroyed; test it with isAlive().
+
 ```ts
 export type Body = NativeBodyHandle;
 ```
 
 ### BodyKind · type
 
+The shape kind of a render row: 'box', 'sphere', 'capsule', 'hull', 'mesh', 'heightfield' or 'compound'.
+
 ```ts
 export type BodyKind = NativeBodyKind;
 ```
 
 ### BodyMassData · type
+
+Mass (kg), centre of mass in the body frame (m) and inertia tensor about it [Ixx, Iyy, Izz, Ixy, Ixz, Iyz] in kg m^2, as getMassData() reports them.
 
 ```ts
 export type BodyMassData = NativeBodyMassState;
@@ -75,6 +81,8 @@ export interface BodyOptions {
 
 ### BodyPose · interface
 
+A body's pose as getPose() reads it from the render transforms.
+
 ```ts
 export interface BodyPose {
     position: [number, number, number];
@@ -100,11 +108,15 @@ export declare class BodyRing {
 
 ### BodyState · type
 
+A body as the solver holds it: position (m), rotation [x, y, z, w], linear (m/s) and angular (rad/s) velocity, mass (kg), whether it is awake, and its type.
+
 ```ts
 export type BodyState = NativeBodyState;
 ```
 
 ### BodyType · type
+
+'dynamic' is simulated, 'kinematic' is moved by you and pushes dynamic bodies, 'static' never moves.
 
 ```ts
 export type BodyType = NativeBodyType;
@@ -139,6 +151,8 @@ export declare const BUILD_INFO: BuildInfo;
 
 ### BuildInfo · interface
 
+The identity of the build this package ships: its version, the Box3D source it was compiled from, the compiler, and the SHA-256 of the WebAssembly and its glue.
+
 ```ts
 export interface BuildInfo {
     readonly kitVersion: string;
@@ -163,6 +177,8 @@ export declare function capabilities(): Capabilities;
 ```
 
 ### Capabilities · interface
+
+What this package build and this runtime support, from capabilities(): the build identity, the native interface version, the environment and the shipped modules.
 
 ```ts
 export interface Capabilities {
@@ -256,11 +272,15 @@ export declare function createWorld(options?: WorldOptions & LoadBox3DOptions & 
 
 ### DEBUG_FLOATS_PER_BOX · const
 
+Floats boxOutlines() writes per body: 12 edges of 2 vertices of 3 floats.
+
 ```ts
 export declare const DEBUG_FLOATS_PER_BOX: number;
 ```
 
 ### DebugLineOptions · interface
+
+Options of the debug line builders: interpolation, the up axis, a buffer to reuse and whether to skip the ground.
 
 ```ts
 export interface DebugLineOptions {
@@ -272,6 +292,8 @@ export interface DebugLineOptions {
 ```
 
 ### DebugLines · interface
+
+Line segments for a debug overlay: xyz triples, two vertices per segment.
 
 ```ts
 export interface DebugLines {
@@ -288,23 +310,238 @@ What this runtime supports. Call before loading to choose a path or explain a fa
 export declare function detectEnvironment(): EnvironmentReport;
 ```
 
+### DiagnosticFinding · interface
+
+One thing `world.diagnose()` or `simulation.diagnose()` found in a set-up: which rule it breaks, with the numbers.
+'error': the state is already wrong (a non-finite value). 'warning': the set-up is outside what the method resolves
+and will likely misbehave. 'note': inside the limits, but close, or costly.
+
+```ts
+export interface DiagnosticFinding {
+    readonly severity: 'error' | 'warning' | 'note';
+    readonly rule: string;
+    readonly subject: string;
+    readonly message: string;
+    readonly numbers: {
+        readonly [name: string]: number;
+    };
+}
+```
+
+### ENGINE_ERRORS · const
+
+The error taxonomy (docs/ERRORS.md). Every error this engine throws on purpose is an `EngineError` whose `code` is a
+key of this table. `meaning` says what the code stands for; `fix` is what the caller does about it. A test
+(tests/fuzz/error-taxonomy.test.mjs) fails when a code is thrown that is not listed here.
+
+```ts
+export declare const ENGINE_ERRORS: {
+    readonly INVALID_PAYLOAD: {
+        readonly meaning: "An argument, option, file or message holds a value the engine cannot use.";
+        readonly fix: "Read the message: it names the field, the value it got and the values it takes. Correct the input and call again; nothing was changed.";
+    };
+    readonly INVALID_STATE: {
+        readonly meaning: "The call is valid, but not in the state the object is in now.";
+        readonly fix: "Do the step the message names first (for example stop recording before reset, or step before reading results).";
+    };
+    readonly DISPOSED: {
+        readonly meaning: "The world, pool, solver or runtime was destroyed, or its native handle is no longer valid.";
+        readonly fix: "Create a new one; do not keep references past dispose() or destroy().";
+    };
+    readonly STALE_BODY: {
+        readonly meaning: "The body handle names a body that was destroyed, or one from before a reset.";
+        readonly fix: "Check world.isAlive(body) before using a kept handle, and drop handles when you destroy or reset.";
+    };
+    readonly STALE_JOINT: {
+        readonly meaning: "The joint handle names a joint that was destroyed, or one of its bodies was.";
+        readonly fix: "Check world.isJointAlive(joint) before using a kept handle.";
+    };
+    readonly STALE_QUERY: {
+        readonly meaning: "Body storage changed between validating a spatial query and running it.";
+        readonly fix: "Run the query again.";
+    };
+    readonly STALE_GENERATION: {
+        readonly meaning: "A reply or command belongs to a runtime generation that was reset.";
+        readonly fix: "Discard it and issue the request again against the current runtime.";
+    };
+    readonly STALE_REQUEST: {
+        readonly meaning: "A request was superseded by a newer one before it ran.";
+        readonly fix: "Use the result of the newer request.";
+    };
+    readonly STALE_SNAPSHOT: {
+        readonly meaning: "A snapshot was read after the buffer it lives in was reused.";
+        readonly fix: "Copy what you need from a snapshot before the next step, or request a new one.";
+    };
+    readonly WORLD_CAPACITY: {
+        readonly meaning: "The world, the module or a scene is at a fixed limit (16 worlds per module, 65,536 bodies per world).";
+        readonly fix: "Destroy what you no longer need, reserve capacity up front with `capacity`, or split the scene.";
+    };
+    readonly ALLOCATION_FAILED: {
+        readonly meaning: "The WebAssembly heap could not grow, or a native allocation failed.";
+        readonly fix: "Free worlds you no longer use; the existing world is intact. On 32-bit WebAssembly the heap is at most 2 GiB.";
+    };
+    readonly WORK_LIMIT: {
+        readonly meaning: "A solver reached its iteration or work budget before it met its tolerance.";
+        readonly fix: "Raise the budget the message names, use a smaller time step, or coarsen the model.";
+    };
+    readonly QUERY_VERSION_EXHAUSTED: {
+        readonly meaning: "A world ran more than 2^32 query batches.";
+        readonly fix: "Create a new world.";
+    };
+    readonly SEQUENCE_EXHAUSTED: {
+        readonly meaning: "A shared snapshot ring used all of its sequence numbers.";
+        readonly fix: "Reset the runtime with a new ring.";
+    };
+    readonly BACKPRESSURE: {
+        readonly meaning: "More work was queued than the worker accepts at once.";
+        readonly fix: "Wait for earlier requests to settle before sending more.";
+    };
+    readonly BUSY: {
+        readonly meaning: "The runtime is in the middle of another request.";
+        readonly fix: "Await the pending request first.";
+    };
+    readonly UNSUPPORTED_BACKEND: {
+        readonly meaning: "This build, WASM artifact or file version does not have the feature the call needs.";
+        readonly fix: "Use the artifact shipped with this version (npm run build:wasm in the repository), or the feature the message names.";
+    };
+    readonly UNSUPPORTED_JOINT: {
+        readonly meaning: "That joint type does not take that setting.";
+        readonly fix: "See the joint feature table in the kit README: for example only revolute, prismatic, distance and wheel joints have motors.";
+    };
+    readonly INVALID_BACKEND: {
+        readonly meaning: "The WASM module answered with something outside its contract.";
+        readonly fix: "The artifact and the JavaScript do not match: rebuild or reinstall so that both come from the same version, and report it if they already do.";
+    };
+    readonly WASM_UNAVAILABLE: {
+        readonly meaning: "WebAssembly could not be loaded or instantiated here.";
+        readonly fix: "Check that box3d.wasm is served (the message has the URL and reason) and that the runtime supports WebAssembly.";
+    };
+    readonly INTEGRITY_MISMATCH: {
+        readonly meaning: "The loaded box3d.wasm is not the file this package was built with.";
+        readonly fix: "Serve the box3d.wasm from the same package version, without rewriting proxies.";
+    };
+    readonly SHARED_UNAVAILABLE: {
+        readonly meaning: "SharedArrayBuffer is not available (the page is not cross-origin isolated).";
+        readonly fix: "Send COOP and COEP headers, or use the copying transport.";
+    };
+    readonly INCOMPATIBLE_SAVE: {
+        readonly meaning: "A saved session came from another WASM build or native interface version.";
+        readonly fix: "Replay it with the build recorded in the file; replays are exact only on the build that made them.";
+    };
+    readonly CHECKPOINT_MISMATCH: {
+        readonly meaning: "A checkpoint is damaged, of another format version, or from another scene or set-up.";
+        readonly fix: "Restore it into a world and solvers built the same way by the same version; nothing was changed by the refused restore.";
+    };
+    readonly MODEL_MISMATCH: {
+        readonly meaning: "Saved or transferred state names a model other than the one receiving it.";
+        readonly fix: "Create the runtime with the model the state was produced by.";
+    };
+    readonly UNSTABLE_TIME_STEP: {
+        readonly meaning: "The time step is above the stability limit of the method for these inputs.";
+        readonly fix: "Use the step the message gives (it states the limit and the rule), or the solver's stableTimeStep() helper.";
+    };
+    readonly NUMERICAL_FAILURE: {
+        readonly meaning: "A solve produced a non-finite number or failed to converge.";
+        readonly fix: "Reduce the time step or the load increment; check world.diagnose() or simulation.diagnose() for ill-conditioned inputs.";
+    };
+    readonly SOLVER_NOT_CONVERGED: {
+        readonly meaning: "An iterative linear solve stopped at its iteration limit.";
+        readonly fix: "Raise maxIterations or loosen the tolerance; the message has the residual reached.";
+    };
+    readonly SOLVER_BREAKDOWN: {
+        readonly meaning: "A matrix that must be positive definite is not.";
+        readonly fix: "Check material values and constraints: a negative conductivity, capacity or stiffness, or an unconstrained body, causes this.";
+    };
+    readonly SINGULAR_STEADY: {
+        readonly meaning: "A steady problem has no unique answer.";
+        readonly fix: "Fix a temperature or add a convective or radiating face on every separate solid.";
+    };
+    readonly NOT_RUNNING: {
+        readonly meaning: "The worker or runtime is not running.";
+        readonly fix: "Start it, or create a new one after a failure.";
+    };
+    readonly NOT_CREATED: {
+        readonly meaning: "A worker was asked to use a runtime before one was created.";
+        readonly fix: "Send the create request first.";
+    };
+    readonly RESET: {
+        readonly meaning: "The request was dropped because the runtime was reset or destroyed while it waited.";
+        readonly fix: "Issue it again if it still applies.";
+    };
+    readonly INVALID_RESPONSE: {
+        readonly meaning: "A worker replied with a message outside the protocol.";
+        readonly fix: "Host and worker scripts must come from the same version.";
+    };
+    readonly INVALID_LOAN: {
+        readonly meaning: "A loaned buffer was returned twice, or is not the buffer that was lent.";
+        readonly fix: "Return each loaned snapshot exactly once.";
+    };
+    readonly WORKER_ERROR: {
+        readonly meaning: "The worker script threw outside a request.";
+        readonly fix: "See the message; create a new worker to continue.";
+    };
+    readonly WORKER_MESSAGE_ERROR: {
+        readonly meaning: "A message to or from the worker could not be deserialized.";
+        readonly fix: "Send only structured-cloneable values.";
+    };
+    readonly WORKER_SEND_ERROR: {
+        readonly meaning: "A message could not be posted to the worker.";
+        readonly fix: "Check that transferred buffers are not already detached.";
+    };
+    readonly WORKER_TIMEOUT: {
+        readonly meaning: "The worker did not answer within the time limit.";
+        readonly fix: "The worker was recycled; reduce the work per request or raise the limit.";
+    };
+    readonly WORKER_RECYCLE_ERROR: {
+        readonly meaning: "A worker could not be replaced after a failure.";
+        readonly fix: "Create a new client.";
+    };
+    readonly RUNTIME_ERROR: {
+        readonly meaning: "A runtime inside a worker failed with an error that is not an EngineError.";
+        readonly fix: "See the message; it is the original error text.";
+    };
+    readonly INTERNAL: {
+        readonly meaning: "The engine reached a state it believes impossible.";
+        readonly fix: "This is a bug: report it with the message and, if you can, a checkpoint or replay log.";
+    };
+};
+```
+
 ### EngineError · class
+
+Every error this engine throws on purpose. `code` is a key of ENGINE_ERRORS; `details`, when present, names the field at fault, the value and what is accepted; `fix` says what to do. See docs/ERRORS.md.
 
 ```ts
 export declare class EngineError extends Error {
   readonly code: string;
+  readonly details?: EngineErrorDetails;
+  get fix(): string;
 }
 ```
 
 ### EngineErrorCode · type
 
-Every `code` an EngineError from this package can carry.
+Every `code` an EngineError can carry.
 
 ```ts
-export type EngineErrorCode = 'INVALID_PAYLOAD' | 'INVALID_BACKEND' | 'UNSUPPORTED_BACKEND' | 'DISPOSED' | 'STALE_BODY' | 'WORLD_CAPACITY' | 'ALLOCATION_FAILED' | 'STALE_QUERY' | 'QUERY_VERSION_EXHAUSTED' | 'INVALID_STATE' | 'INTERNAL' | 'WASM_UNAVAILABLE' | 'INTEGRITY_MISMATCH' | 'INCOMPATIBLE_SAVE' | 'STALE_JOINT' | 'UNSUPPORTED_JOINT' | 'NUMERICAL_FAILURE' | 'WORK_LIMIT' | 'UNSTABLE_TIME_STEP';
+export type EngineErrorCode = keyof typeof ENGINE_ERRORS;
+```
+
+### EngineErrorDetails · interface
+
+Where the problem is and what was found there. All optional; each is also in the message.
+
+```ts
+export interface EngineErrorDetails {
+    readonly path?: string;
+    readonly value?: string;
+    readonly expected?: string;
+}
 ```
 
 ### EnvironmentReport · interface
+
+What the current runtime offers, from detectEnvironment(): the kind of runtime, WebAssembly and its SIMD, WebGPU, workers and shared memory.
 
 ```ts
 export interface EnvironmentReport {
@@ -316,6 +553,20 @@ export interface EnvironmentReport {
     readonly crossOriginIsolated: boolean;
     readonly workers: boolean;
 }
+```
+
+### explainError · function
+
+A caught value as the parts a user interface shows: a code, what happened and what to do. Never throws.
+
+```ts
+export declare function explainError(error: unknown): {
+    code: string;
+    meaning: string;
+    message: string;
+    fix: string;
+    path: string | null;
+};
 ```
 
 ### FixedStepLoop · class
@@ -337,6 +588,8 @@ export declare class FixedStepLoop {
 
 ### FixedStepOptions · interface
 
+The fixed time step and how many steps one update may take.
+
 ```ts
 export interface FixedStepOptions {
     readonly step?: number;
@@ -345,6 +598,8 @@ export interface FixedStepOptions {
 ```
 
 ### FixedStepResult · interface
+
+What an update did: the steps taken, the blend factor towards the next step for rendering, and the seconds dropped because maxSteps was reached.
 
 ```ts
 export interface FixedStepResult {
@@ -384,6 +639,8 @@ export interface GpuQueueLike {
 
 ### Inspector · interface
 
+A mounted debug overlay: its element, a manual refresh and unmount().
+
 ```ts
 export interface Inspector {
     readonly element: ElementLike;
@@ -393,6 +650,8 @@ export interface Inspector {
 ```
 
 ### InspectorOptions · interface
+
+Where the overlay mounts and how often it refreshes.
 
 ```ts
 export interface InspectorOptions {
@@ -406,6 +665,8 @@ export interface InspectorOptions {
 ```
 
 ### InspectorSource · interface
+
+What the overlay reads: anything with stats(), such as a PhysicsWorld or a RemoteWorld.
 
 ```ts
 export interface InspectorSource {
@@ -462,13 +723,26 @@ export interface InstanceSource {
 }
 ```
 
+### isEngineError · function
+
+True for an EngineError from any copy of this module: the page and a worker, or the app and the kit, each have
+their own class, so `instanceof` is not enough across those boundaries.
+
+```ts
+export declare function isEngineError(value: unknown): value is EngineError;
+```
+
 ### Joint · type
+
+An opaque handle to a joint of one world; test it with isJointAlive().
 
 ```ts
 export type Joint = NativeJointHandle;
 ```
 
 ### JointFrame · interface
+
+Where a joint attaches to a body: a position (m) and rotation in that body's own frame. Both default to the body's origin and axes.
 
 ```ts
 export interface JointFrame {
@@ -516,11 +790,15 @@ export interface JointOptions {
 
 ### JointState · type
 
+What a joint reports: its angle (rad), travel (m) or length (m) in `value`, and the force (N) and torque (N m) it carries.
+
 ```ts
 export type JointState = NativeJointState;
 ```
 
 ### JointType · type
+
+The six joint types: 'weld', 'revolute', 'spherical', 'prismatic', 'distance' and 'wheel'. JointOptions says what each constrains.
 
 ```ts
 export type JointType = NativeJointType;
@@ -564,6 +842,8 @@ export declare function loadBox3D(options?: LoadBox3DOptions): Promise<NativeWor
 
 ### LoadBox3DOptions · interface
 
+Where the WebAssembly comes from and how it is checked: URLs or bytes for box3d.js and box3d.wasm, an already imported factory, and integrity verification against the build's SHA-256.
+
 ```ts
 export interface LoadBox3DOptions {
     readonly moduleUrl?: string | URL;
@@ -601,17 +881,23 @@ export interface MassDataOptions {
 
 ### mountInspector · function
 
+Mount a small text overlay that shows a world's counts and timings and refreshes on an interval. Needs a DOM document; returns the handle to remove it.
+
 ```ts
 export declare function mountInspector(source: InspectorSource, options?: InspectorOptions): Inspector;
 ```
 
 ### NATIVE_WORLD_API_VERSION · const
 
+The version of the interface between this adapter and box3d.wasm. A module of another version is refused with UNSUPPORTED_BACKEND.
+
 ```ts
 export declare const NATIVE_WORLD_API_VERSION = 1;
 ```
 
 ### NativeBodyCapacityInfo · interface
+
+How many bodies a world's buffers hold now, how far they can grow, and the generation of the buffers (views must be re-read when it changes).
 
 ```ts
 export interface NativeBodyCapacityInfo {
@@ -624,6 +910,8 @@ export interface NativeBodyCapacityInfo {
 ```
 
 ### NativeBodyDescriptor · interface
+
+Everything createBody() takes, with vectors as plain tuples: the shape, type, pose, velocities, material, flags, damping, gravity scale, collision filter and optional mass data. Values must lie within RIGID_LIMITS.
 
 ```ts
 export interface NativeBodyDescriptor {
@@ -667,11 +955,15 @@ export interface NativeBodyHandle {
 
 ### NativeBodyKind · type
 
+The shape kind of a body: 'box', 'sphere', 'capsule', 'hull', 'mesh', 'heightfield' or 'compound'.
+
 ```ts
 export type NativeBodyKind = 'box' | 'sphere' | 'capsule' | 'hull' | 'mesh' | 'heightfield' | 'compound';
 ```
 
 ### NativeBodyMassState · interface
+
+Mass, centre of mass (body frame) and inertia tensor about it, as the solver holds them.
 
 ```ts
 export interface NativeBodyMassState {
@@ -684,6 +976,8 @@ export interface NativeBodyMassState {
 ```
 
 ### NativeBodyShape · type
+
+A body's shape as the native world takes it: boxes, spheres, capsules, hulls, compounds, triangle meshes and height fields, with flat number arrays.
 
 ```ts
 export type NativeBodyShape = {
@@ -722,6 +1016,8 @@ export type NativeBodyShape = {
 
 ### NativeBodyState · interface
 
+A body's pose, velocities, mass, sleep state and type, read from the solver.
+
 ```ts
 export interface NativeBodyState {
     position: [number, number, number];
@@ -735,6 +1031,8 @@ export interface NativeBodyState {
 ```
 
 ### NativeBodyType · type
+
+'static', 'kinematic' or 'dynamic'.
 
 ```ts
 export type NativeBodyType = 'static' | 'kinematic' | 'dynamic';
@@ -813,6 +1111,8 @@ export interface NativeJointDescriptor {
 
 ### NativeJointFrame · interface
 
+A joint frame in a body's own coordinates: position and rotation, both optional.
+
 ```ts
 export interface NativeJointFrame {
     readonly position?: NativeQueryVector;
@@ -833,6 +1133,8 @@ export interface NativeJointHandle {
 
 ### NativeJointState · interface
 
+A joint's type, its angle, travel or length, and the force and torque it carries.
+
 ```ts
 export interface NativeJointState {
     type: NativeJointType;
@@ -843,6 +1145,8 @@ export interface NativeJointState {
 ```
 
 ### NativeJointType · type
+
+'weld', 'revolute', 'spherical', 'prismatic', 'distance' or 'wheel'.
 
 ```ts
 export type NativeJointType = 'weld' | 'revolute' | 'spherical' | 'prismatic' | 'distance' | 'wheel';
@@ -864,11 +1168,15 @@ export interface NativeMassData {
 
 ### NativeQuaternion · type
 
+A rotation as a quaternion [x, y, z, w]; the bridge normalizes it.
+
 ```ts
 export type NativeQuaternion = readonly [number, number, number, number];
 ```
 
 ### NativeQueryBodyHit · interface
+
+One body found by an overlap query.
 
 ```ts
 export interface NativeQueryBodyHit {
@@ -877,6 +1185,8 @@ export interface NativeQueryBodyHit {
 ```
 
 ### NativeQueryCastHit · interface
+
+One hit of a ray, sphere or box cast: the body, the point and normal in world space, the fraction of the translation at which it was hit, and for meshes and compounds the triangle and child shape.
 
 ```ts
 export interface NativeQueryCastHit extends NativeQueryBodyHit {
@@ -890,6 +1200,8 @@ export interface NativeQueryCastHit extends NativeQueryBodyHit {
 ```
 
 ### NativeQueryFilter · interface
+
+Which bodies a spatial query considers: by type, by collision category and mask, and one body to ignore.
 
 ```ts
 export interface NativeQueryFilter {
@@ -1034,6 +1346,8 @@ export declare class NativeWorldBackend implements PhysicsBackend {
 
 ### NativeWorldEvent · interface
 
+A contact or sensor event of the most recent step. `point`, `normal` and `approachSpeed` are present on 'hit' events.
+
 ```ts
 export interface NativeWorldEvent {
     readonly kind: 'contact-begin' | 'contact-end' | 'hit' | 'sensor-begin' | 'sensor-end';
@@ -1084,6 +1398,8 @@ export declare function pauseOnHidden(target: FixedStepLoop | {
 ```
 
 ### PhysicsBackend · type
+
+The minimal native backend the renderer adapters read: the instance buffers plus the stepping and scene calls of the classic arena.
 
 ```ts
 export type PhysicsBackend = InstanceBufferSource & {
@@ -1183,6 +1499,7 @@ export declare class PhysicsWorld {
   transformVersion(): number;
   colorVersion(): number;
   stats(): WorldStats;
+  diagnose(): DiagnosticFinding[];
   startRecording(options?: RecordingOptions): void;
   stopRecording(): ReplayLog;
   get isRecording(): boolean;
@@ -1195,6 +1512,8 @@ export declare class PhysicsWorld {
 ```
 
 ### PoseArrays · interface
+
+Structure-of-arrays poses for entity-component systems: positions, rotations and optionally half extents, one row per body.
 
 ```ts
 export interface PoseArrays {
@@ -1219,6 +1538,8 @@ export type QuatLike = readonly [number, number, number, number] | {
 
 ### QueryOptions · interface
 
+Options of the casts and overlaps: which bodies to consider and how many hits to return.
+
 ```ts
 export interface QueryOptions {
     readonly filter?: NativeQueryFilter;
@@ -1227,6 +1548,8 @@ export interface QueryOptions {
 ```
 
 ### RaycastOptions · type
+
+The old name of QueryOptions.
 
 ```ts
 export type RaycastOptions = QueryOptions;
@@ -1263,6 +1586,8 @@ export declare function readPoses(source: InstanceSource, out: PoseArrays): numb
 
 ### RecordingOptions · interface
 
+Options of startRecording(): how often to record a state hash, and whether to start from an SI world.
+
 ```ts
 export interface RecordingOptions {
     readonly checkpointEvery?: number;
@@ -1274,6 +1599,8 @@ export interface RecordingOptions {
 ```
 
 ### ReplayCommand · type
+
+One recorded action of a ReplayLog, with the tick it happened at. Bodies are named by render row and joints by creation order, so that a log replays in any world.
 
 ```ts
 export type ReplayCommand = {
@@ -1329,6 +1656,8 @@ export interface ReplayLog {
 
 ### ReplayReport · interface
 
+The result of replayDetailed(): whether the replay matched the recording and, if not, between which ticks it first differed.
+
 ```ts
 export interface ReplayReport {
     readonly matches: boolean;
@@ -1343,6 +1672,8 @@ export interface ReplayReport {
 
 ### ResetOptions · interface
 
+What reset() starts the empty world with: the ground slab, gravity and the seed.
+
 ```ts
 export interface ResetOptions {
     readonly ground?: boolean;
@@ -1351,7 +1682,31 @@ export interface ResetOptions {
 }
 ```
 
+### RIGID_LIMITS · const
+
+The largest magnitudes the rigid world takes (the scene format checks the same table). The solver holds single-precision numbers, and products of these
+(speed squared times mass, force over mass times a time step) must stay below 3.4e38, or a step yields infinities
+and then NaN in every body they touch. Each limit is far beyond physical use in a world 100 km wide; a value above
+one is refused with INVALID_PAYLOAD and the world is unchanged (docs/ERRORS.md, "Accepted ranges").
+
+```ts
+export declare const RIGID_LIMITS: Readonly<{
+    extent: 100000;
+    shape: 1000;
+    speed: 1000000;
+    gravity: 1000000;
+    force: 1000000000000;
+    density: 1000000;
+    densityMin: 0.001;
+    massMin: 1e-12;
+    massMax: 10000000000000000;
+    hertz: 1000000;
+}>;
+```
+
 ### SavedSession · interface
+
+A replay log together with the identity of the build that recorded it, as saveSession() writes it. loadSession() refuses one from another build.
 
 ```ts
 export interface SavedSession {
@@ -1375,6 +1730,8 @@ export declare function saveSession(log: ReplayLog, savedAt?: string): SavedSess
 
 ### SchedulableWorld · interface
 
+Anything a WorldScheduler can drive: an object with update(frameSeconds).
+
 ```ts
 export interface SchedulableWorld {
     update(frameSeconds: number): FixedStepResult;
@@ -1382,6 +1739,8 @@ export interface SchedulableWorld {
 ```
 
 ### SchedulerFrame · interface
+
+What one scheduler frame did: worlds updated, worlds deferred to the next frame, steps taken and milliseconds spent.
 
 ```ts
 export interface SchedulerFrame {
@@ -1394,6 +1753,8 @@ export interface SchedulerFrame {
 
 ### SchedulerOptions · interface
 
+The time budget of one scheduler frame and its clock.
+
 ```ts
 export interface SchedulerOptions {
     readonly budgetMs?: number;
@@ -1402,6 +1763,8 @@ export interface SchedulerOptions {
 ```
 
 ### ShapeOptions · type
+
+The shape of a body: a box, sphere, capsule or convex hull, a compound of those, or static scenery (a triangle mesh or a height field). Sizes in metres.
 
 ```ts
 export type ShapeOptions = {
@@ -1440,6 +1803,8 @@ export type ShapeOptions = {
 
 ### SharedFrameReader · class
 
+The reading side of a shared frame buffer: update() takes the newest complete frame and reports whether anything changed.
+
 ```ts
 export declare class SharedFrameReader {
   readonly capacity: number;
@@ -1454,6 +1819,8 @@ export declare class SharedFrameReader {
 
 ### SharedFrameWriter · class
 
+The writing side of a SharedArrayBuffer that carries a world's instance transforms and colours from a worker to the page without copying through messages.
+
 ```ts
 export declare class SharedFrameWriter {
   readonly buffer: SharedArrayBuffer;
@@ -1463,6 +1830,8 @@ export declare class SharedFrameWriter {
 ```
 
 ### sharedMemoryAvailable · function
+
+True when SharedArrayBuffer can be used here (in a browser, when the page is cross-origin isolated).
 
 ```ts
 export declare function sharedMemoryAvailable(): boolean;
@@ -1508,6 +1877,8 @@ export declare function spawnBoxes(world: PhysicsWorld, positions: ArrayLike<num
 ```
 
 ### SpawnBoxOptions · interface
+
+What spawnBox() takes: where the cube appears, its half size and an initial impulse.
 
 ```ts
 export interface SpawnBoxOptions {
@@ -1565,6 +1936,8 @@ export interface UploadRange {
 
 ### Vec3 · type
 
+Three numbers [x, y, z]: a position or displacement in metres, a velocity in m/s, a force in newtons, as the method says.
+
 ```ts
 export type Vec3 = readonly [number, number, number];
 ```
@@ -1583,11 +1956,15 @@ export type Vec3Like = Vec3 | {
 
 ### WorldEvent · type
 
+A contact or sensor event of one step: kind ('contact-begin', 'contact-end', 'hit', 'sensor-begin', 'sensor-end'), the two bodies and, for a hit, the point, normal and approach speed.
+
 ```ts
 export type WorldEvent = NativeWorldEvent;
 ```
 
 ### WorldOptions · interface
+
+How a world steps: the fixed step and the most steps per update() (FixedStepOptions), the sub-steps, the seed, the body capacity, interpolation and strict mode.
 
 ```ts
 export interface WorldOptions extends FixedStepOptions {
@@ -1595,10 +1972,13 @@ export interface WorldOptions extends FixedStepOptions {
     readonly seed?: number;
     readonly capacity?: number;
     readonly interpolate?: boolean;
+    readonly strict?: boolean;
 }
 ```
 
 ### WorldScheduler · class
+
+Steps many worlds within a time budget per frame. Worlds that did not fit are deferred, keep the time they are owed and go first in the next frame, so none starves.
 
 ```ts
 export declare class WorldScheduler<W extends SchedulableWorld = SchedulableWorld> {
@@ -1613,6 +1993,8 @@ export declare class WorldScheduler<W extends SchedulableWorld = SchedulableWorl
 
 ### WorldStats · interface
 
+Counts and timings of a world, from stats(): cheap enough to read every frame.
+
 ```ts
 export interface WorldStats {
     readonly bodies: number;
@@ -1623,6 +2005,7 @@ export interface WorldStats {
     readonly lastStepMs: number;
     readonly lastUpdateMs: number;
     readonly droppedSeconds: number;
+    readonly nonFiniteSince: number | null;
 }
 ```
 
@@ -1640,6 +2023,8 @@ export declare function writeInstances(source: InstanceSource, queue: GpuQueueLi
 ```
 
 ### WriteInstancesOptions · interface
+
+Options of writeInstances(): the byte offset in the GPU buffer, interpolation, and whether to upload only when the transforms changed.
 
 ```ts
 export interface WriteInstancesOptions {
@@ -6216,6 +6601,7 @@ export declare class Simulation<W extends SimulationWorld<B>, B = unknown> {
   untrackBody(body: B): boolean;
   energy(): SimulationEnergy;
   diagnostics(): SimulationDiagnostics;
+  diagnose(): DiagnosticFinding[];
   get sceneSource(): SimulationSource | null;
   setSceneSource(source: SimulationSource | (() => SimulationSource) | null): void;
   checkpoint(options?: SimulationCheckpointOptions): Uint8Array;
@@ -6460,6 +6846,7 @@ export interface Subsystem<W = unknown, B = unknown> {
     finish?(ctx: StepContext<W>): void;
     energy?(): SubsystemEnergy;
     diagnostics?(): unknown;
+    diagnose?(): readonly DiagnosticFinding[];
     dispose?(): void;
     checkpoint?(): StateValue;
     restore?(state: StateValue): void;

@@ -23,7 +23,7 @@
  * description keeps the file's own axes (Z up for URDF and MJCF) and
  * `robotToScene` turns them into the engine's Y-up world.
  */
-import {EngineError} from './contracts.ts';
+import {EngineError, RIGID_LIMITS} from './contracts.ts';
 import {convexHull, parseGLB, parseGLTF, parseOBJ, parseSTL, toHullShape, type BinaryLike, type TriangleMesh} from './geometry.ts';
 import type {NativeBodyDescriptor, NativeBodyHandle, NativeJointDescriptor, NativeJointHandle} from './native-world.ts';
 import type {Scene, SceneBody, SceneConvexShape, SceneFilter, SceneJoint, SceneShape, SceneWorld} from './scene-format.ts';
@@ -100,10 +100,11 @@ export function parseXML(text: string, limits: XMLLimits = {}): XMLElement {
   const fail = (message: string, at: number): never => { const [line, column] = where(Math.min(at, n)); throw new XMLParseError(message, line, column); };
   if (n > max.maxChars) throw new XMLParseError(`the document is ${n} characters; the limit is ${max.maxChars}`, 1, 1);
   // Element positions only move forward, so one running line counter serves them all.
-  let line = 1, lineStart = 0, scanned = 0;
+  // The next line break is looked up once and kept: searching from the current position on every element would scan to
+  // the end of a document that has no more line breaks, which made a one-line file of 200,000 elements quadratic.
+  let line = 1, lineStart = 0, nextBreak = text.indexOf('\n');
   const mark = (at: number): [number, number] => {
-    for (let i = text.indexOf('\n', scanned); i >= 0 && i < at; i = text.indexOf('\n', i + 1)) { line++; lineStart = i + 1; }
-    scanned = at;
+    while (nextBreak >= 0 && nextBreak < at) { line++; lineStart = nextBreak + 1; nextBreak = text.indexOf('\n', nextBreak + 1); }
     return [line, at - lineStart + 1];
   };
   const decode = (raw: string, at: number): string => {
@@ -578,6 +579,12 @@ const rgb = (rgba: readonly number[]): number => {
 
 /** The tree of a description: parent joint and child joints of every link, and the links in an order that visits parents first. Throws on a broken tree. */
 export function robotTree(description: Pick<RobotDescription, 'links' | 'joints' | 'root'>): {order: string[]; parentJoint: Map<string, RobotJoint>; childJoints: Map<string, RobotJoint[]>} {
+  // Descriptions come from parseURDF and parseMJCF; anything else is checked for the shape the walk below relies on.
+  if (description === null || typeof description !== 'object' || !Array.isArray(description.links) || !Array.isArray(description.joints) || typeof description.root !== 'string'
+    || description.links.some(link => link === null || typeof link !== 'object' || typeof link.name !== 'string')
+    || description.joints.some(joint => joint === null || typeof joint !== 'object' || typeof joint.name !== 'string' || typeof joint.parent !== 'string' || typeof joint.child !== 'string')) {
+    bad('A robot description must be what parseURDF or parseMJCF returns: {links: [...], joints: [...], root: "name", ...}.');
+  }
   const links = new Map(description.links.map(link => [link.name, link])), parentJoint = new Map<string, RobotJoint>(), childJoints = new Map<string, RobotJoint[]>();
   if (links.size !== description.links.length) bad('robot: two links share a name.');
   for (const link of description.links) childJoints.set(link.name, []);
@@ -835,6 +842,13 @@ const tensorOf = (i: readonly number[]): M3 => [i[0], i[1], i[2], i[1], i[3], i[
 export function parseMJCF(xml: string, options: RobotParseOptions = {}): RobotDescription {
   const root = parseXML(xml), r = new Reader('MJCF', options);
   if (root.name !== 'mujoco') r.fail(root, 'is not an MJCF model: the root element must be <mujoco>');
+  // An <include> names another file. This importer reads the one text it is given and never opens a file or a URL,
+  // so the model would silently lack whatever the include holds: refuse it, wherever it stands.
+  const includes = (element: XMLElement): void => {
+    if (element.name === 'include') r.fail(element, `<include file="${String(element.attributes.file ?? '').slice(0, 80)}"> is not supported: this importer never opens another file. Paste the included elements in its place`);
+    for (const child of element.children) includes(child);
+  };
+  includes(root);
   type Attributes = {readonly [name: string]: string};
   const leftover = (element: XMLElement, attributes: Attributes, known: readonly string[], what: string): void => {
     const extra = Object.keys(attributes).filter(key => !known.includes(key));
@@ -1851,7 +1865,49 @@ function buildPlan(description: RobotDescription, options: RobotSceneOptions): R
  *   letters, digits and `_ . : -` become `_`). `extensions.robot` maps every
  *   link to its body and the link frame in that body's coordinates.
  */
-export function robotToScene(description: RobotDescription, options: RobotSceneOptions = {}): Scene { return buildPlan(description, options).scene; }
+export function robotToScene(description: RobotDescription, options: RobotSceneOptions = {}): Scene { return checkRanges(buildPlan(description, options).scene); }
+
+/**
+ * A robot file may hold any finite number; the rigid world takes the ranges of RIGID_LIMITS (contracts.ts). This
+ * names the link or joint whose mass, inertia, size or placement is outside them, so that the scene `robotToScene`
+ * returns always validates and a hostile or broken file is refused here rather than deep inside a loader.
+ */
+function checkRanges(scene: Scene): Scene {
+  const R = RIGID_LIMITS;
+  const out = (owner: string, what: string, value: number, range: string): never => bad(`Robot ${owner}: ${what} is ${value}; the rigid world takes ${range}. The file's units are probably not SI, or the value is damaged.`);
+  const within = (owner: string, what: string, values: readonly number[] | undefined, limit: number, min = -limit): void => { for (const v of values ?? []) if (!(v >= min && v <= limit)) out(owner, what, v, `${min} to ${limit}`); };
+  const convex = (owner: string, shape: {readonly kind: string; readonly halfExtents?: readonly number[]; readonly radius?: number; readonly halfLength?: number; readonly points?: readonly number[]}): void => {
+    if (shape.kind === 'box') within(owner, 'a box half extent', shape.halfExtents, R.shape, 1e-4);
+    else if (shape.kind === 'sphere') within(owner, 'a sphere radius', [shape.radius!], R.shape, 1e-4);
+    else if (shape.kind === 'capsule') { within(owner, 'a capsule radius', [shape.radius!], R.shape, 1e-4); within(owner, 'a capsule half length', [shape.halfLength!], R.shape, 0.0025); }
+    else if (shape.kind === 'hull') within(owner, 'a hull point', shape.points, R.shape);
+  };
+  for (const body of scene.bodies) {
+    const owner = `link "${body.id}"`;
+    within(owner, 'a position', body.position, R.extent);
+    if (body.density !== undefined && !(body.density === 0 || (body.density >= R.densityMin && body.density <= R.density))) out(owner, 'the density', body.density, `0 or ${R.densityMin} to ${R.density} kg/m^3`);
+    if (body.shape.kind === 'compound') for (const child of body.shape.shapes) { within(owner, 'a shape position', child.position, R.shape); convex(owner, child.shape); if (child.density !== undefined && !(child.density === 0 || (child.density >= R.densityMin && child.density <= R.density))) out(owner, 'a shape density', child.density, `0 or ${R.densityMin} to ${R.density} kg/m^3`); }
+    else convex(owner, body.shape as Parameters<typeof convex>[1]);
+    const data = body.massData;
+    if (data) {
+      within(owner, 'the mass', [data.mass], R.massMax, R.massMin);
+      within(owner, 'the centre of mass', data.center, R.extent);
+      const high = data.mass * R.extent * R.extent;
+      within(owner, 'a moment of inertia', data.inertia.slice(0, 3), high, data.mass * 1e-10);
+      within(owner, 'a product of inertia', data.inertia.slice(3), high);
+    }
+  }
+  for (const joint of scene.joints ?? []) {
+    const owner = `joint "${joint.id}"`;
+    within(owner, 'the frame on its parent', joint.frameA?.position, joint.bodyA === null ? R.extent : R.shape);
+    within(owner, 'the frame on its child', joint.frameB?.position, joint.bodyB === null ? R.extent : R.shape);
+    if (joint.limits) within(owner, 'a limit', [joint.limits.lower, joint.limits.upper], 1e6);
+    if (joint.motor) { within(owner, 'the motor speed', [joint.motor.speed], R.speed); within(owner, 'the motor force', [joint.motor.maxForce], R.force, 0); }
+    if (joint.spring) { within(owner, 'the spring frequency', [joint.spring.hertz], R.hertz, 0); within(owner, 'the spring damping ratio', [joint.spring.dampingRatio], R.hertz, 0); within(owner, 'the spring target', [joint.spring.target ?? 0], 1e6); }
+    if (joint.length !== undefined) within(owner, 'the length', [joint.length], R.extent, 1e-6);
+  }
+  return scene;
+}
 
 /** What `robotToScene` does to the robot, in numbers: per-link mass and inertia against the file, shape stand-ins with their errors, the joint mapping and every warning. */
 export function robotReport(description: RobotDescription, options: RobotSceneOptions = {}): RobotReport { return buildPlan(description, options).report; }

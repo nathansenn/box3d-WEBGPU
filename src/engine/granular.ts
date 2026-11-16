@@ -225,7 +225,10 @@ export function granularDampingCoefficient(restitution:number,law:'hertz'|'linea
  * [radius[0], radius[1]] and centres moved by up to `jitter` of the free play, from a seeded generator (repeatable).
  */
 export function granularLattice(options:{readonly min:GranularVec3;readonly max:GranularVec3;readonly radius:number|readonly [number,number];readonly gap?:number;readonly jitter?:number;readonly seed?:number;readonly inside?:(x:number,y:number,z:number,r:number)=>boolean}):GranularLattice {
-  const lo=vec(options.min,'min',[0,0,0]),hi=vec(options.max,'max',[0,0,0]);
+  if(options===null||typeof options!=='object')fail('granularLattice takes {min, max, radius, gap?, jitter?, seed?, inside?}.');
+  const lo=vec(options.min,'min',[0,0,0]),hi=vec(options.max,'max',[0,0,0]),radius=options.radius as unknown;
+  if(typeof radius!=='number'&&!(Array.isArray(radius)&&radius.length===2))fail('radius must be a number, or [smallest, largest].');
+  if(options.seed!==undefined&&(typeof options.seed!=='number'||!Number.isFinite(options.seed)))fail('seed must be a finite number.');
   const r0=typeof options.radius==='number'?options.radius:options.radius[0],r1=typeof options.radius==='number'?options.radius:options.radius[1];
   num(r0,'radius',1e-9,1e6);num(r1,'radius',r0,1e6);
   const gap=num(options.gap??0.05,'gap',0,10),jitter=num(options.jitter??0,'jitter',0,1),pitch=2*r1*(1+gap);
@@ -390,6 +393,8 @@ export class Granular {
     if(this.law!=='hertz'&&this.law!=='linear')fail("config.law must be 'hertz' or 'linear'.");
     this.hertz=this.law==='hertz';
     this.gravity=Float64Array.from(vec(c.gravity,'config.gravity',[0,-9.81,0]));
+    // Beyond a million m/s^2 the grains leave the float range within a few steps of the stable step.
+    for(const g of this.gravity)num(g,'config.gravity',-1e6,1e6);
     const density=num(m.density,'material.density',1e-6,1e9),restitution=num(m.restitution,'material.restitution',0.05,1);
     const friction=num(m.friction,'material.friction',0,1e6),rolling=num(m.rollingFriction??0,'material.rollingFriction',0,1e6);
     let young=0,nu=0;
@@ -1182,6 +1187,11 @@ export function granularSubsystem<W,B>(target:Granular|GranularCoupling<B>,optio
     validate(){
       if(dem.timeStepFraction>GRANULAR_TIME_STEP_LIMIT[dem.law]&&!dem.stats.unstable)
         throw new EngineError('UNSTABLE_TIME_STEP',`The grain step ${dem.dt} s is ${dem.timeStepFraction.toFixed(3)} of the critical time; the limit is ${GRANULAR_TIME_STEP_LIMIT[dem.law]}.`);
+    },
+    diagnose(){
+      const limit=GRANULAR_TIME_STEP_LIMIT[dem.law],ratio=dem.timeStepFraction/limit;
+      return ratio>0.8?[{severity:ratio>1?'warning' as const:'note' as const,rule:'critical-time-step',subject:options.id??'granular',numbers:{dt:dem.dt,criticalTime:dem.criticalTime,fraction:dem.timeStepFraction,limit},
+        message:`The grain step ${dem.dt} s is ${dem.timeStepFraction.toFixed(3)} of the ${dem.law==='hertz'?'Rayleigh time':'contact duration'} of the smallest grain (${dem.criticalTime} s); the limit is ${limit}. Use a smaller step, larger grains or a softer material.`}]:[];
     },
     step(ctx){if(coupling)coupling.step();else dem.step(ctx.substeps);},
     // The solver (with the coupling's records) and the event cursors.

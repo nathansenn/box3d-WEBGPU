@@ -22,7 +22,7 @@
  * a Simulation is bit-identical to calling the modules by hand in the documented order. SI units.
  * See docs/SIMULATION.md.
  */
-import {EngineError} from './contracts.ts';
+import {EngineError,type DiagnosticFinding} from './contracts.ts';
 import type {WaterCoupling,CouplingShape,CouplingWorld} from './water-coupling.ts';
 import {WaterCoupling as WaterCouplingClass} from './water-coupling.ts';
 import {StructureCoupling,principalMoments,type StructureAttachment,type StructureInertia,type StructureWorld} from './structure-coupling.ts';
@@ -125,6 +125,8 @@ export interface Subsystem<W=unknown,B=unknown> {
   finish?(ctx:StepContext<W>):void;
   energy?():SubsystemEnergy;
   diagnostics?():unknown;
+  /** What is unstable or close to it in this subsystem's set-up, by rule with the numbers (`Simulation.diagnose`). */
+  diagnose?():readonly DiagnosticFinding[];
   dispose?():void;
   /** Everything that influences this subsystem's later steps and events (fields, histories, warm starts, clocks,
    * counters, ledgers, event cursors), as a state tree (checkpoint.ts). `Simulation.checkpoint()` needs it from every
@@ -400,6 +402,26 @@ export class Simulation<W extends SimulationWorld<B>,B=unknown> {
     return {tick:this.tickCount,time:this.time,dt:this.dt,order:this.order(),energy:this.energy(),subsystems};
   }
 
+  /**
+   * What in this set-up is unstable, or close to it: the world's own findings (mass ratios across joints, tiny or far
+   * shapes, joint frequencies against the sub-step rate, non-finite bodies) when the world has `diagnose()`, then every
+   * subsystem's (time step against its stability limit: CFL for the fluids and the shallow water, the critical time
+   * step of grains and explicit solids, the explicit limit of heat), and the step plan (a solver that takes many of
+   * its own steps per world step). Each finding names the rule and carries its numbers. Allocates; call it after
+   * building a scene and when something misbehaves, not every step. docs/ERRORS.md lists the rules.
+   */
+  diagnose():DiagnosticFinding[] {
+    const out:DiagnosticFinding[]=[],world=this.world as {diagnose?:()=>readonly DiagnosticFinding[]};
+    if(typeof world.diagnose==='function')out.push(...world.diagnose());
+    for(const slot of this.slots){
+      const s=slot.subsystem,t=slot.timing;
+      if(t&&t.substeps>=16)out.push({severity:'note',rule:'substeps',subject:s.id,numbers:{worldStep:this.dt,solverStep:t.dt,substeps:t.substeps},
+        message:`"${s.id}" (${s.kind}) takes ${t.substeps} steps of ${t.dt} s in every world step of ${this.dt} s: correct, and that many times the cost of one. A coarser model or a smaller world step lowers it.`});
+      if(s.diagnose)out.push(...s.diagnose());
+    }
+    return out;
+  }
+
   /** The scene this simulation was built from, as `buildSceneSimulation` recorded it, or null. */
   get sceneSource():SimulationSource|null {
     if(typeof this.originSource==='function'){
@@ -544,6 +566,12 @@ export function heatSubsystem<W,B>(heat:HeatSolver,options:{readonly id?:string}
   const id=options.id??'heat';
   return {
     id,kind:'heat',stage:'post',order:SUBSYSTEM_ORDER.heat,timeStep:{dt:heat.dt,rule:'commensurate'},
+    diagnose(){
+      if(heat.scheme!=='explicit')return [];
+      const limit=heat.explicitStabilityLimit(),ratio=heat.dt/limit;
+      return ratio>0.8?[{severity:ratio>1?'warning':'note',rule:'explicit-heat-limit',subject:id,numbers:{dt:heat.dt,limit,ratio},
+        message:`Explicit heat conduction is stable up to dt = ${limit} s here (the smallest cell's capacity over twice its conductances); the step is ${heat.dt} s, ${(ratio*100).toFixed(0)} % of that. Use a smaller step, or scheme 'backward-euler' or 'crank-nicolson', which have no limit.`}]:[];
+    },
     validate(){
       if(heat.scheme!=='explicit')return;
       const limit=heat.explicitStabilityLimit();
@@ -567,6 +595,12 @@ export function solidSubsystem<W,B>(solid:SolidBody,options:{readonly id?:string
   const id=options.id??'solid';
   return {
     id,kind:'solid',stage:'post',order:SUBSYSTEM_ORDER.solid,timeStep:{dt:solid.dt,rule:'commensurate'},
+    diagnose(){
+      if(solid.integrator!=='explicit')return [];
+      const limit=solid.explicitLimit().criticalTimeStep,ratio=solid.dt/limit;
+      return ratio>0.8?[{severity:ratio>1?'warning':'note',rule:'critical-time-step',subject:id,numbers:{dt:solid.dt,limit,ratio},
+        message:`The explicit solid is stable up to dt = ${limit} s (2 over its highest natural frequency); the step is ${solid.dt} s, ${(ratio*100).toFixed(0)} % of that. Use a smaller step, a coarser or softer mesh, or the implicit integrator.`}]:[];
+    },
     validate(){
       if(solid.integrator!=='explicit')return;
       const limit=solid.explicitLimit().criticalTimeStep;

@@ -174,7 +174,14 @@ const SLOTS=2;
  * `jitter` moves interior nodes by up to that fraction of a cell (a seeded generator, so the mesh is repeatable).
  */
 export function clothGrid(options:{readonly nx:number;readonly ny:number;readonly u:ClothVec3;readonly v:ClothVec3;readonly origin?:ClothVec3;readonly diagonal?:'uniform'|'alternate';readonly jitter?:number;readonly seed?:number}):ClothGrid {
+  if(options===null||typeof options!=='object')fail('clothGrid takes {nx, ny, u, v, origin?, diagonal?, jitter?, seed?}.');
   const {nx,ny,u,v}=options,o=options.origin??[0,0,0],jitter=options.jitter??0;
+  for(const [name,value] of [['u',u],['v',v],['origin',o]] as const){
+    if(value===null||typeof value!=='object'||(value as ArrayLike<number>).length!==3||![0,1,2].every(k=>typeof value[k]==='number'&&Number.isFinite(value[k])))fail(`clothGrid: ${name} must be three finite numbers.`);
+  }
+  if(typeof jitter!=='number')fail('clothGrid: jitter must be a number in [0, 0.5).');
+  if(options.seed!==undefined&&(typeof options.seed!=='number'||!Number.isFinite(options.seed)))fail('clothGrid: seed must be a finite number.');
+  if(options.diagonal!==undefined&&options.diagonal!=='uniform'&&options.diagonal!=='alternate')fail("clothGrid: diagonal must be 'uniform' or 'alternate'.");
   if(!Number.isInteger(nx)||!Number.isInteger(ny)||nx<1||ny<1||(nx+1)*(ny+1)>CLOTH_MAX_NODES)fail('clothGrid: nx and ny must be positive integers within the node limit.');
   if(!(jitter>=0&&jitter<.5))fail('clothGrid: jitter must be in [0, 0.5).');
   const positions=new Float64Array(3*(nx+1)*(ny+1)),triangles=new Uint32Array(6*nx*ny),node=(i:number,j:number)=>i+(nx+1)*j;
@@ -308,6 +315,7 @@ export class Cloth {
     if(!definition||typeof definition!=='object')fail('A cloth needs {positions, triangles, material, config}.');
     const m=definition.material,c=definition.config;
     if(!m||!c)fail('A cloth needs a material and a config.');
+    for(const key of ['positions','triangles'] as const){const list=definition[key] as unknown;if(list===null||typeof list!=='object'||typeof (list as ArrayLike<number>).length!=='number')fail(`A cloth needs ${key}: a flat list of numbers.`);}
     const n=definition.positions.length/3,T=definition.triangles.length/3;
     if(!Number.isInteger(n)||n<3||n>CLOTH_MAX_NODES)fail(`positions must hold 3 to ${CLOTH_MAX_NODES} nodes.`);
     if(!Number.isInteger(T)||T<1)fail('triangles must hold index triples.');

@@ -164,7 +164,7 @@ export function meshCenterOfMass(mesh: MeshLike): [number, number, number] {
  */
 export function weldVertices(mesh: MeshLike, tolerance = 0): TriangleMesh {
   const {v, idx, nv} = checkMesh(mesh);
-  if (!(tolerance >= 0) || !Number.isFinite(tolerance)) bad('tolerance must be zero or a positive number.');
+  if (typeof tolerance !== 'number' || !(tolerance >= 0) || !Number.isFinite(tolerance)) bad('tolerance must be zero or a positive number.');
   let size = 16;
   while (size < nv * 2) size *= 2;
   const mask = size - 1, head = new Int32Array(size).fill(-1), next = new Int32Array(nv), remap = new Uint32Array(nv);
@@ -461,16 +461,18 @@ export interface ConvexHullOptions {
  */
 export function convexHull(points: ArrayLike<number> | MeshLike, options: ConvexHullOptions = {}): TriangleMesh {
   const p = pointsOf(points);
+  if (options === null || typeof options !== 'object') bad('convexHull options must be {maxVertices?}.');
   const max = options.maxVertices ?? Infinity;
-  if (!(max >= 4)) bad('maxVertices must be at least 4.');
+  if (typeof max !== 'number' || !(max >= 4)) bad('maxVertices must be a number of at least 4.');
   const hull = quickhull(p, max);
   if (!hull) bad('points are coplanar (or fewer than four), so they have no convex hull with volume.');
   return hullMesh(p, hull!);
 }
 
 function pointsOf(points: ArrayLike<number> | MeshLike): ArrayLike<number> {
+  if (points === null || typeof points !== 'object') bad('points must be a flat list of x, y, z triples, or a mesh.');
   const p = (points as MeshLike).vertices !== undefined && typeof (points as ArrayLike<number>).length !== 'number' ? (points as MeshLike).vertices : points as ArrayLike<number>;
-  if (!p || typeof p.length !== 'number' || p.length % 3 !== 0) bad('points must be a flat list of x, y, z triples.');
+  if (!p || typeof p !== 'object' || typeof p.length !== 'number' || p.length % 3 !== 0) bad('points must be a flat list of x, y, z triples.');
   if (p.length / 3 > GEOMETRY_LIMITS.maxVertices) bad(`too many points (${p.length / 3}); the limit is ${GEOMETRY_LIMITS.maxVertices}.`);
   for (let i = 0; i < p.length; i++) if (!Number.isFinite(p[i])) bad(`point ${Math.floor(i / 3)} is not finite.`);
   return p;
@@ -511,6 +513,7 @@ export interface HullShapeOptions {
  * straight to `createBody` fails for the same reason; this function is the fix.
  */
 export function toHullShape(mesh: MeshLike | ArrayLike<number>, options: HullShapeOptions = {}): HullShape {
+  if (options === null || typeof options !== 'object') bad('toHullShape options must be {maxPoints?}.');
   const max = options.maxPoints ?? 32;
   if (!Number.isInteger(max) || max < 4 || max > GEOMETRY_LIMITS.maxHullPoints) bad(`maxPoints must be an integer from 4 to ${GEOMETRY_LIMITS.maxHullPoints}.`);
   const p = pointsOf(mesh), hull = boxHull(p, max);

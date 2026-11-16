@@ -4,15 +4,18 @@
  * RemoteWorld (whose stats() is async). Plain DOM, no styles leak out.
  */
 import type {WorldStats} from './world.js';
+import {EngineError} from './core/contracts.js';
 
 interface ElementLike { textContent: string | null; style: {cssText: string}; remove(): void }
 interface DocumentLike { createElement(tag: string): ElementLike; body?: {appendChild(node: any): unknown} | null }
 
+/** What the overlay reads: anything with stats(), such as a PhysicsWorld or a RemoteWorld. */
 export interface InspectorSource {
   stats(): WorldStats | Promise<WorldStats>;
   readonly native?: {readonly HEAPF32: Float32Array};
 }
 
+/** Where the overlay mounts and how often it refreshes. */
 export interface InspectorOptions {
   /** Where to attach; default document.body. */
   readonly parent?: {appendChild(node: any): unknown};
@@ -22,6 +25,7 @@ export interface InspectorOptions {
   readonly title?: string;
 }
 
+/** A mounted debug overlay: its element, a manual refresh and unmount(). */
 export interface Inspector {
   readonly element: ElementLike;
   /** Refresh now (also runs on the interval). */
@@ -45,11 +49,12 @@ export function formatStats(stats: WorldStats, heapBytes?: number, title = 'Box3
   return lines.join('\n');
 }
 
+/** Mount a small text overlay that shows a world's counts and timings and refreshes on an interval. Needs a DOM document; returns the handle to remove it. */
 export function mountInspector(source: InspectorSource, options: InspectorOptions = {}): Inspector {
   const doc = options.document ?? (globalThis as {document?: DocumentLike}).document;
-  if (!doc) throw new TypeError('mountInspector needs a DOM document.');
+  if (!doc) throw new EngineError('INVALID_STATE', 'mountInspector needs a DOM document: call it in a page, or pass {document}.');
   const parent = options.parent ?? doc.body;
-  if (!parent) throw new TypeError('mountInspector needs a parent element.');
+  if (!parent) throw new EngineError('INVALID_PAYLOAD', 'mountInspector needs a parent element: pass {parent}, or call it after the document has a body.');
   const element = doc.createElement('pre');
   element.style.cssText = 'position:fixed;top:8px;left:8px;z-index:2147483647;margin:0;padding:8px 10px;'
     + 'font:12px/1.35 ui-monospace,Menlo,monospace;color:#e6edf3;background:rgba(13,17,23,.82);'

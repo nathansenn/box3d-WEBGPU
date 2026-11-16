@@ -34,9 +34,12 @@ function pullRequestGate(){
   // Test the shipped artifacts here. Rebuilding with a pinned clang is a separate release-toolchain gate.
   run(process.execPath,['scripts/soft-kernel-test.mjs']);
   run(process.execPath,['scripts/soft-kernel-integration-test.cjs']);
-  for(const name of ['test:webgpu','test:collision','test:assets','test:qualification','test:heat','test:solid','test:fracture','test:plate','test:accel','test:threaded','test:release-contracts','test:validation','validation:check','catalog:check','test:soft-soak:all','test:rope-batching','test:native-wasm','test:kit','test:material:100','build','build:pages','stage:railway'])gate(name);
+  for(const name of ['test:webgpu','test:collision','test:assets','test:fuzz','test:qualification','test:heat','test:solid','test:fracture','test:plate','test:accel','test:threaded','test:release-contracts','test:validation','validation:check','catalog:check','test:soft-soak:all','test:rope-batching','test:native-wasm','test:kit','test:material:100','build','build:pages','stage:railway'])gate(name);
   run(npm,['audit','--audit-level=moderate']);
 }
+// test:fuzz is the short, deterministic run of the fuzzers (tests/fuzz, docs/ROBUSTNESS.md): random valid programs and scenes with
+// invariants after every step, table-driven API misuse, and hostile scene, share-link, geometry and robot files. The long run and
+// the ten-minute soak are `npm run fuzz:long`, outside the gates.
 // test:solid is the closed-form validation of the tetrahedral solid solver; it runs on the gate's Node, unlike the rest of the engine suite.
 // test:accel pins the granular and fluid states the speed work must keep, the threaded granular step against the serial one,
 // and the multigrid pressure preconditioner (docs/GRANULAR.md and docs/FLUID.md, "Cost").

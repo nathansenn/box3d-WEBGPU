@@ -1,0 +1,50 @@
+{
+ "new ShallowWater": [
+  "new ShallowWater(0.bed) [wrong shape or content]: accepted, must be refused",
+  "new ShallowWater(0.level) [not a number]: accepted, must be refused"
+ ],
+ "new Fluid": [
+  "new Fluid(0.maxIterations) [not a whole number in range]: accepted, must be refused"
+ ],
+ "new FreeSurfaceFluid": [],
+ "new Granular": [
+  "new Granular(0.config.gravity) [wrong shape or content]: accepted, must be refused"
+ ],
+ "Granular.addGrain": [
+  "Granular.addGrain(0) [wrong shape or content]: accepted, must be refused",
+  "Granular.addGrain(2) [wrong shape or content]: accepted, must be refused",
+  "Granular.addGrain(3) [wrong shape or content]: accepted, must be refused"
+ ],
+ "granularLattice": [
+  "granularLattice(0.max) [wrong shape or content]: accepted, must be refused",
+  "granularLattice(0.min) [wrong shape or content]: accepted, must be refused",
+  "granularLattice(0.radius) [wrong shape or content]: accepted, must be refused"
+ ],
+ "new Cloth": [
+  "new Cloth(0.config.gravity) [wrong shape or content]: accepted, must be refused",
+  "new Cloth(0.config.maxNewtonIterations) [not a whole number in range]: accepted, must be refused",
+  "new Cloth(0.pinned) [wrong shape or content]: accepted, must be refused"
+ ],
+ "clothGrid": [],
+ "new SolidBody": [],
+ "boxMesh": [],
+ "convexHull": [
+  "convexHull(1) [not an object]: accepted, must be refused",
+  "convexHull(1.maxVertices) [not finite or outside float32]: accepted, must be refused"
+ ],
+ "toHullShape": [
+  "toHullShape(1) [not an object]: accepted, must be refused"
+ ],
+ "toMeshShape": [],
+ "meshVolume": [
+  "meshVolume(0.indices) [wrong shape or content]: accepted, must be refused"
+ ],
+ "weldVertices": [
+  "weldVertices(0.indices) [wrong shape or content]: accepted, must be refused"
+ ],
+ "eulerToQuaternion": [],
+ "material": [],
+ "materialValue": [],
+ "solidMaterial": [],
+ "new HeatSolver": []
+}

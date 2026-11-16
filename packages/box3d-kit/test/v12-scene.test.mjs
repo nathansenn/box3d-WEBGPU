@@ -81,8 +81,9 @@ test('canonical text: idempotent, independent of key order, defaults and -0, and
     assert.equal(sceneHash(reversed(scene)), sceneHash(scene));
   }
   // Keys come out sorted, numbers in their shortest form, and there is no whitespace.
-  const text = canonicalize({version: 1, format: 'box3d-scene', bodies: [{position: [1.50, -0, 1e21], shape: {radius: 0.1, kind: 'sphere'}, id: 'a'}]});
-  assert.equal(text, '{"bodies":[{"id":"a","position":[1.5,0,1e+21],"shape":{"kind":"sphere","radius":0.1}}],"format":"box3d-scene","joints":[],"materials":{},"units":"SI","version":1,' +
+  // (A position is at most 100 km from the origin, RIGID_LIMITS.extent; the exponent form of a number is shown in userData.)
+  const text = canonicalize({version: 1, format: 'box3d-scene', bodies: [{position: [1.50, -0, 99999.5], userData: {big: 1e21}, shape: {radius: 0.1, kind: 'sphere'}, id: 'a'}]});
+  assert.equal(text, '{"bodies":[{"id":"a","position":[1.5,0,99999.5],"shape":{"kind":"sphere","radius":0.1},"userData":{"big":1e+21}}],"format":"box3d-scene","joints":[],"materials":{},"units":"SI","version":1,' +
     '"world":{"gravity":[0,-9.81,0],"ground":true,"seed":1,"step":0.016666666666666666,"subSteps":4}}');
   // Writing an engine default out, or leaving it out, is the same scene.
   const bare = {format: 'box3d-scene', version: 1, bodies: [{id: 'a', shape: {kind: 'box', halfExtents: [1, 1, 1]}, position: [0, 0, 0]}], joints: [{id: 'j', type: 'weld', bodyA: null, bodyB: 'a'}]};
@@ -176,7 +177,9 @@ const MALFORMED = [
   ['a height field one sample wide', s => { s.bodies[5].shape.countX = 1; }, '/bodies/5/shape/countX', /must be >= 2, got 1/],
   ['a height field with zero spacing', s => { s.bodies[5].shape.spacing[1] = 0; }, '/bodies/5/shape/spacing/1', /must be >= 0.0001, got 0/],
   ['an infinite position', s => { s.bodies[0].position[0] = -Infinity; }, '/bodies/0/position/0', /must be a finite number, got -Infinity/],
-  ['a position beyond float32', s => { s.bodies[0].position[2] = 1e39; }, '/bodies/0/position/2', /must fit a float32, got 1e\+39/],
+  // The world is 100 km wide (RIGID_LIMITS.extent); a number float32 cannot hold is far outside it and is reported against that limit.
+  ['a position beyond float32', s => { s.bodies[0].position[2] = 1e39; }, '/bodies/0/position/2', /must be <= 100000, got 1e\+39/],
+  ['a position beyond the world', s => { s.bodies[0].position[0] = -100000.5; }, '/bodies/0/position/0', /must be >= -100000, got -100000.5/],
   ['a position that is an object', s => { s.bodies[0].position = {x: 0, y: 3, z: 0}; }, '/bodies/0/position', /must be an array of 3 numbers, got object/],
   ['a rotation that is not a unit quaternion', s => { s.bodies[0].rotation = [0, 0, 0, 2]; }, '/bodies/0/rotation', /must be a unit quaternion \[x, y, z, w\].*got length 2/],
   ['both rotation and rotationEuler', s => { s.bodies[2].rotation = [0, 0, 0, 1]; }, '/bodies/2/rotationEuler', /give rotation or rotationEuler, not both/],
@@ -437,7 +440,7 @@ test('share links: corrupt, truncated, wrong-checksum, oversized and bomb links 
   invalidLink(`b3s1r.1.00000000.${'A'.repeat(SCENE_LIMITS.linkChars)}`, /the limit is 1048576/, 'link too long');
   invalidLink(link('d', SCENE_LIMITS.linkSceneBytes + 1, crc, zlib.deflateRawSync(bytes)), /declares a scene of 4194305 bytes; the limit is 4194304/, 'declared size over the limit');
   invalidLink(`b3s1d.zzzzzzzzzzzz.${crc}.${data}`, /declares a scene of too many bytes/, 'absurd declared size');
-  const side = 700, huge = {format: 'box3d-scene', version: 1, bodies: [{id: 't', position: [0, 0, 0], shape: {kind: 'heightfield', countX: side, countZ: side, spacing: [1, 1], heights: Array.from({length: side * side}, (_, i) => i * 1.000001)}}]};
+  const side = 700, huge = {format: 'box3d-scene', version: 1, bodies: [{id: 't', position: [0, 0, 0], shape: {kind: 'heightfield', countX: side, countZ: side, spacing: [1, 1], heights: Array.from({length: side * side}, (_, i) => i * 0.1000001)}}]};
   assert.deepEqual(validateScene(huge), []);
   assert.throws(() => encodeSceneLinkSync(huge), error => error.code === 'INVALID_PAYLOAD' && /a link carries at most 4194304/.test(error.message));
   await assert.rejects(encodeSceneLink(huge), error => error.code === 'INVALID_PAYLOAD' && /a link carries at most 4194304/.test(error.message));
