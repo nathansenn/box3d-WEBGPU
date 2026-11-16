@@ -86,10 +86,11 @@ export class GlassModel extends LabModel {
   angle:number;speed=0;
   peakForce=0;peakStress=0;force=0;throwDistance=0;retained=1;fragments:RigidFragment[]=[];fragmentCount=1;substeps=0;
   private friction:number;private touching:number[]=[];private bonds=0;private checked=0;private tile:{x:number;y:number}[];
-  constructor(p:Partial<LabSettings>={}){
-    super('glass',p);const s=this.settings;this.spec=glassSpec(this.material.id);this.thickness=s.size/1000;this.impactX=s.fill/100;
+  /** `cells`: the plate's grid (default GLASS_CELLS, 0.1 m). `membrane: false`: the linear Kirchhoff plate of the first version. */
+  constructor(p:Partial<LabSettings>={},options:{cells?:[number,number];membrane?:boolean}={}){
+    super('glass',p);const s=this.settings;this.spec=glassSpec(this.material.id);const cells=options.cells??GLASS_CELLS;this.thickness=s.size/1000;this.impactX=s.fill/100;
     const r=GLASS_RIG,spec=this.spec;
-    this.plate=new PlateBody({size:[r.panelWidth,r.panelHeight],cells:GLASS_CELLS,thickness:this.thickness,origin:[-r.panelWidth/2,r.panelCenterY-r.panelHeight/2],
+    this.plate=new PlateBody({size:[r.panelWidth,r.panelHeight],cells,membrane:options.membrane??true,thickness:this.thickness,origin:[-r.panelWidth/2,r.panelCenterY-r.panelHeight/2],
       material:{youngModulus:spec.youngModulus,poissonRatio:spec.poissonRatio,density:spec.density},addedArealMass:spec.addedArealMass,massDamping:PLATE_DAMPING,
       fracture:{strength:spec.strength,prestress:spec.prestress,dicingSpeed:spec.dicing?DICING_SPEED:0,tie:spec.tie}});
     const plate=this.plate,pads:number[]=[];
@@ -114,7 +115,7 @@ export class GlassModel extends LabModel {
     // The library has no glass-on-steel friction; fragments slide with glass-on-glass kinetic friction.
     this.friction=contactPair('soda-lime-glass','soda-lime-glass').kineticFriction??0;
     // Tiles: each node owns the cell around it; inner corners are moved at random so the cracks read as glass.
-    const rng=random(s.seed),cx=GLASS_CELLS[0],cy=GLASS_CELLS[1],hx=plate.hx,hy=plate.hy,x0=plate.origin[0],y0=plate.origin[1];
+    const rng=random(s.seed),cx=cells[0],cy=cells[1],hx=plate.hx,hy=plate.hy,x0=plate.origin[0],y0=plate.origin[1];
     const corner=new Float64Array((cx+2)*(cy+2)*2);
     for(let j=0;j<=cy+1;j++)for(let i=0;i<=cx+1;i++){
       const k=2*(j*(cx+2)+i),edgeX=i===0||i===cx+1,edgeY=j===0||j===cy+1;
@@ -177,7 +178,22 @@ export class GlassModel extends LabModel {
     const pieces=this.plate.fragments();this.fragmentCount=pieces.length+this.fragments.length;
     // A piece is held when at least two of its nodes sit under the pads; otherwise it is free to fall.
     const pads=new Set(this.supportNodes);
-    for(const piece of pieces){let held=0;for(const n of piece.nodes)if(pads.has(n))held++;if(held<2)this.handOff(piece);}
+    const anchors:number[]=[];
+    for(const piece of pieces){let held=0;for(const n of piece.nodes)if(pads.has(n))held++;if(held<2)this.handOff(piece);else for(const n of piece.nodes)if(pads.has(n))anchors.push(n);}
+    // What is left can still hold shards that hang from it by a hinge (a row of nodes joined through one node): the plate
+    // has no stiffness against their rotation, so they are handed off too, each connected group as one piece.
+    const plate=this.plate,held=plate.heldNodes(anchors),seen=new Uint8Array(plate.nodeCount),nx=plate.nx;
+    for(let start=0;start<plate.nodeCount;start++){
+      if(!plate.active[start]||held[start]||seen[start])continue;
+      const group=[start],stack=[start];seen[start]=1;
+      while(stack.length){
+        const n=stack.pop()!,i=n%nx,j=Math.floor(n/nx);
+        const near:[number,number][]=[];
+        if(i>0)near.push([n-1,plate.bondX(i-1,j)]);if(i<plate.cx)near.push([n+1,plate.bondX(i,j)]);if(j>0)near.push([n-nx,plate.bondY(i,j-1)]);if(j<plate.cy)near.push([n+nx,plate.bondY(i,j)]);
+        for(const [m,bond] of near)if(plate.active[m]&&!held[m]&&!seen[m]&&!plate.broken[bond]){seen[m]=1;group.push(m);stack.push(m);}
+      }
+      this.handOff(plate.fragmentOf(group.sort((a,b)=>a-b)));this.fragmentCount++;
+    }
   }
   private handOff(piece:PlateFragment):void {
     const plate=this.plate,n=piece.nodes.length,offsets=new Float64Array(3*n),corners:number[]=[];let ixx=0,iyy=0,izz=0;

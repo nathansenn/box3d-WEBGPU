@@ -5,8 +5,8 @@
  "generatedBy": "node scripts/validation-report.mjs",
  "digits": 9,
  "totals": {
-  "cases": 598,
-  "passed": 598,
+  "cases": 612,
+  "passed": 612,
   "failed": 0,
   "domains": 22
  },
@@ -349,20 +349,20 @@
   {
    "id": "plate",
    "title": "Thin plates with brittle fracture",
-   "summary": "A simply supported pane under uniform pressure against the Navier series (deflection, moment, order), its first mode against the grid's exact frequency and Kirchhoff theory, energy of the explicit step, and the pressure of the first crack, with and without a surface prestress, against the Navier stress.",
+   "summary": "A simply supported pane under uniform pressure against the Navier series (deflection, moment, order), its first mode against the grid's exact frequency and Kirchhoff theory, energy of the explicit step, the pressure of the first crack, with and without a surface prestress, against the Navier stress, and the von Karman plate against Levy's large-deflection tables (edges held and edges free to move, edge tension, mesh).",
    "solver": "`src/engine/plate.ts`: Kirchhoff bending on a regular grid (finite-difference curvatures, energy-consistent forces), explicit symplectic Euler, cracks as broken bonds between nodes, float64",
    "docs": [
     "docs/STUDIO_MATERIAL_LABS.md"
    ],
    "notValidated": [
-    "Linear plate theory: deflections well above the thickness stiffen a real pane by membrane action, which is not modelled; the Studio's impacts reach several thicknesses.",
+    "Membrane action (von Karman, `membrane: true`) is validated for the intact plate against Levy (NACA Report 737); across cracks the cells carry no membrane force, and the bridging layers are strings with the in-plane motion neglected. In-plane inertia is neglected.",
     "Crack paths follow the grid (bonds along x and y, 0.1 m in the Studio): a crack at 45 degrees is a staircase, and nothing finer than a cell is resolved. Once a bond breaks the crack runs, which is right for glass (l_ch of a fraction of a millimetre) and wrong for tougher materials.",
     "The strength check reads the moment at a bond's middle. A point load on one node gives a mesh-dependent peak (the Kirchhoff point-load moment is logarithmically singular): onset under a hard impactor depends on the cell size. Hertzian contact stresses and cone cracks are not modelled.",
     "Tempered glass dicing is a front that breaks every bond it reaches; its speed and the fragment size quoted by the Studio are inputs from the literature, not results.",
     "Bridging layers (PVB, wire mesh) are strings with the in-plane displacement neglected; they never tear. No impact validation: the contact with the pendulum is a penalty spring and dashpot, and fragments fall as rigid bodies that do not collide with each other."
    ],
-   "cases": 9,
-   "passed": 9
+   "cases": 23,
+   "passed": 23
   },
   {
    "id": "frame",
@@ -16015,6 +16015,404 @@
     "measured": "1.005853",
     "error": "+0.00585",
     "tolerance": "not below the reference"
+   }
+  },
+  {
+   "id": "plate.karman.held-1",
+   "domain": "plate",
+   "title": "Von Karman plate, edges held, p a^4 / (E h^4) = 14.78",
+   "quantity": "centre deflection over the thickness of a simply supported square plate with immovable edges, nu = 0.316, 16 x 16 cells",
+   "unit": "1",
+   "formula": "Levy, NACA Report 737 (1942), Table 9: 0.485",
+   "reference": 0.485,
+   "measured": 0.484427991,
+   "error": -0.000572008675,
+   "relativeError": -0.00117939933,
+   "tolerance": {
+    "kind": "relative",
+    "value": 0.01
+   },
+   "pass": true,
+   "note": "Linear theory gives 0.65. Levy's value is a six-term Fourier solution.",
+   "source": {
+    "file": "tests/engine/plate.test.mjs",
+    "test": "von Karman plate: centre deflection of a square plate under uniform pressure against Levy (NACA Report 737), edges held and edges free to move",
+    "url": "https://github.com/nathansenn/box3d-WEBGPU/blob/main/tests/engine/plate.test.mjs"
+   },
+   "text": {
+    "reference": "0.485",
+    "measured": "0.484428",
+    "error": "-0.118%",
+    "tolerance": "±1%"
+   }
+  },
+  {
+   "id": "plate.karman.held-2",
+   "domain": "plate",
+   "title": "Von Karman plate, edges held, p a^4 / (E h^4) = 51.4",
+   "quantity": "centre deflection over the thickness of a simply supported square plate with immovable edges, nu = 0.316, 16 x 16 cells",
+   "unit": "1",
+   "formula": "Levy, NACA Report 737 (1942), Table 9: 0.952",
+   "reference": 0.952,
+   "measured": 0.951251794,
+   "error": -0.000748205955,
+   "relativeError": -0.000785930625,
+   "tolerance": {
+    "kind": "relative",
+    "value": 0.01
+   },
+   "pass": true,
+   "note": "Linear theory gives 2.25. Levy's value is a six-term Fourier solution.",
+   "source": {
+    "file": "tests/engine/plate.test.mjs",
+    "test": "von Karman plate: centre deflection of a square plate under uniform pressure against Levy (NACA Report 737), edges held and edges free to move",
+    "url": "https://github.com/nathansenn/box3d-WEBGPU/blob/main/tests/engine/plate.test.mjs"
+   },
+   "text": {
+    "reference": "0.952",
+    "measured": "0.9512518",
+    "error": "-0.0786%",
+    "tolerance": "±1%"
+   }
+  },
+  {
+   "id": "plate.karman.held-3",
+   "domain": "plate",
+   "title": "Von Karman plate, edges held, p a^4 / (E h^4) = 132",
+   "quantity": "centre deflection over the thickness of a simply supported square plate with immovable edges, nu = 0.316, 16 x 16 cells",
+   "unit": "1",
+   "formula": "Levy, NACA Report 737 (1942), Table 9: 1.402",
+   "reference": 1.402,
+   "measured": 1.40121044,
+   "error": -0.00078955753,
+   "relativeError": -0.000563165142,
+   "tolerance": {
+    "kind": "relative",
+    "value": 0.01
+   },
+   "pass": true,
+   "note": "Linear theory gives 5.79. Levy's value is a six-term Fourier solution.",
+   "source": {
+    "file": "tests/engine/plate.test.mjs",
+    "test": "von Karman plate: centre deflection of a square plate under uniform pressure against Levy (NACA Report 737), edges held and edges free to move",
+    "url": "https://github.com/nathansenn/box3d-WEBGPU/blob/main/tests/engine/plate.test.mjs"
+   },
+   "text": {
+    "reference": "1.402",
+    "measured": "1.40121",
+    "error": "-0.0563%",
+    "tolerance": "±1%"
+   }
+  },
+  {
+   "id": "plate.karman.held-4",
+   "domain": "plate",
+   "title": "Von Karman plate, edges held, p a^4 / (E h^4) = 278.5",
+   "quantity": "centre deflection over the thickness of a simply supported square plate with immovable edges, nu = 0.316, 16 x 16 cells",
+   "unit": "1",
+   "formula": "Levy, NACA Report 737 (1942), Table 9: 1.846 (true value between 1.827 and 1.846)",
+   "reference": 1.846,
+   "measured": 1.84059633,
+   "error": -0.00540367406,
+   "relativeError": -0.00292723405,
+   "tolerance": {
+    "kind": "relative",
+    "value": 0.01
+   },
+   "pass": true,
+   "note": "Linear theory gives 12.22. Levy's value is a six-term Fourier solution.",
+   "source": {
+    "file": "tests/engine/plate.test.mjs",
+    "test": "von Karman plate: centre deflection of a square plate under uniform pressure against Levy (NACA Report 737), edges held and edges free to move",
+    "url": "https://github.com/nathansenn/box3d-WEBGPU/blob/main/tests/engine/plate.test.mjs"
+   },
+   "text": {
+    "reference": "1.846",
+    "measured": "1.840596",
+    "error": "-0.293%",
+    "tolerance": "±1%"
+   }
+  },
+  {
+   "id": "plate.karman.free-1",
+   "domain": "plate",
+   "title": "Von Karman plate, straight edges free to move, p a^4 / (E h^4) = 12.1",
+   "quantity": "centre deflection over the thickness, edges straight with no net force, nu = 0.316, 16 x 16 cells",
+   "unit": "1",
+   "formula": "Levy, NACA Report 737 (1942), Table 6: 0.486",
+   "reference": 0.486,
+   "measured": 0.488692755,
+   "error": 0.00269275532,
+   "relativeError": 0.0055406488,
+   "tolerance": {
+    "kind": "relative",
+    "value": 0.01
+   },
+   "pass": true,
+   "source": {
+    "file": "tests/engine/plate.test.mjs",
+    "test": "von Karman plate: centre deflection of a square plate under uniform pressure against Levy (NACA Report 737), edges held and edges free to move",
+    "url": "https://github.com/nathansenn/box3d-WEBGPU/blob/main/tests/engine/plate.test.mjs"
+   },
+   "text": {
+    "reference": "0.486",
+    "measured": "0.4886928",
+    "error": "+0.554%",
+    "tolerance": "±1%"
+   }
+  },
+  {
+   "id": "plate.karman.free-2",
+   "domain": "plate",
+   "title": "Von Karman plate, straight edges free to move, p a^4 / (E h^4) = 29.4",
+   "quantity": "centre deflection over the thickness, edges straight with no net force, nu = 0.316, 16 x 16 cells",
+   "unit": "1",
+   "formula": "Levy, NACA Report 737 (1942), Table 6: 0.962",
+   "reference": 0.962,
+   "measured": 0.963101271,
+   "error": 0.00110127095,
+   "relativeError": 0.0011447723,
+   "tolerance": {
+    "kind": "relative",
+    "value": 0.01
+   },
+   "pass": true,
+   "source": {
+    "file": "tests/engine/plate.test.mjs",
+    "test": "von Karman plate: centre deflection of a square plate under uniform pressure against Levy (NACA Report 737), edges held and edges free to move",
+    "url": "https://github.com/nathansenn/box3d-WEBGPU/blob/main/tests/engine/plate.test.mjs"
+   },
+   "text": {
+    "reference": "0.962",
+    "measured": "0.9631013",
+    "error": "+0.114%",
+    "tolerance": "±1%"
+   }
+  },
+  {
+   "id": "plate.karman.free-3",
+   "domain": "plate",
+   "title": "Von Karman plate, straight edges free to move, p a^4 / (E h^4) = 56.9",
+   "quantity": "centre deflection over the thickness, edges straight with no net force, nu = 0.316, 16 x 16 cells",
+   "unit": "1",
+   "formula": "Levy, NACA Report 737 (1942), Table 6: 1.424",
+   "reference": 1.424,
+   "measured": 1.42259434,
+   "error": -0.0014056643,
+   "relativeError": -0.000987123803,
+   "tolerance": {
+    "kind": "relative",
+    "value": 0.01
+   },
+   "pass": true,
+   "source": {
+    "file": "tests/engine/plate.test.mjs",
+    "test": "von Karman plate: centre deflection of a square plate under uniform pressure against Levy (NACA Report 737), edges held and edges free to move",
+    "url": "https://github.com/nathansenn/box3d-WEBGPU/blob/main/tests/engine/plate.test.mjs"
+   },
+   "text": {
+    "reference": "1.424",
+    "measured": "1.422594",
+    "error": "-0.0987%",
+    "tolerance": "±1%"
+   }
+  },
+  {
+   "id": "plate.karman.free-4",
+   "domain": "plate",
+   "title": "Von Karman plate, straight edges free to move, p a^4 / (E h^4) = 99.4",
+   "quantity": "centre deflection over the thickness, edges straight with no net force, nu = 0.316, 16 x 16 cells",
+   "unit": "1",
+   "formula": "Levy, NACA Report 737 (1942), Table 6: 1.87",
+   "reference": 1.87,
+   "measured": 1.87010769,
+   "error": 0.000107688173,
+   "relativeError": 0.0000575872584,
+   "tolerance": {
+    "kind": "relative",
+    "value": 0.01
+   },
+   "pass": true,
+   "source": {
+    "file": "tests/engine/plate.test.mjs",
+    "test": "von Karman plate: centre deflection of a square plate under uniform pressure against Levy (NACA Report 737), edges held and edges free to move",
+    "url": "https://github.com/nathansenn/box3d-WEBGPU/blob/main/tests/engine/plate.test.mjs"
+   },
+   "text": {
+    "reference": "1.87",
+    "measured": "1.870108",
+    "error": "+5.76e-5 rel.",
+    "tolerance": "±1%"
+   }
+  },
+  {
+   "id": "plate.karman.free-5",
+   "domain": "plate",
+   "title": "Von Karman plate, straight edges free to move, p a^4 / (E h^4) = 161",
+   "quantity": "centre deflection over the thickness, edges straight with no net force, nu = 0.316, 16 x 16 cells",
+   "unit": "1",
+   "formula": "Levy, NACA Report 737 (1942), Table 6: 2.307",
+   "reference": 2.307,
+   "measured": 2.30589334,
+   "error": -0.00110666289,
+   "relativeError": -0.000479697828,
+   "tolerance": {
+    "kind": "relative",
+    "value": 0.01
+   },
+   "pass": true,
+   "source": {
+    "file": "tests/engine/plate.test.mjs",
+    "test": "von Karman plate: centre deflection of a square plate under uniform pressure against Levy (NACA Report 737), edges held and edges free to move",
+    "url": "https://github.com/nathansenn/box3d-WEBGPU/blob/main/tests/engine/plate.test.mjs"
+   },
+   "text": {
+    "reference": "2.307",
+    "measured": "2.305893",
+    "error": "-0.048%",
+    "tolerance": "±1%"
+   }
+  },
+  {
+   "id": "plate.karman.free-6",
+   "domain": "plate",
+   "title": "Von Karman plate, straight edges free to move, p a^4 / (E h^4) = 247",
+   "quantity": "centre deflection over the thickness, edges straight with no net force, nu = 0.316, 16 x 16 cells",
+   "unit": "1",
+   "formula": "Levy, NACA Report 737 (1942), Table 6: 2.742 (true value between 2.704 and 2.743)",
+   "reference": 2.742,
+   "measured": 2.73969741,
+   "error": -0.00230259488,
+   "relativeError": -0.000839750139,
+   "tolerance": {
+    "kind": "relative",
+    "value": 0.01
+   },
+   "pass": true,
+   "source": {
+    "file": "tests/engine/plate.test.mjs",
+    "test": "von Karman plate: centre deflection of a square plate under uniform pressure against Levy (NACA Report 737), edges held and edges free to move",
+    "url": "https://github.com/nathansenn/box3d-WEBGPU/blob/main/tests/engine/plate.test.mjs"
+   },
+   "text": {
+    "reference": "2.742",
+    "measured": "2.739697",
+    "error": "-0.084%",
+    "tolerance": "±1%"
+   }
+  },
+  {
+   "id": "plate.karman.free-7",
+   "domain": "plate",
+   "title": "Von Karman plate, straight edges free to move, p a^4 / (E h^4) = 358",
+   "quantity": "centre deflection over the thickness, edges straight with no net force, nu = 0.316, 16 x 16 cells",
+   "unit": "1",
+   "formula": "Levy, NACA Report 737 (1942), Table 6: 3.174",
+   "reference": 3.174,
+   "measured": 3.16066418,
+   "error": -0.0133358153,
+   "relativeError": -0.00420158013,
+   "tolerance": {
+    "kind": "relative",
+    "value": 0.01
+   },
+   "pass": true,
+   "source": {
+    "file": "tests/engine/plate.test.mjs",
+    "test": "von Karman plate: centre deflection of a square plate under uniform pressure against Levy (NACA Report 737), edges held and edges free to move",
+    "url": "https://github.com/nathansenn/box3d-WEBGPU/blob/main/tests/engine/plate.test.mjs"
+   },
+   "text": {
+    "reference": "3.174",
+    "measured": "3.160664",
+    "error": "-0.42%",
+    "tolerance": "±1%"
+   }
+  },
+  {
+   "id": "plate.karman.free-8",
+   "domain": "plate",
+   "title": "Von Karman plate, straight edges free to move, p a^4 / (E h^4) = 497",
+   "quantity": "centre deflection over the thickness, edges straight with no net force, nu = 0.316, 16 x 16 cells",
+   "unit": "1",
+   "formula": "Levy, NACA Report 737 (1942), Table 6: 3.6",
+   "reference": 3.6,
+   "measured": 3.57529361,
+   "error": -0.0247063923,
+   "relativeError": -0.00686288676,
+   "tolerance": {
+    "kind": "relative",
+    "value": 0.01
+   },
+   "pass": true,
+   "source": {
+    "file": "tests/engine/plate.test.mjs",
+    "test": "von Karman plate: centre deflection of a square plate under uniform pressure against Levy (NACA Report 737), edges held and edges free to move",
+    "url": "https://github.com/nathansenn/box3d-WEBGPU/blob/main/tests/engine/plate.test.mjs"
+   },
+   "text": {
+    "reference": "3.6",
+    "measured": "3.575294",
+    "error": "-0.686%",
+    "tolerance": "±1%"
+   }
+  },
+  {
+   "id": "plate.karman.edge-tension",
+   "domain": "plate",
+   "title": "Von Karman plate, edges held: average edge tension",
+   "quantity": "average tension across the middle section over E h^2 / a^2 at p a^4 / (E h^4) = 278.5",
+   "unit": "1",
+   "formula": "Levy, NACA Report 737, Table 10: -p_x a^2 / (E h^2) = 7.38",
+   "reference": 7.38,
+   "measured": 7.50055731,
+   "error": 0.120557315,
+   "relativeError": 0.0163356795,
+   "tolerance": {
+    "kind": "relative",
+    "value": 0.04
+   },
+   "pass": true,
+   "note": "Measured 2 to 3 % above Levy at all four loads (0.466, 1.866, 4.21, 7.50 against 0.451, 1.816, 4.12, 7.38).",
+   "source": {
+    "file": "tests/engine/plate.test.mjs",
+    "test": "von Karman plate: centre deflection of a square plate under uniform pressure against Levy (NACA Report 737), edges held and edges free to move",
+    "url": "https://github.com/nathansenn/box3d-WEBGPU/blob/main/tests/engine/plate.test.mjs"
+   },
+   "text": {
+    "reference": "7.38",
+    "measured": "7.500557",
+    "error": "+1.63%",
+    "tolerance": "±4%"
+   }
+  },
+  {
+   "id": "plate.karman.mesh",
+   "domain": "plate",
+   "title": "Von Karman plate: mesh dependence",
+   "quantity": "centre deflection at p a^4 / (E h^4) = 278.5 on 8 x 8 cells over that on 32 x 32, minus 1",
+   "unit": "1",
+   "formula": "0 (converged)",
+   "reference": 0,
+   "measured": 0.0100897164,
+   "error": 0.0100897164,
+   "relativeError": null,
+   "tolerance": {
+    "kind": "absolute",
+    "value": 0.015
+   },
+   "pass": true,
+   "note": "1.855, 1.841 and 1.837 on 8, 16 and 32 cells: the grid is 1.0 % and 0.2 % above its fine value.",
+   "source": {
+    "file": "tests/engine/plate.test.mjs",
+    "test": "von Karman plate: centre deflection of a square plate under uniform pressure against Levy (NACA Report 737), edges held and edges free to move",
+    "url": "https://github.com/nathansenn/box3d-WEBGPU/blob/main/tests/engine/plate.test.mjs"
+   },
+   "text": {
+    "reference": "0",
+    "measured": "0.01008972",
+    "error": "+0.0101",
+    "tolerance": "±0.015"
    }
   },
   {

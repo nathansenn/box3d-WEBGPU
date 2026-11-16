@@ -285,10 +285,10 @@ export const DOMAINS = [
   {
     id: 'plate', title: 'Thin plates with brittle fracture', needsKit: false,
     solver: '`src/engine/plate.ts`: Kirchhoff bending on a regular grid (finite-difference curvatures, energy-consistent forces), explicit symplectic Euler, cracks as broken bonds between nodes, float64',
-    summary: 'A simply supported pane under uniform pressure against the Navier series (deflection, moment, order), its first mode against the grid\'s exact frequency and Kirchhoff theory, energy of the explicit step, and the pressure of the first crack, with and without a surface prestress, against the Navier stress.',
+    summary: 'A simply supported pane under uniform pressure against the Navier series (deflection, moment, order), its first mode against the grid\'s exact frequency and Kirchhoff theory, energy of the explicit step, the pressure of the first crack, with and without a surface prestress, against the Navier stress, and the von Karman plate against Levy\'s large-deflection tables (edges held and edges free to move, edge tension, mesh).',
     docs: ['docs/STUDIO_MATERIAL_LABS.md'],
     notValidated: [
-      'Linear plate theory: deflections well above the thickness stiffen a real pane by membrane action, which is not modelled; the Studio\'s impacts reach several thicknesses.',
+      'Membrane action (von Karman, `membrane: true`) is validated for the intact plate against Levy (NACA Report 737); across cracks the cells carry no membrane force, and the bridging layers are strings with the in-plane motion neglected. In-plane inertia is neglected.',
       'Crack paths follow the grid (bonds along x and y, 0.1 m in the Studio): a crack at 45 degrees is a staircase, and nothing finer than a cell is resolved. Once a bond breaks the crack runs, which is right for glass (l_ch of a fraction of a millimetre) and wrong for tougher materials.',
       'The strength check reads the moment at a bond\'s middle. A point load on one node gives a mesh-dependent peak (the Kirchhoff point-load moment is logarithmically singular): onset under a hard impactor depends on the cell size. Hertzian contact stresses and cone cracks are not modelled.',
       'Tempered glass dicing is a front that breaks every bond it reaches; its speed and the fragment size quoted by the Studio are inputs from the literature, not results.',

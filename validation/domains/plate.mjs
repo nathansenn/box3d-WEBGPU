@@ -8,7 +8,36 @@ const T = {
   navier: 'static: uniform pressure on a simply supported plate matches the Navier series; moments converge at second order',
   frequency: 'dynamics: the (1,1) mode rings at the exact grid frequency, which approaches Kirchhoff theory',
   fracture: 'fracture: the first crack opens where the Navier surface stress reaches the strength, perpendicular to it; prestress adds to the strength',
+  levy: 'von Karman plate: centre deflection of a square plate under uniform pressure against Levy (NACA Report 737), edges held and edges free to move',
 };
+/** Levy, "Bending of rectangular plates with large deflections", NACA Report 737 (1942), read in the scan on NTRS
+ * (https://ntrs.nasa.gov/api/citations/19930091816/downloads/19930091816.pdf): simply supported square plate of side a
+ * and thickness h under uniform pressure p, Poisson's ratio 0.316. [p a^4 / (E h^4), w_center / h]. Table 9: edge
+ * displacement zero (the last column of Table 10 gives the average edge tension -p_x a^2 / (E h^2)). Table 6: edge
+ * compression zero (the edges stay straight and carry no net force). Levy's six-term series oscillates in the centre
+ * deflection: he brackets the true value at the largest loads between 1.827 and 1.846 (Table 9, 278.5) and between 2.704
+ * and 2.743 (Table 6, 247). */
+export const LEVY = {
+  held: [[14.78, 0.485, 0.451], [51.4, 0.952, 1.816], [132.0, 1.402, 4.12], [278.5, 1.846, 7.38]],
+  free: [[12.1, 0.486], [29.4, 0.962], [56.9, 1.424], [99.4, 1.870], [161, 2.307], [247, 2.742], [358, 3.174], [497, 3.600]],
+};
+/** The plate of Levy's tables on an n x n grid by dynamic relaxation: w_center / h, the average tension across the middle
+ * section over E h^2 / a^2 (equal to the average edge tension), and the centre's membrane and bending stresses over E h^2 / a^2. */
+export const levy = (kind, load, n = 16) => memo(`plate/levy/${kind}/${load}/${n}`, async () => {
+  const {PlateBody, navierUniform} = await plate(), a = 1, h = 0.01, E = 70e9, nu = 0.316, q = load * E * h ** 4 / a ** 4;
+  const p = new PlateBody({size: [a, a], cells: [n, n], thickness: h, material: {youngModulus: E, poissonRatio: nu, density: 2700}, membrane: true});
+  const rim = p.selectNodes((x, y) => x < 1e-9 || x > a - 1e-9 || y < 1e-9 || y > a - 1e-9);
+  p.hold(rim);
+  if (kind === 'held') p.holdInPlane(rim);
+  else {
+    p.holdInPlane(p.selectNodes(x => x < 1e-9), [true, false]); p.tieInPlane(p.selectNodes(x => x > a - 1e-9), 0);
+    p.holdInPlane(p.selectNodes((x, y) => y < 1e-9), [false, true]); p.tieInPlane(p.selectNodes((x, y) => y > a - 1e-9), 1);
+  }
+  for (let k = 0; k < p.nodeCount; k++) p.force[k] = q * p.area[k];
+  const r = p.relax({tolerance: 1e-7}), c = p.node(n / 2, n / 2), N = p.membraneForces(c), M = p.moments(c), scale = a * a / (E * h * h);
+  let tension = 0; for (let j = 0; j < n; j++) tension += (p.cellForce[3 * (j * n + n / 2)] + p.cellForce[3 * (j * n + n / 2 - 1)]) / (2 * n);
+  return {w: p.w[c] / h, linear: navierUniform(a, a, p.rigidity, nu, q).deflection / h, tension: tension / h * scale, membrane: N[0] / h * scale, bending: 6 * M[0] / (h * h) * scale, steps: r.steps, converged: r.converged};
+});
 const A = 2.6, B = 2, TH = 0.008, GLASS = {youngModulus: 72e9, poissonRatio: 0.23, density: 2500}, Q = 1000, STRENGTH = 41e6;
 const plate = () => engine('plate');
 const edge = (x, y) => x < 1e-9 || y < 1e-9 || x > A - 1e-9 || y > B - 1e-9;
@@ -67,4 +96,16 @@ export default defineCases('plate', FILE, [
   {id: 'plate.fracture.margin', title: 'First crack is never early', quantity: 'onset pressure over the Navier estimate', unit: '1', test: T.fracture,
     reference: {formula: 'q_c / q_Navier >= 1', value: 1}, tolerance: lower(0),
     measure: async () => (await onset(0)) / (await navierOnset())},
+  ...LEVY.held.map(([load, w], k) => ({id: `plate.karman.held-${k + 1}`, title: `Von Karman plate, edges held, p a^4 / (E h^4) = ${load}`, quantity: 'centre deflection over the thickness of a simply supported square plate with immovable edges, nu = 0.316, 16 x 16 cells', unit: '1', test: T.levy,
+    reference: {formula: `Levy, NACA Report 737 (1942), Table 9: ${w}${k === 3 ? ' (true value between 1.827 and 1.846)' : ''}`, value: w}, tolerance: relative(0.01),
+    note: `Linear theory gives ${(0.04386 * load).toFixed(2)}. Levy's value is a six-term Fourier solution.`, measure: async () => (await levy('held', load)).w})),
+  ...LEVY.free.map(([load, w], k) => ({id: `plate.karman.free-${k + 1}`, title: `Von Karman plate, straight edges free to move, p a^4 / (E h^4) = ${load}`, quantity: 'centre deflection over the thickness, edges straight with no net force, nu = 0.316, 16 x 16 cells', unit: '1', test: T.levy,
+    reference: {formula: `Levy, NACA Report 737 (1942), Table 6: ${w}${k === 5 ? ' (true value between 2.704 and 2.743)' : ''}`, value: w}, tolerance: relative(0.01),
+    measure: async () => (await levy('free', load)).w})),
+  {id: 'plate.karman.edge-tension', title: 'Von Karman plate, edges held: average edge tension', quantity: 'average tension across the middle section over E h^2 / a^2 at p a^4 / (E h^4) = 278.5', unit: '1', test: T.levy,
+    reference: {formula: 'Levy, NACA Report 737, Table 10: -p_x a^2 / (E h^2) = 7.38', value: 7.38}, tolerance: relative(0.04),
+    note: 'Measured 2 to 3 % above Levy at all four loads (0.466, 1.866, 4.21, 7.50 against 0.451, 1.816, 4.12, 7.38).', measure: async () => (await levy('held', 278.5)).tension},
+  {id: 'plate.karman.mesh', title: 'Von Karman plate: mesh dependence', quantity: 'centre deflection at p a^4 / (E h^4) = 278.5 on 8 x 8 cells over that on 32 x 32, minus 1', unit: '1', test: T.levy,
+    reference: {formula: '0 (converged)', value: 0}, tolerance: absolute(0.015),
+    note: '1.855, 1.841 and 1.837 on 8, 16 and 32 cells: the grid is 1.0 % and 0.2 % above its fine value.', measure: async () => (await levy('held', 278.5, 8)).w / (await levy('held', 278.5, 32)).w - 1},
 ]);

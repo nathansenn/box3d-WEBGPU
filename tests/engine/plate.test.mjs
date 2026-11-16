@@ -7,6 +7,7 @@ const {PlateBody,navierUniform,plateFrequency,plateGridFrequency}=await import('
 
 const A=2.6,B=2,T=.008,GLASS={youngModulus:72e9,poissonRatio:.23,density:2500},Q=1000;
 const edge=(x,y)=>x<1e-9||y<1e-9||x>A-1e-9||y>B-1e-9;
+const close=(a,b,tol,label)=>assert.ok(Math.abs(a-b)<=tol*Math.abs(b),`${label}: ${a} vs ${b} (${((a/b-1)*100).toFixed(3)} %)`);
 /** A simply supported plate: every edge node held at w = 0 (the moment there is zero by construction). */
 function simplySupported(cells,extra={}){const p=new PlateBody({size:[A,B],cells,thickness:T,material:GLASS,...extra});p.hold(p.selectNodes(edge));return p;}
 function navierStatic(cells){
@@ -88,4 +89,91 @@ test('checkpoint: a cracking plate restored from saveState() continues bit for b
   const saved=decodeState(encodeState(a.saveState())),b=make();b.restoreState(saved);
   for(let s=300;s<1500;s++){load(a,s);load(b,s);a.advance(h);b.advance(h);}
   assert.deepEqual([...b.w],[...a.w]);assert.deepEqual([...b.broken],[...a.broken]);assert.ok(a.broken.some(Boolean));void c;
+});
+
+// ---- Von Karman plate (membrane: true) ----
+const {levy,LEVY}=await import('../../validation/domains/plate.mjs');
+const square=(n,extra={})=>{const p=new PlateBody({size:[1,1],cells:[n,n],thickness:.01,material:{youngModulus:70e9,poissonRatio:.316,density:2700},membrane:true,...extra});const rim=p.selectNodes((x,y)=>x<1e-9||x>1-1e-9||y<1e-9||y>1-1e-9);p.hold(rim);p.holdInPlane(rim);return p;};
+const pressure=(p,load)=>{const q=load*70e9*1e-8;for(let n=0;n<p.nodeCount;n++)p.force[n]=q*p.area[n];};
+
+test('von Karman plate: centre deflection of a square plate under uniform pressure against Levy (NACA Report 737), edges held and edges free to move',async()=>{
+  // 1 %: Levy's six-term series is itself good to about 1 % at the largest loads (he says so, and brackets the true values).
+  for(const [load,w,tension] of LEVY.held){
+    const r=await levy('held',load);
+    console.log(`# edges held, ${load}: w / h ${r.w.toFixed(4)} (Levy ${w}, linear ${r.linear.toFixed(3)}); edge tension ${r.tension.toFixed(3)} (Levy ${tension}); centre membrane ${r.membrane.toFixed(2)}, bending ${r.bending.toFixed(2)} E h^2 / a^2; ${r.steps} steps`);
+    assert.ok(r.converged);close(r.w,w,.01,`held ${load}`);
+    // 4 %: measured 1.6 to 3.3 % above Levy's Table 10.
+    close(r.tension,tension,.04,`edge tension ${load}`);
+  }
+  for(const [load,w] of LEVY.free){
+    const r=await levy('free',load);
+    console.log(`# edges free and straight, ${load}: w / h ${r.w.toFixed(4)} (Levy ${w}); net edge force ${r.tension.toExponential(1)}`);
+    assert.ok(r.converged);close(r.w,w,.01,`free ${load}`);
+    assert.ok(Math.abs(r.tension)<1e-6,'the tied edges carry no net force');
+  }
+  const top=await levy('held',278.5);
+  assert.ok(top.w>1.827&&top.w<1.846,`inside Levy's bracket for the true value: ${top.w}`);
+  const free=await levy('free',247);assert.ok(free.w>2.704&&free.w<2.743,`inside Levy's bracket: ${free.w}`);
+  const coarse=await levy('held',278.5,8),fine=await levy('held',278.5,32);
+  console.log(`# mesh: ${coarse.w.toFixed(4)}, ${top.w.toFixed(4)}, ${fine.w.toFixed(4)} on 8, 16, 32 cells`);
+  assert.ok(Math.abs(coarse.w/fine.w-1)<.015&&Math.abs(top.w/fine.w-1)<.004);
+});
+
+test('von Karman plate: a small load gives the linear plate; the forces are the gradient of the energy; the explicit step keeps its energy',()=>{
+  // 1e-5 of the thickness: the membrane terms are of second order in w / h.
+  const small=square(8),linear=new PlateBody({size:[1,1],cells:[8,8],thickness:.01,material:{youngModulus:70e9,poissonRatio:.316,density:2700}});
+  linear.hold(linear.selectNodes((x,y)=>x<1e-9||x>1-1e-9||y<1e-9||y>1-1e-9));
+  pressure(small,1e-3);pressure(linear,1e-3);small.relax({tolerance:1e-10});linear.solveStatic();
+  const c=small.node(4,4);close(small.w[c],linear.w[c],1e-6,'small deflection');
+  // Gradient: with the in-plane displacements in equilibrium, d E / d w is the internal force (central differences).
+  const p=square(8);for(let n=0;n<p.nodeCount;n++)if(!p.fixed[n])p.w[n]=.02*Math.sin(Math.PI*p.x(n))*Math.sin(Math.PI*p.y(n))*(1+.3*Math.sin(7*n));
+  p.advance(1e-12);
+  let worst=0;
+  for(const n of [p.node(4,4),p.node(2,5),p.node(6,1)]){
+    const w0=p.w[n],d=1e-6;p.w[n]=w0+d;const up=p.strainEnergy();p.w[n]=w0-d;const down=p.strainEnergy();p.w[n]=w0;
+    p.v.fill(0);const before=p.v[n];p.advance(1e-9);const force=-(p.v[n]-before)*p.mass[n]/1e-9;p.v.fill(0);
+    worst=Math.max(worst,Math.abs(force/((up-down)/(2*d))-1));
+  }
+  console.log(`# force against the energy gradient: ${worst.toExponential(2)}`);
+  assert.ok(worst<1e-5,`gradient ${worst}`);
+  // Free vibration of the first mode shape at an amplitude of two thicknesses: symplectic Euler keeps the energy within an
+  // oscillation of order omega h that does not grow (the same bound in the second half of the run as in the first).
+  const ring=(fraction,steps)=>{
+    const q=square(8);for(let n=0;n<q.nodeCount;n++)if(!q.fixed[n])q.w[n]=.02*Math.sin(Math.PI*q.x(n))*Math.sin(Math.PI*q.y(n));
+    const h=fraction*q.stableTimeStep(),E0=q.kineticEnergy()+q.strainEnergy();let first=0,second=0,least=Infinity;
+    for(let k=0;k<steps;k++){q.advance(h);least=Math.min(least,q.stableTimeStep());if(k%10===0){const e=Math.abs((q.kineticEnergy()+q.strainEnergy())/E0-1);if(k<steps/2)first=Math.max(first,e);else second=Math.max(second,e);}}
+    return {first,second,least};
+  };
+  const coarse=ring(.2,6000),fine=ring(.1,12000);
+  console.log(`# energy within ${coarse.first.toExponential(2)} then ${coarse.second.toExponential(2)} at 0.2 of the limit, ${fine.first.toExponential(2)} then ${fine.second.toExponential(2)} at 0.1; the limit fell to ${(coarse.least/linear.stableTimeStep()).toFixed(3)} of the linear plate's`);
+  assert.ok(coarse.second<1.2*coarse.first+1e-4&&fine.second<1.2*fine.first+1e-4,'no drift');
+  assert.ok(fine.first<.7*coarse.first,'the oscillation shrinks with the step');
+  assert.ok(coarse.first<.03,`energy ${coarse.first}`);
+  assert.ok(coarse.least<linear.stableTimeStep(),'membrane tension lowers the stable step');
+  assert.throws(()=>{const q=square(8);pressure(q,300);q.relax();q.advance(.99*linear.stableTimeStep());},/stability limit/);
+});
+
+test('von Karman plate: the fracture check adds the membrane stress to the bending stress; checkpoints carry the in-plane state',async()=>{
+  const {encodeState,decodeState}=await import('../../src/engine/checkpoint.ts');
+  // At p a^4 / (E h^4) = 132 the centre's surface stress is membrane plus bending; the plate's largest is elsewhere (the corners twist).
+  const r=await levy('held',132),unit=70e9*1e-4,bending=r.bending*unit,total=(r.membrane+r.bending)*unit;
+  const sound=square(16,{fracture:{strength:1e12}});pressure(sound,132);sound.relax({tolerance:1e-7});sound.advance(1e-9);
+  let bendingPeak=0;for(let n=0;n<sound.nodeCount;n++)bendingPeak=Math.max(bendingPeak,sound.surfaceStress(n));
+  console.log(`# centre: bending ${(bending/1e6).toFixed(1)} MPa, with membrane ${(total/1e6).toFixed(1)} MPa; largest in the plate ${(sound.peakStress/1e6).toFixed(1)} MPa, by bending alone ${(bendingPeak/1e6).toFixed(1)} MPa`);
+  assert.ok(sound.peakStress>=total*(1-1e-9),'the check sees at least the centre\'s membrane + bending stress');
+  assert.ok(sound.peakStress>1.05*bendingPeak,'and more than bending alone anywhere');
+  // A strength between the two: bending alone would not crack it, membrane plus bending does.
+  const cracked=square(16,{fracture:{strength:.5*(bendingPeak+sound.peakStress)}});pressure(cracked,132);cracked.relax({tolerance:1e-7});
+  assert.ok(cracked.advance(1e-9)>0,'a strength below membrane + bending cracks');
+  const spared=square(16,{fracture:{strength:1.01*sound.peakStress}});pressure(spared,132);spared.relax({tolerance:1e-7});
+  assert.equal(spared.advance(1e-9),0);
+  // Checkpoint: a cracking von Karman plate resumes bit for bit; a linear plate's checkpoint has no in-plane fields.
+  const make=()=>square(12,{fracture:{strength:60e6}}),load=(p,s)=>{p.force.fill(0);if(s<600)p.force[p.node(6,6)]=-6000;};
+  const a=make();for(let s=0;s<200;s++){load(a,s);a.advance(.5*a.stableTimeStep());}
+  const saved=decodeState(encodeState(a.saveState())),b=make();b.restoreState(saved);
+  for(let s=200;s<900;s++){load(a,s);load(b,s);const h=.5*a.stableTimeStep();a.advance(h);b.advance(h);}
+  assert.deepEqual([...b.w],[...a.w]);assert.deepEqual([...b.uv],[...a.uv]);assert.deepEqual([...b.broken],[...a.broken]);assert.ok(a.broken.some(Boolean),'it cracked');
+  const plain=simplySupported([6,6]).saveState();
+  assert.ok(!('uv' in plain)&&!('cellForce' in plain)&&plain.membrane===false);
+  assert.throws(()=>simplySupported([6,6]).holdInPlane([0]),/membrane/);
 });

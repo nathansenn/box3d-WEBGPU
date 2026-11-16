@@ -27,7 +27,8 @@ Even with cells about as wide as the plate is thick the tetrahedra are four to t
 ### The plate (`src/engine/plate.ts`, solver id `plate-kirchhoff-fd-explicit-js-f64-v1`)
 
 - **Bending.** Kirchhoff plate in the x-y plane, deflection `w` along z, flexural rigidity `D = E t³ / (12 (1 − ν²))`. Nodes on a regular grid. The energy is a sum of finite-difference curvatures: per node `½ D A (κxx² + κyy² + 2ν κxx κyy)` with `κxx` from the node and its two x-neighbours, per cell `D (1 − ν) κxy² hx hy` with `κxy` from its four corners. Forces are the exact gradient of that energy, assembled as a 5 × 5 stencil per node. For a simply supported plate the sine modes are exact eigenvectors of this grid, so its frequencies are known in closed form (`plateGridFrequency`).
-- **Supports.** Nodes held at `w = 0`, springs to `w = 0`, and springs on the difference of two nodes (a clamp's rotational restraint).
+- **Membrane action (`membrane: true`, von Kármán; on in the lab since 2026-11-16).** Each node also has in-plane displacements u, v. On each intact cell the membrane strains `u_x + w_x²/2`, `v_y + w_y²/2`, `u_y + v_x + w_x w_y` (bilinear interpolation, 2 × 2 Gauss points) carry the forces `N = E t / (1 − ν²) (...)`, so a deflection of the order of the thickness stretches the middle surface and stiffens the plate. The in-plane displacements are in equilibrium at every step (their inertia is neglected, their waves are some 30 times faster than the bending of interest): one solve with a banded Cholesky factor of the in-plane stiffness, formed again after each crack; with `tieInPlane` (straight edges free to move) conjugate gradients instead. The membrane forces on w are the exact gradient of the membrane energy at in-plane equilibrium; the stability limit adds a bound on the membrane tangent; the fracture check reads the surface stress `N / t ± 6 M / t²` (the larger principal stress of either face). A plate flat to 1e-4 of its thickness skips the in-plane solve. `relax()` finds the nonlinear static deflection by dynamic relaxation with kinetic damping.
+- **Supports.** Nodes held at `w = 0`, springs to `w = 0`, and springs on the difference of two nodes (a clamp's rotational restraint); in plane, `holdInPlane` and `tieInPlane`.
 - **Time.** Explicit symplectic Euler, lumped mass `ρ t A` per node (plus an added areal mass for an interlayer). The step is limited by a Gershgorin bound on `M⁻¹K` including supports, contact springs the caller declares and bridging membranes; a step above it is refused. Mass damping and caller dashpots are taken implicitly. The step length must stay constant: symplectic Euler gains energy when it changes from one step to the next (seen as a blow-up when a remainder step closed each frame), so the lab splits each 1/120 s tick into equal sub-steps.
 - **Fracture.** A crack is a broken bond between two neighbouring nodes; every curvature term that spans it is dropped, so no moment or shear crosses it. After each step, every intact bond whose mid-point principal surface stress `6 |M| / t²` (the mean of its two nodes' moments) minus the surface prestress reaches the strength breaks, if that principal direction is within 45° of the bond. Pieces are the groups of nodes joined by a shared curvature term; a piece is handed to the lab when it is free.
 - **Toughened glass.** A surface prestress `σ_p` raises the stress the bending must reach to `σ_c + σ_p`. After the first crack, a dicing front breaks every bond within `v_d (t − t₀)` of the origin.
@@ -74,8 +75,17 @@ The 2.6 m × 2.0 m × 8 mm soda-lime pane, simply supported on all edges.
 | A cut line through a free plate | two pieces; masses and momenta sum; spin from the velocity gradient | to 10⁻¹³ | 10⁻¹³ |
 | Bridging tie on the same cut | one piece | one piece | exact |
 | Determinism of a cracking run | bit-identical | identical | bit equality |
+| Von Kármán, square plate, edges held in plane (ν = 0.316, 16 × 16 cells), w_center / h at p a⁴ / (E h⁴) = 14.78, 51.4, 132.0, 278.5 | Levy, NACA Report 737 (1942), Table 9 (scan opened on NTRS): 0.485, 0.952, 1.402, 1.846 (true value 1.827 to 1.846) | 0.4844, 0.9513, 1.4012, 1.8406 (−0.29 % at the largest; linear theory 12.22) | 1 % |
+| The same, average edge tension, −p_x a² / (E h²) | Table 10: 0.451, 1.816, 4.12, 7.38 | 0.466, 1.866, 4.21, 7.50 (+1.6 to +3.3 %) | 4 % |
+| Von Kármán, straight edges free to move, w_center / h at 12.1 … 497 (8 loads) | Levy, Table 6: 0.486 … 3.600 (true value at 247: 2.704 to 2.743) | within 0.69 % at all eight (−0.69 % at 497, the largest; 2.7397 at 247) | 1 % |
+| Mesh, edges held, p a⁴ / (E h⁴) = 278.5 | converged | 1.8555, 1.8406, 1.8369 on 8, 16, 32 cells | 1.5 % (8 against 32 cells) |
+| Small load (10⁻³) | the linear plate | within 10⁻⁶ | 10⁻⁶ |
+| Forces against central differences of the energy | exact gradient | 2.1·10⁻⁸ | 10⁻⁵ |
+| Free vibration at two thicknesses | bounded energy oscillation, falling with the step, no drift | 2.1 % at 0.2 of the limit, 1.1 % at 0.1, the same in both halves of the run | — |
+| Fracture check with membrane stress | membrane plus bending at the centre | sees ≥ 97.4 MPa where bending alone gives 54.2 MPa; cracks at a strength between the two | exact |
+| Checkpoint of a cracking von Kármán plate | bit-identical, in-plane state included | identical | bit equality |
 
-**Not validated:** the impact itself (contact force history, rebound), crack paths and fragment counts, the dicing front and fragment size (inputs), the membranes' strength (they never tear), fragment trajectories. No plate model can be checked against the Studio's real pendulum: there is no test of that rig.
+**Not validated:** von Kármán with a crack or a bridging layer (the membrane acts on intact cells only; the bridging tie is still a string with in-plane motion neglected), the impact itself (contact force history, rebound), crack paths and fragment counts, the dicing front and fragment size (inputs), the membranes' strength (they never tear), fragment trajectories. No plate model can be checked against the Studio's real pendulum: there is no test of that rig.
 
 ### What the presets give (first 3 s; `tests/studio/material-labs.test.mjs`)
 
@@ -89,6 +99,21 @@ The 2.6 m × 2.0 m × 8 mm soda-lime pane, simply supported on all edges.
 | Wired retention | cracks; held by the mesh; sag 32–44 mm |
 
 The earlier authored test asked laminated travel to be below 30 % of annealed. Measured instead of forced: the laminate's 0.40 m sag against 5.8 m for the farthest annealed fragment (6.9 %), and against 6.6 mm for the annealed glass that stays in the frame. The old "thick panel" preset (25 kg from 0.4 m, 98 J on 24 mm) **breaks** in this model (67 MPa), so the preset was changed to 20 J; a hard 25 kg sphere at 2.8 m/s on 24 mm glass is also likely to break real glass (Hertzian stress), which the plate does not model.
+
+**With membrane action (2026-11-16)**, first 3 s, against the linear plate (same settings, Node 22, load about 12):
+
+| Preset | Peak force (kN) linear → von Kármán | Peak stress (MPa) | Largest deflection (mm) | Pieces | Real-time factor |
+|---|---|---|---|---|---|
+| Radial impact | 12.4 → 12.4 | 105.8 → 111.3 | 25.6 → 23.0 | 28 → 24 | 0.83 → 0.22 |
+| Tempered breakup | 11.0 → 30.6 | 256 → 304 | 25.9 → 74.0 | 567 → 567 | 0.68 → 0.71 |
+| Laminated retention | 10.4 → 18.9 | 121.0 → 121.7 | 622 → 589 | 1 → 1 | 0.86 → 0.057 |
+| Thick panel | 22.31 → 22.31 | 35.2 → 35.3 | 3.0 → 3.0 | intact | 0.32 → 0.082 |
+| Off-centre strike | 9.5 → 10.1 | 105.8 → 111.3 | 16.4 → 18.0 | 21 → 21 | 1.00 → 0.26 |
+| Frosted fracture | 10.9 → 13.3 | 106.2 → 111.8 | 28.1 → 26.0 | 30 → 31 | 0.87 → 0.24 |
+| Wired retention | 18.0 → 20.7 | 115.0 → 117.8 | 209 → 208 | 1 → 1 | 0.48 → 0.10 |
+| Acrylic comparison | 1.34 → 2.73 | 30.9 → 30.6 | 365 → 210 | intact | 2.35 → 0.32 |
+
+The acrylic sheet, deflected 45 thicknesses by the linear plate, is held to 26 thicknesses by its membrane, at twice the force; the tempered pane, stiffer, takes almost three times the force. The cost is the in-plane solve at every sub-step (a banded triangular solve, a third of the time) and, once the pane sags, a smaller stable step: 4 to 15 times slower, so the glass lab now runs at 0.06 to 0.7 times real time (the recorded run replays at full speed).
 
 ### Real time
 
@@ -109,11 +134,12 @@ Below 1 the lab plays slower than real time while it computes; the recorded run 
 
 ### Limits
 
-- Linear plate theory: a real pane deflected by several thicknesses stiffens as a membrane; here it does not.
+- Membrane action is in the unbroken cells (von Kármán, validated against Levy above); a cracked cell carries no membrane force, and the PVB and wire bridging stay strings with the in-plane motion neglected. In-plane inertia is neglected.
 - The bob loads one to four nodes, so the peak stress under it depends on the grid (the point-load moment of a Kirchhoff plate is logarithmically singular), and with 0.1 m cells and a 4.6 m/s strike the stress jumps by tens of MPa per sub-step: the "peak stress" readout overshoots the strength by up to 2.5× on the step the glass breaks. Hertzian contact cracks are not modelled.
-- Cracks follow the 0.1 m grid (staircases at 45°); the irregular tile outlines are drawn, not computed. Glass fragments finer than a cell are not resolved.
+- Cracks follow the 0.1 m grid (staircases at 45°); the irregular tile outlines are drawn, not computed. Glass fragments finer than a cell are not resolved. A grid twice as fine (52 × 40, `new GlassModel(settings, {cells: [52, 40]})`) gives 2.6 to 3.8 times more pieces, but runs 13 to 24 times slower (radial impact 0.011 times real time with membrane action, 0.061 without; the explicit step falls with the square of the cell size), so the lab keeps 0.1 m; no adaptive refinement.
 - Laminates bend as one section before breaking (an upper bound on their stiffness); after it, the PVB is a string at its 3 s modulus (a lower bound for an impact) that never tears; in-plane displacement is neglected, so the edges act as if held in-plane. The sag is therefore uncertain by a large factor.
-- Fragments do not collide with each other, the frame or the pendulum; they do not bounce; they slide with glass-on-glass friction.
+- Fragments do not collide with each other, the frame or the pendulum; they do not bounce; they slide with glass-on-glass friction. (Not done on 2026-11-16: the glass worker has no Box3D world, and no polygon contact was written and validated.)
+- A shard that hangs from the pane by a hinge (a row of nodes joined to the rest through one node) has no bending stiffness against its rotation; since 2026-11-16 such shards are found (`PlateBody.heldNodes`) and handed off as falling pieces. Before, with membrane action the edge strike's hinged shard swung 12 m out of the frame.
 - The pendulum passes through the cracked region; nodes it has passed are ignored.
 
 ## Elastomer lab
