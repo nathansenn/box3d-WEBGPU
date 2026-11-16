@@ -101,6 +101,7 @@ import { SI_BRIDGE_ID, SI_BRIDGE_TITLE } from './engine/si-bridge.ts';
 import { SiBridgeScene, SI_BRIDGE_SCENE_DEFAULTS, SI_BRIDGE_SCENE_STEP, type SiBridgeSceneSettings } from './lab/si-bridge-scene.ts';
 import { createSiBridgePanel, SI_BRIDGE_PLOTTED_STAY, type SiBridgePanel } from './lab/si-bridge-panel.ts';
 import { WebGPURenderer } from './webgpu/renderer';
+import { GPU_SHOWCASES, gpuShowcaseRequest, startGpuShowcase, type GpuShowcase } from './lab/gpu-showcase.ts';
 import { WebGL2LabRenderer } from './webgl/lab-renderer.ts';
 import { fallbackReason, rendererAfterLoss, rendererCandidates, rendererLabel, rendererRequest, selectRenderer, type LabRenderer, type LabRendererKind } from './webgl/renderer-selection.ts';
 import { SOFT_RENDER_INSTANCE_BUDGET, SoftSimulationSuite, type SoftSimulationFrame } from './soft/simulations';
@@ -436,6 +437,11 @@ let stopRendererLoss:()=>void=()=>{};
 let currentLab: WorkbenchLabDefinition = WORKBENCH_LABS[0];
 let currentScene: ScenePreset = resolveWorkbenchLabScene(currentLab);
 let camera: CameraRig = cloneRig(currentScene.camera);
+/** An example at scale that runs and is drawn on the GPU (src/lab/gpu-showcase.ts), and why one was not started. */
+let gpuShowcase: GpuShowcase | null = null;
+let gpuShowcaseFallback: { readonly name: string; readonly opened: string; readonly reason: string } | null = null;
+let gpuShowcaseReadout: HTMLElement | null = null;
+let gpuShowcasePaused = false;
 let paused = false;
 let debugEnabled = false;
 let isDragging = false;
@@ -1784,6 +1790,9 @@ function labSceneState(): Record<string, unknown> {
     events: coupledView ? coupledView.eventTotal() : 0,
     solidView: coupledView?.hasSolids ? coupledView.solidView() : null,
     fluidView: coupledView?.hasFluids ? coupledView.fluidView() : null,
+    // An example at scale on the GPU, or the CPU example opened in its place.
+    gpuShowcase: gpuShowcase ? { ...gpuShowcase.state(), paused: gpuShowcasePaused } : null,
+    gpuShowcaseFallback,
   };
 }
 
@@ -3900,6 +3909,8 @@ function bindControls(): void {
 }
 
 function togglePause(): void {
+  // A GPU example runs on its own clock (it is not a run of the engineering workspace): the button pauses and resumes it.
+  if (gpuShowcase) { gpuShowcasePaused = !gpuShowcasePaused; ui.pause.textContent = gpuShowcasePaused ? 'Resume' : 'Pause'; return; }
   if (!engineeringRun || (engineeringRun.state !== 'running' && engineeringRun.state !== 'paused')) {
     paused = true;
     ui.pause.textContent = 'Resume';
@@ -4702,7 +4713,9 @@ async function main(): Promise<void> {
   // Read the requests first: loading the boot recipe clears the SI parameters from the address.
   const siRequest = siDemoRequestFromUrl();
   const siBridgeRequested = new URLSearchParams(window.location.search).get('si') === SI_BRIDGE_ID;
-  const sceneRequest = parseSceneRequest(window.location.search, window.location.hash);
+  // lab.html?example=sand-avalanche-100k and ?example=flood-valley-1m are not scenes of the format: they are started below.
+  const showcaseRequest = gpuShowcaseRequest(window.location.search);
+  const sceneRequest = showcaseRequest ? null : parseSceneRequest(window.location.search, window.location.hash);
   scenePanel = createScenePanel({
     onFiles: (files) => { void openSceneFiles(files); },
     onExample: openExampleScene,
@@ -4747,6 +4760,9 @@ async function main(): Promise<void> {
       }
       return labSceneState();
     },
+    /** A GPU example: take `steps` of its 1/60 s steps now, wait for the GPU, and report the state (frames need not be drawn). */
+    stepGpuShowcase: (steps: number) => (gpuShowcase && Number.isInteger(steps) && steps > 0 ? gpuShowcase.advance(Math.min(steps, 100000)) : Promise.resolve()).then(labSceneState),
+    pauseGpuShowcase: (pause: boolean) => { gpuShowcasePaused = pause === true; return labSceneState(); },
     sceneJson: currentLabSceneJson,
     /** Pause or resume the Lab's clock as the Pause button does; returns whether it is paused. For tests that compare hashes at a tick. */
     setPaused: (flag: boolean) => { if (paused !== !!flag) togglePause(); return paused; },
@@ -4778,6 +4794,26 @@ async function main(): Promise<void> {
     const opened = openLabScene(read, sceneRequest.kind !== 'example' && read.ok ? await encodeSceneLink(read.scene) : null);
     // lab.html?example=<name>&edit=1 and ?scene=<link>&edit=1 open that scene in the editor.
     if (opened && editorRequested && labScene) sceneEditor.open(labScene.read.scene);
+  } else if (showcaseRequest) {
+    const started = await startGpuShowcase(showcaseRequest, renderer instanceof WebGPURenderer ? renderer : null, new URLSearchParams(window.location.search));
+    if ('fallback' in started) {
+      // No compute on this device: the small CPU example of the same kind, with the reason in the log.
+      gpuShowcaseFallback = { name: showcaseRequest, opened: started.fallback, reason: started.reason };
+      openLabScene(resolveSceneRequest({ kind: 'example', name: started.fallback }));
+      appendLog(`${GPU_SHOWCASES[showcaseRequest].title} needs WebGPU compute. ${started.reason} Showing the CPU example "${started.fallback}" instead.`);
+    } else {
+      gpuShowcase = started;
+      // An empty stage: the showcase is drawn by the renderer's simulation layers.
+      openLabScene({ ok: true, scene: { format: 'box3d-scene', version: 2, units: 'SI', world: { ground: false }, bodies: [] }, source: { kind: 'example', name: showcaseRequest }, title: started.title, notes: [] });
+      camera.yaw = started.camera.yaw; camera.pitch = started.camera.pitch; camera.distance = started.camera.distance; camera.target = [...started.camera.target];
+      gpuShowcaseReadout = document.createElement('div');
+      gpuShowcaseReadout.id = 'gpu-showcase-readout';
+      gpuShowcaseReadout.setAttribute('role', 'status');
+      gpuShowcaseReadout.style.cssText = 'position:fixed;left:50%;bottom:14px;transform:translateX(-50%);z-index:20;max-width:92vw;padding:7px 12px;border-radius:8px;background:rgba(8,14,22,.82);color:#d9e7ef;font:12px/1.4 ui-monospace,monospace;pointer-events:none';
+      document.body.append(gpuShowcaseReadout);
+      appendLog(`${started.title}: computed and drawn on the GPU (${started.state().adapter}).`);
+      ui.pause.textContent = 'Pause';
+    }
   } else if (editorRequested) sceneEditor.open();
   else if (siBridgeRequested) loadSiBridge();
   else if (siRequest !== null) loadMechanismsDemo(siRequest);
@@ -4902,6 +4938,11 @@ async function main(): Promise<void> {
       effectFrame.frameVersion,
     );
     uploadedBytes += renderer.uploadSurface(softFrame.surface);
+    if (gpuShowcase) {
+      // The renderer the showcase's buffers belong to is gone (a switch to WebGL2, a recovered device): stop it.
+      if (!(renderer instanceof WebGPURenderer) || renderer.device !== gpuShowcase.device) { gpuShowcase.dispose(); gpuShowcase = null; gpuShowcaseReadout?.remove(); appendLog('The GPU example stopped: its graphics device is gone. Reload to start it again.'); }
+      else { gpuShowcase.frame(gpuShowcasePaused ? 0 : 1); if (gpuShowcaseReadout && fpsFrames % 20 === 0) gpuShowcaseReadout.textContent = gpuShowcase.readout(); }
+    }
     const backendFrameVersion = backend.frameVersion();
     const combinedFrameLines = frameLineStager.resolve(
       debugEnabled,

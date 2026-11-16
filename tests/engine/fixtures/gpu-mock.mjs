@@ -32,6 +32,7 @@ export function mockDevice({limits = {}, execute = null} = {}) {
     createShaderModule: ({label, code}) => ({label, code, getCompilationInfo: async () => ({messages: []})}),
     createBindGroupLayout: descriptor => ({...descriptor}),
     createPipelineLayout: descriptor => ({...descriptor}),
+    createRenderPipeline: ({label, fragment, multisample}) => ({label, entryPoint: fragment.entryPoint, samples: multisample?.count ?? 1}),
     createComputePipeline: ({label, compute}) => ({label, entryPoint: compute.entryPoint}),
     createComputePipelineAsync: async ({label, compute}) => ({label, entryPoint: compute.entryPoint}),
     createBindGroup: ({label, entries}) => ({label, buffers: entries.map(e => e.resource.buffer)}),

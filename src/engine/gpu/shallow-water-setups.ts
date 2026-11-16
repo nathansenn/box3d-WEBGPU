@@ -19,13 +19,16 @@ export const SHALLOW_WATER_SETUPS:Record<string,()=>{options:ShallowWaterOptions
     return {steps:80,options:{cells:[nx,nz],spacing:0.1,bed:x=>0.01*(6-x),level:0.25,solid,manning:0.02,dt:0.02,boundaries:{xMin:{type:'inflow',discharge:0.3},xMax:{type:'stage',level:0.2}}}};},
 };
 
-/** A valley with a river bed and side slopes, a reservoir behind where a dam stood, Manning friction, an open foot. */
+/**
+ * A valley for the flood example: 1 km long (`length`), falling 30 m along x, a meandering floor between side slopes
+ * that rise 45 m at the edges, low mounds on the slopes; a 34 m reservoir behind where a dam stood at 22% of the
+ * length; Manning 0.035; the foot of the valley is open.
+ */
 export function floodValley(n:number,length=1000):ShallowWaterOptions {
   const dx=length/n;
   const bed=(x:number,z:number):number=>{
-    const t=x/length,c=length*(.5+.18*Math.sin(5*t)),across=(z-c)/length;
-    return 30*(1-t)+90*across*across*4+2.5*Math.sin(.031*x)*Math.cos(.027*z)+1.2*Math.sin(.11*x+.07*z);
+    const t=x/length,c=length*(.5+.16*Math.sin(5*t)),across=2*(z-c)/length;
+    return 30*(1-t)+45*across*across+1.5*Math.sin(.019*x)*Math.cos(.017*z);
   };
   return {cells:[n,n],spacing:dx,bed,depth:(x,_z,b)=>(x<.22*length?Math.max(0,34-b):0),manning:0.035,dt:1/60*Math.max(1,length/1000),boundaries:{xMax:'open'},maxSubsteps:4096};
 }
-

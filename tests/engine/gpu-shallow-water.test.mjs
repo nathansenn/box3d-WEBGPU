@@ -77,6 +77,17 @@ test('with face speeds from an earlier step, a step waits for no readback but th
   assert.deepEqual([...new Set(device.dispatches.map(d => d.entryPoint))], ['stage', 'finish'], 'no measuring pass after the one at creation');
   await solver.sync();
   assert.equal(solver.steps, 5);
+  // rateWait false: nothing is awaited inside a step, and at most four readbacks are on their way.
+  const free = await GpuShallowWater.create(compute, new ShallowWater(options), {rateLatency: 2, rateWait: false, safety: 1.5});
+  const copies = device.submitted.filter(t => t === 'copy').length;
+  let settled = false;
+  const run = free.step(12).then(() => { settled = true; });
+  await Promise.resolve(); await Promise.resolve();
+  await run;
+  assert.equal(settled, true); assert.equal(free.steps, 12);
+  assert.ok(device.submitted.filter(t => t === 'copy').length - copies <= 12, 'a readback is issued only while fewer than four are outstanding');
+  await free.sync();
+  assert.equal(free.rateWait, false); assert.equal(free.safety, 1.5);
 });
 
 let cases;

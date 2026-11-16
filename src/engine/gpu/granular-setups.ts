@@ -44,16 +44,16 @@ export function hopperMixer(seed=3):Granular {
 /**
  * A sand avalanche at scale: `count` coarse grains (to the lattice's rounding) of 7.2 to 8.8 mm released behind a gate on
  * a slope of 30 degrees between two side walls. The heap is about four times as wide and long as it is deep. Linear
- * springs, as stiff as the step allows: the step is set so that a grain at the bottom of the heap overlaps its
- * neighbours by about 5% of its radius under the weight above (softer and the heap would squash; stiffer needs a
+ * springs, as stiff as the step allows: the step is set so that a grain at the bottom of the heap at rest overlaps its
+ * neighbours by about 2.5% of its radius under the weight above (softer and the heap would squash; stiffer needs a
  * smaller step). The gate is the last wall: disable it to release the heap. Written in the frame of the slope: the
  * slope is the plane y = 0 and gravity is tilted.
  */
 export function sandAvalanche(count:number,seed=11):{granular:Granular;gate:number;slope:number;width:number;length:number;height:number;radius:number;stepsPerSecond:number} {
   const r=0.004,material={density:2650,restitution:0.2,friction:0.6,rollingFriction:0.15},mass=2650*4/3*Math.PI*r*r*r,pitch=2.2*r,slope=Math.PI/6;
   const side=Math.max(4,Math.round(Math.cbrt(4*count))),ny=Math.max(2,Math.round(count/(side*side)));
-  // Overlap over radius at the bottom = layers * m g / (k r) = 5%, with k = (m / 2) (pi / t_c)^2: t_c^2 = 0.05 pi^2 r / (2 layers g).
-  const contact=Math.sqrt(0.05*Math.PI*Math.PI*r/(2*ny*9.81)),stepsPerSecond=Math.ceil(1/(0.18*contact)/60)*60,dt=1/stepsPerSecond;
+  // Overlap over radius at the bottom = layers * m g / (k r) = 2.5%, with k = (m / 2) (pi / t_c)^2: t_c^2 = 0.025 pi^2 r / (2 layers g).
+  const contact=Math.sqrt(0.025*Math.PI*Math.PI*r/(2*ny*9.81)),stepsPerSecond=Math.ceil(1/(0.18*contact)/60)*60,dt=1/stepsPerSecond;
   // The lightest pair (two grains of 0.9 r) sets the contact duration the step is 17% of.
   const kn=.5*0.729*mass*(Math.PI*0.17/dt)**2;
   const width=side*pitch,length=side*pitch,height=ny*pitch;

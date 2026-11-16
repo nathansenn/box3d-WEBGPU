@@ -1,0 +1,390 @@
+# GPU compute backends
+
+The validated solvers of this project run in float64 on one CPU thread. This document describes the WebGPU compute
+backends beside them: what exists, how each is validated, what float32 costs in accuracy, the capacities and limits,
+and how to measure the speed on a real GPU. The CPU solvers stay the default and the reference; a GPU backend is opt-in.
+
+Updated 2026-11-16.
+
+## Status
+
+| Part | State |
+|---|---|
+| Compute framework (`src/engine/gpu/compute.ts`, `layout.ts`, `wgsl.ts`) | done, tested in the gate |
+| Shallow water (`shallow-water-gpu.ts`) | done; 22 closed-form cases pass on the GPU (SwiftShader) with the float64 tolerances except four rows (below) |
+| Discrete-element grains (`granular-gpu.ts`) | done; 27 closed-form cases pass on the GPU (SwiftShader): 17 two-body, incline and column rows (13 with the float64 tolerance) and the 10 Janssen, Beverloo and repose rows (float64 tolerances) |
+| Coupling grains to rigid bodies (`GpuGranularCoupling`) | done on the CPU with per-wall sums reduced on the GPU; latency 0 or 1 rigid step |
+| Drawing from the simulation buffers (`src/webgpu/simulation-layers.ts`) | done: grains as shaded quads from the position buffer, terrain and water surface from the state and bed buffers |
+| Lab examples at scale (`lab.html?example=sand-avalanche-100k`, `flood-valley-1m`) | done, with a CPU example as the fall back; seen on SwiftShader at small sizes only |
+| Incompressible flow on the MAC grid, free surface (APIC), cloth | **not done** on the GPU |
+| Shallow water with coupled rigid bodies or point sources on the GPU | **not done** (the float64 solver has both) |
+| `backend: 'gpu'` in the scene format; the Studio's granular tray and river tabs on the GPU | **not done**: the Simulation loop and the Studio solvers are synchronous and float64; see "Not done" |
+| Speed on a real GPU | **not measured**: this machine has no GPU. The command is below |
+
+## How a GPU backend is validated here
+
+Node's WebGPU package (Dawn) has only the null backend on this machine: it compiles shaders and validates every call but
+runs nothing. Headless Chromium with SwiftShader does run compute shaders, slowly. So the validation has three layers:
+
+1. **A float32 CPU reference of the same algorithm.** `ShallowWaterF32` and `GranularF32` take the same passes over the
+   same buffer layouts as the shaders, operation for operation, each result rounded with `Math.fround` (which is what a
+   float32 add, multiply, divide or square root gives). The reference runs in Node.
+2. **The gate** (`npm run test:gpu`, in `validate:pr`; no shader runs): struct offsets against hand-computed tables and
+   struct sizes against the shader compiler for every prefix of every struct; the shaders compile on Dawn without
+   warnings; whole runs encode without a validation error; the dispatch order; the error paths; device loss; and the
+   float32 references against the float64 solvers' own validation set-ups and closed forms.
+3. **The browser check** (`scripts/gpu-compute-browser-check.mjs`, not in a gate because the gates have no browser): the
+   shaders run. It compares the GPU with the float32 reference and with the float64 solver, runs the closed-form cases
+   on the GPU, checks conservation, repeats runs, and destroys the device in mid-run.
+
+The validation set-ups are not rewritten for the GPU. For shallow water the set-up is run three times: with a stand-in
+that counts steps, then the backend for that many steps keeping every state, then the set-up again on a `ShallowWater`
+that replays those states (`shallow-water-validation.ts`). For grains the set-ups drive the solver step by step, so
+`granularProxy` (`granular-proxy.ts`) is a `Granular` whose steps a backend takes; in the browser the set-up runs in a
+worker that blocks on a shared buffer while the page drives the device (`scenario-worker.ts`).
+
+```
+npm run test:gpu                                             # the gate: 34 tests and a Dawn script, about 6 minutes
+npm run build && node scripts/gpu-compute-browser-check.mjs out          # the shaders, on SwiftShader: about 100 minutes
+npm run build && node scripts/gpu-compute-browser-check.mjs out --quick  # without Janssen, Beverloo and repose
+```
+
+`gpu-probe.html` (built with the site) runs the same checks and the timings in any browser, on the visitor's device.
+
+## The framework (`src/engine/gpu/`)
+
+- `acquireGpuCompute(needs)`: adapter and device, with the limits a backend needs checked first (storage buffers per
+  stage, largest storage binding, workgroups per dimension). Limits above the WebGPU defaults are requested only when
+  needed. No adapter, or one too small, throws `EngineError` `GPU_UNAVAILABLE` with the reason.
+- `defineStruct(name, fields)`: one definition gives the WGSL declaration, the byte offsets by WGSL's alignment rules,
+  and `write` / `read` for an `ArrayBuffer`. The TypeScript side never repeats an offset by hand.
+- `preprocessWgsl`: `#include "name"`, `#define`, `#if` / `#ifdef` / `#ifndef` / `#else` / `#endif`, `${NAME}`. The grain
+  shaders are five modules built from shared snippets, in variants with and without rolling histories.
+- `GpuCompute.module`, `pipeline`, `scoped`: shader compilation and every creation call run inside error scopes that
+  are popped before anything is awaited; an error becomes an `EngineError` (`GPU_SHADER` with `line:column message` and
+  the source line, `GPU_VALIDATION`, `GPU_OUT_OF_MEMORY`).
+- `GpuProgram`: dispatches encoded into one compute pass in list order. WebGPU runs the dispatches of a pass in the
+  order encoded, each seeing the writes of the ones before.
+- `GpuCompute.read`: staging buffers and `mapAsync`. Everything submitted before a read has run when it resolves.
+- Device loss: `lost`, `onLost(listener)`, and every later call throws `GPU_DEVICE_LOST`. `ShallowWaterRunner` and
+  `GranularRunner` keep a snapshot every N steps in the float64 solver the run was built from; when the device is lost
+  they run that solver from the snapshot to where the GPU run had got to and carry on with it (`backend` becomes
+  `'cpu'`, `fallback` says why, when, and how many steps were run again). Grains resume with their tangential springs
+  at zero: the histories do not cross over.
+
+Every pass is a gather: one invocation writes only its own element. The one exception is the insertion of grains into
+the hash grid (atomic counters, so the order within a bucket depends on scheduling); a per-bucket sort removes that
+order before anything reads it. Repeated runs on the same device give identical bytes (checked in the browser).
+
+## Shallow water on the GPU
+
+The scheme of [`SHALLOW_WATER.md`](SHALLOW_WATER.md): hydrostatic reconstruction, MUSCL with minmod and the centred bed
+term, HLL, Heun, split rain, Green-Ampt and Manning friction; walls, open, inflow and stage sides; solid cells.
+One cell is one invocation; it evaluates its own four face fluxes (each face is evaluated by both cells that share it,
+from the same inputs).
+
+What differs from the float64 solver, by design:
+
+- **Substeps.** The number of equal substeps of a step is fixed at its start from the largest face speed. With
+  `rateLatency: 0` (default, used by the validation) a measuring pass runs first and 32 bytes are read back and waited
+  for. With `rateLatency: L >= 1` the speeds of the step `L` before are used: no pass, no wait unless that readback is
+  late; `safety` (default 1.25 then) widens the margin and `stats.courant` reports what the substeps ran at. Both are
+  repeatable. `rateWait: false` never waits: a step uses the newest speeds that have arrived, however old; the substep
+  counts then depend on timing (for a frame loop only).
+- **Volume.** The depth takes every increment (the transport step, rain, infiltration) with a per-cell carry
+  (compensated sum). The volume is `sum(h + carry)`; it changes only by the rounding of the increments, not of the
+  depths. Rain of 1e-7 m per step into 10 m of water (below half a unit in the last place of the depth) is kept: after
+  1000 steps the volume has grown by the rain to 3e-7 of it. A depth that would go below zero is zero and the shortfall
+  stays in the carry; nothing is booked as `clipped`.
+- **Green-Ampt** is solved for the increment with `ln(1 + t)` by series for small `t`, where float32 loses `t`.
+- **The volume through the sides** is summed per cell with a carry and added in float64 when read.
+
+Buffers: 16 bytes per cell four times (state, stage, bed, sums). A million cells: 64 MB.
+
+Not on the GPU: coupled rigid bodies (`ShallowWaterCoupling`), `addVolume` / `removeVolume`, checkpoints.
+
+### Results
+
+The 22 rows are the float64 solver's (domain `shallow-water` of [`VALIDATION.md`](VALIDATION.md)) minus the rigid-body
+and resume rows. Measured on the float32 reference in the gate and on the GPU (SwiftShader) in the browser; the two
+agree to the digits shown.
+
+| Case | Measured | Tolerance | float64 tolerance |
+|---|---|---|---|
+| Lake at rest, immersed: largest speed | 5.6e-6 m/s | <= 2e-5 | <= 1e-12 |
+| Lake at rest, partly emerged: largest speed | 3.9e-6 m/s | <= 2e-5 | <= 1e-12 |
+| Lake at rest: level drift | 3.7e-8 m | <= 5e-7 | <= 1e-14 |
+| Ritter dam break: L1 error | 2.497e-3 | <= 4e-3 | same |
+| Ritter: order | 1.03 | >= 0.2 | same |
+| Ritter: wet front | 7.1375 m (7.259) | +- 0.15 | same |
+| Stoker dam break: L1 error | 2.269e-3 | <= 4e-3 | same |
+| Stoker: shock position | 6.2624 m (6.2598) | +- 0.025 | same |
+| Thacker paraboloid: L1 error after one period | 1.975e-2 | <= 2.5e-2 | same |
+| Thacker: order | 1.45 | >= 0 | same |
+| Bump, subcritical: L1 error | 6.25e-5 | <= 1e-4 | same |
+| Bump, subcritical: order | 1.97 | 2 +- 0.2 | same |
+| Bump, transcritical: L1 error | 4.20e-4 | <= 1e-3 | same |
+| Bump with a jump: L1 error | 1.71e-3 | <= 3e-3 | same |
+| Bump: jump position | 11.625 m (11.666) | +- 0.125 | same |
+| Manning normal depth, slope 0.001 | 0.63906 m (0.63923) | +- 5e-4 relative | same |
+| Manning normal depth, slope 0.01 | 0.31997 m (0.32037) | +- 2e-3 relative | same |
+| Rain on a slope: hydrograph rms | 3.86e-2 | <= 5e-2 | same |
+| Rain on a slope: equilibrium outflow | 2.0e-6 | <= 1e-4 | same |
+| Green-Ampt: cumulative infiltration | 4.6e-8 m | <= 1e-6 | same |
+| Green-Ampt: ponding time | 997 s (995.7) | +- 2 | same |
+| Volume budget, every source and side at once | 4.4e-8 | <= 1e-6 | <= 1e-12 |
+
+Where float32 forces a looser tolerance: the lake at rest (the level `h + b` is rounded per cell, so neighbours differ
+by a unit in the last place, 3e-8 m at 0.25 m, which drives flows of the order of `sqrt(g / h)` times that) and the
+volume budget (increments are float32). The largest relative volume budget error over all 17 set-ups is 8e-7.
+
+GPU against the CPU on short runs (browser check, SwiftShader):
+
+| Set-up | Cells | Steps | Depth, GPU vs float32 reference | Depth, GPU vs float64 | Volume budget | Repeat run |
+|---|---|---|---|---|---|---|
+| Thacker's paraboloid | 4096 | 40 | 0 (identical) | 1.3e-7 | 3e-11 | identical bytes |
+| Inflow, open side, rain, soil, friction | 1536 | 120 | 3.2e-7 | 7.6e-7 | 1.8e-8 | identical bytes |
+| Ritter dam break | 200 | 40 | 4e-28 | 1.5e-7 | 7e-11 | identical bytes |
+| Channel with a pier (solid cells), stage outlet | 1440 | 80 | 0 (identical) | 9.8e-7 | 9e-9 | identical bytes |
+
+Differences are over the largest depth. The one set-up that is not identical to the reference uses `pow` and `log`
+(friction and Green-Ampt), which a GPU rounds differently. Device destroyed after 12 of 20 steps with a snapshot every
+5: the run finishes on the CPU, 2 steps run again, 8.7e-8 from a float64 run of the 20 steps.
+
+## Grains on the GPU
+
+The contact laws of [`GRANULAR.md`](GRANULAR.md): linear and Hertz normal force with the same numerically solved damping
+coefficient, tangential spring with history under Coulomb's cap (Mindlin stiffness for Hertz), rolling resistance,
+velocity Verlet with one force evaluation per step; walls: plane, box, sphere, capsule, and the shells of revolution
+(cylinder, annulus, frustum); static, kinematic and dynamic walls (a dynamic wall is integrated on the GPU with the
+grains, as in the float64 solver); removal at the bounds.
+
+One step is six dispatches:
+
+| Pass | Invocations | What |
+|---|---|---|
+| `wallOpen` | per wall | opening half kick and drift of moving walls |
+| `integrate` | per grain | opening half kick, drift, removal at the bounds, insertion into the hash grid (atomic counters) |
+| `sort` | per bucket | sorts the bucket's grains by index: the insertion order cannot matter after this |
+| `pairs` | per grain | every grain of the 27 cells around it; the contact law; writes the new histories |
+| `wallContacts` | per block of 64 grains, in order | wall contacts, the closing half kick, the block's per-wall sums |
+| `wallClose` | per wall | adds the block sums in block order; closing half kick of dynamic walls |
+
+What differs from the float64 solver, by design:
+
+- **Neighbours** come from a hash grid of cell size `2 r_max` rebuilt every step (no Verlet list).
+- **Every pair is evaluated from both grains.** Each operation of the contact law gives the exact negative for the
+  exchanged pair, so the two forces are equal and opposite to the last bit: the momentum of two colliding grains does
+  not change by one bit (measured 0).
+- **Contact history** lives in K slots per grain (default 10), keyed by the neighbour's index (`0x80000000 | wall` for a
+  wall). A contact that finds no free slot is evaluated without history that step (its tangential spring starts from
+  zero) and counted in `stats.historyOverflow`; the run goes on. With K = 2 on a packed bed of 360 beads the count is
+  positive and the bed still stands (tested).
+- **Hash buckets** hold M grains (default `max(12, 4 (r_max / r_min)^3)`); the table has the first power of two at or
+  above twice the capacity. A grain that finds its bucket full is invisible to its neighbours that step; `sync()`
+  throws `GPU_CAPACITY`, because the forces were then wrong.
+- At most 16 walls. No energy ledger (dissipated work is not summed). No checkpoints.
+
+Memory: `capacity x (80 + 32 K)` bytes (`64 K` with rolling friction) plus `8 (1 + M)` bytes per bucket. 100 000 grains
+with rolling friction and K = 10: 72 MB plus 27 MB of grid. A million grains with K = 10 need a 160 MB storage binding
+(320 MB with rolling), above WebGPU's default of 128 MB: `demMemory()` gives the figure to ask the adapter for, and the
+Lab example lowers K to what the device binds.
+
+### Results
+
+The quick rows run on the float32 reference in the gate and on the GPU (SwiftShader) through the worker; the two give
+the same digits. The rows are the float64 solver's (domain `granular`), minus the energy ledger rows (the backend sums no
+dissipated work) and the rows through the kit's rigid world.
+
+| Case | Measured | Reference | Tolerance | float64 tolerance |
+|---|---|---|---|---|
+| Hertz contact duration | 6.4335e-4 s | 6.4331e-4 | 2e-4 relative | 5e-5 |
+| Hertz duration: order (steps of 16 % and 8 %) | 2.14 | 2 | +- 0.5 | +- 0.3 (8 % and 4 %) |
+| Linear-spring contact duration | 2.5413e-4 s | 2.5416e-4 | 2e-4 relative | same |
+| Two grains: momentum change | 0 | 0 | <= 1e-13 | same |
+| Restitution, Hertz, e = 0.9 | 0.9003 | 0.9 | +- 1e-3 | same |
+| Restitution, Hertz, e = 0.5 | 0.5000 | 0.5 | +- 1e-3 | same |
+| Restitution, Hertz, e = 0.2 at 1 m/s | 0.1993 | 0.2 | +- 1e-3 | same |
+| Restitution, linear, e = 0.5 | 0.4997 | 0.5 | +- 2e-3 | same |
+| Oblique impact, sliding (Hertz) | 3.2159 | 3.215 | +- 5e-3 | same |
+| Oblique impact, sliding (linear) | 3.7632 | 3.76 | +- 5e-3 | same |
+| Oblique impact, sticking, k_t = 2/7 k_n | -1.0002 | -1 | +- 2e-3 | same |
+| Oblique impact, sticking, k_t = 1/7 k_n | -0.6064 | -0.6057 | +- 5e-3 | same |
+| Sliding down an incline | 4.0536 m/s^2 | 4.0554 | 2e-3 relative | 1e-9 |
+| Rolling down an incline (Hertz) | 3.5021 m/s^2 | 3.5036 | 1e-3 relative | same |
+| Rolling down an incline (linear) | 3.5033 m/s^2 | 3.5036 | 1e-3 relative | same |
+| Column of 300 beads: floor force | 3.8602 N | 3.8592 | 1e-3 relative | same |
+| Beads striking a free dynamic sphere: total momentum | 5.0e-8 | 0 | <= 2e-6 | <= 1e-12 |
+
+Where float32 forces a looser tolerance:
+
+- **Hertz duration** (5e-5 -> 2e-4, measured 4.8e-5): the overlap, at most 2e-5 m between grains at 5e-3 m, is resolved
+  to 5e-10 m. The convergence order is read between steps of 16 % and 8 % of the Rayleigh time, because at 4 % the error
+  of the duration is already the rounding.
+- **Sliding down an incline** (1e-9 -> 2e-3, measured -4.4e-4): 43 850 steps of 14 microseconds each add 5.5e-5 m/s to a
+  velocity of 1 to 2.4 m/s, which float32 holds to 2.4e-7 m/s. The same increment is rounded the same way step after
+  step, so the error does not average out. This is the float32 limit that matters most for grains: **a constant
+  acceleration integrated with many small steps drifts by up to half a unit in the last place of the velocity per
+  kick.** Softer grains (larger steps) lose less; compensated velocity and position sums would remove it and are not
+  implemented.
+- **Momentum with a free dynamic wall** (1e-12 -> 2e-6, measured 5e-8): the wall takes the contact forces summed per
+  block in float32.
+
+Also float32: positions resolve 6e-8 of their magnitude, so an overlap must be well above that to give a smooth force
+(at 1 m from the origin, 6e-8 m; the validation's overlaps are 1e-6 to 1e-4 m at under 0.2 m).
+
+GPU against the CPU on short runs (browser check, SwiftShader):
+
+| Set-up | Grains | Walls | Steps | Position, GPU vs float32 reference | Position, GPU vs float64 | Momentum balance | Repeat run |
+|---|---|---|---|---|---|---|---|
+| Beads dropped into a box (linear, friction, rolling) | 360 | 5 planes | 500 | 0 (identical) | 1.6e-3 radii | 3.7e-6 | identical bytes |
+| Cylinder on a hopper over a ring, turning box and capsule, free sphere, bounds (Hertz) | 272 | every shape | 500 | 0 (identical) | 1.6e-2 radii | - | identical bytes |
+
+The momentum balance is the change of the grains' momentum plus the walls' impulses less `M g t`, over `M g t`.
+Many-grain trajectories diverge between float32 and float64 (after 10 000 steps of the column by more than a radius)
+while the bulk agrees: floor impulse -2.70145 against -2.70151 N s. Device destroyed after 250 of 400 steps with a
+snapshot every 100: the run finishes on the CPU, 50 steps run again, the height of the centre of mass 1.8e-7 from a
+float64 run.
+
+The rows that take minutes ran on the GPU only (SwiftShader, 75 minutes; the float32 CPU reference would take longer).
+These are statistical results of many-grain runs: the GPU's trajectories differ from the float64 solver's, the laws are
+what must hold.
+
+| Case | Measured on the GPU | Reference | Tolerance (the float64 one) | float64 solver measures |
+|---|---|---|---|---|
+| Janssen: floor load over weight, full silo | 0.140 | (a fluid: 1) | <= 0.2 | 0.131 |
+| Janssen: rms misfit of the saturation law over eight fills | 0.086 | 0 | <= 0.1 | 0.061 |
+| Janssen: plateau of the last four fills | 1.645 N | fitted W_s 1.707 N | 10 % | 1.706 N against 1.700 |
+| Janssen: stress ratio K from the fit | 1.27 | 1.05 read from the solver | 25 % | 1.18 against 1.05 |
+| Beverloo: worst misfit over four orifices | 0.061 | 0 | <= 0.15 | 0.090 |
+| Beverloo: C | 0.507 | 0.6 (literature, from memory) | +- 0.25 | 0.447 |
+| Beverloo: k | 1.42 | 1.5 (literature, from memory) | +- 1 | 1.14 |
+| Beverloo: late over early rate as the level falls | 0.998 | 1 | +- 0.12 | 1.037 |
+| Repose: slope at (mu, mu_r) = (0.5, 0.3) less (0.2, 0) | 16.8 deg | >= 6 | lower bound | 12.6 deg |
+| Repose: pairs where more resistance left less mass | 0 | 0 | 0 | 0 |
+
+The four repose slopes are 19.7, 19.8, 26.0 and 36.5 degrees for (0.2, 0), (0.5, 0), (0.5, 0.1), (0.5, 0.3); the float64
+solver gives 22, 26, 27 and 35 with about 2 degrees of noise each. 989 beads (Janssen), 2603 beads (Beverloo) and 480
+beads (repose); no history slot or bucket overflowed. Glass-bead repose and the column collapse were not run on the GPU.
+
+## Coupling grains to rigid bodies
+
+The rigid world stays on the CPU. `GpuGranularCoupling` wraps the float64 solver's `GranularCoupling` on the `Granular`
+the backend was built from (the mirror). Each rigid step: `begin()` copies the bodies into the mirror's walls (pose,
+velocities, mass, estimated support load); the walls are uploaded (288 bytes per wall); the GPU takes the grain substeps
+with each dynamic body integrated alongside the grains, as the float64 solver does; the walls' forces and impulses,
+reduced on the GPU to one sum per wall, are read back; `finish()` hands each body the mean force and torque.
+
+- **`latency: 0`** (default): the readback is waited for before `world.step()`. The body gets the forces of this step,
+  as in the float64 coupling. A 0.06 kg block dropped on 144 beads at 240 Hz is carried with 2e-3 of its weight and the
+  floor reads bed plus block to 2e-3 (tested on the float32 reference standing in for the GPU).
+- **`latency: 1`**: nothing is waited for; the body gets the forces of the previous rigid step. That is a delayed
+  feedback on a stiff contact, stable only when the body's mass is well above `k h^2` (`k` the contact stiffness under
+  the body, `h` the rigid step). The same 0.06 kg block at 240 Hz (`k h^2` about 1.7 kg) is thrown off the bed; a 0.5 kg
+  block at 960 Hz (`k h^2` about 0.1 kg) rests at the same height as with latency 0 to within 2 mm, carried to 5e-3
+  (tested). Use latency 0 unless the frame loop must not wait.
+
+The kit's two-way coupling rows (block on a bed 1e-5, floor load 1e-5, spring scale 1e-5, third law 1e-12) were not
+run on the GPU: they need the kit's WASM world inside the worker, which was not set up.
+
+## Drawing without readback
+
+`WebGPURenderer.setSimulationLayers(layers)` draws layers inside the main pass with the scene uniforms bound
+(`src/webgpu/simulation-layers.ts`):
+
+- `createGrainLayer(target, positionBuffer, count)`: one camera-facing quad per grain shaded as a sphere; centre and
+  radius are pulled from the backend's position buffer in the vertex shader. A removed grain (radius negated by the
+  solver) is moved outside the view.
+- `createHeightFieldLayers(target, stateBuffer, bedBuffer, grid)`: the terrain and the water surface as a grid generated
+  from the vertex index, heights pulled from the state and bed buffers; dry cells of the water surface are discarded.
+  A grid finer than 512 quads along a side is drawn every `stride` cells (the solver still computes every cell).
+- `createPlaneLayer`: a rectangle with a grid.
+
+No simulation data is read back for a frame. The examples read back statistics only: 288 bytes per wall and 32 bytes of
+counters per batch of grain steps; 32 bytes every twentieth batch for shallow water.
+
+## Lab examples at scale
+
+```
+lab.html?example=sand-avalanche-100k        100 000 grains of 7 to 9 mm released behind a gate on a 30 degree slope
+lab.html?example=flood-valley-1m            a 34 m reservoir let go into a 1 km valley of 1024 x 1024 cells, Manning 0.035
+```
+
+`&n=` sets the size (grains; cells along a side). The avalanche takes 3360 grain steps per simulated second at 100 000
+grains (the step is set so that a grain at the bottom of the heap at rest overlaps by about 2.5 % of its radius; the
+heap is 18 layers deep), so 56 grain steps per frame at 60 Hz; the flood takes 2 to 3 substeps per 1/60 s step at
+1024 x 1024. Both run on their own clock (the Pause button stops them); a frame never waits for the GPU: the grain
+example waits for the walls' sums once per batch, the flood uses the newest face speeds that have come back
+(`rateWait: false`, so its substep counts depend on timing and two runs can differ). Without WebGPU
+compute (the WebGL2 renderer, or a device too small for the buffers) the page opens `hopper-seesaw` or
+`dam-break-valley` instead, and the log says why. `box3dLab.sceneState().gpuShowcase` reports the solver, the element
+count, steps, time, ms per step and the solver's statistics.
+
+Seen on SwiftShader (`node scripts/gpu-compute-browser-check.mjs out --showcase`, 2026-11-16) at small sizes only:
+3174 grains (`&n=3000`) and 96 x 96 cells (`&n=96`), stepped with the Lab paused between captures. The captures were
+looked at:
+
+- **Avalanche, 3174 grains** (1920 steps per simulated second at this size): at 0.12 s the heap stands behind the
+  gate (4944 touching pairs, largest overlap 16 % of a radius while the heap settles from its lattice); the gate is taken
+  away at 0.25 s; at 1.18 s the grains run down the slope in a tongue several heap lengths long, 1088 pairs and 1828
+  grain-wall contacts, nothing removed, no history slot or bucket overflowed. Drawn as shaded spheres from the
+  position buffer.
+- **Flood, 96 x 96 cells**: the reservoir at the head of the valley spills over the line of the old dam, the water
+  white where it runs fastest; at 8 s (481 steps, one substep each, Courant number 0.04 to 0.05, largest wave speed
+  16 m/s) 1168 cells are wet: the front has moved about 100 m of the 1 km valley, as it should in 8 s. Terrain and
+  water drawn from the state and bed buffers.
+- **Fall back**: `lab.html?example=flood-valley-1m&renderer=webgl2` opens `dam-break-valley` and says "This page is
+  drawing with WebGL2, which has no compute shaders."
+
+The full sizes (100 000 grains, 1024 x 1024 cells) were not run here: on SwiftShader a step of the avalanche at 3174
+grains takes 130 to 280 ms. **What they look like and how fast they run on a real GPU is not known yet.**
+
+## Timings
+
+Measured on SwiftShader only (`node scripts/gpu-compute-browser-check.mjs out --bench --sizes=64,128,256
+--grains=2000,8000 --steps=6`, 2026-11-16, the 4-core machine idle, load average 1 to 6). **SwiftShader is a CPU
+emulation of a GPU: these numbers say nothing about a GPU.** They are recorded so that the table's form is known.
+
+| Backend | Size | ms per step | Element updates per second | CPU solver, ms per step |
+|---|---|---|---|---|
+| shallow water | 64 x 64 | 8.2 | 0.50 million cell-substeps | 30 (JIT warm-up; 6 steps) |
+| shallow water | 128 x 128 | 30 | 0.54 million | 5.5 |
+| shallow water | 256 x 256 | 121 | 0.54 million | 22 |
+| grains (avalanche, at rest behind the gate) | 2000 | 23 | 86 000 grain-steps | 4.2 |
+| grains | 8192 | 112 | 73 000 | 1.35 |
+
+So on SwiftShader the backends run at 1/5 (shallow water) to 1/80 (grains, against a heap at rest where the float64
+solver's Verlet lists are cheapest) of the float64 CPU solvers. On SwiftShader the Lab steps of the examples took
+130 to 280 ms per grain step at 3174 grains and 2.3 to 3 s per 1/60 s flood step at 96 x 96 (with the Lab's own
+frame, also emulated, on the same cores).
+
+To measure on a real GPU (any machine with Chrome or Chromium 113 or later and a GPU):
+
+```
+npm ci && npm run build && npm run bench:gpu:hardware
+```
+
+That is `node scripts/gpu-compute-browser-check.mjs --hardware --bench`: it launches the browser without the software
+flags and prints one table (backend, size, substeps, ms per step, element updates per second, the CPU solver's ms per
+step where it fits, and the ratio), and writes `gpu-compute-bench-hardware.json`. `BOX3D_CHROMIUM` names the browser;
+`--sizes=256,512,1024,2048`, `--grains=10000,100000,400000,1000000` and `--steps=60` set the cases. The table's first line
+names the adapter and says so when it is a software adapter. The same table is on `gpu-probe.html` ("Time the backends").
+Run the validation on that machine too (`node scripts/gpu-compute-browser-check.mjs out --hardware`): a GPU may fuse
+multiply-adds and round `pow`, `log` and `sqrt` differently from SwiftShader, so "identical to the reference" above is a
+SwiftShader result; the closed-form rows have margin for that.
+
+## Not done
+
+- **Incompressible flow** (`fluid.ts`: MAC advection, pressure solve) and the **free surface** (APIC) on the GPU. A
+  red-black or Jacobi-preconditioned pressure solve in compute shaders, validated against the cavity, Poiseuille and
+  dam-break rows, is the next backend.
+- **`backend: 'gpu'` on scene sections.** `Simulation.step()` and every subsystem are synchronous and their state is
+  checkpointed bit for bit; a GPU backend's results arrive asynchronously and in float32. Wiring one in needs an
+  asynchronous subsystem stage (or the coupling pattern above generalised) and a decision on checkpoints. The Lab
+  examples at scale therefore run beside the Simulation loop, not through the scene format.
+- **The Studio's granular tray and river tabs on the GPU (`?gpu=1`).** Same reason: the Studio's SI solvers run inside
+  its synchronous step and its saved runs are exact.
+- **Shallow water with bodies and point sources** on the GPU.
+- **Compensated velocity and position sums** for grains (the incline row above).
+- **Real-GPU numbers** and a check that the closed-form rows hold on a real GPU's rounding.
+- The grain rows through the kit's rigid world, glass-bead repose and column collapse on the GPU.

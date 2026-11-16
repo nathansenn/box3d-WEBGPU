@@ -31,6 +31,12 @@ export interface GpuShallowWaterOptions {
   readonly rateLatency?:number;
   /** Factor on the face speed when the substeps are chosen. Default 1 with rateLatency 0, else 1.25. */
   readonly safety?:number;
+  /**
+   * With rateLatency >= 1 only. true (default): a step waits for the face speeds of the step `rateLatency` before it, so a
+   * run is repeatable. false: a step never waits; it uses the newest face speeds that have arrived, however old (a frame
+   * loop that must not block: the substep counts then depend on timing, so two runs can differ; raise `safety`).
+   */
+  readonly rateWait?:boolean;
 }
 export interface GpuShallowWaterSnapshot {
   readonly time:number;readonly steps:number;
@@ -48,7 +54,8 @@ export class GpuShallowWater {
   rainVolume=0;
   readonly initialVolume:number;
   dt:number;time:number;steps=0;
-  readonly rateLatency:number;readonly safety:number;
+  readonly rateLatency:number;readonly safety:number;readonly rateWait:boolean;
+  private readonly arrived:{meter:Meter;sub:number}[]=[];private readonly outstanding=new Set<Promise<void>>();
   private readonly infiltratedAtStart:number;
   private lastSub=0;
   private readonly pending:Promise<Meter>[]=[];
@@ -70,7 +77,7 @@ export class GpuShallowWater {
     this.compute=compute;this.water=water;this.setup=setup;this.stateBuffer=stateBuffer;this.stageBuffer=stageBuffer;this.fixedBuffer=fixedBuffer;this.auxBuffer=auxBuffer;this.meterBuffer=meterBuffer;this.paramBuffer=paramBuffer;
     this.pipelines=pipelines;this.forward=forward;this.backward=backward;
     this.nx=setup.nx;this.nz=setup.nz;this.dx=setup.dx;this.dz=setup.dz;this.dt=water.dt;this.time=water.time;
-    this.rateLatency=Math.max(0,Math.floor(options.rateLatency??0));this.safety=options.safety??(this.rateLatency>0?1.25:1);
+    this.rateLatency=Math.max(0,Math.floor(options.rateLatency??0));this.safety=options.safety??(this.rateLatency>0?1.25:1);this.rateWait=options.rateWait??true;
     this.latest=first;
     let v=0,F=0;for(let c=0;c<setup.state.length;c+=4){v+=setup.state[c];F+=setup.aux[c];}
     this.initialVolume=v*this.dx*this.dz;this.infiltratedAtStart=F;
@@ -155,6 +162,10 @@ export class GpuShallowWater {
       const meter=await this.measure();
       if(this.unbooked){this.book(meter,this.lastPlanSub);this.unbooked=false;}
       rateX=meter.measureX;rateZ=meter.measureZ;
+    }else if(!this.rateWait){
+      // Whatever has arrived, newest last; nothing is waited for.
+      while(this.arrived.length){const {meter,sub}=this.arrived.shift()!;this.latest={...meter,measureX:Math.max(meter.rateX,0),measureZ:Math.max(meter.rateZ,0)};this.book(meter,sub);}
+      rateX=this.latest.measureX;rateZ=this.latest.measureZ;
     }else{
       // The meter of the step `rateLatency` before this one (the first steps use the measurement made at creation).
       while(this.pending.length>=this.rateLatency){const meter=await this.pending.shift()!;this.latest={...meter,measureX:Math.max(meter.rateX,0),measureZ:Math.max(meter.rateZ,0)};this.book(meter,this.bookSubs.shift()!);}
@@ -184,7 +195,13 @@ export class GpuShallowWater {
     this.time+=duration;this.steps++;this.lastSub=plan.sub;
     this.stats.substeps=plan.substeps;this.stats.totalSubsteps+=plan.substeps;
     if(this.rateLatency===0){this.lastPlanSub=plan.sub;this.unbooked=true;}
-    else{this.pending.push(this.compute.read([{buffer:this.meterBuffer}]).then(([bytes])=>this.decode(bytes)));this.bookSubs.push(plan.sub);for(const p of this.pending)p.catch(()=>{});}
+    else if(!this.rateWait){
+      // At most four readbacks on their way: a GPU that is behind is not asked for more.
+      if(this.outstanding.size<4){
+        const sub=plan.sub,read:Promise<void>=this.compute.read([{buffer:this.meterBuffer}]).then(([bytes])=>{this.arrived.push({meter:this.decode(bytes),sub});},()=>{}).finally(()=>{this.outstanding.delete(read);});
+        this.outstanding.add(read);
+      }
+    }else{this.pending.push(this.compute.read([{buffer:this.meterBuffer}]).then(([bytes])=>this.decode(bytes)));this.bookSubs.push(plan.sub);for(const p of this.pending)p.catch(()=>{});}
   }
   private readonly bookSubs:number[]=[];
   /** Wait for everything submitted and bring `stats` (Courant number, wave speed, wet cells) up to the last step. */
@@ -193,6 +210,9 @@ export class GpuShallowWater {
     if(this.rateLatency===0){
       if(!this.unbooked)return;
       const [bytes]=await this.compute.read([{buffer:this.meterBuffer}]);this.book(this.decode(bytes),this.lastPlanSub);this.unbooked=false;
+    }else if(!this.rateWait){
+      await Promise.all([...this.outstanding]);
+      while(this.arrived.length){const {meter,sub}=this.arrived.shift()!;this.latest={...meter,measureX:Math.max(meter.rateX,0),measureZ:Math.max(meter.rateZ,0)};this.book(meter,sub);}
     }else if(this.pending.length){
       const all=await Promise.all(this.pending);
       for(let k=0;k<all.length;k++)this.book(all[k],this.bookSubs[k]);
