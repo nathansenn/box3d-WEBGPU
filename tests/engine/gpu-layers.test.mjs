@@ -9,7 +9,7 @@ import assert from 'node:assert/strict';
 import fs from 'node:fs';
 import {installGpuGlobals, mockDevice} from './fixtures/gpu-mock.mjs';
 installGpuGlobals();
-const {createGrainLayer, createHeightFieldLayers, createPlaneLayer, heightFieldStride} = await import('../../src/webgpu/simulation-layers.ts');
+const {createGrainLayer, createHeightFieldLayers, createPlaneLayer, createFluidSliceLayer, heightFieldStride} = await import('../../src/webgpu/simulation-layers.ts');
 const {gpuShowcaseRequest, GPU_SHOWCASES} = await import('../../src/lab/gpu-showcase.ts');
 const {LAB_EXAMPLE_NAMES} = await import('../../src/lab/scene-loading.ts');
 
@@ -43,13 +43,29 @@ test('plane: a rectangle of four vertices', async () => {
   const pass = recorder(); layer.draw(pass, 1); assert.deepEqual(pass.calls, ['pipeline 1x', 'group 1', 'draw 4 x 1']);
   layer.destroy();
 });
+test('fluid slices: one quad per cell of the plane, for each normal axis', () => {
+  for (const [axis, quads] of [[0, 10 * 8], [1, 12 * 8], [2, 12 * 10]]) {
+    const layer = createFluidSliceLayer(target, storage(4 * 20000), {cells: [12, 10, 8], padded: [14, 12], paddedSize: 1680, velocityOffset: 0, spacing: 0.1, axis, index: 2, speedScale: 1});
+    const pass = recorder(); layer.draw(pass, 4); assert.deepEqual(pass.calls, ['pipeline 4x', 'group 1', `draw ${6 * quads} x 1`]); layer.destroy();
+  }
+});
 test('the renderer draws its simulation layers in the main pass, opaque before blended', () => {
   assert.match(rendererSource, /for \(const blended of \[false, true\]\) for \(const layer of this\.simulationLayers\) if \(layer\.blended === blended\) \{\s*mainPass\.setBindGroup\(0, this\.sceneBindGroup\);\s*layer\.draw\(mainPass, this\.sampleCount\);/);
   assert.ok(rendererSource.indexOf('layer.draw(mainPass') < rendererSource.indexOf("label: 'AAA tone mapping and bloom pass'"), 'before the post pass');
 });
+test('with a GPU example on screen the Lab keeps one frame on the device, and draws none while the fluid steps', () => {
+  // On a slow adapter (SwiftShader) frames were queued faster than they ran; every readback of a fluid step (one per 16
+  // solver iterations) then waited behind all of them, and a 16^3 cube drew no frame in 34 minutes.
+  const main = fs.readFileSync(new URL('../../src/main.ts', import.meta.url), 'utf8'), showcase = fs.readFileSync(new URL('../../src/lab/gpu-showcase.ts', import.meta.url), 'utf8');
+  assert.match(main, /if\(gpuShowcase&&\(gpuShowcaseFramePending\|\|gpuShowcase\.holdsFrames\?\.\(\)\)\)\{last=now;frameRequest=requestAnimationFrame\(frame\);return;\}/);
+  assert.match(main, /renderer\.render\([^;]*\);\s*if \(gpuShowcase && renderer instanceof WebGPURenderer\) \{\s*gpuShowcaseFramePending = true;[\s\S]{0,120}onSubmittedWorkDone\(\)\.then\(done, done\);/);
+  assert.ok(main.indexOf('gpuShowcaseFramePending||') < main.indexOf('gpuShowcase.frame(gpuShowcasePaused'), 'the check comes before the example is stepped');
+  assert.match(showcase, /holdsFrames: \(\) => pending > 0/);
+});
 test('a showcase address is recognised, and its fall back is a real example', () => {
   assert.equal(gpuShowcaseRequest('?example=sand-avalanche-100k'), 'sand-avalanche-100k');
   assert.equal(gpuShowcaseRequest('?example=flood-valley-1m&n=128'), 'flood-valley-1m');
+  assert.equal(gpuShowcaseRequest('?example=lid-cavity-262k'), 'lid-cavity-262k');
   assert.equal(gpuShowcaseRequest('?example=dam-break'), null); assert.equal(gpuShowcaseRequest(''), null);
   for (const [name, entry] of Object.entries(GPU_SHOWCASES)) {
     assert.ok(LAB_EXAMPLE_NAMES.includes(entry.fallback), `${name} falls back to ${entry.fallback}`);
