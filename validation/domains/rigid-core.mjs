@@ -143,4 +143,28 @@ const characterCases = defineCases('rigid-core', CHARACTER, [
     reference: {formula: 'restored run = uninterrupted run', value: 0}, tolerance: absolute(0), measure: async () => (await characterCheckpoint()).mismatches},
 ]);
 
-export default [...cases, ...characterCases];
+const CCD = 'packages/box3d-kit/test/v21-rigid-ccd.test.mjs';
+const TD = {
+  wall: 'a 5 cm ball against a 2 cm wall at 60 Hz: discrete stepping loses the shots the window model predicts, continuous collision loses none',
+  bullet: 'the bullet flag: a ball passes through a thin free plate without it and is stopped with it, and momentum is conserved',
+};
+const wallShots = () => run('ccd/wall', (S, K) => S.bulletThroughWall(K));
+const bulletShot = () => run('ccd/bullet', (S, K) => S.bulletAgainstDynamic(K));
+const ccdCases = defineCases('rigid-core', CCD, [
+  {id: 'rigid-core.ccd.wall-on', title: 'Continuous collision on: balls through a thin wall', quantity: '5 cm balls of 120 that end beyond a 2 cm static wall, 15 to 240 m/s at 60 Hz (0.25 to 4 m per step)', unit: 'balls', test: TD.wall,
+    reference: {formula: 'none passes', value: 0}, tolerance: absolute(0), measure: async () => (await wallShots()).throughWithCcd},
+  {id: 'rigid-core.ccd.wall-off', title: 'Continuous collision off: balls through the same wall', quantity: 'balls of 120 that end beyond the wall with the setting off', unit: 'balls', test: TD.wall,
+    reference: {formula: 'N = sum over speeds of 24 (1 - (r + margin + thickness / 2) / (v dt)), margin = 4 linear slops', value: null}, tolerance: absolute(3),
+    note: 'A discrete step stops the ball only if it ends with the centre between r + 2 cm before the near face (Box3D makes contacts 2 cm ahead) and the wall mid-plane. The start positions are spread evenly over one step of travel.',
+    measure: async () => { const r = await wallShots(); return {value: r.throughWithout, reference: r.predictedWithout}; }},
+  {id: 'rigid-core.ccd.bullet', title: 'Bullet against a free plate: common speed', quantity: 'speed of plate and ball after a 0.88 kg ball at 150 m/s hits a 160 kg plate, 2 cm thick (2.5 m per step)', unit: 'm/s', test: TD.bullet,
+    reference: {formula: 'v = m u / (m + M), no restitution', value: null}, tolerance: relative(1e-3),
+    measure: async () => { const r = (await bulletShot()).bullet; return {value: r.plateSpeed, reference: r.masses[0] * 150 / (r.masses[0] + r.masses[1])}; }},
+  {id: 'rigid-core.ccd.bullet-momentum', title: 'Bullet against a free plate: momentum', quantity: 'total momentum after the impact', unit: 'kg m/s', test: TD.bullet,
+    reference: {formula: 'p = m u', value: null}, tolerance: relative(1e-4), measure: async () => { const r = (await bulletShot()).bullet; return {value: r.momentumAfter, reference: r.momentumBefore}; }},
+  {id: 'rigid-core.ccd.no-bullet', title: 'Without the bullet flag the ball passes the free plate', quantity: 'speed of the plate after the same shot without the flag', unit: 'm/s', test: TD.bullet,
+    reference: {formula: 'v = 0 (the ball is never in contact)', value: 0}, tolerance: absolute(1e-6),
+    note: 'Continuous collision covers dynamic bodies against static ones. Between two moving bodies it runs only when one is a bullet.', measure: async () => (await bulletShot()).plain.plateSpeed},
+]);
+
+export default [...cases, ...characterCases, ...ccdCases];

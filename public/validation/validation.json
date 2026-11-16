@@ -5,8 +5,8 @@
  "generatedBy": "node scripts/validation-report.mjs",
  "digits": 9,
  "totals": {
-  "cases": 632,
-  "passed": 632,
+  "cases": 637,
+  "passed": 637,
   "failed": 0,
   "domains": 23
  },
@@ -34,7 +34,7 @@
   {
    "id": "rigid-core",
    "title": "Rigid core: queries, character, continuous collision, vehicles, joints and piles",
-   "summary": "Ray, sweep and overlap queries against closed forms, and the batched ray call. The capsule character: speed, slope limit, step height, stairs, jump, thin walls, moving platforms, force-limited pushing and exact resume.",
+   "summary": "Ray, sweep and overlap queries against closed forms, and the batched ray call. The capsule character: speed, slope limit, step height, stairs, jump, thin walls, moving platforms, force-limited pushing and exact resume. Continuous collision: a fast ball against a thin wall with the setting off and on, and the bullet flag against a free plate.",
    "solver": "Box3D compiled to WebAssembly, through `box3d-webgpu-kit` (float32 state, 240 Hz, 4 sub-steps unless a row says otherwise)",
    "docs": [
     "docs/RIGID_CORE.md"
@@ -44,10 +44,11 @@
     "Sweeps are checked from a separated start. A sweep that starts overlapping reports fraction 0 with a zero normal, which is behaviour inherited from Box3D and not a time of impact.",
     "Box and capsule query shapes are axis aligned (the capsule upright). Rotated query shapes are not exposed.",
     "The character is checked on boxes and ramps. Triangle-mesh and height-field ground, rotating platforms, crouching, swimming and ladders are not covered; a dynamic body the character stands on does not feel its weight.",
+    "Continuous collision is checked for spheres against boxes. Fast rotation (a spinning thin bar) is not swept by Box3D and is not checked; kinematic bodies are not swept against static ones.",
     "One build on one machine; no cross-device determinism matrix."
    ],
-   "cases": 40,
-   "passed": 40
+   "cases": 45,
+   "passed": 45
   },
   {
    "id": "water-coupling",
@@ -2775,6 +2776,148 @@
     "measured": "0",
     "error": "0",
     "tolerance": "±0"
+   }
+  },
+  {
+   "id": "rigid-core.ccd.wall-on",
+   "domain": "rigid-core",
+   "title": "Continuous collision on: balls through a thin wall",
+   "quantity": "5 cm balls of 120 that end beyond a 2 cm static wall, 15 to 240 m/s at 60 Hz (0.25 to 4 m per step)",
+   "unit": "balls",
+   "formula": "none passes",
+   "reference": 0,
+   "measured": 0,
+   "error": 0,
+   "relativeError": null,
+   "tolerance": {
+    "kind": "absolute",
+    "value": 0
+   },
+   "pass": true,
+   "source": {
+    "file": "packages/box3d-kit/test/v21-rigid-ccd.test.mjs",
+    "test": "a 5 cm ball against a 2 cm wall at 60 Hz: discrete stepping loses the shots the window model predicts, continuous collision loses none",
+    "url": "https://github.com/nathansenn/box3d-WEBGPU/blob/main/packages/box3d-kit/test/v21-rigid-ccd.test.mjs"
+   },
+   "text": {
+    "reference": "0 balls",
+    "measured": "0",
+    "error": "0",
+    "tolerance": "±0"
+   }
+  },
+  {
+   "id": "rigid-core.ccd.wall-off",
+   "domain": "rigid-core",
+   "title": "Continuous collision off: balls through the same wall",
+   "quantity": "balls of 120 that end beyond the wall with the setting off",
+   "unit": "balls",
+   "formula": "N = sum over speeds of 24 (1 - (r + margin + thickness / 2) / (v dt)), margin = 4 linear slops",
+   "reference": 110,
+   "measured": 110,
+   "error": 0,
+   "relativeError": 0,
+   "tolerance": {
+    "kind": "absolute",
+    "value": 3
+   },
+   "pass": true,
+   "note": "A discrete step stops the ball only if it ends with the centre between r + 2 cm before the near face (Box3D makes contacts 2 cm ahead) and the wall mid-plane. The start positions are spread evenly over one step of travel.",
+   "source": {
+    "file": "packages/box3d-kit/test/v21-rigid-ccd.test.mjs",
+    "test": "a 5 cm ball against a 2 cm wall at 60 Hz: discrete stepping loses the shots the window model predicts, continuous collision loses none",
+    "url": "https://github.com/nathansenn/box3d-WEBGPU/blob/main/packages/box3d-kit/test/v21-rigid-ccd.test.mjs"
+   },
+   "text": {
+    "reference": "110 balls",
+    "measured": "110",
+    "error": "0",
+    "tolerance": "±3"
+   }
+  },
+  {
+   "id": "rigid-core.ccd.bullet",
+   "domain": "rigid-core",
+   "title": "Bullet against a free plate: common speed",
+   "quantity": "speed of plate and ball after a 0.88 kg ball at 150 m/s hits a 160 kg plate, 2 cm thick (2.5 m per step)",
+   "unit": "m/s",
+   "formula": "v = m u / (m + M), no restitution",
+   "reference": 0.822489489,
+   "measured": 0.82248956,
+   "error": 7.04816905e-8,
+   "relativeError": 8.569312e-8,
+   "tolerance": {
+    "kind": "relative",
+    "value": 0.001
+   },
+   "pass": true,
+   "source": {
+    "file": "packages/box3d-kit/test/v21-rigid-ccd.test.mjs",
+    "test": "the bullet flag: a ball passes through a thin free plate without it and is stopped with it, and momentum is conserved",
+    "url": "https://github.com/nathansenn/box3d-WEBGPU/blob/main/packages/box3d-kit/test/v21-rigid-ccd.test.mjs"
+   },
+   "text": {
+    "reference": "0.8224895 m/s",
+    "measured": "0.8224896",
+    "error": "+8.57e-8 rel.",
+    "tolerance": "±0.1%"
+   }
+  },
+  {
+   "id": "rigid-core.ccd.bullet-momentum",
+   "domain": "rigid-core",
+   "title": "Bullet against a free plate: momentum",
+   "quantity": "total momentum after the impact",
+   "unit": "kg m/s",
+   "formula": "p = m u",
+   "reference": 132.323885,
+   "measured": 132.323896,
+   "error": 0.0000112866658,
+   "relativeError": 8.52957557e-8,
+   "tolerance": {
+    "kind": "relative",
+    "value": 0.0001
+   },
+   "pass": true,
+   "source": {
+    "file": "packages/box3d-kit/test/v21-rigid-ccd.test.mjs",
+    "test": "the bullet flag: a ball passes through a thin free plate without it and is stopped with it, and momentum is conserved",
+    "url": "https://github.com/nathansenn/box3d-WEBGPU/blob/main/packages/box3d-kit/test/v21-rigid-ccd.test.mjs"
+   },
+   "text": {
+    "reference": "132.3239 kg m/s",
+    "measured": "132.3239",
+    "error": "+8.53e-8 rel.",
+    "tolerance": "±0.01%"
+   }
+  },
+  {
+   "id": "rigid-core.ccd.no-bullet",
+   "domain": "rigid-core",
+   "title": "Without the bullet flag the ball passes the free plate",
+   "quantity": "speed of the plate after the same shot without the flag",
+   "unit": "m/s",
+   "formula": "v = 0 (the ball is never in contact)",
+   "reference": 0,
+   "measured": 0,
+   "error": 0,
+   "relativeError": null,
+   "tolerance": {
+    "kind": "absolute",
+    "value": 0.000001
+   },
+   "pass": true,
+   "note": "Continuous collision covers dynamic bodies against static ones. Between two moving bodies it runs only when one is a bullet.",
+   "source": {
+    "file": "packages/box3d-kit/test/v21-rigid-ccd.test.mjs",
+    "test": "the bullet flag: a ball passes through a thin free plate without it and is stopped with it, and momentum is conserved",
+    "url": "https://github.com/nathansenn/box3d-WEBGPU/blob/main/packages/box3d-kit/test/v21-rigid-ccd.test.mjs"
+   },
+   "text": {
+    "reference": "0 m/s",
+    "measured": "0",
+    "error": "0",
+    "tolerance": "±1e-6"
    }
   },
   {

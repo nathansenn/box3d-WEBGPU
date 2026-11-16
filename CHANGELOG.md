@@ -1,5 +1,10 @@
 # Changelog
 
+## Unreleased — 2026-11-16 — Rigid core: continuous collision shown and validated
+
+- **Tests and validation of `continuous` (world setting) and `bullet` (body flag)** (`packages/box3d-kit/test/v21-rigid-ccd.test.mjs`, 3 tests; 5 registry rows). 5 cm balls against a 2 cm static wall at 60 Hz, 15 to 240 m/s (0.25 to 4 m per step), 24 start positions per speed: with `continuous` off 19, 21, 23, 23 and 24 of 24 pass through, exactly the counts of a window model (the ball is stopped only if a step ends with its centre within r + 2 cm + thickness/2 = 5.5 cm of the right place; 2 cm is Box3D's speculative distance, read in its `constants.h`); with it on, 0 of 120. A 0.88 kg ball at 150 m/s against a free 160 kg plate: it passes without the bullet flag, and with it both end at 0.82249 m/s = m u / (m + M), momentum conserved to 9e-8.
+- **Limits:** only translation is swept (a fast-spinning thin bar is not); kinematic bodies are not swept against static ones.
+
 ## Unreleased — 2026-11-16 — Rigid core: a capsule character on Box3D's mover, validated
 
 - **`CapsuleCharacterController`** (`src/engine/character-controller.ts`, published as `box3d-webgpu-kit/gameplay`): a capsule on `b3World_CollideMover`, `b3SolvePlanes` and `b3World_CastMover` (one bridge call per move). Walks at the commanded speed along walkable ground and stays on it down slopes and stairs; surfaces steeper than `maxSlopeDegrees` are walls from the ground and slides from the air; ledges up to `stepHeight` are stepped onto; jumps; rides kinematic and dynamic bodies; pushes dynamic bodies with at most `maxPushForce` through `applyImpulseAt`, so a recording holds the pushes; never passes through thin geometry. `saveState()` / `restoreState()` with the world's checkpoint resume a walk bit for bit.

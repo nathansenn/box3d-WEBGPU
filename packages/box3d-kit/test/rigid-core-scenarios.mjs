@@ -479,3 +479,63 @@ export async function characterCheckpoint(K) {
     return {mismatches, steps: total - half, pushes, stepped, end: a.character.state.position, savedKeys: Object.keys(saved).sort()};
   } finally { a.world.dispose(); b.world.dispose(); }
 }
+
+// ---------------------------------------------------------------------------------------------------
+// Continuous collision.
+// ---------------------------------------------------------------------------------------------------
+
+/**
+ * A 5 cm steel ball fired at a 2 cm static wall, at 60 Hz, from `phases` start positions spread over one
+ * step's travel so that every alignment of the steps with the wall occurs. Returns, per speed, how many shots
+ * ended beyond the wall, with continuous collision off and on. `predictedThrough` is the number of shots that
+ * discrete stepping must lose. Without continuous collision the ball is stopped only if some step ends with its
+ * centre between r + margin before the wall's near face (a contact exists, margin being Box3D's speculative
+ * distance of 4 linear slops = 2 cm) and the wall's mid-plane (beyond that the overlap is pushed out the far side):
+ * a window of r + margin + thickness / 2 out of every v dt of travel.
+ */
+export async function bulletThroughWall(K, {speeds = [15, 30, 60, 120, 240], phases = 24} = {}) {
+  const dt = 1 / 60, radius = 0.025, thickness = 0.02, wallX = 6, margin = 4 * LINEAR_SLOP;   // B3_SPECULATIVE_DISTANCE, third_party/box3d/include/box3d/constants.h
+  const shoot = async (speed, continuous) => {
+    const world = await K.createWorld({step: dt, subSteps: 4, gravity: [0, 0, 0], ground: false});
+    try {
+      world.configure({continuous});
+      world.createBody({shape: {kind: 'box', halfExtents: [thickness / 2, 2, 20]}, type: 'static', position: [wallX, 0, 0]});
+      const balls = [];
+      for (let i = 0; i < phases; i++) balls.push(world.createBody({shape: {kind: 'sphere', radius}, density: 7800, position: [-(i + 0.5) / phases * speed * dt, 0, (i - phases / 2) * 1.5], linearVelocity: [speed, 0, 0]}));
+      const steps = Math.ceil((wallX + 4) / (speed * dt)) + 4;
+      for (let i = 0; i < steps; i++) world.step();
+      return balls.filter(ball => world.getState(ball).position[0] > wallX + thickness).length;
+    } finally { world.dispose(); }
+  };
+  const rows = [];
+  for (const speed of speeds) {
+    const capture = Math.min(1, (radius + margin + thickness / 2) / (speed * dt));
+    rows.push({speed, travelPerStep: speed * dt, through: {off: await shoot(speed, false), on: await shoot(speed, true)}, predictedThrough: Math.round(phases * (1 - capture)), phases});
+  }
+  return {rows, phases, thickness, radius, throughWithCcd: rows.reduce((n, r) => n + r.through.on, 0), throughWithout: rows.reduce((n, r) => n + r.through.off, 0),
+    predictedWithout: rows.reduce((n, r) => n + r.predictedThrough, 0), shots: rows.length * phases};
+}
+
+/**
+ * The bullet flag: a small ball fired at a thin free plate (dynamic against dynamic, which continuous collision
+ * does not cover by default). Returns whether the ball passed, and the momentum before and after, without and with
+ * `bullet: true`.
+ */
+export async function bulletAgainstDynamic(K, {speed = 150} = {}) {
+  const dt = 1 / 60, radius = 0.03, half = [0.01, 1, 1];
+  const shoot = async bullet => {
+    const world = await K.createWorld({step: dt, subSteps: 4, gravity: [0, 0, 0], ground: false});
+    try {
+      const plate = world.createBody({shape: {kind: 'box', halfExtents: half}, density: 2000, position: [4, 0, 0]});
+      // Start so that discrete steps straddle the plate: one step ends 1 m before it and the next 1.5 m after.
+      const ball = world.createBody({shape: {kind: 'sphere', radius}, density: 7800, position: [3 - 3 * speed * dt, 0, 0], linearVelocity: [speed, 0, 0]});
+      if (bullet) world.setBullet(ball, true);
+      const mb = world.getState(ball).mass, mp = world.getState(plate).mass, before = mb * speed;
+      for (let i = 0; i < 12; i++) world.step();
+      const b = world.getState(ball), p = world.getState(plate);
+      return {passed: b.position[0] > p.position[0], momentumBefore: before, momentumAfter: mb * b.linearVelocity[0] + mp * p.linearVelocity[0], plateSpeed: p.linearVelocity[0],
+        ballSpeed: b.linearVelocity[0], flag: world.getBodyFlags(ball).bullet, masses: [mb, mp]};
+    } finally { world.dispose(); }
+  };
+  return {plain: await shoot(false), bullet: await shoot(true), speed};
+}
