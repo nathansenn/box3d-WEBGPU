@@ -40,6 +40,7 @@ const FILES = [
   'test/v22-rigid-controls.test.mjs',
   'test/v22-rigid-examples.test.mjs',
   'test/v22-rigid-scale.test.mjs',
+  'test/v22-rigid-native.test.mjs',
   'test/v21-ray-batch.test.mjs',
   'test/v22-solid-solid-contact.test.mjs',
 ];

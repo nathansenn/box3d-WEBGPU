@@ -151,6 +151,7 @@ b3BoxHull b3MakeBoxHull(float hx, float hy, float hz);
 b3BoxHull b3MakeTransformedBoxHull(float hx, float hy, float hz, b3Transform transform);
 void b3CreateHullShape(b3BodyId body, const b3ShapeDef* def, const b3HullData* hull);
 b3HullData* b3CreateHull(const b3Vec3* points, int pointCount, int maxVertexCount);
+b3AABB b3Body_ComputeAABB(b3BodyId bodyId);
 void b3DestroyHull(b3HullData* hull);
 b3MeshData* b3CreateMesh(const b3MeshDef* def, int* degenerateTriangleIndices, int degenerateCapacity);
 void b3DestroyMesh(b3MeshData* mesh);

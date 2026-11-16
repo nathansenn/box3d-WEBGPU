@@ -548,6 +548,20 @@ cantilever. A scene saved after the break holds those two welds and no others.
   the step size as well as on the block. The example is deterministic, not mesh-converged.
 - The vehicle circle is measured on bumpy ground and so only to 5%; the flat-ground rows are in section 4.
 
+## 10. Native defects found by fuzzing
+
+The fuzzers (`tests/fuzz`, docs/ROBUSTNESS.md) found defects in the native side. What the bridge does about each:
+
+- **ND-1, a step that never returns.** Box3D's convex contact code (`b3FindIncidentFace`, a walk around a half-edge
+  ring) loops for ever when a dynamic box of half extent about 1.5 km or more lands on something; a dynamic hull cube
+  does it at 100 km. Static and kinematic boxes do not (a 100 km static or kinematic slab with bodies landing on it
+  steps normally). Box3D is pinned upstream, so the bridge refuses the size for dynamic bodies only: a box half
+  extent above 1 km, a hull point more than 1 km from its body's origin, and a compound box or hull child beyond
+  1 km (`B3W_MAX_CONVEX_EXTENT`; the projectile and recipe paths too), and making a box, hull or compound body whose
+  bounds exceed 1 km dynamic. The body is not created (or keeps its type) and the kit reports `INVALID_PAYLOAD`. A
+  1 km cube landing at 200 m/s deep in the ground steps normally. Spheres and capsules have no polytope contact and
+  are not limited. Test: `packages/box3d-kit/test/v22-rigid-native.test.mjs`.
+
 ## Custom filter and pre-solve callbacks: not exposed
 
 Box3D can call the application for every candidate pair (`b3World_SetCustomFilterCallback`) and for every touching

@@ -46,6 +46,12 @@ typedef struct B3WBodySlot
 } B3WBodySlot;
 
 #define B3W_HULL_CACHE_CAPACITY 8
+// Largest half extent of a box, and largest distance of a hull point from its body origin, in metres, for a dynamic
+// body. Box3D's convex contact code can stop returning above it (native defect ND-1: b3FindIncidentFace walks a
+// half-edge ring for ever when a dynamic box of half extent 1.5 km or more touches something; a hull cube does it at
+// 100 km). Static and kinematic bodies of any size are fine (a 100 km static slab with boxes landing on it steps
+// normally), so roads and terrain slabs are not limited. Spheres and capsules have no polytope contact.
+#define B3W_MAX_CONVEX_EXTENT 1000.0f
 
 #define B3W_QUERY_LIMIT 128
 #define B3W_QUERY_HIT_LIMIT 32768
@@ -737,6 +743,7 @@ static void b3w_ctx_free_point_hulls(B3WContext* ctx)
 
 static int b3w_ctx_add_box_ex(B3WContext* ctx, b3BodyType type, float x, float y, float z, float hx, float hy, float hz, uint32_t color, float density, float friction, float restitution)
 {
+    if (type == b3_dynamicBody && (hx > B3W_MAX_CONVEX_EXTENT || hy > B3W_MAX_CONVEX_EXTENT || hz > B3W_MAX_CONVEX_EXTENT)) return -1;
     if (ctx->bodyCount >= ctx->capacity || (ctx->bodySlots != NULL && ctx->freeSlot < 0 && ctx->slotsUsed >= ctx->capacity))
     {
         return -1;
@@ -2333,6 +2340,7 @@ static uint64_t b3w_ctx_create_general(B3WContext* ctx, const B3WBodyDesc* desc,
     if (kind == 2u) { hz = hx; if (!(hy >= 0.0025f)) return 0u; } // Box3D's minimum capsule length is 5 mm
     // Every extent scales a render-matrix column, so none may be zero.
     if (!(hx > 0.0f) || !(hy > 0.0f) || !(hz > 0.0f) || !isfinite(hx) || !isfinite(hy) || !isfinite(hz)) return 0u;
+    if (kind == 0u && desc->type == 2u && (hx > B3W_MAX_CONVEX_EXTENT || hy > B3W_MAX_CONVEX_EXTENT || hz > B3W_MAX_CONVEX_EXTENT)) return 0u;
     if (!(desc->density >= 0.0f) || !(desc->friction >= 0.0f) || !(desc->restitution >= 0.0f)) return 0u;
     if (!isfinite(desc->density) || !isfinite(desc->friction) || !isfinite(desc->restitution)) return 0u;
     if (ctx->bodyCount >= ctx->capacity || (ctx->freeSlot < 0 && ctx->slotsUsed >= ctx->capacity)) return 0u;
@@ -2466,7 +2474,7 @@ B3W_EXPORT uint64_t b3w_world_create_hull_body(uint32_t handle, const B3WBodyDes
 {
     B3WContext* ctx = b3w_lookup_context(handle);
     if (ctx == NULL || B3_IS_NULL(ctx->world) || desc == NULL || points == NULL || count < 4 || count > 4096) return 0u;
-    for (int i = 0; i < count * 3; ++i) if (!isfinite(points[i])) return 0u;
+    for (int i = 0; i < count * 3; ++i) if (!isfinite(points[i]) || (desc->type == 2u && fabsf(points[i]) > B3W_MAX_CONVEX_EXTENT)) return 0u;
     const b3HullData* hull = b3w_ctx_point_hull(ctx, points, count);
     if (hull == NULL) return 0u;
     return b3w_ctx_create_general(ctx, desc, 3u, (void*)(uintptr_t)hull); // the shape keeps its own copy
@@ -2544,17 +2552,20 @@ B3W_EXPORT uint64_t b3w_world_create_compound_body(uint32_t handle, const B3WBod
     {
         const B3WShapeDesc* child = shapes + i;
         if (child->kind > 3u || !b3w_finite3(child->position)) return 0u;
+        // A polytope child far from the body origin has coordinates as large as a large shape (ND-1).
+        if (desc->type == 2u && (child->kind == 0u || child->kind == 3u) && (fabsf(child->position[0]) > B3W_MAX_CONVEX_EXTENT || fabsf(child->position[1]) > B3W_MAX_CONVEX_EXTENT || fabsf(child->position[2]) > B3W_MAX_CONVEX_EXTENT)) return 0u;
         if (!isfinite(child->rotation[0]) || !isfinite(child->rotation[1]) || !isfinite(child->rotation[2]) || !isfinite(child->rotation[3])) return 0u;
         if (!(child->density >= 0.0f) || !(child->friction >= 0.0f) || !(child->restitution >= 0.0f)) return 0u;
         if (!isfinite(child->density) || !isfinite(child->friction) || !isfinite(child->restitution)) return 0u;
         const float* size = child->size;
         if (child->kind == 0u && (!(size[0] > 0.0f) || !(size[1] > 0.0f) || !(size[2] > 0.0f) || !b3w_finite3(size))) return 0u;
+        if (desc->type == 2u && child->kind == 0u && (size[0] > B3W_MAX_CONVEX_EXTENT || size[1] > B3W_MAX_CONVEX_EXTENT || size[2] > B3W_MAX_CONVEX_EXTENT)) return 0u;
         if (child->kind == 1u && (!(size[0] > 0.0f) || !isfinite(size[0]))) return 0u;
         if (child->kind == 2u && (!(size[0] > 0.0f) || !(size[1] >= 0.0025f) || !isfinite(size[0]) || !isfinite(size[1]))) return 0u;
         if (child->kind == 3u)
         {
             if (child->pointCount < 4 || child->pointCount > 4096 || child->pointOffset < 0 || child->pointOffset > pointCount - child->pointCount) return 0u;
-            for (int k = 0; k < child->pointCount * 3; ++k) if (!isfinite(points[child->pointOffset * 3 + k])) return 0u;
+            for (int k = 0; k < child->pointCount * 3; ++k) if (!isfinite(points[child->pointOffset * 3 + k]) || (desc->type == 2u && fabsf(points[child->pointOffset * 3 + k]) > B3W_MAX_CONVEX_EXTENT)) return 0u;
         }
     }
     // Build every hull in the body frame before the body exists, so a refused hull leaves nothing behind.
@@ -2775,6 +2786,18 @@ B3W_EXPORT int b3w_world_set_body_type(uint32_t worldHandle, uint64_t bodyHandle
 {
     B3W_BODY(ctx, index)
     if (type > 2u) return -2;
+    if (type == 2u)
+    {
+        // A static or kinematic body may be larger than a dynamic one may be (ND-1); refuse making a large one dynamic.
+        // Its world bounds are used, which is conservative for a rotated body.
+        const uint8_t kind = ctx->kinds != NULL ? ctx->kinds[index] : 0u;
+        if (kind == 0u || kind == 3u || kind == 6u)
+        {
+            const b3AABB box = b3Body_ComputeAABB(ctx->bodies[index].id);
+            const float hx = 0.5f * (float)(box.upperBound.x - box.lowerBound.x), hy = 0.5f * (float)(box.upperBound.y - box.lowerBound.y), hz = 0.5f * (float)(box.upperBound.z - box.lowerBound.z);
+            if (hx > B3W_MAX_CONVEX_EXTENT || hy > B3W_MAX_CONVEX_EXTENT || hz > B3W_MAX_CONVEX_EXTENT) return -2;
+        }
+    }
     b3Body_SetType(ctx->bodies[index].id, type == 0u ? b3_staticBody : type == 1u ? b3_kinematicBody : b3_dynamicBody);
     // Box3D recomputes mass from the shapes on a type change; put an explicit mass back.
     const B3WMassOverride* mass = b3w_ctx_find_mass(ctx, ctx->bodies[index].slot);
