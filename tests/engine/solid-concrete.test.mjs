@@ -125,6 +125,33 @@ test('the deviatoric return\'s Newton step: lodeFactor2 gives r of lodeFactor to
   assert.ok(worst < 5e-8, `r'' against central differences: ${worst}`);
 });
 
+test('consistent tangent: the principal-axes tangent with its closed-form compression part matches differences of the return in every regime', async () => {
+  const m = await c30(), E = m.youngModulus, nu = m.poissonRatio, la = E * nu / ((1 + nu) * (1 - 2 * nu)), mu = E / (2 * (1 + nu));
+  const law = buildConcreteLaw({...m.concrete, bandWidth: 0.03}, E, nu, 1e-6), R = new ConcreteReturn(law, la, mu);
+  let seed = 11; const rnd = () => (seed = (seed * 16807) % 2147483647) / 2147483647;
+  const fd = (t, kc, kt, xn, out) => { R.map(t, kc, kt, 1, xn, -1); const base = Array.from(R.stress), d = 1e-9; for (let j = 0; j < 6; j++) { const u = Array.from(t); u[j] += j < 3 ? d : d / 2; R.map(u, kc, kt, 1, xn, -1); for (let i = 0; i < 6; i++) out[6 * i + j] = (R.stress[i] - base[i]) / d; } };
+  const A = new Float64Array(36), B = new Float64Array(36), F = new Float64Array(36), seen = {compression: 0, rankine: 0, equal: 0};
+  let worst = 0, worstClosed = 0;
+  for (let k = 0; k < 600; k++) {
+    const c = -0.004 * rnd(), w = () => rnd() - 0.5;
+    const t = [c + 0.0015 * w(), c * (k % 3 === 0 ? 1 : -0.2) + 0.0015 * w(), -0.2 * c + 0.001 * w() + (k % 4 === 0 ? 3e-4 : 0), 0.001 * w(), 0.001 * w(), 0.001 * w()];
+    const equal = k % 5 === 0; if (equal) { t[3] = t[4] = t[5] = 0; t[1] = t[2]; }
+    const kc = k % 4 === 0 ? 0 : 0.003 * rnd(), kt = k % 7 === 0 ? 1e-4 : 0, xn = 1e7 * rnd();
+    R.map(t, kc, kt, 1, xn, -1); if (!R.yielded) continue;
+    if (R.dKappaT > 0) seen.rankine++; else seen.compression++; if (equal) seen.equal++;
+    const kept = R.principalValid ? Float64Array.from(R.principal) : null;
+    fd(t, kc, kt, xn, A);
+    const before = R.closedFormCount; R.tangent(t, kc, kt, 1, xn, -1, B, 1e-9, kept, 0);
+    let d = 0; for (let q = 0; q < 36; q++) d = Math.max(d, Math.abs(A[q] - B[q])); worst = Math.max(worst, d / E);
+    if (R.closedFormCount > before) { R.closedForm = false; R.tangent(t, kc, kt, 1, xn, -1, F, 1e-9, kept, 0); R.closedForm = true; let dd = 0; for (let q = 0; q < 36; q++) dd = Math.max(dd, Math.abs(F[q] - B[q])); worstClosed = Math.max(worstClosed, dd / E); }
+  }
+  console.log(`# tangent: ${seen.compression} compression and ${seen.rankine} Rankine returns (${seen.equal} with two equal principal strains), ${R.closedFormCount} in closed form; against tensor differences ${worst.toExponential(2)} E, closed form against principal differences ${worstClosed.toExponential(2)} E`);
+  assert.ok(seen.compression > 100 && seen.rankine > 10 && seen.equal > 50 && R.closedFormCount > 100);
+  // 1e-5 E: forward differences with a step of 1e-9 carry an error of about 1e-6 E (rounding of the stress over the step).
+  assert.ok(worst < 1e-5, `tangent against differences: ${worst}`);
+  assert.ok(worstClosed < 1e-5, `closed form against differences: ${worstClosed}`);
+});
+
 test('return mapping: the stress is the derivative of the returned energy, in every regime', async () => {
   const m = await c30(), E = m.youngModulus, nu = m.poissonRatio, la = E * nu / ((1 + nu) * (1 - 2 * nu)), mu = E / (2 * (1 + nu));
   const cases = [[[1e-5, 0, 0, 0, 0, 0], 0, 0, 0], [[1.2e-4, -1e-5, -2e-5, 1e-5, 0, 3e-6], 0, 1e-4, 0], [[-2.5e-3, 4e-4, 1e-3, 2e-4, 1e-4, 0], 1e-3, 2e-4, 5e6], [[2e-4, 1.9e-4, 1e-4, 0, 0, 0], 0, 0, 0],
