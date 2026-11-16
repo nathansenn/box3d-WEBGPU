@@ -3589,6 +3589,7 @@ export declare class NativeWorldBackend implements PhysicsBackend {
     private readonly bodyOwner;
     private jointOwner;
     private ownCheckpoints;
+    private rememberCheckpoint;
     private scratch;
     private wideScratch;
     private kindRows;
@@ -8508,6 +8509,7 @@ export interface WorldStats {
     readonly lastUpdateMs: number;
     readonly droppedSeconds: number;
     readonly nonFiniteSince: number | null;
+    readonly contained: number;
 }
 export type ReplayCommand = {
     readonly t: number;
@@ -8593,6 +8595,9 @@ export declare class PhysicsWorld {
     private droppedEventCount;
     private readonly strict;
     private nonFiniteTick;
+    private containedSeen;
+    private containedCount;
+    private containedTick;
     private readonly jointInfo;
     private jointPruneAt;
     private rayTokens;
@@ -8700,6 +8705,8 @@ export declare class PhysicsWorld {
     update(frameSeconds: number): FixedStepResult;
     private runStep;
     private checkFinite;
+    private checkContained;
+    private clearContained;
     onStep(listener: (tick: number) => void): () => void;
     private replayCheck;
     private capturePrevious;

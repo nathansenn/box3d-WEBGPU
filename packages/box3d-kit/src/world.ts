@@ -281,8 +281,9 @@ export interface WorldOptions extends FixedStepOptions {
   readonly interpolate?: boolean;
   /**
    * Throw an EngineError with code NUMERICAL_FAILURE from step() or update() as soon as a step leaves a body with a
-   * transform that is not finite, instead of only recording it in stats().nonFiniteSince. Default false: a game loop
-   * keeps running and decides for itself (restore a checkpoint, reset the level). Tests and tools should pass true.
+   * transform that is not finite, or diverges so that the native bridge has to contain a body (stats().contained), instead
+   * of only recording it in stats().nonFiniteSince or stats().contained. Default false: a game loop keeps running and
+   * decides for itself (restore a checkpoint, reset the level). Tests and tools should pass true.
    */
   readonly strict?: boolean;
   /**
@@ -344,6 +345,14 @@ export interface WorldStats {
    * restore a checkpoint taken before that tick, or reset. See diagnose() for what makes a set-up unstable.
    */
   readonly nonFiniteSince: number | null;
+  /**
+   * Bodies the native bridge contained since the last reset or restore: a step diverged for the body (joints that
+   * contradict each other can make Box3D's solve run away), so the bridge put it back at its pose of the step before, at
+   * rest, and the world stayed finite. Each is also a 'body-contained' event. 0 in a sound scene and with a WASM build
+   * that does not contain. A world created with `strict: true` throws NUMERICAL_FAILURE at the step instead; diagnose()
+   * reports it as the rule `body-contained`.
+   */
+  readonly contained: number;
 }
 
 /** One recorded action of a ReplayLog, with the tick it happened at. Bodies are named by render row and joints by creation order, so that a log replays in any world. */
@@ -452,6 +461,11 @@ export class PhysicsWorld {
   private droppedEventCount = 0;
   private readonly strict: boolean;
   private nonFiniteTick: number | null = null;
+  // Containments by the native bridge (ND-2): its running total when last read, how many since the last reset or
+  // restore, and the tick of the first of them.
+  private containedSeen = 0;
+  private containedCount = 0;
+  private containedTick: number | null = null;
   // What diagnose() needs to know about each joint made through createJoint, by joint token.
   private readonly jointInfo = new Map<bigint, {joint: Joint; a: Body | null; b: Body | null; spring: number; stiffness: number; anchorA: Vec3; anchorB: Vec3}>();
   private jointPruneAt = 256;
@@ -472,6 +486,7 @@ export class PhysicsWorld {
       this.jointStiffnessOption = checkStiffness(options.jointStiffness, 'jointStiffness');
       this.contactStiffnessOption = checkStiffness(options.contactStiffness, 'contactStiffness');
       if (options.capacity !== undefined) this.native.reserveBodyCapacity(options.capacity);
+      this.containedSeen = this.native.containedTotal();
     } catch (error) {
       this.native.destroy();
       throw error;
@@ -775,6 +790,7 @@ export class PhysicsWorld {
     this.tickCount = 0;
     this.rowsMoved = true;
     this.nonFiniteTick = null;
+    this.clearContained();
     this.jointInfo.clear();
   }
 
@@ -846,6 +862,7 @@ export class PhysicsWorld {
     this.lastStepMs = now() - start;
     this.tickCount++;
     if (this.nonFiniteTick === null) this.checkFinite();
+    this.checkContained();
     const rec = this.recording;
     if (rec && rec.every > 0 && this.tickCount % rec.every === 0) rec.checkpoints.push([this.tickCount, this.exactHash()]);
     const check = this.replayCheck;
@@ -871,6 +888,23 @@ export class PhysicsWorld {
     let row = 0;
     while (row * 16 < m.length && Number.isFinite(m[row * 16] + m[row * 16 + 12] + m[row * 16 + 13] + m[row * 16 + 14])) row++;
     throw new EngineError('NUMERICAL_FAILURE', `Step ${this.tickCount} left body row ${row} with a transform that is not finite. The solver diverged: usually joints that contradict each other, or a mass ratio or stiffness beyond what the step size resolves. Restore a checkpoint from before this step, and run world.diagnose() on the set-up.`, {path: `body row ${row}`});
+  }
+
+  // The bridge's running total of contained bodies is one call per step; it only grows while this world exists.
+  private checkContained(): void {
+    const total = this.native.containedTotal();
+    if (total === this.containedSeen) return;
+    const added = Math.max(0, total - this.containedSeen);
+    this.containedSeen = total;
+    this.containedCount += added;
+    this.containedTick ??= this.tickCount;
+    if (!this.strict) return;
+    throw new EngineError('NUMERICAL_FAILURE', `Step ${this.tickCount} diverged for ${added === 1 ? 'a body' : `${added} bodies`}: the native bridge put ${added === 1 ? 'it' : 'them'} back at the pose of the step before, at rest ('body-contained' events), so the world is finite but no longer what the set-up computes. Usually joints that contradict each other, or a joint anchored far from its body. Restore a checkpoint from before this step, and run world.diagnose() on the set-up.`);
+  }
+  private clearContained(): void {
+    this.containedSeen = this.native.containedTotal();
+    this.containedCount = 0;
+    this.containedTick = null;
   }
 
   /**
@@ -1077,6 +1111,7 @@ export class PhysicsWorld {
       bodies: this.native.bodyCount(), awake: this.native.awakeCount(), contacts: this.native.contactCount(),
       capacity: this.native.maxBodies, tick: this.tickCount, lastStepMs: this.lastStepMs,
       lastUpdateMs: this.lastUpdateMs, droppedSeconds: this.droppedSeconds, nonFiniteSince: this.nonFiniteTick,
+      contained: this.containedCount,
     };
   }
 
@@ -1085,6 +1120,8 @@ export class PhysicsWorld {
    * Call it after building a scene and when something misbehaves; it reads every body, so not every step.
    *
    * - `non-finite` (error): a step left a body with a transform that is not finite (see stats().nonFiniteSince).
+   * - `body-contained` (error): a step diverged and the native bridge put bodies back at their previous pose, at rest
+   *   (see stats().contained). The world is finite, but the mechanism did not do what its set-up computes.
    * - `far-from-origin` (warning): a body more than 16 km out. Box3D holds positions in single precision, which
    *   resolves about a millimetre there (box3d/constants.h: "positions greater than about 16km have precision problems").
    * - `tiny-shape` (warning): a box, sphere or capsule thinner than 1 cm. Box3D lets contacts rest 5 mm apart
@@ -1108,6 +1145,8 @@ export class PhysicsWorld {
     const out: DiagnosticFinding[] = [], n = this.native.bodyCount(), kinds = this.native.bodyKinds(), dt = this.loop.step, rate = this.subSteps / dt;
     if (this.nonFiniteTick !== null) out.push({severity: 'error', rule: 'non-finite', subject: 'world', numbers: {tick: this.nonFiniteTick},
       message: `A body has had a transform that is not finite since step ${this.nonFiniteTick}: the solver diverged. Restore a checkpoint from before that step or reset; the findings below say what makes this set-up unstable.`});
+    if (this.containedTick !== null) out.push({severity: 'error', rule: 'body-contained', subject: 'world', numbers: {count: this.containedCount, tick: this.containedTick},
+      message: `The solver diverged for a body ${this.containedCount === 1 ? 'once' : `${this.containedCount} times`}, first at step ${this.containedTick}, and the native bridge put it back at its pose of the step before, at rest, each time. The world is finite, but those bodies did not move as the set-up computes. Usually joints that contradict each other (two joints to the world on one body that cannot both hold) or a joint anchored far from its body; the findings below may name it. Restore a checkpoint from before that step or reset.`});
     const pose: BodyPose = {position: [0, 0, 0], rotation: [0, 0, 0, 1], halfExtents: [0, 0, 0]};
     for (let row = 0; row < n; row++) {
       const body = this.native.bodyHandle(row), state = this.native.bodyState(body), p = state.position, far = Math.max(Math.abs(p[0]), Math.abs(p[1]), Math.abs(p[2]));
@@ -1208,8 +1247,10 @@ export class PhysicsWorld {
     return writeCheckpoint('world', {tick: this.tickCount, native: this.native.checkpoint(), loop: this.loop.pending, droppedEvents: this.droppedEventCount});
   }
   /**
-   * Put back a checkpoint from `checkpoint()`. Body and joint handles you hold keep their meaning when this world was built
-   * the same way as the one the checkpoint came from (the same calls in the same order); bodies made or destroyed in between
+   * Put back a checkpoint from `checkpoint()`. A checkpoint this world took since its last reset gives every body handle
+   * back the body it named then: a body destroyed since is alive again under its handle, one created since is gone. From
+   * elsewhere (a file, another world), body and joint handles you hold keep their meaning when this world was built the
+   * same way as the one the checkpoint came from (the same calls in the same order); bodies made or destroyed in between
    * follow the checkpoint, so read them again with `bodyAt`. A damaged checkpoint, one of another format version or one that is
    * not a world checkpoint is refused and changes nothing. User data stays.
    */
@@ -1224,6 +1265,7 @@ export class PhysicsWorld {
     if (typeof state.droppedEvents === 'number') this.droppedEventCount = state.droppedEvents;
     this.rowsMoved = true;
     this.nonFiniteTick = null;
+    this.clearContained();
   }
 
   /** Re-run a ReplayLog in this world. Returns true when the result matches the recording bit-for-bit. */

@@ -572,7 +572,9 @@ The fuzzers (`tests/fuzz`, docs/ROBUSTNESS.md) found defects in the native side.
   the joint and contact impulses the diverged solve had accumulated. Each containment is a `'body-contained'` event
   (`bodyA` the body, `speed` what it had reached, NaN if not finite) and is counted by
   `NativeWorldBackend.containedTotal()`; the Lab says so in the Scenes panel and the log, and
-  `box3dLab.sceneState().contained` has the count. The world stays finite and bodies that are not part of the
+  `box3dLab.sceneState().contained` has the count. The kit's `PhysicsWorld` counts them since its last reset or
+  restore in `stats().contained`, `diagnose()` reports them as the rule `body-contained` (error, with the count and
+  the first step), and a world created with `strict: true` throws `NUMERICAL_FAILURE` at the step that contains. The world stays finite and bodies that are not part of the
   mechanism are unaffected; the contradictory mechanism itself still cannot do anything sensible and is contained
   again whenever it diverges. Containment never fires in any example scene (all 26, up to 600 steps each) or in
   90 steps of each of the 800 catalog recipes (test), so no existing result or hash changes.
@@ -580,7 +582,7 @@ The fuzzers (`tests/fuzz`, docs/ROBUSTNESS.md) found defects in the native side.
 - **ND-3, handles after a restore.** The bridge kept the restoring world's own handle table whenever that world had
   no more bodies than the checkpoint, assuming its rows were still the checkpoint's first rows; after a destroy they
   are not, and handles named the wrong bodies. `NativeWorldBackend` now remembers (by a 64-bit digest and the length)
-  the checkpoints it wrote since its last reset, and restores those with the new optional export
+  the checkpoints it wrote since its last reset (the 256 written or restored most recently), and restores those with the new optional export
   `b3w_world_restore_ex(…, takeHandles = 1)`: every handle means what it meant when the checkpoint was written, a
   body destroyed since is alive again under its handle, and a body created since is gone, its handle dead also once
   its slot is used again (slots made after the checkpoint stay in the table, free, with a newer generation). A

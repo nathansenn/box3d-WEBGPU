@@ -31,25 +31,44 @@ test('ND-1: a dynamic convex shape above 1 km is refused by the bridge, so the s
   const world = pool.createWorld();
   try {
     world.resetWorld({ground: true});
+    // The adapter's RIGID_LIMITS guard refuses these before the bridge sees them; the bridge refuses the same sizes on
+    // its own (the raw projectile export above, the raw retype below, a body restored from foreign bytes at the end).
     const refused = (shape, label) => assert.throws(() => world.createBody({shape, position: [0, 6, 0]}), error => error.code === 'INVALID_PAYLOAD', label);
     refused({kind: 'box', halfExtents: [1001, 1, 1]}, 'a dynamic box half extent above 1 km');
     refused({kind: 'hull', points: [0, 0, 0, 1, 0, 0, 0, 1, 0, 0, 0, 1500]}, 'a dynamic hull point 1.5 km from the body origin');
     refused({kind: 'compound', shapes: [{shape: {kind: 'box', halfExtents: [2000, 1, 1]}}]}, 'a dynamic compound box child above 1 km');
     refused({kind: 'compound', shapes: [{shape: {kind: 'box', halfExtents: [1, 1, 1]}, position: [1200, 0, 0]}]}, 'a dynamic compound box child 1.2 km from the body origin');
-    assert.equal(world.launchProjectileBody(0, 6, 0, 0, 0, 0, 5000), null, 'the projectile export');
+    assert.throws(() => world.launchProjectileBody(0, 6, 0, 0, 0, 0, 5000), error => error.code === 'INVALID_PAYLOAD', 'the projectile call');
     // Static and kinematic bodies of any size are fine: a 20 km road and a 5 km kinematic slab, with boxes landing on them.
     const road = world.createBody({shape: {kind: 'box', halfExtents: [20000, 1, 20000]}, type: 'static', position: [0, -1, 0]});
     world.createBody({shape: {kind: 'box', halfExtents: [5000, 1, 5000]}, type: 'kinematic', position: [0, 40, 0]});
     const boxes = [0, 1, 2].map(i => world.createBody({shape: {kind: 'box', halfExtents: [0.5, 0.5, 0.5]}, position: [i * 2, 3 + 40 * (i % 2), 0], linearVelocity: [0, -10, 0]}));
-    // Making a large body dynamic is refused for the same reason.
-    assert.throws(() => world.setBodyType(road, 'dynamic'), error => error.code === 'INVALID_PAYLOAD', 'a 20 km slab cannot become dynamic');
+    // Making a large body dynamic is refused for the same reason: by the adapter, and by the bridge itself.
+    assert.throws(() => world.setBodyType(road, 'dynamic'), error => error.code === 'INVALID_STATE', 'a 20 km slab cannot become dynamic');
+    assert.equal(world.mod._b3w_world_set_body_type(world.handle, road.token, 2), -2, 'the bridge refuses the retype too');
+    assert.equal(world.bodyState(road).type, 'static');
     // At the limit: a 1 km dynamic cube landing at 200 m/s, deep in the ground, steps normally.
     const big = world.createBody({shape: {kind: 'box', halfExtents: [1000, 1000, 1000]}, position: [0, 6, 3000], linearVelocity: [0, -200, 0]});
     for (let i = 0; i < 30; i++) world.step(1 / 60, 4);
     for (const body of [big, ...boxes]) { const state = world.bodyState(body); assert.ok(finite([...state.position, ...state.linearVelocity]), 'finite'); }
-    // Spheres and capsules have no polytope contact and are not limited by the bridge.
-    assert.ok(world.createBody({shape: {kind: 'sphere', radius: 5000}, position: [0, 9000, 0]}));
+    // Spheres and capsules have no polytope contact, so the bridge does not limit them; the adapter's RIGID_LIMITS.shape does.
+    assert.throws(() => world.createBody({shape: {kind: 'sphere', radius: 5000}, position: [0, 9000, 0]}), error => error.code === 'INVALID_PAYLOAD');
   } finally { world.destroy(); }
+  // A static 3 km hull restored from bytes another world wrote: the adapter does not know it is large (docs/ROBUSTNESS.md,
+  // known gaps), and the bridge refuses to make it dynamic from its bounds.
+  const writer = pool.createWorld(), reader = pool.createWorld();
+  try {
+    writer.resetWorld({ground: true});
+    const h = 3000, cube = [-h, -h, -h, h, -h, -h, h, h, -h, -h, h, -h, -h, -h, h, h, -h, h, h, h, h, -h, h, h];
+    writer.createBody({type: 'static', shape: {kind: 'hull', points: cube}, position: [0, -h - 10, 9000]});
+    writer.step(1 / 60, 4);
+    reader.resetWorld({ground: true});
+    reader.restoreCheckpoint(writer.checkpoint());
+    const rock = reader.bodyHandle(reader.bodyCount() - 1);
+    assert.equal(reader.bodyKinds()[reader.bodyCount() - 1], 'hull');
+    assert.throws(() => reader.setBodyType(rock, 'dynamic'), error => error.code === 'INVALID_PAYLOAD' && /native bridge rejected/.test(error.message));
+    assert.equal(reader.bodyState(rock).type, 'static');
+  } finally { writer.destroy(); reader.destroy(); }
 });
 
 test('ND-2: joints that contradict each other no longer poison the world: the diverged bodies are contained, reported, and stay finite', () => {
@@ -78,6 +97,65 @@ test('ND-2: joints that contradict each other no longer poison the world: the di
     const still = world.bodyState(bystander);
     assert.ok(Math.abs(still.position[0] + 6) < 1e-3 && Math.abs(still.position[1] - 0.4) < 0.01, 'a body that touches nothing of it rests where it was');
   } finally { world.destroy(); }
+});
+
+test('ND-2 in the kit: stats().contained, the body-contained rule of diagnose() and NUMERICAL_FAILURE in a strict world', async () => {
+  const kit = await import('../dist/index.js');
+  const contradicting = async strict => {
+    const world = await kit.createWorld({gravity: [0, -9.81, 0], strict});
+    const box = world.createBody({shape: {kind: 'box', halfExtents: [0.5, 0.5, 0.5]}, position: [0, 2, 0]}), wheel = world.createBody({shape: {kind: 'sphere', radius: 0.3}, position: [0, 0.3, 3]});
+    world.createJoint({type: 'revolute', bodyA: null, bodyB: box, frameA: {position: [4, 2, 0]}});
+    world.createJoint({type: 'wheel', bodyA: box, bodyB: wheel, frameA: {position: [0, -0.5, 0]}});
+    world.createJoint({type: 'wheel', bodyA: box, bodyB: null, frameA: {position: [0, 0.5, 0]}, frameB: {position: [0, -0.5, 0]}, limits: {lower: -0.2, upper: 0.2}, spring: {hertz: 4, dampingRatio: 0.7}, motor: {speed: 3, maxForce: 20}});
+    return world;
+  };
+  // A lenient world: counted, one event each, reported by diagnose(), the world finite; reset and restore clear the count.
+  const lenient = await contradicting(false);
+  let first = null, saved = null;
+  try {
+    const events = [];
+    lenient.onEvent(event => { if (event.kind === 'body-contained') events.push([lenient.stats().tick, event]); });
+    assert.equal(lenient.stats().contained, 0);
+    assert.equal(lenient.diagnose().find(f => f.rule === 'body-contained'), undefined, 'nothing to report before a step');
+    saved = lenient.checkpoint();
+    for (let i = 0; i < 60; i++) lenient.step();
+    const stats = lenient.stats();
+    assert.ok(stats.contained > 0, `contained ${stats.contained}`);
+    assert.equal(stats.nonFiniteSince, null, 'the world stays finite');
+    assert.equal(events.length, stats.contained, 'one body-contained event per containment');
+    first = events[0][0];
+    const finding = lenient.diagnose().find(f => f.rule === 'body-contained');
+    assert.deepEqual({severity: finding.severity, subject: finding.subject, numbers: finding.numbers}, {severity: 'error', subject: 'world', numbers: {count: stats.contained, tick: first}});
+    assert.match(finding.message, /diverged/);
+    assert.match(kit.formatStats(stats), new RegExp(`contained ${stats.contained}`));
+    lenient.restoreCheckpoint(saved);
+    assert.equal(lenient.stats().contained, 0, 'a restore clears the count');
+    lenient.step();
+    lenient.reset({gravity: [0, -9.81, 0]});
+    assert.equal(lenient.stats().contained, 0, 'a reset clears the count');
+    assert.equal(lenient.diagnose().find(f => f.rule === 'body-contained'), undefined);
+  } finally { lenient.dispose(); }
+  // A strict world throws at the step of the first containment, and says what happened.
+  const strict = await contradicting(true);
+  try {
+    let thrown = null;
+    try { for (let i = 0; i < 60; i++) strict.step(); } catch (error) { thrown = error; }
+    assert.ok(thrown instanceof kit.EngineError, 'the strict world throws');
+    assert.equal(thrown.code, 'NUMERICAL_FAILURE');
+    assert.match(thrown.message, new RegExp(`^Step ${first} diverged for (a body|\\d+ bodies): the native bridge put`));
+    assert.equal(strict.stats().tick, first);
+    assert.ok(strict.stats().contained > 0);
+  } finally { strict.dispose(); }
+  // A sound jointed scene counts none, and a strict world runs it through.
+  const calm = await kit.createWorld({gravity: [0, -9.81, 0], strict: true});
+  try {
+    const crate = calm.createBody({shape: {kind: 'box', halfExtents: [0.5, 0.5, 0.5]}, position: [0, 3, 0]});
+    const post = calm.createBody({shape: {kind: 'box', halfExtents: [0.2, 1, 0.2]}, type: 'static', position: [3, 1, 0]});
+    calm.createJoint({type: 'revolute', bodyA: post, bodyB: crate, frameA: {position: [0, 1, 0]}});
+    for (let i = 0; i < 120; i++) calm.step();
+    assert.equal(calm.stats().contained, 0);
+    assert.equal(calm.diagnose().find(f => f.rule === 'body-contained'), undefined);
+  } finally { calm.dispose(); }
 });
 
 test('ND-2: containment never fires in the example scenes or in the 800-scene catalog', async () => {
@@ -127,6 +205,13 @@ test('ND-3: restoring a checkpoint this world wrote, after a destroy, gives ever
     world.destroyBody(b);
     world.restoreCheckpoint(new Uint8Array([...saved]));
     assert.equal(world.bodyState(b).position[0], 2);
+    // The record keeps the 256 checkpoints written or restored most recently: one restored now and then stays in it.
+    for (let round = 0; round < 2; round++) {
+      for (let i = 0; i < 200; i++) world.checkpoint();
+      world.destroyBody(b);
+      world.restoreCheckpoint(saved);
+      assert.deepEqual([a, b, c].map(body => world.bodyState(body).position[0]), [1, 2, 3], `after ${200 * (round + 1)} later checkpoints`);
+    }
     // After a reset, the same bytes are a checkpoint from elsewhere: the world built the same way keeps its own handles.
     world.resetWorld({ground: true});
     const a2 = make(1), b2 = make(2), c2 = make(3);

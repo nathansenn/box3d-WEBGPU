@@ -789,9 +789,16 @@ export class NativeWorldBackend implements PhysicsBackend {
   private readonly bodyOwner={};
   // Replaced whenever the world is rebuilt, so joints of an earlier scene can never alias new ones.
   private jointOwner={};
-  // Content digests of the checkpoints this world wrote since it was last reset (most recent last, at most 256). Restoring
-  // one of them takes its own handle table, so that every handle means what it meant when it was written (ND-3).
+  // Content digests of the checkpoints this world wrote since it was last reset, at most 256, the one written or restored
+  // most recently last. Restoring one of them takes its own handle table, so that every handle means what it meant when it
+  // was written (ND-3).
   private ownCheckpoints: string[]=[];
+  private rememberCheckpoint(digest: string): void {
+    const at=this.ownCheckpoints.indexOf(digest);
+    if(at>=0)this.ownCheckpoints.splice(at,1);
+    this.ownCheckpoints.push(digest);
+    if(this.ownCheckpoints.length>256)this.ownCheckpoints.shift();
+  }
   // One 128-byte scratch block for descriptors and small outputs, allocated on first use.
   private scratch=0;
   // One 1024-byte block for the mover and the step profile, allocated on first use.
@@ -1768,14 +1775,13 @@ export class NativeWorldBackend implements PhysicsBackend {
         if(this.largeRowsByCheckpoint.size>=256)this.largeRowsByCheckpoint.delete(this.largeRowsByCheckpoint.keys().next().value!);
         this.largeRowsByCheckpoint.set(checkpointKey(bytes),rows);
       }
-      this.ownCheckpoints.push(checkpointDigest(bytes));
-      if(this.ownCheckpoints.length>256)this.ownCheckpoints.shift();
+      this.rememberCheckpoint(checkpointDigest(bytes));
       return bytes;
     }finally{this.mod._b3w_world_checkpoint_free!(this.handle);}
   }
   /**
    * Replace this world's state with a checkpoint from `checkpoint()`. A checkpoint this world wrote since it was last
-   * reset brings back its own handles: every handle means what it meant then, a body destroyed since is alive again
+   * reset (one of the 256 it wrote or restored most recently) brings back its own handles: every handle means what it meant then, a body destroyed since is alive again
    * under its handle, and a body created since is gone (its handle stays dead, also once its slot is used again). A
    * checkpoint from elsewhere (another world built the same way, another page) keeps the handles of this world's
    * bodies, row by row. Bytes that are not a checkpoint of this artifact's format are refused and change nothing.
@@ -1786,16 +1792,17 @@ export class NativeWorldBackend implements PhysicsBackend {
     if(!(bytes instanceof Uint8Array)||bytes.length===0)throw new EngineError('INVALID_PAYLOAD','A native checkpoint is a non-empty Uint8Array.');
     const pointer=Number(this.mod._malloc!(bytes.length));
     if(!Number.isSafeInteger(pointer)||pointer<=0)throw new EngineError('ALLOCATION_FAILED','Native scratch allocation failed.');
-    let status: number;
+    let status: number,digest='',own=false;
     try {
       new Uint8Array(this.mod.HEAPF32.buffer,pointer,bytes.length).set(bytes);
-      const own=typeof this.mod._b3w_world_restore_ex==='function'&&this.ownCheckpoints.includes(checkpointDigest(bytes));
+      digest=checkpointDigest(bytes);own=typeof this.mod._b3w_world_restore_ex==='function'&&this.ownCheckpoints.includes(digest);
       status=own?this.mod._b3w_world_restore_ex!(this.handle,pointer,bytes.length,1):this.mod._b3w_world_restore!(this.handle,pointer,bytes.length);
     }finally{this.mod._free!(pointer);}
     if(status===-2)throw new EngineError('INVALID_PAYLOAD','These bytes are not a native world checkpoint of this build.');
     if(status===-3)throw new EngineError('ALLOCATION_FAILED','The native checkpoint could not be restored: out of memory. The world is unchanged.');
     if(status===-4)throw new EngineError('INVALID_PAYLOAD','Box3D refused the world snapshot; the world was reset to an empty one.');
     if(status!==1)throw new EngineError('DISPOSED','The native context rejected the restore.');
+    if(own)this.rememberCheckpoint(digest);
     this.refreshStreams(true);
     this.relearnLargeConvex(bytes);
   }

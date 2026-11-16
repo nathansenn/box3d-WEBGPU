@@ -31,8 +31,9 @@ function run(session, r, ops) {
   return digests;
 }
 // Native defect ND-5 (native-defects.test.mjs, docs/ROBUSTNESS.md): in about one random program in 150 a jointed
-// mechanism diverges inside Box3D although every input is in range and world.diagnose() has no warning. Such a run is
-// caught here (a strict world throws NUMERICAL_FAILURE; a runaway speed breaks an invariant), counted and named, and
+// mechanism diverged inside Box3D although every input is in range and world.diagnose() has no warning. The bridge now
+// contains such a body (ND-2) and a strict world throws NUMERICAL_FAILURE at that step; such a run is caught here (as
+// is a non-finite transform, or a runaway speed that breaks an invariant), counted and named, and
 // the suite fails when more than 3 % of the programs diverge or when one diverges that never made a joint. It is never
 // silent: that is the property under test. With the native side fixed the count is zero and this allowance goes.
 const diverged = [];

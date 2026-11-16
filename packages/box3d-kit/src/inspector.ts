@@ -44,6 +44,7 @@ export function formatStats(stats: WorldStats, heapBytes?: number, title = 'Box3
     `step     ${stats.lastStepMs.toFixed(2)} ms`,
     `update   ${stats.lastUpdateMs.toFixed(2)} ms`,
   ];
+  if (stats.contained > 0) lines.push(`contained ${stats.contained}`);
   if (stats.droppedSeconds > 0) lines.push(`dropped  ${(stats.droppedSeconds * 1000).toFixed(0)} ms`);
   if (heapBytes !== undefined) lines.push(`heap     ${(heapBytes / 1048576).toFixed(1)} MB`);
   return lines.join('\n');

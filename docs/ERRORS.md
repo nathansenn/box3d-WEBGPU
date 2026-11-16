@@ -193,6 +193,7 @@ the limits but close, or costly. An empty list means none of these rules is brok
 | Rule | From | Fires when | Where the number comes from |
 | --- | --- | --- | --- |
 | `non-finite` | world | a step left a transform that is not finite (also `stats().nonFiniteSince`; a world created with `strict: true` throws `NUMERICAL_FAILURE` at that step) | checked after every step |
+| `body-contained` | world | a step diverged and the native bridge put bodies back at their pose of the step before, at rest (also `stats().contained` and `'body-contained'` events; a world created with `strict: true` throws `NUMERICAL_FAILURE` at that step) | the bridge, after every step: a dynamic body that is not finite, faster than ten times the maximum linear speed (at least 10^4 m/s) or spinning faster than ten times Box3D's quarter turn per step (471 rad/s at 60 Hz); docs/RIGID_CORE.md section 10 |
 | `far-from-origin` | world | a body is more than 16 km from the origin | Box3D `constants.h`: "positions greater than about 16km have precision problems" |
 | `tiny-shape` | world | a box, sphere or capsule is thinner than 1 cm | Box3D rests contacts up to 5 mm apart (`B3_LINEAR_SLOP`) |
 | `mass-ratio` | world | two dynamic bodies on one joint differ in mass by more than 10 to 1 | the usual rule of thumb for iterative solvers; not measured here |

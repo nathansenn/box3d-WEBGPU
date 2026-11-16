@@ -178,9 +178,9 @@ const ROWS = {
   bodyKinds: [{args: () => []}],
   spawnBox: [{args: () => [{position: [0, 6, 0], halfSize: 0.4, impulse: [0, 1, 0]}], hints: {positive: /halfSize$/}}],
   isAlive: [{deadOk: true, args: () => [box]}],
-  // Rebuilt, not restored, afterwards: restoring a checkpoint into a world that destroyed a body since leaves the
-  // handles naming other bodies (native defect ND-3, tests/fuzz/native-defects.test.mjs).
-  destroyBody: [{deadOk: true, resets: true, args: () => [ball]}],
+  // Restored afterwards like every other row: a checkpoint this world wrote gives every handle back its own body, also
+  // after a destroy (native defect ND-3, fixed in the bridge; tests/fuzz/native-defects.test.mjs).
+  destroyBody: [{deadOk: true, args: () => [ball]}],
   setUserData: [{args: () => [box, 'tag'], hints: {lenient: /^1$/}}],
   // A plain lookup: anything that is not a live body of this world has no data.
   getUserData: [{args: () => [box], hints: {lenient: /^0$/}}],

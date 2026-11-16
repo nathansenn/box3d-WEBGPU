@@ -2569,6 +2569,7 @@ export interface WorldStats {
     readonly lastUpdateMs: number;
     readonly droppedSeconds: number;
     readonly nonFiniteSince: number | null;
+    readonly contained: number;
 }
 ```
 

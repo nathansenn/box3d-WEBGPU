@@ -172,11 +172,14 @@ Measured:
 
 ### Handles after a restore
 
-- A body handle is valid after a restore when the world was built the same way as the checkpoint's. When a body was
-  destroyed between the checkpoint and the restore, the bridge still pairs the world's handle table with the
-  checkpoint's rows by position, and a destroy moves the last row: kept handles can then name other bodies and the
-  destroyed body's handle stays dead (native defect ND-3, docs/ROBUSTNESS.md). The physical state is exact. After
-  any restore that follows a destroy, read handles again with `bodyAt(row)`.
+- A checkpoint the same world wrote since its last reset (one of the 256 it wrote or restored most recently) brings
+  back its own handles: every body handle means what it meant when the checkpoint was written, a body destroyed since
+  is alive again under its handle, and a body created since is gone, its handle dead also once its slot is used
+  again (the bridge's `b3w_world_restore_ex`; native defect ND-3, fixed). This holds for a copy of the bytes too,
+  since the world recognises them by a digest of their content.
+- A checkpoint from elsewhere (another page, a file, another world, or this world before a reset) pairs this world's
+  handle table with the checkpoint's rows by position, so a body handle is valid after the restore when the world was
+  built the same way as the checkpoint's. If bodies were destroyed in between, read handles again with `bodyAt(row)`.
 - A joint handle made after a checkpoint is invalid once that checkpoint is restored, and becomes valid again when a
   later joint receives the same Box3D id: discard such handles on restore.
 - The world's checkpoint bytes include its handle table, so two worlds with different histories can hold equal
