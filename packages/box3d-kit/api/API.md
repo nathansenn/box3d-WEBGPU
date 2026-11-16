@@ -8037,7 +8037,9 @@ export declare class Granular {
   wallAngularImpulse(index: number): Float64Array;
   wallNormalLoad(index: number): number;
   wallContacts(index: number): number;
+  setWallLoads(index: number, loads: { readonly force: ArrayLike<number>; readonly torque: ArrayLike<number>; readonly impulse: ArrayLike<number>; readonly angularImpulse: ArrayLike<number>; readonly normalLoad: number; readonly contacts: number; }): void;
   resetWallImpulses(index?: number): void;
+  backendDescription(): GranularBackendDescription;
   mass(): number;
   kineticEnergy(): number;
   gravitationalEnergy(): number;
@@ -8090,6 +8092,55 @@ export declare const GRANULAR_TIME_STEP_LIMIT: Readonly<{
     hertz: 0.4;
     linear: 0.2;
 }>;
+```
+
+### GranularBackendDescription · interface
+
+```ts
+export interface GranularBackendDescription {
+    hertz: boolean;
+    kHertz: number;
+    kMindlin: number;
+    kn: number;
+    kt: number;
+    alpha: number;
+    tangentialDamping: number;
+    friction: number;
+    rollingFriction: number;
+    bounds: number[] | null;
+    rMin: number;
+    rMax: number;
+    walls: GranularBackendWall[];
+}
+```
+
+### GranularBackendWall · interface
+
+What `Granular.backendDescription()` returns. Wall shape: 0 plane, 1 box, 2 sphere, 3 capsule, 4 shell of revolution; type: 0 static, 1 kinematic, 2 dynamic; `dim` as in the solver (plane: normal; box: half extents; sphere: radius; capsule: radius, half length; shell: axis, r0, z0, r1, z1).
+
+```ts
+export interface GranularBackendWall {
+    shape: number;
+    type: number;
+    enabled: boolean;
+    dim: number[];
+    position: number[];
+    rotation: number[];
+    linearVelocity: number[];
+    angularVelocity: number[];
+    mass: number;
+    invInertia: number[];
+    gravityScale: number;
+    external: number[];
+    alpha: number;
+    friction: number;
+    rollingFriction: number;
+    curved: number;
+    force: number[];
+    torque: number[];
+    impulse: number[];
+    angularImpulse: number[];
+}
 ```
 
 ### GranularColliderOptions · interface
@@ -8151,6 +8202,8 @@ export declare class GranularCoupling<B> {
   force(body: B): Float64Array;
   torque(body: B): Float64Array;
   step(): void;
+  begin(): void;
+  finish(): void;
   contactChanges(each: (body: B, index: number, touching: boolean) => void): void;
   diagnostics(): GranularCouplingDiagnostics;
 }

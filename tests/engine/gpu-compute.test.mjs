@@ -16,6 +16,7 @@ const {defineStruct} = await import('../../src/engine/gpu/layout.ts');
 const {preprocessWgsl, wgslFloat} = await import('../../src/engine/gpu/wgsl.ts');
 const {GpuCompute, GpuProgram, PingPong, acquireGpuCompute} = await import('../../src/engine/gpu/compute.ts');
 const {SW_PARAMS} = await import('../../src/engine/gpu/shallow-water-wgsl.ts');
+const {DEM_PARAMS, DEM_WALL} = await import('../../src/engine/gpu/granular-wgsl.ts');
 
 const dawn = create(['backend=null']);
 const adapter = await dawn.requestAdapter();
@@ -78,6 +79,8 @@ test('struct sizes agree with the shader compiler, for every prefix of each stru
     ['A', {x: 'f32', v: 'vec3f', y: 'f32', w: 'vec2f', n: 'u32', m: 'mat3x3f', t: 'vec4f', k: 'i32'}, 'storage'],
     ['B', {a: 'u32', b: {array: 'vec3f', count: 3}, c: {array: 'f32', count: 5}, d: 'vec2u'}, 'storage'],
     ['Params', Object.fromEntries(SW_PARAMS.fields.map(f => [f.name, f.type])), 'uniform'],
+    ['DemParams', Object.fromEntries(DEM_PARAMS.fields.map(f => [f.name, f.type])), 'uniform'],
+    ['Wall', Object.fromEntries(DEM_WALL.fields.map(f => [f.name, f.type])), 'storage'],
   ];
   let checked = 0;
   for (const [name, fields, usage] of structs) {
@@ -89,7 +92,7 @@ test('struct sizes agree with the shader compiler, for every prefix of each stru
       checked++;
     }
   }
-  assert.ok(checked > 30);
+  assert.ok(checked > 60);
   assert.equal(SW_PARAMS.size, 208);
   assert.deepEqual(uncaptured, []);
 });
