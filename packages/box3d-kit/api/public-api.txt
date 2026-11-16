@@ -3333,6 +3333,7 @@ export declare class NativeWorldBackend implements PhysicsBackend {
         normals?: Float32Array;
         bodies?: BigUint64Array;
     }): number;
+    private castRaysClosest;
     bodyFromToken(token: bigint): NativeBodyHandle;
     createScene(scene: Pick<ScenePreset, 'id'>, stressScale: number, seed: number): number;
     step(dt: number, subSteps: number): void;

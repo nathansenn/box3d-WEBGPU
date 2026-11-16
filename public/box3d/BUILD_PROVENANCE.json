@@ -12,7 +12,7 @@
   },
   "bridge": {
     "source": "wasm/box3d_web.c",
-    "sha256": "514fb7c5d7543780b2f0ccaed5ab551ad954fa381843e6cdc6cb353263d55853",
+    "sha256": "5daf526894d808188be5885ec7d84f57ed14bc73e1842eb6233ad2efe04776e9",
     "lazyReplayHash": true,
     "sleepingWorldTransformCache": true,
     "independentColorRevision": true,
@@ -35,8 +35,8 @@
       "sha256": "6d9e6a8953e1e3109d075927f7c2f52bbe9ab376c9719104804bda32ec2ba047"
     },
     "box3d.wasm": {
-      "bytes": 720309,
-      "sha256": "149c9817da4e96d470f5b2f59915e48625b71d3bdf885d06c29ca93e28802817"
+      "bytes": 720528,
+      "sha256": "1ee814ae7546321490e80d87a657e2c42d1c12ef250d68553e1beb465bfb553d"
     }
   },
   "validation": {
@@ -121,7 +121,7 @@
       "jointEvents": "joints over a force or torque threshold are reported after each step; breakable ones are destroyed then",
       "batchedRays": {
         "maxRaysPerCall": 65536,
-        "result": "closest hit per ray; equal fractions resolve to the smaller body handle"
+        "result": "closest hit per ray, ordered as the query sort orders hits (fraction, body handle, triangle, child); each ray is clipped just beyond its best hit so far, so equal-fraction hits are still compared and farther shapes are not tested. PhysicsWorld.castRays and raycastBatch use it"
       },
       "characterMover": {
         "shape": "upright capsule",
@@ -150,7 +150,7 @@
     "bridge": "wasm/box3d_web.c compiled unchanged; b3CreateWorld and b3World_Step renamed per source",
     "sources": {
       "threadsSha256": "5785c8eb105440000ad2520149a6ebf6f6317dca3d4b5724011972861c57f2cb",
-      "bridgeSha256": "514fb7c5d7543780b2f0ccaed5ab551ad954fa381843e6cdc6cb353263d55853",
+      "bridgeSha256": "5daf526894d808188be5885ec7d84f57ed14bc73e1842eb6233ad2efe04776e9",
       "cmakeSha256": "b7d3255a27f0197cca8daef72e4661b99574e00d34c218c683c88699b57df49b"
     },
     "artifacts": {
@@ -159,8 +159,8 @@
         "sha256": "ec6af5aa00610a790925c284112dcf1aaf449c121894fac9d724fa78de554a3a"
       },
       "box3d-mt.wasm": {
-        "bytes": 728055,
-        "sha256": "e7a92780d7f3533dc0db395ab8864dfbcd567d6900337603d7575334ed0f4184"
+        "bytes": 728274,
+        "sha256": "382dffb670867fea7a3082149dfb0a1049b020053c6afe43d26332c56a2d5962"
       }
     },
     "build": {

@@ -1293,8 +1293,9 @@ export class NativeWorldBackend implements PhysicsBackend {
 
   /**
    * Closest hit of each of up to 65,536 rays in one call. `rays` holds origin x, y, z and translation x, y, z per
-   * ray (the translation is the whole displacement, not a direction). When two bodies are hit at the same fraction
-   * the one with the smaller handle is reported. Reads the world only.
+   * ray (the translation is the whole displacement, not a direction). Each ray's hit is the one `queryBatch` with
+   * limit 1 reports, bit for bit: ties at the same fraction go to the smaller body handle, then the smaller triangle
+   * and compound child. Each ray stops at its nearest hit. Reads the world only.
    */
   castRayBatch(rays: ArrayLike<number>,filter: NativeQueryFilter={}): NativeRayBatch {
     this.rigid();
@@ -1734,8 +1735,10 @@ export class NativeWorldBackend implements PhysicsBackend {
    * `points` and `normals` (x, y, z per ray) and `bodies` (one body token per ray, 0 for a miss; resolve a token
    * with `bodyFromToken`) are filled for the rays that hit. Returns the number of rays that hit.
    * Each ray gives exactly the first hit of `queryBatch([{kind: 'ray', origin, translation, limit: 1, filter}])`
-   * for the same float32 inputs; this call only skips the per-ray objects. Any number of rays: the 128-query
-   * batch limit of the bridge is handled here.
+   * for the same float32 inputs, ties included (fraction, then body, triangle and child). With the rigid-core bridge
+   * (`b3w_world_cast_rays`) each ray stops at its nearest hit instead of testing every shape along its length, which
+   * is several times faster in a crowded world; an older artifact goes through the query arena, 128 rays at a time.
+   * Any number of rays.
    */
   castRays(origins: Float32Array,translations: Float32Array,fractions: Float32Array,
     options: {filter?: NativeQueryFilter; points?: Float32Array; normals?: Float32Array; bodies?: BigUint64Array}={}): number {
@@ -1755,6 +1758,9 @@ export class NativeWorldBackend implements PhysicsBackend {
     const bodyTypes=QUERY_BODY_TYPES[which as keyof typeof QUERY_BODY_TYPES],ignoreBody=filter.ignoreBody===undefined?0n:this.bodyToken(filter.ignoreBody as NativeBodyHandle);
     const categoryBits=queryBits(filter.categoryBits===undefined?0xFFFFFFFFFFFFFFFFn:filter.categoryBits,'filter.categoryBits'),maskBits=queryBits(filter.maskBits===undefined?0xFFFFFFFFFFFFFFFFn:filter.maskBits,'filter.maskBits');
     if(ignoreBody!==0n&&this.mod._b3w_world_body_index!(this.handle,ignoreBody)<0)throw new EngineError('STALE_BODY','An ignored query body has been destroyed or belongs to a previous scene.');
+    // The rigid-core bridge has a closest-hit call that stops each ray at its nearest hit and orders ties as the query
+    // sort does (fraction, body, triangle, child): the same hits, without testing what lies beyond them.
+    if(this.mod._b3w_world_cast_rays&&this.mod._malloc&&this.mod._free)return this.castRaysClosest(origins,translations,fractions,points,normals,bodies,categoryBits,maskBits,bodyTypes,ignoreBody);
     let hitCount=0;
     for(let start=0;start<count;start+=128) {
       const n=Math.min(128,count-start),reserved=this.mod._b3w_world_query_reserve!(this.handle,n,n);
@@ -1796,6 +1802,40 @@ export class NativeWorldBackend implements PhysicsBackend {
         if(bodies)bodies[ray]=token;
       }
     }
+    return hitCount;
+  }
+  private castRaysClosest(origins: Float32Array,translations: Float32Array,fractions: Float32Array,points: Float32Array|undefined,normals: Float32Array|undefined,bodies: BigUint64Array|undefined,
+    categoryBits: bigint,maskBits: bigint,bodyTypes: number,ignoreBody: bigint): number {
+    const count=fractions.length;
+    if(count===0)return 0;
+    // One buffer for up to 65,536 rays at a time: body tokens (8 bytes each), the rays (24), the hit records (32).
+    const chunk=Math.min(count,65536),pointer=Number(this.mod._malloc!(chunk*(8+24+32)));
+    if(!Number.isSafeInteger(pointer)||pointer<=0||pointer%8!==0)throw new EngineError('ALLOCATION_FAILED','Native ray buffer allocation failed.');
+    let hitCount=0;
+    try {
+      for(let start=0;start<count;start+=chunk) {
+        const n=Math.min(chunk,count-start),raysAt=pointer+chunk*8,hitsAt=raysAt+chunk*24;
+        const rays=new Float32Array(this.mod.HEAPF32.buffer,raysAt,n*6);
+        for(let i=0;i<n;i++){const r=(start+i)*3,w=i*6;rays[w]=origins[r];rays[w+1]=origins[r+1];rays[w+2]=origins[r+2];rays[w+3]=translations[r];rays[w+4]=translations[r+1];rays[w+5]=translations[r+2];}
+        const status=this.mod._b3w_world_cast_rays!(this.handle,raysAt,n,categoryBits,maskBits,bodyTypes,ignoreBody,hitsAt,pointer);
+        if(status===-5)throw new EngineError('STALE_BODY','An ignored query body has been destroyed or belongs to a previous scene.');
+        if(status===-2)throw new EngineError('INVALID_PAYLOAD','The native bridge rejected the rays.');
+        if(status<0||status>n)throw new EngineError('INVALID_BACKEND','The native ray batch returned an invalid status.');
+        // Reacquire after the call: the query may grow the module heap.
+        const heap=this.mod.HEAPF32.buffer,hits=new Float32Array(heap,hitsAt,n*8),tokens=new BigUint64Array(heap,pointer,n);
+        for(let i=0;i<n;i++) {
+          const ray=start+i,token=tokens[i],h=i*8;
+          if(token===0n){fractions[ray]=-1;if(bodies)bodies[ray]=0n;continue;}
+          const fraction=hits[h];
+          if(!(fraction>=0&&fraction<=1))throw new EngineError('INVALID_BACKEND','Native query returned an invalid hit.');
+          fractions[ray]=fraction;
+          if(points){points[ray*3]=hits[h+1];points[ray*3+1]=hits[h+2];points[ray*3+2]=hits[h+3];}
+          if(normals){normals[ray*3]=hits[h+4];normals[ray*3+1]=hits[h+5];normals[ray*3+2]=hits[h+6];}
+          if(bodies)bodies[ray]=token;
+        }
+        hitCount+=status;
+      }
+    } finally { this.mod._free!(pointer); }
     return hitCount;
   }
   /** The body a token from `castRays` names. The reference can be stale after removal or reset; resolve it with `bodyIndex`. */

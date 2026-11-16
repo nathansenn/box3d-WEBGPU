@@ -9,6 +9,8 @@
 
 ## Unreleased
 
+- **`castRays` stops each ray at its nearest hit** (new WASM): 100,000 rays against 10,000 bodies in 336–361 ms instead of 1,662–1,739 ms, with the same hits. Ties at the same fraction go to the smaller body handle, then triangle and child, in `raycast`, `castRays` and `raycastBatch` alike.
+
 - **Scene format version 3, five example scenes and scene roles.** `box3d-webgpu-kit/scene`: joints take `thresholds`, `steering`, `drive` and `maxTorque`, and the types `motor`, `parallel` and `filter`; `SCENE_VERSION` is 3 and `SCENE_VERSIONS` `[1, 2, 3]` (older files keep their text and hash). New `RIGID_CORE_EXAMPLE_SCENES` with `obstacleCourseScene`, `vehicleTerrainScene`, `laserScannerScene`, `bulletPlatesScene` and `breakableBridgeScene`. `box3d-webgpu-kit/gameplay`: `SceneRoles`, `attachSceneRoles`, `sceneRolesSubsystem`, `sceneHasRoles` (types `SceneRolesHost`, `SceneRolesSource`, `SceneRolesInput`, `SceneRolesState`, `SceneLaserBeam`) play a scene from `userData.role`; `Vehicle.adopt` makes a vehicle of bodies and joints that exist; `suspensionJointSpring` turns N/m and N s/m into a wheel joint's spring. `test/v22-rigid-examples.test.mjs` (10 tests in the gate).
 
 - **World controls and introspection:** `test/v22-rigid-controls.test.mjs` (5 tests in the gate) covers `settings()` / `configure()`, `setSleep`, `setMotionLocks`, `explodeArea`, `profile()`, `contactStats()` and `debugLines()` against closed forms and exact counts. `ContactStats` gains `totalNormalForce` and `largestNormalForce` (N); the raw impulses are those of the last sub-step. New WASM.

@@ -125,3 +125,49 @@ test('worker: batched rays, capsule queries and all-hits casts give the main-thr
     assert.deepEqual((await remote.raycastAll([-3, 0.5, 0], [10, 0, 0])).map(hit => hit.fraction), local.raycastAll([-3, 0.5, 0], [10, 0, 0]).map(hit => hit.fraction));
   } finally { local.dispose(); await remote.dispose(); }
 });
+
+test('ties: castRays and raycastBatch stop at the nearest hit and still give raycast()\'s hit when two bodies, two triangles or a start on a surface tie', async t => {
+  const world = await K.createWorld({gravity: [0, 0, 0], ground: false});
+  try {
+    const box = {kind: 'box', halfExtents: [0.5, 0.5, 0.5]};
+    // Two boxes in the same place: every ray hits both at the same fraction. Created in both orders, so that the
+    // smaller body handle is once the first and once the second in the tree.
+    const twins = [world.createBody({shape: box, type: 'static', position: [0, 0, 0]}), world.createBody({shape: box, type: 'static', position: [0, 0, 0]})];
+    world.createBody({shape: box, type: 'static', position: [6, 0, 0]}); world.createBody({shape: box, type: 'static', position: [6, 0, 0]});
+    // A mesh whose two triangles share the diagonal from (-1, 0, -1) to (1, 0, 1): rays down onto the diagonal tie between them.
+    world.createBody({shape: {kind: 'mesh', vertices: [-1, 0, -1, 1, 0, -1, 1, 0, 1, -1, 0, 1], indices: [0, 2, 1, 0, 3, 2]}, type: 'static', position: [0, -5, 6]});
+    // A wall of spheres far out, at 50 km, so that float rounding of bounds and hit points is large.
+    for (let i = 0; i < 6; i++) world.createBody({shape: {kind: 'sphere', radius: 0.5}, type: 'static', position: [50000 + i * 0.5, 0, 0]});
+    const list = [];
+    for (let k = -4; k <= 4; k++) {
+      list.push([-5, k * 0.11, 0.05 * k, 10, 0, 0], [6 + k * 0.1, 5, k * 0.07, 0, -10, 0]);          // through the twins, side and top
+      list.push([0.5, k * 0.1, 0, 3, 0, 0], [-0.5, 0.2, k * 0.1, 3, 0, 0]);                        // starting on a face: fraction 0
+      list.push([k * 0.2, -3, 6 + k * 0.2, 0, -5, 0], [k * 0.2 + 1e-7, -3, 6 + k * 0.2, 0, -5, 0]); // onto the shared diagonal of the mesh
+      list.push([49990, k * 0.1, 0, 20, 0, 0], [50000 + k * 0.3, 5, 0, 0, -10, 0]);              // far from the origin
+    }
+    const rays = list.flat(), n = list.length, origins = new Float32Array(n * 3), translations = new Float32Array(n * 3);
+    list.forEach((r, i) => { origins.set(r.slice(0, 3), i * 3); translations.set(r.slice(3), i * 3); });
+    const fractions = new Float32Array(n), points = new Float32Array(n * 3), normals = new Float32Array(n * 3), bodies = [];
+    world.castRays(origins, translations, fractions, {points, normals, bodies});
+    const batch = world.raycastBatch(rays);
+    let ties = 0, zero = 0;
+    for (let i = 0; i < n; i++) {
+      const o = [origins[i * 3], origins[i * 3 + 1], origins[i * 3 + 2]], d = [translations[i * 3], translations[i * 3 + 1], translations[i * 3 + 2]];
+      const single = world.raycast(o, d), all = world.raycastAll(o, d);
+      if (all.length > 1 && all[0].fraction === all[1].fraction) ties++;
+      if (single?.fraction === 0) zero++;
+      assert.equal(fractions[i], single ? single.fraction : -1, `castRays fraction, ray ${i}`);
+      assert.equal(bodies[i]?.token ?? null, single?.body?.token ?? null, `castRays body, ray ${i}`);
+      assert.equal(batch.fractions[i], single ? single.fraction : -1, `raycastBatch fraction, ray ${i}`);
+      assert.equal(batch.bodies[i]?.token ?? null, single?.body?.token ?? null, `raycastBatch body, ray ${i}`);
+      if (single) {
+        assert.deepEqual([points[i * 3], points[i * 3 + 1], points[i * 3 + 2]], [...single.point], `point, ray ${i}`);
+        assert.deepEqual([normals[i * 3], normals[i * 3 + 1], normals[i * 3 + 2]], [...single.normal], `normal, ray ${i}`);
+        assert.equal(batch.triangles[i], single.triangleIndex, `triangle, ray ${i}`);
+      }
+    }
+    t.diagnostic(`${n} rays: ${ties} with a tie for the nearest hit, ${zero} starting on a surface`);
+    assert.ok(ties >= 36, `the set-up makes ties, got ${ties}`); assert.ok(zero >= 9, `and rays that start on a surface, got ${zero}`);
+    assert.ok(twins[0].token < twins[1].token);
+  } finally { world.dispose(); }
+});

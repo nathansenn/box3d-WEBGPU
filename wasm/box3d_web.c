@@ -3472,9 +3472,24 @@ typedef struct B3WRayVisit
     uint64_t ignoreBody;
     uint64_t body;
     float fraction;
+    // How far beyond the best fraction the ray is clipped: 0.1 mm plus a millionth of the ray's span and distance
+    // from the origin, as a fraction of its length, which covers the float rounding of tree bounds and hit points.
+    float margin;
     float point[3], normal[3];
     int triangle, child;
 } B3WRayVisit;
+
+// The nearest hit, with the order of the query path's sort (b3w_compare_query_hit): fraction, then body token, then
+// triangle, then compound child. The ray is clipped just beyond the best fraction so far, never at it: Box3D then
+// still reports every shape that reaches the same fraction (its tree keeps a node only when the clipped segment's
+// bounds reach it, and stops the cast at a returned 0), so ties are decided here and the answer is the query path's,
+// bit for bit, while shapes beyond the nearest hit are no longer tested.
+static float b3w_ray_clip(const B3WRayVisit* visit)
+{
+    if (visit->body == 0u) return 1.0f;
+    const float clip = visit->fraction + visit->margin;
+    return clip < 1.0f ? clip : 1.0f;
+}
 
 static float b3w_ray_closest_callback(b3ShapeId shape, b3Pos p, b3Vec3 n, float fraction, uint64_t material, int triangle, int child, void* user)
 {
@@ -3485,17 +3500,21 @@ static float b3w_ray_closest_callback(b3ShapeId shape, b3Pos p, b3Vec3 n, float 
     const uintptr_t slot1 = (uintptr_t)b3Body_GetUserData(body);
     if (slot1 == 0u || slot1 > (uintptr_t)ctx->slotsUsed) return -1.0f;
     const int index = ctx->bodySlots[slot1 - 1u].denseIndex;
-    if (index < 0 || index >= ctx->bodyCount) return -1.0f;
+    if (index < 0 || index >= ctx->bodyCount || b3StoreBodyId(body) != b3StoreBodyId(ctx->bodies[index].id)) return -1.0f;
     const uint64_t token = b3w_ctx_body_handle(ctx, index);
     if (token == visit->ignoreBody || (visit->bodyTypes & (ctx->bodies[index].dynamic ? 2u : 1u)) == 0u) return -1.0f;
-    // Equal fractions: keep the smaller body token, so the answer does not depend on tree order.
-    if (fraction > visit->fraction || (fraction == visit->fraction && visit->body != 0u && token >= visit->body)) return visit->fraction;
-    visit->body = token;
-    visit->fraction = fraction;
-    visit->point[0] = (float)p.x; visit->point[1] = (float)p.y; visit->point[2] = (float)p.z;
-    visit->normal[0] = n.x; visit->normal[1] = n.y; visit->normal[2] = n.z;
-    visit->triangle = triangle; visit->child = child;
-    return fraction;
+    const int better = visit->body == 0u || fraction < visit->fraction ||
+        (fraction == visit->fraction && (token < visit->body || (token == visit->body &&
+            (triangle < visit->triangle || (triangle == visit->triangle && child < visit->child)))));
+    if (better)
+    {
+        visit->body = token;
+        visit->fraction = fraction;
+        visit->point[0] = (float)p.x; visit->point[1] = (float)p.y; visit->point[2] = (float)p.z;
+        visit->normal[0] = n.x; visit->normal[1] = n.y; visit->normal[2] = n.z;
+        visit->triangle = triangle; visit->child = child;
+    }
+    return b3w_ray_clip(visit);
 }
 
 // rays: `count` (1..65536) rays of 6 floats (origin xyz, translation xyz). outHits: 8 floats per ray
@@ -3517,7 +3536,10 @@ B3W_EXPORT int b3w_world_cast_rays(uint32_t handle, const float* rays, int count
     {
         const float* r = rays + i * 6;
         float* out = outHits + i * 8;
-        B3WRayVisit visit = { .ctx = ctx, .bodyTypes = bodyTypes, .ignoreBody = ignoreBody, .fraction = 1.0f, .triangle = -1, .child = -1 };
+        const float length = sqrtf(r[3] * r[3] + r[4] * r[4] + r[5] * r[5]);
+        const float reach = fabsf(r[0]) + fabsf(r[1]) + fabsf(r[2]) + fabsf(r[3]) + fabsf(r[4]) + fabsf(r[5]);
+        B3WRayVisit visit = { .ctx = ctx, .bodyTypes = bodyTypes, .ignoreBody = ignoreBody, .fraction = 1.0f, .triangle = -1, .child = -1,
+            .margin = length > 0.0f ? (1.0e-4f + 1.0e-6f * reach) / length : 1.0f };
         if (bodyTypes != 0u && (r[3] != 0.0f || r[4] != 0.0f || r[5] != 0.0f))
         {
             b3World_CastRay(ctx->world, (b3Pos){ r[0], r[1], r[2] }, (b3Vec3){ r[3], r[4], r[5] }, filter, b3w_ray_closest_callback, &visit);

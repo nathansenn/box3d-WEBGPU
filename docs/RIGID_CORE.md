@@ -76,8 +76,14 @@ One `raycastBatch` call for 4,096 rays took 18 ms against 134 ms for 4,096 `rayc
 
 - Query boxes are axis aligned and query capsules upright. Rotated query shapes are not exposed.
 - `raycastBatch` returns the closest hit only; use `raycastAll` or `queryBatch` for all hits.
-- When two bodies are hit at exactly the same fraction, the one with the smaller handle is reported, in every
-  ray call, so the answer does not depend on tree order.
+- When two hits are at exactly the same fraction, the one with the smaller body handle is reported, then the
+  smaller triangle and compound child, in every ray call (`raycast`, `castRays`, `raycastBatch`), so the answer does
+  not depend on tree order. `castRays` and `raycastBatch` use the bridge's closest-hit call
+  (`b3w_world_cast_rays`): each ray is clipped just beyond its best hit so far, so shapes behind it are not tested,
+  and a hit at the same fraction is still seen and compared. On the engine comparison's 100,000 rays against
+  10,000 bodies this took `castRays` from 1,662 ms to 336 ms (best of three; load 4 before, 8.5 after, 4 CPUs) with
+  the same 97,457 hits; `test/v22-rigid-queries.test.mjs` checks 72 rays built to tie (two bodies in one place, rays
+  that start on a face, a mesh's shared edge, 50 km from the origin) against `raycast()`, bit for bit.
 - Queries against meshes, height fields, hulls and compounds have no closed-form row; they are covered by the
   bit-for-bit agreement of the batched and single calls.
 
