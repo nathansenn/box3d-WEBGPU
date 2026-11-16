@@ -3,6 +3,7 @@
  *
  *   lab.html?example=sand-avalanche-100k    100 000 grains released on a slope of 30 degrees
  *   lab.html?example=flood-valley-1m        a reservoir let go into a valley of 1024 x 1024 cells
+ *   lab.html?example=lid-cavity-262k        a lid-driven cube of 64^3 cells at Re 1000, drawn as three slices of speed
  *
  * `&n=` sets the size (grains; cells along a side). The solvers are the WebGPU backends of src/engine/gpu/ on the
  * renderer's own device, so the renderer draws from their buffers (src/webgpu/simulation-layers.ts) and nothing is read
@@ -17,12 +18,15 @@ import { GpuGranular, demMemory } from '../engine/gpu/granular-gpu.ts';
 import { sandAvalanche } from '../engine/gpu/granular-setups.ts';
 import { GpuShallowWater } from '../engine/gpu/shallow-water-gpu.ts';
 import { floodValley } from '../engine/gpu/shallow-water-setups.ts';
-import { createGrainLayer, createHeightFieldLayers, createPlaneLayer } from '../webgpu/simulation-layers.ts';
+import { createFluidSliceLayer, createGrainLayer, createHeightFieldLayers, createPlaneLayer } from '../webgpu/simulation-layers.ts';
+import { GpuFluid, fluidMemory } from '../engine/gpu/fluid-gpu.ts';
+import { cavity3d } from '../engine/gpu/fluid-setups.ts';
 import type { SimulationLayer, WebGPURenderer } from '../webgpu/renderer';
 
 export const GPU_SHOWCASES = Object.freeze({
   'sand-avalanche-100k': { title: 'Sand avalanche, 100 000 grains (GPU)', size: 100_000, fallback: 'hopper-seesaw' },
   'flood-valley-1m': { title: 'Flood down a valley, 1 048 576 cells (GPU)', size: 1024, fallback: 'dam-break-valley' },
+  'lid-cavity-262k': { title: 'Lid-driven cube, 262 144 cells (GPU)', size: 64, fallback: 'cavity-flow' },
 });
 export type GpuShowcaseName = keyof typeof GPU_SHOWCASES;
 /** The showcase a Lab address asks for (`?example=<name>`), or null. */
@@ -45,6 +49,11 @@ export interface GpuShowcase {
   frame(steps: number): void;
   /** Take `steps` steps of 1/60 s now and wait for the GPU to finish them (for tests and captures; frames need not be drawn). */
   advance(steps: number): Promise<void>;
+  /**
+   * True while steps that read back between their dispatches are on their way (the fluid's solves): the Lab draws no
+   * frame then, since a readback waits for every frame submitted before it.
+   */
+  holdsFrames?(): boolean;
   state(): GpuShowcaseState;
   readout(): string;
   dispose(): void;
@@ -152,6 +161,55 @@ async function flood(renderer: WebGPURenderer, compute: GpuCompute, params: URLS
   };
 }
 
+async function cube(renderer: WebGPURenderer, compute: GpuCompute, params: URLSearchParams): Promise<GpuShowcase> {
+  const name = 'lid-cavity-262k' as const, n = size(params, GPU_SHOWCASES[name].size, 8, 160), re = 1000;
+  const fluid = cavity3d(n, re), memory = fluidMemory(fluid);
+  if (memory.data > compute.device.limits.maxStorageBufferBindingSize) throw new EngineError('GPU_UNAVAILABLE', `${n}^3 cells need a storage buffer of ${memory.data} bytes; this device binds at most ${compute.device.limits.maxStorageBufferBindingSize}.`);
+  const gpu = await GpuFluid.create(compute, fluid);
+  // A unit cube drawn 8 world metres wide, its floor at 1 m; the lid (y = 1) slides along +x.
+  const k = 8, model = multiply(translate(-4, 1, -4), scale(k, k, k));
+  const target = renderer.simulationLayerTarget(), base = { cells: [n, n, n] as const, padded: [n + 2, n + 2] as const, paddedSize: gpu.padded, velocityOffset: gpu.regions.vel!, spacing: 1 / n, speedScale: 0.6, model };
+  const layers: SimulationLayer[] = [
+    createFluidSliceLayer(target, gpu.dataBuffer, { ...base, axis: 2, index: n >> 1 }),
+    createFluidSliceLayer(target, gpu.dataBuffer, { ...base, axis: 0, index: Math.round(0.8 * n) }),
+    createFluidSliceLayer(target, gpu.dataBuffer, { ...base, axis: 1, index: 0 }),
+  ];
+  renderer.setSimulationLayers(layers);
+  let busy = false, msPerStep = NaN, failed: string | null = null, disposed = false, queue: Promise<void> = Promise.resolve(), pending = 0;
+  // GpuFluid.step reads its scalars back between dispatches and must not run twice at once: the frames and the
+  // page's step requests share one queue. While steps are queued the Lab draws nothing (holdsFrames): each of a step's
+  // readbacks (one per 16 iterations of a solve) would otherwise wait for the frames submitted before it.
+  const advance = (steps: number): Promise<void> => {
+    pending++;
+    const run = queue.then(async () => {
+      if (disposed) return;
+      const started = performance.now();
+      await gpu.step(steps);
+      msPerStep = (performance.now() - started) / Math.max(1, steps);
+    }).finally(() => { pending--; });
+    queue = run.catch(() => undefined);
+    return run;
+  };
+  return {
+    name, title: `Lid-driven cube, ${(n ** 3).toLocaleString('en')} cells (GPU)`, device: compute.device,
+    camera: { yaw: 0.75, pitch: 0.42, distance: 17, target: [0, 4.6, 0] },
+    frame(steps) {
+      if (busy || failed || disposed || steps <= 0) return;
+      busy = true;
+      void advance(1).catch((error: unknown) => { failed = error instanceof Error ? error.message : String(error); }).finally(() => { busy = false; });
+    },
+    advance,
+    holdsFrames: () => pending > 0,
+    state: () => ({ name, backend: 'webgpu-f32', solver: gpu.solver, elements: n ** 3, steps: gpu.stats.steps, time: gpu.time, msPerStep, adapter: adapterText(compute), software: compute.info.software, drawStride: 1, failed,
+      stats: { pressureIterations: gpu.stats.pressureIterations, viscousIterations: gpu.stats.viscousIterations, divergence: gpu.stats.divergence, unconverged: gpu.stats.unconverged, reynolds: re } }),
+    readout() {
+      const s = gpu.stats;
+      return `${n}^3 cells on the GPU · Re ${re} · t = ${gpu.time.toFixed(2)} · ${s.pressureIterations} pressure iterations a step · divergence ${s.divergence.toExponential(1)}${Number.isFinite(msPerStep) ? ` · ${msPerStep.toFixed(1)} ms per step` : ''}${failed ? ` · stopped: ${failed}` : ''}`;
+    },
+    dispose() { if (disposed) return; disposed = true; renderer.setSimulationLayers([]); for (const layer of layers) layer.destroy(); void queue.then(() => gpu.destroy()); },
+  };
+}
+
 /**
  * Start a showcase on the renderer's device, or say which CPU example to open instead and why (no WebGPU renderer, a
  * device that cannot hold the buffers, a shader the device refuses).
@@ -161,7 +219,7 @@ export async function startGpuShowcase(name: GpuShowcaseName, renderer: WebGPURe
   if (!renderer) return { fallback, reason: 'This page is drawing with WebGL2, which has no compute shaders.' };
   try {
     const compute = new GpuCompute(renderer.device, (renderer.device as GPUDevice & { adapterInfo?: GPUAdapterInfo }).adapterInfo ?? null);
-    return await (name === 'sand-avalanche-100k' ? avalanche(renderer, compute, params) : flood(renderer, compute, params));
+    return await (name === 'sand-avalanche-100k' ? avalanche(renderer, compute, params) : name === 'flood-valley-1m' ? flood(renderer, compute, params) : cube(renderer, compute, params));
   } catch (error) {
     renderer.setSimulationLayers([]);
     if (error instanceof EngineError && error.code.startsWith('GPU_')) return { fallback, reason: error.message };

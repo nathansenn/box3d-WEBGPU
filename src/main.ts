@@ -442,6 +442,8 @@ let gpuShowcase: GpuShowcase | null = null;
 let gpuShowcaseFallback: { readonly name: string; readonly opened: string; readonly reason: string } | null = null;
 let gpuShowcaseReadout: HTMLElement | null = null;
 let gpuShowcasePaused = false;
+// Frames submitted to the GPU example's device and not yet run (at most one: see frame()).
+let gpuShowcaseFramePending = false;
 let paused = false;
 let debugEnabled = false;
 let isDragging = false;
@@ -4713,7 +4715,7 @@ async function main(): Promise<void> {
   // Read the requests first: loading the boot recipe clears the SI parameters from the address.
   const siRequest = siDemoRequestFromUrl();
   const siBridgeRequested = new URLSearchParams(window.location.search).get('si') === SI_BRIDGE_ID;
-  // lab.html?example=sand-avalanche-100k and ?example=flood-valley-1m are not scenes of the format: they are started below.
+  // lab.html?example=sand-avalanche-100k, flood-valley-1m and lid-cavity-262k are not scenes of the format: they are started below.
   const showcaseRequest = gpuShowcaseRequest(window.location.search);
   const sceneRequest = showcaseRequest ? null : parseSceneRequest(window.location.search, window.location.hash);
   scenePanel = createScenePanel({
@@ -4835,6 +4837,10 @@ async function main(): Promise<void> {
   function frame(now: number): void {
     if(frameDisposed)return;
     if(rendererRecovering||rendererFailed){last=now;frameRequest=requestAnimationFrame(frame);return;}
+    // With a GPU example on screen a frame waits until the device has run the one before, and none is drawn while the
+    // example holds them: on a slow adapter frames would otherwise queue up faster than they run, and every readback of
+    // the example waits behind all of them (a fluid step reads back every 16 solver iterations).
+    if(gpuShowcase&&(gpuShowcaseFramePending||gpuShowcase.holdsFrames?.())){last=now;frameRequest=requestAnimationFrame(frame);return;}
     const frameStart=performance.now();
     const wallDeltaSeconds=Math.max(0,(now-last)/1000);
     const deltaSeconds = Math.min(0.1,wallDeltaSeconds);
@@ -4961,6 +4967,11 @@ async function main(): Promise<void> {
       : (effectFrame.frameVersion ^ inspectionLineVersion) >>> 0;
     engineTimings.sample('staging',performance.now()-stagingStart);
     const renderMs = renderer.render(effectBase + effectFrame.count, combinedFrameLines, lineFrameVersion);
+    if (gpuShowcase && renderer instanceof WebGPURenderer) {
+      gpuShowcaseFramePending = true;
+      const done = (): void => { gpuShowcaseFramePending = false; };
+      renderer.device.queue.onSubmittedWorkDone().then(done, done);
+    }
     engineTimings.sample('renderCpu',renderMs);engineTimings.sample('frame',performance.now()-frameStart);
     if(adaptiveRendering&&engineeringRun?.state!=='running'){
       const timing=renderer.gpuTimingInfo(),fresh=timing.latest?.frameId!==lastGovernorSample;

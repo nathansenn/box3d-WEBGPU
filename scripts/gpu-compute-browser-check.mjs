@@ -15,9 +15,10 @@
 //   --no-granular, --no-shallow-water, --no-fluid   leave a backend out.
 //   --dist=path  serve this copy of the built site instead of ./dist (so that a rebuild cannot disturb a long run).
 //   --showcase   instead: open the Lab's examples at scale (lab.html?example=sand-avalanche-100k, flood-valley-1m) at
-//                small sizes (3000 grains, 96 x 96 cells; with --hardware the real ones; --showcase-sizes=grains,cells),
+//                small sizes (3000 grains, 96 x 96 cells, 16^3 cells; with --hardware the real ones; --showcase-sizes=grains,cells,cube),
 //                let them run, save captures of the canvas read back in the frame that drew it, and open one with
 //                ?renderer=webgl2 to see the CPU example it falls back to. Look at the captures.
+//                --showcase-only=name,name opens only those examples.
 //
 // It needs Playwright (from this repository or the global node_modules) and a Chromium with WebGPU; BOX3D_CHROMIUM
 // names the executable (default /opt/pw-browsers/chromium when present). It is not in a gate, because the gates have
@@ -85,7 +86,7 @@ try {
     console.log(line(head)); console.log(widths.map(w => '-'.repeat(w)).join('  ')); for (const r of rows) console.log(line(r));
   };
   if (flag('showcase')) {
-    const sizes = (value('showcase-sizes') ?? (hardware ? '100000,1024' : '3000,96')).split(',').map(Number), result = {examples: {}, captures: []};
+    const sizes = (value('showcase-sizes') ?? (hardware ? '100000,1024,64' : '3000,96,16')).split(',').map(Number), result = {examples: {}, captures: []};
     const open = async (query, label) => {
       // A small canvas: on a software adapter the Lab's frame is what takes the time.
       const lab = await browser.newPage({viewport: hardware ? {width: 1440, height: 1000} : {width: 900, height: 820}});
@@ -105,8 +106,10 @@ try {
       return shot.colours;
     };
     // Frames of 1/60 s taken between captures.
-    const cases = [['sand-avalanche-100k', sizes[0], hardware ? [6, 54, 120] : [6, 24, 40]], ['flood-valley-1m', sizes[1], hardware ? [10, 590, 1800] : [10, 170, 300]]];
+    const cases = [['sand-avalanche-100k', sizes[0], hardware ? [6, 54, 120] : [6, 24, 40]], ['flood-valley-1m', sizes[1], hardware ? [10, 590, 1800] : [10, 170, 300]], ['lid-cavity-262k', sizes[2], hardware ? [10, 300, 1200] : [4, 40, 120]]];
+    const wanted = value('showcase-only')?.split(',');
     for (const [name, n, stops] of cases) {
+      if (wanted && !wanted.includes(name)) continue;
       const lab = await open(`example=${name}&n=${n}`, name), states = [];
       // Paused, then stepped without waiting for frames: on a software adapter a frame of the Lab takes seconds.
       await lab.evaluate(() => window.box3dLab.pauseGpuShowcase(true));

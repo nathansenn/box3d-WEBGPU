@@ -6,7 +6,7 @@ import assert from 'node:assert/strict';
 import fs from 'node:fs';
 import {create, globals} from 'webgpu';
 Object.assign(globalThis, globals);
-const {createGrainLayer, createHeightFieldLayers, createPlaneLayer, GRAIN_LAYER_WGSL, HEIGHT_FIELD_LAYER_WGSL, PLANE_LAYER_WGSL} = await import('../src/webgpu/simulation-layers.ts');
+const {createGrainLayer, createHeightFieldLayers, createPlaneLayer, createFluidSliceLayer, GRAIN_LAYER_WGSL, HEIGHT_FIELD_LAYER_WGSL, PLANE_LAYER_WGSL, FLUID_SLICE_LAYER_WGSL} = await import('../src/webgpu/simulation-layers.ts');
 const rendererSource = fs.readFileSync(new URL('../src/webgpu/renderer.ts', import.meta.url), 'utf8');
 const sceneUniformStruct = /const sceneUniformStruct = \/\* wgsl \*\/ `([\s\S]*?)`;/.exec(rendererSource)?.[1];
 assert.ok(sceneUniformStruct, 'renderer.ts must contain sceneUniformStruct');
@@ -17,7 +17,7 @@ device.addEventListener('uncapturederror', event => uncaptured.push(event.error.
 // The renderer's scene layout has more entries (shadow map, atlases); the layers use the uniform only.
 const sceneBindGroupLayout = device.createBindGroupLayout({entries: [{binding: 0, visibility: GPUShaderStage.VERTEX | GPUShaderStage.FRAGMENT, buffer: {type: 'uniform'}}]});
 const target = {device, sceneBindGroupLayout, colorFormat: 'rgba16float', depthFormat: 'depth24plus', sceneUniformStruct};
-for (const [name, code] of [['grains', GRAIN_LAYER_WGSL(target)], ['height field', HEIGHT_FIELD_LAYER_WGSL(target)], ['plane', PLANE_LAYER_WGSL(target)]]) {
+for (const [name, code] of [['grains', GRAIN_LAYER_WGSL(target)], ['height field', HEIGHT_FIELD_LAYER_WGSL(target)], ['plane', PLANE_LAYER_WGSL(target)], ['fluid slice', FLUID_SLICE_LAYER_WGSL(target)]]) {
   const info = await device.createShaderModule({code}).getCompilationInfo();
   assert.deepEqual(info.messages.map(m => `${name} ${m.type} ${m.lineNum}: ${m.message}`), [], `${name} layer shader`);
 }
@@ -26,12 +26,14 @@ device.pushErrorScope('validation');
 const grains = createGrainLayer(target, storage(16 * 1000), 1000, {radiusScale: 1.5});
 const field = createHeightFieldLayers(target, storage(16 * 256 * 128), storage(16 * 256 * 128), {cells: [256, 128], origin: [0, 0], spacing: [2, 2]});
 const plane = createPlaneLayer(target, {rect: [-1, -1, 4, 2], gridSize: 0.5});
+const slices = [0, 1, 2].map(axis => createFluidSliceLayer(target, storage(4 * 20000), {cells: [12, 10, 8], padded: [14, 12], paddedSize: 14 * 12 * 10, velocityOffset: 0, spacing: 0.1, axis, index: 3, speedScale: 1}));
 const error = await device.popErrorScope();
 assert.equal(error, null, `layer pipelines and bind groups: ${error?.message ?? ''}`);
 assert.equal(field.vertices, 6 * 255 * 127);
+assert.deepEqual(slices.map(l => l.vertices), [6 * 10 * 8, 6 * 12 * 8, 6 * 12 * 10]);
 await device.queue.onSubmittedWorkDone();
 assert.deepEqual(uncaptured, []);
-grains.destroy(); field.terrain.destroy(); plane.destroy();
-console.log('Dawn null-backend validation passed: grain, height-field (terrain and water) and plane layers, 1x and 4x pipelines.');
+grains.destroy(); field.terrain.destroy(); plane.destroy(); for (const l of slices) l.destroy();
+console.log('Dawn null-backend validation passed: grain, height-field (terrain and water), plane and fluid-slice layers, 1x and 4x pipelines.');
 device.destroy();
 gpu = null;

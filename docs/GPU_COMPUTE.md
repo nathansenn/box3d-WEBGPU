@@ -14,8 +14,8 @@ Updated 2026-11-16.
 | Shallow water (`shallow-water-gpu.ts`) | done; 22 closed-form cases pass on the GPU (SwiftShader) with the float64 tolerances except four rows (below) |
 | Discrete-element grains (`granular-gpu.ts`) | done; 27 closed-form cases pass on the GPU (SwiftShader): 17 two-body, incline and column rows (13 with the float64 tolerance) and the 10 Janssen, Beverloo and repose rows (float64 tolerances) |
 | Coupling grains to rigid bodies (`GpuGranularCoupling`) | done on the CPU with per-wall sums reduced on the GPU; latency 0 or 1 rigid step |
-| Drawing from the simulation buffers (`src/webgpu/simulation-layers.ts`) | done: grains as shaded quads from the position buffer, terrain and water surface from the state and bed buffers |
-| Lab examples at scale (`lab.html?example=sand-avalanche-100k`, `flood-valley-1m`) | done, with a CPU example as the fall back; seen on SwiftShader at small sizes only |
+| Drawing from the simulation buffers (`src/webgpu/simulation-layers.ts`) | done: grains as shaded quads from the position buffer, terrain and water surface from the state and bed buffers, slices of a fluid coloured by speed from its data buffer |
+| Lab examples at scale (`lab.html?example=sand-avalanche-100k`, `flood-valley-1m`, `lid-cavity-262k`) | done, with a CPU example as the fall back; seen on SwiftShader at small sizes only |
 | Incompressible flow on the MAC grid (`fluid-gpu.ts`) | done without obstacles: 17 closed-form rows pass on the GPU (SwiftShader), 13 with the float64 tolerance; the GPU gives the float32 reference's bits |
 | Free surface (APIC), cloth, obstacles in the flow | **not done** on the GPU |
 | Shallow water with coupled rigid bodies or point sources on the GPU | **not done** (the float64 solver has both) |
@@ -45,7 +45,7 @@ that replays those states (`shallow-water-validation.ts`). For grains the set-up
 worker that blocks on a shared buffer while the page drives the device (`scenario-worker.ts`).
 
 ```
-npm run test:gpu                                             # the gate: 40 tests and a Dawn script, about 8 minutes
+npm run test:gpu                                             # the gate: 42 tests and a Dawn script, about 8 minutes
 npm run build && node scripts/gpu-compute-browser-check.mjs out          # the shaders, on SwiftShader: about 100 minutes
 npm run build && node scripts/gpu-compute-browser-check.mjs out --quick  # without Janssen, Beverloo and repose
 ```
@@ -388,30 +388,48 @@ run on the GPU: they need the kit's WASM world inside the worker, which was not 
   from the vertex index, heights pulled from the state and bed buffers; dry cells of the water surface are discarded.
   A grid finer than 512 quads along a side is drawn every `stride` cells (the solver still computes every cell).
 - `createPlaneLayer`: a rectangle with a grid.
+- `createFluidSliceLayer(target, dataBuffer, {cells, padded, paddedSize, velocityOffset, axis, index, speedScale, model})`:
+  one plane of cells of the GPU fluid (normal `axis`, cell layer `index`), each cell a flat quad coloured by the speed
+  at its centre (the mean of its two faces per component, read from the backend's data buffer in the vertex shader;
+  dark blue at rest, red at `speedScale`). 6 vertices per cell; nothing is interpolated between cells.
 
 No simulation data is read back for a frame. The examples read back statistics only: 288 bytes per wall and 32 bytes of
-counters per batch of grain steps; 32 bytes every twentieth batch for shallow water.
+counters per batch of grain steps; 32 bytes every twentieth batch for shallow water; for the fluid, its 64 scalars (256 bytes) every 16
+iterations of a solve (the solves stop on the GPU) and once at the end of a step.
 
 ## Lab examples at scale
 
 ```
 lab.html?example=sand-avalanche-100k        100 000 grains of 7 to 9 mm released behind a gate on a 30 degree slope
 lab.html?example=flood-valley-1m            a 34 m reservoir let go into a 1 km valley of 1024 x 1024 cells, Manning 0.035
+lab.html?example=lid-cavity-262k            a lid-driven cube of 64 x 64 x 64 cells at Re 1000, drawn as three slices of speed
 ```
 
 `&n=` sets the size (grains; cells along a side). The avalanche takes 3360 grain steps per simulated second at 100 000
 grains (the step is set so that a grain at the bottom of the heap at rest overlaps by about 2.5 % of its radius; the
 heap is 18 layers deep), so 56 grain steps per frame at 60 Hz; the flood takes 2 to 3 substeps per 1/60 s step at
-1024 x 1024. Both run on their own clock (the Pause button stops them); a frame never waits for the GPU: the grain
+1024 x 1024. Both run on their own clock (the Pause button stops them) and never hold a frame for a step: the grain
 example waits for the walls' sums once per batch, the flood uses the newest face speeds that have come back
 (`rateWait: false`, so its substep counts depend on timing and two runs can differ). Without WebGPU
 compute (the WebGL2 renderer, or a device too small for the buffers) the page opens `hopper-seesaw` or
 `dam-break-valley` instead, and the log says why. `box3dLab.sceneState().gpuShowcase` reports the solver, the element
 count, steps, time, ms per step and the solver's statistics.
 
+The cube (`cavity3d(n, 1000)` of `fluid-setups.ts`: a unit cube, lid speed 1, viscosity 1/1000, backward-Euler
+viscosity, `dt = h / 2`) takes one solver step per drawn frame and falls back to `cavity-flow`. Its three slices are the
+mid plane (cell layer n/2), the cell layer at 0.8 n along x (x = 0.84 at 16 cells) and the bottom cell layer, coloured
+by speed (red at 0.6 of the lid speed). A fluid step reads back the scalars every 16 iterations of each solve, so while
+a GPU example is on screen the Lab keeps at most one frame on the device (it waits for `onSubmittedWorkDone` before
+drawing the next), and it draws none while the cube's steps are on their way (`holdsFrames`). Without that, on
+SwiftShader the Lab submitted frames faster than they ran: with the cube paused, a wait for `onSubmittedWorkDone`
+begun 10 s after loading took 92 s (356 more frames were submitted meanwhile), every readback waited behind that queue,
+and one 8^3 step took 2.0 s with frames stopped but had not finished after 2.5 minutes with them running (a 16^3 run
+drew no frame in 34 minutes). With the change, an 8^3 step took 185 ms and a 16^3 step 1.5 to 2.1 s on SwiftShader on
+a loaded machine (load average 10 to 15).
+
 Seen on SwiftShader (`node scripts/gpu-compute-browser-check.mjs out --showcase`, 2026-11-16) at small sizes only:
-3174 grains (`&n=3000`) and 96 x 96 cells (`&n=96`), stepped with the Lab paused between captures. The captures were
-looked at:
+3174 grains (`&n=3000`), 96 x 96 cells (`&n=96`) and 16^3 cells (`&n=16`), stepped with the Lab paused between
+captures. The captures were looked at:
 
 - **Avalanche, 3174 grains** (1920 steps per simulated second at this size): at 0.12 s the heap stands behind the
   gate (4944 touching pairs, largest overlap 16 % of a radius while the heap settles from its lattice); the gate is taken
@@ -422,11 +440,25 @@ looked at:
   white where it runs fastest; at 8 s (481 steps, one substep each, Courant number 0.04 to 0.05, largest wave speed
   16 m/s) 1168 cells are wet: the front has moved about 100 m of the 1 km valley, as it should in 8 s. Terrain and
   water drawn from the state and bed buffers.
+- **Lid-driven cube, 16^3 cells** (`&n=16`, `--showcase-only=lid-cavity-262k`): captures at steps 5, 45 and 165 (t =
+  0.16, 1.41 and 5.16 lid-transit times), all solves converged (27 to 37 pressure iterations a step, 12 viscous,
+  divergence 1.4e-6 to 1.7e-6 of the largest speed). At t = 0.16 only the cell layer under the lid moves. At t = 1.41
+  the fast band under the lid has a slow layer just beneath it and a broad region of moderate speed below that. At t =
+  5.16: the band under the lid, a fast downward stream on the x = 0.84 slice at mid-span (slower towards the side
+  walls), faster return flow in the lower half of the mid plane, a slower region in its upper half, and the bottom
+  cell layer slow everywhere. The colours show speed, not direction; the direction comes from the same program run by
+  the float32 reference (`FluidF32`, which gave the GPU's bits on the 12-step Re 100 cube in the agreement table) for
+  165 steps: on the mid plane u runs from 0.40 in the top cell to -0.061 at y = 0.41 (return flow below about 0.8 of
+  the height), v from 0.071 at x = 0.6 to -0.27 next to the downstream wall, and the slowest interior cell (0.014) is
+  at x = 0.78, y = 0.66: one clockwise primary vortex, its centre still in the upper downstream quarter. The flow is
+  far from steady at t = 5; no capture was compared with a published 3D cavity profile, and 16 cells do not resolve Re
+  1000 (cell Reynolds number 62).
 - **Fall back**: `lab.html?example=flood-valley-1m&renderer=webgl2` opens `dam-break-valley` and says "This page is
   drawing with WebGL2, which has no compute shaders."
 
-The full sizes (100 000 grains, 1024 x 1024 cells) were not run here: on SwiftShader a step of the avalanche at 3174
-grains takes 130 to 280 ms. **What they look like and how fast they run on a real GPU is not known yet.**
+The full sizes (100 000 grains, 1024 x 1024 cells, 64^3 cells) were not run here: on SwiftShader a step of the
+avalanche at 3174 grains takes 130 to 280 ms, of the cube at 16^3 1.5 to 2.1 s. **What they look like and how fast
+they run on a real GPU is not known yet.**
 
 ## Timings
 

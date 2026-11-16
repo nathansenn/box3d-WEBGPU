@@ -169,6 +169,50 @@ fn fsMain(input : PlaneOut) -> @location(0) vec4<f32> {
 }
 `;
 
+export const FLUID_SLICE_LAYER_WGSL = (target: SimulationLayerTarget): string => /* wgsl */ `${head(target)}
+struct Slice { model : mat4x4<f32>, dims : vec4<u32>, pads : vec4<u32>, place : vec4<u32>, look : vec4<f32> };
+@group(1) @binding(0) var<storage, read> fluidData : array<f32>;
+@group(1) @binding(1) var<uniform> slice : Slice;
+struct SliceOut { @builtin(position) clip : vec4<f32>, @location(0) color : vec3<f32>, @location(1) worldPos : vec3<f32> };
+// Speed over the scale to a colour: dark blue, cyan, yellow, red.
+fn ramp(t : f32) -> vec3<f32> {
+  let x = clamp(t, 0.0, 1.0);
+  let a = mix(vec3<f32>(0.02, 0.05, 0.25), vec3<f32>(0.05, 0.65, 0.85), smoothstep(0.0, 0.35, x));
+  let b = mix(a, vec3<f32>(0.95, 0.85, 0.15), smoothstep(0.35, 0.7, x));
+  return mix(b, vec3<f32>(0.85, 0.12, 0.05), smoothstep(0.7, 1.0, x));
+}
+@vertex
+fn vsMain(@builtin(vertex_index) vertexIndex : u32) -> SliceOut {
+  // dims: cells along x, y, z and the normal axis; pads: padded x and y, padded size, velocity offset; place: the slice's cell index.
+  let axis = slice.dims.w;
+  var na = slice.dims.x; var nb = slice.dims.y;
+  if (axis == 0u) { na = slice.dims.y; nb = slice.dims.z; } else if (axis == 1u) { na = slice.dims.x; nb = slice.dims.z; }
+  let quad = vertexIndex / 6u; let corner = vertexIndex % 6u;
+  let ox = array<u32, 6>(0u, 1u, 0u, 1u, 1u, 0u); let oz = array<u32, 6>(0u, 0u, 1u, 0u, 1u, 1u);
+  let qa = quad % na; let qb = quad / na;
+  var cell = vec3<u32>(qa, qb, slice.place.x);
+  var local = vec3<f32>(f32(qa + ox[corner]), f32(qb + oz[corner]), f32(slice.place.x) + 0.5);
+  if (axis == 0u) { cell = vec3<u32>(slice.place.x, qa, qb); local = vec3<f32>(f32(slice.place.x) + 0.5, f32(qa + ox[corner]), f32(qb + oz[corner])); }
+  else if (axis == 1u) { cell = vec3<u32>(qa, slice.place.x, qb); local = vec3<f32>(f32(qa + ox[corner]), f32(slice.place.x) + 0.5, f32(qb + oz[corner])); }
+  let NX = slice.pads.x; let NY = slice.pads.y; let P = slice.pads.z; let V = slice.pads.w;
+  let f = (cell.x + 1u) + NX * ((cell.y + 1u) + NY * (cell.z + 1u));
+  let u = 0.5 * (fluidData[V + f] + fluidData[V + f + 1u]);
+  let v = 0.5 * (fluidData[V + P + f] + fluidData[V + P + f + NX]);
+  let w = 0.5 * (fluidData[V + 2u * P + f] + fluidData[V + 2u * P + f + NX * NY]);
+  let world = slice.model * vec4<f32>(local * slice.look.x, 1.0);
+  var out : SliceOut;
+  out.clip = scene.viewProj * world; out.worldPos = world.xyz;
+  out.color = ramp(sqrt(u * u + v * v + w * w) / slice.look.y);
+  return out;
+}
+@fragment
+fn fsMain(input : SliceOut) -> @location(0) vec4<f32> {
+  let far = length(scene.cameraPosTime.xyz - input.worldPos);
+  let fog = 1.0 - exp(-scene.fogColorDensity.w * far * far * 0.018);
+  return vec4<f32>(mix(input.color, scene.fogColorDensity.xyz, clamp(fog, 0.0, 0.9)), 1.0);
+}
+`;
+
 type Mat4Like = ArrayLike<number>;
 const IDENTITY = [1, 0, 0, 0, 0, 1, 0, 0, 0, 0, 1, 0, 0, 0, 0, 1];
 function pipelines(target: SimulationLayerTarget, label: string, code: string, layout: GPUBindGroupLayout, fragment: string, options: { topology: GPUPrimitiveTopology; blended: boolean }): [GPURenderPipeline, GPURenderPipeline] {
@@ -258,4 +302,24 @@ export function createPlaneLayer(target: SimulationLayerTarget, options: { reado
   device.queue.writeBuffer(buffer, 0, data.buffer as ArrayBuffer);
   const group = device.createBindGroup({ label: 'plane layer', layout, entries: [{ binding: 0, resource: { buffer } }] });
   return { blended: false, draw(pass, sampleCount) { pass.setPipeline(sampleCount === 1 ? one : four); pass.setBindGroup(1, group); pass.draw(4, 1); }, destroy() { buffer.destroy(); } };
+}
+
+export interface FluidSliceLayer extends SimulationLayer { readonly vertices: number }
+/**
+ * A plane of cells of a GPU fluid (fluid-gpu.ts) coloured by the speed at the cell centres, read from the backend's data
+ * buffer: `axis` is the plane's normal (0 x, 1 y, 2 z) and `index` the cell layer. `speedScale` is the speed drawn red.
+ */
+export function createFluidSliceLayer(target: SimulationLayerTarget, data: GPUBuffer, options: { readonly cells: readonly [number, number, number]; readonly padded: readonly [number, number]; readonly paddedSize: number; readonly velocityOffset: number; readonly spacing: number; readonly axis: 0 | 1 | 2; readonly index: number; readonly speedScale: number; readonly model?: Mat4Like }): FluidSliceLayer {
+  const device = target.device, [nx, ny, nz] = options.cells, axis = options.axis;
+  const layout = device.createBindGroupLayout({ label: 'fluid slice layer', entries: [
+    { binding: 0, visibility: GPUShaderStage.VERTEX, buffer: { type: 'read-only-storage' } }, { binding: 1, visibility: GPUShaderStage.VERTEX, buffer: { type: 'uniform' } }] });
+  const [one, four] = pipelines(target, 'fluid slice layer', FLUID_SLICE_LAYER_WGSL(target), layout, 'fsMain', { topology: 'triangle-list', blended: false });
+  const bytes = new ArrayBuffer(128), floats = new Float32Array(bytes), words = new Uint32Array(bytes), buffer = uniform(device, 'fluid slice uniforms', 32);
+  floats.set(options.model ?? IDENTITY, 0);
+  words.set([nx, ny, nz, axis], 16); words.set([options.padded[0], options.padded[1], options.paddedSize, options.velocityOffset], 20); words.set([options.index, 0, 0, 0], 24);
+  floats.set([options.spacing, options.speedScale, 0, 0], 28);
+  device.queue.writeBuffer(buffer, 0, bytes);
+  const group = device.createBindGroup({ label: 'fluid slice layer', layout, entries: [{ binding: 0, resource: { buffer: data } }, { binding: 1, resource: { buffer } }] });
+  const vertices = 6 * (axis === 0 ? ny * nz : axis === 1 ? nx * nz : nx * ny);
+  return { blended: false, vertices, draw(pass, sampleCount) { pass.setPipeline(sampleCount === 1 ? one : four); pass.setBindGroup(1, group); pass.draw(vertices, 1); }, destroy() { buffer.destroy(); } };
 }
