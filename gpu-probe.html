@@ -1,0 +1,11 @@
+<!doctype html>
+<html lang="en">
+<head><meta charset="UTF-8"><meta name="viewport" content="width=device-width, initial-scale=1.0"><title>Box3D · GPU compute check</title><link rel="icon" href="data:,">
+<style>
+*{box-sizing:border-box}body{margin:0;background:#0a1119;color:#d9e7ef;font:15px system-ui,sans-serif}main{max-width:1180px;margin:auto;padding:24px}h1{font-size:24px;margin:4px 0 8px}p{color:#9eb4c3;line-height:1.5;max-width:80ch}nav{display:flex;gap:10px;flex-wrap:wrap;margin:18px 0}button{background:#1b2b3b;color:inherit;border:1px solid #405364;border-radius:6px;padding:10px 14px;font:inherit;cursor:pointer}button:disabled{opacity:.5;cursor:default}button:focus-visible{outline:3px solid #79e0ca;outline-offset:2px}#status{min-height:24px;color:#83e0c8}table{border-collapse:collapse;width:100%;margin:14px 0;font:13px/1.5 ui-monospace,monospace}th,td{border-bottom:1px solid #243b4c;padding:5px 8px;text-align:left;vertical-align:top}th{color:#9eb4c3;font-weight:600}td.n{text-align:right;white-space:nowrap}.pass{color:#7fe3a4}.fail{color:#ff8f8f}caption{caption-side:top;text-align:left;color:#d9e7ef;font:600 15px system-ui,sans-serif;padding:8px 0}
+</style></head>
+<body><main><h1>GPU compute check</h1>
+<p>Runs the WebGPU simulation backends on this device: the closed-form validation cases, agreement with the float32 CPU reference and with the float64 solvers, conservation, repeatability, the fall back when the device is lost, and timings. The numbers are for the adapter named below. A software adapter gives valid results; its timings say nothing about a GPU.</p>
+<div id="status" role="status">Starting…</div>
+<nav aria-label="Checks"><button id="run-bench" disabled>Time the backends</button><button id="run-validation" disabled>Run the validation (minutes)</button></nav>
+<div id="tables"></div></main><script type="module" src="/src/engine/gpu/probe.ts"></script></body></html>

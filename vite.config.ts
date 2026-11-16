@@ -27,6 +27,8 @@ export default defineConfig({
       input: {
         studio: fileURLToPath(new URL('./index.html', import.meta.url)),
         lab: fileURLToPath(new URL('./lab.html', import.meta.url)),
+        // The GPU compute check (docs/GPU_COMPUTE.md): validation and timings of the compute backends on the visitor's device.
+        gpu: fileURLToPath(new URL('./gpu-probe.html', import.meta.url)),
       },
     },
   },

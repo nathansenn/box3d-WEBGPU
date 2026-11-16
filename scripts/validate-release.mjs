@@ -34,12 +34,15 @@ function pullRequestGate(){
   // Test the shipped artifacts here. Rebuilding with a pinned clang is a separate release-toolchain gate.
   run(process.execPath,['scripts/soft-kernel-test.mjs']);
   run(process.execPath,['scripts/soft-kernel-integration-test.cjs']);
-  for(const name of ['test:webgpu','test:collision','test:assets','test:qualification','test:heat','test:solid','test:fracture','test:plate','test:accel','test:threaded','test:release-contracts','test:validation','validation:check','catalog:check','test:soft-soak:all','test:rope-batching','test:native-wasm','test:kit','test:bench:engines','test:material:100','build','build:pages','stage:railway'])gate(name);
+  for(const name of ['test:webgpu','test:collision','test:assets','test:qualification','test:heat','test:solid','test:fracture','test:plate','test:accel','test:gpu','test:threaded','test:release-contracts','test:validation','validation:check','catalog:check','test:soft-soak:all','test:rope-batching','test:native-wasm','test:kit','test:bench:engines','test:material:100','build','build:pages','stage:railway'])gate(name);
   run(npm,['audit','--audit-level=moderate']);
 }
 // test:solid is the closed-form validation of the tetrahedral solid solver; it runs on the gate's Node, unlike the rest of the engine suite.
 // test:accel pins the granular and fluid states the speed work must keep, the threaded granular step against the serial one,
 // and the multigrid pressure preconditioner (docs/GRANULAR.md and docs/FLUID.md, "Cost").
+// test:gpu is what the gate can check of the WebGPU compute backends without running a shader: layouts against the shader
+// compiler, the shaders' compilation, the dispatch order, and the float32 CPU references of the GPU algorithms against the
+// closed forms (docs/GPU_COMPUTE.md). The shaders themselves run in a browser: scripts/gpu-compute-browser-check.mjs.
 // test:plate is the validation of the Kirchhoff plate with brittle fracture (the Studio's glass lab) against plate theory.
 // test:fracture is the validation of fracture on that solver (cohesive interfaces, crack band, fragments) against closed-form fracture mechanics.
 // validation:check reruns the validation registry (validation/) and fails when a case misses its tolerance or when the

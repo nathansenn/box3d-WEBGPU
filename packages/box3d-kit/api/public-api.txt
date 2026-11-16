@@ -1992,6 +1992,43 @@ export interface GranularLattice {
     radii: Float64Array;
     count: number;
 }
+export interface GranularBackendWall {
+    shape: number;
+    type: number;
+    enabled: boolean;
+    dim: number[];
+    position: number[];
+    rotation: number[];
+    linearVelocity: number[];
+    angularVelocity: number[];
+    mass: number;
+    invInertia: number[];
+    gravityScale: number;
+    external: number[];
+    alpha: number;
+    friction: number;
+    rollingFriction: number;
+    curved: number;
+    force: number[];
+    torque: number[];
+    impulse: number[];
+    angularImpulse: number[];
+}
+export interface GranularBackendDescription {
+    hertz: boolean;
+    kHertz: number;
+    kMindlin: number;
+    kn: number;
+    kt: number;
+    alpha: number;
+    tangentialDamping: number;
+    friction: number;
+    rollingFriction: number;
+    bounds: number[] | null;
+    rMin: number;
+    rMax: number;
+    walls: GranularBackendWall[];
+}
 export declare const HERTZ_DURATION_FACTOR = 2.94327518432;
 export declare const granularEffectiveModulus: (youngModulus: number, poissonRatio: number) => number;
 export declare const granularEffectiveShearModulus: (youngModulus: number, poissonRatio: number) => number;
@@ -2126,7 +2163,16 @@ export declare class Granular {
     wallAngularImpulse(index: number): Float64Array;
     wallNormalLoad(index: number): number;
     wallContacts(index: number): number;
+    setWallLoads(index: number, loads: {
+        readonly force: ArrayLike<number>;
+        readonly torque: ArrayLike<number>;
+        readonly impulse: ArrayLike<number>;
+        readonly angularImpulse: ArrayLike<number>;
+        readonly normalLoad: number;
+        readonly contacts: number;
+    }): void;
     resetWallImpulses(index?: number): void;
+    backendDescription(): GranularBackendDescription;
     mass(): number;
     kineticEnergy(): number;
     gravitationalEnergy(): number;
@@ -2217,6 +2263,8 @@ export declare class GranularCoupling<B> {
     force(body: B): Float64Array;
     torque(body: B): Float64Array;
     step(): void;
+    begin(): void;
+    finish(): void;
     contactChanges(each: (body: B, index: number, touching: boolean) => void): void;
     diagnostics(): GranularCouplingDiagnostics;
 }
@@ -4469,6 +4517,15 @@ export declare class ShallowWater {
     setBoundary(key: keyof ShallowWaterBoundaries, value: ShallowWaterSide): void;
     private spanWidth;
     setTimeStep(dt: number): void;
+    sideStates(): {
+        kind: 0 | 1 | 2 | 3;
+        discharge: number;
+        depth: number;
+        level: number;
+        lo: number;
+        hi: number;
+        width: number;
+    }[];
     volume(): number;
     volumeError(): number;
     addVolume(c: number, volume: number, u?: number, v?: number): void;
