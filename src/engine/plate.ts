@@ -235,6 +235,27 @@ export class PlateBody {
     if(!this.inPlaneTies)return;
     for(const list of this.inPlaneTies){let mean=0;for(let q=0;q<list.length;q++)mean+=x[list[q]];mean/=list.length;for(let q=0;q<list.length;q++)x[list[q]]=mean;}
   }
+  /** The gradient in the in-plane displacements of the membrane energy at zero in-plane displacement (the load of the
+   * in-plane solve), added to fa: `membraneEnergy(w, 0, fa, ...)` without its other work, to the same bits. */
+  private inPlaneLoad(w:Float64Array,fa:Float64Array):void {
+    const nx=this.nx,hx=this.hx,hy=this.hy,nu=this.material.poissonRatio,C=this.material.youngModulus*this.thickness/(1-nu*nu),G=.5*C*(1-nu),wt=.25*hx*hy;
+    const g0=.5-.5/Math.sqrt(3),g1=.5+.5/Math.sqrt(3);let steepest=0;
+    for(let j=0;j<this.cy;j++)for(let i=0;i<this.cx;i++){
+      if(!this.cellOn[j*this.cx+i])continue;
+      const n00=j*nx+i,n10=n00+1,n01=n00+nx,n11=n01+1,w00=w[n00],w10=w[n10],w01=w[n01],w11=w[n11];
+      for(let q=0;q<4;q++){
+        const xi=q&1?g1:g0,eta=q&2?g1:g0,ax=(1-eta)/hx,bx=eta/hx,ay=(1-xi)/hy,by=xi/hy;
+        const wx=ax*(w10-w00)+bx*(w11-w01),wy=ay*(w01-w00)+by*(w11-w10);
+        // With zero in-plane displacement u_x = v_y = u_y + v_x = 0 exactly, so these are the strains of membraneEnergy.
+        const ex=0+.5*wx*wx,ey=0+.5*wy*wy,gxy=0+0+wx*wy,Nx=C*(ex+nu*ey),Ny=C*(ey+nu*ex),Nxy=G*gxy;
+        if(wx*wx+wy*wy>steepest)steepest=wx*wx+wy*wy;
+        const px=wt*Nx,py=wt*Ny,pxy=wt*Nxy;
+        fa[2*n00]+=-ax*px-ay*pxy;fa[2*n10]+=ax*px-by*pxy;fa[2*n01]+=-bx*px+ay*pxy;fa[2*n11]+=bx*px+by*pxy;
+        fa[2*n00+1]+=-ay*py-ax*pxy;fa[2*n10+1]+=-by*py+ax*pxy;fa[2*n01+1]+=ay*py-bx*pxy;fa[2*n11+1]+=by*py+bx*pxy;
+      }
+    }
+    this.membraneLoad=C*steepest;
+  }
   /** Membrane energy of the intact cells for deflections w and in-plane displacements a (bilinear on each cell, 2 x 2 Gauss
    * points). Adds its gradient in a to `fa` and in w to `fw`. `linear`: the part that is quadratic in a alone (w taken as
    * zero), for the in-plane solve. With `record` the cells' mean membrane forces and the stability row sums are stored. */
@@ -315,13 +336,18 @@ export class PlateBody {
         else{if(!(sum>0))throw new EngineError('NUMERICAL_FAILURE','The in-plane stiffness of the plate is not positive definite.');L[i*w+b]=Math.sqrt(sum);}
       }
     }
+    // The factor's columns as rows, for a back substitution that reads memory in order (the same products in the same order).
+    const U=this.bandT&&this.bandT.length===M*w?this.bandT:(this.bandT=new Float64Array(M*w));U.fill(0);
+    for(let i=0;i<M;i++){const hi=Math.min(M-1,i+b);for(let k=i;k<=hi;k++)U[i*w+k-i]=L[k*w+b+i-k];}
   }
+  private bandT?:Float64Array;
   private band?:Float64Array;
   /** x = K^-1 x with the banded factor. */
   private solveBand(x:Float64Array):void {
     const M=2*this.nodeCount,b=2*this.nx+3,w=b+1,L=this.band!;
     for(let i=0;i<M;i++){let sum=x[i];const lo=Math.max(0,i-b);for(let k=lo;k<i;k++)sum-=L[i*w+b+k-i]*x[k];x[i]=sum/L[i*w+b];}
-    for(let i=M-1;i>=0;i--){let sum=x[i];const hi=Math.min(M-1,i+b);for(let k=i+1;k<=hi;k++)sum-=L[k*w+b+i-k]*x[k];x[i]=sum/L[i*w+b];}
+    const U=this.bandT!;
+    for(let i=M-1;i>=0;i--){let sum=x[i];const hi=Math.min(M-1,i+b),o=i*w-i;for(let k=i+1;k<=hi;k++)sum-=U[o+k]*x[k];x[i]=sum/U[i*w];}
   }
   /** In-plane equilibrium for the deflections w. Without ties: one solve with the banded factor of the in-plane stiffness
    * (the load is the gradient at zero in-plane displacement). With ties (`tieInPlane`): conjugate gradients, below. */
@@ -329,7 +355,7 @@ export class PlateBody {
     if(this.inPlaneTies){this.solveInPlaneIterative(w);return;}
     const a=this.uv!,fixed=this.inPlaneFixed!,M=2*this.nodeCount;
     if(this.membraneStale){this.factorInPlane();this.membraneStale=false;}
-    const zero=this.mP!,r=this.mR!;zero.fill(0);r.fill(0);this.membraneEnergy(w,zero,r,null,false,false);
+    const r=this.mR!;r.fill(0);this.inPlaneLoad(w,r);
     for(let k=0;k<M;k++)a[k]=fixed[k]?0:-r[k];
     this.solveBand(a);this.membraneIterations=1;
   }
@@ -479,8 +505,12 @@ export class PlateBody {
         // Von Karman plate: the surface stress is the membrane stress N / t plus or minus the bending stress 6 M / t^2. The
         // larger of the two surfaces' largest principal stresses decides, and gives the direction.
         const nxx=.5*(NF[3*p]+NF[3*q])/this.thickness,nyy=.5*(NF[3*p+1]+NF[3*q+1])/this.thickness,nxy=.5*(NF[3*p+2]+NF[3*q+2])/this.thickness;
+        // Either face's largest principal stress is at most |s_x| + |s_y| + |s_xy|: a bond whose bound is below the strength
+        // (and, before the first crack, below the peak seen) cannot crack or raise the peak, and is skipped.
+        const bound=(Math.abs(nxx)+Math.abs(nyy)+Math.abs(nxy)+6*(Math.abs(a)+Math.abs(d)+Math.abs(c))/t2)*(1+1e-12);
+        if(bound<limit&&(this.breakTime>=0||bound<=this.peakStress))continue;
         sigma=-Infinity;phi=0;
-        for(const side of [1,-1]){
+        for(let side=1;side>=-1;side-=2){
           const sx=nxx+side*6*a/t2,sy=nyy+side*6*d/t2,sxy=nxy+side*6*c/t2,one=.5*(sx+sy)+Math.hypot(.5*(sx-sy),sxy);
           if(one>sigma){sigma=one;phi=.5*Math.atan2(2*sxy,sx-sy);}
         }

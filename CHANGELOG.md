@@ -1,5 +1,11 @@
 # Changelog
 
+## Unreleased — 2026-11-16 — Von Kármán plate: the same answers 1.03 to 1.35 times faster
+
+- **Profile:** the banded Cholesky factor of the in-plane stiffness was already formed only when a cell cracks, and the in-plane solve is direct (no iteration to warm-start; conjugate gradients, warm-started, only with edges tied straight). The time went to the substitutions (a third), the membrane passes and the fracture check.
+- **Change (`src/engine/plate.ts`):** the load of the in-plane solve is computed without the rest of the membrane energy (`inPlaneLoad`, the same arithmetic); the back substitution reads a transposed copy of the factor in order; the fracture check no longer allocates per bond and skips bonds whose bound |s_x| + |s_y| + |s_xy| is below the strength (and the peak seen). The state of all eight glass presets is unchanged to the bit.
+- **Measured:** 3 s of each preset, old and new back to back: 1.03 to 1.35 times faster (radial impact 0.23 → 0.29 times real time, laminate 0.064 → 0.087, thick panel 0.091 → 0.12, acrylic 0.33 → 0.42). Still 3 to 10 times slower than the linear plate: the exact in-plane solve at every sub-step and the smaller stable step of a sagging pane remain.
+
 ## Unreleased — 2026-11-16 — Von Kármán plate: membrane action of glass panes, validated against Levy
 
 - **Plate (`src/engine/plate.ts`, `membrane: true`):** in-plane displacements on the grid and membrane forces on each intact cell from `u_x + w_x²/2`, `v_y + w_y²/2`, `u_y + v_x + w_x w_y` (bilinear, 2 × 2 Gauss points); quasi-static in-plane equilibrium at every step (banded Cholesky of the in-plane stiffness, formed again after each crack; conjugate gradients with `tieInPlane`); exact membrane forces on w; a stability bound with the membrane tangent; the fracture check on `N / t ± 6 M / t²`; `holdInPlane`, `tieInPlane`, `membraneForces`, `relax()` (dynamic relaxation), `heldNodes`, `fragmentOf`. A linear plate's checkpoints are unchanged (no new fields); a von Kármán plate's carry its in-plane state.
