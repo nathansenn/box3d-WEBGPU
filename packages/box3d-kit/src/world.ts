@@ -314,6 +314,8 @@ export class PhysicsWorld {
   private readonly stepListeners = new Set<(tick: number) => void>();
   private readonly eventListeners = new Set<(event: WorldEvent) => void>();
   private droppedEventCount = 0;
+  // Scratch for castRays(): body tokens of the latest batch.
+  private rayTokens = new BigUint64Array(0);
 
   constructor(pool: NativeWorldPool, options: WorldOptions = {}, ownPool = false) {
     this.native = pool.createWorld();
@@ -687,6 +689,26 @@ export class PhysicsWorld {
   /** Closest hit along origin -> origin + translation, or null. */
   raycast(origin: Vec3Like, translation: Vec3Like, options: QueryOptions = {}): NativeQueryCastHit | null {
     return this.cast({kind: 'ray', origin: toVec3(origin), translation: toVec3(translation), ...PhysicsWorld.common(options, 1)})[0] ?? null;
+  }
+  /**
+   * Closest hits of many rays in one call, from flat arrays into flat arrays: nothing is allocated per ray, which
+   * makes it several times faster than a loop of raycast() for sensor fans, line-of-sight grids and picking
+   * batches. `origins` and `translations` hold x, y, z per ray (a translation is the whole displacement, as in
+   * raycast()). `fractions[i]` receives the hit fraction 0..1 of ray i, or -1 for a miss. The optional `points` and
+   * `normals` (x, y, z per ray) are filled for the rays that hit, and `bodies[i]` is set to the body hit or null.
+   * Returns the number of rays that hit. Each ray gives exactly the hit raycast() gives for the same float32 inputs.
+   */
+  castRays(origins: Float32Array, translations: Float32Array, fractions: Float32Array,
+    options: {readonly filter?: NativeQueryFilter; readonly points?: Float32Array; readonly normals?: Float32Array; readonly bodies?: (Body | null)[]} = {}): number {
+    const list = options.bodies;
+    if (list === undefined) return this.native.castRays(origins, translations, fractions, {filter: options.filter, points: options.points, normals: options.normals});
+    if (!Array.isArray(list)) throw new EngineError('INVALID_PAYLOAD', 'bodies must be an array to fill.');
+    if (this.rayTokens.length < fractions.length) this.rayTokens = new BigUint64Array(fractions.length);
+    const tokens = this.rayTokens.subarray(0, fractions.length);
+    const hits = this.native.castRays(origins, translations, fractions, {filter: options.filter, points: options.points, normals: options.normals, bodies: tokens});
+    list.length = fractions.length;
+    for (let i = 0; i < fractions.length; i++) list[i] = tokens[i] === 0n ? null : this.native.bodyFromToken(tokens[i]);
+    return hits;
   }
   /** Closest hit of a sphere swept along translation, or null. */
   sphereCast(origin: Vec3Like, radius: number, translation: Vec3Like, options: QueryOptions = {}): NativeQueryCastHit | null {

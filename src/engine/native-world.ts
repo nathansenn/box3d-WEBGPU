@@ -1159,6 +1159,83 @@ export class NativeWorldBackend implements PhysicsBackend {
     return output;
   }
 
+  /**
+   * Nearest hit of many rays, from flat arrays and into flat arrays: no object is built per ray or per hit.
+   * `origins` and `translations` hold x, y, z per ray (a translation is the complete displacement, as in
+   * `queryBatch`). `fractions[i]` receives the hit fraction 0..1 of ray i, or -1 when it hits nothing; the optional
+   * `points` and `normals` (x, y, z per ray) and `bodies` (one body token per ray, 0 for a miss; resolve a token
+   * with `bodyFromToken`) are filled for the rays that hit. Returns the number of rays that hit.
+   * Each ray gives exactly the first hit of `queryBatch([{kind: 'ray', origin, translation, limit: 1, filter}])`
+   * for the same float32 inputs; this call only skips the per-ray objects. Any number of rays: the 128-query
+   * batch limit of the bridge is handled here.
+   */
+  castRays(origins: Float32Array,translations: Float32Array,fractions: Float32Array,
+    options: {filter?: NativeQueryFilter; points?: Float32Array; normals?: Float32Array; bodies?: BigUint64Array}={}): number {
+    this.assertAlive();
+    if(!this.supportsSpatialQueries)throw new EngineError('UNSUPPORTED_BACKEND','This native artifact does not support spatial queries.');
+    if(!(origins instanceof Float32Array)||!(translations instanceof Float32Array)||!(fractions instanceof Float32Array))throw new EngineError('INVALID_PAYLOAD','castRays takes Float32Array origins, translations and fractions.');
+    const count=fractions.length,{points,normals,bodies}=options;
+    if(origins.length!==count*3||translations.length!==count*3)throw new EngineError('INVALID_PAYLOAD','origins and translations must hold three values per ray, and fractions one.');
+    if((points!==undefined&&(!(points instanceof Float32Array)||points.length!==count*3))||(normals!==undefined&&(!(normals instanceof Float32Array)||normals.length!==count*3))||
+      (bodies!==undefined&&(!(bodies instanceof BigUint64Array)||bodies.length!==count)))throw new EngineError('INVALID_PAYLOAD','points and normals must hold three values per ray, and bodies one.');
+    // The same range the object form accepts, checked before anything is written to the heap.
+    for(let i=0;i<count*3;i++)if(!(Math.abs(origins[i])<=1e6)||!(Math.abs(translations[i])<=1e6))throw new EngineError('INVALID_PAYLOAD',`ray ${Math.floor(i/3)} must have finite coordinates within 1e6.`);
+    const filter=options.filter===undefined?{}:record(options.filter,'filter');
+    onlyKeys(filter,['bodies','categoryBits','maskBits','ignoreBody'],'filter');
+    const which=filter.bodies===undefined?'all':filter.bodies;
+    if(typeof which!=='string'||!Object.hasOwn(QUERY_BODY_TYPES,which))throw new EngineError('INVALID_PAYLOAD','filter.bodies is not supported.');
+    const bodyTypes=QUERY_BODY_TYPES[which as keyof typeof QUERY_BODY_TYPES],ignoreBody=filter.ignoreBody===undefined?0n:this.bodyToken(filter.ignoreBody as NativeBodyHandle);
+    const categoryBits=queryBits(filter.categoryBits===undefined?0xFFFFFFFFFFFFFFFFn:filter.categoryBits,'filter.categoryBits'),maskBits=queryBits(filter.maskBits===undefined?0xFFFFFFFFFFFFFFFFn:filter.maskBits,'filter.maskBits');
+    if(ignoreBody!==0n&&this.mod._b3w_world_body_index!(this.handle,ignoreBody)<0)throw new EngineError('STALE_BODY','An ignored query body has been destroyed or belongs to a previous scene.');
+    let hitCount=0;
+    for(let start=0;start<count;start+=128) {
+      const n=Math.min(128,count-start),reserved=this.mod._b3w_world_query_reserve!(this.handle,n,n);
+      this.queryStatus(reserved);
+      if(reserved!==0)throw new EngineError('INVALID_BACKEND','Native query allocation returned an invalid status.');
+      const version=this.mod._b3w_world_query_version!(this.handle)>>>0;
+      const inputPtr=Number(this.mod._b3w_world_query_inputs_ptr!(this.handle)),statusPtr=Number(this.mod._b3w_world_query_status_ptr!(this.handle)),hitsPtr=Number(this.mod._b3w_world_query_hits_ptr!(this.handle));
+      const ranges=[[inputPtr,n*QUERY_INPUT_BYTES],[statusPtr,n*QUERY_STATUS_BYTES],[hitsPtr,n*QUERY_HIT_BYTES]];
+      let heap=this.mod.HEAPF32.buffer;
+      if(version===0||ranges.some(([p,bytes])=>!Number.isSafeInteger(p)||p<=0||p%8!==0||p+bytes>heap.byteLength)||
+        ranges.some(([p,bytes],i)=>ranges.some(([p2,bytes2],j)=>i<j&&p<p2+bytes2&&p2<p+bytes))) {
+        throw new EngineError('INVALID_BACKEND','Native query streams overlap or lie outside the module heap.');
+      }
+      // The 80-byte input record, as 20 words: kind, body types, origin, translation, extent, reserved, the two masks, the ignored body, limit, padding.
+      const f=new Float32Array(heap,inputPtr,n*20),u=new Uint32Array(heap,inputPtr,n*20),wide=new BigUint64Array(heap,inputPtr,n*10);
+      for(let i=0;i<n;i++) {
+        const w=i*20,r=(start+i)*3;
+        u[w]=0;u[w+1]=bodyTypes;
+        f[w+2]=origins[r];f[w+3]=origins[r+1];f[w+4]=origins[r+2];f[w+5]=translations[r];f[w+6]=translations[r+1];f[w+7]=translations[r+2];
+        u[w+8]=0;u[w+9]=0;u[w+10]=0;u[w+11]=0;
+        wide[i*10+6]=categoryBits;wide[i*10+7]=maskBits;wide[i*10+8]=ignoreBody;
+        u[w+18]=1;u[w+19]=0;
+      }
+      const status=this.mod._b3w_world_query_batch!(this.handle,n,version);this.queryStatus(status);
+      if(status!==n||(this.mod._b3w_world_query_version!(this.handle)>>>0)!==version+1)throw new EngineError('INVALID_BACKEND','Native query execution returned an invalid revision or count.');
+      // Reacquire after the SDK: query traversal may grow the module heap.
+      heap=this.mod.HEAPF32.buffer;
+      const state=new Uint32Array(heap,statusPtr,n*4),hitFloats=new Float32Array(heap,hitsPtr,n*14),hitWide=new BigUint64Array(heap,hitsPtr,n*7);
+      for(let i=0;i<n;i++) {
+        const ray=start+i,found=state[i*4+1],total=state[i*4+2];
+        // Each query was given one hit slot, so its hits start at slot i.
+        if(state[i*4]!==i||found!==Math.min(total,1)||total>65536||state[i*4+3]!==Number(total>found))throw new EngineError('INVALID_BACKEND','Native query output counts are inconsistent.');
+        if(found===0){fractions[ray]=-1;if(bodies)bodies[ray]=0n;continue;}
+        const h=i*14,fraction=hitFloats[h+10],token=hitWide[i*7];
+        if(!(fraction>=0&&fraction<=1)||token===0n)throw new EngineError('INVALID_BACKEND','Native query returned an invalid hit.');
+        fractions[ray]=fraction;hitCount++;
+        if(points){points[ray*3]=hitFloats[h+4];points[ray*3+1]=hitFloats[h+5];points[ray*3+2]=hitFloats[h+6];}
+        if(normals){normals[ray*3]=hitFloats[h+7];normals[ray*3+1]=hitFloats[h+8];normals[ray*3+2]=hitFloats[h+9];}
+        if(bodies)bodies[ray]=token;
+      }
+    }
+    return hitCount;
+  }
+  /** The body a token from `castRays` names. The reference can be stale after removal or reset; resolve it with `bodyIndex`. */
+  bodyFromToken(token: bigint): NativeBodyHandle {
+    this.requireBodyLifecycle();
+    return this.wrapBody(token);
+  }
+
   createScene(scene: Pick<ScenePreset,'id'>, stressScale: number, seed: number): number {
     this.assertAlive();integer(scene?.id,'scene ID',0,799);finite(stressScale,'stress scale',1,5);integer(seed,'seed',0,0xFFFFFFFF);
     const count=this.mod._b3w_world_create_scene(this.handle,scene.id,stressScale,seed);

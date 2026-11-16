@@ -1019,6 +1019,8 @@ export declare class NativeWorldBackend implements PhysicsBackend {
   get supportsSpatialQueries(): boolean;
   spatialQueryInfo(): { supported: boolean; maxBatch: number; maxHitsPerQuery: number; bridgeBufferBytes: number; version: number; };
   queryBatch(queries: readonly NativeSpatialQuery[]): NativeQueryResult[];
+  castRays(origins: Float32Array, translations: Float32Array, fractions: Float32Array, options?: { filter?: NativeQueryFilter; points?: Float32Array; normals?: Float32Array; bodies?: BigUint64Array; }): number;
+  bodyFromToken(token: bigint): NativeBodyHandle;
   createScene(scene: Pick<ScenePreset, 'id'>, stressScale: number, seed: number): number;
   step(dt: number, subSteps: number): void;
   syncTransforms(): void;
@@ -1168,6 +1170,7 @@ export declare class PhysicsWorld {
   onStep(listener: (tick: number) => void): () => void;
   interpolatedMatrices(alpha: number): Float32Array;
   raycast(origin: Vec3Like, translation: Vec3Like, options?: QueryOptions): NativeQueryCastHit | null;
+  castRays(origins: Float32Array, translations: Float32Array, fractions: Float32Array, options?: { readonly filter?: NativeQueryFilter; readonly points?: Float32Array; readonly normals?: Float32Array; readonly bodies?: (Body | null)[]; }): number;
   sphereCast(origin: Vec3Like, radius: number, translation: Vec3Like, options?: QueryOptions): NativeQueryCastHit | null;
   boxCast(origin: Vec3Like, halfExtents: Vec3Like, translation: Vec3Like, options?: QueryOptions): NativeQueryCastHit | null;
   overlapSphere(center: Vec3Like, radius: number, options?: QueryOptions | number): Body[];

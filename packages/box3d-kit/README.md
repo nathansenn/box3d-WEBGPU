@@ -51,6 +51,9 @@ function frame(seconds: number) {
 const hit = world.raycast([0, 10, 0], [0, -20, 0]);  // translation is a full displacement, not a direction
 const entity = hit && world.getUserData(hit.body);   // back to your game object
 world.sphereCast([0, 10, 0], 0.3, [0, -20, 0]);
+// Many rays at once, from flat arrays into flat arrays (x, y, z per ray): fractions[i] is 0..1, or -1 for a miss.
+const fractions = new Float32Array(rayCount);
+world.castRays(origins, translations, fractions);    // optional {points, normals, bodies, filter}; same hits as raycast()
 world.overlapBox([0, 1, 0], [2, 1, 2]);              // also boxCast, overlapSphere; all accept {filter, limit}
 world.explode([0, 0, 0], 8, 5);
 world.destroyBody(crate);                            // the handle is now stale forever; it never aliases a new body
