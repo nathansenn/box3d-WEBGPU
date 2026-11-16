@@ -5,8 +5,8 @@
  "generatedBy": "node scripts/validation-report.mjs",
  "digits": 9,
  "totals": {
-  "cases": 722,
-  "passed": 722,
+  "cases": 737,
+  "passed": 737,
   "failed": 0,
   "domains": 23
  },
@@ -322,7 +322,7 @@
     "Plasticity is small-strain J2 (additive in the Green-Lagrange strain for large rotations), isotropic linear hardening only: no kinematic hardening, rate dependence, necking or anisotropy. Fully plastic bending is 3.2% (3-D) to 6.8% (plane strain, 4 cells) too strong with tet4 and 4.8% with tet4-nodal: what remains is the bending error of linear tetrahedra. Ductile erosion uses one failure strain, independent of stress triaxiality, and the press brake's limit load is 1.23 times beam theory.",
     "Self-contact, plasticity combined with viscoelasticity (refused), anisotropy, and more than one material per body. Crack growth is a separate solver on the linear model of this element (the fracture domain); `SolidBody` erodes plastic elements at a failure strain but has no crack-growth law of its own.",
     "No two-way coupling to the rigid-body, water, cable or frame solvers, and no contact with rigid bodies. The one-way thermal and dead-load links are in the simulation domain.",
-    "Concrete: compressive softening is not mesh objective with the local law: a crushed layer cannot expand sideways without its neighbours, so the softening spreads (post-peak energy of a 0.2 m prism 26 to 119 J against 13.7 J; 42.6 J on 10 x 2 x 2 and 20 x 4 x 4 cubic cells, still carrying load at 6 per mille). The optional nonlocal average (`nonlocalLength`) localises and converges on those two meshes (31.0 and 28.2 J, 9 % apart) but dissipates about twice G_c A: its band width is not calibrated, and the zone forms at the loaded end, not at the weaker middle cell. The section through the EN 1992-1-1 meridian and Kupfer's equal-biaxial point overshoots Kupfer's 1.27 f_c at sigma_2 / sigma_1 = 0.5 (1.39 f_c). The confinement and dilatancy work with the pressure of the last committed step (an error of the order of one step). Imran and Pantazopoulou's triaxial data were not opened. The cube-to-cylinder and slenderness rows hold for a platen friction of 0.2, a calibrated input of another model of the compression test (Stredulova and Elias 2023), not a measurement: with 0.57, inside the range measured for steel plate on concrete or grout (0.43 to 0.70, Gomez et al. 2011), the cube is 1.43 times the 150 x 300 mm cylinder (60.0 and 41.9 MPa) against 37 / 30 = 1.23. Cracks unload elastically (plasticity, not damage) and do not close; no rate, size (beyond the crack band), creep or shrinkage. Bars have perfect bond (no slip, no dowel action, no rupture); tension stiffening then depends on the cell size.",
+    "Concrete: compressive softening is not mesh objective with the local law: a crushed layer cannot expand sideways without its neighbours, so the softening spreads (post-peak energy of a 0.2 m prism 26 to 119 J against 13.7 J; 42.6 J on 10 x 2 x 2 and 20 x 4 x 4 cubic cells, still carrying load at 6 per mille). The optional nonlocal average (`nonlocalLength`) localises and converges on those two meshes (31.0 and 28.2 J, 9 % apart) but dissipates about twice G_c A: its band width is not calibrated, and the zone forms at the loaded end, not at the weaker middle cell. An implicit gradient prototype (2026-11-16, not in the code) localised at the weak cells but dissipated 1.34, 1.12, 1.06 G_c A on 10, 20, 40 cells and 1.69 on a 20 x 2 x 2 prism: not mesh objective within 5 %. The section through the EN 1992-1-1 meridian and Kupfer's equal-biaxial point overshoots Kupfer's 1.27 f_c at sigma_2 / sigma_1 = 0.5 (1.39 f_c). The confinement and dilatancy work with the pressure of the last committed step (an error of the order of one step). Imran and Pantazopoulou's triaxial data were not opened. The cube-to-cylinder and slenderness rows hold for a platen friction of 0.2, a calibrated input of another model of the compression test (Stredulova and Elias 2023), not a measurement: with 0.57, inside the range measured for steel plate on concrete or grout (0.43 to 0.70, Gomez et al. 2011), the cube is 1.43 times the 150 x 300 mm cylinder (60.0 and 41.9 MPa) against 37 / 30 = 1.23. Cracks unload elastically (plasticity, not damage) and do not close; no rate, size (beyond the crack band), creep or shrinkage. Bars have perfect bond (no slip, no dowel action, no rupture); tension stiffening then depends on the cell size.",
     "Uniform states are exact, so the tension, shear, pressure and rubber rows say nothing about accuracy under stress gradients."
    ],
    "cases": 65,
@@ -337,6 +337,7 @@
     "docs/SOLID_CONTACT.md"
    ],
    "notValidated": [
+    "Deformable against deformable (`SolidSolidContact`): node against face does not pass the contact patch test on surface meshes that do not match (element stress within 5.5 % of uniform on 3 on 4 cells, 30 % at a modulus ratio of 100, 42 % for coincident nodes with crossed diagonals); Hertz converges from above (+5.9 % at 5 cells per contact radius); angular momentum to 1e-3; no edge-to-edge contact, no contact of a solid group with rigid bodies, diagonal preconditioner only.",
     "Hertz contact is 7% to 16% too stiff on the meshes in the gate (2.5 to 5 linear tetrahedra per contact radius, against Hertz with the bonded-layer factor) and converges slowly. The pressure distribution inside the contact is not checked.",
     "Contact is node against body: a body corner or edge between nodes is not seen, a body smaller than the mesh spacing rests on single nodes, and hulls, triangle meshes and height fields are not supported. There is no solid-solid or self contact.",
     "A node gets one plane per body and step from where it starts, and nothing is traced along its path: a body that crosses a whole solid in one step is missed, and curved bodies are seen through tangent planes.",
@@ -346,8 +347,8 @@
     "The integrator is backward Euler: it damps (36% of the kinetic energy is left after the impact case). Restitution is not a parameter and impact speeds after a bounce are not validated.",
     "Welds are stiff springs: a welded face is held in all three directions, like a clamped end. Large rotations of a welded solid are not checked against a reference."
    ],
-   "cases": 25,
-   "passed": 25
+   "cases": 40,
+   "passed": 40
   },
   {
    "id": "fracture",
@@ -18262,6 +18263,436 @@
     "measured": "-39.24",
     "error": "-6.07e-8 rel.",
     "tolerance": "±1e-5 rel."
+   }
+  },
+  {
+   "id": "solid-contact.pair.series-matching",
+   "domain": "solid-contact",
+   "title": "Two elastic blocks pressed together, matching surface meshes",
+   "quantity": "force between a 0.1 m block (E = 1 GPa, nu = 0.3) and a 0.08 m block (E = 3 GPa, nu = 0.2) pushed together by 10 um, 4 x 4 x 4 cells each, over the series value, minus 1",
+   "unit": "1",
+   "formula": "F = delta A / (L1 / E1 + L2 / E2 + 1 / (2 k)), k the contact stiffness per area of one search direction",
+   "reference": 0,
+   "measured": 2.18395109e-8,
+   "error": 2.18395109e-8,
+   "relativeError": null,
+   "tolerance": {
+    "kind": "absolute",
+    "value": 0.000001
+   },
+   "pass": true,
+   "note": "The uniform state is the answer when the two surface meshes match; the springs' compliance (7.8e-4 of the total) is in the reference.",
+   "source": {
+    "file": "packages/box3d-kit/test/v22-solid-solid-contact.test.mjs",
+    "test": "two elastic blocks pressed together are springs in series: delta A / (L1 / E1 + L2 / E2 + contact springs)",
+    "url": "https://github.com/nathansenn/box3d-WEBGPU/blob/main/packages/box3d-kit/test/v22-solid-solid-contact.test.mjs"
+   },
+   "text": {
+    "reference": "0",
+    "measured": "2.183951e-8",
+    "error": "+2.18e-8",
+    "tolerance": "±1e-6"
+   }
+  },
+  {
+   "id": "solid-contact.pair.series",
+   "domain": "solid-contact",
+   "title": "Two elastic blocks pressed together, 3 on 4 cells",
+   "quantity": "the same force with 3 x 3 x 3 cells against 4 x 4 x 4, over the series value, minus 1",
+   "unit": "1",
+   "formula": "as above",
+   "reference": 0,
+   "measured": -0.000239515354,
+   "error": -0.000239515354,
+   "relativeError": null,
+   "tolerance": {
+    "kind": "absolute",
+    "value": 0.0005
+   },
+   "pass": true,
+   "note": "A node against a face does not pass the contact patch test on meshes that do not match: the interface pressure is uneven (element stress within 5.5 % of uniform), the total force is 2.4e-4 low.",
+   "source": {
+    "file": "packages/box3d-kit/test/v22-solid-solid-contact.test.mjs",
+    "test": "two elastic blocks pressed together are springs in series: delta A / (L1 / E1 + L2 / E2 + contact springs)",
+    "url": "https://github.com/nathansenn/box3d-WEBGPU/blob/main/packages/box3d-kit/test/v22-solid-solid-contact.test.mjs"
+   },
+   "text": {
+    "reference": "0",
+    "measured": "-0.0002395154",
+    "error": "-0.00024",
+    "tolerance": "±0.0005"
+   }
+  },
+  {
+   "id": "solid-contact.pair.series-stiff",
+   "domain": "solid-contact",
+   "title": "Two elastic blocks pressed together, moduli 1 : 100",
+   "quantity": "the same with E = 0.1 GPa against 10 GPa",
+   "unit": "1",
+   "formula": "as above",
+   "reference": 0,
+   "measured": -0.000107731032,
+   "error": -0.000107731032,
+   "relativeError": null,
+   "tolerance": {
+    "kind": "absolute",
+    "value": 0.0005
+   },
+   "pass": true,
+   "note": "Element stress within 30 % of uniform at the interface.",
+   "source": {
+    "file": "packages/box3d-kit/test/v22-solid-solid-contact.test.mjs",
+    "test": "two elastic blocks pressed together are springs in series: delta A / (L1 / E1 + L2 / E2 + contact springs)",
+    "url": "https://github.com/nathansenn/box3d-WEBGPU/blob/main/packages/box3d-kit/test/v22-solid-solid-contact.test.mjs"
+   },
+   "text": {
+    "reference": "0",
+    "measured": "-0.000107731",
+    "error": "-0.000108",
+    "tolerance": "±0.0005"
+   }
+  },
+  {
+   "id": "solid-contact.pair.patch",
+   "domain": "solid-contact",
+   "title": "Contact patch test on meshes that do not match",
+   "quantity": "largest difference of an element's axial stress from the uniform stress, 3 on 4 cells, over that stress",
+   "unit": "1",
+   "formula": "0 (a uniform pressure across the interface)",
+   "reference": 0,
+   "measured": 0.0548822243,
+   "error": 0.0548822243,
+   "relativeError": null,
+   "tolerance": {
+    "kind": "absolute",
+    "value": 0.08
+   },
+   "pass": true,
+   "note": "Not passed: 5.5 % here, 5.9 % on 5 against 7 cells (it does not fall with the mesh), 42 % for coincident nodes with crossed surface diagonals. The bound keeps the measured value from growing.",
+   "source": {
+    "file": "packages/box3d-kit/test/v22-solid-solid-contact.test.mjs",
+    "test": "two elastic blocks pressed together are springs in series: delta A / (L1 / E1 + L2 / E2 + contact springs)",
+    "url": "https://github.com/nathansenn/box3d-WEBGPU/blob/main/packages/box3d-kit/test/v22-solid-solid-contact.test.mjs"
+   },
+   "text": {
+    "reference": "0",
+    "measured": "0.05488222",
+    "error": "+0.0549",
+    "tolerance": "±0.08"
+   }
+  },
+  {
+   "id": "solid-contact.pair.hertz.coarse",
+   "domain": "solid-contact",
+   "title": "Hertz contact of two elastic caps, 2.5 elements per contact radius",
+   "quantity": "force between two caps (R = 3 m and 1.5 m, E = 1 MPa, nu = 0.3) pressed 0.625 mm together, 1458 nodes, over Hertz times the bonded-layer factor, minus 1",
+   "unit": "1",
+   "formula": "F = (4/3) E* sqrt(R*) delta^1.5, 1 / E* = sum (1 - nu^2) / E, 1 / R* = 1 / R1 + 1 / R2, times the factor of a layer on a rigid base (Dimitriadis et al. 2002)",
+   "reference": 0,
+   "measured": 0.153050289,
+   "error": 0.153050289,
+   "relativeError": null,
+   "tolerance": {
+    "kind": "absolute",
+    "value": 0.18
+   },
+   "pass": true,
+   "note": "Measured +15.3 % (+20.6 % against plain Hertz): linear tetrahedra and one spring per node are too stiff.",
+   "source": {
+    "file": "packages/box3d-kit/test/v22-solid-solid-contact.test.mjs",
+    "test": "Hertz: two elastic caps pressed together, with the mesh study",
+    "url": "https://github.com/nathansenn/box3d-WEBGPU/blob/main/packages/box3d-kit/test/v22-solid-solid-contact.test.mjs"
+   },
+   "text": {
+    "reference": "0",
+    "measured": "0.1530503",
+    "error": "+0.153",
+    "tolerance": "±0.18"
+   }
+  },
+  {
+   "id": "solid-contact.pair.hertz.medium",
+   "domain": "solid-contact",
+   "title": "Hertz contact of two elastic caps, 3.75 elements per contact radius",
+   "quantity": "the same, 4394 nodes",
+   "unit": "1",
+   "formula": "as above",
+   "reference": 0,
+   "measured": 0.0848707743,
+   "error": 0.0848707743,
+   "relativeError": null,
+   "tolerance": {
+    "kind": "absolute",
+    "value": 0.11
+   },
+   "pass": true,
+   "note": "Measured +8.5 % (+13.5 % against plain Hertz).",
+   "source": {
+    "file": "packages/box3d-kit/test/v22-solid-solid-contact.test.mjs",
+    "test": "Hertz: two elastic caps pressed together, with the mesh study",
+    "url": "https://github.com/nathansenn/box3d-WEBGPU/blob/main/packages/box3d-kit/test/v22-solid-solid-contact.test.mjs"
+   },
+   "text": {
+    "reference": "0",
+    "measured": "0.08487077",
+    "error": "+0.0849",
+    "tolerance": "±0.11"
+   }
+  },
+  {
+   "id": "solid-contact.pair.hertz.fine",
+   "domain": "solid-contact",
+   "title": "Hertz contact of two elastic caps, 5 elements per contact radius",
+   "quantity": "the same, 9826 nodes",
+   "unit": "1",
+   "formula": "as above",
+   "reference": 0,
+   "measured": 0.0591505718,
+   "error": 0.0591505718,
+   "relativeError": null,
+   "tolerance": {
+    "kind": "absolute",
+    "value": 0.08
+   },
+   "pass": true,
+   "note": "Measured +5.9 % (+10.8 % against plain Hertz). The error falls with the mesh at the rate of the rigid-sphere rows above.",
+   "source": {
+    "file": "packages/box3d-kit/test/v22-solid-solid-contact.test.mjs",
+    "test": "Hertz: two elastic caps pressed together, with the mesh study",
+    "url": "https://github.com/nathansenn/box3d-WEBGPU/blob/main/packages/box3d-kit/test/v22-solid-solid-contact.test.mjs"
+   },
+   "text": {
+    "reference": "0",
+    "measured": "0.05915057",
+    "error": "+0.0592",
+    "tolerance": "±0.08"
+   }
+  },
+  {
+   "id": "solid-contact.pair.hertz.moduli",
+   "domain": "solid-contact",
+   "title": "Hertz contact: the modulus ratio enters through E*",
+   "quantity": "error of the coarse mesh with E2 = 5 E1 minus the error with equal moduli",
+   "unit": "1",
+   "formula": "the same error as equal caps: the modulus ratio enters only through E*",
+   "reference": 0,
+   "measured": 0.00285077973,
+   "error": 0.00285077973,
+   "relativeError": null,
+   "tolerance": {
+    "kind": "absolute",
+    "value": 0.01
+   },
+   "pass": true,
+   "source": {
+    "file": "packages/box3d-kit/test/v22-solid-solid-contact.test.mjs",
+    "test": "Hertz: two elastic caps pressed together, with the mesh study",
+    "url": "https://github.com/nathansenn/box3d-WEBGPU/blob/main/packages/box3d-kit/test/v22-solid-solid-contact.test.mjs"
+   },
+   "text": {
+    "reference": "0",
+    "measured": "0.00285078",
+    "error": "+0.00285",
+    "tolerance": "±0.01"
+   }
+  },
+  {
+   "id": "solid-contact.pair.momentum",
+   "domain": "solid-contact",
+   "title": "Free impact of two solids: linear momentum",
+   "quantity": "largest change of the total linear momentum over 400 steps, over the momentum (cubes of 1 kg and 2.5 kg, friction 0.3)",
+   "unit": "1",
+   "formula": "0: the contact forces sum to zero term by term",
+   "reference": 0,
+   "measured": 1.09267284e-9,
+   "error": 1.09267284e-9,
+   "relativeError": null,
+   "tolerance": {
+    "kind": "absolute",
+    "value": 1e-8
+   },
+   "pass": true,
+   "note": "What is left is the Newton tolerance of each step.",
+   "source": {
+    "file": "packages/box3d-kit/test/v22-solid-solid-contact.test.mjs",
+    "test": "momentum in a free impact of two solids",
+    "url": "https://github.com/nathansenn/box3d-WEBGPU/blob/main/packages/box3d-kit/test/v22-solid-solid-contact.test.mjs"
+   },
+   "text": {
+    "reference": "0",
+    "measured": "1.092673e-9",
+    "error": "+1.09e-9",
+    "tolerance": "±1e-8"
+   }
+  },
+  {
+   "id": "solid-contact.pair.angular-momentum",
+   "domain": "solid-contact",
+   "title": "Free impact of two solids: angular momentum",
+   "quantity": "largest change of the total angular momentum, over its size, without friction",
+   "unit": "1",
+   "formula": "conserved: change 0",
+   "reference": 0,
+   "measured": 0.00135555056,
+   "error": 0.00135555056,
+   "relativeError": null,
+   "tolerance": {
+    "kind": "absolute",
+    "value": 0.003
+   },
+   "pass": true,
+   "note": "Measured 1.4e-3 (6.5e-4 with friction 0.3): the contact points are frozen during a step, so the pair of contact forces has a small arm.",
+   "source": {
+    "file": "packages/box3d-kit/test/v22-solid-solid-contact.test.mjs",
+    "test": "momentum in a free impact of two solids",
+    "url": "https://github.com/nathansenn/box3d-WEBGPU/blob/main/packages/box3d-kit/test/v22-solid-solid-contact.test.mjs"
+   },
+   "text": {
+    "reference": "0",
+    "measured": "0.001355551",
+    "error": "+0.00136",
+    "tolerance": "±0.003"
+   }
+  },
+  {
+   "id": "solid-contact.pair.stack",
+   "domain": "solid-contact",
+   "title": "A stack of three soft blocks at rest",
+   "quantity": "force across the lower interface of three 1 kg cubes (E = 0.2, 0.1, 0.3 MPa) on a plane after 2 s",
+   "unit": "N",
+   "formula": "the weight above: 2 m g",
+   "reference": 19.62,
+   "measured": 19.6199999,
+   "error": -6.38955662e-8,
+   "relativeError": -3.25665475e-9,
+   "tolerance": {
+    "kind": "relative",
+    "value": 0.000001
+   },
+   "pass": true,
+   "source": {
+    "file": "packages/box3d-kit/test/v22-solid-solid-contact.test.mjs",
+    "test": "a stack of three soft blocks comes to rest: every interface carries the weight above it",
+    "url": "https://github.com/nathansenn/box3d-WEBGPU/blob/main/packages/box3d-kit/test/v22-solid-solid-contact.test.mjs"
+   },
+   "text": {
+    "reference": "19.62 N",
+    "measured": "19.62",
+    "error": "-3.26e-9 rel.",
+    "tolerance": "±1e-6 rel."
+   }
+  },
+  {
+   "id": "solid-contact.pair.stack-rest",
+   "domain": "solid-contact",
+   "title": "A stack of three soft blocks at rest: speed",
+   "quantity": "largest nodal speed after 2 s",
+   "unit": "m/s",
+   "formula": "at rest: speed 0",
+   "reference": 0,
+   "measured": 0,
+   "error": 0,
+   "relativeError": null,
+   "tolerance": {
+    "kind": "absolute",
+    "value": 1e-9
+   },
+   "pass": true,
+   "source": {
+    "file": "packages/box3d-kit/test/v22-solid-solid-contact.test.mjs",
+    "test": "a stack of three soft blocks comes to rest: every interface carries the weight above it",
+    "url": "https://github.com/nathansenn/box3d-WEBGPU/blob/main/packages/box3d-kit/test/v22-solid-solid-contact.test.mjs"
+   },
+   "text": {
+    "reference": "0 m/s",
+    "measured": "0",
+    "error": "0",
+    "tolerance": "±1e-9"
+   }
+  },
+  {
+   "id": "solid-contact.pair.stick",
+   "domain": "solid-contact",
+   "title": "Friction between two solids below the friction angle",
+   "quantity": "shear force across the interface of a block on a held block, slope 15 degrees, mu = 0.3",
+   "unit": "N",
+   "formula": "m g sin(theta); the block stays",
+   "reference": 1.26950742,
+   "measured": 1.26950742,
+   "error": -2.41260345e-11,
+   "relativeError": -1.90042486e-11,
+   "tolerance": {
+    "kind": "relative",
+    "value": 0.000001
+   },
+   "pass": true,
+   "source": {
+    "file": "packages/box3d-kit/test/v22-solid-solid-contact.test.mjs",
+    "test": "Coulomb friction between two solids: sticks below tan(theta) = mu, slides at g (sin - mu cos) above",
+    "url": "https://github.com/nathansenn/box3d-WEBGPU/blob/main/packages/box3d-kit/test/v22-solid-solid-contact.test.mjs"
+   },
+   "text": {
+    "reference": "1.269507 N",
+    "measured": "1.269507",
+    "error": "-1.9e-11 rel.",
+    "tolerance": "±1e-6 rel."
+   }
+  },
+  {
+   "id": "solid-contact.pair.slide",
+   "domain": "solid-contact",
+   "title": "Friction between two solids above the friction angle",
+   "quantity": "acceleration of the block down a 25 degree slope, mu = 0.3",
+   "unit": "m/s^2",
+   "formula": "g (sin(theta) - mu cos(theta))",
+   "reference": 1.47862133,
+   "measured": 1.47863255,
+   "error": 0.0000112204238,
+   "relativeError": 0.00000758843635,
+   "tolerance": {
+    "kind": "relative",
+    "value": 0.001
+   },
+   "pass": true,
+   "source": {
+    "file": "packages/box3d-kit/test/v22-solid-solid-contact.test.mjs",
+    "test": "Coulomb friction between two solids: sticks below tan(theta) = mu, slides at g (sin - mu cos) above",
+    "url": "https://github.com/nathansenn/box3d-WEBGPU/blob/main/packages/box3d-kit/test/v22-solid-solid-contact.test.mjs"
+   },
+   "text": {
+    "reference": "1.478621 m/s^2",
+    "measured": "1.478633",
+    "error": "+7.59e-6 rel.",
+    "tolerance": "±0.1%"
+   }
+  },
+  {
+   "id": "solid-contact.pair.self",
+   "domain": "solid-contact",
+   "title": "Self-contact: depth",
+   "quantity": "deepest contact of the closed arms of a slotted block (E = 1 MPa, 20 mm cells)",
+   "unit": "m",
+   "formula": "the arms rest on each other: far below the 5.2 mm by which they cross without self-contact",
+   "reference": 0.00005,
+   "measured": 0.0000191212331,
+   "error": -0.0000308787669,
+   "relativeError": -0.617575338,
+   "tolerance": {
+    "kind": "upper",
+    "value": 0
+   },
+   "pass": true,
+   "note": "No closed form: a functional check.",
+   "source": {
+    "file": "packages/box3d-kit/test/v22-solid-solid-contact.test.mjs",
+    "test": "self-contact: the arms of a slotted block stop at each other",
+    "url": "https://github.com/nathansenn/box3d-WEBGPU/blob/main/packages/box3d-kit/test/v22-solid-solid-contact.test.mjs"
+   },
+   "text": {
+    "reference": "5e-5 m",
+    "measured": "1.912123e-5",
+    "error": "-3.09e-5",
+    "tolerance": "not above the reference"
    }
   },
   {

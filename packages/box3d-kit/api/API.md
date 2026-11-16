@@ -6856,12 +6856,17 @@ export interface SceneSolidBody {
 
 ### SceneSolidContact · interface
 
-Contact of a solid with rigid bodies and fixed planes, two-way (`SolidCoupling`).
+Contact of a solid with rigid bodies and fixed planes, two-way (`SolidCoupling`), or with other solids and itself
+(`SolidSolidContact`, docs/SOLID_CONTACT.md): solids joined by `solids` form a group that is advanced in one solve. A
+solid of a group collides with the group's solids and planes only: no `bodies`, welds, loads or fracture.
 
 ```ts
 export interface SceneSolidContact {
     readonly bodies?: readonly SceneSolidBody[];
     readonly planes?: readonly SceneClothPlane[];
+    readonly solids?: readonly string[];
+    readonly self?: boolean;
+    readonly friction?: number;
     readonly stiffnessScale?: number;
     readonly skin?: number;
     readonly frictionPasses?: number;
@@ -6898,6 +6903,15 @@ export interface SceneSolidFracture {
     readonly notches?: readonly SceneSolidRegion[];
     readonly interfaces?: readonly SceneSolidRegion[];
 }
+```
+
+### sceneSolidGroups · function
+
+The solids of a scene that collide with each other, as groups in the scene's order: each group is advanced by one
+`SolidSolidContact`. A solid with `contact.self` alone is a group of one.
+
+```ts
+export declare function sceneSolidGroups(solids: readonly SceneSolid[]): string[][];
 ```
 
 ### SceneSolidLoad · interface
@@ -7035,6 +7049,19 @@ export declare function sceneWorldOptions(scene: Scene): {
     gravity: [number, number, number];
     ground: boolean;
 };
+```
+
+### softBlocksScene · function
+
+Soft blocks: two rubber-like cubes (E = 0.3 and 0.15 MPa, nu = 0.4) stacked on the ground plane and a stiffer third
+(E = 1 MPa) dropped on them off centre. Deformable against deformable contact with friction, the three solids in one
+solve (`contact.solids`, docs/SOLID_CONTACT.md); no rigid body takes part.
+
+```ts
+export declare function softBlocksScene(options?: {
+    cells?: number;
+    drop?: number;
+}): Scene;
 ```
 
 ### sphereSettlingScene · function
@@ -7346,13 +7373,14 @@ export interface SceneShallowWaterRuntime<B> {
 
 ### SceneSolidRuntime · interface
 
-A solid of a scene as built: the body (a `FractureBody` when the scene gives it fracture), its contact coupling or null, and the heat grid in it or null.
+`group`: the solver of the solids this one collides with (`contact.solids`, `contact.self`), shared by its members; such a solid has no `coupling`.
 
 ```ts
 export interface SceneSolidRuntime<B> {
     readonly body: SolidBody | FractureBody;
     readonly coupling: SolidCoupling<B> | null;
     readonly heat: HeatSolver | null;
+    readonly group?: SolidSolidContact | null;
 }
 ```
 
@@ -10670,6 +10698,18 @@ export declare const SOLID_CONTACT_SUBSYSTEM_ORDER = 170;
 export declare const SOLID_COUPLING_BACKEND = "rigid-solid-coupling-monolithic-js-f64-v1";
 ```
 
+### SOLID_SOLID_CONTACT_SOLVER_ID · const
+
+```ts
+export declare const SOLID_SOLID_CONTACT_SOLVER_ID = "solid-solid-contact-node-face-penalty-newton-pcg-js-f64-v1";
+```
+
+### SOLID_SOLID_CONTACT_SUBSYSTEM_ORDER · const
+
+```ts
+export declare const SOLID_SOLID_CONTACT_SUBSYSTEM_ORDER = 300;
+```
+
 ### SolidColliderOptions · interface
 
 ```ts
@@ -10888,6 +10928,89 @@ export interface SolidCouplingDiagnostics {
 ```ts
 export interface SolidCouplingOptions extends SolidContactOptions {
     readonly estimateSupports?: boolean;
+}
+```
+
+### SolidSolidContact · class
+
+```ts
+export declare class SolidSolidContact {
+  saveState(): StateObject;
+  restoreState(state: StateValue): void;
+  readonly solver = "solid-solid-contact-node-face-penalty-newton-pcg-js-f64-v1";
+  readonly solids: SolidBody[];
+  readonly dt: number;
+  readonly stiffnessScale: number;
+  readonly skin: number;
+  readonly frictionPasses: number;
+  readonly frictionTolerance: number;
+  readonly stats: SolidSolidContactStats;
+  contactWork: number;
+  readonly nodeForce: Float64Array;
+  addPlane(options: { readonly normal: readonly [number, number, number]; readonly point?: readonly [number, number, number]; readonly friction?: number; }): number;
+  get planeCount(): number;
+  setFriction(a: number, b: number, friction: number): void;
+  step(count?: number): void;
+  solveStatic(options?: { readonly maxPasses?: number; readonly tolerance?: number; }): SolidSolidStaticResult;
+  contactForce(a: number, b?: number, out?: number[]): number[];
+  maxPenetration(): number;
+  contactEnergy(): number;
+  linearMomentum(out?: number[]): number[];
+  angularMomentum(out?: number[]): number[];
+  energy(): { kinetic: number; strain: number; };
+}
+```
+
+### SolidSolidContactOptions · interface
+
+```ts
+export interface SolidSolidContactOptions {
+    readonly stiffnessScale?: number;
+    readonly skin?: number;
+    readonly friction?: number;
+    readonly selfContact?: boolean | readonly number[];
+    readonly frictionPasses?: number;
+    readonly frictionTolerance?: number;
+}
+```
+
+### SolidSolidContactStats · interface
+
+```ts
+export interface SolidSolidContactStats {
+    converged: boolean;
+    newtonIterations: number;
+    linearIterations: number;
+    residual: number;
+    reference: number;
+    frictionPasses: number;
+    unconvergedSteps: number;
+    contacts: number;
+}
+```
+
+### solidSolidContactSubsystem · function
+
+Solids in contact with each other as one subsystem of the stepping loop (simulation.ts): post stage, where a lone
+`solidSubsystem` runs; its dt may be the step or a whole fraction of it. Do not also register its solids with
+`solidSubsystem` or `solidContactSubsystem`: they would be stepped twice. Energy: kinetic + strain + load potential of
+every solid plus the energy in the contact springs. Event: 'unconverged' with {residual, reference}.
+
+```ts
+export declare function solidSolidContactSubsystem<W, B>(target: SolidSolidContact, options?: {
+    readonly id?: string;
+    readonly order?: number;
+}): Subsystem<W, B>;
+```
+
+### SolidSolidStaticResult · interface
+
+```ts
+export interface SolidSolidStaticResult {
+    converged: boolean;
+    passes: number;
+    residual: number;
+    change: number;
 }
 ```
 

@@ -61,6 +61,7 @@ export const COUPLED_EXAMPLE_TITLES: { readonly [name: string]: string } = Objec
   'hopper-seesaw': 'Hopper and see-saw',
   'suspended-platform': 'Suspended platform',
   'rubber-pad': 'Rubber pad',
+  'soft-blocks': 'Soft blocks',
   'notched-beam': 'Notched beam',
   'quenched-plate': 'Quenched plate',
   'heated-bar': 'Heated bar',

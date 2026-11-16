@@ -7,5 +7,10 @@
  * a heavy body on a soft one both stay stable. See docs/SOLID_CONTACT.md in
  * the repository for the equations, the validation against closed-form
  * answers and the limits.
+ *
+ * `SolidSolidContact` is contact and friction between several deformable
+ * solids, and of a solid with itself, in one Newton solve (node against
+ * face, both ways).
  */
 export * from './core/solid-contact.js';
+export * from './core/solid-solid-contact.js';

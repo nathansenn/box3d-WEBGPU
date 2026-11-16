@@ -23,7 +23,7 @@ import {NativeWorldPool} from '../../src/engine/native-world.ts';
 import {
   COUPLED_EXAMPLE_SCENES, EXAMPLE_SCENES, canonicalize, decodeSceneLink, encodeSceneLink, encodeSceneLinkSync, loadScene, normalizeScene, sceneHash,
   sceneHasCoupling, trampolineScene, hopperSeesawScene, validateScene, rubberPadScene, notchedBeamScene, quenchedPlateScene, heatedBarScene,
-  sphereSettlingScene, cavityFlowScene, flowPastCylinderScene, damBreakScene, damBreakValleyScene, riverBendScene,
+  sphereSettlingScene, cavityFlowScene, flowPastCylinderScene, damBreakScene, damBreakValleyScene, riverBendScene, softBlocksScene, sceneSolidGroups,
 } from '../../src/engine/scene-format.ts';
 import {FractureBody} from '../../src/engine/solid-fracture.ts';
 import {exactTransformHash, loadLabScene} from '../../src/lab/scene-host.ts';
@@ -37,7 +37,7 @@ const pool = new NativeWorldPool(await factory({wasmBinary: await readFile(resol
 const withWorld = run => { const world = pool.createWorld(); try { world.retainBodyShapes(true); return run(world); } finally { world.destroy(); } };
 /** Steps of each example in the repeat test: about one second, fewer for the slow ones. */
 const STEPS = {'moored-buoy': 240, 'cable-stayed-deck': 240, 'buoy-and-crates': 360, trampoline: 150, 'hopper-seesaw': 360, 'suspended-platform': 480,
-  'rubber-pad': 90, 'notched-beam': 180, 'quenched-plate': 150, 'heated-bar': 120, 'sphere-settling': 120, 'cavity-flow': 120, 'flow-past-cylinder': 120, 'dam-break': 60,
+  'rubber-pad': 90, 'soft-blocks': 90, 'notched-beam': 180, 'quenched-plate': 150, 'heated-bar': 120, 'sphere-settling': 120, 'cavity-flow': 120, 'flow-past-cylinder': 120, 'dam-break': 60,
   'dam-break-valley': 120, 'river-bend': 120};
 const copy = value => JSON.parse(JSON.stringify(value));
 
@@ -54,7 +54,7 @@ function run(scene, steps, after) {
 }
 
 test('the Lab opens every coupled example by name, after the rigid ones', () => {
-  assert.deepEqual(COUPLED_EXAMPLE_NAMES, ['moored-buoy', 'cable-stayed-deck', 'buoy-and-crates', 'trampoline', 'hopper-seesaw', 'suspended-platform', 'rubber-pad', 'notched-beam', 'quenched-plate', 'heated-bar',
+  assert.deepEqual(COUPLED_EXAMPLE_NAMES, ['moored-buoy', 'cable-stayed-deck', 'buoy-and-crates', 'trampoline', 'hopper-seesaw', 'suspended-platform', 'rubber-pad', 'soft-blocks', 'notched-beam', 'quenched-plate', 'heated-bar',
     'sphere-settling', 'cavity-flow', 'flow-past-cylinder', 'dam-break', 'dam-break-valley', 'river-bend']);
   // The rigid examples, the rigid-core examples (tests/physics/rigid-play.test.mjs) and the coupled ones.
   assert.deepEqual(LAB_EXAMPLE_NAMES, [...Object.keys(EXAMPLE_SCENES), ...RIGID_CORE_EXAMPLE_NAMES, ...COUPLED_EXAMPLE_NAMES]);
@@ -243,6 +243,33 @@ test('solid and heat sections: problems are reported with their paths', () => {
   assert.match(problems(heatedBarScene, s => { s.heat[0].boundaries[0].type = 'glow'; }), /\/heat\/0\/boundaries\/0\/type: must be 'temperature', 'flux', 'convection' or 'radiation'/);
   assert.match(problems(heatedBarScene, s => { s.heat[0].boundaries[0].region = {min: [0, 0, 0], max: [10, 0, 0]}; }), /\/heat\/0\/boundaries\/0\/region\/max\/0: must be <= 9/);
   assert.match(problems(quenchedPlateScene, s => { s.heat[0].scheme = 'leapfrog'; }), /\/heat\/0\/scheme: must be 'backward-euler'/);
+  // Solids in contact with solids (contact.solids, contact.self): ids, and what such a solid cannot also have.
+  assert.match(problems(softBlocksScene, s => { s.solids[0].contact.solids = ['nobody']; }), /\/solids\/0\/contact\/solids\/0: unknown solid id "nobody"/);
+  assert.match(problems(softBlocksScene, s => { s.solids[0].contact.solids = ['lower']; }), /\/solids\/0\/contact\/solids: lists the solid itself: use 'self'/);
+  assert.match(problems(softBlocksScene, s => { s.solids[0].contact.solids = ['middle', 'middle']; }), /\/solids\/0\/contact\/solids: lists a solid twice/);
+  assert.match(problems(softBlocksScene, s => { s.solids[0].contact.friction = -1; }), /\/solids\/0\/contact\/friction: must be >= 0/);
+  assert.match(problems(softBlocksScene, s => { s.solids[2].integrator = 'midpoint'; }), /\/solids\/1\/contact\/solids\/0: solid "upper" must use 'backward-euler'/);
+  assert.match(problems(softBlocksScene, s => { s.solids[2].fracture = {strength: 1e6, toughness: 10}; s.solids[2].model = 'linear'; }), /\/solids\/1\/contact\/solids\/0: solid "upper" has fracture/);
+  assert.match(problems(softBlocksScene, s => { s.bodies.push({id: 'box', shape: {kind: 'box', halfExtents: [0.1, 0.1, 0.1]}, position: [1, 1, 0]}); s.solids[0].contact.bodies = [{body: 'box'}]; }), /\/solids\/0\/contact\/bodies: a solid in contact with solids collides with them and with planes only/);
+  assert.match(problems(softBlocksScene, s => { s.solids[1].contact.self = 'yes'; }), /\/solids\/1\/contact\/self: must be true or false/);
+  assert.equal(validateScene(softBlocksScene()).length, 0);
+  assert.deepEqual(sceneSolidGroups(softBlocksScene().solids), [['lower', 'middle', 'upper']]);
+  assert.deepEqual(sceneSolidGroups(rubberPadScene().solids), []);
+  { const scene = softBlocksScene(); delete scene.solids[0].contact.solids; scene.solids[1].contact = {self: true}; assert.deepEqual(sceneSolidGroups(scene.solids), [['middle']]); assert.equal(validateScene(scene).length, 0); }
+  // The group is one subsystem under its first solid's id; every member's runtime entry holds it and has no coupling.
+  withWorld(world => {
+    const loaded = loadLabScene(world, softBlocksScene()), group = loaded.solids.get('lower').group;
+    assert.ok(group && loaded.solids.get('upper').group === group && loaded.solids.get('middle').coupling === null);
+    assert.deepEqual(loaded.simulation.order().map(row => row.id), ['world', 'lower', 'events']);
+    assert.equal(group.solids.length, 3);assert.equal(group.planeCount, 1);
+    for (let i = 0; i < 100; i++) loaded.simulation.step();
+    assert.ok(group.stats.contacts > 10 && group.stats.unconvergedSteps === 0, 'the dropped block has landed');
+    assert.ok(group.contactForce(2, 1)[1] > 0, 'the middle block pushes the upper one up');
+    // A saved scene keeps the contact section and reopens to the same hash.
+    const saved = loaded.builder.toJSON();
+    assert.deepEqual(saved.solids[0].contact, {planes: [{normal: [0, 1, 0], friction: 0.6}], solids: ['middle'], friction: 0.6});
+    assert.equal(saved.solids[2].contact, undefined);
+  });
   // A solid the solver refuses is reported with its id, and the world is left reset.
   withWorld(world => {
     const scene = notchedBeamScene(); scene.solids[0].integrator = 'explicit';

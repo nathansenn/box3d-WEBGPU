@@ -614,6 +614,29 @@ export function rubberPadScene(options: {cells?: number; drop?: number; mass?: n
 }
 
 /**
+ * Soft blocks: two rubber-like cubes (E = 0.3 and 0.15 MPa, nu = 0.4) stacked on the ground plane and a stiffer third
+ * (E = 1 MPa) dropped on them off centre. Deformable against deformable contact with friction, the three solids in one
+ * solve (`contact.solids`, docs/SOLID_CONTACT.md); no rigid body takes part.
+ */
+export function softBlocksScene(options: {cells?: number; drop?: number} = {}): Scene {
+  const {cells = 3, drop = 0.06} = options, a = 0.2;
+  const block = (id: string, x: number, y: number, E: number, n: number): Scene['solids'] extends readonly (infer T)[] | undefined ? T : never => ({
+    id, mesh: {box: {size: [a, a, a], cells: [n, n, n], origin: [round(x - a / 2), round(y), round(-a / 2)]}},
+    material: {youngModulus: E, poissonRatio: 0.4, density: 1000}, model: 'corotational', massDamping: 1,
+  });
+  return {
+    ...header, world: {gravity: [0, -G, 0], ground: true, seed: 1, step: 1 / 240, subSteps: 4},
+    materials: {}, joints: [], bodies: [],
+    solids: [
+      {...block('lower', 0, 0, 3e5, cells), contact: {solids: ['middle'], planes: [{normal: [0, 1, 0], friction: 0.6}], friction: 0.6}},
+      {...block('middle', 0.02, a, 1.5e5, cells + 1), contact: {solids: ['upper'], friction: 0.6}},
+      block('upper', 0.07, round(2 * a + drop), 1e6, cells),
+    ],
+    meta: {title: 'Soft blocks', description: `Three deformable cubes: two stacked on the ground and a stiffer one dropped ${drop} m onto them off centre. Contact and friction between the solids, all three in one solve.`},
+  };
+}
+
+/**
  * A notched concrete beam loaded by a falling weight (a 200 kg drop hammer from 1.5 m, on a guide). The beam (E = 30 GPa, sigma_c = 3 MPa, G_c = 100 J/m^2)
  * is pinned along both ends of its base, cut by a notch at mid-span and given cohesive interfaces on the
  * section above it. The weight falls on a steel platen over mid-span; the force that holds the weight up is put
@@ -854,6 +877,7 @@ export const COUPLED_EXAMPLE_SCENES: {readonly [name: string]: () => Scene} = Ob
   'hopper-seesaw': () => hopperSeesawScene(),
   'suspended-platform': () => suspendedPlatformScene(),
   'rubber-pad': () => rubberPadScene(),
+  'soft-blocks': () => softBlocksScene(),
   'notched-beam': () => notchedBeamScene(),
   'quenched-plate': () => quenchedPlateScene(),
   'heated-bar': () => heatedBarScene(),
