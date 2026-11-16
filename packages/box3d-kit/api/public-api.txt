@@ -3230,6 +3230,7 @@ export interface NativeWorldModule {
     _b3w_world_checkpoint_ptr?(world: number): number | bigint;
     _b3w_world_checkpoint_free?(world: number): number;
     _b3w_world_restore?(world: number, data: number | bigint, size: number): number;
+    _b3w_world_restore_ex?(world: number, data: number | bigint, size: number, takeHandles: number): number;
 }
 declare const JOINT_OWNER: unique symbol;
 export interface NativeJointHandle {
@@ -3587,6 +3588,7 @@ export declare class NativeWorldBackend implements PhysicsBackend {
     private disposed;
     private readonly bodyOwner;
     private jointOwner;
+    private ownCheckpoints;
     private scratch;
     private wideScratch;
     private kindRows;

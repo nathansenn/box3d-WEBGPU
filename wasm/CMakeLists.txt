@@ -87,7 +87,7 @@ string(REPLACE "]" ",'_b3w_world_checkpoint','_b3w_world_checkpoint_ptr','_b3w_w
 
 # Rigid-core extension: joint values and events, batched rays, the capsule mover, world and body controls,
 # Box3D's explosion, step profile and counters, and debug-draw lines.
-string(REPLACE "]" ",'_b3w_world_joint_set_values','_b3w_world_joint_get_values','_b3w_world_cast_rays','_b3w_world_mover_move','_b3w_world_set_param','_b3w_world_get_params','_b3w_world_set_body_flag','_b3w_world_get_body_flags','_b3w_world_explode_area','_b3w_world_profile','_b3w_world_contact_stats','_b3w_world_debug_draw','_b3w_world_debug_ptr','_b3w_world_debug_total','_b3w_world_contained_total']" B3W_EXPORTED_FUNCTIONS "${B3W_EXPORTED_FUNCTIONS}")
+string(REPLACE "]" ",'_b3w_world_joint_set_values','_b3w_world_joint_get_values','_b3w_world_cast_rays','_b3w_world_mover_move','_b3w_world_set_param','_b3w_world_get_params','_b3w_world_set_body_flag','_b3w_world_get_body_flags','_b3w_world_explode_area','_b3w_world_profile','_b3w_world_contact_stats','_b3w_world_debug_draw','_b3w_world_debug_ptr','_b3w_world_debug_total','_b3w_world_contained_total','_b3w_world_restore_ex']" B3W_EXPORTED_FUNCTIONS "${B3W_EXPORTED_FUNCTIONS}")
 
 option(B3W_QUERY_TESTING "Enable query allocation/version fault injection in a test-only artifact" OFF)
 if(B3W_QUERY_TESTING)

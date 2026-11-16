@@ -103,3 +103,46 @@ test('ND-2: containment never fires in the example scenes or in the 800-scene ca
     assert.equal(world.containedTotal(), 0, 'no body was contained in 90 steps of any of the 800 recipes');
   } finally { world.destroy(); }
 });
+
+test('ND-3: restoring a checkpoint this world wrote, after a destroy, gives every handle back its own body', async () => {
+  const world = pool.createWorld();
+  try {
+    world.resetWorld({ground: true});
+    const make = x => world.createBody({shape: {kind: 'sphere', radius: 0.3}, position: [x, 1, 0], type: 'static'});
+    const a = make(1), b = make(2), c = make(3);
+    world.step(1 / 60, 4);
+    const saved = world.checkpoint();
+    world.destroyBody(a);            // the last row (c) moves into a's row
+    const d = make(4);               // a body created after the checkpoint
+    world.restoreCheckpoint(saved);
+    assert.notEqual(world.bodyIndex(a), null, 'the body destroyed after the checkpoint is alive again under its handle');
+    assert.deepEqual([a, b, c].map(body => world.bodyState(body).position[0]), [1, 2, 3], 'each handle names its own body');
+    assert.equal(world.bodyIndex(d), null, 'the body created after the checkpoint is gone');
+    // Its handle stays dead also once its slot is used again, and new bodies get handles of their own.
+    const e = make(5), f = make(6);
+    assert.equal(world.bodyIndex(d), null); assert.ok(e.token !== d.token && f.token !== d.token);
+    assert.deepEqual([e, f].map(body => world.bodyState(body).position[0]), [5, 6]);
+    // A copy of the bytes (read back from a file, say) is recognised as this world's own checkpoint.
+    world.destroyBody(b);
+    world.restoreCheckpoint(new Uint8Array([...saved]));
+    assert.equal(world.bodyState(b).position[0], 2);
+    // After a reset, the same bytes are a checkpoint from elsewhere: the world built the same way keeps its own handles.
+    world.resetWorld({ground: true});
+    const a2 = make(1), b2 = make(2), c2 = make(3);
+    world.restoreCheckpoint(saved);
+    assert.deepEqual([a2, b2, c2].map(body => world.bodyState(body).position[0]), [1, 2, 3], 'a world rebuilt the same way keeps its handles');
+  } finally { world.destroy(); }
+  // The same through the kit's PhysicsWorld checkpoint.
+  const kit = await import('../dist/index.js');
+  const physics = await kit.createWorld({gravity: [0, -9.81, 0], ground: true});
+  try {
+    const bodies = [1, 2, 3].map(x => physics.createBody({shape: {kind: 'box', halfExtents: [0.2, 0.2, 0.2]}, position: [x, 0.2, 0]}));
+    for (let i = 0; i < 10; i++) physics.step();
+    const bytes = physics.checkpoint(), hash = physics.exactHash();
+    physics.destroyBody(bodies[0]);
+    for (let i = 0; i < 10; i++) physics.step();
+    physics.restoreCheckpoint(bytes);
+    assert.equal(physics.exactHash(), hash);
+    assert.deepEqual(bodies.map(body => Math.round(physics.getState(body).position[0])), [1, 2, 3]);
+  } finally { physics.dispose(); }
+});

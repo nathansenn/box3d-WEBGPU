@@ -4388,7 +4388,14 @@ B3W_EXPORT int b3w_world_checkpoint_free(uint32_t handle)
 // Returns 1; -1 for an unknown or empty world; -2 for bytes that are not such a checkpoint (nothing is changed);
 // -3 when memory ran out (nothing is changed); -4 when Box3D refused the snapshot after it began to overwrite
 // the world, which is then reset to an empty world without bodies.
-B3W_EXPORT int b3w_world_restore(uint32_t handle, const uint8_t* data, int size)
+static int b3w_ctx_restore(uint32_t handle, const uint8_t* data, int size, int takeHandles);
+B3W_EXPORT int b3w_world_restore(uint32_t handle, const uint8_t* data, int size) { return b3w_ctx_restore(handle, data, size, 0); }
+// As b3w_world_restore, but with takeHandles = 1 the checkpoint's own handle table is always taken: for a checkpoint
+// this world wrote itself since it was last reset, whatever was created or destroyed since, every handle then means
+// what it meant when the checkpoint was written (native defect ND-3). The caller knows which checkpoints those are.
+B3W_EXPORT int b3w_world_restore_ex(uint32_t handle, const uint8_t* data, int size, int takeHandles) { return b3w_ctx_restore(handle, data, size, takeHandles != 0); }
+
+static int b3w_ctx_restore(uint32_t handle, const uint8_t* data, int size, int takeHandles)
 {
     B3WContext* ctx = b3w_lookup_context(handle);
     if (ctx == NULL || B3_IS_NULL(ctx->world) || ctx->bodySlots == NULL) return -1;
@@ -4431,22 +4438,33 @@ B3W_EXPORT int b3w_world_restore(uint32_t handle, const uint8_t* data, int size)
 
     // Everything that can fail without touching the world comes first.
     if (h.capacity > ctx->capacity && b3w_ctx_reserve(ctx, h.capacity) < 0) return -3;
+    // With takeHandles, the slots this world has used are kept (see below): copy them before anything is overwritten.
+    // Slots beyond the checkpoint's need room in this world's table.
+    B3WBodySlot* oldSlots = NULL;
+    const int oldSlotsUsed = ctx->slotsUsed;
+    if (takeHandles && oldSlotsUsed > 0)
+    {
+        if (oldSlotsUsed > ctx->capacity) return -3;
+        oldSlots = (B3WBodySlot*)malloc((size_t)oldSlotsUsed * sizeof(B3WBodySlot));
+        if (oldSlots == NULL) return -3;
+        memcpy(oldSlots, ctx->bodySlots, (size_t)oldSlotsUsed * sizeof(B3WBodySlot));
+    }
     if (kinds != NULL && ctx->kinds == NULL)
     {
         ctx->kinds = (uint8_t*)calloc((size_t)ctx->capacity, 1u);
-        if (ctx->kinds == NULL) return -3;
+        if (ctx->kinds == NULL) { free(oldSlots); return -3; }
     }
     if (h.massOverrideCount > ctx->massOverrideCapacity)
     {
         struct B3WMassOverride* list = (struct B3WMassOverride*)realloc(ctx->massOverrides, (size_t)h.massOverrideCount * sizeof(struct B3WMassOverride));
-        if (list == NULL) return -3;
+        if (list == NULL) { free(oldSlots); return -3; }
         ctx->massOverrides = list;
         ctx->massOverrideCapacity = h.massOverrideCount;
     }
     if (jointFlagCount > ctx->jointFlagCapacity)
     {
         uint32_t* list = (uint32_t*)realloc(ctx->jointFlags, (size_t)jointFlagCount * sizeof(uint32_t));
-        if (list == NULL) return -3;
+        if (list == NULL) { free(oldSlots); return -3; }
         memset(list + ctx->jointFlagCapacity, 0, (size_t)(jointFlagCount - ctx->jointFlagCapacity) * sizeof(uint32_t));
         ctx->jointFlags = list;
         ctx->jointFlagCapacity = jointFlagCount;
@@ -4455,6 +4473,7 @@ B3W_EXPORT int b3w_world_restore(uint32_t handle, const uint8_t* data, int size)
     void* holder = b3w_snapshot_restore(ctx->world, p, (int)snapshotSize);
     if (holder == NULL)
     {
+        free(oldSlots);
         b3w_ctx_destroy_world(ctx);
         b3WorldDef worldDef = b3DefaultWorldDef();
         worldDef.gravity = (b3Vec3){ 0.0f, -9.81f, 0.0f };
@@ -4479,7 +4498,7 @@ B3W_EXPORT int b3w_world_restore(uint32_t handle, const uint8_t* data, int size)
     const int existing = ctx->bodyCount;
     int freeAfter = 0;
     for (int f = ctx->freeSlot; f >= 0 && freeAfter <= h.bodyCount; f = ctx->bodySlots[f].nextFree) ++freeAfter;
-    const int keepHandles = existing <= h.bodyCount && (h.bodyCount - existing) <= freeAfter + (ctx->capacity - ctx->slotsUsed);
+    const int keepHandles = !takeHandles && existing <= h.bodyCount && (h.bodyCount - existing) <= freeAfter + (ctx->capacity - ctx->slotsUsed);
     if (keepHandles)
     {
         for (int i = 0; i < h.bodyCount; ++i)
@@ -4519,7 +4538,37 @@ B3W_EXPORT int b3w_world_restore(uint32_t handle, const uint8_t* data, int size)
         ctx->massOverrideCount = h.massOverrideCount;
         ctx->slotsUsed = h.slotsUsed;
         ctx->freeSlot = h.freeSlot;
+        if (oldSlots != NULL)
+        {
+            // A handle this world gave out after the checkpoint must stay dead, also once its slot is used again: a slot
+            // the checkpoint has free gets a generation above every handle given out at it, and the slots made after the
+            // checkpoint stay in the table, free, after the checkpoint's own free list. (A slot the checkpoint has in use
+            // takes the checkpoint's generation, so that its handle works again.)
+            for (int j = 0; j < h.slotsUsed && j < oldSlotsUsed; ++j)
+            {
+                B3WBodySlot* slot = ctx->bodySlots + j;
+                if (slot->denseIndex >= 0) continue;
+                uint64_t next = oldSlots[j].generation + (oldSlots[j].denseIndex >= 0 ? 1u : 0u);
+                if (next > B3W_BODY_MAX_GENERATION) next = B3W_BODY_MAX_GENERATION;
+                if (next > slot->generation) slot->generation = next;
+            }
+            int tail = -1;
+            for (int f = ctx->freeSlot; f >= 0; f = ctx->bodySlots[f].nextFree) tail = f;
+            for (int j = h.slotsUsed; j < oldSlotsUsed; ++j)
+            {
+                B3WBodySlot* slot = ctx->bodySlots + j;
+                *slot = oldSlots[j];
+                slot->denseIndex = -1;
+                slot->nextFree = -1;
+                if (oldSlots[j].denseIndex >= 0) slot->generation += 1u;
+                if (slot->generation >= B3W_BODY_MAX_GENERATION) { slot->generation = B3W_BODY_MAX_GENERATION; continue; } // retired, never reused
+                if (tail < 0) ctx->freeSlot = j; else ctx->bodySlots[tail].nextFree = j;
+                tail = j;
+            }
+            if (oldSlotsUsed > ctx->slotsUsed) ctx->slotsUsed = oldSlotsUsed;
+        }
     }
+    free(oldSlots);
     if (ctx->dynamicCount > h.dynamicCount) memset(ctx->dynamicIndices + h.dynamicCount, 0, (size_t)(ctx->dynamicCount - h.dynamicCount) * sizeof(int));
     memcpy(ctx->dynamicIndices, dynamicIndices, (size_t)h.dynamicCount * sizeof(int));
     memcpy(ctx->matrices, matrices, (size_t)h.bodyCount * 16u * sizeof(float));

@@ -577,6 +577,15 @@ The fuzzers (`tests/fuzz`, docs/ROBUSTNESS.md) found defects in the native side.
   again whenever it diverges. Containment never fires in any example scene (all 26, up to 600 steps each) or in
   90 steps of each of the 800 catalog recipes (test), so no existing result or hash changes.
 
+- **ND-3, handles after a restore.** The bridge kept the restoring world's own handle table whenever that world had
+  no more bodies than the checkpoint, assuming its rows were still the checkpoint's first rows; after a destroy they
+  are not, and handles named the wrong bodies. `NativeWorldBackend` now remembers (by a 64-bit digest and the length)
+  the checkpoints it wrote since its last reset, and restores those with the new optional export
+  `b3w_world_restore_ex(…, takeHandles = 1)`: every handle means what it meant when the checkpoint was written, a
+  body destroyed since is alive again under its handle, and a body created since is gone, its handle dead also once
+  its slot is used again (slots made after the checkpoint stay in the table, free, with a newer generation). A
+  checkpoint from elsewhere (another page, a world rebuilt the same way) keeps the row-by-row rule, as before.
+
 ## Custom filter and pre-solve callbacks: not exposed
 
 Box3D can call the application for every candidate pair (`b3World_SetCustomFilterCallback`) and for every touching

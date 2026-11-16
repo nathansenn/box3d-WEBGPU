@@ -1,5 +1,10 @@
 # Changelog
 
+## Unreleased — 2026-11-16 — Bridge: a world's own checkpoint restores its own handles (ND-3)
+
+- **Bridge** (both WASM files and `BUILD_PROVENANCE.json` rebuilt; API version 1; new optional export `b3w_world_restore_ex`): restoring with `takeHandles` takes the checkpoint's handle table and keeps every slot the world has used since, free and with a generation above any handle given out at it, so that a handle of a body created after the checkpoint stays dead. `NativeWorldBackend.restoreCheckpoint` uses it for the checkpoints this world wrote since its last reset (recognised by digest, also as a copy of the bytes); other checkpoints keep the row-by-row rule.
+- **Test** (`v22-rigid-native`): the fuzzer's case (destroy after the checkpoint, then restore) gives a, b and c their own bodies, the body made after the checkpoint stays dead also once its slot is reused, a copy of the bytes is recognised, a world rebuilt after a reset keeps its handles, and the kit's `PhysicsWorld.checkpoint()` round trip gives back the exact hash and the handles.
+
 ## Unreleased — 2026-11-16 — Bridge: contain bodies a diverged step left non-finite or impossibly fast (ND-2)
 
 - **Bridge** (`wasm/box3d_web.c`; both WASM files and `BUILD_PROVENANCE.json` rebuilt; API version 1; new optional export `b3w_world_contained_total`): after each step, a dynamic body whose state is not finite, or whose speed is above ten times the world's maximum linear speed (at least 10⁴ m/s or rad/s), is put back at its pose of the step before, at rest, and the next step runs once without warm starting, which zeroes the joint and contact impulses the diverged solve had accumulated. Reported as event kind 7, `'body-contained'` (`bodyA`, `speed`), and counted by `NativeWorldBackend.containedTotal()`.
