@@ -6,7 +6,7 @@ import {pathToFileURL} from 'node:url';
 import path from 'node:path';
 import {kit, memo, defineCases, relative, absolute, upper, lower, ROOT} from '../lib.mjs';
 
-const QUERIES = 'packages/box3d-kit/test/v21-rigid-queries.test.mjs';
+const QUERIES = 'packages/box3d-kit/test/v22-rigid-queries.test.mjs';
 const T = {
   rays: 'rays against a sphere, an oriented box and an oriented capsule: hit points and normals match the closed forms',
   sweeps: 'sweeps: at the reported time of impact a flat shape is one linear slop short and a rounded one at most one slop inside',
@@ -26,7 +26,7 @@ const sweeps = () => run('sweeps', (S, K) => S.sweepAccuracy(K));
 const overlaps = () => run('overlaps', (S, K) => S.overlapCounts(K));
 const batch = () => run('batch', (S, K) => S.batchAgreement(K));
 
-const CHARACTER = 'packages/box3d-kit/test/v21-rigid-character.test.mjs';
+const CHARACTER = 'packages/box3d-kit/test/v22-rigid-character.test.mjs';
 const TC = {
   flat: 'flat ground: the character walks at the commanded speed, stays grounded and keeps its feet on the floor',
   slope: 'slope limit: ramps below maxSlopeDegrees are climbed at the commanded speed along the ramp, steeper ones are walls',
@@ -143,7 +143,7 @@ const characterCases = defineCases('rigid-core', CHARACTER, [
     reference: {formula: 'restored run = uninterrupted run', value: 0}, tolerance: absolute(0), measure: async () => (await characterCheckpoint()).mismatches},
 ]);
 
-const CCD = 'packages/box3d-kit/test/v21-rigid-ccd.test.mjs';
+const CCD = 'packages/box3d-kit/test/v22-rigid-ccd.test.mjs';
 const TD = {
   wall: 'a 5 cm ball against a 2 cm wall at 60 Hz: discrete stepping loses the shots the window model predicts, continuous collision loses none',
   bullet: 'the bullet flag: a ball passes through a thin free plate without it and is stopped with it, and momentum is conserved',
@@ -167,7 +167,7 @@ const ccdCases = defineCases('rigid-core', CCD, [
     note: 'Continuous collision covers dynamic bodies against static ones. Between two moving bodies it runs only when one is a bullet.', measure: async () => (await bulletShot()).plain.plateSpeed},
 ]);
 
-const VEHICLE = 'packages/box3d-kit/test/v21-rigid-vehicle.test.mjs';
+const VEHICLE = 'packages/box3d-kit/test/v22-rigid-vehicle.test.mjs';
 const TV = {
   sag: 'static sag: each spring is compressed by its wheel load over the stiffness, M g / (4 k), and by the axle loads when the centre of mass is forward',
   heave: 'heave: the chassis bounces at sqrt(4 k / M) / (2 pi), and dampers give zeta = 4 c / (2 sqrt(4 k M))',
@@ -219,7 +219,7 @@ const vehicleCases = defineCases('rigid-core', VEHICLE, [
     reference: {formula: 'restored run = uninterrupted run', value: 0}, tolerance: absolute(0), measure: async () => (await terrain()).mismatches},
 ]);
 
-const JOINTS = 'packages/box3d-kit/test/v21-rigid-joints.test.mjs';
+const JOINTS = 'packages/box3d-kit/test/v22-rigid-joints.test.mjs';
 const TJ = {
   weld: 'a breakable weld breaks when the force, or the torque, it carries reaches its threshold',
   overload: 'a threshold without `breakable` reports joint-overload in every step it is exceeded, and the joint stays',
@@ -276,7 +276,7 @@ const jointCases = defineCases('rigid-core', JOINTS, [
     reference: {formula: 'restored run = uninterrupted run', value: 0}, tolerance: absolute(0), measure: async () => (await jointCheckpoint()).mismatches},
 ]);
 
-const CONTROLS = 'packages/box3d-kit/test/v21-rigid-controls.test.mjs';
+const CONTROLS = 'packages/box3d-kit/test/v22-rigid-controls.test.mjs';
 const TW = {
   explosion: 'explosion: a sphere takes P pi r^2 / m, half of it half way across the falloff, nothing beyond; a box takes P times its facing area',
   settings: 'world settings: sleeping, restitution and hit thresholds, the speed limit and motion locks do what they say',
@@ -319,7 +319,7 @@ const controlCases = defineCases('rigid-core', CONTROLS, [
     reference: {formula: 'N = 192 x 3 lines x 2', value: 1152}, tolerance: absolute(0), measure: async () => (await introspection()).contactVertices},
 ]);
 
-const EXAMPLES = 'packages/box3d-kit/test/v21-rigid-examples.test.mjs';
+const EXAMPLES = 'packages/box3d-kit/test/v22-rigid-examples.test.mjs';
 const TE = {
   course: 'obstacle course: the character walks its route up the stairs, down the ramp, pushes the crate, rides the platform, is stopped by the steep slope, jumps, and comes round',
   vehicle: 'vehicle on terrain: static sag m g / (4 k), a cruise at the set speed on the Ackermann circle, and the pedals',

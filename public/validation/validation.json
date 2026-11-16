@@ -1668,9 +1668,9 @@
    "pass": true,
    "note": "Float32 positions 6 m from the shape; rays within 2 mm of grazing the shape or of ending on it are left out.",
    "source": {
-    "file": "packages/box3d-kit/test/v21-rigid-queries.test.mjs",
+    "file": "packages/box3d-kit/test/v22-rigid-queries.test.mjs",
     "test": "rays against a sphere, an oriented box and an oriented capsule: hit points and normals match the closed forms",
-    "url": "https://github.com/nathansenn/box3d-WEBGPU/blob/main/packages/box3d-kit/test/v21-rigid-queries.test.mjs"
+    "url": "https://github.com/nathansenn/box3d-WEBGPU/blob/main/packages/box3d-kit/test/v22-rigid-queries.test.mjs"
    },
    "text": {
     "reference": "0 m",
@@ -1696,9 +1696,9 @@
    },
    "pass": true,
    "source": {
-    "file": "packages/box3d-kit/test/v21-rigid-queries.test.mjs",
+    "file": "packages/box3d-kit/test/v22-rigid-queries.test.mjs",
     "test": "rays against a sphere, an oriented box and an oriented capsule: hit points and normals match the closed forms",
-    "url": "https://github.com/nathansenn/box3d-WEBGPU/blob/main/packages/box3d-kit/test/v21-rigid-queries.test.mjs"
+    "url": "https://github.com/nathansenn/box3d-WEBGPU/blob/main/packages/box3d-kit/test/v22-rigid-queries.test.mjs"
    },
    "text": {
     "reference": "0",
@@ -1724,9 +1724,9 @@
    },
    "pass": true,
    "source": {
-    "file": "packages/box3d-kit/test/v21-rigid-queries.test.mjs",
+    "file": "packages/box3d-kit/test/v22-rigid-queries.test.mjs",
     "test": "rays against a sphere, an oriented box and an oriented capsule: hit points and normals match the closed forms",
-    "url": "https://github.com/nathansenn/box3d-WEBGPU/blob/main/packages/box3d-kit/test/v21-rigid-queries.test.mjs"
+    "url": "https://github.com/nathansenn/box3d-WEBGPU/blob/main/packages/box3d-kit/test/v22-rigid-queries.test.mjs"
    },
    "text": {
     "reference": "0 rays",
@@ -1753,9 +1753,9 @@
    "pass": true,
    "note": "Float32 positions 6 m from the shape; rays within 2 mm of grazing the shape or of ending on it are left out.",
    "source": {
-    "file": "packages/box3d-kit/test/v21-rigid-queries.test.mjs",
+    "file": "packages/box3d-kit/test/v22-rigid-queries.test.mjs",
     "test": "rays against a sphere, an oriented box and an oriented capsule: hit points and normals match the closed forms",
-    "url": "https://github.com/nathansenn/box3d-WEBGPU/blob/main/packages/box3d-kit/test/v21-rigid-queries.test.mjs"
+    "url": "https://github.com/nathansenn/box3d-WEBGPU/blob/main/packages/box3d-kit/test/v22-rigid-queries.test.mjs"
    },
    "text": {
     "reference": "0 m",
@@ -1781,9 +1781,9 @@
    },
    "pass": true,
    "source": {
-    "file": "packages/box3d-kit/test/v21-rigid-queries.test.mjs",
+    "file": "packages/box3d-kit/test/v22-rigid-queries.test.mjs",
     "test": "rays against a sphere, an oriented box and an oriented capsule: hit points and normals match the closed forms",
-    "url": "https://github.com/nathansenn/box3d-WEBGPU/blob/main/packages/box3d-kit/test/v21-rigid-queries.test.mjs"
+    "url": "https://github.com/nathansenn/box3d-WEBGPU/blob/main/packages/box3d-kit/test/v22-rigid-queries.test.mjs"
    },
    "text": {
     "reference": "0",
@@ -1809,9 +1809,9 @@
    },
    "pass": true,
    "source": {
-    "file": "packages/box3d-kit/test/v21-rigid-queries.test.mjs",
+    "file": "packages/box3d-kit/test/v22-rigid-queries.test.mjs",
     "test": "rays against a sphere, an oriented box and an oriented capsule: hit points and normals match the closed forms",
-    "url": "https://github.com/nathansenn/box3d-WEBGPU/blob/main/packages/box3d-kit/test/v21-rigid-queries.test.mjs"
+    "url": "https://github.com/nathansenn/box3d-WEBGPU/blob/main/packages/box3d-kit/test/v22-rigid-queries.test.mjs"
    },
    "text": {
     "reference": "0 rays",
@@ -1838,9 +1838,9 @@
    "pass": true,
    "note": "Float32 positions 6 m from the shape; rays within 2 mm of grazing the shape or of ending on it are left out.",
    "source": {
-    "file": "packages/box3d-kit/test/v21-rigid-queries.test.mjs",
+    "file": "packages/box3d-kit/test/v22-rigid-queries.test.mjs",
     "test": "rays against a sphere, an oriented box and an oriented capsule: hit points and normals match the closed forms",
-    "url": "https://github.com/nathansenn/box3d-WEBGPU/blob/main/packages/box3d-kit/test/v21-rigid-queries.test.mjs"
+    "url": "https://github.com/nathansenn/box3d-WEBGPU/blob/main/packages/box3d-kit/test/v22-rigid-queries.test.mjs"
    },
    "text": {
     "reference": "0 m",
@@ -1866,9 +1866,9 @@
    },
    "pass": true,
    "source": {
-    "file": "packages/box3d-kit/test/v21-rigid-queries.test.mjs",
+    "file": "packages/box3d-kit/test/v22-rigid-queries.test.mjs",
     "test": "rays against a sphere, an oriented box and an oriented capsule: hit points and normals match the closed forms",
-    "url": "https://github.com/nathansenn/box3d-WEBGPU/blob/main/packages/box3d-kit/test/v21-rigid-queries.test.mjs"
+    "url": "https://github.com/nathansenn/box3d-WEBGPU/blob/main/packages/box3d-kit/test/v22-rigid-queries.test.mjs"
    },
    "text": {
     "reference": "0",
@@ -1894,9 +1894,9 @@
    },
    "pass": true,
    "source": {
-    "file": "packages/box3d-kit/test/v21-rigid-queries.test.mjs",
+    "file": "packages/box3d-kit/test/v22-rigid-queries.test.mjs",
     "test": "rays against a sphere, an oriented box and an oriented capsule: hit points and normals match the closed forms",
-    "url": "https://github.com/nathansenn/box3d-WEBGPU/blob/main/packages/box3d-kit/test/v21-rigid-queries.test.mjs"
+    "url": "https://github.com/nathansenn/box3d-WEBGPU/blob/main/packages/box3d-kit/test/v22-rigid-queries.test.mjs"
    },
    "text": {
     "reference": "0 rays",
@@ -1923,9 +1923,9 @@
    "pass": true,
    "note": "Box3D stops a swept shape without a radius one linear slop before the surface, so the reported fraction is early by 5 mm along the normal.",
    "source": {
-    "file": "packages/box3d-kit/test/v21-rigid-queries.test.mjs",
+    "file": "packages/box3d-kit/test/v22-rigid-queries.test.mjs",
     "test": "sweeps: at the reported time of impact a flat shape is one linear slop short and a rounded one at most one slop inside",
-    "url": "https://github.com/nathansenn/box3d-WEBGPU/blob/main/packages/box3d-kit/test/v21-rigid-queries.test.mjs"
+    "url": "https://github.com/nathansenn/box3d-WEBGPU/blob/main/packages/box3d-kit/test/v22-rigid-queries.test.mjs"
    },
    "text": {
     "reference": "0.005 m",
@@ -1952,9 +1952,9 @@
    "pass": true,
    "note": "Box3D lets a swept shape with a radius encroach by its linear slop, so the reported fraction is late by 5 mm along the normal. Add or subtract the slop if you need the touching time.",
    "source": {
-    "file": "packages/box3d-kit/test/v21-rigid-queries.test.mjs",
+    "file": "packages/box3d-kit/test/v22-rigid-queries.test.mjs",
     "test": "sweeps: at the reported time of impact a flat shape is one linear slop short and a rounded one at most one slop inside",
-    "url": "https://github.com/nathansenn/box3d-WEBGPU/blob/main/packages/box3d-kit/test/v21-rigid-queries.test.mjs"
+    "url": "https://github.com/nathansenn/box3d-WEBGPU/blob/main/packages/box3d-kit/test/v22-rigid-queries.test.mjs"
    },
    "text": {
     "reference": "-0.005 m",
@@ -1980,9 +1980,9 @@
    },
    "pass": true,
    "source": {
-    "file": "packages/box3d-kit/test/v21-rigid-queries.test.mjs",
+    "file": "packages/box3d-kit/test/v22-rigid-queries.test.mjs",
     "test": "sweeps: at the reported time of impact a flat shape is one linear slop short and a rounded one at most one slop inside",
-    "url": "https://github.com/nathansenn/box3d-WEBGPU/blob/main/packages/box3d-kit/test/v21-rigid-queries.test.mjs"
+    "url": "https://github.com/nathansenn/box3d-WEBGPU/blob/main/packages/box3d-kit/test/v22-rigid-queries.test.mjs"
    },
    "text": {
     "reference": "-0.005 m",
@@ -2009,9 +2009,9 @@
    "pass": true,
    "note": "Onto a curved surface the encroachment is between 3.8 mm and 5 mm, depending on how far off centre the sweep is.",
    "source": {
-    "file": "packages/box3d-kit/test/v21-rigid-queries.test.mjs",
+    "file": "packages/box3d-kit/test/v22-rigid-queries.test.mjs",
     "test": "sweeps: at the reported time of impact a flat shape is one linear slop short and a rounded one at most one slop inside",
-    "url": "https://github.com/nathansenn/box3d-WEBGPU/blob/main/packages/box3d-kit/test/v21-rigid-queries.test.mjs"
+    "url": "https://github.com/nathansenn/box3d-WEBGPU/blob/main/packages/box3d-kit/test/v22-rigid-queries.test.mjs"
    },
    "text": {
     "reference": "-0.005 m",
@@ -2037,9 +2037,9 @@
    },
    "pass": true,
    "source": {
-    "file": "packages/box3d-kit/test/v21-rigid-queries.test.mjs",
+    "file": "packages/box3d-kit/test/v22-rigid-queries.test.mjs",
     "test": "sweeps: at the reported time of impact a flat shape is one linear slop short and a rounded one at most one slop inside",
-    "url": "https://github.com/nathansenn/box3d-WEBGPU/blob/main/packages/box3d-kit/test/v21-rigid-queries.test.mjs"
+    "url": "https://github.com/nathansenn/box3d-WEBGPU/blob/main/packages/box3d-kit/test/v22-rigid-queries.test.mjs"
    },
    "text": {
     "reference": "0 m",
@@ -2065,9 +2065,9 @@
    },
    "pass": true,
    "source": {
-    "file": "packages/box3d-kit/test/v21-rigid-queries.test.mjs",
+    "file": "packages/box3d-kit/test/v22-rigid-queries.test.mjs",
     "test": "sweeps: at the reported time of impact a flat shape is one linear slop short and a rounded one at most one slop inside",
-    "url": "https://github.com/nathansenn/box3d-WEBGPU/blob/main/packages/box3d-kit/test/v21-rigid-queries.test.mjs"
+    "url": "https://github.com/nathansenn/box3d-WEBGPU/blob/main/packages/box3d-kit/test/v22-rigid-queries.test.mjs"
    },
    "text": {
     "reference": "-0.005 m",
@@ -2093,9 +2093,9 @@
    },
    "pass": true,
    "source": {
-    "file": "packages/box3d-kit/test/v21-rigid-queries.test.mjs",
+    "file": "packages/box3d-kit/test/v22-rigid-queries.test.mjs",
     "test": "overlaps: sphere, box, capsule and broad-phase counts on a lattice equal the counts of lattice points, with and without a mask",
-    "url": "https://github.com/nathansenn/box3d-WEBGPU/blob/main/packages/box3d-kit/test/v21-rigid-queries.test.mjs"
+    "url": "https://github.com/nathansenn/box3d-WEBGPU/blob/main/packages/box3d-kit/test/v22-rigid-queries.test.mjs"
    },
    "text": {
     "reference": "67 bodies",
@@ -2121,9 +2121,9 @@
    },
    "pass": true,
    "source": {
-    "file": "packages/box3d-kit/test/v21-rigid-queries.test.mjs",
+    "file": "packages/box3d-kit/test/v22-rigid-queries.test.mjs",
     "test": "overlaps: sphere, box, capsule and broad-phase counts on a lattice equal the counts of lattice points, with and without a mask",
-    "url": "https://github.com/nathansenn/box3d-WEBGPU/blob/main/packages/box3d-kit/test/v21-rigid-queries.test.mjs"
+    "url": "https://github.com/nathansenn/box3d-WEBGPU/blob/main/packages/box3d-kit/test/v22-rigid-queries.test.mjs"
    },
    "text": {
     "reference": "40 bodies",
@@ -2149,9 +2149,9 @@
    },
    "pass": true,
    "source": {
-    "file": "packages/box3d-kit/test/v21-rigid-queries.test.mjs",
+    "file": "packages/box3d-kit/test/v22-rigid-queries.test.mjs",
     "test": "overlaps: sphere, box, capsule and broad-phase counts on a lattice equal the counts of lattice points, with and without a mask",
-    "url": "https://github.com/nathansenn/box3d-WEBGPU/blob/main/packages/box3d-kit/test/v21-rigid-queries.test.mjs"
+    "url": "https://github.com/nathansenn/box3d-WEBGPU/blob/main/packages/box3d-kit/test/v22-rigid-queries.test.mjs"
    },
    "text": {
     "reference": "30 bodies",
@@ -2177,9 +2177,9 @@
    },
    "pass": true,
    "source": {
-    "file": "packages/box3d-kit/test/v21-rigid-queries.test.mjs",
+    "file": "packages/box3d-kit/test/v22-rigid-queries.test.mjs",
     "test": "overlaps: sphere, box, capsule and broad-phase counts on a lattice equal the counts of lattice points, with and without a mask",
-    "url": "https://github.com/nathansenn/box3d-WEBGPU/blob/main/packages/box3d-kit/test/v21-rigid-queries.test.mjs"
+    "url": "https://github.com/nathansenn/box3d-WEBGPU/blob/main/packages/box3d-kit/test/v22-rigid-queries.test.mjs"
    },
    "text": {
     "reference": "33 bodies",
@@ -2205,9 +2205,9 @@
    },
    "pass": true,
    "source": {
-    "file": "packages/box3d-kit/test/v21-rigid-queries.test.mjs",
+    "file": "packages/box3d-kit/test/v22-rigid-queries.test.mjs",
     "test": "overlaps: sphere, box, capsule and broad-phase counts on a lattice equal the counts of lattice points, with and without a mask",
-    "url": "https://github.com/nathansenn/box3d-WEBGPU/blob/main/packages/box3d-kit/test/v21-rigid-queries.test.mjs"
+    "url": "https://github.com/nathansenn/box3d-WEBGPU/blob/main/packages/box3d-kit/test/v22-rigid-queries.test.mjs"
    },
    "text": {
     "reference": "40 bodies",
@@ -2234,9 +2234,9 @@
    "pass": true,
    "note": "Boxes, spheres, capsules, hulls, a triangle mesh and a height field; static and moving bodies.",
    "source": {
-    "file": "packages/box3d-kit/test/v21-rigid-queries.test.mjs",
+    "file": "packages/box3d-kit/test/v22-rigid-queries.test.mjs",
     "test": "raycastBatch: 4,096 rays in one call agree bit for bit with 4,096 single raycasts, on every shape kind",
-    "url": "https://github.com/nathansenn/box3d-WEBGPU/blob/main/packages/box3d-kit/test/v21-rigid-queries.test.mjs"
+    "url": "https://github.com/nathansenn/box3d-WEBGPU/blob/main/packages/box3d-kit/test/v22-rigid-queries.test.mjs"
    },
    "text": {
     "reference": "0 rays",
@@ -2262,9 +2262,9 @@
    },
    "pass": true,
    "source": {
-    "file": "packages/box3d-kit/test/v21-rigid-character.test.mjs",
+    "file": "packages/box3d-kit/test/v22-rigid-character.test.mjs",
     "test": "flat ground: the character walks at the commanded speed, stays grounded and keeps its feet on the floor",
-    "url": "https://github.com/nathansenn/box3d-WEBGPU/blob/main/packages/box3d-kit/test/v21-rigid-character.test.mjs"
+    "url": "https://github.com/nathansenn/box3d-WEBGPU/blob/main/packages/box3d-kit/test/v22-rigid-character.test.mjs"
    },
    "text": {
     "reference": "3 m/s",
@@ -2291,9 +2291,9 @@
    "pass": true,
    "note": "The capsule rests one linear slop (5 mm) inside the floor; the reported feet height adds it back.",
    "source": {
-    "file": "packages/box3d-kit/test/v21-rigid-character.test.mjs",
+    "file": "packages/box3d-kit/test/v22-rigid-character.test.mjs",
     "test": "flat ground: the character walks at the commanded speed, stays grounded and keeps its feet on the floor",
-    "url": "https://github.com/nathansenn/box3d-WEBGPU/blob/main/packages/box3d-kit/test/v21-rigid-character.test.mjs"
+    "url": "https://github.com/nathansenn/box3d-WEBGPU/blob/main/packages/box3d-kit/test/v22-rigid-character.test.mjs"
    },
    "text": {
     "reference": "0 m",
@@ -2319,9 +2319,9 @@
    },
    "pass": true,
    "source": {
-    "file": "packages/box3d-kit/test/v21-rigid-character.test.mjs",
+    "file": "packages/box3d-kit/test/v22-rigid-character.test.mjs",
     "test": "slope limit: ramps below maxSlopeDegrees are climbed at the commanded speed along the ramp, steeper ones are walls",
-    "url": "https://github.com/nathansenn/box3d-WEBGPU/blob/main/packages/box3d-kit/test/v21-rigid-character.test.mjs"
+    "url": "https://github.com/nathansenn/box3d-WEBGPU/blob/main/packages/box3d-kit/test/v22-rigid-character.test.mjs"
    },
    "text": {
     "reference": "45 deg",
@@ -2347,9 +2347,9 @@
    },
    "pass": true,
    "source": {
-    "file": "packages/box3d-kit/test/v21-rigid-character.test.mjs",
+    "file": "packages/box3d-kit/test/v22-rigid-character.test.mjs",
     "test": "slope limit: ramps below maxSlopeDegrees are climbed at the commanded speed along the ramp, steeper ones are walls",
-    "url": "https://github.com/nathansenn/box3d-WEBGPU/blob/main/packages/box3d-kit/test/v21-rigid-character.test.mjs"
+    "url": "https://github.com/nathansenn/box3d-WEBGPU/blob/main/packages/box3d-kit/test/v22-rigid-character.test.mjs"
    },
    "text": {
     "reference": "45 deg",
@@ -2375,9 +2375,9 @@
    },
    "pass": true,
    "source": {
-    "file": "packages/box3d-kit/test/v21-rigid-character.test.mjs",
+    "file": "packages/box3d-kit/test/v22-rigid-character.test.mjs",
     "test": "slope limit: ramps below maxSlopeDegrees are climbed at the commanded speed along the ramp, steeper ones are walls",
-    "url": "https://github.com/nathansenn/box3d-WEBGPU/blob/main/packages/box3d-kit/test/v21-rigid-character.test.mjs"
+    "url": "https://github.com/nathansenn/box3d-WEBGPU/blob/main/packages/box3d-kit/test/v22-rigid-character.test.mjs"
    },
    "text": {
     "reference": "30 deg",
@@ -2403,9 +2403,9 @@
    },
    "pass": true,
    "source": {
-    "file": "packages/box3d-kit/test/v21-rigid-character.test.mjs",
+    "file": "packages/box3d-kit/test/v22-rigid-character.test.mjs",
     "test": "slope limit: ramps below maxSlopeDegrees are climbed at the commanded speed along the ramp, steeper ones are walls",
-    "url": "https://github.com/nathansenn/box3d-WEBGPU/blob/main/packages/box3d-kit/test/v21-rigid-character.test.mjs"
+    "url": "https://github.com/nathansenn/box3d-WEBGPU/blob/main/packages/box3d-kit/test/v22-rigid-character.test.mjs"
    },
    "text": {
     "reference": "2 m/s",
@@ -2431,9 +2431,9 @@
    },
    "pass": true,
    "source": {
-    "file": "packages/box3d-kit/test/v21-rigid-character.test.mjs",
+    "file": "packages/box3d-kit/test/v22-rigid-character.test.mjs",
     "test": "step height: ledges up to stepHeight are stepped onto, taller ones block, and stairs are walked up and down",
-    "url": "https://github.com/nathansenn/box3d-WEBGPU/blob/main/packages/box3d-kit/test/v21-rigid-character.test.mjs"
+    "url": "https://github.com/nathansenn/box3d-WEBGPU/blob/main/packages/box3d-kit/test/v22-rigid-character.test.mjs"
    },
    "text": {
     "reference": "0.35 m",
@@ -2459,9 +2459,9 @@
    },
    "pass": true,
    "source": {
-    "file": "packages/box3d-kit/test/v21-rigid-character.test.mjs",
+    "file": "packages/box3d-kit/test/v22-rigid-character.test.mjs",
     "test": "step height: ledges up to stepHeight are stepped onto, taller ones block, and stairs are walked up and down",
-    "url": "https://github.com/nathansenn/box3d-WEBGPU/blob/main/packages/box3d-kit/test/v21-rigid-character.test.mjs"
+    "url": "https://github.com/nathansenn/box3d-WEBGPU/blob/main/packages/box3d-kit/test/v22-rigid-character.test.mjs"
    },
    "text": {
     "reference": "0.35 m",
@@ -2487,9 +2487,9 @@
    },
    "pass": true,
    "source": {
-    "file": "packages/box3d-kit/test/v21-rigid-character.test.mjs",
+    "file": "packages/box3d-kit/test/v22-rigid-character.test.mjs",
     "test": "step height: ledges up to stepHeight are stepped onto, taller ones block, and stairs are walked up and down",
-    "url": "https://github.com/nathansenn/box3d-WEBGPU/blob/main/packages/box3d-kit/test/v21-rigid-character.test.mjs"
+    "url": "https://github.com/nathansenn/box3d-WEBGPU/blob/main/packages/box3d-kit/test/v22-rigid-character.test.mjs"
    },
    "text": {
     "reference": "0.2 m",
@@ -2515,9 +2515,9 @@
    },
    "pass": true,
    "source": {
-    "file": "packages/box3d-kit/test/v21-rigid-character.test.mjs",
+    "file": "packages/box3d-kit/test/v22-rigid-character.test.mjs",
     "test": "step height: ledges up to stepHeight are stepped onto, taller ones block, and stairs are walked up and down",
-    "url": "https://github.com/nathansenn/box3d-WEBGPU/blob/main/packages/box3d-kit/test/v21-rigid-character.test.mjs"
+    "url": "https://github.com/nathansenn/box3d-WEBGPU/blob/main/packages/box3d-kit/test/v22-rigid-character.test.mjs"
    },
    "text": {
     "reference": "1 m",
@@ -2543,9 +2543,9 @@
    },
    "pass": true,
    "source": {
-    "file": "packages/box3d-kit/test/v21-rigid-character.test.mjs",
+    "file": "packages/box3d-kit/test/v22-rigid-character.test.mjs",
     "test": "step height: ledges up to stepHeight are stepped onto, taller ones block, and stairs are walked up and down",
-    "url": "https://github.com/nathansenn/box3d-WEBGPU/blob/main/packages/box3d-kit/test/v21-rigid-character.test.mjs"
+    "url": "https://github.com/nathansenn/box3d-WEBGPU/blob/main/packages/box3d-kit/test/v22-rigid-character.test.mjs"
    },
    "text": {
     "reference": "0 steps",
@@ -2572,9 +2572,9 @@
    "pass": true,
    "note": "The vertical move of each step uses the mean of the speeds at its two ends, which is exact for constant gravity.",
    "source": {
-    "file": "packages/box3d-kit/test/v21-rigid-character.test.mjs",
+    "file": "packages/box3d-kit/test/v22-rigid-character.test.mjs",
     "test": "jump: the apex is v^2 / (2 g) and the flight lasts 2 v / g",
-    "url": "https://github.com/nathansenn/box3d-WEBGPU/blob/main/packages/box3d-kit/test/v21-rigid-character.test.mjs"
+    "url": "https://github.com/nathansenn/box3d-WEBGPU/blob/main/packages/box3d-kit/test/v22-rigid-character.test.mjs"
    },
    "text": {
     "reference": "1.27421 m",
@@ -2601,9 +2601,9 @@
    "pass": true,
    "note": "Landing is detected at a step, so the time is known to one step (1/240 s).",
    "source": {
-    "file": "packages/box3d-kit/test/v21-rigid-character.test.mjs",
+    "file": "packages/box3d-kit/test/v22-rigid-character.test.mjs",
     "test": "jump: the apex is v^2 / (2 g) and the flight lasts 2 v / g",
-    "url": "https://github.com/nathansenn/box3d-WEBGPU/blob/main/packages/box3d-kit/test/v21-rigid-character.test.mjs"
+    "url": "https://github.com/nathansenn/box3d-WEBGPU/blob/main/packages/box3d-kit/test/v22-rigid-character.test.mjs"
    },
    "text": {
     "reference": "1.019368 s",
@@ -2630,9 +2630,9 @@
    "pass": true,
    "note": "At 300 m/s one move is 5 m, five hundred times the wall thickness. The mover casts every translation; it stops one linear slop inside the face.",
    "source": {
-    "file": "packages/box3d-kit/test/v21-rigid-character.test.mjs",
+    "file": "packages/box3d-kit/test/v22-rigid-character.test.mjs",
     "test": "thin walls: a 1 cm wall stops the character at 10 to 300 m/s, 5 m per step at the top speed",
-    "url": "https://github.com/nathansenn/box3d-WEBGPU/blob/main/packages/box3d-kit/test/v21-rigid-character.test.mjs"
+    "url": "https://github.com/nathansenn/box3d-WEBGPU/blob/main/packages/box3d-kit/test/v22-rigid-character.test.mjs"
    },
    "text": {
     "reference": "0.005 m",
@@ -2658,9 +2658,9 @@
    },
    "pass": true,
    "source": {
-    "file": "packages/box3d-kit/test/v21-rigid-character.test.mjs",
+    "file": "packages/box3d-kit/test/v22-rigid-character.test.mjs",
     "test": "moving platforms: a standing character takes the velocity of the kinematic body under it, sideways and upwards",
-    "url": "https://github.com/nathansenn/box3d-WEBGPU/blob/main/packages/box3d-kit/test/v21-rigid-character.test.mjs"
+    "url": "https://github.com/nathansenn/box3d-WEBGPU/blob/main/packages/box3d-kit/test/v22-rigid-character.test.mjs"
    },
    "text": {
     "reference": "1.5 m/s",
@@ -2686,9 +2686,9 @@
    },
    "pass": true,
    "source": {
-    "file": "packages/box3d-kit/test/v21-rigid-character.test.mjs",
+    "file": "packages/box3d-kit/test/v22-rigid-character.test.mjs",
     "test": "moving platforms: a standing character takes the velocity of the kinematic body under it, sideways and upwards",
-    "url": "https://github.com/nathansenn/box3d-WEBGPU/blob/main/packages/box3d-kit/test/v21-rigid-character.test.mjs"
+    "url": "https://github.com/nathansenn/box3d-WEBGPU/blob/main/packages/box3d-kit/test/v22-rigid-character.test.mjs"
    },
    "text": {
     "reference": "1.999991 m",
@@ -2715,9 +2715,9 @@
    "pass": true,
    "note": "maxPushForce 400 N, friction 0.5: the limit mass is 81.5 kg. Friction slows the box by mu g dt each step before the next push, hence the 0.9% lag.",
    "source": {
-    "file": "packages/box3d-kit/test/v21-rigid-character.test.mjs",
+    "file": "packages/box3d-kit/test/v22-rigid-character.test.mjs",
     "test": "pushing: a box lighter than maxPushForce / (mu g) is pushed at walking speed, a heavier one stops the character",
-    "url": "https://github.com/nathansenn/box3d-WEBGPU/blob/main/packages/box3d-kit/test/v21-rigid-character.test.mjs"
+    "url": "https://github.com/nathansenn/box3d-WEBGPU/blob/main/packages/box3d-kit/test/v22-rigid-character.test.mjs"
    },
    "text": {
     "reference": "1.5 m/s",
@@ -2743,9 +2743,9 @@
    },
    "pass": true,
    "source": {
-    "file": "packages/box3d-kit/test/v21-rigid-character.test.mjs",
+    "file": "packages/box3d-kit/test/v22-rigid-character.test.mjs",
     "test": "pushing: a box lighter than maxPushForce / (mu g) is pushed at walking speed, a heavier one stops the character",
-    "url": "https://github.com/nathansenn/box3d-WEBGPU/blob/main/packages/box3d-kit/test/v21-rigid-character.test.mjs"
+    "url": "https://github.com/nathansenn/box3d-WEBGPU/blob/main/packages/box3d-kit/test/v22-rigid-character.test.mjs"
    },
    "text": {
     "reference": "0 m/s",
@@ -2771,9 +2771,9 @@
    },
    "pass": true,
    "source": {
-    "file": "packages/box3d-kit/test/v21-rigid-character.test.mjs",
+    "file": "packages/box3d-kit/test/v22-rigid-character.test.mjs",
     "test": "checkpoint: the world checkpoint and the character state resume a walk bit for bit (a step, a platform ride, a jump, pushing)",
-    "url": "https://github.com/nathansenn/box3d-WEBGPU/blob/main/packages/box3d-kit/test/v21-rigid-character.test.mjs"
+    "url": "https://github.com/nathansenn/box3d-WEBGPU/blob/main/packages/box3d-kit/test/v22-rigid-character.test.mjs"
    },
    "text": {
     "reference": "0 steps",
@@ -2799,9 +2799,9 @@
    },
    "pass": true,
    "source": {
-    "file": "packages/box3d-kit/test/v21-rigid-ccd.test.mjs",
+    "file": "packages/box3d-kit/test/v22-rigid-ccd.test.mjs",
     "test": "a 5 cm ball against a 2 cm wall at 60 Hz: discrete stepping loses the shots the window model predicts, continuous collision loses none",
-    "url": "https://github.com/nathansenn/box3d-WEBGPU/blob/main/packages/box3d-kit/test/v21-rigid-ccd.test.mjs"
+    "url": "https://github.com/nathansenn/box3d-WEBGPU/blob/main/packages/box3d-kit/test/v22-rigid-ccd.test.mjs"
    },
    "text": {
     "reference": "0 balls",
@@ -2828,9 +2828,9 @@
    "pass": true,
    "note": "A discrete step stops the ball only if it ends with the centre between r + 2 cm before the near face (Box3D makes contacts 2 cm ahead) and the wall mid-plane. The start positions are spread evenly over one step of travel.",
    "source": {
-    "file": "packages/box3d-kit/test/v21-rigid-ccd.test.mjs",
+    "file": "packages/box3d-kit/test/v22-rigid-ccd.test.mjs",
     "test": "a 5 cm ball against a 2 cm wall at 60 Hz: discrete stepping loses the shots the window model predicts, continuous collision loses none",
-    "url": "https://github.com/nathansenn/box3d-WEBGPU/blob/main/packages/box3d-kit/test/v21-rigid-ccd.test.mjs"
+    "url": "https://github.com/nathansenn/box3d-WEBGPU/blob/main/packages/box3d-kit/test/v22-rigid-ccd.test.mjs"
    },
    "text": {
     "reference": "110 balls",
@@ -2856,9 +2856,9 @@
    },
    "pass": true,
    "source": {
-    "file": "packages/box3d-kit/test/v21-rigid-ccd.test.mjs",
+    "file": "packages/box3d-kit/test/v22-rigid-ccd.test.mjs",
     "test": "the bullet flag: a ball passes through a thin free plate without it and is stopped with it, and momentum is conserved",
-    "url": "https://github.com/nathansenn/box3d-WEBGPU/blob/main/packages/box3d-kit/test/v21-rigid-ccd.test.mjs"
+    "url": "https://github.com/nathansenn/box3d-WEBGPU/blob/main/packages/box3d-kit/test/v22-rigid-ccd.test.mjs"
    },
    "text": {
     "reference": "0.8224895 m/s",
@@ -2884,9 +2884,9 @@
    },
    "pass": true,
    "source": {
-    "file": "packages/box3d-kit/test/v21-rigid-ccd.test.mjs",
+    "file": "packages/box3d-kit/test/v22-rigid-ccd.test.mjs",
     "test": "the bullet flag: a ball passes through a thin free plate without it and is stopped with it, and momentum is conserved",
-    "url": "https://github.com/nathansenn/box3d-WEBGPU/blob/main/packages/box3d-kit/test/v21-rigid-ccd.test.mjs"
+    "url": "https://github.com/nathansenn/box3d-WEBGPU/blob/main/packages/box3d-kit/test/v22-rigid-ccd.test.mjs"
    },
    "text": {
     "reference": "132.3239 kg m/s",
@@ -2913,9 +2913,9 @@
    "pass": true,
    "note": "Continuous collision covers dynamic bodies against static ones. Between two moving bodies it runs only when one is a bullet.",
    "source": {
-    "file": "packages/box3d-kit/test/v21-rigid-ccd.test.mjs",
+    "file": "packages/box3d-kit/test/v22-rigid-ccd.test.mjs",
     "test": "the bullet flag: a ball passes through a thin free plate without it and is stopped with it, and momentum is conserved",
-    "url": "https://github.com/nathansenn/box3d-WEBGPU/blob/main/packages/box3d-kit/test/v21-rigid-ccd.test.mjs"
+    "url": "https://github.com/nathansenn/box3d-WEBGPU/blob/main/packages/box3d-kit/test/v22-rigid-ccd.test.mjs"
    },
    "text": {
     "reference": "0 m/s",
@@ -2941,9 +2941,9 @@
    },
    "pass": true,
    "source": {
-    "file": "packages/box3d-kit/test/v21-rigid-vehicle.test.mjs",
+    "file": "packages/box3d-kit/test/v22-rigid-vehicle.test.mjs",
     "test": "static sag: each spring is compressed by its wheel load over the stiffness, M g / (4 k), and by the axle loads when the centre of mass is forward",
-    "url": "https://github.com/nathansenn/box3d-WEBGPU/blob/main/packages/box3d-kit/test/v21-rigid-vehicle.test.mjs"
+    "url": "https://github.com/nathansenn/box3d-WEBGPU/blob/main/packages/box3d-kit/test/v22-rigid-vehicle.test.mjs"
    },
    "text": {
     "reference": "0.04905 m",
@@ -2970,9 +2970,9 @@
    "pass": true,
    "note": "The chassis pitches by 0.012 rad, which the statics of the formula leave out.",
    "source": {
-    "file": "packages/box3d-kit/test/v21-rigid-vehicle.test.mjs",
+    "file": "packages/box3d-kit/test/v22-rigid-vehicle.test.mjs",
     "test": "static sag: each spring is compressed by its wheel load over the stiffness, M g / (4 k), and by the axle loads when the centre of mass is forward",
-    "url": "https://github.com/nathansenn/box3d-WEBGPU/blob/main/packages/box3d-kit/test/v21-rigid-vehicle.test.mjs"
+    "url": "https://github.com/nathansenn/box3d-WEBGPU/blob/main/packages/box3d-kit/test/v22-rigid-vehicle.test.mjs"
    },
    "text": {
     "reference": "0.06414231 m",
@@ -2998,9 +2998,9 @@
    },
    "pass": true,
    "source": {
-    "file": "packages/box3d-kit/test/v21-rigid-vehicle.test.mjs",
+    "file": "packages/box3d-kit/test/v22-rigid-vehicle.test.mjs",
     "test": "static sag: each spring is compressed by its wheel load over the stiffness, M g / (4 k), and by the axle loads when the centre of mass is forward",
-    "url": "https://github.com/nathansenn/box3d-WEBGPU/blob/main/packages/box3d-kit/test/v21-rigid-vehicle.test.mjs"
+    "url": "https://github.com/nathansenn/box3d-WEBGPU/blob/main/packages/box3d-kit/test/v22-rigid-vehicle.test.mjs"
    },
    "text": {
     "reference": "0.03395769 m",
@@ -3027,9 +3027,9 @@
    "pass": true,
    "note": "The tyre contact is a stiff spring in series with the suspension (Box3D contacts are soft constraints), which lowers the frequency by 0.8% here.",
    "source": {
-    "file": "packages/box3d-kit/test/v21-rigid-vehicle.test.mjs",
+    "file": "packages/box3d-kit/test/v22-rigid-vehicle.test.mjs",
     "test": "heave: the chassis bounces at sqrt(4 k / M) / (2 pi), and dampers give zeta = 4 c / (2 sqrt(4 k M))",
-    "url": "https://github.com/nathansenn/box3d-WEBGPU/blob/main/packages/box3d-kit/test/v21-rigid-vehicle.test.mjs"
+    "url": "https://github.com/nathansenn/box3d-WEBGPU/blob/main/packages/box3d-kit/test/v22-rigid-vehicle.test.mjs"
    },
    "text": {
     "reference": "2.250791 Hz",
@@ -3055,9 +3055,9 @@
    },
    "pass": true,
    "source": {
-    "file": "packages/box3d-kit/test/v21-rigid-vehicle.test.mjs",
+    "file": "packages/box3d-kit/test/v22-rigid-vehicle.test.mjs",
     "test": "heave: the chassis bounces at sqrt(4 k / M) / (2 pi), and dampers give zeta = 4 c / (2 sqrt(4 k M))",
-    "url": "https://github.com/nathansenn/box3d-WEBGPU/blob/main/packages/box3d-kit/test/v21-rigid-vehicle.test.mjs"
+    "url": "https://github.com/nathansenn/box3d-WEBGPU/blob/main/packages/box3d-kit/test/v22-rigid-vehicle.test.mjs"
    },
    "text": {
     "reference": "1.591549 Hz",
@@ -3084,9 +3084,9 @@
    "pass": true,
    "note": "The implicit integration of the spring adds a damping ratio of about 0.018 at 240 Hz with 4 sub-steps (measured with the dampers at zero).",
    "source": {
-    "file": "packages/box3d-kit/test/v21-rigid-vehicle.test.mjs",
+    "file": "packages/box3d-kit/test/v22-rigid-vehicle.test.mjs",
     "test": "heave: the chassis bounces at sqrt(4 k / M) / (2 pi), and dampers give zeta = 4 c / (2 sqrt(4 k M))",
-    "url": "https://github.com/nathansenn/box3d-WEBGPU/blob/main/packages/box3d-kit/test/v21-rigid-vehicle.test.mjs"
+    "url": "https://github.com/nathansenn/box3d-WEBGPU/blob/main/packages/box3d-kit/test/v22-rigid-vehicle.test.mjs"
    },
    "text": {
     "reference": "0.2357023",
@@ -3113,9 +3113,9 @@
    "pass": true,
    "note": "The wheels roll on a slightly smaller radius than R (the contact sinks by millimetres), so the thrust tau / R is a little higher and the speed 0.2% to 0.4% above the formula.",
    "source": {
-    "file": "packages/box3d-kit/test/v21-rigid-vehicle.test.mjs",
+    "file": "packages/box3d-kit/test/v22-rigid-vehicle.test.mjs",
     "test": "top speed: drive torque against drag balances at sqrt(8 tau / (R rho CdA)), approached from below and from above",
-    "url": "https://github.com/nathansenn/box3d-WEBGPU/blob/main/packages/box3d-kit/test/v21-rigid-vehicle.test.mjs"
+    "url": "https://github.com/nathansenn/box3d-WEBGPU/blob/main/packages/box3d-kit/test/v22-rigid-vehicle.test.mjs"
    },
    "text": {
     "reference": "24.93919 m/s",
@@ -3141,9 +3141,9 @@
    },
    "pass": true,
    "source": {
-    "file": "packages/box3d-kit/test/v21-rigid-vehicle.test.mjs",
+    "file": "packages/box3d-kit/test/v22-rigid-vehicle.test.mjs",
     "test": "top speed: drive torque against drag balances at sqrt(8 tau / (R rho CdA)), approached from below and from above",
-    "url": "https://github.com/nathansenn/box3d-WEBGPU/blob/main/packages/box3d-kit/test/v21-rigid-vehicle.test.mjs"
+    "url": "https://github.com/nathansenn/box3d-WEBGPU/blob/main/packages/box3d-kit/test/v22-rigid-vehicle.test.mjs"
    },
    "text": {
     "reference": "24.93919 m/s",
@@ -3170,9 +3170,9 @@
    "pass": true,
    "note": "Lateral acceleration 0.88 m/s^2; at higher speeds the tyres slip and the circle widens.",
    "source": {
-    "file": "packages/box3d-kit/test/v21-rigid-vehicle.test.mjs",
+    "file": "packages/box3d-kit/test/v22-rigid-vehicle.test.mjs",
     "test": "turning circle: at low speed the rear axle turns about L / tan(delta), with Ackermann angles on the front wheels",
-    "url": "https://github.com/nathansenn/box3d-WEBGPU/blob/main/packages/box3d-kit/test/v21-rigid-vehicle.test.mjs"
+    "url": "https://github.com/nathansenn/box3d-WEBGPU/blob/main/packages/box3d-kit/test/v22-rigid-vehicle.test.mjs"
    },
    "text": {
     "reference": "10.18243 m",
@@ -3198,9 +3198,9 @@
    },
    "pass": true,
    "source": {
-    "file": "packages/box3d-kit/test/v21-rigid-vehicle.test.mjs",
+    "file": "packages/box3d-kit/test/v22-rigid-vehicle.test.mjs",
     "test": "turning circle: at low speed the rear axle turns about L / tan(delta), with Ackermann angles on the front wheels",
-    "url": "https://github.com/nathansenn/box3d-WEBGPU/blob/main/packages/box3d-kit/test/v21-rigid-vehicle.test.mjs"
+    "url": "https://github.com/nathansenn/box3d-WEBGPU/blob/main/packages/box3d-kit/test/v22-rigid-vehicle.test.mjs"
    },
    "text": {
     "reference": "10.18243 m",
@@ -3226,9 +3226,9 @@
    },
    "pass": true,
    "source": {
-    "file": "packages/box3d-kit/test/v21-rigid-vehicle.test.mjs",
+    "file": "packages/box3d-kit/test/v22-rigid-vehicle.test.mjs",
     "test": "turning circle: at low speed the rear axle turns about L / tan(delta), with Ackermann angles on the front wheels",
-    "url": "https://github.com/nathansenn/box3d-WEBGPU/blob/main/packages/box3d-kit/test/v21-rigid-vehicle.test.mjs"
+    "url": "https://github.com/nathansenn/box3d-WEBGPU/blob/main/packages/box3d-kit/test/v22-rigid-vehicle.test.mjs"
    },
    "text": {
     "reference": "0.2703304 rad",
@@ -3254,9 +3254,9 @@
    },
    "pass": true,
    "source": {
-    "file": "packages/box3d-kit/test/v21-rigid-vehicle.test.mjs",
+    "file": "packages/box3d-kit/test/v22-rigid-vehicle.test.mjs",
     "test": "braking: with locked wheels the car stops in v^2 / (2 mu g)",
-    "url": "https://github.com/nathansenn/box3d-WEBGPU/blob/main/packages/box3d-kit/test/v21-rigid-vehicle.test.mjs"
+    "url": "https://github.com/nathansenn/box3d-WEBGPU/blob/main/packages/box3d-kit/test/v22-rigid-vehicle.test.mjs"
    },
    "text": {
     "reference": "25.47387 m",
@@ -3282,9 +3282,9 @@
    },
    "pass": true,
    "source": {
-    "file": "packages/box3d-kit/test/v21-rigid-vehicle.test.mjs",
+    "file": "packages/box3d-kit/test/v22-rigid-vehicle.test.mjs",
     "test": "terrain and checkpoints: a drive over a height field stays upright, and the world checkpoint with the vehicle state resumes it bit for bit",
-    "url": "https://github.com/nathansenn/box3d-WEBGPU/blob/main/packages/box3d-kit/test/v21-rigid-vehicle.test.mjs"
+    "url": "https://github.com/nathansenn/box3d-WEBGPU/blob/main/packages/box3d-kit/test/v22-rigid-vehicle.test.mjs"
    },
    "text": {
     "reference": "0 steps",
@@ -3311,9 +3311,9 @@
    "pass": true,
    "note": "The load grows by 0.25 N per step; the weld breaks in the first step in which the solver sees the threshold reached.",
    "source": {
-    "file": "packages/box3d-kit/test/v21-rigid-joints.test.mjs",
+    "file": "packages/box3d-kit/test/v22-rigid-joints.test.mjs",
     "test": "a breakable weld breaks when the force, or the torque, it carries reaches its threshold",
-    "url": "https://github.com/nathansenn/box3d-WEBGPU/blob/main/packages/box3d-kit/test/v21-rigid-joints.test.mjs"
+    "url": "https://github.com/nathansenn/box3d-WEBGPU/blob/main/packages/box3d-kit/test/v22-rigid-joints.test.mjs"
    },
    "text": {
     "reference": "500 N",
@@ -3339,9 +3339,9 @@
    },
    "pass": true,
    "source": {
-    "file": "packages/box3d-kit/test/v21-rigid-joints.test.mjs",
+    "file": "packages/box3d-kit/test/v22-rigid-joints.test.mjs",
     "test": "a breakable weld breaks when the force, or the torque, it carries reaches its threshold",
-    "url": "https://github.com/nathansenn/box3d-WEBGPU/blob/main/packages/box3d-kit/test/v21-rigid-joints.test.mjs"
+    "url": "https://github.com/nathansenn/box3d-WEBGPU/blob/main/packages/box3d-kit/test/v22-rigid-joints.test.mjs"
    },
    "text": {
     "reference": "500 N",
@@ -3367,9 +3367,9 @@
    },
    "pass": true,
    "source": {
-    "file": "packages/box3d-kit/test/v21-rigid-joints.test.mjs",
+    "file": "packages/box3d-kit/test/v22-rigid-joints.test.mjs",
     "test": "a breakable weld breaks when the force, or the torque, it carries reaches its threshold",
-    "url": "https://github.com/nathansenn/box3d-WEBGPU/blob/main/packages/box3d-kit/test/v21-rigid-joints.test.mjs"
+    "url": "https://github.com/nathansenn/box3d-WEBGPU/blob/main/packages/box3d-kit/test/v22-rigid-joints.test.mjs"
    },
    "text": {
     "reference": "100 N m",
@@ -3395,9 +3395,9 @@
    },
    "pass": true,
    "source": {
-    "file": "packages/box3d-kit/test/v21-rigid-joints.test.mjs",
+    "file": "packages/box3d-kit/test/v22-rigid-joints.test.mjs",
     "test": "a breakable weld breaks when the force, or the torque, it carries reaches its threshold",
-    "url": "https://github.com/nathansenn/box3d-WEBGPU/blob/main/packages/box3d-kit/test/v21-rigid-joints.test.mjs"
+    "url": "https://github.com/nathansenn/box3d-WEBGPU/blob/main/packages/box3d-kit/test/v22-rigid-joints.test.mjs"
    },
    "text": {
     "reference": "500.1 N",
@@ -3423,9 +3423,9 @@
    },
    "pass": true,
    "source": {
-    "file": "packages/box3d-kit/test/v21-rigid-joints.test.mjs",
+    "file": "packages/box3d-kit/test/v22-rigid-joints.test.mjs",
     "test": "a threshold without `breakable` reports joint-overload in every step it is exceeded, and the joint stays",
-    "url": "https://github.com/nathansenn/box3d-WEBGPU/blob/main/packages/box3d-kit/test/v21-rigid-joints.test.mjs"
+    "url": "https://github.com/nathansenn/box3d-WEBGPU/blob/main/packages/box3d-kit/test/v22-rigid-joints.test.mjs"
    },
    "text": {
     "reference": "120 events",
@@ -3451,9 +3451,9 @@
    },
    "pass": true,
    "source": {
-    "file": "packages/box3d-kit/test/v21-rigid-joints.test.mjs",
+    "file": "packages/box3d-kit/test/v22-rigid-joints.test.mjs",
     "test": "a threshold without `breakable` reports joint-overload in every step it is exceeded, and the joint stays",
-    "url": "https://github.com/nathansenn/box3d-WEBGPU/blob/main/packages/box3d-kit/test/v21-rigid-joints.test.mjs"
+    "url": "https://github.com/nathansenn/box3d-WEBGPU/blob/main/packages/box3d-kit/test/v22-rigid-joints.test.mjs"
    },
    "text": {
     "reference": "0 events",
@@ -3479,9 +3479,9 @@
    },
    "pass": true,
    "source": {
-    "file": "packages/box3d-kit/test/v21-rigid-joints.test.mjs",
+    "file": "packages/box3d-kit/test/v22-rigid-joints.test.mjs",
     "test": "motor joint: velocity drives ramp at F / m and torque / I and hold their targets; springs oscillate at their frequency",
-    "url": "https://github.com/nathansenn/box3d-WEBGPU/blob/main/packages/box3d-kit/test/v21-rigid-joints.test.mjs"
+    "url": "https://github.com/nathansenn/box3d-WEBGPU/blob/main/packages/box3d-kit/test/v22-rigid-joints.test.mjs"
    },
    "text": {
     "reference": "0.9817478 s",
@@ -3507,9 +3507,9 @@
    },
    "pass": true,
    "source": {
-    "file": "packages/box3d-kit/test/v21-rigid-joints.test.mjs",
+    "file": "packages/box3d-kit/test/v22-rigid-joints.test.mjs",
     "test": "motor joint: velocity drives ramp at F / m and torque / I and hold their targets; springs oscillate at their frequency",
-    "url": "https://github.com/nathansenn/box3d-WEBGPU/blob/main/packages/box3d-kit/test/v21-rigid-joints.test.mjs"
+    "url": "https://github.com/nathansenn/box3d-WEBGPU/blob/main/packages/box3d-kit/test/v22-rigid-joints.test.mjs"
    },
    "text": {
     "reference": "3 m/s",
@@ -3535,9 +3535,9 @@
    },
    "pass": true,
    "source": {
-    "file": "packages/box3d-kit/test/v21-rigid-joints.test.mjs",
+    "file": "packages/box3d-kit/test/v22-rigid-joints.test.mjs",
     "test": "motor joint: velocity drives ramp at F / m and torque / I and hold their targets; springs oscillate at their frequency",
-    "url": "https://github.com/nathansenn/box3d-WEBGPU/blob/main/packages/box3d-kit/test/v21-rigid-joints.test.mjs"
+    "url": "https://github.com/nathansenn/box3d-WEBGPU/blob/main/packages/box3d-kit/test/v22-rigid-joints.test.mjs"
    },
    "text": {
     "reference": "2.181662 s",
@@ -3564,9 +3564,9 @@
    "pass": true,
    "note": "The spring is integrated implicitly: the period holds, the amplitude falls to 63% in 6 s (a numerical damping ratio of 0.008).",
    "source": {
-    "file": "packages/box3d-kit/test/v21-rigid-joints.test.mjs",
+    "file": "packages/box3d-kit/test/v22-rigid-joints.test.mjs",
     "test": "motor joint: velocity drives ramp at F / m and torque / I and hold their targets; springs oscillate at their frequency",
-    "url": "https://github.com/nathansenn/box3d-WEBGPU/blob/main/packages/box3d-kit/test/v21-rigid-joints.test.mjs"
+    "url": "https://github.com/nathansenn/box3d-WEBGPU/blob/main/packages/box3d-kit/test/v22-rigid-joints.test.mjs"
    },
    "text": {
     "reference": "0.6666667 s",
@@ -3592,9 +3592,9 @@
    },
    "pass": true,
    "source": {
-    "file": "packages/box3d-kit/test/v21-rigid-joints.test.mjs",
+    "file": "packages/box3d-kit/test/v22-rigid-joints.test.mjs",
     "test": "motor joint: velocity drives ramp at F / m and torque / I and hold their targets; springs oscillate at their frequency",
-    "url": "https://github.com/nathansenn/box3d-WEBGPU/blob/main/packages/box3d-kit/test/v21-rigid-joints.test.mjs"
+    "url": "https://github.com/nathansenn/box3d-WEBGPU/blob/main/packages/box3d-kit/test/v22-rigid-joints.test.mjs"
    },
    "text": {
     "reference": "0.005440373 m",
@@ -3620,9 +3620,9 @@
    },
    "pass": true,
    "source": {
-    "file": "packages/box3d-kit/test/v21-rigid-joints.test.mjs",
+    "file": "packages/box3d-kit/test/v22-rigid-joints.test.mjs",
     "test": "motor joint spring under gravity: the sag is g / (2 pi f)^2 whatever the mass",
-    "url": "https://github.com/nathansenn/box3d-WEBGPU/blob/main/packages/box3d-kit/test/v21-rigid-joints.test.mjs"
+    "url": "https://github.com/nathansenn/box3d-WEBGPU/blob/main/packages/box3d-kit/test/v22-rigid-joints.test.mjs"
    },
    "text": {
     "reference": "0.06212255 m",
@@ -3648,9 +3648,9 @@
    },
    "pass": true,
    "source": {
-    "file": "packages/box3d-kit/test/v21-rigid-joints.test.mjs",
+    "file": "packages/box3d-kit/test/v22-rigid-joints.test.mjs",
     "test": "parallel joint: a tilted body swings about the aligned axis at the spring frequency",
-    "url": "https://github.com/nathansenn/box3d-WEBGPU/blob/main/packages/box3d-kit/test/v21-rigid-joints.test.mjs"
+    "url": "https://github.com/nathansenn/box3d-WEBGPU/blob/main/packages/box3d-kit/test/v22-rigid-joints.test.mjs"
    },
    "text": {
     "reference": "1 s",
@@ -3676,9 +3676,9 @@
    },
    "pass": true,
    "source": {
-    "file": "packages/box3d-kit/test/v21-rigid-joints.test.mjs",
+    "file": "packages/box3d-kit/test/v22-rigid-joints.test.mjs",
     "test": "filter joint: the two bodies pass through each other, and collide again as soon as it is removed",
-    "url": "https://github.com/nathansenn/box3d-WEBGPU/blob/main/packages/box3d-kit/test/v21-rigid-joints.test.mjs"
+    "url": "https://github.com/nathansenn/box3d-WEBGPU/blob/main/packages/box3d-kit/test/v22-rigid-joints.test.mjs"
    },
    "text": {
     "reference": "0.4 m",
@@ -3704,9 +3704,9 @@
    },
    "pass": true,
    "source": {
-    "file": "packages/box3d-kit/test/v21-rigid-joints.test.mjs",
+    "file": "packages/box3d-kit/test/v22-rigid-joints.test.mjs",
     "test": "filter joint: the two bodies pass through each other, and collide again as soon as it is removed",
-    "url": "https://github.com/nathansenn/box3d-WEBGPU/blob/main/packages/box3d-kit/test/v21-rigid-joints.test.mjs"
+    "url": "https://github.com/nathansenn/box3d-WEBGPU/blob/main/packages/box3d-kit/test/v22-rigid-joints.test.mjs"
    },
    "text": {
     "reference": "1.291387 m",
@@ -3732,9 +3732,9 @@
    },
    "pass": true,
    "source": {
-    "file": "packages/box3d-kit/test/v21-rigid-joints.test.mjs",
+    "file": "packages/box3d-kit/test/v22-rigid-joints.test.mjs",
     "test": "checkpoints and replay hold breakable flags, thresholds, drives, bullets and world settings: a weld breaks at the same tick after a restore",
-    "url": "https://github.com/nathansenn/box3d-WEBGPU/blob/main/packages/box3d-kit/test/v21-rigid-joints.test.mjs"
+    "url": "https://github.com/nathansenn/box3d-WEBGPU/blob/main/packages/box3d-kit/test/v22-rigid-joints.test.mjs"
    },
    "text": {
     "reference": "1216 ticks",
@@ -3760,9 +3760,9 @@
    },
    "pass": true,
    "source": {
-    "file": "packages/box3d-kit/test/v21-rigid-joints.test.mjs",
+    "file": "packages/box3d-kit/test/v22-rigid-joints.test.mjs",
     "test": "checkpoints and replay hold breakable flags, thresholds, drives, bullets and world settings: a weld breaks at the same tick after a restore",
-    "url": "https://github.com/nathansenn/box3d-WEBGPU/blob/main/packages/box3d-kit/test/v21-rigid-joints.test.mjs"
+    "url": "https://github.com/nathansenn/box3d-WEBGPU/blob/main/packages/box3d-kit/test/v22-rigid-joints.test.mjs"
    },
    "text": {
     "reference": "0 steps",
@@ -3788,9 +3788,9 @@
    },
    "pass": true,
    "source": {
-    "file": "packages/box3d-kit/test/v21-rigid-controls.test.mjs",
+    "file": "packages/box3d-kit/test/v22-rigid-controls.test.mjs",
     "test": "explosion: a sphere takes P pi r^2 / m, half of it half way across the falloff, nothing beyond; a box takes P times its facing area",
-    "url": "https://github.com/nathansenn/box3d-WEBGPU/blob/main/packages/box3d-kit/test/v21-rigid-controls.test.mjs"
+    "url": "https://github.com/nathansenn/box3d-WEBGPU/blob/main/packages/box3d-kit/test/v22-rigid-controls.test.mjs"
    },
    "text": {
     "reference": "0.1875 m/s",
@@ -3816,9 +3816,9 @@
    },
    "pass": true,
    "source": {
-    "file": "packages/box3d-kit/test/v21-rigid-controls.test.mjs",
+    "file": "packages/box3d-kit/test/v22-rigid-controls.test.mjs",
     "test": "explosion: a sphere takes P pi r^2 / m, half of it half way across the falloff, nothing beyond; a box takes P times its facing area",
-    "url": "https://github.com/nathansenn/box3d-WEBGPU/blob/main/packages/box3d-kit/test/v21-rigid-controls.test.mjs"
+    "url": "https://github.com/nathansenn/box3d-WEBGPU/blob/main/packages/box3d-kit/test/v22-rigid-controls.test.mjs"
    },
    "text": {
     "reference": "0.09375 m/s",
@@ -3844,9 +3844,9 @@
    },
    "pass": true,
    "source": {
-    "file": "packages/box3d-kit/test/v21-rigid-controls.test.mjs",
+    "file": "packages/box3d-kit/test/v22-rigid-controls.test.mjs",
     "test": "explosion: a sphere takes P pi r^2 / m, half of it half way across the falloff, nothing beyond; a box takes P times its facing area",
-    "url": "https://github.com/nathansenn/box3d-WEBGPU/blob/main/packages/box3d-kit/test/v21-rigid-controls.test.mjs"
+    "url": "https://github.com/nathansenn/box3d-WEBGPU/blob/main/packages/box3d-kit/test/v22-rigid-controls.test.mjs"
    },
    "text": {
     "reference": "0.25 m/s",
@@ -3873,9 +3873,9 @@
    "pass": true,
    "note": "At 240 Hz the ball lands up to one step before or after the ground plane, which is 3% of this small drop.",
    "source": {
-    "file": "packages/box3d-kit/test/v21-rigid-controls.test.mjs",
+    "file": "packages/box3d-kit/test/v22-rigid-controls.test.mjs",
     "test": "world settings: sleeping, restitution and hit thresholds, the speed limit and motion locks do what they say",
-    "url": "https://github.com/nathansenn/box3d-WEBGPU/blob/main/packages/box3d-kit/test/v21-rigid-controls.test.mjs"
+    "url": "https://github.com/nathansenn/box3d-WEBGPU/blob/main/packages/box3d-kit/test/v22-rigid-controls.test.mjs"
    },
    "text": {
     "reference": "0.05 m",
@@ -3901,9 +3901,9 @@
    },
    "pass": true,
    "source": {
-    "file": "packages/box3d-kit/test/v21-rigid-controls.test.mjs",
+    "file": "packages/box3d-kit/test/v22-rigid-controls.test.mjs",
     "test": "world settings: sleeping, restitution and hit thresholds, the speed limit and motion locks do what they say",
-    "url": "https://github.com/nathansenn/box3d-WEBGPU/blob/main/packages/box3d-kit/test/v21-rigid-controls.test.mjs"
+    "url": "https://github.com/nathansenn/box3d-WEBGPU/blob/main/packages/box3d-kit/test/v22-rigid-controls.test.mjs"
    },
    "text": {
     "reference": "0 m",
@@ -3929,9 +3929,9 @@
    },
    "pass": true,
    "source": {
-    "file": "packages/box3d-kit/test/v21-rigid-controls.test.mjs",
+    "file": "packages/box3d-kit/test/v22-rigid-controls.test.mjs",
     "test": "world settings: sleeping, restitution and hit thresholds, the speed limit and motion locks do what they say",
-    "url": "https://github.com/nathansenn/box3d-WEBGPU/blob/main/packages/box3d-kit/test/v21-rigid-controls.test.mjs"
+    "url": "https://github.com/nathansenn/box3d-WEBGPU/blob/main/packages/box3d-kit/test/v22-rigid-controls.test.mjs"
    },
    "text": {
     "reference": "1.980909 m/s",
@@ -3957,9 +3957,9 @@
    },
    "pass": true,
    "source": {
-    "file": "packages/box3d-kit/test/v21-rigid-controls.test.mjs",
+    "file": "packages/box3d-kit/test/v22-rigid-controls.test.mjs",
     "test": "world settings: sleeping, restitution and hit thresholds, the speed limit and motion locks do what they say",
-    "url": "https://github.com/nathansenn/box3d-WEBGPU/blob/main/packages/box3d-kit/test/v21-rigid-controls.test.mjs"
+    "url": "https://github.com/nathansenn/box3d-WEBGPU/blob/main/packages/box3d-kit/test/v22-rigid-controls.test.mjs"
    },
    "text": {
     "reference": "20 m/s",
@@ -3985,9 +3985,9 @@
    },
    "pass": true,
    "source": {
-    "file": "packages/box3d-kit/test/v21-rigid-controls.test.mjs",
+    "file": "packages/box3d-kit/test/v22-rigid-controls.test.mjs",
     "test": "contact push-out speed: an embedded ball leaves the ground at the set speed and no faster",
-    "url": "https://github.com/nathansenn/box3d-WEBGPU/blob/main/packages/box3d-kit/test/v21-rigid-controls.test.mjs"
+    "url": "https://github.com/nathansenn/box3d-WEBGPU/blob/main/packages/box3d-kit/test/v22-rigid-controls.test.mjs"
    },
    "text": {
     "reference": "0.5 m/s",
@@ -4013,9 +4013,9 @@
    },
    "pass": true,
    "source": {
-    "file": "packages/box3d-kit/test/v21-rigid-controls.test.mjs",
+    "file": "packages/box3d-kit/test/v22-rigid-controls.test.mjs",
     "test": "contact push-out speed: an embedded ball leaves the ground at the set speed and no faster",
-    "url": "https://github.com/nathansenn/box3d-WEBGPU/blob/main/packages/box3d-kit/test/v21-rigid-controls.test.mjs"
+    "url": "https://github.com/nathansenn/box3d-WEBGPU/blob/main/packages/box3d-kit/test/v22-rigid-controls.test.mjs"
    },
    "text": {
     "reference": "3 m/s",
@@ -4041,9 +4041,9 @@
    },
    "pass": true,
    "source": {
-    "file": "packages/box3d-kit/test/v21-rigid-controls.test.mjs",
+    "file": "packages/box3d-kit/test/v22-rigid-controls.test.mjs",
     "test": "profile, counters, contact statistics and debug lines of a known scene are exact",
-    "url": "https://github.com/nathansenn/box3d-WEBGPU/blob/main/packages/box3d-kit/test/v21-rigid-controls.test.mjs"
+    "url": "https://github.com/nathansenn/box3d-WEBGPU/blob/main/packages/box3d-kit/test/v22-rigid-controls.test.mjs"
    },
    "text": {
     "reference": "117720 N",
@@ -4069,9 +4069,9 @@
    },
    "pass": true,
    "source": {
-    "file": "packages/box3d-kit/test/v21-rigid-controls.test.mjs",
+    "file": "packages/box3d-kit/test/v22-rigid-controls.test.mjs",
     "test": "profile, counters, contact statistics and debug lines of a known scene are exact",
-    "url": "https://github.com/nathansenn/box3d-WEBGPU/blob/main/packages/box3d-kit/test/v21-rigid-controls.test.mjs"
+    "url": "https://github.com/nathansenn/box3d-WEBGPU/blob/main/packages/box3d-kit/test/v22-rigid-controls.test.mjs"
    },
    "text": {
     "reference": "48 pairs",
@@ -4097,9 +4097,9 @@
    },
    "pass": true,
    "source": {
-    "file": "packages/box3d-kit/test/v21-rigid-controls.test.mjs",
+    "file": "packages/box3d-kit/test/v22-rigid-controls.test.mjs",
     "test": "profile, counters, contact statistics and debug lines of a known scene are exact",
-    "url": "https://github.com/nathansenn/box3d-WEBGPU/blob/main/packages/box3d-kit/test/v21-rigid-controls.test.mjs"
+    "url": "https://github.com/nathansenn/box3d-WEBGPU/blob/main/packages/box3d-kit/test/v22-rigid-controls.test.mjs"
    },
    "text": {
     "reference": "0.005 m",
@@ -4125,9 +4125,9 @@
    },
    "pass": true,
    "source": {
-    "file": "packages/box3d-kit/test/v21-rigid-controls.test.mjs",
+    "file": "packages/box3d-kit/test/v22-rigid-controls.test.mjs",
     "test": "profile, counters, contact statistics and debug lines of a known scene are exact",
-    "url": "https://github.com/nathansenn/box3d-WEBGPU/blob/main/packages/box3d-kit/test/v21-rigid-controls.test.mjs"
+    "url": "https://github.com/nathansenn/box3d-WEBGPU/blob/main/packages/box3d-kit/test/v22-rigid-controls.test.mjs"
    },
    "text": {
     "reference": "1200 vertices",
@@ -4153,9 +4153,9 @@
    },
    "pass": true,
    "source": {
-    "file": "packages/box3d-kit/test/v21-rigid-controls.test.mjs",
+    "file": "packages/box3d-kit/test/v22-rigid-controls.test.mjs",
     "test": "profile, counters, contact statistics and debug lines of a known scene are exact",
-    "url": "https://github.com/nathansenn/box3d-WEBGPU/blob/main/packages/box3d-kit/test/v21-rigid-controls.test.mjs"
+    "url": "https://github.com/nathansenn/box3d-WEBGPU/blob/main/packages/box3d-kit/test/v22-rigid-controls.test.mjs"
    },
    "text": {
     "reference": "1152 vertices",
@@ -4181,9 +4181,9 @@
    },
    "pass": true,
    "source": {
-    "file": "packages/box3d-kit/test/v21-rigid-examples.test.mjs",
+    "file": "packages/box3d-kit/test/v22-rigid-examples.test.mjs",
     "test": "obstacle course: the character walks its route up the stairs, down the ramp, pushes the crate, rides the platform, is stopped by the steep slope, jumps, and comes round",
-    "url": "https://github.com/nathansenn/box3d-WEBGPU/blob/main/packages/box3d-kit/test/v21-rigid-examples.test.mjs"
+    "url": "https://github.com/nathansenn/box3d-WEBGPU/blob/main/packages/box3d-kit/test/v22-rigid-examples.test.mjs"
    },
    "text": {
     "reference": "0.8 m",
@@ -4209,9 +4209,9 @@
    },
    "pass": true,
    "source": {
-    "file": "packages/box3d-kit/test/v21-rigid-examples.test.mjs",
+    "file": "packages/box3d-kit/test/v22-rigid-examples.test.mjs",
     "test": "obstacle course: the character walks its route up the stairs, down the ramp, pushes the crate, rides the platform, is stopped by the steep slope, jumps, and comes round",
-    "url": "https://github.com/nathansenn/box3d-WEBGPU/blob/main/packages/box3d-kit/test/v21-rigid-examples.test.mjs"
+    "url": "https://github.com/nathansenn/box3d-WEBGPU/blob/main/packages/box3d-kit/test/v22-rigid-examples.test.mjs"
    },
    "text": {
     "reference": "1.27421 m",
@@ -4237,9 +4237,9 @@
    },
    "pass": true,
    "source": {
-    "file": "packages/box3d-kit/test/v21-rigid-examples.test.mjs",
+    "file": "packages/box3d-kit/test/v22-rigid-examples.test.mjs",
     "test": "vehicle on terrain: static sag m g / (4 k), a cruise at the set speed on the Ackermann circle, and the pedals",
-    "url": "https://github.com/nathansenn/box3d-WEBGPU/blob/main/packages/box3d-kit/test/v21-rigid-examples.test.mjs"
+    "url": "https://github.com/nathansenn/box3d-WEBGPU/blob/main/packages/box3d-kit/test/v22-rigid-examples.test.mjs"
    },
    "text": {
     "reference": "0.04905 m",
@@ -4266,9 +4266,9 @@
    "pass": true,
    "note": "On terrain with bumps of +-0.2 m; the flat-ground rows are rigid-core.vehicle.turning and rigid-core.vehicle.ackermann.",
    "source": {
-    "file": "packages/box3d-kit/test/v21-rigid-examples.test.mjs",
+    "file": "packages/box3d-kit/test/v22-rigid-examples.test.mjs",
     "test": "vehicle on terrain: static sag m g / (4 k), a cruise at the set speed on the Ackermann circle, and the pedals",
-    "url": "https://github.com/nathansenn/box3d-WEBGPU/blob/main/packages/box3d-kit/test/v21-rigid-examples.test.mjs"
+    "url": "https://github.com/nathansenn/box3d-WEBGPU/blob/main/packages/box3d-kit/test/v22-rigid-examples.test.mjs"
    },
    "text": {
     "reference": "10.18243 m",
@@ -4294,9 +4294,9 @@
    },
    "pass": true,
    "source": {
-    "file": "packages/box3d-kit/test/v21-rigid-examples.test.mjs",
+    "file": "packages/box3d-kit/test/v22-rigid-examples.test.mjs",
     "test": "laser scanner: 96 rays in one call per step end on the spheres, on the ground at h / sin(pitch), or at the end of their range",
-    "url": "https://github.com/nathansenn/box3d-WEBGPU/blob/main/packages/box3d-kit/test/v21-rigid-examples.test.mjs"
+    "url": "https://github.com/nathansenn/box3d-WEBGPU/blob/main/packages/box3d-kit/test/v22-rigid-examples.test.mjs"
    },
    "text": {
     "reference": "0 m",
@@ -4322,9 +4322,9 @@
    },
    "pass": true,
    "source": {
-    "file": "packages/box3d-kit/test/v21-rigid-examples.test.mjs",
+    "file": "packages/box3d-kit/test/v22-rigid-examples.test.mjs",
     "test": "laser scanner: 96 rays in one call per step end on the spheres, on the ground at h / sin(pitch), or at the end of their range",
-    "url": "https://github.com/nathansenn/box3d-WEBGPU/blob/main/packages/box3d-kit/test/v21-rigid-examples.test.mjs"
+    "url": "https://github.com/nathansenn/box3d-WEBGPU/blob/main/packages/box3d-kit/test/v22-rigid-examples.test.mjs"
    },
    "text": {
     "reference": "0 m",
@@ -4351,9 +4351,9 @@
    "pass": true,
    "note": "The plate stands on the ground with friction 0.6, which takes about 1% during the step of the impact.",
    "source": {
-    "file": "packages/box3d-kit/test/v21-rigid-examples.test.mjs",
+    "file": "packages/box3d-kit/test/v22-rigid-examples.test.mjs",
     "test": "bullets and plates at 60 Hz: an ordinary ball passes five free plates, a bullet stops at the first, a static wall stops an ordinary ball",
-    "url": "https://github.com/nathansenn/box3d-WEBGPU/blob/main/packages/box3d-kit/test/v21-rigid-examples.test.mjs"
+    "url": "https://github.com/nathansenn/box3d-WEBGPU/blob/main/packages/box3d-kit/test/v22-rigid-examples.test.mjs"
    },
    "text": {
     "reference": "1058.591 N s",
@@ -4379,9 +4379,9 @@
    },
    "pass": true,
    "source": {
-    "file": "packages/box3d-kit/test/v21-rigid-examples.test.mjs",
+    "file": "packages/box3d-kit/test/v22-rigid-examples.test.mjs",
     "test": "bullets and plates at 60 Hz: an ordinary ball passes five free plates, a bullet stops at the first, a static wall stops an ordinary ball",
-    "url": "https://github.com/nathansenn/box3d-WEBGPU/blob/main/packages/box3d-kit/test/v21-rigid-examples.test.mjs"
+    "url": "https://github.com/nathansenn/box3d-WEBGPU/blob/main/packages/box3d-kit/test/v22-rigid-examples.test.mjs"
    },
    "text": {
     "reference": "0 plates",
@@ -4408,9 +4408,9 @@
    "pass": true,
    "note": "Statics: half the weight on each support of a symmetric span.",
    "source": {
-    "file": "packages/box3d-kit/test/v21-rigid-examples.test.mjs",
+    "file": "packages/box3d-kit/test/v22-rigid-examples.test.mjs",
     "test": "breakable bridge at rest: support shear w L / 2 and moments of a built-in beam of 8 links, w l^2 (n^2 - 1) / 12 at the supports",
-    "url": "https://github.com/nathansenn/box3d-WEBGPU/blob/main/packages/box3d-kit/test/v21-rigid-examples.test.mjs"
+    "url": "https://github.com/nathansenn/box3d-WEBGPU/blob/main/packages/box3d-kit/test/v22-rigid-examples.test.mjs"
    },
    "text": {
     "reference": "5297.4 N",
@@ -4437,9 +4437,9 @@
    "pass": true,
    "note": "Statics of n rigid links on n + 1 soft welds between two fixed ends (derived in docs/RIGID_CORE.md, section 8): the rotations of the welds add up to zero, and a Box3D joint spring acts on the joint's effective inertia, so the two end welds are twice as stiff as the others. As n grows the support moment tends to the w L^2 / 12 of a continuous built-in beam.",
    "source": {
-    "file": "packages/box3d-kit/test/v21-rigid-examples.test.mjs",
+    "file": "packages/box3d-kit/test/v22-rigid-examples.test.mjs",
     "test": "breakable bridge at rest: support shear w L / 2 and moments of a built-in beam of 8 links, w l^2 (n^2 - 1) / 12 at the supports",
-    "url": "https://github.com/nathansenn/box3d-WEBGPU/blob/main/packages/box3d-kit/test/v21-rigid-examples.test.mjs"
+    "url": "https://github.com/nathansenn/box3d-WEBGPU/blob/main/packages/box3d-kit/test/v22-rigid-examples.test.mjs"
    },
    "text": {
     "reference": "6952.837 N m",
@@ -4466,9 +4466,9 @@
    "pass": true,
    "note": "Statics of n rigid links on n + 1 soft welds between two fixed ends (derived in docs/RIGID_CORE.md, section 8): the rotations of the welds add up to zero, and a Box3D joint spring acts on the joint's effective inertia, so the two end welds are twice as stiff as the others. As n grows the support moment tends to the w L^2 / 12 of a continuous built-in beam.",
    "source": {
-    "file": "packages/box3d-kit/test/v21-rigid-examples.test.mjs",
+    "file": "packages/box3d-kit/test/v22-rigid-examples.test.mjs",
     "test": "breakable bridge at rest: support shear w L / 2 and moments of a built-in beam of 8 links, w l^2 (n^2 - 1) / 12 at the supports",
-    "url": "https://github.com/nathansenn/box3d-WEBGPU/blob/main/packages/box3d-kit/test/v21-rigid-examples.test.mjs"
+    "url": "https://github.com/nathansenn/box3d-WEBGPU/blob/main/packages/box3d-kit/test/v22-rigid-examples.test.mjs"
    },
    "text": {
     "reference": "3641.963 N m",
@@ -4495,9 +4495,9 @@
    "pass": true,
    "note": "Within two steps of 1/240 s: the contact begins in the step the block arrives.",
    "source": {
-    "file": "packages/box3d-kit/test/v21-rigid-examples.test.mjs",
+    "file": "packages/box3d-kit/test/v22-rigid-examples.test.mjs",
     "test": "breakable bridge: intact until the block lands, then the welds that were overloaded break and report what they carried",
-    "url": "https://github.com/nathansenn/box3d-WEBGPU/blob/main/packages/box3d-kit/test/v21-rigid-examples.test.mjs"
+    "url": "https://github.com/nathansenn/box3d-WEBGPU/blob/main/packages/box3d-kit/test/v22-rigid-examples.test.mjs"
    },
    "text": {
     "reference": "0.6385509 s",
@@ -4523,9 +4523,9 @@
    },
    "pass": true,
    "source": {
-    "file": "packages/box3d-kit/test/v21-rigid-examples.test.mjs",
+    "file": "packages/box3d-kit/test/v22-rigid-examples.test.mjs",
     "test": "breakable bridge: intact until the block lands, then the welds that were overloaded break and report what they carried",
-    "url": "https://github.com/nathansenn/box3d-WEBGPU/blob/main/packages/box3d-kit/test/v21-rigid-examples.test.mjs"
+    "url": "https://github.com/nathansenn/box3d-WEBGPU/blob/main/packages/box3d-kit/test/v22-rigid-examples.test.mjs"
    },
    "text": {
     "reference": "1 ratio",

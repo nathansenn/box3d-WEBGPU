@@ -313,7 +313,7 @@ export function bulletPlatesScene(options: {speed?: number} = {}): Scene {
  * support is half the weight, w L / 2. The moments follow from the welds' rotations adding up to zero; a Box3D
  * joint spring acts on the joint's own effective inertia, so the two end welds (plank to abutment) are twice as stiff
  * as the others (plank to plank), which gives a support moment of w l^2 (n^2 - 1) / 12 (the continuous beam's
- * w L^2 / 12 as n grows). Here: 5,297 N and 6,953 N m; packages/box3d-kit/test/v21-rigid-examples.test.mjs measures both. Every weld breaks
+ * w L^2 / 12 as n grows). Here: 5,297 N and 6,953 N m; packages/box3d-kit/test/v22-rigid-examples.test.mjs measures both. Every weld breaks
  * at six times that shear or three times that moment, so the bridge carries itself with a margin and not the block.
  */
 export function breakableBridgeScene(options: {blockMass?: number; drop?: number} = {}): Scene {

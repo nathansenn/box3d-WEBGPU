@@ -8,7 +8,7 @@
 // It needs Playwright (resolved from this repository or from the global node_modules) and a Chromium with WebGPU;
 // BOX3D_CHROMIUM names the executable (default /opt/pw-browsers/chromium when present). It is not in a gate, because
 // the gates do not have a browser. The node tests of the same code are tests/physics/rigid-debug.test.mjs,
-// tests/physics/rigid-play.test.mjs and packages/box3d-kit/test/v21-rigid-*.test.mjs.
+// tests/physics/rigid-play.test.mjs and packages/box3d-kit/test/v22-rigid-*.test.mjs.
 //
 // For each case: open the address, pause, step, read the canvas back in the frame that drew it (page.screenshot shows
 // a blank WebGPU canvas), require that it is not blank, and require what the case states (lines drawn, a controller

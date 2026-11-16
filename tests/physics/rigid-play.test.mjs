@@ -2,7 +2,7 @@
 // open from the address and the examples list, their roles are attached to the Lab's scene host, the keys drive the
 // character and the car and are left alone otherwise, a scanner's beams become overlay lines, and a checkpoint of
 // the Simulation resumes a played scene bit for bit. Runs on the real engine artifact; nothing here needs a browser.
-// The comparison with the kit's own world is packages/box3d-kit/test/v21-rigid-examples.test.mjs.
+// The comparison with the kit's own world is packages/box3d-kit/test/v22-rigid-examples.test.mjs.
 import assert from 'node:assert/strict';
 import test from 'node:test';
 import {readFile} from 'node:fs/promises';

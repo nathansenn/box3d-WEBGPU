@@ -1,4 +1,4 @@
-// Set-ups of the rigid-core validation, shared by the test/v21-rigid-*.test.mjs files (which assert on them) and
+// Set-ups of the rigid-core validation, shared by the test/v22-rigid-*.test.mjs files (which assert on them) and
 // validation/domains/rigid-core.mjs (which reports them). Each function builds a problem with a closed-form
 // answer, runs the real engine through the kit and returns the measured numbers beside the reference. SI units.
 // `K` is the kit: {createWorld, axisRotation, ...}. Nothing here measures wall-clock time unless it says so.
