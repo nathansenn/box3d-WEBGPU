@@ -891,6 +891,7 @@ export declare function lodeFactor2(theta: number, e: number, out: Float64Array 
 export declare function ec2CompressionStress(strain: number, fcm: number, peakStrain: number, secantModulus: number): number;
 export declare function buildConcreteLaw(input: unknown, youngModulus: number, poissonRatio: number, meanVolume: number): ConcreteLaw;
 export declare function tableValue(x: Float64Array, y: Float64Array, at: number): number;
+export declare const PRINCIPAL_STRIDE = 17;
 export declare class ConcreteReturn {
     readonly stress: Float64Array<ArrayBuffer>;
     readonly plastic: Float64Array<ArrayBuffer>;
@@ -919,10 +920,28 @@ export declare class ConcreteReturn {
     private readonly fy;
     private readonly fi;
     private mapNow;
+    closedForm: boolean;
+    closedFormCount: number;
+    principalValid: boolean;
+    readonly principal: Float64Array<ArrayBuffer>;
+    private principalCore;
+    private lcLast;
+    private ltLast;
+    private prepare;
+    private principalStress;
+    private readonly tEv;
+    private readonly tV;
+    private readonly tS;
+    private readonly tP;
+    private readonly tD;
+    private readonly tW;
+    private readonly tU;
+    tangent(t: ArrayLike<number>, kc0: number, kt0: number, f: number, xn: number, kbar: number, out: Float64Array, step?: number, base?: Float64Array | null, at?: number): void;
     private readonly g;
     private readonly bp;
     private readonly gp;
     private readonly s3;
+    private compressionDerivative;
     private dpBlock;
     private readonly wwState;
     private wwRho;
@@ -6774,8 +6793,8 @@ export declare class SolidBody {
     private readonly strengthFactor;
     private readonly ctan;
     private readonly ctrial;
-    private readonly ctrialStress;
-    private readonly ctrialKappa;
+    private readonly cprincipal;
+    private readonly cprincipalOk;
     private readonly cdirty;
     private readonly cpressure;
     private readonly cpressureLast;

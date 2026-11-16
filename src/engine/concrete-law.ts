@@ -339,6 +339,14 @@ function solveTable(x:Float64Array,y:Float64Array,A:number,B:number,kappa0:numbe
 }
 
 const SQ6=Math.sqrt(6),SQ2=Math.sqrt(2),SQ15=Math.sqrt(1.5),THIRD_PI=Math.PI/3,TWO_THIRD_PI=2*Math.PI/3;
+/** Numbers kept per element for the base point of a concrete tangent (`ConcreteReturn.principal`). */
+export const PRINCIPAL_STRIDE=17;
+/** Slope of the table at `at` (the segment that ends at or after `at`; 0 outside the table). */
+function tableSlope(x:Float64Array,y:Float64Array,at:number):number {
+  const n=x.length;if(n<2||at<=x[0]||at>=x[n-1])return 0;
+  let i=1;while(x[i]<at)i++;
+  return (y[i]-y[i-1])/(x[i]-x[i-1]);
+}
 
 /** Result of one return mapping, written by `ConcreteReturn.map`. */
 export class ConcreteReturn {
@@ -368,6 +376,7 @@ export class ConcreteReturn {
   private kx:Float64Array;private ky:Float64Array;private ki:Float64Array;
   private readonly fx=new Float64Array(1);private readonly fy=new Float64Array(1);private readonly fi=new Float64Array(1);
   private mapNow(t:ArrayLike<number>,kc0:number,kt0:number,f:number,xn:number):void {
+    this.principalValid=false;
     const L=this.law,la=this.lambda,mu=this.mu,K=la+2*mu/3,psi=L.dilatancy,e=L.eccentricity,ev=this.ev,a=this.a,b=this.b;
     let lc=0,lt=0;
     // The strength never falls below psi xi (the slope of the potential): k is floored at psi xi_n / cf, so that
@@ -399,6 +408,21 @@ export class ConcreteReturn {
       }
     }
     jacobi(t,ev,this.V);
+    this.principalCore(kc0,kt0,f,f0);
+    this.finish(ev,kc0,kt0,this.lcLast,this.ltLast,true,f);
+    // The base point of a tangent at this trial strain: principal strains, axes, principal stresses, multiplier.
+    const B=this.principal;B[0]=ev[0];B[1]=ev[1];B[2]=ev[2];for(let q=0;q<9;q++)B[3+q]=this.V[q];
+    const x0=ev[0]-a[0]-b[0],x1=ev[1]-a[1]-b[1],x2=ev[2]-a[2]-b[2],tr=x0+x1+x2;
+    B[12]=la*tr+2*mu*x0;B[13]=la*tr+2*mu*x1;B[14]=la*tr+2*mu*x2;B[15]=this.lcLast;B[16]=this.ltLast;this.principalValid=true;
+  }
+  /** Use the closed-form principal derivative where it applies (false: differences everywhere, for checks), and how often it was used. */
+  closedForm=true;closedFormCount=0;
+  /** After `map`: whether the return went through the principal axes, and then [eps_1..3, V (9), sigma_1..3, lambda_c, lambda_t] of it. */
+  principalValid=false;readonly principal=new Float64Array(PRINCIPAL_STRIDE);
+  /** The general return in the principal axes of this.ev (the trial principal strains), after the set-up of mapNow:
+   * leaves the compression plastic part in a, the Rankine part in b and the multipliers in lcLast, ltLast. */
+  private principalCore(kc0:number,kt0:number,f:number,f0:number):void {
+    const ev=this.ev,a=this.a,b=this.b;let lc=0,lt=0;
     a.fill(0);b.fill(0);
     const scaleE=Math.abs(ev[0])+Math.abs(ev[1])+Math.abs(ev[2])+1e-300;
     // Fixed point b = R(D(b)): D the compression return for a given Rankine part, R the Rankine return for a given
@@ -423,9 +447,107 @@ export class ConcreteReturn {
     }
     // Make a and b consistent: the compression part of the final b, then its Rankine part.
     if(it>0){lc=this.dpBlock(ev,b,a,kc0);lt=this.rkBlock(ev,a,b,kt0,f0,f,scaleE);}else{b[0]=g[0];b[1]=g[1];b[2]=g[2];}
-    this.finish(ev,kc0,kt0,lc,lt,true,f);
+    this.lcLast=lc;this.ltLast=lt;
+  }
+  private lcLast=0;private ltLast=0;
+  /** The set-up of a return (mapNow's): the compression surface of the step, its floor, and the tensile strength f0. */
+  private prepare(kc0:number,kt0:number,f:number,xn:number,kbar:number):{kc0:number;f0:number} {
+    this.wwRho=-1;
+    if(kbar>=0){this.fy[0]=tableValue(this.law.kx,this.law.ky,kbar);this.kx=this.fx;this.ky=this.fy;this.ki=this.fi;kc0=0;}
+    else{this.kx=this.law.kx;this.ky=this.law.ky;this.ki=this.law.kint;}
+    const L=this.law,psi=L.dilatancy;
+    const cf=this.cf=f*meridianValue(L,xn/L.input.compressiveStrength),cs=this.cs=-psi*xn;this.floor=Math.max(0,-cs/cf);
+    return {kc0,f0:f*tableValue(L.tx,L.ty,kt0)};
+  }
+  /** Principal stresses of the general return for the principal trial strains (e0, e1, e2) into out (prepare first). */
+  private principalStress(e0:number,e1:number,e2:number,kc0:number,kt0:number,f:number,f0:number,out:Float64Array):void {
+    const ev=this.ev,a=this.a,b=this.b,la=this.lambda,mu=this.mu;
+    ev[0]=e0;ev[1]=e1;ev[2]=e2;this.wwRho=-1;
+    this.principalCore(kc0,kt0,f,f0);
+    const x0=ev[0]-a[0]-b[0],x1=ev[1]-a[1]-b[1],x2=ev[2]-a[2]-b[2],tr=x0+x1+x2;
+    out[0]=la*tr+2*mu*x0;out[1]=la*tr+2*mu*x1;out[2]=la*tr+2*mu*x2;
+  }
+  private readonly tEv=new Float64Array(3);private readonly tV=new Float64Array(9);private readonly tS=new Float64Array(3);private readonly tP=new Float64Array(3);private readonly tD=new Float64Array(9);private readonly tW=new Float64Array(18);private readonly tU=new Float64Array(6);
+  /**
+   * Consistent tangent of the return at the trial strain t [xx, yy, zz, yz, xz, xy] (tensor shear) into out (6 x 6, row major,
+   * stress per engineering strain), in the principal axes of t: the return is an isotropic function of the strain, so
+   *   dsigma = sum_ij D_ij deps_j n_i n_i  +  sum_(i != j) g_ij deps_ij n_i n_j,   g_ij = (sigma_i - sigma_j) / (eps_i - eps_j),
+   * with D = d sigma_principal / d eps_principal (forward differences of the principal return, 3 returns, step `step`) and
+   * g_ij = D_ii - D_ij when the two principal strains are within 1e-9 of each other (the limit). The rotation part is exact.
+   */
+  tangent(t:ArrayLike<number>,kc0:number,kt0:number,f:number,xn:number,kbar:number,out:Float64Array,step=1e-9,base:Float64Array|null=null,at=0):void {
+    const set=this.prepare(kc0,kt0,f,xn,kbar),k0=set.kc0,f0=set.f0,ev=this.tEv,V=this.tV,S=this.tS,P=this.tP,D=this.tD;
+    let l0:number;
+    let lt0:number;
+    if(base){
+      // The base point kept from the evaluation (`principal` after `map` of the same trial strain): the same numbers.
+      ev[0]=base[at];ev[1]=base[at+1];ev[2]=base[at+2];for(let q=0;q<9;q++)V[q]=base[at+3+q];S[0]=base[at+12];S[1]=base[at+13];S[2]=base[at+14];l0=base[at+15];lt0=base[at+16];
+    }else{
+      jacobi(t,ev,V);this.principalStress(ev[0],ev[1],ev[2],k0,kt0,f,f0,S);l0=this.lcLast;lt0=this.ltLast;
+    }
+    const e0=ev[0],e1=ev[1],e2=ev[2];
+    // A compression return without Rankine flow has its principal derivative in closed form; the rest by differences.
+    if(this.closedForm&&lt0===0&&l0>0&&this.compressionDerivative(e0,e1,e2,l0,k0,D))this.closedFormCount++;else
+    // The perturbed returns search their compression multiplier around the base one.
+    {this.lHint=l0;
+    try{for(let j=0;j<3;j++){
+      this.principalStress(j===0?e0+step:e0,j===1?e1+step:e1,j===2?e2+step:e2,k0,kt0,f,f0,P);
+      for(let i=0;i<3;i++)D[3*i+j]=(P[i]-S[i])/step;
+    }}finally{this.lHint=-1;}}
+    // The rows of V's columns: n_i = (V[i], V[3 + i], V[6 + i]). w_i holds n_i n_i in Voigt order: the projection of an
+    // engineering strain on n_i n_i and the Voigt form of the stress n_i n_i at once.
+    const W=this.tW,U=this.tU;
+    for(let i=0;i<3;i++){const x=V[i],y=V[3+i],z=V[6+i],o=6*i;W[o]=x*x;W[o+1]=y*y;W[o+2]=z*z;W[o+3]=y*z;W[o+4]=x*z;W[o+5]=x*y;}
+    out.fill(0);
+    for(let i=0;i<3;i++)for(let j=0;j<3;j++){const d=D[3*i+j];if(d===0)continue;const oi=6*i,oj=6*j;for(let r=0;r<6;r++){const v=d*W[oi+r];for(let c=0;c<6;c++)out[6*r+c]+=v*W[oj+c];}}
+    // Pairs (1, 2), (0, 2), (0, 1): eps_ij = u . strain with u the symmetric product of n_i and n_j, the stress 2 u; so 2 g u u.
+    for(let q=0;q<3;q++){
+      const i=q===0?1:0,j=q===2?1:2,de=ev[i]-ev[j],g=Math.abs(de)>1e-9?(S[i]-S[j])/de:D[3*i+i]-D[3*i+j];
+      const ax=V[i],ay=V[3+i],az=V[6+i],bx=V[j],by=V[3+j],bz=V[6+j];
+      U[0]=ax*bx;U[1]=ay*by;U[2]=az*bz;U[3]=.5*(ay*bz+az*by);U[4]=.5*(ax*bz+az*bx);U[5]=.5*(ax*by+ay*bx);
+      for(let r=0;r<6;r++){const v=2*g*U[r];for(let c=0;c<6;c++)out[6*r+c]+=v*U[c];}
+    }
   }
   private readonly g=new Float64Array(3);private readonly bp=new Float64Array(3);private readonly gp=new Float64Array(3);private readonly s3=new Float64Array(3);
+  /**
+   * d sigma_i / d eps_j of the compression return on the Willam-Warnke section (no Rankine flow), at the principal trial
+   * strains e and its multiplier l (from the return), into D (3 x 3, row major), by implicit differentiation of its two
+   * equations in (theta, lambda):
+   *   h = rho sin(theta_tr - theta) - c l r'(theta) = 0,     c = 2 mu sqrt(3/2),
+   *   R = sqrt(3/2) rho_n r(theta) + psi (p - K psi l) - (cf k(kappa_0 + l) + cs) = 0,   rho_n = rho cos(theta_tr - theta) - c l r(theta),
+   * with rho, theta_tr (through the fold of the Lode angle) and p = K tr functions of e, and sigma_i = K (tr - psi l) + n_i,
+   * n the returned deviator. Returns false (the caller differentiates numerically) for a circular section, a deviator at
+   * the apex, or a returned deviator of zero length.
+   */
+  private compressionDerivative(e0:number,e1:number,e2:number,l:number,kc0:number,D:Float64Array):boolean {
+    const L=this.law,mu=this.mu,K=this.lambda+2*mu/3,psi=L.dilatancy,e=L.eccentricity,cf=this.cf;
+    if(e>=1)return false;
+    const X=2*mu*(2*e0-e1-e2)/SQ6,Y=2*mu*(e1-e2)/SQ2,rho=Math.hypot(X,Y);
+    if(!(rho>0))return false;
+    let phi=Math.atan2(Y,X);if(phi<0)phi+=2*Math.PI;
+    const pm=phi%TWO_THIRD_PI,base=phi-pm,lower=pm<=THIRD_PI,th0=lower?pm:TWO_THIRD_PI-pm,phi0=lower?base:base+TWO_THIRD_PI,sgn=lower?1:-1;
+    const c=2*mu*SQ15,state=this.wwState;this.wwRho=-1;
+    this.wwDeviator(rho,th0,c*l,e,state);
+    const rn=state[0],th=state[1];if(!(rn>0))return false;
+    lodeFactor2(th,e,LF3);const r=LF3[0],r1=LF3[1],r2=LF3[2],cs0=Math.cos(th0-th),sn0=Math.sin(th0-th),t=c*l;
+    // Partial derivatives of h and R.
+    const hTh=-rho*cs0-t*r2,hL=-c*r1,hRho=sn0,hTh0=rho*cs0;
+    const at=kc0+l,table=tableValue(this.kx,this.ky,at),slope=table>=this.floor?tableSlope(this.kx,this.ky,at):0;
+    const RTh=SQ15*rn*r1,RL=-SQ15*c*r*r-K*psi*psi-cf*slope,RRho=SQ15*cs0*r,RTh0=-SQ15*rho*sn0*r,RP=psi;
+    const det=hTh*RL-hL*RTh;if(!(Math.abs(det)>0))return false;
+    const ph=phi0+sgn*th,cph=Math.cos(ph),sph=Math.sin(ph);
+    for(let j=0;j<3;j++){
+      // Inputs for d e_j = 1.
+      const dX=2*mu*(j===0?2:-1)/SQ6,dY=2*mu*(j===0?0:j===1?1:-1)/SQ2,dRho=(X*dX+Y*dY)/rho,dPhi=(X*dY-Y*dX)/(rho*rho),dTh0=sgn*dPhi,dP=K;
+      const bh=-(hRho*dRho+hTh0*dTh0),bR=-(RRho*dRho+RTh0*dTh0+RP*dP);
+      const dTh=(bh*RL-hL*bR)/det,dL=(hTh*bR-bh*RTh)/det;
+      const dRn=cs0*dRho-rho*sn0*(dTh0-dTh)-c*r*dL-t*r1*dTh,dPh=sgn*dTh;
+      const dXn=dRn*cph-rn*sph*dPh,dYn=dRn*sph+rn*cph*dPh;
+      const dn0=2*dXn/SQ6,dn1=-dXn/SQ6+dYn/SQ2,dn2=-dXn/SQ6-dYn/SQ2,dm=K*(1-psi*dL);
+      D[j]=dm+dn0;D[3+j]=dm+dn1;D[6+j]=dm+dn2;
+    }
+    return true;
+  }
   /** Compression return of the strain ev - b into the plastic part a; returns the kappa_c increment. */
   private dpBlock(ev:Float64Array,b:Float64Array,a:Float64Array,kc0:number):number {
     const L=this.law,mu=this.mu,K=this.lambda+2*mu/3,psi=L.dilatancy,e=L.eccentricity,cf=this.cf,cs=this.cs;
