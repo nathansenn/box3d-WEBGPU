@@ -112,6 +112,19 @@ test('reinforcement with the sparse LDL preconditioner: the bars are in the asse
   assert.ok(ldl.inner < cg.inner / 5, 'far fewer inner iterations');
 });
 
+test('the deviatoric return\'s Newton step: lodeFactor2 gives r of lodeFactor to the bit, r\' to rounding and the exact r\'\'', async () => {
+  const {lodeFactor, lodeFactor2} = await import('../../src/engine/concrete-law.ts');
+  const one = [0, 0], two = [0, 0, 0], up = [0, 0], down = [0, 0]; let worst = 0;
+  for (const e of [0.55, 0.7614879649890591, 0.9, 1]) for (let th = 0.005; th < Math.PI / 3; th += 0.0371) {
+    lodeFactor(th, e, one); lodeFactor2(th, e, two);
+    assert.equal(two[0], one[0], 'r to the bit'); assert.ok(Math.abs(two[1] - one[1]) <= 1e-14 * Math.max(1, Math.abs(one[1])), "r' to rounding");
+    const d = 1e-6; lodeFactor(th + d, e, up); lodeFactor(th - d, e, down);
+    worst = Math.max(worst, Math.abs(two[2] - (up[1] - down[1]) / (2 * d)) / Math.max(1, Math.abs(two[2])));
+  }
+  // 5e-8: central differences of r' with a step of 1e-6 rad (rounding of r' over 2e-6, measured 1.1e-8).
+  assert.ok(worst < 5e-8, `r'' against central differences: ${worst}`);
+});
+
 test('return mapping: the stress is the derivative of the returned energy, in every regime', async () => {
   const m = await c30(), E = m.youngModulus, nu = m.poissonRatio, la = E * nu / ((1 + nu) * (1 - 2 * nu)), mu = E / (2 * (1 + nu));
   const cases = [[[1e-5, 0, 0, 0, 0, 0], 0, 0, 0], [[1.2e-4, -1e-5, -2e-5, 1e-5, 0, 3e-6], 0, 1e-4, 0], [[-2.5e-3, 4e-4, 1e-3, 2e-4, 1e-4, 0], 1e-3, 2e-4, 5e6], [[2e-4, 1.9e-4, 1e-4, 0, 0, 0], 0, 0, 0],

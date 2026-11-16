@@ -14390,8 +14390,8 @@
    "formula": "M_y = A_s f_y d (1 - k / 3), k = sqrt(2 rho n + (rho n)^2) - rho n (cracked elastic section); f_yk = 500 MPa",
    "reference": 4514.94938,
    "measured": 4553.00848,
-   "error": 38.0591068,
-   "relativeError": 0.00842957554,
+   "error": 38.0591065,
+   "relativeError": 0.00842957546,
    "tolerance": {
     "kind": "relative",
     "value": 0.05

@@ -241,18 +241,22 @@ Studio rows (`tests/studio/concrete-si.test.mjs` in `npm run test:studio:materia
 
 ### Presets and real time
 
-Re-measured for this law with platen friction 0.2 and the `ldl` preconditioner (`node scripts/fem-preset-benchmark.mjs concrete`: the first 14 s of each program at its own rate, Node 22, single runs on the shared 4-core machine at a load average of 17 to 28, so the real-time factors are about five times lower than on a free core):
+Re-measured with platen friction 0.2, the `ldl` preconditioner and the faster return mapping of 2026-11-16 (`node scripts/fem-preset-benchmark.mjs concrete`: the first 14 s of each program at its own rate, Node 22, single runs on the shared 4-core machine at a load average of about 12):
 
 | Preset | Peak stress | at | State at 14 s | Spalled | Real-time factor | Worst tick |
 |---|---|---|---|---|---|---|
-| Cube compression (C30/37, 0.5 ‰/s) | 49.1 MPa | 2.75 ‰ | softening, no stop | 0 | 0.023 | 15.4 s |
-| Reinforced core (C30/37, B500B bars) | 58.5 MPa | 3.53 ‰ | softening, no stop | 0 | 0.022 | 10.8 s |
-| High-strength cube (C60/75) | 87.6 MPa | 3.27 ‰ | softening, no stop | 0 | 0.036 | 10.7 s |
-| Lightweight crush (LC25/28) | 41.3 MPa | 2.42 ‰ | softening, no stop | 0 | 0.025 | 15.8 s |
-| Weathered spall (C20/25) | 35.7 MPa | 2.50 ‰ | softening, no stop | 0 | 0.018 | 16.2 s |
-| Fibre bridging, low-strain comparison, ceramic comparison | not re-measured: the benchmark was stopped at its two-hour limit after the five presets above | | | | | |
+| Cube compression (C30/37, 0.5 ‰/s) | 49.1 MPa | 2.75 ‰ | softening, no stop | 0 | 0.23 | 0.71 s |
+| Reinforced core (C30/37, B500B bars) | 58.5 MPa | 3.53 ‰ | softening, no stop | 0 | 0.23 | 0.91 s |
+| High-strength cube (C60/75) | 87.6 MPa | 3.27 ‰ | softening, no stop | 0 | 0.35 | 0.64 s |
+| Lightweight crush (LC25/28) | 41.3 MPa | 2.42 ‰ | softening, no stop | 0 | 0.26 | 0.63 s |
+| Weathered spall (C20/25) | 35.7 MPa | 2.50 ‰ | softening, no stop | 0 | 0.19 | 0.90 s |
+| Fibre bridging | 49.1 MPa | 2.75 ‰ | softening, no stop | 0 | 0.24 | 0.70 s |
+| Low-strain comparison (1.5 ‰) | 40.5 MPa | 1.50 ‰ | holding | 0 | 1.15 | 0.40 s |
+| Ceramic comparison (alumina) | 2062 MPa | 6.20 ‰ | stopped: no equilibrium past the peak | 229 | 3.3 | 3.3 s |
 
-With the first law (2026-11-12) the cube peaked at 45.0 MPa and the machine stopped at 7.2 ‰ with 2 elements spalled, at 0.37 to 0.53 times real time; with this law and friction 0.57 it peaked at 60.0 MPa and stopped at 7.4 ‰. With friction 0.2 no preset loses equilibrium within its program, so none ends in a machine stop or a spalled element: the "spalling" of the preset names is not reached. **The lab is now 15 to 25 times slower after the peak than with the first law**: the time is in the law's return mapping (a one-dimensional Lode-angle solve inside a regula falsi, with Anderson mixing between the compression and tension blocks) and its finite-difference tangent (six more returns per element and Newton iteration), and Newton converges linearly while elements soften (worst ticks of 10 to 16 s). An analytic tangent and a cheaper return are the open work; nothing was done about it here. In headless Chromium (SwiftShader) an earlier build of the reinforced core drew its bars through the concrete and ran without console errors (captures `reinforced-ready.png`, `reinforced-running.png`); the page was not re-captured for this change.
+**Speed.** The same peaks and strains as before the change, to the printed digits. A profile of the cube across its peak (`--cpu-prof`) put 88 % of the time in the Willam-Warnke deviatoric return: its Lode-angle Newton used a finite-difference r'' (three section evaluations per iteration) and a stopping test tighter than the rounding of its own residual, so most returns bisected down to 1e-16 (26 iterations on average). With the exact r'', a stopping test at that rounding and a warm start from the previous multiplier of the same trial it takes 2.1 iterations; the finite-difference tangent reuses the base return of the evaluation and brackets the six perturbed multipliers. The first 3.5 s of the cube at 1 ‰/s (through the peak), old and new interleaved on the same machine: 128.0 and 130.6 s of CPU before, 14.5 and 14.0 s after, **9.0 times faster**, with the same Newton and inner iteration counts (3287 and 12,583) and the same peak (49.1488 MPa) and end stress (48.3308 MPa); the state agrees to rounding, not to the bit. The 14 s cube program: 606 s of CPU before (load 17 to 20) and 61 s after (load about 12). Still below real time after the peak (0.19 to 0.35): the remaining cost is the finite-difference tangent (six returns per yielded element and Newton iteration, half the time) and about 30 Newton iterations per step while elements soften; an analytic tangent is the next step.
+
+With the first law (2026-11-12) the cube peaked at 45.0 MPa and the machine stopped at 7.2 ‰ with 2 elements spalled, at 0.37 to 0.53 times real time; with this law and friction 0.57 it peaked at 60.0 MPa and stopped at 7.4 ‰. With friction 0.2 no preset loses equilibrium within its program, so none ends in a machine stop or a spalled element: the "spalling" of the preset names is not reached. In headless Chromium (SwiftShader) an earlier build of the reinforced core drew its bars through the concrete and ran without console errors (captures `reinforced-ready.png`, `reinforced-running.png`); the page was not re-captured for this change.
 
 ### Limits
 
