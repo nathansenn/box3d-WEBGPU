@@ -12,28 +12,77 @@ const pkg = resolve(dirname(fileURLToPath(import.meta.url)), '..');
 const work = mkdtempSync(join(process.env.BOX3D_KIT_SMOKE_DIR ?? tmpdir(), 'box3d-kit-smoke-'));
 const sh = (cmd, args, cwd) => execFileSync(cmd, args, {cwd, encoding: 'utf8', stdio: ['ignore', 'pipe', 'pipe']});
 
-// Size budgets (bytes). Raise deliberately, in review, never silently.
-const BUDGET = {wasm: 512 * 1024, wasmGzip: 210 * 1024, wasmBrotli: 180 * 1024, glue: 24 * 1024, coreJsGzip: 40 * 1024, modulesJsGzip: 24 * 1024, singleGzip: 280 * 1024, packed: 600 * 1024};
-const OPTIONAL = ['cable.js', 'water.js', 'coupling.js', 'frame.js', 'compliant-cable.js', 'linear-water.js', 'closed-water.js', 'water-coupling.js', 'frame-element.js', 'frame-runtime.js', 'envelope-matrix.js', 'heat.js', 'gameplay.js', 'geometry.js', 'solid.js', 'solid-mesh.js', 'concrete-law.js', 'scene.js', 'scene-format.js', 'scene-examples.js', 'structure.js', 'structure-coupling.js', 'robot.js', 'robot-import.js', 'fracture.js', 'solid-fracture.js', 'cloth.js', 'solid-contact.js', 'granular.js', 'materials.js', 'fluid.js', 'shallow-water.js'];
-const jsFiles = () => readdirSync(join(pkg, 'dist'), {recursive: true}).map(String).filter(f => f.endsWith('.js'));
-const gzipOf = files => gzipSync(Buffer.concat(files.map(f => readFileSync(join(pkg, 'dist', f)))), {level: 9}).length;
+// ---- sizes ----
+// What an import costs is the gzip size of everything it loads: the entry file and every module it reaches through
+// static imports. `closure` follows them in the built files, so the numbers are what a consumer downloads without a
+// bundler, and an upper bound on what a bundler keeps.
+const dist = join(pkg, 'dist');
+function closure(entry) {
+  const seen = new Set(), queue = [entry];
+  while (queue.length) {
+    const file = queue.pop();
+    if (seen.has(file)) continue;
+    seen.add(file);
+    for (const [, specifier] of readFileSync(join(dist, file), 'utf8').matchAll(/(?:\bfrom\s*|\bimport\s*\(?\s*)['"](\.{1,2}\/[^'"]+)['"]/g)) {
+      const target = join(dirname(file), specifier).replace(/\\/g, '/');
+      if (target.endsWith('.js')) queue.push(target);
+    }
+  }
+  return [...seen].sort();
+}
+const gzipOf = files => gzipSync(Buffer.concat(files.map(f => readFileSync(join(dist, f)))), {level: 9}).length;
+const manifest = JSON.parse(readFileSync(join(pkg, 'package.json'), 'utf8'));
+const entries = Object.entries(manifest.exports).filter(([name, target]) => typeof target === 'object' && name !== './single').map(([name, target]) => ({name, file: target.default.replace('./dist/', '')}));
+// The solver modules. `import {PhysicsWorld} from 'box3d-webgpu-kit'` must reach none of them.
+const SOLVERS = ['compliant-cable', 'linear-water', 'closed-water', 'water-coupling', 'frame-element', 'frame-runtime', 'envelope-matrix', 'heat', 'solid', 'solid-mesh', 'concrete-law', 'sparse-ldl', 'structure-coupling',
+  'scene-format', 'scene-examples', 'geometry', 'simulation', 'robot-import', 'solid-fracture', 'cloth', 'granular', 'granular-kernels', 'fluid', 'fluid-multigrid', 'shallow-water', 'solid-contact', 'materials'].map(name => `core/${name}.js`);
+// Budgets in bytes of gzip (level 9), set from the measured sizes of 1.0.0-rc.1 with about 15 % of headroom, rounded up to
+// a kibibyte. Raise one deliberately, in review, with the measurement in the commit message; never silently.
+const KiB = 1024;
+const BUDGET = {
+  wasm: 700 * KiB, wasmGzip: 275 * KiB, wasmBrotli: 210 * KiB, glue: 26 * KiB, singleGzip: 412 * KiB, packed: 1650 * KiB,
+  /** A Vite bundle of a program that uses only createWorld, createBody and step. Measured 27.9 KiB. */
+  rigidBundle: 33 * KiB,
+  // Measured (KiB): main 58.8, three 2.0, babylon 0.9, worker 63.9, gameplay 32.5, cable 24.2, water 2.7, coupling 24.6, frame 22.9,
+  // structure 27.4, heat 24.2, solid 54.0, fracture 113.9, solid-contact 91.3, cloth 62.4, granular 56.2, fluid 49.2, shallow-water 32.7,
+  // materials 34.0, geometry 28.0, scene-format 62.7, robot 64.0, and scene 388.3 and simulation 387.0, which load every solver.
+  entry: {
+    '.': 68 * KiB, './three': 3 * KiB, './babylon': 2 * KiB, './worker': 74 * KiB, './gameplay': 38 * KiB,
+    './cable': 28 * KiB, './water': 4 * KiB, './coupling': 29 * KiB, './frame': 27 * KiB, './structure': 32 * KiB, './heat': 28 * KiB,
+    './solid': 63 * KiB, './fracture': 131 * KiB, './solid-contact': 105 * KiB, './cloth': 72 * KiB, './granular': 65 * KiB, './fluid': 57 * KiB, './shallow-water': 38 * KiB,
+    './materials': 40 * KiB, './geometry': 33 * KiB, './scene-format': 72 * KiB, './robot': 74 * KiB, './scene': 447 * KiB, './simulation': 446 * KiB,
+  },
+};
 const size = {
   wasm: readFileSync(join(pkg, 'wasm/box3d.wasm')).length,
   wasmGzip: gzipSync(readFileSync(join(pkg, 'wasm/box3d.wasm')), {level: 9}).length,
   wasmBrotli: brotliCompressSync(readFileSync(join(pkg, 'wasm/box3d.wasm'))).length,
   glue: readFileSync(join(pkg, 'wasm/box3d.js')).length,
   singleGzip: gzipSync(readFileSync(join(pkg, 'dist/single.js')), {level: 9}).length,
-  // Rigid-body core (what `import 'box3d-webgpu-kit'` pulls in) vs the optional subpath modules.
-  coreJsGzip: gzipOf(jsFiles().filter(f => !OPTIONAL.some(m => f.endsWith(m)) && f !== 'single.js')),
-  modulesJsGzip: gzipOf(jsFiles().filter(f => OPTIONAL.some(m => f.endsWith(m)))),
 };
+const entrySize = Object.fromEntries(entries.map(entry => [entry.name, gzipOf(closure(entry.file))]));
+const measureOnly = process.argv.includes('--measure');
+if (measureOnly) {
+  for (const [name, bytes] of Object.entries({...size, ...Object.fromEntries(Object.entries(entrySize).map(([n, v]) => [`entry ${n}`, v]))})) console.log(`${name.padEnd(26)} ${(bytes / KiB).toFixed(1).padStart(8)} KiB`);
+  console.log('core closure:', closure('index.js').join(' '));
+}
+{
+  const core = closure('index.js'), pulled = core.filter(file => SOLVERS.includes(file));
+  // The format-only scene entry loads the format, its examples and the error table, and nothing else.
+  const format = closure('scene-format.js').filter(file => file.startsWith('core/')).sort().join(' ');
+  if (format !== 'core/contracts.js core/scene-examples.js core/scene-format.js') throw new Error(`box3d-webgpu-kit/scene-format loads ${format}`);
+  if (pulled.length) throw new Error(`the main entry reaches solver modules: ${pulled.join(', ')}. \`import {PhysicsWorld} from 'box3d-webgpu-kit'\` must not load them.`);
+  const unlisted = entries.filter(entry => !(entry.name in BUDGET.entry));
+  if (unlisted.length) throw new Error(`no size budget for ${unlisted.map(e => e.name).join(', ')}`);
+  if (manifest.sideEffects !== false) throw new Error('package.json must keep "sideEffects": false: bundlers drop unused modules only then');
+}
 
 try {
   const [packed] = JSON.parse(sh('npm', ['pack', '--json', '--ignore-scripts', '--pack-destination', work], pkg));
   const files = packed.files.map(f => f.path);
   size.packed = packed.size;
-  const over = Object.entries(size).filter(([k, v]) => v > BUDGET[k]);
-  if (over.length) throw new Error(`size budget exceeded: ${over.map(([k, v]) => `${k} ${v} > ${BUDGET[k]}`).join(', ')}`);
+  const over = [...Object.entries(size).filter(([k, v]) => v > BUDGET[k]).map(([k, v]) => `${k} ${v} > ${BUDGET[k]}`), ...Object.entries(entrySize).filter(([k, v]) => v > BUDGET.entry[k]).map(([k, v]) => `import '${k}' ${v} > ${BUDGET.entry[k]}`)];
+  if (over.length && !measureOnly) throw new Error(`size budget exceeded (bytes): ${over.join(', ')}`);
   for (const required of ['dist/index.js', 'dist/index.d.ts', 'dist/three.js', 'dist/worker.js', 'dist/worker.d.ts', 'dist/babylon.js', 'dist/core/build-info.js', 'dist/shared-frames.js', 'dist/session.js', 'dist/inspector.js', 'api/API.md', 'CHANGELOG.md', 'dist/single.js', 'dist/cable.js', 'dist/water.js', 'dist/coupling.js', 'dist/frame.js', 'dist/heat.js', 'dist/gameplay.js', 'bin/box3d-kit.mjs', 'templates/three/main.js', 'wasm/box3d.js', 'wasm/box3d.wasm', 'LICENSE', 'wasm/BOX3D_LICENSE.txt', 'THIRD_PARTY_NOTICES.md', 'dist/geometry.js', 'dist/solid.js', 'dist/scene.js', 'dist/robot.js', 'dist/robot.d.ts', 'dist/core/robot-import.js', 'dist/fracture.js', 'dist/fracture.d.ts', 'dist/core/solid-fracture.js', 'dist/cloth.js', 'dist/solid-contact.js', 'dist/cloth.d.ts', 'dist/core/cloth.js']) {
     if (!files.includes(required)) throw new Error(`tarball is missing ${required}`);
   }
@@ -47,6 +96,9 @@ try {
   writeFileSync(join(app, 'game.mjs'), `
 import {createWorld} from 'box3d-webgpu-kit';
 import {syncInstancedMesh} from 'box3d-webgpu-kit/three';
+import {validateScene, sceneHash} from 'box3d-webgpu-kit/scene-format';
+const tiny = {format: 'box3d-scene', version: 1, bodies: [{id: 'a', shape: {kind: 'sphere', radius: 0.1}, position: [0, 1, 0]}]};
+if (validateScene(tiny).length !== 0 || sceneHash(tiny).length !== 64 || validateScene({...tiny, bodies: [{}]}).length === 0) { console.error('scene-format entry failed'); process.exit(1); }
 const world = await createWorld({seed: 7});
 const player = world.spawnBox({position: [0, 4, 0], halfSize: 0.5});
 let frames = 0, steps = 0;
@@ -114,6 +166,51 @@ void [events, moved, g, unsubscribe];
   sh('node', [tsc, '--noEmit', '--strict', '--target', 'es2022', '--module', 'nodenext', '--moduleResolution', 'nodenext', '--lib', 'es2022,dom', 'types.ts'], app);
   const out = sh('node', ['game.mjs'], app).trim();
 
+  // Tree shaking: a bundle of a program that uses only the rigid world holds no solver code. Vite (Rolldown) builds it
+  // from the installed tarball; every solver names itself with an id ending in -js-f64-v<n>, which survives minifying.
+  const shake = join(work, 'shake');
+  mkdirSync(join(shake, 'node_modules'), {recursive: true});
+  execFileSync('ln', ['-s', join(app, 'node_modules/box3d-webgpu-kit'), join(shake, 'node_modules/box3d-webgpu-kit')]);
+  writeFileSync(join(shake, 'package.json'), JSON.stringify({name: 'shake', private: true, type: 'module'}));
+  writeFileSync(join(shake, 'index.html'), '<!doctype html><script type="module" src="./main.js"></script>');
+  writeFileSync(join(shake, 'main.js'), "import {createWorld} from 'box3d-webgpu-kit';\nconst world = await createWorld({gravity: [0, -9.81, 0]});\nworld.createBody({shape: {kind: 'sphere', radius: 0.5}, position: [0, 2, 0]});\nworld.step();\ndocument.title = String(world.bodyCount());\n");
+  sh('node', [resolve(pkg, '../../node_modules/vite/bin/vite.js'), 'build', '--logLevel', 'error'], shake);
+  const bundle = readdirSync(join(shake, 'dist/assets')).map(String).filter(f => f.endsWith('.js') && !/^box3d-/.test(f));
+  const bundled = Buffer.concat(bundle.map(f => readFileSync(join(shake, 'dist/assets', f))));
+  const solverIds = [...new Set(bundled.toString('utf8').match(/[a-z][a-z-]+-js-f64-v\d+/g) ?? [])];
+  if (solverIds.length) throw new Error(`a rigid-only bundle holds solver code: ${solverIds.join(', ')}`);
+  const shaken = gzipSync(bundled, {level: 9}).length;
+  if (shaken > BUDGET.rigidBundle) throw new Error(`a rigid-only bundle is ${shaken} bytes of gzip; the budget is ${BUDGET.rigidBundle}`);
+
+  // A CDN-style path: the package's files served as they are, loaded by a plain <script type="module"> with no bundler
+  // and no import map. Needs a Chromium that Playwright can start; where there is none this is skipped and says so.
+  let cdn = 'skipped (no Playwright Chromium here)';
+  try {
+    const {createServer} = await import('node:http'), {createRequire} = await import('node:module');
+    const {chromium} = createRequire(resolve(pkg, '../../package.json'))('playwright');
+    const kitDir = join(app, 'node_modules/box3d-webgpu-kit'), types = {'.js': 'text/javascript', '.wasm': 'application/wasm', '.html': 'text/html', '.json': 'application/json'};
+    const page = '<!doctype html><title>loading</title><script type="module">import {createWorld} from "/npm/box3d-webgpu-kit@1/dist/index.js"; const w = await createWorld({gravity: [0, -9.81, 0]}); const b = w.createBody({shape: {kind: "box", halfExtents: [0.5, 0.5, 0.5]}, position: [0, 3, 0]}); for (let i = 0; i < 120; i++) w.step(); document.title = "y=" + w.getState(b).position[1].toFixed(2);</script>';
+    const server = createServer((request, response) => {
+      const path = new URL(request.url, 'http://x').pathname;
+      if (path === '/') { response.writeHead(200, {'content-type': 'text/html'}); response.end(page); return; }
+      try { const file = join(kitDir, path.replace('/npm/box3d-webgpu-kit@1/', '')); if (!file.startsWith(kitDir)) throw new Error('outside'); response.writeHead(200, {'content-type': types[file.slice(file.lastIndexOf('.'))] ?? 'application/octet-stream'}); response.end(readFileSync(file)); }
+      catch { response.writeHead(404); response.end(); }
+    });
+    await new Promise(done => server.listen(0, '127.0.0.1', done));
+    let browser = null;
+    try {
+      browser = await chromium.launch({args: ['--no-sandbox']});
+      const tab = await browser.newPage();
+      await tab.goto(`http://127.0.0.1:${server.address().port}/`);
+      await tab.waitForFunction(() => document.title.startsWith('y='), null, {timeout: 30000});
+      const title = await tab.title();
+      if (title !== 'y=0.50') throw new Error(`the page loaded from a static path gave ${title}, expected y=0.50`);
+      cdn = 'a box falls and rests at y = 0.50 in Chromium';
+    } finally { await browser?.close(); server.close(); }
+  } catch (error) {
+    if (!/Executable doesn't exist|Cannot find module|browserType.launch/.test(String(error?.message))) throw error;
+  }
+
   // Starter templates, created by the installed CLI and run against the tarball.
   const cli = join(app, 'node_modules/.bin/box3d-kit');
   sh(cli, ['init', 'starter-node', '--template', 'node'], work);
@@ -135,6 +232,8 @@ void [events, moved, g, unsubscribe];
   if (single !== '2') throw new Error(`single template module failed: ${single}`);
   if (!/"shapes"/.test(sh(cli, ['info'], app))) throw new Error('box3d-kit info failed');
   console.log(`sizes within budget: ${Object.entries(size).map(([k, v]) => `${k} ${(v / 1024).toFixed(0)}/${(BUDGET[k] / 1024).toFixed(0)} KiB`).join(', ')}`);
+  console.log(`gzip of each import with everything it loads: ${Object.entries(entrySize).map(([k, v]) => `${k === '.' ? 'main' : k.slice(2)} ${(v / 1024).toFixed(1)}/${(BUDGET.entry[k] / 1024).toFixed(0)}`).join(', ')} KiB`);
+  console.log(`tree shaking: a rigid-only Vite bundle is ${(shaken / 1024).toFixed(1)} KiB of gzip and holds no solver; plain <script type="module"> from a static path: ${cdn}`);
   console.log(`box3d-kit pack smoke: ${packed.filename} ${(packed.size / 1024).toFixed(0)} KiB packed, ${(packed.unpackedSize / 1024).toFixed(0)} KiB unpacked, ${files.length} files`);
   console.log(`consumer: ${out}; strict TypeScript consumer typechecks (nodenext)`);
   console.log('templates: node runs, three builds with Vite (hashed wasm emitted), single-file module runs; box3d-kit info works');

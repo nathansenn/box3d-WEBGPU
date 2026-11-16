@@ -6755,6 +6755,9 @@ export interface RobotHost {
 export type SpawnedRobot = CoreSpawnedRobot<Body, Joint>;
 export declare function spawnRobot(world: RobotHost, description: RobotDescription, options?: RobotSceneOptions): SpawnedRobot;
 
+// ==== scene-format.d.ts ====
+export * from './core/scene-format.js';
+
 // ==== scene.d.ts ====
 import { SceneBuilder as CoreSceneBuilder, type SaveSceneOptions, type Scene, type SceneBody, type SceneJoint, type SceneJointInput, type SceneMaterial, type SceneMeta } from './core/scene-format.js';
 import { type Simulation } from './core/simulation.js';

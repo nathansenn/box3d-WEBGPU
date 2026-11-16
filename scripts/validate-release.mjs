@@ -34,9 +34,11 @@ function pullRequestGate(){
   // Test the shipped artifacts here. Rebuilding with a pinned clang is a separate release-toolchain gate.
   run(process.execPath,['scripts/soft-kernel-test.mjs']);
   run(process.execPath,['scripts/soft-kernel-integration-test.cjs']);
-  for(const name of ['test:webgpu','test:collision','test:assets','test:fuzz','test:qualification','test:heat','test:solid','test:fracture','test:plate','test:accel','test:threaded','test:release-contracts','test:validation','validation:check','docs:check','catalog:check','test:soft-soak:all','test:rope-batching','test:native-wasm','test:kit','test:material:100','build','build:pages','stage:railway'])gate(name);
+  for(const name of ['test:webgpu','test:collision','test:assets','test:fuzz','test:qualification','test:heat','test:solid','test:fracture','test:plate','test:accel','test:threaded','test:release-contracts','test:validation','validation:check','docs:check','catalog:check','test:soft-soak:all','test:rope-batching','test:native-wasm','test:kit','test:pack','test:material:100','build','build:pages','stage:railway'])gate(name);
   run(npm,['audit','--audit-level=moderate']);
 }
+// test:pack packs the kit's tarball, installs it in an empty project and checks what a consumer gets: the files, strict types, the
+// templates, the gzip size of each entry point against its budget, that the rigid core loads no solver, and a rigid-only bundle.
 // docs:check builds the documentation site in memory (scripts/build-docs.mjs) and fails on a link or anchor that does not resolve, an
 // API symbol missing from the reference, or a rise in the number of public symbols without a description. `npm run build` writes the site.
 // test:fuzz is the short, deterministic run of the fuzzers (tests/fuzz, docs/ROBUSTNESS.md): random valid programs and scenes with

@@ -1,5 +1,14 @@
 # Changelog
 
+## Unreleased — 2026-11-16 — Kit 1.0 release-candidate readiness: honest size budgets, tree-shaking and static-path checks, notices
+
+- **Sizes (`packages/box3d-kit/scripts/pack-smoke.mjs`, `npm --prefix packages/box3d-kit run test:pack`, now in `validate:pr`):** the old budgets counted solver files as "core" from a stale list and failed. Each entry point is now measured as the gzip of everything it loads through static imports, with a budget per entry set from the measurement plus about 15 %: the main entry 58.8 KiB (18 files, no solver module, asserted), `/fluid` 49.2, `/cloth` 62.4, `/fracture` 113.9, `/scene` 388.3 and `/simulation` 387.0 (both load every solver). A rigid-only Vite bundle is 27.9 KiB and holds no solver code (asserted by solver id), and the package files load from a static path by a plain `<script type="module">` in Chromium where one is available (a box falls and rests at y = 0.50).
+- **`box3d-webgpu-kit/scene-format` (new entry):** the scene format without the solvers, for tools that validate, hash, link and edit scenes: 62.9 KiB against 388.3 KiB for `/scene`, whose `loadScene` builds coupled scenes and so needs every solver.
+- **Package metadata:** `three` and `@babylonjs/core` are optional peer dependencies (the adapters import nothing from them); the description no longer says "boxes, spheres and capsules"; `homepage` points at the documentation site.
+- **Policy and provenance:** docs/API_STABILITY.md (what is public, semver from 1.0.0, numerical results, deprecation), docs/PROVENANCE.md (what the tarball is made of, the bill of materials, how to publish with npm provenance).
+- **Notices:** THIRD_PARTY_NOTICES.md gains the Emscripten runtime and musl inside the WebAssembly, three.js, the three font families and Phosphor Icons; the applications' build ships Box3D's license as `licenses/box3d.txt` beside `project.txt` and `third-party.txt`.
+- **Not done:** nothing is published; webpack is not installed here and was not tested; the version bump to 1.0.0-rc.1 is a separate commit to take or drop.
+
 ## Unreleased — 2026-11-16 — Documentation site
 
 - **`scripts/build-docs.mjs` writes `public/docs/` (`npm run build` runs it first; not committed, excluded from the source manifest):** 67 static pages with no framework: getting started (the Lab and the kit), ten concept guides (`docs/site/`), a page per solver from the existing documents, the full API reference from the kit's generated `api/API.md` (828 symbols in 24 entry points) with client-side search (press `/`), an examples gallery (the 21 Lab examples, each with its scene file, an "Open in the Lab" link and the validation domains it relates to), errors, robustness, stability policy, roadmap and both changelogs. Light and dark from the system setting; no horizontal scrolling at 390 px on any page (checked in Chromium).

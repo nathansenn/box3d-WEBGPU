@@ -466,6 +466,7 @@ camera.follow(hero.state.position);
 | `box3d-webgpu-kit/gameplay` | Trigger volumes and a kinematic character controller for the rigid-body world (see above). |
 | `box3d-webgpu-kit/geometry` | OBJ, STL and glTF import, mesh measures, convex hulls and convex decomposition (see above). |
 | `box3d-webgpu-kit/scene` | Scene files: a versioned JSON format with validation, load, save, canonical text, hashing, share links and example scenes (see above). |
+| `box3d-webgpu-kit/scene-format` | The same format without the solvers, for tools that validate, hash, link and edit scenes: about 63 KiB of gzip against about 390 KiB. Its `loadScene` builds rigid scenes only. |
 | `box3d-webgpu-kit/cloth` | Calibrated cloth: a membrane and plate with real material parameters, implicit integration, contact and friction against rigid bodies, self-collision, and two-way coupling to the rigid world (see below). |
 | `box3d-webgpu-kit/granular` | Granular media by the discrete element method: spherical grains with Hertz or linear contact, friction, rolling resistance, silo and hopper walls, and two-way coupling to the rigid world (see below). |
 | `box3d-webgpu-kit/fluid` | Volumetric incompressible flow: the Navier–Stokes equations on a staggered grid with walls, inflows, outflows and periodic sides, fixed and moving obstacles, two-way coupling to the rigid world, and a free-surface tank of liquid particles (see below). |

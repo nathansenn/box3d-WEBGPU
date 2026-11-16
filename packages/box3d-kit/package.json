@@ -1,7 +1,7 @@
 {
   "name": "box3d-webgpu-kit",
   "version": "0.9.0",
-  "description": "Drop-in Box3D rigid-body physics for games and apps: prebuilt, integrity-checked WebAssembly, boxes, spheres and capsules, joints with motors and limits, contact events, isolated worlds, fixed-step loop with interpolation, worker hosting, network snapshots, deterministic replay, spatial queries, debug draw, and three.js, Babylon.js and raw WebGPU adapters.",
+  "description": "Box3D rigid-body physics for the web, in SI units: prebuilt, integrity-checked WebAssembly, every Box3D shape and joint, events, queries, exact checkpoints and deterministic replay, with validated solvers for water, cables and frames, cloth, grains, deformable solids and fracture, heat and fluids under one stepping loop, a scene format, and three.js, Babylon.js and raw WebGPU adapters.",
   "type": "module",
   "license": "MIT",
   "sideEffects": false,
@@ -88,6 +88,10 @@
       "types": "./dist/scene.d.ts",
       "default": "./dist/scene.js"
     },
+    "./scene-format": {
+      "types": "./dist/scene-format.d.ts",
+      "default": "./dist/scene-format.js"
+    },
     "./simulation": {
       "types": "./dist/simulation.d.ts",
       "default": "./dist/simulation.js"
@@ -122,6 +126,18 @@
   "engines": {
     "node": ">=20"
   },
+  "peerDependencies": {
+    "three": ">=0.150.0",
+    "@babylonjs/core": ">=6.0.0"
+  },
+  "peerDependenciesMeta": {
+    "three": {
+      "optional": true
+    },
+    "@babylonjs/core": {
+      "optional": true
+    }
+  },
   "scripts": {
     "sync": "node scripts/sync-core.mjs",
     "build": "node scripts/sync-core.mjs && rm -rf dist && tsc -p tsconfig.json && node scripts/build-single.mjs",
@@ -138,12 +154,20 @@
   "keywords": [
     "babylonjs",
     "box3d",
+    "checkpoint",
+    "cloth",
     "deterministic",
+    "fluid",
+    "fracture",
     "game",
+    "granular",
     "multiplayer",
     "physics",
     "rigid-body",
+    "si-units",
+    "simulation",
     "threejs",
+    "typescript",
     "wasm",
     "webassembly",
     "webgpu"
@@ -155,5 +179,9 @@
   },
   "bin": {
     "box3d-kit": "./bin/box3d-kit.mjs"
+  },
+  "homepage": "https://nathansenn.github.io/box3d-WEBGPU/docs/",
+  "bugs": {
+    "url": "https://github.com/nathansenn/box3d-WEBGPU/issues"
   }
 }

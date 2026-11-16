@@ -73,6 +73,7 @@ Updated 2026-11-12.
 | 6 | Robustness: deterministic fuzzers in the gate (API misuse, random rigid programs, scene, link, geometry and robot files as hostile input, solver properties), a long run with a ten-minute soak | done: `tests/fuzz/`, `npm run test:fuzz` in `validate:pr`, `npm run fuzz:long`; 12 TypeScript bugs fixed, 5 native defects recorded as expected-failure tests (docs/ROBUSTNESS.md). Open: misuse tables for solver methods beyond construction and `step`; mirror tests for the solid, cables, frames and the water basin |
 | 6 | One error taxonomy and a diagnosis of unstable set-ups | done: `ENGINE_ERRORS`, `EngineError.details`, `explainError`, `world.diagnose()`, `simulation.diagnose()`, `strict` worlds (docs/ERRORS.md). Open: 42 built-in `RangeError`/`TypeError` throws in 12 engine files |
 | 6 | Documentation site: guides, a page per solver, the API reference with search, an examples gallery | done: `scripts/build-docs.mjs`, `public/docs/` at build time, `npm run docs:check` in `validate:pr`. Open: 280 exported symbols outside the main entry have no description |
+| 6 | Kit 1.0 release candidate: size budgets per entry point, tree-shaking and static-path checks, stability policy, notices, provenance | prepared, not published: `test:pack` in `validate:pr`, docs/API_STABILITY.md, docs/PROVENANCE.md; the version bump is a separate commit. Open: webpack not tested |
 | 4–6 | Everything else below | not started |
 
 ## Phase 0: clean base
