@@ -3244,10 +3244,12 @@ export interface NativeWorldModule {
     _b3w_world_debug_draw?(world: number, flags: number, jointScale: number, forceScale: number, bounds: number | bigint): number;
     _b3w_world_debug_ptr?(world: number): number | bigint;
     _b3w_world_debug_total?(world: number): number;
+    _b3w_world_contained_total?(world: number): number;
     _b3w_world_checkpoint?(world: number): number;
     _b3w_world_checkpoint_ptr?(world: number): number | bigint;
     _b3w_world_checkpoint_free?(world: number): number;
     _b3w_world_restore?(world: number, data: number | bigint, size: number): number;
+    _b3w_world_restore_ex?(world: number, data: number | bigint, size: number, takeHandles: number): number;
 }
 declare const JOINT_OWNER: unique symbol;
 export interface NativeJointHandle {
@@ -3468,7 +3470,7 @@ export interface NativeJointState {
     torque: [number, number, number];
 }
 export interface NativeWorldEvent {
-    readonly kind: 'contact-begin' | 'contact-end' | 'hit' | 'sensor-begin' | 'sensor-end' | 'joint-overload' | 'joint-break';
+    readonly kind: 'contact-begin' | 'contact-end' | 'hit' | 'sensor-begin' | 'sensor-end' | 'joint-overload' | 'joint-break' | 'body-contained';
     readonly bodyA: NativeBodyHandle | null;
     readonly bodyB: NativeBodyHandle | null;
     readonly joint?: NativeJointHandle;
@@ -3477,6 +3479,7 @@ export interface NativeWorldEvent {
     readonly point?: NativeQueryVector;
     readonly normal?: NativeQueryVector;
     readonly approachSpeed?: number;
+    readonly speed?: number;
 }
 export interface NativeRayBatch {
     readonly count: number;
@@ -3604,6 +3607,8 @@ export declare class NativeWorldBackend implements PhysicsBackend {
     private disposed;
     private readonly bodyOwner;
     private jointOwner;
+    private ownCheckpoints;
+    private rememberCheckpoint;
     private scratch;
     private wideScratch;
     private kindRows;
@@ -3751,6 +3756,7 @@ export declare class NativeWorldBackend implements PhysicsBackend {
         events: NativeWorldEvent[];
         dropped: number;
     };
+    containedTotal(): number;
     get supportsCheckpoints(): boolean;
     checkpoint(): Uint8Array;
     restoreCheckpoint(bytes: Uint8Array): void;
@@ -8522,6 +8528,7 @@ export interface WorldStats {
     readonly lastUpdateMs: number;
     readonly droppedSeconds: number;
     readonly nonFiniteSince: number | null;
+    readonly contained: number;
 }
 export type ReplayCommand = {
     readonly t: number;
@@ -8607,6 +8614,9 @@ export declare class PhysicsWorld {
     private droppedEventCount;
     private readonly strict;
     private nonFiniteTick;
+    private containedSeen;
+    private containedCount;
+    private containedTick;
     private readonly jointInfo;
     private jointPruneAt;
     private rayTokens;
@@ -8714,6 +8724,8 @@ export declare class PhysicsWorld {
     update(frameSeconds: number): FixedStepResult;
     private runStep;
     private checkFinite;
+    private checkContained;
+    private clearContained;
     onStep(listener: (tick: number) => void): () => void;
     private replayCheck;
     private capturePrevious;

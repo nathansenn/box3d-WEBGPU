@@ -283,11 +283,15 @@ export interface NativeWorldModule {
   _b3w_world_debug_draw?(world: number, flags: number, jointScale: number, forceScale: number, bounds: number | bigint): number;
   _b3w_world_debug_ptr?(world: number): number | bigint;
   _b3w_world_debug_total?(world: number): number;
+  /** Optional: bodies the bridge has contained after a diverged step since the context was made (ND-2). */
+  _b3w_world_contained_total?(world: number): number;
   /** Optional exact checkpoints; all four exports must be present together. */
   _b3w_world_checkpoint?(world: number): number;
   _b3w_world_checkpoint_ptr?(world: number): number | bigint;
   _b3w_world_checkpoint_free?(world: number): number;
   _b3w_world_restore?(world: number, data: number | bigint, size: number): number;
+  /** Optional: restore taking the checkpoint's own handle table (ND-3). */
+  _b3w_world_restore_ex?(world: number, data: number | bigint, size: number, takeHandles: number): number;
 }
 
 const GENERAL_EXPORTS = ['reset','set_gravity','get_gravity','create_body','copy_body_kinds','get_body_state','set_body_transform',
@@ -536,7 +540,7 @@ export interface NativeJointState {
 }
 /** A contact or sensor event of the most recent step. `point`, `normal` and `approachSpeed` are present on 'hit' events. */
 export interface NativeWorldEvent {
-  readonly kind: 'contact-begin' | 'contact-end' | 'hit' | 'sensor-begin' | 'sensor-end' | 'joint-overload' | 'joint-break';
+  readonly kind: 'contact-begin' | 'contact-end' | 'hit' | 'sensor-begin' | 'sensor-end' | 'joint-overload' | 'joint-break' | 'body-contained';
   /** Null when the body no longer exists. For sensor events A is the sensor and B the visitor; for joint events they
    * are the joint's bodies, null for the fixed world. */
   readonly bodyA: NativeBodyHandle | null;
@@ -549,12 +553,24 @@ export interface NativeWorldEvent {
   readonly point?: NativeQueryVector;
   readonly normal?: NativeQueryVector;
   readonly approachSpeed?: number;
+  /**
+   * 'body-contained' only: the speed (m/s or rad/s, the larger) the body had reached, NaN when its state was not finite.
+   * The step diverged for this body (joints that contradict each other can do that inside Box3D), so the bridge put it
+   * back at its pose of the step before, at rest, and the next step runs without warm starting. bodyA is the body.
+   */
+  readonly speed?: number;
 }
 const BODY_KINDS = ['box','sphere','capsule','hull','mesh','heightfield','compound'] as const;
 const SHAPE_DESC_BYTES=80;
 const BODY_TYPES = ['static','kinematic','dynamic'] as const;
 const JOINT_TYPES = ['weld','revolute','spherical','prismatic','distance','wheel','motor','parallel','filter'] as const;
-const EVENT_KINDS = ['contact-begin','contact-end','hit','sensor-begin','sensor-end','joint-overload','joint-break'] as const;
+/** Two 32-bit FNV-style hashes and the length of a checkpoint: enough to recognise one this world wrote. */
+function checkpointDigest(bytes: Uint8Array): string {
+  let a=0x811c9dc5,b=0x01000193^0x5bd1e995;
+  for(let i=0;i<bytes.length;i++){const v=bytes[i]!;a=Math.imul(a^v,0x01000193);b=Math.imul(b^v,0x5bd1e995)^(b>>>15);}
+  return `${bytes.length}:${(a>>>0).toString(16)}:${(b>>>0).toString(16)}`;
+}
+const EVENT_KINDS = ['contact-begin','contact-end','hit','sensor-begin','sensor-end','joint-overload','joint-break','body-contained'] as const;
 
 /** One batch of closest-hit rays. Arrays are indexed by ray; a miss has fraction -1 and a null body. */
 export interface NativeRayBatch {
@@ -773,6 +789,16 @@ export class NativeWorldBackend implements PhysicsBackend {
   private readonly bodyOwner={};
   // Replaced whenever the world is rebuilt, so joints of an earlier scene can never alias new ones.
   private jointOwner={};
+  // Content digests of the checkpoints this world wrote since it was last reset, at most 256, the one written or restored
+  // most recently last. Restoring one of them takes its own handle table, so that every handle means what it meant when it
+  // was written (ND-3).
+  private ownCheckpoints: string[]=[];
+  private rememberCheckpoint(digest: string): void {
+    const at=this.ownCheckpoints.indexOf(digest);
+    if(at>=0)this.ownCheckpoints.splice(at,1);
+    this.ownCheckpoints.push(digest);
+    if(this.ownCheckpoints.length>256)this.ownCheckpoints.shift();
+  }
   // One 128-byte scratch block for descriptors and small outputs, allocated on first use.
   private scratch=0;
   // One 1024-byte block for the mover and the step profile, allocated on first use.
@@ -960,7 +986,7 @@ export class NativeWorldBackend implements PhysicsBackend {
     plain(options,'reset options','{seed?, ground?, gravity?}');
     const seed=integer(options.seed??1,'seed',0,0xFFFFFFFF),g=triple(options.gravity??[0,-9.81,0],'gravity',-L.gravity,L.gravity),ground=flag(options.ground??true,'ground');
     this.accepted(this.mod._b3w_world_reset!(this.handle,seed,ground?1:0,g[0],g[1],g[2]));
-    this.jointOwner={};this.retainedShapes?.clear();this.largeConvex.clear();
+    this.jointOwner={};this.retainedShapes?.clear();this.largeConvex.clear();this.ownCheckpoints=[];
   }
   setGravity(x: number,y: number,z: number): void {
     this.general();within(x,'gravity x',L.gravity);within(y,'gravity y',L.gravity);within(z,'gravity z',L.gravity);
@@ -1712,11 +1738,19 @@ export class NativeWorldBackend implements PhysicsBackend {
           torque:[view.getFloat32(o+36,true),view.getFloat32(o+40,true),view.getFloat32(o+44,true)]});
         continue;
       }
+      if(kind==='body-contained'){events.push({kind,bodyA,bodyB:null,speed:view.getFloat32(o+48,true)});continue;}
       events.push(kind==='hit'?{kind,bodyA,bodyB,point:[view.getFloat32(o+24,true),view.getFloat32(o+28,true),view.getFloat32(o+32,true)],
         normal:[view.getFloat32(o+36,true),view.getFloat32(o+40,true),view.getFloat32(o+44,true)],approachSpeed:view.getFloat32(o+48,true)}:{kind,bodyA,bodyB});
     }
     return {events,dropped:Math.max(0,total-count)};
   }
+
+  /**
+   * How many times a step has diverged for a body and the bridge contained it (put it back at its previous pose, at
+   * rest; each is also a 'body-contained' event), since this native world was made. 0 for an artifact without
+   * containment. Not reset by resetWorld.
+   */
+  containedTotal(): number { this.assertAlive();const n=this.mod._b3w_world_contained_total?.(this.handle)??0;return n<0?0:n; }
 
   /** True when the artifact can write and restore exact checkpoints of a world (docs/CHECKPOINTS.md). */
   get supportsCheckpoints(): boolean { this.assertAlive();return typeof this.mod._b3w_world_restore==='function'&&typeof this.mod._b3w_world_checkpoint==='function'; }
@@ -1741,13 +1775,16 @@ export class NativeWorldBackend implements PhysicsBackend {
         if(this.largeRowsByCheckpoint.size>=256)this.largeRowsByCheckpoint.delete(this.largeRowsByCheckpoint.keys().next().value!);
         this.largeRowsByCheckpoint.set(checkpointKey(bytes),rows);
       }
+      this.rememberCheckpoint(checkpointDigest(bytes));
       return bytes;
     }finally{this.mod._b3w_world_checkpoint_free!(this.handle);}
   }
   /**
-   * Replace this world's state with a checkpoint from `checkpoint()`. Body and joint handles keep their meaning when
-   * the world was built the same way as the one the checkpoint was taken from. Bytes that are not a checkpoint of this
-   * artifact's format are refused and change nothing.
+   * Replace this world's state with a checkpoint from `checkpoint()`. A checkpoint this world wrote since it was last
+   * reset (one of the 256 it wrote or restored most recently) brings back its own handles: every handle means what it meant then, a body destroyed since is alive again
+   * under its handle, and a body created since is gone (its handle stays dead, also once its slot is used again). A
+   * checkpoint from elsewhere (another world built the same way, another page) keeps the handles of this world's
+   * bodies, row by row. Bytes that are not a checkpoint of this artifact's format are refused and change nothing.
    */
   restoreCheckpoint(bytes: Uint8Array): void {
     this.assertAlive();
@@ -1755,15 +1792,17 @@ export class NativeWorldBackend implements PhysicsBackend {
     if(!(bytes instanceof Uint8Array)||bytes.length===0)throw new EngineError('INVALID_PAYLOAD','A native checkpoint is a non-empty Uint8Array.');
     const pointer=Number(this.mod._malloc!(bytes.length));
     if(!Number.isSafeInteger(pointer)||pointer<=0)throw new EngineError('ALLOCATION_FAILED','Native scratch allocation failed.');
-    let status: number;
+    let status: number,digest='',own=false;
     try {
       new Uint8Array(this.mod.HEAPF32.buffer,pointer,bytes.length).set(bytes);
-      status=this.mod._b3w_world_restore!(this.handle,pointer,bytes.length);
+      digest=checkpointDigest(bytes);own=typeof this.mod._b3w_world_restore_ex==='function'&&this.ownCheckpoints.includes(digest);
+      status=own?this.mod._b3w_world_restore_ex!(this.handle,pointer,bytes.length,1):this.mod._b3w_world_restore!(this.handle,pointer,bytes.length);
     }finally{this.mod._free!(pointer);}
     if(status===-2)throw new EngineError('INVALID_PAYLOAD','These bytes are not a native world checkpoint of this build.');
     if(status===-3)throw new EngineError('ALLOCATION_FAILED','The native checkpoint could not be restored: out of memory. The world is unchanged.');
     if(status===-4)throw new EngineError('INVALID_PAYLOAD','Box3D refused the world snapshot; the world was reset to an empty one.');
     if(status!==1)throw new EngineError('DISPOSED','The native context rejected the restore.');
+    if(own)this.rememberCheckpoint(digest);
     this.refreshStreams(true);
     this.relearnLargeConvex(bytes);
   }
@@ -2022,7 +2061,7 @@ export class NativeWorldBackend implements PhysicsBackend {
     this.assertAlive();integer(scene?.id,'scene ID',0,799);finite(stressScale,'stress scale',1,5);integer(seed,'seed',0,0xFFFFFFFF);
     const count=this.mod._b3w_world_create_scene(this.handle,scene.id,stressScale,seed);
     if(count<0)throw new EngineError('DISPOSED','Native scene creation rejected this context.');
-    this.jointOwner={};this.retainedShapes?.clear();this.largeConvex.clear();
+    this.jointOwner={};this.retainedShapes?.clear();this.largeConvex.clear();this.ownCheckpoints=[];
     return count;
   }
   step(dt: number, subSteps: number): void {
@@ -2053,7 +2092,7 @@ export class NativeWorldBackend implements PhysicsBackend {
     return count===0?0:this.mod._b3w_world_spawn_rain(this.handle,count,spread,height);
   }
   /** Empty this specimen while retaining its context, buffers and generation. */
-  clear(): void { this.assertAlive();this.accepted(this.mod._b3w_world_clear(this.handle));this.jointOwner={};this.retainedShapes?.clear();this.largeConvex.clear(); }
+  clear(): void { this.assertAlive();this.accepted(this.mod._b3w_world_clear(this.handle));this.jointOwner={};this.retainedShapes?.clear();this.largeConvex.clear();this.ownCheckpoints=[]; }
   destroy(): void {
     if(this.disposed)return;
     this.disposed=true;

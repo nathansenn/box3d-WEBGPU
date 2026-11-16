@@ -1800,6 +1800,7 @@ export declare class NativeWorldBackend implements PhysicsBackend {
   setJointSteering(joint: NativeJointHandle, steering: { angle: number; hertz: number; dampingRatio: number; maxTorque: number; } | null): void;
   jointState(joint: NativeJointHandle): NativeJointState;
   collectEvents(): { events: NativeWorldEvent[]; dropped: number; };
+  containedTotal(): number;
   get supportsCheckpoints(): boolean;
   checkpoint(): Uint8Array;
   restoreCheckpoint(bytes: Uint8Array): void;
@@ -1827,7 +1828,7 @@ A contact or sensor event of the most recent step. `point`, `normal` and `approa
 
 ```ts
 export interface NativeWorldEvent {
-    readonly kind: 'contact-begin' | 'contact-end' | 'hit' | 'sensor-begin' | 'sensor-end' | 'joint-overload' | 'joint-break';
+    readonly kind: 'contact-begin' | 'contact-end' | 'hit' | 'sensor-begin' | 'sensor-end' | 'joint-overload' | 'joint-break' | 'body-contained';
     readonly bodyA: NativeBodyHandle | null;
     readonly bodyB: NativeBodyHandle | null;
     readonly joint?: NativeJointHandle;
@@ -1836,6 +1837,7 @@ export interface NativeWorldEvent {
     readonly point?: NativeQueryVector;
     readonly normal?: NativeQueryVector;
     readonly approachSpeed?: number;
+    readonly speed?: number;
 }
 ```
 
@@ -2567,6 +2569,7 @@ export interface WorldStats {
     readonly lastUpdateMs: number;
     readonly droppedSeconds: number;
     readonly nonFiniteSince: number | null;
+    readonly contained: number;
 }
 ```
 

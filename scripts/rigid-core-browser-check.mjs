@@ -219,6 +219,18 @@ const CASES = [
     assert.equal(joints, 9, 'half a second in, the bridge carries itself on all nine welds');
     return {welds: joints};
   }},
+  // ND-2: a mechanism whose joints contradict each other diverges inside Box3D; the bridge contains it and the Lab says so.
+  {name: 'contained', address: `lab.html?scene=${encodeURIComponent(JSON.stringify({format: 'box3d-scene', version: 1, world: {gravity: [0, -9.81, 0], ground: true, step: 1 / 60, subSteps: 4},
+    bodies: [{id: 'box', shape: {kind: 'box', halfExtents: [0.5, 0.5, 0.5]}, position: [0, 2, 0]}, {id: 'wheel', shape: {kind: 'sphere', radius: 0.3}, position: [0, 0.3, 3]}],
+    joints: [{id: 'hinge', type: 'revolute', bodyA: null, bodyB: 'box', frameA: {position: [4, 2, 0]}}, {id: 'axle', type: 'wheel', bodyA: 'box', bodyB: 'wheel', frameA: {position: [0, -0.5, 0]}},
+      {id: 'world-wheel', type: 'wheel', bodyA: 'box', bodyB: null, frameA: {position: [0, 0.5, 0]}, frameB: {position: [0, -0.5, 0]}, limits: {lower: -0.2, upper: 0.2}, spring: {hertz: 4, dampingRatio: 0.7}, motor: {speed: 3, maxForce: 20}}]}))}`,
+    ticks: 30, async verify(page) {
+    await captureCanvas(page, 'contained-after.png');
+    const info = await page.evaluate(() => ({contained: window.box3dLab.sceneState().contained, status: document.querySelector('#lab-scene-panel')?.textContent ?? document.body.textContent}));
+    assert.ok(info.contained > 0, `bodies were contained (${info.contained})`);
+    assert.match(info.status, /The solver diverged for/, 'the Lab says so');
+    return {contained: info.contained};
+  }},
   {name: 'bridge-after', address: 'lab.html?example=breakable-bridge&debug=joints', ticks: 150, async verify(page) {
     const info = await page.evaluate(() => { const scene = window.box3dLab.sceneJson(); return {welds: scene.joints.map(joint => joint.id), block: scene.bodies.find(body => body.id === 'block').position[1]}; });
     assert.deepEqual(info.welds, ['weld-0', 'weld-8'], 'the block broke the span; the two end welds are left');

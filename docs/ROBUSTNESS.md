@@ -11,8 +11,10 @@ the tests found, and what is still open. The error contract itself is in [ERRORS
    loads to data that is finite and in range, or is refused by an `EngineError` in bounded time and memory. Nothing
    outside the input is read: no file, no URL, no entity.
 3. Valid use never produces NaN silently. Where the native solver can diverge on valid input (ND-2, ND-5 below), the
-   world records the step in `stats().nonFiniteSince`, and a world created with `strict: true` throws
-   `NUMERICAL_FAILURE` at that step.
+   bridge contains the diverged bodies (back to their pose of the step before, at rest) and the world counts them in
+   `stats().contained`, with a `'body-contained'` event each and the `body-contained` rule of `diagnose()`; a transform
+   that is not finite all the same is recorded in `stats().nonFiniteSince`. A world created with `strict: true` throws
+   `NUMERICAL_FAILURE` at the step of either.
 4. Runs are deterministic, a checkpoint resumes bit for bit, and a recording replays bit for bit.
 
 ## Running it
@@ -39,7 +41,7 @@ prints each misuse call before it runs (the last line is the call that hung or t
 | `solver-properties.test.mjs` | all 16 coupled example scenes (water and cables, frames, cloth, grains, solid contact, fracture, heat with thermal stress, fluid, free surface, shallow water) and five solvers directly | per scene: a checkpoint at a random step resumed in another WASM instance continues to the same solver state and body states; a second run from the scene is identical; no NaN in any field; the ledger identity `balance = total - exchanged`. The scene at 2, 4 and 8 times its step is refused by a typed error or runs finite. Directly: heat energy ledger to 1e-7 and mirror symmetry to 1e-8 K; shallow-water volume to 1e-9 and mirrored dam break; fluid momentum to 1e-7, divergence, mirror; grain momentum to 1e-9, energy ledger to 0.2 %, mirror to 1e-12 m; cloth free-fall momentum `m g t` to 1e-6, mirror to 1e-7 | one seed per scene; larger steps: 27 ran finite, 5 refused |
 | `solver-misuse.test.mjs` | constructors and builders of heat, shallow water, fluid, free surface, grains, cloth, solid, the mesh and hull helpers, the material lookups | as for the world: typed refusal, or an object that steps once without NaN | 9,723 hostile calls over 20 rows |
 | `error-taxonomy.test.mjs` | the taxonomy and `diagnose()` | every thrown code is listed and every listed code thrown; ERRORS.md current; each `diagnose()` rule fires with its numbers | - |
-| `native-defects.test.mjs` | the native defects below | each states the correct behaviour and is an expected failure (`todo`); the TypeScript guards are tested | 5 expected failures |
+| `native-defects.test.mjs` | the native defects below | each states the correct behaviour: ND-1 to ND-5, fixed in the bridge, pass; ND-6 is an expected failure (`todo`); the TypeScript guards are tested | 1 expected failure |
 | `soak.test.mjs` | seven coupled scenes and a rigid churn world in one WASM instance, with checkpoints, restores and reloads | bounds in the next section | 4 s in the gate, 600 s in `fuzz:long` |
 
 Not covered: the Studio's own solvers outside `src/engine` shipped modules, the plate (`src/engine/plate.ts`), the
@@ -110,19 +112,21 @@ accepted; `packages/box3d-kit/test/v12-scene.test.mjs` (a position of 1e21 and a
 data, one message, one case added), `v04.test.mjs` and `world.test.mjs` (`RangeError` to `EngineError`). No scene,
 example or recipe hash changed.
 
-## Native defects (not fixed here)
+## Native defects
 
-In Box3D or the C bridge `wasm/box3d_web.c`, which this work does not change. Each has an expected-failure test in
-`tests/fuzz/native-defects.test.mjs` with a minimal reproduction.
+In Box3D or the C bridge `wasm/box3d_web.c`. Each has a test in `tests/fuzz/native-defects.test.mjs` with a minimal
+reproduction. ND-1 to ND-5 are fixed in the bridge (Box3D itself is pinned upstream; docs/RIGID_CORE.md, section 10,
+has how) and their tests pass; `packages/box3d-kit/test/v22-rigid-native.test.mjs` checks the fixes in more detail.
+ND-6 is open and its test is an expected failure (`todo`).
 
-| # | Severity | What | Guard in TypeScript |
+| # | Severity | What | Status and guard |
 | --- | --- | --- | --- |
-| ND-1 | high | Box3D's step does not return for a dynamic box with half extents of about 1.5 km or more, or a dynamic hull cube of about 100 km, resting on another body; static and kinematic boxes up to 100 km step normally (measured by the rigid core's work; the first measurement here was 5 km for a cube in the ground) | the convex shapes of a dynamic body are limited to 1 km; static and kinematic bodies, which step normally with boxes up to 100 km, may reach 100 km (the rigid core's vehicle scenes drive on a 2 km static slab), and such a body cannot be made dynamic (`setBodyType`, `INVALID_STATE`) |
-| ND-2 | high | Joints that contradict each other on one body (a hinge to an anchor 4 m away, a wheel joint, and a second wheel joint to the world with limits, a spring and a motor) give NaN within four steps; Box3D logs "unstable" and continues | none before the step; `nonFiniteSince`, and `NUMERICAL_FAILURE` in a strict world |
-| ND-3 | medium | `b3w_world_restore` keeps the world's handle table by row whenever the world has no more bodies than the checkpoint. After a body was destroyed since the checkpoint the rows have moved, so kept handles name other bodies and the destroyed body's handle stays dead. The physical state is exact | none; read handles again with `bodyAt()` after a restore (docs/CHECKPOINTS.md) |
-| ND-4 | low | Overlap queries report one hit per shape: for a compound, `totalHits` and `overflow` count shapes, and a limit can be used up by one body | repeats are merged; with a limit below the shape count `overflow` is still true for one body |
-| ND-5 | high | Jointed mechanisms diverge in about one random program in 150 with every input in range and no `diagnose()` warning (4 of 603 programs at the default seed base: seeds 21702374, 21741969, 20427415, 20878798). Much more often when a joint frame is far from its body or one end of a joint is teleported metres away | the `joint-lever` rule of `diagnose()`; the programs avoid both; caught as for ND-2. `world-fuzz.test.mjs` counts caught divergences against an allowance of 3 % of programs and fails above it or when a program without joints diverges |
-| ND-6 | low | The first restore of a checkpoint can change it: checkpoint, restore, checkpoint again, and 35-36 bytes differ, in a world where a body was destroyed and two more created before a spherical joint was made. Body states are equal, a second restore is byte-exact, and the next step is identical. Present before and after the rigid-core merge (797cd68 and c059041); found when the misuse scene grew with the rigid core's joints | none needed for physics; `world-misuse.test.mjs` takes its baseline after one restore |
+| ND-1 | high | Box3D's step does not return for a dynamic box with half extents of about 1.5 km or more, or a dynamic hull cube of about 100 km, resting on another body; static and kinematic boxes up to 100 km step normally (measured by the rigid core's work; the first measurement here was 5 km for a cube in the ground) | **fixed in the bridge**: it refuses a dynamic body's convex shape beyond 1 km on every creation path (the projectile export included) and making a box, hull or compound body wider than that dynamic (from its bounds, so also for a body restored from foreign bytes). The TypeScript guard stays in front: the convex shapes of a dynamic body are limited to 1 km; static and kinematic bodies may reach 100 km, and `setBodyType` refuses to make such a body dynamic (`INVALID_STATE`) |
+| ND-2 | high | Joints that contradict each other on one body (a hinge to an anchor 4 m away, a wheel joint, and a second wheel joint to the world with limits, a spring and a motor) give NaN within four steps; Box3D logs "unstable" and continues | **contained by the bridge**: after every step a dynamic body that is not finite, faster than ten times the world's maximum linear speed (at least 10^4 m/s) or spinning faster than ten times Box3D's quarter turn per step is put back at its pose of the step before, at rest, and the next step runs without warm starting. Each is a `'body-contained'` event; the kit counts them in `stats().contained`, `diagnose()` reports the rule `body-contained` (error), and a `strict` world throws `NUMERICAL_FAILURE` at that step. The contradictory mechanism still does nothing sensible; the rest of the world is unaffected |
+| ND-3 | medium | `b3w_world_restore` keeps the world's handle table by row whenever the world has no more bodies than the checkpoint. After a body was destroyed since the checkpoint the rows have moved, so kept handles name other bodies and the destroyed body's handle stays dead. The physical state is exact | **fixed in the bridge**: a checkpoint this world wrote since its last reset (one of the 256 it wrote or restored most recently) is restored with `b3w_world_restore_ex` and its own handle table, so every handle means what it meant when it was written. A checkpoint from elsewhere keeps the row-by-row rule (docs/CHECKPOINTS.md) |
+| ND-4 | low | Overlap queries report one hit per shape: for a compound, `totalHits` and `overflow` count shapes, and a limit can be used up by one body | **fixed in the bridge**: overlaps collect bodies, keep each once and count bodies in `totalHits` and `overflow` |
+| ND-5 | high | Jointed mechanisms diverge in about one random program in 150 with every input in range and no `diagnose()` warning (4 of 603 programs at the default seed base: seeds 21702374, 21741969, 20427415, 20878798). Much more often when a joint frame is far from its body or one end of a joint is teleported metres away | **contained by the bridge**: the containment of ND-2 also bounds spin (471 rad/s at 60 Hz), so the four seeds stay finite (one, 20427415, is contained 209 times in 260 operations); the `joint-lever` rule of `diagnose()` remains the way to avoid it. `world-fuzz.test.mjs` runs strict worlds, so a containment throws and is counted against the allowance of 3 % of programs, and fails above it or when a program without joints diverges |
+| ND-6 | low | The first restore of a checkpoint can change it: checkpoint, restore, checkpoint again, and 35-36 bytes differ (measured again after the ND-3 fix: the 32-byte digest of the kit header and 4 bytes of the native payload; the same with `b3w_world_restore_ex` and with `b3w_world_restore`), in a world where a body was destroyed and two more created before a spherical joint was made. Body states are equal, a second restore is byte-exact, and the next step is identical. Present before and after the rigid-core merge (797cd68 and c059041); found when the misuse scene grew with the rigid core's joints | none needed for physics; `world-misuse.test.mjs` takes its baseline after one restore |
 
 Also observed, by design rather than a defect: a joint handle made after a checkpoint is invalid after restoring it,
 and comes alive again when a later joint receives the same Box3D id; the world's checkpoint bytes include its handle
@@ -134,8 +138,8 @@ body states and solver state trees instead).
 - A static or kinematic body may have convex shapes up to 100 km, and `setBodyType` refuses to make such a body
   dynamic. After `restoreCheckpoint` the adapter knows these bodies again from the render rows (boxes, spheres,
   capsules) and from a record it keeps of the checkpoints it made; a hull or compound beyond 1 km restored from bytes
-  made by another world (a file, another process) is not known, so it could be made dynamic. The native side is to
-  enforce the same rule (ND-1).
+  made by another world (a file, another process) is not known to it, and the bridge refuses the retype from the
+  body's bounds instead (`INVALID_PAYLOAD`, "The native bridge rejected the values"; ND-1).
 - `tests/fuzz/solver-misuse-known.json` lists 18 classes of lenient acceptance in the solver builders, none of which
   throws a built-in error or produces NaN: a vector of the wrong length or a typed array where three numbers are
   expected (grains, cloth, fluid, shallow-water bed, mesh indices), a fractional iteration count (fluid, cloth), a

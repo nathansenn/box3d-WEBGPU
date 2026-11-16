@@ -548,6 +548,63 @@ cantilever. A scene saved after the break holds those two welds and no others.
   the step size as well as on the block. The example is deterministic, not mesh-converged.
 - The vehicle circle is measured on bumpy ground and so only to 5%; the flat-ground rows are in section 4.
 
+## 10. Native defects found by fuzzing
+
+The fuzzers (`tests/fuzz`, docs/ROBUSTNESS.md) found defects in the native side. What the bridge does about each:
+
+- **ND-1, a step that never returns.** Box3D's convex contact code (`b3FindIncidentFace`, a walk around a half-edge
+  ring) loops for ever when a dynamic box of half extent about 1.5 km or more lands on something; a dynamic hull cube
+  does it at 100 km. Static and kinematic boxes do not (a 100 km static or kinematic slab with bodies landing on it
+  steps normally). Box3D is pinned upstream, so the bridge refuses the size for dynamic bodies only: a box half
+  extent above 1 km, a hull point more than 1 km from its body's origin, and a compound box or hull child beyond
+  1 km (`B3W_MAX_CONVEX_EXTENT`; the projectile and recipe paths too), and making a box, hull or compound body whose
+  bounds exceed 1 km dynamic. The body is not created (or keeps its type) and the kit reports `INVALID_PAYLOAD`. A
+  1 km cube landing at 200 m/s deep in the ground steps normally. Spheres and capsules have no polytope contact and
+  are not limited. Test: `packages/box3d-kit/test/v22-rigid-native.test.mjs`.
+
+- **ND-2, joints that contradict each other.** A body held by two joints to the fixed world that cannot both be
+  satisfied, one of them a hard limit (the fuzzer's case: a hinge to an anchor 4 m away and a limited wheel joint),
+  makes Box3D's solve grow by orders of magnitude a step (3 × 10¹⁶ m/s by the fifth) until it is NaN, which then
+  spreads through contacts and joints; Box3D only logs "unstable". Box3D is pinned, so the bridge contains it: after
+  every step, a dynamic body whose state is not finite, or whose linear or angular speed is above ten times the
+  world's maximum linear speed (at least 10⁴; Box3D clamps what it integrates at that speed, 400 m/s by default) is
+  put back at its pose of the step before, at rest, and the next step runs once without warm starting, which zeroes
+  the joint and contact impulses the diverged solve had accumulated. Each containment is a `'body-contained'` event
+  (`bodyA` the body, `speed` what it had reached, NaN if not finite) and is counted by
+  `NativeWorldBackend.containedTotal()`; the Lab says so in the Scenes panel and the log, and
+  `box3dLab.sceneState().contained` has the count. The kit's `PhysicsWorld` counts them since its last reset or
+  restore in `stats().contained`, `diagnose()` reports them as the rule `body-contained` (error, with the count and
+  the first step), and a world created with `strict: true` throws `NUMERICAL_FAILURE` at the step that contains. The world stays finite and bodies that are not part of the
+  mechanism are unaffected; the contradictory mechanism itself still cannot do anything sensible and is contained
+  again whenever it diverges. Containment never fires in any example scene (all 26, up to 600 steps each) or in
+  90 steps of each of the 800 catalog recipes (test), so no existing result or hash changes.
+
+- **ND-3, handles after a restore.** The bridge kept the restoring world's own handle table whenever that world had
+  no more bodies than the checkpoint, assuming its rows were still the checkpoint's first rows; after a destroy they
+  are not, and handles named the wrong bodies. `NativeWorldBackend` now remembers (by a 64-bit digest and the length)
+  the checkpoints it wrote since its last reset (the 256 written or restored most recently), and restores those with the new optional export
+  `b3w_world_restore_ex(…, takeHandles = 1)`: every handle means what it meant when the checkpoint was written, a
+  body destroyed since is alive again under its handle, and a body created since is gone, its handle dead also once
+  its slot is used again (slots made after the checkpoint stay in the table, free, with a newer generation). A
+  checkpoint from elsewhere (another page, a world rebuilt the same way) keeps the row-by-row rule, as before.
+
+- **ND-4, overlaps counted shapes.** Overlap queries (sphere, box, capsule, AABB candidates) reported one hit per
+  overlapping shape, so a compound body counted once per child in `totalHits` and `overflow`, and could use up a
+  limit alone. The bridge now collects the bodies, keeps each once (smallest handles first, the order the query sort
+  gives overlaps) and counts bodies. Casts still report each shape they reach, since those hits differ in point and
+  fraction.
+
+- **ND-5, random jointed programs that diverged.** Replaying the fuzzer's seeds, the runaway began each time with
+  one large impulse through a joint anchored off a body's centre of mass: a wheel joint between a child moving at
+  357 m/s and a parent at 67 m/s (the parent's spin went from 7 to 143 rad/s in one step), or a distance joint to the
+  world made in mid-fall with a 5 cm rest length 0.96 m from the body (2.7 × 10⁴ N; spin from 1 to 516 rad/s in one
+  step). Box3D integrates no more than a quarter turn per step (0.25 π / dt; the bridge never sets
+  `allowFastRotation`), so velocities far above that are the solver fighting itself, and from there it ran away to
+  10⁴ rad/s and NaN. The containment of ND-2 therefore also bounds angular speed, at ten times that clamp (471 rad/s
+  at 60 Hz, 1,885 rad/s at 240 Hz). With it the four seeds on record (1,500 operations each) stay finite with their
+  fastest spin at 55 to 286 rad/s instead of 567 to 9,968, and containment still never fires in the example scenes
+  or the catalog. The anchor rule of `diagnose()` (`joint-lever`) remains the way to keep a mechanism from needing it.
+
 ## Custom filter and pre-solve callbacks: not exposed
 
 Box3D can call the application for every candidate pair (`b3World_SetCustomFilterCallback`) and for every touching

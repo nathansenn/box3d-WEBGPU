@@ -1,36 +1,33 @@
-// Defects the fuzzers found in the native side (Box3D, or the C bridge wasm/box3d_web.c), which this work does not change.
+// Defects the fuzzers found in the native side (Box3D, or the C bridge wasm/box3d_web.c).
 //
-// Each test states the correct behaviour and is marked `todo` with the report, so it runs in the gate, shows as an
-// expected failure, and does not fail the run. When the native side is fixed the test passes: remove the `todo`, and
-// the TypeScript guard named in the report can be relaxed. Severity: how bad it is for a caller who meets it.
+// Each test states the correct behaviour. ND-1 to ND-5 are fixed in the C bridge (docs/RIGID_CORE.md, section 10;
+// packages/box3d-kit/test/v22-rigid-native.test.mjs checks the fixes in more detail) and their tests are ordinary
+// tests. ND-6 is still open: its test is marked `todo` with the report, so it runs in the gate, shows as an expected
+// failure, and does not fail the run; when it passes, remove the `todo`. Severity: how bad it is for a caller who meets it.
 //
 //   ND-1  high    Box3D's step does not return for a dynamic box with half extents of about 1.5 km or more (or a dynamic
 //                 hull cube of about 100 km) resting on another body; static and kinematic boxes up to 100 km step normally.
-//                 Guard: a dynamic body's convex shapes are limited to 1 km (RIGID_LIMITS.shape); static and kinematic ones may
-//                 reach RIGID_LIMITS.extent, and such a body cannot be made dynamic, so the kit cannot reach it.
+//                 Fixed in the bridge: it refuses a dynamic body's convex shape beyond 1 km on every creation path, and
+//                 making such a body dynamic. The TypeScript guard (RIGID_LIMITS.shape, setBodyType) stays in front of it.
 //   ND-2  high    Joints that contradict each other on one body (a hinge to a far anchor, a wheel joint and a second
-//                 wheel joint to the world with limits, spring and motor) give NaN velocities within four steps.
-//                 Box3D logs "unstable" and continues. Guard: none possible before the step; PhysicsWorld records the
-//                 tick in stats().nonFiniteSince and, with {strict: true}, throws NUMERICAL_FAILURE at that step.
-//   ND-3  medium  b3w_world_restore keeps the world's own handle table whenever the world has no more bodies than the
-//                 checkpoint ("keepHandles"). After a body was destroyed since the checkpoint, rows have moved, so the
-//                 restore gives the checkpoint's bodies to the wrong handles: a kept handle then names another body
-//                 and the destroyed body's handle stays dead. Physics state is exact; only handles are wrong.
-//                 Guard: none in TypeScript; docs/CHECKPOINTS.md tells callers to read handles again with bodyAt().
-//   ND-4  low     Overlap queries report one hit per shape, so a compound body counts once per overlapping child:
-//                 `totalHits` and `overflow` count shapes, and a limit can be used up by one body.
-//                 Guard: the adapter merges the repeats (it used to throw INVALID_BACKEND, fixed here), but with a
-//                 limit below the shape count `overflow` is still true for a single body.
-//   ND-5  high    Jointed mechanisms diverge inside Box3D in about one random program in 150 (4 of 603 with the
-//                 default seed base), with every input in range and no diagnose() warning: speeds pass 1e6 m/s within a
-//                 few steps and then become NaN. Far more often when a joint frame is far from its body (the
-//                 `joint-lever` rule) or one end of a joint is teleported metres away, which the programs therefore
-//                 avoid. Guard: as for ND-2; world-fuzz.test.mjs counts the caught divergences against a 3 % allowance.
+//                 wheel joint to the world with limits, spring and motor) gave NaN velocities within four steps.
+//                 Fixed in the bridge: a body a step leaves non-finite or impossibly fast is put back at its pose of the
+//                 step before, at rest ('body-contained' event, containedTotal()). The kit counts it in
+//                 stats().contained, diagnose() reports the rule `body-contained`, and {strict: true} throws NUMERICAL_FAILURE.
+//   ND-3  medium  b3w_world_restore kept the world's own handle table whenever the world had no more bodies than the
+//                 checkpoint, so after a destroy kept handles named other bodies. Fixed: a checkpoint this world wrote
+//                 since its last reset is restored with b3w_world_restore_ex and its own handle table.
+//   ND-4  low     Overlap queries reported one hit per shape, so a compound body counted once per overlapping child.
+//                 Fixed: the bridge counts bodies.
+//   ND-5  high    Jointed mechanisms diverged inside Box3D in about one random program in 150 with every input in range.
+//                 Fixed as far as the bridge can: the containment of ND-2 also bounds spin (ten times Box3D's quarter
+//                 turn per step), so the world stays finite; a mechanism that still runs away is contained and reported.
 //   ND-6  low     The first restore of a checkpoint can change it: checkpoint, restore that checkpoint, checkpoint
-//                 again, and 35-36 bytes differ (from byte 8 on) in a world where a body was destroyed and two more
-//                 created before a spherical joint was made. Body states are equal, a second restore is byte-exact and
-//                 the next step is identical, so only byte comparisons of checkpoints see it. Present in 797cd68 and in
-//                 c059041 alike. Guard: none needed for physics; world-misuse.test.mjs takes its baseline after one
+//                 again, and 36 bytes differ (the 32-byte digest of the kit's header and 4 bytes of the native payload) in
+//                 a world where a body was destroyed and two more created before a spherical joint was made. Body states
+//                 are equal, a second restore is byte-exact and the next step is identical, so only byte comparisons of
+//                 checkpoints see it. Present in 797cd68 and in c059041 alike, and with b3w_world_restore_ex (ND-3) as with
+//                 b3w_world_restore. Guard: none needed for physics; world-misuse.test.mjs takes its baseline after one
 //                 restore. Found by the misuse table after the rigid-core merge added bodies to its scene.
 import assert from 'node:assert/strict';
 import test from 'node:test';
@@ -42,22 +39,22 @@ const pool = await nativePool();
 const finite = values => values.every(Number.isFinite);
 const cube = h => [-h, -h, -h, h, -h, -h, h, h, -h, -h, h, -h, -h, -h, h, h, -h, h, h, h, h, -h, h, h];
 
-test('ND-1: a step with a 5 km cube resting in the ground returns', {todo: 'Box3D: the step loops for a box with half extents >= about 5 km in contact with another box'}, () => {
+test('ND-1: a step with a 5 km cube resting in the ground returns (the bridge refuses the cube)', () => {
   // In a child process with a time limit: the defect is a step that never returns. The raw export is called because the
   // adapter refuses a shape this large.
   const script = `
     import {nativePool} from ${JSON.stringify(new URL('./lib/scene-gen.mjs', import.meta.url).href)};
     const world = (await nativePool()).createWorld();
     world.resetWorld({ground: true});
-    world.mod._b3w_world_launch_projectile_handle(world.handle, 0, 6, 0, 0, 0, 0, 5000);
+    const token = world.mod._b3w_world_launch_projectile_handle(world.handle, 0, 6, 0, 0, 0, 0, 5000);
     world.step(1 / 60, 4); world.step(1 / 60, 4);
-    console.log('returned');`;
+    console.log('returned ' + token);`;
   const child = spawnSync(process.execPath, ['--input-type=module', '-e', script], {cwd: fileURLToPath(new URL('../..', import.meta.url)), timeout: 20000, encoding: 'utf8', env: {...process.env, NODE_OPTIONS: ''}});
   assert.equal(child.error?.code, undefined, `the step did not return within 20 s (${child.error?.code})`);
-  assert.match(child.stdout, /returned/);
+  assert.match(child.stdout, /returned 0\b/, `the 5 km dynamic cube is refused (no handle): ${child.stdout}${child.stderr}`);
 });
 
-test('ND-2: joints that contradict each other stay finite', {todo: 'Box3D: an over-constrained body with a limited wheel joint to the world gets NaN velocities'}, () => {
+test('ND-2: joints that contradict each other stay finite, and every containment is reported', () => {
   const world = pool.createWorld();
   try {
     world.resetWorld({ground: true});
@@ -66,15 +63,20 @@ test('ND-2: joints that contradict each other stay finite', {todo: 'Box3D: an ov
     world.createJoint({type: 'revolute', bodyA: null, bodyB: box, frameA: {position: [4, 2, 0]}});
     world.createJoint({type: 'wheel', bodyA: box, bodyB: wheel, frameA: {position: [0, -0.5, 0]}});
     world.createJoint({type: 'wheel', bodyA: box, bodyB: null, frameA: {position: [0, 0.5, 0]}, frameB: {position: [0, -0.5, 0]}, limits: {lower: -0.2, upper: 0.2}, spring: {hertz: 4, dampingRatio: 0.7}, motor: {speed: 3, maxForce: 20}});
+    const before = world.containedTotal();
+    let events = 0;
     for (let step = 0; step < 30; step++) {
       world.step(1 / 60, 4);
+      events += world.collectEvents().events.filter(event => event.kind === 'body-contained').length;
       const state = world.bodyState(box);
       assert.ok(finite([...state.position, ...state.linearVelocity, ...state.angularVelocity]), `the box is not finite after step ${step + 1}: ${JSON.stringify(state.position)}`);
     }
+    // What keeps it finite is the bridge's containment, which is never silent.
+    assert.ok(events > 0 && world.containedTotal() - before === events, `contained ${world.containedTotal() - before} times, ${events} events`);
   } finally { world.destroy(); }
 });
 
-test('ND-3: after a destroy, restoring an earlier checkpoint leaves kept handles on their own bodies', {todo: 'bridge: b3w_world_restore keeps the handle table by row although a destroy moved the rows'}, () => {
+test('ND-3: after a destroy, restoring an earlier checkpoint leaves kept handles on their own bodies', () => {
   const world = pool.createWorld();
   try {
     world.resetWorld({ground: true});
@@ -91,7 +93,7 @@ test('ND-3: after a destroy, restoring an earlier checkpoint leaves kept handles
   } finally { world.destroy(); }
 });
 
-test('ND-4: an overlap query counts a compound body once', {todo: 'bridge: overlap callbacks report one hit per shape, so totals and overflow count shapes'}, () => {
+test('ND-4: an overlap query counts a compound body once', () => {
   const world = pool.createWorld();
   try {
     world.resetWorld({ground: false});
@@ -102,7 +104,7 @@ test('ND-4: an overlap query counts a compound body once', {todo: 'bridge: overl
   } finally { world.destroy(); }
 });
 
-test('ND-5: a random program of in-range operations with joints stays finite', {todo: 'Box3D: a jointed mechanism built by fuzz seed 21702374 diverges with all inputs in range'}, async () => {
+test('ND-5: a random program of in-range operations with joints stays finite', async () => {
   const {kit} = await import('./lib/kit.mjs'), {rng} = await import('./lib/rng.mjs'), {WorldSession, checkInvariants} = await import('./lib/world-program.mjs');
   const world = await kit.createWorld({strict: true, gravity: [0, -9.81, 0]});
   try {
@@ -110,11 +112,26 @@ test('ND-5: a random program of in-range operations with joints stays finite', {
     world.reset({gravity: [0, -9.81, 0], seed});
     for (let i = 0; i < 260; i++) { session.op(); if (r.bool(0.55)) session.step(r.int(1, 4)); }
     checkInvariants(world, session.graveyard);
-    assert.equal(world.stats().nonFiniteSince, null);
+    assert.deepEqual([world.stats().nonFiniteSince, world.stats().contained], [null, 0]);
   } finally { world.dispose(); }
+  // The four seeds on record, in a lenient world: finite with every invariant, and what the bridge contained (one of
+  // them still runs away and is contained) is counted, one event each.
+  for (const seed of [21702374, 21741969, 20427415, 20878798]) {
+    const lenient = await kit.createWorld({gravity: [0, -9.81, 0]});
+    try {
+      const r = rng(seed), session = new WorldSession(lenient, r);
+      lenient.reset({gravity: [0, -9.81, 0], seed});
+      let events = 0;
+      lenient.onEvent(event => { if (event.kind === 'body-contained') events++; });
+      for (let i = 0; i < 260; i++) { session.op(); if (r.bool(0.55)) session.step(r.int(1, 4)); }
+      checkInvariants(lenient, session.graveyard);
+      assert.equal(lenient.stats().nonFiniteSince, null, `seed ${seed}`);
+      assert.equal(lenient.stats().contained, events, `seed ${seed}: one event per containment`);
+    } finally { lenient.dispose(); }
+  }
 });
 
-test('ND-6: restoring a checkpoint and taking it again gives the same bytes', {todo: 'bridge or Box3D: the first restore rewrites 35-36 bytes of the checkpoint after a destroyed body slot was reused'}, async () => {
+test('ND-6: restoring a checkpoint and taking it again gives the same bytes', {todo: 'bridge or Box3D: the first restore rewrites 4 bytes of the native checkpoint (36 with the header digest) after a destroyed body slot was reused; not changed by the ND-3 fix'}, async () => {
   const {kit} = await import('./lib/kit.mjs');
   const world = await kit.createWorld({gravity: [0, -9.81, 0]});
   try {

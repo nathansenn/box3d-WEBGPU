@@ -39,5 +39,7 @@ These are the rules `world.diagnose()` checks ([the table](../../reference/error
 - Put each frame near its body: within 50 radii of gyration of the centre of mass.
 - Do not ask one body to satisfy joints that contradict each other.
 
-A set-up outside them can make the native solver diverge. A world created with `strict: true` throws
-`NUMERICAL_FAILURE` at the step where that happens; otherwise `world.stats().nonFiniteSince` records it.
+A set-up outside them can make the native solver diverge. The bridge then puts the diverged bodies back at their
+pose of the step before, at rest, so the world stays finite: `world.stats().contained` counts them, each is a
+`'body-contained'` event, and `world.diagnose()` reports the rule `body-contained`. A world created with
+`strict: true` throws `NUMERICAL_FAILURE` at the step where that happens instead.

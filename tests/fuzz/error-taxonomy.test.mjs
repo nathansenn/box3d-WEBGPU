@@ -33,7 +33,7 @@ test('docs/ERRORS.md is written from the taxonomy and the limits, and is current
   assert.equal(check.status, 0, check.stderr || check.stdout);
   const doc = readFileSync(`${root}docs/ERRORS.md`, 'utf8');
   for (const code of Object.keys(ENGINE_ERRORS)) assert.ok(doc.includes(`| \`${code}\` |`), `${code} has a row`);
-  for (const rule of ['non-finite', 'far-from-origin', 'tiny-shape', 'mass-ratio', 'joint-frequency', 'joint-lever', 'fast-small-body', 'cfl', 'critical-time-step', 'explicit-heat-limit', 'substeps']) assert.ok(doc.includes(`| \`${rule}\` |`), `diagnose rule ${rule} has a row`);
+  for (const rule of ['non-finite', 'body-contained', 'far-from-origin', 'tiny-shape', 'mass-ratio', 'joint-frequency', 'joint-lever', 'fast-small-body', 'cfl', 'critical-time-step', 'explicit-heat-limit', 'substeps']) assert.ok(doc.includes(`| \`${rule}\` |`), `diagnose rule ${rule} has a row`);
 });
 
 // Built-in errors still thrown on purpose by the files the kit ships, by file. New code throws EngineError; this
@@ -109,10 +109,11 @@ test('world.diagnose() names each rule with its numbers, and is empty for a soun
   } finally { world.dispose(); }
 });
 
-test('a strict world throws NUMERICAL_FAILURE at the step that leaves a non-finite transform; a lenient one records it', async () => {
+test('a strict world throws NUMERICAL_FAILURE at the step that diverges; a lenient one records it', async () => {
   const build = async strict => {
     const world = await kit.createWorld({gravity: [0, -9.81, 0], strict});
-    // The contradicting joints of native defect ND-2: valid inputs that Box3D turns into NaN.
+    // The contradicting joints of native defect ND-2: valid inputs that Box3D's solve turns into a runaway, which the
+    // bridge contains (the body goes back to its pose of the step before, at rest) before it becomes NaN.
     const box = world.createBody({shape: {kind: 'box', halfExtents: [0.5, 0.5, 0.5]}, position: [0, 2, 0]}), wheel = world.createBody({shape: {kind: 'sphere', radius: 0.3}, position: [0, 0.3, 3]});
     world.createJoint({type: 'revolute', bodyA: null, bodyB: box, frameA: {position: [4, 2, 0]}});
     world.createJoint({type: 'wheel', bodyA: box, bodyB: wheel, frameA: {position: [0, -0.5, 0]}});
@@ -123,14 +124,25 @@ test('a strict world throws NUMERICAL_FAILURE at the step that leaves a non-fini
   try {
     let thrown = null, steps = 0;
     try { for (; steps < 60; steps++) strict.step(); } catch (error) { thrown = error; }
-    if (thrown === null) return; // the native defect is fixed: nothing diverges, nothing to detect
-    assert.equal(thrown.code, 'NUMERICAL_FAILURE'); assert.match(thrown.message, /^Step \d+ left body row \d+ with a transform that is not finite/);
-    assert.equal(strict.stats().nonFiniteSince, steps + 1);
+    assert.ok(thrown, 'the strict world throws within 60 steps');
+    assert.equal(thrown.code, 'NUMERICAL_FAILURE');
+    assert.match(thrown.message, /^Step \d+ (diverged for (a body|\d+ bodies): the native bridge put|left body row \d+ with a transform that is not finite)/);
+    const at = steps + 1, stats = strict.stats();
+    assert.ok(stats.contained > 0 || stats.nonFiniteSince === at, 'the strict world recorded what it threw for');
+    const events = [];
+    lenient.onEvent(event => { if (event.kind === 'body-contained') events.push(event); });
     for (let i = 0; i < 60; i++) lenient.step();
-    assert.equal(lenient.stats().nonFiniteSince, steps + 1, 'the lenient world records the same step without throwing');
-    assert.deepEqual(lenient.diagnose().filter(f => f.rule === 'non-finite').map(f => f.severity)[0], 'error');
-    const saved = lenient.checkpoint(); lenient.reset({gravity: [0, -9.81, 0]});
-    assert.equal(lenient.stats().nonFiniteSince, null, 'a reset clears it'); void saved;
+    const after = lenient.stats();
+    assert.equal(after.nonFiniteSince, null, 'with containment the lenient world stays finite');
+    assert.ok(after.contained > 0, 'the lenient world counts the containments');
+    assert.equal(events.length, after.contained, 'one body-contained event per containment');
+    const finding = lenient.diagnose().find(f => f.rule === 'body-contained');
+    assert.equal(finding?.severity, 'error');
+    assert.equal(finding.numbers.count, after.contained);
+    assert.equal(finding.numbers.tick, at, 'the lenient world contains at the step where the strict one threw');
+    lenient.reset({gravity: [0, -9.81, 0]});
+    assert.deepEqual([lenient.stats().nonFiniteSince, lenient.stats().contained], [null, 0], 'a reset clears both');
+    assert.equal(lenient.diagnose().find(f => f.rule === 'body-contained'), undefined);
   } finally { strict.dispose(); lenient.dispose(); }
 });
 
