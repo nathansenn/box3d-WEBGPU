@@ -146,3 +146,23 @@ test('ND-3: restoring a checkpoint this world wrote, after a destroy, gives ever
     assert.deepEqual(bodies.map(body => Math.round(physics.getState(body).position[0])), [1, 2, 3]);
   } finally { physics.dispose(); }
 });
+
+test('ND-4: an overlap query counts bodies, so a compound counts once in hits, totals and overflow', () => {
+  const world = pool.createWorld();
+  try {
+    world.resetWorld({ground: false});
+    const compound = world.createBody({shape: {kind: 'compound', shapes: [{shape: {kind: 'sphere', radius: 0.2}, position: [0.3, 0, 0]}, {shape: {kind: 'sphere', radius: 0.2}, position: [-0.3, 0, 0]}, {shape: {kind: 'box', halfExtents: [0.1, 0.1, 0.1]}}]}, position: [0, 2, 0], type: 'static'});
+    const [one] = world.queryBatch([{kind: 'sphere-overlap', origin: [0, 2, 0], radius: 3, limit: 1}]);
+    assert.equal(one.hits.length, 1);
+    assert.deepEqual({totalHits: one.totalHits, overflow: one.overflow}, {totalHits: 1, overflow: false}, 'one body overlaps, so nothing overflowed a limit of 1');
+    const sphere = world.createBody({shape: {kind: 'sphere', radius: 0.2}, position: [1, 2, 0], type: 'static'});
+    for (const query of [{kind: 'sphere-overlap', radius: 3}, {kind: 'box-overlap', halfExtents: [3, 3, 3]}, {kind: 'aabb-candidates', halfExtents: [3, 3, 3]}, {kind: 'capsule-overlap', radius: 1.5, halfLength: 1}]) {
+      const [all] = world.queryBatch([{...query, origin: [0, 2, 0], limit: 8}]), [cut] = world.queryBatch([{...query, origin: [0, 2, 0], limit: 1}]);
+      assert.deepEqual(all.hits.map(hit => hit.body.token).sort(), [compound.token, sphere.token].sort(), `${query.kind}: each body once`);
+      assert.deepEqual([all.totalHits, all.overflow, cut.hits.length, cut.totalHits, cut.overflow], [2, false, 1, 2, true], `${query.kind}: totals count bodies`);
+    }
+    // Casts still report each shape they reach: their hits differ in point and fraction.
+    const [ray] = world.queryBatch([{kind: 'ray', origin: [-3, 2, 0], translation: [6, 0, 0], limit: 8}]);
+    assert.ok(ray.hits.length >= 3, `a ray through the compound and the sphere reaches its shapes (${ray.hits.length})`);
+  } finally { world.destroy(); }
+});

@@ -586,6 +586,12 @@ The fuzzers (`tests/fuzz`, docs/ROBUSTNESS.md) found defects in the native side.
   its slot is used again (slots made after the checkpoint stay in the table, free, with a newer generation). A
   checkpoint from elsewhere (another page, a world rebuilt the same way) keeps the row-by-row rule, as before.
 
+- **ND-4, overlaps counted shapes.** Overlap queries (sphere, box, capsule, AABB candidates) reported one hit per
+  overlapping shape, so a compound body counted once per child in `totalHits` and `overflow`, and could use up a
+  limit alone. The bridge now collects the bodies, keeps each once (smallest handles first, the order the query sort
+  gives overlaps) and counts bodies. Casts still report each shape they reach, since those hits differ in point and
+  fraction.
+
 ## Custom filter and pre-solve callbacks: not exposed
 
 Box3D can call the application for every candidate pair (`b3World_SetCustomFilterCallback`) and for every touching

@@ -1,5 +1,9 @@
 # Changelog
 
+## Unreleased — 2026-11-16 — Bridge: overlap queries count bodies, not shapes (ND-4)
+
+- **Bridge** (both WASM files and `BUILD_PROVENANCE.json` rebuilt; API version 1): sphere, box, capsule and AABB-candidate overlaps keep each body once and count bodies in `totalHits` and `overflow`; a compound no longer uses up a limit alone. Casts are unchanged. Test (`v22-rigid-native`): a three-child compound with limit 1 is one hit, total 1, no overflow; with a second body every overlap kind gives each body once, total 2, and overflow only at limit 1.
+
 ## Unreleased — 2026-11-16 — Bridge: a world's own checkpoint restores its own handles (ND-3)
 
 - **Bridge** (both WASM files and `BUILD_PROVENANCE.json` rebuilt; API version 1; new optional export `b3w_world_restore_ex`): restoring with `takeHandles` takes the checkpoint's handle table and keeps every slot the world has used since, free and with a generation above any handle given out at it, so that a handle of a body created after the checkpoint stays dead. `NativeWorldBackend.restoreCheckpoint` uses it for the checkpoints this world wrote since its last reset (recognised by digest, also as a copy of the bytes); other checkpoints keep the row-by-row rule.

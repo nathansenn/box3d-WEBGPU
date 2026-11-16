@@ -385,6 +385,9 @@ typedef struct B3WQueryVisit
     const B3WQueryInput* input;
     B3WQueryHit* hits;
     uint32_t count, total;
+    // Overlaps: every body handle met, one per overlapping shape, so that a compound body counts once (ND-4).
+    uint64_t* bodies;
+    uint32_t bodyCount, bodyCapacity;
 } B3WQueryVisit;
 
 static int b3w_compare_query_hit(const void* a, const void* b)
@@ -456,8 +459,37 @@ static bool b3w_query_overlap_callback(b3ShapeId shape, void* user)
 {
     B3WQueryVisit* visit = (B3WQueryVisit*)user;
     uint64_t body = b3w_query_body(visit, shape);
-    if (body != 0u) b3w_query_keep(visit, (B3WQueryHit){ .body = body, .triangle = -1, .child = -1 });
+    if (body == 0u) return true;
+    if (visit->bodyCount == visit->bodyCapacity)
+    {
+        const uint32_t capacity = visit->bodyCapacity == 0u ? 64u : visit->bodyCapacity * 2u;
+        uint64_t* list = (uint64_t*)realloc(visit->bodies, (size_t)capacity * sizeof(uint64_t));
+        if (list == NULL) { b3w_query_keep(visit, (B3WQueryHit){ .body = body, .triangle = -1, .child = -1 }); return true; } // out of memory: count shapes, as before
+        visit->bodies = list; visit->bodyCapacity = capacity;
+    }
+    visit->bodies[visit->bodyCount++] = body;
     return true;
+}
+
+static int b3w_compare_u64(const void* a, const void* b)
+{
+    const uint64_t x = *(const uint64_t*)a, y = *(const uint64_t*)b;
+    return x < y ? -1 : x > y ? 1 : 0;
+}
+
+// The overlap's bodies, each once: the `limit` smallest handles are its hits (the order the query sort gives
+// overlaps, whose fractions are all 0), and the total counts bodies, not shapes.
+static void b3w_query_finish_overlap(B3WQueryVisit* visit)
+{
+    if (visit->bodyCount == 0u) return;
+    qsort(visit->bodies, visit->bodyCount, sizeof(uint64_t), b3w_compare_u64);
+    for (uint32_t i = 0; i < visit->bodyCount; ++i)
+    {
+        if (i > 0u && visit->bodies[i] == visit->bodies[i - 1u]) continue;
+        b3w_query_keep(visit, (B3WQueryHit){ .body = visit->bodies[i], .triangle = -1, .child = -1 });
+    }
+    free(visit->bodies);
+    visit->bodies = NULL; visit->bodyCount = 0u; visit->bodyCapacity = 0u;
 }
 
 static int b3w_ctx_query_batch(B3WContext* ctx, int count, uint32_t version)
@@ -526,6 +558,7 @@ static int b3w_ctx_query_batch(B3WContext* ctx, int count, uint32_t version)
                 b3World_OverlapAABB(ctx->world, bounds, filter, b3w_query_overlap_callback, &visit);
             }
         }
+        b3w_query_finish_overlap(&visit);
         qsort(visit.hits, visit.count, sizeof(B3WQueryHit), b3w_compare_query_hit);
         arena->statuses[i] = (B3WQueryStatus){offset,visit.count,visit.total,visit.total>visit.count ? 1u : 0u};
         offset += q->limit;
