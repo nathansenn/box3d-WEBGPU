@@ -246,6 +246,21 @@ export interface WorldOptions extends FixedStepOptions {
   readonly capacity?: number;
   /** Keep the previous step's transforms for render interpolation. Default true. */
   readonly interpolate?: boolean;
+  /**
+   * Stiffness of every joint created without its own `stiffness`. Default: Box3D's, 60 Hz with damping ratio 2.
+   * `'match-substeps'` takes the stiffest Box3D allows at this step and sub-step count, a quarter of the sub-step
+   * rate (60 Hz at 1/60 s and 4 sub-steps, 120 Hz at 8, 240 Hz at 16), with damping ratio 2. Box3D caps a joint at
+   * that rate whatever it is given, so more sub-steps make joints stiffer only with this option (or a per-joint
+   * `stiffness`). A joint is created with the stiffness it gets here, so recordings, checkpoints and saved scenes
+   * hold it like any other joint setting.
+   */
+  readonly jointStiffness?: 'match-substeps' | {readonly hertz: number; readonly dampingRatio?: number};
+  /**
+   * Contact stiffness set at every reset: `{hertz, dampingRatio, pushSpeed}` as `configure()` takes them (defaults
+   * 30 Hz, 10, 3 m/s), or `'match-substeps'`: an eighth of the sub-step rate (Box3D's cap: 30 Hz at 1/60 s and 4
+   * sub-steps, 60 Hz at 8, 120 Hz at 16) with the default damping and push-out speed. Default: Box3D's settings.
+   */
+  readonly contactStiffness?: 'match-substeps' | {readonly hertz?: number; readonly dampingRatio?: number; readonly pushSpeed?: number};
 }
 
 export interface SpawnBoxOptions {
@@ -351,6 +366,9 @@ export class PhysicsWorld {
   readonly subSteps: number;
   readonly seed: number;
   private ownedPool: NativeWorldPool | null;
+  // The jointStiffness and contactStiffness options, as given (resolved against the step when used).
+  private readonly jointStiffnessOption: WorldOptions['jointStiffness'];
+  private readonly contactStiffnessOption: WorldOptions['contactStiffness'];
   private readonly userData = new Map<bigint, unknown>();
   private tickCount = 0;
   private lastStepMs = 0;
@@ -380,6 +398,8 @@ export class PhysicsWorld {
       this.subSteps = options.subSteps ?? 4;
       this.seed = (options.seed ?? 1) >>> 0;
       this.interpolate = options.interpolate ?? true;
+      this.jointStiffnessOption = checkStiffness(options.jointStiffness, 'jointStiffness');
+      this.contactStiffnessOption = checkStiffness(options.contactStiffness, 'contactStiffness');
       if (options.capacity !== undefined) this.native.reserveBodyCapacity(options.capacity);
     } catch (error) {
       this.native.destroy();
@@ -541,6 +561,8 @@ export class PhysicsWorld {
 
   /** Connect two bodies, or a body and the fixed world, with a joint. */
   createJoint(options: JointOptions): Joint {
+    const stiffness = options.stiffness === undefined ? this.jointDefaults() : null;
+    if (stiffness) options = {...options, stiffness};
     this.general('createJoint', [options]);
     const frame = (f?: JointFrame) => f ? {position: f.position ? toVec3(f.position) : undefined, rotation: f.rotation ? toQuat(f.rotation) : undefined} : undefined;
     const joint = this.native.createJoint({...options, frameA: frame(options.frameA), frameB: frame(options.frameB), drive: options.drive ? drive(options.drive) : undefined});
@@ -654,6 +676,8 @@ export class PhysicsWorld {
   bodyKinds(): BodyKind[] { return this.native.bodyKinds(); }
 
   private afterReset(): void {
+    const contact = this.contactDefaults();
+    if (contact) this.native.setWorldSettings(contact);
     this.loop.reset();
     this.userData.clear();
     this.tickCount = 0;
@@ -945,6 +969,24 @@ export class PhysicsWorld {
     else this.resetArena(this.seed);
     this.jointLog = [];
     this.recording = {seed: this.seed, commands: [], every, checkpoints: [], world};
+    // The contactStiffness option goes into the log as a configure() call, so that a replay in a world created
+    // without the option is the same simulation.
+    const contact = this.contactDefaults();
+    if (contact) this.configure(contact);
+  }
+
+  /** The stiffness a joint created without its own gets (the jointStiffness option), or null for Box3D's default. */
+  jointDefaults(): {hertz: number; dampingRatio: number} | null {
+    const option = this.jointStiffnessOption;
+    if (option === undefined) return null;
+    return option === 'match-substeps' ? {hertz: 0.25 * this.subSteps / this.loop.step, dampingRatio: 2} : {hertz: option.hertz, dampingRatio: option.dampingRatio ?? 2};
+  }
+  /** The contact settings every reset applies (the contactStiffness option), or null for Box3D's. */
+  contactDefaults(): {contactHertz: number; contactDampingRatio: number; contactPushSpeed: number} | null {
+    const option = this.contactStiffnessOption;
+    if (option === undefined) return null;
+    if (option === 'match-substeps') return {contactHertz: 0.125 * this.subSteps / this.loop.step, contactDampingRatio: 10, contactPushSpeed: 3};
+    return {contactHertz: option.hertz ?? 30, contactDampingRatio: option.dampingRatio ?? 10, contactPushSpeed: option.pushSpeed ?? 3};
   }
 
   stopRecording(): ReplayLog {
@@ -1098,4 +1140,15 @@ function writeMatrix(m: Float32Array, o: number, x: number, y: number, z: number
   m[o + 4] = 2 * (xy - wz) * hy; m[o + 5] = (1 - 2 * (xx + zz)) * hy; m[o + 6] = 2 * (yz + wx) * hy; m[o + 7] = 0;
   m[o + 8] = 2 * (xz + wy) * hz; m[o + 9] = 2 * (yz - wx) * hz; m[o + 10] = (1 - 2 * (xx + yy)) * hz; m[o + 11] = 0;
   m[o + 12] = px; m[o + 13] = py; m[o + 14] = pz; m[o + 15] = 1;
+}
+
+function checkStiffness<T extends WorldOptions['jointStiffness'] | WorldOptions['contactStiffness']>(value: T, name: string): T {
+  if (value === undefined || value === 'match-substeps') return value;
+  if (!value || typeof value !== 'object') throw new EngineError('INVALID_PAYLOAD', `${name} must be 'match-substeps' or an object.`);
+  for (const [key, number] of Object.entries(value)) {
+    if (!['hertz', 'dampingRatio', 'pushSpeed'].includes(key) || (name === 'jointStiffness' && key === 'pushSpeed')) throw new EngineError('INVALID_PAYLOAD', `${name}.${key} is not a setting.`);
+    if (typeof number !== 'number' || !Number.isFinite(number) || number < 0 || (key === 'hertz' && number === 0)) throw new EngineError('INVALID_PAYLOAD', `${name}.${key} must be a finite number above 0${key === 'hertz' ? '' : ' or 0'}.`);
+  }
+  if (name === 'jointStiffness' && (value as {hertz?: unknown}).hertz === undefined) throw new EngineError('INVALID_PAYLOAD', 'jointStiffness.hertz is required.');
+  return value;
 }

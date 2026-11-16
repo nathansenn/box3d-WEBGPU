@@ -282,11 +282,15 @@ const TW = {
   settings: 'world settings: sleeping, restitution and hit thresholds, the speed limit and motion locks do what they say',
   push: 'contact push-out speed: an embedded ball leaves the ground at the set speed and no faster',
   intro: 'profile, counters, contact statistics and debug lines of a known scene are exact',
+  stiffness: 'jointStiffness and contactStiffness: match-substeps sets the caps of Box3D, the defaults change nothing, and the static error falls as 1 / f^2',
 };
 const explosion = () => run('controls/explosion', (S, K) => S.explosion(K));
 const settings = () => run('controls/settings', (S, K) => S.worldSettings(K));
 const pushOut = () => run('controls/push', (S, K) => S.pushOutSpeed(K));
 const introspection = () => run('controls/introspection', (S, K) => S.introspection(K));
+const chain = (subSteps, match) => run(`controls/chain/${subSteps}/${match}`, (S, K) => S.chainStretch(K, {subSteps, ...(match ? {options: {jointStiffness: 'match-substeps'}} : {})}));
+const stack = (subSteps, match) => run(`controls/stack/${subSteps}/${match}`, (S, K) => S.heavyStack(K, {subSteps, ...(match ? {options: {contactStiffness: 'match-substeps'}} : {})}));
+const SOFT = 'A soft constraint (Box3D\'s soft step) holds a static load with an error proportional to 1 / f^2, all else equal: twice the frequency, a quarter of the error.';
 const controlCases = defineCases('rigid-core', CONTROLS, [
   {id: 'rigid-core.explosion.sphere', title: 'Explosion: speed given to a sphere', quantity: 'speed of a 0.2 m sphere inside the radius, 50 N s/m^2', unit: 'm/s', test: TW.explosion,
     reference: {formula: 'v = P pi r^2 / m', value: null}, tolerance: relative(1e-5), measure: async () => { const r = await explosion(); return {value: r.near, reference: r.exactNear}; }},
@@ -315,6 +319,19 @@ const controlCases = defineCases('rigid-core', CONTROLS, [
     reference: {formula: 'depth <= linear slop', value: SLOP}, tolerance: upper(0), measure: async () => (await introspection()).stats.deepestPenetration},
   {id: 'rigid-core.debug.bounds', title: 'Debug draw: bounds', quantity: 'line vertices for the bounds of 50 shapes', unit: 'vertices', test: TW.intro,
     reference: {formula: 'N = 50 x 12 edges x 2', value: 1200}, tolerance: absolute(0), measure: async () => (await introspection()).boundsVertices},
+  {id: 'rigid-core.stiffness.joint-cap', title: 'jointStiffness match-substeps: joint frequency', quantity: 'stiffness of a joint created at 1/60 s and 8 sub-steps', unit: 'Hz', test: TW.stiffness,
+    reference: {formula: 'f = (1/4) x sub-step rate', value: 120}, tolerance: absolute(0), measure: async () => (await chain(8, true)).jointHertz},
+  {id: 'rigid-core.stiffness.contact-cap', title: 'contactStiffness match-substeps: contact frequency', quantity: 'contact hertz in force at 1/60 s and 8 sub-steps', unit: 'Hz', test: TW.stiffness,
+    reference: {formula: 'f = (1/8) x sub-step rate', value: 60}, tolerance: absolute(0), measure: async () => (await stack(8, true)).settings.contactHertz},
+  {id: 'rigid-core.stiffness.chain', title: 'Joint stiffness: stretch of a heavy-ended chain at twice the frequency', quantity: 'stretch of 60 links under a 100x end mass at 8 sub-steps, 120 Hz', unit: '1', test: TW.stiffness,
+    reference: {formula: 'e(120 Hz) = e(60 Hz) / 4', value: null}, tolerance: relative(0.05), note: SOFT + ' At 16 sub-steps (240 Hz) the measured stretch is 28% above e/16: another error than the joint spring dominates there, so it has no row.',
+    measure: async () => { const [a, b] = await Promise.all([chain(8, false), chain(8, true)]); return {value: b.stretch, reference: a.stretch / 4}; }},
+  {id: 'rigid-core.stiffness.stack-8', title: 'Contact stiffness: overlap under a 100x heavier box at twice the frequency', quantity: 'deepest overlap of four light boxes under a heavy one, 8 sub-steps, 60 Hz', unit: 'm', test: TW.stiffness,
+    reference: {formula: 'd(60 Hz) = d(30 Hz) / 4', value: null}, tolerance: relative(0.05), note: SOFT,
+    measure: async () => { const [a, b] = await Promise.all([stack(8, false), stack(8, true)]); return {value: b.deepest, reference: a.deepest / 4}; }},
+  {id: 'rigid-core.stiffness.stack-16', title: 'Contact stiffness: the same at four times the frequency', quantity: 'deepest overlap at 16 sub-steps, 120 Hz', unit: 'm', test: TW.stiffness,
+    reference: {formula: 'd(120 Hz) = d(30 Hz) / 16', value: null}, tolerance: relative(0.05), note: SOFT,
+    measure: async () => { const [a, b] = await Promise.all([stack(16, false), stack(16, true)]); return {value: b.deepest, reference: a.deepest / 16}; }},
   {id: 'rigid-core.debug.contacts', title: 'Debug draw: contact points', quantity: 'line vertices for 192 contact points', unit: 'vertices', test: TW.intro,
     reference: {formula: 'N = 192 x 3 lines x 2', value: 1152}, tolerance: absolute(0), measure: async () => (await introspection()).contactVertices},
 ]);

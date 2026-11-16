@@ -1238,3 +1238,47 @@ export async function exampleCheckpoint(K, name, first, then) {
     return {bytes: bytes.length, restoredSame: restored === at, hashA: a.world.exactHash(), hashB: b.world.exactHash(), rolesSame: text(a.roles) === text(b.roles), tick: a.world.tick, moved: at !== a.world.exactHash()};
   } finally { a.world.dispose(); b.world.dispose(); }
 }
+
+// ---------------------------------------------------------------------------------------------------
+// The jointStiffness and contactStiffness world options: what they set, and what they change.
+// ---------------------------------------------------------------------------------------------------
+
+/**
+ * A chain of `links` 0.25 m capsules on spherical joints, hanging from the world, with a ball of `ratio` times a
+ * link's mass at its end, after `seconds` at 60 Hz with `subSteps`. Returns the stretch: (length now - rest length) /
+ * rest length, measured from the anchor to the ball, and the stiffness the joints were created with.
+ */
+export async function chainStretch(K, {links = 60, ratio = 100, subSteps = 8, seconds = 4, options = {}} = {}) {
+  const world = await K.createWorld({step: 1 / 60, subSteps, gravity: [0, -G, 0], ground: false, ...options});
+  try {
+    const half = 0.125, radius = 0.04, bodies = [];
+    let previous = null;
+    for (let i = 0; i < links; i++) {
+      const y = -(i + 0.5) * 2 * half;
+      const body = world.createBody({shape: {kind: 'capsule', radius, halfLength: half - radius}, position: [0, y, 0], density: 1000, linearDamping: 0.1, angularDamping: 0.1});
+      world.createJoint({type: 'spherical', bodyA: previous, bodyB: body, frameA: {position: previous ? [0, -half, 0] : [0, 0, 0]}, frameB: {position: [0, half, 0]}});
+      bodies.push(body); previous = body;
+    }
+    const linkMass = world.getState(bodies[0]).mass, r = Math.cbrt(ratio * linkMass / (1000 * 4 / 3 * Math.PI));
+    const ball = world.createBody({shape: {kind: 'sphere', radius: r}, position: [0, -links * 2 * half - r, 0], density: 1000, linearDamping: 0.1});
+    const last = world.createJoint({type: 'spherical', bodyA: previous, bodyB: ball, frameA: {position: [0, -half, 0]}, frameB: {position: [0, r, 0]}});
+    const rest = links * 2 * half;
+    for (let i = 0; i < Math.round(seconds * 60); i++) world.step();
+    const end = world.getState(ball).position;
+    return {stretch: (-(end[1]) - r - rest) / rest, jointHertz: world.getJointDetails(last).stiffness.hertz, defaults: world.jointDefaults(), ratio: world.getState(ball).mass / linkMass, links};
+  } finally { world.dispose(); }
+}
+
+/** Four light boxes under one `ratio` times heavier, on the ground, after `seconds`: the deepest contact overlap and the contact settings in force. */
+export async function heavyStack(K, {ratio = 100, subSteps = 8, seconds = 3, options = {}} = {}) {
+  const world = await K.createWorld({step: 1 / 60, subSteps, gravity: [0, -G, 0], ground: true, ...options});
+  try {
+    const half = 0.25;
+    for (let i = 0; i < 4; i++) world.createBody({shape: {kind: 'box', halfExtents: [half, half, half]}, position: [0, half + i * 2 * half, 0], density: 100});
+    world.createBody({shape: {kind: 'box', halfExtents: [half, half, half]}, position: [0, half + 4 * 2 * half, 0], density: 100 * ratio});
+    world.configure({sleeping: false});
+    let deepest = 0;
+    for (let i = 0; i < Math.round(seconds * 60); i++) { world.step(); if (i > 60) deepest = Math.max(deepest, world.contactStats().deepestPenetration); }
+    return {deepest, settings: world.settings(), defaults: world.contactDefaults()};
+  } finally { world.dispose(); }
+}

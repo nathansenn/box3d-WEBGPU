@@ -366,6 +366,33 @@ The explosion matches its formula to float32: a sphere of radius 0.2 m takes `P 
 `P A / m`. The contact statistics of 16 stacks of three boxes report 48 pairs, 192 points and a total normal force
 of 117,720 N, which is 16 × (3 + 2 + 1) box weights to 6 digits, with the deepest overlap at 1.1 mm.
 
+### Stiffness that follows the sub-steps
+
+Box3D caps a joint's stiffness at a quarter of the sub-step rate and contact stiffness at an eighth of it, and its
+defaults (joints 60 Hz, contacts 30 Hz) are those caps at 1/60 s and 4 sub-steps. With more sub-steps the defaults,
+not the caps, are what holds a chain or a stack together, so more sub-steps alone change little. Two world options
+raise them, opt in:
+
+```js
+createWorld({subSteps: 8, jointStiffness: 'match-substeps', contactStiffness: 'match-substeps'});
+// or numbers: jointStiffness: {hertz, dampingRatio}, contactStiffness: {hertz, dampingRatio, pushSpeed}
+```
+
+`jointStiffness` is given to every joint created without its own `stiffness` (a joint's own wins); the joint is
+created with it, so recordings, checkpoints and saved scenes hold it. `contactStiffness` is applied at every reset
+and written into a recording as a `configure()` call, so a replay in a world created without the option matches.
+At 1/60 s and 4 sub-steps `'match-substeps'` is the default, hash for hash.
+
+| Case (60 Hz step) | Default | match-substeps | 1 / f² predicts |
+|---|---|---|---|
+| Stretch of a 60-link chain under a 100× end mass, 8 sub-steps | 3.690 % | 0.941 % | 0.922 % (row, 5 %) |
+| The same, 16 sub-steps | 4.082 % | 0.326 % | 0.255 % (28 % off: no row) |
+| Overlap of 4 light boxes under a 100× heavier one, 8 sub-steps | 59.1 mm | 14.5 mm | 14.8 mm (row, 5 %) |
+| The same, 16 sub-steps | 59.1 mm | 3.60 mm | 3.69 mm (row, 5 %) |
+
+A soft constraint holds a static load with an error proportional to 1 / f²; at 240 Hz the chain's remaining
+stretch is above that, so another error than the joint spring dominates there.
+
 ### Building large scenes
 
 - **Hull cache.** The bridge keeps the last 32 hulls it computed, keyed by the exact bits of their points, per world

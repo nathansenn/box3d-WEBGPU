@@ -7844,6 +7844,15 @@ export interface WorldOptions extends FixedStepOptions {
     readonly seed?: number;
     readonly capacity?: number;
     readonly interpolate?: boolean;
+    readonly jointStiffness?: 'match-substeps' | {
+        readonly hertz: number;
+        readonly dampingRatio?: number;
+    };
+    readonly contactStiffness?: 'match-substeps' | {
+        readonly hertz?: number;
+        readonly dampingRatio?: number;
+        readonly pushSpeed?: number;
+    };
 }
 export interface SpawnBoxOptions {
     readonly position: Vec3Like;
@@ -7929,6 +7938,8 @@ export declare class PhysicsWorld {
     readonly subSteps: number;
     readonly seed: number;
     private ownedPool;
+    private readonly jointStiffnessOption;
+    private readonly contactStiffnessOption;
     private readonly userData;
     private tickCount;
     private lastStepMs;
@@ -8083,6 +8094,15 @@ export declare class PhysicsWorld {
     colorVersion(): number;
     stats(): WorldStats;
     startRecording(options?: RecordingOptions): void;
+    jointDefaults(): {
+        hertz: number;
+        dampingRatio: number;
+    } | null;
+    contactDefaults(): {
+        contactHertz: number;
+        contactDampingRatio: number;
+        contactPushSpeed: number;
+    } | null;
     stopRecording(): ReplayLog;
     get isRecording(): boolean;
     checkpoint(): Uint8Array;

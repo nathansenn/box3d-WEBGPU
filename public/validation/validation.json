@@ -5,8 +5,8 @@
  "generatedBy": "node scripts/validation-report.mjs",
  "digits": 9,
  "totals": {
-  "cases": 694,
-  "passed": 694,
+  "cases": 699,
+  "passed": 699,
   "failed": 0,
   "domains": 23
  },
@@ -51,8 +51,8 @@
     "The example scenes are checked at a few closed-form points (stairs, jump, sag, ray lengths, the bridge at rest); the rest of what they do (a lap of the course, the wreck of the bridge) is asserted as ranges and as determinism, not against a reference.",
     "Stacks and piles of many bodies are not covered by this domain yet, and neither are step times on several threads."
    ],
-   "cases": 102,
-   "passed": 102
+   "cases": 107,
+   "passed": 107
   },
   {
    "id": "water-coupling",
@@ -4134,6 +4134,149 @@
     "measured": "1200",
     "error": "0",
     "tolerance": "±0"
+   }
+  },
+  {
+   "id": "rigid-core.stiffness.joint-cap",
+   "domain": "rigid-core",
+   "title": "jointStiffness match-substeps: joint frequency",
+   "quantity": "stiffness of a joint created at 1/60 s and 8 sub-steps",
+   "unit": "Hz",
+   "formula": "f = (1/4) x sub-step rate",
+   "reference": 120,
+   "measured": 120,
+   "error": 0,
+   "relativeError": 0,
+   "tolerance": {
+    "kind": "absolute",
+    "value": 0
+   },
+   "pass": true,
+   "source": {
+    "file": "packages/box3d-kit/test/v22-rigid-controls.test.mjs",
+    "test": "jointStiffness and contactStiffness: match-substeps sets the caps of Box3D, the defaults change nothing, and the static error falls as 1 / f^2",
+    "url": "https://github.com/nathansenn/box3d-WEBGPU/blob/main/packages/box3d-kit/test/v22-rigid-controls.test.mjs"
+   },
+   "text": {
+    "reference": "120 Hz",
+    "measured": "120",
+    "error": "0",
+    "tolerance": "±0"
+   }
+  },
+  {
+   "id": "rigid-core.stiffness.contact-cap",
+   "domain": "rigid-core",
+   "title": "contactStiffness match-substeps: contact frequency",
+   "quantity": "contact hertz in force at 1/60 s and 8 sub-steps",
+   "unit": "Hz",
+   "formula": "f = (1/8) x sub-step rate",
+   "reference": 60,
+   "measured": 60,
+   "error": 0,
+   "relativeError": 0,
+   "tolerance": {
+    "kind": "absolute",
+    "value": 0
+   },
+   "pass": true,
+   "source": {
+    "file": "packages/box3d-kit/test/v22-rigid-controls.test.mjs",
+    "test": "jointStiffness and contactStiffness: match-substeps sets the caps of Box3D, the defaults change nothing, and the static error falls as 1 / f^2",
+    "url": "https://github.com/nathansenn/box3d-WEBGPU/blob/main/packages/box3d-kit/test/v22-rigid-controls.test.mjs"
+   },
+   "text": {
+    "reference": "60 Hz",
+    "measured": "60",
+    "error": "0",
+    "tolerance": "±0"
+   }
+  },
+  {
+   "id": "rigid-core.stiffness.chain",
+   "domain": "rigid-core",
+   "title": "Joint stiffness: stretch of a heavy-ended chain at twice the frequency",
+   "quantity": "stretch of 60 links under a 100x end mass at 8 sub-steps, 120 Hz",
+   "unit": "1",
+   "formula": "e(120 Hz) = e(60 Hz) / 4",
+   "reference": 0.00922406272,
+   "measured": 0.00941288297,
+   "error": 0.000188820247,
+   "relativeError": 0.0204703993,
+   "tolerance": {
+    "kind": "relative",
+    "value": 0.05
+   },
+   "pass": true,
+   "note": "A soft constraint (Box3D's soft step) holds a static load with an error proportional to 1 / f^2, all else equal: twice the frequency, a quarter of the error. At 16 sub-steps (240 Hz) the measured stretch is 28% above e/16: another error than the joint spring dominates there, so it has no row.",
+   "source": {
+    "file": "packages/box3d-kit/test/v22-rigid-controls.test.mjs",
+    "test": "jointStiffness and contactStiffness: match-substeps sets the caps of Box3D, the defaults change nothing, and the static error falls as 1 / f^2",
+    "url": "https://github.com/nathansenn/box3d-WEBGPU/blob/main/packages/box3d-kit/test/v22-rigid-controls.test.mjs"
+   },
+   "text": {
+    "reference": "0.009224063",
+    "measured": "0.009412883",
+    "error": "+2.05%",
+    "tolerance": "±5%"
+   }
+  },
+  {
+   "id": "rigid-core.stiffness.stack-8",
+   "domain": "rigid-core",
+   "title": "Contact stiffness: overlap under a 100x heavier box at twice the frequency",
+   "quantity": "deepest overlap of four light boxes under a heavy one, 8 sub-steps, 60 Hz",
+   "unit": "m",
+   "formula": "d(60 Hz) = d(30 Hz) / 4",
+   "reference": 0.0147850309,
+   "measured": 0.0144706368,
+   "error": -0.000314394012,
+   "relativeError": -0.021264346,
+   "tolerance": {
+    "kind": "relative",
+    "value": 0.05
+   },
+   "pass": true,
+   "note": "A soft constraint (Box3D's soft step) holds a static load with an error proportional to 1 / f^2, all else equal: twice the frequency, a quarter of the error.",
+   "source": {
+    "file": "packages/box3d-kit/test/v22-rigid-controls.test.mjs",
+    "test": "jointStiffness and contactStiffness: match-substeps sets the caps of Box3D, the defaults change nothing, and the static error falls as 1 / f^2",
+    "url": "https://github.com/nathansenn/box3d-WEBGPU/blob/main/packages/box3d-kit/test/v22-rigid-controls.test.mjs"
+   },
+   "text": {
+    "reference": "0.01478503 m",
+    "measured": "0.01447064",
+    "error": "-2.13%",
+    "tolerance": "±5%"
+   }
+  },
+  {
+   "id": "rigid-core.stiffness.stack-16",
+   "domain": "rigid-core",
+   "title": "Contact stiffness: the same at four times the frequency",
+   "quantity": "deepest overlap at 16 sub-steps, 120 Hz",
+   "unit": "m",
+   "formula": "d(120 Hz) = d(30 Hz) / 16",
+   "reference": 0.0036937343,
+   "measured": 0.00359910727,
+   "error": -0.0000946270302,
+   "relativeError": -0.0256182558,
+   "tolerance": {
+    "kind": "relative",
+    "value": 0.05
+   },
+   "pass": true,
+   "note": "A soft constraint (Box3D's soft step) holds a static load with an error proportional to 1 / f^2, all else equal: twice the frequency, a quarter of the error.",
+   "source": {
+    "file": "packages/box3d-kit/test/v22-rigid-controls.test.mjs",
+    "test": "jointStiffness and contactStiffness: match-substeps sets the caps of Box3D, the defaults change nothing, and the static error falls as 1 / f^2",
+    "url": "https://github.com/nathansenn/box3d-WEBGPU/blob/main/packages/box3d-kit/test/v22-rigid-controls.test.mjs"
+   },
+   "text": {
+    "reference": "0.003693734 m",
+    "measured": "0.003599107",
+    "error": "-2.56%",
+    "tolerance": "±5%"
    }
   },
   {

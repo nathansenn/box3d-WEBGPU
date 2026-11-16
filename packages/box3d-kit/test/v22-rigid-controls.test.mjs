@@ -126,3 +126,46 @@ test('hull cache and capacity: a hull pile gives the same state whether its hull
   assert.deepEqual(large, plain, 'a reserved capacity of 20,000 bodies (passed to Box3D as its world capacity) changes nothing');
   assert.deepEqual(both, plain, 'nor does 65,536 with a cold cache');
 });
+
+test('jointStiffness and contactStiffness: match-substeps sets the caps of Box3D, the defaults change nothing, and the static error falls as 1 / f^2', async t => {
+  // At 4 sub-steps of 1/60 s the caps are Box3D's defaults: the same simulation, hash for hash, with the options or without.
+  const plainChain = await S.chainStretch(K, {subSteps: 4}), matchChain = await S.chainStretch(K, {subSteps: 4, options: {jointStiffness: 'match-substeps'}});
+  assert.equal(matchChain.stretch, plainChain.stretch); assert.deepEqual(matchChain.defaults, {hertz: 60, dampingRatio: 2});
+  const plainStack = await S.heavyStack(K, {subSteps: 4}), matchStack = await S.heavyStack(K, {subSteps: 4, options: {contactStiffness: 'match-substeps', jointStiffness: {hertz: 60}}});
+  assert.equal(matchStack.deepest, plainStack.deepest); assert.equal(plainStack.defaults, null);
+  // At 8 and 16 sub-steps: a quarter (joints) and an eighth (contacts) of the sub-step rate.
+  const chain8 = await S.chainStretch(K, {subSteps: 8}), match8 = await S.chainStretch(K, {subSteps: 8, options: {jointStiffness: 'match-substeps'}});
+  const match16 = await S.chainStretch(K, {subSteps: 16, options: {jointStiffness: 'match-substeps'}});
+  assert.equal(match8.jointHertz, 120); assert.equal(match16.jointHertz, 240); assert.equal(chain8.jointHertz, 60);
+  const stack8 = await S.heavyStack(K, {subSteps: 8}), stackMatch8 = await S.heavyStack(K, {subSteps: 8, options: {contactStiffness: 'match-substeps'}});
+  const stack16 = await S.heavyStack(K, {subSteps: 16}), stackMatch16 = await S.heavyStack(K, {subSteps: 16, options: {contactStiffness: 'match-substeps'}});
+  assert.equal(stackMatch8.settings.contactHertz, 60); assert.equal(stackMatch16.settings.contactHertz, 120); assert.equal(stack8.settings.contactHertz, 30);
+  t.diagnostic(`chain stretch at 8 sub-steps ${chain8.stretch} -> ${match8.stretch} (1/f^2 predicts ${chain8.stretch / 4}); at 16 ${match16.stretch}; stack overlap at 8 ${stack8.deepest} -> ${stackMatch8.deepest} (predicted ${stack8.deepest / 4}), at 16 ${stack16.deepest} -> ${stackMatch16.deepest} (predicted ${stack16.deepest / 16})`);
+  // A soft constraint holds a static load with an error proportional to 1 / f^2.
+  within(match8.stretch, chain8.stretch / 4, 0.05, 'chain stretch at twice the joint frequency');
+  within(stackMatch8.deepest, stack8.deepest / 4, 0.05, 'contact overlap at twice the contact frequency');
+  within(stackMatch16.deepest, stack16.deepest / 16, 0.05, 'contact overlap at four times the contact frequency');
+  assert.ok(match16.stretch < match8.stretch / 2, 'still stiffer at 16 sub-steps');
+});
+
+test('jointStiffness and contactStiffness: checked, recorded so that a replay in a plain world matches, and a joint keeps its own stiffness', async () => {
+  for (const bad of [{jointStiffness: 'stiff'}, {jointStiffness: {hertz: 0}}, {jointStiffness: {dampingRatio: 1}}, {jointStiffness: {hertz: 60, pushSpeed: 1}}, {contactStiffness: {hertz: -1}}, {contactStiffness: {hertz: 30, wobble: 1}}]) {
+    await assert.rejects(K.createWorld(bad), error => error.code === 'INVALID_PAYLOAD', JSON.stringify(bad));
+  }
+  const options = {step: 1 / 60, subSteps: 8, gravity: [0, -S.G, 0], ground: true, jointStiffness: 'match-substeps', contactStiffness: 'match-substeps'};
+  const world = await K.createWorld(options), plain = await K.createWorld({step: 1 / 60, subSteps: 8, gravity: [0, -S.G, 0], ground: true});
+  try {
+    world.startRecording({world: {ground: true, gravity: [0, -S.G, 0]}});
+    const a = world.createBody({shape: {kind: 'box', halfExtents: [0.3, 0.3, 0.3]}, position: [0, 2, 0]});
+    const b = world.createBody({shape: {kind: 'box', halfExtents: [0.3, 0.3, 0.3]}, position: [0, 1, 0], density: 5000});
+    const j1 = world.createJoint({type: 'revolute', bodyA: null, bodyB: a, frameA: {position: [0, 2.5, 0]}, frameB: {position: [0, 0.5, 0]}});
+    const j2 = world.createJoint({type: 'distance', bodyA: a, bodyB: b, length: 1, stiffness: {hertz: 30, dampingRatio: 1}});
+    assert.equal(world.getJointDetails(j1).stiffness.hertz, 120, 'the default'); assert.equal(world.getJointDetails(j2).stiffness.hertz, 30, 'a joint\'s own stiffness wins');
+    for (let i = 0; i < 90; i++) world.step();
+    const log = world.stopRecording();
+    assert.ok(log.commands.some(command => command.method === 'configure'), 'the contact settings are in the log');
+    assert.equal(plain.replay(log), true, 'a world created without the options replays it exactly');
+    assert.equal(plain.exactHash(), log.finalHash);
+    assert.equal(plain.settings().contactHertz, 60);
+  } finally { world.dispose(); plain.dispose(); }
+});

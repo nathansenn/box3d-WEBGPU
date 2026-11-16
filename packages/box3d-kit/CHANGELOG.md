@@ -9,6 +9,8 @@
 
 ## Unreleased
 
+- **`jointStiffness` and `contactStiffness` world options** (`'match-substeps'` or numbers), and `world.jointDefaults()` / `world.contactDefaults()`: joints and contacts as stiff as Box3D allows at the sub-step count. At 8 sub-steps a heavy-ended chain stretches 0.94 % instead of 3.69 % and a 1:100 stack overlaps 14.5 mm instead of 59.1 mm. Opt-in; nothing changes without them.
+
 - **Hull cache and capacity** (new WASM): bodies made of the same hull points share one hull computation (1,000 hull bodies of four shapes: 6.1–6.8 ms instead of 10.4–10.9 ms), and `capacity` is also passed to Box3D as the world's capacity. Same results, hash for hash.
 
 - **`castRays` stops each ray at its nearest hit** (new WASM): 100,000 rays against 10,000 bodies in 336–361 ms instead of 1,662–1,739 ms, with the same hits. Ties at the same fraction go to the smaller body handle, then triangle and child, in `raycast`, `castRays` and `raycastBatch` alike.

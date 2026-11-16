@@ -1626,6 +1626,8 @@ export declare class PhysicsWorld {
   colorVersion(): number;
   stats(): WorldStats;
   startRecording(options?: RecordingOptions): void;
+  jointDefaults(): { hertz: number; dampingRatio: number; } | null;
+  contactDefaults(): { contactHertz: number; contactDampingRatio: number; contactPushSpeed: number; } | null;
   stopRecording(): ReplayLog;
   get isRecording(): boolean;
   checkpoint(): Uint8Array;
@@ -2049,6 +2051,15 @@ export interface WorldOptions extends FixedStepOptions {
     readonly seed?: number;
     readonly capacity?: number;
     readonly interpolate?: boolean;
+    readonly jointStiffness?: 'match-substeps' | {
+        readonly hertz: number;
+        readonly dampingRatio?: number;
+    };
+    readonly contactStiffness?: 'match-substeps' | {
+        readonly hertz?: number;
+        readonly dampingRatio?: number;
+        readonly pushSpeed?: number;
+    };
 }
 ```
 
