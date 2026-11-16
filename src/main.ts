@@ -88,6 +88,7 @@ import { encodeSceneLink, sceneHash, type Scene, type SceneProblem } from './eng
 import { checkpointInfo, readCheckpoint, writeCheckpoint, type StateObject } from './engine/checkpoint.ts';
 import { simulationCheckpointInfo } from './engine/simulation.ts';
 import { disposeLabScene, exactTransformHash, loadLabScene, sceneStepsPerLabTick, type LabLoadedScene } from './lab/scene-host.ts';
+import { RigidDebugOverlay, parseRigidDebugParam, rigidDebugParam, type RigidDebugState } from './lab/rigid-debug.ts';
 import { CoupledSceneView, sceneIsCoupled } from './lab/coupled-scene.ts';
 import { createCoupledPanel, type CoupledPanel } from './lab/coupled-panel.ts';
 import {
@@ -411,6 +412,17 @@ let coupledView: CoupledSceneView | null = null;
 let coupledPanel: CoupledPanel | null = null;
 /** The editor's lines over a coupled scene's own, rebuilt when either changes. */
 let mergedOverlay: { editor: number; coupled: number; lines: readonly DebugLine[]; version: number } = { editor: -1, coupled: -1, lines: [], version: 0 };
+// Rigid debug draw (lab.html?debug=1 and the switch in the Scenes panel): Box3D's own drawing of the general scene on
+// screen, appended to whatever overlay lines the frame already has (src/lab/rigid-debug.ts).
+let rigidDebug: RigidDebugState = parseRigidDebugParam(new URLSearchParams(window.location.search).get('debug'));
+const rigidDebugOverlay = new RigidDebugOverlay();
+let rigidDebugMerged: { base: number; debug: number; lines: readonly DebugLine[]; version: number } = { base: -1, debug: -1, lines: [], version: 0 };
+function setRigidDebug(state: RigidDebugState): void {
+  rigidDebug = state;
+  const url = new URL(window.location.href), value = rigidDebugParam(state);
+  if (value === null) url.searchParams.delete('debug'); else url.searchParams.set('debug', value);
+  window.history.replaceState(window.history.state, '', url);
+}
 function clearCoupledView(): void {
   if (!coupledView) return;
   coupledPanel?.attach(null);
@@ -4716,7 +4728,9 @@ async function main(): Promise<void> {
       if (sceneEditor?.active) { sceneEditor.close(); scenePanel?.setStatus('Editing stopped. The scene stays on screen.'); }
       else if (siDemo && labScene) sceneEditor?.open(labScene.read.scene);
     },
+    onDebugDraw: setRigidDebug,
   });
+  scenePanel.setDebugDraw(rigidDebug, rigidDebug.enabled ? 'on from the address (?debug=)' : '');
   sceneEditor = createSceneEditor(createEditorHost(scenePanel.editorMount));
   const editorRequested = editRequested(window.location.search);
   coupledPanel = createCoupledPanel();
@@ -4748,6 +4762,10 @@ async function main(): Promise<void> {
       return labSceneState();
     },
     sceneJson: currentLabSceneJson,
+    /** Rigid debug draw: the layers that are on, and how many lines the last frame drew of how many the engine reported. */
+    rigidDebug: () => ({ param: rigidDebugParam(rigidDebug), enabled: rigidDebug.enabled, layers: { ...rigidDebug.layers }, lines: rigidDebugOverlay.lines.length, vertices: rigidDebugOverlay.vertexCount, truncated: rigidDebugOverlay.truncated }),
+    /** Set the debug draw as `?debug=<value>` would ('1', 'all', 'contacts,joints', '0'); the panel's switches follow. */
+    setRigidDebug: (value: string) => { setRigidDebug(parseRigidDebugParam(value)); scenePanel?.setDebugDraw(rigidDebug); return rigidDebugParam(rigidDebug); },
     /** Pause or resume the Lab's clock as the Pause button does; returns whether it is paused. For tests that compare hashes at a tick. */
     setPaused: (flag: boolean) => { if (paused !== !!flag) togglePause(); return paused; },
     /** Coupled scenes: the readout the panel shows (clock, step cost, energy ledger, latest events), or null. */
@@ -4866,8 +4884,16 @@ async function main(): Promise<void> {
     if (editingCoupled && (mergedOverlay.editor !== editorLinesVersion || mergedOverlay.coupled !== coupled.overlayVersion)) {
       mergedOverlay = { editor: editorLinesVersion, coupled: coupled.overlayVersion, lines: [...coupled.overlayLines, ...editorLines], version: (mergedOverlay.version + 1) >>> 0 };
     }
-    const overlayLines = editingCoupled ? mergedOverlay.lines : sceneEditor?.active ? editorLines : coupled ? coupled.overlayLines : engineeringInspectionLines;
-    const overlayVersion = editingCoupled ? (mergedOverlay.version ^ 0x3e7ed) >>> 0 : sceneEditor?.active ? (editorLinesVersion ^ 0x5ce4e) >>> 0 : coupled ? (coupled.overlayVersion ^ 0xc0b1ed) >>> 0 : engineeringInspectionVersion;
+    const baseOverlayLines = editingCoupled ? mergedOverlay.lines : sceneEditor?.active ? editorLines : coupled ? coupled.overlayLines : engineeringInspectionLines;
+    const baseOverlayVersion = editingCoupled ? (mergedOverlay.version ^ 0x3e7ed) >>> 0 : sceneEditor?.active ? (editorLinesVersion ^ 0x5ce4e) >>> 0 : coupled ? (coupled.overlayVersion ^ 0xc0b1ed) >>> 0 : engineeringInspectionVersion;
+    // Rigid debug draw: asked of the engine again only when the bodies have moved or the layers changed.
+    const debugLines = rigidDebugOverlay.update(rigidDebug.enabled && siDemo ? backend.generalNative?.() ?? null : null, rigidDebug, backend.frameVersion());
+    if (debugLines.length > 0 && (rigidDebugMerged.base !== baseOverlayVersion || rigidDebugMerged.debug !== rigidDebugOverlay.version)) {
+      rigidDebugMerged = { base: baseOverlayVersion, debug: rigidDebugOverlay.version, lines: [...baseOverlayLines, ...debugLines], version: (rigidDebugMerged.version + 1) >>> 0 };
+    }
+    const overlayLines = debugLines.length > 0 ? rigidDebugMerged.lines : baseOverlayLines;
+    const overlayVersion = debugLines.length > 0 ? (rigidDebugMerged.version ^ 0xdeb06) >>> 0 : baseOverlayVersion;
+    ui.canvas.dataset.rigidDebugLines = String(debugLines.length);
     const softFrame = soft.buildFrame(debugEnabled);
     // Engineering soft-body workspaces use an isolated specimen cell. The
     // backend's combinatorial rigid recipe still advances for deterministic

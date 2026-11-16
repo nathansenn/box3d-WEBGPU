@@ -66,3 +66,8 @@
 @media (max-width: 640px) {
   .lab-scene-panel { right: 8px; bottom: 8px; max-height: 60vh; }
 }
+
+/* Debug draw: one master switch and its layers. */
+.lab-scene-debug { gap: 4px 10px; font-size: 12px; }
+.lab-scene-debug label:first-child { font-weight: 600; }
+.lab-scene-debug-note { opacity: 0.75; }

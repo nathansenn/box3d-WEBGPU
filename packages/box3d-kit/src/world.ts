@@ -34,7 +34,13 @@ export type JointDrive = Omit<NativeJointDrive, 'linearVelocity' | 'angularVeloc
 export type JointThresholds = NativeJointThresholds;
 export type RayBatch = NativeRayBatch;
 export type StepProfile = NativeStepProfile;
-export type ContactStats = NativeContactStats;
+/** Contact statistics, with the impulses of the last sub-step also given as forces. */
+export type ContactStats = NativeContactStats & {
+  /** Sum of the normal forces of all contact points (N). For a pile at rest, each body's weight counted once per layer of contacts under it. */
+  readonly totalNormalForce: number;
+  /** Largest normal force on one contact point (N). */
+  readonly largestNormalForce: number;
+};
 export type DebugDrawOptions = Omit<NativeDebugDrawOptions, 'region'> & {readonly region?: {readonly min: Vec3Like; readonly max: Vec3Like}};
 export type DebugDrawLines = NativeDebugLines;
 export type MoverPlane = NativeMoverPlane;
@@ -607,10 +613,13 @@ export class PhysicsWorld {
   profile(): StepProfile { return this.native.profile(); }
   /**
    * What the solver's contact manifolds hold: touching pairs, contact points, the deepest and the mean overlap, and
-   * the normal impulses of the last step. A cheap health check for stacks and piles: resting contacts sit near
+   * the normal forces of the last sub-step. A cheap health check for stacks and piles: resting contacts sit near
    * Box3D's linear slop (5 mm), and a deepest overlap that keeps growing means the solver is losing.
    */
-  contactStats(): ContactStats { return this.native.contactStats(); }
+  contactStats(): ContactStats {
+    const stats = this.native.contactStats(), perSecond = this.subSteps / this.loop.step;
+    return {...stats, totalNormalForce: stats.totalImpulse * perSecond, largestNormalForce: stats.largestImpulse * perSecond};
+  }
   /**
    * Box3D's own debug drawing as line segments (vertex pairs with a colour each): joints, shape bounds, centres of
    * mass, contact points, normals and forces, and islands. Draw it with LineSegments in three.js or any line pipeline.

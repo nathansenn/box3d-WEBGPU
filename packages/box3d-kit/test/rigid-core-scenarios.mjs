@@ -938,3 +938,135 @@ export async function jointCheckpoint(K) {
     } finally { c.dispose(); }
   } finally { a.dispose(); b.dispose(); }
 }
+
+// ---------------------------------------------------------------------------------------------------
+// World controls and introspection.
+// ---------------------------------------------------------------------------------------------------
+
+/**
+ * Box3D's explosion: the velocity each body takes. A sphere of radius r takes P pi r^2 / m away from the centre
+ * within the radius, the same scaled linearly to zero across the falloff, and nothing beyond; a box takes
+ * P times the area of the face it shows.
+ */
+export async function explosion(K) {
+  const world = await newWorld(K, {gravity: [0, 0, 0]});
+  try {
+    const r = 0.2, P = 50, radius = 2, falloff = 1;
+    const near = world.createBody({shape: {kind: 'sphere', radius: r}, position: [1, 0, 0]});
+    // Surface 2.5 m from the centre: half way across the falloff.
+    const mid = world.createBody({shape: {kind: 'sphere', radius: r}, position: [0, 2.7, 0]});
+    const far = world.createBody({shape: {kind: 'sphere', radius: r}, position: [0, 0, 4]});
+    const box = world.createBody({shape: {kind: 'box', halfExtents: [0.3, 0.4, 0.1]}, position: [0, 0, -1.5]});
+    const masked = world.createBody({shape: {kind: 'sphere', radius: r}, position: [-1, 0, 0], filter: {categoryBits: 4n, maskBits: 0xFFFFFFFFFFFFFFFFn}});
+    world.explodeArea({center: [0, 0, 0], radius, falloff, impulsePerArea: P, maskBits: 1n});
+    const m = world.getState(near).mass, mb = world.getState(box).mass, v = body => world.getState(body).linearVelocity;
+    return {near: v(near)[0], exactNear: P * Math.PI * r * r / m, mid: v(mid)[1], exactMid: 0.5 * P * Math.PI * r * r / m, far: Math.hypot(...v(far)), box: -v(box)[2], exactBox: P * 0.6 * 0.8 / mb,
+      masked: Math.hypot(...v(masked)), sideways: Math.hypot(v(near)[1], v(near)[2])};
+  } finally { world.dispose(); }
+}
+
+/**
+ * World settings against what they must do: sleeping (a resting box falls asleep, or never with the setting off);
+ * the restitution threshold (a bounce of e^2 h above it, none below); the hit-event threshold; the speed limit;
+ * the contact push-out speed (an embedded ball leaves the ground no faster than it); and motion locks.
+ */
+export async function worldSettings(K) {
+  const world = await newWorld(K, {ground: true});
+  try {
+    const defaults = world.settings();
+    const box = world.createBody({shape: {kind: 'box', halfExtents: [0.2, 0.2, 0.2]}, position: [0, 0.2, 0]});
+    let asleepAfter = null;
+    for (let i = 0; i < HZ * 4 && asleepAfter === null; i++) { world.step(); if (!world.getState(box).awake) asleepAfter = (i + 1) * DT; }
+    const awakeWhenAsleep = world.awakeCount();
+    world.configure({sleeping: false});
+    run(world, 3);
+    const awakeWithSleepingOff = world.getState(box).awake;
+    world.configure({sleeping: true});
+    world.setSleep(box, {enabled: false});
+    run(world, 3);
+    const awakeWithBodySleepOff = world.getState(box).awake;
+    world.setSleep(box, {enabled: true});
+    run(world, 3);
+    const asleepAgain = !world.getState(box).awake;
+
+    // A ball dropped from h bounces to e^2 h when it lands faster than the restitution threshold, and not at all below it.
+    const e = 0.5, radius = 0.1;
+    const drop = h => {
+      const ball = world.createBody({shape: {kind: 'sphere', radius}, position: [5, h + radius, 0], restitution: e, hitEvents: true});
+      const hits = [], off = world.onEvent(event => { if (event.kind === 'hit') hits.push(event.approachSpeed); });
+      let peak = 0, rising = false;
+      for (let i = 0; i < HZ * 3; i++) { world.step(); const s = world.getState(ball); if (s.linearVelocity[1] > 0.01) rising = true; if (rising) peak = Math.max(peak, s.position[1] - radius); }
+      off(); world.destroyBody(ball);
+      return {peak, hits};
+    };
+    const h = 0.2;   // lands at 1.98 m/s
+    const above = drop(h), slowDefault = drop(0.03);
+    world.configure({restitutionThreshold: 3, hitEventThreshold: 3});
+    const below = drop(h);
+    world.configure({restitutionThreshold: 0.5, hitEventThreshold: 0.5});
+    const slow = drop(0.03);   // lands at 0.77 m/s
+
+    world.configure({maximumLinearSpeed: 20});
+    const fast = world.createBody({shape: {kind: 'sphere', radius}, position: [0, 50, 5], gravityScale: 0});
+    world.applyImpulse(fast, [1e6, 0, 0]);
+    world.step();
+    const limited = world.getState(fast).linearVelocity[0];
+
+    const locked = world.createBody({shape: {kind: 'box', halfExtents: [0.2, 0.2, 0.2]}, position: [10, 5, 0]});
+    world.setMotionLocks(locked, {linearY: true, angularX: true, angularY: true, angularZ: true});
+    world.applyImpulseAt(locked, [10, 0, 0], [10, 5.2, 0]);
+    run(world, 1);
+    const ls = world.getState(locked);
+    return {defaults, asleepAfter, awakeWhenAsleep, awakeWithSleepingOff, awakeWithBodySleepOff, asleepAgain,
+      bounce: above.peak, exactBounce: e * e * h, hitSpeed: above.hits[0], exactHitSpeed: Math.sqrt(2 * G * h), bounceBelow: below.peak, hitsBelow: below.hits.length,
+      slowBounce: slow.peak, exactSlowBounce: e * e * 0.03, slowHits: slow.hits.length, slowDefaultBounce: slowDefault.peak, slowDefaultHits: slowDefault.hits.length,
+      limited, lockedDrop: 5 - ls.position[1], lockedSpin: Math.hypot(...ls.angularVelocity), lockedSlide: ls.position[0] - 10, flags: world.getBodyFlags(locked), settings: world.settings()};
+  } finally { world.dispose(); }
+}
+
+/** Contact push-out speed: a ball that starts 0.3 m inside the ground is pushed out no faster than the setting. */
+export async function pushOutSpeed(K, speeds = [3, 0.5]) {
+  const out = [];
+  for (const speed of speeds) {
+    const world = await newWorld(K, {ground: true});
+    try {
+      world.configure({contactPushSpeed: speed});
+      const ball = world.createBody({shape: {kind: 'sphere', radius: 0.5}, position: [0, 0.2, 0]});
+      let last = 0.2, fastest = 0, outAt = null;
+      for (let i = 0; i < HZ * 2; i++) { world.step(); const y = world.getState(ball).position[1]; fastest = Math.max(fastest, (y - last) * HZ); last = y; if (outAt === null && y > 0.49) outAt = (i + 1) * DT; }
+      out.push({speed, fastest, outAt, rest: last, shortest: 0.29 / speed});
+    } finally { world.dispose(); }
+  }
+  return out;
+}
+
+/**
+ * The step profile, the counters, contact statistics and debug lines of a known scene: 4 x 4 x 3 boxes resting on
+ * the ground, one hinge. Counts are exact; the force the contacts carry is compared with the weights above them.
+ */
+export async function introspection(K) {
+  const world = await newWorld(K, {ground: true});
+  try {
+    const half = 0.25, bodies = [];
+    for (let layer = 0; layer < 3; layer++) for (let i = 0; i < 4; i++) for (let j = 0; j < 4; j++) bodies.push(world.createBody({shape: {kind: 'box', halfExtents: [half, half, half]}, position: [i * 1.5, half + layer * 2 * half, j * 1.5]}));
+    // One hinge, on a body that touches nothing, so that the contacts carry exactly the weights of the stacks.
+    const bob = world.createBody({shape: {kind: 'sphere', radius: 0.2}, position: [20, 5, 0]});
+    world.createJoint({type: 'revolute', bodyA: null, bodyB: bob, frameA: {position: [20, 6, 0]}, frameB: {position: [0, 1, 0]}});
+    world.configure({sleeping: false});
+    run(world, 2);
+    const profile = world.profile(), stats = world.contactStats(), mass = world.getState(bodies[5]).mass;
+    const lines = options => world.debugLines(options);
+    const bounds = lines({bounds: true}), joints = lines({joints: true}), contacts = lines({contacts: true}), all = lines({joints: true, jointExtras: true, bounds: true, mass: true, contacts: true, contactNormals: true, contactForces: true, frictionForces: true, islands: true});
+    const region = lines({bounds: true, region: {min: [-0.3, -2, -0.3], max: [0.3, 3, 0.3]}});
+    const finite = [...all.positions].every(Number.isFinite), colours = [...all.colors].every(c => c >= 0 && c <= 1);
+    // Bottom faces of the lowest layer: every contact vertex of the stacks lies between y = 0 and the top of the stack.
+    let low = Infinity, high = -Infinity;
+    for (let i = 1; i < contacts.positions.length; i += 3) { low = Math.min(low, contacts.positions[i]); high = Math.max(high, contacts.positions[i]); }
+    const before = world.exactHash();
+    world.debugLines({bounds: true, contacts: true}); world.profile(); world.contactStats();
+    // Each stack of three carries 3 m g on its lowest contact, 2 m g on the next and m g on the top one.
+    return {profile, stats, bodies: bodies.length, normalForce: stats.totalNormalForce, exactNormalForce: 16 * 6 * mass * G, mass,
+      boundsVertices: bounds.vertexCount, jointVertices: joints.vertexCount, contactVertices: contacts.vertexCount, allVertices: all.vertexCount, regionVertices: region.vertexCount, truncated: all.truncated,
+      finite, colours, low, high, top: 6 * half, unchanged: world.exactHash() === before, awake: world.awakeCount()};
+  } finally { world.dispose(); }
+}

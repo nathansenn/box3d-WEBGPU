@@ -51,7 +51,7 @@ export const DOMAINS = [
   {
     id: 'rigid-core', title: 'Rigid core: queries, character, continuous collision, vehicles, joints and piles', needsKit: true,
     solver: 'Box3D compiled to WebAssembly, through `box3d-webgpu-kit` (float32 state, 240 Hz, 4 sub-steps unless a row says otherwise)',
-    summary: 'Ray, sweep and overlap queries against closed forms, and the batched ray call. The capsule character: speed, slope limit, step height, stairs, jump, thin walls, moving platforms, force-limited pushing and exact resume. Continuous collision: a fast ball against a thin wall with the setting off and on, and the bullet flag against a free plate. A wheel-joint vehicle: static sag, heave frequency and damping, top speed against drag, the Ackermann turning circle and braking distance. Motor, parallel and filter joints, joint events and breakable welds.',
+    summary: 'Ray, sweep and overlap queries against closed forms, and the batched ray call. The capsule character: speed, slope limit, step height, stairs, jump, thin walls, moving platforms, force-limited pushing and exact resume. Continuous collision: a fast ball against a thin wall with the setting off and on, and the bullet flag against a free plate. A wheel-joint vehicle: static sag, heave frequency and damping, top speed against drag, the Ackermann turning circle and braking distance. Motor, parallel and filter joints, joint events and breakable welds. World settings, the area-weighted explosion, contact statistics and debug-draw counts.',
     docs: ['docs/RIGID_CORE.md'],
     notValidated: [
       'Queries against triangle meshes, height fields, hulls and compounds have no closed-form row: they are covered by the bit-for-bit agreement of batched and single rays only.',

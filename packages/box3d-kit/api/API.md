@@ -244,8 +244,13 @@ export interface CompoundShapeOptions {
 
 ### ContactStats · type
 
+Contact statistics, with the impulses of the last sub-step also given as forces.
+
 ```ts
-export type ContactStats = NativeContactStats;
+export type ContactStats = NativeContactStats & {
+    readonly totalNormalForce: number;
+    readonly largestNormalForce: number;
+};
 ```
 
 ### convertMatrices · function

@@ -9,6 +9,7 @@
  */
 import './scene-panel.css';
 import { COUPLED_EXAMPLE_NAMES, COUPLED_EXAMPLE_TITLES, EXAMPLE_SCENE_NAMES, EXAMPLE_SCENE_TITLES } from './scene-loading.ts';
+import { RIGID_DEBUG_LABELS, RIGID_DEBUG_LAYERS, RIGID_DEBUG_OFF, type RigidDebugLayer, type RigidDebugState } from './rigid-debug.ts';
 
 export interface ScenePanelCallbacks {
   onFiles(files: File[]): void;
@@ -24,6 +25,8 @@ export interface ScenePanelCallbacks {
   onNewScene(): void;
   /** Start or stop editing the scene on screen. */
   onEdit(): void;
+  /** The debug-draw switch or one of its layers changed. */
+  onDebugDraw?(state: RigidDebugState): void;
 }
 
 export interface ScenePanelScene {
@@ -46,6 +49,8 @@ export interface ScenePanel {
   readonly editorMount: HTMLElement;
   /** The editor is open: the panel is taller, and the Edit button stops editing. */
   setEditing(editing: boolean): void;
+  /** Show a debug-draw state (from the address, say) in the switches, without calling onDebugDraw. */
+  setDebugDraw(state: RigidDebugState, note?: string): void;
 }
 
 const ACCEPT = '.json,.obj,.stl,.glb,.gltf,.bin,application/json,model/gltf-binary,model/gltf+json,model/stl,model/obj';
@@ -167,6 +172,39 @@ export function createScenePanel(callbacks: ScenePanelCallbacks): ScenePanel {
   fitLabel.append(fit, document.createTextNode('Scale imported geometry to fit'));
   row.append(examples, fitLabel);
 
+  // Debug draw: Box3D's own drawing of contacts, joints, bounds, mass centres and islands, as lines over the scene.
+  const debugRow = element('div', 'lab-scene-row lab-scene-debug');
+  debugRow.id = 'lab-debug-draw';
+  const debugMasterLabel = element('label', '');
+  debugMasterLabel.title = 'Draw what the rigid solver sees over the scene: contact points and normals, joints, bounds, centres of mass, islands. Also lab.html?debug=1';
+  const debugMaster = element('input', '');
+  debugMaster.type = 'checkbox';
+  debugMaster.id = 'lab-debug-draw-on';
+  debugMasterLabel.append(debugMaster, document.createTextNode('Debug draw'));
+  debugRow.append(debugMasterLabel);
+  const debugLayers = new Map<RigidDebugLayer, HTMLInputElement>();
+  for (const layer of RIGID_DEBUG_LAYERS) {
+    const label = element('label', '');
+    const box = element('input', '');
+    box.type = 'checkbox';
+    box.id = `lab-debug-draw-${layer}`;
+    label.append(box, document.createTextNode(RIGID_DEBUG_LABELS[layer]));
+    debugLayers.set(layer, box);
+    debugRow.append(label);
+  }
+  const debugNote = element('span', 'lab-scene-debug-note');
+  debugNote.id = 'lab-debug-draw-note';
+  debugRow.append(debugNote);
+  const debugState = (): RigidDebugState => ({ enabled: debugMaster.checked, layers: Object.fromEntries(RIGID_DEBUG_LAYERS.map(layer => [layer, debugLayers.get(layer)!.checked])) as RigidDebugState['layers'] });
+  const showDebugState = (state: RigidDebugState): void => {
+    debugMaster.checked = state.enabled;
+    for (const layer of RIGID_DEBUG_LAYERS) { const box = debugLayers.get(layer)!; box.checked = state.layers[layer]; box.disabled = !state.enabled; }
+  };
+  const debugChanged = (): void => { const state = debugState(); showDebugState(state); callbacks.onDebugDraw?.(state); };
+  showDebugState(RIGID_DEBUG_OFF);
+  debugMaster.addEventListener('change', debugChanged);
+  for (const box of debugLayers.values()) box.addEventListener('change', debugChanged);
+
   const status = element('p', 'lab-scene-status');
   status.id = 'lab-scene-status';
   status.setAttribute('role', 'status');
@@ -174,7 +212,7 @@ export function createScenePanel(callbacks: ScenePanelCallbacks): ScenePanel {
 
   const body = element('div', '');
   body.id = 'lab-scene-body';
-  body.append(heading, title, summary, error, notes, actions, row, status, file, checkpointFile, editorMount);
+  body.append(heading, title, summary, error, notes, actions, row, debugRow, status, file, checkpointFile, editorMount);
   panel.append(toggle, body);
   document.body.append(panel);
 
@@ -232,6 +270,7 @@ export function createScenePanel(callbacks: ScenePanelCallbacks): ScenePanel {
     expand() { setCollapsed(false); },
     scaleToFit() { return fit.checked; },
     editorMount,
+    setDebugDraw(state, note = '') { showDebugState(state); debugNote.textContent = note; },
     setEditing(editing) {
       panel.dataset.editing = String(editing);
       edit.textContent = editing ? 'Stop editing' : 'Edit';

@@ -276,4 +276,47 @@ const jointCases = defineCases('rigid-core', JOINTS, [
     reference: {formula: 'restored run = uninterrupted run', value: 0}, tolerance: absolute(0), measure: async () => (await jointCheckpoint()).mismatches},
 ]);
 
-export default [...cases, ...characterCases, ...ccdCases, ...vehicleCases, ...jointCases];
+const CONTROLS = 'packages/box3d-kit/test/v21-rigid-controls.test.mjs';
+const TW = {
+  explosion: 'explosion: a sphere takes P pi r^2 / m, half of it half way across the falloff, nothing beyond; a box takes P times its facing area',
+  settings: 'world settings: sleeping, restitution and hit thresholds, the speed limit and motion locks do what they say',
+  push: 'contact push-out speed: an embedded ball leaves the ground at the set speed and no faster',
+  intro: 'profile, counters, contact statistics and debug lines of a known scene are exact',
+};
+const explosion = () => run('controls/explosion', (S, K) => S.explosion(K));
+const settings = () => run('controls/settings', (S, K) => S.worldSettings(K));
+const pushOut = () => run('controls/push', (S, K) => S.pushOutSpeed(K));
+const introspection = () => run('controls/introspection', (S, K) => S.introspection(K));
+const controlCases = defineCases('rigid-core', CONTROLS, [
+  {id: 'rigid-core.explosion.sphere', title: 'Explosion: speed given to a sphere', quantity: 'speed of a 0.2 m sphere inside the radius, 50 N s/m^2', unit: 'm/s', test: TW.explosion,
+    reference: {formula: 'v = P pi r^2 / m', value: null}, tolerance: relative(1e-5), measure: async () => { const r = await explosion(); return {value: r.near, reference: r.exactNear}; }},
+  {id: 'rigid-core.explosion.falloff', title: 'Explosion: half way across the falloff', quantity: 'speed of the same sphere with its surface half way across the falloff', unit: 'm/s', test: TW.explosion,
+    reference: {formula: 'v = (1/2) P pi r^2 / m', value: null}, tolerance: relative(1e-5), measure: async () => { const r = await explosion(); return {value: r.mid, reference: r.exactMid}; }},
+  {id: 'rigid-core.explosion.box', title: 'Explosion: speed given to a box face-on', quantity: 'speed of a box showing a 0.6 x 0.8 m face', unit: 'm/s', test: TW.explosion,
+    reference: {formula: 'v = P A / m', value: null}, tolerance: relative(1e-5), measure: async () => { const r = await explosion(); return {value: r.box, reference: r.exactBox}; }},
+  {id: 'rigid-core.settings.restitution', title: 'Restitution above the threshold: bounce height', quantity: 'bounce of a ball dropped 0.2 m with restitution 0.5 (lands at 1.98 m/s, threshold 1 m/s)', unit: 'm', test: TW.settings,
+    reference: {formula: 'h = e^2 h0', value: 0.05}, tolerance: relative(0.05), note: 'At 240 Hz the ball lands up to one step before or after the ground plane, which is 3% of this small drop.',
+    measure: async () => (await settings()).bounce},
+  {id: 'rigid-core.settings.restitution-off', title: 'Restitution below the threshold: no bounce', quantity: 'bounce of the same drop with the threshold at 3 m/s', unit: 'm', test: TW.settings,
+    reference: {formula: 'h = 0', value: 0}, tolerance: absolute(1e-4), measure: async () => (await settings()).bounceBelow},
+  {id: 'rigid-core.settings.hit-speed', title: 'Hit event: approach speed', quantity: 'approach speed reported for a 0.2 m drop', unit: 'm/s', test: TW.settings,
+    reference: {formula: 'v = sqrt(2 g h)', value: Math.sqrt(2 * G * 0.2)}, tolerance: relative(0.02), measure: async () => (await settings()).hitSpeed},
+  {id: 'rigid-core.settings.speed-limit', title: 'Maximum linear speed', quantity: 'speed of a body after an impulse of 1e6 N s with the limit at 20 m/s', unit: 'm/s', test: TW.settings,
+    reference: {formula: 'v = limit', value: 20}, tolerance: relative(1e-5), measure: async () => (await settings()).limited},
+  {id: 'rigid-core.settings.push-speed', title: 'Contact push-out speed', quantity: 'fastest speed at which a ball embedded 0.3 m in the ground is pushed out, setting 0.5 m/s', unit: 'm/s', test: TW.push,
+    reference: {formula: 'v = contactPushSpeed', value: 0.5}, tolerance: relative(0.01), measure: async () => (await pushOut())[1].fastest},
+  {id: 'rigid-core.settings.push-speed-default', title: 'Contact push-out speed, default', quantity: 'the same at the default setting of 3 m/s', unit: 'm/s', test: TW.push,
+    reference: {formula: 'v = contactPushSpeed', value: 3}, tolerance: relative(0.01), measure: async () => (await pushOut())[0].fastest},
+  {id: 'rigid-core.stats.normal-force', title: 'Contact statistics: force carried by 16 stacks of three boxes', quantity: 'sum of the normal forces of all contact points', unit: 'N', test: TW.intro,
+    reference: {formula: 'F = 16 (3 + 2 + 1) m g', value: null}, tolerance: relative(1e-3), measure: async () => { const r = await introspection(); return {value: r.normalForce, reference: r.exactNormalForce}; }},
+  {id: 'rigid-core.stats.contacts', title: 'Counters: contacts of 16 stacks of three boxes', quantity: 'contact pairs the solver holds', unit: 'pairs', test: TW.intro,
+    reference: {formula: 'N = 16 x 3', value: 48}, tolerance: absolute(0), measure: async () => (await introspection()).stats.pairs},
+  {id: 'rigid-core.stats.penetration', title: 'Resting contacts: deepest overlap', quantity: 'deepest contact overlap of the stacks at rest', unit: 'm', test: TW.intro,
+    reference: {formula: 'depth <= linear slop', value: SLOP}, tolerance: upper(0), measure: async () => (await introspection()).stats.deepestPenetration},
+  {id: 'rigid-core.debug.bounds', title: 'Debug draw: bounds', quantity: 'line vertices for the bounds of 50 shapes', unit: 'vertices', test: TW.intro,
+    reference: {formula: 'N = 50 x 12 edges x 2', value: 1200}, tolerance: absolute(0), measure: async () => (await introspection()).boundsVertices},
+  {id: 'rigid-core.debug.contacts', title: 'Debug draw: contact points', quantity: 'line vertices for 192 contact points', unit: 'vertices', test: TW.intro,
+    reference: {formula: 'N = 192 x 3 lines x 2', value: 1152}, tolerance: absolute(0), measure: async () => (await introspection()).contactVertices},
+]);
+
+export default [...cases, ...characterCases, ...ccdCases, ...vehicleCases, ...jointCases, ...controlCases];

@@ -3820,8 +3820,8 @@ B3W_EXPORT int b3w_world_profile(uint32_t handle, float* outProfile, int32_t* ou
 }
 
 // out8: touching contact pairs, manifold points, deepest penetration (m, 0 when nothing overlaps), mean penetration
-// over the overlapping points (m), largest normal impulse of one point in the last step (N s), sum of the normal
-// impulses (N s), and two zeros. Read from the manifolds of every moving body; a pair of two moving bodies is counted
+// over the overlapping points (m), largest normal impulse of one point in the last sub-step (N s), sum of the normal
+// impulses of the last sub-step (N s; divide by the sub-step length for the force), and two zeros. Read from the manifolds of every moving body; a pair of two moving bodies is counted
 // once. Reads the world only. Returns 1; -1 for an unknown or empty world; -3 when memory ran out.
 B3W_EXPORT int b3w_world_contact_stats(uint32_t handle, float* out8)
 {
@@ -3860,8 +3860,10 @@ B3W_EXPORT int b3w_world_contact_stats(uint32_t handle, float* out8)
                     const b3ManifoldPoint* point = manifold->points + k;
                     points += 1; touching = 1;
                     if (point->separation < 0.0f) { overlapping += 1; depthSum += (double)-point->separation; if (-point->separation > deepest) deepest = -point->separation; }
-                    impulseSum += (double)point->totalNormalImpulse;
-                    if (point->totalNormalImpulse > largest) largest = point->totalNormalImpulse;
+                    // normalImpulse is the accumulated impulse of the last sub-step; Box3D's totalNormalImpulse adds
+                    // the solve and the relax pass of every sub-step and is not a physical impulse.
+                    impulseSum += (double)point->normalImpulse;
+                    if (point->normalImpulse > largest) largest = point->normalImpulse;
                 }
             }
             pairs += touching;

@@ -9,6 +9,8 @@
 
 ## Unreleased
 
+- **World controls and introspection:** `test/v21-rigid-controls.test.mjs` (5 tests in the gate) covers `settings()` / `configure()`, `setSleep`, `setMotionLocks`, `explodeArea`, `profile()`, `contactStats()` and `debugLines()` against closed forms and exact counts. `ContactStats` gains `totalNormalForce` and `largestNormalForce` (N); the raw impulses are those of the last sub-step. New WASM.
+
 - **Joints:** `test/v21-rigid-joints.test.mjs` (9 tests in the gate) covers motor, parallel and filter joints, thresholds, `'joint-overload'` and `'joint-break'` events, breakable welds, `getJointDetails` for every type and the new setters, with checkpoints, replay and the worker. New WASM: removing a filter joint restores collision at once. `world.contactStats()` (type `ContactStats`) reads touching pairs, contact points, the deepest overlap and the normal impulses from the solver.
 
 - **`box3d-webgpu-kit/gameplay`: `Vehicle`**, a chassis on Box3D wheel joints: suspension in N/m and N s/m (or as the chassis' bounce frequency and damping ratio), Ackermann steering, throttle, brake, drag, `state` (speed, yaw rate, per-wheel suspension travel, spin and steering angle), `saveState()` / `restoreState()`. Types `VehicleOptions`, `VehicleWheelOptions`, `VehicleControls`, `VehicleState`, `VehicleWheelState`, `VehicleHost`. `test/v21-rigid-vehicle.test.mjs` (7 tests) runs in the gate.

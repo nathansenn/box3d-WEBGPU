@@ -582,9 +582,9 @@ export interface NativeContactStats {
   deepestPenetration: number;
   /** Mean overlap of the overlapping points (m). */
   meanPenetration: number;
-  /** Largest normal impulse one contact point applied in the last step (N s). */
+  /** Largest normal impulse one contact point applied in the last sub-step (N s). */
   largestImpulse: number;
-  /** Sum of the normal impulses of the last step (N s): for bodies at rest on the ground, their weight times the step. */
+  /** Sum of the normal impulses of the last sub-step (N s). Divided by the sub-step length it is the total normal force. */
   totalImpulse: number;
 }
 export interface NativeDebugDrawOptions {

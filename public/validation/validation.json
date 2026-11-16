@@ -5,8 +5,8 @@
  "generatedBy": "node scripts/validation-report.mjs",
  "digits": 9,
  "totals": {
-  "cases": 667,
-  "passed": 667,
+  "cases": 681,
+  "passed": 681,
   "failed": 0,
   "domains": 23
  },
@@ -34,7 +34,7 @@
   {
    "id": "rigid-core",
    "title": "Rigid core: queries, character, continuous collision, vehicles, joints and piles",
-   "summary": "Ray, sweep and overlap queries against closed forms, and the batched ray call. The capsule character: speed, slope limit, step height, stairs, jump, thin walls, moving platforms, force-limited pushing and exact resume. Continuous collision: a fast ball against a thin wall with the setting off and on, and the bullet flag against a free plate. A wheel-joint vehicle: static sag, heave frequency and damping, top speed against drag, the Ackermann turning circle and braking distance. Motor, parallel and filter joints, joint events and breakable welds.",
+   "summary": "Ray, sweep and overlap queries against closed forms, and the batched ray call. The capsule character: speed, slope limit, step height, stairs, jump, thin walls, moving platforms, force-limited pushing and exact resume. Continuous collision: a fast ball against a thin wall with the setting off and on, and the bullet flag against a free plate. A wheel-joint vehicle: static sag, heave frequency and damping, top speed against drag, the Ackermann turning circle and braking distance. Motor, parallel and filter joints, joint events and breakable welds. World settings, the area-weighted explosion, contact statistics and debug-draw counts.",
    "solver": "Box3D compiled to WebAssembly, through `box3d-webgpu-kit` (float32 state, 240 Hz, 4 sub-steps unless a row says otherwise)",
    "docs": [
     "docs/RIGID_CORE.md"
@@ -49,8 +49,8 @@
     "Breaking is checked for a weld under a slowly growing static load. A joint breaks on the force or torque of a sub-step, so a short impact can break a joint whose mean load over the step is below its threshold; impact breaking has no reference row.",
     "One build on one machine; no cross-device determinism matrix."
    ],
-   "cases": 75,
-   "passed": 75
+   "cases": 89,
+   "passed": 89
   },
   {
    "id": "water-coupling",
@@ -3765,6 +3765,399 @@
    "text": {
     "reference": "0 steps",
     "measured": "0",
+    "error": "0",
+    "tolerance": "±0"
+   }
+  },
+  {
+   "id": "rigid-core.explosion.sphere",
+   "domain": "rigid-core",
+   "title": "Explosion: speed given to a sphere",
+   "quantity": "speed of a 0.2 m sphere inside the radius, 50 N s/m^2",
+   "unit": "m/s",
+   "formula": "v = P pi r^2 / m",
+   "reference": 0.187499995,
+   "measured": 0.1875,
+   "error": 5.21766266e-9,
+   "relativeError": 2.7827535e-8,
+   "tolerance": {
+    "kind": "relative",
+    "value": 0.00001
+   },
+   "pass": true,
+   "source": {
+    "file": "packages/box3d-kit/test/v21-rigid-controls.test.mjs",
+    "test": "explosion: a sphere takes P pi r^2 / m, half of it half way across the falloff, nothing beyond; a box takes P times its facing area",
+    "url": "https://github.com/nathansenn/box3d-WEBGPU/blob/main/packages/box3d-kit/test/v21-rigid-controls.test.mjs"
+   },
+   "text": {
+    "reference": "0.1875 m/s",
+    "measured": "0.1875",
+    "error": "+2.78e-8 rel.",
+    "tolerance": "±1e-5 rel."
+   }
+  },
+  {
+   "id": "rigid-core.explosion.falloff",
+   "domain": "rigid-core",
+   "title": "Explosion: half way across the falloff",
+   "quantity": "speed of the same sphere with its surface half way across the falloff",
+   "unit": "m/s",
+   "formula": "v = (1/2) P pi r^2 / m",
+   "reference": 0.0937499974,
+   "measured": 0.09375,
+   "error": 2.60883133e-9,
+   "relativeError": 2.7827535e-8,
+   "tolerance": {
+    "kind": "relative",
+    "value": 0.00001
+   },
+   "pass": true,
+   "source": {
+    "file": "packages/box3d-kit/test/v21-rigid-controls.test.mjs",
+    "test": "explosion: a sphere takes P pi r^2 / m, half of it half way across the falloff, nothing beyond; a box takes P times its facing area",
+    "url": "https://github.com/nathansenn/box3d-WEBGPU/blob/main/packages/box3d-kit/test/v21-rigid-controls.test.mjs"
+   },
+   "text": {
+    "reference": "0.09375 m/s",
+    "measured": "0.09375",
+    "error": "+2.78e-8 rel.",
+    "tolerance": "±1e-5 rel."
+   }
+  },
+  {
+   "id": "rigid-core.explosion.box",
+   "domain": "rigid-core",
+   "title": "Explosion: speed given to a box face-on",
+   "quantity": "speed of a box showing a 0.6 x 0.8 m face",
+   "unit": "m/s",
+   "formula": "v = P A / m",
+   "reference": 0.24999998,
+   "measured": 0.249999985,
+   "error": 4.96705216e-9,
+   "relativeError": 1.98682102e-8,
+   "tolerance": {
+    "kind": "relative",
+    "value": 0.00001
+   },
+   "pass": true,
+   "source": {
+    "file": "packages/box3d-kit/test/v21-rigid-controls.test.mjs",
+    "test": "explosion: a sphere takes P pi r^2 / m, half of it half way across the falloff, nothing beyond; a box takes P times its facing area",
+    "url": "https://github.com/nathansenn/box3d-WEBGPU/blob/main/packages/box3d-kit/test/v21-rigid-controls.test.mjs"
+   },
+   "text": {
+    "reference": "0.25 m/s",
+    "measured": "0.25",
+    "error": "+1.99e-8 rel.",
+    "tolerance": "±1e-5 rel."
+   }
+  },
+  {
+   "id": "rigid-core.settings.restitution",
+   "domain": "rigid-core",
+   "title": "Restitution above the threshold: bounce height",
+   "quantity": "bounce of a ball dropped 0.2 m with restitution 0.5 (lands at 1.98 m/s, threshold 1 m/s)",
+   "unit": "m",
+   "formula": "h = e^2 h0",
+   "reference": 0.05,
+   "measured": 0.0485349089,
+   "error": -0.00146509111,
+   "relativeError": -0.0293018222,
+   "tolerance": {
+    "kind": "relative",
+    "value": 0.05
+   },
+   "pass": true,
+   "note": "At 240 Hz the ball lands up to one step before or after the ground plane, which is 3% of this small drop.",
+   "source": {
+    "file": "packages/box3d-kit/test/v21-rigid-controls.test.mjs",
+    "test": "world settings: sleeping, restitution and hit thresholds, the speed limit and motion locks do what they say",
+    "url": "https://github.com/nathansenn/box3d-WEBGPU/blob/main/packages/box3d-kit/test/v21-rigid-controls.test.mjs"
+   },
+   "text": {
+    "reference": "0.05 m",
+    "measured": "0.04853491",
+    "error": "-2.93%",
+    "tolerance": "±5%"
+   }
+  },
+  {
+   "id": "rigid-core.settings.restitution-off",
+   "domain": "rigid-core",
+   "title": "Restitution below the threshold: no bounce",
+   "quantity": "bounce of the same drop with the threshold at 3 m/s",
+   "unit": "m",
+   "formula": "h = 0",
+   "reference": 0,
+   "measured": 0,
+   "error": 0,
+   "relativeError": null,
+   "tolerance": {
+    "kind": "absolute",
+    "value": 0.0001
+   },
+   "pass": true,
+   "source": {
+    "file": "packages/box3d-kit/test/v21-rigid-controls.test.mjs",
+    "test": "world settings: sleeping, restitution and hit thresholds, the speed limit and motion locks do what they say",
+    "url": "https://github.com/nathansenn/box3d-WEBGPU/blob/main/packages/box3d-kit/test/v21-rigid-controls.test.mjs"
+   },
+   "text": {
+    "reference": "0 m",
+    "measured": "0",
+    "error": "0",
+    "tolerance": "±0.0001"
+   }
+  },
+  {
+   "id": "rigid-core.settings.hit-speed",
+   "domain": "rigid-core",
+   "title": "Hit event: approach speed",
+   "quantity": "approach speed reported for a 0.2 m drop",
+   "unit": "m/s",
+   "formula": "v = sqrt(2 g h)",
+   "reference": 1.98090888,
+   "measured": 1.96199834,
+   "error": -0.0189105388,
+   "relativeError": -0.0095463951,
+   "tolerance": {
+    "kind": "relative",
+    "value": 0.02
+   },
+   "pass": true,
+   "source": {
+    "file": "packages/box3d-kit/test/v21-rigid-controls.test.mjs",
+    "test": "world settings: sleeping, restitution and hit thresholds, the speed limit and motion locks do what they say",
+    "url": "https://github.com/nathansenn/box3d-WEBGPU/blob/main/packages/box3d-kit/test/v21-rigid-controls.test.mjs"
+   },
+   "text": {
+    "reference": "1.980909 m/s",
+    "measured": "1.961998",
+    "error": "-0.955%",
+    "tolerance": "±2%"
+   }
+  },
+  {
+   "id": "rigid-core.settings.speed-limit",
+   "domain": "rigid-core",
+   "title": "Maximum linear speed",
+   "quantity": "speed of a body after an impulse of 1e6 N s with the limit at 20 m/s",
+   "unit": "m/s",
+   "formula": "v = limit",
+   "reference": 20,
+   "measured": 19.9999981,
+   "error": -0.00000190734863,
+   "relativeError": -9.53674316e-8,
+   "tolerance": {
+    "kind": "relative",
+    "value": 0.00001
+   },
+   "pass": true,
+   "source": {
+    "file": "packages/box3d-kit/test/v21-rigid-controls.test.mjs",
+    "test": "world settings: sleeping, restitution and hit thresholds, the speed limit and motion locks do what they say",
+    "url": "https://github.com/nathansenn/box3d-WEBGPU/blob/main/packages/box3d-kit/test/v21-rigid-controls.test.mjs"
+   },
+   "text": {
+    "reference": "20 m/s",
+    "measured": "20",
+    "error": "-9.54e-8 rel.",
+    "tolerance": "±1e-5 rel."
+   }
+  },
+  {
+   "id": "rigid-core.settings.push-speed",
+   "domain": "rigid-core",
+   "title": "Contact push-out speed",
+   "quantity": "fastest speed at which a ball embedded 0.3 m in the ground is pushed out, setting 0.5 m/s",
+   "unit": "m/s",
+   "formula": "v = contactPushSpeed",
+   "reference": 0.5,
+   "measured": 0.49799037,
+   "error": -0.0020096302,
+   "relativeError": -0.00401926041,
+   "tolerance": {
+    "kind": "relative",
+    "value": 0.01
+   },
+   "pass": true,
+   "source": {
+    "file": "packages/box3d-kit/test/v21-rigid-controls.test.mjs",
+    "test": "contact push-out speed: an embedded ball leaves the ground at the set speed and no faster",
+    "url": "https://github.com/nathansenn/box3d-WEBGPU/blob/main/packages/box3d-kit/test/v21-rigid-controls.test.mjs"
+   },
+   "text": {
+    "reference": "0.5 m/s",
+    "measured": "0.4979904",
+    "error": "-0.402%",
+    "tolerance": "±1%"
+   }
+  },
+  {
+   "id": "rigid-core.settings.push-speed-default",
+   "domain": "rigid-core",
+   "title": "Contact push-out speed, default",
+   "quantity": "the same at the default setting of 3 m/s",
+   "unit": "m/s",
+   "formula": "v = contactPushSpeed",
+   "reference": 3,
+   "measured": 2.99799085,
+   "error": -0.00200915337,
+   "relativeError": -0.000669717789,
+   "tolerance": {
+    "kind": "relative",
+    "value": 0.01
+   },
+   "pass": true,
+   "source": {
+    "file": "packages/box3d-kit/test/v21-rigid-controls.test.mjs",
+    "test": "contact push-out speed: an embedded ball leaves the ground at the set speed and no faster",
+    "url": "https://github.com/nathansenn/box3d-WEBGPU/blob/main/packages/box3d-kit/test/v21-rigid-controls.test.mjs"
+   },
+   "text": {
+    "reference": "3 m/s",
+    "measured": "2.997991",
+    "error": "-0.067%",
+    "tolerance": "±1%"
+   }
+  },
+  {
+   "id": "rigid-core.stats.normal-force",
+   "domain": "rigid-core",
+   "title": "Contact statistics: force carried by 16 stacks of three boxes",
+   "quantity": "sum of the normal forces of all contact points",
+   "unit": "N",
+   "formula": "F = 16 (3 + 2 + 1) m g",
+   "reference": 117720,
+   "measured": 117719.905,
+   "error": -0.0952148438,
+   "relativeError": -8.08824701e-7,
+   "tolerance": {
+    "kind": "relative",
+    "value": 0.001
+   },
+   "pass": true,
+   "source": {
+    "file": "packages/box3d-kit/test/v21-rigid-controls.test.mjs",
+    "test": "profile, counters, contact statistics and debug lines of a known scene are exact",
+    "url": "https://github.com/nathansenn/box3d-WEBGPU/blob/main/packages/box3d-kit/test/v21-rigid-controls.test.mjs"
+   },
+   "text": {
+    "reference": "117720 N",
+    "measured": "117719.9",
+    "error": "-8.09e-7 rel.",
+    "tolerance": "±0.1%"
+   }
+  },
+  {
+   "id": "rigid-core.stats.contacts",
+   "domain": "rigid-core",
+   "title": "Counters: contacts of 16 stacks of three boxes",
+   "quantity": "contact pairs the solver holds",
+   "unit": "pairs",
+   "formula": "N = 16 x 3",
+   "reference": 48,
+   "measured": 48,
+   "error": 0,
+   "relativeError": 0,
+   "tolerance": {
+    "kind": "absolute",
+    "value": 0
+   },
+   "pass": true,
+   "source": {
+    "file": "packages/box3d-kit/test/v21-rigid-controls.test.mjs",
+    "test": "profile, counters, contact statistics and debug lines of a known scene are exact",
+    "url": "https://github.com/nathansenn/box3d-WEBGPU/blob/main/packages/box3d-kit/test/v21-rigid-controls.test.mjs"
+   },
+   "text": {
+    "reference": "48 pairs",
+    "measured": "48",
+    "error": "0",
+    "tolerance": "±0"
+   }
+  },
+  {
+   "id": "rigid-core.stats.penetration",
+   "domain": "rigid-core",
+   "title": "Resting contacts: deepest overlap",
+   "quantity": "deepest contact overlap of the stacks at rest",
+   "unit": "m",
+   "formula": "depth <= linear slop",
+   "reference": 0.005,
+   "measured": 0.00110280514,
+   "error": -0.00389719486,
+   "relativeError": -0.779438972,
+   "tolerance": {
+    "kind": "upper",
+    "value": 0
+   },
+   "pass": true,
+   "source": {
+    "file": "packages/box3d-kit/test/v21-rigid-controls.test.mjs",
+    "test": "profile, counters, contact statistics and debug lines of a known scene are exact",
+    "url": "https://github.com/nathansenn/box3d-WEBGPU/blob/main/packages/box3d-kit/test/v21-rigid-controls.test.mjs"
+   },
+   "text": {
+    "reference": "0.005 m",
+    "measured": "0.001102805",
+    "error": "-0.0039",
+    "tolerance": "not above the reference"
+   }
+  },
+  {
+   "id": "rigid-core.debug.bounds",
+   "domain": "rigid-core",
+   "title": "Debug draw: bounds",
+   "quantity": "line vertices for the bounds of 50 shapes",
+   "unit": "vertices",
+   "formula": "N = 50 x 12 edges x 2",
+   "reference": 1200,
+   "measured": 1200,
+   "error": 0,
+   "relativeError": 0,
+   "tolerance": {
+    "kind": "absolute",
+    "value": 0
+   },
+   "pass": true,
+   "source": {
+    "file": "packages/box3d-kit/test/v21-rigid-controls.test.mjs",
+    "test": "profile, counters, contact statistics and debug lines of a known scene are exact",
+    "url": "https://github.com/nathansenn/box3d-WEBGPU/blob/main/packages/box3d-kit/test/v21-rigid-controls.test.mjs"
+   },
+   "text": {
+    "reference": "1200 vertices",
+    "measured": "1200",
+    "error": "0",
+    "tolerance": "±0"
+   }
+  },
+  {
+   "id": "rigid-core.debug.contacts",
+   "domain": "rigid-core",
+   "title": "Debug draw: contact points",
+   "quantity": "line vertices for 192 contact points",
+   "unit": "vertices",
+   "formula": "N = 192 x 3 lines x 2",
+   "reference": 1152,
+   "measured": 1152,
+   "error": 0,
+   "relativeError": 0,
+   "tolerance": {
+    "kind": "absolute",
+    "value": 0
+   },
+   "pass": true,
+   "source": {
+    "file": "packages/box3d-kit/test/v21-rigid-controls.test.mjs",
+    "test": "profile, counters, contact statistics and debug lines of a known scene are exact",
+    "url": "https://github.com/nathansenn/box3d-WEBGPU/blob/main/packages/box3d-kit/test/v21-rigid-controls.test.mjs"
+   },
+   "text": {
+    "reference": "1152 vertices",
+    "measured": "1152",
     "error": "0",
     "tolerance": "±0"
    }

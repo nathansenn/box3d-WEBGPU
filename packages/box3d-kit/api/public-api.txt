@@ -7472,7 +7472,10 @@ export type JointDrive = Omit<NativeJointDrive, 'linearVelocity' | 'angularVeloc
 export type JointThresholds = NativeJointThresholds;
 export type RayBatch = NativeRayBatch;
 export type StepProfile = NativeStepProfile;
-export type ContactStats = NativeContactStats;
+export type ContactStats = NativeContactStats & {
+    readonly totalNormalForce: number;
+    readonly largestNormalForce: number;
+};
 export type DebugDrawOptions = Omit<NativeDebugDrawOptions, 'region'> & {
     readonly region?: {
         readonly min: Vec3Like;

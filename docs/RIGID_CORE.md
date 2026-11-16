@@ -336,6 +336,55 @@ cone angle, wheel spin, steering angle and suspension travel.
 - A joint spring's `hertz` is a frequency of the joint's own effective mass (see Vehicles), which equals the
   body's mass only when the other body is the world or much heavier.
 
+## 6. World controls and introspection
+
+| Call | What |
+|---|---|
+| `world.settings()` / `world.configure({...})` | `sleeping`, `continuous`, `speculative`, `warmStarting` (booleans); `restitutionThreshold` and `hitEventThreshold` (m/s); `contactHertz`, `contactDampingRatio`, `contactPushSpeed` (m/s); `maximumLinearSpeed` (m/s); `contactRecycleDistance` (m). Box3D's defaults: on, on, on, on, 1, 1, 30, 10, 3, 400, 0.05. `configure` wakes every dynamic body. Settings last until the next `reset()` and are part of a checkpoint. |
+| `world.setSleep(body, {enabled, threshold})`, `setBullet`, `setMotionLocks(body, {linearX…angularZ})`, `getBodyFlags(body)` | Per-body sleeping, bullet flag and motion locks (a 2D body: lock `linearZ`, `angularX`, `angularY`). |
+| `world.awakeCount()` | Bodies being simulated. |
+| `world.explodeArea({center, radius, falloff, impulsePerArea, maskBits})` | Box3D's explosion: every sphere, capsule and hull within `radius + falloff` takes an impulse along the line from the centre to its closest point, of `impulsePerArea` × the area it shows × a factor that falls linearly from 1 at `radius` to 0 at `radius + falloff`. Applied at the closest point, so bodies hit off-centre spin. (`world.explode(center, strength, radius)` is the older call: a centre impulse with an upward bias.) |
+| `world.profile()` | Box3D's own timing of the most recent step, in milliseconds by stage (`step`, `pairs`, `collide`, `solve`, `solverSetup`, `constraints`, `prepareConstraints`, `integrateVelocities`, `warmStart`, `solveImpulses`, `integratePositions`, `relaxImpulses`, `applyRestitution`, `storeImpulses`, `splitIslands`, `transforms`, `sensorHits`, `jointEvents`, `hitEvents`, `refit`, `bullets`, `sleepIslands`, `sensors`), and counters (`bodies`, `shapes`, `contacts`, `joints`, `islands`, tree heights, `awakeBodies`, `awakeContacts`, …). Wall-clock numbers; not part of a checkpoint. |
+| `world.contactStats()` | From the solver's manifolds: touching `pairs`, contact `points`, `deepestPenetration` and `meanPenetration` (m), `totalNormalForce` and `largestNormalForce` (N). The health check for stacks and piles. |
+
+What the less obvious settings do, as measured: a ball that lands faster than `restitutionThreshold` bounces
+(to 0.0485 m from a 0.2 m drop with restitution 0.5, where e²h is 0.05 m) and one that lands slower does not at all;
+`hitEventThreshold` is the approach speed above which a `'hit'` event is reported (1.962 m/s reported for
+√(2gh) = 1.981 m/s; the speed is taken one step before the plane); `maximumLinearSpeed` clips every body (20.000 m/s
+after an impulse worth 10⁵ m/s); `contactPushSpeed` is the speed at which overlap is resolved (a ball started 0.3 m
+inside the ground leaves it at 2.998 m/s with the default 3 and at 0.498 m/s with 0.5).
+
+The explosion matches its formula to float32: a sphere of radius 0.2 m takes `P π r² / m` = 0.18750 m/s (measured
+0.18750), half of that half way across the falloff, nothing beyond it, and a box showing a 0.6 × 0.8 m face takes
+`P A / m`. The contact statistics of 16 stacks of three boxes report 48 pairs, 192 points and a total normal force
+of 117,720 N, which is 16 × (3 + 2 + 1) box weights to 6 digits, with the deepest overlap at 1.1 mm.
+
+## 7. Debug draw
+
+`world.debugLines(options)` runs Box3D's own debug drawing (`b3World_Draw`) and returns line segments: `positions`
+(x, y, z per vertex, two vertices per line) and `colors` (r, g, b in 0..1 per vertex). Layers: `joints`,
+`jointExtras` (frames and limits), `bounds` (the bounding box of every shape), `mass` (centres of mass with body
+axes), `contacts`, `contactNormals`, `contactForces`, `frictionForces`, `islands`, and `graphColors` (colour contacts
+by solver colour). `region: {min, max}` draws only what lies in a box; `jointScale` and `forceScale` size the
+drawings. At most 1,048,576 vertices; `truncated` says when the rest was dropped. It reads the world only.
+
+```js
+const lines = world.debugLines({contacts: true, contactNormals: true, joints: true});
+geometry.setAttribute('position', new THREE.BufferAttribute(lines.positions, 3));
+geometry.setAttribute('color', new THREE.BufferAttribute(lines.colors, 3));     // THREE.LineSegments, vertexColors
+```
+
+In the Physics Lab: **`lab.html?debug=1`** (contacts, normals, joints, mass centres), `?debug=all`, or a list such
+as `?debug=joints,bounds`; and the **Debug draw** switch with its six layers in the Scenes panel. The lines go
+through the overlay-line path that both renderers share, so they are drawn the same on WebGPU and on WebGL2
+(`?renderer=webgl2`). The Lab draws at most 60,000 lines a frame and asks the engine again only when bodies have
+moved or the layers changed. It applies to scenes that run in a general world (scene files, examples, the SI
+demos); the 800 recipes use the compatibility world, which has no debug draw.
+
+Counts are exact for a known scene: 50 shapes give 50 × 12 edges = 1,200 bound vertices, and 192 contact points
+give 192 × 3 lines = 1,152 vertices (registry rows). Shapes themselves are not drawn by this call (the renderers
+draw them); text labels (body names, contact features) are dropped.
+
 ## Custom filter and pre-solve callbacks: not exposed
 
 Box3D can call the application for every candidate pair (`b3World_SetCustomFilterCallback`) and for every touching
