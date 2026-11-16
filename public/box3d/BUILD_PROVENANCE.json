@@ -12,7 +12,7 @@
   },
   "bridge": {
     "source": "wasm/box3d_web.c",
-    "sha256": "cdabafab911c6a835dea734ccac3bca3f0c5797cda8e72077dabd415bde32dca",
+    "sha256": "6d51fc127d723db49e4cdfb49284f1843f36f602f91b61e56d81e572edca373b",
     "lazyReplayHash": true,
     "sleepingWorldTransformCache": true,
     "independentColorRevision": true,
@@ -31,12 +31,12 @@
   },
   "artifacts": {
     "box3d.js": {
-      "bytes": 23842,
-      "sha256": "6d9e6a8953e1e3109d075927f7c2f52bbe9ab376c9719104804bda32ec2ba047"
+      "bytes": 23951,
+      "sha256": "8c6149444bed5edd7be70e41059b1ffb0629e42065e012b23a86204e395a153f"
     },
     "box3d.wasm": {
-      "bytes": 722049,
-      "sha256": "d86c8bfb52cb332fed8f13fcb199165c18af6918bf0115000fd57b10411eb301"
+      "bytes": 724399,
+      "sha256": "321f8954e60f3b9b68f7b385ca62e34e7ac86f611194a25f9e9ab585c743b7d1"
     }
   },
   "validation": {
@@ -105,7 +105,8 @@
         "b3w_world_contact_stats",
         "b3w_world_debug_draw",
         "b3w_world_debug_ptr",
-        "b3w_world_debug_total"
+        "b3w_world_debug_total",
+        "b3w_world_contained_total"
       ],
       "jointTypes": [
         "weld",
@@ -141,7 +142,8 @@
         "result": "hull bodies and compound hull children with the same points share one b3CreateHull call per context; the hull is the one b3CreateHull computes"
       },
       "worldCapacity": "b3w_world_reserve(n) is passed to b3CreateWorld as capacity (n dynamic bodies and shapes, 4 n contacts) at the next reset; default contexts pass none",
-      "convexExtentLimit": "for dynamic bodies, box half extents, hull points and compound polytope children above 1 km (from the body origin) are refused, and so is retyping a wider box, hull or compound body to dynamic: Box3D b3FindIncidentFace loops for ever on such boxes in contact (ND-1)"
+      "convexExtentLimit": "for dynamic bodies, box half extents, hull points and compound polytope children above 1 km (from the body origin) are refused, and so is retyping a wider box, hull or compound body to dynamic: Box3D b3FindIncidentFace loops for ever on such boxes in contact (ND-1)",
+      "divergenceContainment": "after each step a dynamic body that is not finite or faster than 10 x the maximum linear speed (at least 1e4) is put back at its previous pose at rest, the next step runs without warm starting, and event kind 7 reports it (ND-2)"
     }
   },
   "build": {
@@ -157,17 +159,17 @@
     "bridge": "wasm/box3d_web.c compiled unchanged; b3CreateWorld and b3World_Step renamed per source",
     "sources": {
       "threadsSha256": "5785c8eb105440000ad2520149a6ebf6f6317dca3d4b5724011972861c57f2cb",
-      "bridgeSha256": "cdabafab911c6a835dea734ccac3bca3f0c5797cda8e72077dabd415bde32dca",
-      "cmakeSha256": "b7d3255a27f0197cca8daef72e4661b99574e00d34c218c683c88699b57df49b"
+      "bridgeSha256": "6d51fc127d723db49e4cdfb49284f1843f36f602f91b61e56d81e572edca373b",
+      "cmakeSha256": "15385eb1e52df5a080eb85586a02bed7f55dc303a5d1402da75f2ea9ad17e749"
     },
     "artifacts": {
       "box3d-mt.js": {
-        "bytes": 39130,
-        "sha256": "ec6af5aa00610a790925c284112dcf1aaf449c121894fac9d724fa78de554a3a"
+        "bytes": 39239,
+        "sha256": "2376585817e847e7a2a4b53081359a89b1da4d9d8c61dcfd37c1a4d08b3f85ea"
       },
       "box3d-mt.wasm": {
-        "bytes": 729796,
-        "sha256": "1a25fbb813edb5cfb76b77941f176ee20cf1b44af382bd30f42c8ae25b67ac7c"
+        "bytes": 732205,
+        "sha256": "a7e14597f96b106a78278b6c25109626affc06d5a3ce0a5f5d7a0806596cee0b"
       }
     },
     "build": {

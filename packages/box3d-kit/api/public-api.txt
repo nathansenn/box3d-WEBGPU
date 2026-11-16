@@ -3225,6 +3225,7 @@ export interface NativeWorldModule {
     _b3w_world_debug_draw?(world: number, flags: number, jointScale: number, forceScale: number, bounds: number | bigint): number;
     _b3w_world_debug_ptr?(world: number): number | bigint;
     _b3w_world_debug_total?(world: number): number;
+    _b3w_world_contained_total?(world: number): number;
     _b3w_world_checkpoint?(world: number): number;
     _b3w_world_checkpoint_ptr?(world: number): number | bigint;
     _b3w_world_checkpoint_free?(world: number): number;
@@ -3449,7 +3450,7 @@ export interface NativeJointState {
     torque: [number, number, number];
 }
 export interface NativeWorldEvent {
-    readonly kind: 'contact-begin' | 'contact-end' | 'hit' | 'sensor-begin' | 'sensor-end' | 'joint-overload' | 'joint-break';
+    readonly kind: 'contact-begin' | 'contact-end' | 'hit' | 'sensor-begin' | 'sensor-end' | 'joint-overload' | 'joint-break' | 'body-contained';
     readonly bodyA: NativeBodyHandle | null;
     readonly bodyB: NativeBodyHandle | null;
     readonly joint?: NativeJointHandle;
@@ -3458,6 +3459,7 @@ export interface NativeWorldEvent {
     readonly point?: NativeQueryVector;
     readonly normal?: NativeQueryVector;
     readonly approachSpeed?: number;
+    readonly speed?: number;
 }
 export interface NativeRayBatch {
     readonly count: number;
@@ -3732,6 +3734,7 @@ export declare class NativeWorldBackend implements PhysicsBackend {
         events: NativeWorldEvent[];
         dropped: number;
     };
+    containedTotal(): number;
     get supportsCheckpoints(): boolean;
     checkpoint(): Uint8Array;
     restoreCheckpoint(bytes: Uint8Array): void;

@@ -118,6 +118,9 @@ typedef struct B3WPointHull
     uint32_t stamp;
 } B3WPointHull;
 
+// A body the last step had to contain (b3w_ctx_contain): its handle and the speed it had reached (NaN when not finite).
+typedef struct B3WContained { uint64_t body; float speed; uint32_t padding; } B3WContained;
+
 // Simulation state is passed explicitly to every stateful helper. The registry
 // owns lifetimes only; there is no shared selected/current simulation context.
 typedef struct B3WContext
@@ -180,6 +183,12 @@ typedef struct B3WContext
     struct B3WJointRecord* jointRecords;
     int jointRecordCount;
     int jointRecordCapacity;
+    // Bodies the last step had to contain (native defect ND-2): their handle and the speed they had reached.
+    struct B3WContained* contained;
+    int containedCount;
+    int containedCapacity;
+    uint32_t containedTotal;
+    int clearImpulses;
     // Line vertices written by the last b3w_world_debug_draw: x, y, z, 0xRRGGBB as a float.
     float* debugVertices;
     int debugCount;
@@ -1622,11 +1631,13 @@ static void b3w_ctx_sync_transforms(B3WContext* ctx)
 }
 
 static void b3w_ctx_after_step(B3WContext* ctx);
+static void b3w_ctx_contain(B3WContext* ctx);
 
 static void b3w_ctx_step(B3WContext* ctx, float dt, int subSteps)
 {
-    // Joint events describe one step only.
+    // Joint events and containments describe one step only.
     ctx->jointRecordCount = 0;
+    ctx->containedCount = 0;
     if (B3_IS_NULL(ctx->world) || !isfinite(dt) || dt <= 0.0f)
     {
         return;
@@ -1642,7 +1653,17 @@ static void b3w_ctx_step(B3WContext* ctx, float dt, int subSteps)
     {
         return;
     }
-    b3World_Step(ctx->world, dt, subSteps);
+    if (ctx->clearImpulses != 0)
+    {
+        // After a containment: one step without warm starting zeroes every joint and contact impulse (ND-2).
+        const bool warm = b3World_IsWarmStartingEnabled(ctx->world);
+        b3World_EnableWarmStarting(ctx->world, false);
+        b3World_Step(ctx->world, dt, subSteps);
+        b3World_EnableWarmStarting(ctx->world, warm);
+        ctx->clearImpulses = 0;
+    }
+    else b3World_Step(ctx->world, dt, subSteps);
+    b3w_ctx_contain(ctx);
     b3w_ctx_after_step(ctx);
 
     // If the step began awake, perform the same full synchronization used by
@@ -1884,6 +1905,7 @@ B3W_EXPORT int b3w_world_destroy(uint32_t handle)
     free(ctx->checkpoint);
     free(ctx->jointFlags);
     free(ctx->jointRecords);
+    free(ctx->contained);
     free(ctx->debugVertices);
     free(ctx);
     B3WContextSlot* slot = &g_contextSlots[(handle & B3W_CONTEXT_SLOT_MASK) - 1u];
@@ -2181,7 +2203,7 @@ typedef struct B3WJointDesc
 
 typedef struct B3WEvent
 {
-    uint32_t kind; // 0 contact begin, 1 contact end, 2 hit, 3 sensor begin, 4 sensor end, 5 joint over its threshold, 6 joint broke
+    uint32_t kind; // 0 contact begin, 1 contact end, 2 hit, 3 sensor begin, 4 sensor end, 5 joint over its threshold, 6 joint broke, 7 body contained (speed: what it reached)
     uint32_t reserved; // joint events: low 32 bits of the joint handle
     uint64_t bodyA, bodyB; // for sensor events A is the sensor, B the visitor; for joint events the joint's bodies (0 for the world anchor)
     float point[3]; // joint events: the constraint force (N)
@@ -3305,6 +3327,14 @@ B3W_EXPORT int b3w_world_collect_events(uint32_t handle)
         const struct B3WJointRecord* record = ctx->jointRecords + i;
         b3w_ctx_write_joint_event(ctx, event, record);
     }
+    for (int i = 0; i < ctx->containedCount; ++i)
+    {
+        B3WEvent* event = b3w_ctx_push_event(ctx);
+        if (event == NULL) continue;
+        event->kind = 7u;
+        event->bodyA = ctx->contained[i].body;
+        event->speed = ctx->contained[i].speed;
+    }
     return ctx->eventCount;
 }
 
@@ -3343,6 +3373,81 @@ static uint64_t b3w_ctx_native_body_handle(B3WContext* ctx, b3BodyId body)
 
 // Copies the joints Box3D reported over their force or torque threshold in the step just taken, then destroys
 // the ones flagged as breakable. Box3D's event array is invalid once a joint is destroyed, hence the copy.
+// --- Containment of diverged bodies (native defect ND-2). ---
+// Box3D can diverge when joints contradict each other (a body held by two joints to the world that cannot both be
+// satisfied, one of them a hard limit): speeds grow by orders of magnitude a step until they are NaN, which then
+// spreads through contacts and joints to every body that touches it. After each step the bridge looks for a dynamic
+// body whose state is not finite, or whose linear or angular speed is above ten times the world's maximum linear
+// speed (Box3D clamps what it integrates at that speed, 400 m/s by default; impulses can leave a body faster for a
+// step, by a few times, when a joint snaps back) and at least 1e4, puts it back at the pose it had after the
+// previous step, at rest, and reports it (event kind 7, b3w_world_contained_total). A world that never diverges is
+// not changed.
+#define B3W_DIVERGED_SPEED_MIN 1.0e4f
+
+static int b3w_ctx_contain_one(B3WContext* ctx, int index, float speed)
+{
+    // The pose of the last sync is in the row's model matrix: columns scaled by the half extents, then the position.
+    const float* m = ctx->matrices + index * 16;
+    const B3WBody* row = ctx->bodies + index;
+    const float sx = row->hx, sy = row->hy, sz = row->hz;
+    float r[9] = { m[0] / sx, m[1] / sx, m[2] / sx, m[4] / sy, m[5] / sy, m[6] / sy, m[8] / sz, m[9] / sz, m[10] / sz };
+    for (int k = 0; k < 9; ++k) if (!isfinite(r[k])) return 0;
+    if (!isfinite(m[12]) || !isfinite(m[13]) || !isfinite(m[14])) return 0;
+    // Rotation matrix (columns r0..r2) to quaternion.
+    const float trace = r[0] + r[4] + r[8];
+    b3Quat q;
+    if (trace > 0.0f) { const float t = sqrtf(trace + 1.0f) * 2.0f; q.s = 0.25f * t; q.v.x = (r[5] - r[7]) / t; q.v.y = (r[6] - r[2]) / t; q.v.z = (r[1] - r[3]) / t; }
+    else if (r[0] > r[4] && r[0] > r[8]) { const float t = sqrtf(1.0f + r[0] - r[4] - r[8]) * 2.0f; q.s = (r[5] - r[7]) / t; q.v.x = 0.25f * t; q.v.y = (r[1] + r[3]) / t; q.v.z = (r[6] + r[2]) / t; }
+    else if (r[4] > r[8]) { const float t = sqrtf(1.0f + r[4] - r[0] - r[8]) * 2.0f; q.s = (r[6] - r[2]) / t; q.v.x = (r[1] + r[3]) / t; q.v.y = 0.25f * t; q.v.z = (r[5] + r[7]) / t; }
+    else { const float t = sqrtf(1.0f + r[8] - r[0] - r[4]) * 2.0f; q.s = (r[1] - r[3]) / t; q.v.x = (r[6] + r[2]) / t; q.v.y = (r[5] + r[7]) / t; q.v.z = 0.25f * t; }
+    const float qn = sqrtf(q.s * q.s + q.v.x * q.v.x + q.v.y * q.v.y + q.v.z * q.v.z);
+    if (!(qn > 0.0f) || !isfinite(qn)) return 0;
+    q.s /= qn; q.v.x /= qn; q.v.y /= qn; q.v.z /= qn;
+    const b3BodyId id = row->id;
+    b3Body_SetTransform(id, (b3Pos){ m[12], m[13], m[14] }, q);
+    b3Body_SetLinearVelocity(id, (b3Vec3){ 0.0f, 0.0f, 0.0f });
+    b3Body_SetAngularVelocity(id, (b3Vec3){ 0.0f, 0.0f, 0.0f });
+    // The impulses the diverged solve accumulated (in its joints and contacts) would throw it again through warm
+    // starting: the next step runs once without warm starting, which makes Box3D zero them (b3w_ctx_step).
+    ctx->clearImpulses = 1;
+    if (ctx->containedCount >= ctx->containedCapacity)
+    {
+        const int capacity = ctx->containedCapacity == 0 ? 16 : ctx->containedCapacity * 2;
+        B3WContained* list = (B3WContained*)realloc(ctx->contained, (size_t)capacity * sizeof(B3WContained));
+        if (list != NULL) { ctx->contained = list; ctx->containedCapacity = capacity; }
+    }
+    if (ctx->containedCount < ctx->containedCapacity) ctx->contained[ctx->containedCount++] = (B3WContained){ b3w_ctx_body_handle(ctx, index), speed, 0u };
+    if (ctx->containedTotal < UINT32_MAX) ctx->containedTotal += 1u;
+    return 1;
+}
+
+static void b3w_ctx_contain(B3WContext* ctx)
+{
+    if (ctx->bodySlots == NULL) return;
+    float limit = 10.0f * b3World_GetMaximumLinearSpeed(ctx->world);
+    if (!(limit >= B3W_DIVERGED_SPEED_MIN)) limit = B3W_DIVERGED_SPEED_MIN;
+    const float limit2 = limit * limit;
+    for (int d = 0; d < ctx->dynamicCount; ++d)
+    {
+        const int i = ctx->dynamicIndices[d];
+        if (i < 0 || i >= ctx->bodyCount) continue;
+        const b3BodyId id = ctx->bodies[i].id;
+        const b3Vec3 v = b3Body_GetLinearVelocity(id), w = b3Body_GetAngularVelocity(id);
+        const b3WorldTransform xf = b3Body_GetTransform(id);
+        const float v2 = v.x * v.x + v.y * v.y + v.z * v.z, w2 = w.x * w.x + w.y * w.y + w.z * w.z;
+        const int finite = isfinite(v2) && isfinite(w2) && isfinite((float)xf.p.x) && isfinite((float)xf.p.y) && isfinite((float)xf.p.z) &&
+            isfinite(xf.q.s) && isfinite(xf.q.v.x) && isfinite(xf.q.v.y) && isfinite(xf.q.v.z);
+        if (finite && v2 <= limit2 && w2 <= limit2) continue;
+        b3w_ctx_contain_one(ctx, i, finite ? sqrtf(v2 > w2 ? v2 : w2) : NAN);
+    }
+}
+
+B3W_EXPORT int b3w_world_contained_total(uint32_t handle)
+{
+    B3WContext* ctx = b3w_lookup_context(handle);
+    return ctx != NULL ? (int)(ctx->containedTotal > 0x7FFFFFFFu ? 0x7FFFFFFFu : ctx->containedTotal) : -1;
+}
+
 static void b3w_ctx_after_step(B3WContext* ctx)
 {
     b3JointEvents events = b3World_GetJointEvents(ctx->world);

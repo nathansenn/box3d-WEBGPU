@@ -51,3 +51,55 @@ test('ND-1: a dynamic convex shape above 1 km is refused by the bridge, so the s
     assert.ok(world.createBody({shape: {kind: 'sphere', radius: 5000}, position: [0, 9000, 0]}));
   } finally { world.destroy(); }
 });
+
+test('ND-2: joints that contradict each other no longer poison the world: the diverged bodies are contained, reported, and stay finite', () => {
+  const world = pool.createWorld();
+  try {
+    world.resetWorld({ground: true});
+    const box = world.createBody({shape: {kind: 'box', halfExtents: [0.5, 0.5, 0.5]}, position: [0, 2, 0]});
+    const wheel = world.createBody({shape: {kind: 'sphere', radius: 0.3}, position: [0, 0.3, 3]});
+    const bystander = world.createBody({shape: {kind: 'box', halfExtents: [0.4, 0.4, 0.4]}, position: [-6, 0.4, 0]});
+    world.createJoint({type: 'revolute', bodyA: null, bodyB: box, frameA: {position: [4, 2, 0]}});
+    world.createJoint({type: 'wheel', bodyA: box, bodyB: wheel, frameA: {position: [0, -0.5, 0]}});
+    world.createJoint({type: 'wheel', bodyA: box, bodyB: null, frameA: {position: [0, 0.5, 0]}, frameB: {position: [0, -0.5, 0]}, limits: {lower: -0.2, upper: 0.2}, spring: {hertz: 4, dampingRatio: 0.7}, motor: {speed: 3, maxForce: 20}});
+    const before = world.containedTotal(), events = [];
+    for (let step = 0; step < 60; step++) {
+      world.step(1 / 60, 4);
+      events.push(...world.collectEvents().events.filter(event => event.kind === 'body-contained'));
+      for (const body of [box, wheel, bystander]) {
+        const state = world.bodyState(body);
+        assert.ok(finite([...state.position, ...state.rotation, ...state.linearVelocity, ...state.angularVelocity]), `finite after step ${step + 1}`);
+      }
+    }
+    assert.ok(events.length > 0 && world.containedTotal() - before === events.length, `each containment is an event (${events.length}) and counted`);
+    assert.ok(events.every(event => event.bodyA !== null && (event.bodyA.token === box.token || event.bodyA.token === wheel.token)), 'only the jointed bodies diverge');
+    assert.ok(events.every(event => !(event.speed <= 10 * 400)), 'each reached more than ten times the speed limit, or was not finite');
+    const still = world.bodyState(bystander);
+    assert.ok(Math.abs(still.position[0] + 6) < 1e-3 && Math.abs(still.position[1] - 0.4) < 0.01, 'a body that touches nothing of it rests where it was');
+  } finally { world.destroy(); }
+});
+
+test('ND-2: containment never fires in the example scenes or in the 800-scene catalog', async () => {
+  const sceneModule = await import('../dist/scene.js');
+  const kit = await import('../dist/index.js');
+  const lists = [sceneModule.EXAMPLE_SCENES, sceneModule.RIGID_CORE_EXAMPLE_SCENES, sceneModule.COUPLED_EXAMPLE_SCENES];
+  let scenes = 0;
+  for (const list of lists) for (const [name, make] of Object.entries(list)) {
+    const scene = make(), world = await kit.createWorld(sceneModule.sceneWorldOptions(sceneModule.normalizeScene(scene)));
+    try {
+      const loaded = sceneModule.loadScene(world, scene), steps = Math.min(600, Math.round(3 / world.loop.step));
+      for (let i = 0; i < steps; i++) loaded.simulation.step();
+      assert.equal(world.native.containedTotal(), 0, `${name}: no body was contained in ${steps} steps`);
+      scenes++;
+    } finally { world.dispose(); }
+  }
+  assert.ok(scenes >= 26, `every example ran (${scenes})`);
+  const world = pool.createWorld();
+  try {
+    for (let id = 0; id < 800; id++) {
+      world.createScene({id}, 1, 7 + id);
+      for (let i = 0; i < 90; i++) world.step(1 / 60, 4);
+    }
+    assert.equal(world.containedTotal(), 0, 'no body was contained in 90 steps of any of the 800 recipes');
+  } finally { world.destroy(); }
+});

@@ -1267,6 +1267,20 @@ function setLog(message: string): void {
   ui.log.textContent = message;
 }
 
+// What the general world had contained when it was last looked at, so that the Lab says so once per change.
+let containedSeen: { native: unknown; total: number } = { native: null, total: 0 };
+function reportContainedBodies(native: { containedTotal(): number } | null): void {
+  if (!native) return;
+  const total = native.containedTotal();
+  if (containedSeen.native !== native) { containedSeen = { native, total }; return; }
+  if (total === containedSeen.total) return;
+  const added = total - containedSeen.total;
+  containedSeen.total = total;
+  const message = `The solver diverged for ${added === 1 ? 'a body' : `${added} bodies`} (${total} so far): ${added === 1 ? 'it was' : 'they were'} put back where ${added === 1 ? 'it was' : 'they were'} a step earlier, at rest. Usually joints that contradict each other; see docs/RIGID_CORE.md, section 10.`;
+  scenePanel?.setStatus(message);
+  appendLog(message);
+}
+
 function appendLog(message: string): void {
   const next = `${ui.log.textContent}\n${message}`.trim().split('\n').slice(-36).join('\n');
   ui.log.textContent = next;
@@ -1819,6 +1833,8 @@ function labSceneState(): Record<string, unknown> {
     joints: labScene?.read.scene.joints?.length ?? 0,
     kinds: native ? native.bodyKinds() : [],
     tick: engineRuntime?.tick ?? 0,
+    // Bodies the bridge contained after a diverged step since this world was made (ND-2); 0 in every example.
+    contained: native ? native.containedTotal() : 0,
     // One Lab tick is this many of the scene's own fixed steps; `steps` is how many it has taken.
     stepsPerTick: labScene ? sceneStepsPerLabTick(labScene.read.scene.world?.step ?? 1 / 60) : 1,
     steps: labStepsBefore + (engineRuntime?.tick ?? 0) * (labScene ? sceneStepsPerLabTick(labScene.read.scene.world?.step ?? 1 / 60) : 1),
@@ -4992,6 +5008,8 @@ async function main(): Promise<void> {
     const baseOverlayLines = playBase, baseOverlayVersion = playBaseVersion;
     ui.canvas.dataset.rigidPlay = play ? play.kind : '';
     // Rigid debug draw: asked of the engine again only when the bodies have moved or the layers changed.
+    // Bodies the bridge had to contain after a diverged step (joints that contradict each other; docs/RIGID_CORE.md, ND-2).
+    reportContainedBodies(siDemo ? backend.generalNative?.() ?? null : null);
     const debugLines = rigidDebugOverlay.update(rigidDebug.enabled && siDemo ? backend.generalNative?.() ?? null : null, rigidDebug, backend.frameVersion());
     if (debugLines.length > 0 && (rigidDebugMerged.base !== baseOverlayVersion || rigidDebugMerged.debug !== rigidDebugOverlay.version)) {
       rigidDebugMerged = { base: baseOverlayVersion, debug: rigidDebugOverlay.version, lines: [...baseOverlayLines, ...debugLines], version: (rigidDebugMerged.version + 1) >>> 0 };

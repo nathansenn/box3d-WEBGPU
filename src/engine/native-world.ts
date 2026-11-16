@@ -283,6 +283,8 @@ export interface NativeWorldModule {
   _b3w_world_debug_draw?(world: number, flags: number, jointScale: number, forceScale: number, bounds: number | bigint): number;
   _b3w_world_debug_ptr?(world: number): number | bigint;
   _b3w_world_debug_total?(world: number): number;
+  /** Optional: bodies the bridge has contained after a diverged step since the context was made (ND-2). */
+  _b3w_world_contained_total?(world: number): number;
   /** Optional exact checkpoints; all four exports must be present together. */
   _b3w_world_checkpoint?(world: number): number;
   _b3w_world_checkpoint_ptr?(world: number): number | bigint;
@@ -536,7 +538,7 @@ export interface NativeJointState {
 }
 /** A contact or sensor event of the most recent step. `point`, `normal` and `approachSpeed` are present on 'hit' events. */
 export interface NativeWorldEvent {
-  readonly kind: 'contact-begin' | 'contact-end' | 'hit' | 'sensor-begin' | 'sensor-end' | 'joint-overload' | 'joint-break';
+  readonly kind: 'contact-begin' | 'contact-end' | 'hit' | 'sensor-begin' | 'sensor-end' | 'joint-overload' | 'joint-break' | 'body-contained';
   /** Null when the body no longer exists. For sensor events A is the sensor and B the visitor; for joint events they
    * are the joint's bodies, null for the fixed world. */
   readonly bodyA: NativeBodyHandle | null;
@@ -549,12 +551,18 @@ export interface NativeWorldEvent {
   readonly point?: NativeQueryVector;
   readonly normal?: NativeQueryVector;
   readonly approachSpeed?: number;
+  /**
+   * 'body-contained' only: the speed (m/s or rad/s, the larger) the body had reached, NaN when its state was not finite.
+   * The step diverged for this body (joints that contradict each other can do that inside Box3D), so the bridge put it
+   * back at its pose of the step before, at rest, and the next step runs without warm starting. bodyA is the body.
+   */
+  readonly speed?: number;
 }
 const BODY_KINDS = ['box','sphere','capsule','hull','mesh','heightfield','compound'] as const;
 const SHAPE_DESC_BYTES=80;
 const BODY_TYPES = ['static','kinematic','dynamic'] as const;
 const JOINT_TYPES = ['weld','revolute','spherical','prismatic','distance','wheel','motor','parallel','filter'] as const;
-const EVENT_KINDS = ['contact-begin','contact-end','hit','sensor-begin','sensor-end','joint-overload','joint-break'] as const;
+const EVENT_KINDS = ['contact-begin','contact-end','hit','sensor-begin','sensor-end','joint-overload','joint-break','body-contained'] as const;
 
 /** One batch of closest-hit rays. Arrays are indexed by ray; a miss has fraction -1 and a null body. */
 export interface NativeRayBatch {
@@ -1712,11 +1720,19 @@ export class NativeWorldBackend implements PhysicsBackend {
           torque:[view.getFloat32(o+36,true),view.getFloat32(o+40,true),view.getFloat32(o+44,true)]});
         continue;
       }
+      if(kind==='body-contained'){events.push({kind,bodyA,bodyB:null,speed:view.getFloat32(o+48,true)});continue;}
       events.push(kind==='hit'?{kind,bodyA,bodyB,point:[view.getFloat32(o+24,true),view.getFloat32(o+28,true),view.getFloat32(o+32,true)],
         normal:[view.getFloat32(o+36,true),view.getFloat32(o+40,true),view.getFloat32(o+44,true)],approachSpeed:view.getFloat32(o+48,true)}:{kind,bodyA,bodyB});
     }
     return {events,dropped:Math.max(0,total-count)};
   }
+
+  /**
+   * How many times a step has diverged for a body and the bridge contained it (put it back at its previous pose, at
+   * rest; each is also a 'body-contained' event), since this native world was made. 0 for an artifact without
+   * containment. Not reset by resetWorld.
+   */
+  containedTotal(): number { this.assertAlive();const n=this.mod._b3w_world_contained_total?.(this.handle)??0;return n<0?0:n; }
 
   /** True when the artifact can write and restore exact checkpoints of a world (docs/CHECKPOINTS.md). */
   get supportsCheckpoints(): boolean { this.assertAlive();return typeof this.mod._b3w_world_restore==='function'&&typeof this.mod._b3w_world_checkpoint==='function'; }

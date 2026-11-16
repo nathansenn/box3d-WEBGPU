@@ -562,6 +562,21 @@ The fuzzers (`tests/fuzz`, docs/ROBUSTNESS.md) found defects in the native side.
   1 km cube landing at 200 m/s deep in the ground steps normally. Spheres and capsules have no polytope contact and
   are not limited. Test: `packages/box3d-kit/test/v22-rigid-native.test.mjs`.
 
+- **ND-2, joints that contradict each other.** A body held by two joints to the fixed world that cannot both be
+  satisfied, one of them a hard limit (the fuzzer's case: a hinge to an anchor 4 m away and a limited wheel joint),
+  makes Box3D's solve grow by orders of magnitude a step (3 × 10¹⁶ m/s by the fifth) until it is NaN, which then
+  spreads through contacts and joints; Box3D only logs "unstable". Box3D is pinned, so the bridge contains it: after
+  every step, a dynamic body whose state is not finite, or whose linear or angular speed is above ten times the
+  world's maximum linear speed (at least 10⁴; Box3D clamps what it integrates at that speed, 400 m/s by default) is
+  put back at its pose of the step before, at rest, and the next step runs once without warm starting, which zeroes
+  the joint and contact impulses the diverged solve had accumulated. Each containment is a `'body-contained'` event
+  (`bodyA` the body, `speed` what it had reached, NaN if not finite) and is counted by
+  `NativeWorldBackend.containedTotal()`; the Lab says so in the Scenes panel and the log, and
+  `box3dLab.sceneState().contained` has the count. The world stays finite and bodies that are not part of the
+  mechanism are unaffected; the contradictory mechanism itself still cannot do anything sensible and is contained
+  again whenever it diverges. Containment never fires in any example scene (all 26, up to 600 steps each) or in
+  90 steps of each of the 800 catalog recipes (test), so no existing result or hash changes.
+
 ## Custom filter and pre-solve callbacks: not exposed
 
 Box3D can call the application for every candidate pair (`b3World_SetCustomFilterCallback`) and for every touching
