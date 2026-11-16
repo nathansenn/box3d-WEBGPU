@@ -18,7 +18,7 @@ import type {LoadBox3DOptions} from './loader.js';
 import type {
   BodyKind, BodyMassData, BodyOptions, BodyPose, BodyState, BodyType, MassDataOptions, JointOptions, JointState, QuatLike, QueryOptions, ReplayLog, ReplayReport, RecordingOptions,
   ResetOptions, SpawnBoxOptions, Vec3, Vec3Like, WorldEvent, WorldOptions, WorldStats,
-  BodyFlags, CapsuleMoveOptions, DebugDrawLines, DebugDrawOptions, JointDetails, JointDrive, JointThresholds, StepProfile, WorldSettings,
+  BodyFlags, CapsuleMoveOptions, ContactStats, DebugDrawLines, DebugDrawOptions, JointDetails, JointDrive, JointThresholds, StepProfile, WorldSettings,
 } from './world.js';
 import type {NativeQueryFilter} from './core/native-world.js';
 import type {PhysicsWorld} from './world.js';
@@ -240,6 +240,7 @@ export function serveWorld(endpoint: MessageEndpoint): void {
     getBodyFlags: (ref: RemoteBody) => live().getBodyFlags(lookup(ref)),
     explodeArea: (options: {center: Vec3Like; radius: number; falloff?: number; impulsePerArea: number; maskBits?: bigint}) => live().explodeArea(options),
     profile: () => live().profile(),
+    contactStats: () => live().contactStats(),
     debugLines: (options?: DebugDrawOptions) => live().debugLines(options),
     capsuleCast: (o: Vec3Like, r: number, h: number, t: Vec3Like, q?: QueryOptions) => hit(live().capsuleCast(o, r, h, t, q)),
     raycastAll: (o: Vec3Like, t: Vec3Like, q?: QueryOptions) => live().raycastAll(o, t, q).map(h => hit(h)!),
@@ -488,6 +489,8 @@ export class RemoteWorld implements InstanceSource {
   explodeArea(options: {center: Vec3Like; radius: number; falloff?: number; impulsePerArea: number; maskBits?: bigint}): Promise<void> { return this.call('explodeArea', options); }
   /** Box3D's timing of the worker's most recent step; see PhysicsWorld.profile. */
   profile(): Promise<StepProfile> { return this.call('profile'); }
+  /** Contact pairs, points, overlap and impulses of the worker's world; see PhysicsWorld.contactStats. */
+  contactStats(): Promise<ContactStats> { return this.call('contactStats'); }
   /** Debug-draw line segments of the worker's world; see PhysicsWorld.debugLines. */
   debugLines(options?: DebugDrawOptions): Promise<DebugDrawLines> { return this.call('debugLines', options); }
   capsuleCast(origin: Vec3Like, radius: number, halfLength: number, translation: Vec3Like, options?: QueryOptions): Promise<RemoteCastHit | null> { return this.call('capsuleCast', origin, radius, halfLength, translation, options); }

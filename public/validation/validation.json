@@ -5,8 +5,8 @@
  "generatedBy": "node scripts/validation-report.mjs",
  "digits": 9,
  "totals": {
-  "cases": 650,
-  "passed": 650,
+  "cases": 667,
+  "passed": 667,
   "failed": 0,
   "domains": 23
  },
@@ -34,7 +34,7 @@
   {
    "id": "rigid-core",
    "title": "Rigid core: queries, character, continuous collision, vehicles, joints and piles",
-   "summary": "Ray, sweep and overlap queries against closed forms, and the batched ray call. The capsule character: speed, slope limit, step height, stairs, jump, thin walls, moving platforms, force-limited pushing and exact resume. Continuous collision: a fast ball against a thin wall with the setting off and on, and the bullet flag against a free plate. A wheel-joint vehicle: static sag, heave frequency and damping, top speed against drag, the Ackermann turning circle and braking distance.",
+   "summary": "Ray, sweep and overlap queries against closed forms, and the batched ray call. The capsule character: speed, slope limit, step height, stairs, jump, thin walls, moving platforms, force-limited pushing and exact resume. Continuous collision: a fast ball against a thin wall with the setting off and on, and the bullet flag against a free plate. A wheel-joint vehicle: static sag, heave frequency and damping, top speed against drag, the Ackermann turning circle and braking distance. Motor, parallel and filter joints, joint events and breakable welds.",
    "solver": "Box3D compiled to WebAssembly, through `box3d-webgpu-kit` (float32 state, 240 Hz, 4 sub-steps unless a row says otherwise)",
    "docs": [
     "docs/RIGID_CORE.md"
@@ -46,10 +46,11 @@
     "The character is checked on boxes and ramps. Triangle-mesh and height-field ground, rotating platforms, crouching, swimming and ladders are not covered; a dynamic body the character stands on does not feel its weight.",
     "Continuous collision is checked for spheres against boxes. Fast rotation (a spinning thin bar) is not swept by Box3D and is not checked; kinematic bodies are not swept against static ones.",
     "The vehicle has rigid sphere wheels with Coulomb friction: no tyre model (slip curves, camber, load sensitivity), no drivetrain (gears, differential, engine curve), no anti-roll bars. Handling at speed, roll-over and jumps are not checked against references.",
+    "Breaking is checked for a weld under a slowly growing static load. A joint breaks on the force or torque of a sub-step, so a short impact can break a joint whose mean load over the step is below its threshold; impact breaking has no reference row.",
     "One build on one machine; no cross-device determinism matrix."
    ],
-   "cases": 58,
-   "passed": 58
+   "cases": 75,
+   "passed": 75
   },
   {
    "id": "water-coupling",
@@ -3282,6 +3283,484 @@
     "file": "packages/box3d-kit/test/v21-rigid-vehicle.test.mjs",
     "test": "terrain and checkpoints: a drive over a height field stays upright, and the world checkpoint with the vehicle state resumes it bit for bit",
     "url": "https://github.com/nathansenn/box3d-WEBGPU/blob/main/packages/box3d-kit/test/v21-rigid-vehicle.test.mjs"
+   },
+   "text": {
+    "reference": "0 steps",
+    "measured": "0",
+    "error": "0",
+    "tolerance": "±0"
+   }
+  },
+  {
+   "id": "rigid-core.joint.break-force",
+   "domain": "rigid-core",
+   "title": "Breakable weld: breaking force",
+   "quantity": "load on a weld (weight plus a force growing at 60 N/s) in the step it broke, threshold 500 N",
+   "unit": "N",
+   "formula": "F = force threshold",
+   "reference": 500,
+   "measured": 500.35,
+   "error": 0.35,
+   "relativeError": 0.0007,
+   "tolerance": {
+    "kind": "absolute",
+    "value": 0.75
+   },
+   "pass": true,
+   "note": "The load grows by 0.25 N per step; the weld breaks in the first step in which the solver sees the threshold reached.",
+   "source": {
+    "file": "packages/box3d-kit/test/v21-rigid-joints.test.mjs",
+    "test": "a breakable weld breaks when the force, or the torque, it carries reaches its threshold",
+    "url": "https://github.com/nathansenn/box3d-WEBGPU/blob/main/packages/box3d-kit/test/v21-rigid-joints.test.mjs"
+   },
+   "text": {
+    "reference": "500 N",
+    "measured": "500.35",
+    "error": "+0.35",
+    "tolerance": "±0.75"
+   }
+  },
+  {
+   "id": "rigid-core.joint.break-force-held",
+   "domain": "rigid-core",
+   "title": "Breakable weld: whole below the threshold",
+   "quantity": "load the weld carried one step before it broke",
+   "unit": "N",
+   "formula": "F < force threshold + two ramp steps",
+   "reference": 500,
+   "measured": 500.1,
+   "error": 0.1,
+   "relativeError": 0.0002,
+   "tolerance": {
+    "kind": "upper",
+    "value": 0.5
+   },
+   "pass": true,
+   "source": {
+    "file": "packages/box3d-kit/test/v21-rigid-joints.test.mjs",
+    "test": "a breakable weld breaks when the force, or the torque, it carries reaches its threshold",
+    "url": "https://github.com/nathansenn/box3d-WEBGPU/blob/main/packages/box3d-kit/test/v21-rigid-joints.test.mjs"
+   },
+   "text": {
+    "reference": "500 N",
+    "measured": "500.1",
+    "error": "+0.1",
+    "tolerance": "at most 0.5 above the reference"
+   }
+  },
+  {
+   "id": "rigid-core.joint.break-torque",
+   "domain": "rigid-core",
+   "title": "Breakable weld: breaking torque",
+   "quantity": "moment about a weld holding a block 0.5 m to the side, in the step it broke, threshold 100 N m",
+   "unit": "N m",
+   "formula": "M = (m g + F) a = torque threshold",
+   "reference": 100,
+   "measured": 100.05,
+   "error": 0.05,
+   "relativeError": 0.0005,
+   "tolerance": {
+    "kind": "absolute",
+    "value": 0.375
+   },
+   "pass": true,
+   "source": {
+    "file": "packages/box3d-kit/test/v21-rigid-joints.test.mjs",
+    "test": "a breakable weld breaks when the force, or the torque, it carries reaches its threshold",
+    "url": "https://github.com/nathansenn/box3d-WEBGPU/blob/main/packages/box3d-kit/test/v21-rigid-joints.test.mjs"
+   },
+   "text": {
+    "reference": "100 N m",
+    "measured": "100.05",
+    "error": "+0.05",
+    "tolerance": "±0.375"
+   }
+  },
+  {
+   "id": "rigid-core.joint.reaction",
+   "domain": "rigid-core",
+   "title": "Weld: reported reaction force",
+   "quantity": "force the weld reports one step before it broke, against the load it carried",
+   "unit": "N",
+   "formula": "F = m g + applied force",
+   "reference": 500.1,
+   "measured": 500.100037,
+   "error": 0.0000366210937,
+   "relativeError": 7.32275419e-8,
+   "tolerance": {
+    "kind": "relative",
+    "value": 0.002
+   },
+   "pass": true,
+   "source": {
+    "file": "packages/box3d-kit/test/v21-rigid-joints.test.mjs",
+    "test": "a breakable weld breaks when the force, or the torque, it carries reaches its threshold",
+    "url": "https://github.com/nathansenn/box3d-WEBGPU/blob/main/packages/box3d-kit/test/v21-rigid-joints.test.mjs"
+   },
+   "text": {
+    "reference": "500.1 N",
+    "measured": "500.1",
+    "error": "+7.32e-8 rel.",
+    "tolerance": "±0.2%"
+   }
+  },
+  {
+   "id": "rigid-core.joint.overload-events",
+   "domain": "rigid-core",
+   "title": "Joint events: one per step over the threshold",
+   "quantity": "joint-overload events while a weld carries 2.5 weights against a threshold of 2 for 120 steps",
+   "unit": "events",
+   "formula": "N = steps over the threshold",
+   "reference": 120,
+   "measured": 120,
+   "error": 0,
+   "relativeError": 0,
+   "tolerance": {
+    "kind": "absolute",
+    "value": 0
+   },
+   "pass": true,
+   "source": {
+    "file": "packages/box3d-kit/test/v21-rigid-joints.test.mjs",
+    "test": "a threshold without `breakable` reports joint-overload in every step it is exceeded, and the joint stays",
+    "url": "https://github.com/nathansenn/box3d-WEBGPU/blob/main/packages/box3d-kit/test/v21-rigid-joints.test.mjs"
+   },
+   "text": {
+    "reference": "120 events",
+    "measured": "120",
+    "error": "0",
+    "tolerance": "±0"
+   }
+  },
+  {
+   "id": "rigid-core.joint.overload-quiet",
+   "domain": "rigid-core",
+   "title": "Joint events: none below the threshold",
+   "quantity": "joint-overload events in the 240 steps the weld carries one weight",
+   "unit": "events",
+   "formula": "N = 0",
+   "reference": 0,
+   "measured": 0,
+   "error": 0,
+   "relativeError": null,
+   "tolerance": {
+    "kind": "absolute",
+    "value": 0
+   },
+   "pass": true,
+   "source": {
+    "file": "packages/box3d-kit/test/v21-rigid-joints.test.mjs",
+    "test": "a threshold without `breakable` reports joint-overload in every step it is exceeded, and the joint stays",
+    "url": "https://github.com/nathansenn/box3d-WEBGPU/blob/main/packages/box3d-kit/test/v21-rigid-joints.test.mjs"
+   },
+   "text": {
+    "reference": "0 events",
+    "measured": "0",
+    "error": "0",
+    "tolerance": "±0"
+   }
+  },
+  {
+   "id": "rigid-core.joint.motor-ramp",
+   "domain": "rigid-core",
+   "title": "Motor joint: time to reach the velocity target",
+   "quantity": "time for a 65 kg body to reach 3 m/s under a 200 N velocity drive",
+   "unit": "s",
+   "formula": "t = m v / F",
+   "reference": 0.98174778,
+   "measured": 0.983333333,
+   "error": 0.00158555349,
+   "relativeError": 0.0016150314,
+   "tolerance": {
+    "kind": "absolute",
+    "value": 0.00833333333
+   },
+   "pass": true,
+   "source": {
+    "file": "packages/box3d-kit/test/v21-rigid-joints.test.mjs",
+    "test": "motor joint: velocity drives ramp at F / m and torque / I and hold their targets; springs oscillate at their frequency",
+    "url": "https://github.com/nathansenn/box3d-WEBGPU/blob/main/packages/box3d-kit/test/v21-rigid-joints.test.mjs"
+   },
+   "text": {
+    "reference": "0.9817478 s",
+    "measured": "0.9833333",
+    "error": "+0.00159",
+    "tolerance": "±0.008333"
+   }
+  },
+  {
+   "id": "rigid-core.joint.motor-speed",
+   "domain": "rigid-core",
+   "title": "Motor joint: held velocity",
+   "quantity": "speed 3 s after the target was reached",
+   "unit": "m/s",
+   "formula": "v = target",
+   "reference": 3,
+   "measured": 3,
+   "error": 0,
+   "relativeError": 0,
+   "tolerance": {
+    "kind": "relative",
+    "value": 0.0001
+   },
+   "pass": true,
+   "source": {
+    "file": "packages/box3d-kit/test/v21-rigid-joints.test.mjs",
+    "test": "motor joint: velocity drives ramp at F / m and torque / I and hold their targets; springs oscillate at their frequency",
+    "url": "https://github.com/nathansenn/box3d-WEBGPU/blob/main/packages/box3d-kit/test/v21-rigid-joints.test.mjs"
+   },
+   "text": {
+    "reference": "3 m/s",
+    "measured": "3",
+    "error": "0%",
+    "tolerance": "±0.01%"
+   }
+  },
+  {
+   "id": "rigid-core.joint.motor-spin",
+   "domain": "rigid-core",
+   "title": "Motor joint: time to reach the spin target",
+   "quantity": "time for a sphere to reach 4 rad/s under a 3 N m drive",
+   "unit": "s",
+   "formula": "t = I w / tau, I = 2 m r^2 / 5",
+   "reference": 2.18166173,
+   "measured": 2.18333333,
+   "error": 0.00167160034,
+   "relativeError": 0.000766205098,
+   "tolerance": {
+    "kind": "absolute",
+    "value": 0.00833333333
+   },
+   "pass": true,
+   "source": {
+    "file": "packages/box3d-kit/test/v21-rigid-joints.test.mjs",
+    "test": "motor joint: velocity drives ramp at F / m and torque / I and hold their targets; springs oscillate at their frequency",
+    "url": "https://github.com/nathansenn/box3d-WEBGPU/blob/main/packages/box3d-kit/test/v21-rigid-joints.test.mjs"
+   },
+   "text": {
+    "reference": "2.181662 s",
+    "measured": "2.183333",
+    "error": "+0.00167",
+    "tolerance": "±0.008333"
+   }
+  },
+  {
+   "id": "rigid-core.joint.motor-spring",
+   "domain": "rigid-core",
+   "title": "Motor joint: spring period",
+   "quantity": "period of a body on an undamped 1.5 Hz linear spring, mean over 6 s",
+   "unit": "s",
+   "formula": "T = 1 / f",
+   "reference": 0.666666667,
+   "measured": 0.666696092,
+   "error": 0.0000294256035,
+   "relativeError": 0.0000441384053,
+   "tolerance": {
+    "kind": "relative",
+    "value": 0.002
+   },
+   "pass": true,
+   "note": "The spring is integrated implicitly: the period holds, the amplitude falls to 63% in 6 s (a numerical damping ratio of 0.008).",
+   "source": {
+    "file": "packages/box3d-kit/test/v21-rigid-joints.test.mjs",
+    "test": "motor joint: velocity drives ramp at F / m and torque / I and hold their targets; springs oscillate at their frequency",
+    "url": "https://github.com/nathansenn/box3d-WEBGPU/blob/main/packages/box3d-kit/test/v21-rigid-joints.test.mjs"
+   },
+   "text": {
+    "reference": "0.6666667 s",
+    "measured": "0.6666961",
+    "error": "+4.41e-5 rel.",
+    "tolerance": "±0.2%"
+   }
+  },
+  {
+   "id": "rigid-core.joint.motor-critical",
+   "domain": "rigid-core",
+   "title": "Motor joint: critically damped return",
+   "quantity": "displacement one period after release from 0.4 m, damping ratio 1",
+   "unit": "m",
+   "formula": "x = x0 (1 + w t) exp(-w t), w = 2 pi f",
+   "reference": 0.00544037259,
+   "measured": 0.00586434873,
+   "error": 0.000423976142,
+   "relativeError": 0.0779314533,
+   "tolerance": {
+    "kind": "absolute",
+    "value": 0.002
+   },
+   "pass": true,
+   "source": {
+    "file": "packages/box3d-kit/test/v21-rigid-joints.test.mjs",
+    "test": "motor joint: velocity drives ramp at F / m and torque / I and hold their targets; springs oscillate at their frequency",
+    "url": "https://github.com/nathansenn/box3d-WEBGPU/blob/main/packages/box3d-kit/test/v21-rigid-joints.test.mjs"
+   },
+   "text": {
+    "reference": "0.005440373 m",
+    "measured": "0.005864349",
+    "error": "+0.000424",
+    "tolerance": "±0.002"
+   }
+  },
+  {
+   "id": "rigid-core.joint.motor-sag",
+   "domain": "rigid-core",
+   "title": "Motor joint: spring sag under gravity",
+   "quantity": "sag of a 512 kg body on a 2 Hz spring",
+   "unit": "m",
+   "formula": "s = g / (2 pi f)^2, whatever the mass",
+   "reference": 0.0621225507,
+   "measured": 0.0621185303,
+   "error": -0.00000402044727,
+   "relativeError": -0.0000647180005,
+   "tolerance": {
+    "kind": "relative",
+    "value": 0.002
+   },
+   "pass": true,
+   "source": {
+    "file": "packages/box3d-kit/test/v21-rigid-joints.test.mjs",
+    "test": "motor joint spring under gravity: the sag is g / (2 pi f)^2 whatever the mass",
+    "url": "https://github.com/nathansenn/box3d-WEBGPU/blob/main/packages/box3d-kit/test/v21-rigid-joints.test.mjs"
+   },
+   "text": {
+    "reference": "0.06212255 m",
+    "measured": "0.06211853",
+    "error": "-6.47e-5 rel.",
+    "tolerance": "±0.2%"
+   }
+  },
+  {
+   "id": "rigid-core.joint.parallel",
+   "domain": "rigid-core",
+   "title": "Parallel joint: swing period",
+   "quantity": "period of a ball released 0.2 rad from the aligned axis on an undamped 1 Hz spring",
+   "unit": "s",
+   "formula": "T = 1 / f",
+   "reference": 1,
+   "measured": 0.999014616,
+   "error": -0.000985383996,
+   "relativeError": -0.000985383996,
+   "tolerance": {
+    "kind": "relative",
+    "value": 0.003
+   },
+   "pass": true,
+   "source": {
+    "file": "packages/box3d-kit/test/v21-rigid-joints.test.mjs",
+    "test": "parallel joint: a tilted body swings about the aligned axis at the spring frequency",
+    "url": "https://github.com/nathansenn/box3d-WEBGPU/blob/main/packages/box3d-kit/test/v21-rigid-joints.test.mjs"
+   },
+   "text": {
+    "reference": "1 s",
+    "measured": "0.9990146",
+    "error": "-0.0985%",
+    "tolerance": "±0.3%"
+   }
+  },
+  {
+   "id": "rigid-core.joint.filter",
+   "domain": "rigid-core",
+   "title": "Filter joint: overlapping bodies do not collide",
+   "quantity": "distance between two overlapping 1 m boxes after 1 s with a filter joint",
+   "unit": "m",
+   "formula": "d = initial distance",
+   "reference": 0.4,
+   "measured": 0.400000006,
+   "error": 5.96046446e-9,
+   "relativeError": 1.49011611e-8,
+   "tolerance": {
+    "kind": "absolute",
+    "value": 0.000001
+   },
+   "pass": true,
+   "source": {
+    "file": "packages/box3d-kit/test/v21-rigid-joints.test.mjs",
+    "test": "filter joint: the two bodies pass through each other, and collide again as soon as it is removed",
+    "url": "https://github.com/nathansenn/box3d-WEBGPU/blob/main/packages/box3d-kit/test/v21-rigid-joints.test.mjs"
+   },
+   "text": {
+    "reference": "0.4 m",
+    "measured": "0.4",
+    "error": "+5.96e-9",
+    "tolerance": "±1e-6"
+   }
+  },
+  {
+   "id": "rigid-core.joint.filter-removed",
+   "domain": "rigid-core",
+   "title": "Filter joint: collision resumes on removal",
+   "quantity": "distance 1 s after the joint is removed, against two boxes that never had one",
+   "unit": "m",
+   "formula": "d = distance without the joint",
+   "reference": 1.29138747,
+   "measured": 1.29138747,
+   "error": 0,
+   "relativeError": 0,
+   "tolerance": {
+    "kind": "absolute",
+    "value": 0.001
+   },
+   "pass": true,
+   "source": {
+    "file": "packages/box3d-kit/test/v21-rigid-joints.test.mjs",
+    "test": "filter joint: the two bodies pass through each other, and collide again as soon as it is removed",
+    "url": "https://github.com/nathansenn/box3d-WEBGPU/blob/main/packages/box3d-kit/test/v21-rigid-joints.test.mjs"
+   },
+   "text": {
+    "reference": "1.291387 m",
+    "measured": "1.291387",
+    "error": "0",
+    "tolerance": "±0.001"
+   }
+  },
+  {
+   "id": "rigid-core.joint.checkpoint-break",
+   "domain": "rigid-core",
+   "title": "Checkpoint: a weld breaks at the same tick after a restore",
+   "quantity": "tick at which a loaded breakable weld broke in a world restored 736 ticks earlier",
+   "unit": "ticks",
+   "formula": "tick of the uninterrupted run",
+   "reference": 1216,
+   "measured": 1216,
+   "error": 0,
+   "relativeError": 0,
+   "tolerance": {
+    "kind": "absolute",
+    "value": 0
+   },
+   "pass": true,
+   "source": {
+    "file": "packages/box3d-kit/test/v21-rigid-joints.test.mjs",
+    "test": "checkpoints and replay hold breakable flags, thresholds, drives, bullets and world settings: a weld breaks at the same tick after a restore",
+    "url": "https://github.com/nathansenn/box3d-WEBGPU/blob/main/packages/box3d-kit/test/v21-rigid-joints.test.mjs"
+   },
+   "text": {
+    "reference": "1216 ticks",
+    "measured": "1216",
+    "error": "0",
+    "tolerance": "±0"
+   }
+  },
+  {
+   "id": "rigid-core.joint.checkpoint",
+   "domain": "rigid-core",
+   "title": "Checkpoint: joints, thresholds, drives and settings resume exactly",
+   "quantity": "steps of 1,440 after a restore that differ in any bit",
+   "unit": "steps",
+   "formula": "restored run = uninterrupted run",
+   "reference": 0,
+   "measured": 0,
+   "error": 0,
+   "relativeError": null,
+   "tolerance": {
+    "kind": "absolute",
+    "value": 0
+   },
+   "pass": true,
+   "source": {
+    "file": "packages/box3d-kit/test/v21-rigid-joints.test.mjs",
+    "test": "checkpoints and replay hold breakable flags, thresholds, drives, bullets and world settings: a weld breaks at the same tick after a restore",
+    "url": "https://github.com/nathansenn/box3d-WEBGPU/blob/main/packages/box3d-kit/test/v21-rigid-joints.test.mjs"
    },
    "text": {
     "reference": "0 steps",

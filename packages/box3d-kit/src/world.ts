@@ -3,7 +3,7 @@ import {checkpointError, readCheckpoint, writeCheckpoint, type StateObject} from
 import type {
   NativeBodyHandle, NativeBodyKind, NativeBodyMassState, NativeBodyState, NativeConvexShape, NativeBodyType, NativeJointHandle, NativeJointState, NativeJointType, NativeQueryCastHit, NativeQueryFilter,
   NativeSpatialQuery, NativeWorldBackend, NativeWorldEvent, NativeWorldPool, NativeBodyFlags, NativeDebugDrawOptions, NativeDebugLines, NativeJointDetails, NativeJointDrive,
-  NativeJointThresholds, NativeMoverPlane, NativeRayBatch, NativeStepProfile, NativeWorldSettings,
+  NativeJointThresholds, NativeMoverPlane, NativeRayBatch, NativeStepProfile, NativeWorldSettings, NativeContactStats,
 } from './core/native-world.js';
 import {FixedStepLoop, type FixedStepOptions, type FixedStepResult} from './loop.js';
 
@@ -34,6 +34,7 @@ export type JointDrive = Omit<NativeJointDrive, 'linearVelocity' | 'angularVeloc
 export type JointThresholds = NativeJointThresholds;
 export type RayBatch = NativeRayBatch;
 export type StepProfile = NativeStepProfile;
+export type ContactStats = NativeContactStats;
 export type DebugDrawOptions = Omit<NativeDebugDrawOptions, 'region'> & {readonly region?: {readonly min: Vec3Like; readonly max: Vec3Like}};
 export type DebugDrawLines = NativeDebugLines;
 export type MoverPlane = NativeMoverPlane;
@@ -604,6 +605,12 @@ export class PhysicsWorld {
    * tree heights, awake bodies). Wall-clock numbers: they differ from run to run and are not part of a checkpoint.
    */
   profile(): StepProfile { return this.native.profile(); }
+  /**
+   * What the solver's contact manifolds hold: touching pairs, contact points, the deepest and the mean overlap, and
+   * the normal impulses of the last step. A cheap health check for stacks and piles: resting contacts sit near
+   * Box3D's linear slop (5 mm), and a deepest overlap that keeps growing means the solver is losing.
+   */
+  contactStats(): ContactStats { return this.native.contactStats(); }
   /**
    * Box3D's own debug drawing as line segments (vertex pairs with a colour each): joints, shape bounds, centres of
    * mass, contact points, normals and forces, and islands. Draw it with LineSegments in three.js or any line pipeline.

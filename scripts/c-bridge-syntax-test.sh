@@ -314,6 +314,13 @@ float b3World_GetContactRecycleDistance(b3WorldId world);
 void b3World_Explode(b3WorldId world, const b3ExplosionDef* def);
 b3Profile b3World_GetProfile(b3WorldId world);
 void b3World_Draw(b3WorldId world, b3DebugDraw* draw, uint64_t maskBits);
+typedef struct { int32_t index1; uint16_t world0; uint16_t padding; uint32_t generation; } b3ContactId;
+#define B3_MAX_MANIFOLD_POINTS 4
+typedef struct { b3Vec3 anchorA, anchorB; float separation, baseSeparation, normalImpulse, totalNormalImpulse, normalVelocity; uint32_t featureId; int triangleIndex; bool persisted; } b3ManifoldPoint;
+typedef struct b3Manifold { b3ManifoldPoint points[B3_MAX_MANIFOLD_POINTS]; b3Vec3 normal; float twistImpulse; b3Vec3 frictionImpulse, rollingImpulse; int pointCount; } b3Manifold;
+typedef struct { b3ContactId contactId; b3ShapeId shapeIdA, shapeIdB; const struct b3Manifold* manifolds; int manifoldCount; } b3ContactData;
+int b3Body_GetContactCapacity(b3BodyId body);
+int b3Body_GetContactData(b3BodyId body, b3ContactData* contactData, int capacity);
 #endif
 STUB
 

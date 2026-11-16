@@ -12,7 +12,7 @@
   },
   "bridge": {
     "source": "wasm/box3d_web.c",
-    "sha256": "349edacb590bf73b0026cca413c35e13b7228959db5b8300fdafd77a6f766dbb",
+    "sha256": "cae1d830149e7dee7b2d44a304939426a0e9937b1190460122b1d0f3b96438cf",
     "lazyReplayHash": true,
     "sleepingWorldTransformCache": true,
     "independentColorRevision": true,
@@ -31,12 +31,12 @@
   },
   "artifacts": {
     "box3d.js": {
-      "bytes": 23739,
-      "sha256": "369f15adfd27713198b66dba7cdc4ea4626bd0f2aad6b4f0d8cbbf8664892fc0"
+      "bytes": 23842,
+      "sha256": "6d9e6a8953e1e3109d075927f7c2f52bbe9ab376c9719104804bda32ec2ba047"
     },
     "box3d.wasm": {
-      "bytes": 718353,
-      "sha256": "ffae0ef419b443d832bfecce1419f8f681a15758e4d95ab9a2744ac41a967db6"
+      "bytes": 720309,
+      "sha256": "0b45602cb51f9c774eb22b8844f9d21a5a6374fd529eda5abf142ff06d5bf999"
     }
   },
   "validation": {
@@ -102,6 +102,7 @@
         "b3w_world_get_body_flags",
         "b3w_world_explode_area",
         "b3w_world_profile",
+        "b3w_world_contact_stats",
         "b3w_world_debug_draw",
         "b3w_world_debug_ptr",
         "b3w_world_debug_total"
@@ -132,7 +133,8 @@
         "format": "line vertex pairs: x, y, z, 0xRRGGBB as float32"
       },
       "checkpoint": "joint flags travel in the bridge checkpoint (header flag bit 2); world settings and thresholds are part of Box3D's snapshot",
-      "customFilterAndPreSolveCallbacks": false
+      "customFilterAndPreSolveCallbacks": false,
+      "filterJointRemoval": "re-pairs the shapes of both bodies, so collision resumes at once"
     }
   },
   "build": {
@@ -148,17 +150,17 @@
     "bridge": "wasm/box3d_web.c compiled unchanged; b3CreateWorld and b3World_Step renamed per source",
     "sources": {
       "threadsSha256": "5785c8eb105440000ad2520149a6ebf6f6317dca3d4b5724011972861c57f2cb",
-      "bridgeSha256": "349edacb590bf73b0026cca413c35e13b7228959db5b8300fdafd77a6f766dbb",
-      "cmakeSha256": "3e552b61e1936bb60807fee4536e8c3f28b116b6e9315b62edd4195c3e274423"
+      "bridgeSha256": "cae1d830149e7dee7b2d44a304939426a0e9937b1190460122b1d0f3b96438cf",
+      "cmakeSha256": "b7d3255a27f0197cca8daef72e4661b99574e00d34c218c683c88699b57df49b"
     },
     "artifacts": {
       "box3d-mt.js": {
-        "bytes": 39027,
-        "sha256": "0530796a365482d6f2234c79a87e5da1608136bde9ff1b30997f9f56a0081526"
+        "bytes": 39130,
+        "sha256": "ec6af5aa00610a790925c284112dcf1aaf449c121894fac9d724fa78de554a3a"
       },
       "box3d-mt.wasm": {
-        "bytes": 726098,
-        "sha256": "326d58c5787d17020692e23e01be17f9f6cd691ce04bb181e3b95d053b88a952"
+        "bytes": 728055,
+        "sha256": "f8e3e3d27ad6a9b0f60e08bee045adb986f4d017c6883fa402635c07597656c9"
       }
     },
     "build": {

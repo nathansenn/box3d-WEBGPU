@@ -2970,7 +2970,30 @@ B3W_EXPORT int b3w_world_destroy_joint(uint32_t worldHandle, uint64_t jointHandl
 {
     B3W_JOINT(ctx, id)
     b3w_ctx_set_joint_flags(ctx, id, 0u);
+    // A filter joint exists only to stop two bodies colliding, so removing it must let them collide again at once.
+    // Box3D pairs two shapes anew only when one leaves its bounds margin; re-applying a shape's filter pairs it now.
+    // (Other joint types keep Box3D's behaviour: bodies that were overlapping collide once one of them has moved.)
+    const int filter = b3Joint_GetType(id) == b3_filterJoint;
+    const b3BodyId bodies[2] = { b3Joint_GetBodyA(id), b3Joint_GetBodyB(id) };
     b3DestroyJoint(id, true);
+    if (filter)
+    {
+        for (int k = 0; k < 2; ++k)
+        {
+            if (b3Body_GetType(bodies[k]) == b3_staticBody) continue;
+            b3ShapeId shapes[B3W_COMPOUND_LIMIT];
+            const int count = b3Body_GetShapes(bodies[k], shapes, B3W_COMPOUND_LIMIT);
+            for (int i = 0; i < count; ++i)
+            {
+                // Box3D ignores a filter that equals the current one, so step away from it and back.
+                const b3Filter own = b3Shape_GetFilter(shapes[i]);
+                b3Filter other = own;
+                other.groupIndex = own.groupIndex == INT32_MAX ? own.groupIndex - 1 : own.groupIndex + 1;
+                b3Shape_SetFilter(shapes[i], other, false);
+                b3Shape_SetFilter(shapes[i], own, true);
+            }
+        }
+    }
     return 1;
 }
 
@@ -3793,6 +3816,61 @@ B3W_EXPORT int b3w_world_profile(uint32_t handle, float* outProfile, int32_t* ou
         c.staticTreeHeight, c.treeHeight, c.satCallCount, c.satCacheHitCount, c.byteCount, c.taskCount, c.awakeContactCount,
         c.recycledContactCount, b3World_GetAwakeBodyCount(ctx->world) };
     memcpy(outCounters, counters, sizeof(counters));
+    return 1;
+}
+
+// out8: touching contact pairs, manifold points, deepest penetration (m, 0 when nothing overlaps), mean penetration
+// over the overlapping points (m), largest normal impulse of one point in the last step (N s), sum of the normal
+// impulses (N s), and two zeros. Read from the manifolds of every moving body; a pair of two moving bodies is counted
+// once. Reads the world only. Returns 1; -1 for an unknown or empty world; -3 when memory ran out.
+B3W_EXPORT int b3w_world_contact_stats(uint32_t handle, float* out8)
+{
+    B3WContext* ctx = b3w_lookup_context(handle);
+    if (ctx == NULL || B3_IS_NULL(ctx->world) || out8 == NULL) return -1;
+    memset(out8, 0, 8u * sizeof(float));
+    b3ContactData* buffer = NULL;
+    int capacity = 0, pairs = 0, points = 0, overlapping = 0;
+    double depthSum = 0.0, impulseSum = 0.0;
+    float deepest = 0.0f, largest = 0.0f;
+    for (int d = 0; d < ctx->dynamicCount; ++d)
+    {
+        const b3BodyId body = ctx->bodies[ctx->dynamicIndices[d]].id;
+        const int needed = b3Body_GetContactCapacity(body);
+        if (needed <= 0) continue;
+        if (needed > capacity)
+        {
+            b3ContactData* grown = (b3ContactData*)realloc(buffer, (size_t)needed * sizeof(b3ContactData));
+            if (grown == NULL) { free(buffer); return -3; }
+            buffer = grown; capacity = needed;
+        }
+        const int count = b3Body_GetContactData(body, buffer, capacity);
+        for (int i = 0; i < count; ++i)
+        {
+            const b3ContactData* contact = buffer + i;
+            const b3BodyId a = b3Shape_GetBody(contact->shapeIdA), b = b3Shape_GetBody(contact->shapeIdB);
+            const b3BodyId other = a.index1 == body.index1 ? b : a;
+            // A pair of two moving bodies is listed under both: count it under the one with the smaller index.
+            if (b3Body_GetType(other) != b3_staticBody && other.index1 < body.index1) continue;
+            int touching = 0;
+            for (int m = 0; m < contact->manifoldCount; ++m)
+            {
+                const b3Manifold* manifold = contact->manifolds + m;
+                for (int k = 0; k < manifold->pointCount; ++k)
+                {
+                    const b3ManifoldPoint* point = manifold->points + k;
+                    points += 1; touching = 1;
+                    if (point->separation < 0.0f) { overlapping += 1; depthSum += (double)-point->separation; if (-point->separation > deepest) deepest = -point->separation; }
+                    impulseSum += (double)point->totalNormalImpulse;
+                    if (point->totalNormalImpulse > largest) largest = point->totalNormalImpulse;
+                }
+            }
+            pairs += touching;
+        }
+    }
+    free(buffer);
+    out8[0] = (float)pairs; out8[1] = (float)points; out8[2] = deepest;
+    out8[3] = overlapping > 0 ? (float)(depthSum / (double)overlapping) : 0.0f;
+    out8[4] = largest; out8[5] = (float)impulseSum;
     return 1;
 }
 

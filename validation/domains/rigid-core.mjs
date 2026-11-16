@@ -219,4 +219,61 @@ const vehicleCases = defineCases('rigid-core', VEHICLE, [
     reference: {formula: 'restored run = uninterrupted run', value: 0}, tolerance: absolute(0), measure: async () => (await terrain()).mismatches},
 ]);
 
-export default [...cases, ...characterCases, ...ccdCases, ...vehicleCases];
+const JOINTS = 'packages/box3d-kit/test/v21-rigid-joints.test.mjs';
+const TJ = {
+  weld: 'a breakable weld breaks when the force, or the torque, it carries reaches its threshold',
+  overload: 'a threshold without `breakable` reports joint-overload in every step it is exceeded, and the joint stays',
+  motor: 'motor joint: velocity drives ramp at F / m and torque / I and hold their targets; springs oscillate at their frequency',
+  sag: 'motor joint spring under gravity: the sag is g / (2 pi f)^2 whatever the mass',
+  parallel: 'parallel joint: a tilted body swings about the aligned axis at the spring frequency',
+  filter: 'filter joint: the two bodies pass through each other, and collide again as soon as it is removed',
+  checkpoint: 'checkpoints and replay hold breakable flags, thresholds, drives, bullets and world settings: a weld breaks at the same tick after a restore',
+};
+const breakForce = () => run('joints/break-force', (S, K) => S.breakableWeld(K));
+const breakTorque = () => run('joints/break-torque', (S, K) => S.breakableWeld(K, {arm: 0.5, threshold: 100}));
+const overload = () => run('joints/overload', (S, K) => S.overloadEvents(K));
+const motor = () => run('joints/motor', (S, K) => S.motorJoint(K));
+const motorSag = () => run('joints/sag', (S, K) => S.motorSpringSag(K));
+const parallel = () => run('joints/parallel', (S, K) => S.parallelJoint(K));
+const filterJoint = () => run('joints/filter', (S, K) => S.filterJoint(K));
+const jointCheckpoint = () => run('joints/checkpoint', (S, K) => S.jointCheckpoint(K));
+const jointCases = defineCases('rigid-core', JOINTS, [
+  {id: 'rigid-core.joint.break-force', title: 'Breakable weld: breaking force', quantity: 'load on a weld (weight plus a force growing at 60 N/s) in the step it broke, threshold 500 N', unit: 'N', test: TJ.weld,
+    reference: {formula: 'F = force threshold', value: 500}, tolerance: absolute(0.75), note: 'The load grows by 0.25 N per step; the weld breaks in the first step in which the solver sees the threshold reached.',
+    measure: async () => (await breakForce()).load},
+  {id: 'rigid-core.joint.break-force-held', title: 'Breakable weld: whole below the threshold', quantity: 'load the weld carried one step before it broke', unit: 'N', test: TJ.weld,
+    reference: {formula: 'F < force threshold + two ramp steps', value: 500}, tolerance: upper(0.5), measure: async () => (await breakForce()).carriedBefore},
+  {id: 'rigid-core.joint.break-torque', title: 'Breakable weld: breaking torque', quantity: 'moment about a weld holding a block 0.5 m to the side, in the step it broke, threshold 100 N m', unit: 'N m', test: TJ.weld,
+    reference: {formula: 'M = (m g + F) a = torque threshold', value: 100}, tolerance: absolute(0.375), measure: async () => (await breakTorque()).load},
+  {id: 'rigid-core.joint.reaction', title: 'Weld: reported reaction force', quantity: 'force the weld reports one step before it broke, against the load it carried', unit: 'N', test: TJ.weld,
+    reference: {formula: 'F = m g + applied force', value: null}, tolerance: relative(2e-3), measure: async () => { const r = await breakForce(); return {value: r.reported, reference: r.carriedBefore}; }},
+  {id: 'rigid-core.joint.overload-events', title: 'Joint events: one per step over the threshold', quantity: 'joint-overload events while a weld carries 2.5 weights against a threshold of 2 for 120 steps', unit: 'events', test: TJ.overload,
+    reference: {formula: 'N = steps over the threshold', value: 120}, tolerance: absolute(0), measure: async () => (await overload()).loud},
+  {id: 'rigid-core.joint.overload-quiet', title: 'Joint events: none below the threshold', quantity: 'joint-overload events in the 240 steps the weld carries one weight', unit: 'events', test: TJ.overload,
+    reference: {formula: 'N = 0', value: 0}, tolerance: absolute(0), measure: async () => { const r = await overload(); return r.quiet + r.after; }},
+  {id: 'rigid-core.joint.motor-ramp', title: 'Motor joint: time to reach the velocity target', quantity: 'time for a 65 kg body to reach 3 m/s under a 200 N velocity drive', unit: 's', test: TJ.motor,
+    reference: {formula: 't = m v / F', value: null}, tolerance: absolute(2 / HZ), measure: async () => { const r = await motor(); return {value: r.reachedAt, reference: r.rampTime}; }},
+  {id: 'rigid-core.joint.motor-speed', title: 'Motor joint: held velocity', quantity: 'speed 3 s after the target was reached', unit: 'm/s', test: TJ.motor,
+    reference: {formula: 'v = target', value: 3}, tolerance: relative(1e-4), measure: async () => (await motor()).held},
+  {id: 'rigid-core.joint.motor-spin', title: 'Motor joint: time to reach the spin target', quantity: 'time for a sphere to reach 4 rad/s under a 3 N m drive', unit: 's', test: TJ.motor,
+    reference: {formula: 't = I w / tau, I = 2 m r^2 / 5', value: null}, tolerance: absolute(2 / HZ), measure: async () => { const r = await motor(); return {value: r.spinReachedAt, reference: r.spinRampTime}; }},
+  {id: 'rigid-core.joint.motor-spring', title: 'Motor joint: spring period', quantity: 'period of a body on an undamped 1.5 Hz linear spring, mean over 6 s', unit: 's', test: TJ.motor,
+    reference: {formula: 'T = 1 / f', value: 1 / 1.5}, tolerance: relative(2e-3), note: 'The spring is integrated implicitly: the period holds, the amplitude falls to 63% in 6 s (a numerical damping ratio of 0.008).',
+    measure: async () => (await motor()).period},
+  {id: 'rigid-core.joint.motor-critical', title: 'Motor joint: critically damped return', quantity: 'displacement one period after release from 0.4 m, damping ratio 1', unit: 'm', test: TJ.motor,
+    reference: {formula: 'x = x0 (1 + w t) exp(-w t), w = 2 pi f', value: null}, tolerance: absolute(2e-3), measure: async () => { const r = await motor(); return {value: r.dampedX, reference: r.dampedExact}; }},
+  {id: 'rigid-core.joint.motor-sag', title: 'Motor joint: spring sag under gravity', quantity: 'sag of a 512 kg body on a 2 Hz spring', unit: 'm', test: TJ.sag,
+    reference: {formula: 's = g / (2 pi f)^2, whatever the mass', value: G / (2 * Math.PI * 2) ** 2}, tolerance: relative(2e-3), measure: async () => (await motorSag()).sags[1]},
+  {id: 'rigid-core.joint.parallel', title: 'Parallel joint: swing period', quantity: 'period of a ball released 0.2 rad from the aligned axis on an undamped 1 Hz spring', unit: 's', test: TJ.parallel,
+    reference: {formula: 'T = 1 / f', value: 1}, tolerance: relative(3e-3), measure: async () => (await parallel()).period},
+  {id: 'rigid-core.joint.filter', title: 'Filter joint: overlapping bodies do not collide', quantity: 'distance between two overlapping 1 m boxes after 1 s with a filter joint', unit: 'm', test: TJ.filter,
+    reference: {formula: 'd = initial distance', value: 0.4}, tolerance: absolute(1e-6), measure: async () => (await filterJoint()).filtered.distance},
+  {id: 'rigid-core.joint.filter-removed', title: 'Filter joint: collision resumes on removal', quantity: 'distance 1 s after the joint is removed, against two boxes that never had one', unit: 'm', test: TJ.filter,
+    reference: {formula: 'd = distance without the joint', value: null}, tolerance: absolute(1e-3), measure: async () => { const r = await filterJoint(); return {value: r.filtered.afterRemoval, reference: r.plain.distance}; }},
+  {id: 'rigid-core.joint.checkpoint-break', title: 'Checkpoint: a weld breaks at the same tick after a restore', quantity: 'tick at which a loaded breakable weld broke in a world restored 736 ticks earlier', unit: 'ticks', test: TJ.checkpoint,
+    reference: {formula: 'tick of the uninterrupted run', value: null}, tolerance: absolute(0), measure: async () => { const r = await jointCheckpoint(); return {value: r.brokeB, reference: r.brokeA}; }},
+  {id: 'rigid-core.joint.checkpoint', title: 'Checkpoint: joints, thresholds, drives and settings resume exactly', quantity: 'steps of 1,440 after a restore that differ in any bit', unit: 'steps', test: TJ.checkpoint,
+    reference: {formula: 'restored run = uninterrupted run', value: 0}, tolerance: absolute(0), measure: async () => (await jointCheckpoint()).mismatches},
+]);
+
+export default [...cases, ...characterCases, ...ccdCases, ...vehicleCases, ...jointCases];

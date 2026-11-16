@@ -202,7 +202,7 @@ export interface NativeWorldModule {
   _b3w_world_get_body_mass_data?(world: number, body: bigint, out: number | bigint): number;
   _b3w_world_reset_body_mass_data?(world: number, body: bigint): number;
   /** Optional rigid-core extension (joint values and events, batched rays, the capsule mover, world and body
-   * controls, Box3D's explosion, step profile, debug-draw lines); all thirteen exports must be present together,
+   * controls, Box3D's explosion, step profile, contact statistics, debug-draw lines); all fourteen exports must be present together,
    * with the general-body extension. */
   _b3w_world_joint_set_values?(world: number, joint: bigint, what: number, values: number | bigint, count: number): number;
   _b3w_world_joint_get_values?(world: number, joint: bigint, out: number | bigint): number;
@@ -214,6 +214,7 @@ export interface NativeWorldModule {
   _b3w_world_get_body_flags?(world: number, body: bigint, out: number | bigint): number;
   _b3w_world_explode_area?(world: number, x: number, y: number, z: number, radius: number, falloff: number, impulsePerArea: number, maskBits: bigint): number;
   _b3w_world_profile?(world: number, outProfile: number | bigint, outCounters: number | bigint): number;
+  _b3w_world_contact_stats?(world: number, out: number | bigint): number;
   _b3w_world_debug_draw?(world: number, flags: number, jointScale: number, forceScale: number, bounds: number | bigint): number;
   _b3w_world_debug_ptr?(world: number): number | bigint;
   _b3w_world_debug_total?(world: number): number;
@@ -230,7 +231,7 @@ const GENERAL_EXPORTS = ['reset','set_gravity','get_gravity','create_body','copy
   'joint_set_steering','get_joint_state','collect_events','events_ptr','event_total'] as const;
 
 const RIGID_EXPORTS = ['joint_set_values','joint_get_values','cast_rays','mover_move','set_param','get_params','set_body_flag','get_body_flags',
-  'explode_area','profile','debug_draw','debug_ptr','debug_total'] as const;
+  'explode_area','profile','contact_stats','debug_draw','debug_ptr','debug_total'] as const;
 
 const JOINT_OWNER: unique symbol = Symbol('Box3D native joint owner');
 /** World-owned opaque joint reference. A joint dies with either of its bodies. */
@@ -571,6 +572,21 @@ export interface NativeStepProfile {
   readonly milliseconds: Readonly<Record<NativeProfileStage, number>>;
   readonly counters: Readonly<Record<NativeProfileCounter, number>>;
 }
+/** What the solver's contact manifolds hold right now. */
+export interface NativeContactStats {
+  /** Pairs of shapes that touch. */
+  pairs: number;
+  /** Contact points in their manifolds. */
+  points: number;
+  /** Deepest overlap of any contact point (m); 0 when nothing overlaps. Resting contacts sit near Box3D's linear slop (5 mm). */
+  deepestPenetration: number;
+  /** Mean overlap of the overlapping points (m). */
+  meanPenetration: number;
+  /** Largest normal impulse one contact point applied in the last step (N s). */
+  largestImpulse: number;
+  /** Sum of the normal impulses of the last step (N s): for bodies at rest on the ground, their weight times the step. */
+  totalImpulse: number;
+}
 export interface NativeDebugDrawOptions {
   readonly joints?: boolean;
   /** Joint frames and limits. */
@@ -644,7 +660,7 @@ export function assertNativeWorldModule(value: unknown): asserts value is Native
   }
   const rigidExports=RIGID_EXPORTS.map(name=>mod[`_b3w_world_${name}`]);
   if(rigidExports.some(value=>value!==undefined)&&(!rigidExports.every(value=>typeof value==='function')||!generalExports.every(value=>typeof value==='function'))) {
-    throw new EngineError('UNSUPPORTED_BACKEND','The native rigid-core extension requires all thirteen of its exports and the general-body extension.');
+    throw new EngineError('UNSUPPORTED_BACKEND','The native rigid-core extension requires all fourteen of its exports and the general-body extension.');
   }
   if(queryExports.some(value=>value!==undefined)&&(!queryExports.every(value=>typeof value==='function')||!bodyExports.every(value=>typeof value==='function'))) {
     throw new EngineError('UNSUPPORTED_BACKEND','The native spatial-query extension requires all query and body lifecycle exports.');
@@ -1433,6 +1449,15 @@ export class NativeWorldBackend implements PhysicsBackend {
     PROFILE_STAGES.forEach((name,i)=>{milliseconds[name]=floats[i];});
     PROFILE_COUNTERS.forEach((name,i)=>{counters[name]=ints[i];});
     return {milliseconds,counters};
+  }
+  /** Contact pairs, points, overlap and impulses from the solver's manifolds. Reads the world only. */
+  contactStats(): NativeContactStats {
+    const view=this.rigid();
+    const status=this.mod._b3w_world_contact_stats!(this.handle,this.scratch);
+    if(status===-3)throw new EngineError('ALLOCATION_FAILED','Native contact statistics could not be allocated.');
+    this.accepted(status);
+    const f=(i: number)=>view.getFloat32(i*4,true);
+    return {pairs:f(0),points:f(1),deepestPenetration:f(2),meanPenetration:f(3),largestImpulse:f(4),totalImpulse:f(5)};
   }
   /**
    * Box3D's own debug drawing as line segments: joints, shape bounds, centres of mass, contact points with their

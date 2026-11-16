@@ -242,6 +242,12 @@ export interface CompoundShapeOptions {
 }
 ```
 
+### ContactStats · type
+
+```ts
+export type ContactStats = NativeContactStats;
+```
+
 ### convertMatrices · function
 
 Copy `count` column-major 4x4 matrices from `source` into `out`, converting
@@ -872,6 +878,21 @@ export interface NativeCompoundChild {
 }
 ```
 
+### NativeContactStats · interface
+
+What the solver's contact manifolds hold right now.
+
+```ts
+export interface NativeContactStats {
+    pairs: number;
+    points: number;
+    deepestPenetration: number;
+    meanPenetration: number;
+    largestImpulse: number;
+    totalImpulse: number;
+}
+```
+
 ### NativeConvexShape · type
 
 The shapes a compound body may hold: the convex ones.
@@ -1368,6 +1389,7 @@ export declare class NativeWorldBackend implements PhysicsBackend {
   bodyFlags(body: NativeBodyHandle): NativeBodyFlags;
   explodeArea(options: { center: NativeQueryVector; radius: number; falloff?: number; impulsePerArea: number; maskBits?: bigint; }): void;
   profile(): NativeStepProfile;
+  contactStats(): NativeContactStats;
   debugLines(options?: NativeDebugDrawOptions): NativeDebugLines;
   jointAlive(joint: NativeJointHandle): boolean;
   destroyJoint(joint: NativeJointHandle): boolean;
@@ -1559,6 +1581,7 @@ export declare class PhysicsWorld {
   getBodyFlags(body: Body): BodyFlags;
   explodeArea(options: { center: Vec3Like; radius: number; falloff?: number; impulsePerArea: number; maskBits?: bigint; }): void;
   profile(): StepProfile;
+  contactStats(): ContactStats;
   debugLines(options?: DebugDrawOptions): DebugDrawLines;
   onEvent(listener: (event: WorldEvent) => void): () => void;
   get droppedEvents(): number;
@@ -2422,6 +2445,7 @@ export declare class RemoteWorld implements InstanceSource {
   getBodyFlags(body: RemoteBody): Promise<BodyFlags>;
   explodeArea(options: { center: Vec3Like; radius: number; falloff?: number; impulsePerArea: number; maskBits?: bigint; }): Promise<void>;
   profile(): Promise<StepProfile>;
+  contactStats(): Promise<ContactStats>;
   debugLines(options?: DebugDrawOptions): Promise<DebugDrawLines>;
   capsuleCast(origin: Vec3Like, radius: number, halfLength: number, translation: Vec3Like, options?: QueryOptions): Promise<RemoteCastHit | null>;
   raycastAll(origin: Vec3Like, translation: Vec3Like, options?: QueryOptions): Promise<RemoteCastHit[]>;

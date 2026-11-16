@@ -275,6 +275,67 @@ sinks by millimetres, so the thrust `τ / R` is a little higher (top speed +0.2%
 - A sphere wheel is as wide as it is tall; give the chassis and other bodies room for it.
 - 2 to 16 wheels. Tracked vehicles and trailers are joints you add yourself.
 
+## 5. Joints: motor, parallel, filter, events and breaking
+
+`createJoint` takes nine types. The first six (`weld`, `revolute`, `spherical`, `prismatic`, `distance`, `wheel`)
+are in the kit README. The others:
+
+| Type | What it does | Options |
+|---|---|---|
+| `motor` | Drives the relative motion of two bodies in all six degrees of freedom: hold a relative linear and angular velocity with a bounded force and torque, and/or pull frame B onto frame A with a linear and an angular spring, each with its own force limit. | `drive: {linearVelocity, angularVelocity, maxForce, maxTorque, linearSpring: {hertz, dampingRatio, maxForce}, angularSpring: {hertz, dampingRatio, maxTorque}}`; `setJointDrive` |
+| `parallel` | Keeps the z axis of frame B along the z axis of frame A with a spring; leaves position and spin about that axis free. For keeping something upright. | `spring: {hertz, dampingRatio}`, `maxTorque`; `setJointParallelSpring` |
+| `filter` | Stops the two bodies colliding with each other. Nothing else. Removing it restores the collision at once. | none |
+
+**A 6-DOF joint** is a combination: a `motor` joint with springs is a soft 6-DOF drive to a pose (stiffness per
+group, not per axis); a `prismatic` or `revolute` joint with limits, motor and spring gives one controlled axis and
+locks the other five; a `spherical` joint has a cone limit, twist limits, a spring to a target rotation
+(`setJointTargetRotation`) and an angular motor (`setJointAngularMotor`). Per-axis linear limits with free rotation
+(a full generic 6-DOF constraint) are not in Box3D v0.1.0; chain a massless-enough intermediate body with one
+joint per axis if you need that, or use the robot importer, which does it for URDF and MJCF.
+
+### Joint events and breakable joints
+
+Every joint can have a force threshold (N) and a torque threshold (N m), `thresholds: {force, torque, breakable}`
+at creation or `setJointThresholds` later. In every step in which the joint's constraint force or torque is at or
+above a threshold, the world reports a `'joint-overload'` event with the joint, its bodies, and the force and
+torque it carried. With `breakable: true` the joint is destroyed at the end of that step and the event is
+`'joint-break'`. Breaking happens in the engine, with or without a listener, so it is the same in a replay and
+after a checkpoint (the flags travel in the checkpoint).
+
+`getJointState(joint)` gives the reaction force and torque; `getJointDetails(joint)` adds the separation errors
+(how far the joint is from holding), the thresholds, and per type: angle, limits, motor torque, travel and speed,
+cone angle, wheel spin, steering angle and suspension travel.
+
+### Measured
+
+| Quantity | Closed form | Measured | Held to |
+|---|---|---|---|
+| Breakable weld, threshold 500 N, load growing by 0.25 N per step | breaks at 500 N | whole at 500.10 N, broke at 500.35 N | ± 0.75 N |
+| Breakable weld holding a block 0.5 m to the side, threshold 100 N m | breaks at 100 N m | whole at 99.925 N m, broke at 100.05 N m | ± 0.375 N m |
+| Reaction force a weld reports | weight + applied force | within 0.2% | 0.2% |
+| `joint-overload` events while over the threshold for 120 steps / while under | 120 / 0 | 120 / 0 | exact |
+| Motor joint, 200 N velocity drive to 3 m/s on 65.4 kg | m v / F = 0.9817 s | 0.9833 s, then holds 3.0000 m/s | 2 steps; 0.01% |
+| Motor joint, 3 N m spin drive to 4 rad/s | I ω / τ = 2.1817 s | 2.1833 s | 2 steps |
+| Motor joint, undamped 1.5 Hz spring | T = 0.66667 s | 0.66670 s | 0.2% |
+| Motor joint, critically damped return after one period, from 0.4 m | x₀(1 + ωt)e^(−ωt) = 5.44 mm | 5.86 mm | ± 2 mm |
+| Motor joint spring under gravity, 2 Hz, 64 kg and 512 kg | g / (2πf)² = 62.123 mm | 62.119 mm, both | 0.2% |
+| Parallel joint, undamped 1 Hz | T = 1 s | 0.99901 s | 0.3% |
+| Filter joint: two overlapping boxes after 1 s | 0.4 m (unchanged) | 0.4 m | 1e-6 m |
+| After removing it, against boxes that never had one | 1.2914 m | 1.2914 m | 1 mm |
+| Checkpoint before a weld breaks; restored world | same tick | tick 1216 in both; 0 of 1,440 later steps differ | exact |
+
+### Limits
+
+- A joint's force is evaluated at every sub-step. A short impact can break a joint whose mean load over the step
+  is below its threshold; choose thresholds with the sub-step in mind.
+- Box3D's springs are integrated implicitly: frequencies hold to 0.2%, but an undamped spring loses amplitude
+  (a numerical damping ratio of about 0.008 at 240 Hz with 4 sub-steps).
+- When a joint other than a filter joint is removed or breaks, two bodies that were overlapping start to collide
+  only once one of them has moved out of its bounds margin (a few centimetres): Box3D pairs shapes when they move.
+  Pieces of a breaking structure are moving, so this is rarely visible.
+- A joint spring's `hertz` is a frequency of the joint's own effective mass (see Vehicles), which equals the
+  body's mass only when the other body is the world or much heavier.
+
 ## Custom filter and pre-solve callbacks: not exposed
 
 Box3D can call the application for every candidate pair (`b3World_SetCustomFilterCallback`) and for every touching

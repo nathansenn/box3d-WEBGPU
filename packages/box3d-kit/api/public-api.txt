@@ -2804,6 +2804,7 @@ export interface NativeWorldModule {
     _b3w_world_get_body_flags?(world: number, body: bigint, out: number | bigint): number;
     _b3w_world_explode_area?(world: number, x: number, y: number, z: number, radius: number, falloff: number, impulsePerArea: number, maskBits: bigint): number;
     _b3w_world_profile?(world: number, outProfile: number | bigint, outCounters: number | bigint): number;
+    _b3w_world_contact_stats?(world: number, out: number | bigint): number;
     _b3w_world_debug_draw?(world: number, flags: number, jointScale: number, forceScale: number, bounds: number | bigint): number;
     _b3w_world_debug_ptr?(world: number): number | bigint;
     _b3w_world_debug_total?(world: number): number;
@@ -3114,6 +3115,14 @@ export interface NativeStepProfile {
     readonly milliseconds: Readonly<Record<NativeProfileStage, number>>;
     readonly counters: Readonly<Record<NativeProfileCounter, number>>;
 }
+export interface NativeContactStats {
+    pairs: number;
+    points: number;
+    deepestPenetration: number;
+    meanPenetration: number;
+    largestImpulse: number;
+    totalImpulse: number;
+}
 export interface NativeDebugDrawOptions {
     readonly joints?: boolean;
     readonly jointExtras?: boolean;
@@ -3275,6 +3284,7 @@ export declare class NativeWorldBackend implements PhysicsBackend {
         maskBits?: bigint;
     }): void;
     profile(): NativeStepProfile;
+    contactStats(): NativeContactStats;
     debugLines(options?: NativeDebugDrawOptions): NativeDebugLines;
     jointAlive(joint: NativeJointHandle): boolean;
     destroyJoint(joint: NativeJointHandle): boolean;
@@ -6862,7 +6872,7 @@ import { type LoadBox3DOptions } from './loader.js';
 import { PhysicsWorld, type WorldOptions } from './world.js';
 export { loadBox3D, type LoadBox3DOptions, type Box3DModuleFactory } from './loader.js';
 export { BUILD_INFO, type BuildInfo } from './core/build-info.js';
-export { PhysicsWorld, toVec3, leakReporting, type Body, type BodyPose, type Vec3, type Vec3Like, type WorldOptions, type SpawnBoxOptions, toQuat, axisRotation, type Joint, type BodyType, type BodyState, type BodyOptions, type ShapeOptions, type ConvexShapeOptions, type CompoundShapeOptions, type MassDataOptions, type BodyMassData, type QuatLike, type BodyKind, type JointType, type JointState, type JointOptions, type JointFrame, type ResetOptions, type WorldEvent, type QueryOptions, type RaycastOptions, type WorldStats, type ReplayLog, type ReplayCommand, type RecordingOptions, type ReplayReport, type WorldSettings, type BodyFlags, type JointDetails, type JointDrive, type JointThresholds, type RayBatch, type StepProfile, type DebugDrawOptions, type DebugDrawLines, type MoverPlane, type CapsuleMoveOptions, type CapsuleMoveResult, } from './world.js';
+export { PhysicsWorld, toVec3, leakReporting, type Body, type BodyPose, type Vec3, type Vec3Like, type WorldOptions, type SpawnBoxOptions, toQuat, axisRotation, type Joint, type BodyType, type BodyState, type BodyOptions, type ShapeOptions, type ConvexShapeOptions, type CompoundShapeOptions, type MassDataOptions, type BodyMassData, type QuatLike, type BodyKind, type JointType, type JointState, type JointOptions, type JointFrame, type ResetOptions, type WorldEvent, type QueryOptions, type RaycastOptions, type WorldStats, type ReplayLog, type ReplayCommand, type RecordingOptions, type ReplayReport, type WorldSettings, type BodyFlags, type JointDetails, type JointDrive, type JointThresholds, type RayBatch, type StepProfile, type DebugDrawOptions, type DebugDrawLines, type MoverPlane, type CapsuleMoveOptions, type CapsuleMoveResult, type ContactStats, } from './world.js';
 export { convertMatrices, convertVector, toBox3DFrame, type UpAxis } from './axes.js';
 export { writeInstances, lastUploadRange, INSTANCE_WGSL, type GpuQueueLike, type GpuBufferLike, type WriteInstancesOptions, type UploadRange } from './gpu.js';
 export { spawnBoxes, applyImpulses, BodyRing, detectEnvironment, capabilities, LICENSE_NOTICE, type EnvironmentReport, type Capabilities } from './helpers.js';
@@ -6876,7 +6886,7 @@ export { WorldScheduler, type SchedulableWorld, type SchedulerOptions, type Sche
 export type { InstanceSource } from './three.js';
 export { FixedStepLoop, pauseOnHidden, type FixedStepOptions, type FixedStepResult } from './loop.js';
 export { EngineError } from './core/contracts.js';
-export { NativeWorldPool, NativeWorldBackend, NATIVE_WORLD_API_VERSION, type NativeBodyHandle, type NativeSpatialQuery, type NativeQueryResult, type NativeQueryCastHit, type NativeQueryBodyHit, type NativeQueryFilter, type NativeBodyCapacityInfo, type NativeJointHandle, type NativeBodyDescriptor, type NativeBodyShape, type NativeConvexShape, type NativeCompoundChild, type NativeMassData, type NativeBodyMassState, type NativeBodyKind, type NativeBodyState, type NativeBodyType, type NativeJointDescriptor, type NativeJointState, type NativeJointType, type NativeJointFrame, type NativeWorldEvent, type NativeQuaternion, type NativeJointDrive, type NativeJointThresholds, type NativeJointSteering, type NativeJointDetails, type NativeRayBatch, type NativeMoverInput, type NativeMoverPlane, type NativeMoverResult, type NativeWorldSettings, type NativeBodyFlags, type NativeStepProfile, type NativeProfileStage, type NativeProfileCounter, type NativeDebugDrawOptions, type NativeDebugLines, } from './core/native-world.js';
+export { NativeWorldPool, NativeWorldBackend, NATIVE_WORLD_API_VERSION, type NativeBodyHandle, type NativeSpatialQuery, type NativeQueryResult, type NativeQueryCastHit, type NativeQueryBodyHit, type NativeQueryFilter, type NativeBodyCapacityInfo, type NativeJointHandle, type NativeBodyDescriptor, type NativeBodyShape, type NativeConvexShape, type NativeCompoundChild, type NativeMassData, type NativeBodyMassState, type NativeBodyKind, type NativeBodyState, type NativeBodyType, type NativeJointDescriptor, type NativeJointState, type NativeJointType, type NativeJointFrame, type NativeWorldEvent, type NativeQuaternion, type NativeJointDrive, type NativeJointThresholds, type NativeJointSteering, type NativeJointDetails, type NativeRayBatch, type NativeMoverInput, type NativeMoverPlane, type NativeMoverResult, type NativeWorldSettings, type NativeBodyFlags, type NativeStepProfile, type NativeProfileStage, type NativeProfileCounter, type NativeDebugDrawOptions, type NativeDebugLines, type NativeContactStats, } from './core/native-world.js';
 export type { InstanceBufferSource, PhysicsBackend } from './backend-types.js';
 export type EngineErrorCode = 'INVALID_PAYLOAD' | 'INVALID_BACKEND' | 'UNSUPPORTED_BACKEND' | 'DISPOSED' | 'STALE_BODY' | 'WORLD_CAPACITY' | 'ALLOCATION_FAILED' | 'STALE_QUERY' | 'QUERY_VERSION_EXHAUSTED' | 'INVALID_STATE' | 'INTERNAL' | 'WASM_UNAVAILABLE' | 'INTEGRITY_MISMATCH' | 'INCOMPATIBLE_SAVE' | 'STALE_JOINT' | 'UNSUPPORTED_JOINT' | 'NUMERICAL_FAILURE' | 'WORK_LIMIT' | 'UNSTABLE_TIME_STEP';
 export declare function createWorld(options?: WorldOptions & LoadBox3DOptions & {
@@ -7212,7 +7222,7 @@ export * from './core/closed-water.js';
 
 // ==== worker.d.ts ====
 import type { LoadBox3DOptions } from './loader.js';
-import type { BodyKind, BodyMassData, BodyOptions, BodyPose, BodyState, BodyType, MassDataOptions, JointOptions, JointState, QuatLike, QueryOptions, ReplayLog, ReplayReport, RecordingOptions, ResetOptions, SpawnBoxOptions, Vec3, Vec3Like, WorldEvent, WorldOptions, WorldStats, BodyFlags, CapsuleMoveOptions, DebugDrawLines, DebugDrawOptions, JointDetails, JointDrive, JointThresholds, StepProfile, WorldSettings } from './world.js';
+import type { BodyKind, BodyMassData, BodyOptions, BodyPose, BodyState, BodyType, MassDataOptions, JointOptions, JointState, QuatLike, QueryOptions, ReplayLog, ReplayReport, RecordingOptions, ResetOptions, SpawnBoxOptions, Vec3, Vec3Like, WorldEvent, WorldOptions, WorldStats, BodyFlags, CapsuleMoveOptions, ContactStats, DebugDrawLines, DebugDrawOptions, JointDetails, JointDrive, JointThresholds, StepProfile, WorldSettings } from './world.js';
 import type { NativeQueryFilter } from './core/native-world.js';
 import type { InstanceSource } from './three.js';
 export interface MessageEndpoint {
@@ -7408,6 +7418,7 @@ export declare class RemoteWorld implements InstanceSource {
         maskBits?: bigint;
     }): Promise<void>;
     profile(): Promise<StepProfile>;
+    contactStats(): Promise<ContactStats>;
     debugLines(options?: DebugDrawOptions): Promise<DebugDrawLines>;
     capsuleCast(origin: Vec3Like, radius: number, halfLength: number, translation: Vec3Like, options?: QueryOptions): Promise<RemoteCastHit | null>;
     raycastAll(origin: Vec3Like, translation: Vec3Like, options?: QueryOptions): Promise<RemoteCastHit[]>;
@@ -7435,7 +7446,7 @@ export declare class RemoteWorld implements InstanceSource {
 export declare function connectWorld(endpoint: MessageEndpoint, options?: RemoteWorldOptions): Promise<RemoteWorld>;
 
 // ==== world.d.ts ====
-import type { NativeBodyHandle, NativeBodyKind, NativeBodyMassState, NativeBodyState, NativeBodyType, NativeJointHandle, NativeJointState, NativeJointType, NativeQueryCastHit, NativeQueryFilter, NativeWorldBackend, NativeWorldEvent, NativeWorldPool, NativeBodyFlags, NativeDebugDrawOptions, NativeDebugLines, NativeJointDetails, NativeJointDrive, NativeJointThresholds, NativeMoverPlane, NativeRayBatch, NativeStepProfile, NativeWorldSettings } from './core/native-world.js';
+import type { NativeBodyHandle, NativeBodyKind, NativeBodyMassState, NativeBodyState, NativeBodyType, NativeJointHandle, NativeJointState, NativeJointType, NativeQueryCastHit, NativeQueryFilter, NativeWorldBackend, NativeWorldEvent, NativeWorldPool, NativeBodyFlags, NativeDebugDrawOptions, NativeDebugLines, NativeJointDetails, NativeJointDrive, NativeJointThresholds, NativeMoverPlane, NativeRayBatch, NativeStepProfile, NativeWorldSettings, NativeContactStats } from './core/native-world.js';
 import { FixedStepLoop, type FixedStepOptions, type FixedStepResult } from './loop.js';
 export type Vec3 = readonly [number, number, number];
 export type Vec3Like = Vec3 | {
@@ -7461,6 +7472,7 @@ export type JointDrive = Omit<NativeJointDrive, 'linearVelocity' | 'angularVeloc
 export type JointThresholds = NativeJointThresholds;
 export type RayBatch = NativeRayBatch;
 export type StepProfile = NativeStepProfile;
+export type ContactStats = NativeContactStats;
 export type DebugDrawOptions = Omit<NativeDebugDrawOptions, 'region'> & {
     readonly region?: {
         readonly min: Vec3Like;
@@ -7832,6 +7844,7 @@ export declare class PhysicsWorld {
         maskBits?: bigint;
     }): void;
     profile(): StepProfile;
+    contactStats(): ContactStats;
     debugLines(options?: DebugDrawOptions): DebugDrawLines;
     onEvent(listener: (event: WorldEvent) => void): () => void;
     get droppedEvents(): number;

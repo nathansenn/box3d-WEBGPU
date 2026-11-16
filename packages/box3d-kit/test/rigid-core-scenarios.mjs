@@ -719,3 +719,222 @@ export async function vehicleTerrainCheckpoint(K) {
     return {mismatches, steps: total - half, minUp, maxHeight, travelled: Math.hypot(s.position[0], s.position[2]), end: s.position, savedKeys: Object.keys(saved).sort()};
   } finally { a.world.dispose(); b.world.dispose(); }
 }
+
+// ---------------------------------------------------------------------------------------------------
+// Motor, parallel and filter joints, joint events and breakable joints.
+// ---------------------------------------------------------------------------------------------------
+
+/**
+ * A breakable weld holding a block from the world, with an extra downward force that grows slowly. The weld must
+ * break when the force it carries reaches its threshold: returns the carried force (weight plus the applied
+ * force) in the step before it broke and the threshold. With `arm` > 0 the block hangs that far to the side and the
+ * threshold is on the torque instead.
+ */
+export async function breakableWeld(K, {threshold = 500, arm = 0, rate = 60} = {}) {
+  const world = await newWorld(K);
+  try {
+    const half = 0.1, block = world.createBody({shape: {kind: 'box', halfExtents: [half, half, half]}, density: 1250, position: [arm, 5, 0], neverSleeps: true});
+    const mass = world.getState(block).mass;
+    const weld = world.createJoint({type: 'weld', bodyA: null, bodyB: block, frameA: {position: [0, 5, 0]}, frameB: {position: [-arm, 0, 0]}, stiffness: {hertz: 240, dampingRatio: 2},
+      thresholds: arm > 0 ? {torque: threshold, breakable: true} : {force: threshold, breakable: true}});
+    const events = [];
+    world.onEvent(event => { if (event.kind === 'joint-break' || event.kind === 'joint-overload') events.push({...event, tick: world.tick}); });
+    let applied = 0, carriedBefore = 0, reported = 0, brokeAt = null;
+    for (let i = 0; i < HZ * 60 && brokeAt === null; i++) {
+      applied = rate * i * DT;
+      world.applyForce(block, [0, -applied, 0]);
+      const state = world.isJointAlive(weld) ? world.getJointState(weld) : null;
+      if (state) { carriedBefore = (arm > 0 ? arm : 1) * (mass * G + rate * (i - 1) * DT); reported = arm > 0 ? Math.hypot(...state.torque) : Math.hypot(...state.force); }
+      world.step();
+      if (!world.isJointAlive(weld)) brokeAt = i;
+    }
+    const load = (arm > 0 ? arm : 1) * (mass * G + applied);
+    // The block is free afterwards: it must be falling.
+    run(world, 0.25);
+    return {threshold, load, carriedBefore, reported, mass, weight: mass * G, broke: brokeAt !== null, events, fallingSpeed: -world.getState(block).linearVelocity[1], resolution: (arm > 0 ? arm : 1) * rate * DT};
+  } finally { world.dispose(); }
+}
+
+/** A weld with a threshold that is not breakable reports 'joint-overload' in every step in which it is over, and stays. */
+export async function overloadEvents(K) {
+  const world = await newWorld(K);
+  try {
+    const block = world.createBody({shape: {kind: 'box', halfExtents: [0.1, 0.1, 0.1]}, density: 1250, position: [0, 5, 0], neverSleeps: true});
+    const weight = world.getState(block).mass * G;
+    const weld = world.createJoint({type: 'weld', bodyA: null, bodyB: block, frameA: {position: [0, 5, 0]}, thresholds: {force: 2 * weight}});
+    const ticks = [];
+    world.onEvent(event => { if (event.kind === 'joint-overload') ticks.push({tick: world.tick, force: Math.hypot(...event.force), sameJoint: event.joint.token === weld.token, bodyB: event.bodyB?.token === block.token, bodyA: event.bodyA}); });
+    run(world, 0.5);
+    const quiet = ticks.length;
+    // Push down with 1.5 weights for 0.5 s: the weld then carries 2.5 weights.
+    for (let i = 0; i < HZ / 2; i++) { world.applyForce(block, [0, -1.5 * weight, 0]); world.step(); }
+    const loud = ticks.length - quiet;
+    run(world, 0.5);
+    return {quiet, loud, after: ticks.length - quiet - loud, steps: HZ / 2, alive: world.isJointAlive(weld), ticks, weight, details: world.getJointDetails(weld)};
+  } finally { world.dispose(); }
+}
+
+/**
+ * A motor joint between the world and a free body in zero gravity.
+ * Velocity drive: the body accelerates at F / m until it reaches the wanted speed, then holds it.
+ * Spin drive: the same about an axis, at torque / inertia.
+ * Linear spring: released from a displacement, it oscillates at the stated frequency; critically damped it returns
+ * as (1 + w t) exp(-w t). Under gravity the spring sags by g / (2 pi f)^2.
+ */
+export async function motorJoint(K) {
+  const world = await newWorld(K, {gravity: [0, 0, 0]});
+  try {
+    const radius = 0.25, speed = 3, force = 200;
+    const sled = world.createBody({shape: {kind: 'sphere', radius}, position: [0, 0, 0], neverSleeps: true});
+    const mass = world.getState(sled).mass;
+    world.createJoint({type: 'motor', bodyA: null, bodyB: sled, drive: {linearVelocity: [speed, 0, 0], maxForce: force}});
+    let reachedAt = null, midSpeed = 0;
+    const rampTime = mass * speed / force;
+    for (let i = 1; i <= HZ * 4; i++) {
+      world.step();
+      const v = world.getState(sled).linearVelocity[0];
+      if (i === Math.round(rampTime * HZ / 2)) midSpeed = v;
+      if (reachedAt === null && v >= speed * 0.999) reachedAt = i * DT;
+    }
+    const held = world.getState(sled).linearVelocity[0];
+
+    const spin = 4, torque = 3;
+    const rotor = world.createBody({shape: {kind: 'sphere', radius}, position: [0, 10, 0], neverSleeps: true});
+    const inertia = 0.4 * world.getState(rotor).mass * radius * radius;
+    const spinJoint = world.createJoint({type: 'motor', bodyA: null, bodyB: rotor, frameA: {position: [0, 10, 0]}, drive: {angularVelocity: [0, spin, 0], maxTorque: torque, linearSpring: {hertz: 30, dampingRatio: 1, maxForce: 1e6}}});
+    let spinReachedAt = null;
+    for (let i = 1; i <= HZ * 4; i++) { world.step(); if (spinReachedAt === null && world.getState(rotor).angularVelocity[1] >= spin * 0.999) spinReachedAt = i * DT; }
+    const heldSpin = world.getState(rotor).angularVelocity[1], drift = Math.hypot(...world.getState(rotor).position.map((v, k) => v - [0, 10, 0][k]));
+
+    // Springs: undamped oscillation, and a critically damped return.
+    const hertz = 1.5, x0 = 0.4;
+    const bob = world.createBody({shape: {kind: 'sphere', radius}, position: [x0, 20, 0], neverSleeps: true});
+    world.createJoint({type: 'motor', bodyA: null, bodyB: bob, frameA: {position: [0, 20, 0]}, drive: {linearSpring: {hertz, dampingRatio: 0, maxForce: 1e9}}});
+    const xs = [];
+    for (let i = 0; i < HZ * 6; i++) { world.step(); xs.push(world.getState(bob).position[0]); }
+    const crossings = [];
+    for (let i = 1; i < xs.length; i++) if (xs[i - 1] > 0 && xs[i] <= 0) crossings.push((i - 1 + xs[i - 1] / (xs[i - 1] - xs[i])) / HZ);
+    const period = (crossings.at(-1) - crossings[0]) / (crossings.length - 1), lateAmplitude = Math.max(...xs.slice(-HZ).map(Math.abs));
+
+    const damped = world.createBody({shape: {kind: 'sphere', radius}, position: [x0, 30, 0], neverSleeps: true});
+    world.createJoint({type: 'motor', bodyA: null, bodyB: damped, frameA: {position: [0, 30, 0]}, drive: {linearSpring: {hertz, dampingRatio: 1, maxForce: 1e9}}});
+    const tSample = 1 / hertz;
+    run(world, tSample);
+    const w = 2 * Math.PI * hertz, dampedX = world.getState(damped).position[0], dampedExact = x0 * (1 + w * tSample) * Math.exp(-w * tSample);
+    return {speed, held, reachedAt, rampTime, midSpeed, spin, heldSpin, spinReachedAt, spinRampTime: inertia * spin / torque, drift, details: world.getJointDetails(spinJoint),
+      hertz, period, lateAmplitude, x0, dampedX, dampedExact};
+  } finally { world.dispose(); }
+}
+
+/** A motor joint's spring holding a body against gravity: it sags by g / (2 pi f)^2, whatever the mass. */
+export async function motorSpringSag(K, hertz = 2) {
+  const world = await newWorld(K);
+  try {
+    const results = [];
+    for (const [index, density] of [500, 4000].entries()) {
+      const body = world.createBody({shape: {kind: 'box', halfExtents: [0.2, 0.2, 0.2]}, density, position: [index * 3, 5, 0], neverSleeps: true, lockRotation: true});
+      world.createJoint({type: 'motor', bodyA: null, bodyB: body, frameA: {position: [index * 3, 5, 0]}, drive: {linearSpring: {hertz, dampingRatio: 1, maxForce: 1e9}}});
+      results.push(body);
+    }
+    run(world, 4);
+    return {sags: results.map(body => 5 - world.getState(body).position[1]), exact: G / (2 * Math.PI * hertz) ** 2, hertz};
+  } finally { world.dispose(); }
+}
+
+/**
+ * A parallel joint keeps the z axis of a body along the world's z axis with a spring. A ball released with its
+ * axis tilted swings back and forth about the aligned direction at the stated frequency.
+ */
+export async function parallelJoint(K, hertz = 1) {
+  const world = await newWorld(K, {gravity: [0, 0, 0]});
+  try {
+    const tilt = 0.2, q = [Math.sin(tilt / 2), 0, 0, Math.cos(tilt / 2)];
+    const ball = world.createBody({shape: {kind: 'sphere', radius: 0.3}, position: [0, 0, 0], rotation: q, neverSleeps: true});
+    const joint = world.createJoint({type: 'parallel', bodyA: null, bodyB: ball, spring: {hertz, dampingRatio: 0}, maxTorque: 1e6});
+    const angles = [];
+    for (let i = 0; i < HZ * 6; i++) {
+      world.step();
+      const r = world.getState(ball).rotation;
+      // Signed tilt of the body's z axis about x: the y component of the rotated z axis is -sin(angle).
+      angles.push(Math.asin(Math.max(-1, Math.min(1, 2 * (r[3] * r[0] - r[1] * r[2])))));
+    }
+    const crossings = [];
+    for (let i = 1; i < angles.length; i++) if (angles[i - 1] > 0 && angles[i] <= 0) crossings.push((i - 1 + angles[i - 1] / (angles[i - 1] - angles[i])) / HZ);
+    return {period: (crossings.at(-1) - crossings[0]) / (crossings.length - 1), exact: 1 / hertz, lateAmplitude: Math.max(...angles.slice(-HZ).map(Math.abs)), tilt, details: world.getJointDetails(joint),
+      position: Math.hypot(...world.getState(ball).position)};
+  } finally { world.dispose(); }
+}
+
+/** Two overlapping boxes: with a filter joint between them they pass through each other; without it they push apart. */
+export async function filterJoint(K) {
+  const separation = async filtered => {
+    const world = await newWorld(K, {gravity: [0, 0, 0]});
+    try {
+      const a = world.createBody({shape: {kind: 'box', halfExtents: [0.5, 0.5, 0.5]}, position: [0, 0, 0], neverSleeps: true});
+      const b = world.createBody({shape: {kind: 'box', halfExtents: [0.5, 0.5, 0.5]}, position: [0.4, 0, 0], neverSleeps: true});
+      const joint = filtered ? world.createJoint({type: 'filter', bodyA: a, bodyB: b}) : null;
+      run(world, 1);
+      const result = {distance: world.getState(b).position[0] - world.getState(a).position[0], type: joint ? world.getJointState(joint).type : null};
+      if (joint) { world.destroyJoint(joint); run(world, 1); result.afterRemoval = world.getState(b).position[0] - world.getState(a).position[0]; }
+      return result;
+    } finally { world.dispose(); }
+  };
+  return {filtered: await separation(true), plain: await separation(false)};
+}
+
+/**
+ * Checkpoints and replay of the new joint state: a world with a breakable weld under a growing load, a motor
+ * joint, a parallel joint, a bullet and changed world settings is checkpointed before the weld breaks, restored
+ * into a second world built the same way, and both are stepped on. Returns the tick at which each weld broke and
+ * whether every later state hash agreed; and whether a recording of the same session replays to the same hash.
+ */
+export async function jointCheckpoint(K) {
+  const build = world => {
+    world.configure({restitutionThreshold: 0.5, contactHertz: 45, maximumLinearSpeed: 120});
+    const block = world.createBody({shape: {kind: 'box', halfExtents: [0.1, 0.1, 0.1]}, density: 1250, position: [0, 5, 0], neverSleeps: true});
+    const weld = world.createJoint({type: 'weld', bodyA: null, bodyB: block, frameA: {position: [0, 5, 0]}, thresholds: {force: 300, breakable: true}});
+    const sled = world.createBody({shape: {kind: 'sphere', radius: 0.25}, position: [3, 0.25, 0], neverSleeps: true});
+    world.createJoint({type: 'motor', bodyA: null, bodyB: sled, frameA: {position: [3, 0.25, 0]}, drive: {linearVelocity: [1, 0, 0], maxForce: 500, angularSpring: {hertz: 2, dampingRatio: 1, maxTorque: 50}}});
+    const top = world.createBody({shape: {kind: 'capsule', radius: 0.15, halfLength: 0.4}, position: [-3, 0.6, 0], rotation: [0.1, 0, 0, 0.995]});
+    world.createJoint({type: 'parallel', bodyA: null, bodyB: top, frameA: {rotation: [-Math.SQRT1_2, 0, 0, Math.SQRT1_2]}, frameB: {rotation: [-Math.SQRT1_2, 0, 0, Math.SQRT1_2]}, spring: {hertz: 3, dampingRatio: 0.3}, maxTorque: 200});
+    const shot = world.createBody({shape: {kind: 'sphere', radius: 0.05}, density: 7800, position: [-8, 0.6, 0], linearVelocity: [60, 0, 0], bullet: true});
+    return {block, weld, shot};
+  };
+  const drive = (world, parts, from, to, onBreak) => {
+    for (let i = from; i < to; i++) {
+      if (world.isAlive(parts.block)) world.applyForce(parts.block, [0, -40 * i * DT, 0]);
+      world.step();
+      if (onBreak && !world.isJointAlive(parts.weld)) { onBreak(world.tick); onBreak = null; }
+    }
+  };
+  const a = await newWorld(K, {ground: true}), b = await newWorld(K, {ground: true});
+  try {
+    const pa = build(a), pb = build(b);
+    let brokeA = null, brokeB = null;
+    const at = HZ * 2, end = HZ * 8;
+    drive(a, pa, 0, at, tick => { brokeA = tick; });
+    const bytes = a.checkpoint(), settingsAtCheckpoint = a.settings(), aliveAtCheckpoint = a.isJointAlive(pa.weld);
+    drive(b, pb, 0, 37, null);   // a different history before the restore
+    b.restoreCheckpoint(bytes);
+    const settingsRestored = b.settings(), breakableRestored = b.getJointDetails(pb.weld).breakable, bulletRestored = b.getBodyFlags(pb.shot).bullet;
+    let mismatches = 0;
+    for (let i = at; i < end; i++) {
+      for (const [world, parts] of [[a, pa], [b, pb]]) { if (world.isAlive(parts.block)) world.applyForce(parts.block, [0, -40 * i * DT, 0]); world.step(); }
+      if (brokeA === null && !a.isJointAlive(pa.weld)) brokeA = a.tick;
+      if (brokeB === null && !b.isJointAlive(pb.weld)) brokeB = b.tick;
+      if (a.exactHash() !== b.exactHash()) mismatches++;
+    }
+    // Record and replay the same session.
+    const c = await newWorld(K);
+    try {
+      c.startRecording({world: {ground: true, gravity: [0, -G, 0]}});
+      const pc = build(c);
+      drive(c, pc, 0, HZ * 4, null);
+      const log = JSON.parse(JSON.stringify(c.stopRecording()));
+      const finalHash = c.exactHash(), brokenInRecording = !c.isJointAlive(pc.weld);
+      const d = await newWorld(K);
+      try { return {brokeA, brokeB, mismatches, steps: end - at, settingsAtCheckpoint, settingsRestored, breakableRestored, bulletRestored, aliveAtCheckpoint,
+        replay: d.replayDetailed(log), finalHash, brokenInRecording, calls: log.commands.filter(command => command.op === 'call').map(command => command.method)}; } finally { d.dispose(); }
+    } finally { c.dispose(); }
+  } finally { a.dispose(); b.dispose(); }
+}
