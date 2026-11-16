@@ -5,6 +5,7 @@ import {SolidBody,boxMesh,tetVolume,ec2CompressionStress} from '../../engine/sol
 import {SolidContact} from '../../engine/solid-contact';
 import {concreteMaterial,materialProperty} from '../../engine/materials';
 import type {SolidMaterial} from '../../engine/solid';
+import type {ReinforcementInput} from '../../engine/concrete-law';
 import {LabModel,DT,random} from './lab-model';
 import type {LabSettings} from './catalog';
 
@@ -17,10 +18,16 @@ export const CONCRETE_DRAW_BASE=.95;
 export const CONCRETE_DT=1/30;
 /** Cells along each edge of the cube (five tetrahedra per cell). */
 export const CONCRETE_CELLS=5;
-/** Platen friction steel on concrete: 0.57, the dry static coefficient Rabbat and Russell (J. Struct. Eng. 111(3), 1985)
- * recommend for rolled steel plate on concrete cast against it, read in a search summary of the paper, not in the paper:
- * unverified for a machined platen. */
-export const PLATEN_FRICTION=.57;
+/** The cylinder's O-grid: inner square cells across and blending layers to the circle (`cylinderMeshOgrid`). */
+export const CYLINDER_INNER=3,CYLINDER_LAYERS=1;
+/** Platen friction steel on concrete: 0.2, the coefficient Stredulova and Elias (Engineering Mechanics 2023, Milovy, p. 239:
+ * "On the effect of friction in testing of small-scale concrete cylinders") use between steel platens and concrete in their
+ * model of the compression test ("based on previous calibration ... a commonly considered value for contact of steel and
+ * concrete"): a calibrated model input, not a measurement. Measured coefficients of steel plate on concrete or grout cast
+ * against it are higher, 0.43 to 0.70 at normal stresses up to 2.7 MPa (Gomez, Kanvinde and Deierlein, AISC Engineering
+ * Journal 2011, reviewing Rabbat and Russell 1985, Baltay and Gjelsvik 1990, Cook and Klingner 1992 and Nagae et al. 2006);
+ * with 0.57 this model's cube is 1.43 times its cylinder, with 0.2 it is 1.20 (EN 1992-1-1 Table 3.1: 37 / 30 = 1.23). */
+export const PLATEN_FRICTION=.2;
 /** The machine stops when the load has fallen to this fraction of the peak. */
 export const STOP_FRACTION=.3;
 
@@ -30,8 +37,28 @@ export interface ConcreteSpec {
   scatter:number;
   /** What is sourced and what is not. */
   source:string;
-  /** False when the preset stands for something the model does not represent (reinforcement). */
+  /** False when the preset stands for something the model does not represent. */
   modelled:boolean;
+  /** Embedded bars for a specimen of edge a and height H (m), or none. */
+  reinforcement?:(a:number,H:number)=>ReinforcementInput;
+}
+/** B500B reinforcing steel from the material library (EN 1992-1-1 3.2.7 and Table C.1, characteristic values), with the
+ * hardening of the inclined branch of 3.2.7 (2) a): (k - 1) f_yk / (eps_uk - f_yk / E_s). */
+export function b500Steel():{youngModulus:number;yieldStress:number;hardeningModulus:number} {
+  const id='reinforcing-steel-b500b',E=materialProperty(id,'youngModulus'),fy=materialProperty(id,'yieldStrength'),fu=materialProperty(id,'tensileStrength'),eu=materialProperty(id,'ultimateStrain');
+  return {youngModulus:E,yieldStress:fy,hardeningModulus:(fu-fy)/(eu-fy/E)};
+}
+/** Bar diameters of the reinforced specimen: four 10 mm corner bars and 6 mm links. */
+export const BAR_DIAMETER=.01,LINK_DIAMETER=.006;
+/** The reinforced specimen: four vertical corner bars on a square of 0.6 a (about 30 mm cover to the bar axes on the 150 mm
+ * cube), stopping a / 15 short of the loaded faces so the platens bear on concrete, and square links at a third and two thirds
+ * of the height (a link every 50 mm on the cube). Authored layout, not from a standard specimen. */
+export function cubeReinforcement(a:number,H:number):ReinforcementInput {
+  const steel=b500Steel(),c=.3*a,end=a/15,bars:ReinforcementInput['bars'][number][]=[],area=(d:number)=>Math.PI*d*d/4;
+  for(const [x,z] of [[-c,-c],[c,-c],[c,c],[-c,c]])bars.push({points:[x,end,z,x,H-end,z],area:area(BAR_DIAMETER),...steel});
+  const levels=Math.max(2,Math.round(H/a)*2);
+  for(let i=1;i<=levels;i++){const y=H*i/(levels+1);bars.push({points:[-c,y,-c,c,y,-c,c,y,c,-c,y,c,-c,y,-c],area:area(LINK_DIAMETER),...steel});}
+  return {bars};
 }
 /** Tension softening of a steel-fibre concrete: stress fractions of f_t at crack openings (m). Unverified: a typical shape
  * for 30 to 40 kg/m^3 of hooked steel fibres (a drop to half the strength by 0.05 mm, then a slow loss to 5 mm), giving
@@ -46,7 +73,8 @@ export function concreteSpec(material:string,edge=.15):ConcreteSpec {
   const lib=(id:string,extra:Record<string,unknown>={})=>{const m=concreteMaterial(id,{allowUnverified:true});return {...m,concrete:{...m.concrete!,bandWidth:band,...extra}} as SolidMaterial;};
   switch(material){
     case 'high-strength':return {name:'High-strength concrete C60/75',libraryId:'concrete-c60-75',material:lib('concrete-c60-75'),scatter:.05,modelled:true,source:'C60/75 from EN 1992-1-1 Table 3.1; G_f from the fib Model Code 2010 formula'};
-    case 'reinforced':return {name:'Reinforced concrete (bars not modelled)',libraryId:'concrete-c30-37',material:lib('concrete-c30-37'),scatter:.08,modelled:false,source:'authored, unverified: runs as plain C30/37; embedded reinforcement is not modelled in this version'};
+    case 'reinforced':return {name:'Reinforced concrete C30/37, B500B bars',libraryId:'concrete-c30-37',material:lib('concrete-c30-37'),scatter:.08,modelled:true,reinforcement:cubeReinforcement,
+      source:'C30/37 from EN 1992-1-1 Table 3.1; four 10 mm corner bars and 6 mm links of B500B (EN 1992-1-1 3.2.7 and Table C.1, characteristic) embedded with perfect bond; the bar layout is authored'};
     case 'fiber':{const m=lib('concrete-c30-37'),ft=m.concrete!.tensileStrength;return {name:'Steel-fibre concrete (C30/37 matrix)',libraryId:'concrete-c30-37',material:{...m,concrete:{...m.concrete!,fractureEnergy:fibreEnergy(ft),tensionSoftening:FIBRE_SOFTENING}},scatter:.08,modelled:true,source:'C30/37 matrix from the library; the fibre tension softening (G_f ≈ 4 kJ/m²) is unverified'};}
     case 'lightweight':return {name:'Lightweight aggregate concrete LC25/28',libraryId:'concrete-lc25-28',material:lib('concrete-lc25-28'),scatter:.08,modelled:true,source:'LC25/28, density class 1.8, sanded, from EN 1992-1-1 section 11; its G_f is the normal-weight formula (unverified)'};
     case 'mortar':return {name:'Mortar (as C20/25)',libraryId:'concrete-c20-25',material:lib('concrete-c20-25'),scatter:.06,modelled:true,source:'unverified mapping: a mortar run as concrete class C20/25 from EN 1992-1-1 Table 3.1'};
@@ -55,7 +83,7 @@ export function concreteSpec(material:string,edge=.15):ConcreteSpec {
       const E=materialProperty('alumina-96','youngModulus'),fc=materialProperty('alumina-96','compressiveStrength'),ft=materialProperty('alumina-96','flexuralStrength');
       const m=concreteMaterial('alumina-96',{tensileStrength:ft});
       return {name:'Technical ceramic (96 % alumina)',libraryId:'alumina-96',material:{...m,concrete:{...m.concrete!,bandWidth:band,elasticLimit:1,peakStrain:fc/E,ultimateStrain:fc/E,crushingEnergy:m.concrete!.fractureEnergy}},scatter:.05,modelled:true,
-        source:'96 % alumina from a datasheet (E, nu, density, K_IC, flexural and compressive strength); tensile strength taken as the flexural strength and the Drucker-Prager friction of concrete: unverified'};
+        source:'96 % alumina from a datasheet (E, nu, density, K_IC, flexural and compressive strength); tensile strength taken as the flexural strength and the confinement and dilatancy of concrete: unverified'};
     }
     default:return {name:'Concrete C30/37',libraryId:'concrete-c30-37',material:lib('concrete-c30-37'),scatter:.08,modelled:true,source:'C30/37 from EN 1992-1-1 Table 3.1; G_f from the fib Model Code 2010 formula'};
   }
@@ -85,25 +113,32 @@ export class ConcreteModel extends LabModel {
   readonly curve:number[]=[];
   private platenBody:number;private clock=0;private travel=0;private readonly damage:Float64Array<ArrayBuffer>;private erodedSeen=0;private readonly neighbours:Int32Array;
   /** Loaded area, m^2. */
-  readonly area:number;
-  /** `shape: 'prism'` makes a prism of the same section and twice the height (slenderness 2, as the EN 12390 cylinder),
-   * the stand-in for the cylinder in the cube-to-cylinder comparison; the lab draws the cube. */
-  constructor(p:Partial<LabSettings>={},options:{shape?:'cube'|'prism'}={}){
-    super('concrete',p);const s=this.settings;this.edge=s.size/1000;const a=this.edge,prism=options.shape==='prism';
-    this.spec=concreteSpec(this.material.id,a);this.height=prism?2*a:a;this.area=a*a;
-    this.solid=new SolidBody({mesh:boxMesh({size:[a,this.height,a],cells:[CONCRETE_CELLS,prism?2*CONCRETE_CELLS:CONCRETE_CELLS,CONCRETE_CELLS],origin:[-a/2,0,-a/2]}),material:this.spec.material,
+  area:number;
+  /** `shape: 'prism'` makes a square prism of the same section and twice the height; `shape: 'cylinder'` the EN 12390
+   * cylinder of diameter `size` and twice that height (an O-grid of tetrahedra, `cylinderMeshOgrid`), for the cube-to-cylinder
+   * comparison; `shape: 'short-cylinder'` a cylinder as tall as its diameter (slenderness 1). The lab draws the cube. */
+  constructor(p:Partial<LabSettings>={},options:{shape?:'cube'|'prism'|'cylinder'|'short-cylinder'}={}){
+    super('concrete',p);const s=this.settings;this.edge=s.size/1000;const a=this.edge,prism=options.shape==='prism',short=options.shape==='short-cylinder',cylinder=options.shape==='cylinder'||short;
+    this.spec=concreteSpec(this.material.id,a);this.height=prism||(cylinder&&!short)?2*a:a;
+    const mesh=cylinder?cylinderMeshOgrid(a/2,this.height,CYLINDER_INNER,CYLINDER_LAYERS,short?CONCRETE_CELLS:2*CONCRETE_CELLS):boxMesh({size:[a,this.height,a],cells:[CONCRETE_CELLS,prism?2*CONCRETE_CELLS:CONCRETE_CELLS,CONCRETE_CELLS],origin:[-a/2,0,-a/2]});
+    this.solid=new SolidBody({mesh,material:cylinder?{...this.spec.material,concrete:{...this.spec.material.concrete!,bandWidth:undefined}}:this.spec.material,
+      ...(this.spec.reinforcement&&!cylinder?{reinforcement:this.spec.reinforcement(a,this.height)}:{}),
       config:{model:'green-lagrange',dt:CONCRETE_DT,gravity:[0,-9.81,0],massDamping:2,tolerance:1e-6,maxNewtonIterations:40,maxLinearIterations:4000,linearSolver:'ldl'}});
     // A seeded scatter of element strength: where the cube cracks first.
     const rng=random(s.seed),f=new Float64Array(this.solid.tetCount);
     for(let e=0;e<f.length;e++){const u=Math.max(1e-9,rng()),v=rng();f[e]=Math.max(.5,1+this.spec.scatter*Math.sqrt(-2*Math.log(u))*Math.cos(2*Math.PI*v));}
     this.solid.setStrengthFactors(f);
+    // The loaded area: the mesh's own cross-section (the cylinder's is a 12-sided polygon, 4.5 % short of the circle).
+    this.area=this.solid.referenceVolume/this.height;
     const friction=s.damping;
     this.contact=new SolidContact(this.solid,{gravity:[0,-9.81,0],predictor:'velocity',frictionTolerance:1e-3,frictionPasses:8});
     this.contact.addBody({shape:{kind:'plane',normal:[0,1,0]},type:'static',position:[0,0,0],rotation:[0,0,0,1],friction});
     const H=this.height;this.platen=H;
     this.platenBody=this.contact.addBody({shape:{kind:'box',halfExtents:[a,.02,a]},type:'kinematic',position:[0,H+.02,0],rotation:[0,0,0,1],friction});
     this.surface=this.solid.faces;this.damage=new Float64Array(this.solid.tetCount);this.neighbours=faceNeighbours(this.solid);
-    this.allocate(this.solid.nodeCount);this.frame.damage=new Uint8Array(this.solid.tetCount);this.sync();
+    this.allocate(this.solid.nodeCount);this.frame.damage=new Uint8Array(this.solid.tetCount);
+    if(this.solid.rebar)this.frame.bars=new Float32Array(6*this.solid.rebar.segmentCount);
+    this.sync();
   }
   step(dt=DT):void {
     if(!Number.isFinite(dt)||dt<=0||dt>.25)throw new Error('Concrete step must be in (0, 0.25] seconds');
@@ -145,6 +180,11 @@ export class ConcreteModel extends LabModel {
   private sync():void {
     const f=this.frame,x=this.solid.positions(),k=CONCRETE_DRAW_SCALE;
     for(let n=0;n<this.solid.nodeCount;n++){f.positions[3*n]=k*x[3*n];f.positions[3*n+1]=CONCRETE_DRAW_BASE+k*x[3*n+1];f.positions[3*n+2]=k*x[3*n+2];}
+    // Bars: each segment's ends interpolated from the drawn node positions of their elements.
+    const r=this.solid.rebar,bars=f.bars;
+    if(r&&bars)for(let s=0;s<r.segmentCount;s++)for(let end=0;end<2;end++){
+      const pt=r.ends[2*s+end];for(let c=0;c<3;c++){let v=0;for(let q=0;q<4;q++)v+=r.weights[4*pt+q]*f.positions[3*r.nodes[4*pt+q]+c];bars[6*s+3*end+c]=v;}
+    }
     this.solid.damage(this.damage);const mask=this.solid.erodedMask;
     for(let e=0;e<this.damage.length;e++)f.damage[e]=mask[e]?255:Math.min(254,Math.round(this.damage[e]*254));
     f.actuator=CONCRETE_DRAW_BASE+k*this.platen;
@@ -153,8 +193,44 @@ export class ConcreteModel extends LabModel {
     f.phase=f.time===0?'Ready':this.stopped?'Failed · machine stopped':this.released?'Unloading':this.peakForce>0&&stress<.97*peak&&strain>this.peakStrain?(eroded?'Crushing · spalling':'Post-peak softening'):this.travel>=this.settings.load/1000*this.height-1e-12?'Holding':'Compressing';
     f.metrics=[stress/1e6,strain*100,this.force/1000];
     f.curve=Float32Array.from(this.curve);
-    f.status=`${this.spec.name} · f_cm ${(this.spec.material.concrete!.compressiveStrength/1e6).toFixed(0)} MPa (cylinder) · peak ${(peak/1e6).toFixed(1)} MPa at ${(this.peakStrain*1000).toFixed(2)} ‰ · ${eroded} of ${this.solid.tetCount} elements spalled`+(this.stopped?` · stopped: ${this.stopped}`:'');
+    const steel=this.solid.rebar?(()=>{const {force}=this.solid.reinforcementForces();let worst=0;for(let s=0;s<force.length;s++)worst=Math.max(worst,Math.abs(force[s])/(this.solid.rebar!.area[s]*this.solid.rebar!.sy[s]));return ` · bars at ${(100*worst).toFixed(0)} % of f_yk`;})():'';
+    f.status=`${this.spec.name}${steel} · f_cm ${(this.spec.material.concrete!.compressiveStrength/1e6).toFixed(0)} MPa (cylinder) · peak ${(peak/1e6).toFixed(1)} MPa at ${(this.peakStrain*1000).toFixed(2)} ‰ · ${eroded} of ${this.solid.tetCount} elements spalled`+(this.stopped?` · stopped: ${this.stopped}`:'');
   }
+}
+
+/** A cylinder of tetrahedra on an O-grid: the cross-section is an inner square of `inner` x `inner` cells (half the radius
+ * wide) and four blocks of `layers` cells that blend its sides into the circle, so no element has the flat corner of a
+ * square mapped onto a disc. Each quadrilateral is split into two triangles along its shorter diagonal, and each triangular
+ * prism of the extrusion into three tetrahedra by the order of its node numbers, which makes neighbouring prisms agree on
+ * their shared faces. The axis is y, from y = 0 to `height`. */
+export function cylinderMeshOgrid(radius:number,height:number,inner:number,layers:number,up:number):{positions:Float64Array;tets:Uint32Array} {
+  const pts:number[]=[],index=new Map<string,number>(),node=(x:number,z:number)=>{const k=`${Math.round(x*1e9)},${Math.round(z*1e9)}`;let i=index.get(k);if(i===undefined){i=pts.length/2;pts.push(x,z);index.set(k,i);}return i;};
+  const quads:number[][]=[],s=radius/2,g=(i:number)=>-s+2*s*i/inner;
+  const square:number[][]=[];for(let i=0;i<=inner;i++){square.push([]);for(let j=0;j<=inner;j++)square[i].push(node(g(i),g(j)));}
+  for(let i=0;i<inner;i++)for(let j=0;j<inner;j++)quads.push([square[i][j],square[i+1][j],square[i+1][j+1],square[i][j+1]]);
+  // Four sides: walk the square's side and the matching quarter arc, and blend between them.
+  const sides:[number,number,number,number,number][]=[[-s,-s,1,0,-3*Math.PI/4],[s,-s,0,1,-Math.PI/4],[s,s,-1,0,Math.PI/4],[-s,s,0,-1,3*Math.PI/4]];
+  for(const [x0,z0,dx,dz,a0] of sides){
+    const ring:number[][]=[];
+    for(let i=0;i<=inner;i++){
+      const sx=x0+dx*2*s*i/inner,sz=z0+dz*2*s*i/inner,a=a0+Math.PI/2*i/inner,cx=radius*Math.cos(a),cz=radius*Math.sin(a),row:number[]=[];
+      for(let l=0;l<=layers;l++){const t=l/layers;row.push(node(sx+(cx-sx)*t,sz+(cz-sz)*t));}
+      ring.push(row);
+    }
+    for(let i=0;i<inner;i++)for(let l=0;l<layers;l++)quads.push([ring[i][l],ring[i+1][l],ring[i+1][l+1],ring[i][l+1]]);
+  }
+  const tris:number[][]=[];
+  for(const [a,b,c,d] of quads){
+    const dist=(p:number,q:number)=>Math.hypot(pts[2*p]-pts[2*q],pts[2*p+1]-pts[2*q+1]);
+    if(dist(a,c)<=dist(b,d))tris.push([a,b,c],[a,c,d]);else tris.push([a,b,d],[b,c,d]);
+  }
+  const n2=pts.length/2,positions=new Float64Array(3*n2*(up+1)),tets:number[]=[];
+  for(let k=0;k<=up;k++)for(let i=0;i<n2;i++){positions[3*(k*n2+i)]=pts[2*i];positions[3*(k*n2+i)+1]=height*k/up;positions[3*(k*n2+i)+2]=pts[2*i+1];}
+  for(let k=0;k<up;k++)for(const t of tris){
+    const [v0,v1,v2]=[...t].sort((p,q)=>p-q),b=(v:number)=>k*n2+v,u=(v:number)=>(k+1)*n2+v;
+    tets.push(b(v0),b(v1),b(v2),u(v2),b(v0),b(v1),u(v1),u(v2),b(v0),u(v0),u(v1),u(v2));
+  }
+  return {positions,tets:Uint32Array.from(tets)};
 }
 
 /** Boundary triangles (node indices, wound outward) of the elements still present, and the element each belongs to. */

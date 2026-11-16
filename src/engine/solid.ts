@@ -1,9 +1,9 @@
 import {EngineError,finite,integer,onlyKeys,record} from './contracts.ts';
 import {captureFields,restoreFields,type FieldOptions,type StateObject,type StateValue} from './checkpoint.ts';
 import {boundaryFaces,tetVolume,SOLID_MAX_NODES,SOLID_MAX_TETS,type TetMesh} from './solid-mesh.ts';
-import {buildConcreteLaw,ConcreteReturn,concreteDamage,tableValue,type ConcreteLaw,type ConcreteLawInput} from './concrete-law.ts';
+import {buildConcreteLaw,ConcreteReturn,ConcreteNonlocal,ConcreteReinforcement,concreteDamage,tableValue,type ReinforcementInput,type ConcreteLaw,type ConcreteLawInput} from './concrete-law.ts';
 import {SparseLDL} from './sparse-ldl.ts';
-export {buildConcreteLaw,ec2CompressionStress,type ConcreteLaw,type ConcreteLawInput} from './concrete-law.ts';
+export {buildConcreteLaw,ec2CompressionStress,type ConcreteLaw,type ConcreteLawInput,type ReinforcementInput,type ReinforcementBarInput} from './concrete-law.ts';
 export {boxMesh,boxNode,boundaryFaces,tetVolume,SOLID_MAX_NODES,SOLID_MAX_TETS,type TetMesh,type BoxMeshOptions} from './solid-mesh.ts';
 
 export const SOLID_SOLVER_ID='solid-tet-corot-js-f64-v1';
@@ -76,7 +76,10 @@ export interface SolidConfig {
   /** Inner linear solver of Newton's method. Default `cg`. */
   linearSolver?:SolidLinearSolver;
 }
-export interface SolidDefinition {mesh:TetMesh|{positions:ArrayLike<number>;tets:ArrayLike<number>};material:SolidMaterial;config?:SolidConfig}
+export interface SolidDefinition {mesh:TetMesh|{positions:ArrayLike<number>;tets:ArrayLike<number>};material:SolidMaterial;config?:SolidConfig;
+  /** Reinforcing bars embedded in a concrete solid with perfect bond (concrete-law.ts, `ConcreteReinforcement`). Needs
+   * `material.concrete` and an implicit integrator. */
+  reinforcement?:ReinforcementInput}
 export interface SolidSolveStats {
   converged:boolean;reason:'converged'|'iteration-limit'|'line-search'|'singular-or-indefinite';
   newtonIterations:number;linearIterations:number;
@@ -203,7 +206,7 @@ export function vonMisesStress(t:ArrayLike<number>,offset=0):number {
  */
 /** What an exact checkpoint of a SolidBody holds: every field it has (displacements, velocities, loads, constraints, the
  * integrator's history, the corotational frames, the plastic and concrete state). The concrete return mapping is scratch. */
-const SOLID_FIELDS:FieldOptions={label:'SolidBody',skip:['creturn','ldl','nW','nT','nU1','nU2','nU2Old','nD','eG','eP','eD','ringStart','ringNodes','nodeElementStart','nodeElements','mark','ringVector','keScratch']};
+const SOLID_FIELDS:FieldOptions={label:'SolidBody',skip:['creturn','cnonlocal','rebar','ldl','nW','nT','nU1','nU2','nU2Old','nD','eG','eP','eD','ringStart','ringNodes','nodeElementStart','nodeElements','mark','ringVector','keScratch']};
 /** Inner iterations above which the next Newton iteration forms a new factorization (`linearSolver: 'ldl'`). */
 export const LDL_REFACTOR_ITERATIONS=8;
 /** Newton iterations that use the diagonal preconditioner after a factorization met an indefinite tangent. */
@@ -253,6 +256,13 @@ export class SolidBody {
   private readonly ep:Float64Array;private readonly alpha:Float64Array;private readonly eroded:Uint8Array;private readonly ptan:Float64Array;
   /** Concrete law (constant), crack strain kappa_t per element, and the stored symmetric 6 x 6 tangent per element (21 values). */
   readonly concreteLaw:ConcreteLaw|null=null;private readonly kappaT:Float64Array=new Float64Array(0);private readonly strengthFactor:Float64Array=new Float64Array(0);private readonly ctan:Float64Array=new Float64Array(0);private readonly ctrial:Float64Array=new Float64Array(0);private readonly cdirty:Uint8Array=new Uint8Array(0);
+  /** Concrete: the mean pressure (Pa, compression positive) that sets each element's strength in the next step, extrapolated
+   * linearly from the last two committed states (cpressureLast holds the last one). */
+  private readonly cpressure:Float64Array=new Float64Array(0);private readonly cpressureLast:Float64Array=new Float64Array(0);
+  /** Concrete with a nonlocal length: the committed nonlocal average of kappa_c per element, and the averaging weights (a constant of the mesh). */
+  private readonly kbar:Float64Array=new Float64Array(0);private readonly cnonlocal:ConcreteNonlocal|null=null;
+  /** Embedded reinforcement (geometry, a constant), its bars' stiffness diagonal, and per segment the committed plastic strain and hardening. */
+  readonly rebar:ConcreteReinforcement|null=null;private readonly rebarDiagonal:Float64Array=new Float64Array(0);private readonly barEp:Float64Array=new Float64Array(0);private readonly barAlpha:Float64Array=new Float64Array(0);
   private readonly creturn:ConcreteReturn|null=null;private readonly cbase=new Float64Array(13);private readonly cstrain=new Float64Array(6);private readonly cmat=new Float64Array(36);
   private kDiagonalFirst:Float64Array|null=null;
   // ---- Nodally averaged element (`tet4-nodal`) ----
@@ -284,7 +294,7 @@ export class SolidBody {
   private cm=0;private cd=0;private reference=0;private referenceInertia=0;private loadScale=1;private accelerationValid=false;private steps=0;private unconverged=0;private limit:SolidExplicitLimit|null=null;
 
   constructor(input:SolidDefinition){
-    const d=record(input,'definition');onlyKeys(d,['mesh','material','config'],'definition');
+    const d=record(input,'definition');onlyKeys(d,['mesh','material','config','reinforcement'],'definition');
     const mesh=record(d.mesh,'mesh');onlyKeys(mesh,['positions','tets'],'mesh');
     const nodeCount=integer((mesh.positions as ArrayLike<number>)?.length/3,'node count',4,SOLID_MAX_NODES),tetCount=integer((mesh.tets as ArrayLike<number>)?.length/4,'element count',1,SOLID_MAX_TETS),size=3*nodeCount;
     this.nodeCount=nodeCount;this.tetCount=tetCount;
@@ -369,12 +379,20 @@ export class SolidBody {
     const stride=model==='linear'&&!plastic?0:16;this.lin=new Float64Array(stride*tetCount);this.linOld=new Float64Array(this.stiffnessDamping>0?stride*tetCount:0);
     this.ep=new Float64Array(plastic?6*tetCount:0);this.alpha=new Float64Array(plastic?tetCount:0);this.eroded=new Uint8Array(plastic?tetCount:0);this.ptan=new Float64Array(plastic&&!concrete?PT*tetCount:0);
     if(concrete){
-      this.concreteLaw=buildConcreteLaw(m.concrete,E,nu,total/tetCount);this.kappaT=new Float64Array(tetCount);this.strengthFactor=new Float64Array(tetCount).fill(1);this.ctan=new Float64Array(21*tetCount);this.ctrial=new Float64Array(6*tetCount);this.cdirty=new Uint8Array(tetCount).fill(2);
+      this.concreteLaw=buildConcreteLaw(m.concrete,E,nu,total/tetCount);this.kappaT=new Float64Array(tetCount);this.strengthFactor=new Float64Array(tetCount).fill(1);this.ctan=new Float64Array(21*tetCount);this.ctrial=new Float64Array(6*tetCount);this.cdirty=new Uint8Array(tetCount).fill(2);this.cpressure=new Float64Array(tetCount);this.cpressureLast=new Float64Array(tetCount);
+      if(this.concreteLaw.nonlocalLength>0){this.kbar=new Float64Array(tetCount);this.cnonlocal=new ConcreteNonlocal(X,tets,vol,this.concreteLaw.nonlocalLength);}
       this.creturn=new ConcreteReturn(this.concreteLaw,this.lambda,this.mu);
     }
     if(this.avg){
       const f=()=>new Float64Array(nodeCount),g=(k:number)=>new Float64Array(k*tetCount);
       this.nW=f();this.nT=f();this.nU1=f();this.nU2=f();this.nU2Old=f();this.nD=f();this.eG=g(9);this.eP=g(9);this.eD=g(1);
+    }
+    if(d.reinforcement!==undefined){
+      if(!concrete)throw new EngineError('INVALID_PAYLOAD','Reinforcement needs a concrete law (material.concrete).');
+      if(integrator==='explicit')throw new EngineError('INVALID_PAYLOAD','Reinforcement needs an implicit integrator: the bars are not in the explicit stability limit.');
+      const rebar=this.rebar=new ConcreteReinforcement(d.reinforcement,X,tets,Math.cbrt(6*total/tetCount));
+      this.barEp=new Float64Array(rebar.segmentCount);this.barAlpha=new Float64Array(rebar.segmentCount);
+      this.rebarDiagonal=new Float64Array(size);rebar.diagonal(this.rebarDiagonal);for(let j=0;j<size;j++)kd[j]+=this.rebarDiagonal[j];
     }
     if(integrator==='explicit'&&this.dt>this.explicitSafety*this.explicitLimit().criticalTimeStep){
       const limit=this.explicitLimit();
@@ -473,7 +491,7 @@ export class SolidBody {
   /** Returns to the undeformed state at rest and time zero. Constraints and loads stay. */
   reset():void {
     this.u.fill(0);this.v.fill(0);this.steps=0;this.unconverged=0;this.accelerationValid=false;
-    this.ep.fill(0);this.alpha.fill(0);this.kappaT.fill(0);this.eroded.fill(0);this.erodedTotal=0;this.plasticWorkTotal=0;
+    this.ep.fill(0);this.alpha.fill(0);this.kappaT.fill(0);this.cpressure.fill(0);this.cpressureLast.fill(0);this.kbar.fill(0);this.barEp.fill(0);this.barAlpha.fill(0);this.eroded.fill(0);this.erodedTotal=0;this.plasticWorkTotal=0;
     if(this.kDiagonalFirst)this.kDiagonal.set(this.kDiagonalFirst);
   }
   /** Current node positions (m). */
@@ -652,7 +670,7 @@ export class SolidBody {
   private concreteConstitutive(e:number,xx:number,yy:number,zz:number,yz:number,xz:number,xy:number,store:boolean):number {
     const R=this.creturn!,ep=this.ep,o=6*e,t=this.cstrain,kc0=this.alpha[e],kt0=this.kappaT[e],T=this.T,base=this.cbase;
     t[0]=xx-ep[o];t[1]=yy-ep[o+1];t[2]=zz-ep[o+2];t[3]=yz-ep[o+3];t[4]=xz-ep[o+4];t[5]=xy-ep[o+5];
-    const f=this.strengthFactor[e];R.map(t,kc0,kt0,f);
+    const f=this.strengthFactor[e],xn=this.cpressure[e];R.map(t,kc0,kt0,f,xn,this.cnonlocal?this.kbar[e]:-1);
     for(let q=0;q<6;q++){T[q]=R.stress[q];base[q]=R.plastic[q];}
     base[6]=R.dKappaC;base[7]=R.dKappaT;base[8]=R.energy;base[9]=R.elastic;const yielded=R.yielded;
     if(store){
@@ -662,7 +680,7 @@ export class SolidBody {
     }
     if(this.storeMode===2){
       for(let q=0;q<6;q++)ep[o+q]+=base[q];
-      this.alpha[e]=kc0+base[6];this.kappaT[e]=kt0+base[7];
+      this.alpha[e]=kc0+base[6];this.kappaT[e]=kt0+base[7];const xi=-(T[0]+T[1]+T[2])/3;this.cpressure[e]=2*xi-this.cpressureLast[e];this.cpressureLast[e]=xi;
       this.plasticWorkTotal+=this.elementVolume[e]*(base[8]-base[9]);
     }
     return this.storedOnly?base[9]:base[8];
@@ -677,10 +695,10 @@ export class SolidBody {
     }else{
       const R=this.creturn!,t=this.cstrain,o=6*e,kc0=this.alpha[e],kt0=this.kappaT[e],f=this.strengthFactor[e],base=this.cbase;
       for(let q=0;q<6;q++)t[q]=this.ctrial[o+q];
-      R.map(t,kc0,kt0,f);for(let q=0;q<6;q++)base[q]=R.stress[q];
+      const xn=this.cpressure[e],kb=this.cnonlocal?this.kbar[e]:-1;R.map(t,kc0,kt0,f,xn,kb);for(let q=0;q<6;q++)base[q]=R.stress[q];
       const d=1e-9;
       for(let j=0;j<6;j++){
-        const keep=t[j];t[j]+=j<3?d:d/2;R.map(t,kc0,kt0,f);t[j]=keep;
+        const keep=t[j];t[j]+=j<3?d:d/2;R.map(t,kc0,kt0,f,xn,kb);t[j]=keep;
         for(let i=0;i<6;i++)M[6*i+j]=(R.stress[i]-base[i])/d;
       }
       for(let i=0;i<6;i++)for(let j=i+1;j<6;j++){const v=.5*(M[6*i+j]+M[6*j+i]);M[6*i+j]=M[6*j+i]=v;}
@@ -782,6 +800,7 @@ export class SolidBody {
       if(!(w<Infinity))return Infinity;
       energy+=this.elementVolume[e]*w;if(fint)this.scatter(e,fint);
     }
+    if(this.rebar)energy+=this.rebar.energy(this.model==='linear',u,fint,this.barEp,this.barAlpha,lin!==null,false,this.storedOnly);
     return energy;
   }
   /** out = K x with the tangent stiffness of `model` linearised with `lin`. */
@@ -789,6 +808,7 @@ export class SolidBody {
     if(this.avg){this.stiffnessNodal(model,lin,x,out,plastic);return;}
     out.fill(0);
     for(let e=0;e<this.tetCount;e++){this.gradient(e,x);this.tangent(e,model,lin,plastic);this.scatter(e,out);}
+    if(plastic&&this.rebar)this.rebar.tangent(model==='linear',x,out);
   }
 
   // ---- Nodally averaged element (tet4-nodal) ----
@@ -962,11 +982,15 @@ export class SolidBody {
     const ringNodes=this.ringNodes=new Int32Array(ringStart[N]);for(let n=0;n<N;n++)ringNodes.set(rings[n],ringStart[n]);
     this.ringVector=new Float64Array(3*longest);this.keScratch=new Float64Array(153);
     const wide=this.avg>0;
+    // Embedded bars couple the nodes of the two elements that hold a segment's ends: those pairs join the structure.
+    let bars:number[][]|null=null;
+    if(this.rebar){const list:number[][]=bars=[];for(let n=0;n<N;n++)list.push([]);this.rebar.couplings((a,b)=>{list[a].push(b);list[b].push(a);});}
     const L=this.ldl=new SparseLDL(N,(a,visit)=>{
       for(let k=ringStart[a];k<ringStart[a+1];k++){
         const m=ringNodes[k];visit(m);
         if(wide)for(let j=ringStart[m];j<ringStart[m+1];j++)visit(ringNodes[j]);
       }
+      if(bars)for(const m of bars[a])visit(m);
     });
     this.adoptFactor(L);
     return L;
@@ -1021,6 +1045,7 @@ export class SolidBody {
         L.addBlock(na,nb,M);
       }
     }
+    if(plastic&&this.rebar)this.rebar.assembleTangent(model==='linear',kScale,(a,b,B)=>L.addBlock(a,b,B));
     if(mScale>0)for(let n=0;n<this.nodeCount;n++)L.addDiagonal(n,mScale*this.nodalMass[n]);
     if(this.avg){
       // sum_n (U''_n / W_n) v_n v_n^T, v_n = sum over the elements e around n of (V_e / 4) d theta_e / d u.
@@ -1318,9 +1343,11 @@ export class SolidBody {
         this.gradient(e,this.u);
         if(!(this.piola(e,null)<Infinity))throw new EngineError('NUMERICAL_FAILURE',`Element ${e} is inverted.`);
         const law=this.concreteLaw;
-        if(law?this.alpha[e]>=law.kappaCrushed||this.kappaT[e]>=law.kappaErode:this.alpha[e]>=limit){this.eroded[e]=1;eroded++;}
+        if(law?(this.cnonlocal?this.kbar[e]:this.alpha[e])>=law.kappaCrushed||this.kappaT[e]>=law.kappaErode:this.alpha[e]>=limit){this.eroded[e]=1;eroded++;}
       }
     }finally{this.storeMode=0;}
+    if(this.cnonlocal)this.cnonlocal.average(this.alpha,this.kbar);
+    if(this.rebar)this.plasticWorkTotal+=this.rebar.energy(this.model==='linear',this.u,null,this.barEp,this.barAlpha,false,true);
     this.erodedTotal+=eroded;if(eroded>0&&this.concreteLaw)this.liveStiffnessDiagonal();return eroded;
   }
   /** Concrete: the diagonal of the reference stiffness from the elements still present (the preconditioner of both
@@ -1332,6 +1359,7 @@ export class SolidBody {
       for(let q=0;q<4;q++){const gx=g[o+3*q],gy=g[o+3*q+1],gz=g[o+3*q+2],g2=gx*gx+gy*gy+gz*gz,n=t[4*e+q];
         kd[3*n]+=V*(this.mu*g2+(this.lambda+this.mu)*gx*gx);kd[3*n+1]+=V*(this.mu*g2+(this.lambda+this.mu)*gy*gy);kd[3*n+2]+=V*(this.mu*g2+(this.lambda+this.mu)*gz*gz);}
     }
+    for(let j=0;j<this.rebarDiagonal.length;j++)kd[j]+=this.rebarDiagonal[j];
     for(let j=0;j<kd.length;j++)if(!(kd[j]>1e-9*first[j]))kd[j]=1e-9*first[j];
   }
   /** Concrete: remove elements now (for example pieces that hang on by an edge or a node and carry nothing). They stop
@@ -1348,11 +1376,17 @@ export class SolidBody {
   plasticStrains(out=new Float64Array(6*this.tetCount)):Float64Array {if(this.plastic)out.set(this.ep);else out.fill(0);return out;}
   /** Plastic work dissipated (plus stored in hardening) since construction or `reset`, J: sum of V sigma_y dp. */
   get plasticWork():number {return this.plasticWorkTotal;}
+  /** Reinforcement: axial force (N) and axial strain of each bar segment in the current state (`rebar` describes the segments). */
+  reinforcementForces():{force:Float64Array;strain:Float64Array} {
+    const n=this.rebar?this.rebar.segmentCount:0,force=new Float64Array(n),strain=new Float64Array(n);
+    if(this.rebar)this.rebar.forces(this.model==='linear',this.u,this.barEp,this.barAlpha,force,strain);
+    return {force,strain};
+  }
   /** Concrete: strength lost per element, 0 to 1 (1 - k / k_peak after the compressive peak, 1 - f_t / f_t0 in tension,
    * the larger; 1 when eroded). Zeros without a concrete law. */
   damage(out=new Float64Array(this.tetCount)):Float64Array {
     const law=this.concreteLaw;if(!law){out.fill(0);return out;}
-    for(let e=0;e<this.tetCount;e++)out[e]=this.eroded[e]?1:concreteDamage(law,this.alpha[e],this.kappaT[e]);return out;
+    for(let e=0;e<this.tetCount;e++)out[e]=this.eroded[e]?1:concreteDamage(law,this.cnonlocal?this.kbar[e]:this.alpha[e],this.kappaT[e]);return out;
   }
   /** Concrete: scale the strengths (and with them the fracture energies) of each element by a factor, e.g. to seed
    * localisation or to give a specimen a scatter of strength. One factor per element, 0.05 to 20. Default 1. */

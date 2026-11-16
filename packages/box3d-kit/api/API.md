@@ -3061,13 +3061,20 @@ The law with its curves tabulated for one solid (its E, nu and band width): froz
 
 ```ts
 export interface ConcreteLaw {
-    readonly input: Readonly<Required<Omit<ConcreteLawInput, 'tensionSoftening' | 'bandWidth'>> & {
+    readonly input: Readonly<Required<Omit<ConcreteLawInput, 'tensionSoftening' | 'bandWidth' | 'friction' | 'meridian' | 'nonlocalLength'>> & {
         tensionSoftening: readonly number[];
+        meridian: readonly number[];
     }>;
     readonly youngModulus: number;
     readonly poissonRatio: number;
     readonly friction: number;
+    readonly dilatancy: number;
+    readonly eccentricity: number;
+    readonly mx: Float64Array;
+    readonly my: Float64Array;
     readonly bandWidth: number;
+    readonly nonlocalLength: number;
+    readonly compressionBand: number;
     readonly referenceLength: number;
     readonly compressionEnergyFactor: number;
     readonly tensionEnergyFactor: number;
@@ -3080,6 +3087,7 @@ export interface ConcreteLaw {
     readonly kappaPeak: number;
     readonly kappaCrushed: number;
     readonly kappaErode: number;
+    readonly axialFlow: number;
     readonly uniaxialStrain: Float64Array;
     readonly uniaxialStress: Float64Array;
 }
@@ -3097,10 +3105,14 @@ export interface ConcreteLawInput {
     readonly ultimateStrain: number;
     readonly fractureEnergy: number;
     readonly crushingEnergy?: number;
+    readonly meridian?: readonly number[];
     readonly friction?: number;
+    readonly dilatancy?: number;
+    readonly biaxialRatio?: number;
     readonly elasticLimit?: number;
     readonly bandWidth?: number;
     readonly tensionSoftening?: readonly number[];
+    readonly nonlocalLength?: number;
     readonly erosionOpening?: number;
 }
 ```
@@ -3127,6 +3139,28 @@ Inner iterations above which the next Newton iteration forms a new factorization
 
 ```ts
 export declare const LDL_REFACTOR_ITERATIONS = 8;
+```
+
+### ReinforcementBarInput · interface
+
+One reinforcing bar embedded in a solid (perfect bond). SI units.
+
+```ts
+export interface ReinforcementBarInput {
+    readonly points: readonly number[];
+    readonly area: number;
+    readonly youngModulus: number;
+    readonly yieldStress: number;
+    readonly hardeningModulus?: number;
+}
+```
+
+### ReinforcementInput · interface
+
+```ts
+export interface ReinforcementInput {
+    readonly bars: readonly ReinforcementBarInput[];
+}
 ```
 
 ### SOLID_CONCRETE_SOLVER_ID · const
@@ -3191,6 +3225,7 @@ export declare class SolidBody {
   readonly stats: SolidSolveStats;
   readonly viscoelasticScale: number;
   readonly concreteLaw: ConcreteLaw | null;
+  readonly rebar: ConcreteReinforcement | null;
   selectNodes(predicate: (x: number, y: number, z: number) => boolean): Uint32Array;
   selectFaces(predicate: (cx: number, cy: number, cz: number, nx: number, ny: number, nz: number) => boolean): Uint32Array;
   constrain(nodes: ArrayLike<number>, value?: readonly [number | null, number | null, number | null]): void;
@@ -3223,6 +3258,7 @@ export declare class SolidBody {
   equivalentPlasticStrain(out?: Float64Array<ArrayBuffer>): Float64Array;
   plasticStrains(out?: Float64Array<ArrayBuffer>): Float64Array;
   get plasticWork(): number;
+  reinforcementForces(): { force: Float64Array; strain: Float64Array; };
   damage(out?: Float64Array<ArrayBuffer>): Float64Array;
   setStrengthFactors(factors: ArrayLike<number>): void;
   crackOpening(out?: Float64Array<ArrayBuffer>): Float64Array;
@@ -3271,6 +3307,7 @@ export interface SolidDefinition {
     };
     material: SolidMaterial;
     config?: SolidConfig;
+    reinforcement?: ReinforcementInput;
 }
 ```
 
@@ -9959,7 +9996,7 @@ export declare const MATERIAL_LIBRARY_ID = "box3d-materials";
 Semver of the data: a changed value is a minor release, a removed material or property a major one.
 
 ```ts
-export declare const MATERIAL_LIBRARY_VERSION = "1.6.0";
+export declare const MATERIAL_LIBRARY_VERSION = "1.7.0";
 ```
 
 ### MATERIAL_PROPERTY_UNITS · const

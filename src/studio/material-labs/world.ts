@@ -269,6 +269,13 @@ export class MaterialLabWorld {
     g.setAttribute('uv',new T.BufferAttribute(new Float32Array(2*n),2).setUsage(T.DynamicDrawUsage));
     this.tint.vertexColors=true;this.concreteSpalled=-1;
     this.specimen=this.mesh(g,this.tint,[0,0,0]);this.specimen.frustumCulled=false;this.specimen.castShadow=true;
+    // Embedded bars, drawn through the concrete (no depth test) as dark steel lines.
+    const bars=m.frame.bars;
+    if(bars){
+      const bg=new T.BufferGeometry();bg.setAttribute('position',new T.BufferAttribute(new Float32Array(bars.length),3).setUsage(T.DynamicDrawUsage));
+      const lines=new T.LineSegments(bg,this.own(new T.LineBasicMaterial({color:'#2f3d47',depthTest:false,transparent:true,opacity:.9})));
+      lines.frustumCulled=false;lines.renderOrder=5;lines.name='concrete-bars';this.specimen.add(lines);
+    }
   }
   private updateConcrete(f:LabFrame):void {
     const m=this.model as ConcreteModel,g=this.specimen!.geometry,X=m.solid.referencePositions,p=g.getAttribute('position'),c=g.getAttribute('color'),uv=g.getAttribute('uv');
@@ -290,6 +297,8 @@ export class MaterialLabWorld {
       const d=f.damage[this.concreteOwners[(k-k%3)/3]]/254;col.copy(intact).lerp(crushed,Math.min(1,d*1.15));c.setXYZ(k,col.r,col.g,col.b);
     }
     p.needsUpdate=true;c.needsUpdate=true;g.computeVertexNormals();
+    const lines=this.specimen!.getObjectByName('concrete-bars') as T.LineSegments|undefined;
+    if(lines&&f.bars){const a=lines.geometry.getAttribute('position') as T.BufferAttribute;if(a.array.length===f.bars.length){(a.array as Float32Array).set(f.bars);a.needsUpdate=true;}}
   }
   private trayRack():void {
     this.box([1.15,.12,.72],[-2,.28,.2],'steel',.025);const colors=['#dc742b','#d6cba9'];for(let i=0;i<2;i++)this.mesh(new T.CylinderGeometry(.19,.19,.23,32),this.own(new T.MeshStandardMaterial({color:colors[i],roughness:.7})),[-2.27+i*.5,.455,.2]);for(const x of [-2.45,-1.55])for(const z of [-.08,.48])this.cylinder(.045,.22,[x,.11,z],'black');
