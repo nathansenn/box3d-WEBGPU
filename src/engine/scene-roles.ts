@@ -61,6 +61,7 @@ export interface SceneRolesInput {
   readonly brake?: number;
 }
 
+/** One laser role's beam this step: where it starts and ends, and the body it hit. */
 export interface SceneLaserBeam {
   readonly from: V3;
   readonly to: V3;
@@ -68,6 +69,7 @@ export interface SceneLaserBeam {
   readonly body: Body | null;
 }
 
+/** The playable roles after a step: time played, the character and its laps, the vehicle, how many platforms move, and the lasers' rays and hits. */
 export interface SceneRolesState {
   readonly time: number;
   readonly character: (CapsuleCharacterState & {readonly waypoint: number; readonly laps: number}) | null;
@@ -103,6 +105,7 @@ export function sceneHasRoles(scene: SceneRolesSource['scene']): boolean {
   return scene.bodies.some(has) || (scene.joints ?? []).some(has);
 }
 
+/** Makes a loaded scene playable from the roles in its bodies' and joints' `userData.role`: a character, moving platforms, a vehicle, lasers. */
 export class SceneRoles {
   private readonly world: SceneRolesHost;
   private readonly characterRole: CharacterRole | null = null;

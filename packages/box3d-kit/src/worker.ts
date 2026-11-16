@@ -36,7 +36,7 @@ export interface MessageEndpoint {
 function listen(endpoint: MessageEndpoint, handler: (data: unknown) => void): void {
   if (typeof endpoint.addEventListener === 'function') endpoint.addEventListener('message', event => handler(event.data));
   else if (typeof endpoint.on === 'function') endpoint.on('message', handler);
-  else throw new TypeError('Endpoint needs addEventListener or on.');
+  else throw new EngineError('INVALID_PAYLOAD', 'A worker endpoint needs addEventListener (a Worker, a MessagePort) or on (a Node worker_threads port).');
 }
 
 export interface RemoteBody { readonly token: bigint }
@@ -57,7 +57,9 @@ export interface RemoteRayBatch {
   readonly triangles: Int32Array;
   readonly bodies: (RemoteBody | null)[];
 }
+/** PhysicsWorld.moveCapsule() options for a RemoteWorld: the ignored body is a RemoteBody. */
 export type RemoteCapsuleMoveOptions = Omit<CapsuleMoveOptions, 'ignoreBody'> & {readonly ignoreBody?: RemoteBody};
+/** What RemoteWorld.moveCapsule() resolves to: as CapsuleMoveResult, with remote bodies. */
 export interface RemoteCapsuleMoveResult {
   readonly position: [number, number, number];
   readonly iterations: number;

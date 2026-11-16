@@ -10,6 +10,7 @@ export type Box3DModuleFactory = (options?: {
   b3wPoolSize?: number;
 }) => Promise<unknown>;
 
+/** Where the WebAssembly comes from and how it is checked: URLs or bytes for box3d.js and box3d.wasm, an already imported factory, and integrity verification against the build's SHA-256. */
 export interface LoadBox3DOptions {
   /** Where box3d.js lives. Default: the copy shipped inside this package. */
   readonly moduleUrl?: string | URL;

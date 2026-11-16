@@ -52,7 +52,7 @@ export interface ShallowWaterSetup {
   readonly wetArea:number;
 }
 export function shallowWaterSetup(water:ShallowWater):ShallowWaterSetup {
-  if(!(water instanceof ShallowWater))throw new EngineError('INVALID_ARGUMENT','A float32 shallow-water backend is built from a ShallowWater.');
+  if(!(water instanceof ShallowWater))throw new EngineError('INVALID_PAYLOAD','A float32 shallow-water backend is built from a ShallowWater.');
   const n=water.cells,fixed=new Float32Array(4*n),state=new Float32Array(4*n),aux=new Float32Array(4*n);
   let hasManning=water.viscosity>0,hasSoil=false,hasSolid=false,open=0;
   for(let c=0;c<n;c++){

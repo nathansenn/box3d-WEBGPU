@@ -140,6 +140,7 @@ export interface FluidStats {
 export interface FluidBackendComponent {unknown:Int32Array;copies:Int32Array;outflows:Int32Array;fixedFaces:Int32Array;fixedValues:Float64Array;
   ghostDst:Int32Array;ghostSrc:Int32Array;ghostA:Float64Array;ghostB:Float64Array;ghostPasses:number[];
   gradFace:Int32Array;gradLow:Int32Array;gradHigh:Int32Array;gradWL:Float64Array;gradWH:Float64Array;wallSpeed:number}
+/** The fluid grid flattened for another backend (the GPU fluid): sizes, padded strides, the solve components with their boundary tables, and the pressure matrix's neighbours and diagonal. */
 export interface FluidBackendDescription {cells:[number,number,number];padded:[number,number,number];size:number;stride:[number,number,number];es:[number,number,number];activeAxes:number;singular:boolean;
   components:FluidBackendComponent[];cellPad:Int32Array;nbr:Int32Array;diag:Float64Array}
 export interface FluidTimeStepLimits {
@@ -2013,6 +2014,13 @@ export function fluidSubsystem<W,B>(target:Fluid|FluidCoupling<B>,options:{reado
     id:options.id??'fluid',kind:coupling?'fluid-coupling':'fluid',stage:coupling?'couple':'post',order:options.order??(coupling?FLUID_SUBSYSTEM_ORDER:510),
     timeStep:{dt:coupling?coupling.dt:fluid.dt,rule:coupling?'equal':'commensurate'},
     validate(){fluid.checkTimeStep();},
+    diagnose(){
+      const limits=fluid.maxTimeStep(),limit=Math.min(limits.advective,limits.viscous),ratio=fluid.dt/limit;
+      if(!(ratio>0.8))return [];
+      const which=limits.advective<=limits.viscous?`the CFL limit (${fluid.cflLimit} cells per step at the fastest velocity now)`:'the explicit viscous limit h^2 / (2 d nu)';
+      return [{severity:ratio>1?'warning' as const:'note' as const,rule:'cfl',subject:options.id??'fluid',numbers:{dt:fluid.dt,limit,ratio,...(Number.isFinite(limits.advective)?{advective:limits.advective}:{}),...(Number.isFinite(limits.viscous)?{viscous:limits.viscous}:{})},
+        message:`The fluid step ${fluid.dt} s is ${(ratio*100).toFixed(0)} % of ${which}, ${limit} s. Above it the step is refused with UNSTABLE_TIME_STEP: use a smaller step, coarser cells, or an implicit diffusion scheme for the viscous limit.`}];
+    },
     step(ctx){if(coupling)coupling.step();else fluid.step(ctx.substeps);},
     // The solver (with the coupling's records) and the event cursors.
     checkpoint(){return {state:(coupling??fluid).saveState(),over,unconverged,warned};},

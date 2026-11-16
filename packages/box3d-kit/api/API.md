@@ -24,11 +24,15 @@ export declare function axisRotation(axisLike: Vec3Like, from?: 'x' | 'z'): [num
 
 ### Body · type
 
+An opaque handle to a body of one world. It never names another body, even after this one is destroyed; test it with isAlive().
+
 ```ts
 export type Body = NativeBodyHandle;
 ```
 
 ### BodyFlags · type
+
+A body's bullet flag, sleep settings and motion locks; see PhysicsWorld.getBodyFlags().
 
 ```ts
 export type BodyFlags = NativeBodyFlags;
@@ -36,11 +40,15 @@ export type BodyFlags = NativeBodyFlags;
 
 ### BodyKind · type
 
+The shape kind of a render row: 'box', 'sphere', 'capsule', 'hull', 'mesh', 'heightfield' or 'compound'.
+
 ```ts
 export type BodyKind = NativeBodyKind;
 ```
 
 ### BodyMassData · type
+
+Mass (kg), centre of mass in the body frame (m) and inertia tensor about it [Ixx, Iyy, Izz, Ixy, Ixz, Iyz] in kg m^2, as getMassData() reports them.
 
 ```ts
 export type BodyMassData = NativeBodyMassState;
@@ -81,6 +89,8 @@ export interface BodyOptions {
 
 ### BodyPose · interface
 
+A body's pose as getPose() reads it from the render transforms.
+
 ```ts
 export interface BodyPose {
     position: [number, number, number];
@@ -106,11 +116,15 @@ export declare class BodyRing {
 
 ### BodyState · type
 
+A body as the solver holds it: position (m), rotation [x, y, z, w], linear (m/s) and angular (rad/s) velocity, mass (kg), whether it is awake, and its type.
+
 ```ts
 export type BodyState = NativeBodyState;
 ```
 
 ### BodyType · type
+
+'dynamic' is simulated, 'kinematic' is moved by you and pushes dynamic bodies, 'static' never moves.
 
 ```ts
 export type BodyType = NativeBodyType;
@@ -166,6 +180,8 @@ export declare const BUILD_INFO: BuildInfo;
 
 ### BuildInfo · interface
 
+The identity of the build this package ships: its version, the Box3D source it was compiled from, the compiler, and the SHA-256 of the WebAssembly and its glue.
+
 ```ts
 export interface BuildInfo {
     readonly kitVersion: string;
@@ -192,6 +208,8 @@ export declare function capabilities(): Capabilities;
 ```
 
 ### Capabilities · interface
+
+What this package build and this runtime support, from capabilities(): the build identity, the native interface version, the environment and the shipped modules.
 
 ```ts
 export interface Capabilities {
@@ -241,6 +259,8 @@ export interface CapsuleMoveOptions {
 ```
 
 ### CapsuleMoveResult · interface
+
+Where PhysicsWorld.moveCapsule() left the capsule, the planes around it, and the rounds it took.
 
 ```ts
 export interface CapsuleMoveResult {
@@ -330,17 +350,23 @@ export declare function createWorld(options?: WorldOptions & LoadBox3DOptions & 
 
 ### DEBUG_FLOATS_PER_BOX · const
 
+Floats boxOutlines() writes per body: 12 edges of 2 vertices of 3 floats.
+
 ```ts
 export declare const DEBUG_FLOATS_PER_BOX: number;
 ```
 
 ### DebugDrawLines · type
 
+Line segments from PhysicsWorld.debugLines(): vertex pairs, x y z and r g b (0..1) per vertex.
+
 ```ts
 export type DebugDrawLines = NativeDebugLines;
 ```
 
 ### DebugDrawOptions · type
+
+What PhysicsWorld.debugLines() draws: switches per layer, scales, and an optional box to draw in.
 
 ```ts
 export type DebugDrawOptions = Omit<NativeDebugDrawOptions, 'region'> & {
@@ -353,6 +379,8 @@ export type DebugDrawOptions = Omit<NativeDebugDrawOptions, 'region'> & {
 
 ### DebugLineOptions · interface
 
+Options of the debug line builders: interpolation, the up axis, a buffer to reuse and whether to skip the ground.
+
 ```ts
 export interface DebugLineOptions {
     readonly alpha?: number;
@@ -363,6 +391,8 @@ export interface DebugLineOptions {
 ```
 
 ### DebugLines · interface
+
+Line segments for a debug overlay: xyz triples, two vertices per segment.
 
 ```ts
 export interface DebugLines {
@@ -379,23 +409,266 @@ What this runtime supports. Call before loading to choose a path or explain a fa
 export declare function detectEnvironment(): EnvironmentReport;
 ```
 
+### DiagnosticFinding · interface
+
+One thing `world.diagnose()` or `simulation.diagnose()` found in a set-up: which rule it breaks, with the numbers.
+'error': the state is already wrong (a non-finite value). 'warning': the set-up is outside what the method resolves
+and will likely misbehave. 'note': inside the limits, but close, or costly.
+
+```ts
+export interface DiagnosticFinding {
+    readonly severity: 'error' | 'warning' | 'note';
+    readonly rule: string;
+    readonly subject: string;
+    readonly message: string;
+    readonly numbers: {
+        readonly [name: string]: number;
+    };
+}
+```
+
+### ENGINE_ERRORS · const
+
+The error taxonomy (docs/ERRORS.md). Every error this engine throws on purpose is an `EngineError` whose `code` is a
+key of this table. `meaning` says what the code stands for; `fix` is what the caller does about it. A test
+(tests/fuzz/error-taxonomy.test.mjs) fails when a code is thrown that is not listed here.
+
+```ts
+export declare const ENGINE_ERRORS: {
+    readonly INVALID_PAYLOAD: {
+        readonly meaning: "An argument, option, file or message holds a value the engine cannot use.";
+        readonly fix: "Read the message: it names the field, the value it got and the values it takes. Correct the input and call again; nothing was changed.";
+    };
+    readonly INVALID_STATE: {
+        readonly meaning: "The call is valid, but not in the state the object is in now.";
+        readonly fix: "Do the step the message names first (for example stop recording before reset, or step before reading results).";
+    };
+    readonly DISPOSED: {
+        readonly meaning: "The world, pool, solver or runtime was destroyed, or its native handle is no longer valid.";
+        readonly fix: "Create a new one; do not keep references past dispose() or destroy().";
+    };
+    readonly STALE_BODY: {
+        readonly meaning: "The body handle names a body that was destroyed, or one from before a reset.";
+        readonly fix: "Check world.isAlive(body) before using a kept handle, and drop handles when you destroy or reset.";
+    };
+    readonly STALE_JOINT: {
+        readonly meaning: "The joint handle names a joint that was destroyed, or one of its bodies was.";
+        readonly fix: "Check world.isJointAlive(joint) before using a kept handle.";
+    };
+    readonly STALE_QUERY: {
+        readonly meaning: "Body storage changed between validating a spatial query and running it.";
+        readonly fix: "Run the query again.";
+    };
+    readonly STALE_GENERATION: {
+        readonly meaning: "A reply or command belongs to a runtime generation that was reset.";
+        readonly fix: "Discard it and issue the request again against the current runtime.";
+    };
+    readonly STALE_REQUEST: {
+        readonly meaning: "A request was superseded by a newer one before it ran.";
+        readonly fix: "Use the result of the newer request.";
+    };
+    readonly STALE_SNAPSHOT: {
+        readonly meaning: "A snapshot was read after the buffer it lives in was reused.";
+        readonly fix: "Copy what you need from a snapshot before the next step, or request a new one.";
+    };
+    readonly WORLD_CAPACITY: {
+        readonly meaning: "The world, the module or a scene is at a fixed limit (16 worlds per module, 65,536 bodies per world).";
+        readonly fix: "Destroy what you no longer need, reserve capacity up front with `capacity`, or split the scene.";
+    };
+    readonly ALLOCATION_FAILED: {
+        readonly meaning: "The WebAssembly heap could not grow, or a native allocation failed.";
+        readonly fix: "Free worlds you no longer use; the existing world is intact. On 32-bit WebAssembly the heap is at most 2 GiB.";
+    };
+    readonly WORK_LIMIT: {
+        readonly meaning: "A solver reached its iteration or work budget before it met its tolerance.";
+        readonly fix: "Raise the budget the message names, use a smaller time step, or coarsen the model.";
+    };
+    readonly QUERY_VERSION_EXHAUSTED: {
+        readonly meaning: "A world ran more than 2^32 query batches.";
+        readonly fix: "Create a new world.";
+    };
+    readonly SEQUENCE_EXHAUSTED: {
+        readonly meaning: "A shared snapshot ring used all of its sequence numbers.";
+        readonly fix: "Reset the runtime with a new ring.";
+    };
+    readonly BACKPRESSURE: {
+        readonly meaning: "More work was queued than the worker accepts at once.";
+        readonly fix: "Wait for earlier requests to settle before sending more.";
+    };
+    readonly BUSY: {
+        readonly meaning: "The runtime is in the middle of another request.";
+        readonly fix: "Await the pending request first.";
+    };
+    readonly UNSUPPORTED_BACKEND: {
+        readonly meaning: "This build, WASM artifact or file version does not have the feature the call needs.";
+        readonly fix: "Use the artifact shipped with this version (npm run build:wasm in the repository), or the feature the message names.";
+    };
+    readonly UNSUPPORTED_JOINT: {
+        readonly meaning: "That joint type does not take that setting.";
+        readonly fix: "See the joint feature table in the kit README: for example only revolute, prismatic, distance and wheel joints have motors.";
+    };
+    readonly INVALID_BACKEND: {
+        readonly meaning: "The WASM module answered with something outside its contract.";
+        readonly fix: "The artifact and the JavaScript do not match: rebuild or reinstall so that both come from the same version, and report it if they already do.";
+    };
+    readonly WASM_UNAVAILABLE: {
+        readonly meaning: "WebAssembly could not be loaded or instantiated here.";
+        readonly fix: "Check that box3d.wasm is served (the message has the URL and reason) and that the runtime supports WebAssembly.";
+    };
+    readonly INTEGRITY_MISMATCH: {
+        readonly meaning: "The loaded box3d.wasm is not the file this package was built with.";
+        readonly fix: "Serve the box3d.wasm from the same package version, without rewriting proxies.";
+    };
+    readonly GPU_UNAVAILABLE: {
+        readonly meaning: "No WebGPU adapter or device for compute, or this device is too small for the job (the message names the limit).";
+        readonly fix: "Use the CPU solver (the GPU backends are optional), a smaller grid or fewer grains, or a device with larger buffer and dispatch limits.";
+    };
+    readonly GPU_DEVICE_LOST: {
+        readonly meaning: "The WebGPU device was lost, or the GPU backend was destroyed, while it held the state.";
+        readonly fix: "The backends fall back to the CPU solver where they can; otherwise build the backend again from the CPU solver.";
+    };
+    readonly GPU_OUT_OF_MEMORY: {
+        readonly meaning: "The WebGPU device ran out of memory for a buffer or a dispatch (the message has the label).";
+        readonly fix: "Use fewer cells or grains, or the CPU solver.";
+    };
+    readonly GPU_VALIDATION: {
+        readonly meaning: "WebGPU rejected a buffer, pipeline or dispatch the backend made (the message has the label and the reason).";
+        readonly fix: "This is a bug in the backend or the browser: report it with the message.";
+    };
+    readonly GPU_SHADER: {
+        readonly meaning: "A compute shader did not compile or name a snippet that exists (the message has the line).";
+        readonly fix: "This is a bug in the backend: report it with the message.";
+    };
+    readonly GPU_LAYOUT: {
+        readonly meaning: "A GPU buffer layout does not fit the data it was asked to hold.";
+        readonly fix: "This is a bug in the backend: report it with the message.";
+    };
+    readonly GPU_CAPACITY: {
+        readonly meaning: "A fixed-size GPU table overflowed during a step (for grains: a hash bucket was full), so contacts were missed.";
+        readonly fix: "Build the backend with more slots (the message names the setting), or use the CPU solver.";
+    };
+    readonly SHARED_UNAVAILABLE: {
+        readonly meaning: "SharedArrayBuffer is not available (the page is not cross-origin isolated).";
+        readonly fix: "Send COOP and COEP headers, or use the copying transport.";
+    };
+    readonly INCOMPATIBLE_SAVE: {
+        readonly meaning: "A saved session came from another WASM build or native interface version.";
+        readonly fix: "Replay it with the build recorded in the file; replays are exact only on the build that made them.";
+    };
+    readonly CHECKPOINT_MISMATCH: {
+        readonly meaning: "A checkpoint is damaged, of another format version, or from another scene or set-up.";
+        readonly fix: "Restore it into a world and solvers built the same way by the same version; nothing was changed by the refused restore.";
+    };
+    readonly MODEL_MISMATCH: {
+        readonly meaning: "Saved or transferred state names a model other than the one receiving it.";
+        readonly fix: "Create the runtime with the model the state was produced by.";
+    };
+    readonly UNSTABLE_TIME_STEP: {
+        readonly meaning: "The time step is above the stability limit of the method for these inputs.";
+        readonly fix: "Use the step the message gives (it states the limit and the rule), or the solver's stableTimeStep() helper.";
+    };
+    readonly NUMERICAL_FAILURE: {
+        readonly meaning: "A solve produced a non-finite number or failed to converge.";
+        readonly fix: "Reduce the time step or the load increment; check world.diagnose() or simulation.diagnose() for ill-conditioned inputs.";
+    };
+    readonly SOLVER_NOT_CONVERGED: {
+        readonly meaning: "An iterative linear solve stopped at its iteration limit.";
+        readonly fix: "Raise maxIterations or loosen the tolerance; the message has the residual reached.";
+    };
+    readonly SOLVER_BREAKDOWN: {
+        readonly meaning: "A matrix that must be positive definite is not.";
+        readonly fix: "Check material values and constraints: a negative conductivity, capacity or stiffness, or an unconstrained body, causes this.";
+    };
+    readonly SINGULAR_STEADY: {
+        readonly meaning: "A steady problem has no unique answer.";
+        readonly fix: "Fix a temperature or add a convective or radiating face on every separate solid.";
+    };
+    readonly NOT_RUNNING: {
+        readonly meaning: "The worker or runtime is not running.";
+        readonly fix: "Start it, or create a new one after a failure.";
+    };
+    readonly NOT_CREATED: {
+        readonly meaning: "A worker was asked to use a runtime before one was created.";
+        readonly fix: "Send the create request first.";
+    };
+    readonly RESET: {
+        readonly meaning: "The request was dropped because the runtime was reset or destroyed while it waited.";
+        readonly fix: "Issue it again if it still applies.";
+    };
+    readonly INVALID_RESPONSE: {
+        readonly meaning: "A worker replied with a message outside the protocol.";
+        readonly fix: "Host and worker scripts must come from the same version.";
+    };
+    readonly INVALID_LOAN: {
+        readonly meaning: "A loaned buffer was returned twice, or is not the buffer that was lent.";
+        readonly fix: "Return each loaned snapshot exactly once.";
+    };
+    readonly WORKER_ERROR: {
+        readonly meaning: "The worker script threw outside a request.";
+        readonly fix: "See the message; create a new worker to continue.";
+    };
+    readonly WORKER_MESSAGE_ERROR: {
+        readonly meaning: "A message to or from the worker could not be deserialized.";
+        readonly fix: "Send only structured-cloneable values.";
+    };
+    readonly WORKER_SEND_ERROR: {
+        readonly meaning: "A message could not be posted to the worker.";
+        readonly fix: "Check that transferred buffers are not already detached.";
+    };
+    readonly WORKER_TIMEOUT: {
+        readonly meaning: "The worker did not answer within the time limit.";
+        readonly fix: "The worker was recycled; reduce the work per request or raise the limit.";
+    };
+    readonly WORKER_RECYCLE_ERROR: {
+        readonly meaning: "A worker could not be replaced after a failure.";
+        readonly fix: "Create a new client.";
+    };
+    readonly RUNTIME_ERROR: {
+        readonly meaning: "A runtime inside a worker failed with an error that is not an EngineError.";
+        readonly fix: "See the message; it is the original error text.";
+    };
+    readonly INTERNAL: {
+        readonly meaning: "The engine reached a state it believes impossible.";
+        readonly fix: "This is a bug: report it with the message and, if you can, a checkpoint or replay log.";
+    };
+};
+```
+
 ### EngineError · class
+
+Every error this engine throws on purpose. `code` is a key of ENGINE_ERRORS; `details`, when present, names the field at fault, the value and what is accepted; `fix` says what to do. See docs/ERRORS.md.
 
 ```ts
 export declare class EngineError extends Error {
   readonly code: string;
+  readonly details?: EngineErrorDetails;
+  get fix(): string;
 }
 ```
 
 ### EngineErrorCode · type
 
-Every `code` an EngineError from this package can carry.
+Every `code` an EngineError can carry.
 
 ```ts
-export type EngineErrorCode = 'INVALID_PAYLOAD' | 'INVALID_BACKEND' | 'UNSUPPORTED_BACKEND' | 'DISPOSED' | 'STALE_BODY' | 'WORLD_CAPACITY' | 'ALLOCATION_FAILED' | 'STALE_QUERY' | 'QUERY_VERSION_EXHAUSTED' | 'INVALID_STATE' | 'INTERNAL' | 'WASM_UNAVAILABLE' | 'INTEGRITY_MISMATCH' | 'INCOMPATIBLE_SAVE' | 'STALE_JOINT' | 'UNSUPPORTED_JOINT' | 'NUMERICAL_FAILURE' | 'WORK_LIMIT' | 'UNSTABLE_TIME_STEP';
+export type EngineErrorCode = keyof typeof ENGINE_ERRORS;
+```
+
+### EngineErrorDetails · interface
+
+Where the problem is and what was found there. All optional; each is also in the message.
+
+```ts
+export interface EngineErrorDetails {
+    readonly path?: string;
+    readonly value?: string;
+    readonly expected?: string;
+}
 ```
 
 ### EnvironmentReport · interface
+
+What the current runtime offers, from detectEnvironment(): the kind of runtime, WebAssembly and its SIMD, WebGPU, workers and shared memory.
 
 ```ts
 export interface EnvironmentReport {
@@ -407,6 +680,20 @@ export interface EnvironmentReport {
     readonly crossOriginIsolated: boolean;
     readonly workers: boolean;
 }
+```
+
+### explainError · function
+
+A caught value as the parts a user interface shows: a code, what happened and what to do. Never throws.
+
+```ts
+export declare function explainError(error: unknown): {
+    code: string;
+    meaning: string;
+    message: string;
+    fix: string;
+    path: string | null;
+};
 ```
 
 ### FixedStepLoop · class
@@ -428,6 +715,8 @@ export declare class FixedStepLoop {
 
 ### FixedStepOptions · interface
 
+The fixed time step and how many steps one update may take.
+
 ```ts
 export interface FixedStepOptions {
     readonly step?: number;
@@ -436,6 +725,8 @@ export interface FixedStepOptions {
 ```
 
 ### FixedStepResult · interface
+
+What an update did: the steps taken, the blend factor towards the next step for rendering, and the seconds dropped because maxSteps was reached.
 
 ```ts
 export interface FixedStepResult {
@@ -475,6 +766,8 @@ export interface GpuQueueLike {
 
 ### Inspector · interface
 
+A mounted debug overlay: its element, a manual refresh and unmount().
+
 ```ts
 export interface Inspector {
     readonly element: ElementLike;
@@ -484,6 +777,8 @@ export interface Inspector {
 ```
 
 ### InspectorOptions · interface
+
+Where the overlay mounts and how often it refreshes.
 
 ```ts
 export interface InspectorOptions {
@@ -497,6 +792,8 @@ export interface InspectorOptions {
 ```
 
 ### InspectorSource · interface
+
+What the overlay reads: anything with stats(), such as a PhysicsWorld or a RemoteWorld.
 
 ```ts
 export interface InspectorSource {
@@ -553,13 +850,26 @@ export interface InstanceSource {
 }
 ```
 
+### isEngineError · function
+
+True for an EngineError from any copy of this module: the page and a worker, or the app and the kit, each have
+their own class, so `instanceof` is not enough across those boundaries.
+
+```ts
+export declare function isEngineError(value: unknown): value is EngineError;
+```
+
 ### Joint · type
+
+An opaque handle to a joint of one world; test it with isJointAlive().
 
 ```ts
 export type Joint = NativeJointHandle;
 ```
 
 ### JointDetails · type
+
+Everything the solver holds about one joint: separation errors, thresholds, stiffness and the values of its type; see PhysicsWorld.getJointDetails().
 
 ```ts
 export type JointDetails = NativeJointDetails;
@@ -577,6 +887,8 @@ export type JointDrive = Omit<NativeJointDrive, 'linearVelocity' | 'angularVeloc
 ```
 
 ### JointFrame · interface
+
+Where a joint attaches to a body: a position (m) and rotation in that body's own frame. Both default to the body's origin and axes.
 
 ```ts
 export interface JointFrame {
@@ -637,17 +949,23 @@ export interface JointOptions {
 
 ### JointState · type
 
+What a joint reports: its angle (rad), travel (m) or length (m) in `value`, and the force (N) and torque (N m) it carries.
+
 ```ts
 export type JointState = NativeJointState;
 ```
 
 ### JointThresholds · type
 
+Force and torque at which a joint reports 'joint-overload', and whether it then breaks; see JointOptions.thresholds.
+
 ```ts
 export type JointThresholds = NativeJointThresholds;
 ```
 
 ### JointType · type
+
+The six joint types: 'weld', 'revolute', 'spherical', 'prismatic', 'distance' and 'wheel'. JointOptions says what each constrains.
 
 ```ts
 export type JointType = NativeJointType;
@@ -691,6 +1009,8 @@ export declare function loadBox3D(options?: LoadBox3DOptions): Promise<NativeWor
 
 ### LoadBox3DOptions · interface
 
+Where the WebAssembly comes from and how it is checked: URLs or bytes for box3d.js and box3d.wasm, an already imported factory, and integrity verification against the build's SHA-256.
+
 ```ts
 export interface LoadBox3DOptions {
     readonly moduleUrl?: string | URL;
@@ -730,11 +1050,15 @@ export interface MassDataOptions {
 
 ### mountInspector · function
 
+Mount a small text overlay that shows a world's counts and timings and refreshes on an interval. Needs a DOM document; returns the handle to remove it.
+
 ```ts
 export declare function mountInspector(source: InspectorSource, options?: InspectorOptions): Inspector;
 ```
 
 ### MoverPlane · type
+
+A surface around a moved capsule: normal, closest point, push and whether it acted as a wall.
 
 ```ts
 export type MoverPlane = NativeMoverPlane;
@@ -742,11 +1066,15 @@ export type MoverPlane = NativeMoverPlane;
 
 ### NATIVE_WORLD_API_VERSION · const
 
+The version of the interface between this adapter and box3d.wasm. A module of another version is refused with UNSUPPORTED_BACKEND.
+
 ```ts
 export declare const NATIVE_WORLD_API_VERSION = 1;
 ```
 
 ### NativeBodyCapacityInfo · interface
+
+How many bodies a world's buffers hold now, how far they can grow, and the generation of the buffers (views must be re-read when it changes).
 
 ```ts
 export interface NativeBodyCapacityInfo {
@@ -759,6 +1087,8 @@ export interface NativeBodyCapacityInfo {
 ```
 
 ### NativeBodyDescriptor · interface
+
+Everything createBody() takes, with vectors as plain tuples: the shape, type, pose, velocities, material, flags, damping, gravity scale, collision filter and optional mass data. Values must lie within RIGID_LIMITS.
 
 ```ts
 export interface NativeBodyDescriptor {
@@ -791,6 +1121,8 @@ export interface NativeBodyDescriptor {
 
 ### NativeBodyFlags · interface
 
+A body's bullet flag, sleep settings and motion locks (the rigid-core extension).
+
 ```ts
 export interface NativeBodyFlags {
     bullet: boolean;
@@ -820,11 +1152,15 @@ export interface NativeBodyHandle {
 
 ### NativeBodyKind · type
 
+The shape kind of a body: 'box', 'sphere', 'capsule', 'hull', 'mesh', 'heightfield' or 'compound'.
+
 ```ts
 export type NativeBodyKind = 'box' | 'sphere' | 'capsule' | 'hull' | 'mesh' | 'heightfield' | 'compound';
 ```
 
 ### NativeBodyMassState · interface
+
+Mass, centre of mass (body frame) and inertia tensor about it, as the solver holds them.
 
 ```ts
 export interface NativeBodyMassState {
@@ -837,6 +1173,8 @@ export interface NativeBodyMassState {
 ```
 
 ### NativeBodyShape · type
+
+A body's shape as the native world takes it: boxes, spheres, capsules, hulls, compounds, triangle meshes and height fields, with flat number arrays.
 
 ```ts
 export type NativeBodyShape = {
@@ -875,6 +1213,8 @@ export type NativeBodyShape = {
 
 ### NativeBodyState · interface
 
+A body's pose, velocities, mass, sleep state and type, read from the solver.
+
 ```ts
 export interface NativeBodyState {
     position: [number, number, number];
@@ -888,6 +1228,8 @@ export interface NativeBodyState {
 ```
 
 ### NativeBodyType · type
+
+'static', 'kinematic' or 'dynamic'.
 
 ```ts
 export type NativeBodyType = 'static' | 'kinematic' | 'dynamic';
@@ -945,6 +1287,8 @@ export type NativeConvexShape = {
 ```
 
 ### NativeDebugDrawOptions · interface
+
+Layers and scales for Box3D's debug drawing; every switch defaults to off.
 
 ```ts
 export interface NativeDebugDrawOptions {
@@ -1086,6 +1430,8 @@ export interface NativeJointDrive {
 
 ### NativeJointFrame · interface
 
+A joint frame in a body's own coordinates: position and rotation, both optional.
+
 ```ts
 export interface NativeJointFrame {
     readonly position?: NativeQueryVector;
@@ -1106,6 +1452,8 @@ export interface NativeJointHandle {
 
 ### NativeJointState · interface
 
+A joint's type, its angle, travel or length, and the force and torque it carries.
+
 ```ts
 export interface NativeJointState {
     type: NativeJointType;
@@ -1116,6 +1464,8 @@ export interface NativeJointState {
 ```
 
 ### NativeJointSteering · interface
+
+Wheel steering: a spring that turns frame A about its x axis towards `angle` (rad) with at most `maxTorque` (N m), optionally limited.
 
 ```ts
 export interface NativeJointSteering {
@@ -1145,6 +1495,8 @@ export interface NativeJointThresholds {
 
 ### NativeJointType · type
 
+'weld', 'revolute', 'spherical', 'prismatic', 'distance', 'wheel', 'motor', 'parallel' or 'filter'.
+
 ```ts
 export type NativeJointType = 'weld' | 'revolute' | 'spherical' | 'prismatic' | 'distance' | 'wheel' | 'motor' | 'parallel' | 'filter';
 ```
@@ -1164,6 +1516,8 @@ export interface NativeMassData {
 ```
 
 ### NativeMoverInput · interface
+
+An upright capsule to move with Box3D's character mover, and which bodies it collides with.
 
 ```ts
 export interface NativeMoverInput {
@@ -1187,6 +1541,8 @@ export interface NativeMoverInput {
 
 ### NativeMoverPlane · interface
 
+A collision plane the character mover found around the capsule.
+
 ```ts
 export interface NativeMoverPlane {
     readonly normal: NativeQueryVector;
@@ -1200,6 +1556,8 @@ export interface NativeMoverPlane {
 
 ### NativeMoverResult · interface
 
+The capsule's final position, the planes around it and the number of rounds the mover ran.
+
 ```ts
 export interface NativeMoverResult {
     readonly position: [number, number, number];
@@ -1210,11 +1568,15 @@ export interface NativeMoverResult {
 
 ### NativeProfileCounter · type
 
+A size profile() reports for the most recent step: counts of bodies, contacts and the like, and memory in bytes.
+
 ```ts
 export type NativeProfileCounter = typeof PROFILE_COUNTERS[number];
 ```
 
 ### NativeProfileStage · type
+
+A stage of Box3D's step that profile() times, in milliseconds.
 
 ```ts
 export type NativeProfileStage = typeof PROFILE_STAGES[number];
@@ -1222,11 +1584,15 @@ export type NativeProfileStage = typeof PROFILE_STAGES[number];
 
 ### NativeQuaternion · type
 
+A rotation as a quaternion [x, y, z, w]; the bridge normalizes it.
+
 ```ts
 export type NativeQuaternion = readonly [number, number, number, number];
 ```
 
 ### NativeQueryBodyHit · interface
+
+One body found by an overlap query.
 
 ```ts
 export interface NativeQueryBodyHit {
@@ -1235,6 +1601,8 @@ export interface NativeQueryBodyHit {
 ```
 
 ### NativeQueryCastHit · interface
+
+One hit of a ray, sphere or box cast: the body, the point and normal in world space, the fraction of the translation at which it was hit, and for meshes and compounds the triangle and child shape.
 
 ```ts
 export interface NativeQueryCastHit extends NativeQueryBodyHit {
@@ -1248,6 +1616,8 @@ export interface NativeQueryCastHit extends NativeQueryBodyHit {
 ```
 
 ### NativeQueryFilter · interface
+
+Which bodies a spatial query considers: by type, by collision category and mask, and one body to ignore.
 
 ```ts
 export interface NativeQueryFilter {
@@ -1453,6 +1823,8 @@ export declare class NativeWorldBackend implements PhysicsBackend {
 
 ### NativeWorldEvent · interface
 
+A contact or sensor event of the most recent step. `point`, `normal` and `approachSpeed` are present on 'hit' events.
+
 ```ts
 export interface NativeWorldEvent {
     readonly kind: 'contact-begin' | 'contact-end' | 'hit' | 'sensor-begin' | 'sensor-end' | 'joint-overload' | 'joint-break';
@@ -1526,6 +1898,8 @@ export declare function pauseOnHidden(target: FixedStepLoop | {
 ```
 
 ### PhysicsBackend · type
+
+The minimal native backend the renderer adapters read: the instance buffers plus the stepping and scene calls of the classic arena.
 
 ```ts
 export type PhysicsBackend = InstanceBufferSource & {
@@ -1651,6 +2025,7 @@ export declare class PhysicsWorld {
   transformVersion(): number;
   colorVersion(): number;
   stats(): WorldStats;
+  diagnose(): DiagnosticFinding[];
   startRecording(options?: RecordingOptions): void;
   jointDefaults(): { hertz: number; dampingRatio: number; } | null;
   contactDefaults(): { contactHertz: number; contactDampingRatio: number; contactPushSpeed: number; } | null;
@@ -1665,6 +2040,8 @@ export declare class PhysicsWorld {
 ```
 
 ### PoseArrays · interface
+
+Structure-of-arrays poses for entity-component systems: positions, rotations and optionally half extents, one row per body.
 
 ```ts
 export interface PoseArrays {
@@ -1689,6 +2066,8 @@ export type QuatLike = readonly [number, number, number, number] | {
 
 ### QueryOptions · interface
 
+Options of the casts and overlaps: which bodies to consider and how many hits to return.
+
 ```ts
 export interface QueryOptions {
     readonly filter?: NativeQueryFilter;
@@ -1698,11 +2077,15 @@ export interface QueryOptions {
 
 ### RayBatch · type
 
+Results of PhysicsWorld.raycastBatch(): flat arrays indexed by ray; a miss has fraction -1 and a null body.
+
 ```ts
 export type RayBatch = NativeRayBatch;
 ```
 
 ### RaycastOptions · type
+
+The old name of QueryOptions.
 
 ```ts
 export type RaycastOptions = QueryOptions;
@@ -1739,6 +2122,8 @@ export declare function readPoses(source: InstanceSource, out: PoseArrays): numb
 
 ### RecordingOptions · interface
 
+Options of startRecording(): how often to record a state hash, and whether to start from an SI world.
+
 ```ts
 export interface RecordingOptions {
     readonly checkpointEvery?: number;
@@ -1750,6 +2135,8 @@ export interface RecordingOptions {
 ```
 
 ### ReplayCommand · type
+
+One recorded action of a ReplayLog, with the tick it happened at. Bodies are named by render row and joints by creation order, so that a log replays in any world.
 
 ```ts
 export type ReplayCommand = {
@@ -1805,6 +2192,8 @@ export interface ReplayLog {
 
 ### ReplayReport · interface
 
+The result of replayDetailed(): whether the replay matched the recording and, if not, between which ticks it first differed.
+
 ```ts
 export interface ReplayReport {
     readonly matches: boolean;
@@ -1819,6 +2208,8 @@ export interface ReplayReport {
 
 ### ResetOptions · interface
 
+What reset() starts the empty world with: the ground slab, gravity and the seed.
+
 ```ts
 export interface ResetOptions {
     readonly ground?: boolean;
@@ -1827,7 +2218,31 @@ export interface ResetOptions {
 }
 ```
 
+### RIGID_LIMITS · const
+
+The largest magnitudes the rigid world takes (the scene format checks the same table). The solver holds single-precision numbers, and products of these
+(speed squared times mass, force over mass times a time step) must stay below 3.4e38, or a step yields infinities
+and then NaN in every body they touch. Each limit is far beyond physical use in a world 100 km wide; a value above
+one is refused with INVALID_PAYLOAD and the world is unchanged (docs/ERRORS.md, "Accepted ranges").
+
+```ts
+export declare const RIGID_LIMITS: Readonly<{
+    extent: 100000;
+    shape: 1000;
+    speed: 1000000;
+    gravity: 1000000;
+    force: 1000000000000;
+    density: 1000000;
+    densityMin: 0.001;
+    massMin: 1e-12;
+    massMax: 10000000000000000;
+    hertz: 1000000;
+}>;
+```
+
 ### SavedSession · interface
+
+A replay log together with the identity of the build that recorded it, as saveSession() writes it. loadSession() refuses one from another build.
 
 ```ts
 export interface SavedSession {
@@ -1851,6 +2266,8 @@ export declare function saveSession(log: ReplayLog, savedAt?: string): SavedSess
 
 ### SchedulableWorld · interface
 
+Anything a WorldScheduler can drive: an object with update(frameSeconds).
+
 ```ts
 export interface SchedulableWorld {
     update(frameSeconds: number): FixedStepResult;
@@ -1858,6 +2275,8 @@ export interface SchedulableWorld {
 ```
 
 ### SchedulerFrame · interface
+
+What one scheduler frame did: worlds updated, worlds deferred to the next frame, steps taken and milliseconds spent.
 
 ```ts
 export interface SchedulerFrame {
@@ -1870,6 +2289,8 @@ export interface SchedulerFrame {
 
 ### SchedulerOptions · interface
 
+The time budget of one scheduler frame and its clock.
+
 ```ts
 export interface SchedulerOptions {
     readonly budgetMs?: number;
@@ -1878,6 +2299,8 @@ export interface SchedulerOptions {
 ```
 
 ### ShapeOptions · type
+
+The shape of a body: a box, sphere, capsule or convex hull, a compound of those, or static scenery (a triangle mesh or a height field). Sizes in metres.
 
 ```ts
 export type ShapeOptions = {
@@ -1916,6 +2339,8 @@ export type ShapeOptions = {
 
 ### SharedFrameReader · class
 
+The reading side of a shared frame buffer: update() takes the newest complete frame and reports whether anything changed.
+
 ```ts
 export declare class SharedFrameReader {
   readonly capacity: number;
@@ -1930,6 +2355,8 @@ export declare class SharedFrameReader {
 
 ### SharedFrameWriter · class
 
+The writing side of a SharedArrayBuffer that carries a world's instance transforms and colours from a worker to the page without copying through messages.
+
 ```ts
 export declare class SharedFrameWriter {
   readonly buffer: SharedArrayBuffer;
@@ -1939,6 +2366,8 @@ export declare class SharedFrameWriter {
 ```
 
 ### sharedMemoryAvailable · function
+
+True when SharedArrayBuffer can be used here (in a browser, when the page is cross-origin isolated).
 
 ```ts
 export declare function sharedMemoryAvailable(): boolean;
@@ -1985,6 +2414,8 @@ export declare function spawnBoxes(world: PhysicsWorld, positions: ArrayLike<num
 
 ### SpawnBoxOptions · interface
 
+What spawnBox() takes: where the cube appears, its half size and an initial impulse.
+
 ```ts
 export interface SpawnBoxOptions {
     readonly position: Vec3Like;
@@ -1994,6 +2425,8 @@ export interface SpawnBoxOptions {
 ```
 
 ### StepProfile · type
+
+Box3D's timing of the most recent step by stage (ms) and the sizes it worked on; see PhysicsWorld.profile().
 
 ```ts
 export type StepProfile = NativeStepProfile;
@@ -2047,6 +2480,8 @@ export interface UploadRange {
 
 ### Vec3 · type
 
+Three numbers [x, y, z]: a position or displacement in metres, a velocity in m/s, a force in newtons, as the method says.
+
 ```ts
 export type Vec3 = readonly [number, number, number];
 ```
@@ -2065,11 +2500,15 @@ export type Vec3Like = Vec3 | {
 
 ### WorldEvent · type
 
+A contact or sensor event of one step: kind ('contact-begin', 'contact-end', 'hit', 'sensor-begin', 'sensor-end'), the two bodies and, for a hit, the point, normal and approach speed.
+
 ```ts
 export type WorldEvent = NativeWorldEvent;
 ```
 
 ### WorldOptions · interface
+
+How a world steps: the fixed step and the most steps per update() (FixedStepOptions), the sub-steps, the seed, the body capacity, interpolation and strict mode.
 
 ```ts
 export interface WorldOptions extends FixedStepOptions {
@@ -2077,6 +2516,7 @@ export interface WorldOptions extends FixedStepOptions {
     readonly seed?: number;
     readonly capacity?: number;
     readonly interpolate?: boolean;
+    readonly strict?: boolean;
     readonly jointStiffness?: 'match-substeps' | {
         readonly hertz: number;
         readonly dampingRatio?: number;
@@ -2090,6 +2530,8 @@ export interface WorldOptions extends FixedStepOptions {
 ```
 
 ### WorldScheduler · class
+
+Steps many worlds within a time budget per frame. Worlds that did not fit are deferred, keep the time they are owed and go first in the next frame, so none starves.
 
 ```ts
 export declare class WorldScheduler<W extends SchedulableWorld = SchedulableWorld> {
@@ -2112,6 +2554,8 @@ export type WorldSettings = NativeWorldSettings;
 
 ### WorldStats · interface
 
+Counts and timings of a world, from stats(): cheap enough to read every frame.
+
 ```ts
 export interface WorldStats {
     readonly bodies: number;
@@ -2122,6 +2566,7 @@ export interface WorldStats {
     readonly lastStepMs: number;
     readonly lastUpdateMs: number;
     readonly droppedSeconds: number;
+    readonly nonFiniteSince: number | null;
 }
 ```
 
@@ -2139,6 +2584,8 @@ export declare function writeInstances(source: InstanceSource, queue: GpuQueueLi
 ```
 
 ### WriteInstancesOptions · interface
+
+Options of writeInstances(): the byte offset in the GPU buffer, interpolation, and whether to upload only when the transforms changed.
 
 ```ts
 export interface WriteInstancesOptions {
@@ -2318,6 +2765,8 @@ export interface RemoteBody {
 
 ### RemoteCapsuleMoveOptions · type
 
+PhysicsWorld.moveCapsule() options for a RemoteWorld: the ignored body is a RemoteBody.
+
 ```ts
 export type RemoteCapsuleMoveOptions = Omit<CapsuleMoveOptions, 'ignoreBody'> & {
     readonly ignoreBody?: RemoteBody;
@@ -2325,6 +2774,8 @@ export type RemoteCapsuleMoveOptions = Omit<CapsuleMoveOptions, 'ignoreBody'> & 
 ```
 
 ### RemoteCapsuleMoveResult · interface
+
+What RemoteWorld.moveCapsule() resolves to: as CapsuleMoveResult, with remote bodies.
 
 ```ts
 export interface RemoteCapsuleMoveResult {
@@ -3729,6 +4180,8 @@ export interface ReinforcementBarInput {
 
 ### ReinforcementInput · interface
 
+The reinforcing bars to embed in a solid; see the steel and bar inputs above.
+
 ```ts
 export interface ReinforcementInput {
     readonly bars: readonly ReinforcementBarInput[];
@@ -4311,6 +4764,8 @@ export declare class CapsuleCharacterController {
 
 ### CapsuleCharacterInput · interface
 
+One step's commands: the wanted horizontal velocity and an optional jump speed.
+
 ```ts
 export interface CapsuleCharacterInput {
     readonly velocity: CharacterVec3;
@@ -4319,6 +4774,8 @@ export interface CapsuleCharacterInput {
 ```
 
 ### CapsuleCharacterOptions · interface
+
+The character's capsule, speeds, slope and step limits, jump and the bodies it collides with.
 
 ```ts
 export interface CapsuleCharacterOptions {
@@ -4339,6 +4796,8 @@ export interface CapsuleCharacterOptions {
 ```
 
 ### CapsuleCharacterState · interface
+
+The character after a step: position and feet, velocity, the ground it stands on, what it pushed, and whether it stepped up or stands on a steep slope.
 
 ```ts
 export interface CapsuleCharacterState {
@@ -4482,6 +4941,8 @@ export declare function sceneHasRoles(scene: SceneRolesSource['scene']): boolean
 
 ### SceneLaserBeam · interface
 
+One laser role's beam this step: where it starts and ends, and the body it hit.
+
 ```ts
 export interface SceneLaserBeam {
     readonly from: V3;
@@ -4491,6 +4952,8 @@ export interface SceneLaserBeam {
 ```
 
 ### SceneRoles · class
+
+Makes a loaded scene playable from the roles in its bodies' and joints' `userData.role`: a character, moving platforms, a vehicle, lasers.
 
 ```ts
 export declare class SceneRoles {
@@ -4565,6 +5028,8 @@ export interface SceneRolesSource {
 ```
 
 ### SceneRolesState · interface
+
+The playable roles after a step: time played, the character and its laps, the vehicle, how many platforms move, and the lasers' rays and hits.
 
 ```ts
 export interface SceneRolesState {
@@ -4690,6 +5155,8 @@ export type TriggerShape = {
 
 ### Vehicle · class
 
+A chassis on Box3D wheel joints: suspension springs, Ackermann steering, throttle and brakes.
+
 ```ts
 export declare class Vehicle {
   readonly chassis: Body;
@@ -4716,6 +5183,8 @@ export declare class Vehicle {
 ```
 
 ### VehicleControls · interface
+
+One step's commands: throttle (-1 full reverse .. 1 full forward), steer (-1 full right .. 1 full left) and brake.
 
 ```ts
 export interface VehicleControls {
@@ -4761,6 +5230,8 @@ export interface VehicleHost {
 
 ### VehicleOptions · interface
 
+A chassis and its wheels, the suspension, steering, engine and brakes, and air drag.
+
 ```ts
 export interface VehicleOptions {
     readonly position: VehicleVec3;
@@ -4795,6 +5266,8 @@ export interface VehicleOptions {
 
 ### VehicleQuat · type
 
+A quaternion as [x, y, z, w] or an {x, y, z, w} object (a three.js Quaternion works).
+
 ```ts
 export type VehicleQuat = Quat | {
     readonly x: number;
@@ -4805,6 +5278,8 @@ export type VehicleQuat = Quat | {
 ```
 
 ### VehicleState · interface
+
+The vehicle after a step: the chassis pose, its speeds and yaw rate, and each wheel.
 
 ```ts
 export interface VehicleState {
@@ -4831,6 +5306,8 @@ export type VehicleVec3 = Vec3 | {
 
 ### VehicleWheelOptions · interface
 
+One wheel: where it sits on the chassis, its radius, and whether it steers, takes engine torque and brakes.
+
 ```ts
 export interface VehicleWheelOptions {
     readonly position: VehicleVec3;
@@ -4842,6 +5319,8 @@ export interface VehicleWheelOptions {
 ```
 
 ### VehicleWheelState · interface
+
+One wheel after a step: suspension travel, spin and steering angle.
 
 ```ts
 export interface VehicleWheelState {
@@ -7149,6 +7628,1848 @@ export declare function vehicleTerrainScene(options?: {
 }): Scene;
 ```
 
+## `box3d-webgpu-kit/scene-format`
+
+### breakableBridgeScene · function
+
+A plank bridge whose welds break: eight 135 kg planks welded end to end between two abutments, a 300 kg block
+dropped onto the middle from 2 m. Scene version 3 (joint thresholds).
+
+At rest the bridge is a beam built in at both ends, made of n rigid links on n + 1 soft welds. The shear at a
+support is half the weight, w L / 2. The moments follow from the welds' rotations adding up to zero; a Box3D
+joint spring acts on the joint's own effective inertia, so the two end welds (plank to abutment) are twice as stiff
+as the others (plank to plank), which gives a support moment of w l^2 (n^2 - 1) / 12 (the continuous beam's
+w L^2 / 12 as n grows). Here: 5,297 N and 6,953 N m; packages/box3d-kit/test/v22-rigid-examples.test.mjs measures both. Every weld breaks
+at six times that shear or three times that moment, so the bridge carries itself with a margin and not the block.
+
+```ts
+export declare function breakableBridgeScene(options?: {
+    blockMass?: number;
+    drop?: number;
+}): Scene;
+```
+
+### bulletPlatesScene · function
+
+Continuous collision in three lanes, at 60 Hz: steel balls at 150 m/s (2.5 m per step) against rows of thin plates.
+Lane 1: free plates and an ordinary ball, which passes through all of them (two moving bodies are not swept).
+Lane 2: the same with `bullet: true` on the ball, which hits the first plate. Lane 3: a thin static wall, which
+stops an ordinary ball (moving bodies are swept against static ones).
+
+```ts
+export declare function bulletPlatesScene(options?: {
+    speed?: number;
+}): Scene;
+```
+
+### buoyAndCratesScene · function
+
+The moored buoy released 0.4 m to the side, with `crates` wooden boxes dropped into the same basin: the buoy
+swings back on its cable while the crates make waves, bob and drift. Water, a cable and floating bodies in one scene.
+
+```ts
+export declare function buoyAndCratesScene(options?: {
+    offset?: number;
+    crates?: number;
+}): Scene;
+```
+
+### cableStayedDeckScene · function
+
+A small cable-stayed deck: an 8 m steel beam of 8 elements on a pin and a
+roller, two stays from a fixed tower top 3 m above midspan to the deck at
+2 m and 6 m, and a ball pinned to deck node `loadNode` (1 to 7). It is the
+span of the structure-coupling validation, so its stay tensions and its
+deflection have a hand solution (docs/STRUCTURE_COUPLING.md).
+
+```ts
+export declare function cableStayedDeckScene(options?: {
+    loadNode?: number;
+    ballRadius?: number;
+    ballDensity?: number;
+    stayRigidity?: number;
+    drag?: number;
+}): Scene;
+```
+
+### canonicalize · function
+
+The canonical text of a scene: its normal form (see normalizeScene) as JSON
+with sorted keys, no whitespace, and numbers in their shortest round-trip
+form. Two scenes that describe the same thing give the same text, whatever
+their key order. `pretty: true` gives the same content on several lines
+(one key per line, arrays of numbers on one line) for reading and diffing;
+hashes and links always use the compact text.
+
+```ts
+export declare function canonicalize(scene: unknown, options?: {
+    readonly pretty?: boolean;
+}): string;
+```
+
+### cavityFlowScene · function
+
+The lid-driven cavity: a cube of oil 0.1 m on a side (rho = 900 kg/m^3, mu = 0.09 Pa s) whose top wall slides at
+0.1 m/s, Re = 100. The flow turns into one large vortex with small ones in the lower corners (the 2D case is checked
+against Ghia, Ghia & Shin 1982 in docs/FLUID.md; this one is 3D, with side walls). 16^3 cells.
+
+```ts
+export declare function cavityFlowScene(options?: {
+    cells?: number;
+    lidSpeed?: number;
+}): Scene;
+```
+
+### COUPLED_EXAMPLE_SCENES · const
+
+```ts
+export declare const COUPLED_EXAMPLE_SCENES: {
+    readonly [name: string]: () => Scene;
+};
+```
+
+### damBreakScene · function
+
+A dam break in three dimensions: a column of water 0.18 m by 0.09 m and 0.3 m tall stands in one corner of a tank
+0.6 x 0.36 x 0.18 m and is let go at t = 0. It spreads over the floor, runs to the far wall, climbs it and falls back.
+Free surface by particles (APIC), eight per cell; inviscid; closed free-slip tank. 20 x 12 x 6 cells of 30 mm,
+1,440 particles, two fluid steps per world step.
+
+```ts
+export declare function damBreakScene(options?: {
+    width?: number;
+    depth?: number;
+    height?: number;
+}): Scene;
+```
+
+### damBreakValleyScene · function
+
+A dam break down a valley (shallow water, docs/SHALLOW_WATER.md): a reservoir 2 m deep behind a dam at x = 6 m lets go
+into a dry valley 30 m long that falls 1 in 100 and has 1 in 4 sides; Manning n 0.03 (Chow 1959, earth channel), an
+open outlet at the far end, and three crates afloat in the reservoir that ride the flood. The terrain is also a height
+field of the rigid world, so the crates ground where the water leaves them.
+
+```ts
+export declare function damBreakValleyScene(options?: {
+    depth?: number;
+    crates?: number;
+}): Scene;
+```
+
+### decodeSceneLink · function
+
+Unpack a share link into a validated scene. Accepts the bare string or any
+text that contains it, such as a whole URL. Synchronous and self-contained:
+the DEFLATE decoder is built in, so a compressed link opens on platforms
+without DecompressionStream. Throws EngineError('INVALID_PAYLOAD') for a link
+that is too long, cut off, altered (CRC or length mismatch), of an unknown
+version, or that would decompress to more than it declares
+(SCENE_LIMITS.linkSceneBytes at most), and SceneValidationError when the
+JSON inside is not a valid scene.
+
+```ts
+export declare function decodeSceneLink(text: string): Scene;
+```
+
+### dominoRunScene · function
+
+A straight run of `count` dominoes on the ground; the first leans past its tipping point and starts the run.
+
+```ts
+export declare function dominoRunScene(options?: {
+    count?: number;
+    spacing?: number;
+}): Scene;
+```
+
+### encodeSceneLink · function
+
+Pack a scene into a URL-safe string:
+
+    b3s1 <mode> . <length> . <crc> . <data>
+
+- `mode`: `d` when `data` is raw DEFLATE (RFC 1951), `r` when it is stored as is;
+- `length`: UTF-8 byte length of the canonical JSON, in lowercase base 36;
+- `crc`: CRC-32 (IEEE 802.3, as in zip and PNG) of those bytes, 8 lowercase hex digits;
+- `data`: base64url (RFC 4648 section 5) without padding.
+
+Only `A-Z a-z 0-9 - _ .` appear, so the string needs no escaping in a query
+or fragment. Compression uses the platform's `CompressionStream('deflate-raw')`;
+where that is missing, or when the result is not smaller, or with
+`compress: false`, the link stores the JSON uncompressed (mode `r`).
+
+```ts
+export declare function encodeSceneLink(scene: unknown, options?: {
+    readonly compress?: boolean;
+}): Promise<string>;
+```
+
+### encodeSceneLinkSync · function
+
+The synchronous form of encodeSceneLink: always mode `r` (stored, not compressed). Works everywhere.
+
+```ts
+export declare function encodeSceneLinkSync(scene: unknown): string;
+```
+
+### eulerToQuaternion · function
+
+Degrees about X, Y, Z to a quaternion, q = qx qy qz (a vector is turned about Z first, then Y, then X: the three.js 'XYZ' order).
+
+```ts
+export declare function eulerToQuaternion(degrees: SceneVec3): [number, number, number, number];
+```
+
+### EXAMPLE_SCENES · const
+
+Every example by name, each called with its defaults.
+
+```ts
+export declare const EXAMPLE_SCENES: {
+    readonly [name: string]: () => Scene;
+};
+```
+
+### flowPastCylinderScene · function
+
+Flow past a cylinder at Re = 20, in two dimensions: a slab one cell thick (periodic in z) of a liquid with
+nu = 4e-5 m^2/s enters at 40 mm/s on the left and leaves on the right (p = 0), with free-slip top and bottom. The
+cylinder (20 mm across, 6 cells) is a static capsule of the rigid world lying across the slab. Behind it a pair of
+standing vortices forms; the flow does not shed at this Reynolds number. The channel is 5.3 diameters tall (19%
+blockage). Gravity is off in the fluid: the flow is horizontal and an outflow side cannot hold a hydrostatic pressure.
+
+```ts
+export declare function flowPastCylinderScene(options?: {
+    speed?: number;
+    reynolds?: number;
+}): Scene;
+```
+
+### heatedBarScene · function
+
+A heated bar: an aluminium bar (k = 237 W/(m K), alpha_T = 23e-6 /K, E = 70 GPa) clamped at both ends between
+a hot block at 500 K and a cold one at 300 K. Its temperature rises from the hot end and settles to a linear
+ramp in about 20 s; the restrained expansion puts it in compression.
+
+```ts
+export declare function heatedBarScene(options?: {
+    hot?: number;
+    cold?: number;
+    cells?: number;
+}): Scene;
+```
+
+### hopperSeesawScene · function
+
+A hopper over a see-saw: `count` beads fill a conical hopper and run out of its orifice into a tray on one end of a
+plank that turns on a hinge; a counterweight sits on the other end. When enough beads have landed the plank tips.
+The beads are soft spheres by the discrete element method (docs/GRANULAR.md), linear contact law; the hopper is a
+fixed wall that only the beads feel, the plank, the tray walls and the counterweight are rigid bodies.
+
+```ts
+export declare function hopperSeesawScene(options?: {
+    count?: number;
+    radius?: number;
+    orifice?: number;
+    counterweight?: number;
+}): Scene;
+```
+
+### laserScannerScene · function
+
+A ray-cast scanner among assorted bodies: the 'scanner' body's userData asks the Lab for a fan of rays, turning
+slowly, cast in one batched call per step and drawn as beams to their hit points. A swinging pendulum and a ball
+cross the beams.
+
+```ts
+export declare function laserScannerScene(options?: {
+    rays?: number;
+    range?: number;
+}): Scene;
+```
+
+### LoadedScene · interface
+
+```ts
+export interface LoadedScene<W extends SceneHost = SceneHost> {
+    readonly bodies: Map<string, Body>;
+    readonly joints: Map<string, Joint>;
+    readonly builder: SceneBuilder<W>;
+    readonly scene: Scene;
+}
+```
+
+### loadScene · function
+
+Validate a scene, reset the world to its settings and build every body, then
+every joint, in file order. The world's body capacity is raised first when
+the scene needs more than it has.
+
+- An invalid scene throws SceneValidationError (code 'INVALID_PAYLOAD',
+  `problems` holds the full list) and the world is NOT touched.
+- A world created with another step or sub-step count throws
+  EngineError('INVALID_STATE') and is not touched: create it with
+  `createWorld(sceneWorldOptions(scene))`.
+- If the engine refuses a body or joint part-way, the world is left reset to
+  the scene's settings with none of the scene's bodies in it, and the error
+  names the offending id.
+- A scene with `water`, `cables`, `frames`, `cloths` or `grains` throws EngineError('INVALID_STATE')
+  and the world is not touched: this loader has no solvers for them.
+
+```ts
+export declare function loadScene<W extends SceneHost>(world: W, scene: unknown): LoadedScene<W>;
+```
+
+### mooredBuoyScene · function
+
+A buoy moored to the bed: a sphere of radius `radius` and density `density`
+floats in an 8 m x 8 m basin `depth` deep and is held under its free
+waterline by one compliant cable (rest length `cableLength`, axial rigidity
+`axialRigidity` in newtons) from a fixed anchor on the bed to its centre.
+`offset` moves the buoy sideways at the start. At rest the cable tension is
+the buoyancy minus the weight of the buoy and of the cable's upper node.
+
+```ts
+export declare function mooredBuoyScene(options?: {
+    radius?: number;
+    density?: number;
+    depth?: number;
+    cableLength?: number;
+    axialRigidity?: number;
+    offset?: number;
+    linearDrag?: number;
+    waterDrag?: number;
+    lineDensity?: number;
+}): Scene;
+```
+
+### newtonsCradleScene · function
+
+Newton's cradle: `count` steel balls hanging on rigid hinges in a row with a
+small gap, the first one raised by `angle`. Perfectly elastic and
+frictionless, so the last ball leaves at the first ball's speed (measured:
+99.5% of it with the defaults). Keep the impact above about 1 m/s: the
+engine applies no restitution to slow contacts (a 0.44 m/s impact passed on
+only 23%), and the balls must not touch at rest (`gap` > 0).
+
+```ts
+export declare function newtonsCradleScene(options?: {
+    count?: number;
+    radius?: number;
+    length?: number;
+    angle?: number;
+    gap?: number;
+}): Scene;
+```
+
+### normalizeScene · function
+
+The normal form of a valid scene, as a new object: every world setting
+present, `rotationEuler` turned into `rotation`, values equal to the engine
+defaults dropped, -0 written as 0, `units`, `materials` and `joints` always
+present; `water`, `cables` and `frames` present only when they hold something.
+Body and joint order is kept, because it is the build order. Throws
+SceneValidationError for an invalid scene. Normalising twice changes nothing.
+
+```ts
+export declare function normalizeScene(scene: unknown): Scene;
+```
+
+### notchedBeamScene · function
+
+A notched concrete beam loaded by a falling weight (a 200 kg drop hammer from 1.5 m, on a guide). The beam (E = 30 GPa, sigma_c = 3 MPa, G_c = 100 J/m^2)
+is pinned along both ends of its base, cut by a notch at mid-span and given cohesive interfaces on the
+section above it. The weight falls on a steel platen over mid-span; the force that holds the weight up is put
+on the beam's top under the platen (one-way, `reactionLoadLink`). The impact cracks the section from the notch.
+
+```ts
+export declare function notchedBeamScene(options?: {
+    mass?: number;
+    drop?: number;
+    cells?: number;
+}): Scene;
+```
+
+### obstacleCourseScene · function
+
+An obstacle course for the capsule character: four stairs up to a deck, a 25 degree ramp back down, a crate to push,
+a ledge onto a slab, a platform that drifts sideways under the walker, and a 60 degree slope and a wall it cannot
+climb. The body 'hero' is the character: a kinematic capsule that collides with nothing (the controller moves it and
+does the colliding), with the controller's settings and a walking route in its userData.
+
+```ts
+export declare function obstacleCourseScene(options?: {
+    speed?: number;
+}): Scene;
+```
+
+### pendulumWaveScene · function
+
+A pendulum wave: `count` spheres on revolute joints whose lengths are chosen
+so that pendulum k swings `swings + k` times in `cycle` seconds; they drift
+out of phase and realign after one cycle. Each bob's `userData` holds its
+`length` (pivot to centre), small-angle `period` and release `angle`.
+The lengths include the sphere's own inertia: T = 2 pi sqrt((L^2 + 2 r^2 / 5) / (g L)).
+
+```ts
+export declare function pendulumWaveScene(options?: {
+    count?: number;
+    cycle?: number;
+    swings?: number;
+    radius?: number;
+    angle?: number;
+}): Scene;
+```
+
+### quenchedPlateScene · function
+
+Thermal shock: an alumina plate at 600 K (E = 370 GPa, nu = 0.22, alpha_T = 8e-6 /K, sigma_c = 300 MPa,
+G_c = 40 J/m^2, k = 30 W/(m K)) whose face x = 0 is quenched by a film coefficient of 20,000 W/(m^2 K) to
+300 K. As quenchedPlate() in solid-fracture.ts, with 6 mm cells instead of 0.25 mm: held in its plane
+(rollers on the y and z faces and the back face), the cooled layer cracks in tension from about 1.2 s.
+
+```ts
+export declare function quenchedPlateScene(options?: {
+    cells?: readonly [number, number, number];
+    cellSize?: number;
+    coefficient?: number;
+}): Scene;
+```
+
+### ragdollScene · function
+
+A ragdoll: a capsule torso, a sphere head and eight capsule limb segments on
+nine spherical joints with cone and twist limits, dropped from `height`
+metres above the ground with a slight forward tumble.
+
+```ts
+export declare function ragdollScene(options?: {
+    height?: number;
+}): Scene;
+```
+
+### RIGID_CORE_EXAMPLE_SCENES · const
+
+The rigid-core examples by name, each called with its defaults.
+
+```ts
+export declare const RIGID_CORE_EXAMPLE_SCENES: {
+    readonly [name: string]: () => Scene;
+};
+```
+
+### riverBendScene · function
+
+A river bend (shallow water): a channel that meanders down a 1 in 200 floodplain, fed 1.2 m^3/s at the upstream end,
+with banks 0.5 m high, grass on the floodplain (n 0.035) and a clean channel (n 0.03) (Chow 1959, natural streams and
+floodplains, normal values), an open outlet, and a log floating down it.
+
+```ts
+export declare function riverBendScene(options?: {
+    discharge?: number;
+}): Scene;
+```
+
+### rubberPadScene · function
+
+A rubber pad under a dropped box: a neo-Hookean pad (E = 1.5 MPa, nu = 0.45) welded along its base to a
+steel plate, and a box that falls on it, bounces on it and comes to rest pressed into it. Solid contact,
+two-way, with friction (docs/SOLID_CONTACT.md).
+
+```ts
+export declare function rubberPadScene(options?: {
+    cells?: number;
+    drop?: number;
+    mass?: number;
+}): Scene;
+```
+
+### saveScene · function
+
+The scene a builder (or the result of loadScene) describes, with each body's
+current state: see SceneBuilder.toJSON for exactly what is and is not saved.
+
+```ts
+export declare function saveScene<W extends SceneHost>(world: W, handles: SceneBuilder<W> | {
+    readonly builder: SceneBuilder<W>;
+}, options?: SaveSceneOptions): Scene;
+```
+
+### SaveSceneOptions · interface
+
+```ts
+export interface SaveSceneOptions {
+    readonly state?: boolean;
+    readonly meta?: SceneMeta;
+}
+```
+
+### Scene · interface
+
+```ts
+export interface Scene {
+    readonly format: 'box3d-scene';
+    readonly version: 1 | 2 | 3;
+    readonly units?: 'SI';
+    readonly world?: SceneWorld;
+    readonly materials?: {
+        readonly [name: string]: SceneMaterial;
+    };
+    readonly bodies: readonly SceneBody[];
+    readonly joints?: readonly SceneJoint[];
+    readonly water?: readonly SceneWater[];
+    readonly cables?: readonly SceneCable[];
+    readonly frames?: readonly SceneFrameSection[];
+    readonly cloths?: readonly SceneCloth[];
+    readonly grains?: readonly SceneGrains[];
+    readonly solids?: readonly SceneSolid[];
+    readonly heat?: readonly SceneHeat[];
+    readonly fluids?: readonly SceneFluid[];
+    readonly shallowWater?: readonly SceneShallowWater[];
+    readonly meta?: SceneMeta;
+    readonly extensions?: {
+        readonly [key: string]: unknown;
+    };
+}
+```
+
+### SCENE_FORMAT · const
+
+```ts
+export declare const SCENE_FORMAT = "box3d-scene";
+```
+
+### SCENE_LIMITS · const
+
+Hard limits a scene file must respect. `validateScene` reports each one by path.
+
+```ts
+export declare const SCENE_LIMITS: Readonly<{
+    bodies: 65536;
+    joints: 65536;
+    materials: 1024;
+    idLength: 64;
+    hullPoints: 4096;
+    compoundShapes: 64;
+    meshVertices: 1048576;
+    meshTriangles: 2097152;
+    heightfieldSide: 4096;
+    geometryValues: 8000000;
+    userDataChars: 65536;
+    depth: 32;
+    metaChars: 4096;
+    waterBasins: 8;
+    waterCells: 65536;
+    cables: 1024;
+    cableNodes: 16384;
+    frames: 64;
+    frameNodes: 4096;
+    frameElements: 8192;
+    frameBodyEquations: 96;
+    cloths: 16;
+    clothNodes: 16384;
+    clothTriangles: 32768;
+    grainSets: 8;
+    grains: 65536;
+    grainWalls: 256;
+    grainSubsteps: 4096;
+    solids: 8;
+    solidNodes: 20000;
+    solidTets: 60000;
+    solidSubsteps: 64;
+    heat: 8;
+    heatSubsteps: 256;
+    fluids: 4;
+    fluidCells: 262144;
+    fluidParticles: 262144;
+    fluidSubsteps: 64;
+    fluidLiquid: 16;
+    shallowWater: 4;
+    shallowWaterCells: 262144;
+    shallowWaterSubsteps: 64;
+    solidRegions: 64;
+    solidCracks: 60000;
+    problems: 100;
+    linkChars: 1048576;
+    linkSceneBytes: 4194304;
+}>;
+```
+
+### SCENE_LINK_PREFIX · const
+
+Every share link of this version starts with this, followed by 'd' (raw DEFLATE) or 'r' (stored).
+
+```ts
+export declare const SCENE_LINK_PREFIX = "b3s1";
+```
+
+### SCENE_VERSION · const
+
+The newest scene version this build reads and writes. A scene that needs nothing newer than version 1 is written as version 1.
+
+```ts
+export declare const SCENE_VERSION = 3;
+```
+
+### SCENE_VERSIONS · const
+
+Every scene version this build reads. Version 2 adds compound shapes and `massData`; version 3 adds the joint
+types 'motor', 'parallel' and 'filter' and the joint settings `thresholds`, `drive`, `maxTorque` and `steering`.
+Nothing else differs.
+
+```ts
+export declare const SCENE_VERSIONS: readonly number[];
+```
+
+### SceneBody · interface
+
+```ts
+export interface SceneBody {
+    readonly id: string;
+    readonly shape: SceneShape;
+    readonly type?: SceneBodyType;
+    readonly position: SceneVec3;
+    readonly rotation?: SceneQuat;
+    readonly rotationEuler?: SceneVec3;
+    readonly linearVelocity?: SceneVec3;
+    readonly angularVelocity?: SceneVec3;
+    readonly material?: string;
+    readonly density?: number;
+    readonly friction?: number;
+    readonly restitution?: number;
+    readonly color?: number;
+    readonly bullet?: boolean;
+    readonly sensor?: boolean;
+    readonly hitEvents?: boolean;
+    readonly neverSleeps?: boolean;
+    readonly lockRotation?: boolean;
+    readonly linearDamping?: number;
+    readonly angularDamping?: number;
+    readonly gravityScale?: number;
+    readonly filter?: SceneFilter;
+    readonly massData?: SceneMassData;
+    readonly userData?: {
+        readonly [key: string]: unknown;
+    };
+}
+```
+
+### SceneBodyInput · type
+
+A body description for SceneBuilder.addBody: a scene body without its id, or a native body descriptor (bigint filter bits, typed arrays).
+
+```ts
+export type SceneBodyInput = Omit<SceneBody, 'id'> | NativeBodyDescriptor;
+```
+
+### SceneBodyType · type
+
+```ts
+export type SceneBodyType = 'static' | 'kinematic' | 'dynamic';
+```
+
+### SceneBuilder · class
+
+A world plus the description of everything put into it. The world
+cannot report shapes or joint definitions, so the builder remembers them as
+it creates each body and joint, and `toJSON()` writes them back out with the
+bodies' current poses and velocities.
+
+Constructing a builder RESETS the world to the given settings. Create and
+remove bodies and joints through the builder; what you change on the world
+directly (setJointMotor, setDamping, setCollisionFilter, ...) is not seen,
+except pose, velocity, body type and gravity, which are read back on save.
+
+```ts
+export declare class SceneBuilder<W extends SceneHost = SceneHost> {
+  readonly world: W;
+  meta: SceneMeta | undefined;
+  extensions: { readonly [key: string]: unknown; } | undefined;
+  coupledSections: SceneCoupledSections;
+  coupledCapture: (() => SceneCoupledSections) | null;
+  resetWorld(): void;
+  defineMaterial(name: string, material: SceneMaterial): void;
+  addBody(id: string, body: SceneBodyInput): Body;
+  place(description: SceneBody): Body;
+  addJoint(id: string, joint: SceneJointInput): Joint;
+  connect(description: SceneJoint): Joint;
+  remove(id: string): boolean;
+  has(id: string): boolean;
+  body(id: string): Body | undefined;
+  joint(id: string): Joint | undefined;
+  idOf(handle: Body | Joint): string | undefined;
+  bodies(): Map<string, Body>;
+  joints(): Map<string, Joint>;
+  describe(id: string): SceneBody | SceneJoint | undefined;
+  toJSON(options?: SaveSceneOptions): Scene;
+  populate(scene: Scene): this;
+}
+```
+
+### SceneCable · interface
+
+A tension-only cable (docs/COMPLIANT_CABLE.md, docs/NONLINEAR_CABLE.md). It steps with the world's step and gravity. Numbers are float64.
+
+```ts
+export interface SceneCable {
+    readonly id: string;
+    readonly solver?: 'proximal' | 'xpbd';
+    readonly nodes: readonly number[];
+    readonly masses: readonly number[];
+    readonly pinned?: readonly number[];
+    readonly velocities?: readonly number[];
+    readonly segments: readonly SceneCableSegment[];
+    readonly substeps?: number;
+    readonly maxIterations?: number;
+    readonly residualTolerance?: number;
+    readonly forceTolerance?: number;
+    readonly drag?: number;
+    readonly attachments?: readonly SceneCableAttachment[];
+}
+```
+
+### SceneCableAttachment · interface
+
+A free cable node attached to a point on a body (`body`), or to a frame node (`frame` and `frameNode`).
+
+```ts
+export interface SceneCableAttachment {
+    readonly node: number;
+    readonly body?: string;
+    readonly frame?: string;
+    readonly frameNode?: number;
+    readonly inertia?: SceneInertia;
+    readonly localPoint?: SceneVec3;
+}
+```
+
+### SceneCableSegment · interface
+
+```ts
+export interface SceneCableSegment {
+    readonly a: number;
+    readonly b: number;
+    readonly restLength: number;
+    readonly compliance: number;
+}
+```
+
+### SceneCloth · interface
+
+A cloth coupled two-way to rigid bodies (docs/CLOTH.md). It steps with the world's step and gravity, backward Euler. Numbers are float64.
+
+```ts
+export interface SceneCloth {
+    readonly id: string;
+    readonly nodes: readonly number[];
+    readonly restNodes?: readonly number[];
+    readonly triangles: readonly number[];
+    readonly velocities?: readonly number[];
+    readonly material: SceneClothMaterial;
+    readonly pinned?: readonly number[];
+    readonly extraMass?: readonly number[];
+    readonly drag?: number;
+    readonly maxNewtonIterations?: number;
+    readonly residualTolerance?: number;
+    readonly forceTolerance?: number;
+    readonly maxCgIterations?: number;
+    readonly cgTolerance?: number;
+    readonly contact?: {
+        readonly offset?: number;
+        readonly stiffness?: number;
+        readonly skin?: number;
+    };
+    readonly selfCollision?: {
+        readonly thickness: number;
+        readonly stiffness?: number;
+        readonly capacity?: number;
+    };
+    readonly bodies?: readonly SceneClothBody[];
+    readonly planes?: readonly SceneClothPlane[];
+    readonly attachments?: readonly SceneClothAttachment[];
+}
+```
+
+### SceneClothAttachment · interface
+
+A cloth node fixed to a point of one of the cloth's `bodies`.
+
+```ts
+export interface SceneClothAttachment {
+    readonly node: number;
+    readonly body: string;
+    readonly localPoint?: SceneVec3;
+}
+```
+
+### SceneClothBody · interface
+
+A box, sphere or capsule body the cloth collides with and, when it is dynamic, pushes.
+
+```ts
+export interface SceneClothBody {
+    readonly body: string;
+    readonly friction?: number;
+    readonly collide?: boolean;
+    readonly twoWay?: boolean;
+    readonly inertia?: SceneInertia;
+}
+```
+
+### SceneClothMaterial · interface
+
+Material of a cloth (docs/CLOTH.md).
+
+```ts
+export interface SceneClothMaterial {
+    readonly arealDensity: number;
+    readonly youngModulus: number;
+    readonly thickness: number;
+    readonly poissonRatio: number;
+    readonly membrane?: 'stvk' | 'spring';
+    readonly bending?: 'koiter' | 'hinge' | 'none';
+    readonly bendingStiffness?: number;
+}
+```
+
+### SceneClothPlane · interface
+
+A fixed half space the cloth cannot enter: everything behind `normal` through `point` (default the origin).
+
+```ts
+export interface SceneClothPlane {
+    readonly normal: SceneVec3;
+    readonly point?: SceneVec3;
+    readonly friction?: number;
+}
+```
+
+### SceneCompoundChild · interface
+
+One shape of a compound body (scene version 2).
+
+```ts
+export interface SceneCompoundChild {
+    readonly shape: SceneConvexShape;
+    readonly position?: SceneVec3;
+    readonly rotation?: SceneQuat;
+    readonly rotationEuler?: SceneVec3;
+    readonly density?: number;
+    readonly friction?: number;
+    readonly restitution?: number;
+}
+```
+
+### SceneConvexShape · type
+
+The shapes a compound may hold.
+
+```ts
+export type SceneConvexShape = {
+    readonly kind: 'box';
+    readonly halfExtents: SceneVec3;
+} | {
+    readonly kind: 'sphere';
+    readonly radius: number;
+} | {
+    readonly kind: 'capsule';
+    readonly radius: number;
+    readonly halfLength: number;
+} | {
+    readonly kind: 'hull';
+    readonly points: readonly number[];
+};
+```
+
+### SceneCoupledSections · interface
+
+The optional coupled sections of a scene.
+
+```ts
+export interface SceneCoupledSections {
+    readonly water?: readonly SceneWater[];
+    readonly cables?: readonly SceneCable[];
+    readonly frames?: readonly SceneFrameSection[];
+    readonly cloths?: readonly SceneCloth[];
+    readonly grains?: readonly SceneGrains[];
+    readonly solids?: readonly SceneSolid[];
+    readonly heat?: readonly SceneHeat[];
+    readonly fluids?: readonly SceneFluid[];
+    readonly shallowWater?: readonly SceneShallowWater[];
+}
+```
+
+### SceneFilter · interface
+
+```ts
+export interface SceneFilter {
+    readonly categoryBits?: string;
+    readonly maskBits?: string;
+    readonly groupIndex?: number;
+}
+```
+
+### SceneFluid · interface
+
+A volumetric fluid (docs/FLUID.md): a box of `cells` cubic cells of side `spacing` from `origin`. Numbers are float64.
+- kind 'flow' (the default): incompressible Navier-Stokes with walls, inflows, outflows or periodic sides, and the
+  listed bodies as moving obstacles (FluidCoupling). Saved state: the face velocities and the cell pressures.
+- kind 'free-surface': an inviscid liquid carried by particles in a closed tank of free-slip walls, started from the
+  `liquid` boxes. No bodies. Saved state: the particles.
+
+```ts
+export interface SceneFluid {
+    readonly id: string;
+    readonly kind?: 'flow' | 'free-surface';
+    readonly cells: readonly [number, number, number];
+    readonly spacing: number;
+    readonly origin?: SceneVec3;
+    readonly density: number;
+    readonly substeps?: number;
+    readonly viscosity?: number;
+    readonly gravity?: boolean;
+    readonly boundaries?: SceneFluidBoundaries;
+    readonly advection?: 'central' | 'upwind';
+    readonly diffusion?: 'explicit' | 'crank-nicolson' | 'backward-euler';
+    readonly velocity?: SceneVec3;
+    readonly bodies?: readonly SceneFluidBody[];
+    readonly u?: readonly number[];
+    readonly v?: readonly number[];
+    readonly w?: readonly number[];
+    readonly pressure?: readonly number[];
+    readonly particlesPerAxis?: number;
+    readonly liquid?: readonly SceneFluidLiquid[];
+    readonly positions?: readonly number[];
+    readonly velocities?: readonly number[];
+    readonly affine?: readonly number[];
+}
+```
+
+### SceneFluidBody · interface
+
+A box, sphere or capsule body that is a moving obstacle in a flow and, when it is dynamic, feels its force.
+
+```ts
+export interface SceneFluidBody {
+    readonly body: string;
+    readonly twoWay?: boolean;
+}
+```
+
+### SceneFluidBoundaries · interface
+
+```ts
+export interface SceneFluidBoundaries {
+    readonly xMin?: SceneFluidSide;
+    readonly xMax?: SceneFluidSide;
+    readonly yMin?: SceneFluidSide;
+    readonly yMax?: SceneFluidSide;
+    readonly zMin?: SceneFluidSide;
+    readonly zMax?: SceneFluidSide;
+}
+```
+
+### SceneFluidLiquid · interface
+
+A box of liquid a free-surface tank starts with, m.
+
+```ts
+export interface SceneFluidLiquid {
+    readonly min: SceneVec3;
+    readonly max: SceneVec3;
+    readonly velocity?: SceneVec3;
+}
+```
+
+### SceneFluidSide · type
+
+A side of a fluid box (docs/FLUID.md, Boundaries): a type, or a no-slip wall that slides or an inflow, with its velocity.
+
+```ts
+export type SceneFluidSide = 'no-slip' | 'free-slip' | 'outflow' | 'periodic' | {
+    readonly type: 'no-slip' | 'inflow';
+    readonly velocity: SceneVec3;
+};
+```
+
+### SceneFrame · interface
+
+```ts
+export interface SceneFrame {
+    readonly position?: SceneVec3;
+    readonly rotation?: SceneQuat;
+    readonly rotationEuler?: SceneVec3;
+}
+```
+
+### SceneFrameAttachment · interface
+
+A frame node attached to a point on a body: 'pinned' (forces) or 'clamped' (forces and moments).
+
+```ts
+export interface SceneFrameAttachment {
+    readonly node: number;
+    readonly body: string;
+    readonly mode?: 'pinned' | 'clamped';
+    readonly inertia?: SceneInertia;
+    readonly localPoint?: SceneVec3;
+}
+```
+
+### SceneFrameElement · interface
+
+```ts
+export interface SceneFrameElement {
+    readonly a: number;
+    readonly b: number;
+    readonly youngModulus: number;
+    readonly shearModulus: number;
+    readonly area: number;
+    readonly iy: number;
+    readonly iz: number;
+    readonly torsionConstant: number;
+    readonly density: number;
+    readonly up: SceneVec3;
+}
+```
+
+### SceneFrameSection · interface
+
+A linear beam frame (docs/FRAME_MECHANICS.md). It steps with the world's step and gravity, one sub-step. Numbers are float64.
+
+```ts
+export interface SceneFrameSection {
+    readonly id: string;
+    readonly nodes: readonly number[];
+    readonly elements: readonly SceneFrameElement[];
+    readonly fixed?: readonly number[];
+    readonly pointMasses?: readonly number[];
+    readonly pointInertias?: readonly number[];
+    readonly displacements?: readonly number[];
+    readonly velocities?: readonly number[];
+    readonly drag?: number;
+    readonly maxIterations?: number;
+    readonly forceTolerance?: number;
+    readonly momentTolerance?: number;
+    readonly impulseTolerance?: number;
+    readonly angularImpulseTolerance?: number;
+    readonly attachments?: readonly SceneFrameAttachment[];
+}
+```
+
+### SceneGrainBody · interface
+
+A box, sphere or capsule body the grains collide with and, when it is dynamic, push.
+
+```ts
+export interface SceneGrainBody {
+    readonly body: string;
+    readonly friction?: number;
+    readonly rollingFriction?: number;
+    readonly restitution?: number;
+    readonly twoWay?: boolean;
+    readonly inertia?: SceneInertia;
+}
+```
+
+### SceneGrainMaterial · interface
+
+Material of a set of grains (docs/GRANULAR.md).
+
+```ts
+export interface SceneGrainMaterial {
+    readonly density: number;
+    readonly youngModulus?: number;
+    readonly poissonRatio?: number;
+    readonly restitution: number;
+    readonly friction: number;
+    readonly rollingFriction?: number;
+}
+```
+
+### SceneGrains · interface
+
+A set of spherical grains by the discrete element method, coupled two-way to rigid bodies (docs/GRANULAR.md). Numbers are float64.
+
+```ts
+export interface SceneGrains {
+    readonly id: string;
+    readonly material: SceneGrainMaterial;
+    readonly law?: 'hertz' | 'linear';
+    readonly normalStiffness?: number;
+    readonly tangentialStiffnessRatio?: number;
+    readonly tangentialDamping?: number;
+    readonly skin?: number;
+    readonly substeps: number;
+    readonly bounds?: {
+        readonly min: SceneVec3;
+        readonly max: SceneVec3;
+    };
+    readonly positions: readonly number[];
+    readonly radii: readonly number[];
+    readonly velocities?: readonly number[];
+    readonly angularVelocities?: readonly number[];
+    readonly walls?: readonly SceneGrainWall[];
+    readonly bodies?: readonly SceneGrainBody[];
+}
+```
+
+### SceneGrainWall · interface
+
+A fixed wall that only the grains feel. It is not a rigid body: nothing else collides with it.
+
+```ts
+export interface SceneGrainWall {
+    readonly shape: SceneGrainWallShape;
+    readonly position?: SceneVec3;
+    readonly rotation?: SceneQuat;
+    readonly friction?: number;
+    readonly rollingFriction?: number;
+    readonly restitution?: number;
+}
+```
+
+### SceneGrainWallShape · type
+
+The shape of a fixed wall of a grain set: the shapes of `Granular.addWall`.
+
+```ts
+export type SceneGrainWallShape = {
+    readonly kind: 'plane';
+    readonly normal: SceneVec3;
+} | {
+    readonly kind: 'box';
+    readonly halfExtents: SceneVec3;
+} | {
+    readonly kind: 'sphere';
+    readonly radius: number;
+} | {
+    readonly kind: 'capsule';
+    readonly radius: number;
+    readonly halfLength: number;
+} | {
+    readonly kind: 'cylinder';
+    readonly radius: number;
+    readonly from: number;
+    readonly to: number;
+    readonly axis?: SceneVec3;
+} | {
+    readonly kind: 'annulus';
+    readonly innerRadius: number;
+    readonly outerRadius: number;
+    readonly offset?: number;
+    readonly axis?: SceneVec3;
+} | {
+    readonly kind: 'frustum';
+    readonly r0: number;
+    readonly z0: number;
+    readonly r1: number;
+    readonly z1: number;
+    readonly axis?: SceneVec3;
+};
+```
+
+### sceneHasCoupling · function
+
+True when a scene has a water basin, a cable, a frame, a cloth, a set of grains, a solid, a heat grid, a fluid or shallow water: it then needs a Simulation, not just a rigid world.
+
+```ts
+export declare function sceneHasCoupling(scene: SceneCoupledSections): boolean;
+```
+
+### sceneHash · function
+
+SHA-256 of the compact canonical text (UTF-8), as 64 lowercase hex digits. Equal scenes have equal hashes.
+
+```ts
+export declare function sceneHash(scene: unknown): string;
+```
+
+### SceneHeat · interface
+
+Heat conduction in a solid with a box mesh (docs/HEAT_TRANSFER.md): one cell per cell of the box. Its temperature is the solid's thermal load.
+
+```ts
+export interface SceneHeat {
+    readonly id: string;
+    readonly solid: string;
+    readonly material: {
+        readonly conductivity: number;
+        readonly density: number;
+        readonly specificHeat: number;
+    };
+    readonly temperature: number | readonly number[];
+    readonly reference?: number;
+    readonly scheme?: 'backward-euler' | 'crank-nicolson' | 'explicit';
+    readonly substeps?: number;
+    readonly boundaries?: readonly SceneHeatBoundary[];
+}
+```
+
+### SceneHeatBoundary · type
+
+A boundary condition of a heat grid (`HeatBoundary` of heat.ts), on the exposed faces of the cells in `region` (cell indices, inclusive; default all).
+
+```ts
+export type SceneHeatBoundary = {
+    readonly face: 'x-' | 'x+' | 'y-' | 'y+' | 'z-' | 'z+';
+    readonly region?: {
+        readonly min: readonly [number, number, number];
+        readonly max: readonly [number, number, number];
+    };
+} & ({
+    readonly type: 'temperature';
+    readonly temperature: number;
+} | {
+    readonly type: 'flux';
+    readonly flux: number;
+} | {
+    readonly type: 'convection';
+    readonly coefficient: number;
+    readonly ambient: number;
+} | {
+    readonly type: 'radiation';
+    readonly emissivity: number;
+    readonly environment: number;
+});
+```
+
+### SceneHost · interface
+
+What a SceneBuilder needs from a world. The kit's PhysicsWorld has exactly
+these members; the Lab wraps a NativeWorldBackend (src/lab/scene-host.ts).
+
+```ts
+export interface SceneHost {
+    readonly loop: {
+        readonly step: number;
+    };
+    readonly subSteps: number;
+    readonly seed: number;
+    readonly native: {
+        readonly maxBodies: number;
+        reserveBodyCapacity(bodies: number): unknown;
+    };
+    reset(options: {
+        readonly ground?: boolean;
+        readonly gravity?: SceneVec3;
+        readonly seed?: number;
+    }): unknown;
+    createBody(options: NativeBodyDescriptor): NativeBodyHandle | null;
+    createJoint(options: NativeJointDescriptor): NativeJointHandle;
+    destroyBody(body: NativeBodyHandle): boolean;
+    destroyJoint(joint: NativeJointHandle): boolean;
+    isAlive(body: NativeBodyHandle): boolean;
+    isJointAlive(joint: NativeJointHandle): boolean;
+    getState(body: NativeBodyHandle): NativeBodyState;
+    getMassData?(body: NativeBodyHandle): {
+        readonly center: readonly number[];
+    } | null;
+    gravity(): [number, number, number];
+    bodyCount(): number;
+}
+```
+
+### SceneInertia · type
+
+Rotational inertia of an attached body: the world reports mass only. Default: from the body's box, sphere or capsule shape.
+
+```ts
+export type SceneInertia = {
+    readonly kind: 'box';
+    readonly halfExtents: SceneVec3;
+} | {
+    readonly kind: 'sphere';
+    readonly radius: number;
+} | {
+    readonly kind: 'capsule';
+    readonly radius: number;
+    readonly halfLength: number;
+} | {
+    readonly kind: 'principal';
+    readonly moments: SceneVec3;
+} | {
+    readonly kind: 'locked';
+};
+```
+
+### SceneJoint · interface
+
+```ts
+export interface SceneJoint {
+    readonly id: string;
+    readonly type: SceneJointType;
+    readonly bodyA: string | null;
+    readonly bodyB: string | null;
+    readonly frameA?: SceneFrame;
+    readonly frameB?: SceneFrame;
+    readonly collideConnected?: boolean;
+    readonly limits?: {
+        readonly lower: number;
+        readonly upper: number;
+    };
+    readonly motor?: {
+        readonly speed: number;
+        readonly maxForce: number;
+    };
+    readonly spring?: {
+        readonly hertz: number;
+        readonly dampingRatio: number;
+        readonly target?: number;
+    };
+    readonly length?: number;
+    readonly coneAngle?: number;
+    readonly stiffness?: {
+        readonly hertz: number;
+        readonly dampingRatio?: number;
+    };
+    readonly thresholds?: {
+        readonly force?: number;
+        readonly torque?: number;
+        readonly breakable?: boolean;
+    };
+    readonly drive?: {
+        readonly linearVelocity?: SceneVec3;
+        readonly angularVelocity?: SceneVec3;
+        readonly maxForce?: number;
+        readonly maxTorque?: number;
+        readonly linearSpring?: {
+            readonly hertz: number;
+            readonly dampingRatio: number;
+            readonly maxForce: number;
+        };
+        readonly angularSpring?: {
+            readonly hertz: number;
+            readonly dampingRatio: number;
+            readonly maxTorque: number;
+        };
+    };
+    readonly maxTorque?: number;
+    readonly steering?: {
+        readonly angle: number;
+        readonly hertz: number;
+        readonly dampingRatio: number;
+        readonly maxTorque: number;
+        readonly limits?: {
+            readonly lower: number;
+            readonly upper: number;
+        };
+    };
+    readonly userData?: {
+        readonly [key: string]: unknown;
+    };
+}
+```
+
+### SceneJointInput · type
+
+A joint description for SceneBuilder.addJoint: a scene joint without its id; bodies are named by id.
+
+```ts
+export type SceneJointInput = Omit<SceneJoint, 'id'>;
+```
+
+### SceneJointType · type
+
+```ts
+export type SceneJointType = 'weld' | 'revolute' | 'spherical' | 'prismatic' | 'distance' | 'wheel' | 'motor' | 'parallel' | 'filter';
+```
+
+### SceneMassData · interface
+
+Explicit mass data of a body (scene version 2).
+
+```ts
+export interface SceneMassData {
+    readonly mass: number;
+    readonly center?: SceneVec3;
+    readonly inertia: readonly [number, number, number, number, number, number];
+}
+```
+
+### SceneMaterial · interface
+
+```ts
+export interface SceneMaterial {
+    readonly density: number;
+    readonly friction: number;
+    readonly restitution: number;
+    readonly color?: number;
+}
+```
+
+### SceneMeta · interface
+
+```ts
+export interface SceneMeta {
+    readonly title?: string;
+    readonly description?: string;
+    readonly author?: string;
+    readonly created?: string;
+}
+```
+
+### SceneProblem · interface
+
+One validation finding. `path` is a JSON pointer (RFC 6901) into the scene; '' is the scene itself.
+
+```ts
+export interface SceneProblem {
+    readonly path: string;
+    readonly message: string;
+}
+```
+
+### SceneQuat · type
+
+```ts
+export type SceneQuat = readonly [number, number, number, number];
+```
+
+### SceneShallowWater · interface
+
+Shallow water on terrain (docs/SHALLOW_WATER.md): the Saint-Venant equations on `cells` = [nx, nz] cells of `spacing`
+metres in plan, from `origin` = [x, z]; world y is up, so gravity must point down. Numbers are float64.
+The bed is `bed` (nx * nz heights at cell centres, x fastest; default 0). The water starts from `depth` (nx * nz
+values), or from a flat `level` filled over the bed, or dry. Friction is Manning's n, infiltration Green-Ampt.
+Saved state: `depth`, `qx`, `qz` (discharge per width, m^2/s) and `infiltrated` (m) per cell.
+
+```ts
+export interface SceneShallowWater {
+    readonly id: string;
+    readonly cells: readonly [number, number];
+    readonly spacing: number | readonly [number, number];
+    readonly origin?: readonly [number, number];
+    readonly bed?: readonly number[];
+    readonly level?: number;
+    readonly depth?: readonly number[];
+    readonly qx?: readonly number[];
+    readonly qz?: readonly number[];
+    readonly infiltrated?: readonly number[];
+    readonly manning?: number | readonly number[];
+    readonly soil?: {
+        readonly conductivity: number;
+        readonly suction: number;
+        readonly moistureDeficit: number;
+    };
+    readonly rain?: number;
+    readonly boundaries?: {
+        readonly xMin?: SceneShallowWaterSide;
+        readonly xMax?: SceneShallowWaterSide;
+        readonly zMin?: SceneShallowWaterSide;
+        readonly zMax?: SceneShallowWaterSide;
+    };
+    readonly density?: number;
+    readonly substeps?: number;
+    readonly order?: 1 | 2;
+    readonly bodies?: readonly SceneShallowWaterBody[];
+}
+```
+
+### SceneShallowWaterBody · interface
+
+A body floating in shallow water (a dynamic box or sphere).
+
+```ts
+export interface SceneShallowWaterBody {
+    readonly body: string;
+    readonly dragCoefficient?: number;
+    readonly referenceArea?: number;
+}
+```
+
+### SceneShallowWaterSide · type
+
+A side of a shallow-water grid. An inflow brings `discharge` m^3/s, spread by width over the side or over the cells whose centres lie in `span` (world z for an x side, world x for a z side).
+
+```ts
+export type SceneShallowWaterSide = 'wall' | 'open' | {
+    readonly type: 'inflow';
+    readonly discharge: number;
+    readonly depth?: number;
+    readonly span?: readonly [number, number];
+} | {
+    readonly type: 'stage';
+    readonly level: number;
+};
+```
+
+### SceneShape · type
+
+```ts
+export type SceneShape = {
+    readonly kind: 'box';
+    readonly halfExtents: SceneVec3;
+} | {
+    readonly kind: 'sphere';
+    readonly radius: number;
+} | {
+    readonly kind: 'capsule';
+    readonly radius: number;
+    readonly halfLength: number;
+} | {
+    readonly kind: 'hull';
+    readonly points: readonly number[];
+}
+| {
+    readonly kind: 'compound';
+    readonly shapes: readonly SceneCompoundChild[];
+} | {
+    readonly kind: 'mesh';
+    readonly vertices: readonly number[];
+    readonly indices: readonly number[];
+} | {
+    readonly kind: 'heightfield';
+    readonly heights: readonly number[];
+    readonly countX: number;
+    readonly countZ: number;
+    readonly spacing: readonly [number, number];
+};
+```
+
+### SceneSolid · interface
+
+A deformable tetrahedral solid (docs/SOLID_MECHANICS.md), optionally in contact with rigid bodies or cracking. Numbers are float64.
+
+```ts
+export interface SceneSolid {
+    readonly id: string;
+    readonly mesh: SceneSolidMesh;
+    readonly material: {
+        readonly youngModulus: number;
+        readonly poissonRatio: number;
+        readonly density: number;
+        readonly thermalExpansion?: number;
+    };
+    readonly model?: 'linear' | 'corotational' | 'neo-hookean';
+    readonly integrator?: 'backward-euler' | 'midpoint' | 'explicit';
+    readonly substeps?: number;
+    readonly massDamping?: number;
+    readonly stiffnessDamping?: number;
+    readonly tolerance?: number;
+    readonly maxNewtonIterations?: number;
+    readonly gravity?: boolean;
+    readonly supports?: readonly SceneSolidSupport[];
+    readonly contact?: SceneSolidContact;
+    readonly welds?: readonly SceneSolidWeld[];
+    readonly loads?: readonly SceneSolidLoad[];
+    readonly fracture?: SceneSolidFracture;
+    readonly displacements?: readonly number[];
+    readonly velocities?: readonly number[];
+    readonly cracks?: readonly SceneSolidCrack[];
+}
+```
+
+### SceneSolidBody · interface
+
+A box, sphere or capsule body the solid touches (docs/SOLID_CONTACT.md).
+
+```ts
+export interface SceneSolidBody {
+    readonly body: string;
+    readonly friction?: number;
+    readonly collide?: boolean;
+    readonly twoWay?: boolean;
+    readonly inertia?: SceneInertia;
+}
+```
+
+### SceneSolidContact · interface
+
+Contact of a solid with rigid bodies and fixed planes, two-way (`SolidCoupling`), or with other solids and itself
+(`SolidSolidContact`, docs/SOLID_CONTACT.md): solids joined by `solids` form a group that is advanced in one solve. A
+solid of a group collides with the group's solids and planes only: no `bodies`, welds, loads or fracture.
+
+```ts
+export interface SceneSolidContact {
+    readonly bodies?: readonly SceneSolidBody[];
+    readonly planes?: readonly SceneClothPlane[];
+    readonly solids?: readonly string[];
+    readonly self?: boolean;
+    readonly friction?: number;
+    readonly stiffnessScale?: number;
+    readonly skin?: number;
+    readonly frictionPasses?: number;
+    readonly frictionTolerance?: number;
+}
+```
+
+### SceneSolidCrack · interface
+
+A saved interface of a cracked solid (`FractureBody.crackState`).
+
+```ts
+export interface SceneSolidCrack {
+    readonly face: number;
+    readonly history: readonly [number, number, number];
+    readonly mix?: number;
+    readonly open?: boolean;
+}
+```
+
+### SceneSolidFracture · interface
+
+Cohesive fracture of a solid (docs/SOLID_FRACTURE.md). The solid is then a `FractureBody`: linear elements.
+
+```ts
+export interface SceneSolidFracture {
+    readonly strength: number;
+    readonly toughness: number;
+    readonly shearWeight?: number;
+    readonly initialOpeningRatio?: number;
+    readonly insertion?: 'on-demand' | 'manual';
+    readonly insertionThreshold?: number;
+    readonly tipInsertionThreshold?: number;
+    readonly notches?: readonly SceneSolidRegion[];
+    readonly interfaces?: readonly SceneSolidRegion[];
+}
+```
+
+### sceneSolidGroups · function
+
+The solids of a scene that collide with each other, as groups in the scene's order: each group is advanced by one
+`SolidSolidContact`. A solid with `contact.self` alone is a group of one.
+
+```ts
+export declare function sceneSolidGroups(solids: readonly SceneSolid[]): string[][];
+```
+
+### SceneSolidLoad · interface
+
+The force that holds `body` up (measured from its motion: m (dv / dt - g)) is put, reversed, on the solid's boundary faces in the box as a uniform traction.
+
+```ts
+export interface SceneSolidLoad extends SceneSolidRegion {
+    readonly body: string;
+}
+```
+
+### SceneSolidMesh · type
+
+The tetrahedral mesh of a solid: a box split into tetrahedra (`boxMesh` of solid.ts), or the nodes and tetrahedra themselves.
+
+```ts
+export type SceneSolidMesh = {
+    readonly box: {
+        readonly size: SceneVec3;
+        readonly cells: readonly [number, number, number];
+        readonly origin?: SceneVec3;
+        readonly pattern?: 'alternating5' | 'kuhn6';
+    };
+} | {
+    readonly positions: readonly number[];
+    readonly tets: readonly number[];
+};
+```
+
+### SceneSolidRegion · interface
+
+A box of reference positions, m: a node, face or face centroid is in it when min <= x <= max on every axis.
+
+```ts
+export interface SceneSolidRegion {
+    readonly min: SceneVec3;
+    readonly max: SceneVec3;
+}
+```
+
+### SceneSolidSupport · interface
+
+Nodes in the box are held where they are. `axes` says which components; default all three.
+
+```ts
+export interface SceneSolidSupport extends SceneSolidRegion {
+    readonly axes?: readonly [boolean, boolean, boolean];
+}
+```
+
+### SceneSolidWeld · interface
+
+Nodes of the solid in the box are welded to the body where they are when the scene is built. The body must be in `contact.bodies`.
+
+```ts
+export interface SceneSolidWeld extends SceneSolidRegion {
+    readonly body: string;
+}
+```
+
+### SceneValidationError · class
+
+Thrown by loadScene, canonicalize, the builder and the link functions for an invalid scene. `code` is 'INVALID_PAYLOAD'.
+
+```ts
+export declare class SceneValidationError extends EngineError {
+  readonly problems: readonly SceneProblem[];
+}
+```
+
+### SceneVec3 · type
+
+```ts
+export type SceneVec3 = readonly [number, number, number];
+```
+
+### SceneWater · interface
+
+One closed, flat-bottom shallow-water basin (docs/WATER_COUPLING.md). Numbers here are float64.
+
+```ts
+export interface SceneWater {
+    readonly id: string;
+    readonly cols: number;
+    readonly rows: number;
+    readonly dx: number;
+    readonly dz: number;
+    readonly restDepth: number;
+    readonly origin: SceneVec3;
+    readonly density?: number;
+    readonly waterDrag?: number;
+    readonly eta?: readonly number[];
+    readonly u?: readonly number[];
+    readonly v?: readonly number[];
+    readonly bodies?: readonly SceneWaterBody[];
+}
+```
+
+### SceneWaterBody · interface
+
+Per-body drag settings of a body in a water basin. Omitted values take the coupling's defaults.
+
+```ts
+export interface SceneWaterBody {
+    readonly body: string;
+    readonly dragCoefficient?: number;
+    readonly referenceArea?: number;
+    readonly linearDrag?: number;
+    readonly angularDrag?: number;
+}
+```
+
+### SceneWorld · interface
+
+```ts
+export interface SceneWorld {
+    readonly gravity?: SceneVec3;
+    readonly ground?: boolean;
+    readonly seed?: number;
+    readonly step?: number;
+    readonly subSteps?: number;
+}
+```
+
+### sceneWorldOptions · function
+
+The options to create a world that can load this scene: `createWorld(sceneWorldOptions(scene))`.
+
+```ts
+export declare function sceneWorldOptions(scene: Scene): {
+    step: number;
+    subSteps: number;
+    seed: number;
+    gravity: [number, number, number];
+    ground: boolean;
+};
+```
+
+### softBlocksScene · function
+
+Soft blocks: two rubber-like cubes (E = 0.3 and 0.15 MPa, nu = 0.4) stacked on the ground plane and a stiffer third
+(E = 1 MPa) dropped on them off centre. Deformable against deformable contact with friction, the three solids in one
+solve (`contact.solids`, docs/SOLID_CONTACT.md); no rigid body takes part.
+
+```ts
+export declare function softBlocksScene(options?: {
+    cells?: number;
+    drop?: number;
+}): Scene;
+```
+
+### sphereSettlingScene · function
+
+A PTFE ball (2200 kg/m^3) settling through a syrup (rho = 1380 kg/m^3, mu = 2.5 Pa s, a corn-syrup-like liquid) in
+a square column 0.12 m wide: the ball is a body of the rigid world and a moving obstacle in the flow (FluidCoupling),
+which hands it the drag and the buoyancy. It reaches a terminal velocity within a few centimetres, far below Stokes's
+2 (rho_s - rho) g a^2 / (9 mu) because the walls are 1.2 diameters from it, and lands on the floor. 12 x 30 x 12
+cells of 10 mm (2.5 cells per radius). The world steps at 1/120 s: the coupling is explicit and must step below the
+ball's response time in the column (about 0.03 s).
+
+```ts
+export declare function sphereSettlingScene(options?: {
+    radius?: number;
+    density?: number;
+    viscosity?: number;
+}): Scene;
+```
+
+### suspendedPlatformScene · function
+
+A platform hung on four cables from fixed anchors, loaded by `boxes` boxes that fall on it one after another.
+The cables are tension-only and compliant (docs/COMPLIANT_CABLE.md), coupled two-way to the platform, and hang from
+the tops of four posts; the boxes are
+ordinary rigid bodies, so the platform swings, tilts and stretches its cables under them.
+
+```ts
+export declare function suspendedPlatformScene(options?: {
+    boxes?: number;
+    axialRigidity?: number;
+    drop?: number;
+}): Scene;
+```
+
+### terrainCarScene · function
+
+A four-wheel car on wheel joints (suspension spring, travel limits, spin
+motor) driving over a rolling height-field terrain. There is no ground slab:
+the terrain is the floor.
+
+```ts
+export declare function terrainCarScene(options?: {
+    speed?: number;
+    bump?: number;
+}): Scene;
+```
+
+### trampolineScene · function
+
+A trampoline: a square cloth of `cells` x `cells` cells and side `side`, held along its four edges at height
+`height` between four posts, with a ball and a box dropped on it. The cloth and the two bodies are solved together
+(docs/CLOTH.md), so the bodies bounce, settle into the sag and are carried by it.
+
+```ts
+export declare function trampolineScene(options?: {
+    cells?: number;
+    side?: number;
+    height?: number;
+    ballRadius?: number;
+    ballDensity?: number;
+}): Scene;
+```
+
+### validateScene · function
+
+Check a scene completely, before anything is built. Returns every problem
+found (at most SCENE_LIMITS.problems), each with a JSON-pointer path; an
+empty list means the scene is valid. Never throws, whatever it is given.
+
+```ts
+export declare function validateScene(scene: unknown): SceneProblem[];
+```
+
+### vehicleTerrainScene · function
+
+A car to drive on rolling terrain: a 1,200 kg chassis on four wheel joints with a physical suspension (60 kN/m and
+5 kN s/m per wheel, turned into each joint's own frequency by suspensionJointSpring), steering on the front wheels,
+on a 128 m square of terrain. The chassis' userData says how to drive it and the joints' userData which wheel each
+is; SceneRoles adopts them as a Vehicle. Left alone it holds 6 m/s on half lock: a circle of about
+wheelbase / tan(0.25 rad) = 10 m radius. Scene version 3 (wheel steering).
+
+```ts
+export declare function vehicleTerrainScene(options?: {
+    bump?: number;
+}): Scene;
+```
+
 ## `box3d-webgpu-kit/simulation`
 
 ### buildSceneSimulation · function
@@ -7409,6 +9730,7 @@ export declare class Simulation<W extends SimulationWorld<B>, B = unknown> {
   untrackBody(body: B): boolean;
   energy(): SimulationEnergy;
   diagnostics(): SimulationDiagnostics;
+  diagnose(): DiagnosticFinding[];
   get sceneSource(): SimulationSource | null;
   setSceneSource(source: SimulationSource | (() => SimulationSource) | null): void;
   checkpoint(options?: SimulationCheckpointOptions): Uint8Array;
@@ -7653,6 +9975,7 @@ export interface Subsystem<W = unknown, B = unknown> {
     finish?(ctx: StepContext<W>): void;
     energy?(): SubsystemEnergy;
     diagnostics?(): unknown;
+    diagnose?(): readonly DiagnosticFinding[];
     dispose?(): void;
     checkpoint?(): StateValue;
     restore?(state: StateValue): void;
@@ -9289,6 +11612,8 @@ export declare const GRANULAR_TIME_STEP_LIMIT: Readonly<{
 
 ### GranularBackendDescription · interface
 
+What `Granular.backendDescription()` returns: the contact law's constants as the solver derived them, the bounds, the radius range and every wall.
+
 ```ts
 export interface GranularBackendDescription {
     hertz: boolean;
@@ -9816,6 +12141,8 @@ export interface FluidBackendComponent {
 ```
 
 ### FluidBackendDescription · interface
+
+The fluid grid flattened for another backend (the GPU fluid): sizes, padded strides, the solve components with their boundary tables, and the pressure matrix's neighbours and diagonal.
 
 ```ts
 export interface FluidBackendDescription {
@@ -10744,11 +13071,15 @@ export declare const SOLID_COUPLING_BACKEND = "rigid-solid-coupling-monolithic-j
 
 ### SOLID_SOLID_CONTACT_SOLVER_ID · const
 
+The solver id recorded in results and checkpoints: node-to-face penalty contact solved with the solids in one Newton solve (PCG), float64.
+
 ```ts
 export declare const SOLID_SOLID_CONTACT_SOLVER_ID = "solid-solid-contact-node-face-penalty-newton-pcg-js-f64-v1";
 ```
 
 ### SOLID_SOLID_CONTACT_SUBSYSTEM_ORDER · const
+
+Where the solid–solid contact subsystem runs in a Simulation step, among the other subsystems' orders.
 
 ```ts
 export declare const SOLID_SOLID_CONTACT_SUBSYSTEM_ORDER = 300;
@@ -10977,6 +13308,8 @@ export interface SolidCouplingOptions extends SolidContactOptions {
 
 ### SolidSolidContact · class
 
+Contact between deformable solids, of a solid with itself and with planes: node against face both ways, with Coulomb friction, solved together with the solids in one Newton solve. See docs/SOLID_CONTACT.md.
+
 ```ts
 export declare class SolidSolidContact {
   saveState(): StateObject;
@@ -11007,6 +13340,8 @@ export declare class SolidSolidContact {
 
 ### SolidSolidContactOptions · interface
 
+Settings of a SolidSolidContact: contact stiffness, skin, friction, which bodies collide with themselves, and the friction passes.
+
 ```ts
 export interface SolidSolidContactOptions {
     readonly stiffnessScale?: number;
@@ -11019,6 +13354,8 @@ export interface SolidSolidContactOptions {
 ```
 
 ### SolidSolidContactStats · interface
+
+What the last step of a SolidSolidContact did: convergence, Newton and linear iterations, the residual against its reference, friction passes and the number of contacts.
 
 ```ts
 export interface SolidSolidContactStats {
@@ -11048,6 +13385,8 @@ export declare function solidSolidContactSubsystem<W, B>(target: SolidSolidConta
 ```
 
 ### SolidSolidStaticResult · interface
+
+The result of SolidSolidContact.solveStatic: whether it converged, the passes it took, the final residual and the last change of the friction limits.
 
 ```ts
 export interface SolidSolidStaticResult {

@@ -130,7 +130,7 @@ test('a compound body has the summed mass, centre of mass and parallel-axis iner
     bad({kind: 'compound', shapes: [{shape: {kind: 'sphere', radius: 0.1}}, {shape: {kind: 'box', halfExtents: [1, 0, 1]}}]}, /compound shape 1 half extent y/);
     bad({kind: 'compound', shapes: [{shape: {kind: 'sphere', radius: 0.1}, rotation: [0, 0, 0, 0]}]}, /rotation must be a non-zero quaternion/);
     bad({kind: 'compound', shapes: [{shape: {kind: 'sphere', radius: 0.1}, density: -1}]}, /compound shape 0 density/);
-    bad({kind: 'compound', shapes: [{shape: {kind: 'hull', points: [0, 0, 0, 1, 0, 0, 0, 1, 0, 1, 1, 0]}}]}, /rejected the body descriptor/);   // four points in one plane: no hull
+    bad({kind: 'compound', shapes: [{shape: {kind: 'hull', points: [0, 0, 0, 1, 0, 0, 0, 1, 0, 1, 1, 0]}}]}, /could not build a convex hull from these points: they lie in a plane/);   // four points in one plane: no hull
     assert.equal(world.bodyCount(), count, 'a refused compound leaves nothing behind');
     // 64 shapes are allowed, and a filter set afterwards reaches every one of them.
     const many = world.createBody({position: [20, 5, 0], shape: {kind: 'compound', shapes: Array.from({length: 64}, (_, i) => ({shape: {kind: 'sphere', radius: 0.05}, position: [i * 0.2, 0, 0]}))}});

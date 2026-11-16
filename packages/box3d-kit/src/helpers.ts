@@ -6,6 +6,7 @@
 import type {Body, PhysicsWorld, Vec3Like} from './world.js';
 import {BUILD_INFO, type BuildInfo} from './core/build-info.js';
 import {NATIVE_WORLD_API_VERSION} from './core/native-world.js';
+import {EngineError} from './core/contracts.js';
 
 /**
  * Spawn one cube per xyz triple in `positions`. Returns the handles (null
@@ -13,7 +14,7 @@ import {NATIVE_WORLD_API_VERSION} from './core/native-world.js';
  * per body; a native batched export is ENGINE item #46's remaining work.
  */
 export function spawnBoxes(world: PhysicsWorld, positions: ArrayLike<number>, options: {halfSize?: number; impulses?: ArrayLike<number>} = {}): (Body | null)[] {
-  if (positions.length % 3 !== 0) throw new RangeError('positions must hold xyz triples.');
+  if (positions.length % 3 !== 0) throw new EngineError('INVALID_PAYLOAD', `positions must hold x, y, z triples; got ${positions.length} numbers.`);
   const out: (Body | null)[] = [], imp = options.impulses;
   for (let i = 0; i < positions.length; i += 3) {
     out.push(world.spawnBox({
@@ -27,7 +28,7 @@ export function spawnBoxes(world: PhysicsWorld, positions: ArrayLike<number>, op
 
 /** Apply impulses[i*3..i*3+2] to bodies[i]. Destroyed bodies are skipped; returns how many were applied. */
 export function applyImpulses(world: PhysicsWorld, bodies: readonly (Body | null)[], impulses: ArrayLike<number>): number {
-  if (impulses.length !== bodies.length * 3) throw new RangeError('impulses must hold one xyz triple per body.');
+  if (impulses.length !== bodies.length * 3) throw new EngineError('INVALID_PAYLOAD', `impulses must hold one x, y, z triple per body: ${bodies.length * 3} numbers; got ${impulses.length}.`);
   let applied = 0;
   for (let i = 0; i < bodies.length; i++) {
     const body = bodies[i];
@@ -46,7 +47,7 @@ export function applyImpulses(world: PhysicsWorld, bodies: readonly (Body | null
 export class BodyRing {
   private readonly bodies: Body[] = [];
   constructor(private readonly world: PhysicsWorld, readonly limit: number) {
-    if (!Number.isInteger(limit) || limit < 1) throw new RangeError('limit must be a positive integer.');
+    if (!Number.isInteger(limit) || limit < 1) throw new EngineError('INVALID_PAYLOAD', `limit must be a positive integer; got ${String(limit)}.`);
   }
   spawn(options: {position: Vec3Like; halfSize?: number; impulse?: Vec3Like}): Body | null {
     // Forget bodies the game already destroyed elsewhere.
@@ -61,6 +62,7 @@ export class BodyRing {
   clear(): void { for (const body of this.bodies.splice(0)) this.world.destroyBody(body); }
 }
 
+/** What the current runtime offers, from detectEnvironment(): the kind of runtime, WebAssembly and its SIMD, WebGPU, workers and shared memory. */
 export interface EnvironmentReport {
   readonly runtime: 'browser' | 'worker' | 'node' | 'other';
   readonly webAssembly: boolean;
@@ -96,6 +98,7 @@ export function detectEnvironment(): EnvironmentReport {
 export const LICENSE_NOTICE = `Physics: Box3D by Erin Catto (https://github.com/erincatto/box3d), MIT License, Copyright (c) 2026 Erin Catto.
 Integration: box3d-webgpu-kit, MIT License.`;
 
+/** What this package build and this runtime support, from capabilities(): the build identity, the native interface version, the environment and the shipped modules. */
 export interface Capabilities {
   readonly build: BuildInfo;
   readonly nativeApiVersion: number;
@@ -127,7 +130,7 @@ export function capabilities(): Capabilities {
     build: BUILD_INFO,
     nativeApiVersion: NATIVE_WORLD_API_VERSION,
     environment: detectEnvironment(),
-    modules: ['rigid', 'three', 'babylon', 'worker', 'cable', 'water', 'coupling', 'frame', 'heat', 'webgpu-writer', 'snapshots', 'single-file', 'gameplay', 'geometry', 'solid', 'scene', 'structure', 'simulation', 'robot', 'fracture', 'cloth', 'solid-contact', 'granular', 'materials', 'fluid', 'shallow-water'],
+    modules: ['rigid', 'three', 'babylon', 'worker', 'cable', 'water', 'coupling', 'frame', 'heat', 'webgpu-writer', 'snapshots', 'single-file', 'gameplay', 'geometry', 'solid', 'scene', 'scene-format', 'structure', 'simulation', 'robot', 'fracture', 'cloth', 'solid-contact', 'granular', 'materials', 'fluid', 'shallow-water'],
     limits: {
       worldsPerModule: 16,
       bodiesPerWorld: {default: 4096, max: 65536},

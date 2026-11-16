@@ -6,6 +6,7 @@
 import {convertMatrices, type UpAxis} from './axes.js';
 import type {InstanceSource} from './three.js';
 
+/** Options of the debug line builders: interpolation, the up axis, a buffer to reuse and whether to skip the ground. */
 export interface DebugLineOptions {
   readonly alpha?: number;
   readonly up?: UpAxis;
@@ -15,6 +16,7 @@ export interface DebugLineOptions {
   readonly skipGround?: boolean;
 }
 
+/** Line segments for a debug overlay: xyz triples, two vertices per segment. */
 export interface DebugLines {
   readonly positions: Float32Array;
   /** Number of vertices to draw (two per segment). */
@@ -24,6 +26,7 @@ export interface DebugLines {
 // Unit cube corners (-1..1) and its 12 edges.
 const CORNERS = [[-1, -1, -1], [1, -1, -1], [1, 1, -1], [-1, 1, -1], [-1, -1, 1], [1, -1, 1], [1, 1, 1], [-1, 1, 1]];
 const EDGES = [0, 1, 1, 2, 2, 3, 3, 0, 4, 5, 5, 6, 6, 7, 7, 4, 0, 4, 1, 5, 2, 6, 3, 7];
+/** Floats boxOutlines() writes per body: 12 edges of 2 vertices of 3 floats. */
 export const DEBUG_FLOATS_PER_BOX = EDGES.length * 3;
 
 /** Outline every body's box. */

@@ -237,7 +237,7 @@ const json = builder.toJSON();                         // at any time
 - **Version 2.** A body's shape may be `{kind: 'compound', shapes: [{shape, position?, rotation?, density?, friction?, restitution?}, ...]}`, and a body may have `massData: {mass, center?, inertia}`. A scene that uses either is version 2; every other scene stays version 1 with the canonical text and hash it had, whatever it declares. A version 2 feature in a file that says version 1 is reported.
 - **Coupled scenes.** A scene may also have `water`, `cables` and `frames` sections (still version 1; a scene without them is unchanged). `loadScene` builds them and returns a `simulation` to step instead of the world; see [One stepping loop](#one-stepping-loop-for-every-solver).
 
-`test/v12-scene.test.mjs` checks the round trips, determinism from a link, save and resume, 97 malformed files, damaged links and a decompression bomb, and the physics of two example scenes: every pendulum's period within 0.1% of `2π sqrt(I / (m g L))` (measured 0.0004%), and a Newton's cradle whose last ball leaves at the first ball's speed within 2% (measured 0.4%).
+`test/v12-scene.test.mjs` checks the round trips, determinism from a link, save and resume, 98 malformed files, damaged links and a decompression bomb, and the physics of two example scenes: every pendulum's period within 0.1% of `2π sqrt(I / (m g L))` (measured 0.0004%), and a Newton's cradle whose last ball leaves at the first ball's speed within 2% (measured 0.4%).
 
 ### Import a robot: URDF and MJCF
 
@@ -363,7 +363,7 @@ A checkpoint is the solver's state, not a description: contacts with their warm-
 - `world.stats()` returns bodies, awake count, contacts, capacity, tick, `lastStepMs`, `lastUpdateMs` and `droppedSeconds`. Use it for a debug HUD or to adapt quality.
 - `createWorld({capacity: 16384})` reserves body storage up front, so growth never stalls gameplay.
 - `pauseOnHidden(world)` clears partial-step time when the tab is hidden or shown. On return, also reset your own frame timestamp; `maxSteps` caps any catch-up.
-- `EngineErrorCode` is the union of every error `code`.
+- `EngineErrorCode` is the union of every error `code`; `ENGINE_ERRORS` says what each means and what to do about it (see [Errors and unstable set-ups](#errors-and-unstable-set-ups)).
 - A world that is garbage-collected without `dispose()` gets its native slot released and logs a warning. Route or silence the warning with `leakReporting.warn`.
 
 ### Babylon.js
@@ -473,6 +473,7 @@ camera.follow(hero.state.position);
 | `box3d-webgpu-kit/gameplay` | Trigger volumes and a kinematic character controller for the rigid-body world (see above). |
 | `box3d-webgpu-kit/geometry` | OBJ, STL and glTF import, mesh measures, convex hulls and convex decomposition (see above). |
 | `box3d-webgpu-kit/scene` | Scene files: a versioned JSON format with validation, load, save, canonical text, hashing, share links and example scenes (see above). |
+| `box3d-webgpu-kit/scene-format` | The same format without the solvers, for tools that validate, hash, link and edit scenes: about 63 KiB of gzip against about 390 KiB. Its `loadScene` builds rigid scenes only. |
 | `box3d-webgpu-kit/cloth` | Calibrated cloth: a membrane and plate with real material parameters, implicit integration, contact and friction against rigid bodies, self-collision, and two-way coupling to the rigid world (see below). |
 | `box3d-webgpu-kit/granular` | Granular media by the discrete element method: spherical grains with Hertz or linear contact, friction, rolling resistance, silo and hopper walls, and two-way coupling to the rigid world (see below). |
 | `box3d-webgpu-kit/fluid` | Volumetric incompressible flow: the Navier–Stokes equations on a staggered grid with walls, inflows, outflows and periodic sides, fixed and moving obstacles, two-way coupling to the rigid world, and a free-surface tank of liquid particles (see below). |
@@ -916,6 +917,33 @@ await createWorld({wasmBinary: await (await fetch(url)).arrayBuffer()});
 ```
 
 In the Vite dev server (not yet tested), add `optimizeDeps: {exclude: ['box3d-webgpu-kit']}` so pre-bundling does not move the module away from its `wasm/` folder.
+
+## Errors and unstable set-ups
+
+Everything the kit refuses, it refuses with an `EngineError`: a `code` from `ENGINE_ERRORS`, a message that names the field, the value it got and the values it takes, and the world left exactly as it was.
+
+```ts
+import {createWorld, isEngineError, explainError, RIGID_LIMITS} from 'box3d-webgpu-kit';
+
+const world = await createWorld({gravity: [0, -9.81, 0], strict: true});
+try {
+  world.createBody({shape: {kind: 'sphere', radius: -1}, position: [0, 2, 0]});
+} catch (error) {
+  if (!isEngineError(error)) throw error;
+  error.code;            // 'INVALID_PAYLOAD'
+  error.message;         // 'radius must be finite and within [0.0001, 1000]; got -1. Pass a finite number within [0.0001, 1000].'
+  error.details;         // {path: 'radius', value: '-1', expected: 'a finite number within [0.0001, 1000]'}
+  explainError(error);   // {code, meaning, message, fix, path}: the parts a toast or a log line shows
+}
+
+for (const finding of world.diagnose()) console.warn(finding.rule, finding.message);   // mass ratios, tiny shapes, joint frequencies, ...
+RIGID_LIMITS.extent;     // 100000: positions stay within 100 km of the origin
+```
+
+- **Accepted ranges.** The rigid world holds single-precision numbers; `RIGID_LIMITS` is the table of what it takes (positions within 100 km, convex shapes up to 1 km on dynamic bodies and 100 km on static and kinematic ones, speeds to 1e6 m/s, densities of 0 or 0.001 to 1e6 kg/m^3, and so on). Values outside are refused, because their products overflow inside a step.
+- **`diagnose()`** on a world or a `Simulation` lists what is unstable or close to it, by rule with the numbers: non-finite state, bodies beyond 16 km, shapes thinner than 1 cm, mass ratios above 10 across a joint, joint frequencies above one eighth of the sub-step rate, joint frames far from their body, and each solver's time step against its CFL, critical or explicit limit.
+- **`strict: true`** makes a step that leaves a body with a non-finite transform throw `NUMERICAL_FAILURE` at that step; without it `stats().nonFiniteSince` records the step. Box3D can diverge on valid input when joints contradict each other; this is how you find out.
+- The codes, the ranges and the rules are in `docs/ERRORS.md` of the repository; what the fuzzers test and what they found is in `docs/ROBUSTNESS.md`.
 
 ## Current limits (read before designing gameplay)
 

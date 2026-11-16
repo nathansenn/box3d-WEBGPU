@@ -1018,10 +1018,246 @@ export interface EngineRuntime<Request, Result> {
     inspect(): Result;
     destroy(): void;
 }
+export declare const ENGINE_ERRORS: {
+    readonly INVALID_PAYLOAD: {
+        readonly meaning: "An argument, option, file or message holds a value the engine cannot use.";
+        readonly fix: "Read the message: it names the field, the value it got and the values it takes. Correct the input and call again; nothing was changed.";
+    };
+    readonly INVALID_STATE: {
+        readonly meaning: "The call is valid, but not in the state the object is in now.";
+        readonly fix: "Do the step the message names first (for example stop recording before reset, or step before reading results).";
+    };
+    readonly DISPOSED: {
+        readonly meaning: "The world, pool, solver or runtime was destroyed, or its native handle is no longer valid.";
+        readonly fix: "Create a new one; do not keep references past dispose() or destroy().";
+    };
+    readonly STALE_BODY: {
+        readonly meaning: "The body handle names a body that was destroyed, or one from before a reset.";
+        readonly fix: "Check world.isAlive(body) before using a kept handle, and drop handles when you destroy or reset.";
+    };
+    readonly STALE_JOINT: {
+        readonly meaning: "The joint handle names a joint that was destroyed, or one of its bodies was.";
+        readonly fix: "Check world.isJointAlive(joint) before using a kept handle.";
+    };
+    readonly STALE_QUERY: {
+        readonly meaning: "Body storage changed between validating a spatial query and running it.";
+        readonly fix: "Run the query again.";
+    };
+    readonly STALE_GENERATION: {
+        readonly meaning: "A reply or command belongs to a runtime generation that was reset.";
+        readonly fix: "Discard it and issue the request again against the current runtime.";
+    };
+    readonly STALE_REQUEST: {
+        readonly meaning: "A request was superseded by a newer one before it ran.";
+        readonly fix: "Use the result of the newer request.";
+    };
+    readonly STALE_SNAPSHOT: {
+        readonly meaning: "A snapshot was read after the buffer it lives in was reused.";
+        readonly fix: "Copy what you need from a snapshot before the next step, or request a new one.";
+    };
+    readonly WORLD_CAPACITY: {
+        readonly meaning: "The world, the module or a scene is at a fixed limit (16 worlds per module, 65,536 bodies per world).";
+        readonly fix: "Destroy what you no longer need, reserve capacity up front with `capacity`, or split the scene.";
+    };
+    readonly ALLOCATION_FAILED: {
+        readonly meaning: "The WebAssembly heap could not grow, or a native allocation failed.";
+        readonly fix: "Free worlds you no longer use; the existing world is intact. On 32-bit WebAssembly the heap is at most 2 GiB.";
+    };
+    readonly WORK_LIMIT: {
+        readonly meaning: "A solver reached its iteration or work budget before it met its tolerance.";
+        readonly fix: "Raise the budget the message names, use a smaller time step, or coarsen the model.";
+    };
+    readonly QUERY_VERSION_EXHAUSTED: {
+        readonly meaning: "A world ran more than 2^32 query batches.";
+        readonly fix: "Create a new world.";
+    };
+    readonly SEQUENCE_EXHAUSTED: {
+        readonly meaning: "A shared snapshot ring used all of its sequence numbers.";
+        readonly fix: "Reset the runtime with a new ring.";
+    };
+    readonly BACKPRESSURE: {
+        readonly meaning: "More work was queued than the worker accepts at once.";
+        readonly fix: "Wait for earlier requests to settle before sending more.";
+    };
+    readonly BUSY: {
+        readonly meaning: "The runtime is in the middle of another request.";
+        readonly fix: "Await the pending request first.";
+    };
+    readonly UNSUPPORTED_BACKEND: {
+        readonly meaning: "This build, WASM artifact or file version does not have the feature the call needs.";
+        readonly fix: "Use the artifact shipped with this version (npm run build:wasm in the repository), or the feature the message names.";
+    };
+    readonly UNSUPPORTED_JOINT: {
+        readonly meaning: "That joint type does not take that setting.";
+        readonly fix: "See the joint feature table in the kit README: for example only revolute, prismatic, distance and wheel joints have motors.";
+    };
+    readonly INVALID_BACKEND: {
+        readonly meaning: "The WASM module answered with something outside its contract.";
+        readonly fix: "The artifact and the JavaScript do not match: rebuild or reinstall so that both come from the same version, and report it if they already do.";
+    };
+    readonly WASM_UNAVAILABLE: {
+        readonly meaning: "WebAssembly could not be loaded or instantiated here.";
+        readonly fix: "Check that box3d.wasm is served (the message has the URL and reason) and that the runtime supports WebAssembly.";
+    };
+    readonly INTEGRITY_MISMATCH: {
+        readonly meaning: "The loaded box3d.wasm is not the file this package was built with.";
+        readonly fix: "Serve the box3d.wasm from the same package version, without rewriting proxies.";
+    };
+    readonly GPU_UNAVAILABLE: {
+        readonly meaning: "No WebGPU adapter or device for compute, or this device is too small for the job (the message names the limit).";
+        readonly fix: "Use the CPU solver (the GPU backends are optional), a smaller grid or fewer grains, or a device with larger buffer and dispatch limits.";
+    };
+    readonly GPU_DEVICE_LOST: {
+        readonly meaning: "The WebGPU device was lost, or the GPU backend was destroyed, while it held the state.";
+        readonly fix: "The backends fall back to the CPU solver where they can; otherwise build the backend again from the CPU solver.";
+    };
+    readonly GPU_OUT_OF_MEMORY: {
+        readonly meaning: "The WebGPU device ran out of memory for a buffer or a dispatch (the message has the label).";
+        readonly fix: "Use fewer cells or grains, or the CPU solver.";
+    };
+    readonly GPU_VALIDATION: {
+        readonly meaning: "WebGPU rejected a buffer, pipeline or dispatch the backend made (the message has the label and the reason).";
+        readonly fix: "This is a bug in the backend or the browser: report it with the message.";
+    };
+    readonly GPU_SHADER: {
+        readonly meaning: "A compute shader did not compile or name a snippet that exists (the message has the line).";
+        readonly fix: "This is a bug in the backend: report it with the message.";
+    };
+    readonly GPU_LAYOUT: {
+        readonly meaning: "A GPU buffer layout does not fit the data it was asked to hold.";
+        readonly fix: "This is a bug in the backend: report it with the message.";
+    };
+    readonly GPU_CAPACITY: {
+        readonly meaning: "A fixed-size GPU table overflowed during a step (for grains: a hash bucket was full), so contacts were missed.";
+        readonly fix: "Build the backend with more slots (the message names the setting), or use the CPU solver.";
+    };
+    readonly SHARED_UNAVAILABLE: {
+        readonly meaning: "SharedArrayBuffer is not available (the page is not cross-origin isolated).";
+        readonly fix: "Send COOP and COEP headers, or use the copying transport.";
+    };
+    readonly INCOMPATIBLE_SAVE: {
+        readonly meaning: "A saved session came from another WASM build or native interface version.";
+        readonly fix: "Replay it with the build recorded in the file; replays are exact only on the build that made them.";
+    };
+    readonly CHECKPOINT_MISMATCH: {
+        readonly meaning: "A checkpoint is damaged, of another format version, or from another scene or set-up.";
+        readonly fix: "Restore it into a world and solvers built the same way by the same version; nothing was changed by the refused restore.";
+    };
+    readonly MODEL_MISMATCH: {
+        readonly meaning: "Saved or transferred state names a model other than the one receiving it.";
+        readonly fix: "Create the runtime with the model the state was produced by.";
+    };
+    readonly UNSTABLE_TIME_STEP: {
+        readonly meaning: "The time step is above the stability limit of the method for these inputs.";
+        readonly fix: "Use the step the message gives (it states the limit and the rule), or the solver's stableTimeStep() helper.";
+    };
+    readonly NUMERICAL_FAILURE: {
+        readonly meaning: "A solve produced a non-finite number or failed to converge.";
+        readonly fix: "Reduce the time step or the load increment; check world.diagnose() or simulation.diagnose() for ill-conditioned inputs.";
+    };
+    readonly SOLVER_NOT_CONVERGED: {
+        readonly meaning: "An iterative linear solve stopped at its iteration limit.";
+        readonly fix: "Raise maxIterations or loosen the tolerance; the message has the residual reached.";
+    };
+    readonly SOLVER_BREAKDOWN: {
+        readonly meaning: "A matrix that must be positive definite is not.";
+        readonly fix: "Check material values and constraints: a negative conductivity, capacity or stiffness, or an unconstrained body, causes this.";
+    };
+    readonly SINGULAR_STEADY: {
+        readonly meaning: "A steady problem has no unique answer.";
+        readonly fix: "Fix a temperature or add a convective or radiating face on every separate solid.";
+    };
+    readonly NOT_RUNNING: {
+        readonly meaning: "The worker or runtime is not running.";
+        readonly fix: "Start it, or create a new one after a failure.";
+    };
+    readonly NOT_CREATED: {
+        readonly meaning: "A worker was asked to use a runtime before one was created.";
+        readonly fix: "Send the create request first.";
+    };
+    readonly RESET: {
+        readonly meaning: "The request was dropped because the runtime was reset or destroyed while it waited.";
+        readonly fix: "Issue it again if it still applies.";
+    };
+    readonly INVALID_RESPONSE: {
+        readonly meaning: "A worker replied with a message outside the protocol.";
+        readonly fix: "Host and worker scripts must come from the same version.";
+    };
+    readonly INVALID_LOAN: {
+        readonly meaning: "A loaned buffer was returned twice, or is not the buffer that was lent.";
+        readonly fix: "Return each loaned snapshot exactly once.";
+    };
+    readonly WORKER_ERROR: {
+        readonly meaning: "The worker script threw outside a request.";
+        readonly fix: "See the message; create a new worker to continue.";
+    };
+    readonly WORKER_MESSAGE_ERROR: {
+        readonly meaning: "A message to or from the worker could not be deserialized.";
+        readonly fix: "Send only structured-cloneable values.";
+    };
+    readonly WORKER_SEND_ERROR: {
+        readonly meaning: "A message could not be posted to the worker.";
+        readonly fix: "Check that transferred buffers are not already detached.";
+    };
+    readonly WORKER_TIMEOUT: {
+        readonly meaning: "The worker did not answer within the time limit.";
+        readonly fix: "The worker was recycled; reduce the work per request or raise the limit.";
+    };
+    readonly WORKER_RECYCLE_ERROR: {
+        readonly meaning: "A worker could not be replaced after a failure.";
+        readonly fix: "Create a new client.";
+    };
+    readonly RUNTIME_ERROR: {
+        readonly meaning: "A runtime inside a worker failed with an error that is not an EngineError.";
+        readonly fix: "See the message; it is the original error text.";
+    };
+    readonly INTERNAL: {
+        readonly meaning: "The engine reached a state it believes impossible.";
+        readonly fix: "This is a bug: report it with the message and, if you can, a checkpoint or replay log.";
+    };
+};
+export type EngineErrorCode = keyof typeof ENGINE_ERRORS;
+export interface EngineErrorDetails {
+    readonly path?: string;
+    readonly value?: string;
+    readonly expected?: string;
+}
 export declare class EngineError extends Error {
     readonly code: string;
-    constructor(code: string, message: string);
+    readonly details?: EngineErrorDetails;
+    constructor(code: string, message: string, details?: EngineErrorDetails);
+    get fix(): string;
 }
+export declare function isEngineError(value: unknown): value is EngineError;
+export interface DiagnosticFinding {
+    readonly severity: 'error' | 'warning' | 'note';
+    readonly rule: string;
+    readonly subject: string;
+    readonly message: string;
+    readonly numbers: {
+        readonly [name: string]: number;
+    };
+}
+export declare function explainError(error: unknown): {
+    code: string;
+    meaning: string;
+    message: string;
+    fix: string;
+    path: string | null;
+};
+export declare function showValue(value: unknown): string;
+export declare const RIGID_LIMITS: Readonly<{
+    extent: 100000;
+    shape: 1000;
+    speed: 1000000;
+    gravity: 1000000;
+    force: 1000000000000;
+    density: 1000000;
+    densityMin: 0.001;
+    massMin: 1e-12;
+    massMax: 10000000000000000;
+    hertz: 1000000;
+}>;
 export declare function record(value: unknown, label: string): Record<string, unknown>;
 export declare function onlyKeys(value: Record<string, unknown>, keys: readonly string[], label: string): void;
 export declare function finite(value: unknown, label: string, min?: number, max?: number): number;
@@ -2883,6 +3119,19 @@ export type NativeQueryResult = {
     readonly kind: 'sphere-overlap' | 'box-overlap' | 'aabb-candidates' | 'capsule-overlap';
     readonly hits: readonly NativeQueryBodyHit[];
 });
+export declare const NATIVE_WORLD_EXTENT: 100000;
+export declare const NATIVE_LIMITS: Readonly<{
+    extent: 100000;
+    shape: 1000;
+    speed: 1000000;
+    gravity: 1000000;
+    force: 1000000000000;
+    density: 1000000;
+    densityMin: 0.001;
+    massMin: 1e-12;
+    massMax: 10000000000000000;
+    hertz: 1000000;
+}>;
 export interface NativeWorldModule {
     readonly HEAPF32: Float32Array;
     _b3w_world_api_version(): number;
@@ -3342,6 +3591,8 @@ export declare class NativeWorldBackend implements PhysicsBackend {
     private kindRowsVersion;
     private kindRowsCount;
     private retainedShapes;
+    private readonly largeConvex;
+    private readonly largeRowsByCheckpoint;
     constructor(module: unknown, onDispose?: () => void);
     private validateStream;
     private refreshStreams;
@@ -3484,6 +3735,7 @@ export declare class NativeWorldBackend implements PhysicsBackend {
     get supportsCheckpoints(): boolean;
     checkpoint(): Uint8Array;
     restoreCheckpoint(bytes: Uint8Array): void;
+    private relearnLargeConvex;
     get supportsSpatialQueries(): boolean;
     spatialQueryInfo(): {
         supported: boolean;
@@ -5215,6 +5467,7 @@ export declare function shallowWaterSubsystem<W, B>(target: ShallowWater | Shall
 }): Subsystem<W, B>;
 
 // ==== core/simulation.d.ts ====
+import { type DiagnosticFinding } from './contracts.js';
 import type { WaterCoupling, CouplingWorld } from './water-coupling.js';
 import { StructureCoupling, type StructureAttachment, type StructureInertia, type StructureWorld } from './structure-coupling.js';
 import { CompliantCableRuntime } from './compliant-cable.js';
@@ -5304,6 +5557,7 @@ export interface Subsystem<W = unknown, B = unknown> {
     finish?(ctx: StepContext<W>): void;
     energy?(): SubsystemEnergy;
     diagnostics?(): unknown;
+    diagnose?(): readonly DiagnosticFinding[];
     dispose?(): void;
     checkpoint?(): StateValue;
     restore?(state: StateValue): void;
@@ -5414,6 +5668,7 @@ export declare class Simulation<W extends SimulationWorld<B>, B = unknown> {
     untrackBody(body: B): boolean;
     energy(): SimulationEnergy;
     diagnostics(): SimulationDiagnostics;
+    diagnose(): DiagnosticFinding[];
     get sceneSource(): SimulationSource | null;
     setSceneSource(source: SimulationSource | (() => SimulationSource) | null): void;
     private get origin();
@@ -7428,10 +7683,9 @@ export { SharedFrameReader, SharedFrameWriter, sharedMemoryAvailable } from './s
 export { WorldScheduler, type SchedulableWorld, type SchedulerOptions, type SchedulerFrame } from './scheduler.js';
 export type { InstanceSource } from './three.js';
 export { FixedStepLoop, pauseOnHidden, type FixedStepOptions, type FixedStepResult } from './loop.js';
-export { EngineError } from './core/contracts.js';
+export { EngineError, ENGINE_ERRORS, RIGID_LIMITS, isEngineError, explainError, type EngineErrorCode, type EngineErrorDetails, type DiagnosticFinding } from './core/contracts.js';
 export { NativeWorldPool, NativeWorldBackend, NATIVE_WORLD_API_VERSION, type NativeBodyHandle, type NativeSpatialQuery, type NativeQueryResult, type NativeQueryCastHit, type NativeQueryBodyHit, type NativeQueryFilter, type NativeBodyCapacityInfo, type NativeJointHandle, type NativeBodyDescriptor, type NativeBodyShape, type NativeConvexShape, type NativeCompoundChild, type NativeMassData, type NativeBodyMassState, type NativeBodyKind, type NativeBodyState, type NativeBodyType, type NativeJointDescriptor, type NativeJointState, type NativeJointType, type NativeJointFrame, type NativeWorldEvent, type NativeQuaternion, type NativeJointDrive, type NativeJointThresholds, type NativeJointSteering, type NativeJointDetails, type NativeRayBatch, type NativeMoverInput, type NativeMoverPlane, type NativeMoverResult, type NativeWorldSettings, type NativeBodyFlags, type NativeStepProfile, type NativeProfileStage, type NativeProfileCounter, type NativeDebugDrawOptions, type NativeDebugLines, type NativeContactStats, } from './core/native-world.js';
 export type { InstanceBufferSource, PhysicsBackend } from './backend-types.js';
-export type EngineErrorCode = 'INVALID_PAYLOAD' | 'INVALID_BACKEND' | 'UNSUPPORTED_BACKEND' | 'DISPOSED' | 'STALE_BODY' | 'WORLD_CAPACITY' | 'ALLOCATION_FAILED' | 'STALE_QUERY' | 'QUERY_VERSION_EXHAUSTED' | 'INVALID_STATE' | 'INTERNAL' | 'WASM_UNAVAILABLE' | 'INTEGRITY_MISMATCH' | 'INCOMPATIBLE_SAVE' | 'STALE_JOINT' | 'UNSUPPORTED_JOINT' | 'NUMERICAL_FAILURE' | 'WORK_LIMIT' | 'UNSTABLE_TIME_STEP';
 export declare function createWorld(options?: WorldOptions & LoadBox3DOptions & {
     readonly gravity?: readonly [number, number, number];
     readonly ground?: boolean;
@@ -7565,6 +7819,9 @@ export interface RobotHost {
 }
 export type SpawnedRobot = CoreSpawnedRobot<Body, Joint>;
 export declare function spawnRobot(world: RobotHost, description: RobotDescription, options?: RobotSceneOptions): SpawnedRobot;
+
+// ==== scene-format.d.ts ====
+export * from './core/scene-format.js';
 
 // ==== scene.d.ts ====
 import { SceneBuilder as CoreSceneBuilder, type SaveSceneOptions, type Scene, type SceneBody, type SceneJoint, type SceneJointInput, type SceneMaterial, type SceneMeta } from './core/scene-format.js';
@@ -7999,6 +8256,7 @@ export declare class RemoteWorld implements InstanceSource {
 export declare function connectWorld(endpoint: MessageEndpoint, options?: RemoteWorldOptions): Promise<RemoteWorld>;
 
 // ==== world.d.ts ====
+import { type DiagnosticFinding } from './core/contracts.js';
 import type { NativeBodyHandle, NativeBodyKind, NativeBodyMassState, NativeBodyState, NativeBodyType, NativeJointHandle, NativeJointState, NativeJointType, NativeQueryCastHit, NativeQueryFilter, NativeWorldBackend, NativeWorldEvent, NativeWorldPool, NativeBodyFlags, NativeDebugDrawOptions, NativeDebugLines, NativeJointDetails, NativeJointDrive, NativeJointThresholds, NativeMoverPlane, NativeRayBatch, NativeStepProfile, NativeWorldSettings, NativeContactStats } from './core/native-world.js';
 import { FixedStepLoop, type FixedStepOptions, type FixedStepResult } from './loop.js';
 import { type Box3DThreading } from './loader.js';
@@ -8214,6 +8472,7 @@ export interface WorldOptions extends FixedStepOptions {
     readonly seed?: number;
     readonly capacity?: number;
     readonly interpolate?: boolean;
+    readonly strict?: boolean;
     readonly jointStiffness?: 'match-substeps' | {
         readonly hertz: number;
         readonly dampingRatio?: number;
@@ -8243,6 +8502,7 @@ export interface WorldStats {
     readonly lastStepMs: number;
     readonly lastUpdateMs: number;
     readonly droppedSeconds: number;
+    readonly nonFiniteSince: number | null;
 }
 export type ReplayCommand = {
     readonly t: number;
@@ -8326,6 +8586,10 @@ export declare class PhysicsWorld {
     private readonly stepListeners;
     private readonly eventListeners;
     private droppedEventCount;
+    private readonly strict;
+    private nonFiniteTick;
+    private readonly jointInfo;
+    private jointPruneAt;
     private rayTokens;
     constructor(pool: NativeWorldPool, options?: WorldOptions, ownPool?: boolean);
     resetArena(seed?: number): this;
@@ -8430,6 +8694,7 @@ export declare class PhysicsWorld {
     step(): void;
     update(frameSeconds: number): FixedStepResult;
     private runStep;
+    private checkFinite;
     onStep(listener: (tick: number) => void): () => void;
     private replayCheck;
     private capturePrevious;
@@ -8465,6 +8730,7 @@ export declare class PhysicsWorld {
     transformVersion(): number;
     colorVersion(): number;
     stats(): WorldStats;
+    diagnose(): DiagnosticFinding[];
     startRecording(options?: RecordingOptions): void;
     jointDefaults(): {
         hertz: number;
@@ -8486,6 +8752,7 @@ export declare class PhysicsWorld {
     private stopRecordingIfActive;
     dispose(): void;
 }
+export declare const MAX_REPLAY_TICKS = 2147483647;
 export declare const leakReporting: {
     warn: (message: string) => void;
 };

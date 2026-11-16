@@ -24,7 +24,7 @@ export {SharedFrameReader, SharedFrameWriter, sharedMemoryAvailable} from './sha
 export {WorldScheduler, type SchedulableWorld, type SchedulerOptions, type SchedulerFrame} from './scheduler.js';
 export type {InstanceSource} from './three.js';
 export {FixedStepLoop, pauseOnHidden, type FixedStepOptions, type FixedStepResult} from './loop.js';
-export {EngineError} from './core/contracts.js';
+export {EngineError, ENGINE_ERRORS, RIGID_LIMITS, isEngineError, explainError, type EngineErrorCode, type EngineErrorDetails, type DiagnosticFinding} from './core/contracts.js';
 export {
   NativeWorldPool, NativeWorldBackend, NATIVE_WORLD_API_VERSION,
   type NativeBodyHandle, type NativeSpatialQuery, type NativeQueryResult, type NativeQueryCastHit,
@@ -36,14 +36,6 @@ export {
   type NativeDebugDrawOptions, type NativeDebugLines, type NativeContactStats,
 } from './core/native-world.js';
 export type {InstanceBufferSource, PhysicsBackend} from './backend-types.js';
-
-/** Every `code` an EngineError from this package can carry. */
-export type EngineErrorCode =
-  | 'INVALID_PAYLOAD' | 'INVALID_BACKEND' | 'UNSUPPORTED_BACKEND' | 'DISPOSED' | 'STALE_BODY'
-  | 'WORLD_CAPACITY' | 'ALLOCATION_FAILED' | 'STALE_QUERY' | 'QUERY_VERSION_EXHAUSTED' | 'INVALID_STATE' | 'INTERNAL'
-  | 'WASM_UNAVAILABLE' | 'INTEGRITY_MISMATCH' | 'INCOMPATIBLE_SAVE' | 'STALE_JOINT' | 'UNSUPPORTED_JOINT'
-  // Raised by the optional solver modules (cable, frame, solid).
-  | 'NUMERICAL_FAILURE' | 'WORK_LIMIT' | 'UNSTABLE_TIME_STEP';
 
 /**
  * One-call setup: load the WASM module and return an empty arena world.

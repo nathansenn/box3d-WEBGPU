@@ -85,6 +85,7 @@ import {
 import { loadBestPhysicsBackend } from './physics/wasm';
 import { buildMechanismsScene, MECHANISMS_DEFAULT_SEED, MECHANISMS_SCENE_ID, MECHANISMS_SCENE_TITLE, type MechanismsScene } from './engine/mechanisms-scene.ts';
 import { encodeSceneLink, sceneHash, type Scene, type SceneProblem } from './engine/scene-format.ts';
+import { explainError } from './engine/contracts.ts';
 import { checkpointInfo, readCheckpoint, writeCheckpoint, type StateObject } from './engine/checkpoint.ts';
 import { simulationCheckpointInfo } from './engine/simulation.ts';
 import { disposeLabScene, exactTransformHash, loadLabScene, sceneStepsPerLabTick, type LabLoadedScene } from './lab/scene-host.ts';
@@ -1489,6 +1490,17 @@ function createRigidScene(scene: ScenePreset, stress: number, sceneSeed: number)
   return backend.createScene(scene, stress, sceneSeed);
 }
 
+/**
+ * A build failure as the scene panel shows it: what the engine said, and for an EngineError what its code means the
+ * author should do (docs/ERRORS.md). The message names the body or joint; the advice says how to fix that kind of error.
+ */
+function engineProblems(error: unknown): SceneProblem[] {
+  const explained = explainError(error);
+  const problems: SceneProblem[] = [{ path: explained.path ?? '', message: quoteForDisplay(explained.message, 400) }];
+  if (explained.fix) problems.push({ path: '', message: `What to do (${explained.code}): ${explained.fix}` });
+  return problems;
+}
+
 function reportSceneError(title: string, problems: readonly SceneProblem[]): void {
   const { lines, more } = problemLines(problems);
   const kept = labScene ? `Nothing was loaded: “${labScene.read.title}” is still on screen.` : 'Nothing was loaded: the scene on screen is unchanged.';
@@ -1511,7 +1523,7 @@ function openLabScene(read: SceneRead, link: string | null = null): boolean {
   try {
     backend.checkGeneralScene?.((native) => { loadLabScene(native, read.scene); });
   } catch (error) {
-    reportSceneError(`${read.title} could not be built`, [{ path: '', message: quoteForDisplay(error instanceof Error ? error.message : String(error), 400) }]);
+    reportSceneError(`${read.title} could not be built`, engineProblems(error));
     return false;
   }
   const host = getWorkbenchLab(SI_DEMO_HOST_LAB_ID) ?? WORKBENCH_LABS[0];
@@ -1527,7 +1539,7 @@ function openLabScene(read: SceneRead, link: string | null = null): boolean {
     // The scratch build succeeded, so this is not expected; show the previous scene again from its start.
     if (previous) loadWorkbenchLab(host, previous);
     syncScenePanel();
-    reportSceneError(`${read.title} could not be built`, [{ path: '', message: quoteForDisplay(failure instanceof Error ? failure.message : String(failure), 400) }]);
+    reportSceneError(`${read.title} could not be built`, engineProblems(failure));
     return false;
   }
   scenePanel?.clearError();

@@ -156,7 +156,7 @@ export class GpuShallowWater {
   /** Advance by `duration` s. Resolves when the step is encoded and submitted (and, with rateLatency 0, measured). */
   async advance(duration:number):Promise<void> {
     this.alive();
-    if(!(duration>0)||!Number.isFinite(duration))throw new EngineError('INVALID_ARGUMENT','duration must be a positive number of seconds.');
+    if(!(duration>0)||!Number.isFinite(duration))throw new EngineError('INVALID_PAYLOAD','duration must be a positive number of seconds.');
     let rateX:number,rateZ:number;
     if(this.rateLatency===0){
       const meter=await this.measure();
@@ -238,7 +238,7 @@ export class GpuShallowWater {
    */
   async pull(target:ShallowWater=this.water,snapshot?:GpuShallowWaterSnapshot):Promise<GpuShallowWaterSnapshot> {
     const snap=snapshot??await this.read(),U=snap.state,A=snap.aux,n=this.cells;
-    if(target.nx!==this.nx||target.nz!==this.nz)throw new EngineError('INVALID_ARGUMENT','pull needs a ShallowWater with the same grid.');
+    if(target.nx!==this.nx||target.nz!==this.nz)throw new EngineError('INVALID_PAYLOAD','pull needs a ShallowWater with the same grid.');
     for(let c=0;c<n;c++){target.h[c]=Math.max(0,U[4*c]+U[4*c+3]);target.qx[c]=U[4*c+1];target.qz[c]=U[4*c+2];target.infiltrated[c]=A[4*c];}
     const B=this.budget(snap),L=target.ledger;
     // The float64 copy's budget error equals this backend's: the rounding of the copy goes to `clipped`.

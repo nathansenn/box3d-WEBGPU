@@ -40,7 +40,7 @@ export function fluidProxy(remote:()=>FluidRemote,options:FluidBackendOptions={}
     /** Statistics of the backend. */
     backendStats:FluidFrame['stats']|null=null;
     constructor(init:FluidOptions) {super(init);}
-    override addObstacle(_options:FluidObstacleOptions):number {throw new EngineError('INVALID_ARGUMENT','The GPU fluid backend has no obstacles.');}
+    override addObstacle(_options:FluidObstacleOptions):number {throw new EngineError('INVALID_PAYLOAD','The GPU fluid backend has no obstacles.');}
     override setVelocity(field:(x:number,y:number,z:number)=>ArrayLike<number>):void {super.setVelocity(field);this.#dirty=true;}
     override setPressure(field:(x:number,y:number,z:number)=>number):void {super.setPressure(field);this.#dirty=true;}
     override setState(state:Parameters<Fluid['setState']>[0]):void {super.setState(state);this.#dirty=true;}

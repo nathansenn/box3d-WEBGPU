@@ -653,6 +653,7 @@ export interface ReinforcementBarInput {
   /** Steel: Young's modulus and yield stress, Pa; linear hardening modulus after yield, Pa (default 0). */
   readonly youngModulus:number;readonly yieldStress:number;readonly hardeningModulus?:number;
 }
+/** The reinforcing bars to embed in a solid; see the steel and bar inputs above. */
 export interface ReinforcementInput {readonly bars:readonly ReinforcementBarInput[]}
 
 /**

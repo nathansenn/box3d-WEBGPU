@@ -155,7 +155,7 @@ test('spawnBoxes, applyImpulses and BodyRing manage many bodies', async () => {
     assert.equal(bodies.length, 3);
     world.destroyBody(bodies[1]);
     assert.equal(applyImpulses(world, bodies, new Float32Array([0, 5, 0, 0, 5, 0, 0, 5, 0])), 2, 'destroyed body skipped');
-    assert.throws(() => spawnBoxes(world, [1, 2]), RangeError);
+    assert.throws(() => spawnBoxes(world, [1, 2]), error => error instanceof EngineError && error.code === 'INVALID_PAYLOAD');
     const ring = new BodyRing(world, 5);
     const shots = Array.from({length: 12}, (_, i) => ring.spawn({position: [i, 5, -5], halfSize: 0.2}));
     assert.equal(ring.size, 5);

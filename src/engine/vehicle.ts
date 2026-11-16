@@ -21,6 +21,7 @@ type Vec3 = readonly [number, number, number];
 type Quat = readonly [number, number, number, number];
 /** A tuple or an {x, y, z} object (a three.js Vector3 works). */
 export type VehicleVec3 = Vec3 | {readonly x: number; readonly y: number; readonly z: number};
+/** A quaternion as [x, y, z, w] or an {x, y, z, w} object (a three.js Quaternion works). */
 export type VehicleQuat = Quat | {readonly x: number; readonly y: number; readonly z: number; readonly w: number};
 const toVec3 = (value: VehicleVec3): [number, number, number] => {
   if (Array.isArray(value)) return [value[0], value[1], value[2]];
@@ -50,6 +51,7 @@ export interface VehicleHost {
   getJointDetails(joint: Joint): NativeJointDetails;
 }
 
+/** One wheel: where it sits on the chassis, its radius, and whether it steers, takes engine torque and brakes. */
 export interface VehicleWheelOptions {
   /** Wheel centre in the chassis frame, with the suspension at its rest length (no load). */
   readonly position: VehicleVec3;
@@ -63,6 +65,7 @@ export interface VehicleWheelOptions {
   readonly braked?: boolean;
 }
 
+/** A chassis and its wheels, the suspension, steering, engine and brakes, and air drag. */
 export interface VehicleOptions {
   /** Chassis origin (the centre of its box). */
   readonly position: VehicleVec3;
@@ -105,6 +108,7 @@ export interface VehicleOptions {
   readonly wheelColor?: number;
 }
 
+/** One step's commands: throttle (-1 full reverse .. 1 full forward), steer (-1 full right .. 1 full left) and brake. */
 export interface VehicleControls {
   /** -1 (full reverse) .. 1 (full forward). */
   readonly throttle?: number;
@@ -114,6 +118,7 @@ export interface VehicleControls {
   readonly brake?: number;
 }
 
+/** One wheel after a step: suspension travel, spin and steering angle. */
 export interface VehicleWheelState {
   /** How far the wheel sits above its rest position in the chassis frame (m): positive is a compressed spring. */
   readonly suspension: number;
@@ -122,6 +127,7 @@ export interface VehicleWheelState {
   /** Steering angle now (rad); positive turns left. */
   readonly steeringAngle: number;
 }
+/** The vehicle after a step: the chassis pose, its speeds and yaw rate, and each wheel. */
 export interface VehicleState {
   readonly position: readonly [number, number, number];
   readonly rotation: readonly [number, number, number, number];
@@ -140,6 +146,7 @@ const rotate = (q: readonly number[], v: readonly number[]): [number, number, nu
 // Turns the joint frame's x axis onto the chassis' up axis (y) and leaves its z axis on the axle (z).
 const FRAME: [number, number, number, number] = [0, 0, Math.SQRT1_2, Math.SQRT1_2];
 
+/** A chassis on Box3D wheel joints: suspension springs, Ackermann steering, throttle and brakes. */
 export class Vehicle {
   readonly chassis: Body;
   readonly wheels: readonly Body[];

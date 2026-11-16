@@ -18,6 +18,7 @@ export type InstanceBufferSource = {
 /** Only the numeric preset ID reaches the native bridge (0..799). */
 export type ScenePreset = { readonly id: number };
 
+/** The minimal native backend the renderer adapters read: the instance buffers plus the stepping and scene calls of the classic arena. */
 export type PhysicsBackend = InstanceBufferSource & {
   readonly name: string;
   readonly isWasm: boolean;

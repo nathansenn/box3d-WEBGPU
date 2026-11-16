@@ -17,6 +17,7 @@ function rotation(m: Float32Array, o: number, out: Float32Array, w: number): voi
   else { const s = 2 * Math.sqrt(1 + m22 - m00 - m11); out[w + 3] = (m10 - m01) / s; out[w] = (m02 + m20) / s; out[w + 1] = (m12 + m21) / s; out[w + 2] = 0.25 * s; }
 }
 
+/** Structure-of-arrays poses for entity-component systems: positions, rotations and optionally half extents, one row per body. */
 export interface PoseArrays {
   /** xyz per row (3 floats). */
   readonly positions: Float32Array;

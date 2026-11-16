@@ -51,14 +51,14 @@ export function packDemWalls(description:GranularBackendDescription,target:Array
   });
 }
 export function demSetup(granular:Granular,options:DemOptions={}):DemSetup {
-  if(!(granular instanceof Granular))throw new EngineError('INVALID_ARGUMENT','A float32 granular backend is built from a Granular.');
+  if(!(granular instanceof Granular))throw new EngineError('INVALID_PAYLOAD','A float32 granular backend is built from a Granular.');
   const d=granular.backendDescription(),capacity=granular.capacity,n=granular.grainCount;
   if(d.walls.length>DEM_MAX_WALLS)throw new EngineError('GPU_UNAVAILABLE',`The GPU granular backend takes at most ${DEM_MAX_WALLS} walls (this set has ${d.walls.length}).`);
   const rMax=n?d.rMax:1,rMin=n?d.rMin:1,ratio=rMax/rMin;
   const K=options.historySlots??10,M=options.bucketSlots??Math.max(12,Math.ceil(4*ratio*ratio*ratio)),T=options.tableSize??nextPow2(2*capacity);
-  if(!Number.isInteger(K)||K<1||K>64)throw new EngineError('INVALID_ARGUMENT','historySlots must be a whole number from 1 to 64.');
-  if(!Number.isInteger(M)||M<1||M>256)throw new EngineError('INVALID_ARGUMENT','bucketSlots must be a whole number from 1 to 256.');
-  if(!Number.isInteger(T)||T<64||(T&(T-1))!==0)throw new EngineError('INVALID_ARGUMENT','tableSize must be a power of two of at least 64.');
+  if(!Number.isInteger(K)||K<1||K>64)throw new EngineError('INVALID_PAYLOAD','historySlots must be a whole number from 1 to 64.');
+  if(!Number.isInteger(M)||M<1||M>256)throw new EngineError('INVALID_PAYLOAD','bucketSlots must be a whole number from 1 to 256.');
+  if(!Number.isInteger(T)||T<64||(T&(T-1))!==0)throw new EngineError('INVALID_PAYLOAD','tableSize must be a power of two of at least 64.');
   const rolling=d.rollingFriction>0||d.walls.some(w=>w.rollingFriction>0);
   const pos=new Float32Array(4*capacity),vel=new Float32Array(4*capacity),spin=new Float32Array(4*capacity),ft=new Float32Array(8*capacity);
   const walls=DEM_WALL.create(d.walls.length+1);packDemWalls(d,walls);
@@ -71,7 +71,7 @@ export function demSetup(granular:Granular,options:DemOptions={}):DemSetup {
 /** Copy the grains of a Granular into the buffers of a setup (positions, velocities, spins, radii, masses; forces zeroed for new grains only). */
 export function packDemGrains(granular:Granular,setup:DemSetup):void {
   const n=granular.grainCount,x=granular.positions,v=granular.velocities,w=granular.angularVelocities,r=granular.radii,m=granular.masses,alive=granular.alive;
-  if(n>setup.capacity)throw new EngineError('INVALID_ARGUMENT','More grains than the backend was built for.');
+  if(n>setup.capacity)throw new EngineError('INVALID_PAYLOAD','More grains than the backend was built for.');
   for(let i=0;i<n;i++){
     const o=4*i,rr=alive[i]?r[i]:-r[i];
     setup.pos[o]=x[3*i];setup.pos[o+1]=x[3*i+1];setup.pos[o+2]=x[3*i+2];setup.pos[o+3]=rr;

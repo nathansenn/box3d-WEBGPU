@@ -22,8 +22,10 @@ import {captureFields,checkpointError,restoreFields,type FieldHandler,type Field
 import {SolidBody,type SolidKernel} from './solid.ts';
 import type {Subsystem} from './simulation.ts';
 
+/** The solver id recorded in results and checkpoints: node-to-face penalty contact solved with the solids in one Newton solve (PCG), float64. */
 export const SOLID_SOLID_CONTACT_SOLVER_ID='solid-solid-contact-node-face-penalty-newton-pcg-js-f64-v1';
 
+/** Settings of a SolidSolidContact: contact stiffness, skin, friction, which bodies collide with themselves, and the friction passes. */
 export interface SolidSolidContactOptions {
   /** Contact springs are this many times stiffer than one layer of elements of the softer body of a pair:
    * k = stiffnessScale (lambda + 2 mu) A / l per node, A the node's share of its surface and l the mean element size. Default 100. */
@@ -40,6 +42,7 @@ export interface SolidSolidContactOptions {
   /** The limits have settled when none changes by more than this fraction of the largest. Default 1e-4. */
   readonly frictionTolerance?:number;
 }
+/** What the last step of a SolidSolidContact did: convergence, Newton and linear iterations, the residual against its reference, friction passes and the number of contacts. */
 export interface SolidSolidContactStats {
   converged:boolean;newtonIterations:number;linearIterations:number;residual:number;reference:number;frictionPasses:number;
   /** Steps that stopped at an iteration limit, or with friction limits still changing, since construction. */
@@ -47,6 +50,7 @@ export interface SolidSolidContactStats {
   /** Node-to-face and node-to-plane contacts pressing after the last solve. */
   contacts:number;
 }
+/** The result of SolidSolidContact.solveStatic: whether it converged, the passes it took, the final residual and the last change of the friction limits. */
 export interface SolidSolidStaticResult {converged:boolean;passes:number;residual:number;change:number}
 
 const fail=(message:string):never=>{throw new EngineError('INVALID_PAYLOAD',message);};
@@ -92,6 +96,7 @@ function closestOnTriangle(px:number,py:number,pz:number,ax:number,ay:number,az:
   const denom=1/(va+vb+vc),v=vb*denom,u=vc*denom;w[0]=1-v-u;w[1]=v;w[2]=u;
 }
 
+/** Contact between deformable solids, of a solid with itself and with planes: node against face both ways, with Coulomb friction, solved together with the solids in one Newton solve. See docs/SOLID_CONTACT.md. */
 export class SolidSolidContact {
   /** Everything a later step reads, the solids included, as a state tree (checkpoint.ts), for exact checkpoints. */
   saveState():StateObject {return captureFields(this,FIELDS);}
@@ -137,7 +142,7 @@ export class SolidSolidContact {
   constructor(solids:readonly SolidBody[],options:SolidSolidContactOptions={}) {
     if(!Array.isArray(solids)||solids.length<1)fail('SolidSolidContact needs at least one SolidBody.');
     for(const s of solids){
-      if(!(s instanceof SolidBody))throw new TypeError('SolidSolidContact needs SolidBody objects.');
+      if(!(s instanceof SolidBody))throw new EngineError('INVALID_PAYLOAD','SolidSolidContact needs SolidBody objects.');
       if(s.integrator!=='backward-euler')fail('A solid in contact needs the backward-euler integrator.');
       if(s.dt!==solids[0].dt)fail('Solids in contact with each other need the same time step.');
     }
@@ -619,6 +624,7 @@ export class SolidSolidContact {
   }
 }
 
+/** Where the solid–solid contact subsystem runs in a Simulation step, among the other subsystems' orders. */
 export const SOLID_SOLID_CONTACT_SUBSYSTEM_ORDER=300;
 /**
  * Solids in contact with each other as one subsystem of the stepping loop (simulation.ts): post stage, where a lone
@@ -627,7 +633,7 @@ export const SOLID_SOLID_CONTACT_SUBSYSTEM_ORDER=300;
  * every solid plus the energy in the contact springs. Event: 'unconverged' with {residual, reference}.
  */
 export function solidSolidContactSubsystem<W,B>(target:SolidSolidContact,options:{readonly id?:string;readonly order?:number}={}):Subsystem<W,B> {
-  if(!(target instanceof SolidSolidContact))throw new TypeError('solidSolidContactSubsystem needs a SolidSolidContact.');
+  if(!(target instanceof SolidSolidContact))throw new EngineError('INVALID_PAYLOAD','solidSolidContactSubsystem needs a SolidSolidContact.');
   let unconverged=target.stats.unconvergedSteps;
   return {
     id:options.id??'solid-solid-contact',kind:'solid-solid-contact',stage:'post',order:options.order??SOLID_SOLID_CONTACT_SUBSYSTEM_ORDER,

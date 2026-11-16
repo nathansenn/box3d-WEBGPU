@@ -1,3 +1,5 @@
+import {EngineError} from './core/contracts.js';
+/** The fixed time step and how many steps one update may take. */
 export interface FixedStepOptions {
   /** Simulation timestep in seconds. Default 1/60. Must be at most 1/30. */
   readonly step?: number;
@@ -5,6 +7,7 @@ export interface FixedStepOptions {
   readonly maxSteps?: number;
 }
 
+/** What an update did: the steps taken, the blend factor towards the next step for rendering, and the seconds dropped because maxSteps was reached. */
 export interface FixedStepResult {
   /** Fixed steps executed during this call. */
   readonly steps: number;
@@ -26,8 +29,8 @@ export class FixedStepLoop {
 
   constructor(options: FixedStepOptions = {}) {
     const step = options.step ?? 1 / 60, maxSteps = options.maxSteps ?? 5;
-    if (!(step > 0 && step <= 1 / 30)) throw new RangeError('step must be in (0, 1/30] seconds.');
-    if (!Number.isInteger(maxSteps) || maxSteps < 1) throw new RangeError('maxSteps must be a positive integer.');
+    if (!(step > 0 && step <= 1 / 30)) throw new EngineError('INVALID_PAYLOAD', `step must be in (0, 1/30] seconds; got ${String(step)}. 1/60 is the usual choice.`);
+    if (!Number.isInteger(maxSteps) || maxSteps < 1) throw new EngineError('INVALID_PAYLOAD', `maxSteps must be a positive integer; got ${String(maxSteps)}.`);
     this.step = step;
     this.maxSteps = maxSteps;
   }
@@ -57,7 +60,7 @@ export class FixedStepLoop {
   get pending(): number { return this.accumulator; }
   /** Set the accumulated seconds, as `pending` read them. */
   setPending(seconds: number): void {
-    if (!(Number.isFinite(seconds) && seconds >= 0)) throw new RangeError('pending must be a finite number of seconds, zero or more.');
+    if (!(Number.isFinite(seconds) && seconds >= 0)) throw new EngineError('INVALID_PAYLOAD', `pending must be a finite number of seconds, zero or more; got ${String(seconds)}.`);
     this.accumulator = seconds;
   }
 }

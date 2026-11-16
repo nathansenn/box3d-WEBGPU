@@ -130,7 +130,7 @@ export class GpuGranular {
   /** Take `count` steps. Resolves when they are submitted; `sync()`, `read()` or `readWalls()` wait for them. */
   async step(count=1):Promise<void> {
     this.alive();
-    if(!Number.isInteger(count)||count<0)throw new EngineError('INVALID_ARGUMENT','step(count) needs a whole number of steps.');
+    if(!Number.isInteger(count)||count<0)throw new EngineError('INVALID_PAYLOAD','step(count) needs a whole number of steps.');
     this.submit(count,1);
     this.time+=count*this.setup.dt;this.stats.steps+=count;
   }
@@ -189,7 +189,7 @@ export class GpuGranular {
 
 /** Write a float32 backend's grains and walls into a Granular (see `GpuGranular.pull`). */
 export function applyDemSnapshot(target:Granular,snap:{readonly count:number;readonly time:number;readonly pos:Float32Array;readonly vel:Float32Array;readonly spin:Float32Array;readonly walls:Float32Array}):void {
-  if(target.grainCount!==snap.count)throw new EngineError('INVALID_ARGUMENT','The Granular does not hold the grains of the snapshot.');
+  if(target.grainCount!==snap.count)throw new EngineError('INVALID_PAYLOAD','The Granular does not hold the grains of the snapshot.');
   const x=target.positions,v=target.velocities,w=target.angularVelocities;
   for(let i=0;i<snap.count;i++){
     if(snap.pos[4*i+3]<=0){if(target.alive[i])target.removeGrain(i);continue;}

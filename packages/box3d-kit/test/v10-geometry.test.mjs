@@ -127,8 +127,8 @@ test('OBJ: negative indices, quads and n-gons, the four corner forms, objects an
   invalid(() => parseOBJ('v 0 0 0\nv 1 0 0\nv 0 1 0\nf 1 2 -4\n'), /line 4.*out of range/, 'relative index before the start');
   invalid(() => parseOBJ('v 0 0 0\nv 1 0 0\nv 0 1 0\nf 0 1 2\n'), /out of range/, 'index zero');
   invalid(() => parseOBJ('v 0 0 0\nv 1 0 0\nv 0 1 0\nf 1 2 99999999999999999999\n'), /out of range/, 'absurd index');
-  invalid(() => parseOBJ('v 0 0 0\nv 1 nan 0\nv 0 1 0\nf 1 2 3\n'), /line 2.*not a finite number/, 'NaN vertex');
-  invalid(() => parseOBJ('v 0 0 0\nv 1 1e999 0\nv 0 1 0\nf 1 2 3\n'), /not a finite number/, 'overflowing vertex');
+  invalid(() => parseOBJ('v 0 0 0\nv 1 nan 0\nv 0 1 0\nf 1 2 3\n'), /line 2.*not a finite single-precision number/, 'NaN vertex');
+  invalid(() => parseOBJ('v 0 0 0\nv 1 1e999 0\nv 0 1 0\nf 1 2 3\n'), /not a finite single-precision number/, 'overflowing vertex');
   invalid(() => parseOBJ('v 0 0\n'), /needs x, y and z/, 'short vertex');
   invalid(() => parseOBJ('v 0 0 0\nv 1 0 0\nv 0 1 0\nf 1 2\n'), /three corners/, 'two-corner face');
   invalid(() => parseOBJ('v 0 0 0\nv 1 0 0\nv 0 1 0\nf 1 2 x/3\n'), /face corner/, 'malformed corner');
@@ -166,7 +166,7 @@ test('STL: a binary file whose header starts with "solid", ASCII details, and tr
   invalid(() => parseSTL(poisoned), /triangle 3.*not finite/, 'NaN coordinate in binary');
   invalid(() => parseSTL(ascii.slice(0, ascii.lastIndexOf('endsolid'))), /truncated/, 'ASCII without endsolid');
   invalid(() => parseSTL(ascii.slice(0, ascii.indexOf('endloop'))), /truncated/, 'ASCII cut inside a facet');
-  invalid(() => parseSTL(ascii.replace('vertex 1 2 3', 'vertex 1 NaN 3')), /not a finite number/, 'NaN coordinate in ASCII');
+  invalid(() => parseSTL(ascii.replace('vertex 1 2 3', 'vertex 1 NaN 3')), /not a finite single-precision number/, 'NaN coordinate in ASCII');
   invalid(() => parseSTL(ascii.replace('  endloop\n', '   vertex 0 0 0\n  endloop\n')), /more than three/, 'four vertices in a facet');
   invalid(() => parseSTL('hello world'), /unexpected|solid/, 'not an STL');
   invalid(() => parseSTL('solid empty\nendsolid empty\n'), /no triangles/, 'empty solid');

@@ -16,7 +16,7 @@ export default defineConfig({
   plugins: [{
     name: 'box3d-license-notices',
     generateBundle() {
-      for (const [fileName, sourceFile] of [['licenses/project.txt', 'LICENSE'], ['licenses/third-party.txt', 'THIRD_PARTY_NOTICES.md']]) {
+      for (const [fileName, sourceFile] of [['licenses/project.txt', 'LICENSE'], ['licenses/third-party.txt', 'THIRD_PARTY_NOTICES.md'], ['licenses/box3d.txt', 'public/box3d/BOX3D_LICENSE.txt']]) {
         this.emitFile({ type: 'asset', fileName, source: readFileSync(new URL('./' + sourceFile, import.meta.url), 'utf8') });
       }
     },

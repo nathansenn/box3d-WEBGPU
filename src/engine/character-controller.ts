@@ -49,6 +49,7 @@ const SLOP = 0.005;
 /** The ground probe starts this far above the capsule, so that it never starts in contact. */
 const PROBE_LIFT = 0.05;
 
+/** The character's capsule, speeds, slope and step limits, jump and the bodies it collides with. */
 export interface CapsuleCharacterOptions {
   /** Centre of the capsule. */
   readonly position: CharacterVec3;
@@ -72,6 +73,7 @@ export interface CapsuleCharacterOptions {
   readonly filter?: {readonly categoryBits?: bigint; readonly maskBits?: bigint};
 }
 
+/** One step's commands: the wanted horizontal velocity and an optional jump speed. */
 export interface CapsuleCharacterInput {
   /** Wanted velocity along the ground in m/s; y is ignored. On a slope the character moves at this speed along the slope. */
   readonly velocity: CharacterVec3;
@@ -79,6 +81,7 @@ export interface CapsuleCharacterInput {
   readonly jump?: number;
 }
 
+/** The character after a step: position and feet, velocity, the ground it stands on, what it pushed, and whether it stepped up or stands on a steep slope. */
 export interface CapsuleCharacterState {
   /** Centre of the capsule. */
   readonly position: readonly [number, number, number];

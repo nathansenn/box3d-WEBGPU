@@ -99,7 +99,7 @@ export class FluidProgram {
     initialI.set(d.cellPad,I.pad);Ii.set(d.nbr,I.nbr);
     for(let c=0;c<N;c++){initialF[F.diag+c]=d.diag[c];initialF[F.invDiag+c]=d.diag[c]>0?1/d.diag[c]:0;}
     const maxIterations=fluid.maxIterations;
-    if(maxIterations>2**24)throw new EngineError('INVALID_ARGUMENT','maxIterations above 2^24 cannot be counted in float32.');
+    if(maxIterations>2**24)throw new EngineError('INVALID_PAYLOAD','maxIterations above 2^24 cannot be counted in float32.');
     this.plan={description:d,P,N,F,I,floats,words,initialF,initialI,blocks:new ArrayBuffer(BLOCK_STRIDE*MAX_BLOCKS),blockCount:0,
       pressureTolerance:Math.max(options.pressureTolerance??fluid.pressureTolerance,2e-6),viscousReduction:options.viscousReduction??1e-6,viscousFloor:options.viscousFloor??0.5,maxIterations,
       implicit:fluid.theta>0&&fluid.nu>0,advect:fluid.advection!=='none'};

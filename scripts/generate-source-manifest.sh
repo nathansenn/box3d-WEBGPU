@@ -14,6 +14,7 @@ list_source_files() {
     ! -path './node_modules/*' \
     ! -path './benchmarks/engines/node_modules/*' \
     ! -path './dist/*' \
+    ! -path './public/docs/*' \
     ! -path './build/*' \
     ! -path './third_party/*' \
     ! -path './.test-build/*' \

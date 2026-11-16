@@ -40,7 +40,7 @@ export class GpuFluid {
   static async create(compute:GpuCompute,fluid:Fluid|FluidProgramSource,state:{velocity:readonly ArrayLike<number>[];pressure:ArrayLike<number>;time:number}|null=null,options:FluidBackendOptions={}):Promise<GpuFluid> {
     const source='description' in fluid?fluid:fluidProgramSource(fluid),program=new FluidProgram(source,options),plan=program.plan,L=compute.device.limits;
     const given=state??('description' in fluid?null:{velocity:fluid.vel,pressure:fluid.p,time:fluid.time});
-    if(!given)throw new EngineError('INVALID_ARGUMENT','A GpuFluid built from a description needs a starting state.');
+    if(!given)throw new EngineError('INVALID_PAYLOAD','A GpuFluid built from a description needs a starting state.');
     if(4*plan.floats>L.maxStorageBufferBindingSize)throw new EngineError('GPU_UNAVAILABLE',`This fluid needs a storage buffer of ${4*plan.floats} bytes; this device binds at most ${L.maxStorageBufferBindingSize}.`);
     const module=await compute.module('fluid',FLUID_WGSL);
     const layout=compute.layout('fluid',['uniform-dynamic','write','read','write']);
