@@ -31,9 +31,16 @@ test('the shader compiles without errors or warnings, and a run with every featu
   device.addEventListener('uncapturederror', event => uncaptured.push(event.error.message));
   const module = device.createShaderModule({code: SHALLOW_WATER_WGSL});
   assert.deepEqual((await module.getCompilationInfo()).messages.map(m => `${m.type} ${m.lineNum}: ${m.message}`), []);
-  const compute = new GpuCompute(device, adapter.info);
-  // The null backend runs nothing and reads back arbitrary bytes, so only the encoding is checked here: with face speeds
-  // from an earlier step, the readbacks are never interpreted before the run ends.
+  // The null backend runs no shader, and what it maps back is not the buffer's contents but whatever memory the staging
+  // buffer got (a buffer written [1..8] reads back as numbers like 5.7e-8 and 2.7e20, different from run to run). The
+  // solver interprets two readbacks here: the measurement at creation (rateLatency >= 1 starts from it) and the meter of
+  // the steps. Read back from that memory, a face speed of 1e24 m/s asked for 1e24 substeps (a failure seen once under
+  // load). So the copies and maps are still encoded, submitted and awaited on Dawn, and the bytes handed to the solver
+  // are zeros: a device that ran the shaders on a state at rest would report no speed.
+  class NullBackendCompute extends GpuCompute {
+    async read(sources) { return (await super.read(sources)).map(bytes => new ArrayBuffer(bytes.byteLength)); }
+  }
+  const compute = new NullBackendCompute(device, adapter.info);
   for (const name of ['everything', 'pier', 'thacker']) {
     const solver = await GpuShallowWater.create(compute, new ShallowWater(SHALLOW_WATER_SETUPS[name]().options), {rateLatency: 1000});
     await solver.step(3);
