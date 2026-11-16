@@ -197,6 +197,7 @@ declare global {
     beginRenderPass(descriptor: GPURenderPassDescriptor): GPURenderPassEncoder;
     beginComputePass(descriptor?: GPUComputePassDescriptor): GPUComputePassEncoder;
     copyBufferToBuffer(source: GPUBuffer, sourceOffset: number, destination: GPUBuffer, destinationOffset: number, size: number): void;
+    clearBuffer(buffer: GPUBuffer, offset?: number, size?: number): void;
     resolveQuerySet(querySet: GPUQuerySet, firstQuery: number, queryCount: number, destination: GPUBuffer, destinationOffset: number): void;
     finish(): GPUCommandBuffer;
   }
@@ -220,7 +221,7 @@ declare global {
   interface GPUComputePassDescriptor { label?: string; timestampWrites?: GPUComputePassTimestampWrites; }
   interface GPUComputePassEncoder {
     setPipeline(pipeline: GPUComputePipeline): void;
-    setBindGroup(index: number, bindGroup: GPUBindGroup): void;
+    setBindGroup(index: number, bindGroup: GPUBindGroup, dynamicOffsets?: number[]): void;
     dispatchWorkgroups(workgroupCountX: number, workgroupCountY?: number, workgroupCountZ?: number): void;
     end(): void;
   }
@@ -255,7 +256,7 @@ declare global {
   interface GPUBindGroupLayoutEntry {
     binding: number;
     visibility: GPUShaderStageFlags;
-    buffer?: { type?: GPUBufferBindingType };
+    buffer?: { type?: GPUBufferBindingType; hasDynamicOffset?: boolean; minBindingSize?: number };
     texture?: GPUTextureBindingLayout;
     sampler?: GPUSamplerBindingLayout;
   }
@@ -299,7 +300,7 @@ declare global {
 
   interface GPUComputePipelineDescriptor {
     label?: string;
-    layout: GPUPipelineLayout;
+    layout: GPUPipelineLayout | 'auto';
     compute: GPUProgrammableStage;
   }
 
