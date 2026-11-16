@@ -33,6 +33,7 @@ const FILES = [
   'test/v19-checkpoint.test.mjs',
   'test/v20-shallow-water.test.mjs',
   'test/v21-ray-batch.test.mjs',
+  'test/v22-solid-solid-contact.test.mjs',
 ];
 const tests = spawnSync(process.execPath, ['--test', ...FILES], {stdio: 'inherit'});
 const clean = spawnSync(process.platform === 'win32' ? 'npm.cmd' : 'npm', ['run', 'clean'], {stdio: 'inherit'});

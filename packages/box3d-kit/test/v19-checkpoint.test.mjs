@@ -41,7 +41,7 @@ const kit = fileURLToPath(new URL('..', import.meta.url));
 const STEPS = {
   'pendulum-wave': [240, 240], 'newtons-cradle': [240, 240], 'domino-run': [300, 300], 'terrain-car': [240, 240], ragdoll: [240, 240],
   'moored-buoy': [240, 240], 'cable-stayed-deck': [240, 240], 'buoy-and-crates': [240, 240], trampoline: [120, 120], 'hopper-seesaw': [60, 60],
-  'suspended-platform': [240, 240], 'rubber-pad': [90, 90], 'notched-beam': [120, 120], 'quenched-plate': [120, 120], 'heated-bar': [240, 240],
+  'suspended-platform': [240, 240], 'rubber-pad': [90, 90], 'soft-blocks': [90, 60], 'notched-beam': [120, 120], 'quenched-plate': [120, 120], 'heated-bar': [240, 240],
   'sphere-settling': [40, 40], 'cavity-flow': [40, 40], 'flow-past-cylinder': [40, 40], 'dam-break': [90, 90],
 };
 const SCENES = {...EXAMPLE_SCENES, ...COUPLED_EXAMPLE_SCENES};

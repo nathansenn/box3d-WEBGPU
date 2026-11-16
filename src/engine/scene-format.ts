@@ -584,10 +584,20 @@ export interface SceneSolidBody {
   readonly twoWay?: boolean;
   readonly inertia?: SceneInertia;
 }
-/** Contact of a solid with rigid bodies and fixed planes, two-way (`SolidCoupling`). */
+/** Contact of a solid with rigid bodies and fixed planes, two-way (`SolidCoupling`), or with other solids and itself
+ * (`SolidSolidContact`, docs/SOLID_CONTACT.md): solids joined by `solids` form a group that is advanced in one solve. A
+ * solid of a group collides with the group's solids and planes only: no `bodies`, welds, loads or fracture. */
 export interface SceneSolidContact {
   readonly bodies?: readonly SceneSolidBody[];
   readonly planes?: readonly SceneClothPlane[];
+  /** Ids of other solids this one collides with (node against face, both ways). Naming one side is enough. A plane listed
+   * by one solid of a group acts on all of them, and the group takes the four solver options below from its first solid. */
+  readonly solids?: readonly string[];
+  /** True: the solid also collides with itself. Default false. */
+  readonly self?: boolean;
+  /** Coulomb coefficient of this solid against the solids it touches and against itself. Default 0. Two solids that both
+   * give one use the smaller. */
+  readonly friction?: number;
   /** Defaults 100, half an element, 12, 1e-4 (the solver's). */
   readonly stiffnessScale?: number;
   readonly skin?: number;
@@ -1734,6 +1744,39 @@ function checkRegions(c: Checker, value: unknown, path: string, each?: (item: Ob
   for (let i = 0; i < value.length && !c.stopped; i++) { const item: unknown = value[i]; if (checkRegion(c, item, `${path}/${i}`, extra, required)) each?.(item, `${path}/${i}`); }
 }
 
+/** The solids of a scene that collide with each other, as groups in the scene's order: each group is advanced by one
+ * `SolidSolidContact`. A solid with `contact.self` alone is a group of one. */
+export function sceneSolidGroups(solids: readonly SceneSolid[]): string[][] {
+  const index = new Map(solids.map((solid, i) => [solid.id, i])), parent = solids.map((solid, i) => i), member = solids.map(() => false);
+  const find = (i: number): number => { while (parent[i] !== i) i = parent[i] = parent[parent[i]]; return i; };
+  solids.forEach((solid, i) => {
+    if (solid.contact?.self) member[i] = true;
+    for (const other of solid.contact?.solids ?? []) { const j = index.get(other); if (j === undefined) continue; member[i] = member[j] = true; const a = find(i), b = find(j); if (a !== b) parent[Math.max(a, b)] = Math.min(a, b); }
+  });
+  const groups = new Map<number, string[]>();
+  solids.forEach((solid, i) => { if (!member[i]) return; const root = find(i); if (!groups.has(root)) groups.set(root, []); groups.get(root)!.push(solid.id); });
+  return [...groups.values()];
+}
+/** Cross-checks of `contact.solids`: the ids exist, and every solid of a group can be one. */
+function checkSolidGroups(c: Checker, solids: readonly unknown[]): void {
+  const byId = new Map<string, {solid: Obj; path: string}>();
+  solids.forEach((solid, i) => { if (isObject(solid) && typeof solid.id === 'string') byId.set(solid.id, {solid, path: `/solids/${i}`}); });
+  for (const {solid, path} of byId.values()) {
+    const k = solid.contact;
+    if (!isObject(k) || !Array.isArray(k.solids)) continue;
+    k.solids.forEach((other: unknown, n: number) => {
+      if (typeof other !== 'string') return;
+      const target = byId.get(other), at = `${path}/contact/solids/${n}`;
+      if (!target) { c.add(at, `unknown solid id ${show(other)}`); return; }
+      const t = target.solid, tk = isObject(t.contact) ? t.contact : null;
+      if (t.fracture !== undefined) c.add(at, `solid ${show(other)} has fracture: it has no contact`);
+      if (tk && Array.isArray(tk.bodies) && tk.bodies.length > 0) c.add(at, `solid ${show(other)} is in contact with rigid bodies: it cannot also be in contact with a solid`);
+      if (t.welds !== undefined || t.loads !== undefined) c.add(at, `solid ${show(other)} has welds or loads: it cannot be in contact with a solid`);
+      if (t.integrator !== undefined && t.integrator !== 'backward-euler') c.add(at, `solid ${show(other)} must use 'backward-euler'`);
+      if (t.substeps !== undefined && t.substeps !== 1) c.add(at, `solid ${show(other)} must take one step per world step`);
+    });
+  }
+}
 function checkSolid(c: Checker, solid: unknown, path: string, ctx: CoupledContext, solids: Map<string, SolidInfo>): void {
   if (!c.object(solid, path, SOLID_KEYS, ['id', 'mesh', 'material'])) return;
   let nodes = -1, cells: [number, number, number] | null = null;
@@ -1798,9 +1841,20 @@ function checkSolid(c: Checker, solid: unknown, path: string, ctx: CoupledContex
     if (item.axes !== undefined && (!Array.isArray(item.axes) || item.axes.length !== 3 || item.axes.some(v => typeof v !== 'boolean'))) c.add(`${at}/axes`, 'must be three booleans [x, y, z]');
   }, ['axes']);
   const touched = new Set<string>();
-  if (contact && c.object(solid.contact, `${path}/contact`, ['bodies', 'planes', 'stiffnessScale', 'skin', 'frictionPasses', 'frictionTolerance'])) {
+  if (contact && c.object(solid.contact, `${path}/contact`, ['bodies', 'planes', 'solids', 'self', 'friction', 'stiffnessScale', 'skin', 'frictionPasses', 'frictionTolerance'])) {
     const k = solid.contact, at = `${path}/contact`;
     if (fracture) c.add(at, 'a solid with fracture has no contact with bodies (docs/SOLID_FRACTURE.md)');
+    if (k.solids !== undefined) {
+      if (!Array.isArray(k.solids) || k.solids.some(v => typeof v !== 'string')) c.add(`${at}/solids`, 'must be an array of solid ids');
+      else if (new Set(k.solids).size !== k.solids.length) c.add(`${at}/solids`, 'lists a solid twice');
+      else if (k.solids.includes(solid.id)) c.add(`${at}/solids`, "lists the solid itself: use 'self'");
+    }
+    if (k.self !== undefined) c.boolean(k.self, `${at}/self`);
+    if (k.friction !== undefined) c.real(k.friction, `${at}/friction`, 0, 10);
+    if ((Array.isArray(k.solids) && k.solids.length > 0) || k.self === true) {
+      if (Array.isArray(k.bodies) && k.bodies.length > 0) c.add(`${at}/bodies`, 'a solid in contact with solids collides with them and with planes only, not with rigid bodies');
+      if (solid.welds !== undefined || solid.loads !== undefined) c.add(at, 'a solid in contact with solids has no welds or loads');
+    }
     if (k.bodies !== undefined) {
       if (!Array.isArray(k.bodies)) c.add(`${at}/bodies`, `must be an array, got ${typeName(k.bodies)}`);
       else for (let i = 0; i < k.bodies.length && !c.stopped; i++) {
@@ -2201,6 +2255,7 @@ export function validateScene(scene: unknown): SceneProblem[] {
     section('grains', SCENE_LIMITS.grainSets, (item, path) => checkGrains(c, item, path, ctx));
     const solids = new Map<string, SolidInfo>(), heated = new Set<string>();
     section('solids', SCENE_LIMITS.solids, (item, path) => checkSolid(c, item, path, ctx, solids));
+    if (Array.isArray(scene.solids)) checkSolidGroups(c, scene.solids as unknown[]);
     section('heat', SCENE_LIMITS.heat, (item, path) => checkHeat(c, item, path, solids, heated));
     section('water', SCENE_LIMITS.waterBasins, (item, path) => checkWater(c, item, path, ctx));
     const gravity = Array.isArray(world.gravity) && world.gravity.length === 3 && world.gravity.every(v => typeof v === 'number' && Number.isFinite(v)) ? world.gravity as number[] : [0, -9.81, 0];
@@ -2497,6 +2552,9 @@ function normalSolid(solid: SceneSolid): SceneSolid {
       return one;
     });
     if (k.planes && k.planes.length > 0) contact.planes = k.planes.map(plane => ({normal: vec(plane.normal), ...(plane.point && !isZero(plane.point) ? {point: vec(plane.point)} : {}), ...(plane.friction ? {friction: plane.friction} : {})}));
+    if (k.solids && k.solids.length > 0) contact.solids = [...k.solids];
+    if (k.self) contact.self = true;
+    if (k.friction) contact.friction = k.friction;
     for (const [key, standard] of [['stiffnessScale', 100], ['frictionPasses', 12], ['frictionTolerance', 1e-4]] as const) if (k[key] !== undefined && k[key] !== standard) contact[key] = k[key];
     if (k.skin !== undefined) contact.skin = zero(k.skin);
     out.contact = contact;
@@ -3308,4 +3366,4 @@ export function saveScene<W extends SceneHost>(world: W, handles: SceneBuilder<W
   return builder.toJSON(options);
 }
 
-export {pendulumWaveScene, newtonsCradleScene, dominoRunScene, terrainCarScene, ragdollScene, EXAMPLE_SCENES, mooredBuoyScene, cableStayedDeckScene, buoyAndCratesScene, trampolineScene, hopperSeesawScene, suspendedPlatformScene, rubberPadScene, notchedBeamScene, quenchedPlateScene, heatedBarScene, sphereSettlingScene, cavityFlowScene, flowPastCylinderScene, damBreakScene, damBreakValleyScene, riverBendScene, COUPLED_EXAMPLE_SCENES} from './scene-examples.ts';
+export {pendulumWaveScene, newtonsCradleScene, dominoRunScene, terrainCarScene, ragdollScene, EXAMPLE_SCENES, mooredBuoyScene, cableStayedDeckScene, buoyAndCratesScene, trampolineScene, hopperSeesawScene, suspendedPlatformScene, rubberPadScene, softBlocksScene, notchedBeamScene, quenchedPlateScene, heatedBarScene, sphereSettlingScene, cavityFlowScene, flowPastCylinderScene, damBreakScene, damBreakValleyScene, riverBendScene, COUPLED_EXAMPLE_SCENES} from './scene-examples.ts';

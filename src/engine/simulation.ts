@@ -32,11 +32,12 @@ import {HeatSolver,type HeatBoundary} from './heat.ts';
 import {SolidBody,boxMesh} from './solid.ts';
 import {FractureBody,fractureSubsystem} from './solid-fracture.ts';
 import {SolidCoupling,solidContactSubsystem,type SolidContactShape} from './solid-contact.ts';
+import {SolidSolidContact,solidSolidContactSubsystem} from './solid-solid-contact.ts';
 import {Cloth,ClothCoupling,clothSubsystem,type ClothShape} from './cloth.ts';
 import {Granular,GranularCoupling,granularSubsystem,type GranularShape} from './granular.ts';
 import {Fluid,FluidCoupling,FreeSurfaceFluid,fluidSubsystem,freeSurfaceSubsystem,type FluidBoundaries,type FluidShape,type FluidWorld} from './fluid.ts';
 import {ShallowWater,ShallowWaterCoupling,shallowWaterSubsystem,type ShallowWaterBoundaries,type ShallowWaterShape,type ShallowWaterWorld} from './shallow-water.ts';
-import {canonicalize,normalizeScene,sceneHasCoupling,sceneHash,SceneBuilder,type Scene,type SceneBody,type SceneCable,type SceneCloth,type SceneCoupledSections,type SceneFluid,type SceneFrameSection,type SceneGrains,type SceneHeat,type SceneHost,type SceneInertia,type SceneSolid,type SceneSolidRegion,type SceneShallowWater,type SceneWater} from './scene-format.ts';
+import {canonicalize,normalizeScene,sceneHasCoupling,sceneHash,sceneSolidGroups,SceneBuilder,type Scene,type SceneBody,type SceneCable,type SceneCloth,type SceneCoupledSections,type SceneFluid,type SceneFrameSection,type SceneGrains,type SceneHeat,type SceneHost,type SceneInertia,type SceneSolid,type SceneSolidRegion,type SceneShallowWater,type SceneWater} from './scene-format.ts';
 import {CHECKPOINT_VERSION,checkpointError,readCheckpoint,writeCheckpoint,type StateObject,type StateValue} from './checkpoint.ts';
 import type {NativeBodyHandle,NativeJointHandle} from './native-world.ts';
 
@@ -836,7 +837,8 @@ function sceneSurface(desc:SceneFluid,step:number,gravity:readonly [number,numbe
   return tank;
 }
 /** A solid of a scene as built: the body (a `FractureBody` when the scene gives it fracture), its contact coupling or null, and the heat grid in it or null. */
-export interface SceneSolidRuntime<B> {readonly body:SolidBody|FractureBody;readonly coupling:SolidCoupling<B>|null;readonly heat:HeatSolver|null}
+/** `group`: the solver of the solids this one collides with (`contact.solids`, `contact.self`), shared by its members; such a solid has no `coupling`. */
+export interface SceneSolidRuntime<B> {readonly body:SolidBody|FractureBody;readonly coupling:SolidCoupling<B>|null;readonly heat:HeatSolver|null;readonly group?:SolidSolidContact|null}
 
 /** Is the point inside a region of a scene solid? The bounds are widened by 1e-9 of the coordinate, so a node on a face of the box counts. */
 function inRegion(r:SceneSolidRegion,x:number,y:number,z:number):boolean {
@@ -1019,6 +1021,8 @@ export function buildSceneSimulation<W extends SimulationSceneWorld>(world:W,bui
         for(const entry of set.bodies??[])if(entry.twoWay!==false)track(entry.body);
       }catch(error){throw named('grains',set.id,error);}
     }
+    // Solids that collide with each other are advanced together, after all of them exist.
+    const solidGroups=sceneSolidGroups(scene.solids??[]),grouped=new Set(solidGroups.flat());
     for(const desc of scene.solids??[]){
       try{
         const body=sceneSolidBody(desc,step,gravity);
@@ -1029,7 +1033,8 @@ export function buildSceneSimulation<W extends SimulationSceneWorld>(world:W,bui
         }
         if(desc.displacements||desc.velocities)body.setState(desc.displacements,desc.velocities);
         let coupling:SolidCoupling<Body>|null=null;
-        if(desc.contact){
+        if(grouped.has(desc.id)){/* registered with its group below */}
+        else if(desc.contact){
           const k=desc.contact;
           coupling=new SolidCoupling<Body>(world,body as SolidBody,{...(k.stiffnessScale!==undefined?{stiffnessScale:k.stiffnessScale}:{}),...(k.skin!==undefined?{skin:k.skin}:{}),
             ...(k.frictionPasses!==undefined?{frictionPasses:k.frictionPasses}:{}),...(k.frictionTolerance!==undefined?{frictionTolerance:k.frictionTolerance}:{})});
@@ -1056,6 +1061,23 @@ export function buildSceneSimulation<W extends SimulationSceneWorld>(world:W,bui
         }
         solids.set(desc.id,{body,coupling,heat:null});
       }catch(error){throw named('solid',desc.id,error);}
+    }
+    for(const ids of solidGroups){
+      try{
+        const members=ids.map(id=>scene.solids!.find(entry=>entry.id===id)!),first=members.find(m=>m.contact)!.contact!;
+        const group=new SolidSolidContact(members.map(m=>solids.get(m.id)!.body as SolidBody),{...(first.stiffnessScale!==undefined?{stiffnessScale:first.stiffnessScale}:{}),...(first.skin!==undefined?{skin:first.skin}:{}),
+          ...(first.frictionPasses!==undefined?{frictionPasses:first.frictionPasses}:{}),...(first.frictionTolerance!==undefined?{frictionTolerance:first.frictionTolerance}:{}),
+          selfContact:members.map((m,i)=>m.contact?.self?i:-1).filter(i=>i>=0)});
+        const friction=(a:SceneSolid,b:SceneSolid):number=>{const fa=a.contact?.friction,fb=b.contact?.friction;return fa===undefined?fb??0:fb===undefined?fa:Math.min(fa,fb);};
+        members.forEach((a,i)=>members.forEach((b,j)=>{if(j>i||(j===i&&a.contact?.self))group.setFriction(i,j,friction(a,b));}));
+        const seen=new Set<string>();
+        for(const m of members)for(const plane of m.contact?.planes??[]){
+          const key=JSON.stringify([plane.normal,plane.point??[0,0,0],plane.friction??0]);if(seen.has(key))continue;seen.add(key);
+          group.addPlane({normal:[plane.normal[0],plane.normal[1],plane.normal[2]],...(plane.point?{point:[plane.point[0],plane.point[1],plane.point[2]] as const}:{}),...(plane.friction!==undefined?{friction:plane.friction}:{})});
+        }
+        simulation.add(solidSolidContactSubsystem<W,Body>(group,{id:ids[0]}));
+        for(const id of ids)solids.set(id,{...solids.get(id)!,group});
+      }catch(error){throw named('solid',ids[0],error);}
     }
     for(const desc of scene.heat??[]){
       try{

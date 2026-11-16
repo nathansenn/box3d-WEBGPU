@@ -3506,6 +3506,10 @@ export declare function rubberPadScene(options?: {
     drop?: number;
     mass?: number;
 }): Scene;
+export declare function softBlocksScene(options?: {
+    cells?: number;
+    drop?: number;
+}): Scene;
 export declare function notchedBeamScene(options?: {
     mass?: number;
     drop?: number;
@@ -4046,6 +4050,9 @@ export interface SceneSolidBody {
 export interface SceneSolidContact {
     readonly bodies?: readonly SceneSolidBody[];
     readonly planes?: readonly SceneClothPlane[];
+    readonly solids?: readonly string[];
+    readonly self?: boolean;
+    readonly friction?: number;
     readonly stiffnessScale?: number;
     readonly skin?: number;
     readonly frictionPasses?: number;
@@ -4267,6 +4274,7 @@ export declare class SceneValidationError extends EngineError {
     readonly problems: readonly SceneProblem[];
     constructor(problems: readonly SceneProblem[], what?: string);
 }
+export declare function sceneSolidGroups(solids: readonly SceneSolid[]): string[][];
 export declare function validateScene(scene: unknown): SceneProblem[];
 export declare function eulerToQuaternion(degrees: SceneVec3): [number, number, number, number];
 export declare function sceneHasCoupling(scene: SceneCoupledSections): boolean;
@@ -4345,7 +4353,7 @@ export declare function loadScene<W extends SceneHost>(world: W, scene: unknown)
 export declare function saveScene<W extends SceneHost>(world: W, handles: SceneBuilder<W> | {
     readonly builder: SceneBuilder<W>;
 }, options?: SaveSceneOptions): Scene;
-export { pendulumWaveScene, newtonsCradleScene, dominoRunScene, terrainCarScene, ragdollScene, EXAMPLE_SCENES, mooredBuoyScene, cableStayedDeckScene, buoyAndCratesScene, trampolineScene, hopperSeesawScene, suspendedPlatformScene, rubberPadScene, notchedBeamScene, quenchedPlateScene, heatedBarScene, sphereSettlingScene, cavityFlowScene, flowPastCylinderScene, damBreakScene, damBreakValleyScene, riverBendScene, COUPLED_EXAMPLE_SCENES } from './scene-examples.js';
+export { pendulumWaveScene, newtonsCradleScene, dominoRunScene, terrainCarScene, ragdollScene, EXAMPLE_SCENES, mooredBuoyScene, cableStayedDeckScene, buoyAndCratesScene, trampolineScene, hopperSeesawScene, suspendedPlatformScene, rubberPadScene, softBlocksScene, notchedBeamScene, quenchedPlateScene, heatedBarScene, sphereSettlingScene, cavityFlowScene, flowPastCylinderScene, damBreakScene, damBreakValleyScene, riverBendScene, COUPLED_EXAMPLE_SCENES } from './scene-examples.js';
 
 // ==== core/shallow-water.d.ts ====
 import { type StateObject, type StateValue } from './checkpoint.js';
@@ -4634,6 +4642,7 @@ import { HeatSolver } from './heat.js';
 import { SolidBody } from './solid.js';
 import { FractureBody } from './solid-fracture.js';
 import { SolidCoupling } from './solid-contact.js';
+import { SolidSolidContact } from './solid-solid-contact.js';
 import { ClothCoupling } from './cloth.js';
 import { GranularCoupling } from './granular.js';
 import { Fluid, FluidCoupling, FreeSurfaceFluid } from './fluid.js';
@@ -4912,6 +4921,7 @@ export interface SceneSolidRuntime<B> {
     readonly body: SolidBody | FractureBody;
     readonly coupling: SolidCoupling<B> | null;
     readonly heat: HeatSolver | null;
+    readonly group?: SolidSolidContact | null;
 }
 export declare function buildSceneSimulation<W extends SimulationSceneWorld>(world: W, builder: SceneBuilder<W>, scene: Scene): LoadedSimulationScene<W>;
 export declare function loadSimulationScene<W extends SimulationSceneWorld>(world: W, scene: unknown): LoadedSimulationScene<W>;
@@ -5576,6 +5586,163 @@ export declare function tetVolume(p: ArrayLike<number>, a: number, b: number, c:
 export declare function boxNode(cells: readonly [number, number, number], i: number, j: number, k: number): number;
 export declare function boxMesh(options: BoxMeshOptions): TetMesh;
 export declare function boundaryFaces(mesh: TetMesh): Uint32Array;
+
+// ==== core/solid-solid-contact.d.ts ====
+import { type StateObject, type StateValue } from './checkpoint.js';
+import { SolidBody } from './solid.js';
+import type { Subsystem } from './simulation.js';
+export declare const SOLID_SOLID_CONTACT_SOLVER_ID = "solid-solid-contact-node-face-penalty-newton-pcg-js-f64-v1";
+export interface SolidSolidContactOptions {
+    readonly stiffnessScale?: number;
+    readonly skin?: number;
+    readonly friction?: number;
+    readonly selfContact?: boolean | readonly number[];
+    readonly frictionPasses?: number;
+    readonly frictionTolerance?: number;
+}
+export interface SolidSolidContactStats {
+    converged: boolean;
+    newtonIterations: number;
+    linearIterations: number;
+    residual: number;
+    reference: number;
+    frictionPasses: number;
+    unconvergedSteps: number;
+    contacts: number;
+}
+export interface SolidSolidStaticResult {
+    converged: boolean;
+    passes: number;
+    residual: number;
+    change: number;
+}
+export declare class SolidSolidContact {
+    saveState(): StateObject;
+    restoreState(state: StateValue): void;
+    readonly solver = "solid-solid-contact-node-face-penalty-newton-pcg-js-f64-v1";
+    readonly solids: SolidBody[];
+    readonly dt: number;
+    readonly stiffnessScale: number;
+    readonly skin: number;
+    readonly frictionPasses: number;
+    readonly frictionTolerance: number;
+    readonly stats: SolidSolidContactStats;
+    contactWork: number;
+    private readonly k;
+    private readonly offset;
+    private readonly size;
+    private readonly surfaceNodes;
+    private readonly elementSize;
+    private readonly kArea;
+    private readonly ringStart;
+    private readonly ringNodes;
+    private pairSlave;
+    private pairMaster;
+    private pairFriction;
+    private pairStart;
+    private readonly planes;
+    private sealed;
+    private anchor;
+    private slotForce;
+    private marked;
+    private slotFace;
+    private count;
+    private cSlot;
+    private cNode;
+    private cFace;
+    private cXi;
+    private cN;
+    private cGap;
+    private cK;
+    private cCap;
+    private cMu;
+    private cF0;
+    private act;
+    private fmode;
+    private fs;
+    private fsl;
+    private readonly z;
+    private G;
+    private Gt;
+    private readonly trial;
+    private readonly cgX;
+    private readonly cgR;
+    private readonly cgZ;
+    private readonly cgP;
+    private readonly cgA;
+    private readonly diag;
+    private readonly fint;
+    private readonly u0;
+    private readonly target;
+    private readonly work;
+    private readonly work2;
+    private readonly fext;
+    readonly nodeForce: Float64Array;
+    private readonly areaVector;
+    private readonly xNow;
+    private h;
+    private cm;
+    private cd;
+    private reference;
+    private referenceInertia;
+    private staticMode;
+    private readonly w3;
+    private readonly v2;
+    private grid;
+    private readonly vertexFaceStart;
+    private readonly vertexFaces;
+    private readonly n3;
+    constructor(solids: readonly SolidBody[], options?: SolidSolidContactOptions);
+    private addPair;
+    private buildRing;
+    addPlane(options: {
+        readonly normal: readonly [number, number, number];
+        readonly point?: readonly [number, number, number];
+        readonly friction?: number;
+    }): number;
+    get planeCount(): number;
+    setFriction(a: number, b: number, friction: number): void;
+    private seal;
+    private reserve;
+    private geometry;
+    private smoothNormal;
+    private static key;
+    private fillGrid;
+    private detect;
+    private springs;
+    private objective;
+    private kScale;
+    private mScale;
+    private product;
+    private precondition;
+    private norm;
+    private conjugateGradient;
+    private minimise;
+    private contactGap;
+    private updateCaps;
+    private solve;
+    private collect;
+    private loads;
+    step(count?: number): void;
+    solveStatic(options?: {
+        readonly maxPasses?: number;
+        readonly tolerance?: number;
+    }): SolidSolidStaticResult;
+    contactForce(a: number, b?: number, out?: number[]): number[];
+    maxPenetration(): number;
+    contactEnergy(): number;
+    linearMomentum(out?: number[]): number[];
+    angularMomentum(out?: number[]): number[];
+    energy(): {
+        kinetic: number;
+        strain: number;
+    };
+}
+export declare const SOLID_SOLID_CONTACT_SUBSYSTEM_ORDER = 300;
+export declare function solidSolidContactSubsystem<W, B>(target: SolidSolidContact, options?: {
+    readonly id?: string;
+    readonly order?: number;
+}): Subsystem<W, B>;
 
 // ==== core/solid.d.ts ====
 import { type StateObject, type StateValue } from './checkpoint.js';
@@ -6782,6 +6949,7 @@ export declare function resumeSimulation(world: PhysicsWorld, bytes: Uint8Array)
 
 // ==== solid-contact.d.ts ====
 export * from './core/solid-contact.js';
+export * from './core/solid-solid-contact.js';
 
 // ==== solid.d.ts ====
 export * from './core/solid.js';
