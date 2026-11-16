@@ -15,6 +15,7 @@ installGpuGlobals();
 const {defineStruct} = await import('../../src/engine/gpu/layout.ts');
 const {preprocessWgsl, wgslFloat} = await import('../../src/engine/gpu/wgsl.ts');
 const {GpuCompute, GpuProgram, PingPong, acquireGpuCompute} = await import('../../src/engine/gpu/compute.ts');
+const {SW_PARAMS} = await import('../../src/engine/gpu/shallow-water-wgsl.ts');
 
 const dawn = create(['backend=null']);
 const adapter = await dawn.requestAdapter();
@@ -72,11 +73,11 @@ async function compilerAccepts(struct, bytes, usage) {
   buffer.destroy(); out.destroy();
   return error === null;
 }
-test('struct sizes agree with the shader compiler, for every prefix of each struct', async () => {
+test('struct sizes agree with the shader compiler, for every prefix of each struct the backends use', async () => {
   const structs = [
     ['A', {x: 'f32', v: 'vec3f', y: 'f32', w: 'vec2f', n: 'u32', m: 'mat3x3f', t: 'vec4f', k: 'i32'}, 'storage'],
     ['B', {a: 'u32', b: {array: 'vec3f', count: 3}, c: {array: 'f32', count: 5}, d: 'vec2u'}, 'storage'],
-    ['U', {n: 'u32', a: 'f32', v: 'vec4f', sides: {array: 'vec4f', count: 3}, m: 'mat4x4f', t: 'f32'}, 'uniform'],
+    ['Params', Object.fromEntries(SW_PARAMS.fields.map(f => [f.name, f.type])), 'uniform'],
   ];
   let checked = 0;
   for (const [name, fields, usage] of structs) {
@@ -88,7 +89,8 @@ test('struct sizes agree with the shader compiler, for every prefix of each stru
       checked++;
     }
   }
-  assert.ok(checked >= 18);
+  assert.ok(checked > 30);
+  assert.equal(SW_PARAMS.size, 208);
   assert.deepEqual(uncaptured, []);
 });
 

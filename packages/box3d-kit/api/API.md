@@ -9156,6 +9156,7 @@ export declare class ShallowWater {
   setRain(rain: number | ((time: number) => number)): void;
   setBoundary(key: keyof ShallowWaterBoundaries, value: ShallowWaterSide): void;
   setTimeStep(dt: number): void;
+  sideStates(): { kind: 0 | 1 | 2 | 3; discharge: number; depth: number; level: number; lo: number; hi: number; width: number; }[];
   volume(): number;
   volumeError(): number;
   addVolume(c: number, volume: number, u?: number, v?: number): void;
