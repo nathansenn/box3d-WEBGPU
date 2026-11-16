@@ -592,6 +592,17 @@ The fuzzers (`tests/fuzz`, docs/ROBUSTNESS.md) found defects in the native side.
   gives overlaps) and counts bodies. Casts still report each shape they reach, since those hits differ in point and
   fraction.
 
+- **ND-5, random jointed programs that diverged.** Replaying the fuzzer's seeds, the runaway began each time with
+  one large impulse through a joint anchored off a body's centre of mass: a wheel joint between a child moving at
+  357 m/s and a parent at 67 m/s (the parent's spin went from 7 to 143 rad/s in one step), or a distance joint to the
+  world made in mid-fall with a 5 cm rest length 0.96 m from the body (2.7 × 10⁴ N; spin from 1 to 516 rad/s in one
+  step). Box3D integrates no more than a quarter turn per step (0.25 π / dt; the bridge never sets
+  `allowFastRotation`), so velocities far above that are the solver fighting itself, and from there it ran away to
+  10⁴ rad/s and NaN. The containment of ND-2 therefore also bounds angular speed, at ten times that clamp (471 rad/s
+  at 60 Hz, 1,885 rad/s at 240 Hz). With it the four seeds on record (1,500 operations each) stay finite with their
+  fastest spin at 55 to 286 rad/s instead of 567 to 9,968, and containment still never fires in the example scenes
+  or the catalog. The anchor rule of `diagnose()` (`joint-lever`) remains the way to keep a mechanism from needing it.
+
 ## Custom filter and pre-solve callbacks: not exposed
 
 Box3D can call the application for every candidate pair (`b3World_SetCustomFilterCallback`) and for every touching

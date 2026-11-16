@@ -1664,7 +1664,7 @@ static void b3w_ctx_sync_transforms(B3WContext* ctx)
 }
 
 static void b3w_ctx_after_step(B3WContext* ctx);
-static void b3w_ctx_contain(B3WContext* ctx);
+static void b3w_ctx_contain(B3WContext* ctx, float dt);
 
 static void b3w_ctx_step(B3WContext* ctx, float dt, int subSteps)
 {
@@ -1696,7 +1696,7 @@ static void b3w_ctx_step(B3WContext* ctx, float dt, int subSteps)
         ctx->clearImpulses = 0;
     }
     else b3World_Step(ctx->world, dt, subSteps);
-    b3w_ctx_contain(ctx);
+    b3w_ctx_contain(ctx, dt);
     b3w_ctx_after_step(ctx);
 
     // If the step began awake, perform the same full synchronization used by
@@ -3410,11 +3410,15 @@ static uint64_t b3w_ctx_native_body_handle(B3WContext* ctx, b3BodyId body)
 // Box3D can diverge when joints contradict each other (a body held by two joints to the world that cannot both be
 // satisfied, one of them a hard limit): speeds grow by orders of magnitude a step until they are NaN, which then
 // spreads through contacts and joints to every body that touches it. After each step the bridge looks for a dynamic
-// body whose state is not finite, or whose linear or angular speed is above ten times the world's maximum linear
-// speed (Box3D clamps what it integrates at that speed, 400 m/s by default; impulses can leave a body faster for a
-// step, by a few times, when a joint snaps back) and at least 1e4, puts it back at the pose it had after the
-// previous step, at rest, and reports it (event kind 7, b3w_world_contained_total). A world that never diverges is
-// not changed.
+// body whose state is not finite, whose linear speed is above ten times the world's maximum linear speed (Box3D
+// clamps what it integrates at that speed, 400 m/s by default; impulses can leave a body faster for a step, by a few
+// times, when a joint snaps back) and at least 1e4 m/s, or whose angular speed is above ten times Box3D's own clamp
+// of a quarter turn per step (0.25 pi / dt: 471 rad/s at 60 Hz, 1,885 rad/s at 240 Hz; the bridge never sets
+// allowFastRotation) puts it back at the pose it had after the previous step, at rest, and reports it (event kind 7,
+// b3w_world_contained_total). A world that never diverges is not changed.
+// The angular bound is native defect ND-5: random jointed programs diverged when an impulse through a joint anchored
+// off a body's centre of mass (a joint made between bodies moving very differently, a distance joint to the world
+// made mid-fall) spun the body to hundreds of rad/s, far past the clamp, after which the solve ran away.
 #define B3W_DIVERGED_SPEED_MIN 1.0e4f
 
 static int b3w_ctx_contain_one(B3WContext* ctx, int index, float speed)
@@ -3454,12 +3458,13 @@ static int b3w_ctx_contain_one(B3WContext* ctx, int index, float speed)
     return 1;
 }
 
-static void b3w_ctx_contain(B3WContext* ctx)
+static void b3w_ctx_contain(B3WContext* ctx, float dt)
 {
     if (ctx->bodySlots == NULL) return;
     float limit = 10.0f * b3World_GetMaximumLinearSpeed(ctx->world);
     if (!(limit >= B3W_DIVERGED_SPEED_MIN)) limit = B3W_DIVERGED_SPEED_MIN;
     const float limit2 = limit * limit;
+    const float spin = 10.0f * 0.25f * 3.14159265f / dt, spin2 = spin * spin;
     for (int d = 0; d < ctx->dynamicCount; ++d)
     {
         const int i = ctx->dynamicIndices[d];
@@ -3470,7 +3475,7 @@ static void b3w_ctx_contain(B3WContext* ctx)
         const float v2 = v.x * v.x + v.y * v.y + v.z * v.z, w2 = w.x * w.x + w.y * w.y + w.z * w.z;
         const int finite = isfinite(v2) && isfinite(w2) && isfinite((float)xf.p.x) && isfinite((float)xf.p.y) && isfinite((float)xf.p.z) &&
             isfinite(xf.q.s) && isfinite(xf.q.v.x) && isfinite(xf.q.v.y) && isfinite(xf.q.v.z);
-        if (finite && v2 <= limit2 && w2 <= limit2) continue;
+        if (finite && v2 <= limit2 && w2 <= spin2) continue;
         b3w_ctx_contain_one(ctx, i, finite ? sqrtf(v2 > w2 ? v2 : w2) : NAN);
     }
 }

@@ -73,7 +73,8 @@ test('ND-2: joints that contradict each other no longer poison the world: the di
     }
     assert.ok(events.length > 0 && world.containedTotal() - before === events.length, `each containment is an event (${events.length}) and counted`);
     assert.ok(events.every(event => event.bodyA !== null && (event.bodyA.token === box.token || event.bodyA.token === wheel.token)), 'only the jointed bodies diverge');
-    assert.ok(events.every(event => !(event.speed <= 10 * 400)), 'each reached more than ten times the speed limit, or was not finite');
+    // Each was past a bound: not finite, or faster than the smaller one, ten times Box3D's spin clamp of a quarter turn a step (471 rad/s at 60 Hz).
+    assert.ok(events.every(event => !(event.speed <= 10 * 0.25 * Math.PI * 60)), 'each was not finite or past a bound');
     const still = world.bodyState(bystander);
     assert.ok(Math.abs(still.position[0] + 6) < 1e-3 && Math.abs(still.position[1] - 0.4) < 0.01, 'a body that touches nothing of it rests where it was');
   } finally { world.destroy(); }

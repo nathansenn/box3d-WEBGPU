@@ -1,5 +1,11 @@
 # Changelog
 
+## Unreleased — 2026-11-16 — Bridge: containment also bounds spin, which ends the random-program divergences (ND-5)
+
+- **Cause found** (replaying the fuzzer's seeds with a tracer): each runaway began with one large impulse through a joint anchored off a body's centre of mass — a wheel joint between bodies at 357 and 67 m/s (spin 7 → 143 rad/s in one step), a distance joint to the world made mid-fall 0.96 m from its 5 cm rest length (2.7 × 10⁴ N; spin 1 → 516 rad/s in one step). Box3D integrates at most a quarter turn per step, so such velocities are the solver fighting itself; from there it ran away to 10⁴ rad/s and NaN.
+- **Bridge** (both WASM files and `BUILD_PROVENANCE.json` rebuilt; API version 1): the containment of ND-2 also puts back a body spinning faster than ten times Box3D's clamp (10 × 0.25 π / dt: 471 rad/s at 60 Hz, 1,885 rad/s at 240 Hz).
+- **Measured**: the four seeds on record (21702374, 21741969, 20427415, 20878798; long mode, 1,500 operations) stay finite, fastest spin 286, 92, 71 and 55 rad/s (before: up to 9,968); the short world fuzzer has no divergence; containment still never fires in the 26 example scenes or the 800-recipe catalog (`v22-rigid-native`), and test:native-wasm and test:threaded are unchanged.
+
 ## Unreleased — 2026-11-16 — Bridge: overlap queries count bodies, not shapes (ND-4)
 
 - **Bridge** (both WASM files and `BUILD_PROVENANCE.json` rebuilt; API version 1): sphere, box, capsule and AABB-candidate overlaps keep each body once and count bodies in `totalHits` and `overflow`; a compound no longer uses up a limit alone. Casts are unchanged. Test (`v22-rigid-native`): a three-child compound with limit 1 is one hit, total 1, no overflow; with a second body every overlap kind gives each body once, total 2, and overflow only at limit 1.

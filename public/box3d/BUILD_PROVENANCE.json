@@ -12,7 +12,7 @@
   },
   "bridge": {
     "source": "wasm/box3d_web.c",
-    "sha256": "ca0de17e976c8dfaeb524b2e5d2f525f837c60990c5747423ac07b5d5b593e8b",
+    "sha256": "03ef4ed120ca18c8463b32e654cd4ede3191302af5bbc7745b0e598b60ae96e9",
     "lazyReplayHash": true,
     "sleepingWorldTransformCache": true,
     "independentColorRevision": true,
@@ -35,8 +35,8 @@
       "sha256": "469e1cf95343ba3826c0f0cbb0e43d0703104e76c4e7ad357326e7bacc21349c"
     },
     "box3d.wasm": {
-      "bytes": 725485,
-      "sha256": "f27dd7830b3992c818e2f7f6e99cf94e9c9b1cf511227e4a0799bf2da258dd51"
+      "bytes": 725500,
+      "sha256": "2c1538d9e87284f671630fe23e7b848532b9cf64343307121c4ba65b19228b3a"
     }
   },
   "validation": {
@@ -144,7 +144,7 @@
       },
       "worldCapacity": "b3w_world_reserve(n) is passed to b3CreateWorld as capacity (n dynamic bodies and shapes, 4 n contacts) at the next reset; default contexts pass none",
       "convexExtentLimit": "for dynamic bodies, box half extents, hull points and compound polytope children above 1 km (from the body origin) are refused, and so is retyping a wider box, hull or compound body to dynamic: Box3D b3FindIncidentFace loops for ever on such boxes in contact (ND-1)",
-      "divergenceContainment": "after each step a dynamic body that is not finite or faster than 10 x the maximum linear speed (at least 1e4) is put back at its previous pose at rest, the next step runs without warm starting, and event kind 7 reports it (ND-2)",
+      "divergenceContainment": "after each step a dynamic body that is not finite, faster than 10 x the maximum linear speed (at least 1e4 m/s), or spinning faster than 10 x Box3D clamp of 0.25 pi / dt is put back at its previous pose at rest, the next step runs without warm starting, and event kind 7 reports it (ND-2, ND-5)",
       "restoreOwnHandles": "b3w_world_restore_ex(takeHandles=1) takes the checkpoint handle table and keeps later slots free with newer generations; the adapter uses it for checkpoints the world wrote since its last reset (ND-3)",
       "overlapsCountBodies": "overlap queries keep each body once and count bodies in totals and overflow (ND-4)"
     }
@@ -162,7 +162,7 @@
     "bridge": "wasm/box3d_web.c compiled unchanged; b3CreateWorld and b3World_Step renamed per source",
     "sources": {
       "threadsSha256": "5785c8eb105440000ad2520149a6ebf6f6317dca3d4b5724011972861c57f2cb",
-      "bridgeSha256": "ca0de17e976c8dfaeb524b2e5d2f525f837c60990c5747423ac07b5d5b593e8b",
+      "bridgeSha256": "03ef4ed120ca18c8463b32e654cd4ede3191302af5bbc7745b0e598b60ae96e9",
       "cmakeSha256": "837d5854c46a283cdf40737634ff81b13f605082e0b492f7e4e4b7461f0e97b0"
     },
     "artifacts": {
@@ -171,8 +171,8 @@
         "sha256": "ebafa52b1e83485fc9522b8f78431321ba480ff38baa84db7dbb1c6a0e98d358"
       },
       "box3d-mt.wasm": {
-        "bytes": 733292,
-        "sha256": "37e0fa7ddeb4e25c2485a651e6dfab73731ce5a189fc7f19d039795a33845044"
+        "bytes": 733307,
+        "sha256": "e7654da3ca3eb2068362a722824559da9fe062e9b578cc42bbb66833106dce95"
       }
     },
     "build": {
