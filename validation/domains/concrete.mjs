@@ -12,6 +12,8 @@ export const CT = {
   compression: 'uniaxial compression of one cell of band width L_c follows EN 1992-1-1 (3.14) to f_cm at eps_c1 and on to eps_cu1',
   tension: 'uniaxial tension: the peak is f_ctm and the energy dissipated through a cracked band is G_f A on three meshes (crack band, mesh objective)',
   band: 'crack band in compression: a crushed band of width h dissipates G_c per unit area after the peak for every h',
+  bandTension: 'crack band per element: bars of 10, 20 and 40 cells and a 3-D mesh dissipate G_f per unit area in tension with the band width of each element (no bandWidth given)',
+  bandCompression: 'crack band per element: bars of 10, 20 and 40 cells and a 3-D mesh crush in one band of elements that dissipates G_c per unit area, scaled by the peak stress of the band',
   confinement: 'confinement: under lateral pressure the peak follows EN 1992-1-1 3.1.9, (3.24) and (3.25)',
   biaxial: 'biaxial compression: the equal-biaxial strength is 1.16 f_cm (Kupfer, Hilsdorf and Rusch 1969)',
   flow: 'non-associated flow: the plastic volume change per unit kappa_c is the dilatancy psi of the potential, below the meridian slope',
@@ -32,13 +34,14 @@ export async function c30(extra = {}) {
 const near = (a, b) => Math.abs(a - b) < 1e-12;
 
 /** A prism [Lx, a, a] on three symmetry planes, loaded along x by end displacements. `weak` scales the strength of the
- * middle cell (it localises there). The guess of each step is extrapolated from the last two (the loading path). */
-export async function prism({material, n = 1, m = 1, Lx, a = Lx, weak = 1, steps, end, pressure = 0}) {
+ * middle cell (it localises there), or with `zone` of the elements whose centroid is within zone / 2 of the middle. The
+ * guess of each step is extrapolated from the last two (the loading path). */
+export async function prism({material, n = 1, m = 1, Lx, a = Lx, weak = 1, zone = 0, steps, end, pressure = 0}) {
   const {SolidBody, boxMesh} = await solid();
   const b = new SolidBody({mesh: boxMesh({size: [Lx, a, a], cells: [n, m, m]}), material, config: {model: 'green-lagrange', tolerance: 1e-9, forceTolerance: 1e-6, maxNewtonIterations: 300}});
   if (weak !== 1) {
     const X = b.referencePositions, f = new Float64Array(b.tetCount);
-    for (let e = 0; e < b.tetCount; e++) { let x = 0; for (let q = 0; q < 4; q++) x += X[3 * b.tets[4 * e + q]] / 4; f[e] = Math.floor(x / (Lx / n)) === Math.floor(n / 2) ? weak : 1; }
+    for (let e = 0; e < b.tetCount; e++) { let x = 0; for (let q = 0; q < 4; q++) x += X[3 * b.tets[4 * e + q]] / 4; f[e] = (zone > 0 ? Math.abs(x - Lx / 2) < zone / 2 : Math.floor(x / (Lx / n)) === Math.floor(n / 2)) ? weak : 1; }
     b.setStrengthFactors(f);
   }
   const x0 = b.selectNodes(x => near(x, 0)), y0 = b.selectNodes((x, y) => near(y, 0)), z0 = b.selectNodes((x, y, z) => near(z, 0)), tip = b.selectNodes(x => near(x, Lx));
@@ -87,10 +90,39 @@ export const tension = n => memo(`concrete/tension/${n}`, async () => {
   return {peak, work, A, finalStress: rows.at(-1).stress, Gf: material.concrete.fractureEnergy, ft: material.concrete.tensileStrength};
 });
 
+/** Crack band per element in tension: the bar of `tension` (0.2 m, 0.04 m section, middle cell 2 % weaker) on n x m x m
+ * cells without a bandWidth, so each element's band is its width along its crack normal; with `volume`, the band width of
+ * the earlier default (6 V)^(1/3) of the mean element volume instead, for comparison. */
+export const tensionBand = (n, m = 1, volume = false) => memo(`concrete/tension-band/${n}/${m}/${volume}`, async () => {
+  const material = await c30(), Lx = 0.2, a = 0.04, concrete = {...material.concrete, ...(volume ? {bandWidth: Math.cbrt(Lx * a * a / (n * m * m))} : {})};
+  const {rows, A, body} = await prism({material: {...material, concrete}, n, m, Lx, a, weak: 0.98, steps: 300, end: 3e-4});
+  let peak = 0, work = 0, previous = {strain: 0, stress: 0};
+  for (const r of rows) { peak = Math.max(peak, r.stress); work += 0.5 * (r.stress + previous.stress) * (r.strain - previous.strain) * Lx * A; previous = r; }
+  const opening = body.crackOpening(), bands = body.bandWidths().tension, cracked = [];
+  for (let e = 0; e < body.tetCount; e++) if (opening[e] > 0) cracked.push(bands[e]);
+  return {peak, work, A, finalStress: rows.at(-1).stress, Gf: material.concrete.fractureEnergy, ft: material.concrete.tensileStrength, cracked,
+    cell: Lx / n, unconverged: rows.filter(r => !r.converged).length};
+});
+
+/** Crack band per element in compression: a 0.2 m prism of 0.02 m section (a quarter of a 40 x 40 mm prism by symmetry)
+ * on n x m x m cells without a bandWidth, frictionless ends, a 40 mm zone in the middle 10 % weaker, shortened by
+ * 6 per mille in 240 steps. The plastic work after the peak, per unit area, against G_c times the peak stress over f_cm
+ * (an element's softening is anchored at its own peak: the weak zone's strength factor and the confinement its pre-peak
+ * dilatancy draws from the stronger ends set that peak), and against 0.9 G_c. */
+export const crushBand = (n, m = 1) => memo(`concrete/crush-band/${n}/${m}`, async () => {
+  const material = await c30(), Lx = 0.2, a = 0.02;
+  const {rows, A, body} = await prism({material, n, m, Lx, a, weak: 0.9, zone: 0.04, steps: 240, end: -0.006 * Lx});
+  let peak = 0, at = 0; rows.forEach((r, i) => { if (-r.stress > peak) { peak = -r.stress; at = i; } });
+  const post = rows.at(-1).plasticWork - rows[at].plasticWork, c = material.concrete, X = body.referencePositions, eroded = new Set();
+  for (let e = 0; e < body.tetCount; e++) if (body.erodedMask[e]) { let x = 0; for (let q = 0; q < 4; q++) x += X[3 * body.tets[4 * e + q]] / 4; eroded.add(Math.floor(x / (Lx / n))); }
+  return {peak, post, A, Gc: body.concreteLaw.input.crushingEnergy, fcm: c.compressiveStrength, ratio: post / (body.concreteLaw.input.crushingEnergy * A * peak / c.compressiveStrength),
+    raw: post / (0.9 * body.concreteLaw.input.crushingEnergy * A), erodedCells: [...eroded], erodedCount: body.erodedCount, finalStress: rows.at(-1).stress, unconverged: rows.filter(r => !r.converged).length};
+});
+
 /** A single cell of height h crushed homogeneously; the plastic work after the peak per unit area. */
 export const band = h => memo(`concrete/band/${h}`, async () => {
   const {buildConcreteLaw} = await solid(), material = await c30(), law = {...material.concrete, bandWidth: h};
-  const probe = buildConcreteLaw(law, material.youngModulus, material.poissonRatio, 1e-6), crushed = probe.kappaCrushed * probe.axialFlow;
+  const probe = buildConcreteLaw(law, material.youngModulus, material.poissonRatio, 1e-6), crushed = probe.crushedStrain;
   const {rows, A, body} = await prism({material: {...material, concrete: law}, Lx: h, a: 0.04, steps: 400, end: -1.15 * crushed * h});
   let peak = 0, atPeak = 0;
   for (const r of rows) if (-r.stress > peak) { peak = -r.stress; atPeak = r.plasticWork; }
@@ -256,7 +288,15 @@ export const concrete = defineCases('solid', FILE, [
     measure: async () => { const r = await tension(n); return r.work / (0.98 * r.Gf * r.A); }})),
   ...[0.12, 0.06, 0.03].map(h => ({id: `solid.concrete.crushing-energy-${Math.round(h * 1000)}mm`, title: `Concrete law: crushing energy of a ${h * 1000} mm band`, quantity: 'plastic work after the peak per unit area of a single crushed cell', unit: 'J/m^2', test: CT.band,
     reference: {formula: 'G_c = f_cm w_d / 2, w_d = 0.5 mm (ATENA crack band default)', value: 38e6 * 5e-4 / 2}, tolerance: relative(0.02),
-    note: 'The cell crushes homogeneously; in a longer prism the band does not stay one cell thick (see notValidated).', measure: async () => (await band(h)).perArea})),
+    note: 'The cell crushes homogeneously. In a longer prism a band of elements crushes and dissipates G_c per unit area scaled by its peak (rows band-compression-*).', measure: async () => (await band(h)).perArea})),
+  ...[[10, 1], [20, 1], [40, 1], [20, 2]].map(([n, m]) => ({id: `solid.concrete.band-tension-${n}x${m}x${m}`, title: `Concrete law: crack band per element in tension, ${n} x ${m} x ${m} cells`, quantity: `work of the end force until a 0.2 m bar of ${n} x ${m} x ${m} cells (no bandWidth given) carries nothing, over 0.98 G_f A`, unit: '1', test: CT.bandTension,
+    reference: {formula: 'G_f = 73 f_cm^0.18 N/m (fib Model Code 2010, quoted by Sucharda 2020, eq. 14), crack band of each element: its width along the crack normal', value: 1}, tolerance: relative(0.05),
+    note: `Cells of ${200 / n} x ${40 / m} x ${40 / m} mm. With the earlier default band (6 V)^(1/3) of the mean element volume the same bar dissipates 0.63 of G_f A.`,
+    measure: async () => { const r = await tensionBand(n, m); return r.work / (0.98 * r.Gf * r.A); }})),
+  ...[[10, 1], [20, 1], [40, 1], [20, 2]].map(([n, m]) => ({id: `solid.concrete.band-compression-${n}x${m}x${m}`, title: `Concrete law: crack band per element in compression, ${n} x ${m} x ${m} cells`, quantity: `plastic work after the peak of a 0.2 m prism of ${n} x ${m} x ${m} cells (40 mm zone 10 % weaker, no bandWidth given), over G_c A sigma_peak / f_cm`, unit: '1', test: CT.bandCompression,
+    reference: {formula: 'G_c = f_cm w_d / 2, w_d = 0.5 mm (the law\'s default, after the ATENA crack band model; from memory), anchored at the band\'s peak', value: 1}, tolerance: relative(0.05),
+    note: 'One band of elements crushes. Against 0.9 G_c A (the zone\'s strength factor) the ratio is 0.96 to 1.06: the zone\'s pre-peak dilatancy draws confinement from the stronger ends, by an amount that depends on the mesh, and the softening starts from that peak.',
+    measure: async () => (await crushBand(n, m)).ratio})),
   ...[0.05, 0.2].map(r => ({id: `solid.concrete.confined-${Math.round(r * 100)}`, title: `Concrete law: strength under a lateral pressure of ${r} f_cm`, quantity: 'peak axial stress of one cell under constant lateral pressure', unit: 'Pa', test: CT.confinement,
     reference: {formula: r <= 0.05 ? 'f_cm (1 + 5 sigma_2 / f_cm), EN 1992-1-1 (3.24)' : 'f_cm (1.125 + 2.5 sigma_2 / f_cm), EN 1992-1-1 (3.25)', value: null}, tolerance: relative(0.01),
     note: 'Applied to the mean strength (the standard writes it for f_ck). The pressure of the last step sets the strength of the next (non-associated flow solved as associated steps), which leaves this cell 0.3 % low at 160 load steps.',

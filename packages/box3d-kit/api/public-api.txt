@@ -839,6 +839,8 @@ export interface ConcreteLawInput {
     readonly meridian?: readonly number[];
     readonly friction?: number;
     readonly dilatancy?: number;
+    readonly softeningDilatancy?: number;
+    readonly postPeak?: 'band' | 'lagged';
     readonly biaxialRatio?: number;
     readonly elasticLimit?: number;
     readonly bandWidth?: number;
@@ -847,7 +849,7 @@ export interface ConcreteLawInput {
     readonly erosionOpening?: number;
 }
 export interface ConcreteLaw {
-    readonly input: Readonly<Required<Omit<ConcreteLawInput, 'tensionSoftening' | 'bandWidth' | 'friction' | 'meridian' | 'nonlocalLength'>> & {
+    readonly input: Readonly<Required<Omit<ConcreteLawInput, 'tensionSoftening' | 'bandWidth' | 'friction' | 'meridian' | 'nonlocalLength' | 'postPeak'>> & {
         tensionSoftening: readonly number[];
         meridian: readonly number[];
     }>;
@@ -856,6 +858,8 @@ export interface ConcreteLaw {
     readonly friction: number;
     readonly dilatancy: number;
     readonly eccentricity: number;
+    readonly softeningDilatancy: number;
+    readonly postPeak: 'band' | 'lagged';
     readonly mx: Float64Array;
     readonly my: Float64Array;
     readonly bandWidth: number;
@@ -867,6 +871,20 @@ export interface ConcreteLaw {
     readonly kx: Float64Array;
     readonly ky: Float64Array;
     readonly kint: Float64Array;
+    readonly sx: Float64Array;
+    readonly sy: Float64Array;
+    readonly sint: Float64Array;
+    readonly peakIndex: number;
+    readonly snapBackLength: Readonly<{
+        tension: number;
+        compression: number;
+    }>;
+    readonly stretchLength: Readonly<{
+        tension: number;
+        compression: number;
+        compressionLagged: number;
+    }>;
+    readonly erosionGiven: boolean;
     readonly tx: Float64Array;
     readonly ty: Float64Array;
     readonly tint: Float64Array;
@@ -874,11 +892,15 @@ export interface ConcreteLaw {
     readonly kappaCrushed: number;
     readonly kappaErode: number;
     readonly axialFlow: number;
+    readonly softeningFlow: number;
+    readonly kappaCrushedSoftening: number;
+    readonly crushedStrain: number;
     readonly uniaxialStrain: Float64Array;
     readonly uniaxialStress: Float64Array;
 }
 export declare const DEFAULT_FRICTION: number;
 export declare const DEFAULT_DILATANCY: number;
+export declare const DEFAULT_SOFTENING_DILATANCY = -1.5;
 export declare const EN1992_MERIDIAN: readonly number[];
 export declare const en1992Confined: (x: number) => number;
 export declare const NONLOCAL_BAND = 1;
@@ -890,6 +912,8 @@ export declare function lodeFactor(theta: number, e: number, out: Float64Array |
 export declare function lodeFactor2(theta: number, e: number, out: Float64Array | number[]): void;
 export declare function ec2CompressionStress(strain: number, fcm: number, peakStrain: number, secantModulus: number): number;
 export declare function buildConcreteLaw(input: unknown, youngModulus: number, poissonRatio: number, meanVolume: number): ConcreteLaw;
+export declare function bandScale(law: ConcreteLaw, h: number, kind: 'tension' | 'compression' | 'compressionLagged'): number;
+export declare function projectedWidth(X: ArrayLike<number>, tets: ArrayLike<number>, e: number, nx: number, ny: number, nz: number): number;
 export declare function tableValue(x: Float64Array, y: Float64Array, at: number): number;
 export declare const PRINCIPAL_STRIDE = 17;
 export declare class ConcreteReturn {
@@ -913,9 +937,29 @@ export declare class ConcreteReturn {
     constructor(law: ConcreteLaw, lambda: number, mu: number);
     lHint: number;
     map(t: ArrayLike<number>, kc0: number, kt0: number, f?: number, xn?: number, kbar?: number): void;
+    element(anchor: number, bandC?: number, bandT?: number): void;
+    private anchor;
+    private kFlow;
+    private sxF;
+    private siF;
+    private bandC;
+    private bandT;
+    private scaleP;
+    private scaleC;
+    private scaleT;
+    private kxE;
+    private kiE;
+    private sxE;
+    private siE;
+    private txE;
+    private tiE;
+    private tx;
+    private ti;
+    private setup;
     private kx;
     private ky;
     private ki;
+    private psi;
     private readonly fx;
     private readonly fy;
     private readonly fi;
@@ -958,7 +1002,8 @@ export declare class ConcreteReturn {
 }
 export declare function jacobi(t: ArrayLike<number>, ev: Float64Array, V: Float64Array): void;
 export declare function largestEigenvalue(xx: number, yy: number, zz: number, yz: number, xz: number, xy: number): number;
-export declare function concreteDamage(law: ConcreteLaw, kappaC: number, kappaT: number): number;
+export declare function concreteDamage(law: ConcreteLaw, kappaC: number, kappaT: number, scaleC?: number, scaleT?: number, softening?: boolean): number;
+export declare function softeningAnchor(law: ConcreteLaw, S: ArrayLike<number>, kappaC: number, scaleC: number, f: number): number;
 export declare class ConcreteNonlocal {
     readonly start: Uint32Array;
     readonly index: Uint32Array;
@@ -6652,6 +6697,7 @@ export declare function solidSolidContactSubsystem<W, B>(target: SolidSolidConta
 }): Subsystem<W, B>;
 
 // ==== core/solid.d.ts ====
+import { type DiagnosticFinding } from './contracts.js';
 import { type StateObject, type StateValue } from './checkpoint.js';
 import { type TetMesh } from './solid-mesh.js';
 import { ConcreteReinforcement, type ReinforcementInput, type ConcreteLaw, type ConcreteLawInput } from './concrete-law.js';
@@ -6852,6 +6898,11 @@ export declare class SolidBody {
     private readonly cpressureLast;
     private readonly kbar;
     private readonly cnonlocal;
+    private readonly canchor;
+    private readonly cbandC;
+    private readonly cbandT;
+    private readonly cev;
+    private readonly cvec;
     readonly rebar: ConcreteReinforcement | null;
     private readonly rebarDiagonal;
     private readonly barEp;
@@ -6932,6 +6983,12 @@ export declare class SolidBody {
     private piolaElastic;
     private constitutive;
     private concreteConstitutive;
+    private concreteElement;
+    private scaleC;
+    private scaleT;
+    private concreteCommit;
+    private kappaCrushedAt;
+    private kappaErodeAt;
     private concreteTangentForm;
     private concreteTangent;
     private tangent;
@@ -6991,6 +7048,11 @@ export declare class SolidBody {
     setStrengthFactors(factors: ArrayLike<number>): void;
     crackOpening(out?: Float64Array<ArrayBuffer>): Float64Array;
     compressiveStrengthLeft(e: number): number;
+    crackBandFindings(subject?: string): DiagnosticFinding[];
+    bandWidths(): {
+        compression: Float64Array;
+        tension: Float64Array;
+    };
     get erodedCount(): number;
     get erodedMask(): Uint8Array;
     vonMises(out?: Float64Array<ArrayBuffer>): Float64Array;

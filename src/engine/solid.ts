@@ -1,7 +1,7 @@
-import {EngineError,finite,integer,onlyKeys,record} from './contracts.ts';
+import {EngineError,finite,integer,onlyKeys,record,type DiagnosticFinding} from './contracts.ts';
 import {captureFields,restoreFields,type FieldOptions,type StateObject,type StateValue} from './checkpoint.ts';
 import {boundaryFaces,tetVolume,SOLID_MAX_NODES,SOLID_MAX_TETS,type TetMesh} from './solid-mesh.ts';
-import {buildConcreteLaw,ConcreteReturn,ConcreteNonlocal,PRINCIPAL_STRIDE,ConcreteReinforcement,concreteDamage,tableValue,type ReinforcementInput,type ConcreteLaw,type ConcreteLawInput} from './concrete-law.ts';
+import {buildConcreteLaw,ConcreteReturn,ConcreteNonlocal,PRINCIPAL_STRIDE,ConcreteReinforcement,concreteDamage,tableValue,bandScale,projectedWidth,softeningAnchor,jacobi,meridianValue,type ReinforcementInput,type ConcreteLaw,type ConcreteLawInput} from './concrete-law.ts';
 import {SparseLDL} from './sparse-ldl.ts';
 export {buildConcreteLaw,ec2CompressionStress,type ConcreteLaw,type ConcreteLawInput,type ReinforcementInput,type ReinforcementBarInput} from './concrete-law.ts';
 export {boxMesh,boxNode,boundaryFaces,tetVolume,SOLID_MAX_NODES,SOLID_MAX_TETS,type TetMesh,type BoxMeshOptions} from './solid-mesh.ts';
@@ -263,6 +263,13 @@ export class SolidBody {
   private readonly cpressure:Float64Array=new Float64Array(0);private readonly cpressureLast:Float64Array=new Float64Array(0);
   /** Concrete with a nonlocal length: the committed nonlocal average of kappa_c per element, and the averaging weights (a constant of the mesh). */
   private readonly kbar:Float64Array=new Float64Array(0);private readonly cnonlocal:ConcreteNonlocal|null=null;
+  /** Concrete: the anchor of each element's softening surface (0 until it passes the compressive peak; postPeak 'band'). */
+  private readonly canchor:Float64Array=new Float64Array(0);
+  /** Concrete without a given bandWidth (crack band per element): each element's band width in compression and tension, m,
+   * its width along the minor and the major principal stress of its last committed state, frozen when it starts to soften,
+   * its width along the minor and the major principal stress of its last committed state, frozen when it starts to soften. */
+  private readonly cbandC:Float64Array=new Float64Array(0);private readonly cbandT:Float64Array=new Float64Array(0);
+  private readonly cev=new Float64Array(3);private readonly cvec=new Float64Array(9);
   /** Embedded reinforcement (geometry, a constant), its bars' stiffness diagonal, and per segment the committed plastic strain and hardening. */
   readonly rebar:ConcreteReinforcement|null=null;private readonly rebarDiagonal:Float64Array=new Float64Array(0);private readonly barEp:Float64Array=new Float64Array(0);private readonly barAlpha:Float64Array=new Float64Array(0);
   private readonly creturn:ConcreteReturn|null=null;private readonly cbase=new Float64Array(13);private readonly cstrain=new Float64Array(6);private readonly cmat=new Float64Array(36);
@@ -383,6 +390,10 @@ export class SolidBody {
     if(concrete){
       this.concreteLaw=buildConcreteLaw(m.concrete,E,nu,total/tetCount);this.kappaT=new Float64Array(tetCount);this.strengthFactor=new Float64Array(tetCount).fill(1);this.ctan=new Float64Array(21*tetCount);this.ctrial=new Float64Array(6*tetCount);this.cprincipal=new Float64Array(PRINCIPAL_STRIDE*tetCount);this.cprincipalOk=new Uint8Array(tetCount);this.cdirty=new Uint8Array(tetCount).fill(2);this.cpressure=new Float64Array(tetCount);this.cpressureLast=new Float64Array(tetCount);
       if(this.concreteLaw.nonlocalLength>0){this.kbar=new Float64Array(tetCount);this.cnonlocal=new ConcreteNonlocal(X,tets,vol,this.concreteLaw.nonlocalLength);}
+      else if(this.concreteLaw.postPeak==='band')this.canchor=new Float64Array(tetCount);
+      if((m.concrete as {bandWidth?:unknown}).bandWidth===undefined){
+        this.cbandC=new Float64Array(tetCount).fill(this.concreteLaw.compressionBand);this.cbandT=new Float64Array(tetCount).fill(this.concreteLaw.bandWidth);
+      }
       this.creturn=new ConcreteReturn(this.concreteLaw,this.lambda,this.mu);
     }
     if(this.avg){
@@ -493,7 +504,8 @@ export class SolidBody {
   /** Returns to the undeformed state at rest and time zero. Constraints and loads stay. */
   reset():void {
     this.u.fill(0);this.v.fill(0);this.steps=0;this.unconverged=0;this.accelerationValid=false;
-    this.ep.fill(0);this.alpha.fill(0);this.kappaT.fill(0);this.cpressure.fill(0);this.cpressureLast.fill(0);this.kbar.fill(0);this.barEp.fill(0);this.barAlpha.fill(0);this.eroded.fill(0);this.erodedTotal=0;this.plasticWorkTotal=0;
+    this.ep.fill(0);this.alpha.fill(0);this.kappaT.fill(0);this.cpressure.fill(0);this.cpressureLast.fill(0);this.kbar.fill(0);this.canchor.fill(0);
+    if(this.concreteLaw){this.cbandC.fill(this.concreteLaw.compressionBand);this.cbandT.fill(this.concreteLaw.bandWidth);}this.barEp.fill(0);this.barAlpha.fill(0);this.eroded.fill(0);this.erodedTotal=0;this.plasticWorkTotal=0;
     if(this.kDiagonalFirst)this.kDiagonal.set(this.kDiagonalFirst);
   }
   /** Current node positions (m). */
@@ -672,7 +684,7 @@ export class SolidBody {
   private concreteConstitutive(e:number,xx:number,yy:number,zz:number,yz:number,xz:number,xy:number,store:boolean):number {
     const R=this.creturn!,ep=this.ep,o=6*e,t=this.cstrain,kc0=this.alpha[e],kt0=this.kappaT[e],T=this.T,base=this.cbase;
     t[0]=xx-ep[o];t[1]=yy-ep[o+1];t[2]=zz-ep[o+2];t[3]=yz-ep[o+3];t[4]=xz-ep[o+4];t[5]=xy-ep[o+5];
-    const f=this.strengthFactor[e],xn=this.cpressure[e];R.map(t,kc0,kt0,f,xn,this.cnonlocal?this.kbar[e]:-1);
+    const f=this.strengthFactor[e],xn=this.cpressure[e];this.concreteElement(e);R.map(t,kc0,kt0,f,xn,this.cnonlocal?this.kbar[e]:-1);
     for(let q=0;q<6;q++){T[q]=R.stress[q];base[q]=R.plastic[q];}
     base[6]=R.dKappaC;base[7]=R.dKappaT;base[8]=R.energy;base[9]=R.elastic;const yielded=R.yielded;
     if(store){
@@ -688,8 +700,49 @@ export class SolidBody {
       for(let q=0;q<6;q++)ep[o+q]+=base[q];
       this.alpha[e]=kc0+base[6];this.kappaT[e]=kt0+base[7];const xi=-(T[0]+T[1]+T[2])/3;this.cpressure[e]=2*xi-this.cpressureLast[e];this.cpressureLast[e]=xi;
       this.plasticWorkTotal+=this.elementVolume[e]*(base[8]-base[9]);
+      this.concreteCommit(e,T,f);
     }
     return this.storedOnly?base[9]:base[8];
+  }
+  /** Sets the return mapping's element context: the softening anchor and the band scales of element e. */
+  private concreteElement(e:number):void {
+    const law=this.concreteLaw!;
+    this.creturn!.element(this.canchor.length?this.canchor[e]:0,this.cbandC.length?this.cbandC[e]:law.compressionBand,this.cbandT.length?this.cbandT[e]:law.bandWidth);
+  }
+  /** Element e's band scale of the softening surface after the compressive peak, and of tension (`bandScale`). */
+  private scaleC(e:number):number {const law=this.concreteLaw!;return this.cbandC.length?bandScale(law,this.cbandC[e],'compression'):1;}
+  private scaleT(e:number):number {const law=this.concreteLaw!;return this.cbandT.length?bandScale(law,this.cbandT[e],'tension'):1;}
+  /** After element e's state is committed with the stress T: anchors its softening surface when it has just passed the
+   * compressive peak, and (crack band per element) sets the band widths of the next step from the principal axes of T,
+   * as long as the element has not started to soften in that sense. */
+  private concreteCommit(e:number,T:Float64Array,f:number):void {
+    const law=this.concreteLaw!,kp=law.kappaPeak;
+    if(this.canchor.length&&this.canchor[e]===0&&this.alpha[e]>kp){
+      // The step that passed the peak ran on the lagged-pressure surface, whose kappa_c gives the axial plastic strain at
+      // axialFlow per unit: past the peak kappa_c becomes kappaPeak plus the axial plastic strain past the peak.
+      this.alpha[e]=kp+(this.alpha[e]-kp)*law.axialFlow;
+      this.canchor[e]=softeningAnchor(law,T,this.alpha[e],this.scaleC(e),f);
+    }
+    if(!this.cbandT.length)return;
+    const tension=this.kappaT[e]===0,compression=this.canchor.length>0&&this.alpha[e]<=kp;
+    if(!(tension||compression))return;
+    if(!(Math.abs(T[0])+Math.abs(T[1])+Math.abs(T[2])+Math.abs(T[3])+Math.abs(T[4])+Math.abs(T[5])>0))return;
+    const ev=this.cev,V=this.cvec;jacobi(T,ev,V);
+    let hi=0,lo=0;for(let q=1;q<3;q++){if(ev[q]>ev[hi])hi=q;if(ev[q]<ev[lo])lo=q;}
+    const X=this.referencePositions,tets=this.tets;
+    if(tension)this.cbandT[e]=projectedWidth(X,tets,e,V[hi],V[3+hi],V[6+hi]);
+    if(compression)this.cbandC[e]=projectedWidth(X,tets,e,V[lo],V[3+lo],V[6+lo]);
+  }
+  /** kappa_c at which element e is crushed, and kappa_t at which it erodes (its band widths). */
+  private kappaCrushedAt(e:number):number {
+    const law=this.concreteLaw!;if(!this.canchor.length)return law.kappaCrushed;
+    const s=this.scaleC(e);return s===1?law.kappaCrushedSoftening:law.kappaPeak+(law.kappaCrushedSoftening-law.kappaPeak)*s;
+  }
+  private kappaErodeAt(e:number):number {
+    const law=this.concreteLaw!;if(!this.cbandT.length)return law.kappaErode;
+    const h=this.cbandT[e];if(h===law.bandWidth)return law.kappaErode;const s=this.scaleT(e);
+    const w=law.erosionGiven?law.input.erosionOpening:Math.max(1e-3,law.tx[law.tx.length-1]*s*h);
+    return w/h;
   }
   /** Forms element e's tangent from the trial strain kept by the last evaluation: elastic, or the derivative of the
    * returned stress by forward differences in engineering strain, symmetrised. Softening
@@ -703,6 +756,7 @@ export class SolidBody {
       // principal strains instead of six of the tensor, and the rotation part exact.
       const R=this.creturn!,t=this.cstrain,o=6*e;
       for(let q=0;q<6;q++)t[q]=this.ctrial[o+q];
+      this.concreteElement(e);
       R.tangent(t,this.alpha[e],this.kappaT[e],this.strengthFactor[e],this.cpressure[e],this.cnonlocal?this.kbar[e]:-1,M,1e-9,this.cprincipalOk[e]?this.cprincipal:null,PRINCIPAL_STRIDE*e);
       for(let i=0;i<6;i++)for(let j=i+1;j<6;j++){const v=.5*(M[6*i+j]+M[6*j+i]);M[6*i+j]=M[6*j+i]=v;}
     }
@@ -1340,13 +1394,13 @@ export class SolidBody {
         // The averaged element commits every element in one pass of its energy, then erodes.
         if(!(this.elastic(this.u,null,null)<Infinity))throw new EngineError('NUMERICAL_FAILURE','An element is inverted.');
         this.storeMode=0;const law=this.concreteLaw;
-        for(let e=0;e<this.tetCount;e++)if(!this.eroded[e]&&(law?this.alpha[e]>=law.kappaCrushed||this.kappaT[e]>=law.kappaErode:this.alpha[e]>=limit)){this.eroded[e]=1;eroded++;}
+        for(let e=0;e<this.tetCount;e++)if(!this.eroded[e]&&(law?this.alpha[e]>=this.kappaCrushedAt(e)||this.kappaT[e]>=this.kappaErodeAt(e):this.alpha[e]>=limit)){this.eroded[e]=1;eroded++;}
       }else for(let e=0;e<this.tetCount;e++){
         if(this.eroded[e])continue;
         this.gradient(e,this.u);
         if(!(this.piola(e,null)<Infinity))throw new EngineError('NUMERICAL_FAILURE',`Element ${e} is inverted.`);
         const law=this.concreteLaw;
-        if(law?(this.cnonlocal?this.kbar[e]:this.alpha[e])>=law.kappaCrushed||this.kappaT[e]>=law.kappaErode:this.alpha[e]>=limit){this.eroded[e]=1;eroded++;}
+        if(law?(this.cnonlocal?this.kbar[e]>=law.kappaCrushed:this.alpha[e]>=this.kappaCrushedAt(e))||this.kappaT[e]>=this.kappaErodeAt(e):this.alpha[e]>=limit){this.eroded[e]=1;eroded++;}
       }
     }finally{this.storeMode=0;}
     if(this.cnonlocal)this.cnonlocal.average(this.alpha,this.kbar);
@@ -1389,7 +1443,7 @@ export class SolidBody {
    * the larger; 1 when eroded). Zeros without a concrete law. */
   damage(out=new Float64Array(this.tetCount)):Float64Array {
     const law=this.concreteLaw;if(!law){out.fill(0);return out;}
-    for(let e=0;e<this.tetCount;e++)out[e]=this.eroded[e]?1:concreteDamage(law,this.cnonlocal?this.kbar[e]:this.alpha[e],this.kappaT[e]);return out;
+    for(let e=0;e<this.tetCount;e++)out[e]=this.eroded[e]?1:concreteDamage(law,this.cnonlocal?this.kbar[e]:this.alpha[e],this.kappaT[e],this.scaleC(e),this.scaleT(e),this.canchor.length>0);return out;
   }
   /** Concrete: scale the strengths (and with them the fracture energies) of each element by a factor, e.g. to seed
    * localisation or to give a specimen a scatter of strength. One factor per element, 0.05 to 20. Default 1. */
@@ -1400,10 +1454,46 @@ export class SolidBody {
   /** Concrete: crack opening per element, kappa_t times the band width, m (committed state). */
   crackOpening(out=new Float64Array(this.tetCount)):Float64Array {
     const law=this.concreteLaw;if(!law){out.fill(0);return out;}
-    for(let e=0;e<this.tetCount;e++)out[e]=this.kappaT[e]*law.bandWidth;return out;
+    for(let e=0;e<this.tetCount;e++)out[e]=this.kappaT[e]*(this.cbandT.length?this.cbandT[e]:law.bandWidth);return out;
   }
   /** Concrete: the compressive hardening variable kappa_c and the strength k(kappa_c) left, Pa (Drucker-Prager units). */
-  compressiveStrengthLeft(e:number):number {const law=this.concreteLaw;return law?tableValue(law.kx,law.ky,this.alpha[e]):NaN;}
+  compressiveStrengthLeft(e:number):number {
+    const law=this.concreteLaw;if(!law)return NaN;const kp=law.kappaPeak,k=this.alpha[e];
+    if(k<=kp||!this.canchor.length)return tableValue(law.kx,law.ky,k);
+    // After the peak (local law): k of the uniaxial strength left, f_cm s(kappa_c), on the lagged-pressure table.
+    const s=law.input.compressiveStrength*tableValue(law.sx,law.sy,kp+(k-kp)/this.scaleC(e));
+    return s/meridianValue(law,s/(3*law.input.compressiveStrength));
+  }
+  /**
+   * Concrete: the crack band check. An element whose band width h is above the stretch length of the law's softening
+   * (`ConcreteLaw.stretchLength`, about 0.55 of the snap-back length 2 E G_f / f_t^2 for linear tension softening at
+   * nu = 0.2) dissipates h / stretchLength times G per unit area instead of G: the mesh is too coarse for the crack band.
+   * Each element's band is bounded by its longest edge (a band not yet fixed) or is its fixed band. One finding per sense
+   * (rule `crack-band`, a warning) with the numbers, or none. Allocates; call it after building a body.
+   */
+  crackBandFindings(subject='solid'):DiagnosticFinding[] {
+    const law=this.concreteLaw;if(!law)return [];
+    const out:DiagnosticFinding[]=[],X=this.referencePositions,t=this.tets;
+    for(const kind of ['tension','compression'] as const){
+      const hs=law.stretchLength[kind],snap=law.snapBackLength[kind],given=!this.cbandT.length,fixed=kind==='tension'?this.cbandT:this.cbandC;
+      let worst=0,count=0;
+      for(let e=0;e<this.tetCount;e++){
+        let h:number;
+        if(given)h=kind==='tension'?law.bandWidth:law.compressionBand;
+        else if(kind==='tension'?this.kappaT[e]>0:(this.canchor.length>0&&this.alpha[e]>law.kappaPeak))h=fixed[e];
+        else{h=0;for(let a=0;a<4;a++)for(let b=a+1;b<4;b++){const i=3*t[4*e+a],j=3*t[4*e+b];h=Math.max(h,Math.hypot(X[i]-X[j],X[i+1]-X[j+1],X[i+2]-X[j+2]));}}
+        if(h>hs){count++;worst=Math.max(worst,h);}
+      }
+      if(count>0)out.push({severity:'warning',rule:'crack-band',subject,numbers:{elements:count,bandWidth:worst,stretchLength:hs,snapBackLength:snap,energyFactor:worst/hs},
+        message:`${count} element(s) of "${subject}" can have a ${kind} band up to ${worst.toPrecision(3)} m wide, above ${hs.toPrecision(3)} m, where the ${kind==='tension'?'tension':'compression'} softening must be stretched to keep the return unique (the snap-back length E / max|ds/dw| is ${snap.toPrecision(3)} m${kind==='tension'?', 2 E G_f / f_t^2 for linear softening':''}): such an element dissipates up to ${(worst/hs).toFixed(2)} times ${kind==='tension'?'G_f':'G_c'} per unit area. Refine the mesh there below ${hs.toPrecision(3)} m.`});
+    }
+    return out;
+  }
+  /** Concrete: each element's band width in compression and in tension, m (the law's when bandWidth was given). */
+  bandWidths():{compression:Float64Array;tension:Float64Array} {
+    const law=this.concreteLaw,n=this.tetCount;if(!law)return {compression:new Float64Array(n),tension:new Float64Array(n)};
+    return {compression:this.cbandC.length?this.cbandC.slice():new Float64Array(n).fill(law.compressionBand),tension:this.cbandT.length?this.cbandT.slice():new Float64Array(n).fill(law.bandWidth)};
+  }
   /** Number of eroded elements. */
   get erodedCount():number {return this.erodedTotal;}
   /** 1 per eroded element (live, read only). Empty for an elastic body. */

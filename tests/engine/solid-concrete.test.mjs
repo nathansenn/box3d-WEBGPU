@@ -5,7 +5,7 @@
 import '../../scripts/register-typescript.mjs';
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import {compression, tension, band, confined, biaxial, biaxialEnvelope, flow, tie, beam, c30, b500} from '../../validation/domains/concrete.mjs';
+import {compression, tension, band, tensionBand, crushBand, confined, biaxial, biaxialEnvelope, flow, tie, beam, c30, b500} from '../../validation/domains/concrete.mjs';
 const {SolidBody, boxMesh, SOLID_CONCRETE_SOLVER_ID, buildConcreteLaw} = await import('../../src/engine/solid.ts');
 const {ConcreteReturn} = await import('../../src/engine/concrete-law.ts');
 const {encodeState} = await import('../../src/engine/checkpoint.ts');
@@ -40,6 +40,54 @@ test('crack band in compression: a crushed band of width h dissipates G_c per un
     close(r.perArea, r.Gc, 0.02, `${h} m band: G_c per unit area`);
     assert.ok(r.eroded > 0, 'the crushed cell erodes');
   }
+});
+
+test('crack band per element: bars of 10, 20 and 40 cells and a 3-D mesh dissipate G_f per unit area in tension with the band width of each element (no bandWidth given)', async () => {
+  const rows = [];
+  for (const [n, m] of [[10, 1], [20, 1], [40, 1], [20, 2]]) {
+    const r = await tensionBand(n, m), ratio = r.work / (0.98 * r.Gf * r.A);
+    rows.push({mesh: `${n}x${m}x${m}`, peak: +(r.peak / 1e6).toFixed(4), ratio: +ratio.toFixed(5), cracked: r.cracked.length});
+    close(ratio, 1, 0.05, `${n} x ${m} x ${m}: G_f A through the band`);
+    close(r.peak, 0.98 * r.ft, 0.02, `${n} x ${m} x ${m}: the weak cell sets the peak`);
+    assert.ok(Math.abs(r.finalStress) < 1e-3 * r.ft && r.unconverged === 0, 'separated, every step converged');
+    // The cracked elements are those of the weak cell, each with the cell's length along the bar as its band.
+    assert.equal(r.cracked.length, 5 * m * m);
+    for (const h of r.cracked) close(h, r.cell, 1e-9, 'band width = width along the crack normal');
+  }
+  const old = await tensionBand(10, 1, true), oldRatio = old.work / (0.98 * old.Gf * old.A);
+  console.log('# band per element, tension', JSON.stringify(rows), `; with the band (6 V)^(1/3) of the mean volume: ${oldRatio.toFixed(4)}`);
+  assert.ok(oldRatio < 0.7, 'the earlier default band (6 V)^(1/3) is not the band of an elongated cell');
+});
+
+test('crack band per element: bars of 10, 20 and 40 cells and a 3-D mesh crush in one band of elements that dissipates G_c per unit area, scaled by the peak stress of the band', async () => {
+  const rows = [];
+  for (const [n, m] of [[10, 1], [20, 1], [40, 1], [20, 2]]) {
+    const r = await crushBand(n, m);
+    rows.push({mesh: `${n}x${m}x${m}`, peak: +(r.peak / 1e6).toFixed(3), ratio: +r.ratio.toFixed(4), raw: +r.raw.toFixed(4), crushed: r.erodedCells});
+    close(r.ratio, 1, 0.05, `${n} x ${m} x ${m}: G_c A sigma_peak / f_cm after the peak`);
+    assert.equal(r.erodedCells.length, 1, 'one band of elements crushes');
+    assert.equal(r.erodedCount, 5 * m * m, 'the whole band, across the section');
+    assert.ok(Math.abs(r.finalStress) < 1e-3 * r.fcm && r.unconverged === 0, 'crushed through, every step converged');
+  }
+  console.log('# band per element, compression', JSON.stringify(rows));
+});
+
+test('crack band limits: the snap-back length 2 E G_f / f_t^2, the stretch beyond it, and the warning of a coarse mesh', async () => {
+  const m = await c30(), E = m.youngModulus, c = m.concrete;
+  const law = buildConcreteLaw({...c, bandWidth: 0.03}, E, m.poissonRatio, 1e-6);
+  close(law.snapBackLength.tension, 2 * E * c.fractureEnergy / c.tensileStrength ** 2, 1e-12, 'linear softening: 2 E G_f / f_t^2');
+  assert.ok(law.stretchLength.tension < law.snapBackLength.tension && law.stretchLength.compression < law.snapBackLength.compression);
+  // Plain concrete on 30 mm cells: no finding. A 2 m cell (beyond the stretch length of C30/37, 0.6 m): a warning with the numbers.
+  const fine = new SolidBody({mesh: boxMesh({size: [0.09, 0.03, 0.03], cells: [3, 1, 1]}), material: m, config: {model: 'linear'}});
+  assert.deepEqual(fine.crackBandFindings(), []);
+  const coarse = new SolidBody({mesh: boxMesh({size: [4, 2, 2], cells: [2, 1, 1]}), material: m, config: {model: 'linear'}});
+  const found = coarse.crackBandFindings('slab');
+  assert.ok(found.length >= 1 && found.every(f => f.severity === 'warning' && f.rule === 'crack-band' && f.subject === 'slab'));
+  const t = found.find(f => f.message.includes('tension'));
+  assert.ok(t && t.numbers.bandWidth > t.numbers.stretchLength && t.numbers.energyFactor > 1, JSON.stringify(t));
+  // The stretched element dissipates bandWidth / stretchLength times G_f: the law's factor for a band that wide.
+  const wide = buildConcreteLaw({...c, bandWidth: 2}, E, m.poissonRatio, 1e-6);
+  close(wide.tensionEnergyFactor, 2 / wide.stretchLength.tension, 1e-9, 'energy factor of a 2 m band');
 });
 
 test('confinement: under lateral pressure the peak follows EN 1992-1-1 3.1.9, (3.24) and (3.25)', async () => {
@@ -130,23 +178,26 @@ test('consistent tangent: the principal-axes tangent with its closed-form compre
   const law = buildConcreteLaw({...m.concrete, bandWidth: 0.03}, E, nu, 1e-6), R = new ConcreteReturn(law, la, mu);
   let seed = 11; const rnd = () => (seed = (seed * 16807) % 2147483647) / 2147483647;
   const fd = (t, kc, kt, xn, out) => { R.map(t, kc, kt, 1, xn, -1); const base = Array.from(R.stress), d = 1e-9; for (let j = 0; j < 6; j++) { const u = Array.from(t); u[j] += j < 3 ? d : d / 2; R.map(u, kc, kt, 1, xn, -1); for (let i = 0; i < 6; i++) out[6 * i + j] = (R.stress[i] - base[i]) / d; } };
-  const A = new Float64Array(36), B = new Float64Array(36), F = new Float64Array(36), seen = {compression: 0, rankine: 0, equal: 0};
+  const A = new Float64Array(36), B = new Float64Array(36), F = new Float64Array(36), seen = {compression: 0, rankine: 0, equal: 0, softening: 0};
   let worst = 0, worstClosed = 0;
-  for (let k = 0; k < 600; k++) {
+  for (let k = 0; k < 900; k++) {
+    // The last 300: after the peak on the anchored softening surface, with band widths other than the law's.
+    if (k === 600) R.element(1.4 * 38e6, 0.02, 0.045);
     const c = -0.004 * rnd(), w = () => rnd() - 0.5;
     const t = [c + 0.0015 * w(), c * (k % 3 === 0 ? 1 : -0.2) + 0.0015 * w(), -0.2 * c + 0.001 * w() + (k % 4 === 0 ? 3e-4 : 0), 0.001 * w(), 0.001 * w(), 0.001 * w()];
     const equal = k % 5 === 0; if (equal) { t[3] = t[4] = t[5] = 0; t[1] = t[2]; }
-    const kc = k % 4 === 0 ? 0 : 0.003 * rnd(), kt = k % 7 === 0 ? 1e-4 : 0, xn = 1e7 * rnd();
+    const kc = k >= 600 ? law.kappaPeak * (1 + 3 * rnd()) : k % 4 === 0 ? 0 : 0.003 * rnd(), kt = k % 7 === 0 ? 1e-4 : 0, xn = 1e7 * rnd();
     R.map(t, kc, kt, 1, xn, -1); if (!R.yielded) continue;
-    if (R.dKappaT > 0) seen.rankine++; else seen.compression++; if (equal) seen.equal++;
+    if (R.dKappaT > 0) seen.rankine++; else seen.compression++; if (equal) seen.equal++; if (k >= 600 && R.dKappaC > 0) seen.softening++;
     const kept = R.principalValid ? Float64Array.from(R.principal) : null;
     fd(t, kc, kt, xn, A);
     const before = R.closedFormCount; R.tangent(t, kc, kt, 1, xn, -1, B, 1e-9, kept, 0);
     let d = 0; for (let q = 0; q < 36; q++) d = Math.max(d, Math.abs(A[q] - B[q])); worst = Math.max(worst, d / E);
     if (R.closedFormCount > before) { R.closedForm = false; R.tangent(t, kc, kt, 1, xn, -1, F, 1e-9, kept, 0); R.closedForm = true; let dd = 0; for (let q = 0; q < 36; q++) dd = Math.max(dd, Math.abs(F[q] - B[q])); worstClosed = Math.max(worstClosed, dd / E); }
   }
-  console.log(`# tangent: ${seen.compression} compression and ${seen.rankine} Rankine returns (${seen.equal} with two equal principal strains), ${R.closedFormCount} in closed form; against tensor differences ${worst.toExponential(2)} E, closed form against principal differences ${worstClosed.toExponential(2)} E`);
-  assert.ok(seen.compression > 100 && seen.rankine > 10 && seen.equal > 50 && R.closedFormCount > 100);
+  R.element(0);
+  console.log(`# tangent: ${seen.compression} compression and ${seen.rankine} Rankine returns (${seen.equal} with two equal principal strains, ${seen.softening} on the softening surface), ${R.closedFormCount} in closed form; against tensor differences ${worst.toExponential(2)} E, closed form against principal differences ${worstClosed.toExponential(2)} E`);
+  assert.ok(seen.compression > 100 && seen.rankine > 10 && seen.equal > 50 && seen.softening > 50 && R.closedFormCount > 100);
   // 1e-5 E: forward differences with a step of 1e-9 carry an error of about 1e-6 E (rounding of the stress over the step).
   assert.ok(worst < 1e-5, `tangent against differences: ${worst}`);
   assert.ok(worstClosed < 1e-5, `closed form against differences: ${worstClosed}`);
@@ -158,8 +209,10 @@ test('return mapping: the stress is the derivative of the returned energy, in ev
     [[-1.6e-3, 5e-4, 3e-4, 0, 2e-4, 1e-4], 2e-4, 0, 1e7], [[-3e-3, -1e-3, -2e-4, 1e-4, 0, 3e-4], 1e-3, 0, 2e7], [[-2e-3, 3e-4, 3e-4, 0, 0, 0], 5e-4, 0, 12e6], [[-6e-3, -5e-3, -4e-3, 0, 1e-4, 0], 8e-3, 0, 40e6]];
   // The law of this version (elliptic section, EN 1992-1-1 meridian, psi below its slope), that of version 1 (a straight
   // meridian, associated), and a nonlocal step (strength frozen at k(kappa_bar)).
-  for (const [extra, kbar] of [[{}, -1], [{friction: 0.3636}, -1], [{}, 2e-3]]) {
+  // And the softening surface after the peak (anchored, band widths other than the law's).
+  for (const [extra, kbar, anchor] of [[{}, -1, 0], [{friction: 0.3636}, -1, 0], [{}, 2e-3, 0], [{}, -1, 1.3 * 38e6]]) {
     const law = buildConcreteLaw({...m.concrete, bandWidth: 0.03, ...extra}, E, nu, 1e-6), R = new ConcreteReturn(law, la, mu);
+    if (anchor) { R.element(anchor, 0.02, 0.05); for (const c of cases) c[1] = Math.max(c[1], law.kappaPeak * 1.5); }
     for (const f of [1, 0.9]) for (const [t, kc, kt, xn] of cases) {
     R.map(t, kc, kt, f, xn, kbar); const s = [...R.stress];
     for (let j = 0; j < 6; j++) {
@@ -183,6 +236,10 @@ test('inputs: a concrete law replaces yieldStress, needs a plastic model, and ha
   assert.throws(() => buildConcreteLaw({...m.concrete, friction: 0.3, meridian: [1 / 3, 1, 1, 2]}, m.youngModulus, m.poissonRatio, 1e-6), /either friction/);
   assert.throws(() => buildConcreteLaw({...m.concrete, meridian: [0, 0.5, 1 / 3, 1, 1, 3]}, m.youngModulus, m.poissonRatio, 1e-6), /concave/);
   assert.throws(() => buildConcreteLaw({...m.concrete, biaxialRatio: 3}, m.youngModulus, m.poissonRatio, 1e-6), /eccentricity/);
+  assert.throws(() => buildConcreteLaw({...m.concrete, postPeak: 'damage'}, m.youngModulus, m.poissonRatio, 1e-6), /postPeak/);
+  assert.throws(() => buildConcreteLaw({...m.concrete, nonlocalLength: 0.02, postPeak: 'band'}, m.youngModulus, m.poissonRatio, 1e-6), /nonlocal/);
+  assert.equal(buildConcreteLaw({...m.concrete, nonlocalLength: 0.02}, m.youngModulus, m.poissonRatio, 1e-6).postPeak, 'lagged');
+  assert.throws(() => buildConcreteLaw({...m.concrete, softeningDilatancy: -3}, m.youngModulus, m.poissonRatio, 1e-6), /softeningDilatancy/);
   const steel = await b500(), bar = {points: [0, 0.05, 0.05, 0.1, 0.05, 0.05], area: 1e-4, ...steel};
   assert.throws(() => new SolidBody({mesh, material: {youngModulus: 3e10, poissonRatio: 0.2, density: 2400}, reinforcement: {bars: [bar]}}), /needs a concrete law/);
   assert.throws(() => new SolidBody({mesh, material: m, config: {model: 'linear'}, reinforcement: {bars: [{...bar, points: [0, 0.05, 0.05, 0.2, 0.05, 0.05]}]}}), /outside the solid/);
@@ -195,9 +252,9 @@ test('inputs: a concrete law replaces yieldStress, needs a plastic model, and ha
 
 test('checkpoints: a concrete solid resumes bit for bit after cracking, crushing and erosion, also nonlocal and reinforced', async () => {
   const m = await c30(), steel = await b500();
-  for (const variant of ['local', 'nonlocal', 'reinforced', 'reinforced-ldl']) {
+  for (const variant of ['local', 'nonlocal', 'reinforced', 'reinforced-ldl', 'band-per-element', 'lagged']) {
   const make = () => {
-    const b = new SolidBody({mesh: boxMesh({size: [0.06, 0.02, 0.02], cells: [3, 1, 1]}), material: {...m, concrete: {...m.concrete, bandWidth: 0.02, ...(variant === 'nonlocal' ? {nonlocalLength: 0.02} : {})}}, config: {model: 'green-lagrange', dt: 1e-3, forceTolerance: 1e-6, ...(variant === 'reinforced-ldl' ? {linearSolver: 'ldl'} : {})},
+    const b = new SolidBody({mesh: boxMesh({size: [0.06, 0.02, 0.02], cells: [3, 1, 1]}), material: {...m, concrete: {...m.concrete, ...(variant === 'band-per-element' ? {} : {bandWidth: 0.02}), ...(variant === 'nonlocal' ? {nonlocalLength: 0.02} : {}), ...(variant === 'lagged' ? {postPeak: 'lagged'} : {})}}, config: {model: 'green-lagrange', dt: 1e-3, forceTolerance: 1e-6, ...(variant === 'reinforced-ldl' ? {linearSolver: 'ldl'} : {})},
       ...(variant.startsWith('reinforced') ? {reinforcement: {bars: [{points: [0, 0.01, 0.01, 0.06, 0.01, 0.01], area: 1e-6, ...steel}]}} : {})});
     const f = new Float64Array(b.tetCount); for (let e = 0; e < f.length; e++) f[e] = 1 + 0.05 * Math.sin(3 * e); b.setStrengthFactors(f);
     b.constrain(b.selectNodes(x => x < 1e-9), [0, 0, 0]); return b;
@@ -206,6 +263,7 @@ test('checkpoints: a concrete solid resumes bit for bit after cracking, crushing
   const drive = (b, from, to) => { for (let i = from; i < to; i++) { b.constrain(tip(b), [i < 40 ? 3e-7 * i : 1.2e-5 - 5.5e-6 * (i - 40), null, null]); b.step(); } };
   const a = make(); drive(a, 0, 50); const saved = a.saveState(); drive(a, 50, 90); const expected = encodeState(a.saveState());
   assert.ok(a.crackOpening().some(w => w > 0) && a.equivalentPlasticStrain().some(k => k > 0), 'cracked in tension, then crushed in compression');
+  if (variant !== 'nonlocal') assert.ok(a.equivalentPlasticStrain().some(k => k > a.concreteLaw.kappaPeak), `${variant}: past the compressive peak (softening surface)`);
   const b = make(); b.restoreState(saved); drive(b, 50, 90);
   assert.deepEqual(encodeState(b.saveState()), expected, variant);
   }

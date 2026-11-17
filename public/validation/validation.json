@@ -5,8 +5,8 @@
  "generatedBy": "node scripts/validation-report.mjs",
  "digits": 9,
  "totals": {
-  "cases": 737,
-  "passed": 737,
+  "cases": 745,
+  "passed": 745,
   "failed": 0,
   "domains": 23
  },
@@ -322,11 +322,11 @@
     "Plasticity is small-strain J2 (additive in the Green-Lagrange strain for large rotations), isotropic linear hardening only: no kinematic hardening, rate dependence, necking or anisotropy. Fully plastic bending is 3.2% (3-D) to 6.8% (plane strain, 4 cells) too strong with tet4 and 4.8% with tet4-nodal: what remains is the bending error of linear tetrahedra. Ductile erosion uses one failure strain, independent of stress triaxiality, and the press brake's limit load is 1.23 times beam theory.",
     "Self-contact, plasticity combined with viscoelasticity (refused), anisotropy, and more than one material per body. Crack growth is a separate solver on the linear model of this element (the fracture domain); `SolidBody` erodes plastic elements at a failure strain but has no crack-growth law of its own.",
     "No two-way coupling to the rigid-body, water, cable or frame solvers, and no contact with rigid bodies. The one-way thermal and dead-load links are in the simulation domain.",
-    "Concrete: compressive softening is not mesh objective with the local law: a crushed layer cannot expand sideways without its neighbours, so the softening spreads (post-peak energy of a 0.2 m prism 26 to 119 J against 13.7 J; 42.6 J on 10 x 2 x 2 and 20 x 4 x 4 cubic cells, still carrying load at 6 per mille). The optional nonlocal average (`nonlocalLength`) localises and converges on those two meshes (31.0 and 28.2 J, 9 % apart) but dissipates about twice G_c A: its band width is not calibrated, and the zone forms at the loaded end, not at the weaker middle cell. An implicit gradient prototype (2026-11-16, not in the code) localised at the weak cells but dissipated 1.34, 1.12, 1.06 G_c A on 10, 20, 40 cells and 1.69 on a 20 x 2 x 2 prism: not mesh objective within 5 %. The section through the EN 1992-1-1 meridian and Kupfer's equal-biaxial point overshoots Kupfer's 1.27 f_c at sigma_2 / sigma_1 = 0.5 (1.39 f_c). The confinement and dilatancy work with the pressure of the last committed step (an error of the order of one step). Imran and Pantazopoulou's triaxial data were not opened. The cube-to-cylinder and slenderness rows hold for a platen friction of 0.2, a calibrated input of another model of the compression test (Stredulova and Elias 2023), not a measurement: with 0.57, inside the range measured for steel plate on concrete or grout (0.43 to 0.70, Gomez et al. 2011), the cube is 1.43 times the 150 x 300 mm cylinder (60.0 and 41.9 MPa) against 37 / 30 = 1.23. Cracks unload elastically (plasticity, not damage) and do not close; no rate, size (beyond the crack band), creep or shrinkage. Bars have perfect bond (no slip, no dowel action, no rupture); tension stiffening then depends on the cell size.",
+    "Concrete: the crack band holds G_c per unit area for a band of elements, but the peak at which a compressive band starts to soften depends on its confinement: in the 0.2 m prism with a 10 % weaker zone the dilatant hardening of the zone draws confinement from the stronger ends, so against the nominal 0.9 G_c A the energy is 0.97 to 1.06 on 10 to 40 cells (1.059 on 10 cells, outside 5 %); against G_c times the band's peak stress over f_cm it is within 1.6 %. After the compressive peak the confinement is frozen, a crushed element does not dilate, and its residual frictional strength is lost. setStrengthFactors() scales k but not the meridian's argument, so a factor 0.9 gives 0.794 f_cm in uniaxial compression (not changed: it would move the Studio peaks). The crack band was validated for bands across the load on box meshes only; an inclined band crosses elements whose projections overlap. The optional nonlocal average (`nonlocalLength`) dissipates about twice G_c A and is unchanged. The section through the EN 1992-1-1 meridian and Kupfer's equal-biaxial point overshoots Kupfer's 1.27 f_c at sigma_2 / sigma_1 = 0.5 (1.39 f_c). The confinement and dilatancy work with the pressure of the last committed step (an error of the order of one step). Imran and Pantazopoulou's triaxial data were not opened. The cube-to-cylinder and slenderness rows hold for a platen friction of 0.2, a calibrated input of another model of the compression test (Stredulova and Elias 2023), not a measurement: with 0.57, inside the range measured for steel plate on concrete or grout (0.43 to 0.70, Gomez et al. 2011), the cube is 1.43 times the 150 x 300 mm cylinder (60.0 and 41.9 MPa) against 37 / 30 = 1.23. Cracks unload elastically (plasticity, not damage) and do not close; no rate, size (beyond the crack band), creep or shrinkage. Bars have perfect bond (no slip, no dowel action, no rupture); tension stiffening then depends on the cell size.",
     "Uniform states are exact, so the tension, shear, pressure and rubber rows say nothing about accuracy under stress gradients."
    ],
-   "cases": 65,
-   "passed": 65
+   "cases": 73,
+   "passed": 73
   },
   {
    "id": "solid-contact",
@@ -17068,9 +17068,9 @@
    "unit": "Pa",
    "formula": "(3.14) at eps_cu1",
    "reference": 24649504.6,
-   "measured": 24639765,
-   "error": -9739.63602,
-   "relativeError": -0.00039512502,
+   "measured": 24693727.8,
+   "error": 44223.2037,
+   "relativeError": 0.00179408083,
    "tolerance": {
     "kind": "relative",
     "value": 0.02
@@ -17083,8 +17083,8 @@
    },
    "text": {
     "reference": "2.46495e7 Pa",
-    "measured": "2.463977e7",
-    "error": "-0.0395%",
+    "measured": "2.469373e7",
+    "error": "+0.179%",
     "tolerance": "±2%"
    }
   },
@@ -17208,15 +17208,15 @@
    "unit": "J/m^2",
    "formula": "G_c = f_cm w_d / 2, w_d = 0.5 mm (ATENA crack band default)",
    "reference": 9500,
-   "measured": 9523.01855,
-   "error": 23.0185459,
-   "relativeError": 0.00242300483,
+   "measured": 9474.57238,
+   "error": -25.4276171,
+   "relativeError": -0.00267659127,
    "tolerance": {
     "kind": "relative",
     "value": 0.02
    },
    "pass": true,
-   "note": "The cell crushes homogeneously; in a longer prism the band does not stay one cell thick (see notValidated).",
+   "note": "The cell crushes homogeneously. In a longer prism a band of elements crushes and dissipates G_c per unit area scaled by its peak (rows band-compression-*).",
    "source": {
     "file": "tests/engine/solid-concrete.test.mjs",
     "test": "crack band in compression: a crushed band of width h dissipates G_c per unit area after the peak for every h",
@@ -17224,8 +17224,8 @@
    },
    "text": {
     "reference": "9500 J/m^2",
-    "measured": "9523.019",
-    "error": "+0.242%",
+    "measured": "9474.572",
+    "error": "-0.268%",
     "tolerance": "±2%"
    }
   },
@@ -17237,15 +17237,15 @@
    "unit": "J/m^2",
    "formula": "G_c = f_cm w_d / 2, w_d = 0.5 mm (ATENA crack band default)",
    "reference": 9500,
-   "measured": 9473.12046,
-   "error": -26.8795423,
-   "relativeError": -0.0028294255,
+   "measured": 9484.06745,
+   "error": -15.9325473,
+   "relativeError": -0.00167711024,
    "tolerance": {
     "kind": "relative",
     "value": 0.02
    },
    "pass": true,
-   "note": "The cell crushes homogeneously; in a longer prism the band does not stay one cell thick (see notValidated).",
+   "note": "The cell crushes homogeneously. In a longer prism a band of elements crushes and dissipates G_c per unit area scaled by its peak (rows band-compression-*).",
    "source": {
     "file": "tests/engine/solid-concrete.test.mjs",
     "test": "crack band in compression: a crushed band of width h dissipates G_c per unit area after the peak for every h",
@@ -17253,8 +17253,8 @@
    },
    "text": {
     "reference": "9500 J/m^2",
-    "measured": "9473.12",
-    "error": "-0.283%",
+    "measured": "9484.067",
+    "error": "-0.168%",
     "tolerance": "±2%"
    }
   },
@@ -17266,15 +17266,15 @@
    "unit": "J/m^2",
    "formula": "G_c = f_cm w_d / 2, w_d = 0.5 mm (ATENA crack band default)",
    "reference": 9500,
-   "measured": 9515.37525,
-   "error": 15.375254,
-   "relativeError": 0.00161844779,
+   "measured": 9479.23633,
+   "error": -20.7636702,
+   "relativeError": -0.00218564949,
    "tolerance": {
     "kind": "relative",
     "value": 0.02
    },
    "pass": true,
-   "note": "The cell crushes homogeneously; in a longer prism the band does not stay one cell thick (see notValidated).",
+   "note": "The cell crushes homogeneously. In a longer prism a band of elements crushes and dissipates G_c per unit area scaled by its peak (rows band-compression-*).",
    "source": {
     "file": "tests/engine/solid-concrete.test.mjs",
     "test": "crack band in compression: a crushed band of width h dissipates G_c per unit area after the peak for every h",
@@ -17282,9 +17282,241 @@
    },
    "text": {
     "reference": "9500 J/m^2",
-    "measured": "9515.375",
-    "error": "+0.162%",
+    "measured": "9479.236",
+    "error": "-0.219%",
     "tolerance": "±2%"
+   }
+  },
+  {
+   "id": "solid.concrete.band-tension-10x1x1",
+   "domain": "solid",
+   "title": "Concrete law: crack band per element in tension, 10 x 1 x 1 cells",
+   "quantity": "work of the end force until a 0.2 m bar of 10 x 1 x 1 cells (no bandWidth given) carries nothing, over 0.98 G_f A",
+   "unit": "1",
+   "formula": "G_f = 73 f_cm^0.18 N/m (fib Model Code 2010, quoted by Sucharda 2020, eq. 14), crack band of each element: its width along the crack normal",
+   "reference": 1,
+   "measured": 0.999874097,
+   "error": -0.000125902754,
+   "relativeError": -0.000125902754,
+   "tolerance": {
+    "kind": "relative",
+    "value": 0.05
+   },
+   "pass": true,
+   "note": "Cells of 20 x 40 x 40 mm. With the earlier default band (6 V)^(1/3) of the mean element volume the same bar dissipates 0.63 of G_f A.",
+   "source": {
+    "file": "tests/engine/solid-concrete.test.mjs",
+    "test": "crack band per element: bars of 10, 20 and 40 cells and a 3-D mesh dissipate G_f per unit area in tension with the band width of each element (no bandWidth given)",
+    "url": "https://github.com/nathansenn/box3d-WEBGPU/blob/main/tests/engine/solid-concrete.test.mjs"
+   },
+   "text": {
+    "reference": "1",
+    "measured": "0.9998741",
+    "error": "-0.0126%",
+    "tolerance": "±5%"
+   }
+  },
+  {
+   "id": "solid.concrete.band-tension-20x1x1",
+   "domain": "solid",
+   "title": "Concrete law: crack band per element in tension, 20 x 1 x 1 cells",
+   "quantity": "work of the end force until a 0.2 m bar of 20 x 1 x 1 cells (no bandWidth given) carries nothing, over 0.98 G_f A",
+   "unit": "1",
+   "formula": "G_f = 73 f_cm^0.18 N/m (fib Model Code 2010, quoted by Sucharda 2020, eq. 14), crack band of each element: its width along the crack normal",
+   "reference": 1,
+   "measured": 0.999877124,
+   "error": -0.000122875965,
+   "relativeError": -0.000122875965,
+   "tolerance": {
+    "kind": "relative",
+    "value": 0.05
+   },
+   "pass": true,
+   "note": "Cells of 10 x 40 x 40 mm. With the earlier default band (6 V)^(1/3) of the mean element volume the same bar dissipates 0.63 of G_f A.",
+   "source": {
+    "file": "tests/engine/solid-concrete.test.mjs",
+    "test": "crack band per element: bars of 10, 20 and 40 cells and a 3-D mesh dissipate G_f per unit area in tension with the band width of each element (no bandWidth given)",
+    "url": "https://github.com/nathansenn/box3d-WEBGPU/blob/main/tests/engine/solid-concrete.test.mjs"
+   },
+   "text": {
+    "reference": "1",
+    "measured": "0.9998771",
+    "error": "-0.0123%",
+    "tolerance": "±5%"
+   }
+  },
+  {
+   "id": "solid.concrete.band-tension-40x1x1",
+   "domain": "solid",
+   "title": "Concrete law: crack band per element in tension, 40 x 1 x 1 cells",
+   "quantity": "work of the end force until a 0.2 m bar of 40 x 1 x 1 cells (no bandWidth given) carries nothing, over 0.98 G_f A",
+   "unit": "1",
+   "formula": "G_f = 73 f_cm^0.18 N/m (fib Model Code 2010, quoted by Sucharda 2020, eq. 14), crack band of each element: its width along the crack normal",
+   "reference": 1,
+   "measured": 0.999847375,
+   "error": -0.000152625106,
+   "relativeError": -0.000152625106,
+   "tolerance": {
+    "kind": "relative",
+    "value": 0.05
+   },
+   "pass": true,
+   "note": "Cells of 5 x 40 x 40 mm. With the earlier default band (6 V)^(1/3) of the mean element volume the same bar dissipates 0.63 of G_f A.",
+   "source": {
+    "file": "tests/engine/solid-concrete.test.mjs",
+    "test": "crack band per element: bars of 10, 20 and 40 cells and a 3-D mesh dissipate G_f per unit area in tension with the band width of each element (no bandWidth given)",
+    "url": "https://github.com/nathansenn/box3d-WEBGPU/blob/main/tests/engine/solid-concrete.test.mjs"
+   },
+   "text": {
+    "reference": "1",
+    "measured": "0.9998474",
+    "error": "-0.0153%",
+    "tolerance": "±5%"
+   }
+  },
+  {
+   "id": "solid.concrete.band-tension-20x2x2",
+   "domain": "solid",
+   "title": "Concrete law: crack band per element in tension, 20 x 2 x 2 cells",
+   "quantity": "work of the end force until a 0.2 m bar of 20 x 2 x 2 cells (no bandWidth given) carries nothing, over 0.98 G_f A",
+   "unit": "1",
+   "formula": "G_f = 73 f_cm^0.18 N/m (fib Model Code 2010, quoted by Sucharda 2020, eq. 14), crack band of each element: its width along the crack normal",
+   "reference": 1,
+   "measured": 0.999877124,
+   "error": -0.000122875955,
+   "relativeError": -0.000122875955,
+   "tolerance": {
+    "kind": "relative",
+    "value": 0.05
+   },
+   "pass": true,
+   "note": "Cells of 10 x 20 x 20 mm. With the earlier default band (6 V)^(1/3) of the mean element volume the same bar dissipates 0.63 of G_f A.",
+   "source": {
+    "file": "tests/engine/solid-concrete.test.mjs",
+    "test": "crack band per element: bars of 10, 20 and 40 cells and a 3-D mesh dissipate G_f per unit area in tension with the band width of each element (no bandWidth given)",
+    "url": "https://github.com/nathansenn/box3d-WEBGPU/blob/main/tests/engine/solid-concrete.test.mjs"
+   },
+   "text": {
+    "reference": "1",
+    "measured": "0.9998771",
+    "error": "-0.0123%",
+    "tolerance": "±5%"
+   }
+  },
+  {
+   "id": "solid.concrete.band-compression-10x1x1",
+   "domain": "solid",
+   "title": "Concrete law: crack band per element in compression, 10 x 1 x 1 cells",
+   "quantity": "plastic work after the peak of a 0.2 m prism of 10 x 1 x 1 cells (40 mm zone 10 % weaker, no bandWidth given), over G_c A sigma_peak / f_cm",
+   "unit": "1",
+   "formula": "G_c = f_cm w_d / 2, w_d = 0.5 mm (the law's default, after the ATENA crack band model; from memory), anchored at the band's peak",
+   "reference": 1,
+   "measured": 1.00436069,
+   "error": 0.00436068597,
+   "relativeError": 0.00436068597,
+   "tolerance": {
+    "kind": "relative",
+    "value": 0.05
+   },
+   "pass": true,
+   "note": "One band of elements crushes. Against 0.9 G_c A (the zone's strength factor) the ratio is 0.96 to 1.06: the zone's pre-peak dilatancy draws confinement from the stronger ends, by an amount that depends on the mesh, and the softening starts from that peak.",
+   "source": {
+    "file": "tests/engine/solid-concrete.test.mjs",
+    "test": "crack band per element: bars of 10, 20 and 40 cells and a 3-D mesh crush in one band of elements that dissipates G_c per unit area, scaled by the peak stress of the band",
+    "url": "https://github.com/nathansenn/box3d-WEBGPU/blob/main/tests/engine/solid-concrete.test.mjs"
+   },
+   "text": {
+    "reference": "1",
+    "measured": "1.004361",
+    "error": "+0.436%",
+    "tolerance": "±5%"
+   }
+  },
+  {
+   "id": "solid.concrete.band-compression-20x1x1",
+   "domain": "solid",
+   "title": "Concrete law: crack band per element in compression, 20 x 1 x 1 cells",
+   "quantity": "plastic work after the peak of a 0.2 m prism of 20 x 1 x 1 cells (40 mm zone 10 % weaker, no bandWidth given), over G_c A sigma_peak / f_cm",
+   "unit": "1",
+   "formula": "G_c = f_cm w_d / 2, w_d = 0.5 mm (the law's default, after the ATENA crack band model; from memory), anchored at the band's peak",
+   "reference": 1,
+   "measured": 0.997619904,
+   "error": -0.00238009622,
+   "relativeError": -0.00238009622,
+   "tolerance": {
+    "kind": "relative",
+    "value": 0.05
+   },
+   "pass": true,
+   "note": "One band of elements crushes. Against 0.9 G_c A (the zone's strength factor) the ratio is 0.96 to 1.06: the zone's pre-peak dilatancy draws confinement from the stronger ends, by an amount that depends on the mesh, and the softening starts from that peak.",
+   "source": {
+    "file": "tests/engine/solid-concrete.test.mjs",
+    "test": "crack band per element: bars of 10, 20 and 40 cells and a 3-D mesh crush in one band of elements that dissipates G_c per unit area, scaled by the peak stress of the band",
+    "url": "https://github.com/nathansenn/box3d-WEBGPU/blob/main/tests/engine/solid-concrete.test.mjs"
+   },
+   "text": {
+    "reference": "1",
+    "measured": "0.9976199",
+    "error": "-0.238%",
+    "tolerance": "±5%"
+   }
+  },
+  {
+   "id": "solid.concrete.band-compression-40x1x1",
+   "domain": "solid",
+   "title": "Concrete law: crack band per element in compression, 40 x 1 x 1 cells",
+   "quantity": "plastic work after the peak of a 0.2 m prism of 40 x 1 x 1 cells (40 mm zone 10 % weaker, no bandWidth given), over G_c A sigma_peak / f_cm",
+   "unit": "1",
+   "formula": "G_c = f_cm w_d / 2, w_d = 0.5 mm (the law's default, after the ATENA crack band model; from memory), anchored at the band's peak",
+   "reference": 1,
+   "measured": 0.993996206,
+   "error": -0.0060037939,
+   "relativeError": -0.0060037939,
+   "tolerance": {
+    "kind": "relative",
+    "value": 0.05
+   },
+   "pass": true,
+   "note": "One band of elements crushes. Against 0.9 G_c A (the zone's strength factor) the ratio is 0.96 to 1.06: the zone's pre-peak dilatancy draws confinement from the stronger ends, by an amount that depends on the mesh, and the softening starts from that peak.",
+   "source": {
+    "file": "tests/engine/solid-concrete.test.mjs",
+    "test": "crack band per element: bars of 10, 20 and 40 cells and a 3-D mesh crush in one band of elements that dissipates G_c per unit area, scaled by the peak stress of the band",
+    "url": "https://github.com/nathansenn/box3d-WEBGPU/blob/main/tests/engine/solid-concrete.test.mjs"
+   },
+   "text": {
+    "reference": "1",
+    "measured": "0.9939962",
+    "error": "-0.6%",
+    "tolerance": "±5%"
+   }
+  },
+  {
+   "id": "solid.concrete.band-compression-20x2x2",
+   "domain": "solid",
+   "title": "Concrete law: crack band per element in compression, 20 x 2 x 2 cells",
+   "quantity": "plastic work after the peak of a 0.2 m prism of 20 x 2 x 2 cells (40 mm zone 10 % weaker, no bandWidth given), over G_c A sigma_peak / f_cm",
+   "unit": "1",
+   "formula": "G_c = f_cm w_d / 2, w_d = 0.5 mm (the law's default, after the ATENA crack band model; from memory), anchored at the band's peak",
+   "reference": 1,
+   "measured": 0.983926259,
+   "error": -0.0160737408,
+   "relativeError": -0.0160737408,
+   "tolerance": {
+    "kind": "relative",
+    "value": 0.05
+   },
+   "pass": true,
+   "note": "One band of elements crushes. Against 0.9 G_c A (the zone's strength factor) the ratio is 0.96 to 1.06: the zone's pre-peak dilatancy draws confinement from the stronger ends, by an amount that depends on the mesh, and the softening starts from that peak.",
+   "source": {
+    "file": "tests/engine/solid-concrete.test.mjs",
+    "test": "crack band per element: bars of 10, 20 and 40 cells and a 3-D mesh crush in one band of elements that dissipates G_c per unit area, scaled by the peak stress of the band",
+    "url": "https://github.com/nathansenn/box3d-WEBGPU/blob/main/tests/engine/solid-concrete.test.mjs"
+   },
+   "text": {
+    "reference": "1",
+    "measured": "0.9839263",
+    "error": "-1.61%",
+    "tolerance": "±5%"
    }
   },
   {
@@ -17324,9 +17556,9 @@
    "unit": "Pa",
    "formula": "f_cm (1.125 + 2.5 sigma_2 / f_cm), EN 1992-1-1 (3.25)",
    "reference": 61750000,
-   "measured": 61556502.3,
-   "error": -193497.74,
-   "relativeError": -0.00313356664,
+   "measured": 61557957.8,
+   "error": -192042.178,
+   "relativeError": -0.00310999479,
    "tolerance": {
     "kind": "relative",
     "value": 0.01
@@ -17340,8 +17572,8 @@
    },
    "text": {
     "reference": "6.175e7 Pa",
-    "measured": "6.15565e7",
-    "error": "-0.313%",
+    "measured": "6.155796e7",
+    "error": "-0.311%",
     "tolerance": "±1%"
    }
   },
@@ -17353,9 +17585,9 @@
    "unit": "1",
    "formula": "Kupfer, Hilsdorf and Rusch (1969), ACI J. 66(8): \"only 16 percent larger than under uniaxial compression\" (abstract)",
    "reference": 1.16,
-   "measured": 1.15848929,
-   "error": -0.00151071357,
-   "relativeError": -0.00130233928,
+   "measured": 1.15850934,
+   "error": -0.00149065599,
+   "relativeError": -0.00128504827,
    "tolerance": {
     "kind": "relative",
     "value": 0.01
@@ -17369,8 +17601,8 @@
    },
    "text": {
     "reference": "1.16",
-    "measured": "1.158489",
-    "error": "-0.13%",
+    "measured": "1.158509",
+    "error": "-0.129%",
     "tolerance": "±1%"
    }
   },
@@ -17410,9 +17642,9 @@
    "unit": "1",
    "formula": "f_ck,cube / f_ck = 37 / 30 (EN 1992-1-1 Table 3.1, C30/37)",
    "reference": 1.23333333,
-   "measured": 1.20355141,
-   "error": -0.0297819189,
-   "relativeError": -0.0241475018,
+   "measured": 1.20355318,
+   "error": -0.0297801553,
+   "relativeError": -0.0241460719,
    "tolerance": {
     "kind": "relative",
     "value": 0.05
@@ -17426,7 +17658,7 @@
    },
    "text": {
     "reference": "1.233333",
-    "measured": "1.203551",
+    "measured": "1.203553",
     "error": "-2.41%",
     "tolerance": "±5%"
    }
@@ -17439,9 +17671,9 @@
    "unit": "1",
    "formula": "1.17: the correction of CSN EN 12390-3/Z1 for slenderness 1, as quoted by Stredulova and Elias (2023)",
    "reference": 1.17,
-   "measured": 1.16396366,
-   "error": -0.00603633869,
-   "relativeError": -0.00515926384,
+   "measured": 1.16396558,
+   "error": -0.00603441515,
+   "relativeError": -0.00515761978,
    "tolerance": {
     "kind": "relative",
     "value": 0.03
@@ -17455,7 +17687,7 @@
    },
    "text": {
     "reference": "1.17",
-    "measured": "1.163964",
+    "measured": "1.163966",
     "error": "-0.516%",
     "tolerance": "±3%"
    }

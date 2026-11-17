@@ -4087,7 +4087,7 @@ The law with its curves tabulated for one solid (its E, nu and band width): froz
 
 ```ts
 export interface ConcreteLaw {
-    readonly input: Readonly<Required<Omit<ConcreteLawInput, 'tensionSoftening' | 'bandWidth' | 'friction' | 'meridian' | 'nonlocalLength'>> & {
+    readonly input: Readonly<Required<Omit<ConcreteLawInput, 'tensionSoftening' | 'bandWidth' | 'friction' | 'meridian' | 'nonlocalLength' | 'postPeak'>> & {
         tensionSoftening: readonly number[];
         meridian: readonly number[];
     }>;
@@ -4096,6 +4096,8 @@ export interface ConcreteLaw {
     readonly friction: number;
     readonly dilatancy: number;
     readonly eccentricity: number;
+    readonly softeningDilatancy: number;
+    readonly postPeak: 'band' | 'lagged';
     readonly mx: Float64Array;
     readonly my: Float64Array;
     readonly bandWidth: number;
@@ -4107,6 +4109,20 @@ export interface ConcreteLaw {
     readonly kx: Float64Array;
     readonly ky: Float64Array;
     readonly kint: Float64Array;
+    readonly sx: Float64Array;
+    readonly sy: Float64Array;
+    readonly sint: Float64Array;
+    readonly peakIndex: number;
+    readonly snapBackLength: Readonly<{
+        tension: number;
+        compression: number;
+    }>;
+    readonly stretchLength: Readonly<{
+        tension: number;
+        compression: number;
+        compressionLagged: number;
+    }>;
+    readonly erosionGiven: boolean;
     readonly tx: Float64Array;
     readonly ty: Float64Array;
     readonly tint: Float64Array;
@@ -4114,6 +4130,9 @@ export interface ConcreteLaw {
     readonly kappaCrushed: number;
     readonly kappaErode: number;
     readonly axialFlow: number;
+    readonly softeningFlow: number;
+    readonly kappaCrushedSoftening: number;
+    readonly crushedStrain: number;
     readonly uniaxialStrain: Float64Array;
     readonly uniaxialStress: Float64Array;
 }
@@ -4134,6 +4153,8 @@ export interface ConcreteLawInput {
     readonly meridian?: readonly number[];
     readonly friction?: number;
     readonly dilatancy?: number;
+    readonly softeningDilatancy?: number;
+    readonly postPeak?: 'band' | 'lagged';
     readonly biaxialRatio?: number;
     readonly elasticLimit?: number;
     readonly bandWidth?: number;
@@ -4291,6 +4312,8 @@ export declare class SolidBody {
   setStrengthFactors(factors: ArrayLike<number>): void;
   crackOpening(out?: Float64Array<ArrayBuffer>): Float64Array;
   compressiveStrengthLeft(e: number): number;
+  crackBandFindings(subject?: string): DiagnosticFinding[];
+  bandWidths(): { compression: Float64Array; tension: Float64Array; };
   get erodedCount(): number;
   get erodedMask(): Uint8Array;
   vonMises(out?: Float64Array<ArrayBuffer>): Float64Array;
