@@ -44,7 +44,9 @@ const escape=(s:string)=>s.replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&
 export async function bootMaterialLab(id:LabId):Promise<void>{
   const lifetime=new AbortController();
   const lab=LABS[id],root=document.getElementById('studio')!,query=new URLSearchParams(location.search);
-  let settings=readSettings(id,query),model=createModel(id,settings),running=false,ready=false,disposed=false,playback=-1,speed=1,previous=0,accumulator=0,lastUi=0,nextSample=0,animation=0;
+  // Glass: `cracks=fine` runs the plate on the grid refined around the impact (about 4 to 6 times the cost; STUDIO_MATERIAL_LABS.md).
+  const fineCracks=id==='glass'&&query.get('cracks')==='fine';
+  let settings=readSettings(id,query),model=createModel(id,settings,{fineCracks}),running=false,ready=false,disposed=false,playback=-1,speed=1,previous=0,accumulator=0,lastUi=0,nextSample=0,animation=0;
   const candidate=lab.experiments.find(e=>e.id===(query.get('experiment')??lab.experiments[0].id));
   const candidateSettings=candidate?normalizeSettings(id,{...lab.defaults,...candidate.settings}):undefined;
   let experiment=candidate&&candidateSettings&&Object.keys(settings).every(k=>settings[k as keyof LabSettings]===candidateSettings[k as keyof LabSettings])?candidate.id:'',tab:'setup'|'material'|'test'|'analyze'='setup',history:LabFrame[]=[model.snapshot()],view:LabView='hero';
@@ -97,7 +99,7 @@ export async function bootMaterialLab(id:LabId):Promise<void>{
     panel.querySelector<HTMLInputElement>('#lab-seed')?.addEventListener('change',event=>apply({...settings,seed:Number((event.target as HTMLInputElement).value)}));
   }
   function reset():void {
-    running=false;solverWorker?.dispose();solverWorker=undefined;physicsError='';manualEvents=[];model=createModel(id,settings);world.setModel(model);history=[model.snapshot()];playback=-1;accumulator=0;nextSample=0;end=duration();snapGlass();startGlassWorker();$('#setup-status').textContent='Fresh specimen ready';sync(model.frame);
+    running=false;solverWorker?.dispose();solverWorker=undefined;physicsError='';manualEvents=[];model=createModel(id,settings,{fineCracks});world.setModel(model);history=[model.snapshot()];playback=-1;accumulator=0;nextSample=0;end=duration();snapGlass();startGlassWorker();$('#setup-status').textContent='Fresh specimen ready';sync(model.frame);
   }
   function snapGlass():void {if(glassPresentation){glassPresentation.reset(model.frame,performance.now());if(playback<0)world.update(model.frame);}}
   function apply(input:Partial<LabSettings>,preset=''):void {if(!ready)return;settings=normalizeSettings(id,input);experiment=preset;reset();renderPanel();if(id==='liquid'){root.querySelectorAll<HTMLElement>('[data-rig]').forEach(b=>b.setAttribute('aria-pressed',String(b.dataset.rig===settings.rig)));}writeUrl();}
@@ -165,7 +167,7 @@ export async function bootMaterialLab(id:LabId):Promise<void>{
       if(playback<0){if(run?.running)pendingDraw=true;else{world.update(glassPresentation?.sample(performance.now())??frame);sync(frame);}}
       if(LabWorkerClient)$('#renderer-status').textContent=solverStatus();
     },failure=(message:string)=>{physicsError=`${message}. Reset the experiment to retry.`;running=false;snapGlass();sync(model.frame);};
-    try{solverWorker=GlassWorkerClient?new GlassWorkerClient(settings,receive,failure):new LabWorkerClient!(id,settings,receive,failure,undefined,id==='granular'?granularThreads():1);}
+    try{solverWorker=GlassWorkerClient?new GlassWorkerClient(settings,receive,failure,undefined,{fineCracks}):new LabWorkerClient!(id,settings,receive,failure,undefined,id==='granular'?granularThreads():1);}
     catch{physicsError=(GlassWorkerClient?'Glass collision':'Flow solver')+' worker could not start. Reset the experiment to retry.';running=false;}
   }
   startGlassWorker();

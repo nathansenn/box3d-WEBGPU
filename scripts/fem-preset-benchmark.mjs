@@ -1,10 +1,11 @@
 // Real-time factors of the Studio's tetrahedral-solid presets (metal press, elastomer lab, concrete crush) in Node.
-// Usage: node scripts/fem-preset-benchmark.mjs [press|rubber|concrete ...] [--preset id] [--json out.json]
+// Usage: node scripts/fem-preset-benchmark.mjs [press|rubber|concrete|glass ...] [--preset id] [--seconds s] [--json out.json]
+// glass: also a SHA-256 of the plate's and the fragments' state at the end (`stateHash`), to check that a speed change leaves the answers alone.
 // Real-time factor = model seconds / CPU seconds of the model's own stepping (single thread).
 import './register-typescript.mjs';
 import {writeFileSync} from 'node:fs';
-const args=process.argv.slice(2),pick=args.filter(a=>!a.startsWith('--')&&!/\.json$/.test(a)&&args[args.indexOf(a)-1]!=='--preset');
-const only=args.includes('--preset')?args[args.indexOf('--preset')+1]:null,jsonOut=args.includes('--json')?args[args.indexOf('--json')+1]:null;
+const args=process.argv.slice(2),pick=args.filter(a=>!a.startsWith('--')&&!/\.json$/.test(a)&&args[args.indexOf(a)-1]!=='--preset'&&args[args.indexOf(a)-1]!=='--seconds');
+const only=args.includes('--preset')?args[args.indexOf('--preset')+1]:null,secondsArg=args.includes('--seconds')?Number(args[args.indexOf('--seconds')+1]):null,jsonOut=args.includes('--json')?args[args.indexOf('--json')+1]:null;
 const want=k=>pick.length===0||pick.includes(k);
 const results=[];
 const cpu=()=>{const u=process.cpuUsage();return (u.user+u.system)/1e6;};
@@ -25,7 +26,7 @@ async function labs(id,Model,metric){
   const {LABS,normalizeSettings}=await import('../src/studio/material-labs/catalog.ts');
   for(const e of LABS[id].experiments){
     if(only&&e.id!==only)continue;
-    const p=normalizeSettings(id,{...LABS[id].defaults,...e.settings}),m=new Model(p),seconds=LABS[id].duration;
+    const p=normalizeSettings(id,{...LABS[id].defaults,...e.settings}),m=new Model(p),seconds=secondsArg??LABS[id].duration;
     let worst=0;const t=cpu();
     for(let i=0;i<Math.round(seconds*120);i++){const s=performance.now();m.step(1/120);worst=Math.max(worst,performance.now()-s);}
     const used=cpu()-t;
@@ -34,4 +35,11 @@ async function labs(id,Model,metric){
 }
 if(want('rubber')){const {RubberModel}=await import('../src/studio/material-labs/rubber-si.ts');await labs('rubber',RubberModel,m=>({peakForceMN:+(m.peakForce/1e6).toFixed(4),residual:+(m.residual*100).toFixed(2),unconverged:m.unconverged}));}
 if(want('concrete')){const {ConcreteModel}=await import('../src/studio/material-labs/concrete-si.ts');await labs('concrete',ConcreteModel,m=>({peakMPa:+(m.peakForce/m.area/1e6).toFixed(3),peakStrain:+(m.peakStrain*1e3).toFixed(3),stopped:m.stopped,eroded:m.solid.erodedCount,unconverged:m.unconverged}));}
+if(want('glass')){
+  const {createHash}=await import('node:crypto');const {GlassModel}=await import('../src/studio/material-labs/glass-si.ts');
+  const bytes=a=>new Uint8Array(a.buffer,a.byteOffset,a.byteLength);
+  const hash=m=>{const h=createHash('sha256'),pl=m.plate;for(const a of [pl.w,pl.v,pl.broken,pl.active,...(pl.uv?[pl.uv]:[]),m.frame.positions,m.frame.rotations])h.update(bytes(a));
+    h.update(JSON.stringify([m.angle,m.speed,m.peakForce,m.peakStress,m.fragmentCount,m.substeps,m.fragments.map(f=>[f.x,f.v,f.q,f.w])]));return h.digest('hex').slice(0,16);};
+  await labs('glass',GlassModel,m=>({substeps:m.substeps,pieces:m.fragmentCount,peakForceKN:+(m.peakForce/1e3).toFixed(3),peakMPa:+(m.peakStress/1e6).toFixed(2),stateHash:hash(m)}));
+}
 if(jsonOut)writeFileSync(jsonOut,JSON.stringify(results,null,1));

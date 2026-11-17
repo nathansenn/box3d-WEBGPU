@@ -4,11 +4,28 @@ import {PlateBody,type PlateFragment} from '../../engine/plate';
 import {materialProperty,contactPair} from '../../engine/materials';
 import {GLASS_RIG,glassBobPosition,glassBobTangent} from './glass-rig';
 import {LabModel,DT,random,type V3} from './lab-model';
+import {GlassFragmentWorld,type FragmentRelease} from './glass-fragments';
+import type {NativeWorldPool} from '../../engine/native-world';
 import type {LabSettings} from './catalog';
 
 const G=9.81;
 /** Grid of the plate: 0.1 m cells over the 2.6 m x 2.0 m pane. */
 export const GLASS_CELLS:[number,number]=[26,20];
+/** Refinement around the impact: the 0.1 m cells within `half` of the point the bob strikes (the pane's mid-height, at the
+ * impact x) are split `factor` times in each direction, through the whole pane along both grid lines (a graded tensor grid,
+ * PlateBody `lines`). */
+export interface GlassRefinement {factor:number;half:number}
+/** The Studio's finer crack grid (`?studio=glass&cracks=fine`): 0.05 m cells within 0.3 m of the impact. */
+export const GLASS_REFINEMENT:GlassRefinement={factor:2,half:.3};
+/** Node lines of the lab's grid: 0.1 m, split `factor` times within `half` of (x, y) (pane coordinates from its corner). */
+export function glassLines(refine:GlassRefinement,x:number,y:number):{x:number[];y:number[]} {
+  const line=(cells:number,size:number,at:number)=>{
+    const h=size/cells,out=[0];
+    for(let i=0;i<cells;i++){const a=i*h,b=(i+1)*h,split=b>at-refine.half+1e-9&&a<at+refine.half-1e-9?refine.factor:1;for(let k=1;k<=split;k++)out.push(k===split?b:a+(b-a)*k/split);}
+    out[out.length-1]=size;return out;
+  };
+  return {x:line(GLASS_CELLS[0],GLASS_RIG.panelWidth,x),y:line(GLASS_CELLS[1],GLASS_RIG.panelHeight,y)};
+}
 /** Nominal PVB interlayer of a laminate, m (Stratobel xx.2, AGC sheet). */
 export const PVB_THICKNESS=.76e-3;
 /** Wired glass: a square steel wire mesh of 1/2 inch (12.7 mm), as AGC's wired patterned glass sheet states ("The
@@ -49,7 +66,9 @@ export function glassSpec(material:string):GlassSpec {
   }
 }
 
-interface RigidFragment {reach:number;nodes:Uint32Array;mass:number;x:V3;v:V3;q:[number,number,number,number];w:V3;inertia:V3;offsets:Float64Array;corners:Float64Array;resting:number;}
+interface RigidFragment {reach:number;nodes:Uint32Array;mass:number;x:V3;v:V3;q:[number,number,number,number];w:V3;inertia:V3;offsets:Float64Array;corners:Float64Array;resting:number;
+  /** Index of its body in the Box3D fragment world, or -1 (the fragment is stepped here, without contacts between pieces). */
+  body:number;}
 const rotate=(q:number[],x:number,y:number,z:number,out:number[]|Float64Array,o=0)=>{
   const [qx,qy,qz,qw]=q,tx=2*(qy*z-qz*y),ty=2*(qz*x-qx*z),tz=2*(qx*y-qy*x);
   out[o]=x+qw*tx+qy*tz-qz*ty;out[o+1]=y+qw*ty+qz*tx-qx*tz;out[o+2]=z+qw*tz+qx*ty-qy*tx;
@@ -76,6 +95,12 @@ function impulse(f:RigidFragment,r:number[],jx:number,jy:number,jz:number):void 
   inverseInertia(f,r[1]*jz-r[2]*jy,r[2]*jx-r[0]*jz,r[0]*jy-r[1]*jx,scratch);f.w[0]+=scratch[0];f.w[1]+=scratch[1];f.w[2]+=scratch[2];
 }
 
+/** x = A^-1 b for a symmetric 3 x 3 matrix [a00, a11, a22, a01, a02, a12] (Cramer's rule). */
+function solve3(a:number[],b:number[]):[number,number,number] {
+  const [m00,m11,m22,m01,m02,m12]=a,c00=m11*m22-m12*m12,c01=m02*m12-m01*m22,c02=m01*m12-m02*m11,det=m00*c00+m01*c01+m02*c02;
+  const c11=m00*m22-m02*m02,c12=m01*m02-m00*m12,c22=m00*m11-m01*m01;
+  return [(c00*b[0]+c01*b[1]+c02*b[2])/det,(c01*b[0]+c11*b[1]+c12*b[2])/det,(c02*b[0]+c12*b[1]+c22*b[2])/det];
+}
 /** The pendulum is one rotation about the pivot (inertia m (L^2 + offset^2 + 2/5 R^2), a solid bob). It touches the
  * plate's nodes through penalty springs on the sphere surface; the springs enter the plate's stability limit. */
 export class GlassModel extends LabModel {
@@ -85,13 +110,28 @@ export class GlassModel extends LabModel {
   readonly contactStiffness:Float64Array;readonly supportNodes:Uint32Array;
   angle:number;speed=0;
   peakForce=0;peakStress=0;force=0;throwDistance=0;retained=1;fragments:RigidFragment[]=[];fragmentCount=1;substeps=0;
+  /** The Box3D world of the released fragments (`options.fragments`), or null: fragments fall on their own (no contact
+   * between them or with the frame). */
+  readonly rigid:GlassFragmentWorld|null;
+  /** Largest relative difference at release, over every fragment so far, between the plate's linear (angular) momentum and
+   * that of the Box3D body as Box3D holds it (float32). */
+  releaseError={linear:0,angular:0};
+  /** True until the bob first touches the pane. */
+  private still=true;
   private friction:number;private touching:number[]=[];private bonds=0;private checked=0;private tile:{x:number;y:number}[];
-  /** `cells`: the plate's grid (default GLASS_CELLS, 0.1 m). `membrane: false`: the linear Kirchhoff plate of the first version. */
-  constructor(p:Partial<LabSettings>={},options:{cells?:[number,number];membrane?:boolean}={}){
-    super('glass',p);const s=this.settings;this.spec=glassSpec(this.material.id);const cells=options.cells??GLASS_CELLS;this.thickness=s.size/1000;this.impactX=s.fill/100;
-    const r=GLASS_RIG,spec=this.spec;
+  /** `refine`: a finer grid around the impact (GlassRefinement); default none. */
+  readonly refine:GlassRefinement|null;
+  /** `cells`: the plate's grid (default GLASS_CELLS, 0.1 m). `membrane: false`: the linear Kirchhoff plate of the first version.
+   * `fragments`: a loaded Box3D pool; released fragments then become rigid bodies of a Box3D world that collide with each
+   * other, the frame, the tray and the floor (glass-fragments.ts). Without it they fall on their own, as before. */
+  constructor(p:Partial<LabSettings>={},options:{cells?:[number,number];membrane?:boolean;refine?:GlassRefinement;fragments?:NativeWorldPool}={}){
+    super('glass',p);const s=this.settings;this.spec=glassSpec(this.material.id);this.thickness=s.size/1000;this.impactX=s.fill/100;
+    const r=GLASS_RIG,spec=this.spec;this.refine=options.refine??null;
+    if(this.refine&&options.cells)throw new Error('A refined glass grid takes no cells.');
+    const lines=this.refine?glassLines(this.refine,this.impactX+r.panelWidth/2,r.panelHeight/2):undefined;
+    const cells:[number,number]=lines?[lines.x.length-1,lines.y.length-1]:options.cells??GLASS_CELLS;
     this.plate=new PlateBody({size:[r.panelWidth,r.panelHeight],cells,membrane:options.membrane??true,thickness:this.thickness,origin:[-r.panelWidth/2,r.panelCenterY-r.panelHeight/2],
-      material:{youngModulus:spec.youngModulus,poissonRatio:spec.poissonRatio,density:spec.density},addedArealMass:spec.addedArealMass,massDamping:PLATE_DAMPING,
+      ...(lines?{lines}:{}),material:{youngModulus:spec.youngModulus,poissonRatio:spec.poissonRatio,density:spec.density},addedArealMass:spec.addedArealMass,massDamping:PLATE_DAMPING,
       fracture:{strength:spec.strength,prestress:spec.prestress,dicingSpeed:spec.dicing?DICING_SPEED:0,tie:spec.tie}});
     const plate=this.plate,pads:number[]=[];
     // Rubber pads on both faces at x = +-1.32 m, y = 1.6, 2.45, 3.3 m: two springs E A / t in parallel per pad, shared by the nodes under it.
@@ -102,25 +142,42 @@ export class GlassModel extends LabModel {
       // The pads also resist rotation of the clamped strip: two rubber faces as a Winkler bed, k = 2 E H b^3 / (12 t) per pad,
       // as a spring on the slope between each clamped node and its inner neighbour.
       const rotation=2*materialProperty('natural-rubber','youngModulus')*PAD.height*PAD.overlap**3/(12*PAD.thickness)*s.damping;
-      for(const n of nodes)plate.addCoupling(n,n-sx,rotation/(plate.hx*plate.hx)/nodes.length);
+      for(const n of nodes){const d=Math.abs(plate.x(n)-plate.x(n-sx));plate.addCoupling(n,n-sx,rotation/(lines?d*d:plate.hx*plate.hx)/nodes.length);}
     }
     this.supportNodes=Uint32Array.from(pads);
-    // Contact springs a quarter as stiff as the stiffest bending row, so they cost a quarter more steps.
-    const bare=plate.stableTimeStep();this.contactStiffness=new Float64Array(plate.nodeCount);
-    for(let n=0;n<plate.nodeCount;n++){this.contactStiffness[n]=.25*plate.mass[n]*(2/bare)**2;}
-    for(let n=0;n<plate.nodeCount;n++)plate.extraStiffness[n]=this.contactStiffness[n];plate.setExtraStiffness([],0);
+    // Contact springs a quarter as stiff as the stiffest bending row, so they cost a quarter more steps while the bob is near
+    // (`reach`: they enter the stability limit only at the nodes the bob can touch within the tick).
+    // The stiffest row counts a bridging layer as a string at full stiffness, 8 E t per node (the plate's stability bound
+    // before 2026-11-17, which now uses the layer's tangent), so that the contact is as stiff as it was.
+    plate.stableTimeStep();let most=0;const layer=spec.tie>0?8*spec.tie*Math.max(plate.hy/plate.hx,plate.hx/plate.hy):0;
+    for(let n=0;n<plate.nodeCount;n++)if(plate.active[n]&&!plate.fixed[n])most=Math.max(most,(layer>0?plate.bendRow[n]+layer:plate.bendRow[n])/plate.mass[n]);
+    const bare=most>0?2/Math.sqrt(most):Infinity;this.contactStiffness=new Float64Array(plate.nodeCount);
+    if(!lines)for(let n=0;n<plate.nodeCount;n++){this.contactStiffness[n]=.25*plate.mass[n]*(2/bare)**2;}
+    else{
+      // A refined grid keeps the contact of the 0.1 m grid per unit area (N/m per m^2), so the bob meets the same stiffness
+      // whatever the cells under it: that of the plain lab model with the same glass.
+      const plain=new GlassModel(this.settings,{membrane:options.membrane}),k=plain.contactStiffness,interior=plain.plate.node(5,5),perArea=k[interior]/plain.plate.area[interior];plain.dispose?.();
+      for(let n=0;n<plate.nodeCount;n++)this.contactStiffness[n]=perArea*plate.area[n];
+    }
     this.pendulumMass=s.load;const R=r.bobRadius;this.pendulumInertia=s.load*(r.pendulumLength**2+r.bobOffsetZ**2+.4*R*R);
     this.angle=Math.acos(1-s.rate/Math.hypot(r.pendulumLength,r.bobOffsetZ))-Math.atan2(r.bobOffsetZ,r.pendulumLength);
     this.impactEnergy=s.load*G*s.rate;
     // The library has no glass-on-steel friction; fragments slide with glass-on-glass kinetic friction.
     this.friction=contactPair('soda-lime-glass','soda-lime-glass').kineticFriction??0;
     // Tiles: each node owns the cell around it; inner corners are moved at random so the cracks read as glass.
-    const rng=random(s.seed),cx=cells[0],cy=cells[1],hx=plate.hx,hy=plate.hy,x0=plate.origin[0],y0=plate.origin[1];
+    const rng=random(s.seed),cx=cells[0],cy=cells[1],hx=plate.hx,hy=plate.hy,x0=plate.origin[0],y0=plate.origin[1],X=plate.xs,Y=plate.ys;
     const corner=new Float64Array((cx+2)*(cy+2)*2);
     for(let j=0;j<=cy+1;j++)for(let i=0;i<=cx+1;i++){
       const k=2*(j*(cx+2)+i),edgeX=i===0||i===cx+1,edgeY=j===0||j===cy+1;
-      corner[k]=Math.min(x0+cx*hx,Math.max(x0,x0+(i-.5)*hx+(edgeX?0:(rng()-.5)*.55*hx)));
-      corner[k+1]=Math.min(y0+cy*hy,Math.max(y0,y0+(j-.5)*hy+(edgeY?0:(rng()-.5)*.55*hy)));
+      if(!lines){
+        corner[k]=Math.min(x0+cx*hx,Math.max(x0,x0+(i-.5)*hx+(edgeX?0:(rng()-.5)*.55*hx)));
+        corner[k+1]=Math.min(y0+cy*hy,Math.max(y0,y0+(j-.5)*hy+(edgeY?0:(rng()-.5)*.55*hy)));
+      }else{
+        // Corners between node lines, moved by up to 0.275 of the smaller neighbouring cell.
+        const w=edgeX?0:Math.min(plate.dx[i-1],i<cx?plate.dx[i]:Infinity,i>1?plate.dx[i-2]:Infinity),h=edgeY?0:Math.min(plate.dy[j-1],j<cy?plate.dy[j]:Infinity,j>1?plate.dy[j-2]:Infinity);
+        const cxm=i===0?X[0]:i===cx+1?X[cx]:.5*(X[i-1]+X[i]),cym=j===0?Y[0]:j===cy+1?Y[cy]:.5*(Y[j-1]+Y[j]);
+        corner[k]=x0+cxm+(edgeX?0:(rng()-.5)*.55*w);corner[k+1]=y0+cym+(edgeY?0:(rng()-.5)*.55*h);
+      }
     }
     this.tile=[];this.allocate(plate.nodeCount);
     for(let n=0;n<plate.nodeCount;n++){
@@ -129,15 +186,26 @@ export class GlassModel extends LabModel {
       this.pieces.push({center:[X,Y,0],vertices,radius:Math.max(...vertices.map(v=>Math.hypot(v[0],v[1])))});this.tile.push({x:X,y:Y});
       this.frame.positions.set([X,Y,0],n*3);
     }
-    this.frame.cracks=new Uint8Array(plate.bondCount);this.frame.actuator=this.angle;this.sync();
+    this.frame.cracks=new Uint8Array(plate.bondCount);this.frame.actuator=this.angle;
+    this.rigid=options.fragments?new GlassFragmentWorld(options.fragments,this.thickness):null;
+    this.sync();
   }
+  /** Frees the Box3D world of the fragments (the model can still be read, not stepped further with contacts). */
+  dispose():void {this.rigid?.destroy();}
   get bob():V3 {return glassBobPosition(this.angle,this.impactX);}
+  /** The size of the cell a node stands for, as a lamina for the fragments' inertia: the mean cell size, or on a refined grid
+   * the node's own strip widths with the edge nodes' half strips doubled. */
+  private cell(n:number):[number,number] {
+    const plate=this.plate;if(!this.refine)return [plate.hx,plate.hy];
+    const i=n%plate.nx,j=Math.floor(n/plate.nx);return [plate.dualX(i)*(i===0||i===plate.cx?2:1),plate.dualY(j)*(j===0||j===plate.cy?2:1)];
+  }
   /** Contact of the bob with the plate nodes: forces into plate.force; returns the generalized force on the pendulum. */
   private contact():number {
     const plate=this.plate,c=this.bob,R=GLASS_RIG.bobRadius+this.thickness/2,t=glassBobTangent(this.angle),bobVelocity=t.map(x=>x*this.speed);let total=0;
     plate.force.fill(0);for(const n of this.touching){plate.drag[n]=0;plate.dragVelocity[n]=0;}this.touching.length=0;
-    const i0=Math.max(0,Math.floor((c[0]-R-plate.origin[0])/plate.hx)),i1=Math.min(plate.cx,Math.ceil((c[0]+R-plate.origin[0])/plate.hx));
-    const j0=Math.max(0,Math.floor((c[1]-R-plate.origin[1])/plate.hy)),j1=Math.min(plate.cy,Math.ceil((c[1]+R-plate.origin[1])/plate.hy));
+    const below=(lines:Float64Array,v:number)=>{let lo=0,hi=lines.length-1;while(lo<hi){const m=(lo+hi+1)>>1;if(lines[m]<=v)lo=m;else hi=m-1;}return lo;};
+    const i0=this.refine?below(plate.xs,c[0]-R-plate.origin[0]):Math.max(0,Math.floor((c[0]-R-plate.origin[0])/plate.hx)),i1=this.refine?Math.min(plate.cx,below(plate.xs,c[0]+R-plate.origin[0])+1):Math.min(plate.cx,Math.ceil((c[0]+R-plate.origin[0])/plate.hx));
+    const j0=this.refine?below(plate.ys,c[1]-R-plate.origin[1]):Math.max(0,Math.floor((c[1]-R-plate.origin[1])/plate.hy)),j1=this.refine?Math.min(plate.cy,below(plate.ys,c[1]+R-plate.origin[1])+1):Math.min(plate.cy,Math.ceil((c[1]+R-plate.origin[1])/plate.hy));
     for(let j=j0;j<=j1;j++)for(let i=i0;i<=i1;i++){
       const n=j*plate.nx+i;if(!plate.active[n])continue;
       // The node moves only along z, so the contact is measured along z: the node must stay in front of the
@@ -150,18 +218,33 @@ export class GlassModel extends LabModel {
     }
     this.force=total;return total*t[2];
   }
+  /** The nodes the bob can touch within the next dt carry their contact springs in the plate's stability limit; the others
+   * none. A node can be touched when it lies under the sphere's footprint, widened by the bob's travel, and the gap along z is
+   * less than twice what the bob and the fastest node can close in dt, plus 20 mm. */
+  private reach(dt:number):void {
+    const plate=this.plate,c=this.bob,R=GLASS_RIG.bobRadius+this.thickness/2,travel=Math.abs(this.speed)*Math.hypot(GLASS_RIG.pendulumLength,GLASS_RIG.bobOffsetZ)*dt,wide=R+travel+.01;
+    let fastest=0;for(let n=0;n<plate.nodeCount;n++)if(plate.active[n])fastest=Math.max(fastest,Math.abs(plate.v[n]));
+    const gap=2*dt*(Math.abs(this.speed)*Math.hypot(GLASS_RIG.pendulumLength,GLASS_RIG.bobOffsetZ)+fastest)+.02,extra=plate.extraStiffness;let changed=false;
+    for(let n=0;n<plate.nodeCount;n++){
+      const dx=plate.x(n)-c[0],dy=plate.y(n)-c[1],near=plate.active[n]&&dx*dx+dy*dy<wide*wide&&c[2]-R-plate.w[n]<gap,k=near?this.contactStiffness[n]:0;
+      if(extra[n]!==k){extra[n]=k;changed=true;}
+    }
+    if(changed)plate.setExtraStiffness([],0);
+  }
   step(dt=DT):void {
     if(!Number.isFinite(dt)||dt<=0||dt>.25)throw new Error('Glass step must be in (0, 0.25] seconds');
     // Equal sub-steps: symplectic Euler gains energy when its step length changes from one step to the next,
     // so the step is set once per tick and only shortened (for the rest of the tick) when a crack lowers the limit.
-    const plate=this.plate,start=this.frame.time;let left=dt,h=dt/Math.ceil(dt/(.9*plate.stableTimeStep()));
+    const plate=this.plate,start=this.frame.time;this.reach(dt);let left=dt,h=dt/Math.ceil(dt/(.9*plate.stableTimeStep()));
     while(left>1e-12){
       if(h>.9*plate.stableTimeStep())h=left/Math.ceil(left/(.9*plate.stableTimeStep()));
       h=Math.min(h,left);
       const tangent=glassBobTangent(this.angle);
       // Gravity on the bob: potential m g y(angle), so the generalized force is -m g dy/dangle.
       const spring=this.contact(),tangentZ=glassBobTangent(this.angle)[2];
-      this.bonds+=plate.advance(h);this.substeps++;
+      // Until the bob first touches it the pane is exactly at rest (no load reaches w): its step would change nothing but its clock.
+      if(this.still&&!this.touching.length)plate.time+=h;else{this.still=false;this.bonds+=plate.advance(h);}
+      this.substeps++;
       // The dashpots' force is the one the plate saw over the step, from the nodes' new velocities.
       let damper=0;for(const n of this.touching)damper+=plate.drag[n]*(plate.dragVelocity[n]-plate.v[n]);
       this.force=Math.max(0,this.force-damper);
@@ -201,17 +284,50 @@ export class GlassModel extends LabModel {
       const node=piece.nodes[k],ox=plate.x(node)-piece.center[0],oy=plate.y(node)-piece.center[1],oz=plate.w[node]-piece.center[2],m=plate.mass[node];
       offsets.set([ox,oy,oz],3*k);
       // Each node carries its own cell as a thin lamina: its point mass plus the cell's own moments of inertia.
-      ixx+=m*(oy*oy+oz*oz+(plate.hy**2+this.thickness**2)/12);iyy+=m*(ox*ox+oz*oz+(plate.hx**2+this.thickness**2)/12);izz+=m*(ox*ox+oy*oy+(plate.hx**2+plate.hy**2)/12);
+      const [ax,ay]=this.cell(node);
+      ixx+=m*(oy*oy+oz*oz+(ay**2+this.thickness**2)/12);iyy+=m*(ox*ox+oz*oz+(ax**2+this.thickness**2)/12);izz+=m*(ox*ox+oy*oy+(ax**2+ay**2)/12);
       for(const v of this.pieces[node].vertices)corners.push(ox+v[0],oy+v[1],oz);
     }
     let reach=0;for(let k=0;k<corners.length;k+=3)reach=Math.max(reach,Math.hypot(corners[k],corners[k+1],corners[k+2]));
     const fragment:RigidFragment={reach,nodes:piece.nodes,mass:piece.mass,x:[...piece.center] as V3,v:[0,0,piece.velocity],q:[0,0,0,1],
-      w:[piece.angularVelocity[0],piece.angularVelocity[1],0],inertia:[ixx,iyy,izz],offsets,corners:Float64Array.from(corners),resting:0};
+      w:[piece.angularVelocity[0],piece.angularVelocity[1],0],inertia:[ixx,iyy,izz],offsets,corners:Float64Array.from(corners),resting:0,body:-1};
+    if(this.rigid)fragment.body=this.toRigid(piece,offsets);
     plate.detach(piece);this.fragments.push(fragment);
   }
-  /** Fragments fall as rigid bodies onto the tray or the floor (impulses at the deepest corner, Coulomb friction, no bounce).
-   * They do not collide with each other, the frame or the pendulum. */
+  /** Hands a piece to the Box3D world: its mass, centre and full inertia tensor (each node's point mass plus its cell as a
+   * thin lamina), its velocity, and the spin that carries the plate's angular momentum about the centre, I^-1 L; its tiles
+   * as hulls. Records how far Box3D's body (float32) differs from the plate in linear and angular momentum. */
+  private toRigid(piece:PlateFragment,offsets:Float64Array):number {
+    const plate=this.plate,n=piece.nodes.length,I=[0,0,0,0,0,0],L=[0,0,0],tiles:Float64Array[]=[];let p=0;
+    for(let k=0;k<n;k++){
+      const node=piece.nodes[k],m=plate.mass[node],ox=offsets[3*k],oy=offsets[3*k+1],oz=offsets[3*k+2],v=plate.v[node];
+      const [ax,ay]=this.cell(node);
+      I[0]+=m*(oy*oy+oz*oz+(ay**2+this.thickness**2)/12);I[1]+=m*(ox*ox+oz*oz+(ax**2+this.thickness**2)/12);I[2]+=m*(ox*ox+oy*oy+(ax**2+ay**2)/12);
+      I[3]-=m*ox*oy;I[4]-=m*ox*oz;I[5]-=m*oy*oz;
+      // r x v with v along z: (r_y v, -r_x v, 0).
+      L[0]+=m*oy*v;L[1]-=m*ox*v;p+=m*v;
+      const tile=new Float64Array(12);this.pieces[node].vertices.forEach((c,i)=>{tile[3*i]=ox+c[0];tile[3*i+1]=oy+c[1];tile[3*i+2]=oz;});tiles.push(tile);
+    }
+    const spin=solve3(I,L),release:FragmentRelease={mass:piece.mass,center:[...piece.center],velocity:[0,0,piece.velocity],angularVelocity:spin,inertia:I as FragmentRelease['inertia'],tiles,thickness:this.thickness};
+    const rigid=this.rigid!,index=rigid.add(release),state=rigid.state(index),held=rigid.world.bodyMassData(rigid.handle(index)).inertia;
+    const pb=[state.mass*state.linearVelocity[0],state.mass*state.linearVelocity[1],state.mass*state.linearVelocity[2]],w=state.angularVelocity;
+    const Lb=[held[0]*w[0]+held[3]*w[1]+held[4]*w[2],held[3]*w[0]+held[1]*w[1]+held[5]*w[2],held[4]*w[0]+held[5]*w[1]+held[2]*w[2]];
+    const scaleP=Math.max(Math.abs(p),piece.mass*1e-3),scaleL=Math.max(Math.hypot(...L),Math.max(I[0],I[1],I[2])*1e-3);
+    this.releaseError.linear=Math.max(this.releaseError.linear,Math.hypot(pb[0],pb[1],pb[2]-p)/scaleP);
+    this.releaseError.angular=Math.max(this.releaseError.angular,Math.hypot(Lb[0]-L[0],Lb[1]-L[1],Lb[2]-L[2])/scaleL);
+    return index;
+  }
+  /** With a Box3D world (`options.fragments`) the fragments are its bodies: it steps them and they are read back. Without one
+   * they fall as rigid bodies onto the tray or the floor (impulses at the deepest corner, Coulomb friction, no bounce) and do
+   * not collide with each other, the frame or the pendulum. */
   private stepFragments(dt:number):void {
+    if(this.rigid){
+      const rigid=this.rigid;rigid.step(dt);
+      for(const f of this.fragments){
+        const s=rigid.state(f.body);f.x=s.position;f.q=s.rotation;f.v=s.linearVelocity;f.w=s.angularVelocity;f.resting=s.awake?0:1;
+      }
+      return;
+    }
     const steps=Math.max(1,Math.ceil(dt/(1/1920))),h=dt/steps,p=[0,0,0],tray=GLASS_RIG;
     for(const f of this.fragments){
       if(f.resting>.5)continue;
@@ -245,8 +361,9 @@ export class GlassModel extends LabModel {
     const f=this.frame,plate=this.plate,pos=f.positions,rot=f.rotations,d=f.damage;let travel=0;
     for(let n=0;n<plate.nodeCount;n++){
       if(!plate.active[n])continue;const i=n%plate.nx,j=Math.floor(n/plate.nx),w=plate.w;
-      const gx=i>0&&i<plate.cx?(w[n+1]-w[n-1])/(2*plate.hx):i===0?(w[n+1]-w[n])/plate.hx:(w[n]-w[n-1])/plate.hx;
-      const gy=j>0&&j<plate.cy?(w[n+plate.nx]-w[n-plate.nx])/(2*plate.hy):j===0?(w[n+plate.nx]-w[n])/plate.hy:(w[n]-w[n-plate.nx])/plate.hy;
+      const X=plate.xs,Y=plate.ys,f=!this.refine;
+      const gx=i>0&&i<plate.cx?(w[n+1]-w[n-1])/(f?2*plate.hx:X[i+1]-X[i-1]):i===0?(w[n+1]-w[n])/(f?plate.hx:X[1]-X[0]):(w[n]-w[n-1])/(f?plate.hx:X[i]-X[i-1]);
+      const gy=j>0&&j<plate.cy?(w[n+plate.nx]-w[n-plate.nx])/(f?2*plate.hy:Y[j+1]-Y[j-1]):j===0?(w[n+plate.nx]-w[n])/(f?plate.hy:Y[1]-Y[0]):(w[n]-w[n-plate.nx])/(f?plate.hy:Y[j]-Y[j-1]);
       pos[3*n]=this.tile[n].x;pos[3*n+1]=this.tile[n].y;pos[3*n+2]=w[n];rot[3*n]=gy;rot[3*n+1]=-gx;rot[3*n+2]=0;travel=Math.max(travel,Math.abs(w[n]));
     }
     const out=[0,0,0];let throwDistance=0,held=0;

@@ -9,6 +9,8 @@ const T = {
   frequency: 'dynamics: the (1,1) mode rings at the exact grid frequency, which approaches Kirchhoff theory',
   fracture: 'fracture: the first crack opens where the Navier surface stress reaches the strength, perpendicular to it; prestress adds to the strength',
   levy: 'von Karman plate: centre deflection of a square plate under uniform pressure against Levy (NACA Report 737), edges held and edges free to move',
+  graded: 'graded grid: the undamaged pane still matches Navier, the first Kirchhoff mode and the first-crack pressure',
+  gradedLevy: 'graded grid: von Karman centre deflection and edge tension against Levy (Table 9 and 10), as on the equal grid',
 };
 /** Levy, "Bending of rectangular plates with large deflections", NACA Report 737 (1942), read in the scan on NTRS
  * (https://ntrs.nasa.gov/api/citations/19930091816/downloads/19930091816.pdf): simply supported square plate of side a
@@ -63,6 +65,31 @@ const onset = prestress => memo(`plate/onset/${prestress}`, async () => {
   for (let k = 0; k < 50; k++) { const q = 0.5 * (lo + hi), p = await supported([26, 20], {fracture: {strength: STRENGTH, prestress}}); for (let n = 0; n < p.nodeCount; n++) p.force[n] = q * p.area[n]; p.solveStatic({tolerance: 1e-13}); if (p.checkFracture() > 0) hi = q; else lo = q; }
   return hi;
 });
+/** Node lines of `cells` equal cells over `size`, each cell within `half` of `at` split `factor` times (the glass lab's refinement). */
+const gradedLines = (size, cells, at, half, factor) => { const h = size / cells, out = [0]; for (let i = 0; i < cells; i++) { const a = i * h, b = (i + 1) * h, s = b > at - half + 1e-9 && a < at + half - 1e-9 ? factor : 1; for (let k = 1; k <= s; k++) out.push(k === s ? b : a + (b - a) * k / s); } out[out.length - 1] = size; return out; };
+const PANE_LINES = {x: gradedLines(A, 26, A / 2, 0.3, 2), y: gradedLines(B, 20, B / 2, 0.3, 2)};
+const gradedPane = async (extra = {}) => { const {PlateBody} = await plate(), p = new PlateBody({size: [A, B], cells: [PANE_LINES.x.length - 1, PANE_LINES.y.length - 1], lines: PANE_LINES, thickness: TH, material: GLASS, ...extra}); p.hold(p.selectNodes(edge)); return p; };
+const gradedCentre = p => p.selectNodes((x, y) => Math.abs(x - A / 2) < 1e-9 && Math.abs(y - B / 2) < 1e-9)[0];
+const gradedNavier = () => memo('plate/graded/navier', async () => {
+  const {navierUniform} = await plate(), p = await gradedPane();
+  for (let n = 0; n < p.nodeCount; n++) p.force[n] = Q * p.area[n];
+  p.solveStatic({tolerance: 1e-13});
+  const c = gradedCentre(p), [, my] = p.moments(c);
+  return {w: p.w[c], my, exact: navierUniform(A, B, rigidity, GLASS.poissonRatio, Q)};
+});
+const gradedOnset = () => memo('plate/graded/onset', async () => {
+  let lo = 0, hi = 1e6;
+  for (let k = 0; k < 50; k++) { const q = 0.5 * (lo + hi), p = await gradedPane({fracture: {strength: STRENGTH}}); for (let n = 0; n < p.nodeCount; n++) p.force[n] = q * p.area[n]; p.solveStatic({tolerance: 1e-13}); if (p.checkFracture() > 0) hi = q; else lo = q; }
+  return hi;
+});
+const gradedLevy = load => memo(`plate/graded/levy/${load}`, async () => {
+  const {PlateBody} = await plate(), lines = {x: gradedLines(1, 16, 0.5, 0.125, 2), y: gradedLines(1, 16, 0.5, 0.125, 2)}, n = lines.x.length - 1, E = 70e9, h = 0.01;
+  const p = new PlateBody({size: [1, 1], cells: [n, n], lines, thickness: h, material: {youngModulus: E, poissonRatio: 0.316, density: 2700}, membrane: true});
+  const rim = p.selectNodes((x, y) => x < 1e-9 || x > 1 - 1e-9 || y < 1e-9 || y > 1 - 1e-9); p.hold(rim); p.holdInPlane(rim);
+  for (let k = 0; k < p.nodeCount; k++) p.force[k] = load * E * h ** 4 * p.area[k];
+  p.relax({tolerance: 1e-7});
+  return p.w[p.selectNodes((x, y) => Math.abs(x - 0.5) < 1e-9 && Math.abs(y - 0.5) < 1e-9)[0]] / h;
+});
 const navierOnset = async () => { const {navierUniform} = await plate(), ex = navierUniform(A, B, rigidity, GLASS.poissonRatio, 1); return STRENGTH * TH * TH / (6 * Math.max(ex.mx, ex.my)); };
 
 export default defineCases('plate', FILE, [
@@ -105,6 +132,20 @@ export default defineCases('plate', FILE, [
   {id: 'plate.karman.edge-tension', title: 'Von Karman plate, edges held: average edge tension', quantity: 'average tension across the middle section over E h^2 / a^2 at p a^4 / (E h^4) = 278.5', unit: '1', test: T.levy,
     reference: {formula: 'Levy, NACA Report 737, Table 10: -p_x a^2 / (E h^2) = 7.38', value: 7.38}, tolerance: relative(0.04),
     note: 'Measured 2 to 3 % above Levy at all four loads (0.466, 1.866, 4.21, 7.50 against 0.451, 1.816, 4.12, 7.38).', measure: async () => (await levy('held', 278.5)).tension},
+  {id: 'plate.graded.deflection', title: 'Graded grid (0.05 m cells within 0.3 m of the centre): centre deflection under uniform pressure', quantity: 'centre deflection of the pane under 1 kPa, 32 x 26 cells', unit: 'm', test: T.graded,
+    reference: {formula: 'Navier series (as plate.navier.deflection)', value: null}, tolerance: relative(2e-4),
+    note: 'The second difference is first order where the spacing changes from 0.1 to 0.05 m: -1.0e-4 against +8.7e-6 on the equal grid.',
+    measure: async () => { const r = await gradedNavier(); return {value: r.w, reference: r.exact.deflection}; }},
+  {id: 'plate.graded.moment', title: 'Graded grid: centre moment under uniform pressure', quantity: 'centre moment M_y per unit length, 32 x 26 cells', unit: 'N m/m', test: T.graded,
+    reference: {formula: 'Navier series (as plate.navier.moment)', value: null}, tolerance: relative(3e-3),
+    measure: async () => { const r = await gradedNavier(); return {value: r.my, reference: r.exact.my}; }},
+  {id: 'plate.graded.onset', title: 'Graded grid: first crack under uniform pressure', quantity: 'pressure at which the first bond breaks (strength 41 MPa), 32 x 26 cells', unit: 'Pa', test: T.graded,
+    reference: {formula: 'q_c = sigma_c t^2 / (6 max(M_x, M_y) per unit q) (Navier)', value: null}, tolerance: relative(0.02),
+    note: 'The same tolerance as plate.fracture.onset on the equal grid (+0.59 % there); never early.',
+    measure: async () => ({value: await gradedOnset(), reference: await navierOnset()})},
+  ...LEVY.held.map(([load, w], k) => ({id: `plate.graded.karman-held-${k + 1}`, title: `Graded grid, von Karman plate, edges held, p a^4 / (E h^4) = ${load}`, quantity: 'centre deflection over the thickness, 16 x 16 cells with the middle quarter split (20 x 20)', unit: '1', test: T.gradedLevy,
+    reference: {formula: `Levy, NACA Report 737 (1942), Table 9: ${w}`, value: w}, tolerance: relative(0.01),
+    measure: async () => gradedLevy(load)})),
   {id: 'plate.karman.mesh', title: 'Von Karman plate: mesh dependence', quantity: 'centre deflection at p a^4 / (E h^4) = 278.5 on 8 x 8 cells over that on 32 x 32, minus 1', unit: '1', test: T.levy,
     reference: {formula: '0 (converged)', value: 0}, tolerance: absolute(0.015),
     note: '1.855, 1.841 and 1.837 on 8, 16 and 32 cells: the grid is 1.0 % and 0.2 % above its fine value.', measure: async () => (await levy('held', 278.5, 8)).w / (await levy('held', 278.5, 32)).w - 1},
