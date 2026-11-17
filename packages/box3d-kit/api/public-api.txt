@@ -6896,6 +6896,9 @@ export declare class SolidBody {
     private live;
     private elasticNodal;
     private stiffnessNodal;
+    private stiffnessNodalGeneral;
+    private stiffnessNodalGreen;
+    private eH;
     private volumeChange;
     private addVolumeTangent;
     private norm;
@@ -6982,6 +6985,8 @@ export declare class SparseLDL {
     addDiagonal(node: number, value: number): void;
     addNodeBlock(node: number, M: ArrayLike<number>, offset?: number): void;
     factor(): void;
+    skippedAttempts: number;
+    private hopelessPivot;
     shift: number;
     private saved;
     private savedD;

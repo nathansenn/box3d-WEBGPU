@@ -32,6 +32,51 @@ test('sparse LDLᵀ: a factorization of a random sparse SPD block matrix solves 
   assert.ok(L.modified>0&&[...L.D].every(d=>d>0),'reset pivots, all positive');
 });
 
+/** The factorization as it was before attempts that cannot succeed were skipped: every shift in turn. */
+function factorEveryShift(L){
+  const SHIFTS=[0,1e-6,1e-4,1e-2,1],saved=L.values.slice(),savedD=L.D.slice();
+  for(let k=0;k<SHIFTS.length;k++){
+    if(k>0){L.values.set(saved);for(let j=0;j<L.size;j++)L.D[j]=savedD[j]*(1+SHIFTS[k]);}
+    L.shift=SHIFTS[k];L.factorOnce();if(L.modified===0)break;
+  }
+}
+test('sparse LDLᵀ: a pivot no shift can save (an unknown left without stiffness) skips to the last attempt, with the same factor bit for bit',()=>{
+  const rnd=random(5),N=24,adj=Array.from({length:N},()=>[]),blocks=[];
+  for(let a=0;a<N;a++)for(let b=a+1;b<N;b++)if(b-a<3||rnd()>.6){adj[a].push(b);blocks.push([a,b,Array.from({length:9},rnd)]);}
+  for(let a=0;a<N;a++){const M=Array.from({length:9},rnd);for(let p=0;p<3;p++)for(let q=p;q<3;q++){const v=(M[3*p+q]+M[3*q+p])/2+(p===q?12:0);M[3*p+q]=M[3*q+p]=v;}blocks.push([a,a,M]);}
+  // orphan: node 9 keeps only a lumped mass 1e-15 of the stiffness (its elements have eroded); flip: an indefinite coupled pivot.
+  const assemble=(L,{orphan,flip})=>{L.begin(new Uint8Array(3*N));for(const [a,b,M] of blocks){
+    if(orphan&&(a===9||b===9)){if(a===b)L.addBlock(a,a,[1e-14,0,0,0,1e-14,0,0,0,1e-14]);continue;}
+    L.addBlock(a,b,flip&&a===b&&a===3?M.map((v,k)=>k===0?-v:v):M);}};
+  for(const set of [{orphan:true,flip:false},{orphan:true,flip:true},{orphan:false,flip:true},{orphan:false,flip:false}]){
+    const A=new SparseLDL(N,(a,visit)=>adj[a].forEach(visit)),B=new SparseLDL(N,(a,visit)=>adj[a].forEach(visit));
+    assemble(A,set);assemble(B,set);A.factor();factorEveryShift(B);
+    assert.equal(bits(A.values),bits(B.values),JSON.stringify(set));assert.equal(bits(A.D),bits(B.D));
+    assert.equal(A.shift,B.shift);assert.equal(A.modified,B.modified);
+    assert.equal(A.skippedAttempts,set.orphan?4:0,'skips only when a pivot fails at every shift');
+    if(set.orphan)assert.ok(A.shift===1&&A.modified>0,'the orphan pivot is reset at the last attempt, as before');
+  }
+});
+
+test('tet4-nodal green-lagrange: the written-out tangent product is the general one bit for bit (plastic, eroded elements, scratch state)',()=>{
+  const b=new SolidBody({mesh:boxMesh({size:[.02,.004,.004],cells:[6,2,1]}),material:{...steel,yieldStress:250e6,hardeningModulus:1e9},config:{model:'green-lagrange',element:'tet4-nodal'}});
+  const n=3*b.nodeCount,X=b.referencePositions,k=b.kernel(),rnd=random(13),u=new Float64Array(n);
+  for(let j=0;j<n;j+=3){u[j]=.02*X[j]*X[j+1]/.004+1e-6*rnd();u[j+1]=-.01*X[j]+1e-6*rnd();u[j+2]=1e-7*rnd();}
+  k.energy(u,new Float64Array(n),true);
+  for(const eroded of [[],[0,5,6,7]]){
+    for(const e of eroded)b.eroded[e]=1;
+    const x=Float64Array.from({length:n},rnd),fast=new Float64Array(n),slow=new Float64Array(n);
+    for(const plastic of [true,false]){
+      b.stiffnessNodalGreen(b.lin,x,fast,plastic);const H=bits(b.H),P=bits(b.P),B=bits(b.B);
+      b.stiffnessNodalGeneral('green-lagrange',b.lin,x,slow,plastic);
+      assert.equal(bits(fast),bits(slow),`eroded ${eroded.length}, plastic ${plastic}`);
+      assert.equal(H,bits(b.H));assert.equal(P,bits(b.P));assert.equal(B,bits(b.B),'scratch matrices left as the general path leaves them (they are checkpointed)');
+    }
+  }
+  let plasticElements=0;for(let e=0;e<b.tetCount;e++)if(b.ptan[14*e+6]!==0)plasticElements++;
+  console.log(`# written-out tangent product: bit-identical; plastic tangent in ${plasticElements} of ${b.tetCount} elements`);assert.ok(plasticElements>0,'the plastic branch is exercised');
+});
+
 /** Gradient and tangent of the kernel against central differences at a state with a plastic history and a rigid turn. */
 function differences(material,config,{amp,prestrain=0,turn=.5}){
   const b=new SolidBody({mesh:boxMesh({size:[.02,.01,.01],cells:[3,2,2]}),material,config}),n=3*b.nodeCount,X=b.referencePositions,k=b.kernel(),rnd=random(11);
