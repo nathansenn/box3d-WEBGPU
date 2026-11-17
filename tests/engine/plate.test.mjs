@@ -177,3 +177,46 @@ test('von Karman plate: the fracture check adds the membrane stress to the bendi
   assert.ok(!('uv' in plain)&&!('cellForce' in plain)&&plain.membrane===false);
   assert.throws(()=>simplySupported([6,6]).holdInPlane([0]),/membrane/);
 });
+
+// ---- Graded grid (`lines`): cells split in two around the centre, as the glass lab refines around its impact ----
+/** Node lines of `cells` equal cells over `size`, each cell within `half` of `at` split `factor` times. */
+const graded=(size,cells,at,half,factor)=>{const h=size/cells,out=[0];for(let i=0;i<cells;i++){const a=i*h,b=(i+1)*h,s=b>at-half+1e-9&&a<at+half-1e-9?factor:1;for(let k=1;k<=s;k++)out.push(k===s?b:a+(b-a)*k/s);}out[out.length-1]=size;return out;};
+const PANE_LINES={x:graded(A,26,A/2,.3,2),y:graded(B,20,B/2,.3,2)};
+function gradedPane(extra={}){const p=new PlateBody({size:[A,B],cells:[PANE_LINES.x.length-1,PANE_LINES.y.length-1],lines:PANE_LINES,thickness:T,material:GLASS,...extra});p.hold(p.selectNodes(edge));return p;}
+const centreOf=p=>p.selectNodes((x,y)=>Math.abs(x-A/2)<1e-9&&Math.abs(y-B/2)<1e-9)[0];
+
+test('graded grid: the undamaged pane still matches Navier, the first Kirchhoff mode and the first-crack pressure',()=>{
+  const p=gradedPane();assert.equal(p.cx,32);assert.equal(p.cy,26);
+  let area=0;for(let n=0;n<p.nodeCount;n++)area+=p.area[n];assert.ok(Math.abs(area/(A*B)-1)<1e-14,'the nodes share the pane');
+  for(let n=0;n<p.nodeCount;n++)p.force[n]=Q*p.area[n];p.solveStatic({tolerance:1e-13});
+  const c=centreOf(p),[mx,my]=p.moments(c),ex=navierUniform(A,B,p.rigidity,GLASS.poissonRatio,Q),err={w:p.w[c]/ex.deflection-1,mx:mx/ex.mx-1,my:my/ex.my-1};
+  // The second difference is first order where the spacing changes (0.1 to 0.05 m), so the deflection is not as close as on
+  // the equal grid (8.7e-6); the moments keep the equal grid's tolerances.
+  console.log('# graded navier',JSON.stringify(err));
+  assert.ok(Math.abs(err.w)<2e-4&&Math.abs(err.mx)<2e-3&&Math.abs(err.my)<3e-3);
+  let lo=0,hi=1e6;
+  for(let k=0;k<50;k++){const q=.5*(lo+hi),r=gradedPane({fracture:{strength:41e6}});for(let n=0;n<r.nodeCount;n++)r.force[n]=q*r.area[n];r.solveStatic({tolerance:1e-13});if(r.checkFracture()>0)hi=q;else lo=q;}
+  const unit=navierUniform(A,B,p.rigidity,GLASS.poissonRatio,1),theory=41e6*T*T/(6*Math.max(unit.mx,unit.my));
+  console.log('# graded onset',JSON.stringify({qc:hi,theory,ratio:hi/theory}));
+  assert.ok(hi/theory>1&&hi/theory<1.02,'first crack within the equal grid\'s 2 %, never early');
+  const q=gradedPane(),cq=centreOf(q);for(let n=0;n<q.nodeCount;n++)q.w[n]=1e-3*Math.sin(Math.PI*q.x(n)/A)*Math.sin(Math.PI*q.y(n)/B);
+  const h=.5*q.stableTimeStep();let prev=q.w[cq];const crossings=[];
+  for(let s=0;s<200000&&crossings.length<12;s++){q.advance(h);const w=q.w[cq];if(prev>0&&w<=0)crossings.push((s+prev/(prev-w))*h);prev=w;}
+  const f=(crossings.length-1)/(crossings.at(-1)-crossings[0]),theoryF=plateFrequency(A,B,p.rigidity,GLASS.density*T,1,1);
+  console.log('# graded frequency',JSON.stringify({f,theory:theoryF,error:f/theoryF-1}));
+  assert.ok(Math.abs(f/theoryF-1)<2.5e-3,'(1,1) mode within the equal grid\'s 0.25 %');
+});
+
+test('graded grid: von Karman centre deflection and edge tension against Levy (Table 9 and 10), as on the equal grid',()=>{
+  for(const [load,w,tension] of LEVY.held){
+    const lines={x:graded(1,16,.5,.125,2),y:graded(1,16,.5,.125,2)},n=lines.x.length-1;
+    const p=new PlateBody({size:[1,1],cells:[n,n],lines,thickness:.01,material:{youngModulus:70e9,poissonRatio:.316,density:2700},membrane:true});
+    const rim=p.selectNodes((x,y)=>x<1e-9||x>1-1e-9||y<1e-9||y>1-1e-9);p.hold(rim);p.holdInPlane(rim);pressure(p,load);
+    const r=p.relax({tolerance:1e-7}),c=p.selectNodes((x,y)=>Math.abs(x-.5)<1e-9&&Math.abs(y-.5)<1e-9)[0];
+    // Average tension across the middle section x = 0.5 (the cells on either side, weighted by their height).
+    const mid=p.xs.indexOf(.5);let t=0;for(let j=0;j<n;j++)t+=(p.cellForce[3*(j*n+mid)]+p.cellForce[3*(j*n+mid-1)])/2*p.dy[j];
+    const edgeTension=t/.01*1/(70e9*.01*.01);
+    console.log(`# graded, edges held, ${load}: w / h ${(p.w[c]/.01).toFixed(4)} (Levy ${w}); edge tension ${edgeTension.toFixed(3)} (Levy ${tension}); ${r.steps} steps, ${n} x ${n} cells`);
+    assert.ok(r.converged);close(p.w[c]/.01,w,.01,`graded held ${load}`);close(edgeTension,tension,.04,`graded edge tension ${load}`);
+  }
+});

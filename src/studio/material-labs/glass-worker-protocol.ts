@@ -1,9 +1,10 @@
 import {GlassModel,DT,type LabFrame} from './models';
+import {GLASS_REFINEMENT} from './glass-si';
 import type {NativeWorldPool} from '../../engine/native-world';
 import type {LabSettings} from './catalog';
 
 /** `box3d`: where the page serves box3d.js and box3d.wasm; the worker loads them once, for the fragments' rigid world. */
-export type GlassWorkerRequest={type:'reset';generation:number;settings:Partial<LabSettings>;box3d?:{module:string;wasm:string}}|{type:'step';generation:number;request:number;ticks:number;release:boolean};
+export type GlassWorkerRequest={type:'reset';generation:number;settings:Partial<LabSettings>;box3d?:{module:string;wasm:string};fineCracks?:boolean}|{type:'step';generation:number;request:number;ticks:number;release:boolean};
 export type GlassWorkerResponse={type:'frame';generation:number;request:number;frame:LabFrame}|{type:'error';generation:number;request:number;message:string};
 /** One model and one generation per worker. Frames own their transferable buffers. */
 export function glassWorkerHandler(fragments?:()=>NativeWorldPool|undefined): (message:GlassWorkerRequest)=>GlassWorkerResponse|null {return glassWorkerState(fragments).handle;}
@@ -18,7 +19,7 @@ export function glassWorkerState(fragments:()=>NativeWorldPool|undefined=()=>und
       if(!Number.isSafeInteger(message.generation)||message.generation<0)throw new Error('Invalid glass worker generation');
       if(message.type==='reset'){
         if(message.generation<=generation)return null;
-        const pool=fragments(),next=new GlassModel(message.settings,pool?{fragments:pool}:{});model?.dispose();model=next;generation=message.generation;lastRequest=0;
+        const pool=fragments(),next=new GlassModel(message.settings,{...(pool?{fragments:pool}:{}),...(message.fineCracks?{refine:GLASS_REFINEMENT}:{})});model?.dispose();model=next;generation=message.generation;lastRequest=0;
         return {type:'frame',generation,request:0,frame:model.snapshot()};
       }
       if(message.type!=='step')throw new Error('Invalid glass worker request');

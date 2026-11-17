@@ -5,8 +5,8 @@
  "generatedBy": "node scripts/validation-report.mjs",
  "digits": 9,
  "totals": {
-  "cases": 737,
-  "passed": 737,
+  "cases": 744,
+  "passed": 744,
   "failed": 0,
   "domains": 23
  },
@@ -385,8 +385,8 @@
     "Tempered glass dicing is a front that breaks every bond it reaches; its speed and the fragment size quoted by the Studio are inputs from the literature, not results.",
     "Bridging layers (PVB, wire mesh) are strings with the in-plane displacement neglected; they never tear. No impact validation: the contact with the pendulum is a penalty spring and dashpot, and fragments fall as rigid bodies that do not collide with each other."
    ],
-   "cases": 23,
-   "passed": 23
+   "cases": 30,
+   "passed": 30
   },
   {
    "id": "frame",
@@ -19393,8 +19393,8 @@
    "formula": "log2(e_coarse / e_fine) = 2",
    "reference": 2,
    "measured": 1.99740223,
-   "error": -0.00259777219,
-   "relativeError": -0.00129888609,
+   "error": -0.00259777224,
+   "relativeError": -0.00129888612,
    "tolerance": {
     "kind": "absolute",
     "value": 0.1
@@ -19951,6 +19951,204 @@
     "measured": "7.500558",
     "error": "+1.63%",
     "tolerance": "±4%"
+   }
+  },
+  {
+   "id": "plate.graded.deflection",
+   "domain": "plate",
+   "title": "Graded grid (0.05 m cells within 0.3 m of the centre): centre deflection under uniform pressure",
+   "quantity": "centre deflection of the pane under 1 kPa, 32 x 26 cells",
+   "unit": "m",
+   "formula": "Navier series (as plate.navier.deflection)",
+   "reference": 0.0315315706,
+   "measured": 0.0315284016,
+   "error": -0.00000316898194,
+   "relativeError": -0.000100501874,
+   "tolerance": {
+    "kind": "relative",
+    "value": 0.0002
+   },
+   "pass": true,
+   "note": "The second difference is first order where the spacing changes from 0.1 to 0.05 m: -1.0e-4 against +8.7e-6 on the equal grid.",
+   "source": {
+    "file": "tests/engine/plate.test.mjs",
+    "test": "graded grid: the undamaged pane still matches Navier, the first Kirchhoff mode and the first-crack pressure",
+    "url": "https://github.com/nathansenn/box3d-WEBGPU/blob/main/tests/engine/plate.test.mjs"
+   },
+   "text": {
+    "reference": "0.03153157 m",
+    "measured": "0.0315284",
+    "error": "-0.0101%",
+    "tolerance": "±0.02%"
+   }
+  },
+  {
+   "id": "plate.graded.moment",
+   "domain": "plate",
+   "title": "Graded grid: centre moment under uniform pressure",
+   "quantity": "centre moment M_y per unit length, 32 x 26 cells",
+   "unit": "N m/m",
+   "formula": "Navier series (as plate.navier.moment)",
+   "reference": 268.45832,
+   "measured": 267.885497,
+   "error": -0.572822673,
+   "relativeError": -0.00213374901,
+   "tolerance": {
+    "kind": "relative",
+    "value": 0.003
+   },
+   "pass": true,
+   "source": {
+    "file": "tests/engine/plate.test.mjs",
+    "test": "graded grid: the undamaged pane still matches Navier, the first Kirchhoff mode and the first-crack pressure",
+    "url": "https://github.com/nathansenn/box3d-WEBGPU/blob/main/tests/engine/plate.test.mjs"
+   },
+   "text": {
+    "reference": "268.4583 N m/m",
+    "measured": "267.8855",
+    "error": "-0.213%",
+    "tolerance": "±0.3%"
+   }
+  },
+  {
+   "id": "plate.graded.onset",
+   "domain": "plate",
+   "title": "Graded grid: first crack under uniform pressure",
+   "quantity": "pressure at which the first bond breaks (strength 41 MPa), 32 x 26 cells",
+   "unit": "Pa",
+   "formula": "q_c = sigma_c t^2 / (6 max(M_x, M_y) per unit q) (Navier)",
+   "reference": 1629.05487,
+   "measured": 1634.19518,
+   "error": 5.14031349,
+   "relativeError": 0.00315539616,
+   "tolerance": {
+    "kind": "relative",
+    "value": 0.02
+   },
+   "pass": true,
+   "note": "The same tolerance as plate.fracture.onset on the equal grid (+0.59 % there); never early.",
+   "source": {
+    "file": "tests/engine/plate.test.mjs",
+    "test": "graded grid: the undamaged pane still matches Navier, the first Kirchhoff mode and the first-crack pressure",
+    "url": "https://github.com/nathansenn/box3d-WEBGPU/blob/main/tests/engine/plate.test.mjs"
+   },
+   "text": {
+    "reference": "1629.055 Pa",
+    "measured": "1634.195",
+    "error": "+0.316%",
+    "tolerance": "±2%"
+   }
+  },
+  {
+   "id": "plate.graded.karman-held-1",
+   "domain": "plate",
+   "title": "Graded grid, von Karman plate, edges held, p a^4 / (E h^4) = 14.78",
+   "quantity": "centre deflection over the thickness, 16 x 16 cells with the middle quarter split (20 x 20)",
+   "unit": "1",
+   "formula": "Levy, NACA Report 737 (1942), Table 9: 0.485",
+   "reference": 0.485,
+   "measured": 0.483956548,
+   "error": -0.00104345183,
+   "relativeError": -0.00215144708,
+   "tolerance": {
+    "kind": "relative",
+    "value": 0.01
+   },
+   "pass": true,
+   "source": {
+    "file": "tests/engine/plate.test.mjs",
+    "test": "graded grid: von Karman centre deflection and edge tension against Levy (Table 9 and 10), as on the equal grid",
+    "url": "https://github.com/nathansenn/box3d-WEBGPU/blob/main/tests/engine/plate.test.mjs"
+   },
+   "text": {
+    "reference": "0.485",
+    "measured": "0.4839565",
+    "error": "-0.215%",
+    "tolerance": "±1%"
+   }
+  },
+  {
+   "id": "plate.graded.karman-held-2",
+   "domain": "plate",
+   "title": "Graded grid, von Karman plate, edges held, p a^4 / (E h^4) = 51.4",
+   "quantity": "centre deflection over the thickness, 16 x 16 cells with the middle quarter split (20 x 20)",
+   "unit": "1",
+   "formula": "Levy, NACA Report 737 (1942), Table 9: 0.952",
+   "reference": 0.952,
+   "measured": 0.950111898,
+   "error": -0.00188810212,
+   "relativeError": -0.00198330054,
+   "tolerance": {
+    "kind": "relative",
+    "value": 0.01
+   },
+   "pass": true,
+   "source": {
+    "file": "tests/engine/plate.test.mjs",
+    "test": "graded grid: von Karman centre deflection and edge tension against Levy (Table 9 and 10), as on the equal grid",
+    "url": "https://github.com/nathansenn/box3d-WEBGPU/blob/main/tests/engine/plate.test.mjs"
+   },
+   "text": {
+    "reference": "0.952",
+    "measured": "0.9501119",
+    "error": "-0.198%",
+    "tolerance": "±1%"
+   }
+  },
+  {
+   "id": "plate.graded.karman-held-3",
+   "domain": "plate",
+   "title": "Graded grid, von Karman plate, edges held, p a^4 / (E h^4) = 132",
+   "quantity": "centre deflection over the thickness, 16 x 16 cells with the middle quarter split (20 x 20)",
+   "unit": "1",
+   "formula": "Levy, NACA Report 737 (1942), Table 9: 1.402",
+   "reference": 1.402,
+   "measured": 1.39957407,
+   "error": -0.00242592501,
+   "relativeError": -0.00173033168,
+   "tolerance": {
+    "kind": "relative",
+    "value": 0.01
+   },
+   "pass": true,
+   "source": {
+    "file": "tests/engine/plate.test.mjs",
+    "test": "graded grid: von Karman centre deflection and edge tension against Levy (Table 9 and 10), as on the equal grid",
+    "url": "https://github.com/nathansenn/box3d-WEBGPU/blob/main/tests/engine/plate.test.mjs"
+   },
+   "text": {
+    "reference": "1.402",
+    "measured": "1.399574",
+    "error": "-0.173%",
+    "tolerance": "±1%"
+   }
+  },
+  {
+   "id": "plate.graded.karman-held-4",
+   "domain": "plate",
+   "title": "Graded grid, von Karman plate, edges held, p a^4 / (E h^4) = 278.5",
+   "quantity": "centre deflection over the thickness, 16 x 16 cells with the middle quarter split (20 x 20)",
+   "unit": "1",
+   "formula": "Levy, NACA Report 737 (1942), Table 9: 1.846",
+   "reference": 1.846,
+   "measured": 1.83851169,
+   "error": -0.00748830628,
+   "relativeError": -0.00405650395,
+   "tolerance": {
+    "kind": "relative",
+    "value": 0.01
+   },
+   "pass": true,
+   "source": {
+    "file": "tests/engine/plate.test.mjs",
+    "test": "graded grid: von Karman centre deflection and edge tension against Levy (Table 9 and 10), as on the equal grid",
+    "url": "https://github.com/nathansenn/box3d-WEBGPU/blob/main/tests/engine/plate.test.mjs"
+   },
+   "text": {
+    "reference": "1.846",
+    "measured": "1.838512",
+    "error": "-0.406%",
+    "tolerance": "±1%"
    }
   },
   {

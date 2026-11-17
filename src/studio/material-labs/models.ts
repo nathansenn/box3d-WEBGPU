@@ -5,7 +5,7 @@ import {GranularTray,grainSI,TRAY} from './granular-si';
 import {bedDatum,bedElevation,bedRelief,channelCenter,liquidOutlets,rimHeight} from './liquid-terrain';
 import {LABS,materialFor,normalizeSettings,type LabId,type LabSettings,type MaterialProfile} from './catalog';
 import {LabModel,DT,random,clamp,copyFrame,type LabFrame,type V3,type Piece} from './lab-model';
-import {GlassModel} from './glass-si';
+import {GlassModel,GLASS_REFINEMENT} from './glass-si';
 import {RubberModel} from './rubber-si';
 import {ConcreteModel} from './concrete-si';
 export * from './lab-model';
@@ -220,7 +220,8 @@ export class GranularModel extends LabModel {
     f.metrics=[m.runout,m.height,m.behind];
   }
 }
-export function createModel(id:LabId,p:Partial<LabSettings>={}):LabModel {
-  return id==='liquid'?new LiquidModel(p):id==='glass'?new GlassModel(p):id==='concrete'?new ConcreteModel(p):id==='rubber'?new RubberModel(p):new GranularModel(p);
+/** `fineCracks`: the glass lab on its refined grid (GLASS_REFINEMENT). */
+export function createModel(id:LabId,p:Partial<LabSettings>={},options:{fineCracks?:boolean}={}):LabModel {
+  return id==='liquid'?new LiquidModel(p):id==='glass'?new GlassModel(p,options.fineCracks?{refine:GLASS_REFINEMENT}:{}):id==='concrete'?new ConcreteModel(p):id==='rubber'?new RubberModel(p):new GranularModel(p);
 }
 export const METRIC_LABELS:Record<LabId,[string,string,string]>={liquid:['Peak depth · m','Peak speed · m/s','Fluid volume · m³'],glass:['Peak contact force · kN','Peak surface stress · MPa','Out-of-plane · mm'],concrete:['Stress · MPa','Strain · %','Platen force · kN'],rubber:['Compression · %','Platen force · kN','Retained volume · %'],granular:['Runout · m','Pile height · m','Grains behind gate']};

@@ -1,4 +1,4 @@
-// Thin plates: Kirchhoff bending on a regular grid, explicit dynamics, brittle fracture between nodes.
+// Thin plates: Kirchhoff bending on a rectangular grid (equal or graded cells), explicit dynamics, brittle fracture between nodes.
 // See docs/PLATE.md. SI units throughout. float64.
 import {EngineError,finite,integer,onlyKeys,record} from './contracts.ts';
 import {captureFields,restoreFields,type FieldOptions,type StateObject,type StateValue} from './checkpoint.ts';
@@ -37,10 +37,20 @@ export interface PlateDefinition {
    * neglected); `advance` then includes the membrane forces, the fracture check the membrane stress. Default false: the
    * linear Kirchhoff plate. `solveStatic` stays linear; use `relax` for the nonlinear static deflection. */
   membrane?:boolean;
+  /** Node lines of a graded grid: the x offsets (from `origin`) of the cx + 1 node columns and the y offsets of the cy + 1 node
+   * rows, increasing from 0 to the size. Default: equal cells. Every finite difference takes its own spacings (a curvature
+   * 2 ((w+ - w) / b - (w - w-) / a) / (a + b) between spacings a and b; a twist per cell; bilinear membrane cells of their
+   * own size), so a grid can be finer where cracks are to be resolved. */
+  lines?:{readonly x:readonly number[];readonly y:readonly number[]};
 }
 export interface PlateFragment {nodes:Uint32Array;mass:number;center:[number,number,number];velocity:number;angularVelocity:[number,number];supported:boolean}
 
 const payload=(message:string)=>new EngineError('INVALID_PAYLOAD',message);
+/** Half the sum of two widths (the dual width of a node). */
+const o2=(a:number,b:number)=>.5*(a+b);
+/** Second difference between spacings a (behind) and b (ahead): w'' = 2 (w+ - w) / (b (a + b)) - 2 (w - w-) / (a (a + b)), first
+ * order where a and b differ, second order where they are equal (then 1, -2, 1 over h^2). */
+function curvature(a:number,b:number,out:Float64Array,at:number):void {out[at]=2/(a*(a+b));out[at+1]=-2/(a*b);out[at+2]=2/(b*(a+b));}
 /** An exact checkpoint of a PlateBody holds every field: deflections, velocities, loads, supports, cracks, the clock and the assembled stiffness. */
 const PLATE_FIELDS:FieldOptions={label:'PlateBody'};
 const STENCIL=25,slot=(di:number,dj:number)=>(dj+2)*5+di+2;
@@ -52,7 +62,11 @@ const STENCIL=25,slot=(di:number,dj:number)=>(dj+2)*5+di+2;
  * so the two sides carry no moment or shear across it. Forces are the exact gradient of that energy. */
 export class PlateBody {
   readonly solver=PLATE_SOLVER_ID;
-  readonly nx:number;readonly ny:number;readonly cx:number;readonly cy:number;readonly hx:number;readonly hy:number;
+  readonly nx:number;readonly ny:number;readonly cx:number;readonly cy:number;
+  /** Mean cell size along x and y, m (the cell size of an equal grid). */
+  readonly hx:number;readonly hy:number;
+  /** Node offsets from the origin along x (per column) and y (per row), and the cell widths dx (per column of cells) and dy. */
+  readonly xs:Float64Array;readonly ys:Float64Array;readonly dx:Float64Array;readonly dy:Float64Array;
   readonly thickness:number;readonly material:Readonly<PlateMaterial>;readonly rigidity:number;readonly origin:readonly [number,number];
   readonly nodeCount:number;readonly bondCount:number;
   readonly area:Float64Array;readonly mass:Float64Array;
@@ -87,12 +101,30 @@ export class PlateBody {
   private membraneLambda=0;membraneIterations=0;
 
   constructor(input:PlateDefinition){
-    const o=record(input,'plate');onlyKeys(o,['size','cells','thickness','material','origin','addedArealMass','massDamping','fracture','membrane'],'plate');
+    const o=record(input,'plate');onlyKeys(o,['size','cells','thickness','material','origin','addedArealMass','massDamping','fracture','membrane','lines'],'plate');
     const size=o.size as number[],cells=o.cells as number[];
     if(!Array.isArray(size)||size.length!==2||!Array.isArray(cells)||cells.length!==2)throw payload('plate.size and plate.cells take two numbers.');
     const a=finite(size[0],'plate.size[0]',1e-6,1e4),b=finite(size[1],'plate.size[1]',1e-6,1e4);
     this.cx=integer(cells[0],'plate.cells[0]',2,2000);this.cy=integer(cells[1],'plate.cells[1]',2,2000);
     this.nx=this.cx+1;this.ny=this.cy+1;this.hx=a/this.cx;this.hy=b/this.cy;
+    this.xs=new Float64Array(this.nx);this.ys=new Float64Array(this.ny);
+    if(o.lines===undefined){for(let i=0;i<this.nx;i++)this.xs[i]=i*this.hx;for(let j=0;j<this.ny;j++)this.ys[j]=j*this.hy;}
+    else{
+      const lines=record(o.lines,'plate.lines');onlyKeys(lines,['x','y'],'plate.lines');
+      for(const [key,list,count,end] of [['x',lines.x,this.nx,a],['y',lines.y,this.ny,b]] as const){
+        if(!Array.isArray(list)||list.length!==count)throw payload(`plate.lines.${key} takes ${count} offsets (cells + 1).`);
+        const out=key==='x'?this.xs:this.ys;
+        for(let k=0;k<count;k++){out[k]=finite(list[k],`plate.lines.${key}[${k}]`,0,end);if(k>0&&!(out[k]>out[k-1]))throw payload(`plate.lines.${key} must increase.`);}
+        if(out[0]!==0||Math.abs(out[count-1]-end)>1e-12*end)throw payload(`plate.lines.${key} runs from 0 to the size.`);
+        out[count-1]=end;
+      }
+    }
+    this.dx=new Float64Array(this.cx);this.dy=new Float64Array(this.cy);
+    for(let i=0;i<this.cx;i++)this.dx[i]=o.lines===undefined?this.hx:this.xs[i+1]-this.xs[i];
+    for(let j=0;j<this.cy;j++)this.dy[j]=o.lines===undefined?this.hy:this.ys[j+1]-this.ys[j];
+    this.curveX=new Float64Array(3*this.nx);this.curveY=new Float64Array(3*this.ny);
+    for(let i=1;i<this.cx;i++)curvature(this.dx[i-1],this.dx[i],this.curveX,3*i);
+    for(let j=1;j<this.cy;j++)curvature(this.dy[j-1],this.dy[j],this.curveY,3*j);
     this.thickness=finite(o.thickness,'plate.thickness',1e-6,10);
     const m=record(o.material,'plate.material');onlyKeys(m,['youngModulus','poissonRatio','density'],'plate.material');
     this.material=Object.freeze({youngModulus:finite(m.youngModulus,'youngModulus',1,1e13),poissonRatio:finite(m.poissonRatio,'poissonRatio',-.99,.4999),density:finite(m.density,'density',1e-6,1e5)});
@@ -111,32 +143,45 @@ export class PlateBody {
     this.broken=new Uint8Array(this.bondCount);this.K=new Float64Array(N*STENCIL);this.bendRow=new Float64Array(N);this.tieRow=new Float64Array(N);this.hasX=new Uint8Array(N);this.hasY=new Uint8Array(N);this.cellOn=new Uint8Array(this.cx*this.cy);this.tieWidth=new Float64Array(this.bondCount);
     const areal=this.material.density*t+added;
     for(let j=0;j<this.ny;j++)for(let i=0;i<this.nx;i++){
-      const A=this.hx*this.hy*(i===0||i===this.cx?.5:1)*(j===0||j===this.cy?.5:1),n=j*this.nx+i;this.area[n]=A;this.mass[n]=areal*A;
+      const A=this.dualX(i)*this.dualY(j),n=j*this.nx+i;this.area[n]=A;this.mass[n]=areal*A;
     }
     if(o.membrane!==undefined&&typeof o.membrane!=='boolean')throw payload('plate.membrane must be true or false.');
     if(o.membrane===true){
       this.membrane=true;this.uv=new Float64Array(2*N);this.inPlaneFixed=new Uint8Array(2*N);this.cellForce=new Float64Array(3*this.cx*this.cy);
       this.mR=new Float64Array(2*N);this.mP=new Float64Array(2*N);this.mA=new Float64Array(2*N);this.mD=new Float64Array(2*N);this.mRow=new Float64Array(N);
-      // The in-plane stiffness of one cell (the same for every cell): 8 x 8 on [u00, v00, u10, v10, u01, v01, u11, v11], 2 x 2 Gauss points.
-      const Ke=this.cellStiffness=new Float64Array(64),C=E*t/(1-nu*nu),G=.5*C*(1-nu),hx=this.hx,hy=this.hy,g0=.5-.5/Math.sqrt(3),g1=.5+.5/Math.sqrt(3);
-      for(let q=0;q<4;q++){
-        const xi=q&1?g1:g0,eta=q&2?g1:g0,dx=[-(1-eta)/hx,(1-eta)/hx,-eta/hx,eta/hx],dy=[-(1-xi)/hy,-xi/hy,(1-xi)/hy,xi/hy],wt=.25*hx*hy;
-        for(let a=0;a<4;a++)for(let b=0;b<4;b++){
-          Ke[8*(2*a)+2*b]+=wt*(C*dx[a]*dx[b]+G*dy[a]*dy[b]);Ke[8*(2*a)+2*b+1]+=wt*(C*nu*dx[a]*dy[b]+G*dy[a]*dx[b]);
-          Ke[8*(2*a+1)+2*b]+=wt*(C*nu*dy[a]*dx[b]+G*dx[a]*dy[b]);Ke[8*(2*a+1)+2*b+1]+=wt*(C*dy[a]*dy[b]+G*dx[a]*dx[b]);
+      // The in-plane stiffness of a cell of each size: 8 x 8 on [u00, v00, u10, v10, u01, v01, u11, v11], 2 x 2 Gauss points.
+      // cellKind[cell] picks the 64 entries of its size in cellStiffness (one kind on an equal grid).
+      const kinds=new Map<string,number>(),sizes:[number,number][]=[];this.cellKind=new Uint16Array(this.cx*this.cy);
+      for(let j=0;j<this.cy;j++)for(let i=0;i<this.cx;i++){const key=this.dx[i]+','+this.dy[j];let k=kinds.get(key);if(k===undefined){k=sizes.length;kinds.set(key,k);sizes.push([this.dx[i],this.dy[j]]);}this.cellKind[j*this.cx+i]=k;}
+      const all=this.cellStiffness=new Float64Array(64*sizes.length),C=E*t/(1-nu*nu),G=.5*C*(1-nu),g0=.5-.5/Math.sqrt(3),g1=.5+.5/Math.sqrt(3);
+      sizes.forEach(([hx,hy],kind)=>{
+        const Ke=all.subarray(64*kind,64*kind+64);
+        for(let q=0;q<4;q++){
+          const xi=q&1?g1:g0,eta=q&2?g1:g0,dx=[-(1-eta)/hx,(1-eta)/hx,-eta/hx,eta/hx],dy=[-(1-xi)/hy,-xi/hy,(1-xi)/hy,xi/hy],wt=.25*hx*hy;
+          for(let a=0;a<4;a++)for(let b=0;b<4;b++){
+            Ke[8*(2*a)+2*b]+=wt*(C*dx[a]*dx[b]+G*dy[a]*dy[b]);Ke[8*(2*a)+2*b+1]+=wt*(C*nu*dx[a]*dy[b]+G*dy[a]*dx[b]);
+            Ke[8*(2*a+1)+2*b]+=wt*(C*nu*dy[a]*dx[b]+G*dx[a]*dy[b]);Ke[8*(2*a+1)+2*b+1]+=wt*(C*dy[a]*dy[b]+G*dx[a]*dx[b]);
+          }
         }
-      }
+      });
     }
-    for(let j=0;j<this.ny;j++)for(let i=0;i<this.cx;i++)this.tieWidth[j*this.cx+i]=this.hy*(j===0||j===this.cy?.5:1);
-    for(let j=0;j<this.cy;j++)for(let i=0;i<this.nx;i++)this.tieWidth[this.cx*this.ny+j*this.nx+i]=this.hx*(i===0||i===this.cx?.5:1);
+    for(let j=0;j<this.ny;j++)for(let i=0;i<this.cx;i++)this.tieWidth[j*this.cx+i]=this.dualY(j);
+    for(let j=0;j<this.cy;j++)for(let i=0;i<this.nx;i++)this.tieWidth[this.cx*this.ny+j*this.nx+i]=this.dualX(i);
   }
+  /** Width along x (y) of the strip a node column i (row j) stands for: half of each neighbouring cell. */
+  dualX(i:number):number {return o2(i>0?this.dx[i-1]:0,i<this.cx?this.dx[i]:0);}
+  dualY(j:number):number {return o2(j>0?this.dy[j-1]:0,j<this.cy?this.dy[j]:0);}
+  /** Coefficients of the second difference at each node column (row): w'' = c0 w- + c1 w + c2 w+. */
+  private readonly curveX:Float64Array;private readonly curveY:Float64Array;
+  /** Which in-plane cell stiffness (cellStiffness[64 k ..]) each cell uses. */
+  private cellKind?:Uint16Array;
   /** Everything a later step reads, as a state tree (checkpoint.ts), for exact checkpoints. */
   saveState():StateObject {return captureFields(this,PLATE_FIELDS);}
   /** Put back a state from `saveState()` of a plate with the same grid, material and options. */
   restoreState(state:StateValue):void {restoreFields(this,state,PLATE_FIELDS);}
   node(i:number,j:number):number {return j*this.nx+i;}
-  x(n:number):number {return this.origin[0]+(n%this.nx)*this.hx;}
-  y(n:number):number {return this.origin[1]+Math.floor(n/this.nx)*this.hy;}
+  x(n:number):number {return this.origin[0]+this.xs[n%this.nx];}
+  y(n:number):number {return this.origin[1]+this.ys[Math.floor(n/this.nx)];}
   /** Bond between (i, j) and (i + 1, j). */
   bondX(i:number,j:number):number {return j*this.cx+i;}
   /** Bond between (i, j) and (i, j + 1). */
@@ -166,12 +211,13 @@ export class PlateBody {
   private intactY(i:number,j:number):boolean {return j>=0&&j<this.cy&&!this.broken[this.cx*this.ny+j*this.nx+i];}
   /** Assembles the bending stiffness as a 5 x 5 stencil per node (rows of active nodes only). */
   private assemble():void {
-    const K=this.K,D=this.rigidity,nu=this.material.poissonRatio,hx2=this.hx*this.hx,hy2=this.hy*this.hy,nx=this.nx;K.fill(0);
+    const K=this.K,D=this.rigidity,nu=this.material.poissonRatio,nx=this.nx;K.fill(0);
     this.hasX.fill(0);this.hasY.fill(0);this.cellOn.fill(0);
     const add=(n:number,di:number,dj:number,value:number)=>{K[n*STENCIL+slot(di,dj)]+=value;};
-    const gx=[1/hx2,-2/hx2,1/hx2],gy=[1/hy2,-2/hy2,1/hy2];
+    const gx=[0,0,0],gy=[0,0,0];
     for(let j=0;j<this.ny;j++)for(let i=0;i<nx;i++){
       const c=j*nx+i;if(!this.active[c])continue;
+      for(let p=0;p<3;p++){gx[p]=this.curveX[3*i+p];gy[p]=this.curveY[3*j+p];}
       const hasX=i>0&&i<this.cx&&this.intactX(i-1,j)&&this.intactX(i,j)&&this.active[c-1]&&this.active[c+1];
       const hasY=j>0&&j<this.cy&&this.intactY(i,j-1)&&this.intactY(i,j)&&this.active[c-nx]&&this.active[c+nx];
       this.hasX[c]=hasX?1:0;this.hasY[c]=hasY?1:0;
@@ -185,8 +231,8 @@ export class PlateBody {
         add(c+aj*nx+ai,bi-ai,bj-aj,A*weight*av*bv);
       }
     }
-    const twist=2*D*(1-nu)/(this.hx*this.hy);
     for(let j=0;j<this.cy;j++)for(let i=0;i<this.cx;i++){
+      const twist=2*D*(1-nu)/(this.dx[i]*this.dy[j]);
       const n00=j*nx+i,n10=n00+1,n01=n00+nx,n11=n01+1;
       if(!(this.active[n00]&&this.active[n10]&&this.active[n01]&&this.active[n11]))continue;
       if(!(this.intactX(i,j)&&this.intactX(i,j+1)&&this.intactY(i,j)&&this.intactY(i+1,j)))continue;
@@ -254,10 +300,10 @@ export class PlateBody {
   /** The gradient in the in-plane displacements of the membrane energy at zero in-plane displacement (the load of the
    * in-plane solve), added to fa: `membraneEnergy(w, 0, fa, ...)` without its other work, to the same bits. */
   private inPlaneLoad(w:Float64Array,fa:Float64Array):void {
-    const nx=this.nx,hx=this.hx,hy=this.hy,nu=this.material.poissonRatio,C=this.material.youngModulus*this.thickness/(1-nu*nu),G=.5*C*(1-nu),wt=.25*hx*hy;
+    const nx=this.nx,nu=this.material.poissonRatio,C=this.material.youngModulus*this.thickness/(1-nu*nu),G=.5*C*(1-nu);
     const g0=.5-.5/Math.sqrt(3),g1=.5+.5/Math.sqrt(3);let steepest=0;
     for(let j=0;j<this.cy;j++)for(let i=0;i<this.cx;i++){
-      if(!this.cellOn[j*this.cx+i])continue;
+      if(!this.cellOn[j*this.cx+i])continue;const hx=this.dx[i],hy=this.dy[j],wt=.25*hx*hy;
       const n00=j*nx+i,n10=n00+1,n01=n00+nx,n11=n01+1,w00=w[n00],w10=w[n10],w01=w[n01],w11=w[n11];
       for(let q=0;q<4;q++){
         const xi=q&1?g1:g0,eta=q&2?g1:g0,ax=(1-eta)/hx,bx=eta/hx,ay=(1-xi)/hy,by=xi/hy;
@@ -276,12 +322,12 @@ export class PlateBody {
    * points). Adds its gradient in a to `fa` and in w to `fw`. `linear`: the part that is quadratic in a alone (w taken as
    * zero), for the in-plane solve. With `record` the cells' mean membrane forces and the stability row sums are stored. */
   private membraneEnergy(w:Float64Array,a:Float64Array,fa:Float64Array|null,fw:Float64Array|null,linear:boolean,record:boolean):number {
-    const nx=this.nx,hx=this.hx,hy=this.hy,nu=this.material.poissonRatio,C=this.material.youngModulus*this.thickness/(1-nu*nu),G=.5*C*(1-nu),wt=.25*hx*hy;
+    const nx=this.nx,nu=this.material.poissonRatio,C=this.material.youngModulus*this.thickness/(1-nu*nu),G=.5*C*(1-nu);
     const g0=.5-.5/Math.sqrt(3),g1=.5+.5/Math.sqrt(3),row=this.mRow!,cellForce=this.cellForce!;let energy=0,steepest=0;
     if(record)row.fill(0);
     for(let j=0;j<this.cy;j++)for(let i=0;i<this.cx;i++){
       const cell=j*this.cx+i;if(!this.cellOn[cell]){if(record){cellForce[3*cell]=0;cellForce[3*cell+1]=0;cellForce[3*cell+2]=0;}continue;}
-      const n00=j*nx+i,n10=n00+1,n01=n00+nx,n11=n01+1;
+      const n00=j*nx+i,n10=n00+1,n01=n00+nx,n11=n01+1,hx=this.dx[i],hy=this.dy[j],wt=.25*hx*hy;
       const u00=a[2*n00],u10=a[2*n10],u01=a[2*n01],u11=a[2*n11],v00=a[2*n00+1],v10=a[2*n10+1],v01=a[2*n01+1],v11=a[2*n11+1];
       const w00=linear?0:w[n00],w10=linear?0:w[n10],w01=linear?0:w[n01],w11=linear?0:w[n11];
       let sx=0,sy=0,sxy=0;
@@ -325,11 +371,11 @@ export class PlateBody {
   }
   /** out += K p for the in-plane stiffness of the intact cells. */
   private inPlaneProduct(p:Float64Array,out:Float64Array):void {
-    const Ke=this.cellStiffness!,nx=this.nx;
+    const Ke=this.cellStiffness!,kind=this.cellKind!,nx=this.nx;
     for(let j=0;j<this.cy;j++)for(let i=0;i<this.cx;i++){
       if(!this.cellOn[j*this.cx+i])continue;
-      const a=2*(j*nx+i),b=a+2,c=a+2*nx,d=c+2,p0=p[a],p1=p[a+1],p2=p[b],p3=p[b+1],p4=p[c],p5=p[c+1],p6=p[d],p7=p[d+1];
-      for(let r=0;r<8;r++){const o=8*r,v=Ke[o]*p0+Ke[o+1]*p1+Ke[o+2]*p2+Ke[o+3]*p3+Ke[o+4]*p4+Ke[o+5]*p5+Ke[o+6]*p6+Ke[o+7]*p7;out[(r<2?a:r<4?b:r<6?c:d)+(r&1)]+=v;}
+      const a=2*(j*nx+i),b=a+2,c=a+2*nx,d=c+2,p0=p[a],p1=p[a+1],p2=p[b],p3=p[b+1],p4=p[c],p5=p[c+1],p6=p[d],p7=p[d+1],e=64*kind[j*this.cx+i];
+      for(let r=0;r<8;r++){const o=e+8*r,v=Ke[o]*p0+Ke[o+1]*p1+Ke[o+2]*p2+Ke[o+3]*p3+Ke[o+4]*p4+Ke[o+5]*p5+Ke[o+6]*p6+Ke[o+7]*p7;out[(r<2?a:r<4?b:r<6?c:d)+(r&1)]+=v;}
     }
   }
   /** Sparse Cholesky factor of the in-plane stiffness of the intact cells, formed again after every crack. The unknowns are
@@ -341,10 +387,10 @@ export class PlateBody {
    * loads leave those motions at rounding. Left-looking, column by column. */
   private factorInPlane():void {
     if(!this.ipStart)this.inPlaneStructure();
-    const start=this.ipStart!,rows=this.ipRows!,L=this.ipValues!,slots=this.ipCellSlots!,pos=this.ipPosition!,Ke=this.cellStiffness!,fixed=this.inPlaneFixed!,M=2*this.nodeCount;L.fill(0);
+    const start=this.ipStart!,rows=this.ipRows!,L=this.ipValues!,slots=this.ipCellSlots!,pos=this.ipPosition!,Ke=this.cellStiffness!,kind=this.cellKind!,fixed=this.inPlaneFixed!,M=2*this.nodeCount;L.fill(0);
     for(let cell=0;cell<this.cx*this.cy;cell++){
-      if(!this.cellOn[cell])continue;const o=36*cell;let k=0;
-      for(let r=0;r<8;r++)for(let c=0;c<=r;c++)L[slots[o+k++]]+=Ke[8*r+c];
+      if(!this.cellOn[cell])continue;const o=36*cell,e=64*kind[cell];let k=0;
+      for(let r=0;r<8;r++)for(let c=0;c<=r;c++)L[slots[o+k++]]+=Ke[e+8*r+c];
     }
     // Unit rows: held components, and components that no intact cell reaches. A unit column's entries and its row's entries go.
     const unit=this.ipWork??=new Float64Array(M);unit.fill(0);
@@ -454,8 +500,8 @@ export class PlateBody {
     if(this.membraneStale){
       d.fill(0);
       for(let j=0;j<this.cy;j++)for(let i=0;i<this.cx;i++){
-        if(!this.cellOn[j*this.cx+i])continue;const n=2*(j*this.nx+i),m=n+2*this.nx;
-        for(let q=0;q<2;q++){d[n+q]+=Ke[9*q];d[n+2+q]+=Ke[9*(2+q)];d[m+q]+=Ke[9*(4+q)];d[m+2+q]+=Ke[9*(6+q)];}
+        if(!this.cellOn[j*this.cx+i])continue;const n=2*(j*this.nx+i),m=n+2*this.nx,e=64*this.cellKind![j*this.cx+i];
+        for(let q=0;q<2;q++){d[n+q]+=Ke[e+9*q];d[n+2+q]+=Ke[e+9*(2+q)];d[m+q]+=Ke[e+9*(4+q)];d[m+2+q]+=Ke[e+9*(6+q)];}
       }
       this.tie(d);this.membraneStale=false;
     }
@@ -463,7 +509,8 @@ export class PlateBody {
     r.fill(0);this.membraneEnergy(w,a,r,null,false,false);this.tie(r);
     let rz=0,first=0,free=0;
     for(let k=0;k<M;k++){if(fixed[k]||!(d[k]>0)){r[k]=0;p[k]=0;continue;}r[k]=-r[k];p[k]=r[k]/d[k];rz+=r[k]*p[k];first+=r[k]*r[k];free++;}
-    const load=this.membraneLoad*Math.max(this.hx,this.hy),target=1e-22*Math.max(free*load*load,first*1e-6);let iterations=0;
+    let widest=0;for(const h of this.dx)widest=Math.max(widest,h);for(const h of this.dy)widest=Math.max(widest,h);
+    const load=this.membraneLoad*widest,target=1e-22*Math.max(free*load*load,first*1e-6);let iterations=0;
     for(;iterations<4*M;iterations++){
       let rr=0;for(let k=0;k<M;k++)rr+=r[k]*r[k];if(rr<=target)break;
       Ap.fill(0);this.inPlaneProduct(p,Ap);this.tie(Ap);
@@ -513,7 +560,7 @@ export class PlateBody {
     if(tie>0)for(let b=0;b<this.bondCount;b++){
       // The nodes of bond b (bondNodes without the array).
       const p=b<xBonds?Math.floor(b/cx)*nx+b%cx:b-xBonds,q=b<xBonds?p+1:p+nx;if(!active[p]||!active[q])continue;
-      const L=b<xBonds?this.hx:this.hy,k=tie*width[b]/L,d=w[q]-w[p],len=Math.sqrt(L*L+d*d),s=len-L,f=k*s*d/len;
+      const L=b<xBonds?this.dx[b%cx]:this.dy[Math.floor((b-xBonds)/this.nx)],k=tie*width[b]/L,d=w[q]-w[p],len=Math.sqrt(L*L+d*d),s=len-L,f=k*s*d/len;
       out[q]+=f;out[p]-=f;energy+=.5*k*s*s;
       // The string's tangent along w: df / dd = k (1 - (L / len)^3), on the rows of both nodes twice (diagonal and coupling).
       if(record){const r=L/len,kt=2*k*(1-r*r*r);T[p]+=kt;T[q]+=kt;}
@@ -525,13 +572,13 @@ export class PlateBody {
     const i=n%this.nx,j=Math.floor(n/this.nx),nx=this.nx,D=this.rigidity,nu=this.material.poissonRatio;
     const hasX=i>0&&i<this.cx&&this.intactX(i-1,j)&&this.intactX(i,j)&&this.active[n-1]&&this.active[n+1];
     const hasY=j>0&&j<this.cy&&this.intactY(i,j-1)&&this.intactY(i,j)&&this.active[n-nx]&&this.active[n+nx];
-    const kx=hasX?(w[n-1]-2*w[n]+w[n+1])/(this.hx*this.hx):0,ky=hasY?(w[n-nx]-2*w[n]+w[n+nx])/(this.hy*this.hy):0;
+    const X=this.curveX,Y=this.curveY,kx=hasX?X[3*i]*w[n-1]+X[3*i+1]*w[n]+X[3*i+2]*w[n+1]:0,ky=hasY?Y[3*j]*w[n-nx]+Y[3*j+1]*w[n]+Y[3*j+2]*w[n+nx]:0;
     let twist=0,cells=0;
     for(const [ci,cj] of [[i-1,j-1],[i,j-1],[i-1,j],[i,j]]){
       if(ci<0||cj<0||ci>=this.cx||cj>=this.cy)continue;const n00=cj*nx+ci;
       if(!(this.intactX(ci,cj)&&this.intactX(ci,cj+1)&&this.intactY(ci,cj)&&this.intactY(ci+1,cj)))continue;
       if(!(this.active[n00]&&this.active[n00+1]&&this.active[n00+nx]&&this.active[n00+nx+1]))continue;
-      twist+=(w[n00+nx+1]-w[n00+1]-w[n00+nx]+w[n00])/(this.hx*this.hy);cells++;
+      twist+=(w[n00+nx+1]-w[n00+1]-w[n00+nx]+w[n00])/(this.dx[ci]*this.dy[cj]);cells++;
     }
     return [-D*(kx+nu*ky),-D*(ky+nu*kx),cells?-D*(1-nu)*twist/cells:0];
   }
@@ -560,13 +607,13 @@ export class PlateBody {
   /** Moments [Mxx, Myy, Mxy] of every active node into M (3 per node), as `moments` computes them. */
   private fillMoments(w:Float64Array,M:Float64Array):void {
     if(this.stale)this.assemble();
-    const nx=this.nx,D=this.rigidity,nu=this.material.poissonRatio,ihx=1/(this.hx*this.hx),ihy=1/(this.hy*this.hy),ixy=1/(this.hx*this.hy),T=this.twistSum??=new Float64Array(2*this.nodeCount);T.fill(0);
+    const nx=this.nx,D=this.rigidity,nu=this.material.poissonRatio,X=this.curveX,Y=this.curveY,T=this.twistSum??=new Float64Array(2*this.nodeCount);T.fill(0);
     for(let j=0;j<this.cy;j++)for(let i=0;i<this.cx;i++){
-      if(!this.cellOn[j*this.cx+i])continue;const n=j*nx+i,k=(w[n+nx+1]-w[n+1]-w[n+nx]+w[n])*ixy;
+      if(!this.cellOn[j*this.cx+i])continue;const n=j*nx+i,k=(w[n+nx+1]-w[n+1]-w[n+nx]+w[n])/(this.dx[i]*this.dy[j]);
       T[2*n]+=k;T[2*n+1]++;T[2*n+2]+=k;T[2*n+3]++;T[2*(n+nx)]+=k;T[2*(n+nx)+1]++;T[2*(n+nx+1)]+=k;T[2*(n+nx+1)+1]++;
     }
     for(let n=0;n<this.nodeCount;n++){
-      const kx=this.hasX[n]?(w[n-1]-2*w[n]+w[n+1])*ihx:0,ky=this.hasY[n]?(w[n-nx]-2*w[n]+w[n+nx])*ihy:0;
+      const i=3*(n%nx),j=3*Math.floor(n/nx),kx=this.hasX[n]?X[i]*w[n-1]+X[i+1]*w[n]+X[i+2]*w[n+1]:0,ky=this.hasY[n]?Y[j]*w[n-nx]+Y[j+1]*w[n]+Y[j+2]*w[n+nx]:0;
       M[3*n]=-D*(kx+nu*ky);M[3*n+1]=-D*(ky+nu*kx);M[3*n+2]=T[2*n+1]?-D*(1-nu)*T[2*n]/T[2*n+1]:0;
     }
   }

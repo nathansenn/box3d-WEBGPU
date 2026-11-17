@@ -18,7 +18,7 @@ export class GlassWorkerClient {
   private readonly runs=new LabRunChannel(message=>this.send(message as never));
   get cpuPerSimulated():number {return this.runs.cpuPerSimulated;}
   private receive:(frame:LabFrame,history?:LabFrame[],run?:LabRunState)=>void;private failure:(message:string)=>void;
-  constructor(settings:LabSettings,receive:(frame:LabFrame,history?:LabFrame[],run?:LabRunState)=>void,failure:(message:string)=>void,clock=()=>performance.now()){
+  constructor(settings:LabSettings,receive:(frame:LabFrame,history?:LabFrame[],run?:LabRunState)=>void,failure:(message:string)=>void,clock=()=>performance.now(),options:{fineCracks?:boolean}={}){
     this.receive=receive;this.failure=failure;this.clock=clock;
     this.worker=new Worker(new URL('./glass-worker.ts',import.meta.url),{type:'module',name:'BOX3D glass contacts'});
     this.worker.onmessage=(event:MessageEvent<GlassWorkerResponse>)=>{
@@ -36,7 +36,7 @@ export class GlassWorkerClient {
     };
     this.worker.onerror=event=>{event.preventDefault();this.fail(event.message||'Glass collision worker failed');};
     this.worker.onmessageerror=()=>this.fail('Glass collision frame could not be decoded');
-    this.send({type:'reset',generation:0,settings,...box3dUrls()});
+    this.send({type:'reset',generation:0,settings,...box3dUrls(),...(options.fineCracks?{fineCracks:true}:{})});
   }
   /** A cadence target, not a deadline: one fixed tick can exceed 40 ms. */
   get maxBatchTicks():number {return Math.max(1,Math.min(4,Math.floor(40/(this.costPerTick||1))));}
