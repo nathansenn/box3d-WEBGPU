@@ -8,7 +8,11 @@
 //   --hardware   use the machine's GPU instead (no SwiftShader flags). This is how real timings are measured:
 //                  npm run build && node scripts/gpu-compute-browser-check.mjs out --hardware --bench
 //                prints one table of ms per step and element updates per second per backend and size.
-//   --bench      time the backends (sizes with --sizes, steps with --steps) instead of validating them.
+//   --bench      time the backends instead of validating them: shallow water on --sizes=N,N (cells along a side), grains
+//                (the avalanche) on --grains=N,N, the fluid on --fluid=N,N (a lid-driven cube and a periodic array of
+//                spheres of N^3 cells each), --steps=N steps each (the fluid takes at most 10). Defaults with --hardware:
+//                256..2048, 10 000..1 000 000 grains, 32, 64 and 96 cells; without: small sizes. The table also goes
+//                to gpu-compute-bench-<hardware|software>.md (with the adapter, browser and load average) and .json.
 //   --only       restrict the closed-form set-ups (names as in src/engine/gpu/shallow-water-cases.ts and granular-cases.ts).
 //   --no-cases   skip the closed-form cases (agreement, repeatability and device loss only: about a minute).
 //   --quick      of the granular closed-form cases, only the ones that take seconds (no Janssen, Beverloo, repose).
@@ -141,7 +145,15 @@ try {
     const adapter = `${result.info.vendor} ${result.info.architecture} ${result.info.device} ${result.info.description}`.replace(/\s+/g, ' ').trim();
     console.log(`\nAdapter: ${adapter}${result.info.software ? '  (SOFTWARE ADAPTER: these timings are not those of a GPU)' : ''}\n`);
     print(['backend', 'size', 'substeps', 'ms/step', 'element updates/s', 'CPU ms/step', 'GPU/CPU'], result.rows.map(r => [r.backend, r.size, r.substeps, number(r.msPerStep), number(r.elementUpdatesPerSecond), number(r.cpuMsPerStep), r.speedup === null ? '-' : number(r.speedup) + ' x']));
-    fs.writeFileSync(path.join(output, hardware ? 'gpu-compute-bench-hardware.json' : 'gpu-compute-bench-software.json'), JSON.stringify({adapter, software: result.info.software, hardwareFlag: hardware, ...result}, null, 2));
+    const load = os.loadavg().map(x => x.toFixed(1)).join(', '), cores = os.cpus().length, browserVersion = browser.version();
+    console.log(`\nLoad average ${load} on ${cores} cores; ${browserVersion}.`);
+    const name = hardware ? 'gpu-compute-bench-hardware' : 'gpu-compute-bench-software';
+    fs.writeFileSync(path.join(output, `${name}.json`), JSON.stringify({adapter, software: result.info.software, hardwareFlag: hardware, load, cores, browser: browserVersion, date: new Date().toISOString(), ...result}, null, 2));
+    // The same table as Markdown, ready for docs/GPU_COMPUTE.md.
+    const md = [`Adapter: ${adapter}${result.info.software ? ' (software adapter: not the timings of a GPU)' : ''}; ${browserVersion}; ${new Date().toISOString().slice(0, 10)}; load average ${load} on ${cores} cores.`, '',
+      '| Backend | Size | Substeps | ms per step | Element updates per second | CPU solver, ms per step | GPU / CPU |', '|---|---|---|---|---|---|---|',
+      ...result.rows.map(r => `| ${r.backend} | ${r.size} | ${r.substeps} | ${number(r.msPerStep)} | ${number(r.elementUpdatesPerSecond)} | ${number(r.cpuMsPerStep)} | ${r.speedup === null ? '-' : number(r.speedup) + ' x'} |`)].join('\n');
+    fs.writeFileSync(path.join(output, `${name}.md`), md + '\n');
   } else {
     const only = value('only')?.split(',');
     const report = await page.evaluate(options => window.box3dGpu.validate({...options, progress: text => console.log('[gpu] ' + text)}), {only, cases: flag('no-cases') ? false : flag('quick') ? 'quick' : true, granular: !flag('no-granular'), shallowWater: !flag('no-shallow-water'), fluid: !flag('no-fluid'), checkpoints: !flag('no-checkpoints')});

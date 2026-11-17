@@ -1,5 +1,9 @@
 # Changelog
 
+## Unreleased — 2026-11-17 — The real-GPU benchmark times the fluid and writes its table as Markdown
+
+- `npm run bench:gpu:hardware` (`scripts/gpu-compute-browser-check.mjs --hardware --bench`) times the fluid as a lid-driven cube and a periodic array of spheres (32^3 to 96^3 cells) beside shallow water and grains, prints the load average and browser version, and writes the table also as `gpu-compute-bench-hardware.md`. The options (`--sizes`, `--grains`, `--fluid`, `--steps`) are documented in the script. Run on SwiftShader only (2026-11-17, at small sizes); **no real-GPU numbers exist yet**.
+
 ## Unreleased — 2026-11-17 — GPU checkpoints and scene sections on the GPU (`stepAsync`)
 
 - **Checkpoints of the GPU backends** (`GpuFluid`, `GpuShallowWater`, `GpuGranular`: `await checkpoint()`, `restoreCheckpoint(bytes)`), in the checkpoint container (format version, SHA-256), in a format each shares with its float32 reference (`FluidF32`, `ShallowWaterF32`, `GranularF32` have the same two methods), so a GPU checkpoint resumes on the CPU reference and back. Bit-exact on resume: tested in the gate on every reference set-up and across the GPU and the reference for the fluid (stand-in device), and on SwiftShader for the GPU backends (browser check). Not against float64. A `GpuShallowWater` with `rateLatency` above 0 refuses.

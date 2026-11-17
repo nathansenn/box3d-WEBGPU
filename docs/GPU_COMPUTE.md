@@ -619,9 +619,30 @@ npm ci && npm run build && npm run bench:gpu:hardware
 
 That is `node scripts/gpu-compute-browser-check.mjs --hardware --bench`: it launches the browser without the software
 flags and prints one table (backend, size, substeps, ms per step, element updates per second, the CPU solver's ms per
-step where it fits, and the ratio), and writes `gpu-compute-bench-hardware.json`. `BOX3D_CHROMIUM` names the browser;
-`--sizes=256,512,1024,2048`, `--grains=10000,100000,400000,1000000` and `--steps=60` set the cases. The table's first line
-names the adapter and says so when it is a software adapter. The same table is on `gpu-probe.html` ("Time the backends").
+step where it fits, and the ratio) for shallow water (256 to 2048 cells along a side), the grain avalanche (10 000 to
+1 000 000 grains) and the fluid: a lid-driven cube and the flow through a periodic array of spheres (the obstacle band
+uploaded every step), 32^3, 64^3 and 96^3 cells. It writes `gpu-compute-bench-hardware.json` and the same table as
+`gpu-compute-bench-hardware.md`, with the adapter, the browser version, the date and the machine's load average, ready to
+paste here. `BOX3D_CHROMIUM` names the browser; `--sizes=`, `--grains=`, `--fluid=` and `--steps=` set the cases. The
+table's first line names the adapter and says so when it is a software adapter. The same table is on `gpu-probe.html`
+("Time the backends").
+
+The command on SwiftShader at small sizes (`--bench --sizes=64,128 --grains=2000 --fluid=8,16 --steps=4`, 2026-11-17,
+load average 10 to 13 on 4 cores), to show the table's form only:
+
+| Backend | Size | ms per step | CPU solver, ms per step |
+|---|---|---|---|
+| shallow water | 64 x 64 | 22.9 | 7.5 |
+| shallow water | 128 x 128 | 183 | 5.6 |
+| grains | 2000 | 42.4 | 8.5 |
+| fluid cavity (23 pressure, 18 viscous iterations a step) | 8^3 | 277 | 8.7 |
+| fluid sphere array (18 pressure, 59 viscous iterations a step) | 8^3 | 352 | 15 |
+| fluid cavity (50 pressure, 21 viscous iterations a step) | 16^3 | 2030 | 21.5 |
+| fluid sphere array (36 pressure, 95 viscous iterations a step) | 16^3 | 2960 | 25.6 |
+
+On SwiftShader the fluid is 30 to 110 times slower than the float64 solver: a solve stops on the GPU and is read back
+every 16 iterations, and each iteration is a dozen dispatches, which an emulated GPU runs one after another on the CPU.
+What a real GPU does with it is the open question this command answers.
 Run the validation on that machine too (`node scripts/gpu-compute-browser-check.mjs out --hardware`): a GPU may fuse
 multiply-adds and round `pow`, `log` and `sqrt` differently from SwiftShader, so "identical to the reference" above is a
 SwiftShader result; the closed-form rows have margin for that.
