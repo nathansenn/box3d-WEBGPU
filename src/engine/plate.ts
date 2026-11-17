@@ -108,7 +108,7 @@ export class PlateBody {
     const N=this.nodeCount=this.nx*this.ny;this.bondCount=this.cx*this.ny+this.nx*this.cy;
     this.area=new Float64Array(N);this.mass=new Float64Array(N);this.w=new Float64Array(N);this.v=new Float64Array(N);this.force=new Float64Array(N);
     this.support=new Float64Array(N);this.fixed=new Uint8Array(N);this.active=new Uint8Array(N).fill(1);this.extraStiffness=new Float64Array(N);this.drag=new Float64Array(N);this.dragVelocity=new Float64Array(N);
-    this.broken=new Uint8Array(this.bondCount);this.K=new Float64Array(N*STENCIL);this.hasX=new Uint8Array(N);this.hasY=new Uint8Array(N);this.cellOn=new Uint8Array(this.cx*this.cy);this.tieWidth=new Float64Array(this.bondCount);
+    this.broken=new Uint8Array(this.bondCount);this.K=new Float64Array(N*STENCIL);this.bendRow=new Float64Array(N);this.tieRow=new Float64Array(N);this.hasX=new Uint8Array(N);this.hasY=new Uint8Array(N);this.cellOn=new Uint8Array(this.cx*this.cy);this.tieWidth=new Float64Array(this.bondCount);
     const areal=this.material.density*t+added;
     for(let j=0;j<this.ny;j++)for(let i=0;i<this.nx;i++){
       const A=this.hx*this.hy*(i===0||i===this.cx?.5:1)*(j===0||j===this.cy?.5:1),n=j*this.nx+i;this.area[n]=A;this.mass[n]=areal*A;
@@ -149,7 +149,10 @@ export class PlateBody {
   selectNodes(predicate:(x:number,y:number)=>boolean):Uint32Array {const out:number[]=[];for(let n=0;n<this.nodeCount;n++)if(predicate(this.x(n),this.y(n)))out.push(n);return Uint32Array.from(out);}
   hold(nodes:ArrayLike<number>):void {for(let k=0;k<nodes.length;k++){const n=nodes[k];this.fixed[n]=1;this.w[n]=0;this.v[n]=0;}}
   addSupport(nodes:ArrayLike<number>,stiffness:number):void {finite(stiffness,'support stiffness',0,1e15);for(let k=0;k<nodes.length;k++)this.support[nodes[k]]+=stiffness;this.stale=true;}
-  setExtraStiffness(nodes:ArrayLike<number>,stiffness:number):void {finite(stiffness,'extra stiffness',0,1e15);for(let k=0;k<nodes.length;k++)this.extraStiffness[nodes[k]]=stiffness;this.stale=true;}
+  /** Sets the extra stiffness of the given nodes (and takes note of direct writes to `extraStiffness`): only the stability
+   * limit is formed again, not the bending stiffness. */
+  setExtraStiffness(nodes:ArrayLike<number>,stiffness:number):void {finite(stiffness,'extra stiffness',0,1e15);for(let k=0;k<nodes.length;k++)this.extraStiffness[nodes[k]]=stiffness;this.rowsStale=true;}
+  private rowsStale=true;
   /** A linear spring of stiffness k (N/m) on w_q - w_p between two nodes at most two cells apart (a rotational restraint of a clamp). */
   addCoupling(p:number,q:number,k:number):void {
     integer(p,'node',0,this.nodeCount-1);integer(q,'node',0,this.nodeCount-1);finite(k,'coupling stiffness',0,1e15);
@@ -196,22 +199,35 @@ export class PlateBody {
       if(!this.active[p]||!this.active[q])continue;const di=q%nx-p%nx,dj=Math.floor(q/nx)-Math.floor(p/nx);
       add(p,0,0,k);add(q,0,0,k);add(p,di,dj,-k);add(q,-di,-dj,-k);
     }
-    let lambda=0;
+    this.stale=false;this.membraneStale=true;this.formRows();
+  }
+  /** Gershgorin rows of the bending stiffness plus supports and extra stiffness, and the bending limit. */
+  private formRows():void {
+    const K=this.K,bendRow=this.bendRow;let lambda=0;
     for(let n=0;n<this.nodeCount;n++){
-      if(!this.active[n]||this.fixed[n])continue;let row=0;for(let k=0;k<STENCIL;k++)row+=Math.abs(K[n*STENCIL+k]);
-      row+=this.support[n]+this.extraStiffness[n];
-      if(this.fracture&&this.fracture.tie>0)row+=8*this.fracture.tie*Math.max(this.hy/this.hx,this.hx/this.hy);
+      if(!this.active[n]||this.fixed[n]){bendRow[n]=0;continue;}let row=0;for(let k=0;k<STENCIL;k++)row+=Math.abs(K[n*STENCIL+k]);
+      row+=this.support[n]+this.extraStiffness[n];bendRow[n]=row;
       lambda=Math.max(lambda,row/this.mass[n]);
     }
-    this.limit=lambda>0?2/Math.sqrt(lambda):Infinity;this.stale=false;this.membraneStale=true;
+    this.limit=lambda>0?2/Math.sqrt(lambda):Infinity;this.bound=-1;this.rowsStale=false;
   }
-  /** Largest stable time step of the explicit scheme for the current cracks, s: 2 / sqrt(max Gershgorin row of M^-1 K). */
+  /** Largest stable time step of the explicit scheme for the current cracks, s: 2 / sqrt(max Gershgorin row of M^-1 K).
+   * On a von Karman plate, or with a bridging layer, K is the tangent of the present state: each node's row is its bending row
+   * plus the membrane's and the layer's rows of the last evaluation, and the largest of their sums over the mass decides. */
   stableTimeStep():number {
-    if(this.stale)this.assemble();
-    if(!this.membrane||!(this.membraneLambda>0))return this.limit;
-    // The membrane forces and the slopes of the present state add to the stiffness in w: lambda_bending + lambda_membrane.
-    return 2/Math.sqrt(4/(this.limit*this.limit)+this.membraneLambda);
+    if(this.stale)this.assemble();else if(this.rowsStale)this.formRows();
+    const tie=(this.fracture?.tie??0)>0,membrane=this.membrane&&this.membraneLambda>0;
+    if(!tie&&!membrane)return this.limit;
+    if(this.bound<0){
+      const B=this.bendRow,T=this.tieRow,R=this.mRow;let lambda=0;
+      for(let n=0;n<this.nodeCount;n++){if(!this.active[n]||this.fixed[n])continue;const row=B[n]+(tie?T[n]:0)+(membrane?R![n]:0);if(row>lambda*this.mass[n])lambda=row/this.mass[n];}
+      this.bound=lambda;
+    }
+    return this.bound>0?2/Math.sqrt(this.bound):Infinity;
   }
+  /** Gershgorin rows of the bending stiffness (with supports, couplings and the caller's extra stiffness; read only) and of
+   * the bridging layer's tangent at the last evaluation, N/m; the largest row sum over the mass of the present state (-1: not yet formed). */
+  readonly bendRow:Float64Array;private readonly tieRow:Float64Array;private bound=-1;
   /** Holds the in-plane displacement components of nodes at zero (`membrane: true`): [u, v]. */
   holdInPlane(nodes:ArrayLike<number>,axes:readonly [boolean,boolean]=[true,true]):void {
     if(!this.membrane)throw payload('holdInPlane needs a plate with membrane: true.');
@@ -268,7 +284,7 @@ export class PlateBody {
       const n00=j*nx+i,n10=n00+1,n01=n00+nx,n11=n01+1;
       const u00=a[2*n00],u10=a[2*n10],u01=a[2*n01],u11=a[2*n11],v00=a[2*n00+1],v10=a[2*n10+1],v01=a[2*n01+1],v11=a[2*n11+1];
       const w00=linear?0:w[n00],w10=linear?0:w[n10],w01=linear?0:w[n01],w11=linear?0:w[n11];
-      let sx=0,sy=0,sxy=0,stiff=0;
+      let sx=0,sy=0,sxy=0;
       for(let q=0;q<4;q++){
         const xi=q&1?g1:g0,eta=q&2?g1:g0;
         // d/dx of the four shape functions is (-(1 - eta), 1 - eta, -eta, eta) / hx; d/dy is (-(1 - xi), -xi, 1 - xi, xi) / hy.
@@ -289,18 +305,22 @@ export class PlateBody {
         }
         if(record){
           sx+=.25*Nx;sy+=.25*Ny;sxy+=.25*Nxy;
-          // The tangent in w is bounded by (largest principal membrane force + C |grad w|^2) |grad dw|^2.
-          stiff=Math.max(stiff,Math.max(0,.5*(Nx+Ny)+Math.hypot(.5*(Nx-Ny),Nxy))+C*(wx*wx+wy*wy));
+          // The membrane's tangent in w at this point is grad(dw)' (N + G) grad(dw), G = B' C B the material part (B the rows
+          // w_x d/dx, w_y d/dy, w_y d/dx + w_x d/dy). It is at most grad(dw)' S grad(dw) with S = N+ + G positive semidefinite
+          // (N+: N without its compressive principal part). For such S, |grad N_k' S grad N_j| <= sqrt(a_k a_j) with
+          // a_k = grad N_k' S grad N_k (Cauchy-Schwarz), so node k's Gershgorin row gains wt sqrt(a_k) sum_j sqrt(a_j).
+          let pxx=Nx,pyy=Ny,pxy=Nxy;const mean=.5*(Nx+Ny),radius=Math.sqrt(.25*(Nx-Ny)*(Nx-Ny)+Nxy*Nxy),low=mean-radius,high=mean+radius;
+          if(low<0){if(high>0){const f=high/(2*radius);pxx=f*(Nx-low);pyy=f*(Ny-low);pxy=f*Nxy;}else{pxx=0;pyy=0;pxy=0;}}
+          const Sxx=pxx+C*wx*wx+G*wy*wy,Syy=pyy+C*wy*wy+G*wx*wx,Sxy=pxy+(C*nu+G)*wx*wy;
+          const s0=Math.sqrt(Math.max(0,Sxx*ax*ax+2*Sxy*ax*ay+Syy*ay*ay)),s1=Math.sqrt(Math.max(0,Sxx*ax*ax-2*Sxy*ax*by+Syy*by*by));
+          const s2=Math.sqrt(Math.max(0,Sxx*bx*bx-2*Sxy*bx*ay+Syy*ay*ay)),s3=Math.sqrt(Math.max(0,Sxx*bx*bx+2*Sxy*bx*by+Syy*by*by)),f=wt*(s0+s1+s2+s3);
+          row[n00]+=f*s0;row[n10]+=f*s1;row[n01]+=f*s2;row[n11]+=f*s3;
         }
       }
-      if(record){
-        cellForce[3*cell]=sx;cellForce[3*cell+1]=sy;cellForce[3*cell+2]=sxy;
-        // Row sum of |grad N_k . grad N_j| over a cell: at most (1 / hx + 1 / hy) (2 / hx + 2 / hy) / 2 per unit area.
-        const r=stiff*hx*hy*(1/hx+1/hy)*(1/hx+1/hy);row[n00]+=r;row[n10]+=r;row[n01]+=r;row[n11]+=r;
-      }
+      if(record){cellForce[3*cell]=sx;cellForce[3*cell+1]=sy;cellForce[3*cell+2]=sxy;}
     }
     if(!linear)this.membraneLoad=C*steepest;
-    if(record){let lambda=0;for(let n=0;n<this.nodeCount;n++)if(this.active[n]&&!this.fixed[n])lambda=Math.max(lambda,row[n]/this.mass[n]);this.membraneLambda=lambda;}
+    if(record){let lambda=0;for(let n=0;n<this.nodeCount;n++)if(this.active[n]&&!this.fixed[n])lambda=Math.max(lambda,row[n]/this.mass[n]);this.membraneLambda=lambda;this.bound=-1;}
     return energy;
   }
   /** out += K p for the in-plane stiffness of the intact cells. */
@@ -312,44 +332,110 @@ export class PlateBody {
       for(let r=0;r<8;r++){const o=8*r,v=Ke[o]*p0+Ke[o+1]*p1+Ke[o+2]*p2+Ke[o+3]*p3+Ke[o+4]*p4+Ke[o+5]*p5+Ke[o+6]*p6+Ke[o+7]*p7;out[(r<2?a:r<4?b:r<6?c:d)+(r&1)]+=v;}
     }
   }
-  /** Banded Cholesky factor of the in-plane stiffness of the intact cells (lower triangle, row i holds columns i - b .. i),
-   * formed again after every crack. Held and unconnected components are unit rows. A piece that nothing holds in its plane
-   * has rigid in-plane motions, which strain nothing: the diagonal is raised by 1e-10 of itself so that the factor exists,
-   * and the self-equilibrated membrane loads leave those motions at rounding. */
+  /** Sparse Cholesky factor of the in-plane stiffness of the intact cells, formed again after every crack. The unknowns are
+   * ordered by nested dissection of the node grid (`inPlaneOrdering`): a 27 x 21 grid's factor has 35,625 entries against the
+   * 65,772 of the band it replaced (rows of the grid in turn), so a solve does about half the work. The structure is that of the
+   * whole grid (a cracked cell leaves zeros), found once; columns are stored with their diagonal first and rows ascending.
+   * Held and unconnected components are unit rows. A piece that nothing holds in its plane has rigid in-plane motions, which
+   * strain nothing: the diagonal is raised by 1e-10 of itself so that the factor exists, and the self-equilibrated membrane
+   * loads leave those motions at rounding. Left-looking, column by column. */
   private factorInPlane():void {
-    const M=2*this.nodeCount,b=2*this.nx+3,w=b+1,L=this.band&&this.band.length===M*w?this.band:(this.band=new Float64Array(M*w)),Ke=this.cellStiffness!,fixed=this.inPlaneFixed!,nx=this.nx;L.fill(0);
-    for(let j=0;j<this.cy;j++)for(let i=0;i<this.cx;i++){
-      if(!this.cellOn[j*this.cx+i])continue;const n=2*(j*nx+i),m=n+2*nx;
-      for(let r=0;r<8;r++){const gr=(r<2?n:r<4?n+2:r<6?m:m+2)+(r&1);for(let c=0;c<=r;c++){const gc=(c<2?n:c<4?n+2:c<6?m:m+2)+(c&1);L[gr*w+b+gc-gr]+=Ke[8*r+c];}}
+    if(!this.ipStart)this.inPlaneStructure();
+    const start=this.ipStart!,rows=this.ipRows!,L=this.ipValues!,slots=this.ipCellSlots!,pos=this.ipPosition!,Ke=this.cellStiffness!,fixed=this.inPlaneFixed!,M=2*this.nodeCount;L.fill(0);
+    for(let cell=0;cell<this.cx*this.cy;cell++){
+      if(!this.cellOn[cell])continue;const o=36*cell;let k=0;
+      for(let r=0;r<8;r++)for(let c=0;c<=r;c++)L[slots[o+k++]]+=Ke[8*r+c];
     }
-    for(let k=0;k<M;k++){
-      const d=L[k*w+b];
-      if(fixed[k]||!(d>0)){for(let q=0;q<b;q++)L[k*w+q]=0;L[k*w+b]=1;for(let r=k+1;r<Math.min(M,k+w);r++)L[r*w+b+k-r]=0;}
-      else L[k*w+b]=d*(1+1e-10);
+    // Unit rows: held components, and components that no intact cell reaches. A unit column's entries and its row's entries go.
+    const unit=this.ipWork??=new Float64Array(M);unit.fill(0);
+    for(let d=0;d<M;d++){const j=pos[d],diag=L[start[j]];if(fixed[d]||!(diag>0))unit[j]=1;}
+    for(let j=0;j<M;j++){
+      if(unit[j]){for(let p=start[j]+1;p<start[j+1];p++)L[p]=0;L[start[j]]=1;continue;}
+      L[start[j]]*=1+1e-10;for(let p=start[j]+1;p<start[j+1];p++)if(unit[rows[p]])L[p]=0;
     }
-    for(let i=0;i<M;i++){
-      const lo=Math.max(0,i-b);
-      for(let j=lo;j<=i;j++){
-        let sum=L[i*w+b+j-i];const from=Math.max(lo,j-b);
-        for(let k=from;k<j;k++)sum-=L[i*w+b+k-i]*L[j*w+b+k-j];
-        if(j<i)L[i*w+b+j-i]=sum/L[j*w+b];
-        else{if(!(sum>0))throw new EngineError('NUMERICAL_FAILURE','The in-plane stiffness of the plate is not positive definite.');L[i*w+b]=Math.sqrt(sum);}
+    // Left-looking: column j takes the updates of the columns k < j whose factor has a row j (rowStart / rowEntry), then is scaled.
+    const w=unit,rowStart=this.ipRowStart!,rowEntry=this.ipRowEntry!,rowColumn=this.ipRowColumn!;w.fill(0);
+    for(let j=0;j<M;j++){
+      const a=start[j],b=start[j+1];for(let p=a;p<b;p++)w[rows[p]]=L[p];
+      for(let e=rowStart[j];e<rowStart[j+1];e++){
+        const q=rowEntry[e],end=start[rowColumn[e]+1],ljk=L[q];if(ljk===0)continue;
+        for(let p=q;p<end;p++)w[rows[p]]-=L[p]*ljk;
       }
+      const d=w[j];if(!(d>0))throw new EngineError('NUMERICAL_FAILURE','The in-plane stiffness of the plate is not positive definite.');
+      const root=Math.sqrt(d);L[a]=root;w[j]=0;
+      for(let p=a+1;p<b;p++){L[p]=w[rows[p]]/root;w[rows[p]]=0;}
     }
-    // The factor's columns as rows, for a back substitution that reads memory in order (the same products in the same order).
-    const U=this.bandT&&this.bandT.length===M*w?this.bandT:(this.bandT=new Float64Array(M*w));U.fill(0);
-    for(let i=0;i<M;i++){const hi=Math.min(M-1,i+b);for(let k=i;k<=hi;k++)U[i*w+k-i]=L[k*w+b+i-k];}
   }
-  private bandT?:Float64Array;
-  private band?:Float64Array;
-  /** x = K^-1 x with the banded factor. */
-  private solveBand(x:Float64Array):void {
-    const M=2*this.nodeCount,b=2*this.nx+3,w=b+1,L=this.band!;
-    for(let i=0;i<M;i++){let sum=x[i];const lo=Math.max(0,i-b);for(let k=lo;k<i;k++)sum-=L[i*w+b+k-i]*x[k];x[i]=sum/L[i*w+b];}
-    const U=this.bandT!;
-    for(let i=M-1;i>=0;i--){let sum=x[i];const hi=Math.min(M-1,i+b),o=i*w-i;for(let k=i+1;k<=hi;k++)sum-=U[o+k]*x[k];x[i]=sum/U[i*w];}
+  /** Nested dissection of the node grid: the longer side is cut at its middle grid line, which separates the two halves of a
+   * grid of bilinear cells; each half is ordered the same way and the line comes after both. Unknowns u, v of a node are
+   * consecutive. Returns the position of each unknown. */
+  private inPlaneOrdering():Int32Array {
+    const nx=this.nx,nodes:number[]=[];
+    const split=(i0:number,i1:number,j0:number,j1:number):void=>{
+      const w=i1-i0+1,h=j1-j0+1;if(w<=0||h<=0)return;
+      if(w<=2&&h<=2){for(let j=j0;j<=j1;j++)for(let i=i0;i<=i1;i++)nodes.push(j*nx+i);return;}
+      if(w>=h){const m=(i0+i1)>>1;split(i0,m-1,j0,j1);split(m+1,i1,j0,j1);for(let j=j0;j<=j1;j++)nodes.push(j*nx+m);}
+      else{const m=(j0+j1)>>1;split(i0,i1,j0,m-1);split(i0,i1,m+1,j1);for(let i=i0;i<=i1;i++)nodes.push(m*nx+i);}
+    };
+    split(0,this.cx,0,this.cy);
+    const pos=new Int32Array(2*this.nodeCount);nodes.forEach((n,k)=>{pos[2*n]=2*k;pos[2*n+1]=2*k+1;});return pos;
   }
-  /** In-plane equilibrium for the deflections w. Without ties: one solve with the banded factor of the in-plane stiffness
+  /** The factor's structure for the whole grid (symbolic elimination on the node graph), the slots of each cell's lower
+   * triangle in it, and the row lists of the left-looking factorization. */
+  private inPlaneStructure():void {
+    const N=this.nodeCount,M=2*N,nx=this.nx,pos=this.ipPosition=this.inPlaneOrdering();
+    // Node graph in elimination positions: the nodes of a common cell are coupled.
+    const adj:Set<number>[]=Array.from({length:N},()=>new Set<number>());
+    for(let j=0;j<this.cy;j++)for(let i=0;i<this.cx;i++){
+      const c=[j*nx+i,j*nx+i+1,(j+1)*nx+i,(j+1)*nx+i+1].map(n=>pos[2*n]>>1);for(const a of c)for(const b of c)if(a!==b)adj[a].add(b);
+    }
+    const below:number[][]=new Array(N),children:number[][]=Array.from({length:N},()=>[]);let count=0;
+    for(let k=0;k<N;k++){
+      const set=new Set<number>();for(const b of adj[k])if(b>k)set.add(b);for(const c of children[k])for(const b of below[c])if(b>k)set.add(b);
+      const list=[...set].sort((a,b)=>a-b);below[k]=list;if(list.length)children[list[0]].push(k);count+=3+4*list.length;
+    }
+    const start=this.ipStart=new Int32Array(M+1),rows=this.ipRows=new Int32Array(count);this.ipValues=new Float64Array(count);
+    let p=0;
+    for(let k=0;k<N;k++)for(let q=0;q<2;q++){
+      const j=2*k+q;start[j]=p;rows[p++]=j;if(q===0)rows[p++]=j+1;for(const b of below[k]){rows[p++]=2*b;rows[p++]=2*b+1;}
+    }
+    start[M]=p;
+    // Where entry (r, c), r >= c, of the permuted matrix sits: a binary search in column c.
+    const find=(r:number,c:number):number=>{let lo=start[c],hi=start[c+1]-1;while(lo<hi){const m=(lo+hi)>>1;if(rows[m]<r)lo=m+1;else hi=m;}if(rows[lo]!==r)throw new EngineError('INTERNAL','plate: in-plane factor structure');return lo;};
+    const slots=this.ipCellSlots=new Int32Array(36*this.cx*this.cy);
+    for(let j=0;j<this.cy;j++)for(let i=0;i<this.cx;i++){
+      const n=j*nx+i,dofs=[2*n,2*n+1,2*n+2,2*n+3,2*(n+nx),2*(n+nx)+1,2*(n+nx)+2,2*(n+nx)+3].map(d=>pos[d]);let k=36*(j*this.cx+i);
+      for(let r=0;r<8;r++)for(let c=0;c<=r;c++){const a=dofs[r],b=dofs[c];slots[k++]=find(Math.max(a,b),Math.min(a,b));}
+    }
+    // Row lists: for each column j, the columns k < j with an entry in row j, and that entry.
+    const rowCount=new Int32Array(M+1);for(let c=0;c<M;c++)for(let e=start[c]+1;e<start[c+1];e++)rowCount[rows[e]+1]++;
+    for(let r=0;r<M;r++)rowCount[r+1]+=rowCount[r];
+    this.ipRowStart=Int32Array.from(rowCount);const fill=rowCount.slice(),column=this.ipRowColumn=new Int32Array(rowCount[M]),entry=this.ipRowEntry=new Int32Array(rowCount[M]);
+    for(let c=0;c<M;c++)for(let e=start[c]+1;e<start[c+1];e++){const r=rows[e];column[fill[r]]=c;entry[fill[r]++]=e;}
+  }
+  private ipPosition?:Int32Array;private ipStart?:Int32Array;private ipRows?:Int32Array;private ipValues?:Float64Array;private ipCellSlots?:Int32Array;
+  private ipRowStart?:Int32Array;private ipRowColumn?:Int32Array;private ipRowEntry?:Int32Array;private ipWork?:Float64Array;private ipSolve?:Float64Array;
+  /** x = K^-1 x with the sparse factor: permute, forward and back substitution reading the columns in order, permute back.
+   * The two columns of a node hold the same rows below the node (pairs u, v of the nodes below), so they are swept together;
+   * every entry of y takes its products in the same order as column by column. */
+  private solveFactor(x:Float64Array):void {
+    const M=2*this.nodeCount,start=this.ipStart!,rows=this.ipRows!,L=this.ipValues!,pos=this.ipPosition!,y=this.ipSolve??=new Float64Array(M);
+    for(let d=0;d<M;d++)y[pos[d]]=x[d];
+    for(let j=0;j<M;j+=2){
+      const a=start[j],c=start[j+1],end=start[j+2],v0=y[j]/L[a];y[j]=v0;
+      const v1=(y[j+1]-L[a+1]*v0)/L[c];y[j+1]=v1;
+      for(let p=a+2,q=c+1;q<end;p+=2,q+=2){const r=rows[q];y[r]=y[r]-L[p]*v0-L[q]*v1;y[r+1]=y[r+1]-L[p+1]*v0-L[q+1]*v1;}
+    }
+    for(let j=M-2;j>=0;j-=2){
+      const a=start[j],c=start[j+1],end=start[j+2];
+      let s1=y[j+1];for(let q=c+1;q<end;q+=2){const r=rows[q];s1=s1-L[q]*y[r]-L[q+1]*y[r+1];}
+      const v1=s1/L[c];y[j+1]=v1;
+      let s0=y[j]-L[a+1]*v1;for(let p=a+2,q=c+1;q<end;p+=2,q+=2){const r=rows[q];s0=s0-L[p]*y[r]-L[p+1]*y[r+1];}
+      y[j]=s0/L[a];
+    }
+    for(let d=0;d<M;d++)x[d]=y[pos[d]];
+  }
+  /** In-plane equilibrium for the deflections w. Without ties: one solve with the sparse factor of the in-plane stiffness
    * (the load is the gradient at zero in-plane displacement). With ties (`tieInPlane`): conjugate gradients, below. */
   private solveInPlane(w:Float64Array):void {
     if(this.inPlaneTies){this.solveInPlaneIterative(w);return;}
@@ -357,7 +443,7 @@ export class PlateBody {
     if(this.membraneStale){this.factorInPlane();this.membraneStale=false;}
     const r=this.mR!;r.fill(0);this.inPlaneLoad(w,r);
     for(let k=0;k<M;k++)a[k]=fixed[k]?0:-r[k];
-    this.solveBand(a);this.membraneIterations=1;
+    this.solveFactor(a);this.membraneIterations=1;
   }
   /** In-plane equilibrium for the deflections w: conjugate gradients on the in-plane stiffness (constant between cracks),
    * diagonally preconditioned, from the displacements of the last solve, to 1e-11 of the membrane load. A piece of the
@@ -406,13 +492,14 @@ export class PlateBody {
     let most=0;for(let n=0;n<this.nodeCount;n++)if(this.active[n]){const v=Math.abs(w[n]);if(v>most)most=v;}
     if(most<1e-4*this.thickness&&this.membraneFlat){return 0;}
     this.membraneFlat=most<1e-4*this.thickness;
-    if(this.membraneFlat){this.uv!.fill(0);this.cellForce!.fill(0);this.membraneLambda=0;this.membraneLoad=0;this.membraneIterations=0;return 0;}
+    if(this.membraneFlat){this.uv!.fill(0);this.cellForce!.fill(0);this.membraneLambda=0;this.bound=-1;this.membraneLoad=0;this.membraneIterations=0;return 0;}
     this.solveInPlane(w);return this.membraneEnergy(w,this.uv!,null,out,false,true);
   }
   /** True while the plate is flat to within 1e-4 of its thickness and the in-plane state has been cleared. */
   private membraneFlat=false;
-  /** Internal force K w (plus the bridging membranes and supports) into out. Returns the strain energy. */
-  internalForce(w:Float64Array,out:Float64Array):number {
+  /** Internal force K w (plus the bridging membranes and supports) into out. Returns the strain energy. `record`: w is the
+   * plate's state, and the bridging layer's tangent rows are kept for the stability limit. */
+  internalForce(w:Float64Array,out:Float64Array,record=false):number {
     if(this.stale)this.assemble();
     const K=this.K,nx=this.nx,ny=this.ny;let energy=0;out.fill(0);
     for(let j=0;j<ny;j++)for(let i=0;i<nx;i++){
@@ -420,11 +507,16 @@ export class PlateBody {
       for(let dj=-2;dj<=2;dj++){const jj=j+dj;if(jj<0||jj>=ny)continue;for(let di=-2;di<=2;di++){const k=K[base+slot(di,dj)];if(k!==0)f+=k*w[n+dj*nx+di];}}
       f+=this.support[n]*w[n];out[n]+=f;energy+=.5*f*w[n];
     }
-    const tie=this.fracture?.tie??0;
+    const tie=this.fracture?.tie??0,T=this.tieRow;
+    if(tie>0&&record){T.fill(0);this.bound=-1;}
+    const xBonds=this.cx*this.ny,active=this.active,width=this.tieWidth,cx=this.cx;
     if(tie>0)for(let b=0;b<this.bondCount;b++){
-      const [p,q]=this.bondNodes(b);if(!this.active[p]||!this.active[q])continue;
-      const L=b<this.cx*this.ny?this.hx:this.hy,k=tie*this.tieWidth[b]/L,d=w[q]-w[p],len=Math.sqrt(L*L+d*d),s=len-L,f=k*s*d/len;
+      // The nodes of bond b (bondNodes without the array).
+      const p=b<xBonds?Math.floor(b/cx)*nx+b%cx:b-xBonds,q=b<xBonds?p+1:p+nx;if(!active[p]||!active[q])continue;
+      const L=b<xBonds?this.hx:this.hy,k=tie*width[b]/L,d=w[q]-w[p],len=Math.sqrt(L*L+d*d),s=len-L,f=k*s*d/len;
       out[q]+=f;out[p]-=f;energy+=.5*k*s*s;
+      // The string's tangent along w: df / dd = k (1 - (L / len)^3), on the rows of both nodes twice (diagonal and coupling).
+      if(record){const r=L/len,kt=2*k*(1-r*r*r);T[p]+=kt;T[q]+=kt;}
     }
     return energy;
   }
@@ -450,7 +542,7 @@ export class PlateBody {
   /** One explicit step (symplectic Euler) of length h under the current `force`. Breaks bonds afterwards; returns how many. */
   advance(h:number):number {
     finite(h,'step',0,1);if(this.stale)this.assemble();
-    const f=this.scratch(),w=this.w,v=this.v,c=this.massDamping;this.internalForce(w,f);
+    const f=this.scratch(),w=this.w,v=this.v,c=this.massDamping;this.internalForce(w,f,true);
     if(this.membrane)this.membraneForce(w,f);
     const limit=this.stableTimeStep();
     if(h>limit)throw new EngineError('UNSTABLE_TIME_STEP',`Plate step ${h} s exceeds the stability limit ${limit} s.`);
@@ -602,7 +694,7 @@ export class PlateBody {
     v.fill(0);let last=0,residual=Infinity,steps=0;
     for(;steps<max;steps++){
       if(this.stale)this.assemble();
-      this.internalForce(w,f);if(this.membrane)this.membraneForce(w,f);
+      this.internalForce(w,f,true);if(this.membrane)this.membraneForce(w,f);
       residual=0;for(let n=0;n<N;n++)if(this.active[n]&&!this.fixed[n])residual=Math.max(residual,Math.abs(this.force[n]-f[n]));
       if(residual<=tol*scale){residual=scale>0?residual/scale:0;return {steps,residual,converged:true};}
       const h=safety*this.stableTimeStep();let kinetic=0;

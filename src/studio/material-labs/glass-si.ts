@@ -105,10 +105,14 @@ export class GlassModel extends LabModel {
       for(const n of nodes)plate.addCoupling(n,n-sx,rotation/(plate.hx*plate.hx)/nodes.length);
     }
     this.supportNodes=Uint32Array.from(pads);
-    // Contact springs a quarter as stiff as the stiffest bending row, so they cost a quarter more steps.
-    const bare=plate.stableTimeStep();this.contactStiffness=new Float64Array(plate.nodeCount);
+    // Contact springs a quarter as stiff as the stiffest bending row, so they cost a quarter more steps while the bob is near
+    // (`reach`: they enter the stability limit only at the nodes the bob can touch within the tick).
+    // The stiffest row counts a bridging layer as a string at full stiffness, 8 E t per node (the plate's stability bound
+    // before 2026-11-17, which now uses the layer's tangent), so that the contact is as stiff as it was.
+    plate.stableTimeStep();let most=0;const layer=spec.tie>0?8*spec.tie*Math.max(plate.hy/plate.hx,plate.hx/plate.hy):0;
+    for(let n=0;n<plate.nodeCount;n++)if(plate.active[n]&&!plate.fixed[n])most=Math.max(most,(layer>0?plate.bendRow[n]+layer:plate.bendRow[n])/plate.mass[n]);
+    const bare=most>0?2/Math.sqrt(most):Infinity;this.contactStiffness=new Float64Array(plate.nodeCount);
     for(let n=0;n<plate.nodeCount;n++){this.contactStiffness[n]=.25*plate.mass[n]*(2/bare)**2;}
-    for(let n=0;n<plate.nodeCount;n++)plate.extraStiffness[n]=this.contactStiffness[n];plate.setExtraStiffness([],0);
     this.pendulumMass=s.load;const R=r.bobRadius;this.pendulumInertia=s.load*(r.pendulumLength**2+r.bobOffsetZ**2+.4*R*R);
     this.angle=Math.acos(1-s.rate/Math.hypot(r.pendulumLength,r.bobOffsetZ))-Math.atan2(r.bobOffsetZ,r.pendulumLength);
     this.impactEnergy=s.load*G*s.rate;
@@ -150,11 +154,24 @@ export class GlassModel extends LabModel {
     }
     this.force=total;return total*t[2];
   }
+  /** The nodes the bob can touch within the next dt carry their contact springs in the plate's stability limit; the others
+   * none. A node can be touched when it lies under the sphere's footprint, widened by the bob's travel, and the gap along z is
+   * less than twice what the bob and the fastest node can close in dt, plus 20 mm. */
+  private reach(dt:number):void {
+    const plate=this.plate,c=this.bob,R=GLASS_RIG.bobRadius+this.thickness/2,travel=Math.abs(this.speed)*Math.hypot(GLASS_RIG.pendulumLength,GLASS_RIG.bobOffsetZ)*dt,wide=R+travel+.01;
+    let fastest=0;for(let n=0;n<plate.nodeCount;n++)if(plate.active[n])fastest=Math.max(fastest,Math.abs(plate.v[n]));
+    const gap=2*dt*(Math.abs(this.speed)*Math.hypot(GLASS_RIG.pendulumLength,GLASS_RIG.bobOffsetZ)+fastest)+.02,extra=plate.extraStiffness;let changed=false;
+    for(let n=0;n<plate.nodeCount;n++){
+      const dx=plate.x(n)-c[0],dy=plate.y(n)-c[1],near=plate.active[n]&&dx*dx+dy*dy<wide*wide&&c[2]-R-plate.w[n]<gap,k=near?this.contactStiffness[n]:0;
+      if(extra[n]!==k){extra[n]=k;changed=true;}
+    }
+    if(changed)plate.setExtraStiffness([],0);
+  }
   step(dt=DT):void {
     if(!Number.isFinite(dt)||dt<=0||dt>.25)throw new Error('Glass step must be in (0, 0.25] seconds');
     // Equal sub-steps: symplectic Euler gains energy when its step length changes from one step to the next,
     // so the step is set once per tick and only shortened (for the rest of the tick) when a crack lowers the limit.
-    const plate=this.plate,start=this.frame.time;let left=dt,h=dt/Math.ceil(dt/(.9*plate.stableTimeStep()));
+    const plate=this.plate,start=this.frame.time;this.reach(dt);let left=dt,h=dt/Math.ceil(dt/(.9*plate.stableTimeStep()));
     while(left>1e-12){
       if(h>.9*plate.stableTimeStep())h=left/Math.ceil(left/(.9*plate.stableTimeStep()));
       h=Math.min(h,left);

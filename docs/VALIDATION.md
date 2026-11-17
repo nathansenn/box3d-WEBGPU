@@ -1836,8 +1836,8 @@ Solver: `src/engine/plate.ts`: Kirchhoff bending on a regular grid (finite-diffe
 | Von Karman plate, straight edges free to move, p a^4 / (E h^4) = 247 | `Levy, NACA Report 737 (1942), Table 6: 2.742 (true value between 2.704 and 2.743)` = 2.742 | 2.739697 | -0.084% | ±1% | pass |
 | Von Karman plate, straight edges free to move, p a^4 / (E h^4) = 358 | `Levy, NACA Report 737 (1942), Table 6: 3.174` = 3.174 | 3.160664 | -0.42% | ±1% | pass |
 | Von Karman plate, straight edges free to move, p a^4 / (E h^4) = 497 | `Levy, NACA Report 737 (1942), Table 6: 3.6` = 3.6 | 3.575294 | -0.686% | ±1% | pass |
-| Von Karman plate, edges held: average edge tension | `Levy, NACA Report 737, Table 10: -p_x a^2 / (E h^2) = 7.38` = 7.38 | 7.500557 | +1.63% | ±4% | pass |
-| Von Karman plate: mesh dependence | `0 (converged)` = 0 | 0.01008972 | +0.0101 | ±0.015 | pass |
+| Von Karman plate, edges held: average edge tension | `Levy, NACA Report 737, Table 10: -p_x a^2 / (E h^2) = 7.38` = 7.38 | 7.500558 | +1.63% | ±4% | pass |
+| Von Karman plate: mesh dependence | `0 (converged)` = 0 | 0.01008973 | +0.0101 | ±0.015 | pass |
 
 <details><summary>What each case measures, and the test that asserts it</summary>
 
