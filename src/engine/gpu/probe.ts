@@ -329,16 +329,62 @@ async function fluidBenchmark(compute:GpuCompute,sizes:readonly number[],steps:n
   return rows;
 }
 
+// ---- checkpoints -------------------------------------------------------------------------------------------------------
+export interface CheckpointCheck {backend:string;setup:string;steps:number;at:number;bytes:number;
+  /** A GPU run checkpointed at `at`, restored into a fresh GPU backend and taken on: the same bits as the straight GPU run. */
+  gpuResumed:boolean;
+  /** The same checkpoint restored into the float32 reference and taken on: the same bits as the straight GPU run (the reference and the GPU agree bit for bit on this set-up). */
+  referenceResumed:boolean;
+  /** The largest difference between the reference's continuation and the GPU's, over the largest value (0 when identical). */
+  referenceDifference:number}
+const maxDiff=(a:ArrayLike<number>,b:ArrayLike<number>):number=>{let d=0,t=0;for(let i=0;i<b.length;i++){d=Math.max(d,Math.abs(a[i]-b[i]));t=Math.max(t,Math.abs(b[i]));}return t>0?d/t:d;};
+async function checkpointChecks(compute:GpuCompute,progress:(text:string)=>void):Promise<CheckpointCheck[]> {
+  const out:CheckpointCheck[]=[];
+  {
+    progress('checkpoints: shallow water (Thacker)');
+    const {options,steps}=SHALLOW_WATER_SETUPS.thacker(),at=Math.floor(steps/2);
+    const straight=await GpuShallowWater.create(compute,new ShallowWater(options));await straight.step(steps);const s=await straight.read();straight.destroy();
+    const a=await GpuShallowWater.create(compute,new ShallowWater(options));await a.step(at);const bytes=await a.checkpoint();a.destroy();
+    const b=await GpuShallowWater.create(compute,new ShallowWater(options));b.restoreCheckpoint(bytes);await b.step(steps-at);const sb=await b.read();b.destroy();
+    const r=new ShallowWaterF32(new ShallowWater(options));r.restoreCheckpoint(bytes);r.step(steps-at);
+    out.push({backend:'shallow water',setup:'thacker',steps,at,bytes:bytes.length,gpuResumed:fnv(sb.state,sb.aux)===fnv(s.state,s.aux),referenceResumed:fnv(r.state,r.aux)===fnv(s.state,s.aux),referenceDifference:maxDiff(r.state,s.state)});
+  }
+  {
+    progress('checkpoints: grains (bead box)');
+    const steps=400,at=150,make=():Granular=>GRANULAR_SETUPS['bead-box']().granular;
+    const straight=await GpuGranular.fromGranular(compute,make());await straight.step(steps);const s=await straight.read();straight.destroy();
+    const a=await GpuGranular.fromGranular(compute,make());await a.step(at);const bytes=await a.checkpoint();a.destroy();
+    const b=await GpuGranular.fromGranular(compute,make());b.restoreCheckpoint(bytes);await b.step(steps-at);const sb=await b.read();b.destroy();
+    const r=new GranularF32(make());r.restoreCheckpoint(bytes);r.step(steps-at);
+    const n=4*s.count;
+    out.push({backend:'grains',setup:'bead-box',steps,at,bytes:bytes.length,gpuResumed:fnv(sb.pos,sb.vel,sb.spin)===fnv(s.pos,s.vel,s.spin),referenceResumed:fnv(r.pos.subarray(0,n),r.vel.subarray(0,n),r.spin.subarray(0,n))===fnv(s.pos,s.vel,s.spin),referenceDifference:maxDiff(r.pos.subarray(0,n),s.pos)});
+  }
+  for(const name of ['cavity-3d','moving-sphere']){
+    progress(`checkpoints: fluid (${name})`);
+    const make=FLUID_SETUPS[name],{steps}=make(),at=Math.floor(steps/2);
+    const drive=async(setup:ReturnType<typeof make>,step:()=>Promise<void>|void,from:number,to:number)=>{for(let k=from;k<to;k++){setup.beforeStep?.(setup.fluid,k);await step();}};
+    const st=make(),straight=await GpuFluid.create(compute,st.fluid);await drive(st,()=>straight.step(),0,steps);const s=await straight.read();straight.destroy();
+    const a=make(),ga=await GpuFluid.create(compute,a.fluid);await drive(a,()=>ga.step(),0,at);const bytes=await ga.checkpoint(),host=a.fluid.saveState();ga.destroy();
+    const b=make();b.fluid.restoreState(host);const gb=await GpuFluid.create(compute,b.fluid);gb.restoreCheckpoint(bytes);await drive(b,()=>gb.step(),at,steps);const sb=await gb.read();gb.destroy();
+    const c=make();c.fluid.restoreState(host);const r=new FluidF32(c.fluid);r.restoreCheckpoint(bytes);await drive(c,()=>r.step(),at,steps);
+    const ru=r.velocity(0),rv=r.velocity(1),rw=r.velocity(2),rp=r.pressure();
+    out.push({backend:'fluid',setup:name,steps,at,bytes:bytes.length,gpuResumed:fnv(sb.u,sb.v,sb.w,sb.p)===fnv(s.u,s.v,s.w,s.p),
+      referenceResumed:fnv(ru,rv,rw,rp)===fnv(s.u,s.v,s.w,s.p),referenceDifference:Math.max(maxDiff(ru,s.u),maxDiff(rv,s.v),maxDiff(rw,s.w))});
+  }
+  return out;
+}
+
 export interface GpuValidationReport {
   info:GpuComputeInfo;userAgent:string;
   shallowWater:{cases:GpuCaseRow[];runs:Record<string,unknown>;agreement:ShallowWaterAgreement[];deviceLoss:DeviceLossResult}|null;
   granular:{cases:GpuCaseRow[];runs:Record<string,unknown>;agreement:GranularAgreement[];deviceLoss:DeviceLossResult;casesSkipped:string|null}|null;
   fluid:{cases:GpuCaseRow[];runs:Record<string,unknown>;agreement:FluidAgreement[];deviceLoss:DeviceLossResult;casesSkipped:string|null}|null;
+  checkpoints:CheckpointCheck[]|null;
   seconds:number;
 }
 export interface GpuProbeOptions {readonly only?:readonly string[];readonly progress?:(text:string)=>void;
   /** false: skip the closed-form cases. 'quick': the granular cases that take seconds only. */
-  readonly cases?:boolean|'quick';readonly shallowWater?:boolean;readonly granular?:boolean;readonly fluid?:boolean}
+  readonly cases?:boolean|'quick';readonly shallowWater?:boolean;readonly granular?:boolean;readonly fluid?:boolean;readonly checkpoints?:boolean}
 
 async function validate(options:GpuProbeOptions={}):Promise<GpuValidationReport> {
   const progress=options.progress??(()=>{}),started=performance.now();
@@ -364,8 +410,9 @@ async function validate(options:GpuProbeOptions={}):Promise<GpuValidationReport>
     progress('fluid: device loss');
     fluid={cases:cases.rows,runs:cases.runs,agreement,deviceLoss:await fluidDeviceLoss(),casesSkipped};
   }
+  const checkpoints=options.checkpoints===false?null:await checkpointChecks(compute,progress);
   compute.destroy();
-  return {info:compute.info,userAgent:navigator.userAgent,shallowWater,granular,fluid,seconds:(performance.now()-started)/1000};
+  return {info:compute.info,userAgent:navigator.userAgent,shallowWater,granular,fluid,checkpoints,seconds:(performance.now()-started)/1000};
 }
 async function benchmark(options:{readonly shallowWater?:readonly number[];readonly grains?:readonly number[];readonly fluid?:readonly number[];readonly steps?:number;readonly cpuLimit?:number;readonly progress?:(text:string)=>void}={}):Promise<{info:GpuComputeInfo;rows:BenchRow[]}> {
   const compute=await acquireGpuCompute({label:'box3d compute timing',storageBytes:0}),progress=options.progress??(()=>{});

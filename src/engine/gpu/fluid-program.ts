@@ -12,6 +12,7 @@
  * region clears and the points where it needs the scalars, which the executor sends back.
  */
 import {EngineError} from '../contracts.ts';
+import {checkpointError,readCheckpoint,writeCheckpoint,type StateObject} from '../checkpoint.ts';
 import type {Fluid,FluidBackendDescription,FluidObstacleBand} from '../fluid.ts';
 import {FLUID_PASS,SCALAR_ALPHA,SCALAR_BETA,SCALAR_PCHECK,SCALAR_PEND,SCALAR_PSTART,SCALAR_VCHECK,SCALAR_VSTART,SLOT_BMAX,SLOT_DONE,SLOT_DOT,SLOT_IT,SLOT_RMAX,SLOT_RZ,SLOT_RZNEW,SOLVE_SLOTS,groupSize,type KernelName} from './fluid-kernels.ts';
 
@@ -354,6 +355,27 @@ export class FluidProgram {
     for(let c=0;c<3;c++)F.set(velocity[c],p.F.vel+c*p.P);
     F.set(pressure,p.F.p);this.hasPrev=false;
   }
+}
+
+/**
+ * Checkpoints of the fluid program (GpuFluid and FluidF32 write and read the same bytes): the face velocities with their
+ * ghosts, the previous advection (Adams-Bashforth), the pressure, whether the next step uses Adams-Bashforth, the time
+ * and the statistics. Everything else in F is rewritten by a step before it is read, or constant. A checkpoint of one
+ * restores into the other; the obstacles' poses and forces belong to the Fluid the backend was built from (its own
+ * saveState).
+ */
+export const FLUID_PROGRAM_CHECKPOINT='fluid-program-f32-v1';
+export interface FluidProgramState {readonly vel:Float32Array;readonly prev:Float32Array;readonly p:Float32Array;readonly hasPrev:boolean;readonly time:number;readonly stats:Readonly<Record<string,number>>}
+export function writeFluidProgramCheckpoint(plan:FluidPlan,state:FluidProgramState):Uint8Array {
+  return writeCheckpoint('gpu-fluid',{format:FLUID_PROGRAM_CHECKPOINT,cells:[...plan.description.cells],P:plan.P,N:plan.N,obstacles:plan.obstacles,vel:state.vel,prev:state.prev,p:state.p,hasPrev:state.hasPrev,time:state.time,stats:{...state.stats}});
+}
+export function readFluidProgramCheckpoint(plan:FluidPlan,bytes:Uint8Array):FluidProgramState {
+  const t=readCheckpoint(bytes,'gpu-fluid') as StateObject;
+  if(t.format!==FLUID_PROGRAM_CHECKPOINT)throw checkpointError(`This is a ${String(t.format)} checkpoint; this fluid program reads ${FLUID_PROGRAM_CHECKPOINT}.`);
+  const cells=t.cells as number[];
+  if(t.P!==plan.P||t.N!==plan.N||t.obstacles!==plan.obstacles||cells.some((c,k)=>c!==plan.description.cells[k]))throw checkpointError(`This checkpoint is of a fluid of ${cells.join(' x ')} cells with ${String(t.obstacles)} obstacles; this one has ${plan.description.cells.join(' x ')} and ${plan.obstacles}.`);
+  if(!(t.vel instanceof Float32Array)||t.vel.length!==3*plan.P||!(t.prev instanceof Float32Array)||t.prev.length!==3*plan.P||!(t.p instanceof Float32Array)||t.p.length!==plan.N)throw checkpointError('The fluid checkpoint is malformed.');
+  return {vel:t.vel,prev:t.prev,p:t.p,hasPrev:t.hasPrev===true,time:t.time as number,stats:t.stats as Record<string,number>};
 }
 
 /** The statistics a step leaves in the scalars. */

@@ -123,6 +123,11 @@ export interface Subsystem<W=unknown,B=unknown> {
   validate?(info:{readonly dt:number;readonly subSteps:number|undefined;readonly timing:SubsystemTiming}):void;
   prepare?(ctx:StepContext<W>):void;
   step(ctx:StepContext<W>):void;
+  /**
+   * An asynchronous step (a GPU backend, src/engine/gpu/scene-backends.ts). `Simulation.stepAsync()` awaits it in this
+   * subsystem's place in the stage order; `Simulation.step()` refuses a simulation that has one.
+   */
+  stepAsync?(ctx:StepContext<W>):Promise<void>;
   finish?(ctx:StepContext<W>):void;
   energy?():SubsystemEnergy;
   diagnostics?():unknown;
@@ -133,6 +138,10 @@ export interface Subsystem<W=unknown,B=unknown> {
    * counters, ledgers, event cursors), as a state tree (checkpoint.ts). `Simulation.checkpoint()` needs it from every
    * subsystem; one without it cannot be checkpointed. */
   checkpoint?():StateValue;
+  /** The checkpoint of an asynchronous subsystem (it waits for its device): `Simulation.checkpointAsync()` awaits it. */
+  checkpointAsync?():Promise<StateValue>;
+  /** Write the state an asynchronous subsystem holds elsewhere (on a GPU) into its CPU objects: `Simulation.pullAsync()`. */
+  pullAsync?():Promise<void>;
   /** Put back a state from `checkpoint()` of a subsystem set up the same way. Throw an EngineError with code
    * CHECKPOINT_MISMATCH (checkpoint.ts) for a state of another set-up. */
   restore?(state:StateValue):void;
@@ -242,6 +251,8 @@ export class Simulation<W extends SimulationWorld<B>,B=unknown> {
   private readonly tracked=new Map<B,Tracked<B>>();
   private accumulator=0;
   private disposed=false;
+  /** Subsystems with an asynchronous step, and whether an asynchronous step or checkpoint is under way. */
+  private asynchronous=0;private busy=false;
   private source='';
   private originSource:SimulationSource|(()=>SimulationSource)|null=null;
   private readonly ctx:{world:W;tick:number;time:number;dt:number;substeps:number;emit(type:string,data?:unknown):void};
@@ -264,7 +275,10 @@ export class Simulation<W extends SimulationWorld<B>,B=unknown> {
   private rebuild():void {
     this.slots.sort((a,b)=>a.stage-b.stage||a.order-b.order||(a.subsystem.id<b.subsystem.id?-1:a.subsystem.id>b.subsystem.id?1:0));
     this.before=this.slots.filter(slot=>slot.stage<2);this.after=this.slots.filter(slot=>slot.stage>2);
+    this.asynchronous=this.slots.filter(slot=>typeof slot.subsystem.stepAsync==='function').length;
   }
+  /** True when a subsystem steps asynchronously (a GPU section): advance with `await stepAsync()`. */
+  get isAsync():boolean {return this.asynchronous>0;}
 
   /** Register a subsystem. Its time-step requirement is checked now; a subsystem that cannot run on this step is refused with an EngineError. */
   add(subsystem:Subsystem<W,B>):this {
@@ -310,6 +324,8 @@ export class Simulation<W extends SimulationWorld<B>,B=unknown> {
   /** Advance the world and every subsystem by exactly one fixed step, in stage order. */
   step():void {
     this.live();
+    if(this.asynchronous>0)throw state('This simulation has a subsystem that steps asynchronously (a GPU backend): advance it with await simulation.stepAsync().');
+    if(this.busy)throw state('An asynchronous step or checkpoint of this simulation is under way: await it first.');
     const world=this.world,ctx=this.ctx,slots=this.slots,tick=this.tickCount+1;
     if(this.worldTick!==undefined&&world.tick!==this.worldTick)
       throw state(`The world was stepped or reset outside the simulation (its tick is ${world.tick}, the simulation left it at ${this.worldTick}). Advance it with simulation.step() only, and make a new Simulation after a reset.`);
@@ -340,6 +356,57 @@ export class Simulation<W extends SimulationWorld<B>,B=unknown> {
     let droppedSeconds=0;
     if(this.accumulator>=this.dt){droppedSeconds=this.accumulator-(this.accumulator%this.dt);this.accumulator%=this.dt;}
     return {steps,alpha:this.accumulator/this.dt,droppedSeconds};
+  }
+
+  /**
+   * `step()` for a simulation with asynchronous subsystems (GPU sections): the same order (prepare, pre-couple, couple,
+   * the rigid step, post, finish, events, onStep listeners), each asynchronous subsystem awaited in its place, the others
+   * run as `step()` runs them. One at a time: a second call before the first has resolved is refused. A simulation without
+   * asynchronous subsystems gives the bits `step()` gives.
+   */
+  async stepAsync():Promise<void> {
+    this.live();
+    if(this.busy)throw state('An asynchronous step or checkpoint of this simulation is under way: await it first.');
+    const world=this.world,ctx=this.ctx,slots=this.slots,tick=this.tickCount+1;
+    if(this.worldTick!==undefined&&world.tick!==this.worldTick)
+      throw state(`The world was stepped or reset outside the simulation (its tick is ${world.tick}, the simulation left it at ${this.worldTick}). Advance it with simulation.stepAsync() only, and make a new Simulation after a reset.`);
+    this.busy=true;
+    try{
+      ctx.tick=tick;ctx.time=this.tickCount*this.dt;ctx.substeps=1;
+      for(let i=0;i<slots.length;i++){const s=slots[i].subsystem;if(s.prepare){this.source=s.id;s.prepare(ctx);}}
+      await this.runAsync(this.before,tick);
+      world.step();
+      if(this.worldTick!==undefined)this.worldTick=world.tick;
+      await this.runAsync(this.after,tick);
+      ctx.substeps=1;
+      for(let i=0;i<slots.length;i++){const s=slots[i].subsystem;if(s.finish){this.source=s.id;s.finish(ctx);}}
+      this.tickCount=tick;
+    }finally{this.busy=false;}
+    if(this.eventListeners.size>0){
+      const fromWorld=this.worldEvents,own=this.ownEvents;
+      for(let i=0;i<fromWorld.length;i++){const kind=(fromWorld[i] as {kind?:unknown;type?:unknown}),event:SimulationEvent={tick,source:'world',type:String(kind.type??kind.kind??'event'),data:fromWorld[i]};for(const listener of this.eventListeners)listener(event);}
+      for(let i=0;i<own.length;i++)for(const listener of this.eventListeners)listener(own[i]);
+      fromWorld.length=0;own.length=0;
+    }
+    for(const listener of this.stepListeners)listener(tick);
+  }
+  private async runAsync(slots:Slot<W,B>[],tick:number):Promise<void> {
+    const ctx=this.ctx;
+    for(let i=0;i<slots.length;i++){
+      const slot=slots[i],timing=slot.timing;
+      if(timing!==null){if(timing.every>1&&tick%timing.every!==0)continue;ctx.substeps=timing.substeps;}else ctx.substeps=1;
+      this.source=slot.subsystem.id;
+      const s=slot.subsystem;
+      if(s.stepAsync)await s.stepAsync(ctx);else s.step(ctx);
+    }
+  }
+  /** Write what asynchronous subsystems hold on their devices into their CPU objects (to read them, or to save the scene). */
+  async pullAsync():Promise<void> {
+    this.live();
+    if(this.busy)throw state('An asynchronous step or checkpoint of this simulation is under way: await it first.');
+    this.busy=true;
+    try{for(const slot of this.slots)if(slot.subsystem.pullAsync)await slot.subsystem.pullAsync();}
+    finally{this.busy=false;}
   }
 
   /** Call `listener(tick)` after every simulation step, when the world and every subsystem have advanced. Returns a function that removes it. */
@@ -452,14 +519,34 @@ export class Simulation<W extends SimulationWorld<B>,B=unknown> {
    */
   checkpoint(options:SimulationCheckpointOptions={}):Uint8Array {
     this.live();
+    if(this.busy)throw state('An asynchronous step or checkpoint of this simulation is under way: await it first.');
+    for(const slot of this.slots)if(slot.subsystem.checkpointAsync)throw state(`Subsystem "${slot.subsystem.id}" (${slot.subsystem.kind}) checkpoints asynchronously (a GPU backend): use await simulation.checkpointAsync().`);
+    const subsystems:Record<string,StateValue>={};
+    this.checkpointable();
+    for(const slot of this.slots)subsystems[slot.subsystem.id]=slot.subsystem.checkpoint!();
+    return this.writeTree(options,subsystems);
+  }
+  /** `checkpoint()` of a simulation with asynchronous subsystems: each one's state is awaited (it waits for its device). The bytes are of the same format; `restore()` puts them back. */
+  async checkpointAsync(options:SimulationCheckpointOptions={}):Promise<Uint8Array> {
+    this.live();
+    if(this.busy)throw state('An asynchronous step or checkpoint of this simulation is under way: await it first.');
+    this.checkpointable();
+    this.busy=true;
+    const subsystems:Record<string,StateValue>={};
+    try{for(const slot of this.slots){const s=slot.subsystem;subsystems[s.id]=s.checkpointAsync?await s.checkpointAsync():s.checkpoint!();}}
+    finally{this.busy=false;}
+    return this.writeTree(options,subsystems);
+  }
+  private checkpointable():void {
     const world=this.world;
     if(typeof world.checkpoint!=='function'||typeof world.restoreCheckpoint!=='function')throw new EngineError('UNSUPPORTED_BACKEND','This world cannot write exact checkpoints (it has no checkpoint() and restoreCheckpoint()).');
-    const subsystems:Record<string,StateValue>={};
     for(const slot of this.slots){
       const s=slot.subsystem;
       if(typeof s.checkpoint!=='function'||typeof s.restore!=='function')throw state(`Subsystem "${s.id}" (${s.kind}) cannot be checkpointed: it has no checkpoint() and restore().`);
-      subsystems[s.id]=s.checkpoint();
     }
+  }
+  private writeTree(options:SimulationCheckpointOptions,subsystems:Record<string,StateValue>):Uint8Array {
+    const world=this.world as W&{checkpoint():Uint8Array};
     const tree:StateObject={
       tick:this.tickCount,dt:this.dt,subSteps:this.subSteps??null,accumulator:this.accumulator,worldTick:this.worldTick??null,
       sceneHash:this.origin?.sceneHash??null,scene:options.scene===false?null:this.origin?.scene??null,
@@ -475,6 +562,7 @@ export class Simulation<W extends SimulationWorld<B>,B=unknown> {
    */
   restore(bytes:Uint8Array):void {
     this.live();
+    if(this.busy)throw state('An asynchronous step or checkpoint of this simulation is under way: await it first.');
     const world=this.world;
     if(typeof world.checkpoint!=='function'||typeof world.restoreCheckpoint!=='function')throw new EngineError('UNSUPPORTED_BACKEND','This world cannot restore exact checkpoints (it has no checkpoint() and restoreCheckpoint()).');
     const tree=readCheckpoint(bytes,'simulation') as StateObject;
@@ -934,6 +1022,20 @@ function shapeInertia(body:SceneBody,explicit:SceneInertia|undefined):StructureI
 }
 
 /**
+ * The subsystems of the scene sections that say `backend: 'gpu'` (shallow water, grains). The GPU backends live in
+ * src/engine/gpu (scene-backends.ts `gpuSceneBackends(compute)`); this module only calls them, so it does not depend on
+ * WebGPU. A scene with such a section loaded without them is refused.
+ */
+export interface SceneGpuBackends<W=any,B=any> {
+  shallowWater(water:ShallowWater,info:{readonly id:string}):Subsystem<W,B>&{stale():boolean};
+  grains(coupling:GranularCoupling<B>,info:{readonly id:string}):Subsystem<W,B>&{stale():boolean};
+}
+/** Options of the scene loaders (buildSceneSimulation, loadSimulationScene, resumeSimulationScene). */
+export interface SceneSimulationOptions {
+  /** Builds the sections with backend: 'gpu'. Their simulation then steps with `await stepAsync()` only. */
+  readonly gpu?:SceneGpuBackends;
+}
+/**
  * Build the coupled sections of a scene whose bodies and joints `builder` has already built, and
  * return the Simulation that steps them. Build order: frames, then cables (file order), one
  * StructureCoupling with the cables' attachments (cable by cable, in file order) and then the
@@ -942,7 +1044,7 @@ function shapeInertia(body:SceneBody,explicit:SceneInertia|undefined):StructureI
  * rigid-only scene gives a Simulation with no subsystems, whose step is `world.step()`. On a
  * failure the world is reset and the error names the id.
  */
-export function buildSceneSimulation<W extends SimulationSceneWorld>(world:W,builder:SceneBuilder<W>,scene:Scene):LoadedSimulationScene<W> {
+export function buildSceneSimulation<W extends SimulationSceneWorld>(world:W,builder:SceneBuilder<W>,scene:Scene,options:SceneSimulationOptions={}):LoadedSimulationScene<W> {
   const bodies=builder.bodies(),joints=builder.joints(),step=world.loop.step,g=scene.world?.gravity??[0,-9.81,0];
   const gravity:[number,number,number]=[g[0],g[1],g[2]];
   const descriptions=new Map<string,SceneBody>(scene.bodies.map(body=>[body.id,body]));
@@ -950,6 +1052,12 @@ export function buildSceneSimulation<W extends SimulationSceneWorld>(world:W,bui
   const cloths=new Map<string,ClothCoupling<Body>>(),grains=new Map<string,GranularCoupling<Body>>(),solids=new Map<string,SceneSolidRuntime<Body>>(),heats=new Map<string,HeatSolver>(),fluids=new Map<string,SceneFluidRuntime<Body>>();
   const shallow=new Map<string,SceneShallowWaterRuntime<Body>>();
   const carried=new Set<Body>();
+  // The GPU sections, by section kind and id (the scene save refuses a section whose GPU state was not pulled).
+  const onGpu=new Map<string,{stale():boolean}>();
+  const gpuBackends=():SceneGpuBackends=>{
+    if(!options.gpu)throw new EngineError('GPU_UNAVAILABLE',"This scene has a section with backend 'gpu': load it with the gpu option (gpuSceneBackends(compute) of src/engine/gpu/scene-backends.ts, or gpuSceneBackends('reference') for the same float32 program on the CPU).");
+    return options.gpu;
+  };
   let structure:StructureCoupling<Body>|null=null;
   const simulation=new Simulation<W,Body>(world);
   simulation.setSceneSource(()=>({sceneHash:sceneHash(scene),scene:canonicalize(scene)}));
@@ -1051,7 +1159,8 @@ export function buildSceneSimulation<W extends SimulationSceneWorld>(world:W,bui
         for(let i=0;i<count;i++)dem.addGrain([set.positions[3*i],set.positions[3*i+1],set.positions[3*i+2]],set.radii[i],
           set.velocities?[set.velocities[3*i],set.velocities[3*i+1],set.velocities[3*i+2]]:undefined,set.angularVelocities?[set.angularVelocities[3*i],set.angularVelocities[3*i+1],set.angularVelocities[3*i+2]]:undefined);
         grains.set(set.id,coupling);
-        simulation.add(granularSubsystem<W,Body>(coupling,{id:set.id}));
+        if(set.backend==='gpu'){const sub=gpuBackends().grains(coupling,{id:set.id});onGpu.set(`grains/${set.id}`,sub);simulation.add(sub as Subsystem<W,Body>);}
+        else simulation.add(granularSubsystem<W,Body>(coupling,{id:set.id}));
         for(const entry of set.bodies??[])if(entry.twoWay!==false)track(entry.body);
       }catch(error){throw named('grains',set.id,error);}
     }
@@ -1157,7 +1266,10 @@ export function buildSceneSimulation<W extends SimulationSceneWorld>(world:W,bui
             ...(entry.dragCoefficient!==undefined?{dragCoefficient:entry.dragCoefficient}:{}),...(entry.referenceArea!==undefined?{referenceArea:entry.referenceArea}:{})});
         }
         shallow.set(desc.id,{water:sw,coupling});
-        simulation.add(shallowWaterSubsystem<W,Body>(coupling??sw,{id:desc.id}));
+        if(desc.backend==='gpu'){
+          if(coupling)throw payload('The GPU shallow water has no bodies: use backend "cpu" for a grid with bodies.');
+          const sub=gpuBackends().shallowWater(sw,{id:desc.id});onGpu.set(`shallowWater/${desc.id}`,sub);simulation.add(sub as Subsystem<W,Body>);
+        }else simulation.add(shallowWaterSubsystem<W,Body>(coupling??sw,{id:desc.id}));
         for(const entry of desc.bodies??[])track(entry.body);
       }catch(error){throw named('shallow water',desc.id,error);}
     }
@@ -1186,6 +1298,7 @@ export function buildSceneSimulation<W extends SimulationSceneWorld>(world:W,bui
   }
   // A save writes the sections back with the fields the solvers hold now. Masses come from the description: an attached
   // cable node borrows its carrier's effective mass while it is attached.
+  const pulled=(kind:string,id:string):void=>{if(onGpu.get(`${kind}/${id}`)?.stale())throw state(`The ${kind} section "${id}" runs on the GPU and has moved on since its state was last read: await simulation.pullAsync() before saving the scene.`);};
   builder.coupledCapture=():SceneCoupledSections=>({
     water:scene.water?.map((basin:SceneWater)=>{const w=water.get(basin.id)!;return {...basin,eta:Array.from(w.eta),u:Array.from(w.u),v:Array.from(w.v)};}),
     cables:scene.cables?.map((c:SceneCable)=>{const views=cables.get(c.id)!.couplingViews();return {...c,nodes:Array.from(views.positions),velocities:Array.from(views.velocities)};}),
@@ -1193,6 +1306,7 @@ export function buildSceneSimulation<W extends SimulationSceneWorld>(world:W,bui
     // A cloth keeps its stress-free shape; a grain set keeps the grains that have not left its bounds.
     cloths:scene.cloths?.map((c:SceneCloth)=>{const cloth=cloths.get(c.id)!.cloth;return {...c,nodes:Array.from(cloth.positions),restNodes:c.restNodes??c.nodes,velocities:Array.from(cloth.velocities)};}),
     grains:scene.grains?.map((set:SceneGrains)=>{
+      pulled('grains',set.id);
       const dem=grains.get(set.id)!.granular,positions:number[]=[],radii:number[]=[],velocities:number[]=[],angular:number[]=[];
       for(let i=0;i<dem.grainCount;i++){
         if(!dem.alive[i])continue;
@@ -1217,6 +1331,7 @@ export function buildSceneSimulation<W extends SimulationSceneWorld>(world:W,bui
     }),
     // Shallow water writes its depths, discharges and infiltrated depths (the level it started from is then not needed).
     shallowWater:scene.shallowWater?.map((desc:SceneShallowWater)=>{
+      pulled('shallowWater',desc.id);
       const w=shallow.get(desc.id)!.water,{level:_level,...rest}=desc;
       return {...rest,depth:Array.from(w.h),qx:Array.from(w.qx),qz:Array.from(w.qz),infiltrated:Array.from(w.infiltrated)};
     }),
@@ -1230,10 +1345,10 @@ export function buildSceneSimulation<W extends SimulationSceneWorld>(world:W,bui
  * hold: an invalid scene leaves the world untouched, and a body, joint, cable, frame or basin the
  * engine refuses leaves it reset and empty, with the id in the error.
  */
-export function loadSimulationScene<W extends SimulationSceneWorld>(world:W,scene:unknown):LoadedSimulationScene<W> {
+export function loadSimulationScene<W extends SimulationSceneWorld>(world:W,scene:unknown,options:SceneSimulationOptions={}):LoadedSimulationScene<W> {
   const normal=normalizeScene(scene);
   const builder=new SceneBuilder<W>(world,{world:normal.world,materials:normal.materials,meta:normal.meta,extensions:normal.extensions}).populate(normal);
-  return buildSceneSimulation(world,builder,normal);
+  return buildSceneSimulation(world,builder,normal,options);
 }
 
 // ---------------------------------------------------------------------------
@@ -1256,10 +1371,10 @@ export function simulationCheckpointInfo(bytes:Uint8Array):SimulationCheckpointI
  * load the scene it was taken from (the world is reset to it), then restore the checkpoint. The run continues
  * bit-identically to the one the checkpoint was taken from. The world must be of the same build.
  */
-export function resumeSimulationScene<W extends SimulationSceneWorld>(world:W,bytes:Uint8Array):LoadedSimulationScene<W> {
+export function resumeSimulationScene<W extends SimulationSceneWorld>(world:W,bytes:Uint8Array,options:SceneSimulationOptions={}):LoadedSimulationScene<W> {
   const info=simulationCheckpointInfo(bytes);
   if(info.scene===null)throw checkpointError(info.sceneHash===null?'This checkpoint was not taken from a scene, so it cannot rebuild one: restore it into the simulation it came from.':'This checkpoint does not carry its scene (it was written with {scene: false}): load the scene yourself, then restore it.');
-  const loaded=loadSimulationScene(world,JSON.parse(info.scene));
+  const loaded=loadSimulationScene(world,JSON.parse(info.scene),options);
   try{loaded.simulation.restore(bytes);}
   catch(error){loaded.simulation.dispose();throw error;}
   return loaded;

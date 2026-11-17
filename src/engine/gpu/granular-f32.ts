@@ -14,7 +14,8 @@
  */
 import {EngineError} from '../contracts.ts';
 import {Granular,type GranularBackendDescription} from '../granular.ts';
-import {DEM_BLOCK,DEM_EMPTY,DEM_MAX_WALLS,DEM_PARAMS,DEM_WALL,DEM_WALL_KEY} from './granular-wgsl.ts';
+import {DEM_BLOCK,DEM_EMPTY,DEM_MAX_WALLS,DEM_METER_BUCKET_OVERFLOW,DEM_METER_HISTORY_OVERFLOW,DEM_METER_REMOVED,DEM_METER_SLOTS,DEM_PARAMS,DEM_WALL,DEM_WALL_KEY} from './granular-wgsl.ts';
+import {checkpointError,readCheckpoint,writeCheckpoint,type StateObject} from '../checkpoint.ts';
 
 const f=Math.fround;
 export interface DemOptions {
@@ -87,6 +88,29 @@ export interface DemStats {steps:number;contacts:number;wallContacts:number;over
 /** Field offsets of DEM_WALL in float32 words. */
 const WO=Object.fromEntries(DEM_WALL.fields.map(field=>[field.name,field.offset/4])) as Record<string,number>,WS=DEM_WALL.stride/4;
 
+/**
+ * Checkpoints of the float32 grain program (GpuGranular and GranularF32 write and read the same bytes): per grain the
+ * position and radius, velocity and mass, spin and inverse inertia, force and torque, the contact histories the next
+ * step reads, the walls with their sums, the cumulative counters (bucket and history overflows, removed grains), the
+ * time and the statistics. A checkpoint of one restores into the other.
+ */
+export const GRANULAR_CHECKPOINT='granular-f32-v1';
+export interface GranularF32State {readonly pos:Float32Array;readonly vel:Float32Array;readonly spin:Float32Array;readonly ft:Float32Array;readonly history:Uint32Array;readonly walls:Uint8Array;
+  /** DEM_METER_SLOTS words: bucket overflows, history overflows of the pairs, removed grains (the rest zero). */
+  readonly meter:Uint32Array;readonly time:number;readonly stats:DemStats}
+export function writeGranularCheckpoint(s:DemSetup,state:GranularF32State):Uint8Array {
+  return writeCheckpoint('gpu-granular',{format:GRANULAR_CHECKPOINT,capacity:s.capacity,count:s.count,K:s.K,HS:s.HS,wallCount:s.wallCount,pos:state.pos,vel:state.vel,spin:state.spin,ft:state.ft,history:state.history,walls:state.walls,meter:state.meter,time:state.time,stats:{...state.stats}});
+}
+export function readGranularCheckpoint(s:DemSetup,bytes:Uint8Array):GranularF32State {
+  const t=readCheckpoint(bytes,'gpu-granular') as StateObject;
+  if(t.format!==GRANULAR_CHECKPOINT)throw checkpointError(`This is a ${String(t.format)} checkpoint; this grain backend reads ${GRANULAR_CHECKPOINT}.`);
+  if(t.capacity!==s.capacity||t.count!==s.count||t.K!==s.K||t.HS!==s.HS||t.wallCount!==s.wallCount)throw checkpointError(`This checkpoint is of ${String(t.count)} grains (room for ${String(t.capacity)}, ${String(t.K)} history slots, ${String(t.wallCount)} walls); this backend has ${s.count} (${s.capacity}, ${s.K}, ${s.wallCount}).`);
+  const C=s.capacity,ok=(x:unknown,n:number,type:Function)=>x instanceof type&&(x as ArrayLike<number>).length===n;
+  if(!ok(t.pos,4*C,Float32Array)||!ok(t.vel,4*C,Float32Array)||!ok(t.spin,4*C,Float32Array)||!ok(t.ft,8*C,Float32Array)||!ok(t.history,4*s.HS*s.K*C,Uint32Array)||!ok(t.walls,s.walls.byteLength,Uint8Array)||!ok(t.meter,DEM_METER_SLOTS,Uint32Array))
+    throw checkpointError('The grain checkpoint is malformed.');
+  return {pos:t.pos as Float32Array,vel:t.vel as Float32Array,spin:t.spin as Float32Array,ft:t.ft as Float32Array,history:t.history as Uint32Array,walls:t.walls as Uint8Array,meter:t.meter as Uint32Array,time:t.time as number,stats:{...(t.stats as unknown as DemStats)}};
+}
+
 export class GranularF32 {
   readonly solver='granular-dem-hash-grid-f32-reference-v1';
   readonly setup:DemSetup;
@@ -118,6 +142,20 @@ export class GranularF32 {
     this.evaluate(0);
   }
   get count():number {return this.setup.count;}
+  /** An exact checkpoint (the format GpuGranular writes and reads too). */
+  checkpoint():Uint8Array {
+    const meter=new Uint32Array(DEM_METER_SLOTS);meter[DEM_METER_BUCKET_OVERFLOW]=this.stats.bucketOverflow;meter[DEM_METER_HISTORY_OVERFLOW]=this.pairHistoryOverflow;meter[DEM_METER_REMOVED]=this.stats.removed;
+    return writeGranularCheckpoint(this.setup,{pos:Float32Array.from(this.pos),vel:Float32Array.from(this.vel),spin:Float32Array.from(this.spin),ft:Float32Array.from(this.ft),history:Uint32Array.from(this.hOld),
+      walls:new Uint8Array(this.wallF.buffer.slice(0)),meter,time:this.time,stats:this.stats});
+  }
+  /** Put back a checkpoint (from GranularF32 or GpuGranular); later steps are bit-identical to the run it was taken from. */
+  restoreCheckpoint(bytes:Uint8Array):void {
+    const s=readGranularCheckpoint(this.setup,bytes);
+    this.pos.set(s.pos);this.vel.set(s.vel);this.spin.set(s.spin);this.ft.set(s.ft);this.hOld.set(s.history);this.hNew.fill(DEM_EMPTY);
+    new Uint8Array(this.wallF.buffer).set(s.walls);new Uint8Array(this.setup.walls).set(s.walls);
+    this.pairHistoryOverflow=s.meter[DEM_METER_HISTORY_OVERFLOW];this.time=s.time;Object.assign(this.stats,s.stats);
+    this.stats.bucketOverflow=s.meter[DEM_METER_BUCKET_OVERFLOW];this.stats.removed=s.meter[DEM_METER_REMOVED];
+  }
   /** The setup's buffers were written from outside (grains added or removed, walls moved): evaluate the forces again. The contact histories are kept. */
   refresh():void {this.evaluate(0);}
   step(count=1):void {for(let s=0;s<count;s++){this.evaluate(this.setup.dt);this.time+=this.setup.dt;this.stats.steps++;}}

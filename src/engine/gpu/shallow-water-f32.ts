@@ -17,6 +17,7 @@
  * Like the float64 solver, the leading half step of friction comes before the face speeds are measured, and the Courant
  * number reported is the first stage's.
  */
+import {checkpointError,readCheckpoint,writeCheckpoint,type StateObject} from '../checkpoint.ts';
 import {EngineError} from '../contracts.ts';
 import {ShallowWater} from '../shallow-water.ts';
 import {SW_FAR} from './shallow-water-wgsl.ts';
@@ -70,6 +71,28 @@ export function shallowWaterSetup(water:ShallowWater):ShallowWaterSetup {
 export interface ShallowWaterF32Stats {substeps:number;totalSubsteps:number;courant:number;maxWaveSpeed:number;wetCells:number}
 
 interface Cell {h:number;e:number;u:number;v:number}
+
+/**
+ * Checkpoints of the float32 shallow-water scheme (GpuShallowWater and ShallowWaterF32 write and read the same bytes):
+ * per cell (h, hu, hv, carry) and (infiltrated, scratch, side volume, its carry), the time, the step count, the length of
+ * the last substep (the leading half of the friction uses it), the rain added, the statistics and the volumes the budget
+ * is taken from. A checkpoint of one restores into the other.
+ */
+export const SHALLOW_WATER_CHECKPOINT='shallow-water-f32-v1';
+export interface ShallowWaterF32State {readonly state:Float32Array;readonly aux:Float32Array;readonly time:number;readonly steps:number;readonly lastSub:number;readonly rainVolume:number;
+  readonly stats:ShallowWaterF32Stats;readonly initialVolume:number;readonly infiltratedAtStart:number;readonly maxCourant:number;readonly courantExceeded:number}
+export function writeShallowWaterCheckpoint(nx:number,nz:number,s:ShallowWaterF32State):Uint8Array {
+  return writeCheckpoint('gpu-shallow-water',{format:SHALLOW_WATER_CHECKPOINT,nx,nz,state:s.state,aux:s.aux,time:s.time,steps:s.steps,lastSub:s.lastSub,rainVolume:s.rainVolume,stats:{...s.stats},
+    initialVolume:s.initialVolume,infiltratedAtStart:s.infiltratedAtStart,maxCourant:s.maxCourant,courantExceeded:s.courantExceeded});
+}
+export function readShallowWaterCheckpoint(nx:number,nz:number,bytes:Uint8Array):ShallowWaterF32State {
+  const t=readCheckpoint(bytes,'gpu-shallow-water') as StateObject;
+  if(t.format!==SHALLOW_WATER_CHECKPOINT)throw checkpointError(`This is a ${String(t.format)} checkpoint; this shallow water reads ${SHALLOW_WATER_CHECKPOINT}.`);
+  if(t.nx!==nx||t.nz!==nz)throw checkpointError(`This checkpoint is of ${String(t.nx)} x ${String(t.nz)} cells; this shallow water has ${nx} x ${nz}.`);
+  if(!(t.state instanceof Float32Array)||t.state.length!==4*nx*nz||!(t.aux instanceof Float32Array)||t.aux.length!==4*nx*nz)throw checkpointError('The shallow-water checkpoint is malformed.');
+  return {state:t.state,aux:t.aux,time:t.time as number,steps:t.steps as number,lastSub:t.lastSub as number,rainVolume:t.rainVolume as number,stats:{...(t.stats as unknown as ShallowWaterF32Stats)},
+    initialVolume:t.initialVolume as number,infiltratedAtStart:t.infiltratedAtStart as number,maxCourant:t.maxCourant as number,courantExceeded:t.courantExceeded as number};
+}
 export class ShallowWaterF32 {
   readonly solver='shallow-water-hr-muscl-hll-f32-reference-v1';
   readonly setup:ShallowWaterSetup;readonly water:ShallowWater;
@@ -82,7 +105,7 @@ export class ShallowWaterF32 {
   readonly stats:ShallowWaterF32Stats={substeps:0,totalSubsteps:0,courant:0,maxWaveSpeed:0,wetCells:0};
   /** Rain volume added so far, m^3 (float64 sum of the float32 depths that were added). */
   rainVolume=0;
-  readonly initialVolume:number;
+  initialVolume:number;
   dt:number;time=0;steps=0;safety=1;
   private readonly stage1:Float32Array;
   private readonly sides:Float32Array;
@@ -116,6 +139,17 @@ export class ShallowWaterF32 {
   }
   private infiltratedAtStart=0;
   volumeError():number {const L=this.ledger();return this.volume()-this.initialVolume-(L.inflow+L.rain-L.infiltrated+L.clipped);}
+  /** An exact checkpoint (the format GpuShallowWater writes and reads too). */
+  checkpoint():Uint8Array {
+    return writeShallowWaterCheckpoint(this.nx,this.nz,{state:Float32Array.from(this.state),aux:Float32Array.from(this.aux),time:this.time,steps:this.steps,lastSub:this.lastSub,rainVolume:this.rainVolume,stats:this.stats,
+      initialVolume:this.initialVolume,infiltratedAtStart:this.infiltratedAtStart,maxCourant:0,courantExceeded:0});
+  }
+  /** Put back a checkpoint (from ShallowWaterF32 or GpuShallowWater); later steps are bit-identical to the run it was taken from. */
+  restoreCheckpoint(bytes:Uint8Array):void {
+    const s=readShallowWaterCheckpoint(this.nx,this.nz,bytes);
+    this.state.set(s.state);this.aux.set(s.aux);this.time=s.time;this.steps=s.steps;this.lastSub=s.lastSub;this.rainVolume=s.rainVolume;Object.assign(this.stats,s.stats);
+    this.initialVolume=s.initialVolume;this.infiltratedAtStart=s.infiltratedAtStart;
+  }
   private countWetCells():number {let w=0;const U=this.state;for(let c=0;c<U.length;c+=4)if(U[c]>this.dry)w++;return w;}
 
   step(count=1):void {for(let s=0;s<count;s++)this.advance(this.dt);}

@@ -97,14 +97,24 @@ interface Subsystem<W, B> {
   validate?(info: {dt, subSteps, timing}): void;   // at registration; throw an EngineError to refuse
   prepare?(ctx): void;                    // everything is at t: read, do not advance
   step(ctx): void;                        // advance, in its stage
+  stepAsync?(ctx): Promise<void>;         // an asynchronous step (a GPU backend): see below
   finish?(ctx): void;                     // everything is at t + dt: emit events
   energy?(): {domain: 'mechanical' | 'thermal'; total: number; exchanged: number; parts: {...}};
   diagnostics?(): unknown;
   dispose?(): void;
   checkpoint?(): StateValue;              // everything later steps and events read, as a state tree (checkpoint.ts)
   restore?(state: StateValue): void;      // put it back; throw CHECKPOINT_MISMATCH for another set-up
+  checkpointAsync?(): Promise<StateValue>; // an asynchronous subsystem's checkpoint (it waits for its device)
+  pullAsync?(): Promise<void>;            // write state held on a device into its CPU objects
 }
 ```
+
+A subsystem with `stepAsync` (the GPU sections of a scene, [`GPU_COMPUTE.md`](GPU_COMPUTE.md#scene-sections-on-the-gpu))
+makes the simulation asynchronous (`simulation.isAsync`): `await simulation.stepAsync()` runs the same order, awaiting
+each asynchronous subsystem in its place and running the others as `step()` does; `await simulation.checkpointAsync()`
+writes the same file format as `checkpoint()`; `await simulation.pullAsync()` brings device state back. `step()` and
+`checkpoint()` refuse such a simulation, and one asynchronous call at a time is allowed. Without asynchronous subsystems
+nothing changes, and `stepAsync()` gives `step()`'s bits.
 
 `ctx` is `{world, tick, time, dt, substeps, emit(type, data)}`: `tick` is the step being computed (1 for the first), `time` its start, `dt` the simulation's fixed step, `substeps` how many of its own steps the subsystem takes in this call. The object is reused between calls.
 

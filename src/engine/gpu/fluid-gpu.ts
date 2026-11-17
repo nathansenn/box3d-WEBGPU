@@ -11,13 +11,14 @@
  * Obstacles: the host works out the faces near each obstacle's surface in float64 (Fluid.backendObstacleBand) and
  * uploads them before each step (16 bytes of indices and 24 of floats per face); the GPU constrains those faces and
  * sums, per obstacle, the constraint impulse and the momentum inside; the host turns the sums into forces
- * (Fluid.finishBackendObstacles). Not on the GPU: the energy ledger, checkpoints, the free surface.
+ * (Fluid.finishBackendObstacles). `checkpoint()` and `restoreCheckpoint()` save and put back the state as bytes (the
+ * format FluidF32 shares). Not on the GPU: the energy ledger, the free surface.
  */
 import {EngineError} from '../contracts.ts';
 import type {Fluid,FluidObstacleBand} from '../fluid.ts';
 import {GpuCompute,GpuProgram} from './compute.ts';
 import {FLUID_PASS,FLUID_WGSL,KERNELS,type KernelName} from './fluid-kernels.ts';
-import {BLOCK_STRIDE,FLUID_SCALARS,FluidProgram,fluidProgramSource,fluidStepStats,MAX_BLOCKS,type FluidBackendOptions,type FluidCommand,type FluidProgramSource} from './fluid-program.ts';
+import {BLOCK_STRIDE,FLUID_SCALARS,FluidProgram,fluidProgramSource,fluidStepStats,MAX_BLOCKS,readFluidProgramCheckpoint,writeFluidProgramCheckpoint,type FluidBackendOptions,type FluidCommand,type FluidProgramSource} from './fluid-program.ts';
 
 export const FLUID_GPU_SOLVER_ID='fluid-mac-projection-jacobi-pcg-webgpu-f32-v1';
 /** Bytes of the three buffers a fluid of this description needs (the largest must fit one storage binding). */
@@ -133,6 +134,22 @@ export class GpuFluid {
     const p=this.program.plan,[vel,pr]=await this.compute.read([{buffer:this.dataBuffer,offset:4*p.F.vel,size:12*p.P},{buffer:this.dataBuffer,offset:4*p.F.p,size:4*p.N}]);
     const V=new Float32Array(vel);
     return {u:V.slice(0,p.P),v:V.slice(p.P,2*p.P),w:V.slice(2*p.P,3*p.P),p:new Float32Array(pr)};
+  }
+  /**
+   * An exact checkpoint of the state (everything submitted has run when it resolves): the bytes FluidF32 writes too, so
+   * either restores it. With obstacles, checkpoint the Fluid they belong to as well (its saveState).
+   */
+  async checkpoint():Promise<Uint8Array> {
+    this.alive();
+    const p=this.program.plan,[vel,prev,pr]=await this.compute.read([{buffer:this.dataBuffer,offset:4*p.F.vel,size:12*p.P},{buffer:this.dataBuffer,offset:4*p.F.prev,size:12*p.P},{buffer:this.dataBuffer,offset:4*p.F.p,size:4*p.N}]);
+    return writeFluidProgramCheckpoint(p,{vel:new Float32Array(vel),prev:new Float32Array(prev),p:new Float32Array(pr),hasPrev:this.program.hasPrev,time:this.time,stats:this.stats});
+  }
+  /** Put back a checkpoint of this fluid program (from GpuFluid or FluidF32); later steps give the bits the run it was taken from gives. */
+  restoreCheckpoint(bytes:Uint8Array):void {
+    this.alive();
+    const p=this.program.plan,s=readFluidProgramCheckpoint(p,bytes);
+    this.compute.write(this.dataBuffer,s.vel,4*p.F.vel);this.compute.write(this.dataBuffer,s.prev,4*p.F.prev);this.compute.write(this.dataBuffer,s.p,4*p.F.p);
+    this.program.hasPrev=s.hasPrev;this.time=s.time;Object.assign(this.stats,s.stats);
   }
   /** Write the state into a Fluid with the same grid (velocity and pressure; its time). */
   async pull(target:Fluid):Promise<void> {

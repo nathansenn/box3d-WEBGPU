@@ -12,7 +12,7 @@
 //   --only       restrict the closed-form set-ups (names as in src/engine/gpu/shallow-water-cases.ts and granular-cases.ts).
 //   --no-cases   skip the closed-form cases (agreement, repeatability and device loss only: about a minute).
 //   --quick      of the granular closed-form cases, only the ones that take seconds (no Janssen, Beverloo, repose).
-//   --no-granular, --no-shallow-water, --no-fluid   leave a backend out.
+//   --no-granular, --no-shallow-water, --no-fluid, --no-checkpoints   leave a backend (or the checkpoint round trips) out.
 //   --dist=path  serve this copy of the built site instead of ./dist (so that a rebuild cannot disturb a long run).
 //   --showcase   instead: open the Lab's examples at scale (lab.html?example=sand-avalanche-100k, flood-valley-1m) at
 //                small sizes (3000 grains, 96 x 96 cells, 16^3 cells; with --hardware the real ones; --showcase-sizes=grains,cells,cube),
@@ -144,7 +144,7 @@ try {
     fs.writeFileSync(path.join(output, hardware ? 'gpu-compute-bench-hardware.json' : 'gpu-compute-bench-software.json'), JSON.stringify({adapter, software: result.info.software, hardwareFlag: hardware, ...result}, null, 2));
   } else {
     const only = value('only')?.split(',');
-    const report = await page.evaluate(options => window.box3dGpu.validate({...options, progress: text => console.log('[gpu] ' + text)}), {only, cases: flag('no-cases') ? false : flag('quick') ? 'quick' : true, granular: !flag('no-granular'), shallowWater: !flag('no-shallow-water'), fluid: !flag('no-fluid')});
+    const report = await page.evaluate(options => window.box3dGpu.validate({...options, progress: text => console.log('[gpu] ' + text)}), {only, cases: flag('no-cases') ? false : flag('quick') ? 'quick' : true, granular: !flag('no-granular'), shallowWater: !flag('no-shallow-water'), fluid: !flag('no-fluid'), checkpoints: !flag('no-checkpoints')});
     const adapter = `${report.info.vendor} ${report.info.architecture} ${report.info.device} ${report.info.description}`.replace(/\s+/g, ' ').trim();
     console.log(`\nAdapter: ${adapter}${report.info.software ? '  (software adapter)' : ''}; ${number(report.seconds)} s\n`);
     const tol = t => `${t.kind === 'upper' ? '<=' : t.kind === 'lower' ? '>=' : t.kind === 'absolute' ? '+-' : '+- rel'} ${number(t.value)}`;
@@ -167,6 +167,12 @@ try {
       }
       if (section.deviceLoss) console.log(`${name}: device lost in mid-run: ${section.deviceLoss.backendBefore} -> ${section.deviceLoss.backendAfter}, ${section.deviceLoss.stepsRerun} steps run again on the CPU; against float64: ${number(section.deviceLoss.vsF64)}\n`);
       if (section.deviceLoss && section.deviceLoss.backendAfter !== 'cpu') failures.push(`${name}: the run did not fall back to the CPU`);
+    }
+    if (report.checkpoints) {
+      console.log('Checkpoints: a GPU run checkpointed half way, restored and taken on');
+      print(['backend', 'set-up', 'steps', 'at', 'bytes', 'restored on the GPU', 'restored on the float32 reference', 'reference vs GPU'], report.checkpoints.map(c => [c.backend, c.setup, c.steps, c.at, c.bytes, c.gpuResumed ? 'identical' : 'DIFFERS', c.referenceResumed ? 'identical' : 'differs', number(c.referenceDifference)]));
+      console.log('');
+      for (const c of report.checkpoints) if (!c.gpuResumed) failures.push(`checkpoint ${c.backend} ${c.setup}: the restored GPU run differs from the straight one`);
     }
     report.failures = failures; report.adapter = adapter; report.pageErrors = errors.filter(e => !/device.*(lost|destroyed)/i.test(e));
     fs.writeFileSync(path.join(output, 'gpu-compute-validation.json'), JSON.stringify(report, null, 2));

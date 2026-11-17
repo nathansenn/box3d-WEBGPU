@@ -15,12 +15,13 @@
  * The state stays on the GPU. `positionBuffer` (x, y, z, radius per grain; a removed grain has its radius negated) can be
  * bound by a renderer. `readWalls()` brings back the walls' forces and impulses (a few hundred bytes per wall): that is
  * all a coupling to rigid bodies needs each step. `read()` brings back the grains.
- * Not here: the energy ledger (dissipated work), checkpoints.
+ * `checkpoint()` and `restoreCheckpoint()` save and put back the state as bytes (the format GranularF32 shares).
+ * Not here: the energy ledger (dissipated work).
  */
 import {EngineError} from '../contracts.ts';
 import {Granular,GranularCoupling} from '../granular.ts';
 import {GpuCompute,GpuProgram} from './compute.ts';
-import {demParams,demSetup,packDemGrains,packDemWalls,readDemWall,type DemOptions,type DemSetup,type DemStats} from './granular-f32.ts';
+import {demParams,demSetup,packDemGrains,packDemWalls,readDemWall,readGranularCheckpoint,writeGranularCheckpoint,type DemOptions,type DemSetup,type DemStats} from './granular-f32.ts';
 import {DEM_BLOCK,DEM_EMPTY,DEM_METER_BUCKET_OVERFLOW,DEM_METER_CONTACTS,DEM_METER_FLAGS,DEM_METER_HISTORY_OVERFLOW,DEM_METER_OVERLAP,DEM_METER_REMOVED,DEM_METER_SLOTS,DEM_PARAMS,DEM_WALL,demShaders} from './granular-wgsl.ts';
 
 export const GRANULAR_GPU_SOLVER_ID='granular-dem-hash-grid-webgpu-f32-v1';
@@ -170,6 +171,26 @@ export class GpuGranular {
     const snapshot={time,steps,count:n,pos:new Float32Array(pos),vel:new Float32Array(vel),spin:new Float32Array(spin),walls:new Float32Array(walls),meter:new Uint32Array(meter)};
     this.book(snapshot.meter,snapshot.walls);
     return snapshot;
+  }
+  /** An exact checkpoint of the state (the format GranularF32 writes and reads too): waits for the steps submitted. */
+  async checkpoint():Promise<Uint8Array> {
+    this.alive();
+    const C=this.setup.capacity,old=this.history[this.parity];
+    const [pos,vel,spin,ft,history,walls,meter]=await this.compute.read([{buffer:this.positionBuffer},{buffer:this.vel},{buffer:this.spin},{buffer:this.ft},{buffer:old},{buffer:this.walls},{buffer:this.meter}]);
+    const m=new Uint32Array(meter);this.book(m,new Float32Array(walls));
+    const kept=new Uint32Array(DEM_METER_SLOTS);for(const k of [DEM_METER_BUCKET_OVERFLOW,DEM_METER_HISTORY_OVERFLOW,DEM_METER_REMOVED])kept[k]=m[k];
+    return writeGranularCheckpoint(this.setup,{pos:new Float32Array(pos,0,4*C),vel:new Float32Array(vel,0,4*C),spin:new Float32Array(spin,0,4*C),ft:new Float32Array(ft,0,8*C),history:new Uint32Array(history),
+      walls:new Uint8Array(walls),meter:kept,time:this.time,stats:this.stats});
+  }
+  /** Put back a checkpoint (from GpuGranular or GranularF32); later steps give the bits the run it was taken from gives. */
+  restoreCheckpoint(bytes:Uint8Array):void {
+    this.alive();
+    const s=readGranularCheckpoint(this.setup,bytes),c=this.compute;
+    c.write(this.positionBuffer,s.pos);c.write(this.vel,s.vel);c.write(this.spin,s.spin);c.write(this.ft,s.ft);
+    this.parity=0;c.write(this.history[0],s.history);c.write(this.history[1],new Uint32Array(s.history.length).fill(DEM_EMPTY));
+    c.write(this.walls,s.walls);new Uint8Array(this.setup.walls).set(s.walls);c.write(this.meter,s.meter);
+    this.setup.pos.set(s.pos);this.setup.vel.set(s.vel);this.setup.spin.set(s.spin);this.setup.ft.set(s.ft);
+    this.time=s.time;Object.assign(this.stats,s.stats);
   }
   /**
    * Write a snapshot (or the present state) into a Granular with the same grains and walls: positions, velocities,

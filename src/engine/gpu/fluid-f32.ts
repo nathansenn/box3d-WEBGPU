@@ -5,7 +5,7 @@
  */
 import {Fluid,type FluidObstacleBand} from '../fluid.ts';
 import {FLUID_PASS,KERNELS,runKernelF32,type KernelName,type PassValues} from './fluid-kernels.ts';
-import {BLOCK_STRIDE,FluidProgram,fluidStepStats,type FluidBackendOptions,type FluidCommand} from './fluid-program.ts';
+import {BLOCK_STRIDE,FluidProgram,fluidStepStats,readFluidProgramCheckpoint,writeFluidProgramCheckpoint,type FluidBackendOptions,type FluidCommand} from './fluid-program.ts';
 
 export const FLUID_F32_SOLVER_ID='fluid-mac-projection-jacobi-pcg-f32-reference-v1';
 
@@ -65,6 +65,16 @@ export class FluidF32 {
     }
   }
   project():void {this.run(this.program.projectOnly());}
+  /** An exact checkpoint of the state (the format GpuFluid writes and reads too). */
+  checkpoint():Uint8Array {
+    const p=this.program.plan;
+    return writeFluidProgramCheckpoint(p,{vel:this.F.slice(p.F.vel,p.F.vel+3*p.P),prev:this.F.slice(p.F.prev,p.F.prev+3*p.P),p:this.F.slice(p.F.p,p.F.p+p.N),hasPrev:this.program.hasPrev,time:this.time,stats:this.stats});
+  }
+  /** Put back a checkpoint of this fluid program (from FluidF32 or GpuFluid); later steps are bit-identical to the run it was taken from. */
+  restoreCheckpoint(bytes:Uint8Array):void {
+    const p=this.program.plan,s=readFluidProgramCheckpoint(p,bytes);
+    this.F.set(s.vel,p.F.vel);this.F.set(s.prev,p.F.prev);this.F.set(s.p,p.F.p);this.program.hasPrev=s.hasPrev;this.time=s.time;Object.assign(this.stats,s.stats);
+  }
   /** Load the fluid's present velocity and pressure (after it was changed from outside). */
   reload():void {this.program.load(this.F,this.fluid.vel,this.fluid.p);}
   /** The velocity component c (padded, as Fluid stores it) and the pressure, as views of F. */

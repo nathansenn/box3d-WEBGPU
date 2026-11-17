@@ -118,6 +118,7 @@ its state in private `#` fields and has an explicit list instead.
 | Links | `thermalSolidLink`: the last heat step handed over. `deadLoadLink`: the weight last applied. `reactionLoadLink`: each body's velocity before the step and the support force last applied. |
 | Shallow water | Every field of `ShallowWater`: depths, discharges, bed, Manning n and soil per cell, infiltrated depths, the volume ledger, sides, clock, the length of the last substep (the leading half of the friction uses it), statistics and work arrays; and the coupling's records of each body (the displaced volume per cell, whether it has been seen). |
 | Event cursors | The cloth, grain, fluid, free-surface and solid-contact adapters' counters that decide when they emit `unconverged`, `grains-removed`, `overlap`, `cfl-exceeded` and `unstable-step`. |
+| GPU sections (`backend: 'gpu'`) | The backend's own checkpoint (fluid, shallow water or grains in float32: [`GPU_COMPUTE.md`](GPU_COMPUTE.md#checkpoints)), taken by `simulation.checkpointAsync()`; a grain section adds its coupling's records (walls, bodies). Bit-exact on resume, against its own float32 run, not against float64. |
 | Simulation | Tick, the `update()` accumulator, the world's tick. Between steps its event queues are empty. |
 
 ## Format

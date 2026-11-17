@@ -19,7 +19,9 @@ Updated 2026-11-17.
 | Incompressible flow on the MAC grid (`fluid-gpu.ts`) | done, with fixed and moving obstacles and rigid bodies coupled through `FluidCoupling`: 24 closed-form rows pass on the GPU (SwiftShader), 19 with the float64 tolerance; the GPU gives the float32 reference's bits, forces included |
 | Free surface (APIC), cloth | **not done** on the GPU (see "Not done" for why the free surface was not attempted) |
 | Shallow water with coupled rigid bodies or point sources on the GPU | **not done** (the float64 solver has both) |
-| `backend: 'gpu'` in the scene format; the Studio's granular tray and river tabs on the GPU | **not done**: the Simulation loop and the Studio solvers are synchronous and float64; see "Not done" |
+| Checkpoints of the GPU backends (`checkpoint()`, `restoreCheckpoint()`) | done for the three backends, a format shared with each float32 reference; bit-exact on resume (gate: references, and the fluid across GPU and reference; SwiftShader: the GPU backends) |
+| `backend: 'gpu'` in the scene format (grains, shallow water), `Simulation.stepAsync()` | done (`src/engine/gpu/scene-backends.ts`); tested in the gate on the float32 reference standing in for the GPU, not through the Lab |
+| The Studio's granular tray and river tabs on the GPU | **not done**: the Studio's solvers run inside its synchronous step |
 | Speed on a real GPU | **not measured**: this machine has no GPU. The command is below |
 
 ## How a GPU backend is validated here
@@ -450,6 +452,83 @@ No simulation data is read back for a frame. The examples read back statistics o
 counters per batch of grain steps; 32 bytes every twentieth batch for shallow water; for the fluid, its 64 scalars (256 bytes) every 16
 iterations of a solve (the solves stop on the GPU) and once at the end of a step.
 
+## Checkpoints
+
+Every GPU backend writes its state as bytes and puts them back (`checkpoint()`, a promise, because it reads the
+buffers; `restoreCheckpoint(bytes)`), in the self-checking container of [`CHECKPOINTS.md`](CHECKPOINTS.md) (format
+version, SHA-256). The float32 reference of each backend writes and reads the same format, so a checkpoint taken on
+the GPU resumes on the CPU reference and the other way round.
+
+| Backend | Kind | What is saved | Bytes |
+|---|---|---|---|
+| `GpuFluid`, `FluidF32` | `gpu-fluid`, `fluid-program-f32-v1` | face velocities with their ghosts, the previous advection (Adams-Bashforth), pressure, whether the next step uses Adams-Bashforth, time, statistics | 28 per padded cell |
+| `GpuShallowWater`, `ShallowWaterF32` | `gpu-shallow-water`, `shallow-water-f32-v1` | (h, hu, hv, carry) and (infiltrated, scratch, side volume, carry) per cell, time, steps, the last substep's length (the leading friction uses it), rain added, the volumes of the budget, statistics | 32 per cell |
+| `GpuGranular`, `GranularF32` | `gpu-granular`, `granular-f32-v1` | position and radius, velocity and mass, spin and inverse inertia, force and torque per grain, the contact histories the next step reads, the walls with their sums, the cumulative counters, time, statistics | 80 + 16 K (32 K with rolling friction) per grain |
+
+Everything else on the device is rewritten by a step before it is read, or constant; a restored backend starts the
+other history buffer empty. Refused (`CHECKPOINT_MISMATCH`): another grid, grain count, history size or wall count,
+another format. A `GpuShallowWater` with `rateLatency` above 0 refuses to checkpoint (its face speeds are on their way).
+With obstacles, the fluid's checkpoint holds the flow; the obstacles' poses, forces and momentum records belong to the
+`Fluid` the backend was built from and are saved with its own `saveState()`.
+
+What is guaranteed, and checked:
+
+- **Bit-exact against its own run.** A run checkpointed at step N, restored into a fresh backend built from the same
+  start and taken to N + M gives the bits of the run taken straight to N + M: in the gate on every float32 reference
+  (all fluid, shallow-water and grain set-ups, with the moving sphere's host restored too), across the GPU and the
+  reference for the fluid (through the stand-in device that runs the kernels, both ways; the GPU writes the reference's
+  bytes), and on SwiftShader for the GPU backends (browser check, table below).
+- **Bit-exact against the float32 reference** where the GPU and the reference agree bit for bit (the agreement tables
+  above: everything here except set-ups that use `pow`, `log` or `exp`, which a GPU may round differently).
+- **Not against float64.** A GPU checkpoint holds float32 numbers; it does not resume the float64 solver, and the
+  float64 solver's checkpoints do not resume a GPU backend (`pull` writes a GPU state into a float64 solver, without its
+  contact histories, as a fall back does).
+
+On SwiftShader (`node scripts/gpu-compute-browser-check.mjs out --no-granular --no-shallow-water --no-fluid`, 2026-11-17,
+124 s at a load average near 30): a GPU run checkpointed half way, restored into a fresh GPU backend built from the
+same start, and taken to the end, against the straight GPU run; and the same checkpoint restored into the float32
+reference.
+
+| Backend | Set-up | Steps (checkpoint at) | Checkpoint bytes | Restored on the GPU | Restored on the float32 reference |
+|---|---|---|---|---|---|
+| shallow water | Thacker, 64 x 64 | 40 (20) | 131 535 | identical bits | depths and discharges identical (difference 0); the per-cell aux words differ |
+| grains | bead box, 360 beads | 400 (150) | 146 228 | identical bits | identical bits |
+| fluid | cubic cavity, 16^3 | 12 (6) | 156 730 | identical bits | identical bits |
+| fluid | moving, turning sphere, 16^3 | 12 (6) | 156 730 | identical bits | identical bits |
+
+The shallow-water difference was not traced further; on Thacker's set-up (closed sides, no soil) the only aux word that
+changes is, by reading the code, the first stage's depth increment, a scratch value rewritten each substep before it is
+read (unverified by a run).
+
+## Scene sections on the GPU
+
+A `grains` or `shallowWater` section of a scene file may say `"backend": "gpu"` ([`SCENE_FORMAT.md`](SCENE_FORMAT.md#sections-on-the-gpu)).
+The Simulation loop has an opt-in asynchronous stage for them:
+
+- A subsystem may have `stepAsync(ctx)`, `checkpointAsync()` and `pullAsync()`. `await simulation.stepAsync()` runs the
+  step in the usual order (prepare, pre-couple, couple, the rigid step, post, finish, events, listeners), awaiting each
+  asynchronous subsystem in its place; the others run exactly as in `step()`. `step()` and `checkpoint()` refuse a
+  simulation with an asynchronous subsystem; a second asynchronous call before the first has resolved is refused.
+  `checkpointAsync()` writes the same file format as `checkpoint()`, and `restore()` puts it back.
+- A simulation without asynchronous subsystems is untouched: `step()` is the same code (one added check), and
+  `stepAsync()` gives its bits (tested on a scene of grains, a see-saw and a valley of water). No scene hash changes:
+  `"cpu"` is the default and is left out of the normal form.
+- `gpuSceneBackends(compute)` (`src/engine/gpu/scene-backends.ts`) builds the GPU sections; the loaders take it as
+  `{gpu}` and refuse a scene with a GPU section without it. The backend is created from the float64 solver the loader
+  made, at the first `stepAsync()`, so loading stays synchronous. Grains: the coupling's begin and finish run on the CPU
+  around the GPU's substeps (`GpuGranularCoupling` with latency 0: the walls' sums are read back before the rigid
+  step), couple stage, order 160. Shallow water: post stage, order 530, at the world step over `substeps`; no bodies.
+- `gpuSceneBackends('reference')` runs the same float32 programs on the CPU instead (slower than the float64 solvers).
+  The gate runs the scene sections that way: two runs give the same bits, a checkpoint taken at step 15 and resumed with
+  `resumeSimulationScene` in a fresh world carries on to step 40 with the bits of the straight run.
+- The state lives on the device. `await simulation.pullAsync()` writes it into the float64 objects the loader made (the
+  `grains` and `shallowWater` maps); saving the scene is refused until a section has been pulled since its last step.
+
+Determinism of a GPU section: float32; repeat runs on the same device and browser are bit-identical; a checkpoint resumes
+bit-exactly; the results are the float32 reference's bits where the agreement tables say "identical", and are not the
+float64 solver's. A checkpoint of a GPU simulation does not restore into a CPU simulation of the same scene without the
+`backend` field (the scene hashes differ).
+
 ## Lab examples at scale
 
 ```
@@ -560,11 +639,9 @@ SwiftShader result; the closed-form rows have margin for that.
 - A **multigrid** pressure preconditioner on the GPU, and the obstacle geometry on the GPU (it is on the host, in
   float64; many moving obstacles would make the host the bottleneck).
 - The fluid coupling rows through the kit's WebAssembly world (they ran through a float64 stand-in world).
-- **`backend: 'gpu'` on scene sections.** `Simulation.step()` and every subsystem are synchronous and their state is
-  checkpointed bit for bit; a GPU backend's results arrive asynchronously and in float32. Wiring one in needs an
-  asynchronous subsystem stage (or the coupling pattern above generalised) and a decision on checkpoints. The Lab
-  examples at scale therefore run beside the Simulation loop, not through the scene format.
-- **The Studio's granular tray and river tabs on the GPU (`?gpu=1`).** Same reason: the Studio's SI solvers run inside
+- **`backend: 'gpu'` for the fluid and in the Lab.** Only grains and shallow water take it; the Lab does not load scenes
+  with GPU backends (its frame loop calls `step()`), and the GPU scene backends are not in the kit.
+- **The Studio's granular tray and river tabs on the GPU (`?gpu=1`).** The Studio's SI solvers run inside
   its synchronous step and its saved runs are exact.
 - **Shallow water with bodies and point sources** on the GPU.
 - **Compensated velocity and position sums** for grains (the incline row above).

@@ -372,6 +372,7 @@ One set of spherical grains by the discrete element method per entry ([`GRANULAR
 | `velocities`, `angularVelocities` | `[x, y, z, ...]` | no | zero | |
 | `walls` | array | no | `[]` | `{shape, position?, rotation?, friction?, rollingFriction?, restitution?}`: fixed walls only the grains feel. `shape` is `plane` (`normal`), `box`, `sphere`, `capsule`, `cylinder` (`radius`, `from`, `to`, `axis?`), `annulus` (`innerRadius`, `outerRadius`, `offset?`, `axis?`) or `frustum` (`r0`, `z0`, `r1`, `z1`, `axis?`), as `Granular.addWall` takes them. |
 | `bodies` | array | no | `[]` | `{body, friction?, rollingFriction?, restitution?, twoWay?, inertia?}`: a box, sphere or capsule body the grains touch and, when it is dynamic, push. |
+| `backend` | `"cpu"` or `"gpu"` | no | `"cpu"` | `"gpu"`: the grains step on the GPU in float32 (at most 16 walls and bodies together), the coupling to walls and bodies stays on the CPU; see [Sections on the GPU](#sections-on-the-gpu). |
 
 Build order, after the frames, cables and their attachments: every cloth in file order (its bodies, planes, then attachments), then every grain set in file order (its walls, then its bodies, then the grains), then the basins. A dynamic body that a cloth or grains push and that no cable or frame carries is counted in the ledger's `rigid` entry. As for the other sections, a body named here cannot be a compound or have an off-origin `massData.center`.
 
@@ -463,6 +464,22 @@ Build order: after the heat grids and before the basins, in file order; a flow a
 
 A save writes a flow's face velocities and pressures and a tank's particles (positions, velocities and affine matrices). A tank's state is complete: a reopened save runs on bit for bit as the original would have (checked over 30 steps). A flow's is not: its Adams–Bashforth history, its energy ledger and the momentum inside its obstacles are not saved, so the first step after a load advects by forward Euler, and the run then differs slightly from the run that was saved; two loads of one save stay bit-identical. To continue a flow exactly, save a checkpoint instead ([`CHECKPOINTS.md`](CHECKPOINTS.md)): it holds the advection history, the ledgers and the obstacles' state, and a run resumed from it is bit-identical. A save of a flow of 4,320 cells is about 160,000 characters of share link; the dam-break tank's 1,440 particles about 250,000.
 
+### Sections on the GPU
+
+Added on 2026-11-17. A `grains` or `shallowWater` entry may say `"backend": "gpu"`. `"cpu"` is the default and is left
+out of the normal form, so every scene written before has the canonical text and hash it had; a scene that uses
+`"gpu"` has its own hash. The loaders build such a section only when given the GPU backends:
+`loadSimulationScene(world, scene, {gpu: gpuSceneBackends(compute)})` (likewise `buildSceneSimulation` and
+`resumeSimulationScene`; `gpuSceneBackends` is in `src/engine/gpu/scene-backends.ts`, which is not in the kit yet).
+Without them the load is refused with `GPU_UNAVAILABLE`. `gpuSceneBackends('reference')` runs the same float32 program on
+the CPU.
+
+The simulation then steps with `await simulation.stepAsync()` and checkpoints with `await simulation.checkpointAsync()`;
+`step()` and `checkpoint()` refuse it. The section's numbers are float32 and its results are not the float64 solver's
+bits; a run repeats bit for bit on the same device, and a checkpoint resumes bit-exactly ([`GPU_COMPUTE.md`](GPU_COMPUTE.md#scene-sections-on-the-gpu)).
+The state lives on the GPU: `await simulation.pullAsync()` writes it into the float64 objects the loader made (the
+`grains` and `shallowWater` maps), and a save of the scene is refused until it has been pulled since the last step.
+
 ### Coupled section: shallow water
 
 One more optional array, `shallowWater`, added on 2026-11-12 under the same rules (see [Versioning](#versioning)). Ids share the namespace of bodies and joints. Numbers are float64. The solver is that of [`SHALLOW_WATER.md`](SHALLOW_WATER.md): depth-averaged water on a bed, in plan along world x and z, with world y up; the world's gravity must point straight down.
@@ -490,6 +507,7 @@ Each entry is a grid of `cells` = [nx, nz] cells of `spacing` metres from `origi
 | `substeps` | integer 1..64 | no | 1 | Solver steps per world step; a grid with bodies must use 1. |
 | `order` | 1 or 2 | no | 2 | |
 | `bodies` | array | no | `[]` | `{body, dragCoefficient?, referenceArea?}`: a box or sphere body whose position is its centre of mass, at most once per grid. |
+| `backend` | `"cpu"` or `"gpu"` | no | `"cpu"` | `"gpu"`: the grid steps on the GPU in float32; not with `bodies`. See [Sections on the GPU](#sections-on-the-gpu). |
 
 What validation checks beyond the types: gravity not straight down; `level` and `depth` together; `qx`/`qz` without `depth`; arrays of the wrong length; an inflow without a discharge or a `span` with to ≤ from; a stage without a level; `substeps` above 1 with bodies; a body that is missing, listed twice, a capsule, hull, mesh, height field or compound, or that has an off-origin `massData.center`. The solver refuses, when the scene is built, an inflow `span` that holds no cell centre (`Scene shallow water "<id>": ...`).
 

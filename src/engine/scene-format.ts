@@ -570,6 +570,11 @@ export interface SceneGrains {
   readonly skin?: number;
   /** Grain steps in one world step: the grains step at world.step / substeps. */
   readonly substeps: number;
+  /**
+   * 'gpu': the grains step on the GPU in float32 (docs/GPU_COMPUTE.md), the coupling to walls and bodies on the CPU; the
+   * simulation then advances with `await stepAsync()`. Default 'cpu' (the float64 solver).
+   */
+  readonly backend?: 'cpu' | 'gpu';
   /** Grains that leave this box are removed. */
   readonly bounds?: {readonly min: SceneVec3; readonly max: SceneVec3};
   /** x, y, z per grain, metres. A save writes the grains that are still there. */
@@ -833,6 +838,11 @@ export interface SceneShallowWater {
   /** 2 (default) or 1. */
   readonly order?: 1 | 2;
   readonly bodies?: readonly SceneShallowWaterBody[];
+  /**
+   * 'gpu': the grid steps on the GPU in float32 (docs/GPU_COMPUTE.md; no bodies); the simulation then advances with
+   * `await stepAsync()`. Default 'cpu' (the float64 solver).
+   */
+  readonly backend?: 'cpu' | 'gpu';
 }
 
 /** The optional coupled sections of a scene. */
@@ -1595,7 +1605,7 @@ const CLOTH_KEYS = ['id', 'nodes', 'restNodes', 'triangles', 'velocities', 'mate
   'maxCgIterations', 'cgTolerance', 'contact', 'selfCollision', 'bodies', 'planes', 'attachments'];
 const CLOTH_MATERIAL_KEYS = ['arealDensity', 'youngModulus', 'thickness', 'poissonRatio', 'membrane', 'bending', 'bendingStiffness'];
 const GRAIN_KEYS = ['id', 'material', 'law', 'normalStiffness', 'tangentialStiffnessRatio', 'tangentialDamping', 'skin', 'substeps', 'bounds', 'positions', 'radii', 'velocities',
-  'angularVelocities', 'walls', 'bodies'];
+  'angularVelocities', 'walls', 'bodies', 'backend'];
 const GRAIN_MATERIAL_KEYS = ['density', 'youngModulus', 'poissonRatio', 'restitution', 'friction', 'rollingFriction'];
 const GRAIN_WALL_SHAPES: Record<string, readonly [readonly string[], readonly string[]]> = {
   plane: [['kind', 'normal'], ['kind', 'normal']], box: [['kind', 'halfExtents'], ['kind', 'halfExtents']], sphere: [['kind', 'radius'], ['kind', 'radius']],
@@ -1750,6 +1760,8 @@ function checkGrains(c: Checker, set: unknown, path: string, ctx: CoupledContext
   if (set.tangentialDamping !== undefined) c.real(set.tangentialDamping, `${path}/tangentialDamping`, 0, 1e3);
   if (set.skin !== undefined) c.real(set.skin, `${path}/skin`, 1e-12, 1e6);
   if (set.substeps !== undefined) c.real(set.substeps, `${path}/substeps`, 1, SCENE_LIMITS.grainSubsteps, true);
+  if (set.backend !== undefined && set.backend !== 'cpu' && set.backend !== 'gpu') c.add(`${path}/backend`, `must be 'cpu' or 'gpu', got ${show(set.backend)}`);
+  if (set.backend === 'gpu' && Array.isArray(set.walls) && set.walls.length + (Array.isArray(set.bodies) ? set.bodies.length : 0) > 16) c.add(`${path}/backend`, 'the GPU grains take at most 16 walls and bodies together');
   if (set.bounds !== undefined && c.object(set.bounds, `${path}/bounds`, ['min', 'max'], ['min', 'max'])) {
     const lo = set.bounds.min, hi = set.bounds.max;
     if (lo !== undefined && hi !== undefined && c.realTuple(lo, `${path}/bounds/min`, 3) && c.realTuple(hi, `${path}/bounds/max`, 3) && !(hi[0] > lo[0] && hi[1] > lo[1] && hi[2] > lo[2])) c.add(`${path}/bounds/max`, 'must exceed bounds.min on every axis');
@@ -2210,7 +2222,7 @@ function checkFluid(c: Checker, fluid: unknown, path: string, ctx: CoupledContex
   }
 }
 
-const SHALLOW_KEYS = ['id', 'cells', 'spacing', 'origin', 'bed', 'level', 'depth', 'qx', 'qz', 'infiltrated', 'manning', 'soil', 'rain', 'boundaries', 'density', 'substeps', 'order', 'bodies'];
+const SHALLOW_KEYS = ['id', 'cells', 'spacing', 'origin', 'bed', 'level', 'depth', 'qx', 'qz', 'infiltrated', 'manning', 'soil', 'rain', 'boundaries', 'density', 'substeps', 'order', 'bodies', 'backend'];
 const SHALLOW_SIDES = ['xMin', 'xMax', 'zMin', 'zMax'] as const;
 function checkShallowWater(c: Checker, water: unknown, path: string, ctx: CoupledContext, gravity: readonly number[]): void {
   if (!c.object(water, path, SHALLOW_KEYS, ['id', 'cells', 'spacing'])) return;
@@ -2223,6 +2235,8 @@ function checkShallowWater(c: Checker, water: unknown, path: string, ctx: Couple
   if (typeof water.spacing === 'number') c.positive(water.spacing, `${path}/spacing`, 1e4);
   else if (c.realTuple(water.spacing, `${path}/spacing`, 2)) for (let k = 0; k < 2; k++) c.positive(water.spacing[k], `${path}/spacing/${k}`, 1e4);
   if (water.origin !== undefined) c.realTuple(water.origin, `${path}/origin`, 2);
+  if (water.backend !== undefined && water.backend !== 'cpu' && water.backend !== 'gpu') c.add(`${path}/backend`, `must be 'cpu' or 'gpu', got ${show(water.backend)}`);
+  if (water.backend === 'gpu' && Array.isArray(water.bodies) && water.bodies.length > 0) c.add(`${path}/backend`, 'the GPU shallow water has no bodies');
   if (n > 0) {
     if (water.bed !== undefined) c.reals(water.bed, `${path}/bed`, n, -1e6, 1e6);
     if (water.depth !== undefined) c.reals(water.depth, `${path}/depth`, n, 0, 1e6);
@@ -2612,6 +2626,7 @@ function normalGrains(set: SceneGrains): SceneGrains {
   if (set.tangentialDamping !== undefined && set.tangentialDamping !== 1) out.tangentialDamping = zero(set.tangentialDamping);
   if (set.skin !== undefined) out.skin = set.skin;
   out.substeps = set.substeps;
+  if (set.backend === 'gpu') out.backend = 'gpu';
   if (set.bounds) out.bounds = {min: vec(set.bounds.min), max: vec(set.bounds.max)};
   out.positions = vec(set.positions); out.radii = [...set.radii];
   if (!allZero(set.velocities)) out.velocities = vec(set.velocities!);
@@ -2774,6 +2789,7 @@ function normalShallowWater(water: SceneShallowWater): SceneShallowWater {
   if (water.density !== undefined && water.density !== 1000) out.density = water.density;
   if (water.substeps !== undefined && water.substeps !== 1) out.substeps = water.substeps;
   if (water.order === 1) out.order = 1;
+  if (water.backend === 'gpu') out.backend = 'gpu';
   if (water.bodies && water.bodies.length > 0) out.bodies = water.bodies.map(entry => ({body: entry.body, ...(entry.dragCoefficient !== undefined ? {dragCoefficient: entry.dragCoefficient} : {}), ...(entry.referenceArea !== undefined ? {referenceArea: entry.referenceArea} : {})}));
   return out as unknown as SceneShallowWater;
 }
