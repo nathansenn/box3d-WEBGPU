@@ -1,5 +1,11 @@
 # Changelog
 
+## Unreleased — 2026-11-17 — Bridge: a checkpoint no longer changes on its first restore (ND-6)
+
+- **Cause:** the 4 bytes of ND-6 were a float32 0.3, the radius of the sphere the test scene destroys. The crate box made later took that sphere's shape slot; Box3D sets only the hull pointer in the shape's geometry union, so the radius stayed in the union's remaining bytes. Box3D's snapshot writes each live shape struct as it is, and its restore clears the union and reads the geometry from its own record, so the checkpoint taken after a restore had zeros there (and the kit header's 32-byte digest differed with it). Nothing simulated read those bytes.
+- **Bridge** (`wasm/box3d_snapshot.c`; both WASM files and `BUILD_PROVENANCE.json` rebuilt; API version 1): the checkpoint image zeroes the bytes of a live shape's geometry union that its kind does not use (past a sphere or a mesh; past the pointer of a hull, height field or compound), as it already zeroed the pointer. Checkpoints of worlds without a reused shape slot are byte-for-byte as before (the ND-6 scene without its destroyed body: sha256 prefix d129c5d5… with the old and the new WASM); no simulation changes.
+- **Tests:** the ND-6 test in `tests/fuzz/native-defects.test.mjs` is an ordinary test now (checkpoint, restore, checkpoint: equal bytes); `world-misuse.test.mjs` takes its baseline without a restore first. Docs: docs/ROBUSTNESS.md (native-defect table), docs/RIGID_CORE.md section 10.
+
 ## Unreleased — 2026-11-16 — The bridge's native-defect fixes land on the hardened API; the kit reports containments
 
 - **Landed:** the five bridge fixes ND-1 to ND-5 (the five entries below) on the fuzzing and hardening work. `native-world.ts` keeps both: the `RIGID_LIMITS` guards, the large-shape record and the retype refusal, and the containment events, `containedTotal()`, `b3w_world_restore_ex` and the record of this world's checkpoints. Both WASM files were rebuilt once from the final C and came out byte-identical to the ones the series committed (`box3d.wasm` 2c1538d9…, `box3d-mt.wasm` e7654da3…), so `BUILD_PROVENANCE.json` is unchanged; API version 1.

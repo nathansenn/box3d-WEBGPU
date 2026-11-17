@@ -605,6 +605,16 @@ The fuzzers (`tests/fuzz`, docs/ROBUSTNESS.md) found defects in the native side.
   fastest spin at 55 to 286 rad/s instead of 567 to 9,968, and containment still never fires in the example scenes
   or the catalog. The anchor rule of `diagnose()` (`joint-lever`) remains the way to keep a mechanism from needing it.
 
+- **ND-6, a checkpoint that changed on its first restore.** Checkpoint, restore it, checkpoint again: 4 bytes of the
+  native payload differed (36 with the kit header's digest) in a world where a body had been destroyed and a box was
+  created later. The box took the destroyed sphere's shape slot, and Box3D sets only the hull pointer of the shape's
+  geometry union, so the sphere's radius stayed in the union's remaining bytes. Box3D's snapshot writes each live
+  shape struct as it is, and its restore clears the union before reading the geometry from its own record, so the
+  checkpoint after a restore had zeros there. Nothing simulated read those bytes. `wasm/box3d_snapshot.c` already
+  zeroed the hull pointer in the image; it now also zeroes the bytes of the union that the shape's kind does not use
+  (past a sphere or a mesh, or past the pointer of a hull, height field or compound). A world without a reused shape
+  slot writes the same bytes as before.
+
 ## Custom filter and pre-solve callbacks: not exposed
 
 Box3D can call the application for every candidate pair (`b3World_SetCustomFilterCallback`) and for every touching

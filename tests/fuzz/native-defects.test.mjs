@@ -1,8 +1,8 @@
 // Defects the fuzzers found in the native side (Box3D, or the C bridge wasm/box3d_web.c).
 //
-// Each test states the correct behaviour. ND-1 to ND-5 are fixed in the C bridge (docs/RIGID_CORE.md, section 10;
+// Each test states the correct behaviour. ND-1 to ND-6 are fixed in the C bridge (docs/RIGID_CORE.md, section 10;
 // packages/box3d-kit/test/v22-rigid-native.test.mjs checks the fixes in more detail) and their tests are ordinary
-// tests. ND-6 is still open: its test is marked `todo` with the report, so it runs in the gate, shows as an expected
+// tests. A defect found later gets its test marked `todo` with the report, so it runs in the gate, shows as an expected
 // failure, and does not fail the run; when it passes, remove the `todo`. Severity: how bad it is for a caller who meets it.
 //
 //   ND-1  high    Box3D's step does not return for a dynamic box with half extents of about 1.5 km or more (or a dynamic
@@ -22,13 +22,13 @@
 //   ND-5  high    Jointed mechanisms diverged inside Box3D in about one random program in 150 with every input in range.
 //                 Fixed as far as the bridge can: the containment of ND-2 also bounds spin (ten times Box3D's quarter
 //                 turn per step), so the world stays finite; a mechanism that still runs away is contained and reported.
-//   ND-6  low     The first restore of a checkpoint can change it: checkpoint, restore that checkpoint, checkpoint
-//                 again, and 36 bytes differ (the 32-byte digest of the kit's header and 4 bytes of the native payload) in
-//                 a world where a body was destroyed and two more created before a spherical joint was made. Body states
-//                 are equal, a second restore is byte-exact and the next step is identical, so only byte comparisons of
-//                 checkpoints see it. Present in 797cd68 and in c059041 alike, and with b3w_world_restore_ex (ND-3) as with
-//                 b3w_world_restore. Guard: none needed for physics; world-misuse.test.mjs takes its baseline after one
-//                 restore. Found by the misuse table after the rigid-core merge added bodies to its scene.
+//   ND-6  low     The first restore of a checkpoint changed it: checkpoint, restore that checkpoint, checkpoint
+//                 again, and 36 bytes differed (the 32-byte digest of the kit's header and 4 bytes of the native payload)
+//                 in a world where a body was destroyed and a box later took its shape slot. The 4 bytes were the
+//                 destroyed sphere's radius, left in the box's geometry union after its hull pointer: Box3D's snapshot
+//                 writes the shape struct as it is, its restore clears the union. Body states were equal, so only byte
+//                 comparisons of checkpoints saw it. Fixed in wasm/box3d_snapshot.c: the image zeroes the bytes of the
+//                 union that the shape's kind does not use. Found by the misuse table after the rigid-core merge.
 import assert from 'node:assert/strict';
 import test from 'node:test';
 import {spawnSync} from 'node:child_process';
@@ -131,7 +131,7 @@ test('ND-5: a random program of in-range operations with joints stays finite', a
   }
 });
 
-test('ND-6: restoring a checkpoint and taking it again gives the same bytes', {todo: 'bridge or Box3D: the first restore rewrites 4 bytes of the native checkpoint (36 with the header digest) after a destroyed body slot was reused; not changed by the ND-3 fix'}, async () => {
+test('ND-6: restoring a checkpoint and taking it again gives the same bytes', async () => {
   const {kit} = await import('./lib/kit.mjs');
   const world = await kit.createWorld({gravity: [0, -9.81, 0]});
   try {
@@ -151,12 +151,12 @@ test('ND-6: restoring a checkpoint and taking it again gives the same bytes', {t
     const states = () => Array.from({length: world.bodyCount()}, (_, row) => JSON.stringify(world.getState(world.bodyAt(row)))).join();
     const before = world.checkpoint(), stateBefore = states();
     world.restoreCheckpoint(before);
-    // What holds today: the physical state is exact, and a second restore is byte-exact.
+    // The physical state is exact, a second restore is byte-exact, and the first restore did not change the bytes
+    // (it did before the fix: the destroyed sphere's radius stayed in the shape slot the crate took).
     assert.equal(states(), stateBefore);
     const once = world.checkpoint();
     world.restoreCheckpoint(once);
     assert.deepEqual(world.checkpoint(), once);
-    // The defect: the first restore changed the bytes.
     assert.deepEqual(once, before);
   } finally { world.dispose(); }
 });

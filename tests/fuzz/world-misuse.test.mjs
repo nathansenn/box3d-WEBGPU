@@ -51,9 +51,7 @@ function build() {
   handles.clear();
   for (const h of [box, ball, mover, post, wheelBody, crate, slab]) handles.set(h, bodyHostiles);
   for (const h of [hinge, wheel, motorJoint, ballJoint, parallelJoint]) handles.set(h, jointHostiles);
-  // The first restore of a checkpoint can rewrite a few bytes of it (native defect ND-6: the physical state is the
-  // same), so the baseline is a checkpoint that has been through one restore; from there restores are byte-exact.
-  world.restoreCheckpoint(world.checkpoint());
+  // Restores are byte-exact, the first one included (native defect ND-6, fixed), so the baseline is the checkpoint itself.
   base = world.checkpoint();
 }
 build();
