@@ -19,6 +19,10 @@
  *     is an error of the order of the change in the pressure increment between steps; the tests measure it.
  *   - tension: Rankine (each principal stress <= f_t(kappa_t)), with a softening law in the crack opening w = kappa_t h,
  *     of area G_f (linear by default).
+ *   - after the compressive peak (postPeak 'band', the default since 2026-11-17): an associated softening surface
+ *     q r(theta) + psi_s p <= A s(kappa_c), psi_s = -1.5 (no lateral plastic strain on the compressive meridian, so a crushed
+ *     band across the load stays compatible with the material beside it), anchored at the state in which the element passed
+ *     its peak (`ConcreteReturn.element`). Each element's softening is laid out on its own band width (`bandScale`).
  *
  * Both are plasticity: a crack or a crushed band unloads with the elastic stiffness and keeps its inelastic strain.
  * The "damage" this module reports is the loss of strength, 1 - k / k_peak after the peak in compression and
@@ -58,19 +62,31 @@ export interface ConcreteLawInput {
    * dilatancy angle of 30 to 35 degrees is the usual base value for normal-strength concrete in the concrete damaged
    * plasticity model (E. A. Isakov, "Concrete damage plasticity parameters for the analysis of reinforced concrete structures", Structural Mechanics of Engineering Constructions and Buildings 22(1) (2025) 28-38, doi:10.22363/1815-5235-2025-22-1-28-38, a review). */
   readonly dilatancy?:number;
+  /** psi of the plastic potential after the compressive peak (softening), -2 to 2. Default -1.5: on the compressive meridian
+   * the plastic flow is then along the axis alone, (-1 + psi / 3, 1/2 + psi / 3, 1/2 + psi / 3) = (-1.5, 0, 0) per unit kappa_c,
+   * so a crushed band across the load has no lateral plastic strain and stays compatible with the elastic material beside
+   * it (see docs/SOLID_MECHANICS.md, crack band). */
+  readonly softeningDilatancy?:number;
+  /** What an element does after its compressive peak. 'band' (default): the softening surface of the crack band
+   * (`softeningDilatancy`, `ConcreteReturn.element`), which localises in one band of elements. 'lagged': it stays on the
+   * lagged-pressure surface, as before 2026-11-17 (confinement and dilatancy keep acting; a band does not localise in
+   * compression). The nonlocal option is 'lagged'. */
+  readonly postPeak?:'band'|'lagged';
   /** Equal-biaxial compressive strength over f_cm, which sets the eccentricity of the deviatoric section. Default 1.16
    * (Kupfer, Hilsdorf and Rusch 1969, abstract). The eccentricity must come out between 0.5 and 1. */
   readonly biaxialRatio?:number;
   /** End of the elastic range in compression, a fraction of f_cm. Default 0.4 (E_cm is the secant to 0.4 f_cm).
    * 1 makes the material elastic up to the peak (a brittle ceramic). */
   readonly elasticLimit?:number;
-  /** Crack band width h, m: the width of a band of elements that localises. Default (6 V)^(1/3), V the mean element
-   * volume (the cell size of a box mesh of six tetrahedra per cell). */
+  /** Crack band width h, m, the same for every element. Default: per element (`SolidBody`), the element's width along the
+   * major (tension) or minor (compression) principal stress direction of its last committed state, fixed when it starts to
+   * soften; the law's own tables are then laid out for (6 V)^(1/3), V the mean element volume, and scaled per element. */
   readonly bandWidth?:number;
   /** Tension softening as stress fractions of f_t at crack openings in m, [w, s, w, s, ...] after (0, 1); the last
    * stress must be 0. Default linear: [2 G_f / f_t, 0]. When given, its area must equal fractureEnergy. */
   readonly tensionSoftening?:readonly number[];
   /** Material length l of a nonlocal average for compressive softening, m. 0 (default): local, crack band in compression.
+   * With it the law keeps the lagged-pressure surface after the peak (postPeak 'lagged').
    * Above 0 an element's compressive strength in a step is k(kappa_bar), kappa_bar the average of the committed kappa_c of
    * the elements around it with the weight exp(-(r / l)^2) V (r the distance between centroids, out to 2 l), so a crushed
    * zone cannot be narrower than about l whatever the element size; the compressive softening is then laid out on the band
@@ -83,12 +99,14 @@ export interface ConcreteLawInput {
 
 /** The law with its curves tabulated for one solid (its E, nu and band width): frozen, a constant of the solid. */
 export interface ConcreteLaw {
-  readonly input:Readonly<Required<Omit<ConcreteLawInput,'tensionSoftening'|'bandWidth'|'friction'|'meridian'|'nonlocalLength'>>&{tensionSoftening:readonly number[];meridian:readonly number[]}>;
+  readonly input:Readonly<Required<Omit<ConcreteLawInput,'tensionSoftening'|'bandWidth'|'friction'|'meridian'|'nonlocalLength'|'postPeak'>>&{tensionSoftening:readonly number[];meridian:readonly number[]}>;
   readonly youngModulus:number;readonly poissonRatio:number;
   /** Slope of the meridian at uniaxial compression, d(q / f_cm) / d(xi / f_cm). */
   readonly friction:number;
   /** psi of the plastic potential; eccentricity e of the Willam-Warnke section (1: a circle, Drucker-Prager). */
   readonly dilatancy:number;readonly eccentricity:number;
+  /** psi of the plastic potential after the compressive peak (postPeak 'band'), and the post-peak behaviour. */
+  readonly softeningDilatancy:number;readonly postPeak:'band'|'lagged';
   /** Meridian breakpoints (xi / f_cm) and values (q / f_cm), extended by the end slopes; floored at 0.05. */
   readonly mx:Float64Array;readonly my:Float64Array;
   readonly bandWidth:number;
@@ -101,14 +119,30 @@ export interface ConcreteLaw {
   readonly compressionEnergyFactor:number;readonly tensionEnergyFactor:number;
   /** Hardening k(kappa_c): breakpoints, values (Pa; k = f_cm at the peak) and the integral of k from 0 (J/m^3). Constant past the end. */
   readonly kx:Float64Array;readonly ky:Float64Array;readonly kint:Float64Array;
+  /** The softening surface after the peak: the uniaxial stress over f_cm against kappa_c (1 up to kappaPeak; past it, kappa_c
+   * is kappaPeak plus the axial plastic strain past the peak), and its integral; kx[peakIndex] is the peak. */
+  readonly sx:Float64Array;readonly sy:Float64Array;readonly sint:Float64Array;readonly peakIndex:number;
+  /** Band widths, m, at which an element snaps back: E over the steepest fall of the softening stress per unit opening
+   * (tension; 2 E G_f / f_t^2 for linear softening) or plastic displacement (compression). */
+  readonly snapBackLength:Readonly<{tension:number;compression:number}>;
+  /** Band widths, m, beyond which the softening is stretched (half the stiffness of the return, below the snap-back
+   * length): an element of band width h above it dissipates h / stretchLength times G per unit area. */
+  readonly stretchLength:Readonly<{tension:number;compression:number;compressionLagged:number}>;
+  /** Whether erosionOpening was given (otherwise it follows the end of each element's tension softening). */
+  readonly erosionGiven:boolean;
   /** Rankine strength f_t(kappa_t): breakpoints, values and integral. */
   readonly tx:Float64Array;readonly ty:Float64Array;readonly tint:Float64Array;
   /** kappa_c at the compressive peak and at zero compressive strength (crushed). */
   readonly kappaPeak:number;readonly kappaCrushed:number;
   /** kappa_t at which an element erodes. */
   readonly kappaErode:number;
-  /** Axial plastic strain per unit kappa_c in uniaxial compression, 1 - psi / 3. */
-  readonly axialFlow:number;
+  /** Axial plastic strain per unit kappa_c in uniaxial compression, 1 - psi / 3 (the lagged-pressure surface, kx), and
+   * 1 - psi_s / 3 on the softening surface (sx). */
+  readonly axialFlow:number;readonly softeningFlow:number;
+  /** kappa_c at which the softening surface reaches zero (crushed; local law). */
+  readonly kappaCrushedSoftening:number;
+  /** Axial plastic strain of uniaxial compression at kappa_c = kappaCrushed. */
+  readonly crushedStrain:number;
   /** Uniaxial compression curve of the law for this band width: total strain and stress (positive in compression). */
   readonly uniaxialStrain:Float64Array;readonly uniaxialStress:Float64Array;
 }
@@ -118,6 +152,9 @@ const freeze=<T extends object>(o:T):T=>Object.freeze(o);
 export const DEFAULT_FRICTION=3*(1.16-1)/(2*1.16-1);
 /** Default dilatancy psi = tan 30 degrees. */
 export const DEFAULT_DILATANCY=Math.tan(Math.PI/6);
+/** Default dilatancy after the compressive peak: no lateral plastic strain on the compressive meridian. */
+export const DEFAULT_SOFTENING_DILATANCY=-1.5;
+
 /** EN 1992-1-1 (3.24) and (3.25), sigma_2 = sigma_3 = x f_ck, f_ck,c = f_ck (1 + 5 x) to x = 0.05, then f_ck (1.125 + 2.5 x):
  * as [xi / f, q / f] with xi = (f_c,c + 2 sigma_2) / 3 and q = f_c,c - sigma_2. */
 export const EN1992_MERIDIAN:readonly number[]=Object.freeze([1/3,1,(1.25+.1)/3,1.25-.05,(3.625+2)/3,3.625-1]);
@@ -168,7 +205,7 @@ function ec2AscendingStrain(s:number,k:number,peakStrain:number):number {
 /** Tabulates the law for a solid of Young's modulus E (the secant E_cm), Poisson's ratio nu and mean element volume. */
 export function buildConcreteLaw(input:unknown,youngModulus:number,poissonRatio:number,meanVolume:number):ConcreteLaw {
   const c=record(input,'concrete');
-  onlyKeys(c,['compressiveStrength','tensileStrength','peakStrain','ultimateStrain','fractureEnergy','crushingEnergy','meridian','friction','dilatancy','biaxialRatio','elasticLimit','bandWidth','tensionSoftening','erosionOpening','nonlocalLength'],'concrete');
+  onlyKeys(c,['compressiveStrength','tensileStrength','peakStrain','ultimateStrain','fractureEnergy','crushingEnergy','meridian','friction','dilatancy','softeningDilatancy','postPeak','biaxialRatio','elasticLimit','bandWidth','tensionSoftening','erosionOpening','nonlocalLength'],'concrete');
   const E=youngModulus,fcm=finite(c.compressiveStrength,'compressiveStrength',1e3,1e11),ft=finite(c.tensileStrength,'tensileStrength',1,1e10);
   const ec1=finite(c.peakStrain,'peakStrain',1e-7,.5),ecu=finite(c.ultimateStrain,'ultimateStrain',1e-7,.5),Gf=finite(c.fractureEnergy,'fractureEnergy',1e-6,1e8);
   const wdDefault=5e-4,Gc=c.crushingEnergy===undefined?fcm*wdDefault/2:finite(c.crushingEnergy,'crushingEnergy',1e-6,1e9);
@@ -200,6 +237,10 @@ export function buildConcreteLaw(input:unknown,youngModulus:number,poissonRatio:
   if(!(ecc>.5&&ecc<=1))throw new EngineError('INVALID_PAYLOAD',`The biaxial ratio ${biaxial} needs a deviatoric eccentricity ${ecc.toFixed(3)} outside (0.5, 1] with this meridian.`);
   const flow=1-psi/3;
   if(!(flow>0))throw new EngineError('INVALID_PAYLOAD','The dilatancy must be below 3.');
+  const psiS=c.softeningDilatancy===undefined?DEFAULT_SOFTENING_DILATANCY:finite(c.softeningDilatancy,'softeningDilatancy',-2,2),flowS=1-psiS/3;
+  if(c.postPeak!==undefined&&c.postPeak!=='band'&&c.postPeak!=='lagged')throw new EngineError('INVALID_PAYLOAD','postPeak is \'band\' or \'lagged\'.');
+  const postPeak:'band'|'lagged'=nonlocal>0?'lagged':c.postPeak??'band';
+  if(nonlocal>0&&c.postPeak==='band')throw new EngineError('INVALID_PAYLOAD','The nonlocal option keeps the lagged-pressure surface after the peak (postPeak \'lagged\').');
   // ---- Uniaxial compression: stress against the axial plastic strain (reference band) ----
   const k=1.05*E*ec1/fcm;let s0=limit;
   const pre:[number,number][]=[];
@@ -261,6 +302,19 @@ export function buildConcreteLaw(input:unknown,youngModulus:number,poissonRatio:
   let cStretch=1;const cLimit=.5*(3*mu+K*psi*psi)/flow,np=pre.length-1;
   for(let i=np+1;i<kx.length;i++){const slope=(post[i-np][1]-post[i-np-1][1])/(kx[i]-kx[i-1]);if(-slope>cLimit)cStretch=Math.max(cStretch,-slope/cLimit);}
   if(cStretch>1)for(let i=np+1;i<kx.length;i++)kx[i]=kx[np]+(kx[i]-kx[np])*cStretch;
+  // Band widths of compression: the steepest fall of the post-peak stress per unit plastic displacement w (= p L_c) gives
+  // the snap-back length E / max|ds/dw| (a bar element of this band width unloads elastically as fast as its band softens)
+  // and the stretch length, beyond which the table above is stretched.
+  let steepC=0;for(let i=1;i<post.length;i++)steepC=Math.max(steepC,(post[i-1][1]-post[i][1])/((post[i][0]-post[i-1][0])*referenceLength));
+  const snapC=steepC>0?E/steepC:Infinity,stretchPre=steepC>0?cLimit/(flow*steepC):Infinity;
+  // The softening surface after the peak (local law; `ConcreteReturn.element`): the uniaxial stress over f_cm against kappa_c,
+  // whose axial plastic strain grows by flowS per unit (the softening dilatancy), on the band hc; stretched like the table
+  // above when hc is wider than its stretch length (the uniqueness of the associated return: (3 mu + K psi_s^2) / flowS^2).
+  const cLimitS=.5*(3*mu+K*psiS*psiS)/flowS,stretchC=steepC>0?cLimitS/(flowS*steepC):Infinity,ibS=Math.max(1/hc,1/stretchC);
+  // Its abscissa past the peak is the axial plastic strain past the peak (not kappa_c): the flow per unit multiplier,
+  // 1 - psi / 3, changes with psi along the softening (a step converts it with the flow of psi_s (ConcreteReturn.setup).
+  const sxs=[0,kx[np]],sys=[1,1];for(let i=1;i<post.length;i++){sxs.push(kx[np]+post[i][0]*referenceLength*ibS);sys.push(post[i][1]/fcm);}
+  const sx=Float64Array.from(sxs),sy=Float64Array.from(sys),local=postPeak==='band',fl=local?flowS:flow;
   // ---- Tension: f_t(w), w = kappa_t h ----
   let table:number[];
   if(c.tensionSoftening===undefined)table=[2*Gf/ft,0];
@@ -277,19 +331,39 @@ export function buildConcreteLaw(input:unknown,youngModulus:number,poissonRatio:
   let tStretch=1;const tLimit=.5*(lambda+2*mu);
   for(let i=1;i<tx.length;i++){const slope=(ty[i]-ty[i-1])/(tx[i]-tx[i-1]);if(-slope>tLimit)tStretch=Math.max(tStretch,-slope/tLimit);}
   if(tStretch>1)for(let i=1;i<tx.length;i++)tx[i]*=tStretch;
+  let steepT=0;{let w0=0,s0=1;for(let i=0;i<table.length;i+=2){steepT=Math.max(steepT,(s0-table[i+1])*ft/(table[i]-w0));w0=table[i];s0=table[i+1];}}
+  const snapT=E/steepT,stretchT=tLimit/steepT;
   const wEnd=table[table.length-2]*tStretch,erosionOpening=c.erosionOpening===undefined?Math.max(1e-3,wEnd):finite(c.erosionOpening,'erosionOpening',1e-9,1);
   const integral=(x:Float64Array,y:Float64Array)=>{const out=new Float64Array(x.length);for(let i=1;i<x.length;i++)out[i]=out[i-1]+(x[i]-x[i-1])*(y[i]+y[i-1])/2;return out;};
   // The law's own uniaxial curve for this band (total strain, stress), for plots and tests.
   const ue:number[]=[0],us:number[]=[0];
   for(let i=0;i<pre.length;i++){ue.push(pre[i][0]+pre[i][1]/E);us.push(pre[i][1]);}
-  for(let i=1;i<post.length;i++){const p=ep1+(kx[np+i]-kx[np])*flow;ue.push(p+post[i][1]/E);us.push(post[i][1]);}
+  for(let i=1;i<post.length;i++){const p=ep1+(local?sx[i+1]-sx[1]:(kx[np+i]-kx[np])*fl);ue.push(p+post[i][1]/E);us.push(post[i][1]);}
   return freeze({
-    input:freeze({compressiveStrength:fcm,tensileStrength:ft,peakStrain:ec1,ultimateStrain:ecu,fractureEnergy:Gf,crushingEnergy:Gc,dilatancy:psi,biaxialRatio:biaxial,meridian:freeze(meridian),elasticLimit:s0,erosionOpening,tensionSoftening:freeze(table)}),
-    youngModulus:E,poissonRatio,friction,dilatancy:psi,eccentricity:ecc,mx,my,bandWidth:h,nonlocalLength:nonlocal,compressionBand:hc,referenceLength,compressionEnergyFactor:cStretch,tensionEnergyFactor:tStretch,
-    kx,ky,kint:integral(kx,ky),tx,ty,tint:integral(tx,ty),
-    kappaPeak:kx[pre.length-1],kappaCrushed:kx[kx.length-1],kappaErode:erosionOpening/h,axialFlow:flow,
+    input:freeze({compressiveStrength:fcm,tensileStrength:ft,peakStrain:ec1,ultimateStrain:ecu,fractureEnergy:Gf,crushingEnergy:Gc,dilatancy:psi,softeningDilatancy:psiS,postPeak,biaxialRatio:biaxial,meridian:freeze(meridian),elasticLimit:s0,erosionOpening,tensionSoftening:freeze(table)}),
+    youngModulus:E,poissonRatio,friction,dilatancy:psi,softeningDilatancy:psiS,eccentricity:ecc,mx,my,bandWidth:h,nonlocalLength:nonlocal,compressionBand:hc,referenceLength,compressionEnergyFactor:local?Math.max(1,hc/stretchC):cStretch,tensionEnergyFactor:tStretch,
+    kx,ky,kint:integral(kx,ky),tx,ty,tint:integral(tx,ty),sx,sy,sint:integral(sx,sy),peakIndex:np,
+    snapBackLength:freeze({tension:snapT,compression:snapC}),stretchLength:freeze({tension:stretchT,compression:local?stretchC:stretchPre,compressionLagged:stretchPre}),erosionGiven:c.erosionOpening!==undefined,
+    kappaPeak:kx[pre.length-1],kappaCrushed:kx[kx.length-1],kappaCrushedSoftening:sx[sx.length-1],kappaErode:erosionOpening/h,axialFlow:flow,softeningFlow:flowS,
+    crushedStrain:ep1+(local?sx[sx.length-1]-sx[1]:(kx[kx.length-1]-kx[np])*flow),postPeak,
     uniaxialStrain:Float64Array.from(ue),uniaxialStress:Float64Array.from(us),
   });
+}
+
+/** Cumulative trapezoidal integral of the table (x, y) into out (out[0] = 0). */
+function integrate(x:Float64Array,y:Float64Array,out:Float64Array):void {out[0]=0;for(let i=1;i<x.length;i++)out[i]=out[i-1]+(x[i]-x[i-1])*(y[i]+y[i-1])/2;}
+/** Scale of the softening abscissae of an element of band width h against the law's band (`ConcreteReturn.element`):
+ * the softening of a band h is laid out on 1 / h, or on the stretch length when h is wider than that. 1 for the law's band. */
+export function bandScale(law:ConcreteLaw,h:number,kind:'tension'|'compression'|'compressionLagged'):number {
+  const hs=law.stretchLength[kind],h0=kind==='tension'?law.bandWidth:law.compressionBand;
+  if(h===h0)return 1;
+  return Math.max(1/h,1/hs)/Math.max(1/h0,1/hs);
+}
+/** The width of a tetrahedron along the unit direction n: max - min of its nodes' positions projected on n. */
+export function projectedWidth(X:ArrayLike<number>,tets:ArrayLike<number>,e:number,nx:number,ny:number,nz:number):number {
+  let lo=Infinity,hi=-Infinity;
+  for(let q=0;q<4;q++){const a=3*tets[4*e+q],v=X[a]*nx+X[a+1]*ny+X[a+2]*nz;if(v<lo)lo=v;if(v>hi)hi=v;}
+  return hi-lo;
 }
 
 /** Value of a piecewise-linear table at x (constant before the first and after the last breakpoint). */
@@ -358,7 +432,7 @@ export class ConcreteReturn {
   /** The compression surface of this call: c(kappa) = cf k(kappa) + cs. */
   private cf=1;private cs=0;
   readonly law:ConcreteLaw;readonly lambda:number;readonly mu:number;
-  constructor(law:ConcreteLaw,lambda:number,mu:number){this.law=law;this.lambda=lambda;this.mu=mu;this.kx=law.kx;this.ky=law.ky;this.ki=law.kint;}
+  constructor(law:ConcreteLaw,lambda:number,mu:number){this.law=law;this.lambda=lambda;this.mu=mu;this.kx=law.kx;this.ky=law.ky;this.ki=law.kint;this.tx=law.tx;this.ti=law.tint;}
   /** Return mapping of the trial elastic strain t [xx, yy, zz, yz, xz, xy] (tensor shear) from kappa_c0, kappa_t0, for
    * an element whose strengths (and so fracture energies) are f times the law's and whose committed mean pressure is xi_n
    * (Pa, compression positive: minus the mean stress of the last committed state). */
@@ -368,22 +442,83 @@ export class ConcreteReturn {
   map(t:ArrayLike<number>,kc0:number,kt0:number,f=1,xn=0,kbar=-1):void {
     // The Lode-angle warm start lives within one call: a result never depends on an earlier call.
     this.wwRho=-1;
-    // Nonlocal: the compressive strength of the step is k(kappa_bar) of the committed average, constant within the step.
-    if(kbar>=0){this.fy[0]=tableValue(this.law.kx,this.law.ky,kbar);this.kx=this.fx;this.ky=this.fy;this.ki=this.fi;kc0=0;}
-    else{this.kx=this.law.kx;this.ky=this.law.ky;this.ki=this.law.kint;}
-    this.mapNow(t,kc0,kt0,f,xn);
+    kc0=this.setup(kc0,f,xn,kbar);
+    this.mapNow(t,kc0,kt0,f);
   }
-  private kx:Float64Array;private ky:Float64Array;private ki:Float64Array;
-  private readonly fx=new Float64Array(1);private readonly fy=new Float64Array(1);private readonly fi=new Float64Array(1);
-  private mapNow(t:ArrayLike<number>,kc0:number,kt0:number,f:number,xn:number):void {
-    this.principalValid=false;
-    const L=this.law,la=this.lambda,mu=this.mu,K=la+2*mu/3,psi=L.dilatancy,e=L.eccentricity,ev=this.ev,a=this.a,b=this.b;
-    let lc=0,lt=0;
+  /**
+   * The element of the next `map` and `tangent` calls (it stays until the next call of this method):
+   *   - anchor: 0 before the compressive peak (the pressure-dependent surface of the law, solved with the lagged pressure);
+   *     above 0 after it, the softening surface q r(theta) + psi_s p <= anchor s(kappa_c) (associated, psi_s the softening
+   *     dilatancy, s the law's uniaxial post-peak stress over f_cm), anchored at the state in which the element passed the
+   *     peak (`softeningAnchor`), so that the step needs no lagged pressure;
+   *   - scaleC, scaleT: factors on the softening abscissae of compression (after the peak) and tension, for an element
+   *     whose band width differs from the law's (`bandScale`); 1 uses the law's tables.
+   */
+  element(anchor:number,bandC=this.law.compressionBand,bandT=this.law.bandWidth):void {
+    this.anchor=anchor;
+    const L=this.law;
+    if(bandC!==this.bandC){
+      this.bandC=bandC;const sP=this.scaleP=bandScale(L,bandC,'compressionLagged'),sC=this.scaleC=bandScale(L,bandC,'compression');
+      const np=L.peakIndex,kp=L.kx[np];
+      if(sP!==1){
+        if(!this.kxE||this.kxE.length!==L.kx.length){this.kxE=new Float64Array(L.kx.length);this.kiE=new Float64Array(L.kx.length);}
+        for(let i=0;i<L.kx.length;i++)this.kxE[i]=i<=np?L.kx[i]:kp+(L.kx[i]-kp)*sP;
+        integrate(this.kxE,L.ky,this.kiE!);
+      }
+      if(sC!==1){
+        if(!this.sxE||this.sxE.length!==L.sx.length){this.sxE=new Float64Array(L.sx.length);this.siE=new Float64Array(L.sx.length);}
+        for(let i=0;i<L.sx.length;i++)this.sxE[i]=i<=1?L.sx[i]:kp+(L.sx[i]-kp)*sC;
+        integrate(this.sxE,L.sy,this.siE!);
+      }
+    }
+    if(bandT!==this.bandT){
+      this.bandT=bandT;const scaleT=this.scaleT=bandScale(L,bandT,'tension');
+      if(scaleT!==1){
+        if(!this.txE||this.txE.length!==L.tx.length){this.txE=new Float64Array(L.tx.length);this.tiE=new Float64Array(L.tx.length);}
+        for(let i=0;i<L.tx.length;i++)this.txE[i]=L.tx[i]*scaleT;
+        integrate(this.txE,L.ty,this.tiE!);
+      }
+    }
+    this.tx=this.scaleT===1?L.tx:this.txE!;this.ti=this.scaleT===1?L.tint:this.tiE!;
+  }
+  private anchor=0;private kFlow=1;private sxF:Float64Array|null=null;private siF:Float64Array|null=null;private bandC=-1;private bandT=-1;private scaleP=1;private scaleC=1;private scaleT=1;
+  private kxE:Float64Array|null=null;private kiE:Float64Array|null=null;private sxE:Float64Array|null=null;private siE:Float64Array|null=null;private txE:Float64Array|null=null;private tiE:Float64Array|null=null;
+  /** The tension table of this element: f_t(kappa_t) breakpoints and integral (the values are the law's ty). */
+  private tx:Float64Array;private ti:Float64Array;
+  /** The compression surface of a call: the table, psi, cf, cs and the floor. Returns kappa_c0 in the table's units. */
+  private setup(kc0:number,f:number,xn:number,kbar:number):number {
+    const L=this.law;
+    if(kbar>=0){
+      // Nonlocal: the compressive strength of the step is k(kappa_bar) of the committed average, constant within the step.
+      this.fy[0]=tableValue(L.kx,L.ky,kbar);this.kx=this.fx;this.ky=this.fy;this.ki=this.fi;kc0=0;
+    }else if(this.anchor>0){
+      // After the peak: the anchored softening surface, associated, c = anchor s(kappa). The table's abscissa past kappa_c0 is
+      // the axial plastic strain; the multiplier of this step moves it by flow = 1 - psi / 3 per unit.
+      const psi=this.psi=L.softeningDilatancy,flow=this.kFlow=1-psi/3,sx=this.scaleC===1?L.sx:this.sxE!,n=sx.length;
+      if(!this.sxF||this.sxF.length!==n){this.sxF=new Float64Array(n);this.siF=new Float64Array(n);}
+      for(let i=0;i<n;i++)this.sxF[i]=kc0+(sx[i]-kc0)/flow;
+      integrate(this.sxF,L.sy,this.siF!);
+      this.kx=this.sxF;this.ky=L.sy;this.ki=this.siF!;
+      this.cf=this.anchor;this.cs=0;this.floor=0;return kc0;
+    }else{this.kx=this.scaleP===1?L.kx:this.kxE!;this.ky=L.ky;this.ki=this.scaleP===1?L.kint:this.kiE!;}
+    this.kFlow=1;
     // The strength never falls below psi xi (the slope of the potential): k is floored at psi xi_n / cf, so that
     // c = cf k + cs >= 0 and the plastic work sigma : d eps_p = c d lambda of the step stays non-negative, also for a
     // crushed element under pressure, which keeps that friction.
+    const psi=this.psi=L.dilatancy;
     const cf=this.cf=f*meridianValue(L,xn/L.input.compressiveStrength),cs=this.cs=-psi*xn;this.floor=Math.max(0,-cs/cf);
-    const c0=cf*this.kv(kc0)+cs,f0=f*tableValue(L.tx,L.ty,kt0);
+    return kc0;
+  }
+  private kx:Float64Array;private ky:Float64Array;private ki:Float64Array;
+  /** psi of the potential of this call: the law's before the compressive peak, softeningDilatancy after it. */
+  private psi=0;
+  private readonly fx=new Float64Array(1);private readonly fy=new Float64Array(1);private readonly fi=new Float64Array(1);
+  private mapNow(t:ArrayLike<number>,kc0:number,kt0:number,f:number):void {
+    this.principalValid=false;
+    const L=this.law,la=this.lambda,mu=this.mu,K=la+2*mu/3,psi=this.psi,e=L.eccentricity,ev=this.ev,a=this.a,b=this.b;
+    let lc=0,lt=0;
+    const cf=this.cf,cs=this.cs;
+    const c0=cf*this.kv(kc0)+cs,f0=f*tableValue(this.tx,L.ty,kt0);
     // Fast paths in tensor form, without the eigenvectors: the elastic state, and (circular section) a return radial in the
     // deviatoric plane whose result satisfies Rankine. Only the rest needs the principal axes.
     {
@@ -453,11 +588,8 @@ export class ConcreteReturn {
   /** The set-up of a return (mapNow's): the compression surface of the step, its floor, and the tensile strength f0. */
   private prepare(kc0:number,kt0:number,f:number,xn:number,kbar:number):{kc0:number;f0:number} {
     this.wwRho=-1;
-    if(kbar>=0){this.fy[0]=tableValue(this.law.kx,this.law.ky,kbar);this.kx=this.fx;this.ky=this.fy;this.ki=this.fi;kc0=0;}
-    else{this.kx=this.law.kx;this.ky=this.law.ky;this.ki=this.law.kint;}
-    const L=this.law,psi=L.dilatancy;
-    const cf=this.cf=f*meridianValue(L,xn/L.input.compressiveStrength),cs=this.cs=-psi*xn;this.floor=Math.max(0,-cs/cf);
-    return {kc0,f0:f*tableValue(L.tx,L.ty,kt0)};
+    kc0=this.setup(kc0,f,xn,kbar);
+    return {kc0,f0:f*tableValue(this.tx,this.law.ty,kt0)};
   }
   /** Principal stresses of the general return for the principal trial strains (e0, e1, e2) into out (prepare first). */
   private principalStress(e0:number,e1:number,e2:number,kc0:number,kt0:number,f:number,f0:number,out:Float64Array):void {
@@ -520,7 +652,7 @@ export class ConcreteReturn {
    * the apex, or a returned deviator of zero length.
    */
   private compressionDerivative(e0:number,e1:number,e2:number,l:number,kc0:number,D:Float64Array):boolean {
-    const L=this.law,mu=this.mu,K=this.lambda+2*mu/3,psi=L.dilatancy,e=L.eccentricity,cf=this.cf;
+    const L=this.law,mu=this.mu,K=this.lambda+2*mu/3,psi=this.psi,e=L.eccentricity,cf=this.cf;
     if(e>=1)return false;
     const X=2*mu*(2*e0-e1-e2)/SQ6,Y=2*mu*(e1-e2)/SQ2,rho=Math.hypot(X,Y);
     if(!(rho>0))return false;
@@ -550,7 +682,7 @@ export class ConcreteReturn {
   }
   /** Compression return of the strain ev - b into the plastic part a; returns the kappa_c increment. */
   private dpBlock(ev:Float64Array,b:Float64Array,a:Float64Array,kc0:number):number {
-    const L=this.law,mu=this.mu,K=this.lambda+2*mu/3,psi=L.dilatancy,e=L.eccentricity,cf=this.cf,cs=this.cs;
+    const L=this.law,mu=this.mu,K=this.lambda+2*mu/3,psi=this.psi,e=L.eccentricity,cf=this.cf,cs=this.cs;
     const x0=ev[0]-b[0],x1=ev[1]-b[1],x2=ev[2]-b[2],tr=x0+x1+x2,m=tr/3,d0=x0-m,d1=x1-m,d2=x2-m,nd=Math.sqrt(d0*d0+d1*d1+d2*d2);
     const q=SQ6*mu*nd,p=K*tr,c0=cf*this.kv(kc0)+cs;
     if(e>=1){
@@ -558,7 +690,7 @@ export class ConcreteReturn {
       let l=this.ksolve(q+psi*p-cs,3*mu+K*psi*psi,kc0,cf);
       if(q-3*mu*l>=0){const r=nd>0?Math.sqrt(1.5)*l/nd:0,v=psi*l/3;a[0]=r*d0+v;a[1]=r*d1+v;a[2]=r*d2+v;return l;}
       // Apex: the deviatoric elastic strain returns to zero; the volumetric part from psi p = c.
-      const lmin=Math.sqrt(2/3)*nd;l=Math.max(lmin,psi>0?this.ksolve(K*tr*psi-cs,K*psi*psi,kc0,cf):lmin);
+      const lmin=Math.sqrt(2/3)*nd;l=Math.max(lmin,psi!==0?this.ksolve(K*tr*psi-cs,K*psi*psi,kc0,cf):lmin);
       const v=psi*l/3;a[0]=d0+v;a[1]=d1+v;a[2]=d2+v;return l;
     }
     // Willam-Warnke section. Deviatoric stress in the pi-plane: X along the tensile meridian of axis 0, Y across.
@@ -643,7 +775,7 @@ export class ConcreteReturn {
       let sum=0;for(let q=0;q<m;q++)sum+=s[o[q]];
       const den=2*mu+m*la,cc=sum/den,dd=m/den;
       // B = cc - dd f_t(kt0 + B): A - B' B - f(kt0 + B) with A = cc / dd, B' = 1 / dd.
-      const B=solveTable(L.tx,L.ty,cc/dd,1/dd,kt0,f),ftn=f*tableValue(L.tx,L.ty,kt0+B);
+      const B=solveTable(this.tx,L.ty,cc/dd,1/dd,kt0,f),ftn=f*tableValue(this.tx,L.ty,kt0+B);
       let rsum=0;for(let q=0;q<m;q++)rsum+=s[o[q]]-ftn;
       let ok=true;
       for(let q=0;q<3;q++){
@@ -680,7 +812,7 @@ export class ConcreteReturn {
     const e0=t[0]-(P?P[0]:0),e1=t[1]-(P?P[1]:0),e2=t[2]-(P?P[2]:0),e3=t[3]-(P?P[3]:0),e4=t[4]-(P?P[4]:0),e5=t[5]-(P?P[5]:0),tr=e0+e1+e2;
     S[0]=la*tr+2*mu*e0;S[1]=la*tr+2*mu*e1;S[2]=la*tr+2*mu*e2;S[3]=2*mu*e3;S[4]=2*mu*e4;S[5]=2*mu*e5;
     this.elastic=.5*(S[0]*e0+S[1]*e1+S[2]*e2)+S[3]*e3+S[4]*e4+S[5]*e5;
-    this.energy=this.elastic+this.compressionWork(kc0,l);this.dKappaC=l;this.dKappaT=0;this.yielded=l>0;
+    this.energy=this.elastic+this.compressionWork(kc0,l);this.dKappaC=l*this.kFlow;this.dKappaT=0;this.yielded=l>0;
     if(!P)this.plastic.fill(0);
     void f;
   }
@@ -690,9 +822,9 @@ export class ConcreteReturn {
     const e0=ev[0]-a[0]-b[0],e1=ev[1]-a[1]-b[1],e2=ev[2]-a[2]-b[2],tr=e0+e1+e2,s0=la*tr+2*mu*e0,s1=la*tr+2*mu*e1,s2=la*tr+2*mu*e2;
     const p0=a[0]+b[0],p1=a[1]+b[1],p2=a[2]+b[2];
     this.elastic=.5*(s0*e0+s1*e1+s2*e2);
-    const dt=lt>0?tableIntegral(L.tx,L.ty,L.tint,kt0+lt)-tableIntegral(L.tx,L.ty,L.tint,kt0):0;
+    const dt=lt>0?tableIntegral(this.tx,L.ty,this.ti,kt0+lt)-tableIntegral(this.tx,L.ty,this.ti,kt0):0;
     this.energy=this.elastic+this.compressionWork(kc0,lc)+f*dt;
-    this.dKappaC=lc;this.dKappaT=lt;this.yielded=lc>0||lt>0;
+    this.dKappaC=lc*this.kFlow;this.dKappaT=lt;this.yielded=lc>0||lt>0;
     // Tensor = V diag V^T, V columns the eigenvectors (V[3 r + c]).
     const put=(out:Float64Array,x:number,y:number,z:number)=>{
       const comp=(r:number,c:number)=>V[3*r]*V[3*c]*x+V[3*r+1]*V[3*c+1]*y+V[3*r+2]*V[3*c+2]*z;
@@ -731,11 +863,27 @@ export function largestEigenvalue(xx:number,yy:number,zz:number,yz:number,xz:num
   return q+2*p*Math.cos(Math.acos(r)/3);
 }
 
-/** Strength loss of an element: 1 - k / k_peak after the compressive peak, 1 - f_t / f_t0 in tension, the larger. */
-export function concreteDamage(law:ConcreteLaw,kappaC:number,kappaT:number):number {
-  const kp=law.ky[law.kx.length-1]===0?tableValue(law.kx,law.ky,law.kappaPeak):tableValue(law.kx,law.ky,law.kappaPeak);
-  const dc=kappaC>law.kappaPeak?1-tableValue(law.kx,law.ky,kappaC)/kp:0,dt=1-tableValue(law.tx,law.ty,kappaT)/law.ty[0];
+/** Strength loss of an element: 1 - s / f_cm after the compressive peak (s the uniaxial strength left; with the nonlocal
+ * option 1 - k / k_peak), 1 - f_t / f_t0 in tension, the larger. scaleC and scaleT are the element's band scales (`bandScale`). */
+export function concreteDamage(law:ConcreteLaw,kappaC:number,kappaT:number,scaleC=1,scaleT=1,softening=true):number {
+  const kp=law.kappaPeak,dt=1-tableValue(law.tx,law.ty,kappaT/scaleT)/law.ty[0];
+  // kappa_c after the peak is on the softening surface (local law), or on the lagged-pressure table (nonlocal: 1 - k / k_peak).
+  const dc=kappaC<=kp?0:softening?1-tableValue(law.sx,law.sy,kp+(kappaC-kp)/scaleC):1-tableValue(law.kx,law.ky,kappaC)/law.ky[law.peakIndex];
   return Math.max(0,Math.min(1,Math.max(dc,dt)));
+}
+/** The anchor of an element's softening surface (`ConcreteReturn.element`) from the stress S [xx, yy, zz, yz, xz, xy] of the
+ * state in which it passed the compressive peak with kappa_c: q r(theta) + psi_s p over the uniaxial strength left s(kappa_c)
+ * / f_cm, so that the surface passes through that state. At least 1e-3 f f_cm (a peak passed in a state near tension). */
+export function softeningAnchor(law:ConcreteLaw,S:ArrayLike<number>,kappaC:number,scaleC:number,f:number):number {
+  const p=(S[0]+S[1]+S[2])/3,d0=S[0]-p,d1=S[1]-p,d2=S[2]-p,d3=S[3],d4=S[4],d5=S[5];
+  const J2=.5*(d0*d0+d1*d1+d2*d2)+d3*d3+d4*d4+d5*d5,q=Math.sqrt(3*J2);
+  let r=1;
+  if(law.eccentricity<1&&J2>0){
+    const J3=d0*(d1*d2-d3*d3)-d5*(d5*d2-d3*d4)+d4*(d5*d3-d1*d4),c3=Math.max(-1,Math.min(1,1.5*Math.sqrt(3)*J3/(J2*Math.sqrt(J2))));
+    lodeFactor(Math.acos(c3)/3,law.eccentricity,LF);r=LF[0];
+  }
+  const kp=law.kappaPeak,left=tableValue(law.sx,law.sy,kp+(kappaC-kp)/scaleC),floor=1e-3*f*law.input.compressiveStrength;
+  return Math.max(floor,q*r+law.softeningDilatancy*p)/Math.max(left,1e-6);
 }
 
 /** The weights of the nonlocal average of a mesh: for each element, its neighbours within 2 l and exp(-(r / l)^2) V_j,

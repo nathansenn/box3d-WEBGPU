@@ -202,6 +202,7 @@ the limits but close, or costly. An empty list means none of these rules is brok
 | `fast-small-body` | world | a body without `bullet` moves more than its smallest half extent per step | geometry: it can pass through other moving bodies between steps |
 | `cfl` | fluid, free surface, shallow water | the step is above 80 % of the CFL or explicit viscous limit, or the shallow water needs more than half of its `maxSubsteps` | the solver's own `maxTimeStep()` / `stableTimeStep()` at the current state |
 | `critical-time-step` | grains, explicit solid | the step is above 80 % of the limit (0.4 of the Rayleigh time or 0.2 of the contact duration for grains; 2 / omega_max for the solid) | docs/GRANULAR.md, docs/SOLID.md |
+| `crack-band` | solid with a concrete law | an element can have a crack band (its longest edge, or the band it fixed when it started to soften) wider than the stretch length of the law's softening (`ConcreteLaw.stretchLength`, about 0.55 of the snap-back length 2 E G_f / f_t² in tension): its softening is stretched and it dissipates that many times G_f or G_c (warning; numbers `elements`, `bandWidth`, `stretchLength`, `snapBackLength`, `energyFactor`) | docs/SOLID_MECHANICS.md, section Concrete law, Crack band |
 | `explicit-heat-limit` | heat (explicit scheme) | the step is above 80 % of the explicit stability limit | docs/HEAT.md |
 | `substeps` | simulation | a solver takes 16 or more of its own steps per world step | cost, not stability |
 

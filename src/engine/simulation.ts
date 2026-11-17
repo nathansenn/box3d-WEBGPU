@@ -597,10 +597,11 @@ export function solidSubsystem<W,B>(solid:SolidBody,options:{readonly id?:string
   return {
     id,kind:'solid',stage:'post',order:SUBSYSTEM_ORDER.solid,timeStep:{dt:solid.dt,rule:'commensurate'},
     diagnose(){
-      if(solid.integrator!=='explicit')return [];
+      const band=solid.crackBandFindings(id);
+      if(solid.integrator!=='explicit')return band;
       const limit=solid.explicitLimit().criticalTimeStep,ratio=solid.dt/limit;
-      return ratio>0.8?[{severity:ratio>1?'warning':'note',rule:'critical-time-step',subject:id,numbers:{dt:solid.dt,limit,ratio},
-        message:`The explicit solid is stable up to dt = ${limit} s (2 over its highest natural frequency); the step is ${solid.dt} s, ${(ratio*100).toFixed(0)} % of that. Use a smaller step, a coarser or softer mesh, or the implicit integrator.`}]:[];
+      return ratio>0.8?[...band,{severity:ratio>1?'warning':'note',rule:'critical-time-step',subject:id,numbers:{dt:solid.dt,limit,ratio},
+        message:`The explicit solid is stable up to dt = ${limit} s (2 over its highest natural frequency); the step is ${solid.dt} s, ${(ratio*100).toFixed(0)} % of that. Use a smaller step, a coarser or softer mesh, or the implicit integrator.`}]:band;
     },
     validate(){
       if(solid.integrator!=='explicit')return;

@@ -249,7 +249,22 @@ Engine rows (`tests/engine/solid-concrete.test.mjs` in `npm run test:solid`; row
 | Reinforced beam: cracking moment; yield moment | 1993 N m; 4515 N m (hand) | 1950 to 2112 N m; 4553 N m | 6 %; 5 % |
 | Return mapping in every regime; checkpoint resume (local, nonlocal, reinforced) | derivative of the energy; bit-identical | pass | 1e-6; exact |
 
-Misses: Kupfer's 1.27 f_c at sigma_2 / sigma_1 = 0.5 (the law gives 1.39), and compressive softening is not mesh objective (SOLID_MECHANICS.md, mesh study).
+Misses: Kupfer's 1.27 f_c at sigma_2 / sigma_1 = 0.5 (the law gives 1.39). Since 2026-11-17 the engine's crack band is per element and compressive softening localises in one band of elements (SOLID_MECHANICS.md, section Crack band and the mesh study); the lab does not use that softening surface (below).
+
+**Crack band and the lab (2026-11-17).** The engine's default after the compressive peak is now the softening surface of the crack band (`postPeak: 'band'`): no lateral plastic strain, so a crushed band stays one element thick, and G_c per unit area. The lab keeps `postPeak: 'lagged'` (`CONCRETE_POST_PEAK` in `concrete-si.ts`), the law it was validated with, because the softening surface moves its peaks: the elements of the strength scatter pass their own peak before the cube does, and whether they then dilate changes the cube's peak. Each preset's full program (`duration` 14 s at 1/120 s), before the change, with the lab as it is now, and with `'band'` (Node 22, the shared machine at a load average of 25 to 35):
+
+| Preset | Before: peak, strain at peak, stress at the end, how it ended | Now (`'lagged'`) | With `'band'` |
+|---|---|---|---|
+| Cube compression | 49.109 MPa, 2.75 ‰, 34.83 MPa at 7.0 ‰, no stop | identical | 51.944 MPa (+5.8 %), 2.55 ‰; stops at 3.52 ‰ (load below 30 %) |
+| Reinforced core | 58.473 MPa, 3.53 ‰, 47.10 MPa at 7.0 ‰, no stop | identical | 60.397 MPa (+3.3 %), 2.67 ‰; stops at 3.72 ‰, 14 elements spalled |
+| High-strength cube | 87.580 MPa, 3.27 ‰, 69.06 MPa at 6.0 ‰, no stop | identical | 88.973 MPa (+1.6 %), 2.95 ‰; stops at 3.65 ‰ |
+| Lightweight crush | 41.349 MPa, 2.42 ‰, 24.87 MPa at 7.0 ‰, no stop | identical | 39.421 MPa (-4.7 %), 2.03 ‰; stops at 3.07 ‰ |
+| Weathered spall | 35.683 MPa, 2.50 ‰, 23.03 MPa at 7.0 ‰, no stop | identical | 39.575 MPa (+10.9 %), 2.43 ‰; stops at 3.53 ‰ |
+| Fibre bridging | 49.109 MPa, 2.75 ‰, 34.84 MPa at 7.0 ‰, no stop | identical | 51.944 MPa (+5.8 %), 2.55 ‰; stops at 3.52 ‰ |
+| Low-strain comparison | 40.481 MPa at 1.50 ‰ (stops before the peak) | identical | identical |
+| Ceramic comparison | 2062.0 MPa, 6.20 ‰; no equilibrium past the peak, 327 elements spalled | identical | 1925.1 MPa (-6.6 %), 5.83 ‰; no equilibrium past the peak, 37 spalled |
+
+"Identical" is to the printed digits of peak, strain at the peak, the stress at 1.5 and 2 times that strain, the post-peak area of the curve and the end state. With `'band'` every C30/37-family preset crushes and the machine stops on the load drop within the program (before: softening to the end, no stop, no spalling); the post-peak area of the curve falls to a fifth (cube: 3.82 against 18.72 MPa·%). A dilatancy after the peak that keeps the peaks does not localise in a band: psi kept at tan 30° moves them by -0.4 % to -5.3 % (lightweight) but the prism of SOLID_MECHANICS.md then dissipates 1.6 to 3.3 times G_c. The lab's cylinder (the cube-to-cylinder rows) gives no `bandWidth`, so its tension band is now per element; the cube's is the cell size as before.
 
 Studio rows (`tests/studio/concrete-si.test.mjs` in `npm run test:studio:materials`, 8 tests; the cube, cylinder and short-cylinder runs take 3, 9 and 3 minutes of CPU on the loaded shared machine):
 
@@ -286,7 +301,7 @@ With the first law (2026-11-12) the cube peaked at 45.0 MPa and the machine stop
 
 ### Limits
 
-- Compressive softening is not mesh objective (see SOLID_MECHANICS.md, mesh study); the 5-cell cube cannot resolve the cones of a crushed cube or splitting cracks finer than 30 mm.
+- The lab keeps the lagged-pressure surface after the compressive peak (`postPeak: 'lagged'`), which does not localise compressive softening in a band: its post-peak curve depends on the 30 mm cells (see above and SOLID_MECHANICS.md, section Crack band); the 5-cell cube cannot resolve the cones of a crushed cube or splitting cracks finer than 30 mm.
 - The platen friction 0.2 is a calibrated input of another model, not a measured coefficient; with the measured steel-on-concrete values (0.43 to 0.70) the cube would be about 1.4 times the cylinder instead of 1.23.
 - Kupfer's biaxial strength at sigma_2 / sigma_1 = 0.5 is overestimated (1.39 against 1.27 f_c).
 - Cracks unload elastically and keep their opening (plasticity, not damage); no crack closure, friction on cracks, aggregate interlock, creep, shrinkage, rate or size effects beyond the crack band.

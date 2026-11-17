@@ -66,11 +66,16 @@ export function cubeReinforcement(a:number,H:number):ReinforcementInput {
 export const FIBRE_SOFTENING=[5e-5,.5,2.5e-3,.3,5e-3,0];
 const fibreEnergy=(ft:number)=>{let a=0,w0=0,s0=1;for(let i=0;i<FIBRE_SOFTENING.length;i+=2){a+=(FIBRE_SOFTENING[i]-w0)*(FIBRE_SOFTENING[i+1]+s0)/2*ft;w0=FIBRE_SOFTENING[i];s0=FIBRE_SOFTENING[i+1];}return a;};
 
+/** What the lab's elements do after their compressive peak (`ConcreteLawInput.postPeak`): 'lagged', the law before
+ * 2026-11-17. The crack band's softening surface ('band', the engine's default) moves the presets' peaks by -7 % to +11 %
+ * (docs/STUDIO_MATERIAL_LABS.md): elements of the strength scatter pass their own peak before the cube does, and whether
+ * they then dilate changes the cube's peak. */
+export const CONCRETE_POST_PEAK='lagged';
 /** SI law of each Studio mix. Concrete classes from the material library (EN 1992-1-1 Table 3.1, section 11 for LC); the
  * mapping of a Studio name onto a class is stated in `source`. */
 export function concreteSpec(material:string,edge=.15):ConcreteSpec {
   const band=edge/CONCRETE_CELLS;
-  const lib=(id:string,extra:Record<string,unknown>={})=>{const m=concreteMaterial(id,{allowUnverified:true});return {...m,concrete:{...m.concrete!,bandWidth:band,...extra}} as SolidMaterial;};
+  const lib=(id:string,extra:Record<string,unknown>={})=>{const m=concreteMaterial(id,{allowUnverified:true});return {...m,concrete:{...m.concrete!,bandWidth:band,postPeak:CONCRETE_POST_PEAK,...extra}} as SolidMaterial;};
   switch(material){
     case 'high-strength':return {name:'High-strength concrete C60/75',libraryId:'concrete-c60-75',material:lib('concrete-c60-75'),scatter:.05,modelled:true,source:'C60/75 from EN 1992-1-1 Table 3.1; G_f from the fib Model Code 2010 formula'};
     case 'reinforced':return {name:'Reinforced concrete C30/37, B500B bars',libraryId:'concrete-c30-37',material:lib('concrete-c30-37'),scatter:.08,modelled:true,reinforcement:cubeReinforcement,
@@ -82,7 +87,7 @@ export function concreteSpec(material:string,edge=.15):ConcreteSpec {
     case 'ceramic':{
       const E=materialProperty('alumina-96','youngModulus'),fc=materialProperty('alumina-96','compressiveStrength'),ft=materialProperty('alumina-96','flexuralStrength');
       const m=concreteMaterial('alumina-96',{tensileStrength:ft});
-      return {name:'Technical ceramic (96 % alumina)',libraryId:'alumina-96',material:{...m,concrete:{...m.concrete!,bandWidth:band,elasticLimit:1,peakStrain:fc/E,ultimateStrain:fc/E,crushingEnergy:m.concrete!.fractureEnergy}},scatter:.05,modelled:true,
+      return {name:'Technical ceramic (96 % alumina)',libraryId:'alumina-96',material:{...m,concrete:{...m.concrete!,bandWidth:band,postPeak:CONCRETE_POST_PEAK,elasticLimit:1,peakStrain:fc/E,ultimateStrain:fc/E,crushingEnergy:m.concrete!.fractureEnergy}},scatter:.05,modelled:true,
         source:'96 % alumina from a datasheet (E, nu, density, K_IC, flexural and compressive strength); tensile strength taken as the flexural strength and the confinement and dilatancy of concrete: unverified'};
     }
     default:return {name:'Concrete C30/37',libraryId:'concrete-c30-37',material:lib('concrete-c30-37'),scatter:.08,modelled:true,source:'C30/37 from EN 1992-1-1 Table 3.1; G_f from the fib Model Code 2010 formula'};
