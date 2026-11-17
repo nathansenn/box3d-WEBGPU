@@ -4,6 +4,8 @@ import {PlateBody,type PlateFragment} from '../../engine/plate';
 import {materialProperty,contactPair} from '../../engine/materials';
 import {GLASS_RIG,glassBobPosition,glassBobTangent} from './glass-rig';
 import {LabModel,DT,random,type V3} from './lab-model';
+import {GlassFragmentWorld,type FragmentRelease} from './glass-fragments';
+import type {NativeWorldPool} from '../../engine/native-world';
 import type {LabSettings} from './catalog';
 
 const G=9.81;
@@ -49,7 +51,9 @@ export function glassSpec(material:string):GlassSpec {
   }
 }
 
-interface RigidFragment {reach:number;nodes:Uint32Array;mass:number;x:V3;v:V3;q:[number,number,number,number];w:V3;inertia:V3;offsets:Float64Array;corners:Float64Array;resting:number;}
+interface RigidFragment {reach:number;nodes:Uint32Array;mass:number;x:V3;v:V3;q:[number,number,number,number];w:V3;inertia:V3;offsets:Float64Array;corners:Float64Array;resting:number;
+  /** Index of its body in the Box3D fragment world, or -1 (the fragment is stepped here, without contacts between pieces). */
+  body:number;}
 const rotate=(q:number[],x:number,y:number,z:number,out:number[]|Float64Array,o=0)=>{
   const [qx,qy,qz,qw]=q,tx=2*(qy*z-qz*y),ty=2*(qz*x-qx*z),tz=2*(qx*y-qy*x);
   out[o]=x+qw*tx+qy*tz-qz*ty;out[o+1]=y+qw*ty+qz*tx-qx*tz;out[o+2]=z+qw*tz+qx*ty-qy*tx;
@@ -76,6 +80,12 @@ function impulse(f:RigidFragment,r:number[],jx:number,jy:number,jz:number):void 
   inverseInertia(f,r[1]*jz-r[2]*jy,r[2]*jx-r[0]*jz,r[0]*jy-r[1]*jx,scratch);f.w[0]+=scratch[0];f.w[1]+=scratch[1];f.w[2]+=scratch[2];
 }
 
+/** x = A^-1 b for a symmetric 3 x 3 matrix [a00, a11, a22, a01, a02, a12] (Cramer's rule). */
+function solve3(a:number[],b:number[]):[number,number,number] {
+  const [m00,m11,m22,m01,m02,m12]=a,c00=m11*m22-m12*m12,c01=m02*m12-m01*m22,c02=m01*m12-m02*m11,det=m00*c00+m01*c01+m02*c02;
+  const c11=m00*m22-m02*m02,c12=m01*m02-m00*m12,c22=m00*m11-m01*m01;
+  return [(c00*b[0]+c01*b[1]+c02*b[2])/det,(c01*b[0]+c11*b[1]+c12*b[2])/det,(c02*b[0]+c12*b[1]+c22*b[2])/det];
+}
 /** The pendulum is one rotation about the pivot (inertia m (L^2 + offset^2 + 2/5 R^2), a solid bob). It touches the
  * plate's nodes through penalty springs on the sphere surface; the springs enter the plate's stability limit. */
 export class GlassModel extends LabModel {
@@ -85,9 +95,17 @@ export class GlassModel extends LabModel {
   readonly contactStiffness:Float64Array;readonly supportNodes:Uint32Array;
   angle:number;speed=0;
   peakForce=0;peakStress=0;force=0;throwDistance=0;retained=1;fragments:RigidFragment[]=[];fragmentCount=1;substeps=0;
+  /** The Box3D world of the released fragments (`options.fragments`), or null: fragments fall on their own (no contact
+   * between them or with the frame). */
+  readonly rigid:GlassFragmentWorld|null;
+  /** Largest relative difference at release, over every fragment so far, between the plate's linear (angular) momentum and
+   * that of the Box3D body as Box3D holds it (float32). */
+  releaseError={linear:0,angular:0};
   private friction:number;private touching:number[]=[];private bonds=0;private checked=0;private tile:{x:number;y:number}[];
-  /** `cells`: the plate's grid (default GLASS_CELLS, 0.1 m). `membrane: false`: the linear Kirchhoff plate of the first version. */
-  constructor(p:Partial<LabSettings>={},options:{cells?:[number,number];membrane?:boolean}={}){
+  /** `cells`: the plate's grid (default GLASS_CELLS, 0.1 m). `membrane: false`: the linear Kirchhoff plate of the first version.
+   * `fragments`: a loaded Box3D pool; released fragments then become rigid bodies of a Box3D world that collide with each
+   * other, the frame, the tray and the floor (glass-fragments.ts). Without it they fall on their own, as before. */
+  constructor(p:Partial<LabSettings>={},options:{cells?:[number,number];membrane?:boolean;fragments?:NativeWorldPool}={}){
     super('glass',p);const s=this.settings;this.spec=glassSpec(this.material.id);const cells=options.cells??GLASS_CELLS;this.thickness=s.size/1000;this.impactX=s.fill/100;
     const r=GLASS_RIG,spec=this.spec;
     this.plate=new PlateBody({size:[r.panelWidth,r.panelHeight],cells,membrane:options.membrane??true,thickness:this.thickness,origin:[-r.panelWidth/2,r.panelCenterY-r.panelHeight/2],
@@ -133,8 +151,12 @@ export class GlassModel extends LabModel {
       this.pieces.push({center:[X,Y,0],vertices,radius:Math.max(...vertices.map(v=>Math.hypot(v[0],v[1])))});this.tile.push({x:X,y:Y});
       this.frame.positions.set([X,Y,0],n*3);
     }
-    this.frame.cracks=new Uint8Array(plate.bondCount);this.frame.actuator=this.angle;this.sync();
+    this.frame.cracks=new Uint8Array(plate.bondCount);this.frame.actuator=this.angle;
+    this.rigid=options.fragments?new GlassFragmentWorld(options.fragments,this.thickness):null;
+    this.sync();
   }
+  /** Frees the Box3D world of the fragments (the model can still be read, not stepped further with contacts). */
+  dispose():void {this.rigid?.destroy();}
   get bob():V3 {return glassBobPosition(this.angle,this.impactX);}
   /** Contact of the bob with the plate nodes: forces into plate.force; returns the generalized force on the pendulum. */
   private contact():number {
@@ -223,12 +245,43 @@ export class GlassModel extends LabModel {
     }
     let reach=0;for(let k=0;k<corners.length;k+=3)reach=Math.max(reach,Math.hypot(corners[k],corners[k+1],corners[k+2]));
     const fragment:RigidFragment={reach,nodes:piece.nodes,mass:piece.mass,x:[...piece.center] as V3,v:[0,0,piece.velocity],q:[0,0,0,1],
-      w:[piece.angularVelocity[0],piece.angularVelocity[1],0],inertia:[ixx,iyy,izz],offsets,corners:Float64Array.from(corners),resting:0};
+      w:[piece.angularVelocity[0],piece.angularVelocity[1],0],inertia:[ixx,iyy,izz],offsets,corners:Float64Array.from(corners),resting:0,body:-1};
+    if(this.rigid)fragment.body=this.toRigid(piece,offsets);
     plate.detach(piece);this.fragments.push(fragment);
   }
-  /** Fragments fall as rigid bodies onto the tray or the floor (impulses at the deepest corner, Coulomb friction, no bounce).
-   * They do not collide with each other, the frame or the pendulum. */
+  /** Hands a piece to the Box3D world: its mass, centre and full inertia tensor (each node's point mass plus its cell as a
+   * thin lamina), its velocity, and the spin that carries the plate's angular momentum about the centre, I^-1 L; its tiles
+   * as hulls. Records how far Box3D's body (float32) differs from the plate in linear and angular momentum. */
+  private toRigid(piece:PlateFragment,offsets:Float64Array):number {
+    const plate=this.plate,n=piece.nodes.length,I=[0,0,0,0,0,0],L=[0,0,0],tiles:Float64Array[]=[];let p=0;
+    for(let k=0;k<n;k++){
+      const node=piece.nodes[k],m=plate.mass[node],ox=offsets[3*k],oy=offsets[3*k+1],oz=offsets[3*k+2],v=plate.v[node];
+      I[0]+=m*(oy*oy+oz*oz+(plate.hy**2+this.thickness**2)/12);I[1]+=m*(ox*ox+oz*oz+(plate.hx**2+this.thickness**2)/12);I[2]+=m*(ox*ox+oy*oy+(plate.hx**2+plate.hy**2)/12);
+      I[3]-=m*ox*oy;I[4]-=m*ox*oz;I[5]-=m*oy*oz;
+      // r x v with v along z: (r_y v, -r_x v, 0).
+      L[0]+=m*oy*v;L[1]-=m*ox*v;p+=m*v;
+      const tile=new Float64Array(12);this.pieces[node].vertices.forEach((c,i)=>{tile[3*i]=ox+c[0];tile[3*i+1]=oy+c[1];tile[3*i+2]=oz;});tiles.push(tile);
+    }
+    const spin=solve3(I,L),release:FragmentRelease={mass:piece.mass,center:[...piece.center],velocity:[0,0,piece.velocity],angularVelocity:spin,inertia:I as FragmentRelease['inertia'],tiles,thickness:this.thickness};
+    const rigid=this.rigid!,index=rigid.add(release),state=rigid.state(index),held=rigid.world.bodyMassData(rigid.handle(index)).inertia;
+    const pb=[state.mass*state.linearVelocity[0],state.mass*state.linearVelocity[1],state.mass*state.linearVelocity[2]],w=state.angularVelocity;
+    const Lb=[held[0]*w[0]+held[3]*w[1]+held[4]*w[2],held[3]*w[0]+held[1]*w[1]+held[5]*w[2],held[4]*w[0]+held[5]*w[1]+held[2]*w[2]];
+    const scaleP=Math.max(Math.abs(p),piece.mass*1e-3),scaleL=Math.max(Math.hypot(...L),Math.max(I[0],I[1],I[2])*1e-3);
+    this.releaseError.linear=Math.max(this.releaseError.linear,Math.hypot(pb[0],pb[1],pb[2]-p)/scaleP);
+    this.releaseError.angular=Math.max(this.releaseError.angular,Math.hypot(Lb[0]-L[0],Lb[1]-L[1],Lb[2]-L[2])/scaleL);
+    return index;
+  }
+  /** With a Box3D world (`options.fragments`) the fragments are its bodies: it steps them and they are read back. Without one
+   * they fall as rigid bodies onto the tray or the floor (impulses at the deepest corner, Coulomb friction, no bounce) and do
+   * not collide with each other, the frame or the pendulum. */
   private stepFragments(dt:number):void {
+    if(this.rigid){
+      const rigid=this.rigid;rigid.step(dt);
+      for(const f of this.fragments){
+        const s=rigid.state(f.body);f.x=s.position;f.q=s.rotation;f.v=s.linearVelocity;f.w=s.angularVelocity;f.resting=s.awake?0:1;
+      }
+      return;
+    }
     const steps=Math.max(1,Math.ceil(dt/(1/1920))),h=dt/steps,p=[0,0,0],tray=GLASS_RIG;
     for(const f of this.fragments){
       if(f.resting>.5)continue;

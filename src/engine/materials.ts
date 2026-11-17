@@ -24,7 +24,7 @@ import type {GranularMaterial} from './granular.ts';
 
 export const MATERIAL_LIBRARY_ID = 'box3d-materials';
 /** Semver of the data: a changed value is a minor release, a removed material or property a major one. */
-export const MATERIAL_LIBRARY_VERSION = '1.7.0';
+export const MATERIAL_LIBRARY_VERSION = '1.8.0';
 /** The date the sources were opened and read. */
 export const MATERIAL_SOURCES_ACCESSED = '2026-11-12';
 
@@ -655,6 +655,7 @@ export const CONTACT_PAIRS: readonly ContactPairEntry[] = deepFreeze([
     staticFriction: v(0.35, 'etb-friction', 'Glass / Glass, grease: static 0.1 - 0.6', 'greased', {range: [0.1, 0.6], derived: 'middle of the stated range'}),
     kineticFriction: v(0.105, 'etb-friction', 'Glass / Glass, grease: kinetic 0.09 - 0.12', 'greased', {range: [0.09, 0.12], derived: 'middle of the stated range'})},
   {a: 'soda-lime-glass', b: 'structural-steel-s355', condition: 'dry',
+    staticFriction: v(0.6, 'etb-friction', 'Glass / Metal, clean and dry: static 0.5 - 0.7', 'clean and dry; the ToolBox does not name the metal', {range: [0.5, 0.7], derived: 'middle of the stated range'}),
     restitution: v(0.71, 'zou-2024', 'case 5-6, glass particle on steel plate, falling height 500 and 1000 mm: e_n 0.71', 'glass ball on a 10 mm steel plate, impact 3.1 to 4.4 m/s'),
     impactSpeed: [3.13, 4.43]},
   {a: 'glass-beads', b: 'glass-beads', condition: 'dry',

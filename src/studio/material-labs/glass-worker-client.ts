@@ -3,6 +3,12 @@ import {LabRunChannel,type LabRunFrame,type LabRunOptions,type LabRunState} from
 import type {LabSettings} from './catalog';
 import type {GlassWorkerRequest,GlassWorkerResponse} from './glass-worker-protocol';
 
+/** Where the page serves Box3D (public/box3d), for the worker's fragment world; none outside a page (tests). */
+function box3dUrls():{box3d?:{module:string;wasm:string}} {
+  if(typeof document==='undefined')return {};
+  const base=(import.meta as {env?:{BASE_URL?:string}}).env?.BASE_URL??'./',root=base.endsWith('/')?base:base+'/';
+  return {box3d:{module:new URL(root+'box3d/box3d.js',document.baseURI).href,wasm:new URL(root+'box3d/box3d.wasm',document.baseURI).href}};
+}
 /** At most one batch is in flight. Reset/disposal terminates only this client. */
 export class GlassWorkerClient {
   private worker:Worker;private disposed=false;private request=0;private initialized=false;
@@ -30,7 +36,7 @@ export class GlassWorkerClient {
     };
     this.worker.onerror=event=>{event.preventDefault();this.fail(event.message||'Glass collision worker failed');};
     this.worker.onmessageerror=()=>this.fail('Glass collision frame could not be decoded');
-    this.send({type:'reset',generation:0,settings});
+    this.send({type:'reset',generation:0,settings,...box3dUrls()});
   }
   /** A cadence target, not a deadline: one fixed tick can exceed 40 ms. */
   get maxBatchTicks():number {return Math.max(1,Math.min(4,Math.floor(40/(this.costPerTick||1))));}
