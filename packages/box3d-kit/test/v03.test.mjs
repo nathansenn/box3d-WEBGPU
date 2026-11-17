@@ -98,8 +98,10 @@ test('writeInstances output reads back identically from a real WebGPU device (Da
   let webgpu;
   try { webgpu = await import('webgpu'); } catch { t.skip('webgpu (Dawn) not installed'); return; }
   Object.assign(globalThis, webgpu.globals);
-  // Keep the instance referenced: a collected Dawn instance tears down its adapters.
+  // Keep the GPU object referenced until the process exits: dawn.node frees its instance when the object is
+  // collected while queued ProcessEvents callbacks still use it (a crash; see scripts/dawn-gpu.mjs in the repository).
   const gpu = webgpu.create([]);
+  (globalThis[Symbol.for('box3d.dawnGpuObjects')] ??= []).push(gpu);
   const adapter = await gpu.requestAdapter();
   if (!adapter) { t.skip('no WebGPU adapter'); return; }
   const device = await adapter.requestDevice();
@@ -119,7 +121,7 @@ test('writeInstances output reads back identically from a real WebGPU device (Da
     read.unmap();
     assert.equal(count, 6);
     assert.deepEqual(Array.from(readback), Array.from(world.interpolatedMatrices(0.5)));
-  } finally { world.dispose(); device.destroy(); void gpu; }
+  } finally { world.dispose(); device.destroy(); }
 });
 
 test('boxOutlines draws 12 unit-length edges per cube and rayLine stops at the hit', async () => {

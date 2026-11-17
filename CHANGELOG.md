@@ -1,5 +1,11 @@
 # Changelog
 
+## Unreleased — 2026-11-17 — Dawn tests: the CI segmentation fault was a use-after-free at teardown
+
+- **Cause** (CI run 43942495498, commit c059041): the crash came from `scripts/webgpu-pipeline-test.mjs` after its success line, not from the renderer test's device creation. dawn.node (`webgpu` 0.4.0) frees its `dawn::native::Instance` when the JS `GPU` object is collected, while its `AsyncRunner` polls the instance through a raw pointer from queued `setImmediate` callbacks. The scripts dropped the object (`gpu = null`, or a function scope that ended) with such a callback queued. gdb: the main thread in `InstanceBase::ProcessEvents()` from `AsyncRunner::ScheduleProcessEvents`, locking a mutex in freed memory (segmentation fault, `std::system_error: Invalid argument`, a glibc mutex assertion or a hang).
+- **Fix:** `scripts/dawn-gpu.mjs` creates every Dawn `GPU` object and keeps it until the process exits; the WebGPU scripts, the GPU engine tests and the kit's Dawn test use it (the kit pins on the same global symbol). `tests/release-contracts.test.mjs` refuses a direct `webgpu` import or a `gpu = null`.
+- **Measured:** old pipeline test 9 of 100 runs crashed with `--gc-interval=1000` (6 SIGABRT, 3 SIGSEGV), new 0 of 100; with four busy loops on the four cores both passed 40 of 40, so load is not the trigger. `tests/engine/dawn-lifetime.test.mjs` (in `npm run test:webgpu`) forces a collection with a callback queued: pinned 6 of 6 clean, the unpinned control crashes, which flags an upstream fix. docs/TEST_PLAN.md ("Dawn objects must live until the process exits").
+
 ## Unreleased — 2026-11-16 — The bridge's native-defect fixes land on the hardened API; the kit reports containments
 
 - **Landed:** the five bridge fixes ND-1 to ND-5 (the five entries below) on the fuzzing and hardening work. `native-world.ts` keeps both: the `RIGID_LIMITS` guards, the large-shape record and the retype refusal, and the containment events, `containedTotal()`, `b3w_world_restore_ex` and the record of this world's checkpoints. Both WASM files were rebuilt once from the final C and came out byte-identical to the ones the series committed (`box3d.wasm` 2c1538d9…, `box3d-mt.wasm` e7654da3…), so `BUILD_PROVENANCE.json` is unchanged; API version 1.

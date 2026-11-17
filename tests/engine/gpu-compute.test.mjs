@@ -8,7 +8,7 @@
 // Shader execution is checked in a browser: scripts/gpu-compute-browser-check.mjs (docs/GPU_COMPUTE.md).
 import {test} from 'node:test';
 import assert from 'node:assert/strict';
-import {create, globals} from 'webgpu';
+import {createDawnGpu, globals} from '../../scripts/dawn-gpu.mjs';
 import {installGpuGlobals, mockDevice} from './fixtures/gpu-mock.mjs';
 Object.assign(globalThis, globals);
 installGpuGlobals();
@@ -18,7 +18,7 @@ const {GpuCompute, GpuProgram, PingPong, acquireGpuCompute} = await import('../.
 const {SW_PARAMS} = await import('../../src/engine/gpu/shallow-water-wgsl.ts');
 const {DEM_PARAMS, DEM_WALL} = await import('../../src/engine/gpu/granular-wgsl.ts');
 
-const dawn = create(['backend=null']);
+const dawn = createDawnGpu(['backend=null']);
 const adapter = await dawn.requestAdapter();
 const nullDevice = await adapter.requestDevice();
 const uncaptured = [];

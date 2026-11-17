@@ -2,14 +2,14 @@ import assert from 'node:assert/strict';
 import fs from 'node:fs';
 import crypto from 'node:crypto';
 import path from 'node:path';
-import {create,globals} from 'webgpu';
+import {createDawnGpu,globals} from './dawn-gpu.mjs';
 import {createLinearWaterArrays,stepLinearWaterCpu} from '../src/engine/linear-water.ts';
 import {GpuLinearWater} from '../src/webgpu/linear-water.ts';
 
 const output=process.argv[2];if(!output)throw new Error('Pass a new output JSON path.');
 const descriptor=fs.openSync(output,'wx');
 Object.assign(globalThis,globals);
-const gpu=create(['backend=metal']);
+const gpu=createDawnGpu(['backend=metal']);
 // The native Node binding needs its GPU instance strongly reachable while its
 // asynchronous event runner is active, including across large typed-array GCs.
 Object.defineProperty(globalThis,'navigator',{configurable:true,value:{gpu}});

@@ -4,13 +4,13 @@
 // like scripts/webgpu-pipeline-test.mjs: Dawn's render pipelines do not survive node:test's process shutdown.
 import assert from 'node:assert/strict';
 import fs from 'node:fs';
-import {create, globals} from 'webgpu';
+import {createDawnGpu, globals} from './dawn-gpu.mjs';
 Object.assign(globalThis, globals);
 const {createGrainLayer, createHeightFieldLayers, createPlaneLayer, createFluidSliceLayer, GRAIN_LAYER_WGSL, HEIGHT_FIELD_LAYER_WGSL, PLANE_LAYER_WGSL, FLUID_SLICE_LAYER_WGSL} = await import('../src/webgpu/simulation-layers.ts');
 const rendererSource = fs.readFileSync(new URL('../src/webgpu/renderer.ts', import.meta.url), 'utf8');
 const sceneUniformStruct = /const sceneUniformStruct = \/\* wgsl \*\/ `([\s\S]*?)`;/.exec(rendererSource)?.[1];
 assert.ok(sceneUniformStruct, 'renderer.ts must contain sceneUniformStruct');
-let gpu = create(['backend=null']);
+const gpu = createDawnGpu(['backend=null']);
 const device = await (await gpu.requestAdapter()).requestDevice();
 const uncaptured = [];
 device.addEventListener('uncapturederror', event => uncaptured.push(event.error.message));
@@ -36,4 +36,3 @@ assert.deepEqual(uncaptured, []);
 grains.destroy(); field.terrain.destroy(); plane.destroy(); for (const l of slices) l.destroy();
 console.log('Dawn null-backend validation passed: grain, height-field (terrain and water), plane and fluid-slice layers, 1x and 4x pipelines.');
 device.destroy();
-gpu = null;

@@ -12,7 +12,7 @@
 import {test} from 'node:test';
 import assert from 'node:assert/strict';
 import {createHash} from 'node:crypto';
-import {create, globals} from 'webgpu';
+import {createDawnGpu, globals} from '../../scripts/dawn-gpu.mjs';
 import {installGpuGlobals, mockDevice} from './fixtures/gpu-mock.mjs';
 Object.assign(globalThis, globals);
 installGpuGlobals();
@@ -27,7 +27,7 @@ const {granularProxy, f32Remote} = await import('../../src/engine/gpu/granular-p
 const {runGranularCases} = await import('../../src/engine/gpu/granular-cases.ts');
 const {GRANULAR_SETUPS, beadBox, hopperMixer, sandAvalanche} = await import('../../src/engine/gpu/granular-setups.ts');
 
-const dawn = create(['backend=null']);
+const dawn = createDawnGpu(['backend=null']);
 
 test('the shaders compile without errors or warnings, and a run with every wall shape encodes without a validation error', async () => {
   const adapter = await dawn.requestAdapter(), device = await adapter.requestDevice(), uncaptured = [];
