@@ -137,6 +137,8 @@ Items 1 to 3, measured old and new interleaved, preset by preset, over the first
 | Wired retention | 0.19 → 0.59 | 3.13 | 47,556 → 21,750 | 1 → 1 | 20.72 → 19.29 | 117.8 → 117.6 |
 | Acrylic comparison | 0.48 → 0.94 | 1.97 | 14,870 → 9,964 | intact | 2.73 → 2.76 | 30.6 → 30.7 |
 
+**With all four items** (the code after the three commits of 2026-11-17, default grid, fragments without the Box3D world, which the benchmark does not load), measured the same way against the code before them at load about 7: radial impact 0.33 → 0.55 times real time (1.66 times faster), tempered breakup 0.88 → 1.16 (1.32), laminated retention 0.10 → 0.24 (2.40), thick panel 0.139 → 0.22 (1.58), off-centre strike 0.35 → 0.59 (1.72), frosted fracture 0.40 → 0.69 (1.75), wired retention 0.175 → 0.57 (3.26), acrylic comparison 0.45 → 1.16 (2.59).
+
 The tempered pane spends its time on the 567 falling tiles and the hand-off of the dicing tick (worst tick 2 to 4 s), which these changes do not touch. The state hashes of the presets change (the factor rounds differently and the step is longer). What moves with the step are the peak readouts of the impact, which are not converged in the time step: the radial impact's peak contact force is 12.4, 15.3 to 16.3 and 17.5 to 18.6 kN at 1, 1/2 and 1/4 of the lab's step (old and new code alike), the laminate's 18.3 (old) or 23.3 (new), then 22.6 to 23.4 and 22.8 to 23.0; the peak stress moves by about 5 %; the time of the first crack stays within 0.1 ms (0.7055 s radial, 0.7418 s laminate). So the differences in the table are within the step error of these readouts; the new step is if anything closer to the converged laminate force.
 
 **Tried and not kept.** Solving the membrane only every k-th sub-step (the in-plane displacements of an earlier sub-step in between): 1.2 to 2.5 times faster at k = 2 to 4, but the acrylic sheet's peak stress fell from 30.6 to 22.0 MPa and the laminate took half the sub-steps for the wrong reason (the lagged field is not in equilibrium), so the answers are not those of the model: not kept. **Implicit or sub-cycled bending: not done.** Only the thick panel is limited by bending alone (its interior bending row sets the step at 24 mm, three times the 8 mm step); the others are limited by the membrane or by bending plus contact. An implicit bending step would need the contact penalty implicit too (it is a quarter of the bending row) and a factor of the 13-point stencil after every crack, and the impact readouts above already move by 50 % between the lab's step and a quarter of it, so a longer step would move them further.
@@ -385,6 +387,9 @@ With the first law (2026-11-12) the cube peaked at 45.0 MPa and the machine stop
 npm run test:plate
 node --test tests/studio/material-labs.test.mjs       # the Studio's labs, glass in SI (about 4 minutes)
 node --import ./scripts/register-typescript.mjs --test tests/studio/glass-worker.test.mjs
+node --test tests/studio/glass-fragments.test.mjs     # fragments in the Box3D world (about 2 minutes)
+node --test tests/studio/glass-refine.test.mjs        # the grid refined around the impact
+node scripts/fem-preset-benchmark.mjs glass --seconds 3   # real-time factors and state hashes of the glass presets
 node --test tests/studio/rubber-si.test.mjs           # the elastomer lab
 node --test tests/studio/concrete-si.test.mjs         # the concrete lab (several minutes)
 node --test tests/engine/solid-concrete.test.mjs      # the concrete law
