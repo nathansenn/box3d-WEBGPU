@@ -16,7 +16,7 @@
 import {test} from 'node:test';
 import assert from 'node:assert/strict';
 import {createHash} from 'node:crypto';
-import {create, globals} from 'webgpu';
+import {createDawnGpu, globals} from '../../scripts/dawn-gpu.mjs';
 import {installGpuGlobals, mockDevice} from './fixtures/gpu-mock.mjs';
 Object.assign(globalThis, globals);
 installGpuGlobals();
@@ -41,7 +41,7 @@ function cpuDevice() {
     runKernelF32(c.entryPoint, {u, f}, new Float32Array(F.data), new Uint32Array(I.data), new Float32Array(Sb.data));
   }});
 }
-const dawn = create(['backend=null']);
+const dawn = createDawnGpu(['backend=null']);
 const bits = (...arrays) => { const h = createHash('sha256'); for (const a of arrays) h.update(new Uint8Array(a.buffer, a.byteOffset, a.byteLength)); return h.digest('hex'); };
 
 test('the shader compiles, and steps with every kind of side encode without a validation error', async () => {

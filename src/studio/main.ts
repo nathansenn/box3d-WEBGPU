@@ -586,7 +586,7 @@ export async function bootStudio(requested:string):Promise<void> {
     // The full collection obscures the scene. Keep its last frame while browsing;
     // the compact drawer continues rendering the visible experiment.
     const collection=root.querySelector<HTMLDialogElement>('.collection-dialog');
-    const renderStart=performance.now();if(!collection?.open||collection.classList.contains('collection-peek'))world.render(now/1000);timings.sample('renderCpu',performance.now()-renderStart);
+    const renderStart=performance.now();if(!collection?.open||collection.classList.contains('collection-peek'))world.renderFrame(now/1000);timings.sample('renderCpu',performance.now()-renderStart);
     if(queuedComparison){queuedComparison=false;root.querySelector<HTMLImageElement>('#comparison-live')!.src=world.renderer.domElement.toDataURL('image/png');setText('#comparison-live-caption',`${STUDIES[id].title} · ${cameraPreset} · ${displayed().response.time.toFixed(2)} s`);}
     if(queuedCapture){queuedCapture=false;world.renderer.domElement.toBlob(blob=>{if(blob)download(`box3d-${id}-${displayed().response.time.toFixed(2)}s.png`,blob);});toast('Viewport image captured.');}
     if(now-lastUi>120) {updateUi();lastUi=now;}

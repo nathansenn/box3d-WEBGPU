@@ -18,7 +18,8 @@ export class LiquidScene {
   private shore:T.Mesh<T.BufferGeometry>;
   private clearWater:boolean;private clearColor=new T.Color('#eff6f2');
   private measurement=new T.Group();private probeMarkers:T.Group[]=[];private sectionPlane?:T.Mesh;private sectionDistance=3;
-  constructor(readonly model:LiquidModel,shared:Record<string,T.Material>,ripple:T.Texture,metalEnvironment?:T.Texture){
+  /** `labels` keeps the label materials across rebuilds (the lab world owns and disposes them): see MaterialLabWorld.label. */
+  constructor(readonly model:LiquidModel,shared:Record<string,T.Material>,ripple:T.Texture,metalEnvironment?:T.Texture,private readonly labels?:Map<string,T.MeshBasicMaterial>){
     const c=model.liquid,surface=surfaceFor(c.surface),own=<M extends T.Material>(m:M):M=>{this.owned.push(m);return m;};
     this.mats={...shared,
       steel:own(new T.MeshStandardMaterial({color:'#a1b4b7',roughness:.26,metalness:.82,envMapIntensity:1.2,envMap:metalEnvironment})),
@@ -85,8 +86,12 @@ export class LiquidScene {
   private rod(a:V3,b:V3,r:number,mat='steel',parent:T.Object3D=this.group):T.Mesh {const d=new T.Vector3(...b).sub(new T.Vector3(...a)),m=this.cylinder(r,d.length(),a,mat,parent);m.position.addScaledVector(d,.5);m.quaternion.setFromUnitVectors(UP,d.normalize());return m;}
   private tube(points:V3[],r:number,mat='steel'):void {this.mesh(new T.TubeGeometry(new T.CatmullRomCurve3(points.map(p=>new T.Vector3(...p))),72,r,16,false),[0,0,0],mat);}
   private label(text:string,w:number,h:number,p:V3,bg='#203d44',fg='#eef3e7'):T.Mesh {
+    const key=['liquid',text,w,h,bg,fg].join('\u0000'),cached=this.labels?.get(key);
+    if(cached){const mesh=this.mesh(new T.PlaneGeometry(w,h),p,cached);mesh.castShadow=false;return mesh;}
     const c=document.createElement('canvas');c.width=1536;c.height=Math.max(64,Math.round(1536*h/w));const ctx=c.getContext('2d')!;ctx.fillStyle=bg;ctx.fillRect(0,0,c.width,c.height);ctx.fillStyle=fg;ctx.textAlign='center';ctx.textBaseline='middle';ctx.font=`500 ${c.height*.45}px Inter, sans-serif`;ctx.fillText(text,c.width/2,c.height/2,c.width*.94);
-    const t=new T.CanvasTexture(c);t.colorSpace=T.SRGBColorSpace;this.textures.push(t);const m=new T.MeshBasicMaterial({map:t});this.owned.push(m);const mesh=this.mesh(new T.PlaneGeometry(w,h),p,m);mesh.castShadow=false;return mesh;
+    const t=new T.CanvasTexture(c);t.colorSpace=T.SRGBColorSpace;const m=new T.MeshBasicMaterial({map:t});
+    if(this.labels)this.labels.set(key,m);else{this.textures.push(t);this.owned.push(m);}
+    const mesh=this.mesh(new T.PlaneGeometry(w,h),p,m);mesh.castShadow=false;return mesh;
   }
   private flange(p:V3,r:number,axis:V3):void {
     const shape=new T.Shape();shape.absarc(0,0,r*1.55,0,Math.PI*2,false);const hole=new T.Path();hole.absarc(0,0,r*.85,0,Math.PI*2,true);shape.holes.push(hole);

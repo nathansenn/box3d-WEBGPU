@@ -37,8 +37,8 @@ async function retain(name,state) {
 }
 let device,water,resumed;
 try {
-  const {create,globals}=await import('webgpu');Object.assign(globalThis,globals);
-  const gpu=create(['backend=metal']);Object.defineProperty(globalThis,'navigator',{configurable:true,value:{gpu}});
+  const {createDawnGpu,globals}=await import('./dawn-gpu.mjs');Object.assign(globalThis,globals);
+  const gpu=createDawnGpu(['backend=metal']);Object.defineProperty(globalThis,'navigator',{configurable:true,value:{gpu}});
   const adapter=await gpu.requestAdapter();assert.ok(adapter,'Physical Metal adapter required.');
   const info=adapter.info??{};
   result.adapter={backend:'metal',vendor:info.vendor??null,architecture:info.architecture??null,device:info.device??null,description:info.description??null,isFallbackAdapter:info.isFallbackAdapter??adapter.isFallbackAdapter??null};

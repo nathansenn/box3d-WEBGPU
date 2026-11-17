@@ -206,7 +206,7 @@ export function vonMisesStress(t:ArrayLike<number>,offset=0):number {
  */
 /** What an exact checkpoint of a SolidBody holds: every field it has (displacements, velocities, loads, constraints, the
  * integrator's history, the corotational frames, the plastic and concrete state). The concrete return mapping is scratch. */
-const SOLID_FIELDS:FieldOptions={label:'SolidBody',skip:['creturn','cnonlocal','rebar','ldl','nW','nT','nU1','nU2','nU2Old','nD','eG','eP','eD','ringStart','ringNodes','nodeElementStart','nodeElements','mark','ringVector','keScratch']};
+const SOLID_FIELDS:FieldOptions={label:'SolidBody',skip:['creturn','cnonlocal','rebar','ldl','nW','nT','nU1','nU2','nU2Old','nD','eG','eP','eD','ringStart','ringNodes','nodeElementStart','nodeElements','mark','ringVector','keScratch','eH']};
 /** Inner iterations above which the next Newton iteration forms a new factorization (`linearSolver: 'ldl'`). */
 export const LDL_REFACTOR_ITERATIONS=8;
 /** Newton iterations that use the diagonal preconditioner after a factorization met an indefinite tangent. */
@@ -917,6 +917,10 @@ export class SolidBody {
   /** Product with the tangent of elasticNodal: each element's own tangent (deviatoric law, plus pi_e dG_e) and d pi_e G_e, with
    * d pi_e the mean over the element's nodes of U''(theta_n) d theta_n. */
   private stiffnessNodal(model:SolidModel,lin:Float64Array,x:Float64Array,out:Float64Array,plastic:boolean):void {
+    if(model==='green-lagrange'&&!this.creturn&&!this.veBranches.length)this.stiffnessNodalGreen(lin,x,out,plastic);
+    else this.stiffnessNodalGeneral(model,lin,x,out,plastic);
+  }
+  private stiffnessNodalGeneral(model:SolidModel,lin:Float64Array,x:Float64Array,out:Float64Array,plastic:boolean):void {
     const nW=this.nW,nD=this.nD,eD=this.eD,V=this.elementVolume,t=this.tets,H=this.H,P=this.P,own=model===this.model;
     const U2=lin===this.linOld?this.nU2Old:this.nU2,K=this.bulkNodal;
     nW.fill(0);nD.fill(0);
@@ -937,6 +941,64 @@ export class SolidBody {
     }
     void H;
   }
+  /** stiffnessNodal for the green-lagrange model without the concrete law or viscoelastic branches (the metal press): the
+   * same operations in the same order as gradient, volumeChange, tangentElastic, addVolumeTangent and scatter, written out
+   * with local variables, and each element's gradient of x kept from the first pass for the second. Results are bit for bit
+   * those of the general path; it is about twice as fast, and the press's conjugate gradients spend most of their time here. */
+  private stiffnessNodalGreen(lin:Float64Array,x:Float64Array,out:Float64Array,plastic:boolean):void {
+    const nW=this.nW,nD=this.nD,eD=this.eD,V=this.elementVolume,t=this.tets,g=this.grad,K=this.bulkNodal,mu=this.mu,la=this.elemLambda,T=this.ptan;
+    const nodes=this.nodeCount,count=this.tetCount,erodes=this.plastic,eroded=this.eroded;
+    if(this.eH.length!==9*count)this.eH=new Float64Array(9*count);
+    const eH=this.eH;
+    nW.fill(0);nD.fill(0);
+    for(let e=0;e<count;e++){
+      if(erodes&&eroded[e])continue;
+      const o=12*e,a=4*e;let h0=0,h1=0,h2=0,h3=0,h4=0,h5=0,h6=0,h7=0,h8=0;
+      for(let q=0;q<4;q++){
+        const n=3*t[a+q],gx=g[o+3*q],gy=g[o+3*q+1],gz=g[o+3*q+2],ux=x[n],uy=x[n+1],uz=x[n+2];
+        h0+=ux*gx;h1+=ux*gy;h2+=ux*gz;h3+=uy*gx;h4+=uy*gy;h5+=uy*gz;h6+=uz*gx;h7+=uz*gy;h8+=uz*gz;
+      }
+      const c=9*e;eH[c]=h0;eH[c+1]=h1;eH[c+2]=h2;eH[c+3]=h3;eH[c+4]=h4;eH[c+5]=h5;eH[c+6]=h6;eH[c+7]=h7;eH[c+8]=h8;
+      const l=16*e;let d=0;
+      d+=lin[l]*h0;d+=lin[l+1]*h1;d+=lin[l+2]*h2;d+=lin[l+3]*h3;d+=lin[l+4]*h4;d+=lin[l+5]*h5;d+=lin[l+6]*h6;d+=lin[l+7]*h7;d+=lin[l+8]*h8;
+      eD[e]=d;const wq=V[e]/4;
+      for(let q=0;q<4;q++){const n=t[a+q];nW[n]+=wq;nD[n]+=wq*d;}
+    }
+    for(let n=0;n<nodes;n++)nD[n]=nW[n]>0?K*nD[n]/nW[n]:0;
+    out.fill(0);let last=count-1;while(last>=0&&erodes&&eroded[last])last--;
+    for(let e=0;e<count;e++){
+      if(erodes&&eroded[e])continue;
+      const c=9*e,o=16*e,a=4*e;
+      const b0=eH[c],b1=eH[c+1],b2=eH[c+2],b3=eH[c+3],b4=eH[c+4],b5=eH[c+5],b6=eH[c+6],b7=eH[c+7],b8=eH[c+8];
+      const f0=lin[o],f1=lin[o+1],f2=lin[o+2],f3=lin[o+3],f4=lin[o+4],f5=lin[o+5],f6=lin[o+6],f7=lin[o+7],f8=lin[o+8];
+      const d0=f0*b0+f3*b3+f6*b6,d1=f1*b1+f4*b4+f7*b7,d2=f2*b2+f5*b5+f8*b8;
+      const d3=.5*(f1*b2+f4*b5+f7*b8+f2*b1+f5*b4+f8*b7),d4=.5*(f0*b2+f3*b5+f6*b8+f2*b0+f5*b3+f8*b6),d5=.5*(f0*b1+f3*b4+f6*b7+f1*b0+f4*b3+f7*b6);
+      const ltr=la*(d0+d1+d2);let t0=2*mu*d0+ltr,t1=2*mu*d1+ltr,t2=2*mu*d2+ltr,t3=2*mu*d3,t4=2*mu*d4,t5=2*mu*d5;
+      if(plastic){
+        const q=PT*e,c1=T[q+6],c2=T[q+7];
+        if(c1!==0||c2!==0){
+          const m=(d0+d1+d2)/3,nd=c2*(T[q]*d0+T[q+1]*d1+T[q+2]*d2+2*(T[q+3]*d3+T[q+4]*d4+T[q+5]*d5));
+          t0-=c1*(d0-m)+nd*T[q];t1-=c1*(d1-m)+nd*T[q+1];t2-=c1*(d2-m)+nd*T[q+2];t3-=c1*d3+nd*T[q+3];t4-=c1*d4+nd*T[q+4];t5-=c1*d5+nd*T[q+5];
+        }
+      }
+      const sxx=lin[o+9],syy=lin[o+10],szz=lin[o+11],syz=lin[o+12],sxz=lin[o+13],sxy=lin[o+14],pi=lin[o+15];
+      const dpi=(nD[t[a]]+nD[t[a+1]]+nD[t[a+2]]+nD[t[a+3]])/4;
+      let p0=b0*sxx+b1*sxy+b2*sxz+f0*t0+f1*t5+f2*t4,p1=b0*sxy+b1*syy+b2*syz+f0*t5+f1*t1+f2*t3,p2=b0*sxz+b1*syz+b2*szz+f0*t4+f1*t3+f2*t2;
+      let p3=b3*sxx+b4*sxy+b5*sxz+f3*t0+f4*t5+f5*t4,p4=b3*sxy+b4*syy+b5*syz+f3*t5+f4*t1+f5*t3,p5=b3*sxz+b4*syz+b5*szz+f3*t4+f4*t3+f5*t2;
+      let p6=b6*sxx+b7*sxy+b8*sxz+f6*t0+f7*t5+f8*t4,p7=b6*sxy+b7*syy+b8*syz+f6*t5+f7*t1+f8*t3,p8=b6*sxz+b7*syz+b8*szz+f6*t4+f7*t3+f8*t2;
+      p0+=pi*b0+dpi*f0;p1+=pi*b1+dpi*f1;p2+=pi*b2+dpi*f2;p3+=pi*b3+dpi*f3;p4+=pi*b4+dpi*f4;p5+=pi*b5+dpi*f5;p6+=pi*b6+dpi*f6;p7+=pi*b7+dpi*f7;p8+=pi*b8+dpi*f8;
+      const Ve=V[e],og=12*e;
+      for(let q=0;q<4;q++){
+        const n=3*t[a+q],gx=Ve*g[og+3*q],gy=Ve*g[og+3*q+1],gz=Ve*g[og+3*q+2];
+        out[n]+=p0*gx+p1*gy+p2*gz;out[n+1]+=p3*gx+p4*gy+p5*gz;out[n+2]+=p6*gx+p7*gy+p8*gz;
+      }
+      if(e===last){const P=this.P;P[0]=p0;P[1]=p1;P[2]=p2;P[3]=p3;P[4]=p4;P[5]=p5;P[6]=p6;P[7]=p7;P[8]=p8;}
+    }
+    // The scratch matrices end as the general path leaves them (the last live element's gradient in H and B, its product in
+    // P): they are part of a checkpoint, which must not depend on the path.
+    if(last>=0){const h=eH.subarray(9*last,9*last+9);this.H.set(h);this.B.set(h);}
+  }
+  private eH=new Float64Array(0);
   /** d theta_e = G_e : dH of element e for the increment in H, from the data `lin` keeps. */
   private volumeChange(e:number,model:SolidModel,lin:Float64Array):number {
     const H=this.H,o=16*e;

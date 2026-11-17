@@ -4,7 +4,7 @@ import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
 import { fileURLToPath, pathToFileURL } from 'node:url';
-import { create, globals } from 'webgpu';
+import { createDawnGpu, globals } from './dawn-gpu.mjs';
 import { emitTypeScriptModuleTree } from './emit-typescript-module-tree.mjs';
 
 Object.assign(globalThis, globals);
@@ -28,7 +28,7 @@ const { entryPath: runtimeModulePath } = emitTypeScriptModuleTree({
 });
 
 const dawnBackend = process.env.WEBGPU_DAWN_BACKEND ?? 'null';
-let gpu = create([`backend=${dawnBackend}`]);
+const gpu = createDawnGpu([`backend=${dawnBackend}`]);
 Object.defineProperty(globalThis, 'navigator', {
   configurable: true,
   value: { gpu },
@@ -1126,4 +1126,3 @@ assert.equal(renderer.isDisposed(), true);
 assert.equal(renderer.gpuTimingInfo().status, 'disposed');
 assert.throws(() => renderer.render(0, []), /disposed/);
 Object.defineProperty(globalThis, 'navigator', { configurable: true, value: {} });
-gpu = null;

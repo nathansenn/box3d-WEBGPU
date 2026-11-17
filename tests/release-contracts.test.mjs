@@ -131,3 +131,18 @@ test('every test file runs in a gate or is listed in UNWIRED_TESTS with a reason
   }
   assert.deepEqual(problems,[],problems.join('\n'));
 });
+test('Dawn GPU objects in Node come from scripts/dawn-gpu.mjs, which keeps them alive until exit',()=>{
+  // dawn.node frees its instance when the JS GPU object is collected while queued callbacks still use it (the CI
+  // segmentation fault of run 43942495498; tests/engine/dawn-lifetime.test.mjs). Only the helper and the control
+  // fixture of that test may import the package directly; the kit's tests cannot import the repository's scripts and
+  // pin their GPU object on the helper's global symbol themselves.
+  const allowed=new Set(['scripts/dawn-gpu.mjs','tests/engine/fixtures/dawn-lifetime-child.mjs']);
+  for(const file of walk('packages/box3d-kit/test'))if(/import\(['"]webgpu['"]\)/.test(read(file))){
+    assert.match(read(file),/Symbol\.for\('box3d\.dawnGpuObjects'\)/,`${file} must pin its Dawn GPU object`);allowed.add(file);
+  }
+  const sources=[...walk('scripts'),...walk('tests'),...walk('packages/box3d-kit/test'),...walk('packages/box3d-kit/scripts')].filter(file=>/\.(mjs|cjs|js|ts)$/.test(file));
+  const direct=sources.filter(file=>!allowed.has(file)&&/(?:from\s*|import\s*\(\s*|require\s*\(\s*)['"]webgpu['"]/.test(read(file)));
+  assert.deepEqual(direct,[],'create Dawn GPU objects with createDawnGpu() from scripts/dawn-gpu.mjs');
+  const dropped=sources.filter(file=>!allowed.has(file)&&/^\s*gpu\s*=\s*null\s*;/m.test(read(file)));
+  assert.deepEqual(dropped,[],'never drop the last reference to a Dawn GPU object');
+});

@@ -31,6 +31,8 @@ import { FailureSimulation, STUDIES, terrainHeight, type Snapshot, type Vec, typ
 const UP = new T.Vector3(0,1,0);
 const seeded = (n: number) => { const x=Math.sin(n*127.1+311.7)*43758.5453;return x-Math.floor(x); };
 
+/** Frames the animation loop lets the GPU have queued (StudioWorld.renderFrame). */
+const FRAMES_IN_FLIGHT=2;
 /** Visible structures are geometry. Generated concepts appear only in the comparison UI. */
 export class StudioWorld {
   renderer: T.WebGPURenderer;
@@ -1036,6 +1038,18 @@ export class StudioWorld {
     const studio=this.host.closest<HTMLElement>('#studio'),layout=[w,h,studio?.dataset.theme,studio?.dataset.deskPanel,studio?.dataset.reviewMode,studio?.classList.contains('scene-focus'),studio?.classList.contains('desk-collapsed'),studio?.classList.contains('reference-workflow'),studio?.classList.contains('response-open')].join(':');
     if(layout!==this.cameraLayout){this.cameraLayout=layout;this.setCamera(this.cameraPreset);}
   }
+  /** The animation loop's frame: skipped while FRAMES_IN_FLIGHT frames are still on the GPU (WebGPU only). Software rendering
+   * takes seconds per frame and the queue grew behind it: a 5 s press run under SwiftShader left 53 s of work queued (17 s
+   * with the limit), which every later screenshot waited for. On a GPU a frame completes within its interval and none is
+   * skipped. */
+  renderFrame(time:number):void {
+    const device=(this.renderer.backend as unknown as {device?:{queue:{onSubmittedWorkDone():Promise<unknown>}}|null}).device;
+    if(!device){this.render(time);return;}
+    if(this.framesInFlight>=FRAMES_IN_FLIGHT){this.controls.update();return;}
+    this.framesInFlight++;this.render(time);
+    const done=()=>{this.framesInFlight--;};device.queue.onSubmittedWorkDone().then(done,done);
+  }
+  private framesInFlight=0;
   render(time:number):void {
     if(this.disposed)return;
     this.water?.advance(time);

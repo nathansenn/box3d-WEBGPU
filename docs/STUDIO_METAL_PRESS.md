@@ -66,6 +66,20 @@ Real-time factor = model seconds of the stroke over CPU seconds of stepping, Nod
 | Force-limited stroke | 0.132 | 0.36 | 18.71 → 18.41 kN |
 | Diagonal bend line | 0.105 | 0.87 | 41.05 → 37.29 kN |
 
+**2026-11-17, same answers.** Two changes that leave every number of every preset bit for bit as it was (the final state, plastic strains and solver counts of all seven presets hashed before and after; the press tests print the same numbers): `factor()` no longer tries the four shifts that cannot succeed once an orphaned node (all its elements eroded, only its lumped mass left on the diagonal) is in the section, and the tet4-nodal tangent product is written out with local variables (docs/SOLID_MECHANICS.md, Linear solver). Real-time factor, model seconds over CPU seconds, median of three runs alternated with the old code, load average 24 to 33 on the 4-core sandbox:
+
+| Preset | Before | After | |
+|---|---|---|---|
+| S355 radius bend | 0.92 | 0.98 | 1.07 × |
+| 6061-T6 radius bend | 1.16 | 1.22 | 1.05 × |
+| S355 V bend (cracks) | 0.35 | 0.50 | 1.42 × |
+| 6061-T6 V bend (cracks) | 0.47 | 0.80 | 1.72 × |
+| S355 shallow bend | 1.16 | 1.63 | 1.41 × |
+| Force-limited stroke | 1.37 | 1.46 | 1.06 × |
+| Diagonal bend line | 1.06 | 1.07 | 1.02 × |
+
+The V bends stay below real time because of their preconditioner, not their arithmetic: after the first erosion each factorization ends with the whole diagonal doubled (the orphaned node's pivot fails at every shift), the doubled diagonal needs more than 16 inner iterations, and that sends the next three inner solves to the stiffness diagonal at about 170 iterations each: 20,807 of the S355 V bend's 27,498 inner iterations. Taking the orphaned unknowns out of that test would make the V bends 2.6 times faster (1,806 inner iterations), but it moves the cracked 6061-T6 V bend's final angle from 98.574° to 101.567° (the peak force is unchanged), so it is left for a decision on whether a broken sheet's flange angle may change.
+
 What set the cost before: each step is a Newton solve of the section with the contact active set and the plastic zone changing (about 10 Newton iterations per step), and the conjugate gradients needed about 360 iterations per Newton iteration on the stiff, thin section (818,000 for the radius bend). Now a sparse LDLᵀ factorization of the section's tangent preconditions them, kept across iterations and steps: 10,200 inner iterations and 200 factorizations for the radius bend. The cracking V bends are slower than before: erosion forces new factorizations, the compressed, cracking section is often indefinite (the factorization is shifted or the diagonal is used for a few iterations), and the averaged element costs about twice as much per product; with the tet4 element and the factorization they run at 0.64 (S355 V bend) and the radius bend at 1.6. Approach and retraction clear of the sheet cost nothing. The solver runs in the Studio's worker, so the page stays responsive; the Studio's clock falls behind wall time and says so in the footer.
 
 ## Limits

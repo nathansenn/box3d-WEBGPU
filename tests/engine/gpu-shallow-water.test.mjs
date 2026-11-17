@@ -10,7 +10,7 @@
 import {test} from 'node:test';
 import assert from 'node:assert/strict';
 import {createHash} from 'node:crypto';
-import {create, globals} from 'webgpu';
+import {createDawnGpu, globals} from '../../scripts/dawn-gpu.mjs';
 import {installGpuGlobals, mockDevice} from './fixtures/gpu-mock.mjs';
 Object.assign(globalThis, globals);
 installGpuGlobals();
@@ -24,7 +24,7 @@ const {runShallowWaterCases} = await import('../../src/engine/gpu/shallow-water-
 const {f32Backend, shallowWaterDifference} = await import('../../src/engine/gpu/shallow-water-validation.ts');
 const {SHALLOW_WATER_SETUPS, floodValley} = await import('../../src/engine/gpu/shallow-water-setups.ts');
 
-const dawn = create(['backend=null']);
+const dawn = createDawnGpu(['backend=null']);
 
 test('the shader compiles without errors or warnings, and a run with every feature encodes without a validation error', async () => {
   const adapter = await dawn.requestAdapter(), device = await adapter.requestDevice(), uncaptured = [];

@@ -134,11 +134,37 @@ export class SparseLDL {
   factor():void {
     if(this.saved.length!==this.values.length){this.saved=new Float64Array(this.values.length);this.savedD=new Float64Array(this.size);}
     this.saved.set(this.values);this.savedD.set(this.D);
-    for(let k=0;k<SHIFTS.length;k++){
+    // A matrix with a pivot that fails at every shift goes straight to the last attempt: the attempts before it would all
+    // be thrown away, and the last one starts from the saved matrix as it would after them, so the result is the same.
+    const first=this.hopelessPivot()?SHIFTS.length-1:0;
+    for(let k=first;k<SHIFTS.length;k++){
       if(k>0){this.values.set(this.saved);const s=1+SHIFTS[k];for(let j=0;j<this.size;j++)this.D[j]=this.savedD[j]*s;}
       this.shift=SHIFTS[k];this.factorOnce();
       if(this.modified===0)break;
     }
+    this.skippedAttempts+=first;
+  }
+  /** Factorizations attempted and skipped as certain to fail (`factor()`), since construction. */
+  skippedAttempts=0;
+  /** Whether the saved matrix has a free unknown that no attempt can pivot: its row and column of the assembled matrix are
+   * zero (an unknown left without stiffness, such as a node whose elements have all eroded), so the factorization reaches it
+   * unchanged and its pivot is its diagonal, scaled like every other diagonal by a shift. factorOnce resets a pivot that is not
+   * above 1e-12 of the largest diagonal; a diagonal at most half of that (or not positive) fails at every shift, rounding
+   * included. Zero rows and columns are tested on the assembled values, which no shift changes. */
+  private hopelessPivot():boolean {
+    const n=this.size,D=this.savedD,values=this.saved,cs=this.columnStart,rs=this.rowStart,re=this.rowEntry,fixed=this.fixed;let largest=0;
+    for(let j=0;j<n;j++)if(!fixed[j])largest=Math.max(largest,Math.abs(D[j]));
+    // Far from overflow and underflow, so that scaling by a shift and by 1e-12 rounds the same way for every diagonal.
+    if(!(largest>1e-280&&largest<1e280))return false;
+    const limit=.5e-12*largest;
+    for(let j=0;j<n;j++){
+      if(fixed[j]||(D[j]>limit))continue;
+      let empty=true;
+      for(let e=cs[j];e<cs[j+1]&&empty;e++)if(values[e]!==0)empty=false;
+      for(let r=rs[j];r<rs[j+1]&&empty;r++)if(values[re[r]]!==0)empty=false;
+      if(empty)return true;
+    }
+    return false;
   }
   /** Fraction of its own diagonal the last factorization added (0 for a positive definite matrix). */
   shift=0;

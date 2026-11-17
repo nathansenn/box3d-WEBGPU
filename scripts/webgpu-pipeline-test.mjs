@@ -2,7 +2,7 @@ import assert from 'node:assert/strict';
 import fs from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { create, globals } from 'webgpu';
+import { createDawnGpu, globals } from './dawn-gpu.mjs';
 
 Object.assign(globalThis, globals);
 
@@ -27,7 +27,7 @@ function shader(name) {
   return source;
 }
 
-let gpu = create(['backend=null']);
+const gpu = createDawnGpu(['backend=null']);
 const adapter = await gpu.requestAdapter();
 assert.ok(adapter, 'Dawn null backend must return an adapter');
 const device = await adapter.requestDevice();
@@ -647,4 +647,3 @@ assert.deepEqual(uncapturedErrors, [], 'Dawn emitted no uncaptured WebGPU errors
 console.log(`✅ Dawn null-backend validation passed: ${shaderNames.length} shaders, stable visibility compute, indirect vertex pulling, blended glass/dust, GPU rope/cloth/water, HDR/MSAA, and offscreen command encoding (no numerical GPU execution)`);
 
 device.destroy();
-gpu = null;
