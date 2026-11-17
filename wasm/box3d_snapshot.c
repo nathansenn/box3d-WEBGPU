@@ -70,6 +70,16 @@ static void b3w_skip_array(B3WImageCursor* c, int element)
 	if (count < 0) { c->ok = false; return; }
 	b3w_skip(c, (int64_t)count * element);
 }
+// The geometry union of a live shape holds what its kind uses (a sphere, a capsule, or a pointer and for a mesh its
+// scale). A shape slot that is reused keeps the previous shape's bytes past that: a box (a hull) made in the slot of a
+// destroyed sphere still carries the sphere's radius after its hull pointer. The restore clears the union and takes the
+// geometry from its own record, so a restored world writes zeros there, and the first checkpoint after a restore
+// differed from the one restored by those 4 bytes (ND-6, docs/ROBUSTNESS.md). Zero what the kind does not use.
+#define B3W_GEOMETRY_UNION_BYTES (sizeof(b3Capsule) > sizeof(b3Mesh) ? sizeof(b3Capsule) : sizeof(b3Mesh))
+static void b3w_clear_geometry_tail(uint8_t* raw, size_t used)
+{
+	if (used < B3W_GEOMETRY_UNION_BYTES) memset(raw + offsetof(b3Shape, capsule) + used, 0, B3W_GEOMETRY_UNION_BYTES - used);
+}
 #define B3W_ELEMENT(type, member) ((int)sizeof(*((type*)0)->member.data))
 
 static bool b3w_canonicalize(uint8_t* image, int size)
@@ -97,12 +107,20 @@ static bool b3w_canonicalize(uint8_t* image, int size)
 		b3w_skip_array(&c, (int)sizeof(b3SurfaceMaterial));
 		const int32_t kind = b3w_take_i32(&c);
 		if (c.ok == false) break;
-		if (kind == (int32_t)b3_sphereShape) b3w_skip(&c, (int64_t)sizeof(b3Sphere));
+		if (kind == (int32_t)b3_sphereShape)
+		{
+			b3w_skip(&c, (int64_t)sizeof(b3Sphere));
+			if (c.ok) b3w_clear_geometry_tail(raw, sizeof(b3Sphere));
+		}
 		else if (kind == (int32_t)b3_capsuleShape) b3w_skip(&c, (int64_t)sizeof(b3Capsule));
 		else if (kind == (int32_t)b3_hullShape || kind == (int32_t)b3_heightShape || kind == (int32_t)b3_compoundShape || kind == (int32_t)b3_meshShape)
 		{
 			b3w_skip(&c, kind == (int32_t)b3_meshShape ? 4 + (int64_t)sizeof(b3Vec3) : 4);
-			if (c.ok) memset(raw + offsetof(b3Shape, hull), 0, sizeof(void*));
+			if (c.ok)
+			{
+				memset(raw + offsetof(b3Shape, hull), 0, sizeof(void*));
+				b3w_clear_geometry_tail(raw, kind == (int32_t)b3_meshShape ? sizeof(b3Mesh) : sizeof(void*));
+			}
 		}
 		else if (kind != -1) c.ok = false;
 	}

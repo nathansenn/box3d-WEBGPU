@@ -27,7 +27,7 @@
     "concreteReinforcementRig": true,
     "glassFractureStage": true,
     "checkpointSource": "wasm/box3d_snapshot.c",
-    "checkpointSha256": "9086c685b987d7d7084cf09e2599af781a57eb7b377ec4ac9b53e827f49a625b"
+    "checkpointSha256": "43575bdec5c1600d2c3b7f1baeb4d69fcc4c05004427ef66ab4130b1fc958248"
   },
   "artifacts": {
     "box3d.js": {
@@ -35,8 +35,8 @@
       "sha256": "469e1cf95343ba3826c0f0cbb0e43d0703104e76c4e7ad357326e7bacc21349c"
     },
     "box3d.wasm": {
-      "bytes": 725500,
-      "sha256": "2c1538d9e87284f671630fe23e7b848532b9cf64343307121c4ba65b19228b3a"
+      "bytes": 725529,
+      "sha256": "dea76886b622e4b5b2f1a0ebcbe119e94ee2fedac160a78f609c60bf91e9d457"
     }
   },
   "validation": {
@@ -171,8 +171,8 @@
         "sha256": "ebafa52b1e83485fc9522b8f78431321ba480ff38baa84db7dbb1c6a0e98d358"
       },
       "box3d-mt.wasm": {
-        "bytes": 733307,
-        "sha256": "e7654da3ca3eb2068362a722824559da9fe062e9b578cc42bbb66833106dce95"
+        "bytes": 733336,
+        "sha256": "472b385d17e2e375cb565cb51268dad39df14d056de6fb02a19e79e27752ce40"
       }
     },
     "build": {
