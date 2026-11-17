@@ -38,6 +38,10 @@ export class MaterialLabWorld {
   private own<M extends T.Material>(m:M):M {this.extraMaterials.add(m);return m;}
   private makeRenderer(forceWebGL=false):T.WebGPURenderer {
     const r=new T.WebGPURenderer({antialias:true,alpha:false,forceWebGL});r.setPixelRatio(Math.min(devicePixelRatio,1.5));
+    // A WebGPU loss before init() wires the recovery is the first-frame probe's to report (watchDeviceLoss): three.js's
+    // default handler would log it as an error whenever the browser gives a reason other than "destroyed" ("A valid external
+    // Instance reference no longer exists" under software rendering). WebGL context losses keep the default report.
+    const report=r.onDeviceLost;r.onDeviceLost=info=>{if(info.api!=='WebGPU')report.call(r,info);};
     r.toneMapping=T.ACESFilmicToneMapping;r.toneMappingExposure=1;r.shadowMap.enabled=true;r.shadowMap.type=T.PCFShadowMap;
     r.domElement.setAttribute('role','img');r.domElement.setAttribute('aria-label','Interactive 3D material experiment. Drag to orbit and scroll to zoom.');this.host.append(r.domElement);return r;
   }
@@ -118,10 +122,15 @@ export class MaterialLabWorld {
   private bolt(x:number,y:number,z:number,parent:T.Object3D=this.rig):void {this.cylinder(.056,.025,[x,y,z],'black',parent);this.mesh(new T.CylinderGeometry(.037,.037,.043,6),this.materials.chrome,[x,y+.018,z],parent);}
   private hose(points:V3[],r=.035,parent:T.Object3D=this.rig):void {const curve=new T.CatmullRomCurve3(points.map(p=>new T.Vector3(...p)));this.mesh(new T.TubeGeometry(curve,40,r,10,false),this.materials.rubber,[0,0,0],parent);}
   private label(text:string,width:number,height:number,p:V3,background='#222a28',color='#dadcd2',parent:T.Object3D=this.rig):T.Mesh {
+    // One material per distinct label for the world's lifetime: a new canvas texture is a new shader program in three.js, so a
+    // label drawn again at every reset compiled its render pipelines again.
+    const key=[text,width,height,background,color].join('\u0000'),cached=this.labelMaterials.get(key);
+    if(cached)return this.mesh(new T.PlaneGeometry(width,height),cached,p,parent);
     const canvas=document.createElement('canvas');canvas.width=1024;canvas.height=Math.max(48,Math.round(1024*height/width));const ctx=canvas.getContext('2d')!;ctx.fillStyle=background;ctx.fillRect(0,0,canvas.width,canvas.height);ctx.fillStyle=color;ctx.font=`600 ${Math.round(canvas.height*.48)}px Inter, sans-serif`;ctx.textAlign='center';ctx.textBaseline='middle';ctx.fillText(text,512,canvas.height/2,980);
-    const texture=new T.CanvasTexture(canvas);texture.colorSpace=T.SRGBColorSpace;this.labels.push(texture);
-    const m=this.own(new T.MeshBasicMaterial({map:texture}));return this.mesh(new T.PlaneGeometry(width,height),m,p,parent);
+    const texture=new T.CanvasTexture(canvas);texture.colorSpace=T.SRGBColorSpace;
+    const m=new T.MeshBasicMaterial({map:texture});this.labelMaterials.set(key,m);return this.mesh(new T.PlaneGeometry(width,height),m,p,parent);
   }
+  private readonly labelMaterials=new Map<string,T.MeshBasicMaterial>();
   private buildHall():void {
     if(this.panorama){
       const skybox=new GroundedSkybox(this.panorama,3,55,64);skybox.position.y=3;(skybox.material as T.MeshBasicMaterial).toneMapped=false;this.own(skybox.material as T.Material);this.hall.add(skybox);
@@ -160,17 +169,21 @@ export class MaterialLabWorld {
     this.scene.add(new T.HemisphereLight('#f2f7f4','#8a8068',1.9));const rim=new T.DirectionalLight('#d9edf1',1.5);rim.position.set(2,6,-4);this.scene.add(rim);const fill=new T.DirectionalLight('#fff4df',1.6);fill.position.set(7,4,8);this.scene.add(fill);if(this.model.id==='liquid'){this.key.intensity=2.7;fill.intensity=1;this.scene.environmentIntensity=.9;}
   }
   setModel(model:LabModel):void {
-    this.hydraulics?.dispose();this.hydraulics=undefined;
+    // The replaced apparatus is disposed after the new one has drawn its first frame (render()): its materials keep their
+    // compiled render pipelines alive until then, so the new apparatus, made of materials with the same programs, reuses them.
+    // Disposed first, every reset of the liquid lab compiled 32 render pipelines again, each one seconds of work under software
+    // rendering.
+    const retired=this.retired,hydraulics=this.hydraulics;if(hydraulics)retired.push(()=>hydraulics.dispose());this.hydraulics=undefined;
     const shared=new Set(Object.values(this.materials));
-    this.rig.traverse(o=>{if(o instanceof T.Mesh||o instanceof T.LineSegments){o.geometry.dispose();for(const material of Array.isArray(o.material)?o.material:[o.material])if(material!==this.tint&&!shared.has(material)&&this.extraMaterials.has(material)){const texture=(material as T.MeshBasicMaterial).map;if(texture instanceof T.CanvasTexture){texture.dispose();this.labels=this.labels.filter(t=>t!==texture);}material.dispose();this.extraMaterials.delete(material);}}});this.rig.clear();this.model=model;this.actuator=new T.Group();this.rig.add(this.actuator);
+    this.rig.traverse(o=>{if(o instanceof T.Mesh||o instanceof T.LineSegments){const geometry=o.geometry;retired.push(()=>geometry.dispose());for(const material of Array.isArray(o.material)?o.material:[o.material])if(material!==this.tint&&!shared.has(material)&&this.extraMaterials.has(material)){const texture=(material as T.MeshBasicMaterial).map;if(texture instanceof T.CanvasTexture){retired.push(()=>texture.dispose());this.labels=this.labels.filter(t=>t!==texture);}retired.push(()=>material.dispose());this.extraMaterials.delete(material);}}});this.rig.clear();this.model=model;this.actuator=new T.Group();this.rig.add(this.actuator);
     this.specimen=undefined;this.intactPane=undefined;this.paneRest=undefined;this.piston=undefined;this.grains=undefined;this.water=undefined;this.waterSides=undefined;this.cracks=undefined;this.foam=undefined;this.rubberRest=undefined;
-    this.tint.dispose();this.extraMaterials.delete(this.tint);
+    const tint=this.tint;retired.push(()=>tint.dispose());this.extraMaterials.delete(tint);
     const id=model.id,p=model.material;
     this.tint=this.own(new T.MeshPhysicalMaterial({color:p.color,roughness:id==='glass'?(p.id==='frosted'?.55:.08):id==='liquid'?.12:id==='rubber'?.47:.85,metalness:id==='granular'&&p.id==='steel'?.8:0,
       clearcoat:id==='liquid'||id==='glass'?1:id==='rubber'?.18:0,transparent:id==='glass'||id==='liquid',opacity:id==='glass'?.38:id==='liquid'?.82:1,side:T.DoubleSide,depthWrite:id!=='glass',envMapIntensity:id==='liquid'?1.4:.8}));
     if(id==='liquid'){this.tint.normalMap=this.ripple;this.tint.normalScale.set(.13,.13);this.tint.roughness=.075;this.tint.metalness=0;this.tint.opacity=1;this.tint.transmission=.48;this.tint.ior=1.333;this.tint.thickness=.35;this.tint.attenuationColor.set(p.color);this.tint.attenuationDistance=1.4;this.tint.color.lerp(new T.Color('#dcefee'),.12);this.ripple.repeat.set(2,2);}
     if(id==='concrete'){this.tint.map=this.library.materials.concrete.map;this.tint.bumpMap=this.library.materials.concrete.map;this.tint.bumpScale=.035;}
-    if(id==='liquid'){this.hydraulics=new LiquidScene(model as LiquidModel,this.materials,this.ripple,this.liquidMetalEnvironment?.texture);this.hydraulics.setDisplay(this.liquidDisplay);this.hydraulics.setSection(this.liquidSection,this.sectionVisible);this.rig.add(this.hydraulics.group);}else if(id==='granular')this.buildTank();else if(id==='glass')this.buildGlassRig();else this.buildPressRig();
+    if(id==='liquid'){this.hydraulics=new LiquidScene(model as LiquidModel,this.materials,this.ripple,this.liquidMetalEnvironment?.texture,this.labelMaterials);this.hydraulics.setDisplay(this.liquidDisplay);this.hydraulics.setSection(this.liquidSection,this.sectionVisible);this.rig.add(this.hydraulics.group);}else if(id==='granular')this.buildTank();else if(id==='glass')this.buildGlassRig();else this.buildPressRig();
     this.update(model.frame);this.fit(this.view);
   }
   private feet(width:number,depth:number,top:number,parent:T.Object3D=this.rig):void {
@@ -404,8 +417,22 @@ export class MaterialLabWorld {
   setLiquidSection(distance:number,visible:boolean):void {if(distance===this.liquidSection&&visible===this.sectionVisible)return;this.liquidSection=distance;this.sectionVisible=visible;this.hydraulics?.setSection(distance,visible);if(this.lastFrame)this.hydraulics?.update(this.lastFrame);}
   setRotate(on:boolean):void {this.rotate=on;this.controls.autoRotate=on;this.controls.autoRotateSpeed=.4;}
   resize():void {if(this.disposed||this.recovering)return;const w=this.host.clientWidth,h=this.host.clientHeight;if(!w||!h)return;this.renderer.setSize(w,h);this.camera.aspect=w/h;this.camera.updateProjectionMatrix();if(Object.keys(this.materials).length)this.fit(this.view);}
-  render():void {if(this.disposed||this.recovering)return;this.controls.update();this.renderer.render(this.scene,this.camera);}
+  /** The animation loop's frame: skipped while two frames are still on the GPU (WebGPU only), as StudioWorld.renderFrame. */
+  renderFrame():void {
+    const device=(this.renderer.backend as unknown as {device?:{queue:{onSubmittedWorkDone():Promise<unknown>}}|null}).device;
+    if(!device||this.recovering){this.render();return;}
+    if(this.framesInFlight>=2){this.controls.update();return;}
+    this.framesInFlight++;this.render();
+    const done=()=>{this.framesInFlight--;};device.queue.onSubmittedWorkDone().then(done,done);
+  }
+  private framesInFlight=0;
+  render():void {
+    if(this.disposed||this.recovering)return;this.controls.update();this.renderer.render(this.scene,this.camera);
+    if(this.retired.length){const retired=this.retired.splice(0);for(const dispose of retired)dispose();}
+  }
+  /** Disposals of a replaced apparatus, run after the next frame (setModel). */
+  private retired:(()=>void)[]=[];
   async capture():Promise<string>{await this.renderer.renderAsync(this.scene,this.camera);return this.renderer.domElement.toDataURL('image/png');}
   get backend():string{return (this.renderer.backend as unknown as {isWebGPUBackend?:boolean}).isWebGPUBackend?'WebGPU':'WebGL';}
-  dispose():void {if(this.disposed)return;this.disposed=true;this.observer.disconnect();this.hydraulics?.dispose();this.controls.dispose();this.scene.traverse(o=>{if(o instanceof T.Mesh||o instanceof T.LineSegments)o.geometry.dispose();});this.labels.forEach(t=>t.dispose());this.extraMaterials.forEach(m=>m.dispose());this.ripple.dispose();this.library.dispose();this.environment?.dispose();this.liquidMetalEnvironment?.dispose();this.liquidTextures.forEach(t=>t.dispose());this.panorama?.dispose();this.renderer.dispose();this.renderer.domElement.remove();}
+  dispose():void {if(this.disposed)return;this.disposed=true;this.observer.disconnect();for(const dispose of this.retired.splice(0))dispose();this.hydraulics?.dispose();this.controls.dispose();this.scene.traverse(o=>{if(o instanceof T.Mesh||o instanceof T.LineSegments)o.geometry.dispose();});this.labels.forEach(t=>t.dispose());this.labelMaterials.forEach(m=>{m.map?.dispose();m.dispose();});this.extraMaterials.forEach(m=>m.dispose());this.ripple.dispose();this.library.dispose();this.environment?.dispose();this.liquidMetalEnvironment?.dispose();this.liquidTextures.forEach(t=>t.dispose());this.panorama?.dispose();this.renderer.dispose();this.renderer.domElement.remove();}
 }
