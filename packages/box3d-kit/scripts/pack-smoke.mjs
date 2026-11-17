@@ -58,10 +58,13 @@ const BUDGET = {
   // coupling 25.1, frame 23.4, structure 27.9, heat 24.7, solid 65.8, fracture 124.2, solid-contact 117.7 (with solid–solid contact), cloth 63.0, granular 57.4,
   // fluid 49.7, shallow-water 33.4, materials 35.0, geometry 28.6, scene-format 80.4, robot 64.3, and scene 411.6 and simulation
   // 410.3, which load every solver.
+  // Raised 2026-11-17: fracture 131 -> 138 KiB for the concrete law's crack band per element and softening surface (measured
+  // 133.7 KiB; the two changed sources grew by 5.8 KiB gzip); solid measured 73.9 of 75, solid-contact 125.8, scene 437.5,
+  // simulation 436.2.
   entry: {
     '.': 85 * KiB, './three': 3 * KiB, './babylon': 2 * KiB, './worker': 92 * KiB, './gameplay': 95 * KiB,
     './cable': 28 * KiB, './water': 4 * KiB, './coupling': 29 * KiB, './frame': 27 * KiB, './structure': 32 * KiB, './heat': 28 * KiB,
-    './solid': 75 * KiB, './fracture': 131 * KiB, './solid-contact': 135 * KiB, './cloth': 72 * KiB, './granular': 65 * KiB, './fluid': 57 * KiB, './shallow-water': 38 * KiB,
+    './solid': 75 * KiB, './fracture': 138 * KiB, './solid-contact': 135 * KiB, './cloth': 72 * KiB, './granular': 65 * KiB, './fluid': 57 * KiB, './shallow-water': 38 * KiB,
     './materials': 40 * KiB, './geometry': 33 * KiB, './scene-format': 92 * KiB, './robot': 74 * KiB, './scene': 447 * KiB, './simulation': 446 * KiB,
   },
 };
