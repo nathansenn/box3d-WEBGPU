@@ -158,6 +158,12 @@ try {
         print(['set-up', 'elements', 'steps', 'vs float32', 'vs float64', 'conservation / divergence', 'repeat'], section.agreement.map(a => [a.name, a.cells ?? a.grains, a.steps, number(a.gpuVsF32.depth ?? a.gpuVsF32.position ?? a.gpuVsF32.velocity), number(a.gpuVsF64.depth ?? a.gpuVsF64.position ?? a.gpuVsF64.velocity), number(a.volumeRelative ?? a.momentumRelative ?? a.divergence), a.repeat.identical ? 'identical' : 'DIFFERS']));
         console.log('');
         for (const a of section.agreement) if (!a.repeat.identical) failures.push(`${name} ${a.name}: a repeated run differs`);
+        const forces = section.agreement.filter(a => a.force);
+        if (forces.length) {
+          console.log(`${name}: obstacle force, GPU against the CPU`);
+          print(['set-up', 'force on the GPU (N)', 'vs float32', 'vs float64', 'bits'], forces.map(a => [a.name, a.force.gpu.slice(0, 3).map(x => number(x, 4)).join(' '), number(a.force.vsF32), number(a.force.vsF64), a.force.identicalToF32 ? 'identical' : 'differ']));
+          console.log('');
+        }
       }
       if (section.deviceLoss) console.log(`${name}: device lost in mid-run: ${section.deviceLoss.backendBefore} -> ${section.deviceLoss.backendAfter}, ${section.deviceLoss.stepsRerun} steps run again on the CPU; against float64: ${number(section.deviceLoss.vsF64)}\n`);
       if (section.deviceLoss && section.deviceLoss.backendAfter !== 'cpu') failures.push(`${name}: the run did not fall back to the CPU`);

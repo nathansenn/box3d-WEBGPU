@@ -8,10 +8,13 @@
  * read with dynamic offsets. A step submits its dispatches in order; the host reads the 64 scalars (256 bytes) every
  * 16 conjugate-gradient iterations to see whether a solve has stopped. `dataBuffer` with `regions` lets a renderer draw
  * the velocity or the pressure without reading them back.
- * Not on the GPU: obstacles and coupled bodies, the energy ledger, checkpoints, the free surface.
+ * Obstacles: the host works out the faces near each obstacle's surface in float64 (Fluid.backendObstacleBand) and
+ * uploads them before each step (16 bytes of indices and 24 of floats per face); the GPU constrains those faces and
+ * sums, per obstacle, the constraint impulse and the momentum inside; the host turns the sums into forces
+ * (Fluid.finishBackendObstacles). Not on the GPU: the energy ledger, checkpoints, the free surface.
  */
 import {EngineError} from '../contracts.ts';
-import type {Fluid} from '../fluid.ts';
+import type {Fluid,FluidObstacleBand} from '../fluid.ts';
 import {GpuCompute,GpuProgram} from './compute.ts';
 import {FLUID_PASS,FLUID_WGSL,KERNELS,type KernelName} from './fluid-kernels.ts';
 import {BLOCK_STRIDE,FLUID_SCALARS,FluidProgram,fluidProgramSource,fluidStepStats,MAX_BLOCKS,type FluidBackendOptions,type FluidCommand,type FluidProgramSource} from './fluid-program.ts';
@@ -28,7 +31,11 @@ export class GpuFluid {
   /** The float data: the velocity components at `regions.vel + c * padded`, the pressure at `regions.p` (floats). */
   readonly dataBuffer:GPUBuffer;
   readonly stats={steps:0,pressureIterations:0,viscousIterations:0,divergence:0,unconverged:0};
+  /** The obstacle sums of the last step (null without obstacles): see FluidProgram.obstacleSums. */
+  obstacleSums:{J:Float64Array;M:Float64Array;Mstart:Float64Array|null}|null=null;
   time:number;readonly dt:number;
+  /** The Fluid this backend was built from, when it was: its obstacles are moved and given their forces by `step()`. */
+  private host:Fluid|null=null;
   private readonly indexBuffer:GPUBuffer;private readonly scalarBuffer:GPUBuffer;private readonly blockBuffer:GPUBuffer;
   private readonly pipelines:Map<KernelName,GPUComputePipeline>;private readonly group:GPUBindGroup;
   private written=0;private destroyed=false;private lastScalars:Float32Array|null=null;
@@ -49,9 +56,18 @@ export class GpuFluid {
     const pipelines=new Map(KERNELS.map((k,i)=>[k,built[i]]));
     const F=Float32Array.from(plan.initialF);program.load(F,given.velocity,given.pressure);
     const data=compute.storage('fluid data',4*plan.floats,F),index=compute.storage('fluid indices',4*plan.words,plan.initialI);
-    const scalar=compute.storage('fluid scalars',4*FLUID_SCALARS),block=compute.buffer('fluid parameters',BLOCK_STRIDE*MAX_BLOCKS,GPUBufferUsage.UNIFORM|GPUBufferUsage.COPY_DST);
+    const scalar=compute.storage('fluid scalars',4*plan.scalars),block=compute.buffer('fluid parameters',BLOCK_STRIDE*MAX_BLOCKS,GPUBufferUsage.UNIFORM|GPUBufferUsage.COPY_DST);
     const group=await compute.scoped('fluid bind group',()=>compute.bind('fluid',layout,[{buffer:block,size:FLUID_PASS.size},data,index,scalar]));
-    return new GpuFluid(compute,program,given.time,source.dt,{data,index,scalar,block},pipelines,group);
+    const gpu=new GpuFluid(compute,program,given.time,source.dt,{data,index,scalar,block},pipelines,group);
+    if(!('description' in fluid))gpu.host=fluid;
+    return gpu;
+  }
+  /** The obstacles' band for the next step (Fluid.backendObstacleBand). A GpuFluid built from a Fluid sets it itself. */
+  setObstacles(band:FluidObstacleBand):void {
+    this.alive();
+    const p=this.program.plan,b=this.program.setBand(band);
+    if(b.entries.length){this.compute.write(this.indexBuffer,b.entries,4*p.I.obe);this.compute.write(this.dataBuffer,b.floats,4*p.F.obf);}
+    this.compute.write(this.indexBuffer,b.header,4*p.I.obh);
   }
   get regions():Readonly<Record<string,number>> {return this.program.plan.F;}
   get padded():number {return this.program.plan.P;}
@@ -81,13 +97,22 @@ export class GpuFluid {
     }
     flush();
   }
-  /** Take `count` steps; resolves when they are submitted (each waits on its own solves). */
+  /**
+   * Take `count` steps; resolves when they have run (each waits on its own solves). With obstacles, a GpuFluid built
+   * from a Fluid takes the band of that fluid at its present poses before each step and hands it the sums after it
+   * (its obstacleForce then reads as after a step of the float64 solver); one built from a description takes the band
+   * given to setObstacles and leaves the sums in `obstacleSums`.
+   */
   async step(count=1):Promise<void> {
     this.alive();
+    const obstacles=this.program.plan.obstacles>0;
     for(let s=0;s<count;s++){
+      if(obstacles&&this.host)this.setObstacles(this.host.backendObstacleBand());
+      if(obstacles&&!this.program.band)throw new EngineError('INVALID_PAYLOAD','This GpuFluid has obstacles: give it their band (setObstacles) before a step.');
       await this.run(this.program.step());
       // The statistics of the step: the scalars as the last solve left them (read once more after the projection).
-      const [bytes]=await this.compute.read([{buffer:this.scalarBuffer}]);const st=fluidStepStats(new Float32Array(bytes));
+      const [bytes]=await this.compute.read([{buffer:this.scalarBuffer}]);const S=new Float32Array(bytes),st=fluidStepStats(S);
+      if(obstacles){const sums=this.obstacleSums=this.program.obstacleSums(S);this.host?.finishBackendObstacles(sums.J,sums.M,sums.Mstart);}
       this.stats.steps++;this.stats.pressureIterations=st.pressureIterations;this.stats.viscousIterations=st.viscousIterations;this.stats.divergence=st.divergence;if(st.unconverged)this.stats.unconverged++;
       this.time+=this.dt;
     }

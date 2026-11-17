@@ -1444,6 +1444,20 @@ export interface FluidBackendDescription {
     nbr: Int32Array;
     diag: Float64Array;
 }
+export interface FluidObstacleBand {
+    readonly obstacles: number;
+    readonly fresh: Uint8Array;
+    readonly components: readonly {
+        readonly face: Int32Array;
+        readonly owner: Int32Array;
+        readonly mode: Uint8Array;
+        readonly outFace: Int32Array;
+        readonly weight: Float64Array;
+        readonly target: Float64Array;
+        readonly alpha: Float64Array;
+        readonly arm: Float64Array;
+    }[];
+}
 export interface FluidTimeStepLimits {
     readonly viscous: number;
     readonly advective: number;
@@ -1551,6 +1565,8 @@ export declare class Fluid {
     private readonly multigrid;
     constructor(options: FluidOptions);
     backendDescription(): FluidBackendDescription;
+    backendObstacleBand(): FluidObstacleBand;
+    finishBackendObstacles(J: ArrayLike<number>, M: ArrayLike<number>, Mstart: ArrayLike<number> | null): void;
     private sideVelocity;
     faceIndex(f: number): [number, number, number];
     facePosition(c: number, f: number): [number, number, number];
@@ -1598,6 +1614,7 @@ export declare class Fluid {
     private lap;
     step(count?: number): void;
     private advance;
+    private obstacleForces;
     private solveViscous;
     divergenceAt(c: number): number;
     maxDivergence(): number;

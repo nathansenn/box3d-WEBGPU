@@ -19,7 +19,7 @@ import type {GranularCaseRun} from './granular-cases.ts';
 import {Fluid} from '../fluid.ts';
 import {GpuFluid,FluidRunner} from './fluid-gpu.ts';
 import {FluidF32} from './fluid-f32.ts';
-import {FLUID_SETUPS,cavity3d} from './fluid-setups.ts';
+import {FLUID_SETUPS,cavity3d,sphereArray} from './fluid-setups.ts';
 import type {FluidCaseRun} from './fluid-cases.ts';
 
 function fnv(...arrays:ArrayBufferView[]):string {
@@ -226,7 +226,9 @@ export interface FluidAgreement {name:string;steps:number;cells:number;
   /** Largest velocity difference over the largest speed; largest pressure difference over the largest |p|. */
   gpuVsF32:{velocity:number;pressure:number};gpuVsF64:{velocity:number;pressure:number};
   /** Largest relative divergence the GPU left (max |div u| h / max |u|). */
-  divergence:number;pressureIterations:number;viscousIterations:number;repeat:{identical:boolean;hash:string}}
+  divergence:number;pressureIterations:number;viscousIterations:number;repeat:{identical:boolean;hash:string};
+  /** With an obstacle: its force after the last step on the GPU, and the differences over its magnitude (the bits: 0 when identical). */
+  force?:{gpu:number[];vsF32:number;vsF64:number;identicalToF32:boolean}}
 function fluidDifference(a:{u:ArrayLike<number>;v:ArrayLike<number>;w:ArrayLike<number>;p:ArrayLike<number>},b:{u:ArrayLike<number>;v:ArrayLike<number>;w:ArrayLike<number>;p:ArrayLike<number>}):{velocity:number;pressure:number} {
   let dv=0,top=0,dp=0,ptop=0;
   for(const k of ['u','v','w'] as const){const x=a[k],y=b[k];for(let i=0;i<y.length;i++){dv=Math.max(dv,Math.abs(x[i]-y[i]));top=Math.max(top,Math.abs(y[i]));}}
@@ -235,16 +237,20 @@ function fluidDifference(a:{u:ArrayLike<number>;v:ArrayLike<number>;w:ArrayLike<
 }
 async function fluidAgreement(compute:GpuCompute,progress:(text:string)=>void):Promise<FluidAgreement[]> {
   const out:FluidAgreement[]=[];
+  const forceOf=(f:Fluid):number[]=>f.obstacleCount?[...f.obstacleForce(0),...f.obstacleTorque(0)]:[];
+  const gap=(a:number[],b:number[]):number=>Math.hypot(...a.slice(0,3).map((x,k)=>x-b[k]))/Math.max(Math.hypot(...b.slice(0,3)),1e-300);
   for(const [name,make] of Object.entries(FLUID_SETUPS)){
     progress(`fluid: agreement on "${name}"`);
     const {fluid,steps}=make();
-    const run=async()=>{const gpu=await GpuFluid.create(compute,make().fluid);await gpu.step(steps);const s=await gpu.read(),stats={...gpu.stats};gpu.destroy();return {s,stats};};
+    const run=async()=>{const setup=make(),gpu=await GpuFluid.create(compute,setup.fluid);for(let k=0;k<steps;k++){setup.beforeStep?.(setup.fluid,k);await gpu.step();}const s=await gpu.read(),stats={...gpu.stats};gpu.destroy();return {s,stats,force:forceOf(setup.fluid)};};
     const a=await run(),b=await run();
-    const r=new FluidF32(make().fluid);r.step(steps);
-    const f64=make().fluid;f64.step(steps);
-    out.push({name,steps,cells:fluid.cells,gpuVsF32:fluidDifference(a.s,{u:r.velocity(0),v:r.velocity(1),w:r.velocity(2),p:r.pressure()}),gpuVsF64:fluidDifference(a.s,{u:f64.u,v:f64.v,w:f64.w,p:f64.p}),
+    const ref=make(),r=new FluidF32(ref.fluid);for(let k=0;k<steps;k++){ref.beforeStep?.(ref.fluid,k);r.step();}
+    const f64=make();for(let k=0;k<steps;k++){f64.beforeStep?.(f64.fluid,k);f64.fluid.step();}
+    const rf=forceOf(ref.fluid),ff=forceOf(f64.fluid);
+    out.push({name,steps,cells:fluid.cells,gpuVsF32:fluidDifference(a.s,{u:r.velocity(0),v:r.velocity(1),w:r.velocity(2),p:r.pressure()}),gpuVsF64:fluidDifference(a.s,{u:f64.fluid.u,v:f64.fluid.v,w:f64.fluid.w,p:f64.fluid.p}),
       divergence:a.stats.divergence,pressureIterations:a.stats.pressureIterations,viscousIterations:a.stats.viscousIterations,
-      repeat:{identical:fnv(a.s.u,a.s.v,a.s.w,a.s.p)===fnv(b.s.u,b.s.v,b.s.w,b.s.p),hash:fnv(a.s.u,a.s.v,a.s.w,a.s.p)}});
+      repeat:{identical:fnv(a.s.u,a.s.v,a.s.w,a.s.p)===fnv(b.s.u,b.s.v,b.s.w,b.s.p)&&a.force.every((x,k)=>Object.is(x,b.force[k])),hash:fnv(a.s.u,a.s.v,a.s.w,a.s.p)},
+      ...(a.force.length?{force:{gpu:a.force,vsF32:gap(a.force,rf),vsF64:gap(a.force,ff),identicalToF32:a.force.every((x,k)=>Object.is(x,rf[k]))}}:{})});
   }
   return out;
 }
@@ -261,7 +267,7 @@ async function fluidDeviceLoss():Promise<DeviceLossResult> {
 function fluidCasesOnGpu(compute:GpuCompute,options:{only?:readonly string[];quick?:boolean},progress:(text:string)=>void):Promise<FluidCaseRun> {
   if(typeof SharedArrayBuffer==='undefined'||!(globalThis as {crossOriginIsolated?:boolean}).crossOriginIsolated)return Promise.reject(new EngineError('GPU_UNAVAILABLE','The fluid closed-form cases need a cross-origin isolated page (SharedArrayBuffer).'));
   const worker=new Worker(new URL('./fluid-scenario-worker.ts',import.meta.url),{type:'module'});
-  const solvers=new Map<number,{gpu:GpuFluid;control:Int32Array;vel:Float32Array;pressure:Float32Array;stats:Float64Array;message:Uint8Array}>();
+  const solvers=new Map<number,{gpu:GpuFluid;control:Int32Array;vel:Float32Array;pressure:Float32Array;stats:Float64Array;sums:Float64Array;message:Uint8Array}>();
   return new Promise<FluidCaseRun>((resolve,reject)=>{
     const finish=(work:()=>void):void=>{for(const e of solvers.values())e.gpu.destroy();solvers.clear();worker.terminate();work();};
     let chain=Promise.resolve();
@@ -273,9 +279,14 @@ function fluidCasesOnGpu(compute:GpuCompute,options:{only?:readonly string[];qui
       try{
         if(data.op==='create'){
           const gpu=await GpuFluid.create(compute,data.source,{velocity:data.velocity,pressure:data.pressure,time:data.time},data.options);
-          entry={gpu,control,message,vel:new Float32Array(B!.vel),pressure:new Float32Array(B!.pressure),stats:new Float64Array(B!.stats)};solvers.set(id,entry);
+          entry={gpu,control,message,vel:new Float32Array(B!.vel),pressure:new Float32Array(B!.pressure),stats:new Float64Array(B!.stats),sums:new Float64Array(B!.sums)};solvers.set(id,entry);
         }else if(data.op==='load')entry!.gpu.load(data.velocity,data.pressure);
-        else if(data.op==='step')await entry!.gpu.step(data.count as number);
+        else if(data.op==='step'){
+          if(data.band)entry!.gpu.setObstacles(data.band);
+          await entry!.gpu.step(data.count as number);
+          const sums=entry!.gpu.obstacleSums;
+          if(sums){const O=sums.J.length/6;entry!.sums.set(sums.J,0);entry!.sums.set(sums.M,6*O);if(sums.Mstart)entry!.sums.set(sums.Mstart,12*O);entry!.sums[18*O]=sums.Mstart?1:0;}
+        }
         else if(data.op==='project')await entry!.gpu.project();
         const e=entry!,s=await e.gpu.read(),P=e.gpu.padded;
         e.vel.set(s.u,0);e.vel.set(s.v,P);e.vel.set(s.w,2*P);e.pressure.set(s.p);
@@ -295,20 +306,25 @@ function fluidCasesOnGpu(compute:GpuCompute,options:{only?:readonly string[];qui
     worker.postMessage({type:'run',only:options.only,quick:options.quick});
   });
 }
-/** A cubic lid-driven cavity, n^3 cells, backward Euler: ms per step on the GPU and on the float64 solver. */
+/**
+ * Per size n: a cubic lid-driven cavity of n^3 cells (backward Euler) and the flow through a periodic array of spheres
+ * (one fixed sphere of radius 0.15 L, its band uploaded every step, backward Euler): ms per step on the GPU and on the
+ * float64 solver.
+ */
 async function fluidBenchmark(compute:GpuCompute,sizes:readonly number[],steps:number,cpuLimit:number,progress:(text:string)=>void):Promise<BenchRow[]> {
   const rows:BenchRow[]=[];
-  for(const n of sizes){
-    progress(`fluid: timing ${n}^3`);
+  const cases:[string,(n:number)=>Fluid][]=[['cavity',cavity3d],['sphere array',sphereArray]];
+  for(const n of sizes)for(const [label,make] of cases){
+    progress(`fluid: timing ${label} ${n}^3`);
     let gpu:GpuFluid;
-    try{gpu=await GpuFluid.create(compute,cavity3d(n));}
-    catch(error){rows.push({backend:`fluid (skipped: ${error instanceof Error?error.message:String(error)})`,size:`${n}^3`,elements:n**3,steps:0,substeps:0,msPerStep:NaN,elementUpdatesPerSecond:NaN,cpuMsPerStep:null,speedup:null});continue;}
+    try{gpu=await GpuFluid.create(compute,make(n));}
+    catch(error){rows.push({backend:`fluid ${label} (skipped: ${error instanceof Error?error.message:String(error)})`,size:`${n}^3`,elements:n**3,steps:0,substeps:0,msPerStep:NaN,elementUpdatesPerSecond:NaN,cpuMsPerStep:null,speedup:null});continue;}
     await gpu.step(3);
-    const t0=performance.now();await gpu.step(steps);const ms=(performance.now()-t0)/steps,it=gpu.stats.pressureIterations;
+    const t0=performance.now();await gpu.step(steps);const ms=(performance.now()-t0)/steps,it=gpu.stats.pressureIterations,vit=gpu.stats.viscousIterations;
     gpu.destroy();
     let cpu:number|null=null;
-    if(n**3<=cpuLimit){const f=cavity3d(n);f.step(3);const c0=performance.now();f.step(Math.max(2,Math.min(steps,4)));cpu=(performance.now()-c0)/Math.max(2,Math.min(steps,4));}
-    rows.push({backend:`fluid (cavity, ${it} pressure iterations a step)`,size:`${n}^3`,elements:n**3,steps,substeps:steps,msPerStep:ms,elementUpdatesPerSecond:n**3/(ms/1000),cpuMsPerStep:cpu,speedup:cpu===null?null:cpu/ms});
+    if(n**3<=cpuLimit){const f=make(n);f.step(3);const c0=performance.now();f.step(Math.max(2,Math.min(steps,4)));cpu=(performance.now()-c0)/Math.max(2,Math.min(steps,4));}
+    rows.push({backend:`fluid ${label} (${it} pressure, ${vit} viscous iterations a step)`,size:`${n}^3`,elements:n**3,steps,substeps:steps,msPerStep:ms,elementUpdatesPerSecond:n**3/(ms/1000),cpuMsPerStep:cpu,speedup:cpu===null?null:cpu/ms});
   }
   return rows;
 }

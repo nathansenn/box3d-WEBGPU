@@ -16,10 +16,10 @@ export const FLUID_PASS=defineStruct('Pass',{
   f0:'f32',f1:'f32',f2:'f32',f3:'f32',f4:'f32',f5:'f32',f6:'f32',f7:'f32',
 },{usage:'uniform'});
 
-export const KERNELS=['copyPairs','ghosts','setFixed','advect','gradient','predict','listCopy','scatter','divergence','partial','finish','shift','mulConst','mulArray','copyRegion','applyA','scalar','cgUpdate','cgDirection','vUpdate','vDirection','viscB','viscR','viscQ','correct','addRegion'] as const;
+export const KERNELS=['copyPairs','ghosts','setFixed','advect','gradient','predict','listCopy','scatter','divergence','partial','finish','shift','mulConst','mulArray','copyRegion','applyA','scalar','cgUpdate','cgDirection','vUpdate','vDirection','viscB','viscR','viscQ','correct','addRegion','oConstrain','oScatter','oZero','oImpulse','oMomentum','segSum'] as const;
 export type KernelName=typeof KERNELS[number];
-/** Invocations per workgroup: 256 for the reduction, 64 for the rest. */
-export const groupSize=(k:KernelName):number=>k==='partial'?256:64;
+/** Invocations per workgroup: 256 for the reductions, 64 for the rest. */
+export const groupSize=(k:KernelName):number=>k==='partial'||k==='segSum'?256:64;
 /** scalar ops. */
 export const SCALAR_PSTART=0,SCALAR_VSTART=1,SCALAR_ALPHA=2,SCALAR_PCHECK=3,SCALAR_VCHECK=4,SCALAR_BETA=5,SCALAR_PEND=6;
 /** Slots of a solve, from its base: rz, the dot of the direction with the operator, alpha, beta, max |r|, tolerance, done
@@ -259,6 +259,72 @@ fn six(b: u32, f: u32, e0: u32, e1: u32, e2: u32) -> f32 {
   let i = at(g, n); if (i >= P.u0) { return; }
   F[P.u1 + i] = F[P.u1 + i] + F[P.u2 + i];
 }
+// ---- obstacles. A band entry e (fluid-program.ts) has four words at u3 + 4e (face, out face, position in the component's
+// unknown list, mode) and six floats at obf + 6e (target, weight, mass rho alpha dV, arm r x e_c). The entries of
+// component c are I[u1 + 2c + 1] from I[u1 + 2c]; the dispatches cover the capacity and the rest return.
+fn entry(g: vec3u, n: vec3u) -> i32 {
+  let i = at(g, n); let c = P.u2;
+  if (i >= I[P.u1 + 2u * c + 1u]) { return -1; }
+  return i32(I[P.u1 + 2u * c] + i);
+}
+// u4 source (component region), u5 predictor (component region), u6 obf, u7 constrained values, u8 free values.
+@compute @workgroup_size(64) fn oConstrain(@builtin(global_invocation_id) g: vec3u, @builtin(num_workgroups) n: vec3u) {
+  let k = entry(g, n); if (k < 0) { return; }
+  let e = u32(k); let w = P.u3 + 4u * e;
+  if (I[w + 3u] == 0u) { return; }
+  let t = F[P.u6 + 6u * e];
+  F[P.u7 + e] = t + F[P.u6 + 6u * e + 1u] * (F[P.u4 + I[w + 1u]] - t);
+  F[P.u8 + e] = F[P.u5 + I[w]];
+}
+// u4 destination (component region), u5 constrained values.
+@compute @workgroup_size(64) fn oScatter(@builtin(global_invocation_id) g: vec3u, @builtin(num_workgroups) n: vec3u) {
+  let k = entry(g, n); if (k < 0) { return; }
+  let e = u32(k); let w = P.u3 + 4u * e;
+  if (I[w + 3u] != 0u) { F[P.u4 + I[w]] = F[P.u5 + e]; }
+}
+// u4 base, u5 1: at the face, 0: at the position in the unknown list.
+@compute @workgroup_size(64) fn oZero(@builtin(global_invocation_id) g: vec3u, @builtin(num_workgroups) n: vec3u) {
+  let k = entry(g, n); if (k < 0) { return; }
+  let e = u32(k); let w = P.u3 + 4u * e;
+  if (I[w + 3u] != 0u) { F[P.u4 + I[w + select(2u, 0u, P.u5 == 1u)]] = 0.0; }
+}
+// u4 velocity (component region), u5 free values, u6 out, u7 implicit, u8..u10 strides; f0 rho dV, f1 theta dt nu, f2 1/h^2.
+// The constraint impulse rho dV (u - u_free) of a constrained face, 0 for a free one.
+@compute @workgroup_size(64) fn oImpulse(@builtin(global_invocation_id) g: vec3u, @builtin(num_workgroups) n: vec3u) {
+  let k = entry(g, n); if (k < 0) { return; }
+  let e = u32(k); let w = P.u3 + 4u * e;
+  if (I[w + 3u] == 0u) { F[P.u6 + e] = 0.0; return; }
+  let f = I[w]; let x = F[P.u4 + f];
+  var free = F[P.u5 + e];
+  if (P.u7 != 0u) { free = free + P.f1 * ((six(P.u4, f, P.u8, P.u9, P.u10) - 6.0 * x) * P.f2); }
+  F[P.u6 + e] = P.f0 * (x - free);
+}
+// u4 velocity (component region), u5 obf, u6 out: the momentum rho alpha dV u of the face.
+@compute @workgroup_size(64) fn oMomentum(@builtin(global_invocation_id) g: vec3u, @builtin(num_workgroups) n: vec3u) {
+  let k = entry(g, n); if (k < 0) { return; }
+  let e = u32(k);
+  F[P.u6 + e] = F[P.u5 + 6u * e + 2u] * F[P.u4 + I[P.u3 + 4u * e]];
+}
+// One workgroup per (segment, q): u1 segments (start, count), u2 values, u3 obf, u4 first slot. q 0 sums the values, q 1..3
+// the values times arm q - 1. Lane l adds entries l, l + 256, ... in order, then the lanes in a fixed tree.
+@compute @workgroup_size(256) fn segSum(@builtin(local_invocation_index) l: u32, @builtin(workgroup_id) wg: vec3u, @builtin(num_workgroups) n: vec3u) {
+  let group = wg.x + wg.y * n.x; let seg = group / 4u; let q = group % 4u;
+  var a = 0.0;
+  if (group < P.u0) {
+    let start = I[P.u1 + 2u * seg]; let count = I[P.u1 + 2u * seg + 1u];
+    for (var i = l; i < count; i = i + 256u) {
+      let e = start + i; let v = F[P.u2 + e];
+      if (q == 0u) { a = a + v; } else { a = a + v * F[P.u3 + 6u * e + 2u + q]; }
+    }
+  }
+  red[l] = a;
+  workgroupBarrier();
+  for (var s = 128u; s > 0u; s = s >> 1u) {
+    if (l < s) { red[l] = red[l] + red[l + s]; }
+    workgroupBarrier();
+  }
+  if (l == 0u && group < P.u0) { S[P.u4 + group] = red[0]; }
+}
 `;
 
 export interface PassValues {u:Uint32Array;f:Float32Array}
@@ -346,5 +412,31 @@ export function runKernelF32(k:KernelName,p:PassValues,F:Float32Array,I:Uint32Ar
     case 'viscQ':for(let i=0;i<n;i++){const f=I[u[1]+i],x=F[u[2]+f];F[u[3]+i]=fr(x-fr(fv[0]*fr(six(u[2],f,u[5],u[6],u[7])-fr(6*x))));}return;
     case 'correct':for(let i=0;i<n;i++){const t=u[1]+3*i,f=I[t];F[u[2]+f]=fr(F[u[2]+f]-fr(fv[0]*fr(fr(F[u[5]+i]*F[u[3]+I[t+2]])-fr(F[u[4]+i]*F[u[3]+I[t+1]]))));}return;
     case 'addRegion':for(let i=0;i<n;i++)F[u[1]+i]=fr(F[u[1]+i]+F[u[2]+i]);return;
+    case 'oConstrain':case 'oScatter':case 'oZero':case 'oImpulse':case 'oMomentum':{
+      const c=u[2],start=I[u[1]+2*c],count=Math.min(I[u[1]+2*c+1],n);
+      for(let i=0;i<count;i++){
+        const e=start+i,w=u[3]+4*e,mode=I[w+3],f=I[w];
+        if(k==='oConstrain'){if(mode===0)continue;const t=F[u[6]+6*e];F[u[7]+e]=fr(t+fr(F[u[6]+6*e+1]*fr(F[u[4]+I[w+1]]-t)));F[u[8]+e]=F[u[5]+f];}
+        else if(k==='oScatter'){if(mode!==0)F[u[4]+f]=F[u[5]+e];}
+        else if(k==='oZero'){if(mode!==0)F[u[4]+I[w+(u[5]===1?0:2)]]=0;}
+        else if(k==='oImpulse'){
+          if(mode===0){F[u[6]+e]=0;continue;}
+          const x=F[u[4]+f];let free=F[u[5]+e];
+          if(u[7]!==0)free=fr(free+fr(fv[1]*fr(fr(six(u[4],f,u[8],u[9],u[10])-fr(6*x))*fv[2])));
+          F[u[6]+e]=fr(fv[0]*fr(x-free));
+        }else F[u[6]+e]=fr(F[u[5]+6*e+2]*F[u[4]+f]);
+      }
+      return;
+    }
+    case 'segSum':{
+      const red=new Float32Array(256);
+      for(let group=0;group<n;group++){
+        const seg=group>>2,q=group&3,start=I[u[1]+2*seg],count=I[u[1]+2*seg+1];
+        for(let l=0;l<256;l++){let a=0;for(let i=l;i<count;i+=256){const e=start+i,v=F[u[2]+e];a=q===0?fr(a+v):fr(a+fr(v*F[u[3]+6*e+2+q]));}red[l]=a;}
+        for(let s=128;s>0;s>>=1)for(let l=0;l<s;l++)red[l]=fr(red[l]+red[l+s]);
+        S[u[4]+group]=red[0];
+      }
+      return;
+    }
   }
 }

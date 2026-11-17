@@ -143,6 +143,19 @@ export interface FluidBackendComponent {unknown:Int32Array;copies:Int32Array;out
 /** The fluid grid flattened for another backend (the GPU fluid): sizes, padded strides, the solve components with their boundary tables, and the pressure matrix's neighbours and diagonal. */
 export interface FluidBackendDescription {cells:[number,number,number];padded:[number,number,number];size:number;stride:[number,number,number];es:[number,number,number];activeAxes:number;singular:boolean;
   components:FluidBackendComponent[];cellPad:Int32Array;nbr:Int32Array;diag:Float64Array}
+/**
+ * The obstacles of a Fluid as a backend that takes its steps needs them (src/engine/gpu/fluid-program.ts), for the
+ * present poses and velocities: per velocity component, the faces within 1.5 cells of an enabled obstacle's surface,
+ * grouped by obstacle (in index order) and by face within one. `mode` 0 is a fluid face (free), 1 an inside face that
+ * takes `target` (the rigid velocity), 2 an inside face next to the fluid that takes target + weight (u[outFace] - target);
+ * `alpha` is the solid fraction, `arm` (three per face) r x e_c with r from the obstacle's position to the face.
+ */
+export interface FluidObstacleBand {
+  readonly obstacles:number;
+  /** 1 for an obstacle whose first step is next: the momentum inside it is taken at the start of that step. */
+  readonly fresh:Uint8Array;
+  readonly components:readonly {readonly face:Int32Array;readonly owner:Int32Array;readonly mode:Uint8Array;readonly outFace:Int32Array;readonly weight:Float64Array;readonly target:Float64Array;readonly alpha:Float64Array;readonly arm:Float64Array}[];
+}
 export interface FluidTimeStepLimits {
   /** Explicit diffusion limit h^2 / (2 d nu), d the number of active axes; Infinity for implicit diffusion. */
   readonly viscous:number;
@@ -444,7 +457,6 @@ export class Fluid {
    * The largest |value| of the fixed faces and of the ghosts' b / 2 per component (the walls' and inflows' speeds).
    */
   backendDescription():FluidBackendDescription {
-    if(this.obstacles.length>0)fail('A fluid with obstacles has no backend description: obstacles run on this solver only.');
     const n=[this.nx,this.ny,this.nz],components=[0,1,2].map(c=>{
       // The ghost entries were pushed in passes over the axes d = 0, 1, 2; the counts follow the loops of the constructor.
       const passes=[0,1,2].map(d=>d===c?(n[(c+1)%3]+2)*(n[(c+2)%3]+2):this.es[d]===0?0:2*(n[(d+1)%3]+2)*(n[(d+2)%3]+2));
@@ -456,6 +468,42 @@ export class Fluid {
     });
     return {cells:[this.nx,this.ny,this.nz],padded:[this.NX,this.NY,this.NZ],size:this.size,stride:[...this.stride] as [number,number,number],es:[...this.es] as [number,number,number],activeAxes:this.activeAxes,singular:this.singular,
       components,cellPad:Int32Array.from(this.cellPad),nbr:Int32Array.from(this.nbr),diag:Float64Array.from(this.diag)};
+  }
+
+  /**
+   * The obstacle faces for a backend that takes this fluid's steps (see FluidObstacleBand), at the obstacles' present
+   * poses and velocities. The backend returns the sums of `finishBackendObstacles`.
+   */
+  backendObstacleBand():FluidObstacleBand {
+    this.updateObstacles();this.updateTargets();
+    const O=this.obstacles.length,fresh=new Uint8Array(O);
+    for(let i=0;i<O;i++)fresh[i]=this.obstacles[i].started?0:1;
+    const components=[0,1,2].map(c=>{
+      const list=this.solidFaces[c],owner=this.owner[c],order=list.map((f,q)=>q).sort((a,b)=>owner[list[a]]-owner[list[b]]||list[a]-list[b]),n=order.length;
+      const out={face:new Int32Array(n),owner:new Int32Array(n),mode:new Uint8Array(n),outFace:new Int32Array(n),weight:new Float64Array(n),target:new Float64Array(n),alpha:new Float64Array(n),arm:new Float64Array(3*n)};
+      for(let i=0;i<n;i++){
+        const f=list[order[i]],oi=owner[f],o=this.obstacles[oi],[px,py,pz]=this.facePosition(c,f),rx=px-o.x[0],ry=py-o.x[1],rz=pz-o.x[2],m=this.mode[c][f];
+        out.face[i]=f;out.owner[i]=oi;out.mode[i]=m;out.outFace[i]=m===2?this.outFace[c][f]:f;out.weight[i]=m===2?this.weight[c][f]:0;out.target[i]=this.target[c][f];out.alpha[i]=this.alpha[c][f];
+        // r x e_c
+        if(c===0){out.arm[3*i+1]=rz;out.arm[3*i+2]=-ry;}else if(c===1){out.arm[3*i]=-rz;out.arm[3*i+2]=rx;}else{out.arm[3*i]=ry;out.arm[3*i+1]=-rx;}
+      }
+      return out;
+    });
+    return {obstacles:O,fresh,components};
+  }
+  /**
+   * After a backend took a step: per obstacle (6 numbers each, linear then angular about its position) the constraint
+   * impulse on the fluid J, the momentum of the fluid inside at the end of the step, and (for the obstacles the band
+   * marked fresh) at its start. Sets the forces, torques, impulses and the work by bodies as a step of this solver does.
+   */
+  finishBackendObstacles(J:ArrayLike<number>,M:ArrayLike<number>,Mstart:ArrayLike<number>|null):void {
+    for(let i=0;i<this.obstacles.length;i++){
+      const o=this.obstacles[i];
+      if(o.started)o.Mprev.set(o.M);
+      else{const start=Mstart??fail('finishBackendObstacles: an obstacle took its first step without its starting momentum.');for(let k=0;k<6;k++)o.Mprev[k]=start[6*i+k];o.started=true;}
+      for(let k=0;k<6;k++){o.J[k]=J[6*i+k];o.M[k]=M[6*i+k];}
+    }
+    this.obstacleForces();
   }
 
   private sideVelocity(side:Side,x:number,y:number,z:number):FluidVec3 {
@@ -810,6 +858,18 @@ export class Fluid {
     this.fillAll();
     // Obstacle forces.
     this.insideMomentum();
+    this.obstacleForces();
+    // Ledger: trapezoidal rule on the rates at the two ends of the step.
+    const rate=this.viscousPower(),brate=this.boundaryPower();
+    this.dissipated+=.5*dt*(this.ledgerRate+rate);this.workByBoundaries+=.5*dt*(this.boundaryRate+brate);
+    this.ledgerRate=rate;this.boundaryRate=brate;
+    this.workByForces+=.5*dt*(forceStart+this.forcePower());
+    this.time+=dt;this.stats.steps++;
+  }
+
+  /** The force and torque on each obstacle from its constraint impulse J and the momentum inside it now (M) and before (Mprev); impulses and the work by bodies. */
+  private obstacleForces():void {
+    const dt=this.dt,rho=this.density;
     const a=[this.gravity[0]+this.bodyForce[0],this.gravity[1]+this.bodyForce[1],this.gravity[2]+this.bodyForce[2]];
     for(const o of this.obstacles){
       if(!o.enabled){o.force.fill(0);o.torque.fill(0);continue;}
@@ -822,12 +882,6 @@ export class Fluid {
       for(let k=0;k<3;k++){o.impulse[k]+=o.force[k]*dt;o.impulse[3+k]+=o.torque[k]*dt;}
       this.workByBodies-=dt*(o.force[0]*o.v[0]+o.force[1]*o.v[1]+o.force[2]*o.v[2]+o.torque[0]*o.w[0]+o.torque[1]*o.w[1]+o.torque[2]*o.w[2]);
     }
-    // Ledger: trapezoidal rule on the rates at the two ends of the step.
-    const rate=this.viscousPower(),brate=this.boundaryPower();
-    this.dissipated+=.5*dt*(this.ledgerRate+rate);this.workByBoundaries+=.5*dt*(this.boundaryRate+brate);
-    this.ledgerRate=rate;this.boundaryRate=brate;
-    this.workByForces+=.5*dt*(forceStart+this.forcePower());
-    this.time+=dt;this.stats.steps++;
   }
 
   /** Implicit viscous solve of component c: x - theta dt nu L x = rhs on the free faces, the constrained faces given. Jacobi-preconditioned CG. */

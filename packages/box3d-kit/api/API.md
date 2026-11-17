@@ -12055,6 +12055,8 @@ export declare class Fluid {
   workByForces: number;
   readonly pressureSolver: 'mic' | 'multigrid';
   backendDescription(): FluidBackendDescription;
+  backendObstacleBand(): FluidObstacleBand;
+  finishBackendObstacles(J: ArrayLike<number>, M: ArrayLike<number>, Mstart: ArrayLike<number> | null): void;
   faceIndex(f: number): [number, number, number];
   facePosition(c: number, f: number): [number, number, number];
   index(i: number, j: number, k: number): number;
@@ -12245,6 +12247,31 @@ export interface FluidCouplingDiagnostics {
 ```ts
 export interface FluidCouplingOptions {
     readonly step?: number;
+}
+```
+
+### FluidObstacleBand · interface
+
+The obstacles of a Fluid as a backend that takes its steps needs them (src/engine/gpu/fluid-program.ts), for the
+present poses and velocities: per velocity component, the faces within 1.5 cells of an enabled obstacle's surface,
+grouped by obstacle (in index order) and by face within one. `mode` 0 is a fluid face (free), 1 an inside face that
+takes `target` (the rigid velocity), 2 an inside face next to the fluid that takes target + weight (u[outFace] - target);
+`alpha` is the solid fraction, `arm` (three per face) r x e_c with r from the obstacle's position to the face.
+
+```ts
+export interface FluidObstacleBand {
+    readonly obstacles: number;
+    readonly fresh: Uint8Array;
+    readonly components: readonly {
+        readonly face: Int32Array;
+        readonly owner: Int32Array;
+        readonly mode: Uint8Array;
+        readonly outFace: Int32Array;
+        readonly weight: Float64Array;
+        readonly target: Float64Array;
+        readonly alpha: Float64Array;
+        readonly arm: Float64Array;
+    }[];
 }
 ```
 
