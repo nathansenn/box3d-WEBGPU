@@ -6863,6 +6863,7 @@ export interface SceneGrains {
     readonly tangentialDamping?: number;
     readonly skin?: number;
     readonly substeps: number;
+    readonly backend?: 'cpu' | 'gpu';
     readonly bounds?: {
         readonly min: SceneVec3;
         readonly max: SceneVec3;
@@ -7225,6 +7226,7 @@ export interface SceneShallowWater {
     readonly substeps?: number;
     readonly order?: 1 | 2;
     readonly bodies?: readonly SceneShallowWaterBody[];
+    readonly backend?: 'cpu' | 'gpu';
 }
 ```
 
@@ -8705,6 +8707,7 @@ export interface SceneGrains {
     readonly tangentialDamping?: number;
     readonly skin?: number;
     readonly substeps: number;
+    readonly backend?: 'cpu' | 'gpu';
     readonly bounds?: {
         readonly min: SceneVec3;
         readonly max: SceneVec3;
@@ -9067,6 +9070,7 @@ export interface SceneShallowWater {
     readonly substeps?: number;
     readonly order?: 1 | 2;
     readonly bodies?: readonly SceneShallowWaterBody[];
+    readonly backend?: 'cpu' | 'gpu';
 }
 ```
 
@@ -9486,7 +9490,7 @@ rigid-only scene gives a Simulation with no subsystems, whose step is `world.ste
 failure the world is reset and the error names the id.
 
 ```ts
-export declare function buildSceneSimulation<W extends SimulationSceneWorld>(world: W, builder: SceneBuilder<W>, scene: Scene): LoadedSimulationScene<W>;
+export declare function buildSceneSimulation<W extends SimulationSceneWorld>(world: W, builder: SceneBuilder<W>, scene: Scene, options?: SceneSimulationOptions): LoadedSimulationScene<W>;
 ```
 
 ### cellTemperaturesToNodes · function
@@ -9666,7 +9670,7 @@ load the scene it was taken from (the world is reset to it), then restore the ch
 bit-identically to the one the checkpoint was taken from. The world must be of the same build.
 
 ```ts
-export declare function resumeSimulationScene<W extends SimulationSceneWorld>(world: W, bytes: Uint8Array): LoadedSimulationScene<W>;
+export declare function resumeSimulationScene<W extends SimulationSceneWorld>(world: W, bytes: Uint8Array, options?: SceneSimulationOptions): LoadedSimulationScene<W>;
 ```
 
 ### SceneFluidRuntime · type
@@ -9684,6 +9688,27 @@ export type SceneFluidRuntime<B> = {
 };
 ```
 
+### SceneGpuBackends · interface
+
+The subsystems of the scene sections that say `backend: 'gpu'` (shallow water, grains). The GPU backends live in
+src/engine/gpu (scene-backends.ts `gpuSceneBackends(compute)`); this module only calls them, so it does not depend on
+WebGPU. A scene with such a section loaded without them is refused.
+
+```ts
+export interface SceneGpuBackends<W = any, B = any> {
+    shallowWater(water: ShallowWater, info: {
+        readonly id: string;
+    }): Subsystem<W, B> & {
+        stale(): boolean;
+    };
+    grains(coupling: GranularCoupling<B>, info: {
+        readonly id: string;
+    }): Subsystem<W, B> & {
+        stale(): boolean;
+    };
+}
+```
+
 ### SceneShallowWaterRuntime · interface
 
 Shallow water of a scene as built: the grid and its coupling to the bodies, or null when it has none.
@@ -9692,6 +9717,16 @@ Shallow water of a scene as built: the grid and its coupling to the bodies, or n
 export interface SceneShallowWaterRuntime<B> {
     readonly water: ShallowWater;
     readonly coupling: ShallowWaterCoupling<B> | null;
+}
+```
+
+### SceneSimulationOptions · interface
+
+Options of the scene loaders (buildSceneSimulation, loadSimulationScene, resumeSimulationScene).
+
+```ts
+export interface SceneSimulationOptions {
+    readonly gpu?: SceneGpuBackends;
 }
 ```
 
@@ -9720,6 +9755,7 @@ export declare class Simulation<W extends SimulationWorld<B>, B = unknown> {
   readonly maxSteps: number;
   get tick(): number;
   get time(): number;
+  get isAsync(): boolean;
   add(subsystem: Subsystem<W, B>): this;
   remove(id: string): boolean;
   get(id: string): Subsystem<W, B> | undefined;
@@ -9727,6 +9763,8 @@ export declare class Simulation<W extends SimulationWorld<B>, B = unknown> {
   order(): SimulationDiagnostics['order'];
   step(): void;
   update(frameSeconds: number): { steps: number; alpha: number; droppedSeconds: number; };
+  stepAsync(): Promise<void>;
+  pullAsync(): Promise<void>;
   onStep(listener: (tick: number) => void): () => void;
   onEvent(listener: (event: SimulationEvent) => void): () => void;
   trackBody(body: B, inertia: StructureInertia, options?: { readonly gravityScale?: number; }): this;
@@ -9737,6 +9775,7 @@ export declare class Simulation<W extends SimulationWorld<B>, B = unknown> {
   get sceneSource(): SimulationSource | null;
   setSceneSource(source: SimulationSource | (() => SimulationSource) | null): void;
   checkpoint(options?: SimulationCheckpointOptions): Uint8Array;
+  checkpointAsync(options?: SimulationCheckpointOptions): Promise<Uint8Array>;
   restore(bytes: Uint8Array): void;
   dispose(): void;
 }
@@ -9975,12 +10014,15 @@ export interface Subsystem<W = unknown, B = unknown> {
     }): void;
     prepare?(ctx: StepContext<W>): void;
     step(ctx: StepContext<W>): void;
+    stepAsync?(ctx: StepContext<W>): Promise<void>;
     finish?(ctx: StepContext<W>): void;
     energy?(): SubsystemEnergy;
     diagnostics?(): unknown;
     diagnose?(): readonly DiagnosticFinding[];
     dispose?(): void;
     checkpoint?(): StateValue;
+    checkpointAsync?(): Promise<StateValue>;
+    pullAsync?(): Promise<void>;
     restore?(state: StateValue): void;
 }
 ```
@@ -12055,6 +12097,8 @@ export declare class Fluid {
   workByForces: number;
   readonly pressureSolver: 'mic' | 'multigrid';
   backendDescription(): FluidBackendDescription;
+  backendObstacleBand(): FluidObstacleBand;
+  finishBackendObstacles(J: ArrayLike<number>, M: ArrayLike<number>, Mstart: ArrayLike<number> | null): void;
   faceIndex(f: number): [number, number, number];
   facePosition(c: number, f: number): [number, number, number];
   index(i: number, j: number, k: number): number;
@@ -12245,6 +12289,31 @@ export interface FluidCouplingDiagnostics {
 ```ts
 export interface FluidCouplingOptions {
     readonly step?: number;
+}
+```
+
+### FluidObstacleBand · interface
+
+The obstacles of a Fluid as a backend that takes its steps needs them (src/engine/gpu/fluid-program.ts), for the
+present poses and velocities: per velocity component, the faces within 1.5 cells of an enabled obstacle's surface,
+grouped by obstacle (in index order) and by face within one. `mode` 0 is a fluid face (free), 1 an inside face that
+takes `target` (the rigid velocity), 2 an inside face next to the fluid that takes target + weight (u[outFace] - target);
+`alpha` is the solid fraction, `arm` (three per face) r x e_c with r from the obstacle's position to the face.
+
+```ts
+export interface FluidObstacleBand {
+    readonly obstacles: number;
+    readonly fresh: Uint8Array;
+    readonly components: readonly {
+        readonly face: Int32Array;
+        readonly owner: Int32Array;
+        readonly mode: Uint8Array;
+        readonly outFace: Int32Array;
+        readonly weight: Float64Array;
+        readonly target: Float64Array;
+        readonly alpha: Float64Array;
+        readonly arm: Float64Array;
+    }[];
 }
 ```
 

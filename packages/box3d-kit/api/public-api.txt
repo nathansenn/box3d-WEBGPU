@@ -1444,6 +1444,20 @@ export interface FluidBackendDescription {
     nbr: Int32Array;
     diag: Float64Array;
 }
+export interface FluidObstacleBand {
+    readonly obstacles: number;
+    readonly fresh: Uint8Array;
+    readonly components: readonly {
+        readonly face: Int32Array;
+        readonly owner: Int32Array;
+        readonly mode: Uint8Array;
+        readonly outFace: Int32Array;
+        readonly weight: Float64Array;
+        readonly target: Float64Array;
+        readonly alpha: Float64Array;
+        readonly arm: Float64Array;
+    }[];
+}
 export interface FluidTimeStepLimits {
     readonly viscous: number;
     readonly advective: number;
@@ -1551,6 +1565,8 @@ export declare class Fluid {
     private readonly multigrid;
     constructor(options: FluidOptions);
     backendDescription(): FluidBackendDescription;
+    backendObstacleBand(): FluidObstacleBand;
+    finishBackendObstacles(J: ArrayLike<number>, M: ArrayLike<number>, Mstart: ArrayLike<number> | null): void;
     private sideVelocity;
     faceIndex(f: number): [number, number, number];
     facePosition(c: number, f: number): [number, number, number];
@@ -1598,6 +1614,7 @@ export declare class Fluid {
     private lap;
     step(count?: number): void;
     private advance;
+    private obstacleForces;
     private solveViscous;
     divergenceAt(c: number): number;
     maxDivergence(): number;
@@ -4763,6 +4780,7 @@ export interface SceneGrains {
     readonly tangentialDamping?: number;
     readonly skin?: number;
     readonly substeps: number;
+    readonly backend?: 'cpu' | 'gpu';
     readonly bounds?: {
         readonly min: SceneVec3;
         readonly max: SceneVec3;
@@ -4982,6 +5000,7 @@ export interface SceneShallowWater {
     readonly substeps?: number;
     readonly order?: 1 | 2;
     readonly bodies?: readonly SceneShallowWaterBody[];
+    readonly backend?: 'cpu' | 'gpu';
 }
 export interface SceneCoupledSections {
     readonly water?: readonly SceneWater[];
@@ -5579,12 +5598,15 @@ export interface Subsystem<W = unknown, B = unknown> {
     }): void;
     prepare?(ctx: StepContext<W>): void;
     step(ctx: StepContext<W>): void;
+    stepAsync?(ctx: StepContext<W>): Promise<void>;
     finish?(ctx: StepContext<W>): void;
     energy?(): SubsystemEnergy;
     diagnostics?(): unknown;
     diagnose?(): readonly DiagnosticFinding[];
     dispose?(): void;
     checkpoint?(): StateValue;
+    checkpointAsync?(): Promise<StateValue>;
+    pullAsync?(): Promise<void>;
     restore?(state: StateValue): void;
 }
 export interface SimulationEvent {
@@ -5665,6 +5687,8 @@ export declare class Simulation<W extends SimulationWorld<B>, B = unknown> {
     private readonly tracked;
     private accumulator;
     private disposed;
+    private asynchronous;
+    private busy;
     private source;
     private originSource;
     private readonly ctx;
@@ -5673,6 +5697,7 @@ export declare class Simulation<W extends SimulationWorld<B>, B = unknown> {
     get time(): number;
     private live;
     private rebuild;
+    get isAsync(): boolean;
     add(subsystem: Subsystem<W, B>): this;
     remove(id: string): boolean;
     get(id: string): Subsystem<W, B> | undefined;
@@ -5685,6 +5710,9 @@ export declare class Simulation<W extends SimulationWorld<B>, B = unknown> {
         alpha: number;
         droppedSeconds: number;
     };
+    stepAsync(): Promise<void>;
+    private runAsync;
+    pullAsync(): Promise<void>;
     onStep(listener: (tick: number) => void): () => void;
     onEvent(listener: (event: SimulationEvent) => void): () => void;
     trackBody(body: B, inertia: StructureInertia, options?: {
@@ -5699,6 +5727,9 @@ export declare class Simulation<W extends SimulationWorld<B>, B = unknown> {
     private get origin();
     private plan;
     checkpoint(options?: SimulationCheckpointOptions): Uint8Array;
+    checkpointAsync(options?: SimulationCheckpointOptions): Promise<Uint8Array>;
+    private checkpointable;
+    private writeTree;
     restore(bytes: Uint8Array): void;
     dispose(): void;
 }
@@ -5784,10 +5815,25 @@ export interface SceneSolidRuntime<B> {
     readonly heat: HeatSolver | null;
     readonly group?: SolidSolidContact | null;
 }
-export declare function buildSceneSimulation<W extends SimulationSceneWorld>(world: W, builder: SceneBuilder<W>, scene: Scene): LoadedSimulationScene<W>;
-export declare function loadSimulationScene<W extends SimulationSceneWorld>(world: W, scene: unknown): LoadedSimulationScene<W>;
+export interface SceneGpuBackends<W = any, B = any> {
+    shallowWater(water: ShallowWater, info: {
+        readonly id: string;
+    }): Subsystem<W, B> & {
+        stale(): boolean;
+    };
+    grains(coupling: GranularCoupling<B>, info: {
+        readonly id: string;
+    }): Subsystem<W, B> & {
+        stale(): boolean;
+    };
+}
+export interface SceneSimulationOptions {
+    readonly gpu?: SceneGpuBackends;
+}
+export declare function buildSceneSimulation<W extends SimulationSceneWorld>(world: W, builder: SceneBuilder<W>, scene: Scene, options?: SceneSimulationOptions): LoadedSimulationScene<W>;
+export declare function loadSimulationScene<W extends SimulationSceneWorld>(world: W, scene: unknown, options?: SceneSimulationOptions): LoadedSimulationScene<W>;
 export declare function simulationCheckpointInfo(bytes: Uint8Array): SimulationCheckpointInfo;
-export declare function resumeSimulationScene<W extends SimulationSceneWorld>(world: W, bytes: Uint8Array): LoadedSimulationScene<W>;
+export declare function resumeSimulationScene<W extends SimulationSceneWorld>(world: W, bytes: Uint8Array, options?: SceneSimulationOptions): LoadedSimulationScene<W>;
 export {};
 
 // ==== core/solid-contact.d.ts ====

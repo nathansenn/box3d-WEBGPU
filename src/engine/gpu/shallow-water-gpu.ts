@@ -14,12 +14,13 @@
  *
  * The state stays on the GPU: `stateBuffer` (h, hu, hv, carry per cell) and `fixedBuffer` (bed, n, K, psi*eta) can be
  * bound by a renderer. `read()` brings the state back; `pull(water)` writes it into a ShallowWater.
+ * `checkpoint()` and `restoreCheckpoint()` save and put back the state as bytes (the format ShallowWaterF32 shares).
  * Not here: coupled rigid bodies and point sources (addVolume, removeVolume); use the float64 solver for those.
  */
 import {EngineError} from '../contracts.ts';
 import {ShallowWater} from '../shallow-water.ts';
 import {GpuCompute,GpuProgram,type GpuDispatch} from './compute.ts';
-import {planShallowWaterSubsteps,shallowWaterSetup,type ShallowWaterF32Stats,type ShallowWaterSetup} from './shallow-water-f32.ts';
+import {planShallowWaterSubsteps,readShallowWaterCheckpoint,shallowWaterSetup,writeShallowWaterCheckpoint,type ShallowWaterF32Stats,type ShallowWaterSetup} from './shallow-water-f32.ts';
 import {SHALLOW_WATER_WGSL,SW_COUNT_WET,SW_MANNING,SW_METER_FLAGS,SW_METER_MEASURE_X,SW_METER_MEASURE_Z,SW_METER_RATE_X,SW_METER_RATE_Z,SW_METER_SLOTS,SW_METER_WET,SW_PARAMS,SW_RAIN,SW_SKIP_Z,SW_SOIL,SW_SOLID} from './shallow-water-wgsl.ts';
 
 export const SHALLOW_WATER_GPU_SOLVER_ID='shallow-water-hr-muscl-hll-webgpu-f32-v1';
@@ -52,11 +53,11 @@ export class GpuShallowWater {
   /** Largest Courant number any step ran at, and steps that ran above 0.5 (where depths can go negative). */
   maxCourant=0;courantExceeded=0;
   rainVolume=0;
-  readonly initialVolume:number;
+  initialVolume:number;
   dt:number;time:number;steps=0;
   readonly rateLatency:number;readonly safety:number;readonly rateWait:boolean;
   private readonly arrived:{meter:Meter;sub:number}[]=[];private readonly outstanding=new Set<Promise<void>>();
-  private readonly infiltratedAtStart:number;
+  private infiltratedAtStart:number;
   private lastSub=0;
   private readonly pending:Promise<Meter>[]=[];
   private latest:Meter;
@@ -217,6 +218,27 @@ export class GpuShallowWater {
       const all=await Promise.all(this.pending);
       for(let k=0;k<all.length;k++)this.book(all[k],this.bookSubs[k]);
     }
+  }
+  private checkpointable():void {
+    if(this.rateLatency!==0)throw new EngineError('INVALID_PAYLOAD','A GpuShallowWater with rateLatency above 0 has face speeds on their way: checkpoints need rateLatency 0.');
+  }
+  /**
+   * An exact checkpoint of the state (the format ShallowWaterF32 writes and reads too): waits for the steps submitted.
+   * Needs rateLatency 0.
+   */
+  async checkpoint():Promise<Uint8Array> {
+    this.checkpointable();await this.sync();
+    const [state,aux]=await this.compute.read([{buffer:this.stateBuffer},{buffer:this.auxBuffer}]);
+    return writeShallowWaterCheckpoint(this.nx,this.nz,{state:new Float32Array(state),aux:new Float32Array(aux),time:this.time,steps:this.steps,lastSub:this.encodedSub,rainVolume:this.rainVolume,stats:this.stats,
+      initialVolume:this.initialVolume,infiltratedAtStart:this.infiltratedAtStart,maxCourant:this.maxCourant,courantExceeded:this.courantExceeded});
+  }
+  /** Put back a checkpoint (from GpuShallowWater or ShallowWaterF32); later steps give the bits the run it was taken from gives. */
+  restoreCheckpoint(bytes:Uint8Array):void {
+    this.alive();this.checkpointable();
+    const s=readShallowWaterCheckpoint(this.nx,this.nz,bytes);
+    this.compute.write(this.stateBuffer,s.state);this.compute.write(this.auxBuffer,s.aux);
+    this.time=s.time;this.steps=s.steps;this.encodedSub=s.lastSub;this.lastSub=s.lastSub;this.led=false;this.unbooked=false;this.rainVolume=s.rainVolume;Object.assign(this.stats,s.stats);
+    this.initialVolume=s.initialVolume;this.infiltratedAtStart=s.infiltratedAtStart;this.maxCourant=s.maxCourant;this.courantExceeded=s.courantExceeded;
   }
   /** The state now (everything submitted has run when this resolves). */
   async read():Promise<GpuShallowWaterSnapshot> {

@@ -5,8 +5,9 @@
  * `fluidProxy(remote)` returns a class to use in place of `Fluid`. It is a real Fluid: it is built, given a velocity or
  * a pressure, and measured as usual. `step()` and `project()` hand the present velocity and pressure to the remote
  * (once, and again whenever they were set from outside), let it work, and copy the velocity (with its ghosts) and the
- * pressure back, with the time and the solve statistics. Obstacles are refused: the backend has none. The energy ledger
- * (dissipated, work) stays zero.
+ * pressure back, with the time and the solve statistics. Obstacles are added before the first step (the backend is
+ * built for a fixed number of them); their forces are set by the remote after each step. The energy ledger
+ * (dissipated) stays zero.
  */
 import {Fluid,type FluidObstacleOptions,type FluidOptions} from '../fluid.ts';
 import {EngineError} from '../contracts.ts';
@@ -15,6 +16,7 @@ import type {FluidBackendOptions} from './fluid-program.ts';
 
 export interface FluidFrame {readonly u:Float32Array;readonly v:Float32Array;readonly w:Float32Array;readonly p:Float32Array;readonly stats:{pressureIterations:number;viscousIterations:number;divergence:number;unconverged:number}}
 export interface FluidRemote {
+  /** Build the backend from the fluid. With obstacles, each step takes the fluid's band and hands it the sums (Fluid.backendObstacleBand, finishBackendObstacles). */
   create(fluid:Fluid,options:FluidBackendOptions):void;
   /** The fluid's velocity and pressure were set from outside: take them (the next step advects by forward Euler). */
   load(fluid:Fluid):void;
@@ -40,7 +42,10 @@ export function fluidProxy(remote:()=>FluidRemote,options:FluidBackendOptions={}
     /** Statistics of the backend. */
     backendStats:FluidFrame['stats']|null=null;
     constructor(init:FluidOptions) {super(init);}
-    override addObstacle(_options:FluidObstacleOptions):number {throw new EngineError('INVALID_PAYLOAD','The GPU fluid backend has no obstacles.');}
+    override addObstacle(options:FluidObstacleOptions):number {
+      if(this.#remote)throw new EngineError('INVALID_PAYLOAD','The GPU fluid backend is built for the obstacles it started with: add obstacles before the first step.');
+      return super.addObstacle(options);
+    }
     override setVelocity(field:(x:number,y:number,z:number)=>ArrayLike<number>):void {super.setVelocity(field);this.#dirty=true;}
     override setPressure(field:(x:number,y:number,z:number)=>number):void {super.setPressure(field);this.#dirty=true;}
     override setState(state:Parameters<Fluid['setState']>[0]):void {super.setState(state);this.#dirty=true;}

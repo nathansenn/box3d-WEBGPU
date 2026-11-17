@@ -19,7 +19,7 @@ import type {
   NativeWorldBackend, NativeWorldEvent,
 } from '../engine/native-world.ts';
 import { normalizeScene, sceneWorldOptions, type Scene, type SceneHost, type SceneVec3 } from '../engine/scene-format.ts';
-import { loadSimulationScene, type LoadedSimulationScene } from '../engine/simulation.ts';
+import { loadSimulationScene, type LoadedSimulationScene, type SceneSimulationOptions } from '../engine/simulation.ts';
 import { checkpointError, readCheckpoint, writeCheckpoint, type StateObject } from '../engine/checkpoint.ts';
 
 export class LabSceneHost implements SceneHost {
@@ -145,9 +145,9 @@ export type LabLoadedScene = LoadedSimulationScene<LabSceneHost>;
  * the engine refuses a body, a joint or a coupled section, the world is left
  * reset and empty and the error names the id.
  */
-export function loadLabScene(native: NativeWorldBackend, scene: unknown): LabLoadedScene {
+export function loadLabScene(native: NativeWorldBackend, scene: unknown, options: SceneSimulationOptions = {}): LabLoadedScene {
   const normal: Scene = normalizeScene(scene);
-  return loadSimulationScene(new LabSceneHost(native, sceneWorldOptions(normal)), normal);
+  return loadSimulationScene(new LabSceneHost(native, sceneWorldOptions(normal)), normal, options);
 }
 
 /** Release the solvers of a loaded scene (cables and frames hold native memory). The world is the caller's. */

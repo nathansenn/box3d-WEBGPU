@@ -4,7 +4,7 @@ The validated solvers of this project run in float64 on one CPU thread. This doc
 backends beside them: what exists, how each is validated, what float32 costs in accuracy, the capacities and limits,
 and how to measure the speed on a real GPU. The CPU solvers stay the default and the reference; a GPU backend is opt-in.
 
-Updated 2026-11-16.
+Updated 2026-11-17.
 
 ## Status
 
@@ -16,10 +16,12 @@ Updated 2026-11-16.
 | Coupling grains to rigid bodies (`GpuGranularCoupling`) | done on the CPU with per-wall sums reduced on the GPU; latency 0 or 1 rigid step |
 | Drawing from the simulation buffers (`src/webgpu/simulation-layers.ts`) | done: grains as shaded quads from the position buffer, terrain and water surface from the state and bed buffers, slices of a fluid coloured by speed from its data buffer |
 | Lab examples at scale (`lab.html?example=sand-avalanche-100k`, `flood-valley-1m`, `lid-cavity-262k`) | done, with a CPU example as the fall back; seen on SwiftShader at small sizes only |
-| Incompressible flow on the MAC grid (`fluid-gpu.ts`) | done without obstacles: 17 closed-form rows pass on the GPU (SwiftShader), 13 with the float64 tolerance; the GPU gives the float32 reference's bits |
-| Free surface (APIC), cloth, obstacles in the flow | **not done** on the GPU |
+| Incompressible flow on the MAC grid (`fluid-gpu.ts`) | done, with fixed and moving obstacles and rigid bodies coupled through `FluidCoupling`: 24 closed-form rows pass on the GPU (SwiftShader), 19 with the float64 tolerance; the GPU gives the float32 reference's bits, forces included |
+| Free surface (APIC), cloth | **not done** on the GPU (see "Not done" for why the free surface was not attempted) |
 | Shallow water with coupled rigid bodies or point sources on the GPU | **not done** (the float64 solver has both) |
-| `backend: 'gpu'` in the scene format; the Studio's granular tray and river tabs on the GPU | **not done**: the Simulation loop and the Studio solvers are synchronous and float64; see "Not done" |
+| Checkpoints of the GPU backends (`checkpoint()`, `restoreCheckpoint()`) | done for the three backends, a format shared with each float32 reference; bit-exact on resume (gate: references, and the fluid across GPU and reference; SwiftShader: the GPU backends) |
+| `backend: 'gpu'` in the scene format (grains, shallow water), `Simulation.stepAsync()` | done (`src/engine/gpu/scene-backends.ts`); tested in the gate on the float32 reference standing in for the GPU, not through the Lab |
+| The Studio's granular tray and river tabs on the GPU | **not done**: the Studio's solvers run inside its synchronous step |
 | Speed on a real GPU | **not measured**: this machine has no GPU. The command is below |
 
 ## How a GPU backend is validated here
@@ -270,7 +272,7 @@ beads (repose); no history slot or bucket overflowed. Glass-bead repose and the 
 
 ## Incompressible flow on the GPU
 
-The float64 solver's projection method ([`FLUID.md`](FLUID.md)) without obstacles, in float32 (`fluid-gpu.ts`):
+The float64 solver's projection method ([`FLUID.md`](FLUID.md)) with its obstacles, in float32 (`fluid-gpu.ts`):
 ghost fills for every kind of side (walls, sliding walls, free slip, inflow, outflow, periodic); central or upwind
 advection with Adams-Bashforth 2; the predictor with grad p^n, gravity, a body force and the explicit part of the
 viscosity; the implicit part (Crank-Nicolson or backward Euler) by conjugate gradients, component by component; the
@@ -297,7 +299,39 @@ What differs from the float64 solver, by design:
   float64 rule, a fraction of max |b|, freezes a float32 run short of its steady state: near the steady state a step's
   change is below 1e-6 of b and a solve with nothing to do leaves the state unchanged (Couette stopped at 4.9e-5 of the
   wall speed that way). The floor is half the rounding of b - M x.
-- No obstacles or coupled bodies, no energy ledger (dissipation), no checkpoints.
+- No energy ledger (dissipation, work by bodies stays as the float64 bookkeeping of the forces).
+
+### Obstacles
+
+The obstacles are the float64 solver's fictitious domain: spheres, boxes, capsules and cylinders, fixed or moving, the
+pressure solved through them, the faces inside taking the rigid velocity and those next to the fluid the value
+extrapolated through the fluid face beyond, the force on a body the momentum the constraint takes from the fluid less
+the change of the momentum inside, less the weight of the fluid displaced.
+
+- **The geometry stays on the host, in float64.** Before each step `Fluid.backendObstacleBand()` of the Fluid the backend
+  was built from gives, per velocity component, the faces within 1.5 cells of an enabled obstacle's surface (grouped by
+  obstacle), each with its mode (free, inside, inside next to the fluid), the face beyond, the extrapolation weight, the
+  rigid velocity, the solid fraction and the arm r x e_c. The program uploads them rounded to float32: 16 bytes of
+  indices and 24 of floats per face (about 10 kB for a sphere of 2.4 cells radius, 4 to 6 per cent of the faces of a
+  sphere of 0.15 L in a 16^3 box). A moving obstacle is uploaded every step; the cost on the host is that of the band
+  only. The room for faces is fixed when the backend is built (twice the band at the start plus 64 per obstacle,
+  `obstacleCapacity`); a move that needs more throws `GPU_CAPACITY`. At most 1024 obstacles.
+- **On the GPU** five kernels: the constrained value and the free value of each band face (`oConstrain`, through the
+  predicted face beyond when the viscosity is explicit, the present one when it is implicit, as the float64 solver
+  does), its scatter into the predictor or the implicit solve's known values (`oScatter`), the removal of those faces
+  from the viscous unknowns (`oZero`), the constraint impulse rho dV (u - u_free) with the implicit viscous term of the
+  constrained field (`oImpulse`), the momentum inside rho alpha dV u (`oMomentum`); and `segSum`, one workgroup per
+  obstacle, component and moment, which sums them in a fixed order (lane l takes entries l, l + 256, ..., then a tree).
+- **The forces are taken on the host**: 36 scalars per obstacle come back with the step's statistics, and
+  `Fluid.finishBackendObstacles` turns them into the force, torque, impulse and work by bodies with the float64 code of
+  the solver's own step. A GpuFluid (or FluidF32) built from a Fluid does both each step, so `fluid.obstacleForce(i)`,
+  `setObstacleState` and `FluidCoupling` work as with the float64 solver. One built from a plain description (a worker)
+  takes the band through `setObstacles` and leaves the sums in `obstacleSums`.
+
+Two set-ups were added for the agreement checks: a cylinder across a 2D channel (48 x 16 cells, inflow and outflow,
+Crank-Nicolson, upwind) and a sphere moving at (0.05, 0.02, -0.01) m/s and turning at 8 rad/s through water in a closed
+16^3 box under gravity (explicit viscosity, central advection). The benchmark times the flow through a periodic array
+of spheres (the Stokes set-up) beside the cavity.
 
 Memory (`fluidMemory()`): about 140 bytes of floats and 70 of indices per padded cell: 40 MB + 20 MB for 64^3, 132 MB +
 68 MB for 96^3 (just above WebGPU's default largest binding of 128 MB, so a device must grant more), 311 MB + 161 MB for
@@ -305,14 +339,17 @@ Memory (`fluidMemory()`): about 140 bytes of floats and 70 of indices per padded
 
 ### Results
 
-The rows are the float64 solver's (domain `fluid`) that the backend covers. Two set-ups are new because the float64
-ones hold an obstacle: the projection of a random field (the same set-up without its capsule) and the tank at rest
-(without its sphere). Measured on the float32 reference in the gate and on the GPU (SwiftShader, 47 minutes) in the
-browser: the same digits.
+The rows are the float64 solver's (domain `fluid`) that the backend covers, on the float64 set-ups themselves (the
+projection with its tilted capsule, the tank with its sphere, the Stokes sphere). The coupling rows take a rigid world:
+here a stand-in that integrates free spheres in float64 by symplectic Euler (`pointWorld` in `fluid-cases.ts`), because the
+kit's WebAssembly world does not run in the worker that drives the GPU; the float64 solver on the same stand-in gives the
+same numbers to the digits shown (terminal velocity -9.2576e-3 against -9.2577e-3 m/s). Measured on the float32
+reference in the gate and on the GPU (SwiftShader) in the browser, with the same digits: the rows without obstacles on
+2026-11-16 (47 minutes), the ten with obstacles or bodies on 2026-11-17 (76 minutes at a load average of 17 to 36).
 
 | Case | Measured | Reference | Tolerance | float64 tolerance |
 |---|---|---|---|---|
-| Projection: divergence left (random field, walls / periodic / outflow, no capsule) | 1.80e-6 | 0 | <= 3e-6 | <= 1.5e-10 |
+| Projection: divergence left (walls / periodic / outflow, a tilted capsule) | 1.92e-6 | 0 | <= 3e-6 | <= 1.5e-10 |
 | Taylor-Green: decay rate, 32^2 | 0.039887 1/s | 0.04 | 5e-3 relative | same |
 | Taylor-Green: order between 32 and 64 | 2.17 | 2 | +- 0.3 | same |
 | Taylor-Green: velocity error | 5.54e-5 | 0 | <= 1e-4 | same |
@@ -327,8 +364,15 @@ browser: the same digits.
 | Lid-driven cavity, Re 100: v | 8.25e-3 | 0 | <= 1.2e-2 | same |
 | Lid-driven cavity, Re 400: u | 1.33e-2 | 0 | <= 2.5e-2 | same |
 | Lid-driven cavity, Re 400: v | 1.48e-2 | 0 | <= 2.5e-2 | same |
-| Water at rest (no sphere): largest speed over g dt | 0 | 0 | <= 1e-12 | same |
+| Water at rest with a fixed sphere: largest speed over g dt | 0 | 0 | <= 1e-12 | same |
 | Water at rest: pressure head | 1839.375 Pa | 1839.375 | 1e-9 relative | same |
+| Water at rest: buoyancy of the sphere (radius 2.4 cells) | 1.16449 N | 1.10948 | 6 % | same |
+| Stokes drag, K at 2.4 cells per radius (Hasimoto) | 1.57272 | 1.70000 | 10 % | same |
+| Stokes drag, K at 3.6 cells per radius | 1.64359 | 1.70000 | 5 % | same |
+| Stokes drag: force on a control surface against the constraint's | 7.89235e-4 N | 7.89167e-4 | 1 % | same |
+| Coupling: terminal velocity of a settling sphere (stand-in world) | -9.2577e-3 m/s | -8.7307e-3 | 12 % | same |
+| Coupling: impulse handed over (stand-in world) | 6.2e-8 | 0 | <= 1e-6 | <= 1e-12 |
+| Coupling: total momentum (stand-in world) | 6.2e-8 | 0 | <= 1e-6 | same |
 
 The float64 solver gives 2.237e-3 / 8.244e-3 (Re 100) and 1.335e-2 / 1.483e-2 (Re 400) on the cavity: the float32
 backend is within 1e-5 of the lid speed of it. Where float32 forces a looser tolerance:
@@ -339,8 +383,12 @@ backend is within 1e-5 of the lid speed of it. Where float32 forces a looser tol
 | Poiseuille profile | 1e-6 relative | 5e-4 relative | 3.9e-5 relative | the Laplacian of a float32 profile is rounded to 12 x 6e-8 \|u\| / h^2; the steady state carries that over the smallest eigenvalue: about 2e-5 of the centre-line speed, against a measured deviation of 3.9e-3 of it |
 | Couette profile | 1e-7 | 2e-4 | 6.0e-5 | the same: 12 x 6e-8 (H / h)^2 / pi^2 = 1.9e-5 of the wall speed at 16 cells, and the steady-state rule stops when a step changes less than that |
 | Channel mass | 1e-8 | 1e-5 | 4.7e-6 | a flow rate is a sum of 12 face velocities, and the projection leaves 2e-6 of divergence per cell |
+| Coupling: impulse handed over | 1e-12 | 1e-6 | 6.2e-8 | every face velocity is rounded to 6e-8 of itself each step and the impulse and the momentum inside are float32 sums: the fluid's momentum and the impulse it hands over agree to the rounding of the velocities, not to the float64 solver's 1e-16 |
 
-The Taylor-Green energy ledger, Stokes drag, buoyancy, the coupling rows and the free-surface rows are not covered.
+The float32 reference and the float64 solver agree on the obstacle rows to about 1e-6 of each value (Stokes K 1.5727176
+against 1.5727184 at 16 cells, 1.6435863 against 1.6435876 at 24; the buoyancy and the pressure head to every digit).
+The Taylor-Green energy ledger, the repeatability row (it hashes the kit's world) and the free-surface rows are not
+covered.
 
 GPU against the CPU (SwiftShader):
 
@@ -349,9 +397,16 @@ GPU against the CPU (SwiftShader):
 | Taylor-Green, explicit, central | 1024 | 20 | 0 (identical) | 1.3e-6 | 1.9e-6 | identical bytes |
 | Cubic lid-driven cavity, backward Euler | 4096 | 12 | 0 (identical) | 3.9e-7 | 1.9e-6 | identical bytes |
 | Open channel, Crank-Nicolson, upwind, inflow and outflow | 576 | 20 | 0 (identical) | 5.6e-6 | 2.0e-6 | identical bytes |
+| Cylinder across a channel (fixed obstacle) | 768 | 20 | 0 (identical) | 1.6e-6 | 1.8e-6 | identical bytes |
+| Sphere moving and turning in a closed box, gravity | 4096 | 12 | 0 (identical) | 1.0e-6 | 1.9e-6 | identical bytes |
 
-Differences over the largest speed. Device destroyed after 12 of 20 steps with a snapshot every 5: the run finishes on
-the CPU (2 steps run again; the Adams-Bashforth history restarts) and ends 3.4e-7 from a float64 run.
+The force on the obstacle after the last step, GPU against the CPU: the cylinder (9.076e-6, -1.383e-6, 0) N, the
+GPU's bits are the reference's, 8.7e-6 of it from the float64 solver; the moving sphere (-2.557e-3, 3.953e-2, -1.882e-3) N,
+the reference's bits, 2.3e-6 from float64.
+
+Differences over the largest speed (2026-11-16 for the first three rows, 2026-11-17 for the obstacles). Device
+destroyed after 12 of 20 steps with a snapshot every 5: the run finishes on the CPU (2 steps run again; the
+Adams-Bashforth history restarts) and ends 3.4e-7 from a float64 run.
 
 On SwiftShader a step of the 48^2 cavity at Re 400 took about 1 s (1450 steps in 25 minutes): numbers for the record,
 not for a GPU.
@@ -396,6 +451,83 @@ run on the GPU: they need the kit's WASM world inside the worker, which was not 
 No simulation data is read back for a frame. The examples read back statistics only: 288 bytes per wall and 32 bytes of
 counters per batch of grain steps; 32 bytes every twentieth batch for shallow water; for the fluid, its 64 scalars (256 bytes) every 16
 iterations of a solve (the solves stop on the GPU) and once at the end of a step.
+
+## Checkpoints
+
+Every GPU backend writes its state as bytes and puts them back (`checkpoint()`, a promise, because it reads the
+buffers; `restoreCheckpoint(bytes)`), in the self-checking container of [`CHECKPOINTS.md`](CHECKPOINTS.md) (format
+version, SHA-256). The float32 reference of each backend writes and reads the same format, so a checkpoint taken on
+the GPU resumes on the CPU reference and the other way round.
+
+| Backend | Kind | What is saved | Bytes |
+|---|---|---|---|
+| `GpuFluid`, `FluidF32` | `gpu-fluid`, `fluid-program-f32-v1` | face velocities with their ghosts, the previous advection (Adams-Bashforth), pressure, whether the next step uses Adams-Bashforth, time, statistics | 28 per padded cell |
+| `GpuShallowWater`, `ShallowWaterF32` | `gpu-shallow-water`, `shallow-water-f32-v1` | (h, hu, hv, carry) and (infiltrated, scratch, side volume, carry) per cell, time, steps, the last substep's length (the leading friction uses it), rain added, the volumes of the budget, statistics | 32 per cell |
+| `GpuGranular`, `GranularF32` | `gpu-granular`, `granular-f32-v1` | position and radius, velocity and mass, spin and inverse inertia, force and torque per grain, the contact histories the next step reads, the walls with their sums, the cumulative counters, time, statistics | 80 + 16 K (32 K with rolling friction) per grain |
+
+Everything else on the device is rewritten by a step before it is read, or constant; a restored backend starts the
+other history buffer empty. Refused (`CHECKPOINT_MISMATCH`): another grid, grain count, history size or wall count,
+another format. A `GpuShallowWater` with `rateLatency` above 0 refuses to checkpoint (its face speeds are on their way).
+With obstacles, the fluid's checkpoint holds the flow; the obstacles' poses, forces and momentum records belong to the
+`Fluid` the backend was built from and are saved with its own `saveState()`.
+
+What is guaranteed, and checked:
+
+- **Bit-exact against its own run.** A run checkpointed at step N, restored into a fresh backend built from the same
+  start and taken to N + M gives the bits of the run taken straight to N + M: in the gate on every float32 reference
+  (all fluid, shallow-water and grain set-ups, with the moving sphere's host restored too), across the GPU and the
+  reference for the fluid (through the stand-in device that runs the kernels, both ways; the GPU writes the reference's
+  bytes), and on SwiftShader for the GPU backends (browser check, table below).
+- **Bit-exact against the float32 reference** where the GPU and the reference agree bit for bit (the agreement tables
+  above: everything here except set-ups that use `pow`, `log` or `exp`, which a GPU may round differently).
+- **Not against float64.** A GPU checkpoint holds float32 numbers; it does not resume the float64 solver, and the
+  float64 solver's checkpoints do not resume a GPU backend (`pull` writes a GPU state into a float64 solver, without its
+  contact histories, as a fall back does).
+
+On SwiftShader (`node scripts/gpu-compute-browser-check.mjs out --no-granular --no-shallow-water --no-fluid`, 2026-11-17,
+124 s at a load average near 30): a GPU run checkpointed half way, restored into a fresh GPU backend built from the
+same start, and taken to the end, against the straight GPU run; and the same checkpoint restored into the float32
+reference.
+
+| Backend | Set-up | Steps (checkpoint at) | Checkpoint bytes | Restored on the GPU | Restored on the float32 reference |
+|---|---|---|---|---|---|
+| shallow water | Thacker, 64 x 64 | 40 (20) | 131 535 | identical bits | depths and discharges identical (difference 0); the per-cell aux words differ |
+| grains | bead box, 360 beads | 400 (150) | 146 228 | identical bits | identical bits |
+| fluid | cubic cavity, 16^3 | 12 (6) | 156 730 | identical bits | identical bits |
+| fluid | moving, turning sphere, 16^3 | 12 (6) | 156 730 | identical bits | identical bits |
+
+The shallow-water difference was not traced further; on Thacker's set-up (closed sides, no soil) the only aux word that
+changes is, by reading the code, the first stage's depth increment, a scratch value rewritten each substep before it is
+read (unverified by a run).
+
+## Scene sections on the GPU
+
+A `grains` or `shallowWater` section of a scene file may say `"backend": "gpu"` ([`SCENE_FORMAT.md`](SCENE_FORMAT.md#sections-on-the-gpu)).
+The Simulation loop has an opt-in asynchronous stage for them:
+
+- A subsystem may have `stepAsync(ctx)`, `checkpointAsync()` and `pullAsync()`. `await simulation.stepAsync()` runs the
+  step in the usual order (prepare, pre-couple, couple, the rigid step, post, finish, events, listeners), awaiting each
+  asynchronous subsystem in its place; the others run exactly as in `step()`. `step()` and `checkpoint()` refuse a
+  simulation with an asynchronous subsystem; a second asynchronous call before the first has resolved is refused.
+  `checkpointAsync()` writes the same file format as `checkpoint()`, and `restore()` puts it back.
+- A simulation without asynchronous subsystems is untouched: `step()` is the same code (one added check), and
+  `stepAsync()` gives its bits (tested on a scene of grains, a see-saw and a valley of water). No scene hash changes:
+  `"cpu"` is the default and is left out of the normal form.
+- `gpuSceneBackends(compute)` (`src/engine/gpu/scene-backends.ts`) builds the GPU sections; the loaders take it as
+  `{gpu}` and refuse a scene with a GPU section without it. The backend is created from the float64 solver the loader
+  made, at the first `stepAsync()`, so loading stays synchronous. Grains: the coupling's begin and finish run on the CPU
+  around the GPU's substeps (`GpuGranularCoupling` with latency 0: the walls' sums are read back before the rigid
+  step), couple stage, order 160. Shallow water: post stage, order 530, at the world step over `substeps`; no bodies.
+- `gpuSceneBackends('reference')` runs the same float32 programs on the CPU instead (slower than the float64 solvers).
+  The gate runs the scene sections that way: two runs give the same bits, a checkpoint taken at step 15 and resumed with
+  `resumeSimulationScene` in a fresh world carries on to step 40 with the bits of the straight run.
+- The state lives on the device. `await simulation.pullAsync()` writes it into the float64 objects the loader made (the
+  `grains` and `shallowWater` maps); saving the scene is refused until a section has been pulled since its last step.
+
+Determinism of a GPU section: float32; repeat runs on the same device and browser are bit-identical; a checkpoint resumes
+bit-exactly; the results are the float32 reference's bits where the agreement tables say "identical", and are not the
+float64 solver's. A checkpoint of a GPU simulation does not restore into a CPU simulation of the same scene without the
+`backend` field (the scene hashes differ).
 
 ## Lab examples at scale
 
@@ -487,22 +619,50 @@ npm ci && npm run build && npm run bench:gpu:hardware
 
 That is `node scripts/gpu-compute-browser-check.mjs --hardware --bench`: it launches the browser without the software
 flags and prints one table (backend, size, substeps, ms per step, element updates per second, the CPU solver's ms per
-step where it fits, and the ratio), and writes `gpu-compute-bench-hardware.json`. `BOX3D_CHROMIUM` names the browser;
-`--sizes=256,512,1024,2048`, `--grains=10000,100000,400000,1000000` and `--steps=60` set the cases. The table's first line
-names the adapter and says so when it is a software adapter. The same table is on `gpu-probe.html` ("Time the backends").
+step where it fits, and the ratio) for shallow water (256 to 2048 cells along a side), the grain avalanche (10 000 to
+1 000 000 grains) and the fluid: a lid-driven cube and the flow through a periodic array of spheres (the obstacle band
+uploaded every step), 32^3, 64^3 and 96^3 cells. It writes `gpu-compute-bench-hardware.json` and the same table as
+`gpu-compute-bench-hardware.md`, with the adapter, the browser version, the date and the machine's load average, ready to
+paste here. `BOX3D_CHROMIUM` names the browser; `--sizes=`, `--grains=`, `--fluid=` and `--steps=` set the cases. The
+table's first line names the adapter and says so when it is a software adapter. The same table is on `gpu-probe.html`
+("Time the backends").
+
+The command on SwiftShader at small sizes (`--bench --sizes=64,128 --grains=2000 --fluid=8,16 --steps=4`, 2026-11-17,
+load average 10 to 13 on 4 cores), to show the table's form only:
+
+| Backend | Size | ms per step | CPU solver, ms per step |
+|---|---|---|---|
+| shallow water | 64 x 64 | 22.9 | 7.5 |
+| shallow water | 128 x 128 | 183 | 5.6 |
+| grains | 2000 | 42.4 | 8.5 |
+| fluid cavity (23 pressure, 18 viscous iterations a step) | 8^3 | 277 | 8.7 |
+| fluid sphere array (18 pressure, 59 viscous iterations a step) | 8^3 | 352 | 15 |
+| fluid cavity (50 pressure, 21 viscous iterations a step) | 16^3 | 2030 | 21.5 |
+| fluid sphere array (36 pressure, 95 viscous iterations a step) | 16^3 | 2960 | 25.6 |
+
+On SwiftShader the fluid is 30 to 110 times slower than the float64 solver: a solve stops on the GPU and is read back
+every 16 iterations, and each iteration is a dozen dispatches, which an emulated GPU runs one after another on the CPU.
+What a real GPU does with it is the open question this command answers.
 Run the validation on that machine too (`node scripts/gpu-compute-browser-check.mjs out --hardware`): a GPU may fuse
 multiply-adds and round `pow`, `log` and `sqrt` differently from SwiftShader, so "identical to the reference" above is a
 SwiftShader result; the closed-form rows have margin for that.
 
 ## Not done
 
-- **Obstacles in the GPU fluid** (the fictitious domain, forces on bodies, coupling), a **multigrid** pressure
-  preconditioner on the GPU, and the **free surface** (APIC) on the GPU.
-- **`backend: 'gpu'` on scene sections.** `Simulation.step()` and every subsystem are synchronous and their state is
-  checkpointed bit for bit; a GPU backend's results arrive asynchronously and in float32. Wiring one in needs an
-  asynchronous subsystem stage (or the coupling pattern above generalised) and a decision on checkpoints. The Lab
-  examples at scale therefore run beside the Simulation loop, not through the scene format.
-- **The Studio's granular tray and river tabs on the GPU (`?gpu=1`).** Same reason: the Studio's SI solvers run inside
+- **The free surface (APIC) on the GPU: not attempted** (2026-11-17), and nothing of it is in the code. What it needs
+  that the flow backend does not have: a repeatable particle-to-grid transfer (WGSL has no floating-point atomics, so
+  the particles must be sorted by cell every step, as the grains are in their hash grid, and each face gather the
+  weighted velocities of the particles in the cells around it in a fixed order); pressure and viscous systems whose
+  unknowns change every step (liquid cells, air as p = 0, voxelised solids), where the flow program's lists are fixed
+  when it is built, so masked operators with their own float32 reference; and a validation that runs thousands of
+  steps (Martin & Moyce, the sloshing frequency, Huppert's current) on SwiftShader. That is a new solver of the size of
+  the flow backend, and it was left for a later pass rather than committed unvalidated.
+- A **multigrid** pressure preconditioner on the GPU, and the obstacle geometry on the GPU (it is on the host, in
+  float64; many moving obstacles would make the host the bottleneck).
+- The fluid coupling rows through the kit's WebAssembly world (they ran through a float64 stand-in world).
+- **`backend: 'gpu'` for the fluid and in the Lab.** Only grains and shallow water take it; the Lab does not load scenes
+  with GPU backends (its frame loop calls `step()`), and the GPU scene backends are not in the kit.
+- **The Studio's granular tray and river tabs on the GPU (`?gpu=1`).** The Studio's SI solvers run inside
   its synchronous step and its saved runs are exact.
 - **Shallow water with bodies and point sources** on the GPU.
 - **Compensated velocity and position sums** for grains (the incline row above).

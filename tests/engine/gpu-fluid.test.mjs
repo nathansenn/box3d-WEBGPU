@@ -7,6 +7,9 @@
 //  - the float32 reference against every closed form of the float64 validation the backend covers, with the float64
 //    tolerance except where float32 forces a looser one (src/engine/gpu/fluid-cases.ts says which and why), against the
 //    float64 solver on short runs, and repeatability;
+//  - obstacles, fixed and moving: the band the host uploads, the constrained faces, the sums of the constraint impulse
+//    and of the momentum inside, which give the same force bits through GpuFluid on the stand-in device as through the
+//    reference, and the float64 solver's forces to float32 rounding; the capacity guard;
 //  - the fall back to the float64 solver when the device is lost, and the guard against a device that never reports a
 //    stopped solve.
 // The GPU itself is compared with this reference in a browser: scripts/gpu-compute-browser-check.mjs.
@@ -26,7 +29,7 @@ const {FluidF32} = await import('../../src/engine/gpu/fluid-f32.ts');
 const {GpuFluid, FluidRunner} = await import('../../src/engine/gpu/fluid-gpu.ts');
 const {fluidProxy, fluidF32Remote} = await import('../../src/engine/gpu/fluid-proxy.ts');
 const {runFluidCases} = await import('../../src/engine/gpu/fluid-cases.ts');
-const {FLUID_SETUPS} = await import('../../src/engine/gpu/fluid-setups.ts');
+const {FLUID_SETUPS, movingSphere, moveSphere} = await import('../../src/engine/gpu/fluid-setups.ts');
 
 /** A stand-in device whose dispatches run the float32 kernels on its own buffers. */
 function cpuDevice() {
@@ -52,8 +55,9 @@ test('the shader compiles, and steps with every kind of side encode without a va
   }
   const compute = new NullBackendCompute(device, adapter.info);
   for (const name of Object.keys(FLUID_SETUPS)) {
-    const gpu = await GpuFluid.create(compute, FLUID_SETUPS[name]().fluid);
-    await gpu.step(2); await gpu.project(); await gpu.read();
+    const setup = FLUID_SETUPS[name](), gpu = await GpuFluid.create(compute, setup.fluid);
+    for (let k = 0; k < 2; k++) { setup.beforeStep?.(setup.fluid, k); await gpu.step(); }
+    await gpu.project(); await gpu.read();
     assert.equal(gpu.stats.steps, 2);
     gpu.destroy();
   }
@@ -63,11 +67,14 @@ test('the shader compiles, and steps with every kind of side encode without a va
 
 test('GpuFluid on a device that runs the float32 kernels gives the float32 reference bits', async () => {
   for (const [name, make] of Object.entries(FLUID_SETUPS)) {
-    const {steps} = make(), gpu = await GpuFluid.create(new GpuCompute(cpuDevice()), make().fluid);
-    await gpu.step(steps);
-    const s = await gpu.read(), r = new FluidF32(make().fluid);
-    r.step(steps);
+    const a = make(), b = make(), gpu = await GpuFluid.create(new GpuCompute(cpuDevice()), a.fluid), r = new FluidF32(b.fluid);
+    for (let k = 0; k < a.steps; k++) { a.beforeStep?.(a.fluid, k); await gpu.step(); b.beforeStep?.(b.fluid, k); r.step(); }
+    const s = await gpu.read();
     assert.equal(bits(s.u, s.v, s.w, s.p), bits(r.velocity(0), r.velocity(1), r.velocity(2), r.pressure()), name);
+    for (let o = 0; o < a.fluid.obstacleCount; o++) {
+      assert.equal(bits(a.fluid.obstacleForce(o), a.fluid.obstacleTorque(o), a.fluid.obstacleImpulse(o)), bits(b.fluid.obstacleForce(o), b.fluid.obstacleTorque(o), b.fluid.obstacleImpulse(o)), `${name}: obstacle ${o}`);
+      assert.ok(Math.hypot(...a.fluid.obstacleForce(o)) > 0, `${name}: obstacle ${o} feels a force`);
+    }
     assert.equal(gpu.stats.pressureIterations, r.stats.pressureIterations);
     assert.equal(gpu.stats.viscousIterations, r.stats.viscousIterations);
     assert.ok(gpu.stats.pressureIterations > 0, `${name}: the projection iterated`);
@@ -88,24 +95,55 @@ test('a step: ghosts, advection, predictor, viscous solves, projection; the solv
 });
 
 let cases;
-test('float32 reference: every closed form of the float64 validation the backend covers', {timeout: 900000}, () => {
-  cases = runFluidCases(S, {...M, Fluid: fluidProxy(fluidF32Remote)});
+test('float32 reference: every closed form of the float64 validation the backend covers', {timeout: 900000}, async () => {
+  cases = await runFluidCases(S, {...M, Fluid: fluidProxy(fluidF32Remote)});
   for (const row of cases.rows) assert.equal(row.pass, true, `${row.id}: ${row.value} against ${row.reference} (${row.tolerance.kind} ${row.tolerance.value})`);
-  assert.equal(cases.rows.length, 17);
+  assert.equal(cases.rows.length, 24);
   assert.deepEqual(cases.rows.filter(r => r.tolerance.value !== r.float64.value).map(r => r.id),
-    ['fluid.projection.divergence', 'fluid.poiseuille.profile', 'fluid.couette.profile', 'fluid.channel.mass']);
+    ['fluid.projection.divergence', 'fluid.poiseuille.profile', 'fluid.couette.profile', 'fluid.channel.mass', 'fluid.coupling.third-law']);
 });
+/** Steps a set-up on the float64 solver and on the reference (each from its own fluid, moved as the set-up says). */
+function both(make) {
+  const a = make(), b = make(), r = new FluidF32(b.fluid);
+  for (let k = 0; k < a.steps; k++) { a.beforeStep?.(a.fluid, k); a.fluid.step(); b.beforeStep?.(b.fluid, k); r.step(); }
+  return {f64: a.fluid, f32: b.fluid, r};
+}
 test('float32 reference against the float64 solver on short runs; a repeated run gives the same bytes', () => {
   for (const [name, make] of Object.entries(FLUID_SETUPS)) {
-    const {steps} = make(), a = make().fluid, b = new FluidF32(make().fluid);
-    a.step(steps); b.step(steps);
+    const {f64: a, f32: host, r: b} = both(make);
     let dv = 0, top = 0;
     for (let c = 0; c < 3; c++) { const x = b.velocity(c); for (let i = 0; i < x.length; i++) { dv = Math.max(dv, Math.abs(x[i] - a.vel[c][i])); top = Math.max(top, Math.abs(a.vel[c][i])); } }
     assert.ok(dv / top < 2e-5, `${name}: velocity differs by ${dv / top} of the largest`);
     assert.ok(b.stats.divergence < 3e-6, `${name}: divergence ${b.stats.divergence}`);
-    const again = new FluidF32(make().fluid); again.step(steps);
+    for (let o = 0; o < a.obstacleCount; o++) {
+      const F = a.obstacleForce(o), G = host.obstacleForce(o), T = a.obstacleTorque(o), U = host.obstacleTorque(o);
+      const df = Math.hypot(...[0, 1, 2].map(k => F[k] - G[k])) / Math.hypot(...F), dt = Math.hypot(...[0, 1, 2].map(k => T[k] - U[k])) / Math.max(Math.hypot(...T), 1e-30);
+      assert.ok(df < 1e-4, `${name}: obstacle force differs by ${df} of itself (${[...F]} against ${[...G]})`);
+      assert.ok(dt < 1e-3, `${name}: obstacle torque differs by ${dt} of itself`);
+    }
+    const again = both(make).r;
     assert.equal(bits(again.F), bits(b.F));
   }
+});
+
+test('obstacles: the band follows a moving sphere, empty components are skipped, and a band larger than the room is refused', () => {
+  const fluid = movingSphere(), r = new FluidF32(fluid), plan = r.program.plan;
+  assert.equal(plan.obstacles, 1);
+  const sizes = [];
+  for (let k = 0; k < 4; k++) { moveSphere(fluid, 20 * k); const band = fluid.backendObstacleBand(); sizes.push(band.components.map(c => c.face.length)); }
+  assert.ok(sizes.every(s => s.every(n => n > 0)), 'every component has faces near the sphere');
+  assert.ok(new Set(sizes.map(s => s.join())).size > 1, 'the band changes as the sphere moves');
+  const sum = sizes[0].reduce((a, b) => a + b, 0);
+  assert.ok(plan.obstacleCapacity >= 2 * sum, `room for ${plan.obstacleCapacity} faces`);
+  // The band is grouped by component then obstacle, constrained faces have a target, free ones mode 0.
+  const band = fluid.backendObstacleBand();
+  assert.ok(band.components.every(c => c.mode.some(m => m === 0) && c.mode.some(m => m === 2)));
+  const tight = new FluidF32(movingSphere(), {obstacleCapacity: 10});
+  assert.throws(() => tight.step(), e => e.code === 'GPU_CAPACITY' && /obstacleCapacity/.test(e.message));
+  // The proxy builds the backend for the obstacles it has at its first step.
+  const Proxy = fluidProxy(fluidF32Remote), p = new Proxy({cells: [8, 8, 8], spacing: 0.01, density: 1000, viscosity: 1e-3, dt: 0.01});
+  p.addObstacle({shape: {kind: 'sphere', radius: 0.02}, position: [0.04, 0.04, 0.04]}); p.step();
+  assert.throws(() => p.addObstacle({shape: {kind: 'sphere', radius: 0.01}, position: [0.02, 0.02, 0.02]}), /before the first step/);
 });
 
 test('a device lost in mid-run: the float64 solver carries on from the last snapshot; a device that never stops a solve is refused', async () => {
@@ -126,6 +164,4 @@ test('a device lost in mid-run: the float64 solver carries on from the last snap
   // A device whose scalars always read zero never reports a stopped solve: refused after maxIterations, not looped on.
   const silent = await GpuFluid.create(new GpuCompute(mockDevice()), FLUID_SETUPS['taylor-green']().fluid);
   await assert.rejects(silent.step(), e => e.code === 'GPU_VALIDATION' && /without stopping/.test(e.message));
-  const withSphere = FLUID_SETUPS['taylor-green']().fluid; withSphere.addObstacle({shape: {kind: 'sphere', radius: 0.5}, position: [3, 3, 0.1]});
-  assert.throws(() => withSphere.backendDescription(), /obstacles/);
 });
