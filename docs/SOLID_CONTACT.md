@@ -205,17 +205,18 @@ contact.contactForce(1, 0);           // force on `upper` from `lower`, N
 - **Edges.** Only sharp convex edges (more than 30° between their faces), only crossings strictly inside both segments (an edge crossing exactly through a node of the other edge is not caught), only edges more than 3° from parallel (nearer parallel, the faces act). An edge pair keeps its friction state while it presses; when the crossing moves to the next segment the stretch starts again from zero.
 - **Backward Euler** damps: the impact of the cubes keeps 38 % of its kinetic energy (41 % without friction). Restitution is not a parameter.
 - Contact between a solid of a group and a rigid body is not available: `SolidSolidContact` takes solids and fixed planes. No welds between solids. A surface that goes more than an element size behind the other body's face in one step is lost. Self-contact of parts thinner than a quarter of an element size is not supported. The penalty springs close an interface by `p / (2 k)`; there are no Lagrange multipliers.
-- **Cost.** `node packages/box3d-kit/scripts/bench-solid-contact.mjs` (one thread, Node 22, the shared 4-core sandbox at a load average of 21 to 35, so the times are upper bounds and differences under a factor of 1.5 are noise): two slabs of 1 m × 0.05 m, n × 2 × n cells on (n + 1) × 2 × (n + 1), one on the other.
+- **Cost.** `node packages/box3d-kit/scripts/bench-solid-contact.mjs --repeat 5` (fastest of 5 searches and of 2 steps; one thread, Node 22, the shared 4-core sandbox at a load average of 8 to 16, so the times are upper bounds and differences under a factor of 1.5 are noise; the first size of each run also pays for compilation): two slabs of 1 m × 0.05 m, n × 2 × n cells on (n + 1) × 2 × (n + 1), one on the other. Version 1 is commit 5f0454d built the same way.
 
   | Surface triangles (both bodies) | 6,020 | 11,220 | 26,420 | 50,532 |
   |---|---|---|---|---|
-  | Search, mortar (both directions and the edges), ms | 75 | 118 | 320 | 828 |
-  | Search, node to face, spatial hash, ms | 145 | 125 | 269 | 471 |
-  | Search, node to face, version 1 (a `Map` of arrays per cell), ms | 199 | 208 | 389 | 719 |
-  | One step (search, Newton, PCG), mortar, s | 3.7 | 5.2 | 16.9 | 36.8 |
-  | One step, version 1, s | 4.0 | 6.0 | 17.1 | 38.3 |
+  | Search, mortar (both directions and the edges), ms | 169 | 101 | 154 | 311 |
+  | Search, node to face, spatial hash, ms | 25 | 54 | 61 | 106 |
+  | Search, node to face, version 1 (a `Map` of arrays per cell), ms | 55 | 32 | 188 | 250 |
+  | One step (search, Newton, PCG), mortar, s | 2.0 | 2.5 | 6.2 | 12.7 |
+  | One step, node to face with the hash, s | 1.5 | 2.6 | 6.6 | 15.9 |
+  | One step, version 1, s | 1.7 | 2.9 | 7.7 | 19.9 |
 
-  The search grows about linearly with the surface and is 2 to 3 % of a step; the Newton and conjugate-gradient iteration is the cost, as for a lone solid. A mortar row reaches about 20 nodes (241,187 entries for 12,325 rows on the largest pair), against 4 for a node-face row.
+  The search grows about linearly with the surface; the mortar's clipping and integration cost about three times the node search, and the search is 1 to 3 % of a step. The Newton and conjugate-gradient iteration is the cost, as for a lone solid. A mortar row reaches about 20 nodes (241,187 entries for 12,325 rows on the largest pair), against 4 for a node-face row. An earlier run at a load average of 21 to 35 gave 75 to 828 ms for the mortar search and 199 to 719 ms for version 1: on this machine, timings move by a factor of 2 to 3 with the load.
 - **Scene format.** `solids[].contact.solids` names the other solids a solid collides with, `contact.self` its self-contact, `contact.friction` the coefficient ([`SCENE_FORMAT.md`](SCENE_FORMAT.md#coupled-sections-solids-and-heat)); scene groups use the default method (mortar with edge contact); the Lab runs `lab.html?example=soft-blocks`.
 
 ## Reproduce
