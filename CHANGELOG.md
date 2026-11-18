@@ -1,5 +1,12 @@
 # Changelog
 
+## Unreleased — 2026-11-18 — Glass study: fragments meet the pendulum, the clamp pads and the glass still in the frame
+
+- **Lab (`glass-fragments.ts`, `glass-si.ts`):** collision categories (fragments with everything; rig, clamps and bob with fragments only). The bob is a dynamic sphere of the bob's mass and inertia locked to the pendulum's plane, driven each tick from the pendulum's pose to its next one; the change of its velocities gives the pendulum the generalized impulse `Q = J · t − L_x`, so angular momentum about the pivot is conserved. Bob contact without restitution (it crushes glass, as its contact with the pane does). The clamp pads are static boxes; the held glass is one kinematic hull per plate tile (outline as drawn plus 2.5 mm, 16 mm thick), made at the first release, following the plate near fragments, removed with its node. A shard released inside the bob's sphere is moved out along the shortest way (position only; up to 72 mm in the radial impact, where flat 0.1 m tiles meet the sphere's flank); one released inside a pad or the held glass (overlap above 1 mm) ignores the clamps until clear.
+- **Validation (`tests/studio/glass-fragments.test.mjs`):** the bob striking a tile without gravity conserves angular momentum about the pivot to 0.012 % of the 1.76 N m s exchanged; no drawn shard corner deeper than 2 mm into the bob (0.62, 0.87, 1.06, 0 mm: radial, frosted, edge strike, tempered), a pad (0) or the held glass (0, 1.13, 0, 0 mm); the rig rows stay within 5 mm (frosted 3.08 mm); edge strike added to the presets checked; determinism unchanged. The fragments give the pendulum 0.25 to 0.6 % of its angular momentum.
+- **Studio text:** the glass description no longer says fragments do not collide.
+- docs/STUDIO_MATERIAL_LABS.md (Fragments in a Box3D world, limits).
+
 ## Unreleased — 2026-11-17 — Glass study: finer cracks on a grid refined around the impact
 
 - **Plate (`src/engine/plate.ts`):** graded grids (`lines: {x, y}`, the node columns and rows). Second differences between unequal spacings, a twist and a bilinear membrane cell of each cell's own size, node areas and bridging widths of the node's strip; `xs`, `ys`, `dx`, `dy`, `dualX`, `dualY`. On an equal grid every row of `test:plate` keeps its digits.
